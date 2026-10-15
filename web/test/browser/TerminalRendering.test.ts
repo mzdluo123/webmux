@@ -495,6 +495,11 @@ beforeEach(async () => {
 afterEach(async () => {
   try {
     await cleanup();
+    // Terminal disposal waits until xterm's pending viewport frame has read
+    // renderer dimensions. Observer assertions run after that frame.
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
     await userEvent.cleanup();
     expect(
       observations
@@ -927,6 +932,59 @@ test("explicit black ANSI input remains readable in dark theme and updates on th
   await expect.poll(ratio).toBeGreaterThanOrEqual(4.49);
   document.documentElement.classList.add("dark");
   await expect.poll(ratio).toBeGreaterThanOrEqual(4.49);
+});
+
+test("pending viewport reset after a theme change does not read a disposed renderer", async () => {
+  observeGlyphPixels(true);
+  document.documentElement.classList.add("dark");
+  const { socket, rendered } = await openTerminal();
+  await expectDomText(prompt);
+  const queued: FrameRequestCallback[] = [];
+  const realFrame = window.requestAnimationFrame.bind(window);
+  const realCancel = window.cancelAnimationFrame.bind(window);
+  window.requestAnimationFrame = (callback) => {
+    queued.push(callback);
+    return queued.length;
+  };
+  window.cancelAnimationFrame = () => {};
+  const errors: unknown[] = [];
+  const onError = (event: ErrorEvent) => {
+    errors.push(event.error ?? event.message);
+  };
+  window.addEventListener("error", onError);
+  try {
+    // Viewport.reset() records a zero buffer length and syncs on the next
+    // frame. A resize or scroll during the test records the real length
+    // first; macOS can then run that frame after disposal.
+    socket.receive(1, "\x1b[38;2;0;0;0m中文 input\x1b[0m");
+    const opened = queued.splice(0);
+    const sync = opened.find((callback) =>
+      callback.toString().includes("syncScrollArea"),
+    );
+    if (!sync) throw new Error("missing viewport sync frame");
+    for (const callback of opened) callback(0);
+    document.documentElement.classList.remove("dark");
+    document.documentElement.classList.add("dark");
+    queued.push(sync);
+    await rendered.unmount();
+    window.requestAnimationFrame = realFrame;
+    window.cancelAnimationFrame = realCancel;
+    for (const callback of queued) {
+      try {
+        callback(0);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    await new Promise<void>((resolve) => {
+      realFrame(() => realFrame(() => resolve()));
+    });
+  } finally {
+    window.requestAnimationFrame = realFrame;
+    window.cancelAnimationFrame = realCancel;
+    window.removeEventListener("error", onError);
+  }
+  expect(errors).toEqual([]);
 });
 
 test("native long press selects wide text and dragging copies multiple lines without terminal input or keyboard", async () => {

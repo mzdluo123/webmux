@@ -134,6 +134,7 @@ export function useTerminal(
         // xterm's built-in DOM renderer remains available without WebGL.
       }
       const theme = () => {
+        if (disposed) return;
         term.options.theme = terminalTheme();
       };
       const colors = new MutationObserver(theme);
@@ -582,7 +583,17 @@ export function useTerminal(
         oscClipboard.dispose();
         colors.disconnect();
         ws.close();
-        term.dispose();
+        const dying = term;
+        // Viewport.reset() queues syncScrollArea for the next frame, and that
+        // frame reads RenderService.dimensions. Disposing in this turn removes
+        // the renderer first, so the callback throws after a restore or theme
+        // change. Let that frame, and the scroll refresh it may schedule, run
+        // before the terminal is disposed.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            dying.dispose();
+          });
+        });
         terminal = undefined;
         socket = undefined;
         fit = undefined;
