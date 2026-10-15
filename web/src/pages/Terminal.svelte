@@ -210,12 +210,20 @@
   }
 
   async function copyToClipboard(text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      copyText = text;
-      copyOpen = true;
+    // Application OSC 52 copies have no user gesture. writeText still succeeds
+    // in a secure context when clipboard-write is allowed; otherwise the
+    // existing text box is the manual copy fallback.
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch {
+        // Permission denied or a missing transient activation.
+      }
     }
+    if (!mounted) return;
+    copyText = text;
+    copyOpen = true;
   }
   async function copy() {
     try {

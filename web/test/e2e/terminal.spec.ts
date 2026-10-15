@@ -192,3 +192,46 @@ test("mobile denied clipboard exposes only selected text for native copying", as
     "selected_word",
   );
 });
+
+function osc52Command(text: string) {
+  const payload = Buffer.from(text, "utf8").toString("base64");
+  return `printf '\\033]52;c;${payload}\\a'`;
+}
+
+test("application OSC 52 copy is written to the browser clipboard", async ({
+  page,
+  context,
+  workDir,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await createShell(page, "OSC 52 copy", workDir);
+  await runCommand(page, osc52Command("osc52-中文"));
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe("osc52-中文");
+  await expect(page.locator(".xterm-rows")).toContainText("printf");
+  await expect(page.locator(".xterm-rows")).not.toContainText("osc52-中文");
+});
+
+test("denied OSC 52 copy exposes the text for manual copying", async ({
+  page,
+  workDir,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", {
+      configurable: true,
+      value: () =>
+        Promise.reject(
+          new DOMException("Permission denied", "NotAllowedError"),
+        ),
+    });
+  });
+  await createShell(page, "OSC 52 fallback", workDir);
+  await runCommand(page, osc52Command("osc52_fallback"));
+  await expect(
+    page.getByRole("dialog", { name: "复制终端文字" }),
+  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "复制内容" })).toHaveValue(
+    "osc52_fallback",
+  );
+});

@@ -973,3 +973,44 @@ test("native long press selects wide text and dragging copies multiple lines wit
     .element(page.getByRole("status", { name: "Terminal selection" }))
     .toHaveTextContent("");
 });
+
+function osc52(
+  selection: string,
+  text: string,
+  terminator: "bel" | "st" = "bel",
+) {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  const encoded = btoa(binary).replace(/=+$/, "");
+  const wrapped = encoded.replace(/(.{4})/g, "$1\n");
+  const end = terminator === "bel" ? "\x07" : "\x1b\\";
+  return `\x1b]52;${selection};${wrapped}${end}`;
+}
+
+async function expectCopied(text: string) {
+  await expect
+    .poll(
+      () =>
+        document.querySelector('[aria-label="Copied terminal text"]')
+          ?.textContent,
+    )
+    .toBe(text);
+}
+
+test("application OSC 52 copy is reported without terminal input or disturbing wide text", async () => {
+  observeGlyphPixels(true);
+  const { socket } = await openTerminal();
+  socket.receive(0, `prefix 中文 tail\r\n${osc52("c", "中文 tail\nsecond")}`);
+  await expectDomText("prefix 中文 tail");
+  await expectCopied("中文 tail\nsecond");
+  const copied = inputText(socket);
+  socket.receive(0, "\x1b]52;c;?\x07");
+  socket.receive(0, "\x1b]52;0;YQ==\x07");
+  await expectCopied("中文 tail\nsecond");
+  socket.receive(0, osc52("p", "primary-中文", "st"));
+  await expectCopied("primary-中文");
+  expect(inputText(socket)).toBe(copied);
+  expect(domText()).toContain("prefix 中文 tail");
+  expect(domText()).not.toContain("primary-中文");
+});

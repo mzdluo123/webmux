@@ -457,6 +457,7 @@ WebGL 渲染需要浏览器报告的实际像素尺寸与 CSS 尺寸 × DPR 一�
 - **唤起键盘**：点击终端区域 `term.focus()`；软键栏的 `⌨` 按钮在已聚焦时 `term.blur()` 收起键盘
 - **软键栏**：键盘按钮置于单行最左侧，随后为粘贴、`/` 和 `@` 快捷输入。全部按键共用一行横向滚动区域，不提供收起按钮。按钮 `onPointerDown` 时 `preventDefault()` 防止终端失焦导致键盘收起；`/`、`@` 作为普通字符发送，控制字节：`Esc`=`\x1b`，`Tab`=`\t`，方向键=`\x1b[A/B/C/D`，`Home`=`\x1b[H`，`End`=`\x1b[F`，`PgUp`=`\x1b[5~`，`PgDn`=`\x1b[6~`；`Ctrl` 粘滞后下一个字母 `c` 发送 `c.charCodeAt(0) & 0x1f`；`Alt` 粘滞后发送 `\x1b` + 字母
 - **粘贴**：`navigator.clipboard.readText()` 需要 HTTPS 或 localhost，Tailscale 下常是 HTTP，因此粘贴按钮回退方案是弹出一个 textarea 让用户粘贴后点“发送”；多行内容用 bracketed paste（`\x1b[200~` … `\x1b[201~`）包裹，Claude Code 能正确识别
+- **应用复制**：PTY 里的 OSC 52（`ESC ] 52 ; Pc ; Pd BEL/ST`）在浏览器解析。`Pd` 为 UTF-8 的 base64，且 `Pc` 为空或包含 `c` / `p` / `s` 时，安全上下文用 `navigator.clipboard.writeText` 写入系统剪贴板；权限失败则弹出可选中文本框。`Pd` 为 `?` 的查询不读取剪贴板、不向 PTY 回写。Ctrl+Shift+C 与“复制选中”走同一写入函数
 - **滚动**：仅在终端区域设置 `touch-action: none`，避免浏览器原生滚动接管手势。用 Pointer Events 跟踪触摸指针，并捕获到稳定容器，避免 DOM 渲染器替换起始行节点后丢失后续事件。按实际行高累计单指移动，将整行位移转换成标准 `WheelEvent`，由 xterm 决定历史滚动、鼠标协议或备用屏光标键输入；滚轮坐标固定为手势起点。阻止 xterm 原生 TouchEvent 重复处理。抬起、取消、丢失捕获及卸载时释放状态与捕获；滑动结束不聚焦键盘，轻点可聚焦。
 - **字体缩放**：两条触摸指针移动时按距离变化调整字体（12–20），由 `setFontSize()` 更新、fit 并存 localStorage；指针数量变化时重新记录距离、位置及位移余数，避免双指结束后剩余单指造成滚屏跳动。
 - **横屏**：无特殊处理，`fit()` 自动适应；软键栏仍保持单行，按键横向滚动
