@@ -8,6 +8,7 @@ afterEach(() => cleanup());
 
 const base: SessionInfo = {
   id: "abcdefgh",
+  generation: "0123456789abcdef",
   title: "omp agent",
   cwd: "/work",
   preset: "omp",

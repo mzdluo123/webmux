@@ -39,43 +39,66 @@ func pollablePTY(original *os.File) (*os.File, error) {
 // WriteContext serializes input, but a disconnected client can abandon both
 // the serialization wait and a full kernel input queue without ending the PTY.
 func (s *Session) WriteContext(ctx context.Context, p []byte) error {
+	_, err := s.writeParts(ctx, p)
+	return err
+}
+
+// writeParts holds the input gate across every part, so no other input lands
+// between them. It returns how many bytes reached the PTY before any error.
+func (s *Session) writeParts(ctx context.Context, parts ...[]byte) (int, error) {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return 0, ctx.Err()
 	case <-s.done:
-		return os.ErrClosed
+		return 0, os.ErrClosed
 	case <-s.inputGate:
 	}
 	defer func() { s.inputGate <- struct{}{} }()
+	written := 0
+	for _, p := range parts {
+		if len(p) == 0 {
+			continue
+		}
+		n, err := s.writeGated(ctx, p)
+		written += n
+		if err != nil {
+			return written, err
+		}
+	}
+	return written, nil
+}
+
+// writeGated performs one PTY write while the caller holds the input gate.
+func (s *Session) writeGated(ctx context.Context, p []byte) (int, error) {
 	// Cancellation and an available gate can both be selected. Never deliver
 	// input after cancellation merely because the gate happened to win.
 	if err := ctx.Err(); err != nil {
-		return err
+		return 0, err
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	if until, ok := ctx.Deadline(); ok && until.Before(deadline) {
 		deadline = until
 	}
 	if err := s.terminal.SetWriteDeadline(deadline); err != nil {
-		return err
+		return 0, err
 	}
 	cancelled := make(chan struct{})
 	stop := context.AfterFunc(ctx, func() {
 		_ = s.terminal.SetWriteDeadline(time.Now())
 		close(cancelled)
 	})
-	_, err := s.terminal.Write(p)
+	n, err := s.terminal.Write(p)
 	if !stop() {
 		<-cancelled
 	}
 	_ = s.terminal.SetWriteDeadline(time.Time{})
 	if ctx.Err() != nil {
-		return ctx.Err()
+		return n, ctx.Err()
 	}
 	if err == nil {
 		s.mu.Lock()
 		s.userInputLocked(p, time.Now())
 		s.mu.Unlock()
 	}
-	return err
+	return n, err
 }

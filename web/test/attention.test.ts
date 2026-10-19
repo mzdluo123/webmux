@@ -4,6 +4,7 @@ import { SessionInfoSchema } from "../src/schemas";
 
 const session = {
   id: "abcdefgh",
+  generation: "0123456789abcdef",
   title: "omp",
   cwd: "/work",
   preset: "omp",

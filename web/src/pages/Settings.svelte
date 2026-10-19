@@ -30,6 +30,8 @@
   } from "../quickCommands";
   import { quickCommands, saveQuickCommands } from "../quickCommands.svelte";
   import QuickCommandDialog from "../components/QuickCommandDialog.svelte";
+  import { Switch } from "$lib/components/ui/switch";
+  import { browserDraftStorage } from "../draftStorage";
 
   // Only a session ID is accepted as the return target, never an arbitrary path.
   const returnSession = new URLSearchParams(location.search).get("session");
@@ -62,6 +64,10 @@
     [list[index], list[index + offset]] = [list[index + offset], list[index]];
     saveQuickCommands(list);
   }
+  const draftStorage = browserDraftStorage();
+  let keepDrafts = $state(draftStorage.enabled);
+  let savedDrafts = $state(draftStorage.count());
+  let clearDraftsOpen = $state(false);
   let lines = $state<number | undefined>(previewSettings.lines);
   let skip = $state<number | undefined>(previewSettings.skip);
   const validation = $derived(PreviewSettingsSchema.safeParse({ lines, skip }));
@@ -194,6 +200,42 @@
         {/if}
       </Card.Content>
     </Card.Root>
+    <Card.Root id="drafts" class="scroll-mt-4">
+      <Card.Header>
+        <Card.Title>草稿</Card.Title>
+        <Card.Description
+          >草稿正文与未确认的提交按会话保存在当前浏览器，刷新、关闭页面或认证失效后可恢复；7
+          天未修改或会话已不存在时自动清理。恢复后仍需点击发送才会提交。</Card.Description
+        >
+      </Card.Header>
+      <Card.Content class="space-y-4">
+        <div class="flex items-center justify-between gap-4">
+          <Label for="keep-drafts">在本机保存草稿</Label>
+          <Switch
+            id="keep-drafts"
+            checked={keepDrafts}
+            onCheckedChange={(checked) => {
+              draftStorage.setEnabled(checked);
+              keepDrafts = draftStorage.enabled;
+              savedDrafts = draftStorage.count();
+            }}
+          />
+        </div>
+        <p class="text-xs text-muted-foreground">
+          关闭后立即删除本机已保存的草稿，之后草稿只保留在当前页面内存中。
+        </p>
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="text-sm" role="status"
+            >本机保存了 {savedDrafts} 份草稿</span
+          >
+          <Button
+            variant="outline"
+            disabled={!savedDrafts}
+            onclick={() => (clearDraftsOpen = true)}>清除本机草稿</Button
+          >
+        </div>
+      </Card.Content>
+    </Card.Root>
     <Card.Root>
       <Card.Header>
         <Card.Title>会话输出预览</Card.Title>
@@ -292,6 +334,26 @@
           );
           deleteOpen = false;
         }}>删除</Button
+      >
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>
+<AlertDialog.Root bind:open={clearDraftsOpen}>
+  <AlertDialog.Content>
+    <AlertDialog.Header>
+      <AlertDialog.Title>清除本机草稿？</AlertDialog.Title>
+      <AlertDialog.Description
+        >删除当前浏览器保存的全部草稿和未确认提交记录，不影响终端。已打开的终端页面在刷新前仍保留其草稿。此操作无法撤销。</AlertDialog.Description
+      >
+    </AlertDialog.Header>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel>取消</AlertDialog.Cancel>
+      <AlertDialog.Action
+        onclick={() => {
+          draftStorage.clear();
+          savedDrafts = draftStorage.count();
+          clearDraftsOpen = false;
+        }}>确认清除</AlertDialog.Action
       >
     </AlertDialog.Footer>
   </AlertDialog.Content>

@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/session"
@@ -34,8 +35,25 @@ func TestReplayRetainsNewestBytesAfterBufferWrap(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = conn.CloseNow() }()
+	if position := readPosition(ctx, t, conn, "reset"); position.Start != 1 || position.End != 5 || !position.Truncated {
+		t.Fatalf("wrapped position: %+v", position)
+	}
 	kind, p, err := conn.Read(ctx)
 	if err != nil || kind != websocket.MessageBinary || !bytes.Equal(p, []byte{1, 'b', 'c', 'd', 'e'}) {
 		t.Fatalf("wrapped replay: kind=%v bytes=%v err=%v", kind, p, err)
 	}
+}
+
+// readPosition consumes the position frame that precedes every replay.
+func readPosition(ctx context.Context, t *testing.T, conn *websocket.Conn, mode string) session.Position {
+	t.Helper()
+	kind, p, err := conn.Read(ctx)
+	if err != nil || kind != websocket.MessageBinary || len(p) == 0 || p[0] != 4 {
+		t.Fatalf("position frame: kind=%v bytes=%q err=%v", kind, p, err)
+	}
+	var position session.Position
+	if err = json.Unmarshal(p[1:], &position); err != nil || position.Mode != mode || position.Generation == "" {
+		t.Fatalf("position %q: %+v %v", p, position, err)
+	}
+	return position
 }

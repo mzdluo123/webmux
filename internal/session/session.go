@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -31,7 +33,10 @@ type Workspace struct {
 }
 
 type Info struct {
-	ID           string     `json:"id"`
+	ID string `json:"id"`
+	// Generation distinguishes this run from any other session that could
+	// carry the same ID. Output offsets and submissions are bound to it.
+	Generation   string     `json:"generation"`
 	Title        string     `json:"title"`
 	Cwd          string     `json:"cwd"`
 	Preset       string     `json:"preset"`
@@ -51,6 +56,21 @@ type Subscriber struct {
 	Out    chan []byte
 	Slow   chan struct{}
 	failed bool
+	client string
+	label  string
+	seq    uint64
+}
+
+// AttachOptions identifies the browser behind a connection and where its
+// terminal already is. A matching resume point replays only the missing tail.
+type AttachOptions struct {
+	Client string
+	Label  string
+	Resume *ResumePoint
+}
+type ResumePoint struct {
+	Generation string
+	Offset     uint64
 }
 type Session struct {
 	mu        sync.Mutex
@@ -67,6 +87,9 @@ type Session struct {
 	bellAttention bool
 	preview       Preview
 	subs          map[*Subscriber]struct{}
+	nextSeq       uint64
+	control       *Controller
+	submissions   submissionLog
 	done          chan struct{}
 	readerDone    chan struct{}
 	cleanupDone   chan struct{}
@@ -96,10 +119,20 @@ func start(id, cwd, preset, name string, argv []string, capacity int, options st
 		return nil, err
 	}
 	f = pollable
+	var raw [8]byte
+	if _, err = rand.Read(raw[:]); err != nil {
+		_ = f.Close()
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		_ = cmd.Wait()
+		releaseLeader(cmd.Process.Pid)
+		cleanupProcesses(cmd.Process.Pid, id)
+		return nil, err
+	}
 	now := time.Now()
 	s := &Session{
 		info: Info{
 			ID:           id,
+			Generation:   hex.EncodeToString(raw[:]),
 			Title:        filepath.Base(cwd),
 			Cwd:          cwd,
 			Preset:       preset,
@@ -164,8 +197,11 @@ func Frame(kind byte, p []byte) []byte {
 	return frame
 }
 func (s *Session) stateLocked() []byte {
-	data, _ := json.Marshal(s.infoLocked())
-	return Frame(2, data)
+	return jsonFrame(2, s.infoLocked())
+}
+func jsonFrame(kind byte, v any) []byte {
+	data, _ := json.Marshal(v)
+	return Frame(kind, data)
 }
 func (s *Session) sendLocked(sub *Subscriber, p []byte) {
 	if sub.failed {
@@ -184,18 +220,62 @@ func (s *Session) broadcastLocked(p []byte) {
 	}
 }
 
-// Attach atomically captures history and registers the live subscriber: no replay gap.
+// Attach registers an anonymous subscriber with a full replay.
 func (s *Session) Attach() *Subscriber {
+	return s.AttachClient(AttachOptions{})
+}
+
+// AttachClient atomically captures history and registers the live subscriber:
+// no replay gap. The first client of a session without a controller takes
+// control; everyone else observes until they send user input or claim it.
+func (s *Session) AttachClient(o AttachOptions) *Subscriber {
 	s.mu.Lock()
-	sub := &Subscriber{Out: make(chan []byte, 256), Slow: make(chan struct{})}
+	defer s.mu.Unlock()
+	if o.Client == "" {
+		o.Client = randomClientID()
+	}
+	s.nextSeq++
+	sub := &Subscriber{Out: make(chan []byte, 256), Slow: make(chan struct{}), client: o.Client, label: o.Label, seq: s.nextSeq}
+	if s.control == nil {
+		s.setControlLocked(sub)
+	} else if s.control.ClientID == sub.client && s.control.Label != sub.label {
+		s.control.Label = sub.label
+		s.broadcastLocked(s.controlFrameLocked())
+	}
 	s.subs[sub] = struct{}{}
-	s.replayLocked(sub)
-	s.mu.Unlock()
+	s.replayLocked(sub, o.Resume)
 	return sub
 }
-func (s *Session) replayLocked(sub *Subscriber) {
-	s.sendLocked(sub, s.ring.snapshotWithPrefix([]byte{1}))
+
+// Position precedes replayed bytes. "append" continues a terminal at Start
+// with the bytes up to End sent as ordinary output; "reset" is followed by a
+// full snapshot covering Start to End.
+type Position struct {
+	Generation string `json:"generation"`
+	Mode       string `json:"mode"`
+	Start      uint64 `json:"start"`
+	End        uint64 `json:"end"`
+	Truncated  bool   `json:"truncated"`
+}
+
+func (s *Session) replayLocked(sub *Subscriber, resume *ResumePoint) {
+	start, end := s.ring.Range()
+	position := Position{Generation: s.info.Generation, Mode: "reset", Start: start, End: end, Truncated: start > 0}
+	if resume != nil && resume.Generation == s.info.Generation {
+		if tail, ok := s.ring.sinceWithPrefix([]byte{0}, resume.Offset); ok {
+			position.Mode, position.Start = "append", resume.Offset
+			s.sendLocked(sub, jsonFrame(4, position))
+			if len(tail) > 1 {
+				s.sendLocked(sub, tail)
+			}
+		}
+	}
+	if position.Mode == "reset" {
+		s.sendLocked(sub, jsonFrame(4, position))
+		s.sendLocked(sub, s.ring.snapshotWithPrefix([]byte{1}))
+	}
 	s.sendLocked(sub, s.stateLocked())
+	s.sendLocked(sub, s.controlFrameLocked())
 	if s.info.ExitCode != nil {
 		data, _ := json.Marshal(map[string]int{"exitCode": *s.info.ExitCode})
 		s.sendLocked(sub, Frame(3, data))
@@ -208,15 +288,21 @@ func (s *Session) Replay(sub *Subscriber) {
 		select {
 		case <-sub.Out:
 		default:
-			s.replayLocked(sub)
+			s.replayLocked(sub, nil)
 			return
 		}
 	}
 }
 func (s *Session) Detach(sub *Subscriber) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.subs, sub)
-	s.mu.Unlock()
+	// Control is not handed to the remaining observers: their layout must not
+	// change because another device went away. The next input claims it.
+	if s.control != nil && s.control.ClientID == sub.client && !s.clientAttachedLocked(sub.client) {
+		s.control = nil
+		s.broadcastLocked(s.controlFrameLocked())
+	}
 }
 func (s *Session) Write(p []byte) error {
 	return s.WriteContext(context.Background(), p)
@@ -226,13 +312,18 @@ func (s *Session) Resize(cols, rows uint16) error {
 		return errors.New("invalid terminal size")
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if cols == s.info.Cols && rows == s.info.Rows {
+		return nil
+	}
 	err := pty.Setsize(s.terminal, &pty.Winsize{Cols: cols, Rows: rows})
 	if err == nil {
 		s.info.Cols = cols
 		s.info.Rows = rows
 		s.info.Preview = s.preview.Resize(cols, rows)
+		// Observers follow the controller's grid instead of fitting their own.
+		s.broadcastLocked(s.controlFrameLocked())
 	}
-	s.mu.Unlock()
 	return err
 }
 func (s *Session) read() {

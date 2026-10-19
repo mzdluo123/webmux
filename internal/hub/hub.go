@@ -1,12 +1,79 @@
 package hub
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"net/url"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+	"unicode"
+
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/session"
-	"time"
 )
+
+var (
+	clientPattern     = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
+	generationPattern = regexp.MustCompile(`^[0-9a-f]{16}$`)
+)
+
+// AttachOptions reads the optional client identity and resume point from the
+// terminal WebSocket query. Malformed values are dropped, never rejected:
+// an anonymous client simply observes or replays in full.
+func AttachOptions(q url.Values) session.AttachOptions {
+	var o session.AttachOptions
+	if client := q.Get("client"); clientPattern.MatchString(client) {
+		o.Client = client
+	}
+	label := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || r == unicode.ReplacementChar {
+			return -1
+		}
+		return r
+	}, q.Get("label"))
+	if runes := []rune(strings.TrimSpace(label)); len(runes) > 40 {
+		o.Label = string(runes[:40])
+	} else {
+		o.Label = string(runes)
+	}
+	generation := q.Get("generation")
+	offset, err := strconv.ParseUint(q.Get("offset"), 10, 64)
+	if err == nil && generationPattern.MatchString(generation) {
+		o.Resume = &session.ResumePoint{Generation: generation, Offset: offset}
+	}
+	return o
+}
+
+type submission struct {
+	ID         string `json:"id"`
+	Generation string `json:"generation"`
+	BodyBytes  int    `json:"bodyBytes"`
+	body       []byte
+	submit     []byte
+}
+
+// parseSubmission splits a 0x03 payload: a JSON header line, then the body
+// bytes followed by the submit key bytes. Terminal bytes never enter JSON.
+func parseSubmission(p []byte) (*submission, bool) {
+	header, rest, found := bytes.Cut(p, []byte{'\n'})
+	var item submission
+	if !found || json.Unmarshal(header, &item) != nil || !clientPattern.MatchString(item.ID) {
+		return nil, false
+	}
+	if item.BodyBytes < 0 || item.BodyBytes > len(rest) || len(rest) == 0 {
+		return &item, false
+	}
+	item.body, item.submit = rest[:item.BodyBytes], rest[item.BodyBytes:]
+	return &item, true
+}
+
+type input struct {
+	data   []byte
+	submit *submission
+}
 
 func write(ctx context.Context, c *websocket.Conn, kind websocket.MessageType, p []byte) error {
 	deadline, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -15,14 +82,14 @@ func write(ctx context.Context, c *websocket.Conn, kind websocket.MessageType, p
 }
 
 // Attach owns the only data writer. Its reader is cancelled and joined on all exits.
-func Attach(ctx context.Context, s *session.Session, c *websocket.Conn) {
+func Attach(ctx context.Context, s *session.Session, c *websocket.Conn, o session.AttachOptions) {
 	ctx, cancel := context.WithCancel(ctx)
-	sub := s.Attach()
+	sub := s.AttachClient(o)
 	defer s.Detach(sub)
 	c.SetReadLimit(1024 * 1024)
 	readerDone := make(chan struct{})
 	inputDone := make(chan struct{})
-	input := make(chan []byte, 16)
+	inputs := make(chan input, 16)
 	go func() {
 		defer close(inputDone)
 		defer cancel()
@@ -30,13 +97,32 @@ func Attach(ctx context.Context, s *session.Session, c *websocket.Conn) {
 			select {
 			case <-ctx.Done():
 				return
-			case p := <-input:
-				if s.WriteContext(ctx, p) != nil {
+			case item := <-inputs:
+				if item.submit != nil {
+					// A received submission finishes even if this connection
+					// drops: its status stays queryable, and the PTY write
+					// remains bounded by the write deadline and session exit.
+					submit := item.submit
+					s.Submit(context.WithoutCancel(ctx), sub, submit.ID, submit.Generation, submit.body, submit.submit)
+					if ctx.Err() != nil {
+						return
+					}
+				} else if s.WriteContext(ctx, item.data) != nil {
 					return
 				}
 			}
 		}
 	}()
+	enqueue := func(item input) bool {
+		select {
+		case inputs <- item:
+			return true
+		case <-ctx.Done():
+		default:
+			cancel()
+		}
+		return false
+	}
 	go func() {
 		defer close(readerDone)
 		defer cancel()
@@ -50,12 +136,17 @@ func Attach(ctx context.Context, s *session.Session, c *websocket.Conn) {
 			}
 			switch p[0] {
 			case 0:
-				select {
-				case input <- p[1:]:
-				case <-ctx.Done():
-					return
-				default:
-					cancel()
+				// Every attached xterm answers the same device queries; only
+				// the responsible connection's answers reach the PTY. Anything
+				// else is user input, which takes control.
+				if session.TerminalReplyOnly(p[1:]) {
+					if !s.Responds(sub) {
+						continue
+					}
+				} else {
+					s.Claim(sub)
+				}
+				if !enqueue(input{data: p[1:]}) {
 					return
 				}
 			case 1:
@@ -63,11 +154,40 @@ func Attach(ctx context.Context, s *session.Session, c *websocket.Conn) {
 					Cols uint16 `json:"cols"`
 					Rows uint16 `json:"rows"`
 				}
-				if json.Unmarshal(p[1:], &size) != nil || s.Resize(size.Cols, size.Rows) != nil {
+				// Observers render the controller's grid and never resize it.
+				if !s.Controls(sub) || json.Unmarshal(p[1:], &size) != nil || s.Resize(size.Cols, size.Rows) != nil {
 					continue
 				}
 			case 2:
 				s.Replay(sub)
+			case 3:
+				item, ok := parseSubmission(p[1:])
+				if !ok {
+					if item != nil {
+						s.SendSubmissionStatus(sub, session.SubmissionStatus{ID: item.ID, State: session.SubmissionFailed, Error: "invalid"})
+					}
+					continue
+				}
+				s.Claim(sub)
+				if !enqueue(input{submit: item}) {
+					return
+				}
+			case 4:
+				var query struct {
+					IDs []string `json:"ids"`
+				}
+				if json.Unmarshal(p[1:], &query) != nil || len(query.IDs) > 64 {
+					continue
+				}
+				ids := query.IDs[:0]
+				for _, id := range query.IDs {
+					if clientPattern.MatchString(id) {
+						ids = append(ids, id)
+					}
+				}
+				s.QuerySubmissions(sub, ids)
+			case 5:
+				s.Claim(sub)
 			}
 		}
 	}()

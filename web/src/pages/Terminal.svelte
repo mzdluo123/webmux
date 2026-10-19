@@ -22,7 +22,9 @@
   import SoftKeys from "../components/SoftKeys.svelte";
   import QuickCommandMenu from "../components/QuickCommandMenu.svelte";
   import { quickCommands } from "../quickCommands.svelte";
-  import type { QuickCommand } from "../schemas";
+  import type { QuickCommand, SubmissionProgress } from "../schemas";
+  import { newSubmissionId } from "../terminalProtocol";
+  import { browserDraftStorage } from "../draftStorage";
   import CloseSessionDialog from "../components/CloseSessionDialog.svelte";
   import TerminalInputComposer from "../components/TerminalInputComposer.svelte";
   import type {
@@ -49,6 +51,7 @@
   let container: HTMLDivElement;
   let fileInput: HTMLInputElement;
   let error = $state("");
+  let notice = $state("");
   let closing = $state(false);
   let pasteOpen = $state(false);
   let pasteText = $state("");
@@ -114,32 +117,71 @@
     if (draft.enabled) composer?.focus();
     else t.focus();
   }
-  function sendDraft() {
+  const draftMessages: Partial<Record<SubmissionProgress, string>> = {
+    failed: "草稿未写入终端，可修改后重新发送。",
+    missing:
+      "服务端没有这次提交的记录：可能未送达，或记录已过期。请检查终端后决定是否重新发送。",
+    partial: "草稿只有部分写入终端，提交键未写入；请检查终端后再处理草稿。",
+  };
+  // Draft text stays locked until the server reports the outcome.
+  function reportDraft(id: string, announce: boolean) {
+    return (state: SubmissionProgress) => {
+      drafts.updateSubmission(draft, id, state);
+      if (!mounted) return;
+      if (state === "written") {
+        error = "";
+        if (announce) notice = "上次提交的草稿已写入终端。";
+      } else if (draftMessages[state]) error = draftMessages[state];
+    };
+  }
+  // `resend` repeats an unconfirmed submission under the same ID, which the
+  // server writes at most once.
+  function sendDraft(resend = false) {
     if (sending || !draft.enabled || !draft.text || !drafts.valid(draft))
       return;
+    const pending = draft.submission;
+    if (pending && (!resend || pending.state !== "unknown")) return;
     sending = true;
-    const text = draft.text;
     try {
-      if (t.paste(text)) {
-        if (t.send("\r")) {
-          drafts.clear(draft);
-          drafts.setEnabled(draft, false);
-          error = "";
-        } else {
-          error = "草稿已粘贴，但回车未发送；请检查终端后手动提交。";
-        }
-      } else error = "终端未就绪，草稿未发送；请恢复连接后手动重试。";
+      const id = pending?.id ?? newSubmissionId();
+      if (!pending) drafts.beginSubmission(draft, id);
+      notice = "";
+      if (t.submit(id, draft.text, true, reportDraft(id, false))) error = "";
+      else {
+        if (!pending) drafts.releaseSubmission(draft);
+        error = "终端未就绪，草稿未发送；请恢复连接后手动重试。";
+      }
     } finally {
       sending = false;
     }
   }
+  function releaseDraftSubmission() {
+    if (draft.submission) t.untrack(draft.submission.id);
+    drafts.releaseSubmission(draft);
+    error = "";
+  }
+  const quickMessages: Partial<Record<SubmissionProgress, string>> = {
+    failed: "快捷指令未写入终端；请检查终端后重试。",
+    missing: "快捷指令未送达服务端；请检查终端后重试。",
+    partial: "快捷指令正文已写入，但回车未写入；请检查终端后手动提交。",
+    unknown: "连接中断，快捷指令结果未知；重连后自动查询。",
+  };
   function runQuickCommand(cmd: QuickCommand) {
     t.resetModifiers();
+    if (cmd.enter && drafts.destination(draft) === "terminal") {
+      // Text and Enter form one acknowledged submission.
+      const sent = t.submit(newSubmissionId(), cmd.command, true, (state) => {
+        if (!mounted) return;
+        if (quickMessages[state]) error = quickMessages[state];
+        else if (state === "written" && error === quickMessages.unknown)
+          error = "";
+      });
+      error = sent ? "" : "终端未就绪，快捷指令未发送；请恢复连接后重试。";
+      return;
+    }
     const result = insertText(cmd.command);
     if (result === "failed")
       error = "终端未就绪，快捷指令未发送；请恢复连接后重试。";
-    else if (result === "terminal" && cmd.enter && !t.send("\r"))
-      error = "快捷指令已粘贴，但回车未发送；请检查终端后手动提交。";
     else error = "";
   }
   const viewport = useViewport();
@@ -183,6 +225,18 @@
   $effect(() => {
     if (t.connection === "missing") drafts.remove(id);
   });
+  $effect(() => {
+    const generation = t.info?.generation;
+    if (generation) drafts.bindGeneration(draft, generation);
+  });
+  const draftStorage = browserDraftStorage();
+  const draftSaved = $derived(
+    draft.persisted && draftStorage.enabled
+      ? "已保存在本机"
+      : draftStorage.enabled
+        ? "草稿过大，仅保存在当前页面"
+        : "仅当前页面，刷新后丢失",
+  );
   const uploads = useUpload(
     () => container,
     untrack(() => id),
@@ -200,6 +254,10 @@
 
   onMount(() => {
     mounted = true;
+    // A submission restored from storage may have been written before the
+    // page went away; ask the server instead of guessing.
+    if (draft.submission)
+      t.track(draft.submission.id, reportDraft(draft.submission.id, true));
     const media = matchMedia("(min-width:1024px)");
     const layout = () => {
       desktop = media.matches;
@@ -460,9 +518,9 @@
       title={draft.enabled
         ? "关闭只隐藏草稿，不发送或清空"
         : draft.updatedWhileHidden
-          ? "隐藏草稿已更新，开启查看；刷新后丢失"
+          ? `隐藏草稿已更新，开启查看；${draftSaved}`
           : draft.text
-            ? "开启查看保留的草稿；刷新后丢失"
+            ? `开启查看保留的草稿；${draftSaved}`
             : "开启草稿模式"}
       onclick={() => {
         drafts.setEnabled(draft, !draft.enabled);
@@ -494,7 +552,10 @@
         <DropdownMenu.Item
           onSelect={() => {
             void copy();
-          }}>复制全部缓冲</DropdownMenu.Item
+          }}
+          >{t.historyTruncated
+            ? "复制全部缓冲（更早输出已被覆盖）"
+            : "复制全部缓冲"}</DropdownMenu.Item
         >
         <DropdownMenu.Item
           onSelect={() => {
@@ -526,7 +587,7 @@
   </header>
   {#if !draft.enabled && (draft.text || draft.updatedWhileHidden)}
     <p class="sr-only" role="status">
-      {draft.updatedWhileHidden ? "隐藏草稿已更新" : "有保留的隐藏草稿"} · 开启草稿模式查看；刷新后丢失
+      {draft.updatedWhileHidden ? "隐藏草稿已更新" : "有保留的隐藏草稿"} · 开启草稿模式查看；{draftSaved}
     </p>
   {/if}
   {#if uploads.progress}
@@ -553,6 +614,32 @@
         value={uploads.progress.percent}
         class="block h-1 w-full accent-primary"
       ></progress>
+    </div>
+  {/if}
+  {#if notice}<div
+      class="flex shrink-0 items-center gap-2 border-b bg-muted px-4 py-1.5 text-sm"
+      role="status"
+    >
+      <span class="min-w-0 flex-1">{notice}</span>
+      <Button variant="ghost" size="sm" onclick={() => (notice = "")}
+        >知道了</Button
+      >
+    </div>{/if}
+  {#if t.control && !t.controlling && t.connection === "connected" && t.exitCode === null}
+    <div
+      class="flex shrink-0 items-center gap-2 border-b bg-muted px-3 py-1 text-xs"
+      role="status"
+      aria-label="终端控制"
+    >
+      <span class="min-w-0 flex-1 truncate"
+        >{t.control.controller
+          ? `观察中 · ${t.control.controller.label || "另一设备"}控制输入与尺寸`
+          : "观察中 · 当前没有控制端"}（{t.control.cols}×{t.control
+          .rows}）</span
+      >
+      <Button variant="outline" size="sm" onclick={() => t.claim()}
+        >接管控制</Button
+      >
     </div>
   {/if}
   {#if error || t.error}<p
@@ -678,7 +765,11 @@
                   {draft}
                   {drafts}
                   unavailable={sendUnavailable}
-                  send={sendDraft}
+                  saved={draftSaved}
+                  target={t.info?.title || id}
+                  send={() => sendDraft()}
+                  resend={() => sendDraft(true)}
+                  release={releaseDraftSubmission}
                   filePaste={uploads.filePaste}
                   {controlNotice}
                 />

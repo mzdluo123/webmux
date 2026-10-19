@@ -7,7 +7,8 @@ export interface SocketConnection {
   reconnect(): void;
 }
 export function connect(
-  path: string,
+  // Evaluated on every attempt, so a reconnect can carry fresh query state.
+  path: string | (() => string),
   onMessage: (data: string | ArrayBuffer) => void,
   onState: (state: Connection) => void,
   onError: (message: string) => void,
@@ -24,8 +25,9 @@ export function connect(
     socket = undefined;
     previous?.close();
     onState(attempt ? "reconnecting" : "connecting");
+    const target = typeof path === "string" ? path : path();
     const next = new WebSocket(
-      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${path}?token=${encodeURIComponent(stored("token"))}`,
+      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${target}${target.includes("?") ? "&" : "?"}token=${encodeURIComponent(stored("token"))}`,
     );
     socket = next;
     next.binaryType = "arraybuffer";

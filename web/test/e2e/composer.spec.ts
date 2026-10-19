@@ -213,7 +213,7 @@ test("draft splits the terminal column while code stays full height", async ({
   await expect(panel).toBeVisible();
 });
 
-test("drafts survive application navigation, remain session-local and disappear on reload", async ({
+test("drafts survive navigation and reload, remain session-local and stop persisting when disabled", async ({
   page,
   request,
   workDir,
@@ -237,7 +237,17 @@ test("drafts survive application navigation, remain session-local and disappear 
   await page.getByRole("link", { name: "Draft A", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/s/${a}$`));
   await expect(draft(page)).toHaveValue("A private draft");
+  // A reload restores the saved draft visibly, with its target, and sends nothing.
   await page.reload();
+  await expect(mode(page)).toHaveAttribute("aria-pressed", "true");
+  await expect(draft(page)).toHaveValue("A private draft");
+  await expect(page.getByText(/已恢复本机草稿.*目标：Draft A/)).toBeVisible();
+  await expect(send(page)).toBeEnabled();
+  await page.goto("/settings");
+  await expect(page.getByText("本机保存了 2 份草稿")).toBeVisible();
+  await page.getByRole("switch", { name: "在本机保存草稿" }).click();
+  await expect(page.getByText("本机保存了 0 份草稿")).toBeVisible();
+  await page.goto(`/s/${a}`);
   await expect(mode(page)).toHaveAttribute("aria-pressed", "false");
   await mode(page).click();
   await expect(draft(page)).toHaveValue("");

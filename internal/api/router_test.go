@@ -98,6 +98,7 @@ func TestProtocolAndSecurity(t *testing.T) {
 		t.Fatal("running removal must conflict")
 	}
 	conn := dial("/ws/s/" + info.ID)
+	readPosition(ctx, t, conn, "reset")
 	kind, p, err := conn.Read(ctx)
 	if err != nil || kind != websocket.MessageBinary || p[0] != 1 {
 		t.Fatalf("initial frame %v %v %v", kind, p, err)
@@ -115,6 +116,7 @@ func TestProtocolAndSecurity(t *testing.T) {
 		}
 	}
 	again := dial("/ws/s/" + info.ID)
+	readPosition(ctx, t, again, "reset")
 	_, p, err = again.Read(ctx)
 	if err != nil || p[0] != 1 || !strings.Contains(string(p[1:]), "FINAL_OUTPUT_MARKER") {
 		t.Fatalf("final replay %q %v", p, err)

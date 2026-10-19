@@ -301,7 +301,7 @@ func (s *Server) terminalWS(w http.ResponseWriter, r *http.Request) {
 		_ = c.Close(4404, "session not found")
 		return
 	}
-	hub.Attach(r.Context(), item, c)
+	hub.Attach(r.Context(), item, c, hub.AttachOptions(r.URL.Query()))
 }
 func (s *Server) static(w http.ResponseWriter, r *http.Request) {
 	root, err := fs.Sub(assets.Assets, "dist")

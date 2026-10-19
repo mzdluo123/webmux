@@ -3,10 +3,13 @@ package session
 import "sync"
 
 // RingBuffer retains the newest capacity bytes without interpreting terminal output.
+// Offsets count every byte ever written, so a reader that knows how far it got
+// can ask for exactly the bytes that followed while they are still retained.
 type RingBuffer struct {
 	mu         sync.RWMutex
 	data       []byte
 	next, size int
+	total      uint64
 }
 
 func NewRingBuffer(capacity int) *RingBuffer {
@@ -18,6 +21,7 @@ func NewRingBuffer(capacity int) *RingBuffer {
 func (r *RingBuffer) Write(p []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.total += uint64(len(p))
 	if len(p) >= len(r.data) {
 		p = p[len(p)-len(r.data):]
 		copy(r.data, p)
@@ -34,14 +38,40 @@ func (r *RingBuffer) Snapshot() []byte {
 	return r.snapshotWithPrefix(nil)
 }
 
-// snapshotWithPrefix assembles the protocol header and history in one allocation.
-func (r *RingBuffer) snapshotWithPrefix(prefix []byte) []byte {
+// Range reports the absolute offsets of the oldest retained byte and of the
+// end of output. A start above zero means older history was overwritten.
+func (r *RingBuffer) Range() (start, end uint64) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	out := make([]byte, len(prefix)+r.size)
-	copy(out, prefix)
-	start := (r.next - r.size + len(r.data)) % len(r.data)
-	n := copy(out[len(prefix):], r.data[start:])
-	copy(out[len(prefix)+n:], r.data[:r.next])
+	return r.total - uint64(r.size), r.total
+}
+
+// snapshotWithPrefix assembles the protocol header and history in one allocation.
+func (r *RingBuffer) snapshotWithPrefix(prefix []byte) []byte {
+	out, _ := r.sinceWithPrefix(prefix, 0)
 	return out
+}
+
+// sinceWithPrefix returns the retained bytes from offset onwards, clamping an
+// offset older than the retained history to the oldest byte. ok is false when
+// the offset is beyond the end of output or was already overwritten.
+func (r *RingBuffer) sinceWithPrefix(prefix []byte, offset uint64) (out []byte, ok bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	start := r.total - uint64(r.size)
+	ok = offset >= start && offset <= r.total
+	skip := 0
+	if ok {
+		skip = int(offset - start)
+	}
+	out = make([]byte, len(prefix)+r.size-skip)
+	copy(out, prefix)
+	first := (r.next - r.size + skip + len(r.data)) % len(r.data)
+	if first+r.size-skip <= len(r.data) {
+		copy(out[len(prefix):], r.data[first:first+r.size-skip])
+	} else {
+		n := copy(out[len(prefix):], r.data[first:])
+		copy(out[len(prefix)+n:], r.data[:r.next])
+	}
+	return out, ok
 }

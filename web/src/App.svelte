@@ -9,8 +9,9 @@
   import SessionList from "./pages/SessionList.svelte";
   import Settings from "./pages/Settings.svelte";
   import { createTerminalDrafts } from "./terminal-draft.svelte";
+  import { browserDraftStorage } from "./draftStorage";
 
-  const drafts = createTerminalDrafts();
+  const drafts = createTerminalDrafts({ storage: browserDraftStorage() });
   let uploadNotice = $state("");
 
   let path = $state(location.pathname);

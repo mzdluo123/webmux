@@ -288,12 +288,13 @@ test("replay and the header action return to latest output without typing", asyn
       page.getByRole("region", { name: "代码工作区" }),
     ).toBeVisible();
   }
-  // A controlled visibility transition exercises the real reattached WebSocket
-  // and PTY snapshot; it is not a real-device suspend/resume test.
+  // A controlled visibility transition exercises the real reattached WebSocket,
+  // which resumes from the rendered offset instead of replaying a snapshot;
+  // it is not a real-device suspend/resume test.
   const replay = page.waitForEvent("websocket").then((socket) =>
     socket.waitForEvent("framereceived", {
       predicate: ({ payload }) =>
-        typeof payload !== "string" && payload[0] === 1,
+        typeof payload !== "string" && payload[0] === 4,
     }),
   );
   await page.evaluate(() => {
@@ -305,7 +306,10 @@ test("replay and the header action return to latest output without typing", asyn
     Reflect.deleteProperty(document, "hidden");
     document.dispatchEvent(new Event("visibilitychange"));
   });
-  await replay;
+  const position = (await replay).payload as Buffer;
+  expect(JSON.parse(position.subarray(1).toString())).toMatchObject({
+    mode: "append",
+  });
   await expect(latest).toBeEnabled();
   if (info.project.use.isMobile)
     await page

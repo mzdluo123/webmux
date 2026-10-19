@@ -56,6 +56,23 @@ class FixtureSocket extends EventTarget {
     this.sent.push(new Uint8Array(data));
   }
 
+  // The real server gives control to the first client of a session.
+  grantControl(cols = 80, rows = 24) {
+    const clientId = new URL(this.url).searchParams.get("client");
+    this.receive(
+      6,
+      JSON.stringify({
+        controller: {
+          clientId,
+          label: "fixture",
+          since: new Date().toISOString(),
+        },
+        cols,
+        rows,
+      }),
+    );
+  }
+
   close() {
     this.closeCount++;
     this.readyState = FixtureSocket.CLOSED;
@@ -332,6 +349,7 @@ async function openTerminal() {
   const socket = sockets[0];
   socket.open();
   socket.receive(1, snapshot);
+  socket.grantControl();
   await expect
     .element(page.getByRole("status", { name: "Terminal connection" }))
     .toHaveTextContent("connected");

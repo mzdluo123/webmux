@@ -40,6 +40,9 @@ func TestPersistentPTY(t *testing.T) {
 	}
 	again := s.Attach()
 	defer s.Detach(again)
+	if position := <-again.Out; position[0] != 4 {
+		t.Fatalf("position: %q", position)
+	}
 	snapshot := <-again.Out
 	if snapshot[0] != 1 || !strings.Contains(string(snapshot[1:]), "consumer-marker") {
 		t.Fatalf("replay: %q", snapshot)

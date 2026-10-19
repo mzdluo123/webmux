@@ -362,6 +362,15 @@
 .terminal-host .xterm {
   height: 100%;
 }
+/* Observers show the controller's grid at its own size and pan across it. */
+.terminal-host.observing {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.terminal-host.observing .xterm {
+  width: max-content;
+  height: auto;
+}
 .restore-overlay {
   position: absolute;
   inset: 0;

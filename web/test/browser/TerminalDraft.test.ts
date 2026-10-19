@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { createTerminalDrafts } from "../../src/terminal-draft.svelte";
+import { createDraftStorage } from "../../src/draftStorage";
 
 test("draft edits preserve Unicode, selections and session isolation across mode switches", () => {
   const drafts = createTerminalDrafts();
@@ -93,4 +94,94 @@ test("external insert appends without an editing position and clamps stale posit
   drafts.insert(entry, "🙂");
   expect(entry.text).toBe("x🙂");
   expect(entry.selectionStart).toBe(3);
+});
+
+function memoryDrafts() {
+  const data = new Map<string, string>();
+  const memory = {
+    get length() {
+      return data.size;
+    },
+    clear: () => data.clear(),
+    getItem: (key: string) => data.get(key) ?? null,
+    key: (index: number) => [...data.keys()][index] ?? null,
+    removeItem: (key: string) => void data.delete(key),
+    setItem: (key: string, value: string) => void data.set(key, value),
+  } satisfies Storage;
+  return { data, storage: () => createDraftStorage(memory, () => 5000) };
+}
+
+test("saved drafts are restored visibly, bound to their run, and kept across auth loss", () => {
+  const saved = memoryDrafts();
+  const drafts = createTerminalDrafts({
+    storage: saved.storage(),
+    now: () => 5000,
+  });
+  const entry = drafts.get("aaaaaaaa");
+  drafts.setEnabled(entry, true);
+  drafts.edit(entry, "引用 /tmp/upload.png\nplease review");
+  drafts.bindGeneration(entry, "0123456789abcdef");
+  drafts.clearAll();
+
+  const reloaded = createTerminalDrafts({ storage: saved.storage() });
+  const restored = reloaded.get("aaaaaaaa");
+  expect(restored.text).toBe("引用 /tmp/upload.png\nplease review");
+  expect(restored.enabled).toBe(true);
+  expect(restored.restoredAt).toBe(5000);
+  expect(restored.generation).toBe("0123456789abcdef");
+  expect(reloaded.destination(restored)).toBe("draft");
+
+  reloaded.reconcile(["bbbbbbbb"]);
+  expect(saved.data.size).toBe(0);
+});
+
+test("an unconfirmed submission locks its text until the server settles it", () => {
+  const saved = memoryDrafts();
+  const drafts = createTerminalDrafts({ storage: saved.storage() });
+  const entry = drafts.get("aaaaaaaa");
+  drafts.setEnabled(entry, true);
+  drafts.edit(entry, "run tests");
+  expect(drafts.beginSubmission(entry, "s-00000001")).toBe(true);
+  expect(drafts.beginSubmission(entry, "s-00000002")).toBe(false);
+  drafts.edit(entry, "changed");
+  expect(drafts.insert(entry, "more")).toBe("failed");
+  expect(entry.text).toBe("run tests");
+  drafts.updateSubmission(entry, "s-00000001", "received");
+
+  // After a reload nothing after the save is known: the record is "unknown".
+  const reloaded = createTerminalDrafts({ storage: saved.storage() });
+  const restored = reloaded.get("aaaaaaaa");
+  expect(restored.submission).toMatchObject({
+    id: "s-00000001",
+    state: "unknown",
+  });
+  reloaded.updateSubmission(restored, "s-other-0001", "written");
+  expect(restored.text).toBe("run tests");
+  reloaded.updateSubmission(restored, "s-00000001", "missing");
+  expect(restored.submission).toBeNull();
+  expect(restored.text).toBe("run tests");
+
+  reloaded.beginSubmission(restored, "s-00000003");
+  reloaded.updateSubmission(restored, "s-00000003", "partial");
+  expect(restored.submission?.state).toBe("partial");
+  reloaded.releaseSubmission(restored);
+  reloaded.edit(restored, "run tests again");
+  reloaded.beginSubmission(restored, "s-00000004");
+  reloaded.updateSubmission(restored, "s-00000004", "written");
+  expect(restored.text).toBe("");
+  expect(restored.enabled).toBe(false);
+  expect(restored.submission).toBeNull();
+  expect(saved.data.size).toBe(0);
+});
+
+test("a draft written for another run keeps its text but forgets its submission", () => {
+  const drafts = createTerminalDrafts({ storage: memoryDrafts().storage() });
+  const entry = drafts.get("aaaaaaaa");
+  drafts.bindGeneration(entry, "0123456789abcdef");
+  drafts.edit(entry, "text");
+  drafts.beginSubmission(entry, "s-00000001");
+  drafts.bindGeneration(entry, "fedcba9876543210");
+  expect(entry.submission).toBeNull();
+  expect(entry.text).toBe("text");
+  expect(entry.generation).toBe("fedcba9876543210");
 });

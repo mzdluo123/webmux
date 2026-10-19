@@ -15,6 +15,7 @@ export type Attention = z.infer<typeof AttentionSchema>;
 
 export const SessionInfoSchema = z.object({
   id: z.string().regex(/^[a-z2-7]{8}$/),
+  generation: z.string().regex(/^[0-9a-f]{16}$/),
   title: z.string(),
   cwd: z.string(),
   preset: z.string(),
@@ -52,6 +53,63 @@ export const SessionEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("removed"), id: SessionInfoSchema.shape.id }),
 ]);
 export const ExitSchema = z.object({ exitCode: z.number().int() });
+// Terminal stream frames 0x04–0x06; see docs/protocol.md.
+const OffsetSchema = z.number().int().nonnegative();
+export const StreamPositionSchema = z.object({
+  generation: SessionInfoSchema.shape.generation,
+  mode: z.enum(["reset", "append"]),
+  start: OffsetSchema,
+  end: OffsetSchema,
+  truncated: z.boolean(),
+});
+export type StreamPosition = z.infer<typeof StreamPositionSchema>;
+export const SubmissionIdSchema = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/);
+export const SubmissionStatusSchema = z.object({
+  id: SubmissionIdSchema,
+  state: z.enum(["received", "written", "partial", "failed", "missing"]),
+  error: z.string().optional(),
+});
+export type SubmissionStatus = z.infer<typeof SubmissionStatusSchema>;
+export const ControlStateSchema = z.object({
+  controller: z
+    .object({
+      clientId: z.string(),
+      label: z.string(),
+      since: z.iso.datetime({ offset: true }),
+    })
+    .nullable(),
+  cols: SessionInfoSchema.shape.cols,
+  rows: SessionInfoSchema.shape.rows,
+});
+export type ControlState = z.infer<typeof ControlStateSchema>;
+// Client-side progress of one submission. "saved" exists only in this
+// browser; "unknown" means the acknowledgement was lost and not yet resolved.
+export const SubmissionProgressSchema = z.enum([
+  "saved",
+  "sending",
+  "received",
+  "written",
+  "partial",
+  "failed",
+  "missing",
+  "unknown",
+]);
+export type SubmissionProgress = z.infer<typeof SubmissionProgressSchema>;
+export const StoredDraftSchema = z.object({
+  v: z.literal(1),
+  sessionId: SessionInfoSchema.shape.id,
+  generation: SessionInfoSchema.shape.generation.nullable(),
+  text: z.string(),
+  savedAt: z.number().int().nonnegative(),
+  submission: z
+    .object({
+      id: SubmissionIdSchema,
+      state: SubmissionProgressSchema,
+      at: z.number().int().nonnegative(),
+    })
+    .nullable(),
+});
+export type StoredDraft = z.infer<typeof StoredDraftSchema>;
 export const HealthSchema = z.object({
   ok: z.literal(true),
   sessions: z.number().int().nonnegative(),

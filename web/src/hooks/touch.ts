@@ -22,6 +22,7 @@ export function attachTouchGestures(
   let firstPoint: TouchPoint | undefined;
   let secondPoint: TouchPoint | undefined;
   let touchX = 0;
+  let panX = 0;
   let touchY = 0;
   let wheelY = 0;
   let remainder = 0;
@@ -98,6 +99,7 @@ export function attachTouchGestures(
     firstPoint = points.next().value;
     secondPoint = points.next().value;
     touchX = firstPoint?.x ?? 0;
+    panX = touchX;
     touchY = firstPoint?.y ?? 0;
     wheelY = touchY;
     remainder = 0;
@@ -158,6 +160,24 @@ export function attachTouchGestures(
     if (pointers.size === 2 && pinchDistance > 0) {
       options.setFontSize((pinchFont * distance()) / pinchDistance);
     } else if (pointers.size === 1) {
+      // An observer's grid can exceed the host. Pan the host first, so the
+      // rows above the visible part and history stay reachable in order.
+      if (parent.classList.contains("observing")) {
+        parent.scrollLeft += panX - point.x;
+        panX = point.x;
+        const delta = touchY - point.y;
+        const buffer = term.buffer.active;
+        if (
+          (delta < 0 && parent.scrollTop > 0) ||
+          (delta > 0 &&
+            buffer.viewportY >= buffer.baseY &&
+            parent.scrollTop + parent.clientHeight < parent.scrollHeight)
+        ) {
+          parent.scrollTop += delta;
+          touchY = point.y;
+          return;
+        }
+      }
       const rowHeight = screen.getBoundingClientRect().height / term.rows;
       if (rowHeight <= 0) return;
       remainder += (touchY - point.y) / rowHeight;

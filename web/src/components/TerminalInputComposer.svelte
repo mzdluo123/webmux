@@ -9,17 +9,37 @@
     draft,
     drafts,
     unavailable,
+    saved,
+    target,
     send,
+    resend,
+    release,
     filePaste,
     controlNotice,
   }: {
     draft: TerminalDraft;
     drafts: TerminalDrafts;
     unavailable: string;
+    // Where the draft is kept, e.g. "已保存在本机".
+    saved: string;
+    // The session the draft will be sent to.
+    target: string;
     send: () => void;
+    // Repeats an unconfirmed submission under its original ID.
+    resend: () => void;
+    // Stops tracking a submission and makes its text editable again.
+    release: () => void;
     filePaste: (event: ClipboardEvent) => boolean;
     controlNotice: () => void;
   } = $props();
+  const submissionText = {
+    saved: "已保存在本机，正在发送…",
+    sending: "已发出，等待服务端确认…",
+    received: "服务端已收到，正在写入终端…",
+    unknown: "连接中断，结果未知；恢复连接后自动查询，也可按原提交重发",
+    partial: "只有部分内容写入终端，提交键未写入；请检查终端",
+  } as Record<string, string>;
+  const locked = $derived(!!draft.submission);
   let textarea = $state<HTMLTextAreaElement | null>(null);
   let composing = $state(false);
   let clearOpen = $state(false);
@@ -46,7 +66,7 @@
     else focus();
   }
   export function editKey(input: string) {
-    if (composing) return;
+    if (composing || locked) return;
     const text = draft.text;
     let start = draft.selectionStart ?? text.length;
     let end = draft.selectionEnd ?? start;
@@ -128,9 +148,16 @@
 </script>
 
 <section class="terminal-composer" aria-label="终端输入草稿">
+  {#if draft.restoredAt}
+    <p class="shrink-0 truncate text-xs text-muted-foreground" role="status">
+      已恢复本机草稿（{new Date(draft.restoredAt).toLocaleString()}）· 目标：{target}
+      · 点击发送才会提交
+    </p>
+  {/if}
   <Textarea
     bind:ref={textarea}
     value={draft.text}
+    readonly={locked}
     aria-label="草稿内容"
     class="min-h-0 flex-1 resize-none overflow-y-auto font-mono [field-sizing:fixed]"
     autocapitalize="off"
@@ -166,23 +193,47 @@
         event.preventDefault();
     }}
   />
-  <div class="flex shrink-0 items-center gap-2">
-    <span class="min-w-0 flex-1 text-xs text-muted-foreground" role="status"
-      >{unavailable || "草稿模式 · 仅当前页面内存，刷新后丢失"}</span
+  <div class="flex shrink-0 flex-wrap items-center gap-2">
+    <span
+      class="min-w-0 flex-1 basis-40 text-xs text-muted-foreground"
+      role="status"
+      aria-label="草稿提交状态"
+      >{draft.submission
+        ? submissionText[draft.submission.state]
+        : unavailable || `草稿模式 · ${saved}`}</span
     >
+    {#if draft.submission?.state === "unknown"}
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={!!unavailable}
+        title="服务端若已收到原提交，不会重复写入"
+        onclick={resend}>按原提交重发</Button
+      >
+    {/if}
+    {#if draft.submission?.state === "unknown" || draft.submission?.state === "partial"}
+      <Button
+        variant="outline"
+        size="sm"
+        title="停止跟踪这次提交，把正文作为普通草稿继续编辑"
+        onclick={release}>转为草稿</Button
+      >
+    {/if}
     <Button
       variant="outline"
       size="sm"
       disabled={!draft.text || composing}
       onclick={() => (clearOpen = true)}>清空草稿</Button
     >
-    <Button
-      size="sm"
-      disabled={!draft.text || !!unavailable || composing}
-      onclick={() => {
-        if (!composing) send();
-      }}>发送</Button
-    >
+    {#if !draft.submission}
+      <Button
+        size="sm"
+        disabled={!draft.text || !!unavailable || composing}
+        onclick={() => {
+          if (!composing) send();
+        }}>发送</Button
+      >
+    {/if}
   </div>
 </section>
 
@@ -191,7 +242,7 @@
     <AlertDialog.Header>
       <AlertDialog.Title>清空草稿？</AlertDialog.Title>
       <AlertDialog.Description
-        >仅清空当前草稿，不影响终端或已上传文件。此操作无法撤销。</AlertDialog.Description
+        >清空当前草稿及其本机保存，不影响终端或已上传文件。此操作无法撤销。</AlertDialog.Description
       >
     </AlertDialog.Header>
     <AlertDialog.Footer>
