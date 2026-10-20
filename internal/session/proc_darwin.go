@@ -4,7 +4,6 @@ package session
 
 import (
 	"os"
-	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -16,8 +15,9 @@ const (
 	darwinStopped = 4 // SSTOP
 	darwinZombie  = 5 // SZOMB
 
-	procInfoCallPIDInfo = 2 // PROC_INFO_CALL_PIDINFO
-	procPIDTaskInfo     = 4 // PROC_PIDTASKINFO
+	procInfoCallPIDInfo = 2  // PROC_INFO_CALL_PIDINFO
+	procPIDTaskInfo     = 4  // PROC_PIDTASKINFO
+	procPIDPathInfo     = 11 // PROC_PIDPATHINFO
 )
 
 // procTaskInfo mirrors struct proc_taskinfo from <sys/proc_info.h>.
@@ -73,9 +73,31 @@ func processes() processTable {
 // same user, so detached descendants are found only by session and process tree.
 func sessionMarked(int, []byte) bool { return false }
 
-func enrichTimer(_ int, state processState) processState { return state }
+// kern.proc p_comm is not a reliable sleep(1) name on current macOS, and
+// proc_threadinfo.pth_name is the thread name rather than the wait channel.
+// The executable path is checked only for sleeping leaves.
+func enrichTimer(pid int, state processState) processState {
+	if state.timer || state.state != 'S' {
+		return state
+	}
+	if sleepCommand(procPath(pid)) {
+		state.timer = true
+	}
+	return state
+}
 
 func darwinTimer(comm, wmesg []byte) bool {
-	name := strings.TrimRight(string(comm), "\x00 ")
-	return name == "sleep" || timerWait(string(wmesg))
+	return sleepCommand(cString(comm)) || timerWait(string(wmesg))
+}
+
+func procPath(pid int) string {
+	var buf [4 * 1024]byte
+	n, _, errno := unix.Syscall6(unix.SYS_PROC_INFO, procInfoCallPIDInfo, uintptr(pid), procPIDPathInfo, 0, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf))) //nolint:staticcheck // see processes
+	if errno != 0 || n == 0 {
+		return ""
+	}
+	if int(n) > len(buf) {
+		n = uintptr(len(buf))
+	}
+	return cString(buf[:n])
 }

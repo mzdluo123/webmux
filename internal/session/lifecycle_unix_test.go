@@ -145,7 +145,7 @@ func TestUnattendedSleepIsNotUserWait(t *testing.T) {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("sleep/read wait not distinguished: sleep pid %d blocked=%t %+v, read pid %d %+v", sleeper.cmd.Process.Pid, foregroundBlocked(sleeper.cmd.Process.Pid, table), table[sleeper.cmd.Process.Pid], reader.cmd.Process.Pid, table[reader.cmd.Process.Pid])
+			t.Fatalf("sleep/read wait not distinguished: sleep pid %d blocked=%t awaiting=%t %+v children=%v, read pid %d awaiting=%t %+v", sleeper.cmd.Process.Pid, foregroundBlocked(sleeper.cmd.Process.Pid, table), awaitingInput(sleeper.cmd.Process.Pid, table), table[sleeper.cmd.Process.Pid], directChildren(sleeper.cmd.Process.Pid, table), reader.cmd.Process.Pid, awaitingInput(reader.cmd.Process.Pid, table), table[reader.cmd.Process.Pid])
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -160,6 +160,16 @@ func TestUnattendedSleepIsNotUserWait(t *testing.T) {
 	if blocked.info.Status != StatusWaiting {
 		t.Fatalf("terminal read status = %s, want waiting", blocked.info.Status)
 	}
+}
+
+func directChildren(pid int, table processTable) map[int]processState {
+	kids := map[int]processState{}
+	for child, state := range table {
+		if state.ppid == pid {
+			kids[child] = state
+		}
+	}
+	return kids
 }
 
 func TestRealProcessTreeWaiting(t *testing.T) {

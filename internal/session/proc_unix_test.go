@@ -74,7 +74,7 @@ func TestAwaitingInputIgnoresTimerLeaves(t *testing.T) {
 }
 
 func TestTimerWaitNames(t *testing.T) {
-	for _, name := range []string{"hrtimer_nanosleep", "nanosleep", "nanoslee", "nanoslee\x00"} {
+	for _, name := range []string{"hrtimer_nanosleep", "nanosleep", "nanoslee", "nanoslee\x00", "nanosle", "nanosle\x00"} {
 		if !timerWait(name) {
 			t.Fatalf("%q should be a timer wait", name)
 		}
@@ -82,6 +82,19 @@ func TestTimerWaitNames(t *testing.T) {
 	for _, name := range []string{"", "0", "wait_woken", "poll_schedule_timeout.constprop.0", "ttyin"} {
 		if timerWait(name) {
 			t.Fatalf("%q should not be a timer wait", name)
+		}
+	}
+}
+
+func TestSleepCommand(t *testing.T) {
+	for _, name := range []string{"sleep", "/bin/sleep", "/usr/bin/sleep", "sleep\x00junk", "/bin/sleep\x00"} {
+		if !sleepCommand(name) {
+			t.Fatalf("%q should be sleep", name)
+		}
+	}
+	for _, name := range []string{"", "bash", "/bin/bash", "sleeping", "/bin/sleeping", "nanosleep"} {
+		if sleepCommand(name) {
+			t.Fatalf("%q should not be sleep", name)
 		}
 	}
 }

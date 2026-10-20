@@ -2,7 +2,10 @@
 
 package session
 
-import "strings"
+import (
+	"path"
+	"strings"
+)
 
 // state uses ps letters: R running, S sleeping, Z zombie. Other values, including
 // '?' for a process whose run state is unreadable, never count as waiting.
@@ -93,10 +96,26 @@ func timerLeaves(pid int, table processTable) bool {
 	return leaves > 0
 }
 
+func cString(b []byte) string {
+	return cutCString(string(b))
+}
+
+func cutCString(s string) string {
+	if i := strings.IndexByte(s, 0); i >= 0 {
+		s = s[:i]
+	}
+	return strings.TrimRight(s, " ")
+}
+
+func sleepCommand(name string) bool {
+	return path.Base(cutCString(name)) == "sleep"
+}
+
 func timerWait(name string) bool {
-	name = strings.TrimRight(name, "\x00 ")
+	name = cutCString(name)
 	if name == "" || name == "0" {
 		return false
 	}
-	return strings.Contains(name, "nanosleep") || strings.HasPrefix(name, "nanoslee")
+	// Darwin e_wmesg is 8 bytes with WMESGLEN 7, so nanosleep is stored as "nanosle".
+	return strings.Contains(name, "nanosleep") || strings.HasPrefix(name, "nanoslee") || name == "nanosle"
 }
