@@ -14,16 +14,16 @@ WebMux 目前只建议绑定回环地址或可信 VPN；想临时从手机或外
   - 以上都没有时，下载 webmux 固定版本的 Cloudflare 官方 Release 产物：先 GitHub 直连，失败或停滞时依次回退到 gh-proxy 类镜像（默认 `ghfast.top`、`gh-proxy.com`，可用 `tunnel.download_mirrors` 覆盖），以解决国内无法直连 GitHub 的问题。
   - 无论来自哪个来源，内容都必须通过内置 SHA-256 校验后才会缓存并执行，镜像无法替换产物。
 - **隧道模式强制鉴权**：
-  - 启用隧道且未配置 `token` 时，每次启动生成高强度随机 Token。
+  - 启用隧道且未配置 `token` 时，每次启动生成高强度随机 Token；显式配置的 Token 必须至少 43 个字符，否则拒绝启动。
   - 非隧道模式行为不变：空 Token 仍表示不鉴权。
 - **隧道公网地址加入白名单**：运行时把隧道公网 HTTPS 地址加入 Host 与 Origin 白名单，使经隧道访问的页面通过现有 Host/Origin 检查；其他未授权 Host 仍被拒绝。
 - **URL 携带 Token 快速认证**：
-  - 前端识别 `#token=<值>` 片段：保存 Token，并立即用 `history.replaceState` 从地址栏和当前历史记录中移除片段，然后完成认证。
-  - 片段不会发送到服务器、Cloudflare 边缘或访问日志。
+  - 前端识别 `#token=<值>` 片段：保存 Token，同步到 `webmux_token` Cookie，并立即用 `history.replaceState` 从地址栏和当前历史记录中移除片段，然后完成认证。
+  - 片段与 WebSocket 请求 URL 都不包含 Token，因此不会进入服务器、Cloudflare 边缘或代理的 URL/请求日志。
 - **启动时打印访问地址**：
-  - 所有模式都会在终端打印访问 URL；有 Token 时 URL 带 `#token=` 片段。
+  - 所有模式都会在终端打印本地 URL；只有隧道模式附带 `#token=` 片段，避免固定的已配置 Token 进入服务日志。
   - 隧道模式在隧道就绪后打印公网 URL，并在终端以字符画形式打印对应二维码。
-- 无 **BREAKING** 变更：未启用隧道时，现有配置、鉴权方式（Bearer、Cookie、WebSocket `?token=`）与默认行为保持不变。
+- 无 **BREAKING** 变更：未启用隧道时，除本地链接不再附带固定 Token 片段外，现有配置、鉴权方式（Bearer、Cookie、WebSocket `?token=` 兼容）与默认行为保持不变。
 
 ## Capabilities
 
@@ -51,9 +51,10 @@ WebMux 目前只建议绑定回环地址或可信 VPN；想临时从手机或外
   - 新增 `internal/tunnel` 包：获取、校验与下载 cloudflared；管理子进程；解析公网 URL。
   - `internal/api/host.go` 与 `router.go`：支持在运行时追加隧道公网来源。
 - **前端**：
-  - `web/src/App.svelte` 与 `web/src/api.ts`：在首次健康检查前消费 `#token=` 片段。
+  - `web/src/App.svelte` 与 `web/src/api.ts`：在首次健康检查前消费 `#token=` 片段，并同步 `webmux_token` Cookie。
+  - `web/src/ws.ts`：WebSocket 改用 Cookie 认证，不再把 Token 拼进请求 URL。
 - **依赖**：新增一个纯 Go 的二维码编码库，不使用 CGO。cloudflared 是运行时外部程序，不打包进 webmux 二进制。
 - **网络与安全**：
   - 启用隧道且需要下载时，webmux 会访问 `github.com`，失败时访问所配置的第三方镜像；运行时还需访问 Cloudflare 边缘。
-  - 打印的 URL 与二维码包含 Token；以 systemd/launchd 运行时，它们会进入 journal 或日志文件。
+  - 隧道模式打印的 URL 与二维码包含 Token；以 systemd/launchd 运行时，它们会进入 journal 或日志文件。非隧道模式不打印固定 Token。
 - **文档与部署示例**：`deploy/config.example.toml` 新增 `[tunnel]` 示例；`docs/deployment.md` 补充隧道用法与安全提示。

@@ -20,7 +20,7 @@
 
 ### Requirement: 隧道模式选择
 
-`tunnel.token` 为空时，系统 SHALL 使用 Quick Tunnel，公网地址由 cloudflared 分配。`tunnel.token` 非空时，系统 SHALL 使用 Named Tunnel，公网地址为 `https://<tunnel.hostname>`。`tunnel.hostname` MUST 是不含协议、端口、路径或凭据的纯主机名；Named Tunnel 缺少合法主机名时，系统 MUST 拒绝启动。
+`tunnel.token` 为空时，系统 SHALL 使用 Quick Tunnel，公网地址由 cloudflared 分配。`tunnel.token` 非空时，系统 SHALL 使用 Named Tunnel，公网地址为 `https://<tunnel.hostname>`。`tunnel.hostname` MUST 是不含协议、端口、路径或凭据的纯主机名，MUST 为 ASCII（IDN 使用 punycode 形式），MUST NOT 含通配符；末尾的点会被去掉。Named Tunnel 缺少合法主机名时，系统 MUST 拒绝启动。
 
 #### Scenario: Quick Tunnel
 
@@ -36,6 +36,11 @@
 
 - **WHEN** 启用隧道，配置了 `tunnel.token`，但 `tunnel.hostname` 为空或不是纯主机名（如 `https://term.example.com/x`）
 - **THEN** 系统输出配置错误并以非零状态退出，不开始监听
+
+#### Scenario: 无法匹配 Host 的域名
+
+- **WHEN** `tunnel.hostname` 含通配符（如 `*.example.com`）或非 ASCII 字符（如 `终端.example.com`）
+- **THEN** 系统输出配置错误并以非零状态退出，提示使用 Cloudflare 转发的具体 ASCII/punycode 主机名
 
 ### Requirement: 隧道凭据保密
 
@@ -127,7 +132,7 @@
 
 ### Requirement: 隧道模式强制 Token
 
-启用隧道时，系统 MUST 要求所有 `/api/` 与 `/ws/` 请求携带有效 Token。若配置和启动参数都没有提供 Token，系统 SHALL 在每次启动时生成至少 256 位熵、URL 安全编码的随机 Token，用于本次进程生命周期。
+启用隧道时，系统 MUST 要求所有 `/api/` 与 `/ws/` 请求携带有效 Token。若配置和启动参数都没有提供 Token，系统 SHALL 在每次启动时生成至少 256 位熵、URL 安全编码的随机 Token，用于本次进程生命周期。若显式提供了 webmux Token，其长度 MUST 不少于 43 个字符（与 256 位 Token 的自动生成形式等长）；否则系统 MUST 拒绝启动，并提示留空自动生成或使用 `openssl rand` 创建。
 
 #### Scenario: 自动生成 Token
 
@@ -136,8 +141,13 @@
 
 #### Scenario: 使用已配置 Token
 
-- **WHEN** 启用隧道且配置了 `token = "abc..."`
+- **WHEN** 启用隧道且配置了 43 个字符以上的 `token`
 - **THEN** 系统使用该 Token，不生成新 Token
+
+#### Scenario: 过短的已配置 Token
+
+- **WHEN** 启用隧道且配置了 `token = "mine"`
+- **THEN** 系统输出配置错误并以非零状态退出，不开始监听
 
 #### Scenario: 重启后生成新 Token
 
@@ -180,7 +190,12 @@
 #### Scenario: 隧道启动超时
 
 - **WHEN** cloudflared 启动后 60 秒内仍未建立连接或报告公网地址
-- **THEN** 系统记录错误日志，不打印公网 URL 和二维码，本地服务继续运行
+- **THEN** 系统记录错误日志，此时不打印公网 URL 和二维码，本地服务继续运行
+
+#### Scenario: 超时后仍建立连接
+
+- **WHEN** 超时错误日志之后，cloudflared 才报告注册成功或 Quick Tunnel 地址
+- **THEN** 系统仍打印公网 URL 与二维码，并把该公网地址加入 Host/Origin 白名单
 
 ### Requirement: cloudflared 生命周期
 

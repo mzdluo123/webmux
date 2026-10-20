@@ -60,6 +60,20 @@ func TestAuthenticationAndOriginBoundaries(t *testing.T) {
 	}
 }
 
+func TestPercentEncodedTokenCookie(t *testing.T) {
+	c := config.Config{Token: "a b&c#d"}
+	m := session.NewManager(session.Options{})
+	defer m.Shutdown(context.Background())
+	handler := New(c, m, testWorkspace(t, m, t.TempDir()), nil)
+	r := httptest.NewRequest(http.MethodGet, "http://webmux.example/api/health", nil)
+	r.AddCookie(&http.Cookie{Name: "webmux_token", Value: "a%20b%26c%23d"})
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("encoded cookie status %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestWebSocketHandshakeBoundaries(t *testing.T) {
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())

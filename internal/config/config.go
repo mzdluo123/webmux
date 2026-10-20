@@ -134,9 +134,17 @@ func (c *Config) Validate() error {
 }
 func (t *TunnelConfig) validate() error {
 	if t.Hostname != "" {
-		host := strings.ToLower(t.Hostname)
+		host := strings.TrimRight(strings.ToLower(t.Hostname), ".")
+		if strings.Contains(host, "*") {
+			return fmt.Errorf("tunnel.hostname %q must be the concrete hostname Cloudflare forwards, not a wildcard", t.Hostname)
+		}
+		for _, r := range host {
+			if r > 127 {
+				return fmt.Errorf("tunnel.hostname %q must use the ASCII/punycode form", t.Hostname)
+			}
+		}
 		u, err := url.Parse("https://" + host)
-		if err != nil || strings.ContainsAny(host, ":/@?#[] ") || u.Hostname() != host {
+		if err != nil || host == "" || strings.ContainsAny(host, ":/@?#[] ") || u.Hostname() != host {
 			return fmt.Errorf("tunnel.hostname %q must be a bare hostname such as term.example.com", t.Hostname)
 		}
 		t.Hostname = host

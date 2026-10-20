@@ -21,6 +21,9 @@ quick)
 	echo 'INF Registered tunnel connection connIndex=0 location=lax' >&2 ;;
 named) echo 'INF Registered tunnel connection connIndex=0' >&2 ;;
 url-only) echo 'INF |  https://abc-def.trycloudflare.com  |' >&2 ;;
+late) sleep 0.5
+	echo 'INF |  https://late-reg.trycloudflare.com  |' >&2
+	echo 'INF Registered tunnel connection connIndex=0' >&2 ;;
 fail) echo 'ERR invalid tunnel token' >&2; exit 3 ;;
 esac
 trap 'echo term > "$FAKE_DIR/term"; exit 0' TERM
@@ -113,6 +116,18 @@ func TestReadyTimesOutWithoutRegistration(t *testing.T) {
 	case <-tun.Done():
 		t.Fatal("timeout stopped cloudflared")
 	default:
+	}
+}
+
+func TestReadyAcceptsLateRegistration(t *testing.T) {
+	tun, _ := startFake(t, "late", Options{ReadyTimeout: 100 * time.Millisecond})
+	select {
+	case origin := <-tun.Ready():
+		if origin != "https://late-reg.trycloudflare.com" {
+			t.Fatalf("origin %q", origin)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("late registration was not announced")
 	}
 }
 

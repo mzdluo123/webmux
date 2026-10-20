@@ -36,6 +36,10 @@ func localOrigin(addr net.Addr) string {
 	return "http://" + net.JoinHostPort(host, strconv.Itoa(tcp.Port))
 }
 
+// minTunnelTokenLength matches the 43 URL-safe characters of generateToken;
+// a tunnel exposed to the internet must not use a shorter configured token.
+const minTunnelTokenLength = 43
+
 // generateToken returns 256 random bits, URL-safe so links need no escaping.
 func generateToken() string {
 	key := make([]byte, 32)

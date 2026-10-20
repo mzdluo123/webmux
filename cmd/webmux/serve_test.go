@@ -33,7 +33,7 @@ func TestTunnelFlagAndGeneratedToken(t *testing.T) {
 		{"flag enables", []string{"--tunnel"}, true, "", true},
 		{"flag disables file", []string{"--config", enabled, "--tunnel=false"}, false, "", false},
 		{"file enables", []string{"--config", enabled}, true, "", true},
-		{"configured token kept", []string{"--tunnel", "--token", "mine"}, true, "mine", false},
+		{"configured token kept", []string{"--tunnel", "--token", tunnelTestToken}, true, tunnelTestToken, false},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			c, err := loadConfig(row.args)
@@ -52,6 +52,17 @@ func TestTunnelFlagAndGeneratedToken(t *testing.T) {
 				t.Fatalf("token %q, want %q", c.Token, row.token)
 			}
 		})
+	}
+}
+
+// tunnelTestToken matches the 43-character width of a generated token.
+const tunnelTestToken = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFG"
+
+func TestTunnelRejectsShortConfiguredToken(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	_, err := loadConfig([]string{"--tunnel", "--token", "mine"})
+	if err == nil || !strings.Contains(err.Error(), "at least 43 characters") {
+		t.Fatalf("weak tunnel token error %v", err)
 	}
 }
 
@@ -113,7 +124,7 @@ func startTunnelServe(t *testing.T) *tunnelRun {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Listen, c.Token, c.StateDir = "127.0.0.1:0", "tok", filepath.Join(dir, "state")
+	c.Listen, c.Token, c.StateDir = "127.0.0.1:0", tunnelTestToken, filepath.Join(dir, "state")
 	c.Tunnel = config.TunnelConfig{Enabled: true, Cloudflared: bin}
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)
@@ -126,7 +137,7 @@ func startTunnelServe(t *testing.T) *tunnelRun {
 		<-r.result
 	})
 	eventually(t, "public URL", func() bool { return strings.Contains(r.out.String(), "WebMux public:") })
-	m := regexp.MustCompile(`WebMux local:  (http://127\.0\.0\.1:\d+)/#token=tok\n`).FindStringSubmatch(r.out.String())
+	m := regexp.MustCompile(`WebMux local:  (http://127\.0\.0\.1:\d+)/#token=` + regexp.QuoteMeta(tunnelTestToken) + `\n`).FindStringSubmatch(r.out.String())
 	if m == nil {
 		t.Fatalf("local URL missing: %q", r.out.String())
 	}
@@ -143,7 +154,7 @@ func (r *tunnelRun) status(t *testing.T, host string) int {
 		t.Fatal(err)
 	}
 	req.Host = host
-	req.Header.Set("Authorization", "Bearer tok")
+	req.Header.Set("Authorization", "Bearer "+tunnelTestToken)
 	if host == publicHost {
 		req.Header.Set("Origin", "https://"+publicHost)
 	}
@@ -159,7 +170,7 @@ func TestServeAnnouncesTunnelAndRevokesOnExit(t *testing.T) {
 	r := startTunnelServe(t)
 	out := r.out.String()
 	localAt := strings.Index(out, "WebMux local:")
-	publicAt := strings.Index(out, "WebMux public: https://"+publicHost+"/#token=tok\n")
+	publicAt := strings.Index(out, "WebMux public: https://"+publicHost+"/#token="+tunnelTestToken+"\n")
 	if localAt < 0 || publicAt < localAt {
 		t.Fatalf("output order: %q", out)
 	}
@@ -196,13 +207,39 @@ func TestServeShutdownStopsTunnel(t *testing.T) {
 	}
 }
 
+func TestServePrintsTokenFragmentOnlyWithTunnel(t *testing.T) {
+	dir := t.TempDir()
+	c, err := config.Load(filepath.Join(dir, "absent.toml"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Listen, c.Token, c.StateDir = "127.0.0.1:0", tunnelTestToken, dir
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	out := &syncBuffer{}
+	done := make(chan error, 1)
+	go func() { done <- serve(ctx, c, out) }()
+	eventually(t, "local URL", func() bool {
+		return strings.Contains(out.String(), "WebMux local:  http://127.0.0.1:")
+	})
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "#token=") {
+		t.Fatalf("non-tunnel start printed a token fragment: %q", out.String())
+	}
+}
+
 func TestServeFailsBeforeListeningWithoutCloudflared(t *testing.T) {
 	dir := t.TempDir()
 	c, err := config.Load(filepath.Join(dir, "absent.toml"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Listen, c.Token, c.StateDir = "127.0.0.1:0", "tok", dir
+	c.Listen, c.Token, c.StateDir = "127.0.0.1:0", tunnelTestToken, dir
 	c.Tunnel = config.TunnelConfig{Enabled: true, Cloudflared: filepath.Join(dir, "missing")}
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)

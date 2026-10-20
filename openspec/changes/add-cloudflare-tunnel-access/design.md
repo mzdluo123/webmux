@@ -33,8 +33,8 @@ cloudflared 经隧道把请求转发到本地 origin 时：
 **Goals:**
 
 - 一条 `webmux --tunnel` 命令即可得到受 Token 保护的 HTTPS 公网入口，以及可扫码打开的链接。
-- Token 只出现在 URL 片段和本地终端输出中，不进入服务器、Cloudflare 边缘或代理的请求日志。
-- 不启用隧道时零行为变化：不联网，不改默认鉴权语义。
+- Token 不出现在请求 URL（含 WebSocket）中，因此不进入服务器、Cloudflare 边缘或代理的 URL/请求日志；`Authorization` 头、Cookie 与终端输入仍会经过 Cloudflare 边缘。
+- 不启用隧道时不联网、不改默认鉴权语义；本地链接不再附带固定的 Token 片段。
 
 **Non-Goals:**
 
@@ -63,6 +63,7 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 - `config.Config` 新增 `Tunnel TunnelConfig` 字段。
 - `Validate` 校验以下内容：
   - Named Tunnel 必须配置 `hostname`，且它是纯主机名：不含协议、端口、路径、`@`，并通过 `authorityHostname` 同等解析。
+  - `hostname` 必须与 Cloudflare 转发的 `Host` 一致：只接受 ASCII/punycode 形式，拒绝通配符与 IDN；末尾的点会被去掉。否则打印出的公网地址永远匹配不上 Host 检查。
   - `hostname` 统一转为小写。
 - `--tunnel` 为布尔参数，显式出现时覆盖 `tunnel.enabled`，沿用 `loadConfig` 的 `explicit` 机制。
 - 不设单独的 `mode` 字段：模式由 `token` 是否为空推断，避免出现 mode 与 token 矛盾的配置组合。
@@ -95,8 +96,8 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 - **Quick**：只匹配横幅框内的地址 `\|\s+(https://[a-z0-9-]+\.trycloudflare\.com)\s+\|`，避免把错误信息中的 `https://api.trycloudflare.com` 误认为公网地址。
 - **两种模式**：都等待出现 `Registered tunnel connection` 行后才视为就绪。
 - **Named**：公网 origin 取自配置的 `https://<hostname>`。
-- **超时**：60 秒仍未就绪时，记录错误日志，不打印公网 URL，本地服务继续运行。
-- **日志转发**：stderr 原样转发到 slog debug 级别。cloudflared 的日志不包含 webmux Token：Token 只存在于 URL 片段，不会发给 cloudflared。
+- **超时**：60 秒仍未就绪时，记录错误日志，此时不打印公网 URL，本地服务继续运行。超时只报警：之后若才出现注册行，仍按就绪处理并打印地址，避免留下一个子进程仍在运行、公网 Host 却被永久拒绝的状态。
+- **日志转发**：stderr 原样转发到 slog debug 级别。cloudflared 的日志不包含 webmux Token：Token 不进入请求 URL，WebSocket 凭据由 Cookie 携带。
 - **备选：`--metrics` 的 `/quicktunnel` 与 `/ready` 端点。** 它是结构化接口，但需要先预分配 metrics 端口（存在 TOCTOU 竞争）或额外解析日志。复杂度更高，暂不采用；如果日志格式不稳定，可以退回此方案。
 
 **生命周期**：
@@ -165,13 +166,14 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 
 - **生成时机**：在 `loadConfig` 之后、`api.New` 之前。若 `Tunnel.Enabled && Token == ""`，生成 Token 并写入 `c.Token`。
 - **生成方式**：`crypto/rand` 32 字节，`base64.RawURLEncoding` 编码，得到 43 个字符。URL 安全，无需百分号编码。
+- **已配置的 webmux Token**：隧道模式下也必须达到同样的 43 字符宽度，否则拒绝启动并提示留空自动生成，或使用 `openssl rand -base64 32`。隧道是公网入口，不能沿用只适合受信网络的短 Token。
 - 生成后的 Token 不写回配置文件。
 - 只在隧道模式下生成：非隧道模式保持“空 Token = 不鉴权”，符合用户的选择。
 
 ### 6. 访问 URL 与二维码打印
 
 - **新增函数**：`accessURL(base, token string) string`。Token 非空时追加 `#token=` + `url.QueryEscape(token)`，再把 `+` 替换为 `%20`。`PathEscape` 不转义 `&`，不满足规格；替换后空格编码为 `%20`、`+` 为 `%2B`，前端用 `decodeURIComponent` 可以无歧义还原。
-- **本地 URL**：`net.Listen` 成功后立即打印。主机规则同第 2 节的本地地址。
+- **本地 URL**：`net.Listen` 成功后立即打印。主机规则同第 2 节的本地地址。只有隧道模式附带 `#token=`：非隧道模式下固定 Token 不应因为 stdout 被 service manager 捕获而进入 journal 或日志文件，用户本来也知道自己配置的 Token。
 - **公网 URL**：隧道就绪时打印 URL，紧跟二维码。
 - **输出方式**：直接 `fmt.Fprintln(os.Stdout, …)`，不走 slog。避免 Token 混入结构化日志的字段，也便于用户直接点击和复制。slog 的“webmux listening”日志保持不变，且不包含 Token。
 - **二维码库**：使用 `rsc.io/qr`，纯 Go、BSD 许可、无传递依赖、支持 `CGO_ENABLED=0`。
@@ -186,16 +188,16 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 - **新增函数**：在 `api.ts` 新增 `consumeTokenFragment(): boolean`，在 `App.svelte` 的 `onMount` 中、首次 `check()` 之前调用。逻辑如下：
   1. 只处理形如 `#token=<值>` 的片段，其他片段（如 `#quick-commands`）原样保留。
   2. 用 `decodeURIComponent` 解码；解码失败视为无效，并把片段移除。
-  3. `store("token", value)`，同时更新组件内的 `token` 状态。
+  3. `store("token", value)`，同时更新组件内的 `token` 状态，并把 Token 百分号编码后写入 `webmux_token` Cookie（`Path=/`、`SameSite=Strict`，HTTPS 下加 `Secure`）。
   4. `history.replaceState(history.state, "", location.pathname + location.search)`。
-- 后续 HTTP 与 WebSocket 请求沿用现有的 `stored("token")` 路径，不新增认证通道。
+- HTTP 请求继续使用 `Authorization: Bearer`；WebSocket 握手无法设置请求头，改用上述 Cookie，并在每次 `connect()` 时从 `stored("token")` 重新同步，覆盖手动输入 Token、旧 Cookie 过期等情形。`ws.ts` 不再拼接 `?token=`，服务端保留对旧客户端的 query 兼容，并对 Cookie 值做百分号解码。
 - Token 无效时走现有的 401 → `webmux:auth` → 表单流程。
-- **备选：用 `?token=` 换取 HttpOnly Cookie 后 302。** 用户选择了片段方案。片段方案不会让 Token 到达 Cloudflare 边缘的请求日志，也不需要新增服务端入口。
+- **备选：用 `?token=` 换取 HttpOnly Cookie 后 302。** 用户选择了片段方案。片段方案不会让 Token 出现在 Cloudflare 边缘的请求 URL 日志中，也不需要新增服务端入口；Cookie 由页面脚本写入，因此不是 HttpOnly。
 
 ## Risks / Trade-offs
 
-- **[风险] Token 会落入 journal 或日志文件**：URL 与二维码打印到 stdout，以 systemd/launchd 运行时 Token 会持久化到 journal 或 `StandardOutPath`。
-  - **缓解**：部署文档说明这一点，并建议 journal 访问权限只限本用户；自动生成的 Token 每次重启都会轮换。
+- **[风险] Token 会落入 journal 或日志文件**：隧道模式的公网 URL 与二维码打印到 stdout，以 systemd/launchd 运行时 Token 会持久化到 journal 或 `StandardOutPath`。
+  - **缓解**：只有隧道模式打印 Token 片段；非隧道模式不打印固定的已配置 Token。部署文档说明日志风险，并建议 journal 访问权限只限本用户；自动生成的 Token 每次重启都会轮换。
 - **[风险] cloudflared 日志格式变化**：Quick Tunnel 地址的日志格式或 `Registered tunnel connection` 文案可能变化，导致就绪判定失败。
   - **已验证（2026.10.2）**：地址出现在横幅框行 `INF |  https://<名称>.trycloudflare.com  |`，约 4 秒后出现 `INF Registered tunnel connection connIndex=0 ...`。新主机名的 DNS 可能还要几秒才能解析。
   - **缓解**：固定 cloudflared 版本，升级时用真实隧道回归；超时只影响打印，不影响本地服务；必要时可切换到 metrics 端点方案。
@@ -216,5 +218,5 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 
 ## Migration Plan
 
-- 纯增量功能。不配置 `[tunnel]` 且不带 `--tunnel` 时，行为不变，无需迁移。
+- 纯增量功能。不配置 `[tunnel]` 且不带 `--tunnel` 时，除“本地链接不再附带固定的 `#token=` 片段”这一安全修正外，行为不变，无需迁移。
 - 回滚：去掉 `--tunnel` 或把 `tunnel.enabled` 设为 `false`。可选择删除 `<state_dir>/cloudflared/` 缓存。

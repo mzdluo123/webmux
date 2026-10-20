@@ -30,14 +30,16 @@ class MockWebSocket {
 describe("WebSocket upstream send budget", () => {
   let connection: SocketConnection;
   let socket: MockWebSocket;
+  let browserDocument: EventTarget & { cookie: string };
 
   beforeEach(() => {
     vi.useFakeTimers();
     MockWebSocket.instances = [];
     vi.stubGlobal("WebSocket", MockWebSocket);
     vi.stubGlobal("location", { protocol: "http:", host: "localhost" });
-    vi.stubGlobal("localStorage", { getItem: () => null });
-    vi.stubGlobal("document", new EventTarget());
+    vi.stubGlobal("localStorage", { getItem: () => "tok en" });
+    browserDocument = Object.assign(new EventTarget(), { cookie: "" });
+    vi.stubGlobal("document", browserDocument);
     vi.stubGlobal(
       "window",
       Object.assign(new EventTarget(), { setTimeout: globalThis.setTimeout }),
@@ -50,6 +52,13 @@ describe("WebSocket upstream send budget", () => {
     connection.close();
     vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it("authenticates through the cookie without putting the token in the URL", () => {
+    expect(socket.url).toBe("ws://localhost/ws/s/test");
+    expect(browserDocument.cookie).toBe(
+      "webmux_token=tok%20en; Path=/; SameSite=Strict",
+    );
   });
 
   it("rejects input when the socket queue is saturated", () => {

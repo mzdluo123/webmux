@@ -114,14 +114,14 @@ func withoutTunnelToken(env []string) []string {
 	return out
 }
 
-// scan forwards cloudflared logs and announces readiness at most once,
-// before the deadline. It returns when stderr closes.
+// scan forwards cloudflared logs and announces readiness at most once. A
+// timeout only logs an error: a slow edge handshake can still register later,
+// and that origin must not stay permanently forbidden.
 func (t *Tunnel) scan(ctx context.Context, stderr io.Reader, public string, timeout time.Duration, logger *slog.Logger) {
-	const waiting, announced, expired = 0, 1, 2
-	var state atomic.Int32
+	var announced atomic.Bool
 	deadline := time.AfterFunc(timeout, func() {
-		if state.CompareAndSwap(waiting, expired) && ctx.Err() == nil {
-			logger.Error("cloudflared did not connect in time; public URL unavailable", "timeout", timeout)
+		if ctx.Err() == nil && !announced.Load() {
+			logger.Error("cloudflared has not registered yet; still waiting for a public URL", "timeout", timeout)
 		}
 	})
 	defer deadline.Stop()
@@ -130,7 +130,7 @@ func (t *Tunnel) scan(ctx context.Context, stderr io.Reader, public string, time
 	for scanner.Scan() {
 		line := scanner.Text()
 		logger.Debug("cloudflared", "line", line)
-		if state.Load() != waiting {
+		if announced.Load() {
 			continue
 		}
 		if public == "" {
@@ -141,7 +141,7 @@ func (t *Tunnel) scan(ctx context.Context, stderr io.Reader, public string, time
 		if strings.Contains(line, registeredLine) {
 			registered = true
 		}
-		if public != "" && registered && state.CompareAndSwap(waiting, announced) {
+		if public != "" && registered && announced.CompareAndSwap(false, true) {
 			t.ready <- public
 		}
 	}

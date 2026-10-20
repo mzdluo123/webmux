@@ -1,4 +1,4 @@
-import { stored } from "./api";
+import { syncTokenCookie } from "./api";
 
 const maxBufferedAmount = 1024 * 1024;
 
@@ -61,8 +61,9 @@ export function connect(
     previous?.close();
     onState(attempt ? "reconnecting" : "connecting");
     const target = typeof path === "string" ? path : path();
+    syncTokenCookie();
     const next = new WebSocket(
-      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${target}${target.includes("?") ? "&" : "?"}token=${encodeURIComponent(stored("token"))}`,
+      `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${target}`,
     );
     socket = next;
     next.binaryType = "arraybuffer";

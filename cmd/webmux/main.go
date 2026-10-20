@@ -60,12 +60,27 @@ func loadConfig(args []string) (config.Config, error) {
 	if err = c.Validate(); err != nil {
 		return c, err
 	}
-	// A public entry point is never unauthenticated; the generated token
-	// lives only for this process, like its sessions.
-	if c.Tunnel.Enabled && c.Token == "" {
-		c.Token = generateToken()
+	if err = ensureTunnelToken(&c); err != nil {
+		return c, err
 	}
 	return c, nil
+}
+
+// ensureTunnelToken keeps a public entry point authenticated: an empty token
+// is generated for this process, and a configured one must not be weaker than
+// that generated form.
+func ensureTunnelToken(c *config.Config) error {
+	if !c.Tunnel.Enabled {
+		return nil
+	}
+	if c.Token == "" {
+		c.Token = generateToken()
+		return nil
+	}
+	if len(c.Token) < minTunnelTokenLength {
+		return fmt.Errorf("tunnel mode requires the webmux token to be at least %d characters; leave it empty to generate one, or create one with openssl rand -base64 32", minTunnelTokenLength)
+	}
+	return nil
 }
 
 func run() error {
@@ -81,6 +96,9 @@ func run() error {
 // serve runs until ctx ends. Access URLs go to out, never to slog, so tokens
 // stay out of structured logs.
 func serve(ctx context.Context, c config.Config, out io.Writer) error {
+	if err := ensureTunnelToken(&c); err != nil {
+		return err
+	}
 	host, _, _ := net.SplitHostPort(c.Listen)
 	if (host == "0.0.0.0" || host == "::" || host == "") && c.Token == "" {
 		slog.Warn("SHELL EXPOSED: listening on all interfaces without token; isolate with Tailscale/WireGuard")
@@ -120,7 +138,14 @@ func serve(ctx context.Context, c config.Config, out io.Writer) error {
 	go func() { ended <- server.Serve(listener) }()
 	slog.Info("webmux listening", "address", listener.Addr(), "version", version)
 	local := localOrigin(listener.Addr())
-	_, _ = fmt.Fprintln(out, "WebMux local:  "+accessURL(local, c.Token))
+	localLink := local
+	if c.Tunnel.Enabled {
+		// Tunnel mode always prints the token because the operator cannot
+		// otherwise know the generated one. A configured non-tunnel token
+		// stays out of captured stdout, which a service manager persists.
+		localLink = accessURL(local, c.Token)
+	}
+	_, _ = fmt.Fprintln(out, "WebMux local:  "+localLink)
 	var tun *tunnel.Tunnel
 	var watcher sync.WaitGroup
 	if c.Tunnel.Enabled {

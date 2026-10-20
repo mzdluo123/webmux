@@ -15,20 +15,20 @@
 ## 2. 配置与 Token
 
 - [x] 2.1 在 `internal/config` 新增 `TunnelConfig{Enabled, Token, Hostname, Cloudflared, DownloadMirrors}`，并解析 `[tunnel]` 节。`DownloadMirrors` 要能区分 nil（使用内置默认镜像）与 `[]`（禁用镜像）。`Validate` 校验以下规则：
-  - Named Tunnel 必须配置纯主机名 `hostname`，并统一转为小写
+  - Named Tunnel 必须配置纯主机名 `hostname`，并统一转为小写；末尾的点被去掉，拒绝通配符与非 ASCII（IDN 用 punycode）
   - `cloudflared` 路径展开 `~`
   - 每个镜像前缀为 `https://`，不含凭据、查询参数或片段，末尾的 `/` 被去掉
 
   **验证**：在 `config_test.go` 增加表驱动用例，覆盖以下情况：
   - Quick 模式无需 `hostname`
   - Named 模式缺少 `hostname`，或 `hostname` 含协议、端口、路径、`@` 时报错
-  - 大写主机名被规范化
+  - 大写主机名与末尾的点被规范化；通配符与非 ASCII 主机名报错
   - 未配置镜像时为 nil，`[]` 保持为空，非法前缀报错，末尾 `/` 被规范化
 
 - [x] 2.2 在 `cmd/webmux/main.go` 的 `loadConfig` 新增 `--tunnel` 布尔参数，显式出现时覆盖 `tunnel.enabled`。
   - **验证**：在 `main_test.go` 现有表格中补充两行：参数开启时覆盖配置；`--tunnel=false` 时关闭配置中的开关。
-- [x] 2.3 隧道启用且 Token 为空时，用 `crypto/rand` 32 字节加 `base64.RawURLEncoding` 生成 Token，写入 `c.Token`；非隧道模式不生成。
-  - **验证**：单元测试断言以下几点：隧道模式生成 43 字符 URL 安全 Token，两次生成结果不同，已配置的 Token 不被覆盖，非隧道模式保持空 Token。
+- [x] 2.3 隧道启用且 Token 为空时，用 `crypto/rand` 32 字节加 `base64.RawURLEncoding` 生成 Token，写入 `c.Token`；已配置的 Token 少于 43 字符时拒绝启动；非隧道模式不生成。
+  - **验证**：单元测试断言以下几点：隧道模式生成 43 字符 URL 安全 Token，两次生成结果不同，已配置的 43 字符 Token 不被覆盖，过短的已配置 Token 报错，非隧道模式保持空 Token。
 
 ## 3. 访问 URL 与二维码输出
 
@@ -37,11 +37,12 @@
   - IPv6 地址加方括号
   - 使用 `listener.Addr()` 的实际端口
 
-  `net.Listen` 后向 stdout 打印本地 URL。**验证**：表驱动测试覆盖 access-link 规格中的所有场景：
-  - 有 Token 与无 Token
+  `net.Listen` 后向 stdout 打印本地 URL，只有隧道模式附带 `#token=` 片段。**验证**：表驱动测试覆盖 access-link 规格中的所有场景：
+  - 隧道模式的 Token 片段与无 Token
+  - 非隧道模式即使配置了 Token 也不含片段
   - `0.0.0.0:0` 动态端口
   - `[::1]`
-  - Token `a b&c#d` 编码为 `a%20b%26c%23d`
+  - Token 中的特殊字符编码为 `%20` / `%26` / `%23`
 
 - [x] 3.2 引入 `rsc.io/qr`，实现半块字符终端渲染（纠错级别 L，2 模块静区）。
   - **验证**：单元测试用 `qr.Encode` 得到的矩阵与渲染输出逐模块比对，确认可逆还原且尺寸正确；`CGO_ENABLED=0 go build ./...` 通过。
@@ -91,6 +92,7 @@
   - 输出地址行与注册行后，`Ready` 收到正确 origin
   - argv 不含 Named Tunnel 凭据，环境变量中含凭据（脚本把 argv 与环境写入文件后断言）
   - 只输出地址、不输出注册行时，超时且不发出 Ready
+  - 超时错误日志之后才输出注册行时，仍发出 Ready
   - 脚本立即以非零状态退出时，`Done` 返回包含退出码的错误
   - ctx 取消后子进程被终止，且无 goroutine 泄漏（`go test -race`）
 
@@ -124,7 +126,7 @@
 
 ## 8. 前端片段认证
 
-- [x] 8.1 在 `web/src/api.ts` 实现 `consumeTokenFragment()`，在 `App.svelte` 首次 `check()` 之前调用，并同步组件的 `token` 状态。
+- [x] 8.1 在 `web/src/api.ts` 实现 `consumeTokenFragment()`，在 `App.svelte` 首次 `check()` 之前调用，同步组件的 `token` 状态与 `webmux_token` Cookie；`ws.ts` 不再把 Token 拼进 WebSocket URL。
   - **验证**：在 `web/test/` 新增 Vitest 单元测试，覆盖以下情况：
     - `#token=` 解码后存储，片段被 `replaceState` 移除，路径与查询参数保留
     - `#quick-commands` 不被处理
@@ -132,6 +134,7 @@
     - 已有 Token 被覆盖
 - [x] 8.2 E2E：
   - 带 Token 的后端下，在全新浏览器上下文打开 `/#token=<有效>`，直接进入会话列表，地址栏不含片段，`page.goBack()` 不回到带 Token 的地址
+  - 登录后的 WebSocket 经 `webmux_token` Cookie 握手成功，请求 URL 不含 `token`
   - 打开 `/#token=wrong` 显示 Token 表单与现有的认证失败提示
 
   **验证**：在 `web/test/e2e/` 新增或扩展 spec，运行 `pnpm --dir web exec playwright test` 指定该文件并通过。
@@ -142,8 +145,8 @@
   - Quick 与 Named 的用法
   - Named Tunnel 需要在 Cloudflare 侧把公共主机名指向本地端口
   - 自动下载与 `state_dir` 缓存；GitHub 直连失败时回退到镜像，用 `tunnel.download_mirrors` 覆盖或禁用镜像
-  - Token 会进入 journal 的安全提示
-  - `#token=` 链接
+  - 隧道模式的 Token 会进入 journal 的安全提示，以及显式 Token 的最低长度
+  - `#token=` 链接只在隧道模式打印
 
   **验证**：照文档执行 `webmux --tunnel`，能得到可扫码访问的公网地址。
 

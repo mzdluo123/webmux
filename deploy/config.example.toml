@@ -18,12 +18,13 @@ agent_protocol = true
 bell_attention = true
 
 # Cloudflare Tunnel: `webmux --tunnel` or enabled = true. Without a token a
-# random 256-bit one is generated per start; the printed link carries it.
+# random 256-bit one is generated per start; tunnel mode prints it in links.
+# A configured webmux token must be at least 43 characters in tunnel mode.
 # [tunnel]
 # enabled = false
 # Empty = Quick Tunnel (random *.trycloudflare.com); set for a Named Tunnel.
 # token = ""
-# hostname = ""        # Named Tunnel public hostname, e.g. term.example.com
+# hostname = ""        # Named Tunnel public hostname; ASCII/punycode, no wildcard
 # cloudflared = ""     # explicit binary; default PATH, then a verified download
 # Mirror prefixes tried after GitHub; [] = GitHub only.
 # download_mirrors = ["https://ghfast.top", "https://gh-proxy.com"]

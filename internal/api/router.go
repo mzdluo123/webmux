@@ -126,6 +126,11 @@ func (s *Server) authorized(r *http.Request) bool {
 	if token == "" {
 		if cookie, err := r.Cookie("webmux_token"); err == nil {
 			token = cookie.Value
+			// The frontend percent-encodes the cookie so reserved characters
+			// survive; a raw value is still accepted.
+			if decoded, err := url.PathUnescape(token); err == nil {
+				token = decoded
+			}
 		}
 	}
 	if token == "" && strings.HasPrefix(r.URL.Path, "/ws/") {

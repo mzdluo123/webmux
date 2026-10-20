@@ -25,6 +25,22 @@ test("a #token= link signs in and leaves no token in the address or history", as
   expect(await page.evaluate(() => localStorage.getItem("webmux.token"))).toBe(
     token,
   );
+  expect(await page.evaluate(() => document.cookie)).toContain(
+    `webmux_token=${encodeURIComponent(token)}`,
+  );
+  expect(
+    await page.evaluate(
+      () =>
+        new Promise<boolean>((resolve) => {
+          const socket = new WebSocket(`ws://${location.host}/ws/sessions`);
+          socket.onopen = () => {
+            socket.close();
+            resolve(true);
+          };
+          socket.onerror = () => resolve(false);
+        }),
+    ),
+  ).toBe(true);
   await page.goBack();
   expect(page.url()).not.toContain("token");
 });
