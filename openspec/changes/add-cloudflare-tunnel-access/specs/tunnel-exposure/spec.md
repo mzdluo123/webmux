@@ -88,7 +88,7 @@
 
 ### Requirement: 下载来源回退
 
-系统 SHALL 先从 GitHub 直连下载 cloudflared，失败后按顺序改用镜像，镜像下载地址为 `<前缀>/https://github.com/<原路径>`。内置默认镜像为 `https://ghfast.top`、`https://gh-proxy.com`、`https://ghproxy.net`。配置了 `tunnel.download_mirrors` 时，该列表完整替换默认镜像，空数组表示只用 GitHub。以下情况视为当前来源失败：连接或响应头超过 10 秒、连续 20 秒未收到数据、非 2xx 状态、内容超出大小上限、校验失败。
+系统 SHALL 先从 GitHub 直连下载 cloudflared，失败后按顺序改用镜像，镜像下载地址为 `<前缀>/https://github.com/<原路径>`。内置默认镜像为 `https://ghfast.top`、`https://gh-proxy.com`。配置了 `tunnel.download_mirrors` 时，该列表完整替换默认镜像，空数组表示只用 GitHub。以下情况视为当前来源失败：连接或响应头超过 10 秒、连续 20 秒未收到数据、非 2xx 状态、内容超出大小上限、校验失败。
 
 #### Scenario: GitHub 不可达时回退到镜像
 

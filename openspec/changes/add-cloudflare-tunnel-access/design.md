@@ -8,6 +8,7 @@
   - 仅限 `/ws/` 路径的 `?token=` 查询参数
 
   Token 为空时不鉴权。前端把 Token 存在 `localStorage["webmux.token"]`（`api.ts` 的 `store`/`stored`），HTTP 请求用 Bearer 头，WebSocket 用 `?token=`（`ws.ts`）。
+
 - **Host 检查**：`internal/api/host.go` 的 `hostCheck` 在 `api.New` 时根据 `Listen` 与 `AllowedOrigins` 构建一次性白名单。
 - **Origin 检查**：`originAllowed` 只在 Origin 与 `r.Host` 相同、且协议与 `r.TLS` 推断的协议一致时放行，否则必须精确匹配 `AllowedOrigins`。
 - **启动流程**：`cmd/webmux/main.go` 依次执行以下步骤；目前只通过 slog 打印监听地址，不打印可点击的 URL。
@@ -23,7 +24,7 @@ cloudflared 经隧道把请求转发到本地 origin 时：
 
 - 连接是明文 HTTP，`r.TLS == nil`。
 - 浏览器 Origin 是 `https://<公网主机>`。
-- Host 头保持公网主机名。这是 cloudflared 的默认行为，实现时需用真实 Quick Tunnel 验证，见 Risks。
+- Host 头保持公网主机名，Origin 原样透传（已用 cloudflared 2026.10.2 的真实 Quick Tunnel 验证，见 Risks）。
 
 因此不改动的话，经隧道的请求会同时被 Host 检查和 Origin 检查拒绝。
 
@@ -56,7 +57,7 @@ token = ""
 hostname = ""          # Named Tunnel 的公共主机名，如 term.example.com
 cloudflared = ""       # 可选：显式 cloudflared 路径
 # 可选：覆盖内置下载镜像前缀；[] 表示只用 GitHub 直连
-# download_mirrors = ["https://ghfast.top", "https://gh-proxy.com", "https://ghproxy.net"]
+# download_mirrors = ["https://ghfast.top", "https://gh-proxy.com"]
 ```
 
 - `config.Config` 新增 `Tunnel TunnelConfig` 字段。
@@ -74,12 +75,14 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 `tunnel.Start(ctx, opts)` 返回一个句柄，提供以下内容：
 
 - `Ready() <-chan string`：发送公网 origin，例如 `https://abc.trycloudflare.com`。
-- `Done() <-chan error`：子进程退出时关闭。
+- `Done() <-chan struct{}`：子进程退出时关闭；`Err()` 返回退出原因（`Close` 主动终止时为 nil）。
+- `Close()`：发送 SIGTERM 并等待进程与日志读取 goroutine 结束。
 
 启动参数（argv，不经过 shell）：
 
-- **Quick**：`cloudflared tunnel --no-autoupdate --url http://<本地地址>`。
-- **Named**：`cloudflared tunnel --no-autoupdate run`。凭据通过环境变量 `TUNNEL_TOKEN` 传入，不放在 argv 中。
+- **Quick**：`cloudflared tunnel --no-autoupdate --config /dev/null --url http://<本地地址>`。
+- **Named**：`cloudflared tunnel --no-autoupdate --config /dev/null run`。凭据通过环境变量 `TUNNEL_TOKEN` 传入，不放在 argv 中；Quick 模式会从继承的环境中去掉 `TUNNEL_TOKEN`。
+- `--config /dev/null` 屏蔽 `~/.cloudflared/config.yml`（见 Risks）。cloudflared 会记录一行“Configuration file /dev/null was empty”，只出现在 debug 日志中，不影响运行。
 
 本地地址取实际监听地址，规则如下：
 
@@ -89,7 +92,7 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 
 **就绪判定与地址获取**：逐行扫描子进程 stderr。
 
-- **Quick**：用正则 `https://[a-z0-9-]+\.trycloudflare\.com` 提取首个地址。
+- **Quick**：只匹配横幅框内的地址 `\|\s+(https://[a-z0-9-]+\.trycloudflare\.com)\s+\|`，避免把错误信息中的 `https://api.trycloudflare.com` 误认为公网地址。
 - **两种模式**：都等待出现 `Registered tunnel connection` 行后才视为就绪。
 - **Named**：公网 origin 取自配置的 `https://<hostname>`。
 - **超时**：60 秒仍未就绪时，记录错误日志，不打印公网 URL，本地服务继续运行。
@@ -120,7 +123,7 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 下载规则：
 
 - **来源顺序**：先 GitHub 直连 `https://github.com/cloudflare/cloudflared/releases/download/<版本>/<资产>`，失败后依次使用镜像，地址为 `<前缀>/https://github.com/cloudflare/cloudflared/releases/download/<版本>/<资产>`（gh-proxy 系镜像通用的前缀形式）。
-  - 内置默认镜像：`https://ghfast.top`、`https://gh-proxy.com`、`https://ghproxy.net`。依据是 2026 年多份公开列表与测速仍将它们列为可用；`ghproxy.com`、`mirror.ghproxy.com` 已失效，不采用。
+  - 内置默认镜像：`https://ghfast.top`、`https://gh-proxy.com`。2026-10-20 从国内直连实测（不经代理）下载固定版本 `cloudflared-linux-amd64`：ghfast.top 约 1.8 MB/s、gh-proxy.com 约 2.5 MB/s，SHA-256 均一致；`ghproxy.net` 前缀形式可用但只有约 10 KB/s，40 MB 需要一小时以上，且该速度不会触发空闲超时，所以不放入默认列表。`ghproxy.com`、`mirror.ghproxy.com` 已失效，不采用。
   - `tunnel.download_mirrors` 非 nil 时完整替换默认列表，`[]` 表示只用直连。TOML 解码后需区分“未配置”（nil）与“空数组”。
   - `Validate` 校验每个前缀：必须是 `https://`，不含凭据、查询参数或片段；末尾的 `/` 统一去掉。
 - **按来源快速失败**：每个来源使用独立的请求 ctx，满足以下任一条件即放弃，转到下一来源：
@@ -130,6 +133,7 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
   - 内容超出大小上限，或 SHA-256 不符
 
   不设单个来源的总时长上限，以免在慢速但仍在推进的链路上误判失败；整个下载过程仍受 webmux 根 ctx 控制（Ctrl-C 可中断）。
+
 - **校验是信任边界**：任何来源的内容都必须先通过内置 SHA-256 校验，才会写入缓存并执行。因此镜像只影响可用性，无法替换产物。
 - **日志**：每个来源失败都用 slog 以 warn 级别记录来源主机与原因；成功时记录来源主机。全部失败时，返回的错误汇总每个来源的原因，并提示可配置 `tunnel.cloudflared` 或手动安装。
 - **代码内置**：固定版本号，以及每个平台的资产名和 SHA-256，覆盖 `linux/amd64`、`linux/arm64`、`darwin/amd64`、`darwin/arm64`。
@@ -166,7 +170,7 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 
 ### 6. 访问 URL 与二维码打印
 
-- **新增函数**：`accessURL(base, token string) string`。Token 非空时追加 `#token=` + `url.PathEscape(token)`。用 `PathEscape` 而不是 `QueryEscape`，空格编码为 `%20` 而不是 `+`，前端用 `decodeURIComponent` 可以无歧义还原。
+- **新增函数**：`accessURL(base, token string) string`。Token 非空时追加 `#token=` + `url.QueryEscape(token)`，再把 `+` 替换为 `%20`。`PathEscape` 不转义 `&`，不满足规格；替换后空格编码为 `%20`、`+` 为 `%2B`，前端用 `decodeURIComponent` 可以无歧义还原。
 - **本地 URL**：`net.Listen` 成功后立即打印。主机规则同第 2 节的本地地址。
 - **公网 URL**：隧道就绪时打印 URL，紧跟二维码。
 - **输出方式**：直接 `fmt.Fprintln(os.Stdout, …)`，不走 slog。避免 Token 混入结构化日志的字段，也便于用户直接点击和复制。slog 的“webmux listening”日志保持不变，且不包含 Token。
@@ -193,11 +197,11 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 - **[风险] Token 会落入 journal 或日志文件**：URL 与二维码打印到 stdout，以 systemd/launchd 运行时 Token 会持久化到 journal 或 `StandardOutPath`。
   - **缓解**：部署文档说明这一点，并建议 journal 访问权限只限本用户；自动生成的 Token 每次重启都会轮换。
 - **[风险] cloudflared 日志格式变化**：Quick Tunnel 地址的日志格式或 `Registered tunnel connection` 文案可能变化，导致就绪判定失败。
+  - **已验证（2026.10.2）**：地址出现在横幅框行 `INF |  https://<名称>.trycloudflare.com  |`，约 4 秒后出现 `INF Registered tunnel connection connIndex=0 ...`。新主机名的 DNS 可能还要几秒才能解析。
   - **缓解**：固定 cloudflared 版本，升级时用真实隧道回归；超时只影响打印，不影响本地服务；必要时可切换到 metrics 端点方案。
-- **[风险] 用户已有 cloudflared 配置干扰 Quick Tunnel**：`~/.cloudflared/config.yml` 存在时，Quick Tunnel 可能读取其中的 ingress 或凭据配置而行为异常（社区已知问题，未在本仓库验证）。
-  - **缓解**：实现时用真实 cloudflared 验证。如果确实受影响，在 `state_dir` 下准备一个空配置文件，并通过 `--config` 显式传入。
-- **[风险] Host 头未被保留**：若 cloudflared 转发时不保留公网 Host 头，第 4 节的判定会失效。
-  - **缓解**：在 1.x 验证任务中用真实 Quick Tunnel 确认；若不成立，改为只按 Origin 判定公网请求，并更新设计。
+- **[已验证] 用户已有 cloudflared 配置会干扰 Quick Tunnel**：在临时 HOME 中放入带 ingress（兜底为 `http_status:404`）的 `~/.cloudflared/config.yml` 后，Quick Tunnel 仍能注册，但所有请求都返回 404，origin 收不到请求。
+  - **处理**：两种模式都传 `--config /dev/null`；实测请求随即正常到达 origin。没有采用 `state_dir` 下的空配置文件，因为 `state_dir` 可能不可写。
+- **[已验证] Host 头保留**：经 Quick Tunnel 到达 origin 的请求 Host 为公网主机名，Origin 原样透传，并带有 `X-Forwarded-Proto: https`。第 4 节的判定成立。
 - **[风险] 固定版本过时**：固定的 cloudflared 版本会过时，或被 Cloudflare 弃用（Cloudflare 会拒绝过旧客户端）。
   - **缓解**：PATH 优先，用户可自行安装新版；每次发版检查并升级固定版本与校验值。
 - **[取舍] 下载来源**：自动下载依赖 GitHub 或第三方镜像的可用性，并信任 Cloudflare 发布的产物；内置 SHA-256 能防住镜像篡改、传输篡改和缓存篡改，但不能防上游被攻破。

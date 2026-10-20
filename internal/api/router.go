@@ -26,10 +26,13 @@ type Server struct {
 	Manager   *session.Manager
 	Workspace *workspace.Service
 	Code      *codeview.Service
+	Public    *PublicOrigin
 }
 
-func New(c config.Config, m *session.Manager, workspaces *workspace.Service, codes ...*codeview.Service) http.Handler {
-	s := &Server{Config: c, Manager: m, Workspace: workspaces}
+// New builds the HTTP handler. public is the runtime tunnel origin; nil means
+// no tunnel.
+func New(c config.Config, m *session.Manager, workspaces *workspace.Service, public *PublicOrigin, codes ...*codeview.Service) http.Handler {
+	s := &Server{Config: c, Manager: m, Workspace: workspaces, Public: public}
 	if len(codes) > 0 {
 		s.Code = codes[0]
 	} else {
@@ -94,7 +97,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 				http.Error(w, "internal error", 500)
 			}
 		}()
-		if !hostAllowed(r.Host) {
+		if !hostAllowed(r.Host) && !s.Public.hostAllowed(authorityHostname(r.Host)) {
 			failure(w, http.StatusForbidden, errors.New("host not allowed"))
 			return
 		}
@@ -145,7 +148,13 @@ func (s *Server) originAllowed(r *http.Request) bool {
 	if r.TLS != nil {
 		scheme = "https"
 	}
-	if u.Host == r.Host && u.Scheme == scheme {
+	// Tunnel traffic arrives over plain HTTP, so the scheme inferred from
+	// r.TLS cannot vouch for the public hostname; only its https origin can.
+	if s.Public.hostAllowed(authorityHostname(r.Host)) {
+		if s.Public.originAllowed(origin, r.Host) {
+			return true
+		}
+	} else if u.Host == r.Host && u.Scheme == scheme {
 		return true
 	}
 	for _, allowed := range s.Config.AllowedOrigins {

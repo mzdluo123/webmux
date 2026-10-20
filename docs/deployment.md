@@ -32,7 +32,7 @@ curl -H 'Authorization: Bearer YOUR_TOKEN' http://127.0.0.1:7681/api/health
 | 配置项               | 默认值                                                     | 说明                                                                              |
 | -------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `listen`             | `127.0.0.1:7681`                                           | HTTP / WebSocket 监听地址                                                         |
-| `token`              | 空                                                         | 共享 token，空表示不认证                                                          |
+| `token`              | 空                                                         | 共享 token，空表示不认证；启用隧道且为空时每次启动随机生成                        |
 | `scrollback_bytes`   | `2097152`                                                  | 每会话保留的原始终端字节数（不是行数）                                            |
 | `default_cwd`        | `~`                                                        | 新建会话的默认目录，支持 `~` 展开                                                 |
 | `state_dir`          | `$XDG_STATE_HOME/webmux`，未设置时 `~/.local/state/webmux` | 仓库清单目录                                                                      |
@@ -43,6 +43,7 @@ curl -H 'Authorization: Bearer YOUR_TOKEN' http://127.0.0.1:7681/api/health
 | `bell_attention`     | `true`                                                     | 把终端响铃（输入 1 秒后）视为需要介入                                             |
 | `allowed_origins`    | `[]`                                                       | 额外允许的完整 Origin，例如 `https://myhost.example`                              |
 | `presets`            | shell / claude / codex / omp                               | `name`、`label`、`cmd`（argv 数组）、`allow_args`；配置后替换默认列表             |
+| `tunnel`             | 未启用                                                     | Cloudflare Tunnel，见下文“公网访问（Cloudflare Tunnel）”                          |
 
 `custom` 是保留预设名。追加参数按引号与反斜杠规则拆分为 argv，不经 shell 求值。要改变 shell 的启动参数，可为 shell 预设显式设置 `cmd = ["/bin/zsh", "-l", "-i"]`。
 
@@ -115,10 +116,40 @@ macOS 直接编辑 plist 的 `EnvironmentVariables` 后重新加载。
 
 1. 在服务器和手机上安装 Tailscale 并加入同一网络。
 2. 将 `listen` 设置为服务器的 Tailscale 地址（如 `100.64.0.5:7681`），并设置 `token`。
-3. 手机浏览器打开 `http://<Tailscale IP 或主机名>:7681`，输入一次 token（保存在浏览器 localStorage 中）。
+3. 手机浏览器打开启动时终端打印的 `WebMux local:` 链接（把主机换成 Tailscale 地址），或打开 `http://<Tailscale IP 或主机名>:7681` 输入一次 token（保存在浏览器 localStorage 中）。
 4. 可“添加到主屏幕”以独立模式运行。
 
 防火墙应只允许可信 VPN 接口访问该端口。
+
+## 访问链接
+
+每次启动都会在标准输出打印 `WebMux local: http://<主机>:<端口>/`；设置了 token 时附带 `#token=<token>`。片段不会发送到服务器，前端读取并保存 token 后立即从地址栏和当前历史记录中移除。浏览器的自动补全或同步历史仍可能记住原始链接。
+
+## 公网访问（Cloudflare Tunnel）
+
+```sh
+webmux --tunnel
+```
+
+或在配置中设置：
+
+```toml
+[tunnel]
+enabled = true
+token = ""          # 空 = Quick Tunnel；填写 = Named Tunnel
+hostname = ""       # Named Tunnel 的公共主机名
+cloudflared = ""    # 可选：cloudflared 路径
+# download_mirrors = ["https://ghfast.top", "https://gh-proxy.com"]
+```
+
+- **Quick Tunnel**：无需账号，每次启动得到随机 `https://*.trycloudflare.com` 地址，无 SLA，适合临时访问。
+- **Named Tunnel**：在 Cloudflare 控制台创建隧道，把公共主机名指向 `http://127.0.0.1:<端口>`，再把隧道 token 写入 `tunnel.token`、主机名写入 `tunnel.hostname`。凭据经环境变量传给 cloudflared，不出现在进程命令行中。
+- 启用隧道时 webmux 强制认证：未配置 `token` 则每次启动生成 256 位随机 token。隧道连通后终端打印 `WebMux public: https://<公网主机>/#token=<token>` 与二维码，手机扫码即可进入。
+- cloudflared 依次取 `tunnel.cloudflared`、`PATH`、`<state_dir>/cloudflared/<版本>/` 缓存；都没有时下载 webmux 固定的版本，先连 GitHub，10 秒无响应或 20 秒无数据时依次改用 `download_mirrors` 镜像（默认 `ghfast.top`、`gh-proxy.com`；`[]` 表示只用 GitHub）。任何来源的文件都必须与内置 SHA-256 一致才会执行。
+- webmux 以 `--config /dev/null` 运行 cloudflared，`~/.cloudflared/config.yml` 不会影响隧道。
+- cloudflared 意外退出时公网地址立即失效（返回 403），本地访问和会话不受影响；webmux 退出时 cloudflared 随之结束。
+
+> 链接与二维码包含 token。以 systemd / launchd 运行时它们会写入 journal 或日志文件，请限制日志访问权限；自动生成的 token 每次重启都会更换。
 
 ## HTTPS
 

@@ -11,7 +11,7 @@ WebMux 目前只建议绑定回环地址或可信 VPN；想临时从手机或外
   - webmux 以子进程方式运行 `cloudflared`，随服务启动与关闭。
 - **自动获取 cloudflared**：
   - 查找顺序：配置的显式路径 → `PATH` → `state_dir` 下已校验的缓存。
-  - 以上都没有时，下载 webmux 固定版本的 Cloudflare 官方 Release 产物：先 GitHub 直连，失败或停滞时依次回退到 gh-proxy 类镜像（默认 `ghfast.top`、`gh-proxy.com`、`ghproxy.net`，可用 `tunnel.download_mirrors` 覆盖），以解决国内无法直连 GitHub 的问题。
+  - 以上都没有时，下载 webmux 固定版本的 Cloudflare 官方 Release 产物：先 GitHub 直连，失败或停滞时依次回退到 gh-proxy 类镜像（默认 `ghfast.top`、`gh-proxy.com`，可用 `tunnel.download_mirrors` 覆盖），以解决国内无法直连 GitHub 的问题。
   - 无论来自哪个来源，内容都必须通过内置 SHA-256 校验后才会缓存并执行，镜像无法替换产物。
 - **隧道模式强制鉴权**：
   - 启用隧道且未配置 `token` 时，每次启动生成高强度随机 Token。

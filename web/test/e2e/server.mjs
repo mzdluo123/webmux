@@ -49,8 +49,8 @@ async function stopChild(child, group = false) {
 
 // Every Playwright worker owns real servers and a fresh HOME, config and cwd.
 // Port zero asks the OS to allocate ports; no local developer server is reused.
-/** @param {{noGit?: boolean}} options @returns {Promise<E2EServer>} */
-export async function startE2EServer({ noGit = false } = {}) {
+/** @param {{noGit?: boolean, token?: string}} options @returns {Promise<E2EServer>} */
+export async function startE2EServer({ noGit = false, token = "" } = {}) {
   // macOS tmpdir() sits behind /var -> /private/var; the server reports
   // canonical paths, so expectations must start from the canonical root.
   const root = await realpath(await mkdtemp(join(tmpdir(), "webmux-e2e-")));
@@ -91,7 +91,7 @@ export async function startE2EServer({ noGit = false } = {}) {
       mkdir(home),
       writeFile(
         config,
-        `listen = "127.0.0.1:0"\ndefault_cwd = ${JSON.stringify(workDir)}\nstate_dir = ${JSON.stringify(join(root, "state"))}\nshell = "/bin/bash"\nidle_after_seconds = 30\n\n[[presets]]\nname = "shell"\nlabel = "Shell"\ncmd = ["/bin/bash", "--noprofile", "--norc", "-i"]\n`,
+        `listen = "127.0.0.1:0"\ntoken = ${JSON.stringify(token)}\ndefault_cwd = ${JSON.stringify(workDir)}\nstate_dir = ${JSON.stringify(join(root, "state"))}\nshell = "/bin/bash"\nidle_after_seconds = 30\n\n[[presets]]\nname = "shell"\nlabel = "Shell"\ncmd = ["/bin/bash", "--noprofile", "--norc", "-i"]\n`,
       ),
     ]);
     // Build into the temporary directory, never bin/ or the embedded frontend.
@@ -156,6 +156,7 @@ export async function startE2EServer({ noGit = false } = {}) {
         await delay(50);
       }
       const health = await fetch(`http://${address}/api/health`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         signal: AbortSignal.timeout(10_000),
       });
       if (!health.ok)

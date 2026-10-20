@@ -45,7 +45,7 @@
 #### Scenario: 片段 Token 无效
 
 - **WHEN** 用户打开带无效 `#token=` 的链接
-- **THEN** 页面显示现有的 Token 输入表单与 “Token 无效或已更改” 提示，用户可手动输入正确 Token
+- **THEN** 页面显示现有的 Token 输入表单及认证失败提示，用户可手动输入正确 Token
 
 #### Scenario: 无关片段保持不变
 
