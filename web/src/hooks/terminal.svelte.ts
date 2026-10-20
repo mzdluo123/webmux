@@ -29,6 +29,7 @@ import {
   terminalLineHeight,
 } from "../fonts";
 import { osc52CopyText } from "../terminalClipboard";
+import { createOutputBudget } from "../terminal-output";
 import { attachTouchGestures } from "./touch";
 import { hasTouchInput, isIOS } from "../touchInput";
 import "@xterm/xterm/css/xterm.css";
@@ -298,12 +299,22 @@ export function useTerminal(
       // empty write's callback opens the replay window exactly where the
       // snapshot starts and the snapshot's callback closes it.
       let replaying = false;
+      const output = createOutputBudget(
+        (data, parsed) => term.write(data, parsed),
+        () => {
+          // A scheduled reconnect already brings a fresh snapshot.
+          if (connection !== "connected") return;
+          if (!ws.send(2, new Uint8Array())) ws.reconnect();
+        },
+      );
       const restore = (payload: Uint8Array) => {
+        output.replay();
         const version = ++restoreVersion;
         cancelAnimationFrame(restoreFrame);
         restoring = true;
-        term.reset();
         term.write("", () => {
+          if (disposed) return;
+          term.reset();
           replaying = true;
         });
         term.write(payload, () => {
@@ -312,7 +323,7 @@ export function useTerminal(
           restoreFrame = requestAnimationFrame(() => {
             if (disposed || version !== restoreVersion) return;
             scrollToBottom();
-            restoring = false;
+            restoring = output.recovering;
           });
         });
       };
@@ -347,17 +358,22 @@ export function useTerminal(
           if (frame[0] === 0) {
             // Output missed while hidden leaves a gap: stop writing, keep
             // the offset, and let the foreground reconnect fill it in.
+            // Bytes xterm cannot keep up with are dropped the same way; the
+            // offset counts only bytes handed to xterm, so either resumes.
             if (document.hidden || stale) stale = true;
-            else {
+            else if (output.write(payload)) {
               offset += payload.length;
               if (appending) {
                 // Like a full replay, a resumed terminal lands on its newest
                 // output once the missing tail has been parsed.
                 appending = false;
-                term.write(payload, () => {
+                term.write("", () => {
                   if (!disposed) scrollToBottom();
                 });
-              } else term.write(payload);
+              }
+            } else {
+              stale = true;
+              restoring = true;
             }
           } else if (frame[0] === 4) {
             const position = StreamPositionSchema.parse(
@@ -373,6 +389,7 @@ export function useTerminal(
               position.start === offset
             ) {
               // The bytes that follow are exactly the missing tail.
+              output.replay();
               stale = false;
               restoring = false;
               appending = position.end > position.start;
@@ -413,6 +430,7 @@ export function useTerminal(
             exitCode = ExitSchema.parse(
               JSON.parse(decoder.decode(payload)),
             ).exitCode;
+            if (stale && !document.hidden) restoreExited();
           }
         },
         (state) => {
@@ -528,20 +546,23 @@ export function useTerminal(
       };
       resolution.addEventListener("change", resolutionChanged);
       observeSize();
+      function restoreExited() {
+        void apiBuffer(id)
+          .then((payload) => {
+            if (!disposed) {
+              stale = false;
+              synced = false;
+              restore(payload);
+            }
+          })
+          .catch((err) => {
+            if (!disposed) error = (err as Error).message;
+          });
+      }
       const visible = () => {
         // Live sessions reattach in connect(); exited sessions cannot reopen that socket.
         if (!document.hidden && stale && exited) {
-          void apiBuffer(id)
-            .then((payload) => {
-              if (!disposed) {
-                stale = false;
-                synced = false;
-                restore(payload);
-              }
-            })
-            .catch((err) => {
-              if (!disposed) error = (err as Error).message;
-            });
+          restoreExited();
         }
       };
       document.addEventListener("visibilitychange", visible);
@@ -648,6 +669,7 @@ export function useTerminal(
         selected.dispose();
         oscClipboard.dispose();
         colors.disconnect();
+        output.dispose();
         ws.close();
         const dying = term;
         // Viewport.reset() queues syncScrollArea for the next frame, and that

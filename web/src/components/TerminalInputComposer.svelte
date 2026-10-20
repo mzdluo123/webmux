@@ -195,7 +195,7 @@
   />
   <div class="flex shrink-0 flex-wrap items-center gap-2">
     <span
-      class="min-w-0 flex-1 basis-40 text-xs text-muted-foreground"
+      class="min-w-0 flex-[1_1_12rem] [overflow-wrap:anywhere] text-xs text-muted-foreground"
       role="status"
       aria-label="草稿提交状态"
       >{draft.submission
