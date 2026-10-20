@@ -45,7 +45,7 @@ interface SessionInfo {
   cwd: string;
   preset: string; // 预设名或 "custom"
   cmd: string[];
-  status: "running" | "waiting" | "idle" | "exited";
+  status: "running" | "waiting" | "idle" | "exited"; // waiting 表示提示符、终端读取或 attention；计时休眠不是 waiting
   exitCode: number | null;
   preview: string; // 屏幕底部最多 100 条非空行，以 \n 分隔
   createdAt: string; // RFC 3339

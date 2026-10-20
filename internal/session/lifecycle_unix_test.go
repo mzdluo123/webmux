@@ -116,6 +116,52 @@ func waitForOutput(t *testing.T, s *Session, text string) {
 	}
 }
 
+func TestUnattendedSleepIsNotUserWait(t *testing.T) {
+	m := NewManager(Options{DefaultCwd: t.TempDir(), Presets: []Preset{
+		{Name: "sleeper", Cmd: []string{"/bin/bash", "--noprofile", "--norc", "-c", "printf 'background timer\\n'; sleep 60"}},
+		{Name: "reader", Cmd: []string{"/bin/bash", "--noprofile", "--norc", "-c", "printf READY; read -r value"}},
+	}})
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+		defer cancel()
+		m.Shutdown(ctx)
+	}()
+	sleeper, err := m.Create("", "sleeper", nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := m.Create("", "reader", nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForOutput(t, sleeper, "background timer")
+	waitForOutput(t, reader, "READY")
+	deadline := time.Now().Add(3 * time.Second)
+	var table processTable
+	for {
+		table = processes()
+		sleepQuiet := foregroundBlocked(sleeper.cmd.Process.Pid, table) && !awaitingInput(sleeper.cmd.Process.Pid, table)
+		if sleepQuiet && awaitingInput(reader.cmd.Process.Pid, table) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("sleep/read wait not distinguished: sleep pid %d blocked=%t %+v, read pid %d %+v", sleeper.cmd.Process.Pid, foregroundBlocked(sleeper.cmd.Process.Pid, table), table[sleeper.cmd.Process.Pid], reader.cmd.Process.Pid, table[reader.cmd.Process.Pid])
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	now := time.Now()
+	quiet := &Session{info: Info{LastActiveAt: now.Add(-4 * time.Second)}, cmd: sleeper.cmd}
+	quiet.evaluate(now, table, 30*time.Second, nil)
+	if quiet.info.Status != StatusRunning {
+		t.Fatalf("unattended sleep status = %s, want running", quiet.info.Status)
+	}
+	blocked := &Session{info: Info{LastActiveAt: now.Add(-4 * time.Second)}, cmd: reader.cmd}
+	blocked.evaluate(now, table, 30*time.Second, nil)
+	if blocked.info.Status != StatusWaiting {
+		t.Fatalf("terminal read status = %s, want waiting", blocked.info.Status)
+	}
+}
+
 func TestRealProcessTreeWaiting(t *testing.T) {
 	m := NewManager(Options{DefaultCwd: t.TempDir(), Presets: []Preset{
 		{Name: "reader", Cmd: []string{"/bin/bash", "-c", `printf READY; read -r value`}},

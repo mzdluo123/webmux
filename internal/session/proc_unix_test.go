@@ -53,6 +53,39 @@ func TestForegroundBlockedStates(t *testing.T) {
 	}
 }
 
+func TestAwaitingInputIgnoresTimerLeaves(t *testing.T) {
+	parent := processTable{1: {state: 'S'}, 2: {ppid: 1, state: 'S', timer: true}}
+	if awaitingInput(1, parent) {
+		t.Fatal("parent waiting on sleep was treated as terminal input")
+	}
+	if !awaitingInput(1, processTable{1: {state: 'S'}}) {
+		t.Fatal("unclassified sleep should still count as input wait")
+	}
+	if awaitingInput(1, processTable{1: {state: 'S', timer: true}}) {
+		t.Fatal("sleeping root timer was treated as terminal input")
+	}
+	mixed := processTable{1: {state: 'S'}, 2: {ppid: 1, state: 'S', timer: true}, 3: {ppid: 1, state: 'S'}}
+	if !awaitingInput(1, mixed) {
+		t.Fatal("non-timer leaf was hidden by a timer sibling")
+	}
+	if awaitingInput(1, processTable{1: {state: 'S', timer: true}, 2: {ppid: 1, state: 'R'}}) {
+		t.Fatal("running descendant was treated as terminal input")
+	}
+}
+
+func TestTimerWaitNames(t *testing.T) {
+	for _, name := range []string{"hrtimer_nanosleep", "nanosleep", "nanoslee", "nanoslee\x00"} {
+		if !timerWait(name) {
+			t.Fatalf("%q should be a timer wait", name)
+		}
+	}
+	for _, name := range []string{"", "0", "wait_woken", "poll_schedule_timeout.constprop.0", "ttyin"} {
+		if timerWait(name) {
+			t.Fatalf("%q should not be a timer wait", name)
+		}
+	}
+}
+
 func BenchmarkForegroundBlocked(b *testing.B) {
 	for _, shape := range []string{"chain", "wide", "unrelated"} {
 		for _, size := range []int{128, 1024, 8192} {

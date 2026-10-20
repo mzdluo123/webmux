@@ -4,6 +4,7 @@ package session
 
 import (
 	"os"
+	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -63,7 +64,7 @@ func processes() processTable {
 			}
 		}
 		start := uint64(p.Proc.P_starttime.Sec)*1_000_000 + uint64(p.Proc.P_starttime.Usec)
-		table[pid] = processState{ppid: int(p.Eproc.Ppid), state: state, sid: sid, start: start}
+		table[pid] = processState{ppid: int(p.Eproc.Ppid), state: state, sid: sid, start: start, timer: darwinTimer(p.Proc.P_comm[:], p.Eproc.Wmesg[:])}
 	}
 	return table
 }
@@ -71,3 +72,10 @@ func processes() processTable {
 // macOS omits other processes' environments from kern.procargs2, even for the
 // same user, so detached descendants are found only by session and process tree.
 func sessionMarked(int, []byte) bool { return false }
+
+func enrichTimer(_ int, state processState) processState { return state }
+
+func darwinTimer(comm, wmesg []byte) bool {
+	name := strings.TrimRight(string(comm), "\x00 ")
+	return name == "sleep" || timerWait(string(wmesg))
+}
