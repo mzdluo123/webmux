@@ -731,14 +731,17 @@ test("native Chrome swipes keep scrolling visibly through row redraws without ke
   // A fresh gesture must discard the previous quarter-row remainder.
   await swipe(socket, 0.8);
   expect(firstHistoryLine()).toBe(bottom);
-  for (let index = 0; index < Math.ceil(bottom / 20); index++) {
+  // Exact per-gesture distances are asserted above. These loops only need to
+  // reach the end, where scrolling clamps; a slow runner can lose a few rows
+  // of one gesture, so one spare swipe keeps the margin from being ~2 rows.
+  for (let index = 0; index <= Math.ceil(bottom / 20); index++) {
     await swipe(socket, 20.25, gestureStart(socket, 8, 6));
   }
   await expect.poll(firstHistoryLine).toBe(1);
   await expectDomText(historyLine(1));
   await swipe(socket, 8.25);
   expect(firstHistoryLine()).toBe(1);
-  for (let index = 0; index < Math.ceil(bottom / 20); index++) {
+  for (let index = 0; index <= Math.ceil(bottom / 20); index++) {
     await swipe(socket, -20.25, gestureStart(socket, 8, 30));
   }
   await expect.poll(firstHistoryLine).toBe(bottom);
