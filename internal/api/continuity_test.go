@@ -310,6 +310,10 @@ func TestDuplicatedTabIdentityHasOneAuthoritativeConnection(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+	// The promoted connection is prompted to send its grid again.
+	if state := f.control(original); state.Controller == nil || state.Controller.ClientID != "shared-client" {
+		t.Fatalf("promotion: %+v", state)
+	}
 	f.send(original, 1, []byte(`{"cols":70,"rows":20}`))
 	if state := f.control(original); state.Controller == nil || state.Controller.ClientID != "shared-client" || state.Cols != 70 {
 		t.Fatalf("remaining connection after clone left: %+v", state)

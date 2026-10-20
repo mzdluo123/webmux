@@ -56,7 +56,10 @@ func (s *Session) Claim(sub *Subscriber) bool {
 		return false
 	}
 	if s.control != nil && s.control.ClientID == sub.client {
+		// Its earlier resizes were refused; the control frame makes it send
+		// its grid again.
 		s.controlSub = sub
+		s.sendLocked(sub, s.controlFrameLocked())
 		return false
 	}
 	s.setControlLocked(sub)
@@ -157,6 +160,14 @@ func (l *submissionLog) expire(now time.Time) {
 	}
 }
 
+// forgetWatcher drops a client that no longer has any connection: a
+// reconnect queries again and re-registers.
+func (l *submissionLog) forgetWatcher(client string) {
+	for _, record := range l.records {
+		delete(record.watchers, client)
+	}
+}
+
 // Submit writes a body and its submit key as one input critical section, so
 // input from other connections cannot interleave between them. A repeated ID
 // is never written again; the caller receives the recorded status instead.
@@ -192,6 +203,8 @@ func (s *Session) Submit(ctx context.Context, sub *Subscriber, id, generation st
 	s.mu.Lock()
 	record.status = status
 	s.notifyClientLocked(record)
+	// The outcome is final; later queries read it from the record.
+	record.watchers = nil
 	s.mu.Unlock()
 	return status
 }

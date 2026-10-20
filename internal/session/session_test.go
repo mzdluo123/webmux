@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -94,5 +95,94 @@ func TestResizeFromRequiresTheControllingConnection(t *testing.T) {
 	}
 	if info := s.Info(); info.Cols != 100 || info.Rows != 40 {
 		t.Fatalf("controller resize: %dx%d", info.Cols, info.Rows)
+	}
+}
+
+func newIdleSession(t *testing.T, cmd ...string) *Session {
+	t.Helper()
+	m := NewManager(Options{DefaultCwd: t.TempDir(), Presets: []Preset{{Name: "idle", Cmd: cmd}}})
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+		defer cancel()
+		m.Shutdown(ctx)
+	})
+	s, err := m.Create("", "idle", nil, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func queuedKinds(sub *Subscriber) []byte {
+	var kinds []byte
+	for len(sub.Out) > 0 {
+		kinds = append(kinds, (<-sub.Out)[0])
+	}
+	return kinds
+}
+
+func TestSameClientConnectionGainingAuthorityResendsItsGrid(t *testing.T) {
+	s := newIdleSession(t, "/bin/sleep", "30")
+	older := s.AttachClient(AttachOptions{Client: "shared-client"})
+	defer s.Detach(older)
+	newer := s.AttachClient(AttachOptions{Client: "shared-client"})
+	queuedKinds(older)
+	// Its resizes were refused while newer was authoritative, so gaining
+	// authority must prompt it with a control frame to send its grid again.
+	s.Claim(older)
+	if kinds := queuedKinds(older); !bytes.Contains(kinds, []byte{6}) {
+		t.Fatalf("claim by same client sent %v", kinds)
+	}
+	s.Claim(newer)
+	queuedKinds(older)
+	s.Detach(newer)
+	if kinds := queuedKinds(older); !bytes.Contains(kinds, []byte{6}) {
+		t.Fatalf("promotion after detach sent %v", kinds)
+	}
+	if err := s.ResizeFrom(older, 70, 20); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReplayOfExitedSessionDeliversStatusBeforeExit(t *testing.T) {
+	s := newIdleSession(t, "/usr/bin/true")
+	until := time.Now().Add(5 * time.Second)
+	for s.Info().ExitCode == nil {
+		if time.Now().After(until) {
+			t.Fatal("session did not exit")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	sub := s.AttachClient(AttachOptions{Client: "replay-client"})
+	defer s.Detach(sub)
+	s.SendSubmissionStatus(sub, SubmissionStatus{ID: "submission-0001", State: SubmissionWritten})
+	s.Replay(sub)
+	// The hub closes the socket after the exit frame; nothing may follow it.
+	kinds := queuedKinds(sub)
+	if len(kinds) < 2 || kinds[len(kinds)-1] != 3 || kinds[len(kinds)-2] != 5 {
+		t.Fatalf("frames after replay: %v", kinds)
+	}
+}
+
+func TestPendingSubmissionForgetsDisconnectedWatchers(t *testing.T) {
+	s := newIdleSession(t, "/bin/sleep", "30")
+	s.mu.Lock()
+	record := s.submissions.add("submission-0002", "original-tab", time.Now())
+	s.mu.Unlock()
+	first := s.AttachClient(AttachOptions{Client: "restored-tab"})
+	second := s.AttachClient(AttachOptions{Client: "restored-tab"})
+	s.QuerySubmissions(first, []string{"submission-0002"})
+	s.Detach(first)
+	s.mu.Lock()
+	_, kept := record.watchers["restored-tab"]
+	s.mu.Unlock()
+	if !kept {
+		t.Fatal("watcher dropped while the client is still connected")
+	}
+	s.Detach(second)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(record.watchers) != 0 {
+		t.Fatalf("watchers of disconnected clients: %v", record.watchers)
 	}
 }

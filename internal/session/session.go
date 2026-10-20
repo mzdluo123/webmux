@@ -251,7 +251,7 @@ func (s *Session) AttachClient(o AttachOptions) *Subscriber {
 		}
 	}
 	s.subs[sub] = struct{}{}
-	s.replayLocked(sub, o.Resume)
+	s.replayLocked(sub, o.Resume, nil)
 	return sub
 }
 
@@ -266,7 +266,10 @@ type Position struct {
 	Truncated  bool   `json:"truncated"`
 }
 
-func (s *Session) replayLocked(sub *Subscriber, resume *ResumePoint) {
+// replayLocked queues the grid, position, stream and state for sub. Frames in
+// held follow the state; the exit frame stays last because the connection
+// closes once it is sent.
+func (s *Session) replayLocked(sub *Subscriber, resume *ResumePoint, held [][]byte) {
 	// The grid comes first: an observer must size its terminal before it
 	// parses cursor-addressed history, or that history lands on a wrong grid.
 	s.sendLocked(sub, s.controlFrameLocked())
@@ -286,6 +289,9 @@ func (s *Session) replayLocked(sub *Subscriber, resume *ResumePoint) {
 		s.sendLocked(sub, s.ring.snapshotWithPrefix([]byte{1}))
 	}
 	s.sendLocked(sub, s.stateLocked())
+	for _, frame := range held {
+		s.sendLocked(sub, frame)
+	}
 	if s.info.ExitCode != nil {
 		data, _ := json.Marshal(map[string]int{"exitCode": *s.info.ExitCode})
 		s.sendLocked(sub, Frame(3, data))
@@ -306,10 +312,7 @@ func (s *Session) Replay(sub *Subscriber) {
 				statuses = append(statuses, frame)
 			}
 		default:
-			s.replayLocked(sub, nil)
-			for _, frame := range statuses {
-				s.sendLocked(sub, frame)
-			}
+			s.replayLocked(sub, nil, statuses)
 			return
 		}
 	}
@@ -318,22 +321,31 @@ func (s *Session) Detach(sub *Subscriber) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.subs, sub)
+	// The newest remaining connection of the same client inherits control.
+	var heir *Subscriber
+	for other := range s.subs {
+		if other.client == sub.client && (heir == nil || other.seq > heir.seq) {
+			heir = other
+		}
+	}
+	if heir == nil {
+		s.submissions.forgetWatcher(sub.client)
+	}
 	if s.controlSub != sub {
 		return
 	}
 	// Another connection of the same client takes over; otherwise control is
 	// not handed to the remaining observers: their layout must not change
 	// because another device went away. The next input claims it.
-	s.controlSub = nil
-	for other := range s.subs {
-		if other.client == sub.client && (s.controlSub == nil || other.seq > s.controlSub.seq) {
-			s.controlSub = other
-		}
-	}
-	if s.controlSub == nil {
+	s.controlSub = heir
+	if heir == nil {
 		s.control = nil
 		s.broadcastLocked(s.controlFrameLocked())
+		return
 	}
+	// The promoted connection's earlier resizes were refused; the control
+	// frame makes it send its grid again.
+	s.sendLocked(heir, s.controlFrameLocked())
 }
 func (s *Session) Write(p []byte) error {
 	return s.WriteContext(context.Background(), p)
