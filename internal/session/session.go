@@ -89,11 +89,15 @@ type Session struct {
 	subs          map[*Subscriber]struct{}
 	nextSeq       uint64
 	control       *Controller
-	submissions   submissionLog
-	done          chan struct{}
-	readerDone    chan struct{}
-	cleanupDone   chan struct{}
-	closeOnce     sync.Once
+	// controlSub is the controlling client's authoritative connection: the
+	// most recent one. A duplicated browser tab can carry the same client ID;
+	// only one of its connections may resize the PTY or answer queries.
+	controlSub  *Subscriber
+	submissions submissionLog
+	done        chan struct{}
+	readerDone  chan struct{}
+	cleanupDone chan struct{}
+	closeOnce   sync.Once
 }
 
 type startOptions struct {
@@ -238,9 +242,13 @@ func (s *Session) AttachClient(o AttachOptions) *Subscriber {
 	sub := &Subscriber{Out: make(chan []byte, 256), Slow: make(chan struct{}), client: o.Client, label: o.Label, seq: s.nextSeq}
 	if s.control == nil {
 		s.setControlLocked(sub)
-	} else if s.control.ClientID == sub.client && s.control.Label != sub.label {
-		s.control.Label = sub.label
-		s.broadcastLocked(s.controlFrameLocked())
+	} else if s.control.ClientID == sub.client {
+		// A reconnect supersedes the connection it replaces.
+		s.controlSub = sub
+		if s.control.Label != sub.label {
+			s.control.Label = sub.label
+			s.broadcastLocked(s.controlFrameLocked())
+		}
 	}
 	s.subs[sub] = struct{}{}
 	s.replayLocked(sub, o.Resume)
@@ -259,6 +267,9 @@ type Position struct {
 }
 
 func (s *Session) replayLocked(sub *Subscriber, resume *ResumePoint) {
+	// The grid comes first: an observer must size its terminal before it
+	// parses cursor-addressed history, or that history lands on a wrong grid.
+	s.sendLocked(sub, s.controlFrameLocked())
 	start, end := s.ring.Range()
 	position := Position{Generation: s.info.Generation, Mode: "reset", Start: start, End: end, Truncated: start > 0}
 	if resume != nil && resume.Generation == s.info.Generation {
@@ -275,20 +286,30 @@ func (s *Session) replayLocked(sub *Subscriber, resume *ResumePoint) {
 		s.sendLocked(sub, s.ring.snapshotWithPrefix([]byte{1}))
 	}
 	s.sendLocked(sub, s.stateLocked())
-	s.sendLocked(sub, s.controlFrameLocked())
 	if s.info.ExitCode != nil {
 		data, _ := json.Marshal(map[string]int{"exitCode": *s.info.ExitCode})
 		s.sendLocked(sub, Frame(3, data))
 	}
 }
+
+// Replay discards queued stream frames, which the new snapshot supersedes,
+// but keeps submission statuses: they are not part of the stream and a lost
+// one would leave a draft locked.
 func (s *Session) Replay(sub *Subscriber) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var statuses [][]byte
 	for {
 		select {
-		case <-sub.Out:
+		case frame := <-sub.Out:
+			if frame[0] == 5 {
+				statuses = append(statuses, frame)
+			}
 		default:
 			s.replayLocked(sub, nil)
+			for _, frame := range statuses {
+				s.sendLocked(sub, frame)
+			}
 			return
 		}
 	}
@@ -297,9 +318,19 @@ func (s *Session) Detach(sub *Subscriber) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.subs, sub)
-	// Control is not handed to the remaining observers: their layout must not
-	// change because another device went away. The next input claims it.
-	if s.control != nil && s.control.ClientID == sub.client && !s.clientAttachedLocked(sub.client) {
+	if s.controlSub != sub {
+		return
+	}
+	// Another connection of the same client takes over; otherwise control is
+	// not handed to the remaining observers: their layout must not change
+	// because another device went away. The next input claims it.
+	s.controlSub = nil
+	for other := range s.subs {
+		if other.client == sub.client && (s.controlSub == nil || other.seq > s.controlSub.seq) {
+			s.controlSub = other
+		}
+	}
+	if s.controlSub == nil {
 		s.control = nil
 		s.broadcastLocked(s.controlFrameLocked())
 	}
@@ -313,6 +344,25 @@ func (s *Session) Resize(cols, rows uint16) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.resizeLocked(cols, rows)
+}
+
+// ResizeFrom resizes the PTY only if the subscriber is the controlling
+// connection, checked in the same critical section as the resize so that a
+// takeover cannot interleave between them.
+func (s *Session) ResizeFrom(sub *Subscriber, cols, rows uint16) error {
+	if cols == 0 || rows == 0 || cols > 1000 || rows > 1000 {
+		return errors.New("invalid terminal size")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.controlSub != sub {
+		return ErrNotController
+	}
+	return s.resizeLocked(cols, rows)
+}
+
+func (s *Session) resizeLocked(cols, rows uint16) error {
 	if cols == s.info.Cols && rows == s.info.Rows {
 		return nil
 	}

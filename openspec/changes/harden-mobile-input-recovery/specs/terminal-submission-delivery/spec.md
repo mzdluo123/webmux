@@ -26,7 +26,7 @@
 
 ### Requirement: 提交状态回报
 
-服务端 SHALL 以 0x05 帧回报提交状态：登记时 `received`；全部字节写入后 `written`；部分字节写入后出错 `partial`；未写入任何字节 `failed`。状态 SHALL 发送给提交客户端（同一客户端 ID）的全部连接。界面 SHALL 只把 `written` 表述为“已写入终端”，MUST NOT 表述为 agent 已接受或执行成功。
+服务端 SHALL 以 0x05 帧回报提交状态：登记时 `received`；全部字节写入后 `written`；部分字节写入后出错 `partial`；未写入任何字节 `failed`。状态 SHALL 发送给提交客户端（同一客户端 ID）的全部连接，以及在 `received` 期间查询过该提交的其他客户端。0x02 重新同步清空队列时 SHALL 保留尚未送出的提交状态帧。界面 SHALL 只把 `written` 表述为“已写入终端”，MUST NOT 表述为 agent 已接受或执行成功。
 
 #### Scenario: 正常提交
 
@@ -48,6 +48,11 @@
 
 - **WHEN** 提交已写入终端但 `written` 状态因断线未到达，用户在重连后点击“按原提交重发”
 - **THEN** 服务端回报 `written`，终端只收到一次该提交
+
+#### Scenario: 新标签页恢复仍在写入的提交
+
+- **WHEN** 草稿在新标签页（新的客户端 ID）恢复，查询时提交仍为 `received`
+- **THEN** 写入完成后该标签页收到最终状态，草稿随之解锁或清空
 
 #### Scenario: 从未送达
 

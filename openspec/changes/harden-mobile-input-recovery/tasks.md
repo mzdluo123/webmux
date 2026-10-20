@@ -30,8 +30,17 @@
 - [x] 4.3 前端：客户端 ID（`sessionStorage`）与设备名；控制端 fit 并发送尺寸，观察端采用 PTY 网格、宿主可平移并默认显示最新行；观察提示条与“接管控制”；软键盘按钮在观察时接管
 - [x] 4.4 Go 集成测试覆盖 resize 归属、自动回复过滤、输入与显式接管、控制端离开后空缺
 
-## 5. 验证
+## 5. 审查修复
 
-- [x] 5.1 `go vet`、`go test -race ./...`、`pnpm --dir web check`、`make format-check`
-- [x] 5.2 `make test-unit`、`make test-browser`、受影响的 E2E（草稿、快捷指令、终端、生命周期）
-- [ ] 5.3 真机检查：iOS Safari / Android 锁屏后回到前台的续接、草稿恢复、两台设备之间的控制切换与观察端平移
+- [x] 5.1 复制标签页：前端以存活标记检测复制并换用新客户端 ID；服务端只认控制端客户端最近附着的连接，补充集成测试与单元测试
+- [x] 5.2 0x02 重新同步保留排队中的提交状态帧，补充测试
+- [x] 5.3 在 `received` 期间查询的其他客户端登记为观察者并收到最终状态，补充测试
+- [x] 5.4 回放前先发 0x06 控制帧，观察端先采用网格再解析历史，补充测试
+- [x] 5.5 以 xterm `onUserInput` 标明输入来源，自动应答改用 0x06 帧，取代字节模式判断；补充 Shift+F3 与自动应答测试
+- [x] 5.6 `ResizeFrom` 在同一临界区内检查控制连接并 resize，补充测试
+
+## 6. 验证
+
+- [x] 6.1 `go vet`、`go test -race ./...`、`pnpm --dir web check`、`make format-check`
+- [x] 6.2 `make test-unit`、`make test-browser`、受影响的 E2E（草稿、快捷指令、终端、生命周期）
+- [ ] 6.3 真机检查：iOS Safari / Android 锁屏后回到前台的续接、草稿恢复、两台设备之间的控制切换与观察端平移

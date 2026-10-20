@@ -234,9 +234,10 @@ func TestOnlyControllerResizesAndAnswersTerminalQueries(t *testing.T) {
 	}
 	f.control(phone)
 
-	// Both xterms answer a device-attributes query; only the controller's reply is written.
-	f.send(desk, 0, []byte("\x1b[?1;2c"))
-	f.send(phone, 0, []byte("\x1b[?6c"))
+	// Both xterms answer a device-attributes query; only the controller's reply
+	// is written, and answering never takes control.
+	f.send(desk, 6, []byte("\x1b[?1;2c"))
+	f.send(phone, 6, []byte("\x1b[?6c"))
 	waitFile(t, record, "\x1b[?6c")
 
 	// User input from the observer takes control.
@@ -247,7 +248,7 @@ func TestOnlyControllerResizesAndAnswersTerminalQueries(t *testing.T) {
 	}
 	f.control(desk)
 	waitFile(t, record, "\x1b[?6ctyped")
-	f.send(phone, 0, []byte("\x1b[?6c"))
+	f.send(phone, 6, []byte("\x1b[?6c"))
 	f.send(phone, 5, nil)
 	if state := f.control(desk); state.Controller == nil || state.Controller.ClientID != "phone-client" {
 		t.Fatalf("explicit claim: %+v", state)
@@ -259,6 +260,104 @@ func TestOnlyControllerResizesAndAnswersTerminalQueries(t *testing.T) {
 	if state := f.control(desk); state.Controller != nil || state.Cols != 50 {
 		t.Fatalf("vacant control: %+v", state)
 	}
-	f.send(desk, 0, []byte("\x1b[0n"))
+	f.send(desk, 6, []byte("\x1b[0n"))
 	waitFile(t, record, "\x1b[?6ctyped\x1b[0n")
+}
+
+func TestKeyBytesShapedLikeReportsAreUserInput(t *testing.T) {
+	record := filepath.Join(t.TempDir(), "input")
+	f := newContinuityFixture(t, recorder(record))
+	controller := f.dial("client=controller-1")
+	f.control(controller)
+	observer := f.dial("client=observer-1")
+	f.control(observer)
+	// Shift+F3 is "ESC [ 1 ; 2 R", the same bytes as a cursor position report.
+	// Provenance, not byte shape, decides: a keypress is written and claims.
+	f.send(observer, 0, []byte("\x1b[1;2R"))
+	if state := f.control(controller); state.Controller == nil || state.Controller.ClientID != "observer-1" {
+		t.Fatalf("modified F3 did not take control: %+v", state)
+	}
+	waitFile(t, record, "\x1b[1;2R")
+}
+
+func TestDuplicatedTabIdentityHasOneAuthoritativeConnection(t *testing.T) {
+	record := filepath.Join(t.TempDir(), "input")
+	f := newContinuityFixture(t, recorder(record))
+	original := f.dial("client=shared-client")
+	f.control(original)
+	clone := f.dial("client=shared-client")
+	f.control(clone)
+	// Only the newest connection of the controlling client resizes or answers,
+	// so two viewports cannot fight over the grid.
+	f.send(original, 1, []byte(`{"cols":70,"rows":20}`))
+	f.send(clone, 1, []byte(`{"cols":90,"rows":30}`))
+	if state := f.control(original); state.Cols != 90 || state.Rows != 30 {
+		t.Fatalf("authoritative resize: %+v", state)
+	}
+	f.send(original, 6, []byte("\x1b[?1c"))
+	f.send(clone, 6, []byte("\x1b[?2c"))
+	waitFile(t, record, "\x1b[?2c")
+	time.Sleep(100 * time.Millisecond)
+	if info := f.item.Info(); info.Cols != 90 || info.Rows != 30 {
+		t.Fatalf("superseded connection resized: %dx%d", info.Cols, info.Rows)
+	}
+	// When the authoritative connection leaves, the client's other one takes over.
+	_ = clone.CloseNow()
+	until := time.Now().Add(3 * time.Second)
+	for f.item.Info().Clients != 1 {
+		if time.Now().After(until) {
+			t.Fatal("clone did not detach")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	f.send(original, 1, []byte(`{"cols":70,"rows":20}`))
+	if state := f.control(original); state.Controller == nil || state.Controller.ClientID != "shared-client" || state.Cols != 70 {
+		t.Fatalf("remaining connection after clone left: %+v", state)
+	}
+}
+
+func TestReplayKeepsQueuedSubmissionStatus(t *testing.T) {
+	f := newContinuityFixture(t, recorder(filepath.Join(t.TempDir(), "input")))
+	sub := f.item.AttachClient(session.AttachOptions{Client: "replay-client"})
+	defer f.item.Detach(sub)
+	f.item.SendSubmissionStatus(sub, session.SubmissionStatus{ID: "submission-0009", State: session.SubmissionWritten})
+	f.item.Replay(sub)
+	var kinds []byte
+	for len(sub.Out) > 0 {
+		frame := <-sub.Out
+		kinds = append(kinds, frame[0])
+		if frame[0] == 5 && !bytes.Contains(frame, []byte(`"submission-0009"`)) {
+			t.Fatalf("status frame %q", frame)
+		}
+	}
+	// Control and position lead the replay; the status survives after it.
+	if len(kinds) < 3 || kinds[0] != 6 || kinds[1] != 4 || kinds[len(kinds)-1] != 5 {
+		t.Fatalf("frames after replay: %v", kinds)
+	}
+}
+
+func TestQueryingClientLearnsPendingSubmissionOutcome(t *testing.T) {
+	dir := t.TempDir()
+	record := filepath.Join(dir, "input")
+	// The program does not read input until the test lets it, so a body
+	// larger than the PTY input queue keeps the submission "received".
+	f := newContinuityFixture(t, []string{"/bin/bash", "-c", `stty raw -echo; printf READY; while [ ! -e "$0.go" ]; do sleep 0.05; done; exec cat > "$0"`, record})
+	generation := f.item.Info().Generation
+	submitter := f.dial("client=original-tab")
+	f.send(submitter, 3, submitFrame("submission-0100", generation, strings.Repeat("x", 256*1024), "\r"))
+	if status := f.status(submitter); status.State != session.SubmissionReceived {
+		t.Fatalf("receipt %+v", status)
+	}
+	// A restored draft in a new tab has another client ID.
+	restored := f.dial("client=restored-tab")
+	f.send(restored, 4, []byte(`{"ids":["submission-0100"]}`))
+	if status := f.status(restored); status.State != session.SubmissionReceived {
+		t.Fatalf("pending query %+v", status)
+	}
+	if err := os.WriteFile(record+".go", nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if status := f.status(restored); status.ID != "submission-0100" || status.State != session.SubmissionWritten {
+		t.Fatalf("outcome for the querying tab %+v", status)
+	}
 }

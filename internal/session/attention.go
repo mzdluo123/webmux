@@ -104,6 +104,11 @@ func (s *Session) userInputLocked(p []byte, now time.Time) {
 	if terminalReplyOnly(p) {
 		return
 	}
+	s.recordInputLocked(now)
+}
+
+// recordInputLocked records input known to come from the user.
+func (s *Session) recordInputLocked(now time.Time) {
 	s.lastInputAt = now
 	s.info.Attention = nil
 }

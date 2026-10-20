@@ -4,6 +4,7 @@ import {
   encodeSubmission,
   newSubmissionId,
   preparePaste,
+  resolveClientId,
 } from "../src/terminalProtocol";
 import { SubmissionIdSchema } from "../src/schemas";
 
@@ -63,4 +64,32 @@ test("device labels name the device and browser without the full agent", () => {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
     ),
   ).toBe("Windows · Firefox");
+});
+
+test("a reload keeps the tab identity, while a duplicated tab takes a new one", () => {
+  const data = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => void data.set(key, value),
+    removeItem: (key: string) => void data.delete(key),
+  } as Storage;
+  let next = 0;
+  const generate = () => `c-generated-${++next}`;
+  const first = resolveClientId(storage, generate);
+  expect(first).toBe("c-generated-1");
+  // pagehide clears the live marker before a reload.
+  storage.removeItem("webmux.clientLive");
+  expect(resolveClientId(storage, generate)).toBe(first);
+  // A duplicated tab copies session storage while the original is still live.
+  const copy = new Map(data);
+  const duplicate = {
+    getItem: (key: string) => copy.get(key) ?? null,
+    setItem: (key: string, value: string) => void copy.set(key, value),
+    removeItem: (key: string) => void copy.delete(key),
+  } as Storage;
+  expect(resolveClientId(duplicate, generate)).toBe("c-generated-2");
+  expect(data.get("webmux.clientId")).toBe(first);
+  data.set("webmux.clientId", "bad id");
+  data.delete("webmux.clientLive");
+  expect(resolveClientId(storage, generate)).toBe("c-generated-3");
 });

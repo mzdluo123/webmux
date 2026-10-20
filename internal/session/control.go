@@ -4,8 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"time"
 )
+
+var ErrNotController = errors.New("connection does not control the terminal")
 
 // Controller is the browser client whose input and grid drive the PTY. It is
 // identified by a client ID that survives that client's reconnects.
@@ -40,39 +43,30 @@ func (s *Session) controlFrameLocked() []byte {
 
 func (s *Session) setControlLocked(sub *Subscriber) {
 	s.control = &Controller{ClientID: sub.client, Label: sub.label, Since: time.Now()}
+	s.controlSub = sub
 	s.broadcastLocked(s.controlFrameLocked())
 }
 
-func (s *Session) clientAttachedLocked(client string) bool {
-	for sub := range s.subs {
-		if sub.client == client {
-			return true
-		}
-	}
-	return false
-}
-
-// Claim gives control to the subscriber's client and reports whether it changed.
+// Claim makes the subscriber the controlling connection and reports whether
+// control moved to another client.
 func (s *Session) Claim(sub *Subscriber) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, attached := s.subs[sub]; !attached || s.control != nil && s.control.ClientID == sub.client {
+	if _, attached := s.subs[sub]; !attached || s.controlSub == sub {
+		return false
+	}
+	if s.control != nil && s.control.ClientID == sub.client {
+		s.controlSub = sub
 		return false
 	}
 	s.setControlLocked(sub)
 	return true
 }
 
-// Controls reports whether the subscriber's client currently holds control.
-func (s *Session) Controls(sub *Subscriber) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.control != nil && s.control.ClientID == sub.client
-}
-
 // Responds reports whether automatic terminal replies from this subscriber
-// reach the PTY: the controller's, or without one the oldest connection's.
-// Every attached xterm answers the same queries; only one answer is written.
+// reach the PTY: the controlling connection's, or without one the oldest
+// connection's. Every attached xterm answers the same queries; only one
+// answer is written.
 func (s *Session) Responds(sub *Subscriber) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -80,7 +74,7 @@ func (s *Session) Responds(sub *Subscriber) bool {
 		return false
 	}
 	if s.control != nil {
-		return s.control.ClientID == sub.client
+		return s.controlSub == sub
 	}
 	for other := range s.subs {
 		if other.seq < sub.seq {
@@ -89,9 +83,6 @@ func (s *Session) Responds(sub *Subscriber) bool {
 	}
 	return true
 }
-
-// TerminalReplyOnly reports input made solely of automatic terminal replies.
-func TerminalReplyOnly(p []byte) bool { return terminalReplyOnly(p) }
 
 type SubmissionState string
 
@@ -121,7 +112,10 @@ const (
 type submissionRecord struct {
 	status SubmissionStatus
 	client string
-	at     time.Time
+	// Clients that asked about the submission while it was still being
+	// written, e.g. a restored draft in a new tab; they get the outcome too.
+	watchers map[string]struct{}
+	at       time.Time
 }
 
 // submissionLog is a bounded, mu-owned record of recent submissions so that a
@@ -187,7 +181,7 @@ func (s *Session) Submit(ctx context.Context, sub *Subscriber, id, generation st
 	s.notifyClientLocked(record)
 	s.mu.Unlock()
 
-	written, err := s.writeParts(ctx, body, submit)
+	written, err := s.writeParts(ctx, inputUser, body, submit)
 	status := SubmissionStatus{ID: id, State: SubmissionWritten}
 	if err != nil {
 		status.State, status.Error = SubmissionFailed, "write"
@@ -205,7 +199,7 @@ func (s *Session) Submit(ctx context.Context, sub *Subscriber, id, generation st
 func (s *Session) notifyClientLocked(record *submissionRecord) {
 	frame := jsonFrame(5, record.status)
 	for other := range s.subs {
-		if other.client == record.client {
+		if _, watching := record.watchers[other.client]; watching || other.client == record.client {
 			s.sendLocked(other, frame)
 		}
 	}
@@ -227,6 +221,12 @@ func (s *Session) QuerySubmissions(sub *Subscriber, ids []string) {
 		status := SubmissionStatus{ID: id, State: SubmissionMissing}
 		if record := s.submissions.get(id, now); record != nil {
 			status = record.status
+			if status.State == SubmissionReceived && sub.client != record.client {
+				if record.watchers == nil {
+					record.watchers = make(map[string]struct{})
+				}
+				record.watchers[sub.client] = struct{}{}
+			}
 		}
 		s.sendLocked(sub, jsonFrame(5, status))
 	}

@@ -72,6 +72,7 @@ func parseSubmission(p []byte) (*submission, bool) {
 
 type input struct {
 	data   []byte
+	reply  bool
 	submit *submission
 }
 
@@ -107,7 +108,7 @@ func Attach(ctx context.Context, s *session.Session, c *websocket.Conn, o sessio
 					if ctx.Err() != nil {
 						return
 					}
-				} else if s.WriteContext(ctx, item.data) != nil {
+				} else if s.WriteInput(ctx, item.data, item.reply) != nil {
 					return
 				}
 			}
@@ -136,17 +137,16 @@ func Attach(ctx context.Context, s *session.Session, c *websocket.Conn, o sessio
 			}
 			switch p[0] {
 			case 0:
-				// Every attached xterm answers the same device queries; only
-				// the responsible connection's answers reach the PTY. Anything
-				// else is user input, which takes control.
-				if session.TerminalReplyOnly(p[1:]) {
-					if !s.Responds(sub) {
-						continue
-					}
-				} else {
-					s.Claim(sub)
-				}
+				// User input takes control.
+				s.Claim(sub)
 				if !enqueue(input{data: p[1:]}) {
+					return
+				}
+			case 6:
+				// Every attached xterm answers the same device queries; only
+				// the responsible connection's answers reach the PTY, and
+				// answering never takes control.
+				if s.Responds(sub) && !enqueue(input{data: p[1:], reply: true}) {
 					return
 				}
 			case 1:
@@ -155,8 +155,8 @@ func Attach(ctx context.Context, s *session.Session, c *websocket.Conn, o sessio
 					Rows uint16 `json:"rows"`
 				}
 				// Observers render the controller's grid and never resize it.
-				if !s.Controls(sub) || json.Unmarshal(p[1:], &size) != nil || s.Resize(size.Cols, size.Rows) != nil {
-					continue
+				if json.Unmarshal(p[1:], &size) == nil {
+					_ = s.ResizeFrom(sub, size.Cols, size.Rows)
 				}
 			case 2:
 				s.Replay(sub)

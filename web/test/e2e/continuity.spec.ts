@@ -79,13 +79,13 @@ test("returning to the foreground appends missed output without a full replay", 
   expect(response.status()).toBe(201);
   const { id } = await response.json();
   const sockets: WebSocket[] = [];
-  const firstFrames = new Map<WebSocket, Buffer>();
+  const frames = new Map<WebSocket, Buffer[]>();
   page.on("websocket", (socket) => {
     if (!socket.url().includes("/ws/s/")) return;
     sockets.push(socket);
+    frames.set(socket, []);
     socket.on("framereceived", ({ payload }) => {
-      if (!firstFrames.has(socket) && typeof payload !== "string")
-        firstFrames.set(socket, payload);
+      if (typeof payload !== "string") frames.get(socket)!.push(payload);
     });
   });
   await page.goto(`/s/${id}`);
@@ -106,8 +106,10 @@ test("returning to the foreground appends missed output without a full replay", 
   const resumed = sockets.at(-1)!;
   expect(resumed.url()).toMatch(/[?&]offset=\d+/);
   expect(resumed.url()).toMatch(/[?&]generation=[0-9a-f]{16}/);
-  await expect.poll(() => firstFrames.has(resumed)).toBe(true);
-  const position = firstFrames.get(resumed)!;
+  // The grid comes first, then the position of the resumed stream.
+  await expect.poll(() => frames.get(resumed)!.length).toBeGreaterThan(1);
+  const [control, position] = frames.get(resumed)!;
+  expect(control[0]).toBe(6);
   expect(position[0]).toBe(4);
   expect(JSON.parse(position.subarray(1).toString())).toMatchObject({
     mode: "append",

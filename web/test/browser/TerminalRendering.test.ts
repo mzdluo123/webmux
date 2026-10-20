@@ -757,6 +757,66 @@ test("native Chrome swipes keep scrolling visibly through row redraws without ke
   // ~10 s on Linux CI, over 20 s on hosted macOS runners.
 }, 60000);
 
+test("an observer sizes to the controller's grid before parsing cursor-addressed history", async () => {
+  observeGlyphPixels(true);
+  await render(Harness);
+  await expect.poll(() => sockets.length, { timeout: 5000 }).toBe(1);
+  const socket = sockets[0];
+  socket.open();
+  // The server sends control before the replay: another client controls a
+  // 120-column grid, far wider than this 400 px host fits.
+  socket.receive(
+    6,
+    JSON.stringify({
+      controller: {
+        clientId: "another-client",
+        label: "desk",
+        since: new Date().toISOString(),
+      },
+      cols: 120,
+      rows: 30,
+    }),
+  );
+  socket.receive(1, "\x1b[1;100Hfar-right");
+  await expect
+    .poll(() =>
+      (host().querySelector(".xterm-rows > div")?.textContent ?? "")
+        .replaceAll("\u00a0", " ")
+        .trimEnd(),
+    )
+    .toMatch(/^ {99}far-right$/);
+  expect(host().classList.contains("observing")).toBe(true);
+  // Observers never resize the PTY.
+  expect(socket.sent.filter((frame) => frame[0] === 1)).toEqual([]);
+});
+
+test("automatic replies to device queries are sent apart from user input, even when the bytes match a key", async () => {
+  const { socket } = await openTerminal();
+  const frames = (kind: number) =>
+    socket.sent
+      .filter((frame) => frame[0] === kind)
+      .map((frame) => new TextDecoder().decode(frame.subarray(1)));
+  // Primary device attributes and a cursor position report at row 1.
+  socket.receive(0, "\x1b[H\x1b[c\x1b[6n");
+  await expect.poll(() => frames(6).join("")).toMatch(/\x1b\[\?[\d;]+c/);
+  await expect.poll(() => frames(6).join("")).toContain("\x1b[1;1R");
+  expect(frames(0)).toEqual([]);
+  // Shift+F3 produces the same shape as a cursor report, but it is a key.
+  const textarea = host().querySelector("textarea")!;
+  textarea.focus();
+  textarea.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "F3",
+      code: "F3",
+      keyCode: 114,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+  await expect.poll(() => frames(0)).toEqual(["\x1b[1;2R"]);
+});
+
 test("native fullscreen gestures report row-scaled SGR wheel input at stable starting cells", async () => {
   observeGlyphPixels(true);
   const { socket } = await openTerminal();

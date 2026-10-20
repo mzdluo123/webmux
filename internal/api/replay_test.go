@@ -44,10 +44,15 @@ func TestReplayRetainsNewestBytesAfterBufferWrap(t *testing.T) {
 	}
 }
 
-// readPosition consumes the position frame that precedes every replay.
+// readPosition consumes the control and position frames that precede every
+// replay, in that order: observers need the grid before the bytes.
 func readPosition(ctx context.Context, t *testing.T, conn *websocket.Conn, mode string) session.Position {
 	t.Helper()
 	kind, p, err := conn.Read(ctx)
+	if err != nil || kind != websocket.MessageBinary || len(p) == 0 || p[0] != 6 {
+		t.Fatalf("control frame before replay: kind=%v bytes=%q err=%v", kind, p, err)
+	}
+	kind, p, err = conn.Read(ctx)
 	if err != nil || kind != websocket.MessageBinary || len(p) == 0 || p[0] != 4 {
 		t.Fatalf("position frame: kind=%v bytes=%q err=%v", kind, p, err)
 	}

@@ -1,5 +1,5 @@
 import { onMount } from "svelte";
-import { Terminal } from "@xterm/xterm";
+import { Terminal, type IDisposable } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { apiBuffer, stored, store } from "../api";
@@ -440,7 +440,31 @@ export function useTerminal(
         },
       );
       socket = ws;
-      const input = term.onData(send);
+      // xterm emits keypresses and its own answers to device queries through
+      // the same event, sometimes as identical bytes (Shift+F3 and a cursor
+      // report are both "ESC [ 1 ; 2 R"). Its core fires onUserInput right
+      // before onData only for the former; the server needs that provenance
+      // to write one answer per query and to let only real input take
+      // control. Without the hook, everything is sent as user input.
+      let typed = false;
+      const core = (
+        term as unknown as {
+          _core?: {
+            coreService?: {
+              onUserInput?: (listener: () => void) => IDisposable;
+            };
+          };
+        }
+      )._core;
+      const provenance = core?.coreService?.onUserInput?.(() => {
+        typed = true;
+      });
+      const input = term.onData((data) => {
+        const user = typed || !provenance;
+        typed = false;
+        if (user) send(data);
+        else ws.send(6, encoder.encode(data));
+      });
       const selected = term.onSelectionChange(() => {
         selection = term.getSelection();
       });
@@ -619,6 +643,7 @@ export function useTerminal(
         clearTimeout(compositionTimer);
         parent.classList.remove("ios-ime");
         input.dispose();
+        provenance?.dispose();
         resize.dispose();
         selected.dispose();
         oscClipboard.dispose();

@@ -68,23 +68,54 @@ export function deviceLabel(userAgent: string, touchPoints = 0) {
   return browser ? `${device} · ${browser}` : device;
 }
 
-let fallbackClientId: string | undefined;
+const clientKey = "webmux.clientId";
+const liveKey = "webmux.clientLive";
+
+// Reads this tab's client ID from session storage. Duplicating a tab copies
+// session storage, so the live marker, cleared only when a page goes away,
+// tells a copy from a reload: a copy still sees its original's marker and
+// takes a new ID. A tab restored after the system discarded it never cleared
+// its marker either and also takes a new ID, which only costs it control.
+export function resolveClientId(storage: Storage, generate: () => string) {
+  let id = storage.getItem(clientKey);
+  if (!id || !/^[A-Za-z0-9_-]{8,64}$/.test(id) || storage.getItem(liveKey)) {
+    id = generate();
+    storage.setItem(clientKey, id);
+  }
+  storage.setItem(liveKey, "1");
+  return id;
+}
+
+let identity: string | undefined;
 // One identity per tab: it survives reloads and reconnects of this tab, so
 // control and submission acknowledgements follow it, while another tab on
-// the same device is a separate client.
+// the same device, including a duplicated one, is a separate client.
 export function clientIdentity() {
-  let id: string | null = null;
-  try {
-    id = sessionStorage.getItem("webmux.clientId");
-    if (!id || !/^[A-Za-z0-9_-]{8,64}$/.test(id)) {
-      id = "c-" + randomHex(12);
-      sessionStorage.setItem("webmux.clientId", id);
+  if (!identity) {
+    const generate = () => "c-" + randomHex(12);
+    try {
+      identity = resolveClientId(sessionStorage, generate);
+      addEventListener("pagehide", () => {
+        try {
+          sessionStorage.removeItem(liveKey);
+        } catch {
+          /* storage became unavailable */
+        }
+      });
+      // A page restored from the back-forward cache is live again.
+      addEventListener("pageshow", (event) => {
+        try {
+          if (event.persisted) sessionStorage.setItem(liveKey, "1");
+        } catch {
+          /* storage became unavailable */
+        }
+      });
+    } catch {
+      identity = generate();
     }
-  } catch {
-    id = fallbackClientId ??= "c-" + randomHex(12);
   }
   return {
-    id,
+    id: identity,
     label: deviceLabel(navigator.userAgent, navigator.maxTouchPoints),
   };
 }
