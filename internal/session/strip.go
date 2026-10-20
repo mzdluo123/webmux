@@ -33,6 +33,7 @@ func (s *Preview) Resize(cols, rows uint16) string {
 		s.screen = vt.NewTerminal(options)
 		s.boundRepeats()
 		s.boundCombining()
+		s.ignoreLinks()
 	} else if s.screen.Cols() != int(cols) || s.screen.Rows() != int(rows) {
 		s.screen.Resize(int(cols), int(rows))
 	} else {
