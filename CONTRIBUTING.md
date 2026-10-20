@@ -67,7 +67,7 @@ pnpm --dir web exec playwright test test/e2e/terminal.spec.ts
 
 E2E 失败时的截图、trace 和日志位于 `web/playwright-report/` 与 `web/test-results/`，可通过 `pnpm --dir web test:e2e:report` 查看。
 
-CI 在 Ubuntu 与 macOS 上运行格式检查和全部测试套件。
+CI 将各套件拆成并行 job：格式检查与前端构建、Go race、Vitest、Storybook 以及分两片的 E2E 在 Ubuntu 上运行；macOS 只运行与平台相关的 Go race 和 E2E。`Test result` 汇总全部 job 的结果。同一 PR 的新推送会取消仍在运行的旧检查。
 
 ## 代码规范
 

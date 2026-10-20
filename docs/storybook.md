@@ -10,7 +10,7 @@ pnpm --dir web test:storybook     # 构建后在真实 Chromium 中检查布局
 
 开发预览使用 6006 端口，自动测试由系统分配独立的回环端口，并将同一端口传给预览服务、就绪检查和测试 URL。自动测试始终测试静态构建，不复用已运行的服务。
 
-`make test` 与 Ubuntu/macOS CI 都包含 Storybook 测试。截图、trace 与 HTML 报告位于 `web/test-results/storybook/` 和 `web/playwright-report/storybook/`；Storybook 与 E2E 使用不同子目录，复用 CI 已上传的诊断根目录。这避免后运行的套件清理另一套报告，也无需修改工作流权限。这些输出不提交到 Git。
+`make test` 与 Ubuntu CI 的 Storybook job 包含 Storybook 测试；布局与平台无关，macOS CI 不再运行。截图、trace 与 HTML 报告位于 `web/test-results/storybook/` 和 `web/playwright-report/storybook/`，CI 以 `storybook-results` artifact 上传。Storybook 与 E2E 使用不同子目录，后运行的套件不会清理另一套报告。这些输出不提交到 Git。
 
 ## 测试边界
 
