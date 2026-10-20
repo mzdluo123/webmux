@@ -19,17 +19,27 @@ type processState struct {
 }
 type processTable map[int]processState
 
-func foregroundBlocked(pid int, table processTable) bool {
-	root, ok := table[pid]
+// A probe's immutable index is shared by every session until the next probe.
+type processSnapshot struct {
+	table    processTable
+	children map[int][]int
+}
+
+func newProcessSnapshot(table processTable) processSnapshot {
+	children := make(map[int][]int, len(table))
+	for child, state := range table {
+		children[state.ppid] = append(children[state.ppid], child)
+	}
+	return processSnapshot{table: table, children: children}
+}
+
+func (p processSnapshot) foregroundBlocked(pid int) bool {
+	root, ok := p.table[pid]
 	if !ok {
 		return false
 	}
 	if root.state == 'R' {
 		return false
-	}
-	children := make(map[int][]int, len(table))
-	for child, state := range table {
-		children[state.ppid] = append(children[state.ppid], child)
 	}
 	seen := map[int]bool{pid: true}
 	pending := []int{pid}
@@ -37,17 +47,17 @@ func foregroundBlocked(pid int, table processTable) bool {
 	for len(pending) > 0 {
 		member := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
-		state := table[member]
+		state := p.table[member]
 		if state.state == 'R' {
 			return false
 		}
-		if len(children[member]) == 0 {
+		if len(p.children[member]) == 0 {
 			leaves++
 			if state.state != 'S' {
 				return false
 			}
 		}
-		for _, child := range children[member] {
+		for _, child := range p.children[member] {
 			// Process snapshots can contain cycles; visit each PID only once.
 			if !seen[child] {
 				seen[child] = true
@@ -60,33 +70,27 @@ func foregroundBlocked(pid int, table processTable) bool {
 
 // awaitingInput is the user-attention half of a quiescent tree. Confirmed
 // timer leaves (sleep, nanosleep) are waiting on the clock, not the keyboard.
-func awaitingInput(pid int, table processTable) bool {
-	if !foregroundBlocked(pid, table) {
+func (p processSnapshot) awaitingInput(pid int) bool {
+	if !p.foregroundBlocked(pid) {
 		return false
 	}
-	return !timerLeaves(pid, table)
+	return !p.timerLeaves(pid)
 }
 
-func timerLeaves(pid int, table processTable) bool {
-	children := make(map[int][]int, len(table))
-	for child, state := range table {
-		children[state.ppid] = append(children[state.ppid], child)
-	}
+func (p processSnapshot) timerLeaves(pid int) bool {
 	seen := map[int]bool{pid: true}
 	pending := []int{pid}
 	leaves := 0
 	for len(pending) > 0 {
 		member := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
-		if len(children[member]) == 0 {
+		if len(p.children[member]) == 0 {
 			leaves++
-			state := enrichTimer(member, table[member])
-			table[member] = state
-			if !state.timer {
+			if !enrichTimer(member, p.table[member]).timer {
 				return false
 			}
 		}
-		for _, child := range children[member] {
+		for _, child := range p.children[member] {
 			if !seen[child] {
 				seen[child] = true
 				pending = append(pending, child)

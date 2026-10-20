@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InlineNotice from "../components/InlineNotice.svelte";
   import { onMount } from "svelte";
   import {
     IconSun,
@@ -37,6 +38,14 @@
   import WorkspaceGroup from "../components/WorkspaceGroup.svelte";
   import AddRepositoryDialog from "../components/AddRepositoryDialog.svelte";
   import RemoveWorktreeDialog from "../components/RemoveWorktreeDialog.svelte";
+  import AddHomeWorktreesDialog from "../components/AddHomeWorktreesDialog.svelte";
+  import { homeWorktrees } from "../homeWorktrees.svelte";
+  import {
+    homeLayout,
+    pruneHomeWorktrees,
+    setPinned,
+    worktreeTitle,
+  } from "../homeWorktrees";
   import type { TerminalDrafts } from "../terminal-draft.svelte";
 
   let { drafts }: { drafts: TerminalDrafts } = $props();
@@ -59,6 +68,7 @@
   } | null>(null);
   let adding = $state(false);
   let removing = $state<Worktree | null>(null);
+  let curating = $state<Repository | null>(null);
   let unregistering = $state<Repository | null>(null);
   let unregisterOpen = $state(false);
   let unregisterBusy = $state(false);
@@ -164,13 +174,21 @@
   function counts(items: SessionInfo[]) {
     return `运行 ${items.filter((s) => s.status === "running" || s.status === "idle").length} · 等待 ${items.filter((s) => s.status === "waiting").length} · 退出 ${items.filter((s) => s.status === "exited").length}`;
   }
+  function pin(repositoryId: string, ids: string[], pinned: boolean) {
+    const repo = repositories.find((r) => r.id === repositoryId);
+    if (repo)
+      homeWorktrees.save(setPinned(homeWorktrees.value, repo, ids, pinned));
+  }
   async function refresh() {
     const generation = ++refreshGeneration;
     refreshing = true;
     repositoryError = "";
     try {
       const result = await api("/repositories", RepositoriesSchema);
-      if (!disposed && generation === refreshGeneration) repositories = result;
+      if (!disposed && generation === refreshGeneration) {
+        repositories = result;
+        homeWorktrees.save(pruneHomeWorktrees(homeWorktrees.value, result));
+      }
     } catch (err) {
       if (!disposed && generation === refreshGeneration)
         repositoryError = (err as Error).message;
@@ -272,13 +290,15 @@
 </script>
 
 <div class="workspace-page min-h-dvh">
-  <header class="border-b bg-card">
+  <header
+    class="app-header workspace-header flex min-h-(--app-header-height) items-center border-b bg-card"
+  >
     <div
-      class="mx-auto flex min-h-20 max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8"
+      class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-0.5 sm:px-8"
     >
       <a class="brand" href="/"><span class="brand-mark">WM</span> WebMux</a>
       <div
-        class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1 sm:gap-3"
+        class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1 sm:gap-2"
       >
         <span
           class="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"
@@ -286,19 +306,19 @@
             class={`status-dot ${connection === "connected" ? "status-running" : "status-waiting"}`}
           ></span>{connection === "connected" ? "本机在线" : "正在连接"}</span
         >
-        <Button disabled={!presets.length} onclick={() => start()}
+        <Button size="sm" disabled={!presets.length} onclick={() => start()}
           >＋ 新建会话</Button
         >
         <Button
           href="/settings"
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           aria-label="设置"
           title="设置"><IconSettings aria-hidden="true" /></Button
         >
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           class="shrink-0"
           aria-label={dark ? "切换为白色主题" : "切换为黑色主题"}
           title={dark ? "切换为白色主题" : "切换为黑色主题"}
@@ -345,21 +365,15 @@
         >
       </div>
     </div>
-    {#if error}<p role="alert" class="mb-4 break-all text-destructive">
+    {#if error}<InlineNotice tone="danger" class="mb-4">
         {error}
-      </p>{/if}
-    {#if capabilityError}<p
-        role="status"
-        class="mb-4 rounded-lg border p-3 text-sm break-all"
-      >
+      </InlineNotice>{/if}
+    {#if capabilityError}<InlineNotice tone="warning" class="mb-4">
         仓库管理部分不可用：{capabilityError}。仍可直接启动会话。
-      </p>{/if}
-    {#if repositoryError}<p
-        role="alert"
-        class="mb-4 break-all text-destructive"
-      >
+      </InlineNotice>{/if}
+    {#if repositoryError}<InlineNotice tone="danger" class="mb-4">
         Git 状态刷新失败：{repositoryError}。保留上次快照与全部会话。
-      </p>{/if}
+      </InlineNotice>{/if}
     {#if loading}
       <div class="space-y-4" aria-label="正在加载会话">
         {#each [0, 1, 2] as item (item)}<Skeleton class="h-40 w-full" />{/each}
@@ -413,6 +427,7 @@
             (s) =>
               !repo.worktrees.some((w) => w.id === s.workspace?.worktreeId),
           )}
+          {@const layout = homeLayout(homeWorktrees.value, repo, repoSessions)}
           <Collapsible.Root
             class="min-w-0 space-y-4"
             data-repository-id={repo.id}
@@ -443,6 +458,14 @@
                 disabled={repo.availability !== "available" || !gitReady}
                 onclick={() => start("new", repo.id)}>新建 worktree</Button
               >
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!layout.unpinned.length}
+                onclick={() => {
+                  curating = repo;
+                }}>添加已有 worktree</Button
+              >
               <DropdownMenu.Root>
                 <DropdownMenu.Trigger
                   >{#snippet child({ props })}<Button
@@ -464,7 +487,8 @@
                 >
               </DropdownMenu.Root>
               <p class="w-full text-xs text-muted-foreground">
-                {repo.worktrees.length} 工作区 · {counts(repoSessions)}
+                主页 {layout.shown.length} / 共 {repo.worktrees.length} 工作区 ·
+                {counts(repoSessions)}
               </p>
               <p
                 class="w-full font-mono text-xs break-all whitespace-pre-wrap text-muted-foreground"
@@ -486,23 +510,18 @@
                   {repo.error}
                 </p>{/if}
             </div>
-            <Collapsible.Content class="space-y-4">
-              {#each repo.worktrees
-                .filter((tree) => !filtering || repoSessions.some((session) => session.workspace?.worktreeId === tree.id))
-                .sort( (a, b) => (a.kind === "main" ? -1 : b.kind === "main" ? 1 : a.path < b.path ? -1 : a.path > b.path ? 1 : 0) ) as tree (tree.id)}
+            <Collapsible.Content class="space-y-8">
+              {#each layout.shown.filter(({ tree }) => !filtering || repoSessions.some((session) => session.workspace?.worktreeId === tree.id)) as { tree, pinned } (tree.id)}
                 <WorkspaceGroup
-                  title={tree.branch ||
-                    (tree.detached
-                      ? `detached · ${tree.head?.slice(0, 12)}`
-                      : tree.kind === "bare"
-                        ? "Bare 仓库"
-                        : "尚无提交")}
+                  title={worktreeTitle(tree)}
                   path={tree.path}
                   worktree={tree}
                   sessions={repoSessions.filter(
                     (s) => s.workspace?.worktreeId === tree.id,
                   )}
                   {now}
+                  {pinned}
+                  ontogglepin={() => pin(repo.id, [tree.id], !pinned)}
                   onclose={(s) => {
                     closing = s;
                   }}
@@ -522,6 +541,12 @@
                     closing = s;
                   }}
                 />{/if}
+              {#if !layout.shown.length && layout.unpinned.length}<p
+                  class="text-sm text-muted-foreground"
+                >
+                  主页还没有 worktree。用「添加已有
+                  worktree」选择需要关注的工作区，或新建一个。
+                </p>{/if}
               {#if !repo.worktrees.length && !missing.length}<p
                   class="text-sm text-muted-foreground"
                 >
@@ -533,7 +558,7 @@
           </Collapsible.Root>
         {/each}
         {#if direct.length}
-          <section class="min-w-0 space-y-4" aria-label="直接会话">
+          <section class="min-w-0 space-y-8" aria-label="直接会话">
             <div>
               <h2 class="font-semibold">直接会话</h2>
               <p class="mt-1 text-xs text-muted-foreground">
@@ -600,6 +625,7 @@
     initialRepositoryId={creating.repositoryId}
     initialWorktreeId={creating.worktreeId}
     onchange={refresh}
+    onworktreecreated={(tree) => pin(tree.repositoryId, [tree.id], true)}
     onclose={() => {
       creating = null;
     }}
@@ -625,6 +651,17 @@
     onchange={refresh}
     onclose={() => {
       removing = null;
+    }}
+  />{/if}
+{#if curating}<AddHomeWorktreesDialog
+    repositoryName={curating.name}
+    worktrees={homeLayout(homeWorktrees.value, curating, sessions).unpinned}
+    active={new Set(sessions.map((s) => s.workspace?.worktreeId ?? ""))}
+    onadd={(ids) => {
+      if (curating) pin(curating.id, ids, true);
+    }}
+    onclose={() => {
+      curating = null;
     }}
   />{/if}
 <AlertDialog.Root bind:open={unregisterOpen}>

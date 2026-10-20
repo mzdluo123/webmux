@@ -3,8 +3,9 @@
 package session
 
 type processTable struct{}
+type processSnapshot struct{}
 
-func processes() processTable                            { return processTable{} }
-func foregroundBlocked(_ int, _ processTable) bool       { return false }
-func awaitingInput(_ int, _ processTable) bool           { return false }
-func enrichTimer(_ int, state processState) processState { return state }
+func processes() processTable                         { return processTable{} }
+func newProcessSnapshot(processTable) processSnapshot { return processSnapshot{} }
+func (processSnapshot) foregroundBlocked(int) bool    { return false }
+func (processSnapshot) awaitingInput(int) bool        { return false }

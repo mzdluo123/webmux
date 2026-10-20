@@ -9,15 +9,15 @@ import (
 
 func TestProcessTreeWaiting(t *testing.T) {
 	table := processTable{1: {ppid: 0, state: 'S'}, 2: {ppid: 1, state: 'S'}, 3: {ppid: 2, state: 'R'}}
-	if foregroundBlocked(1, table) {
+	if newProcessSnapshot(table).foregroundBlocked(1) {
 		t.Fatal("running descendant must prevent waiting")
 	}
 	table[3] = processState{ppid: 2, state: 'S'}
-	if !foregroundBlocked(1, table) {
+	if !newProcessSnapshot(table).foregroundBlocked(1) {
 		t.Fatal("all sleeping leaves should wait")
 	}
 	delete(table, 1)
-	if foregroundBlocked(1, table) {
+	if newProcessSnapshot(table).foregroundBlocked(1) {
 		t.Fatal("missing root must not wait")
 	}
 }
@@ -46,7 +46,7 @@ func TestForegroundBlockedStates(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := foregroundBlocked(1, tt.table); got != tt.want {
+			if got := newProcessSnapshot(tt.table).foregroundBlocked(1); got != tt.want {
 				t.Fatalf("foregroundBlocked() = %v, want %v", got, tt.want)
 			}
 		})
@@ -55,20 +55,20 @@ func TestForegroundBlockedStates(t *testing.T) {
 
 func TestAwaitingInputIgnoresTimerLeaves(t *testing.T) {
 	parent := processTable{1: {state: 'S'}, 2: {ppid: 1, state: 'S', timer: true}}
-	if awaitingInput(1, parent) {
+	if newProcessSnapshot(parent).awaitingInput(1) {
 		t.Fatal("parent waiting on sleep was treated as terminal input")
 	}
-	if !awaitingInput(1, processTable{1: {state: 'S'}}) {
+	if !newProcessSnapshot(processTable{1: {state: 'S'}}).awaitingInput(1) {
 		t.Fatal("unclassified sleep should still count as input wait")
 	}
-	if awaitingInput(1, processTable{1: {state: 'S', timer: true}}) {
+	if newProcessSnapshot(processTable{1: {state: 'S', timer: true}}).awaitingInput(1) {
 		t.Fatal("sleeping root timer was treated as terminal input")
 	}
 	mixed := processTable{1: {state: 'S'}, 2: {ppid: 1, state: 'S', timer: true}, 3: {ppid: 1, state: 'S'}}
-	if !awaitingInput(1, mixed) {
+	if !newProcessSnapshot(mixed).awaitingInput(1) {
 		t.Fatal("non-timer leaf was hidden by a timer sibling")
 	}
-	if awaitingInput(1, processTable{1: {state: 'S', timer: true}, 2: {ppid: 1, state: 'R'}}) {
+	if newProcessSnapshot(processTable{1: {state: 'S', timer: true}, 2: {ppid: 1, state: 'R'}}).awaitingInput(1) {
 		t.Fatal("running descendant was treated as terminal input")
 	}
 }
@@ -115,14 +115,31 @@ func BenchmarkForegroundBlocked(b *testing.B) {
 					}
 					table[pid] = processState{ppid: parent, state: 'S'}
 				}
+				snapshot := newProcessSnapshot(table)
 				b.ReportAllocs()
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					if !foregroundBlocked(1, table) {
+					if !snapshot.foregroundBlocked(1) {
 						b.Fatal("sleeping process tree must be blocked")
 					}
 				}
 			})
+		}
+	}
+}
+
+func BenchmarkProcessSnapshotManySessions(b *testing.B) {
+	table := make(processTable, 5000)
+	for pid := 1; pid <= 5000; pid++ {
+		table[pid] = processState{ppid: 5000 + pid/3, state: 'S'}
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		snapshot := newProcessSnapshot(table)
+		for pid := 1; pid <= 100; pid++ {
+			if !snapshot.foregroundBlocked(pid) {
+				b.Fatal("sleeping leaf must be blocked")
+			}
 		}
 	}
 }

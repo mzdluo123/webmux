@@ -37,6 +37,10 @@ pnpm --dir web dev    # http://127.0.0.1:5173
 
 运行 `pnpm --dir web storybook` 浏览真实业务组件；`pnpm --dir web test:storybook` 检查窄屏、矮屏、长文本和 200% 字号。测试命令及新增场景约定见 [Storybook 与防溢出测试](docs/storybook.md)。
 
+## 更新 README 截图
+
+`make build && pnpm --dir web screenshots` 会启动临时后端和演示仓库，用 Playwright 重新生成 `docs/images/` 下的截图。脚本会运行本机真实的 `omp` 并发送一次只读提问，因此需要本机已安装并登录 `omp`。
+
 ## 常用命令
 
 | 命令                | 说明                                                  |
