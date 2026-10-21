@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -122,7 +123,13 @@ func TestClientOverDialer(t *testing.T) {
 }
 
 func TestUnixDialerReportsNotRunning(t *testing.T) {
-	client := New(UnixDialer{Path: filepath.Join(t.TempDir(), "missing.sock")})
+	// A short path: macOS rejects long socket paths with EINVAL, not ENOENT.
+	dir, err := os.MkdirTemp("/tmp", "lc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	client := New(UnixDialer{Path: filepath.Join(dir, "missing.sock")})
 	if _, err := client.Status(context.Background()); !errors.Is(err, ErrNotRunning) {
 		t.Fatalf("missing socket: %v", err)
 	}
