@@ -1,41 +1,42 @@
 ## Why
 
-WebMux 只支持 Linux/macOS，Windows 用户目前要在 WSL 里手动启动 `webmux`，再自己记住地址和 Token；WSL 发行版没有前台进程时会被回收，`systemd --user` 服务也不一定启用，导致“开机即用、浏览器断开不丢会话”的体验在 Windows 上不成立。提供一个 Windows 托盘程序，负责在登录后把 WebMux 拉起在 WSL 中、保持其存活，并让链接信息和常用管理操作在任务栏一键可达。
-
-> 本提案中标注“待确认”的范围项见 design.md「Decisions › 0. 待用户确认的决策」，当前按推荐默认值编写。
+WebMux 只支持 Linux/macOS，Windows 用户目前要在 WSL 里手动启动 `webmux`，再自己记住地址和 Token；WSL 发行版没有前台进程时会被回收，`systemd --user` 服务也不一定启用，导致“开机即用、浏览器断开不丢会话”的体验在 Windows 上不成立。提供一个 Windows 托盘程序，在用户登录后把 WebMux 拉起在 WSL 中、保持其存活，并让链接信息和常用管理操作在任务栏一键可达。
 
 ## What Changes
 
-- 新增 Windows 托盘程序 `webmux-tray.exe`（Windows amd64/arm64，独立于 `webmux` 服务端二进制，同仓库同 Go module 构建）：
-  - 单实例运行，通知区域图标按状态区分（已停止 / 启动中 / 运行中 / 异常），悬停提示显示状态摘要。
-  - 托盘菜单：状态行（状态、会话数、版本、发行版）、打开 WebMux、复制链接、复制 Token、启动 / 停止 / 重启、打开日志、打开配置文件、发行版选择、登录时自动启动开关、编辑托盘设置、退出。
-- 在 WSL 中托管 WebMux 进程：
-  - 通过 `wsl.exe` 以 argv 方式在选定发行版中启动 `webmux`，不弹出控制台窗口；进程输出写入 WSL 内的日志文件，而不是管道回托盘，托盘退出不会影响服务端存活。
-  - 启动后轮询 `/api/health` 直到就绪或超时；检测到同地址已有健康的 WebMux 实例时接管监控而不重复启动；地址被其他程序占用时报告冲突。
-  - 停止 / 重启发送 SIGTERM 让 WebMux 自行清理会话，超时后再强制结束；存在会话时先确认（停止或重启会结束所有终端会话）。
-  - 非用户主动的意外退出（含 `wsl --shutdown`）按退避策略自动重启，并给出 Windows 通知。
-- 登录自动启动：在当前用户的 Windows 登录启动项中注册/注销托盘程序，可从菜单切换；托盘启动时按设置自动拉起 WebMux。
-- 链接信息：从 WSL 中的 WebMux 配置读取 `listen` 与 `token`，生成 Windows 本机可打开的链接及非回环监听时的远程链接；Token 只在用户主动复制时进入剪贴板，并排除出剪贴板历史与云同步。
-- 构建：`Makefile` 新增 `tray` 目标并纳入 `release`；平台无关逻辑在 Linux CI 上单元测试，Windows 目标在 CI 中交叉编译与 `go vet`。
-- 服务端 `webmux` 与浏览器前端在本变更中不做修改（是否支持带 Token 的一键链接为待确认项）。
+**前置依赖：`add-cli-server-control`。** 托盘是 WebMux 的一个客户端：WSL 内的状态、链接、停止与日志都通过 `webmux status --json` / `webmux stop --json` / `webmux serve --log-file` 获取和执行，托盘不解析 WebMux 配置、不在 WSL 中运行 shell 脚本、不自行管理 PID。
+
+- 新增 Windows 托盘程序 `webmux-tray.exe`（Windows amd64/arm64，同仓库同 Go module，独立于服务端二进制）：
+  - 单实例；通知区域图标区分已停止 / 启动中 / 运行中 / 异常；悬停提示显示状态摘要。
+  - 菜单：状态行、打开 WebMux、复制本机链接、复制远程链接、复制 Token、启动 / 停止 / 重启、打开日志、打开 WebMux 配置文件、发行版、启动方式、编辑托盘设置、登录时自动启动、退出。
+- 两种托管方式，可在菜单中切换（默认“自动”）：
+  - **托盘托管**：托盘以 `wsl.exe` 在发行版中运行 `webmux serve --log-file ...`，该进程同时让发行版保持存活；托盘退出后仍继续运行。
+  - **systemd 用户服务**：托盘通过 `systemctl --user` 启动 / 停止 / 重启已安装的 `webmux` 单元，并另起一个后台保活进程，日志来自 journal。
+  - “自动”：检测到 WSL 启用了 systemd 且已安装 `webmux` 用户单元时用 systemd，否则用托盘托管。
+- 生命周期：启动后等待就绪（60 秒）；识别不归当前方式管理的外部实例只做监控；停止 / 重启在有会话时确认（会结束所有会话）；托盘托管方式下意外退出（含 `wsl --shutdown`）按退避自动重启并通知，systemd 方式下重启交给 systemd。
+- 登录自动启动：在当前用户登录启动项（HKCU `Run`）中注册 / 注销托盘，菜单可切换；托盘启动时按设置自动启动 WebMux。
+- 链接信息：本机链接与远程链接来自 `webmux status`，托盘另从 Windows 侧检查本机链接是否可达并给出 WSL 网络设置诊断。链接不含 Token；“复制 Token”仅在点击时向 WSL 获取，写入剪贴板时排除剪贴板历史与云同步，60 秒后自动清除。
+- 退出托盘时询问：仅退出托盘 / 停止 WebMux 并退出 / 取消。
+- 交付：`make release` 额外产出 `webmux-tray-windows-amd64.exe` 与 `webmux-tray-windows-arm64.exe`；不做安装器、签名与自动更新。
+- 服务端与前端：除前置变更外无修改；不支持带 Token 的链接。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `windows-tray-host`: 托盘程序本身——单实例、图标与悬停状态、菜单结构与可用性、托盘设置的存储与校验、发行版选择、托盘日志、退出行为、登录自动启动开关。
-- `wsl-service-lifecycle`: 在 WSL 发行版中启动、监控、停止、重启 WebMux——进程托管方式、健康检查与就绪判定、已有实例接管、端口冲突、会话结束确认、意外退出自动重启与通知、服务端日志位置。
-- `windows-tray-access`: 链接信息——从 WebMux 配置推导本机与远程链接、打开浏览器、复制链接与 Token、Windows 侧可达性诊断与安全约束。
+- `windows-tray-host`: 托盘程序本身——运行形态、单实例、图标与悬停状态、菜单结构与可用性、托盘设置、发行版与启动方式选择、WSL 中 `webmux` 版本要求、登录自动启动、托盘日志、退出行为。
+- `wsl-service-lifecycle`: 托盘如何在 WSL 中启动、保活、监控、停止、重启 WebMux——两种托管方式与自动选择、就绪判定、外部实例、会话确认、意外退出处理。
+- `windows-tray-access`: 链接信息——本机/远程链接的来源与 Windows 侧可达性诊断、打开浏览器、复制链接与 Token 及其安全约束。
 
 ### Modified Capabilities
 
-当前 `openspec/specs/` 无已登记主规格，无可修改路径。本变更不改变 WebMux 服务端的认证、Origin、Host 校验和会话语义，托盘作为普通 HTTP 客户端访问既有 `/api/health`。
+当前 `openspec/specs/` 无已登记主规格。本变更依赖 `add-cli-server-control` 新增的 `cli-server-control` 与 `server-runtime-record`，只消费其 v1 契约，不改变其要求。
 
 ## Impact
 
-- 新增代码：`cmd/webmux-tray/`（Windows 入口与非 Windows 占位入口）、`internal/tray/`（平台无关的设置、WSL argv 构造、配置解析、链接推导、状态机、退避策略）、`internal/tray/winui`（仅 Windows：托盘图标、菜单、通知、剪贴板、注册表启动项、进程创建）。
-- 新增 Go 依赖：托盘图标库（推荐 `fyne.io/systray`，Windows 下无需 CGO），以及 `golang.org/x/sys/windows`（已有 `golang.org/x/sys` 模块）。保持 `CGO_ENABLED=0`。
-- 构建与 CI：`Makefile` 增加 `tray` 并扩展 `release`；`.github/workflows/test.yml` 增加 Windows 交叉编译与 vet 步骤；`go test ./...` 与 `go vet ./...` 在 Linux/macOS 上继续通过。
-- 资源：托盘状态图标（`.ico`，`go:embed`）。
-- 文档：`docs/deployment.md` 增加 “Windows（WSL）” 一节——这是新的部署方式，不属于“每次变更都更新文档”的范畴。
+- 新增代码：`cmd/webmux-tray/`（Windows 入口与非 Windows 占位入口）、`internal/tray/`（平台无关：设置、`wsl.exe` argv 构造、发行版列表解析、启动方式选择、状态机、退避）、`internal/tray/winui/`（仅 Windows：图标、菜单、通知、对话框、剪贴板、登录启动项、进程创建、单实例）。
+- 复用：`internal/client` 的 `StatusV1`/`StopV1` 契约类型与 `Health`。
+- 新增 Go 依赖（仅 Windows 构建）：`fyne.io/systray`；`golang.org/x/sys/windows` 属于已有的 `golang.org/x/sys` 模块。保持 `CGO_ENABLED=0`，服务端二进制依赖集不变。
+- 构建与 CI：`Makefile` 增加 `tray` 并纳入 `release`；`.github/workflows/test.yml` 增加 Windows 交叉编译与 vet；`go build/vet/test ./...` 在 Linux/macOS 上继续通过。
+- 文档：`docs/deployment.md` 增加“Windows（WSL）”一节。
 - 不涉及：`internal/session`、`internal/api`、`internal/hub`、`web/` 与 WebSocket 协议。
