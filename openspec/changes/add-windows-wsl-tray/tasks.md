@@ -1,16 +1,17 @@
 ## 0. 前置
 
-- [ ] 0.1 确认 `add-cli-server-control`（PR #83）已实现并合入（`serve --log-file`、`status --json` v1、`stop --json`、`config init`、`WEBMUX_LAUNCHER`、`internal/contract`）。验证：Linux 上 `webmux status --json` 输出 `"v":1`，`GOOS=windows go build ./internal/contract` 成功
+- [ ] 0.1 确认 `add-cli-server-control`（PR #83）已实现并合入（本机 API `/local/v1/*`、`bridge`、`serve --log-file`、`status --json` v1、`stop --json`、`config init`、`WEBMUX_LAUNCHER`、`internal/contract`、`internal/localclient`）。验证：Linux 上 `webmux status --json` 输出 `"v":1`，`GOOS=windows go build ./internal/contract ./internal/localclient` 成功
 
 ## 1. 平台无关核心（`internal/tray`）
 
 - [ ] 1.1 新增 `settings.go`：设置结构（发行版、启动方式 `auto/tray/systemd`、`webmux` 路径、配置路径、日志路径、托盘启动时自动启动、自动重启）、默认值、JSON 读写与校验；损坏时返回默认值与错误且不回写。验证：`go test ./internal/tray -run Settings` 覆盖缺失文件、损坏 JSON、未知字段、非法启动方式、不含 Token 字段
 - [ ] 1.2 新增 `wsl.go`：`Runner` 接口与设计表中每种调用的 argv 构造（`-d`、`--cd ~`、`~/x` → `./x` 改写、`WEBMUX_LAUNCHER`/`WSLENV` 合并）；`--list` 解析同时支持 UTF-16LE（含 BOM）与 UTF-8。验证：单元测试断言含空格、`;`、`$()`、引号的路径只作为独立 argv 元素出现，`WSLENV` 已有值时正确追加，中文发行版名解析正确
 - [ ] 1.3 新增 `mode.go`：`auto` 判定（`/proc/1/comm`、`systemctl --user cat`）、显式 systemd 条件不满足时报错、外部实例判定（`record`、`launcher` 与方式对应）。验证：注入假 `Runner` 的表驱动测试
-- [ ] 1.4 新增 `supervisor.go`：状态机（Stopped/Starting/Running/Unreachable/External/Stopping/Restarting/Failed）、60 秒就绪、10 秒 Windows 可达性与 30 秒状态刷新、连续 3 次无响应转异常、托盘托管方式退避 2s→60s 且 10 分钟内 ≤5 次、systemd 方式不自行重启、用户停止不重启、版本过旧/可执行文件缺失不重试、托盘重启后按启动方恢复控制、进程退出与状态事件去重。验证：注入假 `Runner`/状态/可达性/时钟的单元测试逐条覆盖 `wsl-service-lifecycle` 场景，`go test -race` 通过
-- [ ] 1.5 新增 `internal/tray/forward`：每地址监听、`httputil.ReverseProxy` 指向本机链接、Host 必须等于监听 IP:端口、Origin 为空或同源、改写 Host/Origin、删除 `X-Forwarded-*`、不记录 URL 查询串与内容、并发上限 64、非 WebSocket 10 分钟空闲关闭、按启用条件暂停/恢复。验证：以真实 `api.New`（配置 Token、回环监听）为后端的测试覆盖：经代理的 REST 与 `/ws/s/{id}` 终端读写成功、错误 Token 得到 401、异源 Origin 与非监听 Host 得到 403 且后端未收到请求、`?token=` 不出现在日志中、超出并发时新连接被关闭
-- [ ] 1.6 转发适用判定：网络模式（`wslinfo --networking-mode`，失败按 NAT）、状态报告的远程链接、Token、Windows 可达性 → 推荐与条目可用性；Windows 网卡过滤（回环、链路本地、`vEthernet (WSL*)`）与 Tailscale 置顶。验证：表驱动单元测试覆盖 `windows-tray-forwarding` 的适用判定与启用条件场景
-- [ ] 1.7 托盘日志写入器：1 MiB 轮转保留 1 份，对已知 Token 做字面替换兜底。验证：单元测试写入含 Token 的消息后文件中不出现 Token
+- [ ] 1.4 新增桥接拨号器（`bridge.go`，平台无关部分）：把子进程 stdio 包装为 `net.Conn`、退出码 3 且无输出 → `ErrNotRunning`、`Close` 超时结束进程；`internal/localclient` 使用它访问 `/local/v1/*` 与 `/ws/sessions`。验证：在 Linux 上以 `webmux bridge` 子进程（替代 `wsl.exe`）对真实服务完成状态请求、会话订阅与停止；服务未运行时得到 `ErrNotRunning`
+- [ ] 1.5 新增 `supervisor.go`：状态机（Stopped/Starting/Running/Unreachable/External/Stopping/Restarting/Failed）、60 秒就绪、10 秒 Windows 可达性、`/ws/sessions` 订阅驱动会话数（断开即刷新并退避重连）与 60 秒 `/local/v1/status` 刷新、停止先走 `/local/v1/shutdown` 后退回 `webmux stop`、连续 3 次无响应转异常、托盘托管方式退避 2s→60s 且 10 分钟内 ≤5 次、systemd 方式不自行重启、用户停止不重启、版本过旧/可执行文件缺失不重试、托盘重启后按启动方恢复控制、进程退出与状态事件去重。验证：注入假 `Runner`/状态/可达性/时钟的单元测试逐条覆盖 `wsl-service-lifecycle` 场景，`go test -race` 通过
+- [ ] 1.6 新增 `internal/tray/forward`：每地址监听、`httputil.ReverseProxy` 指向本机链接、Host 必须等于监听 IP:端口、Origin 为空或同源、改写 Host/Origin、删除 `X-Forwarded-*`、不记录 URL 查询串与内容、并发上限 64、非 WebSocket 10 分钟空闲关闭、按启用条件暂停/恢复。验证：以真实 `api.New`（配置 Token、回环监听）为后端的测试覆盖：经代理的 REST 与 `/ws/s/{id}` 终端读写成功、错误 Token 得到 401、异源 Origin 与非监听 Host 得到 403 且后端未收到请求、`?token=` 不出现在日志中、超出并发时新连接被关闭
+- [ ] 1.7 转发适用判定：网络模式（`wslinfo --networking-mode`，失败按 NAT）、状态报告的远程链接、Token、Windows 可达性 → 推荐与条目可用性；Windows 网卡过滤（回环、链路本地、`vEthernet (WSL*)`）与 Tailscale 置顶。验证：表驱动单元测试覆盖 `windows-tray-forwarding` 的适用判定与启用条件场景
+- [ ] 1.8 托盘日志写入器：1 MiB 轮转保留 1 份，对已知 Token 做字面替换兜底。验证：单元测试写入含 Token 的消息后文件中不出现 Token
 
 ## 2. Windows 适配层（`internal/tray/winui`，`//go:build windows`）
 
@@ -18,7 +19,7 @@
 - [ ] 2.2 `process.go`：基于 `os/exec` 的 `Runner`，所有调用 `CREATE_NO_WINDOW` 与 `WSL_UTF8=1`；长生命周期进程 detached、标准流为 NUL、不入 Job Object；systemd 保活进程 PID+创建时间记录与校验。验证：`GOOS=windows go vet` 通过；手动验收中无控制台闪烁、仅退出托盘后进程仍在
 - [ ] 2.3 `tray.go`/`menu.go`：状态图标（4 个 `.ico`，`go:embed`）、悬停提示、左键打开、右键菜单分组与启用规则、发行版与启动方式子菜单、远程链接子菜单与警告项、打开日志子菜单；订阅快照刷新且菜单弹出不阻塞。验证：手动验收 4.2 中菜单相关条目
 - [ ] 2.4 `notify.go`/`dialog.go`：气泡通知（复制反馈、意外退出、单实例唤起、systemd 单元失败），`MessageBoxW` 确认停止/重启/切换（含会话数）与退出三选一。验证：手动验收 4.2
-- [ ] 2.5 `clipboard.go`：`CF_UNICODETEXT` + 排除历史/云剪贴板格式；Token 仅在点击时经 `status --reveal-token` 获取，60 秒后按剪贴板序号条件清除。验证：手动确认 Win+V 中不出现 Token，期间复制其他文本后不被清除
+- [ ] 2.5 `clipboard.go`：`CF_UNICODETEXT` + 排除历史/云剪贴板格式；Token 仅在点击时经桥接 `/local/v1/token` 获取、写入后立即丢弃，60 秒后按剪贴板序号条件清除。验证：手动确认 Win+V 中不出现 Token，期间复制其他文本后不被清除
 - [ ] 2.6 `autostart.go`：HKCU `Run` 读写、指向路径比较（大小写不敏感、规范化）。验证：手动注销重登后自动出现；移动 exe 后复选项显示未勾选
 - [ ] 2.7 `singleinstance.go`：`Local\WebMuxTray-<SID>` 互斥量与唤起消息。验证：重复启动只保留一个图标且已有实例弹出状态通知
 - [ ] 2.8 “远程访问”子菜单（推荐说明、可勾选地址、失败原因、经托盘转发的远程链接）、勾选地址持久化与托盘启动后恢复、退出对话框转发提示；“初始化配置（生成 Token）”调用 `webmux config init` 并提示重启。验证：手动验收 4.2 中转发与初始化条目

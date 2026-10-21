@@ -22,11 +22,11 @@
 
 ### Requirement: WSL 中 webmux 的版本要求
 
-托盘 SHALL 通过 WSL 中 `webmux` 的状态 JSON 契约（v1）获取服务状态。目标发行版中设置指定的 `webmux` 不存在、不可执行，或不支持该契约时，托盘 SHALL 进入异常状态并在状态行说明原因（“找不到 <路径>”或“WSL 中的 webmux 版本过旧，请升级”），启动类操作禁用，SHALL NOT 进入自动重启循环。
+托盘 SHALL 要求目标发行版中的 `webmux` 支持本机 API v1、`bridge` 子命令与状态 JSON 契约 v1。设置指定的 `webmux` 不存在、不可执行，或不支持上述契约时，托盘 SHALL 进入异常状态并在状态行说明原因（“找不到 <路径>”或“WSL 中的 webmux 版本过旧，请升级”），启动类操作禁用，SHALL NOT 进入自动重启循环。
 
 #### Scenario: 旧版本 webmux
 
-- **WHEN** 发行版中的 `webmux` 不认识 `status` 子命令
+- **WHEN** 发行版中的 `webmux` 不认识 `bridge` 或 `status` 子命令
 - **THEN** 状态行提示“WSL 中的 webmux 版本过旧，请升级”，“启动”禁用
 
 ### Requirement: 单实例
@@ -131,7 +131,7 @@
 
 ### Requirement: 初始化 WebMux 配置
 
-`webmux status` 报告配置文件不存在时，菜单 SHALL 提供“初始化配置（生成 Token）”：托盘 SHALL 调用目标发行版中的 `webmux config init`，成功后提示“已生成配置与 Token，重启 WebMux 后生效”，并在 WebMux 运行中时提供重启入口（遵循停止与重启的会话确认）。托盘 SHALL NOT 以任何方式改写已存在的 WebMux 配置文件；修改已有配置只通过“打开 WebMux 配置文件”在编辑器中完成。
+服务状态报告配置文件不存在时，菜单 SHALL 提供“初始化配置（生成 Token）”：托盘 SHALL 调用目标发行版中的 `webmux config init`，成功后提示“已生成配置与 Token，重启 WebMux 后生效”，并在 WebMux 运行中时提供重启入口（遵循停止与重启的会话确认）。托盘 SHALL NOT 以任何方式改写已存在的 WebMux 配置文件；修改已有配置只通过“打开 WebMux 配置文件”在编辑器中完成。
 
 #### Scenario: 首次使用生成 Token
 

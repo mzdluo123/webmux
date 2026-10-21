@@ -6,7 +6,7 @@
 
 ### Requirement: 链接来源
 
-托盘显示与复制的本机链接、远程链接及暴露警告 SHALL 直接取自目标发行版中 `webmux status` 的结果，托盘 SHALL NOT 自行解析 WebMux 配置文件或另行推导链接。链接 SHALL NOT 包含 Token。
+托盘显示与复制的本机链接、远程链接及暴露警告 SHALL 直接取自 WebMux 本机 API 报告的状态，托盘 SHALL NOT 自行解析 WebMux 配置文件或另行推导链接。链接 SHALL NOT 包含 Token。
 
 状态报告配置与运行实例不一致（`drift` 非空）时，状态行 SHALL 提示“配置已修改，重启 WebMux 后生效”，复制的链接仍对应当前运行实例。
 
@@ -47,7 +47,7 @@
 
 ### Requirement: 复制 Token
 
-仅当状态报告配置了 Token 时，菜单 SHALL 显示“复制 Token”。托盘 SHALL 只在用户点击时向目标发行版请求 Token，并 SHALL NOT 在内存之外保留 Token。复制的内容 SHALL 只有 Token 本身，写入剪贴板时 SHALL 标记为不进入 Windows 剪贴板历史与跨设备云剪贴板；托盘 SHALL 在 60 秒后若剪贴板内容仍为该 Token 则清空剪贴板。
+仅当状态报告配置了 Token 时，菜单 SHALL 显示“复制 Token”。托盘 SHALL 只在用户点击时经桥接请求本机 API 的 Token 接口，写入剪贴板后 SHALL 立即丢弃，不在托盘中缓存，也 SHALL NOT 写入任何 Windows 侧文件。复制的内容 SHALL 只有 Token 本身，写入剪贴板时 SHALL 标记为不进入 Windows 剪贴板历史与跨设备云剪贴板；托盘 SHALL 在 60 秒后若剪贴板内容仍为该 Token 则清空剪贴板。
 
 托盘 SHALL NOT 在菜单、悬停提示、通知或日志中显示 Token 明文。
 

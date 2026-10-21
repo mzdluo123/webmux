@@ -4,7 +4,7 @@ WebMux 只支持 Linux/macOS，Windows 用户目前要在 WSL 里手动启动 `w
 
 ## What Changes
 
-**前置依赖：`add-cli-server-control`（PR #83）。** 该变更确立了客户端/服务端通讯方案：会话操作走现有 HTTP/WS 数据面，启动、停止、状态与配置检查走本机控制面（argv + 版本化 JSON）。托盘是 Windows 上的客户端：经 `wsl.exe --exec` 调用 `webmux status|stop|config|serve`，不解析 WebMux 配置、不在 WSL 中运行 shell 脚本、不自行管理 PID；只在 WSL 网络特殊情况下中转数据面流量。
+**前置依赖：`add-cli-server-control`（PR #83）。** 该变更确立了客户端/服务端通讯方案：所有客户端只用现有 HTTP/WebSocket 协议；本机客户端经 Unix 套接字访问（按系统用户认证、免 Token，另有 `/local/v1/status|shutdown|token`），Windows 客户端经 `wsl.exe --exec webmux bridge` 把该套接字桥接到标准输入输出。托盘因此：状态、停止、取 Token 与实时会话变化都经桥接访问本机 API；只有启动（`serve`）、配置初始化（`config init`）与服务未运行时的状态（`status --json`）仍执行子命令；不解析 WebMux 配置、不自行管理 PID、不在 Windows 侧持有 Token；只在 WSL 网络特殊情况下经 TCP 中转浏览器流量。
 
 - 新增 Windows 托盘程序 `webmux-tray.exe`（Windows amd64/arm64，同仓库同 Go module，独立于服务端二进制）：
   - 单实例；通知区域图标区分已停止 / 启动中 / 运行中 / 异常；悬停提示显示状态摘要。
@@ -15,7 +15,7 @@ WebMux 只支持 Linux/macOS，Windows 用户目前要在 WSL 里手动启动 `w
   - “自动”：检测到 WSL 启用了 systemd 且已安装 `webmux` 用户单元时用 systemd，否则用托盘托管。
 - 生命周期：启动后等待就绪（60 秒）；识别不归当前方式管理的外部实例只做监控；停止 / 重启在有会话时确认（会结束所有会话）；托盘托管方式下意外退出（含 `wsl --shutdown`）按退避自动重启并通知，systemd 方式下重启交给 systemd。
 - 登录自动启动：在当前用户登录启动项（HKCU `Run`）中注册 / 注销托盘，菜单可切换；托盘启动时按设置自动启动 WebMux。
-- 链接信息：本机链接与远程链接来自 `webmux status`，托盘另从 Windows 侧检查本机链接是否可达并给出 WSL 网络设置诊断。链接不含 Token；“复制 Token”仅在点击时向 WSL 获取，写入剪贴板时排除剪贴板历史与云同步，60 秒后自动清除。
+- 链接信息：本机链接与远程链接来自本机 API 的状态，托盘另从 Windows 侧经 TCP 检查本机链接是否可达并给出 WSL 网络设置诊断。链接不含 Token；“复制 Token”仅在点击时经桥接获取，写入剪贴板时排除剪贴板历史与云同步，60 秒后自动清除。
 - WSL 网络特殊情况下的转发：WSL 处于 NAT 模式、局域网或 Tailscale 设备无法直达 WSL 时，托盘可在用户勾选的 Windows 主机地址（Tailscale 置顶）上提供转发入口；要求已配置 Token，校验 Host 与同源 Origin 后透明中转 HTTP/WebSocket，认证仍由 WebMux 完成。镜像网络模式或 WSL 内已有可用远程地址时提示无需转发。默认关闭。
 - 配置：菜单可打开 WebMux 配置文件；配置文件不存在时提供“初始化配置（生成 Token）”（调用 `webmux config init`）；配置修改后提示重启生效。
 - 退出托盘时询问：仅退出托盘 / 停止 WebMux 并退出 / 取消（说明转发会随托盘退出而停止）。

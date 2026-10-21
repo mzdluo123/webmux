@@ -1,10 +1,11 @@
 ## Context
 
-动机见 proposal.md。本变更建立在 `add-cli-server-control`（PR #83）之上，客户端/服务端分工与两个通讯平面见该变更 design.md 决策 0；以下“现状”包含该前置变更提供的能力：
+动机见 proposal.md。本变更建立在 `add-cli-server-control`（PR #83）之上，客户端/服务端分工与通讯方案见该变更 design.md 决策 0；以下“现状”包含该前置变更提供的能力：
 
-- WSL 中的 `webmux`（Linux 版）提供 `serve --log-file`、`status --json [--reveal-token]`（契约 v1：`state`、`pid`、`launcher`、`sessions`、`health`、`urls`、`drift`、`warnings`、`logFile` 等）与 `stop --json`（SIGTERM → 15 秒 → SIGKILL，拒绝停止 systemd/launchd 实例，除非 `--force`）。环境变量 `WEBMUX_LAUNCHER=windows-tray` 让服务把启动方记为 `windows-tray`，且不进入会话环境。
+- WSL 中的 WebMux 在 `<state_dir>/run/webmux.sock` 上提供本机 API（同一用户免 Token）：与 TCP 相同的 `/api`、`/ws`，以及 `/local/v1/status`（契约与 `status --json` v1 相同：`state`、`pid`、`launcher`、`sessions`、`urls`、`drift`、`warnings`、`logFile` 等）、`/local/v1/shutdown`（systemd/launchd 实例需 `force`）、`/local/v1/token`。`webmux bridge` 把该套接字原样桥接到标准输入输出，服务未运行时不写 stdout 并以退出码 3 结束。
+- 引导与兜底子命令：`serve --log-file`、`status --json`（服务未运行时读运行时记录与配置）、`stop --json`（本机 API 无响应时退回信号）。环境变量 `WEBMUX_LAUNCHER=windows-tray` 让服务把启动方记为 `windows-tray`，且不进入会话环境。
 - WSL 中的 `webmux config init` 可在配置不存在时生成带随机 Token 的 0600 配置。
-- 无依赖的 `internal/contract` 定义了 `StatusV1`/`StopV1`/`ConfigV1` 与健康分类，可交叉编译到 Windows，托盘直接 import。`internal/client` 与 `internal/api` 依赖只支持 Unix 的 `internal/session`，托盘不能 import。
+- 无依赖的 `internal/contract` 定义了 `StatusV1`/`StopV1`/`ConfigV1` 与健康分类；`internal/localclient` 给定拨号器即可构造 HTTP/WebSocket 客户端，二者都可交叉编译到 Windows，托盘直接 import。`internal/client` 与 `internal/api` 依赖只支持 Unix 的 `internal/session`，托盘不能 import。
 - 服务端 `hostCheck` 允许以 `127.0.0.1` 访问回环/通配监听实例；`/api/health` 未带 Token 时返回 401，可用于判断“可达且是 WebMux”。
 
 WSL 侧需要特别处理的事实：
@@ -56,8 +57,10 @@ WSL 侧需要特别处理的事实：
 
 | 职责 | 归属 | 理由 |
 |---|---|---|
-| 配置解析、默认值、链接推导、配置漂移 | `webmux status` | 与服务端同一份代码，#67 的 `open` 也复用 |
-| 进程识别（PID 复用）、停止与强制结束 | `webmux stop` | 本机信号最可靠，服务无响应时也能停 |
+| 配置解析、默认值、链接推导、配置漂移 | 服务端 `/local/v1/status`（未运行时 `webmux status`） | 与服务端同一份代码，#67 的 `open` 也复用 |
+| 停止 | 服务端 `/local/v1/shutdown`；无响应时 `webmux stop` 发信号 | 正常路径与 SIGTERM 同一清理流程；卡死时信号最可靠 |
+| 会话数与会话变化 | 服务端 `/ws/sessions` 订阅 | 实时、无需轮询 |
+| 桥接拨号器 | 托盘（`internal/tray`） | 把 `wsl.exe --exec webmux bridge` 的 stdio 包装为 `net.Conn` 交给 `internal/localclient` |
 | 输出重定向、避免 SIGPIPE | `webmux serve --log-file` | 不需要 shell 包装脚本 |
 | 发行版列表、启动方式检测、`wsl.exe` 进程创建与保活 | 托盘 | 只有 Windows 侧能做 |
 | Windows 侧可达性 | 托盘 | 只有 Windows 侧能观察 |
@@ -88,10 +91,10 @@ internal/tray/winui/    // //go:build windows
 | 用途 | argv（`[-d <distro>]` 省略） | 生命周期 |
 |---|---|---|
 | 列出发行版 | `wsl.exe --list --quiet`（另用 `--list --verbose` 取默认与版本） | 短 |
-| 状态 | `wsl.exe --cd ~ --exec <webmux> status --json [--config <c>]` | 短，超时 10 秒 |
-| 取 Token | 同上加 `--reveal-token`，仅点击“复制 Token”时 | 短 |
+| 本机 API 桥接 | `wsl.exe --cd ~ --exec <webmux> bridge [--config <c>]`，stdin/stdout 作为一条连接 | 每条连接一个；常驻一条承载 `/ws/sessions`，另按需建立承载 `/local/v1/*` 的 keep-alive 连接 |
+| 未运行时的状态 | `wsl.exe --cd ~ --exec <webmux> status --json [--config <c>]`（仅当 bridge 退出码为 3） | 短，超时 10 秒 |
 | 托盘托管启动 | `wsl.exe --cd ~ --exec <webmux> serve --log-file <log> [--config <c>]`，环境 `WEBMUX_LAUNCHER=windows-tray`、`WSLENV` 追加 `WEBMUX_LAUNCHER` | 长，detached |
-| 托盘托管停止 | `wsl.exe --cd ~ --exec <webmux> stop --json --timeout 15s [--config <c>]` | 短，超时 25 秒 |
+| 托盘托管停止 | 经桥接 `POST /local/v1/shutdown`；15 秒未退出或无响应时 `wsl.exe --cd ~ --exec <webmux> stop --json --timeout 5s [--config <c>]` 强制结束 | 短 |
 | 初始化配置 | `wsl.exe --cd ~ --exec <webmux> config init [--config <c>]` | 短 |
 | 网络模式 | `wsl.exe --exec wslinfo --networking-mode`（失败时按 NAT 处理） | 短，启动与状态刷新时 |
 | systemd 探测 | `wsl.exe --exec cat /proc/1/comm`；`wsl.exe --exec systemctl --user cat webmux.service` | 短 |
@@ -100,6 +103,8 @@ internal/tray/winui/    // //go:build windows
 | systemd 日志 | `wsl.exe --exec journalctl --user -u webmux.service -n 1000 --no-pager` → 写临时文件后用记事本打开 | 短 |
 
 `~/` 处理：`wsl.exe --exec` 不展开 `~`，因此对 `webmux` 路径，托盘用 `--cd ~` 并把 `~/x` 改写为相对路径 `./x`；对 `--config`、`--log-file` 的值则原样传 `~/...`，由前置变更中 `webmux` 的 `~/` 展开处理。其他路径原样作为单个 argv 元素。
+
+桥接拨号器：`DialContext` 启动 `wsl.exe [-d D] --cd ~ --exec <webmux> bridge`，stdin/stdout 包装为 `net.Conn`（stderr 进入托盘日志，`Close` 关闭 stdin 并等待进程退出，2 秒后仍未退出则结束进程）；进程以退出码 3 结束且未产生任何输出时返回 `ErrNotRunning`，状态机据此转为调用 `status --json`。`internal/localclient` 的 `http.Transport` 设置 `MaxConnsPerHost` 2、空闲 90 秒，避免频繁新建桥接。桥接连接不承担保活职责（托盘退出即断开）。
 
 detached：长生命周期进程以 `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW` 创建，stdin/stdout/stderr 均为 NUL，不加入随托盘关闭而终止的 Job Object。托盘把 systemd 保活进程的 Windows PID 与创建时间写入 `%LOCALAPPDATA%\WebMux\keepalive.json`，重启后据此识别并在用户停止 WebMux 时结束它（用 `GetProcessTimes` 校验，防 PID 复用）。
 
@@ -118,7 +123,7 @@ External：status running 但不归当前方式管理；变为 stopped 后回到
 Unreachable（Running 的子状态，图标为异常）：WSL 内健康但 Windows 侧不可达
 ```
 
-单 goroutine 事件循环，对 UI 只发布不可变快照。事件来源：托管 `wsl.exe` 的 `Wait()`（托盘托管）、定时 `status`（30 秒）、定时 Windows 侧可达性（10 秒）、菜单打开、用户操作。`wsl --shutdown` 会同时触发进程退出与状态变化，以先到者为准并去重。
+单 goroutine 事件循环，对 UI 只发布不可变快照。事件来源：托管 `wsl.exe` 的 `Wait()`（托盘托管）、经桥接的 `/ws/sessions` 订阅（快照与增量，驱动会话数）、定时 `/local/v1/status`（60 秒，及订阅断开、菜单打开、操作完成时）、定时 Windows 侧可达性（10 秒）、用户操作。`wsl --shutdown` 会同时触发进程退出与状态变化，以先到者为准并去重。
 
 ### 6. 转发
 
@@ -167,7 +172,8 @@ Unreachable（Running 的子状态，图标为异常）：WSL 内健康但 Windo
 - [转发随托盘退出而停止] → 退出对话框明确说明；需要常驻转发的用户应改用 mirrored 模式或 WSL 内的 Tailscale。
 - [托盘与 WSL 中 `webmux` 版本不一致] → 以 `status --json` 的 `v` 为契约；缺失或更高的不兼容版本给出“请升级 webmux / 托盘”提示。
 - [旧版 inbox WSL 不支持 `--exec`/`--cd`/`WSL_UTF8`] → 要求 Microsoft Store 版 WSL；启动时 `wsl.exe --version` 失败即提示更新。
-- [每 30 秒启动一次 `wsl.exe` 的开销] → 单次约 100–300 ms、无窗口；高频的 10 秒检查只走 Windows 侧 HTTP。
+- [每条桥接连接都要启动一次 `wsl.exe`（约 100–300 ms）] → 常驻一条订阅连接，状态请求复用 keep-alive 连接；高频的 10 秒可达性检查只走 Windows 侧 TCP。
+- [桥接连接意外断开（`wsl --shutdown`、发行版重启）] → 订阅断开即刷新状态并以退避重连；与托管进程 `Wait()` 的事件去重。
 - [systemd 保活进程在托盘崩溃后遗留] → 记录 PID+创建时间，下次启动托盘时识别；WebMux 已停止时结束它。
 - [托盘退出后 WebMux 继续运行，用户以为“退出就全停了”] → 退出三选一明确说明。
 - [Windows 侧 localhost 不可达（关闭转发、VPN 劫持回环）] → 区分“WSL 内健康”与“Windows 可达”，给出具体设置项。
