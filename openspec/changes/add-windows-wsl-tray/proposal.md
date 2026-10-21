@@ -39,7 +39,7 @@ WebMux 只支持 Linux/macOS，Windows 用户目前要在 WSL 里手动启动 `w
 ## Impact
 
 - 新增代码：`cmd/webmux-tray/`（Windows 入口与非 Windows 占位入口）、`internal/tray/`（平台无关：设置、`wsl.exe` argv 构造、发行版列表解析、启动方式选择、状态机、退避）、`internal/tray/forward/`（平台无关：转发的 Host/Origin 校验与 HTTP/WebSocket 中转）、`internal/tray/winui/`（仅 Windows：图标、菜单、通知、对话框、剪贴板、登录启动项、进程创建、单实例、网卡枚举）。
-- 复用：`internal/contract` 的 `StatusV1`/`StopV1`/`ConfigV1` 契约类型与健康分类。
+- 复用：`internal/contract` 的契约类型与健康分类、`internal/localclient` 的 HTTP/WebSocket 客户端；与 Windows 控制台客户端（PR #84）共用 `internal/wslclient`（目标发行版解析、桥接拨号器）。
 - 新增 Go 依赖（仅 Windows 构建）：`fyne.io/systray`；`golang.org/x/sys/windows` 属于已有的 `golang.org/x/sys` 模块。保持 `CGO_ENABLED=0`，服务端二进制依赖集不变。
 - 构建与 CI：`Makefile` 增加 `tray` 并纳入 `release`；`.github/workflows/test.yml` 增加 Windows 交叉编译与 vet；`go build/vet/test ./...` 在 Linux/macOS 上继续通过。
 - 文档：`docs/deployment.md` 增加“Windows（WSL）”一节。
