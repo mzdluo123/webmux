@@ -5,7 +5,6 @@ describe("consumeTokenFragment", () => {
   let storage: Map<string, string>;
   let address: URL;
   let replaced: string[];
-  let documentStub: { cookie: string };
   const state = { from: "router" };
 
   function open(url: string) {
@@ -19,8 +18,6 @@ describe("consumeTokenFragment", () => {
       getItem: (key: string) => storage.get(key) ?? null,
       setItem: (key: string, value: string) => storage.set(key, value),
     });
-    documentStub = { cookie: "" };
-    vi.stubGlobal("document", documentStub);
     vi.stubGlobal("location", {
       get hash() {
         return address.hash;
@@ -50,9 +47,6 @@ describe("consumeTokenFragment", () => {
     expect(stored("token")).toBe("a b&c#d");
     expect(replaced).toEqual(["/s/abcdefgh?view=1"]);
     expect(address.hash).toBe("");
-    expect(documentStub.cookie).toBe(
-      "webmux_token=a%20b%26c%23d; Path=/; SameSite=Strict",
-    );
   });
 
   it("leaves unrelated fragments untouched", () => {
@@ -60,7 +54,6 @@ describe("consumeTokenFragment", () => {
     expect(consumeTokenFragment()).toBe(false);
     expect(stored("token")).toBe("old");
     expect(replaced).toEqual([]);
-    expect(documentStub.cookie).toBe("");
   });
 
   it("strips a malformed token without storing it", () => {
@@ -68,6 +61,5 @@ describe("consumeTokenFragment", () => {
     expect(consumeTokenFragment()).toBe(false);
     expect(stored("token")).toBe("old");
     expect(replaced).toEqual(["/"]);
-    expect(documentStub.cookie).toBe("");
   });
 });

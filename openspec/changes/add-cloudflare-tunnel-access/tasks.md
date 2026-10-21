@@ -44,7 +44,7 @@
   - `[::1]`
   - Token 中的特殊字符编码为 `%20` / `%26` / `%23`
 
-- [x] 3.2 引入 `rsc.io/qr`，实现半块字符终端渲染（纠错级别 L，2 模块静区）。
+- [x] 3.2 引入 `rsc.io/qr`，实现半块字符终端渲染（纠错级别 L，4 模块静区）。
   - **验证**：单元测试用 `qr.Encode` 得到的矩阵与渲染输出逐模块比对，确认可逆还原且尺寸正确；`CGO_ENABLED=0 go build ./...` 通过。
 
 ## 4. cloudflared 获取
@@ -126,7 +126,7 @@
 
 ## 8. 前端片段认证
 
-- [x] 8.1 在 `web/src/api.ts` 实现 `consumeTokenFragment()`，在 `App.svelte` 首次 `check()` 之前调用，同步组件的 `token` 状态与 `webmux_token` Cookie；`ws.ts` 不再把 Token 拼进 WebSocket URL。
+- [x] 8.1 在 `web/src/api.ts` 实现 `consumeTokenFragment()`，在 `App.svelte` 首次 `check()` 之前调用，同步组件的 `token` 状态；`ws.ts` 以 `webmux.token.<base64url>` 子协议携带 Token，不再拼进 WebSocket URL，也不写 Cookie。服务端只选择 `webmux` 子协议，移除 WebSocket 的 `?token=` 入口。
   - **验证**：在 `web/test/` 新增 Vitest 单元测试，覆盖以下情况：
     - `#token=` 解码后存储，片段被 `replaceState` 移除，路径与查询参数保留
     - `#quick-commands` 不被处理
@@ -134,7 +134,7 @@
     - 已有 Token 被覆盖
 - [x] 8.2 E2E：
   - 带 Token 的后端下，在全新浏览器上下文打开 `/#token=<有效>`，直接进入会话列表，地址栏不含片段，`page.goBack()` 不回到带 Token 的地址
-  - 登录后的 WebSocket 经 `webmux_token` Cookie 握手成功，请求 URL 不含 `token`
+  - 登录后前端的 `/ws/sessions` 握手成功并收到帧，请求 URL 不含 `token`，`document.cookie` 不含 Token；不带子协议的裸握手失败
   - 打开 `/#token=wrong` 显示 Token 表单与现有的认证失败提示
 
   **验证**：在 `web/test/e2e/` 新增或扩展 spec，运行 `pnpm --dir web exec playwright test` 指定该文件并通过。

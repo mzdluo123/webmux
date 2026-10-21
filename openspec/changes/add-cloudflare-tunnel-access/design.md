@@ -5,7 +5,7 @@
 - **鉴权**：`internal/api/router.go` 的 `authorized` 支持三种 Token 来源，按顺序检查：
   - `Authorization: Bearer`
   - `webmux_token` Cookie
-  - 仅限 `/ws/` 路径的 `?token=` 查询参数
+  - 仅限 `/ws/` 路径的 `?token=` 查询参数（本变更移除）
 
   Token 为空时不鉴权。前端把 Token 存在 `localStorage["webmux.token"]`（`api.ts` 的 `store`/`stored`），HTTP 请求用 Bearer 头，WebSocket 用 `?token=`（`ws.ts`）。
 
@@ -33,8 +33,8 @@ cloudflared 经隧道把请求转发到本地 origin 时：
 **Goals:**
 
 - 一条 `webmux --tunnel` 命令即可得到受 Token 保护的 HTTPS 公网入口，以及可扫码打开的链接。
-- Token 不出现在请求 URL（含 WebSocket）中，因此不进入服务器、Cloudflare 边缘或代理的 URL/请求日志；`Authorization` 头、Cookie 与终端输入仍会经过 Cloudflare 边缘。
-- 不启用隧道时不联网、不改默认鉴权语义；本地链接不再附带固定的 Token 片段。
+- Token 不出现在请求 URL（含 WebSocket）或前端写入的 Cookie 中，因此不进入服务器、Cloudflare 边缘或代理的 URL/请求日志，也不会被同一主机其他端口的页面读取；`Authorization` 头、WebSocket 子协议头与终端输入仍会经过 Cloudflare 边缘。
+- 不启用隧道时不联网、不改 HTTP 鉴权语义；本地链接不再附带固定的 Token 片段，WebSocket 改用子协议传递 Token。
 
 **Non-Goals:**
 
@@ -97,12 +97,13 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 - **两种模式**：都等待出现 `Registered tunnel connection` 行后才视为就绪。
 - **Named**：公网 origin 取自配置的 `https://<hostname>`。
 - **超时**：60 秒仍未就绪时，记录错误日志，此时不打印公网 URL，本地服务继续运行。超时只报警：之后若才出现注册行，仍按就绪处理并打印地址，避免留下一个子进程仍在运行、公网 Host 却被永久拒绝的状态。
-- **日志转发**：stderr 原样转发到 slog debug 级别。cloudflared 的日志不包含 webmux Token：Token 不进入请求 URL，WebSocket 凭据由 Cookie 携带。
+- **日志转发**：stderr 原样转发到 slog debug 级别。cloudflared 的日志不包含 webmux Token：Token 不进入请求 URL，WebSocket 凭据由子协议头携带。
 - **备选：`--metrics` 的 `/quicktunnel` 与 `/ready` 端点。** 它是结构化接口，但需要先预分配 metrics 端口（存在 TOCTOU 竞争）或额外解析日志。复杂度更高，暂不采用；如果日志格式不稳定，可以退回此方案。
 
 **生命周期**：
 
 - 使用 `exec.CommandContext`，`Cancel` 发送 SIGTERM，`WaitDelay` 设为 5 秒，之后强制 kill。
+- Linux 上设置 `Pdeathsig: SIGTERM`：webmux 被 SIGKILL 或 OOM 终止、来不及走关闭流程时，内核也会结束 cloudflared，隧道不会比服务活得更久。父进程死亡信号绑定创建子进程的线程，因此启动、扫描与 `Wait` 在同一个 `LockOSThread` 的 goroutine 中完成。macOS 没有等价机制，依赖 launchd 结束作业的全部进程。
 - 由 main 的根 ctx 驱动；关闭顺序为：先停止接收信号，再终止隧道，最后 `m.Shutdown`。
 - 句柄的 `Close` 会等待扫描 goroutine 结束，与“汇合连接 goroutine”的约定一致。
 - 子进程意外退出时，记录日志并撤销公网 origin，见第 4 节；webmux 主进程继续运行。
@@ -179,7 +180,7 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 - **二维码库**：使用 `rsc.io/qr`，纯 Go、BSD 许可、无传递依赖、支持 `CGO_ENABLED=0`。
   - 纠错级别 L：URL 约 90 字节，可得到较小的码。
   - 用 Unicode 半块字符 `▀ ▄ █` 和空格，每两行模块合并为一行字符。
-  - 四周留 2 模块静区。
+  - 四周留 4 模块静区（QR 规范要求的最小值）。
   - 亮模块画成实心块，适配常见深色终端背景。
 - **备选：`github.com/mdp/qrterminal`。** 不采用。它额外依赖另一个编码库，而渲染逻辑只需二十余行。
 
@@ -188,11 +189,13 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 - **新增函数**：在 `api.ts` 新增 `consumeTokenFragment(): boolean`，在 `App.svelte` 的 `onMount` 中、首次 `check()` 之前调用。逻辑如下：
   1. 只处理形如 `#token=<值>` 的片段，其他片段（如 `#quick-commands`）原样保留。
   2. 用 `decodeURIComponent` 解码；解码失败视为无效，并把片段移除。
-  3. `store("token", value)`，同时更新组件内的 `token` 状态，并把 Token 百分号编码后写入 `webmux_token` Cookie（`Path=/`、`SameSite=Strict`，HTTPS 下加 `Secure`）。
+  3. `store("token", value)`，同时更新组件内的 `token` 状态。
   4. `history.replaceState(history.state, "", location.pathname + location.search)`。
-- HTTP 请求继续使用 `Authorization: Bearer`；WebSocket 握手无法设置请求头，改用上述 Cookie，并在每次 `connect()` 时从 `stored("token")` 重新同步，覆盖手动输入 Token、旧 Cookie 过期等情形。`ws.ts` 不再拼接 `?token=`，服务端保留对旧客户端的 query 兼容，并对 Cookie 值做百分号解码。
+- HTTP 请求继续使用 `Authorization: Bearer`。WebSocket 握手无法设置请求头，前端在每次 `connect()` 时从 `stored("token")` 计算子协议列表 `["webmux", "webmux.token." + base64url(token)]`，覆盖手动输入 Token 的情形；服务端只选择 `webmux`，不回显 Token。`ws.ts` 不再拼接 `?token=`，服务端也不再接受 WebSocket 的 query Token。
 - Token 无效时走现有的 401 → `webmux:auth` → 表单流程。
-- **备选：用 `?token=` 换取 HttpOnly Cookie 后 302。** 用户选择了片段方案。片段方案不会让 Token 出现在 Cloudflare 边缘的请求 URL 日志中，也不需要新增服务端入口；Cookie 由页面脚本写入，因此不是 HttpOnly。
+- **备选：前端把 Token 写入 `webmux_token` Cookie。** 不采用。Cookie 按主机而非端口隔离：`127.0.0.1` 上任意端口的其他页面（开发服务器、Jupyter 等）都能通过 `document.cookie` 读到 Token，并在请求中把它发给这些服务；同机多个 webmux 实例还会互相覆盖。`localStorage` 按完整 origin（含端口）隔离，子协议头只发往本 origin。
+- **备选：先用 Bearer 换取一次性 WebSocket 票据再放进 URL。** 不采用。每次连接与重连都要多一次异步请求，`connect()` 的同步语义与现有测试都要重写；子协议头同样不进入 URL，且无需服务端状态。
+- **备选：用 `?token=` 换取 HttpOnly Cookie 后 302。** 用户选择了片段方案；HttpOnly Cookie 同样不按端口隔离。
 
 ## Risks / Trade-offs
 
@@ -218,5 +221,6 @@ cloudflared = ""       # 可选：显式 cloudflared 路径
 
 ## Migration Plan
 
-- 纯增量功能。不配置 `[tunnel]` 且不带 `--tunnel` 时，除“本地链接不再附带固定的 `#token=` 片段”这一安全修正外，行为不变，无需迁移。
+- 不配置 `[tunnel]` 且不带 `--tunnel` 时，有两处安全修正：本地链接不再附带固定的 `#token=` 片段；WebSocket 不再接受 `?token=` 查询参数。
+- **BREAKING**：自行拼接 `/ws/...?token=` 的第三方客户端需要改用 `Authorization: Bearer` 头、`webmux_token` Cookie 或 `webmux.token.<base64url>` 子协议。内置前端随同一二进制发布，无需迁移。
 - 回滚：去掉 `--tunnel` 或把 `tunnel.enabled` 设为 `false`。可选择删除 `<state_dir>/cloudflared/` 缓存。

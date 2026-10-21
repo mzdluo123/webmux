@@ -18,12 +18,12 @@ WebMux 目前只建议绑定回环地址或可信 VPN；想临时从手机或外
   - 非隧道模式行为不变：空 Token 仍表示不鉴权。
 - **隧道公网地址加入白名单**：运行时把隧道公网 HTTPS 地址加入 Host 与 Origin 白名单，使经隧道访问的页面通过现有 Host/Origin 检查；其他未授权 Host 仍被拒绝。
 - **URL 携带 Token 快速认证**：
-  - 前端识别 `#token=<值>` 片段：保存 Token，同步到 `webmux_token` Cookie，并立即用 `history.replaceState` 从地址栏和当前历史记录中移除片段，然后完成认证。
-  - 片段与 WebSocket 请求 URL 都不包含 Token，因此不会进入服务器、Cloudflare 边缘或代理的 URL/请求日志。
+  - 前端识别 `#token=<值>` 片段：保存 Token，并立即用 `history.replaceState` 从地址栏和当前历史记录中移除片段，然后完成认证。
+  - WebSocket 以 `webmux.token.<base64url>` 子协议携带 Token。片段与 WebSocket 请求 URL 都不包含 Token，因此不会进入服务器、Cloudflare 边缘或代理的 URL/请求日志；前端也不把 Token 写入 Cookie（Cookie 不按端口隔离，同一主机其他端口的页面可读取）。
 - **启动时打印访问地址**：
   - 所有模式都会在终端打印本地 URL；只有隧道模式附带 `#token=` 片段，避免固定的已配置 Token 进入服务日志。
   - 隧道模式在隧道就绪后打印公网 URL，并在终端以字符画形式打印对应二维码。
-- 无 **BREAKING** 变更：未启用隧道时，除本地链接不再附带固定 Token 片段外，现有配置、鉴权方式（Bearer、Cookie、WebSocket `?token=` 兼容）与默认行为保持不变。
+- **BREAKING**：WebSocket 不再接受 `?token=` 查询参数；自行拼接该参数的第三方客户端需改用 Bearer 头、`webmux_token` Cookie 或 Token 子协议。HTTP 鉴权方式（Bearer、Cookie）与非隧道模式的其他默认行为不变，本地链接不再附带固定 Token 片段。
 
 ## Capabilities
 
@@ -51,10 +51,10 @@ WebMux 目前只建议绑定回环地址或可信 VPN；想临时从手机或外
   - 新增 `internal/tunnel` 包：获取、校验与下载 cloudflared；管理子进程；解析公网 URL。
   - `internal/api/host.go` 与 `router.go`：支持在运行时追加隧道公网来源。
 - **前端**：
-  - `web/src/App.svelte` 与 `web/src/api.ts`：在首次健康检查前消费 `#token=` 片段，并同步 `webmux_token` Cookie。
-  - `web/src/ws.ts`：WebSocket 改用 Cookie 认证，不再把 Token 拼进请求 URL。
+  - `web/src/App.svelte` 与 `web/src/api.ts`：在首次健康检查前消费 `#token=` 片段。
+  - `web/src/ws.ts`：WebSocket 改用子协议认证，不再把 Token 拼进请求 URL。
 - **依赖**：新增一个纯 Go 的二维码编码库，不使用 CGO。cloudflared 是运行时外部程序，不打包进 webmux 二进制。
 - **网络与安全**：
-  - 启用隧道且需要下载时，webmux 会访问 `github.com`，失败时访问所配置的第三方镜像；运行时还需访问 Cloudflare 边缘。
+  - 启用隧道且需要下载时，webmux 会访问 `github.com`，失败时访问所配置的第三方镜像（镜像能看到请求者 IP 与所下载的文件；`download_mirrors = []` 可关闭）；运行时还需访问 Cloudflare 边缘。
   - 隧道模式打印的 URL 与二维码包含 Token；以 systemd/launchd 运行时，它们会进入 journal 或日志文件。非隧道模式不打印固定 Token。
 - **文档与部署示例**：`deploy/config.example.toml` 新增 `[tunnel]` 示例；`docs/deployment.md` 补充隧道用法与安全提示。

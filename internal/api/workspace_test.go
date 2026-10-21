@@ -240,7 +240,7 @@ func TestWorkspaceMetadataUsesExistingWebSocketProtocol(t *testing.T) {
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/ws/sessions?token=secret", nil)
+	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/ws/sessions", &websocket.DialOptions{Subprotocols: tokenProtocols("secret")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestWorkspaceMetadataUsesExistingWebSocketProtocol(t *testing.T) {
 	if event.Type != "snapshot" || len(event.Sessions) != 1 || event.Sessions[0].Workspace == nil || event.Sessions[0].Workspace.RepositoryID != repository.ID {
 		t.Fatalf("list WS workspace: %s", data)
 	}
-	terminal, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/ws/s/"+item.Info().ID+"?token=secret", nil)
+	terminal, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/ws/s/"+item.Info().ID, &websocket.DialOptions{Subprotocols: tokenProtocols("secret")})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -31,14 +31,6 @@ export function store(key: string, value: string) {
     /* private-mode storage is optional */
   }
 }
-// WebSocket handshakes cannot set an Authorization header, and a query token
-// would put the shell token in proxy request logs. Mirror the stored token
-// into the cookie the server accepts, percent-encoded for reserved characters.
-export function syncTokenCookie() {
-  const secure = location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `webmux_token=${encodeURIComponent(stored("token"))}; Path=/; SameSite=Strict${secure}`;
-}
-
 const tokenFragment = "#token=";
 
 // Adopts a `#token=` link: fragments never reach the server, and the token is
@@ -56,7 +48,6 @@ export function consumeTokenFragment(): boolean {
   }
   if (!token) return false;
   store("token", token);
-  syncTokenCookie();
   return true;
 }
 function responseError(status: number, body: unknown, fallback: string) {

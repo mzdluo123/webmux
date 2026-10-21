@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -74,6 +75,7 @@ func Start(ctx context.Context, o Options) (*Tunnel, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(ctx, o.Binary, args...)
 	cmd.Env = env
+	cmd.SysProcAttr = childAttr()
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 	cmd.WaitDelay = 5 * time.Second
 	stderr, err := cmd.StderrPipe()
@@ -81,14 +83,20 @@ func Start(ctx context.Context, o Options) (*Tunnel, error) {
 		cancel()
 		return nil, err
 	}
-	if err := cmd.Start(); err != nil {
-		cancel()
-		return nil, fmt.Errorf("start cloudflared: %w", err)
-	}
 	t := &Tunnel{ready: make(chan string, 1), done: make(chan struct{}), cancel: cancel}
+	started := make(chan error, 1)
 	t.wg.Add(1)
 	go func() {
 		defer t.wg.Done()
+		// Linux delivers the parent-death signal when the forking thread
+		// exits, so that thread stays locked until cloudflared is reaped.
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		if err := cmd.Start(); err != nil {
+			started <- err
+			return
+		}
+		started <- nil
 		t.scan(ctx, stderr, public, readyTimeout, logger)
 		err := cmd.Wait()
 		switch {
@@ -101,6 +109,10 @@ func Start(ctx context.Context, o Options) (*Tunnel, error) {
 		}
 		close(t.done)
 	}()
+	if err := <-started; err != nil {
+		cancel()
+		return nil, fmt.Errorf("start cloudflared: %w", err)
+	}
 	return t, nil
 }
 

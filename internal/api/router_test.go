@@ -66,7 +66,7 @@ func TestProtocolAndSecurity(t *testing.T) {
 	defer cancel()
 	dial := func(path string) *websocket.Conn {
 		t.Helper()
-		conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+path+"?token=secret", nil)
+		conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+path, &websocket.DialOptions{Subprotocols: tokenProtocols("secret")})
 		if err != nil {
 			t.Fatal(err)
 		}

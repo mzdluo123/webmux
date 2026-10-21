@@ -93,12 +93,10 @@ func run() error {
 	return serve(ctx, c, os.Stdout)
 }
 
-// serve runs until ctx ends. Access URLs go to out, never to slog, so tokens
-// stay out of structured logs.
+// serve runs until ctx ends. c must come from loadConfig, which generates or
+// vets the tunnel token. Access URLs go to out, never to slog, so tokens stay
+// out of structured logs.
 func serve(ctx context.Context, c config.Config, out io.Writer) error {
-	if err := ensureTunnelToken(&c); err != nil {
-		return err
-	}
 	host, _, _ := net.SplitHostPort(c.Listen)
 	if (host == "0.0.0.0" || host == "::" || host == "") && c.Token == "" {
 		slog.Warn("SHELL EXPOSED: listening on all interfaces without token; isolate with Tailscale/WireGuard")

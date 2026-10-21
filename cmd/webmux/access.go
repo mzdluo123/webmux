@@ -47,7 +47,8 @@ func generateToken() string {
 	return base64.RawURLEncoding.EncodeToString(key)
 }
 
-const qrQuiet = 2
+// qrQuiet is the four-module light border the QR specification requires.
+const qrQuiet = 4
 
 // renderQR draws text as a QR code using half-block characters, two module
 // rows per line. Light modules are filled so the code reads on dark terminals.

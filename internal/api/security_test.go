@@ -3,6 +3,7 @@ package api
 import (
 	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"io"
 	"io/fs"
 	"net/http"
@@ -60,18 +61,9 @@ func TestAuthenticationAndOriginBoundaries(t *testing.T) {
 	}
 }
 
-func TestPercentEncodedTokenCookie(t *testing.T) {
-	c := config.Config{Token: "a b&c#d"}
-	m := session.NewManager(session.Options{})
-	defer m.Shutdown(context.Background())
-	handler := New(c, m, testWorkspace(t, m, t.TempDir()), nil)
-	r := httptest.NewRequest(http.MethodGet, "http://webmux.example/api/health", nil)
-	r.AddCookie(&http.Cookie{Name: "webmux_token", Value: "a%20b%26c%23d"})
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, r)
-	if w.Code != http.StatusOK {
-		t.Fatalf("encoded cookie status %d: %s", w.Code, w.Body.String())
-	}
+// tokenProtocols is the subprotocol list the frontend offers for token.
+func tokenProtocols(token string) []string {
+	return []string{"webmux", "webmux.token." + base64.RawURLEncoding.EncodeToString([]byte(token))}
 }
 
 func TestWebSocketHandshakeBoundaries(t *testing.T) {
@@ -81,20 +73,23 @@ func TestWebSocketHandshakeBoundaries(t *testing.T) {
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	secret := tokenProtocols("secret")
 	for _, row := range []struct {
 		query, cookie, origin string
+		protocols             []string
 		want                  int
 	}{
-		{"", "", "", 401},
-		{"?token=wrong", "", "", 401},
-		{"?token=secret", "", "https://evil.example", 403},
-		{"?token=secret", "", server.URL, 101},
-		{"", "webmux_token=secret", server.URL, 101},
+		{"", "", "", nil, 401},
+		{"", "", "", tokenProtocols("wrong"), 401},
+		{"?token=secret", "", server.URL, nil, 401},
+		{"", "", "https://evil.example", secret, 403},
+		{"", "", server.URL, secret, 101},
+		{"", "webmux_token=secret", server.URL, nil, 101},
 	} {
 		header := make(http.Header)
 		header.Set("Cookie", row.cookie)
 		header.Set("Origin", row.origin)
-		conn, response, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/ws/s/missing"+row.query, &websocket.DialOptions{HTTPHeader: header})
+		conn, response, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/ws/s/missing"+row.query, &websocket.DialOptions{HTTPHeader: header, Subprotocols: row.protocols})
 		if response == nil || response.StatusCode != row.want {
 			t.Fatalf("handshake status: response=%v err=%v want=%d", response, err, row.want)
 		}
@@ -107,6 +102,14 @@ func TestWebSocketHandshakeBoundaries(t *testing.T) {
 		}
 		if err != nil {
 			t.Fatal(err)
+		}
+		// Only the fixed protocol is selected; the token protocol is never echoed.
+		want := ""
+		if row.protocols != nil {
+			want = "webmux"
+		}
+		if conn.Subprotocol() != want {
+			t.Fatalf("selected subprotocol %q, want %q", conn.Subprotocol(), want)
 		}
 		_, _, err = conn.Read(ctx)
 		_ = conn.CloseNow()
@@ -176,7 +179,7 @@ func TestPublicOriginWebSocketHandshake(t *testing.T) {
 	const host = "abc.trycloudflare.com"
 	dial := func() (*websocket.Conn, *http.Response, error) {
 		header := http.Header{"Origin": {"https://" + host}}
-		return websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/ws/sessions?token=secret", &websocket.DialOptions{HTTPHeader: header, Host: host})
+		return websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/ws/sessions", &websocket.DialOptions{HTTPHeader: header, Host: host, Subprotocols: tokenProtocols("secret")})
 	}
 	if err := public.Set("https://" + host); err != nil {
 		t.Fatal(err)

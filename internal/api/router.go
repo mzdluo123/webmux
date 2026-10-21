@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"github.com/coder/websocket"
@@ -127,19 +128,39 @@ func (s *Server) authorized(r *http.Request) bool {
 	if token == "" {
 		if cookie, err := r.Cookie("webmux_token"); err == nil {
 			token = cookie.Value
-			// The frontend percent-encodes the cookie so reserved characters
-			// survive; a raw value is still accepted.
-			if decoded, err := url.PathUnescape(token); err == nil {
-				token = decoded
-			}
 		}
 	}
 	if token == "" && strings.HasPrefix(r.URL.Path, "/ws/") {
-		token = r.URL.Query().Get("token")
+		token = protocolToken(r)
 	}
 	want := sha256.Sum256([]byte(s.Config.Token))
 	got := sha256.Sum256([]byte(token))
 	return subtle.ConstantTimeCompare(want[:], got[:]) == 1
+}
+
+// wsProtocol is the subprotocol the server selects. Browsers cannot set
+// Authorization on a WebSocket handshake, so the frontend also offers
+// wsTokenProtocol+base64url(token). That keeps the token out of request URLs
+// and out of cookies, which browsers share across every port of a host; the
+// server never selects or echoes the token protocol.
+const (
+	wsProtocol      = "webmux"
+	wsTokenProtocol = "webmux.token."
+)
+
+func protocolToken(r *http.Request) string {
+	for _, header := range r.Header.Values("Sec-WebSocket-Protocol") {
+		for offered := range strings.SplitSeq(header, ",") {
+			encoded, ok := strings.CutPrefix(strings.TrimSpace(offered), wsTokenProtocol)
+			if !ok {
+				continue
+			}
+			if token, err := base64.RawURLEncoding.DecodeString(encoded); err == nil {
+				return string(token)
+			}
+		}
+	}
+	return ""
 }
 func (s *Server) originAllowed(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
@@ -295,7 +316,7 @@ func (s *Server) mkdir(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 func (s *Server) accept(w http.ResponseWriter, r *http.Request) *websocket.Conn {
-	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true, Subprotocols: []string{wsProtocol}})
 	if err != nil {
 		return nil
 	}

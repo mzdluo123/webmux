@@ -123,7 +123,7 @@ macOS 直接编辑 plist 的 `EnvironmentVariables` 后重新加载。
 
 ## 访问链接
 
-每次启动都会在标准输出打印 `WebMux local: http://<主机>:<端口>/`。启用隧道时会附带 `#token=<token>`；非隧道模式不附带片段，以免固定的已配置 token 被 service manager 捕获并写入 journal 或日志文件。片段不会发送到服务器，前端读取并保存 token 后立即从地址栏和当前历史记录中移除。WebSocket 握手使用 `webmux_token` Cookie，token 不出现在请求 URL 中。浏览器的自动补全或同步历史仍可能记住带片段的原始链接。
+每次启动都会在标准输出打印 `WebMux local: http://<主机>:<端口>/`。启用隧道时会附带 `#token=<token>`；非隧道模式不附带片段，以免固定的已配置 token 被 service manager 捕获并写入 journal 或日志文件。片段不会发送到服务器，前端读取并保存 token 后立即从地址栏和当前历史记录中移除。WebSocket 握手通过子协议携带 token，token 不出现在请求 URL 或 Cookie 中。浏览器的自动补全或同步历史仍可能记住带片段的原始链接。
 
 ## 公网访问（Cloudflare Tunnel）
 
@@ -146,9 +146,9 @@ cloudflared = "" # 可选：cloudflared 路径
 - **Named Tunnel**：在 Cloudflare 控制台创建隧道，把公共主机名指向 `http://127.0.0.1:<端口>`，再把隧道 token 写入 `tunnel.token`、主机名写入 `tunnel.hostname`。凭据经环境变量传给 cloudflared，不出现在进程命令行中。
 - 启用隧道时 webmux 强制认证：未配置 `token` 则每次启动生成 256 位随机 token；显式配置的 webmux `token` 至少 43 个字符，否则拒绝启动。隧道连通后终端打印 `WebMux public: https://<公网主机>/#token=<token>` 与二维码，手机扫码即可进入。
 - Quick Tunnel 没有 Cloudflare Access：token 是唯一入口屏障，不要把链接或二维码发给不可信的人。
-- cloudflared 依次取 `tunnel.cloudflared`、`PATH`、`<state_dir>/cloudflared/<版本>/` 缓存；都没有时下载 webmux 固定的版本，先连 GitHub，10 秒无响应或 20 秒无数据时依次改用 `download_mirrors` 镜像（默认 `ghfast.top`、`gh-proxy.com`；`[]` 表示只用 GitHub）。任何来源的文件都必须与内置 SHA-256 一致才会执行。
+- cloudflared 依次取 `tunnel.cloudflared`、`PATH`、`<state_dir>/cloudflared/<版本>/` 缓存；都没有时下载 webmux 固定的版本，先连 GitHub，10 秒无响应或 20 秒无数据时依次改用 `download_mirrors` 镜像（默认 `ghfast.top`、`gh-proxy.com`；`[]` 表示只用 GitHub）。任何来源的文件都必须与内置 SHA-256 一致才会执行。镜像是第三方服务，能看到请求者 IP 和所下载的文件；不希望回退到它们时设置 `download_mirrors = []`。
 - webmux 以 `--config /dev/null` 运行 cloudflared，`~/.cloudflared/config.yml` 不会影响隧道。
-- cloudflared 意外退出时公网地址立即失效（返回 403），本地访问和会话不受影响；webmux 退出时 cloudflared 随之结束。
+- cloudflared 意外退出时公网地址立即失效（返回 403），本地访问和会话不受影响；webmux 退出时 cloudflared 随之结束。Linux 上即使 webmux 被 SIGKILL 或 OOM 终止，内核也会结束 cloudflared；macOS 没有等价机制，依赖 launchd 结束作业的全部进程，手动运行时需自行确认没有残留。
 
 > 隧道模式打印的链接与二维码包含 token；以 systemd / launchd 运行时它们会写入 journal 或日志文件，请限制日志访问权限；自动生成的 token 每次重启都会更换。非隧道模式不打印固定的已配置 token。
 

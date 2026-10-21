@@ -15,6 +15,13 @@ test.afterAll(async () => {
 test("a #token= link signs in and leaves no token in the address or history", async ({
   page,
 }) => {
+  // Listen before navigating: the snapshot frame arrives with the page.
+  const sessions = new Promise<string>((resolve) =>
+    page.on("websocket", (socket) => {
+      if (socket.url().endsWith("/ws/sessions"))
+        socket.once("framereceived", () => resolve(socket.url()));
+    }),
+  );
   await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
   await expect(
     page
@@ -25,22 +32,25 @@ test("a #token= link signs in and leaves no token in the address or history", as
   expect(await page.evaluate(() => localStorage.getItem("webmux.token"))).toBe(
     token,
   );
-  expect(await page.evaluate(() => document.cookie)).toContain(
-    `webmux_token=${encodeURIComponent(token)}`,
+  // The app's own socket authenticates through its subprotocol: no token in
+  // the URL and no cookie, which every port of the host would share.
+  expect(await sessions).not.toContain("token");
+  expect(await page.evaluate(() => document.cookie)).not.toContain(
+    "webmux_token",
   );
   expect(
     await page.evaluate(
       () =>
         new Promise<boolean>((resolve) => {
-          const socket = new WebSocket(`ws://${location.host}/ws/sessions`);
-          socket.onopen = () => {
-            socket.close();
+          const bare = new WebSocket(`ws://${location.host}/ws/sessions`);
+          bare.onopen = () => {
+            bare.close();
             resolve(true);
           };
-          socket.onerror = () => resolve(false);
+          bare.onerror = () => resolve(false);
         }),
     ),
-  ).toBe(true);
+  ).toBe(false);
   await page.goBack();
   expect(page.url()).not.toContain("token");
 });
