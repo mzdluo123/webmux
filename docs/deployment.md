@@ -136,9 +136,9 @@ webmux --tunnel
 ```toml
 [tunnel]
 enabled = true
-token = ""          # 空 = Quick Tunnel；填写 = Named Tunnel
-hostname = ""       # Named Tunnel 的公共主机名（ASCII/punycode，不支持通配符）
-cloudflared = ""    # 可选：cloudflared 路径
+token = "" # 空 = Quick Tunnel；填写 = Named Tunnel
+hostname = "" # Named Tunnel 的公共主机名（ASCII/punycode，不支持通配符）
+cloudflared = "" # 可选：cloudflared 路径
 # download_mirrors = ["https://ghfast.top", "https://gh-proxy.com"]
 ```
 
