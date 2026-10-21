@@ -1,9 +1,10 @@
 ## Context
 
-动机见 proposal.md。本变更建立在 `add-cli-server-control` 之上，以下“现状”包含该前置变更提供的能力：
+动机见 proposal.md。本变更建立在 `add-cli-server-control`（PR #83）之上，客户端/服务端分工与两个通讯平面见该变更 design.md 决策 0；以下“现状”包含该前置变更提供的能力：
 
 - WSL 中的 `webmux`（Linux 版）提供 `serve --log-file`、`status --json [--reveal-token]`（契约 v1：`state`、`pid`、`launcher`、`sessions`、`health`、`urls`、`drift`、`warnings`、`logFile` 等）与 `stop --json`（SIGTERM → 15 秒 → SIGKILL，拒绝停止 systemd/launchd 实例，除非 `--force`）。环境变量 `WEBMUX_LAUNCHER=windows-tray` 让服务把启动方记为 `windows-tray`，且不进入会话环境。
-- `internal/client` 定义了 `StatusV1`/`StopV1` 类型与 `Health` 分类，托盘直接 import。
+- WSL 中的 `webmux config init` 可在配置不存在时生成带随机 Token 的 0600 配置。
+- 无依赖的 `internal/contract` 定义了 `StatusV1`/`StopV1`/`ConfigV1` 与健康分类，可交叉编译到 Windows，托盘直接 import。`internal/client` 与 `internal/api` 依赖只支持 Unix 的 `internal/session`，托盘不能 import。
 - 服务端 `hostCheck` 允许以 `127.0.0.1` 访问回环/通配监听实例；`/api/health` 未带 Token 时返回 401，可用于判断“可达且是 WebMux”。
 
 WSL 侧需要特别处理的事实：
@@ -13,7 +14,7 @@ WSL 侧需要特别处理的事实：
 - 从 Windows 创建 `wsl.exe` 时若不加 `CREATE_NO_WINDOW` 会闪出控制台窗口。
 - `wsl.exe --exec` 不经 shell，因此 `~` 不会展开；`--cd ~` 由 wsl.exe 自身解析为用户主目录。
 - Windows 环境变量只通过 `WSLENV` 列出的名称传入 WSL。
-- NAT 网络模式下 Windows 经 localhostForwarding 访问 WSL 回环/通配监听；mirrored 模式共享回环；用户关闭转发时 Windows 侧不可达。
+- NAT 网络模式下 Windows 经 localhostForwarding 访问 WSL 回环/通配监听，但局域网与 Windows 上的 Tailscale 流量不会转发进 WSL；mirrored 模式下 WSL 与主机共享网卡；用户关闭 localhostForwarding 时 Windows 侧不可达。WSL 内 `wslinfo --networking-mode` 可报告当前模式（新版 WSL）。
 
 ## Goals / Non-Goals
 
@@ -27,7 +28,9 @@ WSL 侧需要特别处理的事实：
 
 - WebMux 原生运行在 Windows（ConPTY）。
 - 安装器、代码签名、自动更新；在托盘中安装或升级 WSL 内的 `webmux`。
-- 托盘内的会话列表、会话级操作、“需要关注”通知（#68 的手机推送在服务端单独推进；托盘以后若要做 Windows 通知，可复用 `internal/client` 的 `/ws/sessions` 订阅）。
+- 托盘内的会话列表、会话级操作、“需要关注”通知（#68 的手机推送在服务端单独推进；托盘以后若要做 Windows 通知，走数据面 `/ws/sessions` 订阅）。
+- 在终端中启动 agent 并纳入服务端管理：属于 #67，走数据面（`POST /api/sessions` + `/ws/s/{id}`），另立变更；Windows 控制台客户端未排期。
+- 修改已有 WebMux 配置的单个字段；转发的 TLS 终止；在 Windows 防火墙中自动添加规则。
 - 带 Token 的链接、二维码。
 - 图形化设置窗口；管理 WSL 本身（安装发行版、修改 `.wslconfig`、启用 systemd、安装 systemd 单元）。
 - 多发行版同时托管。
@@ -40,12 +43,14 @@ WSL 侧需要特别处理的事实：
 |---|---|---|
 | Q1 | “开机启动”的含义 | Windows 用户**登录后**启动，使用 HKCU `Run` 启动项 |
 | Q2 | WSL 内 WebMux 的托管方式 | **两种都支持**：托盘托管与 systemd 用户服务，默认“自动”，可在菜单切换 |
-| Q3 | 托盘技术栈 | 用户未明确答复，暂按推荐的 Go + `fyne.io/systray`；与前置变更共享 `internal/client` 契约类型后，Go 的优势更明显 |
+| Q3 | 托盘技术栈 | Go + `fyne.io/systray`，与前置变更共享 `internal/contract` 契约类型 |
 | Q4 | 带 Token 的链接 | 不做；Token 单独复制 |
 | Q5 | 设置界面 | 子菜单（发行版、启动方式）+ 记事本编辑设置 JSON、保存即热加载 |
 | Q6 | v1 扩展（会话列表、通知、安装升级） | 都不做 |
 | Q7 | 交付形式 | `make release` 产出两个 exe，无安装器与签名 |
 | Q8 | 退出托盘 | 每次询问：仅退出托盘 / 停止并退出 / 取消 |
+| Q9 | 客户端角色 | 托盘负责 WSL 网络特殊情况的转发、配置（初始化 / 打开 / 漂移提示）、服务启动与管理；在终端中启动 agent 由 #67 的 CLI 承担（走数据面） |
+| Q10 | PR 拆分 | 前置变更独立为 PR #83，本变更留在 PR #82 |
 
 ### 1. 托盘只做客户端（与前置变更的分工）
 
@@ -57,6 +62,8 @@ WSL 侧需要特别处理的事实：
 | 发行版列表、启动方式检测、`wsl.exe` 进程创建与保活 | 托盘 | 只有 Windows 侧能做 |
 | Windows 侧可达性 | 托盘 | 只有 Windows 侧能观察 |
 | 剪贴板、通知、登录启动项、单实例 | 托盘 | Windows API |
+| 配置初始化与校验 | `webmux config init` / `validate` | 与服务端同一份模板与校验 |
+| WSL 网络特殊情况的转发 | 托盘 | 只有 Windows 主机能监听其网卡 |
 
 上一版草案中托盘自带的“固定 shell 脚本 + pidfile + TOML 解析 + 链接推导”整体移除。
 
@@ -70,7 +77,8 @@ internal/tray/          // 平台无关，Linux CI 可测
   settings.go          // 设置结构、默认值、JSON 读写与校验
   wsl.go               // Runner 接口；wsl.exe argv 构造；--list 解析（UTF-16LE/UTF-8）
   mode.go              // auto/tray/systemd 选择与条件探测
-  supervisor.go        // 状态机、退避、外部实例判定；依赖 Runner / client.StatusV1 / 时钟接口
+  supervisor.go        // 状态机、退避、外部实例判定；依赖 Runner / contract.StatusV1 / 时钟接口
+internal/tray/forward/  // 平台无关，Linux CI 可测：Host/Origin 校验 + httputil.ReverseProxy 中转
 internal/tray/winui/    // //go:build windows
   tray.go menu.go notify.go dialog.go clipboard.go autostart.go process.go singleinstance.go
 ```
@@ -84,6 +92,8 @@ internal/tray/winui/    // //go:build windows
 | 取 Token | 同上加 `--reveal-token`，仅点击“复制 Token”时 | 短 |
 | 托盘托管启动 | `wsl.exe --cd ~ --exec <webmux> serve --log-file <log> [--config <c>]`，环境 `WEBMUX_LAUNCHER=windows-tray`、`WSLENV` 追加 `WEBMUX_LAUNCHER` | 长，detached |
 | 托盘托管停止 | `wsl.exe --cd ~ --exec <webmux> stop --json --timeout 15s [--config <c>]` | 短，超时 25 秒 |
+| 初始化配置 | `wsl.exe --cd ~ --exec <webmux> config init [--config <c>]` | 短 |
+| 网络模式 | `wsl.exe --exec wslinfo --networking-mode`（失败时按 NAT 处理） | 短，启动与状态刷新时 |
 | systemd 探测 | `wsl.exe --exec cat /proc/1/comm`；`wsl.exe --exec systemctl --user cat webmux.service` | 短 |
 | systemd 启停 | `wsl.exe --exec systemctl --user start\|stop\|restart webmux.service` | 短 |
 | systemd 保活 | `wsl.exe --exec sleep infinity` | 长，detached |
@@ -110,7 +120,30 @@ Unreachable（Running 的子状态，图标为异常）：WSL 内健康但 Windo
 
 单 goroutine 事件循环，对 UI 只发布不可变快照。事件来源：托管 `wsl.exe` 的 `Wait()`（托盘托管）、定时 `status`（30 秒）、定时 Windows 侧可达性（10 秒）、菜单打开、用户操作。`wsl --shutdown` 会同时触发进程退出与状态变化，以先到者为准并去重。
 
-### 6. Windows 适配层
+### 6. 转发
+
+**为什么需要**：NAT 模式下，手机经 Windows 主机的局域网或 Tailscale 地址访问 7681 端口时，流量不会进入 WSL。可选办法：
+
+| 办法 | 结论 |
+|---|---|
+| 提示用户切换 mirrored 模式或在 WSL 内安装 Tailscale | 首选推荐，托盘检测到时提示“无需转发” |
+| `netsh interface portproxy` | 否决：需要管理员；WSL 地址每次启动都会变；纯 TCP 转发后 Host 为主机 IP，会被 WebMux 的 Host 校验拒绝 |
+| 纯 TCP 中转 | 否决：同样的 Host 问题，只能要求用户把主机 IP 写进 `allowed_origins` 并重启（丢会话），IP 变化后又失效 |
+| **托盘内 HTTP 感知的反向代理** | **采用** |
+
+**做法**：每个勾选地址一个 `net.Listen("tcp", "<ip>:<port>")`，`httputil.ReverseProxy` 指向本机链接（`127.0.0.1:<port>`，Go 1.12 起原生支持 `Upgrade: websocket` 双向中转）。代理前置校验：
+
+1. `r.Host` 必须等于 `<ip>:<port>`（IP 字面量，不受 DNS 重绑定影响），否则 403；
+2. `Origin` 为空或等于 `http://<ip>:<port>`，否则 403；
+3. 通过后改写 `Host` 为 `127.0.0.1:<port>`；`Origin` 非空时改写为 `http://127.0.0.1:<port>`。
+
+由于代理只放行与自身同源的请求，再把它们表达为与 WebMux 同源的请求，跨站请求在代理处就被拒绝，等价于保留 WebMux 的 Origin 校验；Host 校验同理。认证头、Cookie、`?token=` 原样透传，认证仍完全由 WebMux 判定。代理不打访问日志，`ErrorLog` 只记录连接级错误（不含 URL 查询串，避免记录 `?token=`）。删除 `X-Forwarded-*` 头，WebMux 不依赖它们。
+
+**为什么不复用 `internal/api` 的 `hostCheck`/`originAllowed`**：它们所在的包依赖只支持 Unix 的 `internal/session`，不能编进 Windows 托盘；而代理需要的规则（单一 IP 字面量 + 严格同源）比服务端规则简单得多，单独实现并用测试锁定更清晰。
+
+**其他**：并发上限 64（超出时立即关闭新连接）；非 WebSocket 连接 10 分钟空闲关闭；启用条件（运行中且健康、配置了 Token、Windows 侧可达）不满足时关闭监听，满足后恢复。地址列表来自 `net.Interfaces()`，排除回环、链路本地与 `vEthernet (WSL*)`，`100.64.0.0/10` 标为 Tailscale 置顶。首次在非回环地址监听时 Windows 防火墙可能弹出授权提示（允许需要管理员确认），文档说明；托盘不自动修改防火墙。
+
+### 7. Windows 适配层
 
 - 托盘：`fyne.io/systray`（Windows 实现基于 `Shell_NotifyIcon`，纯 Go）；4 个状态 `.ico` 用 `go:embed`。
 - 通知：`Shell_NotifyIcon` 气泡（`NIF_INFO`），无需注册 AppUserModelID。
@@ -122,7 +155,7 @@ Unreachable（Running 的子状态，图标为异常）：WSL 内健康但 Windo
 - 文件：设置 `%APPDATA%\WebMux\tray.json`；托盘日志 `%LOCALAPPDATA%\WebMux\tray.log`（1 MiB 轮转，保留 1 份）。设置热加载用 2 秒 mtime 轮询。
 - Windows 侧可达性：独立 `http.Client`（`Proxy: nil`），单次 3 秒，不带 Token；200 或 401 JSON 视为可达。
 
-### 7. 构建与 CI
+### 8. 构建与 CI
 
 - `Makefile`：`tray` 目标 `CGO_ENABLED=0 GOOS=windows GOARCH={amd64,arm64} go build -trimpath -ldflags "$(LDFLAGS) -H=windowsgui" -o bin/webmux-tray-windows-<arch>.exe ./cmd/webmux-tray`；`release` 依赖 `tray`；托盘不依赖前端构建。
 - exe 图标与版本资源：用 `go-winres` 生成并提交 `cmd/webmux-tray/rsrc_windows_*.syso`（工具不进入构建依赖）。
@@ -130,6 +163,8 @@ Unreachable（Running 的子状态，图标为异常）：WSL 内健康但 Windo
 
 ## Risks / Trade-offs
 
+- [转发把 shell 暴露给网络] → 默认关闭、必须已配置 Token、只监听显式勾选的具体地址、Tailscale 置顶推荐、镜像模式下提示无需转发。
+- [转发随托盘退出而停止] → 退出对话框明确说明；需要常驻转发的用户应改用 mirrored 模式或 WSL 内的 Tailscale。
 - [托盘与 WSL 中 `webmux` 版本不一致] → 以 `status --json` 的 `v` 为契约；缺失或更高的不兼容版本给出“请升级 webmux / 托盘”提示。
 - [旧版 inbox WSL 不支持 `--exec`/`--cd`/`WSL_UTF8`] → 要求 Microsoft Store 版 WSL；启动时 `wsl.exe --version` 失败即提示更新。
 - [每 30 秒启动一次 `wsl.exe` 的开销] → 单次约 100–300 ms、无窗口；高频的 10 秒检查只走 Windows 侧 HTTP。
