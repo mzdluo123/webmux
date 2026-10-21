@@ -375,7 +375,8 @@ func standIn(t *testing.T, f *fixture, script string) *exec.Cmd {
 	eventually(t, "stand-in identity", func() bool {
 		var err error
 		identity, err = runtime.ProcessIdentity(cmd.Process.Pid)
-		return err == nil && strings.HasSuffix(identity.Exe, "sh")
+		// macOS identities carry no executable path.
+		return err == nil && (identity.Exe == "" || strings.HasSuffix(identity.Exe, "sh"))
 	})
 	dir := runtime.Dir(f.state)
 	if err := runtime.EnsureDir(dir); err != nil {
