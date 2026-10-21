@@ -61,7 +61,15 @@ func newInstance(t *testing.T) *instance {
 
 func (in *instance) command(args ...string) *exec.Cmd {
 	cmd := exec.Command(webmuxBinary, append(args, "--config", in.config)...)
-	cmd.Env = append(os.Environ(), "HOME="+in.dir)
+	// CI runners are systemd services: keep their launcher markers out so
+	// the server records itself as manually started.
+	for _, entry := range os.Environ() {
+		name, _, _ := strings.Cut(entry, "=")
+		if name != "INVOCATION_ID" && name != "XPC_SERVICE_NAME" && name != "WEBMUX_LAUNCHER" && name != "HOME" {
+			cmd.Env = append(cmd.Env, entry)
+		}
+	}
+	cmd.Env = append(cmd.Env, "HOME="+in.dir)
 	return cmd
 }
 
