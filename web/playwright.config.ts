@@ -3,11 +3,16 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./test/e2e",
   testMatch: "**/*.spec.ts",
-  fullyParallel: false,
-  // Each worker fixture owns its backend, Vite and sessions, so workers never
-  // share state or reuse dev servers. CI runners have 3-4 vCPUs.
-  workers: process.env.CI ? 2 : 1,
+  globalSetup: "./test/e2e/global-setup.mjs",
+  // Test-scoped cleanup isolates each case; distribute long files across
+  // workers and shards instead of leaving a worker idle at a file boundary.
+  fullyParallel: true,
+  // Each worker fixture owns its backend and sessions, so workers never
+  // share state or reuse dev servers. Keep Ubuntu's two slots to avoid CPU
+  // contention; macOS uses four to overlap PTY/Git and browser waits.
+  workers: process.env.CI ? (process.platform === "darwin" ? 4 : 2) : 1,
   forbidOnly: Boolean(process.env.CI),
+  failOnFlakyTests: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   timeout: 45_000,
   expect: { timeout: 10_000 },
