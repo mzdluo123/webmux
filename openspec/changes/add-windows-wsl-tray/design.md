@@ -60,7 +60,7 @@ WSL 侧需要特别处理的事实：
 | 配置解析、默认值、链接推导、配置漂移 | 服务端 `/local/v1/status`（未运行时 `webmux status`） | 与服务端同一份代码，#67 的 `open` 也复用 |
 | 停止 | 服务端 `/local/v1/shutdown`；无响应时 `webmux stop` 发信号 | 正常路径与 SIGTERM 同一清理流程；卡死时信号最可靠 |
 | 会话数与会话变化 | 服务端 `/ws/sessions` 订阅 | 实时、无需轮询 |
-| 桥接拨号器 | 托盘（`internal/tray`） | 把 `wsl.exe --exec webmux bridge` 的 stdio 包装为 `net.Conn` 交给 `internal/localclient` |
+| 桥接拨号器、目标发行版与 `webmux` 路径解析 | `internal/wslclient`（与 `add-windows-console-client`，PR #84 共用） | 把 `wsl.exe --exec webmux bridge` 的 stdio 包装为 `net.Conn` 交给 `internal/localclient` |
 | 输出重定向、避免 SIGPIPE | `webmux serve --log-file` | 不需要 shell 包装脚本 |
 | 发行版列表、启动方式检测、`wsl.exe` 进程创建与保活 | 托盘 | 只有 Windows 侧能做 |
 | Windows 侧可达性 | 托盘 | 只有 Windows 侧能观察 |
