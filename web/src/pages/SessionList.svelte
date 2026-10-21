@@ -1,4 +1,5 @@
 <script lang="ts">
+  import InlineNotice from "../components/InlineNotice.svelte";
   import { onMount } from "svelte";
   import {
     IconSun,
@@ -25,7 +26,6 @@
   } from "../schemas";
   import { connect, type Connection } from "../ws";
   import { Button } from "$lib/components/ui/button";
-  import { Badge } from "$lib/components/ui/badge";
   import { Input } from "$lib/components/ui/input";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
@@ -53,6 +53,7 @@
   let repositories = $state<Repository[]>([]);
   let presets = $state<Preset[]>([]);
   let cwd = $state("~");
+  let hostname = $state("");
   let loading = $state(true);
   let refreshing = $state(false);
   let repositoryError = $state("");
@@ -78,6 +79,9 @@
   let dark = $state(document.documentElement.classList.contains("dark"));
   let expanded = $state<Record<string, boolean>>({});
   let query = $state("");
+  let searchInput = $state<HTMLInputElement | null>(null);
+  let setupError = $state("");
+  let setupBusy = $state(false);
   let statusFilter = $state<"all" | "active" | "waiting" | "exited">("all");
   let filterExpanded = $state<Record<string, boolean>>({});
   let refreshGeneration = 0;
@@ -138,8 +142,8 @@
   $effect(() => {
     // A new query opens matching repositories, while still allowing the user
     // to collapse them without changing the unfiltered workspace layout.
-    query;
-    statusFilter;
+    void query;
+    void statusFilter;
     filterExpanded = {};
   });
   function clearFilters() {
@@ -209,6 +213,57 @@
       unregisterBusy = false;
     }
   }
+  async function loadSetup() {
+    if (setupBusy) return;
+    setupBusy = true;
+    const results = await Promise.allSettled([
+      api("/presets", PresetsSchema).then((p) => {
+        if (!disposed) presets = p;
+      }),
+      api("/config", ConfigSchema).then((c) => {
+        if (disposed) return;
+        cwd = c.defaultCwd;
+        hostname = c.hostname;
+        gitReady = c.workspace.gitAvailable;
+        registryReady = c.workspace.registryAvailable;
+        capabilityError = [c.workspace.gitError, c.workspace.registryError]
+          .filter(Boolean)
+          .join(" · ");
+      }),
+    ]);
+    if (!disposed) {
+      setupBusy = false;
+      setupError = results.some((result) => result.status === "rejected")
+        ? "部分启动配置加载失败，相关创建操作暂不可用。"
+        : "";
+    }
+  }
+  function searchShortcut(event: KeyboardEvent) {
+    if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey ||
+      creating ||
+      adding ||
+      removing ||
+      curating ||
+      unregisterOpen ||
+      closing
+    )
+      return;
+    const target = event.target;
+    if (
+      event.key !== "/" ||
+      (target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest('input, textarea, select, [role="dialog"]')))
+    )
+      return;
+    event.preventDefault();
+    searchInput?.focus();
+  }
   onMount(() => {
     document.title = "WebMux · 工作区";
     const theme = new MutationObserver(() => {
@@ -218,24 +273,7 @@
       attributes: true,
       attributeFilter: ["class"],
     });
-    void Promise.all([
-      api("/presets", PresetsSchema),
-      api("/config", ConfigSchema),
-    ])
-      .then(([p, c]) => {
-        if (!disposed) {
-          presets = p;
-          cwd = c.defaultCwd;
-          gitReady = c.workspace.gitAvailable;
-          registryReady = c.workspace.registryAvailable;
-          capabilityError = [c.workspace.gitError, c.workspace.registryError]
-            .filter(Boolean)
-            .join(" · ");
-        }
-      })
-      .catch((err) => {
-        if (!disposed) error = (err as Error).message;
-      });
+    void loadSetup();
     void refresh();
     const ws = connect(
       "/ws/sessions",
@@ -288,34 +326,42 @@
   });
 </script>
 
+<svelte:window onkeydown={searchShortcut} />
+
 <div class="workspace-page min-h-dvh">
-  <header class="border-b bg-card">
+  <header
+    class="app-header workspace-header flex min-h-(--app-header-height) items-center border-b bg-card"
+  >
     <div
-      class="mx-auto flex min-h-20 max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8"
+      class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-0.5 sm:px-8"
     >
       <a class="brand" href="/"><span class="brand-mark">WM</span> WebMux</a>
       <div
-        class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1 sm:gap-3"
+        class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1 sm:gap-2"
       >
         <span
           class="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"
           ><span
             class={`status-dot ${connection === "connected" ? "status-running" : "status-waiting"}`}
-          ></span>{connection === "connected" ? "本机在线" : "正在连接"}</span
+          ></span>{connection === "connected"
+            ? hostname
+              ? `${hostname} 在线`
+              : "在线"
+            : "正在连接"}</span
         >
-        <Button disabled={!presets.length} onclick={() => start()}
+        <Button size="sm" disabled={!presets.length} onclick={() => start()}
           >＋ 新建会话</Button
         >
         <Button
           href="/settings"
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           aria-label="设置"
           title="设置"><IconSettings aria-hidden="true" /></Button
         >
         <Button
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           class="shrink-0"
           aria-label={dark ? "切换为白色主题" : "切换为黑色主题"}
           title={dark ? "切换为白色主题" : "切换为黑色主题"}
@@ -330,97 +376,133 @@
   {#if connection === "reconnecting"}<div role="status" class="notice-warning">
       连接已断开，重连中…
     </div>{/if}
-  <main class="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-10">
-    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <p
-          class="mb-2 text-xs font-medium tracking-widest text-muted-foreground"
-        >
-          工作区 / WORKSPACE
-        </p>
-        <h1
-          class="flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight sm:text-3xl"
-        >
-          继续你的工作 <Badge variant="secondary">{list.length} 会话</Badge>
-        </h1>
-        <p class="mt-2 text-sm text-muted-foreground">
-          按仓库组织终端，随时回到正在进行的工作。
-        </p>
+  <main class="mx-auto max-w-6xl px-4 py-5 sm:px-8 sm:py-6">
+    <div class="workspace-toolbar mb-5 space-y-3 border-b pb-4">
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 class="text-lg font-semibold tracking-tight">工作区</h1>
+          <p role="status" class="text-xs text-muted-foreground">
+            {#if loading}正在加载…
+            {:else if filtering}显示 {visible.length} / {list.length} 个会话
+            {:else}{repositories.length} 个仓库 · {list.length} 个会话{/if}
+          </p>
+        </div>
+        <div class="ml-auto flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="min-h-11 sm:min-h-8"
+            disabled={!gitReady || !registryReady}
+            onclick={() => {
+              adding = true;
+            }}><IconFolderPlus aria-hidden="true" />添加仓库</Button
+          >
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            class="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8"
+            aria-label="刷新 Git 状态"
+            title={refreshing ? "正在刷新 Git 状态…" : "刷新 Git 状态"}
+            aria-busy={refreshing}
+            disabled={refreshing}
+            onclick={refresh}
+            ><IconRefresh
+              class={refreshing
+                ? "animate-spin motion-reduce:animate-none"
+                : ""}
+              aria-hidden="true"
+            /></Button
+          >
+        </div>
       </div>
-      <div class="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          disabled={!gitReady || !registryReady}
-          onclick={() => {
-            adding = true;
-          }}><IconFolderPlus aria-hidden="true" />添加仓库</Button
-        >
-        <Button variant="ghost" disabled={refreshing} onclick={refresh}
-          ><IconRefresh aria-hidden="true" />{refreshing
-            ? "正在刷新…"
-            : "刷新 Git 状态"}</Button
-        >
-      </div>
-    </div>
-    {#if error}<p role="alert" class="mb-4 break-all text-destructive">
-        {error}
-      </p>{/if}
-    {#if capabilityError}<p
-        role="status"
-        class="mb-4 rounded-lg border p-3 text-sm break-all"
-      >
-        仓库管理部分不可用：{capabilityError}。仍可直接启动会话。
-      </p>{/if}
-    {#if repositoryError}<p
-        role="alert"
-        class="mb-4 break-all text-destructive"
-      >
-        Git 状态刷新失败：{repositoryError}。保留上次快照与全部会话。
-      </p>{/if}
-    {#if loading}
-      <div class="space-y-4" aria-label="正在加载会话">
-        {#each [0, 1, 2] as item (item)}<Skeleton class="h-40 w-full" />{/each}
-      </div>
-    {:else}
-      <div class="mb-7 space-y-3">
-        <div class="relative max-w-lg">
+      <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
+        <div class="relative min-w-0 flex-1">
           <IconSearch
-            class="pointer-events-none absolute top-3.5 left-3.5 size-4 text-muted-foreground"
+            class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden="true"
           />
           <Input
             type="search"
             aria-label="搜索会话"
-            placeholder="搜索会话、目录或分支…"
+            aria-keyshortcuts="/"
+            title="按 / 搜索，Esc 清除筛选"
+            placeholder="搜索会话、仓库、目录或分支"
+            bind:ref={searchInput}
             bind:value={query}
-            class="workspace-search h-11 rounded-lg bg-card pl-10 text-base md:text-sm"
+            onkeydown={(event) => {
+              if (event.key === "Escape" && !event.isComposing) {
+                event.preventDefault();
+                clearFilters();
+              }
+            }}
+            class="h-11 bg-card pl-9 pr-9 text-base sm:h-9 md:text-sm"
           />
-        </div>
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div
-            class="session-filters flex flex-wrap gap-1"
-            role="group"
-            aria-label="按会话状态筛选"
+          <kbd
+            class="pointer-events-none absolute top-1/2 right-3 hidden -translate-y-1/2 rounded border px-1 text-xs text-muted-foreground md:block"
+            aria-hidden="true">/</kbd
           >
-            {#each filters as filter (filter.id)}
-              <Button
-                variant="ghost"
-                aria-pressed={statusFilter === filter.id}
-                onclick={() => (statusFilter = filter.id)}
+        </div>
+        <div
+          class="session-filters flex flex-wrap gap-x-1"
+          role="group"
+          aria-label="按会话状态筛选"
+        >
+          {#each filters as filter (filter.id)}
+            <Button
+              variant="ghost"
+              size="sm"
+              class="min-h-11 gap-1.5 px-2 sm:min-h-9"
+              aria-pressed={statusFilter === filter.id}
+              onclick={() => (statusFilter = filter.id)}
+            >
+              {filter.label}
+              <span class="font-mono text-xs tabular-nums opacity-60"
+                >{filter.count}</span
               >
-                {filter.label}
-                <span class="filter-count font-mono text-xs tabular-nums"
-                  >{filter.count}</span
-                >
-              </Button>
-            {/each}
-          </div>
-          <p role="status" class="text-xs text-muted-foreground">
-            {#if filtering}显示 {visible.length} / {list.length} 个会话
-            {:else}{repositories.length} 个仓库 · {list.length} 个会话{/if}
-          </p>
+            </Button>
+          {/each}
         </div>
       </div>
+      {#if filtering && visible.length}
+        <div class="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>已筛选会话</span>
+          <Button
+            variant="link"
+            size="sm"
+            class="min-h-11 sm:min-h-8"
+            onclick={clearFilters}>清除筛选</Button
+          >
+        </div>
+      {/if}
+    </div>
+    {#if setupError}<InlineNotice tone="warning" class="mb-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span>{setupError}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="min-h-11 sm:min-h-8"
+            disabled={setupBusy}
+            onclick={loadSetup}
+          >
+            {setupBusy ? "正在重试…" : "重试"}
+          </Button>
+        </div>
+      </InlineNotice>{/if}
+    {#if error}<InlineNotice tone="danger" class="mb-4">
+        {error}
+      </InlineNotice>{/if}
+    {#if capabilityError}<InlineNotice tone="warning" class="mb-4">
+        仓库管理部分不可用：{capabilityError}。仍可直接启动会话。
+      </InlineNotice>{/if}
+    {#if repositoryError}<InlineNotice tone="danger" class="mb-4">
+        Git 状态刷新失败：{repositoryError}。保留上次快照与全部会话。
+      </InlineNotice>{/if}
+    {#if loading}
+      <div class="space-y-4" aria-label="正在加载会话">
+        {#each [0, 1, 2] as item (item)}<Skeleton class="h-40 w-full" />{/each}
+      </div>
+    {:else}
       <div class="space-y-8">
         {#each visibleRepositories as repo (repo.id)}
           {@const repoSessions = visible.filter(
@@ -513,7 +595,7 @@
                   {repo.error}
                 </p>{/if}
             </div>
-            <Collapsible.Content class="space-y-4">
+            <Collapsible.Content class="space-y-8">
               {#each layout.shown.filter(({ tree }) => !filtering || repoSessions.some((session) => session.workspace?.worktreeId === tree.id)) as { tree, pinned } (tree.id)}
                 <WorkspaceGroup
                   title={worktreeTitle(tree)}
@@ -561,7 +643,7 @@
           </Collapsible.Root>
         {/each}
         {#if direct.length}
-          <section class="min-w-0 space-y-4" aria-label="直接会话">
+          <section class="min-w-0 space-y-8" aria-label="直接会话">
             <div>
               <h2 class="font-semibold">直接会话</h2>
               <p class="mt-1 text-xs text-muted-foreground">
