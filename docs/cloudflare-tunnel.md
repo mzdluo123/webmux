@@ -28,7 +28,7 @@ WebMux 启动并管理 `cloudflared` 子进程；Cloudflare 边缘把公共主�
 
 - 一个 Cloudflare 账号。
 - 一个已添加到 Cloudflare 并生效的域名。Cloudflare 只会为已接入的域名提供公共主机名。
-- WebMux 已能正常运行。启用隧道时，根 `token` 至少 43 个字符；`webmux config init` 生成的 Token 满足要求。
+- WebMux 已能正常运行。隧道模式下若显式配置根 `token`，至少需要 43 个字符；留空则每次启动自动生成。`webmux config init` 生成的 Token 满足要求。
 - 允许 `cloudflared` 出站访问 Cloudflare 边缘。除 HTTPS 外，通常还需要放行出站 TCP/UDP 7844。
 - 如果本机尚未安装 `cloudflared`，WebMux 会尝试从 GitHub 下载固定版本，失败时按配置的镜像回退；也可以提前手动安装。
 
