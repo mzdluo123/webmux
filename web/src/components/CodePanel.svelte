@@ -13,6 +13,7 @@
     type CodeDiff,
     type CodeChange,
     type CodeListing,
+    type ReportedCwd,
   } from "../schemas";
   import type { z } from "zod";
   import { nodeId } from "../code-reference";
@@ -34,12 +35,16 @@
     connection,
     paste,
     draftEnabled,
+    sessionCwd,
+    reportedCwd,
   }: {
     id: string;
     visible: boolean;
     connection: string;
     paste: (text: string) => TextInsertion;
     draftEnabled: boolean;
+    sessionCwd: string;
+    reportedCwd: ReportedCwd | null;
   } = $props();
   type Tab = {
     key: string;
@@ -572,6 +577,8 @@
           {changes}
           {changesError}
           {pending}
+          {sessionCwd}
+          {reportedCwd}
           changesEnabled={shown && !changesError && !navStatus}
           bind:nav
           bind:query

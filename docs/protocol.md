@@ -66,6 +66,14 @@ interface SessionInfo {
     source: "agent" | "terminal"; // 结构化事件 / 普通通知或响铃
     since: string; // RFC 3339，种类变化时更新
   } | null;
+  // 程序通过 OSC 7 报告的目录；null 表示未报告或进程已退出。
+  // 只作导航线索，不改变 cwd、workspace、读取边界或命令执行环境。
+  reportedCwd: {
+    path: string; // 已解码的绝对路径
+    host: string; // 报告中的主机名，可能为空
+    remote: boolean; // 非本机（例如 SSH 远端）；不得用于本机文件定位
+    since: string; // RFC 3339，路径或主机变化时更新
+  } | null;
 }
 ```
 
