@@ -175,7 +175,7 @@ attention 在一个 500 ms 周期内置位又被清除时，Tracker 看不到这
   5. 权限被拒绝
   6. 可开启
 - 应用启动时的同步放在 `App.svelte` 认证成功之后。只有通知权限已授予且 `navigator.serviceWorker.getRegistration()` 返回已有订阅时才继续，因此 Storybook、浏览器测试与 E2E 默认不会产生全局副作用。
-- E2E 无法连接真实推送服务：`PushManager` 在页面中被替换为返回真实 P-256 密钥、不可解析 endpoint 的假订阅；推送事件经 DevTools `ServiceWorker.deliverPushMessage` 以可信事件送达。chrome-headless-shell 即使授权也报告通知权限为 `denied`，因此该用例使用新版 headless Chromium（`channel: "chromium"`），CI 安装完整 Chromium 而不再只装 shell。
+- E2E 无法连接真实推送服务：`PushManager` 在页面中被替换为返回真实 P-256 密钥、不可解析 endpoint 的假订阅；推送事件经 DevTools `ServiceWorker.deliverPushMessage` 以可信事件送达。chrome-headless-shell 即使授权也报告通知权限为 `denied`，因此该用例使用新版 headless Chromium（`channel: "chromium"`），CI 安装完整 Chromium 而不再只装 shell。macOS CI 上新版 headless Chromium 收到推送后 `getNotifications()` 始终为空，通知展示与点击用例只在 Linux 运行；开启、测试与关闭用例在两个平台都运行。
 
 ### 9. 本机状态与托盘
 

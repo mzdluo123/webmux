@@ -114,7 +114,7 @@
   - 测试接口在推送服务不可达时返回 502，且卡片显示错误；
   - 关闭后订阅数为 0；
   - 向 Service Worker 注入 push 事件后会显示通知；
-  - 对通知触发点击后，页面导航到 `/s/<id>`。
+  - 对通知触发点击后，页面导航到 `/s/<id>`（这两项在 macOS CI 上跳过：headless Chromium 不列出 Service Worker 的通知）。
 
   验证：`pnpm --dir web exec playwright test test/e2e/push.spec.ts` 在 desktop 项目通过。
 
