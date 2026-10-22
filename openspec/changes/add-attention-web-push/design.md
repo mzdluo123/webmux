@@ -38,9 +38,9 @@
 - `Sender`：加密与发送 HTTP 请求；
 - `Service`：订阅 Manager，运行 Tracker，把 Alert 送入有界队列并交给 worker 发送。
 
-`serve()` 在 `session.NewManager` 之后构造 `push.New(cfg.Push, cfg.StateDir, m, logger)`，作为参数注入 `api.New` 与本机状态；关闭时在 `m.Shutdown` 之前调用 `Close`，先停止发送再清理会话。`[push] enabled = false` 时 `push.New` 返回 `nil`：API 把 `nil` 视为 `disabled`，本机状态仍报告 `enabled: false`。
+`serve()` 在 `session.NewManager` 之后构造 `push.New(cfg.Push, cfg.StateDir, m, logger, nil)`，作为参数注入 `api.New`、`api.NewLocal` 与本机状态；关闭时在 `m.Shutdown` 之前调用 `Close`，先停止发送再清理会话。`[push] enabled = false` 时 `push.New` 返回 `nil`：API 把 `nil` 视为 `disabled`，本机状态仍报告 `enabled: false`。最后一个参数是发往推送服务的 `http.RoundTripper`，`nil` 使用默认 Transport 的克隆；测试注入信任 `httptest` TLS 证书的 Transport。
 
-`api.New` 的签名改为 `New(c, m, workspaces, public, push, codes...)`。`cmd/webmux/main.go` 与 `cmd/baseline/fixture.go` 两个调用方都要更新，fixture 传 `nil`。
+`api.New` 的签名改为 `New(c, m, workspaces, public, push, codes...)`，`api.NewLocal` 改为 `NewLocal(c, m, workspaces, codes, push, local)`：本机套接字提供与 TCP 相同的 `/api/push*`，但来源一律判为 `unsupported_origin`。`cmd/webmux`、`cmd/baseline/fixture.go` 与各测试调用方都要更新，不需要推送的传 `nil`。
 
 备选方案是在 `Manager.updates()` 中直接比较 `previous` 并回调推送。这样会把推送耦合进会话核心，并在 `m.mu` 下执行回调。订阅方式只需要复用现有公共接口，因此采用订阅。
 
@@ -158,27 +158,30 @@ attention 在一个 500 ms 周期内置位又被清除时，Tracker 看不到这
 
 ### 8. 前端结构
 
-- `web/public/sw.js`：手写，不经 Vite 打包，由 `web/dist` 原样嵌入。静态服务对非 `assets/` 路径已经返回 `Cache-Control: no-cache`，浏览器可以及时检查更新。脚本内的会话 ID 正则与 `schemas.ts` 保持一致。
+- `web/public/sw.js`：手写，不经 Vite 打包，由 `web/dist` 原样嵌入。静态服务对非 `assets/` 路径已经返回 `Cache-Control: no-cache`，浏览器可以及时检查更新。脚本内的会话 ID 正则与 `schemas.ts` 保持一致。纯函数（`parsePush`、`clickPath`、`chooseClient`）只在 Service Worker 作用域内注册监听器，单测在 Node 中直接求值脚本。
+- Service Worker 在 `install` 时 `skipWaiting()`、`activate` 时 `clients.claim()`：它没有 `fetch` 处理器，接管不改变任何请求，但让注册前已打开的页面成为受控窗口，点击通知时 `WindowClient.navigate()` 才能复用该窗口。点击逻辑放在 `openNotification(notification)` 中，`focus()` 被拒绝（无用户手势）时仍继续导航。
 - `web/src/push.ts`，提供以下纯函数与小型 API 封装：
   - `detectSupport()`：返回 `secure`、`serviceWorker`、`pushManager`、`notification`、`ios`、`standalone`、`permission`；
+  - `advise(support, status)`：纯函数，给出卡片显示哪类提示；
   - `urlBase64ToUint8Array`；
-  - `enable` / `disable` / `sync` / `test`：通过现有 `api.ts` 发请求，用 Zod 校验响应。
+  - `enable` / `disable` / `sync` / `sendTest`：通过现有 `api.ts` 发请求，用 Zod 校验响应。
 - 本机保存的订阅 ID 存为 localStorage 中的 `webmux.push.subscriptionId`。
-- `schemas.ts` 新增 `PushStatusSchema` 与 `PushSubscriptionResultSchema`。
-- `Settings.svelte` 新增 `<Card.Root id="push">`，用现有 `Switch`、`Button`、`Item`、`Badge` 组合实现，不新增 shadcn 组件。操作提示是静态文案组件，按 `detectSupport()` 与 `reason` 选择显示。判定优先级为：
-  1. 浏览器能力缺失
-  2. 非安全上下文
-  3. iOS 非独立显示模式
+- `schemas.ts` 新增 `PushReasonSchema`、`PushStatusSchema` 与 `PushSubscriptionResultSchema`；`ErrorSchema` 增加可选 `reason`，`APIError` 携带它，前端据此在登记被拒时切换到对应提示。
+- 卡片是独立组件 `components/PushSettings.svelte`，由 `Settings.svelte` 引用，用现有 `Card`、`Switch`、`Button`、`Badge` 与 `InlineNotice` 组合实现，不新增 shadcn 组件。`support` 与 `loadStatus` 可注入，浏览器组件测试无需 Service Worker 或后端。判定优先级为：
+  1. 非安全上下文（此时浏览器整体隐藏 Service Worker 与 Push API，必须先于能力判断）
+  2. iOS 非独立显示模式（iOS Safari 标签页同样不暴露 Push API）
+  3. 浏览器能力缺失
   4. 服务端给出的原因
   5. 权限被拒绝
   6. 可开启
-- 应用启动时的同步放在 `App.svelte` 认证成功之后。只有 `navigator.serviceWorker.getRegistration()` 返回已有注册时才继续，因此 Storybook、浏览器测试与 E2E 默认不会产生全局副作用。
+- 应用启动时的同步放在 `App.svelte` 认证成功之后。只有通知权限已授予且 `navigator.serviceWorker.getRegistration()` 返回已有订阅时才继续，因此 Storybook、浏览器测试与 E2E 默认不会产生全局副作用。
+- E2E 无法连接真实推送服务：`PushManager` 在页面中被替换为返回真实 P-256 密钥、不可解析 endpoint 的假订阅；推送事件经 DevTools `ServiceWorker.deliverPushMessage` 以可信事件送达。chrome-headless-shell 即使授权也报告通知权限为 `denied`，因此该用例使用新版 headless Chromium（`channel: "chromium"`），CI 安装完整 Chromium 而不再只装 shell。
 
 ### 9. 本机状态与托盘
 
 - `contract.StatusV1` 新增 `Push *PushStatus`，`localStatus` 从 `push.Service` 读取。服务为 `nil` 时只填 `enabled: false`。
-- `tray.TunnelEntry` 的结果新增 `PushInfo` 与 `PushGuide`：前者是提示行文字，后者表示说明类型（`named` / `quick`）。说明文字放在 `internal/tray`，由纯函数生成，方便单测。
-- `winui/menu.go` 在 `tunnelInfo` 下增加两项，说明对话框复用 `dialog.go` 的 `messageBox`。托盘不读取 Token，也不修改配置文件。
+- `tray.PushEntry(snap)` 是独立的纯函数，返回 `Show`、`Info`（提示行）与 `Guide`（说明对话框全文）；只在隧道项显示且状态含 `push` 时显示。Named Tunnel 是否配置由 `push.publicOrigin` 是否存在判断。
+- `winui/menu.go` 在 `copyPublic` 下增加两项，说明对话框复用 `dialog.go` 的 `messageBox`。托盘不读取 Token，也不修改配置文件。
 
 ## Risks / Trade-offs
 

@@ -8,7 +8,7 @@
 
 ### Requirement: Service Worker 职责
 
-前端 SHALL 提供作用域为 `/` 的 Service Worker `/sw.js`，只处理 `push` 与 `notificationclick` 事件。它 MUST NOT 拦截 `fetch`、缓存资源或发起网络请求，也 MUST NOT 读取或持有 Token。
+前端 SHALL 提供作用域为 `/` 的 Service Worker `/sw.js`。除安装时立即激活、激活时接管已打开的同源页面外，它只处理 `push` 与 `notificationclick` 事件。它 MUST NOT 拦截 `fetch`、缓存资源或发起网络请求，也 MUST NOT 读取或持有 Token。
 
 #### Scenario: 不影响页面请求
 
