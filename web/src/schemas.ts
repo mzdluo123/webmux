@@ -258,6 +258,11 @@ export const CodeListingSchema = z.object({
   contentVersion: z.string(),
   checkedAt: z.string(),
 });
+export const CodeLocationSchema = z.object({
+  nodeId: z.string(),
+  path: z.string(),
+  kind: z.enum(["file", "directory"]),
+});
 export const CodeDocumentSchema = z.object({
   nodeId: z.string().optional(),
   path: z.string(),

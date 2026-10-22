@@ -1,9 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  locationHints,
-  matchesSessionQuery,
-  resolveSessionPath,
-} from "../src/session-location";
+import { locationHints, matchesSessionQuery } from "../src/session-location";
 import type { ReportedCwd, SessionInfo } from "../src/schemas";
 
 const reported = (path: string, remote = false, host = ""): ReportedCwd => ({
@@ -75,54 +71,5 @@ describe("session search", () => {
 
   test("does not match unrelated text", () => {
     expect(matchesSessionQuery(session, "missing")).toBe(false);
-  });
-});
-
-describe("resolving a path from the shell directory", () => {
-  const root = "/repo/worktree";
-
-  test("resolves relative and absolute paths inside the root", () => {
-    expect(resolveSessionPath("/repo/worktree/src", "main.go", root)).toEqual({
-      ok: true,
-      path: "/repo/worktree/src/main.go",
-      relative: "src/main.go",
-    });
-    expect(
-      resolveSessionPath("/repo/worktree/src", "../README.md", root),
-    ).toEqual({
-      ok: true,
-      path: "/repo/worktree/README.md",
-      relative: "README.md",
-    });
-    expect(resolveSessionPath("/tmp", "/repo/worktree/a/b.ts", root)).toEqual({
-      ok: true,
-      path: "/repo/worktree/a/b.ts",
-      relative: "a/b.ts",
-    });
-  });
-
-  test("rejects paths outside the code root", () => {
-    expect(
-      resolveSessionPath("/repo/worktree/src", "../../outside", root),
-    ).toEqual({ ok: false, reason: "outside" });
-    expect(resolveSessionPath("/repo/worktree", "/etc/passwd", root)).toEqual({
-      ok: false,
-      reason: "outside",
-    });
-  });
-
-  test("rejects empty, root and invalid inputs", () => {
-    expect(resolveSessionPath(root, " ", root)).toEqual({
-      ok: false,
-      reason: "empty",
-    });
-    expect(resolveSessionPath(root, ".", root)).toEqual({
-      ok: false,
-      reason: "root",
-    });
-    expect(resolveSessionPath(root, "bad\u0000name", root)).toEqual({
-      ok: false,
-      reason: "invalid",
-    });
   });
 });

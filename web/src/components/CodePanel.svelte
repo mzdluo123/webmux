@@ -8,6 +8,7 @@
     CodeFileSchema,
     CodeChangesSchema,
     CodeDiffSchema,
+    CodeLocationSchema,
     CodeCheckSchema,
     type CodeFile,
     type CodeDiff,
@@ -246,6 +247,20 @@
   // reveal it; side-by-side layouts keep the navigator until the user collapses it.
   function closeOverlayNav() {
     if (matchMedia("(max-width:1023px)").matches) navOpen = false;
+  }
+  // The server resolves typed paths against the canonical code root; shell
+  // reports and launch directories may be logical paths through symlinks.
+  async function locate(input: string) {
+    if (!context) return;
+    const target = await api(
+      `${base}/locate?${params({ path: input })}`,
+      CodeLocationSchema,
+    );
+    if (target.kind === "directory") {
+      directory = target.path;
+      query = "";
+      await load();
+    } else await openFile(target.path, target.nodeId);
   }
   async function openFile(path: string, opaqueId = nodeId(path)) {
     if (!context) return;
@@ -589,6 +604,7 @@
           bind:changeSearch
           load={(append) => void load(append)}
           openFile={(path, opaqueId) => void openFile(path, opaqueId)}
+          {locate}
           openDiff={(change) => void openDiff(change)}
         />
         <!-- A focusable separator with aria-valuenow is an interactive widget (WAI-ARIA window splitter). -->

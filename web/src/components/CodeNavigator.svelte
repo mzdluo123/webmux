@@ -8,8 +8,6 @@
     type CodeListing,
     type ReportedCwd,
   } from "../schemas";
-  import { nodeId } from "../code-reference";
-  import { resolveSessionPath } from "../session-location";
   import { Button } from "$lib/components/ui/button";
   import * as Tabs from "$lib/components/ui/tabs";
 
@@ -30,6 +28,7 @@
     load,
     openFile,
     openDiff,
+    locate,
     sessionCwd,
     reportedCwd,
   }: {
@@ -49,6 +48,7 @@
     load: (append?: boolean) => void;
     openFile: (path: string, nodeId: string) => void;
     openDiff: (change: CodeChange) => void;
+    locate: (input: string) => Promise<void>;
     sessionCwd: string;
     reportedCwd: ReportedCwd | null;
   } = $props();
@@ -68,26 +68,20 @@
         ? `基点：${locateBase.label} ${locateBase.path}`
         : "暂无可用基点。",
   );
-  function locate(event: SubmitEvent) {
+  let locating = $state(false);
+  async function submitLocate(event: SubmitEvent) {
     event.preventDefault();
     locateError = "";
-    if (!context || !locateBase) return;
-    const result = resolveSessionPath(
-      locateBase.path,
-      locateInput,
-      context.rootPath,
-    );
-    if (!result.ok) {
-      locateError = {
-        empty: "请输入路径",
-        invalid: "路径无效",
-        outside: "路径不在代码工作区根内，只允许打开根目录下的文件",
-        root: "这是工作区根目录，请输入文件路径",
-      }[result.reason];
-      return;
+    if (!context || !locateBase || locating) return;
+    locating = true;
+    try {
+      await locate(locateInput);
+      locateInput = "";
+    } catch (err) {
+      locateError = (err as Error).message;
+    } finally {
+      locating = false;
     }
-    openFile(result.relative, nodeId(result.relative));
-    locateInput = "";
   }
 </script>
 
@@ -134,7 +128,7 @@
     </form>
     <details class="px-2 pb-2 text-xs">
       <summary class="cursor-pointer text-muted-foreground">按路径打开</summary>
-      <form class="mt-1 flex flex-col gap-1" onsubmit={locate}>
+      <form class="mt-1 flex flex-col gap-1" onsubmit={submitLocate}>
         <input
           aria-label="定位文件路径"
           placeholder="相对路径，如 src/main.go"
@@ -146,7 +140,7 @@
           size="sm"
           variant="outline"
           type="submit"
-          disabled={!locateBase || !locateInput.trim()}>打开</Button
+          disabled={!locateBase || locating || !locateInput.trim()}>打开</Button
         >
       </form>
       <p class="mt-1 break-all text-muted-foreground">{locateHint}</p>
