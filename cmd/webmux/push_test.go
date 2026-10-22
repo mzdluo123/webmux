@@ -66,14 +66,24 @@ func TestStatusReportsPush(t *testing.T) {
 			if code != 0 || status.Push == nil || *status.Push != row.want {
 				t.Fatalf("push status %d %+v", code, status.Push)
 			}
-			for _, secret := range []string{"SECRET-ENDPOINT", fixtureToken, "tunnel-cred", "p256dh", "private"} {
+			secrets := []string{"SECRET-ENDPOINT", fixtureToken, "tunnel-cred", "p256dh"}
+			stored, err := os.ReadFile(filepath.Join(f.state, "push.json"))
+			if row.want.Enabled != (err == nil) || !row.want.Enabled && !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("push.json presence: %v", err)
+			}
+			if err == nil {
+				var file struct {
+					VAPID struct{ Private string } `json:"vapid"`
+				}
+				if json.Unmarshal(stored, &file) != nil || file.VAPID.Private == "" {
+					t.Fatalf("push.json %s", stored)
+				}
+				secrets = append(secrets, file.VAPID.Private)
+			}
+			for _, secret := range secrets {
 				if strings.Contains(stdout, secret) {
 					t.Fatalf("status leaks %q: %s", secret, stdout)
 				}
-			}
-			_, err := os.Stat(filepath.Join(f.state, "push.json"))
-			if row.want.Enabled != (err == nil) || !row.want.Enabled && !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("push.json presence: %v", err)
 			}
 			if _, _, code := f.run(t, "stop"); code != 0 {
 				t.Fatalf("stop exit %d", code)

@@ -3,8 +3,17 @@ import { expect, test } from "./fixtures";
 
 // chrome-headless-shell reports Notification.permission as "denied" even
 // after grantPermissions; new headless Chromium grants it and shows
-// service worker notifications.
-test.use({ channel: "chromium" });
+// service worker notifications. Chromium's own notification center keeps
+// them inspectable on macOS, where the system center needs OS permission.
+test.use({
+  channel: "chromium",
+  launchOptions: {
+    args: [
+      "--disable-webgl",
+      "--disable-features=NativeNotifications,SystemNotifications",
+    ],
+  },
+});
 
 // Chromium cannot reach a real push service in CI, so PushManager hands out
 // a subscription with real P-256 keys and an endpoint that never resolves.
