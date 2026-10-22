@@ -84,9 +84,13 @@ func (s *Server) pushRoutes(mux *http.ServeMux) {
 		reply(w, http.StatusOK, status)
 	})
 	mux.HandleFunc("POST /api/push/subscriptions", func(w http.ResponseWriter, r *http.Request) {
+		// The body is PushSubscription.toJSON(). Browsers always include
+		// expirationTime (usually null); it is accepted but not stored, because
+		// a stale subscription is pruned when the push service answers 404/410.
 		var req struct {
-			Endpoint string `json:"endpoint"`
-			Keys     struct {
+			Endpoint       string   `json:"endpoint"`
+			ExpirationTime *float64 `json:"expirationTime"`
+			Keys           struct {
 				P256dh string `json:"p256dh"`
 				Auth   string `json:"auth"`
 			} `json:"keys"`

@@ -62,7 +62,9 @@ func browserSubscription(t *testing.T, endpoint string) string {
 	}
 	auth := make([]byte, 16)
 	_, _ = rand.Read(auth)
-	body, _ := json.Marshal(map[string]any{"endpoint": endpoint, "keys": map[string]string{
+	// Same shape as PushSubscription.toJSON() in browsers, including the
+	// always-present expirationTime.
+	body, _ := json.Marshal(map[string]any{"endpoint": endpoint, "expirationTime": nil, "keys": map[string]string{
 		"p256dh": base64.RawURLEncoding.EncodeToString(key.PublicKey().Bytes()),
 		"auth":   base64.RawURLEncoding.EncodeToString(auth),
 	}})

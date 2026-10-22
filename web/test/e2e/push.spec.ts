@@ -29,8 +29,10 @@ async function fakePushManager(context: BrowserContext) {
         userVisibleOnly: true,
         applicationServerKey: new Uint8Array(fake.server).buffer,
       },
+      // Same shape as a real PushSubscription.toJSON().
       toJSON: () => ({
         endpoint: fake.endpoint,
+        expirationTime: null,
         keys: { p256dh: fake.p256dh, auth: fake.auth },
       }),
       unsubscribe: async () => {
