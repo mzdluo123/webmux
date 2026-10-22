@@ -11,6 +11,7 @@
     unavailable,
     saved,
     target,
+    openScratch,
     send,
     resend,
     release,
@@ -24,6 +25,7 @@
     saved: string;
     // The session the draft will be sent to.
     target: string;
+    openScratch: () => void;
     send: () => void;
     // Repeats an unconfirmed submission under its original ID.
     resend: () => void;
@@ -220,6 +222,16 @@
         onclick={release}>转为草稿</Button
       >
     {/if}
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={composing}
+      aria-label={draft.scratch.length
+        ? `打开暂存，共 ${draft.scratch.length} 条`
+        : "打开暂存"}
+      onclick={openScratch}
+      >暂存{#if draft.scratch.length}&nbsp;({draft.scratch.length}){/if}</Button
+    >
     <Button
       variant="outline"
       size="sm"
