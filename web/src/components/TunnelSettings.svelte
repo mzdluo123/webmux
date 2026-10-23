@@ -6,6 +6,7 @@
   import * as Tabs from "$lib/components/ui/tabs";
   import InlineNotice from "./InlineNotice.svelte";
   import { copyText } from "../clipboard";
+  import { accessEntryHint } from "../accessEntry";
 
   const docsUrl =
     "https://github.com/mzdluo123/webmux/blob/main/docs/cloudflare-tunnel.md";
@@ -14,22 +15,7 @@ enabled = true
 token = "Cloudflare 隧道 Token"
 hostname = "term.example.com"`;
 
-  // This page is not server-rendered, so the current entry point is known.
-  const entry = (() => {
-    const host = location.hostname;
-    if (
-      host === "127.0.0.1" ||
-      host === "::1" ||
-      host === "localhost" ||
-      host.endsWith(".localhost")
-    )
-      return "当前通过本机回环地址访问；公网入口主要用于手机等外部设备。";
-    if (host.endsWith(".trycloudflare.com"))
-      return "当前是 Quick Tunnel 地址，每次启动都会变化；手机推送需要 Named Tunnel。";
-    if (location.protocol === "https:")
-      return "当前通过 HTTPS 访问；如果没有使用 Named Tunnel，手机推送仍可能不可用。";
-    return "当前不是 HTTPS 地址；手机推送需要从 Named Tunnel 的 HTTPS 地址打开。";
-  })();
+  const entry = accessEntryHint(location);
 
   let mode = $state("named");
   let copied = $state<"idle" | "copied" | "failed">("idle");
@@ -61,9 +47,13 @@ hostname = "term.example.com"`;
       <Tabs.Content value="quick" class="space-y-2 pt-3">
         <p>
           适合临时访问，不需要 Cloudflare 账号。运行
-          <code>webmux --tunnel</code>，或在配置中设置
-          <code>[tunnel] enabled = true</code
-          >。每次启动地址都会变化，不支持手机推送。
+          <code>webmux --tunnel</code>，或在配置文件的
+          <code>[tunnel]</code> 段中设置
+          <code>enabled = true</code>。每次启动地址都会变化，不支持手机推送。
+        </p>
+        <p>
+          若配置了根 <code>token</code>，隧道模式要求至少 43
+          个字符；留空则每次启动自动生成。
         </p>
       </Tabs.Content>
       <Tabs.Content value="named" class="space-y-3 pt-3">

@@ -115,14 +115,15 @@ webmux config check
 
 ## 6. Windows / WSL 托盘
 
-1. 在托盘中打开 **打开 WebMux 配置文件**；
-2. 按第 4.4 节加入或修改 `[tunnel]`；
-3. 保存后选择托盘菜单的 **重启**（会结束所有会话）；
-4. 需要临时开关时，使用 **公网隧道（Cloudflare）** 勾选项。它只影响本次运行，不修改配置文件；
-5. 隧道启动后，菜单显示公网地址，**复制公网链接** 会带上 WebMux Token；
-6. 查看错误时使用 **打开日志 → 打开 WebMux 日志**。
+1. 还没有配置文件时，托盘显示 **初始化配置（生成 Token）**：先用它生成配置（含满足隧道要求的根 Token）；
+2. 在托盘中打开 **打开 WebMux 配置文件**；
+3. 按第 4.4 节加入或修改 `[tunnel]`；
+4. 保存后选择托盘菜单的 **重启**（会结束所有会话）；
+5. 需要临时开关时，使用 **公网隧道（Cloudflare）** 勾选项。它只影响本次运行，不修改配置文件；
+6. 隧道启动后，菜单显示公网地址，**复制公网链接** 会带上 WebMux Token；
+7. 查看错误时使用 **打开日志 → 打开 WebMux 日志**。
 
-如果托盘提示 Token 不足 43 个字符，可先使用 **初始化配置（生成 Token）**，再重启 WebMux。
+配置文件已存在时托盘不再提供初始化入口。若提示 Token 不足 43 个字符，在配置文件中把根 `token` 改为至少 43 个字符的随机值，或删除该行让 WebMux 每次启动自动生成，然后重启 WebMux。
 
 WSL 中 WebMux 通常监听 `127.0.0.1:7681`，Cloudflare 的 Service URL 也填 `http://127.0.0.1:7681`。这里的回环地址指 WSL 内部，不是 Windows 的 `localhost`。
 
@@ -140,7 +141,7 @@ Web Push 只支持从 Named Tunnel 的 `https://<hostname>` 开启，Quick Tunne
 ## 8. 安全
 
 - **根 `token`**：WebMux 的登录 Token，隧道模式下至少 43 个字符。拿到它就能以服务用户身份执行命令。
-- **`[tunnel].token`**：Cloudflare 隧道凭据，能让连接器接入你的 Cloudflare 隧道。它不能用于登录 WebMux。
+- **`[tunnel].token`**：Cloudflare 隧道凭据，能让连接器接入你的 Cloudflare 隧道。它不能用于登录 WebMux。WebMux 通过 `TUNNEL_TOKEN` 环境变量把它传给 `cloudflared`，不出现在进程命令行和 `ps` 输出中；启动 Quick Tunnel 时也会清除继承的同名变量。
 - 两者泄露的后果不同：根 Token 泄露等于 shell 泄露；隧道凭据泄露则可能被他人接入隧道。发现泄露后应立即更换：根 Token 修改配置后重启，隧道凭据在 Cloudflare 控制台刷新后同步配置并重启。
 - 带 Token 的链接和二维码会出现在启动日志、托盘剪贴板或手机浏览历史中；以 systemd / launchd 运行时请限制日志访问权限。
 - Quick Tunnel 没有 Cloudflare Access，任何拿到链接和 Token 的人都能访问。Named Tunnel 可以额外叠加 Cloudflare Access，但 WebMux 仍会要求自己的 Token。
@@ -154,13 +155,15 @@ Web Push 只支持从 Named Tunnel 的 `https://<hostname>` 开启，Quick Tunne
 | 打开域名显示 502 Bad Gateway                                         | Service URL 端口与 `listen` 不一致，或 WebMux 没有运行              | 把 Service URL 改为 `http://127.0.0.1:<listen 端口>`，确认 WebMux 正在监听          |
 | 域名返回 403                                                         | `tunnel.hostname` 与公共主机名不一致，或请求不是从该 HTTPS 来源进入 | 改成 Cloudflare 上的纯主机名并重启；不要用其他域名或 HTTP 访问                      |
 | `tunnel.hostname is required when tunnel.token is set`               | 配置了隧道凭据但没有写 `hostname`                                   | 补充 `hostname`，或清空 `token` 改用 Quick Tunnel                                   |
-| `tunnel mode requires the webmux token to be at least 43 characters` | 根 `token` 太短                                                     | 运行 `webmux config init`，或设置一个足够强的 Token 后重启                          |
-| 启动时报 `tunnel.hostname ... must be a bare hostname`               | `hostname` 带了协议、端口、路径、通配符或非 ASCII 字符              | 只保留公共主机名，例如 `term.example.com`；中文域名改用 punycode                    |
+| `tunnel mode requires the webmux token to be at least 43 characters` | 根 `token` 太短                                                     | 在现有配置中把根 `token` 改为至少 43 个字符，或删除该行自动生成，然后重启           |
+| `tunnel.hostname ... must be a bare hostname such as ...`            | `hostname` 带了协议、端口、路径或空格                               | 只保留公共主机名，例如 `term.example.com`                                           |
+| `tunnel.hostname ... must use the ASCII/punycode form`               | `hostname` 含非 ASCII 字符                                          | 中文等国际化域名改用 punycode（`xn--` 开头）形式                                    |
+| `tunnel.hostname ... not a wildcard`                                 | `hostname` 是通配符                                                 | 填 Cloudflare 实际转发的具体主机名                                                  |
 | 下载 `cloudflared` 失败                                              | GitHub 或镜像不可达，或文件校验失败                                 | 手动安装并把 `tunnel.cloudflared` 指向可执行文件；或调整 `download_mirrors`         |
 | 隧道运行一段时间后断开                                               | `cloudflared` 意外退出                                              | WebMux 不会自动重连；在托盘重新开启或重启 WebMux，并查看日志                        |
 | 改了配置但没有生效                                                   | 配置只在启动时读取                                                  | 重启 WebMux（会结束所有会话）；托盘开关不会保存，也不等于修改 `enabled`             |
 | 手机无法开启推送                                                     | 没有配置 Named Tunnel，或当前不是从其 HTTPS 地址打开                | 配置 `[tunnel].token` 与 `hostname`，重启后用 `https://<hostname>` 打开再开启推送   |
-| 托盘里开启隧道失败                                                   | 根 Token 不足 43 个字符，或 `cloudflared` 无法定位                  | 初始化配置生成 Token；安装 `cloudflared` 或设置 `tunnel.cloudflared`，然后重启      |
+| 托盘里开启隧道失败                                                   | 根 Token 不足 43 个字符，或 `cloudflared` 无法定位                  | 按上文修改根 `token`；安装 `cloudflared` 或设置 `tunnel.cloudflared`，然后重启      |
 
 ## 10. 相关文档
 
