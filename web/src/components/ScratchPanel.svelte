@@ -1,4 +1,15 @@
 <script lang="ts">
+  import {
+    IconArrowDown,
+    IconArrowUp,
+    IconArrowUpRight,
+    IconDots,
+    IconInbox,
+    IconPlus,
+    IconTrash,
+    IconX,
+  } from "@tabler/icons-svelte";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import InlineNotice from "./InlineNotice.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
@@ -30,6 +41,7 @@
     // Where the scratch list is kept, e.g. "已保存在本机".
     saved: string;
   } = $props();
+  let closeButton = $state<HTMLButtonElement | null>(null);
   let newText = $state("");
   let notice = $state("");
   let noticeTone = $state<"danger" | "success">("danger");
@@ -134,124 +146,260 @@
 </script>
 
 <Dialog.Root bind:open>
-  <Dialog.Content class="sm:max-w-2xl">
-    <Dialog.Header>
-      <Dialog.Title>暂存</Dialog.Title>
-      <Dialog.Description
-        >暂存按会话保存在本机；取用只写入当前草稿，仍需点击发送，不会自动提交。</Dialog.Description
+  <Dialog.Content
+    class="flex h-[min(48rem,calc(100dvh-1rem))] max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-[min(48rem,calc(100dvh-4rem))] sm:max-w-2xl"
+    showCloseButton={false}
+    onOpenAutoFocus={(event) => {
+      event.preventDefault();
+      closeButton?.focus();
+    }}
+  >
+    <div
+      class="flex shrink-0 items-start gap-3 border-b px-4 py-4 sm:px-6 sm:py-5"
+    >
+      <span
+        class="hidden size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:flex"
+        aria-hidden="true"><IconInbox class="size-5" /></span
       >
-    </Dialog.Header>
-    {#if stale}
-      <InlineNotice tone="warning"
-        >这些暂存来自较早的会话实例。取用不会自动发送，请检查内容后再使用。</InlineNotice
-      >
-    {/if}
-    {#if locked}
-      <InlineNotice tone="info"
-        >当前草稿有待确认的提交，转存和取用暂不可用；暂存仍可查看、编辑和删除。</InlineNotice
-      >
-    {/if}
-    {#if notice}
-      <InlineNotice tone={noticeTone}>{notice}</InlineNotice>
-    {/if}
-    <div class="flex flex-wrap items-center gap-2">
-      <Button size="sm" disabled={!draft.text || locked || full} onclick={stash}
-        >将当前草稿存入暂存</Button
-      >
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={!draft.scratch.length}
-        onclick={() => (clearOpen = true)}>清空暂存</Button
-      >
-      <span class="text-xs text-muted-foreground">{saved}</span>
+      <Dialog.Header class="min-w-0 flex-1 gap-1 pr-0 text-left">
+        <Dialog.Title>暂存</Dialog.Title>
+        <Dialog.Description>先记下来，准备好后取用到草稿。</Dialog.Description>
+      </Dialog.Header>
+      <Dialog.Close>
+        {#snippet child({ props })}
+          <Button
+            {...props}
+            bind:ref={closeButton}
+            variant="ghost"
+            size="icon"
+            class="size-11 -mr-2 -mt-1"
+            title="关闭暂存"
+            aria-label="关闭暂存"><IconX aria-hidden="true" /></Button
+          >
+        {/snippet}
+      </Dialog.Close>
     </div>
-    {#if draft.scratch.length}
-      <div class="grid gap-3" role="list" aria-label="暂存列表">
-        {#each draft.scratch as item, index (item.id)}
-          <div class="grid gap-2 rounded-md border p-3" role="listitem">
-            <Textarea
-              value={item.text}
-              aria-label={`暂存第 ${index + 1} 条`}
-              rows={3}
-              maxlength={scratchEntryLimit}
-              class="max-h-[40dvh] font-mono"
-              autocapitalize="off"
-              autocorrect="off"
-              spellcheck={false}
-              oninput={(event) =>
-                edit(item.id, event.currentTarget.value, event.currentTarget)}
-            />
-            <div
-              class="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground"
-            >
-              <span>{new Date(item.updatedAt).toLocaleString()}</span>
-              <span>{item.text.length} 字符</span>
-              <div class="ml-auto flex flex-wrap gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={index === 0}
-                  aria-label={`上移暂存第 ${index + 1} 条`}
-                  onclick={() => drafts.moveScratch(draft, item.id, -1)}
-                  >上移</Button
-                >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={index === draft.scratch.length - 1}
-                  aria-label={`下移暂存第 ${index + 1} 条`}
-                  onclick={() => drafts.moveScratch(draft, item.id, 1)}
-                  >下移</Button
-                >
-                <Button
-                  size="sm"
-                  disabled={!item.text || locked}
-                  aria-label={`取用暂存第 ${index + 1} 条`}
-                  onclick={() => take(item.id)}>取用</Button
-                >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label={`删除暂存第 ${index + 1} 条`}
-                  onclick={() => drafts.removeScratch(draft, item.id)}
-                  >删除</Button
-                >
-              </div>
+
+    <div
+      class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6"
+      data-testid="scratch-scroll"
+    >
+      <div class="grid min-w-0 gap-3 [&>*]:min-w-0">
+        {#if stale}
+          <InlineNotice tone="warning"
+            >这些暂存来自较早的会话实例。取用不会自动发送，请检查内容后再使用。</InlineNotice
+          >
+        {/if}
+        {#if locked}
+          <InlineNotice tone="info"
+            >当前草稿有待确认的提交，转存和取用暂不可用；暂存仍可查看、编辑和删除。</InlineNotice
+          >
+        {/if}
+        {#if draft.text}
+          <div class="flex items-center gap-3 rounded-lg bg-muted/60 p-3">
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-medium text-muted-foreground">当前草稿</p>
+              <p class="mt-1 truncate text-sm" title={draft.text}>
+                {draft.text}
+              </p>
             </div>
+            <Button
+              variant="outline"
+              size="icon"
+              class="size-11 sm:size-9"
+              disabled={locked || full}
+              title="将当前草稿存入暂存"
+              aria-label="将当前草稿存入暂存"
+              onclick={stash}
+            >
+              <IconInbox aria-hidden="true" />
+            </Button>
           </div>
-        {/each}
+        {/if}
+        <div class="flex min-h-11 items-center justify-between gap-2">
+          <h3 class="flex items-center gap-2 text-sm font-medium">
+            已暂存 <span
+              class="rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground"
+              >{draft.scratch.length} / {scratchEntriesLimit}</span
+            >
+          </h3>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-11 text-muted-foreground sm:size-9"
+            disabled={!draft.scratch.length}
+            title="清空暂存"
+            aria-label="清空暂存"
+            onclick={() => (clearOpen = true)}
+            ><IconTrash aria-hidden="true" /></Button
+          >
+        </div>
+        {#if draft.scratch.length}
+          <div
+            class="grid min-w-0 gap-3 [&>*]:min-w-0"
+            role="list"
+            aria-label="暂存列表"
+          >
+            {#each draft.scratch as item, index (item.id)}
+              <div
+                class="rounded-lg border bg-card p-3 transition-colors focus-within:border-ring/60"
+                role="listitem"
+              >
+                <div class="mb-2 flex flex-wrap items-center gap-2">
+                  <span
+                    class="text-xs font-medium tabular-nums text-muted-foreground"
+                    >暂存 {String(index + 1).padStart(2, "0")}</span
+                  >
+                  <span
+                    class="ml-auto text-xs tabular-nums text-muted-foreground"
+                    >{item.text.length.toLocaleString()} 字符</span
+                  >
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger>
+                      {#snippet child({ props })}
+                        <Button
+                          {...props}
+                          variant="ghost"
+                          size="icon-sm"
+                          class="size-11 sm:size-9"
+                          title="更多操作"
+                          aria-label={`暂存第 ${index + 1} 条的更多操作`}
+                          ><IconDots aria-hidden="true" /></Button
+                        >
+                      {/snippet}
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Content align="end">
+                      <DropdownMenu.Item
+                        class="min-h-11 sm:min-h-9"
+                        disabled={index === 0}
+                        aria-label={`上移暂存第 ${index + 1} 条`}
+                        onSelect={() => drafts.moveScratch(draft, item.id, -1)}
+                        ><IconArrowUp
+                          aria-hidden="true"
+                        />上移</DropdownMenu.Item
+                      >
+                      <DropdownMenu.Item
+                        class="min-h-11 sm:min-h-9"
+                        disabled={index === draft.scratch.length - 1}
+                        aria-label={`下移暂存第 ${index + 1} 条`}
+                        onSelect={() => drafts.moveScratch(draft, item.id, 1)}
+                        ><IconArrowDown
+                          aria-hidden="true"
+                        />下移</DropdownMenu.Item
+                      >
+                      <DropdownMenu.Separator />
+                      <DropdownMenu.Item
+                        class="min-h-11 sm:min-h-9"
+                        variant="destructive"
+                        aria-label={`删除暂存第 ${index + 1} 条`}
+                        onSelect={() => drafts.removeScratch(draft, item.id)}
+                        ><IconTrash aria-hidden="true" />删除</DropdownMenu.Item
+                      >
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Root>
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    class="size-11 text-primary sm:size-9"
+                    disabled={!item.text || locked}
+                    title="取用到草稿"
+                    aria-label={`取用暂存第 ${index + 1} 条`}
+                    onclick={() => take(item.id)}
+                    ><IconArrowUpRight aria-hidden="true" /></Button
+                  >
+                </div>
+                <Textarea
+                  value={item.text}
+                  aria-label={`暂存第 ${index + 1} 条`}
+                  rows={3}
+                  maxlength={scratchEntryLimit}
+                  class="max-h-48 min-h-20 resize-y border-transparent bg-transparent px-1 py-1 font-mono leading-relaxed shadow-none dark:bg-transparent"
+                  autocapitalize="off"
+                  autocorrect="off"
+                  spellcheck={false}
+                  oninput={(event) =>
+                    edit(
+                      item.id,
+                      event.currentTarget.value,
+                      event.currentTarget,
+                    )}
+                />
+                <div class="mt-2 flex items-center justify-between gap-3">
+                  <time
+                    class="text-xs text-muted-foreground"
+                    datetime={new Date(item.updatedAt).toISOString()}
+                    title={new Date(item.updatedAt).toLocaleString()}
+                  >
+                    更新于 {new Date(item.updatedAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </time>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <div
+            class="grid justify-items-center gap-2 rounded-lg border border-dashed px-5 py-8 text-center"
+          >
+            <IconInbox
+              class="mb-1 size-7 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <p class="text-sm font-medium">还没有暂存</p>
+            <p class="max-w-64 text-sm text-muted-foreground">
+              在下方记下后续任务，或存入当前草稿，稍后再逐条取用。
+            </p>
+          </div>
+        {/if}
       </div>
-    {:else}
-      <p
-        class="rounded-md border border-dashed p-4 text-sm text-muted-foreground"
-      >
-        还没有暂存。可以先记下稍后要交给这个会话的任务，再逐条取用。
-      </p>
-    {/if}
-    <div class="grid gap-2 border-t pt-3">
-      <Label for="scratch-new">新建暂存</Label>
+    </div>
+
+    <div
+      class="grid max-h-[50dvh] shrink-0 gap-3 overflow-y-auto border-t bg-muted/30 px-4 py-4 sm:px-6"
+    >
+      {#if notice}
+        <InlineNotice tone={noticeTone}>{notice}</InlineNotice>
+      {/if}
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <Label for="scratch-new">新建暂存</Label>
+        <span class="text-xs text-muted-foreground" role="status">{saved}</span>
+      </div>
       <Textarea
         id="scratch-new"
         bind:value={newText}
-        rows={3}
+        rows={2}
         maxlength={scratchEntryLimit}
-        placeholder="例如：稍后检查测试结果"
-        class="max-h-[40dvh] font-mono"
+        placeholder="记下稍后要做的事…"
+        class="h-20 min-h-20 resize-none font-mono [field-sizing:fixed]"
         autocapitalize="off"
         autocorrect="off"
         spellcheck={false}
         aria-describedby="scratch-new-limits"
       />
-      <div class="flex flex-wrap items-center gap-3">
-        <Button size="sm" disabled={!newText || full} onclick={add}
-          >添加暂存</Button
-        >
-        <span id="scratch-new-limits" class="text-xs text-muted-foreground"
-          >最多 {scratchEntriesLimit} 条，单条 {scratchEntryLimit.toLocaleString()}
-          字符，每会话合计 {scratchStorageLimit.toLocaleString()} 字符</span
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0 text-xs text-muted-foreground">
+          <p>取用到草稿后，仍需手动发送</p>
+          <p id="scratch-new-limits" class="mt-1 tabular-nums">
+            {newText.length.toLocaleString()} / {scratchEntryLimit.toLocaleString()}
+            字符<span class="sr-only"
+              >；最多 {scratchEntriesLimit} 条，每会话合计 {scratchStorageLimit.toLocaleString()}
+              字符</span
+            >
+          </p>
+        </div>
+        <Button
+          size="sm"
+          class="h-11 px-4 sm:h-9"
+          disabled={!newText || full}
+          onclick={add}><IconPlus aria-hidden="true" />添加暂存</Button
         >
       </div>
+      {#if full}<p class="text-xs text-warning" role="status">
+          已达 {scratchEntriesLimit} 条上限，取用或删除一条后可继续添加。
+        </p>{/if}
     </div>
   </Dialog.Content>
 </Dialog.Root>

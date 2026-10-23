@@ -94,7 +94,8 @@ test("stashes the current draft and deletes or clears notes", async () => {
     "second",
     "current",
   ]);
-  await page.getByRole("button", { name: "删除暂存第 1 条" }).click();
+  await page.getByRole("button", { name: "暂存第 1 条的更多操作" }).click();
+  await page.getByRole("menuitem", { name: "删除暂存第 1 条" }).click();
   expect(draft.scratch.map((item) => item.text)).toEqual(["second", "current"]);
   await page.getByRole("button", { name: "清空暂存" }).click();
   await page.getByRole("button", { name: "确认清空" }).click();
@@ -132,4 +133,28 @@ test("pending submissions disable stashing and taking while keeping notes editab
   await page.getByLabelText("暂存第 1 条").fill("later edited");
   expect(draft.scratch[0].text).toBe("later edited");
   expect(draft.text).toBe("pending");
+});
+
+test("reorders notes through the menu and disables moves at the boundaries", async () => {
+  const drafts = createTerminalDrafts();
+  const draft = drafts.get("aaaaaaaa");
+  drafts.addScratch(draft, "first");
+  drafts.addScratch(draft, "second");
+  await render(ScratchPanelHarness, { drafts });
+  await openPanel();
+  await expect
+    .element(page.getByRole("button", { name: "关闭暂存" }))
+    .toHaveFocus();
+  await page.getByRole("button", { name: "暂存第 1 条的更多操作" }).click();
+  await expect
+    .element(page.getByRole("menuitem", { name: "上移暂存第 1 条" }))
+    .toHaveAttribute("aria-disabled", "true");
+  await page.getByRole("menuitem", { name: "下移暂存第 1 条" }).click();
+  expect(draft.scratch.map((item) => item.text)).toEqual(["second", "first"]);
+  await page.getByRole("button", { name: "暂存第 2 条的更多操作" }).click();
+  await expect
+    .element(page.getByRole("menuitem", { name: "下移暂存第 2 条" }))
+    .toHaveAttribute("aria-disabled", "true");
+  await page.getByRole("menuitem", { name: "上移暂存第 2 条" }).click();
+  expect(draft.scratch.map((item) => item.text)).toEqual(["first", "second"]);
 });
