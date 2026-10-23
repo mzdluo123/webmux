@@ -9,6 +9,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/push"
@@ -35,15 +36,19 @@ type Server struct {
 	// Launch is nil when the launch config store was not opened; its
 	// endpoints then answer 503.
 	Launch *launch.Service
+	// Tunnel reports the runtime tunnel state; nil leaves GET /api/config
+	// describing only the configured mode.
+	Tunnel func() contract.TunnelStatus
 	// local marks the Unix-socket handler, which serves no browser page.
 	local bool
 }
 
 // New builds the TCP handler. public is the runtime tunnel origin; nil means
 // no tunnel. pushes is nil when push is disabled; launches is nil when no
-// launch config store exists. Local-only endpoints are not found here.
-func New(c config.Config, m *session.Manager, workspaces *workspace.Service, public *PublicOrigin, pushes *push.Service, launches *launch.Service, codes ...*codeview.Service) http.Handler {
-	s := newServer(c, m, workspaces, public, pushes, launches, codes)
+// launch config store exists. tunnel reports the runtime tunnel state; nil
+// describes the configured mode only. Local-only endpoints are not found here.
+func New(c config.Config, m *session.Manager, workspaces *workspace.Service, public *PublicOrigin, pushes *push.Service, launches *launch.Service, tunnel func() contract.TunnelStatus, codes ...*codeview.Service) http.Handler {
+	s := newServer(c, m, workspaces, public, pushes, launches, tunnel, codes)
 	mux := s.routes()
 	return s.middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/local/") {
@@ -54,8 +59,8 @@ func New(c config.Config, m *session.Manager, workspaces *workspace.Service, pub
 	}))
 }
 
-func newServer(c config.Config, m *session.Manager, workspaces *workspace.Service, public *PublicOrigin, pushes *push.Service, launches *launch.Service, codes []*codeview.Service) *Server {
-	s := &Server{Config: c, Manager: m, Workspace: workspaces, Public: public, Push: pushes, Launch: launches}
+func newServer(c config.Config, m *session.Manager, workspaces *workspace.Service, public *PublicOrigin, pushes *push.Service, launches *launch.Service, tunnel func() contract.TunnelStatus, codes []*codeview.Service) *Server {
+	s := &Server{Config: c, Manager: m, Workspace: workspaces, Public: public, Push: pushes, Launch: launches, Tunnel: tunnel}
 	if len(codes) > 0 {
 		s.Code = codes[0]
 	} else {
@@ -75,7 +80,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/presets", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, c.Presets) })
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
-		reply(w, 200, map[string]any{"defaultCwd": c.DefaultCwd, "hostname": hostname, "workspace": workspaces.Capability()})
+		reply(w, 200, map[string]any{"defaultCwd": c.DefaultCwd, "hostname": hostname, "workspace": workspaces.Capability(), "tunnel": s.tunnelInfo()})
 	})
 	mux.HandleFunc("GET /api/sessions", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, m.List()) })
 	mux.HandleFunc("POST /api/sessions", s.create)
