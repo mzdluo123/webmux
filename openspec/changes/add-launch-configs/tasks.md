@@ -29,5 +29,5 @@
 - [x] 4.3 更新 `docs/user-stories.md`：新增 `US-B08 管理启动配置`，并更新 `US-B01`–`US-B03` 中“上次预设/自定义命令”的表述；核对索引、来源链接与计数
 - [x] 4.4 运行 `pnpm --dir web check`、`pnpm --dir web lint`、`make format-check`、`make test-unit`、`make test-browser`、`make test-e2e` 与相关 `go test -race ./internal/launch ./internal/api ./internal/workspace ./internal/session`
 - [x] 4.5 UI PR 附最终实现的桌面/移动与明/暗主题截图；截图使用不含真实密钥的示例配置
-- [x] 4.6 在 `openspec/changes/add-launch-configs/` 撰写 proposal、design、spec delta 与任务清单（中文正文、英文结构标题与 SHALL/MUST）；本 draft PR 仅保存这些工件
+- [x] 4.6 在 `openspec/changes/add-launch-configs/` 撰写 proposal、design、spec delta 与任务清单（中文正文、英文结构标题与 SHALL/MUST）
 - [x] 4.7 按 PR #103 评审结论修订工件：内置预设实时并列不种子、从预设填入时名称取 `label`、列表不返回环境变量值、独立文件锁、`configId` 与 `env: {}` 的互斥口径、启动接线顺序
