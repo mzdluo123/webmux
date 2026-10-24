@@ -344,6 +344,12 @@ test("frozen Git diff, ignored navigation and complete source documents", async 
     .getByRole("button", { name: "修改 code.txt", exact: true })
     .last()
     .click();
+  // The index snapshot also shows "indexed line 50"; wait for the staged Diff
+  // itself, or the narrow code menu opens on the previous document.
+  await expect(
+    page.getByRole("tab", { name: /^code\.txt · staged(?: ●)?$/ }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect.poll(() => visibleCode(page)).toContain("ordinary line 50");
   await expect.poll(() => visibleCode(page)).toContain("indexed line 50");
   await openFullFile(page, /修改前的文件/);
   await expect(
