@@ -12,14 +12,14 @@
 - 把越界逻辑迁入 Service 层：
   - `configId` 解析、互斥规则和环境变量校验迁入 `workspace.Service`。
   - 目录补全、`mkdir` 和上传落盘迁入新的 `internal/files`。
-  - `push.Validate` 收进 `push.Service`。
+  - `push.Validate` 改为 `push.Service` 的方法（`CheckSubscription`）。
   - `codeview.Service` 的构造移到 `cmd/webmux`。
   - `ManagerHint` 移到 `internal/runtime`。
 - 解除共享层与客户端对 Service 的依赖：`ExpandPath` 移到新的共享包 `internal/pathutil`；注意力种类常量移到新的共享包 `internal/attentionkind`；`config` 定义自己的 `Preset` TOML 类型；配置到 `session.Options` 的转换从 `config.SessionOptions()` 移到 `cmd/webmux`。
 - `workspace`、`codeview` 的错误改为与传输无关的错误种类，由 Controller 统一映射为 HTTP 状态码；删除两个包的 `Status()`。
 - 拆分 DTO：Controller 读写的每个 JSON 请求体、响应体和 WebSocket JSON 帧都定义为 `internal/contract` 中的线上类型，由 Controller/Hub 在 Service 类型与线上类型之间转换。`internal/client`、`internal/sessioncmd` 等线上消费者也改用这些线上类型。Service 类型上用于磁盘持久化的 json 标签保留。
 - 线上 JSON 形状保持不变：字段名、`omitempty`、空集合（`[]`/`{}`）与 `null` 的表示、错误体格式和状态码都与变更前一致；`web/src/schemas.ts` 不需要修改。线上 JSON 快照在改动前录制，作为永久测试保留，有意的协议变更需显式重新录制。
-- 分 3 个 PR 交付，每个 PR 都能单独合并、单独回滚，架构规则随对应迁移一起加入：PR1 线上快照 + 架构测试 R0–R7 + 越界逻辑迁移；PR2 REST 线上类型；PR3 WebSocket 事件与终端帧编码迁到 Hub。
+- 按 3 个阶段交付（同一个 PR 中的三组提交，每组都能单独回滚），架构规则随对应迁移一起加入：PR1 线上快照 + 架构测试 R0–R7 + 越界逻辑迁移；PR2 REST 线上类型；PR3 WebSocket 事件与终端帧编码迁到 Hub。
 
 ## Capabilities
 

@@ -5,7 +5,7 @@
 - 现在只有 `internal/contract` 是专门的线上类型包，内容是本机控制面 v1（`StatusV1`、`TunnelStatus`、`TokenResponse`、`ErrorResponse` 等）。REST 响应大多直接序列化 Service 类型：`session.Info`、`session.Preset`、`workspace.Repository`/`Worktree`/`Branches`/`Preview`/`Capability`、`launch.Config`/`Summary`、`push.Status`/`TestReport`、全部 `codeview.*` 结果。请求体直接解码到 `workspace.CreateRequest`/`RemoveRequest`/`Reference`、`launch.Input`、`codeview.CheckRequest`。`TunnelInfo` 定义在 `internal/api`。错误体、健康检查、上传、推送订阅等返回的是匿名 map。
 - `workspace.Repository`/`Worktree`（`repositories.json`）和 `launch.Config`（`launch-configs.json`）的 json 标签同时决定磁盘格式。`push.Subscription` 只用于持久化，不上线。
 - 终端 JSON 帧由 `internal/session` 自己编码：`jsonFrame` 生成 2（会话信息）、4（`Position`）、5（`SubmissionStatus`）、6（`ControlState`）号帧；`json.Marshal(map[string]int{"exitCode"})` 生成 3 号帧。`session.Event.MarshalJSON` 决定 `/ws/sessions` 的形状。`Subscriber.Out` 是 `chan []byte`，里面是带类型字节的成品帧。输出帧（0）和回放快照帧（1）是共享、不可变的字节块。Hub 按 `frame[0]` 合并输出帧，遇到 3 号帧时以 4410 关闭连接。
-- `internal/hub` 自己解码入站的 4 号帧 `{ids}`；1 号帧 `{cols,rows}` 在 `session` 中解析。
+- `internal/hub` 自己解码入站的 1 号帧 `{cols,rows}`（匿名结构）和 4 号帧 `{ids}`。
 - `workspace` 与 `codeview` 的 `problem(status int, …)` 用到的状态码有 400/403/404/409/410/413/429/500/503/504。`launch` 已经采用"包级哨兵错误 + Controller 映射"（`launchStatus`）。
 - 服务器外消费 JSON 的 Go 代码：`sessioncmd` 维护一份 `sessionInfo` 本地副本；`attach` 用匿名结构解码 6 号帧和 3 号帧；`tray` 的 `Watch` 解码 `/ws/sessions` 事件；`cmd/baseline` 用 `session.Frame` 构造入站帧；多个测试解码 `session.Info`/`session.Event`。
 - 共享层与客户端对 Service 的依赖：`internal/config` 使用 `session.ExpandPath`、`session.Preset`（TOML 字段 `presets`）、`session.Attention*` 常量（校验推送配置中的注意力种类），并通过 `Config.SessionOptions()` 构造 `session.Options`；`internal/client` 只用了 `session.ExpandPath`，另外通过 `api.ManagerHint` 依赖 Controller。
@@ -83,6 +83,7 @@ Controller 里能写出 JSON 的入口是有限的，测试把它们登记为"�
 - Service 与线上类型之间的映射放在新的 Controller 层包 `internal/wire`。`api` 和 `hub` 都要把 `session.Info` 转成 `contract.SessionInfo`，所以映射集中一处；`wire` 归入 Controller 层，规则与 `api`/`hub` 相同。
   - 备选 1：映射放在 Service 包里（`Info.Wire()`）。Service 就得导入 `contract`，并感知线上形状，违背目标。
   - 备选 2：分别在 `api` 和 `hub` 各写一份。会重复。
+- `contract.CreateSessionRequest` 的可选字段带 `omitempty`：只影响 Go 客户端（`sessioncmd`）发送的请求体，使其与原来的 map 请求一致；服务端解码时缺省字段与零值等价。
 - 请求类型（`contract.CreateSessionRequest`、`contract.CreateWorktreeRequest`、`contract.RemoveWorktreeRequest`、`contract.LaunchConfigInput`、`contract.CodeCheckRequest`、`contract.PushSubscriptionRequest` 等）由 `wire` 转成 Service 的输入结构。Service 输入结构去掉 json 标签，持久化类型除外。
 - 线上类型照搬原有的 json 标签、`omitempty`、指针与 nil 语义。空集合的序列化（如 snapshot 的 `sessions: []`、launch `env: {}`）由映射函数保证非 nil，或由 contract 类型自己的 `MarshalJSON` 保证，不靠调用方。
 
@@ -104,7 +105,7 @@ type Message struct {
 - `session` 继续在同一把锁下按原顺序把消息放进同一个有界队列，回放与实时订阅的无缝衔接、慢客户端断开、排空后再发布退出等语义都不变。0/1 号帧仍然是共享字节块，不复制。
 - Hub 写循环按字段分派：`Frame` 照旧参与输出合并；其余字段经 `wire` 转成 contract 类型，再由 `hub.jsonFrame` 编码后写出。`Exit` 写出后以 4410 关闭连接。
 - 入站 1 号帧 `{cols,rows}` 和 4 号帧 `{ids}` 都在 hub 中解码到 `contract.TerminalResize`、`contract.SubmissionQuery`，再调用 `session` 的类型化方法。`session` 里删除 JSON 解析代码。
-- `session.Frame` 不再用于 JSON 帧，改为 hub 内部的 `wire.Frame`/`contract` 帧常量。`cmd/baseline` 和测试构造入站帧时改用新的帧编码函数。帧类型字节在 `contract` 中定义为具名常量，前后端编号不变。
+- `session.Frame` 删除。帧类型字节在 `contract` 中定义为具名常量 `Frame*`（前后端编号不变），`contract.Frame(kind, payload)` 负责加类型字节；`hub.jsonFrame` 用它编码 JSON 帧，`cmd/baseline`、`attach` 和测试构造入站帧时也用它。放在只依赖标准库的 `contract` 而不是 hub，是因为服务器外的 `attach` 也要构造帧，而客户端不能导入 Controller。
 - `session.Event.MarshalJSON` 删除，形状迁到 `contract.SessionEvent` 及其 `MarshalJSON`（snapshot 时总是输出 `sessions`）。
 - 代价：2/5/6 号帧原来按订阅者共享一份已编码字节，现在每个订阅者编码一次。这些帧低频（状态变化、提交回执），订阅者数量也小。
   - 备选：`session` 产出 contract 类型。这会让 Service 依赖线上类型，违反 R10 的方向。
@@ -118,15 +119,15 @@ type Message struct {
 ### D8 迁出越界逻辑
 
 - `configId`：`workspace.Service.CreateSession` 改为接收 `workspace.SessionInput`（含 `ConfigID *string`）。互斥规则、`launch.Service.Get` 解析和 `session.ValidateEnv` 都在 Service 内，顺序保持"先校验，再做任何文件系统或 Git 操作"。`workspace.New` 增加 `*launch.Service` 参数，允许 nil，nil 时 `configId` 返回 `launch.ErrUnavailable`，即原来的 503 语义。
-- `internal/files`：`Service{defaultCwd}` 提供 `Complete(prefix)`、`Mkdir(path)`、`StoreUpload(ctx, name, io.Reader, limit)`。`uploadFilename` 校验、临时目录 0700、文件 0600、`O_EXCL`、失败清理都迁过去。Controller 保留 multipart 读取、`copyUpload` 的上下文取消与大小限制、状态码映射。`files` 的错误同样用哨兵错误。
-- `push.Validate` 并入 `push.Service.Subscribe`。
+- `internal/files`：`Service{defaultCwd}` 提供 `Complete(prefix)`、`Mkdir(path)`、`StoreUpload(name, io.Reader, limit) (*Upload, error)`。`uploadFilename` 校验、临时目录 0700、文件 0600、`O_EXCL`、按 `limit` 的有界复制、失败清理都迁过去；`Upload.Discard()` 让 Controller 在之后的检查失败时删除已落盘文件。Controller 保留 multipart 读取、用请求上下文包装读取器以支持取消、请求体大小限制和状态码映射。`files` 的错误同样用哨兵错误（`ErrInvalid`、`ErrTooLarge`、`ErrRead`、`ErrInternal`），`ErrRead` 保留读取错误本身，Controller 据此区分 408/413/400。
+- `push.Validate` 改为 `push.Service.CheckSubscription` 方法，`Register` 内部继续校验。实现时发现直接并入一次 `Subscribe` 调用会改变错误优先级：现有顺序是"推送不可用 409 → 订阅格式 400 → 来源 409 → 保存"，来源判断依赖请求，只能留在 Controller，所以校验保留为单独的方法调用，满足 R5，顺序与状态码不变。
 - `codeview.New` 由 `cmd/webmux/main.go` 和 `cmd/baseline` 构造。`api.New` 的可变参数 `codes ...*codeview.Service` 改为必填，`files.Service` 也通过参数注入。参数过多时改为 `api.Deps` 结构体，以免位置参数继续增长。
 - `ManagerHint` 移到 `internal/runtime`。`api/local.go` 和 `client/stop.go` 都改用新位置。
 - `os.Hostname()` 不属于 R4 的文件系统函数，保留在 Controller 中。
 - `ExpandPath` 移到共享包 `internal/pathutil`（`pathutil.Expand`），`session`、`config`、`client`、`files` 都改为调用它，不在 `session` 中保留转发。
 - 注意力种类 `AttentionKind` 及其常量移到共享包 `internal/attentionkind`（`attentionkind.Kind`），`session` 和 `config` 共用，不再在两处各维护一份枚举。
   - 备选：`config` 自己维护一份种类字符串列表，再用一个测试保证与 `session` 一致。两份枚举仍需同步，只是把漂移推迟到测试时才发现。
-- `config` 定义自己的 `Preset` 类型（TOML 标签不变，配置文件格式不变）。`Config.SessionOptions()` 删除，改为 `cmd/webmux` 中的 `sessionOptions(config.Config) session.Options`，在其中把 `config.Preset` 转成 `session.Preset`；`cmd/baseline` 等调用点同步迁移。`/api/presets` 由 `wire` 把 `config.Preset` 映射为 `contract.Preset`。AGENTS.md 中"配置转换为 `session.Options`"的接线描述改为由 `cmd/webmux` 完成。
+- `config` 定义自己的 `Preset` 类型（TOML 标签不变，配置文件格式不变）。`Config.SessionOptions()` 删除，改为装配根内的共享包 `cmd/internal/assemble` 中的 `SessionOptions(config.Config) session.Options`，在其中把 `config.Preset` 转成 `session.Preset`；`cmd/webmux` 与 `cmd/baseline` 都调用它（两个 `main` 包不能互相导入，放在 `cmd/internal` 下仍属于装配根，且 Go 的 internal 规则保证只有 `cmd/` 能导入）。`cmd/` 以外的测试各自写测试用的转换。`/api/presets` 由 `wire` 把 `config.Preset` 映射为 `contract.Preset`。AGENTS.md 中"配置转换为 `session.Options`"的接线描述改为由 `cmd/webmux` 完成。
 
 ### D9 线上兼容的验证
 
@@ -146,7 +147,7 @@ type Message struct {
 
 ## Migration Plan
 
-分 3 个 PR，每个 PR 都能单独合并、单独回滚。规则随对应迁移一起加入 archtest 和 fixture，不设"规则开关"或历史违规白名单：
+原计划分 3 个 PR；按维护者要求改为在同一个 PR（#117）中交付，但仍按下面三个阶段分别提交，每个阶段的提交自身测试全绿、可以单独回滚。规则随对应迁移一起加入 archtest 和 fixture，不设"规则开关"或历史违规白名单：
 
 1. **PR1 边界基础**：录制线上快照；加入 archtest 框架、R0–R7 及其 fixture；完成错误种类迁移、`internal/files`、`configId` 迁移、`push.Validate`、Service 构造移到 `cmd/`、`ManagerHint`、`pathutil`/`attentionkind`/`config.Preset`/`sessionOptions` 迁移。合并时 R0–R7 全绿，快照不变。
 2. **PR2 REST 线上类型**：新增 contract REST 类型和 `internal/wire`；`internal/api` 全部改为收发 contract 类型；`sessioncmd` 改用 `contract.SessionInfo`。加入 R8（汇点限定在 `internal/api`、`internal/wire`）和 R10。

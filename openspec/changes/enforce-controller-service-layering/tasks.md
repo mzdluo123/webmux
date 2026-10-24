@@ -23,7 +23,7 @@
 - [x] 4.1 新增 `internal/files`：`Complete`（排序、隐藏文件优先级、符号链接判断与原实现一致）、`Mkdir`、`StoreUpload`（文件名校验、临时目录 0700、文件 0600、`O_EXCL`、失败清理），带哨兵错误；把 `router_test`/`upload_test` 中的纯逻辑边界补成包内单元测试
 - [x] 4.2 `internal/api` 的 `dirs`、`mkdir`、`upload` 改为调用注入的 `files.Service`；Controller 只保留 multipart 读取、上下文取消、大小限制和状态码映射
 - [x] 4.3 `workspace.Service.CreateSession` 改为接收 `SessionInput`（含 `ConfigID`），把 `configId` 互斥规则、`launch.Service.Get` 和 `session.ValidateEnv` 迁入 Service，保持"校验先于任何文件系统和 Git 操作"；`workspace.New` 增加 `*launch.Service` 参数（nil 时返回 `launch.ErrUnavailable`）；为 `configId` 规则补包内测试
-- [x] 4.4 把 `push.Validate` 并入 `push.Service.Subscribe`，`api/push.go` 不再调用包级函数
+- [x] 4.4 把 `push.Validate` 改为 `push.Service.CheckSubscription` 方法（保持"不可用 → 格式 → 来源"的错误优先级），`api/push.go` 不再调用包级函数
 - [x] 4.5 `codeview.Service` 和 `files.Service` 改由 `cmd/webmux/main.go`、`cmd/baseline` 构造并注入；`api.New`/`api.NewLocal` 改用 `api.Deps` 结构体，删除可变参数 `codes`；迁移所有调用点，包括 `internal/tray/forward` 测试和 `internal/api` 测试
 - [x] 4.6 把 `ManagerHint` 移到 `internal/runtime`，`api/local.go` 与 `client/stop.go` 改用新位置
 
@@ -31,14 +31,14 @@
 
 - [x] 5.1 新增共享包 `internal/pathutil`，把 `session.ExpandPath` 及其测试迁过去；`session`、`config`、`client`、`files`、`api` 全部改为调用 `pathutil.Expand`，删除 `session.ExpandPath`
 - [x] 5.2 新增共享包 `internal/attentionkind`，迁入 `AttentionKind` 类型和常量；`session` 与 `config` 改用它，删除 `session` 中的定义
-- [x] 5.3 `internal/config` 定义 `Preset`（保留原有 TOML 与 json 标签，保证 `/api/presets` 快照在 PR1 中不变）；删除 `Config.SessionOptions()`，改为 `cmd/webmux` 中的 `sessionOptions(config.Config) session.Options`，在其中把 `config.Preset` 转成 `session.Preset`；迁移 `cmd/baseline` 和所有调用点与测试
+- [x] 5.3 `internal/config` 定义 `Preset`（保留原有 TOML 与 json 标签，保证 `/api/presets` 快照在 PR1 中不变）；删除 `Config.SessionOptions()`，改为 `cmd/internal/assemble.SessionOptions(config.Config) session.Options`（`cmd/webmux` 与 `cmd/baseline` 共用），在其中把 `config.Preset` 转成 `session.Preset`；迁移 `cmd/baseline` 和所有调用点与测试
 - [x] 5.4 确认 `internal/config`、`internal/client` 的非测试代码不再导入任何 Service 包或 Controller 包
 
 ## 6. PR1：收尾
 
 - [x] 6.1 `go test ./internal/archtest` 全绿；临时在某个 handler 中加入 `os.ReadDir`，确认 R4 报告了正确位置后撤销
 - [ ] 6.2 线上快照不变；运行 `go test -race ./...`、`make test-unit`、`make test-browser`、`make test-e2e`、`make check`
-- [ ] 6.3 更新 `docs/architecture.md`（分层表、R0–R7、例外表维护方式、新增包的归类流程、快照重新录制方式）、`AGENTS.md`（Key Directories、Code Conventions、配置到 `session.Options` 的接线描述）；在 `docs/user-stories.md` L 节新增 `US-L04 分层架构约束`，同步功能索引、来源链接与计数，运行 Markdown 格式与空白检查
+- [x] 6.3 更新 `docs/architecture.md`（分层表、R0–R7、例外表维护方式、新增包的归类流程、快照重新录制方式）、`AGENTS.md`（Key Directories、Code Conventions、配置到 `session.Options` 的接线描述）；在 `docs/user-stories.md` L 节新增 `US-L05 分层架构约束`（US-L04 已被"基线评测与多平台发布"占用），同步功能索引、来源链接与计数，运行 Markdown 格式与空白检查
 
 ## 7. PR2：REST 线上类型（R8 限于 api/wire、R10）
 
@@ -48,7 +48,7 @@
 - [x] 7.4 Service 输入结构（`workspace.CreateRequest`/`RemoveRequest`/`Reference`、`launch.Input`、`codeview.CheckRequest`）和 `config.Preset` 去掉 json 标签；持久化类型（`workspace.Repository`/`Worktree`、`launch.Config`、`push` 存储结构）保留标签，确认磁盘格式测试不变
 - [x] 7.5 `internal/sessioncmd` 删除本地 `sessionInfo` 副本，改用 `contract.SessionInfo`；`internal/api`、`cmd/webmux`、`internal/tray/forward` 测试中解码 `session.Info` 的地方改为 contract 类型
 - [x] 7.6 在 archtest 中加入 R8（汇点：`encoding/json` 编解码函数、`api.reply`/`decode`/`decodeOptional`，范围是 `internal/api` 与 `internal/wire`）和 R10，fixture 增加对应违规与"未登记 `any` 包装函数"的绕过样例
-- [ ] 7.7 archtest 全绿、线上快照不变；运行 `go test -race ./...` 与前端三套测试；更新 `docs/architecture.md` 的 R8/R10 与 `docs/protocol.md` 中引用 Go 类型位置的描述，并同步 `US-L04`
+- [ ] 7.7 archtest 全绿、线上快照不变；运行 `go test -race ./...` 与前端三套测试；更新 `docs/architecture.md` 的 R8/R10 与 `docs/protocol.md` 中引用 Go 类型位置的描述，并同步 `US-L05`
 
 ## 8. PR3：WebSocket 事件与终端帧（R8 扩展到 hub、R9）
 
@@ -58,4 +58,4 @@
 - [x] 8.4 删除 `session.Frame` 的对外用途：`cmd/baseline`、`internal/api` 测试改用 contract 帧常量和 Controller 层的帧编码函数；`session` 包内测试改为断言类型化消息
 - [x] 8.5 `internal/attach` 的 6 号帧与 3 号帧解码改用 `contract.ControlState`/`contract.ExitFrame`，1 号帧编码改用 `contract.TerminalResize`；`internal/tray` 的 `Watch` 改为解码 `contract.SessionEvent`；`internal/wslclient` 测试改用 contract 类型
 - [x] 8.6 在 archtest 中把 R8 汇点扩展到 `internal/hub`（含 `hub.jsonFrame`），加入 R9，fixture 增加对应违规样例
-- [ ] 8.7 archtest 全绿、线上快照不变；`continuity_test` 与回放相关测试在 `-race` 下通过；运行 `go test -race ./...`、`make test-unit`、`make test-browser`、`make test-e2e`、`make check`；更新 `docs/architecture.md` 的 R8/R9 与终端帧编码归属，并同步 `US-L04`
+- [ ] 8.7 archtest 全绿、线上快照不变；`continuity_test` 与回放相关测试在 `-race` 下通过；运行 `go test -race ./...`、`make test-unit`、`make test-browser`、`make test-e2e`、`make check`；更新 `docs/architecture.md` 的 R8/R9 与终端帧编码归属，并同步 `US-L05`
