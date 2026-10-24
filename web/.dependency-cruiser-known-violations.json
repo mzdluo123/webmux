@@ -1,0 +1,46 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/code-reader-panels.ts",
+    "to": "src/components/CodeGotoLine.svelte",
+    "unresolvedTo": "./components/CodeGotoLine.svelte",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "domain-does-not-render"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/code-reader-panels.ts",
+    "to": "src/components/CodeSearchPanel.svelte",
+    "unresolvedTo": "./components/CodeSearchPanel.svelte",
+    "dependencyTypes": ["local", "type-only", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "domain-does-not-render"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/code-search.ts",
+    "to": "src/components/CodeSearchPanel.svelte",
+    "unresolvedTo": "./components/CodeSearchPanel.svelte",
+    "dependencyTypes": ["local", "type-only", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "domain-does-not-render"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/codePopout.ts",
+    "to": "src/components/PopoutEventRoot.svelte",
+    "unresolvedTo": "./components/PopoutEventRoot.svelte",
+    "dependencyTypes": ["local", "import"],
+    "rule": {
+      "severity": "error",
+      "name": "domain-does-not-render"
+    }
+  }
+]
