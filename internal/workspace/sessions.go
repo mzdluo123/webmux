@@ -15,7 +15,7 @@ func (s *Service) beginStart(path string) error {
 	defer s.coord.Unlock()
 	for reserved := range s.reservations {
 		if within(reserved, path) {
-			return problem(409, "目标工作树正在删除，请稍后刷新")
+			return problem(ErrConflict, "目标工作树正在删除，请稍后刷新")
 		}
 	}
 	s.starts[path]++
@@ -35,7 +35,7 @@ func (s *Service) reserve(ctx context.Context, path string) error {
 	for reserved := range s.reservations {
 		if overlap(reserved, path) {
 			s.coord.Unlock()
-			return problem(409, "重叠工作树已有删除操作")
+			return problem(ErrConflict, "重叠工作树已有删除操作")
 		}
 	}
 	s.reservations[path] = true
@@ -155,14 +155,14 @@ func (s *Service) CreateSession(ctx context.Context, cwd, preset string, cmd, ar
 			return nil, err
 		}
 		if snapshot.Availability != "available" {
-			return nil, problem(503, "%s", snapshot.Error)
+			return nil, problem(ErrUnavailable, "%s", snapshot.Error)
 		}
 		tree, err := findTree(snapshot, reference.WorktreeID)
 		if err != nil {
 			return nil, err
 		}
 		if !tree.Available || tree.Kind == "bare" {
-			return nil, problem(409, "所选工作树不可作为启动目录: %s", tree.Error)
+			return nil, problem(ErrConflict, "所选工作树不可作为启动目录: %s", tree.Error)
 		}
 		selected = &tree
 		if cwd == "" {
@@ -174,17 +174,17 @@ func (s *Service) CreateSession(ctx context.Context, cwd, preset string, cmd, ar
 	}
 	path, err := canonical(cwd)
 	if err != nil {
-		return nil, problem(400, "directory: %v", err)
+		return nil, problem(ErrInvalid, "directory: %v", err)
 	}
 	stat, err := os.Stat(path)
 	if err != nil {
-		return nil, problem(400, "directory: %v", err)
+		return nil, problem(ErrInvalid, "directory: %v", err)
 	}
 	if !stat.IsDir() {
-		return nil, problem(400, "path is not a directory")
+		return nil, problem(ErrInvalid, "path is not a directory")
 	}
 	if selected != nil && !within(selected.Path, path) {
-		return nil, problem(400, "cwd 与所选工作树不一致")
+		return nil, problem(ErrInvalid, "cwd 与所选工作树不一致")
 	}
 	if err := s.beginStart(path); err != nil {
 		return nil, err
@@ -192,14 +192,14 @@ func (s *Service) CreateSession(ctx context.Context, cwd, preset string, cmd, ar
 	defer s.endStart(path)
 	association := s.association(ctx, path)
 	if selected != nil && (association == nil || association.RepositoryID != reference.RepositoryID || association.WorktreeID != reference.WorktreeID) {
-		return nil, problem(409, "所选工作树身份已变化或 cwd 属于嵌套仓库，请刷新")
+		return nil, problem(ErrConflict, "所选工作树身份已变化或 cwd 属于嵌套仓库，请刷新")
 	}
 	if err := requestCtx.Err(); err != nil {
 		return nil, err
 	}
 	item, err := s.manager.Create(path, preset, cmd, args, name, env)
 	if err != nil {
-		return nil, problem(400, "启动会话失败: %v", err)
+		return nil, problem(ErrInvalid, "启动会话失败: %v", err)
 	}
 	s.commitAssociation(item.Info(), association, false)
 	return item, nil

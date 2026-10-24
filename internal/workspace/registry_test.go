@@ -177,7 +177,7 @@ func TestRegistryFaultsDoNotPublishOrOverwrite(t *testing.T) {
 	if second.Capability().RegistryAvailable {
 		t.Fatal("second instance acquired same registry")
 	}
-	if _, _, err := second.Register(context.Background(), root); Status(err) != 503 {
+	if _, _, err := second.Register(context.Background(), root); errorKind(err) != ErrUnavailable {
 		t.Fatalf("second writer error: %v", err)
 	}
 	// Replace the destination with a directory: deterministic write failure even
@@ -205,7 +205,7 @@ func TestRegistryFaultsDoNotPublishOrOverwrite(t *testing.T) {
 	if broken.Capability().RegistryAvailable {
 		t.Fatal("corrupt registry accepted")
 	}
-	if _, _, err := broken.Register(context.Background(), root); Status(err) != 503 {
+	if _, _, err := broken.Register(context.Background(), root); errorKind(err) != ErrUnavailable {
 		t.Fatalf("corrupt writer error: %v", err)
 	}
 	data, _ := os.ReadFile(filepath.Join(state, "repositories.json"))
@@ -232,7 +232,7 @@ func TestNoGitAndNonRepositoryRemainDirect(t *testing.T) {
 	if s.Capability().GitAvailable {
 		t.Fatal("unexpected Git capability")
 	}
-	if _, _, err := s.Register(context.Background(), root); Status(err) != 503 {
+	if _, _, err := s.Register(context.Background(), root); errorKind(err) != ErrUnavailable {
 		t.Fatalf("missing Git error: %v", err)
 	}
 	item, err := s.CreateSession(context.Background(), "", "custom", []string{"/bin/sh", "-c", "printf DIRECT"}, nil, "", nil, nil)
@@ -250,7 +250,7 @@ func TestNonRepositoryDoesNotInitializeAndUnavailableEntryCanBeRemoved(t *testin
 	root := initRepo(t)
 	s, _ := testService(t, t.TempDir(), root)
 	ordinary := t.TempDir()
-	if _, _, err := s.Register(context.Background(), ordinary); Status(err) != 400 {
+	if _, _, err := s.Register(context.Background(), ordinary); errorKind(err) != ErrInvalid {
 		t.Fatalf("ordinary directory error: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(ordinary, ".git")); !os.IsNotExist(err) {

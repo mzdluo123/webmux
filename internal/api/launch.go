@@ -1,8 +1,6 @@
 package api
 
 import (
-	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/rainchan/webmux/internal/launch"
@@ -58,31 +56,4 @@ func (s *Server) launchRoutes(mux *http.ServeMux) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
-}
-
-// launchStatus maps launch store errors to HTTP statuses; anything else is a
-// failed save.
-func launchStatus(err error) int {
-	switch {
-	case errors.Is(err, launch.ErrInvalid):
-		return http.StatusBadRequest
-	case errors.Is(err, launch.ErrNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, launch.ErrDuplicate):
-		return http.StatusConflict
-	case errors.Is(err, launch.ErrUnavailable):
-		return http.StatusServiceUnavailable
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
-// launchFailure answers err. Store errors name fields and paths, never
-// environment values.
-func launchFailure(w http.ResponseWriter, err error) {
-	status := launchStatus(err)
-	if status == http.StatusInternalServerError {
-		slog.Error("launch config save failed", "error", err)
-	}
-	failure(w, status, err)
 }

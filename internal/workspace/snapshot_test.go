@@ -108,7 +108,7 @@ func TestConcurrentSnapshotsCoalesceAndCancelOnlyLastWaiter(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	cancelFirst()
-	if err := <-first; Status(err) != 504 {
+	if err := <-first; errorKind(err) != ErrTimeout {
 		release(repository)
 		t.Fatalf("cancelled reader: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestConcurrentSnapshotsCoalesceAndCancelOnlyLastWaiter(t *testing.T) {
 	final := make(chan error, 1)
 	go func() { _, err := s.snapshot(ctx, repository); final <- err }()
 	cancel()
-	if err := <-final; Status(err) != 504 {
+	if err := <-final; errorKind(err) != ErrTimeout {
 		release(repository)
 		t.Fatalf("sole cancelled reader: %v", err)
 	}

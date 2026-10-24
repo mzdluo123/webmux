@@ -14,9 +14,9 @@
 
 ## 3. PR1：错误种类迁移（R7）
 
-- [ ] 3.1 `internal/workspace`：用哨兵错误替换 `problem(status int, …)`，`Error` 保存 `kind error` 和原消息，实现 `Unwrap`；删除 `Status()`；包内测试改为 `errors.Is` 断言
-- [ ] 3.2 `internal/codeview`：同 3.1
-- [ ] 3.3 新增 `internal/api/errors.go`：集中映射 `workspace`、`codeview`、`launch`、`files` 的哨兵错误到 HTTP 状态码，搬入 `launchStatus`；替换全部 `workspace.Status`/`codeview.Status` 调用
+- [x] 3.1 `internal/workspace`：用哨兵错误替换 `problem(status int, …)`，`Error` 保存 `kind error` 和原消息，实现 `Unwrap`；删除 `Status()`；包内测试改为 `errors.Is` 断言
+- [x] 3.2 `internal/codeview`：同 3.1
+- [x] 3.3 新增 `internal/api/errors.go`：集中映射 `workspace`、`codeview`、`launch`、`files` 的哨兵错误到 HTTP 状态码，搬入 `launchStatus`；替换全部 `workspace.Status`/`codeview.Status` 调用
 
 ## 4. PR1：迁出越界逻辑（R2–R5）
 

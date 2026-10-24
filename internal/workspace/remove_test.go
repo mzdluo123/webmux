@@ -62,14 +62,14 @@ func TestSafeRemovalProtectsEveryContentCategoryAndRetainsBranches(t *testing.T)
 				t.Fatalf("incorrect blockers: %+v", preview)
 			}
 			err := s.RemoveWorktree(context.Background(), r.ID, tree.ID, RemoveRequest{ConfirmationID: preview.ConfirmationID, Mode: "safe"})
-			if Status(err) != 409 {
+			if errorKind(err) != ErrConflict {
 				t.Fatalf("unsafe safe removal: %v", err)
 			}
 			assertExists(t, tree.Path)
 			if item != nil && item.Info().Status == session.StatusExited {
 				t.Fatal("safe removal closed session")
 			}
-			if err := s.RemoveWorktree(context.Background(), r.ID, tree.ID, RemoveRequest{ConfirmationID: preview.ConfirmationID, Mode: "safe"}); Status(err) != 409 {
+			if err := s.RemoveWorktree(context.Background(), r.ID, tree.ID, RemoveRequest{ConfirmationID: preview.ConfirmationID, Mode: "safe"}); errorKind(err) != ErrConflict {
 				t.Fatal("confirmation reused")
 			}
 		})
@@ -133,7 +133,7 @@ func TestStaleConfirmationsRejectBeforeClosingPTY(t *testing.T) {
 				gitTest(t, root, "worktree", "add", tree.Path, "stale-"+change)
 			}
 			err = s.RemoveWorktree(context.Background(), r.ID, tree.ID, forceRequest(preview))
-			if Status(err) != 409 {
+			if errorKind(err) != ErrConflict {
 				t.Fatalf("stale %s confirmation: %v", change, err)
 			}
 			if item.Info().Status == session.StatusExited {
@@ -183,7 +183,7 @@ func TestForceRemovalRequiresExplicitAuthorizationAndWaitsForPTYCleanup(t *testi
 		} else {
 			req.CloseSessions = false
 		}
-		if err := s.RemoveWorktree(context.Background(), r.ID, tree.ID, req); Status(err) != 400 {
+		if err := s.RemoveWorktree(context.Background(), r.ID, tree.ID, req); errorKind(err) != ErrInvalid {
 			t.Fatalf("missing %s accepted: %v", invalid, err)
 		}
 		if item.Info().Status == session.StatusExited {
@@ -246,7 +246,7 @@ func TestUnsupportedRemovalAndReservationRelease(t *testing.T) {
 			if p.ForceAllowed {
 				t.Fatalf("%s enabled force", kind)
 			}
-			if err := s.RemoveWorktree(context.Background(), r.ID, tree.ID, forceRequest(p)); Status(err) != 409 {
+			if err := s.RemoveWorktree(context.Background(), r.ID, tree.ID, forceRequest(p)); errorKind(err) != ErrConflict {
 				t.Fatalf("unsupported removal: %v", err)
 			}
 			item, err := s.CreateSession(context.Background(), tree.Path, "custom", []string{"/bin/sh", "-c", "printf UNRESERVED"}, nil, "", nil, nil)
@@ -281,7 +281,7 @@ func TestDeletionReservationsBlockDirectAndSymlinkChildLaunches(t *testing.T) {
 		go func(path string) {
 			defer wg.Done()
 			_, err := s.CreateSession(context.Background(), path, "custom", []string{"/bin/sh", "-c", "printf BYPASS"}, nil, "", nil, nil)
-			if Status(err) != 409 {
+			if errorKind(err) != ErrConflict {
 				t.Errorf("deletion reservation bypassed by %q: %v", path, err)
 			}
 		}(path)
@@ -328,7 +328,7 @@ func TestDeleteWaitsForInflightLaunchThenRejectsStaleSessionSet(t *testing.T) {
 	s.endStart(tree.Path)
 	select {
 	case err := <-removed:
-		if Status(err) != 409 {
+		if errorKind(err) != ErrConflict {
 			t.Fatalf("inflight session not reconfirmed: %v", err)
 		}
 	case <-time.After(8 * time.Second):
@@ -354,7 +354,7 @@ func TestRemovalCancellationAndGitFailurePreserveTruth(t *testing.T) {
 	p := previewTest(t, s, r, tree)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := s.RemoveWorktree(ctx, r.ID, tree.ID, forceRequest(p)); Status(err) != 504 {
+	if err := s.RemoveWorktree(ctx, r.ID, tree.ID, forceRequest(p)); errorKind(err) != ErrTimeout {
 		t.Fatalf("cancelled removal: %v", err)
 	}
 	if item.Info().Status == session.StatusExited {

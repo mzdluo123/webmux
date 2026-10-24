@@ -275,7 +275,7 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := s.Workspace.CreateSession(r.Context(), req.Cwd, preset, cmd, args, req.Name, req.Workspace, env)
 	if err != nil {
-		failure(w, workspace.Status(err), err)
+		failure(w, workspaceStatus(err), err)
 		return
 	}
 	reply(w, 201, item.Info())

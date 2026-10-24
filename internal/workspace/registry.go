@@ -165,7 +165,7 @@ func (s *Service) save(entries []*repositoryState) error {
 }
 func (s *Service) requireRegistryLocked() error {
 	if !s.capability.RegistryAvailable {
-		return problem(503, "%s", s.capability.RegistryError)
+		return problem(ErrUnavailable, "%s", s.capability.RegistryError)
 	}
 	return nil
 }
@@ -180,7 +180,7 @@ func (s *Service) repository(id string) (*repositoryState, error) {
 			return r, nil
 		}
 	}
-	return nil, problem(404, "仓库不存在，请刷新")
+	return nil, problem(ErrNotFound, "仓库不存在，请刷新")
 }
 func (s *Service) registered(r *repositoryState) bool {
 	s.mu.Lock()
@@ -199,7 +199,7 @@ func (s *Service) Register(ctx context.Context, path string) (Repository, bool, 
 		return Repository{}, false, err
 	}
 	if path == "" {
-		return Repository{}, false, problem(400, "请选择仓库目录")
+		return Repository{}, false, problem(ErrInvalid, "请选择仓库目录")
 	}
 	common, anchor, err := s.locate(ctx, path)
 	if err != nil {
@@ -262,7 +262,7 @@ func (s *Service) Unregister(id string) error {
 		}
 	}
 	if !found {
-		return problem(404, "仓库不存在")
+		return problem(ErrNotFound, "仓库不存在")
 	}
 	if err := s.save(next); err != nil {
 		return fmt.Errorf("保存仓库清单: %w", err)

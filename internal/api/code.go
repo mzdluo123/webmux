@@ -18,7 +18,7 @@ func (s *Server) codeRoutes(mux *http.ServeMux) {
 			defer cancel()
 			value, err := fn(ctx, r)
 			if err != nil {
-				failure(w, codeview.Status(err), err)
+				failure(w, codeStatus(err), err)
 				return
 			}
 			w.Header().Set("Cache-Control", "no-store")
@@ -68,7 +68,7 @@ func (s *Server) codeRoutes(mux *http.ServeMux) {
 		defer cancel()
 		v, e := s.Code.Check(ctx, r.PathValue("id"), req)
 		if e != nil {
-			failure(w, codeview.Status(e), e)
+			failure(w, codeStatus(e), e)
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
@@ -85,7 +85,7 @@ func (s *Server) codeRaw(w http.ResponseWriter, r *http.Request) {
 	t, err := s.Code.Raw(ctx, r.PathValue("id"), r.PathValue("snapshotId"), q.Get("side"))
 	cancel()
 	if err != nil {
-		failure(w, codeview.Status(err), err)
+		failure(w, codeStatus(err), err)
 		return
 	}
 	defer t.Close()

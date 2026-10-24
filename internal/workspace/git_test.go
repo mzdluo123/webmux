@@ -81,7 +81,7 @@ func TestBareUnbornAndBranchBaselines(t *testing.T) {
 	if err != nil || branches.DefaultBase != nil || len(branches.Bases) != 0 {
 		t.Fatalf("unborn branches: %+v %v", branches, err)
 	}
-	if _, err := s.CreateWorktree(context.Background(), r.ID, CreateRequest{Path: filepath.Join(t.TempDir(), "unborn"), Mode: "new", Branch: "topic", Base: "HEAD"}); Status(err) != 400 {
+	if _, err := s.CreateWorktree(context.Background(), r.ID, CreateRequest{Path: filepath.Join(t.TempDir(), "unborn"), Mode: "new", Branch: "topic", Base: "HEAD"}); errorKind(err) != ErrInvalid {
 		t.Fatalf("unborn creation: %v", err)
 	}
 	item, err := s.CreateSession(context.Background(), "", "custom", []string{"/bin/sh", "-c", "printf UNBORN"}, nil, "", &Reference{r.ID, r.Worktrees[0].ID}, nil)
@@ -97,7 +97,7 @@ func TestBareUnbornAndBranchBaselines(t *testing.T) {
 	if err != nil || branches.DefaultBase != nil || len(branches.Bases) == 0 || branches.DefaultParent != bare+".worktrees" {
 		t.Fatalf("bare branches: %+v %v", branches, err)
 	}
-	if _, err := s.CreateSession(context.Background(), "", "custom", []string{"/bin/sh"}, nil, "", &Reference{br.ID, br.Worktrees[0].ID}, nil); Status(err) != 409 {
+	if _, err := s.CreateSession(context.Background(), "", "custom", []string{"/bin/sh"}, nil, "", &Reference{br.ID, br.Worktrees[0].ID}, nil); errorKind(err) != ErrConflict {
 		t.Fatalf("bare launch: %v", err)
 	}
 	tree, err := s.CreateWorktree(context.Background(), br.ID, CreateRequest{Path: filepath.Join(t.TempDir(), "bare linked"), Mode: "new", Branch: "topic", Base: "refs/heads/main"})
@@ -166,7 +166,7 @@ func TestCreationContractsAndNoEnvironmentCopy(t *testing.T) {
 	if string(data) != "retain" {
 		t.Fatal("existing directory overwritten")
 	}
-	if _, err := s.CreateSession(context.Background(), "", "custom", []string{"/missing/agent"}, nil, "", &Reference{r.ID, created.ID}, nil); Status(err) != 400 {
+	if _, err := s.CreateSession(context.Background(), "", "custom", []string{"/missing/agent"}, nil, "", &Reference{r.ID, created.ID}, nil); errorKind(err) != ErrInvalid {
 		t.Fatalf("agent failure: %v", err)
 	}
 	item, err := s.CreateSession(context.Background(), "", "custom", []string{"/bin/sh", "-c", "printf RETRY"}, nil, "", &Reference{r.ID, created.ID}, nil)
@@ -235,7 +235,7 @@ func TestFailedGitCreationExposesResidueAndCancellationReapsCommand(t *testing.T
 	cancel()
 	select {
 	case err := <-finished:
-		if Status(err) != 504 || time.Since(start) > 5*time.Second {
+		if errorKind(err) != ErrTimeout || time.Since(start) > 5*time.Second {
 			t.Fatalf("Git cancellation not bounded: %v %v", time.Since(start), err)
 		}
 	case <-time.After(5 * time.Second):

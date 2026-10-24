@@ -6,13 +6,6 @@ import (
 	"github.com/rainchan/webmux/internal/workspace"
 )
 
-func workspaceFailure(w http.ResponseWriter, err error) bool {
-	if err == nil {
-		return false
-	}
-	failure(w, workspace.Status(err), err)
-	return true
-}
 func (s *Server) workspaceRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/repositories", func(w http.ResponseWriter, r *http.Request) {
 		repositories, err := s.Workspace.List(r.Context())
