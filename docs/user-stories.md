@@ -180,7 +180,7 @@
 | US-I14 按路径打开             | 作为在终端里 `cd` 的使用者，我希望输入相对当前目录的路径直接打开文件，以便不必从代码根逐层查找。                | 相对路径以本机 Shell 报告目录为基点，无报告时用启动目录，也接受绝对路径；服务端解析符号链接后必须位于代码根内，目录跳转到文件树；远端报告、根外路径、`.git` 内部、不存在路径和特殊文件给出明确错误；读取仍走既有边界检查。                                                                                                                                                                                                     |
 | US-I15 预览与下载图片         | 作为远程核对 agent 产物的使用者，我希望在代码工作区直接查看图片并下载到当前设备，以便确认截图、图表等生成结果。 | PNG、JPEG、GIF、WebP、AVIF、BMP、ICO 按扩展名加文件头识别并预览，可适应窗口、1:1、缩放、拖动和双指缩放，显示格式、像素尺寸与大小；图片工具栏单行，窄屏触摸设备只保留适应窗口与 1:1，缩放靠双指；SVG 默认预览、可切源码，脚本与外部资源不生效；20 MiB 以上只显示元信息，100 MiB 内可下载且字节一致、保留原名；图片 Diff 显示变更与大小并可切换修改前/修改后版本；文件变化、快照过期、过大与未认证给出明确错误，token 不进 URL。 |
 
-依据：[代码面板](../web/src/components/CodePanel.svelte)、[独立窗口](../web/src/codePopout.ts)、[平台能力判断](../web/src/capabilities.ts)、[文件导航](../web/src/components/CodeNavigator.svelte)、[文件与 Diff 切换](../web/src/components/CodeDocumentView.svelte)、[文件阅读](../web/src/components/CodeReader.svelte)、[Diff 阅读](../web/src/components/CodeDiffReader.svelte)、[图片预览](../web/src/components/CodeImageView.svelte)、[代码引用](../web/src/code-reference.ts)、[代码服务](../internal/codeview/)、[代码接口](../internal/api/code.go)。
+依据：[代码面板](../web/src/components/CodePanel.svelte)、[独立窗口](../web/src/components/codePopout.ts)、[平台能力判断](../web/src/capabilities.ts)、[文件导航](../web/src/components/CodeNavigator.svelte)、[文件与 Diff 切换](../web/src/components/CodeDocumentView.svelte)、[文件阅读](../web/src/components/CodeReader.svelte)、[Diff 阅读](../web/src/components/CodeDiffReader.svelte)、[图片预览](../web/src/components/CodeImageView.svelte)、[代码引用](../web/src/code-reference.ts)、[代码服务](../internal/codeview/)、[代码接口](../internal/api/code.go)。
 
 ## J. 仓库登记与 worktree 管理
 

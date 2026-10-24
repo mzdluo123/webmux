@@ -30,7 +30,7 @@
   import { EditorView } from "@codemirror/view";
   import CodeDocumentView from "./CodeDocumentView.svelte";
   import type { TextInsertion } from "../terminal-draft.svelte";
-  import { popoutAvailable, popOut, type Popout } from "../codePopout";
+  import { popoutAvailable, popOut, type Popout } from "./codePopout";
   let {
     id,
     visible,
@@ -559,7 +559,7 @@
         >
       </div>
       <div
-        class="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:thin]"
+        class="flex min-w-0 flex-1 overflow-x-auto scrollbar-thin"
         role="tablist"
         aria-label="文件标签"
       >

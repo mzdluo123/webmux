@@ -336,15 +336,15 @@ test("4x CPU: settings and a large code file stay usable and stable", async ({
     .click();
   await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
   await page.getByRole("button", { name: "large.ts", exact: true }).click();
-  await expect(page.locator(".code-reader:visible .cm-content")).toContainText(
-    "export const value0",
-  );
-  const editor = page.locator(".code-reader:visible .cm-scroller");
+  await expect(
+    page.locator("[data-code-reader]:visible .cm-content"),
+  ).toContainText("export const value0");
+  const editor = page.locator("[data-code-reader]:visible .cm-scroller");
   await editor.evaluate(
     (element) => (element.scrollTop = element.scrollHeight),
   );
-  await expect(page.locator(".code-reader:visible .cm-content")).toContainText(
-    "export const value2999",
-  );
+  await expect(
+    page.locator("[data-code-reader]:visible .cm-content"),
+  ).toContainText("export const value2999");
   await performanceReport(page, testInfo, "large-code-file");
 });

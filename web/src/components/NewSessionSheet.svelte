@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { IconChevronDown } from "@tabler/icons-svelte";
+  import IconChevronDown from "~icons/tabler/chevron-down";
   import {
     api,
     APIError,
@@ -371,7 +371,7 @@
               正在读取启动配置…
             </p>
           {:else if launchConfigs.status === "unavailable"}
-            <p class="text-xs text-destructive [overflow-wrap:anywhere]">
+            <p class="text-xs text-destructive wrap-anywhere">
               启动配置暂不可用：{launchConfigs.error}
             </p>
           {:else if !configs.length}
@@ -386,7 +386,7 @@
               {#each configs as config (config.id)}
                 <button
                   type="button"
-                  class="grid min-w-0 gap-0.5 rounded-md border px-3 py-2 text-left outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-accent"
+                  class="grid min-w-0 gap-0.5 rounded-md border px-3 py-2 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-accent"
                   aria-label={`启动配置 ${config.name}`}
                   aria-pressed={launch === `config:${config.id}`}
                   onclick={() => {

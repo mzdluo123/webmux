@@ -16,15 +16,13 @@
     Decoration,
   } from "@codemirror/view";
   import { openSearchPanel } from "@codemirror/search";
-  import { codeReaderPanels, openGotoLine } from "../code-reader-panels";
+  import { codeReaderPanels, openGotoLine } from "./code-reader-panels";
   import { syntaxHighlighting } from "@codemirror/language";
   import { codeHighlightStyle } from "../code-highlight";
   import { Button } from "$lib/components/ui/button";
-  import {
-    IconListNumbers,
-    IconNumber,
-    IconSearch,
-  } from "@tabler/icons-svelte";
+  import IconListNumbers from "~icons/tabler/list-numbers";
+  import IconNumber from "~icons/tabler/number";
+  import IconSearch from "~icons/tabler/search";
   import { store, stored } from "../api";
   let {
     text,
@@ -327,7 +325,8 @@
   <div class="relative min-h-0 flex-1 overflow-hidden">
     <div
       bind:this={host}
-      class="code-reader h-full overflow-hidden"
+      data-code-reader
+      class="h-full overflow-hidden"
       aria-label="只读代码"
     ></div>
     {#if coarse && actionLine !== undefined && actionTop !== undefined && lineAction}

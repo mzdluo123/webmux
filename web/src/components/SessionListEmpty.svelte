@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { IconSearch, IconTerminal2 } from "@tabler/icons-svelte";
+  import IconSearch from "~icons/tabler/search";
+  import IconTerminal2 from "~icons/tabler/terminal-2";
   import { Button } from "$lib/components/ui/button";
   import * as Empty from "$lib/components/ui/empty";
 

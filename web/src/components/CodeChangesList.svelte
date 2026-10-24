@@ -2,17 +2,15 @@
   import { onMount, tick } from "svelte";
   import type { CodeChange } from "../schemas";
   import { Button } from "$lib/components/ui/button";
-  import {
-    IconAlertTriangle,
-    IconSquareLetterA,
-    IconSquareLetterC,
-    IconSquareLetterD,
-    IconSquareLetterM,
-    IconSquareLetterR,
-    IconSquareLetterT,
-    IconSquareLetterU,
-    IconSquareLetterX,
-  } from "@tabler/icons-svelte";
+  import IconAlertTriangle from "~icons/tabler/alert-triangle";
+  import IconSquareLetterA from "~icons/tabler/square-letter-a";
+  import IconSquareLetterC from "~icons/tabler/square-letter-c";
+  import IconSquareLetterD from "~icons/tabler/square-letter-d";
+  import IconSquareLetterM from "~icons/tabler/square-letter-m";
+  import IconSquareLetterR from "~icons/tabler/square-letter-r";
+  import IconSquareLetterT from "~icons/tabler/square-letter-t";
+  import IconSquareLetterU from "~icons/tabler/square-letter-u";
+  import IconSquareLetterX from "~icons/tabler/square-letter-x";
   let {
     entries,
     total,

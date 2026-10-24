@@ -1,6 +1,8 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { IconFolder, IconArrowUp, IconHome } from "@tabler/icons-svelte";
+  import IconFolder from "~icons/tabler/folder";
+  import IconArrowUp from "~icons/tabler/arrow-up";
+  import IconHome from "~icons/tabler/home";
   import { api } from "../api";
   import { DirectoriesSchema } from "../schemas";
   import { Button } from "$lib/components/ui/button";

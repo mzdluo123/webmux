@@ -5,9 +5,6 @@
     }
   },
   "src/components/CodeChangesList.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-inline-styles": {
       "count": 3
     },
@@ -17,7 +14,7 @@
   },
   "src/components/CodeDiffReader.svelte": {
     "shadcn/no-arbitrary-values": {
-      "count": 3
+      "count": 2
     }
   },
   "src/components/CodeDocumentView.svelte": {
@@ -29,14 +26,6 @@
     },
     "svelte/no-restricted-html-elements": {
       "count": 2
-    }
-  },
-  "src/components/CodeGotoLine.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
-    "shadcn/no-unknown-classes": {
-      "count": 1
     }
   },
   "src/components/CodeImageView.svelte": {
@@ -59,38 +48,23 @@
   },
   "src/components/CodePanel.svelte": {
     "shadcn/no-arbitrary-values": {
-      "count": 3
+      "count": 2
     },
     "svelte/no-restricted-html-elements": {
       "count": 2
     }
   },
   "src/components/CodeReader.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-inline-styles": {
-      "count": 1
-    },
-    "shadcn/no-unknown-classes": {
       "count": 1
     }
   },
   "src/components/CodeSearchPanel.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-restyle": {
       "count": 2
-    },
-    "shadcn/no-unknown-classes": {
-      "count": 1
     }
   },
   "src/components/DirectoryPicker.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-arbitrary-values": {
       "count": 1
     },
@@ -98,32 +72,15 @@
       "count": 5
     }
   },
-  "src/components/InlineNotice.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
-    "shadcn/no-arbitrary-values": {
-      "count": 1
-    }
-  },
   "src/components/LaunchConfigDialog.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-arbitrary-values": {
-      "count": 3
+      "count": 2
     },
     "shadcn/no-restyle": {
       "count": 3
     }
   },
   "src/components/NewSessionSheet.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
-    "shadcn/no-arbitrary-values": {
-      "count": 2
-    },
     "shadcn/no-restyle": {
       "count": 12
     },
@@ -132,9 +89,6 @@
     }
   },
   "src/components/QuickCommandDialog.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-arbitrary-values": {
       "count": 2
     },
@@ -143,9 +97,6 @@
     }
   },
   "src/components/QuickCommandMenu.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-arbitrary-values": {
       "count": 2
     },
@@ -165,9 +116,6 @@
     }
   },
   "src/components/RepositoryGroup.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-restyle": {
       "count": 7
     }
@@ -178,11 +126,8 @@
     }
   },
   "src/components/ScratchPanel.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-arbitrary-values": {
-      "count": 6
+      "count": 5
     },
     "shadcn/no-restyle": {
       "count": 16
@@ -192,9 +137,6 @@
     }
   },
   "src/components/SessionFilters.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-arbitrary-values": {
       "count": 1
     },
@@ -203,17 +145,11 @@
     }
   },
   "src/components/SessionListEmpty.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-restyle": {
       "count": 2
     }
   },
   "src/components/SessionRow.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-arbitrary-values": {
       "count": 1
     },
@@ -222,14 +158,6 @@
     },
     "shadcn/no-restyle": {
       "count": 6
-    },
-    "shadcn/no-unknown-classes": {
-      "count": 1
-    }
-  },
-  "src/components/SessionStatus.svelte": {
-    "shadcn/no-arbitrary-values": {
-      "count": 1
     }
   },
   "src/components/TerminalCopyDialog.svelte": {
@@ -246,11 +174,8 @@
     }
   },
   "src/components/TerminalInputComposer.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-arbitrary-values": {
-      "count": 4
+      "count": 2
     },
     "shadcn/no-restyle": {
       "count": 1
@@ -283,40 +208,15 @@
     }
   },
   "src/components/TunnelSettings.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
-    "shadcn/no-arbitrary-values": {
-      "count": 2
-    },
     "shadcn/no-restyle": {
       "count": 4
     }
   },
   "src/components/WorkspaceGroup.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-arbitrary-values": {
       "count": 3
     },
     "shadcn/no-restyle": {
-      "count": 1
-    }
-  },
-  "src/components/WorkspaceHeader.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
-    "shadcn/no-unknown-classes": {
-      "count": 1
-    }
-  },
-  "src/components/WorkspaceToolbar.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
-    "shadcn/no-unknown-classes": {
       "count": 1
     }
   },
@@ -331,11 +231,8 @@
     }
   },
   "src/pages/Settings.svelte": {
-    "no-restricted-imports": {
-      "count": 1
-    },
     "shadcn/no-arbitrary-values": {
-      "count": 3
+      "count": 1
     },
     "shadcn/no-inline-styles": {
       "count": 1

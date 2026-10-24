@@ -1,14 +1,12 @@
 <script lang="ts">
-  import {
-    IconArrowDown,
-    IconArrowUp,
-    IconArrowUpRight,
-    IconDots,
-    IconInbox,
-    IconPlus,
-    IconTrash,
-    IconX,
-  } from "@tabler/icons-svelte";
+  import IconArrowDown from "~icons/tabler/arrow-down";
+  import IconArrowUp from "~icons/tabler/arrow-up";
+  import IconArrowUpRight from "~icons/tabler/arrow-up-right";
+  import IconDots from "~icons/tabler/dots";
+  import IconInbox from "~icons/tabler/inbox";
+  import IconPlus from "~icons/tabler/plus";
+  import IconTrash from "~icons/tabler/trash";
+  import IconX from "~icons/tabler/x";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import InlineNotice from "./InlineNotice.svelte";
   import { Button } from "$lib/components/ui/button";
@@ -378,7 +376,7 @@
         rows={2}
         maxlength={scratchEntryLimit}
         placeholder="记下稍后要做的事…"
-        class="h-20 min-h-20 resize-none font-mono [field-sizing:fixed]"
+        class="h-20 min-h-20 resize-none font-mono field-sizing-fixed"
         autocapitalize="off"
         autocorrect="off"
         spellcheck={false}

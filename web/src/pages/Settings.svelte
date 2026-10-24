@@ -1,13 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    IconArrowDown,
-    IconArrowUp,
-    IconBolt,
-    IconPlus,
-    IconRocket,
-    IconTrash,
-  } from "@tabler/icons-svelte";
+  import IconArrowDown from "~icons/tabler/arrow-down";
+  import IconArrowUp from "~icons/tabler/arrow-up";
+  import IconBolt from "~icons/tabler/bolt";
+  import IconPlus from "~icons/tabler/plus";
+  import IconRocket from "~icons/tabler/rocket";
+  import IconTrash from "~icons/tabler/trash";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -146,6 +144,16 @@
   });
 </script>
 
+{#snippet deleteButton(label: string, onclick: () => void)}
+  <Button
+    variant="ghost"
+    size="icon-sm"
+    aria-label={`删除 ${label}`}
+    title="删除"
+    {onclick}><IconTrash aria-hidden="true" /></Button
+  >
+{/snippet}
+
 <div class="safe-area-page min-h-dvh">
   <header class="app-header border-b bg-card">
     <div
@@ -201,7 +209,7 @@
               <Item.Root variant="outline" size="sm">
                 <button
                   type="button"
-                  class="flex min-w-0 flex-1 flex-col gap-1 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  class="flex min-w-0 flex-1 flex-col gap-1 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                   aria-label={`编辑 ${label}`}
                   onclick={() => edit(cmd)}
                 >
@@ -233,16 +241,10 @@
                     onclick={() => move(index, 1)}
                     ><IconArrowDown aria-hidden="true" /></Button
                   >
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`删除 ${label}`}
-                    title="删除"
-                    onclick={() => {
-                      deleting = cmd;
-                      deleteOpen = true;
-                    }}><IconTrash aria-hidden="true" /></Button
-                  >
+                  {@render deleteButton(label, () => {
+                    deleting = cmd;
+                    deleteOpen = true;
+                  })}
                 </Item.Actions>
               </Item.Root>
             {/each}
@@ -320,7 +322,7 @@
               <Item.Root variant="outline" size="sm">
                 <button
                   type="button"
-                  class="flex min-w-0 flex-1 flex-col gap-1 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  class="flex min-w-0 flex-1 flex-col gap-1 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                   aria-label={`编辑 ${config.name}`}
                   onclick={() => editLaunchConfig(config.id)}
                 >
@@ -337,17 +339,11 @@
                   >
                 </button>
                 <Item.Actions class="gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`删除 ${config.name}`}
-                    title="删除"
-                    onclick={() => {
-                      launchDeleting = config;
-                      launchDeleteError = "";
-                      launchDeleteOpen = true;
-                    }}><IconTrash aria-hidden="true" /></Button
-                  >
+                  {@render deleteButton(config.name, () => {
+                    launchDeleting = config;
+                    launchDeleteError = "";
+                    launchDeleteOpen = true;
+                  })}
                 </Item.Actions>
               </Item.Root>
             {/each}

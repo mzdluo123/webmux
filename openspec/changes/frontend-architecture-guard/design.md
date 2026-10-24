@@ -56,7 +56,7 @@
 | ESLint             | bulk suppressions（`eslint-suppressions.json`，按文件 + 规则计数）             |
 | dependency-cruiser | `--baseline` / `--ignore-known`（`.dependency-cruiser-known-violations.json`） |
 | jscpd              | `--baseline` + `--fail-on-new-clones=0`（`.jscpd-baseline.json`）              |
-| knip               | 无基线；未使用的导出和类型暂为 `warn`，其余为 `error`                          |
+| knip               | 无基线；未使用的导出和类型先为 `warn`，清理后（tasks 2.1）升为 `error`         |
 
 所有规则直接设为 `error`。新代码立即受约束，同时不必在每个文件中写禁用注释。`arch:ratchet` 依次运行 `eslint --prune-suppressions`、`depcruise --baseline-mode shrink-only` 和 `jscpd --update-baseline`，最后用 Oxfmt 格式化基线文件。
 

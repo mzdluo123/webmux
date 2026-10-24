@@ -1,11 +1,9 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import {
-    IconEye,
-    IconEyeOff,
-    IconPlus,
-    IconTrash,
-  } from "@tabler/icons-svelte";
+  import IconEye from "~icons/tabler/eye";
+  import IconEyeOff from "~icons/tabler/eye-off";
+  import IconPlus from "~icons/tabler/plus";
+  import IconTrash from "~icons/tabler/trash";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -291,9 +289,7 @@
                     spellcheck={false}
                     aria-invalid={!!rowErrors?.name}
                   />
-                  <div
-                    class="flex min-w-0 flex-[2] basis-48 items-center gap-1"
-                  >
+                  <div class="flex min-w-0 flex-2 basis-48 items-center gap-1">
                     <Input
                       class="min-w-0 flex-1 font-mono"
                       type={revealed[envRow.key] ? "text" : "password"}

@@ -7,7 +7,8 @@
   import { selectPreview } from "../preview";
   import { copyText } from "../clipboard";
   import { locationHints } from "../session-location";
-  import { IconArrowUpRight, IconDots } from "@tabler/icons-svelte";
+  import IconArrowUpRight from "~icons/tabler/arrow-up-right";
+  import IconDots from "~icons/tabler/dots";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as Item from "$lib/components/ui/item";
@@ -64,7 +65,8 @@
   data-status={session.status}
 >
   <a
-    class="session-link group block w-full min-w-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    data-session-link
+    class="group block w-full min-w-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     aria-label={session.title}
     href={`/s/${session.id}`}
     onclick={(event) => {

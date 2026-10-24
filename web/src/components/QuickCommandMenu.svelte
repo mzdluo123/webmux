@@ -1,10 +1,8 @@
 <script lang="ts">
-  import {
-    IconBolt,
-    IconCornerDownLeft,
-    IconPlus,
-    IconSettings,
-  } from "@tabler/icons-svelte";
+  import IconBolt from "~icons/tabler/bolt";
+  import IconCornerDownLeft from "~icons/tabler/corner-down-left";
+  import IconPlus from "~icons/tabler/plus";
+  import IconSettings from "~icons/tabler/settings";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { coarseTouchMinHeight } from "$lib/touch-targets";
