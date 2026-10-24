@@ -8,12 +8,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rainchan/webmux/internal/pathutil"
 )
 
 type Preset struct {
@@ -82,18 +83,6 @@ func NewManager(o Options) *Manager {
 	return m
 }
 
-// ExpandPath expands a leading "~/" and makes the path absolute.
-func ExpandPath(path string) (string, error) {
-	if path == "~" || strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		path = filepath.Join(home, strings.TrimPrefix(path, "~"))
-	}
-	return filepath.Abs(path)
-}
-
 // Create starts a session. env holds explicit variables added to the
 // server's environment for this session only (see ValidateEnv).
 func (m *Manager) Create(cwd, preset string, cmd, args []string, name string, env map[string]string) (*Session, error) {
@@ -106,7 +95,7 @@ func (m *Manager) Create(cwd, preset string, cmd, args []string, name string, en
 	if cwd == "" {
 		cwd = m.options.DefaultCwd
 	}
-	cwd, err := ExpandPath(cwd)
+	cwd, err := pathutil.Expand(cwd)
 	if err != nil {
 		return nil, err
 	}

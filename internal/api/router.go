@@ -12,6 +12,7 @@ import (
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/workspace"
@@ -321,7 +322,7 @@ func (s *Server) dirs(w http.ResponseWriter, r *http.Request) {
 	if prefix == "" {
 		prefix = s.Config.DefaultCwd + string(os.PathSeparator)
 	}
-	expanded, err := session.ExpandPath(prefix)
+	expanded, err := pathutil.Expand(prefix)
 	if err != nil {
 		failure(w, 400, err)
 		return
@@ -375,7 +376,7 @@ func (s *Server) mkdir(w http.ResponseWriter, r *http.Request) {
 		failure(w, 400, errors.New("path required"))
 		return
 	}
-	p, err := session.ExpandPath(req.Path)
+	p, err := pathutil.Expand(req.Path)
 	if err == nil {
 		err = os.MkdirAll(p, 0755)
 	}

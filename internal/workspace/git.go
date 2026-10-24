@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/pathutil"
 )
 
 const (
@@ -51,7 +51,7 @@ func (s *Service) git(ctx context.Context, cwd string, args ...string) ([]byte, 
 	return stdout.Bytes(), nil
 }
 func canonical(path string) (string, error) {
-	path, err := session.ExpandPath(path)
+	path, err := pathutil.Expand(path)
 	if err != nil {
 		return "", err
 	}
@@ -60,7 +60,7 @@ func canonical(path string) (string, error) {
 
 // canonicalTarget resolves existing ancestors too, including symlinked parents.
 func canonicalTarget(path string) (string, error) {
-	path, err := session.ExpandPath(path)
+	path, err := pathutil.Expand(path)
 	if err != nil {
 		return "", err
 	}

@@ -27,9 +27,9 @@ type launchHarness struct {
 
 func newLaunchHarness(t *testing.T, store *launch.Service) *launchHarness {
 	t.Helper()
-	presets := []session.Preset{{Name: "fixed", Cmd: []string{"/bin/echo", "fixed"}}}
+	presets := []config.Preset{{Name: "fixed", Cmd: []string{"/bin/echo", "fixed"}}}
 	cwd := t.TempDir()
-	m := session.NewManager(session.Options{DefaultCwd: cwd, Presets: presets})
+	m := session.NewManager(session.Options{DefaultCwd: cwd, Presets: testPresets(presets)})
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
 		defer cancel()

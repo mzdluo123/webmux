@@ -15,11 +15,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rainchan/webmux/cmd/internal/assemble"
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/tunnel"
@@ -155,11 +157,11 @@ func loadConfig(args []string) (serverRun, error) {
 	flags.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
 	run := serverRun{ConfigExplicit: explicit["config"]}
 	var err error
-	if run.ConfigPath, err = session.ExpandPath(*path); err != nil {
+	if run.ConfigPath, err = pathutil.Expand(*path); err != nil {
 		return run, err
 	}
 	if *logFile != "" {
-		if run.LogFile, err = session.ExpandPath(*logFile); err != nil {
+		if run.LogFile, err = pathutil.Expand(*logFile); err != nil {
 			return run, err
 		}
 	}
@@ -252,7 +254,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	m := session.NewManager(c.SessionOptions())
+	m := session.NewManager(assemble.SessionOptions(c.Config))
 	workspaces := workspace.New(c.StateDir, m, c.DefaultCwd)
 	defer workspaces.Close()
 	// Opening never fails: a locked, corrupt or unreadable store only

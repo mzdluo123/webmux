@@ -29,9 +29,9 @@
 
 ## 5. PR1：解除共享层与客户端对 Service 的依赖（R1）
 
-- [ ] 5.1 新增共享包 `internal/pathutil`，把 `session.ExpandPath` 及其测试迁过去；`session`、`config`、`client`、`files`、`api` 全部改为调用 `pathutil.Expand`，删除 `session.ExpandPath`
-- [ ] 5.2 新增共享包 `internal/attentionkind`，迁入 `AttentionKind` 类型和常量；`session` 与 `config` 改用它，删除 `session` 中的定义
-- [ ] 5.3 `internal/config` 定义 `Preset`（保留原有 TOML 与 json 标签，保证 `/api/presets` 快照在 PR1 中不变）；删除 `Config.SessionOptions()`，改为 `cmd/webmux` 中的 `sessionOptions(config.Config) session.Options`，在其中把 `config.Preset` 转成 `session.Preset`；迁移 `cmd/baseline` 和所有调用点与测试
+- [x] 5.1 新增共享包 `internal/pathutil`，把 `session.ExpandPath` 及其测试迁过去；`session`、`config`、`client`、`files`、`api` 全部改为调用 `pathutil.Expand`，删除 `session.ExpandPath`
+- [x] 5.2 新增共享包 `internal/attentionkind`，迁入 `AttentionKind` 类型和常量；`session` 与 `config` 改用它，删除 `session` 中的定义
+- [x] 5.3 `internal/config` 定义 `Preset`（保留原有 TOML 与 json 标签，保证 `/api/presets` 快照在 PR1 中不变）；删除 `Config.SessionOptions()`，改为 `cmd/webmux` 中的 `sessionOptions(config.Config) session.Options`，在其中把 `config.Preset` 转成 `session.Preset`；迁移 `cmd/baseline` 和所有调用点与测试
 - [ ] 5.4 确认 `internal/config`、`internal/client` 的非测试代码不再导入任何 Service 包或 Controller 包
 
 ## 6. PR1：收尾

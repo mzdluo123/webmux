@@ -31,8 +31,8 @@ func recorder(path string) []string {
 
 func newContinuityFixture(t *testing.T, argv []string) *continuityFixture {
 	t.Helper()
-	presets := []session.Preset{{Name: "record", Cmd: argv}}
-	m := session.NewManager(session.Options{DefaultCwd: t.TempDir(), Presets: presets})
+	presets := []config.Preset{{Name: "record", Cmd: argv}}
+	m := session.NewManager(session.Options{DefaultCwd: t.TempDir(), Presets: testPresets(presets)})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(func() {
 		cancel()

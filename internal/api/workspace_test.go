@@ -45,7 +45,7 @@ func workspaceAPI(t *testing.T) (http.Handler, *workspace.Service, *session.Mana
 		}
 	}
 	c := config.Config{DefaultCwd: root, Token: "secret"}
-	m := session.NewManager(c.SessionOptions())
+	m := session.NewManager(testSessionOptions(c))
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()

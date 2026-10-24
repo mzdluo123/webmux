@@ -296,12 +296,12 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	t.Cleanup(pushService.Close)
 	rec.norm.path(pushService.URL, "<push-service>")
 
-	presets := []session.Preset{{Name: "shell", Label: "Shell", Cmd: []string{"/bin/sh"}, AllowArgs: true}}
+	presets := []config.Preset{{Name: "shell", Label: "Shell", Cmd: []string{"/bin/sh"}, AllowArgs: true}}
 	c := config.Config{
 		Listen: "127.0.0.1:7681", Token: "secret", DefaultCwd: root, Presets: presets,
 		Push: config.PushConfig{Enabled: true, Subject: config.DefaultPushSubject, Kinds: config.DefaultPushKinds()},
 	}
-	m := session.NewManager(c.SessionOptions())
+	m := session.NewManager(testSessionOptions(c))
 	pushes := push.New(c.Push, t.TempDir(), m, slog.New(slog.NewTextHandler(io.Discard, nil)), pushService.Client().Transport)
 	launches := launch.Open(t.TempDir())
 	codes := codeview.New(m)

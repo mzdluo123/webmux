@@ -29,7 +29,7 @@ func TestProtocolAndSecurity(t *testing.T) {
 	if err = c.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	m := session.NewManager(c.SessionOptions())
+	m := session.NewManager(testSessionOptions(c))
 	server := httptest.NewServer(New(c, m, testWorkspace(t, m, c.DefaultCwd), nil, nil, nil, nil))
 	defer server.Close()
 	defer func() {
@@ -286,11 +286,11 @@ func TestCustomCommandExecutesLiteralArgvInSelectedDirectory(t *testing.T) {
 }
 
 func TestSessionCreationRejectsCommandConflicts(t *testing.T) {
-	presets := []session.Preset{
+	presets := []config.Preset{
 		{Name: "fixed", Cmd: []string{"/bin/echo", "fixed"}},
 		{Name: "with-args", Cmd: []string{"/bin/echo", "preset"}, AllowArgs: true},
 	}
-	m := session.NewManager(session.Options{DefaultCwd: t.TempDir(), Presets: presets})
+	m := session.NewManager(session.Options{DefaultCwd: t.TempDir(), Presets: testPresets(presets)})
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
 		defer cancel()

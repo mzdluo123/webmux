@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/rainchan/webmux/cmd/internal/assemble"
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/session"
@@ -53,7 +54,7 @@ func newFixture() *fixture {
 	c.ScrollbackBytes = capacity
 	c.Shell = "/bin/bash"
 	must(c.Validate())
-	f.manager = session.NewManager(c.SessionOptions())
+	f.manager = session.NewManager(assemble.SessionOptions(c))
 	f.workspace = workspace.New(c.StateDir, f.manager, root)
 	f.server = httptest.NewServer(api.New(c, f.manager, f.workspace, nil, nil, nil, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

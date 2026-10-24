@@ -49,7 +49,7 @@ func newBackend(t *testing.T) *backend {
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	m := session.NewManager(c.SessionOptions())
+	m := session.NewManager(session.Options{DefaultCwd: c.DefaultCwd, ScrollbackBytes: c.ScrollbackBytes})
 	ws := workspace.New(c.StateDir, m, c.DefaultCwd)
 	b := &backend{addr: l.Addr().String()}
 	handler := api.New(c, m, ws, nil, nil, nil, nil)

@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/statefile"
 )
@@ -89,7 +90,7 @@ func (s *Service) Close() {
 }
 func (s *Service) Capability() Capability { s.mu.Lock(); defer s.mu.Unlock(); return s.capability }
 func (s *Service) load() error {
-	expanded, err := session.ExpandPath(s.stateDir)
+	expanded, err := pathutil.Expand(s.stateDir)
 	if err != nil {
 		return err
 	}
