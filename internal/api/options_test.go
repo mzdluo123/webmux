@@ -1,6 +1,7 @@
 package api
 
 import (
+	"testing"
 	"time"
 
 	"github.com/rainchan/webmux/internal/codeview"
@@ -8,7 +9,6 @@ import (
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/workspace"
-	"testing"
 )
 
 // testSessionOptions mirrors cmd/internal/assemble, which tests outside cmd/

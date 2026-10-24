@@ -52,10 +52,10 @@
 
 ## 8. PR3：WebSocket 事件与终端帧（R8 扩展到 hub、R9）
 
-- [ ] 8.1 在 `internal/contract` 新增 `terminal.go`（帧类型常量、`StreamPosition`、`SubmissionStatus`、`ControlState`、`ExitFrame`、`TerminalResize`、`SubmissionQuery`）和 `SessionEvent` 及其 `MarshalJSON`（snapshot 总是输出 `sessions`）；在 `wire` 中补齐映射
-- [ ] 8.2 `internal/session`：`Subscriber.Out` 改为 `chan Message`；`jsonFrame`、3 号帧的 `json.Marshal` 和 `event.go` 的 `MarshalJSON` 改为发出类型化消息，入队位置、锁范围和顺序不变；0/1 号帧继续共享字节块；1 号入站帧的 JSON 解析改为接收已解码 `cols, rows` 的类型化方法
-- [ ] 8.3 `internal/hub`：写循环按 `Message` 字段分派，`Frame` 参与原有输出合并，其余字段经 `wire` 转换后由 `hub.jsonFrame` 编码；`Exit` 写出后以 4410 关闭；入站 1/4 号帧解码到 `contract.TerminalResize`/`SubmissionQuery`；`/ws/sessions` 改为编码 `contract.SessionEvent`
-- [ ] 8.4 删除 `session.Frame` 的对外用途：`cmd/baseline`、`internal/api` 测试改用 contract 帧常量和 Controller 层的帧编码函数；`session` 包内测试改为断言类型化消息
-- [ ] 8.5 `internal/attach` 的 6 号帧与 3 号帧解码改用 `contract.ControlState`/`contract.ExitFrame`，1 号帧编码改用 `contract.TerminalResize`；`internal/tray` 的 `Watch` 改为解码 `contract.SessionEvent`；`internal/wslclient` 测试改用 contract 类型
-- [ ] 8.6 在 archtest 中把 R8 汇点扩展到 `internal/hub`（含 `hub.jsonFrame`），加入 R9，fixture 增加对应违规样例
+- [x] 8.1 在 `internal/contract` 新增 `terminal.go`（帧类型常量、`StreamPosition`、`SubmissionStatus`、`ControlState`、`ExitFrame`、`TerminalResize`、`SubmissionQuery`）和 `SessionEvent` 及其 `MarshalJSON`（snapshot 总是输出 `sessions`）；在 `wire` 中补齐映射
+- [x] 8.2 `internal/session`：`Subscriber.Out` 改为 `chan Message`；`jsonFrame`、3 号帧的 `json.Marshal` 和 `event.go` 的 `MarshalJSON` 改为发出类型化消息，入队位置、锁范围和顺序不变；0/1 号帧继续共享字节块；1 号入站帧的 JSON 解析改为接收已解码 `cols, rows` 的类型化方法
+- [x] 8.3 `internal/hub`：写循环按 `Message` 字段分派，`Frame` 参与原有输出合并，其余字段经 `wire` 转换后由 `hub.jsonFrame` 编码；`Exit` 写出后以 4410 关闭；入站 1/4 号帧解码到 `contract.TerminalResize`/`SubmissionQuery`；`/ws/sessions` 改为编码 `contract.SessionEvent`
+- [x] 8.4 删除 `session.Frame` 的对外用途：`cmd/baseline`、`internal/api` 测试改用 contract 帧常量和 Controller 层的帧编码函数；`session` 包内测试改为断言类型化消息
+- [x] 8.5 `internal/attach` 的 6 号帧与 3 号帧解码改用 `contract.ControlState`/`contract.ExitFrame`，1 号帧编码改用 `contract.TerminalResize`；`internal/tray` 的 `Watch` 改为解码 `contract.SessionEvent`；`internal/wslclient` 测试改用 contract 类型
+- [x] 8.6 在 archtest 中把 R8 汇点扩展到 `internal/hub`（含 `hub.jsonFrame`），加入 R9，fixture 增加对应违规样例
 - [ ] 8.7 archtest 全绿、线上快照不变；`continuity_test` 与回放相关测试在 `-race` 下通过；运行 `go test -race ./...`、`make test-unit`、`make test-browser`、`make test-e2e`、`make check`；更新 `docs/architecture.md` 的 R8/R9 与终端帧编码归属，并同步 `US-L04`

@@ -155,3 +155,30 @@ func CodeCheck(c codeview.Check) contract.CodeCheck { return contract.CodeCheck(
 func CodeCheckRequest(r contract.CodeCheckRequest) codeview.CheckRequest {
 	return codeview.CheckRequest(r)
 }
+
+// SessionEvent converts one session list event.
+func SessionEvent(e session.Event) contract.SessionEvent {
+	out := contract.SessionEvent{Type: e.Type, Sessions: Sessions(e.Sessions), ID: e.ID}
+	if e.Session != nil {
+		info := Session(*e.Session)
+		out.Session = &info
+	}
+	return out
+}
+
+func StreamPosition(p session.Position) contract.StreamPosition {
+	return contract.StreamPosition(p)
+}
+
+func SubmissionStatus(s session.SubmissionStatus) contract.SubmissionStatus {
+	return contract.SubmissionStatus{ID: s.ID, State: string(s.State), Error: s.Error}
+}
+
+func ControlState(c session.ControlState) contract.ControlState {
+	out := contract.ControlState{Cols: c.Cols, Rows: c.Rows, ColorSchemeReports: c.ColorSchemeReports}
+	if c.Controller != nil {
+		controller := contract.TerminalController(*c.Controller)
+		out.Controller = &controller
+	}
+	return out
+}

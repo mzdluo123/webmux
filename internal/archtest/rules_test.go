@@ -34,6 +34,12 @@ var fixture = manifest{
 		"internal/wirectl.reply": {arg: 0, typeArg: -1},
 		"internal/wirectl.serve": {typeArg: 0},
 	},
+	encoders: map[string]string{
+		"internal/svc.digest":            "fixture digest",
+		"internal/svc.(*Service).Encode": "fixture method",
+		"internal/svc.removed":           "stale registration",
+		"internal/shared.notAService":    "registration outside a service",
+	},
 }
 
 var wantComment = regexp.MustCompile(`\bwant((?: R\d+)+)\s*$`)
@@ -50,6 +56,8 @@ func TestRulesOnFixture(t *testing.T) {
 	want := map[string]bool{
 		"internal/unlisted:0 R0": true,
 		"internal/ghost:0 R0":    true,
+		"internal/svc:0 R0":      true,
+		"internal/shared:0 R0":   true,
 	}
 	for _, pkg := range p.pkgs {
 		for _, file := range pkg.Syntax {
@@ -116,7 +124,7 @@ func TestViolationsReportedTogether(t *testing.T) {
 			t.Errorf("unsorted: %q before %q", violations[i-1], v)
 		}
 	}
-	for _, rule := range []string{"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R10"} {
+	for _, rule := range []string{"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10"} {
 		if !rules[rule] {
 			t.Errorf("no %s violation in one run", rule)
 		}

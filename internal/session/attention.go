@@ -22,9 +22,9 @@ const bellQuietPeriod = time.Second
 // Attention latches a signal that the session needs the user. Output never
 // clears it; only user input, an agent's resume event, or exit does.
 type Attention struct {
-	Kind   attentionkind.Kind `json:"kind"`
-	Source AttentionSource    `json:"source"`
-	Since  time.Time          `json:"since"`
+	Kind   attentionkind.Kind
+	Source AttentionSource
+	Since  time.Time
 }
 
 func attentionRank(kind attentionkind.Kind) int {

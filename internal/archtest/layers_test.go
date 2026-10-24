@@ -51,7 +51,7 @@ var webmux = manifest{
 		"internal/push": "delivers Web Push messages to browser push services",
 	},
 	contract:  "internal/contract",
-	wireScope: []string{"internal/api", "internal/wire"},
+	wireScope: []string{"internal/api", "internal/wire", "internal/hub"},
 	// The controller's JSON boundary: their values are checked where they
 	// are called.
 	sinks: map[string]sink{
@@ -59,6 +59,13 @@ var webmux = manifest{
 		"internal/api.decode":         {arg: 2, typeArg: -1},
 		"internal/api.decodeOptional": {arg: 2, typeArg: -1},
 		"internal/api.serveCode":      {typeArg: 0},
+		"internal/hub.jsonFrame":      {arg: 1, typeArg: -1},
+	},
+	encoders: map[string]string{
+		"internal/push.payload":     "Web Push message body, read by the service worker",
+		"internal/push.testPayload": "Web Push test message body",
+		"internal/push.vapidHeader": "VAPID JWT header and claims sent to push services",
+		"internal/codeview.version": "content digest of a snapshot, never sent as JSON",
 	},
 }
 

@@ -34,10 +34,10 @@ type Options struct {
 	DisableBellAttention bool
 }
 type Event struct {
-	Type     string `json:"type"`
-	Sessions []Info `json:"sessions,omitempty"`
-	Session  *Info  `json:"session,omitempty"`
-	ID       string `json:"id,omitempty"`
+	Type     string
+	Sessions []Info
+	Session  *Info
+	ID       string
 }
 type ListSubscriber struct {
 	Out    chan Event

@@ -250,7 +250,7 @@ func TestWorkspaceMetadataUsesExistingWebSocketProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var event session.Event
+	var event contract.SessionEvent
 	if err := json.Unmarshal(data, &event); err != nil {
 		t.Fatal(err)
 	}

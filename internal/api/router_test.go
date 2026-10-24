@@ -106,7 +106,7 @@ func TestProtocolAndSecurity(t *testing.T) {
 	if err != nil || kind != websocket.MessageBinary || p[0] != 1 {
 		t.Fatalf("initial frame %v %v %v", kind, p, err)
 	}
-	if err = conn.Write(ctx, websocket.MessageBinary, session.Frame(0, []byte("printf 'FINAL_OUTPUT_MARKER\\n'; exit 6\n"))); err != nil {
+	if err = conn.Write(ctx, websocket.MessageBinary, contract.Frame(0, []byte("printf 'FINAL_OUTPUT_MARKER\\n'; exit 6\n"))); err != nil {
 		t.Fatal(err)
 	}
 	for {
@@ -263,8 +263,8 @@ func TestCustomCommandExecutesLiteralArgvInSelectedDirectory(t *testing.T) {
 	deadline := time.After(5 * time.Second)
 	for {
 		select {
-		case frame := <-sub.Out:
-			if frame[0] != 3 {
+		case m := <-sub.Out:
+			if m.Exit == nil {
 				continue
 			}
 			info = wire.Session(item.Info())

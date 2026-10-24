@@ -23,6 +23,7 @@ import (
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/workspace"
@@ -156,7 +157,7 @@ func readContext(ctx context.Context, c *websocket.Conn) []byte {
 func write(c *websocket.Conn, p []byte) {
 	ctx, cancel := timeout()
 	defer cancel()
-	must(c.Write(ctx, websocket.MessageBinary, session.Frame(0, p)))
+	must(c.Write(ctx, websocket.MessageBinary, contract.Frame(0, p)))
 }
 func until(c *websocket.Conn, marker []byte) []byte {
 	ctx, cancel := timeout()

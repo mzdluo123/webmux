@@ -45,6 +45,10 @@ type manifest struct {
 	// sinks are the scope's own JSON wrappers: "pkg.func" to the index of
 	// the value argument, or of the type parameter for a generic wrapper.
 	sinks map[string]sink
+	// encoders are the service functions ("pkg.func" or "pkg.(*T).method")
+	// allowed to encode JSON, with the reason: outbound protocol payloads
+	// and internal digests, never client-visible wire shapes.
+	encoders map[string]string
 }
 
 // sink locates the JSON value of a call: argument arg, or type argument
@@ -193,6 +197,7 @@ func (p *program) check() []violation {
 		case service:
 			p.checkServiceHTTP(rel, pkg)
 			p.checkServiceErrors(pkg)
+			p.checkServiceJSON(pkg)
 		}
 	}
 	return p.sorted()
@@ -217,6 +222,12 @@ func (p *program) checkManifest() {
 	for rel := range p.m.layers {
 		if _, ok := p.pkgs[rel]; !ok {
 			p.reportPackage(rel, "R0", "remove the stale entry from the layer manifest", "manifest lists %s, which does not exist", rel)
+		}
+	}
+	for key := range p.m.encoders {
+		rel, _, _ := strings.Cut(key, ".")
+		if p.m.layers[rel] != service {
+			p.reportPackage(rel, "R0", "only service functions register JSON encoding", "encoder registration %s is not in a service package", key)
 		}
 	}
 	for rel := range p.m.outbound {
@@ -647,6 +658,61 @@ func (p *program) checkContractTypes(pkg *packages.Package) {
 		}
 		if inner, bad := walk(obj.Type()); bad {
 			p.report(obj.Pos(), "R8", "copy the fields into contract types; convert in internal/wire", "contract type %s contains %s", obj.Name(), inner)
+		}
+	}
+}
+
+// jsonEncoders are the encoding/json functions that produce JSON.
+var jsonEncoders = map[string]bool{"Marshal": true, "MarshalIndent": true, "(*Encoder).Encode": true}
+
+// R9: services do not encode client-visible JSON. They declare no
+// MarshalJSON and encode only in registered functions. Persistence goes
+// through internal/statefile, a shared package outside this rule.
+func (p *program) checkServiceJSON(pkg *packages.Package) {
+	info := pkg.TypesInfo
+	used := map[string]bool{}
+	for _, file := range pkg.Syntax {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			if fn.Name.Name == "MarshalJSON" && fn.Recv != nil {
+				p.report(fn.Name.Pos(), "R9", "define the wire shape, and its MarshalJSON, in internal/contract", "service declares MarshalJSON")
+			}
+			if fn.Body == nil {
+				continue
+			}
+			key := ""
+			if obj, ok := info.Defs[fn.Name].(*types.Func); ok {
+				key = p.sinkKey(obj)
+			}
+			_, registered := p.m.encoders[key]
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				id, ok := n.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				callee, ok := info.Uses[id].(*types.Func)
+				if !ok || callee.Pkg() == nil || callee.Pkg().Path() != "encoding/json" {
+					return true
+				}
+				name := strings.TrimPrefix(p.sinkKey(callee.Origin()), "encoding/json.")
+				if !jsonEncoders[name] {
+					return true
+				}
+				if registered {
+					used[key] = true
+					return true
+				}
+				p.report(id.Pos(), "R9", "return data and let the controller encode a contract type, or register the function in layers_test.go", "service function %s calls json.%s", fn.Name.Name, name)
+				return true
+			})
+		}
+	}
+	for key := range p.m.encoders {
+		if rel, ok := p.rel(pkg.PkgPath); ok && strings.HasPrefix(key, rel+".") && !used[key] {
+			p.reportPackage(rel, "R0", "remove the stale entry from the encoder registrations", "registered encoder %s does not encode JSON", key)
 		}
 	}
 }

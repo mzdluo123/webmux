@@ -5,6 +5,7 @@ import (
 	"context"
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/session"
 	"net/http/httptest"
 	"strings"
@@ -42,7 +43,7 @@ func TestDisconnectDuringBlockedInputDetachesClient(t *testing.T) {
 			break
 		}
 	}
-	if err = conn.Write(ctx, websocket.MessageBinary, session.Frame(0, bytes.Repeat([]byte("x"), 512*1024))); err != nil {
+	if err = conn.Write(ctx, websocket.MessageBinary, contract.Frame(0, bytes.Repeat([]byte("x"), 512*1024))); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(50 * time.Millisecond)
