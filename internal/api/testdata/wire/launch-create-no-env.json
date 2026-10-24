@@ -1,0 +1,13 @@
+{
+  "status": 201,
+  "body": {
+    "cmd": [
+      "bash"
+    ],
+    "createdAt": "<time>",
+    "env": {},
+    "id": "<id#7>",
+    "name": "Shell",
+    "updatedAt": "<time>"
+  }
+}

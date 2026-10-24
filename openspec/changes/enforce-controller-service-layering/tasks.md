@@ -1,8 +1,8 @@
 ## 1. PR1：线上快照基线
 
-- [ ] 1.1 新增 `internal/api/wire_snapshot_test.go` 和 `internal/api/testdata/wire/`：在当前代码上为每个 REST 端点录制规范化 JSON 快照（只归一化时间、随机 ID、临时路径），覆盖 `/api/health`、`/api/presets`、`/api/config`、会话 CRUD、`/api/fs/dirs`、上传、仓库与 worktree 全部路由、启动配置 CRUD、推送状态/订阅/测试、代码视图全部路由，以及 400/403/404/409/413/503 错误体
-- [ ] 1.2 为 `/ws/sessions` 的 snapshot（含空列表）、created、updated、removed 事件，以及 `/ws/s/{id}` 的 2/3/4/5/6 号 JSON 帧录制快照
-- [ ] 1.3 实现 `-update` 重新录制开关；比较失败时输出端点和 JSON 差异；在当前代码上通过后提交，作为永久测试
+- [x] 1.1 新增 `internal/api/wire_snapshot_test.go` 和 `internal/api/testdata/wire/`：在当前代码上为每个 REST 端点录制规范化 JSON 快照（只归一化时间、随机 ID、临时路径），覆盖 `/api/health`、`/api/presets`、`/api/config`、会话 CRUD、`/api/fs/dirs`、上传、仓库与 worktree 全部路由、启动配置 CRUD、推送状态/订阅/测试、代码视图全部路由，以及 400/403/404/409/413/503 错误体
+- [x] 1.2 为 `/ws/sessions` 的 snapshot（含空列表）、created、updated、removed 事件，以及 `/ws/s/{id}` 的 2/3/4/5/6 号 JSON 帧录制快照
+- [x] 1.3 实现 `-update` 重新录制开关；比较失败时输出端点和 JSON 差异；在当前代码上通过后提交，作为永久测试
 
 ## 2. PR1：架构测试框架与 R0–R7
 
