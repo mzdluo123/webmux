@@ -63,7 +63,7 @@
 
 ### 6. Diff 分类
 
-- `capture` 后：两侧均为 SVG 文本 → 走原有文本 Diff；否则若每一侧要么 `mediaType` 为图片（含超预览上限的图片与 SVG），要么来源为 `empty`，且至少一侧为图片 → `kind: "image"`，`reason` 为空；其他非文本组合 → `metadata`，图片与非图片混合时 `reason: "图片与非图片内容不能对比"`。
+- `capture` 后：两侧都是存在的文本（SVG 对 SVG、SVG 对普通文本）或都不是图片的文本 → 走原有文本 Diff；否则若每一侧要么 `mediaType` 为图片（含超预览上限的图片与 SVG），要么来源为 `empty`，且至少一侧为图片 → `kind: "image"`（因此新增或删除的 SVG 显示为图片差异），`reason` 为空；其他非文本组合 → `metadata`，图片与非图片混合时 `reason: "图片与非图片内容不能对比"`。
 - 冲突（`U*`）仍优先为 `metadata`。新增/删除/修改由前端根据 `change.status` 与两侧来源呈现。
 
 ### 7. 前端
