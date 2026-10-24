@@ -163,11 +163,11 @@ type Diff struct {
 	Change   Change    `json:"change"`
 }
 type CheckRequest struct {
-	Context        string            `json:"contextId"`
-	Snapshots      []string          `json:"snapshotIds"`
-	Directories    map[string]string `json:"directories"`
-	Changes        string            `json:"changesVersion"`
-	IncludeIgnored bool              `json:"includeIgnored"`
+	Context        string
+	Snapshots      []string
+	Directories    map[string]string
+	Changes        string
+	IncludeIgnored bool
 }
 type Check struct {
 	Snapshots   map[string]string `json:"snapshots"`

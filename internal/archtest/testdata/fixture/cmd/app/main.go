@@ -6,6 +6,7 @@ import (
 	_ "example.com/fixture/internal/client"
 	_ "example.com/fixture/internal/ctrl"
 	_ "example.com/fixture/internal/svchttp"
+	_ "example.com/fixture/internal/wirectl"
 )
 
 func main() { _ = api.New() }

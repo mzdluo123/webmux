@@ -42,12 +42,12 @@
 
 ## 7. PR2：REST 线上类型（R8 限于 api/wire、R10）
 
-- [ ] 7.1 在 `internal/contract` 中按资源新增 REST 线上类型：`sessions.go`（`SessionInfo` 及嵌套、`Preset`、`CreateSessionRequest`）、`workspace.go`、`launch.go`、`push.go`、`code.go`、`api.go`（`APIHealth`、`ServerConfig`、`TunnelInfo`、`DirectoryList`、`UploadResult`、`PushConflict`、`Ack`、复用 `ErrorResponse`）；json 标签、`omitempty`、指针语义逐字段照搬原类型
-- [ ] 7.2 新增 Controller 层包 `internal/wire`：Service/config 类型与 contract 类型之间的双向映射，保证空切片和空映射按原形状输出；为空值和 nil 边界写单元测试；把 `wire` 加入分层清单
-- [ ] 7.3 `internal/api` 全部 handler 改为编码和解码 contract 类型：`reply`/`failure`/`decode`/`decodeOptional` 只接收 contract 值；`code.go` 的 `any` 闭包改为返回具体类型的泛型 helper；`TunnelInfo` 从 `api/config.go` 移到 `contract`
-- [ ] 7.4 Service 输入结构（`workspace.CreateRequest`/`RemoveRequest`/`Reference`、`launch.Input`、`codeview.CheckRequest`）和 `config.Preset` 去掉 json 标签；持久化类型（`workspace.Repository`/`Worktree`、`launch.Config`、`push` 存储结构）保留标签，确认磁盘格式测试不变
-- [ ] 7.5 `internal/sessioncmd` 删除本地 `sessionInfo` 副本，改用 `contract.SessionInfo`；`internal/api`、`cmd/webmux`、`internal/tray/forward` 测试中解码 `session.Info` 的地方改为 contract 类型
-- [ ] 7.6 在 archtest 中加入 R8（汇点：`encoding/json` 编解码函数、`api.reply`/`decode`/`decodeOptional`，范围是 `internal/api` 与 `internal/wire`）和 R10，fixture 增加对应违规与"未登记 `any` 包装函数"的绕过样例
+- [x] 7.1 在 `internal/contract` 中按资源新增 REST 线上类型：`sessions.go`（`SessionInfo` 及嵌套、`Preset`、`CreateSessionRequest`）、`workspace.go`、`launch.go`、`push.go`、`code.go`、`api.go`（`APIHealth`、`ServerConfig`、`TunnelInfo`、`DirectoryList`、`UploadResult`、`PushConflict`、`Ack`、复用 `ErrorResponse`）；json 标签、`omitempty`、指针语义逐字段照搬原类型
+- [x] 7.2 新增 Controller 层包 `internal/wire`：Service/config 类型与 contract 类型之间的双向映射，保证空切片和空映射按原形状输出；为空值和 nil 边界写单元测试；把 `wire` 加入分层清单
+- [x] 7.3 `internal/api` 全部 handler 改为编码和解码 contract 类型：`reply`/`failure`/`decode`/`decodeOptional` 只接收 contract 值；`code.go` 的 `any` 闭包改为返回具体类型的泛型 helper；`TunnelInfo` 从 `api/config.go` 移到 `contract`
+- [x] 7.4 Service 输入结构（`workspace.CreateRequest`/`RemoveRequest`/`Reference`、`launch.Input`、`codeview.CheckRequest`）和 `config.Preset` 去掉 json 标签；持久化类型（`workspace.Repository`/`Worktree`、`launch.Config`、`push` 存储结构）保留标签，确认磁盘格式测试不变
+- [x] 7.5 `internal/sessioncmd` 删除本地 `sessionInfo` 副本，改用 `contract.SessionInfo`；`internal/api`、`cmd/webmux`、`internal/tray/forward` 测试中解码 `session.Info` 的地方改为 contract 类型
+- [x] 7.6 在 archtest 中加入 R8（汇点：`encoding/json` 编解码函数、`api.reply`/`decode`/`decodeOptional`，范围是 `internal/api` 与 `internal/wire`）和 R10，fixture 增加对应违规与"未登记 `any` 包装函数"的绕过样例
 - [ ] 7.7 archtest 全绿、线上快照不变；运行 `go test -race ./...` 与前端三套测试；更新 `docs/architecture.md` 的 R8/R10 与 `docs/protocol.md` 中引用 Go 类型位置的描述，并同步 `US-L04`
 
 ## 8. PR3：WebSocket 事件与终端帧（R8 扩展到 hub、R9）

@@ -22,6 +22,7 @@ import (
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/workspace"
@@ -134,7 +135,7 @@ func TestRelayCarriesRESTAndTerminal(t *testing.T) {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("create through relay: %d %s", resp.StatusCode, body)
 	}
-	var info session.Info
+	var info contract.SessionInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		t.Fatal(err)
 	}

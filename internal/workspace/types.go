@@ -103,20 +103,20 @@ type Branches struct {
 	DefaultParent string   `json:"defaultParent"`
 }
 type Reference struct {
-	RepositoryID string `json:"repositoryId"`
-	WorktreeID   string `json:"worktreeId"`
+	RepositoryID string
+	WorktreeID   string
 }
 type CreateRequest struct {
-	Path   string `json:"path"`
-	Mode   string `json:"mode"`
-	Branch string `json:"branch"`
-	Base   string `json:"base"`
+	Path   string
+	Mode   string
+	Branch string
+	Base   string
 }
 type RemoveRequest struct {
-	ConfirmationID string `json:"confirmationId"`
-	Mode           string `json:"mode"`
-	ConfirmPath    string `json:"confirmPath"`
-	CloseSessions  bool   `json:"closeSessions"`
+	ConfirmationID string
+	Mode           string
+	ConfirmPath    string
+	CloseSessions  bool
 }
 type Preview struct {
 	ConfirmationID string         `json:"confirmationId"`

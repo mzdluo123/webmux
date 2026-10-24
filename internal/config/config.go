@@ -32,13 +32,12 @@ type Config struct {
 	Push             PushConfig   `toml:"push"`
 }
 
-// Preset is a configured launch command. The json tags are the
-// /api/presets response shape until that endpoint gets its own wire type.
+// Preset is a configured launch command.
 type Preset struct {
-	Name      string   `json:"name" toml:"name"`
-	Label     string   `json:"label" toml:"label"`
-	Cmd       []string `json:"cmd" toml:"cmd"`
-	AllowArgs bool     `json:"allowArgs" toml:"allow_args"`
+	Name      string   `toml:"name"`
+	Label     string   `toml:"label"`
+	Cmd       []string `toml:"cmd"`
+	AllowArgs bool     `toml:"allow_args"`
 }
 
 // TunnelConfig selects a Cloudflare Tunnel. An empty Token means a Quick

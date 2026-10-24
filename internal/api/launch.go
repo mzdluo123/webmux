@@ -3,7 +3,8 @@ package api
 import (
 	"net/http"
 
-	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/wire"
 )
 
 // launchRoutes serves the saved launch configs. The list carries environment
@@ -15,7 +16,7 @@ func (s *Server) launchRoutes(mux *http.ServeMux) {
 			launchFailure(w, err)
 			return
 		}
-		reply(w, http.StatusOK, list)
+		reply(w, http.StatusOK, wire.LaunchSummaries(list))
 	})
 	mux.HandleFunc("GET /api/launch-configs/{id}", func(w http.ResponseWriter, r *http.Request) {
 		item, err := s.Launch.Get(r.PathValue("id"))
@@ -23,31 +24,31 @@ func (s *Server) launchRoutes(mux *http.ServeMux) {
 			launchFailure(w, err)
 			return
 		}
-		reply(w, http.StatusOK, item)
+		reply(w, http.StatusOK, wire.LaunchConfig(item))
 	})
 	mux.HandleFunc("POST /api/launch-configs", func(w http.ResponseWriter, r *http.Request) {
-		var req launch.Input
+		var req contract.LaunchConfigInput
 		if !decode(w, r, &req) {
 			return
 		}
-		item, err := s.Launch.Create(req)
+		item, err := s.Launch.Create(wire.LaunchInput(req))
 		if err != nil {
 			launchFailure(w, err)
 			return
 		}
-		reply(w, http.StatusCreated, item)
+		reply(w, http.StatusCreated, wire.LaunchConfig(item))
 	})
 	mux.HandleFunc("PUT /api/launch-configs/{id}", func(w http.ResponseWriter, r *http.Request) {
-		var req launch.Input
+		var req contract.LaunchConfigInput
 		if !decode(w, r, &req) {
 			return
 		}
-		item, err := s.Launch.Update(r.PathValue("id"), req)
+		item, err := s.Launch.Update(r.PathValue("id"), wire.LaunchInput(req))
 		if err != nil {
 			launchFailure(w, err)
 			return
 		}
-		reply(w, http.StatusOK, item)
+		reply(w, http.StatusOK, wire.LaunchConfig(item))
 	})
 	mux.HandleFunc("DELETE /api/launch-configs/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if err := s.Launch.Delete(r.PathValue("id")); err != nil {

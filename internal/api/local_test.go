@@ -179,12 +179,12 @@ func TestLocalConfigReportsRuntimeTunnel(t *testing.T) {
 		t.Fatalf("status %d: %s", w.Code, w.Body.String())
 	}
 	var response struct {
-		Tunnel TunnelInfo `json:"tunnel"`
+		Tunnel contract.TunnelInfo `json:"tunnel"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatal(err)
 	}
-	want := TunnelInfo{Enabled: true, State: contract.TunnelReady, PublicURL: "https://abc-def.trycloudflare.com"}
+	want := contract.TunnelInfo{Enabled: true, State: contract.TunnelReady, PublicURL: "https://abc-def.trycloudflare.com"}
 	if response.Tunnel != want {
 		t.Fatalf("tunnel = %+v, want %+v", response.Tunnel, want)
 	}

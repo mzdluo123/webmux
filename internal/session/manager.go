@@ -18,10 +18,10 @@ import (
 )
 
 type Preset struct {
-	Name      string   `json:"name" toml:"name"`
-	Label     string   `json:"label" toml:"label"`
-	Cmd       []string `json:"cmd" toml:"cmd"`
-	AllowArgs bool     `json:"allowArgs" toml:"allow_args"`
+	Name      string
+	Label     string
+	Cmd       []string
+	AllowArgs bool
 }
 type Options struct {
 	ScrollbackBytes int

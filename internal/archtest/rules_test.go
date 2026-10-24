@@ -24,8 +24,16 @@ var fixture = manifest{
 		"internal/statefile": shared,
 		"internal/client":    client,
 		"internal/ghost":     shared,
+		"internal/contract":  shared,
+		"internal/wirectl":   controller,
 	},
-	outbound: map[string]string{"internal/svcout": "fixture outbound client"},
+	outbound:  map[string]string{"internal/svcout": "fixture outbound client"},
+	contract:  "internal/contract",
+	wireScope: []string{"internal/wirectl"},
+	sinks: map[string]sink{
+		"internal/wirectl.reply": {arg: 0, typeArg: -1},
+		"internal/wirectl.serve": {typeArg: 0},
+	},
 }
 
 var wantComment = regexp.MustCompile(`\bwant((?: R\d+)+)\s*$`)
@@ -108,7 +116,7 @@ func TestViolationsReportedTogether(t *testing.T) {
 			t.Errorf("unsorted: %q before %q", violations[i-1], v)
 		}
 	}
-	for _, rule := range []string{"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7"} {
+	for _, rule := range []string{"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R10"} {
 		if !rules[rule] {
 			t.Errorf("no %s violation in one run", rule)
 		}

@@ -38,6 +38,19 @@ type manifest struct {
 	// outbound lists service packages that send HTTP requests, with the
 	// reason. They may use net/http client symbols only.
 	outbound map[string]string
+	// contract is the wire type package.
+	contract string
+	// wireScope are the packages whose JSON values must be contract types.
+	wireScope []string
+	// sinks are the scope's own JSON wrappers: "pkg.func" to the index of
+	// the value argument, or of the type parameter for a generic wrapper.
+	sinks map[string]sink
+}
+
+// sink locates the JSON value of a call: argument arg, or type argument
+// typeArg when typeArg >= 0.
+type sink struct {
+	arg, typeArg int
 }
 
 type violation struct {
@@ -168,6 +181,12 @@ func (p *program) check() []violation {
 		pkg := p.pkgs[rel]
 		l := p.layerOf(rel)
 		p.checkImports(rel, l, pkg)
+		if p.inWireScope(rel) {
+			p.checkWireValues(rel, pkg)
+		}
+		if rel == p.m.contract {
+			p.checkContractTypes(pkg)
+		}
 		switch l {
 		case controller:
 			p.checkControllerUses(pkg)
@@ -248,7 +267,9 @@ func (p *program) checkImports(rel string, l layer, pkg *packages.Package) {
 					p.report(spec.Pos(), "R1", "WebSocket and HTTP test servers belong to the controller", "service %s imports %s", rel, path)
 				}
 			case shared, client:
-				if target == controller || target == service {
+				if rel == p.m.contract && (target == controller || target == service) {
+					p.report(spec.Pos(), "R10", "wire types may use the standard library only; convert in internal/wire", "contract imports %s %s", target, path)
+				} else if target == controller || target == service {
 					p.report(spec.Pos(), "R1", "move the needed code into a shared package (for example internal/pathutil or internal/contract)", "%s package %s imports %s %s", l, rel, target, path)
 				}
 			case controller:
@@ -406,6 +427,226 @@ func (p *program) checkServiceErrors(pkg *packages.Package) {
 					p.report(decl.Name.Pos(), "R7", "return an error kind; the controller owns HTTP statuses", "service declares Status returning an integer")
 				}
 			}
+		}
+	}
+}
+
+func (p *program) inWireScope(rel string) bool {
+	for _, scope := range p.m.wireScope {
+		if rel == scope {
+			return true
+		}
+	}
+	return false
+}
+
+// jsonSinks are the encoding/json entry points and their value argument.
+var jsonSinks = map[string]int{
+	"Marshal": 0, "MarshalIndent": 0, "Unmarshal": 1, "(*Encoder).Encode": 0, "(*Decoder).Decode": 0,
+}
+
+// sinkKey names fn as "pkg.Func" or "pkg.(*T).Method", with pkg relative to
+// the module for module code.
+func (p *program) sinkKey(fn *types.Func) string {
+	path := fn.Pkg().Path()
+	if rel, ok := p.rel(path); ok {
+		path = rel
+	}
+	name := fn.Name()
+	if recv := fn.Type().(*types.Signature).Recv(); recv != nil {
+		t := recv.Type()
+		star := ""
+		if ptr, ok := t.(*types.Pointer); ok {
+			t, star = ptr.Elem(), "*"
+		}
+		if named, ok := t.(*types.Named); ok {
+			name = "(" + star + named.Obj().Name() + ")." + name
+		}
+	}
+	return path + "." + name
+}
+
+func (p *program) sinkOf(fn *types.Func) (sink, bool) {
+	if fn.Pkg() == nil {
+		return sink{}, false
+	}
+	key := p.sinkKey(fn)
+	if name, ok := strings.CutPrefix(key, "encoding/json."); ok {
+		if arg, ok := jsonSinks[name]; ok {
+			return sink{arg: arg, typeArg: -1}, true
+		}
+	}
+	s, ok := p.m.sinks[key]
+	return s, ok
+}
+
+// wireType reports whether t, after pointers, slices, arrays and map
+// elements, is a named contract type. Interfaces and type parameters are
+// not: they defer the check to whoever supplies the value.
+func (p *program) wireType(t types.Type) (ok, deferred bool) {
+	for {
+		t = types.Unalias(t)
+		switch u := t.(type) {
+		case *types.Pointer:
+			t = u.Elem()
+			continue
+		case *types.Slice:
+			t = u.Elem()
+			continue
+		case *types.Array:
+			t = u.Elem()
+			continue
+		case *types.Map:
+			t = u.Elem()
+			continue
+		case *types.TypeParam:
+			return false, true
+		case *types.Named:
+			if _, isInterface := u.Underlying().(*types.Interface); isInterface {
+				return false, true
+			}
+			obj := u.Obj()
+			return obj.Pkg() != nil && obj.Pkg().Path() == p.m.module+"/"+p.m.contract, false
+		case *types.Interface:
+			return false, true
+		}
+		return false, false
+	}
+}
+
+// R8: every JSON value the controller encodes or decodes is a contract
+// type. A value of interface or type-parameter type passes only inside a
+// registered wrapper, whose own call sites are checked instead. A sink used
+// as a function value would escape the check and is reported too.
+func (p *program) checkWireValues(rel string, pkg *packages.Package) {
+	info := pkg.TypesInfo
+	called := map[*ast.Ident]bool{}
+	for _, file := range pkg.Syntax {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			wrapper := false
+			if obj, ok := info.Defs[fn.Name].(*types.Func); ok {
+				_, wrapper = p.m.sinks[p.sinkKey(obj)]
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				id := calleeIdent(call.Fun)
+				if id == nil {
+					return true
+				}
+				called[id] = true
+				callee, ok := info.Uses[id].(*types.Func)
+				if !ok {
+					return true
+				}
+				s, ok := p.sinkOf(callee.Origin())
+				if !ok {
+					return true
+				}
+				var t types.Type
+				what := "value"
+				if s.typeArg >= 0 {
+					inst, ok := info.Instances[id]
+					if !ok || inst.TypeArgs.Len() <= s.typeArg {
+						return true
+					}
+					t, what = inst.TypeArgs.At(s.typeArg), "type argument"
+				} else if s.arg < len(call.Args) {
+					t = info.TypeOf(call.Args[s.arg])
+				} else {
+					return true
+				}
+				good, deferred := p.wireType(t)
+				switch {
+				case good, deferred && wrapper:
+				case deferred:
+					p.report(call.Pos(), "R8", "pass a concrete contract type, or register the wrapper in layers_test.go", "%s %s is %s outside a registered JSON wrapper", p.sinkKey(callee.Origin()), what, t)
+				default:
+					p.report(call.Pos(), "R8", "declare the shape in internal/contract and convert in internal/wire", "%s %s has non-contract type %s", p.sinkKey(callee.Origin()), what, t)
+				}
+				return true
+			})
+		}
+	}
+	for id, obj := range info.Uses {
+		fn, ok := obj.(*types.Func)
+		if !ok || fn.Pkg() == nil || called[id] {
+			continue
+		}
+		if _, ok := p.sinkOf(fn.Origin()); ok {
+			p.report(id.Pos(), "R8", "call JSON sinks directly so their values can be checked", "%s used as a function value", p.sinkKey(fn.Origin()))
+		}
+	}
+}
+
+// calleeIdent is the identifier naming a call's function, through package
+// selectors, method selectors and explicit instantiation.
+func calleeIdent(fun ast.Expr) *ast.Ident {
+	switch f := ast.Unparen(fun).(type) {
+	case *ast.Ident:
+		return f
+	case *ast.SelectorExpr:
+		return f.Sel
+	case *ast.IndexExpr:
+		return calleeIdent(f.X)
+	case *ast.IndexListExpr:
+		return calleeIdent(f.X)
+	}
+	return nil
+}
+
+// R8: contract types never embed service or controller types, at any depth.
+func (p *program) checkContractTypes(pkg *packages.Package) {
+	scope := pkg.Types.Scope()
+	for _, name := range scope.Names() {
+		obj, ok := scope.Lookup(name).(*types.TypeName)
+		if !ok {
+			continue
+		}
+		seen := map[types.Type]bool{}
+		var walk func(types.Type) (string, bool)
+		walk = func(t types.Type) (string, bool) {
+			t = types.Unalias(t)
+			if seen[t] {
+				return "", false
+			}
+			seen[t] = true
+			switch u := t.(type) {
+			case *types.Named:
+				if o := u.Obj(); o.Pkg() != nil {
+					if l := p.pkgLayer(o.Pkg().Path()); l == service || l == controller {
+						return o.Pkg().Name() + "." + o.Name(), true
+					}
+				}
+				return walk(u.Underlying())
+			case *types.Pointer:
+				return walk(u.Elem())
+			case *types.Slice:
+				return walk(u.Elem())
+			case *types.Array:
+				return walk(u.Elem())
+			case *types.Map:
+				if s, bad := walk(u.Key()); bad {
+					return s, bad
+				}
+				return walk(u.Elem())
+			case *types.Struct:
+				for i := range u.NumFields() {
+					if s, bad := walk(u.Field(i).Type()); bad {
+						return s, bad
+					}
+				}
+			}
+			return "", false
+		}
+		if inner, bad := walk(obj.Type()); bad {
+			p.report(obj.Pos(), "R8", "copy the fields into contract types; convert in internal/wire", "contract type %s contains %s", obj.Name(), inner)
 		}
 	}
 }

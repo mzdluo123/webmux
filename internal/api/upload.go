@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -102,7 +103,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	complete = true
-	reply(w, http.StatusCreated, map[string]string{"path": upload.Path})
+	reply(w, http.StatusCreated, contract.UploadResult{Path: upload.Path})
 }
 
 type uploadContextReader struct {

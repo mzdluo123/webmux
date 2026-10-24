@@ -12,8 +12,9 @@ var webmux = manifest{
 	module: "github.com/rainchan/webmux",
 	layers: map[string]layer{
 		// HTTP and WebSocket transport.
-		"internal/api": controller,
-		"internal/hub": controller,
+		"internal/api":  controller,
+		"internal/hub":  controller,
+		"internal/wire": controller,
 
 		// Business rules, state, filesystem and processes.
 		"internal/session":   service,
@@ -48,6 +49,16 @@ var webmux = manifest{
 	},
 	outbound: map[string]string{
 		"internal/push": "delivers Web Push messages to browser push services",
+	},
+	contract:  "internal/contract",
+	wireScope: []string{"internal/api", "internal/wire"},
+	// The controller's JSON boundary: their values are checked where they
+	// are called.
+	sinks: map[string]sink{
+		"internal/api.reply":          {arg: 2, typeArg: -1},
+		"internal/api.decode":         {arg: 2, typeArg: -1},
+		"internal/api.decodeOptional": {arg: 2, typeArg: -1},
+		"internal/api.serveCode":      {typeArg: 0},
 	},
 }
 

@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/workspace"
 )
@@ -88,12 +89,12 @@ func TestWorkspaceAPIRoutesAndErrorBoundaries(t *testing.T) {
 		t.Fatal("unauthorized registration had side effects")
 	}
 	register := workspaceRequest(t, handler, "POST", "/api/repositories", map[string]string{"path": root}, 201)
-	var repository workspace.Repository
+	var repository contract.Repository
 	if err := json.Unmarshal(register.Body.Bytes(), &repository); err != nil {
 		t.Fatal(err)
 	}
 	duplicate := workspaceRequest(t, handler, "POST", "/api/repositories", map[string]string{"path": root}, 200)
-	var again workspace.Repository
+	var again contract.Repository
 	if err := json.Unmarshal(duplicate.Body.Bytes(), &again); err != nil {
 		t.Fatal(err)
 	}
@@ -104,16 +105,16 @@ func TestWorkspaceAPIRoutesAndErrorBoundaries(t *testing.T) {
 	workspaceRequest(t, handler, "GET", base+"/worktrees", nil, 200)
 	workspaceRequest(t, handler, "GET", base+"/branches", nil, 200)
 	workspaceRequest(t, handler, "GET", "/api/repositories/missing/worktrees", nil, 404)
-	workspaceRequest(t, handler, "POST", base+"/worktrees", workspace.CreateRequest{Path: filepath.Join(t.TempDir(), "bad"), Mode: "new", Branch: "--force", Base: "HEAD"}, 400)
-	created := workspaceRequest(t, handler, "POST", base+"/worktrees", workspace.CreateRequest{Path: filepath.Join(t.TempDir(), "linked"), Mode: "new", Branch: "linked", Base: "HEAD"}, 201)
-	var tree workspace.Worktree
+	workspaceRequest(t, handler, "POST", base+"/worktrees", contract.CreateWorktreeRequest{Path: filepath.Join(t.TempDir(), "bad"), Mode: "new", Branch: "--force", Base: "HEAD"}, 400)
+	created := workspaceRequest(t, handler, "POST", base+"/worktrees", contract.CreateWorktreeRequest{Path: filepath.Join(t.TempDir(), "linked"), Mode: "new", Branch: "linked", Base: "HEAD"}, 201)
+	var tree contract.Worktree
 	if err := json.Unmarshal(created.Body.Bytes(), &tree); err != nil {
 		t.Fatal(err)
 	}
-	ref := &workspace.Reference{RepositoryID: repository.ID, WorktreeID: tree.ID}
+	ref := &contract.WorkspaceReference{RepositoryID: repository.ID, WorktreeID: tree.ID}
 	workspaceRequest(t, handler, "POST", "/api/sessions", map[string]any{"cwd": root, "preset": "custom", "cmd": []string{"/bin/sh"}, "workspace": ref}, 400)
 	started := workspaceRequest(t, handler, "POST", "/api/sessions", map[string]any{"preset": "custom", "cmd": []string{"/bin/sh", "-c", "printf READY; read value"}, "workspace": ref}, 201)
-	var info session.Info
+	var info contract.SessionInfo
 	if err := json.Unmarshal(started.Body.Bytes(), &info); err != nil {
 		t.Fatal(err)
 	}
@@ -122,14 +123,14 @@ func TestWorkspaceAPIRoutesAndErrorBoundaries(t *testing.T) {
 	}
 	treeURL := base + "/worktrees/" + tree.ID
 	pre := workspaceRequest(t, handler, "POST", treeURL+"/removal-preview", struct{}{}, 200)
-	var preview workspace.Preview
+	var preview contract.RemovalPreview
 	if err := json.Unmarshal(pre.Body.Bytes(), &preview); err != nil {
 		t.Fatal(err)
 	}
 	if len(preview.Sessions) != 1 || !preview.ForceAllowed {
 		t.Fatalf("preview JSON: %+v", preview)
 	}
-	workspaceRequest(t, handler, "POST", treeURL+"/remove", workspace.RemoveRequest{ConfirmationID: preview.ConfirmationID, Mode: "safe"}, 409)
+	workspaceRequest(t, handler, "POST", treeURL+"/remove", contract.RemoveWorktreeRequest{ConfirmationID: preview.ConfirmationID, Mode: "safe"}, 409)
 	for _, status := range []int{401, 403} {
 		request := httptest.NewRequest("POST", treeURL+"/remove", strings.NewReader(`{"mode":"force"}`))
 		if status == 403 {
@@ -207,7 +208,7 @@ func TestWorkspaceAPIConfigDegradationAndTimeout(t *testing.T) {
 func TestUnavailableRepositoryIsLocalToList(t *testing.T) {
 	handler, _, _, root := workspaceAPI(t)
 	added := workspaceRequest(t, handler, "POST", "/api/repositories", map[string]string{"path": root}, 201)
-	var repository workspace.Repository
+	var repository contract.Repository
 	if err := json.Unmarshal(added.Body.Bytes(), &repository); err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +217,7 @@ func TestUnavailableRepositoryIsLocalToList(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Rename(root+"-moved", root) })
 	list := workspaceRequest(t, handler, "GET", "/api/repositories", nil, 200)
-	var repositories []workspace.Repository
+	var repositories []contract.Repository
 	if err := json.Unmarshal(list.Body.Bytes(), &repositories); err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +271,7 @@ func TestWorkspaceMetadataUsesExistingWebSocketProtocol(t *testing.T) {
 	if err != nil || len(state) == 0 || state[0] != 2 {
 		t.Fatalf("state frame changed: %q %v", state, err)
 	}
-	var info session.Info
+	var info contract.SessionInfo
 	if err := json.Unmarshal(state[1:], &info); err != nil {
 		t.Fatal(err)
 	}

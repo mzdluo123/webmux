@@ -15,6 +15,7 @@ import (
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/wire"
 	"github.com/rainchan/webmux/internal/workspace"
 	"io"
 	"log/slog"
@@ -76,14 +77,14 @@ func (s *Server) routes() *http.ServeMux {
 	mux := http.NewServeMux()
 	s.codeRoutes(mux)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
-		reply(w, 200, map[string]any{"ok": true, "sessions": len(m.List())})
+		reply(w, 200, contract.APIHealth{OK: true, Sessions: len(m.List())})
 	})
-	mux.HandleFunc("GET /api/presets", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, c.Presets) })
+	mux.HandleFunc("GET /api/presets", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, wire.Presets(c.Presets)) })
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
-		reply(w, 200, map[string]any{"defaultCwd": c.DefaultCwd, "hostname": hostname, "workspace": workspaces.Capability(), "tunnel": s.tunnelInfo()})
+		reply(w, 200, contract.ServerConfig{DefaultCwd: c.DefaultCwd, Hostname: hostname, Workspace: wire.Capability(workspaces.Capability()), Tunnel: s.tunnelInfo()})
 	})
-	mux.HandleFunc("GET /api/sessions", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, m.List()) })
+	mux.HandleFunc("GET /api/sessions", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, wire.Sessions(m.List())) })
 	mux.HandleFunc("POST /api/sessions", s.create)
 	mux.HandleFunc("GET /api/sessions/{id}", s.get)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.delete)
@@ -101,13 +102,16 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /", s.static)
 	return mux
 }
+
+// reply, failure, decode and decodeOptional are the controller's JSON
+// boundary; archtest rule R8 requires their values to be contract types.
 func reply(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 func failure(w http.ResponseWriter, status int, err error) {
-	reply(w, status, map[string]string{"error": err.Error()})
+	reply(w, status, contract.ErrorResponse{Error: err.Error()})
 }
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 65536)
@@ -238,28 +242,16 @@ func (s *Server) originAllowed(r *http.Request) bool {
 	return false
 }
 func (s *Server) create(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Cwd       string               `json:"cwd"`
-		Preset    string               `json:"preset"`
-		Cmd       []string             `json:"cmd"`
-		Args      []string             `json:"args"`
-		Name      string               `json:"name"`
-		Workspace *workspace.Reference `json:"workspace"`
-		Env       map[string]string    `json:"env"`
-		ConfigID  *string              `json:"configId"`
-	}
+	var req contract.CreateSessionRequest
 	if !decode(w, r, &req) {
 		return
 	}
-	item, err := s.Workspace.CreateSession(r.Context(), workspace.SessionInput{
-		Cwd: req.Cwd, Preset: req.Preset, Cmd: req.Cmd, Args: req.Args, Name: req.Name,
-		Workspace: req.Workspace, Env: req.Env, ConfigID: req.ConfigID,
-	})
+	item, err := s.Workspace.CreateSession(r.Context(), wire.SessionInput(req))
 	if err != nil {
 		sessionFailure(w, err)
 		return
 	}
-	reply(w, 201, item.Info())
+	reply(w, 201, wire.Session(item.Info()))
 }
 func (s *Server) find(w http.ResponseWriter, r *http.Request) *session.Session {
 	item, err := s.Manager.Get(r.PathValue("id"))
@@ -271,7 +263,7 @@ func (s *Server) find(w http.ResponseWriter, r *http.Request) *session.Session {
 }
 func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 	if item := s.find(w, r); item != nil {
-		reply(w, 200, item.Info())
+		reply(w, 200, wire.Session(item.Info()))
 	}
 }
 func (s *Server) delete(w http.ResponseWriter, r *http.Request) {
@@ -303,12 +295,10 @@ func (s *Server) dirs(w http.ResponseWriter, r *http.Request) {
 		filesFailure(w, err)
 		return
 	}
-	reply(w, 200, out)
+	reply(w, 200, contract.DirectoryList(out))
 }
 func (s *Server) mkdir(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Path string `json:"path"`
-	}
+	var req contract.MkdirRequest
 	if !decode(w, r, &req) {
 		return
 	}

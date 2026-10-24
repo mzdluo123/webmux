@@ -78,7 +78,7 @@ func NewLocal(d Deps, local Local) http.Handler {
 			failure(w, http.StatusConflict, fmt.Errorf("WebMux is managed by %s; use `%s` (or --force)", local.Launcher, hint))
 			return
 		}
-		reply(w, http.StatusAccepted, map[string]bool{"ok": true})
+		reply(w, http.StatusAccepted, contract.Ack{OK: true})
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}

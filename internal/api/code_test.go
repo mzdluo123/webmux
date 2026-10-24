@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/session"
 	"image"
 	"image/png"
@@ -72,13 +73,13 @@ func TestCodeAPIReadOnlyAndSessionSecurity(t *testing.T) {
 	request("GET", base+"/context", "", "", "", 401)
 	request("GET", base+"/context", "", "secret", "http://evil.example", 403)
 	raw := request("GET", base+"/context", "", "secret", "", 200)
-	var context codeview.Context
+	var context contract.CodeContext
 	json.Unmarshal(raw, &context)
 	query := func(p string) string {
 		return "?" + url.Values{"contextId": {context.ID}, "nodeId": {base64.RawURLEncoding.EncodeToString([]byte(p))}}.Encode()
 	}
 	raw = request("GET", base+"/file"+query("clean.txt"), "", "secret", "", 200)
-	var file codeview.File
+	var file contract.CodeFile
 	json.Unmarshal(raw, &file)
 	if file.Document.Text != "unchanged code\n" {
 		t.Fatal(file)
@@ -90,7 +91,7 @@ func TestCodeAPIReadOnlyAndSessionSecurity(t *testing.T) {
 	request("GET", base+"/snapshots/unknown/file?side=new", "", "secret", "", 410)
 	request("GET", base+"/file?contextId=wrong&nodeId=Y2xlYW4udHh0", "", "secret", "", 409)
 	request("GET", "/api/sessions/missing/code/context", "", "secret", "", 404)
-	body, _ := json.Marshal(codeview.CheckRequest{Context: context.ID, Snapshots: []string{file.Snapshot}})
+	body, _ := json.Marshal(contract.CodeCheckRequest{Context: context.ID, Snapshots: []string{file.Snapshot}})
 	request("POST", base+"/check", string(body), "secret", "http://evil.example", 403)
 	request("POST", base+"/check", string(body), "secret", "", 200)
 	data, e := os.ReadFile(filepath.Join(c.DefaultCwd, "clean.txt"))
@@ -160,7 +161,7 @@ func TestCodeRawBytesHeadersAndStreaming(t *testing.T) {
 		return res
 	}
 	res := do("GET", base+"/context", "secret", "")
-	var ctxInfo codeview.Context
+	var ctxInfo contract.CodeContext
 	json.NewDecoder(res.Body).Decode(&ctxInfo)
 	res.Body.Close()
 	snapshot := func(name string) string {
@@ -168,7 +169,7 @@ func TestCodeRawBytesHeadersAndStreaming(t *testing.T) {
 		q := url.Values{"contextId": {ctxInfo.ID}, "nodeId": {base64.RawURLEncoding.EncodeToString([]byte(name))}}
 		res := do("GET", base+"/file?"+q.Encode(), "secret", "")
 		defer res.Body.Close()
-		var f codeview.File
+		var f contract.CodeFile
 		if e := json.NewDecoder(res.Body).Decode(&f); e != nil || res.StatusCode != 200 {
 			t.Fatalf("%s: %d %v", name, res.StatusCode, e)
 		}

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/wire"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -81,7 +83,7 @@ func TestProtocolAndSecurity(t *testing.T) {
 	}
 	var snapshot struct {
 		Type     string
-		Sessions []session.Info
+		Sessions []contract.SessionInfo
 	}
 	if err = json.Unmarshal(raw, &snapshot); err != nil || snapshot.Type != "snapshot" || snapshot.Sessions == nil {
 		t.Fatalf("empty snapshot: %s", raw)
@@ -90,7 +92,7 @@ func TestProtocolAndSecurity(t *testing.T) {
 	if res.StatusCode != 201 {
 		t.Fatal(res.Status)
 	}
-	var info session.Info
+	var info contract.SessionInfo
 	_ = json.NewDecoder(res.Body).Decode(&info)
 	_ = res.Body.Close()
 	res = request("DELETE", "/api/sessions/"+info.ID+"?remove=1", "", "secret", "")
@@ -245,7 +247,7 @@ func TestCustomCommandExecutesLiteralArgvInSelectedDirectory(t *testing.T) {
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status %d: %s", recorder.Code, recorder.Body.String())
 	}
-	var info session.Info
+	var info contract.SessionInfo
 	if err := json.Unmarshal(recorder.Body.Bytes(), &info); err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +267,7 @@ func TestCustomCommandExecutesLiteralArgvInSelectedDirectory(t *testing.T) {
 			if frame[0] != 3 {
 				continue
 			}
-			info = item.Info()
+			info = wire.Session(item.Info())
 			if info.ExitCode == nil || *info.ExitCode != 0 {
 				t.Fatalf("custom command exit: %+v", info)
 			}
@@ -331,7 +333,7 @@ func TestSessionCreationRejectsCommandConflicts(t *testing.T) {
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("preset with allowed arguments: status %d: %s", recorder.Code, recorder.Body.String())
 	}
-	var info session.Info
+	var info contract.SessionInfo
 	if err := json.Unmarshal(recorder.Body.Bytes(), &info); err != nil {
 		t.Fatal(err)
 	}
