@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/session"
 	"io"
 	"net/http"
@@ -30,7 +31,7 @@ func TestProtocolAndSecurity(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := session.NewManager(testSessionOptions(c))
-	server := httptest.NewServer(New(c, m, testWorkspace(t, m, c.DefaultCwd), nil, nil, nil, nil))
+	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd)})))
 	defer server.Close()
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
@@ -179,7 +180,7 @@ func TestDirectoryPickerListsAllDirectories(t *testing.T) {
 	for _, name := range allNames {
 		wantAll = append(wantAll, filepath.Join(root, name))
 	}
-	server := &Server{Config: config.Config{DefaultCwd: root}}
+	server := &Server{Deps: Deps{Config: config.Config{DefaultCwd: root}, Files: files.New(root)}}
 	for _, row := range []struct {
 		name, prefix string
 		want         []string
@@ -240,7 +241,7 @@ func TestCustomCommandExecutesLiteralArgvInSelectedDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	recorder := httptest.NewRecorder()
-	New(config.Config{}, m, testWorkspace(t, m, cwd), nil, nil, nil, nil).ServeHTTP(recorder, httptest.NewRequest("POST", "/api/sessions", strings.NewReader(string(body))))
+	New(testDeps(t, Deps{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, cwd)})).ServeHTTP(recorder, httptest.NewRequest("POST", "/api/sessions", strings.NewReader(string(body))))
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status %d: %s", recorder.Code, recorder.Body.String())
 	}
@@ -296,7 +297,7 @@ func TestSessionCreationRejectsCommandConflicts(t *testing.T) {
 		defer cancel()
 		m.Shutdown(ctx)
 	}()
-	handler := New(config.Config{Presets: presets}, m, testWorkspace(t, m, t.TempDir()), nil, nil, nil, nil)
+	handler := New(testDeps(t, Deps{Config: config.Config{Presets: presets}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
 	for _, body := range []string{
 		`{"preset":"custom"}`,
 		`{"preset":"custom","cmd":[]}`,

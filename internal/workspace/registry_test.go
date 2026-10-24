@@ -52,7 +52,7 @@ func putFile(t *testing.T, path, content string) {
 func testService(t *testing.T, state, cwd string) (*Service, *session.Manager) {
 	t.Helper()
 	m := session.NewManager(session.Options{DefaultCwd: cwd})
-	s := New(state, m, cwd)
+	s := New(state, m, nil, cwd)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
@@ -105,7 +105,7 @@ func TestRegistryIdentityPersistenceAndRemoval(t *testing.T) {
 	root := initRepo(t)
 	state := t.TempDir()
 	s, manager := testService(t, state, root)
-	item, err := s.CreateSession(context.Background(), root, "custom", []string{"/bin/sh", "-c", "printf BEFORE; read value; printf AFTER"}, nil, "", nil, nil)
+	item, err := s.CreateSession(context.Background(), SessionInput{Cwd: root, Preset: "custom", Cmd: []string{"/bin/sh", "-c", "printf BEFORE; read value; printf AFTER"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestRegistryIdentityPersistenceAndRemoval(t *testing.T) {
 		}
 	}
 	s.Close()
-	restarted := New(state, manager, root)
+	restarted := New(state, manager, nil, root)
 	defer restarted.Close()
 	repositories, err := restarted.List(context.Background())
 	if err != nil || len(repositories) != 1 || repositories[0].ID != repository.ID || len(repositories[0].Worktrees) != 2 {
@@ -154,7 +154,7 @@ func TestRegistryIdentityPersistenceAndRemoval(t *testing.T) {
 	}
 	gitTest(t, root, "show-ref", "--verify", "refs/heads/feature")
 	restarted.Close()
-	third := New(state, manager, root)
+	third := New(state, manager, nil, root)
 	defer third.Close()
 	repositories, err = third.List(context.Background())
 	if err != nil || len(repositories) != 0 {
@@ -172,7 +172,7 @@ func TestRegistryFaultsDoNotPublishOrOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second := New(state, m, root)
+	second := New(state, m, nil, root)
 	defer second.Close()
 	if second.Capability().RegistryAvailable {
 		t.Fatal("second instance acquired same registry")
@@ -200,7 +200,7 @@ func TestRegistryFaultsDoNotPublishOrOverwrite(t *testing.T) {
 	}
 	putFile(t, filepath.Join(state, "repositories.json"), "{broken")
 	s.Close()
-	broken := New(state, m, root)
+	broken := New(state, m, nil, root)
 	defer broken.Close()
 	if broken.Capability().RegistryAvailable {
 		t.Fatal("corrupt registry accepted")
@@ -216,7 +216,7 @@ func TestRegistryFaultsDoNotPublishOrOverwrite(t *testing.T) {
 	if err := json.Unmarshal(original, &stored); err != nil || len(stored.Repositories) != 1 {
 		t.Fatalf("original registry: %v", err)
 	}
-	item, err := broken.CreateSession(context.Background(), root, "custom", []string{"/bin/sh", "-c", "printf DEGRADED"}, nil, "", nil, nil)
+	item, err := broken.CreateSession(context.Background(), SessionInput{Cwd: root, Preset: "custom", Cmd: []string{"/bin/sh", "-c", "printf DEGRADED"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestNoGitAndNonRepositoryRemainDirect(t *testing.T) {
 	if _, _, err := s.Register(context.Background(), root); errorKind(err) != ErrUnavailable {
 		t.Fatalf("missing Git error: %v", err)
 	}
-	item, err := s.CreateSession(context.Background(), "", "custom", []string{"/bin/sh", "-c", "printf DIRECT"}, nil, "", nil, nil)
+	item, err := s.CreateSession(context.Background(), SessionInput{Preset: "custom", Cmd: []string{"/bin/sh", "-c", "printf DIRECT"}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,19 +20,19 @@
 
 ## 4. PR1：迁出越界逻辑（R2–R5）
 
-- [ ] 4.1 新增 `internal/files`：`Complete`（排序、隐藏文件优先级、符号链接判断与原实现一致）、`Mkdir`、`StoreUpload`（文件名校验、临时目录 0700、文件 0600、`O_EXCL`、失败清理），带哨兵错误；把 `router_test`/`upload_test` 中的纯逻辑边界补成包内单元测试
-- [ ] 4.2 `internal/api` 的 `dirs`、`mkdir`、`upload` 改为调用注入的 `files.Service`；Controller 只保留 multipart 读取、上下文取消、大小限制和状态码映射
-- [ ] 4.3 `workspace.Service.CreateSession` 改为接收 `SessionInput`（含 `ConfigID`），把 `configId` 互斥规则、`launch.Service.Get` 和 `session.ValidateEnv` 迁入 Service，保持"校验先于任何文件系统和 Git 操作"；`workspace.New` 增加 `*launch.Service` 参数（nil 时返回 `launch.ErrUnavailable`）；为 `configId` 规则补包内测试
-- [ ] 4.4 把 `push.Validate` 并入 `push.Service.Subscribe`，`api/push.go` 不再调用包级函数
-- [ ] 4.5 `codeview.Service` 和 `files.Service` 改由 `cmd/webmux/main.go`、`cmd/baseline` 构造并注入；`api.New`/`api.NewLocal` 改用 `api.Deps` 结构体，删除可变参数 `codes`；迁移所有调用点，包括 `internal/tray/forward` 测试和 `internal/api` 测试
-- [ ] 4.6 把 `ManagerHint` 移到 `internal/runtime`，`api/local.go` 与 `client/stop.go` 改用新位置
+- [x] 4.1 新增 `internal/files`：`Complete`（排序、隐藏文件优先级、符号链接判断与原实现一致）、`Mkdir`、`StoreUpload`（文件名校验、临时目录 0700、文件 0600、`O_EXCL`、失败清理），带哨兵错误；把 `router_test`/`upload_test` 中的纯逻辑边界补成包内单元测试
+- [x] 4.2 `internal/api` 的 `dirs`、`mkdir`、`upload` 改为调用注入的 `files.Service`；Controller 只保留 multipart 读取、上下文取消、大小限制和状态码映射
+- [x] 4.3 `workspace.Service.CreateSession` 改为接收 `SessionInput`（含 `ConfigID`），把 `configId` 互斥规则、`launch.Service.Get` 和 `session.ValidateEnv` 迁入 Service，保持"校验先于任何文件系统和 Git 操作"；`workspace.New` 增加 `*launch.Service` 参数（nil 时返回 `launch.ErrUnavailable`）；为 `configId` 规则补包内测试
+- [x] 4.4 把 `push.Validate` 并入 `push.Service.Subscribe`，`api/push.go` 不再调用包级函数
+- [x] 4.5 `codeview.Service` 和 `files.Service` 改由 `cmd/webmux/main.go`、`cmd/baseline` 构造并注入；`api.New`/`api.NewLocal` 改用 `api.Deps` 结构体，删除可变参数 `codes`；迁移所有调用点，包括 `internal/tray/forward` 测试和 `internal/api` 测试
+- [x] 4.6 把 `ManagerHint` 移到 `internal/runtime`，`api/local.go` 与 `client/stop.go` 改用新位置
 
 ## 5. PR1：解除共享层与客户端对 Service 的依赖（R1）
 
 - [x] 5.1 新增共享包 `internal/pathutil`，把 `session.ExpandPath` 及其测试迁过去；`session`、`config`、`client`、`files`、`api` 全部改为调用 `pathutil.Expand`，删除 `session.ExpandPath`
 - [x] 5.2 新增共享包 `internal/attentionkind`，迁入 `AttentionKind` 类型和常量；`session` 与 `config` 改用它，删除 `session` 中的定义
 - [x] 5.3 `internal/config` 定义 `Preset`（保留原有 TOML 与 json 标签，保证 `/api/presets` 快照在 PR1 中不变）；删除 `Config.SessionOptions()`，改为 `cmd/webmux` 中的 `sessionOptions(config.Config) session.Options`，在其中把 `config.Preset` 转成 `session.Preset`；迁移 `cmd/baseline` 和所有调用点与测试
-- [ ] 5.4 确认 `internal/config`、`internal/client` 的非测试代码不再导入任何 Service 包或 Controller 包
+- [x] 5.4 确认 `internal/config`、`internal/client` 的非测试代码不再导入任何 Service 包或 Controller 包
 
 ## 6. PR1：收尾
 

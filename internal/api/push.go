@@ -102,7 +102,7 @@ func (s *Server) pushRoutes(mux *http.ServeMux) {
 			pushConflict(w, pushUnavailableReason(err), err)
 			return
 		}
-		if err := push.Validate(req.Endpoint, req.Keys.P256dh, req.Keys.Auth); err != nil {
+		if err := s.Push.CheckSubscription(req.Endpoint, req.Keys.P256dh, req.Keys.Auth); err != nil {
 			failure(w, http.StatusBadRequest, err)
 			return
 		}

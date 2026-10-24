@@ -10,9 +10,9 @@ import (
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/launch"
-	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/workspace"
@@ -21,17 +21,19 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 )
 
-type Server struct {
+// Deps are the services the handlers call. cmd/ constructs every service;
+// the controller never builds one itself.
+type Deps struct {
 	Config    config.Config
 	Manager   *session.Manager
 	Workspace *workspace.Service
 	Code      *codeview.Service
-	Public    *PublicOrigin
+	Files     *files.Service
+	// Public is the runtime tunnel origin; nil means no tunnel.
+	Public *PublicOrigin
 	// Push is nil when [push] enabled = false.
 	Push *push.Service
 	// Launch is nil when the launch config store was not opened; its
@@ -40,16 +42,17 @@ type Server struct {
 	// Tunnel reports the runtime tunnel state; nil leaves GET /api/config
 	// describing only the configured mode.
 	Tunnel func() contract.TunnelStatus
+}
+
+type Server struct {
+	Deps
 	// local marks the Unix-socket handler, which serves no browser page.
 	local bool
 }
 
-// New builds the TCP handler. public is the runtime tunnel origin; nil means
-// no tunnel. pushes is nil when push is disabled; launches is nil when no
-// launch config store exists. tunnel reports the runtime tunnel state; nil
-// describes the configured mode only. Local-only endpoints are not found here.
-func New(c config.Config, m *session.Manager, workspaces *workspace.Service, public *PublicOrigin, pushes *push.Service, launches *launch.Service, tunnel func() contract.TunnelStatus, codes ...*codeview.Service) http.Handler {
-	s := newServer(c, m, workspaces, public, pushes, launches, tunnel, codes)
+// New builds the TCP handler. Local-only endpoints are not found here.
+func New(d Deps) http.Handler {
+	s := newServer(d)
 	mux := s.routes()
 	return s.middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/local/") {
@@ -60,14 +63,11 @@ func New(c config.Config, m *session.Manager, workspaces *workspace.Service, pub
 	}))
 }
 
-func newServer(c config.Config, m *session.Manager, workspaces *workspace.Service, public *PublicOrigin, pushes *push.Service, launches *launch.Service, tunnel func() contract.TunnelStatus, codes []*codeview.Service) *Server {
-	s := &Server{Config: c, Manager: m, Workspace: workspaces, Public: public, Push: pushes, Launch: launches, Tunnel: tunnel}
-	if len(codes) > 0 {
-		s.Code = codes[0]
-	} else {
-		s.Code = codeview.New(m)
+func newServer(d Deps) *Server {
+	if d.Manager == nil || d.Workspace == nil || d.Code == nil || d.Files == nil {
+		panic("api: Deps requires Manager, Workspace, Code and Files")
 	}
-	return s
+	return &Server{Deps: d}
 }
 
 // routes registers the /api, /ws and static routes shared by both listeners.
@@ -251,32 +251,12 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	// Everything below up to CreateSession runs before any filesystem or Git
-	// work.
-	preset, cmd, args, env := req.Preset, req.Cmd, req.Args, req.Env
-	if req.ConfigID != nil {
-		if *req.ConfigID == "" {
-			failure(w, http.StatusBadRequest, errors.New("configId must not be empty"))
-			return
-		}
-		if req.Preset != "" || len(req.Cmd) > 0 || len(req.Args) > 0 || len(req.Env) > 0 {
-			failure(w, http.StatusBadRequest, errors.New("configId cannot be combined with preset, cmd, args or env"))
-			return
-		}
-		saved, err := s.Launch.Get(*req.ConfigID)
-		if err != nil {
-			launchFailure(w, err)
-			return
-		}
-		preset, cmd, args, env = "custom", saved.Cmd, nil, saved.Env
-	}
-	if err := session.ValidateEnv(env); err != nil {
-		failure(w, http.StatusBadRequest, err)
-		return
-	}
-	item, err := s.Workspace.CreateSession(r.Context(), req.Cwd, preset, cmd, args, req.Name, req.Workspace, env)
+	item, err := s.Workspace.CreateSession(r.Context(), workspace.SessionInput{
+		Cwd: req.Cwd, Preset: req.Preset, Cmd: req.Cmd, Args: req.Args, Name: req.Name,
+		Workspace: req.Workspace, Env: req.Env, ConfigID: req.ConfigID,
+	})
 	if err != nil {
-		failure(w, workspaceStatus(err), err)
+		sessionFailure(w, err)
 		return
 	}
 	reply(w, 201, item.Info())
@@ -318,50 +298,10 @@ func (s *Server) buffer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (s *Server) dirs(w http.ResponseWriter, r *http.Request) {
-	prefix := r.URL.Query().Get("prefix")
-	if prefix == "" {
-		prefix = s.Config.DefaultCwd + string(os.PathSeparator)
-	}
-	expanded, err := pathutil.Expand(prefix)
+	out, err := s.Files.Complete(r.URL.Query().Get("prefix"))
 	if err != nil {
-		failure(w, 400, err)
+		filesFailure(w, err)
 		return
-	}
-	dir, base := filepath.Split(expanded)
-	if strings.HasSuffix(prefix, "/") || prefix == "~" {
-		dir = expanded
-		base = ""
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		failure(w, 400, err)
-		return
-	}
-	sort.Slice(entries, func(i, j int) bool {
-		left, right := entries[i].Name(), entries[j].Name()
-		leftHidden, rightHidden := strings.HasPrefix(left, "."), strings.HasPrefix(right, ".")
-		if leftHidden != rightHidden {
-			return !leftHidden
-		}
-		return left < right
-	})
-	out := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if !strings.HasPrefix(entry.Name(), base) {
-			continue
-		}
-		full := filepath.Join(dir, entry.Name())
-		isDir := entry.IsDir()
-		if entry.Type()&os.ModeSymlink != 0 {
-			stat, err := os.Stat(full)
-			if err != nil {
-				continue
-			}
-			isDir = stat.IsDir()
-		}
-		if isDir {
-			out = append(out, full)
-		}
 	}
 	reply(w, 200, out)
 }
@@ -372,16 +312,8 @@ func (s *Server) mkdir(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	if req.Path == "" {
-		failure(w, 400, errors.New("path required"))
-		return
-	}
-	p, err := pathutil.Expand(req.Path)
-	if err == nil {
-		err = os.MkdirAll(p, 0755)
-	}
-	if err != nil {
-		failure(w, 400, err)
+	if err := s.Files.Mkdir(req.Path); err != nil {
+		filesFailure(w, err)
 		return
 	}
 	w.WriteHeader(204)

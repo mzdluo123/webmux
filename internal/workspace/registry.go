@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/statefile"
@@ -42,6 +43,7 @@ type snapshotFlight struct {
 }
 type Service struct {
 	manager       *session.Manager
+	launches      *launch.Service
 	defaultCwd    string
 	gitPath       string
 	stateDir      string
@@ -57,11 +59,12 @@ type Service struct {
 }
 
 // New never makes optional Git or storage availability a server startup failure.
-func New(stateDir string, manager *session.Manager, defaultCwd string) *Service {
+// launches resolves saved launch configs; nil makes them unavailable.
+func New(stateDir string, manager *session.Manager, launches *launch.Service, defaultCwd string) *Service {
 	if stateDir == "" {
 		stateDir = config.DefaultStateDir()
 	}
-	s := &Service{manager: manager, defaultCwd: defaultCwd, stateDir: stateDir, starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation)}
+	s := &Service{manager: manager, launches: launches, defaultCwd: defaultCwd, stateDir: stateDir, starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation)}
 	git, err := exec.LookPath("git")
 	if err != nil {
 		s.capability.GitError = "Git 不可用: " + err.Error()

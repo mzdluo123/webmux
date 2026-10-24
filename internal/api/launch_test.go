@@ -36,7 +36,7 @@ func newLaunchHarness(t *testing.T, store *launch.Service) *launchHarness {
 		m.Shutdown(ctx)
 	})
 	c := config.Config{Token: "secret", Presets: presets, DefaultCwd: cwd}
-	return &launchHarness{t: t, handler: New(c, m, testWorkspace(t, m, cwd), nil, nil, store, nil), manager: m, store: store, cwd: cwd}
+	return &launchHarness{t: t, handler: New(testDeps(t, Deps{Config: c, Manager: m, Launch: store})), manager: m, store: store, cwd: cwd}
 }
 
 func openLaunchStore(t *testing.T) *launch.Service {

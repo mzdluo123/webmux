@@ -3,8 +3,12 @@ package api
 import (
 	"time"
 
+	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/workspace"
+	"testing"
 )
 
 // testSessionOptions mirrors cmd/internal/assemble, which tests outside cmd/
@@ -27,4 +31,22 @@ func testPresets(presets []config.Preset) []session.Preset {
 		out = append(out, session.Preset{Name: p.Name, Label: p.Label, Cmd: p.Cmd, AllowArgs: p.AllowArgs})
 	}
 	return out
+}
+
+// testDeps supplies the workspace, code view and files services a test
+// leaves unset. The workspace resolves configs from d.Launch.
+func testDeps(t testing.TB, d Deps) Deps {
+	t.Helper()
+	if d.Workspace == nil {
+		d.Workspace = workspace.New(t.TempDir(), d.Manager, d.Launch, d.Config.DefaultCwd)
+		t.Cleanup(d.Workspace.Close)
+	}
+	if d.Code == nil {
+		d.Code = codeview.New(d.Manager)
+		t.Cleanup(d.Code.Close)
+	}
+	if d.Files == nil {
+		d.Files = files.New(d.Config.DefaultCwd)
+	}
+	return d
 }

@@ -21,7 +21,7 @@ import (
 
 func testWorkspace(t *testing.T, m *session.Manager, cwd string) *workspace.Service {
 	t.Helper()
-	service := workspace.New(t.TempDir(), m, cwd)
+	service := workspace.New(t.TempDir(), m, nil, cwd)
 	t.Cleanup(service.Close)
 	return service
 }
@@ -52,7 +52,7 @@ func workspaceAPI(t *testing.T) (http.Handler, *workspace.Service, *session.Mana
 		m.Shutdown(ctx)
 	})
 	service := testWorkspace(t, m, root)
-	return New(c, m, service, nil, nil, nil, nil), service, m, root
+	return New(testDeps(t, Deps{Config: c, Manager: m, Workspace: service})), service, m, root
 }
 func workspaceRequest(t *testing.T, handler http.Handler, method, path string, body any, want int) *httptest.ResponseRecorder {
 	t.Helper()
@@ -170,9 +170,9 @@ func TestWorkspaceAPIConfigDegradationAndTimeout(t *testing.T) {
 	if err := os.WriteFile(state, []byte("not a directory"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	service := workspace.New(state, m, cwd)
+	service := workspace.New(state, m, nil, cwd)
 	defer service.Close()
-	handler := New(config.Config{DefaultCwd: cwd, Token: "secret"}, m, service, nil, nil, nil, nil)
+	handler := New(testDeps(t, Deps{Config: config.Config{DefaultCwd: cwd, Token: "secret"}, Manager: m, Workspace: service}))
 	response := workspaceRequest(t, handler, "GET", "/api/config", nil, 200)
 	var settings struct {
 		DefaultCwd string               `json:"defaultCwd"`
@@ -232,7 +232,7 @@ func TestWorkspaceMetadataUsesExistingWebSocketProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err := service.CreateSession(context.Background(), root, "custom", []string{"/bin/sh", "-c", "printf READY; read value"}, nil, "", nil, nil)
+	item, err := service.CreateSession(context.Background(), workspace.SessionInput{Cwd: root, Preset: "custom", Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
 	if err != nil {
 		t.Fatal(err)
 	}

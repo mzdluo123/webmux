@@ -20,6 +20,7 @@ import (
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/push"
@@ -255,8 +256,6 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 		return err
 	}
 	m := session.NewManager(assemble.SessionOptions(c.Config))
-	workspaces := workspace.New(c.StateDir, m, c.DefaultCwd)
-	defer workspaces.Close()
 	// Opening never fails: a locked, corrupt or unreadable store only
 	// disables launch configs, and the endpoints answer 503 with the reason.
 	launches := launch.Open(c.StateDir)
@@ -264,6 +263,8 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	if err := launches.Unavailable(); err != nil {
 		slog.Warn("launch configs unavailable", "error", err)
 	}
+	workspaces := workspace.New(c.StateDir, m, launches, c.DefaultCwd)
+	defer workspaces.Close()
 	codes := codeview.New(m)
 	defer codes.Close()
 	pushes := push.New(c.Push, c.StateDir, m, slog.Default(), nil)
@@ -272,9 +273,14 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	public := &api.PublicOrigin{}
 	local := localOrigin(listener.Addr())
 	tunnels := newTunnelController(c.Tunnel, local, c.Token, public, locator.Find, out, slog.Default())
-	rt := startRuntime(ctx, c, listener.Addr(), m, workspaces, codes, pushes, launches, cancel, tunnels)
+	deps := api.Deps{
+		Config: c.Config, Manager: m, Workspace: workspaces, Code: codes,
+		Files: files.New(c.DefaultCwd), Push: pushes, Launch: launches,
+	}
+	rt := startRuntime(ctx, c, listener.Addr(), deps, cancel, tunnels)
+	deps.Public, deps.Tunnel = public, tunnels.Status
 	server := &http.Server{
-		Handler:           api.New(c.Config, m, workspaces, public, pushes, launches, tunnels.Status, codes),
+		Handler:           api.New(deps),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		IdleTimeout:       60 * time.Second,

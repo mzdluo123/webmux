@@ -309,7 +309,7 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	if err := public.Set("https://abc.trycloudflare.com"); err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(New(c, m, testWorkspace(t, m, root), public, pushes, launches, nil, codes))
+	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Public: public, Push: pushes, Launch: launches, Code: codes})))
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(func() {
 		cancel()
@@ -652,7 +652,7 @@ func TestWireSnapshotsUnavailableServices(t *testing.T) {
 	rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	handler := New(config.Config{Token: "secret"}, m, testWorkspace(t, m, t.TempDir()), nil, nil, nil, nil)
+	handler := New(testDeps(t, Deps{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
 	for _, row := range []struct {
 		name, method, path, body string
 		want                     int

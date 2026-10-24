@@ -32,7 +32,7 @@ func TestCodeAPIReadOnlyAndSessionSecurity(t *testing.T) {
 	c.Token = "secret"
 	m := session.NewManager(testSessionOptions(c))
 	codes := codeview.New(m)
-	server := httptest.NewServer(New(c, m, testWorkspace(t, m, c.DefaultCwd), nil, nil, nil, nil, codes))
+	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd), Code: codes})))
 	defer server.Close()
 	defer codes.Close()
 	defer func() {
@@ -113,7 +113,7 @@ func TestCodeRawBytesHeadersAndStreaming(t *testing.T) {
 	c.Token = "secret"
 	m := session.NewManager(testSessionOptions(c))
 	codes := codeview.New(m)
-	server := httptest.NewServer(New(c, m, testWorkspace(t, m, c.DefaultCwd), nil, nil, nil, nil, codes))
+	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd), Code: codes})))
 	defer server.Close()
 	defer codes.Close()
 	defer func() {

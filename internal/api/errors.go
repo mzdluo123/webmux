@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/rainchan/webmux/internal/codeview"
+	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/workspace"
 )
@@ -100,6 +101,31 @@ func launchFailure(w http.ResponseWriter, err error) {
 		slog.Error("launch config save failed", "error", err)
 	}
 	failure(w, status, err)
+}
+
+// filesFailure answers a files service error. A failed read of the upload
+// body keeps the request-body classification.
+func filesFailure(w http.ResponseWriter, err error) {
+	status := http.StatusInternalServerError
+	switch {
+	case errors.Is(err, files.ErrInvalid):
+		status = http.StatusBadRequest
+	case errors.Is(err, files.ErrTooLarge):
+		status = http.StatusRequestEntityTooLarge
+	case errors.Is(err, files.ErrRead):
+		status = uploadReadStatus(err)
+	}
+	failure(w, status, err)
+}
+
+// sessionFailure answers a session start: a saved launch config keeps its
+// launch statuses, everything else is a workspace error.
+func sessionFailure(w http.ResponseWriter, err error) {
+	if errors.Is(err, launch.ErrInvalid) || errors.Is(err, launch.ErrNotFound) || errors.Is(err, launch.ErrDuplicate) || errors.Is(err, launch.ErrUnavailable) {
+		launchFailure(w, err)
+		return
+	}
+	failure(w, workspaceStatus(err), err)
 }
 
 func workspaceFailure(w http.ResponseWriter, err error) bool {
