@@ -6,11 +6,11 @@
 
 ## 2. PR1：架构测试框架与 R0–R7
 
-- [ ] 2.1 在 `go.mod` 中加入 `golang.org/x/tools`，只被 `internal/archtest` 的 `_test.go` 引用；用 `go list -deps ./cmd/webmux` 确认发布二进制不依赖它
-- [ ] 2.2 新增 `internal/archtest/layers_test.go`：分层清单（含 `wire`、`files`、`pathutil`、`attentionkind` 等计划中的包；PR1 中尚不存在的包在其 PR 中再加入，保证 R0 始终准确）、出站 HTTP 登记（`push`）和 JSON 编码函数登记（`push` 的 JWT 与通知载荷函数、`codeview.version`），每条附理由
-- [ ] 2.3 新增 `internal/archtest/arch_test.go`：用 `go/packages` 一次加载整个模块（`Tests:false`），实现 R0–R7；收集全部违规，按文件和行号排序，以 `位置 [Rn] 消息 — 修复提示` 一次输出
-- [ ] 2.4 新增 `internal/archtest/testdata/fixture/`（独立 `go.mod` 的小模块）和 `rules_test.go`：R0–R7 各有至少一处违规和一处合规写法，覆盖导入别名、点导入、函数值变量这几种绕过方式；断言违规全部被报告、合规写法不被报告
-- [ ] 2.5 在当前代码上运行 `go test ./internal/archtest`，把报告的违规与 design.md 列出的越界点逐条对照，补齐遗漏的迁移项（此时测试失败是预期的）
+- [x] 2.1 在 `go.mod` 中加入 `golang.org/x/tools`，只被 `internal/archtest` 的 `_test.go` 引用；用 `go list -deps ./cmd/webmux` 确认发布二进制不依赖它
+- [x] 2.2 新增 `internal/archtest/layers_test.go`：分层清单（含 `wire`、`files`、`pathutil`、`attentionkind` 等计划中的包；PR1 中尚不存在的包在其 PR 中再加入，保证 R0 始终准确）、出站 HTTP 登记（`push`）和 JSON 编码函数登记（`push` 的 JWT 与通知载荷函数、`codeview.version`），每条附理由
+- [x] 2.3 新增 `internal/archtest/arch_test.go`：用 `go/packages` 一次加载整个模块（`Tests:false`），实现 R0–R7；收集全部违规，按文件和行号排序，以 `位置 [Rn] 消息 — 修复提示` 一次输出
+- [x] 2.4 新增 `internal/archtest/testdata/fixture/`（独立 `go.mod` 的小模块）和 `rules_test.go`：R0–R7 各有至少一处违规和一处合规写法，覆盖导入别名、点导入、函数值变量这几种绕过方式；断言违规全部被报告、合规写法不被报告
+- [x] 2.5 在当前代码上运行 `go test ./internal/archtest`，把报告的违规与 design.md 列出的越界点逐条对照，补齐遗漏的迁移项（此时测试失败是预期的）
 
 ## 3. PR1：错误种类迁移（R7）
 
@@ -36,7 +36,7 @@
 
 ## 6. PR1：收尾
 
-- [ ] 6.1 `go test ./internal/archtest` 全绿；临时在某个 handler 中加入 `os.ReadDir`，确认 R4 报告了正确位置后撤销
+- [x] 6.1 `go test ./internal/archtest` 全绿；临时在某个 handler 中加入 `os.ReadDir`，确认 R4 报告了正确位置后撤销
 - [ ] 6.2 线上快照不变；运行 `go test -race ./...`、`make test-unit`、`make test-browser`、`make test-e2e`、`make check`
 - [ ] 6.3 更新 `docs/architecture.md`（分层表、R0–R7、例外表维护方式、新增包的归类流程、快照重新录制方式）、`AGENTS.md`（Key Directories、Code Conventions、配置到 `session.Options` 的接线描述）；在 `docs/user-stories.md` L 节新增 `US-L04 分层架构约束`，同步功能索引、来源链接与计数，运行 Markdown 格式与空白检查
 
