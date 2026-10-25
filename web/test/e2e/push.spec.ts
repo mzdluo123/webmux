@@ -144,28 +144,36 @@ test("the service worker shows a pushed alert and opens its session", async ({
     context.serviceWorkers()[0] ??
     (await context.waitForEvent("serviceworker"));
   const { cdp, id } = await registrationId(page);
-  await cdp.send("ServiceWorker.deliverPushMessage", {
-    origin: new URL(baseURL!).origin,
-    registrationId: id,
-    data: JSON.stringify({
-      web_push: 8030,
-      notification: {
-        title: "deploy",
-        body: "等待授权",
-        navigate: "https://evil.example/",
-        tag: `webmux-${sessionId}`,
-      },
-      webmux: { v: 1, sessionId, kind: "permission", source: "agent" },
-    }),
-  });
-  await expect
-    .poll(() =>
-      worker.evaluate(async () =>
-        (await self.registration.getNotifications()).map(
-          (n) => `${n.title}|${n.body}|${n.tag}`,
-        ),
+  const deliver = () =>
+    cdp.send("ServiceWorker.deliverPushMessage", {
+      origin: new URL(baseURL!).origin,
+      registrationId: id,
+      data: JSON.stringify({
+        web_push: 8030,
+        notification: {
+          title: "deploy",
+          body: "等待授权",
+          navigate: "https://evil.example/",
+          tag: `webmux-${sessionId}`,
+        },
+        webmux: { v: 1, sessionId, kind: "permission", source: "agent" },
+      }),
+    });
+  const notifications = () =>
+    worker.evaluate(async () =>
+      (await self.registration.getNotifications()).map(
+        (n) => `${n.title}|${n.body}|${n.tag}`,
       ),
-    )
+    );
+  await deliver();
+  await expect
+    .poll(async () => {
+      const shown = await notifications();
+      // The shared tag makes a repeated push replace the existing alert, so
+      // delivering again cannot duplicate a notification the worker missed.
+      if (shown.length === 0) await deliver();
+      return shown;
+    })
     .toEqual([`deploy|等待授权|webmux-${sessionId}`]);
 
   // Run the worker's click routing on the real notification: the open
