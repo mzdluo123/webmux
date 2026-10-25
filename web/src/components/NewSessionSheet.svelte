@@ -24,6 +24,8 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
+  import { ListButton } from "$lib/components/ui/list-button";
+  import * as NativeSelect from "$lib/components/ui/native-select";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import DirectoryPicker from "./DirectoryPicker.svelte";
@@ -242,7 +244,7 @@
       {#if mode !== "direct"}
         <div class="space-y-2">
           <Label for="session-repository">仓库</Label>
-          <select
+          <NativeSelect.Root
             id="session-repository"
             bind:value={repositoryId}
             onchange={() => {
@@ -250,37 +252,38 @@
               createdTree = null;
             }}
             disabled={busy}
-            class="h-10 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
+            class="w-full"
           >
-            <option value="">选择仓库</option>
-            {#each repositories as repo (repo.id)}<option
+            <NativeSelect.Option value="">选择仓库</NativeSelect.Option>
+            {#each repositories as repo (repo.id)}<NativeSelect.Option
                 value={repo.id}
-                disabled={repo.availability !== "available"}>{repo.name}</option
+                disabled={repo.availability !== "available"}
+                >{repo.name}</NativeSelect.Option
               >{/each}
-          </select>
+          </NativeSelect.Root>
         </div>
         {#if mode === "existing"}
           <div class="space-y-2">
             <Label for="session-worktree">工作树</Label>
-            <select
+            <NativeSelect.Root
               id="session-worktree"
               bind:value={worktreeId}
               disabled={busy}
-              class="h-10 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
+              class="w-full"
             >
-              <option value="">选择工作树</option>
-              {#each repository?.worktrees || [] as tree (tree.id)}<option
+              <NativeSelect.Option value="">选择工作树</NativeSelect.Option>
+              {#each repository?.worktrees || [] as tree (tree.id)}<NativeSelect.Option
                   value={tree.id}
                   disabled={!tree.available || tree.kind === "bare"}
                   >{tree.kind === "main" ? "主工作区 · " : ""}{tree.branch ||
                     tree.head?.slice(0, 12) ||
-                    "无提交"} · {tree.path}</option
+                    "无提交"} · {tree.path}</NativeSelect.Option
                 >{/each}
-              {#if createdTree && !repository?.worktrees.some((tree) => tree.id === createdTree?.id)}<option
+              {#if createdTree && !repository?.worktrees.some((tree) => tree.id === createdTree?.id)}<NativeSelect.Option
                   value={createdTree.id}
-                  >{createdTree.branch} · {createdTree.path}</option
+                  >{createdTree.branch} · {createdTree.path}</NativeSelect.Option
                 >{/if}
-            </select>
+            </NativeSelect.Root>
             {#if worktree}<p
                 class="font-mono text-xs break-all whitespace-pre-wrap"
               >
@@ -387,9 +390,9 @@
           {:else}
             <div class="grid max-h-60 min-w-0 gap-2 overflow-y-auto p-0.5">
               {#each configs as config (config.id)}
-                <button
-                  type="button"
-                  class="grid min-w-0 gap-0.5 rounded-md border px-3 py-2 text-left outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:border-primary aria-pressed:bg-accent"
+                <ListButton
+                  variant="option"
+                  class="grid min-w-0"
                   aria-label={`启动配置 ${config.name}`}
                   aria-pressed={launch === `config:${config.id}`}
                   onclick={() => {
@@ -406,7 +409,7 @@
                       class="text-xs text-muted-foreground"
                       >{config.envNames.length} 个环境变量</span
                     >{/if}
-                </button>
+                </ListButton>
               {/each}
             </div>
           {/if}

@@ -56,23 +56,36 @@ Oxlint（`pnpm --dir web lint`）仍是通用 lint。它只读取 `.svelte` 的 
 
 常用的设计系统扩展：
 
-| 组件                | variant / size                          | 用途                                                     |
-| ------------------- | --------------------------------------- | -------------------------------------------------------- |
-| `Button`            | `variant="quiet"`                       | 平时弱化、悬停时恢复前景色的 ghost 按钮                  |
-| `Button`            | `raised`                                | 浮在终端或代码上的按钮（边框加阴影）                     |
-| `Button`            | `size="icon-touch"` / `size="sm-touch"` | 窄屏（小于 `sm`）44px 触控尺寸，`sm` 以上恢复常规尺寸    |
-| `Input`、`Textarea` | `mono`                                  | 命令、路径、环境变量与终端文本                           |
-| `Textarea`          | `variant="ghost"`                       | 在列表项或卡片中原地编辑                                 |
-| `Empty`             | `variant="outline"` / `variant="card"`  | 区块内的虚线空状态 / 独立卡片上的空页面                  |
-| `Command`           | `variant="outline"`                     | 嵌在表单或对话框中的列表                                 |
-| `DropdownMenuLabel` | `variant="title"`                       | 整个菜单的标题                                           |
-| `Item`              | `variant="card"`、`size="flush"`        | 卡片表面、悬停高亮的列表项；内容自带内边距（如整行链接） |
+| 组件                | variant / size                                              | 用途                                                                                                      |
+| ------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `Button`            | `variant="quiet"`                                           | 平时弱化、悬停时恢复前景色的 ghost 按钮                                                                   |
+| `Button`            | `raised`                                                    | 浮在终端或代码上的按钮（边框加阴影）                                                                      |
+| `Button`            | `size="icon-touch"` / `size="sm-touch"`                     | 窄屏（小于 `sm`）44px 触控尺寸，`sm` 以上恢复常规尺寸                                                     |
+| `Input`、`Textarea` | `mono`                                                      | 命令、路径、环境变量与终端文本                                                                            |
+| `Textarea`          | `variant="ghost"`                                           | 在列表项或卡片中原地编辑                                                                                  |
+| `Empty`             | `variant="outline"` / `variant="card"`                      | 区块内的虚线空状态 / 独立卡片上的空页面                                                                   |
+| `Command`           | `variant="outline"`                                         | 嵌在表单或对话框中的列表                                                                                  |
+| `DropdownMenuLabel` | `variant="title"`                                           | 整个菜单的标题                                                                                            |
+| `Item`              | `variant="card"`、`size="flush"`                            | 卡片表面、悬停高亮的列表项；内容自带内边距（如整行链接）                                                  |
+| `Input`、`Label`    | `size="sm"`                                                 | 代码导航等紧凑面板                                                                                        |
+| `NativeSelect`      | `size="sm"`                                                 | 原生下拉选择；手机保留系统选择器                                                                          |
+| `Checkbox`          | —                                                           | 复选框，配合 `Label` 使用                                                                                 |
+| `ListButton`        | `row` / `text` / `content` / `option` / `tab` / `tab-close` | 列表、标签栏与卡片中的可点击区域。它不带控件尺寸，虚拟列表的固定行高不受影响；独立的操作按钮仍用 `Button` |
 
 粗指针设备的最小触控高度用 Tailwind 的 `any-pointer-coarse:` 变体（如 `any-pointer-coarse:min-h-11`）。
 
-## 存量基线与收紧
+### 任意值与运行时尺寸
 
-存量违规记录在基线文件中，检查只拦截新增问题：
+`no-arbitrary-values` 允许布局类的任意值：依赖视口的尺寸计算（如 `max-h-[50dvh]`、`w-[min(90vw,520px)]`）是布局，不是设计令牌。间距、排版、颜色、圆角与阴影仍必须使用主题刻度或令牌，例如：
+
+- 字号用 `text-xs` 等刻度，元数据最小 12px。
+- 带安全区的底部留白用 `styles.css` 中的 `pb-safe-4`。
+
+运行时才能确定的几何值（虚拟列表行高、图片缩放、视口高度、预览行数）用 `style:--name` 设置 CSS 自定义属性，再由类读取，如 `h-(--row-height)`、`transform-(--image-transform)`，或由 `styles.css` 中的工具类读取（如 `h-preview`）。不要用 `style:height` 等内联样式。
+
+## 基线与新规则
+
+`frontend-architecture-guard` 的存量治理已经完成，下面三个基线文件都为空，所有检查都按严格模式执行。保留这些文件，是为了以后引入有存量违规的新规则时，可以先记录基线，再逐步收紧：
 
 | 文件                                            | 记录内容                     |
 | ----------------------------------------------- | ---------------------------- |
@@ -84,4 +97,4 @@ Oxlint（`pnpm --dir web lint`）仍是通用 lint。它只读取 `.svelte` 的 
 - ESLint 按“文件 + 规则”计数：同一文件同一规则的违规数超过记录时，该文件该规则的所有违规都会报告。
 - 不要为了通过检查而扩大基线、添加 `eslint-disable` 或 `jscpd:ignore`。确有必要的例外，在 PR 中说明原因，并优先改为配置中的契约或白名单。
 
-存量治理的范围与顺序见 OpenSpec 变更 `frontend-architecture-guard`。
+治理过程与每批的决策记录见 OpenSpec 变更 `frontend-architecture-guard`。

@@ -10,6 +10,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
+  import { ListButton } from "$lib/components/ui/list-button";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Card from "$lib/components/ui/card";
   import * as Empty from "$lib/components/ui/empty";
@@ -207,9 +208,9 @@
             {#each quickCommands.list as cmd, index (cmd.id)}
               {@const label = commandLabel(cmd)}
               <Item.Root variant="outline" size="sm">
-                <button
-                  type="button"
-                  class="flex min-w-0 flex-1 flex-col gap-1 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                <ListButton
+                  variant="content"
+                  class="flex min-w-0 flex-1 flex-col"
                   aria-label={`编辑 ${label}`}
                   onclick={() => edit(cmd)}
                 >
@@ -221,7 +222,7 @@
                       class="truncate font-mono text-xs text-muted-foreground"
                       >{commandPreview(cmd)}</span
                     >{/if}
-                </button>
+                </ListButton>
                 <Item.Actions class="gap-1">
                   <Button
                     variant="ghost"
@@ -320,9 +321,9 @@
           <Item.Group class="gap-2" aria-label="启动配置列表">
             {#each launchConfigs as config (config.id)}
               <Item.Root variant="outline" size="sm">
-                <button
-                  type="button"
-                  class="flex min-w-0 flex-1 flex-col gap-1 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                <ListButton
+                  variant="content"
+                  class="flex min-w-0 flex-1 flex-col"
                   aria-label={`编辑 ${config.name}`}
                   onclick={() => editLaunchConfig(config.id)}
                 >
@@ -337,7 +338,7 @@
                   <span class="truncate font-mono text-xs text-muted-foreground"
                     >{joinArgs(config.cmd)}</span
                   >
-                </button>
+                </ListButton>
                 <Item.Actions class="gap-1">
                   {@render deleteButton(config.name, () => {
                     launchDeleting = config;
@@ -460,8 +461,8 @@
           </p>
           <pre
             aria-label="预览效果示例"
-            style:height={`calc(${previewSettings.lines}lh + 1rem)`}
-            class="min-w-0 overflow-hidden bg-muted p-2 font-mono text-xs leading-5 whitespace-pre text-foreground dark:bg-background">{preview ||
+            style:--preview-lines={previewSettings.lines}
+            class="h-preview min-w-0 overflow-hidden bg-muted p-2 font-mono text-xs leading-5 whitespace-pre text-foreground dark:bg-background">{preview ||
               "末尾行已隐藏，暂无可显示内容"}</pre>
         </div>
         <Button

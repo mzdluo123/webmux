@@ -89,7 +89,7 @@ CI 将各套件拆成并行 job：格式检查与前端构建、Go race、Vitest
 
 - Go 使用 gofmt；前端使用 Oxfmt（80 列、两空格缩进、分号、尾随逗号）。提交前运行 `make format`。
 - 使用 `pnpm --dir web lint` 运行 Oxlint，`pnpm --dir web lint:fix` 应用自动修复。Oxlint 检查 JS/TS 和 Svelte 的脚本部分；Svelte 模板和类型检查继续由 `svelte-check` 负责。
-- 使用 `pnpm --dir web check:arch` 检查组件复用、设计令牌与分层；存量违规记录在基线中，修复后运行 `pnpm --dir web arch:ratchet` 收紧基线。规则见 [前端架构守卫](docs/frontend-architecture.md)。
+- 使用 `pnpm --dir web check:arch` 检查组件复用、设计令牌与分层；基线已清空，任何违规都会失败；只有引入带存量违规的新规则时才记录基线，并在修复后运行 `pnpm --dir web arch:ratchet` 收紧。规则见 [前端架构守卫](docs/frontend-architecture.md)。
 - TypeScript 开启严格模式；HTTP 响应、WebSocket JSON 和本地设置必须经过 Zod 校验。
 - 修改后端 JSON 字段时，同步更新 `web/src/schemas.ts` 及其使用方。
 - 命令以 argv 执行，不经 shell 展开。

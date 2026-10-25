@@ -331,8 +331,8 @@
     ></div>
     {#if coarse && actionLine !== undefined && actionTop !== undefined && lineAction}
       <div
-        class="absolute right-1 z-10 -translate-y-1/2"
-        style:top={`${actionTop}px`}
+        class="absolute top-(--action-top) right-1 z-10 -translate-y-1/2"
+        style:--action-top={`${actionTop}px`}
       >
         {@render lineAction(actionLine)}
       </div>

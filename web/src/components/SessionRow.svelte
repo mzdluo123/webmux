@@ -138,9 +138,9 @@
     <pre
       data-slot="terminal-preview"
       aria-label="终端输出预览"
-      style:height={`calc(${previewSettings.lines}lh + 1rem)`}
+      style:--preview-lines={previewSettings.lines}
       class:preview-empty={!preview}
-      class="mt-4 min-w-0 overflow-hidden px-4 pb-4 font-mono text-xs leading-5 whitespace-pre text-foreground/85">{preview ||
+      class="h-preview mt-4 min-w-0 overflow-hidden px-4 pb-4 font-mono text-xs leading-5 whitespace-pre text-foreground/85">{preview ||
         (session.preview
           ? "末尾行已隐藏，暂无可显示内容"
           : "等待终端输出…")}</pre>

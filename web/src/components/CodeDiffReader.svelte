@@ -450,7 +450,7 @@
   {/if}
   {#if diffStyle === "split"}
     <div
-      class="grid shrink-0 grid-cols-2 border-b bg-muted/40 font-mono text-[11px] text-muted-foreground"
+      class="grid shrink-0 grid-cols-2 border-b bg-muted/40 font-mono text-xs text-muted-foreground"
     >
       <span class="truncate border-r px-3 py-1">修改前</span><span
         class="truncate px-3 py-1">修改后</span

@@ -20,10 +20,14 @@ const NOTE =
 
 // Native elements that have a design-system replacement.
 const RAW_TO_DS = {
-  button: "<Button> ($lib/components/ui/button)",
-  input: "<Input> ($lib/components/ui/input)",
+  button:
+    "<Button> ($lib/components/ui/button), or <ListButton> " +
+    "($lib/components/ui/list-button) for rows, tabs and cards inside lists",
+  input:
+    "<Input> ($lib/components/ui/input), or <Checkbox> " +
+    "($lib/components/ui/checkbox) for checkboxes",
   textarea: "<Textarea> ($lib/components/ui/textarea)",
-  select: "a DropdownMenu or Command list ($lib/components/ui)",
+  select: "<NativeSelect> ($lib/components/ui/native-select)",
   dialog: "<Dialog> or ResponsiveDialog ($lib/components/ui/dialog)",
   label: "<Label> ($lib/components/ui/label)",
 };
@@ -129,7 +133,9 @@ export default defineConfig([
         },
       ],
       "shadcn/no-raw-colors": "error",
-      "shadcn/no-arbitrary-values": "error",
+      // Viewport math such as `max-h-[50dvh]` is layout, not a design token;
+      // spacing, typography, colour and shape stay on the theme scale.
+      "shadcn/no-arbitrary-values": ["error", { allow: ["layout"] }],
       "shadcn/no-inline-styles": "error",
       "shadcn/no-unknown-classes": "error",
       "shadcn/require-static-classes": "error",

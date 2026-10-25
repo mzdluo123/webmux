@@ -17,8 +17,8 @@
 - [x] 2.4 未知类名：`code-goto-line`、`code-reader`、`code-search`、`session-link` 改为 `data-*` 属性，同步源码与 `test/e2e`、`test/browser`、`test/performance` 中的选择器；未被引用的 `workspace-header`、`workspace-toolbar` 删除
 - [x] 2.5 任意值（有完全等价内置工具类的部分，逐个编译确认 CSS 相同）：`[overflow-wrap:anywhere]` → `wrap-anywhere`、`[field-sizing:fixed]` → `field-sizing-fixed`、`[contain:strict]` → `contain-strict`、`[scrollbar-width:thin]` → `scrollbar-thin`、`flex-[2]` → `flex-2`、`focus-visible:ring-[3px]` → `focus-visible:ring-3`、`mt-[0.3125rem]` → `mt-1.25`（47 → 33 处）
 - [x] 2.6 重复代码：`Settings.svelte` 的两个删除按钮与 `SoftKeys.svelte` 的三段发送键按钮改为 snippet；`design-tokens.css` 的 `.dark` 中与 `:root` 完全相同的 `--chart-1..5` 删除；jscpd 基线清空
-- [ ] 2.7 其余 33 处任意值：重复出现的值（`max-h-[50dvh]`、`w-[3ch]`、`max-w-[calc(100vw-1rem)]`、对话框高度、安全区内边距、`[overflow-anchor:none]`、`[direction:rtl]`）在 `styles.css` 中用 `@utility` 或主题变量命名，单次出现的值在评审中决定
-- [ ] 2.8 确认 `cn-rtl-flip` 与上游 registry 的关系后补充 `@utility` 或删除
+- [x] 2.7 其余 33 处任意值：`no-arbitrary-values` 改为允许布局类（依赖视口的尺寸计算属于布局，不是设计令牌），31 处随之合规；排版与间距仍按刻度：分栏 Diff 列标题 `text-[11px]` 改为 `text-xs`（与设计系统 12px 元数据字号一致），抽屉底部安全区留白改为 `styles.css` 中的 `pb-safe-4`
+- [x] 2.8 `cn-rtl-flip` 是 shadcn-svelte 为方向相关图标（子菜单箭头）预留的钩子，本项目未定义；在 `styles.css` 中定义为只在 RTL 下水平翻转的工具类，保留生成组件不改，LTR 下无变化
 
 ## 3. 设计系统补充 size / variant（需要截图）
 
@@ -31,17 +31,17 @@
 
 ## 4. 原生控件换成设计系统组件（需要截图）
 
-- [ ] 4.1 `CodeNavigator.svelte`：3 个 `<button>`、4 个 `<input>`、2 个 `<label>`、1 个 `<select>` 换成 Button、Input、Label 与 DropdownMenu/Command；保持键盘导航与现有 E2E 行为
-- [ ] 4.2 `CodePanel.svelte`（2 个 `<button>`）、`CodeChangesList.svelte`（虚拟列表行 `<button>`，确认 Button 的 ghost variant 不破坏行高与焦点样式）
-- [ ] 4.3 `NewSessionSheet.svelte`（2 个 `<select>`、1 个 `<button>`）、`CodeDocumentView.svelte`（`<label>` + `<select>`，沿用 compact-terminal-chrome 中窄屏改菜单单选的做法）
-- [ ] 4.4 `RemoveWorktreeDialog.svelte` 的复选框改用 Checkbox（需要先用 shadcn-svelte 添加）与 Label；`TerminalHeader.svelte` 的隐藏文件输入、`Settings.svelte` 的 2 个 `<button>` 逐个处理，隐藏的 `<input type="file">` 如无对应组件，在文档中登记为例外
+- [x] 4.1 `CodeNavigator.svelte`：路径搜索、定位与修改筛选改用 `Input size="sm"`；“显示忽略项”改用 Checkbox + `Label size="sm"`；修改来源改用 `NativeSelect size="sm"`；路径导航与文件行改用新增的 `ListButton`（`text` / `row`）。没有改用 DropdownMenu/Command：NativeSelect 保留手机系统选择器与现有 `selectOption` 测试
+- [x] 4.2 `CodePanel.svelte` 的文档标签与关闭按钮改用 `ListButton`（`tab` / `tab-close`）；`CodeChangesList.svelte` 的虚拟列表行改用 `ListButton variant="row"`。Button 的 `wm-control` 在触控设备上有不受工具类控制的最小高度，会破坏固定行高，因此列表、标签与卡片中的可点击区域统一用不带控件尺寸的 `ListButton`
+- [x] 4.3 `NewSessionSheet.svelte` 的仓库与工作树选择改用 `NativeSelect`，启动配置卡片改用 `ListButton variant="option"`；`CodeDocumentView.svelte` 的图片预览来源改用 `Label` + `NativeSelect size="sm"`（窄屏仍在代码菜单中用单选）。新增的 NativeSelect 与本项目 Input 对齐（`bg-card`、圆角、2px 焦点环、控件高度令牌），并加入手机 16px 字号规则
+- [x] 4.4 用 shadcn-svelte 添加 Checkbox 与 NativeSelect（图标改用 Iconify，`bits-ui` 保持锁定版本）；`RemoveWorktreeDialog.svelte` 的确认复选框改用 Checkbox + Label；`TerminalHeader.svelte` 的隐藏文件输入改用 `Input type="file"`（同时去掉 Input 文件分支上的 `bind:value`：文件输入的值只能被清空，原绑定会在选择文件后写回路径并抛出 `InvalidStateError`）；`Settings.svelte` 两个列表的条目主体改用 `ListButton variant="content"`
 
 ## 5. 运行时几何值
 
-- [ ] 5.1 `CodeChangesList`（虚拟列表行高与偏移）、`CodeImageView`（缩放与平移）、`CodeReader`（操作按钮位置）、`SessionRow` 与 `Settings`（预览行数）、`Terminal`（视口高度）中的 10 处 `style:` 改为 CSS 自定义属性加工具类；无法改写的登记为例外
+- [x] 5.1 10 处 `style:` 改为 `style:--name` 加读取它的工具类（`h-(--list-height)`、`top-(--row-top)`、`transform-(--image-transform)`、`top-(--action-top)` 等）；终端页高度由 `.terminal-page` 读取 `--viewport-height`（缺省 `100dvh`），预览高度由 `styles.css` 的 `h-preview` 读取 `--preview-lines`；计算结果与原内联样式相同
 
 ## 6. 收尾
 
-- [ ] 6.1 确认三个基线文件为空，ESLint 契约与例外清单都已写入 `docs/frontend-architecture.md`
+- [x] 6.1 三个基线文件均为空，所有检查按严格模式执行；契约、布局任意值策略、运行时尺寸做法与新增组件写入 `docs/frontend-architecture.md`。基线文件与 `arch:ratchet` 保留，仅用于以后引入带存量违规的新规则
 - [x] 6.2 knip 的 `exports`、`types` 升为 `error`（2.1 完成后即升级）
-- [ ] 6.3 更新 US-L05 与 `docs/frontend-architecture.md` 中的存量说明；运行 `make check`、`make test-unit`、`make test-browser`、`make test-e2e` 与 Storybook 检查
+- [x] 6.3 更新 US-L05、`AGENTS.md`、`CONTRIBUTING.md` 与 `docs/frontend-architecture.md` 中的基线说明；运行格式、Oxlint、svelte-check、`check:arch`、单元、浏览器、Storybook、E2E 与性能测试

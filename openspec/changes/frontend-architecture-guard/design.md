@@ -43,7 +43,8 @@
 - `@shadcn/lint` 通过 `components.json` 自动发现 `ui/` 组件、variant/size 和 `styles.css` 中的主题令牌，不需要额外配置。
 - `no-restyle` 默认只允许 `layout` 类。按模板保留两条契约：`CardTitle` 可调整排版但不能改字重，`CardContent` 可调整内边距。
 - `ui/` 目录关闭 `no-restyle`、任意值、内联样式、动态类名和导入限制，因为生成组件本身负责封装这些内容。
-- 原生元素映射到本项目实际存在的组件：`<select>` 指向 DropdownMenu 或 Command；`<dialog>` 指向 Dialog 或 ResponsiveDialog；本项目没有 Table 组件，不禁止 `<table>`。
+- 原生元素映射到本项目的组件：`<select>` 指向 NativeSelect，复选框指向 Checkbox（两者在治理第 4 批用 shadcn-svelte 添加），列表、标签栏与卡片中的可点击区域指向 ListButton；`<dialog>` 指向 Dialog 或 ResponsiveDialog；本项目没有 Table 组件，不禁止 `<table>`。
+- `no-arbitrary-values` 允许布局类的任意值：依赖视口的尺寸计算是布局，不是设计令牌；间距、排版、颜色、形状与效果仍按刻度。
 - 额外禁止在 `ui/` 外导入 `@tabler/icons-svelte`，把 `AGENTS.md` 中的 Iconify 约定变成检查。
 - 忽略 `src/lib/utils.ts`：它是 shadcn-svelte 生成的辅助文件，其中的禁用注释引用了未安装的 typescript-eslint 规则。
 
@@ -100,5 +101,8 @@ jscpd 的 `--baseline-from-ref origin/main`（模板 CI 的做法）需要完整
 
 ## Open Questions
 
-- 动态几何值的例外是长期保留在基线中，还是在文档中登记后用 `eslint-disable-next-line` 加理由标记？本设计倾向后者，最终由治理 PR 的评审决定。
-- `cn-rtl-flip` 是 shadcn-svelte 生成组件中使用、但 `styles.css` 未定义的类：在 `styles.css` 补充 `@utility`，还是从组件中删除？需要对照上游 registry 确认。
+治理过程中已解决：
+
+- 动态几何值不需要例外：全部改为 `style:--name` 加读取它的工具类，计算结果不变。
+- `cn-rtl-flip` 在 `styles.css` 中定义为只在 RTL 下水平翻转的工具类，生成组件保持不变。
+- Button 的 `wm-control` 在触控设备上带有不受工具类控制的最小高度，不适合虚拟列表行和标签，因此新增 `ListButton` 承担列表、标签栏与卡片中的可点击区域。

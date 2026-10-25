@@ -30,7 +30,7 @@
 
 ### Requirement: 使用主题令牌而不是原始值
 
-业务代码的类名 MUST NOT 使用 Tailwind 原始调色板颜色（如 `bg-blue-500`）、任意值（如 `p-[13px]`）、Tailwind 无法生成的类名，或无法静态读取的动态类名。业务代码 MUST NOT 使用内联样式。报错 SHALL 给出最接近的主题令牌或刻度值，例如“`p-[13px]` 可改为 `p-3.25`”。运行时才能确定的几何值 SHALL 通过 CSS 自定义属性与工具类表达；确实无法改写的例外 MUST 在 `docs/frontend-architecture.md` 中登记。
+业务代码的类名 MUST NOT 使用 Tailwind 原始调色板颜色（如 `bg-blue-500`）、间距/排版/颜色/形状/效果类的任意值（如 `p-[13px]`、`text-[11px]`）、Tailwind 无法生成的类名，或无法静态读取的动态类名。布局类（宽高、位置、flex 与栅格）MAY 使用任意值，因为依赖视口的尺寸计算（如 `max-h-[50dvh]`）不是设计令牌。业务代码 MUST NOT 用 `style:height` 等内联样式设置属性。报错 SHALL 给出最接近的主题令牌或刻度值，例如“`p-[13px]` 可改为 `p-3.25`”。运行时才能确定的几何值 SHALL 通过 `style:--name` 设置的 CSS 自定义属性与读取它的工具类表达。
 
 #### Scenario: 原始颜色
 
@@ -42,9 +42,19 @@
 - **WHEN** 新代码写 `class="p-[13px]"`
 - **THEN** `arch:lint` 报告该值不在刻度上，并建议 `p-3.25`
 
+#### Scenario: 布局尺寸
+
+- **WHEN** 新代码写 `class="max-h-[50dvh] w-[min(90vw,520px)]"`
+- **THEN** 不报告违规
+
+#### Scenario: 运行时尺寸
+
+- **WHEN** 虚拟列表行写 `style:top={`${offset}px`}`
+- **THEN** `arch:lint` 报告内联样式；改为 `style:--row-top={`${offset}px`}` 与 `class="top-(--row-top)"` 后不再报告
+
 ### Requirement: 复用设计系统组件与图标约定
 
-在 `web/src/lib/components/ui/` 以外，`.svelte` 模板 MUST NOT 手写 `<button>`、`<input>`、`<textarea>`、`<select>`、`<dialog>`、`<label>`。报错 SHALL 指出应复用的组件：Button、Input、Textarea、DropdownMenu 或 Command、Dialog 或 ResponsiveDialog、Label。`bits-ui`、`vaul-svelte`、`paneforge`、`tailwind-variants` 与 `class-variance-authority` MUST 只在 `ui/` 中导入。业务代码 MUST 通过 Iconify（`~icons/tabler/*`）导入图标，MUST NOT 直接导入 `@tabler/icons-svelte`。
+在 `web/src/lib/components/ui/` 以外，`.svelte` 模板 MUST NOT 手写 `<button>`、`<input>`、`<textarea>`、`<select>`、`<dialog>`、`<label>`。报错 SHALL 指出应复用的组件：Button（列表、标签栏与卡片中的可点击区域用 ListButton）、Input（复选框用 Checkbox）、Textarea、NativeSelect、Dialog 或 ResponsiveDialog、Label。`bits-ui`、`vaul-svelte`、`paneforge`、`tailwind-variants` 与 `class-variance-authority` MUST 只在 `ui/` 中导入。业务代码 MUST 通过 Iconify（`~icons/tabler/*`）导入图标，MUST NOT 直接导入 `@tabler/icons-svelte`。
 
 #### Scenario: 手写按钮
 
