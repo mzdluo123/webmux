@@ -327,11 +327,14 @@
                   type="button"
                   variant="ghost"
                   size="sm"
-                  class="max-w-full truncate text-xs"
+                  class="max-w-full"
                   title={dir}
                   onclick={() => {
                     cwd = dir;
-                  }}>{dir.split("/").pop() || "/"}</Button
+                  }}
+                  ><span class="min-w-0 truncate"
+                    >{dir.split("/").pop() || "/"}</span
+                  ></Button
                 >{/each}
             </div>
           {/if}

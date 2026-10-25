@@ -60,8 +60,8 @@
         aria-label={option.label}
         title={option.label}
         aria-pressed={spec[option.key]}
-        class="font-mono text-xs"
-        onclick={() => toggle(option.key)}>{option.text}</Button
+        onclick={() => toggle(option.key)}
+        ><span class="font-mono text-xs">{option.text}</span></Button
       >
     {/each}
     <Button

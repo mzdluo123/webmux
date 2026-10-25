@@ -164,7 +164,8 @@
     value={draft.text}
     readonly={locked}
     aria-label="草稿内容"
-    class="min-h-0 flex-1 resize-none overflow-y-auto font-mono field-sizing-fixed"
+    mono
+    class="min-h-0 flex-1 resize-none overflow-y-auto field-sizing-fixed"
     autocapitalize="off"
     autocorrect="off"
     spellcheck={false}

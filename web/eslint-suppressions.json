@@ -1,9 +1,4 @@
 {
-  "src/components/AddHomeWorktreesDialog.svelte": {
-    "shadcn/no-restyle": {
-      "count": 2
-    }
-  },
   "src/components/CodeChangesList.svelte": {
     "shadcn/no-inline-styles": {
       "count": 3
@@ -21,20 +16,12 @@
     "shadcn/no-arbitrary-values": {
       "count": 1
     },
-    "shadcn/no-restyle": {
-      "count": 1
-    },
     "svelte/no-restricted-html-elements": {
       "count": 2
     }
   },
   "src/components/CodeImageView.svelte": {
     "shadcn/no-inline-styles": {
-      "count": 3
-    }
-  },
-  "src/components/CodeLineAction.svelte": {
-    "shadcn/no-restyle": {
       "count": 3
     }
   },
@@ -59,31 +46,17 @@
       "count": 1
     }
   },
-  "src/components/CodeSearchPanel.svelte": {
-    "shadcn/no-restyle": {
-      "count": 2
-    }
-  },
   "src/components/DirectoryPicker.svelte": {
     "shadcn/no-arbitrary-values": {
       "count": 1
-    },
-    "shadcn/no-restyle": {
-      "count": 5
     }
   },
   "src/components/LaunchConfigDialog.svelte": {
     "shadcn/no-arbitrary-values": {
       "count": 2
-    },
-    "shadcn/no-restyle": {
-      "count": 3
     }
   },
   "src/components/NewSessionSheet.svelte": {
-    "shadcn/no-restyle": {
-      "count": 12
-    },
     "svelte/no-restricted-html-elements": {
       "count": 3
     }
@@ -91,33 +64,16 @@
   "src/components/QuickCommandDialog.svelte": {
     "shadcn/no-arbitrary-values": {
       "count": 2
-    },
-    "shadcn/no-restyle": {
-      "count": 1
     }
   },
   "src/components/QuickCommandMenu.svelte": {
     "shadcn/no-arbitrary-values": {
       "count": 2
-    },
-    "shadcn/no-restyle": {
-      "count": 2
-    },
-    "shadcn/require-static-classes": {
-      "count": 3
     }
   },
   "src/components/RemoveWorktreeDialog.svelte": {
-    "shadcn/no-restyle": {
-      "count": 2
-    },
     "svelte/no-restricted-html-elements": {
       "count": 2
-    }
-  },
-  "src/components/RepositoryGroup.svelte": {
-    "shadcn/no-restyle": {
-      "count": 7
     }
   },
   "src/components/ResponsiveDialog.svelte": {
@@ -128,25 +84,11 @@
   "src/components/ScratchPanel.svelte": {
     "shadcn/no-arbitrary-values": {
       "count": 5
-    },
-    "shadcn/no-restyle": {
-      "count": 16
-    },
-    "shadcn/require-static-classes": {
-      "count": 8
     }
   },
   "src/components/SessionFilters.svelte": {
     "shadcn/no-arbitrary-values": {
       "count": 1
-    },
-    "shadcn/no-restyle": {
-      "count": 7
-    }
-  },
-  "src/components/SessionListEmpty.svelte": {
-    "shadcn/no-restyle": {
-      "count": 2
     }
   },
   "src/components/SessionRow.svelte": {
@@ -155,16 +97,10 @@
     },
     "shadcn/no-inline-styles": {
       "count": 1
-    },
-    "shadcn/no-restyle": {
-      "count": 6
     }
   },
   "src/components/TerminalCopyDialog.svelte": {
     "shadcn/no-arbitrary-values": {
-      "count": 1
-    },
-    "shadcn/no-restyle": {
       "count": 1
     }
   },
@@ -176,53 +112,21 @@
   "src/components/TerminalInputComposer.svelte": {
     "shadcn/no-arbitrary-values": {
       "count": 2
-    },
-    "shadcn/no-restyle": {
-      "count": 1
     }
   },
   "src/components/TerminalPasteDialog.svelte": {
     "shadcn/no-arbitrary-values": {
       "count": 1
-    },
-    "shadcn/no-restyle": {
-      "count": 1
-    }
-  },
-  "src/components/TerminalViewport.svelte": {
-    "shadcn/no-restyle": {
-      "count": 2
-    }
-  },
-  "src/components/TerminalWorkspace.svelte": {
-    "shadcn/no-restyle": {
-      "count": 5
     }
   },
   "src/components/TokenHelp.svelte": {
     "shadcn/no-arbitrary-values": {
       "count": 1
-    },
-    "shadcn/no-restyle": {
-      "count": 8
-    }
-  },
-  "src/components/TunnelSettings.svelte": {
-    "shadcn/no-restyle": {
-      "count": 4
     }
   },
   "src/components/WorkspaceGroup.svelte": {
     "shadcn/no-arbitrary-values": {
       "count": 3
-    },
-    "shadcn/no-restyle": {
-      "count": 1
-    }
-  },
-  "src/components/WorktreeCreateFields.svelte": {
-    "shadcn/no-restyle": {
-      "count": 2
     }
   },
   "src/lib/components/ui/dropdown-menu/dropdown-menu-sub-trigger.svelte": {
@@ -236,9 +140,6 @@
     },
     "shadcn/no-inline-styles": {
       "count": 1
-    },
-    "shadcn/no-restyle": {
-      "count": 10
     },
     "svelte/no-restricted-html-elements": {
       "count": 2

@@ -140,7 +140,8 @@
             id="confirm-worktree-path"
             bind:value={confirmPath}
             rows={2}
-            class="font-mono break-all"
+            mono
+            class="break-all"
             autocomplete="off"
             autocapitalize="off"
             autocorrect="off"
@@ -194,8 +195,7 @@
       {:else if preview.forceAllowed}
         <Button
           type="button"
-          variant="outline"
-          class="text-destructive"
+          variant="destructive"
           disabled={busy}
           onclick={() => {
             force = true;

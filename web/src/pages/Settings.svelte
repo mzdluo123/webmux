@@ -188,7 +188,7 @@
       </Card.Header>
       <Card.Content class="space-y-4">
         {#if quickCommands.list.length === 0}
-          <Empty.Root class="border border-dashed">
+          <Empty.Root variant="outline">
             <Empty.Header>
               <Empty.Media variant="icon"><IconBolt /></Empty.Media>
               <Empty.Title>还没有快捷指令</Empty.Title>
@@ -279,7 +279,7 @@
         {#if launchState === "loading"}
           <!-- Same shape as the empty state, the usual first result, so the
                cards below do not shift when the list arrives. -->
-          <Empty.Root class="border border-dashed" aria-busy="true">
+          <Empty.Root variant="outline" aria-busy="true">
             <Empty.Header>
               <Empty.Media variant="icon"><IconRocket /></Empty.Media>
               <Empty.Title role="status">正在读取启动配置…</Empty.Title>
@@ -302,7 +302,7 @@
             >重新读取</Button
           >
         {:else if launchConfigs.length === 0}
-          <Empty.Root class="border border-dashed">
+          <Empty.Root variant="outline">
             <Empty.Header>
               <Empty.Media variant="icon"><IconRocket /></Empty.Media>
               <Empty.Title>还没有启动配置</Empty.Title>

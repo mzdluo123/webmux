@@ -92,7 +92,8 @@
           rows={4}
           maxlength={4096}
           placeholder="例如：git status"
-          class="max-h-[40dvh] font-mono"
+          mono
+          class="max-h-[40dvh]"
           autocapitalize="off"
           autocorrect="off"
           spellcheck={false}

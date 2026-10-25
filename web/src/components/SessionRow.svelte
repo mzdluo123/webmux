@@ -60,7 +60,9 @@
 
 <Item.Root
   role="listitem"
-  class="session-row relative min-h-14 min-w-0 border-0 p-0"
+  variant="card"
+  size="flush"
+  class="relative min-h-14 min-w-0"
   data-session-id={session.id}
   data-status={session.status}
 >
@@ -83,11 +85,8 @@
     }}
   >
     <div class="min-w-0 px-4 pt-4 pr-14">
-      <Item.Title
-        class="min-w-0 max-w-full text-sm font-medium group-hover:underline"
-        title={session.title}
-      >
-        <span class="truncate">{session.title}</span>
+      <Item.Title class="min-w-0 max-w-full" title={session.title}>
+        <span class="truncate group-hover:underline">{session.title}</span>
         <IconArrowUpRight
           class="size-4 shrink-0 text-muted-foreground"
           aria-hidden="true"
@@ -177,15 +176,6 @@
 </Item.Root>
 
 <style>
-  :global(.session-row) {
-    background: var(--card);
-    box-shadow: inset 0 0 0 1px var(--border);
-  }
-
-  :global(.session-row:hover) {
-    background: color-mix(in oklab, var(--muted) 45%, var(--card));
-  }
-
   .preview-empty {
     color: var(--muted-foreground);
     white-space: normal;

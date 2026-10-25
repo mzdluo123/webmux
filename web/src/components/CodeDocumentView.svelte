@@ -418,7 +418,7 @@
 
 <!-- Narrow screens move the document bar into the code panel's menu. -->
 {#snippet documentMenu()}
-  <DropdownMenu.Label class="break-all text-foreground">
+  <DropdownMenu.Label variant="title" class="break-all">
     {doc?.absolutePath}
     {#if renamed}
       <span class="mt-1 block text-muted-foreground"

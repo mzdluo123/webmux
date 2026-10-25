@@ -113,7 +113,7 @@ test("4x CPU: background output and status updates do not move session cards", a
   await page.screenshot({
     path: testInfo.outputPath("before-output.png"),
   });
-  const output = page.locator(".session-row").filter({
+  const output = page.locator("[data-session-id]").filter({
     has: page.getByRole("link", { name: "background-output", exact: true }),
   });
   await expect(output.getByLabel("终端输出预览")).toContainText("three");

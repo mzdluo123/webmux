@@ -43,7 +43,32 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 Oxlint（`pnpm --dir web lint`）仍是通用 lint。它只读取 `.svelte` 的 `<script>`，所以模板相关规则由只加载架构规则的 ESLint 执行。
 
-`no-restyle` 只允许使用处调整布局（外边距、宽度、栅格与 flex 位置等）。例外由 `web/eslint.config.mjs` 中的组件契约声明：`CardTitle` 可调整字号但不能改字重，`CardContent` 可调整内边距。新增契约需要在 PR 中说明设计理由。
+`no-restyle` 只允许使用处调整布局（外边距、宽度、高度、栅格与 flex 位置等）。例外由 `web/eslint.config.mjs` 中的组件契约声明，新增契约需要在 PR 中说明设计理由：
+
+| 组件                                                                                                                                                                                | 使用处还可以调整            | 理由                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------ |
+| `CardTitle`                                                                                                                                                                         | 排版（不含字重）            | 标题字号随所在区域变化                                                         |
+| `CardContent`、`TabsContent`、`CommandList`、`ItemGroup`、`ItemActions`、`Collapsible`、`CollapsibleContent`、`DialogContent`、`DialogHeader`、`PopoverContent`、`ResponsiveDialog` | 内边距与间距                | 内容区域的留白取决于放入的内容，组件本身不规定                                 |
+| `CollapsibleTrigger`、`PopoverTrigger`                                                                                                                                              | 全部外观                    | bits-ui 原语，设计系统没有给它们任何样式；需要按钮外观时用 `child` 渲染 Button |
+| `Pane`、`ResizableHandle`                                                                                                                                                           | `styles.css` 中的布局钩子类 | 终端、草稿与代码分栏的显示和尺寸由响应式 CSS 控制                              |
+
+组件需要由样式表控制布局时，优先用 `data-*` 属性作为选择器（如 `DirectoryPicker` 的 `data-directory-picker`），只在样式表中写布局；外观仍通过 variant 表达。
+
+常用的设计系统扩展：
+
+| 组件                | variant / size                          | 用途                                                     |
+| ------------------- | --------------------------------------- | -------------------------------------------------------- |
+| `Button`            | `variant="quiet"`                       | 平时弱化、悬停时恢复前景色的 ghost 按钮                  |
+| `Button`            | `raised`                                | 浮在终端或代码上的按钮（边框加阴影）                     |
+| `Button`            | `size="icon-touch"` / `size="sm-touch"` | 窄屏（小于 `sm`）44px 触控尺寸，`sm` 以上恢复常规尺寸    |
+| `Input`、`Textarea` | `mono`                                  | 命令、路径、环境变量与终端文本                           |
+| `Textarea`          | `variant="ghost"`                       | 在列表项或卡片中原地编辑                                 |
+| `Empty`             | `variant="outline"` / `variant="card"`  | 区块内的虚线空状态 / 独立卡片上的空页面                  |
+| `Command`           | `variant="outline"`                     | 嵌在表单或对话框中的列表                                 |
+| `DropdownMenuLabel` | `variant="title"`                       | 整个菜单的标题                                           |
+| `Item`              | `variant="card"`、`size="flush"`        | 卡片表面、悬停高亮的列表项；内容自带内边距（如整行链接） |
+
+粗指针设备的最小触控高度用 Tailwind 的 `any-pointer-coarse:` 变体（如 `any-pointer-coarse:min-h-11`）。
 
 ## 存量基线与收紧
 

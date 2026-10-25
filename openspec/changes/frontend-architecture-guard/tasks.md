@@ -22,12 +22,12 @@
 
 ## 3. 设计系统补充 size / variant（需要截图）
 
-- [ ] 3.1 Button：为现有覆盖补充 size 或 variant（触控尺寸 `size-11 sm:size-9` 等、浮动按钮的边框与阴影、等宽小字），替换 `CodeLineAction`、`CodeSearchPanel`、`NewSessionSheet`、`ScratchPanel`、`SessionFilters`、`SessionRow`、`TerminalViewport`、`WorkspaceGroup` 中的覆盖
-- [ ] 3.2 `lib/touch-targets.ts`：动态拼接的触控类改为 Button/DropdownMenuItem 的 size 或 variant，消除 `ScratchPanel`、`QuickCommandMenu` 的 11 处 `require-static-classes`
-- [ ] 3.3 Input、Textarea：为 18 处覆盖（字号、内边距、高度、等宽字体）补充 size 或 variant，或确认属于合法契约后写入 ESLint 契约
-- [ ] 3.4 容器类组件：PopoverContent、DialogContent、DialogHeader、TabsContent、CommandList、ItemGroup、ItemActions、Collapsible 系列与 Empty 的内边距和边框覆盖，逐个决定增加 variant、写入契约或删除覆盖
-- [ ] 3.5 其余：CardTitle 的字重、DropdownMenuLabel 的颜色、Badge/ItemTitle/ResizableHandle/ScrollArea 的覆盖
-- [ ] 3.6 每个 PR 附受影响界面的前后截图（明暗主题、桌面与 393 px 手机），并运行 `arch:ratchet` 提交收缩后的基线
+- [x] 3.1 Button：新增 `variant="quiet"`（ScratchPanel 清空）、`raised`（CodeLineAction 与“回到最新”浮动按钮；原 `TerminalViewport` 的 `border` 因基础样式边框色透明而无效，现在显示边框，`CodeLineAction` 阴影由 `shadow-sm` 统一为 `shadow-md`）、`size="icon-touch"` / `size="sm-touch"`（窄屏 44px 触控）；`CodeLineAction` 的 `size-9`、`NewSessionSheet` 的 `text-xs`、`SessionFilters` 的 `gap-1.5` 与基础样式重复，直接删除；`SessionFilters` 改用 `size="xs"`（标签与计数间距由 6px 变为 4px）；`CodeSearchPanel` 的等宽字形与 `ScratchPanel` 取用按钮的强调色移到按钮内容；`RemoveWorktreeDialog` 的“进入强制删除确认”改为 `variant="destructive"`
+- [x] 3.2 删除 `lib/touch-targets.ts`：图标与小按钮用 3.1 的触控尺寸，菜单项写静态的 `min-h-11 sm:min-h-9` 与 `any-pointer-coarse:min-h-11`，消除 11 处 `require-static-classes`
+- [x] 3.3 Input、Textarea：新增 `mono`（11 处等宽覆盖）与 Textarea `variant="ghost"`（暂存条目原地编辑）；会话搜索框改用 InputGroup（图标与 `/` 提示作为 addon），InputGroup 基础样式与本项目 Input 对齐（`bg-card`、2px 焦点环）
+- [x] 3.4 容器：`TabsContent`、`CommandList`、`ItemGroup`、`ItemActions`、`Collapsible`、`CollapsibleContent`、`DialogContent`、`DialogHeader`、`PopoverContent`、`ResponsiveDialog` 写入“可调整内边距与间距”的契约；`Empty` 新增 `outline` / `card`（删除 `.workspace-empty` 样式），`Command` 新增 `outline`，`Item` 新增 `card` 与 `size="flush"`（删除 `.session-row` 样式，测试改用 `data-session-id`）
+- [x] 3.5 其余：`DropdownMenuLabel` 新增 `variant="title"`（代码区菜单的路径标题由常规字重变为 `font-medium`）；`CollapsibleTrigger`、`PopoverTrigger` 为无样式原语，写入契约；`Pane`、`ResizableHandle` 的布局钩子类写入契约；`DirectoryPicker` 的布局钩子改为 `data-*` 属性；`TokenHelp` 的行高移到各段落
+- [x] 3.6 用同一组隔离数据在改动前后各截取 78 张截图（21 个界面，明暗主题、桌面 1280 px 与 Pixel 7），逐像素对比：改前两次截图之间的噪声（会话状态与随机分支名）之外，只有 3.1、3.3、3.5 列出的有意变化；PR 附前后截图，并运行 `arch:ratchet` 提交收缩后的基线
 
 ## 4. 原生控件换成设计系统组件（需要截图）
 

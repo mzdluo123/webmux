@@ -95,7 +95,36 @@ export default defineConfig([
               allow: ["layout", "typography"],
               deny: ["font-*"],
             },
-            { pattern: "^CardContent$", allow: ["layout", "spacing"] },
+            // Content regions: their padding and gaps depend on what they hold.
+            {
+              pattern:
+                "^(CardContent|TabsContent|CommandList|ItemGroup|ItemActions|Collapsible|CollapsibleContent|DialogContent|DialogHeader|PopoverContent|ResponsiveDialog)$",
+              allow: ["layout", "spacing"],
+            },
+            // Unstyled bits-ui triggers: the design system gives them no look
+            // of its own, so the call site owns it. Prefer a Button `child`
+            // when the trigger should look like a button.
+            {
+              pattern: "^(CollapsibleTrigger|PopoverTrigger)$",
+              allow: [
+                "layout",
+                "spacing",
+                "typography",
+                "color",
+                "shape",
+                "effects",
+              ],
+            },
+            // Layout hooks that responsive CSS in styles.css and the owning
+            // component's <style> targets (sizes, overflow and visibility).
+            {
+              pattern: "^Pane$",
+              allow: ["layout", "terminal-pane", "draft-pane", "code-pane"],
+            },
+            {
+              pattern: "^ResizableHandle$",
+              allow: ["layout", "draft-divider", "code-divider"],
+            },
           ],
         },
       ],

@@ -101,12 +101,6 @@
 .workspace-page {
   background: var(--background);
 }
-.workspace-empty {
-  min-height: 18rem;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-xl);
-  background: var(--card);
-}
 .workspace-page [data-slot="collapsible-trigger"] {
   min-height: 44px;
 }
