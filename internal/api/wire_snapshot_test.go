@@ -564,7 +564,7 @@ func TestWireSnapshots(t *testing.T) {
 	// Launch configs.
 	f.call("launch-list-empty", "GET", "/api/launch-configs", nil, 200)
 	created := f.call("launch-create", "POST", "/api/launch-configs", map[string]any{"name": "Claude", "cmd": []string{"claude", "--resume"}, "env": map[string]string{"API_KEY": "value"}}, 201)
-	f.call("launch-create-no-env", "POST", "/api/launch-configs", map[string]any{"name": "Shell", "cmd": []string{"bash"}}, 201)
+	shell := f.call("launch-create-no-env", "POST", "/api/launch-configs", map[string]any{"name": "Shell", "cmd": []string{"/bin/sh", "-c", "sleep 60"}}, 201)
 	launchID := str(created, "id")
 	f.call("launch-list", "GET", "/api/launch-configs", nil, 200)
 	f.call("launch-get", "GET", "/api/launch-configs/"+launchID, nil, 200)
@@ -572,7 +572,8 @@ func TestWireSnapshots(t *testing.T) {
 	f.call("error-400-launch", "POST", "/api/launch-configs", map[string]any{"name": "", "cmd": []string{"x"}}, 400)
 	f.call("error-404-launch", "GET", "/api/launch-configs/zzzzzzzz", nil, 404)
 	f.call("error-409-launch", "POST", "/api/launch-configs", map[string]any{"name": "Shell", "cmd": []string{"x"}}, 409)
-	f.call("session-create-from-config", "POST", "/api/sessions", map[string]any{"configId": launchID, "cwd": f.root}, 201)
+	// The started config runs everywhere; claude need not be installed.
+	f.call("session-create-from-config", "POST", "/api/sessions", map[string]any{"configId": str(shell, "id"), "cwd": f.root}, 201)
 	f.call("error-404-session-config", "POST", "/api/sessions", map[string]any{"configId": "zzzzzzzz"}, 404)
 	f.call("launch-delete", "DELETE", "/api/launch-configs/"+launchID, nil, 204)
 

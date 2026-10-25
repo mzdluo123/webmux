@@ -16,7 +16,9 @@
     },
     {
       "cmd": [
-        "bash"
+        "/bin/sh",
+        "-c",
+        "sleep 60"
       ],
       "createdAt": "<time>",
       "envNames": [],

@@ -4,7 +4,9 @@
     "attention": null,
     "clients": 0,
     "cmd": [
-      "claude"
+      "/bin/sh",
+      "-c",
+      "sleep 60"
     ],
     "cols": 80,
     "createdAt": "<time>",
