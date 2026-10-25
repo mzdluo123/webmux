@@ -133,6 +133,7 @@ export function attachTerminalGraphics(
 
   function update() {
     if (disposed) return;
+    if (rendered.size === 0) return;
     const cell = cellSize();
     if (!cell) return;
     const dpr = window.devicePixelRatio || 1;

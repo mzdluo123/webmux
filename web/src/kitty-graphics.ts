@@ -2,6 +2,17 @@ const ESC = 0x1b;
 const APC = 0x5f;
 const GRAPHICS = 0x47;
 const ST = 0x5c;
+const SEMICOLON = 0x3b;
+const latin1Decoder = new TextDecoder("latin1");
+const base64ChunkChars = 4 * 1024 * 1024;
+
+type FromBase64 = (input: string) => Uint8Array;
+const fromBase64 = (Uint8Array as unknown as { fromBase64?: FromBase64 })
+  .fromBase64;
+
+function yieldToMainThread() {
+  return new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
 
 // Source budgets include anonymous placements and outstanding decode reservations.
 // Saturation is explicit ENOSPC; live resources are never silently evicted.
@@ -133,25 +144,15 @@ export function createKittyStream() {
     write(data: Uint8Array, emit: (event: KittyEvent) => void) {
       let cursor = 0;
       let textStart = 0;
-      const text: Uint8Array[] = [];
-      const collectText = (end: number) => {
-        if (end > textStart) text.push(data.subarray(textStart, end));
+      const flushText = (end: number) => {
+        if (end > textStart)
+          emit({ kind: "text", data: data.subarray(textStart, end) });
       };
-      const flushText = () => {
-        if (text.length === 0) return;
-        if (text.length === 1) emit({ kind: "text", data: text[0] });
-        else {
-          const merged = new Uint8Array(
-            text.reduce((sum, part) => sum + part.length, 0),
-          );
-          let offset = 0;
-          for (const part of text) {
-            merged.set(part, offset);
-            offset += part.length;
-          }
-          emit({ kind: "text", data: merged });
-        }
-        text.length = 0;
+      const flushPrefix = () => {
+        if (prefix === 1) emit({ kind: "text", data: new Uint8Array([ESC]) });
+        else if (prefix === 2)
+          emit({ kind: "text", data: new Uint8Array([ESC, APC]) });
+        prefix = 0;
       };
       while (cursor < data.length) {
         if (graphics) {
@@ -179,37 +180,60 @@ export function createKittyStream() {
           textStart = cursor;
           continue;
         }
-        if (prefix !== 0) {
-          const expected = prefix === 1 ? APC : GRAPHICS;
-          if (data[cursor] === expected) {
-            prefix++;
+        if (prefix === 1) {
+          if (data[cursor] === APC) {
+            prefix = 2;
             cursor++;
             textStart = cursor;
-            if (prefix === 3) {
-              prefix = 0;
-              flushText();
-              graphics = true;
-            }
             continue;
           }
-          text.push(
-            prefix === 1 ? new Uint8Array([ESC]) : new Uint8Array([ESC, APC]),
-          );
-          prefix = 0;
+          flushPrefix();
           textStart = cursor;
+          continue;
+        }
+        if (prefix === 2) {
+          if (data[cursor] === GRAPHICS) {
+            prefix = 0;
+            graphics = true;
+            cursor++;
+            textStart = cursor;
+            continue;
+          }
+          flushPrefix();
+          textStart = cursor;
+          continue;
         }
         const escape = data.indexOf(ESC, cursor);
         if (escape < 0) {
           cursor = data.length;
           break;
         }
-        collectText(escape);
-        prefix = 1;
+        if (escape + 1 >= data.length) {
+          flushText(escape);
+          prefix = 1;
+          cursor = data.length;
+          textStart = cursor;
+          break;
+        }
+        if (data[escape + 1] === APC) {
+          if (escape + 2 >= data.length) {
+            flushText(escape);
+            prefix = 2;
+            cursor = data.length;
+            textStart = cursor;
+            break;
+          }
+          if (data[escape + 2] === GRAPHICS) {
+            flushText(escape);
+            graphics = true;
+            cursor = escape + 3;
+            textStart = cursor;
+            continue;
+          }
+        }
         cursor = escape + 1;
-        textStart = cursor;
       }
-      if (!graphics) collectText(cursor);
-      flushText();
+      if (!graphics) flushText(cursor);
     },
     reset() {
       prefix = 0;
@@ -226,12 +250,17 @@ export function createKittyStream() {
 }
 
 function emitGraphics(payload: Uint8Array, emit: (event: KittyEvent) => void) {
-  const text = new TextDecoder("latin1").decode(payload);
-  const separator = text.indexOf(";");
+  const separator = payload.indexOf(SEMICOLON);
   emit({
     kind: "graphics",
-    control: separator < 0 ? text : text.slice(0, separator),
-    payload: separator < 0 ? "" : text.slice(separator + 1),
+    control:
+      separator < 0
+        ? latin1Decoder.decode(payload)
+        : latin1Decoder.decode(payload.subarray(0, separator)),
+    payload:
+      separator < 0
+        ? ""
+        : latin1Decoder.decode(payload.subarray(separator + 1)),
   });
 }
 
@@ -306,6 +335,8 @@ async function decodeKittyImage({
 }
 
 function asArrayBuffer(bytes: Uint8Array) {
+  if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength)
+    return bytes.buffer as ArrayBuffer;
   return bytes.buffer.slice(
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength,
@@ -438,6 +469,10 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     | undefined;
   let nextId = 1;
   let chain: Promise<void> = Promise.resolve();
+  let chainId = 0;
+  let chainBusy = false;
+  let pendingWrites = 0;
+  let writeWaiters: (() => void)[] = [];
   let disposed = false;
   let generation = 0;
 
@@ -676,24 +711,44 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     return merged;
   }
 
-  function decodeBase64(payload: string) {
+  async function decodeBase64(payload: string) {
     if (payload.length === 0)
       throw new KittyCommandError("EINVAL", "empty image payload");
     if (payload.length > maxEncodedBytes)
       throw new KittyCommandError("EINVAL", "image is too large");
     if (payload.length % 4 !== 0)
       throw new KittyCommandError("EINVAL", "invalid base64 payload");
-    let binary: string;
-    try {
-      binary = atob(payload);
-    } catch {
-      throw new KittyCommandError("EINVAL", "invalid base64 payload");
-    }
-    if (binary.length > maxImageBytes)
+    let padding = 0;
+    if (payload.endsWith("==")) padding = 2;
+    else if (payload.endsWith("=")) padding = 1;
+    const size = (payload.length / 4) * 3 - padding;
+    if (size > maxImageBytes)
       throw new KittyCommandError("EINVAL", "image is too large");
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index++)
-      bytes[index] = binary.charCodeAt(index);
+    const bytes = new Uint8Array(size);
+    let target = 0;
+    for (let offset = 0; offset < payload.length; offset += base64ChunkChars) {
+      const end = Math.min(payload.length, offset + base64ChunkChars);
+      let part: Uint8Array;
+      if (fromBase64) {
+        try {
+          part = fromBase64(payload.slice(offset, end));
+        } catch {
+          throw new KittyCommandError("EINVAL", "invalid base64 payload");
+        }
+        bytes.set(part, target);
+        target += part.length;
+      } else {
+        let binary: string;
+        try {
+          binary = atob(payload.slice(offset, end));
+        } catch {
+          throw new KittyCommandError("EINVAL", "invalid base64 payload");
+        }
+        for (let index = 0; index < binary.length; index++)
+          bytes[target++] = binary.charCodeAt(index);
+      }
+      if (end < payload.length) await yieldToMainThread();
+    }
     return bytes;
   }
 
@@ -715,7 +770,7 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     expected: number,
   ) {
     const format = transferFormat(params);
-    let bytes = decodeBase64(payload);
+    let bytes = await decodeBase64(payload);
     if (params.o !== undefined) {
       if (params.o !== "z")
         throw new KittyCommandError("ENOTSUP", "unsupported compression");
@@ -809,9 +864,9 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     });
   }
 
-  function inspectImage(params: Record<string, string>, payload: string) {
+  async function inspectImage(params: Record<string, string>, payload: string) {
     const format = transferFormat(params);
-    const bytes = decodeBase64(payload);
+    const bytes = await decodeBase64(payload);
     if (params.o !== undefined) {
       if (params.o !== "z")
         throw new KittyCommandError("ENOTSUP", "unsupported compression");
@@ -839,7 +894,7 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
   ) {
     const action = params.a ?? "t";
     if (action === "q") {
-      inspectImage(params, payload);
+      await inspectImage(params, payload);
       respond(params, "OK");
       return;
     }
@@ -1100,17 +1155,59 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     }
   }
 
+  function writeText(data: Uint8Array, parsed?: () => void) {
+    pendingWrites++;
+    options.write(data, () => {
+      pendingWrites--;
+      if (pendingWrites === 0 && writeWaiters.length > 0) {
+        const waiters = writeWaiters;
+        writeWaiters = [];
+        for (const resolve of waiters) resolve();
+      }
+      parsed?.();
+    });
+  }
+
+  function drainWrites() {
+    if (pendingWrites === 0) return Promise.resolve();
+    return new Promise<void>((resolve) => writeWaiters.push(resolve));
+  }
+
+  function writeDirect(events: KittyEvent[], parsed: () => void) {
+    let last = -1;
+    for (let index = 0; index < events.length; index++) {
+      const event = events[index];
+      if (event.kind === "text" && event.data.length > 0) last = index;
+    }
+    if (last < 0) {
+      parsed();
+      return;
+    }
+    for (let index = 0; index <= last; index++) {
+      const event = events[index];
+      if (event.kind !== "text" || event.data.length === 0) continue;
+      writeText(event.data, index === last ? parsed : undefined);
+    }
+  }
+
   function process(data: Uint8Array, parsed: () => void) {
     if (disposed) {
       parsed();
       return;
     }
     const expected = generation;
+    const events: KittyEvent[] = [];
+    stream.write(data, (event) => events.push(event));
+    const hasGraphics = events.some((event) => event.kind === "graphics");
+    if (!hasGraphics && !chainBusy) {
+      writeDirect(events, parsed);
+      return;
+    }
+    const id = ++chainId;
+    chainBusy = true;
     chain = chain
       .then(async () => {
         if (!current(expected)) return;
-        const events: KittyEvent[] = [];
-        stream.write(data, (event) => events.push(event));
         for (const event of events) {
           if (!current(expected)) return;
           if (event.kind === "text") {
@@ -1120,16 +1217,22 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
               await promise;
             }
           } else {
+            await drainWrites();
             await handle(event.control, event.payload, expected);
           }
         }
       })
       .catch(() => {})
-      .finally(parsed);
+      .finally(() => {
+        if (id === chainId) chainBusy = false;
+        parsed();
+      });
   }
 
   function clear() {
     generation++;
+    chainId++;
+    chainBusy = false;
     chain = Promise.resolve();
     upload = undefined;
     stream.reset();
