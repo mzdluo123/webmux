@@ -183,3 +183,42 @@ test("refresh replaces expanded branch data and collapse hides all descendants",
     .element(page.getByRole("button", { name: "README.md" }))
     .toBeVisible();
 });
+
+test("locating a directory loads missing ancestor pages and locating root reopens it", async () => {
+  const view = await render(CodeFileTree, {
+    listing: listing(["README.md"], "root-next"),
+    rootPath: "/workspace/webmux",
+    pending: false,
+    activePath: "",
+    directory: "",
+    refresh: 0,
+    collapse: 0,
+    fetchDirectory: async (path: string, cursor: string) =>
+      path === "docs"
+        ? listing(
+            cursor ? ["docs/images/"] : ["docs/first.md"],
+            cursor ? "" : "docs-next",
+          )
+        : listing(["docs/images/screenshot.png"]),
+    openFile: () => {},
+    loadMore: async () => {
+      await view.rerender({ listing: listing(["README.md", "docs/"]) });
+    },
+  });
+  await view.rerender({ directory: "docs/images" });
+  await expect
+    .element(page.getByRole("button", { name: "screenshot.png", exact: true }))
+    .toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: "README.md", exact: true }))
+    .toBeVisible();
+  const root = page.getByRole("button", { name: "webmux", exact: true });
+  await root.click();
+  await expect
+    .element(page.getByRole("button", { name: "README.md", exact: true }))
+    .not.toBeInTheDocument();
+  await view.rerender({ directory: "", refresh: 1 });
+  await expect
+    .element(page.getByRole("button", { name: "README.md", exact: true }))
+    .toBeVisible();
+});

@@ -63,6 +63,7 @@
   let listing = $state<CodeListing>();
   let rootListing = $state<CodeListing>();
   let treeRefresh = $state(0);
+  let rootIncludeIgnored = false;
   let directoryVersions: Record<string, string> = {};
   let changeQuery = $state("");
   let changeSearch = $state("");
@@ -184,6 +185,8 @@
     controller = new AbortController();
     const request = controller;
     const seq = ++navSequence;
+    const requestQuery = query;
+    const requestIgnored = includeIgnored;
     pending = true;
     error = "";
     try {
@@ -208,10 +211,24 @@
               : value;
         }
       } else {
-        const previous = query ? listing : rootListing;
+        if (requestQuery && rootIncludeIgnored !== requestIgnored) {
+          const root = await api(
+            `${base}/tree?${params({ nodeId: nodeId("") })}`,
+            CodeListingSchema,
+            "GET",
+            undefined,
+            request.signal,
+          );
+          if (!mounted || seq !== navSequence) return;
+          rootListing = root;
+          rootIncludeIgnored = requestIgnored;
+          directoryVersions = {};
+          treeRefresh++;
+        }
+        const previous = requestQuery ? listing : rootListing;
         const cursor = append ? (previous?.nextCursor ?? "") : "";
         const value = await api(
-          `${base}/${query ? "files" : "tree"}?${params({ nodeId: nodeId(""), q: query, cursor })}`,
+          `${base}/${requestQuery ? "files" : "tree"}?${params({ nodeId: nodeId(""), q: requestQuery, cursor })}`,
           CodeListingSchema,
           "GET",
           undefined,
@@ -225,9 +242,10 @@
                   children: [...previous.children, ...value.children],
                 }
               : value;
-          navIdentity = query ? "" : nodeId("");
-          if (!query) {
+          navIdentity = requestQuery ? "" : nodeId("");
+          if (!requestQuery) {
             rootListing = listing;
+            rootIncludeIgnored = requestIgnored;
             if (!append) {
               directoryVersions = {};
               treeRefresh++;
@@ -449,6 +467,8 @@
     const branchVersions = { ...directoryVersions };
     const changesVersion = changes?.contentVersion;
     const identity = navIdentity;
+    const treeGeneration = treeRefresh;
+    const checkIgnored = includeIgnored;
     const directories =
       rootListing && nav === "files" && !query
         ? Object.entries({ ...branchVersions, [identity]: listingVersion })
@@ -508,9 +528,16 @@
               : (r.snapshots[d.sid] ?? "unknown");
       }
       if (
+        treeGeneration === treeRefresh &&
+        checkIgnored === includeIgnored &&
         identity === navIdentity &&
         listingVersion === rootListing?.contentVersion &&
-        Object.values(r.directories).some((s) => s !== "unchanged")
+        Object.entries(r.directories).some(
+          ([key, status]) =>
+            status !== "unchanged" &&
+            (key === identity ||
+              branchVersions[key] === directoryVersions[key]),
+        )
       )
         navStatus = "目录已更新或检测失败";
       if (
@@ -709,7 +736,8 @@
       style:--code-nav-width={`${navWidth}px`}
       bind:this={inner}
     >
-      {#if navOpen}<CodeNavigator
+      <div class="contents" class:hidden={!navOpen}>
+        <CodeNavigator
           {context}
           {listing}
           {rootListing}
@@ -731,7 +759,7 @@
           bind:changeGroup
           bind:changeQuery
           bind:changeSearch
-          load={(append) => void load(append)}
+          load={(append) => load(append)}
           openFile={(path, opaqueId) => void openFile(path, opaqueId)}
           {locate}
           openDiff={(change) => void openDiff(change)}
@@ -749,7 +777,8 @@
           tabindex="0"
           onpointerdown={resizeStart}
           onkeydown={resizeKey}
-        ></div>{/if}
+        ></div>
+      </div>
       <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {#each tabs as tab (tab.key)}<div
             class="min-h-0 flex-1 overflow-hidden"

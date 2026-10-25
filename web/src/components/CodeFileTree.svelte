@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, untrack } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import type { CodeListing } from "../schemas";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -42,7 +42,7 @@
       signal: AbortSignal,
     ) => Promise<CodeListing>;
     openFile: (path: string, id: string) => void;
-    loadMore: () => void;
+    loadMore: () => void | Promise<void>;
   } = $props();
   let rootOpen = $state(true);
   const expanded = new SvelteSet<string>();
@@ -50,7 +50,19 @@
   const errors = new SvelteMap<string, string>();
   const loading = new SvelteSet<string>();
   const requests = new Map<string, AbortController>();
-  async function loadBranch(path: string, append = false) {
+  const inflight = new Map<string, Promise<void>>();
+  let revealSequence = 0;
+  function loadBranch(path: string, append = false): Promise<void> {
+    const current = inflight.get(path);
+    if (current) return current;
+    const promise = readBranch(path, append);
+    inflight.set(path, promise);
+    void promise.finally(() => {
+      if (inflight.get(path) === promise) inflight.delete(path);
+    });
+    return promise;
+  }
+  async function readBranch(path: string, append: boolean) {
     if (requests.has(path)) return;
     const request = new AbortController();
     requests.set(path, request);
@@ -89,6 +101,8 @@
     } else expanded.delete(path);
   }
   function abortRequests() {
+    revealSequence++;
+    inflight.clear();
     for (const request of requests.values()) request.abort();
     requests.clear();
     loading.clear();
@@ -110,19 +124,37 @@
     if (collapse === lastCollapse) return;
     lastCollapse = collapse;
     untrack(() => {
+      revealSequence++;
       expanded.clear();
       rootOpen = true;
     });
   });
+  async function reveal(path: string) {
+    const sequence = ++revealSequence;
+    rootOpen = true;
+    if (!path) return;
+    const parts = path.split("/");
+    for (let i = 1; i <= parts.length; i++) {
+      const parent = parts.slice(0, i - 1).join("/");
+      const child = parts.slice(0, i).join("/");
+      const current = () => (parent ? branches.get(parent) : listing);
+      while (!current()?.children.some((node) => node.path === child)) {
+        const cursor = current()?.nextCursor;
+        if (!cursor || sequence !== revealSequence) return;
+        if (parent) await loadBranch(parent, true);
+        else await loadMore();
+        await tick();
+        if (sequence !== revealSequence || current()?.nextCursor === cursor)
+          return;
+      }
+      if (sequence !== revealSequence) return;
+      expanded.add(child);
+      if (!branches.has(child)) await loadBranch(child);
+    }
+  }
   $effect(() => {
     const path = directory;
-    if (!path) return;
-    untrack(() => {
-      rootOpen = true;
-      const parts = path.split("/");
-      for (let i = 1; i <= parts.length; i++)
-        toggle(parts.slice(0, i).join("/"), true);
-    });
+    if (refresh === lastRefresh) untrack(() => void reveal(path));
   });
   function keyboard(event: KeyboardEvent) {
     const target = (event.target as HTMLElement).closest<HTMLButtonElement>(

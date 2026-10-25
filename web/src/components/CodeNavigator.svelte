@@ -72,7 +72,7 @@
     changeGroup: string;
     changeQuery: string;
     changeSearch: string;
-    load: (append?: boolean) => void;
+    load: (append?: boolean) => void | Promise<void>;
     openFile: (path: string, nodeId: string) => void;
     openDiff: (change: CodeChange) => void;
     locate: (input: string) => Promise<void>;
@@ -123,6 +123,11 @@
   class="code-navigation flex min-h-0 shrink-0 flex-col overflow-hidden border-r"
   aria-label="文件与修改导航"
 >
+  {#if context?.rootPath}<p
+      class="shrink-0 px-2 pt-1 text-xs break-all text-muted-foreground"
+    >
+      {context.rootPath}
+    </p>{/if}
   {#if navStatus}<div class="flex shrink-0 items-center gap-1 px-2 pt-1">
       <p
         role="status"
@@ -138,7 +143,7 @@
     value={nav}
     onValueChange={(v) => {
       nav = v;
-      load();
+      if (v === "changes" || query || !rootListing) load();
     }}
   >
     <Tabs.List class="w-full"
@@ -147,7 +152,7 @@
       ></Tabs.List
     >
   </Tabs.Root>
-  {#if nav === "files"}
+  <div class="flex min-h-0 flex-1 flex-col" class:hidden={nav !== "files"}>
     <div class="flex shrink-0 items-center gap-0.5 px-2 py-1">
       <span
         class="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground"
@@ -225,6 +230,7 @@
           query = "";
           searchInput = "";
           directory = "";
+          load();
         }}><IconFold aria-hidden="true" /></Button
       >
       <DropdownMenu.Root>
@@ -273,7 +279,7 @@
         包含忽略项
       </p>{/if}
     <div class:hidden={!!query} class="flex min-h-0 flex-1 flex-col">
-      {#key `${context?.contextId}:${includeIgnored}`}
+      {#key context?.contextId}
         <CodeFileTree
           listing={rootListing}
           rootPath={context?.rootPath ?? ""}
@@ -337,53 +343,58 @@
           </p>{/if}
       </div>
     {/if}
-  {:else if !context?.diffAvailable}<p class="p-2 text-xs">Git 差异不可用</p>
-  {:else}
-    <Label size="sm" class="mx-2 mt-2"
-      >来源
-      <NativeSelect.Root
-        size="sm"
-        aria-label="修改来源"
-        class="min-w-0 flex-1"
-        bind:value={changeGroup}
-        onchange={() => load()}
+  </div>
+  {#if nav === "changes"}
+    {#if !context?.diffAvailable}<p class="p-2 text-xs">Git 差异不可用</p>
+    {:else}
+      <Label size="sm" class="mx-2 mt-2"
+        >来源
+        <NativeSelect.Root
+          size="sm"
+          aria-label="修改来源"
+          class="min-w-0 flex-1"
+          bind:value={changeGroup}
+          onchange={() => load()}
+        >
+          <NativeSelect.Option value="">全部来源</NativeSelect.Option
+          ><NativeSelect.Option value="unstaged">未暂存</NativeSelect.Option
+          ><NativeSelect.Option value="staged">已暂存</NativeSelect.Option
+          ><NativeSelect.Option value="untracked">未跟踪</NativeSelect.Option>
+        </NativeSelect.Root>
+      </Label>
+      <form
+        class="flex gap-1 p-2"
+        onsubmit={(e) => {
+          e.preventDefault();
+          changeQuery = changeSearch;
+          load();
+        }}
       >
-        <NativeSelect.Option value="">全部来源</NativeSelect.Option
-        ><NativeSelect.Option value="unstaged">未暂存</NativeSelect.Option
-        ><NativeSelect.Option value="staged">已暂存</NativeSelect.Option
-        ><NativeSelect.Option value="untracked">未跟踪</NativeSelect.Option>
-      </NativeSelect.Root>
-    </Label>
-    <form
-      class="flex gap-1 p-2"
-      onsubmit={(e) => {
-        e.preventDefault();
-        changeQuery = changeSearch;
-        load();
-      }}
-    >
-      <Input
-        size="sm"
-        aria-label="筛选修改路径"
-        class="flex-1"
-        bind:value={changeSearch}
-        placeholder="筛选修改路径"
+        <Input
+          size="sm"
+          aria-label="筛选修改路径"
+          class="flex-1"
+          bind:value={changeSearch}
+          placeholder="筛选修改路径"
+        />
+        <Button type="submit" variant="outline" size="sm">筛选修改</Button>
+      </form>
+      {#if changesError}<Button
+          variant="outline"
+          size="sm"
+          onclick={() => load()}>刷新修改列表</Button
+        >{/if}
+      <CodeChangesList
+        entries={changes?.entries ?? []}
+        total={changes?.total ?? 0}
+        nextCursor={changes?.nextCursor ?? ""}
+        version={`${changes?.contentVersion ?? ""}:${changeQuery}:${changeGroup}`}
+        group={changeGroup}
+        {pending}
+        enabled={changesEnabled}
+        onmore={() => load(true)}
+        onopen={openDiff}
       />
-      <Button type="submit" variant="outline" size="sm">筛选修改</Button>
-    </form>
-    {#if changesError}<Button variant="outline" size="sm" onclick={() => load()}
-        >刷新修改列表</Button
-      >{/if}
-    <CodeChangesList
-      entries={changes?.entries ?? []}
-      total={changes?.total ?? 0}
-      nextCursor={changes?.nextCursor ?? ""}
-      version={`${changes?.contentVersion ?? ""}:${changeQuery}:${changeGroup}`}
-      group={changeGroup}
-      {pending}
-      enabled={changesEnabled}
-      onmore={() => load(true)}
-      onopen={openDiff}
-    />
+    {/if}
   {/if}
 </nav>
