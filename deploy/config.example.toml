@@ -23,6 +23,9 @@ bell_attention = true
 # A configured webmux token must be at least 43 characters in tunnel mode.
 # The root `token` above is the WebMux login token; `[tunnel].token` below is
 # the Cloudflare tunnel credential from the dashboard. They are different.
+# Web Settings -> Public access persists enabled/mode/credential/hostname in
+# <state_dir>/tunnel.json and overrides these defaults after the first save.
+# cloudflared/download_mirrors remain TOML-only. --tunnel overrides this run only.
 # [tunnel]
 # enabled = false
 # Empty = Quick Tunnel (random *.trycloudflare.com); set for a Named Tunnel.
@@ -47,6 +50,7 @@ bell_attention = true
 
 # Save custom launch configurations in Settings → 启动配置.
 # Their complete argv and optional environment are stored separately in
-# <state_dir>/launch-configs.json; a new installation has no launch commands.
+# <state_dir>/launch-configs.json. A new installation seeds Shell, Claude Code,
+# Codex CLI, Gemini CLI, Open Code and omp there; edit or delete them freely.
 # Commands run directly, without an implicit shell. To load ~/.bashrc for
 # Open Code, save argv ["bash", "-ic", "exec opencode \"$@\"", "opencode"].
