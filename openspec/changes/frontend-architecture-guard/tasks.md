@@ -7,7 +7,7 @@
 - [x] 1.5 `web/test/architecture.test.ts`：同名业务组件、与 `ui/` 同名的业务组件、跨 3 个以上文件复制的外观类；用临时文件确认能报出违规
 - [x] 1.6 生成并格式化基线：`eslint-suppressions.json`（40 个文件、225 处）、`.dependency-cruiser-known-violations.json`（4 处）、`.jscpd-baseline.json`（3 处）
 - [x] 1.7 `arch:*`、`check:arch`、`arch:ratchet` 脚本；`make check` 与 CI 格式和构建 job 运行 `check:arch`
-- [x] 1.8 文档：新增 `docs/frontend-architecture.md`，更新 `AGENTS.md`、`CONTRIBUTING.md`、`docs/design-system.md`，在 `docs/user-stories.md` 新增 US-L05
+- [x] 1.8 文档：新增 `docs/frontend-architecture.md`，更新 `AGENTS.md`、`CONTRIBUTING.md`、`docs/design-system.md`，在 `docs/user-stories.md` 新增 US-L06
 
 ## 2. 不改变 UI 的治理
 
@@ -44,4 +44,4 @@
 
 - [x] 6.1 三个基线文件均为空，所有检查按严格模式执行；契约、布局任意值策略、运行时尺寸做法与新增组件写入 `docs/frontend-architecture.md`。基线文件与 `arch:ratchet` 保留，仅用于以后引入带存量违规的新规则
 - [x] 6.2 knip 的 `exports`、`types` 升为 `error`（2.1 完成后即升级）
-- [x] 6.3 更新 US-L05、`AGENTS.md`、`CONTRIBUTING.md` 与 `docs/frontend-architecture.md` 中的基线说明；运行格式、Oxlint、svelte-check、`check:arch`、单元、浏览器、Storybook、E2E 与性能测试
+- [x] 6.3 更新 US-L06、`AGENTS.md`、`CONTRIBUTING.md` 与 `docs/frontend-architecture.md` 中的基线说明；运行格式、Oxlint、svelte-check、`check:arch`、单元、浏览器、Storybook、E2E 与性能测试
