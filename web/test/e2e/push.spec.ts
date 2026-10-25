@@ -75,14 +75,17 @@ async function serverSubscriptions(request: APIRequestContext) {
 
 async function registrationId(page: Page) {
   const cdp = await page.context().newCDPSession(page);
-  const registrations = new Promise<string>((resolve) =>
-    cdp.on("ServiceWorker.workerRegistrationUpdated", ({ registrations }) => {
-      const match = registrations.find((r) => !r.isDeleted);
-      if (match) resolve(match.registrationId);
-    }),
+  const scope = new URL("/", page.url()).href;
+  const registrations = Promise.withResolvers<string>();
+  cdp.on(
+    "ServiceWorker.workerRegistrationUpdated",
+    ({ registrations: updates }) => {
+      const match = updates.find((r) => !r.isDeleted && r.scopeURL === scope);
+      if (match) registrations.resolve(match.registrationId);
+    },
   );
   await cdp.send("ServiceWorker.enable");
-  return { cdp, id: await registrations };
+  return { cdp, id: await registrations.promise };
 }
 
 // Opens the settings card with notifications granted and turns push on.
@@ -139,41 +142,41 @@ test("the service worker shows a pushed alert and opens its session", async ({
   const sessionId = ((await created.json()) as { id: string }).id;
   await enablePush(page, context, request, baseURL!);
 
-  // A trusted push event through DevTools, carrying a server-shaped payload.
+  // Wait for activation before injecting one trusted, server-shaped push.
+  // Poll only the result: redelivery could hide a dropped first event.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        async () => (await navigator.serviceWorker.ready).active?.state,
+      ),
+    )
+    .toBe("activated");
   const worker =
     context.serviceWorkers()[0] ??
     (await context.waitForEvent("serviceworker"));
   const { cdp, id } = await registrationId(page);
-  const deliver = () =>
-    cdp.send("ServiceWorker.deliverPushMessage", {
-      origin: new URL(baseURL!).origin,
-      registrationId: id,
-      data: JSON.stringify({
-        web_push: 8030,
-        notification: {
-          title: "deploy",
-          body: "等待授权",
-          navigate: "https://evil.example/",
-          tag: `webmux-${sessionId}`,
-        },
-        webmux: { v: 1, sessionId, kind: "permission", source: "agent" },
-      }),
-    });
-  const notifications = () =>
-    worker.evaluate(async () =>
-      (await self.registration.getNotifications()).map(
-        (n) => `${n.title}|${n.body}|${n.tag}`,
-      ),
-    );
-  await deliver();
+  await cdp.send("ServiceWorker.deliverPushMessage", {
+    origin: new URL(baseURL!).origin,
+    registrationId: id,
+    data: JSON.stringify({
+      web_push: 8030,
+      notification: {
+        title: "deploy",
+        body: "等待授权",
+        navigate: "https://evil.example/",
+        tag: `webmux-${sessionId}`,
+      },
+      webmux: { v: 1, sessionId, kind: "permission", source: "agent" },
+    }),
+  });
   await expect
-    .poll(async () => {
-      const shown = await notifications();
-      // The shared tag makes a repeated push replace the existing alert, so
-      // delivering again cannot duplicate a notification the worker missed.
-      if (shown.length === 0) await deliver();
-      return shown;
-    })
+    .poll(() =>
+      worker.evaluate(async () =>
+        (await self.registration.getNotifications()).map(
+          (n) => `${n.title}|${n.body}|${n.tag}`,
+        ),
+      ),
+    )
     .toEqual([`deploy|等待授权|webmux-${sessionId}`]);
 
   // Run the worker's click routing on the real notification: the open

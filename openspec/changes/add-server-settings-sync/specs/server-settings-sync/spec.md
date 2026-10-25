@@ -10,9 +10,11 @@
 
 - 跨客户端同步：`theme`、`fontSize`、`preview`、`codeReader.lineNumbers`、`codeReader.diffOverflow`、`quickCommands`、`homeWorktrees`、`forceSoftKeys`。
 - 仅当前设备：浏览器中保存的 token 输入、Web Push 订阅标识、草稿与暂存正文、`draftPersistence` 开关、`recentDirs`、`lastLaunch`、`customCommand`、`clientId`、`clientLive`。
-- 继续由 TOML 管理：`listen`、`token`、`state_dir`、`allowed_origins`、`tunnel.*`、`shell`、`presets`、`default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`push.*`。
+- 部署默认与全局策略：`listen`、`token`、`state_dir`、`allowed_origins`、`tunnel.*`、`default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`push.*`。
 
-设置接口 SHALL NOT 返回或接受第二类与第三类字段；PATCH 中出现 `token`、`push`、`draft`、`shell`、`listen` 等未知键时 SHALL 返回 400。服务端 SHALL NOT 因为本能力修改 `config.toml` 或改变上述 TOML 项的生效方式。
+设置接口 SHALL NOT 返回或接受第二类与第三类字段；PATCH 中出现 `token`、`push`、`draft`、`listen` 等未知键时 SHALL 返回 400。服务端 SHALL NOT 因为本能力修改 `config.toml` 或改变上述 TOML 项的生效方式。
+
+已有公网访问配置 SHALL 保持独立：`tunnel.*` 提供 TOML 部署默认值，现有专用服务通过 `tunnel.json` 持久化并即时应用开关、模式、凭据和主机名的覆盖，`cloudflared` 与下载镜像仍只由 TOML 管理。通用设置文档、快照和更新帧 SHALL NOT 包含隧道凭据，本能力 SHALL NOT 改变既有隧道入口或优先级。
 
 #### Scenario: 跨设备读取同一偏好
 
@@ -26,7 +28,7 @@
 
 #### Scenario: TOML 策略不经 API 修改
 
-- **WHEN** 客户端在 PATCH 中提交 `shell`、`listen`、`allowed_origins` 或 `presets`
+- **WHEN** 客户端在 PATCH 中提交 `listen`、`allowed_origins`、`tunnel` 或 `push`
 - **THEN** 服务端返回 400，`config.toml` 与当前服务行为保持不变
 
 ### Requirement: 服务端设置存储与原子持久化
@@ -125,6 +127,8 @@
 
 服务端 SHALL 提供已认证的 `GET /ws/settings`。连接建立后 SHALL 先发送一条完整快照帧，`type` 为 `settings`；每次成功 PATCH 后 SHALL 向所有连接广播 `type` 为 `settings.update` 的帧，包含新的 `revision`、`updatedAt` 与本次变化的顶层键。
 
+快照捕获与实时订阅注册 SHALL 原子完成，并 SHALL 与 PATCH 提交形成同一修订号顺序；并发提交的修改 SHALL 要么包含在首帧快照中，要么作为其后的更新帧送达，SHALL NOT 因连接建立时的订阅空窗丢失。首帧快照 SHALL 先于后续修订号的更新帧发送，且更新帧 SHALL 按修订号顺序发送。
+
 客户端 SHALL 按 `revision` 合并：等于本地值加 1 时应用变化键；大于本地值加 1 或出现未知键时 SHALL 重新读取完整快照；小于等于本地值的重复帧 SHALL 忽略。客户端断线后 SHALL 指数退避重连并重新取得快照；恢复在线或页面重新可见时 SHALL 校验快照。
 
 每个连接 SHALL 只有一个写协程，订阅队列 SHALL 有界。客户端读取过慢时服务端 SHALL 在写期限内关闭该连接，客户端重连后重新取得完整快照；服务端 SHALL NOT 阻塞 PATCH 或其他客户端。设置同步失败 SHALL NOT 影响终端 WebSocket、会话列表或终端输入输出。
@@ -133,6 +137,11 @@
 
 - **WHEN** 桌面端修改主题，手机端的 `/ws/settings` 已连接
 - **THEN** 手机端在收到 `settings.update` 后无需刷新即可应用新主题，修订号与桌面端一致
+
+#### Scenario: 建立连接时恰好发生一次修改
+
+- **WHEN** 客户端建立 `/ws/settings` 连接的同时另一客户端成功 PATCH，之后不再发生任何修改
+- **THEN** 新连接的首帧快照已包含该修订号，或紧随快照收到该修订号的更新；客户端无需等待下一次修改即可取得最新值
 
 #### Scenario: 断线重连
 
@@ -201,6 +210,8 @@
 
 所有入口 SHALL 读写同一份设置快照：终端顶栏的主题切换与字体大小菜单、代码阅读器的行号与 Diff 换行开关、主页工作树的添加与移除、设置页控件。修改 SHALL 先更新本地状态并发送 PATCH；PATCH 失败时 SHALL 回滚显示并给出错误，409 时 SHALL 按操作语义重放一次。其他客户端通过 `/ws/settings` 更新到达时 SHALL 无需刷新即可反映到当前页面。
 
+409 重放 SHALL 只保留用户本次操作的意图。对于 `preview` 与 `codeReader`，客户端 SHALL 记录用户修改的子字段及其目标值，重新读取快照后在最新对象上只覆盖这些子字段，并提交合并后的完整顶层对象；最新对象为 `null` 时 SHALL 先使用该组默认值。未修改的兄弟字段 SHALL 保留最新服务端值；同一子字段冲突时 SHALL 使用本次重试的目标值，一次操作明确修改两个子字段时 SHALL 重放两者。分组“恢复默认”SHALL 被视为显式整组重置，重试时仍提交该顶层键的 `null`，不做子字段合并。标量 SHALL 重试目标值，快捷指令 SHALL 按条目 ID 重放操作，主页工作树 SHALL 按本次添加或移除的 ID 重放；所有入口（包括设置页）SHALL 使用相同规则，最多自动重试一次，再次失败时保留编辑输入并显示错误。
+
 设置页 SHALL 以简短文字显示同步状态（已同步或不可用原因），新增 `#appearance` 深链接；已有 `#quick-commands`、`#launch-configs`、`#drafts` 保持不变。“恢复默认”对单个分组 SHALL 使用 PATCH `null`；快捷指令删除全部仍需确认并保存为 `[]`。
 
 #### Scenario: 一处修改多处生效
@@ -222,6 +233,16 @@
 
 - **WHEN** 用户编辑快捷指令时另一台设备先保存了修改，当前保存返回 409
 - **THEN** 客户端读取最新列表，按条目 ID 重放本次新增、修改或删除；目标条目已不存在时保留对话框输入并提示刷新
+
+#### Scenario: 并发修改复合设置的不同子字段
+
+- **WHEN** 两台设备基于相同快照，分别把 `preview.lines` 改为 20 和 `preview.skip` 改为 5，或分别把 `codeReader.lineNumbers` 改为 `"hide"` 和 `codeReader.diffOverflow` 改为 `"wrap"`，后提交者收到 409
+- **THEN** 后提交者读取最新快照并只重放自己修改的子字段；最终预览为 `{lines: 20, skip: 5}`，代码阅读器为 `{lineNumbers: "hide", diffOverflow: "wrap"}`，设置页与各快捷入口行为一致
+
+#### Scenario: 明确修改两个子字段或恢复默认
+
+- **WHEN** 用户一次操作明确把预览改为 20 行、跳过 5 行，或选择预览分组“恢复默认”，提交前另一设备已修改预览导致 409
+- **THEN** 客户端重读后分别重放本次明确修改的两个目标值，或重放整组 `preview: null`；未被该操作涉及的其他设置保持最新值
 
 ### Requirement: 主页工作树选择跨设备同步
 
@@ -246,7 +267,7 @@
 
 ### Requirement: 设置存储的安全与隐私
 
-设置接口与设置 WebSocket SHALL 继承 `/api/*`、`/ws/*` 现有的 Bearer / Cookie 认证、Host 与 Origin 校验；本机 Unix 套接字 SHALL 继续按对端有效 UID 校验。服务端 SHALL NOT 新增匿名设置端点、放宽 CORS 或通过静态文件暴露设置文件。
+设置接口与设置 WebSocket SHALL 继承 `/api/*`、`/ws/*` 现有的认证、Host 与 Origin 校验；浏览器 HTTP 请求 SHALL 使用 `Authorization: Bearer <token>`，WebSocket 握手 SHALL 提供 `webmux` 与 `webmux.token.<base64url(token)>` 子协议，服务端 SHALL 只选择 `webmux`，SHALL NOT 回显 token 子协议或把 token 放进 URL。现有中间件对 `webmux_token` Cookie 的兼容回退 SHALL 保持不变，但浏览器 SHALL NOT 依赖 Cookie。本机 Unix 套接字 SHALL 继续按对端有效 UID 校验。服务端 SHALL NOT 新增匿名设置端点、放宽 CORS 或通过静态文件暴露设置文件。
 
 `settings.json` 与 `settings.lock` SHALL 为 0600，状态目录 SHALL 为 0700。服务端 SHALL NOT 在日志、错误或诊断输出中记录快捷指令正文、完整请求体、Token 或 Web Push 订阅；错误可以包含字段名、限制和状态文件路径。设置接口返回的快捷指令正文 SHALL 只发送给已认证客户端，Token、Web Push 订阅与草稿 SHALL NOT 出现在设置文档、快照或更新帧中。
 

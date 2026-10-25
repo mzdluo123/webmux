@@ -2,13 +2,15 @@
 
 WebMux 是单用户、单实例的 Go 服务，浏览器通过已认证的 `/api` 与 `/ws` 访问同一台机器。当前的配置边界如下。
 
-| 位置 | 内容 | 生命周期 |
-| --- | --- | --- |
-| `config.toml` | `listen`、`token`、`state_dir`、`allowed_origins`、`tunnel.*`、`shell`、`presets`、`default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`push.*` | 启动时读取，修改后重启生效 |
-| `<state_dir>` | 仓库清单、启动配置、Web Push 订阅 | 服务端持久化，所有客户端共享 |
-| 浏览器 `localStorage` | `theme`、`fontSize`、`preview`、`codeLineNumbers`、`codeDiffOverflow`、`quickCommands`、`homeWorktrees` | 仅当前浏览器，同一浏览器的标签页靠 `storage` 事件同步 |
-| 浏览器组件状态 | `forceSoftKeys`（强制底部工具栏） | 刷新即丢失 |
-| 浏览器其他数据 | `token`、`push.subscriptionId`、`recentDirs`、`lastLaunch`、`customCommand`、`clientId`、草稿与暂存正文 | 设备或会话本地 |
+| 位置                  | 内容                                                                                                                                                                                    | 生命周期                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `config.toml`         | `listen`、`token`、`state_dir`、`allowed_origins`、`tunnel.*`、`default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`push.*` | 启动时读取，修改后重启生效                                                              |
+| `<state_dir>`         | 仓库清单、启动配置、Web Push 订阅、独立的隧道覆盖配置 `tunnel.json`                                                                                                                     | 服务端持久化；隧道配置已有专用网页入口，凭据只写不回填                                  |
+| 浏览器 `localStorage` | `theme`、`fontSize`、`preview`、`codeLineNumbers`、`codeDiffOverflow`、`quickCommands`、`homeWorktrees`                                                                                 | 仅当前浏览器；主题、快捷指令与主页工作树通过 `storage` 事件同步标签页，其余偏好无此监听 |
+| 浏览器组件状态        | `forceSoftKeys`（强制底部工具栏）                                                                                                                                                       | 刷新即丢失                                                                              |
+| 浏览器其他数据        | `token`、`push.subscriptionId`、`recentDirs`、`lastLaunch`、`customCommand`、`clientId`、草稿与暂存正文                                                                                 | 设备或会话本地                                                                          |
+
+`tunnel.*` 是部署默认值而非仅能通过 TOML 管理的运行时设置：现有公网访问页与托盘已把开关、模式、凭据和主机名保存到 `tunnel.json` 并即时应用，文件存在时覆盖对应 TOML 默认值；`cloudflared` 与 `download_mirrors` 仍只由 TOML 管理。本变更保留该专用服务和优先级，不把隧道凭据搬入通用偏好快照。
 
 `internal/launch` 已经提供了可复用的服务端状态模式：独立文件锁、0600 文件、`statefile` 原子替换、损坏时保留原文件并让接口返回 503、不可用时不阻塞其他功能。本变更沿用该模式，不为设置单独发明一套持久化。
 
@@ -25,7 +27,7 @@ WebMux 是单用户、单实例的 Go 服务，浏览器通过已认证的 `/api
 ### Non-Goals
 
 - 多用户账户、按用户隔离设置、权限角色或共享给未认证访客。
-- 从网页修改 `config.toml`、重启服务或编辑 `listen`、`token`、`state_dir`、`allowed_origins`、`tunnel.*`、`push.*` 等启动与安全项。
+- 从网页修改 `config.toml`、重启服务或增加 `listen`、`token`、`state_dir`、`allowed_origins`、`push.*` 等启动与安全项的通用编辑入口；既有公网访问专用配置不变，不纳入 `settings.json`。
 - 同步 `token`、Web Push 订阅、草稿与暂存正文、最近目录、上次启动选择、临时命令或 `clientId`。
 - 跨 WebMux 实例同步、云端账户、设置端到端加密或设置版本历史。
 - 多人同时编辑同一份设置的合并算法；只提供修订号冲突检测、客户端重放与一次自动重试。
@@ -37,23 +39,23 @@ WebMux 是单用户、单实例的 Go 服务，浏览器通过已认证的 `/api
 
 按“是否需要跨设备一致”和“是否包含凭据或设备身份”划分。
 
-| 键 | 当前 | 目标 | 理由 |
-| --- | --- | --- | --- |
-| `theme` | `localStorage`，未设置为跟随系统 | 服务端，`null` 表示跟随系统 | 纯展示偏好，跨设备一致符合预期 |
-| `fontSize` | `localStorage`，默认按粗指针 13 / 细指针 14 | 服务端，`null` 表示设备默认 | 用户主动调整后应跨设备保留 |
-| `preview` | `localStorage`，默认 `{lines: 10, skip: 1}` | 服务端，`null` 表示默认 | 纯展示偏好 |
-| `codeReader.lineNumbers` | `localStorage`，默认 `show` | 服务端，`null` 表示 `show` | 纯展示偏好 |
-| `codeReader.diffOverflow` | `localStorage`，默认 `scroll` | 服务端，`null` 表示 `scroll` | 纯展示偏好 |
-| `quickCommands` | `localStorage`，未保存显示 `/resume`、`/new` | 服务端，`null` 表示未初始化，`[]` 表示明确为空 | 用户内容，最需要跨设备共享 |
-| `homeWorktrees` | `localStorage`，按仓库保存固定工作树 ID | 服务端，`null` 表示未整理 | 跨设备主页布局一致 |
-| `forceSoftKeys` | 组件状态，刷新丢失 | 服务端，`null` 表示关闭 | 已存在的用户可见开关，一并持久化 |
-| `lastLaunch`、`customCommand` | `localStorage` | 保持本地 | 是“上次操作”，不同设备各自选择更合理 |
-| `recentDirs` | `localStorage` | 保持本地 | 是使用历史，不是配置 |
-| `token` | `localStorage` | 保持本地 | 凭据，不能通过设置接口离开设备 |
-| `push.subscriptionId` | `localStorage` | 保持本地 | 每个浏览器/设备有各自的推送端点 |
-| 草稿、暂存、`draftPersistence` | `localStorage` | 保持本地 | 正文大、含隐私、语义就是“在本机保存” |
-| `clientId`、`clientLive` | `sessionStorage` | 保持本地 | 会话运行期身份，不是配置 |
-| TOML 启动与安全项 | `config.toml` | 保持 TOML | 启动引导、安全边界、凭据或全局策略 |
+| 键                             | 当前                                         | 目标                                           | 理由                                 |
+| ------------------------------ | -------------------------------------------- | ---------------------------------------------- | ------------------------------------ |
+| `theme`                        | `localStorage`，未设置为跟随系统             | 服务端，`null` 表示跟随系统                    | 纯展示偏好，跨设备一致符合预期       |
+| `fontSize`                     | `localStorage`，默认按粗指针 13 / 细指针 14  | 服务端，`null` 表示设备默认                    | 用户主动调整后应跨设备保留           |
+| `preview`                      | `localStorage`，默认 `{lines: 10, skip: 1}`  | 服务端，`null` 表示默认                        | 纯展示偏好                           |
+| `codeReader.lineNumbers`       | `localStorage`，默认 `show`                  | 服务端，`null` 表示 `show`                     | 纯展示偏好                           |
+| `codeReader.diffOverflow`      | `localStorage`，默认 `scroll`                | 服务端，`null` 表示 `scroll`                   | 纯展示偏好                           |
+| `quickCommands`                | `localStorage`，未保存显示 `/resume`、`/new` | 服务端，`null` 表示未初始化，`[]` 表示明确为空 | 用户内容，最需要跨设备共享           |
+| `homeWorktrees`                | `localStorage`，按仓库保存固定工作树 ID      | 服务端，`null` 表示未整理                      | 跨设备主页布局一致                   |
+| `forceSoftKeys`                | 组件状态，刷新丢失                           | 服务端，`null` 表示关闭                        | 已存在的用户可见开关，一并持久化     |
+| `lastLaunch`、`customCommand`  | `localStorage`                               | 保持本地                                       | 是“上次操作”，不同设备各自选择更合理 |
+| `recentDirs`                   | `localStorage`                               | 保持本地                                       | 是使用历史，不是配置                 |
+| `token`                        | `localStorage`                               | 保持本地                                       | 凭据，不能通过设置接口离开设备       |
+| `push.subscriptionId`          | `localStorage`                               | 保持本地                                       | 每个浏览器/设备有各自的推送端点      |
+| 草稿、暂存、`draftPersistence` | `localStorage`                               | 保持本地                                       | 正文大、含隐私、语义就是“在本机保存” |
+| `clientId`、`clientLive`       | `sessionStorage`                             | 保持本地                                       | 会话运行期身份，不是配置             |
+| TOML 启动与安全项              | `config.toml`                                | 保持 TOML                                      | 启动引导、安全边界、凭据或全局策略   |
 
 快捷指令的数据与菜单语义由 `terminal-quick-commands` 继续定义；主页工作树的选择语义由本能力定义；本能力同时负责两者的存储、同步与故障边界。
 
@@ -136,6 +138,8 @@ API 快照始终返回全部已知键，未设置的键为 `null`，避免客户
 - 成功返回 200 与完整快照，客户端无需再 GET。
 - 单用户多设备仍可能出现冲突；409 响应只包含 `{"error": "设置已被其他客户端修改"}`，不包含设置值。客户端按操作语义重放：
   - 标量设置直接以最新快照的 `revision` 重试目标值；
+  - `preview` 与 `codeReader` 记录用户本次改动的子字段及目标值，重读后在最新对象上只覆盖这些子字段，再提交完整的顶层对象；最新值为 `null` 时先展开该组默认值。未改动的兄弟字段保留远端值；同一子字段冲突时本次重试的目标值生效，一次操作明确修改两个子字段时两者都重放；
+  - 分组“恢复默认”是显式的整组重置，409 后仍重放该顶层键的 `null`，不与远端子字段合并；
   - 快捷指令按条目 ID 重放新增、修改、删除或移动；目标条目已不存在时提示并刷新；
   - 主页工作树按添加或移除的工作树 ID 重放；只写用户本次操作，不因读取快照自动清理。
 - 自动重试一次；仍冲突或字段已被删除时保留用户输入并显示可重试的错误。
@@ -144,10 +148,26 @@ API 快照始终返回全部已知键，未设置的键为 `null`，避免客户
 ### 5. 跨客户端同步通道
 
 - 新增 `GET /ws/settings`，与 `/ws/sessions`、`/ws/s/{id}` 一样经过 `/ws/*` 的认证、Host 与 Origin 校验，并使用现有 `webmux` 子协议。
+- 捕获完整快照与注册订阅在同一设置锁内原子完成，并与 PATCH 的提交、修订号递增和事件入队共用该锁。锁内先把修订号 N 的快照放入新订阅的队首，再注册该订阅；后续提交只能排在快照之后，按修订号顺序入队。网络写入在解锁后进行，不能持锁等待客户端。这样并发 PATCH 要么已包含在快照中，要么作为后续更新送达，不存在订阅空窗。
 - 连接建立后第一条帧为完整快照：
 
 ```json
-{ "type": "settings", "settings": { "revision": 7, "updatedAt": "...", "values": {} } }
+{
+  "type": "settings",
+  "settings": {
+    "revision": 7,
+    "updatedAt": "2026-10-25T12:00:00Z",
+    "values": {
+      "theme": "dark",
+      "fontSize": 15,
+      "preview": null,
+      "codeReader": null,
+      "quickCommands": null,
+      "homeWorktrees": null,
+      "forceSoftKeys": null
+    }
+  }
+}
 ```
 
 - 每次成功 PATCH 后广播更新帧，只包含本次变化的顶层键：
@@ -194,15 +214,15 @@ API 快照始终返回全部已知键，未设置的键为 `null`，避免客户
 
 ### 8. 各设置的默认值与校验
 
-| 设置 | 校验 | 默认（`null`） |
-| --- | --- | --- |
-| `theme` | `light` \| `dark` | 跟随系统 |
-| `fontSize` | 整数 12–20 | 粗指针 13，细指针 14 |
-| `preview` | `lines` 1–50，`skip` 0–50，均为整数 | `{lines: 10, skip: 1}` |
-| `codeReader` | `lineNumbers` 为 `show` \| `hide`，`diffOverflow` 为 `scroll` \| `wrap` | `{lineNumbers: "show", diffOverflow: "scroll"}` |
-| `quickCommands` | 0–50 条；`id` 1–64 字符且唯一；`name` 去空白后 ≤40 字符；`command` 去空白后非空且 ≤4096 字符；`enter` 为布尔 | `null` 显示 `/resume`、`/new` |
-| `homeWorktrees` | 最多 200 个仓库；仓库 ID 1–128 字符；每个仓库最多 1000 个工作树 ID，每个 ID 1–128 字符；全部条目合计最多 2000 个 | `null`，每个仓库默认只显示主工作树 |
-| `forceSoftKeys` | 布尔 | `false` |
+| 设置            | 校验                                                                                                             | 默认（`null`）                                  |
+| --------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `theme`         | `light` \| `dark`                                                                                                | 跟随系统                                        |
+| `fontSize`      | 整数 12–20                                                                                                       | 粗指针 13，细指针 14                            |
+| `preview`       | `lines` 1–50，`skip` 0–50，均为整数                                                                              | `{lines: 10, skip: 1}`                          |
+| `codeReader`    | `lineNumbers` 为 `show` \| `hide`，`diffOverflow` 为 `scroll` \| `wrap`                                          | `{lineNumbers: "show", diffOverflow: "scroll"}` |
+| `quickCommands` | 0–50 条；`id` 1–64 字符且唯一；`name` 去空白后 ≤40 字符；`command` 去空白后非空且 ≤4096 字符；`enter` 为布尔     | `null` 显示 `/resume`、`/new`                   |
+| `homeWorktrees` | 最多 200 个仓库；仓库 ID 1–128 字符；每个仓库最多 1000 个工作树 ID，每个 ID 1–128 字符；全部条目合计最多 2000 个 | `null`，每个仓库默认只显示主工作树              |
+| `forceSoftKeys` | 布尔                                                                                                             | `false`                                         |
 
 快捷指令保存时继续把 CRLF/CR 统一为 LF 并移除末尾换行；服务端做同样的规范化，避免不同客户端写入不一致的文本。所有字符串必须是有效 UTF-8；设置接口不新增控制字符规则，快捷指令正文沿用现有终端输入与发送规则。
 
@@ -216,7 +236,7 @@ API 快照始终返回全部已知键，未设置的键为 `null`，避免客户
 
 ### 10. 设置页与各入口
 
-- 设置页顶部说明改为：除 token、推送订阅、草稿、最近目录和上次选择等设备本地数据外，偏好保存在服务端并在所有设备间同步；TOML 中的启动与安全配置仍需编辑文件并重启。
+- 设置页说明：除 token、推送订阅、草稿、最近目录和上次选择等设备本地数据外，偏好保存在服务端并在所有设备间同步；TOML 启动与安全配置仍需编辑文件并重启，既有隧道专用配置仍可即时保存应用，不与通用偏好合并。
 - 新增“外观与阅读”卡片：主题（跟随系统/浅色/深色）、字体大小（12–20，含当前值）、输出预览行数与跳过行数、代码行号、Diff 换行、强制底部工具栏。快捷指令卡片继续保留新建、编辑、排序、删除与上限逻辑，说明改为服务端保存。
 - “恢复默认”对单个分组使用 PATCH `null`；快捷指令的删除全部仍需确认，并保存为 `[]`，不重新补回预置指令。
 - 终端顶栏的主题切换、字体大小菜单、代码阅读器的行号与换行开关、主页的添加/移除工作树，全部写入同一设置存储并立即更新本地状态；服务端返回成功后再更新缓存。
@@ -226,7 +246,7 @@ API 快照始终返回全部已知键，未设置的键为 `null`，避免客户
 
 ### 11. 安全与隐私
 
-- 设置接口和 WebSocket 继承 `/api/*`、`/ws/*` 的 Bearer/Cookie 认证、Host 与 Origin 校验；本机 Unix 套接字继续按对端 UID 校验。不新增 CORS 例外、匿名端点或静态文件。
+- 设置接口和 WebSocket 继承 `/api/*`、`/ws/*` 的认证、Host 与 Origin 校验：浏览器 HTTP 请求使用 `Authorization: Bearer <token>`；WebSocket 握手提供 `webmux` 与 `webmux.token.<base64url(token)>` 子协议，服务端只选择 `webmux`，不回显 token 子协议。保留现有中间件对 `webmux_token` Cookie 的兼容回退，但浏览器不依赖 Cookie，也不把 token 放进 URL。本机 Unix 套接字继续按对端 UID 校验。不新增 CORS 例外、匿名端点或静态文件。
 - `settings.json` 与 `settings.lock` 为 0600，状态目录 0700；不回显 Token，不把 Token、Web Push 订阅或草稿写入设置文件。
 - 快捷指令正文可能包含提示词或密钥；服务端不记录请求体、设置值或迁移日志。错误只包含字段名、限制与文件路径，不回显值。
 - 请求体 2 MiB、文件 4 MiB、条目数量与字符串长度共同限制存储放大与拒绝服务；服务端读取时仍完整校验，不信任客户端。
