@@ -2,17 +2,8 @@ import { afterEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import LaunchConfigDialog from "../../src/components/LaunchConfigDialog.svelte";
-import type { LaunchConfig, Preset } from "../../src/schemas";
+import type { LaunchConfig } from "../../src/schemas";
 
-const presets: Preset[] = [
-  {
-    name: "shell",
-    label: "Shell",
-    cmd: ["bash", "-l", "-i"],
-    allowArgs: false,
-  },
-  { name: "claude", label: "Claude Code", cmd: ["claude"], allowArgs: true },
-];
 const saved: LaunchConfig = {
   id: "abcdefg2",
   name: "Claude 恢复",
@@ -36,8 +27,6 @@ function serve(routes: Record<string, Handler>) {
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       requests.push({ method, path, body });
-      if (path === "/api/presets" && !routes[path])
-        return Response.json(presets);
       const response = await routes[path]?.(method, body);
       if (!response) throw new Error(`Unexpected request: ${method} ${path}`);
       return response;
@@ -93,7 +82,7 @@ test("masks env values by default and validates variable names", async () => {
   await expect.element(save()).toBeEnabled();
 });
 
-test("fills the command from a built-in preset and its label", async () => {
+test("the Bashrc checkbox saves a normal command without expanding its arguments", async () => {
   const onsaved = vi.fn();
   const requests = serve({
     "/api/launch-configs": (method, body) =>
@@ -102,25 +91,70 @@ test("fills the command from a built-in preset and its label", async () => {
         : undefined,
   });
   render(LaunchConfigDialog, { open: true, configId: undefined, onsaved });
-  await page.getByRole("button", { name: "Claude Code", exact: true }).click();
-  await page.getByLabelText("预设追加参数").fill(`--resume "a b" ''`);
-  await page.getByRole("button", { name: "填入命令" }).click();
-  await expect
-    .element(page.getByLabelText("启动命令"))
-    .toHaveValue("claude --resume 'a b' ''");
-  await expect.element(page.getByLabelText("名称")).toHaveValue("Claude Code");
+  await page.getByLabelText("名称").fill("Open Code");
+  await page
+    .getByLabelText("启动命令")
+    .fill(`opencode --continue 'a b' '' '$HOME'`);
+  await page
+    .getByRole("checkbox", { name: "加载 ~/.bashrc", exact: true })
+    .click();
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
   expect(requests.at(-1)).toEqual({
     method: "POST",
     path: "/api/launch-configs",
     body: {
-      name: "Claude Code",
-      cmd: ["claude", "--resume", "a b", ""],
+      name: "Open Code",
+      cmd: [
+        "bash",
+        "-ic",
+        'exec -- "$@"',
+        "webmux",
+        "opencode",
+        "--continue",
+        "a b",
+        "",
+        "$HOME",
+      ],
       env: {},
     },
   });
 });
+
+test.each([true, false])(
+  "editing a wrapped config keeps Bash loading %s without losing argv or env",
+  async (enabled) => {
+    const argv = ["codex", "--resume", "a b", "", "$HOME"];
+    const wrapped = ["bash", "-ic", 'exec -- "$@"', "webmux", ...argv];
+    const onsaved = vi.fn();
+    const requests = serve({
+      "/api/launch-configs/abcdefg2": (method, body) =>
+        method === "GET"
+          ? Response.json({ ...saved, cmd: wrapped })
+          : Response.json({ ...saved, ...(body as object) }),
+    });
+    await render(LaunchConfigDialog, {
+      open: true,
+      configId: saved.id,
+      onsaved,
+    });
+    const checkbox = page.getByRole("checkbox", {
+      name: "加载 ~/.bashrc",
+      exact: true,
+    });
+    await expect.element(checkbox).toBeChecked();
+    await expect
+      .element(page.getByLabelText("启动命令"))
+      .toHaveValue("codex --resume 'a b' '' '$HOME'");
+    if (!enabled) await checkbox.click();
+    await save().click();
+    await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
+    expect(requests.at(-1)).toMatchObject({
+      method: "PUT",
+      body: { cmd: enabled ? wrapped : argv, env: saved.env },
+    });
+  },
+);
 
 test("editing only the name keeps every env variable in the PUT body", async () => {
   const loaded = Promise.withResolvers<Response>();

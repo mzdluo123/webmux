@@ -1,15 +1,15 @@
 <script lang="ts">
   import InlineNotice from "../components/InlineNotice.svelte";
+  import LazyDialog from "../components/LazyDialog.svelte";
+  import { applySessionEvent } from "../session-list";
   import { onMount } from "svelte";
   import WorkspaceToolbar from "../components/WorkspaceToolbar.svelte";
   import { api } from "../api";
   import {
     LaunchConfigsSchema,
-    PresetsSchema,
     ConfigSchema,
     SessionEventSchema,
     RepositoriesSchema,
-    type Preset,
     type SessionInfo,
     type Repository,
     type Worktree,
@@ -18,11 +18,7 @@
   import { connect, type Connection } from "../ws";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import NewSessionSheet from "../components/NewSessionSheet.svelte";
   import CloseSessionDialog from "../components/CloseSessionDialog.svelte";
-  import AddRepositoryDialog from "../components/AddRepositoryDialog.svelte";
-  import RemoveWorktreeDialog from "../components/RemoveWorktreeDialog.svelte";
-  import AddHomeWorktreesDialog from "../components/AddHomeWorktreesDialog.svelte";
   import UnregisterRepositoryDialog from "../components/UnregisterRepositoryDialog.svelte";
   import WorkspaceHeader from "../components/WorkspaceHeader.svelte";
   import SessionFilters from "../components/SessionFilters.svelte";
@@ -37,10 +33,8 @@
 
   let { drafts }: { drafts: TerminalDrafts } = $props();
 
-  let sessions = $state<SessionInfo[]>([]);
-  let repositories = $state<Repository[]>([]);
-  let presets = $state<Preset[]>([]);
-  // Loaded independently of presets: a failure only disables that group.
+  let sessions = $state.raw<SessionInfo[]>([]);
+  let repositories = $state.raw<Repository[]>([]);
   let launchConfigs = $state<LaunchConfigsState>({ status: "loading" });
   let cwd = $state("~");
   let hostname = $state("");
@@ -75,14 +69,7 @@
   let startupRefresh: Promise<void> | undefined;
   let refreshGeneration = 0;
   let disposed = false;
-  const list = $derived(
-    [...sessions].sort(
-      // Background output must not move the card under the user's pointer.
-      (a, b) =>
-        Date.parse(b.createdAt) - Date.parse(a.createdAt) ||
-        a.id.localeCompare(b.id),
-    ),
-  );
+  const list = $derived(sessions);
   const search = $derived(query.trim().toLocaleLowerCase());
   const filtering = $derived(Boolean(search) || statusFilter !== "all");
   const visible = $derived(
@@ -103,12 +90,8 @@
       );
     }),
   );
-  const visibleRepositories = $derived(
-    repositories.filter(
-      (repo) =>
-        !filtering ||
-        visible.some((session) => session.workspace?.repositoryId === repo.id),
-    ),
+  const visibleIds = $derived(
+    filtering ? new Set(visible.map((session) => session.id)) : undefined,
   );
   $effect(() => {
     // A new query opens matching repositories, while still allowing the user
@@ -122,7 +105,7 @@
     statusFilter = "all";
   }
   const direct = $derived(
-    visible.filter(
+    list.filter(
       (s) =>
         !s.workspace ||
         !repositories.some((r) => r.id === s.workspace?.repositoryId),
@@ -196,9 +179,6 @@
     if (setupBusy) return;
     setupBusy = true;
     const results = await Promise.allSettled([
-      api("/presets", PresetsSchema, "GET", undefined, signal).then((p) => {
-        if (!disposed) presets = p;
-      }),
       api("/config", ConfigSchema, "GET", undefined, signal).then((c) => {
         if (disposed) return;
         cwd = c.defaultCwd;
@@ -214,7 +194,7 @@
       setupBusy = false;
       setupSettled = true;
       setupError = results.some((result) => result.status === "rejected")
-        ? "部分启动配置加载失败，相关创建操作暂不可用。"
+        ? "服务端设置加载失败，可重试；仍可使用临时命令创建会话。"
         : "";
     }
   }
@@ -239,20 +219,14 @@
         if (typeof data !== "string")
           throw new Error("会话列表帧必须是 JSON 文本");
         const event = SessionEventSchema.parse(JSON.parse(data));
+        sessions = applySessionEvent(sessions, event);
         if (event.type === "snapshot") {
-          sessions = event.sessions;
           drafts.reconcile(event.sessions.map((session) => session.id));
           loading = false;
-        } else if (event.type === "created" || event.type === "updated")
-          sessions = [
-            ...sessions.filter((s) => s.id !== event.session.id),
-            event.session,
-          ];
-        else if (event.type === "removed") {
+          now = Date.now();
+        } else if (event.type === "removed") {
           drafts.remove(event.id);
-          sessions = sessions.filter((s) => s.id !== event.id);
         }
-        now = Date.now();
       },
       (state) => {
         const reconnected =
@@ -265,7 +239,10 @@
       },
     );
     const visible = () => {
-      if (!document.hidden) void refresh();
+      if (!document.hidden) {
+        now = Date.now();
+        void refresh();
+      }
     };
     document.addEventListener("visibilitychange", visible);
     window.addEventListener("pageshow", visible);
@@ -290,7 +267,7 @@
     {connection}
     {hostname}
     {setupSettled}
-    canStart={presets.length > 0}
+    canStart
     onstart={() => start()}
   />
   {#if connection === "reconnecting"}<div
@@ -359,15 +336,17 @@
       </div>
     {:else}
       <div class="space-y-8">
-        {#each visibleRepositories as repo (repo.id)}
+        {#each repositories as repo (repo.id)}
           <RepositoryGroup
             {repo}
-            sessions={visible.filter(
-              (s) => s.workspace?.repositoryId === repo.id,
-            )}
+            sessions={list.filter((s) => s.workspace?.repositoryId === repo.id)}
             {filtering}
+            {visibleIds}
             open={filtering
-              ? (filterExpanded[repo.id] ?? true)
+              ? visible.some(
+                  (session) => session.workspace?.repositoryId === repo.id,
+                ) &&
+                (filterExpanded[repo.id] ?? true)
               : (expanded[repo.id] ?? false)}
             onopenchange={(open) => {
               if (filtering) filterExpanded[repo.id] = open;
@@ -400,6 +379,7 @@
         {/each}
         {#if direct.length}<DirectSessions
             sessions={direct}
+            {visibleIds}
             {now}
             onclose={(s) => {
               closing = s;
@@ -407,7 +387,7 @@
           />{/if}
         {#if (filtering && !visible.length) || (!repositories.length && !list.length)}<SessionListEmpty
             filtered={filtering && !visible.length}
-            canStart={presets.length > 0}
+            canStart
             onclear={clearFilters}
             onstart={() => start()}
           />{/if}
@@ -415,20 +395,26 @@
     {/if}
   </main>
 </div>
-{#if creating}<NewSessionSheet
-    {presets}
-    {launchConfigs}
-    {repositories}
-    defaultCwd={cwd}
-    initialMode={creating.mode}
-    initialRepositoryId={creating.repositoryId}
-    initialWorktreeId={creating.worktreeId}
-    onchange={refresh}
-    onworktreecreated={(tree) => pin(tree.repositoryId, [tree.id], true)}
-    onclose={() => {
-      creating = null;
-    }}
-  />{/if}
+{#if creating}
+  {@const target = creating}
+  <LazyDialog
+    load={() => import("../components/NewSessionSheet.svelte")}
+    label="创建表单"
+    onclose={() => (creating = null)}
+  >
+    {#snippet children(page)}<page.default
+        {launchConfigs}
+        {repositories}
+        defaultCwd={cwd}
+        initialMode={target.mode}
+        initialRepositoryId={target.repositoryId}
+        initialWorktreeId={target.worktreeId}
+        onchange={refresh}
+        onworktreecreated={(tree) => pin(tree.repositoryId, [tree.id], true)}
+        onclose={() => (creating = null)}
+      />{/snippet}
+  </LazyDialog>
+{/if}
 {#if closing}<CloseSessionDialog
     session={closing}
     onremoved={() => {
@@ -438,31 +424,51 @@
       closing = null;
     }}
   />{/if}
-{#if adding}<AddRepositoryDialog
-    defaultCwd={cwd}
-    onchange={refresh}
-    onclose={() => {
-      adding = false;
-    }}
-  />{/if}
-{#if removing}<RemoveWorktreeDialog
-    worktree={removing}
-    onchange={refresh}
-    onclose={() => {
-      removing = null;
-    }}
-  />{/if}
-{#if curating}<AddHomeWorktreesDialog
-    repositoryName={curating.name}
-    worktrees={homeLayout(homeWorktrees.value, curating, sessions).unpinned}
-    active={new Set(sessions.map((s) => s.workspace?.worktreeId ?? ""))}
-    onadd={(ids) => {
-      if (curating) pin(curating.id, ids, true);
-    }}
-    onclose={() => {
-      curating = null;
-    }}
-  />{/if}
+{#if adding}
+  <LazyDialog
+    load={() => import("../components/AddRepositoryDialog.svelte")}
+    label="仓库表单"
+    onclose={() => (adding = false)}
+  >
+    {#snippet children(page)}<page.default
+        defaultCwd={cwd}
+        onchange={refresh}
+        onclose={() => (adding = false)}
+      />{/snippet}
+  </LazyDialog>
+{/if}
+{#if removing}
+  {@const target = removing}
+  <LazyDialog
+    load={() => import("../components/RemoveWorktreeDialog.svelte")}
+    label="删除确认"
+    onclose={() => (removing = null)}
+  >
+    {#snippet children(page)}<page.default
+        worktree={target}
+        onchange={refresh}
+        onclose={() => (removing = null)}
+      />{/snippet}
+  </LazyDialog>
+{/if}
+{#if curating}
+  {@const target = curating}
+  <LazyDialog
+    load={() => import("../components/AddHomeWorktreesDialog.svelte")}
+    label="工作树选择"
+    onclose={() => (curating = null)}
+  >
+    {#snippet children(page)}<page.default
+        repositoryName={target.name}
+        worktrees={homeLayout(homeWorktrees.value, target, sessions).unpinned}
+        active={new Set(sessions.map((s) => s.workspace?.worktreeId ?? ""))}
+        onadd={(ids) => {
+          if (curating) pin(curating.id, ids, true);
+        }}
+        onclose={() => (curating = null)}
+      />{/snippet}
+  </LazyDialog>
+{/if}
 <UnregisterRepositoryDialog
   repository={unregistering}
   bind:open={unregisterOpen}

@@ -45,7 +45,7 @@ func newFixture(t *testing.T, extra string) *fixture {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	f := &fixture{dir: dir, config: filepath.Join(dir, "config.toml"), state: filepath.Join(dir, "state")}
-	content := fmt.Sprintf("listen = '127.0.0.1:0'\ntoken = %q\ndefault_cwd = %q\nstate_dir = %q\nshell = '/bin/sh'\n%s", fixtureToken, dir, f.state, extra)
+	content := fmt.Sprintf("listen = '127.0.0.1:0'\ntoken = %q\ndefault_cwd = %q\nstate_dir = %q\n%s", fixtureToken, dir, f.state, extra)
 	if err := os.WriteFile(f.config, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -170,6 +170,7 @@ func TestDispatchRejectsUnknownSubcommand(t *testing.T) {
 // Covers the legacy `webmux --config` invocation, the local API, status
 // over the socket and fallback, and stop through the local API.
 func TestServerLocalAPIStatusAndStop(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, "")
 	stdout, _, code := f.run(t, "status", "--json")
 	if status := decodeStatus(t, stdout); code != contract.ExitNotRunning || status.State != contract.StateStopped {
@@ -192,7 +193,7 @@ func TestServerLocalAPIStatusAndStop(t *testing.T) {
 	defer cancel()
 	client := f.local(t)
 	var info contract.SessionInfo
-	if err := client.Do(ctx, http.MethodPost, "/api/sessions", map[string]any{"preset": "custom", "cmd": []string{"cat"}}, &info); err != nil {
+	if err := client.Do(ctx, http.MethodPost, "/api/sessions", map[string]any{"cmd": []string{"cat"}}, &info); err != nil {
 		t.Fatalf("create over socket without token: %v", err)
 	}
 	terminal(t, ctx, client, info.ID)
@@ -269,6 +270,7 @@ func terminal(t *testing.T, ctx context.Context, client *localclient.Client, id 
 }
 
 func TestServiceManagedInstanceRefusesStop(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, "")
 	srv := f.start(t, []string{"INVOCATION_ID=test-unit"}, true, "serve", "--config", f.config)
 	if launcher := f.record(t).Launcher; launcher != "systemd" {
@@ -292,6 +294,7 @@ func TestServiceManagedInstanceRefusesStop(t *testing.T) {
 // A program inside a session may create sibling sessions, but may not read
 // the token or stop the server.
 func TestSessionProcessesCannotStopOrReadToken(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("curl"); err != nil {
 		t.Skip("curl is required to act as an in-session client")
 	}
@@ -301,13 +304,13 @@ func TestSessionProcessesCannotStopOrReadToken(t *testing.T) {
 	out := filepath.Join(f.dir, "inside.txt")
 	stop, _ := json.Marshal([]string{"stop", "--config", f.config})
 	script := `curl -s -o /dev/null -w "token=%{http_code}\n" --unix-socket "$1" http://webmux/local/v1/token
-curl -s -o /dev/null -w "create=%{http_code}\n" --unix-socket "$1" -H 'Content-Type: application/json' -d '{"preset":"custom","cmd":["true"]}' http://webmux/api/sessions
+curl -s -o /dev/null -w "create=%{http_code}\n" --unix-socket "$1" -H 'Content-Type: application/json' -d '{"cmd":["true"]}' http://webmux/api/sessions
 WEBMUX_TEST_EXEC="$3" "$2" 2>&1; echo "stop=$?"`
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	client := f.local(t)
 	cmd := []string{"/bin/sh", "-c", "{\n" + script + "\n} > \"$4.tmp\"; mv \"$4.tmp\" \"$4\"", "sh", record.Socket, os.Args[0], string(stop), out}
-	if err := client.Do(ctx, http.MethodPost, "/api/sessions", map[string]any{"preset": "custom", "cmd": cmd}, nil); err != nil {
+	if err := client.Do(ctx, http.MethodPost, "/api/sessions", map[string]any{"cmd": cmd}, nil); err != nil {
 		t.Fatal(err)
 	}
 	var result []byte
@@ -327,6 +330,7 @@ WEBMUX_TEST_EXEC="$3" "$2" 2>&1; echo "stop=$?"`
 }
 
 func TestSecondInstanceKeepsFirstRecord(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, "")
 	first := f.start(t, nil, true, "--config", f.config)
 	second := f.start(t, nil, false, "serve", "--config", f.config)
@@ -406,6 +410,7 @@ func standIn(t *testing.T, f *fixture, script string) *exec.Cmd {
 }
 
 func TestStopFallsBackToSignals(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, "")
 	// A loop keeps the shell itself as the recorded process (no exec).
 	standIn(t, f, "while :; do sleep 0.1; done")
@@ -427,6 +432,7 @@ func TestStopFallsBackToSignals(t *testing.T) {
 }
 
 func TestStopWithoutRecordSignalsNothing(t *testing.T) {
+	t.Parallel()
 	health := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, `{"ok":true,"sessions":0}`)
 	})}
@@ -499,6 +505,7 @@ func (d *bridgeDialer) DialContext(context.Context) (net.Conn, error) {
 }
 
 func TestBridgeCarriesHTTPAndWebSocket(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, "")
 	cmd := f.command(nil, "bridge", "--config", f.config)
 	var stdout, stderr bytes.Buffer
@@ -520,7 +527,7 @@ func TestBridgeCarriesHTTPAndWebSocket(t *testing.T) {
 		}
 	}
 	var info contract.SessionInfo
-	if err := client.Do(ctx, http.MethodPost, "/api/sessions", map[string]any{"preset": "custom", "cmd": []string{"cat"}}, &info); err != nil {
+	if err := client.Do(ctx, http.MethodPost, "/api/sessions", map[string]any{"cmd": []string{"cat"}}, &info); err != nil {
 		t.Fatal(err)
 	}
 	dialer.mu.Lock()
@@ -533,6 +540,7 @@ func TestBridgeCarriesHTTPAndWebSocket(t *testing.T) {
 }
 
 func TestServeLogFileSurvivesClosedPipes(t *testing.T) {
+	t.Parallel()
 	f := newFixture(t, "")
 	logFile := filepath.Join(f.dir, "logs", "webmux.log")
 	if err := os.MkdirAll(filepath.Dir(logFile), 0700); err != nil {
@@ -569,7 +577,7 @@ func TestServeLogFileSurvivesClosedPipes(t *testing.T) {
 	// Session creation and exit produce output after the pipes closed.
 	client := f.local(t)
 	for range 3 {
-		if err := client.Do(context.Background(), http.MethodPost, "/api/sessions", map[string]any{"preset": "custom", "cmd": []string{"true"}}, nil); err != nil {
+		if err := client.Do(context.Background(), http.MethodPost, "/api/sessions", map[string]any{"cmd": []string{"true"}}, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

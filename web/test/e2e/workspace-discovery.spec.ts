@@ -48,7 +48,7 @@ test("an older config without hostname keeps creation available", async ({
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
-test("invalid config can be retried without blocking loaded presets", async ({
+test("invalid config can be retried without blocking temporary commands", async ({
   page,
 }) => {
   let invalid = true;
@@ -58,7 +58,7 @@ test("invalid config can be retried without blocking loaded presets", async ({
   });
   await page.goto("/");
   await expect(
-    page.getByText("部分启动配置加载失败，相关创建操作暂不可用。"),
+    page.getByText("服务端设置加载失败，可重试；仍可使用临时命令创建会话。"),
   ).toBeVisible();
   await expect(page.getByText("invalid_type", { exact: false })).toHaveCount(0);
   await expect(
@@ -69,7 +69,7 @@ test("invalid config can be retried without blocking loaded presets", async ({
   await page.getByRole("button", { name: "重试", exact: true }).click();
   await expect(page.getByRole("button", { name: "添加仓库" })).toBeEnabled();
   await expect(
-    page.getByText("部分启动配置加载失败，相关创建操作暂不可用。"),
+    page.getByText("服务端设置加载失败，可重试；仍可使用临时命令创建会话。"),
   ).toHaveCount(0);
 });
 
@@ -107,7 +107,6 @@ test("search and status filters compose and follow live session changes", async 
     const response = await request.post("/api/sessions", {
       data: {
         cwd: workDir,
-        preset: "custom",
         // Keep activity deterministic: an idle shell prompt can become
         // "waiting" while a slower browser is still exercising the filters.
         cmd: [
@@ -122,7 +121,7 @@ test("search and status filters compose and follow live session changes", async 
     created.push(await response.json());
   }
   await page.goto("/");
-  const rows = page.locator("[data-session-id]");
+  const rows = page.locator("[data-session-id]:visible");
   await expect(rows).toHaveCount(3);
   const search = page.getByRole("searchbox", { name: "搜索会话" });
   const filters = page.getByRole("group", { name: "按会话状态筛选" });
@@ -192,7 +191,7 @@ test("branch search reveals a collapsed repository and preserves its layout", as
   const repo = repositories[0];
   const created = await request.post("/api/sessions", {
     data: {
-      preset: "shell",
+      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
       name: "Repository agent",
       workspace: { repositoryId: repo.id, worktreeId: repo.worktrees[0].id },
     },
@@ -202,6 +201,10 @@ test("branch search reveals a collapsed repository and preserves its layout", as
   const region = page.locator(`[data-repository-id="${repo.id}"]`);
   const toggle = region.locator('[data-slot="collapsible-trigger"]');
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const retained = region.locator("[data-session-id]");
+  await retained.evaluate((node) =>
+    node.setAttribute("data-retention-probe", "same-row"),
+  );
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   const search = page.getByRole("searchbox", { name: "搜索会话" });
@@ -215,4 +218,8 @@ test("branch search reveals a collapsed repository and preserves its layout", as
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await search.fill("");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(retained).toBeHidden();
+  await expect(retained).toHaveAttribute("data-retention-probe", "same-row");
+  await toggle.click();
+  await expect(retained).toBeVisible();
 });
