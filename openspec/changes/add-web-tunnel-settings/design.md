@@ -1,6 +1,6 @@
 ## Context
 
-WebMux 的隧道配置目前全部来自启动时的 TOML：`commands/webmux` 在 `loadConfig` 中读取 `[tunnel]`，`ensureToken` 根据 `enabled` 生成或校验 WebMux 登录 Token，`serve` 在监听前定位 cloudflared；运行中只有 `tunnelController.SetEnabled` 通过 `/local/v1/tunnel` 启停，且状态不持久化。`GET /api/config` 的 `TunnelInfo` 与推送来源判定都读取静态 `config.TunnelConfig`。设置页的 `TunnelSettings.svelte` 只展示状态与配置文件模板。
+WebMux 的隧道配置目前全部来自启动时的 TOML：`cmd/webmux/main.go` 在 `loadConfig` 中读取 `[tunnel]`，`ensureToken` 根据 `enabled` 生成或校验 WebMux 登录 Token，`serve` 在监听前定位 cloudflared；运行中只有 `tunnelController.SetEnabled` 通过 `/local/v1/tunnel` 启停，且状态不持久化。`GET /api/config` 的 `TunnelInfo` 与推送来源判定都读取静态 `config.TunnelConfig`。设置页的 `TunnelSettings.svelte` 只展示状态与配置文件模板。
 
 因此以下需求无法在网页完成：填写或更换隧道凭据、切换 Quick/Named、修改 `hostname`、在 Linux/远程浏览器中启停、避免改配置后重启。持久化设置还牵动三处派生状态：`GET /api/config`、`pushOrigin` 的 Named 主机名，以及托盘的勾选状态。
 

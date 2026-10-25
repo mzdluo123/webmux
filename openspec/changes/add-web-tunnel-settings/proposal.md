@@ -8,7 +8,7 @@
 
 - 新增 `/settings/tunnel` 页面：展示隧道状态、模式、`hostname`、凭据是否已配置、当前设置的来源，提供 Quick / Named 模式表单、保存并应用、启用 / 关闭、恢复配置文件设置、复制访问链接和风险说明。凭据只写不读，页面不会回填或展示明文。
 - 新增服务端持久化设置 `<state_dir>/tunnel.json`（0600、原子替换、独立 flock）：保存 `enabled`、`mode`、`hostname` 与隧道凭据。文件存在时覆盖 TOML 中的 `enabled`、`token`、`hostname`；`cloudflared` 与 `download_mirrors` 仍由 TOML 管理；文件不存在时完全沿用现有 TOML 行为。
-- 新增浏览器可用的 `/api/tunnel`、`/api/tunnel/settings`、`/api/tunnel/enabled`、`/api/tunnel/settings` 删除接口。它们复用现有 Token、Host 与 Origin 校验，响应与日志不包含隧道凭据；本机 `/local/v1/tunnel` 与网页开关写入同一份持久化状态。
+- 新增浏览器可用的 `GET /api/tunnel`、`PUT /api/tunnel/settings`、`PUT /api/tunnel/enabled` 与 `DELETE /api/tunnel/settings` 接口。它们复用现有 Token、Host 与 Origin 校验，响应与日志不包含隧道凭据；本机 `/local/v1/tunnel` 与网页开关写入同一份持久化状态。
 - 运行时应用：保存设置或切换开关后，按新设置撤销旧公网来源、结束旧 generation 的 cloudflared、按新配置启动；请求立即返回，状态经 `starting` 到 `ready` 或 `failed`。旧 generation 的进程退出或迟到事件不能重新授权公网来源。
 - 启动恢复：持久化设置存在时，在监听开始后按设置启动隧道；cloudflared 不可用、下载失败或 WebMux 登录 Token 不足时只把隧道标为 `failed`，不阻止服务启动。没有持久化设置时，TOML `enabled` 的启动失败语义保持不变；`--tunnel` 只覆盖本次进程，不写入持久化设置。
 - 动态联动：`GET /api/config` 的 `Named`/`Hostname`、推送来源判定与托盘状态使用当前生效设置；修改 `hostname` 后公网页面会断开、旧推送订阅点开仍指向旧来源，页面在应用前给出确认与说明。
