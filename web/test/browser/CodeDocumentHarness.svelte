@@ -10,6 +10,7 @@
   let active = $state(true);
   let status = $state("unchanged");
   let inserted = $state("");
+  let width = $state(650);
   const original = $derived(
     syntax
       ? 'const message = "<img src=x onerror=alert(1)>";\n'
@@ -49,6 +50,9 @@
         lineCount: deleted ? 20000 : 120,
         referenceable: true,
         reason: "",
+        mediaType: "",
+        size: original.length,
+        downloadable: true,
       },
       new: {
         nodeId: "Y29kZS50eHQ",
@@ -71,6 +75,9 @@
         lineCount: deleted ? 0 : 120,
         referenceable: !deleted,
         reason: "",
+        mediaType: "",
+        size: deleted ? 0 : original.length,
+        downloadable: !deleted,
       },
     }),
   );
@@ -79,7 +86,9 @@
 <button onclick={() => revision++}>Replace snapshot</button>
 <button onclick={() => (active = !active)}>Toggle active</button>
 <button onclick={() => (status = "expired")}>Expire snapshot</button>
-<div style="height:650px;width:650px">
+<button onclick={() => (width = width === 650 ? 900 : 650)}>Toggle width</button
+>
+<div style:height="650px" style:width={`${width}px`}>
   <CodeDocumentView
     id="session"
     {diff}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack, onMount } from "svelte";
+  import { untrack, onMount, type Snippet } from "svelte";
   import { api, APIError } from "../api";
   import {
     CodeFileSchema,
@@ -14,7 +14,18 @@
   import { codeReference, nodeId } from "../code-reference";
   import CodeReader from "./CodeReader.svelte";
   import { Button } from "$lib/components/ui/button";
-  import { IconPlus } from "@tabler/icons-svelte";
+  import CodeLineAction from "./CodeLineAction.svelte";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import IconChevronDown from "~icons/tabler/chevron-down";
+  import CodeImageView from "./CodeImageView.svelte";
+  import CodeDownloadButton from "./CodeDownloadButton.svelte";
+  import {
+    basename,
+    codeRawPath,
+    formatBytes,
+    imageFormat,
+    isImageType,
+  } from "../code-image";
   import type { TextInsertion } from "../terminal-draft.svelte";
   let {
     id,
@@ -31,6 +42,7 @@
     comparison,
     onComparison,
     onState,
+    menu = $bindable(),
   }: {
     id: string;
     active?: boolean;
@@ -46,6 +58,7 @@
     comparison?: CodeDiff;
     onComparison: (diff: CodeDiff) => void;
     onState: (state: string) => void;
+    menu?: Snippet;
   } = $props();
   let mode = $state<"file" | "diff">("file");
   let shownDiff = $derived(diff ?? (mode === "diff" ? comparison : undefined));
@@ -53,6 +66,7 @@
   const requests = new Set<AbortController>();
   onMount(() => {
     mounted = true;
+    menu = documentMenu;
     return () => {
       mounted = false;
       for (const c of requests) c.abort();
@@ -79,6 +93,8 @@
   let diffReader = $state<CodeDiffReader>();
   let anchor = $state(1);
   let lastVersion = $state("");
+  // Selection guidance from the active reader, shown beside the actions.
+  let hint = $state("");
   let doc = $derived(
     shownDiff
       ? side === "old"
@@ -86,6 +102,69 @@
         : shownDiff.new
       : file?.document,
   );
+  const defaultSide = $derived<"old" | "new">(
+    shownDiff?.new.source === "empty" || file?.document.source === "head"
+      ? "old"
+      : "new",
+  );
+  const diffSides = ["new", "old"] as const;
+  function sourceLabel(source: string) {
+    return source === "worktree"
+      ? "工作区"
+      : source === "index"
+        ? "索引版本"
+        : source === "head"
+          ? "HEAD 版本"
+          : source === "empty"
+            ? "不存在"
+            : "";
+  }
+  const snapshotId = $derived(shownDiff?.snapshotId ?? file?.snapshotId ?? "");
+  // Diff snapshots need the side; file snapshots ignore it.
+  const rawSide = $derived(shownDiff ? side : undefined);
+  // SVG is a text document: preview by default, source on request or failure.
+  let svgView = $state<"preview" | "source">("preview");
+  let svgNotice = $state("");
+  const svgFile = $derived(
+    !shownDiff && doc?.kind === "text" && doc.mediaType === "image/svg+xml",
+  );
+  const imagePreview = $derived(
+    !!doc &&
+      doc.source !== "empty" &&
+      (shownDiff
+        ? shownDiff.kind === "image" &&
+          (doc.kind === "image" ||
+            (doc.kind === "text" && doc.mediaType === "image/svg+xml"))
+        : doc.kind === "image" || (svgFile && svgView === "preview")),
+  );
+  // Image documents, over-limit images and either side of an image Diff.
+  const imageDocument = $derived(
+    !!doc &&
+      (shownDiff ? shownDiff.kind === "image" : isImageType(doc.mediaType)),
+  );
+  const imageChange = $derived(
+    shownDiff?.kind !== "image"
+      ? ""
+      : shownDiff.old.source === "empty"
+        ? "图片已新增"
+        : shownDiff.new.source === "empty"
+          ? "图片已删除"
+          : "图片已修改",
+  );
+  const renamed = $derived(
+    !!shownDiff && shownDiff.change.oldPath !== shownDiff.change.newPath,
+  );
+  const unreadable = $derived(
+    shownDiff?.kind === "metadata" ||
+      (doc?.kind !== "text" && doc?.kind !== "image"),
+  );
+  // Notices stay visible on narrow screens, where the rest of the document
+  // bar moves into the code menu.
+  const notices = $derived(
+    !!imageChange || status !== "unchanged" || unreadable || !!svgNotice,
+  );
+  const sideSize = (value: CodeDiff["old"]) =>
+    value.source === "empty" ? "不存在" : formatBytes(value.size);
   let preview = $derived.by(() => {
     if (
       invalidSelection ||
@@ -111,6 +190,7 @@
         end = undefined;
         invalidSelection = false;
         error = "";
+        svgNotice = "";
         generation++;
       }
     });
@@ -120,6 +200,16 @@
     untrack(() => {
       anchor = reader?.line() ?? 1;
       generation++;
+      start = undefined;
+      end = undefined;
+      invalidSelection = false;
+      if (current?.kind !== "image") side = defaultSide;
+      // A deleted or added image has nothing to preview on one side.
+      if (
+        current?.kind === "image" &&
+        (side === "new" ? current.new : current.old).source === "empty"
+      )
+        side = side === "new" ? "old" : "new";
     });
   });
   $effect(() => {
@@ -244,7 +334,10 @@
     start = undefined;
     end = undefined;
     invalidSelection = false;
-    if (!range) return;
+    if (!range) {
+      side = defaultSide;
+      return;
+    }
     if (range.endSide && range.endSide !== range.side) {
       invalidSelection = true;
       error = "请选择同一来源的连续行";
@@ -266,6 +359,31 @@
     if (!reference || status !== "unchanged") return;
     error =
       paste(reference) !== "failed" ? "" : "输入目标未就绪，位置未插入；请重试";
+  }
+  function clearSelection() {
+    start = undefined;
+    end = undefined;
+    invalidSelection = false;
+    error = "";
+    reader?.clearLineAction();
+    diffReader?.clearLineAction();
+  }
+  function showSvg(view: "preview" | "source") {
+    if (view === svgView) return;
+    clearSelection();
+    svgNotice = "";
+    svgView = view;
+  }
+  function previewFailed(message: string) {
+    if (!svgFile || svgView !== "preview") return;
+    clearSelection();
+    svgView = "source";
+    svgNotice = `SVG 预览不可用，已切换到源码：${message}`;
+  }
+  function downloadFailed(message: string, code: number) {
+    error = message;
+    if (code === 410) onState("expired");
+    else if (code === 409) onState("updated");
   }
   async function full(which: "old" | "new") {
     if (!shownDiff) return;
@@ -298,60 +416,165 @@
   }
 </script>
 
+<!-- Narrow screens move the document bar into the code panel's menu. -->
+{#snippet documentMenu()}
+  <DropdownMenu.Label class="break-all text-foreground">
+    {doc?.absolutePath}
+    {#if renamed}
+      <span class="mt-1 block text-muted-foreground"
+        >{shownDiff?.change.oldPath} → {shownDiff?.change.newPath}</span
+      >
+    {/if}
+  </DropdownMenu.Label>
+  {#if file}
+    <DropdownMenu.Item
+      disabled={busy}
+      onSelect={() => (shownDiff ? (mode = "file") : void compare())}
+      >{shownDiff ? "返回文件" : "查看 Diff"}</DropdownMenu.Item
+    >
+  {/if}
+  {#if svgFile}
+    <DropdownMenu.Separator />
+    <DropdownMenu.RadioGroup
+      value={svgView}
+      onValueChange={(value) => showSvg(value as "preview" | "source")}
+    >
+      <DropdownMenu.GroupHeading>SVG 显示方式</DropdownMenu.GroupHeading>
+      <!-- The view changes underneath; close like the other entries. -->
+      <DropdownMenu.RadioItem value="preview" closeOnSelect
+        >预览</DropdownMenu.RadioItem
+      >
+      <DropdownMenu.RadioItem value="source" closeOnSelect
+        >源码</DropdownMenu.RadioItem
+      >
+    </DropdownMenu.RadioGroup>
+  {/if}
+  {#if shownDiff}
+    {#if imageChange}
+      <DropdownMenu.Separator />
+      <DropdownMenu.RadioGroup
+        value={side}
+        onValueChange={(value) => {
+          side = value as "old" | "new";
+          clearSelection();
+        }}
+      >
+        <DropdownMenu.GroupHeading>预览来源</DropdownMenu.GroupHeading>
+        {#each diffSides as which}
+          <DropdownMenu.RadioItem
+            value={which}
+            closeOnSelect
+            disabled={shownDiff[which].source === "empty"}
+            >{which === "old" ? "修改前" : "修改后"}<span
+              class="ml-auto text-xs text-muted-foreground"
+              >{sourceLabel(shownDiff[which].source)}</span
+            ></DropdownMenu.RadioItem
+          >
+        {/each}
+      </DropdownMenu.RadioGroup>
+    {/if}
+    <DropdownMenu.Separator />
+    <DropdownMenu.Group>
+      <DropdownMenu.GroupHeading>完整文件</DropdownMenu.GroupHeading>
+      {@render fullItems()}
+    </DropdownMenu.Group>
+  {/if}
+  <DropdownMenu.Separator />
+  <DropdownMenu.Item onSelect={refresh}>刷新文档</DropdownMenu.Item>
+{/snippet}
+
+{#snippet fullItems()}
+  {#if shownDiff}
+    {#each diffSides as which}
+      {#if shownDiff[which].source !== "empty"}
+        <DropdownMenu.Item onSelect={() => void full(which)}>
+          {which === "old" ? "修改前的文件" : "修改后的文件"}
+          <span class="ml-auto text-xs text-muted-foreground"
+            >{sourceLabel(shownDiff[which].source)}</span
+          >
+        </DropdownMenu.Item>
+      {/if}
+    {/each}
+  {/if}
+{/snippet}
+
 <div class="flex h-full min-h-0 flex-col overflow-hidden">
   <div
-    class="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-2 py-1 text-xs"
+    class={[
+      "shrink-0 space-y-1 border-b px-2 py-1 text-xs",
+      !notices && "max-sm:hidden",
+    ]}
   >
-    <p
-      class="min-w-0 grow basis-40 truncate text-left text-muted-foreground [direction:rtl]"
-      title={doc?.absolutePath}
-    >
-      <bdi>{doc?.absolutePath}</bdi>
-    </p>
-    {#if file}<div class="flex gap-2">
-        <Button variant="outline" size="sm" onclick={() => (mode = "file")}
-          >完整文件</Button
-        ><Button
-          variant="outline"
+    <div class="flex items-center gap-2 max-sm:hidden">
+      <p
+        class="min-w-0 flex-1 truncate text-left text-muted-foreground [direction:rtl]"
+        title={doc?.absolutePath}
+      >
+        <bdi>{doc?.absolutePath}</bdi>
+      </p>
+      {#if file}<Button
+          variant="ghost"
           size="sm"
           disabled={busy}
-          onclick={() => void compare()}>查看 Diff</Button
+          onclick={() => (shownDiff ? (mode = "file") : void compare())}
+          >{shownDiff ? "返回文件" : "查看 Diff"}</Button
+        >{/if}
+      {#if svgFile}<div
+          class="flex shrink-0 gap-1"
+          role="group"
+          aria-label="SVG 显示方式"
         >
-      </div>{/if}
-    {#if shownDiff}
-      {#if shownDiff.change.oldPath !== shownDiff.change.newPath}
-        <p class="basis-full break-all">
-          {shownDiff.change.oldPath} → {shownDiff.change.newPath}
-        </p>
+          <Button
+            variant={svgView === "preview" ? "secondary" : "outline"}
+            size="sm"
+            aria-pressed={svgView === "preview"}
+            onclick={() => showSvg("preview")}>预览</Button
+          ><Button
+            variant={svgView === "source" ? "secondary" : "outline"}
+            size="sm"
+            aria-pressed={svgView === "source"}
+            onclick={() => showSvg("source")}>源码</Button
+          >
+        </div>{/if}
+      {#if shownDiff}
+        {#if imageChange}<label class="flex shrink-0 items-center gap-1"
+            >预览来源
+            <select
+              aria-label="预览来源"
+              bind:value={side}
+              onchange={clearSelection}
+              class="h-7 rounded border bg-background px-1"
+              ><option value="new"
+                >修改后（{sourceLabel(shownDiff.new.source)}）</option
+              ><option value="old"
+                >修改前（{sourceLabel(shownDiff.old.source)}）</option
+              ></select
+            ></label
+          >{/if}
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            {#snippet child({ props })}
+              <Button {...props} variant="ghost" size="sm">
+                完整文件<IconChevronDown aria-hidden="true" />
+              </Button>
+            {/snippet}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="end">
+            {@render fullItems()}
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       {/if}
-      <label class="flex items-center gap-1"
-        >引用来源 <select
-          aria-label="引用来源"
-          bind:value={side}
-          onchange={() => {
-            start = undefined;
-            end = undefined;
-            invalidSelection = false;
-            error = "";
-            reader?.clearLineAction();
-            diffReader?.clearLineAction();
-          }}
-          class="h-7 rounded border bg-background px-1"
-          ><option value="new">新侧 ({shownDiff.new.source})</option><option
-            value="old">旧侧 ({shownDiff.old.source})</option
-          ></select
-        ></label
-      >
-      <div class="flex gap-2">
-        <Button variant="outline" size="sm" onclick={() => void full("old")}
-          >旧侧完整文件</Button
+    </div>
+    {#if renamed}<p class="break-all max-sm:hidden">
+        {shownDiff?.change.oldPath} → {shownDiff?.change.newPath}
+      </p>{/if}
+    {#if imageChange && shownDiff}<p>
+        <span class="font-medium">{imageChange}</span> ·
+        <span aria-label="大小变化"
+          >{sideSize(shownDiff.old)} → {sideSize(shownDiff.new)}</span
         >
-        <Button variant="outline" size="sm" onclick={() => void full("new")}
-          >新侧完整文件</Button
-        >
-      </div>
-    {/if}
-    {#if status !== "unchanged"}<p role="status" class="basis-full">
+      </p>{/if}
+    {#if status !== "unchanged"}<p role="status">
         {status === "updated"
           ? "内容已更新"
           : status === "missing"
@@ -364,11 +587,10 @@
           onclick={refresh}>刷新文档</Button
         >
       </p>{/if}
-    {#if shownDiff?.kind === "metadata" || doc?.kind !== "text"}<p
-        class="basis-full"
-      >
+    {#if unreadable}<p>
         {shownDiff?.reason || doc?.reason}
       </p>{/if}
+    {#if svgNotice}<p role="status">{svgNotice}</p>{/if}
   </div>
   {#if shownDiff?.kind === "text" && !diffReady}
     <p class="p-2 text-sm" role="status">
@@ -388,23 +610,28 @@
         {side}
         expired={status === "expired"}
         {draftEnabled}
+        bind:hint
         onselect={selectDiff}
       >
         {#snippet lineAction(row)}
           {@const reference = referenceAt(row)}
-          {#if reference}
-            <Button
-              size="icon"
-              class="size-9 border border-border shadow-sm"
-              aria-label={`发送第 ${row} 行位置到${draftEnabled ? "草稿" : "终端"}`}
+          {#if reference}<CodeLineAction
+              line={reference.number}
+              {draftEnabled}
               disabled={status !== "unchanged"}
               onclick={() => send(reference.text)}
-              ><IconPlus class="size-5" aria-hidden="true" /></Button
-            >
-          {/if}
+            />{/if}
         {/snippet}
       </CodeDiffReader>
     {/key}
+  {:else if imagePreview && doc}
+    {#key `${snapshotId}:${rawSide ?? ""}`}<CodeImageView
+        {id}
+        {snapshotId}
+        side={rawSide}
+        document={doc}
+        onerror={previewFailed}
+      />{/key}
   {:else if doc?.kind === "text" && !shownDiff}
     {#key `${lastVersion}:${generation}`}<CodeReader
         bind:this={reader}
@@ -413,38 +640,52 @@
         restoreLine={anchor}
         onselect={select}
         {draftEnabled}
+        bind:hint
       >
         {#snippet lineAction(row)}
           {@const reference = referenceAt(row)}
-          {#if reference}
-            <Button
-              size="icon"
-              class="size-9 border border-border shadow-sm"
-              aria-label={`发送第 ${reference.number} 行位置到${draftEnabled ? "草稿" : "终端"}`}
-              title={`发送第 ${reference.number} 行位置到${draftEnabled ? "草稿" : "终端"}`}
+          {#if reference}<CodeLineAction
+              line={reference.number}
+              {draftEnabled}
+              tooltip
               disabled={status !== "unchanged"}
               onclick={() => send(reference.text)}
-              ><IconPlus class="size-5" aria-hidden="true" /></Button
-            >
-          {/if}
+            />{/if}
         {/snippet}
       </CodeReader>{/key}
+  {:else if imageDocument && doc}
+    <div class="space-y-1 p-2 text-sm">
+      {#if doc.source === "empty"}<p role="status">
+          {side === "old" ? "旧侧" : "新侧"}不存在
+        </p>
+      {:else}<p aria-label="图片信息">
+          {imageFormat(doc.mediaType)} · {formatBytes(doc.size)}
+        </p>
+        {#if doc.downloadable}<p class="text-muted-foreground">
+            不加载预览，可下载原始文件查看。
+          </p>{/if}
+      {/if}
+    </div>
   {/if}
   <div class="mt-auto shrink-0 space-y-1 border-t p-2">
     {#if error}<p class="text-sm text-destructive" role="alert">{error}</p>{/if}
-    <div class="flex flex-wrap gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        onclick={() => {
-          start = undefined;
-          end = undefined;
-          invalidSelection = false;
-          error = "";
-          reader?.clearLineAction();
-          diffReader?.clearLineAction();
-        }}>引用整个文件</Button
-      >
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- Zero basis: the text truncates instead of wrapping the buttons. -->
+      <p class="min-w-0 flex-1 basis-0 truncate text-xs text-muted-foreground">
+        {#if shownDiff}{side === "old" ? "修改前" : "修改后"} · {sourceLabel(
+            doc?.source ?? "",
+          )}{/if}{#if hint}<span class="max-sm:hidden"
+            >{shownDiff ? " · " : ""}<span>{hint}</span></span
+          >{/if}
+      </p>
+      {#if start !== undefined || invalidSelection}<Button
+          variant="outline"
+          size="sm"
+          onclick={() => {
+            side = defaultSide;
+            clearSelection();
+          }}>引用整个文件</Button
+        >{/if}
       <Button
         size="sm"
         disabled={!preview || status !== "unchanged"}
@@ -456,6 +697,16 @@
             ? `-${end}`
             : ""} 行）{/if}</Button
       >
+      {#if imageDocument && doc && doc.source !== "empty"}<CodeDownloadButton
+          path={codeRawPath(id, snapshotId, rawSide)}
+          filename={basename(doc.path)}
+          disabled={!doc.downloadable}
+          onerror={downloadFailed}
+        />{#if !doc.downloadable}<p
+            class="self-center text-xs text-muted-foreground"
+          >
+            超过 100 MiB 下载上限，不可下载
+          </p>{/if}{/if}
     </div>
   </div>
 </div>
