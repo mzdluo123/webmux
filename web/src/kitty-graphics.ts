@@ -3,11 +3,15 @@ const APC = 0x5f;
 const GRAPHICS = 0x47;
 const ST = 0x5c;
 
+// Source budgets include anonymous placements and outstanding decode reservations.
+// Saturation is explicit ENOSPC; live resources are never silently evicted.
 const maxEncodedBytes = 48 * 1024 * 1024;
 const maxImageBytes = 32 * 1024 * 1024;
 const maxPixels = maxImageBytes / 4;
+const maxImageDimension = 8192;
 const maxTotalPixels = 64 * 1024 * 1024;
 const maxImages = 256;
+const maxPlacements = 1024;
 const maxPendingEscapeBytes = 64 * 1024 * 1024;
 
 class KittyCommandError extends Error {
@@ -60,6 +64,7 @@ export interface KittyPlacementSpec {
 
 export interface KittyPlacement {
   dispose(): void;
+  active?(): boolean;
   bounds(): { column: number; line: number; columns: number; rows: number };
 }
 
@@ -96,72 +101,126 @@ export type KittyEvent =
   | { kind: "graphics"; control: string; payload: string };
 
 export function createKittyStream() {
+  let prefix = 0;
+  let graphics = false;
+  let discarded = false;
+  let escaped = false;
   let pending = new Uint8Array(0);
+  let length = 0;
+
+  function append(bytes: Uint8Array) {
+    if (discarded || bytes.length === 0) return;
+    if (length + bytes.length > maxPendingEscapeBytes - 4) {
+      discarded = true;
+      pending = new Uint8Array(0);
+      length = 0;
+      return;
+    }
+    if (length + bytes.length > pending.length) {
+      const capacity = Math.min(
+        maxPendingEscapeBytes - 4,
+        Math.max(256, length + bytes.length, pending.length * 2),
+      );
+      const grown = new Uint8Array(capacity);
+      grown.set(pending.subarray(0, length));
+      pending = grown;
+    }
+    pending.set(bytes, length);
+    length += bytes.length;
+  }
+
   return {
     write(data: Uint8Array, emit: (event: KittyEvent) => void) {
-      const buffer = pending.length === 0 ? data : concatenate(pending, data);
-      pending = new Uint8Array(0);
       let cursor = 0;
       let textStart = 0;
-      const flushText = (end: number) => {
-        if (end <= textStart) return;
-        emit({ kind: "text", data: buffer.subarray(textStart, end) });
+      const text: Uint8Array[] = [];
+      const collectText = (end: number) => {
+        if (end > textStart) text.push(data.subarray(textStart, end));
       };
-      while (cursor < buffer.length) {
-        const escape = buffer.indexOf(ESC, cursor);
+      const flushText = () => {
+        if (text.length === 0) return;
+        if (text.length === 1) emit({ kind: "text", data: text[0] });
+        else {
+          const merged = new Uint8Array(
+            text.reduce((sum, part) => sum + part.length, 0),
+          );
+          let offset = 0;
+          for (const part of text) {
+            merged.set(part, offset);
+            offset += part.length;
+          }
+          emit({ kind: "text", data: merged });
+        }
+        text.length = 0;
+      };
+      while (cursor < data.length) {
+        if (graphics) {
+          if (escaped) {
+            escaped = false;
+            if (data[cursor] === ST) {
+              if (!discarded) emitGraphics(pending.subarray(0, length), emit);
+              graphics = false;
+              discarded = false;
+              pending = new Uint8Array(0);
+              length = 0;
+              textStart = ++cursor;
+              continue;
+            }
+            append(new Uint8Array([ESC]));
+          }
+          const stop = data.indexOf(ESC, cursor);
+          const end = stop < 0 ? data.length : stop;
+          append(data.subarray(cursor, end));
+          cursor = end;
+          if (stop >= 0) {
+            escaped = true;
+            cursor++;
+          }
+          textStart = cursor;
+          continue;
+        }
+        if (prefix !== 0) {
+          const expected = prefix === 1 ? APC : GRAPHICS;
+          if (data[cursor] === expected) {
+            prefix++;
+            cursor++;
+            textStart = cursor;
+            if (prefix === 3) {
+              prefix = 0;
+              flushText();
+              graphics = true;
+            }
+            continue;
+          }
+          text.push(
+            prefix === 1 ? new Uint8Array([ESC]) : new Uint8Array([ESC, APC]),
+          );
+          prefix = 0;
+          textStart = cursor;
+        }
+        const escape = data.indexOf(ESC, cursor);
         if (escape < 0) {
-          cursor = buffer.length;
+          cursor = data.length;
           break;
         }
-        cursor = escape;
-        if (cursor + 1 >= buffer.length) {
-          flushText(cursor);
-          pending = buffer.slice(cursor);
-          return;
-        }
-        if (buffer[cursor + 1] !== APC) {
-          cursor++;
-          continue;
-        }
-        if (cursor + 2 >= buffer.length) {
-          flushText(cursor);
-          pending = buffer.slice(cursor);
-          return;
-        }
-        if (buffer[cursor + 2] !== GRAPHICS) {
-          cursor += 2;
-          continue;
-        }
-        let end = -1;
-        let search = cursor + 3;
-        while (search < buffer.length) {
-          const stop = buffer.indexOf(ESC, search);
-          if (stop < 0 || stop + 1 >= buffer.length) break;
-          if (buffer[stop + 1] === ST) {
-            end = stop;
-            break;
-          }
-          search = stop + 1;
-        }
-        if (end < 0) {
-          flushText(cursor);
-          pending = buffer.slice(cursor);
-          if (pending.length > maxPendingEscapeBytes)
-            pending = new Uint8Array(0);
-          return;
-        }
-        flushText(cursor);
-        emitGraphics(buffer.subarray(cursor + 3, end), emit);
-        cursor = end + 2;
+        collectText(escape);
+        prefix = 1;
+        cursor = escape + 1;
         textStart = cursor;
       }
-      flushText(buffer.length);
+      if (!graphics) collectText(cursor);
+      flushText();
     },
     reset() {
+      prefix = 0;
+      graphics = false;
+      discarded = false;
+      escaped = false;
       pending = new Uint8Array(0);
+      length = 0;
     },
     get pendingBytes() {
-      return pending.length;
+      return graphics ? length + (escaped ? 1 : 0) + 3 : prefix;
     },
   };
 }
@@ -174,13 +233,6 @@ function emitGraphics(payload: Uint8Array, emit: (event: KittyEvent) => void) {
     control: separator < 0 ? text : text.slice(0, separator),
     payload: separator < 0 ? "" : text.slice(separator + 1),
   });
-}
-
-function concatenate(first: Uint8Array, second: Uint8Array) {
-  const merged = new Uint8Array(first.length + second.length);
-  merged.set(first);
-  merged.set(second, first.length);
-  return merged;
 }
 
 export function parseKittyControl(text: string): Record<string, string> {
@@ -359,7 +411,6 @@ interface StoredImage {
   id: number;
   number?: number;
   image: KittyImage;
-  order: number;
 }
 
 interface StoredPlacement {
@@ -376,13 +427,23 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
   const numbers = new Map<number, number>();
   const placements = new Set<StoredPlacement>();
   const decoder = options.decode ?? decodeKittyImage;
+  // Includes anonymous images retained only by a live placement.
+  const resources = new Map<KittyImage, number>();
+  let resourcePixels = 0;
+  // Reservations outlive reset until their non-cancellable decoder settles.
+  let pendingImages = 0;
+  let pendingPixels = 0;
   let upload:
     | { control: Record<string, string>; parts: string[]; size: number }
     | undefined;
   let nextId = 1;
-  let nextOrder = 1;
   let chain: Promise<void> = Promise.resolve();
   let disposed = false;
+  let generation = 0;
+
+  function current(expected: number) {
+    return !disposed && expected === generation;
+  }
 
   function cellSize() {
     const size = options.cellSize();
@@ -427,28 +488,59 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     respond(params, `${command.code}:${command.message}`);
   }
 
-  function storeImage(image: KittyImage, params: Record<string, string>) {
+  function checkSourceDimensions(width: number, height: number) {
+    if (
+      !Number.isInteger(width) ||
+      !Number.isInteger(height) ||
+      width < 1 ||
+      height < 1 ||
+      width > maxImageDimension ||
+      height > maxImageDimension ||
+      width * height > maxPixels
+    )
+      throw new KittyCommandError(
+        "EINVAL",
+        "image dimensions exceed source limits",
+      );
+  }
+
+  function checkAdmission(
+    width: number,
+    height: number,
+    params: Record<string, string>,
+  ) {
+    checkSourceDimensions(width, height);
     const id = optionalId(params, "i");
     const number = optionalId(params, "I");
     if (id !== undefined && number !== undefined)
       throw new KittyCommandError("EINVAL", "specify either i or I");
-    if (id !== undefined) {
-      removeImage(id, true);
-      const stored = { id, number, image, order: nextOrder++ };
-      images.set(id, stored);
-      if (number !== undefined) numbers.set(number, id);
-      trimImages();
-      return stored;
-    }
-    if (number !== undefined) {
-      const assigned = allocateId();
-      const stored = { id: assigned, number, image, order: nextOrder++ };
-      images.set(assigned, stored);
-      numbers.set(number, assigned);
-      trimImages();
-      return stored;
-    }
-    return { id: 0, image, order: nextOrder++ };
+    if (
+      resources.size + pendingImages + 1 > maxImages ||
+      resourcePixels + pendingPixels + width * height > maxTotalPixels
+    )
+      throw new KittyCommandError(
+        "ENOSPC",
+        "decoded image resource limit exceeded",
+      );
+  }
+
+  function releaseImage(image: KittyImage) {
+    const pixels = resources.get(image);
+    if (pixels === undefined) return;
+    resources.delete(image);
+    resourcePixels -= pixels;
+    image.dispose?.();
+  }
+
+  function storeImage(image: KittyImage, params: Record<string, string>) {
+    const id = optionalId(params, "i");
+    const number = optionalId(params, "I");
+    const assigned = id ?? (number === undefined ? 0 : allocateId());
+    if (id !== undefined) removeImage(id);
+    const stored = { id: assigned, number, image };
+    if (assigned !== 0) images.set(assigned, stored);
+    if (number !== undefined) numbers.set(number, assigned);
+    return stored;
   }
 
   function allocateId() {
@@ -460,24 +552,6 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     throw new KittyCommandError("ENOSPC", "no image ids available");
   }
 
-  function totalPixels() {
-    let total = 0;
-    for (const stored of images.values())
-      total += stored.image.width * stored.image.height;
-    return total;
-  }
-
-  function trimImages() {
-    if (images.size <= maxImages && totalPixels() <= maxTotalPixels) return;
-    const removable = Array.from(images.values())
-      .filter((stored) => !hasPlacements(stored.id))
-      .sort((left, right) => left.order - right.order);
-    for (const stored of removable) {
-      if (images.size <= maxImages && totalPixels() <= maxTotalPixels) break;
-      removeImage(stored.id, true);
-    }
-  }
-
   function hasPlacements(imageId: number) {
     for (const placement of placements)
       if (placement.imageId === imageId) return true;
@@ -486,7 +560,7 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
 
   function releaseAnonymousImage(image: KittyImage) {
     for (const placement of placements) if (placement.image === image) return;
-    image.dispose?.();
+    releaseImage(image);
   }
 
   function forgetPlacement(placement: StoredPlacement) {
@@ -494,14 +568,14 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     if (placement.imageId === 0) releaseAnonymousImage(placement.image);
   }
 
-  function removeImage(imageId: number, dispose: boolean) {
+  function removeImage(imageId: number) {
     for (const placement of Array.from(placements)) {
       if (placement.imageId !== imageId) continue;
       placement.handle.dispose();
       forgetPlacement(placement);
     }
     const stored = images.get(imageId);
-    if (stored && dispose) stored.image.dispose?.();
+    if (stored) releaseImage(stored.image);
     images.delete(imageId);
     if (stored?.number !== undefined && numbers.get(stored.number) === imageId)
       numbers.delete(stored.number);
@@ -521,7 +595,9 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
   async function addPlacement(
     stored: StoredImage,
     params: Record<string, string>,
+    expected: number,
   ) {
+    if (!current(expected)) return;
     if (params.U === "1")
       throw new KittyCommandError(
         "ENOTSUP",
@@ -544,6 +620,8 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
         }
       }
     }
+    if (placements.size >= maxPlacements)
+      throw new KittyCommandError("ENOSPC", "placement limit exceeded");
     const placement: StoredPlacement = {
       image: stored.image,
       imageId: stored.id,
@@ -568,7 +646,7 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     return placement;
   }
 
-  async function inflate(bytes: Uint8Array) {
+  async function inflate(bytes: Uint8Array, expected: number) {
     const reader = new Blob([asArrayBuffer(bytes)])
       .stream()
       .pipeThrough(new DecompressionStream("deflate"))
@@ -577,6 +655,10 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     let total = 0;
     for (;;) {
       const { done, value } = await reader.read();
+      if (!current(expected)) {
+        await reader.cancel();
+        return;
+      }
       if (done) break;
       total += value.length;
       if (total > maxImageBytes) {
@@ -597,6 +679,8 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
   function decodeBase64(payload: string) {
     if (payload.length === 0)
       throw new KittyCommandError("EINVAL", "empty image payload");
+    if (payload.length > maxEncodedBytes)
+      throw new KittyCommandError("EINVAL", "image is too large");
     if (payload.length % 4 !== 0)
       throw new KittyCommandError("EINVAL", "invalid base64 payload");
     let binary: string;
@@ -605,11 +689,11 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     } catch {
       throw new KittyCommandError("EINVAL", "invalid base64 payload");
     }
+    if (binary.length > maxImageBytes)
+      throw new KittyCommandError("EINVAL", "image is too large");
     const bytes = new Uint8Array(binary.length);
     for (let index = 0; index < binary.length; index++)
       bytes[index] = binary.charCodeAt(index);
-    if (bytes.length > maxImageBytes)
-      throw new KittyCommandError("EINVAL", "image is too large");
     return bytes;
   }
 
@@ -625,15 +709,19 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     return format;
   }
 
-  async function decode(params: Record<string, string>, payload: string) {
+  async function decode(
+    params: Record<string, string>,
+    payload: string,
+    expected: number,
+  ) {
     const format = transferFormat(params);
     let bytes = decodeBase64(payload);
     if (params.o !== undefined) {
       if (params.o !== "z")
         throw new KittyCommandError("ENOTSUP", "unsupported compression");
-      bytes = await inflate(bytes);
-      if (bytes.length > maxImageBytes)
-        throw new KittyCommandError("EINVAL", "image is too large");
+      const inflated = await inflate(bytes, expected);
+      if (!inflated) return;
+      bytes = inflated;
     }
     const width = optionalInteger(params, "s", 1, 1_000_000);
     const height = optionalInteger(params, "v", 1, 1_000_000);
@@ -648,40 +736,73 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
         "EINVAL",
         format === 100 ? "invalid PNG data" : "image dimensions are required",
       );
-    if (size.width * size.height > maxPixels)
-      throw new KittyCommandError("EINVAL", "image is too large");
+    checkAdmission(size.width, size.height, params);
     if (format !== 100) {
       const expected = size.width * size.height * (format === 24 ? 3 : 4);
       if (bytes.length !== expected)
         throw new KittyCommandError("EINVAL", "invalid pixel data length");
     }
-    return decoder({ bytes, format, width: size.width, height: size.height });
+    pendingImages++;
+    pendingPixels += size.width * size.height;
+    try {
+      const image = await decoder({
+        bytes,
+        format,
+        width: size.width,
+        height: size.height,
+      });
+      if (!current(expected)) {
+        image.dispose?.();
+        return;
+      }
+      if (image.width !== size.width || image.height !== size.height) {
+        image.dispose?.();
+        throw new KittyCommandError(
+          "EINVAL",
+          "decoded image dimensions do not match",
+        );
+      }
+      resources.set(image, image.width * image.height);
+      resourcePixels += image.width * image.height;
+      return image;
+    } finally {
+      pendingImages--;
+      pendingPixels -= size.width * size.height;
+    }
   }
 
   async function transmit(
     params: Record<string, string>,
     payload: string,
     display: boolean,
+    expected: number,
   ) {
-    const image = await decode(params, payload);
+    const image = await decode(params, payload, expected);
+    if (!image) return;
+    if (!current(expected)) {
+      releaseImage(image);
+      return;
+    }
     let stored: StoredImage;
     try {
       stored = storeImage(image, params);
     } catch (error) {
-      image.dispose?.();
+      releaseImage(image);
       throw error;
     }
     if (display) {
       try {
-        await addPlacement(stored, params);
+        await addPlacement(stored, params, expected);
       } catch (error) {
-        if (stored.id === 0) image.dispose?.();
-        else removeImage(stored.id, true);
+        if (!current(expected)) return;
+        if (stored.id === 0) releaseImage(image);
+        else removeImage(stored.id);
         throw error;
       }
     } else if (stored.id === 0) {
-      image.dispose?.();
+      releaseImage(image);
     }
+    if (!current(expected)) return;
     respond(params, "OK", {
       id: stored.id === 0 ? undefined : stored.id,
       number: stored.number,
@@ -699,27 +820,39 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     if (format === 100) {
       const size = pngSize(bytes);
       if (!size) throw new KittyCommandError("EINVAL", "invalid PNG data");
-      if (size.width * size.height > maxPixels)
-        throw new KittyCommandError("EINVAL", "image is too large");
+      checkSourceDimensions(size.width, size.height);
       return;
     }
     const width = optionalInteger(params, "s", 1, 1_000_000);
     const height = optionalInteger(params, "v", 1, 1_000_000);
     if (!width || !height)
       throw new KittyCommandError("EINVAL", "image dimensions are required");
-    if (width * height > maxPixels)
-      throw new KittyCommandError("EINVAL", "image is too large");
+    checkSourceDimensions(width, height);
     if (bytes.length !== width * height * (format === 24 ? 3 : 4))
       throw new KittyCommandError("EINVAL", "invalid pixel data length");
   }
 
-  async function execute(params: Record<string, string>, payload: string) {
+  async function execute(
+    params: Record<string, string>,
+    payload: string,
+    expected: number,
+  ) {
     const action = params.a ?? "t";
     if (action === "q") {
       inspectImage(params, payload);
       respond(params, "OK");
       return;
     }
+    if (
+      params.P !== undefined ||
+      params.Q !== undefined ||
+      params.H !== undefined ||
+      params.V !== undefined
+    )
+      throw new KittyCommandError(
+        "ENOTSUP",
+        "relative placements are not supported",
+      );
     if (params.U === "1")
       throw new KittyCommandError(
         "ENOTSUP",
@@ -727,15 +860,16 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
       );
     switch (action) {
       case "t":
-        await transmit(params, payload, false);
+        await transmit(params, payload, false, expected);
         return;
       case "T":
-        await transmit(params, payload, true);
+        await transmit(params, payload, true, expected);
         return;
       case "p": {
         const stored = resolveImage(params);
         if (!stored) throw new KittyCommandError("ENOENT", "image not found");
-        await addPlacement(stored, params);
+        await addPlacement(stored, params, expected);
+        if (!current(expected)) return;
         respond(params, "OK", { id: stored.id, number: stored.number });
         return;
       }
@@ -781,6 +915,14 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     const numberId = number === undefined ? undefined : numbers.get(number);
     const removedImages = new Set<number>();
     for (const item of Array.from(placements)) {
+      if (
+        kind !== "i" &&
+        kind !== "n" &&
+        kind !== "r" &&
+        kind !== "z" &&
+        item.handle.active?.() === false
+      )
+        continue;
       const bounds = item.handle.bounds();
       let match = false;
       switch (kind) {
@@ -850,8 +992,32 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     if (hard) {
       if (numberId !== undefined) removedImages.add(numberId);
       if (imageId !== undefined) removedImages.add(imageId);
-      for (const id of removedImages)
-        if (!hasPlacements(id)) removeImage(id, true);
+      for (const id of removedImages) if (!hasPlacements(id)) removeImage(id);
+    }
+  }
+
+  function eraseDisplay(mode: number) {
+    if (disposed || mode < 0 || mode > 3) return;
+    const viewport = options.viewport();
+    const cursor = options.cursor();
+    for (const item of Array.from(placements)) {
+      if (item.handle.active?.() === false) continue;
+      const bounds = item.handle.bounds();
+      const firstLine = Math.max(bounds.line, viewport.top);
+      const lastLine = Math.min(bounds.line + bounds.rows, viewport.bottom) - 1;
+      if (firstLine > lastLine) continue;
+      const match =
+        mode >= 2 ||
+        (mode === 0 &&
+          (lastLine > cursor.line ||
+            (lastLine === cursor.line &&
+              bounds.column + bounds.columns > cursor.column))) ||
+        (mode === 1 &&
+          (firstLine < cursor.line ||
+            (firstLine === cursor.line && bounds.column <= cursor.column)));
+      if (!match) continue;
+      item.handle.dispose();
+      forgetPlacement(item);
     }
   }
 
@@ -869,7 +1035,7 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     );
   }
 
-  async function handle(control: string, payload: string) {
+  async function handle(control: string, payload: string, expected: number) {
     let params: Record<string, string>;
     try {
       params = parseKittyControl(control);
@@ -894,9 +1060,9 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
         const finished = upload;
         upload = undefined;
         try {
-          await execute(finished.control, finished.parts.join(""));
+          await execute(finished.control, finished.parts.join(""), expected);
         } catch (error) {
-          respondError(finished.control, error);
+          if (current(expected)) respondError(finished.control, error);
         }
         return;
       }
@@ -928,9 +1094,9 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
       return;
     }
     try {
-      await execute(params, payload);
+      await execute(params, payload, expected);
     } catch (error) {
-      respondError(params, error);
+      if (current(expected)) respondError(params, error);
     }
   }
 
@@ -939,20 +1105,22 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
       parsed();
       return;
     }
+    const expected = generation;
     chain = chain
       .then(async () => {
-        if (disposed) return;
+        if (!current(expected)) return;
         const events: KittyEvent[] = [];
         stream.write(data, (event) => events.push(event));
         for (const event of events) {
-          if (disposed) return;
+          if (!current(expected)) return;
           if (event.kind === "text") {
-            if (event.data.length > 0)
-              await new Promise<void>((resolve) =>
-                options.write(event.data, resolve),
-              );
+            if (event.data.length > 0) {
+              const { promise, resolve } = Promise.withResolvers<void>();
+              options.write(event.data, resolve);
+              await promise;
+            }
           } else {
-            await handle(event.control, event.payload);
+            await handle(event.control, event.payload, expected);
           }
         }
       })
@@ -961,6 +1129,8 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
   }
 
   function clear() {
+    generation++;
+    chain = Promise.resolve();
     upload = undefined;
     stream.reset();
     for (const placement of Array.from(placements)) {
@@ -968,13 +1138,14 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
       forgetPlacement(placement);
     }
     placements.clear();
-    for (const stored of images.values()) stored.image.dispose?.();
+    for (const image of resources.keys()) releaseImage(image);
     images.clear();
     numbers.clear();
   }
 
   return {
     write: process,
+    eraseDisplay,
     reset() {
       clear();
       nextId = 1;

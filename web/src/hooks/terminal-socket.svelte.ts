@@ -114,6 +114,8 @@ export function createTerminalSocket(id: string) {
     );
     const restore = (payload: Uint8Array) => {
       output.replay();
+      // Invalidate old decodes before queuing the new replay generation.
+      graphics?.reset();
       const version = ++restoreVersion;
       cancelAnimationFrame(restoreFrame);
       restoring = true;
@@ -121,7 +123,6 @@ export function createTerminalSocket(id: string) {
       // Parse CAN first, then reset away the old screen before replay/live bytes.
       writeOutput(resetBoundary, () => {
         if (disposed) return;
-        graphics?.reset();
         term.reset();
         view.resetFind();
         replaying = true;
