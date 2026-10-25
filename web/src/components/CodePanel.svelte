@@ -61,6 +61,9 @@
   };
   let context = $state<z.infer<typeof CodeContextSchema>>();
   let listing = $state<CodeListing>();
+  let rootListing = $state<CodeListing>();
+  let treeRefresh = $state(0);
+  let directoryVersions: Record<string, string> = {};
   let changeQuery = $state("");
   let changeSearch = $state("");
   let changeGroup = $state("");
@@ -68,11 +71,14 @@
   let changes = $state<z.infer<typeof CodeChangesSchema>>();
   let tabs = $state<Tab[]>([]);
   let active = $state("");
+  const activePath = $derived(
+    tabs.find((tab) => tab.key === active)?.file?.document.path ?? "",
+  );
   let nav = $state("files");
   let navOpen = $state(true);
   const navMin = 120,
     navMax = 640;
-  let navWidth = $state(180);
+  let navWidth = $state(260);
   let section = $state<HTMLElement>();
   // Popped out, the panel stays live in its own window regardless of whether
   // the opener still shows the code pane.
@@ -202,9 +208,10 @@
               : value;
         }
       } else {
-        const cursor = append ? (listing?.nextCursor ?? "") : "";
+        const previous = query ? listing : rootListing;
+        const cursor = append ? (previous?.nextCursor ?? "") : "";
         const value = await api(
-          `${base}/${query ? "files" : "tree"}?${params({ nodeId: nodeId(directory), q: query, cursor })}`,
+          `${base}/${query ? "files" : "tree"}?${params({ nodeId: nodeId(""), q: query, cursor })}`,
           CodeListingSchema,
           "GET",
           undefined,
@@ -212,10 +219,20 @@
         );
         if (mounted && seq === navSequence) {
           listing =
-            append && listing
-              ? { ...value, children: [...listing.children, ...value.children] }
+            append && previous
+              ? {
+                  ...value,
+                  children: [...previous.children, ...value.children],
+                }
               : value;
-          navIdentity = query ? "" : nodeId(directory);
+          navIdentity = query ? "" : nodeId("");
+          if (!query) {
+            rootListing = listing;
+            if (!append) {
+              directoryVersions = {};
+              treeRefresh++;
+            }
+          }
         }
       }
       if (seq === navSequence) navStatus = "";
@@ -227,6 +244,22 @@
     } finally {
       if (mounted && seq === navSequence) pending = false;
     }
+  }
+  async function fetchDirectory(
+    path: string,
+    cursor: string,
+    signal: AbortSignal,
+  ) {
+    const opaqueId = nodeId(path);
+    const value = await api(
+      `${base}/tree?${params({ nodeId: opaqueId, cursor })}`,
+      CodeListingSchema,
+      "GET",
+      undefined,
+      signal,
+    );
+    if (!signal.aborted) directoryVersions[opaqueId] = value.contentVersion;
+    return value;
   }
   let selectionSequence = 0;
   const beginOpen = () => ++selectionSequence;
@@ -275,9 +308,10 @@
       CodeLocationSchema,
     );
     if (target.kind === "directory") {
-      directory = target.path;
+      directory = "";
       query = "";
       await load();
+      directory = target.path;
     } else await openFile(target.path, target.nodeId);
   }
   async function openFile(path: string, opaqueId = nodeId(path)) {
@@ -411,9 +445,14 @@
       sid: t.file?.snapshotId ?? t.diff!.snapshotId,
       sequence: t.sequence,
     }));
-    const listingVersion = listing?.contentVersion;
+    const listingVersion = rootListing?.contentVersion;
+    const branchVersions = { ...directoryVersions };
     const changesVersion = changes?.contentVersion;
     const identity = navIdentity;
+    const directories =
+      rootListing && nav === "files" && !query
+        ? Object.entries({ ...branchVersions, [identity]: listingVersion })
+        : [];
     try {
       const r = await api(
         `${base}/check`,
@@ -430,15 +469,31 @@
               ),
             ),
           ],
-          directories:
-            listing && nav === "files" && !query
-              ? { [identity]: listingVersion }
-              : {},
+          directories: Object.fromEntries(directories.slice(0, 30)),
           changesVersion: changesVersion ?? "",
           includeIgnored,
         },
         c.signal,
       );
+      // The check endpoint accepts at most 30 directories per request.
+      for (let start = 30; start < directories.length; start += 30) {
+        const next = await api(
+          `${base}/check`,
+          CodeCheckSchema,
+          "POST",
+          {
+            contextId: context.contextId,
+            snapshotIds: [],
+            directories: Object.fromEntries(
+              directories.slice(start, start + 30),
+            ),
+            changesVersion: "",
+            includeIgnored,
+          },
+          c.signal,
+        );
+        Object.assign(r.directories, next.directories);
+      }
       if (!mounted || c.signal.aborted) return;
       for (const d of documents) {
         if (
@@ -454,7 +509,7 @@
       }
       if (
         identity === navIdentity &&
-        listingVersion === listing?.contentVersion &&
+        listingVersion === rootListing?.contentVersion &&
         Object.values(r.directories).some((s) => s !== "unchanged")
       )
         navStatus = "目录已更新或检测失败";
@@ -657,6 +712,10 @@
       {#if navOpen}<CodeNavigator
           {context}
           {listing}
+          {rootListing}
+          {fetchDirectory}
+          {treeRefresh}
+          {activePath}
           {changes}
           {changesError}
           {pending}

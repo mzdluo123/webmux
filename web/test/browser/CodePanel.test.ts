@@ -567,3 +567,59 @@ test("a refused pop-out window keeps the panel in place and says why", async () 
     .element(page.getByLabelText("只读代码"))
     .toMatchTextContent(new RegExp("original file 0"));
 });
+
+test("checks all loaded tree branches within the server's 30-directory limit", async () => {
+  serve();
+  const server = globalThis.fetch;
+  const names = Array.from({ length: 31 }, (_, n) => `folder-${n}`);
+  const batches: string[][] = [];
+  const loaded = new Set<string>();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(String(input), location.href);
+      if (url.pathname.endsWith("/tree")) {
+        const path = atob(url.searchParams.get("nodeId") ?? "");
+        loaded.add(path);
+        return Response.json({
+          children: path
+            ? []
+            : names.map((name) => ({
+                nodeId: btoa(name),
+                path: name,
+                name,
+                kind: "directory",
+                gitStatus: "",
+                ignored: false,
+                referenceable: false,
+                mediaType: "",
+              })),
+          nextCursor: "",
+          limited: false,
+          complete: true,
+          contentVersion: "tree",
+          checkedAt: now,
+        });
+      }
+      if (url.pathname.endsWith("/check")) {
+        const body = JSON.parse(String(init?.body));
+        const directories = Object.keys(body.directories);
+        batches.push(directories);
+        if (directories.length > 30)
+          return Response.json(
+            { error: "too many directories" },
+            { status: 400 },
+          );
+      }
+      return server(input, init);
+    }),
+  );
+  await render(Harness);
+  for (const name of names)
+    await page.getByRole("button", { name, exact: true }).click();
+  await expect.poll(() => loaded.size).toBe(32);
+  batches.length = 0;
+  document.dispatchEvent(new Event("visibilitychange"));
+  await expect.poll(() => new Set(batches.flat()).size).toBe(32);
+  expect(batches.every((batch) => batch.length <= 30)).toBe(true);
+});

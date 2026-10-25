@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { z } from "zod";
+  import CodeFileTree from "./CodeFileTree.svelte";
   import CodeChangesList from "./CodeChangesList.svelte";
   import {
     CodeChangesSchema,
@@ -9,17 +10,27 @@
     type ReportedCwd,
   } from "../schemas";
   import { Button } from "$lib/components/ui/button";
-  import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import { ListButton } from "$lib/components/ui/list-button";
   import * as NativeSelect from "$lib/components/ui/native-select";
   import * as Tabs from "$lib/components/ui/tabs";
+  import * as Popover from "$lib/components/ui/popover";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import IconSearch from "~icons/tabler/search";
+  import IconRefresh from "~icons/tabler/refresh";
+  import IconFold from "~icons/tabler/fold";
+  import IconDots from "~icons/tabler/dots";
+  import IconFileSearch from "~icons/tabler/file-search";
   import IconPhoto from "~icons/tabler/photo";
 
   let {
     context,
     listing,
+    rootListing,
+    fetchDirectory,
+    treeRefresh,
+    activePath,
     changes,
     changesError,
     pending,
@@ -42,6 +53,14 @@
   }: {
     context: z.infer<typeof CodeContextSchema> | undefined;
     listing: CodeListing | undefined;
+    rootListing: CodeListing | undefined;
+    fetchDirectory: (
+      path: string,
+      cursor: string,
+      signal: AbortSignal,
+    ) => Promise<CodeListing>;
+    treeRefresh: number;
+    activePath: string;
     changes: z.infer<typeof CodeChangesSchema> | undefined;
     changesError: string;
     pending: boolean;
@@ -62,6 +81,10 @@
     navStatus: string;
     reload: () => void;
   } = $props();
+  let searchOpen = $state(false);
+  let searchInput = $state("");
+  let locateOpen = $state(false);
+  let collapse = $state(0);
   let locateInput = $state("");
   let locateError = $state("");
   const locateBase = $derived.by(() => {
@@ -87,6 +110,7 @@
     try {
       await locate(locateInput);
       locateInput = "";
+      locateOpen = false;
     } catch (err) {
       locateError = (err as Error).message;
     } finally {
@@ -109,12 +133,7 @@
       </p>
       <Button variant="outline" size="sm" onclick={reload}>刷新导航</Button>
     </div>
-  {:else}<p
-      class="shrink-0 truncate px-2 pt-1 text-left text-xs text-muted-foreground [direction:rtl]"
-      title={context?.rootPath}
-    >
-      <bdi>{context?.rootPath ?? "读取代码目录…"}</bdi>
-    </p>{/if}
+  {/if}
   <Tabs.Root
     value={nav}
     onValueChange={(v) => {
@@ -129,121 +148,195 @@
     >
   </Tabs.Root>
   {#if nav === "files"}
-    <form
-      class="flex flex-col gap-1 p-2"
-      onsubmit={(e) => {
-        e.preventDefault();
-        load();
-      }}
-    >
-      <Input
-        size="sm"
-        aria-label="搜索文件路径"
-        placeholder="文件名或路径"
-        bind:value={query}
-      />
-      <Button size="sm" variant="outline" type="submit">搜索路径</Button>
-      <Label size="sm"
-        ><Checkbox
-          checked={includeIgnored}
-          disabled={!context?.ignoreAvailable}
-          onCheckedChange={(checked) => {
-            includeIgnored = checked;
-            load();
-          }}
-        />显示忽略项</Label
+    <div class="flex shrink-0 items-center gap-0.5 px-2 py-1">
+      <span
+        class="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground"
+        >资源管理器</span
       >
-    </form>
-    <details class="px-2 pb-2 text-xs">
-      <summary class="cursor-pointer text-muted-foreground">按路径打开</summary>
-      <form class="mt-1 flex flex-col gap-1" onsubmit={submitLocate}>
-        <Input
-          size="sm"
-          aria-label="定位文件路径"
-          placeholder="相对路径，如 src/main.go"
-          bind:value={locateInput}
-          disabled={!locateBase}
-        />
-        <Button
-          size="sm"
-          variant="outline"
-          type="submit"
-          disabled={!locateBase || locating || !locateInput.trim()}>打开</Button
-        >
-      </form>
-      <p class="mt-1 break-all text-muted-foreground">{locateHint}</p>
-      {#if locateError}<p role="alert" class="mt-1 break-all text-destructive">
-          {locateError}
-        </p>{/if}
-    </details>
-    <div class="flex flex-wrap gap-1 p-2 text-xs" aria-label="路径导航">
-      <ListButton
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label="切换路径搜索"
+        title="搜索文件路径"
+        aria-expanded={searchOpen}
         onclick={() => {
-          directory = "";
-          query = "";
-          load();
-        }}>根目录</ListButton
-      >
-      {#each directory.split("/").filter(Boolean) as part, i}<span>/</span
-        ><ListButton
-          class="break-all"
-          onclick={() => {
-            directory = directory
-              .split("/")
-              .slice(0, i + 1)
-              .join("/");
+          searchOpen = !searchOpen;
+          if (!searchOpen && query) {
             query = "";
             load();
-          }}>{part}</ListButton
-        >{/each}
-    </div>
-    <div class="min-h-0 flex-1 overflow-auto p-1">
-      {#each listing?.children ?? [] as node (node.nodeId)}
-        <ListButton
-          variant="row"
-          class="block w-full"
-          title={node.path}
-          disabled={node.kind === "special" ||
-            node.kind === "boundary" ||
-            node.kind === "symlink"}
-          onclick={() => {
-            if (node.kind === "directory") {
-              directory = node.path;
-              query = "";
-              load();
-            } else openFile(node.path, node.nodeId);
-          }}
-        >
-          {#if node.mediaType.startsWith("image/")}<IconPhoto
-              class="mr-1 inline size-3.5 align-[-0.125em] text-muted-foreground"
-              aria-hidden="true"
-            />{/if}<span class="break-all"
-            >{node.kind === "directory"
-              ? "▸ "
-              : node.kind === "boundary"
-                ? "边界 "
-                : ""}{query ? node.path : node.name}</span
+          }
+        }}><IconSearch aria-hidden="true" /></Button
+      >
+      <Popover.Root bind:open={locateOpen}>
+        <Popover.Trigger>
+          {#snippet child({ props })}<Button
+              {...props}
+              variant="ghost"
+              size="icon-xs"
+              aria-label="按路径打开"
+              title="按路径打开"><IconFileSearch aria-hidden="true" /></Button
+            >{/snippet}
+        </Popover.Trigger>
+        <Popover.Content align="start" class="w-72">
+          <Popover.Header
+            ><Popover.Title>按路径打开</Popover.Title><Popover.Description
+              >{locateHint}</Popover.Description
+            ></Popover.Header
           >
-          {node.gitStatus}{node.ignored ? " · 忽略" : ""}{node.linkTarget
-            ? ` → ${node.linkTarget}`
-            : ""}
-        </ListButton>
-      {/each}
-      {#if listing?.nextCursor}<Button
-          size="sm"
-          variant="outline"
-          onclick={() => load(true)}>下一页</Button
-        >{/if}
-      {#if listing?.limited || listing?.complete === false}<p
-          role="status"
-          class="p-2 text-xs"
-        >
-          结果受限，请收窄路径；未列出全部文件。
-        </p>{/if}
-      {#if listing?.children.length === 0 && !pending}<p class="p-2 text-xs">
-          没有匹配项
-        </p>{/if}
+          <form class="mt-2 flex flex-col gap-2" onsubmit={submitLocate}>
+            <Input
+              size="sm"
+              aria-label="定位文件路径"
+              placeholder="相对路径，如 src/main.go"
+              bind:value={locateInput}
+              disabled={!locateBase}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              type="submit"
+              disabled={!locateBase || locating || !locateInput.trim()}
+              >打开</Button
+            >
+          </form>
+          {#if locateError}<p
+              role="alert"
+              class="mt-1 break-all text-xs text-destructive"
+            >
+              {locateError}
+            </p>{/if}
+        </Popover.Content>
+      </Popover.Root>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label="刷新文件树"
+        title="刷新文件树"
+        disabled={pending}
+        onclick={reload}><IconRefresh aria-hidden="true" /></Button
+      >
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label="全部折叠"
+        title="全部折叠"
+        onclick={() => {
+          collapse++;
+          query = "";
+          searchInput = "";
+          directory = "";
+        }}><IconFold aria-hidden="true" /></Button
+      >
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+          {#snippet child({ props })}<Button
+              {...props}
+              variant="ghost"
+              size="icon-xs"
+              aria-label="文件导航选项"
+              title="文件导航选项"><IconDots aria-hidden="true" /></Button
+            >{/snippet}
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content align="end">
+          <DropdownMenu.CheckboxItem
+            closeOnSelect
+            checked={includeIgnored}
+            disabled={!context?.ignoreAvailable}
+            onCheckedChange={(checked) => {
+              includeIgnored = checked;
+              load();
+            }}>显示忽略项</DropdownMenu.CheckboxItem
+          >
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
     </div>
+    {#if searchOpen}
+      <form
+        class="flex shrink-0 gap-1 px-2 pb-2"
+        onsubmit={(event) => {
+          event.preventDefault();
+          query = searchInput;
+          directory = "";
+          load();
+        }}
+      >
+        <Input
+          size="sm"
+          aria-label="搜索文件路径"
+          placeholder="文件名或路径"
+          bind:value={searchInput}
+        />
+        <Button size="sm" variant="outline" type="submit">搜索路径</Button>
+      </form>
+    {/if}
+    {#if includeIgnored}<p class="px-2 pb-1 text-xs text-muted-foreground">
+        包含忽略项
+      </p>{/if}
+    <div class:hidden={!!query} class="flex min-h-0 flex-1 flex-col">
+      {#key `${context?.contextId}:${includeIgnored}`}
+        <CodeFileTree
+          listing={rootListing}
+          rootPath={context?.rootPath ?? ""}
+          {pending}
+          {activePath}
+          {directory}
+          refresh={treeRefresh}
+          {collapse}
+          {fetchDirectory}
+          {openFile}
+          loadMore={() => load(true)}
+        />
+      {/key}
+    </div>
+    {#if query}
+      <div class="min-h-0 flex-1 overflow-auto p-1">
+        {#each listing?.children ?? [] as node (node.nodeId)}
+          <ListButton
+            variant="row"
+            class="block w-full"
+            title={node.path}
+            disabled={node.kind === "special" ||
+              node.kind === "boundary" ||
+              node.kind === "symlink"}
+            onclick={() => {
+              if (node.kind === "directory") {
+                directory = node.path;
+                query = "";
+                load();
+              } else openFile(node.path, node.nodeId);
+            }}
+          >
+            {#if node.mediaType.startsWith("image/")}<IconPhoto
+                class="mr-1 inline size-3.5 align-[-0.125em] text-muted-foreground"
+                aria-hidden="true"
+              />{/if}<span class="break-all"
+              >{node.kind === "directory"
+                ? "▸ "
+                : node.kind === "boundary"
+                  ? "边界 "
+                  : ""}{query ? node.path : node.name}</span
+            >
+            {node.gitStatus}{node.ignored ? " · 忽略" : ""}{node.linkTarget
+              ? ` → ${node.linkTarget}`
+              : ""}
+          </ListButton>
+        {/each}
+        {#if listing?.nextCursor}<Button
+            size="sm"
+            variant="outline"
+            onclick={() => load(true)}>下一页</Button
+          >{/if}
+        {#if listing?.limited || listing?.complete === false}<p
+            role="status"
+            class="p-2 text-xs"
+          >
+            结果受限，请收窄路径；未列出全部文件。
+          </p>{/if}
+        {#if listing?.children.length === 0 && !pending}<p class="p-2 text-xs">
+            没有匹配项
+          </p>{/if}
+      </div>
+    {/if}
   {:else if !context?.diffAvailable}<p class="p-2 text-xs">Git 差异不可用</p>
   {:else}
     <Label size="sm" class="mx-2 mt-2"
