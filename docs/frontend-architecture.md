@@ -93,7 +93,7 @@ Oxlint（`pnpm --dir web lint`）仍是通用 lint。它只读取 `.svelte` 的 
 | `web/.dependency-cruiser-known-violations.json` | 已知的分层违规               |
 | `web/.jscpd-baseline.json`                      | 已知的重复代码块指纹         |
 
-- 修复存量问题后运行 `pnpm --dir web arch:ratchet`，它只删除已修复的记录并格式化基线文件，然后提交基线变化。
+- 修复存量问题后运行 `pnpm --dir web arch:ratchet`，它只删除已修复的记录并格式化基线文件，然后提交基线变化。重复代码先通过 `arch:dupes` 检查：出现未登记的克隆时立即失败，不改写 jscpd 基线；只有没有新增克隆时才更新基线，删除已解决的指纹。
 - ESLint 按“文件 + 规则”计数：同一文件同一规则的违规数超过记录时，该文件该规则的所有违规都会报告。
 - 不要为了通过检查而扩大基线、添加 `eslint-disable` 或 `jscpd:ignore`。确有必要的例外，在 PR 中说明原因，并优先改为配置中的契约或白名单。
 
