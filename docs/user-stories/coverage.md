@@ -49,6 +49,7 @@
 | service install/--dry-run/--force/start/stop/restart/status/logs/uninstall | US-K05–US-K07                                       |
 | version/version --json/help、VPN/HTTPS 代理与升级                          | US-K09                                              |
 | 本地开发、构建/安装、测试、格式/静态检查                                   | US-L01–US-L02                                       |
+| 持久化文件、锁、写入入口与清单防漂移                                       | US-L09                                              |
 | 文档与 spec 行数、体积、目录树治理                                         | US-L08                                              |
 | Storybook、截图、baseline、CI 与 release                                   | US-L03–US-L04                                       |
 | 分层架构测试、线上 JSON 快照与重新录制                                     | US-L05                                              |

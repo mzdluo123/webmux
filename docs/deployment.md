@@ -70,6 +70,8 @@ JSON 输出契约见 [控制面 JSON 契约](protocol/control-json.md#控制面-
 
 ### 状态目录
 
+完整文件、锁、所有者和故障行为见 [配置与持久化清单](persistence.md)，由 `make persistence-check` 约束；下文仅说明部署边界。
+
 `state_dir` 保存仓库清单 `repositories.json`、启动配置 `launch-configs.json`（及其锁 `launch-configs.lock`）与运行时子目录 `run/`（运行时记录 `server.json`、锁 `server.lock`、本机套接字 `webmux.sock`），不保存会话、终端内容或 token。目录权限 0700、文件 0600，通过原子替换写入。
 
 - 同一状态目录只能由一个实例使用；多个实例请配置不同的 `state_dir`。第二个实例照常提供终端服务，但不写运行时记录、不创建本机套接字，并在日志中警告。

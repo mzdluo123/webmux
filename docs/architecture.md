@@ -74,6 +74,8 @@ flowchart LR
 
 `cmd/webmux` 先加载配置，用 `cmd/internal/assemble` 把配置转换为 `session.Options` 与 `tailscale.Options`，再构造 `session.Manager`、启动配置、workspace、codeview、files、push、tunnelsettings、tailscalesettings 与 tailscale 检测服务，最后以 `api.Deps` 注入 `api.New`。Tailscale 控制器在绑定监听前对账并清理旧入口，监听开始后异步应用，网页更新时先移除不再符合新设置的本实例入口再应用；它与 Cloudflare 隧道控制器分别持有 `cloudflare` 与 `tailscale` 来源，互不清除。HTTP 控制器不直接访问状态文件。各模块通过构造函数显式依赖，不使用全局状态。
 
+持久化文件清单与写入入口由同包的 `TestPersistence*` 单独检查，规则、现状与边界见 [配置与持久化清单](persistence.md)。
+
 ## 分层与架构测试
 
 后端分为五层，`internal/archtest` 用 `golang.org/x/tools/go/packages` 加载带类型信息的源码检查规则；违规让 `go test ./...` 失败，一次列出全部违规，每条形如 `文件:行 [Rn] 消息 — 修复提示`。规则基于类型解析，导入别名、点导入和函数值都绕不过。
