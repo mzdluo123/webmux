@@ -71,7 +71,7 @@ func check(fsys fs.FS) ([]violation, error) {
 			if err != nil {
 				return err
 			}
-			out = append(out, checkFile(name, data)...)
+			out = append(out, checkFile(fsys, name, data)...)
 			return nil
 		})
 		if err != nil {
@@ -87,7 +87,7 @@ func check(fsys fs.FS) ([]violation, error) {
 	return out, nil
 }
 
-func checkFile(name string, data []byte) []violation {
+func checkFile(fsys fs.FS, name string, data []byte) []violation {
 	var out []violation
 	n := lineCount(data)
 	if n > maxLines {
@@ -96,7 +96,7 @@ func checkFile(name string, data []byte) []violation {
 	if len(data) > maxBytes {
 		out = append(out, violation{name, "bytes", maxBytesMessage(name, len(data))})
 	}
-	if !skipMin(name) && n < minLines && len(data) <= maxBytes {
+	if !skipMin(fsys, name) && n < minLines && len(data) <= maxBytes {
 		out = append(out, violation{name, "short", minLinesMessage(name, n)})
 	}
 	return out
@@ -134,8 +134,12 @@ func skipSize(name string) bool {
 	return strings.HasPrefix(name, "openspec/changes/archive/")
 }
 
-func skipMin(name string) bool {
-	return strings.HasPrefix(name, "openspec/changes/") || path.Base(name) == "README.md"
+func skipMin(fsys fs.FS, name string) bool {
+	if strings.HasPrefix(name, "openspec/changes/") || path.Base(name) == "README.md" {
+		return true
+	}
+	info, err := fs.Stat(fsys, strings.TrimSuffix(name, ".md"))
+	return err == nil && info.IsDir()
 }
 
 func skipFanout(dir string) bool {
@@ -197,6 +201,8 @@ func TestRules(t *testing.T) {
 	add("docs/short.md", lines(minLines-1))
 	add("docs/wide-short.md", lines(5)+strings.Repeat("x", maxBytes))
 	add("docs/index/README.md", "# 索引\n")
+	add("docs/tree.md", "# 索引\n")
+	add("docs/tree/note.md", lines(minLines))
 	add("openspec/specs/big/spec.md", lines(maxLines+1))
 	add("openspec/changes/work/specs/cap/spec.md", lines(5))
 	add("openspec/changes/work/specs/big/spec.md", lines(maxLines+1))

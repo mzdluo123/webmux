@@ -69,7 +69,7 @@ test-browsers-install:
 	$(PNPM) --dir web exec playwright install --with-deps chromium
 
 docs-check:
-	$(GO) test ./internal/docguard
+	$(GO) test -count=1 ./internal/docguard
 
 format:
 	$(GOFMT) -w cmd internal web/embed.go deploy/embed.go

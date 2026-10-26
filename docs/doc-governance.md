@@ -17,7 +17,7 @@ WebMux 由 Agent 主导开发，单个 Markdown 文件过长会让模型一次�
 
 - **行数上限**：400 行。
 - **体积上限**：48 KiB（49152 字节）。行数不是唯一成本，宽表格会让 400 行以内的文件超过 150 KiB。
-- **行数下限**：20 行，避免把内容拆成难以导航的碎片。`README.md` 可作为目录索引豁免下限。
+- **行数下限**：20 行，避免把内容拆成难以导航的碎片。`README.md` 以及与同名目录配套的树状索引（例如 `docs/protocol.md` 对应 `docs/protocol/`）豁免下限。
 - **目录扇出**：`docs/` 与 `openspec/` 的每一级直接子目录不超过 20 个。
 
 ## 树状组织
@@ -26,7 +26,7 @@ WebMux 由 Agent 主导开发，单个 Markdown 文件过长会让模型一次�
 
 1. 以原文件名为目录名创建同级目录，例如 `docs/protocol.md` 拆到 `docs/protocol/`，`docs/user-stories.md` 拆到 `docs/user-stories/`。
 2. 按主题命名子文件，而不是按序号；每个子文件保持 20–400 行且不超过 48 KiB。
-3. 保留原路径作为短索引，列出各子文件及用途，并让索引本身达到 20 行；更新仓库内所有指向旧文件与旧锚点的链接。
+3. 保留原路径作为短索引，列出各子文件及用途；与同名目录配套的索引文件豁免行数下限。更新仓库内所有指向旧文件与旧锚点的链接。
 4. 拆分后的文件可能多一层目录，所有相对链接要相应增加 `../`；`docs/user-stories/` 下的 `../web/...` 应改为 `../../web/...`。
 
 ### 合并过短文件
@@ -44,7 +44,7 @@ OpenSpec 要求主规格位于 `openspec/specs/<capability>/spec.md`，不能在
 ## 校验与修复
 
 ```sh
-make docs-check          # go test ./internal/docguard
+make docs-check          # go test -count=1 ./internal/docguard
 make check               # 同时覆盖格式、前端、Go 与文档治理
 ```
 
