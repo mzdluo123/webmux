@@ -33,7 +33,7 @@
 
 - [x] 7.1 在 `web/test/e2e/attention.spec.ts` 增加用例：用 bash 脚本模拟 agent，先输出 7501 探测并读取应答（`dd` 读取定长应答后匹配 `7501;?:states=`），再上报 `blocked`+`permission` 并持续重绘 spinner。断言：列表显示“等待授权”、`status=waiting`、`attention.source=agent`；上报 `working` 后关注清除且为 `running`；上报 `done` 后显示“已完成”；用户输入后变为 `idle`。验证：`pnpm --dir web exec playwright test test/e2e/attention.spec.ts` 通过。
 - [x] 7.2 增加用例：只发 Warp 事件的模拟 agent 在 `prompt_submit` 之后保持读 tty、静默超过 2 秒且末行匹配提示符，断言不出现“可能在等你”；普通 shell 会话的既有用例保持通过。
-- [ ] 7.3 运行 `go test ./internal/api -run TestWireSnapshots`，确认 wire 快照无变化（负载零变化），并运行 `make test` 全部通过。
+- [x] 7.3 运行 `go test ./internal/api -run TestWireSnapshots`，确认 wire 快照无变化（负载零变化），并运行 `make test` 全部通过。本地已通过 Go race 全套、Vitest 单元与浏览器测试及 attention E2E；完整 E2E 由 CI（Ubuntu 6 分片与 macOS 3 分片）全部通过。
 
 ## 8. 文档与用户故事
 
