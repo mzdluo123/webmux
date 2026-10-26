@@ -219,8 +219,12 @@ test("4x CPU: create, type, replay, switch, filter and open dialogs remain usabl
   const session = page.getByRole("link", { name: "CPU 4x shell", exact: true });
   await expect(session).toBeVisible();
   const terminal = await openSessionLink(page, "CPU 4x shell");
+  // The popup is a fresh target without the list page's 4x throttle or metrics
+  // observer, so arm it and reload before measuring the terminal mount/replay.
+  await observePerformance(terminal);
+  await terminal.reload();
   await expectTerminalLine(terminal, "responsive-input");
-  await performanceReport(page, testInfo, "switch-and-filter");
+  await performanceReport(terminal, testInfo, "switch-and-filter");
   expect(errors).toEqual([]);
 });
 
