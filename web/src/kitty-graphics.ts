@@ -712,15 +712,20 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
   }
 
   async function decodeBase64(payload: string) {
-    if (payload.length === 0)
-      throw new KittyCommandError("EINVAL", "empty image payload");
     if (payload.length > maxEncodedBytes)
       throw new KittyCommandError("EINVAL", "image is too large");
+    if (/[\t\n\f\r ]/.test(payload))
+      payload = payload.replace(/[\t\n\f\r ]/g, "");
+    if (payload.length === 0)
+      throw new KittyCommandError("EINVAL", "empty image payload");
     if (payload.length % 4 !== 0)
       throw new KittyCommandError("EINVAL", "invalid base64 payload");
     let padding = 0;
     if (payload.endsWith("==")) padding = 2;
     else if (payload.endsWith("=")) padding = 1;
+    const paddingStart = payload.indexOf("=");
+    if (paddingStart !== -1 && paddingStart < payload.length - padding)
+      throw new KittyCommandError("EINVAL", "invalid base64 payload");
     const size = (payload.length / 4) * 3 - padding;
     if (size > maxImageBytes)
       throw new KittyCommandError("EINVAL", "image is too large");
@@ -895,6 +900,7 @@ export function createKittyGraphics(options: KittyGraphicsOptions) {
     const action = params.a ?? "t";
     if (action === "q") {
       await inspectImage(params, payload);
+      if (!current(expected)) return;
       respond(params, "OK");
       return;
     }

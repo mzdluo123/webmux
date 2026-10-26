@@ -720,3 +720,40 @@ test("relative placements fail explicitly without moving or displaying the store
   await board.send("\x1b_Ga=p,i=1,C=1\x1b\\");
   expect(board.placements[0].image).toMatchObject({ width: 2, height: 2 });
 });
+
+test("base64 whitespace neither changes decoded pixel length nor fabricates pixels", async () => {
+  const board = harness();
+  await board.send("\x1b_Ga=q,f=24,s=1,v=1,i=1;AQID    \x1b\\");
+  expect(board.replies.at(-1)).toBe("\x1b_Gi=1;OK\x1b\\");
+  await board.send("\x1b_Ga=q,f=24,s=2,v=1,i=2;AQID    \x1b\\");
+  expect(board.replies.at(-1)).toContain("EINVAL:invalid pixel data length");
+});
+
+test("base64 padding before a decoding chunk boundary is rejected", async () => {
+  const board = harness();
+  const payload = "AAAA".repeat(1048575) + "AA==AAAA";
+  await board.send(`\x1b_Ga=q,f=32,o=z,i=1;${payload}\x1b\\`);
+  expect(board.replies.at(-1)).toContain("EINVAL:invalid base64 payload");
+});
+
+test("reset during asynchronous query validation prevents a late reply", async () => {
+  vi.useFakeTimers();
+  const board = harness();
+  try {
+    const payload = "AAAA".repeat(2048 * 1025);
+    const pending = board.send(
+      `\x1b_Ga=q,f=24,s=2048,v=1025,i=1;${payload}\x1b\\`,
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(board.replies).toEqual([]);
+    board.graphics.reset();
+    await vi.runAllTimersAsync();
+    await pending;
+    expect(board.replies).toEqual([]);
+    await board.send("\x1b_Ga=q,f=24,s=1,v=1,i=2;AQID\x1b\\");
+    expect(board.replies).toEqual(["\x1b_Gi=2;OK\x1b\\"]);
+  } finally {
+    board.graphics.dispose();
+    vi.useRealTimers();
+  }
+});
