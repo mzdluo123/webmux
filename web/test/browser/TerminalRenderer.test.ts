@@ -437,3 +437,33 @@ test("rapid font gestures render locally and persist only the final size", async
     )
     .toBe(17);
 });
+
+test("leaving during the font debounce flushes once and cancels the timer", async () => {
+  await seedSettings({ fontSize: 14 });
+  const { api, rendered } = await openTerminalApi();
+  const patches = () =>
+    vi
+      .mocked(fetch)
+      .mock.calls.filter(
+        ([url, init]) =>
+          String(url) === "/api/settings" && init?.method === "PATCH",
+      );
+  api.setFontSize(16);
+  api.setFontSize(19);
+  expect(patches()).toHaveLength(0);
+  await rendered.unmount();
+  await expect.poll(() => patches().length).toBe(1);
+  expect(JSON.parse(String(patches()[0][1]?.body)).changes).toEqual({
+    fontSize: 19,
+  });
+  await expect
+    .poll(
+      () =>
+        JSON.parse(localStorage.getItem("webmux.settingsCache")!).values
+          .fontSize,
+    )
+    .toBe(19);
+  // Wait beyond the pending timer's deadline to detect a duplicate late save.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(patches()).toHaveLength(1);
+});
