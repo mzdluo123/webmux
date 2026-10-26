@@ -1,6 +1,6 @@
 import { seedSettings } from "./settings-fixture";
 // WebGL/DOM renderers, DPR changes, fit, fonts and theme colours.
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import {
   domText,
@@ -409,4 +409,31 @@ test("a stored font size at the minimum is restored", async () => {
     "8px",
   );
   expectNoSessionMutation(socket);
+});
+
+test("rapid font gestures render locally and persist only the final size", async () => {
+  await seedSettings({ fontSize: 14 });
+  const { api } = await openTerminalApi();
+  for (let i = 0; i < 40; i++) api.setFontSize(8 + (i % 13));
+  api.setFontSize(17);
+  expect(api.fontSize).toBe(17);
+  const patches = () =>
+    vi
+      .mocked(fetch)
+      .mock.calls.filter(
+        ([url, init]) =>
+          String(url) === "/api/settings" && init?.method === "PATCH",
+      );
+  expect(patches()).toHaveLength(0);
+  await expect.poll(() => patches().length).toBe(1);
+  expect(JSON.parse(String(patches()[0][1]?.body)).changes).toEqual({
+    fontSize: 17,
+  });
+  await expect
+    .poll(
+      () =>
+        JSON.parse(localStorage.getItem("webmux.settingsCache")!).values
+          .fontSize,
+    )
+    .toBe(17);
 });

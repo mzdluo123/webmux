@@ -15,11 +15,8 @@ import (
 const (
 	fileName = "launch-configs.json"
 	lockName = "launch-configs.json.lock"
-	// fileVersion adds optional per-config preview settings. Version 1 files,
-	// with or without icons, load unchanged with Preview nil; saves always
-	// write the current version.
-	fileVersion    = 2
-	oldFileVersion = 1
+	// Only the current format is accepted; upgrades are explicit.
+	fileVersion = 2
 )
 
 type storedFile struct {
@@ -28,7 +25,7 @@ type storedFile struct {
 }
 
 // Service owns <state_dir>/launch-configs.json. It holds an exclusive flock
-// on launch-configs.lock until Close, so a second instance on the same state
+// on launch-configs.json.lock until Close, so a second instance on the same state
 // directory reports unavailable instead of overwriting the file. A nil
 // *Service is unavailable.
 type Service struct {

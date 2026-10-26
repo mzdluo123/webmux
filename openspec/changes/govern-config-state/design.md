@@ -80,7 +80,7 @@ TOML 定义引导、安全、进程策略及专用访问服务默认值；普通
 
 | 当前                                              | 目标                                                     |
 | ------------------------------------------------- | -------------------------------------------------------- |
-| launch-configs.json / launch-configs.lock         | launch-configs.json / launch-configs.json.lock           |
+| launch-configs.json v1/v2 / launch-configs.lock         | launch-configs.json v2 only / launch-configs.json.lock           |
 | repositories.json / repositories.lock             | repositories.json / repositories.json.lock               |
 | tunnel.json / tunnel-config.lock                  | tunnel-settings.json / tunnel-settings.json.lock         |
 | tailscale-settings.json / tailscale-settings.lock | tailscale-settings.json / tailscale-settings.json.lock   |

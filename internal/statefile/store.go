@@ -51,7 +51,7 @@ func openStore[T any](dir string, d Descriptor, validate func(T) error) (*Handle
 	if err := os.MkdirAll(parent, 0700); err != nil {
 		return fail(fault(d, h.path, "mkdir", IO, err))
 	}
-	info, err := os.Lstat(parent)
+	info, err := os.Stat(parent)
 	if err != nil || !info.IsDir() {
 		return fail(fault(d, h.path, "directory", IO, err))
 	}

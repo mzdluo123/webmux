@@ -257,3 +257,28 @@ func TestHandleCrossProcess(t *testing.T) {
 	h.Close()
 	run("0")
 }
+
+func TestSymlinkedStateDirectory(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "real")
+	if err := os.Mkdir(target, 0700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	h, _, err := Open[testDocument](link, Settings, nil)
+	if !IsKind(err, Missing) {
+		t.Fatal(err)
+	}
+	if err := h.Commit(testDocument{1, "kept"}); err != nil {
+		t.Fatal(err)
+	}
+	h.Close()
+	next, value, err := Open[testDocument](link, Settings, nil)
+	defer next.Close()
+	if err != nil || value.Value != "kept" {
+		t.Fatalf("reopen: %+v %v", value, err)
+	}
+}

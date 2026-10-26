@@ -1,4 +1,4 @@
-import { onMount, untrack } from "svelte";
+import { onMount, onDestroy, untrack } from "svelte";
 import type { Terminal } from "@xterm/xterm";
 import { SearchAddon } from "@xterm/addon-search";
 import {
@@ -100,7 +100,19 @@ export function useTerminal(
   let scrollOnFit = false;
   const stream = createTerminalSocket(id);
   const defaultFont = matchMedia("(pointer: coarse)").matches ? 13 : 14;
-  const fontSize = $derived(settings.values.fontSize ?? defaultFont);
+  let fontDraft = $state<number | null>(null);
+  const fontSize = $derived(
+    fontDraft ?? settings.values.fontSize ?? defaultFont,
+  );
+  let fontSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  function flushFontSize() {
+    clearTimeout(fontSaveTimer);
+    fontSaveTimer = undefined;
+    if (fontDraft === null) return;
+    changeSettings({ fontSize: fontDraft });
+    fontDraft = null;
+  }
+  onDestroy(flushFontSize);
   let modifiers = $state<Modifiers>({ ctrl: false, alt: false });
   let selection = $state("");
   let search: SearchAddon | undefined;
@@ -210,7 +222,9 @@ export function useTerminal(
   }
 
   function setFontSize(value: number) {
-    changeSettings({ fontSize: Math.max(8, Math.min(20, Math.round(value))) });
+    fontDraft = Math.max(8, Math.min(20, Math.round(value)));
+    clearTimeout(fontSaveTimer);
+    fontSaveTimer = setTimeout(flushFontSize, 250);
   }
   $effect(() => {
     const value = fontSize;
