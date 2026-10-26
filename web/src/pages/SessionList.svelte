@@ -26,6 +26,7 @@
   import DirectSessions from "../components/DirectSessions.svelte";
   import SessionListEmpty from "../components/SessionListEmpty.svelte";
   import { homeWorktrees } from "../homeWorktrees.svelte";
+  import { setLaunchPreviews } from "../launchPreviews.svelte";
   import { homeLayout, pruneHomeWorktrees, setPinned } from "../homeWorktrees";
   import { matchesSessionQuery } from "../session-location";
   import { matchesStatusFilter, type StatusFilter } from "../session-status";
@@ -131,15 +132,23 @@
     void loadLaunchConfigs();
   }
   async function loadLaunchConfigs() {
+    // Do not keep last visit's preview map while this page's request is in
+    // flight; rows fall back to the global setting until it resolves.
+    setLaunchPreviews([]);
     try {
       const configs = await api("/launch-configs", LaunchConfigsSchema);
-      if (!disposed) launchConfigs = { status: "ready", configs };
+      if (!disposed) {
+        launchConfigs = { status: "ready", configs };
+        setLaunchPreviews(configs);
+      }
     } catch (err) {
-      if (!disposed)
+      if (!disposed) {
         launchConfigs = {
           status: "unavailable",
           error: (err as Error).message,
         };
+        setLaunchPreviews([]);
+      }
     }
   }
   function pin(repositoryId: string, ids: string[], pinned: boolean) {

@@ -51,7 +51,7 @@ func wireSchema(name string) wireRules {
 		}
 	}
 	sessionFields := func(prefix string) {
-		add(prefix, "id", "id", "generation", "workspace/repositoryId", "workspace/worktreeId")
+		add(prefix, "id", "id", "generation", "configId", "workspace/repositoryId", "workspace/worktreeId")
 		add(prefix, "time", "createdAt", "lastActiveAt", "attention/since", "reportedCwd/since")
 		add(prefix, "path", "cwd", "reportedCwd/path", "workspace/worktreePath")
 	}

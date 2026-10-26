@@ -20,6 +20,10 @@ import (
 const (
 	fileName = "launch-configs.json"
 	lockName = "launch-configs.lock"
+	// fileVersion adds optional per-config preview settings. Version 1 files
+	// load unchanged with Preview nil; saves always write the current version.
+	fileVersion    = 2
+	oldFileVersion = 1
 )
 
 type storedFile struct {
@@ -102,8 +106,8 @@ func (s *Service) load() error {
 	return nil
 }
 
-// parse accepts only what saveLocked writes. Errors name fields, never
-// environment values.
+// parse accepts the current format and version 1 files, which had no preview
+// settings. Errors name fields, never environment values.
 func parse(data []byte) ([]Config, error) {
 	d := json.NewDecoder(bytes.NewReader(data))
 	d.DisallowUnknownFields()
@@ -114,7 +118,7 @@ func parse(data []byte) ([]Config, error) {
 	if err := d.Decode(new(any)); err != io.EOF {
 		return nil, errors.New("文件无法解析: 包含多余内容")
 	}
-	if stored.V != 1 || stored.Configs == nil {
+	if (stored.V != oldFileVersion && stored.V != fileVersion) || stored.Configs == nil {
 		return nil, errors.New("文件损坏或版本不受支持")
 	}
 	if len(stored.Configs) > MaxConfigs {
@@ -123,7 +127,7 @@ func parse(data []byte) ([]Config, error) {
 	ids, names := map[string]bool{}, map[string]bool{}
 	configs := make([]Config, 0, len(stored.Configs))
 	for i, c := range stored.Configs {
-		in, err := normalize(Input{Name: c.Name, Cmd: c.Cmd, Env: c.Env})
+		in, err := normalize(Input{Name: c.Name, Cmd: c.Cmd, Env: c.Env, Preview: c.Preview})
 		switch {
 		case err != nil:
 			return nil, fmt.Errorf("第 %d 条配置: %w", i+1, err)
@@ -137,7 +141,7 @@ func parse(data []byte) ([]Config, error) {
 			return nil, fmt.Errorf("第 %d 条配置: 缺少时间", i+1)
 		}
 		ids[c.ID], names[in.Name] = true, true
-		configs = append(configs, Config{ID: c.ID, Name: in.Name, Cmd: in.Cmd, Env: in.Env, CreatedAt: c.CreatedAt.UTC(), UpdatedAt: c.UpdatedAt.UTC()})
+		configs = append(configs, Config{ID: c.ID, Name: in.Name, Cmd: in.Cmd, Env: in.Env, Preview: in.Preview, CreatedAt: c.CreatedAt.UTC(), UpdatedAt: c.UpdatedAt.UTC()})
 	}
 	return configs, nil
 }
@@ -262,7 +266,7 @@ func (s *Service) Create(in Input) (Config, error) {
 		return Config{}, err
 	}
 	now := time.Now().UTC()
-	c := Config{ID: id, Name: in.Name, Cmd: in.Cmd, Env: in.Env, CreatedAt: now, UpdatedAt: now}
+	c := Config{ID: id, Name: in.Name, Cmd: in.Cmd, Env: in.Env, Preview: in.Preview, CreatedAt: now, UpdatedAt: now}
 	next := append(slices.Clip(s.configs), c)
 	if err := s.saveLocked(next); err != nil {
 		return Config{}, err
@@ -299,7 +303,7 @@ func (s *Service) Seed(ins []Input) error {
 		if err != nil {
 			return err
 		}
-		configs = append(configs, Config{ID: id, Name: in.Name, Cmd: in.Cmd, Env: in.Env, CreatedAt: now, UpdatedAt: now})
+		configs = append(configs, Config{ID: id, Name: in.Name, Cmd: in.Cmd, Env: in.Env, Preview: in.Preview, CreatedAt: now, UpdatedAt: now})
 	}
 	if err := s.saveLocked(configs); err != nil {
 		return err
@@ -326,7 +330,7 @@ func (s *Service) Update(id string, in Input) (Config, error) {
 		return Config{}, ErrDuplicate
 	}
 	c := s.configs[i]
-	c.Name, c.Cmd, c.Env, c.UpdatedAt = in.Name, in.Cmd, in.Env, time.Now().UTC()
+	c.Name, c.Cmd, c.Env, c.Preview, c.UpdatedAt = in.Name, in.Cmd, in.Env, in.Preview, time.Now().UTC()
 	next := slices.Clone(s.configs)
 	next[i] = c
 	if err := s.saveLocked(next); err != nil {
@@ -368,7 +372,7 @@ func (s *Service) saveLocked(configs []Config) error {
 	if configs == nil {
 		configs = []Config{}
 	}
-	err := statefile.WriteJSON(s.path, storedFile{V: 1, Configs: configs}, statefile.Options{TempPattern: ".launch-configs-*"})
+	err := statefile.WriteJSON(s.path, storedFile{V: fileVersion, Configs: configs}, statefile.Options{TempPattern: ".launch-configs-*"})
 	if err != nil {
 		return fmt.Errorf("保存启动配置: %w", err)
 	}
