@@ -127,21 +127,22 @@ func childDirs(fsys fs.FS, dir string) (int, error) {
 	return n, nil
 }
 
-// Archive records are immutable history, and OpenSpec change artifacts are
-// naturally short. Tool-mandated flat trees keep their layout; everything else
-// follows the governance rules.
+// Archive records are immutable history.
 func skipSize(name string) bool {
 	return strings.HasPrefix(name, "openspec/changes/archive/")
 }
 
+// OpenSpec change artifacts are naturally short, as are index files.
 func skipMin(fsys fs.FS, name string) bool {
-	if strings.HasPrefix(name, "openspec/changes/") || path.Base(name) == "README.md" {
+	if strings.HasPrefix(name, "openspec/changes/") || strings.EqualFold(path.Base(name), "README.md") {
 		return true
 	}
-	info, err := fs.Stat(fsys, strings.TrimSuffix(name, ".md"))
+	info, err := fs.Stat(fsys, strings.TrimSuffix(name, path.Ext(name)))
 	return err == nil && info.IsDir()
 }
 
+// Tool-mandated flat trees keep their layout; everything else follows the
+// governance rules.
 func skipFanout(dir string) bool {
 	switch {
 	case dir == "docs/images" || strings.HasPrefix(dir, "docs/images/"):
