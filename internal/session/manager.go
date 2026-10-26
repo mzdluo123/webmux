@@ -77,14 +77,10 @@ func NewManager(o Options) *Manager {
 }
 
 // Create starts a session. env holds explicit variables added to the
-// server's environment for this session only (see ValidateEnv).
-func (m *Manager) Create(cwd string, cmd []string, name string, env map[string]string) (*Session, error) {
-	return m.CreateWithConfig(cwd, cmd, name, env, "")
-}
-
-// CreateWithConfig starts a session and records the saved launch config it
-// came from, so clients can apply that config's display settings.
-func (m *Manager) CreateWithConfig(cwd string, cmd []string, name string, env map[string]string, configID string) (*Session, error) {
+// server's environment for this session only (see ValidateEnv). configID
+// records the saved launch config the session came from, empty for an explicit
+// command, so clients can apply that config's display settings.
+func (m *Manager) Create(cwd string, cmd []string, name string, env map[string]string, configID string) (*Session, error) {
 	if m.initErr != nil {
 		return nil, fmt.Errorf("process reaper: %w", m.initErr)
 	}

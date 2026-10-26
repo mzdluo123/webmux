@@ -241,7 +241,7 @@ func (s *Service) CreateSession(ctx context.Context, in SessionInput) (*session.
 	if err := requestCtx.Err(); err != nil {
 		return nil, err
 	}
-	item, err := s.manager.CreateWithConfig(path, cmd, name, env, configID)
+	item, err := s.manager.Create(path, cmd, name, env, configID)
 	if err != nil {
 		return nil, problem(ErrInvalid, "启动会话失败: %v", err)
 	}

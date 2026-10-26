@@ -131,10 +131,7 @@
     if (launchConfigs.status !== "ready") launchConfigs = { status: "loading" };
     void loadLaunchConfigs();
   }
-  async function loadLaunchConfigs() {
-    // Do not keep last visit's preview map while this page's request is in
-    // flight; rows fall back to the global setting until it resolves.
-    setLaunchPreviews([]);
+  async function loadLaunchConfigs(initial = false) {
     try {
       const configs = await api("/launch-configs", LaunchConfigsSchema);
       if (!disposed) {
@@ -147,7 +144,9 @@
           status: "unavailable",
           error: (err as Error).message,
         };
-        setLaunchPreviews([]);
+        // Cards keep the last loaded previews while a reload is in flight or
+        // fails; only an unavailable store on page load falls back to global.
+        if (initial) setLaunchPreviews([]);
       }
     }
   }
@@ -214,7 +213,7 @@
     const startup = new AbortController();
     const startupTimeout = setTimeout(() => startup.abort(), 1000);
     startupRefresh = refresh(startup.signal);
-    void loadLaunchConfigs();
+    void loadLaunchConfigs(true);
     void Promise.allSettled([loadSetup(startup.signal), startupRefresh]).then(
       () => {
         clearTimeout(startupTimeout);

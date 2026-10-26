@@ -808,7 +808,7 @@ func wirePush(f *wireFixture) {
 // These groups need a live session, not the sessions group's lifecycle or IDs.
 func (f *wireFixture) startSession() string {
 	f.t.Helper()
-	item, err := f.manager.Create(f.root, []string{"/bin/sh", "-c", "sleep 60"}, "wire", nil)
+	item, err := f.manager.Create(f.root, []string{"/bin/sh", "-c", "sleep 60"}, "wire", nil, "")
 	if err != nil {
 		f.t.Fatal(err)
 	}
