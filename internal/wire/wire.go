@@ -117,7 +117,7 @@ func launchPreview(p *contract.PreviewSettings) *launch.PreviewSettings {
 
 func LaunchConfig(c launch.Config) contract.LaunchConfig {
 	return contract.LaunchConfig{
-		ID: c.ID, Name: c.Name, Cmd: c.Cmd, Env: c.Env, Preview: previewSettings(c.Preview),
+		ID: c.ID, Name: c.Name, Icon: c.Icon, Cmd: c.Cmd, Env: c.Env, Preview: previewSettings(c.Preview),
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 }
@@ -125,14 +125,14 @@ func LaunchConfig(c launch.Config) contract.LaunchConfig {
 func LaunchSummaries(in []launch.Summary) []contract.LaunchConfigSummary {
 	return each(in, func(s launch.Summary) contract.LaunchConfigSummary {
 		return contract.LaunchConfigSummary{
-			ID: s.ID, Name: s.Name, Cmd: s.Cmd, EnvNames: s.EnvNames, Preview: previewSettings(s.Preview),
+			ID: s.ID, Name: s.Name, Icon: s.Icon, Cmd: s.Cmd, EnvNames: s.EnvNames, Preview: previewSettings(s.Preview),
 			CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
 		}
 	})
 }
 
 func LaunchInput(r contract.LaunchConfigInput) launch.Input {
-	return launch.Input{Name: r.Name, Cmd: r.Cmd, Env: r.Env, Preview: launchPreview(r.Preview)}
+	return launch.Input{Name: r.Name, Icon: r.Icon, Cmd: r.Cmd, Env: r.Env, Preview: launchPreview(r.Preview)}
 }
 
 func PushTestReport(r push.TestReport) contract.PushTestReport { return contract.PushTestReport(r) }

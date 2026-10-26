@@ -83,6 +83,12 @@ func TestSeedFillsOnlyANewFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	wantIcons := []string{"terminal", "claudecode", "codex", "geminicli", "opencode", "pi"}
+	for i, c := range list {
+		if c.Icon != wantIcons[i] {
+			t.Fatalf("preset %s icon %q", c.Name, c.Icon)
+		}
+	}
 	for _, c := range list {
 		if err := s.Delete(c.ID); err != nil {
 			t.Fatal(err)
@@ -192,21 +198,62 @@ func TestPreviewSettingsPersist(t *testing.T) {
 func TestVersion1FileLoadsWithoutPreview(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, fileName)
-	content := `{"v":1,"configs":[{"id":"abcdefgh","name":"a","cmd":["a"],"env":{},"createdAt":"2026-10-23T12:00:00Z","updatedAt":"2026-10-23T12:00:00Z"}]}`
+	content := `{"v":1,"configs":[{"id":"abcdefgh","name":"a","icon":"codex","cmd":["a"],"env":{},"createdAt":"2026-10-23T12:00:00Z","updatedAt":"2026-10-23T12:00:00Z"}]}`
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
 	s := open(t, dir)
 	got, err := s.Get("abcdefgh")
-	if err != nil || got.Preview != nil || got.Name != "a" {
+	if err != nil || got.Preview != nil || got.Name != "a" || got.Icon != "codex" {
 		t.Fatalf("version 1 load %+v %v", got, err)
 	}
-	if _, err := s.Update("abcdefgh", Input{Name: "a", Cmd: []string{"a"}, Preview: &PreviewSettings{Lines: 5, Skip: 0}}); err != nil {
+	if _, err := s.Update("abcdefgh", Input{Name: "a", Icon: "codex", Cmd: []string{"a"}, Preview: &PreviewSettings{Lines: 5, Skip: 0}}); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), `"v": 2`) || !strings.Contains(string(data), `"preview": {`) {
+	if !strings.Contains(string(data), `"v": 2`) || !strings.Contains(string(data), `"preview": {`) || !strings.Contains(string(data), `"icon": "codex"`) {
 		t.Fatalf("upgrade did not write version 2: %s", data)
+	}
+	s.Close()
+	s = open(t, dir)
+	got, err = s.Get("abcdefgh")
+	if err != nil || got.Icon != "codex" || got.Preview == nil || *got.Preview != (PreviewSettings{Lines: 5, Skip: 0}) {
+		t.Fatalf("version 2 reload %+v %v", got, err)
+	}
+}
+
+func TestIconsPersistAndLegacyConfigsRemainReadable(t *testing.T) {
+	dir := t.TempDir()
+	s := Open(dir)
+	a := mustCreate(t, s, Input{Name: "Claude", Icon: "claudecode", Cmd: []string{"claude"}})
+	b := mustCreate(t, s, Input{Name: "Legacy", Cmd: []string{"bash"}})
+	s.Close()
+	s = open(t, dir)
+	got, err := s.Get(a.ID)
+	if err != nil || got.Icon != "claudecode" {
+		t.Fatalf("reopened icon %q: %v", got.Icon, err)
+	}
+	legacy, err := s.Get(b.ID)
+	if err != nil || legacy.Icon != "" {
+		t.Fatalf("legacy icon %q: %v", legacy.Icon, err)
+	}
+	updated, err := s.Update(a.ID, Input{Name: a.Name, Icon: "codex", Cmd: a.Cmd})
+	if err != nil || updated.Icon != "codex" {
+		t.Fatalf("updated icon %q: %v", updated.Icon, err)
+	}
+	list, err := s.List()
+	if err != nil || list[0].Icon != "codex" {
+		t.Fatalf("summary icon %+v: %v", list, err)
+	}
+	cleared, err := s.Update(a.ID, Input{Name: a.Name, Cmd: a.Cmd})
+	if err != nil || cleared.Icon != "" {
+		t.Fatalf("cleared icon %q: %v", cleared.Icon, err)
+	}
+	for _, icon := range []string{"unknown", "https://example.com/icon.svg", "../icon", "<svg>"} {
+		_, err := s.Create(Input{Name: "Invalid", Icon: icon, Cmd: []string{"bash"}})
+		if !errors.Is(err, ErrInvalid) {
+			t.Fatalf("accepted invalid icon %q: %v", icon, err)
+		}
 	}
 }
 

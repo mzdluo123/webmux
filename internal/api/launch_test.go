@@ -85,7 +85,7 @@ func TestLaunchConfigCRUD(t *testing.T) {
 	if got := string(h.expect("GET", "/api/launch-configs", "", 200)); strings.TrimSpace(got) != "[]" {
 		t.Fatalf("empty list %q", got)
 	}
-	a := h.create(`{"name":" Claude 恢复 ","cmd":["claude","--resume",""],"env":{"API_KEY":"secret-value","B":"other-secret"},"preview":{"lines":24,"skip":3}}`)
+	a := h.create(`{"name":" Claude 恢复 ","icon":"claudecode","cmd":["claude","--resume",""],"env":{"API_KEY":"secret-value","B":"other-secret"},"preview":{"lines":24,"skip":3}}`)
 	if len(a.ID) != 8 || a.Name != "Claude 恢复" || !reflect.DeepEqual(a.Cmd, []string{"claude", "--resume", ""}) || a.Env["API_KEY"] != "secret-value" {
 		t.Fatalf("created %+v", a)
 	}
@@ -93,6 +93,9 @@ func TestLaunchConfigCRUD(t *testing.T) {
 		t.Fatalf("created preview %+v", a.Preview)
 	}
 	b := h.create(`{"name":"shell","cmd":["bash"]}`)
+	if a.Icon != "claudecode" || b.Icon != "" {
+		t.Fatalf("created icons %q %q", a.Icon, b.Icon)
+	}
 	raw := h.expect("GET", "/api/launch-configs", "", 200)
 	if strings.Contains(string(raw), "secret-value") || strings.Contains(string(raw), "other-secret") || strings.Contains(string(raw), `"env"`) {
 		t.Fatalf("list leaks env values: %s", raw)
@@ -103,6 +106,9 @@ func TestLaunchConfigCRUD(t *testing.T) {
 	}
 	if len(list) != 2 || list[0]["id"] != a.ID || list[1]["id"] != b.ID {
 		t.Fatalf("list order %s", raw)
+	}
+	if list[0]["icon"] != "claudecode" {
+		t.Fatalf("list lacks icon: %s", raw)
 	}
 	if !reflect.DeepEqual(list[0]["envNames"], []any{"API_KEY", "B"}) || !reflect.DeepEqual(list[1]["envNames"], []any{}) {
 		t.Fatalf("envNames %s", raw)
@@ -131,11 +137,14 @@ func TestLaunchConfigCRUD(t *testing.T) {
 	if updated.ID != a.ID || !updated.CreatedAt.Equal(a.CreatedAt) || updated.UpdatedAt.Before(a.UpdatedAt) || len(updated.Env) != 0 || updated.Name != "Claude" || updated.Preview != nil {
 		t.Fatalf("whole update %+v", updated)
 	}
-	if err := json.Unmarshal(h.expect("PUT", "/api/launch-configs/"+a.ID, `{"name":"Claude","cmd":["claude"],"preview":{"lines":12,"skip":0}}`, 200), &updated); err != nil {
+	if updated.Icon != "" {
+		t.Fatalf("whole update did not clear icon: %q", updated.Icon)
+	}
+	if err := json.Unmarshal(h.expect("PUT", "/api/launch-configs/"+a.ID, `{"name":"Claude","icon":"codex","cmd":["claude"],"preview":{"lines":12,"skip":0}}`, 200), &updated); err != nil {
 		t.Fatal(err)
 	}
-	if updated.Preview == nil || updated.Preview.Lines != 12 || updated.Preview.Skip != 0 {
-		t.Fatalf("updated preview %+v", updated.Preview)
+	if updated.Icon != "codex" || updated.Preview == nil || updated.Preview.Lines != 12 || updated.Preview.Skip != 0 {
+		t.Fatalf("updated icon/preview %q %+v", updated.Icon, updated.Preview)
 	}
 	h.expect("POST", "/api/launch-configs", `{"name":"Claude ","cmd":["x"]}`, 409)
 	h.expect("PUT", "/api/launch-configs/"+b.ID, `{"name":"Claude","cmd":["x"]}`, 409)
@@ -149,6 +158,7 @@ func TestLaunchConfigCRUD(t *testing.T) {
 		`{"name":"x","cmd":["x"],"preview":{"lines":0,"skip":0}}`,
 		`{"name":"x","cmd":["x"],"preview":{"lines":10,"skip":51}}`,
 		`{"name":"x","cmd":["x"],"id":"abcdefgh"}`,
+		`{"name":"x","cmd":["x"],"icon":"https://example.com/icon.svg"}`,
 		`{"name":"x","cmd":["x"]}{}`,
 		`not json`,
 	} {

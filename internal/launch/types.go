@@ -1,5 +1,5 @@
-// Package launch stores user launch configs: a name, a full argv and explicit
-// environment variables, persisted in the server state directory.
+// Package launch stores user launch configs: a name, an icon, a full argv
+// and explicit environment variables, persisted in the server state directory.
 package launch
 
 import (
@@ -52,6 +52,7 @@ type PreviewSettings struct {
 type Config struct {
 	ID        string            `json:"id"`
 	Name      string            `json:"name"`
+	Icon      string            `json:"icon,omitempty"`
 	Cmd       []string          `json:"cmd"`
 	Env       map[string]string `json:"env"`
 	Preview   *PreviewSettings  `json:"preview"`
@@ -63,6 +64,7 @@ type Config struct {
 type Summary struct {
 	ID        string           `json:"id"`
 	Name      string           `json:"name"`
+	Icon      string           `json:"icon,omitempty"`
 	Cmd       []string         `json:"cmd"`
 	EnvNames  []string         `json:"envNames"`
 	Preview   *PreviewSettings `json:"preview"`
@@ -73,6 +75,7 @@ type Summary struct {
 // Input holds the client-editable fields of a create or whole update.
 type Input struct {
 	Name    string
+	Icon    string
 	Cmd     []string
 	Env     map[string]string
 	Preview *PreviewSettings
@@ -87,6 +90,11 @@ func invalid(format string, args ...any) error {
 // normalize validates in and returns a trimmed copy that shares no slice or
 // map with the caller. Errors never contain environment values.
 func normalize(in Input) (Input, error) {
+	switch in.Icon {
+	case "", "terminal", "claudecode", "codex", "geminicli", "opencode", "pi":
+	default:
+		return Input{}, invalid("图标不受支持")
+	}
 	name := strings.TrimSpace(in.Name)
 	if !utf8.ValidString(name) {
 		return Input{}, invalid("名称不是有效的 UTF-8")
@@ -125,7 +133,7 @@ func normalize(in Input) (Input, error) {
 			return Input{}, invalid("跳过末尾行数须为 %d–%d", MinPreviewSkip, MaxPreviewSkip)
 		}
 	}
-	return Input{Name: name, Cmd: slices.Clone(in.Cmd), Env: cloneEnv(in.Env), Preview: preview}, nil
+	return Input{Name: name, Icon: in.Icon, Cmd: slices.Clone(in.Cmd), Env: cloneEnv(in.Env), Preview: preview}, nil
 }
 
 // clonePreview copies p so callers never share a pointer with stored state.
@@ -159,6 +167,7 @@ func (c Config) summary() Summary {
 	return Summary{
 		ID:        c.ID,
 		Name:      c.Name,
+		Icon:      c.Icon,
 		Cmd:       slices.Clone(c.Cmd),
 		EnvNames:  names,
 		Preview:   clonePreview(c.Preview),

@@ -135,19 +135,21 @@ interface TunnelSettings {
 
 启动配置保存在服务端 `<state_dir>/launch-configs.json`，在所有已认证设备间共享。只提供用户自定义的启动配置，不再提供内置预设或 `/api/presets` 路由；新安装首次启动时服务端在该文件写入常见 agent 的普通配置，经同一接口列出、修改和删除。
 
-| 方法   | 路径                       | 说明                                                                                       |
-| ------ | -------------------------- | ------------------------------------------------------------------------------------------ |
-| GET    | `/api/launch-configs`      | 摘要数组（按创建顺序）：`{id, name, cmd, envNames, preview, createdAt, updatedAt}`         |
-| GET    | `/api/launch-configs/{id}` | 完整配置：`{id, name, cmd, env, preview, createdAt, updatedAt}`                            |
-| POST   | `/api/launch-configs`      | `{name, cmd, env?, preview?}`，201 返回完整配置                                            |
-| PUT    | `/api/launch-configs/{id}` | `{name, cmd, env?, preview?}` 整体替换，省略的 `env` 与 `preview` 被清空，200 返回完整配置 |
-| DELETE | `/api/launch-configs/{id}` | 204                                                                                        |
+| 方法   | 路径                       | 说明                                                                                              |
+| ------ | -------------------------- | ------------------------------------------------------------------------------------------------- |
+| GET    | `/api/launch-configs`      | 摘要数组（按创建顺序）：`{id, name, icon?, cmd, envNames, preview, createdAt, updatedAt}`         |
+| GET    | `/api/launch-configs/{id}` | 完整配置：`{id, name, icon?, cmd, env, preview, createdAt, updatedAt}`                            |
+| POST   | `/api/launch-configs`      | `{name, icon?, cmd, env?, preview?}`，201 返回完整配置                                            |
+| PUT    | `/api/launch-configs/{id}` | `{name, icon?, cmd, env?, preview?}` 整体替换，省略的 `env` 与 `preview` 被清空，200 返回完整配置 |
+| DELETE | `/api/launch-configs/{id}` | 204                                                                                               |
+
+`icon` 为可选的本地图标 ID：`terminal`、`claudecode`、`codex`、`geminicli`、`opencode` 或 `pi`。省略或空字符串表示自动匹配；更新时同样恢复自动匹配。不接受 URL 或 SVG 内容。旧文件省略此字段仍可读取，浏览器按可识别的直接命令或标准 `.bashrc` 包装匹配图标，未匹配时显示通用终端；`terminal` 可显式覆盖自动匹配。
 
 `preview` 为 `null` 或省略时沿用浏览器全局预览设置；否则为 `{lines, skip}`，`lines` 为 1–50 的整数、`skip` 为 0–50 的整数。会话卡片按创建时记录的 `configId` 读取该配置的当前预览值，配置被删除或不可用时回退全局设置。
 
 列表只含环境变量名（字典序），值只由单条读取与创建/更新响应返回。限制：名称去首尾空白后 1–64 个字符且唯一（重名 409）；`cmd` 1–128 项、首项非空、单项不超过 8 KiB；`env` 最多 64 项，名称规则与会话 `env` 相同，值不超过 8 KiB；最多 100 条。校验失败 400，未知 ID 404，落盘失败 500（内存回滚）。文件损坏、目录不可读写或状态目录已被另一实例占用时返回 503，错误信息包含原因与文件路径。
 
-`launch-configs.json` 当前版本为 `2`，新增 `preview` 字段。读取兼容版本 `1`（无预览设置，按全局兜底），下次保存升级为版本 `2`；旧二进制使用严格字段校验，无法读取版本 `2` 文件。
+`launch-configs.json` 当前版本为 `2`，新增 `preview` 字段。读取兼容版本 `1`（可含 `icon`，无预览设置，按全局兜底），下次保存升级为版本 `2` 并保留 `icon`；旧二进制使用严格字段校验，无法读取版本 `2` 文件。
 
 ### 仓库与 worktree
 
@@ -291,7 +293,7 @@ interface TunnelSettings {
 - `mode: "append"`：续接点的代际一致且仍在保留范围内时使用，随后（如有）一帧 `0x00`，内容恰为 `[offset, end)`；即使更早历史被覆盖，已有终端状态仍可安全续接，不清空画面、不请求重绘。
 - `truncated`：最早输出已被环形缓冲覆盖；不能由重置后的 `start` 推断保留范围。
 
-截断后的重置会请求仍运行的程序重新绘制：短暂改变 PTY 的实际列数，再恢复控制端尺寸，不发送按键、不转移控制权。逻辑控制网格保持不变；并发控制端 resize 优先于待恢复的尺寸。仅发送同尺寸 `SIGWINCH` 不足以使部分 TUI（包括 opencode v2.1.4）重绘。浏览器提示历史已丢弃及重绘请求，5 秒后自动隐藏，也可点击右侧关闭图标立即隐藏；后续新提示仍会显示，查找范围与复制缓冲中的历史截断标记仍保留。程序不响应时不保证恢复成功，应使用程序自身的重绘操作。已退出程序不请求重绘，不能恢复被覆盖的历史。
+截断后的重置会请求仍运行的程序重新绘制：短暂改变 PTY 的实际列数，再恢复控制端尺寸，不发送按键、不转移控制权。逻辑控制网格保持不变；并发控制端 resize 优先于待恢复的尺寸。仅发送同尺寸 `SIGWINCH` 不足以使部分 TUI（包括 opencode v2.1.4）重绘。浏览器不显示历史丢弃或重绘请求提示，查找范围与复制缓冲中的历史截断标记仍保留。程序不响应时不保证恢复成功，应使用程序自身的重绘操作。已退出程序不请求重绘，不能恢复被覆盖的历史。
 
 `GET /api/sessions/{id}/buffer` 仍返回诊断用原始字节，不是可恢复的屏幕快照；复制全部缓冲沿用此接口。退出后的浏览器恢复也使用 WebSocket 的安全回放路径，不将该接口的截断字节送入 xterm。这里不保存完整 VT 状态；若恢复点恰在一个控制序列中间，后续实时字节仍可能包含该序列的尾部，程序完整重绘才是画面恢复依据。
 
