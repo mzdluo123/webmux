@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { startSettings, stopSettings } from "./settings.svelte";
   import { onMount } from "svelte";
   import { api, consumeTokenFragment, store, stored } from "./api";
   import { HealthSchema } from "./schemas";
@@ -27,6 +28,7 @@
     try {
       await api("/health", HealthSchema);
       ready = true;
+      startSettings();
       error = "";
       // Re-registers an existing push subscription, e.g. after the server
       // rebuilt its store; without one it touches nothing.
@@ -43,6 +45,7 @@
       path = location.pathname;
     };
     const auth = () => {
+      stopSettings();
       drafts.clearAll();
       uploadNotice = "";
       ready = false;
@@ -54,6 +57,7 @@
     if (consumeTokenFragment()) token = stored("token");
     void check();
     return () => {
+      stopSettings();
       drafts.clearAll();
       window.removeEventListener("popstate", change);
       window.removeEventListener("webmux:auth", auth);

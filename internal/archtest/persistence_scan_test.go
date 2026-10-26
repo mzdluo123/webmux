@@ -123,7 +123,7 @@ func persistenceSymbol(pkg, name string) bool {
 			return true
 		}
 	case "github.com/rainchan/webmux/internal/statefile":
-		return name == "Write" || name == "WriteJSON"
+		return name == "Write" || name == "WriteJSON" || name == "Open" || name == "OpenRuntime" || name == "ReadSnapshot" || name == "ReadRuntime"
 	}
 	return false
 }

@@ -1,4 +1,4 @@
-import { onMount } from "svelte";
+import { onMount, untrack } from "svelte";
 import type { Terminal } from "@xterm/xterm";
 import { SearchAddon } from "@xterm/addon-search";
 import {
@@ -7,9 +7,8 @@ import {
   type TerminalFindOptions,
   type TerminalFindResults,
 } from "../terminal-search";
-import { stored, store } from "../api";
+import { settings, changeSettings } from "../settings.svelte";
 import {
-  FontSizeSchema,
   type ControlState,
   type SessionInfo,
   type SubmissionProgress,
@@ -101,11 +100,7 @@ export function useTerminal(
   let scrollOnFit = false;
   const stream = createTerminalSocket(id);
   const defaultFont = matchMedia("(pointer: coarse)").matches ? 13 : 14;
-  let fontSize = $state(
-    FontSizeSchema.catch(defaultFont).parse(
-      stored("fontSize", String(defaultFont)),
-    ),
-  );
+  const fontSize = $derived(settings.values.fontSize ?? defaultFont);
   let modifiers = $state<Modifiers>({ ctrl: false, alt: false });
   let selection = $state("");
   let search: SearchAddon | undefined;
@@ -215,13 +210,17 @@ export function useTerminal(
   }
 
   function setFontSize(value: number) {
-    fontSize = Math.max(8, Math.min(20, Math.round(value)));
-    if (terminal) {
-      terminal.options.fontSize = fontSize;
-      safeFit();
-    }
-    store("fontSize", String(fontSize));
+    changeSettings({ fontSize: Math.max(8, Math.min(20, Math.round(value))) });
   }
+  $effect(() => {
+    const value = fontSize;
+    untrack(() => {
+      if (terminal) {
+        terminal.options.fontSize = value;
+        safeFit();
+      }
+    });
+  });
 
   onMount(() => {
     const parent = getContainer();

@@ -1,6 +1,6 @@
 # 配置与持久化清单
 
-本页记录当前实现，不把 OpenSpec 的目标行为当成已实现功能。清单核对基于主分支 `677c1a94dedf461487867e6b99c1cbba670208a0`；后续变更必须同步清单和源码引用。
+本页记录当前实现，不把 OpenSpec 的目标行为当成已实现功能。本 PR 实现统一 JSON 基础设施与偏好同步；后续变更必须同步运行时描述符、清单和源码引用。
 
 ## 当前服务端存储
 
@@ -8,31 +8,38 @@
 
 <!-- persistence-inventory:start -->
 
-| ID                  | 路径                    | 锁                      | 所有者                       | 损坏或冲突                             | 网页可改       |
-| ------------------- | ----------------------- | ----------------------- | ---------------------------- | -------------------------------------- | -------------- |
-| bootstrap           | config.toml             | none                    | internal/config + cmd/webmux | 配置错误阻止启动                       | 否             |
-| launch              | launch-configs.json     | launch-configs.lock     | internal/launch              | 保留原文件；启动配置不可用             | 是             |
-| repositories        | repositories.json       | repositories.lock       | internal/workspace           | 保留原文件；仓库管理不可用             | 是             |
-| tunnel              | tunnel.json             | tunnel-config.lock      | internal/tunnelsettings      | 保留原文件；关闭入口并禁写             | 是             |
-| tailscale-settings  | tailscale-settings.json | tailscale-settings.lock | internal/tailscalesettings   | 保留原文件；mode off 并禁写            | 是             |
-| tailscale-ownership | tailscale.json          | tailscale.lock          | cmd/webmux                   | 保留原文件；无法确认入口安全时拒绝启动 | 否             |
-| push                | push.json               | none                    | internal/push                | 当前改名后重建；设备需重新订阅         | 是（设备订阅） |
-| runtime             | run/server.json         | run/server.lock         | internal/runtime             | 记录损坏或锁冲突使本机控制退化         | 否             |
+| ID                  | 路径                     | 锁                            | 所有者                       | 损坏或冲突            | 网页可改 |
+| ------------------- | ------------------------ | ----------------------------- | ---------------------------- | --------------------- | -------- |
+| bootstrap           | config.toml              | none                          | internal/config + cmd/webmux | 配置错误阻止启动      | 否       |
+| launch              | launch-configs.json      | launch-configs.json.lock      | internal/launch              | unavailable           | 是       |
+| repositories        | repositories.json        | repositories.json.lock        | internal/workspace           | unavailable           | 是       |
+| tunnel              | tunnel-settings.json     | tunnel-settings.json.lock     | internal/tunnelsettings      | fail_closed           | 是       |
+| tailscale-settings  | tailscale-settings.json  | tailscale-settings.json.lock  | internal/tailscalesettings   | fail_closed           | 是       |
+| tailscale-ownership | tailscale-ownership.json | tailscale-ownership.json.lock | cmd/webmux                   | block_start           | 否       |
+| push                | push.json                | push.json.lock                | internal/push                | unavailable           | 是       |
+| runtime             | run/server.json          | run/server.json.lock          | internal/runtime             | local_api_unavailable | 否       |
+| settings            | settings.json            | settings.json.lock            | internal/settings            | unavailable           | 是       |
 
 <!-- persistence-inventory:end -->
 
 这份表的机器来源是 `internal/archtest/persistence_inventory.json`；`make persistence-check` 精确比较表格各单元格（允许 Markdown 对齐空格变化），拒绝遗漏、重复或过时条目。
 
-## 当前行为与缺口
+## 统一行为与故障隔离
 
-- `internal/statefile` 提供同目录临时文件、0600、文件同步、原子替换和父目录同步；只有 `RequireDirSync` 调用者把目录同步失败作为错误返回。它还没有统一读取、大小限制或加锁接口。
-- 仓库清单、Cloudflare 与 Tailscale 网页覆盖使用强制目录同步；仓库清单已明确处理替换后同步失败，禁止旧内存再次覆盖磁盘。launch、push、Tailscale 所有权和运行时记录仍使用尽力目录同步。
-- launch、tunnel 与 tailscalesettings 使用未知字段拒绝和尾随内容检查；repositories、push、Tailscale 所有权、运行时记录使用宽松 JSON 解码。它们都还没有共享的有界严格解码器。
-- push 当前仅有进程内 mutex，损坏会改名重建。统一方案已经选择保留原文件并禁用推送，但本次规格与守卫 PR 不改变其运行时行为。
-- Tailscale 所有权丢失或不可确认时可能拒绝启动，避免遗留入口继续暴露本地服务；这不是普通偏好服务的可用性降级。
-- `run/server.lock` 只保护运行时记录与本机 socket；锁冲突时第二个实例仍可提供 TCP 终端，但没有本机控制面。Tailscale 启动前所有权检查另外决定是否必须阻止启动；不能把所有锁冲突混为同一种行为。
-- `settings.json` 尚在 `add-server-settings-sync` 规划中；`tailscale-settings.json` 已在调查期间的新提交中实现，现已纳入清单；它是安全访问覆盖，不是普通偏好。新增时登记真实实现，不提前登记虚构文件。
-- Windows `tray.json`、`keepalive.json`、日志、下载缓存、上传文件与 baseline 结果不属于服务端配置清单；它们的文件名和写入入口仍逐项登记为有原因的例外。
+- 每个 JSON 存储通过 `statefile.Open[T]` 取得注册 handle 和独立生命周期锁；数据与锁均为 0600、目录 0700。正常关闭显式解锁但不删除锁文件。
+- 读取有大小限制，拒绝符号链接、非普通文件、重复/未知/大小写变体键、缺失必需字段、非法 UTF-8、错误版本、尾随值与过深嵌套。损坏原文件保留。
+- Commit 和 Remove 强制目录同步。发布前失败保留旧状态；发布后同步失败报告 `commit_uncertain` 并冻结写入，不广播成功、不用旧内存覆盖已发布文件。
+- `unavailable` 只禁用对应功能；push 不再改名重建密钥。首次确认文件不存在时仍可初始化。
+- `fail_closed` 表示覆盖文件异常时关闭对应入口，不能从 TOML 回退为启用；紧急关闭仍可停止当前入口，但写盘失败必须报告未持久化。
+- `tailscale-settings.json` 保存用户希望的 mode/port/provider；`tailscale-ownership.json` 保存本实例实际创建的外部入口（精确目标、端口、pending/active），供撤销和重启对账。它们的职责、权限和失败策略不同。
+- 旧 `tailscale.json` 即使损坏或与新文件并存，也在监听前阻止启动。先停止旧版本并核实/撤销其精确外部入口，再整理旧文件；不执行全局 reset。旧 `tunnel.json` 使 Cloudflare 保持关闭。新版不自动迁移文件或旧浏览器偏好。
+- `run/server.json.lock` 仅保护运行时记录和本机控制面；锁冲突退化为 TCP 服务，不能与 Tailscale 安全阻止启动混淆。
+- 升级前停止全部旧进程并备份；新旧版本不得共用状态目录并发运行，改名后的锁无法与旧锁互斥。
+- Windows 托盘、日志、下载缓存、上传文件与 baseline 结果属于独立生命周期，保持逐项登记的例外。
+
+## 磁盘与活进程诊断
+
+`webmux config show [--json]` 只读展示磁盘解析结果；不创建目录/锁、不 chmod、不修复。`--live` 经同 UID socket 查询已验证进程的内存快照；磁盘漂移不改变该快照，不可达则报错。字段来源为 default/toml/web/cli/generated；凭据只返回是否配置。存储健康另有状态、提交阶段与观察时间，离线锁标为 not_checked，不能据此声称可写。
 
 ## 机械校验
 
@@ -44,7 +51,7 @@ make persistence-check
 
 - 每个 `.json` / `.lock` 字符串及选定的文件创建、替换、删除、底层打开和锁函数引用，都登记到具体文件、函数、符号与出现次数。
 - 解析导入别名；引用函数值也计数；拒绝对受检查包使用点导入。新增入口、重复调用、删除后遗留登记、无主登记、无理由例外或缺失来源文件都会失败。
-- 每个存储的文件名和锁名必须在该存储登记的源码引用中实际出现。临时 JSON 模式与设备文件也需要登记，不能凭命名自动豁免。
+- 每个存储的数据路径、派生锁名、所有者与失败策略必须匹配运行时 descriptor；数据路径必须出现在登记引用中。临时 JSON 模式与设备文件也需要登记，不能凭命名自动豁免。
 - 负向样例验证新存储、旧函数中的新增调用、别名、函数值、Windows 文件、清单漏行及错误策略漂移确实被拒绝。
 - `make check` 和 CI 的格式/构建 job 显式执行，常规 Go 测试也会运行。失败时根据诊断更新具体登记与本表，不能扩大目录级白名单。
 
@@ -52,7 +59,7 @@ make persistence-check
 
 这是当前架构的防漂移入口守卫，不是完整的数据流证明。它无法推断已经登记函数内部任意动态路径的新含义，也不能证明 chmod、fsync、锁时序、错误策略描述与所有执行路径一致；外部进程和反射写文件不在扫描能力内。更换未覆盖的 I/O 库必须扩展扫描规则与负向样例。
 
-后续统一持久化实现需要收紧为“领域服务只能取得已注册的 typed handle”，撤销各领域原始 I/O 登记，并补齐故障注入、权限、跨进程锁、严格解码与脱敏契约测试。当前清单是精确调用点登记，不能当作永久允许新领域自建存储的通行证。
+所有领域使用已注册 typed handle；除本机 socket 清理外，领域原始写/锁入口已经撤销。逐 descriptor 契约测试覆盖权限、锁与重开；共享故障注入覆盖创建、chmod、短写、写入、Sync、Close、rename 和目录同步阶段，以及删除后同步不确定。领域与 API 测试进一步验证广播时机、降级与脱敏。
 
 ## 变更流程
 

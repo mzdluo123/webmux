@@ -43,6 +43,8 @@ flowchart LR
 | 包                                            | 职责                                                                                            |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `cmd/webmux`                                  | 子命令分发、配置加载、显式依赖注入、信号处理与优雅退出                                          |
+| `internal/settings`                           | 服务端偏好、修订号、原子订阅与有界事件队列                                                      |
+| `internal/jsonutil`                           | 无业务依赖的严格 JSON 与必需字段检查                                                            |
 | `internal/runtime`                            | 运行时记录、实例锁、进程身份、本机套接字与对端凭据                                              |
 | `internal/contract`                           | 只依赖标准库的线上类型：REST 请求与响应、WebSocket 事件与终端帧、本机控制面与 `/local/v1` 路径  |
 | `internal/wire`                               | Controller 层：Service 类型与 `contract` 线上类型之间的双向转换                                 |
@@ -134,11 +136,11 @@ flowchart LR
 ```
 
 - **TCP 监听**是网络边界，认证、Host 与 Origin 校验不变；本机专属的 `/local/*` 在 TCP 上返回 404。
-- **Unix 套接字** `<state_dir>/run/webmux.sock`（0600，目录 0700）是本机边界：接受连接时校验对端有效 UID 与服务端相同，不同即关闭；浏览器无法连接 Unix 套接字，因此不做 Token、Host、Origin 校验。套接字额外提供 `/local/v1/status|shutdown|token`。
+- **Unix 套接字** `<state_dir>/run/webmux.sock`（0600，目录 0700）是本机边界：接受连接时校验对端有效 UID 与服务端相同，不同即关闭；浏览器无法连接 Unix 套接字，因此不做 Token、Host、Origin 校验。套接字额外提供 `/local/v1/status|shutdown|token|configuration`。
 - **WSL 桥接**：WSL 2 的 Unix 套接字与 Windows 不互通，Windows 客户端启动 `webmux bridge`，把其标准输入输出当作一条连接，上层协议不变。
 - **引导与兜底**保留为子命令：`serve` 启动服务，`config` 不需要服务在运行，`status` 在本机 API 不可用时读取运行时记录并做 TCP 健康检查，`stop` 在服务卡死时按记录发送信号。
 - **信任边界**：能连接套接字的进程本来就能读取 0600 配置得到 Token 或向服务发信号，免 Token 不扩大权限。来自 WebMux 会话内部的连接（Linux 带 `WEBMUX_SESSION_ID` 环境变量或位于会话进程树中；macOS 只看进程树）可以创建、列出、附着会话，但 `shutdown` 与 `token` 返回 403。托盘转发只能指向 TCP 监听。
-- **运行时记录** `<state_dir>/run/server.json` 在监听就绪后写入、正常退出时删除，由 `server.lock` 保证每个状态目录只有一个实例拥有记录与套接字；第二个实例照常提供 TCP 服务并在日志中警告。记录包含 PID 与进程启动标识，读取方据此识别 PID 复用；不包含 Token 明文。
+- **运行时记录** `<state_dir>/run/server.json` 在监听就绪后写入、正常退出时删除，由 `server.json.lock` 保证每个状态目录只有一个实例拥有记录与套接字；第二个实例照常提供 TCP 服务并在日志中警告。记录包含 PID 与进程启动标识，读取方据此识别 PID 复用；不包含 Token 明文。
 
 ## 关键设计原则
 

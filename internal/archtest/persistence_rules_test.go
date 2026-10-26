@@ -124,3 +124,14 @@ func TestPersistenceInventoryRules(t *testing.T) {
 		})
 	}
 }
+
+func TestPersistenceDomainWritersCannotBeAllowlisted(t *testing.T) {
+	for _, symbol := range []string{"os.WriteFile", "syscall.Flock", "github.com/rainchan/webmux/internal/statefile.WriteJSON"} {
+		if len(checkDomainWriters(map[string]int{"internal/settings/new.go|save|" + symbol: 1})) != 1 {
+			t.Fatalf("bypass accepted: %s", symbol)
+		}
+	}
+	if len(checkRuntimeCatalog(persistenceInventory{})) == 0 {
+		t.Fatal("missing descriptors accepted")
+	}
+}

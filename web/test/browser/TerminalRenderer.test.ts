@@ -1,3 +1,4 @@
+import { seedSettings } from "./settings-fixture";
 // WebGL/DOM renderers, DPR changes, fit, fonts and theme colours.
 import { expect, test } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -356,7 +357,7 @@ test("pending viewport reset after a theme change does not read a disposed rende
 
 test("font size is restored, clamped, persisted and re-fits the PTY grid", async () => {
   observeGlyphPixels(true);
-  localStorage.setItem("webmux.fontSize", "18");
+  await seedSettings({ fontSize: 18 });
   const { socket, api } = await openTerminalApi();
   expect(api.fontSize).toBe(18);
   expect(getComputedStyle(host().querySelector(".xterm-rows")!).fontSize).toBe(
@@ -366,15 +367,33 @@ test("font size is restored, clamped, persisted and re-fits the PTY grid", async
 
   api.setFontSize(30);
   expect(api.fontSize).toBe(20);
-  expect(localStorage.getItem("webmux.fontSize")).toBe("20");
+  await expect
+    .poll(
+      () =>
+        JSON.parse(localStorage.getItem("webmux.settingsCache")!).values
+          .fontSize,
+    )
+    .toBe(20);
   await expect.poll(() => geometry(socket).cell).toBeGreaterThan(initial);
   api.setFontSize(3);
   expect(api.fontSize).toBe(8);
-  expect(localStorage.getItem("webmux.fontSize")).toBe("8");
+  await expect
+    .poll(
+      () =>
+        JSON.parse(localStorage.getItem("webmux.settingsCache")!).values
+          .fontSize,
+    )
+    .toBe(8);
   await expect.poll(() => geometry(socket).cell).toBeLessThan(initial);
   api.setFontSize(15.6);
   expect(api.fontSize).toBe(16);
-  expect(localStorage.getItem("webmux.fontSize")).toBe("16");
+  await expect
+    .poll(
+      () =>
+        JSON.parse(localStorage.getItem("webmux.settingsCache")!).values
+          .fontSize,
+    )
+    .toBe(16);
   await expect
     .poll(() => getComputedStyle(host().querySelector(".xterm-rows")!).fontSize)
     .toBe("16px");
@@ -383,7 +402,7 @@ test("font size is restored, clamped, persisted and re-fits the PTY grid", async
 
 test("a stored font size at the minimum is restored", async () => {
   observeGlyphPixels(true);
-  localStorage.setItem("webmux.fontSize", "8");
+  await seedSettings({ fontSize: 8 });
   const { socket, api } = await openTerminalApi();
   expect(api.fontSize).toBe(8);
   expect(getComputedStyle(host().querySelector(".xterm-rows")!).fontSize).toBe(

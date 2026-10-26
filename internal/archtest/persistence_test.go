@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/rainchan/webmux/internal/statefile"
 	"io"
 	"io/fs"
 	"os"
@@ -50,7 +51,7 @@ func TestPersistenceInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if errs := checkPersistence(tree, actual, catalog); len(errs) > 0 {
+	if errs := append(checkPersistence(tree, actual, catalog), append(checkRuntimeCatalog(catalog), checkDomainWriters(actual)...)...); len(errs) > 0 {
 		t.Fatalf("persistence inventory drift:\n%s\nUpdate the reviewed inventory and docs/persistence.md; do not add broad exemptions. See #146.", strings.Join(errs, "\n"))
 	}
 }
@@ -69,24 +70,19 @@ func checkPersistence(tree fs.FS, actual map[string]int, catalog persistenceInve
 		if _, err := fs.Stat(tree, store.Source); err != nil {
 			errs = append(errs, "missing store source: "+store.Source)
 		}
-		// Both data and lock names must be observed in that store's reviewed
-		// references, not merely asserted in the human-readable catalog.
-		for _, name := range []string{store.Path, store.Lock} {
-			if name == "none" || name == "config.toml" {
-				continue
-			}
-			base := name[strings.LastIndex(name, "/")+1:]
+		if store.Path != "config.toml" {
 			found := false
 			for key, ref := range catalog.References {
-				if ref.Owner == store.ID && strings.HasSuffix(key, "|path|"+base) && actual[key] > 0 {
+				if ref.Owner == store.ID && strings.HasSuffix(key, "|path|"+store.Path) && actual[key] > 0 {
 					found = true
 				}
 			}
 			if !found {
-				errs = append(errs, "unobserved store path: "+store.ID+" "+name)
+				errs = append(errs, "unobserved store path: "+store.ID)
 			}
 		}
 	}
+
 	for id, reason := range catalog.Exceptions {
 		if id == "" || owners[id] || strings.TrimSpace(reason) == "" {
 			errs = append(errs, "invalid exception: "+id)
@@ -166,4 +162,54 @@ func checkPersistenceDoc(doc string, stores []persistenceStore) error {
 		return fmt.Errorf("docs/persistence.md: inventory table differs from persistence_inventory.json (including missing, extra or stale rows)")
 	}
 	return nil
+}
+
+func checkRuntimeCatalog(c persistenceInventory) []string {
+	var errs []string
+	seen := map[statefile.ID]bool{}
+	for _, s := range c.Stores {
+		if s.ID == "bootstrap" {
+			continue
+		}
+		d := statefile.Describe(statefile.ID(s.ID))
+		seen[d.ID] = true
+		if d.ID == "" || s.Path != d.Path || s.Lock != d.LockPath() || s.Owner != d.Owner || s.Failure != d.Failure || (s.Web == "yes") != d.Web {
+			errs = append(errs, "runtime descriptor drift: "+s.ID)
+		}
+	}
+	for _, d := range statefile.Catalog() {
+		if !seen[d.ID] {
+			errs = append(errs, "unregistered runtime descriptor: "+string(d.ID))
+		}
+	}
+	return errs
+}
+
+// Review cannot authorize a domain to bypass the shared handle merely by
+// adding its raw write to the inventory. Socket lifecycle is a separate scope.
+func checkDomainWriters(actual map[string]int) []string {
+	var errs []string
+	for key := range actual {
+		parts := strings.Split(key, "|")
+		if len(parts) != 3 || parts[1] == "path" {
+			continue
+		}
+		for _, d := range statefile.Catalog() {
+			owns := strings.HasPrefix(parts[0], d.Owner+"/")
+			if d.ID == statefile.TailscaleOwnership {
+				owns = parts[0] == "cmd/webmux/tailscalectl.go"
+			}
+			if !owns {
+				continue
+			}
+			allowed := strings.HasPrefix(parts[2], "github.com/rainchan/webmux/internal/statefile.Open") || strings.HasPrefix(parts[2], "github.com/rainchan/webmux/internal/statefile.Read")
+			if key == "internal/runtime/lock_unix.go|ListenSocket|os.Remove" {
+				allowed = true
+			}
+			if !allowed {
+				errs = append(errs, "domain bypasses typed handle: "+key)
+			}
+		}
+	}
+	return errs
 }

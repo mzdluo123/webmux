@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { settings, changeSettings } from "../settings.svelte";
   import { onMount, tick, untrack } from "svelte";
   import { apiBuffer, navigate } from "../api";
   import { clipboardFiles } from "../clipboard";
@@ -53,7 +54,7 @@
   let copyText = $state("");
   let settingsOpen = $state(false);
   let scratchOpen = $state(false);
-  let forceSoftKeys = $state(false);
+  const forceSoftKeys = $derived(settings.values.forceSoftKeys ?? false);
   let mounted = false;
   let codeShown = $state(false);
   let desktop = $state(matchMedia("(min-width:1024px)").matches);
@@ -410,7 +411,9 @@
     uploading={uploads.progress !== null}
     {desktop}
     bind:codeShown
-    bind:forceSoftKeys
+    bind:forceSoftKeys={
+      () => forceSoftKeys, (value) => changeSettings({ forceSoftKeys: value })
+    }
     {quickMenu}
     upload={uploads.uploadFiles}
     {toggleDraft}
