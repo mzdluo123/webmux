@@ -14,7 +14,7 @@
 - 键须匹配 `[a-z]+` 且不超过 16 字节。不合法的对 SHALL 被跳过，其余对照常处理。
 - 未知键 SHALL 被忽略；重复键以最后一次出现为准。
 - `state` 为必需键，取值 ∈ `idle`、`working`、`done`、`blocked`、`error`、`clear`。缺少 `state` 或取值不在此集合内时，SHALL 忽略整条上报。
-- `kind` 取值 ∈ `permission`、`question`、`auth`；其他取值视为缺省。`kind` 只在 `state=blocked` 时有意义。
+- `kind` 取值 ∈ `permission`、`question`、`auth`；其他取值视为缺省。`kind` 只在 `state=blocked` 时有意义；`state` 不是 `blocked` 时，`kind` SHALL 视为缺省，因此只差 `kind` 的非阻塞上报被视为相同记录。
 - 含合法 `id` 的上报属于子记录，SHALL NOT 改变根记录；`id` 不合法（任一段不匹配 `[A-Za-z0-9_.+-]{1,32}`、总长超过 128 字节或超过 8 级）时 SHALL 忽略整条上报。
 - 整条序列超过 4096 字节时 SHALL 整体忽略，且不影响后续序列的识别。
 

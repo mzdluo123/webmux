@@ -156,16 +156,32 @@ func (s *Session) queueProbeReplyLocked() {
 }
 
 // flushRepliesGated writes queued replies while the caller holds the input
-// gate. A failed write drops the rest: a query is never answered twice.
+// gate. A reply none of whose bytes was written goes back to the queue for
+// the reply loop, so a cancelled client writer cannot discard it; after a
+// partial write the rest is dropped, since a query is never answered twice.
 func (s *Session) flushRepliesGated(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	replies := s.replies
 	s.replies = nil
 	s.mu.Unlock()
-	for _, reply := range replies {
-		if _, err := s.writeGated(ctx, inputReply, reply); err != nil {
-			return err
+	for i, reply := range replies {
+		n, err := s.writeGated(ctx, inputReply, reply)
+		if err == nil {
+			continue
 		}
+		if n == 0 {
+			s.mu.Lock()
+			s.replies = append(replies[i:len(replies):len(replies)], s.replies...)
+			s.mu.Unlock()
+			select {
+			case s.replyWake <- struct{}{}:
+			default:
+			}
+		}
+		return err
 	}
 	return nil
 }

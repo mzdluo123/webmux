@@ -389,6 +389,10 @@ func TestProgramRecordSilencesOtherLayers(t *testing.T) {
 	if s.info.Attention != nil {
 		t.Fatal("notification raised attention under a root record")
 	}
+	feedSignals(s, programOutput("state=done:kind=question"))
+	if s.info.Attention != nil {
+		t.Fatal("a kind outside blocked made an unchanged record look new")
+	}
 }
 
 func TestWarpBeforeProgramStatusAlertsOnce(t *testing.T) {

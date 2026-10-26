@@ -85,6 +85,73 @@ func TestProbeRepliesAreBoundedAndNotUserInput(t *testing.T) {
 	}
 }
 
+// TestCancelledWriterKeepsReplies has a client writer whose context is
+// already cancelled take the gate: the reply it could not write must still
+// reach the PTY through the reply loop.
+func TestCancelledWriterKeepsReplies(t *testing.T) {
+	s, reader := replySession(t)
+	s.mu.Lock()
+	s.queueProbeReplyLocked()
+	s.mu.Unlock()
+	<-s.replyWake // the loop is not running yet; drop its wake-up
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	// Bypass writeParts' gate select so the cancelled writer surely holds
+	// the gate, as it may when both select cases are ready.
+	<-s.inputGate
+	if err := s.flushRepliesGated(cancelled); err == nil {
+		t.Fatal("cancelled flush reported success")
+	}
+	s.inputGate <- struct{}{}
+	s.mu.Lock()
+	pending := len(s.replies)
+	s.mu.Unlock()
+	if pending != 1 {
+		t.Fatalf("cancelled writer left %d replies", pending)
+	}
+	go s.replyLoop()
+	select {
+	case s.replyWake <- struct{}{}:
+	default:
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		s.mu.Lock()
+		pending = len(s.replies)
+		s.mu.Unlock()
+		if pending == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("reply loop never wrote the requeued reply")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	s.endLifetime()
+	<-s.repliesDone
+	_ = s.terminal.Close()
+	if written, _ := io.ReadAll(reader); string(written) != programStatusReply {
+		t.Fatalf("PTY input %q", written)
+	}
+}
+
+func TestFailedReplyWriteRequeuesUnwrittenReplies(t *testing.T) {
+	s, _ := replySession(t)
+	s.mu.Lock()
+	s.queueProbeReplyLocked()
+	s.queueProbeReplyLocked()
+	s.mu.Unlock()
+	_ = s.terminal.Close() // every write now fails before writing a byte
+	<-s.inputGate
+	if err := s.flushRepliesGated(context.Background()); err == nil {
+		t.Fatal("write to a closed terminal succeeded")
+	}
+	s.inputGate <- struct{}{}
+	if len(s.replies) != 2 {
+		t.Fatalf("unwritten replies lost: %d left", len(s.replies))
+	}
+}
+
 func TestReplyLoopEndsWithLifetime(t *testing.T) {
 	s, _ := replySession(t)
 	// Hold the gate as a stuck writer would: the loop must still end.

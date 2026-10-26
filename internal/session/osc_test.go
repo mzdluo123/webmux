@@ -174,9 +174,10 @@ func TestProgramStatusClassification(t *testing.T) {
 	for _, row := range []struct{ name, input, want string }{
 		{"blocked permission", "\x1b]7501;state=blocked:kind=permission:app=codex\x1b\\", "status:blocked/permission"},
 		{"bel terminator", "\x1b]7501;state=idle:app=claude-code\a", "status:idle/"},
-		{"whitespace", "\x1b]7501; state = working : kind = question \a", "status:working/question"},
+		{"whitespace", "\x1b]7501; state = blocked : kind = question \a", "status:blocked/question"},
 		{"auth kind", "\x1b]7501;state=blocked:kind=auth\a", "status:blocked/auth"},
 		{"unknown kind", "\x1b]7501;state=blocked:kind=maybe\a", "status:blocked/"},
+		{"kind outside blocked", "\x1b]7501;state=done:kind=question\a", "status:done/"},
 		{"repeated key", "\x1b]7501;state=working:state=done\a", "status:done/"},
 		{"malformed pairs skipped", "\x1b]7501;junk:State=x:state=error:=y:msg=aGk=\a", "status:error/"},
 		{"long key skipped", "\x1b]7501;abcdefghijklmnopq=1:state=idle\a", "status:idle/"},

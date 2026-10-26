@@ -267,8 +267,13 @@ func programStatus(body string) (state, kind string, ok bool) {
 	if hasID {
 		return "", "", false
 	}
+	// kind means something only for blocked; keeping it elsewhere would make
+	// an unchanged report look like a new one.
 	switch kind {
 	case "permission", "question", "auth":
+		if state != "blocked" {
+			kind = ""
+		}
 	default:
 		kind = ""
 	}
