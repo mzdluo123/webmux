@@ -173,7 +173,7 @@ func checkRuntimeCatalog(c persistenceInventory) []string {
 		}
 		d := statefile.Describe(statefile.ID(s.ID))
 		seen[d.ID] = true
-		if d.ID == "" || s.Path != d.Path || s.Lock != d.LockPath() || s.Owner != d.Owner || s.Failure != d.Failure || (s.Web == "yes") != d.Web {
+		if d.ID == "" || s.Path != d.Path || s.Lock != d.LockPath() || s.Owner != d.Owner || s.Failure != d.Failure || (s.Web == "是") != d.Web {
 			errs = append(errs, "runtime descriptor drift: "+s.ID)
 		}
 	}
