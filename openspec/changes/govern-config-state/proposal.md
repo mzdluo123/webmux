@@ -32,7 +32,7 @@
 
 ## Impact
 
-- 治理：`internal/archtest`、Makefile、CI、部署/架构导航、持久化清单与 US-L09。
+- 治理：`internal/archtest`、Makefile、CI、部署/架构导航、持久化清单与 US-L10。
 - 运行时：`internal/statefile`、launch/workspace/push/tunnelsettings/tailscalesettings/runtime、Tailscale 所有权接线、config/client/localclient/contract/wire/api 与配置 CLI。
 - 不变更 PTY、终端帧、会话生命周期；不新增网页编辑启动安全项的能力。
 - 已确认：JSON 基础设施；push 保留损坏文件并禁用；本 PR 实现运行时与 #119；旧所有权阻止启动。CLI 默认磁盘、`--live` 活进程；具体设计见 [design.md](design.md)。

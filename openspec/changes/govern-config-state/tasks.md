@@ -4,7 +4,7 @@
 - [x] 1.2 调查 XDG、fsync/flock、SQLite 故障测试、Go JSON 与 Tailscale 生命周期原始资料，写入 research.md。
 - [x] 1.3 记录用户选择：统一 JSON、push 保留损坏文件、旧所有权阻止启动；后续授权扩展为完整实现与 #119。
 - [x] 1.4 新增全平台 AST 引用守卫、精确清单、文档对照及故意违规样例。
-- [x] 1.5 接入 make persistence-check / make check / CI，增加 US-L09 与文档导航。
+- [x] 1.5 接入 make persistence-check / make check / CI，增加 US-L10 与文档导航。
 - [x] 1.6 执行 OpenSpec 严格校验、定向 Go race、文档守卫、格式与故事索引检查并记录真实结果。
 - [x] 1.7 落实用户确认：config show 默认磁盘，--live 读取进程。
 
