@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -224,5 +225,14 @@ func TestValidationBoundaries(t *testing.T) {
 	v, err := apply(Values{}, Changes{Fields: map[string]bool{"quickCommands": true}, Values: Values{QuickCommands: &list}})
 	if err != nil || (*v.QuickCommands)[0].Command != "echo a" || (*v.QuickCommands)[0].Name != "label" {
 		t.Fatal("normalization")
+	}
+}
+
+func TestBrowserCompatibleStringLimits(t *testing.T) {
+	if !validText(strings.Repeat("😀", 20), 40) || validText(strings.Repeat("😀", 21), 40) {
+		t.Fatal("UTF-16 limit differs from browser contract")
+	}
+	if validateValues(Values{HomeWorktrees: map[string][]string{"repo": nil}}) == nil {
+		t.Fatal("null worktree array accepted")
 	}
 }

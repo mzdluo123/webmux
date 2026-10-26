@@ -73,7 +73,7 @@
 - `homeWorktrees`：对象，最多 200 个仓库，仓库 ID 为 1–128 字符，每个仓库最多 1000 个工作树 ID，每个 ID 为 1–128 字符，全部条目合计最多 2000 个，或 `null`；
 - `forceSoftKeys`：布尔或 `null`。
 
-所有字符串 SHALL 是有效 UTF-8。快捷指令保存时 SHALL 把 CRLF/CR 统一为 LF 并移除正文末尾换行；服务端 SHALL 执行相同规范化。PATCH 请求体 SHALL 不超过 2 MiB；设置文件 SHALL 不超过 4 MiB。任意值越界、类型错误或包含未知字段时 SHALL 返回 400，且 SHALL NOT 写入任何部分内容。
+所有字符串 SHALL 是有效 UTF-8；长度上限 SHALL 按浏览器 UTF-16 code unit 计数，以保证 Go 接受的值也通过客户端 schema。快捷指令保存时 SHALL 把 CRLF/CR 统一为 LF 并移除正文末尾换行；服务端 SHALL 执行相同规范化。PATCH 请求体 SHALL 不超过 2 MiB；设置文件 SHALL 不超过 4 MiB。任意值越界、类型错误或包含未知字段时 SHALL 返回 400，且 SHALL NOT 写入任何部分内容。
 
 #### Scenario: 默认快照
 

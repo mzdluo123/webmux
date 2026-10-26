@@ -1,4 +1,10 @@
-import { test, expect } from "./fixtures";
+import {
+  test,
+  expect,
+  createShell,
+  runCommand,
+  expectTerminalLine,
+} from "./fixtures";
 import { devices } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -107,8 +113,48 @@ test("corrupt settings preserve bytes while terminal APIs remain available", asy
     expect((await request.get("/api/settings")).status()).toBe(503);
     expect((await request.get("/api/health")).status()).toBe(200);
     expect(await readFile(path, "utf8")).toBe("{corrupt-private-body");
+    await createShell(page, "settings unavailable shell");
+    await runCommand(page, "printf 'TERMINAL_SURVIVES_SETTINGS_FAILURE\\n'");
+    await expectTerminalLine(page, "TERMINAL_SURVIVES_SETTINGS_FAILURE");
   } finally {
     await writeFile(path, prior);
     await server.restart();
   }
+});
+
+test("loading and refreshing the home page never rewrites shared pins", async ({
+  page,
+  request,
+}) => {
+  const before = await (await request.get("/api/settings")).json();
+  const homeWorktrees = { unavailable: ["saved-pin"] };
+  const seeded = await (
+    await request.patch("/api/settings", {
+      data: { baseRevision: before.revision, changes: { homeWorktrees } },
+    })
+  ).json();
+  const writes: string[] = [];
+  page.on("request", (req) => {
+    if (req.method() === "PATCH" && req.url().endsWith("/api/settings"))
+      writes.push(req.url());
+  });
+  await page.goto("/");
+  await page.getByRole("heading", { name: "工作区", exact: true }).waitFor();
+  await page.reload();
+  await page.getByRole("heading", { name: "工作区", exact: true }).waitFor();
+  const refresh = page.getByRole("button", {
+    name: "刷新 Git 状态",
+    exact: true,
+  });
+  await expect(refresh).toBeEnabled();
+  const refreshed = page.waitForResponse(
+    (response) => response.url().endsWith("/api/repositories") && response.ok(),
+  );
+  await refresh.click();
+  await refreshed;
+  await expect(refresh).toBeEnabled();
+  const after = await (await request.get("/api/settings")).json();
+  expect(after.revision).toBe(seeded.revision);
+  expect(after.values.homeWorktrees).toEqual(homeWorktrees);
+  expect(writes).toEqual([]);
 });

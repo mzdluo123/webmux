@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -57,7 +58,18 @@ type storedFile struct {
 	Snapshot
 }
 
-func validText(s string, max int) bool { return utf8.ValidString(s) && len([]rune(s)) <= max }
+// Zod's string limits count UTF-16 code units. Keep accepted API values
+// readable by every browser, including non-BMP characters.
+func validText(s string, max int) bool {
+	if !utf8.ValidString(s) {
+		return false
+	}
+	size := 0
+	for _, r := range s {
+		size += utf16.RuneLen(r)
+	}
+	return size <= max
+}
 func validate(f storedFile) error {
 	if f.V != 1 || f.Revision < 0 || f.Revision > 9007199254740991 {
 		return ErrInvalid
@@ -101,7 +113,7 @@ func validateValues(v Values) error {
 	}
 	total := 0
 	for id, list := range v.HomeWorktrees {
-		if id == "" || !validText(id, 128) || len(list) > 1000 {
+		if id == "" || !validText(id, 128) || list == nil || len(list) > 1000 {
 			return ErrInvalid
 		}
 		total += len(list)

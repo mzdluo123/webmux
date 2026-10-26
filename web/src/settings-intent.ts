@@ -99,7 +99,10 @@ export function settingsIntent(
         const next = desired.homeWorktrees[key];
         if (JSON.stringify(old[key]) === JSON.stringify(next)) continue;
         if (next === undefined) {
-          delete merged[key];
+          const removed = new Set(old[key] ?? []);
+          const retained = (merged[key] ?? []).filter((id) => !removed.has(id));
+          if (retained.length) merged[key] = retained;
+          else delete merged[key];
           continue;
         }
         const removed = new Set(

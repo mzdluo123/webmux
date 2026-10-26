@@ -49,6 +49,9 @@ describe("preference conflict replay", () => {
       settingsIntent(before, { homeWorktrees: { repo: ["b", "new"] } })(latest)
         .homeWorktrees,
     ).toEqual({ repo: ["b", "new", "remote"], other: ["x"] });
+    expect(
+      settingsIntent(before, { homeWorktrees: {} })(latest).homeWorktrees,
+    ).toEqual({ repo: ["remote"], other: ["x"] });
   });
   test("validates null, empty collections and bounded revisions", () => {
     const snapshot = { revision: 0, updatedAt: "", values: emptySettings };

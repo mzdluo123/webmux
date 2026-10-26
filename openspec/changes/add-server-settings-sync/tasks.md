@@ -50,7 +50,7 @@
 - [x] 6.2 覆盖旧 localStorage 隔离：预置旧键和损坏缓存后连接，不上传旧偏好，服务端 null 保留，显示默认指令。
 - [x] 6.3 覆盖故障：设置文件损坏或第二个实例锁冲突时终端仍可用、设置页显示 503 与路径、修复并重启后恢复
 - [x] 6.4 结合已有工作树 E2E 验证固定、移除与展示过滤；意图单元测试验证并发 ID 合并，仓库浏览器测试验证 409 重读重放协议。
-- [ ] 6.5 运行 `go test -race ./internal/settings ./internal/api ./internal/hub ./internal/archtest`、`pnpm --dir web check`、`pnpm --dir web lint`、目标 Vitest、`make test-e2e` 与 `make check`
+- [x] 6.5 运行 `go test -race ./internal/settings ./internal/api ./internal/hub ./internal/archtest`、`pnpm --dir web check`、`pnpm --dir web lint`、目标 Vitest、`make test-e2e` 与 `make check`
 
 ## 7. 文档、用户故事与验收
 
@@ -60,4 +60,6 @@
 - [x] 7.4 更新已有 US-C07、US-C09、US-D08、US-G01–US-G04、US-H04、US-I05、US-J03 的服务端同步验收；复用 US-G04 描述跨设备同步与旧键隔离，核对索引、来源链接与核对记录。
 - [x] 7.5 `deploy/config.example.toml`：补充注释说明 TOML 仍管理启动、安全与全局推送配置，用户偏好由设置服务保存
 - [x] 7.6 运行 `openspec validate add-server-settings-sync --strict --no-interactive`；确认快捷指令持久化需求的 RENAMED FROM 精确匹配主规格旧名称，TO 与 MODIFIED 使用同一服务端持久化新名称，其他修改需求名称与主规格一致
-- [ ] 7.7 UI 变更的 PR 描述附桌面/手机与亮/暗主题截图，使用隔离样例数据，不包含真实 token、快捷指令密钥或终端输出
+- [x] 7.7 UI 变更的 PR 描述附桌面/手机与亮/暗主题截图，使用隔离样例数据，不包含真实 token、快捷指令密钥或终端输出
+
+验证记录：Linux/macOS 原生 Go race、282 项单元、258 项浏览器、211 项 Storybook、设置/工作树定向 E2E 已通过；完整 E2E 与最终提交 CI 结果见 PR #147。`make check` 除基线已有的 52 项 golangci-lint 告警外通过，新改动告警为零。
