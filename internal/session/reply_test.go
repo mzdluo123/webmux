@@ -150,6 +150,18 @@ func TestFailedReplyWriteRequeuesUnwrittenReplies(t *testing.T) {
 	if len(s.replies) != 2 {
 		t.Fatalf("unwritten replies lost: %d left", len(s.replies))
 	}
+	// Probes that arrive while a flush fails still respect the bound.
+	<-s.inputGate
+	s.mu.Lock()
+	for range maxPendingReplies {
+		s.replies = append(s.replies, []byte(programStatusReply))
+	}
+	s.mu.Unlock()
+	_ = s.flushRepliesGated(context.Background())
+	s.inputGate <- struct{}{}
+	if len(s.replies) != maxPendingReplies {
+		t.Fatalf("requeue left %d replies, bound is %d", len(s.replies), maxPendingReplies)
+	}
 }
 
 func TestReplyLoopEndsWithLifetime(t *testing.T) {

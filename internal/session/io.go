@@ -175,6 +175,10 @@ func (s *Session) flushRepliesGated(ctx context.Context) error {
 		if n == 0 {
 			s.mu.Lock()
 			s.replies = append(replies[i:len(replies):len(replies)], s.replies...)
+			// Replies queued meanwhile must not push the queue past its bound.
+			if len(s.replies) > maxPendingReplies {
+				s.replies = s.replies[:maxPendingReplies]
+			}
 			s.mu.Unlock()
 			select {
 			case s.replyWake <- struct{}{}:
