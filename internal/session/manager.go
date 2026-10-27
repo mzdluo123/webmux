@@ -150,11 +150,11 @@ func (m *Manager) Create(in CreateInput) (*Session, error) {
 		return nil, ErrShuttingDown
 	}
 	s, err := start(id, cwd, in.Name, in.Cmd, m.options.ScrollbackBytes, startOptions{
-		agentProtocol: !m.options.DisableAgentProtocol,
-		bellAttention: !m.options.DisableBellAttention,
-		programStatus: !m.options.DisableProgramStatus,
-		env:           in.Env,
-		configID:      in.ConfigID,
+		agentProtocol:   !m.options.DisableAgentProtocol,
+		bellAttention:   !m.options.DisableBellAttention,
+		programStatus:   !m.options.DisableProgramStatus,
+		env:             in.Env,
+		configID:        in.ConfigID,
 		terminalVersion: m.options.TerminalVersion,
 	})
 	if err != nil {
