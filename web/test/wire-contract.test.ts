@@ -17,6 +17,7 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.CodeLocationSchema, ["code-locate"]],
   [S.ConfigSchema, ["config"]],
   [S.DirectoriesSchema, ["fs-dirs-default", "fs-dirs-empty", "fs-dirs-prefix"]],
+  [S.ErrorSchema, ["settings-conflict"]],
   [S.NoContentSchema, ["fs-mkdir", "launch-delete", "push-unsubscribe"]],
   [S.HealthSchema, ["health"]],
   [
@@ -32,11 +33,6 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.PushTestResultSchema, ["push-test"]],
   [S.RepositoriesSchema, ["repositories-empty", "repositories"]],
   [S.BranchesSchema, ["repository-branches"]],
-  [
-    S.SettingsSnapshotSchema,
-    ["settings-get", "settings-patch", "settings-reset"],
-  ],
-  [S.SettingsEventSchema, ["ws-settings-snapshot", "ws-settings-update"]],
   [
     S.RepositorySchema,
     [
@@ -62,6 +58,11 @@ const groups: Array<[z.ZodType, string[]]> = [
     ],
   ],
   [z.array(S.SessionInfoSchema), ["sessions-list-empty", "sessions-list"]],
+  [
+    S.SettingsSnapshotSchema,
+    ["settings-get", "settings-patch", "settings-reset"],
+  ],
+  [S.SettingsEventSchema, ["ws-settings-snapshot", "ws-settings-update"]],
   [
     S.TunnelSettingsSchema,
     ["tunnel-enabled", "tunnel-get", "tunnel-reset", "tunnel-settings"],
@@ -109,16 +110,6 @@ for (const [schema, names] of groups)
 
 // This endpoint belongs to the native local client, not the browser contract.
 const nonWebSnapshots = new Set(["local-status-tunnel-settings.json"]);
-// Error responses do not follow the success-prefix naming convention.
-const errorSnapshots = new Set(["settings-conflict.json"]);
-
-function isErrorSnapshot(file: string) {
-  return (
-    file.startsWith("error-") ||
-    file.startsWith("tunnel-error-") ||
-    errorSnapshots.has(file)
-  );
-}
 
 function normalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(normalize);
@@ -145,7 +136,8 @@ describe("Go wire snapshots", () => {
     for (const file of files)
       expect(
         snapshotSchemas.has(file) ||
-          isErrorSnapshot(file) ||
+          file.startsWith("error-") ||
+          file.startsWith("tunnel-error-") ||
           nonWebSnapshots.has(file),
         file,
       ).toBe(true);
@@ -158,9 +150,10 @@ describe("Go wire snapshots", () => {
         status?: number;
         body: unknown;
       };
-      const schema = isErrorSnapshot(file)
-        ? S.ErrorSchema
-        : snapshotSchemas.get(file);
+      const schema =
+        file.startsWith("error-") || file.startsWith("tunnel-error-")
+          ? S.ErrorSchema
+          : snapshotSchemas.get(file);
       expect(schema, file).toBeDefined();
       const body =
         snapshot.status === 204 && snapshot.body === null
