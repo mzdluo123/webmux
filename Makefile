@@ -3,6 +3,8 @@ GO ?= go
 PNPM ?= pnpm
 GOFMT ?= gofmt
 GO_TEST_PARALLEL ?= 4
+GOLANGCI_LINT ?= golangci-lint
+GOLANGCI_LINT_VERSION := 2.15.0
 BASELINE_SAMPLES ?= 30
 BASELINE_OUTPUT ?= baseline/results/latest.json
 E2E_CACHE ?= .cache/webmux-e2e
@@ -14,7 +16,7 @@ TRAY_LDFLAGS ?=
 RELEASE_FILES = webmux-linux-amd64 webmux-linux-arm64 webmux-darwin-amd64 webmux-darwin-arm64 \
 	webmux-windows-amd64.exe webmux-windows-arm64.exe webmux-tray-windows-amd64.exe webmux-tray-windows-arm64.exe
 
-.PHONY: web build tray release check docs-check test test-fast test-go test-frontend test-unit test-browser test-e2e test-performance test-browsers-install frontend e2e-runtime format format-check install baseline
+.PHONY: web build tray release check docs-check persistence-check go-lint test test-fast test-go test-frontend test-unit test-browser test-e2e test-performance test-browsers-install frontend e2e-runtime format format-check install baseline
 web:
 	$(PNPM) --dir web install --frozen-lockfile
 	$(PNPM) --dir web build
@@ -46,11 +48,18 @@ release: web
 	done
 	cd bin && sha256sum $(RELEASE_FILES) > SHA256SUMS
 
-check: web format-check docs-check
+check: web format-check docs-check persistence-check
+	$(PNPM) --dir web check:test
 	$(PNPM) --dir web lint
 	$(PNPM) --dir web check:arch
 	$(GO) vet ./...
-	golangci-lint run ./...
+	$(MAKE) go-lint
+
+# Keep local checks on the same linter release as CI.
+go-lint:
+	@$(GOLANGCI_LINT) version --short | grep -qx '$(GOLANGCI_LINT_VERSION)' || { \
+		echo 'Install golangci-lint v$(GOLANGCI_LINT_VERSION); see docs/go-style.md' >&2; exit 1; }
+	$(GOLANGCI_LINT) run ./...
 
 test: e2e-runtime test-go
 	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test
@@ -95,6 +104,9 @@ test-performance: e2e-runtime
 
 test-browsers-install:
 	$(PNPM) --dir web exec playwright install --with-deps chromium
+
+persistence-check:
+	$(GO) test -count=1 ./internal/archtest -run '^TestPersistence'
 
 docs-check:
 	$(GO) test -count=1 ./internal/docguard

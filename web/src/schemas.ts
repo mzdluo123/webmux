@@ -21,6 +21,8 @@ export const ReportedCwdSchema = z.object({
 });
 export type ReportedCwd = z.infer<typeof ReportedCwdSchema>;
 
+// Required response arrays encode as [] even when service slices are nil.
+// Only fields explicitly marked nullable accept null. Commands remain nonempty.
 export const SessionInfoSchema = z.object({
   id: z.string().regex(/^[a-z2-7]{8}$/),
   generation: z.string().regex(/^[0-9a-f]{16}$/),
@@ -45,6 +47,25 @@ export const SessionInfoSchema = z.object({
     .optional(),
 });
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
+export const WorkspaceReferenceSchema = z.object({
+  repositoryId: z.string(),
+  worktreeId: z.string(),
+});
+export const CreateSessionRequestSchema = z
+  .object({
+    cwd: z.string().optional(),
+    cmd: z.array(z.string()).optional(),
+    name: z.string().optional(),
+    workspace: WorkspaceReferenceSchema.optional(),
+    env: z.record(z.string(), z.string()).optional(),
+    configId: z.string().optional(),
+  })
+  .refine(
+    (body) =>
+      !body.configId ||
+      (!body.cmd?.length && Object.keys(body.env ?? {}).length === 0),
+    { message: "configId 不能与 cmd 或 env 同时提供" },
+  );
 
 export const PreviewSettingsSchema = z.object({
   lines: z.number().int().min(1).max(50),
@@ -314,7 +335,7 @@ export const RepositorySchema = z.object({
 });
 export type Repository = z.infer<typeof RepositorySchema>;
 export const RepositoriesSchema = z.array(RepositorySchema);
-// Browser-local choice of worktrees shown on the home page, keyed by
+// Server-synchronized choice of worktrees shown on the home page, keyed by
 // repository ID. A repository without an entry was never curated.
 export const HomeWorktreesSchema = z.record(
   z.string().min(1),
@@ -333,6 +354,13 @@ export const BranchesSchema = z.object({
   defaultBase: z.string().nullable(),
   defaultParent: z.string(),
 });
+export const CreateWorktreeRequestSchema = z.object({
+  path: z.string(),
+  mode: z.enum(["new", "existing"]),
+  branch: z.string(),
+  base: z.string().optional(),
+});
+
 export const RemovalPreviewSchema = z.object({
   confirmationId: z.string(),
   expiresAt: z.iso.datetime({ offset: true }),
@@ -342,6 +370,14 @@ export const RemovalPreviewSchema = z.object({
   forceAllowed: z.boolean(),
 });
 export type RemovalPreview = z.infer<typeof RemovalPreviewSchema>;
+export const EmptyRequestSchema = z.object({}).strict();
+export const RemoveWorktreeRequestSchema = z.object({
+  confirmationId: z.string(),
+  mode: z.enum(["safe", "force"]),
+  confirmPath: z.string().optional(),
+  closeSessions: z.boolean().optional(),
+});
+
 export const DirectoriesSchema = z.array(z.string());
 // `reason` accompanies push 409s; other errors omit it.
 export const ErrorSchema = z.object({
@@ -393,6 +429,12 @@ export const PushStatusSchema = z.object({
 });
 export type PushStatus = z.infer<typeof PushStatusSchema>;
 export const PushSubscriptionResultSchema = z.object({ id: z.string() });
+export const PushSubscriptionRequestSchema = z.object({
+  endpoint: z.string(),
+  expirationTime: z.number().nullable().optional(),
+  keys: z.object({ p256dh: z.string(), auth: z.string() }),
+});
+
 // A test notification goes to every device; failures name only the push
 // service host, and removed lists subscriptions the service reported expired.
 export const PushTestResultSchema = z.object({
@@ -438,7 +480,7 @@ export const CodeLocationSchema = z.object({
   kind: z.enum(["file", "directory"]),
 });
 export const CodeDocumentSchema = z.object({
-  nodeId: z.string().optional(),
+  nodeId: z.string(),
   path: z.string(),
   absolutePath: z.string(),
   source: CodeSourceSchema,
@@ -466,7 +508,7 @@ export const CodeFileSchema = z.object({
   checkedAt: z.string(),
 });
 export const CodeChangeSchema = z.object({
-  nodeId: z.string().optional(),
+  nodeId: z.string(),
   changeId: z.string(),
   group: z.enum(["unstaged", "staged", "untracked"]),
   oldPath: z.string(),
@@ -511,3 +553,51 @@ export type CodeFile = z.infer<typeof CodeFileSchema>;
 export type CodeDiff = z.infer<typeof CodeDiffSchema>;
 export type CodeChange = z.infer<typeof CodeChangeSchema>;
 export type CodeListing = z.infer<typeof CodeListingSchema>;
+
+// User preferences shared by every authenticated client of this server.
+export const SettingsValuesSchema = z.strictObject({
+  theme: ThemeSchema.nullable(),
+  fontSize: z.number().int().min(8).max(20).nullable(),
+  preview: PreviewSettingsSchema.nullable(),
+  codeReader: z
+    .strictObject({
+      lineNumbers: z.enum(["show", "hide"]),
+      diffOverflow: z.enum(["scroll", "wrap"]),
+    })
+    .nullable(),
+  quickCommands: QuickCommandsSchema.nullable(),
+  homeWorktrees: HomeWorktreesSchema.refine((value) => {
+    const entries = Object.entries(value);
+    return (
+      entries.length <= 200 &&
+      entries.reduce((n, [, ids]) => n + ids.length, 0) <= 2000 &&
+      entries.every(
+        ([id, ids]) =>
+          id.length <= 128 &&
+          ids.every((x) => x.length <= 128) &&
+          new Set(ids).size === ids.length,
+      )
+    );
+  }).nullable(),
+  forceSoftKeys: z.boolean().nullable(),
+});
+export type SettingsValues = z.infer<typeof SettingsValuesSchema>;
+export const SettingsSnapshotSchema = z.strictObject({
+  revision: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  updatedAt: z.union([z.literal(""), z.iso.datetime({ offset: true })]),
+  values: SettingsValuesSchema,
+});
+export type SettingsSnapshot = z.infer<typeof SettingsSnapshotSchema>;
+export const SettingsChangesSchema = SettingsValuesSchema.partial();
+export const SettingsEventSchema = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("settings"),
+    settings: SettingsSnapshotSchema,
+  }),
+  z.strictObject({
+    type: z.literal("settings.update"),
+    revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    updatedAt: z.iso.datetime({ offset: true }),
+    changes: SettingsChangesSchema,
+  }),
+]);

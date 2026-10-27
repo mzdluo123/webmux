@@ -15,7 +15,7 @@
 | 设置页的预览、草稿与暂存存储、快捷指令                                     | US-C07；US-F07；US-G01–US-G04                       |
 | 设置页桌面侧栏、手机吸顶分区导航、锚点与滚动高亮                           | US-K10                                              |
 | Git 外部变化、前台恢复与手动刷新                                           | US-C08；US-J02                                      |
-| 主题切换与浏览器本机显示偏好                                               | US-C09；US-D08；US-H04                              |
+| 主题切换与跨设备显示偏好                                                   | US-C09；US-D08；US-H04                              |
 | 终端输入输出、历史、重连、同步、清屏、全屏、截断后的安全恢复与重绘         | US-D01–US-D04；US-D07–US-D08                        |
 | 当前终端缓冲查找、匹配导航、复制、范围与回放提示                           | US-D03；US-D11                                      |
 | Kitty 终端图片、图形查询、滚动/局部擦除/回放与 omp 预置环境                | US-D12；US-B08                                      |
@@ -26,7 +26,7 @@
 | 草稿编辑、输入路由、隐藏、清空与离线保留                                   | US-F01–US-F03；US-F08                               |
 | 草稿发送、结果确认、查询、原提交重发和恢复                                 | US-F04–US-F07                                       |
 | 多条暂存编辑、排序、取用与清理                                             | US-F09                                              |
-| 快捷指令菜单、编辑、排序、删除、本机同步                                   | US-G01–US-G05                                       |
+| 快捷指令菜单、编辑、排序、删除、跨设备同步                                 | US-G01–US-G05                                       |
 | 软键、主动键盘、触摸/笔、选词、滚动、捏合、视口、主屏幕、窄屏紧凑顶栏      | US-H01–US-H08                                       |
 | 代码根目录、边界、文件导航、路径搜索与分页                                 | US-I01–US-I04；US-I11                               |
 | 启动目录、Shell 报告目录、远端标记与复制目录                               | US-C04；US-C10                                      |
@@ -49,15 +49,17 @@
 | service install/--dry-run/--force/start/stop/restart/status/logs/uninstall | US-K05–US-K07                                       |
 | version/version --json/help、VPN/HTTPS 代理与升级                          | US-K09                                              |
 | 本地开发、构建/安装、测试、格式/静态检查                                   | US-L01–US-L02                                       |
+| 持久化文件、锁、写入入口与清单防漂移                                       | US-L10                                              |
+| 本地开发、构建/安装、测试、格式/静态检查与 Go 规范门禁                     | US-L01–US-L02                                       |
 | 文档与 spec 行数、体积、目录树治理                                         | US-L08                                              |
 | Storybook、截图、baseline、CI 与 release                                   | US-L03–US-L04                                       |
-| 分层架构测试、线上 JSON 快照与重新录制                                     | US-L05                                              |
+| 分层架构测试、线上 JSON 快照、必填数组 Zod 契约与重新录制                  | US-L05                                              |
 | 前端架构守卫：设计系统 lint、分层、重复代码、未使用代码与基线              | US-L06                                              |
 | Pullfrog 指定订阅模型与 GitHub Actions 密钥                                | US-L07                                              |
-| 前端代码质量基线、本地化条款与审查清单                                     | US-L09                                              |
+| 前端质量基线、类型感知与 Svelte lint、测试类型、wire 契约和失败路径回归    | US-L09                                              |
 | URL token 片段消费与 WebSocket 子协议认证                                  | US-A06                                              |
 | 桌面代码独立窗口与收回                                                     | US-I13                                              |
-| run、显式环境、attach/observe、分离和控制交接                              | US-M01–US-M04                                       |
+| run、显式环境、attach/observe、输入取消/等待与信号中断重试、分离和控制交接 | US-M01–US-M04                                       |
 | ls/open/status、版本化诊断、停止实例和 stdio bridge                        | US-M05–US-M08                                       |
 | Windows CLI、发行版优先级和路径/控制台适配                                 | US-M01–US-M06；US-O05                               |
 | Quick/Named Tunnel、token、二维码与依赖下载                                | US-N01–US-N04                                       |

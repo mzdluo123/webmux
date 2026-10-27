@@ -14,15 +14,17 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+
+	"github.com/rainchan/webmux/internal/contract"
 )
 
-type Status string
+type Status = contract.SessionStatus
 
 const (
-	StatusRunning Status = "running"
-	StatusWaiting Status = "waiting"
-	StatusIdle    Status = "idle"
-	StatusExited  Status = "exited"
+	StatusRunning = contract.SessionStatusRunning
+	StatusWaiting = contract.SessionStatusWaiting
+	StatusIdle    = contract.SessionStatusIdle
+	StatusExited  = contract.SessionStatusExited
 )
 
 type Workspace struct {
@@ -85,6 +87,9 @@ type Subscriber struct {
 	label  string
 	seq    uint64
 }
+
+// Absorb output bursts without blocking the PTY reader; slow subscribers disconnect.
+const terminalOutputQueueCapacity = 256
 
 // AttachOptions identifies the browser behind a connection and where its
 // terminal already is. A matching resume point replays only the missing tail.
@@ -284,7 +289,7 @@ func (s *Session) AttachClient(o AttachOptions) *Subscriber {
 		o.Client = randomClientID()
 	}
 	s.nextSeq++
-	sub := &Subscriber{Out: make(chan Message, 256), Slow: make(chan struct{}), client: o.Client, label: o.Label, seq: s.nextSeq}
+	sub := &Subscriber{Out: make(chan Message, terminalOutputQueueCapacity), Slow: make(chan struct{}), client: o.Client, label: o.Label, seq: s.nextSeq}
 	if s.control == nil {
 		s.setControlLocked(sub)
 	} else if s.control.ClientID == sub.client {

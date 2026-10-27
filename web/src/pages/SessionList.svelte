@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { errorMessage } from "../error";
   import InlineNotice from "../components/InlineNotice.svelte";
   import LazyDialog from "../components/LazyDialog.svelte";
   import { applySessionEvent } from "../session-list";
@@ -27,7 +28,7 @@
   import SessionListEmpty from "../components/SessionListEmpty.svelte";
   import { homeWorktrees } from "../homeWorktrees.svelte";
   import { setLaunchPreviews } from "../launchPreviews.svelte";
-  import { homeLayout, pruneHomeWorktrees, setPinned } from "../homeWorktrees";
+  import { homeLayout, setPinned } from "../homeWorktrees";
   import { matchesSessionQuery } from "../session-location";
   import { matchesStatusFilter, type StatusFilter } from "../session-status";
   import type { TerminalDrafts } from "../terminal-draft.svelte";
@@ -61,7 +62,7 @@
   let closing = $state<SessionInfo | null>(null);
   let error = $state("");
   let now = $state(Date.now());
-  let expanded = $state<Record<string, boolean>>({});
+  let expansionOverrides = $state<Record<string, boolean>>({});
   let query = $state("");
   let setupError = $state("");
   let setupBusy = $state(false);
@@ -112,15 +113,15 @@
         !repositories.some((r) => r.id === s.workspace?.repositoryId),
     ),
   );
-  $effect(() => {
-    if (!loading)
-      for (const repo of repositories) {
-        if (!(repo.id in expanded))
-          expanded[repo.id] = sessions.some(
-            (s) => s.workspace?.repositoryId === repo.id,
-          );
-      }
-  });
+  const expanded = $derived.by(() =>
+    Object.fromEntries(
+      repositories.map((repo) => [
+        repo.id,
+        expansionOverrides[repo.id] ??
+          sessions.some((s) => s.workspace?.repositoryId === repo.id),
+      ]),
+    ),
+  );
   function start(
     mode: "direct" | "existing" | "new" = "direct",
     repositoryId = "",
@@ -142,7 +143,7 @@
       if (!disposed) {
         launchConfigs = {
           status: "unavailable",
-          error: (err as Error).message,
+          error: errorMessage(err),
         };
         // Cards keep the last loaded previews while a reload is in flight or
         // fails; only an unavailable store on page load falls back to global.
@@ -172,13 +173,12 @@
       );
       if (!disposed && generation === refreshGeneration) {
         repositories = result;
-        homeWorktrees.save(pruneHomeWorktrees(homeWorktrees.value, result));
       }
     } catch (err) {
       if (!disposed && generation === refreshGeneration)
         repositoryError = signal?.aborted
           ? "初次读取超时，请重试刷新"
-          : (err as Error).message;
+          : errorMessage(err);
     } finally {
       if (!disposed && generation === refreshGeneration) refreshing = false;
     }
@@ -358,7 +358,7 @@
               : (expanded[repo.id] ?? false)}
             onopenchange={(open) => {
               if (filtering) filterExpanded[repo.id] = open;
-              else expanded[repo.id] = open;
+              else expansionOverrides[repo.id] = open;
             }}
             {gitReady}
             {registryReady}
@@ -417,7 +417,7 @@
         initialMode={target.mode}
         initialRepositoryId={target.repositoryId}
         initialWorktreeId={target.worktreeId}
-        onchange={refresh}
+        onchange={() => void refresh()}
         onworktreecreated={(tree) => pin(tree.repositoryId, [tree.id], true)}
         onclose={() => (creating = null)}
       />{/snippet}
@@ -440,7 +440,7 @@
   >
     {#snippet children(page)}<page.default
         defaultCwd={cwd}
-        onchange={refresh}
+        onchange={() => void refresh()}
         onclose={() => (adding = false)}
       />{/snippet}
   </LazyDialog>
@@ -454,7 +454,7 @@
   >
     {#snippet children(page)}<page.default
         worktree={target}
-        onchange={refresh}
+        onchange={() => void refresh()}
         onclose={() => (removing = null)}
       />{/snippet}
   </LazyDialog>

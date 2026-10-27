@@ -3,6 +3,7 @@
   import * as NavigationMenu from "$lib/components/ui/navigation-menu";
 
   const sections = [
+    { id: "appearance", label: "外观与阅读" },
     { id: "quick-commands", label: "快捷指令" },
     { id: "launch-configs", label: "启动配置" },
     { id: "drafts", label: "草稿与暂存" },
@@ -11,7 +12,7 @@
     { id: "push", label: "通知推送" },
     { id: "preview", label: "输出预览" },
   ];
-  let active = $state(sections[0].id);
+  let active = $state(sections[0]!.id);
   let navigation: HTMLElement;
   let vertical = $state(false);
   let links: HTMLDivElement;
@@ -26,18 +27,18 @@
       vertical = desktop.matches;
       const threshold =
         Math.max(
-          parseFloat(getComputedStyle(targets[0]).scrollMarginTop),
+          parseFloat(getComputedStyle(targets[0]!).scrollMarginTop),
           desktop.matches
             ? parseFloat(getComputedStyle(navigation).top)
             : navigation.getBoundingClientRect().bottom,
         ) + 1;
       let index = 0;
       for (let i = 0; i < targets.length; i++) {
-        if (targets[i].getBoundingClientRect().top <= threshold) index = i;
+        if (targets[i]!.getBoundingClientRect().top <= threshold) index = i;
       }
       const bottom = document.documentElement.scrollHeight - innerHeight;
       if (bottom > 0 && scrollY >= bottom - 2) index = targets.length - 1;
-      active = sections[index].id;
+      active = sections[index]!.id;
       // Scroll only the horizontal strip; scrollIntoView would move the page.
       const link = links.querySelector<HTMLAnchorElement>(
         `a[href="#${active}"]`,
