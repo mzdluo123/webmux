@@ -346,6 +346,42 @@ func TestPrepareRefusesCorruptStatePointingAtTarget(t *testing.T) {
 	}
 }
 
+func TestPrepareRefusesUnownedEntryWithExactRecovery(t *testing.T) {
+	for _, row := range []struct {
+		name string
+		port int
+		want int
+	}{
+		{"automatic", 0, 8443},
+		{"explicit", 8443, 8443},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			cli, logPath := fakeTailscale(t,
+				tailscaleRunning,
+				`{"Web":{"node.tailnet.ts.net:8443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:7681"}}}},"AllowFunnel":{}}`)
+			dir := t.TempDir()
+			ctl := testTailscaleController(t, cli, dir, config.TailscaleConfig{Mode: "serve", Port: row.port, Provider: "auto"})
+			defer ctl.Close()
+			err := ctl.Prepare(context.Background(), "127.0.0.1:7681")
+			if err == nil {
+				t.Fatal("missing ownership with a matching entry was accepted")
+			}
+			for _, want := range []string{
+				fmt.Sprintf("端口 %d", row.want),
+				fmt.Sprintf("`tailscale serve --https=%d off`", row.want),
+				filepath.Join(dir, "tailscale-ownership.json"),
+			} {
+				if !strings.Contains(err.Error(), want) {
+					t.Fatalf("Prepare = %v; want %q", err, want)
+				}
+			}
+			if calls, _ := os.ReadFile(logPath); len(calls) != 0 {
+				t.Fatalf("refusal ran a write command: %s", calls)
+			}
+		})
+	}
+}
+
 func TestWindowsProviderNATFailsClosed(t *testing.T) {
 	cli, logPath := fakeTailscale(t, tailscaleRunning, `{"Web":{},"AllowFunnel":{}}`)
 	dir := t.TempDir()
