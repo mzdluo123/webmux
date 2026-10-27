@@ -2,8 +2,11 @@ VERSION ?= 0.1.0
 GO ?= go
 PNPM ?= pnpm
 GOFMT ?= gofmt
+GO_TEST_PARALLEL ?= 4
 BASELINE_SAMPLES ?= 30
 BASELINE_OUTPUT ?= baseline/results/latest.json
+E2E_CACHE ?= .cache/webmux-e2e
+E2E_BINARY ?= $(abspath $(E2E_CACHE)/webmux)
 LDFLAGS = -s -w -X main.version=$(VERSION)
 TRAY_PKG = github.com/rainchan/webmux/internal/tray
 # Set by release: the Linux server digests the tray may install.
@@ -11,7 +14,7 @@ TRAY_LDFLAGS ?=
 RELEASE_FILES = webmux-linux-amd64 webmux-linux-arm64 webmux-darwin-amd64 webmux-darwin-arm64 \
 	webmux-windows-amd64.exe webmux-windows-arm64.exe webmux-tray-windows-amd64.exe webmux-tray-windows-arm64.exe
 
-.PHONY: web build tray release check docs-check test test-unit test-browser test-e2e test-browsers-install format format-check install baseline
+.PHONY: web build tray release check docs-check test test-fast test-go test-frontend test-unit test-browser test-e2e test-performance test-browsers-install frontend e2e-runtime format format-check install baseline
 web:
 	$(PNPM) --dir web install --frozen-lockfile
 	$(PNPM) --dir web build
@@ -49,9 +52,31 @@ check: web format-check docs-check
 	$(GO) vet ./...
 	golangci-lint run ./...
 
-test:
-	$(GO) test -race -parallel=4 ./...
-	$(PNPM) --dir web test
+test: e2e-runtime test-go
+	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test
+
+# Fast iteration: Go race plus Vitest unit/browser, without Storybook, E2E or
+# performance. Builds the embedded frontend once; `test-go` can be run alone
+# against an existing `web/dist` for Go-only changes.
+test-fast: frontend test-go test-frontend
+
+test-go:
+	$(GO) test -race -parallel=$(GO_TEST_PARALLEL) ./...
+
+test-frontend:
+	$(PNPM) --dir web test:unit
+	$(PNPM) --dir web test:browser
+
+# Production frontend for Go's embed and the prepared E2E runtime.
+frontend:
+	$(PNPM) --dir web exec vite build
+
+# One immutable executable for E2E and performance; each worker still owns its
+# backend, ports, HOME, state directory and PTYs. Override E2E_BINARY to change
+# the cache location (the path is resolved to an absolute path).
+e2e-runtime: frontend
+	mkdir -p $(dir $(abspath $(E2E_BINARY)))
+	CGO_ENABLED=0 $(GO) build -trimpath -o $(abspath $(E2E_BINARY)) ./cmd/webmux
 
 baseline: web
 	$(GO) run ./cmd/baseline -samples $(BASELINE_SAMPLES) -output $(BASELINE_OUTPUT)
@@ -62,8 +87,11 @@ test-unit:
 test-browser:
 	$(PNPM) --dir web test:browser
 
-test-e2e:
-	$(PNPM) --dir web test:e2e
+test-e2e: e2e-runtime
+	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test:e2e
+
+test-performance: e2e-runtime
+	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test:performance
 
 test-browsers-install:
 	$(PNPM) --dir web exec playwright install --with-deps chromium
