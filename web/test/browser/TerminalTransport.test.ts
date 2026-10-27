@@ -157,6 +157,33 @@ test("a persisted size lock still fits the grid once on mount", async () => {
   );
 });
 
+test("a locked grid refits after a hidden host becomes measurable again", async () => {
+  observeGlyphPixels(true);
+  const { socket, api } = await openTerminalApi({
+    sizeLocked: () => true,
+  });
+  const sizeFrames = () => socket.sent.filter((frame) => frame[0] === 1).length;
+  const hostElement = host();
+  const fitted = sizeFrames();
+  expect(fitted).toBeGreaterThan(0);
+
+  // A hidden host (the code pane covers the terminal) drops the font-driven
+  // fit. Showing it again must refit instead of keeping the stale grid.
+  hostElement.style.display = "none";
+  api.setFontSize(18);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  hostElement.style.display = "";
+  api.fit();
+  await expect.poll(sizeFrames).toBeGreaterThan(fitted);
+  await expect
+    .poll(
+      () =>
+        hostElement.querySelector(".xterm-screen")!.getBoundingClientRect()
+          .width,
+    )
+    .toBeLessThanOrEqual(hostElement.clientWidth);
+});
+
 test("an observer sizes to the controller's grid before parsing cursor-addressed history", async () => {
   observeGlyphPixels(true);
   await render(Harness);

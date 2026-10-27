@@ -218,6 +218,10 @@ export function useTerminal(
         scrollOnFit = false;
       }
       updateBottom();
+    } else {
+      // A fit request the hidden or zero-sized host dropped must not count as
+      // sized, or the next show would be suppressed and keep the old grid.
+      sized = false;
     }
   }
   function updateBottom() {
