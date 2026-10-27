@@ -22,6 +22,36 @@ export interface TerminalInputOptions {
   onData: (data: string, user: boolean) => void;
 }
 
+// Windows Terminal copies a selection on Ctrl+C and leaves an empty
+// selection to xterm as SIGINT. macOS keeps the native Cmd+C convention and
+// always sends Ctrl+C to the program.
+export function isTerminalCopyShortcut(
+  event: Pick<
+    KeyboardEvent,
+    | "key"
+    | "ctrlKey"
+    | "shiftKey"
+    | "altKey"
+    | "metaKey"
+    | "isComposing"
+    | "keyCode"
+    | "code"
+  >,
+  platform: string,
+): boolean {
+  if (
+    event.isComposing ||
+    event.altKey ||
+    event.shiftKey ||
+    event.keyCode === 229 ||
+    (event.key.toLowerCase() !== "c" && event.code !== "KeyC")
+  )
+    return false;
+  return /Mac/.test(platform)
+    ? event.metaKey && !event.ctrlKey
+    : event.ctrlKey && !event.metaKey;
+}
+
 // Keyboard, IME, clipboard-shortcut and draft routing for xterm in `parent`.
 // Returns the cleanup that removes every listener it added.
 export function attachTerminalInput(
@@ -201,9 +231,25 @@ export function attachTerminalInput(
       }
       return false;
     }
-    if (event.type === "keydown" && event.ctrlKey && event.shiftKey) {
-      if (event.key.toLowerCase() === "c") {
-        clipboard.copySelection(term.getSelection());
+    if (
+      event.type === "keydown" &&
+      event.ctrlKey &&
+      event.shiftKey &&
+      event.key.toLowerCase() === "c"
+    ) {
+      // Ctrl+Shift+C belongs to the browser (DevTools inspect); never forward
+      // it to the PTY as ^C or treat it as a copy shortcut.
+      return false;
+    }
+    if (
+      event.type === "keydown" &&
+      isTerminalCopyShortcut(event, navigator.platform)
+    ) {
+      const selected = term.getSelection();
+      if (selected) {
+        event.preventDefault();
+        clipboard.copySelection(selected);
+        term.clearSelection();
         return false;
       }
     }
