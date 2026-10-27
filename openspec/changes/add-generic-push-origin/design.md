@@ -33,8 +33,8 @@
 
 ### 3. 锚点按 authority 规范化
 
-HTTPS 来源统一经 `normalizeAuthority` 处理：小写主机、省略 `:443`、保留非默认端口。回环来源保留原有 `scheme://host` 形式，避免把 `http://localhost:443` 错误地改成无端口。无 `Origin` 的 GET 在现有 Named/公网来源之外，追加“Host 命中 `allowed_origins` 的 HTTPS 条目”即视为 `https`。
+HTTPS 来源统一经 `normalizeAuthority` 处理：小写主机、省略 `:443`、保留非默认端口。回环来源保留原有 `scheme://host` 形式，避免把 `http://localhost:443` 错误地改成无端口。无 `Origin` 的 GET 在现有 Named/公网来源之外，追加“Host 主机名命中 `allowed_origins` 的 HTTPS 条目”即视为 `https`，并以该条目的规范 authority（含配置端口）作为锚点，避免反向代理省略端口时丢失。
 
 ### 4. 文案与文档说明可用入口，不承诺 Quick Tunnel
 
-服务端 `unsupported_origin` 文案、设置页非安全上下文与不支持来源提示、协议与部署文档统一改为“HTTPS 入口或本机回环地址”，并点名 Tailscale Serve/Funnel。`quick_tunnel` 文案保持原有 Named Tunnel 指引。
+服务端 `unsupported_origin` 文案、设置页非安全上下文与不支持来源提示、协议与部署文档统一改为“HTTPS 入口或本机回环地址”，并点名 Tailscale Serve/Funnel。`quick_tunnel` 文案保留“地址每次启动都会变化”的说明，并列出 Named Tunnel 与 Tailscale Serve/Funnel 等替代入口。

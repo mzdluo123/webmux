@@ -37,6 +37,7 @@ func TestPushOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 	allowedHTTPS := config.Config{AllowedOrigins: []string{"https://proxy.example:9443"}}
+	allowedHTTPSPorts := config.Config{AllowedOrigins: []string{"https://proxy.example:9443", "https://proxy.example:8443"}}
 	for _, row := range []struct {
 		name         string
 		server       *Server
@@ -61,6 +62,8 @@ func TestPushOrigin(t *testing.T) {
 		{"tailscale without origin header", &Server{Deps: Deps{Public: tailscale}}, "node.tailnet.ts.net:8443", "", "https://node.tailnet.ts.net:8443", ""},
 		{"allowed https origin", &Server{Deps: Deps{Config: allowedHTTPS}}, "proxy.example:9443", "https://proxy.example:9443", "https://proxy.example:9443", ""},
 		{"allowed https origin without header", &Server{Deps: Deps{Config: allowedHTTPS}}, "proxy.example:9443", "", "https://proxy.example:9443", ""},
+		{"allowed https origin with stripped host port", &Server{Deps: Deps{Config: allowedHTTPS}}, "proxy.example", "", "https://proxy.example:9443", ""},
+		{"allowed https origin prefers matching port", &Server{Deps: Deps{Config: allowedHTTPSPorts}}, "proxy.example:8443", "", "https://proxy.example:8443", ""},
 		{"https origin with path", &Server{}, "box.example", "https://box.example/path", "", pushUnsupportedOrigin},
 		{"https origin with credentials", &Server{}, "box.example", "https://user:pass@box.example", "", pushUnsupportedOrigin},
 		{"local socket", &Server{Deps: Deps{Config: named}, local: true}, "webmux", "", "", pushUnsupportedOrigin},

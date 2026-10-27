@@ -2,8 +2,9 @@
 
 - [x] 1.1 在 `internal/api/push.go` 放宽 `pushOrigin`：HTTPS 来源经 `normalizeAuthority` 后可用；回环保留 `http`/`https`；非回环 `http` 与本机套接字仍为 `unsupported_origin`
 - [x] 1.2 将 Quick Tunnel 判定移到通用 HTTPS 分支之前，条件为当前 `cloudflare` authority 匹配且不等于有效 Named 主机名
-- [x] 1.3 无 `Origin` 的 GET 在 Named 与 `PublicOrigins` 之外，补充 `allowed_origins` 中 HTTPS 条目的 scheme 推断
+- [x] 1.3 无 `Origin` 的 GET 在 Named 与 `PublicOrigins` 之外，按主机名匹配 `allowed_origins` 中的 HTTPS 条目，并以该条目含端口的规范 authority 作为锚点
 - [x] 1.4 更新 `unsupported_origin` 服务端文案，说明 HTTPS 入口（含 Tailscale Serve/Funnel）与本机回环
+- [x] 1.5 更新 `quick_tunnel` 服务端文案，保留地址轮换说明并补充 Tailscale Serve/Funnel 等替代 HTTPS 入口
 
 ## 2. 测试
 
@@ -13,7 +14,7 @@
 
 ## 3. 前端
 
-- [x] 3.1 更新 `web/src/components/PushSettings.svelte` 的非安全上下文与不支持来源提示，点名 Tailscale Serve/Funnel
+- [x] 3.1 更新 `web/src/components/PushSettings.svelte` 的非安全上下文、不支持来源与 Quick Tunnel 提示，点名 Tailscale Serve/Funnel
 - [x] 3.2 同步 `web/test/browser/PushSettings.test.ts` 的文案断言
 
 ## 4. 文档与故事

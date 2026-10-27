@@ -44,6 +44,7 @@ const cases: {
     shows: [
       "Quick Tunnel 无法持续接收推送",
       "旧订阅点开即失效",
+      "Tailscale Serve/Funnel",
       "查看公网访问配置",
     ],
     toggle: false,

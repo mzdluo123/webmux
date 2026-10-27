@@ -203,8 +203,10 @@
           <p class="font-medium">Quick Tunnel 无法持续接收推送</p>
           <p>Quick Tunnel 每次启动都会更换地址，旧订阅点开即失效。</p>
           <p>
-            请改用 Cloudflare Named Tunnel：在 Cloudflare 控制台创建 Tunnel
-            并设置公共主机名，再到“设置 → 公网访问”选择 Named Tunnel，填写凭据与
+            请改用 Cloudflare Named Tunnel，或通过 Tailscale Serve/Funnel 等
+            HTTPS 入口打开 WebMux。Named Tunnel 可在 Cloudflare
+            控制台创建并设置公共主机名，再到“设置 → 公网访问”选择 Named
+            Tunnel，填写凭据与
             hostname，保存并启用，无需重启。用新的公网链接打开 WebMux
             后重新开启推送。
           </p>

@@ -20,7 +20,7 @@
 ### Modified Capabilities
 
 - `attention-push`：推送来源资格从 Named Tunnel 与回环放宽为通过 Host/Origin 校验的 HTTPS 入口与回环；登记订阅记录规范化后的 HTTPS 锚点。
-- `push-notification-client`：非安全上下文与不支持来源的提示改为说明 HTTPS 入口（含 Tailscale Serve/Funnel），Quick Tunnel 提示保持不变。
+- `push-notification-client`：非安全上下文与不支持来源的提示改为说明 HTTPS 入口（含 Tailscale Serve/Funnel），Quick Tunnel 提示保留地址轮换说明并列出替代入口。
 
 ## Impact
 

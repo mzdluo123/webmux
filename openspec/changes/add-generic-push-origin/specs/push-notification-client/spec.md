@@ -17,3 +17,14 @@
 
 - **WHEN** 页面经 `http://100.64.0.2:7681` 打开，服务端报告 `unsupported_origin`
 - **THEN** 卡片显示该说明与改用 HTTPS 入口的提示，不提供开启开关
+
+## ADDED Requirements
+
+### Requirement: Quick Tunnel 提示
+
+`GET /api/push` 报告 `quick_tunnel` 时，卡片 SHALL 说明地址每次启动都会变化，并提示改用 Cloudflare Named Tunnel、Tailscale Serve/Funnel 或其他已授权 HTTPS 入口。
+
+#### Scenario: Quick Tunnel 来源
+
+- **WHEN** 页面经 Quick Tunnel 地址打开，服务端报告 `quick_tunnel`
+- **THEN** 卡片说明地址轮换会导致旧订阅失效，并列出改用 Named Tunnel 或 Tailscale Serve/Funnel 的步骤，不提供开启开关

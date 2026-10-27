@@ -22,7 +22,7 @@ const (
 )
 
 var pushOriginErrors = map[string]error{
-	pushQuickTunnel:       errors.New("推送需要 Cloudflare Named Tunnel：Quick Tunnel 地址每次启动都会变化，旧订阅点开即失效"),
+	pushQuickTunnel:       errors.New("推送需要稳定的 HTTPS 入口：Quick Tunnel 地址每次启动都会变化，旧订阅点开即失效；请改用 Cloudflare Named Tunnel 或 Tailscale Serve/Funnel"),
 	pushUnsupportedOrigin: errors.New("推送需要 HTTPS 入口或本机回环地址；可用 Tailscale Serve/Funnel、Cloudflare Named Tunnel 或其他已授权的 HTTPS 入口"),
 }
 
@@ -45,11 +45,18 @@ func (s *Server) pushOrigin(r *http.Request) (string, string) {
 		// Same-origin GETs omit Origin. Tunnel and reverse-proxy traffic
 		// reaches this server over plain HTTP, but the browser saw https.
 		host := authorityHostname(r.Host)
-		scheme := "http"
-		if r.TLS != nil || host != "" && (host == named || s.Public.hostAllowed(r.Host) || allowedHTTPSAuthority(s.Config.AllowedOrigins, r.Host)) {
-			scheme = "https"
+		switch {
+		case r.TLS != nil || host != "" && (host == named || s.Public.hostAllowed(r.Host)):
+			origin = "https://" + r.Host
+		default:
+			// A reverse proxy may forward a port-stripped Host, so anchor an
+			// allowed_origins match on the configured port instead.
+			if authority, ok := allowedHTTPSAuthority(s.Config.AllowedOrigins, r.Host); ok {
+				origin = "https://" + authority
+			} else {
+				origin = "http://" + r.Host
+			}
 		}
-		origin = scheme + "://" + r.Host
 	}
 	u, err := url.Parse(origin)
 	if err != nil || u.Host == "" || u.User != nil || u.Path != "" || strings.ContainsAny(origin, "?#") {
@@ -86,24 +93,37 @@ func anchorAuthority(authority string) string {
 	return authority
 }
 
-// allowedHTTPSAuthority reports whether authority matches an https entry in
-// allowed_origins, so a same-origin GET behind an HTTPS reverse proxy is
-// recognized even though it carries no Origin header.
-func allowedHTTPSAuthority(origins []string, authority string) bool {
-	want, ok := normalizeAuthority(authority)
-	if !ok {
-		return false
+// allowedHTTPSAuthority returns the canonical authority of an https
+// allowed_origins entry whose hostname matches host. A reverse proxy may
+// forward a port-stripped Host on a same-origin GET, so matching by hostname
+// keeps the configured port for the notification anchor.
+func allowedHTTPSAuthority(origins []string, host string) (string, bool) {
+	want := authorityHostname(host)
+	if want == "" {
+		return "", false
 	}
+	exact, _ := normalizeAuthority(host)
+	fallback := ""
 	for _, allowed := range origins {
 		u, err := url.Parse(allowed)
 		if err != nil || u.Scheme != "https" || u.User != nil || u.Host == "" || u.Path != "" || strings.ContainsAny(allowed, "?#") {
 			continue
 		}
-		if got, ok := normalizeAuthority(u.Host); ok && got == want {
-			return true
+		if authorityHostname(u.Host) != want {
+			continue
+		}
+		authority, ok := normalizeAuthority(u.Host)
+		if !ok {
+			continue
+		}
+		if authority == exact {
+			return anchorAuthority(authority), true
+		}
+		if fallback == "" {
+			fallback = anchorAuthority(authority)
 		}
 	}
-	return false
+	return fallback, fallback != ""
 }
 
 func pushUnavailableReason(err error) string {

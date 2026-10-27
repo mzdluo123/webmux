@@ -26,8 +26,8 @@
 
 #### Scenario: 无 Origin 的 HTTPS 入口
 
-- **WHEN** 反向代理后的同源 `GET /api/push` 不带 Origin，且 Host 命中 `allowed_origins` 的 HTTPS 条目
-- **THEN** 推送状态仍按 `https` 判定为可用
+- **WHEN** 反向代理后的同源 `GET /api/push` 不带 Origin，Host 主机名命中 `allowed_origins` 的 HTTPS 条目；即使代理省略了端口
+- **THEN** 推送状态仍按 `https` 判定为可用，锚点保留该条目配置的端口（如 `https://proxy.example:9443`）
 
 #### Scenario: Quick Tunnel 来源
 
@@ -61,7 +61,7 @@
 #### Scenario: Quick Tunnel 来源被拒
 
 - **WHEN** 浏览器从 Quick Tunnel 公网来源登记订阅
-- **THEN** 返回 409，错误说明推送需要 Named Tunnel，订阅数不变
+- **THEN** 返回 409，错误说明地址每次启动都会变化，并列出 Named Tunnel 或 Tailscale Serve/Funnel 等替代入口，订阅数不变
 
 #### Scenario: 非法 endpoint
 
