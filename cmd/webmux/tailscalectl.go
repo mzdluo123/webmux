@@ -273,6 +273,7 @@ func validateOwnership(r tailscaleState) error {
 	if r.V != tailscaleStateVersion || r.Provider == "" || r.DNSName == "" || r.Target == "" || r.Port < 1 || r.Port > 65535 || (r.Status != "pending" && r.Status != "active") || (r.Mode != config.TailscaleServe && r.Mode != config.TailscaleFunnel) {
 		return errors.New("invalid ownership record")
 	}
+
 	return nil
 }
 func (tc *tailscaleController) openLock() error {
@@ -656,7 +657,7 @@ func (tc *tailscaleController) apply(ctx context.Context) {
 	info, ok := after.Lookup(status.DNSName, port)
 	wantPublic := cfg.Mode == config.TailscaleFunnel
 	if !ok || info.Handlers != 1 || info.Proxy != target || info.Public != wantPublic {
-		tc.cleanupFailed(ctx, record, errors.New("Tailscale 命令已结束，但回读的入口与预期不符"))
+		tc.cleanupFailed(ctx, record, errors.New("执行 Tailscale 命令已结束，但回读的入口与预期不符"))
 		return
 	}
 	tc.ready(ctx, status, port, target, true)

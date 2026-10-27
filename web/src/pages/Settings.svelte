@@ -1,6 +1,7 @@
 <script lang="ts">
   import AppearanceSettings from "../components/AppearanceSettings.svelte";
   import { settings, changeSettings, saveSettings } from "../settings.svelte";
+  import { errorMessage } from "../error";
   import { onMount } from "svelte";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowUp from "~icons/tabler/arrow-up";
@@ -77,7 +78,11 @@
   }
   function move(index: number, offset: -1 | 1) {
     const list = [...quickCommands.list];
-    [list[index], list[index + offset]] = [list[index + offset], list[index]];
+    const from = list[index];
+    const to = list[index + offset];
+    if (!from || !to) return;
+    list[index] = to;
+    list[index + offset] = from;
     void saveQuickCommands(list).catch(() => undefined);
   }
   // Launch configs live on the server; a load failure (for example 503 when
@@ -98,7 +103,7 @@
       launchError = "";
       launchState = "ready";
     } catch (err) {
-      launchError = (err as Error).message;
+      launchError = errorMessage(err);
       launchState = "unavailable";
     }
   }
@@ -119,7 +124,7 @@
       launchDeleteOpen = false;
       await loadLaunchConfigs();
     } catch (err) {
-      launchDeleteError = (err as Error).message;
+      launchDeleteError = errorMessage(err);
     } finally {
       launchDeleteBusy = false;
     }

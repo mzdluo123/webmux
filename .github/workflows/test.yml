@@ -22,7 +22,7 @@ jobs:
   lint:
     name: Format, check and build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - id: setup
@@ -37,10 +37,18 @@ jobs:
         run: make persistence-check
       - name: Lint frontend
         run: pnpm --dir web lint
+      - name: Check frontend test types
+        run: pnpm --dir web check:test
       - name: Check frontend architecture
         run: pnpm --dir web check:arch
       - name: Check and build frontend
         run: pnpm --dir web build
+      - name: Lint Go
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          args: --timeout=5m
+          only-new-issues: false
       - name: Build shared E2E runtime
         run: |
           node .github/scripts/package-e2e-runtime.mjs "$RUNNER_TEMP/webmux-e2e"
@@ -79,6 +87,8 @@ jobs:
           go: "true"
       - name: Build embedded frontend
         run: pnpm --dir web exec vite build
+      - name: Vet Go
+        run: go vet ./...
       - name: Run Go race tests
         run: go test -race -parallel=4 ./...
       # No Windows runner: hosted runners lack a usable WSL 2, so the Windows
@@ -145,7 +155,7 @@ jobs:
   e2e:
     name: E2E (Ubuntu ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -187,7 +197,7 @@ jobs:
   macos:
     name: Go race and E2E (macOS ${{ matrix.suite }} ${{ matrix.shard }})
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
