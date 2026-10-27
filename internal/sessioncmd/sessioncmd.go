@@ -217,6 +217,9 @@ func launchConfigID(ctx context.Context, client *localclient.Client, name string
 		}
 		names = append(names, strconv.Quote(c.Name))
 	}
+	if len(names) == 0 {
+		return "", fmt.Errorf("%w %q (no saved launch configs)", errUnknownLaunchConfig, name)
+	}
 	return "", fmt.Errorf("%w %q (saved: %s)", errUnknownLaunchConfig, name, strings.Join(names, ", "))
 }
 
