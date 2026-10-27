@@ -8,6 +8,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import * as Item from "$lib/components/ui/item";
+  import type { ComponentProps } from "svelte";
   import SessionRow from "./SessionRow.svelte";
   import InlineNotice from "./InlineNotice.svelte";
   import { countSessions } from "../session-status";
@@ -24,6 +25,7 @@
     onremove,
     pinned,
     ontogglepin,
+    hybrid,
   }: {
     title: string;
     path?: string;
@@ -38,6 +40,8 @@
     // Undefined outside curated repository lists.
     pinned?: boolean;
     ontogglepin?: () => void;
+    /** Hybrid sessions by ID (issue #181); see SessionRow. */
+    hybrid?: Record<string, ComponentProps<typeof SessionRow>["hybrid"]>;
   } = $props();
   let menuOpen = $state(false);
   $effect(() => {
@@ -182,6 +186,7 @@
           {now}
           {groupPath}
           {onclose}
+          hybrid={hybrid?.[session.id]}
           hidden={hidden || Boolean(visibleIds && !visibleIds.has(session.id))}
         />
       {/each}

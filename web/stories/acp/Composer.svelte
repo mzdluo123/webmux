@@ -7,6 +7,7 @@
   import IconPlayerPause from "~icons/tabler/player-pause";
   import IconPlayerStopFilled from "~icons/tabler/player-stop-filled";
   import IconTrash from "~icons/tabler/trash";
+  import { MediaQuery } from "svelte/reactivity";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -38,6 +39,8 @@
       ? []
       : chat.commands.filter((command) => command.name.startsWith(query)),
   );
+  // Phones fold the queue to one line so the transcript keeps the screen.
+  let queueOpen = $state(new MediaQuery("(min-width: 640px)").current);
   const typed = $derived(chat.draft.trim() !== "");
 
   function take() {
@@ -62,7 +65,19 @@
       <div
         class="flex flex-wrap items-center gap-2 px-3 py-1 text-xs text-muted-foreground"
       >
-        <span>排队中 · {chat.queue.length}</span>
+        <Button
+          variant="quiet"
+          size="xs"
+          class="-ml-2 max-w-full min-w-0"
+          aria-expanded={queueOpen}
+          onclick={() => (queueOpen = !queueOpen)}
+          >排队 {chat.queue.length}{#if !queueOpen}<span
+              class="min-w-0 truncate font-normal">· {chat.queue[0]?.text}</span
+            >{/if}<IconChevronDown
+            class={queueOpen ? "rotate-180" : undefined}
+            aria-hidden="true"
+          /></Button
+        >
         {#if chat.queuePaused}
           <span class="flex items-center gap-1 text-warning" role="status">
             <IconPlayerPause
@@ -82,7 +97,7 @@
           </span>
         {/if}
       </div>
-      <ol>
+      <ol hidden={!queueOpen}>
         {#each chat.queue as item, i (item.id)}
           <li
             class="flex flex-wrap items-center justify-end gap-x-1 rounded-xl pr-1 pl-3 hover:bg-muted/50"

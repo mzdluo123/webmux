@@ -19,7 +19,7 @@
 
 <section
   class="space-y-3 rounded-2xl border border-warning/40 bg-card p-3 shadow-sm"
-  aria-label="需要批准"
+  aria-label="等待授权"
 >
   <div class="space-y-1.5">
     <p class="flex items-center gap-1.5 text-sm font-medium">

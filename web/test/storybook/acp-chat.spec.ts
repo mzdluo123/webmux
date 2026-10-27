@@ -44,6 +44,20 @@ for (const { name, viewport, theme, textScale } of layouts) {
         expect(errors).toEqual([]);
       });
     }
+
+    test("ACP hybrid home cards", async ({ page }) => {
+      await page.route("**/api/**", (route) => route.abort());
+      await page.goto(
+        `/iframe.html?id=prototype-acp-hybrid-home--session-cards&viewMode=story&globals=theme:${theme}`,
+      );
+      await expect(page.getByLabel("最新消息预览")).toBeVisible();
+      await expect(page.getByText("等待授权")).toBeVisible();
+      await page.evaluate(async (scale) => {
+        document.documentElement.style.fontSize = `${Number(scale) * 100}%`;
+        await document.fonts.ready;
+      }, textScale);
+      await expect.poll(() => overflowViolations(page)).toEqual([]);
+    });
   });
 }
 

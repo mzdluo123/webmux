@@ -3,7 +3,8 @@
   import { MediaQuery } from "svelte/reactivity";
   import CodeChangesList from "../../src/components/CodeChangesList.svelte";
   import ConfirmDialog from "../../src/components/ConfirmDialog.svelte";
-  import InlineNotice from "../../src/components/InlineNotice.svelte";
+  import SoftKeys from "../../src/components/SoftKeys.svelte";
+  import { Button } from "$lib/components/ui/button";
   import QuickCommandMenu from "../../src/components/QuickCommandMenu.svelte";
   import TerminalHeader from "../../src/components/TerminalHeader.svelte";
   import TerminalWorkspace from "../../src/components/TerminalWorkspace.svelte";
@@ -35,23 +36,27 @@
   let confirm = $state<{ title: string; body: string; run: () => void }>();
   let confirmOpen = $state(false);
   let codeShown = $state(false);
+  let idNoticeDismissed = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
   onDestroy(() => clearTimeout(timer));
   const desktopMedia = new MediaQuery("(min-width: 1024px)");
   const drafts = createTerminalDrafts();
   const draft = drafts.get("acp-prototype");
 
+  const pending = $derived(
+    chat.timeline.some((e) => e.type === "tool" && e.permission),
+  );
   const info = $derived<SessionInfo>({
     ...session,
     id: "acpdemo1",
     title: chat.title,
     cwd: "/home/developer/webmux",
     cmd: [agent],
-    status: chat.timeline.some((e) => e.type === "tool" && e.permission)
-      ? "waiting"
-      : chat.running
-        ? "running"
-        : "idle",
+    status: pending ? "waiting" : chat.running ? "running" : "idle",
+    // ACP permission requests feed the existing attention signal.
+    attention: pending
+      ? { kind: "permission", source: "agent", since: session.lastActiveAt }
+      : null,
     preview: "",
     clients: 1,
     reportedCwd: null,
@@ -70,7 +75,7 @@
     resync() {},
   };
   const fullscreen = {
-    offered: false,
+    offered: true,
     active: false,
     busy: false,
     toggle: async () => {},
@@ -154,6 +159,26 @@
     close={() => {}}
     hybrid={{ side: chat.side, switching: switching?.to ?? null, switchTo }}
   />
+  {#if chat.side === "tui" && !switching && chat.previousSessionId && !idNoticeDismissed}
+    <!-- D11, in the same strip TerminalNotices uses for page notices. -->
+    <div
+      class="flex shrink-0 items-center gap-2 border-b bg-muted px-4 py-1.5 text-sm"
+      role="status"
+    >
+      <span class="min-w-0 flex-1"
+        >TUI 已切换到新会话 <code class="font-mono"
+          >{chat.agentSessionId.slice(0, 8)}…</code
+        >（上一个
+        <code class="font-mono">{chat.previousSessionId.slice(0, 8)}…</code
+        >），切到聊天时接手新会话</span
+      >
+      <Button
+        variant="ghost"
+        size="sm"
+        onclick={() => (idNoticeDismissed = true)}>知道了</Button
+      >
+    </div>
+  {/if}
   <TerminalWorkspace
     {codeShown}
     desktop={desktopMedia.current}
@@ -184,21 +209,23 @@
             })}
         />
       {:else}
-        <div class="flex h-full min-h-0 flex-col">
-          {#if chat.previousSessionId}
-            <InlineNotice tone="info" class="m-2 mb-0">
-              TUI 已切换到新会话 <code class="font-mono"
-                >{chat.agentSessionId.slice(0, 8)}…</code
-              >（上一个：<code class="font-mono"
-                >{chat.previousSessionId.slice(0, 8)}…</code
-              >），切到聊天时会接手新会话。
-            </InlineNotice>
-          {/if}
+        <!-- Same structure as TerminalViewport: xterm area plus the soft-key
+             bar that touch devices show. -->
+        <div class="terminal-column">
           <div class="terminal-area">
             <pre
-              class="absolute inset-0 overflow-auto p-3 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap text-(--terminal-foreground)"
+              class="absolute inset-0 overflow-auto p-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap text-(--terminal-foreground)"
               aria-label="终端（示意）">{terminalLines}</pre>
           </div>
+          <SoftKeys
+            send={() => {}}
+            modifiers={{ ctrl: false, alt: false }}
+            toggle={() => {}}
+            paste={() => {}}
+            keyboard={() => {}}
+          >
+            {#snippet trailing()}{@render quickMenu("top")}{/snippet}
+          </SoftKeys>
         </div>
       {/if}
     {/snippet}

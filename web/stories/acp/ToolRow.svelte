@@ -30,7 +30,7 @@
     call.status === "in_progress"
       ? running[call.kind]
       : call.status === "pending"
-        ? "等待批准"
+        ? "等待授权"
         : verbs[call.kind],
   );
   const target = $derived(

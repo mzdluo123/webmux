@@ -10,6 +10,8 @@
   import { locationHints } from "../session-location";
   import IconArrowUpRight from "~icons/tabler/arrow-up-right";
   import IconDots from "~icons/tabler/dots";
+  import IconMessageCircle from "~icons/tabler/message-circle";
+  import IconTerminal2 from "~icons/tabler/terminal-2";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as Item from "$lib/components/ui/item";
@@ -21,13 +23,18 @@
     now,
     groupPath,
     onclose,
+    hybrid,
   }: {
     session: SessionInfo;
     hidden?: boolean;
     now: number;
     groupPath?: string;
     onclose: (session: SessionInfo) => void;
+    /** A hybrid session (issue #181): which side it is on and, on the chat
+     * side, the latest agent message shown in place of terminal output. */
+    hybrid?: { side: "acp" | "tui"; summary?: string };
   } = $props();
+  const chat = $derived(hybrid?.side === "acp");
   const seconds = $derived(
     Math.max(0, Math.floor((now - Date.parse(session.lastActiveAt)) / 1000)),
   );
@@ -120,6 +127,11 @@
         <div class="max-w-full min-w-[min(8.5rem,100%)]">
           <SessionStatus {session} />
         </div>
+        {#if hybrid}<Badge variant="outline"
+            >{#if chat}<IconMessageCircle
+                aria-hidden="true"
+              />聊天{:else}<IconTerminal2 aria-hidden="true" />终端{/if}</Badge
+          >{/if}
         <span class="border border-transparent py-0.5"
           >{session.clients ? `${session.clients} 个设备已连接` : "后台会话"} · {relative}</span
         >
@@ -154,15 +166,24 @@
         </div>
       {/if}
     </div>
-    <pre
-      data-slot="terminal-preview"
-      aria-label="终端输出预览"
-      style:--preview-lines={settings.lines}
-      class:preview-empty={!preview}
-      class="h-preview mt-4 min-w-0 overflow-hidden px-4 pb-4 font-mono text-xs leading-5 whitespace-pre text-foreground/85">{preview ||
-        (session.preview
-          ? "末尾行已隐藏，暂无可显示内容"
-          : "等待终端输出…")}</pre>
+    {#if chat}
+      <p
+        aria-label="最新消息预览"
+        class="mt-3 line-clamp-3 min-w-0 px-4 pb-4 text-sm leading-6 break-words text-foreground/85"
+      >
+        {hybrid?.summary || "等待 Agent 回复…"}
+      </p>
+    {:else}
+      <pre
+        data-slot="terminal-preview"
+        aria-label="终端输出预览"
+        style:--preview-lines={settings.lines}
+        class:preview-empty={!preview}
+        class="h-preview mt-4 min-w-0 overflow-hidden px-4 pb-4 font-mono text-xs leading-5 whitespace-pre text-foreground/85">{preview ||
+          (session.preview
+            ? "末尾行已隐藏，暂无可显示内容"
+            : "等待终端输出…")}</pre>
+    {/if}
   </a>
   <Item.Actions class="absolute top-1.5 right-1.5">
     <DropdownMenu.Root
