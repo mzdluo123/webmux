@@ -111,6 +111,8 @@ webmux --listen 127.0.0.1:7681
 
 浏览器打开 <http://127.0.0.1:7681>，点击“新建会话”即可开始。
 
+需要让服务脱离当前终端继续运行时，执行 `webmux start` 后台启动；之后用 `webmux status` 查看、`webmux stop` 停止。没有 systemd / launchd 的容器或 WSL 环境尤其适合这种方式。
+
 通过 VPN 远程访问时，绑定 VPN 地址并启用 token：
 
 ```sh
