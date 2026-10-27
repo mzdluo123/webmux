@@ -61,13 +61,16 @@ go-lint:
 		echo 'Install golangci-lint v$(GOLANGCI_LINT_VERSION); see docs/go-style.md' >&2; exit 1; }
 	$(GOLANGCI_LINT) run ./...
 
-test: e2e-runtime test-go
+test: e2e-runtime
+	$(MAKE) test-go
 	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test
 
 # Fast iteration: Go race plus Vitest unit/browser, without Storybook, E2E or
 # performance. Builds the embedded frontend once; `test-go` can be run alone
 # against an existing `web/dist` for Go-only changes.
-test-fast: frontend test-go test-frontend
+test-fast: frontend
+	$(MAKE) test-go
+	$(MAKE) test-frontend
 
 test-go:
 	$(GO) test -race -parallel=$(GO_TEST_PARALLEL) ./...
