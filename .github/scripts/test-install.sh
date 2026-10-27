@@ -1,6 +1,5 @@
 #!/bin/sh
-# Exercise install.sh against a local release fixture. Runs on Linux CI only;
-# macOS uses shasum instead of sha256sum, which the fixture does not provide.
+# Exercise install.sh against a local release fixture.
 set -eu
 
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -19,6 +18,24 @@ fail() {
 	exit 1
 }
 
+# macOS ships shasum rather than GNU sha256sum.
+digest() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | awk '{print $1}'
+	else
+		shasum -a 256 "$1" | awk '{print $1}'
+	fi
+}
+
+write_sums() {
+	(
+		cd "$1"
+		for file in webmux-*; do
+			printf '%s  %s\n' "$(digest "$file")" "$file"
+		done > SHA256SUMS
+	)
+}
+
 sh -n "$repo/install.sh" || fail "install.sh has a syntax error"
 sh -n "$0" || fail "test-install.sh has a syntax error"
 
@@ -31,7 +48,7 @@ for os in linux darwin; do
 		chmod 755 "$www/releases/latest/download/$asset"
 	done
 done
-(cd "$www/releases/latest/download" && sha256sum webmux-* > SHA256SUMS)
+write_sums "$www/releases/latest/download"
 
 mkdir -p "$www/releases/download/v0.2.0"
 for os in linux darwin; do
@@ -41,7 +58,7 @@ for os in linux darwin; do
 		chmod 755 "$www/releases/download/v0.2.0/$asset"
 	done
 done
-(cd "$www/releases/download/v0.2.0" && sha256sum webmux-* > SHA256SUMS)
+write_sums "$www/releases/download/v0.2.0"
 
 mkdir -p "$www/bad/releases/latest/download"
 printf 'bad binary\n' > "$www/bad/releases/latest/download/webmux-linux-amd64"
@@ -101,6 +118,25 @@ run_install "$work/uname-linux-amd64" >"$work/linux.log" 2>&1 || {
 [ -x "$work/out/webmux" ] || fail "Linux amd64 binary was not installed"
 grep -q 'webmux-linux-amd64 latest' "$work/out/webmux" || fail "Linux amd64 selected the wrong asset"
 
+# Hide sha256sum so install.sh has to fall back to shasum.
+if command -v shasum >/dev/null 2>&1; then
+	shasum_only=$work/shasum-only
+	mkdir -p "$shasum_only"
+	for tool in sh curl mktemp awk tr mkdir mv chmod rm; do
+		ln -s "$(command -v "$tool")" "$shasum_only/$tool"
+	done
+	ln -s "$(command -v shasum)" "$shasum_only/shasum"
+	fake_uname "$shasum_only" Linux x86_64
+	reset_out
+	env HOME="$work/home" PATH="$shasum_only" WEBMUX_INSTALL_DIR="$work/out" \
+		WEBMUX_BASE_URL="$base" WEBMUX_MIRRORS= sh "$repo/install.sh" \
+		>"$work/shasum.log" 2>&1 || {
+		cat "$work/shasum.log"
+		fail "shasum fallback installation failed"
+	}
+	grep -q 'webmux-linux-amd64 latest' "$work/out/webmux" || fail "shasum fallback installed the wrong asset"
+fi
+
 fake_uname "$work/uname-darwin-arm64" Darwin arm64
 reset_out
 run_install "$work/uname-darwin-arm64" >"$work/darwin.log" 2>&1 || {
@@ -136,7 +172,7 @@ grep -q 'webmux-linux-amd64 pinned' "$work/out/webmux" || fail "pinned version s
 # A pinned digest must work even when the source has no SHA256SUMS.
 mkdir -p "$www/nosums/releases/latest/download"
 cp "$www/releases/latest/download/webmux-linux-amd64" "$www/nosums/releases/latest/download/"
-pinned_sum=$(sha256sum "$www/nosums/releases/latest/download/webmux-linux-amd64" | awk '{print $1}')
+pinned_sum=$(digest "$www/nosums/releases/latest/download/webmux-linux-amd64")
 base=$server/nosums
 reset_out
 run_install "$work/uname-linux-pinned" WEBMUX_SHA256="$pinned_sum" >"$work/pinned-sum.log" 2>&1 || {

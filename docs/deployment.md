@@ -10,7 +10,7 @@
 
 ## 安装
 
-Linux/macOS 推荐使用仓库根目录的 [`install.sh`](../install.sh)。脚本只依赖 POSIX `sh`、`curl` 和 `uname`，自动识别 Linux/macOS 与 amd64/arm64（Apple Silicon 的 Rosetta 终端优先选择 arm64），下载对应二进制与 `SHA256SUMS`，校验通过后才原子替换目标文件。默认安装到 `~/.local/bin/webmux`，不需要 sudo，也不会执行 `config init`、`service install` 或改写 shell 配置。
+Linux/macOS 推荐使用仓库根目录的 [`install.sh`](../install.sh)。脚本依赖 POSIX `sh`、`curl`、`uname`、`mktemp`、`awk`，以及 `sha256sum` 或 `shasum`（任一即可），自动识别 Linux/macOS 与 amd64/arm64（Apple Silicon 的 Rosetta 终端优先选择 arm64），下载对应二进制与 `SHA256SUMS`，校验通过后才原子替换目标文件。默认安装到 `~/.local/bin/webmux`，不需要 sudo，也不会执行 `config init`、`service install` 或改写 shell 配置。
 
 安装脚本本身不依赖 `raw.githubusercontent.com`。任选一个可访问的入口：
 
