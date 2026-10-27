@@ -176,8 +176,8 @@
           <p class="font-medium">推送需要 HTTPS 安全上下文</p>
           <p>
             当前地址既不是 HTTPS
-            也不是本机回环地址，浏览器不提供推送功能。请改用 Cloudflare Named
-            Tunnel 的公网链接打开 WebMux。
+            也不是本机回环地址，浏览器不提供推送功能。请改用 HTTPS 入口打开
+            WebMux，例如 Tailscale Serve/Funnel 或 Cloudflare Named Tunnel。
           </p>
           <a class="underline underline-offset-2" href="#access"
             >查看公网访问配置</a
@@ -214,9 +214,9 @@
         {:else if advice === "unsupported_origin"}
           <p class="font-medium">当前地址不支持推送</p>
           <p>
-            推送只支持 Cloudflare Named Tunnel
-            公网地址与本机回环地址（127.0.0.1、localhost）。请改用 Named Tunnel
-            公网链接打开 WebMux 后再开启。
+            推送只支持 HTTPS 入口与本机回环地址（127.0.0.1、localhost）。请通过
+            Tailscale Serve/Funnel、Cloudflare Named Tunnel 等 HTTPS 入口打开
+            WebMux 后再开启。
           </p>
           <a class="underline underline-offset-2" href="/settings/tunnel"
             >查看公网访问配置</a

@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -22,14 +23,15 @@ const (
 
 var pushOriginErrors = map[string]error{
 	pushQuickTunnel:       errors.New("推送需要 Cloudflare Named Tunnel：Quick Tunnel 地址每次启动都会变化，旧订阅点开即失效"),
-	pushUnsupportedOrigin: errors.New("推送只支持 Cloudflare Named Tunnel 公网地址与本机回环地址"),
+	pushUnsupportedOrigin: errors.New("推送需要 HTTPS 入口或本机回环地址；可用 Tailscale Serve/Funnel、Cloudflare Named Tunnel 或其他已授权的 HTTPS 入口"),
 }
 
 // pushOrigin decides whether the page that sent r may subscribe. It returns
-// the canonical origin to anchor notification links, or a reason. Only two
-// origins are stable secure contexts this server can vouch for: the
-// configured Named Tunnel hostname (whether or not the tunnel runs now) and
-// loopback.
+// the canonical origin to anchor notification links, or a reason. Any HTTPS
+// origin that reached this handler already passed the Host and Origin checks,
+// so it is an authorized secure entry point: the managed Tailscale or Named
+// Tunnel, or a host listed in allowed_origins. Loopback is accepted over http
+// and https; other plain-http origins and the local socket are not.
 func (s *Server) pushOrigin(r *http.Request) (string, string) {
 	if s.local {
 		return "", pushUnsupportedOrigin
@@ -40,11 +42,11 @@ func (s *Server) pushOrigin(r *http.Request) (string, string) {
 	}
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		// Same-origin GETs omit Origin. Tunnel traffic reaches this server
-		// over plain HTTP, but the browser saw https.
+		// Same-origin GETs omit Origin. Tunnel and reverse-proxy traffic
+		// reaches this server over plain HTTP, but the browser saw https.
 		host := authorityHostname(r.Host)
 		scheme := "http"
-		if r.TLS != nil || host != "" && (host == named || s.Public.hostAllowed(r.Host)) {
+		if r.TLS != nil || host != "" && (host == named || s.Public.hostAllowed(r.Host) || allowedHTTPSAuthority(s.Config.AllowedOrigins, r.Host)) {
 			scheme = "https"
 		}
 		origin = scheme + "://" + r.Host
@@ -54,15 +56,54 @@ func (s *Server) pushOrigin(r *http.Request) (string, string) {
 		return "", pushUnsupportedOrigin
 	}
 	host := authorityHostname(u.Host)
+	authority, ok := normalizeAuthority(u.Host)
+	// Quick Tunnel addresses rotate on every start, so subscriptions anchored
+	// there die. Check this before the generic HTTPS branch; a running Named
+	// Tunnel also publishes a cloudflare origin and stays eligible.
+	if cloudflare := s.Public.load("cloudflare"); cloudflare != nil && ok && u.Scheme == "https" &&
+		cloudflare.authority == authority && authority != named {
+		return "", pushQuickTunnel
+	}
 	switch {
-	case named != "" && u.Scheme == "https" && u.Host == named:
+	case u.Scheme == "https" && ok && authority == named:
 		return "https://" + named, ""
 	case (u.Scheme == "http" || u.Scheme == "https") && (host == "127.0.0.1" || host == "::1" || host == "localhost"):
 		return u.Scheme + "://" + u.Host, ""
-	case named == "" && s.Public.load("cloudflare") != nil && origin == s.Public.load("cloudflare").origin:
-		return "", pushQuickTunnel
+	case u.Scheme == "https" && ok:
+		return "https://" + anchorAuthority(authority), ""
 	}
 	return "", pushUnsupportedOrigin
+}
+
+// anchorAuthority brackets a bare IPv6 literal so it can prefix an https URL.
+func anchorAuthority(authority string) string {
+	if strings.HasPrefix(authority, "[") {
+		return authority
+	}
+	if ip := net.ParseIP(authority); ip != nil && ip.To4() == nil {
+		return "[" + authority + "]"
+	}
+	return authority
+}
+
+// allowedHTTPSAuthority reports whether authority matches an https entry in
+// allowed_origins, so a same-origin GET behind an HTTPS reverse proxy is
+// recognized even though it carries no Origin header.
+func allowedHTTPSAuthority(origins []string, authority string) bool {
+	want, ok := normalizeAuthority(authority)
+	if !ok {
+		return false
+	}
+	for _, allowed := range origins {
+		u, err := url.Parse(allowed)
+		if err != nil || u.Scheme != "https" || u.User != nil || u.Host == "" || u.Path != "" || strings.ContainsAny(allowed, "?#") {
+			continue
+		}
+		if got, ok := normalizeAuthority(u.Host); ok && got == want {
+			return true
+		}
+	}
+	return false
 }
 
 func pushUnavailableReason(err error) string {

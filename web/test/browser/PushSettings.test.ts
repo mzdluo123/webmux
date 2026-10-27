@@ -51,13 +51,17 @@ const cases: {
   {
     name: "unsupported origin",
     status: { available: false, reason: "unsupported_origin" },
-    shows: ["当前地址不支持推送", "查看公网访问配置"],
+    shows: ["当前地址不支持推送", "HTTPS 入口", "查看公网访问配置"],
     toggle: false,
   },
   {
     name: "insecure context",
     support: { secure: false, serviceWorker: false, pushManager: false },
-    shows: ["推送需要 HTTPS 安全上下文", "查看公网访问配置"],
+    shows: [
+      "推送需要 HTTPS 安全上下文",
+      "Tailscale Serve/Funnel",
+      "查看公网访问配置",
+    ],
     toggle: false,
   },
   {
