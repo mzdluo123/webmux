@@ -316,9 +316,11 @@
         // Permission denied or a missing transient activation.
       }
     }
-    // A toolbar click or Ctrl/Cmd+C is a gesture, so the legacy execCommand
-    // path keeps copy working on plain-HTTP LAN/VPN origins.
-    if (userGesture && (await writeClipboard(text))) return;
+    // A toolbar click or Ctrl/Cmd+C is a gesture. The legacy execCommand path
+    // only fills the gap on plain-HTTP LAN/VPN origins; a secure origin that
+    // denied the Clipboard API keeps the manual text box fallback.
+    if (userGesture && !window.isSecureContext && (await writeClipboard(text)))
+      return;
     if (!mounted) return;
     copyText = text;
     copyOpen = true;
