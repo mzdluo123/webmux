@@ -139,11 +139,13 @@ export function connect(
     next.onerror = () => next.close();
   }
   const visible = () => {
+    // A probe left by a foreground that was hidden again must not replace
+    // the socket in the background.
+    clearTimeout(resumeTimer);
     if (document.hidden || finished) return;
     // A suspended mobile socket may still claim OPEN after the network died.
     // Callers that can probe it keep a healthy connection.
     const current = socket;
-    clearTimeout(resumeTimer);
     const probed =
       current?.readyState === WebSocket.OPEN &&
       !!options.resume?.((kind, payload) => api.send(kind, payload));

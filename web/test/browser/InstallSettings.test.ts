@@ -35,8 +35,9 @@ const cases: {
   {
     name: "a secure browser without a prompt",
     platform: {},
-    shows: ["浏览器暂未提供安装入口"],
-    hides: [insecureNotice],
+    // Installed apps fire no prompt either, so this is not "未安装".
+    shows: ["未以应用方式打开", "浏览器暂未提供安装提示", "添加到程序坞"],
+    hides: [insecureNotice, "未安装"],
     button: false,
   },
   {
@@ -75,7 +76,7 @@ const cases: {
     // Chromium cannot install from here even if it fired a prompt.
     status: { promptable: true, installed: false },
     shows: [insecureNotice, "查看公网访问配置"],
-    hides: ["浏览器暂未提供安装入口"],
+    hides: ["浏览器暂未提供安装提示"],
     button: false,
   },
 ];

@@ -194,6 +194,23 @@ it("replaces a silent connection after the resume probe times out", () => {
   expect(socket.readyState).toBe(3);
 });
 
+it("a probe from a foreground hidden again never replaces the socket", () => {
+  connection.close();
+  connection = connect("/ws/s/example", vi.fn(), vi.fn(), vi.fn(), {
+    resume: () => true,
+  });
+  const socket = Socket.instances.at(-1)!;
+  socket.onopen?.();
+  document.dispatchEvent(new Event("visibilitychange"));
+  Object.defineProperty(document, "hidden", {
+    configurable: true,
+    value: true,
+  });
+  document.dispatchEvent(new Event("visibilitychange"));
+  vi.advanceTimersByTime(60000);
+  expect(Socket.instances.at(-1)).toBe(socket);
+});
+
 it("reopens a closed connection on foreground without probing it", () => {
   connection.close();
   const resume = vi.fn(() => true);

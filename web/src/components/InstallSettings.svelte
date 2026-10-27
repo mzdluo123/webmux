@@ -53,8 +53,12 @@
       {:else if advice === "installed"}
         <Badge>已安装</Badge>
         <span class="text-muted-foreground">可从主屏幕或应用列表打开</span>
-      {:else}
+      {:else if advice === "prompt"}
         <Badge variant="secondary">未安装</Badge>
+      {:else}
+        <!-- Without a prompt the browser does not say whether the app is
+             installed: a later tab of an installed app gets none either. -->
+        <Badge variant="secondary">未以应用方式打开</Badge>
       {/if}
     </div>
 
@@ -93,9 +97,9 @@
       </div>
     {:else if advice === "browser-menu" && platform.secure && !dismissed}
       <p class="text-sm text-muted-foreground">
-        浏览器暂未提供安装入口。Chrome、Edge
-        可从地址栏的安装图标或浏览器菜单中的“安装应用”“添加到主屏幕”安装；Firefox
-        桌面版不支持安装网页应用。
+        浏览器暂未提供安装提示；若已安装，可从主屏幕或应用列表打开。Chrome、Edge
+        可从地址栏的安装图标或浏览器菜单中的“安装应用”“添加到主屏幕”安装；macOS
+        Safari 使用“文件 → 添加到程序坞”；其他浏览器请查看其菜单。
       </p>
     {/if}
     {#if dismissed && advice !== "installed"}
