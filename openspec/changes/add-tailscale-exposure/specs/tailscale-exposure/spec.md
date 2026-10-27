@@ -246,6 +246,11 @@ Tailscale 来源 SHALL 只在命令成功并由 serve 配置回读确认后登�
 - **WHEN** `tailscale.json` 内容损坏，但 serve 配置中有入口指向当前监听端口与 target
 - **THEN** 系统拒绝启动并报告所有权未知，要求修复状态文件或手工移除精确目标，避免意外暴露
 
+#### Scenario: 状态锁被运行中实例持有且入口指向当前端口
+
+- **WHEN** 状态文件的锁被另一个仍在运行的 WebMux 实例持有，且 serve 配置中有入口指向当前监听端口与 target
+- **THEN** 系统拒绝启动并说明该入口属于运行中的实例，要求先停止该实例；错误 MUST NOT 给出移除该入口的命令
+
 #### Scenario: 状态文件丢失但入口精确匹配
 
 - **WHEN** 状态文件不存在，serve 配置中目标端口只有一个指向当前 target 的 `/` handler

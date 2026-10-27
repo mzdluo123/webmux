@@ -341,8 +341,38 @@ func TestPrepareRefusesCorruptStatePointingAtTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctl := testTailscaleController(t, cli, dir, config.TailscaleConfig{Mode: "off", Provider: "auto"})
-	if err := ctl.Prepare(context.Background(), "127.0.0.1:7681"); err == nil {
+	err := ctl.Prepare(context.Background(), "127.0.0.1:7681")
+	if err == nil {
 		t.Fatal("corrupt state with a matching entry was accepted")
+	}
+	for _, want := range []string{"端口 443", "`tailscale serve --https=443 off`", filepath.Join(dir, "tailscale-ownership.json")} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("Prepare = %v; want %q", err, want)
+		}
+	}
+}
+
+func TestPrepareLockedStoreNeverSuggestsRemovingLiveEntry(t *testing.T) {
+	cli, logPath := fakeTailscale(t,
+		tailscaleRunning,
+		`{"Web":{"node.tailnet.ts.net:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:7681"}}}},"AllowFunnel":{}}`)
+	dir := t.TempDir()
+	cfg := config.TailscaleConfig{Mode: "serve", Provider: "auto"}
+	live := testTailscaleController(t, cli, dir, cfg)
+	if err := live.openLock(); err != nil {
+		t.Fatal(err)
+	}
+	defer live.ownership.Close()
+	ctl := testTailscaleController(t, cli, dir, cfg)
+	err := ctl.Prepare(context.Background(), "127.0.0.1:7681")
+	if err == nil {
+		t.Fatal("a second instance started against a locked store and a live entry")
+	}
+	if strings.Contains(err.Error(), "off") || !strings.Contains(err.Error(), "另一个仍在运行的 WebMux") {
+		t.Fatalf("Prepare = %v; want a live-instance conflict without a removal command", err)
+	}
+	if calls, _ := os.ReadFile(logPath); len(calls) != 0 {
+		t.Fatalf("refusal ran a write command: %s", calls)
 	}
 }
 

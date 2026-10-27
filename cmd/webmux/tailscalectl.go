@@ -214,6 +214,11 @@ func (tc *tailscaleController) Prepare(ctx context.Context, listen string) error
 		tc.storageErr = err
 		if target, ok := targetFromListen(listen); ok {
 			if port, found := tc.entryPointingTo(ctx, target); found {
+				if statefile.IsKind(err, statefile.Locked) {
+					// A live WebMux holds the lock, so the matching entry is
+					// its own; suggesting removal would tear it down.
+					return fmt.Errorf("%w；端口 %d 的入口属于另一个仍在运行的 WebMux 实例，请先停止该实例再启动", err, port)
+				}
 				return errors.New(tc.unownedHint(err.Error(), port, target))
 			}
 		}
