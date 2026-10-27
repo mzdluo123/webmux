@@ -54,9 +54,9 @@ func startCommand(args []string, stdout, stderr io.Writer) int {
 		return contract.ExitError
 	}
 	if target.Record != nil {
-		status, _ := client.Status(context.Background(), target, false, client.NetInterfaces)
+		status, code := client.Status(context.Background(), target, false, client.NetInterfaces)
 		sessioncmd.PrintStatus(stdout, status)
-		return contract.ExitOK
+		return code
 	}
 
 	logPath := run.LogFile

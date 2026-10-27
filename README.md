@@ -159,7 +159,7 @@ make install        # 安装到 ~/.local/bin/webmux
 
 ## 配置
 
-默认读取 `~/.config/webmux/config.toml`。未显式指定 `--config` 且文件不存在时，首次 `webmux` / `webmux serve` 会用内置模板生成 0600 配置文件与随机 token，再使用它启动；启动输出会说明生成或使用的路径，并提示 `webmux status --json --reveal-token`。显式 `--config PATH` 只读取 PATH，缺失时启动失败且不会创建文件。命令行参数 `--listen`、`--token` 优先于配置文件，但只影响本次进程，不写入新生成的配置。
+默认读取 `~/.config/webmux/config.toml`。未显式指定 `--config` 且文件不存在时，首次 `webmux` / `webmux serve` / `webmux start` 会用内置模板生成 0600 配置文件与随机 token，再使用它启动；启动输出会说明生成或使用的路径，并提示 `webmux status --json --reveal-token`。显式 `--config PATH` 只读取 PATH，缺失时启动失败且不会创建文件。命令行参数 `--listen`、`--token` 优先于配置文件，但只影响本次进程，不写入新生成的配置。
 
 ```sh
 webmux config init   # 也可手动预生成 0600 配置文件；不覆盖已有文件

@@ -239,6 +239,19 @@ func TestStartReplacesStaleRecord(t *testing.T) {
 	}
 }
 
+func TestStartReportsUnresponsiveInstance(t *testing.T) {
+	f := newFixture(t, "")
+	standIn(t, f, "while :; do sleep 0.1; done")
+
+	var stdout, stderr bytes.Buffer
+	if code := dispatch([]string{"start", "--config", f.config}, &stdout, &stderr); code != contract.ExitError {
+		t.Fatalf("start reported success for an unresponsive instance: %d stdout %q stderr %q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "does not respond") {
+		t.Fatalf("start output %q", stdout.String())
+	}
+}
+
 func TestStartHonorsLogFile(t *testing.T) {
 	f := newFixture(t, "")
 	logPath := filepath.Join(f.dir, "custom.log")
