@@ -4,7 +4,9 @@ import "../src/styles.css";
 const preview: Preview = {
   parameters: {
     layout: "fullscreen",
-    options: { storySort: { order: ["Design system", "Workspace", "UI"] } },
+    options: {
+      storySort: { order: ["Design system", "Workspace", "Prototype", "UI"] },
+    },
   },
   initialGlobals: { theme: "light" },
   globalTypes: {
