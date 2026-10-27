@@ -157,8 +157,12 @@ func daemonEnv(env []string) []string {
 }
 
 func waitForDaemon(cmd *exec.Cmd, runDir, logPath string) (runtime.Record, error) {
-	exited := make(chan error, 1)
-	go func() { exited <- cmd.Wait() }()
+	var waitErr error
+	exited := make(chan struct{})
+	go func() {
+		waitErr = cmd.Wait()
+		close(exited)
+	}()
 	deadline := time.Now().Add(startTimeout)
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
@@ -168,8 +172,8 @@ func waitForDaemon(cmd *exec.Cmd, runDir, logPath string) (runtime.Record, error
 			return record, nil
 		}
 		select {
-		case err := <-exited:
-			return runtime.Record{}, fmt.Errorf("server exited before it published its runtime record: %v; see %s", err, logPath)
+		case <-exited:
+			return runtime.Record{}, fmt.Errorf("server exited before it published its runtime record: %v; see %s", waitErr, logPath)
 		case <-ticker.C:
 		}
 		if time.Now().After(deadline) {
@@ -182,7 +186,7 @@ func waitForDaemon(cmd *exec.Cmd, runDir, logPath string) (runtime.Record, error
 	}
 }
 
-func terminateDaemon(cmd *exec.Cmd, exited <-chan error) {
+func terminateDaemon(cmd *exec.Cmd, exited <-chan struct{}) {
 	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 	timer := time.NewTimer(startStopGrace)
 	defer timer.Stop()
