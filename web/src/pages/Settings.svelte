@@ -46,6 +46,7 @@
   import { setBrowserChrome } from "../browser-chrome";
   import TailscaleSettings from "../components/TailscaleSettings.svelte";
   import PushSettings from "../components/PushSettings.svelte";
+  import InstallSettings from "../components/InstallSettings.svelte";
   import SettingsNavigation from "../components/SettingsNavigation.svelte";
   import { Switch } from "$lib/components/ui/switch";
   import { browserDraftStorage } from "../draftStorage";
@@ -467,6 +468,7 @@
       </Card.Root>
       <TunnelSettings />
       <TailscaleSettings />
+      <InstallSettings />
       <PushSettings />
       <Card.Root id="preview">
         <Card.Header>
