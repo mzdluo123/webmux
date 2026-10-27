@@ -12,7 +12,9 @@ export interface TerminalUserInput {
 
 export interface TerminalClipboard {
   paste: () => void;
-  copySelection: (text: string) => void;
+  // `userGesture` lets the page use the legacy execCommand copy fallback that
+  // plain-HTTP origins need; an OSC 52 request has no gesture.
+  copySelection: (text: string, userGesture?: boolean) => void;
 }
 
 export interface TerminalInputOptions {
@@ -248,7 +250,7 @@ export function attachTerminalInput(
       const selected = term.getSelection();
       if (selected) {
         event.preventDefault();
-        clipboard.copySelection(selected);
+        clipboard.copySelection(selected, true);
         term.clearSelection();
         return false;
       }
