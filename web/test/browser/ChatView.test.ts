@@ -158,9 +158,6 @@ test("renders the attachments of a user prompt", async () => {
   const attachments = page.getByRole("list", { name: "附件" });
   await expect.element(attachments.getByText("shot.png")).toBeVisible();
   await expect.element(attachments.getByText("notes.txt")).toBeVisible();
-  await expect
-    .element(page.getByRole("button", { name: "添加附件" }))
-    .toBeVisible();
 });
 
 test("the composer posts the prompt with a request ID and mode auto", async () => {

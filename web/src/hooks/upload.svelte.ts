@@ -1,6 +1,7 @@
 import { errorMessage } from "../error";
 import { onMount } from "svelte";
 import { uploadFile } from "../api";
+import type { ChatAttachment } from "../schemas";
 import type { Connection } from "../ws";
 import { hasTouchInput } from "../touchInput";
 import type {
@@ -29,6 +30,68 @@ export interface UploadProgress {
   index: number;
   total: number;
   waiting: boolean;
+}
+
+export interface ChatUploads {
+  readonly progress: UploadProgress | null;
+  /** Finished uploads waiting to be sent with the next message. */
+  readonly attachments: readonly ChatAttachment[];
+  uploadFiles(files: File[]): Promise<void>;
+  filePaste(event: ClipboardEvent): boolean;
+  cancel(): void;
+  remove(path: string): void;
+  /** Hands the pending attachments to a send and clears them. */
+  take(): ChatAttachment[];
+  /** Puts a failed send's attachments back in front of newer ones. */
+  restore(attachments: ChatAttachment[]): void;
+}
+
+interface UploadRun {
+  id: string;
+  files: File[];
+  signal: AbortSignal;
+  /** Progress shows "等待" between upload and insertion while the PTY settles. */
+  waiting: boolean;
+  report(progress: UploadProgress): void;
+  insert(path: string, file: File): Promise<void>;
+}
+
+// Both editors upload files the same way: one at a time, with progress and
+// cancellation; only where the returned path goes differs.
+async function runUploads(run: UploadRun) {
+  for (const [index, file] of run.files.entries()) {
+    const current: UploadProgress = {
+      name: file.name,
+      percent: 0,
+      index: index + 1,
+      total: run.files.length,
+      waiting: false,
+    };
+    run.report(current);
+    const { path } = await uploadFile(
+      run.id,
+      file,
+      (percent) => run.report({ ...current, percent }),
+      run.signal,
+    );
+    if (run.signal.aborted)
+      throw new Error(`文件已上传至 ${path}，但路径未插入：操作已取消`);
+    run.report({ ...current, percent: 100, waiting: run.waiting });
+    await run.insert(path, file);
+  }
+}
+
+// File paste is taken over from the editor; plain text keeps its native path.
+function pasteFiles(
+  event: ClipboardEvent,
+  upload: (files: File[]) => Promise<void>,
+) {
+  const files = Array.from(event.clipboardData?.files ?? []);
+  if (!files.length) return false;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  void upload(files);
+  return true;
 }
 
 // All upload sources share the same operation identity and quoted-path insertion.
@@ -112,48 +175,37 @@ export function useUpload(
     const current = new AbortController();
     controller = current;
     let pendingPath = "";
-    let lastTarget: TextInsertion = "failed";
+    const inserted = { terminal: false };
     try {
-      for (const [index, file] of files.entries()) {
-        progress = {
-          name: file.name,
-          percent: 0,
-          index: index + 1,
-          total: files.length,
-          waiting: false,
-        };
-        const { path } = await uploadFile(
-          id,
-          file,
-          (percent) => {
-            if (progress) progress.percent = percent;
-          },
-          current.signal,
-        );
-        pendingPath = path;
-        if (!mounted || current.signal.aborted)
-          throw new Error(`文件已上传至 ${path}，但路径未插入：操作已取消`);
-        progress.waiting = true;
-        progress.percent = 100;
-        try {
-          await waitForDestination(current.signal, operation);
-          if (!mounted || current.signal.aborted)
-            throw new DOMException("操作已取消", "AbortError");
-          // Quote arbitrary filenames safely. Uploading never runs a command.
-          lastTarget = input.insert(
-            "'" + path.replaceAll("'", "'\\''") + "' ",
-            operation,
-          );
-          if (lastTarget === "failed") throw new Error("输入目标未就绪");
-          pendingPath = "";
-        } catch (err) {
-          throw new Error(
-            `文件已上传至 ${path}，但路径未插入：${errorMessage(err)}`,
-          );
-        }
-      }
+      await runUploads({
+        id,
+        files,
+        signal: current.signal,
+        waiting: true,
+        report: (value) => (progress = value),
+        insert: async (path) => {
+          pendingPath = path;
+          try {
+            await waitForDestination(current.signal, operation);
+            if (!mounted || current.signal.aborted)
+              throw new DOMException("操作已取消", "AbortError");
+            // Quote arbitrary filenames safely. Uploading never runs a command.
+            const target: TextInsertion = input.insert(
+              "'" + path.replaceAll("'", "'\\''") + "' ",
+              operation,
+            );
+            if (target === "failed") throw new Error("输入目标未就绪");
+            inserted.terminal = target === "terminal";
+            pendingPath = "";
+          } catch (err) {
+            throw new Error(
+              `文件已上传至 ${path}，但路径未插入：${errorMessage(err)}`,
+            );
+          }
+        },
+      });
       if (
-        lastTarget === "terminal" &&
+        inserted.terminal &&
         input.destination(operation) === "terminal" &&
         !hasTouchInput()
       )
@@ -168,12 +220,7 @@ export function useUpload(
 
   // Returns whether the paste carried files and was taken over as an upload.
   function filePaste(event: ClipboardEvent) {
-    const files = Array.from(event.clipboardData?.files ?? []);
-    if (!files.length) return false;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    void uploadFiles(files);
-    return true;
+    return pasteFiles(event, uploadFiles);
   }
 
   onMount(() => {
@@ -247,6 +294,118 @@ export function useUpload(
     filePaste,
     cancel() {
       controller?.abort();
+    },
+  };
+}
+
+// Mirrors the server's per-message bounds so an upload that could never be
+// sent is refused before any bytes move; the server still enforces them.
+const maxAttachments = 8;
+const maxAttachmentBytes = 10 << 20;
+const maxAttachmentTotalBytes = 20 << 20;
+// The kinds the server sends as native image blocks; the server sniffs the
+// stored bytes again and its answer is what the timeline shows.
+const imageTypes: Record<string, true> = {
+  "image/png": true,
+  "image/jpeg": true,
+  "image/gif": true,
+  "image/webp": true,
+};
+
+// Chat uploads become attachments of the next message rather than text in
+// the draft: the server sends them as ACP content blocks, or as server paths
+// when the agent cannot take them.
+export function useChatUpload(
+  id: string,
+  setError: (message: string) => void,
+): ChatUploads {
+  let progress = $state<UploadProgress | null>(null);
+  let attachments = $state<ChatAttachment[]>([]);
+  let controller: AbortController | undefined;
+  let disposed = false;
+
+  function refusal(files: File[]) {
+    if (attachments.length + files.length > maxAttachments)
+      return `每条消息最多 ${maxAttachments} 个附件。`;
+    const oversized = files.find((file) => file.size > maxAttachmentBytes);
+    if (oversized)
+      return `${oversized.name} 超过 ${maxAttachmentBytes >> 20} MiB。`;
+    const total =
+      attachments.reduce((sum, item) => sum + (item.size ?? 0), 0) +
+      files.reduce((sum, file) => sum + file.size, 0);
+    if (total > maxAttachmentTotalBytes)
+      return `附件合计超过 ${maxAttachmentTotalBytes >> 20} MiB。`;
+    return "";
+  }
+
+  async function uploadFiles(files: File[]) {
+    if (!files.length) return;
+    if (progress) {
+      setError("正在上传，请等待当前上传完成。");
+      return;
+    }
+    const refused = refusal(files);
+    setError(refused);
+    if (refused) return;
+    const current = new AbortController();
+    controller = current;
+    try {
+      await runUploads({
+        id,
+        files,
+        signal: current.signal,
+        waiting: false,
+        report: (value) => (progress = value),
+        insert: async (path, file) => {
+          attachments = [
+            ...attachments,
+            {
+              path,
+              name: file.name,
+              ...(file.type ? { mimeType: file.type } : {}),
+              size: file.size,
+              kind: Object.hasOwn(imageTypes, file.type) ? "image" : "file",
+            },
+          ];
+        },
+      });
+    } catch (err) {
+      if (!disposed) setError(errorMessage(err));
+    } finally {
+      controller = undefined;
+      progress = null;
+    }
+  }
+
+  onMount(() => () => {
+    disposed = true;
+    controller?.abort();
+  });
+
+  return {
+    get progress() {
+      return progress;
+    },
+    get attachments() {
+      return attachments;
+    },
+    uploadFiles,
+    filePaste(event) {
+      return pasteFiles(event, uploadFiles);
+    },
+    cancel() {
+      controller?.abort();
+    },
+    remove(path) {
+      attachments = attachments.filter((item) => item.path !== path);
+    },
+    take() {
+      const taken = attachments;
+      attachments = [];
+      return taken;
+    },
+    restore(sent) {
+      attachments = [...sent, ...attachments];
     },
   };
 }

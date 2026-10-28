@@ -1,4 +1,4 @@
-import { api, uploadFile } from "./api";
+import { api } from "./api";
 import { newRequestId } from "./ids";
 import {
   ChatPermissionModeRequestSchema,
@@ -29,11 +29,6 @@ export interface ChatActions {
     mode: "auto" | "steer",
     attachments?: ChatAttachment[],
   ): Promise<unknown>;
-  upload(
-    file: File,
-    progress: (percent: number) => void,
-    signal: AbortSignal,
-  ): Promise<{ path: string }>;
   cancel(): Promise<unknown>;
   editQueued(itemId: string, text: string): Promise<unknown>;
   moveQueuedUp(itemId: string): Promise<unknown>;
@@ -65,7 +60,6 @@ export function chatActions(id: string): ChatActions {
           ? { attachments: attachments.map(({ path }) => ({ path })) }
           : {}),
       }),
-    upload: (file, progress, signal) => uploadFile(id, file, progress, signal),
     cancel: () => command("cancel", "POST"),
     editQueued: (itemId, text) => command(item(itemId), "PATCH", { text }),
     moveQueuedUp: (itemId) => command(item(itemId), "PATCH", { move: "up" }),

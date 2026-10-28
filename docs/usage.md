@@ -164,7 +164,11 @@ jq -nc --arg seq "$seq" '{terminalSequence: $seq}'
 - **已有工作树**：在已登记仓库的某个工作树（或其子目录）中启动；仓库和工作树均使用与启动命令相同主题的下拉框，显示名称与路径，不使用浏览器原生菜单。
 - **新工作树**：先创建 Git worktree，再启动会话。
 
-“启动命令”通过两个 Tab 区分命令来源，两者都只使用自定义命令；新安装首次启动会预置 Shell、Claude Code、Codex CLI、Gemini CLI、Open Code、omp 等启动配置，可在设置页编辑或删除。预置的 agent 配置默认自动批准工具调用，不再逐次询问：Claude Code `--dangerously-skip-permissions`、Codex CLI `--dangerously-bypass-approvals-and-sandbox`（同时关闭 Codex 沙箱）、Gemini CLI `--yolo`、Open Code `--auto`、omp `--auto-approve`；需要逐次批准时在设置页删掉对应参数。Open Code 与 omp 预置配置默认开启[混合模式](hybrid-sessions.md)。已有安装的 `launch-configs.json` 不会被改写：
+“启动命令”通过两个 Tab 区分命令来源，两者都只使用自定义命令；新安装首次启动会预置 Shell、Claude Code、Codex CLI、Gemini CLI、Open Code、omp 等启动配置，可在设置页编辑或删除。
+
+预置的 agent 配置默认自动批准工具调用，不再逐次询问：Claude Code `--dangerously-skip-permissions`、Codex CLI `--dangerously-bypass-approvals-and-sandbox`（同时关闭 Codex 沙箱）、Gemini CLI `--yolo`、Open Code `--auto`、omp `--auto-approve`；需要逐次批准时在设置页删掉对应参数。
+
+Open Code 与 omp 预置配置默认开启[混合模式](hybrid-sessions.md)。已有安装的 `launch-configs.json` 不会被改写：
 
 - **预先输入**：从下拉框选择在设置页保存的启动配置。选中框和展开的每个选项同时显示图标、名称与命令，并展示环境变量数量（不显示值）；长命令可通过完整提示查看。配置保存在服务端，换浏览器或设备后仍可选用。
 - **手动填写**：直接填写一次性命令，不会写入服务端；没有保存配置或配置存储不可用时也可使用。切换命令来源 Tab 时保留已选配置与手动输入，新建会话页在当前浏览器记住上次成功使用的选择和临时命令。手动命令为空或引号未闭合时不能创建会话，不会误用另一个 Tab 中的配置。
@@ -288,6 +292,8 @@ node web/test/fixtures/kitty-scroll-demo.mjs
 - 文件保存在服务器临时目录下独立的 `webmux-upload-*` 子目录中（遵循 `TMPDIR`），权限 0700 / 0600，不写入工作区。
 - 单文件上限 100 MiB，上传期限 5 分钟，可随时取消。
 - 上传成功的文件不会随会话关闭自动删除，由用户或系统临时目录策略清理。
+
+在混合会话的聊天视图，输入框左侧的回形针、拖放到聊天视图或粘贴文件 / 图片同样上传，完成后作为下一条消息的附件（可移除的 chip），不插入路径、不自动发送；上传中可查看文件名、序号与百分比并取消。附件的发送与降级见 [混合会话](hybrid-sessions.md)。
 
 ## 草稿模式
 
