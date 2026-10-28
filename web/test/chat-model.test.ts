@@ -88,7 +88,7 @@ describe("chat reducer", () => {
       ["thought", "look"],
       ["agent", "Done."],
     ]);
-    expect(resumePoint(m)).toEqual({ generation: "g1", seq: 4 });
+    expect(resumePoint(m)).toEqual({ generation: "g1", seq: 3 });
   });
 
   test("tool updates replace one row; content and status follow the latest patch", () => {

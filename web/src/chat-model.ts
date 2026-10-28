@@ -79,10 +79,13 @@ export function emptyChat(): ChatModel {
   };
 }
 
-/** Where to resume the stream: the query of the next connection. */
+/**
+ * Where to resume the stream: the generation and the last applied sequence,
+ * after which the server resends events.
+ */
 export function resumePoint(model: ChatModel) {
   return model.generation
-    ? { generation: model.generation, seq: model.next }
+    ? { generation: model.generation, seq: Math.max(0, model.next - 1) }
     : undefined;
 }
 
