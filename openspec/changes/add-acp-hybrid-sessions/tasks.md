@@ -4,10 +4,10 @@
 
 ## 1. 真实 agent 基线（M0）
 
-- [ ] 1.1 在隔离 HOME、独立 webmux 实例中，抓取 `omp acp` 与 `opencode acp` 的 `initialize` 响应（协议版本、`loadSession`、`sessionCapabilities`、`_meta.steering`、`agentInfo`），以及 `session/new`、`load`、`resume`、`list`、`close` 的实际行为，写入本目录下的 `baseline.md`。验证：`baseline.md` 中每个档案字段都有对应的实测记录；与 design 决策 9 不一致的地方已回改 design 与 specs。
-- [ ] 1.2 以实际发行版（而非源码）的 `--help` 输出与实测，确定两个档案的白名单参数、参数个数、会话类参数、ACP 透传参数与“不可勾选”参数（OpenCode 位置目录，omp `--session-dir`/`--no-session`），写入 `baseline.md`。对照记录 OpenCode 2.1.4 与 2.2.0 的差异。验证：每个参数都有一条“保留 / 丢弃 / 透传 / 不可勾选”的实测结论。
-- [ ] 1.3 验证 bashrc 包装下的 fd 重定向写法（`exec -- "$@" 1>&3 3>&-`）：`.bashrc` 中有 `echo` 时，ACP 握手仍然成功，且 `.bashrc` 提供的环境变量对 agent 可见。验证：结果与命令记录在 `baseline.md` 中。
-- [ ] 1.4 验证两个 agent 在空闲时以进程组 SIGHUP 退出 TUI 后，会话完整可加载，并测量回合中先按中断键再退出的表现。实测 OpenCode 以 `--standalone` 运行时，回合中结束 TUI 会停止回合（私有服务随 TUI 退出），并且之后 ACP `session/load` 历史完整、没有残留运行中的工具调用。不成立时，按 design“风险”一节退回原方案，并修订相关 specs。另外实测 cwd 为符号链接路径时 `session/list` 的结果，以及 OpenCode 加载后模型回到默认值的判定方式（D25）。验证：结论写入 `baseline.md`，并据此确认 design 决策 9 的“退出方式”与 D25 规则。
+- [x] 1.1 在隔离 HOME、独立 webmux 实例中，抓取 `omp acp` 与 `opencode acp` 的 `initialize` 响应（协议版本、`loadSession`、`sessionCapabilities`、`_meta.steering`、`agentInfo`），以及 `session/new`、`load`、`resume`、`list`、`close` 的实际行为，写入本目录下的 `baseline.md`。验证：`baseline.md` 中每个档案字段都有对应的实测记录；与 design 决策 9 不一致的地方已回改 design 与 specs。
+- [x] 1.2 以实际发行版（而非源码）的 `--help` 输出与实测，确定两个档案的白名单参数、参数个数、会话类参数、ACP 透传参数与“不可勾选”参数（OpenCode 位置目录，omp `--session-dir`/`--no-session`），写入 `baseline.md`。对照记录 OpenCode 2.1.4 与 2.2.0 的差异。验证：每个参数都有一条“保留 / 丢弃 / 透传 / 不可勾选”的实测结论。
+- [x] 1.3 验证 bashrc 包装下的 fd 重定向写法（`exec -- "$@" 1>&3 3>&-`）：`.bashrc` 中有 `echo` 时，ACP 握手仍然成功，且 `.bashrc` 提供的环境变量对 agent 可见。验证：结果与命令记录在 `baseline.md` 中。
+- [x] 1.4 验证两个 agent 在空闲时以进程组 SIGHUP 退出 TUI 后，会话完整可加载，并测量回合中先按中断键再退出的表现。实测 OpenCode 以 `--standalone` 运行时，回合中结束 TUI 会停止回合（私有服务随 TUI 退出），并且之后 ACP `session/load` 历史完整、没有残留运行中的工具调用。不成立时，按 design“风险”一节退回原方案，并修订相关 specs。另外实测 cwd 为符号链接路径时 `session/list` 的结果，以及 OpenCode 加载后模型回到默认值的判定方式（D25）。验证：结论写入 `baseline.md`，并据此确认 design 决策 9 的“退出方式”与 D25 规则。
 
 ## 2. ACP 客户端与假 agent（M1）
 

@@ -23,17 +23,33 @@
 - **WHEN** 配置的 argv 为 `["sh","-c","omp"]`
 - **THEN** 判定为不可用，原因为命令写法不受支持
 
-### Requirement: 使两端看到不同目录的参数
+### Requirement: 使两端看到不同会话库或目录的参数
 
-参数会让 TUI 与 ACP 看到不同会话库或不同目录的配置，SHALL 视为不可用：
+以下参数 SHALL 使配置不可用于混合模式：
 
-- OpenCode 的位置参数是工作目录。带位置参数的配置 SHALL 不可用，原因为“请在新建会话时选择目录，不要在命令中写目录”。
-- omp 的 `--session-dir` 只对 ACP 新建的会话生效，ACP 的列出、加载与恢复始终使用默认目录；`--no-session` 不保存会话。带这两个参数的配置 SHALL 不可用，原因为“该参数使聊天视图无法找到会话”。
+- 让 TUI 与 ACP 看到不同会话库的参数，原因为“该参数使聊天视图无法找到会话”：
+  - omp 的 `--session-dir` 只对 ACP 新建的会话生效，ACP 的列出、加载与恢复始终使用默认目录；`--no-session` 不保存会话；
+  - OpenCode 的 `--server` 使 TUI 连接另一个服务及其会话库。
+- 在命令中指定工作目录的参数，原因为“请在新建会话时选择目录，不要在命令中写目录”：OpenCode 的位置参数，以及 omp 的 `--cwd`。
+
+omp 的 `--profile` SHALL NOT 视为不可用：它同时透传给 ACP 进程，两端使用同一个配置档的会话库。
 
 #### Scenario: OpenCode 命令中写了目录
 
 - **WHEN** 用户对 argv 为 `["opencode","/home/u/proj"]` 的配置勾选混合模式
 - **THEN** 保存返回 400，原因提示在新建会话时选择目录
+
+### Requirement: 不启动交互界面的参数
+
+以下参数 SHALL 使配置不可用于混合模式，原因为“该参数不启动交互界面”：
+
+- omp 的 `-p`/`--print`、`--mode`、`--export`、`--alias`、`-h`/`--help`、`-v`/`--version`，以及首个位置参数为 omp 子命令（例如 `commit`、`acp`）的写法；
+- OpenCode 的 `-h`/`--help`、`-v`/`--version`、`--completions`、`--wizard`。
+
+#### Scenario: 非交互用法
+
+- **WHEN** 用户对 argv 为 `["omp","-p","总结改动"]` 的配置勾选混合模式
+- **THEN** 保存返回 400，原因为该参数不启动交互界面
 
 ### Requirement: 恢复命令的生成
 
@@ -66,7 +82,7 @@ OpenCode 的 TUI 默认连接后台服务，回合在后台服务中运行，结
 
 系统 SHALL 按档案启动 ACP 进程：OpenCode 为 `opencode acp`，omp 为 `omp acp`，并套用与原命令相同的写法。
 
-档案声明的自动批准类参数 SHALL 从原 argv 透传给 ACP 进程（omp 为 `--approval-mode`、`--yolo`、`--auto-approve`、`--config`）。档案没有对应 ACP 参数的 SHALL 被丢弃，并在界面上提示，例如 OpenCode 的 `--auto` 及其别名 `--yolo`、`--dangerously-skip-permissions`，因为 `opencode acp` 只接受 `--login`。
+omp 的 `omp acp` 解析完整 argv，并静默忽略未知参数。因此原 argv 中位于 omp 白名单内的参数 SHALL 全部透传给 ACP 进程（例如 `--model`、`--thinking`、`--profile`、`--config`、`--approval-mode`、`--auto-approve`），使两端使用相同的模型、配置档与批准策略。`opencode acp` 只接受 `--login`，OpenCode 的白名单参数 SHALL NOT 透传；其中会改变行为的 `--auto` SHALL 在界面上提示“聊天视图不支持该参数”。
 
 使用 bashrc 包装时，`.bashrc` 执行期间写到 stdout 的内容 SHALL NOT 进入 ACP 协议通道。
 
@@ -74,6 +90,11 @@ OpenCode 的 TUI 默认连接后台服务，回合在后台服务中运行，结
 
 - **WHEN** 用户的 `.bashrc` 会 `echo` 一行欢迎语，混合会话从聊天开始
 - **THEN** ACP 握手成功，欢迎语不导致协议错误
+
+#### Scenario: omp 参数透传
+
+- **WHEN** 混合配置的 argv 为 `["omp","--profile","work","--model","haiku","修 bug"]`，会话从聊天开始
+- **THEN** ACP 进程的 argv 为 `["omp","acp","--profile","work","--model","haiku"]`
 
 ### Requirement: 两端环境一致
 
@@ -84,6 +105,13 @@ ACP 进程、恢复后的 TUI 与最初的 TUI SHALL 使用同一套环境：
 - webmux 注入的变量，包括同一个 `WEBMUX_SESSION_ID`。
 
 `webmux run --launch-config` 创建的混合会话同样 SHALL NOT 继承调用方 shell 的环境。
+
+传给 ACP `session/new`、`session/list`、`session/load` 与 `session/resume` 的 cwd SHALL 是解析符号链接后的绝对路径。TUI 记录的是解析后的路径，而 OpenCode 的 `session/list` 按字符串精确匹配 cwd，未解析的符号链接路径查不到 TUI 创建的会话。
+
+#### Scenario: 符号链接目录
+
+- **WHEN** 用户在符号链接目录 `/home/u/proj-link`（指向 `/home/u/proj`）中新建 OpenCode 混合会话，在 TUI 中发出首条消息后切到聊天
+- **THEN** 资格核对与 `session/load` 都使用 `/home/u/proj`，切换成功
 
 #### Scenario: 配置文件目录变量
 
