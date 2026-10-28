@@ -203,26 +203,31 @@ func skipFanout(dir string) bool {
 	return false
 }
 
-func maxLinesMessage(name string, n int) string {
+// splitAdvice tells the next agent where an oversized file's content goes.
+// OpenSpec permits exactly one spec.md per capability, so specs split into new
+// capability directories instead of sibling topic files.
+func splitAdvice(name string) string {
 	if strings.HasPrefix(name, "openspec/") && strings.HasSuffix(name, "/spec.md") {
-		return fmt.Sprintf("%s：%d 行，超过上限 %d 行。OpenSpec 要求每个 capability 只保留一个 spec.md；请按语义把这个 capability 拆成多个新的 capability 目录（每个仍是 openspec/specs/<新capability>/spec.md），在变更中迁移需求并更新引用，不要在同目录拆分 spec.md。", name, n, maxLines)
+		return "OpenSpec 要求每个 capability 只保留一个 spec.md；请按语义把这个 capability 拆成多个新的 capability 目录（每个仍是 openspec/specs/<新capability>/spec.md），在变更中迁移需求并更新引用，不要在同目录拆分 spec.md。"
 	}
 	dir := strings.TrimSuffix(name, ".md") + "/"
-	return fmt.Sprintf("%s：%d 行，超过上限 %d 行。请按主题拆分为 %s<主题>.md，保留 %s 作为树状索引并更新所有引用；每个子文件保持 %d–%d 行且不超过 %d KiB。", name, n, maxLines, dir, name, minLines, maxLines, maxBytes>>10)
+	return fmt.Sprintf("请按主题拆分为 %s<主题>.md，保留 %s 作为树状索引并更新所有引用；每个子文件保持 %d–%d 行且不超过 %d KiB。", dir, name, minLines, maxLines, maxBytes>>10)
+}
+
+func maxLinesMessage(name string, n int) string {
+	return fmt.Sprintf("%s：%d 行，超过上限 %d 行。%s", name, n, maxLines, splitAdvice(name))
 }
 
 func maxBytesMessage(name string, n int) string {
-	dir := strings.TrimSuffix(name, ".md") + "/"
-	return fmt.Sprintf("%s：%d 字节（%.1f KiB），超过上限 %d 字节（%d KiB）。行数不是唯一成本，宽表格也会拖慢阅读；请按主题拆分为 %s<主题>.md，保留 %s 作为树状索引并更新所有引用；每个子文件保持 %d–%d 行且不超过 %d KiB。", name, n, float64(n)/(1<<10), maxBytes, maxBytes>>10, dir, name, minLines, maxLines, maxBytes>>10)
+	return fmt.Sprintf("%s：%d 字节（%.1f KiB），超过上限 %d 字节（%d KiB）。行数不是唯一成本，宽表格也会拖慢阅读；%s", name, n, float64(n)/(1<<10), maxBytes, maxBytes>>10, splitAdvice(name))
 }
 
 func widthMessage(name string, lines []int, longest int) string {
-	dir := strings.TrimSuffix(name, ".md") + "/"
 	places := make([]string, len(lines))
 	for i, n := range lines {
 		places[i] = strconv.Itoa(n)
 	}
-	return fmt.Sprintf("%s：第 %s 行超过上限 %d 个字符（最长 %d）。中文 Markdown 的软换行会在渲染时插入空格，请在句号、分号或列表边界处分段，不要按固定列硬折行；密集链接串改为每行少量链接的列表。表格行与围栏代码块已豁免；同一主题仍然过长时按主题拆分为 %s<主题>.md，保留 %s 作为树状索引并更新引用。", name, strings.Join(places, "、"), maxLineRunes, longest, dir, name)
+	return fmt.Sprintf("%s：第 %s 行超过上限 %d 个字符（最长 %d）。中文 Markdown 的软换行会在渲染时插入空格，请在句号、分号或列表边界处分段，不要按固定列硬折行；密集链接串改为每行少量链接的列表。表格行与围栏代码块已豁免。同一主题仍然过长时：%s", name, strings.Join(places, "、"), maxLineRunes, longest, splitAdvice(name))
 }
 
 func minLinesMessage(name string, n int) string {
@@ -271,6 +276,7 @@ func TestRules(t *testing.T) {
 	add("openspec/specs/big/spec.md", lines(maxLines+1))
 	add("openspec/changes/work/specs/cap/spec.md", lines(5))
 	add("openspec/changes/work/specs/big/spec.md", lines(maxLines+1))
+	add("openspec/specs/wide/spec.md", lines(minLines)+strings.Repeat("x", maxLineRunes+1))
 	add("openspec/changes/archive/2026-01-01-old/design.md", lines(maxLines+1)+strings.Repeat("x", maxBytes))
 	add("openspec/changes/archive/2026-01-01-wide/note.md", lines(minLines)+strings.Repeat("x", maxLineRunes+1))
 	for i := range 21 {
@@ -296,6 +302,7 @@ func TestRules(t *testing.T) {
 		"openspec/changes/wide|fanout",
 		"openspec/changes/work/specs/big/spec.md|lines",
 		"openspec/specs/big/spec.md|lines",
+		"openspec/specs/wide/spec.md|width",
 	}
 	var got []string
 	for _, v := range violations {
@@ -319,6 +326,7 @@ func TestRules(t *testing.T) {
 		"docs/wide|fanout":                              {"直接子目录 21 个", "不超过 20 个"},
 		"openspec/changes/work/specs/big/spec.md|lines": {"新的 capability", "不要在同目录拆分 spec.md"},
 		"openspec/specs/big/spec.md|lines":              {"新的 capability", "不要在同目录拆分 spec.md"},
+		"openspec/specs/wide/spec.md|width":             {"超过上限 400 个字符", "新的 capability", "不要在同目录拆分 spec.md"},
 	} {
 		for _, text := range texts {
 			if !strings.Contains(messages[key], text) {

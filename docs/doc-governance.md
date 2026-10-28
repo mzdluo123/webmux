@@ -11,7 +11,7 @@ WebMux 由 Agent 主导开发，单个 Markdown 文件过长会让模型一次�
 | `openspec/changes/**/*.md`（未归档） | 校验      | 不校验   | 校验     |
 | `openspec/changes/archive/**/*.md`   | 不校验    | 不校验   | 不校验   |
 
-归档变更是不可改写的记录；OpenSpec 允许在途变更的 proposal、design、tasks 与 delta 很短，因此它们没有行数下限。单行长度上限适用于除归档外的所有 Markdown，表格行与围栏代码块内的内容豁免。
+归档变更是不可改写的记录；OpenSpec 允许在途变更的 proposal、design、tasks 与 delta 很短，因此它们没有行数下限。单行长度上限适用于上表中除归档外的 Markdown（即 `docs/` 与 `openspec/` 下的文件；仓库根目录的 `README.md`、`AGENTS.md` 等不在守卫范围内），表格行与围栏代码块内的内容豁免。
 
 ## 阈值
 
