@@ -158,13 +158,14 @@ func (a *actor) resultOn(side Side) SwitchResult {
 	return r
 }
 
-// finish ends op with an outcome.
+// finish ends op with an outcome, published before the requester hears it.
 func (a *actor) finish(op *switchOp, result SwitchResult, err error) {
 	if a.switching == op {
 		a.switching = nil
 	}
 	a.chat.Phase = ""
 	a.dirty = true
+	a.flush()
 	op.done <- switchOutcome{result: result, err: err}
 }
 
