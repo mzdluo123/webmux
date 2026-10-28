@@ -9,8 +9,6 @@
 
 `hybrid` 为 `true` 时，服务端 SHALL 按 `hybrid-agent-profiles` 校验 argv，校验不通过时 SHALL 返回 400 并给出原因，已有数据不变。
 
-启动配置的完整配置、摘要、创建与更新请求 SHALL 包含 `hybrid`。完整配置与摘要 SHALL 额外包含只读的 `hybridSupport: {supported, agent?, reason?}`，由服务端按当前 argv 计算；请求体中提供 `hybridSupport` SHALL 视为未知字段而返回 400。
-
 新安装预置的 OpenCode 与 omp 配置 SHALL 保持 `hybrid: false`。修改已勾选配置的 argv 使其不再受支持时，保存 SHALL 返回 400，用户须先取消勾选。
 
 #### Scenario: 勾选 omp 配置
@@ -27,6 +25,15 @@
 
 - **WHEN** 用户对 Claude Code 配置提交 `hybrid: true`
 - **THEN** 服务端返回 400，原因说明当前版本只支持 OpenCode 与 omp
+
+### Requirement: 启动配置的混合支持信息
+
+启动配置的完整配置、摘要、创建与更新请求 SHALL 包含 `hybrid`。完整配置与摘要 SHALL 额外包含只读的 `hybridSupport: {supported, agent?, reason?}`，由服务端按当前 argv 计算；请求体中提供 `hybridSupport` SHALL 视为未知字段而返回 400。
+
+#### Scenario: 请求体携带只读字段
+
+- **WHEN** 客户端创建或更新启动配置时在请求体中提供 `hybridSupport`
+- **THEN** 服务端返回 400，已有数据不变
 
 ### Requirement: 设置页的混合模式勾选框
 

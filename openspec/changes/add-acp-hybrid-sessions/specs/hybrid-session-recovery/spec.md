@@ -4,7 +4,7 @@
 
 ## ADDED Requirements
 
-### Requirement: 混合会话记录
+### Requirement: 混合会话记录的内容
 
 系统 SHALL 为每个混合会话保存一条记录，内容包括：
 
@@ -17,14 +17,16 @@
 
 记录 SHALL NOT 包含环境变量值、消息内容、队列、token 或终端输出。
 
-记录 SHALL 保存在 `<state_dir>/hybrid-sessions.json`，使用独立的文件锁，权限为 0600，并按现有状态文件规则原子写入，登记到持久化清单。文件不可用（锁冲突、损坏或不可读写）时，系统 SHALL 只禁用混合会话的创建与恢复，相关接口返回 503 并附状态文件路径；普通会话与其他功能 SHALL 照常可用，原文件 SHALL 保留不变。
-
-记录最多 200 条。达到上限时，创建混合会话 SHALL 返回 409，并提示先移除旧记录。
-
 #### Scenario: 记录不含密钥
 
 - **WHEN** 混合配置的环境变量含 `API_KEY=secret-value`，用户创建并使用混合会话
 - **THEN** `hybrid-sessions.json` 中任何位置都不出现 `secret-value`
+
+### Requirement: 混合会话记录的存储
+
+记录 SHALL 保存在 `<state_dir>/hybrid-sessions.json`，使用独立的文件锁，权限为 0600，并按现有状态文件规则原子写入，登记到持久化清单。文件不可用（锁冲突、损坏或不可读写）时，系统 SHALL 只禁用混合会话的创建与恢复，相关接口返回 503 并附状态文件路径；普通会话与其他功能 SHALL 照常可用，原文件 SHALL 保留不变。
+
+记录最多 200 条。达到上限时，创建混合会话 SHALL 返回 409，并提示先移除旧记录。
 
 #### Scenario: 记录文件损坏
 

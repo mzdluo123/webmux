@@ -4,7 +4,7 @@
 
 ## ADDED Requirements
 
-### Requirement: 聊天事件流与续接
+### Requirement: 聊天事件流
 
 系统 SHALL 为每个混合会话提供已认证的 WebSocket 端点 `/ws/s/{id}/chat`，使用文本 JSON 帧，并继承现有的认证、Host 与 Origin 校验。该端点 SHALL 在会话处于任一端时都可以连接。
 
@@ -13,14 +13,21 @@
 - `snapshot` 包含：所在端、切换阶段与进度、资格与原因、agent 与 agent 会话 ID、回合状态、待答复请求、配置项、命令列表、计划、用量、队列、是否支持插话、事件日志的代际与起止序号。
 - `events` 是带单调递增序号的规范化事件，种类包括：消息追加、工具调用 upsert、计划、命令、配置、用量、会话信息、压缩、提示、回合开始/结束、请求打开/关闭、标记。
 
+慢客户端 SHALL 以 4408 断开后重连，不阻塞 agent 的读取。会话不存在时 SHALL 以 4404 关闭。
+
+#### Scenario: 会话不存在
+
+- **WHEN** 客户端连接不存在的会话 ID 对应的 `/ws/s/{id}/chat`
+- **THEN** 服务端以 4404 关闭连接
+
+### Requirement: 聊天事件续接与历史上限
+
 客户端 SHALL 可以带上代际与最后序号重连：
 
 - 代际相同且序号仍在日志内时，服务端 SHALL 只补发其后的事件；
 - 否则 SHALL 发送重置并从日志起点重放。
 
 日志按编码后的字节计量，上限取 `scrollback_bytes`。超出时最早的事件被丢弃，视图 SHALL 在顶部显示“更早的历史未缓存，可切到终端查看”。
-
-慢客户端 SHALL 以 4408 断开后重连，不阻塞 agent 的读取。会话不存在时 SHALL 以 4404 关闭。
 
 #### Scenario: 断线续接
 
@@ -99,7 +106,7 @@ agent 提供的配置项 SHALL 显示在输入框下方：
 - **WHEN** 用户从终端切到聊天
 - **THEN** 页面依次显示各步骤，完成后显示聊天视图，期间输入框不可用
 
-### Requirement: 关注与推送
+### Requirement: 聊天端的关注映射
 
 会话在聊天端时，系统 SHALL 用现有的关注种类表达回合状态，来源为 `agent`：
 
@@ -111,6 +118,13 @@ agent 提供的配置项 SHALL 显示在输入框下方：
 | 回合以 `refusal`、错误或 `auth_required` 结束 | `error`      |
 
 用户发送消息或答复请求时，系统 SHALL 清除关注。会话状态 SHALL 相应地取 `running`（回合进行中）、`waiting`（存在关注）或 `idle`。
+
+#### Scenario: 回合结束后的关注
+
+- **WHEN** 聊天端的回合以 `end_turn` 结束
+- **THEN** 会话关注为 `done`、状态为 `waiting`；用户再次发送消息后关注被清除，状态变为 `running`
+
+### Requirement: 聊天端的推送与卡片预览
 
 现有 Web Push SHALL 按这些关注照常推送，SHALL NOT 新增推送通道或负载字段。会话卡片在聊天端 SHALL 用最新一条 agent 消息的前三行作为预览。
 

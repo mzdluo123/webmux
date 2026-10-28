@@ -13,11 +13,6 @@
 
 其他任何写法（例如其他 shell 包装、`env` 前缀）SHALL 视为不可用，并给出原因“命令写法不受支持”。
 
-参数会让 TUI 与 ACP 看到不同会话库或不同目录的配置，SHALL 视为不可用：
-
-- OpenCode 的位置参数是工作目录。带位置参数的配置 SHALL 不可用，原因为“请在新建会话时选择目录，不要在命令中写目录”。
-- omp 的 `--session-dir` 只对 ACP 新建的会话生效，ACP 的列出、加载与恢复始终使用默认目录；`--no-session` 不保存会话。带这两个参数的配置 SHALL 不可用，原因为“该参数使聊天视图无法找到会话”。
-
 #### Scenario: 预置的 bashrc 包装
 
 - **WHEN** 配置的 argv 为 `["bash","-ic","exec -- \"$@\"","webmux","omp"]`
@@ -27,6 +22,18 @@
 
 - **WHEN** 配置的 argv 为 `["sh","-c","omp"]`
 - **THEN** 判定为不可用，原因为命令写法不受支持
+
+### Requirement: 使两端看到不同目录的参数
+
+参数会让 TUI 与 ACP 看到不同会话库或不同目录的配置，SHALL 视为不可用：
+
+- OpenCode 的位置参数是工作目录。带位置参数的配置 SHALL 不可用，原因为“请在新建会话时选择目录，不要在命令中写目录”。
+- omp 的 `--session-dir` 只对 ACP 新建的会话生效，ACP 的列出、加载与恢复始终使用默认目录；`--no-session` 不保存会话。带这两个参数的配置 SHALL 不可用，原因为“该参数使聊天视图无法找到会话”。
+
+#### Scenario: OpenCode 命令中写了目录
+
+- **WHEN** 用户对 argv 为 `["opencode","/home/u/proj"]` 的配置勾选混合模式
+- **THEN** 保存返回 400，原因提示在新建会话时选择目录
 
 ### Requirement: 恢复命令的生成
 
@@ -41,22 +48,19 @@
   - 白名单之外的参数。
 - 被丢弃的参数 SHALL 在切换结果中列出，界面 SHALL 提示“以下参数在恢复时未保留”。
 
-OpenCode 的 TUI 默认连接后台服务，回合在后台服务中运行，结束 TUI 并不会停止回合。因此，混合会话中 OpenCode 的每一次 TUI 启动（包括首次启动与恢复）SHALL 带上 `--standalone`，使 TUI 持有自己的服务进程，结束 TUI 即停止其回合；原 argv 已包含该参数时 SHALL NOT 重复添加。首次启动时追加的参数 SHALL 在会话信息的命令中可见。
-
 #### Scenario: 丢弃提示词与会话参数
 
 - **WHEN** 原 argv 为 `["omp","--model","haiku","--continue","修 bug"]`，agent 会话 ID 为 `01abc`
 - **THEN** 恢复命令为 `["omp","--model","haiku","--resume","01abc"]`，界面列出未保留的 `--continue` 与 `修 bug`
 
+### Requirement: OpenCode 的 TUI 以独立服务运行
+
+OpenCode 的 TUI 默认连接后台服务，回合在后台服务中运行，结束 TUI 并不会停止回合。因此，混合会话中 OpenCode 的每一次 TUI 启动（包括首次启动与恢复）SHALL 带上 `--standalone`，使 TUI 持有自己的服务进程，结束 TUI 即停止其回合；原 argv 已包含该参数时 SHALL NOT 重复添加。首次启动时追加的参数 SHALL 在会话信息的命令中可见。
+
 #### Scenario: OpenCode 以独立服务运行
 
 - **WHEN** 混合配置的 argv 为 `["opencode","--prompt","hi"]`，agent 会话 ID 为 `ses_1`，用户从聊天切到终端
 - **THEN** 恢复命令为 `["opencode","--standalone","-s","ses_1"]`，界面列出未保留的 `--prompt hi`；之后切回聊天时，结束 TUI 即停止其回合
-
-#### Scenario: OpenCode 命令中写了目录
-
-- **WHEN** 用户对 argv 为 `["opencode","/home/u/proj"]` 的配置勾选混合模式
-- **THEN** 保存返回 400，原因提示在新建会话时选择目录
 
 ### Requirement: ACP 启动命令
 

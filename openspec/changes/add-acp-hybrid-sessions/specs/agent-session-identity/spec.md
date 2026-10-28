@@ -18,14 +18,16 @@
 - 字段 SHALL 只接受可打印字符，不合法的字段 SHALL 被忽略。
 - 提取 SHALL NOT 改变现有的关注、状态与 OSC 7501 根记录语义，也 SHALL NOT 修改转发给客户端的字节。
 
-这些字段 SHALL 只保存在服务端内存中。它们 SHALL NOT 出现在普通会话的会话信息、日志或推送中；对混合会话，只有经档案解释后的 agent 名与 agent 会话 ID 出现在 `hybrid` 对象中。会话退出时 SHALL 清空这些字段。
-
-系统 SHALL 另外记录会话 PTY 根进程的可执行文件名与当前工作目录（Linux 读取 `/proc`，macOS 使用系统进程信息），供资格判定使用。
-
 #### Scenario: omp 启动即带出 ID
 
 - **WHEN** 混合会话中的 omp 发出 `session_start` 事件，带有 `session_id` 与 `cwd`
 - **THEN** 会话信息中的 `hybrid.agentSessionId` 更新为该 ID，现有关注与状态不变
+
+### Requirement: 身份字段的可见范围与根进程信息
+
+这些字段 SHALL 只保存在服务端内存中。它们 SHALL NOT 出现在普通会话的会话信息、日志或推送中；对混合会话，只有经档案解释后的 agent 名与 agent 会话 ID 出现在 `hybrid` 对象中。会话退出时 SHALL 清空这些字段。
+
+系统 SHALL 另外记录会话 PTY 根进程的可执行文件名与当前工作目录（Linux 读取 `/proc`，macOS 使用系统进程信息），供资格判定使用。
 
 #### Scenario: 普通会话不泄露
 
