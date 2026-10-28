@@ -72,7 +72,12 @@
   let startupRefresh: Promise<void> | undefined;
   let refreshGeneration = 0;
   let disposed = false;
-  const list = $derived(sessions);
+  // Closed or interrupted hybrid shells belong to the recoverable group only.
+  const list = $derived(
+    sessions.filter(
+      (session) => !session.hybrid || session.hybrid.state === "active",
+    ),
+  );
   const search = $derived(query.trim().toLocaleLowerCase());
   const filtering = $derived(Boolean(search) || statusFilter !== "all");
   const visible = $derived(
