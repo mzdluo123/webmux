@@ -359,6 +359,10 @@ func (a *actor) choose(choice string) (SwitchResult, error) {
 	}
 	op.choice <- choice
 	op.choice = nil
+	if choice == ChoiceWait {
+		// The question is closed now; no device may answer it again.
+		a.setPhase(PhaseInterrupting)
+	}
 	if choice == ChoiceCancel {
 		return a.resultOn(SideTUI), nil
 	}
