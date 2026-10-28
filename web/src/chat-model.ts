@@ -11,14 +11,14 @@ import type {
 // renders. Non-timeline state (plan, config, queue, requests...) arrives as
 // whole `state` objects and is not tracked here.
 
-export type MessageEntry = {
+type MessageEntry = {
   type: "message";
   id: string;
   role: "user" | "agent" | "thought";
   text: string;
   truncated: boolean;
 };
-export type ToolEntry = {
+type ToolEntry = {
   type: "tool";
   id: string;
   kind: string;
@@ -111,7 +111,7 @@ export function applyFrame(model: ChatModel, frame: ChatFrame): ChatModel {
 }
 
 /** Applies one event; an event at or below the applied sequence is ignored. */
-export function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
+function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
   if (event.seq < model.next) return model;
   const next = { ...model, next: event.seq + 1 };
   switch (event.kind) {
@@ -245,7 +245,7 @@ function replaceAt(model: ChatModel, at: number, entry: TimelineEntry) {
   return { ...model, entries };
 }
 
-export type DisplayEntry =
+type DisplayEntry =
   | TimelineEntry
   | { type: "reads"; id: string; calls: ToolEntry[] };
 

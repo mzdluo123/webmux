@@ -2,7 +2,7 @@ import type { HybridSupport, SessionHybrid } from "./schemas";
 
 // User-facing text for the server's hybrid support reason codes. The rules
 // themselves stay on the server (agent profiles); only the wording lives here.
-export const hybridSupportReasons: Record<
+const hybridSupportReasons: Record<
   NonNullable<HybridSupport["reason"]>,
   string
 > = {

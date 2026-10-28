@@ -50,7 +50,7 @@
 ## 7. 前端（M6）
 
 - [ ] 7.1 新增聊天 schema（由 `schemas.ts` 统一导出）、`chat-model.ts` 纯 reducer、`hooks/chat-socket.svelte.ts` 与 `hooks/hybrid.svelte.ts`，复用 `ws.ts` 的重连约定；`ws.ts` 新增终止状态 `moved`，收到 4409 不重连。验证：Vitest 单元测试覆盖 reducer 的 upsert、未知 `toolCallId` 的占位、重置与截断，以及 4409 不触发重连；`pnpm --dir web check` 通过。
-- [ ] 7.1a 修订草稿清理：可恢复的混合会话（来自 `GET /api/hybrid-sessions`）视为存在，4409 不视为会话不存在，移除记录时删除草稿。验证：浏览器测试覆盖 specs `terminal-draft-persistence` 中修订后的三个场景。
+- [x] 7.1a 修订草稿清理：可恢复的混合会话（来自 `GET /api/hybrid-sessions`）视为存在，4409 不视为会话不存在，移除记录时删除草稿。验证：浏览器测试覆盖 specs `terminal-draft-persistence` 中修订后的三个场景。
 - [ ] 7.2 把 PR #186 的原型组件提升到 `web/src/components/chat/`，接入 `pages/Terminal.svelte`，实现按所在端渲染、切换控件、进度、资格原因、D21 选择框、退回草稿与 ID 变化提示；原型 stories 改为引用正式组件。验证：浏览器测试与 Storybook 布局矩阵（6 种视口 × 明暗主题）通过，`pnpm --dir web check:arch` 无新增违规。
 - [ ] 7.3 实现首页混合会话卡片与“可恢复”分组、新建会话的起始端选择（按浏览器记住）、设置页的混合模式勾选框与 `hybrid-support` 去抖查询，以及聊天端空闲休眠设置。验证：浏览器测试覆盖 specs `workspace-overview`、`launch-configs` 的新增场景。
 - [ ] 7.4 新增 Playwright E2E（桌面与 Pixel 7），使用假 agent：从两端开始的往返、回合中切换、权限答复的多设备一致、排队与停止、休眠唤醒、重启后恢复、`webmux attach` 被 4409 断开。验证：`pnpm --dir web exec playwright test test/e2e/hybrid.spec.ts` 通过，CI 的 Ubuntu 与 macOS 分片通过。
