@@ -131,6 +131,42 @@ test("confirms resuming without the deleted launch config's environment", async 
   );
 });
 
+test("a second question keeps the first answer", async () => {
+  const resume = vi
+    .fn<(...args: unknown[]) => Promise<ResumeOutcome>>()
+    .mockResolvedValueOnce({
+      status: "config_missing",
+      message: "启动配置已删除",
+    })
+    .mockResolvedValueOnce({
+      status: "candidates",
+      message: "agent 会话 01a 已不存在",
+      candidates: [
+        { agentSessionId: "01b", title: "", updatedAt: record.updatedAt },
+      ],
+    })
+    .mockResolvedValueOnce({ status: "resumed", session: resumed });
+  const { onresumed } = show([record], resume);
+  await expand();
+  await page.getByRole("button", { name: "恢复到聊天" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "确认" })
+    .click();
+  await expect
+    .element(page.getByRole("alertdialog"))
+    .toMatchTextContent(/01a 已不存在/);
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "确认" })
+    .click();
+  await vi.waitFor(() => expect(onresumed).toHaveBeenCalledOnce());
+  expect(resume).toHaveBeenLastCalledWith("hybrid22", "acp", {
+    confirmWithoutEnv: true,
+    agentSessionId: "01b",
+  });
+});
+
 test("removing needs confirmation and failures stay inline", async () => {
   const { remove } = show([record], vi.fn());
   await expand();

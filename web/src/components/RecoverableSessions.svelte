@@ -36,10 +36,12 @@
   let error = $state("");
   let removing = $state<HybridRecord | null>(null);
   let removeOpen = $state(false);
-  // A resume that needs the user's answer before it can be retried.
+  // A resume that needs the user's answer before it can be retried. Earlier
+  // answers ride along, so a second question does not undo the first.
   let pending = $state<{
     record: HybridRecord;
     side: "tui" | "acp";
+    choice: ResumeChoice;
     kind: "candidates" | "config_missing";
     message: string;
     candidates: HybridCandidate[];
@@ -72,6 +74,7 @@
       pending = {
         record,
         side,
+        choice,
         kind: outcome.status,
         message: outcome.message,
         candidates: outcome.status === "candidates" ? outcome.candidates : [],
@@ -93,8 +96,8 @@
       answer.record,
       answer.side,
       answer.kind === "candidates"
-        ? { agentSessionId: picked }
-        : { confirmWithoutEnv: true },
+        ? { ...answer.choice, agentSessionId: picked }
+        : { ...answer.choice, confirmWithoutEnv: true },
     );
   }
 
