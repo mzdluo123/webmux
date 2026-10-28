@@ -190,6 +190,36 @@ test("starts a saved config with only configId and displays its command and envi
   );
 });
 
+test("a hybrid config offers and remembers where the session starts", async () => {
+  const hybridConfig = {
+    ...otherConfig,
+    id: "hybrid22",
+    name: "omp 混合",
+    cmd: ["omp"],
+    hybrid: true,
+  };
+  open({ status: "ready", configs: [config, hybridConfig] });
+  const sides = page.getByRole("tablist", { name: "起始端", exact: true });
+  await chooseConfig(config.name);
+  expect(sides.elements()).toHaveLength(0);
+  await chooseConfig(hybridConfig.name);
+  await expect
+    .element(sides.getByRole("tab", { name: "从终端开始", exact: true }))
+    .toHaveAttribute("aria-selected", "true");
+  await sides.getByRole("tab", { name: "从聊天开始", exact: true }).click();
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({
+    cwd: "/work",
+    configId: "hybrid22",
+    name: "",
+    startSide: "acp",
+  });
+  await vi.waitFor(() =>
+    expect(localStorage.getItem("webmux.hybridStartSide")).toBe("acp"),
+  );
+});
+
 test("defaults to the first saved config only when no launch choice was remembered", async () => {
   open({ status: "ready", configs: [config, otherConfig] });
   await selected("预先输入");
