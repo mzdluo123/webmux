@@ -31,9 +31,15 @@ type acpLink struct {
 // stop closes the connection and ends the process, and reports whether its
 // process tree was observed gone: the next writer may only start then.
 func (l *acpLink) stop() error {
-	_ = l.conn.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
 	defer cancel()
+	return l.stopWithin(ctx)
+}
+
+// stopWithin is stop that kills the process tree when ctx ends first, then
+// waits at most goneTimeout for it to go.
+func (l *acpLink) stopWithin(ctx context.Context) error {
+	_ = l.conn.Close()
 	if err := l.sidecar.Stop(ctx); err == nil {
 		return nil
 	}
@@ -303,8 +309,8 @@ func (a *actor) linkLost(link *acpLink) {
 	}
 	if a.reconnects > 0 {
 		a.emit(Event{Kind: EventNotice, Notice: &Notice{Level: acp.NoticeError, Text: "与 agent 的连接再次断开"}})
-		a.interrupt("turn")
-		go func() { _ = link.stop() }()
+		a.interrupt("turn", false)
+		a.stopLost(link)
 		return
 	}
 	a.reconnects++
@@ -322,27 +328,30 @@ func (a *actor) reopen(old *acpLink, reconnect bool) {
 	a.dirty = true
 	go func() {
 		var res openResult
+		oldGone := true
 		if old != nil && old.stop() != nil {
+			oldGone = false
 			res.fail = &failure{err: fmt.Errorf("%w: 原 agent 进程未能结束", ErrAgent), public: "原 agent 进程未能结束"}
 		} else {
 			res = a.openACP(epoch, sid, cwd, true, func() bool { return a.sync(a.restartLog) })
 		}
-		if !a.post(func() { a.reopened(res, reconnect) }) && res.link != nil {
+		if !a.sync(func() { a.reopened(res, reconnect, oldGone) }) && res.link != nil {
 			_ = res.link.stop()
 		}
 	}()
 }
 
 // reopened applies a finished reconnect or wake. A failed reconnect
-// interrupts the session; a failed wake leaves it dormant with its queue
+// interrupts the session, keeping the old process's identity unless it was
+// confirmed gone (oldGone); a failed wake leaves it dormant with its queue
 // paused, and the next command tries again.
-func (a *actor) reopened(res openResult, reconnect bool) {
+func (a *actor) reopened(res openResult, reconnect, oldGone bool) {
 	a.opening = false
 	a.dirty = true
 	if res.fail != nil {
 		a.emit(Event{Kind: EventNotice, Notice: &Notice{Level: acp.NoticeError, Text: res.fail.public}})
 		if reconnect {
-			a.interrupt("idle")
+			a.interrupt("idle", oldGone)
 		} else {
 			a.setQueue(a.chat.Queue.Items, true)
 		}

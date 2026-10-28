@@ -28,9 +28,12 @@ const (
 	// defaultScrollbackBytes matches the session default when no limit is
 	// configured.
 	defaultScrollbackBytes = 2 << 20
-	// shutdownTimeout bounds Close: actors stop their ACP processes in
-	// parallel within it.
+	// shutdownTimeout bounds stopping the ACP processes in Close: actors
+	// stop them in parallel and kill those still running after it.
 	shutdownTimeout = 10 * time.Second
+	// shutdownJoin bounds Close as a whole: the kill, the wait for killed
+	// processes to go (goneTimeout), and a margin for the actors to end.
+	shutdownJoin = shutdownTimeout + goneTimeout + time.Second
 )
 
 // Options configure a Service. Only cmd/ builds them.
@@ -128,7 +131,8 @@ func (s *Service) Unavailable() error { return s.records.unavailable() }
 
 // Close stops every actor and its ACP process without changing records,
 // so a restart finds the sessions active and marks them interrupted, then
-// releases the store. Terminal runs are left to Manager.Shutdown.
+// releases the store once the actors ended (at most shutdownJoin).
+// Terminal runs are left to Manager.Shutdown.
 func (s *Service) Close() {
 	s.mu.Lock()
 	s.closed = true
@@ -144,16 +148,22 @@ func (s *Service) Close() {
 	if s.settingsDone != nil {
 		<-s.settingsDone
 	}
-	deadline := time.NewTimer(shutdownTimeout)
-	defer deadline.Stop()
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	join, cancelJoin := context.WithTimeout(context.Background(), shutdownJoin)
+	defer cancelJoin()
 	for _, a := range actors {
-		a.post(a.shutdown)
+		a.post(func() { a.shutdown(ctx) })
 	}
 	for _, a := range actors {
 		select {
 		case <-a.quit:
-		case <-deadline.C:
-			s.log.Warn("hybrid session did not stop in time", "id", a.id)
+		case <-join.Done():
+			select {
+			case <-a.quit:
+			default:
+				s.log.Warn("hybrid session did not stop in time", "id", a.id)
+			}
 		}
 	}
 	s.records.close()
@@ -246,7 +256,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 	a.post(func() { a.start(started) })
 	// The start runs to completion even if ctx ends, so a cancelled request
 	// never leaves a half-started session behind.
-	if err := <-started; err != nil {
+	if err := awaitStarted(a, started); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {

@@ -347,8 +347,10 @@ func (r *records) commitLocked(list []Record) error {
 }
 
 // recoverAfterRestart marks every active record interrupted. A leftover
-// root process whose PID and start identity both still match is ended
-// first, so it cannot keep writing the agent session.
+// root process of any record whose PID and start identity both still match
+// is ended first, so it cannot keep writing the agent session: interrupted
+// and closed records keep the identity of a process that was not confirmed
+// gone.
 func (r *records) recoverAfterRestart(now time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -358,7 +360,7 @@ func (r *records) recoverAfterRestart(now time.Time) error {
 	next := slices.Clone(r.list)
 	changed := false
 	for i, rec := range next {
-		if rec.State != StateActive {
+		if rec.State != StateActive && rec.PID == 0 && rec.Process == nil {
 			continue
 		}
 		if rec.PID > 0 && rec.Process != nil {
@@ -367,11 +369,13 @@ func (r *records) recoverAfterRestart(now time.Time) error {
 			}
 		}
 		rec = rec.clone()
-		rec.State, rec.PID, rec.Process = StateInterrupted, 0, nil
-		at := now.UTC()
-		rec.InterruptedAt, rec.UpdatedAt = &at, at
-		if rec.Activity == "" {
-			rec.Activity = "idle"
+		rec.PID, rec.Process = 0, nil
+		if rec.State == StateActive {
+			at := now.UTC()
+			rec.State, rec.InterruptedAt, rec.UpdatedAt = StateInterrupted, &at, at
+			if rec.Activity == "" {
+				rec.Activity = "idle"
+			}
 		}
 		next[i] = rec
 		changed = true

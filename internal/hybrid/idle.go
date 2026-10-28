@@ -141,13 +141,14 @@ func (a *actor) sleep() {
 }
 
 // slept finishes a sleep. A process that would not stop interrupts the
-// session: starting another could make two writers.
+// session, keeping its identity in the record: starting another could
+// make two writers.
 func (a *actor) slept(err error) {
 	a.sleeping = false
 	a.dirty = true
 	if err != nil {
 		a.svc.log.Warn("hybrid agent did not stop for sleep", "id", a.id, "error", err)
-		a.interrupt("idle")
+		a.interrupt("idle", false)
 	} else {
 		a.record(true, func(r *Record) { r.PID, r.Process = 0, nil })
 	}

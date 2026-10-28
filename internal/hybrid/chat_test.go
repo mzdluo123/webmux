@@ -409,9 +409,11 @@ func TestChatAgentCrashReconnectsOnce(t *testing.T) {
 	}
 	prompt(t, h, id, "again")
 	waitFor(t, "interrupted record", func() bool { return h.record(id).State == StateInterrupted })
-	if rec := h.record(id); rec.PID != 0 || rec.InterruptedAt == nil {
+	if rec := h.record(id); rec.InterruptedAt == nil {
 		t.Fatalf("record %+v", rec)
 	}
+	// The crashed process is forgotten once its stop confirms it gone.
+	waitFor(t, "stopped agent forgotten", func() bool { rec := h.record(id); return rec.PID == 0 && rec.Process == nil })
 	if _, err := h.svc.Prompt(context.Background(), id, PromptInput{ClientRequestID: rid(), Text: "later"}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("prompt after a second crash: %v", err)
 	}

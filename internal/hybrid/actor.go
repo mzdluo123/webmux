@@ -179,14 +179,38 @@ func (a *actor) stopTimers() {
 	a.probeCancel()
 }
 
-// post queues fn for the actor; false once the actor has stopped. The
-// actor never posts to itself.
+// post queues fn for the actor; false once the actor has stopped. A queued
+// fn is dropped when the actor stops before reaching it, so a caller that
+// must know whether fn ran uses sync. The actor never posts to itself.
 func (a *actor) post(fn func()) bool {
+	select {
+	case <-a.quit:
+		return false
+	default:
+	}
 	select {
 	case a.inbox <- fn:
 		return true
 	case <-a.quit:
 		return false
+	}
+}
+
+// awaitStarted waits for the start or resume posted to a to report on
+// started. Its subtask reports once the actor applied the outcome, or
+// itself after stopping what it opened when the actor ended first; an
+// actor that ended before taking the start never reports.
+func awaitStarted(a *actor, started <-chan error) error {
+	select {
+	case err := <-started:
+		return err
+	case <-a.quit:
+		select {
+		case err := <-started:
+			return err
+		default:
+			return errStopped
+		}
 	}
 }
 
@@ -360,15 +384,17 @@ type startResult struct {
 }
 
 // start launches the session's first side in a subtask and reports the
-// outcome on started once the actor has applied it.
+// outcome on started once the actor has applied it. When the actor ended
+// first, the subtask stops the ACP process it started and reports
+// errStopped.
 func (a *actor) start(started chan<- error) {
 	a.starting = true
 	report := func(res startResult) {
-		if !a.post(func() { a.started(started, res) }) {
+		if !a.sync(func() { a.started(started, res) }) {
 			if res.link != nil {
 				_ = res.link.stop()
 			}
-			started <- fmt.Errorf("%w: 服务正在关闭", ErrUnavailable)
+			started <- errStopped
 		}
 	}
 	if a.side == SideTUI {
@@ -770,8 +796,11 @@ func steeringSupported(meta []byte) bool {
 
 // interrupt marks the session interrupted: its side ended by itself, or a
 // reconnect or rollback failed. activity is what it was doing: "idle",
-// "turn" or "switching". The shell stays, showing its last output.
-func (a *actor) interrupt(activity string) {
+// "turn" or "switching". gone says the side's process is confirmed gone;
+// otherwise the record keeps its identity, so a restart ends it before
+// anything resumes the agent session. The shell stays, showing its last
+// output.
+func (a *actor) interrupt(activity string, gone bool) {
 	if a.turn != nil && activity == "idle" {
 		activity = "turn"
 	}
@@ -781,8 +810,34 @@ func (a *actor) interrupt(activity string) {
 	lost := len(a.chat.Queue.Items)
 	a.record(true, func(r *Record) {
 		r.State, r.Activity, r.InterruptedAt, r.QueuedCount = StateInterrupted, activity, &now, lost
-		r.PID, r.Process = 0, nil
+		if gone {
+			r.PID, r.Process = 0, nil
+		}
 	})
+}
+
+// processGone forgets recorded process pid once it is confirmed gone; a
+// record that moved on to another process keeps that one.
+func (a *actor) processGone(pid int) {
+	if pid <= 0 {
+		return
+	}
+	a.record(false, func(r *Record) {
+		if r.PID == pid {
+			r.PID, r.Process = 0, nil
+		}
+	})
+}
+
+// stopLost stops a connection the session no longer uses in the
+// background and forgets its process in the record once it is gone.
+func (a *actor) stopLost(link *acpLink) {
+	pid := link.sidecar.PID()
+	go func() {
+		if link.stop() == nil {
+			a.post(func() { a.processGone(pid) })
+		}
+	}()
 }
 
 // Close implements session.Driver: a user closed the session. It is
@@ -806,7 +861,7 @@ func (a *actor) RunExited(code int) {
 			return
 		}
 		a.svc.log.Info("hybrid terminal exited", "id", a.id, "exitCode", code)
-		a.interrupt("idle")
+		a.interrupt("idle", true)
 	})
 }
 
@@ -844,8 +899,10 @@ func (a *actor) beginClose() {
 			}
 			wait.Stop()
 		}
+		gone := true
 		if link != nil {
 			if err := link.release(); err != nil {
+				gone = false
 				a.svc.log.Warn("hybrid agent did not stop in time", "id", a.id, "error", err)
 			}
 		}
@@ -856,16 +913,25 @@ func (a *actor) beginClose() {
 		ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
 		defer cancel()
 		if err := shell.EndRun(ctx); err != nil && !errors.Is(err, session.ErrNoRun) {
+			gone = false
 			a.svc.log.Warn("hybrid terminal did not stop in time", "id", a.id, "error", err)
 		}
-		a.post(a.finishClose)
+		a.post(func() { a.finishClose(gone) })
 	}()
 }
 
-func (a *actor) finishClose() {
+// finishClose records the session closed and removes its shell. gone says
+// the side's processes are confirmed gone; otherwise the record keeps the
+// process identity for a restart to end.
+func (a *actor) finishClose(gone bool) {
 	if a.state == StateActive {
 		a.state = StateClosed
-		a.record(true, func(r *Record) { r.State, r.PID, r.Process = StateClosed, 0, nil })
+		a.record(true, func(r *Record) {
+			r.State = StateClosed
+			if gone {
+				r.PID, r.Process = 0, nil
+			}
+		})
 	}
 	a.end()
 	if err := a.svc.manager.Remove(a.id); err != nil {
@@ -891,12 +957,13 @@ func (a *actor) shellGone() {
 	a.end()
 }
 
-// shutdown stops the ACP process for a server shutdown, leaving the record
-// active so the next start marks it interrupted; the record keeps what the
-// session was doing and how many queued prompts the shutdown loses. It
-// blocks the actor, which ends with it; a switch, wake or reconnect in
-// flight stops the process it started once it finds the actor gone.
-func (a *actor) shutdown() {
+// shutdown stops the ACP process for a server shutdown, killing it when
+// ctx ends first, and leaves the record active so the next start marks it
+// interrupted; the record keeps what the session was doing and how many
+// queued prompts the shutdown loses. It blocks the actor, which ends with
+// it; a switch, wake or reconnect in flight stops the process it started
+// once it finds the actor gone.
+func (a *actor) shutdown(ctx context.Context) {
 	if a.stopped {
 		return
 	}
@@ -918,7 +985,7 @@ func (a *actor) shutdown() {
 	}
 	if link := a.link; link != nil {
 		a.link = nil
-		_ = link.stop()
+		_ = link.stopWithin(ctx)
 	}
 	a.end()
 }

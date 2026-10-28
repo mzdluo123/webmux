@@ -397,6 +397,53 @@ func TestSwitchAwaitingChoice(t *testing.T) {
 	assertSingleWriter(t, h.store)
 }
 
+// TestSwitchChoiceRacesIdle: a choice that reaches the actor while the
+// terminal UI goes idle is acted on, not lost: an accepted cancel keeps
+// the terminal side even though the switch saw the terminal go idle.
+func TestSwitchChoiceRacesIdle(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	s := h.create(h.input(agentprofile.OMP, SideTUI, "FAKEAGENT_IGNORE_INTERRUPT=1", "FAKEAGENT_TURN_DELAY=100ms"))
+	id := s.Info().ID
+	tuiTurn(t, s, "first")
+	h.waitEligible(id)
+	typeLine(t, s, strings.Repeat("slow ", 40))
+	waitFor(t, "terminal turn", func() bool { return tuiBusy(s.Info()) })
+	done := startSwitch(h, id, SideACP)
+	h.waitPhase(id, PhaseAwaitingChoice)
+
+	a, err := h.svc.actor(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Hold the actor: the cancel queues first, the switch's idle check
+	// after it, once the terminal turn ends.
+	held, release := make(chan struct{}), make(chan struct{})
+	a.post(func() { close(held); <-release })
+	<-held
+	type answer struct {
+		result SwitchResult
+		err    error
+	}
+	chosen := make(chan answer, 1)
+	a.post(func() { r, err := a.choose(ChoiceCancel); chosen <- answer{r, err} })
+	waitFor(t, "idle terminal", func() bool { return !tuiBusy(s.Info()) })
+	time.Sleep(5 * idlePoll)
+	close(release)
+
+	got := <-chosen
+	if got.err != nil || got.result.Side != SideTUI {
+		t.Fatalf("cancel %+v %v", got.result, got.err)
+	}
+	out := <-done
+	if out.err != nil || out.result.Side != SideTUI {
+		t.Fatalf("switch after an accepted cancel %+v %v", out.result, out.err)
+	}
+	if info := s.Info(); info.Hybrid.Side != string(SideTUI) || info.Status == session.StatusExited {
+		t.Fatalf("after cancel %+v", info.Hybrid)
+	}
+}
+
 // TestSwitchToTerminalReturnsDraft (D20): a running turn is cancelled, its
 // pending permission answered cancelled, and the queued prompts become the
 // requester's draft only; every device gets a notice without the text.
@@ -566,6 +613,53 @@ func TestSwitchRollbackFailureInterrupts(t *testing.T) {
 	}
 	if state := h.chatState(id); state.SwitchError == "" || state.Side != SideACP {
 		t.Fatalf("state %+v", state)
+	}
+}
+
+// TestSwitchFailureKeepsQueue: a switch to the terminal that can neither
+// start the terminal UI nor reload the chat gives the queued prompts back
+// to the chat, paused, and records them as lost; no device is told they
+// went to a draft.
+func TestSwitchFailureKeepsQueue(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(agentprofile.OMP, SideACP, "FAKEAGENT_PERMISSION=1")
+	exe := filepath.Join(t.TempDir(), agentprofile.OMP)
+	copyFile(t, in.Cmd[0], exe)
+	in.Cmd = []string{exe}
+	s := h.create(in)
+	id := s.Info().ID
+	st := h.follow(id)
+	prompt(t, h, id, "busy")
+	st.until("permission", hasKind(EventRequest))
+	queued := []string{"queued one", "queued two"}
+	for _, text := range queued {
+		if r := prompt(t, h, id, text); !r.Queued {
+			t.Fatalf("%q not queued: %+v", text, r)
+		}
+	}
+	if err := os.Remove(exe); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.switchTo(id, SideTUI); err == nil {
+		t.Fatal("switch without an executable succeeded")
+	}
+	state := h.chatState(id)
+	if state.Side != SideACP || !state.Queue.Paused || !slices.Equal(queueTexts(state.Queue), queued) {
+		t.Fatalf("state after the failed switch %+v", state)
+	}
+	if rec := h.record(id); rec.State != StateInterrupted || rec.QueuedCount != len(queued) {
+		t.Fatalf("record %+v", rec)
+	}
+	sub, err := h.svc.Subscribe(id, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	for _, e := range sub.Events {
+		if e.Kind == EventNotice && strings.Contains(e.Notice.Text, "退回") {
+			t.Fatalf("notice of a draft that was never returned: %q", e.Notice.Text)
+		}
 	}
 }
 

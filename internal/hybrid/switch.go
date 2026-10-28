@@ -190,7 +190,7 @@ func (a *actor) checked(op *switchOp, t target, listed bool, err error) {
 	case a.shell.Info().Status == session.StatusExited:
 		// The terminal UI exited during the check; RunExited was held
 		// back by the switch (D23).
-		a.interrupt("idle")
+		a.interrupt("idle", true)
 		a.finish(op, SwitchResult{}, fmt.Errorf("%w: 终端已退出", ErrConflict))
 		return
 	case err != nil:
@@ -296,7 +296,7 @@ func (a *actor) interruptTUI(op *switchOp) interruptOutcome {
 		if !a.sync(func() { op.choice = choice; a.setPhase(PhaseAwaitingChoice) }) {
 			return interruptGone
 		}
-		c := a.awaitChoice(choice)
+		c := a.awaitChoice(op, choice)
 		if !a.sync(func() {
 			op.choice = nil
 			if c == ChoiceWait {
@@ -318,8 +318,10 @@ func (a *actor) interruptTUI(op *switchOp) interruptOutcome {
 }
 
 // awaitChoice waits for the user's choice; "idle" when the terminal UI
-// went idle first, "" when the actor ended.
-func (a *actor) awaitChoice(choice <-chan string) string {
+// went idle first, "" when the actor ended. The terminal going idle wins
+// only while the question is still open: deciding so closes it on the
+// actor, so a choice is either acted on or refused, never lost.
+func (a *actor) awaitChoice(op *switchOp, choice chan string) string {
 	tick := time.NewTicker(idlePoll)
 	defer tick.Stop()
 	for {
@@ -327,9 +329,22 @@ func (a *actor) awaitChoice(choice <-chan string) string {
 		case c := <-choice:
 			return c
 		case <-tick.C:
-			if !tuiBusy(a.shell.Info()) {
+			if tuiBusy(a.shell.Info()) {
+				continue
+			}
+			idle := false
+			if !a.sync(func() {
+				if op.choice == choice {
+					op.choice, idle = nil, true
+				}
+			}) {
+				return ""
+			}
+			if idle {
 				return "idle"
 			}
+			// choose answered first and closed the question.
+			return <-choice
 		case <-a.quit:
 			return ""
 		}
@@ -364,7 +379,8 @@ func (a *actor) runToACP(op *switchOp, t target, busy bool) {
 			return
 		}
 	}
-	if !a.sync(func() { a.setPhase(PhaseStopping) }) {
+	var pid int
+	if !a.sync(func() { a.setPhase(PhaseStopping); pid = a.shell.Identity().PID }) {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
@@ -376,7 +392,7 @@ func (a *actor) runToACP(op *switchOp, t target, busy bool) {
 		return
 	}
 	var epoch int
-	if !a.sync(func() { a.setPhase(PhaseStarting); a.epoch++; epoch = a.epoch }) {
+	if !a.sync(func() { a.setPhase(PhaseStarting); a.epoch++; epoch = a.epoch; a.processGone(pid) }) {
 		return
 	}
 	res := a.openACP(epoch, t.sid, t.cwd, false, func() bool {
@@ -397,7 +413,7 @@ func (a *actor) switchCancelled(op *switchOp) {
 	a.side = SideTUI
 	a.svc.log.Info("hybrid switch cancelled", "id", a.id)
 	if a.shell.Info().Status == session.StatusExited {
-		a.interrupt("idle")
+		a.interrupt("idle", true)
 	}
 	a.finish(op, a.resultOn(SideTUI), nil)
 }
@@ -462,6 +478,7 @@ func (a *actor) runToTUI(op *switchOp, link *acpLink, turnDone chan struct{}, si
 	if !a.sync(func() { draft = a.returnQueue(op) }) {
 		return
 	}
+	var gone int
 	if link != nil {
 		if !a.sync(func() { a.setPhase(PhaseStopping) }) {
 			return
@@ -474,8 +491,9 @@ func (a *actor) runToTUI(op *switchOp, link *acpLink, turnDone chan struct{}, si
 			})
 			return
 		}
+		gone = link.sidecar.PID()
 	}
-	if !a.sync(func() { a.setPhase(PhaseStarting) }) {
+	if !a.sync(func() { a.setPhase(PhaseStarting); a.processGone(gone) }) {
 		return
 	}
 	argv, dropped := a.cmd.ResumeArgv(sid)
@@ -490,21 +508,22 @@ func (a *actor) runToTUI(op *switchOp, link *acpLink, turnDone chan struct{}, si
 	a.sync(func() { a.switchedToTUI(op, sid, draft, dropped) })
 }
 
-// returnQueue empties the queue into the requester's draft (D20); every
-// device is told the prompts went back to the device that switched.
+// returnQueue empties the queue into the requester's draft (D20). The
+// prompts are kept in op until the switch ends: a switch that stays on the
+// chat gets them back.
 func (a *actor) returnQueue(op *switchOp) string {
 	op.queued = a.chat.Queue.Items
-	n := len(op.queued)
-	draft := a.takeQueue()
-	if n > 0 {
-		a.emit(Event{Kind: EventNotice, Notice: &Notice{Level: acp.NoticeInfo, Text: strconv.Itoa(n) + " 条排队消息已退回发起切换的设备的输入框"}})
-	}
-	return draft
+	return a.takeQueue()
 }
 
+// switchedToTUI finishes a switch to the terminal; every device is told
+// the queued prompts went back to the device that switched.
 func (a *actor) switchedToTUI(op *switchOp, sid, draft string, dropped []string) {
 	a.side = SideTUI
 	a.chat.Dormant = false
+	if n := len(op.queued); n > 0 {
+		a.emit(Event{Kind: EventNotice, Notice: &Notice{Level: acp.NoticeInfo, Text: strconv.Itoa(n) + " 条排队消息已退回发起切换的设备的输入框"}})
+	}
 	a.emit(Event{Kind: EventMarker, Marker: &Marker{Kind: MarkerSwitched, Side: SideTUI}})
 	a.terminalStarted(sid)
 	a.svc.log.Info("hybrid switch finished", "id", a.id, "side", string(SideTUI))
@@ -522,7 +541,7 @@ func (a *actor) terminalStarted(sid string) {
 	process := processIdentity(pid)
 	a.record(true, func(r *Record) { r.Side, r.PID, r.Process = SideTUI, pid, process })
 	if a.shell.Info().Status == session.StatusExited {
-		a.interrupt("idle")
+		a.interrupt("idle", true)
 	}
 	a.dirty = true
 }
@@ -588,11 +607,17 @@ func (a *actor) rolledBack(op *switchOp, cause failure) {
 }
 
 // switchAbandoned fails a switch that could not return: the session is
-// interrupted on side, its shell kept for recovery.
+// interrupted on side, its shell kept for recovery. Prompts a switch to
+// the terminal took from the queue come back, paused, and count as what
+// the interruption lost. The side's process may still run: the record
+// keeps its identity.
 func (a *actor) switchAbandoned(op *switchOp, cause failure, side Side) {
 	a.side = side
+	if len(op.queued) > 0 {
+		a.setQueue(op.queued, true)
+	}
 	a.chat.SwitchError = "切换失败，且未能回到原端：" + cause.public
 	a.emit(Event{Kind: EventNotice, Notice: &Notice{Level: acp.NoticeError, Text: a.chat.SwitchError}})
-	a.interrupt("switching")
+	a.interrupt("switching", false)
 	a.finish(op, SwitchResult{}, cause.err)
 }

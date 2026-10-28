@@ -247,7 +247,7 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 	go a.observeLoop()
 	started := make(chan error, 1)
 	a.post(func() { a.resume(started, sid) })
-	if err := <-started; err != nil {
+	if err := awaitStarted(a, started); err != nil {
 		return nil, err
 	}
 	return shell, nil
@@ -269,13 +269,15 @@ type resumeResult struct {
 
 // resume starts the resumed session's side on agent session sid in a
 // subtask and reports the outcome on started once the actor applied it.
+// When the actor ended first, the subtask stops the ACP process it started
+// and reports errStopped.
 func (a *actor) resume(started chan<- error, sid string) {
 	a.starting = true
 	a.epoch++
 	epoch, side := a.epoch, a.side
 	go func() {
 		res := a.resumeSide(epoch, side, sid)
-		if !a.post(func() { a.resumed(started, res) }) {
+		if !a.sync(func() { a.resumed(started, res) }) {
 			if res.link != nil {
 				_ = res.link.stop()
 			}

@@ -10,12 +10,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/settings"
@@ -428,6 +430,58 @@ func TestRestartMarksActiveInterrupted(t *testing.T) {
 	if rec.State != StateInterrupted || rec.Side != SideACP || rec.InterruptedAt == nil {
 		t.Fatalf("record after restart %+v", rec)
 	}
+}
+
+// TestCloseDuringStart: a service closing while ACP starts are in flight
+// fails each Create instead of leaving it waiting, and every agent process
+// a start opened is stopped.
+func TestCloseDuringStart(t *testing.T) {
+	h := newHarness(t, 0)
+	const sessions = 4
+	errs := make(chan error, sessions)
+	for range sessions {
+		in := h.input(agentprofile.OMP, SideACP, "FAKEAGENT_DELAY=initialize=500ms")
+		go func() {
+			_, err := h.svc.Create(context.Background(), in)
+			errs <- err
+		}()
+	}
+	waitFor(t, "agents starting", func() bool { return countCalls(t, h.store, acp.MethodInitialize) == sessions })
+	pids := callerPIDs(t, h.store, acp.MethodInitialize)
+	h.svc.Close()
+	for range sessions {
+		select {
+		case err := <-errs:
+			if !errors.Is(err, ErrUnavailable) {
+				t.Fatalf("create while closing: %v", err)
+			}
+		case <-time.After(testTimeout):
+			t.Fatal("create still waiting after the service closed")
+		}
+	}
+	for _, pid := range pids {
+		waitFor(t, "agent "+strconv.Itoa(pid)+" stopped", func() bool { return syscall.Kill(pid, 0) != nil })
+	}
+}
+
+// callerPIDs lists the fake agent processes that received method.
+func callerPIDs(t *testing.T, store, method string) []int {
+	t.Helper()
+	text, err := readEventsLog(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pids []int
+	for _, line := range strings.Split(text, "\n") {
+		if f := strings.Fields(line); len(f) >= 5 && f[3] == "call" && f[4] == method {
+			pid, err := strconv.Atoi(f[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			pids = append(pids, pid)
+		}
+	}
+	return pids
 }
 
 // openRecordsForTest reads the store without locking it.

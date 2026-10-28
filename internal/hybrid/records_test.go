@@ -209,3 +209,67 @@ func TestRecoverAfterRestart(t *testing.T) {
 		t.Fatal("recovery not written")
 	}
 }
+
+// startOrphan starts a process group standing in for an agent left behind,
+// returning its PID, start identity and a channel closed when it exits.
+func startOrphan(t *testing.T) (int, runtime.Identity, <-chan struct{}) {
+	t.Helper()
+	orphan := exec.Command("sleep", "60")
+	orphan.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := orphan.Start(); err != nil {
+		t.Fatal(err)
+	}
+	exited := make(chan struct{})
+	go func() { _ = orphan.Wait(); close(exited) }()
+	t.Cleanup(func() { _ = syscall.Kill(-orphan.Process.Pid, syscall.SIGKILL); <-exited })
+	identity, err := runtime.ProcessIdentity(orphan.Process.Pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return orphan.Process.Pid, identity, exited
+}
+
+// TestRecoverAfterRestartEndsUnconfirmedLeftovers: interrupted and closed
+// records keep the identity of a process that was not confirmed gone (a
+// failed release or stop); a restart ends it before anything can resume
+// the agent session, and leaves the records' state alone.
+func TestRecoverAfterRestartEndsUnconfirmedLeftovers(t *testing.T) {
+	dir := t.TempDir()
+	interruptedAt := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+	r := openRecords(dir)
+	exits := map[string]<-chan struct{}{}
+	for id, state := range map[string]State{"abcdefgh": StateInterrupted, "abcdefgi": StateClosed} {
+		pid, identity, exited := startOrphan(t)
+		rec := testRecord(id)
+		rec.State, rec.PID, rec.Process = state, pid, &identity
+		if state == StateInterrupted {
+			rec.Activity, rec.InterruptedAt = "switching", &interruptedAt
+		}
+		if err := r.add(rec); err != nil {
+			t.Fatal(err)
+		}
+		exits[id] = exited
+	}
+	r.close()
+
+	r = openTestRecords(t, dir)
+	if err := r.recoverAfterRestart(time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for id, exited := range exits {
+		select {
+		case <-exited:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("%s: leftover process survived the restart", id)
+		}
+		if got, _ := r.get(id); got.PID != 0 || got.Process != nil {
+			t.Fatalf("%s after restart: %+v", id, got)
+		}
+	}
+	if got, _ := r.get("abcdefgh"); got.State != StateInterrupted || got.Activity != "switching" || got.InterruptedAt == nil || !got.InterruptedAt.Equal(interruptedAt) {
+		t.Fatalf("interrupted record after restart: %+v", got)
+	}
+	if got, _ := r.get("abcdefgi"); got.State != StateClosed || got.InterruptedAt != nil {
+		t.Fatalf("closed record after restart: %+v", got)
+	}
+}
