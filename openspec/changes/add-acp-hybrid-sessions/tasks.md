@@ -1,6 +1,6 @@
 ## 0. 前置
 
-- [ ] 0.1 归档在途变更 `add-program-status-signals`：它的任务已全部完成，代码已合入。归档后 `openspec/specs/program-status` 才存在，本变更的 `specs/program-status` 修改才能归档。应单独提 PR，在本变更的第一个实现 PR 之前合入。验证：`openspec validate --all --strict` 通过，`openspec/specs/program-status/spec.md` 存在；对本变更执行 `openspec validate` 时，不再出现“target spec does not exist”的提示。
+- [x] 0.1 归档在途变更 `add-program-status-signals`：它的任务已全部完成，代码已合入。归档后 `openspec/specs/program-status` 才存在，本变更的 `specs/program-status` 修改才能归档。应单独提 PR，在本变更的第一个实现 PR 之前合入。验证：`openspec validate --all --strict` 通过，`openspec/specs/program-status/spec.md` 存在；对本变更执行 `openspec validate` 时，不再出现“target spec does not exist”的提示。
 
 ## 1. 真实 agent 基线（M0）
 
