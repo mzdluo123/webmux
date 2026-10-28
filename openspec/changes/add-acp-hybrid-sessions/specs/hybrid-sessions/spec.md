@@ -31,7 +31,7 @@ Web 端新建会话弹层 SHALL 在选中混合配置时显示“从终端开始
 
 混合会话 SHALL 在任意时刻处于且只处于以下之一：`tui`、`acp`、`switching`。处于 `acp` 时 SHALL 还可以带有 `dormant` 标记。webmux 会话 ID SHALL 在混合会话的整个生命周期中保持不变。
 
-系统 SHALL 保证同一 agent 会话 ID 在任意时刻至多被一个由 webmux 启动的进程打开。只调用 `session/list` 的临时探测进程不算打开。进入目标端之前，系统 SHALL 已确认原端的进程已经退出。
+系统 SHALL 保证同一 agent 会话 ID 在任意时刻至多被一个由 webmux 启动的进程打开。只调用 `session/list` 的临时探测进程不算打开。进入目标端之前，系统 SHALL 已确认原端的进程组已经全部退出。这是硬性要求：omp 在 TUI 仍持有会话租约时，另一个进程写入同一会话，会把它分叉成一个新 ID 的会话。
 
 会话信息 SHALL 包含 `hybrid` 对象，至少含 `side`、`phase`、`dormant`、`state`、`agent` 与 `agentSessionId`（尚未得知时为 `null`）。普通会话 SHALL NOT 含该对象。
 
@@ -72,7 +72,7 @@ Web 端新建会话弹层 SHALL 在选中混合配置时显示“从终端开始
 发送中断键后 10 秒内 TUI 仍未回到空闲时，系统 SHALL 暂停切换，在切换状态中提供“继续等待 / 强制切换 / 取消”三个选项，直到用户选择。
 
 - 选择“继续等待”：SHALL 再等待 10 秒。
-- 选择“强制切换”：SHALL 跳过等待，直接结束 TUI 继续切换；确认文案 SHALL 说明可能的后果（OpenCode 的回合可能在后台继续运行，omp 已输出的部分会丢失）。
+- 选择“强制切换”：SHALL 跳过等待，直接结束 TUI 继续切换。确认文案 SHALL 说明后果：被强制结束的回合可能不完整，omp 已输出的部分可能丢失。由于 OpenCode 的 TUI 以独立服务运行（见 `hybrid-agent-profiles`），强制结束后它的回合 SHALL NOT 在后台继续。
 - 选择“取消”：SHALL 保持在 `tui` 端。
 
 #### Scenario: 用户取消
@@ -133,6 +133,7 @@ Web 端新建会话弹层 SHALL 在选中混合配置时显示“从终端开始
 
 - 休眠期间，会话 SHALL 仍是活动会话，不进入可恢复列表。
 - 打开会话的聊天通道或提交任意命令时，系统 SHALL 自动唤醒，已缓存的事件 SHALL 保持可读。
+- agent 声明了 `session/resume` 时，唤醒与崩溃重连 SHALL 使用它（不回放历史，事件日志保持连续）；否则 SHALL 使用 `session/load`，并以新的日志代际重新回放。
 
 #### Scenario: 休眠后唤醒
 

@@ -46,7 +46,7 @@
 
 ### Requirement: 恢复到任一端
 
-`POST /api/hybrid/{id}/resume {side}` SHALL 只对 `closed` 或 `interrupted` 的记录可用，`side` 取 `tui` 或 `acp`，缺省为记录中的所在端。恢复时，系统 SHALL 按以下步骤执行：
+`POST /api/sessions/{id}/resume {side}` SHALL 只对 `closed` 或 `interrupted` 的记录可用，`side` 取 `tui` 或 `acp`，缺省为记录中的所在端。恢复时，系统 SHALL 按以下步骤执行：
 
 1. 用记录的 cwd 调用 `session/list`，确认 agent 会话 ID 仍然存在。不存在时，SHALL 返回 409，并附上历史 ID 与 `session/list` 中同一 cwd 下的候选，由用户选择后重试或放弃。
 2. 以记录中的 webmux 会话 ID 重新创建会话外壳。
@@ -78,7 +78,7 @@ argv SHALL 取自记录中的快照；环境变量 SHALL 在恢复时按记录�
 
 ### Requirement: 移除记录
 
-`DELETE /api/hybrid/{id}` SHALL 只对 `closed` 或 `interrupted` 的记录可用，对活动会话 SHALL 返回 409。移除 SHALL 删除记录，SHALL NOT 删除 agent 的会话库。移除后，该记录 SHALL NOT 再出现在任何列表中。
+`DELETE /api/hybrid-sessions/{id}` SHALL 只对 `closed` 或 `interrupted` 的记录可用，对活动会话 SHALL 返回 409。移除 SHALL 删除记录，SHALL NOT 删除 agent 的会话库。移除后，该记录 SHALL NOT 再出现在任何列表中。
 
 #### Scenario: 移除
 
@@ -87,7 +87,7 @@ argv SHALL 取自记录中的快照；环境变量 SHALL 在恢复时按记录�
 
 ### Requirement: 可恢复记录的列表
 
-`GET /api/hybrid?state=recoverable` SHALL 返回所有 `closed` 与 `interrupted` 的记录摘要，按更新时间倒序排列。每条摘要包含：
+`GET /api/hybrid-sessions?state=recoverable` SHALL 返回所有 `closed` 与 `interrupted` 的记录摘要，按更新时间倒序排列。每条摘要包含：
 
 - ID、名称、档案、cwd、所在端、状态、更新时间与中断时间；
 - 中断前的状态，用于提示“上一轮可能未完成”；

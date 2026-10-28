@@ -6,7 +6,7 @@ agent 在回合进行中通常不能接受新的提示：OpenCode 会直接报�
 
 ### Requirement: 发送与排队
 
-`POST /api/hybrid/{id}/prompts` SHALL 接受 `{clientRequestId, text, mode}`，`mode` 取 `auto` 或 `steer`，缺省为 `auto`。
+`POST /api/sessions/{id}/chat/prompts` SHALL 接受 `{clientRequestId, text, mode}`，`mode` 取 `auto` 或 `steer`，缺省为 `auto`。
 
 - `auto` 模式：没有运行中的回合且队列未暂停时，SHALL 立即发送；否则 SHALL 追加到队尾。
 - 队列中的条目 SHALL 在上一回合正常结束后自动发送，一次一条。

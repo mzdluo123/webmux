@@ -13,6 +13,11 @@
 
 其他任何写法（例如其他 shell 包装、`env` 前缀）SHALL 视为不可用，并给出原因“命令写法不受支持”。
 
+参数会让 TUI 与 ACP 看到不同会话库或不同目录的配置，SHALL 视为不可用：
+
+- OpenCode 的位置参数是工作目录。带位置参数的配置 SHALL 不可用，原因为“请在新建会话时选择目录，不要在命令中写目录”。
+- omp 的 `--session-dir` 只对 ACP 新建的会话生效，ACP 的列出、加载与恢复始终使用默认目录；`--no-session` 不保存会话。带这两个参数的配置 SHALL 不可用，原因为“该参数使聊天视图无法找到会话”。
+
 #### Scenario: 预置的 bashrc 包装
 
 - **WHEN** 配置的 argv 为 `["bash","-ic","exec -- \"$@\"","webmux","omp"]`
@@ -29,19 +34,35 @@
 
 - 由可执行文件、原 argv 中位于档案白名单内的参数、档案的恢复参数（OpenCode 为 `-s <id>`，omp 为 `--resume <id>`）组成，并套用与原命令相同的写法（直接执行或 bashrc 包装）。
 - 白名单参数 SHALL 同时识别 `--flag value` 与 `--flag=value` 两种形式，并按档案声明的参数个数解析。
-- 系统 SHALL 丢弃以下参数：位置参数（例如提示词）、会话类参数（`-c`、`--continue`、`-r`、`--resume`、`-s`、`--session`、`--fork` 等）、白名单之外的参数。
+- 系统 SHALL 丢弃以下参数：
+  - omp 的位置参数（提示词）；
+  - 提示词参数（例如 OpenCode 的 `--prompt`）；
+  - 会话类参数（`-c`、`--continue`、`-r`、`--resume`、`--restore`、`-s`、`--session`、`--fork` 等）；
+  - 白名单之外的参数。
 - 被丢弃的参数 SHALL 在切换结果中列出，界面 SHALL 提示“以下参数在恢复时未保留”。
+
+OpenCode 的 TUI 默认连接后台服务，回合在后台服务中运行，结束 TUI 并不会停止回合。因此，混合会话中 OpenCode 的每一次 TUI 启动（包括首次启动与恢复）SHALL 带上 `--standalone`，使 TUI 持有自己的服务进程，结束 TUI 即停止其回合；原 argv 已包含该参数时 SHALL NOT 重复添加。首次启动时追加的参数 SHALL 在会话信息的命令中可见。
 
 #### Scenario: 丢弃提示词与会话参数
 
 - **WHEN** 原 argv 为 `["omp","--model","haiku","--continue","修 bug"]`，agent 会话 ID 为 `01abc`
 - **THEN** 恢复命令为 `["omp","--model","haiku","--resume","01abc"]`，界面列出未保留的 `--continue` 与 `修 bug`
 
+#### Scenario: OpenCode 以独立服务运行
+
+- **WHEN** 混合配置的 argv 为 `["opencode","--prompt","hi"]`，agent 会话 ID 为 `ses_1`，用户从聊天切到终端
+- **THEN** 恢复命令为 `["opencode","--standalone","-s","ses_1"]`，界面列出未保留的 `--prompt hi`；之后切回聊天时，结束 TUI 即停止其回合
+
+#### Scenario: OpenCode 命令中写了目录
+
+- **WHEN** 用户对 argv 为 `["opencode","/home/u/proj"]` 的配置勾选混合模式
+- **THEN** 保存返回 400，原因提示在新建会话时选择目录
+
 ### Requirement: ACP 启动命令
 
 系统 SHALL 按档案启动 ACP 进程：OpenCode 为 `opencode acp`，omp 为 `omp acp`，并套用与原命令相同的写法。
 
-档案声明的自动批准类参数 SHALL 从原 argv 透传给 ACP 进程（omp 为 `--approval-mode`、`--yolo`、`--auto-approve`、`--config`）。档案没有对应 ACP 参数的（例如 OpenCode 的 `--auto`）SHALL 被丢弃，并在界面上提示。
+档案声明的自动批准类参数 SHALL 从原 argv 透传给 ACP 进程（omp 为 `--approval-mode`、`--yolo`、`--auto-approve`、`--config`）。档案没有对应 ACP 参数的 SHALL 被丢弃，并在界面上提示，例如 OpenCode 的 `--auto` 及其别名 `--yolo`、`--dangerously-skip-permissions`，因为 `opencode acp` 只接受 `--login`。
 
 使用 bashrc 包装时，`.bashrc` 执行期间写到 stdout 的内容 SHALL NOT 进入 ACP 协议通道。
 

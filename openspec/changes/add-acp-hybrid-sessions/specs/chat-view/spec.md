@@ -6,7 +6,7 @@
 
 ### Requirement: 聊天事件流与续接
 
-系统 SHALL 为每个混合会话提供已认证的 WebSocket 端点 `/ws/hybrid/{id}`，使用文本 JSON 帧，并继承现有的认证、Host 与 Origin 校验。该端点 SHALL 在会话处于任一端时都可以连接。
+系统 SHALL 为每个混合会话提供已认证的 WebSocket 端点 `/ws/s/{id}/chat`，使用文本 JSON 帧，并继承现有的认证、Host 与 Origin 校验。该端点 SHALL 在会话处于任一端时都可以连接。
 
 连接建立后，服务端 SHALL 先发送 `snapshot`，再发送 `events`，之后持续推送增量。
 
@@ -58,7 +58,7 @@ agent 发起权限请求时，聊天视图 SHALL 在输入框位置显示编号�
 
 agent 发起 `form` 模式的表单请求时，聊天视图 SHALL 渲染 string、enum 与 boolean 字段，提供提交、拒绝与取消。其他字段类型 SHALL 提示“该表单需要在终端中完成”并只提供拒绝与取消。
 
-答复 SHALL 经 `POST /api/hybrid/{id}/requests/{requestId}` 提交：
+答复 SHALL 经 `POST /api/sessions/{id}/chat/requests/{requestId}` 提交：
 
 - 第一个有效答复生效，后续答复 SHALL 返回 409 `answered`；
 - 所有设备 SHALL 立即看到该请求已关闭及其结果。
@@ -73,7 +73,7 @@ agent 发起 `form` 模式的表单请求时，聊天视图 SHALL 渲染 string�
 agent 提供的配置项 SHALL 显示在输入框下方：
 
 - 选择类渲染为下拉，布尔类渲染为开关；
-- 变更经 `PUT /api/hybrid/{id}/config/{configId}` 提交；
+- 变更经 `PUT /api/sessions/{id}/chat/config/{configId}` 提交；
 - 收到 `config_option_update` 时整体替换显示。
 
 系统 SHALL 记录每次生效的取值，用于切换和恢复后补齐（D25）。

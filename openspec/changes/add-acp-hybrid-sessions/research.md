@@ -84,7 +84,69 @@
   - 源码位于 `packages/cli/src/acp`（2.2.0）；
   - 声明 `loadSession`、`list`、`delete`、`resume`、`close`、`fork`，并发送 `usage_update`、`compaction_update`、`config_option_update`、`available_commands_update`、`session_info_update`。
   - 来源：https://github.com/anomalyco/opencode/tree/dev/packages/cli/src/acp
-- **omp 的 `acp` 能力声明**未在源码层面核对。issue 中的实测只覆盖了功能表，需要在 M0 中抓取 `initialize` 响应确认。
+- **omp 的 `acp` 能力声明**已在源码层面核对，见下一节；发行版行为仍需在 M0 中抓取 `initialize` 响应确认。
+
+## agent 源码核对（2026-10-28）
+
+源码版本：omp 为 `can1357/oh-my-pi@6f3fbc9`（2026-10-27），OpenCode 为 `anomalyco/opencode@86ce19d`（v2.2.0，CLI 重写到 `packages/cli`）。只读阅读源码，未运行程序；发行版行为以 M0 为准。
+
+### omp
+
+- **`initialize`**（`packages/coding-agent/src/modes/acp/acp-agent.ts` L810–861）：
+  - `loadSession: true`；
+  - `sessionCapabilities: {list, fork, resume, close}`，没有 `delete`；
+  - 顶层 `_meta: {steering: {supported: true}}`；
+  - `agentInfo.name = "omp"`。
+- **实现的方法**：
+  - 配置项 ID 为 `mode`、`model`、`thinking`；
+  - `_session/steering` 在回合空闲时不会开启新回合，`_meta.steering.queue: "followUp"` 会把消息放进 omp 自带的跟进队列；
+  - 另有 `_omp/*` 私有扩展。
+- **`session/resume`**：不回放历史，只有 `loadSession` 回放。
+- **`session/list {cwd}` 的副作用**：
+  - 不是纯读：可能执行旧目录迁移（重命名）、`mkdir`，以及在主文件缺失时恢复 `.bak`；
+  - 不申请会话租约（源码：“inspection never does”）；
+  - 每次启动进程还会写 presence 文件，并安排一次插件市场自动更新。
+  - 结论：短时探测可以与 TUI 并存。
+- **租约**：TUI 持有会话的 OS 租约时，另一个进程写入同一会话，会把它移到一个新 ID 的“兄弟会话”（`session-manager.ts` L1107–1140）。因此必须等 TUI 完全退出后，ACP 才能 `load` 并发送 prompt。
+- **`already loaded for X, not Y`** 是同一 ACP 进程内部的检查（同一 ID 以不同 cwd 加载），与 TUI 无关。
+- **退出**：
+  - SIGINT、SIGTERM、SIGHUP 都会触发清理：保存草稿，关闭 SessionManager 并刷盘，释放租约；
+  - 也支持 `/exit`、`/quit`。
+- **会话目录**：`<agentDir>/sessions/<编码后的 cwd>/`，`agentDir` 受以下变量影响：
+  - `PI_CODING_AGENT_DIR`；
+  - `PI_CONFIG_DIR`；
+  - `OMP_PROFILE`（旧名 `PI_PROFILE`）；
+  - XDG 目录。
+- **`--session-dir`** 在 ACP 中只作用于新建会话，`list`/`load`/`resume` 始终用默认目录。
+- **参数**：
+  - `--resume`/`-r`/`--session`（值可选）、`--restore`、`--continue`/`-c`；
+  - `--model`、`--thinking`、`--profile`、`--config`（可重复）；
+  - `--approval-mode`（取值 `always-ask`、`always-ask-cached`、`write`、`yolo`）、`--auto-approve`/`--yolo`；
+  - `--session-dir`、`--no-session`；
+  - `omp acp` 解析完整的启动 argv。
+
+### OpenCode v2.2.0
+
+- **`initialize`**（`packages/cli/src/acp/service.ts` L106–131）：
+  - `protocolVersion: 1`、`loadSession: true`；
+  - `sessionCapabilities: {additionalDirectories, close, delete, fork, list, resume}`；
+  - `_meta: {"opencode/child-session-updates": true}`；
+  - 没有插话（steering）能力。
+- **`session/resume`**：不回放历史，`loadSession` 回放。
+- **服务进程**：
+  - `opencode acp` 总是启动私有服务（`opencode serve --stdio`，生命周期绑定 stdin）；
+  - TUI 默认连接后台服务；
+  - 两个服务共享同一个 SQLite 数据库（WAL 模式，`busy_timeout = 5000`），路径可用 `OPENCODE_DB` 覆盖。
+- **回合冲突**：新回合开始时，会把处于“运行中”的工具调用和压缩标为已中断。如果后台服务仍在执行同一会话的回合，ACP 端的新回合会中止它的工具。这是 design 决定注入 `--standalone` 的依据。
+- **退出**：
+  - SIGTERM、SIGINT 有 10 秒的清理期限，有 TTY 时 SIGHUP 按 SIGTERM 处理；
+  - `/exit` 及其别名 `quit`、`q`；
+  - 结束 TUI 不会停止后台服务中的回合；使用 `--standalone` 时，私有服务随 stdin 关闭而退出。
+- **参数**：
+  - TUI 接受：`[directory]`、`-c/--continue`、`-s/--session`（“继续，不存在则创建”）、`--prompt`、`--auto`（隐藏别名 `--yolo`、`--dangerously-skip-permissions`）、`--standalone`、`--server`、`--print-logs`；
+  - TUI 已没有 `--model`/`--agent`，这两个参数只在 `run`/`mini` 子命令上；
+  - `opencode acp` 只接受 `--login`。
+- **未核对**：`session.list` 的 SQL 是否严格只读；结束 standalone TUI 是否中止进行中的回合（M0 tasks 1.4）。
 
 ## 子进程管理要点
 
