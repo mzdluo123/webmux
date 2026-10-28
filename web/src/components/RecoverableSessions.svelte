@@ -6,12 +6,13 @@
   import { Button } from "$lib/components/ui/button";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import * as Item from "$lib/components/ui/item";
-  import * as NativeSelect from "$lib/components/ui/native-select";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import HybridRecordHints from "./HybridRecordHints.svelte";
+  import HybridResumeActions from "./HybridResumeActions.svelte";
   import InlineNotice from "./InlineNotice.svelte";
   import { errorMessage } from "../error";
   import type { ResumeChoice, ResumeOutcome } from "../recoverable";
-  import type { HybridCandidate, HybridRecord, SessionInfo } from "../schemas";
+  import type { HybridRecord, SessionInfo } from "../schemas";
 
   let {
     records,
@@ -36,18 +37,6 @@
   let error = $state("");
   let removing = $state<HybridRecord | null>(null);
   let removeOpen = $state(false);
-  // A resume that needs the user's answer before it can be retried. Earlier
-  // answers ride along, so a second question does not undo the first.
-  let pending = $state<{
-    record: HybridRecord;
-    side: "tui" | "acp";
-    choice: ResumeChoice;
-    kind: "candidates" | "config_missing";
-    message: string;
-    candidates: HybridCandidate[];
-  } | null>(null);
-  let pendingOpen = $state(false);
-  let picked = $state("");
 
   function since(record: HybridRecord) {
     const at = Date.parse(record.interruptedAt ?? record.updatedAt);
@@ -56,49 +45,6 @@
     if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`;
     return `${Math.floor(seconds / 86400)} 天前`;
-  }
-
-  async function run(
-    record: HybridRecord,
-    side: "tui" | "acp",
-    choice: ResumeChoice = {},
-  ) {
-    busy = record.id;
-    error = "";
-    try {
-      const outcome = await resume(record.id, side, choice);
-      if (outcome.status === "resumed") {
-        onresumed(outcome.session);
-        return;
-      }
-      pending = {
-        record,
-        side,
-        choice,
-        kind: outcome.status,
-        message: outcome.message,
-        candidates: outcome.status === "candidates" ? outcome.candidates : [],
-      };
-      picked = pending.candidates[0]?.agentSessionId ?? "";
-      pendingOpen = true;
-    } catch (err) {
-      error = `无法恢复“${record.name}”：${errorMessage(err)}`;
-    } finally {
-      busy = "";
-    }
-  }
-
-  function confirmPending() {
-    const answer = pending;
-    pendingOpen = false;
-    if (!answer) return;
-    void run(
-      answer.record,
-      answer.side,
-      answer.kind === "candidates"
-        ? { ...answer.choice, agentSessionId: picked }
-        : { ...answer.choice, confirmWithoutEnv: true },
-    );
   }
 
   async function confirmRemove() {
@@ -161,31 +107,17 @@
             <p class="font-mono text-xs break-all text-muted-foreground">
               {record.cwd}
             </p>
-            {#if record.state === "interrupted" && (record.activity === "turn" || record.activity === "switching")}
-              <p class="text-xs text-warning">
-                {record.activity === "turn"
-                  ? "中断时有回合在运行，上一轮可能未完成。"
-                  : "中断时正在切换，上一轮可能未完成。"}
-              </p>
-            {/if}
-            {#if record.queuedCount}
-              <p class="text-xs text-muted-foreground">
-                中断时有 {record.queuedCount} 条排队消息，未发送的内容已丢失。
-              </p>
-            {/if}
+            <HybridRecordHints {record} />
           </Item.Content>
           <Item.Actions class="flex flex-wrap gap-2">
-            <Button
-              size="sm"
+            <HybridResumeActions
+              {record}
+              {resume}
+              {onresumed}
               disabled={!!busy}
-              onclick={() => run(record, "acp")}>恢复到聊天</Button
-            >
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!!busy}
-              onclick={() => run(record, "tui")}>恢复到终端</Button
-            >
+              onbusy={(active) => (busy = active ? record.id : "")}
+              onerror={(message) => (error = message)}
+            />
             <Button
               size="sm"
               variant="ghost"
@@ -208,33 +140,4 @@
   onconfirm={confirmRemove}
 >
   只移除 WebMux 的记录与本机草稿；agent 自己保存的会话不受影响。
-</ConfirmDialog>
-
-<ConfirmDialog
-  bind:open={pendingOpen}
-  title={pending?.kind === "candidates"
-    ? "找不到原来的 agent 会话"
-    : "启动配置已删除"}
-  onconfirm={confirmPending}
->
-  {pending?.message}
-  {#if pending?.kind === "candidates"}
-    {#if pending.candidates.length}
-      <NativeSelect.Root
-        aria-label="选择要恢复的会话"
-        class="mt-3 w-full"
-        bind:value={picked}
-      >
-        {#each pending.candidates as candidate (candidate.agentSessionId)}
-          <NativeSelect.Option value={candidate.agentSessionId}
-            >{candidate.title || candidate.agentSessionId}</NativeSelect.Option
-          >
-        {/each}
-      </NativeSelect.Root>
-    {:else}
-      同一目录下没有其他可恢复的会话。
-    {/if}
-  {:else}
-    恢复后将使用原命令，但不再带有该配置保存的环境变量。
-  {/if}
 </ConfirmDialog>

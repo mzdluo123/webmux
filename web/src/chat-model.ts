@@ -2,6 +2,7 @@ import type {
   ChatContent,
   ChatEvent,
   ChatFrame,
+  ChatOption,
   ChatRequest,
   StopReason,
   ToolStatus,
@@ -18,7 +19,7 @@ type MessageEntry = {
   text: string;
   truncated: boolean;
 };
-type ToolEntry = {
+export type ToolEntry = {
   type: "tool";
   id: string;
   kind: string;
@@ -28,8 +29,16 @@ type ToolEntry = {
   locations: { path: string; line?: number }[];
   /** Created by a patch whose opening event fell out of the cached log. */
   partial: boolean;
-  /** Outcome of the permission request attached to this call, if answered. */
-  permission?: { outcome: string; optionId?: string };
+  /**
+   * Outcome of the permission request attached to this call, if answered;
+   * the chosen option's name and kind when the request was seen.
+   */
+  permission?: {
+    outcome: string;
+    optionId?: string;
+    name?: string;
+    kind?: ChatOption["kind"];
+  };
 };
 export type TimelineEntry =
   | MessageEntry
@@ -64,8 +73,11 @@ export type ChatModel = {
   entries: TimelineEntry[];
   /** Entry position by "type:id", for upserts. */
   index: ReadonlyMap<string, number>;
-  /** Tool call each permission request belongs to. */
-  requestTools: ReadonlyMap<string, string>;
+  /** Tool call and options of each permission request on a tool call. */
+  requestTools: ReadonlyMap<
+    string,
+    { toolCallId: string; options: readonly ChatOption[] }
+  >;
 };
 
 export function emptyChat(): ChatModel {
@@ -200,13 +212,20 @@ function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
       return trackRequest(next, event.request);
     case "request.close": {
       const { requestId, outcome, optionId } = event.resolved;
-      const toolCallId = next.requestTools.get(requestId);
-      const at = toolCallId ? next.index.get(`tool:${toolCallId}`) : undefined;
+      const request = next.requestTools.get(requestId);
+      const at = request
+        ? next.index.get(`tool:${request.toolCallId}`)
+        : undefined;
       const tool = at === undefined ? undefined : next.entries[at];
       if (tool?.type !== "tool") return next;
+      const option = request?.options.find((o) => o.optionId === optionId);
       return replaceAt(next, at!, {
         ...tool,
-        permission: { outcome, ...(optionId ? { optionId } : {}) },
+        permission: {
+          outcome,
+          ...(optionId ? { optionId } : {}),
+          ...(option ? { name: option.name, kind: option.kind } : {}),
+        },
       });
     }
     case "turn.start":
@@ -222,7 +241,10 @@ function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
 function trackRequest(model: ChatModel, request: ChatRequest): ChatModel {
   if (!request.toolCallId) return model;
   const requestTools = new Map(model.requestTools);
-  requestTools.set(request.requestId, request.toolCallId);
+  requestTools.set(request.requestId, {
+    toolCallId: request.toolCallId,
+    options: request.options ?? [],
+  });
   return { ...model, requestTools };
 }
 
@@ -248,7 +270,7 @@ function replaceAt(model: ChatModel, at: number, entry: TimelineEntry) {
   return { ...model, entries };
 }
 
-type DisplayEntry =
+export type DisplayEntry =
   | TimelineEntry
   | { type: "reads"; id: string; calls: ToolEntry[] };
 

@@ -2,10 +2,12 @@ import { api, APIError } from "./api";
 import { newRequestId } from "./ids";
 import {
   HybridConflictSchema,
+  HybridRecordSchema,
   HybridRecordsSchema,
   NoContentSchema,
   SessionInfoSchema,
   type HybridCandidate,
+  type HybridRecord,
   type SessionInfo,
 } from "./schemas";
 
@@ -20,6 +22,30 @@ export function loadRecoverable(signal?: AbortSignal) {
     undefined,
     signal,
   );
+}
+
+/**
+ * The record of session `id`, the session page's fallback when the session
+ * itself is gone. Undefined when there is none: no such record (404) or no
+ * readable store (503). Other failures prove nothing and are thrown.
+ */
+export async function loadRecord(
+  id: string,
+  signal?: AbortSignal,
+): Promise<HybridRecord | undefined> {
+  try {
+    return await api(
+      `/hybrid-sessions/${id}`,
+      HybridRecordSchema,
+      "GET",
+      undefined,
+      signal,
+    );
+  } catch (err) {
+    if (err instanceof APIError && (err.status === 404 || err.status === 503))
+      return undefined;
+    throw err;
+  }
 }
 
 export type ResumeChoice = {

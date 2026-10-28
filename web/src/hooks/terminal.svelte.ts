@@ -79,6 +79,8 @@ export interface TerminalController {
   keyboard(): void;
   clear(): void;
   resync(): void;
+  // Reattaches after the session moved back to its terminal side.
+  reconnect(): void;
   fit(): void;
   scrollToBottom(): void;
   focus(): void;
@@ -459,6 +461,7 @@ export function useTerminal(
       terminal?.clear();
     },
     resync: stream.resync,
+    reconnect: stream.reconnect,
     fit: safeFit,
     scrollToBottom,
     focus() {
