@@ -10,6 +10,8 @@ const config = {
   name: "Claude 恢复",
   cmd: ["claude", "--resume"],
   envNames: ["API_KEY", "BASE_URL"],
+  hybrid: false,
+  hybridSupport: { supported: false, reason: "unknown_agent" },
   createdAt: "2026-10-23T00:00:00Z",
   updatedAt: "2026-10-23T00:00:00Z",
 };
@@ -19,6 +21,7 @@ const otherConfig = {
   name: "Open Code",
   cmd: ["opencode", "--continue", "a b"],
   envNames: [],
+  hybridSupport: { supported: true, agent: "opencode" },
 };
 const repository = {
   id: "repo-1",

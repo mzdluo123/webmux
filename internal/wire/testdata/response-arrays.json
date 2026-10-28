@@ -33,6 +33,10 @@
       ],
       "envNames": [],
       "preview": null,
+      "hybrid": false,
+      "hybridSupport": {
+        "supported": false
+      },
       "createdAt": "0001-01-01T00:00:00Z",
       "updatedAt": "0001-01-01T00:00:00Z"
     }
@@ -45,6 +49,11 @@
     ],
     "env": {},
     "preview": null,
+    "hybrid": false,
+    "hybridSupport": {
+      "supported": false,
+      "reason": "unknown_agent"
+    },
     "createdAt": "0001-01-01T00:00:00Z",
     "updatedAt": "0001-01-01T00:00:00Z"
   },

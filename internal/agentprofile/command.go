@@ -45,6 +45,22 @@ const (
 	ReasonNonInteractive Reason = "non_interactive"
 )
 
+// Message is the user-facing explanation of r, used in API errors.
+func (r Reason) Message() string {
+	switch r {
+	case ReasonUnsupportedForm:
+		return "命令写法不受支持，请直接执行 agent 或使用“加载 .bashrc”"
+	case ReasonSessionStore:
+		return "该参数使聊天视图无法找到会话"
+	case ReasonDirectoryArg:
+		return "请在新建会话时选择目录，不要在命令中写目录"
+	case ReasonNonInteractive:
+		return "该参数不启动交互界面"
+	default:
+		return "未识别到支持的 Agent，当前版本只支持 OpenCode 与 omp"
+	}
+}
+
 // UnsupportedError reports why argv cannot run as a hybrid session. Arg is
 // the offending argument, empty when the whole command is unrecognised.
 type UnsupportedError struct {

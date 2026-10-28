@@ -28,7 +28,7 @@
 ## 4. 档案与启动配置（M3）
 
 - [x] 4.1 新建 `internal/agentprofile`（共享层），实现 OpenCode 与 omp 档案、命令写法识别、恢复 argv、ACP argv、身份映射与版本比较。验证：表驱动测试覆盖 specs `hybrid-agent-profiles` 中的全部场景，以及两种参数写法与未知参数。
-- [ ] 4.2 在 `launch.Config` 中增加 `hybrid`（`omitempty`），保存时校验，并计算 `hybridSupport`；新增 `POST /api/launch-configs/hybrid-support`。同步 `contract`、`wire`、`schemas.ts` 与快照。验证：`internal/launch` 与 `internal/api` 测试覆盖 400、旧文件读取不改写、摘要字段；快照已重新录制并评审。
+- [x] 4.2 在 `launch.Config` 中增加 `hybrid`（`omitempty`），保存时校验，并计算 `hybridSupport`；新增 `POST /api/launch-configs/hybrid-support`。同步 `contract`、`wire`、`schemas.ts` 与快照。验证：`internal/launch` 与 `internal/api` 测试覆盖 400、旧文件读取不改写、摘要字段；快照已重新录制并评审。
 - [ ] 4.3 在 `internal/statefile` 中登记 `hybrid` 描述符（`hybrid-sessions.json`，故障策略 `unavailable`），并更新 `persistence_inventory.json` 与 `docs/persistence.md` 的清单表。验证：`make persistence-check` 通过。
 
 ## 5. 混合会话服务：聊天端（M4）

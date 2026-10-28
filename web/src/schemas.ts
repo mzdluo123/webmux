@@ -73,6 +73,23 @@ export const PreviewSettingsSchema = z.object({
 });
 export type PreviewSettings = z.infer<typeof PreviewSettingsSchema>;
 
+// Whether a command can run as a hybrid (chat ↔ terminal) session, computed
+// by the server from its built-in agent profiles; reason is a stable code.
+export const HybridSupportSchema = z.object({
+  supported: z.boolean(),
+  agent: z.string().optional(),
+  reason: z
+    .enum([
+      "unknown_agent",
+      "unsupported_form",
+      "session_store",
+      "directory_arg",
+      "non_interactive",
+    ])
+    .optional(),
+});
+export type HybridSupport = z.infer<typeof HybridSupportSchema>;
+
 // Launch configs are server-stored launch commands. Summaries (list) carry only
 // env variable names; the full config with values is fetched per id for edits.
 // A null preview inherits the browser's global preview setting.
@@ -85,6 +102,8 @@ const launchConfigFields = {
     .optional(),
   cmd: z.array(z.string()).min(1),
   preview: PreviewSettingsSchema.nullable().optional(),
+  hybrid: z.boolean(),
+  hybridSupport: HybridSupportSchema,
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 };

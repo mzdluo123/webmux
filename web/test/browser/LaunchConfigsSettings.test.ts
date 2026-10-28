@@ -10,6 +10,8 @@ const config = {
   name: "Claude 恢复",
   cmd: ["claude", "--resume", "a b"],
   envNames: ["API_KEY"],
+  hybrid: false,
+  hybridSupport: { supported: false, reason: "unknown_agent" },
   createdAt: "2026-10-23T00:00:00Z",
   updatedAt: "2026-10-23T00:00:00Z",
 };
