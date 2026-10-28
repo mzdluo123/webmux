@@ -80,7 +80,15 @@ async function openHybrid(page: Page, id: string, side: Side) {
 async function sendChat(page: Page, text: string) {
   await composer(page).fill(text);
   await page.getByRole("button", { name: /^(发送|加入排队)$/ }).click();
-  await expect(composer(page)).toHaveValue("");
+  // The composer empties once the prompt is taken. A permission or form
+  // request opening at once takes the composer's place, which counts too.
+  await expect
+    .poll(() =>
+      composer(page).evaluateAll((boxes) =>
+        boxes.every((box) => (box as HTMLTextAreaElement).value === ""),
+      ),
+    )
+    .toBe(true);
 }
 
 async function chatTurn(page: Page, text: string) {

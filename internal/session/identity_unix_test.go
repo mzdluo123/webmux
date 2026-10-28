@@ -43,10 +43,14 @@ func TestIdentityOfOrdinarySessionClearsOnExit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Identity{
-		ProgramApp: "omp", WarpSessionID: "real-id",
-		PID: runPID(s), Executable: resolvedBase(t, "/bin/sh"), Cwd: cwd,
+	// macOS's /bin/sh is a shim that execs another shell, so the executable
+	// name is only required to be read; TestRootProcessReportsExecutableAndResolvedCwd
+	// pins it for a real binary.
+	if identity.Executable == "" {
+		t.Fatalf("identity %+v lacks the root executable", identity)
 	}
+	identity.Executable = ""
+	want := Identity{ProgramApp: "omp", WarpSessionID: "real-id", PID: runPID(s), Cwd: cwd}
 	if identity != want {
 		t.Fatalf("identity %+v, want %+v", identity, want)
 	}
