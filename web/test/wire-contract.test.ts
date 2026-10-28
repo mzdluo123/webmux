@@ -18,8 +18,13 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.ChatPromptResultSchema, ["chat-prompt-queued", "chat-prompt-sent"]],
   [
     S.HybridConflictSchema,
-    ["chat-conflict-answered", "chat-conflict-wrong-side"],
+    [
+      "chat-conflict-answered",
+      "chat-conflict-wrong-side",
+      "hybrid-conflict-not-eligible",
+    ],
   ],
+  [S.HybridSwitchResultSchema, ["hybrid-switch"]],
   [S.NoContentSchema, ["chat-answer"]],
   [S.CodeChangesSchema, ["code-changes"]],
   [S.CodeCheckSchema, ["code-check"]],

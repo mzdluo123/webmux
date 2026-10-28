@@ -306,6 +306,10 @@ func (s *Server) delete(w http.ResponseWriter, r *http.Request) {
 		err = s.Manager.Close(r.PathValue("id"))
 	}
 	if err != nil {
+		// A hybrid session refuses a close during a switch (409 switching).
+		if hybridFailure(w, err) {
+			return
+		}
 		status := 404
 		if errors.Is(err, session.ErrRunning) {
 			status = 409

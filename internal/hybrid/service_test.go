@@ -18,6 +18,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/settings"
 )
 
 const testTimeout = 20 * time.Second
@@ -69,6 +70,8 @@ type harness struct {
 	logs    *syncBuffer
 	manager *session.Manager
 	svc     *Service
+	// prefs, when set before open, supplies chatIdleSleepMinutes.
+	prefs *settings.Service
 }
 
 type syncBuffer struct {
@@ -97,7 +100,7 @@ func newHarness(t *testing.T, scrollback int) *harness {
 
 func (h *harness) open(scrollback int) {
 	h.manager = session.NewManager(session.Options{DefaultCwd: h.t.TempDir(), ScrollbackBytes: scrollback})
-	h.svc = New(Options{StateDir: h.state, Manager: h.manager, ScrollbackBytes: scrollback, Version: "test", Logger: slog.New(slog.NewTextHandler(h.logs, nil))})
+	h.svc = New(Options{StateDir: h.state, Manager: h.manager, ScrollbackBytes: scrollback, Version: "test", Logger: slog.New(slog.NewTextHandler(h.logs, nil)), Settings: h.prefs})
 	svc, manager := h.svc, h.manager
 	h.t.Cleanup(func() {
 		svc.Close()

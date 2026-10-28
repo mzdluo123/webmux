@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
@@ -24,6 +25,8 @@ const (
 	// turnEndWait is how long a close waits for a cancelled turn to end
 	// before it stops the agent anyway.
 	turnEndWait = 5 * time.Second
+	// releaseTimeout bounds session/close before an agent is stopped.
+	releaseTimeout = 5 * time.Second
 	// errorTextBytes bounds agent error messages shown in turn.end.
 	errorTextBytes = 4 << 10
 	// stderrTailBytes bounds the stderr tail returned with a failed start.
@@ -53,12 +56,22 @@ type actor struct {
 	// recent dedupes commands by client request ID; it has its own lock.
 	recent dedupe
 
+	// probes counts this session's running eligibility probes; a close
+	// waits for them so the shell has no process left to remove.
+	probes sync.WaitGroup
+	// probeCtx ends the probes when the session closes or stops.
+	probeCtx    context.Context
+	probeCancel context.CancelFunc
+
 	// --- owned by run ---
 	side           Side
 	state          State
 	agentSessionID string
-	chat           ChatState
-	tr             translator
+	// agentCwd is the resolved cwd the agent session was opened or found
+	// in; reconnects and wakes load it there.
+	agentCwd string
+	chat     ChatState
+	tr       translator
 	// epoch numbers ACP connections; updates and requests of an older one
 	// are ignored.
 	epoch       int
@@ -73,21 +86,31 @@ type actor struct {
 	sendAfterCancel bool
 	// attention is the latched turn-end attention (done or error); pending
 	// requests take precedence over it.
-	attention       *session.Attention
-	preview         preview
+	attention *session.Attention
+	preview   preview
+	// switching is the running switch, from its eligibility check on.
+	switching *switchOp
+	// opening: a reconnect or wake is opening the agent session again;
+	// prompts queue until it is ready. sleeping: the agent process is
+	// stopping for idle sleep; a wake waits for it (wakeAfterSleep).
+	opening        bool
+	sleeping       bool
+	wakeAfterSleep bool
+	// reconnects counts automatic reconnects since the last turn that
+	// ended normally (D24 allows one).
+	reconnects int
+	// lastActive is the last command, turn end or wake; the chat side
+	// sleeps chatIdleSleepMinutes after it.
+	lastActive time.Time
+	sleepTimer *time.Timer
+	sleepAt    time.Time
+	// probe is the eligibility check of the terminal side's session.
+	probe           probeState
 	starting        bool
 	closeAfterStart bool
 	closing         bool
 	stopped         bool
 	dirty           bool
-}
-
-// acpLink is one ACP agent process and its connection.
-type acpLink struct {
-	epoch     int
-	sidecar   *session.Sidecar
-	conn      *acp.Conn
-	sessionID string
 }
 
 type turn struct {
@@ -116,8 +139,9 @@ func newActor(s *Service, cmd agentprofile.Command, cwd, configID string, side S
 	a := &actor{
 		svc: s, cmd: cmd, cwd: cwd, configID: configID,
 		inbox: make(chan func(), inboxSize), quit: make(chan struct{}),
-		side: side, state: StateActive,
+		side: side, state: StateActive, agentCwd: cwd, lastActive: time.Now(),
 	}
+	a.probeCtx, a.probeCancel = context.WithCancel(context.Background())
 	a.chat = ChatState{
 		Side: side, Agent: cmd.Profile.Name, Requests: []Request{}, Config: []ConfigOption{},
 		Commands: []Command{}, Queue: Queue{Items: []QueueItem{}}, Unsupported: unsupported,
@@ -128,10 +152,27 @@ func newActor(s *Service, cmd agentprofile.Command, cwd, configID string, side S
 
 func (a *actor) run() {
 	defer close(a.quit)
+	defer a.stopTimers()
 	for !a.stopped {
 		(<-a.inbox)()
 		a.flush()
+		if !a.stopped {
+			a.armSleep()
+		}
 	}
+}
+
+// stopTimers stops the sleep and probe timers and the running probes.
+func (a *actor) stopTimers() {
+	if a.sleepTimer != nil {
+		a.sleepTimer.Stop()
+		a.sleepTimer = nil
+	}
+	if a.probe.timer != nil {
+		a.probe.timer.Stop()
+		a.probe.timer = nil
+	}
+	a.probeCancel()
 }
 
 // post queues fn for the actor; false once the actor has stopped. The
@@ -190,6 +231,9 @@ func (a *actor) flush() {
 	a.dirty = false
 	if a.side != SideACP {
 		a.attention = nil
+	}
+	if a.side != SideTUI || a.state != StateActive {
+		a.chat.Eligibility = Eligibility{}
 	}
 	a.chat.Side = a.side
 	if a.agentSessionID != "" {
@@ -318,7 +362,7 @@ func (a *actor) start(started chan<- error) {
 	report := func(res startResult) {
 		if !a.post(func() { a.started(started, res) }) {
 			if res.link != nil {
-				res.link.stop()
+				_ = res.link.stop()
 			}
 			started <- fmt.Errorf("%w: 服务正在关闭", ErrUnavailable)
 		}
@@ -343,77 +387,23 @@ func (a *actor) start(started chan<- error) {
 // spawnACP starts the ACP process and opens a new agent session. It runs
 // in a subtask; a failure stops the process before returning.
 func (a *actor) spawnACP(epoch int) startResult {
-	argv, _ := a.cmd.ACPArgv()
-	sidecar, err := a.shell.StartSidecar(argv, a.cmd.ProtocolOnFD3())
-	if err != nil {
-		a.svc.log.Warn("hybrid acp start failed", "id", a.id, "error", err)
-		return startResult{err: fmt.Errorf("%w: %v", ErrAgent, err)}
+	link, init, fail := a.connect(epoch)
+	if fail != nil {
+		return startResult{err: fail.err}
 	}
-	link := &acpLink{epoch: epoch, sidecar: sidecar}
-	link.conn = acp.NewConn(sidecar.Stdout(), sidecar.Stdin(), acp.Options{Handler: &handler{a: a, epoch: epoch}, Logger: a.svc.log})
-	go func() {
-		<-link.conn.Done()
-		a.post(func() { a.linkLost(link) })
-	}()
-	ctx := context.Background()
-	res := startResult{link: link}
-	method := acp.MethodInitialize
-	res.init, err = link.conn.Initialize(ctx, acp.Implementation{Name: "webmux", Title: "WebMux", Version: a.svc.version}, nil)
-	if err == nil {
-		caps := res.init.AgentCapabilities
-		if !caps.LoadSession || caps.SessionCapabilities.List == nil {
-			err = errMissingCapability
-		}
-	}
-	if err == nil {
-		method = acp.MethodSessionNew
-		res.session, err = link.conn.NewSession(ctx, acp.NewSessionRequest{Cwd: a.cwd})
-		if err == nil && res.session.SessionID == "" {
-			err = errors.New("agent 未返回会话 ID")
-		}
+	res := startResult{link: link, init: init}
+	var err error
+	res.session, err = link.conn.NewSession(context.Background(), acp.NewSessionRequest{Cwd: a.cwd})
+	if err == nil && res.session.SessionID == "" {
+		err = errors.New("agent 未返回会话 ID")
 	}
 	if err != nil {
-		a.svc.log.Warn("hybrid acp start failed", "id", a.id, "method", method, "error", err)
-		link.stop()
-		return startResult{err: startError(method, err, sidecar)}
+		return startResult{err: a.callFailed(link, acp.MethodSessionNew, err).err}
 	}
 	link.sessionID = res.session.SessionID
-	res.pid = sidecar.PID()
+	res.pid = link.sidecar.PID()
 	res.process = processIdentity(res.pid)
 	return res
-}
-
-// stop closes the connection and ends the process, waiting at most
-// closeTimeout.
-func (l *acpLink) stop() {
-	_ = l.conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
-	defer cancel()
-	_ = l.sidecar.Stop(ctx)
-}
-
-// startError describes a failed ACP start for the requesting user, with the
-// agent's stderr tail.
-func startError(method string, err error, sidecar *session.Sidecar) error {
-	var rpc *acp.RPCError
-	var detail string
-	switch {
-	case errors.As(err, &rpc):
-		detail = fmt.Sprintf("错误码 %d: %s", rpc.Code, limitText(rpc.Message, errorTextBytes))
-	case errors.Is(err, acp.ErrUnsupportedVersion):
-		detail = "协议版本不受支持"
-	case errors.Is(err, acp.ErrDisconnected), errors.Is(err, acp.ErrClosed):
-		detail = "agent 已退出"
-		if code := sidecar.ExitCode(); code >= 0 {
-			detail += "（退出码 " + strconv.Itoa(code) + "）"
-		}
-	default:
-		detail = err.Error()
-	}
-	if tail := stderrTail(sidecar.Stderr()); tail != "" {
-		detail += "\n" + tail
-	}
-	return fmt.Errorf("%w: %s: %s", ErrAgent, method, detail)
 }
 
 func stderrTail(b []byte) string {
@@ -443,6 +433,7 @@ func (a *actor) started(started chan<- error, res startResult) {
 		return
 	}
 	a.dirty = true
+	a.touch()
 	pid, process := res.pid, res.process
 	if res.link == nil {
 		// A terminal that already exited left the session interrupted.
@@ -450,36 +441,17 @@ func (a *actor) started(started chan<- error, res startResult) {
 			a.record(true, func(r *Record) { r.PID, r.Process = pid, process })
 		}
 	} else {
-		a.link = res.link
-		a.agentSessionID = res.link.sessionID
-		if info := res.init.AgentInfo; info != nil {
-			a.chat.AgentVersion = info.Version
-			if a.cmd.Profile.BelowVerified(info.Version) {
-				a.chat.VerifiedBelow = a.cmd.Profile.VerifiedVersion
-			}
-		}
-		a.chat.Steering = a.cmd.Profile.Steering && steeringSupported(res.init.Meta)
+		a.installLink(res.link, res.init, res.session.ConfigOptions, nil)
 		sid := a.agentSessionID
 		a.record(true, func(r *Record) {
 			r.PID, r.Process = pid, process
 			r.SetAgentSessionID(sid)
 		})
-		if res.session.ConfigOptions != nil {
-			a.emit(Event{Kind: EventConfig, Config: configOptions(res.session.ConfigOptions)})
-		}
 	}
 	a.svc.log.Info("hybrid session started", "id", a.id, "side", string(a.side), "agent", a.cmd.Profile.Name)
 	started <- nil
-	if res.link != nil {
-		select {
-		case <-res.link.conn.Done():
-			a.linkLost(res.link)
-		default:
-		}
-	}
-	if a.closeAfterStart {
-		a.beginClose()
-	}
+	a.checkLink()
+	a.afterTransition()
 }
 
 // discard removes a session whose first start failed: its record and shell
@@ -669,7 +641,8 @@ func (a *actor) answer(requestID string, ans Answer) error {
 }
 
 // send starts a turn with text; the caller checked that the session can
-// take one (ready, no turn running). Sending clears the latched attention.
+// take one (ready, linked, no turn running). Sending clears the latched
+// attention; authRequired stays until a turn ends normally.
 func (a *actor) send(text string) PromptResult {
 	a.nextTurn++
 	n := strconv.Itoa(a.nextTurn)
@@ -678,7 +651,6 @@ func (a *actor) send(text string) PromptResult {
 	t := &turn{id: result.TurnID, cancel: cancel, done: make(chan struct{})}
 	a.turn = t
 	a.chat.Turn = Turn{Running: true, TurnID: t.id}
-	a.chat.AuthRequired = false
 	a.dirty = true
 	a.clearAttention()
 	a.emit(Event{Kind: EventTurnStart, TurnStart: &TurnStart{TurnID: result.TurnID, PromptID: result.PromptID}}, a.tr.userMessage(text))
@@ -696,7 +668,8 @@ func (a *actor) send(text string) PromptResult {
 // (end_turn) and sends the next queued prompt; cancelled, refusal, error
 // and auth_required pause a non-empty queue, refusal, error and
 // auth_required latching error attention. A turn cancelled by send-now
-// sends the queue's head instead.
+// sends the queue's head instead. auth_required sets authRequired until a
+// turn ends normally.
 func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 	if a.turn != t {
 		return
@@ -712,8 +685,16 @@ func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 	a.svc.log.Info("hybrid turn ended", "id", a.id, "stopReason", stop, "code", code)
 	a.tr.breakMessage()
 	a.chat.Turn = Turn{TurnID: t.id, StopReason: stop}
-	a.chat.AuthRequired = stop == StopAuthRequired
+	normal := stop == acp.StopEndTurn || stop == acp.StopMaxTokens || stop == acp.StopMaxTurnRequests
+	switch {
+	case stop == StopAuthRequired:
+		a.chat.AuthRequired = true
+	case normal:
+		a.chat.AuthRequired = false
+		a.reconnects = 0
+	}
 	a.dirty = true
+	a.touch()
 	a.emit(Event{Kind: EventTurnEnd, TurnEnd: &TurnEnd{TurnID: t.id, StopReason: stop, Error: text}})
 	now := time.Now().UTC()
 	switch stop {
@@ -726,7 +707,7 @@ func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 	case a.sendAfterCancel:
 		a.sendAfterCancel = false
 		a.setQueue(a.chat.Queue.Items, false)
-	case stop != acp.StopEndTurn && stop != acp.StopMaxTokens && stop != acp.StopMaxTurnRequests:
+	case !normal:
 		a.setQueue(a.chat.Queue.Items, true)
 	}
 	a.drain()
@@ -734,7 +715,8 @@ func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 
 // stopReason maps a session/prompt outcome to a turn.end reason and error
 // text. An authentication error (-32000, or its message on agents that
-// use another code) is auth_required.
+// use another code) is auth_required; a lost connection ends the turn as
+// cancelled (interrupted).
 func stopReason(resp acp.PromptResponse, err error) (string, string) {
 	var rpc *acp.RPCError
 	switch {
@@ -751,7 +733,7 @@ func stopReason(resp acp.PromptResponse, err error) (string, string) {
 		}
 		return StopError, msg
 	case errors.Is(err, acp.ErrClosed), errors.Is(err, acp.ErrDisconnected), errors.Is(err, acp.ErrProtocol):
-		return StopError, "与 agent 的连接已断开"
+		return acp.StopCancelled, "与 agent 的连接已断开"
 	}
 	return StopError, "回合失败"
 }
@@ -782,63 +764,63 @@ func steeringSupported(meta []byte) bool {
 	return m.Steering != nil && m.Steering.Supported
 }
 
-// linkLost handles the end of the current ACP connection outside a close:
-// the agent exited or broke the protocol. The turn ends through its
-// prompt call; the session becomes interrupted (reconnecting is a later
-// step).
-func (a *actor) linkLost(link *acpLink) {
-	if a.link != link || a.stopped {
-		return
-	}
-	a.link = nil
-	a.svc.log.Warn("hybrid acp connection ended", "id", a.id, "error", link.conn.Err())
-	a.withdrawAll()
-	a.interrupt()
-	a.emit(Event{Kind: EventNotice, Notice: &Notice{Level: acp.NoticeError, Text: "与 agent 的连接已断开"}})
-	go link.stop()
-}
-
-// interrupt marks the session interrupted: its side ended by itself.
-func (a *actor) interrupt() {
-	activity := "idle"
-	if a.turn != nil {
+// interrupt marks the session interrupted: its side ended by itself, or a
+// reconnect or rollback failed. activity is what it was doing: "idle",
+// "turn" or "switching". The shell stays, showing its last output.
+func (a *actor) interrupt(activity string) {
+	if a.turn != nil && activity == "idle" {
 		activity = "turn"
 	}
 	a.state = StateInterrupted
 	a.dirty = true
 	now := time.Now().UTC()
+	lost := len(a.chat.Queue.Items)
 	a.record(true, func(r *Record) {
-		r.State, r.Activity, r.InterruptedAt = StateInterrupted, activity, &now
+		r.State, r.Activity, r.InterruptedAt, r.QueuedCount = StateInterrupted, activity, &now, lost
 		r.PID, r.Process = 0, nil
 	})
 }
 
-// Close implements session.Driver: a user closed the session.
-func (a *actor) Close() { a.post(a.beginClose) }
+// Close implements session.Driver: a user closed the session. It is
+// refused with ErrSwitching while a switch runs.
+func (a *actor) Close() error {
+	_, err := call(context.Background(), a, func() (struct{}, error) {
+		if a.switching != nil {
+			return struct{}{}, ErrSwitching
+		}
+		a.beginClose()
+		return struct{}{}, nil
+	})
+	return err
+}
 
-// RunExited implements session.Driver: the terminal UI exited by itself.
+// RunExited implements session.Driver: the terminal UI exited by itself
+// (D23). During a switch the switch notices it instead.
 func (a *actor) RunExited(code int) {
 	a.post(func() {
-		if a.closing || a.stopped || a.side != SideTUI || a.state != StateActive {
+		if a.closing || a.stopped || a.side != SideTUI || a.state != StateActive || a.switching != nil {
 			return
 		}
 		a.svc.log.Info("hybrid terminal exited", "id", a.id, "exitCode", code)
-		a.interrupt()
+		a.interrupt("idle")
 	})
 }
 
-// beginClose ends the session for a user: the running turn is cancelled,
-// the side's processes stop, then finishClose records closed and removes
-// the shell.
+// beginClose ends the session for a user: the running turn is cancelled
+// (chat) or interrupted like a switch would (terminal, bounded by the
+// interrupt wait), the side's processes stop, then finishClose records
+// closed and removes the shell. A start, wake, reconnect or sleep in
+// progress finishes first.
 func (a *actor) beginClose() {
 	if a.closing || a.stopped {
 		return
 	}
-	if a.starting {
+	if a.starting || a.opening || a.sleeping {
 		a.closeAfterStart = true
 		return
 	}
 	a.closing = true
+	a.stopTimers()
 	a.withdrawAll()
 	var turnDone chan struct{}
 	if a.turn != nil {
@@ -847,7 +829,9 @@ func (a *actor) beginClose() {
 	}
 	link, shell := a.link, a.shell
 	a.link = nil
+	terminal := a.side == SideTUI && a.state == StateActive
 	go func() {
+		a.probes.Wait()
 		if turnDone != nil {
 			wait := time.NewTimer(turnEndWait)
 			select {
@@ -857,7 +841,13 @@ func (a *actor) beginClose() {
 			wait.Stop()
 		}
 		if link != nil {
-			link.stop()
+			if err := link.release(); err != nil {
+				a.svc.log.Warn("hybrid agent did not stop in time", "id", a.id, "error", err)
+			}
+		}
+		if terminal && tuiBusy(shell.Info()) {
+			a.interruptKey()
+			a.waitIdle(a.svc.timing.interrupt)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
 		defer cancel()
@@ -892,25 +882,27 @@ func (a *actor) shellGone() {
 	}
 	if link := a.link; link != nil {
 		a.link = nil
-		go link.stop()
+		go func() { _ = link.stop() }()
 	}
 	a.end()
 }
 
 // shutdown stops the ACP process for a server shutdown, leaving the record
 // active so the next start marks it interrupted. It blocks the actor, which
-// ends with it.
+// ends with it; a switch, wake or reconnect in flight stops the process it
+// started once it finds the actor gone.
 func (a *actor) shutdown() {
 	if a.stopped {
 		return
 	}
+	a.stopTimers()
 	a.withdrawAll()
 	if a.turn != nil {
 		a.turn.cancel()
 	}
 	if link := a.link; link != nil {
 		a.link = nil
-		link.stop()
+		_ = link.stop()
 	}
 	a.end()
 }

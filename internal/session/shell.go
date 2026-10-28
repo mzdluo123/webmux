@@ -21,8 +21,10 @@ var (
 // The session calls it without holding any session or manager lock.
 type Driver interface {
 	// Close handles a user's close request (Manager.Close); the driver
-	// decides how to end the shell. Shutdown never calls it.
-	Close()
+	// decides how to end the shell, or refuses with an error Manager.Close
+	// returns (a hybrid session in the middle of a switch). Shutdown never
+	// calls it.
+	Close() error
 	// RunExited reports that the current run exited by itself, after its
 	// exit was published like an ordinary session's. Runs ended by EndRun
 	// or Session.Close are not reported.
@@ -294,6 +296,16 @@ func (s *Session) resetRunStateLocked() {
 	s.identity = Identity{}
 	s.structured = false
 	s.replies = nil
+}
+
+// MoveClients ends every terminal connection with Moved while the run goes
+// on: a switch that first interrupts the terminal UI takes its clients off
+// at once, and they may attach again if the switch is cancelled.
+func (s *Session) MoveClients() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	moved := s.overlay.side()
+	s.dropSubscribersLocked(&moved)
 }
 
 // SetOverlay replaces the driver's overlay; nil clears it. List subscribers

@@ -70,15 +70,28 @@ func FormValue(raw []byte) (any, error) {
 	return nil, fmt.Errorf("%w: 表单内容只能是字符串、数字、布尔值或字符串数组", ErrInvalid)
 }
 
-// ready reports why the session cannot take chat commands now.
+// ready reports why the session cannot take chat commands now. A chat side
+// without a connection (dormant, waking or reconnecting) is ready: prompts
+// queue until the agent is back.
 func (a *actor) ready() error {
 	switch {
 	case a.state != StateActive || a.closing:
 		return fmt.Errorf("%w: 会话已结束", ErrConflict)
-	case a.side == SideSwitching:
+	case a.switching != nil:
 		return ErrSwitching
-	case a.side != SideACP || a.link == nil:
+	case a.side != SideACP:
 		return ErrWrongSide
+	}
+	return nil
+}
+
+// linked is ready for commands that need the agent now.
+func (a *actor) linked() error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if a.link == nil {
+		return fmt.Errorf("%w: agent 正在启动，请稍后重试", ErrConflict)
 	}
 	return nil
 }
@@ -93,26 +106,26 @@ func (a *actor) setQueue(items []QueueItem, paused bool) {
 	a.dirty = true
 }
 
-// drain sends the queue's head when the session is idle and the queue is
-// not paused.
+// drain sends the queue's head when the session is idle, connected and
+// the queue is not paused.
 func (a *actor) drain() {
 	q := a.chat.Queue
-	if a.turn != nil || q.Paused || len(q.Items) == 0 || a.ready() != nil {
+	if a.turn != nil || q.Paused || len(q.Items) == 0 || a.linked() != nil {
 		return
 	}
 	a.setQueue(slices.Clone(q.Items[1:]), false)
 	a.send(q.Items[0].Text)
 }
 
-// prompt sends text now when the session is idle and the queue is empty
-// and running, and otherwise appends it to the queue.
+// prompt sends text now when the session is idle, connected and the queue
+// is empty and running, and otherwise appends it to the queue.
 func (a *actor) prompt(text string) (PromptResult, error) {
 	if err := a.ready(); err != nil {
 		return PromptResult{}, err
 	}
 	a.clearAttention()
 	q := a.chat.Queue
-	if a.turn == nil && !q.Paused && len(q.Items) == 0 {
+	if a.turn == nil && !q.Paused && len(q.Items) == 0 && a.link != nil {
 		return a.send(text), nil
 	}
 	if len(q.Items) >= maxQueueItems {
@@ -230,7 +243,7 @@ type agentCall func(ctx context.Context) error
 // steer prepares injecting text into the running turn. It needs a profile
 // with the steering extension, an agent that declared it, and a turn.
 func (a *actor) steer(text string) (agentCall, error) {
-	if err := a.ready(); err != nil {
+	if err := a.linked(); err != nil {
 		return nil, err
 	}
 	if !a.chat.Steering || a.turn == nil {
@@ -258,7 +271,7 @@ func (a *actor) steer(text string) (agentCall, error) {
 // a select, Enabled for a boolean. The agent's answer replaces the
 // options, and the record keeps the values for later loads.
 func (a *actor) setConfig(id string, value *string, enabled *bool) (agentCall, error) {
-	if err := a.ready(); err != nil {
+	if err := a.linked(); err != nil {
 		return nil, err
 	}
 	i := slices.IndexFunc(a.chat.Config, func(o ConfigOption) bool { return o.ID == id })

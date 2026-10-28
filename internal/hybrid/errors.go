@@ -24,6 +24,9 @@ var (
 	// ErrSwitching: a switch is running; commands wait for it (409
 	// switching).
 	ErrSwitching = errors.New("混合会话正在切换")
+	// ErrNotEligible: switching to chat is not possible now; the error is
+	// an *IneligibleError with the reason code (409 not_eligible).
+	ErrNotEligible = errors.New("现在不能切到聊天")
 	// ErrSent: the queued prompt was already sent or removed (409 sent).
 	ErrSent = errors.New("该排队消息已发送或已删除")
 	// ErrSteeringUnavailable: steering needs a profile and agent that

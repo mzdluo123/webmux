@@ -379,11 +379,15 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	} else if err := launches.Seed(launch.Presets(os.Getenv("SHELL"))); err != nil {
 		slog.Warn("seed default launch configs", "error", err)
 	}
+	// Server preferences open before hybrid sessions, which follow the
+	// chat idle sleep setting.
+	preferences := settings.Open(c.StateDir)
+	defer preferences.Close()
 	// Like launch configs, a broken hybrid record store only disables
 	// hybrid sessions; New logs why.
 	hybrids := hybrid.New(hybrid.Options{
 		StateDir: c.StateDir, Manager: m, ScrollbackBytes: sessionOptions.ScrollbackBytes,
-		Version: version, Logger: slog.Default(),
+		Version: version, Logger: slog.Default(), Settings: preferences,
 	})
 	workspaces := workspace.New(c.StateDir, m, launches, c.DefaultCwd)
 	workspaces.UseHybrid(hybrids)
@@ -391,8 +395,6 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	codes := codeview.New(m)
 	defer codes.Close()
 	pushes := push.New(c.Push, c.StateDir, m, slog.Default(), nil)
-	preferences := settings.Open(c.StateDir)
-	defer preferences.Close()
 	local := localOrigin(listener.Addr())
 	tunnels := newTunnelController(tunnelControllerOptions{
 		Cfg: c.Tunnel, Store: c.TunnelSettings, Local: local, Token: c.Token,

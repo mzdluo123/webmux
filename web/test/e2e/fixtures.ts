@@ -99,6 +99,7 @@ export const test = base.extend<
                 quickCommands: null,
                 homeWorktrees: null,
                 forceSoftKeys: null,
+                chatIdleSleepMinutes: null,
               },
             },
           })
@@ -162,6 +163,7 @@ export const test = base.extend<
                     quickCommands: null,
                     homeWorktrees: null,
                     forceSoftKeys: null,
+                    chatIdleSleepMinutes: null,
                   },
                 },
               })

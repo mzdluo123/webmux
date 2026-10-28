@@ -43,13 +43,16 @@
 //	                       "tui-turn" (during a TUI turn) [FAKEAGENT_CRASH]
 //	--permission           ask permission for the turn's tool call [FAKEAGENT_PERMISSION=1]
 //	--elicit               ask a form elicitation each turn [FAKEAGENT_ELICIT=1]
+//	--ignore-interrupt     TUI mode: the interrupt key does not stop a turn [FAKEAGENT_IGNORE_INTERRUPT=1]
+//	--no-resume            ACP mode: do not declare session/resume [FAKEAGENT_NO_RESUME=1]
 //	--protocol-version N   initialize answer, default 1 [FAKEAGENT_PROTOCOL_VERSION]
 //	--stdout-noise TEXT    ACP mode: print TEXT as a plain stdout line first [FAKEAGENT_STDOUT_NOISE]
 //
 // Agent flags such as --approval-mode, --yolo, --auto-approve, --auto,
 // --config, --model, --thinking, --standalone, --login and -c are accepted;
 // --yolo, --auto-approve, --auto and --approval-mode yolo suppress
-// permission requests. Other positional arguments are ignored.
+// permission requests. Other positional arguments are ignored. Like omp,
+// the omp profile's session/load answers the "mode" option at its default.
 //
 // The store's events.log records "<unixnano> <pid> <mode> <event> <id>" for
 // open, close, fork and violation (a session opened while another live
@@ -79,6 +82,8 @@ type config struct {
 	crash           string
 	permission      bool
 	elicit          bool
+	ignoreInterrupt bool
+	noResume        bool
 	protocolVersion int
 	noise           string
 }
@@ -125,6 +130,8 @@ func parseArgs(args []string) (config, bool, error) {
 		crash:           os.Getenv("FAKEAGENT_CRASH"),
 		permission:      os.Getenv("FAKEAGENT_PERMISSION") == "1",
 		elicit:          os.Getenv("FAKEAGENT_ELICIT") == "1",
+		ignoreInterrupt: os.Getenv("FAKEAGENT_IGNORE_INTERRUPT") == "1",
+		noResume:        os.Getenv("FAKEAGENT_NO_RESUME") == "1",
 		noise:           os.Getenv("FAKEAGENT_STDOUT_NOISE"),
 		turnDelay:       20 * time.Millisecond,
 		protocolVersion: 1,
@@ -158,6 +165,8 @@ func parseArgs(args []string) (config, bool, error) {
 	fs.StringVar(&cfg.crash, "crash", cfg.crash, "")
 	fs.BoolVar(&cfg.permission, "permission", cfg.permission, "")
 	fs.BoolVar(&cfg.elicit, "elicit", cfg.elicit, "")
+	fs.BoolVar(&cfg.ignoreInterrupt, "ignore-interrupt", cfg.ignoreInterrupt, "")
+	fs.BoolVar(&cfg.noResume, "no-resume", cfg.noResume, "")
 	fs.IntVar(&cfg.protocolVersion, "protocol-version", cfg.protocolVersion, "")
 	fs.StringVar(&cfg.noise, "stdout-noise", cfg.noise, "")
 	// Real agent flags the hybrid profiles keep or pass through.

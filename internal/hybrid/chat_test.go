@@ -369,21 +369,50 @@ func TestPromptNeedsChatSide(t *testing.T) {
 	}
 }
 
-func TestChatAgentCrashInterrupts(t *testing.T) {
+// An ACP crash mid-turn ends the turn as cancelled and reconnects once
+// with session/resume (D24); crashing again before a turn completes
+// interrupts the session.
+func TestChatAgentCrashReconnectsOnce(t *testing.T) {
 	h := newHarness(t, 0)
 	s := h.create(h.input(agentprofile.OMP, SideACP, "FAKEAGENT_CRASH=prompt-mid"))
 	id := s.Info().ID
+	first := h.record(id).PID
 	st := h.follow(id)
+	generation := st.sub.Snapshot.Generation
 	prompt(t, h, id, "boom")
-	events := st.until("turn end", hasKind(EventTurnEnd))
-	if end := events[len(events)-1].TurnEnd; end.StopReason != StopError {
+	events := st.until("reconnected", func(events []Event) bool {
+		for _, e := range events {
+			if e.Kind == EventMarker && e.Marker.Kind == MarkerReconnected {
+				return true
+			}
+		}
+		return false
+	})
+	var end *TurnEnd
+	for _, e := range events {
+		if e.Kind == EventTurnEnd {
+			end = e.TurnEnd
+		}
+	}
+	if end == nil || end.StopReason != acp.StopCancelled {
 		t.Fatalf("turn end after a crash %+v", end)
 	}
+	waitFor(t, "new agent process", func() bool { rec := h.record(id); return rec.PID > 0 && rec.PID != first })
+	if rec := h.record(id); rec.State != StateActive {
+		t.Fatalf("record after reconnecting %+v", rec)
+	}
+	// session/resume keeps the log: no new generation.
+	if sub, err := h.svc.Subscribe(id, nil); err != nil || sub.Snapshot.Generation != generation {
+		t.Fatalf("generation after resume: %v", err)
+	} else {
+		sub.Close()
+	}
+	prompt(t, h, id, "again")
 	waitFor(t, "interrupted record", func() bool { return h.record(id).State == StateInterrupted })
 	if rec := h.record(id); rec.PID != 0 || rec.InterruptedAt == nil {
 		t.Fatalf("record %+v", rec)
 	}
-	if _, err := h.svc.Prompt(context.Background(), id, PromptInput{ClientRequestID: rid(), Text: "again"}); !errors.Is(err, ErrConflict) {
-		t.Fatalf("prompt after a crash: %v", err)
+	if _, err := h.svc.Prompt(context.Background(), id, PromptInput{ClientRequestID: rid(), Text: "later"}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("prompt after a second crash: %v", err)
 	}
 }

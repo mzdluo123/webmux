@@ -197,7 +197,7 @@ func (t *tui) escape() {
 	now := time.Now()
 	double := now.Sub(t.lastEsc) <= doubleEscWindow
 	t.lastEsc = now
-	if t.turn == nil {
+	if t.turn == nil || t.cfg.ignoreInterrupt {
 		return
 	}
 	if t.cfg.profile == "omp" || double {

@@ -31,6 +31,7 @@ func (s *Server) chatRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+base+"cancel", s.chatCancel)
 	mux.HandleFunc("POST "+base+"requests/{requestId}", s.chatAnswer)
 	mux.HandleFunc("PUT "+base+"config/{configId}", s.chatConfig)
+	mux.HandleFunc("POST /api/sessions/{id}/switch", s.hybridSwitch)
 }
 
 // hybrids returns the hybrid service, or answers 404: without one no
@@ -128,6 +129,23 @@ func (s *Server) chatConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	chatDone(w, h.SetConfig(r.Context(), r.PathValue("id"), wire.ChatConfigInput(r.PathValue("configId"), req)))
+}
+
+// hybridSwitch moves a hybrid session to its other side, or answers a
+// switch waiting for the user's choice. It answers once the switch is
+// over; a draft returned to the terminal goes to this requester only.
+func (s *Server) hybridSwitch(w http.ResponseWriter, r *http.Request) {
+	h := s.hybrids(w)
+	var req contract.HybridSwitchRequest
+	if h == nil || !decode(w, r, &req) {
+		return
+	}
+	result, err := h.Switch(r.Context(), r.PathValue("id"), wire.HybridSwitchInput(req))
+	if err != nil {
+		chatFailure(w, err)
+		return
+	}
+	reply(w, http.StatusOK, wire.HybridSwitchResult(result))
 }
 
 func chatDone(w http.ResponseWriter, err error) {

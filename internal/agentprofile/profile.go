@@ -71,6 +71,10 @@ type Profile struct {
 	ReapplyOnLoad []string
 	// Steering reports the private _session/steering extension.
 	Steering bool
+	// Resume allows session/resume (no history replay) for waking from idle
+	// sleep and reconnecting after a crash, when the agent declares it;
+	// otherwise those use session/load.
+	Resume bool
 
 	resumeFlag  string
 	tuiInject   []string
@@ -86,6 +90,7 @@ var opencode = &Profile{
 	Title:           "OpenCode",
 	VerifiedVersion: "2.1.4",
 	InterruptKey:    []byte("\x1b\x1b"),
+	Resume:          true,
 	resumeFlag:      "-s",
 	// The default TUI is a client of the background service, where a turn
 	// keeps running after the TUI exits; a private server stops with it.
@@ -119,6 +124,7 @@ var omp = &Profile{
 	InterruptKey:    []byte("\x1b"),
 	ReapplyOnLoad:   []string{"mode"},
 	Steering:        true,
+	Resume:          true,
 	resumeFlag:      "--resume",
 	// omp acp parses the full argv and ignores unknown options, so every
 	// kept option configures both sides the same way.

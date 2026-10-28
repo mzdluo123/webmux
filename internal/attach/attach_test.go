@@ -169,7 +169,7 @@ func TestAttachReportsExitCodeAndMissingSession(t *testing.T) {
 
 type idleDriver struct{}
 
-func (idleDriver) Close()        {}
+func (idleDriver) Close() error  { return nil }
 func (idleDriver) RunExited(int) {}
 
 func TestAttachMovedSessionDetachesPassivelyAndRefusesWithoutRun(t *testing.T) {

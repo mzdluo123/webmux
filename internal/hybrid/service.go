@@ -21,6 +21,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/settings"
 )
 
 const (
@@ -44,7 +45,26 @@ type Options struct {
 	Version string
 	// Logger receives lifecycle events, method names and error codes only.
 	Logger *slog.Logger
+	// Settings supplies chatIdleSleepMinutes; changes apply at once. Nil
+	// or unavailable settings use the default of 30 minutes.
+	Settings *settings.Service
 }
+
+// timing holds the service's waits; tests shorten them.
+type timing struct {
+	// interrupt is how long a switch waits for the terminal UI to go idle
+	// after the interrupt key before it asks the user (D21).
+	interrupt time.Duration
+	// probeDelay debounces the eligibility probe after the terminal's
+	// agent session or cwd changes.
+	probeDelay time.Duration
+	// observe is how often a terminal side's identity is read.
+	observe time.Duration
+	// minute is the unit of chatIdleSleepMinutes.
+	minute time.Duration
+}
+
+var defaultTiming = timing{interrupt: 10 * time.Second, probeDelay: time.Second, observe: 500 * time.Millisecond, minute: time.Minute}
 
 // Service owns the hybrid sessions of one server.
 type Service struct {
@@ -53,10 +73,17 @@ type Service struct {
 	capacity int
 	version  string
 	log      *slog.Logger
+	timing   timing
+	// probes holds a token per running eligibility probe (maxProbes).
+	probes chan struct{}
+	// settingsDone closes when the settings watcher ends (nil without one).
+	settingsDone chan struct{}
 
-	mu     sync.Mutex
-	actors map[string]*actor
-	closed bool
+	mu          sync.Mutex
+	actors      map[string]*actor
+	closed      bool
+	idleMinutes int
+	settingsSub *settings.Subscription
 }
 
 // New opens the record store, marks sessions left active by an earlier
@@ -75,11 +102,19 @@ func New(o Options) *Service {
 	if o.Version == "" {
 		o.Version = "dev"
 	}
-	s := &Service{manager: o.Manager, records: openRecords(o.StateDir), capacity: capacity, version: o.Version, log: log, actors: make(map[string]*actor)}
+	s := &Service{
+		manager: o.Manager, records: openRecords(o.StateDir), capacity: capacity, version: o.Version, log: log,
+		timing: defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
+		idleMinutes: settings.DefaultChatIdleSleepMinutes,
+	}
 	if err := s.records.recoverAfterRestart(time.Now()); err != nil {
 		log.Warn("hybrid sessions unavailable", "error", err)
 	}
 	o.Manager.SetIDReserver(s.records.reserved)
+	if o.Settings != nil {
+		s.settingsDone = make(chan struct{})
+		go s.watchSettings(o.Settings)
+	}
 	return s
 }
 
@@ -96,7 +131,14 @@ func (s *Service) Close() {
 	for _, a := range s.actors {
 		actors = append(actors, a)
 	}
+	sub := s.settingsSub
 	s.mu.Unlock()
+	if sub != nil {
+		sub.Close()
+	}
+	if s.settingsDone != nil {
+		<-s.settingsDone
+	}
 	deadline := time.NewTimer(shutdownTimeout)
 	defer deadline.Stop()
 	for _, a := range actors {
@@ -194,6 +236,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 	s.mu.Unlock()
 	go a.run()
 	go a.watchShell()
+	go a.observeLoop()
 	started := make(chan error, 1)
 	a.post(func() { a.start(started) })
 	// The start runs to completion even if ctx ends, so a cancelled request
@@ -239,13 +282,17 @@ func (s *Service) actor(id string) (*actor, error) {
 // Subscribe opens a gap-free view of session id's chat: a snapshot, the
 // events after resume (or all cached events, with Reset when resume is no
 // longer in the log), then live frames. A subscriber that falls behind is
-// dropped with ErrSlow.
+// dropped with ErrSlow. Opening the chat wakes a dormant session.
 func (s *Service) Subscribe(id string, resume *ResumePoint) (*Subscription, error) {
 	a, err := s.actor(id)
 	if err != nil {
 		return nil, err
 	}
-	return a.log.subscribe(resume)
+	sub, err := a.log.subscribe(resume)
+	if err == nil {
+		a.post(a.wake)
+	}
+	return sub, err
 }
 
 // PromptResult reports what a prompt did: Queued with the queue item's
@@ -285,6 +332,8 @@ type ConfigInput struct {
 // the same ID within 30 minutes (and among the session's last 256) gets the
 // first outcome, success or error, without running again. Commands fail
 // with ErrSwitching during a switch and ErrWrongSide outside the chat side.
+// Each command restarts the idle clock and wakes a dormant session; a
+// prompt sent meanwhile waits in the queue until the agent is back.
 
 // command runs fn on session id's actor once per client request ID.
 func command[T any](ctx context.Context, s *Service, id, requestID, name string, fn func(a *actor) (T, error)) (T, error) {
@@ -294,7 +343,7 @@ func command[T any](ctx context.Context, s *Service, id, requestID, name string,
 		return zero, err
 	}
 	return once(ctx, &a.recent, requestID, name, func(ctx context.Context) (T, error) {
-		return call(ctx, a, func() (T, error) { return fn(a) })
+		return call(ctx, a, func() (T, error) { a.activity(); return fn(a) })
 	})
 }
 
@@ -306,7 +355,7 @@ func agentCommand(ctx context.Context, s *Service, id, requestID, name string, p
 		return err
 	}
 	_, err = once(ctx, &a.recent, requestID, name, func(ctx context.Context) (struct{}, error) {
-		run, err := call(ctx, a, func() (agentCall, error) { return prepare(a) })
+		run, err := call(ctx, a, func() (agentCall, error) { a.activity(); return prepare(a) })
 		if err != nil {
 			return struct{}{}, err
 		}

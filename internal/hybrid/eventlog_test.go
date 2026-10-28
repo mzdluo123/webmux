@@ -194,7 +194,7 @@ func TestStopReason(t *testing.T) {
 		{acp.PromptResponse{}, &acp.RPCError{Code: acp.CodeAuthRequired, Message: "x"}, StopAuthRequired},
 		{acp.PromptResponse{}, &acp.RPCError{Code: -32603, Message: "Authentication required: provider"}, StopAuthRequired},
 		{acp.PromptResponse{}, &acp.RPCError{Code: -32603, Message: "Upstream request failed"}, StopError},
-		{acp.PromptResponse{}, acp.ErrDisconnected, StopError},
+		{acp.PromptResponse{}, acp.ErrDisconnected, acp.StopCancelled},
 	} {
 		if stop, _ := stopReason(row.resp, row.err); stop != row.stop {
 			t.Fatalf("%+v %v: %s", row.resp, row.err, stop)

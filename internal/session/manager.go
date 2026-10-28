@@ -255,15 +255,14 @@ func (m *Manager) listLocked() []Info {
 }
 
 // Close handles a user's close request. A driven shell is handed to its
-// driver, which decides how it ends.
+// driver, which decides how it ends or refuses with its own error.
 func (m *Manager) Close(id string) error {
 	s, err := m.Get(id)
 	if err != nil {
 		return err
 	}
 	if s.driver != nil {
-		s.driver.Close()
-		return nil
+		return s.driver.Close()
 	}
 	s.Close()
 	return nil

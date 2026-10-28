@@ -230,6 +230,19 @@ func (r *records) reserved(id string) bool {
 	return r.index(id) >= 0
 }
 
+// agentInUse reports whether an active record other than self's links agent
+// session sid: another hybrid session has it open.
+func (r *records) agentInUse(self, sid string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, rec := range r.list {
+		if rec.ID != self && rec.State == StateActive && rec.AgentSessionID == sid {
+			return true
+		}
+	}
+	return false
+}
+
 // count is the number of records, for the limit check before a session
 // starts; add enforces the limit again.
 func (r *records) count() int {

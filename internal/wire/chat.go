@@ -189,6 +189,14 @@ func ChatConfigInput(configID string, r contract.ChatConfigRequest) hybrid.Confi
 	return hybrid.ConfigInput{ClientRequestID: r.ClientRequestID, ConfigID: configID, Value: r.Value, Enabled: r.Enabled}
 }
 
+func HybridSwitchInput(r contract.HybridSwitchRequest) hybrid.SwitchInput {
+	return hybrid.SwitchInput{ClientRequestID: r.ClientRequestID, To: hybrid.Side(r.To), Choice: r.Choice}
+}
+
+func HybridSwitchResult(r hybrid.SwitchResult) contract.HybridSwitchResult {
+	return contract.HybridSwitchResult{Side: contract.HybridSide(r.Side), Draft: r.Draft, Dropped: r.Dropped, Unsupported: r.Unsupported}
+}
+
 // ChatAnswer converts a request answer; hybrid.FormValue checks each form
 // value.
 func ChatAnswer(r contract.ChatAnswerRequest) (hybrid.Answer, error) {

@@ -319,7 +319,16 @@ func (a *agent) serve(ctx context.Context, m rpcMessage) (any, error) {
 				a.update(p.SessionID, (*acp.AgentMessageChunk)(&chunk))
 			}
 		}
-		return acp.LoadSessionResponse{ConfigOptions: configOptions(ss)}, nil
+		if a.cfg.profile == "omp" {
+			// omp loads a session in its default mode (baseline D25).
+			a.mu.Lock()
+			ss.Config["mode"] = defaultConfig()["mode"]
+			a.mu.Unlock()
+		}
+		a.mu.Lock()
+		options := configOptions(ss)
+		a.mu.Unlock()
+		return acp.LoadSessionResponse{ConfigOptions: options}, nil
 	case acp.MethodSessionResume:
 		var p acp.ResumeSessionRequest
 		if err := decodeParams(m.Params, &p); err != nil {
@@ -408,6 +417,9 @@ func (a *agent) initialize() (any, error) {
 			},
 		},
 		AgentInfo: &acp.Implementation{Name: a.cfg.profile, Version: pluginVersion},
+	}
+	if a.cfg.noResume {
+		resp.AgentCapabilities.SessionCapabilities.Resume = nil
 	}
 	if a.cfg.profile == "omp" {
 		resp.Meta = json.RawMessage(`{"steering":{"supported":true}}`)

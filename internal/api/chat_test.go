@@ -404,6 +404,7 @@ func TestChatCommandConflicts(t *testing.T) {
 		{hybrid.ErrSteeringUnavailable, 409, "steering_unavailable"},
 		{hybrid.ErrLimit, 409, "limit"},
 		{hybrid.ErrConflict, 409, ""},
+		{&hybrid.IneligibleError{Reason: hybrid.ReasonOccupied}, 409, "not_eligible"},
 		{hybrid.ErrAgentCall, 502, ""},
 		{context.Canceled, 504, ""},
 	} {
@@ -417,6 +418,42 @@ func TestChatCommandConflicts(t *testing.T) {
 			t.Errorf("%v: %d %+v", row.err, w.Code, body)
 		}
 	}
+}
+
+// TestHybridSwitch covers POST /api/sessions/{id}/switch: a refused switch
+// names its eligibility reason, a switch to the terminal returns the
+// queued prompts as the requester's draft, and bad bodies are 400.
+func TestHybridSwitch(t *testing.T) {
+	h := newHybridAPI(t, nil)
+	var info contract.SessionInfo
+	if err := json.Unmarshal(h.expect(fmt.Sprintf(`{"configId":%q}`, h.config("omp", true)), 201), &info); err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/sessions/" + info.ID + "/switch"
+	var conflict contract.HybridConflict
+	if err := json.Unmarshal(h.expectCommand("POST", path, contract.HybridSwitchRequest{ClientRequestID: chatRID(), To: contract.HybridSideACP}, 409), &conflict); err != nil {
+		t.Fatal(err)
+	}
+	if conflict.Reason != "not_eligible" || conflict.Eligibility != hybrid.ReasonUnknownAgent {
+		t.Fatalf("conflict %+v", conflict)
+	}
+	h.expectCommand("POST", path, contract.HybridSwitchRequest{ClientRequestID: chatRID(), To: "chat"}, 400)
+	h.expectCommand("POST", path, contract.HybridSwitchRequest{ClientRequestID: chatRID(), Choice: "later"}, 400)
+	h.expectCommand("POST", path, contract.HybridSwitchRequest{ClientRequestID: chatRID(), Choice: "force"}, 409)
+	h.expectCommand("POST", "/api/sessions/zzzzzzzz/switch", contract.HybridSwitchRequest{ClientRequestID: chatRID(), To: contract.HybridSideTUI}, 404)
+
+	id := fakeChat(t, h.hybrids, h.cwd, agentprofile.OMP, "FAKEAGENT_TURN_DELAY=400ms")
+	base := "/api/sessions/" + id + "/chat/"
+	h.expectCommand("POST", base+"prompts", contract.ChatPromptRequest{ClientRequestID: chatRID(), Text: "busy"}, 200)
+	h.expectCommand("POST", base+"prompts", contract.ChatPromptRequest{ClientRequestID: chatRID(), Text: "later"}, 200)
+	var result contract.HybridSwitchResult
+	if err := json.Unmarshal(h.expectCommand("POST", "/api/sessions/"+id+"/switch", contract.HybridSwitchRequest{ClientRequestID: chatRID(), To: contract.HybridSideTUI}, 200), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Side != contract.HybridSideTUI || result.Draft != "later" || result.Dropped == nil || result.Unsupported == nil {
+		t.Fatalf("switch result %+v", result)
+	}
+	h.expectCommand("DELETE", "/api/sessions/"+id, nil, 204)
 }
 
 // smallBuffers shrinks the send buffer of accepted connections.

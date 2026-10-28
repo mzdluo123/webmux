@@ -908,7 +908,7 @@ func wireSettings(f *wireFixture) {
 // wireDriver is a hybrid shell driver that does nothing.
 type wireDriver struct{}
 
-func (wireDriver) Close()        {}
+func (wireDriver) Close() error  { return nil }
 func (wireDriver) RunExited(int) {}
 
 // wireHybrid pins a hybrid shell's session info and the 4409 close of its
@@ -980,6 +980,18 @@ func wireChat(f *wireFixture) {
 		f.t.Fatal(err)
 	}
 	f.call("chat-conflict-wrong-side", "POST", "/api/sessions/"+terminal.Info().ID+"/chat/prompts", contract.ChatPromptRequest{ClientRequestID: "wire-prompt-3", Text: "hi"}, 409)
+	// omp reports its session at start but saves it with the first
+	// message: the switch is refused as not listed.
+	deadline := time.Now().Add(chatTimeout)
+	for terminal.Info().Hybrid.AgentSessionID == nil {
+		if time.Now().After(deadline) {
+			f.t.Fatal("terminal reported no agent session")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	f.call("hybrid-conflict-not-eligible", "POST", "/api/sessions/"+terminal.Info().ID+"/switch", contract.HybridSwitchRequest{ClientRequestID: "wire-switch-1", To: contract.HybridSideACP}, 409)
+	chat := fakeChat(f.t, f.hybrids, f.root, agentprofile.OMP)
+	f.call("hybrid-switch", "POST", "/api/sessions/"+chat+"/switch", contract.HybridSwitchRequest{ClientRequestID: "wire-switch-2", To: contract.HybridSideTUI}, 200)
 }
 
 // closed reads until the server closes conn and records the close code and

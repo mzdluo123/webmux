@@ -20,7 +20,7 @@ type fakeDriver struct {
 func newFakeDriver() *fakeDriver {
 	return &fakeDriver{closes: make(chan struct{}, 4), exits: make(chan int, 4)}
 }
-func (d *fakeDriver) Close()             { d.closes <- struct{}{} }
+func (d *fakeDriver) Close() error       { d.closes <- struct{}{}; return nil }
 func (d *fakeDriver) RunExited(code int) { d.exits <- code }
 
 func shellManager(t *testing.T) *Manager {
