@@ -46,14 +46,16 @@ func fakeAgentPath(t testing.TB, profile string) string {
 		if fakeAgent.err != nil {
 			return
 		}
-		omp := filepath.Join(fakeAgent.dir, agentprofile.OMP)
-		build := exec.Command("go", "build", "-o", omp, "../acp/testdata/fakeagent")
-		build.Env = fakeAgent.env
-		if out, err := build.CombinedOutput(); err != nil {
-			fakeAgent.err = fmt.Errorf("go build: %w\n%s", err, out)
-			return
+		// A separate file per profile, not a hard link: macOS reports a
+		// hard-linked executable under either name, breaking the root check.
+		for _, name := range []string{agentprofile.OMP, agentprofile.OpenCode} {
+			build := exec.Command("go", "build", "-o", filepath.Join(fakeAgent.dir, name), "../acp/testdata/fakeagent")
+			build.Env = fakeAgent.env
+			if out, err := build.CombinedOutput(); err != nil {
+				fakeAgent.err = fmt.Errorf("go build: %w\n%s", err, out)
+				return
+			}
 		}
-		fakeAgent.err = os.Link(omp, filepath.Join(fakeAgent.dir, agentprofile.OpenCode))
 	})
 	if fakeAgent.err != nil {
 		t.Fatal(fakeAgent.err)

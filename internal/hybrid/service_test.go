@@ -29,7 +29,12 @@ var fakeAgent struct {
 	err  error
 }
 
+// macOS places TMPDIR behind the /var -> /private/var symlink, while the
+// fake agent reports and stores canonical working directories.
 func TestMain(m *testing.M) {
+	if dir, err := filepath.EvalSymlinks(os.TempDir()); err == nil {
+		_ = os.Setenv("TMPDIR", dir)
+	}
 	code := m.Run()
 	if fakeAgent.dir != "" {
 		_ = os.RemoveAll(fakeAgent.dir)
@@ -49,13 +54,15 @@ func agentPath(t *testing.T, profile string) string {
 		if fakeAgent.err != nil {
 			return
 		}
-		omp := filepath.Join(fakeAgent.dir, agentprofile.OMP)
-		out, err := exec.Command("go", "build", "-o", omp, "../acp/testdata/fakeagent").CombinedOutput()
-		if err != nil {
-			fakeAgent.err = fmt.Errorf("go build: %w\n%s", err, out)
-			return
+		// A separate file per profile, not a hard link: macOS reports a
+		// hard-linked executable under either name, breaking the root check.
+		for _, name := range []string{agentprofile.OMP, agentprofile.OpenCode} {
+			out, err := exec.Command("go", "build", "-o", filepath.Join(fakeAgent.dir, name), "../acp/testdata/fakeagent").CombinedOutput()
+			if err != nil {
+				fakeAgent.err = fmt.Errorf("go build: %w\n%s", err, out)
+				return
+			}
 		}
-		fakeAgent.err = os.Link(omp, filepath.Join(fakeAgent.dir, agentprofile.OpenCode))
 	})
 	if fakeAgent.err != nil {
 		t.Fatal(fakeAgent.err)

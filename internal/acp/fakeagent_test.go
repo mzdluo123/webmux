@@ -22,7 +22,12 @@ var fakeAgent struct {
 	err  error
 }
 
+// macOS places TMPDIR behind the /var -> /private/var symlink, while the
+// fake agent reports and stores canonical working directories.
 func TestMain(m *testing.M) {
+	if dir, err := filepath.EvalSymlinks(os.TempDir()); err == nil {
+		_ = os.Setenv("TMPDIR", dir)
+	}
 	code := m.Run()
 	if fakeAgent.dir != "" {
 		_ = os.RemoveAll(fakeAgent.dir)

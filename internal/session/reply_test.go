@@ -57,25 +57,28 @@ func TestProbeRepliesAreBoundedAndNotUserInput(t *testing.T) {
 	s.osc.Feed(bytes.Repeat([]byte("\x1b]7501;?\x1b\\"), maxPendingReplies+3), s.signals)
 	s.mu.Unlock()
 	go s.replyLoop(s.run)
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		s.mu.Lock()
-		pending := len(s.replies)
-		s.mu.Unlock()
-		if pending == 0 {
-			break
+	// Wait for the bytes themselves: the loop takes the whole queue before
+	// writing it, so an empty queue does not mean the replies were written.
+	want := strings.Repeat(programStatusReply, maxPendingReplies)
+	got := make(chan []byte, 1)
+	go func() {
+		buf := make([]byte, len(want))
+		n, _ := io.ReadFull(reader, buf)
+		got <- buf[:n]
+	}()
+	select {
+	case written := <-got:
+		if string(written) != want {
+			t.Fatalf("wrote %q", written)
 		}
-		if time.Now().After(deadline) {
-			t.Fatal("replies were never written without a client")
-		}
-		time.Sleep(5 * time.Millisecond)
+	case <-time.After(2 * time.Second):
+		t.Fatal("replies were never written without a client")
 	}
 	s.run.endLifetime()
 	<-s.run.repliesDone
 	_ = s.run.terminal.Close()
-	written, _ := io.ReadAll(reader)
-	if got := strings.Count(string(written), programStatusReply); got != maxPendingReplies || len(written) != got*len(programStatusReply) {
-		t.Fatalf("wrote %d replies: %q", got, written)
+	if extra, _ := io.ReadAll(reader); len(extra) != 0 {
+		t.Fatalf("wrote more than %d replies: extra %q", maxPendingReplies, extra)
 	}
 	if s.info.Attention == nil || !s.lastInputAt.IsZero() {
 		t.Fatal("a reply counted as user input")
