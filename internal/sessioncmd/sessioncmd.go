@@ -295,10 +295,17 @@ func (e Env) attach(ctx context.Context, client *localclient.Client, id string, 
 	result, err := attach.Run(ctx, client, id, console, attach.Options{Observe: observe, Label: e.Label})
 	_ = console.Restore()
 	switch {
+	case errors.Is(err, attach.ErrMoved):
+		_, _ = fmt.Fprintln(e.Stderr, "webmux:", err)
+		return contract.ExitError
 	case err != nil:
 		return e.Fail(err)
 	case result.Detached:
 		_, _ = fmt.Fprintf(e.Stderr, "\r\n[detached from %s; it keeps running]\n", id)
+		return contract.ExitOK
+	case result.Moved:
+		// Passive detach: the session lives on in the chat view.
+		_, _ = fmt.Fprintf(e.Stderr, "\r\n[已切换到聊天视图，可在 Web 端继续；切回终端后用 `webmux attach %s` 重新接入]\n", id)
 		return contract.ExitOK
 	}
 	return result.ExitCode
