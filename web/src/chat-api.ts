@@ -1,10 +1,11 @@
-import { api } from "./api";
+import { api, uploadFile } from "./api";
 import { newRequestId } from "./ids";
 import {
   ChatPermissionModeRequestSchema,
   ChatPromptResultSchema,
   HybridSwitchResultSchema,
   NoContentSchema,
+  type ChatAttachment,
   type ChatPermissionMode,
 } from "./schemas";
 
@@ -23,7 +24,16 @@ export type RequestAnswer =
 export type ConfigValue = { value: string } | { enabled: boolean };
 
 export interface ChatActions {
-  send(text: string, mode: "auto" | "steer"): Promise<unknown>;
+  send(
+    text: string,
+    mode: "auto" | "steer",
+    attachments?: ChatAttachment[],
+  ): Promise<unknown>;
+  upload(
+    file: File,
+    progress: (percent: number) => void,
+    signal: AbortSignal,
+  ): Promise<{ path: string }>;
   cancel(): Promise<unknown>;
   editQueued(itemId: string, text: string): Promise<unknown>;
   moveQueuedUp(itemId: string): Promise<unknown>;
@@ -46,12 +56,16 @@ export function chatActions(id: string): ChatActions {
     });
   const item = (itemId: string) => `queue/${encodeURIComponent(itemId)}`;
   return {
-    send: (text, mode) =>
+    send: (text, mode, attachments) =>
       api(`${base}/prompts`, ChatPromptResultSchema, "POST", {
         clientRequestId: newRequestId(),
         text,
         mode,
+        ...(attachments?.length
+          ? { attachments: attachments.map(({ path }) => ({ path })) }
+          : {}),
       }),
+    upload: (file, progress, signal) => uploadFile(id, file, progress, signal),
     cancel: () => command("cancel", "POST"),
     editQueued: (itemId, text) => command(item(itemId), "PATCH", { text }),
     moveQueuedUp: (itemId) => command(item(itemId), "PATCH", { move: "up" }),

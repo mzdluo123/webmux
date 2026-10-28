@@ -150,6 +150,12 @@
       }
       return done();
     },
+    upload(file, progress) {
+      progress(100);
+      return Promise.resolve({
+        path: `/tmp/webmux-upload-story/${file.name}`,
+      });
+    },
     cancel() {
       interrupt();
       return done();
