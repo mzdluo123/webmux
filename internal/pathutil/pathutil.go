@@ -17,17 +17,18 @@ const UploadDirPrefix = "webmux-upload-"
 
 // UploadPath validates that path names a regular, non-symlink file directly
 // inside a private upload directory under the system temporary directory,
-// and returns its canonical path. A path that is not an upload cannot be
-// read as an attachment.
+// and returns its canonical path. The temporary directory itself may sit
+// behind a symlink (macOS /var -> /private/var), so it is compared in
+// canonical form; a returned path therefore validates again unchanged. A
+// path that is not an upload cannot be read as an attachment.
 func UploadPath(path string) (string, error) {
 	invalid := errors.New("路径不是有效的上传文件")
 	if path == "" || !filepath.IsAbs(path) {
 		return "", invalid
 	}
 	clean := filepath.Clean(path)
-	tmp := filepath.Clean(os.TempDir())
 	dir := filepath.Dir(clean)
-	if filepath.Dir(dir) != tmp || !strings.HasPrefix(filepath.Base(dir), UploadDirPrefix) {
+	if !strings.HasPrefix(filepath.Base(dir), UploadDirPrefix) {
 		return "", invalid
 	}
 	info, err := os.Lstat(clean)
@@ -38,15 +39,17 @@ func UploadPath(path string) (string, error) {
 	if err != nil || !dirInfo.IsDir() || dirInfo.Mode().Perm() != 0o700 {
 		return "", invalid
 	}
-	resolved, err := filepath.EvalSymlinks(clean)
+	tmp, err := filepath.EvalSymlinks(os.TempDir())
 	if err != nil {
 		return "", invalid
 	}
-	wantDir, err := filepath.EvalSymlinks(dir)
-	if err != nil || filepath.Dir(resolved) != wantDir {
+	parent, err := filepath.EvalSymlinks(filepath.Dir(dir))
+	if err != nil || parent != tmp {
 		return "", invalid
 	}
-	return resolved, nil
+	// Neither the directory nor the file is a symlink (Lstat above), so this
+	// is the fully resolved path.
+	return filepath.Join(parent, filepath.Base(dir), filepath.Base(clean)), nil
 }
 
 // SniffContentType names a media type from a file's first bytes, without

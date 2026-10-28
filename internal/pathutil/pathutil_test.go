@@ -58,3 +58,37 @@ func TestUploadPath(t *testing.T) {
 		t.Errorf("UploadPath accepted a symlink")
 	}
 }
+
+// macOS's default TMPDIR is /var/folders/..., behind /var -> /private/var: a
+// path UploadPath returns must validate again unchanged.
+func TestUploadPathSymlinkedTempDir(t *testing.T) {
+	target := t.TempDir()
+	tmp := filepath.Join(t.TempDir(), "tmp-link")
+	if err := os.Symlink(target, tmp); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", tmp)
+	dir, err := os.MkdirTemp("", UploadDirPrefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "shot.png")
+	if err := os.WriteFile(path, []byte("png"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := UploadPath(path)
+	if err != nil {
+		t.Fatalf("UploadPath(%q): %v", path, err)
+	}
+	canonical, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != canonical {
+		t.Fatalf("UploadPath(%q) = %q, want %q", path, got, canonical)
+	}
+	again, err := UploadPath(got)
+	if err != nil || again != got {
+		t.Fatalf("UploadPath(%q) = %q, %v; want it unchanged", got, again, err)
+	}
+}
