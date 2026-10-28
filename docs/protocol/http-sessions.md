@@ -65,6 +65,15 @@ interface SessionInfo {
   } | null;
   // 创建时使用的已保存启动配置；临时命令省略该字段。
   configId?: string;
+  // 混合会话（终端 TUI ↔ 聊天视图）的所在端；普通会话省略该字段。
+  hybrid?: {
+    side: "tui" | "acp" | "switching";
+    phase?: string; // 切换中的步骤，切换之外省略
+    dormant: boolean; // 聊天端的 agent 进程已休眠
+    state: "active" | "closed" | "interrupted";
+    agent: string;
+    agentSessionId: string | null; // agent 自己的会话 ID，未知时为 null
+  };
 }
 ```
 

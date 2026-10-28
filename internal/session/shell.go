@@ -286,6 +286,7 @@ func (s *Session) resetRunStateLocked() {
 	s.osc = OSCScanner{}
 	s.preview = Preview{}
 	s.program = nil
+	s.identity = Identity{}
 	s.structured = false
 	s.replies = nil
 }

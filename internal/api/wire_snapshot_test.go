@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
@@ -73,7 +75,7 @@ func wireSchema(name string) wireRules {
 	case "settings-patch", "settings-reset", "ws-settings-update":
 		add("", "time", "updatedAt")
 	case "session-create", "session-create-exiting", "session-create-from-config", "session-create-workspace", "session-get",
-		"ws-terminal-state", "ws-terminal-state-exited":
+		"ws-terminal-state", "ws-terminal-state-exited", "session-get-hybrid", "ws-terminal-state-hybrid":
 		sessionFields("")
 	case "sessions-list", "sessions-list-empty":
 		sessionFields("/*")
@@ -608,6 +610,7 @@ func TestWireSnapshots(t *testing.T) {
 		{"codeview", wireCodeview},
 		{"push", wirePush},
 		{"settings", wireSettings},
+		{"hybrid", wireHybrid},
 	} {
 		t.Run(group.name, func(t *testing.T) {
 			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
@@ -886,4 +889,64 @@ func wireSettings(f *wireFixture) {
 	f.event(c, "ws-settings-update", func(e map[string]any) bool { return e["type"] == "settings.update" })
 	f.call("settings-conflict", "PATCH", "/api/settings", map[string]any{"baseRevision": 0, "changes": map[string]any{"theme": nil}}, 409)
 	f.call("settings-reset", "PATCH", "/api/settings", map[string]any{"baseRevision": 1, "changes": map[string]any{"theme": nil}}, 200)
+}
+
+// wireDriver is a hybrid shell driver that does nothing.
+type wireDriver struct{}
+
+func (wireDriver) Close()        {}
+func (wireDriver) RunExited(int) {}
+
+// wireHybrid pins a hybrid shell's session info and the 4409 close of its
+// terminal socket after a switch.
+func wireHybrid(f *wireFixture) {
+	item, err := f.manager.CreateShell(session.ShellInput{
+		CreateInput: session.CreateInput{Cwd: f.root, Cmd: []string{"omp"}, Name: "hybrid"},
+		Argv:        []string{"/bin/sh", "-c", "sleep 60"},
+	}, wireDriver{})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	id := item.Info().ID
+	item.SetOverlay(&session.Overlay{Hybrid: &session.HybridInfo{Side: "tui", State: "active", Agent: "omp"}})
+	f.call("session-get-hybrid", "GET", "/api/sessions/"+id, nil, 200)
+
+	terminal := f.dial("/ws/s/" + id + "?client=wire-client-1&label=Wire")
+	f.frame(terminal, "ws-terminal-state-hybrid", 2, nil)
+	agentSessionID := "ses_wire"
+	item.SetOverlay(&session.Overlay{Hybrid: &session.HybridInfo{Side: "acp", Phase: "loading", State: "active", Agent: "omp", AgentSessionID: &agentSessionID}})
+	if err := item.EndRun(f.ctx); err != nil {
+		f.t.Fatal(err)
+	}
+	f.closed(terminal, "ws-terminal-moved")
+	// A terminal socket of a shell on its other side is refused the same way.
+	refused := f.dial("/ws/s/" + id)
+	if _, _, err := refused.Read(f.ctx); websocket.CloseStatus(err) != contract.CloseMoved {
+		f.t.Fatalf("attach without a run: %v", err)
+	}
+}
+
+// closed reads until the server closes conn and records the close code and
+// reason.
+func (f *wireFixture) closed(conn *websocket.Conn, name string) {
+	f.t.Helper()
+	for {
+		_, _, err := conn.Read(f.ctx)
+		if err == nil {
+			continue
+		}
+		var closeError websocket.CloseError
+		if !errors.As(err, &closeError) {
+			f.t.Fatalf("%s: %v", name, err)
+		}
+		data, err := json.Marshal(struct {
+			Code   int    `json:"code"`
+			Reason string `json:"reason"`
+		}{int(closeError.Code), closeError.Reason})
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		f.record(name, 0, data)
+		return
+	}
 }

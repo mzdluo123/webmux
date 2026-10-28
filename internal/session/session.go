@@ -120,10 +120,12 @@ type Session struct {
 	structured    bool
 	programStatus bool
 	replies       [][]byte
-	preview       Preview
-	subs          map[*Subscriber]struct{}
-	nextSeq       uint64
-	control       *Controller
+	// identity holds the current run's identity signals, owned by mu.
+	identity Identity
+	preview  Preview
+	subs     map[*Subscriber]struct{}
+	nextSeq  uint64
+	control  *Controller
 	// controlSub is the controlling client's authoritative connection: the
 	// most recent one. A duplicated browser tab can carry the same client ID;
 	// only one of its connections may resize the PTY or answer queries.

@@ -214,6 +214,7 @@ func (s *Session) wait(r *run) {
 		s.info.Preview = s.preview.refresh(true)
 	}
 	s.program = nil
+	s.identity = Identity{}
 	// A finished program can no longer stand behind its last directory report.
 	s.info.ReportedCwd = nil
 	s.info.ExitCode = &code

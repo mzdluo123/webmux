@@ -61,6 +61,24 @@ func Session(i session.Info) contract.SessionInfo {
 		r := contract.SessionReportedCwd(*i.ReportedCwd)
 		out.ReportedCwd = &r
 	}
+	out.Hybrid = Hybrid(i.Hybrid)
+	return out
+}
+
+// Hybrid converts a shell's hybrid description; nil (an ordinary session)
+// stays nil so the field is omitted.
+func Hybrid(h *session.HybridInfo) *contract.SessionHybrid {
+	if h == nil {
+		return nil
+	}
+	out := &contract.SessionHybrid{
+		Side: contract.HybridSide(h.Side), Phase: contract.HybridPhase(h.Phase), Dormant: h.Dormant,
+		State: contract.HybridState(h.State), Agent: h.Agent,
+	}
+	if h.AgentSessionID != nil {
+		id := *h.AgentSessionID
+		out.AgentSessionID = &id
+	}
 	return out
 }
 

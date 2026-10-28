@@ -83,6 +83,28 @@ func TestSessionCopiesNestedValues(t *testing.T) {
 	}
 }
 
+func TestSessionHybrid(t *testing.T) {
+	if got := encode(t, Session(session.Info{})); strings.Contains(got, "hybrid") {
+		t.Fatalf("ordinary session carries hybrid: %s", got)
+	}
+	in := session.Info{Hybrid: &session.HybridInfo{Side: "tui", State: "active", Agent: "omp"}}
+	got := encode(t, Session(in).Hybrid)
+	if want := `{"side":"tui","dormant":false,"state":"active","agent":"omp","agentSessionId":null}`; got != want {
+		t.Fatalf("unknown agent session: %s, want %s", got, want)
+	}
+	id := "ses_abc"
+	in.Hybrid = &session.HybridInfo{Side: "acp", Phase: "loading", Dormant: true, State: "active", Agent: "opencode", AgentSessionID: &id}
+	out := Session(in)
+	got = encode(t, out.Hybrid)
+	if want := `{"side":"acp","phase":"loading","dormant":true,"state":"active","agent":"opencode","agentSessionId":"ses_abc"}`; got != want {
+		t.Fatalf("known agent session: %s, want %s", got, want)
+	}
+	id = "changed"
+	if *out.Hybrid.AgentSessionID != "ses_abc" {
+		t.Fatal("agent session ID aliases the service value")
+	}
+}
+
 func TestRequestsConvertToServiceInputs(t *testing.T) {
 	id := "abcdefgh"
 	in := SessionInput(contractRequest(id))

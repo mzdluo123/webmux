@@ -21,9 +21,9 @@
 - [x] 3.1 在 `internal/session` 中把外壳与运行分开，普通会话保持一对一。验证：`go test -race ./...` 全部通过，`go test ./internal/api -run TestWireSnapshots` 无差异，`BenchmarkAttachOutput` 与基线相比没有回退。
 - [x] 3.2 增加 `CreateShell`、`StartRun`/`EndRun`、驱动接口与 `SetIDReserver`；切换导致运行结束时，以 4409 关闭终端连接，并以新代际启动下一次运行。验证：新增测试覆盖“运行结束不发布退出帧”“新运行的续接收到 reset”“`Manager.Close` 交给驱动”“保留 ID 不会被随机分配”。
 - [x] 3.3 增加伴随进程：与 PTY 运行相同的环境、新进程组、经 `startChild` 登记、stdin/stdout 管道、有界 stderr 环，以及 bashrc 包装的 fd 3 写法；清理复用 `cleanupProcesses`。验证：Linux 测试证明 subreaper 不会抢走伴随进程的退出状态，关机时伴随进程被清理，`.bashrc` 中的 `echo` 不进入 stdout。
-- [ ] 3.4 在扫描器中提取身份字段（Warp 的 `agent`、`plugin_version`、`session_id`、`cwd`，7501 的 `app` 与子记录 `id` 首段），加长度和字符集校验，只存于内存，并提供 `Manager.Identity(id)`。验证：`osc_test.go` 与 `attention_test.go` 原有用例不变且通过；新用例证明提取不改变关注与状态，普通会话的 `Info` JSON 不含这些字段。
-- [ ] 3.5 在进程表中增加根进程可执行文件名与 cwd（Linux `/proc/<pid>/cwd`，macOS `PROC_PIDVNODEPATHINFO`）。验证：Linux 与 macOS CI 上，对在子目录中启动的进程断言 cwd 正确。
-- [ ] 3.6 在 `internal/contract`、`internal/wire`、`internal/hub` 中加入关闭码 4409 与可选的 `SessionInfo.hybrid`。验证：普通会话的快照不变，新增 `ws-terminal-moved` 快照；`docs/protocol/websocket.md` 的关闭码表增加 4409。
+- [x] 3.4 在扫描器中提取身份字段（Warp 的 `agent`、`plugin_version`、`session_id`、`cwd`，7501 的 `app` 与子记录 `id` 首段），加长度和字符集校验，只存于内存，并提供 `Manager.Identity(id)`。验证：`osc_test.go` 与 `attention_test.go` 原有用例不变且通过；新用例证明提取不改变关注与状态，普通会话的 `Info` JSON 不含这些字段。
+- [x] 3.5 在进程表中增加根进程可执行文件名与 cwd（Linux `/proc/<pid>/cwd`，macOS `PROC_PIDVNODEPATHINFO`）。验证：Linux 与 macOS CI 上，对在子目录中启动的进程断言 cwd 正确。
+- [x] 3.6 在 `internal/contract`、`internal/wire`、`internal/hub` 中加入关闭码 4409 与可选的 `SessionInfo.hybrid`。验证：普通会话的快照不变，新增 `ws-terminal-moved` 快照；`docs/protocol/websocket.md` 的关闭码表增加 4409。
 
 ## 4. 档案与启动配置（M3）
 
