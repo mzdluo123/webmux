@@ -8,6 +8,7 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import type { ChatActions } from "../../chat-api";
   import { errorMessage } from "../../error";
+  import { useTextareaDraft } from "../../hooks/textarea-draft.svelte";
   import type { ChatUploads } from "../../hooks/upload.svelte";
   import type {
     ChatCommand,
@@ -54,6 +55,11 @@
   let textarea = $state<HTMLTextAreaElement | null>(null);
   let fileInput = $state<{ open(): void }>();
   let sending = $state(false);
+  const selection = useTextareaDraft(
+    () => textarea,
+    () => draft,
+    () => drafts,
+  );
   // A permission mode change is on its way; the select waits for it.
   let savingMode = $state(false);
   let highlighted = $state(0);
@@ -203,9 +209,15 @@
         value={draft.text}
         oninput={(event) => {
           const input = event.currentTarget;
-          drafts.edit(draft, input.value, input.selectionStart);
+          drafts.edit(
+            draft,
+            input.value,
+            input.selectionStart,
+            input.selectionEnd,
+          );
           highlighted = 0;
         }}
+        {...selection.selectionProps}
         onkeydown={keydown}
       />
     </div>

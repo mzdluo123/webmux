@@ -113,13 +113,46 @@ test("a chosen image shows progress, disables sending, then inserts its path", a
   expect(error().element().textContent).toBe("");
 });
 
+test("inserts the path at the moved caret and leaves it after the insert", async () => {
+  await open();
+  const input = page.getByRole("textbox", { name: "消息" });
+  await input.fill("hello world");
+  const textarea = input.element() as HTMLTextAreaElement;
+  textarea.setSelectionRange(6, 6);
+  textarea.dispatchEvent(new Event("select", { bubbles: true }));
+
+  choose([new File(["a"], "mid.txt", { type: "text/plain" })]);
+  finish("/tmp/webmux-upload-1/mid.txt");
+
+  const expected = "hello \n`/tmp/webmux-upload-1/mid.txt`\nworld";
+  await expect.poll(() => draft().element().textContent).toBe(expected);
+  expect(textarea.value).toBe(expected);
+  expect(textarea.selectionStart).toBe(expected.indexOf("world"));
+});
+
+test("replaces the current selection with the uploaded path", async () => {
+  await open();
+  const input = page.getByRole("textbox", { name: "消息" });
+  await input.fill("replace me");
+  const textarea = input.element() as HTMLTextAreaElement;
+  const length = textarea.value.length;
+  textarea.setSelectionRange(0, length);
+  textarea.dispatchEvent(new Event("select", { bubbles: true }));
+
+  choose([new File(["a"], "pick.txt", { type: "text/plain" })]);
+  finish("/tmp/webmux-upload-1/pick.txt");
+
+  const expected = "`/tmp/webmux-upload-1/pick.txt`\n";
+  await expect.poll(() => draft().element().textContent).toBe(expected);
+  expect(textarea.selectionStart).toBe(expected.length);
+});
+
 test("multiple files upload in order and insert one path per line", async () => {
   await open();
   choose([
     new File(["a"], "a.txt", { type: "text/plain" }),
     new File(["b"], "b.txt", { type: "text/plain" }),
   ]);
-
   await expect
     .element(page.getByRole("status").filter({ hasText: "（1/2）" }))
     .toBeVisible();
