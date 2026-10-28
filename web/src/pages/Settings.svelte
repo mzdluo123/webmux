@@ -390,6 +390,9 @@
                           <span class="truncate text-xs font-medium"
                             >{config.name}</span
                           >
+                          {#if config.hybrid}<Badge variant="secondary"
+                              >混合</Badge
+                            >{/if}
                           {#if config.envNames.length}<Badge variant="secondary"
                               >{config.envNames.length} 个环境变量</Badge
                             >{/if}
