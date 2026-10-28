@@ -1,5 +1,6 @@
 <script lang="ts">
   import AppearanceSettings from "../components/AppearanceSettings.svelte";
+  import ChatIdleSleepSetting from "../components/ChatIdleSleepSetting.svelte";
   import { settings, changeSettings, saveSettings } from "../settings.svelte";
   import { errorMessage } from "../error";
   import { onMount } from "svelte";
@@ -430,6 +431,7 @@
                 >{/if}
             </div>
           {/if}
+          <ChatIdleSleepSetting />
         </Card.Content>
       </Card.Root>
       <Card.Root id="drafts" class="scroll-mt-4">
