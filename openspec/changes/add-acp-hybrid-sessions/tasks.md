@@ -57,6 +57,6 @@
 
 ## 8. 文档、用户故事与验收（M7）
 
-- [ ] 8.1 更新 `docs/architecture.md`（非目标、会话外壳/运行、混合会话生命周期）、`docs/protocol/`（`/ws/s/{id}/chat`、`/api/sessions/{id}/chat|switch|resume`、`/api/hybrid-sessions`、4409、被切走时退出 0）、`docs/usage.md`（混合模式、占用风险、资格探测会短暂启动 agent、OpenCode 以 `--standalone` 运行、版本提示、回退前取消混合勾选）与 `docs/deployment.md`。验证：`make docs-check` 与 `make format-check` 通过。
-- [ ] 8.2 在 `docs/user-stories/` 新增混合会话分组的故事（创建、切换、恢复、本地接入、聊天、队列），修订 B、C、D09/D10、M01/M03、L10 及两处索引与计数。验证：故事 ID 唯一，索引引用可解析，来源路径存在。
-- [ ] 8.3 用真实 OpenCode 与 omp，在隔离 HOME 中按 issue #181 的验收要点逐条验收，结果追加到 `baseline.md`；为 PR 截取桌面与手机、亮色与暗色、权限、排队、压缩、切换中的真实截图。验证：`baseline.md` 中逐条记录通过或未通过；`make test` 全部通过。
+- [x] 8.1 更新 `docs/architecture.md`（非目标、会话外壳/运行、混合会话生命周期）、`docs/protocol/`（`/ws/s/{id}/chat`、`/api/sessions/{id}/chat|switch|resume`、`/api/hybrid-sessions`、4409、被切走时退出 0）、`docs/usage.md`（混合模式、占用风险、资格探测会短暂启动 agent、OpenCode 以 `--standalone` 运行、版本提示、回退前取消混合勾选）与 `docs/deployment.md`。验证：`make docs-check` 与 `make format-check` 通过。
+- [x] 8.2 在 `docs/user-stories/` 新增混合会话分组的故事（创建、切换、恢复、本地接入、聊天、队列），修订 B、C、D09/D10、M01/M03、L10 及两处索引与计数。验证：故事 ID 唯一，索引引用可解析，来源路径存在。
+- [x] 8.3 用真实 OpenCode 与 omp，在隔离 HOME 中按 issue #181 的验收要点逐条验收，结果追加到 `baseline.md`；为 PR 截取桌面与手机、亮色与暗色、权限、排队、压缩、切换中的真实截图。验证：`baseline.md` 中逐条记录通过或未通过；`make test` 全部通过。
