@@ -49,7 +49,13 @@ test("is hidden without records and collapsed by default with a count", async ()
   show([], vi.fn());
   expect(group().elements()).toHaveLength(0);
   await cleanup();
-  show([record, { ...record, id: "hybrid33", state: "closed" }], vi.fn());
+  show(
+    [
+      { ...record, activity: "turn", queuedCount: 2 },
+      { ...record, id: "hybrid33", state: "closed", activity: "turn" },
+    ],
+    vi.fn(),
+  );
   await expect.element(group()).toMatchTextContent(/可恢复\s*2/);
   expect(page.getByRole("button", { name: "恢复到聊天" }).elements()).toEqual(
     [],
@@ -61,6 +67,13 @@ test("is hidden without records and collapsed by default with a count", async ()
     .element(group().getByText("/repos/project").first())
     .toBeVisible();
   await expect.element(group().getByText("5 分钟前").first()).toBeVisible();
+  // Only the interrupted record warns; a closed one finished cleanly.
+  expect(
+    group()
+      .getByText(/上一轮可能未完成/)
+      .elements(),
+  ).toHaveLength(1);
+  await expect.element(group().getByText(/有 2 条排队消息/)).toBeVisible();
 });
 
 test("resumes to either side", async () => {

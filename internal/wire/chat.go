@@ -211,7 +211,7 @@ func HybridRecord(r hybrid.Record, configMissing bool) contract.HybridRecord {
 	out := contract.HybridRecord{
 		ID: r.ID, Name: r.Name, ConfigID: r.ConfigID, ConfigMissing: configMissing, Agent: r.Agent, Cwd: r.Cwd,
 		Cmd: required(r.Cmd), Side: contract.HybridSide(r.Side), PreviousIDs: required(r.PreviousIDs),
-		State: contract.HybridState(r.State), QueuedCount: r.QueuedCount, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		State: contract.HybridState(r.State), Activity: r.Activity, QueuedCount: r.QueuedCount, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 	if r.AgentSessionID != "" {
 		id := r.AgentSessionID

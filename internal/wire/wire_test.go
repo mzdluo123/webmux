@@ -114,12 +114,12 @@ func TestHybridRecord(t *testing.T) {
 		CreatedAt: at, UpdatedAt: at, PID: 42,
 	}
 	got := encode(t, HybridRecord(rec, true))
-	for _, want := range []string{`"configMissing":true`, `"agentSessionId":null`, `"previousIds":[]`, `"interruptedAt":null`, `"queuedCount":2`} {
+	for _, want := range []string{`"configMissing":true`, `"agentSessionId":null`, `"previousIds":[]`, `"interruptedAt":null`, `"queuedCount":2`, `"activity":"turn"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("record %s lacks %s", got, want)
 		}
 	}
-	for _, private := range []string{"fast", "turn", "42", "pid", "activity"} {
+	for _, private := range []string{"fast", "42", "pid", "process"} {
 		if strings.Contains(got, private) {
 			t.Errorf("record %s exposes %s", got, private)
 		}

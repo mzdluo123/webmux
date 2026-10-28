@@ -99,6 +99,9 @@ type HybridRecord struct {
 	AgentSessionID *string     `json:"agentSessionId"`
 	PreviousIDs    []string    `json:"previousIds"`
 	State          HybridState `json:"state"`
+	// Activity is what an interrupted session was doing: idle, turn or
+	// switching; a turn or switch may not have finished.
+	Activity string `json:"activity,omitempty"`
 	// QueuedCount is how many queued prompts were lost when the session was
 	// interrupted; the text itself is never stored.
 	QueuedCount   int        `json:"queuedCount"`

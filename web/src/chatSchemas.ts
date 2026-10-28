@@ -50,6 +50,7 @@ export const HybridRecordSchema = z.object({
   agentSessionId: z.string().nullable(),
   previousIds: z.array(z.string()),
   state: HybridStateSchema,
+  activity: z.enum(["idle", "turn", "switching"]).optional(),
   queuedCount: z.number().int().nonnegative(),
   createdAt: datetime,
   updatedAt: datetime,
