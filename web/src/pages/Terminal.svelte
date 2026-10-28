@@ -3,7 +3,7 @@
   import { errorMessage } from "../error";
   import { onMount, tick, untrack } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
-  import { apiBuffer, navigate } from "../api";
+  import { apiBuffer, navigate, store, stored } from "../api";
   import { clipboardFiles, copyText as writeClipboard } from "../clipboard";
   import { useTerminal } from "../hooks/terminal.svelte";
   import { useHybrid } from "../hooks/hybrid.svelte";
@@ -232,6 +232,7 @@
   }
   const viewport = useViewport();
   const keyboardDismissed = () => hasTouchInput() && viewport.keyboardDismissed;
+  let sizeLocked = $state(stored("sizeLocked") === "1");
   const t = useTerminal(
     () => container!,
     untrack(() => id),
@@ -253,7 +254,13 @@
       },
     },
     keyboardDismissed,
+    () => sizeLocked,
   );
+  function setSizeLocked(value: boolean) {
+    sizeLocked = value;
+    store("sizeLocked", value ? "1" : "0");
+    void tick().then(() => t.fit());
+  }
   const sendUnavailable = $derived(
     t.connection === "missing"
       ? "会话不存在，无法发送"
@@ -482,6 +489,8 @@
     {scratchSaved}
     uploading={uploads.progress !== null}
     {desktop}
+    {sizeLocked}
+    {setSizeLocked}
     bind:codeShown
     bind:forceSoftKeys={
       () => forceSoftKeys, (value) => changeSettings({ forceSoftKeys: value })
@@ -523,6 +532,7 @@
           bind:container
           terminal={t}
           visible={terminalVisible()}
+          {sizeLocked}
           {findOpen}
           {uploads}
           {quickMenu}

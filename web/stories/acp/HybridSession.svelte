@@ -296,6 +296,8 @@
     scratchSaved="已保存在本机"
     uploading={false}
     desktop={desktopMedia.current}
+    sizeLocked={false}
+    setSizeLocked={() => {}}
     bind:codeShown
     forceSoftKeys={false}
     {quickMenu}
