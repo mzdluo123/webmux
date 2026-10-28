@@ -196,8 +196,7 @@ func TestCancelledInputKeepsAttention(t *testing.T) {
 	defer func() { _ = reader.Close() }()
 	defer func() { _ = writer.Close() }()
 	s := attentionSession()
-	s.terminal, s.inputGate, s.done = writer, make(chan struct{}, 1), make(chan struct{})
-	s.inputGate <- struct{}{}
+	s.run = inputRun(t, writer)
 	feedSignals(s, agentEventOutput("permission_request"))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

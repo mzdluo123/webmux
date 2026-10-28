@@ -13,5 +13,8 @@ func (processSnapshot) foregroundBlocked(int) bool    { return false }
 func (processSnapshot) awaitingInput(int) bool        { return false }
 
 func (s *Session) resizePTYLocked(cols, rows uint16) error {
-	return pty.Setsize(s.terminal, &pty.Winsize{Cols: cols, Rows: rows})
+	if s.run == nil {
+		return ErrNoRun
+	}
+	return pty.Setsize(s.run.terminal, &pty.Winsize{Cols: cols, Rows: rows})
 }
