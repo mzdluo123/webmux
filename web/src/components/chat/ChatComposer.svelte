@@ -137,12 +137,13 @@
           variant="suggestion"
           role="option"
           aria-selected={i === active}
-          class="flex w-full min-w-0 items-baseline"
+          class="flex w-full min-w-0 flex-wrap items-baseline"
           onmousedown={(event) => event.preventDefault()}
           onclick={() => pick(command)}
         >
           <span class="shrink-0 font-mono text-sm">/{command.name}</span>
-          {#if command.hint}<span class="shrink-0 text-muted-foreground"
+          {#if command.hint}<span
+              class="min-w-0 break-words text-muted-foreground"
               >&lt;{command.hint}&gt;</span
             >{/if}
           <span class="ml-auto min-w-0 truncate text-muted-foreground"
@@ -177,7 +178,8 @@
       onkeydown={keydown}
     />
   </div>
-  <div class="flex items-center gap-1 px-2 pb-2">
+  <!-- Large text on a narrow screen moves the actions below the options. -->
+  <div class="flex flex-wrap items-center justify-end gap-1 px-2 pb-2">
     <div class="flex min-w-0 flex-1 flex-wrap items-center gap-y-1">
       <ChatConfig
         config={chat.config}
