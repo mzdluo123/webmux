@@ -10,6 +10,7 @@ import (
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/files"
+	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/settings"
 	"github.com/rainchan/webmux/internal/tailscalesettings"
@@ -122,11 +123,40 @@ func filesFailure(w http.ResponseWriter, err error) {
 	failure(w, status, err)
 }
 
+// hybridStatus maps hybrid session error kinds; ok is false for other
+// errors. ErrAgent is a bad gateway, never a 500: its message carries the
+// agent's stderr for the requesting user and must not be logged.
+func hybridStatus(err error) (status int, ok bool) {
+	switch {
+	case errors.Is(err, hybrid.ErrInvalid):
+		return http.StatusBadRequest, true
+	case errors.Is(err, hybrid.ErrNotFound):
+		return http.StatusNotFound, true
+	case errors.Is(err, hybrid.ErrLimit), errors.Is(err, hybrid.ErrConflict),
+		errors.Is(err, hybrid.ErrWrongSide), errors.Is(err, hybrid.ErrAnswered):
+		return http.StatusConflict, true
+	case errors.Is(err, hybrid.ErrAgent):
+		return http.StatusBadGateway, true
+	case errors.Is(err, hybrid.ErrUnavailable):
+		return http.StatusServiceUnavailable, true
+	}
+	return 0, false
+}
+
 // sessionFailure answers a session start: a saved launch config keeps its
-// launch statuses, everything else is a workspace error.
+// launch statuses and a hybrid session its hybrid statuses (a full record
+// store is a 409 with reason limit); everything else is a workspace error.
 func sessionFailure(w http.ResponseWriter, err error) {
 	if errors.Is(err, launch.ErrInvalid) || errors.Is(err, launch.ErrNotFound) || errors.Is(err, launch.ErrDuplicate) || errors.Is(err, launch.ErrUnavailable) {
 		launchFailure(w, err)
+		return
+	}
+	if status, ok := hybridStatus(err); ok {
+		if errors.Is(err, hybrid.ErrLimit) {
+			reply(w, status, contract.HybridConflict{Error: err.Error(), Reason: "limit"})
+			return
+		}
+		failure(w, status, err)
 		return
 	}
 	failure(w, workspaceStatus(err), err)

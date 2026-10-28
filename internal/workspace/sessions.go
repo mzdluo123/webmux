@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -141,7 +142,8 @@ func (s *Service) reassociate(ctx context.Context) {
 }
 
 // SessionInput describes a session to start. ConfigID selects a saved launch
-// config instead of Cmd and Env.
+// config instead of Cmd and Env. StartSide (tui or acp) applies only to a
+// config with hybrid mode; empty starts a hybrid session in the terminal.
 type SessionInput struct {
 	Cwd       string
 	Cmd       []string
@@ -149,39 +151,63 @@ type SessionInput struct {
 	Workspace *Reference
 	Env       map[string]string
 	ConfigID  *string
+	StartSide string
+}
+
+// resolvedCommand is the command a session start runs.
+type resolvedCommand struct {
+	cmd      []string
+	env      map[string]string
+	configID string // empty for an explicit command
+	hybrid   bool
 }
 
 // resolveCommand applies a saved launch config and validates the explicit
-// environment. It runs before any filesystem or Git work. configID is empty
-// for an explicit command.
-func (s *Service) resolveCommand(in SessionInput) (cmd []string, env map[string]string, configID string, err error) {
-	cmd, env = in.Cmd, in.Env
+// environment and start side. It runs before any filesystem or Git work.
+func (s *Service) resolveCommand(in SessionInput) (resolvedCommand, error) {
+	out := resolvedCommand{cmd: in.Cmd, env: in.Env}
 	if in.ConfigID != nil {
 		if *in.ConfigID == "" {
-			return nil, nil, "", problemf(ErrInvalid, "configId must not be empty")
+			return resolvedCommand{}, problemf(ErrInvalid, "configId must not be empty")
 		}
 		if len(in.Cmd) > 0 || len(in.Env) > 0 {
-			return nil, nil, "", problemf(ErrInvalid, "configId cannot be combined with cmd or env")
+			return resolvedCommand{}, problemf(ErrInvalid, "configId cannot be combined with cmd or env")
 		}
 		// A nil store answers launch.ErrUnavailable.
 		saved, err := s.launches.Get(*in.ConfigID)
 		if err != nil {
-			return nil, nil, "", err
+			return resolvedCommand{}, err
 		}
-		cmd, env, configID = saved.Cmd, saved.Env, saved.ID
+		out = resolvedCommand{cmd: saved.Cmd, env: saved.Env, configID: saved.ID, hybrid: saved.Hybrid}
 	}
-	if err := session.ValidateEnv(env); err != nil {
-		return nil, nil, "", problemf(ErrInvalid, "%v", err)
+	switch {
+	case in.StartSide == "":
+	case !out.hybrid:
+		return resolvedCommand{}, problemf(ErrInvalid, "startSide 只适用于启用混合模式的启动配置")
+	case in.StartSide != string(hybrid.SideTUI) && in.StartSide != string(hybrid.SideACP):
+		return resolvedCommand{}, problemf(ErrInvalid, "startSide 只能是 tui 或 acp")
 	}
-	return cmd, env, configID, nil
+	if err := session.ValidateEnv(out.env); err != nil {
+		return resolvedCommand{}, problemf(ErrInvalid, "%v", err)
+	}
+	return out, nil
 }
 
 // CreateSession starts a session in the selected directory or worktree.
-// Launch config errors keep their launch error kinds.
+// Launch config errors keep their launch error kinds; a config with hybrid
+// mode starts a hybrid session, whose errors keep their hybrid kinds.
 func (s *Service) CreateSession(ctx context.Context, in SessionInput) (*session.Session, error) {
-	cmd, env, configID, err := s.resolveCommand(in)
+	command, err := s.resolveCommand(in)
 	if err != nil {
 		return nil, err
+	}
+	if command.hybrid {
+		if s.hybrids == nil {
+			return nil, problemf(ErrUnavailable, "混合会话不可用")
+		}
+		if err := s.hybrids.Unavailable(); err != nil {
+			return nil, err
+		}
 	}
 	cwd, name, reference := in.Cwd, in.Name, in.Workspace
 	requestCtx := ctx
@@ -242,9 +268,20 @@ func (s *Service) CreateSession(ctx context.Context, in SessionInput) (*session.
 	if err := requestCtx.Err(); err != nil {
 		return nil, err
 	}
-	item, err := s.manager.Create(session.CreateInput{Cwd: path, Cmd: cmd, Name: name, Env: env, ConfigID: configID})
-	if err != nil {
-		return nil, sessionCreateError(err)
+	var item *session.Session
+	if command.hybrid {
+		item, err = s.hybrids.Create(requestCtx, hybrid.CreateInput{
+			Cwd: path, Name: name, ConfigID: command.configID, Cmd: command.cmd, Env: command.env,
+			StartSide: hybrid.Side(in.StartSide),
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		item, err = s.manager.Create(session.CreateInput{Cwd: path, Cmd: command.cmd, Name: name, Env: command.env, ConfigID: command.configID})
+		if err != nil {
+			return nil, sessionCreateError(err)
+		}
 	}
 	s.commitAssociation(item.Info(), association, false)
 	return item, nil

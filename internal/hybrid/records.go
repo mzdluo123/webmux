@@ -230,6 +230,14 @@ func (r *records) reserved(id string) bool {
 	return r.index(id) >= 0
 }
 
+// count is the number of records, for the limit check before a session
+// starts; add enforces the limit again.
+func (r *records) count() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.list)
+}
+
 // add stores a new record and writes it immediately; creation must fail
 // rather than run a session the store cannot track.
 func (r *records) add(rec Record) error {

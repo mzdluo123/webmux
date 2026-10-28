@@ -108,7 +108,7 @@ func TestSessionHybrid(t *testing.T) {
 func TestRequestsConvertToServiceInputs(t *testing.T) {
 	id := "abcdefgh"
 	in := SessionInput(contractRequest(id))
-	if in.Cwd != "/w" || in.Workspace == nil || in.Workspace.WorktreeID != "t" || *in.ConfigID != id {
+	if in.Cwd != "/w" || in.Workspace == nil || in.Workspace.WorktreeID != "t" || *in.ConfigID != id || in.StartSide != "acp" {
 		t.Fatalf("session input %+v", in)
 	}
 	if SessionInput(contractRequest("")).Workspace == nil {
@@ -117,5 +117,5 @@ func TestRequestsConvertToServiceInputs(t *testing.T) {
 }
 
 func contractRequest(id string) contract.CreateSessionRequest {
-	return contract.CreateSessionRequest{Cwd: "/w", Workspace: &contract.WorkspaceReference{RepositoryID: "r", WorktreeID: "t"}, ConfigID: &id}
+	return contract.CreateSessionRequest{Cwd: "/w", Workspace: &contract.WorkspaceReference{RepositoryID: "r", WorktreeID: "t"}, ConfigID: &id, StartSide: contract.HybridSideACP}
 }

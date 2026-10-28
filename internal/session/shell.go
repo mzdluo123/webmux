@@ -111,11 +111,13 @@ type shellState struct {
 // ShellInput is a CreateInput for a shell. Cmd is the launch command shown
 // for the shell across its runs. ID reuses a known ID (recovery) and fails
 // with ErrExists when taken; empty draws a random unreserved one. A non-empty
-// Argv starts the first run immediately; empty starts without a run.
+// Argv starts the first run immediately; empty starts without a run. Overlay
+// is the driver's initial overlay, already part of the created event.
 type ShellInput struct {
 	CreateInput
-	ID   string
-	Argv []string
+	ID      string
+	Argv    []string
+	Overlay *Overlay
 }
 
 // CreateShell registers a shell driven by d. It is listed and published like
@@ -154,6 +156,9 @@ func (m *Manager) CreateShell(in ShellInput, d Driver) (*Session, error) {
 	s.sidecars = make(map[*Sidecar]struct{})
 	s.info.Cmd = append([]string(nil), in.Cmd...)
 	s.info.Status = StatusIdle
+	if in.Overlay != nil {
+		s.overlay = in.Overlay.clone()
+	}
 	if len(in.Argv) > 0 {
 		r, generation, err := launchRun(id, cwd, in.Argv, 80, 24, options)
 		if err != nil {

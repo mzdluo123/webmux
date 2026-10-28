@@ -64,13 +64,19 @@ export const CreateSessionRequestSchema = z
     workspace: WorkspaceReferenceSchema.optional(),
     env: z.record(z.string(), z.string()).optional(),
     configId: z.string().optional(),
+    // Only for a launch config with hybrid mode; the server answers 400
+    // otherwise.
+    startSide: z.enum(["tui", "acp"]).optional(),
   })
   .refine(
     (body) =>
       !body.configId ||
       (!body.cmd?.length && Object.keys(body.env ?? {}).length === 0),
     { message: "configId 不能与 cmd 或 env 同时提供" },
-  );
+  )
+  .refine((body) => !body.startSide || !!body.configId, {
+    message: "startSide 只能与混合模式的 configId 一起提供",
+  });
 
 export const PreviewSettingsSchema = z.object({
   lines: z.number().int().min(1).max(50),

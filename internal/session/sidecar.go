@@ -197,6 +197,9 @@ func (c *Sidecar) Stdout() io.Reader { return c.stdout }
 // Stderr returns the retained stderr tail, at most 64 KiB.
 func (c *Sidecar) Stderr() []byte { return c.stderr.Snapshot() }
 
+// PID is the sidecar's leader process ID, also its process group ID.
+func (c *Sidecar) PID() int { return c.pid }
+
 // Done closes after the process tree is gone and stderr is drained.
 func (c *Sidecar) Done() <-chan struct{} { return c.done }
 

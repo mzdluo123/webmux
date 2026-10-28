@@ -100,7 +100,8 @@ type WorkspaceReference struct {
 }
 
 // CreateSessionRequest is the body of POST /api/sessions. ConfigID excludes
-// Cmd and Env. omitempty only shapes what Go clients send;
+// Cmd and Env. StartSide (tui or acp, default tui) is only valid with a
+// config that has hybrid mode. omitempty only shapes what Go clients send;
 // the server treats an absent field like its zero value.
 type CreateSessionRequest struct {
 	Cwd       string              `json:"cwd"`
@@ -109,4 +110,5 @@ type CreateSessionRequest struct {
 	Workspace *WorkspaceReference `json:"workspace,omitempty"`
 	Env       map[string]string   `json:"env,omitempty"`
 	ConfigID  *string             `json:"configId,omitempty"`
+	StartSide HybridSide          `json:"startSide,omitempty"`
 }

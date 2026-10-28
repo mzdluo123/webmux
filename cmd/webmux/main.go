@@ -22,6 +22,7 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/files"
+	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/push"
@@ -378,7 +379,14 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	} else if err := launches.Seed(launch.Presets(os.Getenv("SHELL"))); err != nil {
 		slog.Warn("seed default launch configs", "error", err)
 	}
+	// Like launch configs, a broken hybrid record store only disables
+	// hybrid sessions; New logs why.
+	hybrids := hybrid.New(hybrid.Options{
+		StateDir: c.StateDir, Manager: m, ScrollbackBytes: sessionOptions.ScrollbackBytes,
+		Version: version, Logger: slog.Default(),
+	})
 	workspaces := workspace.New(c.StateDir, m, launches, c.DefaultCwd)
+	workspaces.UseHybrid(hybrids)
 	defer workspaces.Close()
 	codes := codeview.New(m)
 	defer codes.Close()
@@ -436,6 +444,9 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	shutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelShutdown()
 	pushes.Close() // Stop sending before sessions exit.
+	// Hybrid sessions stop their ACP processes first; their records stay
+	// active, so the next start marks them interrupted.
+	hybrids.Close()
 	m.Shutdown(shutdown)
 	if shutdownErr := server.Shutdown(shutdown); shutdownErr != nil {
 		_ = server.Close()
