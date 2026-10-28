@@ -62,6 +62,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -108,10 +109,19 @@ func main() {
 	}
 }
 
+// profileFromName lets the binary stand in for a real agent by name: copied
+// or linked as "opencode" it mimics OpenCode, otherwise omp.
+func profileFromName(argv0 string) string {
+	if filepath.Base(argv0) == "opencode" {
+		return "opencode"
+	}
+	return "omp"
+}
+
 func parseArgs(args []string) (config, bool, error) {
 	cfg := config{
 		store:           os.Getenv("FAKEAGENT_STORE"),
-		profile:         envOr("FAKEAGENT_PROFILE", "omp"),
+		profile:         envOr("FAKEAGENT_PROFILE", profileFromName(os.Args[0])),
 		crash:           os.Getenv("FAKEAGENT_CRASH"),
 		permission:      os.Getenv("FAKEAGENT_PERMISSION") == "1",
 		elicit:          os.Getenv("FAKEAGENT_ELICIT") == "1",
