@@ -25,8 +25,18 @@ func UploadPath(path string) (string, error) {
 		return "", invalid
 	}
 	clean := filepath.Clean(path)
-	tmp := filepath.Clean(os.TempDir())
-	dir := filepath.Dir(clean)
+	// Resolve both sides so a returned canonical path validates again even
+	// when the system temporary directory is itself reached through a
+	// symlink (macOS's /var -> /private/var).
+	resolved, err := filepath.EvalSymlinks(clean)
+	if err != nil {
+		return "", invalid
+	}
+	tmp, err := filepath.EvalSymlinks(filepath.Clean(os.TempDir()))
+	if err != nil {
+		return "", invalid
+	}
+	dir := filepath.Dir(resolved)
 	if filepath.Dir(dir) != tmp || !strings.HasPrefix(filepath.Base(dir), UploadDirPrefix) {
 		return "", invalid
 	}
@@ -36,14 +46,6 @@ func UploadPath(path string) (string, error) {
 	}
 	dirInfo, err := os.Lstat(dir)
 	if err != nil || !dirInfo.IsDir() || dirInfo.Mode().Perm() != 0o700 {
-		return "", invalid
-	}
-	resolved, err := filepath.EvalSymlinks(clean)
-	if err != nil {
-		return "", invalid
-	}
-	wantDir, err := filepath.EvalSymlinks(dir)
-	if err != nil || filepath.Dir(resolved) != wantDir {
 		return "", invalid
 	}
 	return resolved, nil

@@ -58,3 +58,37 @@ func TestUploadPath(t *testing.T) {
 		t.Errorf("UploadPath accepted a symlink")
 	}
 }
+
+// TestUploadPathSymlinkedTempDir covers deployments whose temporary
+// directory is reached through a symlink, such as macOS's /var.
+func TestUploadPathSymlinkedTempDir(t *testing.T) {
+	root := t.TempDir()
+	real := filepath.Join(root, "real")
+	if err := os.Mkdir(real, 0700); err != nil {
+		t.Fatal(err)
+	}
+	tmp := filepath.Join(root, "tmp-link")
+	if err := os.Symlink(real, tmp); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", tmp)
+	dir := filepath.Join(tmp, UploadDirPrefix+"test")
+	if err := os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "note.txt")
+	if err := os.WriteFile(path, []byte("hi"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	first, err := UploadPath(path)
+	if err != nil {
+		t.Fatalf("UploadPath(%q): %v", path, err)
+	}
+	second, err := UploadPath(first)
+	if err != nil {
+		t.Fatalf("UploadPath(%q) rejected its own result: %v", first, err)
+	}
+	if second != first {
+		t.Fatalf("UploadPath(%q) = %q", first, second)
+	}
+}
