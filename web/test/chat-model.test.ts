@@ -224,7 +224,10 @@ describe("chat reducer", () => {
             requestId: "r1",
             kind: "permission",
             toolCallId: "c1",
-            options: [],
+            options: [
+              { optionId: "once", name: "允许一次", kind: "allow_once" },
+              { optionId: "never", name: "拒绝", kind: "reject_once" },
+            ],
           },
         }),
         ev({
@@ -237,9 +240,12 @@ describe("chat reducer", () => {
         }),
       ]),
     );
+    // The tool row shows which choice answered it, by its label and kind.
     expect(m.entries[0]!.type === "tool" && m.entries[0]!.permission).toEqual({
       outcome: "selected",
       optionId: "once",
+      name: "允许一次",
+      kind: "allow_once",
     });
     expect(m.entries[1]).toEqual({
       type: "turnEnd",
