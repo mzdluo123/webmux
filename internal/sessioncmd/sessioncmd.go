@@ -346,10 +346,27 @@ func List(ctx context.Context, e Env, args []string) int {
 		if s.ExitCode != nil {
 			status = fmt.Sprintf("%s (%d)", s.Status, *s.ExitCode)
 		}
+		if s.Hybrid != nil {
+			status += " · " + hybridSide(s.Hybrid)
+		}
 		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", s.ID, s.Title, status, strings.Join(s.Cmd, " "), s.Cwd)
 	}
 	_ = w.Flush()
 	return contract.ExitOK
+}
+
+// hybridSide names where a hybrid session runs, for `ls`.
+func hybridSide(h *contract.SessionHybrid) string {
+	switch {
+	case h.Side == contract.HybridSideSwitching || h.Phase != "":
+		return "切换中"
+	case h.Side == contract.HybridSideACP && h.Dormant:
+		return "聊天·休眠"
+	case h.Side == contract.HybridSideACP:
+		return "聊天"
+	default:
+		return "终端"
+	}
 }
 
 // Open implements `open <id> [--browser]`.
