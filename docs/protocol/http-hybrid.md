@@ -31,7 +31,7 @@
 
 切换结果中：`draft` 是切到终端时退回的排队消息（按顺序以空行连接），只返回给发起切换的请求，其他设备收到提示事件；`dropped` 为恢复命令未保留的启动参数；`unsupported` 为聊天端不支持的参数。切换失败时会话回到原端并返回 502 与原因；回滚也失败时会话标记为 `interrupted`。
 
-记录（`HybridRecord`）包含 ID、名称、`configId`、`configMissing`、agent、cwd、命令快照、所在端、当前与最近 8 个历史 agent 会话 ID、状态、中断时丢失的排队条数与时间戳，不含环境变量值、消息、队列正文或 token。
+记录（`HybridRecord`）包含 ID、名称、`configId`、`configMissing`、agent、cwd、命令快照、所在端、当前与最近 8 个历史 agent 会话 ID、状态、中断前的活动 `activity`（`idle`、`turn` 或 `switching`，后两者表示上一轮可能未完成）、中断时丢失的排队条数与时间戳，不含环境变量值、消息、队列正文或 token。
 
 恢复时命令取自记录中的快照，环境变量按 `configId` 重新读取。启动配置已删除且未确认时返回 409 `config_missing`；以 `confirmWithoutEnv: true` 重试则不带环境变量恢复。随后服务端启动一个只调用 `initialize` 与 `session/list` 的临时 ACP 进程，在记录的 cwd 中核对 agent 会话：已不存在时返回 409 `session_missing`，`candidates` 为同一目录下的会话（`{agentSessionId, title, updatedAt}`，按更新时间倒序，最多 20 个）；以 `agentSessionId` 重试即改用所选会话，原 ID 进入历史。该会话正被其他会话打开时返回 409。记录中没有 agent 会话 ID 时不核对，所选端开始新对话。核对通过后，恢复到终端端在 PTY 中执行档案生成的恢复命令；恢复到聊天端启动 ACP 进程并 `session/load`，再按档案补回记录中的配置项取值。成功后记录改为 `active`；中断时丢失过排队消息的，聊天状态的 `queueLost` 为丢失条数。恢复失败时记录保持原样。
 
