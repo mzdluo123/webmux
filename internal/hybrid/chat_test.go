@@ -3,7 +3,9 @@ package hybrid
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -93,11 +95,16 @@ func turnEvents(events []Event) []Event {
 	return out
 }
 
+var requestIDs atomic.Int64
+
+// rid returns a fresh client request ID.
+func rid() string { return fmt.Sprintf("req-%08d", requestIDs.Add(1)) }
+
 func prompt(t *testing.T, h *harness, id, text string) PromptResult {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
-	r, err := h.svc.Prompt(ctx, id, text)
+	r, err := h.svc.Prompt(ctx, id, PromptInput{ClientRequestID: rid(), Text: text})
 	if err != nil {
 		t.Fatalf("prompt: %v", err)
 	}
@@ -151,8 +158,9 @@ func TestChatTurnEventSequence(t *testing.T) {
 	if st.state.Plan == nil || st.state.Usage == nil || len(st.state.Commands) == 0 || len(st.state.Config) != 2 || st.state.Turn.TurnID != started.TurnID {
 		t.Fatalf("state after the turn %+v", st.state)
 	}
-	if info := s.Info(); info.Status != session.StatusIdle {
-		t.Fatalf("status after the turn %s", info.Status)
+	// end_turn latches done attention: the session waits for the user.
+	if info := s.Info(); info.Status != session.StatusWaiting || info.Attention == nil {
+		t.Fatalf("status after the turn %s, attention %+v", info.Status, info.Attention)
 	}
 }
 
@@ -194,8 +202,16 @@ func TestChatOversizeFieldTruncated(t *testing.T) {
 	s := h.create(h.input(agentprofile.OMP, SideACP))
 	id := s.Info().ID
 	st := h.follow(id)
+	// Prompts are limited far below the field limit; send past the
+	// command check to exercise the translator's cut.
 	text := strings.Repeat("x", maxFieldBytes+1000)
-	prompt(t, h, id, text)
+	a, err := h.svc.actor(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := call(context.Background(), a, func() (PromptResult, error) { return a.send(text), nil }); err != nil {
+		t.Fatal(err)
+	}
 	var user, reply *MessageChunk
 	for _, e := range st.until("turn end", hasKind(EventTurnEnd)) {
 		if e.Kind == EventMessage && e.Message.Role == RoleUser {
@@ -270,13 +286,13 @@ func TestChatPermissionAnswerAndCancel(t *testing.T) {
 	if st.state.Requests[0].RequestID != req.RequestID {
 		t.Fatalf("pending requests in state %+v", st.state.Requests)
 	}
-	if err := h.svc.Answer(ctx, id, req.RequestID, Answer{Outcome: OutcomeSelected, OptionID: "nope"}); !errors.Is(err, ErrInvalid) {
+	if err := h.svc.Answer(ctx, id, rid(), req.RequestID, Answer{Outcome: OutcomeSelected, OptionID: "nope"}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("unknown option: %v", err)
 	}
-	if err := h.svc.Answer(ctx, id, req.RequestID, Answer{Outcome: OutcomeSelected, OptionID: "allow"}); err != nil {
+	if err := h.svc.Answer(ctx, id, rid(), req.RequestID, Answer{Outcome: OutcomeSelected, OptionID: "allow"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.Answer(ctx, id, req.RequestID, Answer{Outcome: OutcomeCancelled}); !errors.Is(err, ErrAnswered) {
+	if err := h.svc.Answer(ctx, id, rid(), req.RequestID, Answer{Outcome: OutcomeCancelled}); !errors.Is(err, ErrAnswered) {
 		t.Fatalf("second answer: %v", err)
 	}
 	events = st.until("first turn end", hasKind(EventTurnEnd))
@@ -296,7 +312,7 @@ func TestChatPermissionAnswerAndCancel(t *testing.T) {
 	prompt(t, h, id, "second")
 	events = st.until("second request", count(EventRequest, 2))
 	second := events[len(events)-1].Request
-	if err := h.svc.Cancel(ctx, id); err != nil {
+	if err := h.svc.Cancel(ctx, id, rid()); err != nil {
 		t.Fatal(err)
 	}
 	events = st.until("second turn end", count(EventTurnEnd, 2))
@@ -345,10 +361,10 @@ func TestChatTurnErrors(t *testing.T) {
 func TestPromptNeedsChatSide(t *testing.T) {
 	h := newHarness(t, 0)
 	s := h.create(h.input(agentprofile.OMP, SideTUI))
-	if _, err := h.svc.Prompt(context.Background(), s.Info().ID, "hi"); !errors.Is(err, ErrWrongSide) {
+	if _, err := h.svc.Prompt(context.Background(), s.Info().ID, PromptInput{ClientRequestID: rid(), Text: "hi"}); !errors.Is(err, ErrWrongSide) {
 		t.Fatalf("prompt on the terminal side: %v", err)
 	}
-	if _, err := h.svc.Prompt(context.Background(), "zzzzzzzz", "hi"); !errors.Is(err, ErrNotFound) {
+	if _, err := h.svc.Prompt(context.Background(), "zzzzzzzz", PromptInput{ClientRequestID: rid(), Text: "hi"}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("prompt to an unknown session: %v", err)
 	}
 }
@@ -367,7 +383,7 @@ func TestChatAgentCrashInterrupts(t *testing.T) {
 	if rec := h.record(id); rec.PID != 0 || rec.InterruptedAt == nil {
 		t.Fatalf("record %+v", rec)
 	}
-	if _, err := h.svc.Prompt(context.Background(), id, "again"); !errors.Is(err, ErrConflict) {
+	if _, err := h.svc.Prompt(context.Background(), id, PromptInput{ClientRequestID: rid(), Text: "again"}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("prompt after a crash: %v", err)
 	}
 }

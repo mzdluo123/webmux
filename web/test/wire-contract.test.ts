@@ -14,6 +14,13 @@ const TerminalMovedSchema = z.object({
   reason: z.string().startsWith("session moved"),
 });
 const groups: Array<[z.ZodType, string[]]> = [
+  [S.ChatFrameSchema, ["ws-chat-events", "ws-chat-snapshot", "ws-chat-state"]],
+  [S.ChatPromptResultSchema, ["chat-prompt-queued", "chat-prompt-sent"]],
+  [
+    S.HybridConflictSchema,
+    ["chat-conflict-answered", "chat-conflict-wrong-side"],
+  ],
+  [S.NoContentSchema, ["chat-answer"]],
   [S.CodeChangesSchema, ["code-changes"]],
   [S.CodeCheckSchema, ["code-check"]],
   [S.CodeContextSchema, ["code-context"]],

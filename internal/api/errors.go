@@ -124,8 +124,9 @@ func filesFailure(w http.ResponseWriter, err error) {
 }
 
 // hybridStatus maps hybrid session error kinds; ok is false for other
-// errors. ErrAgent is a bad gateway, never a 500: its message carries the
-// agent's stderr for the requesting user and must not be logged.
+// errors. ErrAgent and ErrAgentCall are bad gateways, never 500s: their
+// messages carry agent output for the requesting user and must not be
+// logged.
 func hybridStatus(err error) (status int, ok bool) {
 	switch {
 	case errors.Is(err, hybrid.ErrInvalid):
@@ -133,14 +134,63 @@ func hybridStatus(err error) (status int, ok bool) {
 	case errors.Is(err, hybrid.ErrNotFound):
 		return http.StatusNotFound, true
 	case errors.Is(err, hybrid.ErrLimit), errors.Is(err, hybrid.ErrConflict),
-		errors.Is(err, hybrid.ErrWrongSide), errors.Is(err, hybrid.ErrAnswered):
+		errors.Is(err, hybrid.ErrWrongSide), errors.Is(err, hybrid.ErrAnswered),
+		errors.Is(err, hybrid.ErrSwitching), errors.Is(err, hybrid.ErrSent),
+		errors.Is(err, hybrid.ErrSteeringUnavailable):
 		return http.StatusConflict, true
-	case errors.Is(err, hybrid.ErrAgent):
+	case errors.Is(err, hybrid.ErrAgent), errors.Is(err, hybrid.ErrAgentCall):
 		return http.StatusBadGateway, true
 	case errors.Is(err, hybrid.ErrUnavailable):
 		return http.StatusServiceUnavailable, true
 	}
 	return 0, false
+}
+
+// hybridReason is the contract.HybridConflict reason of a 409 hybrid
+// error; empty for a plain conflict.
+func hybridReason(err error) string {
+	switch {
+	case errors.Is(err, hybrid.ErrLimit):
+		return "limit"
+	case errors.Is(err, hybrid.ErrSwitching):
+		return "switching"
+	case errors.Is(err, hybrid.ErrWrongSide):
+		return "wrong_side"
+	case errors.Is(err, hybrid.ErrAnswered):
+		return "answered"
+	case errors.Is(err, hybrid.ErrSent):
+		return "sent"
+	case errors.Is(err, hybrid.ErrSteeringUnavailable):
+		return "steering_unavailable"
+	}
+	return ""
+}
+
+// hybridFailure answers a hybrid error kind, with a HybridConflict body
+// for 409s that have a reason; false for other errors.
+func hybridFailure(w http.ResponseWriter, err error) bool {
+	status, ok := hybridStatus(err)
+	if !ok {
+		return false
+	}
+	if reason := hybridReason(err); reason != "" {
+		reply(w, status, contract.HybridConflict{Error: err.Error(), Reason: reason})
+		return true
+	}
+	failure(w, status, err)
+	return true
+}
+
+// chatFailure answers a failed chat command; a request that ended first is
+// a timeout.
+func chatFailure(w http.ResponseWriter, err error) {
+	switch {
+	case hybridFailure(w, err):
+	case cancelled(err):
+		failure(w, http.StatusGatewayTimeout, err)
+	default:
+		failure(w, http.StatusInternalServerError, err)
+	}
 }
 
 // sessionFailure answers a session start: a saved launch config keeps its
@@ -151,12 +201,7 @@ func sessionFailure(w http.ResponseWriter, err error) {
 		launchFailure(w, err)
 		return
 	}
-	if status, ok := hybridStatus(err); ok {
-		if errors.Is(err, hybrid.ErrLimit) {
-			reply(w, status, contract.HybridConflict{Error: err.Error(), Reason: "limit"})
-			return
-		}
-		failure(w, status, err)
+	if hybridFailure(w, err) {
 		return
 	}
 	failure(w, workspaceStatus(err), err)

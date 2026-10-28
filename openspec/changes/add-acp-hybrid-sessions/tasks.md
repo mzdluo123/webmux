@@ -35,9 +35,9 @@
 
 - [x] 5.1 新建 `internal/hybrid`（Service），实现每会话 actor、记录存储（上限 200、1 秒去抖写盘、启动时检查残留并改为 interrupted）、经 `workspace` 的配置创建路径与 `startSide`。验证：`go test -race ./internal/hybrid` 覆盖创建、记录内容不含环境变量值、存储损坏时 503、普通会话不受影响。
 - [x] 5.2 实现从聊天开始：伴随进程启动、`initialize`、`session/new`、规范化事件转换（design 决策 4）、按字节计量的事件日志、代际与序号。验证：用假 agent 驱动的测试断言事件序列、`toolCallId` upsert、超长字段截断、日志截断后 `from` 前移。
-- [ ] 5.3 实现挂在 `/api/sessions/{id}/chat/` 下的 REST 命令与 `/ws/s/{id}/chat`：发送、队列操作、取消、请求答复、配置项；`clientRequestId` 去重；错误映射写入 `api/errors.go`。验证：`internal/api` 测试覆盖认证、Origin、409 `answered`/`switching`、续接只补缺失部分、慢客户端 4408；新增 `hybrid` 快照场景。
-- [ ] 5.4 实现队列语义（自动发送、暂停与继续、编辑、上移、立即发送）和插话能力开关。验证：测试覆盖 specs `chat-prompt-queue` 的全部场景，其中 OpenCode 档案不暴露插话。
-- [ ] 5.5 把聊天端回合状态映射到 `Info.Status`、`Info.Attention`、`Info.Preview`，并在切换时清除关注。验证：`push` 的现有测试不变且通过；新增测试断言出现权限请求时会产生 `permission` 推送。
+- [x] 5.3 实现挂在 `/api/sessions/{id}/chat/` 下的 REST 命令与 `/ws/s/{id}/chat`：发送、队列操作、取消、请求答复、配置项；`clientRequestId` 去重；错误映射写入 `api/errors.go`。验证：`internal/api` 测试覆盖认证、Origin、409 `answered`/`switching`、续接只补缺失部分、慢客户端 4408；新增 `hybrid` 快照场景。
+- [x] 5.4 实现队列语义（自动发送、暂停与继续、编辑、上移、立即发送）和插话能力开关。验证：测试覆盖 specs `chat-prompt-queue` 的全部场景，其中 OpenCode 档案不暴露插话。
+- [x] 5.5 把聊天端回合状态映射到 `Info.Status`、`Info.Attention`、`Info.Preview`，并在切换时清除关注。验证：`push` 的现有测试不变且通过；新增测试断言出现权限请求时会产生 `permission` 推送。
 
 ## 6. 切换、资格与异常（M5）
 

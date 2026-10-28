@@ -248,43 +248,158 @@ func (s *Service) Subscribe(id string, resume *ResumePoint) (*Subscription, erro
 	return a.log.subscribe(resume)
 }
 
-// PromptResult identifies the turn a prompt started.
+// PromptResult reports what a prompt did: Queued with the queue item's
+// ItemID, or sent as turn TurnID for prompt PromptID (steering sends
+// neither).
 type PromptResult struct {
+	Queued   bool
+	ItemID   string
 	TurnID   string
 	PromptID string
 }
 
-// Prompt sends text to the agent as a new turn. It fails with ErrWrongSide
-// outside the chat side and ErrConflict while a turn runs. The turn's
-// events (turn.start, the user message, the agent's updates, turn.end)
-// reach the event log as they happen.
-func (s *Service) Prompt(ctx context.Context, id, text string) (PromptResult, error) {
-	a, err := s.actor(id)
-	if err != nil {
-		return PromptResult{}, err
-	}
-	return call(ctx, a, func() (PromptResult, error) { return a.prompt(text) })
+// PromptInput is a chat prompt. Mode is ModeAuto (default) or ModeSteer.
+type PromptInput struct {
+	ClientRequestID string
+	Text            string
+	Mode            string
 }
 
-// Cancel stops the running turn: pending requests are answered cancelled
-// and the agent gets session/cancel. Without a running turn it does
-// nothing.
-func (s *Service) Cancel(ctx context.Context, id string) error {
+// QueueEdit changes a queued prompt: new Text and/or Move MoveUp.
+type QueueEdit struct {
+	ClientRequestID string
+	Text            *string
+	Move            string
+}
+
+// ConfigInput sets agent option ConfigID: Value for a select option,
+// Enabled for a boolean one.
+type ConfigInput struct {
+	ClientRequestID string
+	ConfigID        string
+	Value           *string
+	Enabled         *bool
+}
+
+// Every chat command below carries the client's request ID: a retry with
+// the same ID within 30 minutes (and among the session's last 256) gets the
+// first outcome, success or error, without running again. Commands fail
+// with ErrSwitching during a switch and ErrWrongSide outside the chat side.
+
+// command runs fn on session id's actor once per client request ID.
+func command[T any](ctx context.Context, s *Service, id, requestID, name string, fn func(a *actor) (T, error)) (T, error) {
+	a, err := s.actor(id)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	return once(ctx, &a.recent, requestID, name, func(ctx context.Context) (T, error) {
+		return call(ctx, a, func() (T, error) { return fn(a) })
+	})
+}
+
+// agentCommand is command for commands that end in an ACP call: prepare
+// runs on the actor, the call outside it.
+func agentCommand(ctx context.Context, s *Service, id, requestID, name string, prepare func(a *actor) (agentCall, error)) error {
 	a, err := s.actor(id)
 	if err != nil {
 		return err
 	}
-	_, err = call(ctx, a, func() (struct{}, error) { a.cancelTurn(); return struct{}{}, nil })
+	_, err = once(ctx, &a.recent, requestID, name, func(ctx context.Context) (struct{}, error) {
+		run, err := call(ctx, a, func() (agentCall, error) { return prepare(a) })
+		if err != nil {
+			return struct{}{}, err
+		}
+		return struct{}{}, run(ctx)
+	})
+	return err
+}
+
+// Prompt sends a prompt. ModeAuto starts a turn when the session is idle
+// and its queue empty and running, and queues the text otherwise; queued
+// prompts go out one by one as turns end normally. ModeSteer injects the
+// text into the running turn and fails with ErrSteeringUnavailable when
+// the agent cannot. The text must not be blank and at most MaxPromptBytes.
+func (s *Service) Prompt(ctx context.Context, id string, in PromptInput) (PromptResult, error) {
+	if err := validText(in.Text); err != nil {
+		return PromptResult{}, err
+	}
+	switch in.Mode {
+	case "", ModeAuto:
+		return command(ctx, s, id, in.ClientRequestID, "prompt", func(a *actor) (PromptResult, error) { return a.prompt(in.Text) })
+	case ModeSteer:
+		err := agentCommand(ctx, s, id, in.ClientRequestID, "steer", func(a *actor) (agentCall, error) { return a.steer(in.Text) })
+		return PromptResult{}, err
+	}
+	return PromptResult{}, fmt.Errorf("%w: mode 只能是 auto 或 steer", ErrInvalid)
+}
+
+// EditQueued edits queued prompt itemID; ErrSent once it was sent or
+// removed.
+func (s *Service) EditQueued(ctx context.Context, id, itemID string, in QueueEdit) error {
+	if in.Text != nil {
+		if err := validText(*in.Text); err != nil {
+			return err
+		}
+	}
+	if in.Move != "" && in.Move != MoveUp {
+		return fmt.Errorf("%w: move 只能是 up", ErrInvalid)
+	}
+	if in.Text == nil && in.Move == "" {
+		return fmt.Errorf("%w: 需要 text 或 move", ErrInvalid)
+	}
+	_, err := command(ctx, s, id, in.ClientRequestID, "queue.edit", func(a *actor) (struct{}, error) {
+		return struct{}{}, a.editQueued(itemID, in.Text, in.Move)
+	})
+	return err
+}
+
+// RemoveQueued deletes queued prompt itemID; ErrSent once it was sent or
+// removed.
+func (s *Service) RemoveQueued(ctx context.Context, id, requestID, itemID string) error {
+	_, err := command(ctx, s, id, requestID, "queue.remove", func(a *actor) (struct{}, error) { return struct{}{}, a.removeQueued(itemID) })
+	return err
+}
+
+// SendQueuedNow sends queued prompt itemID next: the running turn is
+// cancelled first (the client confirmed that).
+func (s *Service) SendQueuedNow(ctx context.Context, id, requestID, itemID string) error {
+	_, err := command(ctx, s, id, requestID, "queue.send-now", func(a *actor) (struct{}, error) { return struct{}{}, a.sendQueuedNow(itemID) })
+	return err
+}
+
+// ResumeQueue unpauses the queue, sending from its head.
+func (s *Service) ResumeQueue(ctx context.Context, id, requestID string) error {
+	_, err := command(ctx, s, id, requestID, "queue.resume", func(a *actor) (struct{}, error) { return struct{}{}, a.resumeQueue() })
+	return err
+}
+
+// ClearQueue removes every queued prompt.
+func (s *Service) ClearQueue(ctx context.Context, id, requestID string) error {
+	_, err := command(ctx, s, id, requestID, "queue.clear", func(a *actor) (struct{}, error) { return struct{}{}, a.clearQueue() })
+	return err
+}
+
+// Cancel stops the running turn: pending requests are answered cancelled
+// and the agent gets session/cancel; a non-empty queue pauses. Without a
+// running turn it does nothing.
+func (s *Service) Cancel(ctx context.Context, id, requestID string) error {
+	_, err := command(ctx, s, id, requestID, "cancel", func(a *actor) (struct{}, error) { return struct{}{}, a.cancel() })
 	return err
 }
 
 // Answer resolves pending request requestID. The first answer wins; later
 // ones fail with ErrAnswered.
-func (s *Service) Answer(ctx context.Context, id, requestID string, answer Answer) error {
-	a, err := s.actor(id)
-	if err != nil {
-		return err
-	}
-	_, err = call(ctx, a, func() (struct{}, error) { return struct{}{}, a.answer(requestID, answer) })
+func (s *Service) Answer(ctx context.Context, id, clientRequestID, requestID string, answer Answer) error {
+	_, err := command(ctx, s, id, clientRequestID, "answer", func(a *actor) (struct{}, error) { return struct{}{}, a.answer(requestID, answer) })
 	return err
+}
+
+// SetConfig changes an agent option through session/set_config_option;
+// every device sees the agent's new options, and the record keeps the
+// value for later loads. A refusal is ErrAgentCall.
+func (s *Service) SetConfig(ctx context.Context, id string, in ConfigInput) error {
+	return agentCommand(ctx, s, id, in.ClientRequestID, "config", func(a *actor) (agentCall, error) {
+		return a.setConfig(in.ConfigID, in.Value, in.Enabled)
+	})
 }

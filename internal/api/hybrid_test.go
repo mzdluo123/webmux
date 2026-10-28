@@ -25,6 +25,7 @@ type hybridAPI struct {
 	handler http.Handler
 	manager *session.Manager
 	store   *launch.Service
+	hybrids *hybrid.Service
 	state   string
 	cwd     string
 }
@@ -40,6 +41,7 @@ func newHybridAPI(t *testing.T, prepare func(state string)) *hybridAPI {
 	h.manager = session.NewManager(session.Options{DefaultCwd: h.cwd})
 	h.store = openLaunchStore(t)
 	hybrids := hybrid.New(hybrid.Options{StateDir: h.state, Manager: h.manager})
+	h.hybrids = hybrids
 	ws := workspace.New(t.TempDir(), h.manager, h.store, h.cwd)
 	ws.UseHybrid(hybrids)
 	t.Cleanup(func() {
@@ -49,7 +51,7 @@ func newHybridAPI(t *testing.T, prepare func(state string)) *hybridAPI {
 		defer cancel()
 		h.manager.Shutdown(ctx)
 	})
-	h.handler = New(testDeps(t, Deps{Config: config.Config{Token: "secret", DefaultCwd: h.cwd}, Manager: h.manager, Launch: h.store, Workspace: ws}))
+	h.handler = New(testDeps(t, Deps{Config: config.Config{Token: "secret", DefaultCwd: h.cwd}, Manager: h.manager, Launch: h.store, Workspace: ws, Hybrid: hybrids}))
 	return h
 }
 

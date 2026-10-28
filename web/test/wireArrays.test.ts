@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import {
   BranchesSchema,
+  ChatFrameSchema,
   CodeChangesSchema,
   CodeCheckSchema,
   CodeListingSchema,
@@ -45,6 +46,8 @@ const schemas = {
   changes: CodeChangesSchema,
   // The controller adds the remaining runtime fields after wire conversion.
   tailscale: TailscaleStatusSchema.pick({ entries: true }),
+  chatSnapshot: ChatFrameSchema,
+  chatEvents: ChatFrameSchema,
 };
 
 describe("Go response arrays match the browser contract", () => {

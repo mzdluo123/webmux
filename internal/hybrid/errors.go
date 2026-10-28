@@ -21,8 +21,19 @@ var (
 	// ErrAnswered: the request was already answered or withdrawn (409
 	// answered).
 	ErrAnswered = errors.New("该请求已被答复")
+	// ErrSwitching: a switch is running; commands wait for it (409
+	// switching).
+	ErrSwitching = errors.New("混合会话正在切换")
+	// ErrSent: the queued prompt was already sent or removed (409 sent).
+	ErrSent = errors.New("该排队消息已发送或已删除")
+	// ErrSteeringUnavailable: steering needs a profile and agent that
+	// support it and a running turn (409 steering_unavailable).
+	ErrSteeringUnavailable = errors.New("当前不能插话")
 	// ErrAgent: the agent failed to start or to open its session (502). The
 	// message may carry the agent's stderr tail, for the requesting user
 	// only: never log it.
 	ErrAgent = errors.New("agent 启动失败")
+	// ErrAgentCall: the agent refused or failed a command such as a
+	// configuration change or steering (502).
+	ErrAgentCall = errors.New("agent 未能完成请求")
 )

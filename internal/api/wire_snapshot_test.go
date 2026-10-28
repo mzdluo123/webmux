@@ -25,9 +25,11 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
@@ -142,6 +144,15 @@ func wireSchema(name string) wireRules {
 	case "code-check":
 		add("", "time", "checkedAt")
 		rules["/snapshots"] = "snapshotKeys"
+	case "ws-chat-snapshot":
+		add("", "id", "generation")
+		add("/state", "id", "agentSessionId")
+	case "ws-chat-events":
+		add("", "id", "generation")
+		add("/items/*", "time", "at")
+	case "ws-chat-state":
+		add("/state", "id", "agentSessionId")
+		add("/state/queue/items/*", "time", "createdAt")
 	case "push-status", "push-status-quick-tunnel", "push-status-tailscale", "push-status-disabled":
 		add("", "id", "publicKey")
 	case "push-subscribe", "push-subscribe-gone":
@@ -357,6 +368,7 @@ type wireFixture struct {
 	ctx     context.Context
 	server  *httptest.Server
 	manager *session.Manager
+	hybrids *hybrid.Service
 	root    string
 }
 
@@ -438,7 +450,8 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	if err := public.Set("tailscale", "https://node.tailnet.ts.net:8443"); err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Public: public, Push: pushes, Launch: launches, Code: codes, Settings: prefs})))
+	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: m})
+	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Public: public, Push: pushes, Launch: launches, Code: codes, Settings: prefs, Hybrid: hybrids})))
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(func() {
 		cancel()
@@ -446,12 +459,13 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 		codes.Close()
 		launches.Close()
 		pushes.Close()
+		hybrids.Close()
 		shutdown, done := context.WithTimeout(context.Background(), 8*time.Second)
 		defer done()
 		m.Shutdown(shutdown)
 	})
 	rec.norm.path(strings.TrimPrefix(server.URL, "http://"), "<server>")
-	return &wireFixture{wireRecorder: rec, ctx: ctx, server: server, manager: m, root: root}
+	return &wireFixture{wireRecorder: rec, ctx: ctx, server: server, manager: m, hybrids: hybrids, root: root}
 }
 
 type wireRequest struct {
@@ -924,6 +938,48 @@ func wireHybrid(f *wireFixture) {
 	if _, _, err := refused.Read(f.ctx); websocket.CloseStatus(err) != contract.CloseMoved {
 		f.t.Fatalf("attach without a run: %v", err)
 	}
+	wireChat(f)
+}
+
+// wireChat pins the chat channel: its three frame types, prompt results
+// and conflict bodies. The agent's own start updates arrive in no fixed
+// order, so the backlog frame is read but not recorded.
+func wireChat(f *wireFixture) {
+	id := fakeChat(f.t, f.hybrids, f.root, agentprofile.OMP, "FAKEAGENT_PERMISSION=1")
+	watch := observe(f.t, f.hybrids, id)
+	watch.until("start updates", func(o *observer) bool { return len(o.state.Commands) > 0 && len(o.state.Config) == 2 })
+	conn := f.dial("/ws/s/" + id + "/chat")
+	f.event(conn, "ws-chat-snapshot", func(e map[string]any) bool { return e["type"] == contract.ChatFrameSnapshot })
+	if _, _, err := conn.Read(f.ctx); err != nil {
+		f.t.Fatal(err)
+	}
+	base := "/api/sessions/" + id + "/chat/"
+	f.call("chat-prompt-sent", "POST", base+"prompts", contract.ChatPromptRequest{ClientRequestID: "wire-prompt-1", Text: "hello"}, 200)
+	f.event(conn, "ws-chat-events", func(e map[string]any) bool {
+		items, _ := e["items"].([]any)
+		return e["type"] == contract.ChatFrameEvents && len(items) > 0 && str(items[0], "kind") == contract.ChatEventTurnStart
+	})
+	f.call("chat-prompt-queued", "POST", base+"prompts", contract.ChatPromptRequest{ClientRequestID: "wire-prompt-2", Text: "later"}, 200)
+	f.event(conn, "ws-chat-state", func(e map[string]any) bool {
+		state, _ := e["state"].(map[string]any)
+		requests, _ := state["requests"].([]any)
+		queue, _ := state["queue"].(map[string]any)
+		items, _ := queue["items"].([]any)
+		return e["type"] == contract.ChatFrameState && len(requests) == 1 && len(items) == 1
+	})
+	f.call("chat-answer", "POST", base+"requests/r1", contract.ChatAnswerRequest{ClientRequestID: "wire-answer-1", Outcome: "selected", OptionID: "allow"}, 204)
+	f.call("chat-conflict-answered", "POST", base+"requests/r1", contract.ChatAnswerRequest{ClientRequestID: "wire-answer-2", Outcome: "cancelled"}, 409)
+
+	ctx, cancel := context.WithTimeout(f.ctx, chatTimeout)
+	defer cancel()
+	terminal, err := f.hybrids.Create(ctx, hybrid.CreateInput{
+		Cwd: f.root, Name: "tui", Cmd: []string{fakeAgentPath(f.t, agentprofile.OMP)}, StartSide: hybrid.SideTUI,
+		Env: map[string]string{"FAKEAGENT_STORE": f.t.TempDir()},
+	})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.call("chat-conflict-wrong-side", "POST", "/api/sessions/"+terminal.Info().ID+"/chat/prompts", contract.ChatPromptRequest{ClientRequestID: "wire-prompt-3", Text: "hi"}, 409)
 }
 
 // closed reads until the server closes conn and records the close code and

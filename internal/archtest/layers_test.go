@@ -61,7 +61,8 @@ var webmux = manifest{
 		"internal/push": "delivers Web Push messages to browser push services",
 	},
 	pure: map[string]string{
-		"internal/push.Validate": "validates subscription strings without service state or I/O, before the controller checks Origin",
+		"internal/push.Validate":    "validates subscription strings without service state or I/O, before the controller checks Origin",
+		"internal/hybrid.FormValue": "decodes one form answer value of a chat request body without service state or I/O",
 	},
 	contract:  "internal/contract",
 	wireScope: []string{"internal/api", "internal/wire", "internal/hub"},

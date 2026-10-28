@@ -11,6 +11,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/agentprofile"
+	"github.com/rainchan/webmux/internal/attentionkind"
 	"github.com/rainchan/webmux/internal/runtime"
 	"github.com/rainchan/webmux/internal/session"
 )
@@ -49,6 +50,8 @@ type actor struct {
 	// id and shell are set before run starts and never change.
 	id    string
 	shell *session.Session
+	// recent dedupes commands by client request ID; it has its own lock.
+	recent dedupe
 
 	// --- owned by run ---
 	side           Side
@@ -58,12 +61,20 @@ type actor struct {
 	tr             translator
 	// epoch numbers ACP connections; updates and requests of an older one
 	// are ignored.
-	epoch           int
-	link            *acpLink
-	turn            *turn
-	requests        []*pending
-	nextTurn        int
-	nextRequest     int
+	epoch       int
+	link        *acpLink
+	turn        *turn
+	requests    []*pending
+	nextTurn    int
+	nextRequest int
+	nextItem    int
+	// sendAfterCancel makes the end of a turn cancelled by send-now send
+	// the queue's head instead of pausing.
+	sendAfterCancel bool
+	// attention is the latched turn-end attention (done or error); pending
+	// requests take precedence over it.
+	attention       *session.Attention
+	preview         preview
 	starting        bool
 	closeAfterStart bool
 	closing         bool
@@ -93,6 +104,7 @@ type pending struct {
 	kind   string
 	build  func(id string) Request
 	req    Request
+	since  time.Time
 	answer chan Answer
 }
 
@@ -169,12 +181,16 @@ func (a *actor) watchShell() {
 	}
 }
 
-// flush publishes the state and overlay after a change.
+// flush publishes the state and overlay after a change. Leaving the chat
+// side drops its latched attention: the terminal's signals decide there.
 func (a *actor) flush() {
 	if !a.dirty || a.stopped {
 		return
 	}
 	a.dirty = false
+	if a.side != SideACP {
+		a.attention = nil
+	}
 	a.chat.Side = a.side
 	if a.agentSessionID != "" {
 		id := a.agentSessionID
@@ -189,7 +205,8 @@ func (a *actor) flush() {
 }
 
 // overlay is the shell's hybrid description; on the chat side it also
-// supplies the session status.
+// supplies the session status, attention and preview: attention makes the
+// session waiting, a running turn running, anything else idle.
 func (a *actor) overlay() *session.Overlay {
 	info := &session.HybridInfo{
 		Side: string(a.side), Phase: string(a.chat.Phase), Dormant: a.chat.Dormant,
@@ -201,12 +218,42 @@ func (a *actor) overlay() *session.Overlay {
 	}
 	o := &session.Overlay{Hybrid: info}
 	if a.side == SideACP && a.state == StateActive {
-		o.Status = session.StatusIdle
-		if a.turn != nil {
+		o.Attention = a.currentAttention()
+		o.Preview = a.preview.text
+		switch {
+		case o.Attention != nil:
+			o.Status = session.StatusWaiting
+		case a.turn != nil:
 			o.Status = session.StatusRunning
+		default:
+			o.Status = session.StatusIdle
 		}
 	}
 	return o
+}
+
+// currentAttention is the chat side's attention: the oldest pending
+// request (permission, or question for a form), else the latched turn-end
+// attention.
+func (a *actor) currentAttention() *session.Attention {
+	if len(a.requests) > 0 {
+		p := a.requests[0]
+		kind := attentionkind.Permission
+		if p.kind == RequestForm {
+			kind = attentionkind.Question
+		}
+		return &session.Attention{Kind: kind, Source: session.SourceAgent, Since: p.since}
+	}
+	return a.attention
+}
+
+// clearAttention drops the latched turn-end attention: the user sent a
+// prompt or answered a request.
+func (a *actor) clearAttention() {
+	if a.attention != nil {
+		a.attention = nil
+		a.dirty = true
+	}
 }
 
 // emit stores events in the log, keeping the replaceable state they carry.
@@ -223,6 +270,10 @@ func (a *actor) emit(events ...Event) {
 			a.record(false, func(r *Record) { r.Config = values })
 		case EventUsage:
 			a.chat.Usage = e.Usage
+		case EventMessage:
+			if e.Message.Role != RoleAgent || !a.preview.add(e.Message) {
+				continue
+			}
 		default:
 			continue
 		}
@@ -529,7 +580,7 @@ func (a *actor) openRequest(p *pending) {
 		return
 	}
 	a.nextRequest++
-	p.req = p.build("r" + strconv.Itoa(a.nextRequest))
+	p.req, p.since = p.build("r"+strconv.Itoa(a.nextRequest)), time.Now().UTC()
 	a.requests = append(a.requests, p)
 	a.syncRequests()
 	a.tr.breakMessage()
@@ -612,20 +663,14 @@ func (a *actor) answer(requestID string, ans Answer) error {
 	}
 	a.removeRequest(p)
 	p.answer <- ans
+	a.clearAttention()
 	a.emit(Event{Kind: EventResolved, Resolved: &RequestOutcome{RequestID: requestID, Outcome: ans.Outcome, OptionID: ans.OptionID}})
 	return nil
 }
 
-// prompt starts a turn with text.
-func (a *actor) prompt(text string) (PromptResult, error) {
-	switch {
-	case a.state != StateActive || a.closing:
-		return PromptResult{}, fmt.Errorf("%w: 会话已结束", ErrConflict)
-	case a.side != SideACP || a.link == nil:
-		return PromptResult{}, ErrWrongSide
-	case a.turn != nil:
-		return PromptResult{}, fmt.Errorf("%w: 回合进行中", ErrConflict)
-	}
+// send starts a turn with text; the caller checked that the session can
+// take one (ready, no turn running). Sending clears the latched attention.
+func (a *actor) send(text string) PromptResult {
 	a.nextTurn++
 	n := strconv.Itoa(a.nextTurn)
 	result := PromptResult{TurnID: "t" + n, PromptID: "p" + n}
@@ -635,6 +680,7 @@ func (a *actor) prompt(text string) (PromptResult, error) {
 	a.chat.Turn = Turn{Running: true, TurnID: t.id}
 	a.chat.AuthRequired = false
 	a.dirty = true
+	a.clearAttention()
 	a.emit(Event{Kind: EventTurnStart, TurnStart: &TurnStart{TurnID: result.TurnID, PromptID: result.PromptID}}, a.tr.userMessage(text))
 	a.tr.breakMessage()
 	conn, sid := a.link.conn, a.link.sessionID
@@ -643,9 +689,14 @@ func (a *actor) prompt(text string) (PromptResult, error) {
 		resp, err := conn.Prompt(ctx, acp.PromptRequest{SessionID: sid, Prompt: []acp.ContentBlock{acp.TextBlock(text)}})
 		a.post(func() { a.turnEnded(t, resp, err) })
 	}()
-	return result, nil
+	return result
 }
 
+// turnEnded applies a finished session/prompt. A normal end latches done
+// (end_turn) and sends the next queued prompt; cancelled, refusal, error
+// and auth_required pause a non-empty queue, refusal, error and
+// auth_required latching error attention. A turn cancelled by send-now
+// sends the queue's head instead.
 func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 	if a.turn != t {
 		return
@@ -664,6 +715,21 @@ func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 	a.chat.AuthRequired = stop == StopAuthRequired
 	a.dirty = true
 	a.emit(Event{Kind: EventTurnEnd, TurnEnd: &TurnEnd{TurnID: t.id, StopReason: stop, Error: text}})
+	now := time.Now().UTC()
+	switch stop {
+	case acp.StopEndTurn:
+		a.attention = &session.Attention{Kind: attentionkind.Done, Source: session.SourceAgent, Since: now}
+	case acp.StopRefusal, StopError, StopAuthRequired:
+		a.attention = &session.Attention{Kind: attentionkind.Error, Source: session.SourceAgent, Since: now}
+	}
+	switch {
+	case a.sendAfterCancel:
+		a.sendAfterCancel = false
+		a.setQueue(a.chat.Queue.Items, false)
+	case stop != acp.StopEndTurn && stop != acp.StopMaxTokens && stop != acp.StopMaxTurnRequests:
+		a.setQueue(a.chat.Queue.Items, true)
+	}
+	a.drain()
 }
 
 // stopReason maps a session/prompt outcome to a turn.end reason and error

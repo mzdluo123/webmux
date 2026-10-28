@@ -405,7 +405,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	}
 	deps := api.Deps{
 		Config: c.Config, Manager: m, Workspace: workspaces, Code: codes,
-		Files: files.New(c.DefaultCwd), Push: pushes, Launch: launches, Settings: preferences,
+		Files: files.New(c.DefaultCwd), Push: pushes, Launch: launches, Settings: preferences, Hybrid: hybrids,
 	}
 	deps.Public, deps.Tunnel, deps.TunnelSettings = public, tunnels.Status, tunnels
 	deps.Tailscale = tsCtl
