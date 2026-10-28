@@ -59,12 +59,19 @@ type translator struct {
 // messageId starts a new one.
 func (t *translator) breakMessage() { t.last.open = false }
 
-// messageID names the message a chunk belongs to: the agent's messageId,
-// or a server-assigned ID shared by consecutive chunks of one role.
+// messageID names the timeline message a chunk belongs to: the agent's
+// messageId, or a server-assigned ID shared by consecutive chunks of one
+// role. One ACP message can carry both thought and text chunks under the
+// same messageId (omp's replay does); the timeline shows them as separate
+// entries, so roles other than the agent's reply are qualified.
 func (t *translator) messageID(role, agentID string) string {
 	if agentID != "" {
-		t.last.open, t.last.role, t.last.agent, t.last.id = true, role, agentID, agentID
-		return agentID
+		id := agentID
+		if role != RoleAgent {
+			id = role + ":" + agentID
+		}
+		t.last.open, t.last.role, t.last.agent, t.last.id = true, role, agentID, id
+		return id
 	}
 	if t.last.open && t.last.role == role && t.last.agent == "" {
 		return t.last.id

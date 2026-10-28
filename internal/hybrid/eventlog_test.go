@@ -142,8 +142,11 @@ func TestTranslateContentAndMessages(t *testing.T) {
 	tr.update(&acp.UsageUpdate{Used: 1, Size: 2})
 	d := chunk(&acp.AgentMessageChunk{Content: acp.TextBlock("d")})
 	given := chunk(&acp.AgentMessageChunk{Content: acp.TextBlock("e"), MessageID: "msg_9"})
-	if a != b || a == th || th == c2 || c2 == a || d == c2 || given != "msg_9" {
-		t.Fatalf("message IDs %q %q %q %q %q %q", a, b, th, c2, d, given)
+	// A thought sharing the reply's ACP messageId is its own entry.
+	thought := chunk(&acp.AgentThoughtChunk{Content: acp.TextBlock("f"), MessageID: "msg_9"})
+	again := chunk(&acp.AgentMessageChunk{Content: acp.TextBlock("g"), MessageID: "msg_9"})
+	if a != b || a == th || th == c2 || c2 == a || d == c2 || given != "msg_9" || thought == given || again != given {
+		t.Fatalf("message IDs %q %q %q %q %q %q %q %q", a, b, th, c2, d, given, thought, again)
 	}
 	if text := tr.update(&acp.UserMessageChunk{Content: acp.ContentBlock{Type: acp.ContentAudio}})[0].Message.Text; !strings.Contains(text, "audio") {
 		t.Fatalf("unsupported message content %q", text)
