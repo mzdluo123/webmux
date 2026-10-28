@@ -39,4 +39,12 @@ var (
 	// ErrAgentCall: the agent refused or failed a command such as a
 	// configuration change or steering (502).
 	ErrAgentCall = errors.New("agent 未能完成请求")
+	// ErrSessionMissing: the recorded agent session is no longer listed in
+	// its directory; the error is a *SessionMissingError offering the
+	// directory's other sessions (409 session_missing).
+	ErrSessionMissing = errors.New("agent 会话已不存在，可以改选同一目录下的其他会话，或放弃恢复")
+	// ErrConfigMissing: the record's launch config was deleted; resuming
+	// again with confirmation runs without its environment (409
+	// config_missing).
+	ErrConfigMissing = errors.New("启动配置已删除，确认后将不带配置中的环境变量恢复")
 )

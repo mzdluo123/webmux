@@ -34,7 +34,7 @@
 ```ts
 interface SessionInfo {
   id: string;
-  generation: string; // 本次运行的代际，16 位十六进制；输出 offset 与提交都绑定它
+  generation: string; // 本次运行的代际，16 位十六进制；输出 offset 与提交都绑定它。混合会话在聊天端（没有终端运行）时为空字符串
   title: string;
   cwd: string;
   cmd: string[];

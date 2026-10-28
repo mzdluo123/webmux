@@ -6,6 +6,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/workspace"
 )
 
 // ChatSnapshot is the first frame of a chat connection.
@@ -195,6 +196,42 @@ func HybridSwitchInput(r contract.HybridSwitchRequest) hybrid.SwitchInput {
 
 func HybridSwitchResult(r hybrid.SwitchResult) contract.HybridSwitchResult {
 	return contract.HybridSwitchResult{Side: contract.HybridSide(r.Side), Draft: r.Draft, Dropped: r.Dropped, Unsupported: r.Unsupported}
+}
+
+func HybridResumeInput(r contract.HybridResumeRequest) workspace.HybridResumeInput {
+	return workspace.HybridResumeInput{
+		ClientRequestID: r.ClientRequestID, Side: string(r.Side), AgentSessionID: r.AgentSessionID, ConfirmWithoutEnv: r.ConfirmWithoutEnv,
+	}
+}
+
+// HybridRecord converts one record; configMissing tells whether its launch
+// config was deleted. The activity before an interruption, option values
+// and process identity stay on the server.
+func HybridRecord(r hybrid.Record, configMissing bool) contract.HybridRecord {
+	out := contract.HybridRecord{
+		ID: r.ID, Name: r.Name, ConfigID: r.ConfigID, ConfigMissing: configMissing, Agent: r.Agent, Cwd: r.Cwd,
+		Cmd: required(r.Cmd), Side: contract.HybridSide(r.Side), PreviousIDs: required(r.PreviousIDs),
+		State: contract.HybridState(r.State), QueuedCount: r.QueuedCount, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+	}
+	if r.AgentSessionID != "" {
+		id := r.AgentSessionID
+		out.AgentSessionID = &id
+	}
+	if r.InterruptedAt != nil {
+		at := *r.InterruptedAt
+		out.InterruptedAt = &at
+	}
+	return out
+}
+
+// HybridRecords converts a record list; configMissing reports whether the
+// launch config with an ID was deleted.
+func HybridRecords(list []hybrid.Record, configMissing func(configID string) bool) []contract.HybridRecord {
+	return each(list, func(r hybrid.Record) contract.HybridRecord { return HybridRecord(r, configMissing(r.ConfigID)) })
+}
+
+func HybridCandidates(list []hybrid.Candidate) []contract.HybridCandidate {
+	return each(list, func(c hybrid.Candidate) contract.HybridCandidate { return contract.HybridCandidate(c) })
 }
 
 // ChatAnswer converts a request answer; hybrid.FormValue checks each form

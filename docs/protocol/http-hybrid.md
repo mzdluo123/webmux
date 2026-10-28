@@ -19,19 +19,21 @@
 
 ## 创建、切换与恢复
 
-| 方法   | 路径                        | 说明                                                                                                                                                                                                 |
-| ------ | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/api/sessions`             | 以勾选了混合模式的启动配置 `configId` 创建；可选 `startSide: "tui" \| "acp"`，缺省 `tui`。对普通配置或自定义命令提供 `startSide` 返回 400；记录存储不可用 503；记录达 200 条 409 `limit`             |
-| POST   | `/api/sessions/{id}/switch` | `{clientRequestId, to}` 切到另一端，完成后 200 `{side, draft?, dropped, unsupported}`；中断超时进入 `awaiting_choice` 后，另一请求以 `{clientRequestId, choice: "wait" \| "force" \| "cancel"}` 作答 |
-| POST   | `/api/sessions/{id}/resume` | `{clientRequestId, side, agentSessionId?, confirmWithoutEnv?}` 把已关闭或已中断的会话恢复到指定端，沿用原 ID，200 返回 `SessionInfo`                                                                 |
-| DELETE | `/api/sessions/{id}`        | 关闭混合会话：先取消聊天端回合或按中断流程处理终端端回合，再结束进程，记录改为 `closed`；切换中 409 `switching`                                                                                      |
-| GET    | `/api/hybrid-sessions`      | 全部记录；`?state=recoverable` 只返回 `closed` 与 `interrupted`                                                                                                                                      |
-| GET    | `/api/hybrid-sessions/{id}` | 单条记录；不存在 404                                                                                                                                                                                 |
-| DELETE | `/api/hybrid-sessions/{id}` | 204；移除记录及仍留在列表中的已退出外壳，不删除 agent 的会话库                                                                                                                                       |
+| 方法   | 路径                        | 说明                                                                                                                                                                                                                          |
+| ------ | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/sessions`             | 以勾选了混合模式的启动配置 `configId` 创建；可选 `startSide: "tui" \| "acp"`，缺省 `tui`。对普通配置或自定义命令提供 `startSide` 返回 400；记录存储不可用 503；记录达 200 条 409 `limit`                                      |
+| POST   | `/api/sessions/{id}/switch` | `{clientRequestId, to}` 切到另一端，完成后 200 `{side, draft?, dropped, unsupported}`；中断超时进入 `awaiting_choice` 后，另一请求以 `{clientRequestId, choice: "wait" \| "force" \| "cancel"}` 作答                          |
+| POST   | `/api/sessions/{id}/resume` | `{clientRequestId, side?, agentSessionId?, confirmWithoutEnv?}` 把已关闭或已中断的会话恢复到指定端（缺省为记录中的端），沿用原 ID，200 返回 `SessionInfo`；会话仍活动时 409，切换中或同一记录正在恢复、移除时 409 `switching` |
+| DELETE | `/api/sessions/{id}`        | 关闭混合会话：先取消聊天端回合或按中断流程处理终端端回合，再结束进程，记录改为 `closed`；切换中 409 `switching`                                                                                                               |
+| GET    | `/api/hybrid-sessions`      | 全部记录，按更新时间倒序；`?state=recoverable` 只返回 `closed` 与 `interrupted`，其他取值 400                                                                                                                                 |
+| GET    | `/api/hybrid-sessions/{id}` | 单条记录；不存在 404                                                                                                                                                                                                          |
+| DELETE | `/api/hybrid-sessions/{id}` | 204；移除记录及仍留在列表中的已退出外壳，不删除 agent 的会话库；会话仍活动时 409，切换中 409 `switching`                                                                                                                      |
 
 切换结果中：`draft` 是切到终端时退回的排队消息（按顺序以空行连接），只返回给发起切换的请求，其他设备收到提示事件；`dropped` 为恢复命令未保留的启动参数；`unsupported` 为聊天端不支持的参数。切换失败时会话回到原端并返回 502 与原因；回滚也失败时会话标记为 `interrupted`。
 
-记录（`HybridRecord`）包含 ID、名称、`configId`、`configMissing`、agent、cwd、命令快照、所在端、当前与最近 8 个历史 agent 会话 ID、状态、中断时丢失的排队条数与时间戳，不含环境变量值、消息、队列正文或 token。恢复时若记录的 agent 会话已不存在，返回 409 `session_missing` 与同一目录下的 `candidates`；启动配置已删除且未确认时返回 409 `config_missing`。
+记录（`HybridRecord`）包含 ID、名称、`configId`、`configMissing`、agent、cwd、命令快照、所在端、当前与最近 8 个历史 agent 会话 ID、状态、中断时丢失的排队条数与时间戳，不含环境变量值、消息、队列正文或 token。
+
+恢复时命令取自记录中的快照，环境变量按 `configId` 重新读取。启动配置已删除且未确认时返回 409 `config_missing`；以 `confirmWithoutEnv: true` 重试则不带环境变量恢复。随后服务端启动一个只调用 `initialize` 与 `session/list` 的临时 ACP 进程，在记录的 cwd 中核对 agent 会话：已不存在时返回 409 `session_missing`，`candidates` 为同一目录下的会话（`{agentSessionId, title, updatedAt}`，按更新时间倒序，最多 20 个）；以 `agentSessionId` 重试即改用所选会话，原 ID 进入历史。该会话正被其他会话打开时返回 409。记录中没有 agent 会话 ID 时不核对，所选端开始新对话。核对通过后，恢复到终端端在 PTY 中执行档案生成的恢复命令；恢复到聊天端启动 ACP 进程并 `session/load`，再按档案补回记录中的配置项取值。成功后记录改为 `active`；中断时丢失过排队消息的，聊天状态的 `queueLost` 为丢失条数。恢复失败时记录保持原样。
 
 ## 启动配置
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
@@ -258,15 +259,25 @@ func (a *actor) runProbe(t target, done func(listed bool, err error)) {
 	}()
 }
 
-// listed runs a temporary ACP process that only initializes and lists the
-// sessions in t.cwd, and reports whether t.sid is among them. It never
-// loads or resumes a session, so it is never a second writer. At most
-// maxProbes run at once, server-wide.
+// listed reports whether t.sid is among the sessions its agent lists in
+// t.cwd.
 func (a *actor) listed(ctx context.Context, t target) (bool, error) {
+	sessions, err := a.sessions(ctx, t.cwd, t.sid)
+	if err != nil {
+		return false, err
+	}
+	return slices.ContainsFunc(sessions, func(s acp.SessionInfo) bool { return s.SessionID == t.sid }), nil
+}
+
+// sessions runs a temporary ACP process that only initializes and lists the
+// sessions in cwd, page by page until one is session until or the pages
+// run out (at most probePages). It never loads or resumes a session, so it
+// is never a second writer. At most maxProbes run at once, server-wide.
+func (a *actor) sessions(ctx context.Context, cwd, until string) ([]acp.SessionInfo, error) {
 	select {
 	case a.svc.probes <- struct{}{}:
 	case <-ctx.Done():
-		return false, ctx.Err()
+		return nil, ctx.Err()
 	}
 	defer func() { <-a.svc.probes }()
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
@@ -274,7 +285,7 @@ func (a *actor) listed(ctx context.Context, t target) (bool, error) {
 	argv, _ := a.cmd.ACPArgv()
 	sidecar, err := a.shell.StartSidecar(argv, a.cmd.ProtocolOnFD3())
 	if err != nil {
-		return false, fmt.Errorf("%w: %v", ErrAgent, err)
+		return nil, fmt.Errorf("%w: %v", ErrAgent, err)
 	}
 	link := &acpLink{sidecar: sidecar}
 	link.conn = acp.NewConn(sidecar.Stdout(), sidecar.Stdin(), acp.Options{Logger: a.svc.log})
@@ -286,26 +297,23 @@ func (a *actor) listed(ctx context.Context, t target) (bool, error) {
 	if err != nil {
 		f := agentFailure(acp.MethodInitialize, err, sidecar)
 		a.svc.log.Warn("hybrid probe failed", "id", a.id, "method", acp.MethodInitialize, "error", err)
-		return false, f.err
+		return nil, f.err
 	}
+	var out []acp.SessionInfo
 	cursor := ""
 	for range probePages {
-		resp, err := link.conn.ListSessions(ctx, acp.ListSessionsRequest{Cwd: t.cwd, Cursor: cursor})
+		resp, err := link.conn.ListSessions(ctx, acp.ListSessionsRequest{Cwd: cwd, Cursor: cursor})
 		if err != nil {
 			a.svc.log.Warn("hybrid probe failed", "id", a.id, "method", acp.MethodSessionList, "error", err)
-			return false, agentFailure(acp.MethodSessionList, err, sidecar).err
+			return nil, agentFailure(acp.MethodSessionList, err, sidecar).err
 		}
-		for _, s := range resp.Sessions {
-			if s.SessionID == t.sid {
-				return true, nil
-			}
-		}
-		if resp.NextCursor == "" {
+		out = append(out, resp.Sessions...)
+		if resp.NextCursor == "" || slices.ContainsFunc(resp.Sessions, func(s acp.SessionInfo) bool { return s.SessionID == until }) {
 			break
 		}
 		cursor = resp.NextCursor
 	}
-	return false, nil
+	return out, nil
 }
 
 // occupied reports whether another session has agent session sid open:

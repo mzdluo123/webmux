@@ -289,8 +289,10 @@ type ChatState struct {
 	SwitchError    string
 	Unsupported    []string
 	IDChange       *IDChange
-	QueueLost      int
-	Recovery       *RecoveryTip
+	// QueueLost is how many queued prompts the interruption a session was
+	// resumed from lost; the queue lives only in memory.
+	QueueLost int
+	Recovery  *RecoveryTip
 }
 
 // Eligibility says whether switching to chat is possible from the terminal.

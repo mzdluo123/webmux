@@ -77,8 +77,13 @@ func wireSchema(name string) wireRules {
 	case "settings-patch", "settings-reset", "ws-settings-update":
 		add("", "time", "updatedAt")
 	case "session-create", "session-create-exiting", "session-create-from-config", "session-create-workspace", "session-get",
-		"ws-terminal-state", "ws-terminal-state-exited", "session-get-hybrid", "ws-terminal-state-hybrid":
+		"ws-terminal-state", "ws-terminal-state-exited", "session-get-hybrid", "ws-terminal-state-hybrid", "hybrid-resume":
 		sessionFields("")
+		add("", "path", "cmd/*")
+	case "hybrid-records":
+		add("/*", "id", "id", "configId", "agentSessionId", "previousIds/*")
+		add("/*", "time", "createdAt", "updatedAt", "interruptedAt")
+		add("/*", "path", "cwd", "cmd/*")
 	case "sessions-list", "sessions-list-empty":
 		sessionFields("/*")
 	case "ws-sessions-created", "ws-sessions-updated":
@@ -365,11 +370,12 @@ func lineDiff(want, got string) string {
 
 type wireFixture struct {
 	*wireRecorder
-	ctx     context.Context
-	server  *httptest.Server
-	manager *session.Manager
-	hybrids *hybrid.Service
-	root    string
+	ctx      context.Context
+	server   *httptest.Server
+	manager  *session.Manager
+	hybrids  *hybrid.Service
+	launches *launch.Service
+	root     string
 }
 
 // newWireFixture runs every service the router serves, against a Git
@@ -465,7 +471,7 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 		m.Shutdown(shutdown)
 	})
 	rec.norm.path(strings.TrimPrefix(server.URL, "http://"), "<server>")
-	return &wireFixture{wireRecorder: rec, ctx: ctx, server: server, manager: m, hybrids: hybrids, root: root}
+	return &wireFixture{wireRecorder: rec, ctx: ctx, server: server, manager: m, hybrids: hybrids, launches: launches, root: root}
 }
 
 type wireRequest struct {
@@ -625,6 +631,7 @@ func TestWireSnapshots(t *testing.T) {
 		{"push", wirePush},
 		{"settings", wireSettings},
 		{"hybrid", wireHybrid},
+		{"hybrid-records", wireHybridRecords},
 	} {
 		t.Run(group.name, func(t *testing.T) {
 			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
@@ -992,6 +999,66 @@ func wireChat(f *wireFixture) {
 	f.call("hybrid-conflict-not-eligible", "POST", "/api/sessions/"+terminal.Info().ID+"/switch", contract.HybridSwitchRequest{ClientRequestID: "wire-switch-1", To: contract.HybridSideACP}, 409)
 	chat := fakeChat(f.t, f.hybrids, f.root, agentprofile.OMP)
 	f.call("hybrid-switch", "POST", "/api/sessions/"+chat+"/switch", contract.HybridSwitchRequest{ClientRequestID: "wire-switch-2", To: contract.HybridSideTUI}, 200)
+}
+
+// wireHybridRecords pins the record list, the resume conflicts (a deleted
+// launch config, a vanished agent session with its candidates), a resumed
+// session and the removal of a record.
+func wireHybridRecords(f *wireFixture) {
+	agent := fakeAgentPath(f.t, agentprofile.OMP)
+	f.norm.path(filepath.Dir(agent), "<fakeagent>")
+	cwd, err := filepath.EvalSymlinks(f.root)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.norm.path(cwd, "<repo>")
+	store := f.t.TempDir()
+	saved, err := f.launches.Create(launch.Input{Name: "agent", Cmd: []string{agent}, Env: map[string]string{"FAKEAGENT_STORE": store}, Hybrid: true})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	// Like elsewhere, a launch config ID is a session-style ID.
+	f.norm.id("id", saved.ID)
+	ctx, cancel := context.WithTimeout(f.ctx, chatTimeout)
+	defer cancel()
+	item, err := f.hybrids.Create(ctx, hybrid.CreateInput{Cwd: f.root, Name: "agent", ConfigID: saved.ID, Cmd: saved.Cmd, Env: saved.Env, StartSide: hybrid.SideACP})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	id, sid := item.Info().ID, *item.Info().Hybrid.AgentSessionID
+	closeShell := func() {
+		if err := f.manager.Close(id); err != nil {
+			f.t.Fatal(err)
+		}
+		select {
+		case <-item.Done():
+		case <-ctx.Done():
+			f.t.Fatal("session did not close")
+		}
+	}
+	closeShell()
+	f.call("hybrid-records", "GET", "/api/hybrid-sessions?state=recoverable", nil, 200)
+
+	// The agent lost the session; another one in the directory is offered.
+	if err := os.Remove(filepath.Join(store, "sessions", sid+".json")); err != nil {
+		f.t.Fatal(err)
+	}
+	candidate := fmt.Sprintf(`{"id":"wirecandidate","cwd":%q,"title":"Earlier work","updatedAt":"2026-01-02T03:04:05Z","messages":[],"config":{"mode":"code","model":"fast"}}`, cwd)
+	if err := os.WriteFile(filepath.Join(store, "sessions", "wirecandidate.json"), []byte(candidate), 0o600); err != nil {
+		f.t.Fatal(err)
+	}
+	path := "/api/sessions/" + id + "/resume"
+	f.call("hybrid-resume-session-missing", "POST", path, contract.HybridResumeRequest{ClientRequestID: "wire-resume-1", Side: contract.HybridSideACP}, 409)
+	f.call("hybrid-resume", "POST", path, contract.HybridResumeRequest{ClientRequestID: "wire-resume-2", Side: contract.HybridSideACP, AgentSessionID: "wirecandidate"}, 200)
+	if item, err = f.manager.Get(id); err != nil {
+		f.t.Fatal(err)
+	}
+	closeShell()
+	if err := f.launches.Delete(saved.ID); err != nil {
+		f.t.Fatal(err)
+	}
+	f.call("hybrid-resume-config-missing", "POST", path, contract.HybridResumeRequest{ClientRequestID: "wire-resume-3", Side: contract.HybridSideTUI}, 409)
+	f.call("hybrid-record-delete", "DELETE", "/api/hybrid-sessions/"+id, nil, 204)
 }
 
 // closed reads until the server closes conn and records the close code and

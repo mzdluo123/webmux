@@ -44,8 +44,8 @@
 - [x] 6.1 实现 TUI→ACP 切换：中断键、等待空闲、10 秒超时后的选择、进程组退出、`session/load`、按 D25 补齐配置。实现 ACP→TUI 切换：取消、退回队列、`session/close`、恢复 argv。验证：用假 agent 驱动的测试覆盖两种场景的往返、回合中切换，以及进程观察器断言任何时刻至多一个写者。
 - [x] 6.2 实现资格判定（五个条件、去抖的 `session/list` 探测、并发上限 2）、ID 变化提示与跨会话占用检测。验证：测试覆盖 specs `agent-session-identity` 的全部场景。
 - [x] 6.3 实现回滚、TUI 自行退出转为 interrupted、ACP 崩溃后重连一次、`auth_required` 引导、空闲休眠与唤醒（`settings.json` 新增 `chatIdleSleepMinutes`，`hybrid` 经 `cmd/` 注入并订阅设置变更，设置不可用时取默认值 30），以及关机顺序。验证：故障注入测试覆盖 `load` 失败、回滚失败、SIGKILL、休眠条件、唤醒时 `resume`/`load` 的选择，以及设置变更立即生效。
-- [ ] 6.4 实现 `POST /api/sessions/{id}/resume` 与 `GET/DELETE /api/hybrid-sessions[/{id}]`：`session/list` 核对、候选列表、`config_missing` 确认、沿用原 ID、移除已退出的外壳。验证：测试覆盖 specs `hybrid-session-recovery` 的全部场景，包括重启后恢复到两端。
-- [ ] 6.5 在 `internal/attach` 与 `internal/sessioncmd` 中处理 4409：被切走时恢复终端、输出提示并以退出码 0 结束（被动分离）；聊天端拒绝附着，退出码 1；`webmux ls` 显示所在端；`webmux run --launch-config` 创建混合会话。验证：`internal/attach` 与 `internal/sessioncmd` 测试覆盖 specs `terminal-session-cli` 的全部场景。
+- [x] 6.4 实现 `POST /api/sessions/{id}/resume` 与 `GET/DELETE /api/hybrid-sessions[/{id}]`：`session/list` 核对、候选列表、`config_missing` 确认、沿用原 ID、移除已退出的外壳。验证：测试覆盖 specs `hybrid-session-recovery` 的全部场景，包括重启后恢复到两端。
+- [x] 6.5 在 `internal/attach` 与 `internal/sessioncmd` 中处理 4409：被切走时恢复终端、输出提示并以退出码 0 结束（被动分离）；聊天端拒绝附着，退出码 1；`webmux ls` 显示所在端；`webmux run --launch-config` 创建混合会话。验证：`internal/attach` 与 `internal/sessioncmd` 测试覆盖 specs `terminal-session-cli` 的全部场景。
 
 ## 7. 前端（M6）
 

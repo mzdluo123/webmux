@@ -140,6 +140,23 @@ func TestCreateHybridSessionStoreUnavailable(t *testing.T) {
 		t.Fatalf("503 body lacks the store path: %s", body)
 	}
 	h.expect(fmt.Sprintf(`{"configId":%q}`, h.config("plain", false)), 201)
+	// Recovery is disabled the same way; the file stays as it was.
+	for _, req := range []struct {
+		method, path string
+		body         any
+	}{
+		{"GET", "/api/hybrid-sessions?state=recoverable", nil},
+		{"GET", "/api/hybrid-sessions/abcdefgh", nil},
+		{"DELETE", "/api/hybrid-sessions/abcdefgh", nil},
+		{"POST", "/api/sessions/abcdefgh/resume", contract.HybridResumeRequest{ClientRequestID: chatRID(), Side: contract.HybridSideTUI}},
+	} {
+		if body := h.expectCommand(req.method, req.path, req.body, 503); !strings.Contains(string(body), "hybrid-sessions.json") {
+			t.Fatalf("%s %s: 503 body lacks the store path: %s", req.method, req.path, body)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(h.state, "hybrid-sessions.json")); string(b) != "{broken" {
+		t.Fatalf("corrupt store rewritten: %q", b)
+	}
 }
 
 func TestCreateHybridSessionRecordLimit(t *testing.T) {
@@ -169,4 +186,7 @@ func TestCreateHybridSessionRecordLimit(t *testing.T) {
 	if conflict.Reason != "limit" || conflict.Error == "" {
 		t.Fatalf("conflict %+v", conflict)
 	}
+	// Removing an old record makes room again.
+	h.expectCommand("DELETE", "/api/hybrid-sessions/limaaaaa", nil, 204)
+	h.expect(fmt.Sprintf(`{"configId":%q}`, h.config("omp-again", true)), 201)
 }

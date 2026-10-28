@@ -1,11 +1,13 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/wire"
 )
 
@@ -32,6 +34,10 @@ func (s *Server) chatRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+base+"requests/{requestId}", s.chatAnswer)
 	mux.HandleFunc("PUT "+base+"config/{configId}", s.chatConfig)
 	mux.HandleFunc("POST /api/sessions/{id}/switch", s.hybridSwitch)
+	mux.HandleFunc("POST /api/sessions/{id}/resume", s.hybridResume)
+	mux.HandleFunc("GET /api/hybrid-sessions", s.hybridRecords)
+	mux.HandleFunc("GET /api/hybrid-sessions/{id}", s.hybridRecord)
+	mux.HandleFunc("DELETE /api/hybrid-sessions/{id}", s.removeHybridRecord)
 }
 
 // hybrids returns the hybrid service, or answers 404: without one no
@@ -146,6 +152,76 @@ func (s *Server) hybridSwitch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, http.StatusOK, wire.HybridSwitchResult(result))
+}
+
+// hybridResume resumes a closed or interrupted hybrid session under its ID
+// and answers with the running session. Choices the user must make first
+// (another agent session, resuming without the deleted config's
+// environment) are 409s.
+func (s *Server) hybridResume(w http.ResponseWriter, r *http.Request) {
+	h := s.hybrids(w)
+	var req contract.HybridResumeRequest
+	if h == nil || !decode(w, r, &req) {
+		return
+	}
+	item, err := s.Workspace.ResumeHybrid(r.Context(), r.PathValue("id"), wire.HybridResumeInput(req))
+	if err != nil {
+		sessionFailure(w, err)
+		return
+	}
+	reply(w, http.StatusOK, wire.Session(item.Info()))
+}
+
+// hybridRecords lists the hybrid session records, most recently updated
+// first; state=recoverable keeps the closed and interrupted ones.
+func (s *Server) hybridRecords(w http.ResponseWriter, r *http.Request) {
+	h := s.hybrids(w)
+	if h == nil {
+		return
+	}
+	recoverable := false
+	switch r.URL.Query().Get("state") {
+	case "":
+	case "recoverable":
+		recoverable = true
+	default:
+		failure(w, http.StatusBadRequest, errors.New("state 只能是 recoverable"))
+		return
+	}
+	list, err := h.Records(recoverable)
+	if err != nil {
+		chatFailure(w, err)
+		return
+	}
+	reply(w, http.StatusOK, wire.HybridRecords(list, s.configMissing))
+}
+
+func (s *Server) hybridRecord(w http.ResponseWriter, r *http.Request) {
+	h := s.hybrids(w)
+	if h == nil {
+		return
+	}
+	rec, err := h.Record(r.PathValue("id"))
+	if err != nil {
+		chatFailure(w, err)
+		return
+	}
+	reply(w, http.StatusOK, wire.HybridRecord(rec, s.configMissing(rec.ConfigID)))
+}
+
+// removeHybridRecord deletes a closed or interrupted record and its exited
+// shell; the agent keeps its own session.
+func (s *Server) removeHybridRecord(w http.ResponseWriter, r *http.Request) {
+	if h := s.hybrids(w); h != nil {
+		chatDone(w, h.RemoveRecord(r.Context(), r.PathValue("id")))
+	}
+}
+
+// configMissing reports whether launch config id was deleted; a store that
+// cannot be read cannot tell and says no.
+func (s *Server) configMissing(id string) bool {
+	_, err := s.Launch.Get(id)
+	return errors.Is(err, launch.ErrNotFound)
 }
 
 func chatDone(w http.ResponseWriter, err error) {

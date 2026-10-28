@@ -78,12 +78,16 @@ type Service struct {
 	probes chan struct{}
 	// settingsDone closes when the settings watcher ends (nil without one).
 	settingsDone chan struct{}
+	// resumes dedupes resume requests by client request ID.
+	resumes dedupe
 
 	mu          sync.Mutex
 	actors      map[string]*actor
 	closed      bool
 	idleMinutes int
 	settingsSub *settings.Subscription
+	// recovering holds the record IDs a resume or removal is working on.
+	recovering map[string]bool
 }
 
 // New opens the record store, marks sessions left active by an earlier
@@ -105,6 +109,7 @@ func New(o Options) *Service {
 	s := &Service{
 		manager: o.Manager, records: openRecords(o.StateDir), capacity: capacity, version: o.Version, log: log,
 		timing: defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
+		recovering:  make(map[string]bool),
 		idleMinutes: settings.DefaultChatIdleSleepMinutes,
 	}
 	if err := s.records.recoverAfterRestart(time.Now()); err != nil {
@@ -250,13 +255,16 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 	return shell, nil
 }
 
-// shellError keeps the session start error kinds as hybrid kinds.
+// shellError keeps the session start error kinds as hybrid kinds; a
+// resumed ID still in use is a conflict.
 func shellError(err error) error {
 	switch {
 	case errors.Is(err, session.ErrInvalid):
 		return fmt.Errorf("%w: 启动会话失败: %v", ErrInvalid, err)
 	case errors.Is(err, session.ErrShuttingDown):
 		return fmt.Errorf("%w: 启动会话失败: %v", ErrUnavailable, err)
+	case errors.Is(err, session.ErrExists):
+		return fmt.Errorf("%w: 启动会话失败: %v", ErrConflict, err)
 	}
 	return fmt.Errorf("启动会话失败: %w", err)
 }

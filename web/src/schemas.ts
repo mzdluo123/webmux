@@ -24,11 +24,14 @@ export const ReportedCwdSchema = z.object({
 });
 export type ReportedCwd = z.infer<typeof ReportedCwdSchema>;
 
+// A terminal run's generation: output offsets and submissions are bound to it.
+const GenerationSchema = z.string().regex(/^[0-9a-f]{16}$/);
 // Required response arrays encode as [] even when service slices are nil.
 // Only fields explicitly marked nullable accept null. Commands remain nonempty.
 export const SessionInfoSchema = z.object({
   id: z.string().regex(/^[a-z2-7]{8}$/),
-  generation: z.string().regex(/^[0-9a-f]{16}$/),
+  // Empty while a hybrid session has no terminal run (on its chat side).
+  generation: GenerationSchema.or(z.literal("")),
   title: z.string(),
   cwd: z.string(),
   cmd: z.array(z.string()).min(1),
@@ -150,7 +153,7 @@ export const ExitSchema = z.object({ exitCode: z.number().int() });
 // Terminal stream frames 0x04–0x06; see docs/protocol/websocket.md.
 const OffsetSchema = z.number().int().nonnegative();
 export const StreamPositionSchema = z.object({
-  generation: SessionInfoSchema.shape.generation,
+  generation: GenerationSchema,
   mode: z.enum(["reset", "append"]),
   start: OffsetSchema,
   end: OffsetSchema,
@@ -194,7 +197,7 @@ export type SubmissionProgress = z.infer<typeof SubmissionProgressSchema>;
 export const StoredDraftSchema = z.object({
   v: z.literal(1),
   sessionId: SessionInfoSchema.shape.id,
-  generation: SessionInfoSchema.shape.generation.nullable(),
+  generation: GenerationSchema.nullable(),
   text: z.string(),
   savedAt: z.number().int().nonnegative(),
   submission: z
@@ -217,7 +220,7 @@ export const StoredScratchSchema = z
   .object({
     v: z.literal(1),
     sessionId: SessionInfoSchema.shape.id,
-    generation: SessionInfoSchema.shape.generation.nullable(),
+    generation: GenerationSchema.nullable(),
     entries: z.array(ScratchEntrySchema),
     savedAt: z.number().int().nonnegative(),
   })

@@ -7,6 +7,7 @@ import {
   CodeChangesSchema,
   CodeCheckSchema,
   CodeListingSchema,
+  HybridRecordsSchema,
   LaunchConfigSchema,
   LaunchConfigSummarySchema,
   PushTestResultSchema,
@@ -48,6 +49,7 @@ const schemas = {
   tailscale: TailscaleStatusSchema.pick({ entries: true }),
   chatSnapshot: ChatFrameSchema,
   chatEvents: ChatFrameSchema,
+  hybridRecords: HybridRecordsSchema,
 };
 
 describe("Go response arrays match the browser contract", () => {
@@ -73,5 +75,11 @@ describe("Go response arrays match the browser contract", () => {
     expect(SessionInfoSchema.safeParse({ ...session, cmd: [] }).success).toBe(
       false,
     );
+  });
+  test("hybrid records keep empty history and null optional fields", () => {
+    const [record] = HybridRecordsSchema.parse(fixture.hybridRecords);
+    expect(record?.previousIds).toEqual([]);
+    expect(record?.agentSessionId).toBeNull();
+    expect(record?.interruptedAt).toBeNull();
   });
 });

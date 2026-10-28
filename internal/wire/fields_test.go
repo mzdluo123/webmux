@@ -57,6 +57,7 @@ func TestDirectConversionsKeepFieldOrder(t *testing.T) {
 		{"ChatRequestOutcome", hybrid.RequestOutcome{}, contract.ChatRequestOutcome{}},
 		{"ChatPromptRequest", hybrid.PromptInput{}, contract.ChatPromptRequest{}},
 		{"ChatQueueRequest", hybrid.QueueEdit{}, contract.ChatQueueRequest{}},
+		{"HybridCandidate", hybrid.Candidate{}, contract.HybridCandidate{}},
 	}
 	for _, pair := range pairs {
 		t.Run(pair.name, func(t *testing.T) {

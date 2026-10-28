@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -282,6 +283,61 @@ func (s *Service) CreateSession(ctx context.Context, in SessionInput) (*session.
 		if err != nil {
 			return nil, sessionCreateError(err)
 		}
+	}
+	s.commitAssociation(item.Info(), association, false)
+	return item, nil
+}
+
+// HybridResumeInput resumes a hybrid session record. Side is tui, acp or
+// empty for the recorded side; AgentSessionID picks a candidate offered
+// after the recorded agent session went missing; ConfirmWithoutEnv accepts
+// resuming without the environment of a deleted launch config.
+type HybridResumeInput struct {
+	ClientRequestID   string
+	Side              string
+	AgentSessionID    string
+	ConfirmWithoutEnv bool
+}
+
+// ResumeHybrid resumes a closed or interrupted hybrid session under its
+// recorded ID. The command is the record's snapshot; the environment is
+// read again from the record's launch config. A deleted config fails with
+// hybrid.ErrConfigMissing unless ConfirmWithoutEnv, which resumes without
+// its environment. The session joins its directory's repository like a
+// new one.
+func (s *Service) ResumeHybrid(ctx context.Context, id string, in HybridResumeInput) (*session.Session, error) {
+	if s.hybrids == nil {
+		return nil, problemf(ErrUnavailable, "混合会话不可用")
+	}
+	rec, err := s.hybrids.Recoverable(id)
+	if err != nil {
+		return nil, err
+	}
+	var env map[string]string
+	saved, err := s.launches.Get(rec.ConfigID)
+	switch {
+	case err == nil:
+		env = saved.Env
+	case !errors.Is(err, launch.ErrNotFound):
+		return nil, err
+	case !in.ConfirmWithoutEnv:
+		return nil, hybrid.ErrConfigMissing
+	}
+	if err := s.beginStart(rec.Cwd); err != nil {
+		return nil, err
+	}
+	defer s.endStart(rec.Cwd)
+	lookup, cancel := context.WithTimeout(ctx, readTimeout)
+	association := s.association(lookup, rec.Cwd)
+	cancel()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	item, err := s.hybrids.Resume(ctx, id, hybrid.ResumeInput{
+		ClientRequestID: in.ClientRequestID, Side: hybrid.Side(in.Side), AgentSessionID: in.AgentSessionID, Env: env,
+	})
+	if err != nil {
+		return nil, err
 	}
 	s.commitAssociation(item.Info(), association, false)
 	return item, nil

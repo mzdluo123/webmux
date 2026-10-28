@@ -97,6 +97,27 @@
     "changes": "unchanged",
     "checkedAt": "0001-01-01T00:00:00Z"
   },
+  "hybridRecords": [
+    {
+      "id": "abcdefgh",
+      "name": "omp",
+      "configId": "abcdefgh",
+      "configMissing": false,
+      "agent": "omp",
+      "cwd": "/w",
+      "cmd": [
+        "omp"
+      ],
+      "side": "tui",
+      "agentSessionId": null,
+      "previousIds": [],
+      "state": "closed",
+      "queuedCount": 0,
+      "createdAt": "2026-01-02T03:04:05Z",
+      "updatedAt": "2026-01-02T03:04:05Z",
+      "interruptedAt": null
+    }
+  ],
   "launch": [
     {
       "id": "abcdefgh",

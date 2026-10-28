@@ -888,12 +888,24 @@ func (a *actor) shellGone() {
 }
 
 // shutdown stops the ACP process for a server shutdown, leaving the record
-// active so the next start marks it interrupted. It blocks the actor, which
-// ends with it; a switch, wake or reconnect in flight stops the process it
-// started once it finds the actor gone.
+// active so the next start marks it interrupted; the record keeps what the
+// session was doing and how many queued prompts the shutdown loses. It
+// blocks the actor, which ends with it; a switch, wake or reconnect in
+// flight stops the process it started once it finds the actor gone.
 func (a *actor) shutdown() {
 	if a.stopped {
 		return
+	}
+	if a.state == StateActive {
+		activity := "idle"
+		switch {
+		case a.switching != nil:
+			activity = "switching"
+		case a.turn != nil, a.side == SideTUI && tuiBusy(a.shell.Info()):
+			activity = "turn"
+		}
+		lost := len(a.chat.Queue.Items)
+		a.record(false, func(r *Record) { r.Activity, r.QueuedCount = activity, lost })
 	}
 	a.stopTimers()
 	a.withdrawAll()

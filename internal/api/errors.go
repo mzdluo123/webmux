@@ -15,6 +15,7 @@ import (
 	"github.com/rainchan/webmux/internal/settings"
 	"github.com/rainchan/webmux/internal/tailscalesettings"
 	"github.com/rainchan/webmux/internal/tunnelsettings"
+	"github.com/rainchan/webmux/internal/wire"
 	"github.com/rainchan/webmux/internal/workspace"
 )
 
@@ -136,7 +137,8 @@ func hybridStatus(err error) (status int, ok bool) {
 	case errors.Is(err, hybrid.ErrLimit), errors.Is(err, hybrid.ErrConflict),
 		errors.Is(err, hybrid.ErrWrongSide), errors.Is(err, hybrid.ErrAnswered),
 		errors.Is(err, hybrid.ErrSwitching), errors.Is(err, hybrid.ErrSent),
-		errors.Is(err, hybrid.ErrSteeringUnavailable), errors.Is(err, hybrid.ErrNotEligible):
+		errors.Is(err, hybrid.ErrSteeringUnavailable), errors.Is(err, hybrid.ErrNotEligible),
+		errors.Is(err, hybrid.ErrSessionMissing), errors.Is(err, hybrid.ErrConfigMissing):
 		return http.StatusConflict, true
 	case errors.Is(err, hybrid.ErrAgent), errors.Is(err, hybrid.ErrAgentCall):
 		return http.StatusBadGateway, true
@@ -164,13 +166,17 @@ func hybridReason(err error) string {
 		return "steering_unavailable"
 	case errors.Is(err, hybrid.ErrNotEligible):
 		return "not_eligible"
+	case errors.Is(err, hybrid.ErrSessionMissing):
+		return "session_missing"
+	case errors.Is(err, hybrid.ErrConfigMissing):
+		return "config_missing"
 	}
 	return ""
 }
 
 // hybridFailure answers a hybrid error kind, with a HybridConflict body
-// for 409s that have a reason (not_eligible with its eligibility reason);
-// false for other errors.
+// for 409s that have a reason (not_eligible with its eligibility reason,
+// session_missing with its candidates); false for other errors.
 func hybridFailure(w http.ResponseWriter, err error) bool {
 	status, ok := hybridStatus(err)
 	if !ok {
@@ -181,6 +187,10 @@ func hybridFailure(w http.ResponseWriter, err error) bool {
 		var ineligible *hybrid.IneligibleError
 		if errors.As(err, &ineligible) {
 			conflict.Eligibility = ineligible.Reason
+		}
+		var missing *hybrid.SessionMissingError
+		if errors.As(err, &missing) {
+			conflict.Candidates = wire.HybridCandidates(missing.Candidates)
 		}
 		reply(w, status, conflict)
 		return true

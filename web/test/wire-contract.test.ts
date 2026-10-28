@@ -22,10 +22,13 @@ const groups: Array<[z.ZodType, string[]]> = [
       "chat-conflict-answered",
       "chat-conflict-wrong-side",
       "hybrid-conflict-not-eligible",
+      "hybrid-resume-config-missing",
+      "hybrid-resume-session-missing",
     ],
   ],
+  [S.HybridRecordsSchema, ["hybrid-records"]],
   [S.HybridSwitchResultSchema, ["hybrid-switch"]],
-  [S.NoContentSchema, ["chat-answer"]],
+  [S.NoContentSchema, ["chat-answer", "hybrid-record-delete"]],
   [S.CodeChangesSchema, ["code-changes"]],
   [S.CodeCheckSchema, ["code-check"]],
   [S.CodeContextSchema, ["code-context"]],
@@ -71,6 +74,7 @@ const groups: Array<[z.ZodType, string[]]> = [
   [
     S.SessionInfoSchema,
     [
+      "hybrid-resume",
       "session-create-exiting",
       "session-create-from-config",
       "session-create-workspace",
