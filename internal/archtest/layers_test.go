@@ -29,6 +29,8 @@ var webmux = manifest{
 		"internal/tailscalesettings": service,
 
 		// Wire contracts and infrastructure every layer may use.
+		"internal/acp":           shared,
+		"internal/agentprofile":  shared,
 		"internal/contract":      shared,
 		"internal/config":        shared,
 		"internal/runtime":       shared,

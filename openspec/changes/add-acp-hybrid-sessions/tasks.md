@@ -11,10 +11,10 @@
 
 ## 2. ACP 客户端与假 agent（M1）
 
-- [ ] 2.1 新建 `internal/acp`（只依赖标准库），并在 `internal/archtest/layers_test.go` 中归为共享层。实现以下部分：按行成帧（32 MiB 上限）、ID 关联、单写协程、按序分发通知、在独立协程中处理入站请求、挂起调用在进程退出时失败、`session/cancel` 与 `$/cancel_request`。验证：`go test -race ./internal/acp` 覆盖超长行、非 JSON 行、乱序响应、取消、进程退出，以及“日志不含内容”的断言。
-- [ ] 2.2 实现 v1 子集的类型与方法：`initialize`、`session/new|load|resume|list|close|prompt|cancel|set_config_option`；`session/update` 的各种更新种类；`request_permission`；`elicitation/create`（form）；对 `fs/*`、`terminal/*` 返回方法不存在。验证：表驱动的编解码测试通过，未知更新种类被保留为原始值且不报错。
-- [ ] 2.3 在 `internal/acp/testdata` 中固定 `schema-v1.27.0` 的 `schema.json` 与 `meta.json`，新增守卫测试，核对所用方法名与字段名都存在于该 schema。验证：故意改错一个字段名时测试失败。
-- [ ] 2.4 编写测试用假 agent（Go 程序，位于测试数据目录，由测试与 E2E 构建）。它在临时目录中维护会话库，`tui` 模式下发出 OSC 7501 与 Warp 事件、响应中断键、支持 `--resume`/`-s`，`acp` 模式下实现上述方法子集，并能注入延迟、错误、崩溃与权限请求。验证：假 agent 自身的测试覆盖两种模式共享同一会话库。
+- [x] 2.1 新建 `internal/acp`（只依赖标准库），并在 `internal/archtest/layers_test.go` 中归为共享层。实现以下部分：按行成帧（32 MiB 上限）、ID 关联、单写协程、按序分发通知、在独立协程中处理入站请求、挂起调用在进程退出时失败、`session/cancel` 与 `$/cancel_request`。验证：`go test -race ./internal/acp` 覆盖超长行、非 JSON 行、乱序响应、取消、进程退出，以及“日志不含内容”的断言。
+- [x] 2.2 实现 v1 子集的类型与方法：`initialize`、`session/new|load|resume|list|close|prompt|cancel|set_config_option`；`session/update` 的各种更新种类；`request_permission`；`elicitation/create`（form）；对 `fs/*`、`terminal/*` 返回方法不存在。验证：表驱动的编解码测试通过，未知更新种类被保留为原始值且不报错。
+- [x] 2.3 在 `internal/acp/testdata` 中固定 `schema-v1.27.0` 的 `schema.json` 与 `meta.json`，新增守卫测试，核对所用方法名与字段名都存在于该 schema。验证：故意改错一个字段名时测试失败。
+- [x] 2.4 编写测试用假 agent（Go 程序，位于测试数据目录，由测试与 E2E 构建）。它在临时目录中维护会话库，`tui` 模式下发出 OSC 7501 与 Warp 事件、响应中断键、支持 `--resume`/`-s`，`acp` 模式下实现上述方法子集，并能注入延迟、错误、崩溃与权限请求。验证：假 agent 自身的测试覆盖两种模式共享同一会话库。
 
 ## 3. 会话外壳、伴随进程与身份（M2）
 
@@ -27,7 +27,7 @@
 
 ## 4. 档案与启动配置（M3）
 
-- [ ] 4.1 新建 `internal/agentprofile`（共享层），实现 OpenCode 与 omp 档案、命令写法识别、恢复 argv、ACP argv、身份映射与版本比较。验证：表驱动测试覆盖 specs `hybrid-agent-profiles` 中的全部场景，以及两种参数写法与未知参数。
+- [x] 4.1 新建 `internal/agentprofile`（共享层），实现 OpenCode 与 omp 档案、命令写法识别、恢复 argv、ACP argv、身份映射与版本比较。验证：表驱动测试覆盖 specs `hybrid-agent-profiles` 中的全部场景，以及两种参数写法与未知参数。
 - [ ] 4.2 在 `launch.Config` 中增加 `hybrid`（`omitempty`），保存时校验，并计算 `hybridSupport`；新增 `POST /api/launch-configs/hybrid-support`。同步 `contract`、`wire`、`schemas.ts` 与快照。验证：`internal/launch` 与 `internal/api` 测试覆盖 400、旧文件读取不改写、摘要字段；快照已重新录制并评审。
 - [ ] 4.3 在 `internal/statefile` 中登记 `hybrid` 描述符（`hybrid-sessions.json`，故障策略 `unavailable`），并更新 `persistence_inventory.json` 与 `docs/persistence.md` 的清单表。验证：`make persistence-check` 通过。
 
