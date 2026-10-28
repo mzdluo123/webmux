@@ -64,8 +64,10 @@ type Profile struct {
 	// VerifiedVersion is the newest release measured in the baseline; older
 	// versions only produce a notice.
 	VerifiedVersion string
-	// InterruptKey is written to the PTY to stop a running turn.
-	InterruptKey []byte
+	// InterruptKeys are the key presses that stop a running turn, written to
+	// the PTY one at a time: OpenCode needs two separate Esc presses, and a
+	// single "\x1b\x1b" read reaches it as one Alt+Esc.
+	InterruptKeys [][]byte
 	// ReapplyOnLoad lists config option IDs that session/load does not
 	// restore, so the recorded values are set again after a switch.
 	ReapplyOnLoad []string
@@ -89,7 +91,7 @@ var opencode = &Profile{
 	Name:            OpenCode,
 	Title:           "OpenCode",
 	VerifiedVersion: "2.1.4",
-	InterruptKey:    []byte("\x1b\x1b"),
+	InterruptKeys:   [][]byte{[]byte("\x1b"), []byte("\x1b")},
 	Resume:          true,
 	resumeFlag:      "-s",
 	// The default TUI is a client of the background service, where a turn
@@ -121,7 +123,7 @@ var omp = &Profile{
 	Name:            OMP,
 	Title:           "omp",
 	VerifiedVersion: "18.13.1",
-	InterruptKey:    []byte("\x1b"),
+	InterruptKeys:   [][]byte{[]byte("\x1b")},
 	ReapplyOnLoad:   []string{"mode"},
 	Steering:        true,
 	Resume:          true,

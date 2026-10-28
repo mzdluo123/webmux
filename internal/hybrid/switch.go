@@ -233,12 +233,23 @@ func tuiBusy(info session.Info) bool {
 	return false
 }
 
-// interruptKey writes the profile's interrupt key to the terminal UI.
+// interruptKeyGap separates key presses so the terminal UI reads each one
+// separately; the M0 baseline stopped OpenCode with Esc, 150 ms, Esc.
+const interruptKeyGap = 150 * time.Millisecond
+
+// interruptKey writes the profile's interrupt key presses to the terminal UI.
 func (a *actor) interruptKey() {
-	ctx, cancel := context.WithTimeout(context.Background(), keyTimeout)
-	defer cancel()
-	if err := a.shell.WriteContext(ctx, a.cmd.Profile.InterruptKey); err != nil {
-		a.svc.log.Info("hybrid interrupt key not written", "id", a.id, "error", err)
+	for i, key := range a.cmd.Profile.InterruptKeys {
+		if i > 0 {
+			time.Sleep(interruptKeyGap)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), keyTimeout)
+		err := a.shell.WriteContext(ctx, key)
+		cancel()
+		if err != nil {
+			a.svc.log.Info("hybrid interrupt key not written", "id", a.id, "error", err)
+			return
+		}
 	}
 }
 
@@ -476,7 +487,7 @@ func (a *actor) runToTUI(op *switchOp, link *acpLink, turnDone chan struct{}, si
 	if dropped == nil {
 		dropped = []string{}
 	}
-	a.sync(func() { a.switchedToTUI(op, draft, dropped) })
+	a.sync(func() { a.switchedToTUI(op, sid, draft, dropped) })
 }
 
 // returnQueue empties the queue into the requester's draft (D20); every
@@ -491,20 +502,21 @@ func (a *actor) returnQueue(op *switchOp) string {
 	return draft
 }
 
-func (a *actor) switchedToTUI(op *switchOp, draft string, dropped []string) {
+func (a *actor) switchedToTUI(op *switchOp, sid, draft string, dropped []string) {
 	a.side = SideTUI
 	a.chat.Dormant = false
 	a.emit(Event{Kind: EventMarker, Marker: &Marker{Kind: MarkerSwitched, Side: SideTUI}})
-	a.terminalStarted()
+	a.terminalStarted(sid)
 	a.svc.log.Info("hybrid switch finished", "id", a.id, "side", string(SideTUI))
 	result := a.resultOn(SideTUI)
 	result.Draft, result.Dropped = draft, dropped
 	a.finish(op, result, nil)
 }
 
-// terminalStarted records a terminal run the actor just started; one that
-// already exited interrupts the session (D23).
-func (a *actor) terminalStarted() {
+// terminalStarted records a terminal run the actor just started to resume
+// agent session sid; one that already exited interrupts the session (D23).
+func (a *actor) terminalStarted(sid string) {
+	a.resumedSID = sid
 	a.probe = probeState{}
 	pid := a.shell.Identity().PID
 	process := processIdentity(pid)
@@ -530,7 +542,7 @@ func (a *actor) rollbackToTUI(op *switchOp, sid string, cause failure) {
 			a.switchAbandoned(op, cause, SideTUI)
 			return
 		}
-		a.terminalStarted()
+		a.terminalStarted(sid)
 		a.rolledBack(op, cause)
 	})
 }

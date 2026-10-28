@@ -155,7 +155,11 @@ func (t *tui) open(ss *session) error {
 		t.printf("%s %s\r\n", mark, m.Text)
 	}
 	t.warp("session_start")
-	t.emit7501("state=idle:id=" + ss.ID)
+	// Like the real OpenCode TUI (baseline.md), the opencode profile names
+	// its session only once a turn runs, even when it opened one with -s.
+	if t.cfg.profile != "opencode" {
+		t.emit7501("state=idle:id=" + ss.ID)
+	}
 	return nil
 }
 
@@ -171,6 +175,12 @@ func (t *tui) keys(chunk []byte) bool {
 				for i+1 < len(chunk) && (chunk[i+1] < 0x40 || chunk[i+1] > 0x7e) {
 					i++
 				}
+				i++
+				continue
+			}
+			// Like the real OpenCode TUI, Esc Esc in one read is a single
+			// Alt+Esc key, not two presses, so it does not interrupt.
+			if t.cfg.profile == "opencode" && i+1 < len(chunk) && chunk[i+1] == 0x1b {
 				i++
 				continue
 			}

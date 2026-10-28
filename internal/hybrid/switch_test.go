@@ -258,6 +258,27 @@ func TestSwitchRoundTripFromChat(t *testing.T) {
 	assertSingleWriter(t, h.store)
 }
 
+// TestSwitchBackWithoutTerminalInput: the terminal UI resumed by a switch
+// counts as having its session ID even before it reports one, so the user
+// can look at the terminal and switch straight back. OpenCode names its
+// session only after a message.
+func TestSwitchBackWithoutTerminalInput(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	s := h.create(h.input(agentprofile.OpenCode, SideACP))
+	id := s.Info().ID
+	chatTurn(t, h, id, "alpha")
+	h.mustSwitch(id, SideTUI)
+	waitFor(t, "resumed transcript", func() bool { return strings.Contains(string(s.Buffer()), "> alpha") })
+	h.waitEligible(id)
+	h.mustSwitch(id, SideACP)
+	if got := h.replayedUsers(id); !slices.Equal(got, []string{"alpha"}) {
+		t.Fatalf("replay %q", got)
+	}
+	chatTurn(t, h, id, "beta")
+	assertSingleWriter(t, h.store)
+}
+
 // TestSwitchMidTurnInterrupts: a running terminal turn is interrupted with
 // the profile's key and the switch goes on once the terminal is idle; the
 // interrupted turn is in the loaded history.

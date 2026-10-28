@@ -368,6 +368,10 @@ func (a *actor) resumed(started chan<- error, res resumeResult) {
 		}
 	}
 	side, sid, active, pid, process := a.side, a.agentSessionID, a.state == StateActive, res.pid, res.process
+	if side == SideTUI {
+		// resumeSide starts the resume command when there is an ID.
+		a.resumedSID = sid
+	}
 	a.record(true, func(r *Record) {
 		r.Side = side
 		r.SetAgentSessionID(sid)

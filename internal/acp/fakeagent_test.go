@@ -427,12 +427,12 @@ func isRPCCode(err error, code int) bool {
 func TestFakeAgentProfiles(t *testing.T) {
 	tests := []struct {
 		profile   string
-		interrupt string
+		interrupt []string // key presses, written separately
 		prefix    string
 		eager     bool // session exists before the first message
 	}{
-		{"omp", "\x1b", "", true},
-		{"opencode", "\x1b\x1b", "ses_", false},
+		{"omp", []string{"\x1b"}, "", true},
+		{"opencode", []string{"\x1b", "\x1b"}, "ses_", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.profile, func(t *testing.T) {
@@ -448,13 +448,22 @@ func TestFakeAgentProfiles(t *testing.T) {
 			tui.send("one two three four five six\n")
 			tui.waitFor("state=working", 1)
 			if tt.profile == "opencode" {
-				tui.send("\x1b") // a single Esc does not interrupt OpenCode
-				time.Sleep(20 * time.Millisecond)
-				if strings.Contains(tui.out.String(), "[interrupted]") {
-					t.Fatal("single Esc interrupted the opencode profile")
+				// Neither a single Esc nor Esc Esc in one write (read as
+				// Alt+Esc) interrupts OpenCode.
+				for _, keys := range []string{"\x1b", "\x1b\x1b"} {
+					tui.send(keys)
+					time.Sleep(20 * time.Millisecond)
+					if strings.Contains(tui.out.String(), "[interrupted]") {
+						t.Fatalf("%q interrupted the opencode profile", keys)
+					}
 				}
 			}
-			tui.send(tt.interrupt)
+			for i, key := range tt.interrupt {
+				if i > 0 {
+					time.Sleep(20 * time.Millisecond)
+				}
+				tui.send(key)
+			}
 			out = tui.waitFor("[interrupted]", 1)
 			if strings.Contains(out, "six") {
 				t.Error("turn ran to completion despite the interrupt")

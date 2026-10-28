@@ -162,15 +162,20 @@ func (a *actor) agentSessionChanged(sid string) {
 }
 
 // assess checks conditions 1 to 3: a known agent of this session's
-// profile, running as the PTY's root process, with a session ID. It
+// profile, running as the PTY's root process, with a session ID: the one
+// the terminal reports, or else the one its run was started to resume. It
 // returns the target or the first failed condition's reason.
 func (a *actor) assess(id session.Identity, ident agentprofile.Identity, known bool) (target, string) {
+	sid := ident.AgentSessionID
+	if sid == "" {
+		sid = a.resumedSID
+	}
 	switch {
 	case !known || ident.Agent != a.cmd.Profile.Name:
 		return target{}, ReasonUnknownAgent
 	case id.PID == 0 || id.Executable != ident.Agent:
 		return target{}, ReasonNotRoot
-	case ident.AgentSessionID == "":
+	case sid == "":
 		return target{}, ReasonNoSessionID
 	}
 	raw := ident.Cwd
@@ -184,7 +189,7 @@ func (a *actor) assess(id session.Identity, ident agentprofile.Identity, known b
 		}
 		a.probe.rawCwd, a.probe.cwd = raw, cwd
 	}
-	return target{sid: ident.AgentSessionID, cwd: a.probe.cwd}, ""
+	return target{sid: sid, cwd: a.probe.cwd}, ""
 }
 
 // listedReason is conditions 4 and 5 for the current target.

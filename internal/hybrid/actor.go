@@ -67,6 +67,10 @@ type actor struct {
 	side           Side
 	state          State
 	agentSessionID string
+	// resumedSID is the agent session the current terminal run was started
+	// to resume. It stands in for the terminal's own report until there is
+	// one: OpenCode names its session only after a message.
+	resumedSID string
 	// agentCwd is the resolved cwd the agent session was opened or found
 	// in; reconnects and wakes load it there.
 	agentCwd string
