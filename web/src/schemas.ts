@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { SessionHybridSchema } from "./chatSchemas";
+
+export * from "./chatSchemas";
 
 export const WorkspaceLinkSchema = z.object({
   repositoryId: z.string(),
@@ -45,6 +48,8 @@ export const SessionInfoSchema = z.object({
     .string()
     .regex(/^[a-z2-7]{8}$/)
     .optional(),
+  // Hybrid (chat ↔ terminal) sessions only; ordinary sessions omit it.
+  hybrid: SessionHybridSchema.optional(),
 });
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
 export const WorkspaceReferenceSchema = z.object({
