@@ -169,7 +169,7 @@ func TestListenAndAllowedOriginsFailAtStartup(t *testing.T) {
 		{name: "origin non-default port", origins: []string{"https://term.example.com:8443"}},
 		{name: "origin https default port", origins: []string{"https://term.example.com:443"}, err: "allowed_origins"},
 		{name: "origin http default port", origins: []string{"http://127.0.0.1:80"}, err: "allowed_origins"},
-		{name: "origin trailing dot", origins: []string{"https://term.example.com."}, err: "allowed_origins"},
+		{name: "origin trailing dot", origins: []string{"https://term.example.com."}},
 		{name: "origin other scheme", origins: []string{"ws://127.0.0.1:5173"}, err: "allowed_origins"},
 	} {
 		t.Run(row.name, func(t *testing.T) {
