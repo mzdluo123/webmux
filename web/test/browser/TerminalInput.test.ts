@@ -517,3 +517,32 @@ test("a long-press locked shift stays on until it is toggled off", async () => {
   expect(api.send("b")).toBe(true);
   expect(inputText(socket)).toBe("A\x1b[Zab");
 });
+
+test("native text paste stays literal while a soft modifier is armed", async () => {
+  observeGlyphPixels(true);
+  const { socket, api } = await openTerminalApi();
+  const textarea = host().querySelector<HTMLTextAreaElement>(
+    ".xterm-helper-textarea",
+  )!;
+  const paste = (text: string) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    textarea.dispatchEvent(
+      new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: data,
+      }),
+    );
+  };
+
+  api.toggleModifier("shift");
+  paste("\t");
+  expect(inputText(socket)).toBe("\t");
+  expect(api.modifiers).toEqual({ ctrl: false, alt: false, shift: false });
+
+  // A single shifted letter is not upper-cased either.
+  api.toggleModifier("shift");
+  paste("a");
+  expect(inputText(socket)).toBe("\ta");
+});

@@ -341,6 +341,16 @@ export function useTerminal(
           else stream.sendReply(data);
         },
       });
+      // The browser's own text paste reaches xterm's textarea, which reports
+      // the payload through onData synchronously. Keep it literal too, not just
+      // the soft-key paste button, while a soft modifier is armed or locked.
+      const nativePaste = () => {
+        pasting = true;
+        queueMicrotask(() => {
+          pasting = false;
+        });
+      };
+      parent.addEventListener("paste", nativePaste, true);
       const selected = term.onSelectionChange(() => {
         selection = term.getSelection();
       });
@@ -365,6 +375,7 @@ export function useTerminal(
         scrolled.dispose();
         parsed.dispose();
         parent.removeEventListener("scroll", updateBottom);
+        parent.removeEventListener("paste", nativePaste, true);
         selected.dispose();
         resultsChanged.dispose();
         bufferChanged.dispose();
