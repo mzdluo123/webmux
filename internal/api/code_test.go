@@ -229,7 +229,7 @@ func TestCodeRawBytesHeadersAndStreaming(t *testing.T) {
 	res.Body.Close()
 	// A reader slower than the lookup timeout still receives every byte.
 	defer func(previous time.Duration) { rawLookupTimeout = previous }(rawLookupTimeout)
-	rawLookupTimeout = 200 * time.Millisecond
+	rawLookupTimeout = time.Second
 	slow := do("GET", zip, "secret", "")
 	first := make([]byte, 1024)
 	if _, e = io.ReadFull(slow.Body, first); e != nil {

@@ -313,10 +313,17 @@ func (c *Config) Validate() error {
 func validateOrigin(origin string) error {
 	u, err := url.Parse(origin)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil ||
-		origin != u.Scheme+"://"+u.Host || origin != strings.ToLower(origin) {
-		return fmt.Errorf("allowed_origins entry %q must be a lowercase origin like http://127.0.0.1:5173, without path or trailing slash", origin)
+		origin != u.Scheme+"://"+u.Host || origin != strings.ToLower(origin) ||
+		strings.HasSuffix(u.Hostname(), ".") || defaultPort(u.Scheme, u.Port()) {
+		return fmt.Errorf("allowed_origins entry %q must be a lowercase origin like http://127.0.0.1:5173, without path, trailing slash or default port", origin)
 	}
 	return nil
+}
+
+// defaultPort reports an explicit scheme default port, which browsers omit
+// when they serialize an origin.
+func defaultPort(scheme, port string) bool {
+	return scheme == "http" && port == "80" || scheme == "https" && port == "443"
 }
 
 func (t *TunnelConfig) validate() error {
