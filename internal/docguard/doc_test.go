@@ -264,7 +264,7 @@ func widthMessage(name string, lines []int, longest int) string {
 	for i, n := range lines {
 		places[i] = strconv.Itoa(n)
 	}
-	return fmt.Sprintf("%s：第 %s 行超过上限 %d 列（最长 %d 列，汉字按 2 列计）。中文 Markdown 的软换行会在渲染时插入空格，请在句号、分号或列表边界处分段，不要按固定列硬折行；密集链接串改为每行少量链接的列表。表格行与围栏代码块已豁免。同一主题仍然过长时：%s", name, strings.Join(places, "、"), maxLineWidth, longest, splitAdvice(name))
+	return fmt.Sprintf("%s：第 %s 行超过上限 %d 列（最长 %d 列，汉字按 2 列计）。这不是排版问题，而是行内塞了过多信息：请先判断这一行在表达什么（定义、规则、步骤、枚举、依据、例外），再做语义改写：按读者的阅读顺序改写——先写结论或总述，再用短句、有序/无序列表或子列表展开细节，并把例外、原因放在被修饰的内容旁边；删去重复和可由上下文推出的字句。不要只在句号处切开，也不要把句子按字数平均装箱，更不要按固定列硬折行（中文 Markdown 的软换行会在渲染时插入空格）；改写后逐项核对没有丢失条件、数值、标识符和 SHALL/MUST 语义。表格行与围栏代码块已豁免。内容本身确实过多时：%s", name, strings.Join(places, "、"), maxLineWidth, longest, splitAdvice(name))
 }
 
 func minLinesMessage(name string, n int) string {
@@ -362,8 +362,8 @@ func TestRules(t *testing.T) {
 		"docs/heavy.md|bytes":                           {"超过上限 49152 字节", "docs/heavy/"},
 		"docs/short.md|short":                           {"低于下限 20 行", "合并"},
 		"docs/wide-short.md|bytes":                      {"超过上限 49152 字节", "docs/wide-short/"},
-		"docs/wide-short.md|width":                      {"超过上限 300 列", "第 6 行", "分段"},
-		"docs/wide-line.md|width":                       {"超过上限 300 列", "第 20 行", "最长 301 列", "分段"},
+		"docs/wide-short.md|width":                      {"超过上限 300 列", "第 6 行", "语义改写"},
+		"docs/wide-line.md|width":                       {"超过上限 300 列", "第 20 行", "最长 301 列", "语义改写", "不要只在句号处切开"},
 		"docs/wide-cjk.md|width":                        {"第 20 行", "最长 302 列", "汉字按 2 列计"},
 		"docs/wide|fanout":                              {"直接子目录 21 个", "不超过 20 个"},
 		"openspec/changes/work/specs/big/spec.md|lines": {"新的 capability", "不要在同目录拆分 spec.md"},
