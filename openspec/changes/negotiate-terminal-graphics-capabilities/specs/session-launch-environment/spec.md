@@ -2,7 +2,10 @@
 
 ### Requirement: 真实终端身份与启动能力提示
 
-默认会话环境 SHALL 在进程启动前提供真实的 WebMux 终端身份 `TERM_PROGRAM=webmux` 及运行服务版本 `TERM_PROGRAM_VERSION`，保持 `TERM=xterm-256color` 与 `COLORTERM=truecolor` 的默认兼容值。
+默认会话环境 SHALL 在进程启动前提供真实的 WebMux 终端身份，并保持默认兼容值：
+
+- `TERM_PROGRAM=webmux`，`TERM_PROGRAM_VERSION` 为运行服务的版本。
+- `TERM=xterm-256color`，`COLORTERM=truecolor`。
 
 系统 SHALL NOT 继承宿主的 Kitty 或其他终端身份，也 SHALL NOT 为启用图形而伪造 `KITTY_WINDOW_ID` 或将默认 `TERM` 改为 `xterm-kitty`。
 

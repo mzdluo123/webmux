@@ -1,6 +1,7 @@
 # program-status Specification
 
 ## Purpose
+
 让 webmux 识别 CLI agent 通过 OSC 7501 Program Status Protocol 主动上报的运行状态，并在没有浏览器附着时也能应答协议探测。这样 Claude Code、Codex、OpenCode、omp 等 agent 不需要 hook 或修改配置，就能给出准确的工作、阻塞、完成和出错状态。
 
 ## Requirements
@@ -21,9 +22,16 @@
 
 除 `state` 与 `kind` 外，系统 SHALL NOT 解析、存储、写入日志或通过任何 API 下发上报中的其他值，`msg`、`title`、`progress` 都属于此类。
 
-唯一的例外是身份标识：系统 SHALL 可以按 `agent-session-identity` 的规则，在服务端内存中保留根记录的 `app`，以及合法子记录 `id` 的第一段，用于混合会话的身份跟踪与占用检测。
+唯一的例外是身份标识。系统 SHALL 可以按 `agent-session-identity` 的规则，在服务端内存中保留以下两个值，用于混合会话的身份跟踪与占用检测：
 
-这两个值 SHALL NOT 影响根记录、关注与状态，SHALL NOT 写入日志，也 SHALL NOT 出现在普通会话的任何 API 负载中。
+- 根记录的 `app`；
+- 合法子记录 `id` 的第一段。
+
+这两个值受限：
+
+- SHALL NOT 影响根记录、关注与状态；
+- SHALL NOT 写入日志；
+- SHALL NOT 出现在普通会话的任何 API 负载中。
 
 不含 `id` 且 `state` 合法的上报 SHALL 整体替换会话的根记录；`state=clear` SHALL 删除会话的全部记录。
 

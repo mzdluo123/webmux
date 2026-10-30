@@ -12,9 +12,9 @@
 
 Linux/macOS 推荐使用仓库根目录的 [`install.sh`](../install.sh)。
 
-脚本依赖 POSIX `sh`、`curl`、`uname`、`mktemp`、`awk`，以及 `sha256sum` 或 `shasum`（任一即可），自动识别 Linux/macOS 与 amd64/arm64（Apple Silicon 的 Rosetta 终端优先选择 arm64），下载对应二进制与 `SHA256SUMS`，校验通过后才原子替换目标文件。
-
-默认安装到 `~/.local/bin/webmux`，不需要 sudo，也不会执行 `config init`、`service install` 或改写 shell 配置。
+- 依赖：POSIX `sh`、`curl`、`uname`、`mktemp`、`awk`，以及 `sha256sum` 或 `shasum`（任一即可）。
+- 流程：自动识别 Linux/macOS 与 amd64/arm64（Apple Silicon 的 Rosetta 终端优先选择 arm64），下载对应二进制与 `SHA256SUMS`，校验通过后才原子替换目标文件。
+- 默认安装到 `~/.local/bin/webmux`，不需要 sudo，也不会执行 `config init`、`service install` 或改写 shell 配置。
 
 安装脚本本身不依赖 `raw.githubusercontent.com`。任选一个可访问的入口：
 
@@ -41,13 +41,17 @@ curl -fsSL https://github.com/mzdluo123/webmux/releases/latest/download/install.
   | WEBMUX_VERSION=0.2.0 WEBMUX_INSTALL_DIR="$HOME/bin" sh
 ```
 
-下载顺序为 GitHub 直连，然后依次尝试镜像（地址为 `<前缀>/https://github.com/...`），每个来源都有连接、低速和总时限。二进制与 `SHA256SUMS` 必须来自同一来源并通过校验；失败时保留原有二进制、清理临时文件，并汇总各来源的错误。
+下载顺序为 GitHub 直连，然后依次尝试镜像（地址为 `<前缀>/https://github.com/...`），每个来源都有连接、低速和总时限。
 
-镜像是第三方服务，能看到请求者 IP；同源校验只能发现截断和损坏，无法防范同时替换两者的恶意镜像，高保证或离线场景请用 `WEBMUX_SHA256` 固定摘要。
+- 二进制与 `SHA256SUMS` 必须来自同一来源并通过校验；失败时保留原有二进制、清理临时文件，并汇总各来源的错误。
+- 镜像是第三方服务，能看到请求者 IP。
+- 同源校验只能发现截断和损坏，无法防范同时替换两者的恶意镜像；高保证或离线场景请用 `WEBMUX_SHA256` 固定摘要。
 
-脚本只安装二进制。完成后按提示运行 `webmux --listen 127.0.0.1:7681`；需要后台服务时再执行 `webmux service install`，首次启动会自动生成配置与 Token。重复执行脚本会升级二进制，正在运行的服务需手动重启，重启会结束现有会话。
+脚本只安装二进制。完成后按提示运行 `webmux --listen 127.0.0.1:7681`。
 
-Windows 不运行该脚本：请下载 `webmux-windows-*.exe` 或托盘程序，或按 [Windows（WSL）](deployment/windows-wsl.md) 在 WSL 中运行同一脚本。
+- 需要后台服务时再执行 `webmux service install`，首次启动会自动生成配置与 Token。
+- 重复执行脚本会升级二进制；正在运行的服务需手动重启，重启会结束现有会话。
+- Windows 不运行该脚本：请下载 `webmux-windows-*.exe` 或托盘程序，或按 [Windows（WSL）](deployment/windows-wsl.md) 在 WSL 中运行同一脚本。
 
 ## 配置
 
@@ -58,9 +62,10 @@ webmux config init                 # 手动预生成 0600 的 ~/.config/webmux/c
 
 示例见 [`deploy/config.example.toml`](../deploy/config.example.toml)。加载规则：
 
-- 默认路径为 `~/.config/webmux/config.toml`。未显式指定 `--config` 且该文件不存在时，首次 `webmux` / `webmux serve` / `webmux start` 会用与 `config init` 相同的模板和随机 token 生成它（目录 0700、文件 0600），然后正常启动；
-
-  启动输出会说明是新建还是使用现有配置，并提示用 `webmux status --json --reveal-token` 查看已持久化的 token。并发首次启动通过原子发布只创建一个文件，各进程读取同一 token。
+- 默认路径为 `~/.config/webmux/config.toml`。
+  - 未显式指定 `--config` 且该文件不存在时，首次 `webmux` / `webmux serve` / `webmux start` 会用与 `config init` 相同的模板和随机 token 生成它（目录 0700、文件 0600），然后正常启动。
+  - 启动输出会说明是新建还是使用现有配置，并提示用 `webmux status --json --reveal-token` 查看已持久化的 token。
+  - 并发首次启动通过原子发布只创建一个文件，各进程读取同一 token。
 
 - 通过 `--config` 显式指定的文件只读：文件存在时只读取该文件，不存在时启动失败且绝不创建。`--config` 与 `--log-file` 支持 `~/`。
 - 默认配置已存在时直接读取，不修改、不重写。生成失败（主目录只读、权限不足、磁盘满等）会报错退出，不会静默回退到内存默认值。
@@ -109,15 +114,17 @@ JSON 输出契约见 [控制面 JSON 契约](protocol/control-json.md#控制面-
 
 所有启动命令都由使用者自定义：在设置页保存“名称 + 完整命令 + 环境变量”，新建会话时选用，或直接填写不保存的临时命令。
 
-新安装首次启动（`launch-configs.json` 不存在）时自动写入 Shell（`$SHELL -l -i`，未设置时为 `/bin/sh`）、Claude Code、Codex CLI、Gemini CLI、Open Code、omp 六条启动配置，agent 预设以 `bash -ic 'exec -- "$@"' webmux <程序>` 加载 `~/.bashrc`；
-
-它们是普通配置，可编辑或删除。不再读取 `[[presets]]` 或 `shell`；旧配置请改为在设置页保存。
+- 新安装首次启动（`launch-configs.json` 不存在）时自动写入六条启动配置：Shell（`$SHELL -l -i`，未设置时为 `/bin/sh`）、Claude Code、Codex CLI、Gemini CLI、Open Code、omp。
+- agent 预设以 `bash -ic 'exec -- "$@"' webmux <程序>` 加载 `~/.bashrc`。
+- 它们是普通配置，可编辑或删除。不再读取 `[[presets]]` 或 `shell`；旧配置请改为在设置页保存。
 
 新安装的 omp 启动配置额外预置 `PI_FORCE_IMAGE_PROTOCOL=kitty`，以在浏览器终端启用 Kitty 图片传输；其他 agent 配置不增加该环境变量。已经存在的 `launch-configs.json` 不自动修改，升级后可手动编辑自己的 omp 配置。
 
-完整命令按引号与反斜杠规则拆分为 argv，不经 shell 求值。需要加载 `~/.bashrc` 的 Open Code 配置可填写 `bash -ic 'exec opencode "$@"' opencode`，对应 argv 为 `["bash", "-ic", "exec opencode \"$@\"", "opencode"]`。
+完整命令按引号与反斜杠规则拆分为 argv，不经 shell 求值。
 
-末尾的程序名是 `bash -c` 的 `$0` 占位符，后接参数经 `"$@"` 原样传给 agent。WebMux 不改写 `~/.bashrc`；其中的输出、环境覆盖或提前退出同样会影响启动。
+- 需要加载 `~/.bashrc` 的 Open Code 配置可填写 `bash -ic 'exec opencode "$@"' opencode`，对应 argv 为 `["bash", "-ic", "exec opencode \"$@\"", "opencode"]`。
+- 末尾的程序名是 `bash -c` 的 `$0` 占位符，后接参数经 `"$@"` 原样传给 agent。
+- WebMux 不改写 `~/.bashrc`；其中的输出、环境覆盖或提前退出同样会影响启动。
 
 ### 状态目录
 
@@ -129,15 +136,15 @@ JSON 输出契约见 [控制面 JSON 契约](protocol/control-json.md#控制面-
 - 清单损坏、文件锁冲突或存储不可用时，仓库管理功能被禁用，但终端服务照常运行，损坏的清单不会被覆盖。
 - 启动配置同理：文件损坏、`launch-configs.json.lock` 被另一实例持有或目录不可读写时，只有保存的启动配置功能返回 503，显式临时命令与已运行会话照常可用；损坏的文件不会被覆盖或改名，修复或删除后重启服务即可。启动配置的环境变量以明文保存在该 0600 文件中。
 - 首次启动时写入上述默认预设并创建 `launch-configs.json`；文件已存在（包括删空后的空列表）时不再补写，也不会自动导入旧 TOML 的启动预设。
-- `launch-configs.json` 当前为版本 `2`，每条配置可带可选的 `preview: {lines, skip}`。本次破坏性升级只接受版本 `2`，版本 `1` 文件保留原样且启动配置功能返回 503，不会自动转换。升级前备份旧配置；
-
-  需保留内容时先用支持 v1 的旧版本保存为 v2，或备份后移走旧文件并在新版重新创建配置。回滚前停止新版并恢复对应版本的独立备份。
+- `launch-configs.json` 当前为版本 `2`，每条配置可带可选的 `preview: {lines, skip}`。
+  - 本次破坏性升级只接受版本 `2`；版本 `1` 文件保留原样且启动配置功能返回 503，不会自动转换。
+  - 升级前备份旧配置；需保留内容时先用支持 v1 的旧版本保存为 v2，或备份后移走旧文件并在新版重新创建配置。
+  - 回滚前停止新版并恢复对应版本的独立备份。
 
 - 混合会话记录 `hybrid-sessions.json`（及其锁）只保存 webmux 会话与 agent 会话的对应关系、命令快照与状态，不含环境变量值、消息、排队内容或 token，最多 200 条。
-
-  文件损坏、锁冲突或不可读写时只禁用混合会话的创建与恢复，普通会话不受影响，原文件不被覆盖。启动配置的 `hybrid` 字段只在勾选时写入，文件仍为版本 `2`；回退到不认识该字段的旧版本前，先取消所有混合勾选，否则旧版本报告启动配置文件损坏。
-
-  详见 [混合会话](hybrid-sessions.md)。
+  - 文件损坏、锁冲突或不可读写时只禁用混合会话的创建与恢复，普通会话不受影响，原文件不被覆盖。
+  - 启动配置的 `hybrid` 字段只在勾选时写入，文件仍为版本 `2`；回退到不认识该字段的旧版本前，先取消所有混合勾选，否则旧版本报告启动配置文件损坏。
+  - 详见 [混合会话](hybrid-sessions.md)。
 
 ## 服务管理命令
 
@@ -216,9 +223,12 @@ WebMux 运行在 WSL 2 发行版中，由 Windows 托盘程序或 `webmux-window
 
 ## agent 的 PATH
 
-systemd 和 launchd 都不会加载交互 shell 的初始化文件。需要从 `~/.bashrc` 获取 PATH 与环境变量时，在自定义启动配置中显式填写 `bash -ic 'exec opencode "$@"' opencode`（其他 agent 替换程序名）。
+systemd 和 launchd 都不会加载交互 shell 的初始化文件。
 
-不使用 Bash 包装时，可直接指定程序绝对路径或调整服务的 PATH。服务模板的 `PATH` 已包含 `~/.local/bin`、pnpm / npm 全局目录（macOS 另含 Homebrew）。如果 agent 安装在 nvm 等其他位置：
+- 需要从 `~/.bashrc` 获取 PATH 与环境变量时，在自定义启动配置中显式填写 `bash -ic 'exec opencode "$@"' opencode`（其他 agent 替换程序名）。
+- 不使用 Bash 包装时，可直接指定程序绝对路径或调整服务的 PATH。服务模板的 `PATH` 已包含 `~/.local/bin`、pnpm / npm 全局目录（macOS 另含 Homebrew）。
+
+如果 agent 安装在 nvm 等其他位置：
 
 ```sh
 which claude codex opencode
@@ -247,9 +257,12 @@ Windows 托盘经 `wsl.exe --exec` 启动 WebMux，同样不经过登录 shell�
 
 ## 访问链接
 
-每次启动都会在标准输出打印 `WebMux local: http://<主机>:<端口>/`。启用隧道时会附带 `#token=<token>`；非隧道模式不附带片段，以免固定的已配置 token 被 service manager 捕获并写入 journal 或日志文件。
+每次启动都会在标准输出打印 `WebMux local: http://<主机>:<端口>/`。
 
-片段不会发送到服务器，前端读取并保存 token 后立即从地址栏和当前历史记录中移除。WebSocket 握手通过子协议携带 token，token 不出现在请求 URL 或 Cookie 中。浏览器的自动补全或同步历史仍可能记住带片段的原始链接。
+- 启用隧道时会附带 `#token=<token>`；非隧道模式不附带片段，以免固定的已配置 token 被 service manager 捕获并写入 journal 或日志文件。
+- 片段不会发送到服务器，前端读取并保存 token 后立即从地址栏和当前历史记录中移除。
+- WebSocket 握手通过子协议携带 token，token 不出现在请求 URL 或 Cookie 中。
+- 浏览器的自动补全或同步历史仍可能记住带片段的原始链接。
 
 ## 公网访问（Cloudflare Tunnel）
 
@@ -271,9 +284,10 @@ cloudflared = "" # 可选：cloudflared 路径
 - **Quick Tunnel**：无需账号，每次启动得到随机 `https://*.trycloudflare.com` 地址，无 SLA，适合临时访问。
 - **Named Tunnel**：在 Cloudflare 控制台创建隧道，把公共主机名指向 `http://127.0.0.1:<端口>`，在网页保存凭据与主机名（首次保存前也可用 TOML）。凭据经环境变量传给 cloudflared，不出现在命令行中。固定的 HTTPS 地址（Named Tunnel、Tailscale Serve/Funnel 等）也是手机推送的前提。
 - 启用隧道要求至少 43 字符的 WebMux 登录 Token；启动需要认证且未配置时生成随机 Token。网页管理配置的恢复失败不会结束本地服务：弱 Token 或 cloudflared 故障显示 failed，可修复后重新开启。网页复制的公网地址不含登录 Token。
-- cloudflared 依次取 `tunnel.cloudflared`、`PATH`、`<state_dir>/cloudflared/<版本>/` 缓存；都没有时下载 webmux 固定的版本，先连 GitHub，10 秒无响应或 20 秒无数据时依次改用 `download_mirrors` 镜像（默认 `ghfast.top`、`gh-proxy.com`；
-
-  `[]` 表示只用 GitHub）。任何来源的文件都必须与内置 SHA-256 一致才会执行。镜像是第三方服务，能看到请求者 IP 和所下载的文件；不希望回退到它们时设置 `download_mirrors = []`。
+- cloudflared 依次取 `tunnel.cloudflared`、`PATH`、`<state_dir>/cloudflared/<版本>/` 缓存；都没有时下载 webmux 固定的版本。
+  - 下载先连 GitHub，10 秒无响应或 20 秒无数据时依次改用 `download_mirrors` 镜像（默认 `ghfast.top`、`gh-proxy.com`；`[]` 表示只用 GitHub）。
+  - 任何来源的文件都必须与内置 SHA-256 一致才会执行。
+  - 镜像是第三方服务，能看到请求者 IP 和所下载的文件；不希望回退到它们时设置 `download_mirrors = []`。
 
 - webmux 以 `--config /dev/null` 运行 cloudflared，`~/.cloudflared/config.yml` 不会影响隧道。
 - cloudflared 意外退出时公网地址立即失效（返回 403），本地访问和会话不受影响；webmux 退出时 cloudflared 随之结束。Linux 上即使 webmux 被 SIGKILL 或 OOM 终止，内核也会结束 cloudflared；macOS 没有等价机制，依赖 launchd 结束作业的全部进程，手动运行时需自行确认没有残留。
@@ -282,9 +296,10 @@ cloudflared = "" # 可选：cloudflared 路径
 
 Cloudflare 控制台步骤、两个 token 的区别、Windows/WSL 托盘操作、验证方法与故障排查见 **[Cloudflare Named Tunnel 配置指南](cloudflare-tunnel.md)**。
 
-> 隧道模式或本次进程临时生成 token 时打印的链接与二维码包含 token；以 systemd / launchd 运行时它们会写入 journal 或日志文件，请限制日志访问权限。首次启动写入配置文件的 token 会跨重启保留，不会每次更换；
+> 隧道模式或本次进程临时生成 token 时打印的链接与二维码包含 token；以 systemd / launchd 运行时它们会写入 journal 或日志文件，请限制日志访问权限。
 >
-> 只有未持久化的临时 token 会在重启时更换。非隧道模式不打印固定的已配置 token，启动输出只提示用 `webmux status --json --reveal-token` 查看。
+> - 首次启动写入配置文件的 token 会跨重启保留，不会每次更换；只有未持久化的临时 token 会在重启时更换。
+> - 非隧道模式不打印固定的已配置 token，启动输出只提示用 `webmux status --json --reveal-token` 查看。
 
 ## 安装为应用（PWA）
 
@@ -313,9 +328,10 @@ kinds = ["question", "permission", "error", "done", "notify"] # 还可加 "bell"
 include_title = true # false 时通知标题固定为 WebMux
 ```
 
-- Web Push 只在安全上下文可用。手机可从 **Cloudflare Named Tunnel**、**Tailscale Serve/Funnel** 等已授权的 HTTPS 入口开启；Quick Tunnel 每次启动更换地址，旧订阅点开即失效，因此不支持。桌面浏览器也可从 `127.0.0.1` / `localhost` 开启。
-
-  非回环 HTTP（VPN / 局域网）与其他未授权的来源不支持；手工 `tailscale serve` 或自建 TLS 反向代理需把 HTTPS origin 加入 `allowed_origins`。
+- Web Push 只在安全上下文可用，可从以下入口开启：
+  - 手机：**Cloudflare Named Tunnel**、**Tailscale Serve/Funnel** 等已授权的 HTTPS 入口。Quick Tunnel 每次启动更换地址，旧订阅点开即失效，因此不支持。
+  - 桌面浏览器：也可从 `127.0.0.1` / `localhost` 开启。
+  - 非回环 HTTP（VPN / 局域网）与其他未授权的来源不支持；手工 `tailscale serve` 或自建 TLS 反向代理需把 HTTPS origin 加入 `allowed_origins`。
 
 - 隧道或 Tailscale 入口关闭期间推送照常发出，但点开通知要等入口恢复后才能打开页面。修改 `tunnel.hostname` 或 Tailscale 入口端口后需在各设备重新开启。
 - 开启步骤：用 Named Tunnel、Tailscale Serve/Funnel 等 HTTPS 入口打开 WebMux → 设置 → 通知推送 → 开启。iOS / iPadOS 需要 16.4 以上，先在 Safari 中“分享 → 添加到主屏幕”，从主屏幕图标打开并重新输入 Token（主屏幕应用不共享 Safari 的登录）。

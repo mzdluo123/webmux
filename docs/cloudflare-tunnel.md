@@ -15,9 +15,11 @@
 
 无论使用哪种公网方式，WebMux 都要求 Token。公网入口等同于把 shell 暴露给能拿到链接和 Token 的人，请先阅读[安全策略](../SECURITY.md)。
 
-Tailscale Serve 只需 tailnet 内可达，适合可信设备；Funnel 会公开到互联网，风险与 Named Tunnel 相当。两者的配置与手工移除命令见 [Tailscale Serve / Funnel 入口](tailscale.md)。
+Tailscale 与 Web Push 的补充：
 
-Web Push 支持 Cloudflare Named Tunnel、Tailscale Serve/Funnel 等已授权的 HTTPS 入口以及本机回环地址；Quick Tunnel 每次启动更换地址，仍不支持。
+- Tailscale Serve 只需 tailnet 内可达，适合可信设备；Funnel 会公开到互联网，风险与 Named Tunnel 相当。
+- 两者的配置与手工移除命令见 [Tailscale Serve / Funnel 入口](tailscale.md)。
+- Web Push 支持 Cloudflare Named Tunnel、Tailscale Serve/Funnel 等已授权的 HTTPS 入口以及本机回环地址；Quick Tunnel 每次启动更换地址，仍不支持。
 
 ## 2. 工作原理
 

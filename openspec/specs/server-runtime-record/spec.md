@@ -1,6 +1,7 @@
 # server-runtime-record Specification
 
 ## Purpose
+
 让运行中的 WebMux 服务在本机留下一份可校验的运行时记录，使同一用户的客户端（CLI、托盘）无需猜测端口或进程名即可定位、识别和安全停止该实例。
 
 ## Requirements

@@ -1,6 +1,7 @@
 # tailscale-web-settings Specification
 
 ## Purpose
+
 让部署者在网页设置页查看 Tailscale 检测与运行状态、了解 Serve/Funnel 的风险，并在网页中修改持久化的 Tailscale 设置；托管入口、对账与命令执行边界由 `tailscale-exposure` 规定。
 
 ## Requirements
@@ -11,11 +12,17 @@
 
 页面 SHALL 明确区分 `Serve`（仅 tailnet 内设备可访问）与 `Funnel`（公网 HTTPS，任何拿到链接与 Token 的人都能执行命令），并在 Funnel 模式下持续显示公网风险。
 
-页面 SHALL 说明配置来源（配置文件或网页设置），并提供模式、端口与 provider 的编辑与“恢复配置文件设置”（见“网页修改 Tailscale 设置”）。失败状态 SHALL 说明修复原因后重新保存即可再次应用，刷新检测只更新状态、不触发写命令。
+页面 SHALL 说明配置来源（配置文件或网页设置），并提供模式、端口与 provider 的编辑与“恢复配置文件设置”（见“网页修改 Tailscale 设置”）。
 
-WSL NAT 时 SHALL 显示三种替代方案；Windows provider 时 SHALL 显示显式选择与 operator 权限提示；入口冲突时 SHALL 只显示 host、port、是否公开，不显示其他目标路径。页面 SHALL 提供刷新检测与复制 URL；
+页面在各状态下的行为：
 
-带 Token 链接复用现有剪贴板与 `localStorage` 约定，Token 不得进入页面可见文本或新的持久化位置。
+- 失败状态：SHALL 说明修复原因后重新保存即可再次应用。
+- 刷新检测：只更新状态，不触发写命令。
+- WSL NAT：SHALL 显示三种替代方案。
+- Windows provider：SHALL 显示显式选择与 operator 权限提示。
+- 入口冲突：SHALL 只显示 host、port、是否公开，不显示其他目标路径。
+
+页面 SHALL 提供刷新检测与复制 URL。带 Token 链接复用现有剪贴板与 `localStorage` 约定，Token 不得进入页面可见文本或新的持久化位置。
 
 #### Scenario: 检测到但未配置
 
@@ -52,9 +59,15 @@ WSL NAT 时 SHALL 显示三种替代方案；Windows provider 时 SHALL 显示�
 
 保存成功后系统 SHALL 立即生效、无需重启：先撤销 Tailscale 来源，若记录中的入口不再符合新设置，先按所有权规则移除该精确目标，再应用新设置；移除失败时 MUST 保持 `failed`、保留记录且不应用新设置。
 
-响应 SHALL 返回当前视图，应用中为 `starting`（202）。从非 Funnel 切到 Funnel MUST 携带 `confirmFunnel: true`，否则返回 400 且不保存；`provider = "windows"` 仅在 WSL 中有效；
+响应 SHALL 返回当前视图，应用中为 `starting`（202）。保存请求的校验：
 
-登录 Token 少于 43 字符或监听地址无法托管时 MUST 返回 409 且不保存。恢复配置文件设置 SHALL 删除网页覆盖并关闭当前入口，本进程不按 TOML 自动开启，下次启动按 TOML 生效。WebMux 会话内的进程 MUST NOT 通过本机 API 修改 Tailscale 设置。
+- 从非 Funnel 切到 Funnel MUST 携带 `confirmFunnel: true`，否则返回 400 且不保存。
+- `provider = "windows"` 仅在 WSL 中有效。
+- 登录 Token 少于 43 字符或监听地址无法托管时 MUST 返回 409 且不保存。
+
+恢复配置文件设置 SHALL 删除网页覆盖并关闭当前入口，本进程不按 TOML 自动开启，下次启动按 TOML 生效。
+
+WebMux 会话内的进程 MUST NOT 通过本机 API 修改 Tailscale 设置。
 
 #### Scenario: 网页切换端口
 

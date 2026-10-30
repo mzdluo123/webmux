@@ -60,9 +60,12 @@
 
 隧道设置的增量兼容同样归入 US-O11：不得从版本号或存在 `tunnel` 字段推断设置页可用，只有 `settingsAvailable: true` 才显示入口；缺少该字段的旧服务仍保留原有隧道控制。可选 `enabled` 表示当前进程期望（包括 `--tunnel` 覆盖），不是持久磁盘值；缺失时才按 starting/ready 推断开关。
 
-Windows 原生终端客户端复用 US-M01–US-M06：提供 run、attach、ls、open、status 与 version，服务仍在 WSL 中。发行版与 webmux 路径按命令行、环境变量、托盘设置、默认值依次解析；
+Windows 原生终端客户端复用 US-M01–US-M06：提供 run、attach、ls、open、status 与 version，服务仍在 WSL 中。
 
-用 `wslpath` 换算盘符路径，识别同发行版的 WSL UNC 路径，无法换算时要求显式 Linux `--cwd`。经 `wsl.exe --exec webmux bridge` 连接，不依赖 localhost 转发；附着时使用 UTF-8/VT 控制台，恢复后还原模式与代码页。
+- 发行版与 webmux 路径：按命令行、环境变量、托盘设置、默认值依次解析。
+- 路径换算：用 `wslpath` 换算盘符路径，识别同发行版的 WSL UNC 路径，无法换算时要求显式 Linux `--cwd`。
+- 连接：经 `wsl.exe --exec webmux bridge`，不依赖 localhost 转发。
+- 附着：使用 UTF-8/VT 控制台，恢复后还原模式与代码页。
 
 依据：
 
