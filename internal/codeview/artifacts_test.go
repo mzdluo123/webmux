@@ -86,8 +86,10 @@ func TestArtifactsRoot(t *testing.T) {
 		t.Fatalf("workspace tree after artifacts: %v", err)
 	}
 
-	// A replaced folder gets a new context; the old one conflicts.
-	if err := os.RemoveAll(dir); err != nil {
+	// A replaced folder gets a new context; the old one conflicts. The old
+	// folder is moved aside, not deleted, so the filesystem cannot reuse its
+	// inode for the new one.
+	if err := os.Rename(dir, dir+".old"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := folders.Ensure(id); err != nil {
