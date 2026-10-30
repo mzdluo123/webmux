@@ -141,6 +141,9 @@
       element.scrollTop = top;
     });
   }
+  // Near the end the scroll position is clamped, so a jump target that cannot
+  // reach the top stays current until the reader scrolls away from it.
+  let jumped: { page: number; top: number } | undefined;
   function jump(number: number) {
     if (!scroller || !Number.isInteger(number)) return;
     const target = Math.min(sizes.length, Math.max(1, number));
@@ -149,6 +152,7 @@
     );
     if (!element) return;
     scroller.scrollTop = element.offsetTop - padding;
+    jumped = { page: target, top: scroller.scrollTop };
     current = target;
     pageInput = String(target);
   }
@@ -182,6 +186,12 @@
   // first intersecting page may be the previous page's edge after a jump.
   function track() {
     if (!scroller || !visible.size) return;
+    if (jumped && Math.abs(scroller.scrollTop - jumped.top) < 1) {
+      current = jumped.page;
+      if (!editing) pageInput = String(jumped.page);
+      return;
+    }
+    jumped = undefined;
     const line = scroller.scrollTop + padding + 1;
     let page = Math.min(...visible);
     for (const number of visible) {

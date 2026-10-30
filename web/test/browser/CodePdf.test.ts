@@ -1,3 +1,4 @@
+import { tick } from "svelte";
 import { afterEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
@@ -133,6 +134,23 @@ test("a multi-page Chinese PDF renders near the viewport, releases far pages and
   await expect.poll(() => painted(5), { timeout: 10_000 }).toBe(true);
   await expect.poll(() => canvases().includes(20)).toBe(false);
   expect(pageText(5)).toContain("第 5 页");
+
+  // The last page cannot scroll to the top edge when the panel is taller than
+  // a fitted page (Pixel 7); it still counts as current after its own scroll
+  // event, and scrolling away hands the number back to the page at the top.
+  scroller().style.flex = "none";
+  scroller().style.height = `${pageBox(30).offsetHeight * 2}px`;
+  await page.getByLabelText("页码").fill("30");
+  await userEvent.keyboard("{Enter}");
+  await expect.poll(() => canvases().includes(30)).toBe(true);
+  expect(scroller().scrollTop).toBeLessThan(pageBox(30).offsetTop - 8);
+  scroller().dispatchEvent(new Event("scroll"));
+  await tick();
+  expect(
+    page.getByLabelText("页码").element() as HTMLInputElement,
+  ).toHaveProperty("value", "30");
+  scroller().scrollTop = pageBox(20).offsetTop;
+  await expect.element(page.getByLabelText("页码")).toHaveValue("20");
 });
 
 test("zoom controls, ctrl+wheel and two-finger pinch rescale the pages", async () => {
