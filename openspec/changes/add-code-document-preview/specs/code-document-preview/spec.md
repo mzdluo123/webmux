@@ -16,7 +16,7 @@
 
 ### Requirement: HTML 静态预览
 
-HTML 预览 SHALL 先在不执行脚本的解析文档中移除 `<script>`、`<base>`、`<meta http-equiv="refresh">`、`<object>`、`<embed>`、`<iframe>`，移除所有事件处理属性、`<a>`/`<area>` 的 `href`、表单的 `action`。
+HTML 预览 SHALL 先在不执行脚本的解析文档中移除 `<script>`、`<base>`、`<link>`、`<template>`、`<meta http-equiv="refresh">`、`<object>`、`<embed>`、`<iframe>` 与 SVG 动画元素，移除所有事件处理属性、`<a>`/`<area>` 的 `href`、表单的 `action`，以及值不是 `data:` 的 `src`、`srcset`、`poster`、`background`、`href` 属性。
 
 处理后的文档 SHALL 以 `srcdoc` 放入 `sandbox` 属性为空的框架，并在文档头部注入 CSP `default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:`。
 
