@@ -23,8 +23,11 @@
 
 依据：
 
-- [代码面板](../../web/src/components/CodePanel.svelte)、[独立窗口](../../web/src/components/codePopout.ts)、[平台能力判断](../../web/src/capabilities.ts)、[文件导航](../../web/src/components/CodeNavigator.svelte)、[文件与 Diff 切换](../../web/src/components/CodeDocumentView.svelte)、[文件阅读](../../web/src/components/CodeReader.svelte)、[代码语言匹配](../../web/src/code-language.ts)
-- [Markdown 预览](../../web/src/components/CodeMarkdownPreview.svelte)、[Diff 阅读](../../web/src/components/CodeDiffReader.svelte)、[图片预览](../../web/src/components/CodeImageView.svelte)、[代码引用](../../web/src/code-reference.ts)、[代码服务](../../internal/codeview/)、[代码接口](../../internal/api/code.go)。
+- [代码面板](../../web/src/components/CodePanel.svelte)、[独立窗口](../../web/src/components/codePopout.ts)、[平台能力判断](../../web/src/capabilities.ts)
+- [文件导航](../../web/src/components/CodeNavigator.svelte)、[文件与 Diff 切换](../../web/src/components/CodeDocumentView.svelte)、[文件阅读](../../web/src/components/CodeReader.svelte)
+- [代码语言匹配](../../web/src/code-language.ts)
+- [Markdown 预览](../../web/src/components/CodeMarkdownPreview.svelte)、[Diff 阅读](../../web/src/components/CodeDiffReader.svelte)、[图片预览](../../web/src/components/CodeImageView.svelte)
+- [代码引用](../../web/src/code-reference.ts)、[代码服务](../../internal/codeview/)、[代码接口](../../internal/api/code.go)。
 
 ## J. 仓库登记与 worktree 管理
 

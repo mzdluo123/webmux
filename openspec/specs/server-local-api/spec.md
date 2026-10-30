@@ -94,7 +94,9 @@ macOS 无法读取其他进程环境，识别 SHALL 以进程树为准，并接�
 
 ### Requirement: 状态中的隧道字段
 
-`/local/v1/status` 与 `webmux status --json` SHALL 在实例支持运行时隧道控制时包含 `tunnel` 对象：`state`（`off`、`starting`、`ready`、`failed` 之一）、`ready` 时的 `publicUrl`（不含 Token）、`failed` 时的 `error`、以及 `named`（是否 Named Tunnel）。该字段 SHALL 为可选新增字段，契约版本保持 v1；不支持的旧实例 SHALL 省略该字段。实例未运行时 SHALL 省略该字段。
+`/local/v1/status` 与 `webmux status --json` SHALL 在实例支持运行时隧道控制时包含 `tunnel` 对象：`state`（`off`、`starting`、`ready`、`failed` 之一）、`ready` 时的 `publicUrl`（不含 Token）、`failed` 时的 `error`、以及 `named`（是否 Named Tunnel）。
+
+该字段 SHALL 为可选新增字段，契约版本保持 v1；不支持的旧实例 SHALL 省略该字段。实例未运行时 SHALL 省略该字段。
 
 #### Scenario: 隧道就绪
 

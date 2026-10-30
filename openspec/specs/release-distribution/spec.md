@@ -7,7 +7,11 @@
 
 ### Requirement: 标签触发发布
 
-推送形如 `v<版本>` 的 Git 标签时，发布流水线 SHALL 以该版本号构建全部发布产物，并创建同名 GitHub Release 上传它们。产物 SHALL 包括 `webmux-linux-amd64`、`webmux-linux-arm64`、`webmux-darwin-amd64`、`webmux-darwin-arm64`、`webmux-windows-amd64.exe`、`webmux-windows-arm64.exe`、`webmux-tray-windows-amd64.exe`、`webmux-tray-windows-arm64.exe` 与 `SHA256SUMS`。每个二进制 SHALL 报告该版本号。构建或测试失败时 SHALL NOT 创建或更新 Release。
+推送形如 `v<版本>` 的 Git 标签时，发布流水线 SHALL 以该版本号构建全部发布产物，并创建同名 GitHub Release 上传它们。
+
+产物 SHALL 包括 `webmux-linux-amd64`、`webmux-linux-arm64`、`webmux-darwin-amd64`、`webmux-darwin-arm64`、`webmux-windows-amd64.exe`、`webmux-windows-arm64.exe`、`webmux-tray-windows-amd64.exe`、`webmux-tray-windows-arm64.exe` 与 `SHA256SUMS`。
+
+每个二进制 SHALL 报告该版本号。构建或测试失败时 SHALL NOT 创建或更新 Release。
 
 #### Scenario: 发布新版本
 

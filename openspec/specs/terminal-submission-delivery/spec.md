@@ -7,7 +7,11 @@
 
 ### Requirement: 提交帧与运行代际绑定
 
-客户端 SHALL 以 0x03 提交帧发送草稿与带回车的快捷指令，载荷为一行 JSON 头 `{id, generation, bodyBytes}`、换行符，以及正文字节与提交键字节；终端字节 MUST NOT 编码为 JSON 字符串。提交 ID SHALL 为 8–64 个 `[A-Za-z0-9_-]` 字符且由客户端随机生成。`generation` 与会话当前运行代际不一致时，服务端 SHALL 回报 `failed`（`error: "generation"`）且不写入任何字节；JSON 头无效或 `bodyBytes` 越界时 SHALL 回报 `failed`（`error: "invalid"`）。
+客户端 SHALL 以 0x03 提交帧发送草稿与带回车的快捷指令，载荷为一行 JSON 头 `{id, generation, bodyBytes}`、换行符，以及正文字节与提交键字节；终端字节 MUST NOT 编码为 JSON 字符串。
+
+提交 ID SHALL 为 8–64 个 `[A-Za-z0-9_-]` 字符且由客户端随机生成。`generation` 与会话当前运行代际不一致时，服务端 SHALL 回报 `failed`（`error: "generation"`）且不写入任何字节；
+
+JSON 头无效或 `bodyBytes` 越界时 SHALL 回报 `failed`（`error: "invalid"`）。
 
 正文 SHALL 按 xterm 粘贴规则准备：换行转为 CR，应用开启 bracketed paste 时包裹 `ESC[200~`/`ESC[201~`，使线上字节与原先“粘贴后回车”一致。普通按键 SHALL 继续使用 0x00 输入帧。
 
@@ -27,7 +31,11 @@
 
 ### Requirement: 提交状态回报
 
-服务端 SHALL 以 0x05 帧回报提交状态：登记时 `received`；全部字节写入后 `written`；部分字节写入后出错 `partial`；未写入任何字节 `failed`。状态 SHALL 发送给提交客户端（同一客户端 ID）的全部连接，以及在 `received` 期间查询过该提交的其他客户端；最终状态送出后，或查询客户端的全部连接断开后，服务端 SHALL 不再保留该客户端的观察登记。0x02 重新同步清空队列时 SHALL 保留尚未送出的提交状态帧，并在 0x03 退出帧之前送出。界面 SHALL 只把 `written` 表述为“已写入终端”，MUST NOT 表述为 agent 已接受或执行成功。
+服务端 SHALL 以 0x05 帧回报提交状态：登记时 `received`；全部字节写入后 `written`；部分字节写入后出错 `partial`；未写入任何字节 `failed`。
+
+状态 SHALL 发送给提交客户端（同一客户端 ID）的全部连接，以及在 `received` 期间查询过该提交的其他客户端；最终状态送出后，或查询客户端的全部连接断开后，服务端 SHALL 不再保留该客户端的观察登记。
+
+0x02 重新同步清空队列时 SHALL 保留尚未送出的提交状态帧，并在 0x03 退出帧之前送出。界面 SHALL 只把 `written` 表述为“已写入终端”，MUST NOT 表述为 agent 已接受或执行成功。
 
 #### Scenario: 正常提交
 
