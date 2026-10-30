@@ -31,7 +31,8 @@ HTML、CSV/TSV、JSON 已作为 `kind=text` 全文下发，预览仅是前端的
 
 ### D2：HTML 三层隔离
 
-1. 惰性预处理：用 `DOMParser` 解析（不执行脚本、不加载资源），删除 `script`、`base`、`link`、`template`、`meta[http-equiv=refresh]`、`object`、`embed`、`iframe`、`frame`、`portal` 与 SVG 动画元素（`animate`、`animateMotion`、`animateTransform`、`set`），删除 `on*` 属性、`a`/`area` 的 `href`、`form` 的 `action` / `formaction`、`javascript:` URL，以及值不是 `data:` 的 `src`、`srcset`、`poster`、`background`、`href`。
+1. 惰性预处理：用 `DOMParser` 解析（不执行脚本、不加载资源），删除 `script`、`base`、`link`、`template`、`meta[http-equiv=refresh]`、`object`、`embed`、`iframe`、`frame`、`portal` 与 SVG 动画元素（`animate`、`animateMotion`、`animateTransform`、`set`），删除 `on*` 属性、`a`/`area` 的 `href`、`form` 的 `action` / `formaction`、`javascript:` URL、全部 `srcset`，以及经 URL 解析后协议不是 `data:` 的 `src`、`poster`、`background`、`href`。
+   - `srcset` 是候选列表，单次 URL 判断无法覆盖每个候选，因此整体删除，元素回退到 `src`；以 URL 解析而非前缀匹配判断协议，前导不间断空格等字符会被视为相对地址而删除。
    - CSP 虽会拦截外部引用，但浏览器仍会尝试发起请求，因此在预处理阶段直接移除。
    - `template` 的内容不在遍历范围内，而 `shadowrootmode` 会让它在框架中成为未经处理的影子树；SVG 动画可在不运行脚本的情况下把 `href` 写回链接。两者整体删除。
 2. CSP：在 `head` 首位插入 `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:">`。
@@ -51,7 +52,8 @@ CSV 解析器按 RFC 4180 状态机实现，记录行列号以报告未闭合引
 
 ### D5：pdf.js 的加载与渲染
 
-- 依赖 `pdfjs-dist`（6.x），使用其 `legacy` 构建以满足 `vite.config.ts` 的浏览器基线（现代构建依赖 `Map.prototype.getOrInsertComputed` 等很新的内置方法）；仅在 PDF 视图中 `import()`，形成独立分包；worker 通过 Vite `?url` 引入，CMap、标准字体与 wasm 解码器以 `?url&no-inline` 构建资源随 `web/dist` 嵌入。
+- 依赖 `pdfjs-dist`（6.x），使用其 `legacy` 构建（现代构建依赖 `Map.prototype.getOrInsertComputed` 等很新的内置方法）；legacy 构建仍要求约 Chrome 125 / Safari 18，低于此的浏览器在 `getDocument()` 同步抛错，视图显示“当前浏览器无法预览 PDF，请下载后查看”并保留下载。仅在 PDF 视图中 `import()`，形成独立分包；worker 通过 Vite `?url` 引入，CMap、标准字体与 wasm 解码器以 `?url&no-inline` 构建资源随 `web/dist` 嵌入。
+- 代码面板保留非活动标签的视图：未完成的读取与解析在标签离开时取消、返回时重新开始；已加载的文档保持不变。
 - pdf.js 6 把三类数据合并为单一 `BinaryDataFactory`：设 `useWorkerFetch: false`，由自定义工厂把固定文件名映射为哈希 URL，不访问公共 CDN。
 - `getDocument({ data, enableXfa: false, ... })`：pdf.js 6 已移除 `isEvalSupported`，不再用 `eval` 编译字体，因此无需该选项。字节通过现有 `api` 认证读取为 `ArrayBuffer`，读取与 `PDFDocumentLoadingTask` 共用中止信号。
 - 每页一个占位容器，按页面尺寸预留高度；`IntersectionObserver` 只渲染可视区前后各 1 页，离开 3 页以外的页面释放画布。渲染比例上限为 `min(devicePixelRatio, 2)`。

@@ -15,11 +15,14 @@
     id,
     snapshotId,
     document: doc,
+    active = true,
     ondownloaderror,
   }: {
     id: string;
     snapshotId: string;
     document: CodeDocument;
+    /** Inactive views cancel the read and parse, and start none. */
+    active?: boolean;
     ondownloaderror: (message: string, status: number) => void;
   } = $props();
   type PdfModule = typeof import("../code-pdf");
@@ -52,9 +55,13 @@
   const kept = new SvelteSet<number>();
   const links = new SvelteMap<number, PdfLink[]>();
   const path = $derived(codeRawPath(id, snapshotId));
+  // Only an unfinished load is cancelled by leaving the tab; a loaded or
+  // failed document stays as it is for the reader's return.
+  const wanted = $derived(active || phase !== "loading");
 
   $effect(() => {
     const source = path;
+    if (!wanted) return;
     const controller = new AbortController();
     const { signal } = controller;
     let opened: ReturnType<PdfModule["openPdf"]> | undefined;
@@ -84,7 +91,14 @@
         return;
       }
       if (signal.aborted) return;
-      opened = module.openPdf(data, signal);
+      try {
+        opened = module.openPdf(data, signal);
+      } catch {
+        // pdf.js throws synchronously when the browser lacks a built-in it
+        // needs; the bytes may be fine, so the reader is sent to download.
+        fail("当前浏览器无法预览 PDF，请下载后查看");
+        return;
+      }
       try {
         const document = await opened.promise;
         const first = await document.getPage(1);

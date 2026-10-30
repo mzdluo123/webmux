@@ -20,9 +20,10 @@ const animationElements: Record<string, true> = {
 };
 // Attributes that make the browser fetch a resource; only inline `data:`
 // values survive, so nothing reaches the network or the app origin.
+// `srcset` is a candidate list a single URL check cannot classify, so it is
+// always dropped and the element falls back to its `src`.
 const resourceAttributes: Record<string, true> = {
   src: true,
-  srcset: true,
   poster: true,
   background: true,
   href: true,
@@ -30,14 +31,13 @@ const resourceAttributes: Record<string, true> = {
 };
 
 // Uses the URL parser itself, which ignores leading controls and embedded
-// tabs or newlines that a pattern would have to imitate.
-function scriptUrl(value: string) {
+// tabs or newlines that a pattern would have to imitate, and keeps other
+// leading characters, which leave a relative URL.
+function urlProtocol(value: string) {
   try {
-    return (
-      new URL(value, "https://preview.invalid/").protocol === "javascript:"
-    );
+    return new URL(value, "https://preview.invalid/").protocol;
   } catch {
-    return false;
+    return "";
   }
 }
 
@@ -54,14 +54,16 @@ export function staticHtml(text: string) {
     for (const name of element.getAttributeNames()) {
       const value = element.getAttribute(name) ?? "";
       const key = name.toLowerCase();
+      const protocol = urlProtocol(value);
       // Link targets and form submissions are dropped whatever their value.
       if (
         key.startsWith("on") ||
         key === "action" ||
         key === "formaction" ||
+        key === "srcset" ||
         (link && (key === "href" || key === "xlink:href")) ||
-        (resourceAttributes[key] && !/^\s*data:/i.test(value)) ||
-        scriptUrl(value)
+        (resourceAttributes[key] && protocol !== "data:") ||
+        protocol === "javascript:"
       )
         element.removeAttribute(name);
     }

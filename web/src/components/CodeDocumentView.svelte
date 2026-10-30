@@ -750,6 +750,7 @@
         {id}
         {snapshotId}
         document={doc}
+        {active}
         ondownloaderror={downloadFailed}
       />{/key}
   {:else if formatPreview && doc}

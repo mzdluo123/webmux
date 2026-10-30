@@ -16,7 +16,7 @@
 
 ### Requirement: HTML 静态预览
 
-HTML 预览 SHALL 先在不执行脚本的解析文档中移除 `<script>`、`<base>`、`<link>`、`<template>`、`<meta http-equiv="refresh">`、`<object>`、`<embed>`、`<iframe>` 与 SVG 动画元素，移除所有事件处理属性、`<a>`/`<area>` 的 `href`、表单的 `action`，以及值不是 `data:` 的 `src`、`srcset`、`poster`、`background`、`href` 属性。
+HTML 预览 SHALL 先在不执行脚本的解析文档中移除 `<script>`、`<base>`、`<link>`、`<template>`、`<meta http-equiv="refresh">`、`<object>`、`<embed>`、`<iframe>` 与 SVG 动画元素，移除所有事件处理属性、`<a>`/`<area>` 的 `href`、表单的 `action`、全部 `srcset`，以及经 URL 解析后协议不是 `data:` 的 `src`、`poster`、`background`、`href` 属性。
 
 处理后的文档 SHALL 以 `srcdoc` 放入 `sandbox` 属性为空的框架，并在文档头部注入 CSP `default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:`。
 
@@ -97,7 +97,7 @@ PDF 预览 SHALL 在首次需要时加载随应用打包的渲染器与 worker�
 
 文本 SHALL 可选择与复制；文档内链接 SHALL 跳转到目标页，HTTP(S) 与 `mailto:` 链接 SHALL 在新标签页打开并带 `noopener noreferrer`，其他链接 SHALL 无效。预览 SHALL NOT 执行 PDF 内脚本、显示可交互表单或加载外部资源。中文、日文与韩文字体 SHALL 能正确显示。
 
-受密码保护、损坏或渲染失败的 PDF SHALL 显示原因并保留下载入口。切换文件或关闭标签页时 SHALL 取消读取与渲染并释放资源。
+受密码保护、损坏、渲染失败或浏览器不支持渲染器的 PDF SHALL 显示原因并保留下载入口。切换文件或关闭标签页时 SHALL 取消尚未完成的读取与渲染并释放资源。
 
 #### Scenario: 阅读多页文档
 

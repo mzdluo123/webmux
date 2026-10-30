@@ -296,3 +296,30 @@ test("unmounting cancels the PDF read", async () => {
   await rendered.unmount();
   expect(signal?.aborted).toBe(true);
 });
+
+test("leaving the tab cancels an unfinished load and keeps a loaded PDF", async () => {
+  const signals: AbortSignal[] = [];
+  let hold = true;
+  serve((init) => {
+    if (init?.signal) signals.push(init.signal);
+    if (!hold) return pdfResponse(pdfFixture({ pages: 2 }));
+    const { promise, reject } = Promise.withResolvers<Response>();
+    init?.signal?.addEventListener("abort", () =>
+      reject(new DOMException("aborted", "AbortError")),
+    );
+    return promise;
+  });
+  const view = await render(Harness, { file: fileOf(pdfDocument()) });
+  await expect.poll(() => signals.length).toBe(1);
+  await view.rerender({ active: false });
+  expect(signals[0]?.aborted).toBe(true);
+  hold = false;
+  await view.rerender({ active: true });
+  await expect.poll(() => painted(1), { timeout: 10_000 }).toBe(true);
+  expect(signals).toHaveLength(2);
+  await view.rerender({ active: false });
+  await view.rerender({ active: true });
+  expect(painted(1)).toBe(true);
+  expect(signals).toHaveLength(2);
+  expect(signals[1]?.aborted).toBe(false);
+});

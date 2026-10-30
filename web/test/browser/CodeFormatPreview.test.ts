@@ -143,6 +143,8 @@ test("HTML preprocessing removes active content, navigation and form targets", (
 <form action="/api/sessions"><button formaction="/api/sessions">go</button></form>
 <img src="javascript:alert(1)" onerror="x()"><img src="data:image/png;base64,AAAA">
 <img src="https://example.com/x.png" srcset="b.png 2x"><video poster="p.png"></video>
+<img src="data:image/png;base64,AAAA" srcset="data:image/png;base64,AAAA 1x, https://example.com/x.png 2x">
+<img src="&nbsp;data:image/png;base64,AAAA">
 <iframe src="https://example.com"></iframe><object data="x"></object><embed src="x">
 <frameset></frameset><portal src="x"></portal>
 <svg><a href="https://example.com"><text>s</text></a></svg>
@@ -164,9 +166,11 @@ test("HTML preprocessing removes active content, navigation and form targets", (
   expect(
     doc.querySelectorAll("[href], [action], [formaction], [srcset], [poster]"),
   ).toHaveLength(0);
+  // A leading no-break space is not stripped by the URL parser, so that
+  // value is a relative URL resolved against the app origin.
   expect(
     [...doc.querySelectorAll("[src]")].map((e) => e.getAttribute("src")),
-  ).toEqual(["data:image/png;base64,AAAA"]);
+  ).toEqual(["data:image/png;base64,AAAA", "data:image/png;base64,AAAA"]);
   // A declarative shadow root would go live in the frame, unsanitised, and
   // SVG animation would put an `href` back without any script.
   expect(html).not.toContain("shadowrootmode");
