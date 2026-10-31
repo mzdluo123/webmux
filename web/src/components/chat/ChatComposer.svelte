@@ -164,6 +164,9 @@
       savingMode = false;
     }
   }
+  export function focus() {
+    textarea?.focus();
+  }
 </script>
 
 <div class="space-y-1.5" data-chat-composer>

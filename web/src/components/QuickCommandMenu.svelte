@@ -21,7 +21,8 @@
     onCloseAutoFocus,
   }: {
     commands: QuickCommand[];
-    target: "terminal" | "draft";
+    // "chat" inserts into a hybrid session's message box, never sending.
+    target: "terminal" | "draft" | "chat";
     unavailable: string;
     disabled: boolean;
     side: "top" | "bottom";
@@ -32,6 +33,9 @@
     onCloseAutoFocus: (event: Event) => void;
   } = $props();
   const blocked = $derived(target === "terminal" && !!unavailable);
+  const title = $derived(
+    { terminal: "发送到终端", draft: "插入草稿", chat: "插入消息" }[target],
+  );
 </script>
 
 <DropdownMenu.Root>
@@ -50,9 +54,7 @@
     class="max-h-[min(60dvh,24rem)] w-72 max-w-[calc(100vw-1rem)]"
     {onCloseAutoFocus}
   >
-    <DropdownMenu.Label variant="title"
-      >{target === "draft" ? "插入草稿" : "发送到终端"}</DropdownMenu.Label
-    >
+    <DropdownMenu.Label variant="title">{title}</DropdownMenu.Label>
     {#if blocked}
       <p class="px-2 pb-2 text-xs text-muted-foreground" role="status">
         {unavailable}

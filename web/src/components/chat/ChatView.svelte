@@ -60,6 +60,10 @@
   let answering = $state(false);
   let dragging = $state(false);
   let dragDepth = 0;
+  let composer = $state<ChatComposer>();
+  export function focus() {
+    composer?.focus();
+  }
   const entries = $derived(groupTimeline(model.entries));
   const request = $derived(chat?.requests[0]);
   const requestTool = $derived.by(() => {
@@ -274,6 +278,7 @@
       {/key}
     {:else if chat}
       <ChatComposer
+        bind:this={composer}
         {draft}
         {drafts}
         {chat}

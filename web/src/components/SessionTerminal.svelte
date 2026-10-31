@@ -76,6 +76,7 @@
   } = $props();
   const draft = untrack(() => drafts.get(id));
   let composer = $state<TerminalInputComposer>();
+  let chatView = $state<ChatView>();
   let sending = false;
   let pasteOperation: DraftOperation | undefined;
   let container = $state<HTMLDivElement>();
@@ -155,13 +156,16 @@
     const showing = terminalVisible();
     if (showing) void tick().then(() => t.fit());
   });
+  // The chat input is the session's draft text: input begun on the chat side
+  // goes there whether or not the terminal draft pane is open.
+  function beginInput(): DraftOperation {
+    const operation = drafts.begin(draft);
+    return hybrid.view === "chat"
+      ? { ...operation, startedInDraft: true }
+      : operation;
+  }
   function insertReference(text: string) {
-    // The chat input is the session's draft text.
-    if (hybrid.view === "chat")
-      return drafts.insert(draft, text, {
-        ...drafts.begin(draft),
-        startedInDraft: true,
-      });
+    if (hybrid.view === "chat") return insertText(text, beginInput());
     const result = insertText(text);
     if (result === "terminal" && !desktop) {
       codeShown = false;
@@ -185,7 +189,8 @@
   }
   function focusInput() {
     if (!active || !visible) return;
-    if (draft.enabled) composer?.focus();
+    if (hybrid.view === "chat") chatView?.focus();
+    else if (draft.enabled) composer?.focus();
     else t.focus();
   }
   export function focus() {
@@ -254,7 +259,8 @@
   };
   function runQuickCommand(cmd: QuickCommand) {
     t.resetModifiers();
-    if (cmd.enter && drafts.destination(draft) === "terminal") {
+    const chat = hybrid.view === "chat";
+    if (!chat && cmd.enter && drafts.destination(draft) === "terminal") {
       // Text and Enter form one acknowledged submission.
       const sent = t.submit(newSubmissionId(), cmd.command, true, (state) => {
         if (!mounted) return;
@@ -265,16 +271,19 @@
       error = sent ? "" : "终端未就绪，快捷指令未发送；请恢复连接后重试。";
       return;
     }
-    const result = insertText(cmd.command);
+    // The chat side only inserts: sending stays with the message box.
+    const result = insertText(cmd.command, beginInput());
     if (result === "failed")
-      error = "终端未就绪，快捷指令未发送；请恢复连接后重试。";
+      error = chat
+        ? "草稿正在提交到终端，快捷指令未插入；请确认结果后重试。"
+        : "终端未就绪，快捷指令未发送；请恢复连接后重试。";
     else error = "";
   }
   // The operation binds this session's draft and target at selection; the
   // prompt is inserted (never submitted) once the folder exists.
   async function insertArtifactPrompt() {
     t.resetModifiers();
-    const operation = drafts.begin(draft);
+    const operation = beginInput();
     const session = id;
     let dir: string;
     try {
@@ -287,7 +296,10 @@
     const template = settings.values.artifactPrompt ?? BUILTIN_ARTIFACT_PROMPT;
     const result = insertText(renderArtifactPrompt(template, dir), operation);
     if (result === "failed")
-      error = "终端未就绪，提示词未插入；请恢复连接后重试。";
+      error =
+        drafts.destination(draft, operation) === "draft"
+          ? "草稿正在提交到终端，提示词未插入；请确认结果后重试。"
+          : "终端未就绪，提示词未插入；请恢复连接后重试。";
     else error = "";
   }
   let sizeLocked = $state(stored("sizeLocked") === "1");
@@ -556,9 +568,15 @@
 {#snippet quickMenu(side: "top" | "bottom")}
   <QuickCommandMenu
     commands={quickCommands.list}
-    target={draft.enabled ? "draft" : "terminal"}
+    target={hybrid.view === "chat"
+      ? "chat"
+      : draft.enabled
+        ? "draft"
+        : "terminal"}
     unavailable={quickUnavailable}
-    disabled={t.connection === "missing"}
+    disabled={hybrid.view === "chat"
+      ? hybrid.missing
+      : t.connection === "missing"}
     {side}
     run={runQuickCommand}
     artifact={() => void insertArtifactPrompt()}
@@ -672,6 +690,7 @@
       {#if hybrid.view === "chat"}
         <div class={["h-full", paneEnter]}>
           <ChatView
+            bind:this={chatView}
             model={hybrid.chat.model}
             chat={hybrid.chat.state}
             connection={hybrid.chat.connection}
