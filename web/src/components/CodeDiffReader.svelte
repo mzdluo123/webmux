@@ -333,6 +333,28 @@
       const nativeSelection = document.getSelection();
       if (nativeSelection && !nativeSelection.isCollapsed) selected = null;
     };
+    // @pierre/diffs 1.3.6 follows a line-number press (click, Shift-click
+    // range, drag) with pointer listeners on the global `document`. In a
+    // pop-out window those events reach only the window's own document, so
+    // the press never ends; relay them until the press does.
+    let stopRelay: (() => void) | undefined;
+    const relayPointer = (down: PointerEvent) => {
+      const own = host.ownerDocument;
+      if (own === document) return;
+      stopRelay?.();
+      const types = ["pointermove", "pointerup", "pointercancel"] as const;
+      const relay = (event: PointerEvent) => {
+        document.dispatchEvent(new PointerEvent(event.type, event));
+        if (event.type !== "pointermove" && event.pointerId === down.pointerId)
+          stopRelay?.();
+      };
+      for (const type of types) own.addEventListener(type, relay, true);
+      stopRelay = () => {
+        for (const type of types) own.removeEventListener(type, relay, true);
+        stopRelay = undefined;
+      };
+    };
+    host.addEventListener("pointerdown", relayPointer, true);
     host.addEventListener("pointerdown", guardExpansion, true);
     host.addEventListener("click", guardExpansion, true);
     root.addEventListener("keydown", keydown);
@@ -343,6 +365,8 @@
       themeObserver.disconnect();
       pointer.removeEventListener("change", updatePointer);
       host.removeEventListener("pointerdown", guardExpansion, true);
+      host.removeEventListener("pointerdown", relayPointer, true);
+      stopRelay?.();
       host.removeEventListener("click", guardExpansion, true);
       root.removeEventListener("keydown", keydown);
       document.removeEventListener("selectionchange", selectionChanged);

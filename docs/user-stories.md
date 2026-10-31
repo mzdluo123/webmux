@@ -282,3 +282,7 @@ WSL2 mirrored + 真实 Windows Tailscale 上经网页与 API 验证：切换端�
 逐字回显延迟测试在修复前复现约 51 ms 等待，修复后三轮约 0.03 ms（本机 PTY 到 WebSocket）。
 连续输出回归覆盖 14 万字节的完整性、顺序、64 KiB 实时帧上限和退出顺序。
 未重新核验其余故事能力。
+
+本次局部核对（2026-10-31）：#215 独立代码窗口中修改视图的行号 Shift 范围选择与重新选择失效，对应更新 US-I13。
+diff 库的行号按压只在主页面 `document` 上等待 pointerup，现由 `CodeDiffReader` 在独立窗口中转发；`code-popout.spec.ts` 新增用例修复前失败、修复后通过。
+未重新核验其余故事能力。

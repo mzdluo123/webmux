@@ -151,6 +151,68 @@ test("closing the opener's code view keeps the popped-out panel live", async ({
   await pip.close();
 });
 
+test("line numbers select ranges inside the popped-out window", async ({
+  page,
+  workDir,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium-desktop",
+    "Document Picture-in-Picture is a desktop browser feature",
+  );
+  git(workDir, "init", "-q");
+  await writeFile(join(workDir, "pick.txt"), "one\ntwo\nthree\n");
+  git(workDir, "add", ".");
+  git(workDir, "commit", "-qm", "initial");
+  await writeFile(join(workDir, "pick.txt"), "one\nTWO\nTHREE\n");
+  await createShell(page, "Popout pick", workDir);
+  await page
+    .locator(".terminal-header")
+    .getByRole("button", { name: "代码", exact: true })
+    .click();
+  const opened = page.context().waitForEvent("page");
+  await page
+    .getByRole("button", { name: "在独立窗口中显示代码", exact: true })
+    .click();
+  const pip = await opened;
+  const send = (range: string) =>
+    pip
+      .getByRole("button", { name: `发送位置到终端（${range} 行）` })
+      .filter({ visible: true });
+
+  // File view: CodeMirror gutter.
+  await pip.getByRole("button", { name: "pick.txt", exact: true }).click();
+  const gutter = (n: number) =>
+    pip
+      .locator("[data-code-reader]:visible .cm-lineNumbers .cm-gutterElement")
+      .filter({ hasText: new RegExp(`^${n}$`) });
+  await gutter(1).click();
+  await gutter(3).click({ modifiers: ["Shift"] });
+  await expect(send("1-3")).toBeEnabled();
+
+  // Diff view: the diff library tracks the pointer on its document.
+  await pip.getByRole("tab", { name: "修改", exact: true }).click();
+  await pip
+    .getByRole("button", { name: "修改 pick.txt", exact: true })
+    .first()
+    .click();
+  const diff = pip.locator("diffs-container").first();
+  await expect(pip.locator(".code-diff-reader").first()).toContainText("TWO");
+  const number = (n: number) =>
+    diff
+      .locator(
+        `[data-column-number="${n}"]:not([data-line-type="change-deletion"]):not([data-deletions] *)`,
+      )
+      .first();
+  await number(2).click();
+  await expect(send("2")).toBeEnabled();
+  await number(3).click({ modifiers: ["Shift"] });
+  await expect(send("2-3")).toBeEnabled();
+  // A new click after a range starts a new selection.
+  await number(1).click();
+  await expect(send("1")).toBeEnabled();
+  await pip.close();
+});
+
 // Safari, Firefox and plain-HTTP origins have no Document Picture-in-Picture.
 function withoutPictureInPicture(page: Page) {
   return page.addInitScript(() => {
