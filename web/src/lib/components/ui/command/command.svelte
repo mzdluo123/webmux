@@ -7,7 +7,7 @@
       variant: {
         default: "",
         // Embedded in a form or dialog rather than in its own popover.
-        outline: "border",
+        outline: "rounded-lg border",
       },
     },
     defaultVariants: {

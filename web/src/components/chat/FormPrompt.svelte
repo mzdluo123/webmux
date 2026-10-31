@@ -50,7 +50,7 @@
 </script>
 
 <form
-  class="space-y-3 rounded-xl border border-warning/40 bg-card p-3 shadow-sm"
+  class="space-y-3 rounded-lg border border-warning/40 bg-card p-3 shadow-sm"
   aria-label="Agent 的表单"
   onsubmit={(event) => {
     event.preventDefault();

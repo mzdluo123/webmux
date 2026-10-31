@@ -2,14 +2,14 @@
   import { type VariantProps, tv } from "tailwind-variants";
 
   export const emptyVariants = tv({
-    base: "gap-4 rounded-none border-dashed p-6 flex w-full min-w-0 flex-1 flex-col items-center justify-center text-center text-balance",
+    base: "gap-4 rounded-lg border-dashed p-6 flex w-full min-w-0 flex-1 flex-col items-center justify-center text-center text-balance",
     variants: {
       variant: {
         default: "",
         // A dashed outline marking an empty list inside a section.
         outline: "border",
         // A standalone empty page area on its own card surface.
-        card: "border rounded-xl bg-card",
+        card: "border bg-card",
       },
     },
     defaultVariants: {

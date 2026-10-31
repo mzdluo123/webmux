@@ -242,8 +242,8 @@
             {/each}
           </div>
           <p class="text-sm text-muted-foreground">
-            4px 间距基准；控件圆角 6px、内容容器 8px、浮层
-            12px。单行路径可截断，错误和说明必须可读。
+            4px 间距基准；标签圆角 4px、控件 6px、内容容器与菜单
+            8px、对话框与抽屉 12px。单行路径可截断，错误和说明必须可读。
           </p>
         </Card.Content>
       </Card.Root>

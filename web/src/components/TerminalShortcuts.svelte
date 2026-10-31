@@ -167,7 +167,7 @@
                         >再按</span
                       >{/if}
                     <kbd
-                      class="rounded border bg-muted px-1.5 py-0.5 font-mono text-xs"
+                      class="rounded-sm border bg-muted px-1.5 py-0.5 font-mono text-xs"
                       >{key}</kbd
                     >
                   {/each}

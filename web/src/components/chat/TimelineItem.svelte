@@ -54,7 +54,7 @@
 {#if entry.type === "message" && entry.role === "user"}
   <div class="flex justify-end pt-2">
     <div
-      class="max-w-[85%] min-w-0 space-y-1.5 rounded-xl bg-muted px-4 py-2.5 text-sm leading-relaxed break-words"
+      class="max-w-[85%] min-w-0 space-y-1.5 rounded-lg bg-muted px-4 py-2.5 text-sm leading-relaxed break-words"
     >
       {#if entry.text}<p class="whitespace-pre-wrap">
           <span class="sr-only">你：</span>{entry.text}
@@ -63,7 +63,7 @@
         <ul class="flex flex-wrap gap-1" aria-label="附件">
           {#each entry.attachments as attachment (attachment.path)}
             <li
-              class="flex max-w-full min-w-0 items-center gap-1 rounded border bg-background/60 px-1.5 py-0.5 text-xs"
+              class="flex max-w-full min-w-0 items-center gap-1 rounded-sm border bg-background/60 px-1.5 py-0.5 text-xs"
             >
               {#if attachment.kind === "image"}<IconPhoto
                   class="size-3.5 shrink-0"

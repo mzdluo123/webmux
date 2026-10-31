@@ -26,7 +26,13 @@ WebMux 是持续运行的终端工作台。视觉方向为克制的开发工具�
 | Component | control-xs/sm/default/lg/touch，Tailwind radius-sm/md/lg/xl                                | 控件直接消费尺寸和圆角，页面只控制布局 |
 
 - 间距使用 Tailwind 的 4px 基准：4 / 8 / 12 / 16 / 24 / 32。
-- 控件圆角 6px，内容容器 8px，浮层 12px；标签圆角 4px。
+- 圆角按角色取值，只使用 `--radius` 派生的 Tailwind 刻度，由 `arch:test` 检查：
+  - `rounded-sm`（4px）：标签、徽标、键帽、附件条、复选框，以及菜单、列表、文件树中的行。
+  - `rounded-md`（6px）：按钮、输入框、选择器、导航项等控件。
+  - `rounded-lg`（8px）：卡片、会话行、提示、聊天气泡与面板、菜单和弹出框、空状态、骨架屏等内容容器。
+  - `rounded-xl`（12px）：只用于 Dialog、AlertDialog 与 Drawer 的弹层表面。
+  - `rounded-full` 用于圆点、开关、滑块与滚动条；`rounded-none` 用于贴边的行与分段；`rounded-[inherit]` 只用于跟随父级圆角的内层。
+  - 不使用裸 `rounded`、`rounded-xs` 或 `rounded-2xl` 及以上；CSS 中的 `border-radius` 只写 `var(--radius-*)`、`0`、`50%`、`999px` 或 `inherit`。
 - 默认控件高 36px，紧凑 32px，工具 28px，大控件 44px。
 - 拉丁界面字体使用内置 Inter，路径和代码使用内置 Maple Mono 的拉丁字形、制表符和 Nerd Font 图标；中日韩文字使用系统无衬线字体。
 - ANSI 终端和语法高亮令牌保持独立；业务状态不再借用 ANSI 色板。

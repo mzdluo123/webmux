@@ -156,7 +156,7 @@
       class="flex shrink-0 items-start gap-3 border-b px-4 py-4 sm:px-6 sm:py-5"
     >
       <span
-        class="hidden size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:flex"
+        class="hidden size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:flex"
         aria-hidden="true"><IconInbox class="size-5" /></span
       >
       <Dialog.Header class="min-w-0 flex-1 gap-1 pr-0 text-left">

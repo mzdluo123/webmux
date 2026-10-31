@@ -61,6 +61,60 @@ const MAX_FILES = 2;
 /** Accepted repeats; each needs a reason and review. */
 const CLASS_STRING_ALLOWLIST = new Set<string>([]);
 
+// Radius roles (docs/design-system.md#tokens): tags sm, controls md, content
+// containers lg, overlays xl; none and full for flush or round shapes, and
+// [inherit] for a layer that follows its parent's corner.
+const RADIUS_CLASS =
+  /(?<![\w-])rounded(?:-(?:[trblse]|tl|tr|br|bl|ss|se|es|ee))?(?:-([\w.]+|\[[^\]\s]*\]))?(?![\w-])/g;
+const RADIUS_SCALE = new Set([
+  "none",
+  "sm",
+  "md",
+  "lg",
+  "xl",
+  "full",
+  "[inherit]",
+]);
+// The 12px overlay radius belongs to the modal surfaces alone.
+const OVERLAY_FILES = new Set([
+  `${UI_DIR}alert-dialog/alert-dialog-content.svelte`,
+  `${UI_DIR}dialog/dialog-content.svelte`,
+  `${UI_DIR}drawer/drawer-content.svelte`,
+]);
+const CSS_RADIUS = /border(?:-[a-z]+)*-radius\s*:\s*([^;}]+)/g;
+const CSS_RADIUS_VALUE =
+  /^(?:0|50%|999px|inherit|var\(--radius(?:-(?:sm|md|lg|xl))?\))$/;
+
+const styleFiles = globSync("src/**/*.{svelte,ts,css}", { cwd: root })
+  .map((file) => file.replaceAll("\\", "/"))
+  .sort();
+
+/** Source without comments, so prose such as "rounded corner" is ignored. */
+function withoutComments(source: string): string {
+  return source
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|\s)\/\/.*$/gm, "$1");
+}
+
+function radiusViolations(file: string): string[] {
+  const source = withoutComments(readFileSync(`${root}/${file}`, "utf8"));
+  const found: string[] = [];
+  for (const match of source.matchAll(RADIUS_CLASS)) {
+    const size = match[1] ?? "";
+    if (!RADIUS_SCALE.has(size))
+      found.push(`${match[0]}: use rounded-sm/md/lg/xl/full`);
+    else if (size === "xl" && !OVERLAY_FILES.has(file))
+      found.push(`${match[0]}: xl is reserved for dialogs and drawers`);
+  }
+  for (const match of source.matchAll(CSS_RADIUS)) {
+    const value = (match[1] ?? "").trim();
+    if (!CSS_RADIUS_VALUE.test(value))
+      found.push(`border-radius: ${value}: use var(--radius-sm|md|lg|xl)`);
+  }
+  return found.map((message) => `${file}: ${message}`);
+}
+
 describe("frontend architecture", () => {
   test("scans component files", () => {
     expect(files.length).toBeGreaterThan(0);
@@ -120,6 +174,15 @@ describe("frontend architecture", () => {
     expect(
       copied,
       "Extract a component into src/components or add a design-system variant.",
+    ).toEqual([]);
+  });
+
+  test("corner radii follow the role scale", () => {
+    expect(styleFiles.length).toBeGreaterThan(0);
+    expect(
+      styleFiles.flatMap(radiusViolations),
+      "Tags sm, controls md, content containers lg, dialogs and drawers xl " +
+        "(docs/design-system.md#tokens).",
     ).toEqual([]);
   });
 });

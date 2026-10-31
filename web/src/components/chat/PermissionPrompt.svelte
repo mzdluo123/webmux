@@ -43,7 +43,7 @@
 <svelte:window onkeydown={shortcut} />
 
 <section
-  class="space-y-3 rounded-xl border border-warning/40 bg-card p-3 shadow-sm"
+  class="space-y-3 rounded-lg border border-warning/40 bg-card p-3 shadow-sm"
   aria-label="等待授权"
 >
   <div class="space-y-1.5">
@@ -75,7 +75,7 @@
         >
           <span class="flex min-w-0 items-center gap-3">
             <span
-              class="flex size-5 shrink-0 items-center justify-center rounded border text-xs text-muted-foreground tabular-nums"
+              class="flex size-5 shrink-0 items-center justify-center rounded-sm border text-xs text-muted-foreground tabular-nums"
               aria-hidden="true">{i + 1}</span
             >
             <span

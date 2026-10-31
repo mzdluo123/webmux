@@ -52,7 +52,7 @@
   }
 </script>
 
-<section class="rounded-xl border bg-card p-1 text-sm" aria-label="排队的消息">
+<section class="rounded-lg border bg-card p-1 text-sm" aria-label="排队的消息">
   <div class="flex flex-wrap items-center gap-2 px-2 py-0.5">
     <Button
       variant="quiet"

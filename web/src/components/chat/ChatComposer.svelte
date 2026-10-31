@@ -172,7 +172,7 @@
 <div class="space-y-1.5" data-chat-composer>
   <!-- The card shows the message box's focus once; the box itself has none. -->
   <div
-    class="rounded-xl border bg-card shadow-sm transition has-[textarea:focus]:border-ring has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-ring/20"
+    class="rounded-lg border bg-card shadow-sm transition has-[textarea:focus]:border-ring has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-ring/20"
   >
     {#if menuOpen}
       <div
@@ -209,7 +209,7 @@
       >
         {#each uploads.attachments as item (item.path)}
           <li
-            class="flex max-w-full min-w-0 items-center gap-1 rounded-md border bg-muted/50 px-2 py-0.5 text-xs"
+            class="flex max-w-full min-w-0 items-center gap-1 rounded-sm border bg-muted/50 px-2 py-0.5 text-xs"
           >
             {#if item.kind === "image"}<IconPhoto
                 class="size-3.5 shrink-0"

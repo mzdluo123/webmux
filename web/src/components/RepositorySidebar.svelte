@@ -81,7 +81,7 @@
 
 <aside
   bind:this={sidebar}
-  class="min-w-0 lg:sticky lg:top-[calc(var(--sticky-header-offset,0px)+1.5rem)] lg:self-start lg:rounded-xl lg:border lg:bg-card lg:p-2"
+  class="min-w-0 lg:sticky lg:top-[calc(var(--sticky-header-offset,0px)+1.5rem)] lg:self-start lg:rounded-lg lg:border lg:bg-card lg:p-2"
 >
   <Button
     variant="outline"

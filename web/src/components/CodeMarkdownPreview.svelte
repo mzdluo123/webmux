@@ -563,7 +563,7 @@
   }
   .markdown-preview :global(code) {
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--muted);
     padding: 0.1em 0.35em;
     font-family: var(--font-mono, monospace);
@@ -572,7 +572,7 @@
   .markdown-preview :global(pre) {
     overflow-x: auto;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-md);
     background: var(--muted);
     padding: 0.75em 1em;
   }

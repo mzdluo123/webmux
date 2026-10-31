@@ -19,7 +19,7 @@
   );
 </script>
 
-<div class="rounded-xl border bg-card text-sm">
+<div class="rounded-lg border bg-card text-sm">
   <Collapsible.Root bind:open>
     <Collapsible.Trigger>
       {#snippet child({ props })}

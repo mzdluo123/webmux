@@ -165,7 +165,7 @@
 >
   {#if dragging}
     <div
-      class="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-ring bg-background/85 text-sm"
+      class="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-lg border-2 border-dashed border-ring bg-background/85 text-sm"
       role="status"
     >
       {uploads.progress ? "请等待当前上传完成" : "松开以上传文件到聊天"}
