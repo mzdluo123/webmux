@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rainchan/webmux/internal/contract"
@@ -76,6 +77,8 @@ type Message struct {
 	Moved *string
 }
 
+// Subscriber is one terminal connection's queue. Whoever receives from Out
+// must pass each message to Release so the byte budget reflects the backlog.
 type Subscriber struct {
 	Out    chan Message
 	Slow   chan struct{}
@@ -83,10 +86,22 @@ type Subscriber struct {
 	client string
 	label  string
 	seq    uint64
+	// queued counts frame bytes sent to Out and not yet released.
+	queued atomic.Int64
 }
 
-// Absorb output bursts without blocking the PTY reader; slow subscribers disconnect.
-const terminalOutputQueueCapacity = 256
+// Absorb output bursts without blocking the PTY reader; a subscriber that
+// falls behind by more messages or bytes than this disconnects. Bursts of
+// small reads need many slots, so the byte budget bounds memory instead.
+const (
+	terminalOutputQueueCapacity = 1024
+	terminalOutputQueueBytes    = 8 << 20
+)
+
+// Release records that m has left the queue.
+func (sub *Subscriber) Release(m Message) {
+	sub.queued.Add(-int64(len(m.Frame)))
+}
 
 // AttachOptions identifies the browser behind a connection and where its
 // terminal already is. A matching resume point replays only the missing tail.
@@ -243,12 +258,19 @@ func (s *Session) sendLocked(sub *Subscriber, m Message) {
 	if sub.failed {
 		return
 	}
-	select {
-	case sub.Out <- m:
-	default:
-		sub.failed = true
-		close(sub.Slow)
+	size := int64(len(m.Frame))
+	// An empty queue always takes the next message, so a replay snapshot
+	// larger than the budget still reaches a new connection.
+	if queued := sub.queued.Load(); queued == 0 || queued+size <= terminalOutputQueueBytes {
+		select {
+		case sub.Out <- m:
+			sub.queued.Add(size)
+			return
+		default:
+		}
 	}
+	sub.failed = true
+	close(sub.Slow)
 }
 func (s *Session) broadcastLocked(m Message) {
 	for sub := range s.subs {
@@ -372,6 +394,7 @@ func (s *Session) Replay(sub *Subscriber) {
 	for {
 		select {
 		case m := <-sub.Out:
+			sub.Release(m)
 			if m.Submission != nil {
 				statuses = append(statuses, m)
 			}

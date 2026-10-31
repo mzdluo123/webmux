@@ -71,3 +71,47 @@ func TestMessageConstructorsAndSharedOutput(t *testing.T) {
 		t.Fatal("replay constructor copied an already-prefixed frame")
 	}
 }
+
+func TestSubscriberQueueBoundsBacklogBytes(t *testing.T) {
+	newSub := func() *Subscriber {
+		return &Subscriber{Out: make(chan Message, terminalOutputQueueCapacity), Slow: make(chan struct{})}
+	}
+	s := &Session{}
+	frame := func(size int) Message { return frameMessage(make([]byte, size)) }
+
+	// A burst of small PTY reads is far below the byte budget.
+	reads := newSub()
+	for range 1000 {
+		s.sendLocked(reads, outputMessage([]byte("line\r\n")))
+	}
+	if reads.failed {
+		t.Fatal("1000 small reads marked the subscriber slow")
+	}
+
+	// An empty queue takes a snapshot larger than the budget; anything
+	// queued behind it exceeds the budget.
+	snapshot := newSub()
+	s.sendLocked(snapshot, frame(terminalOutputQueueBytes+1))
+	if snapshot.failed {
+		t.Fatal("an empty queue rejected an oversized snapshot")
+	}
+	s.sendLocked(snapshot, frame(1))
+	if !snapshot.failed {
+		t.Fatal("a backlog over the byte budget did not mark the subscriber slow")
+	}
+	select {
+	case <-snapshot.Slow:
+	default:
+		t.Fatal("Slow was not closed")
+	}
+
+	// Released bytes make room again.
+	drained := newSub()
+	s.sendLocked(drained, frame(terminalOutputQueueBytes))
+	drained.Release(<-drained.Out)
+	s.sendLocked(drained, frame(1))
+	s.sendLocked(drained, frame(terminalOutputQueueBytes-1))
+	if drained.failed {
+		t.Fatal("released bytes still counted against the budget")
+	}
+}

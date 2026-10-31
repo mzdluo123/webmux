@@ -280,6 +280,7 @@ func writeMessages(ctx context.Context, c *websocket.Conn, sub *session.Subscrib
 				_ = c.Close(4408, "slow client")
 				return
 			case m = <-sub.Out:
+				sub.Release(m)
 			}
 		}
 		if m.Moved != nil {
@@ -302,6 +303,7 @@ func writeMessages(ctx context.Context, c *websocket.Conn, sub *session.Subscrib
 			for len(combined) < 65537 {
 				select {
 				case next := <-sub.Out:
+					sub.Release(next)
 					if !next.Valid() || next.Frame == nil || next.Frame[0] != contract.FrameOutput || len(combined)+len(next.Frame)-1 > 65537 {
 						pending, hasPending = next, true
 						break aggregate
