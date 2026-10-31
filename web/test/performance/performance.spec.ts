@@ -91,9 +91,6 @@ test("4x CPU: background output and status updates do not move session cards", a
   request,
   workDir,
 }, testInfo) => {
-  await page.addInitScript(() =>
-    localStorage.setItem("webmux.homeSessionView", "preview"),
-  );
   // A blank initial preview becomes multiline output without user input. A
   // second card makes height changes and activity-based reordering observable.
   for (const name of ["background-output", "stable-neighbour"]) {

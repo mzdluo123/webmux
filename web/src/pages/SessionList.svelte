@@ -102,9 +102,10 @@
   let repositoryChoice = $state(
     z.string().min(1).max(256).safeParse(stored("homeRepository")).data ?? null,
   );
+  // Output previews are the default; only an explicit choice keeps rows compact.
   let compact = $state(
-    z.enum(["compact", "preview"]).safeParse(stored("homeSessionView")).data !==
-      "preview",
+    z.enum(["compact", "preview"]).safeParse(stored("homeSessionView")).data ===
+      "compact",
   );
   // Closed or interrupted hybrid shells belong to the recoverable group only.
   const list = $derived(

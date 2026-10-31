@@ -135,26 +135,25 @@ test("repository scope limits the home list, composes with filters and survives 
   await repo.getByRole("button", { name: "工作树详情 main" }).click();
   await expect(repo.getByText("已跟踪文件干净", { exact: true })).toBeHidden();
   await expect(page.locator('[aria-label="终端输出预览"]:visible')).toHaveCount(
-    0,
-  );
-  const views = page.getByRole("group", { name: "会话显示方式" });
-  await expect(views.getByRole("button", { name: "紧凑列表" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  await views.getByRole("button", { name: "输出预览" }).click();
-  await expect(page.locator('[aria-label="终端输出预览"]:visible')).toHaveCount(
     1,
   );
-  await page.reload();
+  const views = page.getByRole("group", { name: "会话显示方式" });
   await expect(views.getByRole("button", { name: "输出预览" })).toHaveAttribute(
     "aria-pressed",
     "true",
   );
-  await expect(page.locator('[aria-label="终端输出预览"]:visible')).toHaveCount(
-    1,
-  );
   await views.getByRole("button", { name: "紧凑列表" }).click();
+  await expect(page.locator('[aria-label="终端输出预览"]:visible')).toHaveCount(
+    0,
+  );
+  await page.reload();
+  await expect(views.getByRole("button", { name: "紧凑列表" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.locator('[aria-label="终端输出预览"]:visible')).toHaveCount(
+    0,
+  );
   await selectRepository(page, /^仓库 api-server$/);
   await expect(scope).toContainText("api-server");
   await expect(page.getByRole("link", { name: "API review" })).toBeVisible();
