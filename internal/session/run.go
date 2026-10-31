@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -145,7 +146,8 @@ func (s *Session) read(r *run) {
 			// Latched attention and a program's own status outlive redraws
 			// such as spinners and timers.
 			s.info.Status = s.outputStatusLocked()
-			if len(s.subs) > 0 {
+			published := len(s.subs) > 0
+			if published {
 				s.broadcastLocked(outputMessage(p))
 				// After the output that toggled it, so the mode applies from there.
 				if s.preview.colorSchemeReports != reports {
@@ -153,6 +155,12 @@ func (s *Session) read(r *run) {
 				}
 			}
 			s.mu.Unlock()
+			// While a program streams, every read returns at once and this
+			// loop never parks; yield so connection writers drain their
+			// bounded queues instead of being starved into a slow disconnect.
+			if published {
+				runtime.Gosched()
+			}
 		}
 		if err != nil {
 			return

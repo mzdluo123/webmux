@@ -65,6 +65,8 @@ func (f *continuityFixture) dial(query string) *websocket.Conn {
 	if err != nil {
 		f.t.Fatal(err)
 	}
+	// Output frames carry up to 64 KiB, above the client's 32 KiB default.
+	conn.SetReadLimit(1 << 20)
 	f.t.Cleanup(func() { _ = conn.CloseNow() })
 	return conn
 }
