@@ -118,8 +118,9 @@
   export function capture(): number {
     return pendingTop ?? Math.floor(top / rowHeight);
   }
-  function scroll() {
-    top = host.scrollTop;
+  // A scroll set just before unmount can arrive after `host` is released.
+  function scroll(event: UIEvent & { currentTarget: HTMLDivElement }) {
+    top = event.currentTarget.scrollTop;
     if (
       enabled &&
       !pending &&
