@@ -10,6 +10,7 @@ import {
   gestureStart,
   historyLine,
   host,
+  hostObserver,
   inputText,
   installTerminalFixture,
   observeGlyphPixels,
@@ -359,10 +360,19 @@ test("a locked host pans to rows outside the viewport and returns to the latest"
   observeGlyphPixels(true);
   const { api } = await openTerminalApi({ sizeLocked: () => true });
   host().classList.add("size-locked");
+  const delivered = hostObserver().deliveryCount;
   host().style.height = "300px";
   await expect
     .poll(() => host().scrollHeight)
     .toBeGreaterThan(host().clientHeight);
+  // The resize schedules a 100 ms debounced layout that re-anchors to the
+  // newest rows; a pan made before it runs would be undone. The timer is
+  // internal and xterm renders on real timers, so outlast it after the
+  // observer delivered: timers run in deadline order.
+  await expect
+    .poll(() => hostObserver().deliveryCount)
+    .toBeGreaterThan(delivered);
+  await new Promise((resolve) => setTimeout(resolve, 150));
   await expect
     .poll(() => host().scrollTop + host().clientHeight)
     .toBeGreaterThanOrEqual(host().scrollHeight - 1);
