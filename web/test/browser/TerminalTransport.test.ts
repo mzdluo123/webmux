@@ -182,6 +182,11 @@ test("a locked host keeps following output that arrives during a resize", async 
   // Drop the debounced layout so output can update the position from the
   // smaller box before the next fit, as it can while the real timer is pending.
   hostObserver().disconnect();
+  // A layout the observer already scheduled (100 ms debounce) would fit and
+  // re-anchor after the resize below. The timer is internal and xterm renders
+  // on real timers, so instead of faking time, outlast it: timers run in
+  // deadline order, so it has run before the box shrinks.
+  await new Promise((resolve) => setTimeout(resolve, 150));
   host().style.height = "400px";
   await expect
     .poll(() => host().scrollHeight)
