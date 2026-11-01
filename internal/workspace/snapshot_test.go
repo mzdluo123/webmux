@@ -167,3 +167,61 @@ func TestConcurrentSnapshotsCoalesceAndCancelOnlyLastWaiter(t *testing.T) {
 		t.Fatal("cancelled read retained repository gate", err)
 	}
 }
+
+func TestReadRepositoryLeavesFullWorktreePoolOnCancel(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	root := initRepo(t)
+	s, _ := testService(t, t.TempDir(), root)
+	r := registerTest(t, s, root)
+	tree := linkedTest(t, s, r, "pooled")
+	repository, err := s.repository(r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Fill every pool slot so the worktree goroutine can only proceed when it
+	// observes cancellation. A Git wrapper signals after `worktree list` runs,
+	// proving the read reached the pooled phase before its context is cancelled.
+	dir := t.TempDir()
+	signal := filepath.Join(dir, "listed")
+	realGit := s.gitPath
+	wrapper := filepath.Join(dir, "git")
+	putFile(t, wrapper, fmt.Sprintf("#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = list ]; then\n    %q \"$@\"\n    status=$?\n    : > %q\n    exit $status\n  fi\ndone\nexec %q \"$@\"\n", realGit, signal, realGit))
+	if err := os.Chmod(wrapper, 0700); err != nil {
+		t.Fatal(err)
+	}
+	s.gitPath = wrapper
+	for range cap(s.worktreeGate) {
+		s.worktreeGate <- struct{}{}
+	}
+	defer func() {
+		for range cap(s.worktreeGate) {
+			<-s.worktreeGate
+		}
+	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan Repository, 1)
+	go func() { done <- s.readRepository(ctx, repository) }()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if _, err := os.Stat(signal); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			cancel()
+			t.Fatal("worktree list did not run")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case result := <-done:
+		read, err := findTree(result, tree.ID)
+		if err != nil || !strings.Contains(read.Error, context.Canceled.Error()) {
+			t.Fatalf("cancelled worktree read: %+v %v", read, err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("worktree read ignored cancellation while waiting for the pool")
+	}
+}

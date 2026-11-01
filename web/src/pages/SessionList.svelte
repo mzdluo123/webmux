@@ -70,8 +70,8 @@
   // Returning from a terminal mounts this page again; the previous grouping
   // renders immediately instead of flashing ungrouped sessions while Git runs.
   let repositories = $state.raw<Repository[]>(lastRepositories() ?? []);
-  // A saved scope is only validated after the first read settles; until then
-  // an empty or cached list must not discard it.
+  // A saved scope is only validated after a read settles; until then an empty
+  // or cached list must not discard it.
   let repositoriesSettled = $state(false);
   let launchConfigs = $state<LaunchConfigsState>({ status: "loading" });
   let cwd = $state("~");
@@ -289,6 +289,7 @@
     if (!force && startupRefresh) return startupRefresh;
     const generation = ++refreshGeneration;
     refreshing = true;
+    repositoriesSettled = false;
     repositoryError = "";
     try {
       const result = await api(

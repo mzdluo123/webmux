@@ -289,7 +289,12 @@ func (s *Service) readRepository(ctx context.Context, r *repositoryState) Reposi
 		wg.Add(1)
 		go func(tree *Worktree) {
 			defer wg.Done()
-			limit <- struct{}{}
+			select {
+			case limit <- struct{}{}:
+			case <-ctx.Done():
+				tree.Error = ctx.Err().Error()
+				return
+			}
 			defer func() { <-limit }()
 			stat, statErr := os.Stat(tree.Path)
 			if statErr != nil || !stat.IsDir() {
