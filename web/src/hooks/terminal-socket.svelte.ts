@@ -27,9 +27,15 @@ import {
 } from "./terminal-graphics";
 
 const inputSendError = "终端输入未发送：连接不可用或发送队列已满，请重试。";
+// DEC 2026 synchronized output around a replay: xterm keeps the old screen
+// until the restored one is complete and paints it once, instead of a blank
+// screen and every intermediate frame.
+const syncStart = new TextEncoder().encode("\x1b[?2026h");
+const syncEnd = new TextEncoder().encode("\x1b[?2026l");
 // CAN aborts an unfinished control sequence without executing it. Send it as
-// bytes so xterm also abandons any incomplete UTF-8 prefix before the reset.
-const resetBoundary = new Uint8Array([0x18]);
+// bytes so xterm also abandons any incomplete UTF-8 prefix before the reset,
+// then synchronize so the screen reset() empties is never painted.
+const resetBoundary = new Uint8Array([0x18, ...syncStart]);
 
 // What the session socket needs from the mounted terminal view.
 export interface TerminalSocketView {
@@ -121,8 +127,9 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     );
     const restore = (payload: Uint8Array, run: string | undefined) => {
       output.replay();
-      // Invalidate old decodes before queuing the new replay generation.
-      graphics?.reset();
+      // Invalidate old decodes before queuing the new replay generation. The
+      // old images stay painted until the replayed screen replaces them.
+      const releaseGraphics = graphics?.reset();
       const version = ++restoreVersion;
       cancelAnimationFrame(restoreFrame);
       restoring = true;
@@ -131,10 +138,18 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       writeOutput(resetBoundary, () => {
         if (disposed) return;
         term.reset();
+        releaseGraphics?.();
         view.resetFind();
         replaying = true;
       });
-      writeOutput(payload, () => {
+      // reset() also cleared synchronized output; resume it for the replay.
+      const replay = new Uint8Array(
+        syncStart.length + payload.length + syncEnd.length,
+      );
+      replay.set(syncStart);
+      replay.set(payload, syncStart.length);
+      replay.set(syncEnd, syncStart.length + payload.length);
+      writeOutput(replay, () => {
         replaying = false;
         if (payload.length && run) drawn = run;
         if (disposed || version !== restoreVersion) return;
