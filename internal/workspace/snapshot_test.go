@@ -199,29 +199,48 @@ func TestReadRepositoryLeavesFullWorktreePoolOnCancel(t *testing.T) {
 			<-s.worktreeGate
 		}
 	}()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	done := make(chan Repository, 1)
-	go func() { done <- s.readRepository(ctx, repository) }()
-	deadline := time.Now().Add(3 * time.Second)
-	for {
-		if _, err := os.Stat(signal); err == nil {
-			break
+	// The signal fires before Go has collected `worktree list`, so a cancel
+	// can still land before the pooled phase. Such an attempt fails the whole
+	// read without worktrees; retry until cancellation hits the pooled wait.
+	for attempt := 0; ; attempt++ {
+		if attempt == 20 {
+			t.Fatal("cancellation never reached the pooled worktree phase")
 		}
-		if time.Now().After(deadline) {
-			cancel()
-			t.Fatal("worktree list did not run")
+		if err := os.Remove(signal); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
 		}
-		time.Sleep(time.Millisecond)
-	}
-	cancel()
-	select {
-	case result := <-done:
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan Repository, 1)
+		go func() { done <- s.readRepository(ctx, repository) }()
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			if _, err := os.Stat(signal); err == nil {
+				break
+			}
+			if time.Now().After(deadline) {
+				cancel()
+				t.Fatal("worktree list did not run")
+			}
+			time.Sleep(time.Millisecond)
+		}
+		time.Sleep(time.Duration(attempt) * 10 * time.Millisecond)
+		cancel()
+		var result Repository
+		select {
+		case result = <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("worktree read ignored cancellation while waiting for the pool")
+		}
 		read, err := findTree(result, tree.ID)
-		if err != nil || !strings.Contains(read.Error, context.Canceled.Error()) {
-			t.Fatalf("cancelled worktree read: %+v %v", read, err)
+		if err != nil {
+			if result.Error != "" {
+				continue
+			}
+			t.Fatalf("cancelled read: %+v %v", result, err)
 		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("worktree read ignored cancellation while waiting for the pool")
+		if !strings.Contains(read.Error, context.Canceled.Error()) {
+			t.Fatalf("cancelled worktree read: %+v", read)
+		}
+		return
 	}
 }
