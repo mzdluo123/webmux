@@ -156,7 +156,10 @@ export function createTerminalSocket(id: string, manageChrome = true) {
         replay.set(payload, syncStart.length);
       }
       writeOutput(replay, () => {
-        if (synchronize && !disposed) endSynchronizedOutput(term);
+        // A replay with images completes on the graphics chain, possibly after
+        // a newer restore started; only the current one may end its update.
+        if (synchronize && !disposed && version === restoreVersion)
+          endSynchronizedOutput(term);
         replaying = false;
         if (payload.length && run) drawn = run;
         if (disposed || version !== restoreVersion) return;
