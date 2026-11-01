@@ -3,6 +3,7 @@
   import type { z } from "zod";
   import CodeFileTree from "./CodeFileTree.svelte";
   import CodeFileActions from "./CodeFileActions.svelte";
+  import { longPress } from "../hooks/long-press";
   import CodeChangesList from "./CodeChangesList.svelte";
   import {
     CodeChangesSchema,
@@ -361,12 +362,18 @@
             }}
             oncontextmenu={(event) => {
               event.preventDefault();
+              if (
+                event instanceof PointerEvent &&
+                event.pointerType === "touch"
+              )
+                return;
               actions?.show(
                 node,
                 { x: event.clientX, y: event.clientY },
                 event.currentTarget,
               );
             }}
+            {@attach longPress((row) => actions?.show(node, row, row))}
           >
             {#if node.mediaType.startsWith("image/")}<IconPhoto
                 class="mr-1 inline size-3.5 align-[-0.125em] text-muted-foreground"

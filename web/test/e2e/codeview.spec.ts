@@ -748,33 +748,65 @@ test("explorer menu copies, renames, moves, uploads, zips and deletes inside the
   await createShell(page, "File operations", workDir);
   await showCode(page);
   const row = (name: string) => page.getByRole("button", { name, exact: true });
+  // Phones hold a row for the action sheet; desktops right-click for the menu.
+  const mobile = !!info.project.use.isMobile;
   const actions = async (name: string) => {
-    if (info.project.use.isMobile)
-      await page
-        .getByRole("button", { name: `文件操作 ${name}`, exact: true })
-        .click();
-    else await row(name).click({ button: "right" });
+    if (!mobile) return row(name).click({ button: "right" });
+    // A closing sheet's overlay still takes the touch that starts a press.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    const box = (await row(name).boundingBox())!;
+    const point = { x: box.x + 40, y: box.y + box.height / 2 };
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [point],
+    });
+    await page.waitForTimeout(700);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    await cdp.detach();
   };
   const choose = (name: string | RegExp) =>
-    page
-      .getByRole("menuitem", { name, exact: typeof name === "string" })
-      .click();
+    (mobile
+      ? page
+          .getByRole("dialog")
+          .getByRole("button", { name, exact: typeof name === "string" })
+      : page.getByRole("menuitem", { name, exact: typeof name === "string" })
+    ).click();
   const root = workDir.split("/").at(-1)!;
 
   await actions("docs");
   await choose("复制");
+  // A long press opens the sheet without also toggling the folder.
+  await expect(row("docs")).toHaveAttribute("aria-expanded", "false");
   await page
-    .getByRole("button", { name: `文件操作 ${root}`, exact: true })
+    .getByRole("status", { name: "剪贴板" })
+    .getByRole("button", { name: "粘贴到根目录", exact: true })
     .click();
-  await choose(/^粘贴/);
   await expect(page.getByText("已粘贴为 docs (2)")).toBeVisible();
   await expect(row("docs (2)")).toBeVisible();
   expect(await readFile(join(workDir, "docs (2)/a.md"), "utf8")).toBe("# a\n");
 
+  await page
+    .getByRole("button", { name: `文件操作 ${root}`, exact: true })
+    .click();
+  await choose("新建文件夹");
+  await page.getByLabel("名称", { exact: true }).fill("empty");
+  await page
+    .locator("form")
+    .getByRole("button", { name: "新建", exact: true })
+    .click();
+  await expect(row("empty")).toBeVisible();
+
   await actions("docs (2)");
   await choose("重命名");
   await page.getByLabel("名称", { exact: true }).fill("guides");
-  await page.getByRole("button", { name: "重命名", exact: true }).click();
+  await page
+    .locator("form")
+    .getByRole("button", { name: "重命名", exact: true })
+    .click();
   await expect(row("guides")).toBeVisible();
 
   await actions("notes.txt");

@@ -19,6 +19,7 @@
   import IconLoader from "~icons/tabler/loader-2";
   import IconDots from "~icons/tabler/dots";
   import type { FileTarget } from "./CodeFileActions.svelte";
+  import { longPress } from "../hooks/long-press";
 
   let {
     listing,
@@ -61,10 +62,12 @@
     kind: "directory",
   });
   // A pointer context menu opens at the pointer; a keyboard one (whose
-  // position may lie outside the row) opens at the row.
+  // position may lie outside the row) opens at the row. Touch context menus
+  // come from the long press instead, which iOS Safari also supports.
   function contextMenu(event: MouseEvent, node: FileTarget) {
     if (!menu) return;
     event.preventDefault();
+    if (event instanceof PointerEvent && event.pointerType === "touch") return;
     const row = event.currentTarget as HTMLElement;
     const box = row.getBoundingClientRect();
     const inside =
@@ -74,6 +77,7 @@
       event.clientY <= box.bottom;
     menu(node, inside ? { x: event.clientX, y: event.clientY } : row, row);
   }
+  const hold = (node: FileTarget) => longPress((row) => menu?.(node, row, row));
   let rootOpen = $state(true);
   const expanded = new SvelteSet<string>();
   const branches = new SvelteMap<string, CodeListing>();
@@ -258,6 +262,7 @@
                     data-file-entry
                     onkeydown={keyboard}
                     oncontextmenu={(event) => contextMenu(event, node)}
+                    {@attach hold(node)}
                     title={node.path}
                   >
                     {#if loading.has(node.path)}<IconLoader
@@ -306,6 +311,7 @@
               data-file-entry
               onkeydown={keyboard}
               oncontextmenu={(event) => contextMenu(event, node)}
+              {@attach hold(node)}
               aria-label={node.name}
               aria-current={activePath === node.path ? "page" : undefined}
               {disabled}
@@ -383,6 +389,7 @@
               data-file-entry
               onkeydown={keyboard}
               oncontextmenu={(event) => contextMenu(event, rootNode)}
+              {@attach hold(rootNode)}
               title={rootPath}
             >
               {#if rootOpen}<IconChevronDown

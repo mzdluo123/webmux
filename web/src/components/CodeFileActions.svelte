@@ -6,6 +6,8 @@
 
 <script lang="ts">
   import { errorMessage } from "../error";
+  import { untrack, type Component } from "svelte";
+  import { MediaQuery } from "svelte/reactivity";
   import type { z } from "zod";
   import { api, apiBlob, uploadForm } from "../api";
   import { saveBlob } from "../download";
@@ -25,6 +27,9 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import * as Drawer from "$lib/components/ui/drawer";
+  import { ListButton } from "$lib/components/ui/list-button";
+  import { Separator } from "$lib/components/ui/separator";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import FileUploadProgress from "./FileUploadProgress.svelte";
   import ResponsiveDialog from "./ResponsiveDialog.svelte";
@@ -40,6 +45,15 @@
   import IconTrash from "~icons/tabler/trash";
   import IconUpload from "~icons/tabler/upload";
 
+  type Action = {
+    label: string;
+    icon?: Component;
+    run: () => void;
+    disabled?: boolean;
+    destructive?: boolean;
+    // Actions of one group sit between separators.
+    group: number;
+  };
   type Clipboard = {
     contextId: string;
     nodes: FileTarget[];
@@ -87,6 +101,122 @@
   const pasteReady = $derived(
     !!clipboard && clipboard.contextId === context?.contextId,
   );
+  // Narrow windows get a bottom action sheet with full touch targets, at the
+  // breakpoint where ResponsiveDialog turns into a drawer.
+  const desktop = new MediaQuery("(min-width: 640px)");
+  let nameInput = $state<HTMLInputElement | null>(null);
+  const rootTarget = $derived<FileTarget>({
+    nodeId: "",
+    path: "",
+    name: context?.rootPath.split("/").filter(Boolean).at(-1) ?? "根目录",
+    kind: "directory",
+  });
+  const actions = $derived.by((): Action[] => {
+    const node = target;
+    if (!node) return [];
+    if (node.kind === "boundary" || node.kind === "special")
+      return [
+        { label: "此类条目不支持文件操作", disabled: true, group: 0, run() {} },
+      ];
+    const folder = node.kind === "directory";
+    const editable = node.path !== "" && (node.kind === "file" || folder);
+    const hold = (mode: Clipboard["mode"]) => () => {
+      clipboard = { contextId: context?.contextId ?? "", nodes: [node], mode };
+    };
+    const list: Action[] = [];
+    if (node.kind === "file")
+      list.push(
+        {
+          label: "打开",
+          icon: IconEye,
+          group: 0,
+          run: () => openFile(node.path, node.nodeId),
+        },
+        {
+          label: "下载",
+          icon: IconDownload,
+          group: 0,
+          run: () => void save(node, false),
+        },
+      );
+    if (folder)
+      list.push(
+        {
+          label: "下载为 ZIP",
+          icon: IconFileZip,
+          group: 0,
+          run: () => void save(node, true),
+        },
+        {
+          label: "上传到此目录",
+          icon: IconUpload,
+          group: 1,
+          disabled: !writable,
+          run: () => {
+            uploadTarget = node;
+            picker?.open();
+          },
+        },
+        {
+          label: "新建文件夹",
+          icon: IconFolderPlus,
+          group: 1,
+          disabled: !writable,
+          run: () => startNaming("mkdir", node),
+        },
+      );
+    if (editable)
+      list.push(
+        {
+          label: "重命名",
+          icon: IconPencil,
+          group: 2,
+          disabled: !writable,
+          run: () => startNaming("rename", node),
+        },
+        { label: "复制", icon: IconCopy, group: 2, run: hold("copy") },
+        {
+          label: "剪切",
+          icon: IconScissors,
+          group: 2,
+          disabled: !writable,
+          run: hold("move"),
+        },
+      );
+    if (folder)
+      list.push({
+        label: `粘贴${pasteReady && clipboard ? `（${clipboard.mode === "move" ? "移动" : "复制"} ${clipboard.nodes[0]?.name ?? ""}）` : ""}`,
+        icon: IconClipboard,
+        group: 2,
+        disabled: !writable || !pasteReady,
+        run: () => void paste(node),
+      });
+    if (node.path !== "")
+      list.push({
+        label: "删除…",
+        icon: IconTrash,
+        group: 3,
+        destructive: true,
+        disabled: !writable,
+        run: () => void askRemove(node),
+      });
+    return list;
+  });
+  // Renaming preselects the name without its extension, so typing replaces
+  // only the stem; the field keeps focus as the user edits.
+  $effect(() => {
+    const input = nameInput;
+    const current = naming;
+    if (!input || !current) return;
+    untrack(() => {
+      const dot =
+        current.kind === "rename" && current.node.kind === "file"
+          ? name.lastIndexOf(".")
+          : -1;
+      input.focus();
+      input.setSelectionRange(0, dot > 0 ? dot : name.length);
+    });
+  });
 
   /**
    * Opens the menu for node, anchored at the control that asked or at the
@@ -356,98 +486,95 @@
     {notice}
   </p>{/if}
 
-<DropdownMenu.Root bind:open={menuOpen}>
-  <DropdownMenu.Content
-    customAnchor={anchor}
-    align="start"
-    class="w-56"
-    aria-label={target ? `文件操作 ${target.name}` : "文件操作"}
-    onCloseAutoFocus={(event) => {
-      event.preventDefault();
-      returnFocus?.focus();
-    }}
+{#if pasteReady && clipboard}<div
+    class="flex shrink-0 items-center gap-1 border-y bg-muted/50 px-2 py-1 text-xs"
+    role="status"
+    aria-label="剪贴板"
   >
-    {#if target}
-      {@const node = target}
-      {@const folder = node.kind === "directory"}
-      {@const editable =
-        node.path !== "" && (node.kind === "file" || node.kind === "directory")}
-      {#if node.kind === "file"}
-        <DropdownMenu.Item onSelect={() => openFile(node.path, node.nodeId)}
-          ><IconEye aria-hidden="true" />打开</DropdownMenu.Item
-        >
-        <DropdownMenu.Item onSelect={() => void save(node, false)}
-          ><IconDownload aria-hidden="true" />下载</DropdownMenu.Item
-        >
-      {/if}
-      {#if folder}
-        <DropdownMenu.Item onSelect={() => void save(node, true)}
-          ><IconFileZip aria-hidden="true" />下载为 ZIP</DropdownMenu.Item
-        >
-        <DropdownMenu.Separator />
+    <span class="min-w-0 flex-1 truncate" title="在目标文件夹的菜单中选择“粘贴”"
+      >{clipboard.mode === "move" ? "已剪切" : "已复制"}
+      {clipboard.nodes.map((n) => n.name).join("、")}</span
+    >
+    <Button
+      variant="ghost"
+      size="xs"
+      disabled={!writable}
+      onclick={() => void paste(rootTarget)}>粘贴到根目录</Button
+    >
+    <Button variant="ghost" size="xs" onclick={() => (clipboard = undefined)}
+      >清除</Button
+    >
+  </div>{/if}
+
+{#if desktop.current}
+  <DropdownMenu.Root bind:open={menuOpen}>
+    <DropdownMenu.Content
+      customAnchor={anchor}
+      align="start"
+      class="w-56"
+      aria-label={target ? `文件操作 ${target.name}` : "文件操作"}
+      onCloseAutoFocus={(event) => {
+        event.preventDefault();
+        returnFocus?.focus();
+      }}
+    >
+      {#each actions as action, index (action.label)}
+        {#if index > 0 && action.group !== actions[index - 1]?.group}<DropdownMenu.Separator
+          />{/if}
         <DropdownMenu.Item
-          disabled={!writable}
-          onSelect={() => {
-            uploadTarget = node;
-            picker?.open();
-          }}><IconUpload aria-hidden="true" />上传到此目录</DropdownMenu.Item
-        >
-        <DropdownMenu.Item
-          disabled={!writable}
-          onSelect={() => startNaming("mkdir", node)}
-          ><IconFolderPlus aria-hidden="true" />新建文件夹</DropdownMenu.Item
-        >
-      {/if}
-      {#if editable}
-        <DropdownMenu.Separator />
-        <DropdownMenu.Item
-          disabled={!writable}
-          onSelect={() => startNaming("rename", node)}
-          ><IconPencil aria-hidden="true" />重命名</DropdownMenu.Item
-        >
-        <DropdownMenu.Item
-          onSelect={() =>
-            (clipboard = {
-              contextId: context?.contextId ?? "",
-              nodes: [node],
-              mode: "copy",
-            })}><IconCopy aria-hidden="true" />复制</DropdownMenu.Item
-        >
-        <DropdownMenu.Item
-          disabled={!writable}
-          onSelect={() =>
-            (clipboard = {
-              contextId: context?.contextId ?? "",
-              nodes: [node],
-              mode: "move",
-            })}><IconScissors aria-hidden="true" />剪切</DropdownMenu.Item
-        >
-      {/if}
-      {#if folder}
-        <DropdownMenu.Item
-          disabled={!writable || !pasteReady}
-          onSelect={() => void paste(node)}
-          ><IconClipboard aria-hidden="true" /><span class="truncate"
-            >粘贴{pasteReady && clipboard
-              ? `（${clipboard.mode === "move" ? "移动" : "复制"} ${clipboard.nodes[0]?.name ?? ""}）`
-              : ""}</span
+          variant={action.destructive ? "destructive" : "default"}
+          disabled={action.disabled}
+          onSelect={action.run}
+          >{#if action.icon}<action.icon aria-hidden="true" />{/if}<span
+            class="truncate">{action.label}</span
           ></DropdownMenu.Item
         >
-      {/if}
-      {#if node.kind === "boundary" || node.kind === "special"}
-        <DropdownMenu.Item disabled>此类条目不支持文件操作</DropdownMenu.Item>
-      {:else if node.path !== ""}
-        <DropdownMenu.Separator />
-        <DropdownMenu.Item
-          variant="destructive"
-          disabled={!writable}
-          onSelect={() => void askRemove(node)}
-          ><IconTrash aria-hidden="true" />删除…</DropdownMenu.Item
+      {/each}
+    </DropdownMenu.Content>
+  </DropdownMenu.Root>
+{:else}
+  <Drawer.Root bind:open={menuOpen}>
+    <Drawer.Content
+      aria-label={target ? `文件操作 ${target.name}` : "文件操作"}
+    >
+      <Drawer.Header>
+        <Drawer.Title>{target?.name ?? ""}</Drawer.Title>
+        <Drawer.Description
+          >{target?.path
+            ? `${context?.rootPath ?? ""}/${target.path}`
+            : (context?.rootPath ?? "")}</Drawer.Description
         >
-      {/if}
-    {/if}
-  </DropdownMenu.Content>
-</DropdownMenu.Root>
+      </Drawer.Header>
+      <div class="flex min-h-0 flex-col overflow-y-auto px-2 pb-safe-4">
+        {#each actions as action, index (action.label)}
+          {#if index > 0 && action.group !== actions[index - 1]?.group}<div
+              class="px-3 py-1"
+            >
+              <Separator />
+            </div>{/if}
+          <ListButton
+            variant="action-sheet"
+            data-destructive={action.destructive}
+            disabled={action.disabled}
+            onclick={() => {
+              // Run inside the tap: the upload picker needs the gesture.
+              menuOpen = false;
+              action.run();
+            }}
+            >{#if action.icon}<action.icon aria-hidden="true" />{/if}<span
+              class="min-w-0 truncate">{action.label}</span
+            ></ListButton
+          >
+        {/each}
+        <Button
+          variant="outline"
+          class="mt-2 w-full"
+          onclick={() => (menuOpen = false)}>取消</Button
+        >
+      </div>
+    </Drawer.Content>
+  </Drawer.Root>
+{/if}
 
 {#if naming}
   {@const { kind, node } = naming}
@@ -470,6 +597,7 @@
         <Label for="code-file-name">名称</Label>
         <Input
           id="code-file-name"
+          bind:ref={nameInput}
           bind:value={name}
           required
           autocomplete="off"
