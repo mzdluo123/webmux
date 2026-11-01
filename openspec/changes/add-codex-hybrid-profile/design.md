@@ -69,16 +69,17 @@ Codex 版本由对该路径执行 `--version`（5 秒超时）取得，只用于
 
 `session` 新增按需方法（不进入 `Identity` 的常驻字段）：
 
-- `ProcessTree(id)`：根进程直接子进程的可执行文件名；
-- `OpenFiles(id)`：根进程及后代打开的普通文件绝对路径（Linux `/proc/<pid>/fd` 的 `readlink`；darwin `proc_pidinfo(PROC_PIDLISTFDS)` +
+- `RunChildren()`：根进程直接子进程的可执行文件名；
+- `RunOpenFiles()`：根进程及后代打开的普通文件绝对路径（Linux `/proc/<pid>/fd` 的 `readlink`；darwin `proc_pidinfo(PROC_PIDLISTFDS)` +
   `PROC_PIDFDVNODEPATHINFO`），按平台拆分为 `proc_files_linux.go`/`proc_files_darwin.go`，上限 4096 条。
 
-`agentprofile` 为 Codex 声明 `idFromFiles(paths, codexHome)` 与 `launcher: "node"`。`hybrid.assess` 在档案声明时才调用上述方法，
+`agentprofile` 为 Codex 声明锁目录布局（`LockedSessions(paths, getenv, home)`）与 `Launcher: "node"`。`hybrid` 在档案声明时才调用上述方法，
+并以 `lockTracker` 按锁出现的先后判定当前会话（实测 `/new` 保留旧锁、`resume` 另持空白会话的锁，见 Open Questions），
 满足评论中“避免 `session` 理解 Codex”的分层要求；`internal/archtest` 规则不变。
 
-兜底 C4c：读不到或有多个锁时，用 `session/list` 候选（更新时间晚于 TUI 启动，排除本会话 `session/load` 造成的更新——记录最近一次加载时间并比较）。
+兜底 C4c：读不到打开的文件或锁无法判定时，用 `session/list` 候选（更新时间晚于本次 TUI 启动；本会话在聊天端的加载早于这次启动，因而自然排除）。
 多候选复用恢复时的候选选择（`SessionMissingError` 同形的 `SessionAmbiguousError`，409 `session_ambiguous`），
-切换请求增加可选 `agentSessionId`，仅在该原因下接受。C4d（上游在 OSC 7501 加 `id=`）不在本变更范围，另行提议。
+切换请求增加可选 `agentSessionId`，只用于切到聊天。C4d（上游在 OSC 7501 加 `id=`）不在本变更范围，另行提议。
 
 ### D5 强制 `--no-daemon`（C6a）
 
@@ -127,10 +128,19 @@ Codex 版本由对该路径执行 `--version`（5 秒超时）取得，只用于
 
 ## Open Questions
 
-以下在实现第 1 组任务时实测，结论回写本节；若结论推翻对应决策，先更新本变更再继续：
+第 1 组任务的实测结论（Linux x86_64、Codex 0.166.0 原生安装、codex-acp 2.5.0）：
 
-- Codex TUI 执行 `/new`、`/resume`、`/fork` 后，锁文件是否切换到新线程。
-- Linux 上的锁文件路径、`CODEX_HOME` 覆盖，以及原生安装时锁由根进程还是子进程持有。
-- bashrc 写法下 `codex-acp` 经 fd 3 握手，以及 `.bashrc` 有输出时的表现。
-- 权限请求 `options` 种类是否符合现有权限卡与自动批准逻辑。
-- 发布页是否提供 `codex-acp` 单文件二进制（影响安装命令文案是否给出第二种方式）。
+- 锁文件为 `$CODEX_HOME/thread-writer-locks/<UUIDv7>.lock`，`CODEX_HOME` 覆盖生效，原生安装时由根进程 `codex` 持有；
+  会话在首条消息前就已持有锁，但 `session/list` 只在首条消息后列出。
+- npm 安装（`@openai/codex` 0.166.0）的包装脚本在 Node 提供 `process.execve`（22.15 / 23.11 起）时直接替换为原生 `codex`，
+  根进程即 `codex`（Node 22.23 与 26.12 实测）；更早的 Node 才以 `node` 启动器 `spawn` 原生 `codex` 子进程（据包装脚本源码，未实测），
+  启动器判定为这种情况保留。
+- `/new`（以及选择工作树后的新会话）打开新锁且不释放旧锁；`codex resume <id>` 同时持有被恢复会话与一个空白会话的锁。
+  据此把“多个锁即无法确定”改为按出现先后判定（已更新 `agent-session-identity` 增量规格与 D4）。
+- TUI 启动时先上报 `state=working:app=codex` 再上报 idle，没有 OSC 7501 子记录 ID，证实需要启动静默期与锁文件。
+- codex-acp 的 `session/load` 把 `mode`、`model`、`reasoning_effort` 重置为默认值；外部客户端持有会话时
+  `session/load` 与 `session/resume` 都返回 `-32600`、`data.reason = "thread_active_writer"`；插话的 `idleBehavior` 与 `outcome` 与设计一致；
+  `initialize` 以 `_meta.steering.supported` 声明插话，`agentInfo.version` 是适配器版本。
+- bashrc 写法与 omp 相同经 fd 3 握手；连接器检查在 `.bashrc` 有输出时仍能取到标记行（Go 测试覆盖）。
+- 权限请求沿用 ACP 标准 `options`（`allow_once` 等），现有权限卡与自动批准逻辑无需改动。
+- npm 包的 `package.json` 只有 bun 单文件打包脚本，安装说明仍以 `npm install -g` 为准。
