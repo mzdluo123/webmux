@@ -40,12 +40,12 @@ make test-browsers-install        # Chromium (+ Linux libraries; may require sud
 
 ## CI
 
-- CI builds the Linux and macOS E2E executables and fake agents once in the format/build job (`.github/scripts/package-e2e-runtime.mjs`).
+- CI builds the Linux and macOS E2E executables and fake agents once in the Ubuntu Go job, before its race tests (`.github/scripts/package-e2e-runtime.mjs`).
   - They are shared, with the frontend output and locked Playwright runtime, through a same-run artifact.
 - `.github/workflows/test.yml` runs parallel jobs:
-  - Ubuntu: formatting/architecture guard/frontend build, Go race, Vitest, Storybook, single-worker 4x CPU performance, and six E2E shards.
+  - Ubuntu: formatting/architecture guard/frontend build, Go race, Vitest, Storybook, single-worker 4x CPU performance, and four E2E shards (desktop and mobile projects).
   - E2E shards prepare Node while waiting for the artifact, reuse the executable and Playwright packages, and skip pnpm/frontend dependencies and Go setup.
-  - macOS: native Go race using the shared frontend output, and three E2E shards on separate runners.
+  - macOS: native Go race (excluding the static guards `archtest`/`docguard` and the Windows `tray`/`wsl`/`wslclient` packages) using the shared frontend output, and two desktop-project E2E shards on separate runners.
   - `Test result` aggregates every job, and all results are required by the final gate.
 - Every browser job installs Chromium through `.github/actions/playwright`, which caches the Linux apt packages because a slow Ubuntu mirror can otherwise consume a job's whole timeout.
 - PR runs restore caches read-only and superseded PR runs are cancelled. Caches are saved from `main`.

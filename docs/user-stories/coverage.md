@@ -76,6 +76,7 @@
 | `AGENTS.md` 体积预算与规则下沉到 `docs/agent-rules/`                                                | US-L11                                              |
 | Storybook、截图、baseline、CI 与 release                                                            | US-L03–US-L04                                       |
 | 分层架构测试、线上 JSON 快照、必填数组 Zod 契约与重新录制                                           | US-L05                                              |
+| agent 适配器接口、注册表、契约测试与 agent 名称守卫                                                 | US-L05；US-Q01；US-Q03                              |
 | 前端架构守卫：设计系统 lint、分层、重复代码、未使用代码与基线                                       | US-L06                                              |
 | Pullfrog 指定订阅模型与 GitHub Actions 密钥                                                         | US-L07                                              |
 | 前端质量基线、类型感知与 Svelte lint、测试类型、wire 契约和失败路径回归                             | US-L09                                              |

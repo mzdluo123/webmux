@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rainchan/webmux/internal/agentprofile"
+	"github.com/rainchan/webmux/internal/agentprofile/omp"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -102,7 +102,7 @@ func TestResumeAfterRestart(t *testing.T) {
 	for _, side := range []Side{SideTUI, SideACP} {
 		t.Run(string(side), func(t *testing.T) {
 			h := newHarness(t, 0)
-			in := h.input(agentprofile.OMP, SideACP)
+			in := h.input(omp.Name, SideACP)
 			id := h.create(in).Info().ID
 			plan := "plan"
 			if err := h.svc.SetConfig(ctxT(t), id, ConfigInput{ClientRequestID: rid(), ConfigID: "mode", Value: &plan}); err != nil {
@@ -174,7 +174,7 @@ func TestResumeAfterRestart(t *testing.T) {
 // prompts it lost; the resumed chat says so.
 func TestRestartRecordsLostQueue(t *testing.T) {
 	h := newHarness(t, 0)
-	in := h.input(agentprofile.OMP, SideACP, "FAKEAGENT_PERMISSION=1")
+	in := h.input(omp.Name, SideACP, "FAKEAGENT_PERMISSION=1")
 	id := h.create(in).Info().ID
 	h.ask(id)
 	st := h.follow(id)
@@ -204,7 +204,7 @@ func TestRestartRecordsLostQueue(t *testing.T) {
 // same directory; picking one resumes it and keeps the old ID in history.
 func TestResumeOffersCandidates(t *testing.T) {
 	h := newHarness(t, 0)
-	in := h.input(agentprofile.OMP, SideACP)
+	in := h.input(omp.Name, SideACP)
 	id := h.create(in).Info().ID
 	chatTurn(t, h, id, "first conversation")
 	h.closeSession(id)
@@ -251,7 +251,7 @@ func TestResumeOffersCandidates(t *testing.T) {
 func TestResumeInterruptedTerminal(t *testing.T) {
 	h := newHarness(t, 0)
 	h.fast()
-	in := h.input(agentprofile.OMP, SideTUI)
+	in := h.input(omp.Name, SideTUI)
 	s := h.create(in)
 	id := s.Info().ID
 	tuiTurn(t, s, "hello there")
@@ -286,7 +286,7 @@ func TestResumeInterruptedTerminal(t *testing.T) {
 // request ID gets the first outcome.
 func TestResumeRefusals(t *testing.T) {
 	h := newHarness(t, 0)
-	in := h.input(agentprofile.OMP, SideACP)
+	in := h.input(omp.Name, SideACP)
 	id := h.create(in).Info().ID
 	repeated := rid()
 	if _, err := h.resume(id, ResumeInput{ClientRequestID: repeated, Env: in.Env}); !errors.Is(err, ErrConflict) {
@@ -324,28 +324,28 @@ func TestResumeRefusals(t *testing.T) {
 func TestRemoveRecord(t *testing.T) {
 	h := &harness{t: t, state: t.TempDir(), store: t.TempDir(), logs: &syncBuffer{}}
 	r := openRecords(h.state)
+	seeded := make([]Record, 0, MaxRecords-2)
 	for i := range MaxRecords - 2 {
 		rec := testRecord(limitID(i))
 		rec.State = StateClosed
 		rec.UpdatedAt = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-		if err := r.add(rec); err != nil {
-			t.Fatal(err)
-		}
+		seeded = append(seeded, rec)
 	}
+	seedRecords(t, r, seeded)
 	r.close()
 	h.open(0)
-	in := h.input(agentprofile.OMP, SideACP)
+	in := h.input(omp.Name, SideACP)
 	closed := h.create(in).Info().ID
 	chatTurn(t, h, closed, "keep me")
 	h.closeSession(closed)
 	agentID := h.record(closed).AgentSessionID
-	terminal := h.create(h.input(agentprofile.OMP, SideTUI))
+	terminal := h.create(h.input(omp.Name, SideTUI))
 	interrupted := terminal.Info().ID
 	if err := syscall.Kill(terminal.Identity().PID, syscall.SIGKILL); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "interrupted", func() bool { return h.record(interrupted).State == StateInterrupted })
-	if _, err := h.svc.Create(ctxT(t), h.input(agentprofile.OMP, SideTUI)); !errors.Is(err, ErrLimit) {
+	if _, err := h.svc.Create(ctxT(t), h.input(omp.Name, SideTUI)); !errors.Is(err, ErrLimit) {
 		t.Fatalf("create at the limit: %v", err)
 	}
 
@@ -379,7 +379,7 @@ func TestRemoveRecord(t *testing.T) {
 	if err := h.svc.RemoveRecord(ctxT(t), interrupted); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second removal: %v", err)
 	}
-	h.create(h.input(agentprofile.OMP, SideTUI))
+	h.create(h.input(omp.Name, SideTUI))
 }
 
 func TestRecoveryUnavailableOnCorruptStore(t *testing.T) {
