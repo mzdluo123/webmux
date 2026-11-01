@@ -789,6 +789,11 @@ export const CodeWorkspaceSnapshotSchema = z.object({
         file: CodeFileSchema.optional(),
         diff: CodeDiffSchema.optional(),
         comparison: CodeDiffSchema.optional(),
+        // Between windows, a body the receiver already holds is sent as its
+        // snapshot id instead.
+        fileRef: z.string().optional(),
+        diffRef: z.string().optional(),
+        comparisonRef: z.string().optional(),
         status: z.string(),
         view: CodeDocumentViewStateSchema.optional(),
       }),

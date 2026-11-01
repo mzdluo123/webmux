@@ -420,7 +420,7 @@ test("without Picture-in-Picture a desktop browser pops out into an ordinary pop
     "mobile browsers get no pop-out control without Picture-in-Picture",
   );
   await withoutPictureInPicture(page);
-  await writeFile(join(workDir, "popup.txt"), "popup document\n");
+  await writeFile(join(workDir, "popup.txt"), "popup document\nsecond\n");
   await createShell(page, "Popup code", workDir);
   await showCode(page);
   expect(await page.evaluate(() => "documentPictureInPicture" in window)).toBe(
@@ -434,6 +434,8 @@ test("without Picture-in-Picture a desktop browser pops out into an ordinary pop
   await frame.getByRole("button", { name: "popup.txt", exact: true }).click();
   await expect(frame.locator(".cm-content")).toContainText("popup document");
   await expect(frame.locator(".cm-editor")).toHaveCSS("display", "flex");
+  await gutter(frame, 2).click();
+  await expect(sendButton(frame, "2")).toBeEnabled();
 
   // Closing the popup with the window control returns the latest state.
   await popup.close();
@@ -441,6 +443,7 @@ test("without Picture-in-Picture a desktop browser pops out into an ordinary pop
   await expect(
     page.locator("[data-code-reader]:visible .cm-content"),
   ).toContainText("popup document");
+  await expect(sendButton(page, "2")).toBeEnabled();
 
   // Reloading the opener closes a popup instead of stranding it.
   const again = page.waitForEvent("popup");

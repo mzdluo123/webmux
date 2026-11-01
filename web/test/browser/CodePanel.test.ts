@@ -593,6 +593,55 @@ test("a state handed over while the tree was still loading reads it again", asyn
     .toBeVisible();
 });
 
+test("the window sends each document once and keeps update markers", async () => {
+  const { popup } = await popOutWithTabs();
+  const init = (await received(popup, "init")).snapshot as Snapshot & {
+    tabs: { key: string; status: string; file?: { snapshotId: string } }[];
+  };
+  popup.frame!.port!.postMessage({ type: "ready" });
+  await expect.element(page.getByText("代码已在独立窗口中显示")).toBeVisible();
+  // Later snapshots name bodies the opener already holds.
+  popup.frame!.port!.postMessage({
+    type: "snapshot",
+    snapshot: {
+      ...init,
+      active: init.tabs[0]!.key,
+      tabs: init.tabs.map((tab) => ({
+        ...tab,
+        file: undefined,
+        fileRef: tab.file!.snapshotId,
+        status: tab.key === init.tabs[0]!.key ? "updated" : tab.status,
+      })),
+    },
+  });
+  await expect.poll(() => popup.frame?.messages.length).toBeGreaterThan(0);
+  popup.window!.close();
+  await expect
+    .element(page.getByRole("tab", { name: /^file-0\.txt · worktree ●$/ }))
+    .toHaveAttribute("aria-selected", "true");
+  await expect
+    .element(page.getByRole("tabpanel").getByLabelText("只读代码"))
+    .toMatchTextContent(new RegExp("original file 0"));
+  await expect
+    .element(page.getByRole("tab", { name: /^file-1\.txt/ }))
+    .toBeInTheDocument();
+});
+
+test("requests to show a file while popped out go to the window, once", async () => {
+  const { popup } = await popOutWithTabs();
+  await received(popup, "init");
+  popup.frame!.port!.postMessage({ type: "ready" });
+  await expect.element(page.getByText("代码已在独立窗口中显示")).toBeVisible();
+  expect(popup.frame!.messages.filter((m) => m.type === "reveal")).toHaveLength(
+    0,
+  );
+  await page.getByRole("button", { name: "Reveal file 3" }).click();
+  expect(await received(popup, "reveal")).toEqual({
+    type: "reveal",
+    reveal: { path: "/root/file-3.txt", key: 1 },
+  });
+});
+
 test("the frame inserts references through the opener and the opener closes it on leave", async () => {
   const { popup } = await popOutWithTabs();
   await received(popup, "init");

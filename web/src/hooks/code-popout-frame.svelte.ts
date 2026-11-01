@@ -8,6 +8,7 @@ import {
   type CodeWorkspaceSnapshot,
 } from "../schemas";
 import type { CodeHost } from "../code-host";
+import { SentBodies } from "../code-snapshot";
 import type { TextInsertion } from "../terminal-draft.svelte";
 
 // A paste the opener does not answer in time did not reach any input.
@@ -51,8 +52,15 @@ export function useCodePopoutFrame() {
   let pasteSequence = 0;
   const pastes: Record<number, (result: TextInsertion) => void> = {};
   const send = (message: CodePopoutOutbound) => port?.postMessage(message);
+  // Document bodies the opener already holds.
+  const sent = new SentBodies();
   const pushSnapshot = (requestId?: number) => {
-    if (capture) send({ type: "snapshot", requestId, snapshot: capture() });
+    if (!capture || !port) return;
+    send({
+      type: "snapshot",
+      requestId,
+      snapshot: sent.reference(capture()),
+    });
   };
 
   const host: CodeHost = {
@@ -100,6 +108,8 @@ export function useCodePopoutFrame() {
       case "init":
         state.host = message.host;
         state.initial = message.snapshot ?? undefined;
+        // The opener handed these bodies over; it keeps them.
+        if (message.snapshot) sent.reference(message.snapshot);
         state.phase = "ready";
         break;
       case "host":

@@ -15,6 +15,7 @@ import {
   type CodeWorkspaceSnapshot,
 } from "../schemas";
 import type { TextInsertion } from "../terminal-draft.svelte";
+import { SnapshotBodies } from "../code-snapshot";
 
 type DocumentPictureInPicture = {
   requestWindow(options?: { width?: number; height?: number }): Promise<Window>;
@@ -93,6 +94,9 @@ export async function popOut(options: {
   shell.body.append(frame);
 
   let latest = options.snapshot;
+  // The frame sends each document body once; later snapshots reference it.
+  const bodies = new SnapshotBodies();
+  bodies.resolve(options.snapshot);
   let port: MessagePort | undefined;
   let finished = false;
   let disposed = false;
@@ -124,7 +128,7 @@ export async function popOut(options: {
         });
         break;
       case "snapshot":
-        latest = message.snapshot;
+        latest = bodies.resolve(message.snapshot);
         if (collecting && message.requestId === collecting.id)
           collecting.done();
         afterHide?.();
@@ -153,12 +157,15 @@ export async function popOut(options: {
   };
   win.addEventListener("message", handshake);
 
+  // Ends the pop-out. The window always closes: one whose page went away
+  // (reloaded, navigated) would otherwise stay open and empty.
   const finish = () => {
     if (finished) return;
     finished = true;
     window.removeEventListener("pagehide", closeWithOpener);
     win.removeEventListener("message", handshake);
     port?.close();
+    win.close();
     if (!disposed) options.closed(latest);
   };
   // An ordinary popup outlives its opener; close it with the opener so the
@@ -197,14 +204,12 @@ export async function popOut(options: {
       send({ type: "collect", requestId: id });
       await collected.promise;
       finish();
-      win.close();
     },
     host: (state) => send({ type: "host", host: state }),
     reveal: (target) => send({ type: "reveal", reveal: target }),
     dispose() {
       disposed = true;
       finish();
-      win.close();
     },
   };
 

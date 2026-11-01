@@ -65,7 +65,9 @@
   // While popped out the window's frame owns the workspace; this page keeps
   // only the latest state it reported, and remounts from it on return.
   let popout = $state<CodePopout>();
-  let popping = false;
+  // While the window starts, the workspace here is inert: the window restores
+  // the state captured when popping began.
+  let popping = $state(false);
   let snapshot = $state.raw<CodeWorkspaceSnapshot>();
   let generation = $state(0);
   let notice = $state("");
@@ -77,6 +79,8 @@
     popping = true;
     notice = "";
     const current = workspace.capture();
+    // Requests this workspace already showed are part of `current`.
+    const shownReveal = reveal?.key ?? 0;
     const rect = wrapper.getBoundingClientRect();
     try {
       const opened = await popOut({
@@ -94,8 +98,8 @@
           generation++;
         },
       });
-      // The workspace here already showed the current request.
-      forwarded = reveal?.key ?? 0;
+      // A request that arrived while the window started is shown there too.
+      forwarded = shownReveal;
       if (mounted) popout = opened;
       else opened.dispose();
     } catch (e) {
@@ -114,7 +118,8 @@
     const target = reveal;
     if (!popout || !target || target.key === forwarded) return;
     forwarded = target.key;
-    popout.reveal(target);
+    // Reactive props are proxies, which a message port cannot clone.
+    popout.reveal({ path: target.path, key: target.key });
   });
 
   onMount(() => {
@@ -126,7 +131,12 @@
   });
 </script>
 
-<div bind:this={wrapper} class="flex h-full min-h-0 min-w-0 flex-col">
+<div
+  bind:this={wrapper}
+  class="flex h-full min-h-0 min-w-0 flex-col"
+  inert={popping}
+  aria-busy={popping}
+>
   {#if notice}<p
       role="alert"
       class="shrink-0 px-2 py-1 text-sm break-all text-destructive"
