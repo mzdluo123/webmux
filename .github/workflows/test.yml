@@ -90,6 +90,10 @@ jobs:
           retention-days: 14
       - name: Vet Go
         run: go vet -printf.funcs=problemf,invalidf,usagef,checkf ./...
+      # macOS runs only the race tests; vet its build tags here so the
+      # *_darwin.go files are checked without another macOS runner.
+      - name: Vet the macOS build
+        run: GOOS=darwin go vet -printf.funcs=problemf,invalidf,usagef,checkf ./...
       - name: Run Go race tests
         run: go test -race -parallel=4 ./...
       # No Windows runner: hosted runners lack a usable WSL 2, so the Windows

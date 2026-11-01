@@ -108,6 +108,9 @@ node web/scripts/benchmark-actions.mjs \
 - macOS E2E 只运行 `chromium-desktop`（146 个用例，原 292 个），由三片减为两片。移动端仿真是同一 Chromium 的视口与触摸逻辑，与宿主系统无关；macOS 慢机上它曾以 flaky 判失败（如 [41283675836](https://github.com/mzdluo123/webmux/actions/runs/41283675836)）。慢机时序由 Ubuntu 的 4x CPU 性能 job 覆盖。
 - macOS Go race 排除 `archtest`、`docguard`（静态检查）与 `tray`、`wsl`、`wslclient`（Windows 托盘/WSL 客户端）；其余包默认全部运行，新增包自动纳入。
 - Ubuntu E2E 由六片减为四片：原各片测试段 43–132 秒，空等占 runner 时间的大头；分片开始时间提前后，关键路径仍为 macOS Go race。
+- Ubuntu Go job 增加 `GOOS=darwin go vet`，使只在 macOS 编译的 `*_darwin.go` 也经过完整 vet（此前 macOS 只有 `go test` 自带的部分检查）。
+- `internal/hybrid` 的三个记录上限用例改为一次写入预置记录，不再逐条提交并 fsync 增长中的文件；最后一个空位仍经过 `add`，断言不变。本机该包由约 75 秒降至约 32 秒。
 - 删除未被引用的 `.github/scripts/test-macos.sh`。
+- 保留：格式/构建 job 中的 `persistence-check`、`docs-check` 与 Go race 重复，但合计约 8 秒且不在关键路径，失败信息更直接；发布流程的 race 测试作为打标签前的最后门禁。
 
 每次运行 macOS job 由四个减为三个，Ubuntu job 由十二个减为十个，缓解 macOS 并发上限造成的排队。实际墙钟以合并后的运行结果为准。
