@@ -107,11 +107,10 @@ export function useTerminal(
   let terminal: Terminal | undefined;
   let renderer: TerminalRenderer | undefined;
   let scrollOnFit = false;
-  // A locked grid still needs its first fit; afterwards height-only host
-  // changes keep it until the user unlocks. Width changes refit so rotation,
-  // the code panel and font changes cannot hide columns.
+  // A locked grid still needs its first fit; afterwards host changes keep it
+  // until the user unlocks. A hidden host drops the state so showing it again
+  // still adopts the available box.
   let sized = false;
-  let fitWidth = 0;
   const stream = createTerminalSocket(id, manageChrome);
   const defaultFont = matchMedia("(pointer: coarse)").matches ? 13 : 14;
   let fontDraft = $state<number | null>(null);
@@ -199,11 +198,16 @@ export function useTerminal(
   // literal even while a soft modifier is armed.
   let pasting = false;
   let keyboardReopenAttempted = false;
-  function safeFit(force = false) {
+  function anchorBottom(parent: HTMLElement) {
+    terminal?.scrollToBottom();
+    parent.scrollTop = parent.scrollHeight;
+  }
+  function safeFit() {
     const parent = getContainer();
     if (isVisible() && parent?.clientWidth > 0 && parent?.clientHeight > 0) {
       // Observers render the controller's grid and scroll it, never fit.
       const control = stream.control;
+      const locked = isSizeLocked();
       parent.classList.toggle("observing", stream.observing);
       if (control && stream.observing) {
         if (
@@ -217,20 +221,14 @@ export function useTerminal(
         // Taking control later must fit this host instead of pushing the
         // previous controller's grid onto the PTY.
         sized = false;
-      } else {
-        const width = parent.clientWidth;
-        const widthChanged = fitWidth > 0 && width !== fitWidth;
-        if (force || !isSizeLocked() || !sized || widthChanged) {
-          renderer?.fit();
-          if (renderer) {
-            sized = true;
-            fitWidth = width;
-          }
-        }
+      } else if (!locked || !sized) {
+        renderer?.fit();
+        if (renderer) sized = true;
       }
-      if (scrollOnFit && terminal) {
-        terminal.scrollToBottom();
-        if (stream.observing) parent.scrollTop = parent.scrollHeight;
+      if ((scrollOnFit || (locked && atBottom)) && terminal) {
+        // A locked grid may exceed the host: scroll it like an observer so
+        // the newest rows, where prompts appear, stay visible.
+        anchorBottom(parent);
         scrollOnFit = false;
       }
       updateBottom();
@@ -244,9 +242,12 @@ export function useTerminal(
     const parent = getContainer();
     if (!terminal || !parent) return;
     const buffer = terminal.buffer.active;
+    // Observers and locked grids scroll their host past the xterm viewport.
+    const scrollsHost =
+      parent.classList.contains("observing") || isSizeLocked();
     atBottom =
       buffer.viewportY >= buffer.baseY &&
-      (!parent.classList.contains("observing") ||
+      (!scrollsHost ||
         parent.scrollTop + parent.clientHeight >= parent.scrollHeight - 1);
   }
   function scrollToBottom() {
@@ -277,10 +278,19 @@ export function useTerminal(
   $effect(() => {
     const value = fontSize;
     untrack(() => {
-      if (terminal) {
-        terminal.options.fontSize = value;
-        // A font change alters the cell size, so let it fit even while locked.
-        safeFit(true);
+      if (!terminal) return;
+      terminal.options.fontSize = value;
+      // A locked grid keeps its PTY rows and columns; the font only rescales
+      // the pixels, so re-anchor instead of fitting back to the host.
+      const lockedGrid = isSizeLocked() && sized;
+      safeFit();
+      if (lockedGrid && atBottom) {
+        requestAnimationFrame(() => {
+          if (terminal && isSizeLocked() && atBottom) {
+            anchorBottom(getContainer());
+            updateBottom();
+          }
+        });
       }
     });
   });

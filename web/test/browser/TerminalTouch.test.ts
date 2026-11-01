@@ -354,3 +354,38 @@ test("viewing history is reported until the terminal returns to the latest outpu
   await expectDomText("newest output");
   await expect.element(position).toHaveTextContent("latest");
 });
+
+test("a locked host pans to rows outside the viewport and returns to the latest", async () => {
+  observeGlyphPixels(true);
+  const { api } = await openTerminalApi({ sizeLocked: () => true });
+  host().classList.add("size-locked");
+  host().style.height = "300px";
+  await expect
+    .poll(() => host().scrollHeight)
+    .toBeGreaterThan(host().clientHeight);
+  await expect
+    .poll(() => host().scrollTop + host().clientHeight)
+    .toBeGreaterThanOrEqual(host().scrollHeight - 1);
+  const position = page.getByRole("status", { name: "Terminal position" });
+  await expect.element(position).toHaveTextContent("latest");
+
+  const target = host();
+  const capture = syntheticPointerCapture(target);
+  const start = { x: 100, y: 150 };
+  pointer(target, "pointerdown", 1, start);
+  pointer(target, "pointermove", 1, { x: start.x, y: start.y + 120 });
+  pointer(target, "pointermove", 1, { x: start.x, y: start.y + 240 });
+  pointer(target, "pointerup", 1, { x: start.x, y: start.y + 240 });
+  await expect
+    .poll(() => host().scrollTop)
+    .toBeLessThan(host().scrollHeight - host().clientHeight);
+  await expect.element(position).toHaveTextContent("history");
+  capture.set.mockRestore();
+  capture.release.mockRestore();
+
+  api.scrollToBottom();
+  await expect.element(position).toHaveTextContent("latest");
+  expect(host().scrollTop + host().clientHeight).toBeGreaterThanOrEqual(
+    host().scrollHeight - 1,
+  );
+});
