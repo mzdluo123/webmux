@@ -2,6 +2,7 @@
   import { errorMessage } from "../error";
   import type { z } from "zod";
   import CodeFileTree from "./CodeFileTree.svelte";
+  import CodeFileActions from "./CodeFileActions.svelte";
   import CodeChangesList from "./CodeChangesList.svelte";
   import {
     CodeChangesSchema,
@@ -26,6 +27,7 @@
   import IconPhoto from "~icons/tabler/photo";
 
   let {
+    id,
     context,
     listing,
     rootListing,
@@ -55,7 +57,9 @@
     switchRoot,
     retryRoot,
     reload,
+    changed,
   }: {
+    id: string;
     context: z.infer<typeof CodeContextSchema> | undefined;
     listing: CodeListing | undefined;
     rootListing: CodeListing | undefined;
@@ -90,7 +94,10 @@
     switchRoot: (root: "workspace" | "artifacts") => void;
     retryRoot: () => void;
     reload: () => void;
+    /** After a file operation; removed lists paths that no longer exist. */
+    changed: (removed: string[]) => void;
   } = $props();
+  let actions = $state<CodeFileActions>();
   let searchOpen = $state(false);
   let searchInput = $state("");
   let locateOpen = $state(false);
@@ -310,6 +317,14 @@
     {#if includeIgnored}<p class="px-2 pb-1 text-xs text-muted-foreground">
         包含忽略项
       </p>{/if}
+    <CodeFileActions
+      bind:this={actions}
+      {id}
+      {context}
+      {includeIgnored}
+      {openFile}
+      {changed}
+    />
     <div class:hidden={!!query} class="flex min-h-0 flex-1 flex-col">
       {#key context?.contextId}
         <CodeFileTree
@@ -323,6 +338,7 @@
           {fetchDirectory}
           {openFile}
           loadMore={() => load(true)}
+          menu={(node, at, row) => actions?.show(node, at, row)}
         />
       {/key}
     </div>
@@ -342,6 +358,14 @@
                 query = "";
                 void load();
               } else openFile(node.path, node.nodeId);
+            }}
+            oncontextmenu={(event) => {
+              event.preventDefault();
+              actions?.show(
+                node,
+                { x: event.clientX, y: event.clientY },
+                event.currentTarget,
+              );
             }}
           >
             {#if node.mediaType.startsWith("image/")}<IconPhoto

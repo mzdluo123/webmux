@@ -737,3 +737,88 @@ test("file explorer preserves sibling branches, refreshes children and locates n
   await page.getByRole("button", { name: "setup.md", exact: true }).click();
   await expect.poll(() => visibleCode(page)).toContain("nested setup guide");
 });
+
+test("explorer menu copies, renames, moves, uploads, zips and deletes inside the root", async ({
+  page,
+  workDir,
+}, info) => {
+  await mkdir(join(workDir, "docs"));
+  await writeFile(join(workDir, "docs/a.md"), "# a\n");
+  await writeFile(join(workDir, "notes.txt"), "notes\n");
+  await createShell(page, "File operations", workDir);
+  await showCode(page);
+  const row = (name: string) => page.getByRole("button", { name, exact: true });
+  const actions = async (name: string) => {
+    if (info.project.use.isMobile)
+      await page
+        .getByRole("button", { name: `文件操作 ${name}`, exact: true })
+        .click();
+    else await row(name).click({ button: "right" });
+  };
+  const choose = (name: string | RegExp) =>
+    page
+      .getByRole("menuitem", { name, exact: typeof name === "string" })
+      .click();
+  const root = workDir.split("/").at(-1)!;
+
+  await actions("docs");
+  await choose("复制");
+  await page
+    .getByRole("button", { name: `文件操作 ${root}`, exact: true })
+    .click();
+  await choose(/^粘贴/);
+  await expect(page.getByText("已粘贴为 docs (2)")).toBeVisible();
+  await expect(row("docs (2)")).toBeVisible();
+  expect(await readFile(join(workDir, "docs (2)/a.md"), "utf8")).toBe("# a\n");
+
+  await actions("docs (2)");
+  await choose("重命名");
+  await page.getByLabel("名称", { exact: true }).fill("guides");
+  await page.getByRole("button", { name: "重命名", exact: true }).click();
+  await expect(row("guides")).toBeVisible();
+
+  await actions("notes.txt");
+  await choose("剪切");
+  await actions("guides");
+  await choose(/^粘贴/);
+  await expect(page.getByText("已移动 1 项")).toBeVisible();
+  await expect(row("notes.txt")).toHaveCount(0);
+  expect(await readFile(join(workDir, "guides/notes.txt"), "utf8")).toBe(
+    "notes\n",
+  );
+
+  await actions("guides");
+  const chooser = page.waitForEvent("filechooser");
+  await choose("上传到此目录");
+  await (
+    await chooser
+  ).setFiles({
+    name: "a.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("uploaded\n"),
+  });
+  await expect(page.getByText("已上传 a (2).md")).toBeVisible();
+  expect(await readFile(join(workDir, "guides/a (2).md"), "utf8")).toBe(
+    "uploaded\n",
+  );
+
+  await actions("guides");
+  const downloading = page.waitForEvent("download");
+  await choose("下载为 ZIP");
+  const zip = await downloading;
+  expect(zip.suggestedFilename()).toBe("guides.zip");
+  const bytes = await readFile((await zip.path())!);
+  expect(bytes.subarray(0, 2).toString()).toBe("PK");
+  expect(bytes.includes(Buffer.from("guides/a (2).md"))).toBe(true);
+
+  await actions("guides");
+  await choose("删除…");
+  const confirm = page.getByRole("alertdialog");
+  await expect(confirm).toContainText("3 个条目");
+  await confirm.getByRole("button", { name: "确认", exact: true }).click();
+  await expect(row("guides")).toHaveCount(0);
+  await expect
+    .poll(() => readFile(join(workDir, "guides/a.md")).catch(() => null))
+    .toBeNull();
+  expect(await readFile(join(workDir, "docs/a.md"), "utf8")).toBe("# a\n");
+});
