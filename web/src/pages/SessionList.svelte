@@ -126,6 +126,17 @@
         !repositories.some((r) => r.id === s.workspace?.repositoryId),
     ),
   );
+  // A workspace session proves at least one repository exists, so reserve the
+  // sidebar frame before Git discovery returns instead of moving the list when
+  // the repositories appear.
+  const awaitingRepositories = $derived(
+    !repositoriesSettled &&
+      !repositories.length &&
+      list.some((session) => session.workspace),
+  );
+  const sidebarVisible = $derived(
+    repositories.length > 0 || awaitingRepositories,
+  );
   const selectedRepository = $derived(
     repositoryChoice &&
       (repositoryChoice === "direct" ||
@@ -423,14 +434,15 @@
     </div>
   {:else}
     <div
-      class={`mx-auto grid max-w-7xl gap-6 px-4 py-5 sm:px-8 sm:py-6 ${repositories.length ? "lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8" : ""}`}
+      class={`mx-auto grid max-w-7xl gap-6 px-4 py-5 sm:px-8 sm:py-6 ${sidebarVisible ? "lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8" : ""}`}
     >
-      {#if repositories.length}<RepositorySidebar
+      {#if sidebarVisible}<RepositorySidebar
           {repositories}
           sessions={list}
           directSessions={direct}
           selected={selectedRepository}
           label={selectedRepository === "all" ? "全部仓库" : scopeLabel}
+          loading={awaitingRepositories}
           onselect={selectRepository}
         />{/if}
       <main class="min-w-0">
