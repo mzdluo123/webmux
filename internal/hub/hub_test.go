@@ -147,12 +147,13 @@ func TestWriterPreservesBoundariesExitAndSharedChunks(t *testing.T) {
 
 // A redraw burst arrives as many small PTY reads. The writer sends the first
 // at once, then spaces frames about one display frame apart instead of
-// forwarding every fragment, without reordering or losing bytes.
+// forwarding every fragment, without reordering or losing bytes. The stream
+// below never pauses for the quiet gap on its own, so only the frame deadline
+// can split it: removing the deadline would send it as one frame.
 func TestWriterPacesOutputBursts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	const chunks = 200
-	sub := &session.Subscriber{Out: make(chan session.Message, chunks+1), Slow: make(chan struct{})}
+	sub := &session.Subscriber{Out: make(chan session.Message, 4096), Slow: make(chan struct{})}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		connection, err := websocket.Accept(w, r, nil)
 		if err != nil {
@@ -167,19 +168,35 @@ func TestWriterPacesOutputBursts(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = client.CloseNow() }()
-	var want bytes.Buffer
+	const window = 160 * time.Millisecond
+	type produced struct {
+		want    []byte
+		elapsed time.Duration
+		// Gaps longer than the quiet gap let the writer flush early. They come
+		// from scheduling, not from the writer, so each may add one frame.
+		stalls int
+	}
+	done := make(chan produced, 1)
 	go func() {
-		for i := range chunks {
-			chunk := fmt.Appendf([]byte{contract.FrameOutput}, "%03d:%s\r\n", i, strings.Repeat("x", 60))
-			sub.Out <- session.Message{Frame: chunk}
-			time.Sleep(500 * time.Microsecond)
+		var result produced
+		start := time.Now()
+		last := start
+		for i := 0; time.Since(start) < window; i++ {
+			line := fmt.Appendf(nil, "%05d:%s\r\n", i, strings.Repeat("x", 60))
+			result.want = append(result.want, line...)
+			sub.Out <- session.Message{Frame: append([]byte{contract.FrameOutput}, line...)}
+			time.Sleep(time.Millisecond)
+			now := time.Now()
+			if now.Sub(last) > outputQuietGap {
+				result.stalls++
+			}
+			last = now
 		}
+		result.elapsed = time.Since(start)
 		code := 0
 		sub.Out <- session.Message{Exit: &code}
+		done <- result
 	}()
-	for i := range chunks {
-		fmt.Fprintf(&want, "%03d:%s\r\n", i, strings.Repeat("x", 60))
-	}
 	var got bytes.Buffer
 	frames := 0
 	for {
@@ -196,13 +213,20 @@ func TestWriterPacesOutputBursts(t *testing.T) {
 		frames++
 		got.Write(frame[1:])
 	}
-	if !bytes.Equal(got.Bytes(), want.Bytes()) {
-		t.Fatalf("burst output changed: got %d bytes, want %d", got.Len(), want.Len())
+	result := <-done
+	if !bytes.Equal(got.Bytes(), result.want) {
+		t.Fatalf("burst output changed: got %d bytes, want %d", got.Len(), len(result.want))
 	}
-	// About 100 ms of output is six or seven display frames. Allow scheduling
-	// noise, but not the one-frame-per-fragment forwarding this replaces.
-	t.Logf("%d chunks in %d frames", chunks, frames)
-	if frames > chunks/8 {
-		t.Fatalf("%d chunks were sent as %d frames", chunks, frames)
+	paced := int(result.elapsed/outputFrameInterval) + 1
+	t.Logf("%d bytes over %s in %d frames (%d frame intervals, %d producer stalls)", got.Len(), result.elapsed, frames, paced, result.stalls)
+	// The deadline gives about one frame per interval; stalls only add frames.
+	// Waiting for the quiet gap alone would send two frames plus the stalls.
+	if frames < paced/2 {
+		t.Fatalf("%s of continuous output was sent as %d frames; the frame deadline did not split it", result.elapsed, frames)
+	}
+	// At most one frame per interval, plus the immediate first frame and
+	// one per stall: not one frame per fragment.
+	if limit := paced + 1 + result.stalls; frames > limit {
+		t.Fatalf("%s of output was sent as %d frames, want at most %d", result.elapsed, frames, limit)
 	}
 }
