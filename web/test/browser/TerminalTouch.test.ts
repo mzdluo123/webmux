@@ -376,6 +376,13 @@ test("a locked host pans to rows outside the viewport and returns to the latest"
   pointer(target, "pointermove", 1, { x: start.x, y: start.y + 120 });
   pointer(target, "pointermove", 1, { x: start.x, y: start.y + 240 });
   pointer(target, "pointerup", 1, { x: start.x, y: start.y + 240 });
+  // The pan reports itself without waiting for the host's delayed scroll event,
+  // so a slow frame cannot leave the history control hidden or let a pending
+  // layout fit pull the reader back down.
+  await Promise.resolve();
+  expect(
+    document.querySelector('[aria-label="Terminal position"]')?.textContent,
+  ).toBe("history");
   await expect
     .poll(() => host().scrollTop)
     .toBeLessThan(host().scrollHeight - host().clientHeight);
