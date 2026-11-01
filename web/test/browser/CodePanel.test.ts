@@ -577,6 +577,22 @@ test("a window closed by the user returns its last reported state", async () => 
     .toHaveAttribute("aria-selected", "true");
 });
 
+test("a state handed over while the tree was still loading reads it again", async () => {
+  const { popup } = await popOutWithTabs();
+  const snapshot = (await received(popup, "init")).snapshot as Snapshot;
+  popup.frame!.port!.postMessage({ type: "ready" });
+  await expect.element(page.getByText("代码已在独立窗口中显示")).toBeVisible();
+  popup.frame!.port!.postMessage({
+    type: "snapshot",
+    snapshot: { ...snapshot, listing: undefined, rootListing: undefined },
+  });
+  await expect.poll(() => popup.frame?.messages.length).toBeGreaterThan(0);
+  popup.window!.close();
+  await expect
+    .element(page.getByRole("button", { name: "file-0.txt", exact: true }))
+    .toBeVisible();
+});
+
 test("the frame inserts references through the opener and the opener closes it on leave", async () => {
   const { popup } = await popOutWithTabs();
   await received(popup, "init");

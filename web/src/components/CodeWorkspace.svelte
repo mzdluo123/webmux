@@ -818,8 +818,11 @@
   onMount(() => {
     mounted = true;
     // A restored workspace keeps the listings it was handed; checks report
-    // what changed since.
+    // what changed since. A listing still loading when the state was
+    // captured is read now.
     if (!seed?.context) void loadContext();
+    else if (!(seed.nav === "changes" ? seed.changes : seed.listing))
+      void load();
     const timer = window.setInterval(() => void check(), 5000);
     const visibility = () => {
       if (document.hidden) checkController?.abort();
