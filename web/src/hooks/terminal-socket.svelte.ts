@@ -25,17 +25,21 @@ import {
   attachTerminalGraphics,
   type TerminalGraphics,
 } from "./terminal-graphics";
+import {
+  canEndSynchronizedOutput,
+  endSynchronizedOutput,
+} from "./terminal-sync";
 
 const inputSendError = "终端输入未发送：连接不可用或发送队列已满，请重试。";
+// CAN aborts an unfinished control sequence without executing it. Send it as
+// bytes so xterm also abandons any incomplete UTF-8 prefix before the reset.
+const resetBoundary = new Uint8Array([0x18]);
 // DEC 2026 synchronized output around a replay: xterm keeps the old screen
 // until the restored one is complete and paints it once, instead of a blank
-// screen and every intermediate frame.
+// screen and every intermediate frame. It starts right after CAN, so the screen
+// reset() empties is never painted, and again after reset(), which clears it.
 const syncStart = new TextEncoder().encode("\x1b[?2026h");
-const syncEnd = new TextEncoder().encode("\x1b[?2026l");
-// CAN aborts an unfinished control sequence without executing it. Send it as
-// bytes so xterm also abandons any incomplete UTF-8 prefix before the reset,
-// then synchronize so the screen reset() empties is never painted.
-const resetBoundary = new Uint8Array([0x18, ...syncStart]);
+const syncedResetBoundary = new Uint8Array([...resetBoundary, ...syncStart]);
 
 // What the session socket needs from the mounted terminal view.
 export interface TerminalSocketView {
@@ -133,23 +137,26 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       const version = ++restoreVersion;
       cancelAnimationFrame(restoreFrame);
       restoring = true;
+      // The update is ended in code, never by bytes after the snapshot: a raw
+      // snapshot may stop inside an unfinished sequence that live bytes finish.
+      const synchronize = canEndSynchronizedOutput(term);
       // Public reset() resets the screen, not xterm's pending parser sequence.
       // Parse CAN first, then reset away the old screen before replay/live bytes.
-      writeOutput(resetBoundary, () => {
+      writeOutput(synchronize ? syncedResetBoundary : resetBoundary, () => {
         if (disposed) return;
         term.reset();
         releaseGraphics?.();
         view.resetFind();
         replaying = true;
       });
-      // reset() also cleared synchronized output; resume it for the replay.
-      const replay = new Uint8Array(
-        syncStart.length + payload.length + syncEnd.length,
-      );
-      replay.set(syncStart);
-      replay.set(payload, syncStart.length);
-      replay.set(syncEnd, syncStart.length + payload.length);
+      let replay = payload;
+      if (synchronize) {
+        replay = new Uint8Array(syncStart.length + payload.length);
+        replay.set(syncStart);
+        replay.set(payload, syncStart.length);
+      }
       writeOutput(replay, () => {
+        if (synchronize && !disposed) endSynchronizedOutput(term);
         replaying = false;
         if (payload.length && run) drawn = run;
         if (disposed || version !== restoreVersion) return;

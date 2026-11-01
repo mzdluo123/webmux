@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { page } from "vitest/browser";
 import {
   domText,
   host,
@@ -152,4 +153,43 @@ test("restoring a snapshot keeps the old screen and images until the replay is p
     if (state.text.includes("OLD-SCREEN"))
       expect(state).toMatchObject({ images: ["red"] });
   }
+});
+
+test("resizing or refocusing during a synchronized update keeps the previous screen", async () => {
+  // The DOM renderer repaints rows itself for resize, focus and blur.
+  observeGlyphPixels(true);
+  const { socket } = await openTerminal();
+  socket.receive(0, "OLD-SCREEN\r\n");
+  await expect.poll(domText).toContain("OLD-SCREEN");
+  socket.receive(0, "\x1b[?2026h\x1b[2J\x1b[HNEW-SCREEN\r\n");
+  await settle();
+  const input = host().querySelector<HTMLTextAreaElement>(
+    ".xterm-helper-textarea",
+  )!;
+  input.focus();
+  await settle();
+  input.blur();
+  await settle();
+  expect(domText()).toContain("OLD-SCREEN");
+  await page.viewport(800, 700);
+  await settle();
+  expect(domText()).toContain("OLD-SCREEN");
+  socket.receive(0, "\x1b[?2026l");
+  await expect.poll(domText).toContain("NEW-SCREEN");
+  await page.viewport(1024, 900);
+});
+
+test("a snapshot that stops inside an image upload ends synchronization without corrupting it", async () => {
+  // A raw snapshot may stop inside an unfinished sequence; the live bytes
+  // that follow complete it. No terminator may be written in between.
+  observeGlyphPixels(true);
+  const { socket } = await openTerminal();
+  socket.receive(0, "OLD-SCREEN\r\n");
+  await expect.poll(domText).toContain("OLD-SCREEN");
+  socket.receive(1, "NEW-SCREEN\r\n\x1b_Ga=T,f=32,s=1,v=1,i=3,c=2,r=1,q=2;");
+  // Well before xterm's one second synchronized-output timeout.
+  await expect.poll(domText, { timeout: 500 }).toContain("NEW-SCREEN");
+  socket.receive(0, `${blue}\x1b\\after image\r\n`);
+  await expect.poll(visibleImages).toEqual(["blue"]);
+  await expect.poll(domText).toContain("after image");
 });
