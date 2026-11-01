@@ -278,7 +278,7 @@ WSL2 mirrored + 真实 Windows Tailscale 上经网页与 API 验证：切换端�
 | I    | 代码工作区、Diff、引用与文件操作       | US-I01–US-I19 |
 | J    | 仓库登记与 worktree 管理               | US-J01–US-J11 |
 | K    | 配置、运行与服务管理                   | US-K01–US-K12 |
-| L    | 开发、验证与发布支持                   | US-L01–US-L10 |
+| L    | 开发、验证与发布支持                   | US-L01–US-L11 |
 | M    | 原生终端、CLI 与本机控制面             | US-M01–US-M08 |
 | N    | Cloudflare 公网隧道                    | US-N01–US-N08 |
 | O    | Windows/WSL 托盘管理                   | US-O01–US-O11 |
@@ -330,3 +330,8 @@ diff 库的行号按压只在主页面 `document` 上等待 pointerup，现由 `
 - 依据：`internal/agentprofile`、`internal/hybrid`（含 `codex_test.go` 的往返、连接器缺失与安装后重检、bashrc 检查、外部占用、插话退回队首、启动静默期）与 `internal/session` 的 Go race 测试，线上快照与 wire 契约用例，浏览器组件测试，以及桌面/Pixel 7 的 Codex E2E 用例。
 - 真实工具实测：Linux 上 Codex CLI 0.166.0 与 codex-acp 2.5.0 的写锁、`session/load` 配置重置、`thread_active_writer`、插话 `idleBehavior` 与权限选项（结论记录在 OpenSpec 变更的 design.md）；未在 macOS 上用真实 Codex 验收。
 - 一致性：175 个故事 ID 唯一；未重新核验其余故事能力。
+
+本次局部核对（2026-11-01）：`AGENTS.md` 体积预算对应新增 US-L11；`AGENTS.md` 由约 22 KB 压缩到 10 KiB 以内，频率较低的规则原文迁入 `docs/agent-rules/`。
+
+- 依据：`go test -count=1 ./internal/archtest -run TestAgents` 与 `go test -count=1 ./internal/docguard`。
+- 一致性：177 个故事 ID 唯一，两份索引已同步 US-L11；未重新核验其余故事能力。
