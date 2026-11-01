@@ -115,4 +115,8 @@ node web/scripts/benchmark-actions.mjs \
 
 每次运行 macOS job 由四个减为三个，Ubuntu job 由十二个减为十个，缓解 macOS 并发上限造成的排队。
 
-PR 运行 [41287420287](https://github.com/mzdluo123/webmux/actions/runs/41287420287) 全部通过，4 分 47 秒（参照 6 分 37 秒）：E2E 运行时 65 秒产出（原约 170 秒），macOS Go race 96 秒（原 199 秒），E2E 分片最晚约 3 分 45 秒结束。关键路径变为 Storybook job（约 4 分 40 秒，构建与测试 3 分 56 秒），这是下一轮的优化对象。
+PR 运行 [41287420287](https://github.com/mzdluo123/webmux/actions/runs/41287420287) 全部通过，用时 4 分 47 秒（参照 6 分 37 秒）：
+
+- E2E 运行时 65 秒产出（原约 170 秒）；E2E 分片最晚约 3 分 45 秒结束。
+- macOS Go race 96 秒（原 199 秒）。
+- 关键路径变为 Storybook job（约 4 分 40 秒，其中构建与测试 3 分 56 秒），是下一轮的优化对象。
