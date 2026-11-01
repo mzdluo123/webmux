@@ -52,6 +52,40 @@ func TestUnknownStatusAndExecutablePermissionAreNotClean(t *testing.T) {
 	}
 	waitDone(t, item)
 }
+func TestListReadsRepositoriesConcurrently(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	root := initRepo(t)
+	other := initRepo(t)
+	s, _ := testService(t, t.TempDir(), root)
+	registerTest(t, s, root)
+	registerTest(t, s, other)
+	dir := t.TempDir()
+	lock := filepath.Join(dir, "active")
+	overlap := filepath.Join(dir, "overlap")
+	wrapper := filepath.Join(dir, "git")
+	realGit := s.gitPath
+	// Every Git call holds a lock directory across a short sleep. A second
+	// repository starting while one holds it proves List runs them in parallel.
+	putFile(t, wrapper, fmt.Sprintf("#!/bin/sh\nif ! mkdir %q 2>/dev/null; then : > %q; fi\nsleep 0.5\nrmdir %q 2>/dev/null\nexec %q \"$@\"\n", lock, overlap, lock, realGit))
+	if err := os.Chmod(wrapper, 0700); err != nil {
+		t.Fatal(err)
+	}
+	s.gitPath = wrapper
+	list, err := s.List(context.Background())
+	if err != nil || len(list) != 2 {
+		t.Fatalf("list: %+v %v", list, err)
+	}
+	for _, repository := range list {
+		if repository.Availability != "available" {
+			t.Fatalf("repository unavailable: %+v", repository)
+		}
+	}
+	if _, err := os.Stat(overlap); err != nil {
+		t.Fatal("List read repositories serially")
+	}
+}
+
 func TestConcurrentSnapshotsCoalesceAndCancelOnlyLastWaiter(t *testing.T) {
 	t.Parallel()
 	isolateGit(t)
