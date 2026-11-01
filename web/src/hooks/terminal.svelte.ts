@@ -383,6 +383,7 @@ export function useTerminal(
         setFontSize,
         hasSelection: () => Boolean(selection),
         keyboardDismissed: isKeyboardDismissed,
+        hostScrolled: () => updateBottom(true),
       });
       safeFit();
       if (!hasTouchInput() && isVisible() && isActive()) term.focus();

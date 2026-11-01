@@ -14,6 +14,9 @@ export function attachTouchGestures(
     setFontSize: (value: number) => void;
     hasSelection: () => boolean;
     keyboardDismissed: () => boolean;
+    // The host's scroll event arrives on a later frame; report the pan now so a
+    // pending layout fit cannot mistake the reader for following the tail.
+    hostScrolled: () => void;
   },
 ) {
   const terminalElement = term.element!;
@@ -199,6 +202,7 @@ export function attachTouchGestures(
         ) {
           parent.scrollTop += delta;
           touchY = point.y;
+          options.hostScrolled();
           return;
         }
       }
