@@ -12,6 +12,7 @@ import {
   FixtureSocket,
   geometry,
   host,
+  hostObserver,
   inputText,
   installTerminalFixture,
   observeGlyphPixels,
@@ -169,6 +170,32 @@ test("locking the terminal size keeps the PTY grid across host resizes", async (
   await expect
     .poll(() => screen().width)
     .toBeLessThanOrEqual(host().clientWidth);
+});
+
+test("a locked host keeps following output that arrives during a resize", async () => {
+  observeGlyphPixels(true);
+  const { socket, api } = await openTerminalApi({
+    sizeLocked: () => true,
+  });
+  host().classList.add("size-locked");
+  api.fit();
+  // Drop the debounced layout so output can update the position from the
+  // smaller box before the next fit, as it can while the real timer is pending.
+  hostObserver().disconnect();
+  host().style.height = "400px";
+  await expect
+    .poll(() => host().scrollHeight)
+    .toBeGreaterThan(host().clientHeight);
+  socket.receive(0, "during resize\r\n");
+  await expectDomText("during resize");
+  const position = page.getByRole("status", { name: "Terminal position" });
+  await expect.element(position).toHaveTextContent("history");
+  // The debounced layout calls this same fit, now after the position changed.
+  api.fit();
+  await expect
+    .poll(() => host().scrollTop + host().clientHeight)
+    .toBeGreaterThanOrEqual(host().scrollHeight - 1);
+  await expect.element(position).toHaveTextContent("latest");
 });
 
 test("a locked grid only rescales the font, keeping the PTY rows and columns", async () => {

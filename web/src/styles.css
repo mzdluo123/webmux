@@ -371,8 +371,13 @@
   height: auto;
 }
 /* A locked host scrolls, so focusing the iOS helper would reveal it at the
-   grid's top and hide the newest rows. Pin it to the grid's bottom instead,
-   matching the anchor, so focus and IME updates keep the prompt in view. */
+   grid's top and hide the newest rows. The helper box has no height of its own,
+   so anchor it and the textarea to the grid's bottom; focus and IME updates
+   then keep the prompt in view. */
+.terminal-host.size-locked.ios-ime .xterm-helpers {
+  top: auto;
+  bottom: 0;
+}
 .terminal-host.size-locked.ios-ime .xterm-helper-textarea {
   top: auto !important;
   bottom: 0 !important;

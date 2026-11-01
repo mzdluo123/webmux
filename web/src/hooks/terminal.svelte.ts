@@ -111,6 +111,10 @@ export function useTerminal(
   // until the user unlocks. A hidden host drops the state so showing it again
   // still adopts the available box.
   let sized = false;
+  // Whether output should keep the newest rows in view. Kept apart from
+  // `atBottom` because a host resize moves the grid under a stationary
+  // scrollTop; only a user scroll may stop following the tail.
+  let follow = true;
   const stream = createTerminalSocket(id, manageChrome);
   const defaultFont = matchMedia("(pointer: coarse)").matches ? 13 : 14;
   let fontDraft = $state<number | null>(null);
@@ -201,6 +205,8 @@ export function useTerminal(
   function anchorBottom(parent: HTMLElement) {
     terminal?.scrollToBottom();
     parent.scrollTop = parent.scrollHeight;
+    // Anchoring is an explicit request to follow the tail, not a user scroll.
+    follow = true;
   }
   function safeFit() {
     const parent = getContainer();
@@ -225,7 +231,7 @@ export function useTerminal(
         renderer?.fit();
         if (renderer) sized = true;
       }
-      if ((scrollOnFit || (locked && atBottom)) && terminal) {
+      if ((scrollOnFit || (locked && follow)) && terminal) {
         // A locked grid may exceed the host: scroll it like an observer so
         // the newest rows, where prompts appear, stay visible.
         anchorBottom(parent);
@@ -238,7 +244,7 @@ export function useTerminal(
       sized = false;
     }
   }
-  function updateBottom() {
+  function updateBottom(userScrolled = false) {
     const parent = getContainer();
     if (!terminal || !parent) return;
     const buffer = terminal.buffer.active;
@@ -249,9 +255,13 @@ export function useTerminal(
       buffer.viewportY >= buffer.baseY &&
       (!scrollsHost ||
         parent.scrollTop + parent.clientHeight >= parent.scrollHeight - 1);
+    // Output and host resizes can change the geometry without moving the
+    // scroll position; only an actual user scroll changes the intent.
+    if (userScrolled) follow = atBottom;
   }
   function scrollToBottom() {
     scrollOnFit = true;
+    follow = true;
     safeFit();
   }
   // One-shot modifiers clear after use; a locked Shift is a mode that stays
@@ -284,9 +294,9 @@ export function useTerminal(
       // the pixels, so re-anchor instead of fitting back to the host.
       const lockedGrid = isSizeLocked() && sized;
       safeFit();
-      if (lockedGrid && atBottom) {
+      if (lockedGrid && follow) {
         requestAnimationFrame(() => {
-          if (terminal && isSizeLocked() && atBottom) {
+          if (terminal && isSizeLocked() && follow) {
             anchorBottom(getContainer());
             updateBottom();
           }
@@ -364,9 +374,10 @@ export function useTerminal(
       const selected = term.onSelectionChange(() => {
         selection = term.getSelection();
       });
-      const scrolled = term.onScroll(updateBottom);
-      const parsed = term.onWriteParsed(updateBottom);
-      parent.addEventListener("scroll", updateBottom, { passive: true });
+      const scrolled = term.onScroll(() => updateBottom(true));
+      const parsed = term.onWriteParsed(() => updateBottom());
+      const hostScrolled = () => updateBottom(true);
+      parent.addEventListener("scroll", hostScrolled, { passive: true });
       const detachTouch = attachTouchGestures(term, parent, {
         fontSize: () => fontSize,
         setFontSize,
@@ -384,7 +395,7 @@ export function useTerminal(
         detachInput();
         scrolled.dispose();
         parsed.dispose();
-        parent.removeEventListener("scroll", updateBottom);
+        parent.removeEventListener("scroll", hostScrolled);
         parent.removeEventListener("paste", nativePaste, true);
         selected.dispose();
         resultsChanged.dispose();
@@ -398,6 +409,7 @@ export function useTerminal(
         renderer = undefined;
         parent.classList.remove("observing");
         atBottom = true;
+        follow = true;
         scrollOnFit = false;
       };
     }
