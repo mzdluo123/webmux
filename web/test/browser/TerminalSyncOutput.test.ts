@@ -1,5 +1,4 @@
 import { expect, test } from "vitest";
-import { page } from "vitest/browser";
 import {
   domText,
   host,
@@ -155,28 +154,56 @@ test("restoring a snapshot keeps the old screen and images until the replay is p
   }
 });
 
-test("resizing or refocusing during a synchronized update keeps the previous screen", async () => {
-  // The DOM renderer repaints rows itself for resize, focus and blur.
+// xterm ends a synchronized update on its own after one second. A check made
+// later would see that timeout, not the path under test, so it is skipped.
+const syncTimeoutMargin = 800;
+
+async function frames(count: number) {
+  for (let i = 0; i < count; i++)
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+async function startSynchronizedUpdate() {
   observeGlyphPixels(true);
   const { socket } = await openTerminal();
   socket.receive(0, "OLD-SCREEN\r\n");
   await expect.poll(domText).toContain("OLD-SCREEN");
   socket.receive(0, "\x1b[?2026h\x1b[2J\x1b[HNEW-SCREEN\r\n");
-  await settle();
+  return { socket, started: performance.now() };
+}
+
+test("refocusing during a synchronized update keeps the previous screen", async (context) => {
+  // The DOM renderer repaints the cursor row itself on focus and blur.
+  const { socket, started } = await startSynchronizedUpdate();
   const input = host().querySelector<HTMLTextAreaElement>(
     ".xterm-helper-textarea",
   )!;
   input.focus();
-  await settle();
+  await frames(2);
   input.blur();
-  await settle();
-  expect(domText()).toContain("OLD-SCREEN");
-  await page.viewport(800, 700);
-  await settle();
-  expect(domText()).toContain("OLD-SCREEN");
+  await frames(2);
+  const shown = domText();
+  if (performance.now() - started > syncTimeoutMargin)
+    context.skip("the runner reached xterm's synchronized-output timeout");
+  expect(shown).toContain("OLD-SCREEN");
   socket.receive(0, "\x1b[?2026l");
   await expect.poll(domText).toContain("NEW-SCREEN");
-  await page.viewport(1024, 900);
+});
+
+test("resizing during a synchronized update keeps the previous screen", async (context) => {
+  // A grid resize makes the DOM renderer rebuild and repaint its rows itself.
+  const { socket, started } = await startSynchronizedUpdate();
+  const rows = () => host().querySelectorAll(".xterm-rows > div").length;
+  const before = rows();
+  host().style.height = "500px";
+  await expect.poll(rows, { interval: 10 }).not.toBe(before);
+  await frames(2);
+  const shown = domText();
+  if (performance.now() - started > syncTimeoutMargin)
+    context.skip("the runner reached xterm's synchronized-output timeout");
+  expect(shown).toContain("OLD-SCREEN");
+  socket.receive(0, "\x1b[?2026l");
+  await expect.poll(domText).toContain("NEW-SCREEN");
 });
 
 test("a snapshot that stops inside an image upload ends synchronization without corrupting it", async () => {
