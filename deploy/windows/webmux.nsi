@@ -24,6 +24,7 @@ RequestExecutionLevel user
 !include "LogicLib.nsh"
 !include "x64.nsh"
 !include "FileFunc.nsh"
+!include "nsDialogs.nsh"
 
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\WebMux"
 ; Same value name and quoting as internal/tray/winui/autostart.go, so the
@@ -59,12 +60,11 @@ VIAddVersionKey /LANG=2052 "LegalCopyright" "WebMux contributors"
 !define MUI_ICON "${ICON}"
 !define MUI_UNICON "${ICON}"
 !define MUI_ABORTWARNING
-!define MUI_COMPONENTSPAGE_NODESC
 !define MUI_FINISHPAGE_TEXT "WebMux 托盘已安装并启动。$\r$\n$\r$\n首次使用时，在托盘菜单中选择“安装 WSL 中的 webmux”；安装包已内置 ${ARCH} 版服务端，WSL 为同一架构时无需联网。"
 !define MUI_UNFINISHPAGE_TEXT "WebMux 托盘已卸载。$\r$\n$\r$\n以下内容已保留：托盘设置（%APPDATA%\WebMux）、托盘日志（%LOCALAPPDATA%\WebMux）和 WSL 中的 webmux。$\r$\n$\r$\n如果 WebMux 正在运行，它会继续在 WSL 中运行；需要停止时在 WSL 中执行 webmux stop。"
 
 !insertmacro MUI_PAGE_DIRECTORY
-!insertmacro MUI_PAGE_COMPONENTS
+Page custom optionsPage optionsLeave
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -96,7 +96,12 @@ VIAddVersionKey /LANG=2052 "LegalCopyright" "WebMux contributors"
 !insertmacro CloseTray "" "$PLUGINSDIR\webmux-tray.exe"
 !insertmacro CloseTray "un." "$INSTDIR\webmux-tray.exe"
 
+; 1 writes the login item. Silent installs keep the default.
+Var Autostart
+Var AutostartBox
+
 Function .onInit
+  StrCpy $Autostart ${BST_CHECKED}
   !if "${ARCH}" == "amd64"
     ${IfNot} ${IsNativeAMD64}
   !else
@@ -109,8 +114,27 @@ Function .onInit
   ${EndIf}
 FunctionEnd
 
-Section "WebMux 托盘" SecTray
-  SectionIn RO
+; "安装选项": whether the tray starts when the user signs in to Windows.
+Function optionsPage
+  !insertmacro MUI_HEADER_TEXT "安装选项" "选择是否开机后自动启动 WebMux。"
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateCheckbox} 0 0 100% 12u "开机后自动启动 WebMux（登录 Windows 时启动托盘）"
+  Pop $AutostartBox
+  ${NSD_SetState} $AutostartBox $Autostart
+  ${NSD_CreateLabel} 12u 18u -12u 36u "托盘启动后会按托盘设置在 WSL 中启动 WebMux。以后可在托盘菜单的“登录时自动启动”中更改。"
+  Pop $0
+  nsDialogs::Show
+FunctionEnd
+
+Function optionsLeave
+  ${NSD_GetState} $AutostartBox $Autostart
+FunctionEnd
+
+Section "-WebMux tray"
   ; Close the running tray with the new executable: an installed older
   ; tray may not know `quit` yet.
   InitPluginsDir
@@ -143,10 +167,10 @@ Section "WebMux 托盘" SecTray
   WriteRegDWORD HKCU "${UNINST_KEY}" "NoRepair" 1
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" $0
-SectionEnd
 
-Section "登录时自动启动 WebMux 托盘" SecAutostart
-  WriteRegStr HKCU "${RUN_KEY}" "${RUN_VALUE}" '"$INSTDIR\webmux-tray.exe"'
+  ${If} $Autostart == ${BST_CHECKED}
+    WriteRegStr HKCU "${RUN_KEY}" "${RUN_VALUE}" '"$INSTDIR\webmux-tray.exe"'
+  ${EndIf}
 SectionEnd
 
 Section "-Start tray"
