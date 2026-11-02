@@ -1,7 +1,9 @@
 <script lang="ts">
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconCircleCheck from "~icons/tabler/circle-check";
+  import IconHandStop from "~icons/tabler/hand-stop";
   import IconLoader2 from "~icons/tabler/loader-2";
+  import IconX from "~icons/tabler/x";
   import IconZzz from "~icons/tabler/zzz";
   import { Button } from "$lib/components/ui/button";
   import InlineNotice from "../InlineNotice.svelte";
@@ -118,6 +120,30 @@
     return `${seconds} 秒`;
   }
 
+  const turnCompletionLabel = $derived(
+    chat?.turn.stopReason === "end_turn"
+      ? "已完成"
+      : chat?.turn.stopReason === "cancelled"
+        ? "已中断"
+        : "已结束",
+  );
+  const turnFailed = $derived(
+    chat?.turn.stopReason === "error" ||
+      chat?.turn.stopReason === "refusal" ||
+      chat?.turn.stopReason === "auth_required",
+  );
+  const turnCompletionAnnouncement = $derived.by(() => {
+    if (
+      !chat ||
+      chat.turn.running ||
+      chat.dormant ||
+      turnElapsed === undefined ||
+      turnEndedAt === undefined
+    )
+      return "";
+    return `${turnCompletionLabel} · 用时 ${formatDuration(turnElapsed)}`;
+  });
+
   // Server timestamps keep the duration correct across reconnects and devices.
   // Only the live display ticks; the total is derived from the final timestamp.
   $effect(() => {
@@ -233,6 +259,9 @@
             </li>
           {/each}
         </ol>
+        <!-- A persistent live region announces only the final duration. The
+             visible per-second ticker stays out of every live region. -->
+        <p class="sr-only" role="status">{turnCompletionAnnouncement}</p>
         {#if !chat}
           <p
             class="flex items-center gap-2 text-sm text-muted-foreground"
@@ -249,7 +278,7 @@
             <IconLoader2 class="size-3.5 animate-spin" aria-hidden="true" />
             正在工作…
             {#if turnElapsed !== undefined}
-              <span class="tabular-nums" aria-live="off"
+              <span class="tabular-nums" aria-hidden="true"
                 >· {formatDuration(turnElapsed)}</span
               >
             {/if}
@@ -257,14 +286,22 @@
         {:else if turnElapsed !== undefined && turnEndedAt !== undefined && !chat.dormant}
           <p
             class="flex items-center gap-2 text-sm text-muted-foreground"
-            role="status"
+            aria-hidden="true"
+            data-turn-result={chat.turn.stopReason}
           >
-            <IconCircleCheck class="size-3.5 text-success" aria-hidden="true" />
-            {chat.turn.stopReason === "end_turn"
-              ? "已完成"
-              : chat.turn.stopReason === "cancelled"
-                ? "已中断"
-                : "已结束"}
+            {#if chat.turn.stopReason === "end_turn"}
+              <IconCircleCheck
+                class="size-3.5 text-success"
+                aria-hidden="true"
+              />
+            {:else if chat.turn.stopReason === "cancelled"}
+              <IconHandStop class="size-3.5 text-warning" aria-hidden="true" />
+            {:else if turnFailed}
+              <IconX class="size-3.5 text-destructive" aria-hidden="true" />
+            {:else}
+              <IconCircleCheck class="size-3.5" aria-hidden="true" />
+            {/if}
+            {turnCompletionLabel}
             <span class="tabular-nums"
               >· 用时 {formatDuration(turnElapsed)}</span
             >

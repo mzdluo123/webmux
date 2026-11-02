@@ -137,8 +137,11 @@ test("shows server-timed progress and keeps the final duration", async () => {
     );
     const status = page
       .getByRole("status")
-      .filter({ hasText: /正在工作|已完成/ });
+      .filter({ hasText: /正在工作|已完成|已结束/ });
     await expect.element(status).toHaveTextContent("正在工作… · 1 分 05 秒");
+    await expect
+      .element(status.locator("span.tabular-nums"))
+      .toHaveAttribute("aria-hidden", "true");
     await vi.advanceTimersByTimeAsync(1000);
     await expect.element(status).toHaveTextContent("正在工作… · 1 分 06 秒");
 
@@ -155,6 +158,25 @@ test("shows server-timed progress and keeps the final duration", async () => {
       }),
     });
     await expect.element(status).toHaveTextContent("已完成 · 用时 2 分 05 秒");
+
+    socket.frame({
+      type: "state",
+      state: chatState({
+        turn: {
+          running: false,
+          turnId: "t1",
+          stopReason: "error",
+          startedAt,
+          endedAt: "2026-01-01T12:01:00Z",
+        },
+      }),
+    });
+    await expect.element(status).toHaveTextContent("已结束 · 用时 2 分 05 秒");
+    expect(
+      document
+        .querySelector('[data-turn-result="error"] svg')
+        ?.classList.contains("text-destructive"),
+    ).toBe(true);
 
     socket.frame({
       type: "state",
