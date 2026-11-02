@@ -214,17 +214,21 @@ test("captured reading state restores in a new reader, also one mounted hidden",
   await expect
     .element(page.getByLabelText("Selected reference"))
     .toMatchTextContent(new RegExp("210-215"));
-  await page.getByRole("button", { name: "文件内查找" }).click();
-  // Scroll halfway into line 200.
+  // Selecting scrolls the clicked gutter into view, so jump back to line 200
+  // before nudging it past the top edge for a captured offset.
+  await page.getByRole("button", { name: "跳转行" }).click();
+  await page.getByRole("textbox", { name: "跳转到行" }).fill("200");
+  await userEvent.keyboard("{Enter}");
   const host = document.querySelector<HTMLElement>("[data-code-reader]")!;
   const scrollIntoLine = () => {
     const line = row(200);
-    if (!line) return;
+    if (!line) return false;
     host.scrollTop +=
       line.getBoundingClientRect().top - host.getBoundingClientRect().top + 11;
+    return true;
   };
-  await expect.poll(() => !!row(200)).toBe(true);
-  for (let i = 0; i < 4; i++) scrollIntoLine();
+  await expect.poll(scrollIntoLine).toBe(true);
+  await page.getByRole("button", { name: "文件内查找" }).click();
   await expect.poll(() => first.component.line()).toBeGreaterThan(150);
   const captured = first.component.capture();
   expect(Math.abs(captured.line - 200)).toBeLessThanOrEqual(2);
