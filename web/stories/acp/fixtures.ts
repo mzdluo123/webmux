@@ -445,7 +445,7 @@ export function chatFixture(scenario: Scenario, agent: Agent) {
     scenario === "first-message"
       ? { available: false, reason: "no_session_id" }
       : scenario === "occupied"
-        ? { available: false, reason: "occupied_external" }
+        ? { available: false, reason: "occupied" }
         : scenario === "connector-recheck"
           ? {
               available: false,

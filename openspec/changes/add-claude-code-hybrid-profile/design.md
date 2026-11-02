@@ -98,7 +98,7 @@ TUI 与 ACP 使用同一服务用户、HOME、CLAUDE_CONFIG_DIR 和环境优先�
 - 新增可变参数个数 arity，消费至下一选项，用于 add-dir、mcp-config、工具列表与 betas。
 - 工作树、不持久化和非交互参数分别复用 directory/store/non-interactive 原因。
 - `--bare` 是保留的精简 TUI 参数，不是非交互参数。
-- CLI permission-mode 只把 manual 归一为 ACP default，CLI 本身不接受 default。
+- CLI permission-mode 的 default（manual 为别名）直接映射为 ACP 的 default。
 
 ### D5 进程注册记录是主身份来源，候选是降级
 
@@ -118,7 +118,7 @@ TUI 与 ACP 使用同一服务用户、HOME、CLAUDE_CONFIG_DIR 和环境优先�
 
 ### D6 配置从 argv 播种，以适配器实际状态为准
 
-`ChatSide` 映射 `--model`、`--effort` 与权限参数到 `model`、`effort`、`mode`。`manual` 归一到 `default`，危险跳过权限参数优先映射 `bypassPermissions`；CLI 的 `default`、`dontAsk` 和未知值不静默改名。其他保留但不透传的参数列入聊天端不生效提示。
+`ChatSide` 映射 `--model`、`--effort` 与权限参数到 `model`、`effort`、`mode`。`default` 与别名 `manual` 映射为 `default`，危险跳过权限参数优先映射 `bypassPermissions`；`dontAsk` 和未知值不静默改名。其他保留但不透传的参数列入聊天端不生效提示。
 
 首次 new/load 后播种；冷 load 与冷 resume 实测都会丢失 model 与 effort，因此两者都在这两种恢复后重应用记录值。mode 会从 transcript 恢复，不列入 reapply；new 会话仍使用 argv 播种值。auto/bypassPermissions 被运行条件回退时，记录与界面采用实际值并显示适配器通知；当前 provider 实测两者均直接生效。
 

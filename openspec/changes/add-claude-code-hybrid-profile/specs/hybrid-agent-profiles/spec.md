@@ -148,13 +148,13 @@ Claude Code 档案 SHALL 从保留的 argv 推导首次聊天端配置：
 |---|---|
 | `--model <m>` | `model = <m>` |
 | `--effort <e>` | `effort = <e>` |
-| `--permission-mode manual` | `mode = default` |
+| `--permission-mode default`/`manual` | `mode = default` |
 | `--permission-mode acceptEdits`/`plan`/`auto`/`bypassPermissions` | `mode` 为同名值 |
 | `--dangerously-skip-permissions` | `mode = bypassPermissions`，优先于其他权限参数 |
 
-Claude Code 2.1.316 的 `--permission-mode` 只接受 `acceptEdits`、`auto`、`bypassPermissions`、`manual`、`dontAsk` 与 `plan`。
+Claude Code 2.1.316 的 `--permission-mode` 接受 `acceptEdits`、`auto`、`bypassPermissions`、`default`（`manual` 为别名）、`dontAsk` 与 `plan`。
 
-`--permission-mode default`、`dontAsk` 与未知取值 SHALL NOT 静默映射为其他模式，SHALL 在聊天端列为不生效参数。`default` 不是 CLI 接受的取值，只有 ACP 配置项使用它表示 Manual。
+`--permission-mode dontAsk` 与未知取值 SHALL NOT 静默映射为其他模式，SHALL 在聊天端列为不生效参数。
 
 每次冷 `session/load` 或 `session/resume` 后，系统 SHALL 以适配器发布的实际配置为准。本次实测基线下，`model` 与 `effort` 均回到环境或设置默认值，档案 SHALL 在两种恢复方法后重新应用记录值；`mode` 会从 transcript 恢复，SHALL NOT 用过期 argv 覆盖适配器实际模式。
 

@@ -219,7 +219,7 @@ func (a *actor) registeredSession(id session.Identity) string {
 	r.read = time.Now()
 	r.process, r.processOK = a.agentProcess()
 	r.current = ""
-	r.unknown = r.processOK
+	r.unknown = !r.processOK
 	if tracker, ok := a.cmd.Agent.(agentprofile.ProcessRegistry); ok && r.processOK {
 		r.current, _ = tracker.RegisteredSession(r.process, a.shell.Getenv, a.svc.userHome)
 		r.unknown = r.current == ""

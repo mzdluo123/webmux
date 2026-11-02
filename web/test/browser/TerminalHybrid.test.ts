@@ -140,11 +140,11 @@ test("the chat tab explains why the session cannot switch yet", async () => {
     state: tuiState({
       agent: "claudecode",
       agentSessionId: claudeSessionIds.current,
-      eligibility: { available: false, reason: "occupied_external" },
+      eligibility: { available: false, reason: "occupied" },
     }),
   });
   await expect
-    .element(chatTab("聊天（该会话正被另一个 Agent 客户端使用）"))
+    .element(chatTab("聊天（该会话已在另一个会话中打开）"))
     .toHaveAttribute("aria-disabled", "true");
   chat.frame({
     type: "state",
