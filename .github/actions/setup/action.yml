@@ -1,8 +1,11 @@
 name: Set up WebMux toolchain
 description: >
   Restores dependency caches read-only and installs the requested toolchains.
-  Caches are saved only from main (see save-cache), so pull requests never
-  add per-ref copies to the repository's cache quota.
+  Caches are saved only from main, so pull requests never add per-ref copies
+  to the repository's cache quota. Go modules and Go build/test results use
+  separate keys: module downloads follow go.mod/go.sum, while the build cache
+  also follows the Go sources and fixtures so main refreshes it on every Go
+  change.
 
 inputs:
   frontend:
@@ -25,15 +28,24 @@ outputs:
   pnpm-hit:
     description: Whether the exact pnpm cache key was restored.
     value: ${{ steps.pnpm-cache.outputs.cache-hit }}
-  go-paths:
-    description: Go module and build cache paths, newline separated.
-    value: ${{ steps.go-paths.outputs.paths }}
-  go-key:
-    description: Exact Go cache key for this go.sum.
-    value: ${{ steps.go-cache.outputs.cache-primary-key }}
-  go-hit:
-    description: Whether the exact Go cache key was restored.
-    value: ${{ steps.go-cache.outputs.cache-hit }}
+  go-mod-path:
+    description: Go module cache path.
+    value: ${{ steps.go-paths.outputs.mod }}
+  go-mod-key:
+    description: Exact Go module cache key for this go.mod/go.sum.
+    value: ${{ steps.go-mod-cache.outputs.cache-primary-key }}
+  go-mod-hit:
+    description: Whether the exact Go module cache key was restored.
+    value: ${{ steps.go-mod-cache.outputs.cache-hit }}
+  go-build-path:
+    description: Go build and test cache path.
+    value: ${{ steps.go-paths.outputs.build }}
+  go-build-key:
+    description: Exact Go build cache key for this source tree.
+    value: ${{ steps.go-build-cache.outputs.cache-primary-key }}
+  go-build-hit:
+    description: Whether the exact Go build cache key was restored.
+    value: ${{ steps.go-build-cache.outputs.cache-hit }}
 
 runs:
   using: composite
@@ -71,15 +83,28 @@ runs:
       shell: bash
       run: |
         {
-          echo "paths<<EOF"
+          echo "mod<<EOF"
           go env GOMODCACHE
+          echo "EOF"
+          echo "build<<EOF"
           go env GOCACHE
           echo "EOF"
         } >> "$GITHUB_OUTPUT"
+    # Modules only change with the module files, so this cache stays small and
+    # stable. The build cache key follows the Go sources and fixtures; a source
+    # change on main then restores the newest prefix and saves a fresh entry,
+    # while frontend- or docs-only runs still hit and add nothing.
     - if: inputs.go == 'true'
-      id: go-cache
+      id: go-mod-cache
       uses: actions/cache/restore@v5
       with:
-        path: ${{ steps.go-paths.outputs.paths }}
-        key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum') }}
-        restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
+        path: ${{ steps.go-paths.outputs.mod }}
+        key: go-mod-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum') }}
+        restore-keys: go-mod-${{ runner.os }}-${{ runner.arch }}-
+    - if: inputs.go == 'true'
+      id: go-build-cache
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ steps.go-paths.outputs.build }}
+        key: go-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'cmd/**', 'internal/**', 'deploy/**', 'web/*.go', '**/testdata/**') }}
+        restore-keys: go-build-${{ runner.os }}-${{ runner.arch }}-
