@@ -73,12 +73,13 @@ linux-packages:
 
 # Linux servers first: the tray embeds their digests, and SHA256SUMS lists
 # every artifact. `release` checks the signing key before building anything
-# so a missing secret fails fast. GNU Make passes the environment to
-# sub-makes, so the key is removed before release-build; only release-sign
-# sees it. CI runs release-build without the key and signs in a separate job.
+# so a missing secret fails fast. Sub-makes inherit both the environment and
+# command-line variables (through MAKEFLAGS), so release-build runs without
+# the variable and with an empty override; only release-sign sees the key.
+# CI runs release-build without the key and signs in a separate job.
 release:
 	@test -n "$$WEBMUX_RELEASE_SIGNING_KEY" || { echo 'release: WEBMUX_RELEASE_SIGNING_KEY is not set; cannot sign SHA256SUMS' >&2; exit 1; }
-	env -u WEBMUX_RELEASE_SIGNING_KEY $(MAKE) release-build
+	env -u WEBMUX_RELEASE_SIGNING_KEY $(MAKE) release-build WEBMUX_RELEASE_SIGNING_KEY=
 	$(MAKE) release-sign
 
 release-build:
