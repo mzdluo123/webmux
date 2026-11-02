@@ -27,6 +27,17 @@ make test-browsers-install   # 安装 Playwright Chromium（Linux 上同时安�
 
 前端依赖由 `web/pnpm-lock.yaml` 锁定。请使用 pnpm，不要使用 npm、Yarn 或 Bun 管理依赖。
 
+### 从源码构建
+
+只想自己编译、不参与开发时，装好上述工具后执行：
+
+```sh
+git clone https://github.com/mzdluo123/webmux.git
+cd webmux
+make build          # 产物：bin/webmux
+make install        # 安装到 ~/.local/bin/webmux
+```
+
 ## 本地开发
 
 前后端分开运行，Vite 会把 `/api` 和 `/ws` 代理到 `127.0.0.1:7681`：
@@ -47,7 +58,7 @@ pnpm --dir web dev    # http://127.0.0.1:5173
 
 ## 更新 README 截图
 
-`make build && pnpm --dir web screenshots` 会启动临时后端和演示仓库，用 Playwright 重新生成 `docs/images/` 下的截图。脚本会运行本机真实的 `omp` 并发送一次只读提问，因此需要本机已安装并登录 `omp`。
+`make build && pnpm --dir web screenshots` 会启动临时后端和演示仓库，用 Playwright 重新生成 `docs/images/` 下的截图。README 与 [项目介绍](docs/overview.md) 引用这些截图；README 还展示 `docs/images/<主题>/` 下的部分功能截图，替换时保持图片存在，`make docs-check` 会校验 README 的图片与链接。脚本会运行本机真实的 `omp` 并发送一次只读提问，因此需要本机已安装并登录 `omp`。
 
 ## 常用命令
 

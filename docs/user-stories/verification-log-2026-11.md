@@ -96,3 +96,12 @@
 - 迁移：`docs/user-stories.md` 中的核对记录原文迁入本目录的三个核对记录文件，索引只保留产品边界、功能索引与分组表；`docs/deployment.md` 按主题拆到 `docs/deployment/`，章节标题与锚点不变，外部链接已更新。
 - 依据：对应 US-L08 新增的“超限时重构而不是压缩”整理原则。
 - 验证：已运行 `make docs-check`、Oxfmt 检查、迁移前后的逐行对账与相对链接/锚点检查。
+
+本次局部核对（2026-11-02）：文档导航治理与 README 重写，对应新增 US-L12，覆盖索引与功能索引同步。
+
+- 迁移：README 中的设计理念、完整特性、混合会话说明、截图生成说明与技术栈原文迁入 `docs/overview.md`，常见问题迁入 `docs/faq.md`。
+  - 手动下载步骤迁入 `docs/deployment/install-and-upgrade.md#手动下载`，从源码构建迁入 `CONTRIBUTING.md#从源码构建`。
+  - 配置项表、服务命令、Windows 托盘步骤与安装脚本变量已由 `docs/deployment/` 完整覆盖，README 中只保留链接。
+- 新增：`docs/README.md`（文档中心）与 `docs/specs.md`（64 个 capability 的规格索引），原先不可达的 `docs/performance.md`、`docs/page-performance.md`、`docs/binary-size.md` 与全部主规格由此可达。
+- 修正：`docs/persistence.md` 指向已归档变更的失效链接；`docs/cli-agents.md` 与 `docs/usage.md` 中“只有 OpenCode / omp 默认混合”的过时描述，按 `internal/launch/presets.go` 改为 Claude Code、Codex CLI、OpenCode 与 omp。
+- 验证：已运行 `make docs-check`（含新增的 `TestDocsNavigation`、`TestNavigationRules`、`TestSlug`）与 Oxfmt 检查；未重新核对其余故事。
