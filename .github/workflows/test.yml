@@ -41,7 +41,37 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: bash .github/scripts/classify-changes.sh
+        run: |
+          base="${BASE_SHA:-}"
+          head="${HEAD_SHA:-${GITHUB_SHA:-HEAD}}"
+          full_run() {
+            {
+              echo "go=true"
+              echo "web=true"
+              echo "docs_only=false"
+              echo "full=true"
+            } >> "$GITHUB_OUTPUT"
+            echo "classify: full run ($1)"
+            exit 0
+          }
+          # The rules that decide which tests to skip must not come from the
+          # pull request under test. Validate the base here, force a full run
+          # for any tooling change independently of the classifier, then run
+          # the base revision's copy of the script (falling back to the
+          # workspace copy only when the base does not have one yet).
+          if [[ -z "$base" || "$base" =~ ^0+$ ]] ||
+            ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            full_run "missing base"
+          fi
+          if git diff --no-renames --name-only "$base...$head" | grep '^\.github/' > /dev/null; then
+            full_run "tooling changed"
+          fi
+          script="$RUNNER_TEMP/classify-changes.sh"
+          if git show "${base}:.github/scripts/classify-changes.sh" > "$script" 2>/dev/null; then
+            bash "$script"
+          else
+            bash .github/scripts/classify-changes.sh
+          fi
 
   lint:
     name: Format, check and build
@@ -415,3 +445,41 @@ jobs:
               *) exit 1 ;;
             esac
           done
+      # Accepting `skipped` is only safe when the classifier said the job was
+      # needed. Cross-check the expected results so a broken `if` or a wrong
+      # classification cannot silently skip coverage and still pass.
+      - name: Require the jobs selected by the classifier to succeed
+        env:
+          GO: ${{ needs.changes.outputs.go }}
+          WEB: ${{ needs.changes.outputs.web }}
+          RUNTIME: ${{ needs.runtime.result }}
+          UBUNTU_GO: ${{ needs.go.result }}
+          MACOS_GO: ${{ needs.macos-go.result }}
+          VITEST: ${{ needs.vitest.result }}
+          STORYBOOK: ${{ needs.storybook.result }}
+          E2E: ${{ needs.e2e.result }}
+          MACOS_E2E: ${{ needs.macos-e2e.result }}
+          PERFORMANCE: ${{ needs.performance.result }}
+        run: |
+          failed=0
+          require_success() {
+            if [ "$2" != success ]; then
+              echo "$1: expected success for this change set, got '$2'"
+              failed=1
+            fi
+          }
+          if [ "$GO" = "true" ]; then
+            require_success "E2E runtime" "$RUNTIME"
+            require_success "Go race (Ubuntu)" "$UBUNTU_GO"
+            require_success "Go race (macOS)" "$MACOS_GO"
+          fi
+          if [ "$WEB" = "true" ]; then
+            require_success "Vitest unit and browser" "$VITEST"
+            require_success "Storybook" "$STORYBOOK"
+            require_success "CLS and 4x CPU (Ubuntu)" "$PERFORMANCE"
+          fi
+          if [ "$GO" = "true" ] || [ "$WEB" = "true" ]; then
+            require_success "E2E (Ubuntu)" "$E2E"
+            require_success "E2E (macOS)" "$MACOS_E2E"
+          fi
+          exit "$failed"

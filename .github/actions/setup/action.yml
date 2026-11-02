@@ -4,8 +4,9 @@ description: >
   Caches are saved only from main, so pull requests never add per-ref copies
   to the repository's cache quota. Go modules and Go build/test results use
   separate keys: module downloads follow go.mod/go.sum, while the build cache
-  also follows the Go sources and fixtures so main refreshes it on every Go
-  change.
+  rolls over weekly (plus on module changes) so main refreshes it without
+  saving one full copy per Go commit; Go's content-addressed entries still
+  reuse unchanged compilation units from an older cache.
 
 inputs:
   frontend:
@@ -41,7 +42,7 @@ outputs:
     description: Go build and test cache path.
     value: ${{ steps.go-paths.outputs.build }}
   go-build-key:
-    description: Exact Go build cache key for this source tree.
+    description: Rolling Go build cache key for this week and module set.
     value: ${{ steps.go-build-cache.outputs.cache-primary-key }}
   go-build-hit:
     description: Whether the exact Go build cache key was restored.
@@ -91,9 +92,15 @@ runs:
           echo "EOF"
         } >> "$GITHUB_OUTPUT"
     # Modules only change with the module files, so this cache stays small and
-    # stable. The build cache key follows the Go sources and fixtures; a source
-    # change on main then restores the newest prefix and saves a fresh entry,
-    # while frontend- or docs-only runs still hit and add nothing.
+    # stable. The build cache rolls over weekly instead of following every Go
+    # source change: main saves at most one full copy per week per platform,
+    # which keeps it from evicting the module and pnpm caches under the 10 GB
+    # quota. Go's content-addressed entries still reuse unchanged packages from
+    # the restored older cache, and a module change starts a fresh entry.
+    - if: inputs.go == 'true'
+      id: go-build-week
+      shell: bash
+      run: echo "value=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
     - if: inputs.go == 'true'
       id: go-mod-cache
       uses: actions/cache/restore@v5
@@ -106,5 +113,5 @@ runs:
       uses: actions/cache/restore@v5
       with:
         path: ${{ steps.go-paths.outputs.build }}
-        key: go-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'cmd/**', 'internal/**', 'deploy/**', 'web/*.go', '**/testdata/**') }}
+        key: go-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go-build-week.outputs.value }}-${{ hashFiles('go.mod', 'go.sum') }}
         restore-keys: go-build-${{ runner.os }}-${{ runner.arch }}-

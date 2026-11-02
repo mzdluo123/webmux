@@ -45,10 +45,15 @@ E2E 的 worker 数从 2 调到 4，Storybook 从 2 调到 6，使用同一台机
   - 分片的后端进程、HOME、目录、端口、假 agent 会话库和 PTY 仍各自独立。Node/pnpm 安装与浏览器系统依赖仍由每个 runner 准备。
 
 - **缓存与按变更裁剪（2026-11-02）**：
-  - Go 模块缓存与 `GOCACHE` 拆成两个 key；构建缓存把 `cmd/**`、`internal/**`、`deploy/**`、`web/*.go`、`**/testdata/**` 纳入，`main` 上 key 未命中即保存。每次改 Go 源码的主分支运行都会刷新，仅前端或文档的 main 运行仍命中且不新增条目。
-  - 新增 `Classify changes` job，用仓库内 `.github/scripts/classify-changes.sh` 计算 `go`、`web`、`docs_only`、`full`；不使用 `on.pull_request.paths`，保证必需的 `Test result` 始终上报。
+  - Go 模块缓存与 `GOCACHE` 拆成两个 key；模块缓存跟随 `go.mod`/`go.sum`，构建缓存使用按 ISO 周滚动的 key（并随模块文件变化），`main` 上 key 未命中即保存。这样主分支每周最多新增一份完整 `GOCACHE`，不会与模块缓存和 pnpm store 争抢 10 GB 配额；Go 的内容寻址条目仍会复用旧缓存中未变化的编译单元。
+  - 新增 `Classify changes` job，用仓库内 `.github/scripts/classify-changes.sh` 计算
+    `go`、`web`、`docs_only`、`full`；不使用 `on.pull_request.paths`，保证必需的
+    `Test result` 始终上报。
+    - 分类时先校验 base 是否存在，任何 `.github/` 变更都独立强制全量。
+    - 随后执行 base 版本的分类脚本；仅当 base 尚无该脚本时才回退到工作区版本，
+      避免 PR 削弱跳过自身测试的规则。
   - `docs-only` 只跑格式、文档、持久化与 agent/web 静态守卫；web-only 跳过 Ubuntu/macOS Go race 与 Windows 交叉编译；go-only 跳过 Vitest、Storybook 与性能；E2E 在两类变更下都保留。未识别路径、`.github/**`、`Makefile`、模块/锁文件与安装脚本一律全量运行。
-  - 新增 `E2E runtime` job，与 Go race 解耦；Ubuntu/macOS Go race 与所有 E2E 分片都依赖它。`Test result` 接受 `skipped`，但仍要求 `changes` 与所有已执行 job 成功。
+  - 新增 `E2E runtime` job，与 Go race 解耦；Ubuntu/macOS Go race 与所有 E2E 分片都依赖它。`Test result` 接受 `skipped`，但按分类结果交叉校验：`go` 为真时 `runtime`、两个 Go race 与两个平台的 E2E 必须成功，`web` 为真时 `vitest`、`storybook`、`performance` 必须成功，`changes` 与 `lint` 始终必需。
 
 - Ubuntu E2E 保持两个 worker，避免较少 CPU 上的争用；macOS 使用四个。E2E 和 Storybook 的 flaky 结果均使 CI 失败，重试仅保留诊断。异步生成默认分支名的用例等待初始值后再填入目标名称。
 - 本地 `make test` 预构建一次前端、`.cache/webmux-e2e/webmux` 与 `.cache/webmux-e2e/agents/` 中的假 agent，E2E 和性能测试通过 `WEBMUX_E2E_BINARY` 复用；`make test-fast` 提供不含 Storybook、E2E 与性能的快速分层入口。混合会话 E2E 中验证空闲休眠的用例要等待真实的 1 分钟，只在桌面项目运行。
@@ -84,7 +89,15 @@ node web/scripts/benchmark-actions.mjs \
   --baseline 39479795307 --candidate NEW_RUN_ID
 ```
 
-脚本要求两次运行成功、job 名称集合一致，接受因变更裁剪产生的 `skipped`，保存墙钟与队列耗时，并仅在整体耗时降低至少 50% 时返回成功。改动 job 结构（例如新增 `changes` 与 `runtime`）后，先用新结构跑一次完整运行作为 baseline，再比较候选运行。在真实 runner 完成此验收前，整体 CI 目标仍是未验证状态。
+脚本的验收条件：
+
+- 两次运行都成功，且 job 名称集合一致。
+- 两次都是每个 job 实际执行的完整运行；含变更裁剪 `skipped` 的运行覆盖的工作不同，
+  不与全量运行比较。
+- 保存墙钟与队列耗时，仅在整体耗时降低至少 50% 时返回成功。
+
+改动 job 结构（例如新增 `changes` 与 `runtime`）后，先用新结构跑一次完整运行作为
+baseline，再比较候选运行。在真实 runner 完成此验收前，整体 CI 目标仍是未验证状态。
 
 ## 一分钟目标的迭代
 

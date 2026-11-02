@@ -2,9 +2,11 @@
 set -euo pipefail
 
 # Classifies a pull request or push for job gating. Every path that is not
-# clearly documentation, Go or frontend forces a full run, so a stale rule can
-# only make CI slower, never silently skip coverage. The workflow always runs
-# so the required `Test result` check still reports for skipped jobs.
+# clearly documentation, Go or frontend forces a full run. The workflow runs
+# the base revision's copy of this script and also forces a full run whenever
+# `.github/` changes, so a PR cannot weaken the rules that skip its own tests.
+# The workflow always runs so the required `Test result` check still reports
+# for skipped jobs.
 
 base="${BASE_SHA:-}"
 head="${HEAD_SHA:-${GITHUB_SHA:-HEAD}}"

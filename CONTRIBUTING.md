@@ -91,6 +91,8 @@ CI 先由 `Classify changes` job 按变更路径裁剪测试：
 仅文档变更只跑格式、文档、持久化与 agent/web 静态守卫；仅 Go 变更跳过 Vitest、Storybook 与性能，
 仅前端变更跳过两个 Go race job 与 Windows 交叉编译，E2E 在两类变更下都保留；
 未知路径、`.github/**`、`Makefile`、模块/锁文件与安装脚本变更一律全量运行。
+分类 job 会自行校验 base，`.github/` 变更独立触发全量，并执行 base 版本的分类脚本，
+避免 PR 修改分类器后跳过自身的测试。
 
 CI 将各套件拆成并行 job：格式检查与前端构建、Go race、Vitest、Storybook
 以及分四片的 E2E（桌面与手机项目）在 Ubuntu 上运行。`E2E runtime` job
@@ -99,7 +101,7 @@ CI 将各套件拆成并行 job：格式检查与前端构建、Go race、Vitest
 分片不再各自安装 pnpm、前端依赖或 Go，也不重复构建。macOS 分别运行原生
 Go race（不含静态守卫与 Windows 托盘/WSL 包）和两个仅桌面项目的隔离 E2E
 分片，避免编译与浏览器争用同一 runner；`Test result` 汇总全部 job，
-接受 `success` 与被有意跳过的 `skipped`，其余结果失败。
+接受被有意跳过的 `skipped`，并按分类结果交叉校验应运行的 job 均为 `success`。
 同一 PR 的新推送会取消仍在运行的旧检查。
 
 速度测量、用例一致性和整体 CI 的验收方法见 [CI 耗时优化](docs/ci-performance.md)。
