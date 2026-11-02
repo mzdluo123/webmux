@@ -92,16 +92,20 @@ type updateHarness struct {
 	idle     atomic.Bool
 	mu       sync.Mutex
 	launched []string
+	attempts []UpdateAttempt
+	// recordErr fails RecordAttempt.
+	recordErr error
 	// exits ends the running installer with a code.
 	exits chan int
 	u     *SelfUpdater
 }
 
-func newUpdateHarness(t *testing.T, installed bool, client ReleaseClient, updated string) *updateHarness {
+// newUpdateHarness builds an updater; edit, when set, adjusts its options.
+func newUpdateHarness(t *testing.T, installed bool, client ReleaseClient, edit func(*SelfUpdateOptions)) *updateHarness {
 	h := &updateHarness{t: t, clock: newFakeClock(), dir: filepath.Join(t.TempDir(), "updates"), exits: make(chan int, 1)}
 	h.auto.Store(true)
 	h.idle.Store(true)
-	h.u = NewSelfUpdater(SelfUpdateOptions{
+	o := SelfUpdateOptions{
 		Version:    "0.4.0",
 		Arch:       "amd64",
 		Release:    true,
@@ -111,14 +115,26 @@ func newUpdateHarness(t *testing.T, installed bool, client ReleaseClient, update
 		Clock:      h.clock,
 		AutoUpdate: h.auto.Load,
 		Idle:       h.idle.Load,
+		RecordAttempt: func(a UpdateAttempt) error {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			if h.recordErr != nil {
+				return h.recordErr
+			}
+			h.attempts = append(h.attempts, a)
+			return nil
+		},
 		Launch: func(path string) (func() (int, error), error) {
 			h.mu.Lock()
 			defer h.mu.Unlock()
 			h.launched = append(h.launched, path)
 			return func() (int, error) { return <-h.exits, nil }, nil
 		},
-		Updated: updated,
-	})
+	}
+	if edit != nil {
+		edit(&o)
+	}
+	h.u = NewSelfUpdater(o)
 	t.Cleanup(h.u.Close)
 	return h
 }
@@ -127,6 +143,12 @@ func (h *updateHarness) launches() []string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return append([]string(nil), h.launched...)
+}
+
+func (h *updateHarness) recorded() []UpdateAttempt {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]UpdateAttempt(nil), h.attempts...)
 }
 
 // settled waits until no check runs and the schedule waits for its timer.
@@ -139,7 +161,7 @@ func (h *updateHarness) settled(timers int) {
 // with automatic updates off nothing is checked unless the user asks.
 func TestSelfUpdateSchedule(t *testing.T) {
 	releases := &fakeReleases{latest: "0.5.0"}
-	h := newUpdateHarness(t, false, releases, "")
+	h := newUpdateHarness(t, false, releases, nil)
 	h.u.Start()
 	h.settled(1)
 	h.clock.jump(UpdateFirstCheck - time.Second)
@@ -174,7 +196,7 @@ func TestSelfUpdateSchedule(t *testing.T) {
 // installed tray installs it when the user picks "更新到".
 func TestSelfUpdateManual(t *testing.T) {
 	releases := &fakeReleases{latest: "0.5.0"}
-	h := newUpdateHarness(t, true, releases, "")
+	h := newUpdateHarness(t, true, releases, nil)
 	h.auto.Store(false)
 	h.u.Check()
 	eventually(t, "check", func() bool { c, _ := releases.counts(); return c == 1 && !h.u.View().Busy })
@@ -205,7 +227,7 @@ func TestSelfUpdateManual(t *testing.T) {
 // server or shows a dialog.
 func TestSelfUpdateWaitsForIdle(t *testing.T) {
 	releases := &fakeReleases{latest: "0.5.0"}
-	h := newUpdateHarness(t, true, releases, "")
+	h := newUpdateHarness(t, true, releases, nil)
 	h.idle.Store(false)
 	h.u.Check()
 	eventually(t, "download", func() bool { return h.clock.pending() == 1 })
@@ -224,11 +246,31 @@ func TestSelfUpdateWaitsForIdle(t *testing.T) {
 	eventually(t, "installer", func() bool { return len(h.launches()) == 1 })
 }
 
+// Turning automatic updates off while a downloaded installer waits for the
+// tray to become idle keeps it from running; the release stays offered.
+func TestSelfUpdateStopsWhenAutoUpdateTurnedOff(t *testing.T) {
+	releases := &fakeReleases{latest: "0.5.0"}
+	h := newUpdateHarness(t, true, releases, nil)
+	h.idle.Store(false)
+	h.u.Check()
+	eventually(t, "download", func() bool { return h.clock.pending() == 1 })
+	h.auto.Store(false)
+	h.idle.Store(true)
+	h.clock.jump(UpdateIdlePoll)
+	eventually(t, "stopped", func() bool { return !h.u.View().Busy })
+	if v := h.u.View(); v.Status != "有新版本 0.5.0" || v.Latest != "0.5.0" || len(h.launches()) != 0 || len(h.recorded()) != 0 {
+		t.Fatalf("after turning off %+v, launched %v", v, h.launches())
+	}
+	// "更新到" still installs it.
+	h.u.Install()
+	eventually(t, "installer", func() bool { return len(h.launches()) == 1 })
+}
+
 // A portable tray reports the release and links its page, but never
 // downloads or runs an installer, even when asked.
 func TestSelfUpdatePortableNeverDownloads(t *testing.T) {
 	releases := &fakeReleases{latest: "0.5.0"}
-	h := newUpdateHarness(t, false, releases, "")
+	h := newUpdateHarness(t, false, releases, nil)
 	h.u.Check()
 	eventually(t, "check", func() bool { c, _ := releases.counts(); return c == 1 && !h.u.View().Busy })
 	h.u.Install()
@@ -309,7 +351,7 @@ func TestSelfUpdateRunsOnlyVerifiedInstallers(t *testing.T) {
 				Downloader: fetch.Downloader{GitHubBase: release.serve(t), Mirrors: []string{}},
 				Keys:       []update.PublicKey{trusted.Public()},
 			}
-			h := newUpdateHarness(t, true, client, "")
+			h := newUpdateHarness(t, true, client, nil)
 			h.u.Start()
 			h.settled(1)
 			h.clock.jump(UpdateFirstCheck)
@@ -337,7 +379,7 @@ func TestSelfUpdateRunsOnlyVerifiedInstallers(t *testing.T) {
 		Downloader: fetch.Downloader{GitHubBase: release.serve(t), Mirrors: []string{}},
 		Keys:       []update.PublicKey{trusted.Public()},
 	}
-	h := newUpdateHarness(t, true, client, "")
+	h := newUpdateHarness(t, true, client, nil)
 	h.u.Check()
 	eventually(t, "installer", func() bool { return len(h.launches()) == 1 })
 	if data, err := os.ReadFile(h.launches()[0]); err != nil || string(data) != string(installer) {
@@ -349,7 +391,7 @@ func TestSelfUpdateRunsOnlyVerifiedInstallers(t *testing.T) {
 // a manual check that found nothing, and empties the updates directory.
 func TestSelfUpdateNotices(t *testing.T) {
 	releases := &fakeReleases{latest: "0.4.0"}
-	h := newUpdateHarness(t, true, releases, "0.4.0")
+	h := newUpdateHarness(t, true, releases, func(o *SelfUpdateOptions) { o.Updated = "0.4.0" })
 	if err := os.MkdirAll(h.dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +429,7 @@ func TestSelfUpdateFollowsNewerServer(t *testing.T) {
 	newest := newer
 	newest.Installed.Version = "0.6.0"
 	releases := &fakeReleases{latest: "0.5.0"}
-	h := newUpdateHarness(t, true, releases, "")
+	h := newUpdateHarness(t, true, releases, nil)
 	h.u.Observe(newer)
 	eventually(t, "installer", func() bool { return len(h.launches()) == 1 })
 	h.u.Observe(newer)
@@ -396,7 +438,7 @@ func TestSelfUpdateFollowsNewerServer(t *testing.T) {
 	if checks, _ := releases.counts(); checks != 1 {
 		t.Fatalf("checks %d", checks)
 	}
-	h.exits <- 4
+	h.exits <- 2
 	eventually(t, "failed install", func() bool { return !h.u.View().Busy })
 	h.u.Observe(newer)
 	time.Sleep(10 * time.Millisecond)
@@ -408,7 +450,7 @@ func TestSelfUpdateFollowsNewerServer(t *testing.T) {
 
 	for name, installed := range map[string]bool{"portable": false, "disabled": true} {
 		releases := &fakeReleases{latest: "0.5.0"}
-		h := newUpdateHarness(t, installed, releases, "")
+		h := newUpdateHarness(t, installed, releases, nil)
 		h.auto.Store(name != "disabled")
 		h.u.Observe(newer)
 		time.Sleep(10 * time.Millisecond)
@@ -424,7 +466,7 @@ func TestSelfUpdateFollowsNewerServer(t *testing.T) {
 // UpdateInstallWait has passed.
 func TestSelfUpdateInstallerExit(t *testing.T) {
 	releases := &fakeReleases{latest: "0.5.0"}
-	h := newUpdateHarness(t, true, releases, "")
+	h := newUpdateHarness(t, true, releases, nil)
 	h.auto.Store(false)
 	h.u.Install()
 	eventually(t, "installer", func() bool { return len(h.launches()) == 1 && h.clock.pending() == 1 })
@@ -465,7 +507,7 @@ func TestSelfUpdateRetriesCleanup(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory permissions")
 	}
-	h := newUpdateHarness(t, true, &fakeReleases{latest: "0.4.0"}, "")
+	h := newUpdateHarness(t, true, &fakeReleases{latest: "0.4.0"}, nil)
 	if err := os.MkdirAll(h.dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -484,4 +526,74 @@ func TestSelfUpdateRetriesCleanup(t *testing.T) {
 	h.clock.jump(updateCleanRetry)
 	eventually(t, "cleanup", func() bool { entries, _ := os.ReadDir(h.dir); return len(entries) == 0 })
 	h.settled(1)
+}
+
+// A tray the installer started again after a failed install (exit code 4:
+// it closed this tray first) finds the attempt in its settings. It reports
+// the failure, and neither the schedule nor a newer WSL webmux runs that
+// release's installer again until a day after the attempt.
+func TestSelfUpdateAfterFailedInstall(t *testing.T) {
+	newer := Snapshot{Tray: BuildInfo{Version: "0.4.0", Contract: 1}, Installed: BuildInfo{Version: "0.5.0", Contract: 1}, Compat: CompatServerNewer}
+	releases := &fakeReleases{latest: "0.5.0"}
+	h := newUpdateHarness(t, true, releases, func(o *SelfUpdateOptions) {
+		o.FailedAttempt = UpdateAttempt{Version: "0.5.0", At: o.Clock.Now().Add(-time.Hour)}
+	})
+	const failed = "更新到 0.5.0 失败，已恢复原托盘"
+	if v := h.u.View(); v.Status != failed {
+		t.Fatalf("at start %+v", v)
+	}
+	h.u.Start()
+	h.settled(1)
+	h.clock.jump(UpdateFirstCheck)
+	eventually(t, "first check", func() bool { c, _ := releases.counts(); return c == 1 })
+	h.settled(1)
+	h.u.Observe(newer)
+	eventually(t, "check for the server", func() bool { c, _ := releases.counts(); return c == 2 })
+	h.settled(1)
+	if _, fetches := releases.counts(); fetches != 0 || len(h.launches()) != 0 {
+		t.Fatalf("retried within a day: fetched %d, launched %v", fetches, h.launches())
+	}
+	if v := h.u.View(); v.Status != failed+"；有新版本 0.5.0" || v.Latest != "0.5.0" {
+		t.Fatalf("after checks %+v", v)
+	}
+	// The next daily check comes after the attempt's day has passed.
+	h.clock.jump(UpdateInterval)
+	eventually(t, "retry", func() bool { return len(h.launches()) == 1 })
+	if got := h.recorded(); len(got) != 1 || got[0].Version != "0.5.0" || !got[0].At.Equal(h.clock.Now()) {
+		t.Fatalf("recorded %+v", got)
+	}
+}
+
+// A failed attempt never stops "更新到" from installing that release, nor
+// automatic updates from installing a later one.
+func TestSelfUpdateFailedInstallBlocksOnlyAutomaticRetry(t *testing.T) {
+	releases := &fakeReleases{latest: "0.5.0"}
+	h := newUpdateHarness(t, true, releases, func(o *SelfUpdateOptions) {
+		o.FailedAttempt = UpdateAttempt{Version: "0.5.0", At: o.Clock.Now()}
+	})
+	h.u.Install()
+	eventually(t, "manual install", func() bool { return len(h.launches()) == 1 })
+	h.exits <- 2
+	eventually(t, "failed install", func() bool { return !h.u.View().Busy })
+	releases.mu.Lock()
+	releases.latest = "0.6.0"
+	releases.mu.Unlock()
+	h.u.Check()
+	eventually(t, "automatic install of a later release", func() bool { return len(h.launches()) == 2 })
+	if got := h.recorded(); len(got) != 2 || got[0].Version != "0.5.0" || got[1].Version != "0.6.0" {
+		t.Fatalf("recorded %+v", got)
+	}
+}
+
+// An attempt that cannot be recorded would let a failed install repeat
+// unnoticed, so the installer does not run.
+func TestSelfUpdateNeedsRecordedAttempt(t *testing.T) {
+	releases := &fakeReleases{latest: "0.5.0"}
+	h := newUpdateHarness(t, true, releases, nil)
+	h.recordErr = errors.New("拒绝访问")
+	h.u.Install()
+	eventually(t, "failed install", func() bool { return !h.u.View().Busy })
+	if v := h.u.View(); v.Status != "更新失败：无法记录更新尝试：拒绝访问" || len(h.launches()) != 0 {
+		t.Fatalf("after failed record %+v, launched %v", v, h.launches())
+	}
 }

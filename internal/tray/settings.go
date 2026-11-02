@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/rainchan/webmux/internal/statefile"
 	"github.com/rainchan/webmux/internal/update"
@@ -50,7 +51,20 @@ type Settings struct {
 	// LastVersion is the tray release that last ran, for the "已更新到"
 	// notice after an update.
 	LastVersion string `json:"lastVersion"`
+	// UpdateAttempt is the release the self-update last started to
+	// install; it stays until that release runs, so a tray the installer
+	// restarted after a failure knows about it.
+	UpdateAttempt UpdateAttempt `json:"updateAttempt,omitzero"`
 }
+
+// UpdateAttempt is one start of the installer of a tray release.
+type UpdateAttempt struct {
+	Version string    `json:"version"`
+	At      time.Time `json:"at"`
+}
+
+// IsZero reports that no attempt is recorded.
+func (a UpdateAttempt) IsZero() bool { return a.Version == "" && a.At.IsZero() }
 
 func DefaultSettings() Settings {
 	return Settings{
@@ -65,17 +79,30 @@ func DefaultSettings() Settings {
 }
 
 // RecordVersion notes the running tray release in s. updated is version
-// when the previous run was an older release, else ""; changed reports
-// that s must be saved. Development versions are never recorded.
-func RecordVersion(s Settings, version string) (next Settings, updated string, changed bool) {
-	if !releaseVersion(version) || s.LastVersion == version {
-		return s, "", false
+// when the previous run was an older release, else "". failed is the
+// recorded update attempt when it names a release newer than version: that
+// install failed. An attempt at version or older is cleared. changed
+// reports that s must be saved. Development versions are never recorded.
+func RecordVersion(s Settings, version string) (next Settings, updated string, failed UpdateAttempt, changed bool) {
+	if !releaseVersion(version) {
+		return s, "", UpdateAttempt{}, false
 	}
-	if update.Newer(version, s.LastVersion) {
-		updated = version
+	if s.LastVersion != version {
+		if update.Newer(version, s.LastVersion) {
+			updated = version
+		}
+		s.LastVersion = version
+		changed = true
 	}
-	s.LastVersion = version
-	return s, updated, true
+	if !s.UpdateAttempt.IsZero() {
+		if update.Newer(s.UpdateAttempt.Version, version) {
+			failed = s.UpdateAttempt
+		} else {
+			s.UpdateAttempt = UpdateAttempt{}
+			changed = true
+		}
+	}
+	return s, updated, failed, changed
 }
 
 // Validate checks values the tray passes to WSL as argv elements.

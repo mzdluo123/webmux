@@ -16,7 +16,7 @@
 
 - [x] 2.1 `Makefile` 的 `release` 目标为所有二进制注入 `internal/update.release=1`，并在生成 `SHA256SUMS` 后签名、用内置公钥验证。
   - 缺少 `WEBMUX_RELEASE_SIGNING_KEY` 时失败。
-  - 验证：用临时测试密钥运行 `make release` 成功并产出签名；不设该变量时以非零码退出。
+  - 验证：用真实私钥单独运行 `make release-sign`，产出签名并通过内置公钥验证；不设该变量时 `make release` 以非零码退出。完整的 `make release` 因本机没有 makensis 未运行。
 - [x] 2.2 `.github/workflows/release.yml` 把密钥以环境变量传给签名步骤，校验步骤增加签名验证，并上传 `SHA256SUMS.minisig`。
   - 验证：`actionlint`（若可用）通过；检查上传列表包含该文件，日志不会打印密钥。
 
@@ -28,7 +28,7 @@
 - [x] 3.2 新增 `update apply`，按 D4 的流程实现：root 检查、文件锁、安装方式、`Check`/`Fetch`、argv 调用包管理器、清理缓存。
   - 验证：用假的 `dpkg`、`rpm`、`dpkg-query` 脚本测试 argv、非 root 拒绝、非包安装拒绝。
   - 验证：同一测试覆盖锁被占用时立即退出，包管理器失败时返回非零并删除安装包。
-- [x] 3.3 在 `deploy/linux/` 新增 `webmux-update.service`、`webmux-update.timer`、`postinstall.sh`、`preremove.sh`，并写入 `nfpm.yaml`。
+- [x] 3.3 在 `deploy/linux/` 新增 `webmux-update.service`、`webmux-update.timer`、`postinstall.sh`、`preremove.sh`、`postremove.sh`，并写入 `nfpm.yaml`。
   - 验证：`dpkg-deb -c` 与 `rpm -qlp` 只列出四个文件；`systemd-analyze verify` 检查两个单元通过。
 - [x] 3.4 扩展 `.github/scripts/test-linux-packages.sh`，覆盖定时器的启用、保留与停用，以及无 systemd 时安装。
   - 断言：首次安装启用；`disable` 后升级仍为禁用；卸载后停用；无 systemd 时不报错；不触碰 `webmux.service`。
@@ -77,7 +77,7 @@
 
 ## 6. 文档与用户故事
 
-- [x] 6.1 在 `docs/deployment.md` 中公布发布公钥与手动验证命令，并说明停用 Linux 定时器、关闭托盘自动更新、配置代理。
+- [x] 6.1 在 `docs/deployment/updates.md` 中公布发布公钥与手动验证命令，并说明停用 Linux 定时器、关闭托盘自动更新、配置代理。
   - 验证：`make docs-check` 通过，文档中的 `minisign -Vm` 命令能验证测试 Release。
 - [x] 6.2 按 `docs/agent-rules/user-stories-maintenance.md` 新增和更新用户故事，并同步两个索引的计数。
   - `operations-and-tooling.md`：Linux 包自动更新、`update check`、服务端待生效提示。
@@ -86,7 +86,9 @@
 
 ## 7. 集成检查
 
-- [x] 7.1 运行 `make check` 与 `make test-fast`。验证：全部通过，没有新增 lint 警告，也没有扩大架构基线。
+- [x] 7.1 运行 `make check` 与 `make test-fast`。
+  - 验证：`make check` 通过，没有新增 lint 警告，也没有扩大架构基线；`make test-fast` 的 Go race 全部通过。
+  - 浏览器测试三次运行中 `TerminalGraphics`、`CodeReader`、`TerminalTransport` 各失败过一次，失败用例每次不同、均不在本次改动范围内，单独重跑通过。
 
 ## 8. 审查修复（PR #260）
 
@@ -94,14 +96,33 @@
   - 验证：`test-linux-packages.sh` 在 Debian 与 Fedora 容器中覆盖首次安装、带标记升级、无标记升级与卸载。
 - [x] 8.2 发布 workflow 拆为 build、sign、publish；Makefile 拆出 `release-build`，只有 sign job 读取私钥。
   - 验证：`actionlint` 通过；在空模块缓存且 `GOPROXY=off` 的环境中用真实私钥运行 `make release-sign` 成功。
-- [x] 8.3 `update apply` 遇到 `apt-mark hold` 或 `dnf versionlock` 锁定时跳过。
-  - 验证：单元测试覆盖三种锁定输出与两种未锁定输出；容器中确认 dpkg 与 dnf5 的真实输出格式。
+- [x] 8.3 `update apply` 遇到 `apt-mark hold` 或 `dnf versionlock` 锁定时跳过（9.2 改为直接读取锁文件并在无法确认时按锁定处理）。
+  - 验证：单元测试覆盖锁定与未锁定输出；容器中确认 dpkg 与 dnf5 的真实输出格式。
 - [x] 8.4 托盘等待安装程序结束，安装程序未关闭托盘就退出或超时 15 分钟时清除进行中状态并提示失败。
   - 验证：`internal/tray` 核心测试覆盖退出码 2、超时与运行中保持忙碌。
 - [x] 8.5 NSIS 覆盖前把旧托盘改名为 `.old`，关闭托盘后失败时恢复并重新启动旧托盘。
   - 验证：makensis 3.11 以 `-WX` 构建两种架构；未在 Windows 上运行失败路径。
 - [x] 8.6 为“首次渲染前的跳转行”增加确定性的浏览器测试。
   - 验证：撤销修复时 3 次均失败，恢复后通过。
+
+## 9. 审查修复（PR #260 第二轮）
+
+- [x] 9.1 `update apply` 的 30 分钟超时只覆盖检查与下载；`dpkg` / `rpm` 以不可取消的上下文运行，子进程使用独立进程组。
+  - `webmux-update.service` 改为 `KillMode=process`、`TimeoutStartSec=1h`、`TimeoutStopSec=15min`，去掉 `NoNewPrivileges=`、`Nice=`、`IOSchedulingClass=`。
+  - 验证：单元测试覆盖安装期间取消父上下文时安装完成、下载后已取消时不安装。
+- [x] 9.2 版本锁定改为读取 dnf4 锁文件（含 `locklist` 覆盖）与 dnf5 的 `versionlock.toml`，`dpkg-query` 出错或锁文件不可读、无法解析时按锁定跳过。
+  - 验证：单元测试覆盖默认路径、路径覆盖、纯名字、架构后缀、排除项、不相关的包名、dnf5、不可读文件与缺失文件。
+- [x] 9.3 `InstalledVersion` 读取失败时保留旧标识，下一次检查重新读取。
+  - 验证：单元测试覆盖超时、失败、无效输出、空版本后的重试与成功后的缓存。
+- [x] 9.4 GitHub 失败时读取所有镜像，采用签名有效的最高版本。
+  - 验证：单元测试覆盖旧镜像在前、在后、签名无效、404，以及 GitHub 成功时不访问镜像。
+- [x] 9.5 托盘在运行安装程序前记录 `updateAttempt`；被安装程序重启的原托盘显示失败并在 24 小时内不自动重装同一版本。
+  - 下载或等待空闲期间关闭“自动更新”时不再运行安装程序。
+  - 验证：`internal/tray` 核心测试覆盖失败提示、计划检查与 WSL 触发的退避、手动安装与更高版本不受限、24 小时后重试、记录失败时不运行、等待期间关闭自动更新。
+- [x] 9.6 `webmux-tray quit` 在没有运行中的托盘时以 3 退出；NSIS 只在确实关闭了托盘时于失败后重启它并以 4 退出，否则恢复 `.old` 后以 2 退出。
+  - 验证：`internal/tray` 测试与 Windows amd64/arm64 交叉 vet 通过；本机没有 makensis，未编译 NSIS 脚本，也未在 Windows 上运行。
+- [x] 9.7 首次放置前提交的跳转行只替换恢复状态中的位置，保留选区与搜索；相对跳转从恢复的选区起算。
+  - 验证：`CodeReader.test.ts` 新增用例通过。
 
 ## Workflow follow-up
 

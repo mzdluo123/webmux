@@ -23,8 +23,9 @@ const (
 // InstalledVersion reports the WebMux version installed at the running
 // executable's path, which differs from the running version once a package
 // upgrade or the self-updater replaced the file. It checks on demand, at
-// most once per interval, and runs the file only when its identity changed,
-// so an idle server costs nothing. It is safe for concurrent use.
+// most once per interval, and runs the file only when its identity changed
+// or the last run failed, so an idle server costs nothing. It is safe for
+// concurrent use.
 type InstalledVersion struct {
 	path    string
 	running string
@@ -98,7 +99,11 @@ func (v *InstalledVersion) Pending() string {
 	case err != nil:
 		id, version = fileIdentity{}, ""
 	case id != known:
-		version = v.query()
+		var ok bool
+		if version, ok = v.query(); !ok {
+			// Keep the old identity so the next check asks again.
+			id = known
+		}
 	}
 	v.mu.Lock()
 	v.identity, v.version, v.checking = id, version, false
@@ -113,19 +118,20 @@ func (v *InstalledVersion) pending(version string) string {
 	return version
 }
 
-// query runs the executable's `version --json`; any failure is unknown.
-func (v *InstalledVersion) query() string {
+// query runs the executable's `version --json`. ok is false when the run
+// failed or its output is not a version reply.
+func (v *InstalledVersion) query() (version string, ok bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), v.timeout)
 	defer cancel()
 	out, err := v.run(ctx, v.path)
 	if err != nil {
-		return ""
+		return "", false
 	}
 	var reply contract.VersionV1
-	if json.Unmarshal(out, &reply) != nil {
-		return ""
+	if json.Unmarshal(out, &reply) != nil || reply.Version == "" {
+		return "", false
 	}
-	return reply.Version
+	return reply.Version, true
 }
 
 // runVersion executes path as argv with only PATH in its environment.

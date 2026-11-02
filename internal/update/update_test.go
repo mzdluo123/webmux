@@ -190,6 +190,61 @@ func TestLatestFallsBackAcrossSources(t *testing.T) {
 	}
 }
 
+// A mirror can lag behind with a stale but validly signed list, so when
+// GitHub fails the newest verified mirror wins; GitHub itself is final.
+func TestLatestPrefersNewestMirror(t *testing.T) {
+	k := testKey(t)
+	sums := sumLine("x", "webmux-linux-amd64")
+	release := func(version string) *fakeRelease {
+		return &fakeRelease{files: map[string][]byte{
+			"SHA256SUMS":         []byte(sums),
+			"SHA256SUMS.minisig": signed(t, k, sums, "webmux "+version),
+		}}
+	}
+	down := &fakeRelease{}
+	other := testKey(t)
+	forged := release("0.7.0")
+	forged.files["SHA256SUMS.minisig"] = signed(t, other, sums, "webmux 0.7.0")
+	for _, tc := range []struct {
+		name    string
+		github  *fakeRelease
+		mirrors []*fakeRelease
+		version string
+		host    int // index into mirrors, -1 for GitHub
+	}{
+		{"newer later mirror", down, []*fakeRelease{release("0.5.0"), release("0.6.0")}, "0.6.0", 1},
+		{"stale later mirror", down, []*fakeRelease{release("0.6.0"), release("0.5.0")}, "0.6.0", 0},
+		{"bad later signature", down, []*fakeRelease{release("0.5.0"), forged}, "0.5.0", 0},
+		{"failing later mirror", down, []*fakeRelease{release("0.5.0"), down}, "0.5.0", 0},
+		{"GitHub is final", release("0.5.0"), []*fakeRelease{release("0.6.0")}, "0.5.0", -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gh := serve(t, tc.github)
+			var mirrors []string
+			for _, m := range tc.mirrors {
+				m.paths = nil
+				mirrors = append(mirrors, serve(t, m))
+			}
+			c := Client{Downloader: fetch.Downloader{GitHubBase: gh, Mirrors: mirrors}, Keys: []PublicKey{k.Public()}}
+			m, host, err := c.Latest(context.Background())
+			want := gh
+			if tc.host >= 0 {
+				want = mirrors[tc.host]
+			}
+			if err != nil || m.Version != tc.version || !strings.Contains(want, host) {
+				t.Fatalf("latest: %v %q %q, want %q from %q", err, m.Version, host, tc.version, want)
+			}
+			if tc.host < 0 {
+				for _, mirror := range tc.mirrors {
+					if len(mirror.paths) != 0 {
+						t.Fatalf("mirror contacted after GitHub answered: %v", mirror.paths)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestOldManifestIsNotNew(t *testing.T) {
 	k := testKey(t)
 	sums := sumLine("x", "webmux-linux-amd64")

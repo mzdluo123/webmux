@@ -44,7 +44,7 @@
   - `build`：不带私钥运行 `make release-build`，pnpm、Go 模块、nfpm、makensis 都在这里运行。
   - `sign`：在全新 runner 上只下载 `SHA256SUMS`，不恢复任何缓存，用 `make release-sign` 签名并验证；它在 `GOPROXY` 不可用时也能完成。
   - `publish`：合并产物与签名，再次验证后发布。
-- 公钥（8 字节密钥 ID 加 32 字节公钥）以 minisign 公钥文本的形式写在 `internal/update` 源码中，作为可审查的常量集合；同时公布在 `docs/deployment.md`。
+- 公钥（8 字节密钥 ID 加 32 字节公钥）以 minisign 公钥文本的形式写在 `internal/update` 源码中，作为可审查的常量集合；同时公布在 `docs/deployment/updates.md`。
 - 更换密钥的流程：先发布一个同时内置新旧公钥、仍用旧私钥签名的版本，下一个版本再改用新私钥签名。
 
 ### D3 共享包 `internal/update`
@@ -66,7 +66,8 @@
 - APT/YUM 仓库：需要第二把 OpenPGP 密钥和托管；`unattended-upgrades` 默认只自动安装安全源，`dnf-automatic` 默认只下载，并不能保证自动更新。
 - 由用户服务调用 `pkexec`：需要交互授权，不适合无人值守。
 - 选定方案：一个 root 一次性服务加一个定时器，复用 D1 的信任根与镜像：
-  - `webmux-update.service`：`Type=oneshot`、`ProtectHome=yes`、`PrivateTmp=yes`、`NoNewPrivileges=yes`、`CacheDirectory=webmux-update`；
+  - `webmux-update.service`：`Type=oneshot`、`ProtectHome=yes`、`PrivateTmp=yes`、`CacheDirectory=webmux-update`、`KillMode=process`、`TimeoutStartSec=1h`、`TimeoutStopSec=15min`；
+  - 不设 `NoNewPrivileges=`、`Nice=`、`IOSchedulingClass=`：包管理器继承这些设置，前者会阻止 rpm scriptlet 的 SELinux 域转换，后两者会在持有 dpkg 锁时拖慢安装；
   - `webmux-update.timer`：`OnCalendar=daily`、`RandomizedDelaySec=6h`、`Persistent=true`；
   - 代理通过单元的 drop-in 设置 `HTTPS_PROXY`。
 
@@ -75,8 +76,8 @@
 1. 检查发布构建标记与 `euid == 0`。
 2. 用 `flock` 锁住 `/run/webmux-update.lock`，非阻塞；拿不到锁立即退出。
 3. 用 `dpkg-query -S /usr/bin/webmux` 或 `rpm -qf /usr/bin/webmux` 判断安装方式。
-4. 调用 `Check`；有新版本时按架构用 `Fetch` 下载到缓存目录。
-5. 若管理员用 `apt-mark hold` 或 `dnf versionlock` 锁定了 `webmux`，记录后跳过；`dpkg -i` 与 `rpm -U` 本身不理会这两种锁。
+4. 在任何网络请求之前检查管理员是否用 `apt-mark hold` 或 `dnf versionlock` 锁定了 `webmux`，锁定时记录后跳过；`dpkg -i` 与 `rpm -U` 本身不理会这两种锁。
+5. 调用 `Check`；有新版本时按架构用 `Fetch` 下载到缓存目录。
 6. 以 argv 执行 `dpkg -i -- <file>` 或 `rpm -U -- <file>`；包没有依赖，所以不需要 apt/dnf 解析依赖。
 7. 删除缓存文件。
 
@@ -102,7 +103,17 @@ NSIS 脚本相应改动：
 - 检测到已安装时，静默模式沿用 `InstallLocation`，并保持登录启动项现状。
 - 在关闭托盘之后的任何失败路径上，重新启动安装目录中的 `webmux-tray.exe`，然后以非零码退出。
 
-托盘只在空闲时运行安装程序（无对话框，也无 WSL 安装、启动、停止、重启在进行），并以分离进程方式启动它，不等待它结束。新托盘启动时，比较设置中记录的 `lastVersion` 与自身版本，据此显示“已更新到 <版本>”并清理 `updates` 目录。
+托盘只在空闲时运行安装程序（无对话框，也无 WSL 安装、启动、停止、重启在进行），并以分离进程方式启动它，然后等待它结束。安装程序没有关闭托盘就退出，或 15 分钟内没有结束，都视为失败并清除进行中状态。
+
+新托盘启动时，比较设置中记录的 `lastVersion` 与自身版本，据此显示“已更新到 <版本>”并清理 `updates` 目录。
+
+安装程序关闭托盘之后的失败由它重新启动的原托盘承接，原进程已退出，看不到退出码。所以托盘在运行安装程序前把 `updateAttempt`（版本与时间）写入 `tray.json`：
+
+- 启动时记录的版本高于自身版本，说明上次安装失败。托盘显示一次失败提示，24 小时内自动路径（计划检查、WSL 版本触发）不再安装同一版本，避免持续失败时托盘每隔几分钟被关闭又重启。
+- 用户点击“更新到 <版本>”不受限制，更高的版本也不受限制。
+- 该版本或更高版本的托盘启动后清除记录。
+
+NSIS 只在 `quit` 报告确实关闭了运行中的托盘（退出码 0，没有托盘时为 3）后才在失败时重启托盘并以 4 退出，否则只恢复 `.old` 并以 2 退出。
 
 ### D7 托盘内的更新顺序
 
@@ -118,7 +129,7 @@ NSIS 脚本相应改动：
 在 `internal/update` 中新增 `InstalledVersion`，由 `cmd/webmux` 构造，注入 `api.Deps` 与本机 API。
 
 - 启动时记录 `os.Executable()` 解析符号链接后的路径，以及该文件的标识（设备号、inode、大小、修改时间）。
-- 状态或配置被查询时，若距上次检查已超过 60 秒且标识发生变化，以 argv 运行 `<路径> version --json`（5 秒超时，环境只保留 `PATH`），把结果按标识缓存。
+- 状态或配置被查询时，若距上次检查已超过 60 秒且标识发生变化，以 argv 运行 `<路径> version --json`（5 秒超时，环境只保留 `PATH`），只把成功读取的结果按标识缓存；读取失败时保留旧标识，下一次检查重新运行。
 - 采用按需检查而不用后台定时器：没有人查询时不产生任何开销，也不需要新的生命周期管理。
 
 ### D9 契约与前端
@@ -134,12 +145,13 @@ NSIS 脚本相应改动：
 
 - [发布私钥泄露] → 攻击者可以向所有自动更新的安装推送代码。缓解：私钥只放在 Actions 密钥中，签名步骤只在标签触发的发布任务里运行；泄露时按 D2 的流程换密钥，并发布公告。
 - [私钥丢失] → 已安装版本无法再接受新版本，只能手动更新一次。缓解：维护者离线备份种子。
-- [来源扣留更新（冻结攻击）] → 恶意镜像可以一直返回旧清单。签名与不降级策略只能保证不安装错误内容，无法强制更新。GitHub 优先，日志会记录来源，可以接受。
+- [来源扣留更新（冻结攻击）] → 恶意或过期的镜像可以一直返回旧清单。签名与不降级策略只能保证不安装错误内容，无法强制更新。缓解：GitHub 优先；GitHub 不可用时读取所有镜像并采用最高的已验证版本，日志记录来源。所有可达来源一起扣留时仍无法更新，可以接受。
 - [`Ed` 是 minisign 的旧版签名格式] → 已实测：Debian 的 minisign 0.12 用 `-Vm` 直接验证本实现的签名（含可信注释），无需 `-l`。若将来的 minisign 不再支持该格式，只影响用户手动验证，不影响更新程序。
 - [功能引入前的版本] → 不会自动更新。首个包含本功能的版本需要用户手动安装一次。
 - [root 定时任务的攻击面] → 未经签名验证的数据不会被解析，也不会交给 dpkg/rpm。服务有沙箱限制，并且只执行固定的 argv。
-- [包管理器锁冲突] → 本次失败，次日重试。`Persistent=true` 只补执行错过的触发，不会频繁重试。
-- [NSIS 中途失败留下不完整的安装目录] → 规格要求失败时重启托盘。如果是文件被部分替换的极端情况，托盘可能无法启动；日志会记录，用户手动运行安装程序即可恢复。
+- [包管理器锁冲突] → dpkg 被占用时本次失败，次日重试；`rpm -U` 等待 rpm 数据库锁。`Persistent=true` 只补执行错过的触发，不会频繁重试。
+- [安装中途被终止] → 下载阶段 30 分钟超时；安装命令不随取消而终止，单元以 `KillMode=process` 只向 `webmux` 发信号，避免半安装的软件包。
+- [NSIS 中途失败留下不完整的安装目录] → 覆盖前把旧托盘改名为 `.old`，关闭托盘后的失败路径恢复它并重新启动。
 - [下载的安装程序未经 Authenticode 签名] → [INFERENCE] 托盘自己下载的文件不带 Mark-of-the-Web，不会触发 SmartScreen；完整性由 D1 保证。实现时需要在真实 Windows 上确认。
 - [托盘重启期间转发中断数秒] → 规格已说明，会话不受影响。
 

@@ -102,23 +102,33 @@ func TestInstalledVersionDeleted(t *testing.T) {
 	f.after(installedInterval, "0.6.0", 2)
 }
 
-func TestInstalledVersionUnknown(t *testing.T) {
+func TestInstalledVersionRetriesAfterFailure(t *testing.T) {
 	for _, tc := range []struct{ name, script string }{
 		{"timeout", "exec sleep 10"},
 		{"failure", versionScript("0.5.0") + "\nexit 1"},
 		{"garbage", "echo webmux 0.5.0"},
+		{"empty", `echo '{"v":1}'`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newInstalledFixture(t, versionScript("0.4.0"))
 			f.v.timeout = 100 * time.Millisecond
-			f.install(tc.script)
+			// The same file fails until the marker exists.
+			f.install(`if [ -e "$0.ok" ]; then ` + versionScript("0.5.0") + "\nelse\n" + tc.script + "\nfi")
 			start := time.Now()
 			f.after(installedInterval, "", 1)
 			if elapsed := time.Since(start); elapsed > 5*time.Second {
 				t.Fatalf("check took %v", elapsed)
 			}
-			// The failure is cached for the same file.
-			f.after(installedInterval, "", 1)
+			// At most one run per interval.
+			f.after(installedInterval-time.Second, "", 1)
+			// A failure is not remembered for the same file.
+			f.after(time.Second, "", 2)
+			if err := os.WriteFile(f.path+".ok", nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			f.after(installedInterval, "0.5.0", 3)
+			// A success is cached by identity.
+			f.after(installedInterval, "0.5.0", 3)
 		})
 	}
 }

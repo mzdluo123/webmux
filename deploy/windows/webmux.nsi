@@ -9,10 +9,10 @@
 ;   ICON     absolute path of the installer icon
 ;   OUTFILE  absolute output path
 ;
-; Exit codes: 0 done, 2 wrong Windows architecture or a failure before any
-; tray was closed, 3 a running tray could not be closed (nothing was
-; written), 4 a failure after the installed tray was closed (that tray was
-; started again).
+; Exit codes: 0 done, 2 wrong Windows architecture or a failure while no
+; tray had been closed (none ran, or it had not been closed yet), 3 a
+; running tray could not be closed (nothing was written), 4 a failure after
+; the installed tray was closed (that tray was started again).
 ;
 ; Silent mode (/S) over an existing install keeps its directory and the
 ; login item as they are; internal/tray updates itself this way.
@@ -82,16 +82,19 @@ Page custom optionsPage optionsLeave
 
 ; CloseTray asks the tray started from $INSTDIR (and any tray of this user)
 ; to quit as with "仅退出托盘". `quit` kills an unresponsive tray only when
-; it runs from $INSTDIR; a tray elsewhere is the user's to close.
+; it runs from $INSTDIR; a tray elsewhere is the user's to close. It
+; returns with $0 = 0 when a running tray was closed and 3 when none ran
+; (a tray that predates exit code 3 also reports none as 0).
 !macro CloseTray UN EXE
   Function ${UN}closeTray
     retry:
       ClearErrors
       ExecWait '"${EXE}" quit --kill-path "$INSTDIR\webmux-tray.exe"' $0
       ${If} ${Errors}
-        StrCpy $0 0 ; no tray executable to ask: nothing of ours can run
+        StrCpy $0 3 ; no tray executable to ask: nothing of ours can run
       ${EndIf}
       ${If} $0 == 0
+      ${OrIf} $0 == 3
         Return
       ${EndIf}
       IfSilent fail
@@ -108,9 +111,9 @@ Page custom optionsPage optionsLeave
 ; a silent update leaves the item as it is.
 Var Autostart
 Var AutostartBox
-; 1 once the installed tray has been closed.
+; 1 once a running installed tray has been closed.
 Var TrayClosed
-; 1 while webmux-tray.exe.old holds the closed tray, until the install
+; 1 while webmux-tray.exe.old holds the installed tray, until the install
 ; succeeds.
 Var TrayBackup
 
@@ -140,16 +143,16 @@ Function .onInit
   ${EndIf}
 FunctionEnd
 
-; Any failure after the installed tray was closed starts it again, so the
-; user keeps a tray; the exit code tells the caller the update failed. The
-; closed tray comes back from its backup, as a failed write may have left
-; webmux-tray.exe incomplete.
+; A failed write may have left webmux-tray.exe incomplete, so the tray
+; comes back from its backup. Any failure after the running tray was
+; closed starts it again, so the user keeps a tray; the exit code tells the
+; caller the update failed.
 Function .onInstFailed
+  ${If} $TrayBackup == 1
+    Delete "$INSTDIR\webmux-tray.exe"
+    Rename "$INSTDIR\webmux-tray.exe.old" "$INSTDIR\webmux-tray.exe"
+  ${EndIf}
   ${If} $TrayClosed == 1
-    ${If} $TrayBackup == 1
-      Delete "$INSTDIR\webmux-tray.exe"
-      Rename "$INSTDIR\webmux-tray.exe.old" "$INSTDIR\webmux-tray.exe"
-    ${EndIf}
     ${If} ${FileExists} "$INSTDIR\webmux-tray.exe"
       SetOutPath "$PROFILE"
       Exec '"$INSTDIR\webmux-tray.exe"'
@@ -184,16 +187,18 @@ Section "-WebMux tray"
   InitPluginsDir
   File "/oname=$PLUGINSDIR\webmux-tray.exe" "${TRAY}"
   Call closeTray
-  ; From here on a failure restarts the installed tray (.onInstFailed):
-  ; File aborts by itself (AllowSkipFiles off), other writes are checked
-  ; through the error flag below.
-  StrCpy $TrayClosed 1
+  ; From here on a failure restores the backup and, when a tray was closed,
+  ; restarts it (.onInstFailed): File aborts by itself (AllowSkipFiles
+  ; off), other writes are checked through the error flag below.
+  ${If} $0 == 0
+    StrCpy $TrayClosed 1
+  ${EndIf}
   ClearErrors
 
   SetOutPath "$INSTDIR"
-  ; File overwrites in place, so the closed tray moves aside first and stays
-  ; until the install succeeds. A backup an interrupted update left behind
-  ; is the last complete tray when webmux-tray.exe is missing.
+  ; File overwrites in place, so the installed tray moves aside first and
+  ; stays until the install succeeds. A backup an interrupted update left
+  ; behind is the last complete tray when webmux-tray.exe is missing.
   ${If} ${FileExists} "$INSTDIR\webmux-tray.exe"
     Delete "$INSTDIR\webmux-tray.exe.old"
     Rename "$INSTDIR\webmux-tray.exe" "$INSTDIR\webmux-tray.exe.old"

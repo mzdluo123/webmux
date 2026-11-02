@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 // Errors returned by package updates.
@@ -78,36 +82,141 @@ func installCommand(m Method, file string) (string, []string) {
 	return "dpkg", []string{"-i", "--", file}
 }
 
+// LockFiles locates the dnf versionlock files Held reads. Empty fields select
+// the system paths.
+type LockFiles struct {
+	DNF4Conf string // dnf4 plugin config; `locklist` in [main] names the list
+	DNF4List string // dnf4 list used when the config names none
+	DNF5     string // dnf5 versionlock.toml
+}
+
+func (f LockFiles) withDefaults() LockFiles {
+	if f.DNF4Conf == "" {
+		f.DNF4Conf = "/etc/dnf/plugins/versionlock.conf"
+	}
+	if f.DNF4List == "" {
+		f.DNF4List = "/etc/dnf/plugins/versionlock.list"
+	}
+	if f.DNF5 == "" {
+		f.DNF5 = "/etc/dnf/versionlock.toml"
+	}
+	return f
+}
+
 // Held reports whether the administrator pinned the webmux package: an
-// `apt-mark hold` for dpkg, or a `dnf versionlock` entry for rpm. dpkg -i and
-// rpm -U ignore both, so the updater must check them itself. A missing tool
-// or plugin counts as not held.
-func Held(ctx context.Context, run Runner, m Method) bool {
+// `apt-mark hold` for dpkg, or a dnf4 or dnf5 versionlock entry for rpm.
+// dpkg -i and rpm -U ignore both, so the updater must check them itself. The
+// versionlock files are read directly, because dnf loads repository metadata
+// and fails when a repository is unreachable; a missing file holds nothing.
+// An error means the state is unknown, and callers must treat it as held.
+func Held(ctx context.Context, run Runner, m Method, files LockFiles) (bool, error) {
 	switch m {
 	case MethodDeb:
 		out, err := run(ctx, "dpkg-query", "-W", "-f", "${Status}", "webmux")
-		want, _, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
-		return err == nil && want == "hold"
-	case MethodRPM:
-		out, err := run(ctx, "dnf", "versionlock", "list")
 		if err != nil {
-			return false
-		}
-		for _, line := range strings.Split(string(out), "\n") {
-			line = strings.TrimSpace(line)
-			// dnf4: "webmux-0:0.5.0-1.*"; dnf5: "Package name: webmux".
-			if line == "Package name: webmux" || versionlocked(line) {
-				return true
+			if msg := strings.TrimSpace(string(out)); msg != "" {
+				err = fmt.Errorf("%w：%s", err, msg)
 			}
+			return false, fmt.Errorf("dpkg-query：%w", err)
 		}
+		want, _, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
+		return want == "hold", nil
+	case MethodRPM:
+		files = files.withDefaults()
+		list, err := dnf4LockList(files.DNF4Conf, files.DNF4List)
+		if err != nil {
+			return false, err
+		}
+		if held, err := dnf4Locked(list); held || err != nil {
+			return held, err
+		}
+		return dnf5Locked(files.DNF5)
 	}
-	return false
+	return false, nil
 }
 
-// versionlocked matches a dnf4 versionlock spec for webmux: the name, a
-// dash, then the epoch or version, which starts with a digit.
+// readOptional reads path; a missing file is empty.
+func readOptional(path string) ([]byte, error) {
+	b, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	return b, err
+}
+
+// dnf4LockList returns the list named by `locklist` in the [main] section of
+// the versionlock plugin config, or def when the config does not name one.
+func dnf4LockList(conf, def string) (string, error) {
+	b, err := readOptional(conf)
+	if err != nil {
+		return "", err
+	}
+	section := ""
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || line[0] == '#' || line[0] == ';' {
+			continue
+		}
+		if strings.HasPrefix(line, "[") {
+			section = strings.TrimSpace(strings.Trim(line, "[]"))
+			continue
+		}
+		if key, value, ok := strings.Cut(line, "="); ok && section == "main" && strings.TrimSpace(key) == "locklist" {
+			return strings.TrimSpace(value), nil
+		}
+	}
+	return def, nil
+}
+
+// dnf4Locked reports whether the dnf4 versionlock list pins or excludes
+// webmux.
+func dnf4Locked(path string) (bool, error) {
+	b, err := readOptional(path)
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if versionlocked(strings.TrimSpace(line)) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// versionlocked matches a dnf4 versionlock spec for webmux, locked or
+// excluded with "!": the bare name, the name with an architecture, or the
+// name, a dash, then the epoch or version, which starts with a digit.
 func versionlocked(spec string) bool {
-	spec = strings.TrimPrefix(spec, "!")
-	rest, ok := strings.CutPrefix(spec, "webmux-")
-	return ok && rest != "" && rest[0] >= '0' && rest[0] <= '9'
+	spec = strings.TrimSpace(strings.TrimPrefix(spec, "!"))
+	rest, ok := strings.CutPrefix(spec, "webmux")
+	switch {
+	case !ok:
+		return false
+	case rest == "" || rest[0] == '.':
+		return true
+	}
+	return len(rest) > 1 && rest[0] == '-' && rest[1] >= '0' && rest[1] <= '9'
+}
+
+// dnf5Locked reports whether dnf5's versionlock.toml has a [[packages]]
+// entry named webmux.
+func dnf5Locked(path string) (bool, error) {
+	b, err := readOptional(path)
+	if err != nil {
+		return false, err
+	}
+	var doc struct {
+		Packages []struct {
+			Name string `toml:"name"`
+		} `toml:"packages"`
+	}
+	if err := toml.Unmarshal(b, &doc); err != nil {
+		return false, fmt.Errorf("%s：%w", path, err)
+	}
+	for _, p := range doc.Packages {
+		if p.Name == "webmux" {
+			return true, nil
+		}
+	}
+	return false, nil
 }

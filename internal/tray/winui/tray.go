@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"errors"
 	"net"
 	"runtime"
 	"slices"
@@ -112,10 +113,10 @@ func Run(o Options) {
 		a.log.Printf("tray settings: %v", err)
 		a.settingsWarn = invalidSetting
 	}
-	updated := ""
+	updated, failed := "", tray.UpdateAttempt{}
 	if err == nil {
 		// An invalid file is never rewritten without a menu action.
-		settings, updated = a.recordVersion(settings)
+		settings, updated, failed = a.recordVersion(settings)
 	}
 	a.settings = settings
 	a.svc = tray.NewTargetService(o.NewService, settings)
@@ -123,35 +124,57 @@ func Run(o Options) {
 	installed := InstalledCopy(o.Executable)
 	a.log.Printf("tray copy: installed %v, release build %v", installed, update.IsRelease())
 	a.updater = tray.NewSelfUpdater(tray.SelfUpdateOptions{
-		Version:    o.Version,
-		Arch:       runtime.GOARCH,
-		Release:    update.IsRelease(),
-		Installed:  installed,
-		Dir:        o.UpdatesDir,
-		Client:     o.Releases,
-		AutoUpdate: a.autoUpdate,
-		Idle:       a.updateIdle,
-		Launch:     LaunchInstaller,
-		Publish:    a.kickUI,
-		Logf:       a.log.Printf,
-		Updated:    updated,
+		Version:       o.Version,
+		Arch:          runtime.GOARCH,
+		Release:       update.IsRelease(),
+		Installed:     installed,
+		Dir:           o.UpdatesDir,
+		Client:        o.Releases,
+		AutoUpdate:    a.autoUpdate,
+		Idle:          a.updateIdle,
+		RecordAttempt: a.recordAttempt,
+		Launch:        LaunchInstaller,
+		Publish:       a.kickUI,
+		Logf:          a.log.Printf,
+		Updated:       updated,
+		FailedAttempt: failed,
 	})
 	systray.Run(a.onReady, a.onExit)
 }
 
-// recordVersion saves this tray's version as lastVersion and returns the
-// version to announce as updated, if any.
-func (a *App) recordVersion(s tray.Settings) (tray.Settings, string) {
-	next, updated, changed := tray.RecordVersion(s, a.o.Version)
+// recordVersion saves this tray's version as lastVersion, clears an update
+// attempt it completed, and returns the version to announce as updated and
+// the failed update attempt, if any.
+func (a *App) recordVersion(s tray.Settings) (tray.Settings, string, tray.UpdateAttempt) {
+	next, updated, failed, changed := tray.RecordVersion(s, a.o.Version)
 	if !changed {
-		return s, ""
+		return s, "", failed
 	}
 	if err := tray.SaveSettings(a.o.SettingsPath, next); err != nil {
 		a.log.Printf("save tray settings: %v", err)
-		return s, updated
+		return s, updated, failed
 	}
 	a.stamp = statFile(a.o.SettingsPath)
-	return next, updated
+	return next, updated, failed
+}
+
+// recordAttempt saves the release whose installer is about to run, so the
+// tray it restarts after a failure knows. An invalid settings file is not
+// replaced.
+func (a *App) recordAttempt(attempt tray.UpdateAttempt) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.settingsWarn != "" {
+		return errors.New("托盘设置文件无效")
+	}
+	next := cloneSettings(a.settings)
+	next.UpdateAttempt = attempt
+	if err := tray.SaveSettings(a.o.SettingsPath, next); err != nil {
+		return err
+	}
+	a.settings = next
+	a.stamp = statFile(a.o.SettingsPath)
+	return nil
 }
 
 func (a *App) autoUpdate() bool {

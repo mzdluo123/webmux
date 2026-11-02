@@ -77,9 +77,23 @@ func (e *SourcesError) Error() string {
 // then each mirror. It returns the host that served it. A context error is
 // returned unwrapped; target is untouched unless a source succeeds.
 func (d Downloader) Download(ctx context.Context, a Asset, target string) (string, error) {
-	return d.EachSource(ctx, a.Path, func(source string) error {
-		return d.fetch(ctx, source, a, target)
-	})
+	var failures []string
+	for _, source := range d.Sources(a.Path) {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		host := SourceHost(source)
+		err := d.fetch(ctx, source, a, target)
+		if err == nil {
+			return host, nil
+		}
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		d.logger().Warn(d.Name+" download source failed", "source", host, "error", err)
+		failures = append(failures, host+": "+err.Error())
+	}
+	return "", &SourcesError{Failures: failures}
 }
 
 // Sources lists the URLs tried for a GitHub path: GitHub, then each mirror.
@@ -117,30 +131,6 @@ func (d Downloader) Get(ctx context.Context, source string, limit int64) ([]byte
 	return out, err
 }
 
-// EachSource runs try for every source of path in order and returns the
-// host of the first success, so callers can verify a group of files (a
-// signed checksum list and its signature) from one source. A context error
-// is returned unwrapped.
-func (d Downloader) EachSource(ctx context.Context, path string, try func(source string) error) (string, error) {
-	var failures []string
-	for _, source := range d.Sources(path) {
-		if err := ctx.Err(); err != nil {
-			return "", err
-		}
-		host := sourceHost(source)
-		err := try(source)
-		if err == nil {
-			return host, nil
-		}
-		if ctx.Err() != nil {
-			return "", ctx.Err()
-		}
-		d.logger().Warn(d.Name+" download source failed", "source", host, "error", err)
-		failures = append(failures, host+": "+err.Error())
-	}
-	return "", &SourcesError{Failures: failures}
-}
-
 func (d Downloader) logger() *slog.Logger {
 	if d.Logger != nil {
 		return d.Logger
@@ -162,7 +152,8 @@ func FileSHA256(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func sourceHost(source string) string {
+// SourceHost returns the host of a source URL, for logs and reports.
+func SourceHost(source string) string {
 	if u, err := url.Parse(source); err == nil {
 		return u.Host
 	}

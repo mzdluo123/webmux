@@ -54,6 +54,9 @@ type SelfUpdateOptions struct {
 	// Idle reports that no server install, start, stop or restart runs and
 	// no dialog is open, so the installer may close the tray.
 	Idle func() bool
+	// RecordAttempt saves Settings.UpdateAttempt before an installer
+	// starts; the installer does not run when it fails.
+	RecordAttempt func(UpdateAttempt) error
 	// Launch starts the installer silently and detached; wait reports its
 	// exit code once it exits.
 	Launch func(path string) (wait func() (int, error), err error)
@@ -63,6 +66,10 @@ type SelfUpdateOptions struct {
 	// Updated is the version announced once as "已更新到", from
 	// RecordVersion; "" announces nothing.
 	Updated string
+	// FailedAttempt is the failed install RecordVersion found. It is
+	// announced once, and checks the user did not ask to install skip its
+	// release until UpdateInterval after the attempt.
+	FailedAttempt UpdateAttempt
 }
 
 // SelfUpdateView is what the menu shows about the tray's own update.
@@ -115,6 +122,11 @@ func NewSelfUpdater(o SelfUpdateOptions) *SelfUpdater {
 	if o.Updated != "" {
 		u.notice = "已更新到 " + o.Updated
 		o.Logf("tray updated to %s", o.Updated)
+	}
+	if f := o.FailedAttempt; !f.IsZero() {
+		u.notice = "更新到 " + f.Version + " 失败，已恢复原托盘"
+		o.Logf("tray update to %s started at %s did not complete; not installing it automatically before %s",
+			f.Version, f.At.Format(time.RFC3339), f.At.Add(UpdateInterval).Format(time.RFC3339))
 	}
 	return u
 }
@@ -314,6 +326,10 @@ func (u *SelfUpdater) update(manual, install bool) {
 	if !u.o.Installed || (!install && !u.o.AutoUpdate()) {
 		return
 	}
+	if f := u.o.FailedAttempt; !install && f.Version == m.Version && u.o.Clock.Now().Before(f.At.Add(UpdateInterval)) {
+		u.o.Logf("update install: %s failed to install at %s; not retrying it automatically yet", m.Version, f.At.Format(time.RFC3339))
+		return
+	}
 	asset := "webmux-setup-windows-" + u.o.Arch + ".exe"
 	target := filepath.Join(u.o.Dir, asset)
 	u.setStatus("正在下载托盘 " + m.Version + "…")
@@ -327,13 +343,26 @@ func (u *SelfUpdater) update(manual, install bool) {
 		return
 	}
 	u.o.Logf("update download: %s %s from %s", asset, m.Version, host)
-	for !u.o.Idle() {
+	for {
+		// The user may turn automatic updates off while this waits.
+		if !install && !u.o.AutoUpdate() {
+			u.o.Logf("update install: automatic updates turned off; not installing %s", m.Version)
+			u.setStatus("有新版本 " + m.Version)
+			return
+		}
+		if u.o.Idle() {
+			break
+		}
 		u.setStatus("托盘 " + m.Version + " 已下载，当前操作完成后安装")
 		select {
 		case <-ctx.Done():
 			return
 		case <-u.o.Clock.After(UpdateIdlePoll):
 		}
+	}
+	if err := u.o.RecordAttempt(UpdateAttempt{Version: m.Version, At: u.o.Clock.Now()}); err != nil {
+		u.fail("install", fmt.Errorf("无法记录更新尝试：%w", err))
+		return
 	}
 	wait, err := u.o.Launch(target)
 	if err != nil {
@@ -347,9 +376,10 @@ func (u *SelfUpdater) update(manual, install bool) {
 
 // awaitInstaller returns when the tray closes, when the installer exits
 // or after UpdateInstallWait. A successful installer closes this tray
-// before it exits, so an exit seen here means the update failed: the
-// installer exits 2 or 3 without closing the tray and 4 after starting the
-// old one again (deploy/windows/webmux.nsi).
+// before it exits, so an exit seen here means the update failed without
+// closing the tray: exit code 2 or 3 (deploy/windows/webmux.nsi). A failure
+// after closing it (code 4) is never seen here; the installer restarts the
+// old tray, which finds Settings.UpdateAttempt still recorded.
 func (u *SelfUpdater) awaitInstaller(wait func() (int, error)) {
 	type exit struct {
 		code int

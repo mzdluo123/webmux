@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
-	"time"
 
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/update"
@@ -55,8 +54,12 @@ func installedExecutable() (string, error) {
 	return filepath.EvalSymlinks(exe)
 }
 
+// runCombined starts each program in its own process group, so a Ctrl-C at
+// the terminal reaches only webmux, which never interrupts dpkg or rpm.
 func runCombined(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return cmd.CombinedOutput()
 }
 
 func updateCommand(args []string, stdout, stderr io.Writer) int {
@@ -93,10 +96,9 @@ func runUpdate(args []string, stdout, stderr io.Writer, env updateEnv) int {
 		_, _ = fmt.Fprintln(stderr, "webmux update:", update.ErrNotRelease)
 		return contract.ExitError
 	}
+	// Apply bounds its own network phase and lets a started install finish.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-	defer cancel()
 	exe, err := env.exe()
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "webmux update:", err)
@@ -115,7 +117,9 @@ func runUpdate(args []string, stdout, stderr io.Writer, env updateEnv) int {
 		return contract.ExitOK
 	}
 	method := update.DetectMethod(ctx, env.run, exe)
-	m, host, err := env.client.Latest(ctx)
+	checkCtx, cancel := context.WithTimeout(ctx, update.DownloadTimeout)
+	defer cancel()
+	m, host, err := env.client.Latest(checkCtx)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "webmux update: 检查更新失败：", err)
 		return contract.ExitError

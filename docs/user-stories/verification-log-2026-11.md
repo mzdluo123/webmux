@@ -103,3 +103,9 @@
 - 安装包：`test-linux-packages.sh` 在 Debian/Fedora 容器中覆盖定时器的首次启用、带标记与无标记升级、卸载；systemd 容器中定时器服务把 0.0.1 升到 0.0.2，用户服务 PID 与会话不变。
 - 签名：minisign 0.12 验签通过；签名步骤在空模块缓存且 `GOPROXY=off` 时可完成。
 - 限制：托盘自更新与 NSIS 静默升级只在 Linux 上测试与编译（makensis 3.11），未在 Windows 上运行；未重新核验其余故事能力。
+
+本次局部核对（2026-11-03）：PR #260 第二轮审查修复，更新 US-K14、US-K15、US-K16、US-O04、US-O12、US-O13，不新增故事，覆盖索引不变。
+
+- 依据：`internal/update`、`internal/fetch`、`internal/tray`、`cmd/webmux` 的 Go race 测试，`internal/tray` 与 `cmd/webmux-tray` 的 Windows amd64/arm64 交叉 vet，`CodeReader` 浏览器测试。
+- 覆盖：安装期间取消不终止包管理器、锁文件判定与无法确认时跳过、已安装版本读取失败后重试、镜像取最高版本、托盘失败退避与等待期间关闭自动更新、`quit` 无托盘时退出码 3。
+- 限制：未在真实 systemd/SELinux 主机上运行更新服务，未编译或在 Windows 上运行 NSIS 脚本，`windows-installer-smoke.ps1` 未运行；未重新核验其余故事能力。

@@ -11,7 +11,12 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 )
+
+// DownloadTimeout bounds the network part of Apply: the manifest check and
+// the package download. The package manager is never timed out.
+const DownloadTimeout = 30 * time.Minute
 
 // ErrBusy means another apply holds the update lock.
 var ErrBusy = errors.New("已有更新在进行")
@@ -26,12 +31,14 @@ type ApplyOptions struct {
 	CacheDir string // download directory, removed of packages afterwards
 	Client   Client
 	Run      Runner
+	Locks    LockFiles // dnf versionlock files; zero selects the system paths
 	Out      io.Writer // progress lines for the system journal
 }
 
 // Apply installs a newer signed release package through dpkg or rpm. It
 // never touches any user's webmux.service; running servers keep the old
-// process until their users restart them.
+// process until their users restart them. Cancelling ctx stops the check and
+// download; once dpkg or rpm has started it always runs to completion.
 func Apply(ctx context.Context, o ApplyOptions) error {
 	if !IsRelease() {
 		return ErrNotRelease
@@ -49,12 +56,19 @@ func Apply(ctx context.Context, o ApplyOptions) error {
 	if _, err := PackageAsset(method, o.Current, o.GOARCH); err != nil {
 		return err
 	}
-	if Held(ctx, o.Run, method) {
+	held, err := Held(ctx, o.Run, method, o.Locks)
+	if err != nil {
+		logf(o.Out, "无法确认 webmux 软件包是否被锁定版本（%v），按已锁定处理，跳过自动更新", err)
+		return nil
+	}
+	if held {
 		logf(o.Out, "webmux 软件包已被锁定版本（apt-mark hold / dnf versionlock），跳过自动更新")
 		return nil
 	}
+	netCtx, cancel := context.WithTimeout(ctx, DownloadTimeout)
+	defer cancel()
 	logf(o.Out, "当前版本 %s（%s 安装）", o.Current, method)
-	m, host, err := o.Client.Latest(ctx)
+	m, host, err := o.Client.Latest(netCtx)
 	if err != nil {
 		return fmt.Errorf("检查更新失败：%w", err)
 	}
@@ -72,13 +86,18 @@ func Apply(ctx context.Context, o ApplyOptions) error {
 	}
 	file := filepath.Join(o.CacheDir, asset)
 	defer func() { _ = os.Remove(file) }()
-	host, err = o.Client.Fetch(ctx, m, asset, file, 0o644)
+	host, err = o.Client.Fetch(netCtx, m, asset, file, 0o644)
 	if err != nil {
 		return fmt.Errorf("下载 %s 失败：%w", asset, err)
 	}
 	logf(o.Out, "已下载并校验 %s（来源 %s）", asset, host)
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("更新已取消，未安装 %s：%w", asset, err)
+	}
+	// Killing dpkg or rpm mid-transaction can leave the package half
+	// installed, so a stop request or timeout from here on waits for it.
 	name, args := installCommand(method, file)
-	out, err := o.Run(ctx, name, args...)
+	out, err := o.Run(context.WithoutCancel(ctx), name, args...)
 	if err != nil {
 		return fmt.Errorf("%s 安装失败：%w\n%s", name, err, strings.TrimSpace(string(out)))
 	}

@@ -102,8 +102,10 @@
   验收要点：
   - 首次获得定时器时（新安装或从不含定时器的版本升级）在运行 systemd 的系统上启用 `webmux-update.timer`（每日、最多 6 小时随机延迟、错过补执行）并留下标记，无 systemd 时只装文件；
   - 有标记的升级只 `daemon-reload` 并保留管理员的 `disable`，卸载停用定时器并删除标记；
-  - 服务以 root、无法访问 `/home` 与 `/root` 运行 `webmux update apply`：仅发布构建、仅 root、单实例锁、仅当 `/usr/bin/webmux` 属于 `webmux` 包，`apt-mark hold` / `dnf versionlock` 锁定时跳过，按签名清单下载同格式同架构安装包并用 argv 调用 `dpkg -i` / `rpm -U`，只升级不降级；
-  - 包管理器被占用等失败时原安装不变、次日重试，下载的包总被删除；
+  - 服务以 root、无法访问 `/home` 与 `/root` 运行 `webmux update apply`：仅发布构建、仅 root、单实例锁、仅当 `/usr/bin/webmux` 属于 `webmux` 包，按签名清单下载同格式同架构安装包并用 argv 调用 `dpkg -i` / `rpm -U`，只升级不降级；
+  - 联网前检查 `apt-mark hold` 与 dnf versionlock 锁文件（不依赖软件仓库），锁定时跳过，锁定状态无法确认时也按锁定跳过；
+  - 检查与下载最长 30 分钟，`dpkg` / `rpm` 一旦开始不被停止信号、超时或 `systemctl stop` 中断（`KillMode=process`）；
+  - dpkg 被占用等失败时原安装不变、次日重试，`rpm -U` 等待 rpm 数据库锁，下载的包总被删除；
   - journal 记录版本、来源与结果；
   - 不触碰任何用户的 `webmux.service`。
 - **US-K15 检查更新与验证签名**：作为部署者，我希望随时查看是否有新版本，并能独立验证下载的发布文件来自官方，以便在任何安装方式下判断是否升级以及下载是否可信。
@@ -112,10 +114,10 @@
   - `install.sh` 或手动安装时提示重新运行 `install.sh`，deb/rpm 时提示定时器与 `sudo webmux update apply`；
   - 非发布构建报告“此构建不是发布构建，不支持更新”且不联网；
   - 每个 Release 附带 `SHA256SUMS.minisig`，可信注释 `webmux <版本>`，文档公布公钥，`minisign -Vm` 可手动验证；
-  - 更新程序只信任内置公钥，GitHub 与镜像返回的清单都须验证签名，版本取自签名注释。
+  - 更新程序只信任内置公钥，GitHub 与镜像返回的清单都须验证签名，版本取自签名注释；GitHub 不可用时采用各镜像中最高的已验证版本。
 - **US-K16 待生效版本提示**：作为使用者，我希望在服务端可执行文件被更新后得知新版本需要重启才生效、重启会结束会话，以便自己选择合适的时机重启。
   验收要点：
-  - 运行中的服务端在状态被查询时（距上次至少 60 秒且文件标识变化）以 argv 运行自身路径的 `version --json` 得到已安装版本；
+  - 运行中的服务端在状态被查询时（距上次至少 60 秒且文件标识变化）以 argv 运行自身路径的 `version --json` 得到已安装版本，读取失败时下次检查重试；
   - 不同于运行版本时 `webmux status` 增加提示行，`status --json` 与本机状态 API 含 `installedVersion`，`GET /api/config` 含 `pendingUpdate{installedVersion,launcher}`；
   - Web UI 主页顶部与设置页显示已安装版本、重启后生效、重启结束所有会话，并按启动方给出 `systemctl --user restart webmux`、`webmux service restart`、托盘菜单重启或重新运行；
   - 主页提示可按版本关闭（设备本地），设置页始终显示；

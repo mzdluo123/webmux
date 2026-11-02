@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,30 +85,67 @@ func (c Client) downloader() fetch.Downloader {
 	return d
 }
 
-// Latest reads the newest release's signed checksum list, trying GitHub
-// then each mirror. Each source must serve both files and a valid
-// signature; it returns the manifest and the host that served it.
+// Latest reads the newest release's signed checksum list. Each source must
+// serve both files and a valid signature. GitHub is authoritative and ends
+// the search; a mirror may serve a stale but validly signed list, so when
+// GitHub fails every mirror is read and the highest verified version wins,
+// the earlier mirror on a tie. It returns the manifest and the host that
+// served it. A context error is returned unwrapped.
 func (c Client) Latest(ctx context.Context) (Manifest, string, error) {
 	keys := c.Keys
 	if keys == nil {
 		keys = Keys()
 	}
 	d := c.downloader()
-	path := "/" + Repo + "/releases/latest/download/" + sumsName
-	var m Manifest
-	host, err := d.EachSource(ctx, path, func(source string) error {
-		sums, err := d.Get(ctx, source, manifestLimit)
-		if err != nil {
-			return fmt.Errorf("%s: %w", sumsName, err)
+	logger := d.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	var (
+		best     Manifest
+		bestHost string
+		found    bool
+		failures []string
+	)
+	for i, source := range d.Sources("/" + Repo + "/releases/latest/download/" + sumsName) {
+		if err := ctx.Err(); err != nil {
+			return Manifest{}, "", err
 		}
-		sig, err := d.Get(ctx, strings.TrimSuffix(source, sumsName)+sigName, manifestLimit)
-		if err != nil {
-			return fmt.Errorf("%s: %w", sigName, err)
+		host := fetch.SourceHost(source)
+		m, err := latestFrom(ctx, d, source, keys)
+		if err == nil {
+			if i == 0 {
+				return m, host, nil
+			}
+			if !found || Newer(m.Version, best.Version) {
+				best, bestHost, found = m, host, true
+			}
+			continue
 		}
-		m, err = VerifyManifest(sums, sig, keys)
-		return err
-	})
-	return m, host, err
+		if ctx.Err() != nil {
+			return Manifest{}, "", ctx.Err()
+		}
+		logger.Warn(d.Name+" download source failed", "source", host, "error", err)
+		failures = append(failures, host+": "+err.Error())
+	}
+	if !found {
+		return Manifest{}, "", &fetch.SourcesError{Failures: failures}
+	}
+	return best, bestHost, nil
+}
+
+// latestFrom reads and verifies the checksum list and its signature from
+// one source.
+func latestFrom(ctx context.Context, d fetch.Downloader, source string, keys []PublicKey) (Manifest, error) {
+	sums, err := d.Get(ctx, source, manifestLimit)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("%s: %w", sumsName, err)
+	}
+	sig, err := d.Get(ctx, strings.TrimSuffix(source, sumsName)+sigName, manifestLimit)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("%s: %w", sigName, err)
+	}
+	return VerifyManifest(sums, sig, keys)
 }
 
 // Fetch downloads asset from the release tag of m into target with mode,

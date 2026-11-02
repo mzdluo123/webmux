@@ -72,7 +72,11 @@
 
 ### Requirement: 尊重版本锁定
 
-`webmux` 软件包被管理员锁定版本时（dpkg 的 `apt-mark hold`，或 rpm 系统上 `dnf versionlock` 中的 `webmux` 条目），`webmux update apply` SHALL 在发起网络请求前跳过本次更新，记录“已被锁定版本”并以退出码 0 结束。锁定工具或插件不存在时 SHALL 视为未锁定。
+`webmux` 软件包被管理员锁定版本时（dpkg 的 `apt-mark hold`，或 rpm 系统上 dnf versionlock 锁文件中的 `webmux` 条目），`webmux update apply` SHALL 在发起网络请求前跳过本次更新，记录“已被锁定版本”并以退出码 0 结束。
+
+- dnf 的锁定 SHALL 直接读取锁文件（dnf4 插件的 `versionlock.list`，或 `versionlock.conf` 中 `locklist` 指定的文件；dnf5 的 `/etc/dnf/versionlock.toml`），SHALL NOT 依赖软件仓库是否可达。
+- 锁文件不存在 SHALL 视为该来源未锁定。
+- 无法确认锁定状态时（`dpkg-query` 出错、锁文件不可读或无法解析）SHALL 按已锁定处理：记录原因后跳过，以退出码 0 结束。
 
 #### Scenario: apt-mark hold
 
@@ -81,15 +85,21 @@
 
 #### Scenario: dnf versionlock
 
-- **WHEN** Fedora 上 `dnf versionlock list` 列出 `webmux`，更新服务触发
+- **WHEN** Fedora 上 dnf versionlock 锁文件列出 `webmux`，某个软件仓库此时不可达，更新服务触发
 - **THEN** 日志记录已被锁定版本，没有下载，安装包不变
+
+#### Scenario: 锁定状态无法确认
+
+- **WHEN** `/etc/dnf/plugins/versionlock.list` 存在但不可读，更新服务触发
+- **THEN** 日志记录无法确认锁定状态并按已锁定跳过，没有下载，退出码为 0
 
 ### Requirement: 通过包管理器安装
 
 校验通过的安装包 SHALL 以 argv 形式交给 `dpkg -i` 或 `rpm -U` 安装，SHALL NOT 经 shell。安装成功或失败后 SHALL 删除下载的安装包。
 
 - 并发：同一时刻 SHALL 只有一个 `update apply` 在运行，后来者 SHALL 立即退出并报告已有更新在进行。
-- 失败：包管理器失败（含数据库被占用）时 SHALL 记录其输出并以非零退出码结束；原有安装 SHALL 保持可用，下次触发时重试。
+- 失败：包管理器失败时 SHALL 记录其输出并以非零退出码结束；原有安装 SHALL 保持可用，下次触发时重试。dpkg 被占用时立即失败；`rpm -U` 会等待 rpm 数据库锁。
+- 中断：检查与下载 SHALL 在 30 分钟内结束，超时或收到停止信号时 SHALL NOT 开始安装。`dpkg` / `rpm` 一旦开始，停止信号、超时与 `systemctl stop` SHALL NOT 终止它；更新程序等待其结束后退出。
 
 #### Scenario: dpkg 被占用
 
@@ -100,6 +110,11 @@
 
 - **WHEN** 最新版本为 0.5.0，安装包校验通过且 dpkg 成功
 - **THEN** `/usr/bin/webmux version` 输出 `webmux 0.5.0`，缓存目录中不留下安装包
+
+#### Scenario: 安装期间停止服务
+
+- **WHEN** `dpkg -i` 正在安装时系统关机或管理员执行 `systemctl stop webmux-update.service`
+- **THEN** dpkg 运行到结束，软件包不处于半安装状态
 
 ### Requirement: 更新不改动用户服务
 

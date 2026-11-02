@@ -115,7 +115,7 @@ try {
   Check ((Run $tray @('quit')) -eq 0) 'quit exits 0 when the tray exits'
   Check ((TrayProcesses $tray).Count -eq 0) 'tray process gone after quit'
   $t = Measure-Command { $code = Run $tray @('quit') }
-  Check ($code -eq 0 -and $t.TotalSeconds -lt 5) 'quit without a tray exits 0 at once'
+  Check ($code -eq 3 -and $t.TotalSeconds -lt 5) 'quit without a tray exits 3 at once'
   Check ((Run $tray @('quit', '--bogus')) -eq 2) 'quit rejects unknown arguments'
 
   # quit and an unresponsive tray: only the --kill-path one is ended.

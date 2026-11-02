@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/rainchan/webmux/internal/fetch"
 )
@@ -31,29 +34,39 @@ type call struct {
 }
 
 // fakeSystem answers ownership queries for one package manager and records
-// installs; installErr fails the install; held is what `dpkg-query -W` or
-// `dnf versionlock list` prints.
+// installs; installErr fails the install; status is what `dpkg-query -W`
+// prints and statusErr fails it; onInstall runs inside the install with its
+// context.
 type fakeSystem struct {
 	owner      Method
 	installErr error
-	held       string
+	status     string
+	statusErr  error
+	onInstall  func(ctx context.Context)
 	calls      []call
 	installed  []byte // package bytes seen at install time
 }
 
-func (f *fakeSystem) run(_ context.Context, name string, args ...string) ([]byte, error) {
+func (f *fakeSystem) run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	f.calls = append(f.calls, call{name, args})
 	switch {
-	case name == "dpkg-query" && args[0] == "-W" && f.held != "":
-		return []byte(f.held), nil
-	case name == "dnf" && f.held != "":
-		return []byte(f.held), nil
+	case name == "dpkg-query" && args[0] == "-W":
+		if f.statusErr != nil {
+			return []byte("dpkg-query: error: parsing file '/var/lib/dpkg/status'"), f.statusErr
+		}
+		if f.status != "" {
+			return []byte(f.status), nil
+		}
+		return []byte("install ok installed"), nil
 	case name == "dpkg-query" && args[0] == "-S" && f.owner == MethodDeb:
 		return []byte("webmux:amd64: /usr/bin/webmux\n"), nil
 	case name == "rpm" && args[0] == "-qf" && f.owner == MethodRPM:
 		return []byte("webmux\n"), nil
 	case name == "dpkg" || (name == "rpm" && args[0] == "-U"):
 		f.installed, _ = os.ReadFile(args[len(args)-1])
+		if f.onInstall != nil {
+			f.onInstall(ctx)
+		}
 		if f.installErr != nil {
 			return []byte("dpkg: error: dpkg frontend lock is locked by another process"), f.installErr
 		}
@@ -87,6 +100,8 @@ func applyRelease(t *testing.T, latest string) (Client, *atomic.Int32) {
 	return Client{Downloader: fetch.Downloader{GitHubBase: srv.URL, Mirrors: []string{}}, Keys: []PublicKey{k.Public()}}, &hits
 }
 
+// applyOptions runs Apply in a temporary directory, which also holds the
+// dnf versionlock files (none exist until a test writes them).
 func applyOptions(t *testing.T, c Client, sys *fakeSystem, current, arch string) (ApplyOptions, *bytes.Buffer) {
 	dir := t.TempDir()
 	var out bytes.Buffer
@@ -94,6 +109,11 @@ func applyOptions(t *testing.T, c Client, sys *fakeSystem, current, arch string)
 		Current: current, Exe: "/usr/bin/webmux", GOARCH: arch,
 		LockPath: filepath.Join(dir, "lock"), CacheDir: filepath.Join(dir, "cache"),
 		Client: c, Run: sys.run, Out: &out,
+		Locks: LockFiles{
+			DNF4Conf: filepath.Join(dir, "versionlock.conf"),
+			DNF4List: filepath.Join(dir, "versionlock.list"),
+			DNF5:     filepath.Join(dir, "versionlock.toml"),
+		},
 	}, &out
 }
 
@@ -209,38 +229,151 @@ func TestApplyRequiresReleaseBuild(t *testing.T) {
 	}
 }
 
-func TestApplySkipsHeldPackage(t *testing.T) {
-	asRelease(t)
-	for _, tc := range []struct {
-		owner Method
-		arch  string
-		held  string
-	}{
-		{MethodDeb, "amd64", "hold ok installed"},
-		{MethodRPM, "arm64", "Last metadata expiration check: 0:01:02 ago.\nwebmux-0:0.4.0-1.*\n"},
-		{MethodRPM, "arm64", "# Added lock on ...\nPackage name: webmux\nevr = 0.4.0-1\n"},
-	} {
-		c, hits := applyRelease(t, "0.5.0")
-		sys := &fakeSystem{owner: tc.owner, held: tc.held}
-		o, out := applyOptions(t, c, sys, "0.4.0", tc.arch)
-		if err := Apply(context.Background(), o); err != nil {
-			t.Fatalf("%s held: %v", tc.owner, err)
+// writeLocks creates files in the versionlock directory of o: "/" makes a
+// directory, which cannot be read; "{dir}" in a content names that directory.
+func writeLocks(t *testing.T, o ApplyOptions, files map[string]string) {
+	t.Helper()
+	dir := filepath.Dir(o.Locks.DNF4Conf)
+	for name, content := range files {
+		path := filepath.Join(dir, name)
+		var err error
+		if content == "/" {
+			err = os.Mkdir(path, 0o700)
+		} else {
+			err = os.WriteFile(path, []byte(strings.ReplaceAll(content, "{dir}", dir)), 0o600)
 		}
-		if hits.Load() != 0 || !strings.Contains(out.String(), "已被锁定版本") {
-			t.Fatalf("%s held: %d requests, log %q", tc.owner, hits.Load(), out.String())
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
-	// Other packages' locks and an unheld dpkg status do not stop updates.
-	for _, held := range []string{"webmux-tray-0:1.0-1.*\n", "install ok installed"} {
-		owner := MethodRPM
-		if held == "install ok installed" {
-			owner = MethodDeb
+}
+
+func TestApplySkipsHeldPackage(t *testing.T) {
+	asRelease(t)
+	const dnf5 = "version = \"1.0\"\n\n[[packages]]\nname = \"%s\"\ncomment = \"dnf5 versionlock add\"\n[[packages.conditions]]\nkey = \"evr\"\ncomparator = \"=\"\nvalue = \"0.4.0-1\"\n"
+	for _, tc := range []struct {
+		name      string
+		owner     Method
+		status    string
+		statusErr error
+		files     map[string]string
+		want      string // log line; "" means the update installs
+	}{
+		{name: "apt-mark hold", owner: MethodDeb, status: "hold ok installed", want: "已被锁定版本"},
+		{name: "dpkg-query fails", owner: MethodDeb, statusErr: errors.New("exit status 2"), want: "无法确认"},
+		{name: "dpkg installed", owner: MethodDeb},
+		{name: "dnf4 lock", owner: MethodRPM, files: map[string]string{"versionlock.list": "# Added lock on Mon\nwebmux-0:0.4.0-1.*\n"}, want: "已被锁定版本"},
+		{name: "dnf4 bare name", owner: MethodRPM, files: map[string]string{"versionlock.list": "webmux\n"}, want: "已被锁定版本"},
+		{name: "dnf4 arch", owner: MethodRPM, files: map[string]string{"versionlock.list": "webmux.aarch64\n"}, want: "已被锁定版本"},
+		{name: "dnf4 exclude", owner: MethodRPM, files: map[string]string{"versionlock.list": "!webmux-0:0.5.0-1.*\n"}, want: "已被锁定版本"},
+		{name: "dnf4 conf locklist", owner: MethodRPM, files: map[string]string{
+			"versionlock.conf": "[main]\nenabled = 1\nlocklist = {dir}/custom.list\n",
+			"custom.list":      "webmux-0.4.0-1.aarch64\n",
+		}, want: "已被锁定版本"},
+		{name: "dnf4 conf names another list", owner: MethodRPM, files: map[string]string{
+			"versionlock.conf": "[main]\nlocklist = {dir}/custom.list\n",
+			"versionlock.list": "webmux\n",
+		}},
+		{name: "dnf4 other packages", owner: MethodRPM, files: map[string]string{"versionlock.list": "webmux-tray-0:1.0-1.*\nwebmuxd\n#webmux\n"}},
+		{name: "dnf5 lock", owner: MethodRPM, files: map[string]string{"versionlock.toml": fmt.Sprintf(dnf5, "webmux")}, want: "已被锁定版本"},
+		{name: "dnf5 other package", owner: MethodRPM, files: map[string]string{"versionlock.toml": fmt.Sprintf(dnf5, "webmux-tray")}},
+		{name: "dnf5 unparsable", owner: MethodRPM, files: map[string]string{"versionlock.toml": "[[packages]\n"}, want: "无法确认"},
+		{name: "dnf4 list unreadable", owner: MethodRPM, files: map[string]string{"versionlock.list": "/"}, want: "无法确认"},
+		{name: "dnf4 conf unreadable", owner: MethodRPM, files: map[string]string{"versionlock.conf": "/"}, want: "无法确认"},
+		{name: "no lock files", owner: MethodRPM},
+	} {
+		c, hits := applyRelease(t, "0.5.0")
+		sys := &fakeSystem{owner: tc.owner, status: tc.status, statusErr: tc.statusErr}
+		o, out := applyOptions(t, c, sys, "0.4.0", map[Method]string{MethodDeb: "amd64", MethodRPM: "arm64"}[tc.owner])
+		writeLocks(t, o, tc.files)
+		if err := Apply(context.Background(), o); err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
 		}
-		c, _ := applyRelease(t, "0.5.0")
-		sys := &fakeSystem{owner: owner, held: held}
-		o, out := applyOptions(t, c, sys, "0.4.0", map[Method]string{MethodDeb: "amd64", MethodRPM: "arm64"}[owner])
-		if err := Apply(context.Background(), o); err != nil || !strings.Contains(out.String(), "已安装 0.5.0") {
-			t.Fatalf("not held (%q): %v, log %q", held, err, out.String())
+		if tc.want == "" {
+			if !strings.Contains(out.String(), "已安装 0.5.0") {
+				t.Fatalf("%s: not installed, log %q", tc.name, out.String())
+			}
+			continue
 		}
+		if hits.Load() != 0 || sys.installed != nil || !strings.Contains(out.String(), tc.want) {
+			t.Fatalf("%s: %d requests, log %q", tc.name, hits.Load(), out.String())
+		}
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// closeHook runs fn when the response body is closed.
+type closeHook struct {
+	io.ReadCloser
+	fn func()
+}
+
+func (c closeHook) Close() error {
+	err := c.ReadCloser.Close()
+	c.fn()
+	return err
+}
+
+func TestApplyInstallOutlivesCancel(t *testing.T) {
+	asRelease(t)
+	c, _ := applyRelease(t, "0.5.0")
+	var requests, unbounded atomic.Int32
+	c.Downloader.Client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		requests.Add(1)
+		if d, ok := r.Context().Deadline(); !ok || time.Until(d) > DownloadTimeout {
+			unbounded.Add(1)
+		}
+		return http.DefaultTransport.RoundTrip(r)
+	})}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var installErr error
+	installDeadline := false
+	sys := &fakeSystem{owner: MethodDeb, onInstall: func(ictx context.Context) {
+		cancel() // systemd stops the unit while dpkg runs
+		installErr = ictx.Err()
+		_, installDeadline = ictx.Deadline()
+	}}
+	o, out := applyOptions(t, c, sys, "0.4.0", "amd64")
+	if err := Apply(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+	if requests.Load() == 0 || unbounded.Load() != 0 {
+		t.Fatalf("%d of %d requests lacked the download deadline", unbounded.Load(), requests.Load())
+	}
+	if installErr != nil || installDeadline {
+		t.Fatalf("install context: err %v, deadline %v", installErr, installDeadline)
+	}
+	if !strings.Contains(out.String(), "已安装 0.5.0") {
+		t.Fatalf("log %q", out.String())
+	}
+}
+
+func TestApplyCancelledAfterDownloadDoesNotInstall(t *testing.T) {
+	asRelease(t)
+	c, _ := applyRelease(t, "0.5.0")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c.Downloader.Client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		resp, err := http.DefaultTransport.RoundTrip(r)
+		if err == nil && strings.HasSuffix(r.URL.Path, ".deb") {
+			resp.Body = closeHook{resp.Body, cancel}
+		}
+		return resp, err
+	})}
+	sys := &fakeSystem{owner: MethodDeb}
+	o, _ := applyOptions(t, c, sys, "0.4.0", "amd64")
+	err := Apply(ctx, o)
+	if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "未安装") {
+		t.Fatalf("cancelled apply: %v", err)
+	}
+	if sys.installed != nil {
+		t.Fatal("installed after cancel")
+	}
+	if entries, _ := os.ReadDir(o.CacheDir); len(entries) != 0 {
+		t.Fatalf("left %v in cache", entries)
 	}
 }

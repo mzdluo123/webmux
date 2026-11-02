@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rainchan/webmux/internal/contract"
 )
@@ -99,13 +100,61 @@ func TestRecordVersion(t *testing.T) {
 	} {
 		s := DefaultSettings()
 		s.LastVersion = tc.last
-		next, updated, changed := RecordVersion(s, tc.version)
-		if updated != tc.updated || changed != tc.changed {
-			t.Errorf("%s: updated %q changed %v", tc.name, updated, changed)
+		next, updated, failed, changed := RecordVersion(s, tc.version)
+		if updated != tc.updated || changed != tc.changed || !failed.IsZero() {
+			t.Errorf("%s: updated %q failed %+v changed %v", tc.name, updated, failed, changed)
 		}
 		if want := map[bool]string{true: tc.version, false: tc.last}[changed]; next.LastVersion != want {
 			t.Errorf("%s: lastVersion %q", tc.name, next.LastVersion)
 		}
+	}
+}
+
+// A recorded attempt at a newer release means its install failed and stays
+// recorded; once that release or a later one runs the attempt is cleared.
+func TestRecordVersionUpdateAttempt(t *testing.T) {
+	at := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name, last, attempt, version string
+		failed, changed              bool
+	}{
+		{"install failed", "0.4.0", "0.5.0", "0.4.0", true, false},
+		{"installed", "0.4.0", "0.5.0", "0.5.0", false, true},
+		{"installed a later release", "0.4.0", "0.5.0", "0.6.0", false, true},
+		{"failed after an earlier update", "0.3.0", "0.5.0", "0.4.0", true, true},
+		{"development build", "0.4.0", "0.5.0", "dev", false, false},
+	} {
+		s := DefaultSettings()
+		s.LastVersion = tc.last
+		s.UpdateAttempt = UpdateAttempt{Version: tc.attempt, At: at}
+		next, _, failed, changed := RecordVersion(s, tc.version)
+		if changed != tc.changed || (failed == s.UpdateAttempt) != tc.failed || (!tc.failed && !failed.IsZero()) {
+			t.Errorf("%s: failed %+v changed %v", tc.name, failed, changed)
+		}
+		if keep := tc.failed || tc.version == "dev"; (next.UpdateAttempt == s.UpdateAttempt) != keep || (!keep && !next.UpdateAttempt.IsZero()) {
+			t.Errorf("%s: attempt %+v", tc.name, next.UpdateAttempt)
+		}
+	}
+}
+
+// The attempt survives a save, and a file without one does not mention it,
+// so trays that predate the field still read it.
+func TestSettingsUpdateAttempt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tray.json")
+	s := DefaultSettings()
+	if err := SaveSettings(path, s); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(path); strings.Contains(string(data), "updateAttempt") {
+		t.Fatalf("empty attempt written: %s", data)
+	}
+	s.UpdateAttempt = UpdateAttempt{Version: "0.5.0", At: time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)}
+	if err := SaveSettings(path, s); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadSettings(path)
+	if err != nil || got.UpdateAttempt.Version != "0.5.0" || !got.UpdateAttempt.At.Equal(s.UpdateAttempt.At) {
+		t.Fatalf("round trip %+v %v", got.UpdateAttempt, err)
 	}
 }
 
