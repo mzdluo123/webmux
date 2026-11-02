@@ -26,5 +26,5 @@ Linux 用户目前只能用 `install.sh` 或手动下载二进制安装，无法
 
 - 新文件：`deploy/linux/nfpm.yaml`、`deploy/linux/webmux.service`、`.github/scripts/test-linux-packages.sh`。
 - 代码：`internal/service/service.go`（`Control` 识别包内单元）及测试。
-- 构建：`Makefile` 新增 `linux-packages` 目标并扩展 `RELEASE_FILES`；`release.yml` 上传安装包；`test.yml` 新增安装包作业。nfpm 以 `go run …@v2.48.0` 调用，不进入 `go.mod`。
+- 构建：`Makefile` 新增 `linux-packages` 目标并扩展 `RELEASE_FILES`；`release.yml` 上传安装包；`test.yml` 新增安装包作业。nfpm 以 `go run …@v2.46.3` 调用，不进入 `go.mod`。
 - 文档与用户故事：`docs/deployment.md`、README；新增 US-K13。
