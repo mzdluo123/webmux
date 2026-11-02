@@ -18,7 +18,10 @@
 
 ### D1：nfpm 打包
 
-`deploy/linux/nfpm.yaml` 用环境变量 `VERSION`、`ARCH` 展开；nfpm 把 `amd64`/`arm64` 映射成 deb 与 rpm 各自的架构名。以 `go run github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.46.3` 固定版本调用，不写入 `go.mod`，也不新增 CI 安装步骤。v2.47 起要求 Go 1.26.4，而 CI 按 `go.mod` 使用 Go 1.26.0 且 `GOTOOLCHAIN=local`，因此固定在 v2.46.3（要求 Go 1.25）。
+`deploy/linux/nfpm.yaml` 用环境变量 `VERSION`、`ARCH` 展开；nfpm 把 `amd64`/`arm64` 映射成 deb 与 rpm 各自的架构名。
+
+- 以 `go run github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.46.3` 固定版本调用，不写入 `go.mod`，也不新增 CI 安装步骤。
+- 版本选 v2.46.3（要求 Go 1.25）：v2.47 起要求 Go 1.26.4，而 CI 按 `go.mod` 使用 Go 1.26.0 且 `GOTOOLCHAIN=local`。
 
 备选：`dpkg-deb` 与 `rpmbuild` 各写一份元数据——两套格式各自维护，且 ubuntu runner 需额外安装 rpm 工具。
 
