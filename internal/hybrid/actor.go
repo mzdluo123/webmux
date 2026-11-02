@@ -5,7 +5,6 @@ import (
 
 	"errors"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -399,12 +398,12 @@ func (a *actor) emit(events ...Event) {
 	a.log.append(time.Now().UTC(), events...)
 }
 
-// saveShellTitle records the shell's displayed title unless it is the
+// saveShellTitle records the shell's displayed title unless it is still the
 // cwd-derived placeholder a fresh or switched terminal shows before it
 // reports an OSC title: that would overwrite the recorded title on every
 // terminal resume or switch.
 func (a *actor) saveShellTitle(info session.Info) {
-	if info.Title == "" || info.Title == filepath.Base(info.Cwd) {
+	if info.PlaceholderTitle {
 		return
 	}
 	a.saveTitle(info.Title)
