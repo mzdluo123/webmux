@@ -15,29 +15,59 @@
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%28WSL%29-lightgrey)
 [![License](https://img.shields.io/github/license/mzdluo123/webmux)](LICENSE)
 
-[界面一览](#界面一览) · [功能](#功能) · [快速开始](#快速开始) · [文档](#文档) · [获取帮助](#获取帮助) · [参与贡献](CONTRIBUTING.md)
+[三步看懂](#三步看懂) · [界面一览](#界面一览) · [功能](#功能) · [快速开始](#快速开始) · [文档](#文档) · [获取帮助](#获取帮助) · [参与贡献](CONTRIBUTING.md)
 
 </div>
 
 ---
 
-WebMux 是一个单二进制的 Web 终端服务。终端会话由服务端持有，浏览器只是“附着”上去：手机锁屏、切换网络、关闭标签页都不会结束正在运行的 agent，重新打开就能看到断线期间的全部输出。
-
-在电脑上让 agent 开工，出门后用手机查看进度、回答它的提问、审阅它改的代码，回来再在原来的终端里接着用 —— 全程是同一个进程。
-
 <div align="center">
 
-<img src="docs/images/desktop-omp.png" alt="在 WebMux 中运行 omp：会话持续运行，工具调用与回答完整渲染" width="900">
+<img src="docs/images/hero.jpg" alt="同一个 omp 会话：电脑浏览器里是原生 TUI，手机上切到聊天视图继续对话" width="900">
+
+### 让 agent 在服务器上一直跑，你在任何设备上随时接管。
 
 </div>
 
-## 为什么选择 WebMux
+你在电脑前让 Claude Code 重构一个模块，然后得出门。合上笔记本，agent 还在干活；地铁上手机亮起，它停下来问你一个问题，回一句话它就继续；到了公司打开浏览器，改动的 Diff 已经摆在终端旁边，审完在同一个终端里接着干。**这一路是同一个进程，一行输出都不会丢。**
 
-- **断线不断会话**：会话在服务端持续运行，重连只补发缺失的输出。
-- **原样运行你的 agent**：Claude Code、Codex、omp 等跑在真实 PTY 里，无需插件或改配置，TUI 与原生终端一致。
-- **手机上真正好用**：软键栏、触摸滚动、双指缩放、聊天视图与推送提醒，专为小屏遥控设计。
-- **轻量、低侵入**：一个约 15 MB 的静态二进制，以当前用户运行，不需要 root、tmux 或数据库。
-- **Windows 一等支持**：服务跑在 WSL 2 中，托盘负责安装、启动与远程访问。
+WebMux 就是为这件事做的：一个约 15 MB 的单二进制，把终端会话放在服务端，浏览器、手机和本机终端都只是“附着”上去。
+
+### 三步看懂
+
+<table>
+  <tr>
+    <th width="34%">① 电脑上开工</th>
+    <th width="32%">② 手机上接管</th>
+    <th width="34%">③ 回到电脑审阅</th>
+  </tr>
+  <tr>
+    <td><img src="docs/images/desktop-overview.png" alt="会话总览：多个 agent 会话按仓库分组，显示运行状态与屏幕预览"></td>
+    <td><img src="docs/images/mobile-overview.png" alt="手机上的会话总览" width="48%">
+      <img src="docs/images/mobile-omp.png" alt="手机上遥控 omp，底部是软键栏" width="48%"></td>
+    <td><img src="docs/images/desktop-diff.png" alt="代码工作区：在终端旁查看 agent 改动的 Git Diff"></td>
+  </tr>
+  <tr>
+    <td><sub>同时跑多个 agent，总览里一眼看出谁在干活、谁在<b>等你</b>。</sub></td>
+    <td><sub>锁屏推送叫你回来；软键栏、触摸滚动，TUI 照样好用。</sub></td>
+    <td><sub>终端旁直接看 Diff，一键把 <code>路径:行号</code> 发给 agent。</sub></td>
+  </tr>
+</table>
+
+### 为什么会爱上它
+
+<table>
+  <tr>
+    <td width="33%">🔌 <b>断线不断会话</b><br><sub>锁屏、换网、关标签页都不影响；重连只补发缺失的输出。</sub></td>
+    <td width="33%">🤖 <b>原样运行你的 agent</b><br><sub>Claude Code、Codex、Gemini 等九款 CLI 预置即用，跑在真实 PTY 里。</sub></td>
+    <td width="33%">💬 <b>TUI ↔ 聊天一键切换</b><br><sub>同一段对话，电脑上用 TUI，手机上用聊天视图，历史完整保留。</sub></td>
+  </tr>
+  <tr>
+    <td>🔔 <b>它在等你时会告诉你</b><br><sub>识别 agent 的提问与授权请求：总览标记、标签页提示、锁屏推送。</sub></td>
+    <td>🧑‍💻 <b>写代码的工作台</b><br><sub>分屏、草稿模式、代码与 Diff 浏览、Git worktree、终端里显示图片。</sub></td>
+    <td>🪶 <b>轻到可以忘了它</b><br><sub>单二进制、空闲约 13 MB 内存，无需 root、tmux 或数据库；Windows 经 WSL 2 一等支持。</sub></td>
+  </tr>
+</table>
 
 完整的设计理念与特性清单见 [项目介绍](docs/overview.md)。
 
@@ -45,21 +75,13 @@ WebMux 是一个单二进制的 Web 终端服务。终端会话由服务端持�
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/desktop-overview.png" alt="会话总览：按仓库分组，显示状态与屏幕预览"><br><sub><b>会话总览</b>：按仓库分组，实时状态与屏幕预览</sub></td>
-    <td width="50%"><img src="docs/images/desktop-diff.png" alt="代码工作区：在终端旁查看 Git Diff"><br><sub><b>代码工作区</b>：终端旁查看 Diff，一键引用 <code>路径:行号</code></sub></td>
+    <td width="50%" colspan="3"><img src="docs/images/desktop-chat.png" alt="混合会话：同一段对话切换到聊天视图"><br><sub><b>混合会话</b>：同一段对话在 TUI 与聊天视图间切换</sub></td>
+    <td width="50%" colspan="3"><img src="docs/images/desktop-terminal.png" alt="桌面端 Shell 终端"><br><sub><b>终端</b>：原生 PTY，字节流直通 xterm.js</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/desktop-chat.png" alt="混合会话：同一段对话切换到聊天视图"><br><sub><b>混合会话</b>：同一段对话在 TUI 与聊天视图间切换</sub></td>
-    <td width="50%"><img src="docs/images/desktop-terminal.png" alt="桌面端 Shell 终端"><br><sub><b>终端</b>：原生 PTY，字节流直通 xterm.js</sub></td>
-  </tr>
-</table>
-
-<table>
-  <tr>
-    <td width="25%"><img src="docs/images/mobile-overview.png" alt="移动端会话总览"><br><sub><b>手机总览</b></sub></td>
-    <td width="25%"><img src="docs/images/mobile-terminal.png" alt="移动端终端与软键栏"><br><sub><b>终端 + 软键栏</b></sub></td>
-    <td width="25%"><img src="docs/images/mobile-chat.png" alt="移动端混合会话聊天视图"><br><sub><b>聊天视图</b></sub></td>
-    <td width="25%"><img src="docs/images/mobile-diff.png" alt="移动端 Diff 查看"><br><sub><b>Diff 审阅</b></sub></td>
+    <td width="33%" colspan="2"><img src="docs/images/mobile-terminal.png" alt="移动端终端与软键栏"><br><sub><b>终端 + 软键栏</b></sub></td>
+    <td width="33%" colspan="2"><img src="docs/images/mobile-chat.png" alt="移动端混合会话聊天视图"><br><sub><b>聊天视图</b></sub></td>
+    <td width="33%" colspan="2"><img src="docs/images/mobile-diff.png" alt="移动端 Diff 查看"><br><sub><b>Diff 审阅</b></sub></td>
   </tr>
 </table>
 
@@ -129,23 +151,16 @@ webmux --listen 127.0.0.1:7681
 
 ## 文档
 
-| 我想……               | 去看                                                                                          |
-| -------------------- | --------------------------------------------------------------------------------------------- |
-| 了解项目能做什么     | [项目介绍](docs/overview.md)、[User Stories](docs/user-stories.md)                            |
-| 安装、配置、远程访问 | [部署指南](docs/deployment.md)、[配置](docs/deployment/configuration.md)                      |
-| 学会日常操作         | [使用指南](docs/usage.md)、[混合会话](docs/hybrid-sessions.md)                                |
-| 开发、了解架构与协议 | [参与贡献](CONTRIBUTING.md)、[架构设计](docs/architecture.md)、[API 与协议](docs/protocol.md) |
-| 浏览全部文档         | [文档中心](docs/README.md)                                                                    |
+- **了解项目**：[项目介绍](docs/overview.md)、[User Stories](docs/user-stories.md)；**安装与访问**：[部署指南](docs/deployment.md)、[配置](docs/deployment/configuration.md)。
+- **日常使用**：[使用指南](docs/usage.md)、[混合会话](docs/hybrid-sessions.md)；**开发**：[架构设计](docs/architecture.md)、[API 与协议](docs/protocol.md)。
+- **全部文档**：[文档中心](docs/README.md)。
 
 ## 获取帮助
 
 - **先查** [常见问题与排障入口](docs/faq.md)：会话为何在重启后消失、找不到 `claude` 命令、复制粘贴受限等。
 - **提问或报告问题**：[GitHub Issues](https://github.com/mzdluo123/webmux/issues)，请附上 `webmux version` 与复现步骤。
 - **安全漏洞**：不要公开提交，按 [安全策略](SECURITY.md#报告漏洞) 私下报告。
-
-## 参与贡献
-
-欢迎提交 issue 与 PR。开发环境、测试与代码规范见 [参与贡献](CONTRIBUTING.md)；由 agent 协作开发时，规则入口是 [AGENTS.md](AGENTS.md)。
+- **参与贡献**：欢迎 issue 与 PR，开发环境、测试与规范见 [参与贡献](CONTRIBUTING.md)；agent 协作的规则入口是 [AGENTS.md](AGENTS.md)。
 
 ## 许可证
 

@@ -104,7 +104,7 @@ OpenCode、omp、Codex CLI 与 Claude Code 的同一段对话可以在原生 TUI
 
 ## 截图
 
-首页截图由 `pnpm --dir web screenshots` 基于真实后端自动生成（桌面 1440×900，移动端 Pixel 7 模拟），重新生成方法见 [参与贡献](../CONTRIBUTING.md#更新-readme-截图)。其余功能截图来自各 PR 的界面证据，位于 `docs/images/<主题>/`。
+首页截图由 `pnpm --dir web screenshots` 基于真实后端自动生成（桌面 1440×900，移动端 Pixel 7 模拟），顶部合成主图由 `pnpm --dir web screenshots:hero` 从其中两张合成，重新生成方法见 [参与贡献](../CONTRIBUTING.md#更新-readme-截图)。其余功能截图来自各 PR 的界面证据，位于 `docs/images/<主题>/`。
 
 <table>
   <tr>

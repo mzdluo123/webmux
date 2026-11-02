@@ -60,6 +60,8 @@ pnpm --dir web dev    # http://127.0.0.1:5173
 
 `make build && pnpm --dir web screenshots` 会启动临时后端和演示仓库，用 Playwright 重新生成 `docs/images/` 下的截图。README 与 [项目介绍](docs/overview.md) 引用这些截图；README 还展示 `docs/images/<主题>/` 下的部分功能截图，替换时保持图片存在，`make docs-check` 会校验 README 的图片与链接。脚本会运行本机真实的 `omp` 并发送一次只读提问，因此需要本机已安装并登录 `omp`。
 
+README 顶部的合成主图 `docs/images/hero.jpg`（浏览器窗口 + 手机外框）由 `pnpm --dir web screenshots:hero` 从上述 `desktop-omp.png` 与 `mobile-chat.png` 合成，不需要后端或 agent；重新生成截图后请一并运行。使用预装 Chromium 时设置 `PLAYWRIGHT_CHROMIUM_EXECUTABLE`。
+
 ## 常用命令
 
 | 命令                        | 说明                                                                              |

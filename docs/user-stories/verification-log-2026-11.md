@@ -105,3 +105,8 @@
 - 新增：`docs/README.md`（文档中心）与 `docs/specs.md`（64 个 capability 的规格索引），原先不可达的 `docs/performance.md`、`docs/page-performance.md`、`docs/binary-size.md` 与全部主规格由此可达。
 - 修正：`docs/persistence.md` 指向已归档变更的失效链接；`docs/cli-agents.md` 与 `docs/usage.md` 中“只有 OpenCode / omp 默认混合”的过时描述，按 `internal/launch/presets.go` 改为 Claude Code、Codex CLI、OpenCode 与 omp。
 - 验证：已运行 `make docs-check`（含新增的 `TestDocsNavigation`、`TestNavigationRules`、`TestSlug`）与 Oxfmt 检查；未重新核对其余故事。
+
+本次局部核对（2026-11-02）：README 首屏改版，对应 US-L03（新增 `screenshots:hero` 合成主图）与 US-L12（README 预算不变）。
+
+- 首屏改为合成主图、一句话主张、使用场景叙述、“三步看懂”截图流程与六项亮点；README 仍为 170 行以内。
+- 验证：以预装 Chromium 运行 `pnpm --dir web screenshots:hero` 生成 `docs/images/hero.jpg`，并用本地 Markdown 渲染截图目视检查首屏；已运行 `make docs-check` 与 Oxfmt 检查。未在 GitHub 页面上实际渲染。
