@@ -23,7 +23,7 @@
 
 以下参数 SHALL 使配置不可用于混合模式：
 
-- 让 TUI 与 ACP 看到不同会话库或不保存会话的参数，原因为“该参数使聊天视图无法找到会话”：omp 的 `--session-dir`/`--no-session`、OpenCode 的 `--server`、Codex 的 `--remote`/`--remote-auth-token-env`，以及 Claude Code 的 `--no-session-persistence`。
+- 让 TUI 与 ACP 看到不同会话库或不保存会话的参数，原因为“该参数使聊天视图无法找到会话”：omp 的 `--session-dir`/`--no-session`、OpenCode 的 `--server`、Codex 的 `--remote`/`--remote-auth-token-env`，以及 Claude Code 的 `--no-session-persistence`、`--environment`。
 - 在命令中指定或创建工作目录的参数，原因为“请在新建会话时选择目录，不要在命令中写目录”：OpenCode 的位置参数、omp 的 `--cwd`、Codex 的 `-C`/`--cd`/`--worktree`，以及 Claude Code 的 `-w`/`--worktree`/`--tmux`。
 - 打开、复制或指定已有会话的参数或子命令，原因为“该参数指定了 agent 会话，混合配置请不要指定会话”（原因码 `session_arg`）：Codex 的 `resume`/`fork`，以及 Claude Code 的 `-c`/`--continue`、`-r`/`--resume`、`--fork-session`、`--session-id`、`--from-pr`、`--teleport`、`--cloud` 与 `attach`。
 
@@ -46,7 +46,7 @@ omp 的 `--profile` SHALL NOT 视为不可用：它同时透传给 ACP 进程，
 - omp 的 `-p`/`--print`、`--mode`、`--export`、`--alias`、`-h`/`--help`、`-v`/`--version`，以及首个位置参数为 omp 子命令的写法；
 - OpenCode 的 `-h`/`--help`、`-v`/`--version`、`--completions`、`--wizard`；
 - Codex 的 `-h`/`--help`、`-V`/`--version`，以及档案声明的非交互子命令；
-- Claude Code 的 `-p`/`--print`、`--output-format`、`--input-format`、`--json-schema`、`--max-budget-usd`、`--bg`/`--background`、`--desktop`、`--bare`、`-h`/`--help`、`-v`/`--version`；
+- Claude Code 的 `-p`/`--print`、`--output-format`、`--input-format`、`--json-schema`、`--max-budget-usd`、`--bg`/`--background`、`--desktop`、`-h`/`--help`、`-v`/`--version`；
 - Claude Code 的 `auth`、`agents`、`gateway`、`import`、`install`、`logs`、`mcp`、`doctor`、`setup-token` 子命令；
 - Claude Code 的 `stop`/`kill`、`rm`、`ultrareview`、`update`/`upgrade`、`completion`、`help` 子命令。
 
@@ -65,12 +65,15 @@ omp 的 `--profile` SHALL NOT 视为不可用：它同时透传给 ACP 进程，
 切换或恢复到 TUI 时，系统 SHALL 按以下方式生成恢复命令：
 
 - 由可执行文件、档案要求注入的 TUI 参数、原 argv 中位于档案白名单内的参数、档案的恢复参数与 agent 会话 ID 组成，并套用与原命令相同的写法。恢复参数：OpenCode 为 `-s <id>`，omp 为 `--resume <id>`，Codex 为子命令 `resume <id>`（全局参数位于子命令之前），Claude Code 为全局参数 `--resume <id>`。
-- 白名单参数 SHALL 同时识别 `--flag value` 与 `--flag=value` 两种形式，并按档案声明的参数个数解析。
+- 白名单参数 SHALL 同时识别 `--flag value` 与 `--flag=value` 两种形式，并按档案声明的参数个数解析：
+  - 可变参数个数选项包括 `--add-dir`、`--mcp-config`、`--allowedTools`/`--allowed-tools`、`--disallowedTools`/`--disallowed-tools`、`--tools` 与 `--betas`。
+  - 这些选项 SHALL 消费至下一选项，SHALL NOT 只保留第一个值或把其余值误判为位置提示词。
 - Claude Code 的白名单 SHALL 包括以下参数：
   - 模型与权限：`--model`、`--effort`、`--fallback-model`、`--permission-mode`、`--dangerously-skip-permissions`；
   - 目录与配置：`--add-dir`、`--settings`、`--setting-sources`；
   - 系统提示与 MCP：`--system-prompt`/`--system-prompt-file`、`--append-system-prompt`/`--append-system-prompt-file`、`--mcp-config`、`--strict-mcp-config`；
-  - agent、插件与工具：`--agents`、`--agent`、`--plugin-dir`、`--allowedTools`/`--allowed-tools`、`--disallowedTools`/`--disallowed-tools`、`--tools`、`--betas`。
+  - agent、插件与工具：`--agents`、`--agent`、`--plugin-dir`、`--allowedTools`/`--allowed-tools`、`--disallowedTools`/`--disallowed-tools`、`--tools`、`--betas`；
+  - 精简交互界面：`--bare`。该选项只减少 hooks、插件与其他功能，仍启动 TUI，SHALL NOT 归类为非交互参数。
 - 系统 SHALL 丢弃位置提示词、附图参数和白名单之外的参数；被丢弃的参数 SHALL 在切换结果中列出，界面 SHALL 提示“以下参数在恢复时未保留”。
 
 #### Scenario: Claude Code 恢复命令
@@ -145,13 +148,15 @@ Claude Code 档案 SHALL 从保留的 argv 推导首次聊天端配置：
 |---|---|
 | `--model <m>` | `model = <m>` |
 | `--effort <e>` | `effort = <e>` |
-| `--permission-mode default`/`manual` | `mode = default` |
+| `--permission-mode manual` | `mode = default` |
 | `--permission-mode acceptEdits`/`plan`/`auto`/`bypassPermissions` | `mode` 为同名值 |
 | `--dangerously-skip-permissions` | `mode = bypassPermissions`，优先于其他权限参数 |
 
-`--permission-mode dontAsk` 与未知取值 SHALL NOT 静默映射为其他模式，SHALL 在聊天端列为不生效参数。
+Claude Code 2.1.316 的 `--permission-mode` 只接受 `acceptEdits`、`auto`、`bypassPermissions`、`manual`、`dontAsk` 与 `plan`。
 
-每次 `session/load` 后，系统 SHALL 以适配器发布的实际配置为准；对实测未恢复的 `model`、`effort` 或 `mode`，档案 SHALL 重新应用记录值。
+`--permission-mode default`、`dontAsk` 与未知取值 SHALL NOT 静默映射为其他模式，SHALL 在聊天端列为不生效参数。`default` 不是 CLI 接受的取值，只有 ACP 配置项使用它表示 Manual。
+
+每次冷 `session/load` 或 `session/resume` 后，系统 SHALL 以适配器发布的实际配置为准。本次实测基线下，`model` 与 `effort` 均回到环境或设置默认值，档案 SHALL 在两种恢复方法后重新应用记录值；`mode` 会从 transcript 恢复，SHALL NOT 用过期 argv 覆盖适配器实际模式。
 
 适配器因运行条件不支持而把 `auto` 或 `bypassPermissions` 回退时，界面 SHALL 显示实际生效模式与适配器通知，SHALL NOT 继续显示请求值已生效。
 
@@ -165,11 +170,27 @@ Claude Code 档案 SHALL 从保留的 argv 推导首次聊天端配置：
 - **WHEN** argv 请求 `--permission-mode auto`，当前模型不支持 Auto
 - **THEN** 界面显示适配器实际回退的 `acceptEdits` 与相应通知，而不是仍显示 `auto`
 
+#### Scenario: 当前 provider 接受 Auto 与 Bypass
+
+- **WHEN** 本次实测的第三方 provider 会话依次请求 `mode=auto` 与 `mode=bypassPermissions`
+- **THEN** 适配器分别发布实际值 `auto` 与 `bypassPermissions`，不产生 Auto 回退通知
+
+#### Scenario: 冷恢复后重应用模型与 Effort
+
+- **WHEN** 原会话请求 `model=sonnet`、`effort=high`、`mode=plan`，连接器冷启动后执行 `session/load` 或 `session/resume`
+- **THEN** 适配器先发布其恢复值，WebMux 重应用 `model=sonnet` 与 `effort=high`，并保留适配器恢复的 `mode=plan`
+
 ### Requirement: Claude Code 的聊天端命令与回合能力
 
-Claude Code 档案 SHALL 声明 `session/resume` 可用于重连与休眠唤醒，SHALL 使用 `_session/steering` 和 `_meta.steering.idleBehavior=promptRequired` 处理插话竞态。图片与嵌入资源 SHALL 按握手中的 prompt 能力沿用现有附件管线，不支持的能力 SHALL 按现有规则降级，SHALL NOT 假定所有 MIME 类型均可发送。
+Claude Code 档案 SHALL 声明 `session/resume` 可用于重连与休眠唤醒，SHALL 使用 `_session/steering` 和 `_meta.steering.idleBehavior=promptRequired` 处理插话竞态。本次实测中，空闲 steering 返回 `{"outcome":"promptRequired","reason":"noRunningTurn"}`，不得启动新回合。
 
-聊天命令菜单 SHALL 隐藏 `login` 与 `logout`，避免在聊天端发起认证流程或注销服务用户的全局 Claude 登录。混合会话的每一次 TUI 启动 SHALL 使用一次 Esc 作为中断键；档案定义的启动静默期内 SHALL NOT 仅因启动状态信号而误判为进行中的回合。
+图片与嵌入资源 SHALL 按握手中的 prompt 能力沿用现有附件管线。0.99.1 对二者均声明支持，并已在同一真实 prompt 中完成 `end_turn`。不支持的能力 SHALL 按现有规则降级，SHALL NOT 假定所有 MIME 类型均可发送。
+
+连接器 0.99.1 发布的命令菜单已经不包含 `login` 与 `logout`。档案 SHALL 继续声明隐藏这两项作为兼容保护，WebMux SHALL NOT 通过其他入口在聊天端发起认证流程或注销服务用户的全局 Claude 登录。
+
+Claude TUI 启动后查询 OSC 7501 能力，收到 WebMux 应答后发布 `state=idle:app=claude-code`。启动阶段不产生假 `working`，档案的 `StartupQuiet` SHALL 为 0；prompt 使用 `working → done`，退出使用 `clear`。
+
+每一次 TUI 启动 SHALL 使用一次 Esc 作为中断键。本次实测一次 Esc 使进行中的回合 `working → idle`，进程继续运行。
 
 #### Scenario: 空闲时插话
 
@@ -180,3 +201,19 @@ Claude Code 档案 SHALL 声明 `session/resume` 可用于重连与休眠唤醒�
 
 - **WHEN** 用户在 Claude Code 混合会话的聊天视图中输入 `/`
 - **THEN** 命令菜单中没有 `/login` 或 `/logout`
+
+### Requirement: Claude Code 的取消与后台进程边界
+
+`session/cancel` SHALL 只视为当前 ACP 回合的中断，SHALL NOT 描述为整个进程树的清理。档案的强制切换说明 SHALL 明确：已经启动的后台 Bash 或子任务可能在 cancel 后继续运行；强制切换必须终止 ACP 连接器并等待其受管后代进程退出，不能仅等待 prompt 返回 `cancelled`。
+
+本次实测中，后台 `sleep` 在 cancel 返回后一秒仍存活；终止连接器后，受测 Claude、shell 与后台进程全部退出。实现 SHALL 保留进程组清理与测试，不得把这一结果推广为对任意自行 daemonize 进程的保证。
+
+#### Scenario: cancel 留下后台进程
+
+- **WHEN** Claude 在真实 ACP 回合中启动 `sleep 60`，客户端随后发送 `session/cancel`
+- **THEN** prompt 返回 `stopReason=cancelled`，后台进程可能仍存活，界面按档案说明提示
+
+#### Scenario: 强制切换清理受管进程
+
+- **WHEN** 用户确认强制切换，且后台任务仍属于 ACP 连接器的受管进程树
+- **THEN** 系统终止连接器并等待受管后代退出后才启动另一端，不把 cancel 当作清理完成

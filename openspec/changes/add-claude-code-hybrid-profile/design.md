@@ -7,9 +7,11 @@
 - #181 记录了 Claude Code 首期暂缓的原因，包括旧适配器认证失败；#208/#217 建立了第三方连接器模式，#222/#230 建立了 agent 适配器边界。
 - Claude Code 官方文档提供 Agent SDK 与 headless 接口，未提供原生 ACP server。当前连接器为 `@agentclientprotocol/claude-agent-acp`，旧 `@zed-industries/claude-code-acp` 已被 npm 标记 deprecated。
 - 本次核查的稳定版为 0.99.1，要求 Node 22+，可执行文件为 `claude-agent-acp`。它默认按客户端版本协商 ACP v1/v2；WebMux 继续请求 v1。v2 仍是 experimental/draft，不纳入本次实现。
-- 本机 Claude Code 为 2.1.316，CLI 未显示原生 ACP 参数，支持 `--resume`、model/effort/permission-mode 等参数。以上版本是实测基线，不是最低版本或未来兼容承诺。
+- 本机 Claude Code 为 2.1.316（原生 Linux binary），Node 为 26.13.0，连接器为 0.99.1；真实请求复用当前 API key/第三方 provider，实际模型为 k3.1-pro。CLI 未显示原生 ACP 参数，支持 `--resume`、model/effort/permission-mode 等参数。以上版本是实测基线，不是最低版本或未来兼容承诺。
 - 连接器的 v1 能力包括 list/load/resume、config options、权限、图片/嵌入资源和 steering。`session/load` 回放完整历史，`session/resume` 不回放；model/effort/mode 使用 `session/set_config_option`，不是假设独立的 `session/set_model`。
 - Claude CLI 的 `<CLAUDE_CONFIG_DIR>/sessions/<pid>.json` 注册记录包含 sessionId、PID、cwd、procStart、pidDomain 等字段。连接器用它补充列表活动状态；该格式未文档化，因此必须验证并保留降级路径。
+  - Linux 实测 procStart 是 `/proc/<pid>/stat` 第 22 字段的十进制 ticks 字符串，不是 `ps lstart`。
+  - pidDomain 是 `linux:<machine-id>:<pid-namespace>`，不是 boot ID。
 
 主要来源：
 
@@ -17,6 +19,23 @@
 - [Claude ACP 连接器](https://github.com/agentclientprotocol/claude-agent-acp)、[0.99.1 release](https://github.com/agentclientprotocol/claude-agent-acp/releases/tag/v0.99.1)
 - [ACP v1 session setup](https://agentclientprotocol.com/protocol/v1/session-setup.md)、[Claude CLI reference](https://code.claude.com/docs/en/cli-reference.md)、[Agent SDK sessions](https://code.claude.com/docs/en/agent-sdk/sessions.md)
 - [连接器 live registry](https://github.com/agentclientprotocol/claude-agent-acp/blob/v0.99.1/src/session-index/live-registry.ts)、[Agent SDK 使用条款提醒](https://code.claude.com/docs/en/agent-sdk/quickstart.md)
+
+## Measured Baseline
+
+2026-11-02 在本机完成真实探测。所有用例使用隔离的空工作目录，不连接已有开发者会话，不输出凭据或对话正文。探测父进程本身运行于 Claude Code 中，因此子进程移除 `CLAUDE_CODE_CHILD_SESSION` 等会话标记；继承该标记会让 TUI 明确关闭 transcript 保存，不能作为正常 WebMux 服务行为。
+
+- initialize 请求与响应均为 ACP v1，agentInfo 为连接器 0.99.1；声明 list/load/resume、image/embeddedContext、notices 与 steering 所需能力，真实 new/prompt 成功。
+- 原生 TUI 使用根 PID 注册；ACP 使用连接器的直接 Claude 子进程。记录 PID、cwd、procStart、pidDomain 均与上述 Linux 事实匹配。
+- 首条消息前注册记录已存在但 list 不含 ID；首条 prompt 后包含。`/new` 更新 UUID，新 ID 在首次 prompt 前仍不在 list 中，即使元数据 transcript 已非空。TUI `--resume` 保持 UUID，退出删除记录。
+- 两个原生 TUI 可同时以不同 PID 注册同一 UUID，外部占用检测不能省略。
+- TUI 在约 0.44 秒发出 OSC 7501 查询，应答后立即发布 idle/app；启动无假 working。prompt 为 working → done，一次 Esc 为 working → idle，退出为 clear。
+- 在当前 provider 上，set mode auto 与 bypassPermissions 均发布请求值，无 Auto 回退；其他模型的条件回退仍以适配器实际配置和通知为准。
+- 冷恢复配置实测：请求 sonnet/high/plan 并完成 prompt 后，冷 load 与冷 resume 都回到 opus/medium，但恢复 plan。因此 model 与 effort 必须在 load 和 resume 后重应用，mode 不应由过期 argv 覆盖。这里的 opus/medium 是当前环境默认值，不是所有部署的固定值。
+- load 在响应前回放 user/thought/agent 历史，resume 无历史 update；load/resume 响应都发布 configOptions。
+- 空闲 steering 返回 promptRequired/noRunningTurn；cancel 返回 cancelled。图片与嵌入资源在同一真实 prompt 中完成 end_turn。
+- default 模式的 Bash 写文件请求触发 permission，拒绝后文件未创建。连接器发布的 48 个命令中已无 login/logout。
+- 后台 sleep 在 cancel 后一秒仍运行；终止连接器后受测后代全部退出。force-switch 文案和进程组清理必须反映这一边界。
+- 未把 npm launcher、macOS、订阅登录或任意自行 daemonize 进程写成已实测结论；它们不阻碍按本机基线实现，后续平台测试不得冒称已覆盖。
 
 ## Goals / Non-Goals
 
@@ -70,11 +89,16 @@ TUI 与 ACP 使用同一服务用户、HOME、CLAUDE_CONFIG_DIR 和环境优先�
 - executable `claude`、OSC app `claude-code`、允许 npm `node` 启动器；
 - connector、`CLAUDE_CODE_EXECUTABLE`、resume `--resume <id>`、一次 Esc；
 - `session/resume`、带 `promptRequired` 的 steering、隐藏 login/logout；
-- 按实测设置 startup quiet 与 force-switch 说明，不预设需要 daemon/standalone 注入参数。
+- `StartupQuiet=0`，force-switch 说明明确 cancel 后后台任务可能存活，强制切换终止连接器并等待受管后代退出；不注入 daemon/standalone 参数。
 
 `session`、`acp`、通用 `hybrid` 和前端不得出现 Claude 名称。新包加入 `internal/archtest` 分层清单，并复用 `agenttest` 契约。
 
-参数表新增通用 `ArgSession` 分类，使选项形式的 `--resume`、`--continue`、`--session-id` 等也能复用现有 `session_arg`，而不伪装成非交互参数。工作树、不持久化和非交互参数分别复用 directory/store/non-interactive 原因。
+参数表新增通用 `ArgSession` 分类，使选项形式的 `--resume`、`--continue`、`--session-id` 等也能复用现有 `session_arg`，而不伪装成非交互参数。其他参数规则如下：
+
+- 新增可变参数个数 arity，消费至下一选项，用于 add-dir、mcp-config、工具列表与 betas。
+- 工作树、不持久化和非交互参数分别复用 directory/store/non-interactive 原因。
+- `--bare` 是保留的精简 TUI 参数，不是非交互参数。
+- CLI permission-mode 只把 manual 归一为 ACP default，CLI 本身不接受 default。
 
 ### D5 进程注册记录是主身份来源，候选是降级
 
@@ -82,7 +106,11 @@ TUI 与 ACP 使用同一服务用户、HOME、CLAUDE_CONFIG_DIR 和环境优先�
 
 直接运行时读取根 PID；node 启动器读取其直接 Claude 子进程 PID。CLAUDE_CONFIG_DIR 非空时按会话环境解析，否则使用 `~/.claude`；相对路径以实际 agent cwd 为基准，比较前规范化路径。读取必须有大小和条目上限，不得输出记录内容。
 
-接受记录前验证 PID、UUID、cwd、procStart、pidDomain 与当前进程事实。当前记录按既有观察节奏重读，以跟踪 `/new` 和 `/resume`。扫描同配置目录的其他有效记录可发现外部占用，排除当前进程、已退出进程和陈旧记录，映射为 `occupied_external`。
+接受记录前验证 PID、UUID、cwd、procStart、pidDomain 与当前进程事实：
+
+- Linux procStart 读取 `/proc/<pid>/stat` 第 22 字段并按十进制字符串比较，pidDomain 使用 machine-id 与 PID namespace；不得改用 `ps lstart` 或 boot ID。
+- 当前记录按既有观察节奏重读，以跟踪 `/new` 和 `/resume`。
+- 扫描同配置目录的其他有效记录可发现外部占用，排除当前进程、已退出进程和陈旧记录，映射为 `occupied_external`。
 
 记录缺失或不可信时使用 cwd + runStart 的 `session/list` 候选，多候选复用 409 `session_ambiguous`。首条消息前即使已有 ID，只要 list 没有可加载 transcript，仍不可切换。
 
@@ -90,9 +118,9 @@ TUI 与 ACP 使用同一服务用户、HOME、CLAUDE_CONFIG_DIR 和环境优先�
 
 ### D6 配置从 argv 播种，以适配器实际状态为准
 
-`ChatSide` 映射 `--model`、`--effort` 与权限参数到 `model`、`effort`、`mode`。`manual` 归一到 `default`，危险跳过权限参数优先映射 `bypassPermissions`；`dontAsk` 和未知值不静默改名。其他保留但不透传的参数列入聊天端不生效提示。
+`ChatSide` 映射 `--model`、`--effort` 与权限参数到 `model`、`effort`、`mode`。`manual` 归一到 `default`，危险跳过权限参数优先映射 `bypassPermissions`；CLI 的 `default`、`dontAsk` 和未知值不静默改名。其他保留但不透传的参数列入聊天端不生效提示。
 
-首次 new/load 后播种；后续 load 先观察适配器恢复和发布的实际配置，只对实测会丢失的项声明 `ReapplyOnLoad`。auto/bypassPermissions 被运行条件回退时，记录与界面采用实际值并显示适配器通知，不能把请求值当作成功。
+首次 new/load 后播种；冷 load 与冷 resume 实测都会丢失 model 与 effort，因此两者都在这两种恢复后重应用记录值。mode 会从 transcript 恢复，不列入 reapply；new 会话仍使用 argv 播种值。auto/bypassPermissions 被运行条件回退时，记录与界面采用实际值并显示适配器通知；当前 provider 实测两者均直接生效。
 
 模型标签沿用服务端/ACP 通用数据与最新 adapter label 机制，不在 Web 添加 Claude 特例。其他会话配置、表单、权限和附件继续使用现有协议与 reducer。
 
@@ -102,16 +130,11 @@ v1 的 list/load/resume、config options、permission/form、image/embeddedConte
 
 agent-owned terminal metadata、子代理私有扩展和 v2 专属更新不纳入首版。未知 ACP update 继续按现有容错规则忽略；若标准工具内容不足成为实测阻塞项，应另开通用协议变更，而不是在翻译层添加 Claude 名称。
 
-### D8 真实 spike 是实施闸门，fakeagent 是回归层
+### D8 本地真实 spike 已固定基线，fakeagent 是回归层
 
-第一组任务在隔离配置目录、临时仓库和独立测试账号中验证当前稳定连接器与 Claude Code，不连接已有开发者会话，不输出凭据或正文日志。至少覆盖：
+第一组真实探测已在隔离配置使用方式、临时工作目录和当前 provider 下完成，不连接已有开发者会话，不输出凭据或正文日志。Measured Baseline 与 delta specs 已记录 v1 帧、认证、注册记录、list 可见性、OSC、配置恢复、权限、附件、steering、cancel 和进程清理结果，实现阶段不再重复探测本机行为。
 
-- v1 帧、认证、new/list/load/resume/prompt/cancel、config option 更新；
-- 原生与 npm 启动、注册记录、首条消息、TUI `/new`/`--resume`、外部占用；
-- 双向 round-trip、长历史回放、权限/form、附件、steering、启动中断和休眠唤醒；
-- 进程组清理、后台 Bash/子任务在 cancel 与强制切换后的实际行为。
-
-真实验收确定的 startup quiet、reapply 列表、force-switch 说明和版本矩阵回写 design 后再完成对应实现。fakeagent 模拟这些已验证行为，E2E 不访问真实账号。
+fakeagent 按这些固定行为模拟，E2E 不访问真实账号。实现完成后仍执行一次真实双向 round-trip 验收，以验证 WebMux 集成而非重新调研 Claude；npm/macOS 与订阅等未覆盖矩阵单独标注，不阻塞本机基线的实现。
 
 ### D9 优先不扩展线上契约
 
@@ -123,10 +146,10 @@ agent-owned terminal metadata、子代理私有扩展和 v2 专属更新不纳�
 
 - [跟随 latest 引入未测试变更] → 保留实测版本提示与 v1 握手断言；升级时运行真实兼容套件，文档不承诺未来版本。
 - [注册记录是未文档化格式] → 严格防伪、大小限制和候选降级；不解析更大的 transcript 格式，版本升级复测。
-- [旧适配器曾认证失败] → 真实订阅/API 验收是默认混合交付闸门；失败仍提供 TUI 登录和 connector/auth 提示，不静默改凭据。
+- [旧适配器曾认证失败] → 当前 API key/第三方 provider 的真实 new/prompt 已通过；订阅矩阵未宣称覆盖，失败仍提供 TUI 登录和 connector/auth 提示，不静默改凭据。
 - [订阅登录的分发条款不随技术能力自动解决] → 限定本文结论为单用户本机自用，文档要求部署者确认实际使用方式，不作法律判断。
-- [强制 CLAUDE_CODE_EXECUTABLE 带来 SDK/CLI 版本差异] → 两端一致优先，记录版本矩阵并显示旧版提示；找不到路径时按实测错误处理，不伪造成功。
-- [cancel 后后台 Bash 或子任务可能存活] → 实测并准确填写 force-switch 说明，验证进程组清理；不把 cancel 描述为整个进程树的 kill。
+- [强制 CLAUDE_CODE_EXECUTABLE 带来 SDK/CLI 版本差异] → 两端一致优先，记录版本矩阵并显示旧版提示；找不到路径时沿用通用路径解析错误，不伪造成功。
+- [cancel 后后台 Bash 或子任务可能存活] → 已实测 cancel 后 sleep 存活；force-switch 明确提示并终止连接器、等待受管后代退出，不把 cancel 描述为整个进程树的 kill。
 - [长 transcript 回放超时或重复] → 验证 load 响应前完整回放、120 秒边界、事件 generation/seq 和背压；需要改通用协议时另列任务。
 - [auto/bypassPermissions 不可用] → 以适配器实际配置和通知为准，不隐藏回退。
 - [外部注册记录不可读或不完整] → 保留 WebMux 内部检测和候选，不明确承诺无外部写者。
@@ -141,10 +164,8 @@ agent-owned terminal metadata、子代理私有扩展和 v2 专属更新不纳�
 
 ## Open Questions
 
-以下不是产品决策，而是第一组真实 spike 必须回答并回写的事实：
+本机实现基线没有待行为探测的开放问题。以下仅是不冒称已覆盖的部署边界，不要求实现者重新检查本机 Claude Code：
 
-- 原生/npm、Linux/macOS 下注册记录的 procStart/pidDomain 格式与直接子进程关系是否一致；首条消息前后的 list 可见时点是什么。
-- Claude 启动是否产生假 working，需要多长 startup quiet；一次 Esc、强制结束和后台任务的实际清理边界是什么。
-- load 是否完整恢复 model/effort/mode，哪些项需要 reapply；auto/bypassPermissions 的回退通知如何进入现有事件模型。
-- 当前 WebMux form、权限、长回放和附件管线是否无需通用修复；terminal metadata 缺失是否只影响展示而不影响回合。
-- 目标部署使用的订阅或 API 认证能否在真实服务用户下完成完整 round-trip。若关键假设不成立，先修订 specs/design，再继续实现，不以 fakeagent 通过替代结论。
+- npm launcher 与 macOS 的进程启动标识/domain 由对应平台实现和测试验证；Linux 原生路径严格按本设计，不用未实测平台结果改写。
+- 订阅登录未单独实测；当前 API key/第三方 provider 已验证，认证失败继续沿用通用错误路径。
+- form elicitation、超长历史 120 秒边界与任意 daemonize 后台进程不属于本次已测矩阵；通用管线保持现有行为，交付说明不得冒称专项覆盖。

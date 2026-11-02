@@ -12,10 +12,10 @@
 - ACP 端由用户另行安装的 `claude-agent-acp` 提供，使用 ACP v1；安装命令跟随 `@agentclientprotocol/claude-agent-acp` 的 `latest`，本次以 0.99.1 为实测基线。WebMux 不自动安装连接器或 Node。
 - ACP 进程通过 `CLAUDE_CODE_EXECUTABLE` 指向 TUI 实际使用的 Claude Code，并复用同一服务用户、`HOME` 与 `CLAUDE_CONFIG_DIR` 下已有的订阅登录、API key 或第三方 provider；不保存或记录凭据。
 - 通过 Claude CLI 的 `<CLAUDE_CONFIG_DIR>/sessions/<pid>.json` 进程注册记录跟踪当前会话 ID，校验 PID、进程启动标识、cwd 与配置目录；记录不可信或不可读时退回 `session/list` 候选选择。利用同一注册记录尽力发现外部 Claude 客户端占用。
-- 从 argv 推导首次聊天端的 `model`、`effort` 与 `mode`，包括 `--model`、`--effort`、`--permission-mode` 和 `--dangerously-skip-permissions`；加载后按实测结果恢复配置，并隐藏聊天菜单中的 `login`/`logout`。
+- 从 argv 推导首次聊天端的 `model`、`effort` 与 `mode`，包括 `--model`、`--effort`、`--permission-mode` 和 `--dangerously-skip-permissions`；冷 load/resume 后重应用 model/effort，保留适配器恢复的实际 mode，并隐藏聊天菜单中的 `login`/`logout`。
 - 启用适配器已声明的 `session/load`、`session/resume`、配置项、图片/嵌入资源与 steering；空闲时 steering 使用 `promptRequired`，避免产生 WebMux 未跟踪的回合。
 - 新安装的 Claude Code 预置配置改为 `hybrid: true`；已有 `launch-configs.json` 不改写，用户可手动开启。
-- 用真实 Claude Code 与连接器验证认证、双向切换、历史回放、配置延续、权限、附件、中断和进程清理；fakeagent 与 E2E 覆盖回归，不以前者替代真实验收。
+- 已在本机 Linux 原生 Claude Code 2.1.316、Node 26.13.0、连接器 0.99.1 与当前第三方 provider 上完成真实请求探测，固定认证、双向恢复、列表可见性、配置重应用、权限、附件、OSC、中断和进程清理行为；实现后按同一基线做 round-trip 验收，fakeagent 与 E2E 覆盖回归。
 
 ## Capabilities
 

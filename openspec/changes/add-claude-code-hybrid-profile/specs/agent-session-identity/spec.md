@@ -69,12 +69,14 @@ Claude Code 的 OSC 7501 根记录只提供 `app=claude-code`，不提供会话 
 
 采用注册记录前 SHALL 验证：
 
-- 文件名 PID、记录内 PID 与实际 agent 进程一致；npm `node` 启动器使用其直接 Claude 子进程，而不是启动器 PID；
+- 文件名 PID、记录内 PID 与实际 agent 进程一致；本次实测的原生 Linux 运行直接使用根 PID，npm `node` 启动器使用其直接 Claude 子进程，而不是启动器 PID；
 - `sessionId` 是合法 UUID，记录 cwd 与资格判定使用的规范化 cwd 一致；
-- 记录中的 `procStart`、`pidDomain` 等进程防伪字段与实际进程事实一致；无法证明记录属于当前运行、记录已过期或 JSON 无效时 SHALL 拒绝采用；
+- Linux 记录中的 `procStart` SHALL 是 `/proc/<pid>/stat` 第 22 字段的十进制启动 ticks 字符串，`pidDomain` SHALL 为 `linux:<machine-id>:<pid-namespace>`；二者 SHALL 与当前进程事实一致。其他平台使用各自可验证的进程启动标识与 domain；无法证明记录属于当前运行、记录已过期或 JSON 无效时 SHALL 拒绝采用；
 - 读取与解析 SHALL 有界，注册记录路径和内容 SHALL NOT 泄露到负载或日志。
 
-系统 SHALL 按现有身份观察节奏重新读取记录，使 `/new`、`/resume` 或其他 TUI 内会话切换更新当前 ID，并沿用既有 ID 变化提示和历史记录规则。
+系统 SHALL 按现有身份观察节奏重新读取记录，使 `/new`、`/resume` 或其他 TUI 内会话切换更新当前 ID，并沿用既有 ID 变化提示和历史记录规则。本次实测中，注册记录在首条消息前已经存在，TUI `--resume <id>` 保持请求的 UUID，正常退出删除注册记录。
+
+首条消息与 `/new` 的可见性 SHALL 以 `session/list` 为准，SHALL NOT 以 transcript 文件是否存在代替：首条消息前 list 不含当前 ID，首条真实 prompt 完成后包含；`/new` 后即使已有非空元数据 transcript，新 ID 在首次 prompt 前仍不出现在 list 中。
 
 #### Scenario: 启动后取得 Claude 会话 ID
 
@@ -91,11 +93,26 @@ Claude Code 的 OSC 7501 根记录只提供 `app=claude-code`，不提供会话 
 - **WHEN** 同一 Claude 进程的注册记录从旧 UUID 更新为新 UUID
 - **THEN** WebMux 更新当前 ID、保留旧 ID 历史并显示既有 ID 变化提示
 
+#### Scenario: /new 后尚未发送消息
+
+- **WHEN** `/new` 已更新注册记录并产生非空元数据 transcript，但尚未发送新会话的首条 prompt
+- **THEN** `session/list` 仍不含新 ID，“聊天”按钮保持不可用
+
+#### Scenario: TUI 恢复已有会话
+
+- **WHEN** 干净 TUI 以 `claude --resume <id>` 启动
+- **THEN** 根进程注册记录使用请求的 UUID，不另建新 ID，list 可见性沿用该会话已有历史
+
+#### Scenario: TUI 正常退出
+
+- **WHEN** 当前 Claude 进程退出并完成进程清理
+- **THEN** 其注册记录被删除，不再计为当前身份或外部占用
+
 ### Requirement: Claude 会话 ID 的候选降级与外部占用
 
 注册记录不存在、不可读或无法通过验证时，系统 SHALL 使用 `session/list` 候选判定：取相同规范化 cwd 下、更新时间晚于本次 TUI 启动的会话。恰有一个候选时采用它；有多个候选时 SHALL 返回 409 `session_ambiguous` 并附候选列表，由用户选择后重试；没有候选时 SHALL 保持不可切换。
 
-系统 SHALL 同时利用同一配置目录下的有效注册记录，尽力识别其他仍在运行的 Claude 进程是否持有当前会话。占用判定 SHALL 遵守以下规则：
+系统 SHALL 同时利用同一配置目录下的有效注册记录，尽力识别其他仍在运行的 Claude 进程是否持有当前会话。本次实测两个原生 TUI 可同时以不同 PID 注册同一 UUID，因此不能依赖 Claude 自身阻止双写。占用判定 SHALL 遵守以下规则：
 
 - 发现其他进程持有同一 ID 时返回 `occupied_external`；切换过程中发现时按现有失败回滚处理，SHALL NOT 加载或分叉会话；
 - 当前 WebMux TUI 对应的记录 SHALL 排除在外；
