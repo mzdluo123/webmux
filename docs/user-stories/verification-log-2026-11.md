@@ -110,3 +110,10 @@
 
 - 首屏改为合成主图、一句话主张、使用场景叙述、“三步看懂”截图流程与六项亮点；README 仍为 170 行以内。
 - 验证：以预装 Chromium 运行 `pnpm --dir web screenshots:hero` 生成 `docs/images/hero.jpg`，并用本地 Markdown 渲染截图目视检查首屏；已运行 `make docs-check` 与 Oxfmt 检查。未在 GitHub 页面上实际渲染。
+
+本次局部核对（2026-11-02）：重新生成 README 截图与主图，截图脚本新增回放模式，对应 US-L03。
+
+- 录制：以真实 omp 18.15.0（Opus 5.5）运行 `WEBMUX_SCREENSHOTS_RECORD=1` 流程，导出两轮对话到 `web/scripts/screenshots/omp-session.jsonl`；文件只含演示仓库内容。
+- 回放：在未设置任何 API key 的环境中运行 `pnpm --dir web screenshots`，十张截图全部生成；再运行 `screenshots:hero` 更新 `docs/images/hero.jpg`。
+- 发现：经 npm/Bun 安装的 omp 进程名为 `bun`，混合会话判定为 `not_root`，聊天切换不可用；本次用以 `omp` 命名的 Bun 运行时启动同一安装包绕过。产品侧的识别规则未改动。
+- 限制：截图在 Linux 容器中以预装 Chromium 生成，未在 macOS 上运行脚本。
