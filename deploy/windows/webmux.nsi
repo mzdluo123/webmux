@@ -9,8 +9,13 @@
 ;   ICON     absolute path of the installer icon
 ;   OUTFILE  absolute output path
 ;
-; Exit codes: 0 done, 2 wrong Windows architecture, 3 a running tray could
-; not be closed (nothing was written).
+; Exit codes: 0 done, 2 wrong Windows architecture or a failure before any
+; tray was closed, 3 a running tray could not be closed (nothing was
+; written), 4 a failure after the installed tray was closed (that tray was
+; started again).
+;
+; Silent mode (/S) over an existing install keeps its directory and the
+; login item as they are; internal/tray updates itself this way.
 
 !ifndef VERSION | ARCH | TRAY | SERVER | ICON | OUTFILE
   !error "VERSION, ARCH, TRAY, SERVER, ICON and OUTFILE must be defined with -D"
@@ -19,6 +24,9 @@
 Unicode true
 SetCompressor /SOLID lzma
 RequestExecutionLevel user
+; A file that cannot be written fails the install instead of being skipped,
+; so .onInstFailed can restart the tray.
+AllowSkipFiles off
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
@@ -96,12 +104,16 @@ Page custom optionsPage optionsLeave
 !insertmacro CloseTray "" "$PLUGINSDIR\webmux-tray.exe"
 !insertmacro CloseTray "un." "$INSTDIR\webmux-tray.exe"
 
-; 1 writes the login item. Silent installs keep the default.
+; ${BST_CHECKED} writes the login item. Silent installs keep the default;
+; a silent update leaves the item as it is.
 Var Autostart
 Var AutostartBox
+; 1 once the installed tray has been closed.
+Var TrayClosed
 
 Function .onInit
   StrCpy $Autostart ${BST_CHECKED}
+  StrCpy $TrayClosed 0
   !if "${ARCH}" == "amd64"
     ${IfNot} ${IsNativeAMD64}
   !else
@@ -111,6 +123,28 @@ Function .onInit
     MessageBox MB_OK|MB_ICONSTOP "此安装包适用于 ${ARCH} 版 Windows，当前设备请改用 webmux-setup-windows-${OTHER_ARCH}.exe。"
     SetErrorLevel 2
     Quit
+  ${EndIf}
+  ; A silent update over an existing install (the tray's self-update)
+  ; stays in its directory, whatever /D says, and neither re-adds a login
+  ; item the user removed nor changes one that exists.
+  ${If} ${Silent}
+    ReadRegStr $0 HKCU "${UNINST_KEY}" "InstallLocation"
+    ${If} $0 != ""
+      StrCpy $INSTDIR $0
+      StrCpy $Autostart ${BST_UNCHECKED}
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
+
+; Any failure after the installed tray was closed starts it again, so the
+; user keeps a tray; the exit code tells the caller the update failed.
+Function .onInstFailed
+  ${If} $TrayClosed == 1
+    ${If} ${FileExists} "$INSTDIR\webmux-tray.exe"
+      SetOutPath "$PROFILE"
+      Exec '"$INSTDIR\webmux-tray.exe"'
+    ${EndIf}
+    SetErrorLevel 4
   ${EndIf}
 FunctionEnd
 
@@ -140,10 +174,19 @@ Section "-WebMux tray"
   InitPluginsDir
   File "/oname=$PLUGINSDIR\webmux-tray.exe" "${TRAY}"
   Call closeTray
+  ; From here on a failure restarts the installed tray (.onInstFailed):
+  ; File aborts by itself (AllowSkipFiles off), other writes are checked
+  ; through the error flag below.
+  StrCpy $TrayClosed 1
+  ClearErrors
 
   SetOutPath "$INSTDIR"
   File "/oname=webmux-tray.exe" "${TRAY}"
   WriteUninstaller "$INSTDIR\uninstall.exe"
+  ${If} ${Errors}
+    Abort "无法写入安装目录 $INSTDIR"
+  ${EndIf}
+  ; The shortcut and removing the old server are best effort.
   CreateShortcut "$SMPROGRAMS\WebMux.lnk" "$INSTDIR\webmux-tray.exe"
 
   ; Replace the server an earlier version pre-seeded.
@@ -152,6 +195,7 @@ Section "-WebMux tray"
   ${AndIf} $1 != "${CACHE_DIR}\${CACHE_FILE}"
     Delete "$1"
   ${EndIf}
+  ClearErrors
   CreateDirectory "${CACHE_DIR}"
   File "/oname=${CACHE_DIR}\${CACHE_FILE}" "${SERVER}"
 
@@ -165,6 +209,9 @@ Section "-WebMux tray"
   WriteRegStr HKCU "${UNINST_KEY}" "PreseededServer" "${CACHE_DIR}\${CACHE_FILE}"
   WriteRegDWORD HKCU "${UNINST_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINST_KEY}" "NoRepair" 1
+  ${If} ${Errors}
+    Abort "无法写入下载缓存或注册表"
+  ${EndIf}
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" $0
 

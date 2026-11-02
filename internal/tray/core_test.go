@@ -21,7 +21,7 @@ func TestSettings(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(s, DefaultSettings()) {
 		t.Fatalf("missing file: %+v %v", s, err)
 	}
-	if s.Webmux != "~/.local/bin/webmux" || s.Mode != ModeAuto || !s.StartWebMux || !s.AutoRestart || s.Config != "" {
+	if s.Webmux != "~/.local/bin/webmux" || s.Mode != ModeAuto || !s.StartWebMux || !s.AutoRestart || s.Config != "" || !s.AutoUpdate || s.LastVersion != "" {
 		t.Fatalf("defaults %+v", s)
 	}
 	for name, content := range map[string]string{
@@ -61,6 +61,51 @@ func TestSettings(t *testing.T) {
 	}
 	if _, err := LoadSettings(path); err != nil {
 		t.Fatalf("BOM: %v", err)
+	}
+}
+
+// A settings file written before automatic updates existed keeps them on.
+func TestSettingsWithoutAutoUpdate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tray.json")
+	old := `{"distro":"Ubuntu","mode":"tray","webmux":"~/.local/bin/webmux","config":"","logFile":"~/w.log","startWebMux":false,"autoRestart":true,"forward":[]}`
+	if err := os.WriteFile(path, []byte(old), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := LoadSettings(path)
+	if err != nil || !s.AutoUpdate || s.LastVersion != "" || s.Distro != "Ubuntu" || s.StartWebMux {
+		t.Fatalf("old file: %+v %v", s, err)
+	}
+	s.AutoUpdate, s.LastVersion = false, "0.4.0"
+	if err := SaveSettings(path, s); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := LoadSettings(path); err != nil || got.AutoUpdate || got.LastVersion != "0.4.0" {
+		t.Fatalf("round trip %+v %v", got, err)
+	}
+}
+
+func TestRecordVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name, last, version string
+		updated             string
+		changed             bool
+	}{
+		{"first run", "", "0.5.0", "", true},
+		{"updated", "0.4.0", "0.5.0", "0.5.0", true},
+		{"same", "0.5.0", "0.5.0", "", false},
+		{"downgraded", "0.6.0", "0.5.0", "", true},
+		{"from a development build", "dev", "0.5.0", "", true},
+		{"development build", "0.5.0", "dev", "", false},
+	} {
+		s := DefaultSettings()
+		s.LastVersion = tc.last
+		next, updated, changed := RecordVersion(s, tc.version)
+		if updated != tc.updated || changed != tc.changed {
+			t.Errorf("%s: updated %q changed %v", tc.name, updated, changed)
+		}
+		if want := map[bool]string{true: tc.version, false: tc.last}[changed]; next.LastVersion != want {
+			t.Errorf("%s: lastVersion %q", tc.name, next.LastVersion)
+		}
 	}
 }
 

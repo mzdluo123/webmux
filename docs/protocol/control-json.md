@@ -57,6 +57,7 @@
     "subscriptions": 1, // 已登记设备数
     "publicOrigin": "https://term.example.com", // 仅当前有效 Named 设置具有主机名时出现，动态跟随设置
   },
+  "installedVersion": "0.5.0", // 仅运行中实例经本机 API 返回：可执行文件路径上已安装的版本已知且不同于 version 时出现，重启后生效
 }
 ```
 

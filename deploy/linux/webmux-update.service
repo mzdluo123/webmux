@@ -1,0 +1,24 @@
+# Installs a newer signed WebMux deb/rpm release; started daily by
+# webmux-update.timer. It never starts, stops or restarts any user's
+# webmux.service: running servers use the new version after their users
+# restart them. Set a proxy with a drop-in, for example:
+#   systemctl edit webmux-update.service
+#   [Service]
+#   Environment=HTTPS_PROXY=http://proxy.example:3128
+[Unit]
+Description=WebMux automatic update
+Documentation=https://github.com/mzdluo123/webmux/blob/main/docs/deployment.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/webmux update apply
+CacheDirectory=webmux-update
+CacheDirectoryMode=0700
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=30min

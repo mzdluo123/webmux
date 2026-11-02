@@ -1,0 +1,95 @@
+# Tasks
+
+## 1. 签名与共享更新包
+
+- [x] 1.1 新增 `cmd/internal/releasesign`（`keygen`、`sign`、`verify`），按 D1 生成 minisign `Ed` 签名，可信注释为 `webmux <版本>`。
+  - 验证：Go 测试中签名后用同一工具验证通过。
+  - 验证：本机有 `minisign` 时，`minisign -Vm` 能验证该签名；结论写进 design.md 的 Risks。
+- [x] 1.2 新增共享包 `internal/update`：minisig 解析与验证、可信注释版本、`SHA256SUMS` 解析、版本比较、`release` 构建标记。
+  - 在 `internal/archtest/layers_test.go` 中登记为 Shared。
+  - 验证：单元测试覆盖篡改内容、篡改注释、未知密钥 ID、注释格式错误与版本比较；`go test ./internal/archtest` 通过。
+- [x] 1.3 为 `internal/fetch` 增加落盘权限选项；在 `internal/update` 中实现 `Check`（latest 清单，带来源回退）与 `Fetch`（按标签下载并校验）。
+  - 验证：`httptest` 模拟 GitHub 与镜像，覆盖首个来源签名无效时回退、旧清单不被当作新版本。
+  - 验证：同一测试覆盖版本不高于当前时不下载、摘要不符时删除临时文件。
+
+## 2. 发布流水线
+
+- [x] 2.1 `Makefile` 的 `release` 目标为所有二进制注入 `internal/update.release=1`，并在生成 `SHA256SUMS` 后签名、用内置公钥验证。
+  - 缺少 `WEBMUX_RELEASE_SIGNING_KEY` 时失败。
+  - 验证：用临时测试密钥运行 `make release` 成功并产出签名；不设该变量时以非零码退出。
+- [x] 2.2 `.github/workflows/release.yml` 把密钥以环境变量传给签名步骤，校验步骤增加签名验证，并上传 `SHA256SUMS.minisig`。
+  - 验证：`actionlint`（若可用）通过；检查上传列表包含该文件，日志不会打印密钥。
+
+## 3. CLI 更新检查与 Linux 自动更新
+
+- [x] 3.1 在 `cmd/webmux` 中新增 `update check [--json]`，以 `dpkg-query -S`、`rpm -qf` 识别安装方式，否则为 `other`。
+  - 非发布构建按规格报错，不发起网络请求。
+  - 验证：测试覆盖 JSON 输出、非发布构建报错，以及 `other` 时提示重新运行 `install.sh`。
+- [x] 3.2 新增 `update apply`，按 D4 的流程实现：root 检查、文件锁、安装方式、`Check`/`Fetch`、argv 调用包管理器、清理缓存。
+  - 验证：用假的 `dpkg`、`rpm`、`dpkg-query` 脚本测试 argv、非 root 拒绝、非包安装拒绝。
+  - 验证：同一测试覆盖锁被占用时立即退出，包管理器失败时返回非零并删除安装包。
+- [x] 3.3 在 `deploy/linux/` 新增 `webmux-update.service`、`webmux-update.timer`、`postinstall.sh`、`preremove.sh`，并写入 `nfpm.yaml`。
+  - 验证：`dpkg-deb -c` 与 `rpm -qlp` 只列出四个文件；`systemd-analyze verify` 检查两个单元通过。
+- [x] 3.4 扩展 `.github/scripts/test-linux-packages.sh`，覆盖定时器的启用、保留与停用，以及无 systemd 时安装。
+  - 断言：首次安装启用；`disable` 后升级仍为禁用；卸载后停用；无 systemd 时不报错；不触碰 `webmux.service`。
+  - 验证：在 Debian 与 Fedora 容器中运行该脚本通过。
+- [x] 3.5 冒烟：在一次性 systemd 容器或虚拟机中，安装旧版 deb，并用本地签名的测试 Release 触发更新服务。
+  - 测试 Release 由本地 HTTP 服务提供，二进制以测试公钥构建。
+  - 验证：`/usr/bin/webmux version` 变为新版本，`journalctl` 有版本、来源与结果。
+  - 验证：另一个用户正在运行的 `webmux.service` PID 不变。
+
+## 4. 服务端待生效版本提示
+
+- [x] 4.1 在 `internal/update` 中按 D8 实现 `InstalledVersion`，由 `cmd/webmux` 构造并注入。
+  - 验证：用临时可执行脚本测试标识未变时不执行、替换后报告新版本、删除或超时时报告未知。
+- [x] 4.2 `contract.StatusV1` 增加 `installedVersion`，`contract.ServerConfig` 增加 `pendingUpdate`，由 `internal/wire` 转换。
+  - `webmux status` 文本输出增加提示行。
+  - 执行 `go test ./internal/api -run TestWireSnapshots -update` 重新录制快照。
+  - 验证：`go test -race ./internal/api ./cmd/webmux` 通过，快照只新增预期字段。
+- [x] 4.3 前端：`ConfigSchema` 增加可选的 `pendingUpdate`；主页顶部与设置页显示提示与重启命令；主页关闭记录按版本保存。
+  - 关闭记录存放在设备本地设置中，经 Zod 校验。
+  - 验证：Vitest 覆盖缺少该字段、按启动方显示命令、关闭后出现新版本时重新显示。
+  - 验证：`pnpm --dir web check:arch` 与 `make web` 通过。
+- [x] 4.4 冒烟：在临时 `state_dir` 中启动带发布标记的二进制，把其可执行文件替换为另一版本。
+  - 验证：60 秒后 `webmux status --json` 含 `installedVersion`，主页显示提示（附截图），会话与进程不变。
+
+## 5. Windows 托盘自更新与安装程序
+
+- [x] 5.1 托盘设置增加 `autoUpdate`（缺省为 `true`）与 `lastVersion`；菜单增加“自动更新”勾选项和“检查更新”。
+  - 非发布构建时禁用“检查更新”。
+  - 验证：`internal/tray` 测试覆盖旧设置文件的默认值，`menuview` 测试覆盖菜单项状态。
+- [x] 5.2 实现安装版识别、检查调度、空闲判定，以及下载安装程序并以分离进程运行 `/S`；便携版只显示“下载托盘 <版本>”。
+  - 安装版识别比较 HKCU 卸载项的 `InstallLocation` 与 exe 目录。
+  - 调度：启动后 2 分钟、每 24 小时、手动检查；下载目录为 `%LOCALAPPDATA%\WebMux\updates`。
+  - 验证：非 Windows 也能运行的核心测试覆盖调度、空闲推迟、便携版不下载、签名无效时不运行。
+- [x] 5.3 新托盘根据 `lastVersion` 显示一次“已更新到 <版本>”并清理 `updates` 目录；更新入口区分安装版与便携版。
+  - WSL 较新时，安装版托盘触发自更新检查。
+  - 验证：`compat_test.go`、`menuview_test.go` 覆盖这些状态行和菜单项。
+- [x] 5.4 WSL 服务端自动升级：结果为较旧或“不兼容：WSL 过旧”且 `autoUpdate` 开启时，自动执行现有安装流程。
+  - 失败只更新状态行，不立即重试。
+  - 验证：`install_test.go` 覆盖自动触发、关闭时不触发、缺失与过新时不触发、写入失败时显示原因。
+- [ ] 5.5 NSIS 脚本：静默覆盖安装沿用 `InstallLocation` 并保持登录启动项现状；关闭托盘后的失败路径重启原托盘。
+  - 验证：取消登录启动后以 `/S` 升级，启动项仍不存在。
+  - 验证：模拟文件被占用导致失败，原托盘被重新启动，退出码非零。
+- [ ] 5.6 Windows 端到端冒烟：安装旧版本安装程序，用本地签名的测试 Release 让托盘自更新。
+  - 验证：WebMux PID 与会话不变，转发恢复，WSL 中的 webmux 被自动升级并提示重启后生效。
+  - 验证：是否出现 SmartScreen 提示，结论写进 design.md 的 Risks。
+
+## 6. 文档与用户故事
+
+- [x] 6.1 在 `docs/deployment.md` 中公布发布公钥与手动验证命令，并说明停用 Linux 定时器、关闭托盘自动更新、配置代理。
+  - 验证：`make docs-check` 通过，文档中的 `minisign -Vm` 命令能验证测试 Release。
+- [x] 6.2 按 `docs/agent-rules/user-stories-maintenance.md` 新增和更新用户故事，并同步两个索引的计数。
+  - `operations-and-tooling.md`：Linux 包自动更新、`update check`、服务端待生效提示。
+  - `clients-network-tray.md`：托盘自更新、WSL 自动升级，以及受影响的现有托盘故事。
+  - 验证：`make docs-check` 通过，索引计数一致。
+
+## 7. 集成检查
+
+- [x] 7.1 运行 `make check` 与 `make test-fast`。验证：全部通过，没有新增 lint 警告，也没有扩大架构基线。
+
+## Workflow follow-up
+
+- 维护者执行 `go run ./cmd/internal/releasesign keygen`，把公钥提交到 `internal/update`，把种子配置为 Actions 密钥 `WEBMUX_RELEASE_SIGNING_KEY`，并离线备份。
+- 在发布说明中告知：低于本版本的用户需要手动升级一次。
+- 审查通过后归档本变更。

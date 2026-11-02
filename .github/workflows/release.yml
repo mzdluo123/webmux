@@ -40,11 +40,15 @@ jobs:
       - name: Run Go tests
         run: go test -race -parallel=4 ./...
       - name: Build release artifacts
+        env:
+          WEBMUX_RELEASE_SIGNING_KEY: ${{ secrets.WEBMUX_RELEASE_SIGNING_KEY }}
         run: make release VERSION=${{ steps.version.outputs.version }}
       - name: Verify artifacts
         working-directory: bin
         run: |
           sha256sum -c SHA256SUMS
+          if grep -q 'SHA256SUMS.minisig' SHA256SUMS; then echo 'SHA256SUMS must not list its signature' >&2; exit 1; fi
+          (cd .. && go run ./cmd/internal/releasesign verify -version ${{ steps.version.outputs.version }} bin/SHA256SUMS)
           [ "$(./webmux-linux-amd64 version)" = "webmux ${{ steps.version.outputs.version }}" ]
           sh ../.github/scripts/test-linux-packages.sh . ${{ steps.version.outputs.version }}
       - name: Publish the Release
@@ -57,4 +61,4 @@ jobs:
             webmux-windows-amd64.exe webmux-windows-arm64.exe \
             webmux-tray-windows-amd64.exe webmux-tray-windows-arm64.exe \
             webmux-setup-windows-amd64.exe webmux-setup-windows-arm64.exe \
-            webmux_*-1_*.deb webmux-*-1.*.rpm install.sh SHA256SUMS
+            webmux_*-1_*.deb webmux-*-1.*.rpm install.sh SHA256SUMS SHA256SUMS.minisig

@@ -303,11 +303,11 @@ WSL2 mirrored + 真实 Windows Tailscale 上经网页与 API 验证：切换端�
 | H    | 手机、平板与触摸操作                   | US-H01–US-H09 |
 | I    | 代码工作区、Diff、引用与文件操作       | US-I01–US-I19 |
 | J    | 仓库登记与 worktree 管理               | US-J01–US-J11 |
-| K    | 配置、运行与服务管理                   | US-K01–US-K13 |
-| L    | 开发、验证与发布支持                   | US-L01–US-L11 |
+| K    | 配置、运行与服务管理                   | US-K01–US-K16 |
+| L    | 开发、验证与发布支持                   | US-L01–US-L12 |
 | M    | 原生终端、CLI 与本机控制面             | US-M01–US-M08 |
 | N    | Cloudflare 公网隧道                    | US-N01–US-N08 |
-| O    | Windows/WSL 托盘管理                   | US-O01–US-O12 |
+| O    | Windows/WSL 托盘管理                   | US-O01–US-O13 |
 | P    | Tailscale Serve / Funnel               | US-P01–US-P07 |
 | Q    | 混合会话（聊天 ↔ 终端）                | US-Q01–US-Q16 |
 
@@ -315,15 +315,15 @@ WSL2 mirrored + 真实 Windows Tailscale 上经网页与 API 验证：切换端�
 
 各分组的完整故事、验收要点与依据位于以下文件；故事编号与上方索引保持一致。
 
-| 文件                                                             | 分组               |
-| ---------------------------------------------------------------- | ------------------ |
-| [连接、启动与会话总览](user-stories/access-and-sessions.md)      | A–C                |
-| [终端、输入与移动端](user-stories/terminal.md)                   | D–H                |
-| [代码工作区与工作树](user-stories/code-and-worktrees.md)         | I–J                |
-| [配置、运行与贡献者工具](user-stories/operations-and-tooling.md) | K–L                |
-| [原生客户端、隧道与托盘](user-stories/clients-network-tray.md)   | M–P                |
-| [混合会话](user-stories/hybrid-sessions.md)                      | Q                  |
-| [功能覆盖核对与后续维护](user-stories/coverage.md)               | 覆盖索引与维护约定 |
+| 文件                                                                                                       | 分组               |
+| ---------------------------------------------------------------------------------------------------------- | ------------------ |
+| [连接、启动与会话总览](user-stories/access-and-sessions.md)                                                | A–C                |
+| [终端、输入与移动端](user-stories/terminal.md)                                                             | D–H                |
+| [代码工作区与工作树](user-stories/code-and-worktrees.md)                                                   | I–J                |
+| [配置与运行](user-stories/operations-and-tooling.md)、[贡献者工具](user-stories/contributor-tooling.md)    | K、L               |
+| [原生客户端与隧道](user-stories/clients-network-tray.md)、[Windows/WSL 托盘](user-stories/windows-tray.md) | M–N、P；O          |
+| [混合会话](user-stories/hybrid-sessions.md)                                                                | Q                  |
+| [功能覆盖核对与后续维护](user-stories/coverage.md)                                                         | 覆盖索引与维护约定 |
 
 本次局部核对（2026-10-29）：代码质量扫描修复对应 US-K09（`allowed_origins` 条目须为浏览器 Origin 的精确小写形式、`listen` 端口无效时启动即失败），删除会话的非“不存在”失败不再报 404；其余为内部并发、测试与无障碍修正，不改变故事行为。当前 168 个故事 ID 唯一；未重新核对其余故事能力。
 
@@ -398,3 +398,8 @@ diff 库的行号按压只在主页面 `document` 上等待 pointerup，现由 `
   - 升级到 0.0.2 时服务进程不变，`webmux service restart` 后运行新版本。
   - `webmux service uninstall` 禁用并停止且保留单元文件；卸载包后两项文件删除、用户配置保留。
 - 限制：未验证 arm64 包的安装；未重新核验其余故事能力。
+
+本次局部核对（2026-11-02）：自动更新新增 US-K14–US-K16、US-L12、US-O13，并更新 US-K13、US-O01、US-O11、US-O12；184 个故事 ID 唯一，两份索引已同步。
+
+- 依据：更新、签名、API 与托盘包的 Go race 测试，前端 `pendingUpdate` 用例；容器内的安装包定时器测试；systemd 容器中定时器服务把 0.0.1 升到 0.0.2，用户服务 PID 与会话不变；minisign 0.12 验签通过。
+- 限制：托盘自更新与 NSIS 静默升级只在 Linux 上测试与编译（makensis 3.11），未在 Windows 上运行；未重新核验其余故事能力。

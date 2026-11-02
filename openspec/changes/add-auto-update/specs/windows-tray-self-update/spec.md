@@ -1,0 +1,83 @@
+# Spec Delta
+
+## Purpose
+
+让由 Windows 安装程序安装的托盘自动发现、下载并静默安装经签名验证的新版本安装程序，在不结束 WSL 中终端会话的前提下保持托盘为最新版本；便携版托盘只提示新版本。
+
+## ADDED Requirements
+
+### Requirement: 自动更新设置
+
+托盘设置 SHALL 新增布尔项 `autoUpdate`，默认 `true`；旧设置文件缺少该项时 SHALL 按 `true` 处理。托盘菜单 SHALL 提供可勾选的“自动更新”，切换后立即写入设置并生效。
+
+#### Scenario: 旧设置文件
+
+- **WHEN** 用户从没有 `autoUpdate` 字段的旧版本托盘升级
+- **THEN** 托盘按自动更新开启处理，菜单中“自动更新”为勾选状态
+
+### Requirement: 检查时机
+
+`autoUpdate` 开启时，托盘 SHALL 在启动 2 分钟后进行首次检查，之后每 24 小时检查一次。菜单 SHALL 始终提供“检查更新”，点击后立即检查，不受 `autoUpdate` 影响。检查 SHALL 在后台进行，SHALL NOT 阻塞菜单。检查规则见 `signed-release-updates`；非发布构建的托盘 SHALL 禁用“检查更新”并说明原因。
+
+#### Scenario: 关闭自动更新
+
+- **WHEN** `autoUpdate` 为 `false`，托盘连续运行 3 天
+- **THEN** 托盘没有发起任何更新检查
+
+#### Scenario: 手动检查
+
+- **WHEN** `autoUpdate` 为 `false`，用户点击“检查更新”，最新版本高于托盘
+- **THEN** 状态行显示“有新版本 <版本>”，菜单提供“更新到 <版本>”
+
+### Requirement: 安装版识别
+
+只有从安装程序登记的安装目录运行的托盘 SHALL 视为安装版，可以自动更新自身。其他位置的托盘为便携版：发现新版本时 SHALL 只在状态行提示，并在菜单提供“下载托盘 <版本>”，用默认浏览器打开该版本的 Release 页面，SHALL NOT 下载或运行安装程序。
+
+#### Scenario: 便携版
+
+- **WHEN** 用户运行 `Downloads\webmux-tray-windows-amd64.exe` 0.4.0，最新版本为 0.5.0
+- **THEN** 状态行提示有新版本，菜单出现“下载托盘 0.5.0”，没有下载安装程序
+
+### Requirement: 自动安装新版本
+
+安装版托盘发现更高版本时，SHALL 下载同架构的 `webmux-setup-windows-<架构>.exe` 到 `%LOCALAPPDATA%\WebMux\updates`，按 `signed-release-updates` 校验后以静默模式运行它。
+
+- 触发：`autoUpdate` 开启时 SHALL 无需用户操作；关闭时 SHALL 只在用户点击“更新到 <版本>”后执行。
+- 退出：托盘 SHALL 以“仅退出托盘”的方式响应安装程序的退出请求。
+
+#### Scenario: 后台更新
+
+- **WHEN** 安装版托盘 0.4.0 开启自动更新，最新版本为 0.5.0，WebMux 有 2 个会话
+- **THEN** 托盘下载并校验安装程序后静默运行它，旧托盘退出，0.5.0 托盘启动并显示运行中，2 个会话保持可用
+
+#### Scenario: 签名无效
+
+- **WHEN** 所有来源提供的安装程序都无法通过签名清单校验
+- **THEN** 托盘不运行任何安装程序，状态行显示更新失败及原因，下次计划检查时重试
+
+### Requirement: 避开进行中的操作
+
+托盘正在安装 WSL 中的 webmux、启动、停止或重启 WebMux，或正显示对话框时，SHALL 推迟运行安装程序，直到这些操作结束。
+
+#### Scenario: 正在重启
+
+- **WHEN** 更新下载完成时托盘正在重启 WebMux
+- **THEN** 托盘等重启完成后才运行安装程序
+
+### Requirement: 更新不影响会话
+
+托盘自更新 SHALL NOT 停止或重启 WebMux，也 SHALL NOT 结束保持发行版存活的进程。托盘重启期间端口转发中断，新托盘启动后 SHALL 按设置恢复转发。
+
+#### Scenario: 转发恢复
+
+- **WHEN** 托盘配置了局域网转发，自更新完成
+- **THEN** 新托盘启动后转发恢复，WebMux 进程 PID 不变
+
+### Requirement: 更新结果记录
+
+托盘 SHALL 在日志中记录每次检查与安装的版本、来源与结果，SHALL NOT 为更新发出系统通知。更新后的新托盘 SHALL 在状态行显示一次“已更新到 <版本>”，直到用户下次打开菜单后消失。下载的安装程序 SHALL 在新托盘启动后删除。
+
+#### Scenario: 更新后首次打开菜单
+
+- **WHEN** 托盘从 0.4.0 自更新到 0.5.0 后用户打开菜单
+- **THEN** 状态行显示“已更新到 0.5.0”；再次打开菜单时不再显示，`updates` 目录为空

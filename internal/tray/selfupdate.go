@@ -1,0 +1,363 @@
+package tray
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/rainchan/webmux/internal/update"
+)
+
+// Timing of the tray's own update checks; see windows-tray-self-update.
+const (
+	UpdateFirstCheck = 2 * time.Minute
+	UpdateInterval   = 24 * time.Hour
+	// UpdateIdlePoll is how often a downloaded installer waits for the
+	// tray to become idle.
+	UpdateIdlePoll = 5 * time.Second
+
+	updateCleanRetry   = 10 * time.Second
+	updateCleanRetries = 30
+)
+
+// ReleaseClient reads signed releases; update.Client implements it.
+type ReleaseClient interface {
+	Latest(ctx context.Context) (update.Manifest, string, error)
+	Fetch(ctx context.Context, m update.Manifest, asset, target string, mode os.FileMode) (string, error)
+}
+
+// SelfUpdateOptions configure a SelfUpdater.
+type SelfUpdateOptions struct {
+	// Version is the tray version; Arch the Windows architecture of the
+	// installer ("amd64", "arm64").
+	Version, Arch string
+	// Release is update.IsRelease(): only release builds check.
+	Release bool
+	// Installed is true for a tray running from the directory the
+	// installer registered; any other tray is portable and never
+	// downloads or runs an installer.
+	Installed bool
+	// Dir holds the downloaded installer (%LOCALAPPDATA%\WebMux\updates).
+	Dir    string
+	Client ReleaseClient
+	Clock  Clock
+	// AutoUpdate reads Settings.AutoUpdate at the time of each decision.
+	AutoUpdate func() bool
+	// Idle reports that no server install, start, stop or restart runs and
+	// no dialog is open, so the installer may close the tray.
+	Idle func() bool
+	// Launch starts the installer silently and detached, without waiting.
+	Launch func(path string) error
+	// Publish is called after every change of View.
+	Publish func()
+	Logf    func(format string, args ...any)
+	// Updated is the version announced once as "已更新到", from
+	// RecordVersion; "" announces nothing.
+	Updated string
+}
+
+// SelfUpdateView is what the menu shows about the tray's own update.
+type SelfUpdateView struct {
+	Release, Installed bool
+	// Busy is true while a check, download or install runs.
+	Busy bool
+	// Latest is a newer release found by the latest check, or "".
+	Latest string
+	// Status is the status line, or "".
+	Status string
+}
+
+// SelfUpdater checks for newer tray releases and, for an installed tray,
+// downloads the signed installer and runs it silently once the tray is
+// idle. The installer then closes this tray as with "仅退出托盘".
+type SelfUpdater struct {
+	o      SelfUpdateOptions
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+
+	mu     sync.Mutex
+	busy   bool
+	latest string
+	status string
+	// notice is shown until the menu opened twice: once to show it.
+	notice     string
+	noticeSeen bool
+	// servers are newer WSL versions that already triggered a check.
+	servers map[string]bool
+}
+
+// NewSelfUpdater returns an updater; Start runs its schedule.
+func NewSelfUpdater(o SelfUpdateOptions) *SelfUpdater {
+	if o.Clock == nil {
+		o.Clock = RealClock
+	}
+	if o.Logf == nil {
+		o.Logf = func(string, ...any) {}
+	}
+	if o.Publish == nil {
+		o.Publish = func() {}
+	}
+	if o.AutoUpdate == nil {
+		o.AutoUpdate = func() bool { return false }
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	u := &SelfUpdater{o: o, ctx: ctx, cancel: cancel, servers: map[string]bool{}}
+	if o.Updated != "" {
+		u.notice = "已更新到 " + o.Updated
+		o.Logf("tray updated to %s", o.Updated)
+	}
+	return u
+}
+
+// Start removes earlier downloads, then checks UpdateFirstCheck after the
+// start and every UpdateInterval while automatic updates are on.
+func (u *SelfUpdater) Start() {
+	u.wg.Go(u.schedule)
+}
+
+// Close stops the schedule and any check or download, and waits for them.
+func (u *SelfUpdater) Close() {
+	u.cancel()
+	u.wg.Wait()
+}
+
+// Check checks now, from the menu; it does not depend on AutoUpdate.
+func (u *SelfUpdater) Check() { u.spawn(true, false) }
+
+// Install checks now and installs a newer release on an installed tray,
+// whether or not automatic updates are on.
+func (u *SelfUpdater) Install() { u.spawn(true, true) }
+
+// Observe checks once per newer WSL webmux version when automatic updates
+// are on, so an installed tray catches up with its server.
+func (u *SelfUpdater) Observe(snap Snapshot) {
+	version := snap.Installed.Version
+	if !snap.Compat.Newer() || !releaseVersion(version) || !u.o.Release || !u.o.Installed || !u.o.AutoUpdate() {
+		return
+	}
+	u.mu.Lock()
+	seen := u.servers[version]
+	u.servers[version] = true
+	u.mu.Unlock()
+	if !seen {
+		u.o.Logf("update: WSL webmux %s is newer than tray %s; checking", version, u.o.Version)
+		u.spawn(false, false)
+	}
+}
+
+// MenuOpened dismisses a notice the user has already seen in an earlier
+// opening of the menu.
+func (u *SelfUpdater) MenuOpened() {
+	u.mu.Lock()
+	changed := false
+	if u.notice != "" {
+		if u.noticeSeen {
+			u.notice, u.noticeSeen, changed = "", false, true
+		} else {
+			u.noticeSeen = true
+		}
+	}
+	u.mu.Unlock()
+	if changed {
+		u.o.Publish()
+	}
+}
+
+// View returns the current state for the menu.
+func (u *SelfUpdater) View() SelfUpdateView {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	var lines []string
+	for _, line := range []string{u.notice, u.status} {
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return SelfUpdateView{
+		Release:   u.o.Release,
+		Installed: u.o.Installed,
+		Busy:      u.busy,
+		Latest:    u.latest,
+		Status:    strings.Join(lines, "；"),
+	}
+}
+
+func (u *SelfUpdater) schedule() {
+	next := u.o.Clock.After(UpdateFirstCheck)
+	// The installer that started this tray is still finishing, so its
+	// file may resist the first removals.
+	var retry <-chan time.Time
+	retries := 0
+	if !u.tidy() {
+		retry = u.o.Clock.After(updateCleanRetry)
+	}
+	for {
+		select {
+		case <-u.ctx.Done():
+			return
+		case <-retry:
+			retry = nil
+			if retries++; !u.tidy() && retries < updateCleanRetries {
+				retry = u.o.Clock.After(updateCleanRetry)
+			}
+			continue
+		case <-next:
+		}
+		next = u.o.Clock.After(UpdateInterval)
+		if u.o.Release && u.o.AutoUpdate() {
+			u.run(false, false)
+		} else {
+			u.tidy()
+		}
+	}
+}
+
+// tidy removes earlier downloads unless an update runs, and reports
+// whether none remain.
+func (u *SelfUpdater) tidy() bool {
+	if !u.begin() {
+		return true
+	}
+	defer u.end()
+	return u.clean()
+}
+
+func (u *SelfUpdater) spawn(manual, install bool) {
+	if !u.o.Release || u.ctx.Err() != nil {
+		return
+	}
+	u.wg.Go(func() { u.run(manual, install) })
+}
+
+// begin claims the updater; it fails while another operation runs or
+// after the installer was started.
+func (u *SelfUpdater) begin() bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.busy {
+		return false
+	}
+	u.busy = true
+	return true
+}
+
+func (u *SelfUpdater) end() {
+	u.mu.Lock()
+	u.busy = false
+	u.mu.Unlock()
+	u.o.Publish()
+}
+
+func (u *SelfUpdater) set(edit func()) {
+	u.mu.Lock()
+	edit()
+	u.mu.Unlock()
+	u.o.Publish()
+}
+
+func (u *SelfUpdater) setStatus(status string) {
+	u.set(func() { u.status = status })
+}
+
+// run is one check, and for an installed tray the download and install.
+// After the installer started the updater stays busy until the tray exits.
+func (u *SelfUpdater) run(manual, install bool) {
+	if !u.begin() {
+		return
+	}
+	u.o.Publish()
+	if !u.update(manual, install) {
+		u.end()
+	}
+}
+
+func (u *SelfUpdater) update(manual, install bool) bool {
+	ctx := u.ctx
+	u.clean()
+	m, host, err := u.o.Client.Latest(ctx)
+	if err != nil {
+		u.fail("check", err)
+		return false
+	}
+	if !update.Newer(m.Version, u.o.Version) {
+		u.o.Logf("update check: tray %s is current; latest %s from %s", u.o.Version, m.Version, host)
+		u.set(func() {
+			u.latest, u.status = "", ""
+			if manual {
+				u.notice, u.noticeSeen = "托盘已是最新版本 "+u.o.Version, false
+			}
+		})
+		return false
+	}
+	u.o.Logf("update check: tray %s, latest %s from %s", u.o.Version, m.Version, host)
+	u.set(func() { u.latest, u.status = m.Version, "有新版本 "+m.Version })
+	if !u.o.Installed || (!install && !u.o.AutoUpdate()) {
+		return false
+	}
+	asset := "webmux-setup-windows-" + u.o.Arch + ".exe"
+	target := filepath.Join(u.o.Dir, asset)
+	u.setStatus("正在下载托盘 " + m.Version + "…")
+	if err := os.MkdirAll(u.o.Dir, 0o700); err != nil {
+		u.fail("download", fmt.Errorf("下载目录：%w", err))
+		return false
+	}
+	host, err = u.o.Client.Fetch(ctx, m, asset, target, 0o700)
+	if err != nil {
+		u.fail("download", fmt.Errorf("下载 %s %s：%w", asset, m.Version, err))
+		return false
+	}
+	u.o.Logf("update download: %s %s from %s", asset, m.Version, host)
+	for !u.o.Idle() {
+		u.setStatus("托盘 " + m.Version + " 已下载，当前操作完成后安装")
+		select {
+		case <-ctx.Done():
+			return false
+		case <-u.o.Clock.After(UpdateIdlePoll):
+		}
+	}
+	if err := u.o.Launch(target); err != nil {
+		u.fail("install", fmt.Errorf("无法运行安装程序：%w", err))
+		return false
+	}
+	u.o.Logf("update install: started %s /S for %s", target, m.Version)
+	u.setStatus("正在安装托盘 " + m.Version + "…")
+	return true
+}
+
+func (u *SelfUpdater) fail(stage string, err error) {
+	if u.ctx.Err() != nil {
+		return
+	}
+	u.o.Logf("update %s failed: %v", stage, err)
+	u.setStatus("更新失败：" + err.Error())
+}
+
+// clean removes earlier downloads and reports whether none remain; an
+// installer that still runs keeps its file until a later attempt.
+func (u *SelfUpdater) clean() bool {
+	if u.o.Dir == "" {
+		return true
+	}
+	entries, err := os.ReadDir(u.o.Dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return true
+		}
+		u.o.Logf("update cleanup: %v", err)
+		return false
+	}
+	clean := true
+	for _, e := range entries {
+		if err := os.RemoveAll(filepath.Join(u.o.Dir, e.Name())); err != nil {
+			u.o.Logf("update cleanup: %v", err)
+			clean = false
+		}
+	}
+	return clean
+}

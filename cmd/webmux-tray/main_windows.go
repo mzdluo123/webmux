@@ -14,6 +14,7 @@ import (
 	"github.com/rainchan/webmux/internal/localclient"
 	"github.com/rainchan/webmux/internal/tray"
 	"github.com/rainchan/webmux/internal/tray/winui"
+	"github.com/rainchan/webmux/internal/update"
 	"github.com/rainchan/webmux/internal/wslclient"
 )
 
@@ -108,6 +109,8 @@ func run() error {
 		Reach:        winui.NewReacher(),
 		Instance:     instance,
 		Executable:   exe,
+		UpdatesDir:   filepath.Join(localAppData, "WebMux", "updates"),
+		Releases:     update.Client{},
 	})
 	return nil
 }

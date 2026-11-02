@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/rainchan/webmux/internal/statefile"
+	"github.com/rainchan/webmux/internal/update"
 )
 
 // Mode is how WebMux runs inside WSL.
@@ -43,6 +44,12 @@ type Settings struct {
 	AutoRestart bool `json:"autoRestart"`
 	// Forward lists the Windows addresses the user enabled forwarding on.
 	Forward []string `json:"forward"`
+	// AutoUpdate lets the tray install its own updates and upgrade an
+	// older WSL webmux without asking; files lacking it mean true.
+	AutoUpdate bool `json:"autoUpdate"`
+	// LastVersion is the tray release that last ran, for the "已更新到"
+	// notice after an update.
+	LastVersion string `json:"lastVersion"`
 }
 
 func DefaultSettings() Settings {
@@ -53,7 +60,22 @@ func DefaultSettings() Settings {
 		StartWebMux: true,
 		AutoRestart: true,
 		Forward:     []string{},
+		AutoUpdate:  true,
 	}
+}
+
+// RecordVersion notes the running tray release in s. updated is version
+// when the previous run was an older release, else ""; changed reports
+// that s must be saved. Development versions are never recorded.
+func RecordVersion(s Settings, version string) (next Settings, updated string, changed bool) {
+	if !releaseVersion(version) || s.LastVersion == version {
+		return s, "", false
+	}
+	if update.Newer(version, s.LastVersion) {
+		updated = version
+	}
+	s.LastVersion = version
+	return s, updated, true
 }
 
 // Validate checks values the tray passes to WSL as argv elements.
