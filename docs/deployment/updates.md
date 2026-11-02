@@ -11,6 +11,8 @@ WebMux 的更新只替换磁盘上的文件，从不自动重启 WebMux：**重�
 
 本地 `make build` / `make tray` 构建的程序不是发布构建，不参与更新：`webmux update check` 会报告“此构建不是发布构建，不支持更新”，托盘的“检查更新”不可用。
 
+自动更新从第一个包含该功能的版本开始生效。更早的版本没有更新程序，需要手动升级一次：deb / rpm 用 `apt install ./webmux_<版本>-1_<架构>.deb` 或 `dnf install ./webmux-<版本>-1.<架构>.rpm` 安装新包，Windows 运行新的安装程序。之后的版本按上表自动更新。
+
 ## 发布签名
 
 每个 Release 附带 `SHA256SUMS.minisig`：用发布私钥对 `SHA256SUMS` 做的 [minisign](https://jedisct1.github.io/minisign/) 签名，可信注释为 `webmux <版本>`。更新程序只信任内置的公钥：

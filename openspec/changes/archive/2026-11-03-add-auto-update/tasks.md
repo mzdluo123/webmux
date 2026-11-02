@@ -79,7 +79,8 @@
   - 结果：0.0.1 托盘启动 2 分钟后下载、校验并静默安装 0.0.2，约 1.5 秒后 0.0.2 托盘启动，`lastVersion` 为 0.0.2，`updates` 目录为空。
   - 结果：新托盘把 WSL 中的 webmux 升级到 0.0.2，运行中的服务端 PID 不变，`webmux status` 提示已安装 0.0.2、重启后生效；没有出现 SmartScreen 或 UAC 提示。
   - 结果：被锁定导致失败后，重新启动的 0.0.1 托盘记录 `updateAttempt` 并提示失败，之后约 3 分钟内的 WSL 触发检查与计划检查都没有再次运行安装程序。
-  - 限制：未配置托盘转发，转发恢复没有单独验证。
+  - 结果（转发）：在 WebMuxFwdE2E 测试发行版中模拟 NAT 网络（本机 WSL 为 mirrored 模式，托盘只在 NAT 下转发），托盘转发 `192.168.31.17:7681`；自更新时转发中断约 1.75 秒，已建立的连接被断开，客户端约 2.3 秒后重新连通，新托盘在同一地址与端口恢复转发，WSL 中的服务端 PID 不变。
+  - 限制：未在真实 NAT 网络模式的主机上验证转发；NAT 网络路径由测试替身代替，托盘自身的安装、自更新与转发均为真实运行。
 
 ## 6. 文档与用户故事
 
@@ -118,12 +119,13 @@
   - 验证：单元测试覆盖安装期间取消父上下文时安装完成、下载后已取消时不安装。
   - 结果（2026-11-03，以 systemd 为 PID 1 的 Debian 13 容器）：定时器服务把 0.0.1 升到 0.0.2，另一用户的 `webmux.service` PID 不变；`postinst` 中 `sleep 40` 的测试包安装期间执行 `systemctl stop`，约 41 秒后停止返回，dpkg 完成且 `dpkg --audit` 为空。
   - 结果：Fedora 44 容器中 rpm 0.0.1 → 0.0.2 同样通过；`apt-mark hold` 时跳过且没有任何 HTTP 请求。
+  - 结果：Fedora 44 Cloud（selinux-policy-targeted 43.3，enforcing，QEMU 虚拟机）中更新服务连续升级 rpm 0.0.1 → 0.0.4，服务运行在 `unconfined_service_t`，scriptlet 正常进入 `rpm_script_t`，期间没有 AVC 拒绝，`rpm -Va` 无差异。
+  - 结果：对照实验加回 `NoNewPrivileges=yes` 后，`nnp_transition` 被拒绝，scriptlet 无法执行，rpm 数据库同时留下新旧两个版本，证实去掉该项是必要的。
 - [x] 9.2 版本锁定改为读取 dnf4 锁文件（含 `locklist` 覆盖）与 dnf5 的 `versionlock.toml`，`dpkg-query` 出错或锁文件不可读、无法解析时按锁定跳过。
   - dnf5 文件按行查找 `name`，不引入 TOML 模块：签名工具链接 `internal/update`，必须只依赖标准库。
   - 验证：单元测试覆盖默认路径、路径覆盖、纯名字、架构后缀、排除项、不相关的包名、dnf5、不可读文件与缺失文件。
   - 验证：`releasesign` 新增测试用 `go list -deps` 断言只链接标准库与本模块，引入 TOML 模块时失败。
   - 结果：Fedora 44（dnf5 5.4.3）仓库不可达时 `dnf versionlock add` 卡在加载仓库；更新服务直接读取 `versionlock.toml` 并跳过，没有 HTTP 请求；锁文件换成目录或未加引号的 `name` 时按已锁定跳过。
-  - 限制：容器无法启用 SELinux enforcing，去掉 `NoNewPrivileges=` 后的 rpm scriptlet 行为未在 enforcing 主机上验证。
 - [x] 9.3 `InstalledVersion` 读取失败时保留旧标识，下一次检查重新读取。
   - 验证：单元测试覆盖超时、失败、无效输出、空版本后的重试与成功后的缓存。
 - [x] 9.4 GitHub 失败时读取所有镜像，采用签名有效的最高版本。
