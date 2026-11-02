@@ -1,6 +1,7 @@
 import {
   emptySearchSpec,
   findMatchLines,
+  matchStatus,
   type MatchCursor,
   type SearchSpec,
 } from "./code-search";
@@ -68,6 +69,9 @@ export function createCodeFind(
     },
     get matches() {
       return matches;
+    },
+    get status() {
+      return matchStatus(cursor, matches);
     },
   };
 }

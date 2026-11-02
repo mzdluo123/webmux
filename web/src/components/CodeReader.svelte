@@ -15,14 +15,13 @@
     codeLineHeight,
     codeTokenizeLimit,
     fileUnsafeCSS,
-    observeDarkTheme,
     pierreTheme,
   } from "../code-pierre";
   import {
     readerKeydown,
     releaseCodeView,
     syncViewerOptions,
-    watchScroll,
+    watchReader,
   } from "../code-reader-controls";
   import type { CodeReaderState } from "../schemas";
   import { Button } from "$lib/components/ui/button";
@@ -328,23 +327,20 @@
   }
 
   onMount(() => {
-    const pointer = matchMedia("(pointer: coarse)");
-    const updatePointer = () => {
-      coarse = pointer.matches;
-      if (!coarse) clearLineAction();
-    };
-    updatePointer();
-    pointer.addEventListener("change", updatePointer);
-    const stopTheme = observeDarkTheme((value) => {
-      dark = value;
-    });
-    // A hidden tab has no layout; a pending restore waits until it is shown.
-    const resize = new ResizeObserver(() => {
-      if (pending) applyRestore();
-    });
-    resize.observe(host);
-    const stopScroll = watchScroll(host, () => {
-      if (!pending) position();
+    const stopEnvironment = watchReader(host, {
+      onPointer: (value) => {
+        coarse = value;
+      },
+      onTheme: (value) => {
+        dark = value;
+      },
+      // A hidden tab has no layout; a pending restore waits until it is shown.
+      onResize: () => {
+        if (pending) applyRestore();
+      },
+      onScroll: () => {
+        if (!pending) position();
+      },
     });
     const highlighter = acquireCodeHighlighter();
     viewer = new CodeView(options(), highlighter.pool);
@@ -356,10 +352,7 @@
     root.addEventListener("keydown", keydown);
     return () => {
       mounted = false;
-      resize.disconnect();
-      stopTheme();
-      pointer.removeEventListener("change", updatePointer);
-      stopScroll();
+      stopEnvironment();
       root.removeEventListener("keydown", keydown);
       releaseCodeView(viewer, highlighter);
       viewer = undefined;
@@ -420,6 +413,7 @@
     panel={find.panel}
     query={find.search}
     line={selected?.start ?? line()}
+    status={find.status}
     {...find.panelProps}
     ongoto={goto}
   />

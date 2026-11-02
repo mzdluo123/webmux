@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Harness from "./CodeReaderHarness.svelte";
@@ -22,6 +22,49 @@ const tokenColor = (text: string) => {
 afterEach(async () => {
   await cleanup();
   await userEvent.cleanup();
+  vi.unstubAllGlobals();
+});
+
+// Toggles the coarse-pointer query and notifies the reader's listener.
+function coarsePointer() {
+  const listeners = new Set<() => void>();
+  let matches = true;
+  const query = {
+    media: "(pointer: coarse)",
+    get matches() {
+      return matches;
+    },
+    addEventListener(type: string, callback: (() => void) | null) {
+      if (type === "change" && callback) listeners.add(callback);
+    },
+    removeEventListener(type: string, callback: (() => void) | null) {
+      if (type === "change" && callback) listeners.delete(callback);
+    },
+  };
+  const real = window.matchMedia.bind(window);
+  vi.stubGlobal("matchMedia", (value: string) =>
+    value === "(pointer: coarse)" ? query : real(value),
+  );
+  return (fine: boolean) => {
+    matches = !fine;
+    for (const listener of listeners) listener();
+  };
+}
+
+test("keeps the selected line and its reference when the pointer becomes fine", async () => {
+  const setCoarse = coarsePointer();
+  const harness = await render(Harness, { text: "one\ntwo\nthree" });
+  await expect.poll(() => shadow()?.textContent ?? "").toContain("three");
+  await page.elementLocator(gutter(2)!).click();
+  await expect
+    .element(page.getByLabelText("Selected reference"))
+    .toMatchTextContent(/2-2/);
+  expect(harness.component.capture().selection).toEqual({ start: 2, end: 2 });
+  setCoarse(false);
+  await expect
+    .element(page.getByLabelText("Selected reference"))
+    .toMatchTextContent(/2-2/);
+  expect(harness.component.capture().selection).toEqual({ start: 2, end: 2 });
 });
 
 test("read-only virtualized full file, real line selection, search and goto", async () => {
@@ -51,7 +94,9 @@ test("read-only virtualized full file, real line selection, search and goto", as
     .toContain("const line900");
   await page.getByRole("button", { name: "文件内查找" }).click();
   await page.getByRole("textbox", { name: "查找" }).fill("line850");
+  await expect.element(page.getByText("0 / 1")).toBeVisible();
   await page.getByRole("button", { name: "下一个匹配", exact: true }).click();
+  await expect.element(page.getByText("1 / 1")).toBeVisible();
   await expect
     .poll(() => shadow()?.textContent ?? "")
     .toContain("const line850");

@@ -4,6 +4,7 @@ import type {
   CodeViewOptions,
   SelectedLineRange,
 } from "@pierre/diffs";
+import { observeDarkTheme } from "./code-pierre";
 import {
   stepMatchLine,
   type MatchCursor,
@@ -149,9 +150,35 @@ export function readerKeydown(
  * Measures on every scroll event, not on a later frame: a tab can be hidden
  * before the next frame, and its last position must already be captured.
  */
-export function watchScroll(host: HTMLElement, measure: () => void) {
+function watchScroll(host: HTMLElement, measure: () => void) {
   host.addEventListener("scroll", measure, { passive: true });
   return () => host.removeEventListener("scroll", measure);
+}
+
+/** Pointer, theme, resize and scroll wiring shared by the code readers. */
+export function watchReader(
+  host: HTMLElement,
+  handlers: {
+    onPointer: (coarse: boolean) => void;
+    onTheme: (dark: boolean) => void;
+    onResize: () => void;
+    onScroll: () => void;
+  },
+) {
+  const pointer = matchMedia("(pointer: coarse)");
+  const updatePointer = () => handlers.onPointer(pointer.matches);
+  updatePointer();
+  pointer.addEventListener("change", updatePointer);
+  const stopTheme = observeDarkTheme(handlers.onTheme);
+  const resize = new ResizeObserver(handlers.onResize);
+  resize.observe(host);
+  const stopScroll = watchScroll(host, handlers.onScroll);
+  return () => {
+    resize.disconnect();
+    stopTheme();
+    pointer.removeEventListener("change", updatePointer);
+    stopScroll();
+  };
 }
 
 /** Moves to the next match, reveals its line and returns the new cursor. */

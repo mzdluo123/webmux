@@ -8,7 +8,7 @@
     type SelectedLineRange,
     type SelectionSide,
   } from "@pierre/diffs";
-  import { captureCursor, matchStatus, restoreCursor } from "../code-search";
+  import { captureCursor, restoreCursor } from "../code-search";
   import { createCodeFind } from "../code-find.svelte";
   import { settings, changeSettings } from "../settings.svelte";
   import { defaultCodeReader } from "../settings-intent";
@@ -17,14 +17,13 @@
     codeItemMetrics,
     codeTokenizeLimit,
     codeUnsafeCSS,
-    observeDarkTheme,
     pierreTheme,
   } from "../code-pierre";
   import {
     readerKeydown,
     releaseCodeView,
     syncViewerOptions,
-    watchScroll,
+    watchReader,
   } from "../code-reader-controls";
   import type { CodeDiffReaderState } from "../schemas";
   import { Button } from "$lib/components/ui/button";
@@ -350,25 +349,23 @@
       );
   }
   onMount(() => {
-    const pointer = matchMedia("(pointer: coarse)");
-    const updatePointer = () => {
-      coarse = pointer.matches;
-    };
-    updatePointer();
-    pointer.addEventListener("change", updatePointer);
-    const stopTheme = observeDarkTheme((value) => {
-      dark = value;
+    const stopEnvironment = watchReader(host, {
+      onPointer: (value) => {
+        coarse = value;
+      },
+      onTheme: (value) => {
+        dark = value;
+      },
+      // A hidden tab has no layout; a pending restore waits until it is shown.
+      onResize: () => {
+        width = host.clientWidth;
+        applyRestore();
+      },
+      onScroll: () => {
+        if (!pending) topLine();
+      },
     });
     width = host.clientWidth;
-    // A hidden tab has no layout; a pending restore waits until it is shown.
-    const resize = new ResizeObserver(() => {
-      width = host.clientWidth;
-      applyRestore();
-    });
-    resize.observe(host);
-    const stopScroll = watchScroll(host, () => {
-      if (!pending) topLine();
-    });
     const highlighter = acquireCodeHighlighter();
     viewer = new CodeView(options(), highlighter.pool);
     viewer.setup(host);
@@ -416,11 +413,8 @@
     document.addEventListener("selectionchange", selectionChanged);
     return () => {
       mounted = false;
-      resize.disconnect();
-      stopTheme();
-      pointer.removeEventListener("change", updatePointer);
+      stopEnvironment();
       host.removeEventListener("pointerdown", guardExpansion, true);
-      stopScroll();
       host.removeEventListener("click", guardExpansion, true);
       root.removeEventListener("keydown", keydown);
       document.removeEventListener("selectionchange", selectionChanged);
@@ -497,7 +491,7 @@
     panel={find.panel}
     query={find.search}
     line={selected?.start ?? 1}
-    status={`${side === "old" ? "修改前" : "修改后"} · ${matchStatus(find.cursor, find.matches)}`}
+    status={`${side === "old" ? "修改前" : "修改后"} · ${find.status}`}
     {...find.panelProps}
     ongoto={goto}
   />
