@@ -111,12 +111,12 @@ interface SessionInfo {
 
 ## 其他
 
-| 方法 | 路径                   | 说明                                                                                                                |
-| ---- | ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| GET  | `/api/health`          | `{ok: true, sessions: n}`                                                                                           |
+| 方法 | 路径                   | 说明                                                                                                                              |
+| ---- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| GET  | `/api/health`          | `{ok: true, sessions: n}`                                                                                                         |
 | GET  | `/api/config`          | `{defaultCwd, defaultShell, hostname, workspace: {gitAvailable, registryAvailable, gitError, registryError}, tunnel}`，不含 token |
-| GET  | `/api/fs/dirs?prefix=` | 匹配前缀的全部子目录（含符号链接目录），普通目录优先，按名称排序                                                    |
-| POST | `/api/fs/mkdir`        | `{path}`，204                                                                                                       |
+| GET  | `/api/fs/dirs?prefix=` | 匹配前缀的全部子目录（含符号链接目录），普通目录优先，按名称排序                                                                  |
+| POST | `/api/fs/mkdir`        | `{path}`，204                                                                                                                     |
 
 `tunnel` 是只读的运行时隧道状态：`{enabled, state, named, hostname, publicUrl?}`。
 
