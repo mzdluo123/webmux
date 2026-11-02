@@ -32,4 +32,4 @@
 - Web：`web/src/launchConfigs.ts`、`web/src/components/LaunchConfigDialog.svelte`、`web/src/schemas.ts` 及启动配置的单元/浏览器测试。
 - 文档与故事：`docs/cli-agents.md`、`docs/usage.md`、`docs/usage/terminal.md`、`docs/hybrid-sessions.md`、`docs/deployment.md`、`docs/protocol/http-sessions.md` 与 `docs/protocol/http-hybrid.md`（如有接口字段变化）；US-B01、US-B08。
 - 无新增依赖；不改变认证、Origin、会话生命周期、回放或环境变量契约。
-- 本次只提交规划，不实施代码；评审通过后另行进入 apply 流程。
+- 本次实现不迁移既有数据；评审通过后合入。

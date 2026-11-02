@@ -1,6 +1,6 @@
 ## Context
 
-动机见 proposal.md。本变更只提交规划，不实施代码。
+动机见 proposal.md。
 
 已核对的实现边界：
 

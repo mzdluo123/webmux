@@ -9,7 +9,7 @@
 
 `hybrid` 为 `true` 时，服务端 SHALL 按 `hybrid-agent-profiles` 校验 argv，校验不通过时 SHALL 返回 400 并给出原因，已有数据不变。
 
-新安装预置的 OpenCode 与 omp 配置 SHALL 为 `hybrid: true`，其 argv（含各自的自动批准参数）SHALL 通过 `hybrid-agent-profiles` 校验。修改已勾选配置的 argv 使其不再受支持时，保存 SHALL 返回 400，用户须先取消勾选。
+新安装预置的 Codex CLI、OpenCode 与 omp 配置 SHALL 为 `hybrid: true`，其 argv（含各自的自动批准参数）SHALL 通过 `hybrid-agent-profiles` 校验。修改已勾选配置的 argv 使其不再受支持时，保存 SHALL 返回 400，用户须先取消勾选。
 
 新安装预置的下列 agent 配置 SHALL 带上各自的自动批准参数，使工具调用无需逐次批准：
 
@@ -27,8 +27,8 @@ Shell 配置 SHALL 不变。新安装的 agent 预置命令 SHALL 按 `defaultSh
 
 - **WHEN** 服务首次启动、`launch-configs.json` 不存在且 `defaultShell` 为 `bash`
 - **THEN** 写入 Shell、Claude Code、Codex CLI、Gemini CLI、Cursor CLI、GitHub Copilot CLI、OpenCode、Qwen Code、Kimi Code CLI、CodeBuddy Code 和 omp 共 11 条配置
-- **AND** omp 的 argv 为 `["bash","-ic","exec -- \"$@\"","webmux","omp","--auto-approve"]`，`hybrid` 为 `true`，`hybridSupport` 为 `{supported: true, agent: "omp"}`；OpenCode 配置同样为混合配置
-- **AND** Claude Code、Codex CLI、Gemini CLI 带上述自动批准参数且 `hybrid` 为 `false`；其余五款 agent 不带自动批准参数且 `hybrid` 为 `false`
+- **AND** omp 的 argv 为 `["bash","-ic","exec -- \"$@\"","webmux","omp","--auto-approve"]`，`hybrid` 为 `true`，`hybridSupport` 为 `{supported: true, agent: "omp"}`；Codex CLI 与 OpenCode 配置同样为混合配置
+- **AND** Claude Code、Gemini CLI 带上述自动批准参数且 `hybrid` 为 `false`；其余五款 agent 不带自动批准参数且 `hybrid` 为 `false`
 
 #### Scenario: Zsh 默认的新安装预置配置
 
