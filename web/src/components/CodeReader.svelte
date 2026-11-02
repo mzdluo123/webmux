@@ -34,6 +34,7 @@
     text,
     path,
     onselect,
+    active = true,
     restoreLine = 1,
     restore,
     draftEnabled = false,
@@ -42,6 +43,8 @@
     text: string;
     path: string;
     onselect: (start: number, end: number) => void;
+    // A hidden tab cannot measure itself; the position is recorded as it hides.
+    active?: boolean;
     restoreLine?: number;
     // A captured reading state, applied once the reader has layout; it takes
     // precedence over `restoreLine`.
@@ -144,17 +147,44 @@
   }
 
   // The first visible line and how far (0-1 of its height) it is scrolled
-  // past, measured from the rendered rows.
+  // past. A scroll event fires before the renderer has painted its rows, so
+  // derive it from the numeric line layout instead of the stale DOM.
   function position(): Pick<CodeReaderState, "line" | "offset"> {
-    if (!viewer || host.clientHeight === 0)
-      return (
-        known ?? { line: lineNumber(untrack(() => restoreLine)), offset: 0 }
-      );
+    const fallback = () =>
+      known ?? { line: lineNumber(untrack(() => restoreLine)), offset: 0 };
+    if (!viewer || host.clientHeight === 0) return fallback();
     const item = viewer.getRenderedItems()[0];
-    if (!item)
-      return (
-        known ?? { line: lineNumber(untrack(() => restoreLine)), offset: 0 }
-      );
+    if (!item) return fallback();
+    const itemTop = viewer.getTopForItem(id);
+    if (itemTop !== undefined) {
+      const local = viewer.getScrollTop() - itemTop;
+      let low = 1;
+      let high = lines.length;
+      let block: { top: number; height: number } | undefined;
+      let found = 0;
+      while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        const candidate = item.instance.getLinePosition(middle);
+        if (!candidate) break;
+        if (candidate.top <= local) {
+          block = candidate;
+          found = middle;
+          low = middle + 1;
+        } else {
+          high = middle - 1;
+        }
+      }
+      if (block) {
+        known = {
+          line: lineNumber(found),
+          offset:
+            block.height > 0
+              ? Math.min(1, Math.max(0, (local - block.top) / block.height))
+              : 0,
+        };
+        return known;
+      }
+    }
     const edge = host.getBoundingClientRect().top;
     for (const row of item.element.shadowRoot?.querySelectorAll<HTMLElement>(
       "[data-line]",
@@ -170,7 +200,7 @@
       known = { line, offset };
       return known;
     }
-    return known ?? { line: lineNumber(untrack(() => restoreLine)), offset: 0 };
+    return fallback();
   }
 
   export function line() {
@@ -362,6 +392,14 @@
   $effect(() => {
     const current = options();
     if (mounted) untrack(() => syncViewerOptions(viewer, current));
+  });
+  // A scroll event may still be pending when the tab hides. Measure before the
+  // ancestor's DOM update removes the reader from the layout.
+  $effect.pre(() => {
+    const showing = active;
+    untrack(() => {
+      if (!showing) position();
+    });
   });
   $effect(() => {
     hint = coarse
