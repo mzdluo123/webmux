@@ -152,7 +152,7 @@ NSIS 只在 `quit` 报告确实关闭了运行中的托盘（退出码 0，没�
 - [包管理器锁冲突] → dpkg 被占用时本次失败，次日重试；`rpm -U` 等待 rpm 数据库锁。`Persistent=true` 只补执行错过的触发，不会频繁重试。
 - [安装中途被终止] → 下载阶段 30 分钟超时；安装命令不随取消而终止，单元以 `KillMode=process` 只向 `webmux` 发信号，避免半安装的软件包。
 - [NSIS 中途失败留下不完整的安装目录] → 覆盖前把旧托盘改名为 `.old`，关闭托盘后的失败路径恢复它并重新启动。
-- [下载的安装程序未经 Authenticode 签名] → [INFERENCE] 托盘自己下载的文件不带 Mark-of-the-Web，不会触发 SmartScreen；完整性由 D1 保证。实现时需要在真实 Windows 上确认。
+- [下载的安装程序未经 Authenticode 签名] → 托盘自己下载的文件不带 Mark-of-the-Web；2026-11-03 在 Windows 11 build 26300 上实测自更新静默完成，没有 SmartScreen 或 UAC 提示。完整性由 D1 保证。
 - [托盘重启期间转发中断数秒] → 规格已说明，会话不受影响。
 
 ## Migration Plan

@@ -109,3 +109,14 @@
 - 依据：`internal/update`、`internal/fetch`、`internal/tray`、`cmd/webmux` 的 Go race 测试，`internal/tray` 与 `cmd/webmux-tray` 的 Windows amd64/arm64 交叉 vet，`CodeReader` 浏览器测试。
 - 覆盖：安装期间取消不终止包管理器、锁文件判定与无法确认时跳过、已安装版本读取失败后重试、镜像取最高版本、托盘失败退避与等待期间关闭自动更新、`quit` 无托盘时退出码 3。
 - 限制：未在真实 systemd/SELinux 主机上运行更新服务，未编译或在 Windows 上运行 NSIS 脚本，`windows-installer-smoke.ps1` 未运行；未重新核验其余故事能力。
+
+本次局部核对（2026-11-03）：PR #260 端到端验证，对应 US-K13、US-K14、US-K16、US-O01、US-O12、US-O13，故事内容与覆盖索引不变。均用临时测试密钥签名、本地 HTTP 提供的测试 Release。
+
+- Linux：以 systemd 为 PID 1 的 Debian 13 与 Fedora 44 容器中，更新服务把 deb/rpm 从 0.0.1 升到 0.0.2，另一用户的 `webmux.service` PID 不变。
+  - 安装中 `systemctl stop` 等 dpkg 完成后才返回，`dpkg --audit` 为空。
+  - `apt-mark hold` 与 dnf5 `versionlock.toml`（仓库不可达）时跳过且不发起请求，锁文件无法解析时按锁定跳过。
+- Windows 11（build 26300，NSIS 3.11）：
+  - 删除登录启动项后 `/S` 升级仍不登记；安装中止时托盘运行则退出码 4 并恢复、重启 0.0.1 托盘，未运行则退出码 2 且不启动托盘。
+  - 安装版 0.0.1 托盘 2 分钟后自更新到 0.0.2，无 SmartScreen/UAC 提示；新托盘把 WSL 中的 webmux 升到 0.0.2，运行中的服务端 PID 不变并提示重启后生效。
+  - 托盘触发的安装失败后，重新启动的托盘保留 `updateAttempt` 并提示失败，此后约 3 分钟内的自动检查不再运行安装程序。
+- 限制：SELinux enforcing 无法在容器中启用，未验证；未配置托盘转发，转发恢复未单独验证；未重新核验其余故事能力。

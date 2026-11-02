@@ -68,12 +68,18 @@
 - [x] 5.4 WSL 服务端自动升级：结果为较旧或“不兼容：WSL 过旧”且 `autoUpdate` 开启时，自动执行现有安装流程。
   - 失败只更新状态行，不立即重试。
   - 验证：`install_test.go` 覆盖自动触发、关闭时不触发、缺失与过新时不触发、写入失败时显示原因。
-- [ ] 5.5 NSIS 脚本：静默覆盖安装沿用 `InstallLocation` 并保持登录启动项现状；关闭托盘后的失败路径重启原托盘。
+- [x] 5.5 NSIS 脚本：静默覆盖安装沿用 `InstallLocation` 并保持登录启动项现状；关闭托盘后的失败路径重启原托盘。
   - 验证：取消登录启动后以 `/S` 升级，启动项仍不存在。
   - 验证：模拟文件被占用导致失败，原托盘被重新启动，退出码非零。
-- [ ] 5.6 Windows 端到端冒烟：安装旧版本安装程序，用本地签名的测试 Release 让托盘自更新。
+  - 结果（2026-11-03，Windows 11 build 26300，NSIS 3.11）：删除 `Run\WebMuxTray` 后 `/S` 升级到 0.0.2 退出码 0、启动项仍不存在、安装目录不变。
+  - 结果：以独占句柄锁住 `uninstall.exe` 使安装中止：托盘在运行时退出码 4，`.old` 恢复为 0.0.1 并重新启动；没有运行中的托盘时退出码 2，恢复 `.old` 且不启动托盘。
+- [x] 5.6 Windows 端到端冒烟：安装旧版本安装程序，用本地签名的测试 Release 让托盘自更新。
   - 验证：WebMux PID 与会话不变，转发恢复，WSL 中的 webmux 被自动升级并提示重启后生效。
   - 验证：是否出现 SmartScreen 提示，结论写进 design.md 的 Risks。
+  - 结果：0.0.1 托盘启动 2 分钟后下载、校验并静默安装 0.0.2，约 1.5 秒后 0.0.2 托盘启动，`lastVersion` 为 0.0.2，`updates` 目录为空。
+  - 结果：新托盘把 WSL 中的 webmux 升级到 0.0.2，运行中的服务端 PID 不变，`webmux status` 提示已安装 0.0.2、重启后生效；没有出现 SmartScreen 或 UAC 提示。
+  - 结果：被锁定导致失败后，重新启动的 0.0.1 托盘记录 `updateAttempt` 并提示失败，之后约 3 分钟内的 WSL 触发检查与计划检查都没有再次运行安装程序。
+  - 限制：未配置托盘转发，转发恢复没有单独验证。
 
 ## 6. 文档与用户故事
 
@@ -110,10 +116,14 @@
 - [x] 9.1 `update apply` 的 30 分钟超时只覆盖检查与下载；`dpkg` / `rpm` 以不可取消的上下文运行，子进程使用独立进程组。
   - `webmux-update.service` 改为 `KillMode=process`、`TimeoutStartSec=1h`、`TimeoutStopSec=15min`，去掉 `NoNewPrivileges=`、`Nice=`、`IOSchedulingClass=`。
   - 验证：单元测试覆盖安装期间取消父上下文时安装完成、下载后已取消时不安装。
+  - 结果（2026-11-03，以 systemd 为 PID 1 的 Debian 13 容器）：定时器服务把 0.0.1 升到 0.0.2，另一用户的 `webmux.service` PID 不变；`postinst` 中 `sleep 40` 的测试包安装期间执行 `systemctl stop`，约 41 秒后停止返回，dpkg 完成且 `dpkg --audit` 为空。
+  - 结果：Fedora 44 容器中 rpm 0.0.1 → 0.0.2 同样通过；`apt-mark hold` 时跳过且没有任何 HTTP 请求。
 - [x] 9.2 版本锁定改为读取 dnf4 锁文件（含 `locklist` 覆盖）与 dnf5 的 `versionlock.toml`，`dpkg-query` 出错或锁文件不可读、无法解析时按锁定跳过。
   - dnf5 文件按行查找 `name`，不引入 TOML 模块：签名工具链接 `internal/update`，必须只依赖标准库。
   - 验证：单元测试覆盖默认路径、路径覆盖、纯名字、架构后缀、排除项、不相关的包名、dnf5、不可读文件与缺失文件。
   - 验证：`releasesign` 新增测试用 `go list -deps` 断言只链接标准库与本模块，引入 TOML 模块时失败。
+  - 结果：Fedora 44（dnf5 5.4.3）仓库不可达时 `dnf versionlock add` 卡在加载仓库；更新服务直接读取 `versionlock.toml` 并跳过，没有 HTTP 请求；锁文件换成目录或未加引号的 `name` 时按已锁定跳过。
+  - 限制：容器无法启用 SELinux enforcing，去掉 `NoNewPrivileges=` 后的 rpm scriptlet 行为未在 enforcing 主机上验证。
 - [x] 9.3 `InstalledVersion` 读取失败时保留旧标识，下一次检查重新读取。
   - 验证：单元测试覆盖超时、失败、无效输出、空版本后的重试与成功后的缓存。
 - [x] 9.4 GitHub 失败时读取所有镜像，采用签名有效的最高版本。
