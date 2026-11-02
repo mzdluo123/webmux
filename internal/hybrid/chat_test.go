@@ -197,9 +197,23 @@ func TestChatTitleBecomesSessionTitle(t *testing.T) {
 	if got := resumed.Info().Title; got != "fake title" {
 		t.Fatalf("title after resume %q", got)
 	}
+	// The terminal shows a cwd-derived placeholder until it reports an OSC
+	// title; neither a switch nor a terminal resume may record it.
+	h.mustSwitch(id, SideTUI)
+	if got := h.record(id).Title; got != "fake title" {
+		t.Fatalf("title after switching to the terminal %q", got)
+	}
 	h.closeSession(id)
 	if got := h.record(id).Title; got != "fake title" {
-		t.Fatalf("title after closing the resumed session %q", got)
+		t.Fatalf("title after closing the switched session %q", got)
+	}
+	h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	if got := h.record(id).Title; got != "fake title" {
+		t.Fatalf("title after terminal resume %q", got)
+	}
+	h.closeSession(id)
+	if got := h.record(id).Title; got != "fake title" {
+		t.Fatalf("title after closing the terminal session %q", got)
 	}
 }
 

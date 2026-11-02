@@ -5,6 +5,7 @@ import (
 
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -306,7 +307,7 @@ func (a *actor) flush() {
 	}
 	a.log.setState(a.chat)
 	a.shell.SetOverlay(a.overlay())
-	a.saveTitle(a.shell.Info().Title)
+	a.saveShellTitle(a.shell.Info())
 }
 
 // overlay is the shell's hybrid description; on the chat side it also
@@ -396,6 +397,17 @@ func (a *actor) emit(events ...Event) {
 		a.dirty = true
 	}
 	a.log.append(time.Now().UTC(), events...)
+}
+
+// saveShellTitle records the shell's displayed title unless it is the
+// cwd-derived placeholder a fresh or switched terminal shows before it
+// reports an OSC title: that would overwrite the recorded title on every
+// terminal resume or switch.
+func (a *actor) saveShellTitle(info session.Info) {
+	if info.Title == "" || info.Title == filepath.Base(info.Cwd) {
+		return
+	}
+	a.saveTitle(info.Title)
 }
 
 // saveTitle keeps the recoverable card's title in sync with the running
@@ -939,7 +951,7 @@ func (a *actor) interrupt(activity string, gone bool) {
 	a.dirty = true
 	now := time.Now().UTC()
 	lost := len(a.chat.Queue.Items)
-	a.saveTitle(a.shell.Info().Title)
+	a.saveShellTitle(a.shell.Info())
 	a.record(true, func(r *Record) {
 		r.State, r.Activity, r.InterruptedAt, r.QueuedCount = StateInterrupted, activity, &now, lost
 		if gone {
@@ -1058,7 +1070,7 @@ func (a *actor) beginClose() {
 func (a *actor) finishClose(gone bool) {
 	if a.state == StateActive {
 		a.state = StateClosed
-		a.saveTitle(a.shell.Info().Title)
+		a.saveShellTitle(a.shell.Info())
 		a.record(true, func(r *Record) {
 			r.State = StateClosed
 			if gone {

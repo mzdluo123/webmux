@@ -375,7 +375,7 @@ func (a *actor) observe() {
 		a.agentSessionChanged(ident.AgentSessionID)
 	}
 	info := a.shell.Info()
-	a.saveTitle(info.Title)
+	a.saveShellTitle(info)
 	t, reason := a.assess(id, ident, known)
 	if reason == "" {
 		switch {
