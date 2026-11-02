@@ -5,9 +5,9 @@ import "github.com/rainchan/webmux/internal/agentprofile"
 // Presets returns the launch configs seeded into a new installation: a login
 // shell and common CLI agents. Agents load the startup file of the service's
 // default shell; permission flags are explicit parts of the editable
-// commands. Codex CLI, OpenCode and omp start as hybrid sessions. They are
-// ordinary configs the user may edit or delete. shell is the login shell
-// path; empty means /bin/sh.
+// commands. Claude Code, Codex CLI, OpenCode and omp start as hybrid
+// sessions. They are ordinary configs the user may edit or delete. shell is
+// the login shell path; empty means /bin/sh.
 func Presets(shell string) []Input {
 	login := shell
 	if login == "" {
@@ -19,7 +19,7 @@ func Presets(shell string) []Input {
 	}
 	return []Input{
 		{Name: "Shell", Icon: "terminal", Cmd: []string{login, "-l", "-i"}},
-		{Name: "Claude Code", Icon: "claudecode", Cmd: command("claude", "--dangerously-skip-permissions")},
+		{Name: "Claude Code", Icon: "claudecode", Cmd: command("claude", "--dangerously-skip-permissions"), Hybrid: true},
 		{Name: "Codex CLI", Icon: "codex", Cmd: command("codex", "--dangerously-bypass-approvals-and-sandbox"), Hybrid: true},
 		{Name: "Gemini CLI", Icon: "geminicli", Cmd: command("gemini", "--yolo")},
 		{Name: "Cursor CLI", Icon: "cursor", Cmd: command("agent")},

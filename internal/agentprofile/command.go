@@ -185,6 +185,12 @@ func (c *Command) classify() error {
 			case opt.Arity == ArityOptional && next < len(c.args) && !strings.HasPrefix(c.args[next], "-"):
 				taken = append(taken, c.args[next])
 				i = next
+			case opt.Arity == ArityVariadic:
+				for next < len(c.args) && !strings.HasPrefix(c.args[next], "-") {
+					taken = append(taken, c.args[next])
+					i = next
+					next++
+				}
 			}
 		}
 		if !known {
@@ -207,6 +213,8 @@ func (c *Command) classify() error {
 			return &UnsupportedError{Reason: ReasonDirectoryArg, Arg: name}
 		case ArgNonInteractive:
 			return &UnsupportedError{Reason: ReasonNonInteractive, Arg: name}
+		case ArgSession:
+			return &UnsupportedError{Reason: ReasonSessionArg, Arg: name}
 		}
 	}
 	return nil
