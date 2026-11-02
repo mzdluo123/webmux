@@ -1,5 +1,6 @@
 <script lang="ts">
   import IconArrowDown from "~icons/tabler/arrow-down";
+  import IconCircleCheck from "~icons/tabler/circle-check";
   import IconLoader2 from "~icons/tabler/loader-2";
   import IconZzz from "~icons/tabler/zzz";
   import { Button } from "$lib/components/ui/button";
@@ -61,6 +62,7 @@
   let error = $state("");
   let answering = $state(false);
   let dragging = $state(false);
+  let now = $state(Date.now());
   let dragDepth = 0;
   let composer = $state<ChatComposer>();
   export function focus() {
@@ -91,6 +93,39 @@
             : ""),
   );
   const uploadBlocked = $derived(blocked || uploadUnavailable);
+  const turnStartedAt = $derived(
+    chat?.turn.startedAt ? Date.parse(chat.turn.startedAt) : undefined,
+  );
+  const turnEndedAt = $derived(
+    chat?.turn.endedAt ? Date.parse(chat.turn.endedAt) : undefined,
+  );
+  const turnElapsed = $derived.by(() => {
+    if (turnStartedAt === undefined) return undefined;
+    const end = chat?.turn.running ? now : turnEndedAt;
+    return end === undefined ? undefined : Math.max(0, end - turnStartedAt);
+  });
+
+  function formatDuration(milliseconds: number) {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const seconds = totalSeconds % 60;
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const minutes = totalMinutes % 60;
+    const hours = Math.floor(totalMinutes / 60);
+    if (hours)
+      return `${hours} 小时 ${String(minutes).padStart(2, "0")} 分 ${String(seconds).padStart(2, "0")} 秒`;
+    if (totalMinutes)
+      return `${totalMinutes} 分 ${String(seconds).padStart(2, "0")} 秒`;
+    return `${seconds} 秒`;
+  }
+
+  // Server timestamps keep the duration correct across reconnects and devices.
+  // Only the live display ticks; the total is derived from the final timestamp.
+  $effect(() => {
+    if (!chat?.turn.running || turnStartedAt === undefined) return;
+    now = Date.now();
+    const timer = window.setInterval(() => (now = Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  });
 
   const hasFiles = (event: DragEvent) =>
     event.dataTransfer?.types.includes("Files") ?? false;
@@ -213,6 +248,26 @@
           >
             <IconLoader2 class="size-3.5 animate-spin" aria-hidden="true" />
             正在工作…
+            {#if turnElapsed !== undefined}
+              <span class="tabular-nums" aria-live="off"
+                >· {formatDuration(turnElapsed)}</span
+              >
+            {/if}
+          </p>
+        {:else if turnElapsed !== undefined && turnEndedAt !== undefined && !chat.dormant}
+          <p
+            class="flex items-center gap-2 text-sm text-muted-foreground"
+            role="status"
+          >
+            <IconCircleCheck class="size-3.5 text-success" aria-hidden="true" />
+            {chat.turn.stopReason === "end_turn"
+              ? "已完成"
+              : chat.turn.stopReason === "cancelled"
+                ? "已中断"
+                : "已结束"}
+            <span class="tabular-nums"
+              >· 用时 {formatDuration(turnElapsed)}</span
+            >
           </p>
         {:else if chat.dormant}
           <p
