@@ -130,7 +130,7 @@
 - [入口与二维码](../../cmd/webmux/access.go)、[隧道进程与下载](../../internal/tunnel/)、[公网来源授权](../../internal/api/public.go)
 - [动态配置](../../internal/api/config.go)、[推送来源](../../internal/api/push.go)、[Web 设置页](../../web/src/pages/TunnelSettingsPage.svelte)
 - [设置状态管理](../../web/src/hooks/tunnel-settings.svelte.ts)、[设置端到端用例](../../web/test/e2e/tunnel-settings.spec.ts)
-- [Named Tunnel 指南](../cloudflare-tunnel.md)、[部署说明](../deployment.md#公网访问cloudflare-tunnel)。
+- [Named Tunnel 指南](../cloudflare-tunnel.md)、[部署说明](../deployment/remote-access.md#公网访问cloudflare-tunnel)。
 
 ## O. Windows/WSL 托盘管理
 
