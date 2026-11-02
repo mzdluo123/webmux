@@ -171,7 +171,8 @@
   - `openspec/changes/archive/**` 不参与行数、单行长度与体积检查；
   - 其余 Markdown 单行不超过 300 列（汉字与全角标点按 2 列计），仅围栏代码块豁免，表格行不豁免；
   - `docs/` 与 `openspec/` 的每一级直接子目录不超过 20 个，`docs/images/`、`openspec/specs/` 与 `openspec/changes/archive/` 的固定布局豁免；
-  - 失败信息列出实测值、阈值与 AI 指令，要求按主题拆分或合并、在句子边界分段并保留旧路径为树状索引，规则与例外见 [文档治理](../doc-governance.md)。
+  - 失败信息列出实测值、阈值与 AI 指令，要求按主题拆分或合并、在句子边界分段并保留旧路径为树状索引，规则与例外见 [文档治理](../doc-governance.md)；
+  - 超限时按“重构而不是压缩”整理：信息原文迁移，不删减事实、不为过线挤进已有行或缩窄表格列，接近上限时先拆分再新增，并在 PR 中说明新旧位置对应，原则见 [文档治理](../doc-governance.md#超限时重构而不是压缩)。
 - **US-L09 前端代码质量基线**：作为贡献者或 coding agent，我希望前端代码质量有成文基线和可执行门禁，以便一致审查响应式状态、异步行为、类型和前后端契约。
   验收要点：
   - `docs/frontend-style.md` 以 Svelte 官方 Best practices 为主规范、Google TypeScript Style Guide 为补充，登记本地化取舍与 7 条日常审查规则；
