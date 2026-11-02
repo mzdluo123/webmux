@@ -38,7 +38,7 @@
 
 - [x] 5.1 复用动态 supportedAgents、ConnectorInstallHint、候选选择、配置通知和聊天视图，不新增 Claude 前端分支；如有通用展示调整，先使用 ui/ 组件 variant/size
 - [x] 5.2 补 Claude 的 Storybook/浏览器状态：默认混合、连接器缺失、安装后重查、首条消息前、候选、外部占用、权限回退、隐藏认证命令与恢复失败
-- [ ] 5.3 验证窄屏会话选项、键盘/触摸操作、tooltip/accessible name 和深浅主题；运行 `pnpm --dir web check:arch`，准备隔离 demo 数据的桌面/移动前后截图与可审查 URL
+- [x] 5.3 验证窄屏会话选项、键盘/触摸操作、tooltip/accessible name 和深浅主题；运行 `pnpm --dir web check:arch`，准备隔离 demo 数据的桌面/移动前后截图与可审查 URL
 
 ## 6. Fakeagent 与 E2E 回归
 
@@ -52,6 +52,6 @@
 
 - [x] 7.1 更新 `docs/hybrid-sessions.md`、部署和 `docs/protocol/http-hybrid.md`：Node 22+、连接器安装、latest 风险、认证/订阅条款提醒、注册记录与外部占用边界、后台任务和恢复限制
 - [x] 7.2 更新 US-Q01、US-Q03、US-Q04、US-Q06、US-Q07、US-Q08、US-Q10、US-Q12、US-Q14、US-Q15、US-Q16 中受影响的 Claude 验收要点，同步 `docs/user-stories.md` 与 coverage 索引/计数，保持 ID 稳定
-- [ ] 7.3 按已固定的本机基线完成实现后的真实双向 round-trip，记录版本、平台、认证类型、场景和未覆盖限制；不把 fakeagent/E2E 写成真实账号验证，整理 UI 截图证据并核对所有链接
-- [ ] 7.4 运行 `openspec validate add-claude-code-hybrid-profile --strict`、`make format`、`make docs-check` 和 `make check`，修复所有格式、文档、架构与 lint 问题
-- [ ] 7.5 运行完整 `make test`，确认 Go race、Vitest/browser、Storybook、Playwright E2E 与性能套件通过；交付摘要列出受影响 US-Q ID、真实/模拟验证边界和已知限制
+- [x] 7.3 按已固定的本机基线完成实现后的真实双向 round-trip，记录版本、平台、认证类型、场景和未覆盖限制；不把 fakeagent/E2E 写成真实账号验证，整理 UI 截图证据并核对所有链接
+- [x] 7.4 运行 `openspec validate add-claude-code-hybrid-profile --strict`、`make format`、`make docs-check` 和 `make check`，修复所有格式、文档、架构与 lint 问题
+- [x] 7.5 运行完整 `make test`，确认 Go race、Vitest/browser、Storybook、Playwright E2E 与性能套件通过；交付摘要列出受影响 US-Q ID、真实/模拟验证边界和已知限制
