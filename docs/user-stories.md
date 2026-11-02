@@ -386,4 +386,8 @@ diff 库的行号按压只在主页面 `document` 上等待 pointerup，现由 `
 
 - 依据：`internal/service` 的 Go 测试（包内单元的状态、卸载与无单元错误），以及 `test-linux-packages.sh` 在 Debian 与 Fedora 容器中的安装、检查与卸载。
 - 实测：在本机 systemd 用户管理器上把同内容单元放在非 `~/.config` 的用户单元目录，`webmux service status|restart|stop|start|uninstall` 均作用于该单元，卸载后文件保留。
-- 限制：未在真实发行版主机上以 sudo 安装包后启用服务，未验证 arm64 包的安装；未重新核验其余故事能力。
+- 实测：在以 systemd 为 PID 1 的 Debian 与 Fedora 容器中为普通用户启用 linger 后安装 0.0.1 包。
+  - 安装后服务保持未启用；`systemctl --user enable --now webmux` 启动并生成配置。
+  - 升级到 0.0.2 时服务进程不变，`webmux service restart` 后运行新版本。
+  - `webmux service uninstall` 禁用并停止且保留单元文件；卸载包后两项文件删除、用户配置保留。
+- 限制：未验证 arm64 包的安装；未重新核验其余故事能力。
