@@ -366,6 +366,7 @@ func (u *SelfUpdater) update(manual, install bool) {
 	}
 	wait, err := u.o.Launch(target)
 	if err != nil {
+		u.clearAttempt()
 		u.fail("install", fmt.Errorf("无法运行安装程序：%w", err))
 		return
 	}
@@ -377,9 +378,11 @@ func (u *SelfUpdater) update(manual, install bool) {
 // awaitInstaller returns when the tray closes, when the installer exits
 // or after UpdateInstallWait. A successful installer closes this tray
 // before it exits, so an exit seen here means the update failed without
-// closing the tray: exit code 2 or 3 (deploy/windows/webmux.nsi). A failure
-// after closing it (code 4) is never seen here; the installer restarts the
-// old tray, which finds Settings.UpdateAttempt still recorded.
+// closing the tray: exit code 2 or 3 (deploy/windows/webmux.nsi), and the
+// attempt is cleared, as no tray was replaced. A failure after closing it
+// (code 4) is never seen here; the installer restarts the old tray, which
+// finds Settings.UpdateAttempt still recorded. A timeout or an unobservable
+// exit keeps the attempt: the installer may still close the tray.
 func (u *SelfUpdater) awaitInstaller(wait func() (int, error)) {
 	type exit struct {
 		code int
@@ -396,11 +399,23 @@ func (u *SelfUpdater) awaitInstaller(wait func() (int, error)) {
 	case e := <-exited:
 		if e.err != nil {
 			u.fail("install", fmt.Errorf("等待安装程序：%w", e.err))
-		} else {
-			u.fail("install", fmt.Errorf("安装程序退出（代码 %d）", e.code))
+			return
 		}
+		u.clearAttempt()
+		u.fail("install", fmt.Errorf("安装程序退出（代码 %d）", e.code))
 	case <-u.o.Clock.After(UpdateInstallWait):
 		u.fail("install", fmt.Errorf("安装程序 %d 分钟内未完成", int(UpdateInstallWait/time.Minute)))
+	}
+}
+
+// clearAttempt removes the recorded attempt of an installer that ended
+// while this tray still runs, so the next start reports no failure.
+func (u *SelfUpdater) clearAttempt() {
+	if u.ctx.Err() != nil {
+		return
+	}
+	if err := u.o.RecordAttempt(UpdateAttempt{}); err != nil {
+		u.o.Logf("update install: clear recorded attempt: %v", err)
 	}
 }
 

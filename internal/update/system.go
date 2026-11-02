@@ -7,8 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"strings"
-
-	"github.com/BurntSushi/toml"
 )
 
 // Errors returned by package updates.
@@ -198,23 +196,26 @@ func versionlocked(spec string) bool {
 	return len(rest) > 1 && rest[0] == '-' && rest[1] >= '0' && rest[1] <= '9'
 }
 
-// dnf5Locked reports whether dnf5's versionlock.toml has a [[packages]]
-// entry named webmux.
+// dnf5Locked reports whether dnf5's versionlock.toml names webmux. Only
+// [[packages]] entries carry a `name` key, so a line scan suffices; it keeps
+// a TOML module out of this package, which the release signer links. A name
+// whose value is not a plain quoted string cannot be judged and is an error.
 func dnf5Locked(path string) (bool, error) {
 	b, err := readOptional(path)
 	if err != nil {
 		return false, err
 	}
-	var doc struct {
-		Packages []struct {
-			Name string `toml:"name"`
-		} `toml:"packages"`
-	}
-	if err := toml.Unmarshal(b, &doc); err != nil {
-		return false, fmt.Errorf("%s：%w", path, err)
-	}
-	for _, p := range doc.Packages {
-		if p.Name == "webmux" {
+	for i, line := range strings.Split(string(b), "\n") {
+		key, value, ok := strings.Cut(line, "=")
+		if !ok || strings.TrimSpace(key) != "name" {
+			continue
+		}
+		value, _, _ = strings.Cut(value, "#")
+		value = strings.TrimSpace(value)
+		if len(value) < 2 || value[0] != value[len(value)-1] || (value[0] != '"' && value[0] != '\'') {
+			return false, fmt.Errorf("%s 第 %d 行：无法解析 name", path, i+1)
+		}
+		if value[1:len(value)-1] == "webmux" {
 			return true, nil
 		}
 	}

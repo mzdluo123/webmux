@@ -93,8 +93,8 @@ type updateHarness struct {
 	mu       sync.Mutex
 	launched []string
 	attempts []UpdateAttempt
-	// recordErr fails RecordAttempt.
-	recordErr error
+	// recordErr fails RecordAttempt; launchErr fails Launch.
+	recordErr, launchErr error
 	// exits ends the running installer with a code.
 	exits chan int
 	u     *SelfUpdater
@@ -128,6 +128,9 @@ func newUpdateHarness(t *testing.T, installed bool, client ReleaseClient, edit f
 			h.mu.Lock()
 			defer h.mu.Unlock()
 			h.launched = append(h.launched, path)
+			if h.launchErr != nil {
+				return nil, h.launchErr
+			}
 			return func() (int, error) { return <-h.exits, nil }, nil
 		},
 	}
@@ -485,6 +488,10 @@ func TestSelfUpdateInstallerExit(t *testing.T) {
 	if v := h.u.View(); v.Status != "更新失败：安装程序退出（代码 2）" || v.Latest != "0.5.0" {
 		t.Fatalf("after exit %+v", v)
 	}
+	// No tray was replaced, so the next start must not report a failure.
+	if got := h.recorded(); len(got) != 2 || got[0].Version != "0.5.0" || !got[1].IsZero() {
+		t.Fatalf("recorded after exit %+v", got)
+	}
 	h.u.Check()
 	eventually(t, "manual check", func() bool { c, _ := releases.counts(); return c == 2 && !h.u.View().Busy })
 	if v := h.u.View(); v.Status != "有新版本 0.5.0" {
@@ -498,6 +505,10 @@ func TestSelfUpdateInstallerExit(t *testing.T) {
 	eventually(t, "installer timeout", func() bool { return !h.u.View().Busy })
 	if v := h.u.View(); v.Status != "更新失败：安装程序 15 分钟内未完成" {
 		t.Fatalf("after timeout %+v", v)
+	}
+	// The late installer may still close this tray: the attempt stays.
+	if got := h.recorded(); len(got) != 3 || got[2].Version != "0.5.0" {
+		t.Fatalf("recorded after timeout %+v", got)
 	}
 }
 
@@ -580,7 +591,7 @@ func TestSelfUpdateFailedInstallBlocksOnlyAutomaticRetry(t *testing.T) {
 	releases.mu.Unlock()
 	h.u.Check()
 	eventually(t, "automatic install of a later release", func() bool { return len(h.launches()) == 2 })
-	if got := h.recorded(); len(got) != 2 || got[0].Version != "0.5.0" || got[1].Version != "0.6.0" {
+	if got := h.recorded(); len(got) != 3 || got[0].Version != "0.5.0" || !got[1].IsZero() || got[2].Version != "0.6.0" {
 		t.Fatalf("recorded %+v", got)
 	}
 }
@@ -595,5 +606,20 @@ func TestSelfUpdateNeedsRecordedAttempt(t *testing.T) {
 	eventually(t, "failed install", func() bool { return !h.u.View().Busy })
 	if v := h.u.View(); v.Status != "更新失败：无法记录更新尝试：拒绝访问" || len(h.launches()) != 0 {
 		t.Fatalf("after failed record %+v, launched %v", v, h.launches())
+	}
+}
+
+// An installer that never started replaced no tray: its attempt is cleared.
+func TestSelfUpdateLaunchFailureClearsAttempt(t *testing.T) {
+	releases := &fakeReleases{latest: "0.5.0"}
+	h := newUpdateHarness(t, true, releases, nil)
+	h.launchErr = errors.New("拒绝访问")
+	h.u.Install()
+	eventually(t, "failed install", func() bool { return !h.u.View().Busy })
+	if v := h.u.View(); v.Status != "更新失败：无法运行安装程序：拒绝访问" {
+		t.Fatalf("after failed launch %+v", v)
+	}
+	if got := h.recorded(); len(got) != 2 || got[0].Version != "0.5.0" || !got[1].IsZero() {
+		t.Fatalf("recorded %+v", got)
 	}
 }

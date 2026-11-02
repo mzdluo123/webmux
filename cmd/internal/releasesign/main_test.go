@@ -3,12 +3,28 @@ package main
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/rainchan/webmux/internal/update"
 )
+
+// The signer holds the release key, and the release workflow's sign job
+// runs it on a fresh runner with GOPROXY off: it must link no third-party
+// module, only the standard library and this module's own packages.
+func TestSignerLinksOnlyStandardLibrary(t *testing.T) {
+	out, err := exec.Command("go", "list", "-deps", "-f", "{{if not .Standard}}{{.ImportPath}}{{end}}", ".").Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	for _, path := range strings.Fields(string(out)) {
+		if path != "github.com/rainchan/webmux" && !strings.HasPrefix(path, "github.com/rainchan/webmux/") {
+			t.Errorf("release signer depends on third-party package %s", path)
+		}
+	}
+}
 
 func TestSignVerifyRoundTrip(t *testing.T) {
 	dir := t.TempDir()

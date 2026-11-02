@@ -277,7 +277,7 @@ func TestApplySkipsHeldPackage(t *testing.T) {
 		{name: "dnf4 other packages", owner: MethodRPM, files: map[string]string{"versionlock.list": "webmux-tray-0:1.0-1.*\nwebmuxd\n#webmux\n"}},
 		{name: "dnf5 lock", owner: MethodRPM, files: map[string]string{"versionlock.toml": fmt.Sprintf(dnf5, "webmux")}, want: "已被锁定版本"},
 		{name: "dnf5 other package", owner: MethodRPM, files: map[string]string{"versionlock.toml": fmt.Sprintf(dnf5, "webmux-tray")}},
-		{name: "dnf5 unparsable", owner: MethodRPM, files: map[string]string{"versionlock.toml": "[[packages]\n"}, want: "无法确认"},
+		{name: "dnf5 unparsable", owner: MethodRPM, files: map[string]string{"versionlock.toml": "[[packages]]\nname = webmux\n"}, want: "无法确认"},
 		{name: "dnf4 list unreadable", owner: MethodRPM, files: map[string]string{"versionlock.list": "/"}, want: "无法确认"},
 		{name: "dnf4 conf unreadable", owner: MethodRPM, files: map[string]string{"versionlock.conf": "/"}, want: "无法确认"},
 		{name: "no lock files", owner: MethodRPM},

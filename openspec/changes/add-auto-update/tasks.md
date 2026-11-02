@@ -111,16 +111,19 @@
   - `webmux-update.service` 改为 `KillMode=process`、`TimeoutStartSec=1h`、`TimeoutStopSec=15min`，去掉 `NoNewPrivileges=`、`Nice=`、`IOSchedulingClass=`。
   - 验证：单元测试覆盖安装期间取消父上下文时安装完成、下载后已取消时不安装。
 - [x] 9.2 版本锁定改为读取 dnf4 锁文件（含 `locklist` 覆盖）与 dnf5 的 `versionlock.toml`，`dpkg-query` 出错或锁文件不可读、无法解析时按锁定跳过。
+  - dnf5 文件按行查找 `name`，不引入 TOML 模块：签名工具链接 `internal/update`，必须只依赖标准库。
   - 验证：单元测试覆盖默认路径、路径覆盖、纯名字、架构后缀、排除项、不相关的包名、dnf5、不可读文件与缺失文件。
+  - 验证：`releasesign` 新增测试用 `go list -deps` 断言只链接标准库与本模块，引入 TOML 模块时失败。
 - [x] 9.3 `InstalledVersion` 读取失败时保留旧标识，下一次检查重新读取。
   - 验证：单元测试覆盖超时、失败、无效输出、空版本后的重试与成功后的缓存。
 - [x] 9.4 GitHub 失败时读取所有镜像，采用签名有效的最高版本。
   - 验证：单元测试覆盖旧镜像在前、在后、签名无效、404，以及 GitHub 成功时不访问镜像。
 - [x] 9.5 托盘在运行安装程序前记录 `updateAttempt`；被安装程序重启的原托盘显示失败并在 24 小时内不自动重装同一版本。
   - 下载或等待空闲期间关闭“自动更新”时不再运行安装程序。
-  - 验证：`internal/tray` 核心测试覆盖失败提示、计划检查与 WSL 触发的退避、手动安装与更高版本不受限、24 小时后重试、记录失败时不运行、等待期间关闭自动更新。
+  - 安装程序无法启动或在本托盘仍运行时退出则清除记录，等待超时保留。
+  - 验证：`internal/tray` 核心测试覆盖失败提示、计划检查与 WSL 触发的退避、手动安装与更高版本不受限、24 小时后重试、记录失败时不运行、等待期间关闭自动更新，以及退出、启动失败与超时时的记录清除。
 - [x] 9.6 `webmux-tray quit` 在没有运行中的托盘时以 3 退出；NSIS 只在确实关闭了托盘时于失败后重启它并以 4 退出，否则恢复 `.old` 后以 2 退出。
-  - 验证：`internal/tray` 测试与 Windows amd64/arm64 交叉 vet 通过；本机没有 makensis，未编译 NSIS 脚本，也未在 Windows 上运行。
+  - 验证：`internal/tray` 测试与 Windows amd64/arm64 交叉 vet 通过；CI 的 Windows installer smoke 用 makensis 构建两种架构并在 Windows 上确认无托盘时 `quit` 退出码为 3。
 - [x] 9.7 首次放置前提交的跳转行只替换恢复状态中的位置，保留选区与搜索；相对跳转从恢复的选区起算。
   - 验证：`CodeReader.test.ts` 新增用例通过。
 
