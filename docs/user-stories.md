@@ -34,6 +34,11 @@
 
 本次局部核对（2026-10-25）：代码阅读的语法高亮改为按文件名与扩展名从 CodeMirror language-data 按需加载，并新增 US-I16 Markdown 预览（源码/预览切换、DOMPurify 清洗、图片与外部资源不加载、相对链接不导航）；已运行 svelte-check、前端单元与浏览器测试、`check:arch` 和生产构建；未重新核对其余功能组。
 
+本次局部核对（2026-11-02）：单文件阅读迁移到 `@pierre/diffs` 只读 `File`/`CodeView`，与 Diff 共用渲染器、主题和高亮 worker；复核 US-I04、US-I05、US-I09、US-I13，并更新 US-I04、US-I05 的验收与来源。
+
+- 已运行：svelte-check、前端单元与浏览器测试、`check:arch`、`codeview`/`code-popout`/`code-documents`/`compact-chrome` E2E 及大型代码文件性能用例。
+- 范围限制：未重新核对其余功能组。
+
 本次局部核对（2026-10-26）：`add-program-status-signals` 的 `OSC 7501` 程序状态识别、服务端探测应答、信号来源分层与状态合成对应更新 US-C05、US-C06、US-K04。
 
 - 已运行：Go race 全套与 `attention.spec.ts` 桌面/Pixel 7 E2E。
@@ -258,6 +263,12 @@ WSL2 mirrored + 真实 Windows Tailscale 上经网页与 API 验证：切换端�
 
 测试补充（2026-11-02）：修复代码根识别被取消后缓存普通目录的问题，对应 US-I13；同时完善弹出窗口与终端输入用例的同步条件。验证范围见 PR，未重新核对其余故事。
 
+本次局部核对（2026-11-02）：`add-claude-code-hybrid-profile` 的 Claude Code 混合档案对应更新 US-Q01、US-Q03、US-Q04、US-Q06–US-Q08、US-Q10、US-Q12、US-Q14–US-Q16；不新增或重编号故事，覆盖索引同步。
+
+- 内容：新安装默认混合、Node 22+ 与 `claude-agent-acp`、现有认证复用、进程注册身份与候选、外部占用、配置恢复、插话/附件及后台进程边界。
+- 依据：变更 design/delta specs 中固定的 Linux 原生 Claude Code 2.1.316、连接器 0.99.1 实测基线，以及当前适配器与身份实现；本次未重新运行真实双向验收。
+- 限制：npm 启动器、macOS 与订阅登录不属于该实测矩阵；未重新核对其余故事能力。
+
 ## 阅读约定与产品边界
 
 - **使用者**：通过桌面、手机或平板浏览器使用服务器上的 Shell、CLI agent 和其他终端程序的人。
@@ -287,7 +298,7 @@ WSL2 mirrored + 真实 Windows Tailscale 上经网页与 API 验证：切换端�
 | L    | 开发、验证与发布支持                   | US-L01–US-L11 |
 | M    | 原生终端、CLI 与本机控制面             | US-M01–US-M08 |
 | N    | Cloudflare 公网隧道                    | US-N01–US-N08 |
-| O    | Windows/WSL 托盘管理                   | US-O01–US-O11 |
+| O    | Windows/WSL 托盘管理                   | US-O01–US-O12 |
 | P    | Tailscale Serve / Funnel               | US-P01–US-P07 |
 | Q    | 混合会话（聊天 ↔ 终端）                | US-Q01–US-Q16 |
 
@@ -365,3 +376,6 @@ diff 库的行号按压只在主页面 `document` 上等待 pointerup，现由 `
 
 - 依据：新增 `TerminalSyncOutput` 浏览器用例（同步重绘、滚动重绘、快照回放、同步期间 resize 与焦点变化、快照停在图片上传中），修复前均失败；全部浏览器与单元用例、终端相关 E2E 通过。
 - 本机重绘风暴性能用例（DOM 渲染器、4x CPU、同步输出）：可见重绘帧 37→2–3，长任务 2.3 s→0.33 s；未测 WebGL；未重新核验其余故事能力。
+
+本次局部核对（2026-11-02）：Windows 安装程序对应新增 US-O12，并更新 US-O01（本地缓存与预置服务端离线安装）与 US-O04（安装程序登记登录启动、`webmux-tray.exe quit`）；覆盖索引同步。
+核对依据为 `internal/tray` 的 Go race 测试与在 Windows 11 上实际运行的 `windows-installer-smoke.ps1`（静默安装、`quit`、运行中升级、拒绝其他位置的托盘、架构不符、卸载）；178 个故事 ID 唯一，O 组来源路径有效；未用真实 WSL 发行版验收托盘菜单离线安装，未重新核验其余故事能力。

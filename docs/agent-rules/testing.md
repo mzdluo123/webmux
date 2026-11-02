@@ -42,7 +42,7 @@ make test-browsers-install        # Chromium (+ Linux libraries; may require sud
 
 - CI classifies changed paths in the `Classify changes` job (`.github/scripts/classify-changes.sh`).
   - Docs-only changes run the formatting, documentation, persistence and agent/web static guards without the test suites.
-  - Go-only changes skip Vitest, Storybook and performance. Web-only changes skip both Go race jobs and the Windows cross-compile. E2E still runs for either.
+  - Go-only changes skip Vitest, Storybook and performance. Web-only changes skip both Go race jobs, the Windows cross-compile and the Windows installer smoke. E2E still runs for either.
   - Unknown paths, `.github/**`, `Makefile`, module/lockfile changes and installer tooling force a full run. Do not use `on.pull_request.paths`: the required `Test result` check must always report.
   - The job validates the base itself, forces a full run for any `.github/` change, and executes the base revision's classifier so a PR cannot weaken the rules that skip its own tests.
 - CI builds the Linux and macOS E2E executables, fake agents and frontend output once in the `E2E runtime` job (`.github/scripts/package-e2e-runtime.mjs`).

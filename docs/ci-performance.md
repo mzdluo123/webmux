@@ -52,8 +52,12 @@ E2E 的 worker 数从 2 调到 4，Storybook 从 2 调到 6，使用同一台机
     - 分类时先校验 base 是否存在，任何 `.github/` 变更都独立强制全量。
     - 随后执行 base 版本的分类脚本；仅当 base 尚无该脚本时才回退到工作区版本，
       避免 PR 削弱跳过自身测试的规则。
-  - `docs-only` 只跑格式、文档、持久化与 agent/web 静态守卫；web-only 跳过 Ubuntu/macOS Go race 与 Windows 交叉编译；go-only 跳过 Vitest、Storybook 与性能；E2E 在两类变更下都保留。未识别路径、`.github/**`、`Makefile`、模块/锁文件与安装脚本一律全量运行。
-  - 新增 `E2E runtime` job，与 Go race 解耦；Ubuntu/macOS Go race 与所有 E2E 分片都依赖它。`Test result` 接受 `skipped`，但按分类结果交叉校验：`go` 为真时 `runtime`、两个 Go race 与两个平台的 E2E 必须成功，`web` 为真时 `vitest`、`storybook`、`performance` 必须成功，`changes` 与 `lint` 始终必需。
+  - `docs-only` 只跑格式、文档、持久化与 agent/web 静态守卫；web-only 跳过 Ubuntu/macOS Go race、Windows 交叉编译与 Windows 安装程序冒烟；go-only 跳过 Vitest、Storybook 与性能；E2E 在两类变更下都保留。未识别路径、`.github/**`、`Makefile`、模块/锁文件与安装脚本一律全量运行。
+  - 新增 `E2E runtime` job，与 Go race 解耦；Ubuntu/macOS Go race 与所有 E2E 分片都依赖它。
+  - `Test result` 接受 `skipped`，但按分类结果交叉校验应运行的 job：
+    - `go` 为真时，`runtime`、两个 Go race、Windows 安装程序冒烟与两个平台的 E2E 必须成功。
+    - `web` 为真时，`vitest`、`storybook`、`performance` 必须成功。
+    - `changes` 与 `lint` 始终必需。
 
 - Ubuntu E2E 保持两个 worker，避免较少 CPU 上的争用；macOS 使用四个。E2E 和 Storybook 的 flaky 结果均使 CI 失败，重试仅保留诊断。异步生成默认分支名的用例等待初始值后再填入目标名称。
 - 本地 `make test` 预构建一次前端、`.cache/webmux-e2e/webmux` 与 `.cache/webmux-e2e/agents/` 中的假 agent，E2E 和性能测试通过 `WEBMUX_E2E_BINARY` 复用；`make test-fast` 提供不含 Storybook、E2E 与性能的快速分层入口。混合会话 E2E 中验证空闲休眠的用例要等待真实的 1 分钟，只在桌面项目运行。

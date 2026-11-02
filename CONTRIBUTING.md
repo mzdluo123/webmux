@@ -89,7 +89,7 @@ E2E 失败时的截图、trace 和日志位于 `web/playwright-report/` 与 `web
 
 CI 先由 `Classify changes` job 按变更路径裁剪测试：
 仅文档变更只跑格式、文档、持久化与 agent/web 静态守卫；仅 Go 变更跳过 Vitest、Storybook 与性能，
-仅前端变更跳过两个 Go race job 与 Windows 交叉编译，E2E 在两类变更下都保留；
+仅前端变更跳过两个 Go race job、Windows 交叉编译与 Windows 安装程序冒烟，E2E 在两类变更下都保留；
 未知路径、`.github/**`、`Makefile`、模块/锁文件与安装脚本变更一律全量运行。
 分类 job 会自行校验 base，`.github/` 变更独立触发全量，并执行 base 版本的分类脚本，
 避免 PR 修改分类器后跳过自身的测试。
