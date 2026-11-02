@@ -22,12 +22,21 @@
 
 ### Requirement: 定时器启用与保留
 
-首次安装时，若系统由 systemd 管理，安装脚本 SHALL 启用并启动 `webmux-update.timer`。升级 SHALL 只重新加载单元定义，SHALL 保留定时器当前的启用或禁用状态。卸载 SHALL 停止并禁用定时器。没有运行 systemd 的系统上，安装 SHALL 成功且不报错。
+若系统由 systemd 管理，安装脚本 SHALL 在本机首次获得定时器时启用并启动 `webmux-update.timer`，并留下标记。卸载 SHALL 停止并禁用定时器并删除标记。
+
+- 首次获得：新安装，或从尚未包含定时器的版本升级。
+- 已有标记的升级：只重新加载单元定义，SHALL 保留定时器当时的启用或禁用状态。
+- 没有运行 systemd：安装 SHALL 成功且不报错，也不留下标记。
 
 #### Scenario: 用户关闭自动更新
 
 - **WHEN** 管理员执行 `systemctl disable --now webmux-update.timer`，之后手动安装新版本 deb
 - **THEN** 升级后定时器仍为禁用状态
+
+#### Scenario: 从没有定时器的版本升级
+
+- **WHEN** 系统上装有不含定时器的 0.4.0 deb，管理员升级到包含定时器的 0.5.0
+- **THEN** 升级后定时器为启用状态，之后的升级不再改变它
 
 #### Scenario: 容器内安装
 
@@ -60,6 +69,20 @@
 
 - **WHEN** 普通用户执行 `webmux update apply`
 - **THEN** 命令报告需要 root 权限并失败
+
+### Requirement: 尊重版本锁定
+
+`webmux` 软件包被管理员锁定版本时（dpkg 的 `apt-mark hold`，或 rpm 系统上 `dnf versionlock` 中的 `webmux` 条目），`webmux update apply` SHALL 在发起网络请求前跳过本次更新，记录“已被锁定版本”并以退出码 0 结束。锁定工具或插件不存在时 SHALL 视为未锁定。
+
+#### Scenario: apt-mark hold
+
+- **WHEN** 管理员执行过 `apt-mark hold webmux`，最新版本高于已安装版本，更新服务触发
+- **THEN** 日志记录已被锁定版本，没有下载，`/usr/bin/webmux` 不变
+
+#### Scenario: dnf versionlock
+
+- **WHEN** Fedora 上 `dnf versionlock list` 列出 `webmux`，更新服务触发
+- **THEN** 日志记录已被锁定版本，没有下载，安装包不变
 
 ### Requirement: 通过包管理器安装
 

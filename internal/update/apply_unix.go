@@ -49,6 +49,10 @@ func Apply(ctx context.Context, o ApplyOptions) error {
 	if _, err := PackageAsset(method, o.Current, o.GOARCH); err != nil {
 		return err
 	}
+	if Held(ctx, o.Run, method) {
+		logf(o.Out, "webmux 软件包已被锁定版本（apt-mark hold / dnf versionlock），跳过自动更新")
+		return nil
+	}
 	logf(o.Out, "当前版本 %s（%s 安装）", o.Current, method)
 	m, host, err := o.Client.Latest(ctx)
 	if err != nil {

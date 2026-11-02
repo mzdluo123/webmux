@@ -39,7 +39,11 @@
 
 新增 `cmd/internal/releasesign`，提供 `keygen`、`sign` 与 `verify` 三个子命令。
 
-- 私钥是 Base64 编码的 32 字节 Ed25519 种子，只存放在 GitHub Actions 密钥 `WEBMUX_RELEASE_SIGNING_KEY` 中，由 `make release` 通过环境变量传给 `sign`，不写入磁盘。
+- 私钥是 Base64 编码的 32 字节 Ed25519 种子，只存放在 GitHub Actions 密钥 `WEBMUX_RELEASE_SIGNING_KEY` 中，由环境变量传给 `sign`，不写入磁盘。
+- 发布 workflow 分为三个 job，构建依赖因此读不到私钥。本地的 `make release` 依次执行 `release-build` 与 `release-sign`。
+  - `build`：不带私钥运行 `make release-build`，pnpm、Go 模块、nfpm、makensis 都在这里运行。
+  - `sign`：在全新 runner 上只下载 `SHA256SUMS`，不恢复任何缓存，用 `make release-sign` 签名并验证；它在 `GOPROXY` 不可用时也能完成。
+  - `publish`：合并产物与签名，再次验证后发布。
 - 公钥（8 字节密钥 ID 加 32 字节公钥）以 minisign 公钥文本的形式写在 `internal/update` 源码中，作为可审查的常量集合；同时公布在 `docs/deployment.md`。
 - 更换密钥的流程：先发布一个同时内置新旧公钥、仍用旧私钥签名的版本，下一个版本再改用新私钥签名。
 
@@ -72,20 +76,22 @@
 2. 用 `flock` 锁住 `/run/webmux-update.lock`，非阻塞；拿不到锁立即退出。
 3. 用 `dpkg-query -S /usr/bin/webmux` 或 `rpm -qf /usr/bin/webmux` 判断安装方式。
 4. 调用 `Check`；有新版本时按架构用 `Fetch` 下载到缓存目录。
-5. 以 argv 执行 `dpkg -i -- <file>` 或 `rpm -U -- <file>`；包没有依赖，所以不需要 apt/dnf 解析依赖。
-6. 删除缓存文件。
+5. 若管理员用 `apt-mark hold` 或 `dnf versionlock` 锁定了 `webmux`，记录后跳过；`dpkg -i` 与 `rpm -U` 本身不理会这两种锁。
+6. 以 argv 执行 `dpkg -i -- <file>` 或 `rpm -U -- <file>`；包没有依赖，所以不需要 apt/dnf 解析依赖。
+7. 删除缓存文件。
 
 日志写到标准输出和标准错误，由 journald 收集。
 
 ### D5 nfpm 安装脚本
 
-`deploy/linux/` 下新增 `postinstall.sh` 与 `preremove.sh`，按 deb（`configure` 带不带旧版本参数）和 rpm（`$1` 为 1 或 2，或 0）区分首次安装、升级和卸载：
+`deploy/linux/` 下新增 `postinstall.sh`、`preremove.sh` 与 `postremove.sh`。是否启用定时器不按“首次安装还是升级”判断，而按标记 `/var/lib/webmux/auto-update-enabled`：
 
-- 首次安装：存在 `/run/systemd/system` 时执行 `systemctl daemon-reload` 与 `systemctl enable --now webmux-update.timer`。
-- 升级：只执行 `daemon-reload`，所以用户的 `disable` 会被保留。
-- 卸载（不含升级时的旧包移除）：执行 `systemctl disable --now webmux-update.timer`。
+- 运行 systemd 且没有标记（首次安装，或从不含定时器的版本升级）：`systemctl enable --now webmux-update.timer`，成功后写入标记。只按 deb/rpm 的“是否升级”参数判断会让已有用户永远拿不到定时器。
+- 有标记：只执行 `daemon-reload`，管理员的 `disable` 因此在升级后保留。
+- 卸载（不含升级时的旧包移除）：`systemctl disable --now webmux-update.timer` 并删除标记，重新安装会再次启用。
+- 没有运行 systemd：只安装文件，不写标记。
 
-脚本任何时候都不触碰 `webmux.service`。`.github/scripts/test-linux-packages.sh` 扩展这三条路径的断言。
+脚本任何时候都不触碰 `webmux.service`。`.github/scripts/test-linux-packages.sh` 覆盖首次安装、带标记升级、无标记升级、卸载与无 systemd 安装。
 
 ### D6 Windows 托盘：调用静默安装程序完成自更新
 

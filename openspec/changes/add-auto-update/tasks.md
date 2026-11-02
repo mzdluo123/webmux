@@ -88,6 +88,21 @@
 
 - [x] 7.1 运行 `make check` 与 `make test-fast`。验证：全部通过，没有新增 lint 警告，也没有扩大架构基线。
 
+## 8. 审查修复（PR #260）
+
+- [x] 8.1 安装脚本改用标记 `/var/lib/webmux/auto-update-enabled` 决定是否启用定时器，从不含定时器的版本升级也会启用；卸载删除标记。
+  - 验证：`test-linux-packages.sh` 在 Debian 与 Fedora 容器中覆盖首次安装、带标记升级、无标记升级与卸载。
+- [x] 8.2 发布 workflow 拆为 build、sign、publish；Makefile 拆出 `release-build`，只有 sign job 读取私钥。
+  - 验证：`actionlint` 通过；在空模块缓存且 `GOPROXY=off` 的环境中用真实私钥运行 `make release-sign` 成功。
+- [x] 8.3 `update apply` 遇到 `apt-mark hold` 或 `dnf versionlock` 锁定时跳过。
+  - 验证：单元测试覆盖三种锁定输出与两种未锁定输出；容器中确认 dpkg 与 dnf5 的真实输出格式。
+- [x] 8.4 托盘等待安装程序结束，安装程序未关闭托盘就退出或超时 15 分钟时清除进行中状态并提示失败。
+  - 验证：`internal/tray` 核心测试覆盖退出码 2、超时与运行中保持忙碌。
+- [x] 8.5 NSIS 覆盖前把旧托盘改名为 `.old`，关闭托盘后失败时恢复并重新启动旧托盘。
+  - 验证：makensis 3.11 以 `-WX` 构建两种架构；未在 Windows 上运行失败路径。
+- [x] 8.6 为“首次渲染前的跳转行”增加确定性的浏览器测试。
+  - 验证：撤销修复时 3 次均失败，恢复后通过。
+
 ## Workflow follow-up
 
 - 维护者执行 `go run ./cmd/internal/releasesign keygen`，把公钥提交到 `internal/update`，把种子配置为 Actions 密钥 `WEBMUX_RELEASE_SIGNING_KEY`，并离线备份。

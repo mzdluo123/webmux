@@ -32,7 +32,7 @@ RELEASE_FILES = webmux-linux-amd64 webmux-linux-arm64 webmux-darwin-amd64 webmux
 	webmux-windows-amd64.exe webmux-windows-arm64.exe webmux-tray-windows-amd64.exe webmux-tray-windows-arm64.exe \
 	webmux-setup-windows-amd64.exe webmux-setup-windows-arm64.exe $(LINUX_PACKAGES)
 
-.PHONY: web build tray installer linux-packages release release-sign check docs-check persistence-check go-lint test test-fast test-go test-frontend test-unit test-browser test-e2e test-performance test-browsers-install frontend e2e-runtime format format-check install baseline test-install
+.PHONY: web build tray installer linux-packages release release-build release-sign check docs-check persistence-check go-lint test test-fast test-go test-frontend test-unit test-browser test-e2e test-performance test-browsers-install frontend e2e-runtime format format-check install baseline test-install
 web:
 	$(PNPM) --dir web install --frozen-lockfile
 	$(PNPM) --dir web build
@@ -72,10 +72,15 @@ linux-packages:
 	cd bin && ls $(LINUX_PACKAGES) >/dev/null
 
 # Linux servers first: the tray embeds their digests, and SHA256SUMS lists
-# every artifact. The signing key is checked before building anything so a
-# missing secret fails fast instead of after the whole build.
+# every artifact. `release` checks the signing key before building anything
+# so a missing secret fails fast; CI runs release-build without the key and
+# signs in a separate job, so build tooling never sees it.
 release:
 	@test -n "$$WEBMUX_RELEASE_SIGNING_KEY" || { echo 'release: WEBMUX_RELEASE_SIGNING_KEY is not set; cannot sign SHA256SUMS' >&2; exit 1; }
+	$(MAKE) release-build
+	$(MAKE) release-sign
+
+release-build:
 	$(MAKE) web
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags "$(RELEASE_LDFLAGS)" -o bin/webmux-linux-amd64 ./cmd/webmux
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags "$(RELEASE_LDFLAGS)" -o bin/webmux-linux-arm64 ./cmd/webmux
@@ -93,7 +98,6 @@ release:
 	$(MAKE) linux-packages
 	cp install.sh bin/install.sh
 	cd bin && sha256sum $(RELEASE_FILES) install.sh > SHA256SUMS
-	$(MAKE) release-sign
 
 # Signs bin/SHA256SUMS with $WEBMUX_RELEASE_SIGNING_KEY into
 # SHA256SUMS.minisig, then proves the built-in public keys accept it.

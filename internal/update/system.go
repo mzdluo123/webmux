@@ -77,3 +77,37 @@ func installCommand(m Method, file string) (string, []string) {
 	}
 	return "dpkg", []string{"-i", "--", file}
 }
+
+// Held reports whether the administrator pinned the webmux package: an
+// `apt-mark hold` for dpkg, or a `dnf versionlock` entry for rpm. dpkg -i and
+// rpm -U ignore both, so the updater must check them itself. A missing tool
+// or plugin counts as not held.
+func Held(ctx context.Context, run Runner, m Method) bool {
+	switch m {
+	case MethodDeb:
+		out, err := run(ctx, "dpkg-query", "-W", "-f", "${Status}", "webmux")
+		want, _, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
+		return err == nil && want == "hold"
+	case MethodRPM:
+		out, err := run(ctx, "dnf", "versionlock", "list")
+		if err != nil {
+			return false
+		}
+		for _, line := range strings.Split(string(out), "\n") {
+			line = strings.TrimSpace(line)
+			// dnf4: "webmux-0:0.5.0-1.*"; dnf5: "Package name: webmux".
+			if line == "Package name: webmux" || versionlocked(line) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// versionlocked matches a dnf4 versionlock spec for webmux: the name, a
+// dash, then the epoch or version, which starts with a digit.
+func versionlocked(spec string) bool {
+	spec = strings.TrimPrefix(spec, "!")
+	rest, ok := strings.CutPrefix(spec, "webmux-")
+	return ok && rest != "" && rest[0] >= '0' && rest[0] <= '9'
+}

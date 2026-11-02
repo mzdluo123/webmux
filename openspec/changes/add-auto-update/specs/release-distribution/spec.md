@@ -49,6 +49,7 @@
 发布流水线 SHALL 用发布私钥对 `SHA256SUMS` 生成 minisign 格式的 `SHA256SUMS.minisig`，可信注释为 `webmux <版本>`，并 SHALL 在发布前以内置公钥验证该签名。
 
 - 私钥 SHALL 只来自流水线密钥配置，SHALL NOT 出现在仓库、构建日志或产物中。
+- 构建、测试与打包 SHALL 在看不到私钥的环境中完成；签名 SHALL 在独立环境中进行，该环境只接收 `SHA256SUMS`，SHALL NOT 运行前端依赖、第三方 Go 模块或打包工具。
 - 密钥缺失或签名失败时 SHALL NOT 创建 Release。
 - 公钥 SHALL 内置于发布构建并在仓库文档中公布，使用户可以用 `minisign -Vm SHA256SUMS -P <公钥>` 手动验证。
 
@@ -61,3 +62,8 @@
 
 - **WHEN** 推送标签时流水线没有配置发布私钥
 - **THEN** 发布失败，不出现该标签的 Release
+
+#### Scenario: 构建环境拿不到私钥
+
+- **WHEN** 发布构建中的某个依赖在构建时读取环境变量
+- **THEN** 它读不到发布私钥，签名环境只运行仓库自带的签名工具

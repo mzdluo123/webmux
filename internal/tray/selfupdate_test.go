@@ -92,11 +92,13 @@ type updateHarness struct {
 	idle     atomic.Bool
 	mu       sync.Mutex
 	launched []string
-	u        *SelfUpdater
+	// exits ends the running installer with a code.
+	exits chan int
+	u     *SelfUpdater
 }
 
 func newUpdateHarness(t *testing.T, installed bool, client ReleaseClient, updated string) *updateHarness {
-	h := &updateHarness{t: t, clock: newFakeClock(), dir: filepath.Join(t.TempDir(), "updates")}
+	h := &updateHarness{t: t, clock: newFakeClock(), dir: filepath.Join(t.TempDir(), "updates"), exits: make(chan int, 1)}
 	h.auto.Store(true)
 	h.idle.Store(true)
 	h.u = NewSelfUpdater(SelfUpdateOptions{
@@ -109,11 +111,11 @@ func newUpdateHarness(t *testing.T, installed bool, client ReleaseClient, update
 		Clock:      h.clock,
 		AutoUpdate: h.auto.Load,
 		Idle:       h.idle.Load,
-		Launch: func(path string) error {
+		Launch: func(path string) (func() (int, error), error) {
 			h.mu.Lock()
 			defer h.mu.Unlock()
 			h.launched = append(h.launched, path)
-			return nil
+			return func() (int, error) { return <-h.exits, nil }, nil
 		},
 		Updated: updated,
 	})
@@ -378,18 +380,31 @@ func TestSelfUpdateNotices(t *testing.T) {
 }
 
 // A newer WSL webmux makes an installed tray with automatic updates check
-// once per version; portable trays and disabled updates never check.
+// once per version; portable trays and disabled updates never check. A
+// version seen while the updater is busy is checked once it is free.
 func TestSelfUpdateFollowsNewerServer(t *testing.T) {
 	newer := Snapshot{Tray: BuildInfo{Version: "0.4.0", Contract: 1}, Installed: BuildInfo{Version: "0.5.0", Contract: 1}, Compat: CompatServerNewer}
+	newest := newer
+	newest.Installed.Version = "0.6.0"
 	releases := &fakeReleases{latest: "0.5.0"}
 	h := newUpdateHarness(t, true, releases, "")
 	h.u.Observe(newer)
 	eventually(t, "installer", func() bool { return len(h.launches()) == 1 })
 	h.u.Observe(newer)
+	h.u.Observe(newest)
 	time.Sleep(10 * time.Millisecond)
 	if checks, _ := releases.counts(); checks != 1 {
 		t.Fatalf("checks %d", checks)
 	}
+	h.exits <- 4
+	eventually(t, "failed install", func() bool { return !h.u.View().Busy })
+	h.u.Observe(newer)
+	time.Sleep(10 * time.Millisecond)
+	if checks, _ := releases.counts(); checks != 1 {
+		t.Fatalf("checked %s again: %d", newer.Installed.Version, checks)
+	}
+	h.u.Observe(newest)
+	eventually(t, "check for "+newest.Installed.Version, func() bool { c, _ := releases.counts(); return c == 2 })
 
 	for name, installed := range map[string]bool{"portable": false, "disabled": true} {
 		releases := &fakeReleases{latest: "0.5.0"}
@@ -400,6 +415,47 @@ func TestSelfUpdateFollowsNewerServer(t *testing.T) {
 		if checks, _ := releases.counts(); checks != 0 {
 			t.Errorf("%s: checked %d", name, checks)
 		}
+	}
+}
+
+// An installer that exits while this tray still runs failed (it closes the
+// tray first when it succeeds): the status shows its exit code and the next
+// check may start. One still running keeps the updater busy until
+// UpdateInstallWait has passed.
+func TestSelfUpdateInstallerExit(t *testing.T) {
+	releases := &fakeReleases{latest: "0.5.0"}
+	h := newUpdateHarness(t, true, releases, "")
+	h.auto.Store(false)
+	h.u.Install()
+	eventually(t, "installer", func() bool { return len(h.launches()) == 1 && h.clock.pending() == 1 })
+	h.clock.jump(UpdateInstallWait - time.Second)
+	h.u.Check()
+	time.Sleep(10 * time.Millisecond)
+	if v := h.u.View(); !v.Busy || v.Status != "正在安装托盘 0.5.0…" {
+		t.Fatalf("running installer %+v", v)
+	}
+	if checks, _ := releases.counts(); checks != 1 {
+		t.Fatalf("checked while the installer runs: %d", checks)
+	}
+
+	h.exits <- 2
+	eventually(t, "failed install", func() bool { return !h.u.View().Busy })
+	if v := h.u.View(); v.Status != "更新失败：安装程序退出（代码 2）" || v.Latest != "0.5.0" {
+		t.Fatalf("after exit %+v", v)
+	}
+	h.u.Check()
+	eventually(t, "manual check", func() bool { c, _ := releases.counts(); return c == 2 && !h.u.View().Busy })
+	if v := h.u.View(); v.Status != "有新版本 0.5.0" {
+		t.Fatalf("after manual check %+v", v)
+	}
+
+	h.u.Install()
+	// The first installer's timer is still pending; it fires unread.
+	eventually(t, "second installer", func() bool { return len(h.launches()) == 2 && h.clock.pending() == 2 })
+	h.clock.jump(UpdateInstallWait)
+	eventually(t, "installer timeout", func() bool { return !h.u.View().Busy })
+	if v := h.u.View(); v.Status != "更新失败：安装程序 15 分钟内未完成" {
+		t.Fatalf("after timeout %+v", v)
 	}
 }
 

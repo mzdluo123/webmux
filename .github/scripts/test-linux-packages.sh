@@ -54,9 +54,12 @@ fake_systemd='
 	chmod 755 /usr/bin/systemctl
 	: > /tmp/systemctl.log
 '
-# Called with the phase: first install enables the timer, a reinstall or
-# upgrade only reloads, removal disables; webmux.service is never named.
+# First install enables the timer and leaves a marker; an upgrade with the
+# marker only reloads (an admin's disable survives); an upgrade without it,
+# as from a release that predates the timer, enables it; removal disables
+# it and drops the marker. webmux.service is never named.
 timer_calls='
+	marker=/var/lib/webmux/auto-update-enabled
 	log() { cat /tmp/systemctl.log; : > /tmp/systemctl.log; }
 	never_user_service() { ! grep -q "webmux.service" /tmp/systemctl.log; }
 '
@@ -65,7 +68,7 @@ docker run --rm -e VERSION="$version" -v "$dir:/pkgs:ro" "$debian_image" sh -euc
 	test -z \"\$(dpkg-deb -f /pkgs/$deb Depends)\"
 	test \"\$(dpkg-deb -c /pkgs/$deb | awk '\$1 !~ /^d/ {print \$6}' | sort | tr '\n' ' ')\" = './usr/bin/webmux ./usr/lib/systemd/system/webmux-update.service ./usr/lib/systemd/system/webmux-update.timer ./usr/lib/systemd/user/webmux.service '
 
-	# Without systemd: installs and removes quietly.
+	# Without systemd: installs and removes quietly, enabling nothing.
 	dpkg -i /pkgs/$deb >/dev/null
 	$checks
 	dpkg -P webmux >/dev/null
@@ -76,12 +79,17 @@ docker run --rm -e VERSION="$version" -v "$dir:/pkgs:ro" "$debian_image" sh -euc
 	dpkg -i /pkgs/$deb >/dev/null
 	never_user_service
 	log | grep -qx 'enable --now webmux-update.timer'
+	test -e \$marker
 	dpkg -i /pkgs/$deb >/dev/null
 	never_user_service
 	if log | grep -q enable; then exit 1; fi
+	rm \$marker
+	dpkg -i /pkgs/$deb >/dev/null
+	log | grep -qx 'enable --now webmux-update.timer'
 	dpkg -r webmux >/dev/null
 	never_user_service
 	log | grep -qx 'disable --now webmux-update.timer'
+	test ! -e \$marker
 	$removed
 " || {
 	printf 'test-linux-packages: %s failed its checks on Debian\n' "$deb" >&2
@@ -103,12 +111,17 @@ docker run --rm -e VERSION="$version" -v "$dir:/pkgs:ro" "$fedora_image" sh -euc
 	rpm -i /pkgs/$rpm
 	never_user_service
 	log | grep -qx 'enable --now webmux-update.timer'
+	test -e \$marker
 	rpm -U --replacepkgs /pkgs/$rpm
 	never_user_service
 	if log | grep -q enable; then exit 1; fi
+	rm \$marker
+	rpm -U --replacepkgs /pkgs/$rpm
+	log | grep -qx 'enable --now webmux-update.timer'
 	rpm -e webmux
 	never_user_service
 	log | grep -qx 'disable --now webmux-update.timer'
+	test ! -e \$marker
 	$removed
 " || {
 	printf 'test-linux-packages: %s failed its checks on Fedora\n' "$rpm" >&2

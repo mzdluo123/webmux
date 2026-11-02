@@ -110,10 +110,14 @@ Var Autostart
 Var AutostartBox
 ; 1 once the installed tray has been closed.
 Var TrayClosed
+; 1 while webmux-tray.exe.old holds the closed tray, until the install
+; succeeds.
+Var TrayBackup
 
 Function .onInit
   StrCpy $Autostart ${BST_CHECKED}
   StrCpy $TrayClosed 0
+  StrCpy $TrayBackup 0
   !if "${ARCH}" == "amd64"
     ${IfNot} ${IsNativeAMD64}
   !else
@@ -137,9 +141,15 @@ Function .onInit
 FunctionEnd
 
 ; Any failure after the installed tray was closed starts it again, so the
-; user keeps a tray; the exit code tells the caller the update failed.
+; user keeps a tray; the exit code tells the caller the update failed. The
+; closed tray comes back from its backup, as a failed write may have left
+; webmux-tray.exe incomplete.
 Function .onInstFailed
   ${If} $TrayClosed == 1
+    ${If} $TrayBackup == 1
+      Delete "$INSTDIR\webmux-tray.exe"
+      Rename "$INSTDIR\webmux-tray.exe.old" "$INSTDIR\webmux-tray.exe"
+    ${EndIf}
     ${If} ${FileExists} "$INSTDIR\webmux-tray.exe"
       SetOutPath "$PROFILE"
       Exec '"$INSTDIR\webmux-tray.exe"'
@@ -181,6 +191,19 @@ Section "-WebMux tray"
   ClearErrors
 
   SetOutPath "$INSTDIR"
+  ; File overwrites in place, so the closed tray moves aside first and stays
+  ; until the install succeeds. A backup an interrupted update left behind
+  ; is the last complete tray when webmux-tray.exe is missing.
+  ${If} ${FileExists} "$INSTDIR\webmux-tray.exe"
+    Delete "$INSTDIR\webmux-tray.exe.old"
+    Rename "$INSTDIR\webmux-tray.exe" "$INSTDIR\webmux-tray.exe.old"
+    ${If} ${Errors}
+      Abort "无法写入安装目录 $INSTDIR"
+    ${EndIf}
+    StrCpy $TrayBackup 1
+  ${ElseIf} ${FileExists} "$INSTDIR\webmux-tray.exe.old"
+    StrCpy $TrayBackup 1
+  ${EndIf}
   File "/oname=webmux-tray.exe" "${TRAY}"
   WriteUninstaller "$INSTDIR\uninstall.exe"
   ${If} ${Errors}
@@ -212,6 +235,8 @@ Section "-WebMux tray"
   ${If} ${Errors}
     Abort "无法写入下载缓存或注册表"
   ${EndIf}
+  StrCpy $TrayBackup 0
+  Delete "$INSTDIR\webmux-tray.exe.old"
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" $0
 
@@ -243,6 +268,7 @@ Section "Uninstall"
 
   Delete "$SMPROGRAMS\WebMux.lnk"
   Delete "$INSTDIR\webmux-tray.exe"
+  Delete "$INSTDIR\webmux-tray.exe.old"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
   DeleteRegKey HKCU "${UNINST_KEY}"

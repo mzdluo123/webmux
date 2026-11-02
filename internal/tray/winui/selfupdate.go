@@ -3,6 +3,7 @@
 package winui
 
 import (
+	"errors"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -32,13 +33,24 @@ func InstalledCopy(exe string) bool {
 }
 
 // LaunchInstaller starts the downloaded installer silently, detached from
-// the tray, without waiting: the installer closes this tray.
-func LaunchInstaller(path string) error {
+// the tray and without a console; wait returns its exit code. The installer
+// normally closes this tray before it exits.
+func LaunchInstaller(path string) (wait func() (int, error), err error) {
 	cmd := exec.Command(path, "/S")
 	cmd.Dir = filepath.Dir(path)
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS}
 	if err := cmd.Start(); err != nil {
-		return err
+		return nil, err
 	}
-	return cmd.Process.Release()
+	return func() (int, error) {
+		err := cmd.Wait()
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			return exit.ExitCode(), nil
+		}
+		if err != nil {
+			return 0, err
+		}
+		return cmd.ProcessState.ExitCode(), nil
+	}, nil
 }

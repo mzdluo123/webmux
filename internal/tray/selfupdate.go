@@ -20,6 +20,9 @@ const (
 	// UpdateIdlePoll is how often a downloaded installer waits for the
 	// tray to become idle.
 	UpdateIdlePoll = 5 * time.Second
+	// UpdateInstallWait bounds how long a running installer keeps the
+	// updater busy when it has not closed this tray.
+	UpdateInstallWait = 15 * time.Minute
 
 	updateCleanRetry   = 10 * time.Second
 	updateCleanRetries = 30
@@ -51,8 +54,9 @@ type SelfUpdateOptions struct {
 	// Idle reports that no server install, start, stop or restart runs and
 	// no dialog is open, so the installer may close the tray.
 	Idle func() bool
-	// Launch starts the installer silently and detached, without waiting.
-	Launch func(path string) error
+	// Launch starts the installer silently and detached; wait reports its
+	// exit code once it exits.
+	Launch func(path string) (wait func() (int, error), err error)
 	// Publish is called after every change of View.
 	Publish func()
 	Logf    func(format string, args ...any)
@@ -135,20 +139,22 @@ func (u *SelfUpdater) Check() { u.spawn(true, false) }
 func (u *SelfUpdater) Install() { u.spawn(true, true) }
 
 // Observe checks once per newer WSL webmux version when automatic updates
-// are on, so an installed tray catches up with its server.
+// are on, so an installed tray catches up with its server. A version counts
+// only once its check started, so one that arrives while another operation
+// runs is checked on a later snapshot.
 func (u *SelfUpdater) Observe(snap Snapshot) {
 	version := snap.Installed.Version
 	if !snap.Compat.Newer() || !releaseVersion(version) || !u.o.Release || !u.o.Installed || !u.o.AutoUpdate() {
 		return
 	}
-	u.mu.Lock()
-	seen := u.servers[version]
-	u.servers[version] = true
-	u.mu.Unlock()
-	if !seen {
+	u.start(false, false, func() bool {
+		if u.servers[version] {
+			return false
+		}
+		u.servers[version] = true
 		u.o.Logf("update: WSL webmux %s is newer than tray %s; checking", version, u.o.Version)
-		u.spawn(false, false)
-	}
+		return true
+	})
 }
 
 // MenuOpened dismisses a notice the user has already seen in an earlier
@@ -221,26 +227,31 @@ func (u *SelfUpdater) schedule() {
 // tidy removes earlier downloads unless an update runs, and reports
 // whether none remain.
 func (u *SelfUpdater) tidy() bool {
-	if !u.begin() {
+	if !u.begin(nil) {
 		return true
 	}
 	defer u.end()
 	return u.clean()
 }
 
-func (u *SelfUpdater) spawn(manual, install bool) {
-	if !u.o.Release || u.ctx.Err() != nil {
+func (u *SelfUpdater) spawn(manual, install bool) { u.start(manual, install, nil) }
+
+// start claims the updater and runs one check in the background; claim,
+// when set, runs under the lock once nothing else holds the updater and
+// may refuse the check.
+func (u *SelfUpdater) start(manual, install bool, claim func() bool) {
+	if !u.o.Release || u.ctx.Err() != nil || !u.begin(claim) {
 		return
 	}
-	u.wg.Go(func() { u.run(manual, install) })
+	u.wg.Go(func() { u.work(manual, install) })
 }
 
-// begin claims the updater; it fails while another operation runs or
-// after the installer was started.
-func (u *SelfUpdater) begin() bool {
+// begin claims the updater; it fails while another operation runs, which
+// includes an installer that has not exited, or when claim refuses.
+func (u *SelfUpdater) begin(claim func() bool) bool {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	if u.busy {
+	if u.busy || (claim != nil && !claim()) {
 		return false
 	}
 	u.busy = true
@@ -265,25 +276,28 @@ func (u *SelfUpdater) setStatus(status string) {
 	u.set(func() { u.status = status })
 }
 
-// run is one check, and for an installed tray the download and install.
-// After the installer started the updater stays busy until the tray exits.
+// run is one check unless another operation runs.
 func (u *SelfUpdater) run(manual, install bool) {
-	if !u.begin() {
-		return
-	}
-	u.o.Publish()
-	if !u.update(manual, install) {
-		u.end()
+	if u.begin(nil) {
+		u.work(manual, install)
 	}
 }
 
-func (u *SelfUpdater) update(manual, install bool) bool {
+// work is one claimed check, and for an installed tray the download and
+// install; the updater stays busy until the installer exits.
+func (u *SelfUpdater) work(manual, install bool) {
+	u.o.Publish()
+	u.update(manual, install)
+	u.end()
+}
+
+func (u *SelfUpdater) update(manual, install bool) {
 	ctx := u.ctx
 	u.clean()
 	m, host, err := u.o.Client.Latest(ctx)
 	if err != nil {
 		u.fail("check", err)
-		return false
+		return
 	}
 	if !update.Newer(m.Version, u.o.Version) {
 		u.o.Logf("update check: tray %s is current; latest %s from %s", u.o.Version, m.Version, host)
@@ -293,41 +307,71 @@ func (u *SelfUpdater) update(manual, install bool) bool {
 				u.notice, u.noticeSeen = "托盘已是最新版本 "+u.o.Version, false
 			}
 		})
-		return false
+		return
 	}
 	u.o.Logf("update check: tray %s, latest %s from %s", u.o.Version, m.Version, host)
 	u.set(func() { u.latest, u.status = m.Version, "有新版本 "+m.Version })
 	if !u.o.Installed || (!install && !u.o.AutoUpdate()) {
-		return false
+		return
 	}
 	asset := "webmux-setup-windows-" + u.o.Arch + ".exe"
 	target := filepath.Join(u.o.Dir, asset)
 	u.setStatus("正在下载托盘 " + m.Version + "…")
 	if err := os.MkdirAll(u.o.Dir, 0o700); err != nil {
 		u.fail("download", fmt.Errorf("下载目录：%w", err))
-		return false
+		return
 	}
 	host, err = u.o.Client.Fetch(ctx, m, asset, target, 0o700)
 	if err != nil {
 		u.fail("download", fmt.Errorf("下载 %s %s：%w", asset, m.Version, err))
-		return false
+		return
 	}
 	u.o.Logf("update download: %s %s from %s", asset, m.Version, host)
 	for !u.o.Idle() {
 		u.setStatus("托盘 " + m.Version + " 已下载，当前操作完成后安装")
 		select {
 		case <-ctx.Done():
-			return false
+			return
 		case <-u.o.Clock.After(UpdateIdlePoll):
 		}
 	}
-	if err := u.o.Launch(target); err != nil {
+	wait, err := u.o.Launch(target)
+	if err != nil {
 		u.fail("install", fmt.Errorf("无法运行安装程序：%w", err))
-		return false
+		return
 	}
 	u.o.Logf("update install: started %s /S for %s", target, m.Version)
 	u.setStatus("正在安装托盘 " + m.Version + "…")
-	return true
+	u.awaitInstaller(wait)
+}
+
+// awaitInstaller returns when the tray closes, when the installer exits
+// or after UpdateInstallWait. A successful installer closes this tray
+// before it exits, so an exit seen here means the update failed: the
+// installer exits 2 or 3 without closing the tray and 4 after starting the
+// old one again (deploy/windows/webmux.nsi).
+func (u *SelfUpdater) awaitInstaller(wait func() (int, error)) {
+	type exit struct {
+		code int
+		err  error
+	}
+	// The wait cannot be cancelled; a tray that closes leaves it behind.
+	exited := make(chan exit, 1)
+	go func() {
+		code, err := wait()
+		exited <- exit{code, err}
+	}()
+	select {
+	case <-u.ctx.Done():
+	case e := <-exited:
+		if e.err != nil {
+			u.fail("install", fmt.Errorf("等待安装程序：%w", e.err))
+		} else {
+			u.fail("install", fmt.Errorf("安装程序退出（代码 %d）", e.code))
+		}
+	case <-u.o.Clock.After(UpdateInstallWait):
+		u.fail("install", fmt.Errorf("安装程序 %d 分钟内未完成", int(UpdateInstallWait/time.Minute)))
+	}
 }
 
 func (u *SelfUpdater) fail(stage string, err error) {

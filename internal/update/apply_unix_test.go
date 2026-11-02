@@ -31,10 +31,12 @@ type call struct {
 }
 
 // fakeSystem answers ownership queries for one package manager and records
-// installs; installErr fails the install.
+// installs; installErr fails the install; held is what `dpkg-query -W` or
+// `dnf versionlock list` prints.
 type fakeSystem struct {
 	owner      Method
 	installErr error
+	held       string
 	calls      []call
 	installed  []byte // package bytes seen at install time
 }
@@ -42,7 +44,11 @@ type fakeSystem struct {
 func (f *fakeSystem) run(_ context.Context, name string, args ...string) ([]byte, error) {
 	f.calls = append(f.calls, call{name, args})
 	switch {
-	case name == "dpkg-query" && f.owner == MethodDeb:
+	case name == "dpkg-query" && args[0] == "-W" && f.held != "":
+		return []byte(f.held), nil
+	case name == "dnf" && f.held != "":
+		return []byte(f.held), nil
+	case name == "dpkg-query" && args[0] == "-S" && f.owner == MethodDeb:
 		return []byte("webmux:amd64: /usr/bin/webmux\n"), nil
 	case name == "rpm" && args[0] == "-qf" && f.owner == MethodRPM:
 		return []byte("webmux\n"), nil
@@ -200,5 +206,41 @@ func TestApplyRequiresReleaseBuild(t *testing.T) {
 	o, _ := applyOptions(t, c, &fakeSystem{owner: MethodDeb}, "0.4.0", "amd64")
 	if err := Apply(context.Background(), o); !errors.Is(err, ErrNotRelease) || hits.Load() != 0 {
 		t.Fatalf("dev build: %v, %d requests", err, hits.Load())
+	}
+}
+
+func TestApplySkipsHeldPackage(t *testing.T) {
+	asRelease(t)
+	for _, tc := range []struct {
+		owner Method
+		arch  string
+		held  string
+	}{
+		{MethodDeb, "amd64", "hold ok installed"},
+		{MethodRPM, "arm64", "Last metadata expiration check: 0:01:02 ago.\nwebmux-0:0.4.0-1.*\n"},
+		{MethodRPM, "arm64", "# Added lock on ...\nPackage name: webmux\nevr = 0.4.0-1\n"},
+	} {
+		c, hits := applyRelease(t, "0.5.0")
+		sys := &fakeSystem{owner: tc.owner, held: tc.held}
+		o, out := applyOptions(t, c, sys, "0.4.0", tc.arch)
+		if err := Apply(context.Background(), o); err != nil {
+			t.Fatalf("%s held: %v", tc.owner, err)
+		}
+		if hits.Load() != 0 || !strings.Contains(out.String(), "已被锁定版本") {
+			t.Fatalf("%s held: %d requests, log %q", tc.owner, hits.Load(), out.String())
+		}
+	}
+	// Other packages' locks and an unheld dpkg status do not stop updates.
+	for _, held := range []string{"webmux-tray-0:1.0-1.*\n", "install ok installed"} {
+		owner := MethodRPM
+		if held == "install ok installed" {
+			owner = MethodDeb
+		}
+		c, _ := applyRelease(t, "0.5.0")
+		sys := &fakeSystem{owner: owner, held: held}
+		o, out := applyOptions(t, c, sys, "0.4.0", map[Method]string{MethodDeb: "amd64", MethodRPM: "arm64"}[owner])
+		if err := Apply(context.Background(), o); err != nil || !strings.Contains(out.String(), "已安装 0.5.0") {
+			t.Fatalf("not held (%q): %v, log %q", held, err, out.String())
+		}
 	}
 }

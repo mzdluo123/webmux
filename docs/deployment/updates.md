@@ -43,10 +43,13 @@ webmux update check --json   # {"v":1,"current":…,"latest":…,"available":…
 
 ## Linux 安装包的自动更新
 
-deb / rpm 首次安装时启用 `webmux-update.timer`（没有运行 systemd 的容器中只安装文件）。定时器每天触发一次，带最长 6 小时随机延迟，关机错过的会在下次开机后补上。
+deb / rpm 第一次装上带定时器的版本时启用 `webmux-update.timer`：新安装，或从更早、不含定时器的版本升级。没有运行 systemd 的容器中只安装文件。
+
+启用后会留下 `/var/lib/webmux/auto-update-enabled`，之后的升级不再改动定时器；卸载软件包时一并删除。定时器每天触发一次，带最长 6 小时随机延迟，关机错过的会在下次开机后补上。
 
 - 服务 `webmux-update.service` 以 root 运行 `webmux update apply`：确认 `/usr/bin/webmux` 属于 `webmux` 软件包，下载并校验同格式、同架构的安装包，再用 `dpkg -i` 或 `rpm -U` 安装。它不能访问 `/home` 与 `/root`。
 - 同一时刻只有一个更新在运行；`dpkg` / `rpm` 被占用（例如你正在 `apt upgrade`）时本次失败，原安装不变，次日重试。
+- 用 `apt-mark hold webmux` 或 `dnf versionlock add webmux` 锁定版本后，更新服务记录“已被锁定版本”并跳过。
 - 查看记录：`journalctl -u webmux-update.service`，其中有当前版本、最新版本、来源与结果。
 - 立即更新：`sudo systemctl start webmux-update.service`（或 `sudo webmux update apply`）。
 
@@ -82,11 +85,12 @@ sudo systemctl edit webmux-update.service
 - 开启时，托盘启动 2 分钟后检查一次，之后每 24 小时检查一次；“检查更新”随时手动检查。
 - 安装版托盘发现新版本后，把 `webmux-setup-windows-<架构>.exe` 下载到 `%LOCALAPPDATA%\WebMux\updates`，校验后以 `/S` 静默运行。安装程序沿用原安装目录与登录启动设置。旧托盘按“仅退出托盘”退出，WebMux 与会话不受影响，转发在新托盘启动后恢复。
 - 托盘正在安装 WSL 中的 webmux、启动、停止、重启 WebMux 或显示对话框时，等这些操作结束后再升级。
+- 安装程序结束后托盘仍在运行（例如安装失败、恢复了旧托盘），或 15 分钟内没有结束，状态行显示“更新失败：<原因>”，之后的检查照常进行。
 - 新托盘在状态行显示一次“已更新到 <版本>”。之后它发现 WSL 中的 webmux 较旧时会自动升级该文件，并提示重启 WebMux 后生效。
 - 关闭“自动更新”后不再自动检查；手动检查发现新版本时，菜单提供“更新到 <版本>”。
 
 ## 密钥轮换（维护者）
 
-发布私钥是 GitHub Actions 密钥 `WEBMUX_RELEASE_SIGNING_KEY`，内容为 `go run ./cmd/internal/releasesign keygen -secret <文件>` 生成的一行 Base64，需要离线备份；缺失时 `make release` 直接失败。
+发布私钥是 GitHub Actions 密钥 `WEBMUX_RELEASE_SIGNING_KEY`，内容为 `go run ./cmd/internal/releasesign keygen -secret <文件>` 生成的一行 Base64，需要离线备份；缺失时发布失败。发布 workflow 的构建 job 看不到它，只有单独的签名 job 在全新 runner 上读取它，并且只签 `SHA256SUMS`。
 
 更换密钥分两步：先发布一个同时内置新旧公钥（`internal/update` 的 `releaseKeys`）、仍用旧私钥签名的版本，下一个版本再改用新私钥。私钥丢失后，已安装的版本无法再自动更新，用户需要手动升级一次。
