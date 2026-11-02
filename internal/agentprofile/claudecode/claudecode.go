@@ -3,6 +3,8 @@
 package claudecode
 
 import (
+	"strings"
+
 	ap "github.com/rainchan/webmux/internal/agentprofile"
 )
 
@@ -24,10 +26,11 @@ type adapter struct {
 }
 
 var profile = &ap.Profile{
-	Name:            Name,
-	Title:           "Claude Code",
-	Executables:     []string{"claude"},
-	VerifiedVersion: "2.1.316",
+	Name:              Name,
+	Title:             "Claude Code",
+	Executables:       []string{"claude"},
+	ProcessExecutable: claudeProcess,
+	VerifiedVersion:   "2.1.316",
 	Connector: &ap.Connector{
 		Executable:      "claude-agent-acp",
 		Title:           "Claude Code ACP 适配器",
@@ -46,6 +49,29 @@ var profile = &ap.Profile{
 		"doctor", "setup-token", "stop", "kill", "rm", "ultrareview", "update", "upgrade",
 		"completion", "help"),
 	SessionSubcommands: ap.SetOf("attach"),
+}
+
+// claudeProcess also accepts the native installer's versioned binary name
+// (for example 2.1.316), which is what Linux /proc/<pid>/exe reports.
+func claudeProcess(base string) bool {
+	if base == "claude" {
+		return true
+	}
+	parts := strings.Split(base, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" {
+			return false
+		}
+		for _, r := range part {
+			if r < '0' || r > '9' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func claudeOptions() map[string]ap.Option {

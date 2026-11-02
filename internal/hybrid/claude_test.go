@@ -102,6 +102,18 @@ func TestClaudeNodeLauncher(t *testing.T) {
 	}
 }
 
+func TestClaudeVersionedNativeRoot(t *testing.T) {
+	h := newHarness(t, 0)
+	cmd, err := h.svc.agents.Parse([]string{"claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &actor{cmd: cmd}
+	if !a.agentIsRoot(session.Identity{PID: 42, Executable: "2.1.316"}) {
+		t.Fatal("versioned native Claude is not accepted as the terminal root")
+	}
+}
+
 func TestClaudeSessionChangeAndFirstMessage(t *testing.T) {
 	h := newHarness(t, 0)
 	h.fast()

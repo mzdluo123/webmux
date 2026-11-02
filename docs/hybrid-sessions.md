@@ -73,7 +73,7 @@ npm install -g @agentclientprotocol/claude-agent-acp
 
 Claude Code 的主身份来源是 `<CLAUDE_CONFIG_DIR>/sessions/<pid>.json`（未设置时为 `~/.claude`），不是 transcript JSONL。
 
-该注册格式未文档化，因此采用前会核对实际 agent 的 PID、UUID、规范化 cwd、进程启动标识与 PID domain；原生 Linux 直接核对根进程，npm `node` 启动器核对直接 Claude 子进程。
+该注册格式未文档化，因此采用前会核对实际 agent 的 PID、UUID、规范化 cwd、进程启动标识与 PID domain；原生 Linux 直接核对根进程，npm `node` 启动器核对直接 Claude 子进程。原生安装器的磁盘可执行文件可能以版本号命名（例如 `2.1.316`），进程匹配覆盖这种名称，但启动命令仍按 `claude` 识别。
 
 注册记录随身份观察重读，以跟踪 TUI 内的 `/new` 与 `/resume`。首条消息前即使已有 UUID，也仍受 `session/list` 门槛限制。
 

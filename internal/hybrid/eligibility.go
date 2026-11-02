@@ -238,7 +238,7 @@ func (a *actor) agentProcess() (agentprofile.ProcessFacts, bool) {
 		return agentprofile.ProcessFacts{PID: p.PID, Executable: p.Executable, Cwd: p.Cwd, Start: p.Start, Domain: p.Domain}
 	}
 	root := convert(processes[0])
-	if a.cmd.Profile.RunsAs(root.Executable) {
+	if a.cmd.Profile.RunsProcess(root.Executable) {
 		return root, true
 	}
 	if a.cmd.Profile.Launcher == "" || root.Executable != a.cmd.Profile.Launcher {
@@ -247,7 +247,7 @@ func (a *actor) agentProcess() (agentprofile.ProcessFacts, bool) {
 	var selected agentprofile.ProcessFacts
 	for _, process := range processes[1:] {
 		candidate := convert(process)
-		if !a.cmd.Profile.RunsAs(candidate.Executable) {
+		if !a.cmd.Profile.RunsProcess(candidate.Executable) {
 			continue
 		}
 		if selected.PID != 0 {
@@ -329,10 +329,10 @@ func (a *actor) agentIsRoot(id session.Identity) bool {
 		return false
 	}
 	p := a.cmd.Profile
-	if p.RunsAs(id.Executable) {
+	if p.RunsProcess(id.Executable) {
 		return true
 	}
-	return p.Launcher != "" && id.Executable == p.Launcher && slices.ContainsFunc(a.shell.RunChildren(), p.RunsAs)
+	return p.Launcher != "" && id.Executable == p.Launcher && slices.ContainsFunc(a.shell.RunChildren(), p.RunsProcess)
 }
 
 // tracksLocks reports that the agent's session IDs come from its writer

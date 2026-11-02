@@ -24,6 +24,22 @@ func TestContract(t *testing.T) {
 	}
 }
 
+func TestProcessExecutable(t *testing.T) {
+	for _, base := range []string{"claude", "2.1.316", "3.0.0"} {
+		if !profile.RunsProcess(base) {
+			t.Fatalf("native process %q not recognized", base)
+		}
+	}
+	for _, base := range []string{"node", "2.1", "2.1.x", "claude-agent-acp"} {
+		if profile.RunsProcess(base) {
+			t.Fatalf("unrelated process %q recognized", base)
+		}
+	}
+	if profile.RunsAs("2.1.316") {
+		t.Fatal("versioned native filename became a launch command")
+	}
+}
+
 func TestResumeArgv(t *testing.T) {
 	registry := ap.NewRegistry(Agent)
 	cmd, err := registry.Parse([]string{

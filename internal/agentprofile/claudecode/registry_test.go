@@ -18,7 +18,7 @@ func TestRegisteredSession(t *testing.T) {
 	if err := os.Mkdir(cwd, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	process := ap.ProcessFacts{PID: 42, Executable: "claude", Cwd: cwd, Start: "12345", Domain: "linux:machine:namespace"}
+	process := ap.ProcessFacts{PID: 42, Executable: "2.1.316", Cwd: cwd, Start: "12345", Domain: "linux:machine:namespace"}
 	writeRecord(t, filepath.Join(home, ".claude"), process.PID, registration{SessionID: testSessionID, PID: process.PID, Cwd: cwd, ProcStart: process.Start, PIDDomain: process.Domain})
 	registry := Agent.(ap.ProcessRegistry)
 	id, ok := registry.RegisteredSession(process, env(nil), home)
@@ -84,7 +84,7 @@ func TestExternallyHeld(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := ap.ProcessFacts{PID: 10, Executable: "claude", Cwd: cwd, Start: "10", Domain: "d"}
-	external := ap.ProcessFacts{PID: 20, Executable: "claude", Cwd: cwd, Start: "20", Domain: "d"}
+	external := ap.ProcessFacts{PID: 20, Executable: "2.1.316", Cwd: cwd, Start: "20", Domain: "d"}
 	writeRecord(t, filepath.Join(home, ".claude"), current.PID, registration{SessionID: testSessionID, PID: 10, Cwd: cwd, ProcStart: "10", PIDDomain: "d"})
 	writeRecord(t, filepath.Join(home, ".claude"), external.PID, registration{SessionID: testSessionID, PID: 20, Cwd: cwd, ProcStart: "20", PIDDomain: "d"})
 	registry := Agent.(ap.ProcessRegistry)

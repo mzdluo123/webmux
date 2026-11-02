@@ -193,6 +193,9 @@ type Profile struct {
 	Title string
 	// Executables are the base names the agent runs as; empty means Name.
 	Executables []string
+	// ProcessExecutable optionally recognizes a native process whose name on
+	// disk differs from the launch command, such as a versioned installation.
+	ProcessExecutable func(base string) bool
 	// VerifiedVersion is the newest release measured; older versions only
 	// produce a notice.
 	VerifiedVersion string
@@ -245,6 +248,14 @@ func (p *Profile) RunsAs(base string) bool {
 		return base == p.Name
 	}
 	return slices.Contains(p.Executables, base)
+}
+
+// RunsProcess reports whether a running native process belongs to this agent.
+func (p *Profile) RunsProcess(base string) bool {
+	if p.ProcessExecutable != nil {
+		return p.ProcessExecutable(base)
+	}
+	return p.RunsAs(base)
 }
 
 // SetOf builds a set of names.

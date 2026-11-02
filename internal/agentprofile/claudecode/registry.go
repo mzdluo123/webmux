@@ -30,7 +30,7 @@ type registration struct {
 // ID. All failures deliberately collapse to false: hybrid then uses its
 // generic session/list candidate fallback.
 func (adapter) RegisteredSession(process ap.ProcessFacts, getenv func(string) string, userHome string) (string, bool) {
-	if !profile.RunsAs(process.Executable) || process.PID <= 0 {
+	if !profile.RunsProcess(process.Executable) || process.PID <= 0 {
 		return "", false
 	}
 	record, ok := readRegistration(configDir(process.Cwd, getenv, userHome), process.PID)
@@ -66,7 +66,7 @@ func (adapter) ExternallyHeld(sessionID string, current ap.ProcessFacts, lookup 
 			continue
 		}
 		process, ok := lookup(pid)
-		if ok && profile.RunsAs(process.Executable) && validRegistration(record, process) {
+		if ok && profile.RunsProcess(process.Executable) && validRegistration(record, process) {
 			return true
 		}
 	}
