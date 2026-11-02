@@ -284,7 +284,11 @@ async function main() {
   mkdirSync(outDir, { recursive: true });
   seedRepository();
   const { child, baseURL } = await startBackend();
-  const browser = await chromium.launch({ args: ["--disable-webgl"] });
+  const browser = await chromium.launch({
+    args: ["--disable-webgl"],
+    // Lets a preinstalled Chromium stand in for Playwright's own download.
+    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined,
+  });
   try {
     const contexts = {
       desktop: await browser.newContext({
