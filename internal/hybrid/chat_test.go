@@ -181,6 +181,22 @@ func TestChatTitleBecomesSessionTitle(t *testing.T) {
 	prompt(t, h, id, "/title")
 	st.until("title event", hasKind(EventInfo))
 	waitFor(t, "session title", func() bool { return s.Info().Title == "fake title" })
+	waitFor(t, "recorded session title", func() bool { return h.record(id).Title == "fake title" })
+	h.closeSession(id)
+	if rec := h.record(id); rec.State != StateClosed || rec.Title != "fake title" {
+		t.Fatalf("recoverable record %+v", rec)
+	}
+	if !strings.Contains(h.file(), `"title": "fake title"`) {
+		t.Fatal("session title was not persisted")
+	}
+	resumed := h.mustResume(id, ResumeInput{Side: SideACP, Env: in.Env})
+	if got := resumed.Info().Title; got != "fake title" {
+		t.Fatalf("title after resume %q", got)
+	}
+	h.closeSession(id)
+	if got := h.record(id).Title; got != "fake title" {
+		t.Fatalf("title after closing the resumed session %q", got)
+	}
 }
 
 func TestChatTitleKeepsCreationName(t *testing.T) {
@@ -192,6 +208,9 @@ func TestChatTitleKeepsCreationName(t *testing.T) {
 	st.until("title event", hasKind(EventInfo))
 	if got := s.Info().Title; got != "agent" {
 		t.Fatalf("session title %q, want the creation name", got)
+	}
+	if got := h.record(id).Title; got != "agent" {
+		t.Fatalf("recorded title %q, want the creation name", got)
 	}
 }
 
