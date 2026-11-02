@@ -43,7 +43,7 @@ tray:
 # Needs NSIS 3 (`makensis`); see deploy/windows/webmux.nsi.
 installer:
 	for arch in amd64 arm64; do \
-		$(MAKENSIS) -V2 -DVERSION=$(VERSION) -DARCH=$$arch \
+		$(MAKENSIS) -V2 -INPUTCHARSET UTF8 -DVERSION=$(VERSION) -DARCH=$$arch \
 			"-DTRAY=$(abspath bin)/webmux-tray-windows-$$arch.exe" \
 			"-DSERVER=$(abspath bin)/webmux-linux-$$arch" \
 			"-DICON=$(abspath internal/tray/winui/icons/running.ico)" \

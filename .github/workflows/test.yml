@@ -322,9 +322,9 @@ jobs:
             $env:CGO_ENABLED = '0'; $env:GOOS = 'windows'; $env:GOARCH = $arch
             go build -trimpath -ldflags "-s -w -X main.version=0.0.1 -H=windowsgui" -o "$bin\webmux-tray-windows-$arch.exe" ./cmd/webmux-tray
             if ($LASTEXITCODE) { exit 1 }
-            Set-Content -NoNewline "$bin\webmux-linux-$arch" "placeholder server $arch"
+            Set-Content -Path "$bin\webmux-linux-$arch" -Value "placeholder server $arch" -NoNewline
             # Quote every -D: PowerShell splits a bare -DVERSION=0.0.1 at the dots.
-            & $makensis.Source -V2 "-DVERSION=0.0.1" "-DARCH=$arch" "-DTRAY=$bin\webmux-tray-windows-$arch.exe" "-DSERVER=$bin\webmux-linux-$arch" "-DICON=$env:GITHUB_WORKSPACE\internal\tray\winui\icons\running.ico" "-DOUTFILE=$bin\webmux-setup-windows-$arch.exe" deploy\windows\webmux.nsi
+            & $makensis.Source -V2 -INPUTCHARSET UTF8 "-DVERSION=0.0.1" "-DARCH=$arch" "-DTRAY=$bin\webmux-tray-windows-$arch.exe" "-DSERVER=$bin\webmux-linux-$arch" "-DICON=$env:GITHUB_WORKSPACE\internal\tray\winui\icons\running.ico" "-DOUTFILE=$bin\webmux-setup-windows-$arch.exe" deploy\windows\webmux.nsi
             if ($LASTEXITCODE) { exit 1 }
           }
       - name: Install, quit, upgrade and uninstall
