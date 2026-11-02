@@ -63,6 +63,9 @@ type acpTools struct {
 func (a *actor) prepareACP(ctx context.Context) (acpTools, error) {
 	p := a.cmd.Profile
 	tools := acpTools{env: maps.Clone(p.ACPEnv)}
+	if tools.env == nil {
+		tools.env = make(map[string]string)
+	}
 	if p.Connector == nil {
 		return tools, nil
 	}
