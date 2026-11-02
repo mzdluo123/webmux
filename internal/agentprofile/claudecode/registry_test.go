@@ -122,14 +122,20 @@ func TestExternalScanEntryBound(t *testing.T) {
 	external := ap.ProcessFacts{PID: 999, Executable: "claude", Cwd: cwd, Start: "1", Domain: "d"}
 	writeRecord(t, filepath.Join(home, ".claude"), external.PID, registration{SessionID: testSessionID, PID: external.PID, Cwd: cwd, ProcStart: "1", PIDDomain: "d"})
 	for i := 2; i <= maxRegistryEntries+2; i++ {
-		if err := os.WriteFile(recordPath(filepath.Join(home, ".claude"), i), []byte(`{}`), 0o600); err != nil {
-			t.Fatal(err)
-		}
+		writeRecord(t, filepath.Join(home, ".claude"), i, registration{SessionID: testSessionID, PID: i, Cwd: cwd, ProcStart: "1", PIDDomain: "d"})
 	}
 	registry := Agent.(ap.ProcessRegistry)
-	lookup := func(int) (ap.ProcessFacts, bool) { return external, true }
-	if registry.ExternallyHeld(testSessionID, current, lookup, env(nil), home) {
-		t.Fatal("scan exceeded its entry bound")
+	lookups := 0
+	lookup := func(pid int) (ap.ProcessFacts, bool) {
+		lookups++
+		if pid == external.PID {
+			return external, true
+		}
+		return ap.ProcessFacts{}, false
+	}
+	registry.ExternallyHeld(testSessionID, current, lookup, env(nil), home)
+	if lookups > maxRegistryEntries {
+		t.Fatalf("scan performed %d process lookups, limit %d", lookups, maxRegistryEntries)
 	}
 }
 

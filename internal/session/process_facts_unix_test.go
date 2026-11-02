@@ -30,7 +30,7 @@ func TestRunProcessesIncludesRootAndDirectChildren(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if len(facts) != 2 || facts[0].PID != cmd.Process.Pid || (facts[0].Executable != "sh" && facts[0].Executable != "dash") || facts[1].Executable != "sleep" {
+	if len(facts) != 2 || facts[0].PID != cmd.Process.Pid || (facts[0].Executable != "sh" && facts[0].Executable != "dash" && facts[0].Executable != "bash") || facts[1].Executable != "sleep" {
 		t.Fatalf("RunProcesses = %+v", facts)
 	}
 	for _, process := range facts {
