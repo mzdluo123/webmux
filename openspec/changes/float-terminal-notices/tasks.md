@@ -2,7 +2,7 @@
 
 ## 1. 悬浮提示
 
-- [x] 1.1 `SessionTerminal.svelte` 把 `TerminalNotices` 与连接器安装提示放入零高度定位容器，内层绝对定位悬浮。
+- [x] 1.1 `SessionTerminal.svelte` 在 `terminalPane` 片段内放置绝对定位悬浮层（`z-30`），承载 `TerminalNotices` 与连接器安装提示。
   - 验证：`pnpm --dir web check` 与 `pnpm --dir web check:arch` 通过。
 
 ## 2. 文档

@@ -17,17 +17,17 @@
 
 ## Decisions
 
-### 1. 零高度锚点容器 + 绝对定位内层
+### 1. 终端窗格内的绝对定位悬浮层
 
-在 `TerminalNotices` 与连接器提示外包一层 `relative z-20 h-0 shrink-0` 的容器，内层用 `absolute inset-x-0 top-0 flex flex-col bg-background` 承载全部条带。
+在 `SessionTerminal` 的 `terminalPane` 片段外包一层 `relative h-full`，把 `TerminalNotices` 与连接器提示放进其内的 `absolute inset-x-0 top-0 z-30 flex flex-col bg-background` 层。
 
-零高度容器不贡献布局高度，`TerminalWorkspace` 的尺寸与有无提示无关；内层没有提示时高度为 0，不遮挡任何内容。`bg-background` 让半透明的错误条带（`bg-destructive/10`）不透出终端文字。
+悬浮层不参与布局，终端宿主尺寸与有无提示无关；没有提示时层高为 0。层只覆盖终端窗格（含聊天视图），不覆盖旁边的代码窗格，因此代码工作区的工具栏不被遮挡。`bg-background` 让半透明的错误条带不透出终端文字。`z-30` 高于查找栏与拖放遮罩的 `z-20`，使提示按钮始终可点。
+
+备选：包裹整个 `TerminalWorkspace`。拒绝原因：全宽层会遮住代码窗格顶部工具栏。
 
 备选：保留文档流并给终端预留固定高度。拒绝原因：浪费空间且无法适应不定数量的提示。
 
-备选：每条提示各自 `fixed` 定位。拒绝原因：多条提示需要自行堆叠，且与顶栏高度耦合。
-
 ## Risks / Trade-offs
 
-- 悬浮提示遮住终端最上面几行 → 提示均可关闭或随状态消失；退出、会话不存在等较高的提示出现时终端内容本就不再变化。
-- 内层位于 `TerminalWorkspace` 之前的 DOM 位置，`z-20` 保证盖过终端与分隔条；弹窗与菜单的层级更高，不受影响。
+- 悬浮提示遮住终端最上面几行。多数提示可关闭或随状态消失；观察端的“观察中”条带（单行、紧凑）在观察期间常驻，会持续遮住约一行半，接管控制后消失。
+- 弹窗与菜单的层级高于 `z-30`，不受影响。
