@@ -4,16 +4,17 @@
 
 ## 阅读顺序
 
-| 文件                                   | 回答的问题                                           |
-| -------------------------------------- | ---------------------------------------------------- |
-| [定位与信息架构](website/strategy.md)  | 官网给谁看、说什么、怎么证明、怎么度量               |
-| [技术方案](website/stack.md)           | 用哪个静态站点生成器、放哪、怎么构建与部署           |
-| [页面清单与首页区块](website/pages.md) | 有哪些页面、每个区块放什么、文案规则                 |
-| [视觉与品牌规范](website/design.md)    | 颜色、字体、Logo、截图与深色模式如何与产品保持一致   |
-| [交互与可访问性](website/ux.md)        | 导航、首屏任务、反馈、键盘与屏幕阅读器、移动端、性能 |
-| [SEO 规范](website/seo.md)             | URL、元信息、结构化数据、关键词、外链与搜索平台提交  |
-| [站点功能清单](website/features.md)    | 安装命令生成器、下载表、更新日志等功能的优先级与验收 |
-| [验收清单](website/checklist.md)       | 按阶段逐项打勾的对照表，含上线日与每次发布后的维护项 |
+| 文件                                     | 回答的问题                                           |
+| ---------------------------------------- | ---------------------------------------------------- |
+| [定位与信息架构](website/strategy.md)    | 官网给谁看、说什么、怎么证明、怎么度量               |
+| [技术方案](website/stack.md)             | 用哪个静态站点生成器、放哪、怎么构建与部署           |
+| [页面清单与首页区块](website/pages.md)   | 有哪些页面、每个区块放什么、文案规则                 |
+| [视觉与品牌规范](website/design.md)      | 颜色、字体、Logo、截图与深色模式如何与产品保持一致   |
+| [交互与可访问性](website/ux.md)          | 导航、首屏任务、反馈、键盘与屏幕阅读器、移动端、性能 |
+| [SEO 规范](website/seo.md)               | URL、元信息、结构化数据、关键词、外链与搜索平台提交  |
+| [站点功能清单](website/features.md)      | 安装命令生成器、下载表、更新日志等功能的优先级与验收 |
+| [验收清单](website/checklist.md)         | 按阶段逐项打勾的对照表，含上线日与每次发布后的维护项 |
+| [官网原型](website/prototypes/README.md) | 候选方向与选定方向的静态 HTML 原型及其截图           |
 
 ## 使用方式
 
@@ -31,5 +32,6 @@
 - Linux amd64 二进制约 20.4 MB；根 README 写的“约 15 MB”已过时，官网用 Release 资产的实际大小。
 - 预置 [九款 CLI agent](cli-agents.md) 加 Shell 与 omp；[混合会话](hybrid-sessions.md) 支持 OpenCode、omp、Codex CLI 与 Claude Code。
 - 文案与截图的单一来源：[README](../README.md)、[项目介绍](overview.md)、[常见问题](faq.md)、`docs/images/`。
+- 视觉方向已于 2026-11-03 选定为“叙事长卷”，规格见 [视觉与品牌规范](website/design.md#选定方向叙事长卷)，原型见 [官网原型](website/prototypes/README.md)。
 - 品牌资产：`docs/images/brand/webmux-logo-{light,dark}.svg`、`web/public/icon.svg`；设计令牌：`web/src/design-tokens.css`；字体：`web/public/fonts/`（OFL 许可，见 `licenses/`）。
 - 安全边界必须原样呈现：WebMux 等同于把 shell 暴露到网络，不是沙箱；服务重启结束终端会话；公网只经隧道且 Token 是唯一屏障（[安全策略](../SECURITY.md)）。
