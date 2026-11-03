@@ -54,10 +54,16 @@
 - `begin(target)`：仅当 `canHold()`（开关开启且 `hasTouchInput()`）为真时进入 `holding`，在 `target` 上监听 `focusout`，并启动 1.5 s 计时；计时到期仍未进入 `shown` 时转入 `closing`。
 - 收起信号（`⌨` 与系统方式统一处理，不区分来源）：
   - `target` 的 `focusout`：再次点 `⌨`、iOS“完成”、点击页面其他区域，以及 `touch.ts` 在键盘被系统收起后的下一次触摸主动 blur。
+  - 若 `focusout` 时焦点已落在页面内的可编辑元素上（粘贴弹窗、查找栏的输入框），软键盘会继续显示，这不是收起信号：
+    - 保持停留在 `shown`，等键盘真正收起后再结束，避免在仍被压缩的高度上适配。
+    - 若输入框在 `focusout` 之后才取得焦点（例如先点粘贴按钮、再由弹窗聚焦），`closing` 中的 1 s 上限也会在检测到焦点仍在可编辑元素时顺延，不会提前释放。
   - 在 `shown` 状态下 `keyboard()` 变为 `hidden`：Android 返回键或手势、输入法收起键这类焦点仍在的系统收起。`unknown`（锁定期间旋转或捏合缩放）不算收起；旋转后 `useViewport` 以新宽度重建基线，键盘收起时高度回升，仍会报告 `hidden`。
   - 在 `holding` 状态下（尚未检测到键盘）被系统收起：由 1.5 s 计时兜底转入 `closing`。
   - 以上都转入 `closing`；已在 `closing` 时重复信号忽略。系统收起后焦点仍在、用户再点 `⌨` 走既有“先 blur 再 focus”重开分支，`beforeOpen` 在 blur 之后调用，从 `idle` 重新开始。
-- `closing`：每次 `update`（键盘状态或视口高度变化）都重启 200 ms 计时；计时到期且键盘不再 `visible` 时调用 `onActive(false)` 与 `release`（`SessionTerminal` 中为 `tick().then(t.fit)`）。另设 1 s 上限，避免检测异常时一直锁住。
+- `closing`：每次 `update`（键盘状态或视口高度变化）都重启 200 ms 稳定计时和 1 s 上限。
+  - 稳定计时期满且键盘为 `hidden` 时调用 `onActive(false)` 与 `release`（`SessionTerminal` 中为 `tick().then(t.fit)`）。
+  - `unknown` 与 `shown` 一样等待真正的 `hidden`，不按已收起处理。
+  - 1 s 上限只在检测信号停止变化时兜底，避免检测异常时一直锁住；`visible` 且焦点仍在可编辑元素时会顺延，`unknown` 仍受该上限约束。
 - 关闭开关调用 `cancel()`：立即回到 `idle` 并调用 `release`；组件卸载调用 `dispose()`：只清理监听和计时器。
 
 `focusout` 不立即释放：点 `⌨` 收起时，失焦先于键盘动画发生，此时立即适配会按仍然很矮的区域发出 resize，正是要消除的抖动。
@@ -78,11 +84,13 @@
 
 `Terminal.svelte` 给 `SessionTerminal` 增加 `keyboardVisibility: () => KeyboardVisibility` 与 `viewportHeight: () => number` 两个 getter prop（与现有 `keyboardDismissed` 同一模式），不在每个会话内另建 `useViewport`。后者会重复设置 `documentElement` 的 overflow 和监听。
 
-### 5. 偏好使用现有本机存储约定
+### 5. 偏好使用现有本机存储约定，并以模块级状态在所有窗格间共享
 
 沿用 `stored`/`store`（`localStorage` 中带 `webmux.` 前缀），键为 `keyboardSizeHold`，缺省视为开启（只有存储值为 `"0"` 时关闭）。
 
-由 `SessionTerminal` 持有 `$state`，通过 `TerminalHeader` 在“锁定尺寸”下方渲染 `DropdownMenu.CheckboxItem`“键盘弹出时保持尺寸”。
+`web/src/hooks/keyboard-size-hold-preference.svelte.ts` 在模块级保存 `$state` 并提供 getter/setter，读写同一个 `localStorage` 键。
+
+`SessionTerminal` 读取该状态，因此分屏中任一窗格切换开关时，其他已挂载窗格（含菜单勾选状态和进行中的保持）立即跟随，无需刷新。每个窗格用 `$effect` 在开关关闭时调用 `cancel()`，结束本窗格的保持。
 
 不走服务端设置同步：与“锁定尺寸”同类，取决于单台设备的键盘与屏幕。
 

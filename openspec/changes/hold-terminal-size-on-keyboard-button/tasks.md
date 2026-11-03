@@ -2,11 +2,12 @@
 
 ## 1. 暂时锁定状态机
 
-- [x] 1.1 新增 `web/src/hooks/keyboard-size-hold.ts`（纯 TS，便于 Node 单元测试），实现 design 决策 2 的 `idle/holding/shown/closing` 状态机、1.5 s 无键盘上限、收起后“不再 visible + 高度 200 ms 稳定”释放、1 s 释放上限、关闭开关立即释放和卸载清理。
+- [x] 1.1 新增 `web/src/hooks/keyboard-size-hold.ts`（纯 TS，便于 Node 单元测试），实现 design 决策 2 的 `idle/holding/shown/closing` 状态机、1.5 s 无键盘上限、收起后“键盘 hidden + 高度 200 ms 稳定”释放、信号停止变化后的 1 s 释放上限、关闭开关立即释放和卸载清理。
   - 验证：`pnpm --dir web exec vitest run --config vitest.config.ts test/keyboard-size-hold.test.ts` 通过。
   - 用假计时器覆盖：`⌨` 收起只释放一次；失焦（iOS“完成”/点其他区域）时键盘仍 visible 不释放，收起且高度稳定后才释放。
-  - 焦点仍在的系统收起（shown→hidden）释放；锁定期间旋转（visible→unknown→hidden）只在收起后释放。
-  - holding 中被系统收起由 1.5 s 兜底释放；检测卡在 visible 时 1 s 上限释放；系统收起后再次 `begin` 重新锁定；不允许保持时不进入锁定。
+  - 焦点转到粘贴弹窗、查找栏等其他可编辑元素时保持 `shown`；焦点在 `focusout` 之后才进入输入框时，1 s 上限顺延，键盘收起后才释放。
+  - 焦点仍在的系统收起（shown→hidden）释放；锁定期间旋转（visible→unknown→hidden）只在收起后释放；`closing` 中的 `unknown` 不提前释放。
+  - holding 中被系统收起由 1.5 s 兜底释放；检测停在 visible 且信号不再变化时 1 s 上限释放；信号持续变化时上限顺延；系统收起后再次 `begin` 重新锁定；不允许保持时不进入锁定。
 
 ## 2. 接入终端与草稿
 
@@ -21,7 +22,7 @@
 
 ## 3. 菜单开关与文档
 
-- [x] 3.1 `SessionTerminal` 以 `stored("keyboardSizeHold") !== "0"` 初始化偏好，`TerminalHeader` 在“锁定尺寸”下方增加“键盘弹出时保持尺寸”，关闭时立即释放。
+- [x] 3.1 `web/src/hooks/keyboard-size-hold-preference.svelte.ts` 以模块级 `$state` 保存偏好并读写 `localStorage`（`keyboardSizeHold`，缺省开启），所有窗格共享；`TerminalHeader` 在“锁定尺寸”下方增加“键盘弹出时保持尺寸”，关闭时立即释放各窗格的保持。
   - 验证：`web/test/e2e/softkeys.spec.ts` 的 Pixel 7 用例覆盖默认勾选、`⌨` 开合期间无 resize 帧且提示符贴底可见、取消后刷新仍未勾选、关闭后同一操作产生 resize 帧
 - [x] 3.2 更新文档。验证：`make docs-check` 与 `make format-check` 通过。
   - 把 `docs/usage.md` 的移动端段落拆到 `docs/usage/mobile.md`（`usage.md` 已到 400 行上限）并补充说明。

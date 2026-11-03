@@ -29,6 +29,9 @@ export function createKeyboardSizeHold(options: {
   onActive: (active: boolean) => void;
   // Called after a hold ends, to fit the grid to the settled host.
   release: () => void;
+  // True while focus sits in an editable field, which keeps the IME up even
+  // when it is not the field that started the hold (the paste dialog, find bar).
+  keyboardStays?: () => boolean;
 }): KeyboardSizeHold {
   let phase: Phase = "idle";
   let keyboard: KeyboardVisibility = "hidden";
@@ -54,16 +57,35 @@ export function createKeyboardSizeHold(options: {
   const settle = () => {
     clearTimeout(settleTimer);
     settleTimer = setTimeout(() => {
-      if (keyboard !== "visible") finish();
+      // Unknown is not gone: a rotation or pinch during the closing animation
+      // rebuilds the detection baseline and must wait for the real dismissal.
+      // A focused field also keeps the IME up, so a visible keyboard there is
+      // not stuck detection.
+      if (keyboard === "hidden") finish();
     }, SETTLE_MS);
+    // The ceiling only applies once the signal stops changing; every viewport
+    // update restarts it so a keyboard animation cannot be cut short.
+    clearTimeout(limitTimer);
+    limitTimer = setTimeout(function limit() {
+      if (keyboard === "visible" && options.keyboardStays?.()) {
+        // Focus is still in a field, so the keyboard may legitimately stay up
+        // (pasting from the dialog); wait for the real dismissal. Unknown is
+        // still bounded here: it is not a dismissal, but it is also not proof
+        // that the keyboard remains up.
+        limitTimer = setTimeout(limit, CLOSE_LIMIT_MS);
+        return;
+      }
+      finish();
+    }, CLOSE_LIMIT_MS);
   };
-  function close() {
+  function close(event?: Event) {
     if (phase === "idle" || phase === "closing") return;
+    // Focus moving to another field leaves the keyboard up: stay shown.
+    if (event && options.keyboardStays?.()) return;
     phase = "closing";
     clearTimeout(waitTimer);
     target?.removeEventListener("focusout", close);
     target = undefined;
-    limitTimer = setTimeout(finish, CLOSE_LIMIT_MS);
     settle();
   }
 

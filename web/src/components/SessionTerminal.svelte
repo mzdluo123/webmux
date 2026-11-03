@@ -16,6 +16,7 @@
   import { clipboardFiles, copyText as writeClipboard } from "../clipboard";
   import { useTerminal } from "../hooks/terminal.svelte";
   import { createKeyboardSizeHold } from "../hooks/keyboard-size-hold";
+  import { keyboardSizeHold } from "../hooks/keyboard-size-hold-preference.svelte";
   import type { KeyboardVisibility } from "../hooks/viewport.svelte";
   import { useHybrid } from "../hooks/hybrid.svelte";
   import { useChatUpload, useUpload } from "../hooks/upload.svelte";
@@ -311,11 +312,17 @@
     else error = "";
   }
   let sizeLocked = $state(stored("sizeLocked") === "1");
-  // On unless explicitly turned off in this browser.
-  let keyboardSizeHold = $state(stored("keyboardSizeHold") !== "0");
   let keyboardHeld = $state(false);
   const hold = createKeyboardSizeHold({
-    canHold: () => keyboardSizeHold && hasTouchInput(),
+    canHold: () => keyboardSizeHold.enabled && hasTouchInput(),
+    keyboardStays: () => {
+      const active = document.activeElement;
+      return (
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        (active instanceof HTMLElement && active.isContentEditable)
+      );
+    },
     onActive: (value) => {
       keyboardHeld = value;
     },
@@ -326,6 +333,10 @@
   $effect(() => {
     viewportHeight();
     hold.update(keyboardVisibility());
+  });
+  // The preference is device-wide: turning it off in any pane ends its holds.
+  $effect(() => {
+    if (!keyboardSizeHold.enabled) hold.cancel();
   });
   $effect(() => () => hold.dispose());
   const t = useTerminal(
@@ -362,9 +373,7 @@
     void tick().then(() => t.fit());
   }
   function setKeyboardSizeHold(value: boolean) {
-    keyboardSizeHold = value;
-    store("keyboardSizeHold", value ? "1" : "0");
-    if (!value) hold.cancel();
+    keyboardSizeHold.enabled = value;
   }
   const sendUnavailable = $derived(
     t.connection === "missing"
@@ -645,7 +654,7 @@
     {desktop}
     {sizeLocked}
     {setSizeLocked}
-    {keyboardSizeHold}
+    keyboardSizeHold={keyboardSizeHold.enabled}
     {setKeyboardSizeHold}
     bind:codeShown
     bind:forceSoftKeys={

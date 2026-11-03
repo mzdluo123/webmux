@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createKeyboardSizeHold } from "../src/hooks/keyboard-size-hold";
 
-function setup(canHold = true) {
+function setup(canHold = true, keyboardStays?: () => boolean) {
   const events: string[] = [];
   const hold = createKeyboardSizeHold({
     canHold: () => canHold,
+    keyboardStays,
     onActive: (active) => events.push(active ? "hold" : "unhold"),
     release: () => events.push("release"),
   });
@@ -77,6 +78,63 @@ describe("keyboard size hold", () => {
     vi.advanceTimersByTime(999);
     expect(events).toEqual(["hold"]);
     vi.advanceTimersByTime(1);
+    expect(events).toEqual(["hold", "unhold", "release"]);
+  });
+
+  test("focus moving to another field keeps the hold until the keyboard hides", () => {
+    const { hold, events, target, blur } = setup(true, () => true);
+    hold.begin(target);
+    hold.update("visible");
+    // The paste dialog or find bar takes focus while the IME stays up.
+    blur();
+    vi.advanceTimersByTime(5000);
+    expect(events).toEqual(["hold"]);
+    hold.update("hidden");
+    vi.advanceTimersByTime(200);
+    expect(events).toEqual(["hold", "unhold", "release"]);
+  });
+
+  test("a late focus move into another field outlasts the close limit", () => {
+    let stays = false;
+    const { hold, events, target, blur } = setup(true, () => stays);
+    hold.begin(target);
+    hold.update("visible");
+    // Tapping the paste button drops focus before the dialog focuses its field.
+    blur();
+    stays = true;
+    vi.advanceTimersByTime(5000);
+    expect(events).toEqual(["hold"]);
+    hold.update("hidden");
+    vi.advanceTimersByTime(200);
+    expect(events).toEqual(["hold", "unhold", "release"]);
+  });
+
+  test("an unknown signal while closing waits for the keyboard to hide", () => {
+    const { hold, events, target, blur } = setup();
+    hold.begin(target);
+    hold.update("visible");
+    blur();
+    // A rotation rebuilds the detection baseline during the close animation.
+    hold.update("unknown");
+    vi.advanceTimersByTime(200);
+    expect(events).toEqual(["hold"]);
+    hold.update("hidden");
+    vi.advanceTimersByTime(200);
+    expect(events).toEqual(["hold", "unhold", "release"]);
+  });
+
+  test("a moving viewport keeps the closing hold past the first limit", () => {
+    const { hold, events, target, blur } = setup();
+    hold.begin(target);
+    hold.update("visible");
+    blur();
+    hold.update("unknown");
+    vi.advanceTimersByTime(900);
+    hold.update("unknown");
+    vi.advanceTimersByTime(900);
+    expect(events).toEqual(["hold"]);
+    hold.update("hidden");
+    vi.advanceTimersByTime(200);
     expect(events).toEqual(["hold", "unhold", "release"]);
   });
 
