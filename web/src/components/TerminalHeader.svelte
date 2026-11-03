@@ -142,7 +142,7 @@
        title out. -->
   <div class="flex min-w-8 flex-1 items-center gap-2">
     {#if t.info}<span
-        class={`status-dot shrink-0 status-${t.info.status} sm:order-2`}
+        class={`status-dot shrink-0 status-${t.info.status} sm:order-3`}
         class:status-failed={t.info.status === "exited" &&
           t.info.exitCode !== null &&
           t.info.exitCode !== 0}
@@ -151,17 +151,18 @@
         aria-label={`${sessionStatusText(t.info)} · ${connectionText}`}
         title={`${sessionStatusText(t.info)} · ${connectionText}`}
       ></span>{/if}
-    <div class="flex min-w-0 flex-col leading-tight sm:order-1">
+    <div class="relative flex min-w-0 flex-col leading-tight sm:order-1">
       <span class="min-w-0 truncate text-sm font-medium"
         >{t.info?.title || "终端"}</span
       >
+      <!-- Overlaid under the title, so a status change never moves it. -->
       {#if !t.info || t.connection !== "connected"}<span
-          class="truncate text-xs text-muted-foreground sm:hidden"
+          class="absolute top-full left-0 max-w-full truncate text-xs leading-none text-muted-foreground sm:hidden"
           role="status">{connectionText}</span
         >{/if}
     </div>
     {#if chatAgent}<span
-        class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground sm:order-3"
+        class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground sm:order-2"
         role="img"
         aria-label={`Agent：${chatAgent.agentTitle}`}
         title={`Agent：${chatAgent.agentTitle}`}
