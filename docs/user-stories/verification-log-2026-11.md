@@ -126,3 +126,9 @@
 - SELinux：Fedora 44 Cloud 虚拟机（QEMU，enforcing，selinux-policy-targeted 43.3）中更新服务连续把 rpm 从 0.0.1 升到 0.0.4，scriptlet 进入 `rpm_script_t`，没有 AVC 拒绝；加回 `NoNewPrivileges=yes` 时 `nnp_transition` 被拒绝、scriptlet 失败。
 - 转发：本机 WSL 为 mirrored 模式，在测试发行版中模拟 NAT 后，托盘自更新期间转发中断约 1.75 秒，新托盘在同一地址与端口恢复转发，服务端 PID 不变。
 - 限制：NAT 网络路径由测试替身代替，未在真实 NAT 模式主机上验证；未重新核验其余故事能力。
+
+本次局部核对（2026-11-03）：安装程序可选添加托盘转发的防火墙规则，更新 US-O08、US-O12，不新增故事，覆盖索引不变。
+
+- 依据：`internal/tray` 的规则名称、netsh 参数与 `Firewall.Apply` 单元测试，Windows amd64/arm64 交叉 vet，makensis 3.11 `-WX` 构建。
+- 真机（Windows 11 build 26300，非管理员会话）：安装程序冒烟脚本全部通过，静默安装不加规则；交互安装经 UAC 确认后添加入站 TCP 允许规则（域、专用），再次运行不弹窗，静默覆盖后规则保留；交互卸载经 UAC 确认后删除规则。
+- 限制：以管理员运行的冒烟检查待 CI 结果；未重新核验其余故事能力。

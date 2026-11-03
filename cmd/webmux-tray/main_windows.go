@@ -28,6 +28,8 @@ func main() {
 			return
 		case "quit":
 			os.Exit(winui.QuitCommand(os.Args[2:]))
+		case "firewall":
+			os.Exit(winui.FirewallCommand(os.Args[2:]))
 		}
 	}
 	if err := run(); err != nil {

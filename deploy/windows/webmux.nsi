@@ -16,6 +16,12 @@
 ;
 ; Silent mode (/S) over an existing install keeps its directory and the
 ; login item as they are; internal/tray updates itself this way.
+;
+; The only administrator prompt is the optional firewall rule of the
+; interactive install ("安装选项"): `webmux-tray firewall allow` adds it for
+; the installed tray and records FirewallRule, so the uninstaller removes
+; it. Silent installs never prompt and leave an existing rule as it is; a
+; silent update in place keeps it, since the rule follows the tray's path.
 
 !ifndef VERSION | ARCH | TRAY | SERVER | ICON | OUTFILE
   !error "VERSION, ARCH, TRAY, SERVER, ICON and OUTFILE must be defined with -D"
@@ -111,6 +117,9 @@ Page custom optionsPage optionsLeave
 ; a silent update leaves the item as it is.
 Var Autostart
 Var AutostartBox
+; ${BST_CHECKED} adds the firewall rule; silent installs never do.
+Var Firewall
+Var FirewallBox
 ; 1 once a running installed tray has been closed.
 Var TrayClosed
 ; 1 while webmux-tray.exe.old holds the installed tray, until the install
@@ -119,6 +128,10 @@ Var TrayBackup
 
 Function .onInit
   StrCpy $Autostart ${BST_CHECKED}
+  StrCpy $Firewall ${BST_CHECKED}
+  ${If} ${Silent}
+    StrCpy $Firewall ${BST_UNCHECKED}
+  ${EndIf}
   StrCpy $TrayClosed 0
   StrCpy $TrayBackup 0
   !if "${ARCH}" == "amd64"
@@ -161,9 +174,10 @@ Function .onInstFailed
   ${EndIf}
 FunctionEnd
 
-; "安装选项": whether the tray starts when the user signs in to Windows.
+; "安装选项": whether the tray starts when the user signs in to Windows,
+; and whether other devices may reach the tray's forwarding.
 Function optionsPage
-  !insertmacro MUI_HEADER_TEXT "安装选项" "选择是否开机后自动启动 WebMux。"
+  !insertmacro MUI_HEADER_TEXT "安装选项" "选择开机启动与防火墙设置。"
   nsDialogs::Create 1018
   Pop $0
   ${If} $0 == error
@@ -172,13 +186,19 @@ Function optionsPage
   ${NSD_CreateCheckbox} 0 0 100% 12u "开机后自动启动 WebMux（登录 Windows 时启动托盘）"
   Pop $AutostartBox
   ${NSD_SetState} $AutostartBox $Autostart
-  ${NSD_CreateLabel} 12u 18u -12u 36u "托盘启动后会按托盘设置在 WSL 中启动 WebMux。以后可在托盘菜单的“登录时自动启动”中更改。"
+  ${NSD_CreateLabel} 12u 14u -12u 24u "托盘启动后会按托盘设置在 WSL 中启动 WebMux。以后可在托盘菜单的“登录时自动启动”中更改。"
+  Pop $0
+  ${NSD_CreateCheckbox} 0 44u 100% 12u "允许其他设备通过托盘转发访问 WebMux（添加 Windows 防火墙规则）"
+  Pop $FirewallBox
+  ${NSD_SetState} $FirewallBox $Firewall
+  ${NSD_CreateLabel} 12u 58u -12u 36u "只放行专用网络与域网络上对托盘的入站连接，不放行公用网络。安装时会弹出一次管理员确认；不使用托盘转发可以取消勾选。"
   Pop $0
   nsDialogs::Show
 FunctionEnd
 
 Function optionsLeave
   ${NSD_GetState} $AutostartBox $Autostart
+  ${NSD_GetState} $FirewallBox $Firewall
 FunctionEnd
 
 Section "-WebMux tray"
@@ -248,6 +268,25 @@ Section "-WebMux tray"
   ${If} $Autostart == ${BST_CHECKED}
     WriteRegStr HKCU "${RUN_KEY}" "${RUN_VALUE}" '"$INSTDIR\webmux-tray.exe"'
   ${EndIf}
+
+  ; Optional and after the install is complete: a declined or failed
+  ; prompt only explains how to add the rule later.
+  ${If} $Firewall == ${BST_CHECKED}
+    DetailPrint "添加 Windows 防火墙规则（需要管理员确认）…"
+    ClearErrors
+    ExecWait '"$INSTDIR\webmux-tray.exe" firewall allow' $0
+    ${If} ${Errors}
+      StrCpy $0 1
+    ${EndIf}
+    ClearErrors
+    ${If} $0 == 0
+      WriteRegDWORD HKCU "${UNINST_KEY}" "FirewallRule" 1
+    ${ElseIf} $0 == 3
+      MessageBox MB_OK|MB_ICONINFORMATION "已跳过 Windows 防火墙规则，其他设备暂时无法通过托盘转发访问。$\r$\n$\r$\n需要时重新运行安装程序并保持勾选，或在命令行运行：$\r$\n$\"$INSTDIR\webmux-tray.exe$\" firewall allow" /SD IDOK
+    ${Else}
+      MessageBox MB_OK|MB_ICONEXCLAMATION "未能添加 Windows 防火墙规则（代码 $0）。托盘已安装，本机使用不受影响。$\r$\n$\r$\n需要时可在命令行重试：$\r$\n$\"$INSTDIR\webmux-tray.exe$\" firewall allow" /SD IDOK
+    ${EndIf}
+  ${EndIf}
 SectionEnd
 
 Section "-Start tray"
@@ -259,6 +298,19 @@ SectionEnd
 
 Section "Uninstall"
   Call un.closeTray
+
+  ; The rule the installer added for this tray; removing it shows the
+  ; administrator prompt once.
+  ReadRegDWORD $1 HKCU "${UNINST_KEY}" "FirewallRule"
+  ${If} $1 == 1
+    ClearErrors
+    ExecWait '"$INSTDIR\webmux-tray.exe" firewall remove' $0
+    ${If} ${Errors}
+    ${OrIf} $0 != 0
+      MessageBox MB_OK|MB_ICONINFORMATION "未删除 WebMux 添加的 Windows 防火墙规则。$\r$\n$\r$\n可在“高级安全 Windows Defender 防火墙”的入站规则中删除以“WebMux tray forwarding”开头的规则。" /SD IDOK
+    ${EndIf}
+    ClearErrors
+  ${EndIf}
 
   ReadRegStr $1 HKCU "${RUN_KEY}" "${RUN_VALUE}"
   ${If} $1 == '"$INSTDIR\webmux-tray.exe"'
