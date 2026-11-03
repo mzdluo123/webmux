@@ -29,6 +29,7 @@ var profile = &ap.Profile{
 	Name:            Name,
 	Title:           "QoderCN",
 	Executables:     []string{"qodercn", "qoderclicn", "qoder-cn"},
+	ProcessExecutable: qoderProcess,
 	VerifiedVersion: "1.1.81",
 	// Built-in ACP via --acp flag, no connector needed.
 	ACPArg:         "--acp",
@@ -42,6 +43,20 @@ var profile = &ap.Profile{
 		"feedback", "security", "login", "status", "remote-control", "sites",
 		"wiki"),
 	SessionSubcommands: ap.SetOf("fork-session"),
+}
+
+// qoderProcess also accepts the versioned binary name
+// (for example qoderclicn-1.1.81), which is what Linux /proc/<pid>/exe reports.
+func qoderProcess(base string) bool {
+	for _, exe := range []string{"qodercn", "qoderclicn", "qoder-cn", "qoder"} {
+		if base == exe {
+			return true
+		}
+		if strings.HasPrefix(base, exe+"-") {
+			return true
+		}
+	}
+	return false
 }
 
 func qoderOptions() map[string]ap.Option {

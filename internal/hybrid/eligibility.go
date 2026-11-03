@@ -396,6 +396,8 @@ func (a *actor) observe() {
 
 // identify reads the terminal's identity and the profile's view of it. A
 // lock- or registry-tracking profile gets its session ID from that source.
+// When terminal signals don't identify the agent (e.g. qoder/qodercn don't
+// emit OSC 7501), fall back to process executable matching.
 func (a *actor) identify() (session.Identity, agentprofile.Identity, bool) {
 	id := a.shell.Identity()
 	ident, known := a.svc.agents.Identify(signals(id))
@@ -405,6 +407,18 @@ func (a *actor) identify() (session.Identity, agentprofile.Identity, bool) {
 			ident.AgentSessionID = a.lockedSession(id)
 		case a.tracksRegistry():
 			ident.AgentSessionID = a.registeredSession(id)
+		}
+		return id, ident, known
+	}
+	// Fallback: identify from the PTY root process executable.
+	if !known && id.PID != 0 && id.Executable != "" {
+		p := a.cmd.Profile
+		if p.RunsProcess(id.Executable) {
+			return id, agentprofile.Identity{Agent: p.Name, Cwd: id.Cwd}, true
+		}
+		if p.Launcher != "" && id.Executable == p.Launcher &&
+			slices.ContainsFunc(a.shell.RunChildren(), p.RunsProcess) {
+			return id, agentprofile.Identity{Agent: p.Name, Cwd: id.Cwd}, true
 		}
 	}
 	return id, ident, known

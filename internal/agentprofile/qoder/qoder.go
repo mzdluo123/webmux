@@ -28,7 +28,8 @@ type adapter struct {
 var profile = &ap.Profile{
 	Name:            Name,
 	Title:           "Qoder",
-	Executables:     []string{"qoder"},
+	Executables:     []string{"qoder", "qodercli"},
+	ProcessExecutable: qoderProcess,
 	VerifiedVersion: "1.1.81",
 	// Built-in ACP via --acp flag, no connector needed.
 	ACPArg:         "--acp",
@@ -42,6 +43,20 @@ var profile = &ap.Profile{
 		"feedback", "security", "login", "status", "remote-control", "sites",
 		"wiki"),
 	SessionSubcommands: ap.SetOf("fork-session"),
+}
+
+// qoderProcess also accepts the versioned binary name
+// (for example qodercli-1.1.81), which is what Linux /proc/<pid>/exe reports.
+func qoderProcess(base string) bool {
+	for _, exe := range []string{"qoder", "qodercli"} {
+		if base == exe {
+			return true
+		}
+		if strings.HasPrefix(base, exe+"-") {
+			return true
+		}
+	}
+	return false
 }
 
 func qoderOptions() map[string]ap.Option {
