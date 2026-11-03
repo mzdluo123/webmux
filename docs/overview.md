@@ -85,7 +85,7 @@ Windows 不是“顺带能用”的平台。
 
 ## 混合会话（ACP 聊天 ↔ 终端）
 
-OpenCode、omp、Codex CLI 与 Claude Code 的同一段对话可以在原生 TUI 与基于 [ACP（Agent Client Protocol）](https://agentclientprotocol.com) 的聊天视图之间随时切换：电脑上用 TUI 精细操作，手机上切到聊天视图阅读和回复。
+OpenCode、omp、Codex CLI、Claude Code、Qoder 与 QoderCN 的同一段对话可以在原生 TUI 与基于 [ACP（Agent Client Protocol）](https://agentclientprotocol.com) 的聊天视图之间随时切换：电脑上用 TUI 精细操作，手机上切到聊天视图阅读和回复。
 
 - 切换前后是同一个 WebMux 会话、同一个 agent 会话，历史由 agent 自己保存。
 - 正在执行的回合会先中断，失败自动回到原来的一端。

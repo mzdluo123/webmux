@@ -419,12 +419,17 @@ func (a *actor) identify() (session.Identity, agentprofile.Identity, bool) {
 	// Fallback: identify from the PTY root process executable.
 	if !known && id.PID != 0 && id.Executable != "" {
 		p := a.cmd.Profile
-		if p.RunsProcess(id.Executable) {
-			return id, agentprofile.Identity{Agent: p.Name, Cwd: id.Cwd}, true
-		}
-		if p.Launcher != "" && id.Executable == p.Launcher &&
-			slices.ContainsFunc(a.shell.RunChildren(), p.RunsProcess) {
-			return id, agentprofile.Identity{Agent: p.Name, Cwd: id.Cwd}, true
+		if p.RunsProcess(id.Executable) ||
+			(p.Launcher != "" && id.Executable == p.Launcher &&
+				slices.ContainsFunc(a.shell.RunChildren(), p.RunsProcess)) {
+			fallback := agentprofile.Identity{Agent: p.Name, Cwd: id.Cwd}
+			switch {
+			case a.tracksLocks():
+				fallback.AgentSessionID = a.lockedSession(id)
+			case a.tracksRegistry():
+				fallback.AgentSessionID = a.registeredSession(id)
+			}
+			return id, fallback, true
 		}
 	}
 	return id, ident, known

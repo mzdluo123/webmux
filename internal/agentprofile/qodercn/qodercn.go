@@ -120,7 +120,7 @@ func (adapter) ReapplyOnLoad() []string { return []string{qoderModel, qoderEffor
 var permissionModes = ap.SetOf(
 	"default", "accept_edits", "acceptEdits",
 	"bypass_permissions", "bypassPermissions", "yolo",
-	"dont_ask", "dontAsk", "auto",
+	"dont_ask", "dontAsk", "auto", "plan",
 )
 
 // qoderChatSide maps launch arguments to ACP configuration.
