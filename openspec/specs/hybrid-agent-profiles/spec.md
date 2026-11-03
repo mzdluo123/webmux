@@ -6,13 +6,13 @@
 ## Requirements
 ### Requirement: 内置档案与可识别的命令写法
 
-系统 SHALL 内置 OpenCode、omp、Codex、Claude Code、Qoder 与 QoderCN 六个档案，SHALL NOT 开放用户自定义档案。启动配置的 argv 只有在以下两种写法之一中，且可执行文件的基本名与某个档案匹配时，才 SHALL 视为可用于混合模式：
+系统 SHALL 内置 OpenCode、omp 与 Codex 三个档案，SHALL NOT 开放用户自定义档案。启动配置的 argv 只有在以下两种写法之一中，且可执行文件的基本名与某个档案匹配时，才 SHALL 视为可用于混合模式：
 
 1. 直接执行：`[<可执行文件>, 参数…]`；
 2. webmux 的 bashrc 包装：`["bash", "-ic", "exec -- \"$@\"", "webmux", <可执行文件>, 参数…]`。
 
-其他任何写法（例如其他 shell 包装、`env` 前缀）SHALL 视为不可用，并给出原因“命令写法不受支持“。
-未匹配任何档案时，原因文字 SHALL 为“未识别到支持的 Agent，当前版本只支持 OpenCode、omp、Codex CLI、Claude Code、Qoder 与 QoderCN”。
+其他任何写法（例如其他 shell 包装、`env` 前缀）SHALL 视为不可用，并给出原因“命令写法不受支持”。
+未匹配任何档案时，原因文字 SHALL 为”未识别到支持的 Agent，当前版本只支持 OpenCode、omp、Codex CLI、Claude Code、Qoder 与 QoderCN”。
 
 #### Scenario: 预置的 bashrc 包装
 
@@ -345,7 +345,7 @@ Codex 在每次 `session/load` 后都会把模型、推理强度与批准/沙箱
 | `-s workspace-write` | `mode = workspace-write` |
 
 多个批准/沙箱参数同时出现时，按表中自上而下的顺序取第一个匹配。其他批准/沙箱组合（例如 `-s danger-full-access` 或单独的 `-a`）
-SHALL NOT 推导 `mode`，并 SHALL 在聊天视图列为“以下参数在聊天端不生效“。
+SHALL NOT 推导 `mode`，并 SHALL 在聊天视图列为“以下参数在聊天端不生效”。
 
 适配器在时间线中插入的“recorded with model … resuming with …”文本 SHALL 原样显示，系统 SHALL NOT 改写 agent 的消息内容。
 

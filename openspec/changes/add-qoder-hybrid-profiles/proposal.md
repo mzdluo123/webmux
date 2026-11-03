@@ -1,6 +1,6 @@
 ## Why
 
-混合模式已支持 OpenCode、omp、Codex CLI 与 Claude Code 四个档案，
+混合模式已支持 OpenCode、omp、Codex CLI、Claude Code、Qoder 与 QoderCN 六个档案，
 但预置的 Qoder 与 QoderCN 启动配置只能作为普通终端会话使用。
 
 Qoder（国际版，`qoder`）与 QoderCN（国内版，`qodercn`/`qoderclicn`）
