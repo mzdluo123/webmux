@@ -62,7 +62,7 @@ npm install -g @agentclientprotocol/claude-agent-acp
 - agent 需要第三方连接器时（Codex 的 codex-acp、Claude Code 的 claude-agent-acp），连接器已安装。
 - 它是会话 PTY 的根进程（不是从 shell 里再启动的；Codex 与 Claude Code 也接受 npm 安装的 `node` 启动器直接拉起的原生 agent）。
 - 已得到 agent 会话 ID：
-  - OpenCode、omp、Codex 与 Claude Code 都要在发出首条消息后，`session/list` 才包含可加载的会话。
+  - OpenCode、omp、Codex、Claude Code、Qoder 与 QoderCN 都要在发出首条消息后，`session/list` 才包含可加载的会话。
   - Codex 的会话 ID 取自它打开的写锁文件（`$CODEX_HOME/thread-writer-locks/`），Claude Code 取自进程注册记录。
   - 读不到时按本次 TUI 启动后更新过的会话判定，有多个候选时让你选择。
   - 由 webmux 切换或恢复打开的 TUI 直接沿用它恢复的会话 ID，不必先发消息就能切回。
