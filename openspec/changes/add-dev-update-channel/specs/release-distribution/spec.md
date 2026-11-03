@@ -102,11 +102,17 @@ Release `dev` SHALL 以固定文件名包含 `install.sh`，内容与同一提�
 
 - 替换清单之前任何一步失败时 SHALL NOT 替换清单，已列在当前清单中的产物 SHALL 保持不变；上传了一部分的本次产物 SHALL 由下一次成功的发布删除。
 - 替换清单之后删除失败时，SHALL 只留下多余的文件，由下一次成功的发布删除。
+- 判断“版本不高于当前清单”时 SHALL 只采用能以内置公钥验证的现有清单与签名；缺失、不配对或无法验证时 SHALL 视为未发布并照常发布。
 
 #### Scenario: 只保留两次构建
 
 - **WHEN** 开发版 0.10.3-dev.3 发布完成，此前 Release `dev` 中有 dev.1 与 dev.2 的产物，当前清单为 dev.2
 - **THEN** Release `dev` 中只剩 dev.2 与 dev.3 的产物以及 `install.sh`，签名清单列出 dev.3
+
+#### Scenario: 上次替换清单中途失败
+
+- **WHEN** 发布 0.10.3-dev.3 时签名已替换为 dev.3 而 `SHA256SUMS` 仍是 dev.2 的，随后重跑 0.10.3-dev.3 的发布
+- **THEN** 重跑判定现有清单无法验证，重新上传 dev.3 的清单与签名，Release `dev` 恢复为可验证的 dev.3
 
 #### Scenario: 发布中途失败
 

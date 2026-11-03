@@ -208,6 +208,8 @@ jobs:
       # goes back.
       - name: Check that this build is the newest
         id: newest
+        env:
+          GOTOOLCHAIN: local
         run: |
           skip() {
             echo "::notice::Not publishing $VERSION: $1"
@@ -237,8 +239,12 @@ jobs:
               gh release download dev --pattern "$name" --dir "$current"
             fi
           done
-          if [ -f "$current/SHA256SUMS.minisig" ]; then
-            published=$(sed -n 's/^trusted comment: webmux //p' "$current/SHA256SUMS.minisig")
+          # Trust the served version only when the served pair verifies: an
+          # interrupted --clobber upload can leave a new signature over an old
+          # or missing list, and skipping on that would never repair it.
+          if [ -f "$current/SHA256SUMS" ] && [ -f "$current/SHA256SUMS.minisig" ] &&
+            verified=$(go run ./cmd/internal/releasesign verify "$current/SHA256SUMS"); then
+            published=$(sed -n 's/.*signature OK (webmux \(.*\))$/\1/p' <<< "$verified")
             dev_version='^[0-9]+\.[0-9]+\.[0-9]+-dev\.[1-9][0-9]*$'
             if ! [[ $published =~ $dev_version ]]; then
               echo "the dev Release serves an unexpected version: '$published'" >&2
@@ -249,6 +255,8 @@ jobs:
               skip "the dev Release already serves $published"
             fi
             echo "The dev Release serves $published"
+          else
+            echo "::warning::The dev Release has no verifiable SHA256SUMS pair; publishing $VERSION over it"
           fi
           echo "publish=true" >> "$GITHUB_OUTPUT"
       - name: Publish

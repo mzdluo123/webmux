@@ -124,11 +124,15 @@ type ChannelItem struct {
 	Stable, Dev bool // which radio item is checked
 }
 
-// ChannelEntry is disabled with the reason in a development build.
+// ChannelEntry is disabled with the reason in a development build and while
+// an update runs, so a switch never races a download or install.
 func ChannelEntry(u SelfUpdateView) ChannelItem {
 	item := ChannelItem{Enabled: true, Title: "更新通道", Stable: u.Channel != update.ChannelDev, Dev: u.Channel == update.ChannelDev}
-	if !u.Release {
+	switch {
+	case !u.Release:
 		item.Enabled, item.Title = false, "更新通道（"+update.ErrNotRelease.Error()+"）"
+	case u.Busy:
+		item.Enabled, item.Title = false, "更新通道（正在进行）"
 	}
 	return item
 }

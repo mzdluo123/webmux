@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -61,6 +62,8 @@ type fakeReleases struct {
 	latestErr error
 	checks    int
 	fetches   int
+	// channels lists the channel of each check.
+	channels []update.Channel
 }
 
 func (f *fakeReleases) Latest(ctx context.Context) (update.Manifest, string, error) {
@@ -87,6 +90,7 @@ func (c channelReleases) Latest(context.Context) (update.Manifest, string, error
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.checks++
+	c.channels = append(c.channels, c.ch)
 	version := c.latest
 	if c.ch == update.ChannelDev && update.Newer(c.dev, version) {
 		version = c.dev
@@ -782,6 +786,72 @@ func TestSelfUpdateSwitchToDevForDevServer(t *testing.T) {
 		t.Fatalf("launched %q", got)
 	}
 	if got := h.recorded(); len(got) != 1 || got[0].Version != "0.10.3-dev.7" {
+		t.Fatalf("recorded %+v", got)
+	}
+}
+
+func (f *fakeReleases) checked() []update.Channel {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.channels)
+}
+
+// Switching channels while a downloaded dev build waits to install forgets
+// it at once, never launches or records it, and checks the new channel as
+// soon as the running operation ends.
+func TestSelfUpdateSwitchDuringInstallDropsOldChannelBuild(t *testing.T) {
+	releases := &fakeReleases{latest: "0.10.2", dev: "0.10.3-dev.4"}
+	h := newUpdateHarness(t, true, nil, func(o *SelfUpdateOptions) {
+		o.Version = "0.10.2"
+		o.Client = releases.channel
+	})
+	h.mu.Lock()
+	h.channel = update.ChannelDev
+	h.mu.Unlock()
+	h.idle.Store(false)
+	h.u.Check()
+	eventually(t, "download", func() bool { return h.clock.pending() == 1 })
+	if v := h.u.View(); v.Latest != "0.10.3-dev.4" {
+		t.Fatalf("before the switch %+v", v)
+	}
+	h.u.SelectChannel(update.ChannelStable)
+	if v := h.u.View(); v.Latest != "" || v.Status != "" || !v.Busy {
+		t.Fatalf("after the switch %+v", v)
+	}
+	h.idle.Store(true)
+	h.clock.jump(UpdateIdlePoll)
+	eventually(t, "stable check", func() bool { c, _ := releases.counts(); return c == 2 && !h.u.View().Busy })
+	if got := releases.checked(); !slices.Equal(got, []update.Channel{update.ChannelDev, update.ChannelStable}) {
+		t.Fatalf("checked %v", got)
+	}
+	if len(h.launches()) != 0 || len(h.recorded()) != 0 {
+		t.Fatalf("launched %v, recorded %+v", h.launches(), h.recorded())
+	}
+	if v := h.u.View(); v.Latest != "" || v.Status != "托盘已是最新版本 0.10.2" {
+		t.Fatalf("after the stable check %+v", v)
+	}
+}
+
+// "切换到开发版通道并更新托盘" while a stable build waits to install drops
+// that build and installs the dev build once the operation ends.
+func TestSelfUpdateSwitchToDevQueuesInstall(t *testing.T) {
+	releases := &fakeReleases{latest: "0.10.2", dev: "0.10.3-dev.4"}
+	h := newUpdateHarness(t, true, nil, func(o *SelfUpdateOptions) {
+		o.Version = "0.10.1"
+		o.Client = releases.channel
+	})
+	h.auto.Store(false)
+	h.idle.Store(false)
+	h.u.Install()
+	eventually(t, "download", func() bool { return h.clock.pending() == 1 })
+	h.u.SwitchToDev()
+	h.idle.Store(true)
+	h.clock.jump(UpdateIdlePoll)
+	eventually(t, "installer", func() bool { return len(h.launches()) == 1 })
+	if got := h.launches()[0]; got != filepath.Join(h.dir, "webmux-0.10.3-dev.4-setup-windows-amd64.exe") {
+		t.Fatalf("launched %q", got)
+	}
+	if got := h.recorded(); len(got) != 1 || got[0].Version != "0.10.3-dev.4" {
 		t.Fatalf("recorded %+v", got)
 	}
 }

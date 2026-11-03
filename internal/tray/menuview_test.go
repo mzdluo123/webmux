@@ -171,6 +171,7 @@ func TestChannelEntry(t *testing.T) {
 		{"stable", SelfUpdateView{Release: true, Channel: update.ChannelStable}, ChannelItem{Enabled: true, Title: "更新通道", Stable: true}},
 		{"dev", SelfUpdateView{Release: true, Channel: update.ChannelDev}, ChannelItem{Enabled: true, Title: "更新通道", Dev: true}},
 		{"development build", SelfUpdateView{Channel: update.ChannelStable}, ChannelItem{Title: "更新通道（此构建不是发布构建，不支持更新）", Stable: true}},
+		{"updating", SelfUpdateView{Release: true, Installed: true, Busy: true, Channel: update.ChannelDev}, ChannelItem{Title: "更新通道（正在进行）", Dev: true}},
 	} {
 		if got := ChannelEntry(tc.view); got != tc.want {
 			t.Errorf("%s: %+v, want %+v", tc.name, got, tc.want)

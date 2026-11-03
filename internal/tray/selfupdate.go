@@ -104,6 +104,9 @@ type SelfUpdater struct {
 	busy   bool
 	latest string
 	status string
+	// queued is a check the user's channel switch asked for while another
+	// operation ran; it starts once that ends. queuedInstall installs too.
+	queued, queuedInstall bool
 	// notice is shown until the menu opened twice: once to show it.
 	notice     string
 	noticeSeen bool
@@ -172,7 +175,7 @@ func (u *SelfUpdater) SelectChannel(ch update.Channel) {
 	}
 	u.o.Logf("update: channel %s selected", ch)
 	u.o.SetChannel(ch)
-	u.Check()
+	u.switched(false)
 }
 
 // SwitchToDev serves "切换到开发版通道并更新托盘": a newer development
@@ -184,7 +187,26 @@ func (u *SelfUpdater) SwitchToDev() {
 	}
 	u.o.Logf("update: switching to the dev channel to follow WSL webmux")
 	u.o.SetChannel(update.ChannelDev)
-	u.Install()
+	u.switched(true)
+}
+
+// switched forgets what the previous channel offered and checks the new
+// one: now, or once the running operation ends. That operation installs
+// nothing it found on the previous channel.
+func (u *SelfUpdater) switched(install bool) {
+	u.mu.Lock()
+	u.latest, u.status = "", ""
+	now := !u.busy && u.ctx.Err() == nil
+	if now {
+		u.busy = true
+	} else {
+		u.queued, u.queuedInstall = true, u.queuedInstall || install
+	}
+	u.mu.Unlock()
+	u.o.Publish()
+	if now {
+		u.wg.Go(func() { u.work(true, install) })
+	}
 }
 
 // Observe checks once per newer WSL webmux version when automatic updates
@@ -313,11 +335,36 @@ func (u *SelfUpdater) begin(claim func() bool) bool {
 	return true
 }
 
+// end releases the updater, or hands it to a check a channel switch
+// queued meanwhile.
 func (u *SelfUpdater) end() {
 	u.mu.Lock()
-	u.busy = false
+	next, install := u.queued && u.ctx.Err() == nil, u.queuedInstall
+	u.queued, u.queuedInstall = false, false
+	u.busy = next
 	u.mu.Unlock()
 	u.o.Publish()
+	if next {
+		u.wg.Go(func() { u.work(true, install) })
+	}
+}
+
+// onChannel applies edit unless the channel changed from ch, and reports
+// whether it did. A switch saves the channel before it clears the state
+// under the same lock, so nothing found on the previous channel survives.
+func (u *SelfUpdater) onChannel(ch update.Channel, edit func()) bool {
+	u.mu.Lock()
+	ok := u.o.Channel() == ch
+	if ok {
+		edit()
+	}
+	u.mu.Unlock()
+	if !ok {
+		u.o.Logf("update: channel changed from %s; dropping this check", ch)
+		return false
+	}
+	u.o.Publish()
+	return true
 }
 
 func (u *SelfUpdater) set(edit func()) {
@@ -353,7 +400,11 @@ func (u *SelfUpdater) update(manual, install bool) {
 	client := u.o.Client(ch)
 	m, host, err := client.Latest(ctx)
 	if err != nil {
-		u.fail("check", err)
+		// The check of a channel the user left reports nothing; the new
+		// channel's check follows.
+		if u.o.Channel() == ch {
+			u.fail("check", err)
+		}
 		return
 	}
 	if !update.Newer(m.Version, u.o.Version) {
@@ -361,7 +412,7 @@ func (u *SelfUpdater) update(manual, install bool) {
 		// until a release passes it.
 		ahead := update.AheadOfStable(ch, u.o.Version, m.Version)
 		u.o.Logf("update check (%s): tray %s is current; latest %s from %s", ch, u.o.Version, m.Version, host)
-		u.set(func() {
+		u.onChannel(ch, func() {
 			u.latest, u.status = "", ahead
 			if manual && ahead == "" {
 				u.notice, u.noticeSeen = "托盘已是最新版本 "+u.o.Version, false
@@ -370,7 +421,9 @@ func (u *SelfUpdater) update(manual, install bool) {
 		return
 	}
 	u.o.Logf("update check (%s): tray %s, latest %s from %s", ch, u.o.Version, m.Version, host)
-	u.set(func() { u.latest, u.status = m.Version, "有新版本 "+m.Version })
+	if !u.onChannel(ch, func() { u.latest, u.status = m.Version, "有新版本 "+m.Version }) {
+		return
+	}
 	if !u.o.Installed || (!install && !u.o.AutoUpdate()) {
 		return
 	}
@@ -380,7 +433,9 @@ func (u *SelfUpdater) update(manual, install bool) {
 	}
 	asset := update.AssetName(m.Version, "webmux-setup-windows-"+u.o.Arch+".exe")
 	target := filepath.Join(u.o.Dir, asset)
-	u.setStatus("正在下载托盘 " + m.Version + "…")
+	if !u.onChannel(ch, func() { u.status = "正在下载托盘 " + m.Version + "…" }) {
+		return
+	}
 	if err := os.MkdirAll(u.o.Dir, 0o700); err != nil {
 		u.fail("download", fmt.Errorf("下载目录：%w", err))
 		return
@@ -392,21 +447,27 @@ func (u *SelfUpdater) update(manual, install bool) {
 	}
 	u.o.Logf("update download: %s %s from %s", asset, m.Version, host)
 	for {
-		// The user may turn automatic updates off while this waits.
+		// The user may turn automatic updates off or switch the channel
+		// while this waits.
 		if !install && !u.o.AutoUpdate() {
 			u.o.Logf("update install: automatic updates turned off; not installing %s", m.Version)
-			u.setStatus("有新版本 " + m.Version)
+			u.onChannel(ch, func() { u.status = "有新版本 " + m.Version })
 			return
 		}
 		if u.o.Idle() {
 			break
 		}
-		u.setStatus("托盘 " + m.Version + " 已下载，当前操作完成后安装")
+		if !u.onChannel(ch, func() { u.status = "托盘 " + m.Version + " 已下载，当前操作完成后安装" }) {
+			return
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-u.o.Clock.After(UpdateIdlePoll):
 		}
+	}
+	if !u.onChannel(ch, func() {}) {
+		return
 	}
 	if err := u.o.RecordAttempt(UpdateAttempt{Version: m.Version, At: u.o.Clock.Now()}); err != nil {
 		u.fail("install", fmt.Errorf("无法记录更新尝试：%w", err))
