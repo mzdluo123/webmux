@@ -168,7 +168,8 @@
 - 变更作者运行了 `make check`、`make test-fast`（Go race、Vitest 单元与浏览器）、Storybook 与 `hybrid.spec.ts`；本次修复后重跑 `SessionRow` 浏览器用例（14 项通过）与文档治理检查。
 - 覆盖：聊天端、休眠与切换中的卡片保留品牌图标和名称，终端端不变，未知图标键只显示名称；聊天页头部的可访问名称、窄屏仅图标与标题截断。
 - 限制：截图与手动冒烟使用 fake agent，未连接真实 agent 账号；未重新核验其余故事能力。
-  本次局部核对（2026-11-03）：新增开发版更新通道（OpenSpec `add-dev-update-channel`），新增 US-K17、US-L14、US-O14，更新 US-K11、US-K15、US-O01、US-O11 与覆盖索引。
+
+本次局部核对（2026-11-03）：新增开发版更新通道（OpenSpec `add-dev-update-channel`），新增 US-K17、US-L14、US-O14，更新 US-K11、US-K15、US-O01、US-O11 与覆盖索引。
 
 - 依据：变更的规格与设计、`internal/update`、`cmd/webmux`、`internal/tray`、发布脚本的实现，以及部署文档。
 - 已运行：`make check`、`make test-fast`、`make test-install` 通过；本地 `make release-build VERSION=0.10.3-dev.2` 产出带版本号的全部产物，deb/rpm 包内版本为 `0.10.3~dev.2-1`。
