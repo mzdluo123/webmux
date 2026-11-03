@@ -13,7 +13,10 @@
       "omp",
       "OpenCode",
       "Codex CLI",
-      "Claude Code"
+      "Claude Code",
+      "Qoder",
+      "QoderCN",
+      "Antigravity CLI"
     ]
   }
 }

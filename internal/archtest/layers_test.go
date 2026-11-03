@@ -35,10 +35,13 @@ var webmux = manifest{
 		"internal/agentprofile": shared,
 		// Agent adapters and the registry that lists them.
 		"internal/agentprofile/agents":     shared,
+		"internal/agentprofile/agy":        shared,
 		"internal/agentprofile/claudecode": shared,
 		"internal/agentprofile/codex":      shared,
 		"internal/agentprofile/omp":        shared,
 		"internal/agentprofile/opencode":   shared,
+		"internal/agentprofile/qoder":      shared,
+		"internal/agentprofile/qodercn":    shared,
 		"internal/contract":                shared,
 		"internal/config":                  shared,
 		"internal/runtime":                 shared,

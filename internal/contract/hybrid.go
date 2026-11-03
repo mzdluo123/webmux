@@ -46,8 +46,15 @@ type SessionHybrid struct {
 	Dormant bool        `json:"dormant"`
 	State   HybridState `json:"state"`
 	Agent   string      `json:"agent"`
+	// AgentTitle is the agent's display name.
+	AgentTitle string `json:"agentTitle"`
+	// AgentIcon is the agent's brand glyph, a launch-config icon key.
+	AgentIcon string `json:"agentIcon"`
 	// AgentSessionID is null until the agent's own session ID is known.
 	AgentSessionID *string `json:"agentSessionId"`
+	// Work is a one-line summary of what the agent is doing (the running
+	// turn's current tool call or plan step); empty outside a turn.
+	Work string `json:"work,omitempty"`
 }
 
 // CloseMoved is the WebSocket close code for "the session moved to its

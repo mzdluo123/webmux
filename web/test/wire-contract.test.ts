@@ -69,6 +69,7 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.PushTestResultSchema, ["push-test"]],
   [S.RepositoriesSchema, ["repositories-empty", "repositories"]],
   [S.BranchesSchema, ["repository-branches"]],
+  [S.RefreshBranchBaseResponseSchema, ["repository-branch-refresh"]],
   [
     S.RepositorySchema,
     [
@@ -91,6 +92,7 @@ const groups: Array<[z.ZodType, string[]]> = [
       "session-create",
       "session-get",
       "session-get-hybrid",
+      "session-get-hybrid-work",
       "ws-terminal-state-exited",
       "ws-terminal-state-hybrid",
       "ws-terminal-state",

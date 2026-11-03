@@ -162,6 +162,63 @@
 - 验证：同一容器中 `webmux update apply` 从本地签名的测试 Release 把 0.0.1 升到 0.0.2，`rpm -Va webmux` 无差异；`dnf install` 本地包照常可用。
 - 限制：未在 Fedora 45 的 systemd 环境中经定时器运行；未重新核验其余故事能力。
 
+本次局部核对（2026-11-03）：聊天端展示当前 agent 新增 US-Q17，覆盖索引同步，不改变其他故事。
+
+- 依据：`internal/launch` 的档案图标一致性测试、`internal/hybrid` 与 `internal/wire` 的 Go 测试、线上快照与 Zod 契约，以及 `SessionRow` 与 `TerminalHeader` 的浏览器测试。
+- 变更作者运行了 `make check`、`make test-fast`（Go race、Vitest 单元与浏览器）、Storybook 与 `hybrid.spec.ts`；本次修复后重跑 `SessionRow` 浏览器用例（14 项通过）与文档治理检查。
+- 覆盖：聊天端、休眠与切换中的卡片保留品牌图标和名称，终端端不变，未知图标键只显示名称；聊天页头部的可访问名称、窄屏仅图标与标题截断。
+- 限制：截图与手动冒烟使用 fake agent，未连接真实 agent 账号；未重新核验其余故事能力。
+
+本次局部核对（2026-11-03）：新增开发版更新通道（OpenSpec `add-dev-update-channel`），新增 US-K17、US-L14、US-O14，更新 US-K11、US-K15、US-O01、US-O11 与覆盖索引。
+
+- 依据：变更的规格与设计、`internal/update`、`cmd/webmux`、`internal/tray`、发布脚本的实现，以及部署文档。
+- 已运行：`make check`、`make test-fast`、`make test-install` 通过；本地 `make release-build VERSION=0.10.3-dev.2` 产出带版本号的全部产物，deb/rpm 包内版本为 `0.10.3~dev.2-1`。
+- 已运行（US-K15、US-K17）：Debian 容器中以 root 和本地签名的测试 Release（正式版 0.10.2、开发版 0.10.3-dev.4）执行 `webmux update channel` 与 `update check --json`：切到 dev 后发现 0.10.3-dev.4，未知通道退出码 2，文件 0666 时按 stable 并警告，非 root 写入被拒。
+- 已运行（US-K17）：同一测试 Release 上 deb 0.10.2 切到 dev 后 `update apply` 安装 `webmux_0.10.3-dev.4-1_amd64.deb`（`dpkg-query` 报告 `0.10.3~dev.4-1`）；切回 stable 不降级并提示；发布 0.10.3 后升级到 `0.10.3-1`。
+- 待验证：未经 systemd 定时器运行；`dev-release.yml` 只经 actionlint 与模拟验证，未在 GitHub 上运行（US-L14）；Windows 托盘未在真实 Windows 上验证（US-O01、US-O11、US-O14）。
+
+本次局部核对（2026-11-03）：默认监听地址改回 `127.0.0.1:7681`、托盘新增“允许局域网访问”开关，非回环监听与托盘转发器接受任意合法请求 `Host`（保留回环监听的 `Host` 白名单防 DNS 重绑定），对应更新 US-A03、US-K02、US-O08，不新增故事，覆盖索引同步。
+
+- 依据：
+  - `internal/config`、`internal/client`、`internal/api`（含任意主机名/MagicDNS 同源放行与跨源拦截）的 Go race 测试；
+  - `internal/tray/...`（含 `LANEnabled`、`LANListenAddress`、转发器同源校验）与 `cmd/webmux`（含 `TestConfigListen`）的 Go race 测试；
+  - `cmd/webmux-tray` 与 `internal/tray/...` 的 Windows amd64 交叉 vet 与编译。
+- 限制：未在真实 Windows 11 主机上运行新版托盘菜单点击流程；未重新核验其余故事能力。
+
+本次局部核对（2026-11-03）：`add-antigravity-acp-hybrid` 新增 Antigravity CLI（`agy`）混合会话适配器与默认启动配置，对应更新 US-B01、US-B08、US-Q01、US-Q03–US-Q05、US-Q08、US-Q11；不新增或重编号故事，覆盖索引同步。
+
+- 内容：新安装默认预置 `Antigravity CLI`（`agy --dangerously-skip-permissions`，混合模式，图标 `antigravity`，保留旧 `geminicli` 兼容），`OSC 7501` 子记录段长放宽到 64 字节以提取 36 字符 UUID 会话 ID，跨进程加载后补齐 `model`/`thought_level`，活动回合忽略回显的 `user_message_chunk`。
+- 依据：`internal/session`、`internal/agentprofile/...`、`internal/acp`、`internal/hybrid`、`internal/launch`、`internal/api` 的 Go race 测试与线上快照，`launchConfigs` 单元与 `LaunchConfigDialog` 浏览器测试，以及 `baseline.md` 中的 `agy 1.4.12` 实测基线。
+- 限制：自动化测试使用 `fakeagent --profile agy` 替身验证；未重新核验其余故事能力。
+
+本次局部核对（2026-11-03）：PR #273 审查回归修复，对应 US-B01、US-B08 与 US-Q03，更新 US-Q03 的首次切换验收，其他故事内容和覆盖索引不变。
+
+- `agy` 首次从终端切到聊天时，将原命令的 `--model` 与 `--effort` 分别继承为 `model` 与 `thought_level`，不再静默回到 ACP 默认值；`--mode` 仍明确列入不支持参数。
+- 旧 `geminicli` 图标在编辑对话框中显示“Gemini CLI（旧配置）”，可保存并重新选择；同步补齐 README、概览、部署与索引中的 Antigravity CLI 混合能力列表。
+- 依据：`go test -race ./internal/agentprofile/...`；`LaunchConfigDialog` 浏览器测试 22 项、`launchConfigs` 单元测试 57 项；前端类型与架构检查、OpenSpec strict 校验、文档与格式检查均通过。
+- 限制：未重新运行完整产品套件，未重新核验其余故事能力。
+
+本次局部核对（2026-11-03）：聊天端会话卡片工作细节对应 US-C02、US-Q09。
+
+- 依据：`internal/hybrid/work.go` 与 `actor.go` 的回合内 `tool.upsert`/`plan.set` 跟踪（回合结束丢弃未完成调用）、`Overlay` 覆盖层与 `session-get-hybrid-work` wire 快照；`SessionRow.svelte` 新增一行“当前工作”（进行中的工具调用或计划步骤，一行截断），移除“等待 Agent 回复…”占位；紧凑列表不显示。
+- 验证：`internal/hybrid`（含 fake agent 回合内工作行断言）、`internal/wire`、`internal/api`、`internal/docguard` 的 Go 测试通过，wire 快照已重录；`SessionRow` 浏览器用例（15 项）、svelte-check、Oxlint、前端架构守卫、类型检查与格式检查通过。
+- 限制：未运行全量 E2E 与 Storybook Playwright；未重新核验其余故事能力；未做真机验收。
+
+本次局部核对（2026-11-03）：聊天端首条消息临时标题对应 US-Q02，覆盖索引同步，不改变其他故事。
+
+- 依据：`internal/hybrid` 的 `TestPromptTitle`、`TestFirstPromptTitle` 与 `TestFirstPromptTitleSkipped`（已命名、只有附件、由终端切来的会话不设置），使用 fake agent；`hybrid.spec.ts` 新增的临时标题用例通过。
+- 限制：未用真实 agent 验收；未重新核验其余故事能力。
+
+本次局部核对（2026-11-03）：`hold-terminal-size-on-keyboard-button` 的软键栏键盘按钮暂时保持终端尺寸对应更新 US-H06。键盘经按钮或系统方式收起且视口高度稳定后才结束保持，保持期间宽度与字号变化照常适配；终端菜单新增“键盘弹出时保持尺寸”开关（默认开启）。
+
+- 通过：`keyboard-size-hold` 单元用例、`TerminalTransport` 浏览器用例、桌面与 Pixel 7 软键 E2E、svelte-check、Oxlint、前端架构守卫与文档治理。
+- 限制：Chromium 模拟以缩小视口代替软键盘，未进行 iOS/Android 真机键盘验收；未重新核对其余功能组。
+
+本次局部核对（2026-11-03）：`cache-workspace-on-return` 的返回首页缓存对应更新 US-C01。从终端返回首页时立即显示上次的会话列表、服务端设置与仓库分组，并在后台刷新；缓存仅在当前标签页内存中，令牌失效时清空。
+
+- 通过：`frontend-quality`、`repository-scope`、`workspace-discovery`、`page-stability` 共 40 项 E2E（含挂起 `/api/config` 与 `/api/repositories` 时返回首页仍显示列表且无骨架屏的新用例）、svelte-check、前端架构守卫。
+- 限制：用请求挂起模拟慢速链接，未做真机或真实限速网络验收；未重新核对其余功能组。
+
 本次局部核对（2026-11-03）：设置页「新建启动配置」旁新增「添加系统预设」下拉菜单，支持单独补回或一键补回全部缺失的系统预设，对应更新 US-B08，不新增故事或改变覆盖索引。
 
 - 依据：`internal/launch`、`internal/wire`、`internal/api` 的 Go race 测试与线上快照，`wireArrays`、`wire-contract` 单元用例，以及 `LaunchConfigsSettings` 浏览器组件测试。

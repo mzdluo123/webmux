@@ -6,6 +6,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/rainchan/webmux/internal/tray"
+	"github.com/rainchan/webmux/internal/update"
 )
 
 func (a *App) bindings() bindings {
@@ -37,6 +38,8 @@ func (a *App) listen() {
 	on(m.update, a.updateTray)
 	on(m.checkUpdate, a.updater.Check)
 	on(m.autoUpdate, func() { a.changeSettings(func(s *tray.Settings) { s.AutoUpdate = !s.AutoUpdate }) })
+	on(m.channelStable, func() { a.updater.SelectChannel(update.ChannelStable) })
+	on(m.channelDev, func() { a.updater.SelectChannel(update.ChannelDev) })
 	if a.sup == nil {
 		return
 	}
@@ -59,23 +62,22 @@ func (a *App) listen() {
 	on(m.copyToken, a.copyToken)
 	on(m.tunnel, a.toggleTunnel)
 	on(m.tunnelSettings, a.openTunnelSettings)
-	on(m.copyPublic, func() {
-		a.copyLink(tray.TunnelEntry(a.snapshot()).PublicURL)
-	})
+	on(m.tailscale, a.toggleTailscale)
+	on(m.tsSettings, func() { a.openTailscaleSettings(tray.TailscaleEntry(a.snapshot()).SettingsURL) })
+	for i, it := range m.accessLinks {
+		on(it, func() {
+			if b := a.bindings(); i < len(b.access) {
+				a.copyLink(b.access[i].URL)
+			}
+		})
+	}
 	on(m.pushGuide, func() {
 		if guide := tray.PushEntry(a.snapshot()).Guide; guide != "" {
 			messageBox(guide, windows.MB_OK|windows.MB_ICONINFORMATION)
 		}
 	})
 	on(m.install, a.installWebmux)
-	on(m.fwInit, a.initConfig)
-	for i, it := range m.fwCandidates {
-		on(it, func() {
-			if b := a.bindings(); i < len(b.candidates) {
-				a.toggleForward(b.candidates[i].Address)
-			}
-		})
-	}
+	on(m.lanAccess, a.toggleLANAccess)
 	on(m.start, a.sup.Start)
 	on(m.stop, a.stopWebMux)
 	on(m.restart, a.restartWebMux)

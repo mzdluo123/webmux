@@ -11,10 +11,10 @@ import (
 // Pool sizes of the dynamic submenus. fyne.io/systray cannot rebuild a menu
 // cheaply, so every dynamic entry is pre-created and shown or hidden.
 const (
-	remotePool    = 8
-	forwardPool   = 8
-	candidatePool = 12
-	distroPool    = 16
+	remotePool  = 8
+	forwardPool = 8
+	accessPool  = 8
+	distroPool  = 16
 )
 
 // item caches what fyne.io/systray shows, because updating a hidden item
@@ -70,27 +70,20 @@ type remoteLink struct {
 	URL, Label string
 }
 
-// candidate is one entry of the forwarding addresses.
-type candidate struct {
-	Address string
-	Title   string
-	Enabled bool
-	Checked bool
-}
-
 // menu holds every item; only App.render changes them.
 type menu struct {
 	status1, status2, hint1, hint2 *item
 	updateInfo                     *item
 
 	open, copyLinks, copyLocal, remoteWarn *item
-	remoteLinks, forwardLinks              []*item
-	copyPublic, copyToken                  *item
+	remoteLinks, forwardLinks, accessLinks []*item
+	copyToken                              *item
+	public                                 *item
 	tunnel, tunnelInfo, tunnelSettings     *item
+	tailscale, tailscaleInfo, tsSettings   *item
 	pushInfo, pushGuide                    *item
 
-	remote, fwHeadline, fwBlocked, fwInit *item
-	fwCandidates                          []*item
+	lanAccess *item
 
 	start, stop, restart, install, update *item
 
@@ -103,16 +96,18 @@ type menu struct {
 	editSettings              *item
 	autostart                 *item
 	autoUpdate, checkUpdate   *item
+	channel                   *item
+	channelStable, channelDev *item
 	quit                      *item
 }
 
 // bindings are what the dynamic items currently stand for.
 type bindings struct {
-	remote     []remoteLink // fills remoteLinks then forwardLinks, in order
-	reported   int          // remote[:reported] fill remoteLinks
-	candidates []candidate
-	distros    []string
-	update     tray.UpdateItem
+	remote   []remoteLink // fills remoteLinks then forwardLinks, in order
+	reported int          // remote[:reported] fill remoteLinks
+	access   []tray.AccessItem
+	distros  []string
+	update   tray.UpdateItem
 }
 
 func add(title string) *item { return newItem(systray.AddMenuItem(title, ""), title) }
@@ -150,7 +145,8 @@ func buildMenu() *menu {
 
 	m.open = add("打开 WebMux")
 	// Every copyable link lives in one submenu: local, then the exposure
-	// warning and remote links, then the public tunnel link.
+	// warning and remote links, then the links of remote-access providers
+	// such as Cloudflare Tunnel and Tailscale Serve/Funnel.
 	m.copyLinks = add("复制链接")
 	m.copyLocal = addSub(m.copyLinks, "本机链接")
 	m.remoteWarn = addSub(m.copyLinks, exposedWarning)
@@ -159,29 +155,31 @@ func buildMenu() *menu {
 	m.remoteWarn.hide()
 	m.remoteLinks = pool(m.copyLinks, remotePool)
 	m.forwardLinks = pool(m.copyLinks, forwardPool)
-	m.copyPublic = addSub(m.copyLinks, "公网链接")
-	m.copyPublic.hide()
+	m.accessLinks = pool(m.copyLinks, accessPool)
 	m.copyLinks.hide()
 	m.copyToken = add("复制 Token")
 	m.copyToken.hide()
-	m.tunnel = add("公网隧道（Cloudflare）")
-	m.tunnelInfo = add("")
-	m.tunnelInfo.mi.Disable()
-	m.tunnelInfo.enabled = false
-	m.tunnelSettings = add("打开公网访问设置…")
+	// Every managed entry point is one toggle, a state line and its web
+	// settings inside the "公网访问" submenu.
+	m.public = add("公网访问")
+	m.tunnel = addSub(m.public, "Cloudflare Tunnel")
+	m.tunnelInfo = addSub(m.public, "")
+	m.tunnelSettings = addSub(m.public, "Cloudflare 设置…")
+	m.tailscale = addSub(m.public, "Tailscale Serve")
+	m.tailscaleInfo = addSub(m.public, "")
+	m.tsSettings = addSub(m.public, "Tailscale 设置…")
+	for _, it := range []*item{m.tunnelInfo, m.tailscaleInfo} {
+		it.mi.Disable()
+		it.enabled = false
+	}
 	m.pushInfo = add("")
 	m.pushInfo.mi.Disable()
 	m.pushInfo.enabled = false
 	m.pushGuide = add("手机推送设置说明…")
-	for _, it := range []*item{m.tunnel, m.tunnelInfo, m.tunnelSettings, m.pushInfo, m.pushGuide} {
+	for _, it := range []*item{m.tunnel, m.tunnelInfo, m.tunnelSettings, m.tailscale, m.tailscaleInfo, m.tsSettings, m.public, m.pushInfo, m.pushGuide} {
 		it.hide()
 	}
-	m.remote = add("远程访问")
-	m.fwHeadline = addSub(m.remote, "")
-	m.fwBlocked = addSub(m.remote, "")
-	m.fwInit = addSub(m.remote, "初始化配置（生成 Token）")
-	m.remote.mi.AddSeparator()
-	m.fwCandidates = pool(m.remote, candidatePool)
+	m.lanAccess = add("允许局域网访问")
 	systray.AddSeparator()
 
 	m.start = add("启动")
@@ -211,6 +209,9 @@ func buildMenu() *menu {
 
 	m.autostart = add("登录时自动启动")
 	m.autoUpdate = add("自动更新")
+	m.channel = add("更新通道")
+	m.channelStable = addSub(m.channel, "正式版")
+	m.channelDev = addSub(m.channel, "开发版")
 	m.checkUpdate = add("检查更新")
 	systray.AddSeparator()
 

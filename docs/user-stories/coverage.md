@@ -8,15 +8,16 @@
 | --------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | 登录页与统一品牌标识、浏览器图标、失效认证、连接状态、主机与能力提示、设置页按需加载                | US-A01–US-A04                                       |
 | REST API、列表和终端 WebSocket                                                                      | US-A05；US-C02；US-D01–US-D06                       |
-| 统一上下文新建会话、九款 CLI 启动配置、目录浏览与创建、名称和命令                                   | US-B01–US-B07                                       |
+| 统一上下文新建会话、十一款 CLI 启动配置、目录浏览与创建、名称和命令                                 | US-B01–US-B07                                       |
 | 设置页自定义启动配置与图标、启动配置 API 与按配置启动                                               | US-B01；US-B08                                      |
-| 混合模式勾选、Claude Code 默认混合、hybrid-support 判定、起始端选择                                 | US-Q01–US-Q02；US-B01；US-B08                       |
+| 混合模式勾选、Claude Code 与 Antigravity CLI 默认混合、hybrid-support 判定、起始端选择              | US-Q01–US-Q02；US-B01；US-B08                       |
 | 终端 ↔ 聊天切换、Claude 注册记录身份/候选/外部占用、中断等待、草稿退回与回滚                        | US-Q03–US-Q04                                       |
 | 聊天视图时间线、权限与表单、权限模式、配置项、命令菜单及 Claude 恢复后配置重应用                    | US-Q05–US-Q07                                       |
 | 聊天端服务端队列、去重与 omp/Codex/Claude 插话                                                      | US-Q08                                              |
 | 聊天附件能力块构造、降级、队列与路径安全                                                            | US-Q15                                              |
 | 第三方 ACP 连接器（Codex 的 codex-acp、Claude 的 claude-agent-acp）启动前检查与安装提示             | US-Q16；US-Q01；US-Q03                              |
-| 聊天端关注、推送与首页混合卡片                                                                      | US-Q09；US-C02                                      |
+| 聊天端关注、推送、首条消息临时标题与首页混合卡片                                                    | US-Q09；US-Q02；US-C02                              |
+| 聊天端 agent 标识：卡片与会话页头部的品牌图标和显示名                                               | US-Q17                                              |
 | 混合会话异常、自动重连、Claude 现有认证复用与登录引导、空闲休眠                                     | US-Q10–US-Q11；US-D09                               |
 | 混合会话记录、可恢复分组、恢复、Claude 配置重应用与移除                                             | US-Q12；US-D10；US-L10                              |
 | `run --launch-config`、`attach` 与 `ls` 对混合会话的行为                                            | US-Q13；US-M01；US-M03；US-M05                      |
@@ -41,7 +42,7 @@
 | 草稿发送、结果确认、查询、原提交重发和恢复                                                          | US-F04–US-F07                                       |
 | 多条暂存编辑、排序、取用与清理                                                                      | US-F09                                              |
 | 快捷指令菜单、编辑、排序、删除、跨设备同步与临时文件夹提示词                                        | US-G01–US-G06                                       |
-| 软键、主动键盘、触摸/笔、选词、滚动、捏合、视口、主屏幕与裁切图标、窄屏紧凑顶栏                     | US-H01–US-H08                                       |
+| 软键、主动键盘、键盘弹出时保持尺寸、触摸/笔、选词、滚动、捏合、视口、主屏幕与裁切图标、窄屏紧凑顶栏 | US-H01–US-H08                                       |
 | 安装应用入口、安装状态、非安全上下文提示与 Web App Manifest                                         | US-H09；US-K10                                      |
 | 实时连接 permessage-deflate 按设备开关、静态资源构建期 brotli/gzip 预压缩与编码协商                 | US-H10；US-H11                                      |
 | 代码根目录、边界、文件导航、路径搜索与分页                                                          | US-I01–US-I04；US-I11                               |
@@ -70,6 +71,8 @@
 | deb / rpm 自动更新定时器、root 安装、保留停用与不触碰用户服务                                       | US-K14                                              |
 | `update check`、签名清单与手动验证发布签名                                                          | US-K15                                              |
 | 运行中服务的待生效版本：状态、本机 API、配置响应与 Web UI 提示                                      | US-K16                                              |
+| 更新通道：`update channel`、`/etc/webmux/update-channel`、开发版通道与切回不降级                    | US-K17                                              |
+| `install.sh` 开发版安装：`WEBMUX_CHANNEL`、当前开发版 `WEBMUX_VERSION`                              | US-K11                                              |
 | config init/path/show/validate/check 与启动参数覆盖                                                 | US-K02–US-K04                                       |
 | 所有 TOML 配置项：访问、会话、提醒、存储                                                            | US-A03；US-K03–US-K04；US-K08–US-K09；US-N01–US-N04 |
 | service install/--dry-run/--force/start/stop/restart/status/logs/uninstall                          | US-K05–US-K07                                       |
@@ -81,6 +84,7 @@
 | 文档可达性、相对链接与锚点、README 首页预算                                                         | US-L12                                              |
 | Storybook、截图、baseline、CI 与 release                                                            | US-L03–US-L04                                       |
 | 发布签名、签名密钥检查、发布前验证与密钥轮换                                                        | US-L13                                              |
+| 开发版发布：`dev` Release、版本推导、跳过规则、保留两次构建与独立签名密钥                           | US-L14                                              |
 | 分层架构测试、线上 JSON 快照、必填数组 Zod 契约与重新录制                                           | US-L05                                              |
 | agent 适配器接口、注册表、Claude 进程注册记录与隐私边界、契约测试与 agent 名称守卫                  | US-L05；US-Q01；US-Q03                              |
 | 前端架构守卫：设计系统 lint、分层、重复代码、未使用代码与基线                                       | US-L06                                              |
@@ -101,11 +105,13 @@
 | 托盘与 WSL 服务的兼容、版本对应、降级运行与更新入口                                                 | US-O11                                              |
 | Windows 安装程序的安装、升级、卸载、静默模式与托盘退出请求                                          | US-O04；US-O12                                      |
 | 托盘自动更新：检查调度、安装版识别、静默安装、便携版提示与“检查更新”                                | US-O13                                              |
+| 托盘更新通道：菜单与 `updateChannel`、开发版服务端下载、切换到开发版通道并更新托盘                  | US-O01；US-O11；US-O14                              |
 | Tailscale 检测、节点 DNS、HTTPS 与现有入口只读状态                                                  | US-P01                                              |
 | Tailscale Serve/Funnel 配置、回读确认、精确移除与公网风险                                           | US-P02–US-P03                                       |
 | WSL NAT 阻塞、Windows provider 选择与 operator 提示                                                 | US-P04–US-P05                                       |
 | Tailscale 所有权、启动对账、失败关闭与来源并存                                                      | US-P06                                              |
 | Tailscale 网页设置、立即生效、Funnel 确认与恢复配置文件设置                                         | US-P07                                              |
+| 托盘“公网访问”子菜单、一键 Tailscale Serve、未就绪引导与 Windows 节点确认                           | US-P08；US-N06                                      |
 
 ## 后续维护
 

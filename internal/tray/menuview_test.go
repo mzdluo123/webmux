@@ -1,10 +1,12 @@
 package tray
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/update"
 )
 
 func TestInstallEntry(t *testing.T) {
@@ -65,7 +67,7 @@ func TestVersionHintAndUpdateEntry(t *testing.T) {
 			t.Errorf("%s: hint %q, want %q", tc.name, got, tc.hint)
 		}
 		got := UpdateEntry(tc.snap, portable)
-		if got.Show != (tc.download != "") || (got.Show && (got.Title != "下载托盘 "+tc.download || got.URL != "https://github.com/"+ReleaseRepo+"/releases/tag/v"+tc.download || got.Action != UpdateOpenRelease || !got.Enabled)) {
+		if got.Show != (tc.download != "") || (got.Show && (got.Title != "下载托盘 "+tc.download || got.URL != "https://github.com/"+update.Repo+"/releases/tag/v"+tc.download || got.Action != UpdateOpenRelease || !got.Enabled)) {
 			t.Errorf("%s: portable entry %+v", tc.name, got)
 		}
 		// An installed release tray installs instead of opening a page.
@@ -106,10 +108,11 @@ func TestSelfUpdateEntries(t *testing.T) {
 		check CheckItem
 	}{
 		{"nothing", Snapshot{Tray: tray}, SelfUpdateView{Release: true, Installed: true}, UpdateItem{}, CheckItem{Enabled: true, Title: "检查更新"}},
-		{"development build", newerWSL, SelfUpdateView{Installed: true}, UpdateItem{Show: true, Enabled: true, Title: "下载托盘 0.4.0", URL: ReleasePage("0.4.0"), Action: UpdateOpenRelease}, CheckItem{Title: "检查更新（此构建不是发布构建，不支持更新）"}},
+		{"development build", newerWSL, SelfUpdateView{Installed: true}, UpdateItem{Show: true, Enabled: true, Title: "下载托盘 0.4.0", URL: "https://github.com/mzdluo123/webmux/releases/tag/v0.4.0", Action: UpdateOpenRelease}, CheckItem{Title: "检查更新（此构建不是发布构建，不支持更新）"}},
 		{"installed, auto off", Snapshot{Tray: tray}, SelfUpdateView{Release: true, Installed: true, Latest: "0.5.0", Status: "有新版本 0.5.0"}, UpdateItem{Show: true, Enabled: true, Title: "更新到 0.5.0", Action: UpdateInstall}, CheckItem{Enabled: true, Title: "检查更新"}},
 		{"installing", newerWSL, SelfUpdateView{Release: true, Installed: true, Busy: true, Latest: "0.5.0"}, UpdateItem{Show: true, Title: "更新到 0.5.0", Action: UpdateInstall}, CheckItem{Title: "检查更新（正在进行）"}},
-		{"portable", newerWSL, SelfUpdateView{Release: true, Latest: "0.5.0"}, UpdateItem{Show: true, Enabled: true, Title: "下载托盘 0.5.0", URL: ReleasePage("0.5.0"), Action: UpdateOpenRelease}, CheckItem{Enabled: true, Title: "检查更新"}},
+		{"portable", newerWSL, SelfUpdateView{Release: true, Latest: "0.5.0"}, UpdateItem{Show: true, Enabled: true, Title: "下载托盘 0.5.0", URL: "https://github.com/mzdluo123/webmux/releases/tag/v0.5.0", Action: UpdateOpenRelease}, CheckItem{Enabled: true, Title: "检查更新"}},
+		{"portable, dev build", newerWSL, SelfUpdateView{Release: true, Channel: update.ChannelDev, Latest: "0.10.3-dev.4"}, UpdateItem{Show: true, Enabled: true, Title: "下载托盘 0.10.3-dev.4", URL: "https://github.com/mzdluo123/webmux/releases/tag/dev", Action: UpdateOpenRelease}, CheckItem{Enabled: true, Title: "检查更新"}},
 		{"installed, WSL newer", newerWSL, SelfUpdateView{Release: true, Installed: true}, UpdateItem{Show: true, Enabled: true, Title: "更新托盘", Action: UpdateInstall}, CheckItem{Enabled: true, Title: "检查更新"}},
 	} {
 		if got := UpdateEntry(tc.snap, tc.view); got != tc.want {
@@ -117,6 +120,62 @@ func TestSelfUpdateEntries(t *testing.T) {
 		}
 		if got := CheckEntry(tc.view); got != tc.check {
 			t.Errorf("%s: check %+v, want %+v", tc.name, got, tc.check)
+		}
+	}
+}
+
+// A newer development build in WSL is never offered on the stable channel:
+// the status line says so, and an installed tray offers to switch to the
+// dev channel instead of "更新托盘". On the dev channel, or for a newer
+// release, nothing changes; a portable tray links Release dev.
+func TestDevServerOnStableChannel(t *testing.T) {
+	tray := BuildInfo{Version: "0.10.2", Contract: 1}
+	snap := func(version string) Snapshot {
+		installed := BuildInfo{Version: version, Contract: 1}
+		return Snapshot{State: StateRunning, Tray: tray, Installed: installed, Compat: Classify(tray, installed)}
+	}
+	devWSL, releaseWSL := snap("0.10.3-dev.7"), snap("0.10.3")
+	installed := func(ch update.Channel) SelfUpdateView {
+		return SelfUpdateView{Release: true, Installed: true, Channel: ch}
+	}
+	const hint = "WSL 中为开发版 0.10.3-dev.7，托盘使用正式版通道"
+	for _, tc := range []struct {
+		name string
+		snap Snapshot
+		view SelfUpdateView
+		hint string
+		want UpdateItem
+	}{
+		{"stable", devWSL, installed(update.ChannelStable), hint, UpdateItem{Show: true, Enabled: true, Title: "切换到开发版通道并更新托盘", Action: UpdateSwitchToDev}},
+		{"stable, updating", devWSL, SelfUpdateView{Release: true, Installed: true, Channel: update.ChannelStable, Busy: true}, hint, UpdateItem{Show: true, Title: "切换到开发版通道并更新托盘", Action: UpdateSwitchToDev}},
+		{"dev", devWSL, installed(update.ChannelDev), "", UpdateItem{Show: true, Enabled: true, Title: "更新托盘", Action: UpdateInstall}},
+		{"stable, newer release", releaseWSL, installed(update.ChannelStable), "", UpdateItem{Show: true, Enabled: true, Title: "更新托盘", Action: UpdateInstall}},
+		{"portable", devWSL, SelfUpdateView{Release: true, Channel: update.ChannelStable}, hint, UpdateItem{Show: true, Enabled: true, Title: "下载托盘 0.10.3-dev.7", URL: "https://github.com/mzdluo123/webmux/releases/tag/dev", Action: UpdateOpenRelease}},
+	} {
+		if got := ChannelHint(tc.snap, tc.view); got != tc.hint {
+			t.Errorf("%s: hint %q, want %q", tc.name, got, tc.hint)
+		}
+		if got := UpdateEntry(tc.snap, tc.view); got != tc.want {
+			t.Errorf("%s: entry %+v, want %+v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// The "更新通道" radio items follow the setting; a development build cannot
+// update, so the menu is disabled with the reason.
+func TestChannelEntry(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		view SelfUpdateView
+		want ChannelItem
+	}{
+		{"stable", SelfUpdateView{Release: true, Channel: update.ChannelStable}, ChannelItem{Enabled: true, Title: "更新通道", Stable: true}},
+		{"dev", SelfUpdateView{Release: true, Channel: update.ChannelDev}, ChannelItem{Enabled: true, Title: "更新通道", Dev: true}},
+		{"development build", SelfUpdateView{Channel: update.ChannelStable}, ChannelItem{Title: "更新通道（此构建不是发布构建，不支持更新）", Stable: true}},
+		{"updating", SelfUpdateView{Release: true, Installed: true, Busy: true, Channel: update.ChannelDev}, ChannelItem{Title: "更新通道（正在进行）", Dev: true}},
+	} {
+		if got := ChannelEntry(tc.view); got != tc.want {
+			t.Errorf("%s: %+v, want %+v", tc.name, got, tc.want)
 		}
 	}
 }
@@ -142,10 +201,10 @@ func TestTunnelEntry(t *testing.T) {
 		}}
 	}
 	ready := running(&contract.TunnelStatus{State: contract.TunnelReady, PublicURL: "https://abc.trycloudflare.com"})
-	if got := TunnelEntry(ready); !got.Show || !got.Checked || got.PublicURL != "https://abc.trycloudflare.com" {
+	if got := TunnelEntry(ready); !got.Show || !got.Checked || got.Info != "公网隧道：https://abc.trycloudflare.com" {
 		t.Fatalf("ready %+v", got)
 	}
-	if got := TunnelEntry(running(&contract.TunnelStatus{State: contract.TunnelStarting})); !got.Checked || got.PublicURL != "" || got.Info != "公网隧道：正在连接" {
+	if got := TunnelEntry(running(&contract.TunnelStatus{State: contract.TunnelStarting})); !got.Checked || got.Info != "公网隧道：正在连接" {
 		t.Fatalf("starting %+v", got)
 	}
 	failed := TunnelEntry(running(&contract.TunnelStatus{State: contract.TunnelFailed, Error: "cloudflared exited"}))
@@ -159,6 +218,121 @@ func TestTunnelEntry(t *testing.T) {
 	stopped.State, stopped.Status.State = StateStopped, contract.StateStopped
 	if got := TunnelEntry(stopped); got.Show {
 		t.Fatalf("stopped instance shows the tunnel: %+v", got)
+	}
+}
+
+func TestAccessEntries(t *testing.T) {
+	running := func(urls contract.URLs, tunnel *contract.TunnelStatus) Snapshot {
+		return Snapshot{State: StateRunning, HasStatus: true, Mode: ModeTray, Status: contract.StatusV1{
+			State: contract.StateRunning, URLs: urls, Tunnel: tunnel,
+		}}
+	}
+	const local = "http://127.0.0.1:7681"
+	ready := &contract.TunnelStatus{State: contract.TunnelReady, PublicURL: "https://term.example.com"}
+	reported := running(contract.URLs{Local: local, Access: []contract.AccessLink{
+		{Provider: "cloudflare", Label: "Cloudflare Tunnel", URL: "https://term.example.com", Public: true},
+		{Provider: "tailscale", Label: "Tailscale Serve", URL: "https://node.tailnet.ts.net:8443"},
+		{Provider: "future", URL: "https://relay.example"},
+	}}, ready)
+	want := []AccessItem{
+		{URL: "https://term.example.com", Label: "https://term.example.com（Cloudflare Tunnel · 公网）"},
+		{URL: "https://node.tailnet.ts.net:8443", Label: "https://node.tailnet.ts.net:8443（Tailscale Serve · 仅私有网络）"},
+		{URL: "https://relay.example", Label: "https://relay.example（future · 仅私有网络）"},
+	}
+	if got := AccessEntries(reported); !reflect.DeepEqual(got, want) {
+		t.Fatalf("reported links %+v", got)
+	}
+	// Servers before URLs.Access only report the ready tunnel.
+	old := AccessEntries(running(contract.URLs{Local: local}, ready))
+	if len(old) != 1 || old[0].URL != "https://term.example.com" {
+		t.Fatalf("old server fallback %+v", old)
+	}
+	if got := AccessEntries(running(contract.URLs{Local: local}, &contract.TunnelStatus{State: contract.TunnelStarting})); len(got) != 0 {
+		t.Fatalf("starting tunnel listed %+v", got)
+	}
+	stopped := reported
+	stopped.State, stopped.Status.State = StateStopped, contract.StateStopped
+	if got := AccessEntries(stopped); len(got) != 0 {
+		t.Fatalf("stopped instance lists links %+v", got)
+	}
+}
+
+func TestTailscaleEntry(t *testing.T) {
+	running := func(ts *contract.TailscaleSummary) Snapshot {
+		return Snapshot{State: StateRunning, HasStatus: true, Mode: ModeTray, Status: contract.StatusV1{
+			State: contract.StateRunning, URLs: contract.URLs{Local: "http://127.0.0.1:7681"}, Tailscale: ts,
+		}}
+	}
+	if got := TailscaleEntry(running(nil)); got.Show {
+		t.Fatalf("old server shows Tailscale: %+v", got)
+	}
+	off := TailscaleEntry(running(&contract.TailscaleSummary{Mode: "off", State: contract.TailscaleOff}))
+	if !off.Show || off.Checked || off.Info != "" || off.SettingsURL != "http://127.0.0.1:7681/settings/tailscale" {
+		t.Fatalf("off %+v", off)
+	}
+	ready := TailscaleEntry(running(&contract.TailscaleSummary{Mode: "funnel", State: contract.TailscaleReady, PublicURL: "https://node.ts.net"}))
+	if !ready.Checked || ready.Title != "Tailscale Funnel（公网）" || ready.Info != "Tailscale：https://node.ts.net" {
+		t.Fatalf("ready %+v", ready)
+	}
+	// A failed entry keeps its saved mode, so one click turns it off.
+	failed := TailscaleEntry(running(&contract.TailscaleSummary{Mode: "serve", State: contract.TailscaleFailed, Error: "HTTPS disabled"}))
+	if !failed.Checked || failed.Info != "Tailscale 失败：HTTPS disabled" {
+		t.Fatalf("failed %+v", failed)
+	}
+	stopped := running(&contract.TailscaleSummary{Mode: "serve"})
+	stopped.State, stopped.Status.State = StateStopped, contract.StateStopped
+	if got := TailscaleEntry(stopped); got.Show {
+		t.Fatalf("stopped instance shows Tailscale: %+v", got)
+	}
+}
+
+func TestTailscaleEnableProblem(t *testing.T) {
+	ready := contract.TailscaleStatus{Provider: "linux", BackendState: "running", HTTPSReady: true, StorageAvailable: true, CanEnable: true}
+	for _, row := range []struct {
+		name   string
+		change func(*contract.TailscaleStatus)
+		want   string
+	}{
+		{"ready", func(*contract.TailscaleStatus) {}, ""},
+		{"missing", func(s *contract.TailscaleStatus) { s.Provider, s.BackendState = "none", "unavailable" }, "未检测到可用的 Tailscale"},
+		{"login", func(s *contract.TailscaleStatus) { s.BackendState = "needs-login" }, "尚未登录"},
+		{"stopped", func(s *contract.TailscaleStatus) { s.BackendState = "stopped" }, "未运行"},
+		{"no https", func(s *contract.TailscaleStatus) { s.HTTPSReady = false }, "HTTPS"},
+		{"wsl nat windows", func(s *contract.TailscaleStatus) {
+			s.Provider, s.WSL = "windows", &contract.TailscaleWSL{NetworkingMode: "nat"}
+		}, "mirrored"},
+		{"wsl mirrored windows", func(s *contract.TailscaleStatus) {
+			s.Provider, s.WSL = "windows", &contract.TailscaleWSL{NetworkingMode: "mirrored"}
+		}, ""},
+		{"storage", func(s *contract.TailscaleStatus) { s.StorageAvailable, s.StorageError = false, "locked" }, "locked"},
+		{"weak token", func(s *contract.TailscaleStatus) { s.CanEnable, s.EnableBlockedReason = false, "token too short" }, "token too short"},
+	} {
+		status := ready
+		row.change(&status)
+		got := TailscaleEnableProblem(status)
+		if (row.want == "") != (got == "") || !strings.Contains(got, row.want) {
+			t.Errorf("%s: %q", row.name, got)
+		}
+	}
+}
+
+func TestTailscaleEnableAndDisableUpdates(t *testing.T) {
+	linux := contract.TailscaleStatus{Provider: "linux", ConfiguredProvider: "auto", Port: 8443}
+	if got, consent := TailscaleEnable(linux); consent != "" || got != (contract.TailscaleSettingsUpdate{Mode: "serve", Port: 8443, Provider: "auto"}) {
+		t.Fatalf("linux enable %+v %q", got, consent)
+	}
+	// auto never manages the Windows node: the click must ask, then name it.
+	windows := contract.TailscaleStatus{Provider: "windows", ConfiguredProvider: "auto", DNSName: "pc.tailnet.ts.net", WSL: &contract.TailscaleWSL{NetworkingMode: "mirrored"}}
+	got, consent := TailscaleEnable(windows)
+	if got.Provider != "windows" || got.Mode != "serve" || !strings.Contains(consent, "pc.tailnet.ts.net") {
+		t.Fatalf("windows enable %+v %q", got, consent)
+	}
+	windows.ConfiguredProvider = "windows"
+	if _, consent := TailscaleEnable(windows); consent != "" {
+		t.Fatalf("explicit windows provider asked again: %q", consent)
+	}
+	if got := TailscaleDisable(contract.TailscaleSummary{Mode: "funnel", Port: 443}); got != (contract.TailscaleSettingsUpdate{Mode: "off", Port: 443, Provider: "auto"}) {
+		t.Fatalf("disable %+v", got)
 	}
 }
 
@@ -181,7 +355,7 @@ func TestPushEntry(t *testing.T) {
 		{"quick tunnel only", &contract.PushStatus{Enabled: true, Available: true}, "手机推送：需要 Named Tunnel",
 			[]string{"Quick Tunnel 的地址每次启动都会变化", "http://127.0.0.1:7681", "tunnel.token", "tunnel.hostname", "重启 WebMux", "添加到主屏幕", "设置 → 通知推送"}},
 		{"named without devices", &contract.PushStatus{Enabled: true, Available: true, PublicOrigin: named}, "手机推送：尚未有设备开启",
-			[]string{"公网地址：" + named, "复制链接 → 公网链接", "输入 Token"}},
+			[]string{"公网地址：" + named, "复制链接", "输入 Token"}},
 		{"named with devices", &contract.PushStatus{Enabled: true, Available: true, Subscriptions: 2, PublicOrigin: named}, "手机推送：2 台设备已开启", nil},
 	} {
 		got := PushEntry(snap(row.push))

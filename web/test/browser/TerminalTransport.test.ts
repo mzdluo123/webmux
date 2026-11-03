@@ -119,10 +119,16 @@ test("locking the terminal size keeps the PTY grid across host resizes", async (
   const sizeFrames = () => socket.sent.filter((frame) => frame[0] === 1).length;
   const screen = () =>
     host().querySelector(".xterm-screen")!.getBoundingClientRect();
+  const xtermScrollbar = () =>
+    host().querySelector<HTMLElement>(
+      ".xterm-scrollable-element > .scrollbar.vertical",
+    )!;
   const initial = geometry(socket);
   expect(initial.bounds.width).toBeLessThanOrEqual(host().clientWidth);
   const fitted = sizeFrames();
   expect(fitted).toBeGreaterThan(0);
+  // An unlocked terminal scrolls its buffer through xterm's own scrollbar.
+  expect(getComputedStyle(xtermScrollbar()).display).not.toBe("none");
 
   // The menu toggle keeps the current grid instead of refitting it.
   locked = true;
@@ -130,6 +136,9 @@ test("locking the terminal size keeps the PTY grid across host resizes", async (
   api.fit();
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(sizeFrames()).toBe(fitted);
+  // The locked host pans the grid, so xterm's grid-edge scrollbar would float
+  // inside the visible area or duplicate the host one.
+  expect(getComputedStyle(xtermScrollbar()).display).toBe("none");
 
   // A keyboard or browser-chrome shrink changes only the height; the
   // scrollable host stays anchored to the newest rows.
@@ -162,7 +171,7 @@ test("locking the terminal size keeps the PTY grid across host resizes", async (
   expect(sizeFrames()).toBe(fitted);
   expect(screen().width).toBe(initial.bounds.width);
 
-  // Unlocking adopts the host again.
+  // Unlocking adopts the host again and restores xterm's scrollbar.
   locked = false;
   host().classList.remove("size-locked");
   api.fit();
@@ -170,6 +179,7 @@ test("locking the terminal size keeps the PTY grid across host resizes", async (
   await expect
     .poll(() => screen().width)
     .toBeLessThanOrEqual(host().clientWidth);
+  expect(getComputedStyle(xtermScrollbar()).display).not.toBe("none");
 });
 
 test("a locked host keeps following output that arrives during a resize", async () => {
@@ -220,6 +230,55 @@ test("a locked grid only rescales the font, keeping the PTY rows and columns", a
   await expect.poll(() => screen().width).toBeGreaterThan(before.width);
   expect(screen().height).toBeGreaterThan(before.height);
   expect(sizeFrames()).toBe(fitted);
+});
+
+test("a keyboard height hold keeps the grid for height changes only", async () => {
+  observeGlyphPixels(true);
+  let held = false;
+  const { socket, api } = await openTerminalApi({
+    heightHeld: () => held,
+  });
+  const sizeFrames = () => socket.sent.filter((frame) => frame[0] === 1).length;
+  // ResizeObserver layout is debounced by 100 ms; the absence of a frame can
+  // only be observed after that real delay.
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 250));
+  const fitted = sizeFrames();
+  const original = host().style.height;
+
+  // The keyboard opens and closes: the host returns to its held size and
+  // ending the hold sends nothing. The held grid stays anchored to the tail.
+  held = true;
+  host().classList.add("size-locked");
+  host().style.height = "500px";
+  await settle();
+  expect(sizeFrames()).toBe(fitted);
+  expect(host().scrollTop + host().clientHeight).toBeGreaterThanOrEqual(
+    host().scrollHeight - 1,
+  );
+  host().style.height = original;
+  await settle();
+  held = false;
+  host().classList.remove("size-locked");
+  api.fit();
+  expect(sizeFrames()).toBe(fitted);
+
+  // Rotation during the hold still refits the columns.
+  held = true;
+  host().classList.add("size-locked");
+  host().style.width = "300px";
+  await expect.poll(sizeFrames).toBe(fitted + 1);
+  // So does a font change.
+  api.setFontSize(18);
+  await expect.poll(sizeFrames).toBe(fitted + 2);
+
+  // The draft pane grew while the keyboard was open: one refit on release.
+  host().style.height = "500px";
+  await settle();
+  expect(sizeFrames()).toBe(fitted + 2);
+  held = false;
+  host().classList.remove("size-locked");
+  api.fit();
+  await expect.poll(sizeFrames).toBe(fitted + 3);
 });
 
 test("a persisted size lock still fits the grid once on mount", async () => {
@@ -292,6 +351,12 @@ test("an observer sizes to the controller's grid before parsing cursor-addressed
     )
     .toMatch(/^ {99}far-right$/);
   expect(host().classList.contains("observing")).toBe(true);
+  // The observer pans the controller's grid with the host; xterm's grid-edge
+  // scrollbar would sit off the visible area, so it is hidden.
+  const scrollbar = host().querySelector<HTMLElement>(
+    ".xterm-scrollable-element > .scrollbar.vertical",
+  )!;
+  expect(getComputedStyle(scrollbar).display).toBe("none");
   // Observers never resize the PTY.
   expect(socket.sent.filter((frame) => frame[0] === 1)).toEqual([]);
 });

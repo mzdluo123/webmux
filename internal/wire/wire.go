@@ -73,7 +73,7 @@ func Hybrid(h *session.HybridInfo) *contract.SessionHybrid {
 	}
 	out := &contract.SessionHybrid{
 		Side: contract.HybridSide(h.Side), Phase: contract.HybridPhase(h.Phase), Dormant: h.Dormant,
-		State: contract.HybridState(h.State), Agent: h.Agent,
+		State: contract.HybridState(h.State), Agent: h.Agent, AgentTitle: h.AgentTitle, AgentIcon: h.AgentIcon, Work: h.Work,
 	}
 	if h.AgentSessionID != nil {
 		id := *h.AgentSessionID
@@ -131,8 +131,13 @@ func Branches(b workspace.Branches) contract.Branches {
 		Bases:              bases,
 		DefaultBase:        b.DefaultBase,
 		DefaultBaseSubject: b.DefaultBaseSubject,
+		DefaultBranch:      b.DefaultBranch,
 		DefaultParent:      b.DefaultParent,
 	}
+}
+
+func RefreshBranchBase(r workspace.BranchBaseRefresh) contract.RefreshBranchBaseResponse {
+	return contract.RefreshBranchBaseResponse(r)
 }
 
 func Preview(p workspace.Preview) contract.RemovalPreview {

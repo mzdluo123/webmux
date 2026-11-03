@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
 )
 
 func TestPresetsFollowDefaultShell(t *testing.T) {
@@ -43,7 +45,7 @@ func TestPresetsFollowDefaultShell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			presets := Presets(tt.shell)
-			if len(presets) != 11 || presets[0].Name != "Shell" || !slices.Equal(presets[0].Cmd, tt.wantLogin) {
+			if len(presets) != 13 || presets[0].Name != "Shell" || !slices.Equal(presets[0].Cmd, tt.wantLogin) {
 				t.Fatalf("login shell preset = %+v", presets[:min(1, len(presets))])
 			}
 			for _, preset := range presets {
@@ -69,7 +71,7 @@ func TestPresetsBeforeSeedPreferShellAwareList(t *testing.T) {
 		t.Fatal(err)
 	}
 	presets, err := s.Presets()
-	if err != nil || len(presets) != 11 || !slices.Equal(presets[0].Cmd, []string{"/bin/zsh", "-l", "-i"}) {
+	if err != nil || len(presets) != 13 || !slices.Equal(presets[0].Cmd, []string{"/bin/zsh", "-l", "-i"}) {
 		t.Fatalf("presets after seed = %+v, %v", presets, err)
 	}
 }
@@ -81,7 +83,7 @@ func TestRestorePresets(t *testing.T) {
 		t.Fatal(err)
 	}
 	presets, err := s.Presets()
-	if err != nil || len(presets) != 11 || !slices.Equal(presets[0].Cmd, []string{"/bin/zsh", "-l", "-i"}) {
+	if err != nil || len(presets) != 13 || !slices.Equal(presets[0].Cmd, []string{"/bin/zsh", "-l", "-i"}) {
 		t.Fatalf("presets = %+v, %v", presets, err)
 	}
 	// Editing a preset keeps its name; deleting others leaves them restorable.
@@ -126,7 +128,7 @@ func TestRestorePresets(t *testing.T) {
 	}
 
 	all, err := s.RestorePresets("")
-	if err != nil || len(all) != 11 {
+	if err != nil || len(all) != 13 {
 		t.Fatalf("restore all = %+v, %v", all, err)
 	}
 	claudeCfg, err := s.Get(claudeID)
@@ -156,5 +158,36 @@ func TestRestorePresetsRespectsMaxConfigs(t *testing.T) {
 	}
 	if _, err := s.RestorePresets("omp"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("restore one at limit = %v, want ErrInvalid", err)
+	}
+}
+
+// The browser shows a hybrid session's agent with the profile's Icon from the
+// launch-config icon catalog, so every agent needs a title and a brand glyph
+// in that catalog, the same one its hybrid preset carries.
+func TestAgentIconsComeFromLaunchCatalog(t *testing.T) {
+	registry := agents.Default()
+	for _, a := range registry.Agents() {
+		p := a.Profile()
+		if p.Title == "" || p.Icon == "" || p.Icon == "terminal" {
+			t.Errorf("agent %q: title %q, icon %q; want a title and a brand glyph", p.Name, p.Title, p.Icon)
+			continue
+		}
+		if _, err := normalize(Input{Name: p.Title, Icon: p.Icon, Cmd: []string{p.Name}}); err != nil {
+			t.Errorf("agent %q icon %q is not a launch-config icon: %v", p.Name, p.Icon, err)
+		}
+	}
+	for _, preset := range Presets("/bin/bash") {
+		if !preset.Hybrid {
+			continue
+		}
+		support := registry.Check(preset.Cmd)
+		a, ok := registry.Lookup(support.Agent)
+		if !ok {
+			t.Errorf("hybrid preset %q runs no registered agent: %+v", preset.Name, support)
+			continue
+		}
+		if got := a.Profile().Icon; got != preset.Icon {
+			t.Errorf("agent %q icon %q, its preset %q has %q", support.Agent, got, preset.Name, preset.Icon)
+		}
 	}
 }

@@ -71,7 +71,8 @@ export const LAUNCH_ICON_OPTIONS = [
   { value: "terminal", label: "终端" },
   { value: "claudecode", label: "Claude Code" },
   { value: "codex", label: "Codex" },
-  { value: "geminicli", label: "Gemini CLI" },
+  { value: "antigravity", label: "Antigravity CLI" },
+  { value: "geminicli", label: "Gemini CLI（旧配置）" },
   { value: "cursor", label: "Cursor CLI" },
   { value: "githubcopilot", label: "GitHub Copilot CLI" },
   { value: "opencode", label: "OpenCode" },
@@ -79,6 +80,7 @@ export const LAUNCH_ICON_OPTIONS = [
   { value: "kimi", label: "Kimi Code CLI" },
   { value: "codebuddy", label: "CodeBuddy Code" },
   { value: "pi", label: "Pi / omp" },
+  { value: "qoder", label: "Qoder" },
 ] as const;
 
 /** Old configs get a display default without rewriting their saved commands. */
@@ -98,6 +100,8 @@ export function launchConfigIcon(config: {
       return "claudecode";
     case "codex":
       return "codex";
+    case "agy":
+      return "antigravity";
     case "gemini":
       return "geminicli";
     case "agent":
@@ -116,6 +120,11 @@ export function launchConfigIcon(config: {
     case "omp":
     case "pi":
       return "pi";
+    case "qoder":
+    case "qodercn":
+    case "qoderclicn":
+    case "qoder-cn":
+      return "qoder";
     default:
       return "terminal";
   }

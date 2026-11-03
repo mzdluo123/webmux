@@ -163,14 +163,23 @@ const (
 
 // Option is how an agent treats one command-line option.
 type Option struct {
-	Class ArgClass
-	Arity Arity
+	Class     ArgClass
+	Arity     Arity
+	PassToACP bool
 }
 
 // Options builds an option table entry for each name.
 func Options(table map[string]Option, class ArgClass, arity Arity, names ...string) {
 	for _, name := range names {
 		table[name] = Option{Class: class, Arity: arity}
+	}
+}
+
+// PassthroughOptions builds an ArgKeep option table entry for each name that
+// is also passed through to the agent's acp subcommand.
+func PassthroughOptions(table map[string]Option, arity Arity, names ...string) {
+	for _, name := range names {
+		table[name] = Option{Class: ArgKeep, Arity: arity, PassToACP: true}
 	}
 }
 
@@ -191,6 +200,9 @@ type Profile struct {
 	Name string
 	// Title is the display name.
 	Title string
+	// Icon is the agent's brand glyph: a key of the launch-config icon
+	// catalog, which the browser renders next to Title.
+	Icon string
 	// Executables are the base names the agent runs as; empty means Name.
 	Executables []string
 	// ProcessExecutable optionally recognizes a native process whose name on
@@ -222,6 +234,10 @@ type Profile struct {
 	// ResumeFlag opens a session in the terminal UI: an option or a
 	// subcommand, followed by the session ID.
 	ResumeFlag string
+	// ACPArg is the argument that starts the built-in ACP server. Empty
+	// means the default "acp" subcommand; set to "--acp" for agents whose
+	// ACP mode is a flag rather than a subcommand.
+	ACPArg string
 	// TUIInject are options every terminal run needs.
 	TUIInject []string
 	// PassToACP writes the kept options into the ACP command too.

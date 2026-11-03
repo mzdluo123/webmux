@@ -17,9 +17,12 @@
 | `dormant`        | 聊天端空闲休眠，agent 进程已结束                                                                                                   |
 | `state`          | `active`、`closed` 或 `interrupted`；首页运行中分组只显示 `active`                                                                 |
 | `agent`          | 档案名：`opencode`、`omp`、`codex` 或 `claudecode`                                                                                 |
+| `agentTitle`     | 档案的显示名，如 `OpenCode`、`Claude Code`；会话卡片与聊天页头部用它标识 agent                                                     |
+| `agentIcon`      | 档案的品牌图标键，取值属于启动配置的图标目录（如 omp 为 `pi`）；浏览器不认识时只显示 `agentTitle`                                  |
 | `agentSessionId` | agent 自己的会话 ID；尚未得知时为 `null`                                                                                           |
+| `work`           | 聊天端回合进行中，一行可读的当前工作（工具调用标题，或无标题时按种类与首个位置、进行中的计划步骤）；回合结束时省略                 |
 
-会话在聊天端时，`status`、`attention`（来源 `agent`）与 `preview`（最新 agent 消息前三行）来自聊天端的回合状态；`cmd` 为启动配置的命令。
+会话在聊天端时，`status`、`attention`（来源 `agent`）与 `preview`（最新 agent 消息前三行）来自聊天端的回合状态；`work` 只在回合进行中（含等待授权）存在；`cmd` 为启动配置的命令。
 
 ## 创建、切换与恢复
 

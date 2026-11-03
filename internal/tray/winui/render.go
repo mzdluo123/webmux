@@ -26,7 +26,10 @@ func (m *menu) render(snap tray.Snapshot, v view) bindings {
 	m.status1.set(tray.StatusLine(snap), false, false)
 	m.status2.set("发行版："+distroLabel(v)+" · 启动方式："+modeLabel(snap, v), false, false)
 	hint := snap.Reason
-	if version := tray.VersionHint(snap); version != "" {
+	for _, version := range []string{tray.VersionHint(snap), tray.ChannelHint(snap, v.selfUpdate)} {
+		if version == "" {
+			continue
+		}
 		if hint != "" {
 			hint += "；"
 		}
@@ -51,9 +54,14 @@ func (m *menu) render(snap tray.Snapshot, v view) bindings {
 	access := acts.Access && local != ""
 	m.open.set("打开 WebMux", access, false)
 	b.remote, b.reported = remoteLinks(snap, v)
+	if !v.noWSL {
+		b.access = tray.AccessEntries(snap)
+	}
+	if len(b.access) > len(m.accessLinks) {
+		b.access = b.access[:len(m.accessLinks)]
+	}
 	tunnel := tray.TunnelEntry(snap)
-	public := tunnel.Show && !v.noWSL && tunnel.PublicURL != ""
-	if access || len(b.remote) > 0 || public {
+	if access || len(b.remote) > 0 || len(b.access) > 0 {
 		m.copyLinks.set("复制链接", true, false)
 	} else {
 		m.copyLinks.hide()
@@ -83,18 +91,26 @@ func (m *menu) render(snap tray.Snapshot, v view) bindings {
 			it.hide()
 		}
 	}
-	if public {
-		m.copyPublic.set("公网链接", true, false)
-	} else {
-		m.copyPublic.hide()
+	for i, it := range m.accessLinks {
+		if i < len(b.access) {
+			it.set(b.access[i].Label, true, false)
+		} else {
+			it.hide()
+		}
 	}
 	if snap.HasStatus && status.TokenConfigured {
 		m.copyToken.set("复制 Token", acts.Access, false)
 	} else {
 		m.copyToken.hide()
 	}
+	ts := tray.TailscaleEntry(snap)
+	if (tunnel.Show || ts.Show) && !v.noWSL {
+		m.public.set("公网访问", true, false)
+	} else {
+		m.public.hide()
+	}
 	if tunnel.Show && !v.noWSL {
-		m.tunnel.set("公网隧道（Cloudflare）", !busy, tunnel.Checked)
+		m.tunnel.set("Cloudflare Tunnel", !busy, tunnel.Checked)
 		if tunnel.Info != "" {
 			m.tunnelInfo.set(tunnel.Info, false, false)
 		} else {
@@ -105,9 +121,26 @@ func (m *menu) render(snap tray.Snapshot, v view) bindings {
 		m.tunnelInfo.hide()
 	}
 	if tunnel.SettingsURL != "" && !v.noWSL {
-		m.tunnelSettings.set("打开公网访问设置…", true, false)
+		m.tunnelSettings.set("Cloudflare 设置…", true, false)
 	} else {
 		m.tunnelSettings.hide()
+	}
+	if ts.Show && !v.noWSL {
+		m.tailscale.set(ts.Title, !busy, ts.Checked)
+		if ts.Info != "" {
+			m.tailscaleInfo.set(ts.Info, false, false)
+		} else {
+			m.tailscaleInfo.hide()
+		}
+		if ts.SettingsURL != "" {
+			m.tsSettings.set("Tailscale 设置…", true, false)
+		} else {
+			m.tsSettings.hide()
+		}
+	} else {
+		m.tailscale.hide()
+		m.tailscaleInfo.hide()
+		m.tsSettings.hide()
 	}
 	if push := tray.PushEntry(snap); push.Show && !v.noWSL {
 		m.pushInfo.set(push.Info, false, false)
@@ -117,34 +150,7 @@ func (m *menu) render(snap tray.Snapshot, v view) bindings {
 		m.pushGuide.hide()
 	}
 
-	m.remote.set("远程访问", !v.noWSL, false)
-	headline := v.plan.Headline
-	if headline == "" {
-		headline = "正在检测网络模式"
-	}
-	m.fwHeadline.set(headline, false, false)
-	if v.plan.Blocked != "" {
-		m.fwBlocked.set(v.plan.Blocked, false, false)
-	} else {
-		m.fwBlocked.hide()
-	}
-	if v.plan.OfferInit && !v.noWSL {
-		m.fwInit.set("初始化配置（生成 Token）", true, false)
-	} else {
-		m.fwInit.hide()
-	}
-	b.candidates = forwardCandidates(v)
-	if len(b.candidates) > len(m.fwCandidates) {
-		b.candidates = b.candidates[:len(m.fwCandidates)]
-	}
-	for i, it := range m.fwCandidates {
-		if i < len(b.candidates) {
-			c := b.candidates[i]
-			it.set(c.Title, c.Enabled && !v.noWSL, c.Checked)
-		} else {
-			it.hide()
-		}
-	}
+	m.lanAccess.set("允许局域网访问", !v.noWSL && !busy && snap.HasStatus && !snap.Degraded && snap.Blocker == "", snap.LANEnabled())
 
 	m.start.set("启动", acts.Start, false)
 	m.stop.set("停止", acts.Stop, false)
@@ -217,6 +223,10 @@ func (m *menu) render(snap tray.Snapshot, v view) bindings {
 	m.editSettings.set("编辑托盘设置", !v.noWSL, false)
 	m.autostart.set("登录时自动启动", !v.noWSL, v.autostart)
 	m.autoUpdate.set("自动更新", true, v.settings.AutoUpdate)
+	channel := tray.ChannelEntry(v.selfUpdate)
+	m.channel.set(channel.Title, channel.Enabled, false)
+	m.channelStable.set("正式版", channel.Enabled, channel.Stable)
+	m.channelDev.set("开发版", channel.Enabled, channel.Dev)
 	check := tray.CheckEntry(v.selfUpdate)
 	m.checkUpdate.set(check.Title, check.Enabled, false)
 	m.quit.set("退出", true, false)

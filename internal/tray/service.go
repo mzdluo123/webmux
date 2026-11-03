@@ -49,6 +49,7 @@ type Service interface {
 	// Token reads the token for one clipboard copy; callers discard it.
 	Token(ctx context.Context) (string, error)
 	ConfigInit(ctx context.Context) error
+	ConfigListen(ctx context.Context, listen string) error
 	// Install puts the release server matching the tray into WSL.
 	Install(ctx context.Context) error
 	// SetTunnel starts or stops the running server's Cloudflare Tunnel.
@@ -269,6 +270,17 @@ func (s *WSLService) ConfigInit(ctx context.Context) error {
 	return nil
 }
 
+func (s *WSLService) ConfigListen(ctx context.Context, listen string) error {
+	res, err := s.run(ctx, s.Target.ConfigListen(listen), 30*time.Second)
+	if err != nil {
+		return err
+	}
+	if res.Code != 0 {
+		return fmt.Errorf("webmux config listen: %s", strings.TrimSpace(wslclient.DecodeOutput(res.Stderr)))
+	}
+	return nil
+}
+
 func (s *WSLService) Install(ctx context.Context) error {
 	return Installer{
 		Runner:     s.Runner,
@@ -285,6 +297,20 @@ func (s *WSLService) SetTunnel(ctx context.Context, enabled bool) (contract.Tunn
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return s.local().SetTunnel(ctx, enabled)
+}
+
+// Tailscale reads the running server's Tailscale view with fresh detection.
+func (s *WSLService) Tailscale(ctx context.Context) (contract.TailscaleStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	return s.local().Tailscale(ctx, true)
+}
+
+// SetTailscale saves and applies Tailscale settings on the running server.
+func (s *WSLService) SetTailscale(ctx context.Context, update contract.TailscaleSettingsUpdate) (contract.TailscaleStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	return s.local().SetTailscale(ctx, update)
 }
 
 // Keepalive keeps a distribution with a systemd-managed WebMux alive through

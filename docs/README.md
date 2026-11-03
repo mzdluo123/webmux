@@ -25,8 +25,10 @@
 
 - [使用指南](usage.md)：会话、新建会话、后台启动、终端附着、草稿、代码工作区、仓库与 worktree、移动端。
   - [终端使用](usage/terminal.md)：查找、分屏、复制粘贴、终端图形与文件上传。
-- [混合会话](hybrid-sessions.md)：OpenCode / omp / Codex CLI / Claude Code 在聊天视图与终端间切换。
-- [CLI agent 接入](cli-agents.md)：预置的九款 CLI agent 启动配置与提醒。
+  - [仓库与 worktree](usage/worktrees.md)：仓库登记、上游基线刷新、工作树创建与安全删除。
+  - [移动端使用](usage/mobile.md)：软键栏、虚拟键盘、触摸手势、锁定尺寸与全屏。
+- [混合会话](hybrid-sessions.md)：OpenCode / omp / Codex CLI / Claude Code / Antigravity CLI / Qoder / QoderCN 在聊天视图与终端间切换。
+- [CLI agent 接入](cli-agents.md)：预置的十一款 CLI agent 启动配置与提醒。
 
 ## 开发与架构
 
@@ -45,6 +47,10 @@
 - [内嵌二进制体积](binary-size.md)：发布二进制的体积对比。
 - [CI 耗时优化与验收](ci-performance.md)：CI 墙钟时间的优化记录。
 - [产品能力 baseline](../baseline/README.md)：可复现评测、统计口径与量化结果。
+
+## 官网与推广
+
+- [官网建设指南](website.md)：定位、静态站点生成器选型、页面清单、视觉规范、交互与 SEO 规则、站点功能与验收清单。
 
 ## 文档与 Agent 规则
 

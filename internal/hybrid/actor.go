@@ -100,7 +100,16 @@ type actor struct {
 	// recordTitle is the last title sent to the persistent record. Terminal
 	// titles arrive through the shell, chat titles through its overlay.
 	recordTitle string
+	// promptTitle: the agent session was created by this session and its
+	// first prompt has not been sent, so that prompt may name the chat until
+	// the agent reports a title.
+	promptTitle bool
 	preview     preview
+	// work tracks tool calls and the plan to derive the one-line work
+	// detail shown on the session card; workLine is its latest text, empty
+	// outside a turn.
+	work     workTracker
+	workLine string
 	// switching is the running switch, from its eligibility check on.
 	switching *switchOp
 	// opening: a reconnect or wake is opening the agent session again;
@@ -316,6 +325,7 @@ func (a *actor) overlay() *session.Overlay {
 	info := &session.HybridInfo{
 		Side: string(a.side), Phase: string(a.chat.Phase), Dormant: a.chat.Dormant,
 		State: string(a.state), Agent: a.cmd.Profile.Name,
+		AgentTitle: a.cmd.Profile.Title, AgentIcon: a.cmd.Profile.Icon,
 	}
 	if a.agentSessionID != "" {
 		id := a.agentSessionID
@@ -331,6 +341,10 @@ func (a *actor) overlay() *session.Overlay {
 	if a.side == SideACP && a.state == StateActive {
 		o.Attention = a.currentAttention()
 		o.Preview = a.preview.text
+		// The work detail is only meaningful while a turn is in flight.
+		if a.turn != nil {
+			info.Work = a.workLine
+		}
 		switch {
 		case o.Attention != nil:
 			o.Status = session.StatusWaiting
@@ -370,9 +384,11 @@ func (a *actor) clearAttention() {
 // emit stores events in the log, keeping the replaceable state they carry.
 func (a *actor) emit(events ...Event) {
 	for _, e := range events {
+		toolsOnly := false
 		switch e.Kind {
 		case EventPlan:
 			a.chat.Plan = e.Plan
+			a.work.setPlan(e.Plan)
 		case EventCommands:
 			a.chat.Commands = e.Commands
 		case EventConfig:
@@ -386,15 +402,24 @@ func (a *actor) emit(events ...Event) {
 				continue
 			}
 			a.title = *e.Info.Title
+			a.promptTitle = false
 		case EventMessage:
 			if e.Message.Role != RoleAgent || !a.preview.add(e.Message) {
 				continue
 			}
+		case EventTool:
+			// Tool calls only matter to the session card's work
+			// line; flush only when it changes.
+			a.work.tool(*e.Tool)
+			toolsOnly = true
 		default:
 			continue
 		}
-		a.dirty = true
+		if !toolsOnly {
+			a.dirty = true
+		}
 	}
+	a.refreshWork()
 	a.log.append(time.Now().UTC(), events...)
 }
 
@@ -417,6 +442,21 @@ func (a *actor) saveTitle(title string) {
 	}
 	a.recordTitle = title
 	a.record(false, func(r *Record) { r.Title = title })
+}
+
+// refreshWork recomputes the one-line work detail from the tracked tool
+// calls and plan. The detail is only kept while a turn is in flight, so a
+// finished or failed turn clears it.
+func (a *actor) refreshWork() {
+	line := ""
+	if a.turn != nil {
+		line = a.work.line()
+	}
+	if line == a.workLine {
+		return
+	}
+	a.workLine = line
+	a.dirty = true
 }
 
 // record changes the session's record; immediate writes it now.
@@ -545,6 +585,7 @@ func (a *actor) started(started chan<- error, res startResult) {
 			a.record(true, func(r *Record) { r.PID, r.Process = pid, process })
 		}
 	} else {
+		a.promptTitle = true
 		a.installLink(res.link, res.init, res.config, res.notes)
 		sid := a.agentSessionID
 		a.record(true, func(r *Record) {
@@ -648,6 +689,11 @@ func cancelledAnswer(kind string) Answer {
 func (a *actor) onUpdate(epoch int, n acp.SessionNotification) {
 	if epoch != a.epoch || a.stopped {
 		return
+	}
+	if a.turn != nil {
+		if _, ok := n.Update.(*acp.UserMessageChunk); ok {
+			return
+		}
 	}
 	events := a.tr.update(n.Update)
 	if hidden := a.cmd.Profile.HiddenCommands; len(hidden) > 0 {
@@ -828,6 +874,12 @@ func (a *actor) send(text string, attachments []Attachment) (PromptResult, error
 		return PromptResult{}, err
 	}
 	a.nextTurn++
+	if a.promptTitle {
+		a.promptTitle = false
+		if title := promptTitle(text); title != "" && a.title == "" {
+			a.title, a.titleSession = title, a.agentSessionID
+		}
+	}
 	n := strconv.Itoa(a.nextTurn)
 	result := PromptResult{TurnID: "t" + n, PromptID: "p" + n}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -862,6 +914,7 @@ func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 		return
 	}
 	a.turn = nil
+	a.work.endTurn()
 	t.cancel()
 	stop, text := stopReason(resp, err)
 	var rpc *acp.RPCError

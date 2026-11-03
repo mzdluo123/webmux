@@ -29,6 +29,15 @@
         "kind": "tailscale",
       },
     ],
+    "access": [
+      // 仅运行中实例经本机 API 返回，按服务端托管的远程访问入口列出已就绪链接；没有时省略
+      {
+        "provider": "tailscale", // 稳定标识：cloudflare | tailscale | 以后接入的入口
+        "label": "Tailscale Serve", // 展示名称，如 Cloudflare Tunnel、Cloudflare Quick Tunnel、Tailscale Funnel
+        "url": "https://node.tailnet.ts.net:8443",
+        "public": false, // true 表示公网可达，false 表示仅入口所在私有网络可达
+      },
+    ],
   },
   "tokenConfigured": true,
   "drift": [], // 配置已修改但未重启的字段：listen、token
@@ -60,10 +69,24 @@
     "publicOrigin": "https://term.example.com", // 仅当前有效 Named 设置具有主机名时出现，动态跟随设置
   },
   "installedVersion": "0.5.0", // 仅运行中实例经本机 API 返回：可执行文件路径上已安装的版本已知且不同于 version 时出现，重启后生效
+  "tailscale": {
+    // 仅运行中实例经本机 API 返回；未运行或旧版本实例省略。不执行 Tailscale 检测
+    "mode": "serve", // off | serve | funnel，当前有效设置
+    "port": 0, // 已配置端口，0 为自动
+    "provider": "auto", // 已配置 provider：auto | linux | windows
+    "state": "ready", // off | starting | ready | failed
+    "publicUrl": "https://node.tailnet.ts.net", // 仅 ready
+    "error": "", // failed 或被阻止的原因
+  },
 }
 ```
 
 链接不带路径、查询参数或 Token。回环监听的远程链接为空数组；通配监听列出启用中的非回环、非链路本地 IPv4 地址，Tailscale（100.64.0.0/10）在前，WSL NAT 模式下的虚拟网卡地址不列出；通配监听且未配置 Token 时 `warnings` 含暴露警告。
+
+`urls.access` 是远程访问入口的统一接口。
+
+- 服务端每个托管入口（Cloudflare Tunnel、Tailscale Serve/Funnel）在 `cmd/webmux/accesslinks.go` 实现 `accessProvider.AccessLinks()`，只返回已就绪、不带 Token 的链接，且不得阻塞。
+- 新的转发系统实现该方法并加入 `serve` 中传给 `startRuntime` 的列表后，`webmux status` 与 Windows 托盘“复制链接”无需修改即可列出它。
 
 `stop`：`{"v": 1, "result": "stopped" | "killed" | "not-running" | "refused" | "error", "message": "..."}`。
 
@@ -73,4 +96,9 @@ fields 为字段名到 `{value, source}` 的映射，stores 包含 `{id, path, s
 
 `config path`：`{"v", "path", "exists"}`。`config validate`：`{"v", "ok", "errors": [...]}`。
 
-`update check`：`{"v": 1, "current": "0.5.0", "latest": "0.6.0", "available": true, "installMethod": "deb"}`。`latest` 取自签名验证通过的发布清单，`available` 表示它高于 `current`，`installMethod` 为 `deb | rpm | other`。非发布构建或检查失败时以 `1` 退出，标准输出为空。
+`update check`：`{"v": 1, "current": "0.5.0", "latest": "0.6.0", "available": true, "installMethod": "deb", "channel": "stable"}`。
+
+- `latest` 取自签名验证通过的发布清单，`available` 表示它高于 `current`。
+- `installMethod` 为 `deb | rpm | other`。
+- `channel` 为当前更新通道 `stable | dev`；早于更新通道的版本不输出该字段，消费方应把缺失视为 `stable`。
+- 非发布构建或检查失败时以 `1` 退出，标准输出为空。

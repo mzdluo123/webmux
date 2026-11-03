@@ -44,7 +44,8 @@
   - 优先本机 API，必要时使用运行时记录与 TCP 健康检查；
   - 区分运行、未运行、无响应或错误并给出退出码；
   - `--json` 提供版本化结果，只有同时 `--reveal-token` 才揭示 token；
-  - 提示 listen/token 配置与运行实例的差异。
+  - 提示 listen/token 配置与运行实例的差异；
+  - 经本机 API 时在 `urls.access` 与文本 `Access:` 行列出服务端托管且已就绪的远程访问入口（Cloudflare Tunnel、Tailscale Serve/Funnel），不含 token。
 - **US-M07 停止指定实例**：作为部署者，我希望可靠地停止自己启动的服务，以便清理后台运行实例。
   验收要点：
   - `stop` 优先经本机控制面关闭，必要时验证运行记录后退回 SIGTERM 和超时 SIGKILL；
@@ -140,7 +141,7 @@
   - WSL 2 与发行版可用时选择匹配架构和托盘版本；
   - 校验发布时嵌入的服务摘要才安装；
   - 托盘下载缓存中已有同版本且摘要匹配的文件（包括 Windows 安装程序预置的服务端）时直接安装、不联网，摘要不符时丢弃并重新下载；
-  - 支持 GitHub 与镜像回退；
+  - 支持 GitHub 与镜像回退；开发版托盘从 `dev` Release 下载同一次构建的带版本号服务端，已被删除时报告“开发版 <版本> 的服务端已不在 dev Release，请先更新托盘”且不改动 WSL；
   - 缺失时从不在后台安装；
   - 发布构建且开启“自动更新”时，检查发现较旧或契约过旧（含缺少本机 API）即自动升级，失败在状态行显示“自动升级 WSL 中的 webmux 失败：…”且到下次检查时机才重试，过新或无法判断时不自动改写；
   - 普通本地托盘构建无摘要时不提供安装；
@@ -183,17 +184,18 @@
   - 独立从 Windows 回环地址检查可达性，不带 token 且不走系统代理；
   - 故障时提示 localhostForwarding/networkingMode；
   - 不把 WSL 内健康等同于 Windows 浏览器可达。
-- **US-O08 转发可信远程地址**：作为 Windows 使用者，我希望在 NAT 模式下通过选定的主机地址访问 WSL 服务，以便从手机继续操作。
+- **US-O08 允许局域网访问与转发可信远程地址**：作为 Windows 使用者，我希望通过托盘的“允许局域网访问”开关控制 WSL 服务是否向局域网与 Tailscale 开放，以便从手机或其他设备继续操作。
   验收要点：
-  - 转发默认关闭，Tailscale 地址优先展示；
-  - 仅服务健康、配置 token 且 Windows 可达时监听，条件失效暂停、恢复后继续；
-  - 转发 HTTP 与 WebSocket 并校验地址对应 Host/Origin；
-  - 保存地址选择并报告端口冲突，退出托盘即停止；
+  - 开关默认关闭（`127.0.0.1:7681`），切换时通过 `webmux config listen` 修改 WSL `config.toml` 的 `listen`（开启为 `0.0.0.0:<端口>`，关闭为 `127.0.0.1:<端口>`）并自动重启托盘托管的 WebMux；
+  - NAT 模式下开启时自动把当前所有可用 Windows 候选地址（Tailscale 地址优先展示）转发到本机链接，仅在服务健康、配置 token 且 Windows 可达时监听，条件失效暂停、恢复后继续；
+  - 转发 HTTP 与 WebSocket 并按请求 `Host` 校验同源 `Origin`，不限制请求 `Host`，支持任意 IP 或主机名（如 Tailscale MagicDNS）；
+  - 退出托盘即停止本机转发；
   - 托盘运行时不修改防火墙；安装版可在安装时添加专用网络与域网络的放行规则（US-O12），公用网络或未添加规则时由 Windows 原生提示处理。
-- **US-O09 打开和复制受保护入口**：作为 Windows 使用者，我希望从托盘打开页面、在统一的“复制链接”子菜单中复制本机/远程/经托盘转发/公网链接，或复制 token，以便把访问入口带到另一设备。
+- **US-O09 打开和复制受保护入口**：作为 Windows 使用者，我希望从托盘打开页面、在统一的“复制链接”子菜单中复制本机/远程/经托盘转发链接以及所有已就绪的远程访问入口（Cloudflare Tunnel、Tailscale Serve/Funnel 等）的域名链接，或复制 token，以便把访问入口带到另一设备。
   验收要点：
   - 操作时从 WSL 获取 token，不在 Windows 配置中保存；
   - 复制链接可带 `#token=`，不配置 token 时复制普通链接；
+  - 远程访问入口按服务端 `urls.access` 的顺序逐项显示“URL（入口名称 · 公网/仅私有网络）”，托盘不按入口类型写专门代码，新入口无需修改托盘；旧服务端缺少该字段时回退为就绪的 Cloudflare 公网链接；
   - 仅服务明确返回 `settingsAvailable: true` 时提供“公网访问设置”，打开本机 `/settings/tunnel` 并沿用 token 片段交接；
   - 敏感剪贴板排除历史和云同步，60 秒后仅在内容未被替换时清空；
   - 通知只显示无 token 地址。
@@ -206,9 +208,10 @@
 - **US-O11 判断 WSL 服务兼容与版本对应**：作为 Windows 使用者，我希望托盘告诉我它与 WSL 中的 webmux 是否兼容、版本是否对应、该更新哪一边，以便两边分别升级后不再遇到含糊的失败。
   验收要点：
   - 托盘启动后首次取得状态、切换发行版或修改 `webmux` 路径、安装完成后，以及处于缺失或不兼容状态时打开菜单，在后台以 `version --json` 检查（旧版本回退文本并视为契约 v1），单次不超过 30 秒，日志记录两侧版本与契约；
-  - 兼容只看控制契约，对应只比较版本号，`dev` 等非发布版本无法判断且不提示；
+  - 兼容只看控制契约，对应只比较版本号（`X.Y.Z` 与 `X.Y.Z-dev.N` 按 semver 预发布规则比较），`dev` 等无法解析的版本无法判断且不提示；
   - 结果只出现在菜单状态行，不发通知或弹窗：较旧一方、“比托盘新，请升级托盘”或“版本过旧，请升级”；
-  - WSL 较新且为发布版本时，安装版托盘提供“更新托盘”（开启自动更新时自动检查一次，见 US-O13），便携版提供“下载托盘 <版本>”打开 Release 页面；
+  - WSL 较新且为发布版本时，安装版托盘提供“更新托盘”（开启自动更新时自动检查一次，见 US-O13），便携版提供“下载托盘 <版本>”打开对应正式版或 `dev` Release 页面；
+  - WSL 为较新的开发版而托盘通道为正式版时，提示“WSL 中为开发版 <版本>，托盘使用正式版通道”，安装版托盘不自动检查，改为提供“切换到开发版通道并更新托盘”（见 US-O14）；
   - 契约不兼容仍可启动、停止、重启，以 Windows 侧可达性判断运行并显示“运行中（不兼容，功能受限）”，状态无法解析不判失败、不自动重启；
   - 缺少本机 API 时禁用启动；
   - 运行实例与已安装文件版本不同时提示重启后生效，只有托盘管理的实例可从菜单重启。
@@ -240,6 +243,13 @@
   - 下载或校验失败显示“更新失败：<原因>”，下次计划检查重试；
   - 不发系统通知；
   - 新托盘按 `lastVersion` 显示一次“已更新到 <版本>”，清除 `updateAttempt` 并清理下载目录。
+- **US-O14 托盘选择更新通道**：作为 Windows 使用者，我希望在托盘中选择跟随正式版或开发版，以便托盘与 WSL 服务端一起尝试新构建，并能随时退回正式版。
+  验收要点：
+  - `tray.json` 的 `updateChannel` 默认 `stable`，菜单“更新通道”下有“正式版”“开发版”单选项，切换后立即写入设置并检查一次；
+  - 开发版通道同时读取 `dev` 与正式版清单，采用较高的已验证版本，安装程序文件名带版本号；
+  - 切到开发版后 WSL 服务端按原有自动升级规则跟随到同一次开发版构建；
+  - 点击“切换到开发版通道并更新托盘”把 `updateChannel` 设为 `dev` 并立即检查，发现更高版本时视同点击“更新到 <版本>”立即安装；
+  - 切回正式版不降级：当前开发版高于最新正式版时不安装，状态说明正式版超过它后自动更新。
 
 隧道设置的增量兼容同样归入 US-O11：不得从版本号或存在 `tunnel` 字段推断设置页可用，只有 `settingsAvailable: true` 才显示入口；缺少该字段的旧服务仍保留原有隧道控制。可选 `enabled` 表示当前进程期望（包括 `--tunnel` 覆盖），不是持久磁盘值；缺失时才按 starting/ready 推断开关。
 
@@ -316,6 +326,16 @@ Windows 原生终端客户端复用 US-M01–US-M06：提供 run、attach、ls�
   - 恢复配置文件设置前确认，删除覆盖并关闭本实例入口，TOML 下次启动生效；
   - 设置文件损坏或被锁时禁止写入且托管保持关闭；
   - 会话内进程经本机 API 修改返回 403。
+- **US-P08 托盘一键开启 Tailscale**：作为 Windows 托盘使用者，我希望在托盘“公网访问”子菜单中一键开启或关闭 Tailscale Serve，以便不打开网页就能得到 tailnet HTTPS 入口。
+  验收要点：
+  - 托盘把 Cloudflare Tunnel 与 Tailscale 的开关、状态行和各自设置入口收进“公网访问”二级菜单；
+  - `/local/v1/status` 的 `tailscale` 提供不触发检测的模式、端口、provider、状态、地址与错误，旧服务端缺少该字段时不显示 Tailscale 项；
+  - 勾选跟随保存的模式，failed 仍勾选以便一键关闭；
+  - 开启前经本机 API 刷新检测，未安装或未登录、未运行、HTTPS 证书未就绪、WSL 非 mirrored 却只有 Windows 节点、设置不可保存或 Token 过弱时弹窗说明原因并可打开 `/settings/tailscale`；
+  - 只开启 Serve（Funnel 仍由网页确认），保留已配置端口；
+  - 配置为 `auto` 而只检测到 Windows 节点时先确认，同意后才以 `provider = "windows"` 保存；
+  - 保存失败或应用后转为 failed 同样引导到网页，ready 时通知地址；
+  - 会话内进程经本机 API 修改仍为 403。
 
 依据：
 
@@ -324,3 +344,4 @@ Windows 原生终端客户端复用 US-M01–US-M06：提供 run、attach、ls�
 - [启动与 Token](../../cmd/webmux/main.go)、[来源注册表](../../internal/api/public.go)
 - [状态与设置 API](../../internal/api/tailscale.go)、[API 用例](../../internal/api/tailscale_test.go)、[设置页](../../web/src/pages/TailscaleSettingsPage.svelte)
 - [设置表单](../../web/src/components/TailscaleConfiguration.svelte)、[设置卡片](../../web/src/components/TailscaleSettings.svelte)、[Tailscale 指南](../tailscale.md)。
+- 托盘一键开启：[托盘菜单视图](../../internal/tray/menuview.go)、[视图用例](../../internal/tray/menuview_test.go)、[托盘操作](../../internal/tray/winui/links.go)、[本机客户端](../../internal/localclient/client.go)、[本机状态](../../cmd/webmux/local.go)。

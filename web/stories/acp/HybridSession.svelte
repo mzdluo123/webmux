@@ -164,6 +164,8 @@
       dormant: false,
       state: "active",
       agent,
+      agentTitle: agentMetadata[agent].title,
+      agentIcon: agentMetadata[agent].icon,
       agentSessionId: chat.agentSessionId,
     },
   });
@@ -385,6 +387,8 @@
     desktop={desktopMedia.current}
     sizeLocked={false}
     setSizeLocked={() => {}}
+    keyboardSizeHold={true}
+    setKeyboardSizeHold={() => {}}
     bind:codeShown
     forceSoftKeys={false}
     {quickMenu}

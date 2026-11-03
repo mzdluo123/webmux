@@ -21,12 +21,12 @@
   - 本机套接字采用同用户身份校验，见 US-M08。
 - **US-A03 可信网络访问**：作为部署者，我希望控制监听地址和允许的浏览器来源，以便只从预期的本机或可信 VPN 入口操作终端。
   验收要点：
-  - 默认监听所有接口（0.0.0.0:7681），可改为 loopback；
+  - 默认仅监听本机回环（127.0.0.1:7681），局域网或可信 VPN 访问可改为 0.0.0.0:7681；
   - 未显式指定配置且默认文件缺失时，首次启动生成并保存 256 位随机 token，非隧道启动不打印该 token，可经本机状态显式查询；
   - 已有配置的 token 为空且监听地址不是 loopback 时，每次启动生成临时随机 token 并打印带 `#token=` 的本地链接；
   - 只有 loopback 且未启用隧道时允许无 token；
   - 隧道启动仍输出含 token 的链接，持久 token 不因重启失效；
-  - 校验 Host 与 Origin，可配置额外完整 Origin；
+  - 监听 loopback 时校验请求 Host（防止无 token 下的 DNS 重绑定），非 loopback 监听（强制要求 token）接受任意合法 Host（如局域网主机名或 Tailscale MagicDNS），并始终校验 Origin（同源、allowed_origins 或受控公网来源）；
   - 认证和来源检查同时覆盖终端与文件、仓库、代码接口。
 - **US-A04 查看服务与能力**：作为部署者，我希望知道服务是否在线、会话数量及 Git/仓库能力是否可用，以便定位连接或环境问题。
   验收要点：
@@ -57,15 +57,17 @@
 - **US-B01 启动 Shell 或 agent**：作为使用者，我希望通过自定义启动配置或显式命令运行 Shell、Open Code、Claude Code、Codex、omp 等程序，以便快速开始终端工作或遥控 agent。
   验收要点：
   - 启动命令通过“预先输入 / 手动填写”Tab 区分来源，新安装预置常见 agent 的启动配置，没有不可修改的内置预设；
-  - Claude Code、Codex CLI、Gemini CLI、Open Code 与 omp 的预置配置默认自动批准工具调用：
+  - Claude Code、Codex CLI、Antigravity CLI、Open Code、Qoder、QoderCN 与 omp 的预置配置默认自动批准工具调用：
     - Claude Code `--dangerously-skip-permissions`；
     - Codex CLI `--dangerously-bypass-approvals-and-sandbox`；
-    - Gemini CLI `--yolo`；
+    - Antigravity CLI `--dangerously-skip-permissions`；
     - Open Code `--auto`；
+    - Qoder `--dangerously-skip-permissions`；
+    - QoderCN `--dangerously-skip-permissions`；
     - omp `--auto-approve`；
   - Cursor、Copilot、Qwen、Kimi、CodeBuddy 使用各自默认授权行为；
-  - 九款 CLI 的启动命令见 [接入说明](../cli-agents.md)；
-  - Claude Code、Codex CLI、Open Code 与 omp 预置配置默认为混合模式（US-Q01）；
+  - 十一款 CLI 的启动命令见 [接入说明](../cli-agents.md)；
+  - Claude Code、Codex CLI、Antigravity CLI、Open Code、omp、Qoder 与 QoderCN 预置配置默认为混合模式（US-Q01）；
   - 预先输入以可键盘操作的下拉框选择，选中框和每个选项同时显示图标、名称与命令，长命令保留完整提示；
   - 保存的配置按 ID 启动，临时命令按完整 argv 启动，均创建真实 PTY；
   - Open Code 可通过“加载 shell 启动文件”保存为 Bash（`~/.bashrc`）或 Zsh（`~/.zshrc`）包装，新安装按服务端 `$SHELL` 预选，其他 shell 回退为不包装或手动选择，不自动安装程序；
@@ -121,10 +123,10 @@
   - 新建时按服务端只读 `defaultShell` 预选，空值回退 Bash；
   - 包装参数计入 argv 上限；
   - 可为每条配置选择跟随全局默认或单独设置输出预览行数与跳过末尾行数；
-  - 新安装首次启动时自动写入 Shell、九款 CLI agent 与 omp 共 11 条带图标的启动配置（完整列表见 [接入说明](../cli-agents.md)），其中 omp 附带 `PI_FORCE_IMAGE_PROTOCOL=kitty` 以启用 US-D12 图片显示；
-    - Shell 为通用终端，agent 使用本地打包的 LobeHub 图标，omp 使用 Pi；
+  - 新安装首次启动时自动写入 Shell、十一款 CLI agent 与 omp 共 13 条带图标的启动配置（完整列表见 [接入说明](../cli-agents.md)），其中 omp 附带 `PI_FORCE_IMAGE_PROTOCOL=kitty` 以启用 US-D12 图片显示；
+    - Shell 为通用终端，agent 使用本地打包的 LobeHub 图标（Antigravity CLI 为 `antigravity`，同时保留旧 `geminicli` 兼容渲染），omp 使用 Pi；
     - agent 预设按服务端 `$SHELL` 经“加载 shell 启动文件”包裹（Bash 或 Zsh，未设置时 Bash，其他 shell 直接执行）；
-    - 各命令的授权参数见接入说明，Claude Code、Codex CLI、Open Code 与 omp 为混合模式，可编辑或删除；
+    - 各命令的授权参数见接入说明，Claude Code、Codex CLI、Antigravity CLI、Open Code、omp、Qoder 与 QoderCN 为混合模式，可编辑或删除；
   - 文件已存在时启动服务（包括用户编辑或删空后）不再自动补写或覆盖，但可在设置页「新建启动配置」旁的「添加系统预设」菜单中补回单个或全部缺失的系统预设（已有同名配置时菜单项置灰并标记“已存在”，不覆盖用户已修改的配置）；
   - 配置跨重启与设备共享，环境变量值默认遮挡；
   - 按配置 ID 启动，修改或删除配置不影响运行中会话的命令与环境，会话信息保留配置 ID 供首页解析预览；
@@ -148,7 +150,7 @@
   - 桌面主屏幕应用中的导航避开实际高度变化的吸顶页头，列表高度随之调整；
   - 窄屏选中后收起并恢复按钮焦点；
   - 首次多仓库进入优先选有会话者，明确选择在当前浏览器记忆，已移除仓库回退全部，读取失败不覆盖偏好；
-  - 从终端返回首页先渲染上次成功快照并后台刷新 Git，慢读取不显示启动超时错误；
+  - 从终端返回首页立即渲染上次的会话列表、服务端设置和仓库分组，慢速链接上不再显示启动骨架屏，并在后台刷新；刷新结果覆盖缓存，读取失败不清除已显示内容，慢速 Git 读取不显示启动超时错误；缓存只在当前标签页内存中，整页刷新或令牌失效后按冷启动处理；
   - 仓库可折叠；
   - 直接会话按启动目录分组，失效工作树中的会话仍可访问；
   - 仓库路径与工作树比例收在仓库菜单详情，工作树路径及总数、运行/等待/退出计数收在详情按钮中；
@@ -163,7 +165,7 @@
   - 没有客户端的会话显示为后台会话；
   - 高频输出保留未变化会话的对象与创建顺序，不反复排序全表；
   - 最近活跃时间每 30 秒及回到前台时校准；
-  - 会话卡片按创建时使用的启动配置显示其预览设置，配置缺失或首页加载时存储不可用则回退全局设置，打开新建会话重新读取期间或失败时保留已加载的预览。混合会话卡片标出所在端，聊天端以最新 agent 消息代替终端预览；
+  - 会话卡片按创建时使用的启动配置显示其预览设置，配置缺失或首页加载时存储不可用则回退全局设置，打开新建会话重新读取期间或失败时保留已加载的预览。混合会话卡片标出所在端，聊天端以最新 agent 消息代替终端预览，回合进行中卡片还显示一行当前工作（当前工具调用或计划步骤，一行截断）；
   - 已关闭或已中断的混合会话不在运行中分组，只出现在“可恢复”分组（US-Q09、US-Q12）。
 - **US-C03 稳定浏览列表**：作为使用者，我希望后台输出不会移动正在点击的会话卡片，以便可靠地选择目标。
   验收要点：
