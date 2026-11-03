@@ -179,15 +179,3 @@ func normalizeAuthority(authority string) (string, bool) {
 	}
 	return net.JoinHostPort(host, port), true
 }
-
-func authorityHostname(authority string) string {
-	u, err := url.Parse("http://" + authority)
-	if err != nil || u.User != nil || u.Host != authority || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
-		return ""
-	}
-	host := strings.ToLower(u.Hostname())
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.String()
-	}
-	return host
-}

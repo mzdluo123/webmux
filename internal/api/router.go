@@ -193,8 +193,13 @@ func baseHeaders(w http.ResponseWriter) func() {
 	}
 }
 func (s *Server) middleware(next http.Handler) http.Handler {
+	hostAllowed := hostCheck(s.Config)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer baseHeaders(w)()
+		if !hostAllowed(r.Host) && !s.Public.hostAllowed(r.Host) {
+			failure(w, http.StatusForbidden, errors.New("host not allowed"))
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
 			if !s.authorized(r) {
 				failure(w, 401, errors.New("authentication required"))

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/rainchan/webmux/deploy"
+	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 )
 
@@ -175,6 +176,25 @@ func TestConfigListen(t *testing.T) {
 	updatedEmpty, _ := os.ReadFile(emptyTok)
 	if m := tokenValue.FindSubmatch(updatedEmpty); m == nil || len(m[1]) != 43 {
 		t.Fatalf("expected token to be populated:\n%s", updatedEmpty)
+	}
+
+	// Missing root token with `[tunnel] token = ""` must not overwrite tunnel.token.
+	tunnelCfg := filepath.Join(dir, "tunnel-empty.toml")
+	if err := os.WriteFile(tunnelCfg, []byte("listen = \"127.0.0.1:7681\"\n\n[tunnel]\nenabled = true\ntoken = \"\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := runConfig(t, "listen", "0.0.0.0:7681", "--config", tunnelCfg); code != 0 {
+		t.Fatalf("tunnel-empty listen update %d %q", code, stderr)
+	}
+	loaded, err := config.Load(tunnelCfg, true)
+	if err != nil {
+		t.Fatalf("tunnel-empty load: %v", err)
+	}
+	if err := loaded.Validate(); err != nil {
+		t.Fatalf("tunnel-empty config invalid after listen update: %v", err)
+	}
+	if len(loaded.Token) != 43 || loaded.Tunnel.Token != "" {
+		t.Fatalf("tunnel-empty tokens: root=%q tunnel=%q", loaded.Token, loaded.Tunnel.Token)
 	}
 
 	// Invalid listen address is rejected with ExitUsage without touching the file.

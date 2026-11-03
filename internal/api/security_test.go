@@ -154,8 +154,6 @@ func TestPublicOriginBoundaries(t *testing.T) {
 		{"other public origin", host, "https://evil.trycloudflare.com", http.StatusForbidden},
 		{"unrelated host", "evil.example", "https://evil.example", http.StatusForbidden},
 		{"direct same origin", "127.0.0.1:7681", "http://127.0.0.1:7681", http.StatusBadRequest},
-		{"magicdns same origin", "devbox.tailnet.ts.net:7681", "http://devbox.tailnet.ts.net:7681", http.StatusBadRequest},
-		{"magicdns cross origin", "devbox.tailnet.ts.net:7681", "http://evil.example:7681", http.StatusForbidden},
 	} {
 		if got := request(row.host, row.origin); got != row.want {
 			t.Errorf("%s: status %d, want %d", row.name, got, row.want)
@@ -169,6 +167,22 @@ func TestPublicOriginBoundaries(t *testing.T) {
 		if public.Set("cloudflare", invalid) == nil {
 			t.Errorf("accepted public origin %q", invalid)
 		}
+	}
+
+	wildcardHandler := New(testDeps(t, Deps{Config: config.Config{Listen: "0.0.0.0:7681", Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
+	wildcardReq := func(host, origin string) int {
+		r := httptest.NewRequest(http.MethodPost, "http://"+host+"/api/fs/mkdir", strings.NewReader(`{}`))
+		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Origin", origin)
+		w := httptest.NewRecorder()
+		wildcardHandler.ServeHTTP(w, r)
+		return w.Code
+	}
+	if got := wildcardReq("devbox.tailnet.ts.net:7681", "http://devbox.tailnet.ts.net:7681"); got != http.StatusBadRequest {
+		t.Fatalf("wildcard magicdns same origin: status %d, want 400", got)
+	}
+	if got := wildcardReq("devbox.tailnet.ts.net:7681", "http://evil.example:7681"); got != http.StatusForbidden {
+		t.Fatalf("wildcard magicdns cross origin: status %d, want 403", got)
 	}
 }
 

@@ -289,6 +289,7 @@ func TestPlanForward(t *testing.T) {
 		{Name: "Wi-Fi", Up: true, Addrs: []net.IP{net.ParseIP("192.168.1.20"), net.ParseIP("fe80::1"), net.ParseIP("169.254.1.1")}},
 		{Name: "vEthernet (WSL (Hyper-V firewall))", Up: true, Addrs: []net.IP{net.ParseIP("172.29.0.1")}},
 		{Name: "Tailscale", Up: true, Addrs: []net.IP{net.ParseIP("100.64.0.9")}},
+		{Name: "WAN", Up: true, Addrs: []net.IP{net.ParseIP("203.0.113.5")}},
 		{Name: "Ethernet 2", Up: false, Addrs: []net.IP{net.ParseIP("10.0.0.5")}},
 	}
 	candidates := []Candidate{{"100.64.0.9", "Tailscale", "tailscale"}, {"192.168.1.20", "Wi-Fi", "lan"}}

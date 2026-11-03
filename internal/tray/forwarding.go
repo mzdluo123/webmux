@@ -24,8 +24,9 @@ type Candidate struct {
 	Kind string
 }
 
-// WindowsCandidates lists enabled IPv4 addresses, excluding loopback,
-// link-local and the WSL virtual switch, with Tailscale first.
+// WindowsCandidates lists enabled private LAN (RFC 1918) and Tailscale IPv4
+// addresses, excluding loopback, link-local, public addresses, and the WSL
+// virtual switch, with Tailscale first.
 func WindowsCandidates(list []WinInterface) []Candidate {
 	var out []Candidate
 	for _, iface := range list {
@@ -37,7 +38,11 @@ func WindowsCandidates(list []WinInterface) []Candidate {
 			if !ok {
 				continue
 			}
-			out = append(out, Candidate{Address: v4.String(), Interface: iface.Name, Kind: contract.AddressKind(v4)})
+			kind := contract.AddressKind(v4)
+			if !v4.IsPrivate() && kind != "tailscale" {
+				continue
+			}
+			out = append(out, Candidate{Address: v4.String(), Interface: iface.Name, Kind: kind})
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Kind == "tailscale" && out[j].Kind != "tailscale" })

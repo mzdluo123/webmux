@@ -35,6 +35,7 @@ WebMux 以启动服务的系统用户身份执行任意命令，**等同于把�
 内置的防护措施：
 
 - 所有 API 与 WebSocket 都需要认证（启用 token 时），token 以常量时间比较。
+- 监听 loopback 时校验请求 `Host`（仅允许 loopback、`localhost`、`allowed_origins` 与已登记公网来源），防止无 token 模式下发生 DNS 重绑定；监听非回环地址时强制要求 token 并接受任意合法 `Host`（如局域网主机名或 Tailscale MagicDNS）。
 - 带 Origin 的请求必须同源或位于 `allowed_origins` 中，防止其他网站通过浏览器发起连接。
 - 终端输入输出不会写入日志；配置接口不返回 token。
 - 响应头包含 `X-Content-Type-Options: nosniff` 与 `Referrer-Policy: no-referrer`。

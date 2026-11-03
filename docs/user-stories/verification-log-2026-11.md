@@ -177,7 +177,7 @@
 - 已运行（US-K17）：同一测试 Release 上 deb 0.10.2 切到 dev 后 `update apply` 安装 `webmux_0.10.3-dev.4-1_amd64.deb`（`dpkg-query` 报告 `0.10.3~dev.4-1`）；切回 stable 不降级并提示；发布 0.10.3 后升级到 `0.10.3-1`。
 - 待验证：未经 systemd 定时器运行；`dev-release.yml` 只经 actionlint 与模拟验证，未在 GitHub 上运行（US-L14）；Windows 托盘未在真实 Windows 上验证（US-O01、US-O11、US-O14）。
 
-本次局部核对（2026-11-03）：默认监听地址改回 `127.0.0.1:7681`、托盘新增“允许局域网访问”开关并移除服务端与转发器的请求 `Host` 白名单，对应更新 US-A03、US-K02、US-O08，不新增故事，覆盖索引同步。
+本次局部核对（2026-11-03）：默认监听地址改回 `127.0.0.1:7681`、托盘新增“允许局域网访问”开关，非回环监听与托盘转发器接受任意合法请求 `Host`（保留回环监听的 `Host` 白名单防 DNS 重绑定），对应更新 US-A03、US-K02、US-O08，不新增故事，覆盖索引同步。
 
 - 依据：
   - `internal/config`、`internal/client`、`internal/api`（含任意主机名/MagicDNS 同源放行与跨源拦截）的 Go race 测试；

@@ -26,7 +26,7 @@
   - 已有配置的 token 为空且监听地址不是 loopback 时，每次启动生成临时随机 token 并打印带 `#token=` 的本地链接；
   - 只有 loopback 且未启用隧道时允许无 token；
   - 隧道启动仍输出含 token 的链接，持久 token 不因重启失效；
-  - 校验 Origin（同源、allowed_origins 或受控公网来源），不限制请求 Host；
+  - 监听 loopback 时校验请求 Host（防止无 token 下的 DNS 重绑定），非 loopback 监听（强制要求 token）接受任意合法 Host（如局域网主机名或 Tailscale MagicDNS），并始终校验 Origin（同源、allowed_origins 或受控公网来源）；
   - 认证和来源检查同时覆盖终端与文件、仓库、代码接口。
 - **US-A04 查看服务与能力**：作为部署者，我希望知道服务是否在线、会话数量及 Git/仓库能力是否可用，以便定位连接或环境问题。
   验收要点：
@@ -49,7 +49,7 @@
 
 - [统一品牌标识](../../web/src/components/Brand.svelte)、[品牌图标](../../web/public/icon.svg)、[浏览器图标入口](../../web/index.html)
 - [应用入口](../../web/src/App.svelte)、[Token 说明](../../web/src/components/TokenHelp.svelte)、[配置命令](../../cmd/webmux/configcmd.go)
-- [启动与 token 生成](../../cmd/webmux/main.go)、[API 路由与安全检查](../../internal/api/router.go)、[公网来源校验](../../internal/api/public.go)
+- [启动与 token 生成](../../cmd/webmux/main.go)、[API 路由与安全检查](../../internal/api/router.go)、[Host 校验](../../internal/api/host.go)
 - [安全说明](../../SECURITY.md)。
 
 ## B. 创建会话与选择启动位置
