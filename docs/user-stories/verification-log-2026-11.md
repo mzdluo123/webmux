@@ -153,7 +153,8 @@
 - 依据：`internal/tray` 的规则名称、netsh 参数与 `Firewall.Apply` 单元测试，Windows amd64/arm64 交叉 vet，makensis 3.11 `-WX` 构建。
 - 真机（Windows 11 build 26300，非管理员会话）：安装程序冒烟脚本全部通过，静默安装不加规则；交互安装经 UAC 确认后添加入站 TCP 允许规则（域、专用），再次运行不弹窗，静默覆盖后规则保留；交互卸载经 UAC 确认后删除规则。
 - 对账（记录托盘路径之后的版本）：首次交互安装经 UAC 添加规则并记录路径；再次安装选项默认勾选、不弹窗；取消勾选后经 UAC 删除规则并清除记录；之后静默卸载无 UAC。
-- 限制：以管理员运行的冒烟检查待 CI 结果；未重新核验其余故事能力。
+- CI：Windows installer smoke 以管理员运行，`firewall allow` 添加的规则为入站、允许、域与专用网络，重复运行幂等，`remove` 删除规则。
+- 限制：未重新核验其余故事能力。
 
 本次局部核对（2026-11-03）：合并 main 后发现 Fedora 45（rpm 6.1，`%_pkgverify_level` 为 `all`）拒绝未签名的 rpm，自动更新改用 `rpm -U --nosignature`，对应 US-K14，故事内容不变。
 
