@@ -30,7 +30,7 @@
 | I    | 代码工作区、Diff、引用与文件操作       | US-I01–US-I19 |
 | J    | 仓库登记与 worktree 管理               | US-J01–US-J11 |
 | K    | 配置、运行与服务管理                   | US-K01–US-K16 |
-| L    | 开发、验证与发布支持                   | US-L01–US-L12 |
+| L    | 开发、验证与发布支持                   | US-L01–US-L13 |
 | M    | 原生终端、CLI 与本机控制面             | US-M01–US-M08 |
 | N    | Cloudflare 公网隧道                    | US-N01–US-N08 |
 | O    | Windows/WSL 托盘管理                   | US-O01–US-O13 |
@@ -48,6 +48,8 @@
 | [代码工作区与工作树](user-stories/code-and-worktrees.md)         | I–J                |
 | [配置、运行与贡献者工具](user-stories/operations-and-tooling.md) | K–L                |
 | [原生客户端、隧道与托盘](user-stories/clients-network-tray.md)   | M–P                |
+| [终端分屏用户故事](user-stories/terminal-splits.md)              | D13–D14            |
+| [网络压缩用户故事](user-stories/terminal-network.md)             | H10–H11            |
 | [混合会话](user-stories/hybrid-sessions.md)                      | Q                  |
 | [功能覆盖核对与后续维护](user-stories/coverage.md)               | 覆盖索引与维护约定 |
 

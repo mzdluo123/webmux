@@ -5,12 +5,18 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. Read it when you nee
 ## Key Directories
 
 - `cmd/webmux/`: CLI flags, dependency wiring, and server shutdown.
+- `cmd/webmux-windows/`, `cmd/webmux-tray/`: Windows console client and Windows tray (WSL). `cmd/baseline/`: product-contract measurement tool. `cmd/internal/assemble/`: shared configuration-to-service-options wiring for the `cmd/` roots.
 - `internal/session/`: session lifecycle and concurrency.
   - Process tables and cleanup are platform-specific: `_linux.go` reads `/proc`, `_darwin.go` uses sysctl/`proc_pidinfo`, shared logic is in `_unix.go`.
+- `internal/hybrid/`: hybrid (TUI ↔ ACP chat) sessions, one actor per session, records in `hybrid-sessions.json`.
+  - `internal/acp/`: stdlib-only ACP v1 client. `internal/agentprofile/` (adapters `opencode`, `omp`, `codex`, `claudecode`): agent-neutral profiles and registry.
 - `internal/api/`, `internal/hub/`, `internal/wire/`: controllers.
   - HTTP/security boundaries, status mapping (`api/errors.go`), streaming transport, and service↔wire conversion.
   - No direct filesystem, process, or service package-level calls.
 - `internal/contract/`, `internal/config/`: stdlib-only wire types and frame constants; configuration parsing and validation.
+- Out-of-server clients: `internal/client/`, `internal/localclient/`, `internal/attach/`, `internal/sessioncmd/`, `internal/tray/`, `internal/wslclient/`. They reach the server only over the wire protocol.
+  - Local API client and instance location: `client`, `localclient`. Native terminal attach: `attach`. `run`/`attach`/`ls`/`open`: `sessioncmd`.
+  - Windows tray core and the WSL bridge dialer: `tray`, `wslclient`.
 - `internal/archtest/`: test-only layer manifest and architecture rules.
   - Classify every new `internal/` package in `layers_test.go`.
   - The fixture under `testdata/fixture` proves each rule.
@@ -35,6 +41,8 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. Read it when you nee
 - Frontend architecture guard: `web/eslint.config.mjs`, `web/.dependency-cruiser.cjs`, `web/.jscpd.json`, `web/knip.json`, `web/test/architecture.test.ts`.
   - Baselines: `web/eslint-suppressions.json`, `web/.dependency-cruiser-known-violations.json`, `web/.jscpd-baseline.json`.
 - `README.md`, `docs/` (usage, deployment, architecture, protocol), `CONTRIBUTING.md`, `SECURITY.md`: user and contributor documentation at overview level. Confirm implementation details against source.
+  - Start from [docs/README.md](../README.md), the documentation hub; `docs/overview.md` holds the full feature introduction and `docs/faq.md` the FAQ and help channels that the root `README.md` summarizes.
+  - `docs/specs.md` indexes every `openspec/specs/<capability>/spec.md`; add new capabilities there.
   - Maintain `docs/user-stories.md` (index) and `docs/user-stories/` (group files) under [user-stories-maintenance.md](user-stories-maintenance.md).
   - Follow [doc-governance.md](../doc-governance.md) for file size and tree layout, and update other documentation when relevant.
 - `deploy/config.example.toml`, `deploy/webmux.service`, `deploy/com.webmux.plist`: TOML, systemd, and launchd examples.

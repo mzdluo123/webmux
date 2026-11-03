@@ -66,7 +66,7 @@
 - **US-K10 定位设置分区**：作为使用者，我希望通过分区导航快速找到设置项，以便在桌面和手机上减少长页面翻找。
   验收要点：
   - 桌面左侧显示固定分区导航，手机顶部显示可横向滚动的吸顶导航；
-  - 提供外观与阅读、快捷指令、启动配置、草稿与暂存、公网访问、Tailscale、安装应用、通知推送、输出预览九个入口；
+  - 提供外观与阅读、快捷指令、启动配置、草稿与暂存、网络、公网访问、Tailscale、安装应用、通知推送、输出预览十个入口；
   - 点击或键盘激活滚动到对应分区并转移焦点，滚动时高亮当前分区；
   - Home Screen App 中吸顶导航按实际顶栏高度定位，不遮挡顶栏；
   - 支持地址片段直达和浏览器前进后退；
@@ -153,7 +153,7 @@
   - `make test` 一次构建前端与 E2E 程序供 E2E/性能复用，本地默认最多 2 个 E2E worker（`WEBMUX_E2E_WORKERS` 可覆盖，CI 仍为 Ubuntu 2 个、macOS 4 个），Go 默认 `-parallel=4`（`GO_TEST_PARALLEL` 可调）；
   - Go 采用 Uber Style Guide 与登记的仓库例外，`make check` 和 CI 在前端构建后执行 `go vet ./...`（CI 另以 `GOOS=darwin` 检查 macOS 构建）及固定 v2.15.0 的 golangci-lint（errcheck/govet/ineffassign/staticcheck/unused），生产零告警，测试仅冻结 errcheck，新增代码零新增告警，豁免只能收紧；
   - CI 先由 `Classify changes` job 按路径裁剪：仅文档变更只跑格式、文档、持久化与 agent/web 静态守卫，仅 Go 变更跳过前端套件，仅前端变更跳过两个 Go race job 与 Windows 交叉编译，未知路径和工具/依赖变更全量运行；
-  - 独立的 `E2E runtime` job 按冻结锁文件统一安装并打包 Playwright 运行依赖，连同按 `omp`、`opencode` 命名的假 ACP agent 一次构建供 Ubuntu 4 个和 macOS 2 个 E2E 分片及两个 Go race job 共用；
+  - 独立的 `E2E runtime` job 按冻结锁文件统一安装并打包 Playwright 运行依赖，连同以 `omp`、`opencode`、`codex`、`codex-acp`、`claude`、`claude-agent-acp` 命名的假 ACP agent 一次构建供 Ubuntu 4 个和 macOS 2 个 E2E 分片及两个 Go race job 共用；
   - 分片仅准备 Node 与浏览器，不重复安装 pnpm、前端依赖、Go 或构建应用；
   - 显式预构建路径无效或缺少假 agent 时失败，本地默认仍从源码构建；
   - macOS 原生 Go race（不含静态守卫 `archtest`/`docguard` 与 Windows 托盘/WSL 包）与 2 个仅桌面项目的 E2E 分片独立运行，移动端仿真只在 Ubuntu 运行；
@@ -166,7 +166,8 @@
   验收要点：
   - Storybook 提供设计系统、工作区与溢出场景；
   - 浏览器检查布局与可达性；
-  - 截图脚本运行真实后端；
+  - 截图脚本运行真实后端；omp 对话默认从仓库内录制的会话回放，不调用模型，`WEBMUX_SCREENSHOTS_RECORD=1` 时真实录制并导出新会话；
+  - `screenshots:hero` 由已生成的桌面与手机截图合成 README 主图，缺图时失败；
   - 可见 UI 的 PR 按项目要求附最终实现截图。
 - **US-L04 基线评测与多平台发布**：作为维护者，我希望可复现地测量核心能力并构建各平台产物，以便比较回归和交付版本。
   验收要点：
@@ -179,7 +180,7 @@
   验收要点：
   - `go test ./...` 包含 `internal/archtest`：未归类或失效的包、越界依赖、Controller 直接 I/O 或使用未登记的 Service 包级函数、Service 携带 HTTP 状态、编解码非 `contract` 类型等违规一次列出位置、R0–R10 编号及修复提示；
   - 同一包还检查 `internal/acp`、`internal/hybrid`、`internal/agentprofile` 核心与 `web/src`（启动配置图标目录除外）的生产代码不出现任何已注册 agent 的名称或可执行文件名，agent 差异只能放在 `internal/agentprofile/<agent>` 适配器中。纯函数例外需理由且仍被使用；
-  - 允许业务整数与非错误对象的领域 Status。R9 检查包级初始化及编码器函数值/方法值，登记函数不能借别名绕过。固定样例覆盖违规与合规写法。95 份线上快照分六组独立运行，仅归一化明确动态字段，业务正文、确定性 Git OID、摘要和固定输入保留；
+  - 允许业务整数与非错误对象的领域 Status。R9 检查包级初始化及编码器函数值/方法值，登记函数不能借别名绕过。固定样例覆盖违规与合规写法。141 份线上快照分九组独立运行（另有不可用服务场景单独运行），仅归一化明确动态字段，业务正文、确定性 Git OID、摘要和固定输入保留；
   - 差异可见，有意变更用 `-update` 重新录制。
 - **US-L06 前端架构守卫**：作为贡献者或 coding agent，我希望在提交前得到复用组件、设计令牌和分层方面的具体报错，以便新增 UI 复用设计系统，而不是重造组件或复制样式。
   验收要点：
@@ -227,7 +228,17 @@
   - `TestAgentsSizeViolationMessage` 验证恰好超限一字节即失败并包含上述指令；
   - `TestAgentsRulePagesExist` 保证索引页链接的下沉页面都存在；
   - 下沉页面见 [Agent 规则](../agent-rules.md)。
-- **US-L12 发布签名**：作为维护者，我希望每次发布自动签名校验和文件并在发布前验证，以便自动更新与用户手动校验都有独立于镜像和下载来源的信任根。
+- **US-L12 文档导航与首页**：作为初次访问者、使用者或 coding agent，我希望从 `README.md` 或 `AGENTS.md` 出发总能沿链接找到任何一份文档，首页保持简短并直接给出项目介绍、截图、快速开始与获取帮助的入口，以便快速了解项目并在遇到问题时找到答案。
+  验收要点：
+  - `make docs-check` 运行 `TestDocsNavigation`：从 `README.md`、`AGENTS.md` 沿相对链接遍历，链接到目录时视为到达其 `README.md`；
+  - `docs/**/*.md`、`baseline/*.md`、`openspec/specs/*/spec.md` 与根目录 `*.md` 必须可达；在途 `openspec/changes/` 与归档不要求可达；
+  - 上述文件与在途变更中的相对链接必须指向存在的文件，指向 Markdown 的锚点必须匹配 GitHub 生成的标题锚点或 HTML `id`/`name`；围栏代码块与行内代码中的示例不受检查；
+  - `README.md` 不超过 170 行、14 KiB，单行不超过 300 列；须含“快速开始”“文档”“获取帮助”二级标题，链接 `docs/overview.md`、`docs/README.md`、`docs/faq.md`、`SECURITY.md` 与 `CONTRIBUTING.md`；
+  - `README.md` 至少引用 4 张 `docs/images/` 下的界面截图（品牌图除外）、至多 20 张图片，每张 `<img>` 与 Markdown 图片都有替代文本；
+  - 失败信息写明失效链接的行号与原因、不可达文档应登记的索引位置，以及 README 超限时把详细内容迁往 `docs/` 的去向；
+  - `TestNavigationRules` 与 `TestSlug` 用内存目录树固定可达性、失效链接、锚点、代码豁免与 README 各项规则；
+  - 文档入口见 [文档中心](../README.md)，项目介绍见 [项目介绍](../overview.md)，帮助见 [常见问题与获取帮助](../faq.md)，规格索引见 [OpenSpec 规格索引](../specs.md)。
+- **US-L13 发布签名**：作为维护者，我希望每次发布自动签名校验和文件并在发布前验证，以便自动更新与用户手动校验都有独立于镜像和下载来源的信任根。
   验收要点：
   - `make release` 在构建前检查 `WEBMUX_RELEASE_SIGNING_KEY`，缺失即失败，依次执行 `release-build` 与 `release-sign`；
   - 所有发布二进制注入发布构建标记，本地构建不带；
@@ -249,6 +260,7 @@
 - [线上快照测试](../../internal/api/wire_snapshot_test.go)、[归一化回归测试](../../internal/api/wire_normalizer_test.go)、[分层说明](../architecture.md#分层与架构测试)
 - [前端架构守卫](../frontend-architecture.md)
 - [AGENTS.md 体积测试](../../internal/archtest/agents_size_test.go)、[Agent 规则索引](../agent-rules.md)
+- [文档导航守卫](../../internal/docguard/links_test.go)、[文档中心](../README.md)、[首页](../../README.md)
 - [ESLint 架构规则](../../web/eslint.config.mjs)、[前端分层规则](../../web/.dependency-cruiser.cjs)、[前端架构测试](../../web/test/architecture.test.ts)、[文档治理](../doc-governance.md)、[文档治理规则与样例](../../internal/docguard/doc_test.go)。
 
 质量基线补充依据：

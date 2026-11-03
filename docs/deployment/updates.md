@@ -50,7 +50,8 @@ deb / rpm 第一次装上带定时器的版本时启用 `webmux-update.timer`：
 
 启用后会留下 `/var/lib/webmux/auto-update-enabled`，之后的升级不再改动定时器；卸载软件包时一并删除。定时器每天触发一次，带最长 6 小时随机延迟，关机错过的会在下次开机后补上。
 
-- 服务 `webmux-update.service` 以 root 运行 `webmux update apply`：确认 `/usr/bin/webmux` 属于 `webmux` 软件包，下载并校验同格式、同架构的安装包，再用 `dpkg -i` 或 `rpm -U` 安装。它不能访问 `/home` 与 `/root`。
+- 服务 `webmux-update.service` 以 root 运行 `webmux update apply`：确认 `/usr/bin/webmux` 属于 `webmux` 软件包，下载并校验同格式、同架构的安装包，再用 `dpkg -i` 或 `rpm -U --nosignature` 安装。它不能访问 `/home` 与 `/root`。
+  - 发布的 rpm 不带 rpm 签名，完整性由签名的 `SHA256SUMS` 在安装前保证；Fedora 45 的 rpm 6.1 默认拒绝未签名的包，所以更新程序跳过 rpm 的签名检查，摘要检查照常进行。
 - 检查与下载最长 30 分钟；`dpkg` / `rpm` 一旦开始就一定运行到结束。停止服务、关机或 Ctrl-C 只会让 `webmux` 等待包管理器完成后退出（服务设置 `KillMode=process`），不会把软件包留在半安装状态。
 - 同一时刻只有一个更新在运行。`dpkg` 被占用（例如你正在 `apt upgrade`）时本次失败，原安装不变，次日重试；`rpm -U` 则会等待 rpm 数据库锁，等 `dnf` 结束后再安装。
 - 用 `apt-mark hold webmux` 或 `dnf versionlock add webmux` 锁定版本后，更新服务记录“已被锁定版本”并跳过，且不会发起任何网络请求。

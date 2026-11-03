@@ -37,6 +37,7 @@ curl -fsSL https://cdn.jsdelivr.net/gh/mzdluo123/webmux@main/install.sh | sh
 | `WEBMUX_INSTALL_DIR` | `~/.local/bin`                            | 目标目录；不可写时明确报错，不自动 sudo                         |
 | `WEBMUX_MIRRORS`     | `https://ghfast.top https://gh-proxy.com` | 空格分隔的 gh-proxy 前缀；空值表示只用 GitHub                   |
 | `WEBMUX_SHA256`      | 空                                        | 固定二进制 SHA-256，跳过同源 `SHA256SUMS`                       |
+| `WEBMUX_BASE_URL`    | `https://github.com/mzdluo123/webmux`     | GitHub 仓库地址，主要用于测试和自建镜像                         |
 
 ```sh
 curl -fsSL https://github.com/mzdluo123/webmux/releases/latest/download/install.sh \
@@ -53,6 +54,20 @@ curl -fsSL https://github.com/mzdluo123/webmux/releases/latest/download/install.
 
 - 需要后台服务时再执行 `webmux service install`，首次启动会自动生成配置与 Token。
 - 重复执行脚本会升级二进制；正在运行的服务需手动重启，重启会结束现有会话。
+
+### 手动下载
+
+也可以不用脚本，手动下载并校验 Release 资产：
+
+- 服务端：`webmux-{linux,darwin}-{amd64,arm64}`。
+- Windows 托盘：`webmux-tray-windows-{amd64,arm64}.exe`；控制台客户端：`webmux-windows-{amd64,arm64}.exe`，见 [Windows（WSL）部署](windows-wsl.md)。
+
+```sh
+curl -LO https://github.com/mzdluo123/webmux/releases/latest/download/webmux-linux-amd64
+curl -LO https://github.com/mzdluo123/webmux/releases/latest/download/SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
+install -m 755 webmux-linux-amd64 ~/.local/bin/webmux
+```
 
 ### Linux 安装包（deb / rpm）
 

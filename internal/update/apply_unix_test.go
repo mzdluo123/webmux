@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -123,10 +124,12 @@ func TestApplyInstallsNewerPackage(t *testing.T) {
 		owner      Method
 		arch, want string
 		cmd        string
-		flag       string
+		// argv before the package path; the rpm has no rpm signature,
+		// SHA256SUMS authenticates it.
+		flags []string
 	}{
-		{MethodDeb, "amd64", "deb-bytes", "dpkg", "-i"},
-		{MethodRPM, "arm64", "rpm-bytes", "rpm", "-U"},
+		{MethodDeb, "amd64", "deb-bytes", "dpkg", []string{"-i", "--"}},
+		{MethodRPM, "arm64", "rpm-bytes", "rpm", []string{"-U", "--nosignature", "--"}},
 	} {
 		c, _ := applyRelease(t, "0.5.0")
 		sys := &fakeSystem{owner: tc.owner}
@@ -135,7 +138,8 @@ func TestApplyInstallsNewerPackage(t *testing.T) {
 			t.Fatalf("%s: %v", tc.owner, err)
 		}
 		last := sys.calls[len(sys.calls)-1]
-		if last.name != tc.cmd || last.args[0] != tc.flag || last.args[1] != "--" || filepath.Dir(last.args[2]) != o.CacheDir {
+		n := len(last.args) - 1
+		if last.name != tc.cmd || n < 0 || !slices.Equal(last.args[:n], tc.flags) || filepath.Dir(last.args[n]) != o.CacheDir {
 			t.Fatalf("%s install argv %+v", tc.owner, last)
 		}
 		if string(sys.installed) != tc.want {

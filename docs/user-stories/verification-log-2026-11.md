@@ -97,7 +97,28 @@
 - 依据：对应 US-L08 新增的“超限时重构而不是压缩”整理原则。
 - 验证：已运行 `make docs-check`、Oxfmt 检查、迁移前后的逐行对账与相对链接/锚点检查。
 
-本次局部核对（2026-11-03）：自动更新新增 US-K14–US-K16、US-L12、US-O13，并更新 US-K13、US-O01、US-O11、US-O12；186 个故事 ID 唯一，功能索引与覆盖索引已同步。
+本次局部核对（2026-11-02）：文档导航治理与 README 重写，对应新增 US-L12，覆盖索引与功能索引同步。
+
+- 迁移：README 中的设计理念、完整特性、混合会话说明、截图生成说明与技术栈原文迁入 `docs/overview.md`，常见问题迁入 `docs/faq.md`。
+  - 手动下载步骤迁入 `docs/deployment/install-and-upgrade.md#手动下载`，从源码构建迁入 `CONTRIBUTING.md#从源码构建`。
+  - 配置项表、服务命令、Windows 托盘步骤与安装脚本变量已由 `docs/deployment/` 完整覆盖，README 中只保留链接。
+- 新增：`docs/README.md`（文档中心）与 `docs/specs.md`（64 个 capability 的规格索引），原先不可达的 `docs/performance.md`、`docs/page-performance.md`、`docs/binary-size.md` 与全部主规格由此可达。
+- 修正：`docs/persistence.md` 指向已归档变更的失效链接；`docs/cli-agents.md` 与 `docs/usage.md` 中“只有 OpenCode / omp 默认混合”的过时描述，按 `internal/launch/presets.go` 改为 Claude Code、Codex CLI、OpenCode 与 omp。
+- 验证：已运行 `make docs-check`（含新增的 `TestDocsNavigation`、`TestNavigationRules`、`TestSlug`）与 Oxfmt 检查；未重新核对其余故事。
+
+本次局部核对（2026-11-02）：README 首屏改版，对应 US-L03（新增 `screenshots:hero` 合成主图）与 US-L12（README 预算不变）。
+
+- 首屏改为合成主图、一句话主张、使用场景叙述、“三步看懂”截图流程与六项亮点；README 仍为 170 行以内。
+- 验证：以预装 Chromium 运行 `pnpm --dir web screenshots:hero` 生成 `docs/images/hero.jpg`，并用本地 Markdown 渲染截图目视检查首屏；已运行 `make docs-check` 与 Oxfmt 检查。未在 GitHub 页面上实际渲染。
+
+本次局部核对（2026-11-02）：重新生成 README 截图与主图，截图脚本新增回放模式，对应 US-L03。
+
+- 录制：以真实 omp 18.15.0（Opus 5.5）运行 `WEBMUX_SCREENSHOTS_RECORD=1` 流程，导出两轮对话到 `web/scripts/screenshots/omp-session.jsonl`；文件只含演示仓库内容。
+- 回放：在未设置任何 API key 的环境中运行 `pnpm --dir web screenshots`，十张截图全部生成；再运行 `screenshots:hero` 更新 `docs/images/hero.jpg`。
+- 发现：经 npm/Bun 安装的 omp 进程名为 `bun`，混合会话判定为 `not_root`，聊天切换不可用；本次用以 `omp` 命名的 Bun 运行时启动同一安装包绕过。产品侧的识别规则未改动。
+- 限制：截图在 Linux 容器中以预装 Chromium 生成，未在 macOS 上运行脚本。
+
+本次局部核对（2026-11-03）：自动更新新增 US-K14–US-K16、US-L13、US-O13，并更新 US-K13、US-O01、US-O11、US-O12；功能索引与覆盖索引已同步。发布签名故事最初编号为 US-L12，合并 main 时与先合入的“文档导航与首页”冲突，改为 US-L13；合并后 187 个故事 ID 唯一。
 
 - 依据：`internal/update`、`cmd/webmux`、`cmd/internal/releasesign`、`internal/api`、`internal/tray` 的 Go race 测试与前端 `pendingUpdate` 用例。
 - 安装包：`test-linux-packages.sh` 在 Debian/Fedora 容器中覆盖定时器的首次启用、带标记与无标记升级、卸载；systemd 容器中定时器服务把 0.0.1 升到 0.0.2，用户服务 PID 与会话不变。
@@ -132,3 +153,9 @@
 - 依据：`internal/tray` 的规则名称、netsh 参数与 `Firewall.Apply` 单元测试，Windows amd64/arm64 交叉 vet，makensis 3.11 `-WX` 构建。
 - 真机（Windows 11 build 26300，非管理员会话）：安装程序冒烟脚本全部通过，静默安装不加规则；交互安装经 UAC 确认后添加入站 TCP 允许规则（域、专用），再次运行不弹窗，静默覆盖后规则保留；交互卸载经 UAC 确认后删除规则。
 - 限制：以管理员运行的冒烟检查待 CI 结果；未重新核验其余故事能力。
+
+本次局部核对（2026-11-03）：合并 main 后发现 Fedora 45（rpm 6.1，`%_pkgverify_level` 为 `all`）拒绝未签名的 rpm，自动更新改用 `rpm -U --nosignature`，对应 US-K14，故事内容不变。
+
+- 复现：Fedora 45 容器中直接 `rpm -U` 测试包报 “does not verify: no signature”，版本不变。
+- 验证：同一容器中 `webmux update apply` 从本地签名的测试 Release 把 0.0.1 升到 0.0.2，`rpm -Va webmux` 无差异；`dnf install` 本地包照常可用。
+- 限制：未在 Fedora 45 的 systemd 环境中经定时器运行；未重新核验其余故事能力。

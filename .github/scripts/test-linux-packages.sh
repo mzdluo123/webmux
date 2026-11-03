@@ -101,22 +101,22 @@ docker run --rm -e VERSION="$version" -v "$dir:/pkgs:ro" "$fedora_image" sh -euc
 	test \"\$(rpm -qpl /pkgs/$rpm | tr '\n' ' ')\" = '/usr/bin/webmux /usr/lib/systemd/system/webmux-update.service /usr/lib/systemd/system/webmux-update.timer /usr/lib/systemd/user/webmux.service '
 	test -z \"\$(rpm -qpR /pkgs/$rpm | grep -v '^rpmlib(' | grep -v '^/bin/sh' || true)\"
 
-	rpm -i /pkgs/$rpm
+	rpm -i --nosignature /pkgs/$rpm
 	$checks
 	rpm -e webmux
 	$removed
 
 	$fake_systemd
 	$timer_calls
-	rpm -i /pkgs/$rpm
+	rpm -i --nosignature /pkgs/$rpm
 	never_user_service
 	log | grep -qx 'enable --now webmux-update.timer'
 	test -e \$marker
-	rpm -U --replacepkgs /pkgs/$rpm
+	rpm -U --nosignature --replacepkgs /pkgs/$rpm
 	never_user_service
 	if log | grep -q enable; then exit 1; fi
 	rm \$marker
-	rpm -U --replacepkgs /pkgs/$rpm
+	rpm -U --nosignature --replacepkgs /pkgs/$rpm
 	log | grep -qx 'enable --now webmux-update.timer'
 	rpm -e webmux
 	never_user_service

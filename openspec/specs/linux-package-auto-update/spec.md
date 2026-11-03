@@ -96,9 +96,16 @@
 
 校验通过的安装包 SHALL 以 argv 形式交给 `dpkg -i` 或 `rpm -U` 安装，SHALL NOT 经 shell。安装成功或失败后 SHALL 删除下载的安装包。
 
+发布的 rpm 不带 rpm 签名，其完整性由签名的 `SHA256SUMS` 在安装前保证；`rpm -U` SHALL 跳过 rpm 自身的签名检查（`--nosignature`），使默认拒绝未签名包的系统（如 Fedora 45）也能更新，摘要检查 SHALL 照常进行。
+
 - 并发：同一时刻 SHALL 只有一个 `update apply` 在运行，后来者 SHALL 立即退出并报告已有更新在进行。
 - 失败：包管理器失败时 SHALL 记录其输出并以非零退出码结束；原有安装 SHALL 保持可用，下次触发时重试。dpkg 被占用时立即失败；`rpm -U` 会等待 rpm 数据库锁。
 - 中断：检查与下载 SHALL 在 30 分钟内结束，超时或收到停止信号时 SHALL NOT 开始安装。`dpkg` / `rpm` 一旦开始，停止信号、超时与 `systemctl stop` SHALL NOT 终止它；更新程序等待其结束后退出。
+
+#### Scenario: 默认要求 rpm 签名的系统
+
+- **WHEN** Fedora 45（rpm 6.1，`%_pkgverify_level` 为 `all`）上通过 rpm 安装了 0.0.1，最新版本为 0.0.2
+- **THEN** 更新服务安装 0.0.2，`rpm -Va webmux` 无差异
 
 #### Scenario: dpkg 被占用
 

@@ -1,6 +1,6 @@
 # 配置与持久化清单
 
-本页记录当前实现，不把 OpenSpec 的目标行为当成已实现功能。本 PR 实现统一 JSON 基础设施与偏好同步；后续变更必须同步运行时描述符、清单和源码引用。
+本页记录当前实现，不把 OpenSpec 的目标行为当成已实现功能。后续变更必须同步运行时描述符、清单和源码引用。
 
 ## 当前服务端存储
 
@@ -72,4 +72,4 @@ make persistence-check
 
 新增存储前明确所属层、生命周期、数据/锁名、所有者、敏感性、失败后果和网页可编辑边界。登记真实读写入口及对应测试后同步清单；仍在规划的能力只写 OpenSpec，不登记为已实现。
 
-详细目标、破坏性改名和分阶段验收见 [配置与状态治理提案](../openspec/changes/govern-config-state/proposal.md)。部署总览保留在 [部署指南](deployment.md)，架构分层见 [架构说明](architecture.md)。
+详细目标、破坏性改名和分阶段验收见 [配置与状态治理提案](../openspec/changes/archive/2026-10-29-govern-config-state/proposal.md)。部署总览保留在 [部署指南](deployment.md)，架构分层见 [架构说明](architecture.md)。

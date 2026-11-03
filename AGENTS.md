@@ -21,7 +21,7 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 
 - `make web`: install frontend dependencies, run Svelte/TypeScript checks, build `web/dist`.
 - `make build`: build the frontend, then the embedded Go binary `bin/webmux`. Rebuild the frontend before compiling Go (`web/embed.go` embeds `web/dist`).
-- `make check`: build the frontend, check test types and formatting, run the doc guard, Oxlint, the architecture guard, `go vet` and `golangci-lint` (needs golangci-lint v2.15.0).
+- `make check`: build the frontend, check test types and formatting, run the doc and persistence guards, Oxlint, the architecture guard, `go vet` and `golangci-lint` (needs golangci-lint v2.15.0).
 - `make format`: apply gofmt and Oxfmt.
 - `pnpm --dir web check:arch`: frontend architecture guard; run it before finishing frontend work.
 - `pnpm --dir web dev`: Vite at `http://127.0.0.1:5173`, proxying `/api` and `/ws` to backend port 7681. Run the backend separately and add `allowed_origins = ["http://127.0.0.1:5173"]` to its TOML or browser writes are rejected.
@@ -54,4 +54,5 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 - `docs/` and `openspec/` obey [docs/doc-governance.md](docs/doc-governance.md): 20–400 lines, at most 300 display columns per line, at most 48 KiB per file, at most 20 child directories. Write new OpenSpec artifacts in Simplified Chinese, keeping English structural headings and SHALL/MUST.
 - Every implemented capability MUST have a story in `docs/user-stories/` (index: `docs/user-stories.md`). In the same change, update the affected stories when behavior changes: UI, APIs, CLI, configuration, security, lifecycle, deployment, contributor tooling. Pure refactors, formatting and dependency updates are exempt.
 - Keep story IDs stable (never renumber or reuse; mark removed ones retired), keep both indexes and counts consistent, and never claim verification you did not run. Name the affected story IDs (or say there is no impact) in the delivery or PR summary. Full procedure: [user-stories-maintenance](docs/agent-rules/user-stories-maintenance.md).
+- Every doc must be reachable by relative links from `README.md` or `AGENTS.md`, and relative links/anchors must resolve (`make docs-check`). Register new docs in [docs/README.md](docs/README.md) (specs in [docs/specs.md](docs/specs.md)); keep `README.md` a short landing page (budget in [doc-governance](docs/doc-governance.md#readme-预算)).
 - Repository map (directories, important files): [repo-map](docs/agent-rules/repo-map.md).

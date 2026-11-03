@@ -72,10 +72,14 @@ func PackageAsset(m Method, version, goarch string) (string, error) {
 	return "", ErrUnsupportedInstall
 }
 
-// installCommand is the package manager argv for a downloaded package.
+// installCommand is the package manager argv for a downloaded package. The
+// release rpm carries no rpm signature: its integrity comes from the signed
+// SHA256SUMS checked before install, so rpm skips signature checks (Fedora
+// 45's rpm 6.1 rejects unsigned packages by default) but still verifies its
+// digests.
 func installCommand(m Method, file string) (string, []string) {
 	if m == MethodRPM {
-		return "rpm", []string{"-U", "--", file}
+		return "rpm", []string{"-U", "--nosignature", "--", file}
 	}
 	return "dpkg", []string{"-i", "--", file}
 }

@@ -74,13 +74,13 @@
 | 所有 TOML 配置项：访问、会话、提醒、存储                                                            | US-A03；US-K03–US-K04；US-K08–US-K09；US-N01–US-N04 |
 | service install/--dry-run/--force/start/stop/restart/status/logs/uninstall                          | US-K05–US-K07                                       |
 | version/version --json/help、VPN/HTTPS 代理与升级                                                   | US-K09                                              |
-| 本地开发、构建/安装、测试、格式/静态检查                                                            | US-L01–US-L02                                       |
 | 持久化文件、锁、写入入口与清单防漂移                                                                | US-L10                                              |
 | 本地开发、构建/安装、测试、格式/静态检查与 Go 规范门禁                                              | US-L01–US-L02                                       |
 | 文档与 spec 行数、单行长度、体积、目录树治理                                                        | US-L08                                              |
 | `AGENTS.md` 体积预算与规则下沉到 `docs/agent-rules/`                                                | US-L11                                              |
+| 文档可达性、相对链接与锚点、README 首页预算                                                         | US-L12                                              |
 | Storybook、截图、baseline、CI 与 release                                                            | US-L03–US-L04                                       |
-| 发布签名、签名密钥检查、发布前验证与密钥轮换                                                        | US-L12                                              |
+| 发布签名、签名密钥检查、发布前验证与密钥轮换                                                        | US-L13                                              |
 | 分层架构测试、线上 JSON 快照、必填数组 Zod 契约与重新录制                                           | US-L05                                              |
 | agent 适配器接口、注册表、Claude 进程注册记录与隐私边界、契约测试与 agent 名称守卫                  | US-L05；US-Q01；US-Q03                              |
 | 前端架构守卫：设计系统 lint、分层、重复代码、未使用代码与基线                                       | US-L06                                              |
