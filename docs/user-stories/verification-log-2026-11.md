@@ -213,3 +213,8 @@
 
 - 通过：`keyboard-size-hold` 单元用例、`TerminalTransport` 浏览器用例、桌面与 Pixel 7 软键 E2E、svelte-check、Oxlint、前端架构守卫与文档治理。
 - 限制：Chromium 模拟以缩小视口代替软键盘，未进行 iOS/Android 真机键盘验收；未重新核对其余功能组。
+
+本次局部核对（2026-11-03）：`default-mobile-ws-compression` 使实时连接压缩在手机与平板（主指针为粗指针）上默认开启，对应更新 US-H10；显式选择优先，桌面默认仍关闭，服务端协商不变。
+
+- 通过：`ws.test.ts` 默认值与显式选择用例，以及前端检查（见 PR）。
+- 限制：未做真机移动网络测速；未重新核验其余故事能力。
