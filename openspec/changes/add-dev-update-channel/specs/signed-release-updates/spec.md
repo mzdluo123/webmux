@@ -2,6 +2,25 @@
 
 ## MODIFIED Requirements
 
+### Requirement: 仅发布构建参与更新
+
+只有由发布流水线（标签发布或开发版发布）构建的二进制 SHALL 参与更新检查与自动更新。本地 `make build`、`make tray` 或 `go build` 的产物即使报告 `MAJOR.MINOR.PATCH` 或 `MAJOR.MINOR.PATCH-dev.N` 版本号，也 SHALL 视为非发布构建：不发起检查，并在被要求检查时报告“此构建不是发布构建，不支持更新”。
+
+#### Scenario: 本地构建
+
+- **WHEN** 用户运行本地 `make build` 产出的 `bin/webmux update check`，该二进制报告 `webmux 0.1.0`
+- **THEN** 命令以非零退出码结束并报告“此构建不是发布构建，不支持更新”，没有发起网络请求
+
+#### Scenario: 发布构建
+
+- **WHEN** 用户运行 Release 中的 `webmux-linux-amd64 update check`
+- **THEN** 命令发起更新检查
+
+#### Scenario: 开发版发布构建
+
+- **WHEN** 用户运行 Release `dev` 中的 `webmux-0.10.3-dev.4-linux-amd64 update check`
+- **THEN** 命令发起更新检查
+
 ### Requirement: 内置公钥验证
 
 发布构建 SHALL 内置两组发布公钥：正式版组与开发版组。只接受由其中某个公钥签名的 `SHA256SUMS`。签名 SHALL 为 minisign 格式；验证 SHALL 覆盖文件内容与可信注释。
@@ -118,7 +137,7 @@
 
 `webmux update check` SHALL 在任意安装方式下按当前通道执行一次检查，输出当前通道、当前版本、最新版本与是否有可用更新，SHALL NOT 下载安装产物或改写任何文件。
 
-- `--json` 时 SHALL 只向标准输出写入一个 JSON 对象，包含 `v`、`current`、`latest`、`available`、`installMethod`（`deb`、`rpm` 或 `other`）与 `channel`（`stable` 或 `dev`）。
+- `--json` 时 SHALL 只向标准输出写入一个 JSON 对象，包含 `v`、`current`、`latest`、`available`、`installMethod`（`deb`、`rpm` 或 `other`）与 `channel`（`stable` 或 `dev`）。读取方遇到缺少 `channel` 的旧版本输出时 SHALL 按 `stable` 理解。
 - 检查成功时无论是否有更新，退出码 SHALL 为 0；检查失败时 SHALL 为非零。
 
 #### Scenario: 手动安装检查
