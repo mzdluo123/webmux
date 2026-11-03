@@ -46,13 +46,13 @@
         "-ic",
         "exec -- \"$@\"",
         "webmux",
-        "gemini",
-        "--yolo"
+        "agy",
+        "--dangerously-skip-permissions"
       ],
       "envNames": [],
-      "hybrid": false,
-      "icon": "geminicli",
-      "name": "Gemini CLI"
+      "hybrid": true,
+      "icon": "antigravity",
+      "name": "Antigravity CLI"
     },
     {
       "cmd": [
@@ -148,6 +148,34 @@
       "hybrid": true,
       "icon": "pi",
       "name": "omp"
+    },
+    {
+      "cmd": [
+        "bash",
+        "-ic",
+        "exec -- \"$@\"",
+        "webmux",
+        "qoder",
+        "--dangerously-skip-permissions"
+      ],
+      "envNames": [],
+      "hybrid": true,
+      "icon": "qoder",
+      "name": "Qoder"
+    },
+    {
+      "cmd": [
+        "bash",
+        "-ic",
+        "exec -- \"$@\"",
+        "webmux",
+        "qodercn",
+        "--dangerously-skip-permissions"
+      ],
+      "envNames": [],
+      "hybrid": true,
+      "icon": "qoder",
+      "name": "QoderCN"
     }
   ]
 }
