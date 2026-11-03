@@ -153,8 +153,9 @@
 
       ></span>{:else}<!-- Holds the dot's place on phones, where it leads the
            title, so the title does not shift when the session loads. -->
-      <span class="status-dot invisible shrink-0 sm:hidden" aria-hidden="true"
-      ></span>{/if}
+      <span class="shrink-0 sm:hidden" aria-hidden="true"
+        ><span class="status-dot invisible"></span></span
+      >{/if}
     <div class="relative flex min-w-0 flex-col sm:order-1">
       <span class="h-5 min-w-0 truncate text-sm leading-5 font-medium"
         >{t.info?.title || "终端"}</span
