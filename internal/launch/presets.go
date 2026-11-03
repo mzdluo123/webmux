@@ -29,5 +29,7 @@ func Presets(shell string) []Input {
 		{Name: "Kimi Code CLI", Icon: "kimi", Cmd: command("kimi")},
 		{Name: "CodeBuddy Code", Icon: "codebuddy", Cmd: command("codebuddy")},
 		{Name: "omp", Icon: "pi", Cmd: command("omp", "--auto-approve"), Env: map[string]string{"PI_FORCE_IMAGE_PROTOCOL": "kitty"}, Hybrid: true},
+		{Name: "Qoder", Icon: "qoder", Cmd: command("qoder", "--dangerously-skip-permissions"), Hybrid: true},
+		{Name: "QoderCN", Icon: "qoder", Cmd: command("qodercn", "--dangerously-skip-permissions"), Hybrid: true},
 	}
 }
