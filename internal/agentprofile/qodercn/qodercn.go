@@ -48,7 +48,7 @@ var profile = &ap.Profile{
 // qoderProcess also accepts the versioned binary name
 // (for example qoderclicn-1.1.81), which is what Linux /proc/<pid>/exe reports.
 func qoderProcess(base string) bool {
-	for _, exe := range []string{"qodercn", "qoderclicn", "qoder-cn", "qoder"} {
+	for _, exe := range []string{"qodercn", "qoderclicn", "qoder-cn"} {
 		if base == exe {
 			return true
 		}
