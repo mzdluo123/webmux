@@ -4,6 +4,7 @@ import {
   test as base,
   expect,
   type APIRequestContext,
+  type Locator,
   type Page,
 } from "@playwright/test";
 import { startE2EServer, type E2EServer } from "./server.mjs";
@@ -339,4 +340,13 @@ export async function recordInput(
   await expectTerminalLine(page, "RECORDER_READY");
   await expect.poll(() => readFile(path, "utf8")).toBe("");
   return path;
+}
+
+// The split button sits in the header from 640px up; on phones the same
+// actions are the terminal menu's "窗格" group. Opens whichever applies.
+export async function openPaneMenu(scope: Locator | Page) {
+  const page = "viewportSize" in scope ? scope : scope.page();
+  if ((page.viewportSize()?.width ?? 1280) >= 640)
+    return scope.getByRole("button", { name: "分屏", exact: true }).click();
+  await scope.getByRole("button", { name: /^(终端|会话)菜单$/ }).click();
 }

@@ -120,6 +120,13 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
   await expect(
     page.getByRole("menuitemcheckbox", { name: /^草稿模式/ }),
   ).toBeVisible();
+  // Splitting is rare on a phone: no header button, a "窗格" group instead.
+  await expect(
+    header(page).getByRole("button", { name: "分屏", exact: true }),
+  ).toBeHidden();
+  await expect(
+    page.getByRole("menuitem", { name: "新建会话…", exact: true }),
+  ).toBeVisible();
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("menuitem", { name: "上传文件", exact: true }).click();
   await chooser;

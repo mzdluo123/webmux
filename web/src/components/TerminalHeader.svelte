@@ -92,7 +92,7 @@
     close: () => void;
     showFind: () => void;
     hybrid?: HeaderHybrid;
-    paneActions?: Snippet;
+    paneActions?: Snippet<[boolean]>;
   } = $props();
   let fileInput = $state<{ open(): void }>();
   let openingFind = false;
@@ -276,7 +276,9 @@
       {#if fullscreen.active}<IconMinimize class="size-4" aria-hidden="true" />
       {:else}<IconMaximize class="size-4" aria-hidden="true" />{/if}
     </Button>{/if}
-  {#if paneActions}{@render paneActions()}{/if}
+  {#if paneActions}<div class="max-sm:hidden">
+      {@render paneActions(false)}
+    </div>{/if}
   <DropdownMenu.Root>
     <DropdownMenu.Trigger>
       {#snippet child({ props })}<Button
@@ -390,6 +392,10 @@
           </DropdownMenu.CheckboxItem>
         </DropdownMenu.Group>
       {/if}
+      {#if paneActions}<div role="presentation" class="hidden max-sm:contents">
+          <DropdownMenu.Separator />
+          {@render paneActions(true)}
+        </div>{/if}
       <DropdownMenu.Separator />
       <DropdownMenu.Item
         variant="destructive"

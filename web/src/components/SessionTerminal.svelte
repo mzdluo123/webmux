@@ -74,7 +74,7 @@
     reopen: () => void;
     visible: boolean;
     active: boolean;
-    paneActions: Snippet;
+    paneActions: Snippet<[boolean]>;
     keyboardDismissed: () => boolean;
     keyboardVisibility: () => KeyboardVisibility;
     viewportHeight: () => number;
