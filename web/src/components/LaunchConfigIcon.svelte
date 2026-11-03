@@ -1,4 +1,4 @@
-<script lang="ts">
+<script lang="ts" module>
   import IconTerminal from "~icons/tabler/terminal-2";
   import IconClaudeCode from "~icons/lobe/claudecode";
   import IconCodex from "~icons/lobe/codex";
@@ -11,7 +11,6 @@
   import IconCodeBuddy from "~icons/lobe/codebuddy";
   import IconPi from "~icons/lobe/pi";
 
-  let { icon }: { icon: string } = $props();
   const icons = {
     terminal: IconTerminal,
     claudecode: IconClaudeCode,
@@ -25,13 +24,22 @@
     codebuddy: IconCodeBuddy,
     pi: IconPi,
   };
+  const sizes = { xs: "size-3.5", sm: "size-4", md: "size-5" };
+
+  /** Whether icon is a key of the catalog rather than the terminal fallback. */
+  export function hasLaunchIcon(icon: string): boolean {
+    return Object.hasOwn(icons, icon);
+  }
+</script>
+
+<script lang="ts">
+  let { icon, size = "md" }: { icon: string; size?: keyof typeof sizes } =
+    $props();
   const Glyph = $derived(
-    Object.hasOwn(icons, icon)
-      ? icons[icon as keyof typeof icons]
-      : IconTerminal,
+    hasLaunchIcon(icon) ? icons[icon as keyof typeof icons] : IconTerminal,
   );
 </script>
 
 <span class="inline-flex shrink-0" aria-hidden="true" data-launch-icon={icon}>
-  <Glyph class="size-5 shrink-0" />
+  <Glyph class={`${sizes[size]} shrink-0`} />
 </span>
