@@ -54,7 +54,7 @@ afterEach(async () => {
 const save = () => page.getByRole("button", { name: "保存", exact: true });
 
 test.each([
-  ["Gemini CLI", "geminicli"],
+  ["Antigravity CLI", "antigravity"],
   ["Cursor CLI", "cursor"],
   ["GitHub Copilot CLI", "githubcopilot"],
   ["Qwen Code", "qwen"],

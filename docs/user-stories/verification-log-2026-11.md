@@ -184,3 +184,8 @@
   - `internal/tray/...`（含 `LANEnabled`、`LANListenAddress`、转发器同源校验）与 `cmd/webmux`（含 `TestConfigListen`）的 Go race 测试；
   - `cmd/webmux-tray` 与 `internal/tray/...` 的 Windows amd64 交叉 vet 与编译。
 - 限制：未在真实 Windows 11 主机上运行新版托盘菜单点击流程；未重新核验其余故事能力。
+本次局部核对（2026-11-03）：`add-antigravity-acp-hybrid` 新增 Antigravity CLI（`agy`）混合会话适配器与默认启动配置，对应更新 US-B01、US-B08、US-Q01、US-Q03–US-Q05、US-Q08、US-Q11；不新增或重编号故事，覆盖索引同步。
+
+- 内容：新安装默认预置 `Antigravity CLI`（`agy --dangerously-skip-permissions`，混合模式，图标 `antigravity`，保留旧 `geminicli` 兼容），`OSC 7501` 子记录段长放宽到 64 字节以提取 36 字符 UUID 会话 ID，跨进程加载后补齐 `model`/`thought_level`，活动回合忽略回显的 `user_message_chunk`。
+- 依据：`internal/session`、`internal/agentprofile/...`、`internal/acp`、`internal/hybrid`、`internal/launch`、`internal/api` 的 Go race 测试与线上快照，`launchConfigs` 单元与 `LaunchConfigDialog` 浏览器测试，以及 `baseline.md` 中的 `agy 1.4.12` 实测基线。
+- 限制：自动化测试使用 `fakeagent --profile agy` 替身验证；未重新核验其余故事能力。
