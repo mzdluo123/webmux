@@ -39,7 +39,7 @@
 | `0x04` | 位置     | JSON `{"generation", "mode": "reset"\|"append", "start", "end", "truncated"}`，先于回放             |
 | `0x05` | 提交状态 | JSON `{"id", "state", "error"?}`                                                                    |
 | `0x06` | 控制     | JSON `{"controller": {"clientId", "label", "since"} \| null, "cols", "rows", "colorSchemeReports"}` |
-| `0x07` | DEFLATE  | 仅在 `zreplay=1` 时出现：原始 DEFLATE 压缩的一个完整服务端帧（见“回放压缩与节奏”） |
+| `0x07` | DEFLATE  | 仅在 `zreplay=1` 时出现：原始 DEFLATE 压缩的一个完整服务端帧（见“回放压缩与节奏”）                  |
 
 客户端 → 服务端：
 
