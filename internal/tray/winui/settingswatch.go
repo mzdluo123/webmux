@@ -54,6 +54,9 @@ func (a *App) watchSettings() {
 		} else {
 			a.settingsWarn = ""
 		}
+		if _, warn := settings.Channel(); warn != nil {
+			a.log.Printf("tray settings: %v", warn)
+		}
 		a.mu.Unlock()
 		a.log.Printf("tray settings reloaded")
 		a.apply(settings, true)
