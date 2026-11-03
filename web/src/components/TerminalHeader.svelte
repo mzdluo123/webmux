@@ -150,6 +150,10 @@
         role="img"
         aria-label={`${sessionStatusText(t.info)} · ${connectionText}`}
         title={`${sessionStatusText(t.info)} · ${connectionText}`}
+
+      ></span>{:else}<!-- Holds the dot's place on phones, where it leads the
+           title, so the title does not shift when the session loads. -->
+      <span class="status-dot invisible shrink-0 sm:hidden" aria-hidden="true"
       ></span>{/if}
     <div class="relative flex min-w-0 flex-col leading-tight sm:order-1">
       <span class="min-w-0 truncate text-sm font-medium"
