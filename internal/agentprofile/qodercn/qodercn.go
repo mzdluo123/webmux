@@ -26,11 +26,11 @@ type adapter struct {
 }
 
 var profile = &ap.Profile{
-	Name:            Name,
-	Title:           "QoderCN",
-	Executables:     []string{"qodercn", "qoderclicn", "qoder-cn"},
+	Name:              Name,
+	Title:             "QoderCN",
+	Executables:       []string{"qodercn", "qoderclicn", "qoder-cn"},
 	ProcessExecutable: qoderProcess,
-	VerifiedVersion: "1.1.81",
+	VerifiedVersion:   "1.1.81",
 	// Built-in ACP via --acp flag, no connector needed.
 	ACPArg:         "--acp",
 	HiddenCommands: []string{"login", "logout"},
