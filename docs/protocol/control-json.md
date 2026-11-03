@@ -83,7 +83,10 @@
 
 链接不带路径、查询参数或 Token。回环监听的远程链接为空数组；通配监听列出启用中的非回环、非链路本地 IPv4 地址，Tailscale（100.64.0.0/10）在前，WSL NAT 模式下的虚拟网卡地址不列出；通配监听且未配置 Token 时 `warnings` 含暴露警告。
 
-`urls.access` 是远程访问入口的统一接口：服务端每个托管入口（Cloudflare Tunnel、Tailscale Serve/Funnel）在 `cmd/webmux/accesslinks.go` 实现 `accessProvider.AccessLinks()`，只返回已就绪、不带 Token 的链接，且不得阻塞。新的转发系统实现该方法并加入 `serve` 中传给 `startRuntime` 的列表后，`webmux status` 与 Windows 托盘“复制链接”无需修改即可列出它。
+`urls.access` 是远程访问入口的统一接口。
+
+- 服务端每个托管入口（Cloudflare Tunnel、Tailscale Serve/Funnel）在 `cmd/webmux/accesslinks.go` 实现 `accessProvider.AccessLinks()`，只返回已就绪、不带 Token 的链接，且不得阻塞。
+- 新的转发系统实现该方法并加入 `serve` 中传给 `startRuntime` 的列表后，`webmux status` 与 Windows 托盘“复制链接”无需修改即可列出它。
 
 `stop`：`{"v": 1, "result": "stopped" | "killed" | "not-running" | "refused" | "error", "message": "..."}`。
 

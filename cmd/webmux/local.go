@@ -29,7 +29,7 @@ type localRuntime struct {
 // record. It must run after the TCP listener is bound and before it serves.
 // providers supply the access links of /local/v1/status, in display order.
 func startRuntime(ctx context.Context, c serverRun, addr net.Addr, deps api.Deps, shutdown func(), tunnels *tunnelController, tailscale *tailscaleController, providers []accessProvider) *localRuntime {
-	m, pushes := deps.Manager, deps.Push
+	m := deps.Manager
 	rt := &localRuntime{dir: runtime.Dir(c.StateDir)}
 	if err := runtime.EnsureDir(rt.dir); err != nil {
 		slog.Warn("runtime directory unavailable; runtime record and local API disabled", "error", err)
@@ -76,7 +76,6 @@ func startRuntime(ctx context.Context, c serverRun, addr net.Addr, deps api.Deps
 			Handler: api.NewLocal(deps, api.Local{
 				Configuration: func() contract.Configuration { return effectiveView(c, record, deps) },
 				Status:        func() contract.StatusV1 { return localStatus(record, c, deps, tunnels, tailscale, providers) },
-				Launcher:      record.Launcher,
 				Shutdown:      shutdown,
 				InSession:     m.ContainsProcess,
 				Tunnel:        tunnels.SetEnabled,

@@ -4,7 +4,14 @@
 
 基线核对日期：2026-10-23（之后各次局部核对见[核对记录](#核对记录)）。范围为主分支 `5195154` 的实现，另含 US-N07–US-N08 所述的设置页公网访问说明与运行时隧道状态；OpenSpec 中只有规划、没有实现的内容不视为现有能力。验收要点描述行为契约，不代表本次已重新执行全部测试。
 
-本次局部核对（2026-11-03）：托盘“复制链接”列出服务端统一报告的远程访问入口（`urls.access`），并把 Cloudflare Tunnel 与 Tailscale 开关收进“公网访问”子菜单、支持一键开启 Tailscale Serve，对应更新 US-M06、US-O09 并新增 US-P08。`cmd/webmux`、`internal/tray`、`internal/localclient`、`internal/api` 测试、Windows 托盘交叉编译与 vet、golangci-lint 通过，并在真实 WSL 实例经本机套接字读取状态与 Tailscale 检测；未在原生 Windows 托盘上点击验收，也未在真实节点上开启 Serve。
+本次局部核对（2026-11-03）：
+
+- 托盘“复制链接”列出服务端统一报告的远程访问入口（`urls.access`）；
+- Cloudflare Tunnel 与 Tailscale 开关收进“公网访问”子菜单，支持一键开启 Tailscale Serve；
+- 对应更新 US-M06、US-O09 并新增 US-P08；
+- `cmd/webmux`、`internal/tray`、`internal/localclient`、`internal/api` 测试、Windows 托盘交叉编译与 vet、golangci-lint 通过；
+- 在真实 WSL 实例经本机套接字读取状态与 Tailscale 检测；
+- 未在原生 Windows 托盘上点击验收，也未在真实节点上开启 Serve。
 
 ## 阅读约定与产品边界
 
