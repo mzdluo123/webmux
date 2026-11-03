@@ -100,7 +100,7 @@ OpenCode、omp、Codex CLI、Claude Code、Antigravity CLI、Qoder 与 QoderCN �
   - 上传的图片与文件按 agent 能力以 ACP 内容块直接发送。
 - **省资源、可恢复**：聊天端空闲后结束 agent 进程（默认 30 分钟），打开会话或发送消息时自动唤醒；服务重启后从首页“可恢复”分组恢复到聊天或终端。
 
-新安装预置的 Open Code、omp、Codex CLI、Claude Code、Qoder 与 QoderCN 启动配置已开启混合模式，新建会话时选择”从终端开始”或”从聊天开始”即可。详见 [混合会话](hybrid-sessions.md)。
+新安装预置的 Open Code、omp、Codex CLI、Claude Code、Antigravity CLI、Qoder 与 QoderCN 启动配置已开启混合模式，新建会话时选择”从终端开始”或”从聊天开始”即可。详见 [混合会话](hybrid-sessions.md)。
 
 ## 截图
 

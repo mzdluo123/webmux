@@ -37,7 +37,7 @@
   - TUI 在回合中时先发中断键并等待空闲（Claude Code 与 Antigravity CLI 为一次 Esc；Codex 启动阶段的“工作中”不算回合，Claude 无启动静默期），10 秒后可选继续等待、强制切换或取消（强制切换的损失说明取自服务端 `forceSwitchNote`，由各 agent 适配器提供）；
   - 进入目标端前确认 TUI 进程组已退出；
   - 聊天视图回放完整历史，模型等配置与切换前一致：
-    - 按档案补齐 omp 的 mode、Antigravity CLI 的 model 与 thought_level，以及 Codex 的模式、模型、推理强度（Codex 首次切换按启动参数推导）；
+    - 按档案补齐 omp 的 mode、Antigravity CLI 的 model 与 thought_level，以及 Codex 的模式、模型、推理强度；Antigravity CLI 与 Codex 首次切换按启动参数推导配置；
     - Claude 首次从 argv 推导 model/effort/mode，冷 load 与 resume 后重应用 model/effort，mode 保留连接器从 transcript 恢复的实际值，回退显示实际配置与通知；
   - 会话被 webmux 之外的 Codex 客户端或被有效注册记录识别的 Claude 进程占用时回到终端并提示 `occupied_external`，当前/退出/陈旧 Claude 记录不误报，来源不可读时仅保留内部检测且不保证发现所有外部写者；
   - Claude 注册读取有频率/大小/条目上限，普通会话不扫描，路径、PID、启动标识、记录正文与凭据不进入客户端负载、混合记录或日志；

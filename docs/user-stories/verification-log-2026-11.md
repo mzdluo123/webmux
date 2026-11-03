@@ -190,7 +190,7 @@
 - 依据：`internal/session`、`internal/agentprofile/...`、`internal/acp`、`internal/hybrid`、`internal/launch`、`internal/api` 的 Go race 测试与线上快照，`launchConfigs` 单元与 `LaunchConfigDialog` 浏览器测试，以及 `baseline.md` 中的 `agy 1.4.12` 实测基线。
 - 限制：自动化测试使用 `fakeagent --profile agy` 替身验证；未重新核验其余故事能力。
 
-本次局部核对（2026-11-03）：PR #273 审查回归修复，对应 US-B01、US-B08 与 US-Q03，故事内容和覆盖索引不变。
+本次局部核对（2026-11-03）：PR #273 审查回归修复，对应 US-B01、US-B08 与 US-Q03，更新 US-Q03 的首次切换验收，其他故事内容和覆盖索引不变。
 
 - `agy` 首次从终端切到聊天时，将原命令的 `--model` 与 `--effort` 分别继承为 `model` 与 `thought_level`，不再静默回到 ACP 默认值；`--mode` 仍明确列入不支持参数。
 - 旧 `geminicli` 图标在编辑对话框中显示“Gemini CLI（旧配置）”，可保存并重新选择；同步补齐 README、概览、部署与索引中的 Antigravity CLI 混合能力列表。
