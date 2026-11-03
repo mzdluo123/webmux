@@ -113,7 +113,7 @@ webmux-site/
 
 - 未认证请求每小时 60 次，CI 中传入 `GITHUB_TOKEN` 提高配额。
 - 请求失败时使用提交在仓库中的 `releases.json` 回退副本并在日志中告警；构建不能因为 API 失败而中断。
-- 资产按名称模式分组：`webmux-linux-*`、`webmux-darwin-*`、`webmux-windows-*.exe`、`webmux-tray-*`、`webmux-setup-*`、`*.deb`、`*.rpm`、`install.sh`、`SHA256SUMS`。
+- 资产按名称模式分组：`webmux-linux-*`、`webmux-darwin-*`、`webmux-windows-*.exe`、`webmux-tray-*`、`webmux-setup-*`、`*.deb`、`*.rpm`、`install.sh`、`SHA256SUMS`。只生成有匹配资产的分组；`v0.10.1` 不含安装程序、deb 或 rpm，不得为其显示空入口。
 - 遇到未知名称时放进“其他”而不是丢弃。
 
 ## 托管与部署
@@ -135,7 +135,7 @@ webmux-site/
 /install.sh   https://github.com/mzdluo123/webmux/releases/latest/download/install.sh  302
 /releases     https://github.com/mzdluo123/webmux/releases  302
 /github       https://github.com/mzdluo123/webmux  302
-/docs/images/* https://github.com/mzdluo123/webmux/blob/main/docs/images/:splat 302   # 仅未同步的图片目录
+/docs/images/* https://raw.githubusercontent.com/mzdluo123/webmux/main/docs/images/:splat 302   # 仅未同步的图片目录
 ```
 
 `/install.sh` 让 `curl -fsSL https://<域名>/install.sh | sh` 可用（`-L` 会跟随重定向）。它必须始终指向 GitHub Release 资产，官网自身不托管脚本副本，并把“域名失守即安装入口失守”的风险写进 [安全策略](../../SECURITY.md) 的维护者注意事项；README 的安装命令继续使用 GitHub 直链。

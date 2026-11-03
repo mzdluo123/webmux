@@ -6,16 +6,16 @@
 
 ### 1. 安装命令生成器
 
-- 作用：按访客操作系统预选标签页（Linux / macOS、Windows（WSL）、deb / rpm、手动下载），展示可复制的命令。
+- 作用：按访客操作系统预选当前 Release 可用的标签页（Linux / macOS、Windows（WSL）、deb / rpm、手动下载），展示可复制的命令；没有匹配资产的标签页不渲染。
 - 数据：README“快速开始”与 [安装与升级](../deployment/install-and-upgrade.md) 的命令；版本号来自构建期数据。
-- 选项：“国内镜像”开关把 GitHub 直链换成 `ghfast.top` 前缀，并显示“镜像是第三方服务，能看到请求者 IP”的说明；“固定版本”在命令前加 `WEBMUX_VERSION=x.y.z`。
+- 选项：“国内镜像”开关把 GitHub 直链换成 `ghfast.top` 前缀，并显示“镜像是第三方服务，能看到请求者 IP”的说明；“固定版本”把管道右侧改为 `WEBMUX_VERSION=x.y.z sh`，完整形式为 `curl … | WEBMUX_VERSION=x.y.z sh`，确保变量作用于安装脚本而非 `curl`。
 - 验收：无脚本时显示 Linux / macOS 默认命令；复制有“已复制”反馈与 `aria-live` 播报；命令文本与 README 一字不差。
 
 ### 2. 下载表
 
 - 作用：列出最新 Release 的全部资产：名称、平台、架构、大小、SHA-256、下载链接；顶部给出 `SHA256SUMS` 与校验命令。
 - 数据：构建期 Releases API（见 [构建期数据](stack.md#构建期数据)），失败时用提交的回退副本并显示“可能不是最新版本”。
-- 验收：资产分组正确（服务端、Windows 托盘、控制台客户端、安装程序、deb / rpm、脚本）；未知资产进入“其他”；每行有可复制的 SHA-256。
+- 验收：只为 Release 中实际存在的资产建立分组（服务端、Windows 托盘、控制台客户端、安装程序、deb / rpm、脚本）；`v0.10.1` 不显示安装程序与 deb / rpm 空分组；未知资产进入“其他”；每行有可复制的 SHA-256。
 
 ### 3. 版本徽标与更新日志
 
