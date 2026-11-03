@@ -682,32 +682,38 @@
     close={closeSession}
     hybrid={hybrid.known ? hybrid : undefined}
   />
-  <TerminalNotices
-    terminal={t}
-    {uploads}
-    {draft}
-    {draftSaved}
-    {error}
-    pendingCopy={pendingCopy !== null}
-    {copyPending}
-    dismissCopy={() => (pendingCopy = null)}
-    bind:notice
-    {showScratch}
-    dismissScratch={() => (draft.scratchUpdatedWhileHidden = false)}
-    remove={closeSession}
-    notices={hybrid.notices}
-    dismiss={(key) => hybrid.dismiss(key)}
-    recovery={hybrid.recoverable ? recovery : undefined}
-  />
-  {#if hybrid.connector && hybrid.view === "terminal"}<div
-      class="shrink-0 border-b px-4 py-2"
-    >
-      <ConnectorInstallHint
-        connector={hybrid.connector}
-        detail="安装后会自动重新检测"
-        ondismiss={() => hybrid.dismissConnector()}
+  <!-- Notices float over the terminal: showing or dismissing one must not
+       resize it, which would redraw the PTY. -->
+  <div class="relative z-20 h-0 shrink-0">
+    <div class="absolute inset-x-0 top-0 flex flex-col bg-background">
+      <TerminalNotices
+        terminal={t}
+        {uploads}
+        {draft}
+        {draftSaved}
+        {error}
+        pendingCopy={pendingCopy !== null}
+        {copyPending}
+        dismissCopy={() => (pendingCopy = null)}
+        bind:notice
+        {showScratch}
+        dismissScratch={() => (draft.scratchUpdatedWhileHidden = false)}
+        remove={closeSession}
+        notices={hybrid.notices}
+        dismiss={(key) => hybrid.dismiss(key)}
+        recovery={hybrid.recoverable ? recovery : undefined}
       />
-    </div>{/if}
+      {#if hybrid.connector && hybrid.view === "terminal"}<div
+          class="shrink-0 border-b px-4 py-2"
+        >
+          <ConnectorInstallHint
+            connector={hybrid.connector}
+            detail="安装后会自动重新检测"
+            ondismiss={() => hybrid.dismissConnector()}
+          />
+        </div>{/if}
+    </div>
+  </div>
   <TerminalWorkspace
     {codeShown}
     {desktop}
