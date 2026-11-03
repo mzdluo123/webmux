@@ -155,13 +155,13 @@
            title, so the title does not shift when the session loads. -->
       <span class="status-dot invisible shrink-0 sm:hidden" aria-hidden="true"
       ></span>{/if}
-    <div class="relative flex min-w-0 flex-col leading-tight sm:order-1">
-      <span class="min-w-0 truncate text-sm font-medium"
+    <div class="relative flex min-w-0 flex-col sm:order-1">
+      <span class="h-5 min-w-0 truncate text-sm leading-5 font-medium"
         >{t.info?.title || "终端"}</span
       >
       <!-- Overlaid under the title, so a status change never moves it. -->
       {#if !t.info || t.connection !== "connected"}<span
-          class="absolute top-full left-0 max-w-full truncate text-xs leading-none text-muted-foreground sm:hidden"
+          class="absolute top-full left-0 -mt-0.5 max-w-full truncate text-xs leading-none text-muted-foreground sm:hidden"
           role="status">{connectionText}</span
         >{/if}
     </div>
