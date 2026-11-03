@@ -43,13 +43,17 @@ func (s *Service) RefreshBranchBase(ctx context.Context, repositoryID, branch st
 	}
 
 	readCtx, cancel = context.WithTimeout(ctx, readTimeout)
-	remote, err := s.remoteBranchBase(readCtx, repositoryID, upstream.ref)
+	remote, useRemote, err := s.remoteBranchBase(readCtx, repositoryID, result.Base, upstream.ref)
 	cancel()
 	if err != nil {
 		if ctx.Err() != nil {
 			return result, err
 		}
 		result.FetchWarning = "上游刷新后无法读取提交，保留本地基线；请重试"
+		return result, nil
+	}
+	if !useRemote {
+		result.FetchWarning = "本地分支包含上游未有的提交，保留本地基线"
 		return result, nil
 	}
 	result.Base = remote.Head
@@ -119,27 +123,31 @@ func (s *Service) localBranchBase(ctx context.Context, repositoryID, branch stri
 	return result, upstream, r.entry.AnchorPath, nil
 }
 
-func (s *Service) remoteBranchBase(ctx context.Context, repositoryID, upstreamRef string) (Base, error) {
+func (s *Service) remoteBranchBase(ctx context.Context, repositoryID, localOID, upstreamRef string) (Base, bool, error) {
 	r, err := s.repository(repositoryID)
 	if err != nil {
-		return Base{}, err
+		return Base{}, false, err
 	}
 	if err := acquire(ctx, r); err != nil {
-		return Base{}, err
+		return Base{}, false, err
 	}
 	defer release(r)
 	repository, err := s.current(ctx, r)
 	if err != nil {
-		return Base{}, err
+		return Base{}, false, err
 	}
 	branches, err := s.branches(ctx, r, repository)
 	if err != nil {
-		return Base{}, err
+		return Base{}, false, err
 	}
 	for _, candidate := range branches.Bases {
 		if candidate.Name == upstreamRef {
-			return candidate, nil
+			_, err := s.git(ctx, r.entry.AnchorPath, "merge-base", "--is-ancestor", localOID, candidate.Head)
+			if err != nil && ctx.Err() != nil {
+				return Base{}, false, err
+			}
+			return candidate, err == nil, nil
 		}
 	}
-	return Base{}, problemf(ErrInternal, "上游跟踪引用不存在")
+	return Base{}, false, problemf(ErrInternal, "上游跟踪引用不存在")
 }

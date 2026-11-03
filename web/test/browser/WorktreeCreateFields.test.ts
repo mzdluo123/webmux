@@ -393,6 +393,29 @@ test("a refresh response preserves manual base edits made after the request", as
   await expect.element(baseInput()).toHaveValue(manual);
 });
 
+test("a failed manual refresh clears the previous remote-latest label", async () => {
+  const remoteHead = "b".repeat(40);
+  let calls = 0;
+  serve(200, branches, (branch) => {
+    calls += 1;
+    return calls === 1
+      ? Response.json(remoteRefresh(branch, remoteHead))
+      : Response.json({ error: "fetch failed" }, { status: 500 });
+  });
+  render(Harness, { repository });
+  await expect
+    .element(page.getByRole("status", { name: "上游刷新状态" }))
+    .toMatchTextContent(/远程最新/);
+  await page.getByRole("button", { name: "刷新上游", exact: true }).click();
+  await expect
+    .element(page.getByRole("status", { name: "上游刷新警告" }))
+    .toMatchTextContent(/保留当前基线/);
+  await expect
+    .element(page.getByRole("status", { name: "上游刷新状态" }))
+    .not.toBeInTheDocument();
+  await expect.element(reference()).toHaveTextContent(remoteHead);
+});
+
 test("failed refreshes keep the local base and form availability", async () => {
   serve(200, branches, () =>
     Response.json({ error: "fetch failed" }, { status: 500 }),

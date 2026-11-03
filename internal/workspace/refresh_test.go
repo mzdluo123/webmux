@@ -89,6 +89,23 @@ func TestRefreshBranchBaseRequiresConfiguredRemoteUpstream(t *testing.T) {
 	}
 }
 
+func TestRefreshBranchBaseKeepsLocalAheadOfUpstream(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	s, r, root, _ := upstreamFixture(t)
+	putFile(t, filepath.Join(root, "local"), "local only\n")
+	gitTest(t, root, "add", "local")
+	gitTest(t, root, "commit", "-m", "local only")
+	localHead := gitTest(t, root, "rev-parse", "main")
+	result, err := s.RefreshBranchBase(context.Background(), r.ID, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Base != localHead || result.BaseSubject != "local only" || result.BaseSource != "local" || !strings.Contains(result.FetchWarning, "上游未有") {
+		t.Fatalf("local-ahead branch replaced by older upstream: %+v", result)
+	}
+}
+
 func TestRefreshBranchBaseFailureAndTimeoutKeepLocalBase(t *testing.T) {
 	t.Parallel()
 	isolateGit(t)

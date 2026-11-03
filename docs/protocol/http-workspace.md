@@ -21,7 +21,7 @@
 分支刷新仅接受已存在的本地分支及其已配置上游，不回退到同名 remote。
 
 - 请求：30 秒非交互 `git fetch --no-tags`，不会切换或重置本地分支。
-- 成功：`{branch, base, baseSubject, baseSource: "remote", upstream, fetchWarning: ""}`；`base` 是本次上游跟踪引用的精确 OID。
+- 成功：`{branch, base, baseSubject, baseSource: "remote", upstream, fetchWarning: ""}`；仅当本地尖端是上游提交的祖先时，`base` 是本次上游跟踪引用的精确 OID。本地领先或分叉时保留本地尖端并说明。
 - 降级：无上游、上游为本机仓库、fetch 失败或超时仍返回 200。`baseSource` 为 `"local"`，`base` 回退到所选本地分支，`fetchWarning` 给出非阻断说明。
 - 安全：响应不包含 remote URL、命令行或原始 stderr；普通 GET 分支清单始终无网络行为。
 

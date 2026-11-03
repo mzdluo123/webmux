@@ -125,6 +125,9 @@
         if (generation !== refreshGeneration) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         refreshWarning = "上游刷新失败，保留当前基线；请重试";
+        baseSource = "";
+        upstream = "";
+        lastRefreshedAt = null;
       })
       .finally(() => {
         if (generation !== refreshGeneration) return;
