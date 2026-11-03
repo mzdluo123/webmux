@@ -161,3 +161,8 @@
 - 复现：Fedora 45 容器中直接 `rpm -U` 测试包报 “does not verify: no signature”，版本不变。
 - 验证：同一容器中 `webmux update apply` 从本地签名的测试 Release 把 0.0.1 升到 0.0.2，`rpm -Va webmux` 无差异；`dnf install` 本地包照常可用。
 - 限制：未在 Fedora 45 的 systemd 环境中经定时器运行；未重新核验其余故事能力。
+
+本次局部核对（2026-11-03）：设置页「新建启动配置」旁新增「添加系统预设」下拉菜单，支持单独补回或一键补回全部缺失的系统预设，对应更新 US-B08，不新增故事或改变覆盖索引。
+
+- 依据：`internal/launch`、`internal/wire`、`internal/api` 的 Go race 测试与线上快照，`wireArrays`、`wire-contract` 单元用例，以及 `LaunchConfigsSettings` 浏览器组件测试。
+- 限制：未重新核验其余故事能力。
