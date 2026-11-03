@@ -62,10 +62,12 @@ func qoderProcess(base string) bool {
 func qoderOptions() map[string]ap.Option {
 	o := map[string]ap.Option{}
 	// Session args: prevent hybrid mode (select existing session).
-	ap.Options(o, ap.ArgSession, ap.ArityOptional, "-c", "--continue")
-	ap.Options(o, ap.ArgSession, ap.ArityOne, "-r", "--resume", "--session-id",
-		"--from-pr", "--remote-session", "--remote-control", "--remote")
 	ap.Options(o, ap.ArgSession, ap.ArityNone, "--fork-session")
+	ap.Options(o, ap.ArgSession, ap.ArityOne, "--session-id",
+		"--from-pr", "--remote-session", "--remote-control", "--remote")
+	// Drop args: session-resuming options dropped on resume/ACP.
+	ap.Options(o, ap.ArgDrop, ap.ArityOptional, "-c", "--continue")
+	ap.Options(o, ap.ArgDrop, ap.ArityOptional, "-r", "--resume")
 	// Directory args: prevent hybrid mode (specify own working directory).
 	ap.Options(o, ap.ArgDirectory, ap.ArityOne, "-w", "--cwd")
 	ap.Options(o, ap.ArgDirectory, ap.ArityOptional, "--worktree")
@@ -92,7 +94,7 @@ func qoderOptions() map[string]ap.Option {
 		"--mcp-config", "--allowed-mcp-server-names",
 		"--allowed-tools", "--disallowed-tools", "--tools",
 		"--add-dir")
-	ap.Options(o, ap.ArgKeep, ap.ArityNone, "--dangerously-skip-permissions",
+	ap.Options(o, ap.ArgKeep, ap.ArityNone, "--dangerously-skip-permissions", "--yolo",
 		"--strict-mcp-config", "--bare", "-d", "--debug")
 	return o
 }
@@ -115,7 +117,11 @@ func (adapter) ResumesSessions() bool { return true }
 // ReapplyOnLoad: session/load does not restore model/effort.
 func (adapter) ReapplyOnLoad() []string { return []string{qoderModel, qoderEffort} }
 
-var permissionModes = ap.SetOf("default", "accept_edits", "bypass_permissions", "dont_ask", "auto")
+var permissionModes = ap.SetOf(
+	"default", "accept_edits", "acceptEdits",
+	"bypass_permissions", "bypassPermissions", "yolo",
+	"dont_ask", "dontAsk", "auto",
+)
 
 // qoderChatSide maps launch arguments to ACP configuration.
 func qoderChatSide(kept []ap.KeptOption) ([]ap.Seed, []string) {
@@ -131,7 +137,7 @@ func qoderChatSide(kept []ap.KeptOption) ([]ap.Seed, []string) {
 			seeds = append(seeds, ap.Seed{ConfigID: qoderEffort, Value: o.Value, Arg: o.Token})
 		case "--permission-mode":
 			modeIndex = i
-		case "--dangerously-skip-permissions":
+		case "--dangerously-skip-permissions", "--yolo":
 			dangerIndex = i
 		default:
 			unsupported = append(unsupported, o.Token)
@@ -141,14 +147,28 @@ func qoderChatSide(kept []ap.KeptOption) ([]ap.Seed, []string) {
 		seeds = appendMode(seeds, kept[dangerIndex], "bypass_permissions")
 	} else if modeIndex >= 0 {
 		o := kept[modeIndex]
-		mode := strings.ToLower(o.Value)
+		mode := o.Value
 		if permissionModes[mode] {
-			seeds = appendMode(seeds, o, mode)
+			seeds = appendMode(seeds, o, normalizeMode(mode))
 		} else {
 			unsupported = append(unsupported, o.Token)
 		}
 	}
 	return seeds, unsupported
+}
+
+// normalizeMode maps alias variants to the canonical snake_case form.
+func normalizeMode(mode string) string {
+	switch mode {
+	case "acceptEdits":
+		return "accept_edits"
+	case "bypassPermissions", "yolo":
+		return "bypass_permissions"
+	case "dontAsk":
+		return "dont_ask"
+	default:
+		return mode
+	}
 }
 
 func appendMode(seeds []ap.Seed, option ap.KeptOption, mode string) []ap.Seed {

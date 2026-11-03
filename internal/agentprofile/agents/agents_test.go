@@ -91,7 +91,7 @@ func TestCheck(t *testing.T) {
 		{name: "claude bare remains interactive", argv: []string{"claude", "--bare"}, agent: ClaudeCode},
 		{name: "qoder preset", argv: wrapped("qoder", "--dangerously-skip-permissions"), agent: Qoder},
 		{name: "qoder direct", argv: []string{"qoder", "--model", "gpt-4"}, agent: Qoder},
-		{name: "qoder resume", argv: []string{"qoder", "--resume", "abc-123"}, reason: ReasonSessionArg, arg: "--resume"},
+		{name: "qoder resume", argv: []string{"qoder", "--resume", "abc-123"}, agent: Qoder},
 		{name: "qoder worktree", argv: []string{"qoder", "--worktree", "feature"}, reason: ReasonDirectoryArg, arg: "--worktree"},
 		{name: "qoder print", argv: []string{"qoder", "-p", "fix bug"}, reason: ReasonNonInteractive, arg: "-p"},
 		{name: "qoder subcommand", argv: []string{"qoder", "commit"}, reason: ReasonNonInteractive, arg: "commit"},

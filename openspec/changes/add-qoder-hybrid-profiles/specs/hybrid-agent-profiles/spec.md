@@ -27,7 +27,8 @@
     `--bare`、`--fallback-model`、`--allowed-mcp-server-names`、
     `--max-output-tokens`、`--context-window`、`--thinking-budget`、
     `--output-style`、`--max-model-request-retries`。
-  - Drop：`-c`/`--continue`、`-r`/`--resume`（无参数形式）。
+  - Drop：`-c`/`--continue`、`-r`/`--resume`（无参数形式）、
+    `--attachment`、`-i`/`--prompt-interactive`、`-n`/`--name`。
   - Session：`--fork-session`、`--session-id`、`--from-pr`、
     `--remote-session`、`--remote-control`、`--remote`。
   - Directory：`-w`/`--worktree`、`--cwd`。

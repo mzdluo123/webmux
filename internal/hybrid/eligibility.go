@@ -264,6 +264,12 @@ func (a *actor) tracksRegistry() bool {
 }
 
 func (a *actor) identityFallback() bool {
+	// Agents with no session-ID source of their own (no LockTracker, no
+	// ProcessRegistry, no OSC 7501 child record) always need the
+	// session/list candidate probe.
+	if !a.tracksLocks() && !a.tracksRegistry() {
+		return true
+	}
 	return (a.tracksLocks() && a.locks.unknown) || (a.tracksRegistry() && a.registry.unknown)
 }
 
