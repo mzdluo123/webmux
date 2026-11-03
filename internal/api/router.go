@@ -193,13 +193,8 @@ func baseHeaders(w http.ResponseWriter) func() {
 	}
 }
 func (s *Server) middleware(next http.Handler) http.Handler {
-	hostAllowed := hostCheck(s.Config)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer baseHeaders(w)()
-		if !hostAllowed(r.Host) && !s.Public.hostAllowed(r.Host) {
-			failure(w, http.StatusForbidden, errors.New("host not allowed"))
-			return
-		}
 		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
 			if !s.authorized(r) {
 				failure(w, 401, errors.New("authentication required"))
@@ -278,7 +273,7 @@ func (s *Server) originAllowed(r *http.Request) bool {
 		if s.Public.originAllowed(origin, r.Host) {
 			return true
 		}
-	} else if u.Host == r.Host && u.Scheme == scheme {
+	} else if strings.EqualFold(u.Host, r.Host) && u.Scheme == scheme {
 		return true
 	}
 	for _, allowed := range s.Config.AllowedOrigins {

@@ -94,3 +94,35 @@ func ForwardTarget(status contract.StatusV1) (host, port string, ok bool) {
 	host, port, err := net.SplitHostPort(authority)
 	return host, port, err == nil && port != ""
 }
+
+// LANEnabled reports whether the reported listen address is open to non-loopback interfaces.
+func (s Snapshot) LANEnabled() bool {
+	if !s.HasStatus || s.Degraded {
+		return false
+	}
+	host, _, err := net.SplitHostPort(s.Status.Listen)
+	if err != nil {
+		return false
+	}
+	if host == "" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && !ip.IsLoopback()
+}
+
+// LANListenAddress returns "0.0.0.0:<port>" when enabled or "127.0.0.1:<port>"
+// when disabled, preserving the port of snap.Status.Listen (default 7681).
+func LANListenAddress(snap Snapshot, enabled bool) string {
+	port := "7681"
+	if snap.HasStatus {
+		if _, p, err := net.SplitHostPort(snap.Status.Listen); err == nil && p != "" {
+			port = p
+		}
+	}
+	host := "127.0.0.1"
+	if enabled {
+		host = "0.0.0.0"
+	}
+	return net.JoinHostPort(host, port)
+}

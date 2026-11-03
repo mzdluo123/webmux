@@ -154,6 +154,8 @@ func TestPublicOriginBoundaries(t *testing.T) {
 		{"other public origin", host, "https://evil.trycloudflare.com", http.StatusForbidden},
 		{"unrelated host", "evil.example", "https://evil.example", http.StatusForbidden},
 		{"direct same origin", "127.0.0.1:7681", "http://127.0.0.1:7681", http.StatusBadRequest},
+		{"magicdns same origin", "devbox.tailnet.ts.net:7681", "http://devbox.tailnet.ts.net:7681", http.StatusBadRequest},
+		{"magicdns cross origin", "devbox.tailnet.ts.net:7681", "http://evil.example:7681", http.StatusForbidden},
 	} {
 		if got := request(row.host, row.origin); got != row.want {
 			t.Errorf("%s: status %d, want %d", row.name, got, row.want)
