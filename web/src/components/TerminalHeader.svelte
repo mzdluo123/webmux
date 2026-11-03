@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
-  import IconCode from "~icons/tabler/code";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconMaximize from "~icons/tabler/maximize";
   import IconMinimize from "~icons/tabler/minimize";
@@ -187,6 +186,7 @@
       switching={hybrid.view === "switching"}
       chatUnavailable={hybrid.chatUnavailable}
       request={(to) => hybrid.request(to)}
+      code={{ shown: codeShown, set: (value) => (codeShown = value) }}
     />{/if}
   {#if terminalShown}
     <Button
@@ -224,20 +224,9 @@
       toggle={toggleDraft}
     />
   {/if}
-  <!-- Phones: both destinations stay visible; a hybrid session already has
-       the chat/terminal switch, so its code entry is one icon. -->
-  {#if hybrid?.side || hybrid?.target}
-    <Button
-      variant={codeShown ? "secondary" : "ghost"}
-      size="icon-sm"
-      class="sm:hidden"
-      aria-pressed={codeShown}
-      aria-label={codeShown ? (terminalShown ? "终端" : "聊天") : "代码"}
-      title={codeShown ? (terminalShown ? "终端" : "聊天") : "代码"}
-      onclick={() => (codeShown = !codeShown)}
-      ><IconCode class="size-4" aria-hidden="true" /></Button
-    >
-  {:else}
+  <!-- Phones: both destinations stay visible. A hybrid session's chat/terminal
+       switch carries the code tab itself. -->
+  {#if !(hybrid?.side || hybrid?.target)}
     <div class="sm:hidden">
       <ViewSegment
         first={terminalShown ? "终端" : "聊天"}
