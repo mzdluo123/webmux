@@ -126,7 +126,7 @@
       <div
         class="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground"
       >
-        {#if session.hybrid}{#if session.hybrid.side === "acp"}<span
+        {#if session.hybrid}{#if session.hybrid.side === "acp" || session.hybrid.side === "switching"}<span
               class="inline-flex min-w-0 items-center gap-1"
               data-slot="session-agent"
               >{#if hasLaunchIcon(session.hybrid.agentIcon)}<LaunchConfigIcon

@@ -309,6 +309,11 @@ test("terminal-side and switching hybrid cards keep the terminal preview", async
     onclose: () => {},
   });
   await expect.element(page.getByText("切换中", { exact: true })).toBeVisible();
+  const agent = agentElement();
+  expect(agent?.innerText).toBe("OpenCode");
+  expect(
+    agent?.querySelector('[data-launch-icon="opencode"] svg'),
+  ).not.toBeNull();
   expect(
     document.querySelector('[data-slot="terminal-preview"]'),
   ).not.toBeNull();

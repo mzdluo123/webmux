@@ -49,9 +49,9 @@
 
 ### D4：卡片——品牌图标替换通用聊天图标
 
-`SessionRow` 中 `hybrid.side === "acp"` 时，“所在端”片段渲染为 `[品牌图标] {agentTitle} · {hybridSideLabel}`；其余情况保持现有 `IconMessageCircle`/`IconTerminal2` 分支。只替换而不是并排追加，是为了让元信息行仍只有一个前导图标，信息密度不变。
+`SessionRow` 中 `hybrid.side` 为 `acp` 或 `switching` 时，“所在端”片段渲染为 `[品牌图标] {agentTitle} · {hybridSideLabel}`；其余情况保持现有 `IconMessageCircle`/`IconTerminal2` 分支。只替换而不是并排追加，是为了让元信息行仍只有一个前导图标，信息密度不变。
 
-判断条件用 `side` 而不是现有的 `chat` 派生值（它在 `phase` 存在时为假），这样休眠和从聊天端出发的切换过程中仍能看出 agent。
+判断条件用 `side` 而不是现有的 `chat` 派生值（它在 `phase` 存在时为假）。切换期间 `side` 为 `switching`，因此把它一并纳入，休眠和切换过程中仍能看出 agent。
 
 ### D5：头部——标题后的低强调标识
 
