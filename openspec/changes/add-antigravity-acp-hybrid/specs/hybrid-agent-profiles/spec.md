@@ -11,6 +11,15 @@ Antigravity CLI（`agy`）的 TUI 原生通过 `OSC 7501` 根记录上报 `app=a
 - **WHEN** 混合配置的 argv 为 `["agy","--dangerously-skip-permissions","--settings","{}"]`，agent 会话 ID 为 `89c9a933-60f6-46ad-977b-a8daf22f8e4d`，用户从聊天切到终端
 - **THEN** 恢复命令包含注入的 `--settings <title 配置>`、保留的 `--dangerously-skip-permissions` 与 `--conversation 89c9a933-60f6-46ad-977b-a8daf22f8e4d`，界面列出未保留的 `--settings {}`
 
+### Requirement: Antigravity CLI 的跨进程加载配置补齐与中断键
+
+`agy acp` 在新进程执行 `session/load` 或 `session/resume` 时会将 `model` 与 `thought_level` 重置为默认值。`agy` 档案 SHALL 声明加载后需补齐的配置项列表为 `["model", "thought_level"]`，由系统在跨进程加载或恢复后按记录中的取值自动调用 `session/set_config_option` 恢复。`agy` 档案的中断键 SHALL 为单次 `Esc`（`\x1b`），并启用 `session/resume` 用于空闲休眠唤醒与崩溃重连。
+
+#### Scenario: agy 跨进程加载后补齐模型与推理等级
+
+- **WHEN** 用户在 `agy` 混合会话聊天视图中将 `model` 改为 `gemini-3.8-flash`、将 `thought_level` 改为 `low`，随后切到终端再切回聊天（新 `agy acp` 进程的 `session/load` 返回默认的 `gemini-4-argon` 与 `medium`）
+- **THEN** 系统自动对 `model` 与 `thought_level` 调用 `session/set_config_option`，切回聊天后两项配置仍为 `gemini-3.8-flash` 与 `low`
+
 ## MODIFIED Requirements
 
 ### Requirement: 内置档案与可识别的命令写法

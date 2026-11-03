@@ -1,11 +1,12 @@
 # Tasks
 
-## 1. OSC 7501 子记录段长与 agy 档案
+## 1. OSC 7501 子记录段长、agy 档案与协议适配
 
 - [ ] 1.1 将 `internal/session/osc.go` 中的 `maxProgramIDSegment` 从 `32` 调整为 `64`，并在 `internal/session/osc_test.go` 与 `internal/session/attention_test.go` 中补充 36 字符 UUID 子记录 `id` 的提取与不泄露测试，运行 `go test -race ./internal/session` 验证通过。
-- [ ] 1.2 在 `internal/agentprofile` 中支持按参数配置 `passToACP`、多 token `tuiInject`，新增 `agy`（Antigravity CLI）档案（可执行文件 `agy`、实测版本 `1.4.12`、单次 `Esc` 中断键、`--conversation` 恢复参数、`--settings` 注入、白名单/丢弃/拒绝参数表）与 `Identify` 对 `app=antigravity` + 36 字符 UUID 子记录 `id` 的识别。
+- [ ] 1.2 在 `internal/agentprofile` 中支持按参数配置 `passToACP`、多 token `tuiInject`，对照 `design.md` 决策 1–3 与 `baseline.md` 新增 `agy`（Antigravity CLI）档案（可执行文件 `agy`、实测版本 `1.4.12`、单次 `Esc` 中断键、`Resume: true`、`ReapplyOnLoad: []string{"model", "thought_level"}`、`--conversation` 恢复参数、`--settings` `title` 钩子注入、白名单/丢弃/拒绝参数表）与 `Identify` 对 `app=antigravity` + 36 字符小写 UUID 子记录 `id` 的识别。
 - [ ] 1.3 更新 `internal/agentprofile` 中 `ReasonUnknownAgent.Message()` 文案，并在 `internal/agentprofile/profile_test.go` 中覆盖 `agy` 的命令分类、`TUIArgv`、`ResumeArgv`、`ACPArgv`、身份识别与版本比较，运行 `go test -race ./internal/agentprofile` 验证通过。
-- [ ] 1.4 扩展 `internal/acp/testdata/fakeagent` 支持 `--profile agy`（及以可执行文件名 `agy` 启动时自动选择 `agy` 档案、识别 `--conversation` 与注入的 `--settings`、发出 `app=antigravity` 与 UUID 子记录 `id`、单次 `Esc` 中断），并在 `internal/acp/fakeagent_test.go` 与 `internal/hybrid` 测试中增加 `agy` 双向切换用例，运行 `go test -race ./internal/acp ./internal/hybrid` 验证通过。
+- [ ] 1.4 在 `internal/hybrid/actor.go` 的 `onUpdate` 中忽略活动回合（`a.turn != nil`）期间收到的 `*acp.UserMessageChunk` 通知（保留 `session/load` 期间 `a.turn == nil` 的用户消息回放），并在 `internal/hybrid/chat_test.go` 中补充单元测试验证实时回合回显不产生重复用户消息且加载回放正常。
+- [ ] 1.5 对照 `baseline.md` 扩展 `internal/acp/testdata/fakeagent` 支持 `--profile agy`（及以可执行文件名 `agy` 启动时自动选定该档案、识别 `--conversation` 与 `--settings`、发出 `app=antigravity` 与 UUID 子记录、`session/prompt` 回显 `user_message_chunk`、跨进程加载重置 `model`/`thought_level`、单次 `Esc` 中断），并在 `internal/acp/fakeagent_test.go` 与 `internal/hybrid` 测试中增加 `agy` 双向切换与配置补齐用例，运行 `go test -race ./internal/acp ./internal/hybrid` 验证通过。
 
 ## 2. 启动配置预置、图标与前端适配
 
