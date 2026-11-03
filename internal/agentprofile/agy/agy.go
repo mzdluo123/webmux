@@ -75,13 +75,21 @@ func (adapter) ResumesSessions() bool { return true }
 func (adapter) ReapplyOnLoad() []string { return []string{"model", "thought_level"} }
 
 func chatSide(kept []ap.KeptOption) ([]ap.Seed, []string) {
+	var seeds []ap.Seed
 	var unsupported []string
 	for _, o := range kept {
-		if o.Name == "--mode" && !slices.Contains(unsupported, "--mode") {
-			unsupported = append(unsupported, "--mode")
+		switch o.Name {
+		case "--model":
+			seeds = append(seeds, ap.Seed{ConfigID: "model", Value: o.Value, Arg: o.Token})
+		case "--effort":
+			seeds = append(seeds, ap.Seed{ConfigID: "thought_level", Value: o.Value, Arg: o.Token})
+		case "--mode":
+			if !slices.Contains(unsupported, "--mode") {
+				unsupported = append(unsupported, "--mode")
+			}
 		}
 	}
-	return nil, unsupported
+	return seeds, unsupported
 }
 
 func uuidOrEmpty(s string) string {

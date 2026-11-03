@@ -84,7 +84,8 @@ Antigravity CLI 文档（`antigravity.google/docs`）及本机实测 `agy 1.4.12
   - 开关：`--dangerously-skip-permissions`、`--sandbox`
   - 带 1 个值：`--agent`、`--add-dir`、`--log-file`
 - 白名单仅保留于 `ResumeArgv`（`Keep, PassToACP: false`）：
-  - 带 1 个值：`--model`、`--effort`、`--mode`（其中 `--mode` 由 `ChatSide` 记入聊天端 `unsupported`）
+  - 带 1 个值：`--model`、`--effort`、`--mode`；`ChatSide` 将 `--model` 与 `--effort`
+    分别转换为 `model` 与 `thought_level` 配置种子，`--mode` 记入聊天端 `unsupported`。
 - 丢弃参数（`Drop`）：
   - 位置参数（`PosPrompt`）；开关：`-c`、`--continue`、`--remote-control`；
   - 带 1 个值：`--conversation`、`-i`、`--prompt-interactive`、`--settings`；

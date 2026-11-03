@@ -72,6 +72,7 @@ export const LAUNCH_ICON_OPTIONS = [
   { value: "claudecode", label: "Claude Code" },
   { value: "codex", label: "Codex" },
   { value: "antigravity", label: "Antigravity CLI" },
+  { value: "geminicli", label: "Gemini CLI（旧配置）" },
   { value: "cursor", label: "Cursor CLI" },
   { value: "githubcopilot", label: "GitHub Copilot CLI" },
   { value: "opencode", label: "OpenCode" },

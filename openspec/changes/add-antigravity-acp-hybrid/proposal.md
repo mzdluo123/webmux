@@ -15,7 +15,8 @@
   - 识别 `agy` 直接执行与 WebMux Bash/Zsh 启动文件包装写法；
   - 白名单保留参数：`--dangerously-skip-permissions`、`--sandbox`、`--agent`、
     `--add-dir`、`--log-file`、`--model`、`--effort`、`--mode`；其中前五项透传给
-    `agy acp`，`--mode` 在聊天视图列为不支持；
+    `agy acp`，`--model` 与 `--effort` 分别作为 `model` 与 `thought_level` 配置种子延续到聊天端，
+    `--mode` 在聊天视图列为不支持；
   - 恢复参数：`--conversation <id>`；
   - 丢弃参数：位置提示词、`-c`/`--continue`、`--conversation`、
     `-i`/`--prompt-interactive`、`--settings`、`--remote-control` 及未知参数；

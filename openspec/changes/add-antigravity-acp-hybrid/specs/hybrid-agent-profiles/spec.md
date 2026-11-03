@@ -203,8 +203,9 @@ ACP 进程的参数透传按 agent 区分：
   其余保留参数在聊天视图列为“以下参数在聊天端不生效”。
 - `agy`：`agy acp` 校验其子命令标志，原 argv 中位于 `agy` 白名单且 `agy acp` 接受的参数
   （`--dangerously-skip-permissions`、`--sandbox`、`--agent`、`--add-dir`、`--log-file`）SHALL 透传给
-  `agy acp`；仅 TUI 接受的 `--model`、`--effort`、`--mode` SHALL NOT 透传给 `agy acp`，其中 `--mode`
-  SHALL 在聊天视图的 `unsupported` 列表中提示（模型与推理等级由 ACP `configOptions` 控制）。
+  `agy acp`；仅 TUI 接受的 `--model`、`--effort`、`--mode` SHALL NOT 透传给 `agy acp`。
+  `--model` 与 `--effort` SHALL 分别作为 `model` 与 `thought_level` 配置种子延续到聊天端，
+  `--mode` SHALL 在聊天视图的 `unsupported` 列表中提示。
 
 使用启动文件包装时，`.bashrc`/`.zshrc` 执行期间写到 stdout 的内容 SHALL NOT 进入 ACP 协议通道。
 
@@ -229,7 +230,7 @@ ACP 进程的参数透传按 agent 区分：
 - **WHEN** 混合配置的 argv 为 `["agy","--dangerously-skip-permissions","--sandbox","--model","gemini-3.8-flash","--mode","plan"]`，
   会话从聊天开始
 - **THEN** ACP 进程的 argv 为 `["agy","acp","--dangerously-skip-permissions","--sandbox"]`，
-  聊天状态中的 `unsupported` 包含 `["--mode"]`
+  聊天配置种子包含 `model=gemini-3.8-flash`，`unsupported` 包含 `["--mode"]`
 
 ### Requirement: 版本提示
 

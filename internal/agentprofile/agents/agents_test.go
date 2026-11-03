@@ -455,6 +455,18 @@ func TestBelowVerified(t *testing.T) {
 	}
 }
 
+func TestAgyChatConfig(t *testing.T) {
+	cmd := mustParse(t, "agy", "--model=gemini-3.8-flash", "--effort", "low", "--mode", "plan")
+	seeds, unsupported := cmd.ChatConfig()
+	wantSeeds := []Seed{
+		{ConfigID: "model", Value: "gemini-3.8-flash", Arg: "--model=gemini-3.8-flash"},
+		{ConfigID: "thought_level", Value: "low", Arg: "--effort low"},
+	}
+	if !slices.Equal(seeds, wantSeeds) || !slices.Equal(unsupported, []string{"--mode"}) {
+		t.Fatalf("ChatConfig = %+v %q, want %+v [--mode]", seeds, unsupported, wantSeeds)
+	}
+}
+
 func TestCodexChatConfig(t *testing.T) {
 	tests := []struct {
 		name        string
