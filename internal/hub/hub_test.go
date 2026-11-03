@@ -260,6 +260,7 @@ func TestWriterDeflatesReplayOnly(t *testing.T) {
 			code := 0
 			sub.Out <- session.Message{Position: &session.Position{Mode: "reset"}}
 			sub.Out <- session.Message{Frame: snapshot}
+			sub.Out <- session.Message{Frame: live}
 			sub.Out <- session.Message{Info: &session.Info{}}
 			sub.Out <- session.Message{Frame: live}
 			sub.Out <- session.Message{Exit: &code}
@@ -296,7 +297,7 @@ func TestWriterDeflatesReplayOnly(t *testing.T) {
 			if ask {
 				snapshotKind = contract.FrameDeflate
 			}
-			want := []byte{contract.FramePosition, snapshotKind, contract.FrameState, contract.FrameOutput, contract.FrameExit}
+			want := []byte{contract.FramePosition, snapshotKind, contract.FrameOutput, contract.FrameState, contract.FrameOutput, contract.FrameExit}
 			if !bytes.Equal(kinds, want) {
 				t.Fatalf("frame kinds %v, want %v", kinds, want)
 			}

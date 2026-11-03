@@ -274,7 +274,7 @@ func Attach(ctx context.Context, s *session.Session, c *websocket.Conn, o sessio
 // A replay is exempt: it is one bounded transfer the client waits for, so its
 // frames go out as fast as the connection takes them, and the first live
 // output after it is not delayed either. When the client asked for it and the
-// WebSocket itself is not compressed, replay frames are DEFLATEd here, which
+// WebSocket itself is not compressed, the snapshot frame is DEFLATEd here, which
 // is what shortens a restore over a slow or high-latency link.
 const (
 	maxOutputFrame      = 1 + 64*1024
@@ -368,7 +368,7 @@ func writeMessages(ctx context.Context, c *websocket.Conn, sub *session.Subscrib
 				return
 			}
 		}
-		if replaying && deflateReplay && m.Frame != nil && (output || frame[0] == contract.FrameSnapshot) {
+		if replaying && deflateReplay && m.Frame != nil && frame[0] == contract.FrameSnapshot {
 			frame = deflateFrame(frame)
 		}
 		if write(ctx, c, websocket.MessageBinary, frame) != nil {
