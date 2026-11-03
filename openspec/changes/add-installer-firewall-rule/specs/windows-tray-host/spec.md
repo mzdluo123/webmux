@@ -4,7 +4,7 @@
 
 ### Requirement: 防火墙规则命令
 
-托盘程序 SHALL 提供 `firewall allow|remove` 子命令，为自身所在路径的 `webmux-tray.exe` 添加或删除转发所用的入站防火墙规则。该命令 SHALL NOT 创建托盘图标，也 SHALL NOT 影响正在运行的托盘。
+托盘程序 SHALL 提供 `firewall allow` 与 `firewall remove [路径]` 子命令，为自身所在路径的 `webmux-tray.exe` 添加或删除转发所用的入站防火墙规则；`remove` 可以指定另一个托盘的绝对路径，删除该路径的规则，相对路径 SHALL 视为参数无效。该命令 SHALL NOT 创建托盘图标，也 SHALL NOT 影响正在运行的托盘。
 
 - 规则名称 SHALL 以 `WebMux tray forwarding` 开头并标识该托盘路径，不同路径的规则互不影响。
 - 规则 SHALL 为入站、允许、TCP，只适用于专用网络与域网络。

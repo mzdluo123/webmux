@@ -44,20 +44,22 @@ type shellExecuteInfo struct {
 	process    windows.Handle
 }
 
-// FirewallCommand runs `webmux-tray firewall allow|remove` for this
-// executable and returns its exit code. The installer runs it; the tray
-// itself never changes the firewall.
+// FirewallCommand runs `webmux-tray firewall allow|remove [PATH]` and
+// returns its exit code: the rule belongs to this executable, or for
+// remove to PATH. The installer runs it; the tray itself never changes the
+// firewall.
 func FirewallCommand(args []string) int {
-	allow, err := tray.ParseFirewall(args)
+	allow, exe, err := tray.ParseFirewall(args)
 	if err != nil {
 		return tray.FirewallUsage
 	}
-	exe, err := os.Executable()
-	if err != nil {
-		return tray.FirewallFailed
-	}
-	if exe, err = filepath.Abs(exe); err != nil {
-		return tray.FirewallFailed
+	if exe == "" {
+		if exe, err = os.Executable(); err != nil {
+			return tray.FirewallFailed
+		}
+		if exe, err = filepath.Abs(exe); err != nil {
+			return tray.FirewallFailed
+		}
 	}
 	system, err := windows.GetSystemDirectory()
 	if err != nil {

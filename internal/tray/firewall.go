@@ -19,19 +19,29 @@ const (
 // declines the administrator prompt.
 var ErrElevationDeclined = errors.New("administrator prompt declined")
 
-// ParseFirewall parses the arguments after `firewall`: exactly `allow` or
-// `remove`.
-func ParseFirewall(args []string) (allow bool, err error) {
-	if len(args) != 1 {
-		return false, errors.New("firewall takes one argument: allow or remove")
+// ParseFirewall parses the arguments after `firewall`: `allow`, or
+// `remove` with an optional absolute path of the tray whose rule to remove
+// (the installer records it, and the install directory may have changed).
+// program is "" for this executable.
+func ParseFirewall(args []string) (allow bool, program string, err error) {
+	switch {
+	case len(args) == 1 && args[0] == "allow":
+		return true, "", nil
+	case len(args) == 1 && args[0] == "remove":
+		return false, "", nil
+	case len(args) == 2 && args[0] == "remove" && isAbsWindowsPath(args[1]):
+		return false, args[1], nil
 	}
-	switch args[0] {
-	case "allow":
-		return true, nil
-	case "remove":
-		return false, nil
+	return false, "", errors.New("firewall takes allow, or remove with an optional absolute tray path")
+}
+
+// isAbsWindowsPath reports a drive-absolute (C:\...) or UNC path.
+func isAbsWindowsPath(p string) bool {
+	if strings.HasPrefix(p, `\\`) {
+		return len(p) > 2
 	}
-	return false, errors.New("firewall takes allow or remove")
+	return len(p) > 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/') &&
+		(p[0] >= 'A' && p[0] <= 'Z' || p[0] >= 'a' && p[0] <= 'z')
 }
 
 // FirewallRule is the inbound Windows Defender Firewall rule that lets

@@ -19,9 +19,10 @@
 ;
 ; The only administrator prompt is the optional firewall rule of the
 ; interactive install ("安装选项"): `webmux-tray firewall allow` adds it for
-; the installed tray and records FirewallRule, so the uninstaller removes
-; it. Silent installs never prompt and leave an existing rule as it is; a
-; silent update in place keeps it, since the rule follows the tray's path.
+; the installed tray and FirewallRule records that tray's path. Unchecking
+; the option on a later interactive install, or uninstalling, removes the
+; recorded rule. Silent installs never prompt and leave the rule as it is;
+; a silent update in place keeps it, since the rule follows the tray's path.
 
 !ifndef VERSION | ARCH | TRAY | SERVER | ICON | OUTFILE
   !error "VERSION, ARCH, TRAY, SERVER, ICON and OUTFILE must be defined with -D"
@@ -117,9 +118,13 @@ Page custom optionsPage optionsLeave
 ; a silent update leaves the item as it is.
 Var Autostart
 Var AutostartBox
-; ${BST_CHECKED} adds the firewall rule; silent installs never do.
+; ${BST_CHECKED} keeps a firewall rule for the installed tray: the first
+; interactive install defaults to it, a later one to the recorded choice.
+; Silent installs never touch the rule.
 Var Firewall
 Var FirewallBox
+; The tray path whose rule an earlier install added (FirewallRule), or "".
+Var FirewallOld
 ; 1 once a running installed tray has been closed.
 Var TrayClosed
 ; 1 while webmux-tray.exe.old holds the installed tray, until the install
@@ -129,8 +134,15 @@ Var TrayBackup
 Function .onInit
   StrCpy $Autostart ${BST_CHECKED}
   StrCpy $Firewall ${BST_CHECKED}
+  ReadRegStr $FirewallOld HKCU "${UNINST_KEY}" "FirewallRule"
   ${If} ${Silent}
     StrCpy $Firewall ${BST_UNCHECKED}
+  ${Else}
+    ReadRegStr $0 HKCU "${UNINST_KEY}" "InstallLocation"
+    ${If} $0 != ""
+    ${AndIf} $FirewallOld == ""
+      StrCpy $Firewall ${BST_UNCHECKED}
+    ${EndIf}
   ${EndIf}
   StrCpy $TrayClosed 0
   StrCpy $TrayBackup 0
@@ -270,7 +282,8 @@ Section "-WebMux tray"
   ${EndIf}
 
   ; Optional and after the install is complete: a declined or failed
-  ; prompt only explains how to add the rule later.
+  ; prompt only explains how to add the rule later. FirewallRule records
+  ; the tray path, so a rule for an earlier directory is removed too.
   ${If} $Firewall == ${BST_CHECKED}
     DetailPrint "添加 Windows 防火墙规则（需要管理员确认）…"
     ClearErrors
@@ -280,11 +293,31 @@ Section "-WebMux tray"
     ${EndIf}
     ClearErrors
     ${If} $0 == 0
-      WriteRegDWORD HKCU "${UNINST_KEY}" "FirewallRule" 1
+      WriteRegStr HKCU "${UNINST_KEY}" "FirewallRule" "$INSTDIR\webmux-tray.exe"
+      ${If} $FirewallOld != ""
+      ${AndIf} $FirewallOld != "$INSTDIR\webmux-tray.exe"
+        ExecWait '"$INSTDIR\webmux-tray.exe" firewall remove "$FirewallOld"' $0
+        ClearErrors
+      ${EndIf}
     ${ElseIf} $0 == 3
       MessageBox MB_OK|MB_ICONINFORMATION "已跳过 Windows 防火墙规则，其他设备暂时无法通过托盘转发访问。$\r$\n$\r$\n需要时重新运行安装程序并保持勾选，或在命令行运行：$\r$\n$\"$INSTDIR\webmux-tray.exe$\" firewall allow" /SD IDOK
     ${Else}
       MessageBox MB_OK|MB_ICONEXCLAMATION "未能添加 Windows 防火墙规则（代码 $0）。托盘已安装，本机使用不受影响。$\r$\n$\r$\n需要时可在命令行重试：$\r$\n$\"$INSTDIR\webmux-tray.exe$\" firewall allow" /SD IDOK
+    ${EndIf}
+  ${ElseIfNot} ${Silent}
+  ${AndIf} $FirewallOld != ""
+    ; Unchecked on an interactive reinstall: withdraw the earlier rule.
+    DetailPrint "删除 Windows 防火墙规则（需要管理员确认）…"
+    ClearErrors
+    ExecWait '"$INSTDIR\webmux-tray.exe" firewall remove "$FirewallOld"' $0
+    ${If} ${Errors}
+      StrCpy $0 1
+    ${EndIf}
+    ClearErrors
+    ${If} $0 == 0
+      DeleteRegValue HKCU "${UNINST_KEY}" "FirewallRule"
+    ${Else}
+      MessageBox MB_OK|MB_ICONINFORMATION "未删除之前添加的 Windows 防火墙规则（代码 $0）。$\r$\n$\r$\n需要时可在命令行运行：$\r$\n$\"$INSTDIR\webmux-tray.exe$\" firewall remove" /SD IDOK
     ${EndIf}
   ${EndIf}
 SectionEnd
@@ -301,10 +334,10 @@ Section "Uninstall"
 
   ; The rule the installer added for this tray; removing it shows the
   ; administrator prompt once.
-  ReadRegDWORD $1 HKCU "${UNINST_KEY}" "FirewallRule"
-  ${If} $1 == 1
+  ReadRegStr $1 HKCU "${UNINST_KEY}" "FirewallRule"
+  ${If} $1 != ""
     ClearErrors
-    ExecWait '"$INSTDIR\webmux-tray.exe" firewall remove' $0
+    ExecWait '"$INSTDIR\webmux-tray.exe" firewall remove "$1"' $0
     ${If} ${Errors}
     ${OrIf} $0 != 0
       MessageBox MB_OK|MB_ICONINFORMATION "未删除 WebMux 添加的 Windows 防火墙规则。$\r$\n$\r$\n可在“高级安全 Windows Defender 防火墙”的入站规则中删除以“WebMux tray forwarding”开头的规则。" /SD IDOK

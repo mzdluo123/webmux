@@ -7,21 +7,27 @@ import (
 	"testing"
 )
 
+// allow always targets this tray; only remove names another path, which
+// must be absolute so a relative argument cannot pick an unintended rule.
 func TestParseFirewall(t *testing.T) {
 	for _, tc := range []struct {
-		args  []string
-		allow bool
-		ok    bool
+		args    []string
+		allow   bool
+		program string
+		ok      bool
 	}{
-		{[]string{"allow"}, true, true},
-		{[]string{"remove"}, false, true},
-		{nil, false, false},
-		{[]string{"add"}, false, false},
-		{[]string{"allow", "extra"}, false, false},
+		{[]string{"allow"}, true, "", true},
+		{[]string{"remove"}, false, "", true},
+		{[]string{"remove", `D:\Old\webmux-tray.exe`}, false, `D:\Old\webmux-tray.exe`, true},
+		{[]string{"remove", `\\server\share\webmux-tray.exe`}, false, `\\server\share\webmux-tray.exe`, true},
+		{[]string{"remove", `webmux-tray.exe`}, false, "", false},
+		{[]string{"allow", `D:\Other\evil.exe`}, false, "", false},
+		{nil, false, "", false},
+		{[]string{"add"}, false, "", false},
 	} {
-		allow, err := ParseFirewall(tc.args)
-		if (err == nil) != tc.ok || (tc.ok && allow != tc.allow) {
-			t.Errorf("ParseFirewall(%q) = %v, %v", tc.args, allow, err)
+		allow, program, err := ParseFirewall(tc.args)
+		if (err == nil) != tc.ok || (tc.ok && (allow != tc.allow || program != tc.program)) {
+			t.Errorf("ParseFirewall(%q) = %v, %q, %v", tc.args, allow, program, err)
 		}
 	}
 }

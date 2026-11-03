@@ -136,6 +136,8 @@ try {
   }
   Check (@(FirewallRules).Count -eq 0) 'silent install adds no firewall rule'
   Check ((Run $tray @('firewall')) -eq 2) 'firewall rejects missing arguments'
+  Check ((Run $tray @('firewall', 'allow', 'C:\Other\program.exe')) -eq 2) 'firewall allow only applies to this tray'
+  Check ((Run $tray @('firewall', 'remove', 'webmux-tray.exe')) -eq 2) 'firewall remove rejects a relative path'
   Check ((Run $tray @('firewall', 'remove')) -eq 0) 'firewall remove without a rule exits 0'
   $identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
   if ($identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
