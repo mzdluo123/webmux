@@ -35,6 +35,8 @@ function serve(list: () => Response) {
       const method = init?.method ?? "GET";
       requests.push(`${method} ${path}`);
       if (path === "/api/launch-configs" && method === "GET") return list();
+      if (path === "/api/launch-configs/presets" && method === "GET")
+        return Response.json([]);
       if (path === `/api/launch-configs/${config.id}` && method === "DELETE")
         return new Response(null, { status: 204 });
       // Other cards (push, tunnel) degrade on their own; not under test here.
@@ -175,6 +177,41 @@ test("hybrid configs are marked and the chat idle sleep saves to the server", as
   await expect
     .element(page.getByText("请输入 0–1440 之间的整数。"))
     .toBeVisible();
+});
+
+test("an unavailable presets endpoint explains why the menu is disabled", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input, init) => {
+      const path = new URL(String(input), location.href).pathname;
+      const method = init?.method ?? "GET";
+      if (path === "/api/settings")
+        return Response.json({
+          revision: 0,
+          updatedAt: "",
+          values: emptySettings,
+        });
+      if (path === "/api/launch-configs" && method === "GET")
+        return Response.json([]);
+      if (path === "/api/launch-configs/presets" && method === "GET")
+        return Response.json({ error: "系统预设暂不可用" }, { status: 503 });
+      return Response.json({ error: "not found" }, { status: 404 });
+    }),
+  );
+  stopSettings();
+  await reloadSettings();
+  render(Settings);
+  await expect
+    .element(card().getByRole("alert"))
+    .toMatchTextContent(/系统预设暂不可用/);
+  await expect
+    .element(
+      card().getByRole("button", { name: "重新读取系统预设", exact: true }),
+    )
+    .toBeVisible();
+  await expect
+    .element(card().getByRole("button", { name: "添加系统预设", exact: true }))
+    .toBeDisabled();
 });
 
 test("preset menu marks existing configs and restores one or all missing presets", async () => {

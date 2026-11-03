@@ -81,12 +81,9 @@ func (s *Service) presetsLocked() ([]Input, error) {
 	if s.presets != nil {
 		return s.presets, nil
 	}
-	presets, err := normalizePresets(Presets(""))
-	if err != nil {
-		return nil, err
-	}
-	s.presets = presets
-	return s.presets, nil
+	// Do not cache this fallback: Seed must always win so the shell-aware list
+	// is used whenever it is available, regardless of call order.
+	return normalizePresets(Presets(""))
 }
 
 // Presets returns the system launch presets configured on the service.

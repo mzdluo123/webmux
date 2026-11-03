@@ -60,6 +60,20 @@ func TestPresetsFollowDefaultShell(t *testing.T) {
 	}
 }
 
+func TestPresetsBeforeSeedPreferShellAwareList(t *testing.T) {
+	s := open(t, t.TempDir())
+	if _, err := s.Presets(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Seed(Presets("/bin/zsh")); err != nil {
+		t.Fatal(err)
+	}
+	presets, err := s.Presets()
+	if err != nil || len(presets) != 11 || !slices.Equal(presets[0].Cmd, []string{"/bin/zsh", "-l", "-i"}) {
+		t.Fatalf("presets after seed = %+v, %v", presets, err)
+	}
+}
+
 func TestRestorePresets(t *testing.T) {
 	dir := t.TempDir()
 	s := Open(dir)

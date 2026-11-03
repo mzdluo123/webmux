@@ -122,7 +122,6 @@
     try {
       launchConfigs = await api("/launch-configs", LaunchConfigsSchema);
       launchError = "";
-      launchPresetError = "";
       launchState = "ready";
     } catch (err) {
       launchError = errorMessage(err);
@@ -132,8 +131,12 @@
   async function loadLaunchPresets() {
     try {
       launchPresets = await api("/launch-configs/presets", LaunchPresetsSchema);
-    } catch {
+      launchPresetError = "";
+    } catch (err) {
+      // An empty list disables the menu; keep the reason so the card can
+      // explain why and offer a retry.
       launchPresets = [];
+      launchPresetError = errorMessage(err);
     }
   }
   async function restoreLaunchPresets(name?: string) {
@@ -514,8 +517,23 @@
                 >{/if}
             </div>
           {/if}
-          {#if launchPresetError}
-            <InlineNotice tone="danger">{launchPresetError}</InlineNotice>
+          {#if launchPresetError && launchState !== "unavailable"}
+            <InlineNotice tone="danger">
+              <p>
+                {launchPresets.length === 0
+                  ? "系统预设暂不可用，恢复菜单已停用："
+                  : "补回预设失败："}{launchPresetError}
+              </p>
+              {#if launchPresets.length === 0}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="mt-2"
+                  onclick={() => void loadLaunchPresets()}
+                  >重新读取系统预设</Button
+                >
+              {/if}
+            </InlineNotice>
           {/if}
           <ChatIdleSleepSetting />
         </Card.Content>
