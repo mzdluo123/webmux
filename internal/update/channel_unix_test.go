@@ -5,6 +5,7 @@ package update
 import (
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 )
 
@@ -48,8 +49,16 @@ func TestReadChannel(t *testing.T) {
 
 func TestWriteChannel(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "etc", "webmux", "update-channel")
-	if err := WriteChannel(path, ChannelDev); err != nil {
+	// Hardened hosts run sudo with umask 027; non-root readers still need
+	// to reach the file.
+	old := syscall.Umask(0o027)
+	err := WriteChannel(path, ChannelDev)
+	syscall.Umask(old)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if info, err := os.Stat(filepath.Dir(path)); err != nil || info.Mode().Perm() != 0o755 {
+		t.Fatalf("directory mode: %v %v", err, info)
 	}
 	info, err := os.Stat(path)
 	if err != nil || info.Mode().Perm() != 0o644 {

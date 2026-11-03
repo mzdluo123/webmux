@@ -53,6 +53,7 @@ func testUpdateEnv(base string, key update.PublicKey, owner string) updateEnv {
 	return updateEnv{
 		euid:        1000,
 		channelPath: filepath.Join(os.TempDir(), "webmux-test-missing-channel", "update-channel"),
+		readChannel: update.ReadChannel,
 		isRelease:   func() bool { return true },
 		exe:         func() (string, error) { return "/usr/bin/webmux", nil },
 		run: func(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -99,6 +100,36 @@ func TestUpdateCheckManualInstallHint(t *testing.T) {
 	if code != 0 || !strings.Contains(text, "0.4.0") || !strings.Contains(text, "0.5.0") ||
 		!strings.Contains(text, "有可用更新") || !strings.Contains(text, "install.sh") {
 		t.Fatalf("code %d stdout %q stderr %q", code, text, errOut.String())
+	}
+}
+
+// On the dev channel an install.sh user is pointed at the script that can
+// install the offered version: a stable release that superseded the dev
+// builds comes from the stable script, a dev build from the dev one.
+func TestUpdateCheckDevChannelInstallHint(t *testing.T) {
+	other, err := update.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		latest, want, avoid string
+	}{
+		{"0.5.0", installScriptURL + " | sh", "WEBMUX_CHANNEL=dev"},
+		{"0.5.1-dev.4", devInstallScriptURL + " | WEBMUX_CHANNEL=dev sh", installScriptURL},
+	} {
+		setVersion(t, "0.5.0-dev.3")
+		base, key, _ := signedRelease(t, tc.latest)
+		env := testUpdateEnv(base, key, "")
+		env.readChannel = func(string) (update.Channel, error) { return update.ChannelDev, nil }
+		if update.IsDevVersion(tc.latest) {
+			env.client.StableKeys, env.client.DevKeys = []update.PublicKey{other.Public()}, []update.PublicKey{key}
+		}
+		var out, errOut bytes.Buffer
+		code := runUpdate([]string{"check"}, &out, &errOut, env)
+		text := out.String()
+		if code != 0 || !strings.Contains(text, tc.want) || strings.Contains(text, tc.avoid) {
+			t.Fatalf("%s: code %d stdout %q stderr %q", tc.latest, code, text, errOut.String())
+		}
 	}
 }
 

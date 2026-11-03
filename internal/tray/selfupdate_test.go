@@ -105,15 +105,17 @@ func (f *fakeReleases) counts() (checks, fetches int) {
 }
 
 type updateHarness struct {
-	t        *testing.T
-	clock    *fakeClock
-	dir      string
-	auto     atomic.Bool
-	idle     atomic.Bool
-	mu       sync.Mutex
-	channel  update.Channel
-	launched []string
-	attempts []UpdateAttempt
+	t       *testing.T
+	clock   *fakeClock
+	dir     string
+	auto    atomic.Bool
+	idle    atomic.Bool
+	mu      sync.Mutex
+	channel update.Channel
+	// channelSaves counts SetChannel calls.
+	channelSaves int
+	launched     []string
+	attempts     []UpdateAttempt
 	// recordErr fails RecordAttempt; launchErr fails Launch.
 	recordErr, launchErr error
 	// exits ends the running installer with a code.
@@ -135,7 +137,7 @@ func newUpdateHarness(t *testing.T, installed bool, client ReleaseClient, edit f
 		Dir:        h.dir,
 		Client:     func(update.Channel) ReleaseClient { return client },
 		Channel:    h.currentChannel,
-		SetChannel: func(ch update.Channel) { h.mu.Lock(); h.channel = ch; h.mu.Unlock() },
+		SetChannel: h.setChannel,
 		Clock:      h.clock,
 		AutoUpdate: h.auto.Load,
 		Idle:       h.idle.Load,
@@ -178,10 +180,23 @@ func (h *updateHarness) recorded() []UpdateAttempt {
 	return append([]UpdateAttempt(nil), h.attempts...)
 }
 
-func (h *updateHarness) currentChannel() update.Channel {
+// currentChannel reads the stored channel as Settings.Channel does.
+func (h *updateHarness) currentChannel() (update.Channel, error) {
+	return Settings{UpdateChannel: h.storedChannel()}.Channel()
+}
+
+func (h *updateHarness) storedChannel() update.Channel {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.channel
+}
+
+// setChannel stores ch as the menu or a settings file edit would.
+func (h *updateHarness) setChannel(ch update.Channel) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.channel = ch
+	h.channelSaves++
 }
 
 // settled waits until no check runs and the schedule waits for its timer.
@@ -712,7 +727,7 @@ func TestSelfUpdateSelectDevChannel(t *testing.T) {
 	}
 	h.u.SelectChannel(update.ChannelDev)
 	eventually(t, "installer", func() bool { return len(h.launches()) == 1 })
-	if ch := h.currentChannel(); ch != update.ChannelDev {
+	if ch := h.storedChannel(); ch != update.ChannelDev {
 		t.Fatalf("channel %s", ch)
 	}
 	if got := h.launches()[0]; got != filepath.Join(h.dir, devAsset) {
@@ -734,9 +749,7 @@ func TestSelfUpdateBackToStableKeepsDevBuild(t *testing.T) {
 		o.Version = "0.10.3-dev.4"
 		o.Client = releases.channel
 	})
-	h.mu.Lock()
-	h.channel = update.ChannelDev
-	h.mu.Unlock()
+	h.setChannel(update.ChannelDev)
 	h.u.SelectChannel(update.ChannelStable)
 	eventually(t, "check", func() bool { c, _ := releases.counts(); return c == 1 && !h.u.View().Busy })
 	v := h.u.View()
@@ -779,7 +792,7 @@ func TestSelfUpdateSwitchToDevForDevServer(t *testing.T) {
 	}
 	h.u.SwitchToDev()
 	eventually(t, "installer", func() bool { return len(h.launches()) == 1 })
-	if ch := h.currentChannel(); ch != update.ChannelDev {
+	if ch := h.storedChannel(); ch != update.ChannelDev {
 		t.Fatalf("channel %s", ch)
 	}
 	if got := h.launches()[0]; got != filepath.Join(h.dir, "webmux-0.10.3-dev.7-setup-windows-amd64.exe") {
@@ -805,9 +818,7 @@ func TestSelfUpdateSwitchDuringInstallDropsOldChannelBuild(t *testing.T) {
 		o.Version = "0.10.2"
 		o.Client = releases.channel
 	})
-	h.mu.Lock()
-	h.channel = update.ChannelDev
-	h.mu.Unlock()
+	h.setChannel(update.ChannelDev)
 	h.idle.Store(false)
 	h.u.Check()
 	eventually(t, "download", func() bool { return h.clock.pending() == 1 })
@@ -853,5 +864,81 @@ func TestSelfUpdateSwitchToDevQueuesInstall(t *testing.T) {
 	}
 	if got := h.recorded(); len(got) != 1 || got[0].Version != "0.10.3-dev.4" {
 		t.Fatalf("recorded %+v", got)
+	}
+}
+
+// Editing updateChannel in tray.json while a dev build waits to install
+// acts like a switch from the menu: the build is forgotten at once, never
+// launched, and the new channel is checked once the operation ends.
+func TestSelfUpdateChannelChangedInSettingsFile(t *testing.T) {
+	releases := &fakeReleases{latest: "0.10.2", dev: "0.10.3-dev.4"}
+	h := newUpdateHarness(t, true, nil, func(o *SelfUpdateOptions) {
+		o.Version = "0.10.2"
+		o.Client = releases.channel
+	})
+	h.setChannel(update.ChannelDev)
+	h.idle.Store(false)
+	h.u.Check()
+	eventually(t, "download", func() bool { return h.clock.pending() == 1 })
+	if v := h.u.View(); v.Status != "托盘 0.10.3-dev.4 已下载，当前操作完成后安装" {
+		t.Fatalf("waiting %+v", v)
+	}
+	h.setChannel(update.ChannelStable) // the reloaded file
+	h.u.ChannelChanged()
+	if v := h.u.View(); v.Latest != "" || v.Status != "" || !v.Busy {
+		t.Fatalf("after the reload %+v", v)
+	}
+	h.idle.Store(true)
+	h.clock.jump(UpdateIdlePoll)
+	eventually(t, "stable check", func() bool { c, _ := releases.counts(); return c == 2 && !h.u.View().Busy })
+	if got := releases.checked(); !slices.Equal(got, []update.Channel{update.ChannelDev, update.ChannelStable}) {
+		t.Fatalf("checked %v", got)
+	}
+	if len(h.launches()) != 0 || len(h.recorded()) != 0 {
+		t.Fatalf("launched %v, recorded %+v", h.launches(), h.recorded())
+	}
+}
+
+// The last of several switches made while busy decides the queued check:
+// "正式版" picked after "切换到开发版通道并更新托盘" does not inherit its
+// install, so with automatic updates off it only reports the release.
+func TestSelfUpdateLastQueuedSwitchDecides(t *testing.T) {
+	releases := &fakeReleases{latest: "0.10.2", dev: "0.10.3-dev.4"}
+	h := newUpdateHarness(t, true, nil, func(o *SelfUpdateOptions) {
+		o.Version = "0.10.1"
+		o.Client = releases.channel
+	})
+	h.setChannel(update.ChannelDev)
+	h.auto.Store(false)
+	h.idle.Store(false)
+	h.u.Install()
+	eventually(t, "download", func() bool { return h.clock.pending() == 1 })
+	h.u.SwitchToDev()
+	h.u.SelectChannel(update.ChannelStable)
+	h.idle.Store(true)
+	h.clock.jump(UpdateIdlePoll)
+	eventually(t, "stable check", func() bool { c, _ := releases.counts(); return c == 2 && !h.u.View().Busy })
+	if len(h.launches()) != 0 || len(h.recorded()) != 0 {
+		t.Fatalf("launched %v, recorded %+v", h.launches(), h.recorded())
+	}
+	if v := h.u.View(); v.Latest != "0.10.2" || v.Status != "有新版本 0.10.2" {
+		t.Fatalf("after the stable check %+v", v)
+	}
+}
+
+// An unrecognised stored channel counts as stable; picking "正式版" saves
+// it without a check, and picking it again does nothing.
+func TestSelfUpdateSelectChannelRewritesUnrecognisedValue(t *testing.T) {
+	releases := &fakeReleases{latest: "0.4.0"}
+	h := newUpdateHarness(t, true, releases, nil)
+	h.setChannel("beta")
+	h.u.SelectChannel(update.ChannelStable)
+	h.u.SelectChannel(update.ChannelStable)
+	time.Sleep(10 * time.Millisecond)
+	h.mu.Lock()
+	stored, saves := h.channel, h.channelSaves
+	h.mu.Unlock()
+	if checks, _ := releases.counts(); stored != update.ChannelStable || saves != 2 || checks != 0 {
+		t.Fatalf("stored %q after %d saves, %d checks", stored, saves, checks)
 	}
 }

@@ -33,6 +33,7 @@ type updateEnv struct {
 	lockPath    string
 	cacheDir    string
 	channelPath string
+	readChannel func(path string) (update.Channel, error)
 }
 
 func systemUpdateEnv() updateEnv {
@@ -48,6 +49,7 @@ func systemUpdateEnv() updateEnv {
 		lockPath:    "/run/webmux-update.lock",
 		cacheDir:    cache,
 		channelPath: update.ChannelFile,
+		readChannel: update.ReadChannel,
 	}
 }
 
@@ -112,7 +114,7 @@ func runUpdate(args []string, stdout, stderr io.Writer, env updateEnv) int {
 		_, _ = fmt.Fprintln(stderr, "webmux update:", err)
 		return contract.ExitError
 	}
-	env.client.Channel = readUpdateChannel(stderr, env.channelPath)
+	env.client.Channel = env.readUpdateChannel(stderr)
 	if action == "apply" {
 		err := update.Apply(ctx, update.ApplyOptions{
 			Current: version, Exe: exe, GOARCH: runtime.GOARCH, Euid: env.euid,
@@ -149,8 +151,10 @@ func runUpdate(args []string, stdout, stderr io.Writer, env updateEnv) int {
 	}
 	_, _ = fmt.Fprintln(stdout, "有可用更新。")
 	if method == update.MethodOther {
+		// The dev script installs only development builds; a stable release
+		// that superseded them comes from the stable script.
 		hint := "curl -fsSL " + installScriptURL + " | sh"
-		if env.client.Channel == update.ChannelDev {
+		if update.IsDevVersion(m.Version) {
 			hint = "curl -fsSL " + devInstallScriptURL + " | WEBMUX_CHANNEL=dev sh"
 		}
 		_, _ = fmt.Fprintf(stdout, "当前安装方式不支持自动更新；重新运行 install.sh 升级：\n  %s\n", hint)
@@ -161,8 +165,8 @@ func runUpdate(args []string, stdout, stderr io.Writer, env updateEnv) int {
 }
 
 // readUpdateChannel returns the saved channel, reporting a file it ignored.
-func readUpdateChannel(stderr io.Writer, path string) update.Channel {
-	ch, warn := update.ReadChannel(path)
+func (env updateEnv) readUpdateChannel(stderr io.Writer) update.Channel {
+	ch, warn := env.readChannel(env.channelPath)
 	if warn != nil {
 		_, _ = fmt.Fprintln(stderr, "webmux update:", warn)
 	}
@@ -171,9 +175,13 @@ func readUpdateChannel(stderr io.Writer, path string) update.Channel {
 
 // runUpdateChannel prints the saved channel, or saves a new one as root.
 func runUpdateChannel(args []string, stdout, stderr io.Writer, env updateEnv) int {
+	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
+		_, _ = fmt.Fprintln(stdout, "Usage: webmux update channel [stable|dev]")
+		return contract.ExitOK
+	}
 	switch len(args) {
 	case 0:
-		_, _ = fmt.Fprintln(stdout, readUpdateChannel(stderr, env.channelPath))
+		_, _ = fmt.Fprintln(stdout, env.readUpdateChannel(stderr))
 		return contract.ExitOK
 	case 1:
 	default:

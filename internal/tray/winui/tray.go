@@ -189,11 +189,10 @@ func (a *App) autoUpdate() bool {
 	return a.settings.AutoUpdate
 }
 
-func (a *App) channel() update.Channel {
+func (a *App) channel() (update.Channel, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	ch, _ := a.settings.Channel()
-	return ch
+	return a.settings.Channel()
 }
 
 // setChannel saves the update channel the user picked.

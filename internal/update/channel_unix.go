@@ -51,13 +51,20 @@ func readChannel(path string, ownerUID uint32) (Channel, error) {
 	return ch, nil
 }
 
-// WriteChannel saves ch at path, creating its directory with mode 0755. It
-// writes a temporary file and renames it, so readers see the old or the new
-// value, never a partial one. The file has mode 0644.
+// WriteChannel saves ch at path, creating its directory with mode 0755
+// regardless of the umask, so non-root `webmux update` can read the channel.
+// It writes a temporary file and renames it, so readers see the old or the
+// new value, never a partial one. The file has mode 0644.
 func WriteChannel(path string, ch Channel) error {
 	dir := filepath.Dir(path)
+	_, statErr := os.Stat(dir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("创建 %s：%w", dir, err)
+	}
+	if errors.Is(statErr, fs.ErrNotExist) {
+		if err := os.Chmod(dir, 0o755); err != nil {
+			return fmt.Errorf("创建 %s：%w", dir, err)
+		}
 	}
 	tmp, err := os.CreateTemp(dir, ".update-channel-*")
 	if err != nil {

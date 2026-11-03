@@ -49,6 +49,12 @@ jobs:
             echo "::notice::No development build: $1"
             exit 0
           }
+          # A run whose commit is no longer main's tip would only build
+          # something publish skips, and its build would cancel the tip's.
+          main=$(git ls-remote --exit-code origin refs/heads/main | cut -f1)
+          if [ "$main" != "$HEAD_SHA" ]; then
+            skip "$HEAD_SHA is no longer the tip of main ($main)"
+          fi
           describe=$(git describe --tags --long --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude '*-*' "$HEAD_SHA")
           number='(0|[1-9][0-9]*)'
           if ! [[ $describe =~ ^v$number\.$number\.$number-([0-9]+)-g[0-9a-f]+$ ]]; then
@@ -90,8 +96,9 @@ jobs:
       cancel-in-progress: true
     env:
       VERSION: ${{ needs.plan.outputs.version }}
-    # Test already passed for this commit, so only the release build and the
-    # artifact checks run here.
+    # Test on a push only covers that push's own diff, so a docs-only commit's
+    # green run says nothing about earlier code commits this build includes.
+    # The suite runs again here, as in release.yml, before anything is built.
     steps:
       - uses: actions/checkout@v6
         with:
@@ -101,6 +108,10 @@ jobs:
           go: "true"
       - name: Install NSIS for the Windows installers
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends nsis
+      - name: Build embedded frontend
+        run: pnpm --dir web build
+      - name: Run Go tests
+        run: go test -race -parallel=4 ./...
       - name: Build release artifacts
         run: make release-build VERSION="$VERSION"
       - name: Verify artifacts
@@ -133,9 +144,8 @@ jobs:
     needs: [plan, build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    concurrency:
-      group: dev-release-publish
-      cancel-in-progress: false
+    # Not in the publish group: signing touches no Release, and a waiting job
+    # in a shared group could be replaced by an older run's publish.
     steps:
       - uses: actions/checkout@v6
         with:
