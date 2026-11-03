@@ -285,8 +285,9 @@ export async function expectConnected(page: Page) {
   await expect(header.getByRole("status")).toHaveCount(0);
 }
 
-// Below 640px the header moves upload, fullscreen and scroll-to-latest into
-// the terminal menu; this opens the menu there and returns the entry.
+// Below 640px the header moves upload and fullscreen into the terminal menu
+// (scroll-to-latest is the floating button); this opens the menu there and
+// returns the entry.
 export async function headerAction(page: Page, name: string) {
   if ((page.viewportSize()?.width ?? 1280) >= 640)
     return page
