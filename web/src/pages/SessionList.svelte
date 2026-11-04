@@ -798,7 +798,11 @@
   >
     {#snippet children(page)}<page.default
         worktree={target}
-        onchange={() => void refresh()}
+        onchange={() => {
+          void refresh();
+          // Removal forgets the records of sessions in the removed worktree.
+          void refreshRecoverable();
+        }}
         onclose={() => (removing = null)}
       />{/snippet}
   </LazyDialog>

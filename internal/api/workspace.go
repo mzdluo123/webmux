@@ -57,6 +57,12 @@ func (s *Server) workspaceRoutes(mux *http.ServeMux) {
 		return wire.Preview(preview), err
 	})
 	serveInDone(mux, "POST "+repo+"/worktrees/{worktreeId}/remove", workspaceFailure, func(r *http.Request, req contract.RemoveWorktreeRequest) error {
-		return s.Workspace.RemoveWorktree(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"), wire.RemoveWorktree(req))
+		forgotten, err := s.Workspace.RemoveWorktree(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"), wire.RemoveWorktree(req))
+		// Records of sessions in the removed directory are gone, so their
+		// folders cannot come back either.
+		for _, id := range forgotten {
+			s.Artifacts.Remove(id)
+		}
+		return err
 	})
 }
