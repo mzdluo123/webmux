@@ -21,6 +21,7 @@ import (
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/jsonutil"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
@@ -111,6 +112,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, wire.Sessions(m.List())) })
 	mux.HandleFunc("POST /api/sessions", s.create)
 	mux.HandleFunc("GET /api/sessions/{id}", s.get)
+	serveIn(mux, "PATCH /api/sessions/{id}", http.StatusOK, renameFailure, s.rename)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.delete)
 	mux.HandleFunc("GET /api/sessions/{id}/buffer", s.buffer)
 	mux.HandleFunc("POST /api/sessions/{id}/upload", s.upload)
@@ -171,6 +173,18 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	var extra any
 	if err := d.Decode(&extra); err != io.EOF {
 		failure(w, 400, errors.New("expected one JSON object"))
+		return false
+	}
+	return true
+}
+
+// decodeStrict is decode for bodies that must also reject duplicate and
+// case-folded keys. A body over limit bytes or an invalid document is a 400
+// that carries only invalid, never any input text.
+func decodeStrict(w http.ResponseWriter, r *http.Request, v any, limit int64, invalid error) bool {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
+	if err != nil || jsonutil.Decode(data, v) != nil {
+		failure(w, http.StatusBadRequest, invalid)
 		return false
 	}
 	return true
@@ -313,6 +327,29 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 		reply(w, 200, wire.Session(item.Info()))
 	}
 }
+
+// rename sets the user-chosen name of a session; a hybrid session also keeps
+// it in its record, so a recovered session is still named. A broken record
+// store fails only hybrid sessions; an ordinary shell's rename never depends
+// on it.
+func (s *Server) rename(r *http.Request, req contract.RenameSessionRequest) (contract.SessionInfo, error) {
+	id := r.PathValue("id")
+	info, err := s.Manager.Rename(id, req.Name)
+	if err != nil {
+		return contract.SessionInfo{}, err
+	}
+	if s.Hybrid != nil {
+		err := s.Hybrid.SetName(id, strings.TrimSpace(req.Name))
+		if errors.Is(err, hybrid.ErrNotFound) || (info.Hybrid == nil && errors.Is(err, hybrid.ErrUnavailable)) {
+			err = nil
+		}
+		if err != nil {
+			return contract.SessionInfo{}, err
+		}
+	}
+	return wire.Session(info), nil
+}
+
 func (s *Server) delete(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if r.URL.Query().Get("remove") == "1" {

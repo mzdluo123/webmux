@@ -480,7 +480,7 @@
   description={treeOnly
     ? "创建独立的代码副本，可选择同时启动会话。"
     : "浏览器断开后，会话仍会继续。"}
-  class="p-6"
+  class="p-5 sm:max-w-3xl"
   pinDrawerHeader
   {busy}
   {onclose}
