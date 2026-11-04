@@ -125,8 +125,8 @@
             title={`删除工作树 ${worktreeLabel(tree)}`}
             aria-label={`删除工作树 ${worktreeLabel(tree)}`}
             onkeydown={(event) => {
-              // The command root would turn Enter into selecting the row.
-              event.stopPropagation();
+              // The command root rewrites Enter into selecting the row.
+              if (event.key === "Enter") event.stopPropagation();
             }}
             onclick={(event) => {
               event.stopPropagation();
