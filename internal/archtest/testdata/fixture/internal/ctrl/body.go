@@ -20,6 +20,9 @@ func leak(r *http.Request, w wrapped) {
 	_ = r.ParseForm()    // want R11
 	parse := r.FormFile  // want R11
 	_, _, _ = parse("file")
+	_ = r.FormValue("x")                // want R11
+	_, _ = r.MultipartReader()          // want R11
+	_ = r.PostFormValue("x")            // want R11
 	_ = w.Body                          // want R11
 	_ = w.Request.ParseMultipartForm(1) // want R11
 	// Compliant: other request data and response bodies.

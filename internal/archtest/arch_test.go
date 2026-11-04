@@ -824,7 +824,7 @@ func (p *program) checkServiceJSON(pkg *packages.Package) {
 
 // bodyMethods are the *http.Request methods that consume the body.
 var bodyMethods = map[string]bool{
-	"MultipartReader": true, "ParseForm": true, "ParseMultipartForm": true, "FormFile": true, "PostFormValue": true,
+	"MultipartReader": true, "ParseForm": true, "ParseMultipartForm": true, "FormFile": true, "FormValue": true, "PostFormValue": true,
 }
 
 // holderOf is the type that declares the selected field or method, found by
