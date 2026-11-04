@@ -11,7 +11,7 @@
   import { Label } from "$lib/components/ui/label";
   import { Switch } from "$lib/components/ui/switch";
   import * as Card from "$lib/components/ui/card";
-  import * as ToggleGroup from "$lib/components/ui/toggle-group";
+  import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import InlineNotice from "./InlineNotice.svelte";
   const code = $derived(settings.values.codeReader ?? defaultCodeReader);
   let fontDraft = $state<number | undefined>(undefined);
@@ -79,7 +79,7 @@
     <fieldset disabled={!settings.ready} class="space-y-6">
       <div class="space-y-2">
         <p class="text-sm font-medium">主题</p>
-        <ToggleGroup.Root
+        <SegmentedControl.Root
           value={settings.values.theme ?? "system"}
           onValueChange={(value) =>
             changeSettings({
@@ -88,10 +88,10 @@
           disabled={!settings.ready}
           aria-label="主题"
         >
-          <ToggleGroup.Item value="system">跟随系统</ToggleGroup.Item>
-          <ToggleGroup.Item value="light">浅色</ToggleGroup.Item>
-          <ToggleGroup.Item value="dark">深色</ToggleGroup.Item>
-        </ToggleGroup.Root>
+          <SegmentedControl.Item value="system">跟随系统</SegmentedControl.Item>
+          <SegmentedControl.Item value="light">浅色</SegmentedControl.Item>
+          <SegmentedControl.Item value="dark">深色</SegmentedControl.Item>
+        </SegmentedControl.Root>
       </div>
       <div class="flex items-center justify-between gap-3">
         <Label for="settings-lines">代码行号</Label>

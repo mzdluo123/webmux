@@ -7,7 +7,7 @@
   import * as Command from "$lib/components/ui/command";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import * as ToggleGroup from "$lib/components/ui/toggle-group";
+  import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import ChoiceDetails from "./ChoiceDetails.svelte";
   import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
   import PickerField from "./PickerField.svelte";
@@ -159,7 +159,7 @@
       直接执行，不展开变量或管道；需要 shell 语法请用 bash -lc '命令'。
     </p>
   {:else if chosen?.hybrid}
-    <ToggleGroup.Root
+    <SegmentedControl.Root
       bind:value={
         () => startSide,
         (next) => {
@@ -171,9 +171,9 @@
       class="w-full"
       {disabled}
     >
-      <ToggleGroup.Item value="tui">从终端开始</ToggleGroup.Item>
-      <ToggleGroup.Item value="acp">从聊天开始</ToggleGroup.Item>
-    </ToggleGroup.Root>
+      <SegmentedControl.Item value="tui">从终端开始</SegmentedControl.Item>
+      <SegmentedControl.Item value="acp">从聊天开始</SegmentedControl.Item>
+    </SegmentedControl.Root>
     {#if chosen.hybridSupport.connector}<p
         class="text-xs text-muted-foreground"
       >

@@ -20,7 +20,7 @@
   import { Label } from "$lib/components/ui/label";
   import * as NativeSelect from "$lib/components/ui/native-select";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import * as ToggleGroup from "$lib/components/ui/toggle-group";
+  import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import CodeImageView from "./CodeImageView.svelte";
   import CodeMarkdownPreview, {
@@ -676,16 +676,16 @@
             {@render outlineItems()}
           </DropdownMenu.Content>
         </DropdownMenu.Root>{/if}
-      {#if svgFile}<ToggleGroup.Root
+      {#if svgFile}<SegmentedControl.Root
           value={svgView}
           onValueChange={(view) =>
             showSvg(view === "source" ? "source" : "preview")}
           aria-label="SVG 显示方式"
           class="shrink-0"
         >
-          <ToggleGroup.Item value="preview">预览</ToggleGroup.Item>
-          <ToggleGroup.Item value="source">源码</ToggleGroup.Item>
-        </ToggleGroup.Root>{/if}
+          <SegmentedControl.Item value="preview">预览</SegmentedControl.Item>
+          <SegmentedControl.Item value="source">源码</SegmentedControl.Item>
+        </SegmentedControl.Root>{/if}
       {#if shownDiff}
         {#if imageChange}<Label size="sm" class="shrink-0"
             >预览来源

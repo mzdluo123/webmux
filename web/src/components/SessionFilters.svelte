@@ -2,7 +2,7 @@
   import IconSearch from "~icons/tabler/search";
   import { Button } from "$lib/components/ui/button";
   import * as InputGroup from "$lib/components/ui/input-group";
-  import * as ToggleGroup from "$lib/components/ui/toggle-group";
+  import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import type { SessionInfo } from "../schemas";
   import { countSessions, type StatusFilter } from "../session-status";
 
@@ -89,7 +89,7 @@
       <kbd class="border px-1" aria-hidden="true">/</kbd>
     </InputGroup.Addon>
   </InputGroup.Root>
-  <ToggleGroup.Root
+  <SegmentedControl.Root
     value={statusFilter}
     onValueChange={(value) => {
       const next = filters.find((filter) => filter.id === value);
@@ -100,15 +100,15 @@
     wrap
   >
     {#each filters as filter (filter.id)}
-      <ToggleGroup.Item value={filter.id} class="min-h-9">
+      <SegmentedControl.Item value={filter.id} class="min-h-9">
         {filter.label}
         <span
           class="inline-block w-[3ch] font-mono text-xs text-right tabular-nums opacity-60"
           >{filter.count}</span
         >
-      </ToggleGroup.Item>
+      </SegmentedControl.Item>
     {/each}
-  </ToggleGroup.Root>
+  </SegmentedControl.Root>
 </div>
 {#if filtered}
   <div class="flex items-center gap-2 text-xs text-muted-foreground">

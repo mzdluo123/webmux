@@ -216,7 +216,7 @@ test.describe("hybrid sessions with the fake agent", () => {
         .click();
       await chooseLaunch(page, name);
       await page
-        .getByRole("group", { name: "起始端", exact: true })
+        .getByRole("radiogroup", { name: "起始端", exact: true })
         .getByRole("radio", {
           name: start === "acp" ? "从聊天开始" : "从终端开始",
           exact: true,
@@ -892,7 +892,7 @@ test.describe("hybrid sessions with the fake agent", () => {
         page.getByText(`聊天端需要另外安装 ${row.connector}`),
       ).toBeVisible();
       await page
-        .getByRole("group", { name: "起始端", exact: true })
+        .getByRole("radiogroup", { name: "起始端", exact: true })
         .getByRole("radio", { name: "从聊天开始", exact: true })
         .click();
       await useDirectory(page, workDir);

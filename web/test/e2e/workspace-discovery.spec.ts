@@ -8,7 +8,7 @@ test("workspace search shortcuts clear filters without capturing dialog input", 
   await page.goto("/");
   const search = page.getByRole("searchbox", { name: "搜索会话" });
   await expect(search).toBeVisible();
-  const filters = page.getByRole("group", { name: "按会话状态筛选" });
+  const filters = page.getByRole("radiogroup", { name: "按会话状态筛选" });
   await filters.getByRole("radio", { name: /已退出/ }).click();
   await page.keyboard.press("/");
   await expect(search).toBeFocused();
@@ -127,7 +127,7 @@ test("search and status filters compose and follow live session changes", async 
   const rows = page.locator("[data-session-id]:visible");
   await expect(rows).toHaveCount(3);
   const search = page.getByRole("searchbox", { name: "搜索会话" });
-  const filters = page.getByRole("group", { name: "按会话状态筛选" });
+  const filters = page.getByRole("radiogroup", { name: "按会话状态筛选" });
   await search.fill("  ALPHA  ");
   await expect(rows).toHaveCount(1);
   await expect(page.getByRole("link", { name: "Alpha build" })).toBeVisible();

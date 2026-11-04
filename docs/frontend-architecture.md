@@ -72,8 +72,8 @@ Oxlint（`pnpm --dir web lint`）仍是通用 lint。它只读取 `.svelte` 的 
 | `Input`、`Label`    | `size="sm"`                                                 | 代码导航等紧凑面板                                                                                        |
 | `NativeSelect`      | `size="sm"`                                                 | 原生下拉选择；手机保留系统选择器                                                                          |
 | `Select`            | —                                                           | 需要跨平台一致样式、同时展示名称与命令或路径的下拉框；保留完整内容提示与键盘选择                          |
-| `Tabs.List`         | `variant="line"`                                            | 带关联面板的标签页统一使用 `line`，不使用填充胶囊样式的 `default`                                         |
-| `ToggleGroup`       | `size="form"`、`wrap`                                       | 单选值（`role="radio"`）的下划线分段控件；`form` 用于表单，`wrap` 在窄屏换行（如会话状态筛选）            |
+| `Tabs.List`         | `variant="line"`、`size="form"`                             | 带关联面板的标签页统一使用 `line`，不使用填充胶囊样式的 `default`；`form` 用于表单中的分组切换            |
+| `SegmentedControl`  | `size="form"`、`wrap`                                       | 基于 RadioGroup（`radiogroup`/`radio`）的下划线分段控件；`form` 用于表单，`wrap` 在窄屏换行（如状态筛选） |
 | `Checkbox`          | —                                                           | 复选框，配合 `Label` 使用                                                                                 |
 | `ListButton`        | `row` / `text` / `content` / `option` / `tab` / `tab-close` | 列表、标签栏与卡片中的可点击区域。它不带控件尺寸，虚拟列表的固定行高不受影响；独立的操作按钮仍用 `Button` |
 

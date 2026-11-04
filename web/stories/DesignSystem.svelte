@@ -16,7 +16,7 @@
   import * as Card from "$lib/components/ui/card";
   import * as Empty from "$lib/components/ui/empty";
   import * as Tabs from "$lib/components/ui/tabs";
-  import * as ToggleGroup from "$lib/components/ui/toggle-group";
+  import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import InlineNotice from "../src/components/InlineNotice.svelte";
@@ -353,14 +353,18 @@
         </div>
         <div class="space-y-2 sm:col-span-2">
           <p class="text-sm font-medium">分屏方向</p>
-          <ToggleGroup.Root
+          <SegmentedControl.Root
             value="horizontal"
             aria-label="分屏方向"
             size="form"
           >
-            <ToggleGroup.Item value="horizontal">左右分屏</ToggleGroup.Item>
-            <ToggleGroup.Item value="vertical">上下分屏</ToggleGroup.Item>
-          </ToggleGroup.Root>
+            <SegmentedControl.Item value="horizontal"
+              >左右分屏</SegmentedControl.Item
+            >
+            <SegmentedControl.Item value="vertical"
+              >上下分屏</SegmentedControl.Item
+            >
+          </SegmentedControl.Root>
         </div>
         <div class="flex flex-wrap gap-2 sm:col-span-2">
           <Button onclick={() => (notice = "示例已保存，不影响实际快捷指令。")}

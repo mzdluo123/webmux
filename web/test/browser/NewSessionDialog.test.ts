@@ -303,7 +303,7 @@ test("a hybrid config offers and remembers where the session starts", async () =
     hybrid: true,
   };
   open({ status: "ready", configs: [config, hybridConfig] });
-  const sides = page.getByRole("group", { name: "起始端", exact: true });
+  const sides = page.getByRole("radiogroup", { name: "起始端", exact: true });
   await expect.element(launchField()).toMatchTextContent(/Claude 恢复/);
   expect(sides.elements()).toHaveLength(0);
   await chooseLaunch(hybridConfig.name);
@@ -372,7 +372,7 @@ test("a missing chat connector keeps the dialog and can start on the terminal", 
   await expect
     .element(page.getByText("聊天端需要另外安装 codex-acp", { exact: false }))
     .toBeVisible();
-  const sides = page.getByRole("group", { name: "起始端", exact: true });
+  const sides = page.getByRole("radiogroup", { name: "起始端", exact: true });
   await sides.getByRole("radio", { name: "从聊天开始", exact: true }).click();
   await nameSession("修复排序");
   await submit().click();

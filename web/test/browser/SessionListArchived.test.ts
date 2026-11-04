@@ -266,7 +266,7 @@ test("status and search filters cover archived records", async () => {
   });
   const region = page.getByRole("region", { name: "work 的已归档会话" });
   await expect.element(region).toMatchTextContent(/已归档\s*1/);
-  const filters = page.getByRole("group", { name: "按会话状态筛选" });
+  const filters = page.getByRole("radiogroup", { name: "按会话状态筛选" });
 
   await filters.getByRole("radio", { name: /运行中/ }).click();
   await expect.element(region).not.toBeInTheDocument();
@@ -316,7 +316,7 @@ test("a scope without archived matches shows the empty state", async () => {
   socket.message({ type: "snapshot", sessions: [] });
   await page.getByRole("button", { name: "仓库 other" }).click();
   await page
-    .getByRole("group", { name: "按会话状态筛选" })
+    .getByRole("radiogroup", { name: "按会话状态筛选" })
     .getByRole("radio", { name: /已归档/ })
     .click();
   await expect.element(page.getByText("没有匹配的会话")).toBeVisible();

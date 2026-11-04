@@ -32,7 +32,7 @@ description: Use for any WebMux UI change — components, layout, styling, icons
 - **克制的开发工具风格。** 使用中性色和一个绿色主要操作，不用渐变、装饰动画或嵌套卡片。阴影只给浮层（菜单、弹窗、`raised` 按钮）。
 - **线条优先（维护者偏好）。** 选中、切换类控件用线条表达状态，不用填充色块：
   - 所有 `Tabs.List` 都写 `variant="line"`，不使用 `bg-muted` 胶囊样式的 `default` 变体。Tabs 只用于切换带关联面板的内容区域（Tailscale 模式、会话视图、代码根）。
-  - 只选一个值（分屏方向、主题、起始端、状态筛选、预览/源码、列表显示方式）用 `ToggleGroup`：单选语义（`role="radio"`），同样是下划线样式，方向键切换，已选项不能再次点击清空。表单中用 `size="form"`，窄屏需要换行时用 `wrap`。测试中按 `radio` 和 `aria-checked` 定位。
+  - 只选一个值（分屏方向、主题、起始端、状态筛选、预览/源码、列表显示方式）用 `SegmentedControl`：基于 RadioGroup（`role="radiogroup"` 与 `radio`），同样是下划线样式，方向键切换，已选项不能再次点击清空。表单中用 `size="form"`，窄屏需要换行时用 `wrap`。测试中按 `radiogroup`、`radio` 和 `aria-checked` 定位。
   - 不用一组 Button 模拟分段控件。每个选项都需要说明文字时，再考虑 RadioGroup。共用的选择抽成组件，例如 `SplitDirectionChoice`。
   - 开关按钮保持固定 variant，只切换 `aria-pressed`；展开用 `aria-expanded`，当前项用 `aria-current="true"`。Button 会统一显示前景色描边。不要写 `variant={on ? "default" : "outline"}` 这类按状态切换的 variant。
   - 新的导航或选中态组件同样优先使用下划线或边框指示。

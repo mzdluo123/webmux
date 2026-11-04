@@ -81,7 +81,7 @@ test("4x CPU: a busy session among 120 cards keeps order, filtering and input re
   expect(await order()).toEqual(before);
   await expect(row).toHaveAttribute("data-status", "waiting");
 
-  const filters = page.getByRole("group", { name: "按会话状态筛选" });
+  const filters = page.getByRole("radiogroup", { name: "按会话状态筛选" });
   await filters.getByRole("radio", { name: /等待中/ }).click();
   await row.getByRole("button", { name: /会话菜单/ }).click();
   await expect(page.getByRole("menu")).toBeVisible();

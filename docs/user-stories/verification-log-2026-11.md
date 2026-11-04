@@ -273,7 +273,7 @@
 本次局部核对（2026-11-04）：统一线条设计语言，对应更新 US-L06 的设计系统约定。具体改动：
 
 - 带面板的标签页统一使用 `Tabs variant="line"`。
-- 分屏方向、主题、起始端、工作树分支方式、状态筛选、显示方式与 SVG 预览/源码改为单选 `ToggleGroup`（`role="radio"`）。
+- 分屏方向、主题、起始端、工作树分支方式、状态筛选、显示方式与 SVG 预览/源码改为基于 RadioGroup 的 `SegmentedControl`（`radiogroup`/`radio`）。
 - 开关按钮改为固定 variant 加 `aria-pressed` 描边，Button 移除 `secondary`。
 
 各选项的行为不变，不新增故事，也不改变覆盖索引。

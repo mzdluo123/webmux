@@ -25,7 +25,7 @@
   import * as Command from "$lib/components/ui/command";
   import IconGitBranch from "~icons/tabler/git-branch";
   import PickerField from "./PickerField.svelte";
-  import * as ToggleGroup from "$lib/components/ui/toggle-group";
+  import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import type { z } from "zod";
   let {
     repository,
@@ -305,7 +305,7 @@
 {/snippet}
 
 <div class="space-y-3 rounded-lg border p-3">
-  <ToggleGroup.Root
+  <SegmentedControl.Root
     value={mode}
     onValueChange={(next) => {
       if (next === "new" && mode !== "new") {
@@ -325,9 +325,9 @@
     }}
     aria-label="工作树分支"
   >
-    <ToggleGroup.Item value="new">创建新分支</ToggleGroup.Item>
-    <ToggleGroup.Item value="existing">使用已有分支</ToggleGroup.Item>
-  </ToggleGroup.Root>
+    <SegmentedControl.Item value="new">创建新分支</SegmentedControl.Item>
+    <SegmentedControl.Item value="existing">使用已有分支</SegmentedControl.Item>
+  </SegmentedControl.Root>
   {#if loading}<p role="status" class="text-sm">正在读取本地分支…</p>{/if}
   {#if error}<p role="alert" class="break-all text-sm text-destructive">
       {error}

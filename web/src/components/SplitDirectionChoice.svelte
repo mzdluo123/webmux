@@ -1,11 +1,11 @@
 <script lang="ts">
   import type { SplitDirection } from "../terminal-layout";
-  import * as ToggleGroup from "$lib/components/ui/toggle-group";
+  import * as SegmentedControl from "$lib/components/ui/segmented-control";
 
   let { direction = $bindable() }: { direction: SplitDirection } = $props();
 </script>
 
-<ToggleGroup.Root
+<SegmentedControl.Root
   bind:value={
     () => direction,
     (next) => {
@@ -16,6 +16,6 @@
   size="form"
   class="w-full"
 >
-  <ToggleGroup.Item value="horizontal">左右分屏</ToggleGroup.Item>
-  <ToggleGroup.Item value="vertical">上下分屏</ToggleGroup.Item>
-</ToggleGroup.Root>
+  <SegmentedControl.Item value="horizontal">左右分屏</SegmentedControl.Item>
+  <SegmentedControl.Item value="vertical">上下分屏</SegmentedControl.Item>
+</SegmentedControl.Root>
