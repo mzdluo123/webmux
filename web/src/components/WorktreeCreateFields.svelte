@@ -558,7 +558,9 @@
     </div>
   {/if}
   <Collapsible.Root bind:open={pathOpen} class="space-y-2">
-    <Collapsible.Trigger class="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground">
+    <Collapsible.Trigger
+      class="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+    >
       <IconChevronRight
         class={pathOpen
           ? "size-3.5 shrink-0 rotate-90 transition-transform"
