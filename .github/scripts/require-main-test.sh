@@ -14,6 +14,7 @@ set -euo pipefail
 
 sha=${1:?usage: require-main-test.sh <commit sha>}
 appear_timeout=${APPEAR_TIMEOUT:-600}
+watch_timeout=${WATCH_TIMEOUT:-2400}
 output=${GITHUB_OUTPUT:-/dev/stdout}
 
 decide() {
@@ -38,8 +39,16 @@ while :; do
   sleep 15
 done
 
-echo "waiting for Test run $run on main"
-gh run watch "$run" --interval 30 >/dev/null 2>&1 || true
+# A queued or slow run must not time out the whole job: give up waiting and let
+# `checks` run the suite instead. `timeout` exits 124 when the budget is spent;
+# any other failure (a failed run) still falls through to the result check.
+echo "waiting for Test run $run on main (up to ${watch_timeout}s)"
+status=0
+timeout "$watch_timeout" gh run watch "$run" --interval 30 >/dev/null 2>&1 ||
+  status=$?
+if [ "$status" -eq 124 ]; then
+  decide false "Test run $run did not finish within ${watch_timeout}s"
+fi
 
 result=$(gh run view "$run" --json conclusion,jobs --jq '
   if .conclusion != "success" then "run concluded \(.conclusion)"
