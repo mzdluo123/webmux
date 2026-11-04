@@ -21,6 +21,7 @@
   import { Label } from "$lib/components/ui/label";
   import * as Select from "$lib/components/ui/select";
   import IconRefresh from "~icons/tabler/refresh";
+  import AdvancedSection from "./AdvancedSection.svelte";
   import * as Command from "$lib/components/ui/command";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { z } from "zod";
@@ -30,6 +31,7 @@
     mode = $bindable<"new" | "existing">("new"),
     branch = $bindable(""),
     base = $bindable(""),
+    startBranch = $bindable(""),
     disabled = false,
   }: {
     repository: Repository;
@@ -37,12 +39,13 @@
     mode: "new" | "existing";
     branch: string;
     base: string;
+    /** The local branch a new branch starts from. */
+    startBranch?: string;
     disabled?: boolean;
   } = $props();
   let data = $state<z.infer<typeof BranchesSchema> | null>(null);
   let error = $state("");
   let loading = $state(false);
-  let startBranch = $state("");
   let refreshing = $state(false);
   let refreshWarning = $state("");
   let upstream = $state("");
@@ -292,12 +295,13 @@
   </span>
 {/snippet}
 
-<div class="space-y-4 rounded-lg border p-3">
-  <fieldset class="space-y-2">
-    <legend class="mb-2 text-sm font-medium">工作树分支</legend>
+<div class="space-y-3 rounded-lg border p-3">
+  <fieldset>
+    <legend class="sr-only">工作树分支</legend>
     <div class="flex flex-wrap gap-2">
       <Button
         type="button"
+        size="sm"
         variant={mode === "new" ? "default" : "outline"}
         aria-pressed={mode === "new"}
         onclick={() => {
@@ -311,6 +315,7 @@
       >
       <Button
         type="button"
+        size="sm"
         variant={mode === "existing" ? "default" : "outline"}
         aria-pressed={mode === "existing"}
         onclick={() => {
@@ -329,160 +334,112 @@
       {error}
     </p>{/if}
   {#if mode === "new"}
-    <div class="space-y-2">
-      <div class="flex items-center justify-between gap-2">
-        <Label for="worktree-start-branch">起始分支</Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!startBranch || refreshing || disabled}
-          aria-busy={refreshing}
-          onclick={() => refreshUpstream(startBranch)}
-          ><IconRefresh
-            class={refreshing ? "animate-spin motion-reduce:animate-none" : ""}
-            aria-hidden="true"
-          />{refreshing ? "正在刷新" : "刷新上游"}</Button
+    <div class="grid gap-3 sm:grid-cols-2">
+      <div class="min-w-0 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <Label for="worktree-start-branch">起始分支</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!startBranch || refreshing || disabled}
+            aria-busy={refreshing}
+            onclick={() => refreshUpstream(startBranch)}
+            ><IconRefresh
+              class={refreshing
+                ? "animate-spin motion-reduce:animate-none"
+                : ""}
+              aria-hidden="true"
+            />{refreshing ? "正在刷新" : "刷新上游"}</Button
+          >
+        </div>
+        <Select.Root
+          type="single"
+          value={startBranch}
+          disabled={disabled || loading || !data}
+          onValueChange={chooseStartBranch}
         >
+          <Select.Trigger id="worktree-start-branch">
+            {#if startBranch}
+              <span class="truncate">{startBranch}</span>
+            {:else}
+              <span class="text-muted-foreground">选择本地分支</span>
+            {/if}
+          </Select.Trigger>
+          <Select.Content
+            class="max-h-[min(24rem,var(--bits-select-content-available-height))]"
+          >
+            {#each data?.branches || [] as item (item.name)}
+              <Select.Item value={item.name} label={item.name}
+                >{item.name}</Select.Item
+              >
+            {/each}
+          </Select.Content>
+        </Select.Root>
+        {#if refreshing}
+          <p
+            role="status"
+            aria-label="上游刷新状态"
+            class="text-xs text-muted-foreground"
+          >
+            正在获取 {startBranch} 对应的上游最新提交；可继续编辑或创建。
+          </p>
+        {:else if baseSource === "remote" && upstream}
+          <p
+            role="status"
+            aria-label="上游刷新状态"
+            class="break-all text-xs text-muted-foreground"
+          >
+            远程最新 · {upstream} · {baseSubject || "无标题提交"}
+            {#if lastRefreshedAt}
+              · 最近刷新 {lastRefreshedAt.toLocaleTimeString()}{/if}
+          </p>
+        {:else if baseSource === "local" && startBranch}
+          <p
+            role="status"
+            aria-label="上游刷新状态"
+            class="break-all text-xs text-muted-foreground"
+          >
+            本地：{startBranch}
+          </p>
+        {/if}
+        {#if refreshWarning}
+          <p
+            role="status"
+            aria-label="上游刷新警告"
+            class="text-xs text-warning"
+          >
+            {refreshWarning}
+          </p>
+        {/if}
       </div>
-      <Select.Root
-        type="single"
-        value={startBranch}
-        disabled={disabled || loading || !data}
-        onValueChange={chooseStartBranch}
-      >
-        <Select.Trigger id="worktree-start-branch">
-          {#if startBranch}
-            <span class="truncate">{startBranch}</span>
-          {:else}
-            <span class="text-muted-foreground">选择本地分支</span>
-          {/if}
-        </Select.Trigger>
-        <Select.Content
-          class="max-h-[min(24rem,var(--bits-select-content-available-height))]"
-        >
-          {#each data?.branches || [] as item (item.name)}
-            <Select.Item value={item.name} label={item.name}
-              >{item.name}</Select.Item
-            >
-          {/each}
-        </Select.Content>
-      </Select.Root>
-      {#if refreshing}
-        <p
-          role="status"
-          aria-label="上游刷新状态"
-          class="text-xs text-muted-foreground"
-        >
-          正在获取 {startBranch} 对应的上游最新提交；可继续编辑或创建。
-        </p>
-      {:else if baseSource === "remote" && upstream}
-        <p
-          role="status"
-          aria-label="上游刷新状态"
-          class="break-all text-xs text-muted-foreground"
-        >
-          远程最新 · {upstream} · {baseSubject || "无标题提交"}
-          {#if lastRefreshedAt}
-            · 最近刷新 {lastRefreshedAt.toLocaleTimeString()}{/if}
-        </p>
-      {:else if baseSource === "local" && startBranch}
-        <p
-          role="status"
-          aria-label="上游刷新状态"
-          class="break-all text-xs text-muted-foreground"
-        >
-          本地：{startBranch}
-        </p>
-      {/if}
-      {#if refreshWarning}
-        <p role="status" aria-label="上游刷新警告" class="text-xs text-warning">
-          {refreshWarning}
-        </p>
-      {/if}
-    </div>
-    <div class="space-y-2">
-      <div class="flex items-center justify-between gap-2">
-        <Label for="worktree-branch">新分支名称</Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!data || loading}
-          onclick={() => {
-            branch = suggestedBranch(branch || undefined);
-          }}>换一个</Button
-        >
+      <div class="min-w-0 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <Label for="worktree-branch">新分支名称</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!data || loading}
+            onclick={() => {
+              branch = suggestedBranch(branch || undefined);
+            }}>换一个</Button
+          >
+        </div>
+        <Input
+          id="worktree-branch"
+          bind:value={branch}
+          oninput={() => {
+            branchEdited = true;
+          }}
+          required
+          placeholder="feature/my-task"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck={false}
+        />
       </div>
-      <Input
-        id="worktree-branch"
-        bind:value={branch}
-        oninput={() => {
-          branchEdited = true;
-        }}
-        required
-        placeholder="feature/my-task"
-        autocomplete="off"
-        autocapitalize="off"
-        autocorrect="off"
-        spellcheck={false}
-      />
-      <p class="text-xs text-muted-foreground">
-        建议名避开已有本地分支和已有工作树目录段，可直接修改。
-      </p>
-    </div>
-    <div class="space-y-2">
-      <Label for="worktree-base">起始提交</Label>
-      <Select.Root
-        type="single"
-        bind:value={base}
-        disabled={disabled || loading || !data || !commitRows.length}
-        onValueChange={() => {
-          baseEditVersion += 1;
-          baseSource = "";
-          baseSubject = "";
-          upstream = "";
-          lastRefreshedAt = null;
-        }}
-      >
-        <Select.Trigger
-          id="worktree-base"
-          aria-describedby="worktree-base-help"
-        >
-          {#if selectedCommit}
-            {@render commitDetails(selectedCommit)}
-          {:else}
-            <span class="text-muted-foreground">
-              {commitsLoading ? "正在读取最近提交…" : "选择提交"}
-            </span>
-          {/if}
-        </Select.Trigger>
-        <Select.Content
-          class="max-h-[min(24rem,var(--bits-select-content-available-height))]"
-        >
-          {#each commitRows as item (item.value)}
-            <Select.Item
-              value={item.value}
-              label={item.subject}
-              aria-label={commitChoiceLabel(item)}
-            >
-              {@render commitDetails(item)}
-            </Select.Item>
-          {/each}
-        </Select.Content>
-      </Select.Root>
-      <p id="worktree-base-help" class="text-xs text-muted-foreground">
-        {#if commitsLoading}正在读取最近提交…{:else}可选所选分支最近 {commits.length}
-          条提交；点击“刷新上游”会拉取远程最新提交并加入列表。{/if}
-      </p>
-      {#if commitsError}<p role="status" class="text-xs text-warning">
-          {commitsError}
-        </p>{/if}
-      {#if data && !commitRows.length && !commitsLoading}<p
-          class="text-sm text-muted-foreground"
-        >
-          尚无可用提交。请先在终端创建提交；仍可在主工作区启动会话。
-        </p>{/if}
     </div>
   {:else}
     <div class="space-y-2">
@@ -554,31 +511,85 @@
       </p>
     </div>
   {/if}
-  <div class="space-y-2">
-    <Label for="worktree-path">新工作树完整路径</Label>
-    <Input
-      id="worktree-path"
-      bind:value={path}
-      oninput={() => {
-        pathEdited = true;
-      }}
-      required
-      autocomplete="off"
-      autocapitalize="off"
-      autocorrect="off"
-      spellcheck={false}
-    />
-    <p
-      class="font-mono text-xs break-all whitespace-pre-wrap text-muted-foreground"
+  {#if mode === "new" && data && !commitRows.length && !commitsLoading}<p
+      class="text-sm text-muted-foreground"
     >
-      {path}
-    </p>
-    <p class="text-xs text-muted-foreground">
-      默认放在仓库旁，目录名取分支最后一段；可以修改完整路径，不覆盖已有目录。
-    </p>
-  </div>
-  <p class="text-xs text-muted-foreground">
-    仅检出版本控制内容；只会在刷新起始分支上游时 fetch，不会复制 .env
-    或安装依赖。创建成功后即使命令启动失败，工作树与分支仍保留。
-  </p>
+      尚无可用提交。请先在终端创建提交；仍可在主工作区启动会话。
+    </p>{/if}
+  <AdvancedSection
+    title={mode === "new" ? "高级：起始提交与存放目录" : "高级：存放目录"}
+    summary={[mode === "new" ? selectedCommit?.shortHash : "", path]
+      .filter(Boolean)
+      .join(" · ")}
+  >
+    {#if mode === "new"}
+      <div class="space-y-2">
+        <Label for="worktree-base">起始提交</Label>
+        <Select.Root
+          type="single"
+          bind:value={base}
+          disabled={disabled || loading || !data || !commitRows.length}
+          onValueChange={() => {
+            baseEditVersion += 1;
+            baseSource = "";
+            baseSubject = "";
+            upstream = "";
+            lastRefreshedAt = null;
+          }}
+        >
+          <Select.Trigger
+            id="worktree-base"
+            aria-describedby="worktree-base-help"
+          >
+            {#if selectedCommit}
+              {@render commitDetails(selectedCommit)}
+            {:else}
+              <span class="text-muted-foreground">
+                {commitsLoading ? "正在读取最近提交…" : "选择提交"}
+              </span>
+            {/if}
+          </Select.Trigger>
+          <Select.Content
+            class="max-h-[min(24rem,var(--bits-select-content-available-height))]"
+          >
+            {#each commitRows as item (item.value)}
+              <Select.Item
+                value={item.value}
+                label={item.subject}
+                aria-label={commitChoiceLabel(item)}
+              >
+                {@render commitDetails(item)}
+              </Select.Item>
+            {/each}
+          </Select.Content>
+        </Select.Root>
+        <p id="worktree-base-help" class="text-xs text-muted-foreground">
+          {#if commitsLoading}正在读取最近提交…{:else}所选分支最近 {commits.length}
+            条提交；“刷新上游”会加入远程最新提交。{/if}
+        </p>
+        {#if commitsError}<p role="status" class="text-xs text-warning">
+            {commitsError}
+          </p>{/if}
+      </div>
+    {/if}
+    <div class="space-y-2">
+      <Label for="worktree-path">新工作树完整路径</Label>
+      <Input
+        id="worktree-path"
+        bind:value={path}
+        oninput={() => {
+          pathEdited = true;
+        }}
+        mono
+        required
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck={false}
+      />
+      <p class="text-xs text-muted-foreground">
+        目录名默认取分支最后一段，不会覆盖已有目录。
+      </p>
+    </div>
+  </AdvancedSection>
 </div>
