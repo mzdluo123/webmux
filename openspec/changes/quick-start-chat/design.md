@@ -83,8 +83,27 @@
 - 上次的仓库和 agent 存在 `localStorage`，用 Zod 校验后读取。
 - 草稿：输入文字用现有 `terminal-draft` 机制，以固定键 `quick-start` 保存，刷新不丢失。
 
+### 7. 聊天侧栏
+
+参考 Claude Code 与 Codex 网页版：侧栏在聊天之间常驻，切换会话时不重建。
+
+- 挂载位置：`App.svelte` 在 `quick-start` 路由和混合会话的 `terminal` 路由外包一层带侧栏的布局，侧栏实例不随会话切换重建，因此滚动位置得以保留。
+  - `pages/Terminal.svelte` 已经知道会话是否为混合会话；纯终端会话不渲染侧栏。
+  - 首次渲染就是最终结构：路由能判断出要显示侧栏时，先画侧栏骨架，不先画无侧栏布局再切换。
+  - `.terminal-page` 现在是 `position: fixed; left: 0` 且占满视口。显示侧栏时改为 `left: var(--chat-sidebar-width, 0)`，由布局按收起状态设置这个变量；终端尺寸随之走现有的 resize 流程。原型用带 transform 的容器代替这个偏移。
+- 数据：
+  - 现在只有 `SessionList.svelte` 订阅 `/ws/sessions`。把订阅与列表归并抽成共享的 rune hook（`hooks/session-list.svelte.ts`），由首页和侧栏共用，继续使用 `ws.ts` 的 `connect`，不新增重连约定。
+  - 归档记录来自 `GET /api/hybrid-sessions`，与 `archived.ts` 共用解析；同一会话 ID 同时出现在运行列表和归档记录中时，以运行中的为准，不重复显示。
+  - 排序键：运行中取 `lastActiveAt`，归档取 `updatedAt`。
+- 状态映射：`attention` 为 question/permission 或 `status: waiting` 时为等待（琥珀色），`hybrid.work` 非空或 `status: running` 时为工作中（绿色），`idle` 时为空闲（中性色），`exited` 或归档记录为已结束（中性弱化）。每种状态都配可访问名称。
+- 组件：新增 `components/ChatSidebar.svelte`。行使用 `ListButton` 并加 `aria-current`，agent 图标用 `LaunchConfigIcon`。手机端用现有 `Drawer`（左侧方向），打开按钮放在页面顶栏左侧，不增加 32px 终端顶栏的高度。
+  - 不引入 shadcn-svelte 的 `sidebar`：它自带一套布局状态和 CSS 变量，与现有的断点显隐方式重复。
+- 收起状态存在 `localStorage` 并用 Zod 校验；显隐只用 `max-sm:`/`sm:` 断点。
+- 快速开始页原先的返回箭头去掉，改由侧栏顶部的“新聊天”和“会话总览”负责导航。
+
 ## Risks / Trade-offs
 
+- [侧栏在会话页占用终端/聊天宽度] → 桌面端可收起并记住；手机端默认隐藏为抽屉。
 - [编排耗时较长（agent 启动可能十几秒），请求一直挂着] → 处理器不依赖客户端连接；前端超时后用同一请求 ID 重试即可拿到结果。
 - [配置项清单过时（agent 升级后选项变化）] → 启动后以 agent 实际报告为准，失效值只产生 warning；下一次会话会刷新清单。
 - [失败遗留 worktree] → 错误体给出 worktree，并提供“在此 worktree 新建会话”入口；删除仍走现有的删除确认流程。

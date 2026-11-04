@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, untrack } from "svelte";
   import IconAlertCircle from "~icons/tabler/alert-circle";
-  import IconArrowLeft from "~icons/tabler/arrow-left";
+  import IconMenu2 from "~icons/tabler/menu-2";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconBook2 from "~icons/tabler/book-2";
   import IconGitBranch from "~icons/tabler/git-branch";
@@ -19,6 +19,7 @@
     ChatPermissionMode as PermissionMode,
   } from "../../src/schemas";
   import { configs } from "../acp/fixtures";
+  import ChatShell from "./ChatShell.svelte";
   import ValueSelect from "./ValueSelect.svelte";
 
   // Prototype of the quick-start page (openspec change quick-start-chat):
@@ -129,205 +130,215 @@
   }
 </script>
 
-<div class="flex h-dvh flex-col">
-  <header class="flex h-12 shrink-0 items-center gap-1 border-b px-2">
-    <Button
-      variant="ghost"
-      size="icon-touch"
-      aria-label="返回会话列表"
-      title="返回会话列表"><IconArrowLeft aria-hidden="true" /></Button
+<ChatShell current={null}>
+  {#snippet children(openDrawer)}
+    {@render page(openDrawer)}
+  {/snippet}
+</ChatShell>
+
+{#snippet page(openDrawer: () => void)}
+  <div class="flex h-full flex-col">
+    <header class="flex h-12 shrink-0 items-center gap-1 border-b px-2 sm:px-4">
+      <Button
+        class="sm:hidden"
+        variant="ghost"
+        size="icon-touch"
+        aria-label="打开聊天列表"
+        title="打开聊天列表"
+        onclick={openDrawer}><IconMenu2 aria-hidden="true" /></Button
+      >
+      <h1 class="text-sm font-medium">新聊天</h1>
+    </header>
+
+    <main
+      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 text-center"
     >
-    <h1 class="text-sm font-medium">新聊天</h1>
-  </header>
+      <h2 class="text-2xl font-medium">要让 agent 做什么？</h2>
+      <p class="max-w-md text-sm text-muted-foreground">
+        发送后会在所选仓库新建 worktree，以聊天方式启动 agent 并发出这条消息。
+      </p>
+      {#if notice}<p role="status" class="max-w-md text-sm text-success">
+          {notice}
+        </p>{/if}
+    </main>
 
-  <main
-    class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 text-center"
-  >
-    <h2 class="text-2xl font-medium">要让 agent 做什么？</h2>
-    <p class="max-w-md text-sm text-muted-foreground">
-      发送后会在所选仓库新建 worktree，以聊天方式启动 agent 并发出这条消息。
-    </p>
-    {#if notice}<p role="status" class="max-w-md text-sm text-success">
-        {notice}
-      </p>{/if}
-  </main>
-
-  <footer
-    class="mx-auto w-full max-w-3xl space-y-1.5 px-3 pb-3 sm:px-4 sm:pb-6"
-  >
-    {#if missing}
-      <div
-        class="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm"
-        role="status"
-      >
-        <IconAlertCircle class="text-warning" aria-hidden="true" />
-        <span class="mr-auto">{missing}</span>
-        <Button variant="outline" size="sm-touch"
-          >{available.length ? "添加仓库" : "新建启动配置"}</Button
+    <footer
+      class="mx-auto w-full max-w-3xl space-y-1.5 px-3 pb-3 sm:px-4 sm:pb-6"
+    >
+      {#if missing}
+        <div
+          class="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+          role="status"
         >
-      </div>
-    {/if}
-    {#if failure}
-      <div
-        class="space-y-2 rounded-lg border border-destructive/40 px-3 py-2 text-sm"
-        role="alert"
-      >
-        <p class="flex items-start gap-2">
-          <IconAlertCircle
-            class="mt-0.5 shrink-0 text-destructive"
-            aria-hidden="true"
-          />
-          <span>
-            <span class="font-medium">启动 agent 失败：</span>
-            未找到 Claude Code ACP 适配器 claude-agent-acp。消息未发送，已保留在输入框中。
-          </span>
-        </p>
-        <p class="flex flex-wrap items-center gap-2 pl-6">
-          <span
-            class="min-w-0 truncate font-mono text-xs text-muted-foreground"
-            title="/home/developer/webmux.worktrees/brisk-otter"
-            >已创建 worktree：/home/developer/webmux.worktrees/brisk-otter</span
-          >
+          <IconAlertCircle class="text-warning" aria-hidden="true" />
+          <span class="mr-auto">{missing}</span>
           <Button variant="outline" size="sm-touch"
-            >在此 worktree 新建会话</Button
+            >{available.length ? "添加仓库" : "新建启动配置"}</Button
           >
-        </p>
-      </div>
-    {/if}
-
-    <div
-      class="rounded-lg border bg-card shadow-sm transition has-[textarea:focus]:border-ring has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-ring/20"
-    >
-      {#if repository?.instruction}
-        <div class="flex items-center border-b px-2 py-1">
-          <Popover.Root>
-            <Popover.Trigger>
-              {#snippet child({ props })}
-                <Button
-                  {...props}
-                  variant="quiet"
-                  size="xs"
-                  title="查看将附带的仓库初始化指令"
-                  ><IconNotes aria-hidden="true" />附带 {repository.name} 的初始化指令</Button
-                >
-              {/snippet}
-            </Popover.Trigger>
-            <Popover.Content align="start" class="w-80 space-y-2 text-sm">
-              <p class="font-medium">仓库初始化指令</p>
-              <p class="whitespace-pre-wrap text-muted-foreground">
-                {repository.instruction}
-              </p>
-              <p class="text-xs text-muted-foreground">
-                会放在你的消息前面，作为第一条消息一起发送。在仓库菜单的“初始化指令”中修改。
-              </p>
-            </Popover.Content>
-          </Popover.Root>
         </div>
       {/if}
-      <div class="px-2 pt-1">
-        <Textarea
-          variant="bare"
-          rows={2}
-          class="max-h-48 min-h-14 resize-none"
-          placeholder="描述任务，发送后在新 worktree 中开始"
-          aria-label="任务描述"
-          disabled={sending}
-          bind:value={text}
-          onkeydown={keydown}
-        />
-      </div>
-      <div class="flex items-center justify-end gap-2 px-2 pb-2">
-        {#if sending}
-          <span
-            class="mr-auto flex items-center gap-1.5 text-xs text-muted-foreground"
-            role="status"
-          >
-            <IconLoader2
-              class="size-3.5 animate-spin motion-reduce:animate-none"
-              aria-hidden="true"
-            />正在创建 worktree 并启动 {agent?.name}…
-          </span>
-        {:else if agent}
-          <!-- Narrow screens keep the agent and its options in the card, as
-               the chat composer does; the row below keeps the location. -->
-          <span class="mr-auto flex min-w-0 items-center gap-0.5 sm:hidden">
-            {@render agentPicker()}
-            <ChatSessionOptions
-              mode={permissionMode}
-              config={options}
-              disabled={sending}
-              modeDisabled={sending}
-              onmodechange={(mode) => (permissionMode = mode)}
-              onconfigchange={setOption}
-            />
-          </span>
-        {/if}
-        <Button
-          size="icon-touch"
-          aria-label="发送"
-          title="发送"
-          disabled={!canSend}
-          onclick={send}><IconArrowUp aria-hidden="true" /></Button
+      {#if failure}
+        <div
+          class="space-y-2 rounded-lg border border-destructive/40 px-3 py-2 text-sm"
+          role="alert"
         >
-      </div>
-    </div>
-
-    <div
-      class="-my-1 flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto px-1 py-1 [scrollbar-width:none]"
-      role="toolbar"
-      aria-label="启动选项"
-    >
-      <ValueSelect
-        name="仓库"
-        value={repositoryId}
-        choices={repositories.map((repo) => ({
-          value: repo.id,
-          name: repo.name,
-          reason: repo.reason,
-        }))}
-        disabled={sending}
-        onchange={pickRepository}
-      >
-        {#snippet icon()}<IconBook2 aria-hidden="true" />{/snippet}
-      </ValueSelect>
-      <ValueSelect
-        name="基准分支"
-        value={base}
-        choices={(repository?.bases ?? []).map((name) => ({
-          value: name,
-          name,
-        }))}
-        disabled={sending}
-        onchange={(value) => (base = value)}
-      >
-        {#snippet icon()}<IconGitBranch aria-hidden="true" />{/snippet}
-      </ValueSelect>
-      {#if agent}
-        <div class="ml-auto flex shrink-0 items-center gap-0.5 max-sm:hidden">
-          {@render agentPicker()}
-          <ChatPermissionMode
-            mode={permissionMode}
-            disabled={sending}
-            onchange={(mode) => (permissionMode = mode)}
-          />
-          {#if options.length}
-            <ChatConfig
-              config={options}
-              disabled={sending}
-              onchange={setOption}
+          <p class="flex items-start gap-2">
+            <IconAlertCircle
+              class="mt-0.5 shrink-0 text-destructive"
+              aria-hidden="true"
             />
-          {:else}
+            <span>
+              <span class="font-medium">启动 agent 失败：</span>
+              未找到 Claude Code ACP 适配器 claude-agent-acp。消息未发送，已保留在输入框中。
+            </span>
+          </p>
+          <p class="flex flex-wrap items-center gap-2 pl-6">
             <span
-              class="shrink-0 px-2 text-xs text-muted-foreground"
-              title="该 agent 还没有以聊天方式启动过；首次启动后会记住它的模型等配置"
-              >配置首次启动后可选</span
+              class="min-w-0 truncate font-mono text-xs text-muted-foreground"
+              title="/home/developer/webmux.worktrees/brisk-otter"
+              >已创建 worktree：/home/developer/webmux.worktrees/brisk-otter</span
             >
-          {/if}
+            <Button variant="outline" size="sm-touch"
+              >在此 worktree 新建会话</Button
+            >
+          </p>
         </div>
       {/if}
-    </div>
-  </footer>
-</div>
+
+      <div
+        class="rounded-lg border bg-card shadow-sm transition has-[textarea:focus]:border-ring has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-ring/20"
+      >
+        {#if repository?.instruction}
+          <div class="flex items-center border-b px-2 py-1">
+            <Popover.Root>
+              <Popover.Trigger>
+                {#snippet child({ props })}
+                  <Button
+                    {...props}
+                    variant="quiet"
+                    size="xs"
+                    title="查看将附带的仓库初始化指令"
+                    ><IconNotes aria-hidden="true" />附带 {repository.name} 的初始化指令</Button
+                  >
+                {/snippet}
+              </Popover.Trigger>
+              <Popover.Content align="start" class="w-80 space-y-2 text-sm">
+                <p class="font-medium">仓库初始化指令</p>
+                <p class="whitespace-pre-wrap text-muted-foreground">
+                  {repository.instruction}
+                </p>
+                <p class="text-xs text-muted-foreground">
+                  会放在你的消息前面，作为第一条消息一起发送。在仓库菜单的“初始化指令”中修改。
+                </p>
+              </Popover.Content>
+            </Popover.Root>
+          </div>
+        {/if}
+        <div class="px-2 pt-1">
+          <Textarea
+            variant="bare"
+            rows={2}
+            class="max-h-48 min-h-14 resize-none"
+            placeholder="描述任务，发送后在新 worktree 中开始"
+            aria-label="任务描述"
+            disabled={sending}
+            bind:value={text}
+            onkeydown={keydown}
+          />
+        </div>
+        <div class="flex items-center justify-end gap-2 px-2 pb-2">
+          {#if sending}
+            <span
+              class="mr-auto flex items-center gap-1.5 text-xs text-muted-foreground"
+              role="status"
+            >
+              <IconLoader2
+                class="size-3.5 animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />正在创建 worktree 并启动 {agent?.name}…
+            </span>
+          {:else if agent}
+            <!-- Narrow screens keep the agent and its options in the card, as
+               the chat composer does; the row below keeps the location. -->
+            <span class="mr-auto flex min-w-0 items-center gap-0.5 sm:hidden">
+              {@render agentPicker()}
+              <ChatSessionOptions
+                mode={permissionMode}
+                config={options}
+                disabled={sending}
+                modeDisabled={sending}
+                onmodechange={(mode) => (permissionMode = mode)}
+                onconfigchange={setOption}
+              />
+            </span>
+          {/if}
+          <Button
+            size="icon-touch"
+            aria-label="发送"
+            title="发送"
+            disabled={!canSend}
+            onclick={send}><IconArrowUp aria-hidden="true" /></Button
+          >
+        </div>
+      </div>
+
+      <div
+        class="-my-1 flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto px-1 py-1 [scrollbar-width:none]"
+        role="toolbar"
+        aria-label="启动选项"
+      >
+        <ValueSelect
+          name="仓库"
+          value={repositoryId}
+          choices={repositories.map((repo) => ({
+            value: repo.id,
+            name: repo.name,
+            reason: repo.reason,
+          }))}
+          disabled={sending}
+          onchange={pickRepository}
+        >
+          {#snippet icon()}<IconBook2 aria-hidden="true" />{/snippet}
+        </ValueSelect>
+        <ValueSelect
+          name="基准分支"
+          value={base}
+          choices={(repository?.bases ?? []).map((name) => ({
+            value: name,
+            name,
+          }))}
+          disabled={sending}
+          onchange={(value) => (base = value)}
+        >
+          {#snippet icon()}<IconGitBranch aria-hidden="true" />{/snippet}
+        </ValueSelect>
+        {#if agent}
+          <div class="ml-auto flex shrink-0 items-center gap-0.5 max-sm:hidden">
+            {@render agentPicker()}
+            <ChatPermissionMode
+              mode={permissionMode}
+              disabled={sending}
+              onchange={(mode) => (permissionMode = mode)}
+            />
+            {#if options.length}
+              <ChatConfig
+                config={options}
+                disabled={sending}
+                onchange={setOption}
+              />
+            {:else}
+              <span
+                class="shrink-0 px-2 text-xs text-muted-foreground"
+                title="该 agent 还没有以聊天方式启动过；首次启动后会记住它的模型等配置"
+                >配置首次启动后可选</span
+              >
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </footer>
+  </div>
+{/snippet}
 
 {#snippet agentPicker()}
   <ValueSelect

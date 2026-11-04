@@ -35,6 +35,18 @@
 - [ ] 4.6 Playwright `test/e2e/quick-start.spec.ts`：使用隔离的临时仓库和假 ACP agent，从首页进入快速开始，发送后进入聊天视图并看到首条消息；桌面 1280×720 与手机 390×844 下检查
 - [ ] 4.7 在 `docs/user-stories/hybrid-sessions.md` 新增 US-Q18（快速开始聊天），更新索引与覆盖表，记录实际做过的验证
 
-## 5. 集成验证
+## 5. 聊天侧栏
 
-- [ ] 5.1 `make check` 与 `make test` 通过；PR 附桌面/手机、浅色/深色截图
+- [ ] 5.1 把 `SessionList.svelte` 的 `/ws/sessions` 订阅和列表归并抽成 `hooks/session-list.svelte.ts`，首页改用它；首页行为不变，现有首页 Vitest 与 E2E 用例通过
+- [ ] 5.2 新增 `components/ChatSidebar.svelte`，Vitest 组件测试覆盖：
+  - 合并运行中会话与 `GET /api/hybrid-sessions` 归档记录：过滤纯终端会话，同 ID 去重，按最近活动排序。
+  - 四种状态映射及可访问名称，当前行的 `aria-current`。
+  - 点击归档记录走现有恢复流程；无法恢复时显示原因。
+  - `ListButton` 的 `navigation` 变体增加 `aria-current` 选中样式（与现有 `aria-pressed` 相同的线条标记），登记到 `docs/frontend-architecture.md` 扩展表。
+- [ ] 5.3 `App.svelte` 为快速开始页和混合会话页包一层带侧栏的布局：切换会话不重建侧栏，首次渲染不闪现无侧栏布局；`.terminal-page` 按 `--chat-sidebar-width` 偏移；桌面端收起状态存 `localStorage` 并用 Zod 校验
+- [ ] 5.4 手机端左侧 `Drawer`：页面顶栏左侧加打开按钮，选中后自动关闭，焦点进出正确。Playwright 在 390×844 下覆盖“打开抽屉 → 切换会话”，在 1280×720 下覆盖“收起 → 刷新后仍收起”
+- [ ] 5.5 在 `docs/user-stories/hybrid-sessions.md` 新增 US-Q19（聊天侧栏），更新索引与覆盖表
+
+## 6. 集成验证
+
+- [ ] 6.1 `make check` 与 `make test` 通过；PR 附桌面/手机、浅色/深色截图
