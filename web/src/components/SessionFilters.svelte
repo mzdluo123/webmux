@@ -2,6 +2,7 @@
   import IconSearch from "~icons/tabler/search";
   import { Button } from "$lib/components/ui/button";
   import * as InputGroup from "$lib/components/ui/input-group";
+  import * as ToggleGroup from "$lib/components/ui/toggle-group";
   import type { SessionInfo } from "../schemas";
   import { countSessions, type StatusFilter } from "../session-status";
 
@@ -88,27 +89,26 @@
       <kbd class="border px-1" aria-hidden="true">/</kbd>
     </InputGroup.Addon>
   </InputGroup.Root>
-  <div
-    class="session-filters flex flex-wrap gap-x-1"
-    role="group"
+  <ToggleGroup.Root
+    value={statusFilter}
+    onValueChange={(value) => {
+      const next = filters.find((filter) => filter.id === value);
+      if (next) statusFilter = next.id;
+    }}
+    size="form"
     aria-label="按会话状态筛选"
+    wrap
   >
     {#each filters as filter (filter.id)}
-      <Button
-        variant="ghost"
-        size="xs"
-        class="min-h-9"
-        aria-pressed={statusFilter === filter.id}
-        onclick={() => (statusFilter = filter.id)}
-      >
+      <ToggleGroup.Item value={filter.id} class="min-h-9">
         {filter.label}
         <span
           class="inline-block w-[3ch] font-mono text-xs text-right tabular-nums opacity-60"
           >{filter.count}</span
         >
-      </Button>
+      </ToggleGroup.Item>
     {/each}
-  </div>
+  </ToggleGroup.Root>
 </div>
 {#if filtered}
   <div class="flex items-center gap-2 text-xs text-muted-foreground">
