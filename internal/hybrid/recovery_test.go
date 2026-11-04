@@ -394,7 +394,8 @@ func TestRemoveRecord(t *testing.T) {
 // cleared when the association goes away.
 func TestRecordKeepsWorkspace(t *testing.T) {
 	h := newHarness(t, 0)
-	s := h.create(h.input(omp.Name, SideTUI))
+	in := h.input(omp.Name, SideTUI)
+	s := h.create(in)
 	id, cwd := s.Info().ID, s.Info().Cwd
 	if h.record(id).Workspace != nil || strings.Contains(h.file(), `"workspace"`) {
 		t.Fatalf("unassociated record has a workspace: %s", h.file())
@@ -407,8 +408,23 @@ func TestRecordKeepsWorkspace(t *testing.T) {
 	if rec.State != StateInterrupted || rec.Workspace == nil || *rec.Workspace != want {
 		t.Fatalf("record after restart: state %s, workspace %+v", rec.State, rec.Workspace)
 	}
+	h.svc.timing.observe = 10 * time.Millisecond
 
-	s = h.mustResume(id, ResumeInput{Side: SideTUI})
+	s = h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	if rec := h.record(id); rec.Workspace == nil || *rec.Workspace != want {
+		t.Fatalf("record right after resume: workspace %+v", rec.Workspace)
+	}
+
+	moved := WorkspaceRef{RepositoryID: "repo0002", WorktreeID: "tree0002"}
+	h.manager.SetWorkspace(id, s.Info().Cwd, &session.Workspace{
+		RepositoryID: moved.RepositoryID,
+		WorktreeID:   moved.WorktreeID,
+		WorktreePath: s.Info().Cwd,
+	})
+	waitFor(t, "a resolved association", func() bool {
+		rec := h.record(id)
+		return rec.Workspace != nil && *rec.Workspace == moved
+	})
 	h.manager.SetWorkspace(id, s.Info().Cwd, nil)
 	h.closeSession(id)
 	if rec := h.record(id); rec.State != StateClosed || rec.Workspace != nil {

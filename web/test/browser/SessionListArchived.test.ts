@@ -290,6 +290,38 @@ test("status and search filters cover archived records", async () => {
     .toHaveAttribute("aria-expanded", "false");
 });
 
+test("a scope without archived matches shows the empty state", async () => {
+  const other = {
+    ...repository,
+    id: "repo-2",
+    name: "other",
+    commonDir: "/repos/other/.git",
+    anchorPath: "/repos/other",
+    worktrees: [
+      {
+        ...worktree,
+        repositoryId: "repo-2",
+        path: "/repos/other",
+      },
+    ],
+  } satisfies Repository;
+  repositories = [repository, other];
+  records = [
+    archived("archivd1", {
+      workspace: { repositoryId: "repo-1", worktreeId: "main" },
+    }),
+  ];
+  render(SessionList, { drafts: createTerminalDrafts() });
+  const socket = await connected();
+  socket.message({ type: "snapshot", sessions: [] });
+  await page.getByRole("button", { name: "仓库 other" }).click();
+  await page
+    .getByRole("group", { name: "按会话状态筛选" })
+    .getByRole("button", { name: /已归档/ })
+    .click();
+  await expect.element(page.getByText("没有匹配的会话")).toBeVisible();
+});
+
 test("returning home after archiving reveals and announces the record", async () => {
   history.replaceState(null, "", "/?archived=hybrid22");
   render(SessionList, { drafts: createTerminalDrafts() });

@@ -178,12 +178,13 @@
             (session) => session.workspace?.repositoryId === selectedRepository,
           ),
   );
-  const scopedArchiveCount = $derived.by(() => {
-    if (selectedRepository === "all") return recoverable.length;
-    if (selectedRepository === "direct") return placement.direct.length;
+  const scopedArchive = $derived.by(() => {
+    if (selectedRepository === "all") return recoverable;
+    if (selectedRepository === "direct") return placement.direct;
     const entry = placement.repositories.get(selectedRepository);
-    return entry ? repositoryRecords(entry).length : 0;
+    return entry ? repositoryRecords(entry) : [];
   });
+  const scopedArchiveCount = $derived(scopedArchive.length);
   $effect(() => {
     if (loading || initializing || !repositoriesSettled || repositoryError)
       return;
@@ -270,7 +271,12 @@
         .map((record) => record.id),
     );
   });
-  const archivedMatches = $derived(visibleArchiveIds?.size ?? 0);
+  const archivedMatches = $derived(
+    visibleArchiveIds === undefined
+      ? 0
+      : scopedArchive.filter((record) => visibleArchiveIds.has(record.id))
+          .length,
+  );
   function archivedInRepository(id: string) {
     const entry = placement.repositories.get(id);
     return Boolean(
