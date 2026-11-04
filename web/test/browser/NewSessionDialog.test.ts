@@ -729,6 +729,44 @@ test("a new worktree created before a failed start is reused on retry", async ()
   });
 });
 
+test("new worktree fields survive switching location away and back", async () => {
+  open(
+    { status: "ready", configs: [config] },
+    { repositories: [repository], selectedRepositoryId: "repo-1" },
+  );
+  await chooseLocation("新建工作树…");
+  const branch = page.getByLabelText("新分支名称", { exact: true });
+  await expect.element(branch).not.toHaveValue("");
+  await branch.fill("feature/kept");
+  await page.getByRole("button", { name: "高级：起始提交与存放目录" }).click();
+  const path = page.getByLabelText("新工作树完整路径");
+  await path.fill("/elsewhere/kept");
+  await chooseLocation("主工作区 · main /repos/project");
+  await expect.element(branch).not.toBeVisible();
+  await chooseLocation("新建工作树…");
+  await expect.element(branch).toHaveValue("feature/kept");
+  await expect.element(path).toHaveValue("/elsewhere/kept");
+  await expect
+    .element(page.getByRole("combobox", { name: "起始分支", exact: true }))
+    .toMatchTextContent(/main/);
+  await expect
+    .element(page.getByRole("combobox", { name: "起始提交", exact: true }))
+    .toMatchTextContent(/initial/);
+  await expect
+    .element(locationField())
+    .toMatchTextContent(/feature\/kept ← main/);
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(worktrees).toEqual([
+    {
+      path: "/elsewhere/kept",
+      mode: "new",
+      branch: "feature/kept",
+      base: "a".repeat(40),
+    },
+  ]);
+});
+
 test("the mobile drawer expands pickers in place without horizontal overflow", async () => {
   await page.viewport(390, 844);
   try {
@@ -857,6 +895,41 @@ test("worktree management hides launch controls until starting a session is expl
   await checkbox.click();
   await create.click();
   await vi.waitFor(() => expect(worktrees).toHaveLength(1));
+  expect(created).toEqual([]);
+});
+
+test("creating only a worktree cannot submit another kind of location", async () => {
+  const onclose = vi.fn();
+  render(NewSessionDialog, {
+    launchConfigs: { status: "ready", configs: [config] },
+    defaultCwd: "/work",
+    repositories: [repository],
+    entry: { kind: "new-worktree", repositoryId: "repo-1" },
+    intent: "worktree",
+    onchange: () => {},
+    onworktreecreated: () => {},
+    onclose,
+  });
+  const branch = page.getByLabelText("新分支名称", { exact: true });
+  await expect.element(branch).not.toHaveValue("");
+  const create = page.getByRole("button", { name: "创建工作树", exact: true });
+  await expect.element(create).toBeEnabled();
+  await chooseLocation("主工作区 · main /repos/project");
+  await expect.element(create).toBeDisabled();
+  await expect
+    .element(summary())
+    .toHaveTextContent("请将位置选为新建工作树，或勾选创建后启动会话");
+  await chooseLocation("输入或浏览目录…");
+  await directory().fill("/work/typed");
+  await userEvent.keyboard("{Enter}");
+  await expect.element(create).toBeDisabled();
+  expect(onclose).not.toHaveBeenCalled();
+  expect(worktrees).toEqual([]);
+  await chooseLocation("新建工作树…");
+  await expect.element(create).toBeEnabled();
+  await create.click();
+  await vi.waitFor(() => expect(onclose).toHaveBeenCalledOnce());
+  expect(worktrees).toHaveLength(1);
   expect(created).toEqual([]);
 });
 

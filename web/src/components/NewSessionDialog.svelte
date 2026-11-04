@@ -159,6 +159,18 @@
   let base = $state("");
   let startBranch = $state("");
   let worktreeFields = $state<WorktreeCreateFields>();
+  // The repository of the new-worktree fields. They stay mounted once shown,
+  // so typed fields survive switching location away and back; only choosing
+  // a new worktree in another repository resets them.
+  let fieldsRepositoryId = $state(
+    untrack(() => (kind === "new-worktree" ? repositoryId : "")),
+  );
+  $effect(() => {
+    if (kind === "new-worktree") fieldsRepositoryId = repositoryId;
+  });
+  const fieldsRepository = $derived(
+    repositories.find((r) => r.id === fieldsRepositoryId),
+  );
   let createdTree = $state<Worktree | null>(null);
   const worktreeReady = $derived(worktreeFields?.isReady() ?? false);
   const repository = $derived(repositories.find((r) => r.id === repositoryId));
@@ -167,12 +179,16 @@
       ? createdTree
       : repository?.worktrees.find((w) => w.id === worktreeId),
   );
+  // Creating only a worktree needs a new-worktree location; any other
+  // location would have nothing to create.
+  const treeTargetMissing = $derived(treeOnly && kind !== "new-worktree");
   const targetReady = $derived(
-    kind === "directory"
-      ? !!cwd.trim()
-      : kind === "worktree"
-        ? !!worktree && selectableWorktree(worktree)
-        : !!repository && worktreeReady,
+    !treeTargetMissing &&
+      (kind === "directory"
+        ? !!cwd.trim()
+        : kind === "worktree"
+          ? !!worktree && selectableWorktree(worktree)
+          : !!repository && worktreeReady),
   );
   const newWorktreeSummary = $derived(
     branchMode === "new"
@@ -189,6 +205,8 @@
         : `${repository?.name ?? ""} 的新工作树 ${branch}`,
   );
   const summary = $derived.by(() => {
+    if (treeTargetMissing)
+      return "请将位置选为新建工作树，或勾选创建后启动会话";
     if (!targetReady)
       return kind === "new-worktree" ? "请填写新工作树信息" : "请选择位置";
     if (treeOnly) return `将创建 ${locationText}`;
@@ -202,6 +220,10 @@
   async function create(makeDirectory = false) {
     if (busy) return;
     const onlyTree = treeOnly;
+    if (onlyTree && kind !== "new-worktree") {
+      error = "请将位置选为新建工作树，或勾选创建后启动会话。";
+      return;
+    }
     if (!onlyTree && !commandReady) {
       error = "请选择有效启动配置，或输入可执行程序及参数。";
       return;
@@ -339,20 +361,25 @@
         bind:worktreeId
         disabled={busy}
       />
-      {#if kind === "new-worktree"}
-        {#if repository}
-          {#key repository.id}<WorktreeCreateFields
+      {#if fieldsRepository}
+        <fieldset
+          disabled={busy || kind !== "new-worktree"}
+          hidden={kind !== "new-worktree"}
+          class="min-w-0"
+        >
+          {#key fieldsRepository.id}<WorktreeCreateFields
               bind:this={worktreeFields}
-              {repository}
-              disabled={busy}
+              repository={fieldsRepository}
+              disabled={busy || kind !== "new-worktree"}
               bind:path={newPath}
               bind:mode={branchMode}
               bind:branch
               bind:base
               bind:startBranch
             />{/key}
-        {/if}
-      {:else if createdTree && kind === "worktree" && worktreeId === createdTree.id}
+        </fieldset>
+      {/if}
+      {#if createdTree && kind === "worktree" && worktreeId === createdTree.id}
         <p role="status" class="text-sm text-primary">
           工作树已创建。再次提交只启动会话，不会重复创建分支或目录。
         </p>
