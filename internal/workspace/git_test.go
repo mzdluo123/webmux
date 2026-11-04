@@ -207,6 +207,38 @@ func TestRecentCommitsCapsHistory(t *testing.T) {
 		t.Fatalf("cap: %d %v", len(commits), err)
 	}
 }
+
+func TestRecentCommitsKeepsTipsOutsideCap(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	root := initRepo(t)
+	stale := gitTest(t, root, "rev-parse", "HEAD")
+	oldDate := []string{"GIT_COMMITTER_DATE=2020-01-01T00:00:00Z", "GIT_AUTHOR_DATE=2020-01-01T00:00:00Z"}
+	diverged := gitTestEnv(t, root, oldDate, "commit-tree", stale+"^{tree}", "-p", stale, "-m", "上游旧提交")
+	for i := range recentCommitLimit + 5 {
+		gitTest(t, root, "commit", "--allow-empty", "-m", fmt.Sprintf("c%d", i))
+	}
+	head := gitTest(t, root, "rev-parse", "HEAD")
+	s, _ := testService(t, t.TempDir(), root)
+	r := registerTest(t, s, root)
+
+	for name, upstream := range map[string]string{"ahead": stale, "diverged": diverged} {
+		commits, err := s.RecentCommits(context.Background(), r.ID, []string{head, upstream})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		seen := map[string]bool{}
+		for _, commit := range commits {
+			seen[commit.Hash] = true
+		}
+		if !seen[head] || !seen[upstream] {
+			t.Fatalf("%s: missing tip in %d rows", name, len(commits))
+		}
+		if name == "diverged" && len(commits) != recentCommitLimit+1 {
+			t.Fatalf("%s: outside-cap tip not added exactly once: %d", name, len(commits))
+		}
+	}
+}
 func TestCreationContractsAndNoEnvironmentCopy(t *testing.T) {
 	t.Parallel()
 	isolateGit(t)

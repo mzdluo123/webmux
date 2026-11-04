@@ -425,7 +425,8 @@ const maxCommitStarts = 2
 // RecentCommits lists up to recentCommitLimit commits reachable from any of
 // the commit object ids in `from` (a branch tip and optionally its upstream
 // tip), newest first, so a fetched upstream commit appears beside local
-// history. Only full hexadecimal object ids are accepted so a value can never
+// history. A requested tip outside the capped window is appended so it stays
+// visible. Only full hexadecimal object ids are accepted so a value can never
 // act as an option or ref expression.
 func (s *Service) RecentCommits(ctx context.Context, id string, from []string) ([]Commit, error) {
 	if len(from) == 0 || len(from) > maxCommitStarts {
@@ -463,6 +464,37 @@ func (s *Service) RecentCommits(ctx context.Context, id string, from []string) (
 	if err != nil {
 		return nil, err
 	}
+	commits := parseCommitLog(data)
+	// The cap spans the merged walk, so an older requested tip can fall
+	// outside it. Resolve any missing tip on its own instead of leaving the
+	// browser without a row for the fetched upstream commit.
+	seen := make(map[string]bool, len(commits))
+	for _, commit := range commits {
+		seen[commit.Hash] = true
+	}
+	var missing []string
+	for _, oid := range from {
+		if !seen[oid] {
+			seen[oid] = true
+			missing = append(missing, oid)
+		}
+	}
+	if len(missing) > 0 {
+		args := append([]string{"log", "--no-walk=unsorted", "--no-show-signature",
+			"--format=%H%x00%s%x00%an%x00%cI%x00"}, missing...)
+		extra, err := s.git(ctx, r.entry.AnchorPath, append(args, "--")...)
+		if err != nil {
+			return nil, err
+		}
+		commits = append(commits, parseCommitLog(extra)...)
+		sort.SliceStable(commits, func(i, j int) bool {
+			return commitTime(commits[i].CommittedAt).After(commitTime(commits[j].CommittedAt))
+		})
+	}
+	return commits, nil
+}
+
+func parseCommitLog(data []byte) []Commit {
 	commits := []Commit{}
 	fields := bytes.Split(data, []byte{0})
 	for i := 0; i+3 < len(fields); i += 4 {
@@ -473,7 +505,15 @@ func (s *Service) RecentCommits(ctx context.Context, id string, from []string) (
 			CommittedAt: string(fields[i+3]),
 		})
 	}
-	return commits, nil
+	return commits
+}
+
+func commitTime(value string) time.Time {
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
 }
 
 func isObjectID(value string) bool {
