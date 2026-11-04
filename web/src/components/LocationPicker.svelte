@@ -121,8 +121,13 @@
             type="button"
             variant="quiet"
             size="icon-sm"
+            class="pointer-events-auto"
             title={`删除工作树 ${worktreeLabel(tree)}`}
             aria-label={`删除工作树 ${worktreeLabel(tree)}`}
+            onkeydown={(event) => {
+              // The command root would turn Enter into selecting the row.
+              event.stopPropagation();
+            }}
             onclick={(event) => {
               event.stopPropagation();
               setOpen(false);

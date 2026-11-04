@@ -57,6 +57,7 @@
     oncreated,
     onchange,
     onworktreecreated,
+    onworktreeremoved,
     onclose,
   }: {
     launchConfigs: LaunchConfigsState;
@@ -71,6 +72,8 @@
     oncreated?: (session: SessionInfo, direction: SplitDirection) => void;
     onchange: () => void;
     onworktreecreated: (tree: Worktree) => void;
+    /** A worktree was deleted from the location list. */
+    onworktreeremoved?: (tree: Worktree) => void;
     onclose: () => void;
   } = $props();
   const recent = recentDirs();
@@ -185,6 +188,7 @@
   let removing = $state<Worktree | null>(null);
   // A removed selection falls back to its repository's main worktree.
   function removed(tree: Worktree) {
+    onworktreeremoved?.(tree);
     if (createdTree?.id === tree.id) createdTree = null;
     if (kind !== "worktree" || worktreeId !== tree.id) return;
     const main = repositories

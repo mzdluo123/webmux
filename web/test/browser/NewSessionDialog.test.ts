@@ -698,6 +698,7 @@ test("the location picker switches between recent directories, typed directories
 
 test("a linked worktree can be deleted from the location picker and the main worktree is selected instead", async () => {
   const onchange = vi.fn();
+  const onworktreeremoved = vi.fn();
   render(NewSessionDialog, {
     launchConfigs: { status: "ready", configs: [config] },
     defaultCwd: "/work",
@@ -708,6 +709,7 @@ test("a linked worktree can be deleted from the location picker and the main wor
       worktreeId: createdTree.id,
     },
     onchange,
+    onworktreeremoved,
     onworktreecreated: () => {},
     onclose: () => {},
   });
@@ -723,6 +725,7 @@ test("a linked worktree can be deleted from the location picker and the main wor
   await vi.waitFor(() => expect(removed).toHaveLength(1));
   expect(removed[0]).toEqual({ confirmationId: "confirm1", mode: "safe" });
   expect(onchange).toHaveBeenCalled();
+  expect(onworktreeremoved).toHaveBeenCalledWith(createdTree);
   await expect.element(locationField()).toMatchTextContent(/\/repos\/project/);
 });
 
