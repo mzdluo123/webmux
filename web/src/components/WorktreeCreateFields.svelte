@@ -2,7 +2,13 @@
   import { errorMessage } from "../error";
   import { api } from "../api";
   import { suggestWorktreeBranch } from "../branchName";
-  import { commitChoices } from "../commitChoices";
+  import {
+    commitChoiceLabel,
+    commitChoices,
+    type CommitChoice,
+    type CommitTip,
+  } from "../commitChoices";
+  import { Badge } from "$lib/components/ui/badge";
   import {
     BranchesSchema,
     CommitsSchema,
@@ -14,6 +20,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as NativeSelect from "$lib/components/ui/native-select";
+  import * as Select from "$lib/components/ui/select";
   import IconRefresh from "~icons/tabler/refresh";
   import * as Command from "$lib/components/ui/command";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
@@ -53,10 +60,13 @@
   let commitsError = $state("");
   let commitsGeneration = 0;
   let commitsController: AbortController | null = null;
-  // Names the first row of the list: the tip of the chosen start branch.
-  let commitsTip = $state("最新");
+  // Tips the history was read from; their rows carry these tags.
+  let commitTips = $state<CommitTip[]>([]);
   const commitRows = $derived(
-    commitChoices(commits, { tip: commitsTip, base, baseSubject }),
+    commitChoices(commits, { tips: commitTips, base, baseSubject }),
+  );
+  const selectedCommit = $derived(
+    commitRows.find((item) => item.value === base),
   );
 
   function clearCommits() {
@@ -67,18 +77,31 @@
     commitsError = "";
   }
 
-  // Lists the history reachable from `from`, the commit the form currently
-  // treats as the branch tip. Later calls supersede earlier ones.
-  function loadCommits(from: string, tip: string) {
+  // Tags for a branch's local tip and, after a fetch, its upstream tip.
+  function branchTips(local: string, upstreamHead: string): CommitTip[] {
+    if (!upstreamHead) return [{ hash: local, tag: "本地最新" }];
+    if (upstreamHead === local) return [{ hash: local, tag: "本地与远程最新" }];
+    return [
+      { hash: upstreamHead, tag: "远程最新" },
+      { hash: local, tag: "本地最新" },
+    ];
+  }
+
+  // Lists the history reachable from the tips, merged newest first. Later
+  // calls supersede earlier ones.
+  function loadCommits(tips: CommitTip[]) {
     clearCommits();
     const generation = commitsGeneration;
     const repositoryID = repository.id;
     const controller = new AbortController();
     commitsController = controller;
-    commitsTip = tip;
+    commitTips = tips;
     commitsLoading = true;
+    const query = new URLSearchParams(
+      [...new Set(tips.map((tip) => tip.hash))].map((hash) => ["from", hash]),
+    );
     void api(
-      `/repositories/${repositoryID}/commits?from=${encodeURIComponent(from)}`,
+      `/repositories/${repositoryID}/commits?${query}`,
       CommitsSchema,
       "GET",
       undefined,
@@ -150,13 +173,20 @@
         upstream = value.upstream;
         refreshWarning = value.fetchWarning;
         lastRefreshedAt = value.baseSource === "remote" ? new Date() : null;
+        // A remote base descends from the local tip; a local base is the
+        // freshly read tip. Either way the fetched upstream tip is listed, so
+        // a diverged upstream stays selectable without becoming the default.
+        const localHead =
+          value.baseSource === "local"
+            ? value.base
+            : data?.branches.find((item) => item.name === branchName)?.head ||
+              value.base;
         if (editVersion === baseEditVersion) {
           base = value.base;
           baseSource = value.baseSource;
           baseSubject = value.baseSubject;
-          if (value.baseSource === "remote")
-            loadCommits(value.base, "远程最新");
         }
+        loadCommits(branchTips(localHead, value.upstreamHead));
       })
       .catch((err: unknown) => {
         if (generation !== refreshGeneration) return;
@@ -181,7 +211,7 @@
       base = data?.defaultBase || "";
       baseSource = "";
       baseSubject = data?.defaultBaseSubject || "";
-      if (base) loadCommits(base, "当前主工作区");
+      if (base) loadCommits([{ hash: base, tag: "当前主工作区" }]);
       else clearCommits();
       return;
     }
@@ -190,7 +220,7 @@
     baseSubject =
       data?.bases.find((item) => item.name === `refs/heads/${name}`)?.subject ||
       "";
-    loadCommits(selected.head, "最新");
+    loadCommits(branchTips(selected.head, ""));
     refreshUpstream(name);
   }
 
@@ -245,6 +275,23 @@
     return ready;
   }
 </script>
+
+{#snippet commitDetails(item: CommitChoice)}
+  <span class="grid min-w-0 flex-1 gap-0.5">
+    <span class="truncate text-sm font-medium" title={item.subject}
+      >{item.subject}</span
+    >
+    <span
+      class="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+    >
+      <span class="font-mono">{item.shortHash}</span>
+      {#each item.tags as tag (tag)}
+        <Badge variant={tag === "远程最新" ? "info" : "secondary"}>{tag}</Badge>
+      {/each}
+      {#if item.age}<span>{item.age}</span>{/if}
+    </span>
+  </span>
+{/snippet}
 
 <div class="space-y-4 rounded-lg border p-3">
   <fieldset class="space-y-2">
@@ -380,31 +427,47 @@
     </div>
     <div class="space-y-2">
       <Label for="worktree-base">起始提交</Label>
-      <NativeSelect.Root
-        id="worktree-base"
-        class="w-full"
-        value={base}
-        required
+      <Select.Root
+        type="single"
+        bind:value={base}
         disabled={disabled || loading || !data || !commitRows.length}
-        aria-describedby="worktree-base-help"
-        onchange={(event) => {
+        onValueChange={() => {
           baseEditVersion += 1;
           baseSource = "";
           baseSubject = "";
           upstream = "";
           lastRefreshedAt = null;
-          base = event.currentTarget.value;
         }}
       >
-        {#each commitRows as item (item.value)}
-          <NativeSelect.Option value={item.value}
-            >{item.label}</NativeSelect.Option
-          >
-        {/each}
-      </NativeSelect.Root>
+        <Select.Trigger
+          id="worktree-base"
+          aria-describedby="worktree-base-help"
+        >
+          {#if selectedCommit}
+            {@render commitDetails(selectedCommit)}
+          {:else}
+            <span class="text-muted-foreground">
+              {commitsLoading ? "正在读取最近提交…" : "选择提交"}
+            </span>
+          {/if}
+        </Select.Trigger>
+        <Select.Content
+          class="max-h-[min(24rem,var(--bits-select-content-available-height))]"
+        >
+          {#each commitRows as item (item.value)}
+            <Select.Item
+              value={item.value}
+              label={item.subject}
+              aria-label={commitChoiceLabel(item)}
+            >
+              {@render commitDetails(item)}
+            </Select.Item>
+          {/each}
+        </Select.Content>
+      </Select.Root>
       <p id="worktree-base-help" class="text-xs text-muted-foreground">
-        {#if commitsLoading}正在读取最近提交…{:else}从所选分支最近的{commits.length}
-          条提交中选择；新分支将从这条提交开始。{/if}
+        {#if commitsLoading}正在读取最近提交…{:else}可选所选分支最近 {commits.length}
+          条提交；点击“刷新上游”会拉取远程最新提交并加入列表。{/if}
       </p>
       {#if commitsError}<p role="status" class="text-xs text-warning">
           {commitsError}

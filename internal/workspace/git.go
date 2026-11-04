@@ -418,13 +418,23 @@ func (s *Service) Branches(ctx context.Context, id string) (Branches, error) {
 // recentCommitLimit bounds the start-commit history offered to the browser.
 const recentCommitLimit = 50
 
-// RecentCommits lists up to recentCommitLimit commits reachable from the
-// commit object id `from` (typically a branch tip), newest first. Only full
-// hexadecimal object ids are accepted so the value can never act as an option
-// or ref expression.
-func (s *Service) RecentCommits(ctx context.Context, id, from string) ([]Commit, error) {
-	if !isObjectID(from) {
-		return nil, problemf(ErrInvalid, "from 必须是完整的提交 ID")
+// maxCommitStarts bounds the tips merged into one history: the local branch
+// tip and its freshly fetched upstream tip.
+const maxCommitStarts = 2
+
+// RecentCommits lists up to recentCommitLimit commits reachable from any of
+// the commit object ids in `from` (a branch tip and optionally its upstream
+// tip), newest first, so a fetched upstream commit appears beside local
+// history. Only full hexadecimal object ids are accepted so a value can never
+// act as an option or ref expression.
+func (s *Service) RecentCommits(ctx context.Context, id string, from []string) ([]Commit, error) {
+	if len(from) == 0 || len(from) > maxCommitStarts {
+		return nil, problemf(ErrInvalid, "from 需要 1 到 %d 个完整的提交 ID", maxCommitStarts)
+	}
+	for _, oid := range from {
+		if !isObjectID(oid) {
+			return nil, problemf(ErrInvalid, "from 必须是完整的提交 ID")
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
@@ -439,14 +449,17 @@ func (s *Service) RecentCommits(ctx context.Context, id, from string) ([]Commit,
 	if _, err := s.current(ctx, r); err != nil {
 		return nil, err
 	}
-	if _, err := s.git(ctx, r.entry.AnchorPath, "rev-parse", "--verify", "--end-of-options", from+"^{commit}"); err != nil {
-		if errorKind(err) != ErrInternal {
-			return nil, err
+	for _, oid := range from {
+		if _, err := s.git(ctx, r.entry.AnchorPath, "rev-parse", "--verify", "--end-of-options", oid+"^{commit}"); err != nil {
+			if errorKind(err) != ErrInternal {
+				return nil, err
+			}
+			return nil, problemf(ErrNotFound, "提交不存在")
 		}
-		return nil, problemf(ErrNotFound, "提交不存在")
 	}
-	data, err := s.git(ctx, r.entry.AnchorPath, "log", "-n", strconv.Itoa(recentCommitLimit), "--no-show-signature",
-		"--format=%H%x00%s%x00%an%x00%cI%x00", from, "--")
+	args := append([]string{"log", "-n", strconv.Itoa(recentCommitLimit), "--no-show-signature",
+		"--format=%H%x00%s%x00%an%x00%cI%x00"}, from...)
+	data, err := s.git(ctx, r.entry.AnchorPath, append(args, "--")...)
 	if err != nil {
 		return nil, err
 	}

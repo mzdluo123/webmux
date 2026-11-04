@@ -84,17 +84,24 @@ function localRefresh(response: typeof branches, branch: string) {
         ?.subject || response.defaultBaseSubject,
     baseSource: "local",
     upstream: "",
+    upstreamHead: "",
     fetchWarning: "该分支未配置上游，保留本地基线",
   };
 }
 
-function remoteRefresh(branch: string, base: string, subject = "remote") {
+function remoteRefresh(
+  branch: string,
+  base: string,
+  subject = "remote",
+  upstreamHead = base,
+) {
   return {
     branch,
     base,
     baseSubject: subject,
     baseSource: "remote",
     upstream: `origin/${branch}`,
+    upstreamHead,
     fetchWarning: "",
   };
 }
@@ -106,11 +113,17 @@ function deferred<T>() {
 const older = "e".repeat(40);
 const committedAt = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
 
-// History served for `from`: that commit on top of one older commit.
-function history(from: string) {
+// History served for the requested tips: each tip, newest first, on top of
+// one shared older commit.
+function history(from: string[]) {
   return {
     commits: [
-      { hash: from, subject: "最新提交", author: "dev", committedAt },
+      ...from.map((hash, index) => ({
+        hash,
+        subject: index === 0 ? "最新提交" : `提交 ${hash.slice(0, 7)}`,
+        author: "dev",
+        committedAt,
+      })),
       { hash: older, subject: "较早提交", author: "dev", committedAt },
     ],
   };
@@ -127,7 +140,7 @@ function serve(status = 200, response = branches, onrefresh?: RefreshHandler) {
         return Response.json(localRefresh(response, body.branch));
       }
       if (url.pathname === "/api/repositories/repo-1/commits") {
-        return Response.json(history(url.searchParams.get("from") ?? ""));
+        return Response.json(history(url.searchParams.getAll("from")));
       }
       if (url.pathname !== "/api/repositories/repo-1/branches") {
         throw new Error(`Unexpected request: ${url.pathname}`);
@@ -147,6 +160,15 @@ const pathInput = () =>
 const ready = () => page.getByRole("status", { name: "表单就绪" });
 const baseInput = () =>
   page.getByRole("combobox", { name: "起始提交", exact: true });
+const options = () => page.getByRole("listbox").getByRole("option");
+async function openBase() {
+  await baseInput().click();
+  await expect.element(options().first()).toBeVisible();
+}
+async function closeBase() {
+  await userEvent.keyboard("{Escape}");
+  await expect.element(options().first()).not.toBeInTheDocument();
+}
 const startBranchInput = () =>
   page.getByRole("combobox", { name: "起始分支", exact: true });
 const reference = () => page.getByRole("status", { name: "提交引用" });
@@ -164,15 +186,17 @@ afterEach(async () => {
 test("lists recent commits of the start branch and selects one by title", async () => {
   serve();
   render(Harness, { repository });
-  const select = baseInput();
-  await expect.element(select.getByRole("option")).toHaveLength(2);
-  await expect
-    .element(select.getByRole("option").first())
-    .toMatchTextContent(/最新 · aaaaaaa 最新提交 · 3小时前/);
+  await expect.element(baseInput()).toMatchTextContent(/最新提交/);
   await expect.element(reference()).toHaveTextContent(head);
 
-  await select.selectOptions(older);
+  await openBase();
+  await expect.element(options()).toHaveLength(2);
+  await expect
+    .element(options().first())
+    .toHaveAccessibleName("最新提交 · aaaaaaa · 本地最新 · 3小时前");
+  await options().getByText("较早提交").click();
   await expect.element(reference()).toHaveTextContent(older);
+  await expect.element(baseInput()).toMatchTextContent(/较早提交/);
   await expect.element(ready()).toHaveTextContent("ready");
 });
 
@@ -186,12 +210,12 @@ test("switching the start branch lists that branch's history", async () => {
     ],
   });
   render(Harness, { repository });
-  await expect.element(baseInput().getByRole("option")).toHaveLength(2);
+  await expect.element(reference()).toHaveTextContent(head);
   await startBranchInput().selectOptions("release");
   await expect.element(reference()).toHaveTextContent(other);
-  await expect
-    .element(baseInput().getByRole("option").first())
-    .toMatchTextContent(/bbbbbbb/);
+  await openBase();
+  await expect.element(options().first()).toMatchTextContent(/bbbbbbb/);
+  await closeBase();
 });
 
 test("a detached default lists history from the main worktree commit", async () => {
@@ -202,10 +226,12 @@ test("a detached default lists history from the main worktree commit", async () 
     defaultBranch: null,
   });
   render(Harness, { repository });
-  await expect
-    .element(baseInput().getByRole("option").first())
-    .toMatchTextContent(/当前主工作区 · aaaaaaa/);
   await expect.element(reference()).toHaveTextContent(head);
+  await openBase();
+  await expect
+    .element(options().first())
+    .toHaveAccessibleName(/^最新提交 · aaaaaaa · 当前主工作区/);
+  await closeBase();
   await expect.element(ready()).toHaveTextContent("ready");
 });
 
@@ -220,9 +246,35 @@ test("a failed history read keeps the default base selectable", async () => {
   );
   render(Harness, { repository });
   await expect.element(page.getByText(/无法读取最近提交/)).toBeVisible();
-  await expect.element(baseInput().getByRole("option")).toHaveLength(1);
+  await openBase();
+  await expect.element(options()).toHaveLength(1);
+  await closeBase();
   await expect.element(reference()).toHaveTextContent(head);
   await expect.element(ready()).toHaveTextContent("ready");
+});
+
+test("refresh lists a diverged upstream tip without making it the default", async () => {
+  const upstreamHead = "d".repeat(40);
+  serve(200, branches, (branch) =>
+    Response.json({
+      ...localRefresh(branches, branch),
+      upstream: "origin/main",
+      upstreamHead,
+      fetchWarning: "本地分支包含上游未有的提交，保留本地基线",
+    }),
+  );
+  render(Harness, { repository });
+  await expect.element(page.getByText(/上游未有/)).toBeVisible();
+  await openBase();
+  await expect.element(options()).toHaveLength(3);
+  await expect
+    .element(options().first())
+    .toHaveAccessibleName(/^最新提交 · ddddddd · 远程最新/);
+  await expect
+    .element(options().nth(1))
+    .toHaveAccessibleName(/aaaaaaa · 本地最新/);
+  await closeBase();
+  await expect.element(reference()).toHaveTextContent(head);
 });
 
 test("prefills an editable suggestion and does not refill after a manual clear", async () => {
@@ -405,15 +457,15 @@ test("a refresh response preserves a commit picked after the request", async () 
   await expect
     .element(page.getByRole("status", { name: "上游刷新状态" }))
     .toMatchTextContent(/正在获取 main/);
-  await expect.element(baseInput().getByRole("option")).toHaveLength(2);
-  await baseInput().selectOptions(older);
+  await openBase();
+  await options().getByText("较早提交").click();
   const response = Response.json(remoteRefresh("main", "b".repeat(40)));
   const responseRead = vi.spyOn(response, "json");
   pending.resolve(response);
   await vi.waitFor(() => expect(responseRead).toHaveBeenCalled());
   await Promise.resolve();
   await expect.element(reference()).toHaveTextContent(older);
-  await expect.element(baseInput()).toHaveValue(older);
+  await expect.element(baseInput()).toMatchTextContent(/较早提交/);
 });
 
 test("a failed manual refresh clears the previous remote-latest label", async () => {

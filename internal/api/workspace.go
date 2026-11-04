@@ -47,7 +47,7 @@ func (s *Server) workspaceRoutes(mux *http.ServeMux) {
 		}
 	})
 	mux.HandleFunc("GET /api/repositories/{id}/commits", func(w http.ResponseWriter, r *http.Request) {
-		commits, err := s.Workspace.RecentCommits(r.Context(), r.PathValue("id"), r.URL.Query().Get("from"))
+		commits, err := s.Workspace.RecentCommits(r.Context(), r.PathValue("id"), r.URL.Query()["from"])
 		if !workspaceFailure(w, err) {
 			reply(w, 200, wire.Commits(commits))
 		}

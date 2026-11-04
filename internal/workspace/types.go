@@ -119,6 +119,7 @@ type BranchBaseRefresh struct {
 	BaseSubject  string `json:"baseSubject"`
 	BaseSource   string `json:"baseSource"`
 	Upstream     string `json:"upstream"`
+	UpstreamHead string `json:"upstreamHead"`
 	FetchWarning string `json:"fetchWarning"`
 }
 type Reference struct {

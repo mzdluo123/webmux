@@ -81,12 +81,15 @@ type RefreshBranchBaseRequest struct {
 }
 
 // RefreshBranchBaseResponse describes a remote base or a local fallback.
+// UpstreamHead is the fetched upstream tip, also when the local base is kept
+// because the branch is ahead or diverged; it is empty when no fetch succeeded.
 type RefreshBranchBaseResponse struct {
 	Branch       string `json:"branch"`
 	Base         string `json:"base"`
 	BaseSubject  string `json:"baseSubject"`
 	BaseSource   string `json:"baseSource"`
 	Upstream     string `json:"upstream"`
+	UpstreamHead string `json:"upstreamHead"`
 	FetchWarning string `json:"fetchWarning"`
 }
 

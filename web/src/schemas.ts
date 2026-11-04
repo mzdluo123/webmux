@@ -437,6 +437,7 @@ export const RefreshBranchBaseResponseSchema = z.object({
   baseSubject: z.string(),
   baseSource: z.enum(["local", "remote"]),
   upstream: z.string(),
+  upstreamHead: z.string(),
   fetchWarning: z.string(),
 });
 export const CreateWorktreeRequestSchema = z.object({

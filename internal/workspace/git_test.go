@@ -159,23 +159,36 @@ func TestRecentCommitsListsHistoryFromObjectID(t *testing.T) {
 	s, _ := testService(t, t.TempDir(), root)
 	r := registerTest(t, s, root)
 
-	commits, err := s.RecentCommits(context.Background(), r.ID, head)
+	commits, err := s.RecentCommits(context.Background(), r.ID, []string{head})
 	if err != nil || len(commits) != 2 {
 		t.Fatalf("commits: %+v %v", commits, err)
 	}
 	if commits[0].Hash != head || commits[0].Subject != "修复终端重连\t与输入" || commits[0].Author == "" || commits[0].CommittedAt == "" || commits[1].Hash != first {
 		t.Fatalf("history order or fields: %+v", commits)
 	}
-	older, err := s.RecentCommits(context.Background(), r.ID, first)
+	older, err := s.RecentCommits(context.Background(), r.ID, []string{first})
 	if err != nil || len(older) != 1 || older[0].Hash != first {
 		t.Fatalf("history from older commit: %+v %v", older, err)
 	}
-	for _, bad := range []string{"", "main", "--all", head[:12], strings.ToUpper(head)} {
+	// A diverged upstream tip is merged into the same history once.
+	upstream := gitTest(t, root, "commit-tree", first+"^{tree}", "-p", first, "-m", "上游提交")
+	merged, err := s.RecentCommits(context.Background(), r.ID, []string{head, upstream})
+	if err != nil || len(merged) != 3 {
+		t.Fatalf("merged history: %+v %v", merged, err)
+	}
+	seen := map[string]bool{}
+	for _, commit := range merged {
+		seen[commit.Hash] = true
+	}
+	if !seen[head] || !seen[upstream] || !seen[first] {
+		t.Fatalf("merged history misses a tip: %+v", merged)
+	}
+	for _, bad := range [][]string{nil, {""}, {"main"}, {"--all"}, {head[:12]}, {strings.ToUpper(head)}, {head, "main"}, {head, upstream, first}} {
 		if _, err := s.RecentCommits(context.Background(), r.ID, bad); errorKind(err) != ErrInvalid {
 			t.Fatalf("from %q accepted: %v", bad, err)
 		}
 	}
-	if _, err := s.RecentCommits(context.Background(), r.ID, strings.Repeat("0", 40)); errorKind(err) != ErrNotFound {
+	if _, err := s.RecentCommits(context.Background(), r.ID, []string{head, strings.Repeat("0", 40)}); errorKind(err) != ErrNotFound {
 		t.Fatalf("missing object: %v", err)
 	}
 }
@@ -189,7 +202,7 @@ func TestRecentCommitsCapsHistory(t *testing.T) {
 	}
 	s, _ := testService(t, t.TempDir(), root)
 	r := registerTest(t, s, root)
-	commits, err := s.RecentCommits(context.Background(), r.ID, gitTest(t, root, "rev-parse", "HEAD"))
+	commits, err := s.RecentCommits(context.Background(), r.ID, []string{gitTest(t, root, "rev-parse", "HEAD")})
 	if err != nil || len(commits) != recentCommitLimit {
 		t.Fatalf("cap: %d %v", len(commits), err)
 	}
