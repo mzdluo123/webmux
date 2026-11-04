@@ -418,6 +418,16 @@ export const BranchesSchema = z.object({
   defaultBranch: z.string().nullable(),
   defaultParent: z.string(),
 });
+export const CommitsSchema = z.object({
+  commits: z.array(
+    z.object({
+      hash: z.string(),
+      subject: z.string(),
+      author: z.string(),
+      committedAt: z.string(),
+    }),
+  ),
+});
 export const RefreshBranchBaseRequestSchema = z.object({
   branch: z.string().min(1),
 });

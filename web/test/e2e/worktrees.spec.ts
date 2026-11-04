@@ -65,9 +65,9 @@ async function createTree(page: Page, branch: string, name: string) {
   await expect(branchInput).not.toHaveValue("");
   await branchInput.fill(branch);
   await expect(branchInput).toHaveValue(branch);
-  await expect(page.getByLabel("起始提交", { exact: true })).toHaveValue(
-    "initial（当前主工作区）",
-  );
+  await expect(
+    page.getByLabel("起始提交", { exact: true }).locator("option:checked"),
+  ).toContainText("initial");
   const path = await page
     .getByLabel("新工作树完整路径", { exact: true })
     .inputValue();
@@ -475,6 +475,7 @@ test("upstream refresh selects remote commits and falls back to a creatable loca
   await openWorktreeCreation(page, false);
   const base = page.getByLabel("起始提交", { exact: true });
   await expect(base).toHaveValue(remoteOne);
+  await expect(base.locator("option:checked")).toContainText("remote one");
   await expect(
     page.getByRole("status", { name: "上游刷新状态" }),
   ).toContainText("远程最新 · origin/main · remote one");
@@ -488,7 +489,7 @@ test("upstream refresh selects remote commits and falls back to a creatable loca
 
   await git(root, "remote", "set-url", "origin", join(workDir, "missing.git"));
   await page.getByRole("button", { name: "刷新上游", exact: true }).click();
-  await expect(base).toHaveValue("initial（当前主工作区）");
+  await expect(base).toHaveValue(localHead);
   await expect(
     page.getByRole("status", { name: "上游刷新警告" }),
   ).toContainText("保留本地基线");

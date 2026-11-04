@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,6 +146,52 @@ func TestBranchesDescribeCommitsIncludingDetachedDefault(t *testing.T) {
 	}
 	if subjects["refs/heads/main"] != "修复终端重连\t与输入" || subjects["refs/remotes/origin/main"] != "initial" {
 		t.Fatalf("commit subjects: %+v", subjects)
+	}
+}
+
+func TestRecentCommitsListsHistoryFromObjectID(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	root := initRepo(t)
+	first := gitTest(t, root, "rev-parse", "HEAD")
+	gitTest(t, root, "commit", "--allow-empty", "-m", "修复终端重连\t与输入", "-m", "不展示提交正文")
+	head := gitTest(t, root, "rev-parse", "HEAD")
+	s, _ := testService(t, t.TempDir(), root)
+	r := registerTest(t, s, root)
+
+	commits, err := s.RecentCommits(context.Background(), r.ID, head)
+	if err != nil || len(commits) != 2 {
+		t.Fatalf("commits: %+v %v", commits, err)
+	}
+	if commits[0].Hash != head || commits[0].Subject != "修复终端重连\t与输入" || commits[0].Author == "" || commits[0].CommittedAt == "" || commits[1].Hash != first {
+		t.Fatalf("history order or fields: %+v", commits)
+	}
+	older, err := s.RecentCommits(context.Background(), r.ID, first)
+	if err != nil || len(older) != 1 || older[0].Hash != first {
+		t.Fatalf("history from older commit: %+v %v", older, err)
+	}
+	for _, bad := range []string{"", "main", "--all", head[:12], strings.ToUpper(head)} {
+		if _, err := s.RecentCommits(context.Background(), r.ID, bad); errorKind(err) != ErrInvalid {
+			t.Fatalf("from %q accepted: %v", bad, err)
+		}
+	}
+	if _, err := s.RecentCommits(context.Background(), r.ID, strings.Repeat("0", 40)); errorKind(err) != ErrNotFound {
+		t.Fatalf("missing object: %v", err)
+	}
+}
+
+func TestRecentCommitsCapsHistory(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	root := initRepo(t)
+	for i := range recentCommitLimit + 5 {
+		gitTest(t, root, "commit", "--allow-empty", "-m", fmt.Sprintf("c%d", i))
+	}
+	s, _ := testService(t, t.TempDir(), root)
+	r := registerTest(t, s, root)
+	commits, err := s.RecentCommits(context.Background(), r.ID, gitTest(t, root, "rev-parse", "HEAD"))
+	if err != nil || len(commits) != recentCommitLimit {
+		t.Fatalf("cap: %d %v", len(commits), err)
 	}
 }
 func TestCreationContractsAndNoEnvironmentCopy(t *testing.T) {

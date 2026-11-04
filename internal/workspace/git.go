@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -412,6 +413,66 @@ func (s *Service) Branches(ctx context.Context, id string) (Branches, error) {
 		return Branches{}, err
 	}
 	return s.branches(ctx, r, repository)
+}
+
+// recentCommitLimit bounds the start-commit history offered to the browser.
+const recentCommitLimit = 50
+
+// RecentCommits lists up to recentCommitLimit commits reachable from the
+// commit object id `from` (typically a branch tip), newest first. Only full
+// hexadecimal object ids are accepted so the value can never act as an option
+// or ref expression.
+func (s *Service) RecentCommits(ctx context.Context, id, from string) ([]Commit, error) {
+	if !isObjectID(from) {
+		return nil, problemf(ErrInvalid, "from 必须是完整的提交 ID")
+	}
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+	r, err := s.repository(id)
+	if err != nil {
+		return nil, err
+	}
+	if err := acquire(ctx, r); err != nil {
+		return nil, err
+	}
+	defer release(r)
+	if _, err := s.current(ctx, r); err != nil {
+		return nil, err
+	}
+	if _, err := s.git(ctx, r.entry.AnchorPath, "rev-parse", "--verify", "--end-of-options", from+"^{commit}"); err != nil {
+		if errorKind(err) != ErrInternal {
+			return nil, err
+		}
+		return nil, problemf(ErrNotFound, "提交不存在")
+	}
+	data, err := s.git(ctx, r.entry.AnchorPath, "log", "-n", strconv.Itoa(recentCommitLimit), "--no-show-signature",
+		"--format=%H%x00%s%x00%an%x00%cI%x00", from, "--")
+	if err != nil {
+		return nil, err
+	}
+	commits := []Commit{}
+	fields := bytes.Split(data, []byte{0})
+	for i := 0; i+3 < len(fields); i += 4 {
+		commits = append(commits, Commit{
+			Hash:        strings.TrimPrefix(string(fields[i]), "\n"),
+			Subject:     string(fields[i+1]),
+			Author:      string(fields[i+2]),
+			CommittedAt: string(fields[i+3]),
+		})
+	}
+	return commits, nil
+}
+
+func isObjectID(value string) bool {
+	if len(value) != 40 && len(value) != 64 {
+		return false
+	}
+	for _, c := range value {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // unsupportedContents is deliberately conservative: removal never traverses or
