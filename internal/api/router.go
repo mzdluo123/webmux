@@ -111,6 +111,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/sessions", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, wire.Sessions(m.List())) })
 	mux.HandleFunc("POST /api/sessions", s.create)
 	mux.HandleFunc("GET /api/sessions/{id}", s.get)
+	serveIn(mux, "PATCH /api/sessions/{id}", http.StatusOK, renameFailure, s.rename)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.delete)
 	mux.HandleFunc("GET /api/sessions/{id}/buffer", s.buffer)
 	mux.HandleFunc("POST /api/sessions/{id}/upload", s.upload)
@@ -313,6 +314,23 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 		reply(w, 200, wire.Session(item.Info()))
 	}
 }
+
+// rename sets the user-chosen name of a session; a hybrid session also keeps
+// it in its record, so a recovered session is still named.
+func (s *Server) rename(r *http.Request, req contract.RenameSessionRequest) (contract.SessionInfo, error) {
+	id := r.PathValue("id")
+	info, err := s.Manager.Rename(id, req.Name)
+	if err != nil {
+		return contract.SessionInfo{}, err
+	}
+	if s.Hybrid != nil {
+		if err := s.Hybrid.SetName(id, strings.TrimSpace(req.Name)); err != nil && !errors.Is(err, hybrid.ErrNotFound) {
+			return contract.SessionInfo{}, err
+		}
+	}
+	return wire.Session(info), nil
+}
+
 func (s *Server) delete(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if r.URL.Query().Get("remove") == "1" {
