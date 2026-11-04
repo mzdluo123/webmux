@@ -19,11 +19,14 @@
 ## 3. 快速开始编排
 
 - [ ] 3.1 新增 `internal/workspace/quickstart.go` 编排，用临时 Git 仓库和假 ACP agent 的 `go test -race ./internal/workspace` 覆盖成功、各步骤失败、不回滚 worktree、失效配置值产生 warning：
-  - 先校验仓库可用、启动配置支持聊天端，再做任何写操作。
+  - 先校验仓库可用、启动配置勾选了混合模式、连接器已安装（沿用 `hybrid-sessions` 的检查与错误码），再做任何写操作。
   - 依次创建 worktree（路径为 `DefaultParent/<branch>`）、以 `startSide: acp` 创建会话、应用配置与权限模式、拼接初始化指令并调用 `hybrid.Service.Prompt`。
   - 失败时返回带 `step`、已创建 worktree 和会话 ID 的错误。
 - [ ] 3.2 按 `clientRequestId` 去重：执行中等待同一结果，完成结果保留 10 分钟；首条提示复用该请求 ID。测试并发重复提交只产生一个 worktree 和一个会话
-- [ ] 3.3 `contract.QuickStartRequest`/`QuickStartResult`/错误体，`POST /api/quick-starts` 处理器使用 `context.WithoutCancel` 加超时，`internal/api/errors.go` 映射各错误。`go test -race ./internal/api` 覆盖未授权、非聊天启动配置拒绝、客户端断开后仍完成，并重新录制 wire 快照
+- [ ] 3.3 新增 `contract.QuickStartRequest`/`QuickStartResult`/错误体和 `POST /api/quick-starts`，并重新录制 wire 快照：
+  - 处理器使用 `context.WithoutCancel` 加超时，`internal/api/errors.go` 映射各错误。
+  - `go test -race ./internal/api` 覆盖未授权、未勾选混合模式拒绝、`connector_missing` 不建 worktree、客户端断开后仍完成。
+- [ ] 3.4 兼容性测试：`go test -race ./internal/workspace` 用同一仓库和假 ACP agent，分别走快速开始和“`CreateWorktree` → `CreateSession(startSide: acp)` → `Prompt`”，比较两边的会话信息和混合会话记录，除 ID、时间、路径外完全一致；argv 播种后只覆盖请求中改过的配置项
 
 ## 4. 快速开始页面
 
@@ -32,7 +35,7 @@
 - [ ] 4.3 实现页面：输入卡片、初始化指令提示与 Popover、仓库/基准分支/agent/配置/权限一行；按原型 `Workspace/Quick start` 的布局。选择记忆存 `localStorage` 并用 Zod 校验；草稿使用 `terminal-draft` 的 `quick-start` 键。分支名用 `suggestWorktreeBranch` 生成，冲突时重新生成并换新请求 ID
 - [ ] 4.4 发送状态、失败报告（按 `step` 显示原因、worktree 入口、会话入口）和成功跳转 `/s/{id}`。Vitest 组件测试覆盖：缺仓库或 agent 禁用发送、记住的选择失效回退、失败保留输入、初始化指令拼接提示
 - [ ] 4.5 删除原型专用的 `web/stories/quick-start/` 数据桩，改为渲染真实页面组件的 story；`pnpm --dir web check`、`lint`、`check:arch`、`exec oxfmt --check src` 通过
-- [ ] 4.6 Playwright `test/e2e/quick-start.spec.ts`：使用隔离的临时仓库和假 ACP agent，从首页进入快速开始，发送后进入聊天视图并看到首条消息；桌面 1280×720 与手机 390×844 下检查
+- [ ] 4.6 Playwright `test/e2e/quick-start.spec.ts`：使用隔离的临时仓库和假 ACP agent，从首页进入快速开始，发送后进入聊天视图并看到首条消息；接着切到终端再切回聊天，关闭后在首页看到归档记录并能恢复。桌面 1280×720 与手机 390×844 下检查
 - [ ] 4.7 在 `docs/user-stories/hybrid-sessions.md` 新增 US-Q18（快速开始聊天），更新索引与覆盖表，记录实际做过的验证
 
 ## 5. 聊天侧栏

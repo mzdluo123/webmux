@@ -189,7 +189,7 @@
             />
             <span>
               <span class="font-medium">启动 agent 失败：</span>
-              未找到 Claude Code ACP 适配器 claude-agent-acp。消息未发送，已保留在输入框中。
+              claude-agent-acp 在初始化阶段退出（exit 1）。消息未发送，已保留在输入框中。
             </span>
           </p>
           <p class="flex flex-wrap items-center gap-2 pl-6">

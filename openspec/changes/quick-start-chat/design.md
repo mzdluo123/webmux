@@ -17,6 +17,7 @@
 - 一个请求在服务端完成 worktree、会话、配置和首条提示，浏览器断开不影响结果。
 - 启动前就能选择配置，复用聊天输入框现有的配置控件。
 - 新增持久状态最少，遵守 `persistence-governance`。
+- 与现有混合模式完全兼容：快速开始和聊天侧栏只是新的启动入口和显示页面，底层的会话、切换、记录和接口语义都不变。
 
 **Non-Goals:**
 
@@ -24,14 +25,35 @@
 - 首条消息不带附件。
 - 不做语音输入、云端环境选择（参考截图中的“默认环境”）。
 - 失败时不自动删除已创建的 worktree。
+- 不新增会话类型，不给会话或混合会话记录加“来源”字段，也不改变 `hybrid-sessions` 的任何规则。
+- 快速开始不提供“从终端开始”；需要先进终端的用户继续使用新建会话弹窗，或在会话里切过去。
 
 ## Decisions
+
+### 0. 复用边界：只组合现有能力
+
+快速开始等价于在浏览器里依次完成“新建 worktree → 新建混合会话（`startSide: acp`）→ 调整配置 → 发送第一条消息”。区别只在于这几步改由服务端连续执行。每一步都调用现有的服务入口：
+
+| 步骤 | 复用的入口 | 现有规则 |
+| --- | --- | --- |
+| 预检 | 启动配置的混合模式判定、`agent-session-identity` 的连接器检查 | `hybrid-sessions`：未勾选返回 400，缺连接器返回 409 `connector_missing` |
+| worktree | `workspace.CreateWorktree` | `worktree-lifecycle`，分支与路径校验不变 |
+| 会话 | `workspace.CreateSession` → `hybrid.Service.Create` | ACP `initialize` + `session/new`，argv 播种配置 |
+| 配置 | 聊天输入框使用的同一个 set-config 与权限模式服务方法 | 取值写入混合会话记录，之后的切换和恢复照常重新应用 |
+| 首条消息 | `hybrid.Service.Prompt`（`ClientRequestID` 复用请求 ID） | 排队、回合、`auth_required` 引导都与手动发送相同 |
+| 提示信息 | 现有的混合会话 notice | 与模式回退等提示同一种展示 |
+
+因此：
+
+- 快速开始返回后的会话与手动创建的会话没有区别，后续切换、休眠、恢复、关闭和归档都不需要额外分支。
+- 新增的只有三样：仓库初始化指令、按启动配置记忆的配置项清单、请求 ID 去重缓存。它们都在会话之外，不写入会话或混合会话记录。
+- 前端的会话页仍是 `pages/Terminal.svelte`，聊天视图仍是 `ChatView`；侧栏只是包在外面的一层布局。
 
 ### 1. 服务端编排，单一接口 `POST /api/quick-starts`
 
 接口形状：
 
-- 请求 `QuickStartRequest{clientRequestId, repositoryId, configId, base, branch, text, config: map[string]string, permissionMode}`。
+- 请求 `QuickStartRequest{clientRequestId, repositoryId, configId, base, branch, text, config: map[string]string, permissionMode}`，其中 `config` 只包含用户改过的配置项。
 - 成功响应 `QuickStartResult{sessionId, worktree, configWarnings[]}`。
 - 失败时返回结构化错误 `{step: "worktree"|"session"|"config"|"prompt", message, worktree?, sessionId?}`：状态码由 `internal/api/errors.go` 映射，失败步骤和已创建资源放在错误体中。
 
@@ -58,7 +80,15 @@
 - 保存：新的状态文件 `agent-options.json`，在 `internal/statefile/catalog.go` 登记；删除启动配置时一并清除。
 - 读取：`GET /api/launch-configs` 的每个配置新增字段 `chatOptions`，结构直接复用 `ChatConfig`，因此 `ChatConfig.svelte` 可以原样渲染。
 
-启动后由服务端按 `config` 逐项调用现有的设置配置路径，再发首条提示。agent 不接受的值记为 `configWarnings`，并作为聊天 notice 写入时间线；不阻断发送。
+启动后的应用顺序：
+
+1. `hybrid.Service.Create` 完成 `session/new` 和 argv 播种。
+2. 服务端只对用户在快速开始中改过的项调用现有的设置配置路径，避免把清单里的旧默认值覆盖到播种结果上。
+3. 发送首条提示。
+
+agent 不接受的值记为 `configWarnings`，并作为聊天 notice 写入时间线；不阻断发送。
+
+清单只是展示用的缓存：它按 `configId` 记录、来源于任何入口创建的混合会话，不写入混合会话记录，也不参与切换或恢复。
 
 - 备选：选择 agent 时预启动一个 ACP 进程探测配置。代价是每次切换都起进程，而且 cwd 还未确定。
 - 备选：只存在内存里。服务重启后首个会话之前都没有配置可选，体验差，且成本只是一份小 JSON。
