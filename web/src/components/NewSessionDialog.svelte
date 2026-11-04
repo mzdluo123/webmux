@@ -163,11 +163,13 @@
   // so typed fields survive switching location away and back; only choosing
   // a new worktree in another repository resets them.
   let fieldsRepositoryId = $state(
-    untrack(() => (kind === "new-worktree" ? repositoryId : "")),
+    initial.kind === "new-worktree" ? initial.repositoryId : "",
   );
-  $effect(() => {
+  // Location changes come from the picker's bindings; whichever of the two
+  // lands last sees both values.
+  function followNewWorktree() {
     if (kind === "new-worktree") fieldsRepositoryId = repositoryId;
-  });
+  }
   const fieldsRepository = $derived(
     repositories.find((r) => r.id === fieldsRepositoryId),
   );
@@ -355,9 +357,21 @@
         {preferredRepositoryId}
         {createdTree}
         {newWorktreeSummary}
-        bind:kind
+        bind:kind={
+          () => kind,
+          (next) => {
+            kind = next;
+            followNewWorktree();
+          }
+        }
         bind:cwd
-        bind:repositoryId
+        bind:repositoryId={
+          () => repositoryId,
+          (next) => {
+            repositoryId = next;
+            followNewWorktree();
+          }
+        }
         bind:worktreeId
         disabled={busy}
       />

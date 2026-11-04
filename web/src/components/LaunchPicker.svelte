@@ -34,6 +34,12 @@
     onchoose: () => void;
   } = $props();
   let open = $state(false);
+  let search = $state("");
+  // The desktop list stays mounted while closed; each opening starts unfiltered.
+  function setOpen(next: boolean) {
+    open = next;
+    if (!next) search = "";
+  }
   const configs = $derived(
     launchConfigs.status === "ready" ? launchConfigs.configs : [],
   );
@@ -46,14 +52,14 @@
   function choose(next: LaunchSource, id = configId) {
     source = next;
     configId = id;
-    open = false;
+    setOpen(false);
     onchoose();
   }
 </script>
 
 <div class="space-y-2">
   <Label for="session-launch">运行</Label>
-  <PickerField id="session-launch" bind:open {disabled}>
+  <PickerField id="session-launch" bind:open={() => open, setOpen} {disabled}>
     {#snippet trigger()}
       {#if chosen}
         <LaunchConfigIcon icon={launchConfigIcon(chosen)} />
@@ -76,6 +82,7 @@
     {/snippet}
     <Command.Root label="启动方式" class="h-auto min-w-0">
       <Command.Input
+        bind:value={search}
         placeholder="搜索启动配置…"
         aria-label="搜索启动方式"
         autocomplete="off"

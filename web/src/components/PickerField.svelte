@@ -23,6 +23,20 @@
   } = $props();
   const desktop = new MediaQuery("(min-width: 640px)");
   let inlineTrigger = $state<HTMLElement | null>(null);
+  // Mounting the list on the first click would make that click slow, so the
+  // desktop popover content is mounted, hidden, once the page is idle. An
+  // open list is never remounted: that would drop its focus and search text.
+  let warm = $state(false);
+  $effect(() => {
+    if (!desktop.current || warm || open) return;
+    // Safari has no requestIdleCallback.
+    if (!("requestIdleCallback" in window)) {
+      const timer = setTimeout(() => (warm = true), 200);
+      return () => clearTimeout(timer);
+    }
+    const handle = requestIdleCallback(() => (warm = true), { timeout: 1000 });
+    return () => cancelIdleCallback(handle);
+  });
   const triggerClass =
     "flex min-h-(--control-default) w-full min-w-0 items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-2 text-left text-sm outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-expanded:border-ring dark:bg-input/30 any-pointer-coarse:min-h-11";
 </script>
@@ -46,8 +60,9 @@
       class={triggerClass}>{@render face()}</Popover.Trigger
     >
     <Popover.Content
+      forceMount={warm}
       align="start"
-      class="w-(--bits-popover-anchor-width) min-w-72 gap-0 overflow-hidden p-0"
+      class="w-(--bits-popover-anchor-width) min-w-72 gap-0 overflow-hidden p-0 data-closed:hidden"
     >
       {@render children()}
     </Popover.Content>

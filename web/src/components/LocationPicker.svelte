@@ -46,6 +46,12 @@
     disabled?: boolean;
   } = $props();
   let open = $state(false);
+  let search = $state("");
+  // The desktop list stays mounted while closed; each opening starts unfiltered.
+  function setOpen(next: boolean) {
+    open = next;
+    if (!next) search = "";
+  }
   let cwdInput = $state<HTMLInputElement | null>(null);
 
   function treesOf(repo: Repository) {
@@ -69,16 +75,16 @@
     kind = "worktree";
     repositoryId = repo.id;
     worktreeId = tree.id;
-    open = false;
+    setOpen(false);
   }
   function chooseDirectory(dir: string) {
     kind = "directory";
     cwd = dir;
-    open = false;
+    setOpen(false);
   }
   async function typeDirectory() {
     kind = "directory";
-    open = false;
+    setOpen(false);
     await tick();
     cwdInput?.focus();
     cwdInput?.select();
@@ -86,7 +92,7 @@
   function chooseNewWorktree(repo: Repository) {
     kind = "new-worktree";
     repositoryId = repo.id;
-    open = false;
+    setOpen(false);
   }
 </script>
 
@@ -122,7 +128,7 @@
 
 <div class="space-y-2">
   <Label for="session-location">位置</Label>
-  <PickerField id="session-location" bind:open {disabled}>
+  <PickerField id="session-location" bind:open={() => open, setOpen} {disabled}>
     {#snippet trigger()}
       {#if kind === "directory"}
         <IconFolder
@@ -163,6 +169,7 @@
     {/snippet}
     <Command.Root label="位置" class="h-auto min-w-0">
       <Command.Input
+        bind:value={search}
         placeholder="搜索目录或工作树…"
         aria-label="搜索位置"
         autocomplete="off"
