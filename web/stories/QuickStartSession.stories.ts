@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/svelte-vite";
 import SessionWithSidebar from "./quick-start/SessionWithSidebar.svelte";
 
-// The chat sidebar beside a hybrid session page (quick-start-chat).
+// A hybrid session page inside the app shell (quick-start-chat); the
+// sidebar follows the current mode.
 const meta = {
   title: "Workspace/Quick start/Session sidebar",
   component: SessionWithSidebar,
@@ -11,4 +12,5 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const ChatSession: Story = {};
+export const ChatMode: Story = { args: { mode: "chat" } };
+export const WorkbenchMode: Story = { args: { mode: "workbench" } };

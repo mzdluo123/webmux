@@ -19,16 +19,22 @@
     ChatPermissionMode as PermissionMode,
   } from "../../src/schemas";
   import { configs } from "../acp/fixtures";
-  import ChatShell from "./ChatShell.svelte";
+  import AppShell from "./AppShell.svelte";
+  import type { Mode } from "./data";
+  import WorkbenchHome from "./WorkbenchHome.svelte";
   import ValueSelect from "./ValueSelect.svelte";
 
-  // Prototype of the quick-start page (openspec change quick-start-chat):
-  // write the task, pick a repository, base branch and agent under the
-  // input, and one send creates a worktree, starts the agent's chat side,
-  // applies the options and sends the first message. Sample data only;
-  // sending simulates the server's answer and leaves nothing behind.
+  // Prototype of the app shell's two home pages (openspec change
+  // quick-start-chat). Chat mode: write the task, pick a repository, base
+  // branch and agent under the input, and one send creates a worktree,
+  // starts the agent's chat side, applies the options and sends the first
+  // message. Workbench mode: the existing overview beside the repository
+  // tree. Sample data only; nothing leaves the page.
   type Scenario = "ready" | "no-options" | "sending" | "failed" | "missing";
-  let { scenario = "ready" }: { scenario?: Scenario } = $props();
+  let {
+    scenario = "ready",
+    mode = "chat",
+  }: { scenario?: Scenario; mode?: Mode } = $props();
 
   const repositories = [
     {
@@ -130,11 +136,15 @@
   }
 </script>
 
-<ChatShell current={null}>
-  {#snippet children(openDrawer)}
-    {@render page(openDrawer)}
+<AppShell {mode}>
+  {#snippet children(view, openDrawer)}
+    {#if view.mode === "chat"}
+      {@render page(openDrawer)}
+    {:else}
+      <WorkbenchHome scope={view.scope} worktree={view.worktree} {openDrawer} />
+    {/if}
   {/snippet}
-</ChatShell>
+</AppShell>
 
 {#snippet page(openDrawer: () => void)}
   <div class="flex h-full flex-col">
@@ -143,8 +153,8 @@
         class="sm:hidden"
         variant="ghost"
         size="icon-touch"
-        aria-label="打开聊天列表"
-        title="打开聊天列表"
+        aria-label="打开导航"
+        title="打开导航"
         onclick={openDrawer}><IconMenu2 aria-hidden="true" /></Button
       >
       <h1 class="text-sm font-medium">新聊天</h1>

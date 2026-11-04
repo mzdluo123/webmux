@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/svelte-vite";
 import QuickStart from "./quick-start/QuickStart.svelte";
 
-// Prototype of the quick-start page (openspec change quick-start-chat).
+// Prototype of the app shell and quick start (openspec change
+// quick-start-chat). The mode buttons at the top left switch both the
+// sidebar and the main area.
 const meta = {
   title: "Workspace/Quick start",
   component: QuickStart,
@@ -11,7 +13,10 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// webmux has an init instruction; Claude Code's last reported options show.
+// Workbench mode: the repository tree and the existing overview.
+export const Workbench: Story = { args: { mode: "workbench" } };
+// Chat mode: webmux has an init instruction; Claude Code's last reported
+// options show.
 export const Ready: Story = { args: { scenario: "ready" } };
 // Codex never started a chat side here, so its options are not known yet.
 export const NoOptionCatalog: Story = { args: { scenario: "no-options" } };

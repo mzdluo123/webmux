@@ -104,7 +104,7 @@ agent 不接受的值记为 `configWarnings`，并作为聊天 notice 写入时�
 
 ### 6. 前端页面
 
-- 路由 `/new`（`route.ts` 新增 `quick-start`），`pages/QuickStart.svelte` 懒加载。首页 `WorkspaceToolbar` 增加“新聊天”主要入口，原“新建会话”保留在旁边。
+- 路由 `/new`（`route.ts` 新增 `quick-start`），`pages/QuickStart.svelte` 懒加载，作为聊天模式的主区域。
 - 布局参考 Claude Code 网页版：空白主区域，底部固定输入卡片，卡片下方一行放选择控件。
   - 仓库、基准分支、agent 使用显示当前值文字的下拉：给 `ChatSelect` 增加 `labeled` 用法，不另写一套。
   - agent 配置直接用 `ChatConfig`，权限用 `ChatPermissionMode`；桌面端 agent 与配置靠右，与仓库、分支分列两侧。
@@ -113,27 +113,54 @@ agent 不接受的值记为 `configWarnings`，并作为聊天 notice 写入时�
 - 上次的仓库和 agent 存在 `localStorage`，用 Zod 校验后读取。
 - 草稿：输入文字用现有 `terminal-draft` 机制，以固定键 `quick-start` 保存，刷新不丢失。
 
-### 7. 聊天侧栏
+### 7. 应用外壳与两种模式
 
-参考 Claude Code 与 Codex 网页版：侧栏在聊天之间常驻，切换会话时不重建。
+参考 Claude Code 网页版：左上角两个图标按钮切换聊天和代码（这里是工作台），侧栏在页面之间常驻，全局入口放在侧栏底部。
 
-- 挂载位置：`App.svelte` 在 `quick-start` 路由和混合会话的 `terminal` 路由外包一层带侧栏的布局，侧栏实例不随会话切换重建，因此滚动位置得以保留。
-  - `pages/Terminal.svelte` 已经知道会话是否为混合会话；纯终端会话不渲染侧栏。
-  - 首次渲染就是最终结构：路由能判断出要显示侧栏时，先画侧栏骨架，不先画无侧栏布局再切换。
-  - `.terminal-page` 现在是 `position: fixed; left: 0` 且占满视口。显示侧栏时改为 `left: var(--chat-sidebar-width, 0)`，由布局按收起状态设置这个变量；终端尺寸随之走现有的 resize 流程。原型用带 transform 的容器代替这个偏移。
-- 数据：
-  - 现在只有 `SessionList.svelte` 订阅 `/ws/sessions`。把订阅与列表归并抽成共享的 rune hook（`hooks/session-list.svelte.ts`），由首页和侧栏共用，继续使用 `ws.ts` 的 `connect`，不新增重连约定。
-  - 归档记录来自 `GET /api/hybrid-sessions`，与 `archived.ts` 共用解析；同一会话 ID 同时出现在运行列表和归档记录中时，以运行中的为准，不重复显示。
-  - 排序键：运行中取 `lastActiveAt`，归档取 `updatedAt`。
-- 状态映射：`attention` 为 question/permission 或 `status: waiting` 时为等待（琥珀色），`hybrid.work` 非空或 `status: running` 时为工作中（绿色），`idle` 时为空闲（中性色），`exited` 或归档记录为已结束（中性弱化）。每种状态都配可访问名称。
-- 组件：新增 `components/ChatSidebar.svelte`。行使用 `ListButton` 并加 `aria-current`，agent 图标用 `LaunchConfigIcon`。手机端用现有 `Drawer`（左侧方向），打开按钮放在页面顶栏左侧，不增加 32px 终端顶栏的高度。
-  - 不引入 shadcn-svelte 的 `sidebar`：它自带一套布局状态和 CSS 变量，与现有的断点显隐方式重复。
-- 收起状态存在 `localStorage` 并用 Zod 校验；显隐只用 `max-sm:`/`sm:` 断点。
-- 快速开始页原先的返回箭头去掉，改由侧栏顶部的“新聊天”和“会话总览”负责导航。
+- 挂载位置：`App.svelte` 在 `sessions`（`/`）、`quick-start`（`/new`）和 `terminal`（`/s/{id}`）三种路由外包一层 `AppShell`。设置页、代码弹出窗口和登录页不使用外壳。
+  - 外壳实例不随路由切换重建，侧栏滚动位置和树的展开状态因此得以保留；主区域仍按路由懒加载，`Terminal` 继续按 `sessionId` 重建。
+  - 首次渲染就是最终结构：外壳和侧栏骨架随第一帧画出，数据到达后只填充内容，不出现先无侧栏、再加侧栏的跳动。
+  - `.terminal-page` 现在是 `position: fixed; left: 0` 且占满视口。改为 `left: var(--app-sidebar-width, 0)`，由外壳按桌面/窄栏/手机设置这个变量；终端尺寸走现有的 resize 流程。原型用带 transform 的容器代替这个偏移。
+- 模式状态：`mode: "chat" | "workbench"` 存在 `localStorage`，用 Zod 校验，无效时回退到工作台。
+  - 首页路由决定模式：`/` 是工作台，`/new` 是聊天，进入时写回记住的模式。
+  - 打开 `/` 且记住的是聊天时，用 `history.replaceState` 改成 `/new`，避免后退回到工作台。
+  - 在会话页切换模式只改记住的模式和侧栏内容，不导航。
+- 数据：外壳和首页共用一份数据，不重复订阅。
+  - 把 `SessionList.svelte` 里的 `/ws/sessions` 订阅、仓库清单加载和归档记录加载抽成 rune hook：`hooks/session-list.svelte.ts`、`hooks/repositories.svelte.ts`、`hooks/archived.svelte.ts`。
+  - 这些 hook 由外壳创建，通过 context 提供给首页、聊天历史和导航树；继续使用 `ws.ts` 的 `connect` 和 `api.ts`，不新增请求或重连约定。
+  - 会话页原本没有会话列表订阅；外壳挂上后多一条 `/ws/sessions` 连接。它只传会话元数据，不传 PTY 字节。
+- 全局区：`WorkspaceHeader` 拆掉，品牌移到侧栏顶部，连接状态与主机名、设置、主题切换移到侧栏底部。“新建会话”成为工作台侧栏的主要操作，打开现有 `NewSessionDialog`。重连提示从首页顶部条移到侧栏底部的状态文字。
+- 组件与样式：新增 `components/AppShell.svelte`、`ModeSwitch.svelte`、`SidebarFooter.svelte`。
+  - 手机端使用现有 `Drawer`（左侧方向），打开按钮放在各页面的顶栏左侧；终端顶栏的返回按钮在窄屏换成这个按钮（见 `terminal-header` 的 delta）。
+  - 模式切换用两个 `Button variant="ghost" size="icon-touch"`，按钮固定 variant、只切换 `aria-pressed`，符合线条优先的约定。
+  - 不引入 shadcn-svelte 的 `sidebar`：它自带一套布局状态和 CSS 变量，与现有断点显隐方式重复。
+  - 收起状态存在 `localStorage` 并用 Zod 校验；显隐只用 `max-sm:`/`sm:` 断点。
+
+### 8. 聊天历史
+
+- 列表合并运行中的混合会话与 `GET /api/hybrid-sessions` 的归档记录；同一会话 ID 同时出现时以运行中的为准。排序键：运行中取 `lastActiveAt`，归档取 `updatedAt`。
+- 状态映射（与导航树共用）：
+  - 等待（琥珀色）：`attention` 为 question/permission，或 `status: waiting`。
+  - 工作中（绿色）：`hybrid.work` 非空，或 `status: running`。
+  - 空闲（中性色）：`status: idle`。
+  - 已结束（中性弱化）：`status: exited`，或归档记录。
+- 组件：`components/ChatHistory.svelte`。行使用 `ListButton` 的 `navigation` 变体，以 `aria-current` 标记当前项；agent 图标用 `LaunchConfigIcon`。
+
+### 9. 工作台导航树
+
+- 取代 `RepositorySidebar`，组件 `components/WorkbenchTree.svelte`。分组与排序复用 `homeWorktrees.ts`、`homeLayout` 现有的规则，保证树与主区域顺序一致。
+- 选择视图：现在的仓库选择保存在 `localStorage` 的 `homeRepository`，只有 `SessionList` 读写。改为外壳中的共享状态（仍落在同一个键上，兼容已有取值），树和首页一起读写。
+- 工作树跳转：导航到 `/#wt-<worktreeId>`，首页在分组渲染后滚动到对应锚点并聚焦标题；锚点不存在时停在仓库视图顶部。
+- 展开状态按节点 ID 存在 `localStorage`；当前会话所在路径自动展开，不写回存储。
+- 键盘：`role="tree"`，用 roving tabindex 实现方向键导航，行内只有一个 Tab 停靠点。
+- `RepositorySidebar.svelte` 在切换后删除；其中的计数逻辑移到树节点。
 
 ## Risks / Trade-offs
 
 - [侧栏在会话页占用终端/聊天宽度] → 桌面端可收起并记住；手机端默认隐藏为抽屉。
+- [首页改版面大，老用户找不到原入口] → 第一次使用默认进入工作台，主区域内容与操作不变；只有顶栏的按钮搬到了侧栏。
+- [会话页多一条 `/ws/sessions` 连接] → 只传元数据，体积小；外壳统一持有，页面之间切换不重连。
+- [`SessionList.svelte` 数据逻辑抽离有回归风险] → 先抽 hook 并让首页改用，跑现有首页的 Vitest 和 E2E，再挂外壳（tasks 4.1 在 4.2 之前）。
 - [编排耗时较长（agent 启动可能十几秒），请求一直挂着] → 处理器不依赖客户端连接；前端超时后用同一请求 ID 重试即可拿到结果。
 - [配置项清单过时（agent 升级后选项变化）] → 启动后以 agent 实际报告为准，失效值只产生 warning；下一次会话会刷新清单。
 - [失败遗留 worktree] → 错误体给出 worktree，并提供“在此 worktree 新建会话”入口；删除仍走现有的删除确认流程。
