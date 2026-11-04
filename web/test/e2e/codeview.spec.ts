@@ -639,7 +639,7 @@ test("images preview, download byte-identical, isolate SVG and compare Git sides
   } else
     await page
       .getByRole("group", { name: "SVG 显示方式" })
-      .getByRole("button", { name: "源码", exact: true })
+      .getByRole("radio", { name: "源码", exact: true })
       .click();
   await expect.poll(() => visibleCode(page)).toContain("<script>");
   expect(leaks).toEqual([]);

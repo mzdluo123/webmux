@@ -410,7 +410,7 @@ test("search selects the literal branch and ignores occupied matches without los
 test("reopening the branch picker starts unfiltered and mode switches close it", async () => {
   serve(200, branches);
   await show();
-  await page.getByRole("button", { name: "使用已有分支", exact: true }).click();
+  await page.getByRole("radio", { name: "使用已有分支", exact: true }).click();
   const picker = () =>
     page.getByRole("button", { name: "已有本地分支", exact: true });
   await picker().click();
@@ -425,8 +425,8 @@ test("reopening the branch picker starts unfiltered and mode switches close it",
   await userEvent.keyboard("{Escape}");
   await picker().click();
   await expect.element(search).toHaveValue("");
-  await page.getByRole("button", { name: "创建新分支", exact: true }).click();
-  await page.getByRole("button", { name: "使用已有分支", exact: true }).click();
+  await page.getByRole("radio", { name: "创建新分支", exact: true }).click();
+  await page.getByRole("radio", { name: "使用已有分支", exact: true }).click();
   await expect.element(picker()).toHaveAttribute("aria-expanded", "false");
 });
 
