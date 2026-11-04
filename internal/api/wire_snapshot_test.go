@@ -1074,6 +1074,8 @@ func wireHybridRecords(f *wireFixture) {
 		f.t.Fatal(err)
 	}
 	id, sid := item.Info().ID, *item.Info().Hybrid.AgentSessionID
+	// The record keeps the worktree the session belonged to when it closed.
+	f.manager.SetWorkspace(id, item.Info().Cwd, &session.Workspace{RepositoryID: "repo0001", WorktreeID: "tree0001", WorktreePath: item.Info().Cwd})
 	closeShell := func() {
 		if err := f.manager.Close(id); err != nil {
 			f.t.Fatal(err)

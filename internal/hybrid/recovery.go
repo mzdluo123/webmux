@@ -241,6 +241,7 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 	a := newActor(s, cmd, rec.Cwd, rec.ConfigID, side)
 	a.agentSessionID = sid
 	a.title, a.titleSession = rec.Title, sid
+	a.recordTitle, a.recordWorkspace = rec.Title, rec.Workspace
 	a.chat.QueueLost = rec.QueuedCount
 	if rec.PermissionMode == PermissionAsk {
 		a.chat.PermissionMode = PermissionAsk

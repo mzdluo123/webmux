@@ -29,7 +29,8 @@
 - 备选：`GET /api/hybrid-sessions` 时对每条记录用 Git 解析 `cwd`。最多 200 次 Git 调用、慢且受 Git 可用性影响；服务重启后 actor 不存在也无法取到会话关联。否决。
 - 备选：只在前端按 `cwd` 前缀匹配。子目录、符号链接、已删除工作树（需要保留“已不可用工作区”身份）都会误判。仅作为旧记录回退（D2）。
 - 字段可选、`omitempty`，旧文件按现有解码规则读取；`statefile` catalog 版本号不变。若持久化守卫要求为新字段登记，按守卫提示更新 `docs/persistence.md`。
-- `contract.HybridRecord` 新增 `Workspace *SessionWorkspace`（复用会话的同名类型），`wire` 转换，重录 `internal/api/testdata/wire`。
+- `contract.HybridRecord` 新增 `Workspace *WorkspaceReference`（复用创建会话时的 `{repositoryId, worktreeId}` 类型；`SessionWorkspace` 另含路径，记录不保存），`wire` 转换，重录 `internal/api/testdata/wire`。
+- actor 在原保存标题的同一路径（`saveShellInfo`）与服务关机时保存关联；恢复时以记录的值为基准，避免关联尚未解析时清空快照。
 
 ### D2 归位在前端一个纯函数中完成
 
@@ -48,7 +49,8 @@
   - “删除记录”放入 `DropdownMenu`（`variant="destructive"`），确认复用 `ConfirmDialog`；
   - 不新建设计系统组件；行的弱化外观用 `Item` 现有 variant，缺少时为 `Item` 增加 variant，而不是 `class` 覆写。
 - `WorkspaceGroup` 增加 `archived` 属性并在会话列表下渲染；仅有已归档记录时，原“暂无会话”空状态改为不显示（避免“暂无会话”与“已归档 3”矛盾）。
-- `homeLayout(home, repo, sessions, archivedWorktreeIds)`：把有已归档记录的工作树视为 `active`。调用方唯一（`RepositoryGroup`）一起迁移。
+- `homeLayout(home, repo, sessions, archived)`：`archived` 是该仓库按工作树分组的已归档记录，有记录的工作树视为 `active`。调用方 `RepositoryGroup` 一起迁移；主页工作树选择框仍只按会话标记“有会话”。
+- 首页各分组沿用会话的 `visibleIds` 约定：`RepositoryGroup`、`DirectSessions` 接收全部已归档记录与筛选保留的 `visibleArchiveIds`，DOM 结构不随筛选改变；共享的 `now`、`filtering`、`highlight` 与恢复/删除回调合成一个 `ArchiveActions` 属性向下传递。
 - 已中断条数在折叠标题中以 `Badge variant="warning"` 加文字“N 条已中断”呈现，不仅靠颜色。
 
 ### D4 归档后的导航与定位
@@ -56,10 +58,10 @@
 - `CloseSessionDialog` 对混合会话（`session.hybrid` 存在且未退出）显示归档文案，按钮非破坏性（`Button` 默认 variant），成功后调用新回调 `onarchived(session)`。
 - `SessionTerminal` 把 `onarchived` 接到 `Terminal.svelte` 的 `close(sessionId)`：单窗格时 `navigate("/?archived=<id>")`，多窗格时只移除窗格。复用现有 `close`，只把单窗格分支的目标改为带参数的首页。
 - 首页读取 `archived` 查询参数，等 `recoverable` 列表刷新到包含该 ID 后：
-  1. 展开所属仓库（沿用 `expansionOverrides`）与工作树的已归档区，`scrollIntoView({block: "nearest"})`；
-  2. 给该行设置 `data-highlight` 约 2 秒，`prefers-reduced-motion` 下降级为静态描边；
+  1. 当前仓库视图不含该记录时切到“全部”（不改本机记忆的选择），展开所属仓库（沿用 `expansionOverrides`/`focusedExpanded`）与工作树的已归档区，`scrollIntoView({block: "nearest"})`；
+  2. 该行改用 `outline` 外观，并在标题旁显示文字徽标“刚归档”约 4 秒；不使用动画，无需 `prefers-reduced-motion` 降级，也不只靠颜色；
   3. 通过 `aria-live="polite"` 区域播报「已归档“标题”」；
-  4. 用 `history.replaceState` 去掉参数，刷新不再重复定位。
+  4. 读取参数后立即用 `history.replaceState` 去掉它，刷新不再重复定位。
 
   记录在 5 秒内未出现（例如写入失败）时只去掉参数，不报错。
 - 在首页卡片菜单归档时不导航，只做同样的定位与播报。

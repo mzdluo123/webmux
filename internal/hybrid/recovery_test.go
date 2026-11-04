@@ -389,6 +389,33 @@ func TestRemoveRecord(t *testing.T) {
 	h.create(h.input(omp.Name, SideTUI))
 }
 
+// The record follows the session's repository association: it is kept
+// through a restart, so the archived record stays with its worktree, and
+// cleared when the association goes away.
+func TestRecordKeepsWorkspace(t *testing.T) {
+	h := newHarness(t, 0)
+	s := h.create(h.input(omp.Name, SideTUI))
+	id, cwd := s.Info().ID, s.Info().Cwd
+	if h.record(id).Workspace != nil || strings.Contains(h.file(), `"workspace"`) {
+		t.Fatalf("unassociated record has a workspace: %s", h.file())
+	}
+	want := WorkspaceRef{RepositoryID: "repo0001", WorktreeID: "tree0001"}
+	h.manager.SetWorkspace(id, cwd, &session.Workspace{RepositoryID: want.RepositoryID, WorktreeID: want.WorktreeID, WorktreePath: cwd})
+
+	h.restart()
+	rec := h.record(id)
+	if rec.State != StateInterrupted || rec.Workspace == nil || *rec.Workspace != want {
+		t.Fatalf("record after restart: state %s, workspace %+v", rec.State, rec.Workspace)
+	}
+
+	s = h.mustResume(id, ResumeInput{Side: SideTUI})
+	h.manager.SetWorkspace(id, s.Info().Cwd, nil)
+	h.closeSession(id)
+	if rec := h.record(id); rec.State != StateClosed || rec.Workspace != nil {
+		t.Fatalf("record after the association went away: state %s, workspace %+v", rec.State, rec.Workspace)
+	}
+}
+
 func TestRecoveryUnavailableOnCorruptStore(t *testing.T) {
 	h := &harness{t: t, state: t.TempDir(), store: t.TempDir(), logs: &syncBuffer{}}
 	path := filepath.Join(h.state, "hybrid-sessions.json")
