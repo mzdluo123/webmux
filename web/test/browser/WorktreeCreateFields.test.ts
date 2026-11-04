@@ -363,6 +363,9 @@ test("search selects the literal branch and ignores occupied matches without los
   });
   await show();
   await page.getByRole("button", { name: "使用已有分支", exact: true }).click();
+  const branchPicker = () =>
+    page.getByRole("button", { name: "已有本地分支", exact: true });
+  await branchPicker().click();
   const search = page.getByRole("combobox", {
     name: "已有本地分支",
     exact: true,
@@ -385,7 +388,9 @@ test("search selects the literal branch and ignores occupied matches without los
     .element(pathInput())
     .toHaveValue("/repos/project.worktrees/branch-042");
   await expect.element(ready()).toHaveTextContent("ready");
+  await expect.element(branchPicker()).toHaveTextContent("feature/branch-042");
 
+  await branchPicker().click();
   await search.fill("main");
   await expect
     .element(page.getByRole("option", { name: /main/ }))
