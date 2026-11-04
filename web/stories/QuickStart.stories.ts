@@ -1,0 +1,21 @@
+import type { Meta, StoryObj } from "@storybook/svelte-vite";
+import QuickStart from "./quick-start/QuickStart.svelte";
+
+// Prototype of the quick-start page (openspec change quick-start-chat).
+const meta = {
+  title: "Workspace/Quick start",
+  component: QuickStart,
+  parameters: { layout: "fullscreen" },
+} satisfies Meta<typeof QuickStart>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+// webmux has an init instruction; Claude Code's last reported options show.
+export const Ready: Story = { args: { scenario: "ready" } };
+// Codex never started a chat side here, so its options are not known yet.
+export const NoOptionCatalog: Story = { args: { scenario: "no-options" } };
+export const Sending: Story = { args: { scenario: "sending" } };
+// The worktree exists, the agent did not start; the text stays.
+export const AgentFailed: Story = { args: { scenario: "failed" } };
+export const NoChatAgent: Story = { args: { scenario: "missing" } };
