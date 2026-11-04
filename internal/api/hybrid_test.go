@@ -221,12 +221,17 @@ func TestForceRemoveWorktreeForgetsHybridSessions(t *testing.T) {
 	configID := h.config("omp", true)
 	outside := h.createSide(configID, contract.HybridSideTUI)
 	h.closeSession(outside)
-	var info contract.SessionInfo
-	ref := fmt.Sprintf(`{"configId":%q,"startSide":"tui","workspace":{"repositoryId":%q,"worktreeId":%q}}`, configID, repository.ID, tree.ID)
-	if err := json.Unmarshal(h.expect(ref, 201), &info); err != nil {
-		t.Fatal(err)
+	start := func() string {
+		var info contract.SessionInfo
+		ref := fmt.Sprintf(`{"configId":%q,"startSide":"tui","workspace":{"repositoryId":%q,"worktreeId":%q}}`, configID, repository.ID, tree.ID)
+		if err := json.Unmarshal(h.expect(ref, 201), &info); err != nil {
+			t.Fatal(err)
+		}
+		return info.ID
 	}
-	inside := info.ID
+	archived := start()
+	h.closeSession(archived)
+	inside := start()
 	var folder contract.ArtifactsFolder
 	if err := json.Unmarshal(h.expectCommand("POST", "/api/sessions/"+inside+"/artifacts", nil, 200), &folder); err != nil {
 		t.Fatal(err)
@@ -239,14 +244,19 @@ func TestForceRemoveWorktreeForgetsHybridSessions(t *testing.T) {
 	if len(preview.Sessions) != 1 || preview.Sessions[0].ID != inside {
 		t.Fatalf("preview sessions %+v", preview.Sessions)
 	}
+	if len(preview.Archived) != 1 || preview.Archived[0].ID != archived {
+		t.Fatalf("preview archived %+v", preview.Archived)
+	}
 	workspaceRequest(t, h.handler, "POST", treeURL+"/remove", contract.RemoveWorktreeRequest{
 		ConfirmationID: preview.ConfirmationID, Mode: "force", ConfirmPath: preview.Worktree.Path, CloseSessions: true,
 	}, 204)
 	if _, err := os.Stat(tree.Path); !os.IsNotExist(err) {
 		t.Fatalf("worktree still present: %v", err)
 	}
-	if _, err := h.hybrids.Record(inside); !errors.Is(err, hybrid.ErrNotFound) {
-		t.Fatalf("removed worktree's record: %v", err)
+	for _, id := range []string{inside, archived} {
+		if _, err := h.hybrids.Record(id); !errors.Is(err, hybrid.ErrNotFound) {
+			t.Fatalf("removed worktree's record %s: %v", id, err)
+		}
 	}
 	if _, err := os.Stat(folder.Path); !os.IsNotExist(err) {
 		t.Fatalf("removed worktree's folder: %v", err)

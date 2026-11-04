@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -227,7 +228,10 @@ func (s *Service) PreviewRemoval(ctx context.Context, repositoryID, worktreeID s
 	s.confirmations[id] = confirmation{repositoryID: repositoryID, worktreeID: worktreeID, expires: expires, state: state, timer: timer}
 	s.coord.Unlock()
 	s.mu.Unlock()
-	return Preview{ConfirmationID: id, ExpiresAt: expires, Worktree: state.tree, Sessions: state.sessions, Blockers: state.blockers, ForceAllowed: state.supported}, nil
+	return Preview{
+		ConfirmationID: id, ExpiresAt: expires, Worktree: state.tree, Sessions: state.sessions, Archived: s.targetRecords(state.tree.Path),
+		Blockers: state.blockers, ForceAllowed: state.supported,
+	}, nil
 }
 
 // RemoveWorktree removes a linked worktree after its confirmation and
@@ -244,26 +248,36 @@ func (s *Service) RemoveWorktree(ctx context.Context, repositoryID, worktreeID s
 	return s.forgetRecords(forgetCtx, path), nil
 }
 
-// forgetRecords deletes the closed and interrupted hybrid records whose
-// directory lies in removed worktree path. A record that cannot be removed
-// stays recoverable, so it can still be deleted by hand.
-func (s *Service) forgetRecords(ctx context.Context, path string) []string {
+// targetRecords lists the closed and interrupted hybrid records whose
+// directory lies in path, most recently updated first.
+func (s *Service) targetRecords(path string) []hybrid.Record {
+	result := make([]hybrid.Record, 0)
 	if s.hybrids == nil {
-		return nil
+		return result
 	}
 	list, err := s.hybrids.Records(true)
 	if err != nil {
-		return nil
+		return result
 	}
-	var forgotten []string
 	for _, rec := range list {
 		cwd, err := canonicalTarget(rec.Cwd)
 		if err != nil {
 			cwd = filepath.Clean(rec.Cwd)
 		}
-		if !within(path, cwd) && !within(path, rec.Cwd) {
-			continue
+		if within(path, cwd) || within(path, rec.Cwd) {
+			result = append(result, rec)
 		}
+	}
+	return result
+}
+
+// forgetRecords deletes the closed and interrupted hybrid records whose
+// directory lies in removed worktree path, including those of sessions the
+// removal closed. A record that cannot be removed stays recoverable, so it
+// can still be deleted by hand.
+func (s *Service) forgetRecords(ctx context.Context, path string) []string {
+	var forgotten []string
+	for _, rec := range s.targetRecords(path) {
 		if s.hybrids.RemoveRecord(ctx, rec.ID) == nil {
 			forgotten = append(forgotten, rec.ID)
 		}
