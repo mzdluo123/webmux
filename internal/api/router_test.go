@@ -19,6 +19,7 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/files"
+	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/wire"
 )
@@ -384,5 +385,29 @@ func TestSessionRename(t *testing.T) {
 	}
 	if got := s.Info().Title; got != "发布检查" {
 		t.Fatalf("a rejected rename changed the title to %q", got)
+	}
+}
+
+// An ordinary shell's rename must not depend on the hybrid record store: a
+// closed store only disables hybrid sessions.
+func TestSessionRenameIgnoresUnavailableHybridStore(t *testing.T) {
+	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+		defer cancel()
+		m.Shutdown(ctx)
+	}()
+	s, err := m.Create(session.CreateInput{Cmd: []string{"/bin/sh", "-c", "sleep 30"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: m})
+	hybrids.Close()
+	handler := New(testDeps(t, Deps{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Hybrid: hybrids}))
+	req := httptest.NewRequest("PATCH", "/api/sessions/"+s.Info().ID, strings.NewReader(`{"name":"plain"}`))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || s.Info().Title != "plain" {
+		t.Fatalf("rename with closed hybrid store: status %d title %q %s", rec.Code, s.Info().Title, rec.Body.String())
 	}
 }

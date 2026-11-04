@@ -316,7 +316,9 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 }
 
 // rename sets the user-chosen name of a session; a hybrid session also keeps
-// it in its record, so a recovered session is still named.
+// it in its record, so a recovered session is still named. A broken record
+// store fails only hybrid sessions; an ordinary shell's rename never depends
+// on it.
 func (s *Server) rename(r *http.Request, req contract.RenameSessionRequest) (contract.SessionInfo, error) {
 	id := r.PathValue("id")
 	info, err := s.Manager.Rename(id, req.Name)
@@ -324,7 +326,11 @@ func (s *Server) rename(r *http.Request, req contract.RenameSessionRequest) (con
 		return contract.SessionInfo{}, err
 	}
 	if s.Hybrid != nil {
-		if err := s.Hybrid.SetName(id, strings.TrimSpace(req.Name)); err != nil && !errors.Is(err, hybrid.ErrNotFound) {
+		err := s.Hybrid.SetName(id, strings.TrimSpace(req.Name))
+		if errors.Is(err, hybrid.ErrNotFound) || (info.Hybrid == nil && errors.Is(err, hybrid.ErrUnavailable)) {
+			err = nil
+		}
+		if err != nil {
 			return contract.SessionInfo{}, err
 		}
 	}
