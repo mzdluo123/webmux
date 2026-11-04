@@ -58,6 +58,12 @@
   let refreshController: AbortController | null = null;
   let pathEdited = $state(false);
   let branchPickerOpen = $state(false);
+  let branchSearch = $state("");
+  // The desktop list stays mounted while closed; each opening starts unfiltered.
+  function setBranchPickerOpen(next: boolean) {
+    branchPickerOpen = next;
+    if (!next) branchSearch = "";
+  }
   let branchEdited = $state(false);
   let commits = $state<z.infer<typeof CommitsSchema>["commits"]>([]);
   let commitsLoading = $state(false);
@@ -309,6 +315,7 @@
         onclick={() => {
           if (mode === "new") return;
           mode = "new";
+          setBranchPickerOpen(false);
           branchEdited = false;
           branch = "";
           fillSuggestedBranch();
@@ -448,7 +455,7 @@
       <Label for="existing-branch">已有本地分支</Label>
       <PickerField
         id="existing-branch"
-        bind:open={branchPickerOpen}
+        bind:open={() => branchPickerOpen, setBranchPickerOpen}
         disabled={disabled || loading || !data}
       >
         {#snippet trigger()}
@@ -457,7 +464,7 @@
               class="size-4 shrink-0 text-muted-foreground"
               aria-hidden="true"
             />
-            <span class="min-w-0 flex-1 truncate">{branch}</span>
+            <span class="min-w-0 flex-1 truncate" title={branch}>{branch}</span>
           {:else}
             <span class="text-sm text-muted-foreground">
               {loading ? "正在读取本地分支…" : "选择本地分支"}
@@ -472,6 +479,7 @@
           disableInitialScroll
         >
           <Command.Input
+            bind:value={branchSearch}
             placeholder="搜索本地分支…"
             aria-label="搜索本地分支"
             autocomplete="off"
@@ -497,7 +505,7 @@
                 data-checked={branch === item.name}
                 onSelect={() => {
                   branch = item.name;
-                  branchPickerOpen = false;
+                  setBranchPickerOpen(false);
                 }}
               >
                 <span class="min-w-0 flex-1 break-all">

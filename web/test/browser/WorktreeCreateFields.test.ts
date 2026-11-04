@@ -407,6 +407,29 @@ test("search selects the literal branch and ignores occupied matches without los
     .toHaveValue("/repos/project.worktrees/branch-042");
 });
 
+test("reopening the branch picker starts unfiltered and mode switches close it", async () => {
+  serve(200, branches);
+  await show();
+  await page.getByRole("button", { name: "使用已有分支", exact: true }).click();
+  const picker = () =>
+    page.getByRole("button", { name: "已有本地分支", exact: true });
+  await picker().click();
+  const search = page.getByRole("combobox", {
+    name: "已有本地分支",
+    exact: true,
+  });
+  await search.fill("no-such-branch");
+  await expect
+    .element(page.getByText("没有匹配的本地分支"))
+    .toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  await picker().click();
+  await expect.element(search).toHaveValue("");
+  await page.getByRole("button", { name: "创建新分支", exact: true }).click();
+  await page.getByRole("button", { name: "使用已有分支", exact: true }).click();
+  await expect.element(picker()).toHaveAttribute("aria-expanded", "false");
+});
+
 test("upstream refresh stays nonblocking and manual refresh updates the default", async () => {
   const first = deferred<Response>();
   const remoteHead = "b".repeat(40);
