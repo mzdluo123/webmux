@@ -45,7 +45,12 @@ make test-browsers-install        # Chromium (+ Linux libraries; may require sud
   - Go-only changes skip Vitest, Storybook and performance. Web-only changes skip both Go race jobs, the Windows cross-compile and the Windows installer smoke. E2E still runs for either.
   - Unknown paths, `.github/**`, `Makefile`, module/lockfile changes and installer tooling force a full run. Do not use `on.pull_request.paths`: the required `Test result` check must always report.
   - The job validates the base itself, forces a full run for any `.github/` change, and executes the base revision's classifier so a PR cannot weaken the rules that skip its own tests.
-  - `release.yml` calls `test.yml` as a reusable workflow with `full: true`, which skips classification. The `Checks` job must pass before `sign` and `publish` run, so a tag never releases without the complete suite.
+  - Every push to main runs the complete suite (classification is forced to full), so each merged commit has a full result.
+  - `release.yml` first runs the `verify` job (`.github/scripts/require-main-test.sh`) for the tagged commit.
+    - Reuse: the commit is on main and its `push` Test run passed with no skipped job. `Checks` is skipped.
+    - Fallback: not on main, no run, or a failed or partial run. `Checks` calls `test.yml` with `full: true` itself.
+    - `sign` and `publish` need one of the two to have passed, so a tag never releases without the complete suite.
+  - The release `Build` job only builds, checksums and verifies the real artifacts (including the deb/rpm install check); it does not rerun Go tests, which `Go race` already covers.
 - CI builds the Linux and macOS E2E executables, fake agents and frontend output once in the `E2E runtime` job (`.github/scripts/package-e2e-runtime.mjs`).
   - Go race, macOS Go race and every E2E shard depend on that job and reuse its same-run artifact, including the locked Playwright runtime.
 - `.github/workflows/test.yml` runs parallel jobs:
