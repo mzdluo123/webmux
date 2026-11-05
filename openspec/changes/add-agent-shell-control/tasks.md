@@ -81,7 +81,11 @@
 - [ ] 5.1 `worktree ls|create|rm`：仓库参数解析（ID、路径、`.`），默认路径与快速开始一致，`rm` 先预览再确认，非交互时需要 `--yes`。
 - [ ] 5.2 `launch-config ls|show|add|edit|rm|presets|restore`：`show` 默认把值替换为 `<hidden>`，`--reveal-env` 才输出；
   `edit` 先读后合并再整体保存，未给出的字段保持原值；`--hybrid` 先做支持检查；诊断中不出现变量值。
-- [ ] 5.3 `repo ls|add|rm|init`：`add` 幂等，`rm` 只取消登记，`init` 支持 `--show`、`--clear` 与标准输入，并提示不存在的快捷指令引用。
+- [ ] 5.3 `repo ls|add|rm|show|refresh|branches|commits|base`：`add` 幂等，`rm` 只取消登记并清理主页显示设置，`base` 的取回警告写到标准错误。
+- [ ] 5.3a `repo settings`：显示全部设置与引用；`--init TEXT|-|@FILE`、`--clear-init`、`--edit`；超长本地拒绝；不存在的快捷指令引用只警告。
+- [ ] 5.3b 主页显示：`worktree ls` 的“主页”列与 `--home/--hidden`、`worktree show`、`worktree pin|unpin|home [--set|--reset]`；
+  只改本仓库条目的设置写入，409 时重读并重放（最多 3 次）；`worktree create` 与 `run --new-worktree` 默认加入（`--no-pin`），`--refresh-base`。
+  与 `web/src/homeWorktrees.ts` 的规则（默认只含主工作区、有会话即显示、清理失效 ID）做对照测试。
 - [ ] 5.4 `forward ls|add|rm`：输出转发地址，`--session self`，`--no-compat`。
 
 ## 6. shell 工具手册与 `{{webmux}}`

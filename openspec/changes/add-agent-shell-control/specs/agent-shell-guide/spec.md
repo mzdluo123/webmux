@@ -17,7 +17,7 @@
   - `sessions`：会话的列出、元数据、标签、输入、等待、输出、屏幕与结束；
   - `launch`：`run`（含 `--follow`）与 `chat new`；
   - `chat`：混合会话聊天、历史、运行时配置与队列；
-  - `workspace`：仓库、worktree、启动配置与端口转发；
+  - `workspace`：仓库与仓库设置、worktree 与主页显示、启动配置与端口转发；
   - `artifacts`：临时文件夹；
   - `notify`：提醒；
   - `recipes`：常用流程；

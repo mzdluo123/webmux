@@ -16,6 +16,7 @@
   - `--existing-branch` 对应模式 `existing`，否则为 `new`；
   - 不给 `--worktree-path` 时使用与快速开始相同的默认位置；
   - worktree 已创建而会话创建失败时，SHALL 保留 worktree，在标准错误输出其路径并以 1 结束。
+  - 新 worktree SHALL 与 Web 端一样加入主页显示，`--no-pin` 时不加入；`--refresh-base` 时先刷新分支基点（规则同 `worktree create`）。
 - `--worktree`、`--new-worktree`、`--no-workspace` 三者 SHALL 互斥。
 
 #### Scenario: 在当前 worktree 中自动关联

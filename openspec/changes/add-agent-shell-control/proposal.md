@@ -50,7 +50,8 @@
   - `webmux chat send|watch|status|cancel|answer|switch`：经 ACP 结构化通道控制混合会话，`chat send --wait` 输出 agent 的最终回复；
   - `webmux chat ls|resume|forget`（混合会话历史）与 `chat set|permission|queue`（运行时配置与队列）；
   - `webmux notify`：经新接口 `POST /api/sessions/{id}/attention` 发出提醒，`--clear` 清除提醒，不依赖控制终端；
-  - `webmux repo ls|add|rm|init` 与 `webmux worktree ls|create|rm`；
+  - `webmux repo ls|add|rm|show|refresh|branches|commits|base` 与 `webmux repo settings`（对应 Web 端“仓库设置”，目前是初始化指令）；
+  - `webmux worktree ls|show|create|rm`，以及主页显示 `worktree pin|unpin|home`（与 Web 端的“主页显示”共用服务端设置 `homeWorktrees`）；
   - `webmux launch-config ls|show|add|edit|rm|presets|restore`（完整增删改，变量值默认隐藏）；
   - `webmux forward ls|add|rm`。
 - **完整帮助与补全**：
@@ -78,7 +79,7 @@
 - `session-metadata`：会话详情接口、`webmux get`、父会话与会话标签。
 - `shell-cli-help`：命令表、完整 `--help`、帮助的调用约定、`help --json`、shell 补全，以及 llms 命令参考与帮助的一致性。
 - `shell-chat-control`：混合会话聊天、历史、运行时配置与队列的 shell 命令。
-- `shell-workspace-control`：仓库、worktree、启动配置（完整增删改）与端口转发命令。
+- `shell-workspace-control`：仓库与仓库设置、worktree 与主页显示、启动配置（完整增删改）与端口转发命令。
 - `agent-shell-guide`：llms.txt 形式的手册、访问边界、内容要求、`webmux guide` 与 `{{webmux}}` 的展开规则。
 
 ### Modified Capabilities
