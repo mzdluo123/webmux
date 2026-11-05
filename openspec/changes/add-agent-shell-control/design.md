@@ -267,6 +267,8 @@ Web 端现在有两个创建入口，CLI 各给一个对应：
 | 不纳入 | 等待端口（`wait --until listening`）、`ls -q` 与 `ls --field` |
 | 超时退出码 | 124，与 GNU `timeout` 一致 |
 | PR 拆分 | 按主题拆成多个 PR（见 tasks.md 第 0 节） |
+| `--help` 语言 | 英文，与现有 CLI 和 Windows 客户端一致；llms 手册用中文 |
+| 仓库设置与主页显示 | `repo settings` 承接仓库设置；主页显示由 CLI 写入 `homeWorktrees`，规则与 Web 端一致 |
 
 ## Risks / Trade-offs
 
