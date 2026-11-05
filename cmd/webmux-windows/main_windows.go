@@ -97,8 +97,10 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	global := flag.NewFlagSet("webmux", flag.ContinueOnError)
-	global.SetOutput(stderr)
-	global.Usage = func() { _, _ = fmt.Fprint(stderr, usage) }
+	// The flag package calls Usage on -h and on every parse error; usage is
+	// printed explicitly below instead, so help leaves stderr empty and an
+	// error prints it once.
+	global.Usage = func() {}
 	distro := global.String("distro", "", "WSL distribution (default: WEBMUX_DISTRO, the tray setting, then WSL's default)")
 	webmux := global.String("webmux", "", "webmux inside WSL (default: WEBMUX_WSL_PATH, the tray setting, then ~/.local/bin/webmux)")
 	registry := append(windowsCommands(), sessioncmd.Commands()...)
@@ -111,11 +113,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return help.HelpCommand(registry, version, nil)
 	} else if err != nil {
 		_, _ = fmt.Fprintln(stderr, "webmux:", err)
-		global.Usage()
+		_, _ = fmt.Fprint(stderr, usage)
 		return contract.ExitUsage
 	}
 	if global.NArg() == 0 {
-		global.Usage()
+		_, _ = fmt.Fprint(stderr, usage)
 		return contract.ExitUsage
 	}
 	command, rest := global.Arg(0), global.Args()[1:]
@@ -157,7 +159,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return code
 	}
 	_, _ = fmt.Fprintf(stderr, "webmux: unknown command %q\n", command)
-	global.Usage()
+	_, _ = fmt.Fprint(stderr, usage)
 	return contract.ExitUsage
 }
 
