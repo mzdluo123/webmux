@@ -1,4 +1,4 @@
-import { createShell, expect, test } from "./fixtures";
+import { createShell, expect, test, backToList } from "./fixtures";
 
 test("the saved dark theme is applied before the application module loads", async ({
   page,
@@ -19,7 +19,10 @@ test("the saved dark theme is applied before the application module loads", asyn
     await page.goto("/", { waitUntil: "commit" });
     await expect(page.locator("html")).toHaveClass(/(?:^|\s)dark(?:\s|$)/);
     await expect(
-      page.locator("header").getByRole("button", { name: "＋ 新建会话" }),
+      page
+        .getByRole("main")
+        .getByRole("button", { name: "＋ 新建会话" })
+        .first(),
     ).toHaveCount(0);
   } finally {
     moduleGate.resolve();
@@ -51,8 +54,9 @@ test("reduced motion disables skeleton and dialog animation", async ({
       ),
     ).toBeLessThanOrEqual(0.001);
     await page
-      .locator("header")
+      .getByRole("main")
       .getByRole("button", { name: "＋ 新建会话" })
+      .first()
       .click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
@@ -71,7 +75,7 @@ test("returning to the workspace focuses its main region", async ({
   workDir,
 }) => {
   await createShell(page, "Route focus", workDir);
-  await page.getByRole("button", { name: "返回会话列表", exact: true }).click();
+  await backToList(page);
   await expect(page.getByRole("searchbox", { name: "搜索会话" })).toBeVisible();
   await expect(page.locator("main")).toBeFocused();
 });
@@ -81,7 +85,7 @@ test("returning to the workspace shows the previous list while settings reload",
   workDir,
 }) => {
   await createShell(page, "Cached return", workDir);
-  await page.getByRole("button", { name: "返回会话列表", exact: true }).click();
+  await backToList(page);
   await expect(page.getByRole("searchbox", { name: "搜索会话" })).toBeVisible();
   // Open the session again, then hold the slow settings and Git reads that
   // a mobile link would still be waiting on.
@@ -97,9 +101,7 @@ test("returning to the workspace shows the previous list while settings reload",
     await route.continue();
   });
   try {
-    await page
-      .getByRole("button", { name: "返回会话列表", exact: true })
-      .click();
+    await backToList(page);
     await expect(
       page.getByRole("searchbox", { name: "搜索会话" }),
     ).toBeVisible();

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SidebarButton from "./SidebarButton.svelte";
+  import { shellUi } from "../shell.svelte";
   import type { Snippet } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconArrowDown from "~icons/tabler/arrow-down";
@@ -127,12 +129,16 @@
 <header
   class="app-header terminal-header flex h-(--app-header-height) shrink-0 items-center gap-2 border-b bg-card px-1 sm:px-2"
 >
+  <!-- Phones open the sidebar drawer here (a home-screen app has no back
+       button); wider screens return to the current mode's home. -->
+  <SidebarButton class="sm:hidden" />
   <Button
+    class="max-sm:hidden"
     variant="ghost"
     size="icon-touch"
-    aria-label="返回会话列表"
-    title="返回会话列表"
-    onclick={() => navigate("/")}
+    aria-label={shellUi.mode === "chat" ? "返回新聊天" : "返回会话列表"}
+    title={shellUi.mode === "chat" ? "返回新聊天" : "返回会话列表"}
+    onclick={() => navigate(shellUi.home)}
   >
     <IconArrowLeft class="size-4" aria-hidden="true" />
   </Button>

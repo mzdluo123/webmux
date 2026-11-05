@@ -30,8 +30,9 @@ test("workspace defers settings and management forms until requested", async ({
     ),
   ).toEqual([]);
   await page
-    .locator("header")
+    .getByRole("main")
     .getByRole("button", { name: "＋ 新建会话", exact: true })
+    .first()
     .click();
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(scripts.some((url) => /\/NewSessionDialog-/.test(url))).toBe(true);
@@ -66,8 +67,9 @@ for (const theme of ["light", "dark"] as const) {
     });
     await page.goto("/");
     await page
-      .locator("header")
+      .getByRole("main")
       .getByRole("button", { name: "＋ 新建会话", exact: true })
+      .first()
       .click();
     await requested.promise;
     try {
@@ -84,8 +86,9 @@ for (const theme of ["light", "dark"] as const) {
     await settled(page);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await page
-      .locator("header")
+      .getByRole("main")
       .getByRole("button", { name: "＋ 新建会话", exact: true })
+      .first()
       .click();
     await expect(page.getByRole("dialog")).toBeVisible();
   });
@@ -105,8 +108,9 @@ for (const theme of ["light", "dark"] as const) {
     );
     await page.goto("/");
     await page
-      .locator("header")
+      .getByRole("main")
       .getByRole("button", { name: "＋ 新建会话", exact: true })
+      .first()
       .click();
     await expect(page.getByRole("alert")).toContainText("创建表单加载失败");
     await page.screenshot({
