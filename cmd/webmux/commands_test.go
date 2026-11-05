@@ -219,8 +219,9 @@ func TestConnectLocalPrefersSocketThenConfigThenEnvironment(t *testing.T) {
 		}
 		return ""
 	}
-	if _, err := connectLocal(dir+"/a.sock", dir+"/config.toml", true, getenv); err == nil {
-		t.Fatal("--socket with --config accepted")
+	var usage sessioncmd.UsageError
+	if _, err := connectLocal(dir+"/a.sock", dir+"/config.toml", true, getenv); !errors.As(err, &usage) {
+		t.Fatalf("--socket with --config: %v, want a usage error", err)
 	}
 	// A named socket nobody serves is "not running", never a fallback.
 	for _, tc := range []struct {
@@ -242,5 +243,37 @@ func TestConnectLocalPrefersSocketThenConfigThenEnvironment(t *testing.T) {
 	// An explicit --config ignores WEBMUX_SOCKET.
 	if _, err := connectLocal("", dir+"/missing.toml", true, getenv); err == nil || !strings.Contains(err.Error(), "configuration") {
 		t.Fatalf("explicit config: %v", err)
+	}
+}
+
+// TestHelpReferencesResolve keeps every "See also" target and every webmux
+// command in an example pointing at a command this build has.
+func TestHelpReferencesResolve(t *testing.T) {
+	registry := commandRegistry()
+	mention := regexp.MustCompile(`(?:^|[\s(|;&"])webmux((?: [a-z][a-z0-9-]*)+)`)
+	check := func(where, words string) {
+		args := strings.Fields(words)
+		c, rest := registry.Find(args)
+		if c == nil {
+			t.Errorf("%s: %q names no command", where, "webmux"+words)
+			return
+		}
+		if c.Name == "help" && len(rest) > 0 {
+			if sub, _ := registry.Find(rest); sub == nil {
+				t.Errorf("%s: %q asks for help on no command", where, "webmux"+words)
+			}
+		}
+	}
+	for _, c := range registry {
+		for _, see := range c.SeeAlso {
+			for _, m := range mention.FindAllStringSubmatch(see, -1) {
+				check(c.Name+" see also", m[1])
+			}
+		}
+		for _, ex := range c.Examples {
+			for _, m := range mention.FindAllStringSubmatch(ex.Command, -1) {
+				check(c.Name+" example", m[1])
+			}
+		}
 	}
 }

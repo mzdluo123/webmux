@@ -196,3 +196,21 @@ func TestProcessSessionFindsCreator(t *testing.T) {
 		t.Fatalf("outside process: id %q inside %v", id, inside)
 	}
 }
+
+// A stale snapshot published after a fresh labels or parent event must look
+// different to the next tick, so the list is repaired.
+func TestSameDisplayComparesLabelsAndParent(t *testing.T) {
+	base := Info{ID: "abcdefgh", Labels: map[string]string{"run": "1"}, ParentID: "p4rent22"}
+	if !sameDisplay(base, base) {
+		t.Fatal("identical infos differ")
+	}
+	for name, other := range map[string]Info{
+		"label value":  {ID: "abcdefgh", Labels: map[string]string{"run": "2"}, ParentID: "p4rent22"},
+		"no labels":    {ID: "abcdefgh", ParentID: "p4rent22"},
+		"other parent": {ID: "abcdefgh", Labels: map[string]string{"run": "1"}},
+	} {
+		if sameDisplay(base, other) {
+			t.Errorf("%s: change not seen", name)
+		}
+	}
+}

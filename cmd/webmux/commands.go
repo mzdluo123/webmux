@@ -305,14 +305,14 @@ func opsCommands() sessioncmd.Registry {
 				fs.Bool("json", false, "print the commands, options and examples as JSON")
 				return nil
 			},
-			Arguments: []sessioncmd.Item{{Name: "COMMAND...", Text: "A command path such as chat send."}},
+			Arguments: []sessioncmd.Item{{Name: "COMMAND...", Text: "A command path such as ls or update check."}},
 			Output:    "Help text, or the HelpTree object with --json.",
 			Exit:      []sessioncmd.ExitItem{{Code: 0, Text: "Printed."}, {Code: 2, Text: "Unknown command."}},
 			Examples: []sessioncmd.Example{
 				{Command: "webmux help get", Text: "Show the help of webmux get."},
 				{Command: "webmux help --json | jq -r '.commands[].path | join(\" \")'", Text: "List every command path."},
 			},
-			SeeAlso: []string{"webmux guide"},
+			SeeAlso: []string{"webmux get", "webmux ls"},
 		},
 	}
 }
