@@ -128,7 +128,9 @@
         onresume={(record) => void resume(record)}
         onrename={shell.rename}
       />
-    {:else}
+    {:else if !shell.sessions.loading && (shell.repositories.settled || shell.repositories.list.length)}
+      <!-- Drawn once sessions and repositories are known, so rows never
+           appear between rows already on screen during startup. -->
       <WorkbenchTree
         repositories={shell.repositories.list}
         sessions={live}

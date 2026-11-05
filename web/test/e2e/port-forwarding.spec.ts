@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { startE2EServer, type E2EServer } from "./server.mjs";
+import { revealSidebar } from "./fixtures";
 
 // The gateway asks for authentication only when WebMux has a token.
 const token = "e2e-port-forwarding";
@@ -118,10 +119,13 @@ test("a detected port forwards, opens through authentication, echoes WebSockets 
   expect(echoed).toBe("ping through the gateway");
 
   await page.goto(`${server.baseURL}/`);
+  await revealSidebar(page);
   await page.getByRole("button", { name: "端口转发（1 个）" }).click();
   const dialog = page.getByRole("dialog", { name: "端口转发" });
   await dialog.getByRole("button", { name: `移除端口 ${port} 的转发` }).click();
   await expect(dialog.getByText("还没有转发")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await revealSidebar(page);
   await expect(
     page.getByRole("button", { name: "端口转发", exact: true }),
   ).toBeVisible();

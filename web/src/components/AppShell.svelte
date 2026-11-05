@@ -111,6 +111,25 @@
     untrack(() => (creating = null));
   });
 
+  // The drawer takes focus when it opens and gives it back to the button
+  // that opened it when it closes in place.
+  $effect(() => {
+    if (!shellUi.drawerOpen) return;
+    const opener =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const timer = setTimeout(() =>
+      document
+        .querySelector<HTMLElement>('[data-slot="drawer-content"] button')
+        ?.focus(),
+    );
+    return () => {
+      clearTimeout(timer);
+      if (!shellUi.drawerOpen && opener?.isConnected) opener.focus();
+    };
+  });
+
   // A home page decides the mode; a session page keeps the remembered one.
   $effect(() => {
     if (route.name === "sessions" && shellUi.mode !== "workbench")
@@ -141,49 +160,51 @@
   data-collapsed={shellUi.collapsed}
   data-mode={shellUi.mode}
 >
-  {#if shellUi.collapsed}
-    <nav class="app-sidebar app-sidebar-rail" aria-label="导航">
-      <Button
-        variant="ghost"
-        size="icon-touch"
-        aria-label="展开侧栏"
-        title="展开侧栏"
-        onclick={() => shellUi.setCollapsed(false)}
-        ><IconLayoutSidebarLeftExpand aria-hidden="true" /></Button
-      >
-      <ModeSwitch mode={shellUi.mode} vertical onchange={changeMode} />
-      <Button
-        variant="ghost"
-        size="icon-touch"
-        aria-label={shellUi.mode === "chat" ? "新聊天" : "新建会话"}
-        title={shellUi.mode === "chat" ? "新聊天" : "新建会话"}
-        onclick={primary}
-        >{#if shellUi.mode === "chat"}<IconMessagePlus
-            aria-hidden="true"
-          />{:else}<IconPlus aria-hidden="true" />{/if}</Button
-      >
-      <div class="mt-auto w-full">
-        <SidebarFooter
-          rail
-          connection={sessions.connection}
-          hostname={setup.value.hostname}
-          setupSettled={setup.settled}
-          onforward={shell.forward}
-        />
-      </div>
-    </nav>
-  {:else}
-    <aside class="app-sidebar" aria-label="侧栏">
-      <AppSidebar {route} collapsible onmode={changeMode} onprimary={primary} />
-    </aside>
-  {/if}
+  <nav class="app-sidebar app-sidebar-rail" aria-label="窄栏导航">
+    <Button
+      variant="ghost"
+      size="icon-touch"
+      aria-label="展开侧栏"
+      title="展开侧栏"
+      onclick={() => {
+        // Tablets keep the rail and show the full sidebar as a drawer.
+        if (matchMedia("(max-width: 1023px)").matches)
+          shellUi.drawerOpen = true;
+        else shellUi.setCollapsed(false);
+      }}><IconLayoutSidebarLeftExpand aria-hidden="true" /></Button
+    >
+    <ModeSwitch mode={shellUi.mode} vertical onchange={changeMode} />
+    <Button
+      variant="ghost"
+      size="icon-touch"
+      aria-label={shellUi.mode === "chat" ? "新聊天" : "新建会话"}
+      title={shellUi.mode === "chat" ? "新聊天" : "新建会话"}
+      onclick={primary}
+      >{#if shellUi.mode === "chat"}<IconMessagePlus
+          aria-hidden="true"
+        />{:else}<IconPlus aria-hidden="true" />{/if}</Button
+    >
+    <div class="mt-auto w-full">
+      <SidebarFooter
+        rail
+        connection={sessions.connection}
+        hostname={setup.value.hostname}
+        setupSettled={setup.settled}
+        onforward={shell.forward}
+      />
+    </div>
+  </nav>
+  <aside class="app-sidebar app-sidebar-full" aria-label="侧栏">
+    <AppSidebar {route} collapsible onmode={changeMode} onprimary={primary} />
+  </aside>
   <div class="app-shell-main">
     {@render children()}
   </div>
 </div>
 
-<Drawer.Root direction="left" bind:open={shellUi.drawerOpen}>
-  <Drawer.Content class="w-80 max-w-[85vw] sm:hidden">
+<!-- noBodyStyles: the page under it keeps its scroll position and layout. -->
+<Drawer.Root direction="left" noBodyStyles bind:open={shellUi.drawerOpen}>
+  <Drawer.Content class="w-80 max-w-[85vw] lg:hidden">
     <Drawer.Title class="sr-only">导航</Drawer.Title>
     <AppSidebar {route} onmode={changeMode} onprimary={primary} />
   </Drawer.Content>

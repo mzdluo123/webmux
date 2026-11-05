@@ -112,15 +112,17 @@ test.describe("desktop sidebar", () => {
     await page.goto(`/s/${terminal}`);
     // The current session's repository and worktree open on their own.
     await expect(
-      tree(page).getByRole("treeitem", { name: "pnpm dev（空闲）" }),
+      tree(page).getByRole("treeitem", { name: /^pnpm dev（/ }),
     ).toHaveAttribute("aria-current", "page");
 
     // A terminal session keeps the workbench and shows its terminal.
     await tree(page).getByRole("treeitem", { name: /^main/ }).click();
     await expect(page).toHaveURL(new RegExp(`/#wt-${main}$`));
     await expect(page.locator(`#wt-${main} h3`)).toBeFocused();
+    // The home view has no current session, so its worktree is folded.
+    await tree(page).getByRole("button", { name: "展开main" }).click();
     await tree(page)
-      .getByRole("treeitem", { name: "pnpm dev（空闲）" })
+      .getByRole("treeitem", { name: /^pnpm dev（/ })
       .click();
     await expect(page).toHaveURL(new RegExp(`/s/${terminal}$`));
     await expect(

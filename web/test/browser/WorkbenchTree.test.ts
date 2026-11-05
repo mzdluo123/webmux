@@ -78,13 +78,13 @@ test("repositories hold the home page's worktrees and their sessions", async () 
         id: "agent001",
         title: "修复排序",
         workspace: inMain,
-        lastActiveAt: "2026-10-28T00:00:00Z",
+        createdAt: "2026-10-28T00:00:00Z",
       }),
       session({
         id: "shell001",
         title: "pnpm dev",
         workspace: inMain,
-        lastActiveAt: "2026-10-28T01:00:00Z",
+        createdAt: "2026-10-28T01:00:00Z",
       }),
       session({
         id: "ended001",

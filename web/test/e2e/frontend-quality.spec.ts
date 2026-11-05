@@ -1,4 +1,10 @@
-import { createShell, expect, test, backToList } from "./fixtures";
+import {
+  createShell,
+  expect,
+  test,
+  backToList,
+  revealSidebar,
+} from "./fixtures";
 
 test("the saved dark theme is applied before the application module loads", async ({
   page,
@@ -53,11 +59,9 @@ test("reduced motion disables skeleton and dialog animation", async ({
         parseFloat(getComputedStyle(node).animationDuration),
       ),
     ).toBeLessThanOrEqual(0.001);
-    await page
-      .getByRole("main")
-      .getByRole("button", { name: "＋ 新建会话" })
-      .first()
-      .click();
+    // The page body is still a skeleton; the sidebar already offers it.
+    await revealSidebar(page);
+    await page.getByRole("button", { name: "新建会话", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     expect(
@@ -89,7 +93,7 @@ test("returning to the workspace shows the previous list while settings reload",
   await expect(page.getByRole("searchbox", { name: "搜索会话" })).toBeVisible();
   // Open the session again, then hold the slow settings and Git reads that
   // a mobile link would still be waiting on.
-  await page.getByText("Cached return").first().click();
+  await page.getByRole("main").getByText("Cached return").first().click();
   const config = Promise.withResolvers<void>();
   const repositories = Promise.withResolvers<void>();
   await page.route("**/api/config", async (route) => {
@@ -105,7 +109,9 @@ test("returning to the workspace shows the previous list while settings reload",
     await expect(
       page.getByRole("searchbox", { name: "搜索会话" }),
     ).toBeVisible();
-    await expect(page.getByText("Cached return").first()).toBeVisible();
+    await expect(
+      page.getByRole("main").getByText("Cached return").first(),
+    ).toBeVisible();
     await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0);
   } finally {
     config.resolve();

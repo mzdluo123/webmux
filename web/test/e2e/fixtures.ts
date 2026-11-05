@@ -240,12 +240,25 @@ async function pick(page: Page, field: "位置" | "运行", name: string) {
  */
 export async function backToList(page: Page) {
   const back = page.getByRole("button", { name: "返回会话列表", exact: true });
+  const open = page.getByRole("button", { name: "打开侧栏" }).first();
+  await expect(back.or(open).first()).toBeVisible();
   if (await back.isVisible()) return back.click();
-  await page.getByRole("button", { name: "打开侧栏" }).first().click();
+  await open.click();
   await page
     .getByRole("tree", { name: "仓库与会话" })
     .locator('[data-tree-key="all"]')
     .click();
+}
+
+/**
+ * Makes the sidebar's global entries (settings, theme, port forwarding)
+ * reachable: phones keep them in the drawer.
+ */
+export async function revealSidebar(page: Page): Promise<boolean> {
+  const open = page.getByRole("button", { name: "打开侧栏" }).first();
+  if (!(await open.isVisible())) return false;
+  await open.click();
+  return true;
 }
 
 export async function chooseLaunch(page: Page, name: string) {

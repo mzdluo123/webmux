@@ -23,15 +23,16 @@
     waiting: number;
   };
 
-  const byActivity = (a: SessionInfo, b: SessionInfo) =>
-    Date.parse(b.lastActiveAt) - Date.parse(a.lastActiveAt);
+  // Newest first by creation, as the home cards: output never reorders rows.
+  const byCreation = (a: SessionInfo, b: SessionInfo) =>
+    Date.parse(b.createdAt) - Date.parse(a.createdAt);
 
   function sessionNodes(
     sessions: readonly SessionInfo[],
     parent: string,
     level: number,
   ): TreeNode[] {
-    return [...sessions].sort(byActivity).map((session) => ({
+    return [...sessions].sort(byCreation).map((session) => ({
       key: `s:${session.id}`,
       level,
       parent,

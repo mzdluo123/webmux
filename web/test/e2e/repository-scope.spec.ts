@@ -19,6 +19,8 @@ async function openNavigation(page: Page) {
 async function selectRepository(page: Page, name: RegExp) {
   const tree = await openNavigation(page);
   await tree.getByRole("treeitem", { name }).click();
+  // The phone drawer closes after a pick; let it finish before the next.
+  await expect(page.getByRole("dialog", { name: "导航" })).toHaveCount(0);
 }
 
 test("repository scope limits the home list, composes with filters and survives navigation", async ({

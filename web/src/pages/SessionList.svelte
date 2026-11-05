@@ -278,6 +278,9 @@
     });
   });
   onMount(() => {
+    // Coming home re-reads Git, as the page did before the shell kept the
+    // last snapshot; the snapshot stays on screen meanwhile.
+    void shell.repositories.refresh();
     const visible = () => {
       if (!document.hidden) {
         now = Date.now();

@@ -56,7 +56,7 @@
   <span
     class={rail
       ? "flex size-8 items-center justify-center"
-      : "flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground"}
+      : "flex h-5 min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground"}
     role="status"
     title={statusLabel}
     ><span

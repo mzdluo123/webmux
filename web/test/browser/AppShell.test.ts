@@ -90,7 +90,7 @@ test("the collapsed rail is remembered and keeps the mode and primary action", a
   await snapshot();
   await page.getByRole("button", { name: "收起侧栏" }).click();
   expect(localStorage.getItem("webmux.sidebarCollapsed")).toBe("true");
-  const rail = page.getByRole("navigation", { name: "导航" });
+  const rail = page.getByRole("navigation", { name: "窄栏导航" });
   await expect
     .element(rail.getByRole("button", { name: "展开侧栏" }))
     .toBeVisible();

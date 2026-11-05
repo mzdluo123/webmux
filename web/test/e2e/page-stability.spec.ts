@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, revealSidebar } from "./fixtures";
 import { settled } from "../performance/performance";
 
 // Published UI evidence uses an isolated fixture identity.
@@ -42,6 +42,7 @@ test("workspace defers settings and management forms until requested", async ({
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(scripts.some((url) => /\/AddRepositoryDialog-/.test(url))).toBe(true);
   await page.keyboard.press("Escape");
+  await revealSidebar(page);
   await page.getByRole("link", { name: "设置", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "设置", exact: true }),
@@ -118,6 +119,7 @@ for (const theme of ["light", "dark"] as const) {
     });
     await page.getByRole("button", { name: "关闭", exact: true }).click();
     await expect(page.getByRole("alert")).toHaveCount(0);
+    await revealSidebar(page);
     await page.getByRole("link", { name: "设置", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "设置", exact: true }),

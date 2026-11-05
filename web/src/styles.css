@@ -117,21 +117,15 @@
   min-height: 44px;
 }
 /* The app shell: a fixed sidebar beside the page. Pages place themselves
-   with --app-sidebar-width (0 on phones, where the sidebar is a drawer), so
-   the fixed session page starts where the sidebar ends. */
+   with --app-sidebar-width so the fixed session page starts where the
+   sidebar ends. Wide screens show the full sidebar or, collapsed, the rail;
+   tablets (640–1023px) always show the rail, whose expand button opens the
+   drawer, so the session keeps its width; phones only have the drawer. */
 .app-shell {
   --app-sidebar-width: 18rem;
 }
 .app-shell[data-collapsed="true"] {
   --app-sidebar-width: 3.5rem;
-}
-@media (max-width: 639px) {
-  .app-shell {
-    --app-sidebar-width: 0px;
-  }
-  .app-sidebar {
-    display: none !important;
-  }
 }
 .app-sidebar {
   position: fixed;
@@ -151,6 +145,29 @@
   gap: 0.25rem;
   padding-inline: 0.5rem;
   padding-top: calc(env(safe-area-inset-top) + 0.5rem);
+}
+.app-shell[data-collapsed="false"] .app-sidebar-rail,
+.app-shell[data-collapsed="true"] .app-sidebar-full {
+  display: none;
+}
+@media (min-width: 640px) and (max-width: 1023px) {
+  .app-shell {
+    --app-sidebar-width: 3.5rem;
+  }
+  .app-shell .app-sidebar-full {
+    display: none;
+  }
+  .app-shell .app-sidebar-rail {
+    display: flex;
+  }
+}
+@media (max-width: 639px) {
+  .app-shell {
+    --app-sidebar-width: 0px;
+  }
+  .app-shell .app-sidebar {
+    display: none;
+  }
 }
 .app-shell-main {
   padding-left: var(--app-sidebar-width);
