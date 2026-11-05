@@ -146,6 +146,15 @@ func TestSessionControlCommands(t *testing.T) {
 		t.Fatalf("removed session still found: %d", code)
 	}
 
+	// rm ends a running session first.
+	running := detachedID(t, f, "sleep", "30")
+	if _, stderr, code := f.cli(t, "rm", running); code != 0 {
+		t.Fatalf("rm a running session: %d %q", code, stderr)
+	}
+	if _, _, code := f.cli(t, "get", running); code != contract.ExitError {
+		t.Fatalf("removed running session still found: %d", code)
+	}
+
 	// Completion offers commands, options, values and live session IDs.
 	if out, err := f.command(nil, "completion", "bash").Output(); err != nil || !strings.Contains(string(out), "complete -o default -F _webmux webmux") {
 		t.Fatalf("completion bash: %v %q", err, out)

@@ -138,7 +138,11 @@ func sessionAction(name, summary, description, method, query string, examples []
 					return code
 				}
 				defer client.Close()
-				if err := client.Do(ctx, method, "/api/sessions/"+url.PathEscape(id)+query, nil, nil); err != nil {
+				err := client.Do(ctx, method, "/api/sessions/"+url.PathEscape(id)+query, nil, nil)
+				if query == removeQuery && isStatus(err, http.StatusConflict) {
+					err = endAndRemove(ctx, client, id)
+				}
+				if err != nil {
 					return e.Fail(err)
 				}
 				return contract.ExitOK
@@ -156,10 +160,42 @@ var killCommand = sessionAction("kill", "End a session's process; the session st
 
 var rmCommand = sessionAction("rm", "Remove a session; a running one is ended first.",
 	"The session disappears from every client. Its artifacts folder is deleted unless a hybrid record can still resume it.",
-	http.MethodDelete, "?remove=1", []Example{
+	http.MethodDelete, removeQuery, []Example{
 		{Command: "webmux rm abcd2345", Text: "Remove a session."},
 		{Command: "webmux ls --label run=42 --json | jq -r '.[].id' | xargs -n1 webmux rm", Text: "Clean up every session of one scripted run."},
 	})
+
+const removeQuery = "?remove=1"
+
+// rmEndTimeout bounds how long rm waits for a running session to exit.
+const rmEndTimeout = 15 * time.Second
+
+func isStatus(err error, status int) bool {
+	var apiErr *localclient.APIError
+	return errors.As(err, &apiErr) && apiErr.Status == status
+}
+
+// endAndRemove ends a running session, waits for it to exit, and removes it.
+func endAndRemove(ctx context.Context, client *localclient.Client, id string) error {
+	ctx, cancel := context.WithTimeout(ctx, rmEndTimeout)
+	defer cancel()
+	watch, err := watchSessions(ctx, client)
+	if err != nil {
+		return err
+	}
+	defer watch.close()
+	path := "/api/sessions/" + url.PathEscape(id)
+	if err := client.Do(ctx, http.MethodDelete, path, nil, nil); err != nil {
+		return err
+	}
+	if _, err := watch.waitFor(ctx, waitOptions{ids: []string{id}, states: []string{"exited"}}); err != nil {
+		if errors.Is(err, errSessionRemoved) {
+			return nil
+		}
+		return fmt.Errorf("the session did not exit: %w", err)
+	}
+	return client.Do(ctx, http.MethodDelete, path+removeQuery, nil, nil)
+}
 
 var renameCommand = &Command{
 	Name: "rename", Group: GroupSessions, Args: "SESSION [NAME]",
