@@ -64,6 +64,8 @@
     workspace,
     heading,
     onHeading,
+    jump,
+    onJump,
     diffAvailable = true,
     restore,
   }: {
@@ -84,9 +86,12 @@
     menu?: Snippet;
     /** Lets Markdown previews open workspace links and load relative images. */
     workspace?: MarkdownWorkspace;
-    /** A one-time request from a Markdown link to preview and show a heading. */
+    /** A one-time request from a link to preview and show a heading. */
     heading?: { slug: string; key: number };
     onHeading?: () => void;
+    /** A one-time request from a link to show the file and optional line range. */
+    jump?: { line?: number; endLine?: number; column?: number; key: number };
+    onJump?: () => void;
     /** False for roots without Git (the artifacts folder): no Diff toggle. */
     diffAvailable?: boolean;
     /** Reading state from another window, applied once. */
@@ -318,9 +323,28 @@
     if (!request) return;
     untrack(() => {
       onHeading?.();
-      if (formatFile !== "markdown") return;
+      mode = "file";
+      const current = file?.document;
+      if (!current || current.kind !== "text") return;
+      if (previewFormat(current.path) !== "markdown") return;
       showFormat("preview");
       void tick().then(() => markdownPreview?.scrollToHeading(request.slug));
+    });
+  });
+  $effect(() => {
+    const request = jump;
+    if (!request) return;
+    untrack(() => {
+      onJump?.();
+      mode = "file";
+      if (request.line === undefined) return;
+      showFormat("source");
+      const current = file?.document;
+      if (current?.kind === "text" && current.mediaType === "image/svg+xml")
+        showSvg("source");
+      void tick().then(() =>
+        reader?.revealLine(request.line!, request.endLine, request.column),
+      );
     });
   });
   $effect(() => {
