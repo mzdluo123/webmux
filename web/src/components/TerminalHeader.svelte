@@ -406,7 +406,7 @@
         >{t.exitCode !== null
           ? "移除会话"
           : archivable
-            ? "归档会话"
+            ? "停止会话并归档"
             : "关闭会话"}</DropdownMenu.Item
       >
     </DropdownMenu.Content>

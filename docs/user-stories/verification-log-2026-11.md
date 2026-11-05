@@ -326,3 +326,55 @@
 - 限制：未在真机上核对，未截取 PR 前后对比截图；E2E 使用 fake agent。
 
 本次局部核对（2026-11-05）：混合会话聊天视图的快捷指令入口从顶栏移到输入框发送按钮旁，对应更新 US-G02。Playwright `hybrid.spec.ts` 快捷指令用例桌面与 Pixel 7 通过；未在真机核对，未重新核验其余故事。
+
+本次局部核对（2026-11-05）：调整混合会话归档文案、聊天历史归档折叠与记录清理联动，对应更新 US-C15、US-G04、US-Q12、US-Q19，不新增故事或改变覆盖索引。
+
+- 内容：
+  - 混合会话归档操作文案明确为“停止会话并归档”（确认框为“停止并归档”）。
+  - 聊天模式侧栏的已归档记录改为默认折叠的“已归档”分组。
+  - 已归档记录的“删除记录”在关联 linked worktree 仍存在时联动打开删除 worktree 确认流程一并清理；工作树不存在或位于主工作区/直接目录时仍确认删除记录。
+- 依据：
+  - `make check`（生产构建、格式检查、文档与持久化门禁、类型检查、Oxlint、前端架构守卫、`go vet`、`golangci-lint`）通过。
+  - `archived.test.ts` 单元用例，以及 `AppShell`、`ArchivedSessions`、`ChatHistory`、`CloseSessionDialog` Vitest 浏览器组件测试通过。
+  - Playwright `quick-start.spec.ts` 与 `splits.spec.ts` 受影响 E2E 用例通过，覆盖桌面与 Pixel 7。
+  - 隔离演示数据下桌面（1280×720）与手机（390×844）、浅色与深色主题前后对比截图。
+- 限制：未运行其余未受影响的 E2E 与性能套件，未在真机上核对；未重新核验其余故事能力。
+
+本次局部核对（2026-11-05）：聊天与快速开始待发送附件栏及对话流用户消息中的图片附件支持小图（缩略图）预览，并新增 `GET /api/sessions/{id}/upload?path=...` 供跨刷新/多设备读取会话上传图片，对应更新 US-Q14、US-Q15 与覆盖索引，不新增故事。
+
+- 范围：上传中的本地图片附件直接复用内存对象 URL 预览；刷新后或其他设备通过会话上传读取接口按路径安全校验（仅限当前会话上传目录内且小于 10 MiB 的普通文件）加载图片，加载中或不可读时平稳降级为图片图标。
+- 依据：
+  - Go：`go test -race ./internal/artifacts ./internal/api`（新增 `TestReadUpload` 与 `TestReadSessionUpload` 覆盖正常读取、路径逃逸、符号链接、空文件与会话不存在）通过。
+  - 前端：`make check`（生产构建、`svelte-check`、测试类型检查、Oxlint、`check:arch`、`docs-check`、`persistence-check`、`go vet`、`golangci-lint`）通过；`ChatUpload`、`ChatView`、`QuickStart` 浏览器测试（37 项）通过。
+  - Storybook 与 E2E：`acp-chat.spec.ts`（241 项）与 `hybrid.spec.ts` 图片附件用例（桌面与 Pixel 7）通过；Storybook 隔离示例数据下桌面（1280×720）与手机（390×844）、浅色与深色主题前后对比截图。
+- 限制：未运行完整 `make test` 全量套件，未在 iOS/Android 真机浏览器核对；未重新核验其余故事能力。
+
+本次局部核对（2026-11-05）：新增页面内右上角弹窗提醒（Toast）作为默认开启的通知渠道，对应更新 US-C06、US-C12 与覆盖索引，不新增故事。
+
+- 范围：用户使用网站时，新的会话关注信号默认在右上角弹出提醒（状态徽章、会话标题与操作说明），点击直达对应会话 `/s/<ID>`，支持手动关闭、悬停/聚焦暂停、超时自动收起、关注升级替换及关注解除/会话移除时自动清理；设置页“通知推送”卡片提供本机开关（默认开启，无需浏览器通知授权或 HTTPS）。
+- 依据：`make check`、`attention-toast` 单元测试、`AttentionToasts`/`AppShell`/`PushSettings` 浏览器组件测试，以及 `attention.spec.ts` E2E 与隔离演示环境下的桌面（1280×720）/手机（390×844）明暗主题截图。
+- 限制：未在 iOS/Android 真机核对；未重新核验其余故事能力。
+
+本次局部核对（2026-11-05）：支持 ACP 表单提问的多选 `array` 字段（`items.anyOf` 与 `items.enum`），修复 `agy` 等 agent 发起含多选题的 `elicitation/create` 时在聊天端退化为“该表单需要在终端中完成”的问题，对应更新 US-Q06，不新增故事或改变覆盖索引。
+
+- 依据：
+  - `internal/hybrid`（`TestFormRequest` 与 `TestAgyFormElicitationMultiSelect`）、`internal/wire`、`internal/api` 的 Go race 测试。
+  - `ChatView` 浏览器组件测试（18 项通过，含多选复选框默认值、必填校验与提交字符串数组）。
+  - `make check`（生产构建、类型检查、测试类型检查、Oxlint、前端架构守卫、文档与持久化守卫、`go vet`、`golangci-lint`）通过。
+  - 隔离演示服务下桌面（1280×800）与手机（390×844）、浅色与深色主题前后对比截图及浏览器端完整表单提交验证。
+- 限制：未运行全量 E2E 套件，未在真机上核对；未重新核验其余故事能力。
+
+本次局部核对（2026-11-05）：代码查看器（`CodeReader`）与 Diff 查看器（`CodeDiffReader`）底部补充常驻横向滚动条，对应更新 US-I05，不新增故事或改变覆盖索引。
+
+- 行为：当源码或未开启自动换行的 Diff 行宽超出可视区域时，在阅读器视口底部显示横向滚动条，并与代码列双向同步 `scrollLeft`；无需滚到文件末尾即可横向拖动，切换到自动换行或无横向溢出时自动隐藏。
+- 依据：`CodeReader` 与 `CodeDocument` 浏览器组件测试（含 `N:列` 横向跳转同步、Diff 横向滚动同步与自动换行隐藏断言）、`make check`、`make test-fast`，以及桌面与移动视口明暗主题截图核对。
+- 限制：未在 iOS/Android 真机浏览器核对；未重新核验其余故事能力。
+
+本次局部核对（2026-11-05）：新增 `webmux-docs` 文档质量与由浅入深写作技能（`.agents/skills/webmux-docs/SKILL.md`），重组用户文档并同步近期提交能力，对应更新 US-L12 与覆盖索引（不新增故事编号）。
+
+- 范围：
+  - 新增 `.agents/skills/webmux-docs/SKILL.md`（及 `.claude/skills/webmux-docs` 软链接）并在 `AGENTS.md` 登记，规定面向网站读者的三层渐进式披露、信息守恒原则、页面模板与提交同步核对清单。
+  - 将逼近 400 行上限的 `docs/usage.md` 按由浅入深重构为新手两步上手、侧栏双模式（含快速开始 `/new` 分支搜索、附件、初始化指令、侧栏拖宽）、新建会话四步说明（含单选起始端记忆、首条用户指令与初始化指令），并将 `OSC 7501` 协议与旧版钩子独立拆分为 `docs/usage/attention.md`（保留原锚点与全部细节）。
+  - 同步更新 `docs/README.md`、`docs/overview.md`、`docs/hybrid-sessions.md`、`docs/faq.md`、`docs/website.md` 及 `docs/website/*.md`（修正十一款 CLI agent 与七款混合会话 agent 数量）、`CONTRIBUTING.md`（同步移除 macOS CI runner 后的实际流水线描述）。
+- 依据：`make format-check`、`make docs-check`（`go test -count=1 ./internal/docguard`）、`go test ./internal/archtest -run TestAgentsGuideSize`、`make check` 通过。
+- 限制：本次仅涉及文档与技能说明，未改动运行时代码，未运行完整 `make test` 或真机测试。

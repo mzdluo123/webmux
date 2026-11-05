@@ -1,8 +1,9 @@
 import "../../src/styles.css";
 import { beforeEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
-import { render } from "vitest-browser-svelte/pure";
+import { cleanup, render } from "vitest-browser-svelte/pure";
 import Harness from "./ChatViewHarness.svelte";
+import { createTerminalDrafts } from "../../src/terminal-draft.svelte";
 import {
   chatState,
   commands,
@@ -116,6 +117,9 @@ test("a chosen image uploads with progress, then waits as a chip and is sent wit
   finish("/tmp/webmux-upload-1/shot.png");
   await expect.element(chips()).toBeVisible();
   expect(chipNames()).toEqual(["shot.png"]);
+  const thumb = chips().getByRole("img", { name: "shot.png" });
+  await expect.element(thumb).toBeVisible();
+  expect(thumb.element().getAttribute("src")).toMatch(/^blob:/);
   // The draft text is not touched: the file travels as an attachment.
   expect(draft().element().textContent).toBe("看看这张图");
   await expect
@@ -290,4 +294,26 @@ test("cancelling clears progress and adds no attachment", async () => {
   await expect.element(chips()).not.toBeInTheDocument();
   expect(draft().element().textContent).toBe("");
   await expect.poll(() => error().element().textContent).toBe("上传已取消");
+});
+
+test("leaving the session page and returning keeps both the text and pending attachments", async () => {
+  const drafts = createTerminalDrafts();
+  render(Harness, { id, drafts });
+  const socket1 = await socketAt(`/ws/s/${id}/chat`);
+  socket1.frame(snapshot(chatState()));
+  const input = page.getByRole("textbox", { name: "消息" });
+  await input.fill("切走再回来");
+  choose([new File(["png"], "kept.png", { type: "image/png" })]);
+  finish("/tmp/webmux-upload-1/kept.png");
+  await expect.poll(chipNames).toEqual(["kept.png"]);
+
+  cleanup();
+
+  render(Harness, { id, drafts });
+  const socket2 = await socketAt(`/ws/s/${id}/chat`, 1);
+  socket2.frame(snapshot(chatState()));
+  await expect
+    .element(page.getByRole("textbox", { name: "消息" }))
+    .toHaveValue("切走再回来");
+  await expect.poll(chipNames).toEqual(["kept.png"]);
 });
