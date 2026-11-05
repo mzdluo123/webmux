@@ -324,3 +324,16 @@
   - 前端：`svelte-check`、测试类型检查、Oxlint、前端架构守卫通过；Vitest 单元与浏览器全量通过，新增 AppShell、WorkbenchTree、ChatHistory、QuickStart、仓库初始化指令组件测试。
   - Playwright：`quick-start.spec.ts` 桌面（1280×720）与 Pixel 7（390×844）通过；其余 E2E 交由 CI 运行。
 - 限制：未在真机上核对，未截取 PR 前后对比截图；E2E 使用 fake agent。
+
+本次局部核对（2026-11-05）：调整混合会话归档文案、聊天历史归档折叠与记录清理联动，对应更新 US-C15、US-G04、US-Q12、US-Q19，不新增故事或改变覆盖索引。
+
+- 内容：
+  - 混合会话归档操作文案明确为“停止会话并归档”（确认框为“停止并归档”）。
+  - 聊天模式侧栏的已归档记录改为默认折叠的“已归档”分组。
+  - 已归档记录的“删除记录”在关联 linked worktree 仍存在时联动打开删除 worktree 确认流程一并清理；工作树不存在或位于主工作区/直接目录时仍确认删除记录。
+- 依据：
+  - `make check`（生产构建、格式检查、文档与持久化门禁、类型检查、Oxlint、前端架构守卫、`go vet`、`golangci-lint`）通过。
+  - `archived.test.ts` 单元用例，以及 `AppShell`、`ArchivedSessions`、`ChatHistory`、`CloseSessionDialog` Vitest 浏览器组件测试通过。
+  - Playwright `quick-start.spec.ts` 与 `splits.spec.ts` 受影响 E2E 用例通过，覆盖桌面与 Pixel 7。
+  - 隔离演示数据下桌面（1280×720）与手机（390×844）、浅色与深色主题前后对比截图。
+- 限制：未运行其余未受影响的 E2E 与性能套件，未在真机上核对；未重新核验其余故事能力。

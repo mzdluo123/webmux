@@ -117,19 +117,7 @@
   );
   // Every worktree in a stable order, so a row does not jump when its check
   // changes; a worktree with sessions is listed even when not pinned.
-  const sortedTrees = $derived(
-    [...repo.worktrees].sort((a, b) =>
-      a.kind === "main"
-        ? -1
-        : b.kind === "main"
-          ? 1
-          : a.path < b.path
-            ? -1
-            : a.path > b.path
-              ? 1
-              : 0,
-    ),
-  );
+  const sortedTrees = $derived(renderLayout.trees);
   const pinnedIds = $derived(
     new Set(renderLayout.shown.filter((w) => w.pinned).map((w) => w.tree.id)),
   );

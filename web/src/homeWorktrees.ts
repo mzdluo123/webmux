@@ -37,6 +37,8 @@ export function worktreeTitle(tree: Worktree) {
 }
 
 export interface HomeLayout {
+  /** All worktrees in stable order: main first, then by path. */
+  trees: Worktree[];
   /** Pinned worktrees plus any worktree that still has sessions or archived records. */
   shown: { tree: Worktree; pinned: boolean }[];
   /** Every worktree not pinned, including ones shown only for their sessions. */
@@ -71,6 +73,7 @@ export function homeLayout(
             : 0,
   );
   return {
+    trees,
     shown: trees
       .filter((tree) => pinned.has(tree.id) || active.has(tree.id))
       .map((tree) => ({ tree, pinned: pinned.has(tree.id) })),
