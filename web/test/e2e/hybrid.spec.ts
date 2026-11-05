@@ -562,47 +562,6 @@ test.describe("hybrid sessions with the fake agent", () => {
     await expect(conversation(page)).not.toContainText("/resume");
   });
 
-  test(
-    "an idle chat side sleeps and wakes for the next message",
-    { tag: "@slow" },
-    async ({ page, request, workDir }, testInfo) => {
-      // The shortest setting is one minute; one project is enough to wait.
-      test.skip(
-        testInfo.project.name !== "chromium-desktop",
-        "Waits a real minute of idleness; the desktop project covers it",
-      );
-      test.setTimeout(180_000);
-      const prefs = await (await request.get("/api/settings")).json();
-      expect(
-        (
-          await request.patch("/api/settings", {
-            data: {
-              baseRevision: prefs.revision,
-              changes: { chatIdleSleepMinutes: 1 },
-            },
-          })
-        ).ok(),
-      ).toBeTruthy();
-      const id = await createHybrid(request, workDir, "acp", {
-        agent: "claude",
-      });
-      await openHybrid(page, id, "acp");
-      await chatTurn(page, "before-sleep");
-
-      await expect(
-        page.getByRole("status").filter({ hasText: "Agent 已休眠" }),
-      ).toBeVisible({ timeout: 100_000 });
-      const info = await (await request.get(`/api/sessions/${id}`)).json();
-      expect(info.hybrid).toMatchObject({ side: "acp", dormant: true });
-
-      await chatTurn(page, "after-sleep");
-      await expect(conversation(page)).toContainText("Agent 已唤醒");
-      await expect(conversation(page)).toContainText("echo: before-sleep");
-      const awake = await (await request.get(`/api/sessions/${id}`)).json();
-      expect(awake.hybrid.dormant).toBe(false);
-    },
-  );
-
   test("an unnamed chat session takes its title from the first prompt, then from the agent", async ({
     page,
     request,

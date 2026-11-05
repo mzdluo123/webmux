@@ -22,7 +22,16 @@ import (
 
 // fast shortens the service's waits; call it before creating sessions.
 func (h *harness) fast() {
-	h.svc.timing = timing{interrupt: 300 * time.Millisecond, probeDelay: 50 * time.Millisecond, observe: 20 * time.Millisecond, minute: time.Minute, connectorRecheck: 100 * time.Millisecond}
+	h.svc.timing = timing{interrupt: 300 * time.Millisecond, probeDelay: 50 * time.Millisecond, observe: 20 * time.Millisecond, connectorRecheck: 100 * time.Millisecond}
+}
+
+func (h *harness) generation(id string) string {
+	h.t.Helper()
+	return actorState(h, id, func(a *actor) string {
+		a.log.mu.Lock()
+		defer a.log.mu.Unlock()
+		return a.log.generation
+	})
 }
 
 func (h *harness) switchTo(id string, side Side) (SwitchResult, error) {
@@ -858,17 +867,21 @@ func TestProbeConcurrency(t *testing.T) {
 // mid-turn ends the turn as cancelled; the session reconnects and takes
 // prompts again.
 func TestChatAgentKilledMidTurnReconnects(t *testing.T) {
-	for _, profile := range []string{omp.Name, "claude"} {
+	for _, profile := range []string{omp.Name, "omp-no-resume", "claude"} {
 		t.Run(profile, func(t *testing.T) {
 			h := newHarness(t, 0)
 			h.fast()
 			in := h.input(omp.Name, SideACP, "FAKEAGENT_TURN_DELAY=300ms")
-			if profile == "claude" {
+			switch profile {
+			case "omp-no-resume":
+				in = h.input(omp.Name, SideACP, "FAKEAGENT_TURN_DELAY=300ms", "FAKEAGENT_NO_RESUME=1")
+			case "claude":
 				in = h.claudeInput(SideACP, "")
 				in.Env["FAKEAGENT_TURN_DELAY"] = "300ms"
 			}
 			s := h.create(in)
 			id := s.Info().ID
+			generation := h.generation(id)
 			pid := h.record(id).PID
 			st := h.follow(id)
 			prompt(t, h, id, "long")
@@ -876,12 +889,22 @@ func TestChatAgentKilledMidTurnReconnects(t *testing.T) {
 			if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
 				t.Fatal(err)
 			}
-			events := st.until("reconnected", func(events []Event) bool {
-				return slices.ContainsFunc(events, func(e Event) bool { return e.Kind == EventMarker && e.Marker.Kind == MarkerReconnected })
-			})
-			end := slices.IndexFunc(events, func(e Event) bool { return e.Kind == EventTurnEnd })
-			if end < 0 || events[end].TurnEnd.StopReason != acp.StopCancelled {
-				t.Fatalf("turn after SIGKILL %v", kinds(events))
+			if profile == "omp-no-resume" {
+				waitFor(t, "new log generation", func() bool { return h.generation(id) != generation })
+				h.follow(id).until("reconnected", func(events []Event) bool {
+					return slices.ContainsFunc(events, func(e Event) bool { return e.Kind == EventMarker && e.Marker.Kind == MarkerReconnected })
+				})
+			} else {
+				events := st.until("reconnected", func(events []Event) bool {
+					return slices.ContainsFunc(events, func(e Event) bool { return e.Kind == EventMarker && e.Marker.Kind == MarkerReconnected })
+				})
+				end := slices.IndexFunc(events, func(e Event) bool { return e.Kind == EventTurnEnd })
+				if end < 0 || events[end].TurnEnd.StopReason != acp.StopCancelled {
+					t.Fatalf("turn after SIGKILL %v", kinds(events))
+				}
+				if h.generation(id) != generation {
+					t.Fatal("resume reconnect started a new log generation")
+				}
 			}
 			waitFor(t, "new agent process", func() bool { p := h.record(id).PID; return p > 0 && p != pid })
 			chatTurn(t, h, id, "after")
