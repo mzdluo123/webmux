@@ -300,7 +300,7 @@ func (e Env) run(ctx context.Context, o runOptions, argv []string) int {
 		return e.Usagef("--init needs a registered worktree: run inside one, or use --worktree or --new-worktree")
 	}
 	if o.dryRun {
-		return e.printDryRun(request, o, newRepo)
+		return e.printDryRun(ctx, request, o, newRepo)
 	}
 	// An attached run needs a terminal: check before creating anything.
 	var console Console
@@ -386,7 +386,7 @@ func (e Env) readStdin() (string, error) {
 
 // printDryRun writes the request run would send. Environment values are
 // replaced: inherited ones by "<inherited>", explicit ones by "<explicit>".
-func (e Env) printDryRun(request contract.CreateSessionRequest, o runOptions, newRepo contract.Repository) int {
+func (e Env) printDryRun(ctx context.Context, request contract.CreateSessionRequest, o runOptions, newRepo contract.Repository) int {
 	if request.Env != nil {
 		masked := make(map[string]string, len(request.Env))
 		for name := range request.Env {
@@ -403,10 +403,7 @@ func (e Env) printDryRun(request contract.CreateSessionRequest, o runOptions, ne
 		if o.existingBranch {
 			mode = "existing"
 		}
-		worktreePath := o.worktreePath
-		if worktreePath == "" {
-			worktreePath = defaultWorktreePath(newRepo, o.newWorktree)
-		}
+		worktreePath := e.worktreeDir(ctx, newRepo, o.newWorktree, o.worktreePath)
 		out["worktree"] = map[string]any{"repositoryId": newRepo.ID, "branch": o.newWorktree, "base": o.base, "path": worktreePath, "mode": mode, "pin": !o.noPin}
 		// The real request starts in the worktree created first.
 		request.Cwd = worktreePath
@@ -417,14 +414,22 @@ func (e Env) printDryRun(request contract.CreateSessionRequest, o runOptions, ne
 	return contract.ExitOK
 }
 
+// worktreeDir is where a new worktree goes: dir resolved like other local
+// paths (relative or ~), or the quick start default when dir is empty.
+func (e Env) worktreeDir(ctx context.Context, repo contract.Repository, branch, dir string) string {
+	if dir == "" {
+		return defaultWorktreePath(repo, branch)
+	}
+	if local, err := e.localPath(ctx, dir); err == nil {
+		return local
+	}
+	return dir
+}
+
 // createWorktree creates a worktree like the Web UI's dialog and pins it
 // to the home page unless pin is false; a failed pin is only a warning.
 func (e Env) createWorktree(ctx context.Context, client *localclient.Client, repo contract.Repository, branch, base, dir string, existing, refresh, pin bool) (contract.Worktree, error) {
-	if dir == "" {
-		dir = defaultWorktreePath(repo, branch)
-	} else if local, err := e.localPath(ctx, dir); err == nil {
-		dir = local
-	}
+	dir = e.worktreeDir(ctx, repo, branch, dir)
 	repoPath := "/api/repositories/" + url.PathEscape(repo.ID)
 	if refresh && !existing {
 		ref := base
