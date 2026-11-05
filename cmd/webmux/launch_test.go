@@ -231,6 +231,12 @@ func TestRunInWorktrees(t *testing.T) {
 	if code != 0 || !strings.Contains(stdout, `"cwd": "`+filepath.Join(filepath.Dir(repo), "app.worktrees", "dry")+`"`) || !strings.Contains(stdout, "<created first>") {
 		t.Fatalf("--dry-run --new-worktree: %d %q", code, stdout)
 	}
+	// A given --worktree-path is resolved as the real creation resolves it.
+	messy := filepath.Dir(repo) + "/x/../dry2/"
+	stdout, _, code = f.cli(t, "run", "--dry-run", "--new-worktree", "feat/dry2", "--worktree-path", messy, "--repo", repo, "--", "true")
+	if code != 0 || !strings.Contains(stdout, `"cwd": "`+filepath.Join(filepath.Dir(repo), "dry2")+`"`) {
+		t.Fatalf("--dry-run --worktree-path: %d %q", code, stdout)
+	}
 }
 
 func TestChatNewStartsAnAgentAndWaits(t *testing.T) {
