@@ -53,7 +53,7 @@
 
 接口形状：
 
-- 请求 `QuickStartRequest{clientRequestId, repositoryId, configId, base, branch, text, config: map[string]string, permissionMode}`，其中 `config` 只包含用户改过的配置项。
+- 请求 `QuickStartRequest{clientRequestId, repositoryId, configId, base, branch, text, config: map[string]string, permissionMode}`，其中 `config` 是页面上显示的全部配置值（预选值加用户的修改）。
 - 成功响应 `QuickStartResult{sessionId, worktree, configWarnings[]}`。
 - 失败时返回结构化错误 `{step: "worktree"|"session"|"config"|"prompt", message, worktree?, sessionId?}`：状态码由 `internal/api/errors.go` 映射，失败步骤和已创建资源放在错误体中。
 
@@ -66,13 +66,20 @@
 
 ### 2. 分支名在前端生成，路径在服务端推导
 
-- 前端加载 `GET …/branches`：`DefaultBase` 作为基准分支默认值，`Bases` 作为可选项；分支名用现有 `suggestWorktreeBranch` 生成后放进请求。这样分支命名只有一个实现。
-- 服务端用 `DefaultParent/<branch>` 推导路径，沿用 `CreateWorktree` 的分支校验。
+- 前端加载 `GET …/branches`，取值与现有新建工作树弹窗（`WorktreeCreateFields`）一致：
+  - 基准分支选择器默认显示 `DefaultBranch`（主工作区当前分支名），请求中的 `base` 发送 `DefaultBase`（该分支的 HEAD 提交）。
+  - 改选其他基准时显示 `Bases[].name` 去掉 `refs/heads/` 或 `refs/remotes/` 前缀后的名称，发送对应的 `head`。
+  - 分支名用现有 `suggestWorktreeBranch` 生成（形如 `wt/<adjective>-<noun>`）后放进请求。这样分支命名只有一个实现。
+- 服务端用 `DefaultParent/<分支名最后一段>` 推导路径，与弹窗的路径规则相同（`wt/brisk-otter` → `webmux.worktrees/brisk-otter`），沿用 `CreateWorktree` 的分支校验。
 - 分支名或路径冲突时返回 `step: "worktree"` 的冲突错误；前端重新生成分支名，用新请求 ID 再发送。
 
 ### 3. 幂等：进程内按请求 ID 去重
 
-`clientRequestId` 映射到一个 `singleflight` 风格的条目：执行中的重复请求等待同一结果；完成后的结果保留 10 分钟，然后清除。不持久化，服务重启本来就会结束会话。首条提示复用同一个请求 ID 作为 `Prompt` 的 `ClientRequestID`。
+`clientRequestId` 映射到一个 `singleflight` 风格的条目：执行中的重复请求等待同一结果；完成后的结果保留 10 分钟，然后清除。
+
+- 去重窗口因此是“执行中及完成后 10 分钟”；窗口外用同一 ID 重发会作为新请求执行。前端只在一次发送的网络重试中复用 ID，重试远短于这个窗口。
+- 不持久化，服务重启本来就会结束会话。
+- 首条提示复用同一个请求 ID 作为 `Prompt` 的 `ClientRequestID`。
 
 ### 4. 配置项清单按启动配置持久记忆
 
@@ -83,7 +90,7 @@
 启动后的应用顺序：
 
 1. `hybrid.Service.Create` 完成 `session/new` 和 argv 播种。
-2. 服务端只对用户在快速开始中改过的项调用现有的设置配置路径，避免把清单里的旧默认值覆盖到播种结果上。
+2. 服务端把请求中的全部配置值逐项与播种结果比较，只对不同的项调用现有的设置配置路径。页面显示的值因此就是新会话实际得到的值；清单的值来自该启动配置最近一次会话的最终值，通常与播种结果一致，不会产生多余的设置调用。
 3. 发送首条提示。
 
 agent 不接受的值记为 `configWarnings`，并作为聊天 notice 写入时间线；不阻断发送。
@@ -111,7 +118,7 @@ agent 不接受的值记为 `configWarnings`，并作为聊天 notice 写入时�
   - 窄屏与聊天输入框一致：agent 和 `ChatSessionOptions` 收进卡片底部，下方一行只留仓库和分支，避免配置被截断。
 - 初始化指令提示放在输入卡片顶部的一行（与命令菜单、附件同一位置），点击用 Popover 显示全文。
 - 上次的仓库和 agent 存在 `localStorage`，用 Zod 校验后读取。
-- 草稿：输入文字用现有 `terminal-draft` 机制，以固定键 `quick-start` 保存，刷新不丢失。
+- 草稿：输入文字存在独立的 `localStorage` 键 `webmux.quick-start-draft`，用 Zod 校验，发送成功后清除。不复用 `terminal-draft`：它的 `StoredDraftSchema.sessionId` 只接受会话 ID，`reconcile()` 也会删除不属于存活会话的键。
 
 ### 7. 应用外壳与两种模式
 
@@ -120,7 +127,7 @@ agent 不接受的值记为 `configWarnings`，并作为聊天 notice 写入时�
 - 挂载位置：`App.svelte` 在 `sessions`（`/`）、`quick-start`（`/new`）和 `terminal`（`/s/{id}`）三种路由外包一层 `AppShell`。设置页、代码弹出窗口和登录页不使用外壳。
   - 外壳实例不随路由切换重建，侧栏滚动位置和树的展开状态因此得以保留；主区域仍按路由懒加载，`Terminal` 继续按 `sessionId` 重建。
   - 首次渲染就是最终结构：外壳和侧栏骨架随第一帧画出，数据到达后只填充内容，不出现先无侧栏、再加侧栏的跳动。
-  - `.terminal-page` 现在是 `position: fixed; left: 0` 且占满视口。改为 `left: var(--app-sidebar-width, 0)`，由外壳按桌面/窄栏/手机设置这个变量；终端尺寸走现有的 resize 流程。原型用带 transform 的容器代替这个偏移。
+  - `.terminal-page` 现在是 `position: fixed; left: 0; right: 0; width: 100%`。改为 `left: var(--app-sidebar-width, 0); right: 0; width: auto`，否则 `width: 100%` 会让终端超出视口一个侧栏宽度；由外壳按桌面/窄栏/手机设置这个变量，终端尺寸走现有的 resize 流程。原型用带 transform 的容器代替这个偏移。
 - 模式状态：`mode: "chat" | "workbench"` 存在 `localStorage`，用 Zod 校验，无效时回退到工作台。
   - 首页路由决定模式：`/` 是工作台，`/new` 是聊天，进入时写回记住的模式。
   - 打开 `/` 且记住的是聊天时，用 `history.replaceState` 改成 `/new`，避免后退回到工作台。

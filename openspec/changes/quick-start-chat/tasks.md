@@ -20,13 +20,13 @@
 
 - [ ] 3.1 新增 `internal/workspace/quickstart.go` 编排，用临时 Git 仓库和假 ACP agent 的 `go test -race ./internal/workspace` 覆盖成功、各步骤失败、不回滚 worktree、失效配置值产生 warning：
   - 先校验仓库可用、启动配置勾选了混合模式、连接器已安装（沿用 `hybrid-sessions` 的检查与错误码），再做任何写操作。
-  - 依次创建 worktree（路径为 `DefaultParent/<branch>`）、以 `startSide: acp` 创建会话、应用配置与权限模式、拼接初始化指令并调用 `hybrid.Service.Prompt`。
+  - 依次创建 worktree（路径为 `DefaultParent/<分支名最后一段>`，与新建工作树弹窗相同）、以 `startSide: acp` 创建会话、应用配置与权限模式、拼接初始化指令并调用 `hybrid.Service.Prompt`。
   - 失败时返回带 `step`、已创建 worktree 和会话 ID 的错误。
 - [ ] 3.2 按 `clientRequestId` 去重：执行中等待同一结果，完成结果保留 10 分钟；首条提示复用该请求 ID。测试并发重复提交只产生一个 worktree 和一个会话
 - [ ] 3.3 新增 `contract.QuickStartRequest`/`QuickStartResult`/错误体和 `POST /api/quick-starts`，并重新录制 wire 快照：
   - 处理器使用 `context.WithoutCancel` 加超时，`internal/api/errors.go` 映射各错误。
   - `go test -race ./internal/api` 覆盖未授权、未勾选混合模式拒绝、`connector_missing` 不建 worktree、客户端断开后仍完成。
-- [ ] 3.4 兼容性测试：`go test -race ./internal/workspace` 用同一仓库和假 ACP agent，分别走快速开始和“`CreateWorktree` → `CreateSession(startSide: acp)` → `Prompt`”，比较两边的会话信息和混合会话记录，除 ID、时间、路径外完全一致；argv 播种后只覆盖请求中改过的配置项
+- [ ] 3.4 兼容性测试：`go test -race ./internal/workspace` 用同一仓库和假 ACP agent，分别走快速开始和“`CreateWorktree` → `CreateSession(startSide: acp)` → `Prompt`”，比较两边的会话信息和混合会话记录，除 ID、时间、路径外完全一致；argv 播种后只对与播种结果不同的配置项调用设置配置
 
 ## 4. 应用外壳与共享数据
 
@@ -37,7 +37,7 @@
   - 收起状态的保存与恢复。
   - `NewSessionDialog` 的 `creating` 状态、`start()` 和启动配置加载移到外壳；首页卡片和仓库菜单改用外壳的 `start()`，现有 `NewSessionDialog.test.ts` 与首页测试通过。
 - [ ] 4.3 移除 `WorkspaceHeader`：品牌、连接状态与主机名、设置、主题移到侧栏底部，重连提示改为底部状态文字，“新建会话”改为工作台侧栏的主要操作；更新受影响的首页测试
-- [ ] 4.4 `.terminal-page` 按 `--app-sidebar-width` 偏移，侧栏收起和展开时终端按现有 resize 流程更新列数；Playwright 覆盖桌面端收起/展开后终端列数变化
+- [ ] 4.4 `.terminal-page` 按 `--app-sidebar-width` 偏移（`left` 取该变量，`right: 0; width: auto`），侧栏收起和展开时终端按现有 resize 流程更新列数；Playwright 覆盖桌面端收起/展开后终端列数变化且终端右缘不超出视口
 - [ ] 4.5 手机端左侧 `Drawer` 和各页面顶栏的打开按钮；终端顶栏窄屏的返回按钮换成打开侧栏按钮，宽屏返回按钮回到当前模式的主页。更新 `terminal-header` 相关测试，Playwright 在 390×844 和 320×568 下覆盖顶栏单行、抽屉开合与焦点
 - [ ] 4.6 在 `docs/user-stories/access-and-sessions.md` 新增 US-C16（侧栏与模式切换），更新 `docs/user-stories.md` 索引与覆盖表
 
@@ -47,7 +47,7 @@
 - [ ] 5.2 `ChatSelect` 增加显示当前值文字的用法，供仓库、基准分支、agent 选择复用，并登记到 `docs/frontend-architecture.md` 扩展表；`web/stories/DesignSystem.svelte` 增加示例
 - [ ] 5.3 实现页面，按原型 `Workspace/Quick start` 的布局：
   - 输入卡片、初始化指令提示与 Popover，仓库/基准分支/agent/配置/权限一行。
-  - 选择记忆存 `localStorage` 并用 Zod 校验；草稿使用 `terminal-draft` 的 `quick-start` 键。
+  - 选择记忆存 `localStorage` 并用 Zod 校验；草稿存独立键 `webmux.quick-start-draft`（Zod 校验，发送成功后清除），不复用会话草稿存储。
   - 分支名用 `suggestWorktreeBranch` 生成，冲突时重新生成并换新请求 ID。
 - [ ] 5.4 发送状态、失败报告（按 `step` 显示原因、worktree 入口、会话入口）和成功跳转 `/s/{id}`。Vitest 组件测试覆盖：缺仓库或 agent 禁用发送、记住的选择失效回退、失败保留输入、初始化指令拼接提示
 - [ ] 5.5 Playwright `test/e2e/quick-start.spec.ts`：使用隔离的临时仓库和假 ACP agent，从工作台切到聊天模式，发送后进入聊天视图并看到首条消息；接着切到终端再切回聊天，关闭后在首页看到归档记录并能恢复。桌面 1280×720 与手机 390×844 下检查
