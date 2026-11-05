@@ -6,9 +6,10 @@
   import IconFolder from "~icons/tabler/folder";
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconLayoutDashboard from "~icons/tabler/layout-dashboard";
-  import { ListButton } from "$lib/components/ui/list-button";
+  import IconPencil from "~icons/tabler/pencil";
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
+  import { ListButton } from "$lib/components/ui/list-button";
   import LaunchConfigIcon from "../../src/components/LaunchConfigIcon.svelte";
   import {
     directEntries,
@@ -17,32 +18,34 @@
     type Entry,
   } from "./data";
   import StatusText from "./StatusText.svelte";
+  import { titleOf } from "./titles.svelte";
 
   // Prototype of the workbench-mode sidebar content: repositories, their
   // worktrees and the sessions running in each. Collapsed nodes keep their
   // session and waiting counts; each available repository has a "+" that
-  // opens the existing new-worktree flow. Arrow-key navigation (roving
-  // tabindex) is left to the implementation (design.md §9).
+  // opens the existing new-worktree flow, each session a rename button for
+  // the existing dialog. Arrow-key navigation (roving tabindex) is left to
+  // the implementation (design.md §9).
   let {
     scope,
     current,
     onscope,
     onopen,
     onnewworktree,
+    onrename,
   }: {
     scope: string;
     current: string | null;
     onscope: (scope: string, worktree?: string) => void;
     onopen: (id: string) => void;
     onnewworktree: (repositoryId: string) => void;
+    onrename: (id: string) => void;
   } = $props();
   const expanded = new SvelteSet<string>(["webmux", "wt-brisk", "docs-site"]);
   function toggle(id: string) {
     if (expanded.has(id)) expanded.delete(id);
     else expanded.add(id);
   }
-  const waiting = (entries: Entry[]) =>
-    entries.filter((item) => item.status === "waiting").length;
 </script>
 
 {#snippet chevron(id: string, label: string)}
@@ -60,7 +63,7 @@
 {/snippet}
 
 {#snippet counts(entries: Entry[])}
-  {@const wait = waiting(entries)}
+  {@const wait = entries.filter((item) => item.status === "waiting").length}
   {#if wait}<span class="shrink-0 text-xs text-warning">{wait} 等待</span
     >{:else if entries.length}<span
       class="shrink-0 text-xs text-muted-foreground">{entries.length}</span
@@ -68,21 +71,34 @@
 {/snippet}
 
 {#snippet session(item: Entry, level: number)}
-  <li role="treeitem" aria-level={level} aria-selected={item.id === current}>
+  {@const title = titleOf(item)}
+  <li
+    role="treeitem"
+    aria-level={level}
+    aria-selected={item.id === current}
+    class="group/row relative"
+  >
     <ListButton
       variant="file-tree"
       class={level === 3 ? "pl-12" : "pl-7"}
       aria-current={item.id === current ? "page" : undefined}
-      title={`${item.title}（${statusLabels[item.status]}）`}
+      title={`${title}（${statusLabels[item.status]}）`}
       onclick={() => onopen(item.id)}
     >
       <LaunchConfigIcon icon={item.icon} size="xs" />
       <span
         class={`min-w-0 flex-1 truncate ${item.status === "ended" ? "text-muted-foreground" : ""}`}
-        >{item.title}</span
+        >{title}</span
       >
       <StatusText status={item.status} />
     </ListButton>
+    <ListButton
+      variant="file-tree-action"
+      aria-label={`修改标题：${title}`}
+      title={`修改标题：${title}`}
+      onclick={() => onrename(item.id)}
+      ><IconPencil aria-hidden="true" /></ListButton
+    >
   </li>
 {/snippet}
 

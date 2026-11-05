@@ -67,12 +67,17 @@
   - 仓库行“+”调用 `start({ kind: "new-worktree" })`；仓库不可用或 Git 不可用时不渲染。
   - 收起节点仍显示等待数量；当前会话路径自动展开；展开状态保存。
   - `tree`/`treeitem` 键盘导航，“+”按钮可以用 Tab 到达。
-- [ ] 6.4 Playwright：
+- [ ] 6.4 侧栏行的“修改标题”：外壳挂载一个 `RenameSessionDialog`，聊天历史和导航树中运行中会话的行提供铅笔按钮；Vitest 覆盖：
+  - 按钮打开的对话框预填当前标题，保存时以 `name` 调用 `PATCH /api/sessions/{id}`，留空时发送空字符串。
+  - 服务端拒绝时，错误显示在对话框内，侧栏标题不变。
+  - 列表事件带来新标题后，侧栏行随之更新；归档记录行没有按钮。
+- [ ] 6.5 Playwright：
   - 聊天模式在 390×844 下“打开抽屉 → 切换会话”。
   - 工作台模式从会话页点工作树回到首页并定位。
   - 在工作台树中点处于聊天端的混合会话，整体切到聊天模式；点终端会话保持工作台并显示终端。
   - 在会话页点仓库“+”，用现有弹窗创建工作树，新节点出现在树中。
-- [ ] 6.5 在 `docs/user-stories/hybrid-sessions.md` 新增 US-Q19（聊天历史），在 `docs/user-stories/access-and-sessions.md` 新增 US-C17（工作台导航树），更新索引与覆盖表
+  - 在侧栏把会话改名后，首页卡片和会话页顶栏显示新标题；清空后恢复自动标题。
+- [ ] 6.6 在 `docs/user-stories/hybrid-sessions.md` 新增 US-Q19（聊天历史），在 `docs/user-stories/access-and-sessions.md` 新增 US-C17（工作台导航树），并在 US-C15 的验收要点中补上侧栏入口；更新索引与覆盖表
 
 ## 7. 集成验证
 

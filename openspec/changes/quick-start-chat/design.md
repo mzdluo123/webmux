@@ -150,6 +150,13 @@ agent 不接受的值记为 `configWarnings`，并作为聊天 notice 写入时�
   - 已结束（中性弱化）：`status: exited`，或归档记录。
 - 组件：`components/ChatHistory.svelte`。行使用 `ListButton` 的 `navigation` 变体，以 `aria-current` 标记当前项；agent 图标用 `LaunchConfigIcon`。
 
+### 8.1 侧栏中修改标题
+
+- 复用 `components/RenameSessionDialog.svelte`（`PATCH /api/sessions/{id}`，`name` 为空时恢复自动标题），不改接口，也不改服务端规则。对话框只在外壳中挂载一个实例，由聊天历史和导航树的行按钮设置要修改的会话；它与首页卡片里各自挂载的实例是同一个组件。
+- 新标题经 `/ws/sessions` 的列表事件回到共享的会话列表，侧栏、首页卡片和会话页顶栏一起更新，侧栏自己不保存标题。
+- 行按钮用 `ListButton` 的 `file-tree-action` 变体（铅笔图标）。导航树的行本来就为它留了右侧空间；聊天历史的 `navigation` 行加右内边距留出同样的空间，避免触屏上常驻的按钮盖住状态文字。
+- 只对运行中的会话显示。归档记录没有对应的运行中会话，`PATCH /api/sessions/{id}` 不适用，因此不提供。
+
 ### 9. 工作台导航树
 
 - 取代 `RepositorySidebar`，组件 `components/WorkbenchTree.svelte`。分组与排序复用 `homeWorktrees.ts`、`homeLayout` 现有的规则，保证树与主区域顺序一致。

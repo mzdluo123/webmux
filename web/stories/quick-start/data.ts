@@ -1,5 +1,6 @@
 import type { SessionInfo } from "../../src/schemas";
 import { session as base } from "../fixtures";
+import { titleOf } from "./titles.svelte";
 
 // Sample data shared by the prototype's chat history, workbench tree and
 // workbench overview: one set of sessions seen from both modes.
@@ -146,7 +147,7 @@ export function sessionInfo(item: Entry, cwd: string): SessionInfo {
   return {
     ...base,
     id: item.id,
-    title: item.title,
+    title: titleOf(item),
     cwd,
     status: states[item.status],
     exitCode: item.status === "ended" ? 0 : null,

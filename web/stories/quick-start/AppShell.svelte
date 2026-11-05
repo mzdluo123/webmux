@@ -7,8 +7,12 @@
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
   import * as Drawer from "$lib/components/ui/drawer";
+  import RenameSessionDialog from "../../src/components/RenameSessionDialog.svelte";
+  import type { SessionInfo } from "../../src/schemas";
+  import { session as base } from "../fixtures";
   import { liveEntry, type Mode } from "./data";
   import Sidebar from "./Sidebar.svelte";
+  import { interceptRename, titleOf } from "./titles.svelte";
 
   // Prototype of the app shell around the home page, quick start and
   // session pages: the sidebar (a rail when collapsed, a left drawer below
@@ -72,6 +76,16 @@
     drawerOpen = false;
     notice = `原型：将打开现有的“新建工作树”弹窗，预选 ${repositoryId}`;
   }
+  // One rename dialog for the whole sidebar, the same component the home
+  // cards use; its PATCH is answered in place of the server.
+  let renaming = $state<SessionInfo | null>(null);
+  $effect(() => interceptRename());
+  function rename(id: string) {
+    const entry = liveEntry(id);
+    if (!entry) return;
+    drawerOpen = false;
+    renaming = { ...base, id, title: titleOf(entry) };
+  }
 </script>
 
 {#snippet sidebar(collapsible: boolean)}
@@ -84,6 +98,7 @@
     onscope={setScope}
     onopen={open}
     onnewworktree={newWorktree}
+    onrename={rename}
     oncollapse={collapsible ? () => (collapsed = true) : undefined}
   />
 {/snippet}
@@ -155,3 +170,8 @@
     {@render sidebar(false)}
   </Drawer.Content>
 </Drawer.Root>
+
+{#if renaming}<RenameSessionDialog
+    session={renaming}
+    onclose={() => (renaming = null)}
+  />{/if}
