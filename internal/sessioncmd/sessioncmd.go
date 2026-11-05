@@ -80,8 +80,18 @@ func (e Env) Fail(err error) int {
 	return contract.ExitError
 }
 
+// UsageError is a Connect failure caused by the command line, such as
+// conflicting connection options; it exits 2 like other usage errors.
+type UsageError string
+
+func (u UsageError) Error() string { return string(u) }
+
 func (e Env) connect() (*localclient.Client, int) {
 	client, err := e.Connect()
+	var usage UsageError
+	if errors.As(err, &usage) {
+		return nil, e.Usagef("%s", string(usage))
+	}
 	if err != nil {
 		return nil, e.Fail(err)
 	}
