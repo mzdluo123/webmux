@@ -574,9 +574,9 @@ Options:
 - `--permission MODE`: Permission MODE: ask or auto. Conflicts with --terminal.
 - `--repo string`: Repository: an ID, a path or . (default: the current directory's)
 - `--set ID=VALUE`: Agent option ID=VALUE (see webmux launch-config options) Repeatable. Conflicts with --terminal.
-- `--terminal`: Start on the terminal side and type the message with Enter.
+- `--terminal`: Start on the terminal side and type the message with Enter. Conflicts with --set, --permission, --attach, --wait.
 - `--timeout DURATION`: Give up --wait after this DURATION (exit 124); 0 waits forever.
-- `--wait`: Wait for the first turn and print the agent's final reply.
+- `--wait`: Wait for the first turn and print the agent's final reply. Conflicts with --terminal.
 
 Examples:
 
