@@ -235,10 +235,9 @@
   function isOpen(node: TreeNode) {
     if (!node.children.length || node.reason) return false;
     if (forced.includes(node.key)) return true;
-    // New repositories start open, worktrees closed.
-    return (
-      saved[node.key] ?? (node.kind !== "worktree" && node.kind !== "missing")
-    );
+    // New repositories start open; worktrees and direct sessions, which list
+    // sessions themselves, start closed.
+    return saved[node.key] ?? node.kind === "repository";
   }
   function setOpen(node: TreeNode, open: boolean) {
     saved = { ...saved, [node.key]: open };
@@ -330,10 +329,10 @@
 
 {#snippet counts(node: TreeNode)}
   {#if node.waiting}<span
-      class="w-12 shrink-0 truncate text-right text-xs text-warning"
+      class="w-12 shrink-0 truncate text-xs text-warning"
       title={`${node.waiting} 个会话在等待`}>{node.waiting} 等待</span
     >{:else if node.count}<span
-      class="w-12 shrink-0 text-right text-xs text-muted-foreground tabular-nums"
+      class="w-12 shrink-0 text-xs text-muted-foreground tabular-nums"
       >{node.count}</span
     >{/if}
 {/snippet}

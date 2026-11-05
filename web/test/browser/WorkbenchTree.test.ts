@@ -116,6 +116,7 @@ test("repositories hold the home page's worktrees and their sessions", async () 
   await expect.element(item("make test（已结束）")).toBeVisible();
   await expect.element(item("main")).toHaveAttribute("aria-expanded", "false");
   await tree().getByRole("button", { name: "展开main" }).click();
+  await tree().getByRole("button", { name: "展开直接会话" }).click();
   const rows = tree()
     .getByRole("treeitem", { name: /（(空闲|工作中|等待|已结束)）$/ })
     .elements();

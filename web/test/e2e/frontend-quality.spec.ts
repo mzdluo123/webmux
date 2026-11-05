@@ -62,6 +62,7 @@ test("reduced motion disables skeleton and dialog animation", async ({
     // The page body is still a skeleton; the sidebar already offers it.
     await revealSidebar(page);
     await page.getByRole("button", { name: "新建会话", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "导航" })).toHaveCount(0);
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     expect(
