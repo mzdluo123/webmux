@@ -330,3 +330,27 @@
 - 范围：用户使用网站时，新的会话关注信号默认在右上角弹出提醒（状态徽章、会话标题与操作说明），点击直达对应会话 `/s/<ID>`，支持手动关闭、悬停/聚焦暂停、超时自动收起、关注升级替换及关注解除/会话移除时自动清理；设置页“通知推送”卡片提供本机开关（默认开启，无需浏览器通知授权或 HTTPS）。
 - 依据：`make check`、`attention-toast` 单元测试、`AttentionToasts`/`AppShell`/`PushSettings` 浏览器组件测试，以及 `attention.spec.ts` E2E 与隔离演示环境下的桌面（1280×720）/手机（390×844）明暗主题截图。
 - 限制：未在 iOS/Android 真机核对；未重新核验其余故事能力。
+
+本次局部核对（2026-11-05）：支持 ACP 表单提问的多选 `array` 字段（`items.anyOf` 与 `items.enum`），修复 `agy` 等 agent 发起含多选题的 `elicitation/create` 时在聊天端退化为“该表单需要在终端中完成”的问题，对应更新 US-Q06，不新增故事或改变覆盖索引。
+
+- 依据：
+  - `internal/hybrid`（`TestFormRequest` 与 `TestAgyFormElicitationMultiSelect`）、`internal/wire`、`internal/api` 的 Go race 测试。
+  - `ChatView` 浏览器组件测试（18 项通过，含多选复选框默认值、必填校验与提交字符串数组）。
+  - `make check`（生产构建、类型检查、测试类型检查、Oxlint、前端架构守卫、文档与持久化守卫、`go vet`、`golangci-lint`）通过。
+  - 隔离演示服务下桌面（1280×800）与手机（390×844）、浅色与深色主题前后对比截图及浏览器端完整表单提交验证。
+- 限制：未运行全量 E2E 套件，未在真机上核对；未重新核验其余故事能力。
+
+本次局部核对（2026-11-05）：代码查看器（`CodeReader`）与 Diff 查看器（`CodeDiffReader`）底部补充常驻横向滚动条，对应更新 US-I05，不新增故事或改变覆盖索引。
+
+- 行为：当源码或未开启自动换行的 Diff 行宽超出可视区域时，在阅读器视口底部显示横向滚动条，并与代码列双向同步 `scrollLeft`；无需滚到文件末尾即可横向拖动，切换到自动换行或无横向溢出时自动隐藏。
+- 依据：`CodeReader` 与 `CodeDocument` 浏览器组件测试（含 `N:列` 横向跳转同步、Diff 横向滚动同步与自动换行隐藏断言）、`make check`、`make test-fast`，以及桌面与移动视口明暗主题截图核对。
+- 限制：未在 iOS/Android 真机浏览器核对；未重新核验其余故事能力。
+
+本次局部核对（2026-11-05）：新增 `webmux-docs` 文档质量与由浅入深写作技能（`.agents/skills/webmux-docs/SKILL.md`），重组用户文档并同步近期提交能力，对应更新 US-L12 与覆盖索引（不新增故事编号）。
+
+- 范围：
+  - 新增 `.agents/skills/webmux-docs/SKILL.md`（及 `.claude/skills/webmux-docs` 软链接）并在 `AGENTS.md` 登记，规定面向网站读者的三层渐进式披露、信息守恒原则、页面模板与提交同步核对清单。
+  - 将逼近 400 行上限的 `docs/usage.md` 按由浅入深重构为新手两步上手、侧栏双模式（含快速开始 `/new` 分支搜索、附件、初始化指令、侧栏拖宽）、新建会话四步说明（含单选起始端记忆、首条用户指令与初始化指令），并将 `OSC 7501` 协议与旧版钩子独立拆分为 `docs/usage/attention.md`（保留原锚点与全部细节）。
+  - 同步更新 `docs/README.md`、`docs/overview.md`、`docs/hybrid-sessions.md`、`docs/faq.md`、`docs/website.md` 及 `docs/website/*.md`（修正十一款 CLI agent 与七款混合会话 agent 数量）、`CONTRIBUTING.md`（同步移除 macOS CI runner 后的实际流水线描述）。
+- 依据：`make format-check`、`make docs-check`（`go test -count=1 ./internal/docguard`）、`go test ./internal/archtest -run TestAgentsGuideSize`、`make check` 通过。
+- 限制：本次仅涉及文档与技能说明，未改动运行时代码，未运行完整 `make test` 或真机测试。
