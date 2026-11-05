@@ -129,7 +129,11 @@ agent 不接受的值记为 `configWarnings`，并作为聊天 notice 写入时�
   - 把 `SessionList.svelte` 里的 `/ws/sessions` 订阅、仓库清单加载和归档记录加载抽成 rune hook：`hooks/session-list.svelte.ts`、`hooks/repositories.svelte.ts`、`hooks/archived.svelte.ts`。
   - 这些 hook 由外壳创建，通过 context 提供给首页、聊天历史和导航树；继续使用 `ws.ts` 的 `connect` 和 `api.ts`，不新增请求或重连约定。
   - 会话页原本没有会话列表订阅；外壳挂上后多一条 `/ws/sessions` 连接。它只传会话元数据，不传 PTY 字节。
-- 全局区：`WorkspaceHeader` 拆掉，品牌移到侧栏顶部，连接状态与主机名、设置、主题切换移到侧栏底部。“新建会话”成为工作台侧栏的主要操作，打开现有 `NewSessionDialog`。重连提示从首页顶部条移到侧栏底部的状态文字。
+- 全局区：`WorkspaceHeader` 拆掉，品牌移到侧栏顶部，连接状态与主机名、设置、主题切换移到侧栏底部。重连提示从首页顶部条移到侧栏底部的状态文字。
+- 新建弹窗上移到外壳：`SessionList.svelte` 现在持有 `creating` 状态和懒加载的 `NewSessionDialog`，入口是 `start(entry?: LaunchEntry)`。
+  - 把这份状态、`start()` 和启动配置加载移到外壳，通过 context 提供给首页、工作台侧栏的“新建会话”和树中仓库的“+”。
+  - 会话页上也能打开同一个弹窗，不另写流程。
+  - 首页卡片和仓库菜单改为调用同一个 `start()`，行为不变。
 - 组件与样式：新增 `components/AppShell.svelte`、`ModeSwitch.svelte`、`SidebarFooter.svelte`。
   - 手机端使用现有 `Drawer`（左侧方向），打开按钮放在各页面的顶栏左侧；终端顶栏的返回按钮在窄屏换成这个按钮（见 `terminal-header` 的 delta）。
   - 模式切换用两个 `Button variant="ghost" size="icon-touch"`，按钮固定 variant、只切换 `aria-pressed`，符合线条优先的约定。
@@ -152,8 +156,14 @@ agent 不接受的值记为 `configWarnings`，并作为聊天 notice 写入时�
 - 选择视图：现在的仓库选择保存在 `localStorage` 的 `homeRepository`，只有 `SessionList` 读写。改为外壳中的共享状态（仍落在同一个键上，兼容已有取值），树和首页一起读写。
 - 工作树跳转：导航到 `/#wt-<worktreeId>`，首页在分组渲染后滚动到对应锚点并聚焦标题；锚点不存在时停在仓库视图顶部。
 - 展开状态按节点 ID 存在 `localStorage`；当前会话所在路径自动展开，不写回存储。
-- 键盘：`role="tree"`，用 roving tabindex 实现方向键导航，行内只有一个 Tab 停靠点。
+- 键盘：`role="tree"`，用 roving tabindex 实现方向键导航；树的节点只占一个 Tab 停靠点，焦点所在行的“+”按钮是紧随其后的下一个停靠点。
 - `RepositorySidebar.svelte` 在切换后删除；其中的计数逻辑移到树节点。
+- 仓库行的“+”：调用外壳的 `start({ kind: "new-worktree", repositoryId })`，与 `RepositoryGroup` 菜单中的“新建工作树…”是同一个入口；禁用条件也相同（仓库不可用或 Git 不可用时不显示）。
+  - 按钮用 `ListButton` 的 `file-tree-action` 变体：悬停或获得焦点时显示，触屏上常驻；行加 `group/row`，按钮在行内有自己的 Tab 停靠点。
+- 打开会话时的模式：外壳的 `openSession(session)` 统一处理树的会话行和工作台主区域的会话卡片。
+  - 读取 `session.hybrid?.side`：`acp` 时把模式设为聊天，否则保持工作台；`dormant` 不影响判断。之后导航到 `/s/{id}`。
+  - 会话页的默认视图沿用现有逻辑：聊天端显示聊天，终端端显示终端，因此两种模式下右侧展示的内容都与所在端一致。
+  - 只在用户点击打开时判断一次；会话页内切换端、直接打开地址或刷新页面都不改变模式。
 
 ## Risks / Trade-offs
 

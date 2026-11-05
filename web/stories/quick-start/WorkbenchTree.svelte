@@ -7,6 +7,7 @@
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconLayoutDashboard from "~icons/tabler/layout-dashboard";
   import { ListButton } from "$lib/components/ui/list-button";
+  import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
   import LaunchConfigIcon from "../../src/components/LaunchConfigIcon.svelte";
   import {
@@ -19,18 +20,21 @@
 
   // Prototype of the workbench-mode sidebar content: repositories, their
   // worktrees and the sessions running in each. Collapsed nodes keep their
-  // session and waiting counts. Arrow-key navigation (roving tabindex) is
-  // left to the implementation (design.md §9).
+  // session and waiting counts; each available repository has a "+" that
+  // opens the existing new-worktree flow. Arrow-key navigation (roving
+  // tabindex) is left to the implementation (design.md §9).
   let {
     scope,
     current,
     onscope,
     onopen,
+    onnewworktree,
   }: {
     scope: string;
     current: string | null;
     onscope: (scope: string, worktree?: string) => void;
     onopen: (id: string) => void;
+    onnewworktree: (repositoryId: string) => void;
   } = $props();
   const expanded = new SvelteSet<string>(["webmux", "wt-brisk", "docs-site"]);
   function toggle(id: string) {
@@ -103,23 +107,33 @@
       <div class="flex items-center">
         {#if repo.reason}<span class="size-6 shrink-0"
           ></span>{:else}{@render chevron(repo.id, repo.name)}{/if}
-        <ListButton
-          variant="file-tree"
-          class="min-w-0 flex-1"
-          aria-current={scope === repo.id && !current ? "page" : undefined}
-          title={repo.reason ?? repo.name}
-          onclick={() => onscope(repo.id)}
-        >
-          <IconBook2 aria-hidden="true" />
-          <span
-            class={`min-w-0 flex-1 truncate font-medium ${repo.reason ? "text-muted-foreground" : ""}`}
-            >{repo.name}</span
+        <div class="group/row relative min-w-0 flex-1">
+          <ListButton
+            variant="file-tree"
+            aria-current={scope === repo.id && !current ? "page" : undefined}
+            title={repo.reason ?? repo.name}
+            onclick={() => onscope(repo.id)}
           >
-          {#if repo.reason}<IconAlertCircle
-              class="text-warning"
-              aria-label="不可用"
-            />{:else}{@render counts(entries)}{/if}
-        </ListButton>
+            <IconBook2 aria-hidden="true" />
+            <span
+              class={`min-w-0 flex-1 truncate font-medium ${repo.reason ? "text-muted-foreground" : ""}`}
+              >{repo.name}</span
+            >
+            {#if repo.reason}<IconAlertCircle
+                class="text-warning"
+                aria-label="不可用"
+              />{:else}{@render counts(entries)}{/if}
+          </ListButton>
+          {#if !repo.reason}
+            <ListButton
+              variant="file-tree-action"
+              aria-label={`在 ${repo.name} 新建工作树`}
+              title={`在 ${repo.name} 新建工作树`}
+              onclick={() => onnewworktree(repo.id)}
+              ><IconPlus aria-hidden="true" /></ListButton
+            >
+          {/if}
+        </div>
       </div>
       {#if expanded.has(repo.id) && !repo.reason}
         <ul role="group" class="space-y-0.5">

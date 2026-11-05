@@ -20,7 +20,8 @@
   } from "../../src/schemas";
   import { configs } from "../acp/fixtures";
   import AppShell from "./AppShell.svelte";
-  import type { Mode } from "./data";
+  import { liveEntry, type Mode } from "./data";
+  import SessionPane from "./SessionPane.svelte";
   import WorkbenchHome from "./WorkbenchHome.svelte";
   import ValueSelect from "./ValueSelect.svelte";
 
@@ -29,12 +30,14 @@
   // branch and agent under the input, and one send creates a worktree,
   // starts the agent's chat side, applies the options and sends the first
   // message. Workbench mode: the existing overview beside the repository
-  // tree. Sample data only; nothing leaves the page.
+  // tree. Opening a session shows it in the main area. Sample data only;
+  // nothing leaves the page.
   type Scenario = "ready" | "no-options" | "sending" | "failed" | "missing";
   let {
     scenario = "ready",
     mode = "chat",
-  }: { scenario?: Scenario; mode?: Mode } = $props();
+    session = null,
+  }: { scenario?: Scenario; mode?: Mode; session?: string | null } = $props();
 
   const repositories = [
     {
@@ -136,9 +139,12 @@
   }
 </script>
 
-<AppShell {mode}>
+<AppShell {mode} {session}>
   {#snippet children(view, openDrawer)}
-    {#if view.mode === "chat"}
+    {@const open = view.session ? liveEntry(view.session) : undefined}
+    {#if open}
+      <SessionPane entry={open} />
+    {:else if view.mode === "chat"}
       {@render page(openDrawer)}
     {:else}
       <WorkbenchHome scope={view.scope} worktree={view.worktree} {openDrawer} />

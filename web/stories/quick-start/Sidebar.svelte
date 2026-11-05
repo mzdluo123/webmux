@@ -24,6 +24,7 @@
     onnew,
     onscope,
     onopen,
+    onnewworktree,
     oncollapse,
   }: {
     mode: Mode;
@@ -33,6 +34,7 @@
     onnew: () => void;
     onscope: (scope: string, worktree?: string) => void;
     onopen: (id: string) => void;
+    onnewworktree: (repositoryId: string) => void;
     /** Desktop only; the drawer closes on its own. */
     oncollapse?: () => void;
   } = $props();
@@ -88,7 +90,7 @@
     {#if mode === "chat"}
       <ChatHistory {current} {onopen} />
     {:else}
-      <WorkbenchTree {scope} {current} {onscope} {onopen} />
+      <WorkbenchTree {scope} {current} {onscope} {onopen} {onnewworktree} />
     {/if}
   </div>
   <div class="flex items-center gap-1 border-t px-3 py-1.5">

@@ -15,6 +15,13 @@ type Story = StoryObj<typeof meta>;
 
 // Workbench mode: the repository tree and the existing overview.
 export const Workbench: Story = { args: { mode: "workbench" } };
+// A terminal session opened from the workbench tree: the tree stays, the
+// terminal fills the main area.
+export const WorkbenchTerminal: Story = {
+  args: { mode: "workbench", session: "t2" },
+};
+// A chat-side hybrid session: opening it switched the shell to chat mode.
+export const ChatSession: Story = { args: { mode: "chat", session: "s1" } };
 // Chat mode: webmux has an init instruction; Claude Code's last reported
 // options show.
 export const Ready: Story = { args: { scenario: "ready" } };

@@ -7,54 +7,70 @@
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
   import * as Drawer from "$lib/components/ui/drawer";
-  import type { Mode } from "./data";
+  import { liveEntry, type Mode } from "./data";
   import Sidebar from "./Sidebar.svelte";
 
   // Prototype of the app shell around the home page, quick start and
   // session pages: the sidebar (a rail when collapsed, a left drawer below
-  // `sm`) and the main area. Switching mode on a home page swaps both the
-  // sidebar and the main area; on a session page (`session` set) only the
-  // sidebar changes. Opening a session only reports where it would go.
-  type View = { mode: Mode; scope: string; worktree?: string };
+  // `sm`) and the main area. Switching mode by hand swaps the sidebar and,
+  // on a home page, the main area; an open session stays open. Opening a
+  // session from the workbench follows its side: a chat-side hybrid session
+  // switches the whole shell to chat mode, anything else stays in the
+  // workbench and shows its terminal.
+  type View = {
+    mode: Mode;
+    scope: string;
+    worktree?: string;
+    session: string | null;
+  };
   let {
     mode: initialMode = "workbench",
-    session = null,
+    session: initialSession = null,
     children,
   }: {
     mode?: Mode;
-    /** Set on a session page: the session stays open across mode switches. */
+    /** The session page to start on; null for the mode's home page. */
     session?: string | null;
     children: Snippet<[View, () => void]>;
   } = $props();
   let mode = $state<Mode>(untrack(() => initialMode));
+  let session = $state<string | null>(untrack(() => initialSession));
   let scope = $state("all");
   let worktree = $state<string | undefined>();
   let collapsed = $state(false);
   let drawerOpen = $state(false);
   let notice = $state("");
-  const current = $derived(session);
   function setMode(next: Mode) {
     mode = next;
     notice = "";
   }
   function newItem() {
     drawerOpen = false;
-    notice =
-      mode === "chat"
-        ? session
-          ? "原型：将在当前标签页进入快速开始"
-          : ""
-        : "原型：将打开现有的新建会话弹窗";
+    notice = "";
+    if (mode === "chat") session = null;
+    else notice = "原型：将打开现有的新建会话弹窗";
   }
   function setScope(next: string, tree?: string) {
     drawerOpen = false;
+    notice = "";
+    session = null;
     scope = next;
     worktree = tree;
-    notice = session ? "原型：将在当前标签页进入工作台首页的对应视图" : "";
   }
   function open(id: string) {
     drawerOpen = false;
-    notice = `原型：将在当前标签页进入会话 ${id}`;
+    notice = "";
+    const entry = liveEntry(id);
+    if (!entry) {
+      notice = "原型：已归档的聊天将按现有流程恢复";
+      return;
+    }
+    if (mode === "workbench" && entry.side === "acp") mode = "chat";
+    session = id;
+  }
+  function newWorktree(repositoryId: string) {
+    drawerOpen = false;
+    notice = `原型：将打开现有的“新建工作树”弹窗，预选 ${repositoryId}`;
   }
 </script>
 
@@ -62,11 +78,12 @@
   <Sidebar
     {mode}
     {scope}
-    {current}
+    current={session}
     onmode={setMode}
     onnew={newItem}
     onscope={setScope}
     onopen={open}
+    onnewworktree={newWorktree}
     oncollapse={collapsible ? () => (collapsed = true) : undefined}
   />
 {/snippet}
@@ -119,7 +136,10 @@
   <!-- transform makes this box the containing block of the session page's
        fixed root, standing in for the --app-sidebar-width offset. -->
   <div class="relative min-w-0 flex-1 transform-gpu">
-    {@render children({ mode, scope, worktree }, () => (drawerOpen = true))}
+    {@render children(
+      { mode, scope, worktree, session },
+      () => (drawerOpen = true),
+    )}
     {#if notice}<p
         role="status"
         class="absolute top-14 left-1/2 w-max max-w-[90%] -translate-x-1/2 rounded-md border bg-popover px-3 py-1.5 text-sm shadow-sm"
