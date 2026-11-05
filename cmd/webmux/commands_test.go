@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -242,5 +243,27 @@ func TestConnectLocalPrefersSocketThenConfigThenEnvironment(t *testing.T) {
 	// An explicit --config ignores WEBMUX_SOCKET.
 	if _, err := connectLocal("", dir+"/missing.toml", true, getenv); err == nil || !strings.Contains(err.Error(), "configuration") {
 		t.Fatalf("explicit config: %v", err)
+	}
+}
+
+// TestGuideCommandReference keeps /llms/commands.md generated from the
+// command table. Run with WEBMUX_UPDATE_GUIDE=1 to rewrite it.
+func TestGuideCommandReference(t *testing.T) {
+	e := sessionEnv(io.Discard, io.Discard)
+	registry := commandRegistry()
+	e.Commands = registry
+	want := e.Reference(registry)
+	path := "../../internal/agentguide/llms/commands.md"
+	if os.Getenv("WEBMUX_UPDATE_GUIDE") == "1" {
+		if err := os.WriteFile(path, []byte(want), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != want {
+		t.Fatal("internal/agentguide/llms/commands.md is stale; run WEBMUX_UPDATE_GUIDE=1 go test ./cmd/webmux -run TestGuideCommandReference")
 	}
 }

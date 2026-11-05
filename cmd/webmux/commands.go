@@ -45,7 +45,7 @@ var (
 		{Code: 1, Text: "Failed."},
 		{Code: 2, Text: "Usage error."},
 	}
-	configEnv = []sessioncmd.Item{{Name: "XDG_CONFIG_HOME", Text: "Base of the default configuration path ~/.config/webmux/config.toml."}}
+	configEnv = []sessioncmd.Item{{Name: "HOME", Text: "Locates the default configuration path ~/.config/webmux/config.toml."}}
 )
 
 func opsCommands() sessioncmd.Registry {
