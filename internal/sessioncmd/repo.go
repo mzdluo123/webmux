@@ -558,11 +558,11 @@ var repoSettingsCommand = &Command{
 				}
 				_, _ = fmt.Fprintf(e.Stderr, "webmux: no quick command named %s; saved anyway, but quick start refuses it until it exists\n", strings.Join(refs, ", "))
 			}
-			if change {
-				return contract.ExitOK
-			}
 			if *asJSON {
 				writeJSON(e.Stdout, map[string]string{"initInstruction": repo.InitInstruction})
+				return contract.ExitOK
+			}
+			if change {
 				return contract.ExitOK
 			}
 			if repo.InitInstruction == "" {

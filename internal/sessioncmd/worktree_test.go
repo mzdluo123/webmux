@@ -35,9 +35,9 @@ func TestHomeStatusFollowsTheWebRules(t *testing.T) {
 		{"uncurated", home{}, map[string]string{"main": homePinned, "a": homeHidden, "b": homeHidden, "c": homeHidden}},
 		{"curated", home{pins: map[string][]string{"r1": {"a"}}}, map[string]string{"main": homeHidden, "a": homePinned, "b": homeHidden}},
 		{"curated empty", home{pins: map[string][]string{"r1": {}}}, map[string]string{"main": homeHidden, "a": homeHidden}},
-		{"sessions and archived", home{sessions: map[string]int{"b": 1}, archived: map[string]int{"c": 2}},
+		{"sessions and archived", home{sessions: map[string][]contract.SessionInfo{"b": {{ID: "s1"}}}, archived: map[string][]contract.HybridRecord{"c": {{ID: "h1"}, {ID: "h2"}}}},
 			map[string]string{"main": homePinned, "a": homeHidden, "b": homeSessions, "c": homeSessions}},
-		{"pinned beats sessions", home{pins: map[string][]string{"r1": {"b"}}, sessions: map[string]int{"b": 1}}, map[string]string{"b": homePinned}},
+		{"pinned beats sessions", home{pins: map[string][]string{"r1": {"b"}}, sessions: map[string][]contract.SessionInfo{"b": {{ID: "s1"}}}}, map[string]string{"b": homePinned}},
 	} {
 		for _, tree := range repo.Worktrees {
 			want, ok := tc.want[tree.ID]
@@ -47,6 +47,30 @@ func TestHomeStatusFollowsTheWebRules(t *testing.T) {
 			if got := tc.h.status(repo, tree); got != want {
 				t.Errorf("%s: %s is %s, want %s", tc.name, tree.ID, got, want)
 			}
+		}
+	}
+}
+
+// TestRecordWorktreeFollowsTheWeb mirrors recordWorktree in
+// web/src/archived.ts: a recorded association wins, and a record without one
+// joins the deepest registered worktree containing its cwd.
+func TestRecordWorktreeFollowsTheWeb(t *testing.T) {
+	repos := []contract.Repository{{ID: "r1", Worktrees: []contract.Worktree{
+		{ID: "main", Path: "/w/repo"}, {ID: "nested", Path: "/w/repo/sub"},
+	}}}
+	for _, tc := range []struct {
+		record contract.HybridRecord
+		want   string
+		ok     bool
+	}{
+		{contract.HybridRecord{Cwd: "/w/repo/x", Workspace: &contract.WorkspaceReference{RepositoryID: "r1", WorktreeID: "nested"}}, "nested", true},
+		{contract.HybridRecord{Cwd: "/w/repo/sub/deep"}, "nested", true},
+		{contract.HybridRecord{Cwd: "/w/repo"}, "main", true},
+		{contract.HybridRecord{Cwd: "/w/repository"}, "", false},
+	} {
+		got, ok := recordWorktree(tc.record, repos)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("%+v: %q %v, want %q %v", tc.record, got, ok, tc.want, tc.ok)
 		}
 	}
 }

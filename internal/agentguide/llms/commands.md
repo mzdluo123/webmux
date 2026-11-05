@@ -978,14 +978,14 @@ Options:
 
 - `--env NAME=VALUE`: Set environment variable NAME=VALUE for sessions started from the config. Repeatable.
 - `--hybrid`: Enable hybrid mode (terminal and chat) for a supported agent.
-- `--icon ICON`: The launch picker ICON key (for example claude, codex, terminal)
+- `--icon ICON`: The launch picker ICON key (for example claudecode, codex, terminal)
 - `--json`: Print the LaunchConfig, values hidden.
 - `--preview-lines N`: Show N preview lines on the home page (1-50) instead of the global default.
 - `--preview-skip N`: Skip the last N lines of the preview (0-50)
 
 Examples:
 
-- `webmux launch-config add "Claude (sandbox)" --icon claude --hybrid --env CLAUDE_CONFIG_DIR=/w/.claude -- claude --dangerously-skip-permissions`: Add an agent config with hybrid mode.
+- `webmux launch-config add "Claude (sandbox)" --icon claudecode --hybrid --env CLAUDE_CONFIG_DIR=/w/.claude -- claude --dangerously-skip-permissions`: Add an agent config with hybrid mode.
 - `webmux launch-config add "Dev server" --icon terminal -- bash -lc 'npm run dev'`: Add a shell command config.
 
 ## webmux launch-config edit
@@ -1005,7 +1005,7 @@ Options:
 
 - `--env NAME=VALUE`: Set environment variable NAME=VALUE for sessions started from the config. Repeatable.
 - `--hybrid`: Enable hybrid mode (terminal and chat) for a supported agent. Conflicts with --no-hybrid.
-- `--icon ICON`: The launch picker ICON key (for example claude, codex, terminal)
+- `--icon ICON`: The launch picker ICON key (for example claudecode, codex, terminal)
 - `--json`: Print the LaunchConfig, values hidden.
 - `--no-hybrid`: Turn hybrid mode off. Conflicts with --hybrid.
 - `--preview-lines N`: Show N preview lines on the home page (1-50) instead of the global default.

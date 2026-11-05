@@ -48,7 +48,7 @@ webmux repo settings . --init @.webmux/init.md          # 从文件读取；--cl
 ```sh
 webmux launch-config ls                                  # 名称、图标、混合模式、变量名（不含值）、命令
 webmux launch-config show "Claude Code" --json           # 变量值显示为 <hidden>；--reveal-env 才输出值
-webmux launch-config add "Claude (sandbox)" --icon claude --hybrid --env CLAUDE_CONFIG_DIR=/w/.claude -- claude
+webmux launch-config add "Claude (sandbox)" --icon claudecode --hybrid --env CLAUDE_CONFIG_DIR=/w/.claude -- claude
 webmux launch-config edit "Claude (sandbox)" --unset-env CLAUDE_CONFIG_DIR   # 只改给出的字段，其他（含变量值）保持不变
 webmux launch-config rm "Dev server" --yes
 webmux launch-config presets; webmux launch-config restore "Claude Code"

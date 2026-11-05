@@ -171,7 +171,7 @@ type configFields struct {
 
 func bindConfigFields(fs *flag.FlagSet, f *configFields) {
 	f.env = envFlag{}
-	fs.StringVar(&f.icon, "icon", "", "the launch picker `ICON` key (for example claude, codex, terminal)")
+	fs.StringVar(&f.icon, "icon", "", "the launch picker `ICON` key (for example claudecode, codex, terminal)")
 	fs.Var(f.env, "env", "set environment variable `NAME=VALUE` for sessions started from the config")
 	fs.BoolVar(&f.hybrid, "hybrid", false, "enable hybrid mode (terminal and chat) for a supported agent")
 	fs.IntVar(&f.previewLines, "preview-lines", 0, "show `N` preview lines on the home page (1-50) instead of the global default")
@@ -212,7 +212,7 @@ var launchConfigAddCommand = &Command{
 	Output:    "The new config's ID; with --json, the LaunchConfig with values hidden.",
 	Exit:      exitsCommon(ExitItem{Code: 1, Text: "Also: the name is taken, validation failed, or hybrid mode is unsupported."}),
 	Examples: []Example{
-		{Command: `webmux launch-config add "Claude (sandbox)" --icon claude --hybrid --env CLAUDE_CONFIG_DIR=/w/.claude -- claude --dangerously-skip-permissions`, Text: "Add an agent config with hybrid mode."},
+		{Command: `webmux launch-config add "Claude (sandbox)" --icon claudecode --hybrid --env CLAUDE_CONFIG_DIR=/w/.claude -- claude --dangerously-skip-permissions`, Text: "Add an agent config with hybrid mode."},
 		{Command: `webmux launch-config add "Dev server" --icon terminal -- bash -lc 'npm run dev'`, Text: "Add a shell command config."},
 	},
 	SeeAlso: []string{"webmux launch-config edit", "webmux run --launch-config"},

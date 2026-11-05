@@ -31,15 +31,16 @@ var worktreeGroup = &Command{
 }
 
 // home is what the home page display of every repository depends on: the
-// homeWorktrees setting, sessions, and archived hybrid records.
+// homeWorktrees setting, live sessions, and archived hybrid records, each
+// placed as the web home page places them.
 type home struct {
 	pins     map[string][]string
-	sessions map[string]int // by worktree ID
-	archived map[string]int // by worktree ID
+	sessions map[string][]contract.SessionInfo  // by worktree ID
+	archived map[string][]contract.HybridRecord // by worktree ID
 }
 
 func loadHome(ctx context.Context, client *localclient.Client) (home, error) {
-	h := home{sessions: map[string]int{}, archived: map[string]int{}}
+	h := home{sessions: map[string][]contract.SessionInfo{}, archived: map[string][]contract.HybridRecord{}}
 	var snapshot contract.SettingsSnapshot
 	if err := client.Do(ctx, http.MethodGet, "/api/settings", nil, &snapshot); err != nil {
 		return h, err
@@ -50,20 +51,40 @@ func loadHome(ctx context.Context, client *localclient.Client) (home, error) {
 		return h, err
 	}
 	for _, s := range sessions {
-		if s.Workspace != nil {
-			h.sessions[s.Workspace.WorktreeID]++
+		// Closed or interrupted hybrid shells show as archived records only.
+		if s.Workspace != nil && (s.Hybrid == nil || s.Hybrid.State == "active") {
+			h.sessions[s.Workspace.WorktreeID] = append(h.sessions[s.Workspace.WorktreeID], s)
 		}
 	}
 	var records []contract.HybridRecord
 	// Without hybrid sessions there are no archived records to count.
-	if err := client.Do(ctx, http.MethodGet, "/api/hybrid-sessions", nil, &records); err == nil {
-		for _, r := range records {
-			if r.State != "active" && r.Workspace != nil {
-				h.archived[r.Workspace.WorktreeID]++
-			}
+	if err := client.Do(ctx, http.MethodGet, "/api/hybrid-sessions", nil, &records); err != nil || len(records) == 0 {
+		return h, nil
+	}
+	var repositories []contract.Repository
+	if err := client.Do(ctx, http.MethodGet, "/api/repositories", nil, &repositories); err != nil {
+		return h, err
+	}
+	for _, r := range records {
+		if r.State == "active" {
+			continue
+		}
+		if id, ok := recordWorktree(r, repositories); ok {
+			h.archived[id] = append(h.archived[id], r)
 		}
 	}
 	return h, nil
+}
+
+// recordWorktree is the web's recordWorktree: the recorded worktree wins; a
+// record written before associations were recorded joins the registered
+// worktree with the longest path containing its cwd.
+func recordWorktree(r contract.HybridRecord, repositories []contract.Repository) (string, bool) {
+	if r.Workspace != nil {
+		return r.Workspace.WorktreeID, true
+	}
+	_, tree, ok := findWorktree(repositories, r.Cwd)
+	return tree.ID, ok
 }
 
 // pinned is the web's pinnedIds: the curated list, or the main worktree.
@@ -82,7 +103,7 @@ func (h home) status(repo contract.Repository, tree contract.Worktree) string {
 	switch {
 	case slices.Contains(list, tree.ID):
 		return homePinned
-	case h.sessions[tree.ID] > 0 || h.archived[tree.ID] > 0:
+	case len(h.sessions[tree.ID]) > 0 || len(h.archived[tree.ID]) > 0:
 		return homeSessions
 	}
 	return homeHidden
@@ -103,7 +124,7 @@ type repositoryView struct {
 func (h home) view(repo contract.Repository) repositoryView {
 	v := repositoryView{Repository: repo, Worktrees: make([]worktreeView, 0, len(repo.Worktrees))}
 	for _, t := range repo.Worktrees {
-		v.Worktrees = append(v.Worktrees, worktreeView{Worktree: t, Home: h.status(repo, t), Sessions: h.sessions[t.ID]})
+		v.Worktrees = append(v.Worktrees, worktreeView{Worktree: t, Home: h.status(repo, t), Sessions: len(h.sessions[t.ID])})
 	}
 	return v
 }
@@ -286,25 +307,8 @@ var worktreeShowCommand = &Command{
 			if err != nil {
 				return e.Fail(err)
 			}
-			var all []contract.SessionInfo
-			if err := client.Do(ctx, http.MethodGet, "/api/sessions", nil, &all); err != nil {
-				return e.Fail(err)
-			}
-			sessions := []contract.SessionInfo{}
-			for _, s := range all {
-				if s.Workspace != nil && s.Workspace.WorktreeID == tree.ID {
-					sessions = append(sessions, s)
-				}
-			}
-			var records []contract.HybridRecord
-			archived := []contract.HybridRecord{}
-			if client.Do(ctx, http.MethodGet, "/api/hybrid-sessions", nil, &records) == nil {
-				for _, r := range records {
-					if r.State != "active" && r.Workspace != nil && r.Workspace.WorktreeID == tree.ID {
-						archived = append(archived, r)
-					}
-				}
-			}
+			sessions := append([]contract.SessionInfo{}, h.sessions[tree.ID]...)
+			archived := append([]contract.HybridRecord{}, h.archived[tree.ID]...)
 			view := worktreeView{Worktree: tree, Home: h.status(repo, tree), Sessions: len(sessions)}
 			if *asJSON {
 				writeJSON(e.Stdout, map[string]any{"worktree": view, "sessions": sessions, "archived": archived})
@@ -443,12 +447,12 @@ var worktreeRemoveCommand = &Command{
 				return e.Fail(err)
 			}
 			e.printRemovalPreview(preview)
-			if len(preview.Blockers) > 0 && !*force {
-				_, _ = fmt.Fprintln(e.Stderr, "webmux: not removed; repeat with --force to close the sessions and remove it anyway")
+			if (*force || len(preview.Blockers) > 0) && !preview.ForceAllowed {
+				_, _ = fmt.Fprintln(e.Stderr, "webmux: this worktree cannot be removed, even with --force")
 				return contract.ExitError
 			}
-			if *force && !preview.ForceAllowed {
-				_, _ = fmt.Fprintln(e.Stderr, "webmux: this worktree cannot be removed, even with --force")
+			if len(preview.Blockers) > 0 && !*force {
+				_, _ = fmt.Fprintln(e.Stderr, "webmux: not removed; repeat with --force to close the sessions and remove it anyway")
 				return contract.ExitError
 			}
 			if !*yes {
@@ -531,7 +535,7 @@ func pinCommand(name string, pinned bool, summary string, examples []Example) *C
 				if !pinned {
 					if h, err := loadHome(ctx, client); err == nil {
 						for _, id := range ids {
-							if h.sessions[id] > 0 || h.archived[id] > 0 {
+							if len(h.sessions[id]) > 0 || len(h.archived[id]) > 0 {
 								_, _ = fmt.Fprintf(e.Stderr, "webmux: %s stays on the home page while it has sessions or archived chat records\n", id)
 							}
 						}
