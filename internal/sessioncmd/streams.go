@@ -387,10 +387,12 @@ type turnResult struct {
 	Request *contract.ChatRequest `json:"request,omitempty"`
 }
 
-// turnWatch selects the turn turnWait tracks: the turn already running as
-// current, or else the first whose turn.start passes accept. gone, when
-// set, ends the wait with its error once a state frame shows the turn can
-// no longer start (a queued prompt was removed).
+// turnWatch selects the turn turnWait tracks: the first whose turn.start
+// passes accept. current names a turn already running: when its turn.start
+// is not in the replayed history (the log dropped it), it is adopted once
+// the replay is over. gone, when set, ends the wait with its error once a
+// state frame shows the turn can no longer start (a queued prompt was
+// removed).
 type turnWatch struct {
 	current       string
 	accept        func(contract.ChatTurnStart) bool
@@ -402,9 +404,17 @@ type turnWatch struct {
 // until a request opens when stopAtRequest.
 func (c *chatStream) turnWait(ctx context.Context, w turnWatch) (turnResult, error) {
 	var result turnResult
-	turn := w.current
+	turn := ""
+	accept := w.accept
+	if w.current != "" {
+		accept = func(t contract.ChatTurnStart) bool { return t.TurnID == w.current }
+	}
 	messages := map[string]*strings.Builder{}
 	var order []string
+	// Requests of the tracked turn still open; a replayed request that was
+	// already answered is closed again within the same history.
+	open := map[string]contract.ChatRequest{}
+	var opened []string
 	for {
 		frame, err := c.read(ctx)
 		if err != nil {
@@ -420,7 +430,7 @@ func (c *chatStream) turnWait(ctx context.Context, w turnWatch) (turnResult, err
 		}
 		for _, ev := range frame.Items {
 			if turn == "" {
-				if ev.Kind == contract.ChatEventTurnStart && ev.TurnStart != nil && w.accept(*ev.TurnStart) {
+				if ev.Kind == contract.ChatEventTurnStart && ev.TurnStart != nil && accept(*ev.TurnStart) {
 					turn = ev.TurnStart.TurnID
 					result.Events = append(result.Events, ev)
 				}
@@ -439,10 +449,13 @@ func (c *chatStream) turnWait(ctx context.Context, w turnWatch) (turnResult, err
 					b.WriteString(ev.Message.Text)
 				}
 			case contract.ChatEventRequest:
-				if w.stopAtRequest && ev.Request != nil {
-					result.Request = ev.Request
-					result.Reply = lastReply(messages, order)
-					return result, nil
+				if ev.Request != nil {
+					open[ev.Request.RequestID] = *ev.Request
+					opened = append(opened, ev.Request.RequestID)
+				}
+			case contract.ChatEventResolved:
+				if ev.Resolved != nil {
+					delete(open, ev.Resolved.RequestID)
 				}
 			case contract.ChatEventTurnEnd:
 				if ev.TurnEnd != nil && ev.TurnEnd.TurnID == turn {
@@ -452,6 +465,22 @@ func (c *chatStream) turnWait(ctx context.Context, w turnWatch) (turnResult, err
 					return result, nil
 				}
 			}
+		}
+		// A request still open once the whole frame is read waits for an
+		// answer.
+		if w.stopAtRequest {
+			for _, id := range opened {
+				if request, ok := open[id]; ok {
+					result.Request = &request
+					result.Reply = lastReply(messages, order)
+					return result, nil
+				}
+			}
+		}
+		// The replay is the events frame right after the snapshot; a running
+		// turn whose start it no longer holds is followed from here.
+		if turn == "" && w.current != "" && frame.Type == contract.ChatFrameEvents {
+			turn = w.current
 		}
 	}
 }
