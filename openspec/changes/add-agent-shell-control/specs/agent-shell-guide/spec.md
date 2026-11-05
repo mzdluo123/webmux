@@ -1,5 +1,9 @@
 # Spec Delta
 
+## Purpose
+
+让脚本和 agent 按 llms.txt 约定，从正在运行的 WebMux 读取与当前版本一致的 shell 工具手册，并通过 `{{webmux}}` 在快捷指令与初始化指令中得到指向手册的简短说明，而不必把说明写进临时文件夹。
+
 ## ADDED Requirements
 
 ### Requirement: llms.txt 形式的 shell 工具手册
@@ -41,7 +45,8 @@
 
 ### Requirement: 手册的访问边界
 
-手册是静态说明文档，SHALL NOT 包含 Token、访问地址、主机名、文件路径、会话或仓库信息。
+手册是静态说明文档。所有监听器上共用的手册正文 SHALL NOT 包含 Token、访问地址、主机名、文件路径、会话或仓库信息；
+只有本机套接字附加的“本实例”信息可以包含下文列出的版本与两个绝对路径，且 SHALL NOT 包含 Token。
 
 - 在 TCP 监听器上，`/llms.txt`、`/llms-full.txt`、`/llms/*` SHALL 与静态页面一样不要求 Token，但仍受 Host 检查约束。
   这一层的内容 SHALL NOT 包含服务版本。
