@@ -68,7 +68,7 @@
 
 - 前端加载 `GET …/branches`，取值与现有新建工作树弹窗（`WorktreeCreateFields`）一致：
   - 基准分支选择器默认显示 `DefaultBranch`（主工作区当前分支名），请求中的 `base` 发送 `DefaultBase`（该分支的 HEAD 提交）。
-  - 改选其他基准时显示 `Bases[].name` 去掉 `refs/heads/` 或 `refs/remotes/` 前缀后的名称，发送对应的 `head`。
+  - 可选的基准与弹窗的“起始分支”相同，只列本地分支 `Branches[]`：显示 `name`，发送对应的 `head`。远程引用不提供。
   - 分支名用现有 `suggestWorktreeBranch` 生成（形如 `wt/<adjective>-<noun>`）后放进请求。这样分支命名只有一个实现。
 - 服务端用 `DefaultParent/<分支名最后一段>` 推导路径，与弹窗的路径规则相同（`wt/brisk-otter` → `webmux.worktrees/brisk-otter`），沿用 `CreateWorktree` 的分支校验。
 - 分支名或路径冲突时返回 `step: "worktree"` 的冲突错误；前端重新生成分支名，用新请求 ID 再发送。
