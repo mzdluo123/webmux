@@ -132,6 +132,15 @@ func TestRaiseAttentionOnTheChatSide(t *testing.T) {
 	if got := s.Info(); got.Attention != nil || got.Status != StatusRunning {
 		t.Fatalf("a running turn kept cli attention: %+v %s", got.Attention, got.Status)
 	}
+	// A move to the other side drops it, and it does not come back.
+	if _, err := m.RaiseAttention(id, attentionkind.Done, "old"); err != nil {
+		t.Fatal(err)
+	}
+	s.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "tui", State: "active"}})
+	s.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp", State: "active"}, Status: StatusIdle})
+	if got := s.Info().Attention; got != nil {
+		t.Fatalf("cli attention survived a side change: %+v", got)
+	}
 	if _, err := m.RaiseAttention(id, attentionkind.Done, ""); err != nil {
 		t.Fatal(err)
 	}
