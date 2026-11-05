@@ -562,6 +562,59 @@ test.describe("hybrid sessions with the fake agent", () => {
     await expect(conversation(page)).not.toContainText("/resume");
   });
 
+  test("an idle chat side keeps the same agent process alive until explicitly archived", async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    const store = join(workDir, "idle-alive-store");
+    await mkdir(store);
+    const id = await createHybrid(request, workDir, "acp", {
+      env: { FAKEAGENT_STORE: store },
+    });
+    await openHybrid(page, id, "acp");
+    await chatTurn(page, "before-idle");
+
+    const eventsPath = join(store, "events.log");
+    const openPids = async () =>
+      (await readFile(eventsPath, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => line.split(" "))
+        .filter((parts) => parts[2] === "acp" && parts[3] === "open")
+        .map((parts) => Number(parts[1]));
+    const pidAlive = (pid: number) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const pids = await openPids();
+    expect(pids).toHaveLength(1);
+    const pid = pids[0]!;
+    expect(pidAlive(pid)).toBe(true);
+
+    await delay(1500);
+    expect(pidAlive(pid)).toBe(true);
+    const info = await (await request.get(`/api/sessions/${id}`)).json();
+    expect(info.status).not.toBe("exited");
+    expect(info.hybrid).toMatchObject({ side: "acp" });
+    expect(info.hybrid.dormant).toBeUndefined();
+
+    await chatTurn(page, "after-idle");
+    expect(await openPids()).toEqual([pid]);
+    expect(await readFile(eventsPath, "utf8")).not.toContain(
+      "call session/close",
+    );
+
+    expect((await request.delete(`/api/sessions/${id}`)).status()).toBe(204);
+    await expect.poll(() => pidAlive(pid)).toBe(false);
+    expect(await readFile(eventsPath, "utf8")).toContain("call session/close");
+  });
+
   test("an unnamed chat session takes its title from the first prompt, then from the agent", async ({
     page,
     request,

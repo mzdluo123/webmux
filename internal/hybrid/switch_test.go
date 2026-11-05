@@ -936,3 +936,47 @@ func TestCloseInterruptsTerminalTurn(t *testing.T) {
 		t.Fatalf("record %+v", rec)
 	}
 }
+
+// TestChatSideStaysAliveWhileIdleUntilArchived verifies that an idle chat-side
+// hybrid session keeps the same ACP agent process running until the session is
+// explicitly archived (closed).
+func TestChatSideStaysAliveWhileIdleUntilArchived(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	s := h.create(h.input(omp.Name, SideACP))
+	id := s.Info().ID
+	chatTurn(t, h, id, "before-idle")
+	pid := h.record(id).PID
+	if pid <= 0 {
+		t.Fatalf("missing ACP pid in record %+v", h.record(id))
+	}
+	if err := syscall.Kill(pid, 0); err != nil {
+		t.Fatalf("agent pid %d not alive: %v", pid, err)
+	}
+
+	time.Sleep(150 * time.Millisecond)
+	if got := countCalls(t, h.store, acp.MethodSessionClose); got != 0 {
+		t.Fatalf("idle chat session called session/close %d times", got)
+	}
+	if rec := h.record(id); rec.State != StateActive || rec.Side != SideACP || rec.PID != pid {
+		t.Fatalf("record changed while idle: %+v (want pid %d)", rec, pid)
+	}
+	chatTurn(t, h, id, "after-idle")
+	if got := countCalls(t, h.store, acp.MethodInitialize); got != 1 {
+		t.Fatalf("initialize ran %d times across idle period, want 1", got)
+	}
+	if h.record(id).PID != pid {
+		t.Fatalf("agent pid changed from %d to %d", pid, h.record(id).PID)
+	}
+
+	h.closeSession(id)
+	if rec := h.record(id); rec.State != StateClosed || rec.PID != 0 {
+		t.Fatalf("record after archive %+v", rec)
+	}
+	if got := countCalls(t, h.store, acp.MethodSessionClose); got != 1 {
+		t.Fatalf("session/close ran %d times on archive, want 1", got)
+	}
+	waitFor(t, "archived ACP process exit", func() bool {
+		return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH)
+	})
+}
