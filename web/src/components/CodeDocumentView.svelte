@@ -318,17 +318,24 @@
   const indents = ["", "ps-3", "ps-6", "ps-9", "ps-12", "ps-15"];
   // Runs after the resets above, so a file opened by the link stays in
   // preview; the request is consumed even when the file is not Markdown.
+  // Leaving a comparison resets the view in the next flush, so the preview
+  // is shown only after that reset has run.
   $effect(() => {
     const request = heading;
     if (!request) return;
     untrack(() => {
       onHeading?.();
+      const leaving = !!shownDiff && !diff;
       mode = "file";
       const current = file?.document;
       if (!current || current.kind !== "text") return;
       if (previewFormat(current.path) !== "markdown") return;
-      showFormat("preview");
-      void tick().then(() => markdownPreview?.scrollToHeading(request.slug));
+      const reveal = () => {
+        showFormat("preview");
+        void tick().then(() => markdownPreview?.scrollToHeading(request.slug));
+      };
+      if (leaving) void tick().then(reveal);
+      else reveal();
     });
   });
   $effect(() => {

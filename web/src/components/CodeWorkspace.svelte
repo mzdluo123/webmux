@@ -866,7 +866,7 @@
     const target = host.reveal;
     const current = context;
     if (!target || target.key === revealed) return;
-    // Revealed paths resolve against the workspace first.
+    // Revealed paths resolve in the workspace root before the artifacts one.
     if (untrack(() => root) !== "workspace") {
       untrack(() => switchRoot("workspace"));
       return;
@@ -875,6 +875,10 @@
     revealed = target.key;
     untrack(() => void showReveal(target));
   });
+  // Candidate order: a relative path resolves against the session's current
+  // directory first (where the agent runs, so where its paths are written
+  // from), then the repository root. A same-named file under the current
+  // directory therefore wins over the repository-root one.
   function revealCandidates(origin: CodeContext, target: CodeReveal) {
     const rootPrefix = origin.rootPath.replace(/\/+$/, "");
     const list: { path: string; raw?: boolean }[] = [{ path: target.path }];

@@ -663,6 +663,8 @@ test("revealing a file location opens file mode, selects its line range and reso
       downloadable: true,
     },
   });
+  // Once set, the cwd has its own src/app.ts shadowing the repo-root one.
+  let shadowed = false;
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async (input, init) => {
@@ -708,6 +710,17 @@ test("revealing a file location opens file mode, selects its line range and reso
             name: "file-3.txt",
             kind: "file",
             gitStatus: "M",
+            ignored: false,
+            referenceable: true,
+            mediaType: "",
+          });
+        if (requested === "src/app.ts" && shadowed)
+          return Response.json({
+            nodeId: btoa("sub/src/app.ts"),
+            path: "sub/src/app.ts",
+            name: "app.ts",
+            kind: "file",
+            gitStatus: "",
             ignored: false,
             referenceable: true,
             mediaType: "",
@@ -769,6 +782,15 @@ test("revealing a file location opens file mode, selects its line range and reso
   await expect
     .element(
       page.getByRole("tab", { name: "literal:1 · worktree", exact: true }),
+    )
+    .toHaveAttribute("aria-selected", "true");
+
+  // A same-named file under the cwd wins over the repo-root one.
+  shadowed = true;
+  await page.getByRole("button", { name: "Reveal repo relative" }).click();
+  await expect
+    .element(
+      page.getByRole("tab", { name: "sub/src/app.ts · worktree", exact: true }),
     )
     .toHaveAttribute("aria-selected", "true");
 });
