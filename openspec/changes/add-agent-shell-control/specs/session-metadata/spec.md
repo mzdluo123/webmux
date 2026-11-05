@@ -1,5 +1,9 @@
 # Spec Delta
 
+## Purpose
+
+让脚本和 agent 一次取得会话的完整背景（仓库、worktree、启动配置、混合状态、链接、父子会话与标签），并能记录由谁创建、按标签分组，用来编排多个会话。
+
 ## ADDED Requirements
 
 ### Requirement: 会话详情接口
