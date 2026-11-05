@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"github.com/rainchan/webmux/internal/contract"
@@ -63,7 +62,7 @@ func sessionEnv(stdout, stderr io.Writer) sessioncmd.Env {
 // back could reach another instance and act on the wrong sessions.
 func connectLocal(socket, configPath string, configExplicit bool, getenv func(string) string) (*localclient.Client, error) {
 	if socket != "" && configExplicit {
-		return nil, errors.New("--socket and --config cannot be combined")
+		return nil, sessioncmd.UsageError("--socket and --config cannot be combined")
 	}
 	if socket != "" {
 		return localclient.New(localclient.UnixDialer{Path: socket}), nil
