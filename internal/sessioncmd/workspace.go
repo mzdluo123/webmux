@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"path"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -25,13 +24,15 @@ func repositories(ctx context.Context, client *localclient.Client) ([]contract.R
 	return list, err
 }
 
-// within reports whether dir is root or below it.
+// within reports whether dir is root or below it. Both are server paths,
+// which are POSIX paths whatever the client's OS (the Windows client talks
+// to a server in WSL).
 func within(root, dir string) bool {
 	if root == "" || dir == "" {
 		return false
 	}
-	rel, err := filepath.Rel(root, dir)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
+	root, dir = path.Clean(root), path.Clean(dir)
+	return dir == root || root == "/" || strings.HasPrefix(dir, root+"/")
 }
 
 // findWorktree returns the registered worktree that contains dir, the
@@ -88,7 +89,7 @@ func (e Env) resolveRepository(ctx context.Context, list []contract.Repository, 
 
 // resolveWorktree maps --worktree REPO:WORKTREE or a worktree path.
 func (e Env) resolveWorktree(ctx context.Context, list []contract.Repository, arg string) (contract.Repository, contract.Worktree, error) {
-	if repoArg, treeArg, ok := strings.Cut(arg, ":"); ok && !strings.Contains(repoArg, "/") {
+	if repoArg, treeArg, ok := strings.Cut(arg, ":"); ok && !strings.Contains(repoArg, "/") && !isDriveLetter(repoArg) {
 		repo, err := e.resolveRepository(ctx, list, repoArg)
 		if err != nil {
 			return contract.Repository{}, contract.Worktree{}, err
@@ -123,14 +124,20 @@ func (e Env) localPath(ctx context.Context, arg string) (string, error) {
 			dir = home + rest
 		}
 	}
-	return filepath.Clean(dir), nil
+	return path.Clean(dir), nil
+}
+
+// isDriveLetter reports a Windows drive prefix such as C, so C:\src is a
+// path rather than REPO:WORKTREE.
+func isDriveLetter(s string) bool {
+	return len(s) == 1 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z')
 }
 
 // defaultWorktreePath is where quick start puts a new branch's worktree:
 // beside the repository in <name>.worktrees/<branch leaf>.
 func defaultWorktreePath(repo contract.Repository, branch string) string {
-	anchor := filepath.Clean(repo.AnchorPath)
-	return filepath.Join(filepath.Dir(anchor), filepath.Base(anchor)+".worktrees", path.Base(branch))
+	anchor := path.Clean(repo.AnchorPath)
+	return path.Join(path.Dir(anchor), path.Base(anchor)+".worktrees", path.Base(branch))
 }
 
 // pinWorktrees adds (or with pinned false removes) worktrees from the home
