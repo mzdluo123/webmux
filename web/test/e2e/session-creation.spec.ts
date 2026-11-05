@@ -37,6 +37,8 @@ async function register(request: APIRequestContext, path: string) {
 // Picks a home view in the workbench tree (sidebar or phone drawer).
 async function selectScope(page: Page, id: string) {
   const tree = page.getByRole("tree", { name: "仓库与会话" });
+  const open = page.getByRole("button", { name: "打开侧栏" });
+  await expect(tree.or(open).first()).toBeVisible();
   if (!(await tree.isVisible()))
     await page.getByRole("button", { name: "打开侧栏" }).click();
   const key = id === "all" || id === "direct" ? id : `r:${id}`;

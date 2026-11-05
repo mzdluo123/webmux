@@ -330,10 +330,10 @@
 
 {#snippet counts(node: TreeNode)}
   {#if node.waiting}<span
-      class="shrink-0 text-xs text-warning"
+      class="w-12 shrink-0 truncate text-right text-xs text-warning"
       title={`${node.waiting} 个会话在等待`}>{node.waiting} 等待</span
     >{:else if node.count}<span
-      class="shrink-0 text-xs text-muted-foreground tabular-nums"
+      class="w-12 shrink-0 text-right text-xs text-muted-foreground tabular-nums"
       >{node.count}</span
     >{/if}
 {/snippet}

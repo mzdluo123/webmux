@@ -12,6 +12,7 @@
   };
 </script>
 
-<span class={`shrink-0 text-xs font-normal ${tones[status]}`}
+<!-- A fixed width keeps the row still when the state text changes. -->
+<span class={`w-10 shrink-0 text-right text-xs font-normal ${tones[status]}`}
   >{rowStatusLabels[status]}</span
 >

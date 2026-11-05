@@ -10,8 +10,9 @@ const exec = promisify(execFile);
 // The workbench tree: in the sidebar on desktop, in the drawer on phones.
 async function openNavigation(page: Page) {
   const tree = page.getByRole("tree", { name: "仓库与会话" });
-  if (!(await tree.isVisible()))
-    await page.getByRole("button", { name: "打开侧栏" }).click();
+  const open = page.getByRole("button", { name: "打开侧栏" });
+  await expect(tree.or(open).first()).toBeVisible();
+  if (!(await tree.isVisible())) await open.click();
   await expect(tree).toBeVisible();
   return tree;
 }

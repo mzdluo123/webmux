@@ -91,6 +91,10 @@ const key = Symbol("shell");
 export function setShell(shell: Shell) {
   setContext(key, shell);
 }
+/** The shell, or undefined for a page rendered outside it (pop-outs, tests). */
+export function findShell(): Shell | undefined {
+  return getContext<Shell | undefined>(key);
+}
 export function getShell(): Shell {
   const shell = getContext<Shell | undefined>(key);
   if (!shell) throw new Error("页面必须位于应用外壳中");

@@ -1,6 +1,6 @@
 <script lang="ts">
   import SidebarButton from "./SidebarButton.svelte";
-  import { shellUi } from "../shell.svelte";
+  import { findShell, shellUi } from "../shell.svelte";
   import type { Snippet } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconArrowDown from "~icons/tabler/arrow-down";
@@ -95,6 +95,15 @@
     hybrid?: HeaderHybrid;
     paneActions?: Snippet<[boolean]>;
   } = $props();
+  // A rename reaches the session list first; the list title wins here so
+  // the header follows it on either side.
+  const shell = findShell();
+  const title = $derived(
+    shell?.sessions.sessions.find((session) => session.id === t.info?.id)
+      ?.title ||
+      t.info?.title ||
+      "终端",
+  );
   let fileInput = $state<{ open(): void }>();
   let openingFind = false;
   let shortcutsOpen = $state(false);
@@ -162,7 +171,7 @@
       >{/if}
     <div class="relative flex min-w-0 flex-col sm:order-1">
       <span class="h-5 min-w-0 truncate text-sm leading-5 font-medium"
-        >{t.info?.title || "终端"}</span
+        >{title}</span
       >
       <!-- Overlaid under the title, so a status change never moves it. -->
       {#if !t.info || t.connection !== "connected"}<span

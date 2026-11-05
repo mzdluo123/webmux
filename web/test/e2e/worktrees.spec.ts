@@ -370,6 +370,8 @@ test("multiple repositories keep every session visible through local failure, co
   }
   await page.goto("/");
   const tree = page.getByRole("tree", { name: "仓库与会话" });
+  const open = page.getByRole("button", { name: "打开侧栏" });
+  await expect(tree.or(open).first()).toBeVisible();
   if (!(await tree.isVisible()))
     await page.getByRole("button", { name: "打开侧栏" }).click();
   await tree.locator('[data-tree-key="all"]').click();

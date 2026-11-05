@@ -159,7 +159,7 @@ test.describe("desktop sidebar", () => {
     await page.getByRole("button", { name: "工作台模式" }).click();
     await expect(page).toHaveURL(new RegExp(`/s/${agent}$`));
     await tree(page)
-      .getByRole("treeitem", { name: /^tree-repo/ })
+      .getByRole("treeitem", { name: /^tree-repo，/ })
       .hover();
     await tree(page)
       .getByRole("button", { name: "在 tree-repo 新建工作树" })
