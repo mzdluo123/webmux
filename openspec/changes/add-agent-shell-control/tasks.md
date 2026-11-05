@@ -4,8 +4,7 @@
 
 - [ ] 1.1 在 `sessionEnvWithVersion` 中注入 `WEBMUX_SOCKET` 与 `WEBMUX_BIN`，PTY 与辅助进程（ACP）共用；两者加入 `contract.ServerOwnedEnv`、
   会话 `env` 校验与启动配置校验。用 `go test -race ./internal/session ./internal/launch ./internal/contract` 覆盖注入、聊天端可见、400 拒绝、`run` 继承时跳过。
-- [ ] 1.2 `WEBMUX_BIN` 解析：`internal/config` 新增 `cli_path`（校验存在且可执行），`cmd/webmux` 在启动时按 `cli_path` → `os.Executable` 解析，
-  处理符号链接与 ` (deleted)` 后缀，无效时不注入并警告。状态契约新增 `bin`。
+- [ ] 1.2 `cmd/webmux` 在启动时取 `os.Executable()` 作为 `WEBMUX_BIN` 传给会话选项，出错时不注入并警告；状态契约新增 `bin`。
 - [ ] 1.2a `cmd/webmux/sessions.go` 与 Windows 客户端的 `Env.Connect` 按“`--socket` → `--config` → `WEBMUX_SOCKET` → 默认配置”定位，
   指定的套接字失效时返回 `ErrNotRunning` 而不回退；新增接口 404 时报告版本过旧。测试覆盖四种来源、互斥与不回退。
 - [ ] 1.3 `sessioncmd` 增加 `self` 解析、`contract.ExitTimeout = 4`，以及共用的 `--json`/NDJSON 输出辅助函数。

@@ -19,15 +19,12 @@
 - 它们 SHALL NOT 出现在会话信息中。
 - 服务端 SHALL NOT 为此修改会话的 `PATH`。
 
-`WEBMUX_BIN` 的解析在服务启动时完成一次，结果保存在内存中：
+`WEBMUX_BIN` SHALL 是服务进程自身的可执行文件路径，即服务启动时 `os.Executable()` 的结果，原样保存在内存中，不另做配置或改写。
+`os.Executable()` 返回错误时 SHALL NOT 设置该变量，并记录一条警告日志。
 
-1. 配置项 `cli_path` 非空时，使用它：展开 `~`，转为绝对路径；
-2. 否则使用服务自身可执行文件的路径（`os.Executable`），解析符号链接，并去掉 Linux 上替换文件后出现的 ` (deleted)` 后缀；
-3. 得到的路径 SHALL 是存在、可执行的普通文件，否则不设置变量，并记录一条警告日志。日志说明原因，并提示可以设置 `cli_path`。
-
-`cli_path` 用于以下情形：服务由 `go run`、临时构建目录或包装脚本启动，自身路径对会话没有意义。
-配置校验 SHALL 拒绝指向不存在或不可执行文件的 `cli_path`。
-软件包原地升级后，同一路径指向新版本的可执行文件，变量 SHALL 继续有效。
+- 会话里执行的就是正在运行的服务端那一个文件，CLI 与服务端因此版本一致。
+- 软件包原地升级后，同一路径指向新版本的文件，变量 SHALL 继续有效。
+- 以 `go run` 启动时，该路径是 Go 构建出的临时可执行文件；它在服务运行期间一直存在，变量同样有效。
 
 #### Scenario: PATH 中没有 webmux
 
@@ -41,8 +38,8 @@
 
 #### Scenario: 开发构建
 
-- **WHEN** 服务由 `go run ./cmd/webmux` 启动，配置了 `cli_path = "~/src/webmux/bin/webmux"`
-- **THEN** 会话中 `WEBMUX_BIN` 是 `cli_path` 展开后的绝对路径，而不是 Go 构建缓存中的临时文件
+- **WHEN** 服务由 `go run ./cmd/webmux` 启动
+- **THEN** 会话中的 `WEBMUX_BIN` 是 Go 构建出的临时可执行文件，`"$WEBMUX_BIN" ls` 在服务运行期间可用
 
 #### Scenario: 请求覆盖被拒绝
 

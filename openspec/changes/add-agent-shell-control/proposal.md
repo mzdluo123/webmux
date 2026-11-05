@@ -29,7 +29,7 @@
   - `webmux dir`：输出会话临时文件夹的路径（按需创建）。
 - **P0 发现与身份**：
   - 每个会话（包括聊天端的 ACP agent）注入服务端自有变量 `WEBMUX_SOCKET`（本机 API 套接字路径）与 `WEBMUX_BIN`（可执行文件绝对路径），不修改 `PATH`；
-  - `WEBMUX_BIN` 取自配置项 `cli_path`，否则取自服务自身的可执行文件，校验后再注入；
+  - `WEBMUX_BIN` 就是服务进程自身的可执行文件（`os.Executable()`）；
   - CLI 定位顺序：`--socket`，然后 `--config`，然后 `WEBMUX_SOCKET`，最后默认配置；
   - 所有接受会话 ID 的命令都接受 `self`，表示 `$WEBMUX_SESSION_ID`；
   - 新增退出码 4 表示等待超时。
@@ -89,7 +89,7 @@
   - `internal/session` 支持外部提醒；
   - `internal/api` 新增 `/llms.txt`、`/llms-full.txt`、`/llms/{topic}.md`，以及 `POST /api/sessions/{id}/agent-guide`、`GET /api/sessions/{id}/details`、
     `PATCH /api/sessions/{id}/labels`、`POST /api/sessions/{id}/attention`；
-  - `cmd/webmux` 解析 `WEBMUX_BIN`，与 `WEBMUX_SOCKET` 一起注入会话选项，并注册新子命令；`internal/config` 新增 `cli_path`。
+  - `cmd/webmux` 取 `os.Executable()` 作为 `WEBMUX_BIN`，与 `WEBMUX_SOCKET` 一起注入会话选项，并注册新子命令。
 - 接口：`internal/contract`、`internal/wire`、`web/src/schemas.ts` 新增 `AgentGuidePrompt`、`SessionDetails`、`LabelsUpdate`、`AttentionRequest`；
   `SessionInfo` 新增 `parentId`、`labels`，`CreateSessionRequest` 新增 `labels`，`AttentionSource` 新增 `cli`；重新录制 `internal/api/testdata/wire`。
 - 前端：`quickCommands.ts` 把 `{{webmux}}` 当作内置变量；`SessionTerminal` 与聊天草稿在插入前调用手册接口；
