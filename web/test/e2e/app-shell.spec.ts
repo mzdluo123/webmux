@@ -305,3 +305,73 @@ test.describe("phone drawer", () => {
       await expect(page).toHaveURL(/\/$/);
     });
 });
+
+// Required guard: at every width, on the home page, with either stored
+// collapse state, the sidebar (full or rail) or its open button is reachable.
+test.describe("sidebar is always reachable", () => {
+  for (const collapsed of ["false", "true"])
+    test(`a sidebar or its open button is visible at every width (collapsed=${collapsed})`, async ({
+      page,
+    }) => {
+      await page.addInitScript((value) => {
+        localStorage.setItem("webmux.sidebarCollapsed", value);
+      }, collapsed);
+      await page.goto("/");
+      for (const width of [320, 390, 639, 640, 768, 1023, 1024, 1280]) {
+        await page.setViewportSize({ width, height: 800 });
+        const reachable = page
+          .getByRole("complementary", { name: "侧栏" })
+          .or(page.getByRole("navigation", { name: "窄栏导航" }))
+          .or(page.getByRole("button", { name: "打开侧栏" }));
+        await expect(
+          reachable.first(),
+          `no sidebar or open button at ${width}px`,
+        ).toBeVisible();
+        // Page content never hides under a sidebar that is not shown.
+        const pad = await page.evaluate(() => {
+          const main = document.querySelector(".app-shell-main");
+          return main ? parseFloat(getComputedStyle(main).paddingLeft) : 0;
+        });
+        if (width < 640) expect(pad, `padding at ${width}px`).toBe(0);
+      }
+    });
+});
+
+// Required guard: the sidebar's top row (collapse button, brand, mode
+// switch) never overlaps, even at the narrowest sidebar and a larger font.
+test.describe("sidebar header never overlaps", () => {
+  for (const fontSize of ["100%", "150%"])
+    test(`collapse button, brand and mode switch stay apart at the narrowest width (font ${fontSize})`, async ({
+      page,
+    }) => {
+      await page.addInitScript(() => {
+        localStorage.setItem("webmux.sidebarCollapsed", "false");
+        localStorage.setItem("webmux.sidebarWidth", "1");
+      });
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto("/");
+      await page.evaluate((size) => {
+        document.documentElement.style.fontSize = size;
+      }, fontSize);
+      const sidebar = page.getByRole("complementary", { name: "侧栏" });
+      const nav = sidebar.getByRole("navigation", { name: "导航" });
+      await expect(nav).toBeVisible();
+      const boxes = [];
+      for (const part of [
+        nav.getByRole("button", { name: "收起侧栏" }),
+        nav.locator(".brand"),
+        nav.getByRole("group", { name: "模式" }),
+      ]) {
+        await expect(part).toBeVisible();
+        boxes.push((await part.boundingBox())!);
+      }
+      for (let i = 0; i < boxes.length - 1; i++)
+        expect(
+          boxes[i].x + boxes[i].width,
+          `part ${i} overlaps part ${i + 1}`,
+        ).toBeLessThanOrEqual(boxes[i + 1].x + 0.5);
+      const side = (await sidebar.boundingBox())!;
+      const last = boxes[2];
+      expect(last.x + last.width).toBeLessThanOrEqual(side.x + side.width);
+    });
+});
