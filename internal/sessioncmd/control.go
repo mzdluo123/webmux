@@ -383,22 +383,28 @@ func (e Env) writeInput(ctx context.Context, client *localclient.Client, info co
 	}
 	defer func() { _ = conn.CloseNow() }()
 	conn.SetReadLimit(64 << 20)
-	if text != "" || o.enter {
-		submit := ""
-		if o.enter {
-			submit = "\r"
-		}
-		header, _ := json.Marshal(contract.SubmissionHeader{ID: clientID, Generation: info.Generation, BodyBytes: len(text)})
-		frame := contract.Frame(contract.FrameSubmit, append(append(header, '\n'), text+submit...))
+	// Text, Enter and every key are acknowledged submissions, so send
+	// returns only once each reached the PTY.
+	submit := func(body, key string) error {
+		id := newRequestID()
+		header, _ := json.Marshal(contract.SubmissionHeader{ID: id, Generation: info.Generation, BodyBytes: len(body)})
+		frame := contract.Frame(contract.FrameSubmit, append(append(header, '\n'), body+key...))
 		if err := conn.Write(ctx, websocket.MessageBinary, frame); err != nil {
 			return err
 		}
-		if err := awaitSubmission(ctx, conn, clientID); err != nil {
+		return awaitSubmission(ctx, conn, id)
+	}
+	if text != "" || o.enter {
+		key := ""
+		if o.enter {
+			key = "\r"
+		}
+		if err := submit(text, key); err != nil {
 			return err
 		}
 	}
 	for _, key := range o.keys {
-		if err := conn.Write(ctx, websocket.MessageBinary, contract.Frame(contract.FrameInput, []byte(namedKeys[key]))); err != nil {
+		if err := submit(namedKeys[key], ""); err != nil {
 			return err
 		}
 	}
