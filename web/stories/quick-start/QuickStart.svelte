@@ -43,14 +43,15 @@
     {
       id: "webmux",
       name: "webmux",
-      bases: ["main", "origin/main", "feat/quick-start-chat"],
+      // Local branches only, as the new-worktree dialog offers.
+      bases: ["main", "feat/quick-start-chat", "wt/brisk-otter"],
       instruction:
         "先阅读 AGENTS.md 和相关 docs/agent-rules，改完运行 make check；用 Conventional Commits 提交并开 draft PR。",
     },
     {
       id: "docs-site",
       name: "docs-site",
-      bases: ["main", "origin/main"],
+      bases: ["main"],
       instruction: "",
     },
     {
