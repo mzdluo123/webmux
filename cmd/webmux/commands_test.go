@@ -274,7 +274,9 @@ func TestGuideCommandReference(t *testing.T) {
 // command in an example pointing at a command this build has.
 func TestHelpReferencesResolve(t *testing.T) {
 	registry := commandRegistry()
-	mention := regexp.MustCompile(`(?:^|[\s(|;&"])webmux((?: [a-z][a-z0-9-]*)+)`)
+	// A mention starts a line or follows a space, an opening bracket, a pipe,
+	// a separator, a quote or a backtick (inline code in the guide pages).
+	mention := regexp.MustCompile(`(?m)(?:^|[\s(|;&"\x60])webmux((?: [a-z][a-z0-9-]*)+)`)
 	check := func(where, words string) {
 		args := strings.Fields(words)
 		c, rest := registry.Find(args)
@@ -301,7 +303,10 @@ func TestHelpReferencesResolve(t *testing.T) {
 		}
 	}
 	// The hand-written guide pages name commands too.
-	pages, _ := filepath.Glob("../../internal/agentguide/llms/*.md")
+	pages, err := filepath.Glob("../../internal/agentguide/llms/*.md")
+	if err != nil || len(pages) < 2 {
+		t.Fatalf("guide pages: %v %v", pages, err)
+	}
 	for _, page := range pages {
 		if filepath.Base(page) == "commands.md" {
 			continue
