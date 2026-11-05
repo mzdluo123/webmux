@@ -548,7 +548,7 @@ Examples:
 
 ## webmux chat new
 
-`webmux chat new [options] [TEXT|-]`
+`webmux chat new [options] TEXT|-`
 
 Quick start from the shell: a new worktree, an agent on its chat side, its settings and the first message.
 
