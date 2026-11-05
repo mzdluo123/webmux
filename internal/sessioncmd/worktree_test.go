@@ -74,6 +74,10 @@ func (s *settingsServer) serve(t *testing.T) Env {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
+	// Pins are pruned against the repository list read on each attempt.
+	mux.HandleFunc("GET /api/repositories", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode([]contract.Repository{homeRepo()})
+	})
 	mux.HandleFunc("GET /api/settings", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -113,8 +117,12 @@ func TestPinReplaysAfterAConflict(t *testing.T) {
 	e := s.serve(t)
 	client, _ := e.Connect()
 	defer client.Close()
+	// The caller's snapshot is stale: the server no longer lists "gone".
 	repo := homeRepo()
 	repo.Worktrees = append(repo.Worktrees, contract.Worktree{ID: "gone"})
+	s.mu.Lock()
+	s.home["r1"] = []string{"main", "gone"}
+	s.mu.Unlock()
 	if err := pinWorktrees(context.Background(), client, repo, []string{"a"}, true); err != nil {
 		t.Fatal(err)
 	}
