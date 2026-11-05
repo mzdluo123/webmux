@@ -21,7 +21,7 @@
   - 不给 `--worktree-path` 时使用与快速开始相同的默认位置；
   - worktree 已创建而会话创建失败时，SHALL 保留 worktree，在标准错误输出其路径并以 1 结束。
   - 新 worktree SHALL 与 Web 端一样加入主页显示，`--no-pin` 时不加入；`--refresh-base` 时先刷新分支基点（规则同 `worktree create`）。
-- `--worktree` 与 `--new-worktree` SHALL 互斥。
+- `--worktree` 与 `--new-worktree` SHALL 互斥。`--new-worktree` 与 `--cwd` SHALL 互斥：会话从新 worktree 的根目录开始，仓库用 `--repo` 选择。
 
 #### Scenario: 在当前 worktree 中自动关联
 
@@ -35,7 +35,7 @@
 
 ### Requirement: run 设置起始端与首条消息
 
-- `--start-side terminal|chat` SHALL 映射为创建请求的 `startSide`。`chat` SHALL 要求所用启动配置开启了混合模式，否则在本地以 2 结束。
+- `--start-side terminal|chat` SHALL 映射为创建请求的 `startSide`。`chat` SHALL 要求所用启动配置开启了混合模式，否则在本地以 2 结束；聊天端没有终端可附着，因此 `chat` SHALL 隐含 `--detach`，与 `--attach` 一起使用时以 2 结束。
 - `--prompt TEXT`（`-` 表示标准输入）SHALL 映射为 `prompt`：聊天端作为首条提示，终端端作为输入并回车。
 - `--init` SHALL 映射为 `useInitInstruction`，要求会话带有工作区关联，否则在本地以 2 结束。
 - 这些选项 SHALL 可以与 `--launch-config` 同用；与自定义命令同用时，`--start-side chat` 与 `--init` SHALL 以 2 结束。
@@ -72,7 +72,7 @@
 - CLI SHALL 以观察者身份连接，SHALL NOT 转发标准输入，SHALL NOT 夺取控制或改变尺寸。
   会话保持服务端默认尺寸（80×24），直到某个浏览器取得控制并调整尺寸；`run --follow` 不新增尺寸字段。
 - 程序结束时，CLI SHALL 以程序的退出码退出。程序被信号终止时，SHALL 按 shell 惯例以 128 加信号编号退出。
-- CLI 收到 SIGINT 或 SIGTERM 时，SHALL 只断开连接并以 130 或 143 退出，SHALL NOT 结束会话进程；标准错误 SHALL 提示会话继续运行，可以用 `webmux logs --follow` 重新跟随。
+- CLI 收到 SIGINT 或 SIGTERM 时，SHALL 只断开连接并以 130 或 143 退出，SHALL NOT 结束会话进程；标准错误 SHALL 提示会话继续运行，可以用 `webmux attach` 重新查看。
   `--kill-on-interrupt` 时，SHALL 先结束会话进程，再按程序的结果退出。
 - 连接意外中断时 SHALL 以 1 退出，并提示会话可能仍在运行、可以用 `webmux attach` 查看；本地套接字上很少断线，本变更不做自动续接。
 - `--follow` 与 `--detach`、`--attach`、`--start-side chat` SHALL 互斥。

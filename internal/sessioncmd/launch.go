@@ -107,7 +107,7 @@ var runCommand = &Command{
 		"env":           {Repeatable: true, Conflicts: []string{"launch-config"}},
 		"label":         {Repeatable: true},
 		"worktree":      {Conflicts: []string{"new-worktree"}},
-		"new-worktree":  {Conflicts: []string{"worktree"}},
+		"new-worktree":  {Conflicts: []string{"worktree", "cwd"}},
 		"base":          {Requires: []string{"new-worktree"}},
 		"init":          {Requires: []string{"launch-config"}},
 		"follow":        {Conflicts: []string{"detach", "attach"}},
@@ -138,7 +138,7 @@ var runCommand = &Command{
 		fs.StringVar(&o.repo, "repo", "", "repository of the new worktree: an ID, a path or . (default: the current directory's)")
 		fs.BoolVar(&o.noPin, "no-pin", false, "do not show the new worktree on the home page")
 		fs.BoolVar(&o.refreshBase, "refresh-base", false, "fetch the base branch's upstream first and start from it")
-		fs.StringVar(&o.startSide, "start-side", "", "start a hybrid launch config on `SIDE`: terminal or chat")
+		fs.StringVar(&o.startSide, "start-side", "", "start a hybrid launch config on `SIDE`: terminal or chat (chat implies --detach)")
 		fs.StringVar(&o.prompt, "prompt", "", "first message `TEXT` (- reads standard input); typed with Enter on the terminal side")
 		fs.BoolVar(&o.init, "init", false, "put the repository's initialization instruction before the first message")
 		fs.BoolVar(&o.detach, "detach", false, "create the session and print its ID and link without attaching")
@@ -176,6 +176,10 @@ func (o *runOptions) validate(argv []string) error {
 		return fmt.Errorf("--start-side is terminal or chat, not %q", o.startSide)
 	case (o.startSide == "chat" || o.init) && !o.launchConfigSet:
 		return errors.New("--start-side chat and --init need --launch-config")
+	case o.newWorktree != "" && o.cwd != "":
+		return errors.New("--cwd cannot be combined with --new-worktree: the session starts at the new worktree's root (pick the repository with --repo)")
+	case o.startSide == "chat" && o.attachMode:
+		return errors.New("--start-side chat cannot be attached; it starts detached")
 	case countTrue(o.detach, o.attachMode, o.follow) > 1:
 		return errors.New("--detach, --attach and --follow cannot be combined")
 	case o.follow && o.startSide == "chat":
@@ -209,8 +213,9 @@ func (e Env) run(ctx context.Context, o runOptions, argv []string) int {
 	if err := o.validate(argv); err != nil {
 		return e.Usagef("%v", err)
 	}
-	// Waiting for a state needs the session detached.
-	if o.wait != "" {
+	// Waiting for a state needs the session detached, and a chat-side
+	// start has no terminal to attach to.
+	if o.wait != "" || o.startSide == "chat" {
 		o.detach = true
 	}
 	if o.prompt == "-" {
@@ -278,13 +283,7 @@ func (e Env) run(ctx context.Context, o runOptions, argv []string) int {
 		}
 		request.Workspace = &contract.WorkspaceReference{RepositoryID: repo.ID, WorktreeID: tree.ID}
 	case o.newWorktree != "":
-		// Without --repo, the repository is the one --cwd (or the current
-		// directory) is in.
-		repoArg := o.repo
-		if repoArg == "" {
-			repoArg = o.cwd
-		}
-		newRepo, err = e.resolveRepository(ctx, repos, repoArg)
+		newRepo, err = e.resolveRepository(ctx, repos, o.repo)
 		if err != nil {
 			return e.locationError(err)
 		}
@@ -409,6 +408,10 @@ func (e Env) printDryRun(request contract.CreateSessionRequest, o runOptions, ne
 			worktreePath = defaultWorktreePath(newRepo, o.newWorktree)
 		}
 		out["worktree"] = map[string]any{"repositoryId": newRepo.ID, "branch": o.newWorktree, "base": o.base, "path": worktreePath, "mode": mode, "pin": !o.noPin}
+		// The real request starts in the worktree created first.
+		request.Cwd = worktreePath
+		request.Workspace = &contract.WorkspaceReference{RepositoryID: newRepo.ID, WorktreeID: "<created first>"}
+		out["request"] = request
 	}
 	writeJSON(e.Stdout, out)
 	return contract.ExitOK
