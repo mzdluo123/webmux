@@ -129,8 +129,9 @@ func TestWorkspaceCommands(t *testing.T) {
 	}
 
 	// Branches and commits.
-	if out, _, code := f.cli(t, "repo", "branches", repo); code != 0 || !strings.Contains(out, "exp/a") || !strings.Contains(out, want) {
-		t.Fatalf("repo branches: %d %q", code, out)
+	if out, stderr, code := f.cli(t, "repo", "branches", repo); code != 0 || !strings.Contains(out, "exp/a") || !strings.Contains(out, want) ||
+		!strings.Contains(stderr, "default branch main") {
+		t.Fatalf("repo branches: %d %q %q", code, out, stderr)
 	}
 	if out, _, code := f.cli(t, "repo", "commits", repo, "--from", "main"); code != 0 || !strings.Contains(out, "\tinitial") {
 		t.Fatalf("repo commits: %d %q", code, out)

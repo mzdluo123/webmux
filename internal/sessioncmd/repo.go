@@ -315,7 +315,10 @@ var repoBranchesCommand = &Command{
 				return contract.ExitOK
 			}
 			if branches.DefaultBase != nil {
-				_, _ = fmt.Fprintf(e.Stderr, "webmux: default base %s\n", *branches.DefaultBase)
+				_, _ = fmt.Fprintf(e.Stderr, "webmux: default base %s %s\n", shortHash(*branches.DefaultBase), branches.DefaultBaseSubject)
+			}
+			if branches.DefaultBranch != nil {
+				_, _ = fmt.Fprintf(e.Stderr, "webmux: default branch %s\n", *branches.DefaultBranch)
 			}
 			w := tabwriter.NewWriter(e.Stdout, 0, 4, 2, ' ', 0)
 			_, _ = fmt.Fprintln(w, "BRANCH\tHEAD\tWORKTREES")
