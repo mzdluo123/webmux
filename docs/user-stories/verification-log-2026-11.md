@@ -324,3 +324,5 @@
   - 前端：`svelte-check`、测试类型检查、Oxlint、前端架构守卫通过；Vitest 单元与浏览器全量通过，新增 AppShell、WorkbenchTree、ChatHistory、QuickStart、仓库初始化指令组件测试。
   - Playwright：`quick-start.spec.ts` 桌面（1280×720）与 Pixel 7（390×844）通过；其余 E2E 交由 CI 运行。
 - 限制：未在真机上核对，未截取 PR 前后对比截图；E2E 使用 fake agent。
+
+本次局部核对（2026-11-05）：混合会话聊天视图的快捷指令入口从顶栏移到输入框发送按钮旁，对应更新 US-G02。Playwright `hybrid.spec.ts` 快捷指令用例桌面与 Pixel 7 通过；未在真机核对，未重新核验其余故事。
