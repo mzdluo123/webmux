@@ -335,7 +335,7 @@ Show help for all commands or one command; --json prints the command tree.
 
 Arguments:
 
-- `COMMAND...`: A command path such as chat send.
+- `COMMAND...`: A command path such as ls or update check.
 
 Options:
 
