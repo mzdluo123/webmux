@@ -9,7 +9,7 @@
 - `--worktree REPO:WORKTREE` 或 `--worktree PATH`（已登记 worktree 的路径）：
   创建请求 SHALL 带 `workspace` 引用，`cwd` 默认为该 worktree 路径；同时给了 `--cwd` 时，`--cwd` SHALL 位于该 worktree 内，否则以 2 结束。
 - 自动关联：没有 `--worktree` 且解析后的 `cwd` 位于某个已登记 worktree 内时，CLI SHALL 自动带上该 worktree 的 `workspace` 引用，
-  与 Web 端选择该 worktree 的结果一致。`--no-workspace` SHALL 关闭自动关联。
+  与 Web 端选择该 worktree 的结果一致（服务端本来也按启动目录关联会话，CLI 带上引用是为了让 `--init` 找到仓库的初始化指令）。
 - `--new-worktree BRANCH [--base REF] [--existing-branch] [--worktree-path DIR] [--repo REPO]`：
   - SHALL 先创建 worktree，成功后再在其中创建会话；
   - 仓库默认取 `cwd` 所属的已登记仓库；
@@ -17,7 +17,7 @@
   - 不给 `--worktree-path` 时使用与快速开始相同的默认位置；
   - worktree 已创建而会话创建失败时，SHALL 保留 worktree，在标准错误输出其路径并以 1 结束。
   - 新 worktree SHALL 与 Web 端一样加入主页显示，`--no-pin` 时不加入；`--refresh-base` 时先刷新分支基点（规则同 `worktree create`）。
-- `--worktree`、`--new-worktree`、`--no-workspace` 三者 SHALL 互斥。
+- `--worktree` 与 `--new-worktree` SHALL 互斥。
 
 #### Scenario: 在当前 worktree 中自动关联
 
@@ -70,7 +70,7 @@
 - 程序结束时，CLI SHALL 以程序的退出码退出。程序被信号终止时，SHALL 按 shell 惯例以 128 加信号编号退出。
 - CLI 收到 SIGINT 或 SIGTERM 时，SHALL 只断开连接并以 130 或 143 退出，SHALL NOT 结束会话进程；标准错误 SHALL 提示会话继续运行，可以用 `webmux logs --follow` 重新跟随。
   `--kill-on-interrupt` 时，SHALL 先结束会话进程，再按程序的结果退出。
-- 断线时 SHALL 按回放位置续接，SHALL NOT 重复或丢失输出。续接失败时 SHALL 以 1 退出，并提示会话可能仍在运行。
+- 连接意外中断时 SHALL 以 1 退出，并提示会话可能仍在运行、可以用 `webmux attach` 查看；本地套接字上很少断线，本变更不做自动续接。
 - `--follow` 与 `--detach`、`--attach`、`--start-side chat` SHALL 互斥。
 
 #### Scenario: 在持久会话里跑测试并拿到退出码
