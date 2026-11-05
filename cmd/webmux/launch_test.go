@@ -94,6 +94,15 @@ func TestRunLaunchesFollowsAndWaits(t *testing.T) {
 		t.Fatalf("detached %+v", detached)
 	}
 
+	// --wait alone detaches too.
+	stdout, stderr, code = f.cli(t, "run", "--wait", "exited", "--timeout", "20s", "--", "sh", "-c", "exit 0")
+	if code != 0 || !strings.Contains(stdout, "\thttp://") {
+		t.Fatalf("--wait without --detach: %d %q %q", code, stdout, stderr)
+	}
+	if _, _, code = f.cli(t, "run", "--wait", "exited", "--follow", "--", "true"); code != contract.ExitUsage {
+		t.Fatalf("--wait with --follow: %d", code)
+	}
+
 	// --wait times out with 124.
 	_, _, code = f.cli(t, "run", "--detach", "--wait", "exited", "--timeout", "300ms", "--", "sleep", "30")
 	if code != contract.ExitTimeout {
@@ -240,6 +249,13 @@ func TestChatNewStartsAnAgentAndWaits(t *testing.T) {
 	stdout, _, _ = f.cli(t, "ls", "--label", "task=t", "--json")
 	if !strings.Contains(stdout, `"hybrid"`) {
 		t.Fatalf("the new session is not hybrid: %q", stdout)
+	}
+	// A terminal start has no chat turn to wait for; a message is required.
+	if _, _, code := f.cli(t, "chat", "new", "--repo", repo, "--agent", "Fake", "--terminal", "--wait", "x"); code != contract.ExitUsage {
+		t.Fatalf("--terminal --wait: %d", code)
+	}
+	if _, stderr, code := f.cli(t, "chat", "new", "--repo", repo, "--agent", "Fake"); code != contract.ExitUsage || !strings.Contains(stderr, "message is required") {
+		t.Fatalf("no message: %d %q", code, stderr)
 	}
 	// Unknown agent names list the hybrid configs.
 	_, stderr, code = f.cli(t, "chat", "new", "--repo", repo, "--agent", "nope", "x")

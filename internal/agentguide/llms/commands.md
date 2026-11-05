@@ -387,7 +387,7 @@ Options:
 - `--start-side SIDE`: Start a hybrid launch config on SIDE: terminal or chat.
 - `--strip`: With --follow, remove terminal control sequences.
 - `--timeout DURATION`: Give up --wait after this DURATION (exit 124); 0 waits forever.
-- `--wait STATE`: After creating, wait until the session is first in STATE (see webmux wait) Requires --detach.
+- `--wait STATE`: Detach, then wait until the session is first in STATE (see webmux wait) Conflicts with --attach, --follow.
 - `--worktree REPO:WORKTREE`: Start in a registered worktree, as REPO:WORKTREE or its path. Conflicts with --new-worktree.
 - `--worktree-path DIR`: Put the new worktree at DIR (default: <repository>.worktrees/<branch leaf>)
 
@@ -558,7 +558,7 @@ The same as the Web UI's New chat (POST /api/quick-starts): one call creates a w
 
 Arguments:
 
-- `TEXT`: The first message; - reads standard input. It may be empty with --init.
+- `TEXT`: The first message; - reads standard input. Required, also with --init.
 
 Options:
 

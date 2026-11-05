@@ -2,6 +2,7 @@ package sessioncmd
 
 import (
 	"bytes"
+	"github.com/rainchan/webmux/internal/contract"
 	"strings"
 	"testing"
 	"time"
@@ -50,5 +51,32 @@ func TestSuggestBranchAvoidsTakenNames(t *testing.T) {
 	taken := map[string]bool{"wt/20261105-180405": true, "wt/20261105-180405-2": true}
 	if got := suggestBranch(taken, now); got != "wt/20261105-180405-3" {
 		t.Fatalf("got %s", got)
+	}
+}
+
+// Server paths stay POSIX on every client OS.
+func TestServerPathHelpers(t *testing.T) {
+	for _, tc := range []struct {
+		root, dir string
+		in        bool
+	}{
+		{"/w/app", "/w/app", true},
+		{"/w/app", "/w/app/src", true},
+		{"/w/app", "/w/app2", false},
+		{"/w/app", "/w", false},
+		{"/w/app/", "/w/app/x/../y", true},
+		{"/", "/anything", true},
+		{"", "/w", false},
+	} {
+		if got := within(tc.root, tc.dir); got != tc.in {
+			t.Errorf("within(%q, %q) = %v", tc.root, tc.dir, got)
+		}
+	}
+	repo := contract.Repository{AnchorPath: "/home/u/src/app"}
+	if got := defaultWorktreePath(repo, "feat/x"); got != "/home/u/src/app.worktrees/x" {
+		t.Errorf("default worktree path %q", got)
+	}
+	if !isDriveLetter("C") || isDriveLetter("repo") || isDriveLetter("1") {
+		t.Error("drive letters")
 	}
 }
