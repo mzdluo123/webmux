@@ -185,6 +185,12 @@ describe("init instruction references", () => {
       hasUser: false,
       hasWebmux: true,
     });
+    // A {{webmux}} inside a referenced command's body counts as well.
+    expect(
+      expandInitInstruction("{{工具}}", [
+        { id: "t", name: "工具", command: "先读 {{webmux}}", enter: false },
+      ]).hasWebmux,
+    ).toBe(true);
     expect(quickCommandNameError("user", [])).not.toBe("");
     expect(quickCommandNameError("webmux", [])).not.toBe("");
     expect(expandInitInstruction("放 {{ dir }}", list)).toEqual({

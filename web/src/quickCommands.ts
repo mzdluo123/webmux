@@ -93,8 +93,9 @@ export function initInstructionReferences(template: string) {
  * Single-pass expansion: each `{{name}}` becomes the matching command's text;
  * unmatched references stay literal and are returned in `missing`. The
  * built-in `{{user}}` stays in the text (the server puts the first message
- * there) and sets `hasUser`; the built-in `{{webmux}}` stays in the text
- * (the server writes the brief there) and sets `hasWebmux`.
+ * there) and sets `hasUser`. `{{webmux}}` stays in the text for the server
+ * to replace with the brief; `hasWebmux` is read from the expanded text, as
+ * the server does, so one inside a quick command's body counts too.
  */
 export function expandInitInstruction(
   template: string,
@@ -102,7 +103,6 @@ export function expandInitInstruction(
 ) {
   const missing = new Set<string>();
   let hasUser = false;
-  let hasWebmux = false;
   const text = template.replace(REFERENCE, (whole, raw: string) => {
     const name = raw.trim();
     if (name === USER_REFERENCE_NAME) {
@@ -110,16 +110,18 @@ export function expandInitInstruction(
       return "{{user}}";
     }
     if (name === DIR_REFERENCE_NAME) return DIR_PLACEHOLDER;
-    if (name === WEBMUX_REFERENCE_NAME) {
-      hasWebmux = true;
-      return WEBMUX_PLACEHOLDER;
-    }
+    if (name === WEBMUX_REFERENCE_NAME) return WEBMUX_PLACEHOLDER;
     const found = commands.find((cmd) => cmd.name.trim() === name);
     if (found) return found.command;
     missing.add(name);
     return whole;
   });
-  return { text, missing: [...missing], hasUser, hasWebmux };
+  return {
+    text,
+    missing: [...missing],
+    hasUser,
+    hasWebmux: usesWebmuxBrief(text),
+  };
 }
 
 /**
