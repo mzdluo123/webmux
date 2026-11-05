@@ -51,8 +51,8 @@
   - 没有终端时自动分离，`--attach` 强制附着；
   - `--follow` 以观察者身份把输出写到标准输出（`--strip` 去除控制序列），以程序的退出码退出（信号为 128+N）；SIGINT/SIGTERM 只停止跟随（130/143），`--kill-on-interrupt` 先结束程序；连接中断以 1 退出并提示。
 - **US-S08 一条命令完成快速开始**：作为编排者，我希望从 shell 把任务交给新 worktree 中的 agent 并取回结果，以便并行分派工作。
-  - `webmux chat new [TEXT|-]` 调用快速开始接口：仓库默认是当前目录所属的已登记仓库，`--agent` 选混合启动配置（只有一条时可省略），分支名默认按 `wt/<日期>-<时间>` 生成并在冲突时重新生成，起始提交默认取仓库默认基点；
-  - `--set ID=VALUE`、`--permission ask|auto`、`--init/--no-init`（仓库有初始化指令时默认使用）、`--attach PATH`（先上传）、`--terminal`（与前三者互斥）、`--label`；
+  - `webmux chat new TEXT|-`（消息必填）调用快速开始接口：仓库默认是当前目录所属的已登记仓库，`--agent` 选混合启动配置（只有一条时可省略），分支名默认按 `wt/<日期>-<时间>` 生成并在冲突时重新生成，起始提交默认取仓库默认基点；
+  - `--set ID=VALUE`、`--permission ask|auto`、`--init/--no-init`（仓库有初始化指令时默认使用）、`--attach PATH`（先上传）、`--terminal`（与 `--set`、`--permission`、`--attach`、`--wait` 互斥）、`--label`；
   - 失败按步骤报告并列出已创建的 worktree 与会话，不回滚；配置警告写到标准错误；
   - `--wait` 跟踪第一轮，输出 agent 的最终回复（`--json` 为回合事件），`end_turn` 以 0 退出，其他结束原因或出现授权、表单请求以 1 退出，`--auto-wait-requests` 继续等待，超时 124；
   - `webmux launch-config options NAME` 列出 agent 提供的配置项与可选值，供 `--set` 使用。
