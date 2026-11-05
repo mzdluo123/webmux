@@ -49,7 +49,7 @@
 
 - `--json` SHALL 让 `--detach` 输出一个 JSON 对象：`session`（`SessionInfo`）与 `link`，代替 `ID\tLINK` 行。
 - `--wait STATE`（取值同 `webmux wait --until`）SHALL 在创建后等待会话第一次进入该状态再退出；它隐含 `--detach`，与 `--attach`、`--follow` 互斥。
-  它只能与 `--detach` 同用，超时（`--timeout`）以 124 退出。
+  超时（`--timeout`）以 124 退出。
 - `--dry-run` SHALL 只解析参数、启动配置与工作区，并把将要发送的请求写到标准输出，SHALL NOT 创建 worktree 或会话。
   请求中的 `env` SHALL 只输出变量名，用 `"<inherited>"` 或 `"<explicit>"` 代替值。
 - `--label KEY=VALUE`（可重复）SHALL 映射为会话标签（见 `session-metadata`）。
