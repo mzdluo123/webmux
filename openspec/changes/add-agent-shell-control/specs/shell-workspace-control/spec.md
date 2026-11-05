@@ -1,5 +1,9 @@
 # Spec Delta
 
+## Purpose
+
+让脚本和 agent 管理与 Web 端相同的工作区：worktree 的创建、删除与主页显示，仓库登记与仓库设置，启动配置的增删改，以及端口转发。
+
 ## ADDED Requirements
 
 ### Requirement: worktree 命令
@@ -80,6 +84,16 @@ Web 端主页按服务端设置 `homeWorktrees` 决定显示哪些 worktree（�
   路径不是 Git 仓库时 SHALL 输出服务端原因，并以 1 结束。
 - `webmux repo rm REPO [--yes]` SHALL 取消登记，SHALL NOT 删除磁盘上的任何文件；确认规则与 `worktree rm` 相同。取消登记后，SHALL 一并清理该仓库的主页显示设置。
 - 仓库参数 `REPO` 的解析规则与 `worktree` 相同。
+
+#### Scenario: 重复登记
+
+- **WHEN** 脚本在已登记的仓库目录中再次执行 `webmux repo add`
+- **THEN** 输出已有条目并以 0 退出，仓库列表中不出现重复项
+
+#### Scenario: 取消登记不删除文件
+
+- **WHEN** 用户执行 `webmux repo rm . --yes`
+- **THEN** 仓库从所有浏览器的工作区中消失，`homeWorktrees` 中该仓库的条目被清理，磁盘上的 worktree 与文件保持不变
 
 ### Requirement: 仓库设置
 
