@@ -12,4 +12,4 @@ webmux run --detach --env VIRTUAL_ENV=/w/.venv -- python app.py
 - `--launch-config` 的环境由服务端展开，不经过 CLI；它与 `--` 后的命令、`--env` 互斥。
 - 不带 `--detach` 时 `run` 会附着当前终端，需要真实终端。agent 的工具调用中请加 `--detach`。
 
-启动配置名称可以在 Web 端设置页或 `webmux api /api/launch-configs` 中查看。
+启动配置名称可以在 Web 端设置页的“启动配置”中查看。
