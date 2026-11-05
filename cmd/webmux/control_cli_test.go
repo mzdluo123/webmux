@@ -69,6 +69,18 @@ func TestSessionControlCommands(t *testing.T) {
 	if out, _, _ := f.cli(t, "logs", echo, "--strip", "--tail", "1"); strings.TrimSpace(out) != "got:hello world" {
 		t.Fatalf("logs --tail 1: %q", out)
 	}
+	// A named key is an acknowledged submission too: text first, then Enter.
+	keyed := detachedID(t, f, "sh", "-c", `read line; echo "key:$line"; sleep 30`)
+	if _, stderr, code := f.cli(t, "send", keyed, "typed"); code != 0 {
+		t.Fatalf("send text: %d %q", code, stderr)
+	}
+	if _, stderr, code := f.cli(t, "send", keyed, "--key", "enter"); code != 0 {
+		t.Fatalf("send --key enter: %d %q", code, stderr)
+	}
+	eventuallyCLI(t, "the line ended by --key enter", func() bool {
+		out, _, _ := f.cli(t, "logs", keyed, "--strip")
+		return strings.Contains(out, "key:typed")
+	})
 	if _, _, code := f.cli(t, "send", echo, "--key", "nope"); code != contract.ExitUsage {
 		t.Fatalf("unknown key: %d", code)
 	}
