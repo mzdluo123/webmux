@@ -14,7 +14,7 @@
 
 - [ ] 2.1 `webmux api`：路径白名单、方法推断、`-d` 的字面值/`@文件`/`-`、JSON 校验、非 2xx 退出码。
   用 `httptest` 起的本机 API 测试会话内 403 透传与 `/ws/` 拒绝。
-- [ ] 2.2 `get`、`kill`、`rm`、`rename`。测试覆盖 404、混合会话切换中的 409。
+- [ ] 2.2 `kill`、`rm`、`rename`。测试覆盖 404、混合会话切换中的 409。
 - [ ] 2.3 `send`：提交帧与回执、命名按键表、`-` 读标准输入、聊天端拒绝；`--wait` 先订阅再提交。
   测试覆盖 written/partial/failed、控制标签、未知按键退出码 2。
 - [ ] 2.4 `wait`：快照判断、`--changed`、`--stable` 重新计时、`--any`、超时 4、移除 1、断线重连不误报。测试使用注入时钟，不 sleep。
@@ -22,6 +22,24 @@
   用表驱动测试覆盖 `--strip`，`--follow` 测试确认不夺取控制。
 - [ ] 2.6 `events`：NDJSON、`--session` 过滤、重连后输出新快照。
 - [ ] 2.7 `dir`：调用确保接口并输出路径，失败时退出码 1。
+
+## 2A. 启动命令（P0）
+
+- [ ] 2A.1 `run --worktree`、自动关联（`--no-workspace`）、`--new-worktree`（`--base`、`--existing-branch`、`--worktree-path`、`--repo`），
+  会话创建失败时保留 worktree。测试覆盖三者互斥与 `--cwd` 包含关系。
+- [ ] 2A.2 `run --start-side`、`--prompt`（含 `-`）、`--init`、`--label`、`--json`、`--wait`、`--dry-run`（环境值脱敏）。
+- [ ] 2A.3 `run` 在没有终端时自动分离，新增 `--attach` 强制附着。更新现有 `sessioncmd` 测试中依赖退出码 2 的用例。
+- [ ] 2A.4 `chat new`：仓库与 agent 推断、`--set`、`--permission`、`--init/--no-init` 默认值、`--terminal` 互斥、附件上传、按 `step` 报告失败、`--wait`。
+- [ ] 2A.5 `launch-config options`。
+
+## 2B. 会话元数据（P0）
+
+- [ ] 2B.1 `internal/session`：由对端 PID 找到所在会话 ID（Linux 读环境标记，macOS 查进程树）；`parentId` 与标签只保存在内存中。
+  `go test -race ./internal/session` 覆盖进程树查找与标签校验。
+- [ ] 2B.2 本机 API 的创建入口（`POST /api/sessions`、`POST /api/quick-starts`）记录 `parentId`，请求体无法指定；TCP 入口不记录。
+- [ ] 2B.3 `GET /api/sessions/{id}/details` 与 `PATCH /api/sessions/{id}/labels`；契约 `SessionDetails`、`LabelsUpdate`，
+  `SessionInfo.parentId/labels`、`CreateSessionRequest.labels`；同步 wire 与 schemas，重新录制 wire 快照。
+- [ ] 2B.4 `webmux get`（会话内默认 `self`、`--field`）、`webmux label`、`ls --label/--parent/--status`。
 
 ## 3. 提醒接口与 `notify`（P1）
 
@@ -41,21 +59,21 @@
 ## 5. 工作区命令（P1）
 
 - [ ] 5.1 `worktree ls|create|rm`：仓库参数解析（ID、路径、`.`），默认路径与快速开始一致，`rm` 先预览再确认，非交互时需要 `--yes`。
-- [ ] 5.2 `run --worktree`、`--start-side chat`、`--prompt`、`--init`，与 `--cwd` 的包含关系校验。
-- [ ] 5.3 `launch-config ls|show`：文本形式不输出环境变量值。
-- [ ] 5.4 `forward ls|add|rm`：输出转发地址，`--session self`，`--no-compat`。
+- [ ] 5.2 `launch-config ls|show`：文本形式不输出环境变量值。
+- [ ] 5.3 `forward ls|add|rm`：输出转发地址，`--session self`，`--no-compat`。
 
 ## 6. shell 工具手册与 `{{webmux}}`
 
-- [ ] 6.1 新建共享包 `internal/agentguide`（仅标准库）：嵌入 `guide.md.tmpl`，渲染手册（frontmatter、版本、各节）与简述。
-  在 `internal/archtest/layers_test.go` 中登记为 Shared。临时文件夹说明从 `web/src/quickCommands.ts` 的预置正文移入手册。
-- [ ] 6.2 一致性测试：CLI 帮助中的会话类子命令都出现在手册“命令参考”中；frontmatter 可以解析，`name` 为 `webmux`。
-- [ ] 6.3 `internal/artifacts`：启动时写入 `guide/SKILL.md`（0700/0600），缺失时重写；`Guide(id)` 返回 `{prompt, guidePath, dir}`。
-  代码栏的临时文件夹根只显示会话文件夹。用 `go test -race ./internal/artifacts` 覆盖权限、重写与清扫不删。
-- [ ] 6.4 `GET /api/agent-guide` 与 `POST /api/sessions/{id}/agent-guide`（`AgentGuidePrompt`），同步 contract、wire、schemas，重新录制 wire 快照。
+- [ ] 6.1 新建共享包 `internal/agentguide`（仅标准库）：用 `go:embed` 嵌入索引与各主题 Markdown，渲染 `/llms.txt`（可选版本行）、
+  主题、全文与简述。在 `internal/archtest/layers_test.go` 中登记为 Shared。临时文件夹说明从 `web/src/quickCommands.ts` 的预置正文移入 `artifacts` 主题。
+- [ ] 6.2 一致性测试：会话类子命令都在某个主题中出现；索引链接都能解析；每个主题都在索引中；TCP 内容不含版本、路径或主机名。
+- [ ] 6.3 `internal/api` 在 SPA 回退之前注册 `/llms.txt`、`/llms-full.txt`、`/llms/{topic}.md`：TCP 不要求 Token 但经过 Host 检查，
+  本机套接字附加版本行；未知主题 404。测试覆盖两个监听器与未认证访问。
+- [ ] 6.4 `artifacts.Service.Brief(id)` 与 `POST /api/sessions/{id}/agent-guide`（`AgentGuidePrompt{prompt, guideUrl, dir}`），
+  同步 contract、wire、schemas，重新录制 wire 快照。确认临时根中不会出现手册文件。
 - [ ] 6.5 `internal/workspace`：移除对 `{{webmux}}` 的保留拒绝；`composePrompt` 先展开 `{{webmux}}` 再展开 `{{dir}}` 与 `{{user}}`；预检在临时文件夹不可用时报告不可用。
   更新 `instruction_test.go` 与 `quickstart_test.go`。
-- [ ] 6.6 `webmux guide` 与 `guide --path`，服务未运行时退回内嵌副本。
+- [ ] 6.6 `webmux guide [TOPIC] [--full]`，服务未运行时退回内嵌副本，未知主题以 2 结束。
 - [ ] 6.7 前端：
   - `quickCommands.ts` 把 `{{webmux}}` 当作内置变量；
   - `SessionTerminal` 与聊天草稿在插入前调用手册接口，失败时提示“WebMux 工具说明不可用”；
@@ -66,6 +84,6 @@
 
 ## 7. 文档与验证
 
-- [ ] 7.1 新增用户故事分组（shell 与 agent 控制），覆盖 P0、P1 与 `{{webmux}}`；更新 US-Q13，以及快捷指令、临时文件夹、初始化指令相关故事、索引和覆盖表。
+- [ ] 7.1 新增用户故事分组（shell 与 agent 控制），覆盖 P0、P1、启动增强、会话元数据与 `{{webmux}}`；更新 US-Q13、`run` 相关故事，以及快捷指令、临时文件夹、初始化指令相关故事、索引和覆盖表。
 - [ ] 7.2 `docs/protocol/http-workspace.md` 删除 `{{webmux}}` 保留说明；协议文档登记三个新接口；使用文档新增“用脚本和 agent 控制 WebMux”页面并在 `docs/README.md` 注册。
-- [ ] 7.3 运行 `make check` 与 `make test-fast`。针对 `send --wait`、`chat send --wait`、`notify` 补一个隔离后端的 E2E，不连接开发者已有的服务。
+- [ ] 7.3 运行 `make check` 与 `make test-fast`。针对 `chat new --wait`、`send --wait`、`ls --parent`、`notify` 补一个隔离后端的 E2E，不连接开发者已有的服务。

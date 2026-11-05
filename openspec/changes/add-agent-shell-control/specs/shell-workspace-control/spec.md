@@ -30,20 +30,6 @@
 - **WHEN** 脚本以管道运行 `webmux worktree rm . <ID>`，没有给 `--yes`
 - **THEN** 不删除任何东西，退出码 2，提示需要 `--yes`
 
-### Requirement: 在 worktree 中启动会话
-
-`webmux run` SHALL 接受 `--worktree REPO:WORKTREE`，以及简写 `--worktree PATH`（已登记 worktree 的路径）。
-
-- 创建请求 SHALL 带 `workspace` 引用，`cwd` 为该 worktree 的路径。
-- 同时给了 `--cwd` 时，`--cwd` SHALL 位于该 worktree 内，否则以 2 结束。
-- `--worktree` SHALL 可以与 `--launch-config` 或 `--` 后命令同用，其余规则不变。
-- 新增 `--start-side chat` 时，SHALL 要求启动配置开启混合模式，并以聊天端启动；`--prompt TEXT` 作为首条消息，`--init` 在首条消息前加入仓库初始化指令，与快速开始一致。
-
-#### Scenario: 一条命令启动 agent 并下达任务
-
-- **WHEN** 脚本执行 `webmux run --detach --worktree ../repo.worktrees/fix-lint --launch-config "Claude Code" --start-side chat --init --prompt "修复 lint"`
-- **THEN** 会话在该 worktree 中以聊天端启动，首条提示包含展开后的初始化指令，CLI 输出会话 ID 与链接
-
 ### Requirement: 启动配置只读命令
 
 - `webmux launch-config ls [--json]` SHALL 列出启动配置摘要：名称、图标、命令、是否混合模式，以及环境变量名（不含值）。

@@ -21,7 +21,7 @@
 
 - **P0 会话控制命令**，全部放在 `internal/sessioncmd`，Linux/macOS CLI 与 Windows 控制台客户端都能用：
   - `webmux api`：通用逃生口，经本机套接字发送任意 `/api/` 请求，原样输出响应；
-  - `webmux get`、`kill`、`rm`、`rename`：补齐会话生命周期；
+  - `webmux kill`、`rm`、`rename`：补齐会话生命周期；
   - `webmux send`：以带回执的提交帧写入文字和命名按键，可选 `--wait` 等待状态转变；
   - `webmux wait`：订阅会话列表事件，等到指定状态（running、waiting、idle、exited、attention）；
   - `webmux logs`：读取回放缓冲区，`--follow` 以观察者身份跟随，`--strip` 尽力去除控制序列；
@@ -32,6 +32,17 @@
   - CLI 定位顺序：显式 `--config`，然后 `WEBMUX_SOCKET`，最后默认配置；
   - 所有接受会话 ID 的命令都接受 `self`，表示 `$WEBMUX_SESSION_ID`；
   - 新增退出码 4 表示等待超时。
+- **P0 启动命令向 Web 端对齐**：
+  - `webmux run` 支持新建会话对话框中的全部位置选择：`--worktree`、`--new-worktree`，`cwd` 位于已登记 worktree 内时自动关联；
+  - 新增 `--start-side`、`--prompt`、`--init`、`--label`、`--json`、`--wait`、`--dry-run`；
+  - 没有终端时自动分离，不再以用法错误结束；
+  - `webmux chat new` 对应 Web 端“新聊天”，一条命令完成 worktree、agent、配置项、权限模式、初始化指令、附件和首条消息；
+  - `webmux launch-config options` 列出 agent 配置项，供 `--set` 使用。
+- **P0 会话元数据**：
+  - `GET /api/sessions/{id}/details` 集中返回仓库与分支、启动配置、混合会话记录、临时文件夹、转发、父会话、子会话和标签；
+  - `webmux get [SESSION] [--field PATH]`，在会话内默认为 `self`；
+  - 经本机 API 从会话内创建的会话自动记录 `parentId`；
+  - 会话标签：`run --label`、`webmux label`、`ls --label/--parent/--status`。
 - **P1 结构化编排**：
   - `webmux chat send|watch|status|cancel|answer|switch`：经 ACP 结构化通道控制混合会话，`chat send --wait` 输出 agent 的最终回复；
   - `webmux notify`：经新接口 `POST /api/sessions/{id}/attention` 发出提醒，不依赖控制终端；
@@ -39,10 +50,11 @@
   - `webmux launch-config ls|show`（只读）；
   - `webmux forward ls|add|rm`。
 - **`{{webmux}}` 变为 WebMux 工具说明**：
-  - 服务端把版本匹配的 shell 工具手册写成实例级文件 `SKILL.md`（skill 格式，带 frontmatter），`webmux guide` 输出同一份内容；
-  - `{{webmux}}` 展开为一段简短的 skill 式说明：会话 ID、手册路径、何时需要读取手册，以及本会话临时文件夹的路径与一句强制规则；
+  - 手册按 llms.txt 约定在站点根路径提供：`/llms.txt` 索引、`/llms/<主题>.md` 分主题、`/llms-full.txt` 全文。
+    只在内存中渲染，不写入任何文件；`webmux guide` 经本机套接字读取同一份内容；
+  - `{{webmux}}` 展开为一段简述：会话 ID、`/llms.txt` 地址与 `webmux guide`、何时需要读取，以及本会话临时文件夹的路径与一句强制规则；
   - 初始化指令和快捷指令都可以使用 `{{webmux}}`；
-  - 现有临时文件夹说明（上传位置、交付物保存规则、在代码栏查看、汇报相对路径、会话删除后清理）移入手册的“临时文件夹”一节；
+  - 现有临时文件夹说明（上传位置、交付物保存规则、在代码栏查看、汇报相对路径、会话删除后清理）移入 `/llms/artifacts.md`；
   - 预置快捷指令“临时文件夹”替换为“WebMux 工具”，正文为 `{{webmux}}`。已保存的列表不迁移。
 - **明确不做**：代码视图、文件补全、mkdir、上传、推送订阅、设置项的专用命令（用 `webmux api` 或直接操作文件系统）；
   会话内读取 Token、控制 tunnel 或 Tailscale（保持现有禁止）；服务端渲染屏幕文本（违反“服务端不做终端模拟”）；MCP 服务端（后续可在这些命令上薄封装）。
@@ -52,28 +64,32 @@
 ### New Capabilities
 
 - `shell-session-control`：通用 API 命令、会话生命周期命令、`send`、`wait`、`logs`、`events`、`dir`、`notify`，以及共同的输出与退出码约定。
+- `shell-session-launch`：`run` 的位置、起始端、首条消息、输出与等待，`chat new` 与 `launch-config options`。
+- `session-metadata`：会话详情接口、`webmux get`、父会话与会话标签。
 - `shell-chat-control`：混合会话聊天的 shell 命令。
-- `shell-workspace-control`：worktree、启动配置（只读）与端口转发命令，以及 `run --worktree`。
-- `agent-shell-guide`：shell 工具手册文件、`webmux guide`、手册接口、`{{webmux}}` 的展开规则和手册内容要求。
+- `shell-workspace-control`：worktree、启动配置（只读）与端口转发命令。
+- `agent-shell-guide`：llms.txt 形式的手册、访问边界、内容要求、`webmux guide` 与 `{{webmux}}` 的展开规则。
 
 ### Modified Capabilities
 
-- `terminal-session-cli`：连接约定加入 `WEBMUX_SOCKET` 与 `self`，帮助列出新命令。
+- `terminal-session-cli`：连接约定加入 `WEBMUX_SOCKET` 与 `self`，帮助列出新命令；`run` 在没有终端时自动分离。
 - `session-launch-environment`：服务端为每个会话设置 `WEBMUX_SOCKET`，并把它列为服务端自有变量。
 - `terminal-quick-commands`：预置指令改为恢复会话、新会话、WebMux 工具三条；快捷指令正文支持 `{{webmux}}`。
-- `session-artifacts`：移除已由快捷指令取代、现在再移入手册的“临时文件夹提示词模板”与“从快捷指令菜单插入提示词”两条需求。
+- `session-artifacts`：移除已失效的“临时文件夹提示词模板”与“从快捷指令菜单插入提示词”两条需求，新增 shell 访问与“手册不写入临时文件夹”。
 
 ## Impact
 
 - 后端：
-  - 新增共享包 `internal/agentguide`（仅标准库，嵌入手册模板并渲染简述），在 `internal/archtest/layers_test.go` 中登记为 Shared；
-  - `internal/artifacts` 负责写入手册文件、清扫时跳过它，并提供 `Guide(id)`；
+  - 新增共享包 `internal/agentguide`（仅标准库，嵌入手册 Markdown 并渲染简述），在 `internal/archtest/layers_test.go` 中登记为 Shared；
+  - `internal/artifacts` 提供 `Brief(id)` 生成简述；
+  - `internal/session` 记录 `parentId` 与标签，并能由对端 PID 找到所在会话；
   - `internal/workspace` 在快速开始中展开 `{{webmux}}`，取消保留变量的拒绝；
   - `internal/session` 支持外部提醒；
-  - `internal/api` 新增 `GET /api/agent-guide`、`POST /api/sessions/{id}/agent-guide`、`POST /api/sessions/{id}/attention`；
+  - `internal/api` 新增 `/llms.txt`、`/llms-full.txt`、`/llms/{topic}.md`，以及 `POST /api/sessions/{id}/agent-guide`、`GET /api/sessions/{id}/details`、
+    `PATCH /api/sessions/{id}/labels`、`POST /api/sessions/{id}/attention`；
   - `cmd/webmux` 注入 `WEBMUX_SOCKET` 并注册新子命令。
-- 接口：`internal/contract`、`internal/wire`、`web/src/schemas.ts` 新增 `AgentGuidePrompt`、`AttentionRequest`，
-  `AttentionSource` 新增 `cli`；重新录制 `internal/api/testdata/wire`。
+- 接口：`internal/contract`、`internal/wire`、`web/src/schemas.ts` 新增 `AgentGuidePrompt`、`SessionDetails`、`LabelsUpdate`、`AttentionRequest`；
+  `SessionInfo` 新增 `parentId`、`labels`，`CreateSessionRequest` 新增 `labels`，`AttentionSource` 新增 `cli`；重新录制 `internal/api/testdata/wire`。
 - 前端：`quickCommands.ts` 把 `{{webmux}}` 当作内置变量；`SessionTerminal` 与聊天草稿在插入前调用手册接口；
   初始化指令字段和快速开始页去掉“保留变量”提示；更换预置指令。
 - 安全：不新增权限边界。会话内调用者已能经套接字做同样的事，现有四项禁止保持不变。

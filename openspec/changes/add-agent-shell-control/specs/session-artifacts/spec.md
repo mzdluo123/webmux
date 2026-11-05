@@ -25,15 +25,14 @@
 会话临时文件夹 SHALL 可以从 shell 获取：`webmux dir SESSION` 调用确保接口并输出路径（见 `shell-session-control`）。
 `{{webmux}}` 简述 SHALL 包含本会话临时文件夹的路径，以及交付物保存规则（见 `agent-shell-guide`）。
 
-- 实例临时根下的 `guide/` 目录 SHALL 保存 shell 工具手册。它不是任何会话的临时文件夹，SHALL NOT 出现在代码栏的“临时文件夹”根中。
-- 清扫与删除规则 SHALL 只作用于以会话 ID 命名的目录。
+- shell 工具手册以 llms.txt 形式经 HTTP 提供（见 `agent-shell-guide`），SHALL NOT 写入实例临时根或任何会话的临时文件夹。
 
 #### Scenario: agent 获取交付位置
 
 - **WHEN** 会话内的 agent 执行 `webmux dir self`
 - **THEN** 输出与代码栏“临时文件夹”根相同的绝对路径，该目录已存在
 
-#### Scenario: 手册目录不被清扫
+#### Scenario: 临时根中没有手册
 
-- **WHEN** 服务重启，启动时清扫遗留的会话文件夹
-- **THEN** `guide/SKILL.md` 被重写而不是删除，其他会话文件夹按原规则处理
+- **WHEN** 用户在会话中使用 `{{webmux}}` 后，查看代码栏的“临时文件夹”根和实例临时根
+- **THEN** 只有会话自己的文件，没有手册文件

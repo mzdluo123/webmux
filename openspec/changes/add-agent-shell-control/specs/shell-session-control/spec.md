@@ -14,7 +14,7 @@
 
 #### Scenario: 管道组合
 
-- **WHEN** 脚本执行 `webmux get self --json | jq -r .cwd`
+- **WHEN** 脚本执行 `webmux get self --json | jq -r .session.cwd`
 - **THEN** 标准输出只有会话 JSON，`jq` 输出当前会话的启动目录
 
 #### Scenario: 用法错误
@@ -50,9 +50,8 @@
 
 ### Requirement: 会话生命周期命令
 
-系统 SHALL 提供以下命令：
+系统 SHALL 提供以下命令（读取元数据的 `webmux get` 见 `session-metadata`）：
 
-- `webmux get SESSION [--json]`：输出一个会话的信息，默认为键值形式，`--json` 时为 `SessionInfo`。
 - `webmux kill SESSION`：结束会话进程（`DELETE /api/sessions/{id}`），会话以已结束状态保留。
 - `webmux rm SESSION`：移除会话（`DELETE /api/sessions/{id}?remove=1`），运行中的会话先被结束。
 - `webmux rename SESSION NAME`：重命名会话（`PATCH /api/sessions/{id}`），混合会话同时更新记录名称。

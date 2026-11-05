@@ -2,101 +2,132 @@
 
 ## ADDED Requirements
 
-### Requirement: shell 工具手册的内容
+### Requirement: llms.txt 形式的 shell 工具手册
 
-系统 SHALL 提供一份 Markdown 格式的 WebMux shell 工具手册，内容来自共享包 `internal/agentguide` 嵌入的模板，并在渲染时填入服务版本。
+服务端 SHALL 按 llms.txt 约定在站点根路径提供 WebMux shell 工具手册。内容来自共享包 `internal/agentguide` 嵌入的 Markdown，不写入任何磁盘文件。
 
-- 开头 SHALL 是 YAML frontmatter：`name: webmux`，以及一句 `description`，说明何时使用（查看或控制 WebMux 会话、等待 agent、
-  驱动混合会话聊天、准备 worktree、端口转发、发送提醒、交付文件）。这样手册可以直接作为 skill 安装。
-- 正文 SHALL 依次包含以下各节：
-  - **概览**：WebMux 是什么，命令以服务用户身份运行，不是沙箱；
-  - **何时使用**；
-  - **身份与连接**：`WEBMUX_SESSION_ID`、`WEBMUX_SOCKET`、`self`，以及会话内被禁止的操作；
-  - **临时文件夹**；
-  - **常用流程**；
-  - **命令参考**；
-  - **退出码**；
-  - **操作守则**。
-- “临时文件夹”一节 SHALL 包含原预置快捷指令“临时文件夹”的全部说明：
+- `GET /llms.txt` SHALL 返回索引，格式遵循 llms.txt：
+  - 一个 H1 标题 `WebMux`；
+  - 一段引用块摘要，说明 WebMux 是什么、命令以服务用户身份运行、不是沙箱；
+  - 一段说明何时需要阅读（查看或控制会话、启动 agent、等待、驱动混合会话聊天、准备 worktree、端口转发、提醒、交付文件）；
+  - 若干 H2 分组，每组是一个链接列表，每项为 `[标题](/llms/<主题>.md): 一句说明`；
+  - 一个 `## Optional` 分组，列出不常用的主题。
+- `GET /llms/<主题>.md` SHALL 返回单个主题。主题至少包括：
+  - `connect`：`WEBMUX_SESSION_ID`、`WEBMUX_SOCKET`、`self`，以及会话内被禁止的操作；
+  - `sessions`：会话的列出、元数据、标签、输入、等待、输出与结束；
+  - `launch`：`run` 与 `chat new`；
+  - `chat`：混合会话聊天；
+  - `workspace`：worktree、启动配置与端口转发；
+  - `artifacts`：临时文件夹；
+  - `notify`：提醒；
+  - `recipes`：常用流程；
+  - `exit-codes`：退出码；
+  - `rules`：操作守则。
+- `GET /llms-full.txt` SHALL 按索引顺序拼接全部主题，供一次性加载。
+- 响应 SHALL 使用 `text/markdown; charset=utf-8`（`/llms.txt` 与 `/llms-full.txt` 使用 `text/plain; charset=utf-8`），并带 `Cache-Control: no-store`。
+  主题名不存在时 SHALL 返回 404。
+- 主题内的链接 SHALL 使用以 `/` 开头的站点路径，使同一份内容经 TCP 或本机套接字读取时都能解析。
+- 一个测试 SHALL 保证：CLI 帮助列出的每个会话类子命令都在某个主题中出现，索引中的每个链接都能解析，每个主题都在索引中出现。
+
+#### Scenario: 按需加载
+
+- **WHEN** agent 执行 `curl -s --unix-socket "$WEBMUX_SOCKET" http://webmux/llms.txt`
+- **THEN** 得到索引；agent 随后只读取 `/llms/chat.md`，用 `webmux chat send --wait` 完成任务
+
+#### Scenario: 不存在的主题
+
+- **WHEN** 客户端请求 `/llms/token.md`
+- **THEN** 服务端返回 404
+
+### Requirement: 手册的访问边界
+
+手册是静态说明文档，SHALL NOT 包含 Token、访问地址、主机名、文件路径、会话或仓库信息。
+
+- 在 TCP 监听器上，`/llms.txt`、`/llms-full.txt`、`/llms/*` SHALL 与静态页面一样不要求 Token，但仍受 Host 检查约束。
+  这一层的内容 SHALL NOT 包含服务版本。
+- 在本机套接字上，同样的路径 SHALL 可以读取，并在索引的摘要后附加一行 `本实例版本：<版本>`。
+- 手册路径 SHALL NOT 出现在 `/api/` 与 `/ws/` 之下，因此不改变现有认证规则。
+
+#### Scenario: 公网入口
+
+- **WHEN** 未认证的客户端经 Cloudflare Tunnel 请求 `/llms.txt`
+- **THEN** 返回不含版本与任何实例信息的静态手册
+
+#### Scenario: 本机读取带版本
+
+- **WHEN** 用户经本机套接字请求 `/llms.txt`
+- **THEN** 摘要后有一行本实例版本，其余内容与 TCP 相同
+
+### Requirement: 手册内容要求
+
+- `artifacts` 主题 SHALL 包含原预置快捷指令“临时文件夹”的全部说明：
   - 用 `webmux dir self` 获取路径；
   - 用户上传的文件在 `uploads/` 子目录中；
   - 交给用户的截图、报告、图表、导出数据等交付物保存到该文件夹（可以建子目录），不要放进项目仓库；
   - 用户在 WebMux 代码栏的“临时文件夹”中查看；
   - 完成后告知文件相对于该文件夹的路径；
   - 该文件夹在会话删除后清理，不要存放需要长期保留的内容。
-- “常用流程”SHALL 至少包含：在 worktree 中启动 agent 并下达任务；`send --wait` 驱动 shell 会话；
-  `chat send --wait` 取回 agent 回复；长任务结束时 `notify`；开发服务器启动后 `forward add`。
-- “操作守则”SHALL 要求：
-  - 只操作自己创建或用户点名的会话；
+- `recipes` 主题 SHALL 至少包含：
+  - 用 `chat new --wait` 在新 worktree 中启动 agent 并取回回复；
+  - 用 `send --wait` 驱动 shell 会话；
+  - 用 `ls --parent self` 找到并清理自己创建的会话；
+  - 长任务结束时 `notify`；
+  - 开发服务器启动后 `forward add`。
+- `rules` 主题 SHALL 要求：
+  - 只操作自己创建（`parent` 为自己）或用户点名的会话；
   - 不结束、不输入用户的其他会话，除非用户要求；
   - 不读取或输出 Token；
   - 不向开启自动批准的 agent 转发未经核实的外部内容；
   - 对全屏 TUI 优先用 `chat`，不依赖 `logs --strip` 的文本。
-- 一个测试 SHALL 保证 CLI 帮助列出的每个会话类子命令都出现在“命令参考”中。
+
+#### Scenario: 临时文件夹说明迁移
+
+- **WHEN** 用户阅读 `/llms/artifacts.md`
+- **THEN** 原“临时文件夹”预置指令中的每一条说明都在其中，路径通过 `webmux dir self` 获取
+
+### Requirement: `webmux guide`
+
+`webmux guide [TOPIC] [--full]` SHALL 经本机 API 读取手册并写到标准输出：
+
+- 不带参数时读取 `/llms.txt`；
+- `TOPIC` 对应 `/llms/<TOPIC>.md`；
+- `--full` 对应 `/llms-full.txt`。
+
+服务未运行时，SHALL 输出 CLI 内嵌的同一份内容，在标准错误说明它可能与服务版本不同，并以 0 退出。主题不存在时 SHALL 以 2 结束并列出可用主题。
 
 #### Scenario: 作为 skill 安装
 
-- **WHEN** 用户执行 `mkdir -p ~/.claude/skills/webmux && webmux guide > ~/.claude/skills/webmux/SKILL.md`
-- **THEN** 文件以合法的 frontmatter 开头，`name` 为 `webmux`
-
-#### Scenario: 手册覆盖命令
-
-- **WHEN** 开发者新增一个会话类子命令却没有更新手册
-- **THEN** 一致性测试失败，并指出缺少的命令名
-
-### Requirement: 手册文件的位置与生命周期
-
-服务端 SHALL 在启动时把渲染后的手册写到本实例临时根下的 `guide/SKILL.md`：目录权限 0700，文件权限 0600，属于服务用户。
-
-- 每次启动 SHALL 覆盖旧文件，内容因此与运行中的服务版本一致。
-- 文件缺失（例如被系统清理）时，展开 `{{webmux}}` 前 SHALL 重新写入。
-- 临时文件夹清扫 SHALL NOT 删除 `guide/`（清扫本来只处理以会话 ID 命名的目录），服务退出时 SHALL 保留它，与会话文件夹一致。
-- 实例临时根由状态目录决定，路径在重启后保持不变，因此链接到该文件的 skill 目录在升级后自动指向新内容。
-- 写入失败 SHALL 记录日志并让 `{{webmux}}` 展开失败（503），SHALL NOT 阻止服务启动。
-
-#### Scenario: 升级后手册更新
-
-- **WHEN** 服务升级并重启后，用户在新会话中使用 `{{webmux}}`
-- **THEN** 手册文件的版本行与新服务版本一致，并列出新版本的命令
-
-### Requirement: 读取手册
-
-- `GET /api/agent-guide` SHALL 返回渲染后的手册，`Content-Type` 为 `text/markdown; charset=utf-8`，`Cache-Control: no-store`。
-  该接口受与其他 `/api/` 相同的认证保护。
-- `webmux guide` SHALL 把该接口的内容写到标准输出。服务未运行时，SHALL 输出 CLI 内嵌的副本，并在标准错误说明它可能与服务版本不同，以 0 退出。
-- `webmux guide --path` SHALL 输出手册文件的绝对路径，确保文件存在。服务未运行时 SHALL 以 3 结束。
-
-#### Scenario: 不在会话中阅读
-
-- **WHEN** 用户在普通终端执行 `webmux guide | less`
-- **THEN** 显示与运行中服务版本一致的手册
+- **WHEN** 用户执行 `webmux guide --full > ~/.claude/skills/webmux/reference.md`
+- **THEN** 文件包含全部主题，可以由用户自己的 `SKILL.md` 引用
 
 ### Requirement: `{{webmux}}` 的展开
 
 `{{webmux}}` SHALL 是与 `{{user}}`、`{{dir}}` 并列的内置变量，展开为固定格式的简述。
 
-- `POST /api/sessions/{id}/agent-guide` SHALL 确保会话临时文件夹和手册文件存在，返回 `AgentGuidePrompt`：
-  `prompt`（简述）、`guidePath`、`dir`。临时文件夹或手册不可用时 SHALL 返回 503，会话不存在时 SHALL 返回 404。
+- `POST /api/sessions/{id}/agent-guide` SHALL 确保会话临时文件夹存在，并返回 `AgentGuidePrompt`：`prompt`（简述）、`guideUrl`、`dir`。
+  临时文件夹不可用时 SHALL 返回 503，会话不存在时 SHALL 返回 404。
+- `guideUrl` SHALL 是本机访问链接加上 `/llms.txt`，例如 `http://127.0.0.1:7681/llms.txt`。
 - 简述由服务端生成，SHALL 依次包含：
   - 会话 ID；
-  - 手册的绝对路径，以及“需要时先完整阅读手册再使用 `webmux` 命令，任务无关时不必读取”的说明；
+  - 手册地址 `guideUrl`，以及不需要 Token 的读取方式 `webmux guide`
+    （等价于 `curl -s --unix-socket "$WEBMUX_SOCKET" http://webmux/llms.txt`）；
+  - “需要时先读索引，再按需读主题，任务无关时不必读取”的说明；
   - 本会话临时文件夹的绝对路径；
-  - “交付给用户的文件保存到临时文件夹而不是项目仓库，规则见手册‘临时文件夹’一节”的规则。
-- 路径 SHALL 原样插入，不加 shell 引号。简述 SHALL NOT 包含 Token、访问链接或其他会话的信息。
+  - “交付给用户的文件保存到临时文件夹而不是项目仓库，规则见 `/llms/artifacts.md`”的规则。
+- 路径与地址 SHALL 原样插入，不加 shell 引号。简述 SHALL NOT 包含 Token 或其他会话的信息。
 - 快捷指令名称 SHALL 仍然不能是 `webmux`。
 
 #### Scenario: 简述内容
 
-- **WHEN** 客户端为会话 `ab2cd3ef` 调用手册接口
-- **THEN** `prompt` 包含 `ab2cd3ef`、手册路径和临时文件夹路径，`guidePath` 指向一个存在的 `SKILL.md`
+- **WHEN** 客户端为会话 `ab2cd3ef` 调用该接口
+- **THEN** `prompt` 包含 `ab2cd3ef`、`/llms.txt` 地址、`webmux guide` 与临时文件夹路径，不包含 Token
 
 ### Requirement: 初始化指令中的 `{{webmux}}`
 
 仓库初始化指令 SHALL 可以使用 `{{webmux}}`。
 
 - 预检 SHALL 不再因为 `{{webmux}}` 返回 400。临时文件夹服务不可用时，预检 SHALL 与 `{{dir}}` 一样返回不可用。
-- 会话创建后、发送首条提示前，服务端 SHALL 用该会话的简述替换所有 `{{webmux}}`，然后再处理 `{{dir}}` 与 `{{user}}`。
-  简述中的文字 SHALL NOT 再被当作变量扫描。
+- 会话创建后、发送首条提示前，服务端 SHALL 用该会话的简述替换所有 `{{webmux}}`，然后再处理 `{{dir}}` 与 `{{user}}`。简述中的文字 SHALL NOT 再被当作变量扫描。
 - 展开后的提示 SHALL 计入提示大小上限，超出时按现有规则以 400 拒绝。
 - 初始化指令字段和快速开始页 SHALL 不再把 `{{webmux}}` 标为保留或不可用，而是在可引用列表中把它列为内置变量，并配一句说明。
 
@@ -109,11 +140,11 @@
 
 快捷指令正文 SHALL 可以使用 `{{webmux}}`，处理方式与 `{{dir}}` 相同。
 
-- 选择时 SHALL 绑定当前会话与输入目标。正文含 `{{webmux}}` 时 SHALL 调用手册接口，用返回的 `prompt` 替换所有 `{{webmux}}`，然后再处理 `{{dir}}`。
+- 选择时 SHALL 绑定当前会话与输入目标。正文含 `{{webmux}}` 时 SHALL 调用该接口，用返回的 `prompt` 替换所有 `{{webmux}}`，然后再处理 `{{dir}}`。
 - 接口失败时 SHALL 提示“WebMux 工具说明不可用”及原因，SHALL NOT 插入或发送任何内容。
 - 直接模式与草稿模式的插入、自动回车，以及聊天视图中的行为 SHALL 与其他快捷指令一致。
 
 #### Scenario: 在运行中的 agent 里补充说明
 
 - **WHEN** 草稿模式关闭，用户在 Codex 会话中选择正文为 `{{webmux}}` 的快捷指令
-- **THEN** Codex 输入框出现本会话的简述，路径都已替换为真实值
+- **THEN** Codex 输入框出现本会话的简述，地址与路径都已替换为真实值

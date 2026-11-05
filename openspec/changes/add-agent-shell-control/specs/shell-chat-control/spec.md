@@ -4,7 +4,7 @@
 
 ### Requirement: 聊天命令的共同约定
 
-`webmux chat <子命令>` SHALL 只作用于混合会话，并遵守 `shell-session-control` 的输出与退出码约定。
+`webmux chat <子命令>` SHALL 只作用于混合会话（创建会话的 `chat new` 见 `shell-session-launch`），并遵守 `shell-session-control` 的输出与退出码约定。
 
 - 目标不是混合会话时 SHALL 以 1 结束并说明原因。
 - 需要聊天端的子命令在会话处于终端端时 SHALL 以 1 结束，并提示 `webmux chat switch SESSION --to chat`。
