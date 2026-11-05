@@ -89,7 +89,7 @@
 
 ### Requirement: 一条命令完成快速开始
 
-`webmux chat new [TEXT|-]` SHALL 对应 Web 端“新聊天”（快速开始），调用 `POST /api/quick-starts`，
+`webmux chat new TEXT|-` SHALL 对应 Web 端“新聊天”（快速开始），调用 `POST /api/quick-starts`，
 一次完成新建 worktree、启动 agent、应用配置和发送首条消息。消息 SHALL 非空（与快速开始页一致），缺少时以 2 结束。
 
 - `--repo REPO`：默认取当前目录所属的已登记仓库，找不到时以 2 结束并列出已登记仓库。
