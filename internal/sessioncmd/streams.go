@@ -387,12 +387,22 @@ type turnResult struct {
 	Request *contract.ChatRequest `json:"request,omitempty"`
 }
 
-// turnWait tracks the first turn whose turn.start passes accept and
-// collects its events until turn.end, or until a request opens when
-// stopAtRequest.
-func (c *chatStream) turnWait(ctx context.Context, accept func(seq uint64) bool, stopAtRequest bool) (turnResult, error) {
+// turnWatch selects the turn turnWait tracks: the turn already running as
+// current, or else the first whose turn.start passes accept. gone, when
+// set, ends the wait with its error once a state frame shows the turn can
+// no longer start (a queued prompt was removed).
+type turnWatch struct {
+	current       string
+	accept        func(contract.ChatTurnStart) bool
+	gone          func(*contract.ChatState) error
+	stopAtRequest bool
+}
+
+// turnWait tracks one turn and collects its events until turn.end, or
+// until a request opens when stopAtRequest.
+func (c *chatStream) turnWait(ctx context.Context, w turnWatch) (turnResult, error) {
 	var result turnResult
-	turn := ""
+	turn := w.current
 	messages := map[string]*strings.Builder{}
 	var order []string
 	for {
@@ -403,9 +413,14 @@ func (c *chatStream) turnWait(ctx context.Context, accept func(seq uint64) bool,
 			}
 			return result, err
 		}
+		if turn == "" && frame.State != nil && w.gone != nil {
+			if err := w.gone(frame.State); err != nil {
+				return result, err
+			}
+		}
 		for _, ev := range frame.Items {
 			if turn == "" {
-				if ev.Kind == contract.ChatEventTurnStart && ev.TurnStart != nil && accept(ev.Seq) {
+				if ev.Kind == contract.ChatEventTurnStart && ev.TurnStart != nil && w.accept(*ev.TurnStart) {
 					turn = ev.TurnStart.TurnID
 					result.Events = append(result.Events, ev)
 				}
@@ -424,7 +439,7 @@ func (c *chatStream) turnWait(ctx context.Context, accept func(seq uint64) bool,
 					b.WriteString(ev.Message.Text)
 				}
 			case contract.ChatEventRequest:
-				if stopAtRequest && ev.Request != nil {
+				if w.stopAtRequest && ev.Request != nil {
 					result.Request = ev.Request
 					result.Reply = lastReply(messages, order)
 					return result, nil
@@ -457,8 +472,12 @@ func (e Env) reportTurn(result turnResult, asJSON bool) int {
 		_, _ = fmt.Fprintln(e.Stdout, result.Reply)
 	}
 	if result.Request != nil {
-		_, _ = fmt.Fprintf(e.Stderr, "webmux: the agent is waiting for an answer: request %s (%s) %s; answer it in the Web UI\n",
+		_, _ = fmt.Fprintf(e.Stderr, "webmux: the agent is waiting for an answer: request %s (%s) %s\n",
 			result.Request.RequestID, result.Request.Kind, result.Request.Title)
+		for _, option := range result.Request.Options {
+			_, _ = fmt.Fprintf(e.Stderr, "webmux:   --option %s\t%s\n", option.OptionID, option.Name)
+		}
+		_, _ = fmt.Fprintln(e.Stderr, "webmux: answer with webmux chat answer SESSION", result.Request.RequestID, "(see webmux chat status), or in the Web UI")
 		return contract.ExitError
 	}
 	if result.StopReason != "end_turn" {
