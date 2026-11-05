@@ -665,7 +665,7 @@ type chatNewOptions struct {
 }
 
 var chatNewCommand = &Command{
-	Name: "chat new", Group: GroupChat, Args: "[TEXT|-]",
+	Name: "chat new", Group: GroupChat, Args: "TEXT|-",
 	Summary: "Quick start from the shell: a new worktree, an agent on its chat side, its settings and the first message.",
 	Description: "The same as the Web UI's New chat (POST /api/quick-starts): one call creates a worktree with a generated branch, " +
 		"starts the agent of a hybrid launch config, applies --set options and the permission mode, and sends TEXT with the " +
