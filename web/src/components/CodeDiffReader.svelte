@@ -29,6 +29,7 @@
   } from "../code-reader-controls";
   import type { CodeDiffReaderState } from "../schemas";
   import { Button } from "$lib/components/ui/button";
+  import CodeHorizontalScrollbar from "./CodeHorizontalScrollbar.svelte";
   import CodeReaderPanels from "./CodeReaderPanels.svelte";
   import IconSearch from "~icons/tabler/search";
   import IconTextWrap from "~icons/tabler/text-wrap";
@@ -535,10 +536,10 @@
       </p>
     {/if}
   </div>
-  <CodeReaderPanels
+  <CodeHorizontalScrollbar
     {track}
     bind:trackElement
-    ontrackscroll={horizontalScrollbar.onTrackScroll}
+    onscroll={horizontalScrollbar.onTrackScroll}
   />
 </div>
 

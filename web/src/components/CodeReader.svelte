@@ -27,6 +27,7 @@
   } from "../code-reader-controls";
   import type { CodeReaderState } from "../schemas";
   import { Button } from "$lib/components/ui/button";
+  import CodeHorizontalScrollbar from "./CodeHorizontalScrollbar.svelte";
   import CodeReaderPanels from "./CodeReaderPanels.svelte";
   import IconListNumbers from "~icons/tabler/list-numbers";
   import IconNumber from "~icons/tabler/number";
@@ -541,10 +542,10 @@
       aria-label="只读代码"
     ></div>
   </div>
-  <CodeReaderPanels
+  <CodeHorizontalScrollbar
     {track}
     bind:trackElement
-    ontrackscroll={horizontalScrollbar.onTrackScroll}
+    onscroll={horizontalScrollbar.onTrackScroll}
   />
 </div>
 
