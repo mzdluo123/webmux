@@ -13,7 +13,7 @@
   - 若干 H2 分组，每组是一个链接列表，每项为 `[标题](/llms/<主题>.md): 一句说明`；
   - 一个 `## Optional` 分组，列出不常用的主题。
 - `GET /llms/<主题>.md` SHALL 返回单个主题。主题至少包括：
-  - `connect`：`WEBMUX_SESSION_ID`、`WEBMUX_SOCKET`、`self`，以及会话内被禁止的操作；
+  - `connect`：如何找到可执行文件与套接字（见“手册中的可执行文件定位”）、`WEBMUX_SESSION_ID`、`self`，以及会话内被禁止的操作；
   - `sessions`：会话的列出、元数据、标签、输入、等待、输出与结束；
   - `launch`：`run` 与 `chat new`；
   - `chat`：混合会话聊天；
@@ -45,7 +45,7 @@
 
 - 在 TCP 监听器上，`/llms.txt`、`/llms-full.txt`、`/llms/*` SHALL 与静态页面一样不要求 Token，但仍受 Host 检查约束。
   这一层的内容 SHALL NOT 包含服务版本。
-- 在本机套接字上，同样的路径 SHALL 可以读取，并在索引的摘要后附加一行 `本实例版本：<版本>`。
+- 在本机套接字上，同样的路径 SHALL 可以读取，并在索引的摘要后附加“本实例”信息：版本、`WEBMUX_BIN` 的绝对路径、套接字的绝对路径。
 - 手册路径 SHALL NOT 出现在 `/api/` 与 `/ws/` 之下，因此不改变现有认证规则。
 
 #### Scenario: 公网入口
@@ -56,7 +56,33 @@
 #### Scenario: 本机读取带版本
 
 - **WHEN** 用户经本机套接字请求 `/llms.txt`
-- **THEN** 摘要后有一行本实例版本，其余内容与 TCP 相同
+- **THEN** 摘要后列出本实例的版本、可执行文件路径与套接字路径，其余内容与 TCP 相同
+
+### Requirement: 手册中的可执行文件定位
+
+手册 SHALL 不假设 `webmux` 在 `PATH` 中。
+
+- 索引摘要之后、第一个链接分组之前，SHALL 有一段“命令前缀”说明：
+  下文的 `webmux` 指 WebMux 可执行文件，按以下顺序确定：
+  1. 环境变量 `WEBMUX_BIN`（写作 `"$WEBMUX_BIN"`，带引号以容忍空格）；
+  2. `{{webmux}}` 简述或“本实例”信息中给出的绝对路径；
+  3. `PATH` 中的 `webmux`（可能与服务版本不同，用 `webmux version` 核对）。
+- 各主题的示例 SHALL 统一写作 `webmux …`，SHALL NOT 硬编码任何安装路径（例如 `/usr/bin/webmux`）。
+- `connect` 主题 SHALL 包含排错步骤：
+  - 检查 `"$WEBMUX_BIN" version` 与 `"$WEBMUX_BIN" status`；
+  - 环境变量丢失时，使用简述中的绝对路径，加 `--socket <路径>`，并把 `self` 换成简述中的会话 ID；
+  - 没有可用的可执行文件时，用 `curl -s --unix-socket <套接字> http://webmux/...` 直接调用 `/api/` 与 `/llms*`；
+  - 处在禁止访问套接字或外部可执行文件的沙箱中时，向用户说明无法控制 WebMux，不要反复重试。
+
+#### Scenario: PATH 中没有 webmux
+
+- **WHEN** agent 按手册执行 `webmux ls` 失败，提示命令不存在
+- **THEN** 手册的命令前缀说明让它改用 `"$WEBMUX_BIN" ls`，并且成功
+
+#### Scenario: 示例不含安装路径
+
+- **WHEN** 一致性测试扫描 TCP 层的全部手册内容
+- **THEN** 不出现任何绝对路径形式的可执行文件，只出现 `webmux` 与 `$WEBMUX_BIN`
 
 ### Requirement: 手册内容要求
 
@@ -87,13 +113,16 @@
 
 ### Requirement: `webmux guide`
 
-`webmux guide [TOPIC] [--full]` SHALL 经本机 API 读取手册并写到标准输出：
+`webmux guide [TOPIC] [--full] [--path]` SHALL 经本机 API 读取手册并写到标准输出：
 
 - 不带参数时读取 `/llms.txt`；
 - `TOPIC` 对应 `/llms/<TOPIC>.md`；
-- `--full` 对应 `/llms-full.txt`。
+- `--full` 对应 `/llms-full.txt`；
+- `--path` SHALL 输出两行：服务端 `WEBMUX_BIN` 的绝对路径与套接字的绝对路径，取自状态契约新增的 `bin` 字段与 `socket`。
+  服务端没有解析出可执行文件时，第一行为空并以 1 结束。
 
-服务未运行时，SHALL 输出 CLI 内嵌的同一份内容，在标准错误说明它可能与服务版本不同，并以 0 退出。主题不存在时 SHALL 以 2 结束并列出可用主题。
+服务未运行时，读取手册 SHALL 输出 CLI 内嵌的同一份内容，在标准错误说明它可能与服务版本不同，并以 0 退出；`--path` SHALL 以 3 结束。
+主题不存在时 SHALL 以 2 结束并列出可用主题。
 
 #### Scenario: 作为 skill 安装
 
@@ -107,10 +136,13 @@
 - `POST /api/sessions/{id}/agent-guide` SHALL 确保会话临时文件夹存在，并返回 `AgentGuidePrompt`：`prompt`（简述）、`guideUrl`、`dir`。
   临时文件夹不可用时 SHALL 返回 503，会话不存在时 SHALL 返回 404。
 - `guideUrl` SHALL 是本机访问链接加上 `/llms.txt`，例如 `http://127.0.0.1:7681/llms.txt`。
+- `AgentGuidePrompt` SHALL 另含 `bin`（`WEBMUX_BIN` 的值，未设置时为 `null`）与 `socket`（套接字绝对路径，本机 API 不可用时为 `null`）。
 - 简述由服务端生成，SHALL 依次包含：
   - 会话 ID；
-  - 手册地址 `guideUrl`，以及不需要 Token 的读取方式 `webmux guide`
-    （等价于 `curl -s --unix-socket "$WEBMUX_SOCKET" http://webmux/llms.txt`）；
+  - WebMux 可执行文件的绝对路径与套接字的绝对路径，并说明 `webmux` 不在 `PATH` 中时用该绝对路径，环境变量丢失时加 `--socket`；
+  - 手册地址 `guideUrl`，以及不需要 Token 的读取方式 `"<bin>" guide`
+    （等价于 `curl -s --unix-socket <socket> http://webmux/llms.txt`）；
+  - `bin` 为 `null` 时，SHALL 省略可执行文件一行，只给出 `curl` 读取方式；
   - “需要时先读索引，再按需读主题，任务无关时不必读取”的说明；
   - 本会话临时文件夹的绝对路径；
   - “交付给用户的文件保存到临时文件夹而不是项目仓库，规则见 `/llms/artifacts.md`”的规则。
@@ -120,7 +152,7 @@
 #### Scenario: 简述内容
 
 - **WHEN** 客户端为会话 `ab2cd3ef` 调用该接口
-- **THEN** `prompt` 包含 `ab2cd3ef`、`/llms.txt` 地址、`webmux guide` 与临时文件夹路径，不包含 Token
+- **THEN** `prompt` 包含 `ab2cd3ef`、可执行文件与套接字的绝对路径、`/llms.txt` 地址、`guide` 读取方式与临时文件夹路径，不包含 Token
 
 ### Requirement: 初始化指令中的 `{{webmux}}`
 

@@ -2,10 +2,12 @@
 
 ## 1. 发现与公共约定（P0）
 
-- [ ] 1.1 服务端为每个会话设置 `WEBMUX_SOCKET`，加入 `contract.ServerOwnedEnv` 与会话 `env` 校验，启动配置保存时同样拒绝。
-  用 `go test -race ./internal/session ./internal/launch ./internal/contract` 覆盖注入、400 拒绝、`run` 继承时跳过。
-- [ ] 1.2 `cmd/webmux/sessions.go` 与 Windows 客户端的 `Env.Connect` 按“`--config` → `WEBMUX_SOCKET` → 默认配置”定位，
-  `WEBMUX_SOCKET` 失效时返回 `ErrNotRunning` 而不回退。测试覆盖三种来源与不回退。
+- [ ] 1.1 在 `sessionEnvWithVersion` 中注入 `WEBMUX_SOCKET` 与 `WEBMUX_BIN`，PTY 与辅助进程（ACP）共用；两者加入 `contract.ServerOwnedEnv`、
+  会话 `env` 校验与启动配置校验。用 `go test -race ./internal/session ./internal/launch ./internal/contract` 覆盖注入、聊天端可见、400 拒绝、`run` 继承时跳过。
+- [ ] 1.2 `WEBMUX_BIN` 解析：`internal/config` 新增 `cli_path`（校验存在且可执行），`cmd/webmux` 在启动时按 `cli_path` → `os.Executable` 解析，
+  处理符号链接与 ` (deleted)` 后缀，无效时不注入并警告。状态契约新增 `bin`。
+- [ ] 1.2a `cmd/webmux/sessions.go` 与 Windows 客户端的 `Env.Connect` 按“`--socket` → `--config` → `WEBMUX_SOCKET` → 默认配置”定位，
+  指定的套接字失效时返回 `ErrNotRunning` 而不回退；新增接口 404 时报告版本过旧。测试覆盖四种来源、互斥与不回退。
 - [ ] 1.3 `sessioncmd` 增加 `self` 解析、`contract.ExitTimeout = 4`，以及共用的 `--json`/NDJSON 输出辅助函数。
   `webmux help` 改为分组列出命令，`subcommands` 同步更新。
 - [ ] 1.4 新命令统一使用 `script` 连接标签，会话内调用时附加来源会话 ID。
@@ -66,14 +68,15 @@
 
 - [ ] 6.1 新建共享包 `internal/agentguide`（仅标准库）：用 `go:embed` 嵌入索引与各主题 Markdown，渲染 `/llms.txt`（可选版本行）、
   主题、全文与简述。在 `internal/archtest/layers_test.go` 中登记为 Shared。临时文件夹说明从 `web/src/quickCommands.ts` 的预置正文移入 `artifacts` 主题。
-- [ ] 6.2 一致性测试：会话类子命令都在某个主题中出现；索引链接都能解析；每个主题都在索引中；TCP 内容不含版本、路径或主机名。
+- [ ] 6.2 一致性测试：会话类子命令都在某个主题中出现；索引链接都能解析；每个主题都在索引中；TCP 内容不含版本、路径或主机名，
+  示例只用 `webmux` 与 `$WEBMUX_BIN`；索引含“命令前缀”说明，`connect` 含排错步骤。
 - [ ] 6.3 `internal/api` 在 SPA 回退之前注册 `/llms.txt`、`/llms-full.txt`、`/llms/{topic}.md`：TCP 不要求 Token 但经过 Host 检查，
   本机套接字附加版本行；未知主题 404。测试覆盖两个监听器与未认证访问。
-- [ ] 6.4 `artifacts.Service.Brief(id)` 与 `POST /api/sessions/{id}/agent-guide`（`AgentGuidePrompt{prompt, guideUrl, dir}`），
+- [ ] 6.4 `artifacts.Service.Brief(id)` 与 `POST /api/sessions/{id}/agent-guide`（`AgentGuidePrompt{prompt, guideUrl, dir, bin, socket}`；`bin` 为空时省略对应行），
   同步 contract、wire、schemas，重新录制 wire 快照。确认临时根中不会出现手册文件。
 - [ ] 6.5 `internal/workspace`：移除对 `{{webmux}}` 的保留拒绝；`composePrompt` 先展开 `{{webmux}}` 再展开 `{{dir}}` 与 `{{user}}`；预检在临时文件夹不可用时报告不可用。
   更新 `instruction_test.go` 与 `quickstart_test.go`。
-- [ ] 6.6 `webmux guide [TOPIC] [--full]`，服务未运行时退回内嵌副本，未知主题以 2 结束。
+- [ ] 6.6 `webmux guide [TOPIC] [--full] [--path]`，服务未运行时退回内嵌副本，未知主题以 2 结束。
 - [ ] 6.7 前端：
   - `quickCommands.ts` 把 `{{webmux}}` 当作内置变量；
   - `SessionTerminal` 与聊天草稿在插入前调用手册接口，失败时提示“WebMux 工具说明不可用”；

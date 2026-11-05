@@ -48,7 +48,7 @@
 服务端创建会话时设置 `WEBMUX_SOCKET=<本实例套接字>`，并把它加入 `contract.ServerOwnedEnv`，
 因此 `run` 不会把调用方的值转发进新会话，创建请求也不能覆盖它。
 
-CLI 的定位顺序是：显式 `--config`，然后 `WEBMUX_SOCKET`，最后默认配置。`WEBMUX_SOCKET` 指向的套接字不可达时，
+CLI 的定位顺序是：显式 `--socket`，然后显式 `--config`，然后 `WEBMUX_SOCKET`，最后默认配置（`--socket` 的用途见 D14）。`WEBMUX_SOCKET` 指向的套接字不可达时，
 CLI 以退出码 3 结束，不回退到默认配置。回退可能连到另一个实例，替调用方操作错误的会话。
 
 `self` 在客户端解析为 `$WEBMUX_SESSION_ID`。变量未设置时以退出码 2 结束。
@@ -128,8 +128,10 @@ Claude Code、Codex 正是这样，而它们恰恰是最常见的调用方。因
 
 ```text
 本会话运行在 WebMux 中（会话 ID：<id>）。
+- WebMux 命令：<bin>（套接字：<socket>）
+  `webmux` 不在 PATH 中时用这个绝对路径；环境变量 WEBMUX_* 丢失时加 `--socket <socket>`，并用上面的会话 ID 代替 self。
 - WebMux shell 工具手册（llms.txt）：<本机链接>/llms.txt
-  也可以运行 `webmux guide`，不需要 Token。需要查看或控制会话、启动或等待 agent、驱动混合会话聊天、
+  也可以运行 `<bin> guide`，不需要 Token。需要查看或控制会话、启动或等待 agent、驱动混合会话聊天、
   准备 worktree、端口转发或发送提醒时，先读索引再按需读主题；任务与此无关时不必读取。
 - 本会话的临时文件夹：<dir>
   交付给我的截图、报告、导出数据等文件保存到这里而不是项目仓库，规则见 /llms/artifacts.md。
@@ -189,10 +191,32 @@ Web 端现在有两个创建入口，CLI 各给一个对应：
 - **标签是纯内存的键值对**：数量、长度和字符集都有限制，只用于脚本筛选；本变更不在 Web 端显示。
 - `get` 增加 `--field`，在没有 `jq` 的环境中也能取单个值；在会话内默认为 `self`。
 
+### D14 可执行文件定位：注入绝对路径，不改 PATH
+
+手册和简述里的命令全是 `webmux …`，但会话中的 `webmux` 不一定能找到，或者找到的不是同一个版本。常见情形：
+
+- 服务以绝对路径启动（systemd、launchd、`/opt/...`），而 agent 的 shell 用的是精简过的 `PATH`；
+- 开发时用 `go run` 或 `bin/webmux` 启动，`PATH` 里是另一个旧版本，甚至根本没有；
+- agent 的工具 shell 按策略过滤环境变量（例如 Codex 的 `shell_environment_policy`），`WEBMUX_*` 全部丢失；
+- 聊天端的 ACP agent 由服务直接启动，不经过用户的登录 shell。
+
+决策：
+
+- **注入 `WEBMUX_BIN`，不改 `PATH`**。把服务目录加进 `PATH` 可能遮住用户自己的同名命令或其他工具，且对过滤环境变量的 shell 同样无效。
+  绝对路径加环境变量足够明确，也不改变会话里其他程序的行为。
+- **解析一次并校验**：优先用 `cli_path` 配置，否则用 `os.Executable`，解析符号链接，并处理原地升级留下的 ` (deleted)` 后缀；
+  路径无效就不设置变量，并记录警告，而不是给出一个错误的路径。
+- **注入点唯一**：在 `sessionEnvWithVersion` 中注入，PTY 主进程和 ACP 等辅助进程都经过它，聊天端因此自动得到同样的变量。
+- **多重兜底写进文本**：简述里写出 `bin`、`socket` 和会话 ID 的字面值，环境变量丢失也能用；
+  CLI 新增 `--socket`；手册的 `connect` 主题给出排错顺序，最后一步是 `curl --unix-socket`。
+- **版本偏差**：`WEBMUX_BIN` 与服务是同一个文件，原地升级后两边版本一致；`PATH` 里的旧 CLI 碰到新接口 404 时，提示改用 `$WEBMUX_BIN`。
+- **公开内容不含路径**：TCP 层的手册只写 `webmux` 与 `$WEBMUX_BIN`，具体路径只出现在本机套接字版本、简述和 `guide --path` 中。
+
 ## Risks / Trade-offs
 
 - `send` 夺取控制会打断正在浏览器里输入的用户。缓解：标签标明来源，手册要求只操作自己创建的会话。
 - `--strip` 对 TUI 输出不可靠。缓解：在手册与帮助中写明，并引导使用 `chat`。
+- agent 沙箱可能禁止访问套接字或执行外部程序。缓解：手册要求在这种情况下向用户说明，不要反复重试。
 - `/llms*` 在公网入口上不需要 Token。缓解：内容只有静态说明，不含版本与实例信息，并有测试保证。
 - 自动分离改变了 `run` 在无终端时的行为。缓解：只把原来的用法错误变成成功，交互终端中的行为不变。
 - 命令数量明显增加。缓解：所有命令共用一套参数解析、连接和输出约定，帮助文字按组列出。

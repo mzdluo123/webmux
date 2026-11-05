@@ -28,8 +28,9 @@
   - `webmux events`：以 NDJSON 输出 `/ws/sessions` 事件；
   - `webmux dir`：输出会话临时文件夹的路径（按需创建）。
 - **P0 发现与身份**：
-  - 每个会话注入服务端自有变量 `WEBMUX_SOCKET`（本机 API 套接字路径）；
-  - CLI 定位顺序：显式 `--config`，然后 `WEBMUX_SOCKET`，最后默认配置；
+  - 每个会话（包括聊天端的 ACP agent）注入服务端自有变量 `WEBMUX_SOCKET`（本机 API 套接字路径）与 `WEBMUX_BIN`（可执行文件绝对路径），不修改 `PATH`；
+  - `WEBMUX_BIN` 取自配置项 `cli_path`，否则取自服务自身的可执行文件，校验后再注入；
+  - CLI 定位顺序：`--socket`，然后 `--config`，然后 `WEBMUX_SOCKET`，最后默认配置；
   - 所有接受会话 ID 的命令都接受 `self`，表示 `$WEBMUX_SESSION_ID`；
   - 新增退出码 4 表示等待超时。
 - **P0 启动命令向 Web 端对齐**：
@@ -52,7 +53,8 @@
 - **`{{webmux}}` 变为 WebMux 工具说明**：
   - 手册按 llms.txt 约定在站点根路径提供：`/llms.txt` 索引、`/llms/<主题>.md` 分主题、`/llms-full.txt` 全文。
     只在内存中渲染，不写入任何文件；`webmux guide` 经本机套接字读取同一份内容；
-  - `{{webmux}}` 展开为一段简述：会话 ID、`/llms.txt` 地址与 `webmux guide`、何时需要读取，以及本会话临时文件夹的路径与一句强制规则；
+  - 手册不假设 `webmux` 在 `PATH` 中：给出“命令前缀”说明与排错顺序，公开内容不含任何安装路径；
+  - `{{webmux}}` 展开为一段简述：会话 ID、可执行文件与套接字的绝对路径、`/llms.txt` 地址与 `guide` 读取方式、何时需要读取，以及本会话临时文件夹的路径与一句强制规则；
   - 初始化指令和快捷指令都可以使用 `{{webmux}}`；
   - 现有临时文件夹说明（上传位置、交付物保存规则、在代码栏查看、汇报相对路径、会话删除后清理）移入 `/llms/artifacts.md`；
   - 预置快捷指令“临时文件夹”替换为“WebMux 工具”，正文为 `{{webmux}}`。已保存的列表不迁移。
@@ -72,8 +74,8 @@
 
 ### Modified Capabilities
 
-- `terminal-session-cli`：连接约定加入 `WEBMUX_SOCKET` 与 `self`，帮助列出新命令；`run` 在没有终端时自动分离。
-- `session-launch-environment`：服务端为每个会话设置 `WEBMUX_SOCKET`，并把它列为服务端自有变量。
+- `terminal-session-cli`：连接约定加入 `--socket`、`WEBMUX_SOCKET` 与 `self`，旧 CLI 碰到新接口时提示版本过旧，帮助列出新命令；`run` 在没有终端时自动分离。
+- `session-launch-environment`：服务端为每个会话设置 `WEBMUX_SOCKET` 与 `WEBMUX_BIN`，并把它们列为服务端自有变量。
 - `terminal-quick-commands`：预置指令改为恢复会话、新会话、WebMux 工具三条；快捷指令正文支持 `{{webmux}}`。
 - `session-artifacts`：移除已失效的“临时文件夹提示词模板”与“从快捷指令菜单插入提示词”两条需求，新增 shell 访问与“手册不写入临时文件夹”。
 
@@ -87,7 +89,7 @@
   - `internal/session` 支持外部提醒；
   - `internal/api` 新增 `/llms.txt`、`/llms-full.txt`、`/llms/{topic}.md`，以及 `POST /api/sessions/{id}/agent-guide`、`GET /api/sessions/{id}/details`、
     `PATCH /api/sessions/{id}/labels`、`POST /api/sessions/{id}/attention`；
-  - `cmd/webmux` 注入 `WEBMUX_SOCKET` 并注册新子命令。
+  - `cmd/webmux` 解析 `WEBMUX_BIN`，与 `WEBMUX_SOCKET` 一起注入会话选项，并注册新子命令；`internal/config` 新增 `cli_path`。
 - 接口：`internal/contract`、`internal/wire`、`web/src/schemas.ts` 新增 `AgentGuidePrompt`、`SessionDetails`、`LabelsUpdate`、`AttentionRequest`；
   `SessionInfo` 新增 `parentId`、`labels`，`CreateSessionRequest` 新增 `labels`，`AttentionSource` 新增 `cli`；重新录制 `internal/api/testdata/wire`。
 - 前端：`quickCommands.ts` 把 `{{webmux}}` 当作内置变量；`SessionTerminal` 与聊天草稿在插入前调用手册接口；

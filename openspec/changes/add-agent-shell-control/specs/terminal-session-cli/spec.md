@@ -55,13 +55,18 @@ CLI SHALL NOT 把参数当作配置 ID 接受。名称不存在时 SHALL 不创�
 ### Requirement: 连接与错误约定
 
 `run`、`attach`、`ls`、`open`，以及 `shell-session-control`、`shell-chat-control`、`shell-workspace-control`、`agent-shell-guide` 中的命令，
-SHALL 经本机套接字访问本机服务。它们 SHALL NOT 需要或输出 Token，SHALL 接受 `--config <path>`，并按以下顺序定位服务：
+SHALL 经本机套接字访问本机服务。它们 SHALL NOT 需要或输出 Token，SHALL 接受 `--config <path>` 与 `--socket <path>`，并按以下顺序定位服务：
 
-1. 显式给出的 `--config`，按与服务相同的规则定位；
-2. 环境变量 `WEBMUX_SOCKET` 指向的套接字；
-3. 默认配置路径，按与服务相同的规则定位。
+1. 显式给出的 `--socket`，直接连接该套接字；
+2. 显式给出的 `--config`，按与服务相同的规则定位；
+3. 环境变量 `WEBMUX_SOCKET` 指向的套接字；
+4. 默认配置路径，按与服务相同的规则定位。
 
-`WEBMUX_SOCKET` 已设置但不可连接时，SHALL 视为服务未运行，SHALL NOT 回退到默认配置。
+`--socket` 与 `--config` SHALL 互斥。`--socket` 或 `WEBMUX_SOCKET` 指定的套接字不可连接时，SHALL 视为服务未运行，SHALL NOT 回退到默认配置。
+`--socket` 用于 agent 的工具 shell 过滤掉 `WEBMUX_*` 变量的情形：`{{webmux}}` 简述会给出套接字的绝对路径。
+
+CLI 调用服务端没有的接口（404，且路径属于本变更新增的接口）时，SHALL 报告“服务端版本过旧”，
+同时给出服务端与 CLI 的版本，并提示改用 `$WEBMUX_BIN`（与服务端同一个可执行文件）；SHALL NOT 只输出原始的 404。
 
 接受会话 ID 的位置参数和选项 SHALL 接受 `self`，在客户端解析为环境变量 `WEBMUX_SESSION_ID` 的值。该变量未设置时 SHALL 以退出码 2 结束。
 
@@ -83,6 +88,16 @@ SHALL 经本机套接字访问本机服务。它们 SHALL NOT 需要或输出 To
 
 - **WHEN** `WEBMUX_SOCKET` 指向的服务已经退出，而默认配置对应另一个正在运行的实例
 - **THEN** CLI 以退出码 3 结束，不访问另一个实例
+
+#### Scenario: 工具 shell 丢失环境变量
+
+- **WHEN** agent 的工具 shell 没有 `WEBMUX_SOCKET`，agent 按简述执行 `/usr/bin/webmux ls --socket /run/user/1000/webmux/webmux.sock`
+- **THEN** CLI 连接该套接字列出会话，不读取默认配置
+
+#### Scenario: CLI 比服务端新
+
+- **WHEN** PATH 中的 `webmux` 比运行中的服务新，用户执行一个服务端尚未支持的命令
+- **THEN** 退出码 1，标准错误给出两边的版本，并提示使用 `$WEBMUX_BIN`
 
 #### Scenario: self 在会话外
 
