@@ -2,15 +2,21 @@
   import { Label } from "$lib/components/ui/label";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import { Switch } from "$lib/components/ui/switch";
-  import type { ForwardOptions } from "./data";
+  import type { ForwardOptions } from "../schemas";
 
-  // Compatibility options of one forward (prototype). Every switch starts on
-  // so a Vite-like dev server works through the gateway without changes.
+  // The compatibility options of one forward. New forwards start with every
+  // rewrite on, so a Vite-like dev server works through the gateway as is.
   let {
     id,
     port,
     options = $bindable(),
-  }: { id: string; port: number | null; options: ForwardOptions } = $props();
+  }: {
+    /** Prefix for the field IDs; unique per form. */
+    id: string;
+    /** The forwarded port, or null while the add form has none. */
+    port: number | null;
+    options: ForwardOptions;
+  } = $props();
   const base = $derived(port ? `/forward/${port}/` : "/forward/{port}/");
   const switches = [
     {

@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/svelte-vite";
+import { userEvent, within } from "storybook/test";
 import PortPrompt from "./port-forwarding/PortPrompt.svelte";
 
-// The terminal page prompt for newly listening ports (openspec change
-// `port-forwarding`). Prototype only: sample data, no server.
+// The terminal page prompts for listening ports: the real TerminalNotices
+// over demo forwards answered in memory.
 const meta = {
   title: "Terminal/Port prompt",
   component: PortPrompt,
@@ -11,7 +12,18 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const NewPort: Story = { args: { scenario: "new" } };
-export const MultiplePorts: Story = { args: { scenario: "multiple" } };
-export const Forwarded: Story = { args: { scenario: "forwarded" } };
-export const Failed: Story = { args: { scenario: "failed" } };
+async function forward5173(canvasElement: HTMLElement) {
+  await userEvent.click(
+    await within(canvasElement).findByRole("button", { name: "转发" }),
+  );
+}
+
+export const NewPort: Story = {};
+export const MultiplePorts: Story = { args: { multiple: true } };
+export const Forwarded: Story = {
+  play: ({ canvasElement }) => forward5173(canvasElement),
+};
+export const Failed: Story = {
+  args: { failing: true },
+  play: ({ canvasElement }) => forward5173(canvasElement),
+};

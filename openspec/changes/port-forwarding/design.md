@@ -40,10 +40,10 @@
 
 ### 1. 路径前缀而不是子域名
 
-| 方案 | Vite 是否需要配置 | 远程访问 | 与 WebMux 同源隔离 |
-| --- | --- | --- | --- |
-| `/forward/{port}/`（选定） | 需要设置 base | 所有接入方式可用 | 否 |
-| `{port}.host` 子域名 | 不需要 | 需要泛域名 DNS，MagicDNS 和 quick tunnel 都不支持 | 是 |
+| 方案                       | Vite 是否需要配置 | 远程访问                                          | 与 WebMux 同源隔离 |
+| -------------------------- | ----------------- | ------------------------------------------------- | ------------------ |
+| `/forward/{port}/`（选定） | 需要设置 base     | 所有接入方式可用                                  | 否                 |
+| `{port}.host` 子域名       | 不需要            | 需要泛域名 DNS，MagicDNS 和 quick tunnel 都不支持 | 是                 |
 
 用户的主要场景是在远程服务器上开发、在本地预览，所以接入方式必须能覆盖 Tailscale 和 quick tunnel。这个方案的代价是同源风险，见“Risks”。
 
@@ -68,19 +68,20 @@ sequenceDiagram
 
 - **凭据保存在服务端内存。** `forward.Credentials` 保存从凭据值的 SHA-256 到过期时间的映射。凭据为 32 字节随机数，以 base64url 编码。校验时与 `authorized` 一样，先计算 SHA-256 再用常数时间比较。过期条目在签发或校验时顺带清理。
 - **兑换码不出现在 URL 中。** 兑换码以表单 POST 提交，所以不会进入地址栏、历史记录或访问日志，这延续了 `access-link` 的规则：认证信息不写进 URL。兑换端点要求请求带 Origin，并且 Origin 与 WebMux 同源（复用 `originAllowed`）；`next` 必须以 `/forward/` 开头，不能包含 `//`、反斜杠或协议。
+- **提交前放宽本页的 Referrer 策略。** WebMux 页面的 `Referrer-Policy: no-referrer` 会让浏览器在表单 POST 中发送 `Origin: null`，兑换端点因此会拒绝。`/forward-auth` 页面在提交前插入 `<meta name="referrer" content="same-origin">`，只让这一次同源提交带上真实 Origin；服务端的同源校验保持不变。
 - **使用 `SameSite=Strict`。** 其他站点发起的跨站请求都不会带上这个 Cookie。用户从别的站点点进转发链接时，浏览器同样不带 Cookie，这时网关先跳到 `/forward-auth` 认证，认证由 WebMux 自己的页面发起，之后的请求都属于同站请求，所以不影响使用。
 - **备选方案：用 HMAC 无状态签名。** 优点是不需要在服务端保存状态；缺点是没法单独撤销某个凭据。凭据本来就会在服务重启后失效，内存表的实现也足够简单。
 
 ### 3. 分层与代码位置
 
-| 位置 | 职责 |
-| --- | --- |
-| `internal/forward`（新服务） | 维护转发登记表、校验端口、签发和兑换凭据、探测上游状态、通过订阅通道推送变化；不处理 HTTP |
-| `internal/api/forward.go` | 实现 `/forward/` 网关（`httputil.ReverseProxy`）、`/forward/_auth` 兑换端点和 `/api/forwards*` 接口，并把错误映射到 `errors.go` |
-| `internal/session` | 扫描监听 socket，生成 `Info.ListeningPorts` |
-| `internal/contract` / `wire` | 新增 `Forward`、`ForwardOptions`、`ForwardRequest`、`ForwardTicket` 和 `ListeningPort` |
-| `internal/hub` | 在 `/ws/sessions` 快照中加入 `forwards` 字段，新增 `forwards` 事件 |
-| `cmd/webmux` | 构造 `forward.Service`，传入 WebMux 自身端口作为排除项，注入 `api.Deps` |
+| 位置                         | 职责                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/forward`（新服务） | 维护转发登记表、校验端口、签发和兑换凭据、探测上游状态、通过订阅通道推送变化；不处理 HTTP                                       |
+| `internal/api/forward.go`    | 实现 `/forward/` 网关（`httputil.ReverseProxy`）、`/forward/_auth` 兑换端点和 `/api/forwards*` 接口，并把错误映射到 `errors.go` |
+| `internal/session`           | 扫描监听 socket，生成 `Info.ListeningPorts`                                                                                     |
+| `internal/contract` / `wire` | 新增 `Forward`、`ForwardOptions`、`ForwardRequest`、`ForwardTicket` 和 `ListeningPort`                                          |
+| `internal/hub`               | 在 `/ws/sessions` 快照中加入 `forwards` 字段，新增 `forwards` 事件                                                              |
+| `cmd/webmux`                 | 构造 `forward.Service`，传入 WebMux 自身端口作为排除项，注入 `api.Deps`                                                         |
 
 - **`forward` 是叶子服务。** 它不依赖 `session`，来源会话 ID 只当作普通字符串保存。`internal/archtest/layers_test.go` 中要把它登记为服务层。
 - **网关只注册在 TCP 监听器上（`New`）。** 本机控制面的 mux 不注册网关。
@@ -138,6 +139,7 @@ flowchart TD
   2. 用 `PROC_PIDFDSOCKETINFO` 读取 `socket_fdinfo`，保留 `SOCKINFO_TCP`、`TSI_S_LISTEN` 状态以及回环或通配本地地址的 socket。
 
   CI 没有 macOS runner，只运行 `GOOS=darwin go vet`。因此结构体偏移用固定字节的解析单元测试锁定（在 Linux 上也能运行）；真实监听测试在 macOS 真机上手动运行，并在 PR 中记录结果。
+
 - **结果写入会话信息。** 扫描结果写入会话的 `Info.ListeningPorts`，并纳入 `sameDisplay` 比较，因此端口变化会触发现有的 `updated` 事件。扫描与现有分类逻辑一样，在 manager 锁之外进行。
 - **排除自身端口。** WebMux 自身的端口通过 `session.Options` 的新字段 `ExcludePorts` 传入，由 `cmd/internal/assemble` 填写。
 
