@@ -692,6 +692,8 @@ var chatNewCommand = &Command{
 		"set":        {Repeatable: true, Conflicts: []string{"terminal"}},
 		"attach":     {Repeatable: true, Conflicts: []string{"terminal"}},
 		"permission": {Conflicts: []string{"terminal"}},
+		"wait":       {Conflicts: []string{"terminal"}},
+		"terminal":   {Conflicts: []string{"set", "permission", "attach", "wait"}},
 		"label":      {Repeatable: true},
 		"init":       {Conflicts: []string{"no-init"}},
 		"no-init":    {Conflicts: []string{"init"}},
