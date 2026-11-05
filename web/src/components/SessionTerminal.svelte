@@ -791,6 +791,7 @@
               onreview={review}
               onopenlocation={openCodeLocation}
               onterminal={() => hybrid.request("tui")}
+              {quickMenu}
             />
           </div>
         {:else if hybrid.view === "switching"}

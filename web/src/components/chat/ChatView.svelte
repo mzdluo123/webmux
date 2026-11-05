@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconCircleCheck from "~icons/tabler/circle-check";
   import IconHandStop from "~icons/tabler/hand-stop";
@@ -45,6 +46,7 @@
     onreview,
     onopenlocation,
     onterminal,
+    quickMenu,
   }: {
     model: ChatModel;
     chat: ChatState | undefined;
@@ -65,6 +67,8 @@
     onopenlocation?: (target: ChatCodeLink) => void;
     /** Moves the session to its terminal, such as to log in there. */
     onterminal: () => void;
+    /** The quick-command menu, shown beside the send button. */
+    quickMenu?: Snippet<["top" | "bottom"]>;
   } = $props();
 
   let scroller = $state<HTMLDivElement>();
@@ -346,6 +350,7 @@
         {uploadUnavailable}
         {actions}
         onerror={(message) => (error = message)}
+        {quickMenu}
       />
     {/if}
   </div>

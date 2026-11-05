@@ -550,15 +550,15 @@ test.describe("hybrid sessions with the fake agent", () => {
     const id = await createHybrid(request, workDir, "acp");
     await openHybrid(page, id, "acp");
     await composer(page).fill("请执行 ");
-    // The chat side has no soft-key bar: the header holds the entry.
+    // The chat side has no soft-key bar: the entry sits beside the send button.
     await page
-      .locator(".terminal-header")
+      .locator("[data-chat-composer]")
       .getByRole("button", { name: "快捷指令", exact: true })
       .click();
     const menu = page.getByRole("menu");
     await expect(menu).toContainText("插入消息");
     // An Enter command only inserts here: sending stays with the message box.
-    await menu.getByRole("menuitem", { name: "/resume", exact: true }).click();
+    await menu.getByRole("menuitem", { name: /\/resume/ }).click();
     await expect(composer(page)).toHaveValue("请执行 /resume");
     await expect(conversation(page)).not.toContainText("/resume");
   });
