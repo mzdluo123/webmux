@@ -69,7 +69,11 @@ sequenceDiagram
 - **凭据保存在服务端内存。** `forward.Credentials` 保存从凭据值的 SHA-256 到过期时间的映射。凭据为 32 字节随机数，以 base64url 编码。校验时与 `authorized` 一样，先计算 SHA-256 再用常数时间比较。过期条目在签发或校验时顺带清理。
 - **兑换码不出现在 URL 中。** 兑换码以表单 POST 提交，所以不会进入地址栏、历史记录或访问日志，这延续了 `access-link` 的规则：认证信息不写进 URL。兑换端点要求请求带 Origin，并且 Origin 与 WebMux 同源（复用 `originAllowed`）；`next` 必须以 `/forward/` 开头，不能包含 `//`、反斜杠或协议。
 - **提交前放宽本页的 Referrer 策略。** WebMux 页面的 `Referrer-Policy: no-referrer` 会让浏览器在表单 POST 中发送 `Origin: null`，兑换端点因此会拒绝。`/forward-auth` 页面在提交前插入 `<meta name="referrer" content="same-origin">`，只让这一次同源提交带上真实 Origin；服务端的同源校验保持不变。
-- **使用 `SameSite=Strict`。** 其他站点发起的跨站请求都不会带上这个 Cookie。用户从别的站点点进转发链接时，浏览器同样不带 Cookie，这时网关先跳到 `/forward-auth` 认证，认证由 WebMux 自己的页面发起，之后的请求都属于同站请求，所以不影响使用。
+- **使用 `SameSite=Strict`。** 其他站点发起的跨站请求都不会带上这个 Cookie。用户从别的站点点进转发链接时，浏览器同样不带 Cookie，这时网关先跳到 `/forward-auth` 认证。
+- **其他网站发起的认证需要一次点击。** 否则 `/forward-auth` 自动兑换后，后续请求都属于同站请求，恶意网站就能让浏览器向转发应用发出带凭据的 GET。
+  - 服务端在加载 `/forward-auth` 时检查 `Sec-Fetch-Site`：不是 `same-origin` 或 `none`（地址栏、书签）时加上 `confirm=1`，页面等用户点击“打开”。
+  - 浏览器只向可信来源（HTTPS、localhost）发送 `Sec-Fetch-*`，所以经纯 HTTP 访问局域网地址时也需要点击一次。
+  - 该页面禁止被嵌入框架；网关在查询转发之前认证，未认证请求无法探测哪些端口已转发。
 - **备选方案：用 HMAC 无状态签名。** 优点是不需要在服务端保存状态；缺点是没法单独撤销某个凭据。凭据本来就会在服务重启后失效，内存表的实现也足够简单。
 
 ### 3. 分层与代码位置

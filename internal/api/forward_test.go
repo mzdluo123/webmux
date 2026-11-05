@@ -338,6 +338,67 @@ func TestGatewayRouting(t *testing.T) {
 	}
 }
 
+func TestGatewayHidesForwardedPortsFromUnauthenticated(t *testing.T) {
+	env := newGatewayEnv(t, "secret", nil)
+	env.add(env.port, nil)
+	for _, path := range []string{env.path("x"), "/forward/1/x"} {
+		if got := env.do(http.MethodGet, path, nil, nil).StatusCode; got != http.StatusUnauthorized {
+			t.Errorf("unauthenticated %s = %d, want 401 whether or not it is forwarded", path, got)
+		}
+	}
+	// Plain HTTP to a LAN address carries no Sec-Fetch-*: an HTML page load
+	// still reaches the sign-in page; other requests do not.
+	res := env.do(http.MethodGet, env.path(""), nil, func(r *http.Request) { r.Header.Set("Accept", "text/html,application/xhtml+xml") })
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("HTML load without Sec-Fetch-Mode = %d", res.StatusCode)
+	}
+	res = env.do(http.MethodGet, env.path(""), nil, func(r *http.Request) {
+		r.Header.Set("Accept", "text/html")
+		r.Header.Set("Sec-Fetch-Mode", "cors")
+	})
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("fetch accepting HTML = %d", res.StatusCode)
+	}
+}
+
+func TestForwardAuthPageConfirmsForeignLoads(t *testing.T) {
+	env := newGatewayEnv(t, "secret", nil)
+	next := "/forward-auth?next=" + url.QueryEscape("/forward/5173/")
+	for _, row := range []struct {
+		site     string
+		redirect bool
+	}{
+		{"same-origin", false},
+		{"none", false},
+		{"cross-site", true},
+		{"same-site", true},
+		{"", true},
+	} {
+		res := env.do(http.MethodGet, next, nil, func(r *http.Request) {
+			if row.site != "" {
+				r.Header.Set("Sec-Fetch-Site", row.site)
+			}
+		})
+		if res.Header.Get("X-Frame-Options") != "DENY" || !strings.Contains(res.Header.Get("Content-Security-Policy"), "frame-ancestors 'none'") {
+			t.Errorf("site %q: page may be framed", row.site)
+		}
+		if !row.redirect {
+			if res.StatusCode != http.StatusOK {
+				t.Errorf("site %q = %d, want the page", row.site, res.StatusCode)
+			}
+			continue
+		}
+		want := "/forward-auth?confirm=1&next=" + url.QueryEscape("/forward/5173/")
+		if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != want {
+			t.Errorf("site %q = %d %q, want 303 %q", row.site, res.StatusCode, res.Header.Get("Location"), want)
+		}
+	}
+	res := env.do(http.MethodGet, "/forward-auth?confirm=1&next=%2Fforward%2F5173%2F", nil, func(r *http.Request) { r.Header.Set("Sec-Fetch-Site", "cross-site") })
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("confirmed foreign load = %d", res.StatusCode)
+	}
+}
+
 func TestGatewayHostCheck(t *testing.T) {
 	forwards := forward.New(forward.Config{ProbeInterval: time.Hour})
 	t.Cleanup(forwards.Close)

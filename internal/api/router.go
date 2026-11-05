@@ -97,6 +97,9 @@ func New(d Deps) http.Handler {
 			s.gateway(w, r)
 			return
 		}
+		if r.URL.Path == "/forward-auth" && r.Method == http.MethodGet && forwardAuthPage(w, r) {
+			return
+		}
 		mux.ServeHTTP(w, r)
 	}))
 }

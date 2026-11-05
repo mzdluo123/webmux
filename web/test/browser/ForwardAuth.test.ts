@@ -88,3 +88,30 @@ test("a return address outside the gateway is refused without a ticket", async (
     .toHaveTextContent("转发地址无效。");
   expect(fetch).not.toHaveBeenCalled();
 });
+
+test("a load another site started waits for a click before redeeming", async () => {
+  history.replaceState(
+    history.state,
+    "",
+    `${location.pathname}?confirm=1&next=${encodeURIComponent("/forward/5173/")}`,
+  );
+  const fetch = stubFetch(() =>
+    Response.json(
+      { code: "one-time-code", expiresAt: "2026-11-05T10:01:00Z" },
+      { status: 201 },
+    ),
+  );
+  const submit = vi
+    .spyOn(HTMLFormElement.prototype, "submit")
+    .mockImplementation(() => {});
+  await render(ForwardAuth);
+  await expect.element(page.getByText("/forward/5173/")).toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: "打开" }))
+    .toBeVisible();
+  expect(fetch).not.toHaveBeenCalled();
+
+  await page.getByRole("button", { name: "打开" }).click();
+  await vi.waitFor(() => expect(submit).toHaveBeenCalledOnce());
+  expect(fetch).toHaveBeenCalledOnce();
+});

@@ -7,8 +7,12 @@
 
   // The gateway sends an unauthenticated tab here. With WebMux signed in,
   // the page trades a one-time ticket for the gateway cookie and returns to
-  // the forwarded address; App shows the token form first otherwise.
+  // the forwarded address; App shows the token form first otherwise. The
+  // server adds confirm=1 when another site started the load: the page then
+  // waits for a click, so a foreign page cannot drive the forwarded app.
   let error = $state("");
+  let pending = $state("");
+  let busy = $state(false);
 
   // A top-level form POST carries the code in its body, so it never enters
   // an address bar, history entry or access log.
@@ -38,23 +42,27 @@
     form.submit();
   }
 
+  function open(next: string) {
+    busy = true;
+    forwardTicket()
+      .then((ticket) => redeem(ticket.code, next))
+      .catch((err: unknown) => {
+        busy = false;
+        error = `无法打开转发：${errorMessage(err)}`;
+      });
+  }
+
   onMount(() => {
     const next = forwardAuthNext(location.search);
     if (!next) {
       error = "转发地址无效。";
       return;
     }
-    let disposed = false;
-    forwardTicket()
-      .then((ticket) => {
-        if (!disposed) redeem(ticket.code, next);
-      })
-      .catch((err: unknown) => {
-        if (!disposed) error = `无法打开转发：${errorMessage(err)}`;
-      });
-    return () => {
-      disposed = true;
-    };
+    if (new URLSearchParams(location.search).get("confirm") === "1") {
+      pending = next;
+      return;
+    }
+    open(next);
   });
 </script>
 
@@ -64,6 +72,15 @@
   {#if error}
     <p role="alert" class="max-w-md text-destructive wrap-anywhere">{error}</p>
     <Button href="/" variant="outline">返回 WebMux</Button>
+  {:else if pending}
+    <p class="max-w-md wrap-anywhere">
+      这个链接来自其他网站，要打开端口转发
+      <code class="font-mono">{pending}</code> 吗？
+    </p>
+    <div class="flex gap-2">
+      <Button disabled={busy} onclick={() => open(pending)}>打开</Button>
+      <Button href="/" variant="outline">返回 WebMux</Button>
+    </div>
   {:else}
     <p role="status" class="text-muted-foreground">正在打开转发…</p>
   {/if}

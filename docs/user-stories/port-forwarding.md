@@ -11,6 +11,7 @@
   - 网关只认 `webmux_forward` Cookie：值为服务端内存中的 256 位随机凭据，独立于主 token，`HttpOnly`、`SameSite=Strict`、`Path=/forward/`、12 小时过期，经 HTTPS 入口访问时带 `Secure`，服务重启后全部失效；
   - 该 Cookie 不能认证 `/api/` 与 `/ws/`，只带它的请求返回 401；主 token 为空时网关与 API 一样不要求认证；
   - 没有有效凭据时，浏览器顶层导航 303 到 `/forward-auth`，页面用主 token 换取 60 秒一次性兑换码，以表单 POST 兑换 Cookie 后回到原地址；兑换码不进入 URL，跨站提交 403，站外 `next` 400，重复使用 401；其他请求直接 401；
+  - 由其他网站发起（或浏览器未报告来源，如经纯 HTTP 访问局域网地址）的认证页显示目标地址，用户点击“打开”后才兑换；认证页不能被嵌入框架；未认证请求不能探测哪些端口已转发；
   - 请求与响应流式转发，SSE 逐条到达，WebSocket 透明转发；跨站 WebSocket 升级 403；上游不可连接时返回含端口号的 502 纯文本；
   - 上游收不到 `webmux_forward`，响应中的 `Service-Worker-Allowed` 被删除；网关执行 Host 检查，不记录请求体、响应体或 Cookie；
   - 移除转发后新请求 404，该端口进行中的连接（含 WebSocket）被关闭；转发只在内存中，与会话无关，服务重启后清空。

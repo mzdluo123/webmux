@@ -47,7 +47,7 @@ interface ForwardRequest {
 
 ## 网关 `/forward/{port}/`
 
-- `{port}` 必须是不带前导零的十进制 1–65535，且已添加转发，否则 404，不连接上游。
+- `{port}` 必须是不带前导零的十进制 1–65535，否则 404；已认证请求访问未添加的端口也返回 404，不连接上游。认证在查询转发之前，未认证请求不论端口是否已转发都得到同样的结果。
 - `/forward/{port}`（无末尾斜杠）308 到 `/forward/{port}/`，保留查询参数。
 - 上游固定为 `127.0.0.1:{port}`，IPv4 连不上时再试 `[::1]:{port}`；不使用环境代理，不接受其他主机。
 - 上游无法连接时返回 502 纯文本，说明中包含端口号。
@@ -62,11 +62,15 @@ interface ForwardRequest {
 
 网关只认 `webmux_forward` Cookie。主 Token 为空（认证关闭）时，网关与 `/api/` 一样不要求认证。
 
-| 情况                                               | 结果                                               |
-| -------------------------------------------------- | -------------------------------------------------- |
-| 有效 Cookie                                        | 代理                                               |
-| 无有效 Cookie，`GET` 且 `Sec-Fetch-Mode: navigate` | 303 到 `/forward-auth?next=<URL 编码的路径和查询>` |
-| 无有效 Cookie，其他请求                            | 401 纯文本                                         |
+| 情况                            | 结果                                               |
+| ------------------------------- | -------------------------------------------------- |
+| 有效 Cookie                     | 代理                                               |
+| 无有效 Cookie，页面导航（见下） | 303 到 `/forward-auth?next=<URL 编码的路径和查询>` |
+| 无有效 Cookie，其他请求         | 401 纯文本                                         |
+
+页面导航指 `GET` 且 `Sec-Fetch-Mode: navigate`。浏览器只向可信来源（HTTPS、localhost）发送 `Sec-Fetch-*`；没有该头时，以 `Accept` 含 `text/html` 判断。
+
+加载 `/forward-auth` 时，服务端检查 `Sec-Fetch-Site`：不是 `same-origin` 或 `none`（包括缺失）时 303 到同一地址并加上 `confirm=1`，页面显示目标地址并等用户点击“打开”再兑换，使其他网站不能驱动浏览器向转发应用发出带凭据的请求。该页面带 `X-Frame-Options: DENY` 与 `frame-ancestors 'none'`。
 
 `webmux_forward` 的值是 32 字节随机数（base64url），服务端只保存 SHA-256 并以常数时间比较；它独立于主 Token，12 小时后过期，服务重启后全部失效。它 MUST NOT 认证 `/api/` 与 `/ws/`：只带该 Cookie 的请求在那里返回 401。
 

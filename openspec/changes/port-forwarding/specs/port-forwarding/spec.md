@@ -164,22 +164,34 @@
 
 ### Requirement: 未认证访问自动认证
 
-网关收到没有有效凭据的请求时：
+网关收到没有有效凭据的请求时，SHALL 先认证再查询转发，因此未认证请求无法区分端口是否已转发：
 
-- 如果是浏览器顶层导航（`Sec-Fetch-Mode: navigate` 且为 `GET`），SHALL 以 303 跳转到 `/forward-auth?next=<URL 编码的原路径和查询参数>`；
+- 如果是浏览器顶层导航（`GET` 且 `Sec-Fetch-Mode: navigate`；浏览器不发送 `Sec-Fetch-Mode` 时，以 `Accept` 含 `text/html` 判断），SHALL 以 303 跳转到 `/forward-auth?next=<URL 编码的原路径和查询参数>`；
 - 其他请求 SHALL 返回 401。
 
 `/forward-auth` 是前端页面：已有主 Token 时自动完成兑换并回到原地址；没有主 Token 时先显示现有的 Token 登录表单，登录后继续兑换。
+
+加载 `/forward-auth` 的请求的 `Sec-Fetch-Site` 不是 `same-origin` 或 `none`（包括缺失）时，服务端 SHALL 以 303 加上 `confirm=1` 参数，页面 MUST 等用户点击“打开”后才兑换，使其他网站不能驱动浏览器向转发应用发出带凭据的请求。该页面 MUST NOT 允许被嵌入框架。
 
 #### Scenario: 直接打开转发链接
 
 - **WHEN** 已登录 WebMux 的浏览器在新标签页打开从对话框复制的 `https://host/forward/5173/?page=2`，此时还没有 Cookie
 - **THEN** 浏览器经过 `/forward-auth` 后回到 `/forward/5173/?page=2`，页面正常显示，用户无需任何操作
 
+#### Scenario: 其他网站发起的打开需要确认
+
+- **WHEN** 其他网站的页面让浏览器导航到 `/forward/5173/`，此时还没有 Cookie
+- **THEN** `/forward-auth` 显示该转发地址和“打开”按钮，用户点击前不兑换凭据、不向开发服务器发出请求
+
 #### Scenario: 子资源不跳转
 
 - **WHEN** 页面脚本在没有有效 Cookie 时请求 `/forward/5173/api/data`
 - **THEN** 网关返回 401，不跳转
+
+#### Scenario: 不暴露已转发的端口
+
+- **WHEN** 未认证的请求分别访问已转发的 `/forward/5173/x` 和未转发的 `/forward/1/x`
+- **THEN** 两者都返回 401
 
 ### Requirement: 网关跨站防护
 

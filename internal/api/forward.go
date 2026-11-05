@@ -114,11 +114,6 @@ func (s *Server) gateway(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	f, life, ok := s.Forward.Lookup(port)
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
 	if r.URL.Path == forwardRoot+raw {
 		target := forwardRoot + raw + "/"
 		if r.URL.RawQuery != "" {
@@ -127,12 +122,19 @@ func (s *Server) gateway(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, target, http.StatusPermanentRedirect)
 		return
 	}
+	// Authentication precedes the lookup, so an unauthenticated request
+	// cannot tell a forwarded port from any other.
 	if !s.forwardAuthorized(r) {
-		if r.Method == http.MethodGet && r.Header.Get("Sec-Fetch-Mode") == "navigate" {
+		if isNavigation(r) {
 			http.Redirect(w, r, "/forward-auth?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)
 			return
 		}
 		gatewayText(w, http.StatusUnauthorized, "需要重新认证端口转发。请从 WebMux 打开这个地址。")
+		return
+	}
+	f, life, ok := s.Forward.Lookup(port)
+	if !ok {
+		http.NotFound(w, r)
 		return
 	}
 	if isUpgrade(r) && !s.originAllowed(r) {
@@ -157,6 +159,40 @@ func (s *Server) gateway(w http.ResponseWriter, r *http.Request) {
 
 func isUpgrade(r *http.Request) bool {
 	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+}
+
+// isNavigation recognizes a browser's top-level page load. Browsers send
+// Sec-Fetch-* only to trustworthy origins (HTTPS, localhost); on plain HTTP
+// to a LAN or VPN address a page load is a GET that accepts HTML.
+func isNavigation(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	if mode := r.Header.Get("Sec-Fetch-Mode"); mode != "" {
+		return mode == "navigate"
+	}
+	return strings.Contains(r.Header.Get("Accept"), "text/html")
+}
+
+// forwardAuthPage guards the SPA route /forward-auth, which redeems a ticket
+// on its own. A load that another site started (or whose origin the browser
+// does not report) gets confirm=1, and the page then waits for a click, so a
+// foreign page cannot make the browser send authenticated requests to a
+// forwarded app. The page may not be framed. It reports whether it answered.
+func forwardAuthPage(w http.ResponseWriter, r *http.Request) bool {
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "same-origin", "none":
+		return false
+	}
+	query := r.URL.Query()
+	if query.Get("confirm") == "1" {
+		return false
+	}
+	query.Set("confirm", "1")
+	http.Redirect(w, r, "/forward-auth?"+query.Encode(), http.StatusSeeOther)
+	return true
 }
 
 // forwardAuthorized accepts a live forwarding credential cookie; with the
