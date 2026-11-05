@@ -717,7 +717,9 @@
             dismiss={(key) => hybrid.dismiss(key)}
             recovery={hybrid.recoverable ? recovery : undefined}
             session={id}
-            listening={hybrid.info?.listeningPorts ?? []}
+            listening={hybrid.view === "terminal"
+              ? hybrid.info?.listeningPorts
+              : undefined}
             {showForwards}
           />
           {#if hybrid.connector && hybrid.view === "terminal"}<div

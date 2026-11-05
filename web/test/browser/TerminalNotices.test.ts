@@ -103,9 +103,15 @@ test("an ignored port prompts again after it stops and restarts listening", asyn
   // Still listening: still ignored.
   await view.rerender({ listening: ports(5173) });
   await expect.element(prompt(5173)).not.toBeInTheDocument();
+  // Leaving the page and coming back: the remount starts before the session
+  // info arrives, and that unknown state must not forget the ignored port.
+  await cleanup();
+  const remounted = await notices({ session: "ignoring" });
+  await remounted.rerender({ listening: ports(5173) });
+  await expect.element(prompt(5173)).not.toBeInTheDocument();
 
-  await view.rerender({ listening: [] });
-  await view.rerender({ listening: ports(5173) });
+  await remounted.rerender({ listening: [] });
+  await remounted.rerender({ listening: ports(5173) });
   await expect.element(prompt(5173)).toBeVisible();
 });
 

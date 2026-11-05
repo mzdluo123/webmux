@@ -23,7 +23,11 @@
   }: {
     /** The session ID the ports belong to (the source of new forwards). */
     session: string;
-    listening: readonly ListeningPort[];
+    /**
+     * The session's current listening ports; undefined while they are not
+     * known (before the session info arrives, or off the terminal side).
+     */
+    listening: readonly ListeningPort[] | undefined;
     /** Opens the port-forwarding dialog. */
     onshowall?: () => void;
   } = $props();
@@ -35,16 +39,17 @@
   const busy = new SvelteSet<number>();
 
   // A port that stops listening leaves the ignore set, so a restarted server
-  // prompts again.
+  // prompts again. Unknown ports prune nothing: a remount must not forget
+  // what the user ignored before the session info arrives.
   $effect(() => {
     const ports = listening;
-    untrack(() => pruneIgnored(session, ports));
+    if (ports) untrack(() => pruneIgnored(session, ports));
   });
 
   const forwarded = $derived(new Set(forwards.list.map((entry) => entry.port)));
   // Until the forward list is known, any port might be forwarded already.
   const prompts = $derived(
-    forwards.ready
+    forwards.ready && listening
       ? listening
           .filter(
             (entry) =>

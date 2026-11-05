@@ -42,7 +42,7 @@
     dismiss = () => {},
     recovery,
     session = "",
-    listening = [],
+    listening,
     showForwards,
   }: {
     terminal: NoticeTerminal;
@@ -64,6 +64,7 @@
     recovery?: Snippet;
     /** The session ID whose listening ports get forwarding prompts. */
     session?: string;
+    /** Listening ports, or undefined while unknown (see TerminalPortPrompts). */
     listening?: readonly ListeningPort[];
     /** Opens the port-forwarding dialog. */
     showForwards?: () => void;

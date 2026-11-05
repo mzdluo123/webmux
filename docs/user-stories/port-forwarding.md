@@ -40,7 +40,8 @@
   - 终端页为每个未转发、未忽略的监听端口显示“检测到端口 {port}（{process}）正在监听”，提供“转发并打开”“转发”“忽略”；最多显示两条，其余合并为“另有 N 个端口”，可打开转发对话框；
   - “转发并打开”在点击时打开新标签页，不被浏览器拦截；转发失败时提示保留并显示服务端错误；
   - 转发后提示变为“端口 {port} 已转发到 /forward/{port}/”，提供打开、复制链接、知道了；
-  - 端口在任何设备上被转发或停止监听后提示消失；“忽略”只在当前标签页内存中生效，端口停止后再次监听会重新提示；
+  - 端口在任何设备上被转发或停止监听后提示消失；“忽略”只在当前标签页内存中生效，离开终端页再回来仍然有效，端口停止后再次监听会重新提示；
+  - 混合会话在聊天端时没有终端运行，不显示端口提示；
   - 窄屏上按钮换到文字下方，触控高度至少 44px。
 
 ## 取舍
@@ -57,5 +58,5 @@
 - [监听端口检测](../../internal/session/listen.go)、[Linux 扫描](../../internal/session/listen_linux.go)、[macOS 扫描](../../internal/session/listen_darwin.go)、[真实监听用例](../../internal/session/listen_unix_test.go)
 - [前端契约](../../web/src/schemas.ts)、[转发状态与忽略集合](../../web/src/forwards.svelte.ts)、[转发状态用例](../../web/test/browser/forwards.test.ts)
 - [顶栏按钮](../../web/src/components/ForwardButton.svelte)、[转发对话框](../../web/src/components/ForwardDialog.svelte)、[对话框用例](../../web/test/browser/ForwardDialog.test.ts)
-- [终端端口提示](../../web/src/components/TerminalPortPrompts.svelte)、[提示用例](../../web/test/browser/TerminalNotices.test.ts)
+- [终端端口提示](../../web/src/components/TerminalPortPrompts.svelte)、[提示用例](../../web/test/browser/TerminalNotices.test.ts)、[混合会话用例](../../web/test/browser/TerminalHybrid.test.ts)
 - [转发认证页](../../web/src/pages/ForwardAuth.svelte)、[认证页用例](../../web/test/browser/ForwardAuth.test.ts)、[端到端用例](../../web/test/e2e/port-forwarding.spec.ts)
