@@ -38,7 +38,7 @@
 
 <div class="mb-5 space-y-3 border-b pb-4">
   <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-    <div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
+    <div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
       <h1 class="text-lg font-semibold tracking-tight break-all">{title}</h1>
       <p role="status" class="sr-only">
         {#if loading}正在加载…
@@ -47,19 +47,22 @@
           · 正在读取 Git 状态…{/if}
       </p>
     </div>
-    <div class="ml-auto flex shrink-0 items-center justify-end gap-1">
+    <div
+      class="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1"
+    >
       {@render controls?.()}
-      {#if onsettings}<Button
-          variant="ghost"
-          size="sm"
-          class="min-h-9 min-w-9 sm:min-h-8 sm:min-w-0"
-          aria-label="仓库设置"
-          title="仓库设置"
-          onclick={() => onsettings()}
-          ><IconSettings aria-hidden="true" /><span class="hidden sm:inline"
-            >仓库设置</span
-          ></Button
-        >{/if}
+      <Button
+        variant="ghost"
+        size="sm"
+        class="min-h-9 sm:min-h-8"
+        aria-label="仓库设置"
+        title="仓库设置"
+        disabled={!onsettings}
+        onclick={() => onsettings?.()}
+        ><IconSettings aria-hidden="true" /><span class="hidden sm:inline"
+          >仓库设置</span
+        ></Button
+      >
       <Button
         variant="ghost"
         size="icon-sm"
