@@ -14,10 +14,10 @@
   - 一个 `## Optional` 分组，列出不常用的主题。
 - `GET /llms/<主题>.md` SHALL 返回单个主题。主题至少包括：
   - `connect`：如何找到可执行文件与套接字（见“手册中的可执行文件定位”）、`WEBMUX_SESSION_ID`、`self`，以及会话内被禁止的操作；
-  - `sessions`：会话的列出、元数据、标签、输入、等待、输出与结束；
-  - `launch`：`run` 与 `chat new`；
-  - `chat`：混合会话聊天；
-  - `workspace`：worktree、启动配置与端口转发；
+  - `sessions`：会话的列出、元数据、标签、输入、等待、输出、屏幕与结束；
+  - `launch`：`run`（含 `--follow`）与 `chat new`；
+  - `chat`：混合会话聊天、历史、运行时配置与队列；
+  - `workspace`：仓库、worktree、启动配置与端口转发；
   - `artifacts`：临时文件夹；
   - `notify`：提醒；
   - `recipes`：常用流程；
@@ -95,7 +95,8 @@
   - 该文件夹在会话删除后清理，不要存放需要长期保留的内容。
 - `recipes` 主题 SHALL 至少包含：
   - 用 `chat new --wait` 在新 worktree 中启动 agent 并取回回复；
-  - 用 `send --wait` 驱动 shell 会话；
+  - 用 `run --follow` 在持久会话里运行命令并取得退出码；
+  - 用 `send --wait` 驱动 shell 会话，用 `screen` 查看 TUI 当前画面；
   - 用 `ls --parent self` 找到并清理自己创建的会话；
   - 长任务结束时 `notify`；
   - 开发服务器启动后 `forward add`。
@@ -104,7 +105,8 @@
   - 不结束、不输入用户的其他会话，除非用户要求；
   - 不读取或输出 Token；
   - 不向开启自动批准的 agent 转发未经核实的外部内容；
-  - 对全屏 TUI 优先用 `chat`，不依赖 `logs --strip` 的文本。
+  - 对全屏 TUI 优先用 `chat`，需要看画面时用 `screen`，不依赖 `logs --strip` 的文本；
+  - 不确定命令用法时先运行 `webmux <命令> --help` 或 `webmux help --json`，不要猜测选项。
 
 #### Scenario: 临时文件夹说明迁移
 

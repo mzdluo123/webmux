@@ -28,7 +28,7 @@ SHALL 调用 `POST /api/sessions/{id}/chat/prompts`。
   - `stopReason` 为 `end_turn` 时以 0 退出，其他原因以 1 退出，并在标准错误报告原因；
   - 回合中出现权限或问题请求时，SHALL 在标准错误输出请求 ID 与摘要并以 1 退出；
     带 `--auto-wait-requests` 时则继续等待，直到请求在其他客户端被回答；
-  - 超时以 4 退出，SHALL NOT 取消回合。
+  - 超时以 124 退出，SHALL NOT 取消回合。
 
 #### Scenario: 让另一个 agent 完成任务并取回结果
 
@@ -75,3 +75,44 @@ SHALL 调用 `POST /api/sessions/{id}/chat/prompts`。
 
 - **WHEN** 会话在终端端，脚本先执行 `webmux chat switch <ID> --to chat`，再执行 `webmux chat send <ID> 继续`
 - **THEN** 切换完成后提示被发送，`webmux attach` 中的客户端按 US-Q13 被动分离
+
+### Requirement: 混合会话历史
+
+- `webmux chat ls [--state active|closed|interrupted]... [--repo REPO] [--json]` SHALL 调用 `GET /api/hybrid-sessions`，
+  列出混合会话记录：ID、名称、agent、状态、所在端、目录、agent 会话 ID。默认列出全部状态；`--archived` SHALL 等同于 `--state closed --state interrupted`。
+- `webmux chat resume RECORD [--side chat|terminal] [--agent-session ID] [--without-env] [--detach]` SHALL 调用 `POST /api/sessions/{id}/resume`：
+  - 成功后行为与 `run` 相同：有终端且以终端端恢复时附着，否则输出会话 ID 与链接；
+  - 启动配置已删除、需要确认缺失的环境变量时，不带 `--without-env` SHALL 以 1 结束并说明原因，带上则以 `confirmWithoutEnv` 重试；
+  - 服务端报告会话歧义时，SHALL 列出候选并接受 `--agent-session` 重试。
+- `webmux chat forget RECORD [--yes]` SHALL 调用 `DELETE /api/hybrid-sessions/{id}`，删除已结束或已中断的记录。
+  标准输入是终端且没有 `--yes` 时，SHALL 要求确认；非交互又没有 `--yes` 时，SHALL 以 2 结束。活动中的记录 SHALL 以 1 拒绝。
+
+#### Scenario: 恢复昨天中断的 agent
+
+- **WHEN** 用户执行 `webmux chat ls --archived`，再执行 `webmux chat resume <记录 ID> --side chat --detach`
+- **THEN** 同一 agent 会话以聊天端恢复，CLI 输出新的会话 ID 与链接
+
+#### Scenario: 非交互删除需要确认
+
+- **WHEN** 脚本以管道执行 `webmux chat forget <记录 ID>`
+- **THEN** 不删除记录，退出码 2，提示需要 `--yes`
+
+### Requirement: 运行时配置与队列
+
+- `webmux chat set SESSION ID=VALUE...` SHALL 对每一项调用 `PUT .../chat/config/{configId}`：
+  select 类型取 `VALUE`，boolean 类型接受 `true`/`false`。任一项失败时 SHALL 报告失败的项并以 1 结束，已成功的项不回滚。
+- `webmux chat permission SESSION ask|auto` SHALL 调用 `PUT .../chat/permission-mode`。
+- `webmux chat queue SESSION ls [--json]` SHALL 从聊天快照列出队列：序号、ID、文字摘要。
+- `webmux chat queue SESSION rm QID`、`send-now QID`、`clear`、`resume` SHALL 分别调用队列的删除、立即发送、清空与恢复接口；
+  `edit QID TEXT|-` SHALL 调用修改接口。
+- 这些写操作 SHALL 立即同步到所有设备。
+
+#### Scenario: 切换模型
+
+- **WHEN** 用户执行 `webmux chat set <ID> model=sonnet`
+- **THEN** agent 的模型配置变为该值，Web 端聊天视图的配置菜单同步显示
+
+#### Scenario: 清空排队的提示
+
+- **WHEN** 队列中有三条提示，脚本执行 `webmux chat queue <ID> clear`
+- **THEN** 队列清空，所有设备不再显示这些提示

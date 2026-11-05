@@ -44,7 +44,7 @@
 
 - `--json` SHALL 让 `--detach` 输出一个 JSON 对象：`session`（`SessionInfo`）与 `link`，代替 `ID\tLINK` 行。
 - `--wait STATE`（取值同 `webmux wait --until`）SHALL 在创建后等待会话第一次进入该状态再退出。
-  它只能与 `--detach` 同用，超时（`--timeout`）以 4 退出。
+  它只能与 `--detach` 同用，超时（`--timeout`）以 124 退出。
 - `--dry-run` SHALL 只解析参数、启动配置与工作区，并把将要发送的请求写到标准输出，SHALL NOT 创建 worktree 或会话。
   请求中的 `env` SHALL 只输出变量名，用 `"<inherited>"` 或 `"<explicit>"` 代替值。
 - `--label KEY=VALUE`（可重复）SHALL 映射为会话标签（见 `session-metadata`）。
@@ -58,6 +58,29 @@
 
 - **WHEN** 已导出 `ANTHROPIC_API_KEY` 的用户执行 `webmux run --dry-run -- claude`
 - **THEN** 输出的请求中 `env.ANTHROPIC_API_KEY` 为 `"<inherited>"`，没有创建任何会话
+
+### Requirement: 非交互地跟随运行
+
+`webmux run --follow [其他 run 选项] -- <argv...>` SHALL 创建持久会话，并像普通命令一样在当前进程中跟随它，但不需要终端：
+
+- 会话输出 SHALL 以原始字节流到标准输出；`--strip` SHALL 按 `logs --strip` 的规则去除控制序列。会话 ID 与链接 SHALL 写到标准错误。
+- CLI SHALL 以观察者身份连接，SHALL NOT 转发标准输入，SHALL NOT 夺取控制或改变尺寸。
+  会话保持服务端默认尺寸（80×24），直到某个浏览器取得控制并调整尺寸；`run --follow` 不新增尺寸字段。
+- 程序结束时，CLI SHALL 以程序的退出码退出。程序被信号终止时，SHALL 按 shell 惯例以 128 加信号编号退出。
+- CLI 收到 SIGINT 或 SIGTERM 时，SHALL 只断开连接并以 130 或 143 退出，SHALL NOT 结束会话进程；标准错误 SHALL 提示会话继续运行，可以用 `webmux logs --follow` 重新跟随。
+  `--kill-on-interrupt` 时，SHALL 先结束会话进程，再按程序的结果退出。
+- 断线时 SHALL 按回放位置续接，SHALL NOT 重复或丢失输出。续接失败时 SHALL 以 1 退出，并提示会话可能仍在运行。
+- `--follow` 与 `--detach`、`--attach`、`--start-side chat` SHALL 互斥。
+
+#### Scenario: 在持久会话里跑测试并拿到退出码
+
+- **WHEN** 脚本执行 `webmux run --follow --strip -- go test ./... > test.log; echo $?`
+- **THEN** `test.log` 是测试输出，`$?` 等于 `go test` 的退出码，Web 端在测试期间可以实时查看这个会话
+
+#### Scenario: 中断只分离
+
+- **WHEN** 用户在 `run --follow -- make build` 运行中按 Ctrl+C
+- **THEN** CLI 以 130 退出并提示会话继续运行，`make build` 在 WebMux 中继续执行
 
 ### Requirement: 一条命令完成快速开始
 
