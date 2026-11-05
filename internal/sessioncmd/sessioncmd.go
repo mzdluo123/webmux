@@ -80,8 +80,18 @@ func (e Env) Fail(err error) int {
 	return contract.ExitError
 }
 
+// UsageError is a Connect failure caused by the command line, such as
+// conflicting connection options; it exits 2 like other usage errors.
+type UsageError string
+
+func (u UsageError) Error() string { return string(u) }
+
 func (e Env) connect() (*localclient.Client, int) {
 	client, err := e.Connect()
+	var usage UsageError
+	if errors.As(err, &usage) {
+		return nil, e.Usagef("%s", string(usage))
+	}
 	if err != nil {
 		return nil, e.Fail(err)
 	}
@@ -133,7 +143,7 @@ var runCommand = &Command{
 		{Command: "webmux run --detach --name tests --cwd ~/src/app -- make test", Text: "Start a named session in another directory and print its ID and link."},
 		{Command: `webmux run --detach --launch-config "Claude Code"`, Text: "Start a saved Web UI launch config in the background."},
 	},
-	SeeAlso: []string{"webmux attach", "webmux ls", "webmux guide launch"},
+	SeeAlso: []string{"webmux attach", "webmux ls"},
 	Notes: map[string]Note{
 		"launch-config": {Conflicts: []string{"env"}},
 		"config-id":     {Conflicts: []string{"env"}},

@@ -88,9 +88,9 @@
   "hybrid": { "...": "HybridRecord" }, // 普通会话为 null
   "artifactsDir": null, // 临时文件夹已存在时为路径；接口不创建它
   "forwards": [], // 来源为该会话的端口转发
-  "parentId": "p4rent12",
+  "parentId": "p4rent22",
   "labels": { "run": "42" },
-  "children": ["ch1ld345"], // parentId 为该会话的会话，按创建时间排序
+  "children": ["ch2ld345"], // parentId 为该会话的会话，按创建时间排序
 }
 ```
 
