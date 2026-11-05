@@ -220,6 +220,17 @@ func TestRunInWorktrees(t *testing.T) {
 	if _, _, code = f.cli(t, "run", "--detach", "--worktree", want, "--new-worktree", "x", "--", "true"); code != contract.ExitUsage {
 		t.Fatalf("--worktree with --new-worktree: %d", code)
 	}
+	if _, _, code = f.cli(t, "run", "--detach", "--new-worktree", "x", "--repo", repo, "--cwd", repo, "--", "true"); code != contract.ExitUsage {
+		t.Fatalf("--cwd with --new-worktree: %d", code)
+	}
+	if _, _, code = f.cli(t, "run", "--attach", "--start-side", "chat", "--launch-config", "x", "--"); code != contract.ExitUsage {
+		t.Fatalf("--attach with --start-side chat: %d", code)
+	}
+	// The dry run shows the cwd and workspace the real request carries.
+	stdout, _, code = f.cli(t, "run", "--dry-run", "--new-worktree", "feat/dry", "--repo", repo, "--", "true")
+	if code != 0 || !strings.Contains(stdout, `"cwd": "`+filepath.Join(filepath.Dir(repo), "app.worktrees", "dry")+`"`) || !strings.Contains(stdout, "<created first>") {
+		t.Fatalf("--dry-run --new-worktree: %d %q", code, stdout)
+	}
 }
 
 func TestChatNewStartsAnAgentAndWaits(t *testing.T) {
