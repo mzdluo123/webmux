@@ -1,5 +1,6 @@
 import { errorMessage } from "../error";
 import { onMount } from "svelte";
+import { SvelteMap } from "svelte/reactivity";
 import { uploadFile } from "../api";
 import type { ChatAttachment } from "../schemas";
 import type { Connection } from "../ws";
@@ -36,6 +37,8 @@ export interface ChatUploads {
   readonly progress: UploadProgress | null;
   /** Finished uploads waiting to be sent with the next message. */
   readonly attachments: readonly ChatAttachment[];
+  /** Object or data URL for an uploaded image attachment, when available locally. */
+  preview?(path: string): string | undefined;
   uploadFiles(files: File[]): Promise<void>;
   filePaste(event: ClipboardEvent): boolean;
   cancel(): void;
@@ -318,6 +321,11 @@ const imageTypes: Record<string, true> = {
   "image/webp": true,
 };
 
+export interface ChatAttachmentStore {
+  get(): ChatAttachment[];
+  set(next: ChatAttachment[]): void;
+}
+
 // Chat uploads become attachments of the next message rather than text in
 // the draft: the server sends them as ACP content blocks, or as server paths
 // when the agent cannot take them. send stores each file: in a session's
@@ -325,13 +333,22 @@ const imageTypes: Record<string, true> = {
 export function useChatUpload(
   send: UploadSend,
   setError: (message: string) => void,
+  store?: ChatAttachmentStore,
 ): ChatUploads {
   let progress = $state<UploadProgress | null>(null);
-  let attachments = $state<ChatAttachment[]>([]);
+  let localAttachments = $state<ChatAttachment[]>([]);
+  const previews = new SvelteMap<string, string>();
   let controller: AbortController | undefined;
   let disposed = false;
 
+  const currentAttachments = () => store?.get() ?? localAttachments;
+  const writeAttachments = (next: ChatAttachment[]) => {
+    if (store) store.set(next);
+    else localAttachments = next;
+  };
+
   function refusal(files: File[]) {
+    const attachments = currentAttachments();
     if (attachments.length + files.length > maxAttachments)
       return `每条消息最多 ${maxAttachments} 个附件。`;
     const oversized = files.find((file) => file.size > maxAttachmentBytes);
@@ -364,16 +381,22 @@ export function useChatUpload(
         waiting: false,
         report: (value) => (progress = value),
         insert: async (path, file) => {
-          attachments = [
-            ...attachments,
+          const isImage = Object.hasOwn(imageTypes, file.type);
+          if (isImage) {
+            const existing = previews.get(path);
+            if (existing) URL.revokeObjectURL(existing);
+            previews.set(path, URL.createObjectURL(file));
+          }
+          writeAttachments([
+            ...currentAttachments(),
             {
               path,
               name: file.name,
               ...(file.type ? { mimeType: file.type } : {}),
               size: file.size,
-              kind: Object.hasOwn(imageTypes, file.type) ? "image" : "file",
+              kind: isImage ? "image" : "file",
             },
-          ];
+          ]);
         },
       });
     } catch (err) {
@@ -387,6 +410,8 @@ export function useChatUpload(
   onMount(() => () => {
     disposed = true;
     controller?.abort();
+    for (const url of previews.values()) URL.revokeObjectURL(url);
+    previews.clear();
   });
 
   return {
@@ -394,7 +419,10 @@ export function useChatUpload(
       return progress;
     },
     get attachments() {
-      return attachments;
+      return currentAttachments();
+    },
+    preview(path) {
+      return previews.get(path);
     },
     uploadFiles,
     filePaste(event) {
@@ -404,15 +432,22 @@ export function useChatUpload(
       controller?.abort();
     },
     remove(path) {
-      attachments = attachments.filter((item) => item.path !== path);
+      const url = previews.get(path);
+      if (url) {
+        URL.revokeObjectURL(url);
+        previews.delete(path);
+      }
+      writeAttachments(
+        currentAttachments().filter((item) => item.path !== path),
+      );
     },
     take() {
-      const taken = attachments;
-      attachments = [];
+      const taken = [...currentAttachments()];
+      writeAttachments([]);
       return taken;
     },
     restore(sent) {
-      attachments = [...sent, ...attachments];
+      writeAttachments([...sent, ...currentAttachments()]);
     },
   };
 }

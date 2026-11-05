@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte/pure";
+import { resetAttentionToasts } from "../../src/attention-toast.svelte";
 import { openSession, shellUi } from "../../src/shell.svelte";
 import { createTerminalDrafts } from "../../src/terminal-draft.svelte";
 import {
@@ -21,6 +22,7 @@ import {
 
 installChatFixture();
 beforeEach(() => {
+  resetAttentionToasts();
   shellUi.setMode("workbench");
   shellUi.setCollapsed(false);
   history.replaceState(null, "", "/");
@@ -31,6 +33,8 @@ beforeEach(() => {
 afterEach(() => {
   localStorage.removeItem("webmux.shellMode");
   localStorage.removeItem("webmux.sidebarCollapsed");
+  localStorage.removeItem("webmux.toastNotifications");
+  resetAttentionToasts();
   history.replaceState(null, "", "/");
 });
 
@@ -355,4 +359,36 @@ test("deleting an archived record whose linked worktree still exists opens workt
       ),
     )
     .toBe(true);
+});
+
+test("shows a top-right toast when a session raises attention and navigates on click", async () => {
+  render(ShellHarness, { drafts: createTerminalDrafts() });
+  const socket = await snapshot([
+    chat({ id: "chataaaa", title: "修复排序" }),
+    session({ id: "shellbbb", title: "数据库迁移" }),
+  ]);
+
+  socket.frame({
+    type: "updated",
+    session: session({
+      id: "shellbbb",
+      title: "数据库迁移",
+      status: "waiting",
+      attention: {
+        kind: "permission",
+        source: "agent",
+        since: "2026-11-05T12:00:00Z",
+      },
+    }),
+  } as never);
+
+  const region = page.getByRole("region", { name: "会话通知" });
+  await expect.element(region).toBeVisible();
+  const openButton = region.getByRole("button", {
+    name: "打开会话 数据库迁移：等待授权 · Agent 请求执行工具操作",
+  });
+  await expect.element(openButton).toBeVisible();
+  await openButton.click();
+  expect(location.pathname).toBe("/s/shellbbb");
+  await expect.element(region).not.toBeInTheDocument();
 });

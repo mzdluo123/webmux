@@ -354,6 +354,18 @@ test("a missing connector offers its install hint and the terminal; outdated par
 });
 
 test("renders the attachments of a user prompt", async () => {
+  const png = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+    0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+    0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+    0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+  ]);
+  respond(
+    /^GET \/api\/sessions\/hybrid22\/upload$/,
+    () => new Response(png, { headers: { "Content-Type": "image/png" } }),
+  );
   const socket = await open();
   socket.frame(snapshot(chatState()));
   socket.frame({
@@ -387,6 +399,9 @@ test("renders the attachments of a user prompt", async () => {
   const attachments = page.getByRole("list", { name: "附件" });
   await expect.element(attachments.getByText("shot.png")).toBeVisible();
   await expect.element(attachments.getByText("notes.txt")).toBeVisible();
+  const thumb = attachments.getByRole("img", { name: "shot.png" });
+  await expect.element(thumb).toBeVisible();
+  expect(thumb.element().getAttribute("src")).toMatch(/^blob:/);
 });
 
 test("the composer posts the prompt with a request ID and mode auto", async () => {
@@ -910,4 +925,60 @@ test("a form request highlights the prompt in destructive red", async () => {
   await expect.element(form).toMatchTextContent(/确认发布参数/);
   expect(form.element().classList.contains("border-destructive/40")).toBe(true);
   expect(form.element().querySelector("svg.text-destructive")).not.toBeNull();
+});
+
+test("submits multi-select array fields in a form elicitation", async () => {
+  const socket = await open();
+  const formRequest = {
+    requestId: "form-multi",
+    kind: "form" as const,
+    form: {
+      message: "The agent has 2 questions.",
+      fields: [
+        {
+          name: "q1",
+          title: "Pick features",
+          type: "array" as const,
+          required: true,
+          enum: ["auth", "cache", "logs"],
+          enumNames: ["Authentication", "Caching", "Logging"],
+          default: ["cache"],
+        },
+        {
+          name: "q1_other",
+          title: "Other",
+          type: "string" as const,
+          required: false,
+        },
+      ],
+      supported: true,
+    },
+  };
+  socket.frame(
+    snapshot(chatState({ turn: { running: true }, requests: [formRequest] })),
+  );
+  const form = page.getByRole("form", { name: "Agent 的表单" });
+  await expect.element(form).toMatchTextContent(/The agent has 2 questions\./);
+  const submit = form.getByRole("button", { name: "提交" });
+  await expect.element(submit).toBeEnabled();
+
+  await form.getByRole("checkbox", { name: "Caching" }).click();
+  await expect.element(submit).toBeDisabled();
+
+  await form.getByRole("checkbox", { name: "Logging" }).click();
+  await form.getByRole("checkbox", { name: "Authentication" }).click();
+  await userEvent.fill(form.getByRole("textbox", { name: "Other" }), "metrics");
+
+  await submit.click();
+  await expect.poll(commands).toEqual([
+    {
+      method: "POST",
+      path: `${base}/requests/form-multi`,
+      body: {
+        clientRequestId: expect.stringMatching(/\S/),
+        outcome: "accept",
+        content: { q1: ["auth", "logs"], q1_other: "metrics" },
+      },
+    },
+  ]);
 });
