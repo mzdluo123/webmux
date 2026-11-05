@@ -342,8 +342,13 @@ func (s *Session) SetOverlay(o *Overlay) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if o == nil {
-		s.overlay = nil
+		s.overlay, s.cliAttention = nil, nil
 		return
+	}
+	// A script's attention lasts until the driver reports a new state: other
+	// attention, or a turn that started running.
+	if s.cliAttention != nil && (o.Status == StatusRunning || attentionChanged(s.overlay, o)) {
+		s.cliAttention = nil
 	}
 	s.overlay = o.clone()
 }
