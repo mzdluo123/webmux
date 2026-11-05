@@ -1,5 +1,9 @@
 # Spec Delta
 
+## Purpose
+
+让 shell 启动会话的能力与 Web 端一致：选择或新建 worktree、混合会话的起始端与首条消息、初始化指令、标签，以及等待、跟随和预演，并提供一步完成快速开始的 `chat new`。
+
 ## ADDED Requirements
 
 ### Requirement: run 选择工作区位置

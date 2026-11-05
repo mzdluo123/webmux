@@ -86,7 +86,8 @@
 
 - `terminal-session-cli`：连接约定加入 `--socket`、`WEBMUX_SOCKET` 与 `self`，旧 CLI 碰到新接口时提示版本过旧，帮助列出新命令；`run` 在没有终端时自动分离。
 - `session-launch-environment`：服务端为每个会话设置 `WEBMUX_SOCKET` 与 `WEBMUX_BIN`，并把它们列为服务端自有变量。
-- `terminal-quick-commands`：预置指令改为恢复会话、新会话、WebMux 工具三条；快捷指令正文支持 `{{webmux}}`。
+- `terminal-quick-commands`：预置指令改为恢复会话、新会话、WebMux 工具三条；快捷指令正文支持 `{{webmux}}`；快捷指令菜单去掉固定项“插入临时文件夹提示词”。
+- `server-settings-sync`：退役 `artifactPrompt` 设置项，PATCH 中出现时按未知字段 400，旧文件中的该键读取时忽略。
 - `session-artifacts`：移除已失效的“临时文件夹提示词模板”与“从快捷指令菜单插入提示词”两条需求，新增 shell 访问与“手册不写入临时文件夹”。
 
 ## Impact

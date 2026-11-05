@@ -70,7 +70,13 @@ CLI 调用服务端没有的接口（404，且路径属于本变更新增的接�
 
 接受会话 ID 的位置参数和选项 SHALL 接受 `self`，在客户端解析为环境变量 `WEBMUX_SESSION_ID` 的值。该变量未设置时 SHALL 以退出码 2 结束。
 
-服务未运行时 SHALL 以退出码 3 结束并提示启动方式，SHALL NOT 隐式启动服务。诊断信息 SHALL 只写标准错误。
+服务未运行时 SHALL 以退出码 3 结束并提示启动方式，SHALL NOT 隐式启动服务。
+以下命令不受此限：
+
+- `agent-shell-guide` 中读取手册的命令（不带 `--path`）输出 CLI 内嵌的手册并以 0 退出；
+- `help`、`--help` 与 `completion` 不连接服务。
+
+诊断信息 SHALL 只写标准错误。
 
 `webmux help` SHALL 按组列出命令：服务与运维、会话、聊天、工作区、工具说明。每个新命令 SHALL 提供 `--help`。
 
