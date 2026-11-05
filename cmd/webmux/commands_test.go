@@ -6,6 +6,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -297,6 +298,20 @@ func TestHelpReferencesResolve(t *testing.T) {
 			for _, m := range mention.FindAllStringSubmatch(ex.Command, -1) {
 				check(c.Name+" example", m[1])
 			}
+		}
+	}
+	// The hand-written guide pages name commands too.
+	pages, _ := filepath.Glob("../../internal/agentguide/llms/*.md")
+	for _, page := range pages {
+		if filepath.Base(page) == "commands.md" {
+			continue
+		}
+		data, err := os.ReadFile(page)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range mention.FindAllStringSubmatch(string(data), -1) {
+			check(filepath.Base(page), m[1])
 		}
 	}
 }
