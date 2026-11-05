@@ -72,15 +72,25 @@
   "session": { "id": "ab2cd3ef", "...": "SessionInfo" },
   "link": "http://127.0.0.1:7681/s/ab2cd3ef", // 服务不知道本机链接时为 null
   "repository": { "id": "…", "name": "app", "path": "/home/u/app" }, // 无工作区关联时为 null
-  "worktree": { "id": "…", "branch": "fix/lint", "path": "/home/u/app.worktrees/fix-lint", "main": false },
-  "launchConfig": { "id": "k3m9q2x7", "name": "Claude Code", "icon": "claude", "hybrid": true }, // 否则 null
+  "worktree": {
+    "id": "…",
+    "branch": "fix/lint",
+    "path": "/home/u/app.worktrees/fix-lint",
+    "main": false,
+  },
+  "launchConfig": {
+    "id": "k3m9q2x7",
+    "name": "Claude Code",
+    "icon": "claude",
+    "hybrid": true,
+  }, // 否则 null
   "launchConfigMissing": true, // 仅当配置已被删除
   "hybrid": { "...": "HybridRecord" }, // 普通会话为 null
   "artifactsDir": null, // 临时文件夹已存在时为路径；接口不创建它
   "forwards": [], // 来源为该会话的端口转发
   "parentId": "p4rent12",
   "labels": { "run": "42" },
-  "children": ["ch1ld345"] // parentId 为该会话的会话，按创建时间排序
+  "children": ["ch1ld345"], // parentId 为该会话的会话，按创建时间排序
 }
 ```
 
