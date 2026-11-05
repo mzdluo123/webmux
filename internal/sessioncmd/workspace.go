@@ -175,6 +175,19 @@ func mainWorktrees(repo contract.Repository) []string {
 	return ids
 }
 
+// freshRepository reads repository id again; false when it cannot.
+func freshRepository(ctx context.Context, client *localclient.Client, id string) (contract.Repository, bool) {
+	list, err := repositories(ctx, client)
+	if err != nil {
+		return contract.Repository{}, false
+	}
+	i := slices.IndexFunc(list, func(r contract.Repository) bool { return r.ID == id })
+	if i < 0 {
+		return contract.Repository{}, false
+	}
+	return list[i], true
+}
+
 // updateHome rewrites repo's homeWorktrees entry with change, which gets
 // the current list and whether the repository was ever curated, and
 // returns the new list and false to delete the entry.
@@ -192,10 +205,13 @@ func updateHome(ctx context.Context, client *localclient.Client, repo contract.R
 		next, keep := change(current, curated)
 		if keep {
 			// Drop pins of worktrees the repository no longer lists, as
-			// the web does for a healthy snapshot.
-			if repo.Availability == "available" && repo.Error == "" {
+			// the web does for a healthy snapshot. The list is read again
+			// on every attempt, so a worktree another client created (and
+			// pinned) meanwhile is kept; without a fresh list nothing is
+			// dropped.
+			if fresh, ok := freshRepository(ctx, client, repo.ID); ok && fresh.Availability == "available" && fresh.Error == "" {
 				next = slices.DeleteFunc(slices.Clone(next), func(id string) bool {
-					return !slices.ContainsFunc(repo.Worktrees, func(t contract.Worktree) bool { return t.ID == id })
+					return !slices.ContainsFunc(fresh.Worktrees, func(t contract.Worktree) bool { return t.ID == id })
 				})
 			}
 			home[repo.ID] = next

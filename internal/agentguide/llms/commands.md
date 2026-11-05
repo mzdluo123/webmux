@@ -379,12 +379,12 @@ Options:
 - `--label KEY=VALUE`: Set label KEY=VALUE on the session. Repeatable.
 - `--launch-config NAME`: Use a saved Web UI launch config by NAME (instead of -- COMMAND) Conflicts with --env.
 - `--name NAME`: Session NAME.
-- `--new-worktree BRANCH`: Create a worktree for BRANCH and start in it. Conflicts with --worktree.
+- `--new-worktree BRANCH`: Create a worktree for BRANCH and start in it. Conflicts with --worktree, --cwd.
 - `--no-pin`: Do not show the new worktree on the home page.
 - `--prompt TEXT`: First message TEXT (- reads standard input); typed with Enter on the terminal side.
 - `--refresh-base`: Fetch the base branch's upstream first and start from it.
 - `--repo string`: Repository of the new worktree: an ID, a path or . (default: the current directory's)
-- `--start-side SIDE`: Start a hybrid launch config on SIDE: terminal or chat.
+- `--start-side SIDE`: Start a hybrid launch config on SIDE: terminal or chat (chat implies --detach)
 - `--strip`: With --follow, remove terminal control sequences.
 - `--timeout DURATION`: Give up --wait after this DURATION (exit 124); 0 waits forever.
 - `--wait STATE`: Detach, then wait until the session is first in STATE (see webmux wait) Conflicts with --attach, --follow.
