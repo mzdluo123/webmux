@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -112,7 +113,7 @@ var runCommand = &Command{
 		"follow":        {Conflicts: []string{"detach", "attach"}},
 		"detach":        {Conflicts: []string{"attach", "follow"}},
 		"attach":        {Conflicts: []string{"detach", "follow"}},
-		"wait":          {Requires: []string{"detach"}},
+		"wait":          {Conflicts: []string{"attach", "follow"}},
 	},
 	Bind: func(fs *flag.FlagSet) Action {
 		o := runOptions{env: envFlag{}, labels: labelFlag{}}
@@ -147,7 +148,7 @@ var runCommand = &Command{
 		fs.BoolVar(&o.killOnInterrupt, "kill-on-interrupt", false, "with --follow, end the program on SIGINT or SIGTERM")
 		fs.BoolVar(&o.asJSON, "json", false, "print {session, link} as JSON when detached")
 		fs.BoolVar(&o.dryRun, "dry-run", false, "print the request without creating anything; environment values are hidden")
-		fs.StringVar(&o.wait, "wait", "", "after creating, wait until the session is first in `STATE` (see webmux wait)")
+		fs.StringVar(&o.wait, "wait", "", "detach, then wait until the session is first in `STATE` (see webmux wait)")
 		fs.DurationVar(&o.timeout, "timeout", 0, "give up --wait after this `DURATION` (exit 124); 0 waits forever")
 		return func(ctx context.Context, e Env, argv []string) int { return e.run(ctx, o, argv) }
 	},
@@ -207,6 +208,10 @@ func countTrue(values ...bool) int {
 func (e Env) run(ctx context.Context, o runOptions, argv []string) int {
 	if err := o.validate(argv); err != nil {
 		return e.Usagef("%v", err)
+	}
+	// Waiting for a state needs the session detached.
+	if o.wait != "" {
+		o.detach = true
 	}
 	if o.prompt == "-" {
 		text, err := e.readStdin()
@@ -273,7 +278,13 @@ func (e Env) run(ctx context.Context, o runOptions, argv []string) int {
 		}
 		request.Workspace = &contract.WorkspaceReference{RepositoryID: repo.ID, WorktreeID: tree.ID}
 	case o.newWorktree != "":
-		newRepo, err = e.resolveRepository(ctx, repos, o.repo)
+		// Without --repo, the repository is the one --cwd (or the current
+		// directory) is in.
+		repoArg := o.repo
+		if repoArg == "" {
+			repoArg = o.cwd
+		}
+		newRepo, err = e.resolveRepository(ctx, repos, repoArg)
 		if err != nil {
 			return e.locationError(err)
 		}
@@ -515,12 +526,18 @@ func (e Env) followRun(ctx context.Context, client *localclient.Client, id strin
 	defer signal.Stop(signals)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	var got os.Signal
+	// The goroutine hands over the signal that ended following. The
+	// caller's context may be cancelled by the same signal first, so after a
+	// cancellation the signal is awaited briefly.
+	gotSignal := make(chan os.Signal, 1)
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
 		select {
-		case got = <-signals:
+		case s := <-signals:
 			cancel()
-		case <-ctx.Done():
+			gotSignal <- s
+		case <-done:
 		}
 	}()
 	out := e.Stdout
@@ -532,6 +549,13 @@ func (e Env) followRun(ctx context.Context, client *localclient.Client, id strin
 	result, err := followTerminal(ctx, client, id, out, e.scriptLabel())
 	if strip != nil {
 		_ = strip.Flush()
+	}
+	var got os.Signal
+	if ctx.Err() != nil {
+		select {
+		case got = <-gotSignal:
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
 	if err != nil && ctx.Err() != nil {
 		code := 130
@@ -546,6 +570,10 @@ func (e Env) followRun(ctx context.Context, client *localclient.Client, id strin
 	}
 	if err != nil {
 		_, _ = fmt.Fprintf(e.Stderr, "webmux: following session %s was interrupted: %v; it may still be running (webmux attach %s)\n", id, err, id)
+		return contract.ExitError
+	}
+	if result.Moved {
+		_, _ = fmt.Fprintf(e.Stderr, "webmux: session %s moved to its chat side and keeps running; follow it with webmux chat watch %s\n", id, id)
 		return contract.ExitError
 	}
 	if result.Exited {
@@ -635,7 +663,7 @@ var chatNewCommand = &Command{
 		"starts the agent of a hybrid launch config, applies --set options and the permission mode, and sends TEXT with the " +
 		"repository's initialization instruction. A failure reports the step that failed and what was already created; nothing is rolled back.\n\n" +
 		"--wait then waits for the first turn and prints the agent's final reply, like webmux chat send --wait.",
-	Arguments: []Item{{Name: "TEXT", Text: "The first message; - reads standard input. It may be empty with --init."}},
+	Arguments: []Item{{Name: "TEXT", Text: "The first message; - reads standard input. Required, also with --init."}},
 	Env:       []Item{{Name: "WEBMUX_SOCKET", Text: "Local API socket used when neither --socket nor --config is given."}},
 	Output: "The session ID, worktree path and link, one per line; with --json the QuickStartResult plus link. " +
 		"With --wait, the agent's final reply (with --json, {stopReason, reply, events}). Config warnings go to standard error.",
@@ -687,8 +715,8 @@ func (e Env) chatNew(ctx context.Context, o chatNewOptions, args []string) int {
 		return e.Usagef("give the message as one argument (quote it), or - for standard input")
 	case o.init && o.noInit:
 		return e.Usagef("--init and --no-init cannot be combined")
-	case o.terminal && (len(o.set) > 0 || o.permission != "" || len(o.attachments) > 0):
-		return e.Usagef("--terminal cannot be combined with --set, --permission or --attach")
+	case o.terminal && (len(o.set) > 0 || o.permission != "" || len(o.attachments) > 0 || o.wait):
+		return e.Usagef("--terminal cannot be combined with --set, --permission, --attach or --wait (a terminal start has no chat turn to wait for)")
 	case o.permission != "" && o.permission != "ask" && o.permission != "auto":
 		return e.Usagef("--permission is ask or auto, not %q", o.permission)
 	case o.timeout != 0 && !o.wait:
@@ -728,8 +756,8 @@ func (e Env) chatNew(ctx context.Context, o chatNewOptions, args []string) int {
 	if o.init && repo.InitInstruction == "" {
 		return e.Usagef("repository %s has no initialization instruction", repo.Name)
 	}
-	if text == "" && !useInit {
-		return e.Usagef("a message is required")
+	if text == "" {
+		return e.Usagef("a message is required (the initialization instruction goes before it)")
 	}
 	repoPath := "/api/repositories/" + url.PathEscape(repo.ID)
 	var branches contract.Branches
@@ -808,7 +836,7 @@ func (e Env) quickStart(ctx context.Context, client *localclient.Client, request
 		taken[b.Name] = true
 	}
 	for _, t := range repo.Worktrees {
-		taken["wt/"+filepath.Base(t.Path)] = true
+		taken["wt/"+path.Base(t.Path)] = true
 	}
 	for attempt := 0; ; attempt++ {
 		request.Branch = branch

@@ -48,7 +48,7 @@
 ### Requirement: run 的输出与等待
 
 - `--json` SHALL 让 `--detach` 输出一个 JSON 对象：`session`（`SessionInfo`）与 `link`，代替 `ID\tLINK` 行。
-- `--wait STATE`（取值同 `webmux wait --until`）SHALL 在创建后等待会话第一次进入该状态再退出。
+- `--wait STATE`（取值同 `webmux wait --until`）SHALL 在创建后等待会话第一次进入该状态再退出；它隐含 `--detach`，与 `--attach`、`--follow` 互斥。
   它只能与 `--detach` 同用，超时（`--timeout`）以 124 退出。
 - `--dry-run` SHALL 只解析参数、启动配置与工作区，并把将要发送的请求写到标准输出，SHALL NOT 创建 worktree 或会话。
   请求中的 `env` SHALL 只输出变量名，用 `"<inherited>"` 或 `"<explicit>"` 代替值。
@@ -90,13 +90,13 @@
 ### Requirement: 一条命令完成快速开始
 
 `webmux chat new [TEXT|-]` SHALL 对应 Web 端“新聊天”（快速开始），调用 `POST /api/quick-starts`，
-一次完成新建 worktree、启动 agent、应用配置和发送首条消息。
+一次完成新建 worktree、启动 agent、应用配置和发送首条消息。消息 SHALL 非空（与快速开始页一致），缺少时以 2 结束。
 
 - `--repo REPO`：默认取当前目录所属的已登记仓库，找不到时以 2 结束并列出已登记仓库。
 - `--agent NAME`：启动配置名称，SHALL 是开启混合模式的配置。只有一条混合配置时可以省略，否则省略时以 2 结束并列出候选。
 - `--base REF`：起始提交，默认与快速开始页的默认值相同。
 - `--branch NAME`：新分支名，默认与快速开始页一样自动生成。
-- `--terminal`：映射为 `startSide: "tui"`，首条消息作为输入回车，且 SHALL 拒绝 `--set`、`--permission` 与 `--attach`。
+- `--terminal`：映射为 `startSide: "tui"`，首条消息作为输入回车，且 SHALL 拒绝 `--set`、`--permission`、`--attach` 与 `--wait`（终端端没有可等待的聊天回合）。
 - `--set ID=VALUE`（可重复）：映射为 `config`，`ID` 与可选值来自 `webmux launch-config options`。
 - `--permission ask|auto`：映射为 `permissionMode`。
 - `--init` 与 `--no-init`：映射为 `useInitInstruction`；仓库设置了初始化指令时默认为 `--init`，与快速开始页一致。
