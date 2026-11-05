@@ -77,6 +77,19 @@ func windowsCommands() sessioncmd.Registry {
 	}
 }
 
+// helpRequested reports a help flag before any "--".
+func helpRequested(args []string) bool {
+	for _, arg := range args {
+		if arg == "--" {
+			return false
+		}
+		if arg == "-h" || arg == "--help" || arg == "-help" {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
@@ -87,7 +100,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 	global.Usage = func() { _, _ = fmt.Fprint(stderr, usage) }
 	distro := global.String("distro", "", "WSL distribution (default: WEBMUX_DISTRO, the tray setting, then WSL's default)")
 	webmux := global.String("webmux", "", "webmux inside WSL (default: WEBMUX_WSL_PATH, the tray setting, then ~/.local/bin/webmux)")
-	if err := global.Parse(args); err != nil {
+	registry := append(windowsCommands(), sessioncmd.Commands()...)
+	help := sessioncmd.Env{Stdout: stdout, Stderr: stderr, Platform: "windows", Version: version, Commands: registry,
+		HelpFooter: "Global options before COMMAND: --distro NAME selects the WSL distribution, --webmux PATH the webmux inside it."}
+	// Help before any command (webmux --help, -h, -help) is the overview on
+	// standard output, as on Linux and macOS.
+	global.SetOutput(io.Discard)
+	if err := global.Parse(args); errors.Is(err, flag.ErrHelp) {
+		return help.HelpCommand(registry, version, nil)
+	} else if err != nil {
+		_, _ = fmt.Fprintln(stderr, "webmux:", err)
+		global.Usage()
 		return contract.ExitUsage
 	}
 	if global.NArg() == 0 {
@@ -95,16 +118,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return contract.ExitUsage
 	}
 	command, rest := global.Arg(0), global.Args()[1:]
-	registry := append(windowsCommands(), sessioncmd.Commands()...)
-	help := sessioncmd.Env{Stdout: stdout, Stderr: stderr, Platform: "windows", Version: version, Commands: registry,
-		HelpFooter: "Global options before COMMAND: --distro NAME selects the WSL distribution, --webmux PATH the webmux inside it."}
-	switch command {
-	case "help":
+	if command == "help" {
 		return help.HelpCommand(registry, version, rest)
-	case "-h", "--help", "-help":
-		return help.HelpCommand(registry, version, nil)
 	}
-	if c, more := registry.Find(global.Args()); c != nil && c.Platform == "windows" && len(more) > 0 && (more[0] == "-h" || more[0] == "--help") {
+	// Shared commands handle help in their own parser; the Windows-only ones
+	// take it anywhere before "--".
+	if c, more := registry.Find(global.Args()); c != nil && c.Platform == "windows" && helpRequested(more) {
 		help.PrintHelp(c)
 		return contract.ExitOK
 	}
