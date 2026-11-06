@@ -331,6 +331,7 @@ func (s *Server) find(w http.ResponseWriter, r *http.Request) *session.Session {
 	}
 	return item
 }
+
 // rename sets the user-chosen name of a session; a hybrid session also keeps
 // it in its record, so a recovered session is still named. A broken record
 // store fails only hybrid sessions; an ordinary shell's rename never depends
