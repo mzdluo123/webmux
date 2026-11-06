@@ -118,17 +118,21 @@ func (h *quickHarness) config(name, agent string, env map[string]string, hybridM
 	return c.ID
 }
 
-func (h *quickHarness) input(requestID, branch string) QuickStartInput {
-	return QuickStartInput{
-		ClientRequestID: requestID, RepositoryID: h.repo.ID, ConfigID: h.configID,
-		Base: "HEAD", Branch: branch, Text: "修复首页排序",
+// input is a chat started in a new worktree on branch, the quick start
+// page's request.
+func (h *quickHarness) input(requestID, branch string) CreateInput {
+	configID := h.configID
+	return CreateInput{
+		ClientRequestID: requestID, ConfigID: &configID, Side: string(hybrid.SideACP),
+		NewWorktree: &NewWorktree{RepositoryID: h.repo.ID, Mode: "new", Base: "HEAD", Branch: branch},
+		Prompt:      "修复首页排序",
 	}
 }
 
-func (h *quickHarness) start(in QuickStartInput) (QuickStartResult, error) {
+func (h *quickHarness) start(in CreateInput) (CreateResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), quickTimeout)
 	defer cancel()
-	return h.s.QuickStart(ctx, in)
+	return h.s.Create(ctx, in)
 }
 
 // worktrees counts the repository's worktrees, the main one included.
@@ -193,9 +197,9 @@ func (h *quickHarness) setConfigCalls() int {
 	return strings.Count(string(b), " call "+acp.MethodSessionSetConfigOption+" ")
 }
 
-func quickFailure(t *testing.T, err error, step string, kind error) *QuickStartError {
+func quickFailure(t *testing.T, err error, step string, kind error) *CreateError {
 	t.Helper()
-	var failed *QuickStartError
+	var failed *CreateError
 	if !errors.As(err, &failed) || failed.Step != step || !errors.Is(err, kind) {
 		t.Fatalf("error %v, want step %s kind %v", err, step, kind)
 	}
@@ -210,7 +214,7 @@ func TestQuickStartRunsEveryStep(t *testing.T) {
 	h := newQuickHarness(t, "先读 AGENTS.md")
 	in := h.input("quick-start-001", "wt/brisk-otter")
 	in.UseInitInstruction = true
-	in.Config = map[string]string{"mode": "code", "model": "smart", "effort": "high"}
+	in.AgentConfig = map[string]string{"mode": "code", "model": "smart", "effort": "high"}
 	in.PermissionMode = "ask"
 	result, err := h.start(in)
 	if err != nil {
@@ -220,7 +224,7 @@ func TestQuickStartRunsEveryStep(t *testing.T) {
 	if result.Worktree.Path != wantPath || result.Worktree.Branch == nil || *result.Worktree.Branch != "wt/brisk-otter" {
 		t.Fatalf("worktree %+v", result.Worktree)
 	}
-	item, err := h.manager.Get(result.SessionID)
+	item, err := h.manager.Get(result.Session.Info().ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,15 +236,15 @@ func TestQuickStartRunsEveryStep(t *testing.T) {
 	if len(result.ConfigWarnings) != 1 || !strings.Contains(result.ConfigWarnings[0], "effort") {
 		t.Fatalf("warnings %q", result.ConfigWarnings)
 	}
-	h.waitTurnEnd(result.SessionID)
-	events := h.events(result.SessionID)
+	h.waitTurnEnd(result.Session.Info().ID)
+	events := h.events(result.Session.Info().ID)
 	if got := userTexts(events); len(got) != 1 || got[0] != "先读 AGENTS.md\n\n修复首页排序" {
 		t.Fatalf("user messages %q", got)
 	}
 	if got := notices(events); !reflectContains(got, result.ConfigWarnings[0]) {
 		t.Fatalf("notices %q lack the warning", got)
 	}
-	rec, err := h.hybrids.Record(result.SessionID)
+	rec, err := h.hybrids.Record(result.Session.Info().ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,30 +270,30 @@ func TestQuickStartInstructionTemplate(t *testing.T) {
 	})
 
 	off := h.input("quick-start-off1", "wt/off")
-	off.Text = "原样 {{dir}}"
+	off.Prompt = "原样 {{dir}}"
 	result, err := h.start(off)
 	if err != nil {
 		t.Fatal(err)
 	}
-	h.waitTurnEnd(result.SessionID)
-	if got := userTexts(h.events(result.SessionID)); len(got) != 1 || got[0] != "原样 {{dir}}" {
+	h.waitTurnEnd(result.Session.Info().ID)
+	if got := userTexts(h.events(result.Session.Info().ID)); len(got) != 1 || got[0] != "原样 {{dir}}" {
 		t.Fatalf("unticked instruction still sent: %q", got)
 	}
 
 	on := h.input("quick-start-on01", "wt/on")
-	on.Text = "原样 {{dir}}"
+	on.Prompt = "原样 {{dir}}"
 	on.UseInitInstruction = true
 	result, err = h.start(on)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir, err := folders.Existing(result.SessionID)
+	dir, err := folders.Existing(result.Session.Info().ID)
 	if err != nil {
 		t.Fatalf("folder for {{dir}} not created: %v", err)
 	}
-	h.waitTurnEnd(result.SessionID)
+	h.waitTurnEnd(result.Session.Info().ID)
 	want := "规则：\n先读 AGENTS.md\n文件放 " + dir + "，不要{{规则}}\n\n原样 {{dir}}"
-	if got := userTexts(h.events(result.SessionID)); len(got) != 1 || got[0] != want {
+	if got := userTexts(h.events(result.Session.Info().ID)); len(got) != 1 || got[0] != want {
 		t.Fatalf("first prompt %q, want %q", got, want)
 	}
 }
@@ -313,20 +317,20 @@ func TestQuickStartInstructionWebMuxBrief(t *testing.T) {
 	h.s.UseArtifacts(folders)
 	h.s.UseBrief(func(id, dir string) string { return "BRIEF " + id + " " + dir + " {{dir}}" })
 	in = h.input("quick-start-wmx2", "wt/wmx2")
-	in.Text = "修复 lint"
+	in.Prompt = "修复 lint"
 	in.UseInitInstruction = true
 	result, err := h.start(in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir, err := folders.Existing(result.SessionID)
+	dir, err := folders.Existing(result.Session.Info().ID)
 	if err != nil {
 		t.Fatalf("artifacts folder not created for the brief: %v", err)
 	}
-	h.waitTurnEnd(result.SessionID)
+	h.waitTurnEnd(result.Session.Info().ID)
 	// The brief is inserted after {{dir}}, so nothing in it is replaced.
-	want := "BRIEF " + result.SessionID + " " + dir + " {{dir}}\n\n修复 lint"
-	if got := userTexts(h.events(result.SessionID)); len(got) != 1 || got[0] != want {
+	want := "BRIEF " + result.Session.Info().ID + " " + dir + " {{dir}}\n\n修复 lint"
+	if got := userTexts(h.events(result.Session.Info().ID)); len(got) != 1 || got[0] != want {
 		t.Fatalf("first prompt %q, want %q", got, want)
 	}
 }
@@ -337,15 +341,15 @@ func TestQuickStartInstructionUserVariable(t *testing.T) {
 	h := newQuickHarness(t, "任务：{{ user }}\n先读 AGENTS.md")
 	h.s.UseQuickCommands(func() []QuickCommand { return []QuickCommand{{Name: "user", Text: "不应被使用"}} })
 	in := h.input("quick-start-usr1", "wt/usr")
-	in.Text = "改 {{规则}} 与 {{dir}}"
+	in.Prompt = "改 {{规则}} 与 {{dir}}"
 	in.UseInitInstruction = true
 	result, err := h.start(in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	h.waitTurnEnd(result.SessionID)
+	h.waitTurnEnd(result.Session.Info().ID)
 	want := "任务：改 {{规则}} 与 {{dir}}\n先读 AGENTS.md"
-	if got := userTexts(h.events(result.SessionID)); len(got) != 1 || got[0] != want {
+	if got := userTexts(h.events(result.Session.Info().ID)); len(got) != 1 || got[0] != want {
 		t.Fatalf("first prompt %q, want %q", got, want)
 	}
 }
@@ -382,7 +386,7 @@ func reflectContains(list []string, item string) bool {
 func TestQuickStartInvalidConfigValueWarns(t *testing.T) {
 	h := newQuickHarness(t, "")
 	in := h.input("quick-start-002", "wt/calm-heron")
-	in.Config = map[string]string{"model": "huge"}
+	in.AgentConfig = map[string]string{"model": "huge"}
 	result, err := h.start(in)
 	if err != nil {
 		t.Fatal(err)
@@ -390,15 +394,15 @@ func TestQuickStartInvalidConfigValueWarns(t *testing.T) {
 	if len(result.ConfigWarnings) != 1 || !strings.Contains(result.ConfigWarnings[0], "Model") || !strings.Contains(result.ConfigWarnings[0], "huge") {
 		t.Fatalf("warnings %q", result.ConfigWarnings)
 	}
-	h.waitTurnEnd(result.SessionID)
-	events := h.events(result.SessionID)
+	h.waitTurnEnd(result.Session.Info().ID)
+	events := h.events(result.Session.Info().ID)
 	if got := userTexts(events); len(got) != 1 || got[0] != "修复首页排序" {
 		t.Fatalf("user messages %q", got)
 	}
 	if !reflectContains(notices(events), result.ConfigWarnings[0]) {
 		t.Fatalf("notices %q", notices(events))
 	}
-	if rec, err := h.hybrids.Record(result.SessionID); err != nil || rec.Config["model"] != "fast" {
+	if rec, err := h.hybrids.Record(result.Session.Info().ID); err != nil || rec.Config["model"] != "fast" {
 		t.Fatalf("record %+v %v", rec, err)
 	}
 	if got := h.setConfigCalls(); got != 0 {
@@ -415,12 +419,12 @@ func TestQuickStartFailures(t *testing.T) {
 	broken := h.config("broken", fakeAgentPath(t, "omp"), nil, true)
 
 	in := h.input("quick-start-101", "wt/plain")
-	in.ConfigID = plain
+	in.ConfigID = &plain
 	_, err := h.start(in)
 	quickFailure(t, err, StepPrecheck, ErrInvalid)
 
 	in = h.input("quick-start-102", "wt/codex")
-	in.ConfigID = codex
+	in.ConfigID = &codex
 	_, err = h.start(in)
 	var missing *hybrid.ConnectorMissingError
 	if !errors.As(err, &missing) || missing.Connector.Executable != "codex-acp" {
@@ -429,12 +433,13 @@ func TestQuickStartFailures(t *testing.T) {
 	quickFailure(t, err, StepPrecheck, hybrid.ErrConnectorMissing)
 
 	in = h.input("quick-start-103", "wt/missing")
-	in.RepositoryID = "missing"
+	in.NewWorktree.RepositoryID = "missing"
 	_, err = h.start(in)
 	quickFailure(t, err, StepPrecheck, ErrNotFound)
 
 	in = h.input("quick-start-104", "wt/blank")
-	in.Text = " \n"
+	in.Prompt = " \n"
+	in.Attachments = []string{"/tmp/x"}
 	_, err = h.start(in)
 	quickFailure(t, err, StepPrecheck, ErrInvalid)
 
@@ -448,7 +453,7 @@ func TestQuickStartFailures(t *testing.T) {
 
 	// The agent cannot start: the worktree stays, nothing is rolled back.
 	in = h.input("quick-start-105", "wt/broken")
-	in.ConfigID = broken
+	in.ConfigID = &broken
 	_, err = h.start(in)
 	failed := quickFailure(t, err, StepSession, hybrid.ErrAgent)
 	if failed.Worktree == nil || failed.SessionID != "" {
@@ -474,10 +479,10 @@ func TestQuickStartFailures(t *testing.T) {
 // retention gets the same outcome; after it the ID runs again.
 func TestQuickStartDedupesByRequestID(t *testing.T) {
 	h := newQuickHarness(t, "")
-	h.s.quickStarts.retention = time.Second
+	h.s.creates.retention = time.Second
 	in := h.input("quick-start-201", "wt/shared")
 	const callers = 4
-	results := make([]QuickStartResult, callers)
+	results := make([]CreateResult, callers)
 	errs := make([]error, callers)
 	var wg sync.WaitGroup
 	for i := range callers {
@@ -489,7 +494,7 @@ func TestQuickStartDedupesByRequestID(t *testing.T) {
 	}
 	wg.Wait()
 	for i := range callers {
-		if errs[i] != nil || results[i].SessionID != results[0].SessionID || results[i].Worktree.ID != results[0].Worktree.ID {
+		if errs[i] != nil || results[i].Session.Info().ID != results[0].Session.Info().ID || results[i].Worktree.ID != results[0].Worktree.ID {
 			t.Fatalf("caller %d: %+v %v, first %+v", i, results[i], errs[i], results[0])
 		}
 	}
@@ -497,11 +502,11 @@ func TestQuickStartDedupesByRequestID(t *testing.T) {
 		t.Fatalf("duplicates created %d worktrees, %d sessions", got, len(h.manager.List()))
 	}
 	again, err := h.start(in)
-	if err != nil || again.SessionID != results[0].SessionID {
+	if err != nil || again.Session.Info().ID != results[0].Session.Info().ID {
 		t.Fatalf("retry: %+v %v", again, err)
 	}
-	h.waitTurnEnd(results[0].SessionID)
-	if got := userTexts(h.events(results[0].SessionID)); len(got) != 1 {
+	h.waitTurnEnd(results[0].Session.Info().ID)
+	if got := userTexts(h.events(results[0].Session.Info().ID)); len(got) != 1 {
 		t.Fatalf("user messages %q", got)
 	}
 	// Past the retention the same ID is a new request: its branch now
@@ -535,7 +540,7 @@ func TestQuickStartMatchesManualStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	configID := h.configID
-	item, err := h.s.CreateSession(ctx, SessionInput{ConfigID: &configID, StartSide: "acp", Workspace: &Reference{RepositoryID: h.repo.ID, WorktreeID: tree.ID}})
+	item, err := h.s.CreateSession(ctx, CreateInput{ConfigID: &configID, Side: "acp", Workspace: &Reference{RepositoryID: h.repo.ID, WorktreeID: tree.ID}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -543,7 +548,7 @@ func TestQuickStartMatchesManualStart(t *testing.T) {
 	if _, err := h.hybrids.Prompt(ctx, manual, hybrid.PromptInput{ClientRequestID: "manual-prompt-1", Text: "修复首页排序"}); err != nil {
 		t.Fatal(err)
 	}
-	h.waitTurnEnd(quick.SessionID)
+	h.waitTurnEnd(quick.Session.Info().ID)
 	h.waitTurnEnd(manual)
 	info := func(id string) session.Info {
 		item, err := h.manager.Get(id)
@@ -569,7 +574,7 @@ func TestQuickStartMatchesManualStart(t *testing.T) {
 		}
 		return i
 	}
-	if a, b := info(quick.SessionID), info(manual); !reflect.DeepEqual(a, b) {
+	if a, b := info(quick.Session.Info().ID), info(manual); !reflect.DeepEqual(a, b) {
 		t.Fatalf("session info differs:\nquick  %+v\nmanual %+v", a, b)
 	}
 	record := func(id string) hybrid.Record {
@@ -584,10 +589,10 @@ func TestQuickStartMatchesManualStart(t *testing.T) {
 		}
 		return rec
 	}
-	if a, b := record(quick.SessionID), record(manual); !reflect.DeepEqual(a, b) {
+	if a, b := record(quick.Session.Info().ID), record(manual); !reflect.DeepEqual(a, b) {
 		t.Fatalf("record differs:\nquick  %+v\nmanual %+v", a, b)
 	}
-	if a, b := userTexts(h.events(quick.SessionID)), userTexts(h.events(manual)); !reflect.DeepEqual(a, b) {
+	if a, b := userTexts(h.events(quick.Session.Info().ID)), userTexts(h.events(manual)); !reflect.DeepEqual(a, b) {
 		t.Fatalf("first messages differ: %q %q", a, b)
 	}
 }
@@ -600,11 +605,11 @@ func TestCreateSessionFirstMessage(t *testing.T) {
 	ref := &Reference{RepositoryID: h.repo.ID, WorktreeID: h.repo.Worktrees[0].ID}
 	ctx := context.Background()
 
-	if _, err := h.s.CreateSession(ctx, SessionInput{Cmd: []string{"/bin/cat"}, UseInitInstruction: true}); errorKind(err) != ErrInvalid {
+	if _, err := h.s.CreateSession(ctx, CreateInput{Cmd: []string{"/bin/cat"}, UseInitInstruction: true}); errorKind(err) != ErrInvalid {
 		t.Fatalf("instruction without repository: %v", err)
 	}
 
-	item, err := h.s.CreateSession(ctx, SessionInput{
+	item, err := h.s.CreateSession(ctx, CreateInput{
 		Cmd: []string{"/bin/sh", "-c", "echo ready; exec cat"}, Workspace: ref,
 		UseInitInstruction: true, Prompt: "修复排序",
 	})
@@ -624,7 +629,7 @@ func TestCreateSessionFirstMessage(t *testing.T) {
 		t.Fatalf("instruction missing: %q", item.Buffer())
 	}
 
-	chat, err := h.s.CreateSession(ctx, SessionInput{ConfigID: &h.configID, StartSide: "acp", Workspace: ref, UseInitInstruction: true, Prompt: "修复排序"})
+	chat, err := h.s.CreateSession(ctx, CreateInput{ConfigID: &h.configID, Side: "acp", Workspace: ref, UseInitInstruction: true, Prompt: "修复排序"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -640,29 +645,74 @@ func TestCreateSessionFirstMessage(t *testing.T) {
 func TestQuickStartTerminalSide(t *testing.T) {
 	h := newQuickHarness(t, "")
 	bad := h.input("quick-start-tui0", "wt/tui-bad")
-	bad.StartSide = "tui"
+	bad.Side = "tui"
 	bad.Attachments = []string{"/tmp/x"}
 	if _, err := h.start(bad); err == nil || errorKind(err) != ErrInvalid {
 		t.Fatalf("attachments on a terminal start: %v", err)
 	}
 	in := h.input("quick-start-tui1", "wt/tui")
-	in.StartSide = "tui"
+	in.Side = "tui"
 	result, err := h.start(in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err := h.manager.Get(result.SessionID)
+	item, err := h.manager.Get(result.Session.Info().ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(15 * time.Second)
-	for !strings.Contains(string(item.Buffer()), in.Text) && time.Now().Before(deadline) {
+	for !strings.Contains(string(item.Buffer()), in.Prompt) && time.Now().Before(deadline) {
 		time.Sleep(50 * time.Millisecond)
 	}
-	if !strings.Contains(string(item.Buffer()), in.Text) {
-		t.Fatalf("terminal never received %q: %q", in.Text, item.Buffer())
+	if !strings.Contains(string(item.Buffer()), in.Prompt) {
+		t.Fatalf("terminal never received %q: %q", in.Prompt, item.Buffer())
 	}
 	if len(result.ConfigWarnings) != 0 {
 		t.Fatalf("warnings %v", result.ConfigWarnings)
+	}
+}
+
+// A new worktree without a branch gets wt/<date>-<time> next to the
+// repository and a base from the repository's default.
+func TestCreateGeneratesBranch(t *testing.T) {
+	h := newQuickHarness(t, "")
+	in := h.input("create-branch-1", "")
+	in.NewWorktree.Base = ""
+	result, err := h.start(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree := result.Worktree
+	if tree == nil || tree.Branch == nil || !strings.HasPrefix(*tree.Branch, "wt/") {
+		t.Fatalf("worktree %+v", tree)
+	}
+	if want := filepath.Join(h.root+".worktrees", filepath.Base(*tree.Branch)); tree.Path != want {
+		t.Fatalf("path %s, want %s", tree.Path, want)
+	}
+	taken := func(name string) bool { return name == "wt/20260102-030405" }
+	if got := generatedBranch(time.Date(2026, 1, 2, 3, 4, 5, 0, time.Local), func(b string) bool { return !taken(b) }); got != "wt/20260102-030405-2" {
+		t.Fatalf("generated %s", got)
+	}
+}
+
+// Options of the chat view are refused for a terminal start before
+// anything is created, as is a second location.
+func TestCreateRefusesBeforeCreating(t *testing.T) {
+	h := newQuickHarness(t, "")
+	in := h.input("create-refuse-1", "wt/refuse")
+	in.Side = string(hybrid.SideTUI)
+	in.PermissionMode = "auto"
+	_, err := h.start(in)
+	quickFailure(t, err, StepPrecheck, ErrInvalid)
+	in = h.input("create-refuse-2", "wt/refuse")
+	in.Cwd = h.root
+	_, err = h.start(in)
+	quickFailure(t, err, StepPrecheck, ErrInvalid)
+	in = h.input("create-refuse-3", "wt/refuse")
+	in.NewWorktree.Mode = "other"
+	_, err = h.start(in)
+	quickFailure(t, err, StepPrecheck, ErrInvalid)
+	if got := h.worktrees(); got != 1 || len(h.manager.List()) != 0 {
+		t.Fatalf("a refused create made %d worktrees, sessions %+v", got, h.manager.List())
 	}
 }

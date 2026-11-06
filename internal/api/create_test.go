@@ -94,17 +94,19 @@ func newQuickAPI(t *testing.T) *quickAPI {
 	return q
 }
 
-func (q *quickAPI) request(requestID, configID, branch string) contract.QuickStartRequest {
-	return contract.QuickStartRequest{
-		ClientRequestID: requestID, RepositoryID: q.repository.ID, ConfigID: configID,
-		Base: "HEAD", Branch: branch, Text: "修复首页排序",
+// request is the quick start page's create: a chat in a new worktree.
+func (q *quickAPI) request(requestID, configID, branch string) contract.CreateSessionRequest {
+	return contract.CreateSessionRequest{
+		ClientRequestID: requestID, ConfigID: &configID, View: contract.ViewChat,
+		NewWorktree: &contract.NewWorktree{RepositoryID: q.repository.ID, Mode: "new", Base: "HEAD", Branch: branch},
+		Prompt:      "修复首页排序",
 	}
 }
 
-func (q *quickAPI) failure(req contract.QuickStartRequest, status int) contract.QuickStartFailure {
+func (q *quickAPI) failure(req contract.CreateSessionRequest, status int) contract.CreateSessionFailure {
 	q.t.Helper()
-	var body contract.QuickStartFailure
-	if err := json.Unmarshal(q.expectCommand("POST", "/api/quick-starts", req, status), &body); err != nil {
+	var body contract.CreateSessionFailure
+	if err := json.Unmarshal(q.expectCommand("POST", "/api/sessions", req, status), &body); err != nil {
 		q.t.Fatal(err)
 	}
 	return body
@@ -119,13 +121,13 @@ func (q *quickAPI) worktrees() int {
 	return strings.Count(string(out), "worktree ")
 }
 
-func TestQuickStartAPIRefusesBeforeCreating(t *testing.T) {
+func TestCreateAPIRefusesBeforeCreating(t *testing.T) {
 	q := newQuickAPI(t)
 	body, err := json.Marshal(q.request("api-quick-001", q.agent, "wt/unauthorized"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	authBoundary(t, q.handler, "POST", "/api/quick-starts", string(body))
+	authBoundary(t, q.handler, "POST", "/api/sessions", string(body))
 
 	plain := q.config("plain", false)
 	failed := q.failure(q.request("api-quick-002", plain, "wt/plain"), http.StatusBadRequest)
@@ -144,7 +146,7 @@ func TestQuickStartAPIRefusesBeforeCreating(t *testing.T) {
 	if failed.Step != "precheck" {
 		t.Fatalf("unknown config: %+v", failed)
 	}
-	r := httptest.NewRequest("POST", "http://webmux.example/api/quick-starts", strings.NewReader(`{"clientRequestId":"api-quick-005","extra":1}`))
+	r := httptest.NewRequest("POST", "http://webmux.example/api/sessions", strings.NewReader(`{"clientRequestId":"api-quick-005","extra":1}`))
 	r.Header.Set("Authorization", "Bearer secret")
 	w := httptest.NewRecorder()
 	q.handler.ServeHTTP(w, r)
@@ -159,7 +161,7 @@ func TestQuickStartAPIRefusesBeforeCreating(t *testing.T) {
 // The quick start goes on when the client is gone before it ends; the
 // launch config list then offers the agent's options until the config is
 // deleted.
-func TestQuickStartAPICompletesAfterDisconnect(t *testing.T) {
+func TestCreateAPICompletesAfterDisconnect(t *testing.T) {
 	q := newQuickAPI(t)
 	if strings.Contains(string(q.expectCommand("GET", "/api/launch-configs", nil, 200)), `"chatOptions":[{`) {
 		t.Fatal("options before any session")
@@ -170,21 +172,21 @@ func TestQuickStartAPICompletesAfterDisconnect(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	r := httptest.NewRequestWithContext(ctx, "POST", "http://webmux.example/api/quick-starts", strings.NewReader(string(data)))
+	r := httptest.NewRequestWithContext(ctx, "POST", "http://webmux.example/api/sessions", strings.NewReader(string(data)))
 	r.Header.Set("Authorization", "Bearer secret")
 	w := httptest.NewRecorder()
 	q.handler.ServeHTTP(w, r)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("disconnected quick start: %d %s", w.Code, w.Body.String())
 	}
-	var result contract.QuickStartResult
+	var result contract.CreateSessionResult
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.SessionID == "" || result.Worktree.Branch == nil || *result.Worktree.Branch != "wt/gone" || result.ConfigWarnings == nil {
+	if result.Session.ID == "" || result.Session.View != contract.ViewChat || result.Worktree == nil || result.Worktree.Branch == nil || *result.Worktree.Branch != "wt/gone" || result.ConfigWarnings == nil {
 		t.Fatalf("result %+v", result)
 	}
-	watch := observe(t, q.hybrids, result.SessionID)
+	watch := observe(t, q.hybrids, result.Session.ID)
 	watch.until("first prompt", func(o *observer) bool {
 		for _, e := range o.events {
 			if e.Kind == hybrid.EventMessage && e.Message != nil && e.Message.Role == hybrid.RoleUser && e.Message.Text == "修复首页排序" {
@@ -194,8 +196,8 @@ func TestQuickStartAPICompletesAfterDisconnect(t *testing.T) {
 		return false
 	})
 	// A retry of the same request gets the same session.
-	var retried contract.QuickStartResult
-	if err := json.Unmarshal(q.expectCommand("POST", "/api/quick-starts", q.request("api-quick-101", q.agent, "wt/gone"), 201), &retried); err != nil || retried.SessionID != result.SessionID {
+	var retried contract.CreateSessionResult
+	if err := json.Unmarshal(q.expectCommand("POST", "/api/sessions", q.request("api-quick-101", q.agent, "wt/gone"), 201), &retried); err != nil || retried.Session.ID != result.Session.ID {
 		t.Fatalf("retry: %+v %v", retried, err)
 	}
 	var list []contract.LaunchConfigSummary
@@ -227,11 +229,11 @@ func TestQuickStartAPICompletesAfterDisconnect(t *testing.T) {
 // A file uploaded before the session exists goes with the first prompt
 // from the new session's uploads; a path from anywhere else is refused
 // before anything is created.
-func TestQuickStartAPISendsStagedAttachments(t *testing.T) {
+func TestCreateAPISendsStagedAttachments(t *testing.T) {
 	q := newQuickAPI(t)
 	body, contentType := uploadBody(t, "spec.md", []byte("# 规格"), "")
 	upload := func(auth bool) *httptest.ResponseRecorder {
-		r := httptest.NewRequest(http.MethodPost, "http://webmux.example/api/quick-starts/uploads", strings.NewReader(string(body)))
+		r := httptest.NewRequest(http.MethodPost, "http://webmux.example/api/uploads", strings.NewReader(string(body)))
 		if auth {
 			r.Header.Set("Authorization", "Bearer secret")
 		}
@@ -257,18 +259,18 @@ func TestQuickStartAPISendsStagedAttachments(t *testing.T) {
 
 	req := q.request("api-quick-202", q.agent, "wt/attached")
 	req.Attachments = []contract.ChatAttachment{{Path: stored.Path}}
-	var result contract.QuickStartResult
-	if err := json.Unmarshal(q.expectCommand("POST", "/api/quick-starts", req, 201), &result); err != nil {
+	var result contract.CreateSessionResult
+	if err := json.Unmarshal(q.expectCommand("POST", "/api/sessions", req, 201), &result); err != nil {
 		t.Fatal(err)
 	}
-	watch := observe(t, q.hybrids, result.SessionID)
+	watch := observe(t, q.hybrids, result.Session.ID)
 	watch.until("first prompt with its attachment", func(o *observer) bool {
 		for _, e := range o.events {
 			if e.Kind != hybrid.EventMessage || e.Message == nil || e.Message.Role != hybrid.RoleUser || len(e.Message.Attachments) != 1 {
 				continue
 			}
 			got := e.Message.Attachments[0]
-			path, err := q.folders.UploadPath(result.SessionID, got.Path)
+			path, err := q.folders.UploadPath(result.Session.ID, got.Path)
 			return err == nil && path == got.Path && got.Name == "spec.md"
 		}
 		return false

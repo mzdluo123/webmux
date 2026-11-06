@@ -2,7 +2,7 @@
   "status": 200,
   "body": {
     "dropped": [],
-    "side": "tui",
-    "unsupported": []
+    "unsupported": [],
+    "view": "terminal"
   }
 }
