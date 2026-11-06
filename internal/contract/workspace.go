@@ -124,11 +124,45 @@ type RemovalPreview struct {
 	ExpiresAt      time.Time     `json:"expiresAt"`
 	Worktree       Worktree      `json:"worktree"`
 	Sessions       []SessionInfo `json:"sessions"`
-	// Archived are the closed and interrupted hybrid records in the
-	// worktree; a successful removal deletes them.
-	Archived     []HybridRecord `json:"archived"`
-	Blockers     []string       `json:"blockers"`
-	ForceAllowed bool           `json:"forceAllowed"`
+	// Archived are the closed and interrupted sessions in the worktree; a
+	// successful removal deletes them.
+	Archived     []SessionInfo `json:"archived"`
+	Blockers     []string      `json:"blockers"`
+	ForceAllowed bool          `json:"forceAllowed"`
+}
+
+// HybridRelease records that a linked worktree directory was released while an
+// archived session record kept its git state.
+type HybridRelease struct {
+	ID           string    `json:"id"`
+	RepositoryID string    `json:"repositoryId"`
+	Path         string    `json:"path"`
+	Commit       string    `json:"commit"`
+	Branch       string    `json:"branch,omitempty"`
+	ReleasedAt   time.Time `json:"releasedAt"`
+}
+
+// RebuildPreviewRequest is the empty body of POST
+// /api/hybrid-sessions/{id}/rebuild-preview.
+type RebuildPreviewRequest struct{}
+
+// RebuildPreview describes how an archived record's released worktree would be
+// rebuilt.
+type RebuildPreview struct {
+	ReleaseID string   `json:"releaseId"`
+	Path      string   `json:"path"`
+	Commit    string   `json:"commit"`
+	Branch    string   `json:"branch"`
+	Mode      string   `json:"mode"`
+	Reason    string   `json:"reason,omitempty"`
+	Blockers  []string `json:"blockers"`
+}
+
+// RebuildRequest is the body of POST /api/hybrid-sessions/{id}/rebuild.
+type RebuildRequest struct {
+	ReleaseID string `json:"releaseId"`
+	Mode      string `json:"mode"`
+	Commit    string `json:"commit"`
 }
 
 // ReleasePreviewRequest is the empty body of a release preview.
@@ -143,7 +177,7 @@ type ReleasePreview struct {
 	ExpiresAt      time.Time      `json:"expiresAt"`
 	Worktree       Worktree       `json:"worktree"`
 	Commit         string         `json:"commit"`
-	Archived       []HybridRecord `json:"archived"`
+	Archived       []SessionInfo  `json:"archived"`
 	Ignored        []IgnoredEntry `json:"ignored"`
 	IgnoredMore    int            `json:"ignoredMore"`
 	IgnoredBytes   *int64         `json:"ignoredBytes,omitempty"`

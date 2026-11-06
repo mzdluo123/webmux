@@ -2,8 +2,8 @@
   import { findShell, shellUi } from "../shell.svelte";
   import { Button } from "$lib/components/ui/button";
   import { navigate } from "../api";
-  import { resumeHybrid } from "../recoverable";
-  import type { HybridRecord } from "../schemas";
+  import { resumeSession } from "../recoverable";
+  import type { ArchivedSession } from "../schemas";
   import HybridRecordHints from "./HybridRecordHints.svelte";
   import HybridResumeActions from "./HybridResumeActions.svelte";
 
@@ -13,7 +13,7 @@
     record,
     onresumed,
   }: {
-    record: HybridRecord;
+    record: ArchivedSession;
     onresumed: () => void;
   } = $props();
   let busy = $state(false);
@@ -37,14 +37,14 @@
   <p>
     {record.state === "closed"
       ? "该混合会话已关闭"
-      : "该混合会话已中断"}，对话仍保存在 {record.agent} 中，可以恢复到聊天或终端。
+      : "该混合会话已中断"}，对话仍保存在 {record.agent.name} 中，可以恢复到聊天或终端。
   </p>
   <HybridRecordHints {record} />
   {#if error}<p class="text-destructive" role="alert">{error}</p>{/if}
   <div class="flex flex-wrap gap-2">
     <HybridResumeActions
       {record}
-      resume={resumeHybrid}
+      resume={resumeSession}
       onresumed={() => onresumed()}
       onrebuilt={rebuilt}
       disabled={busy}

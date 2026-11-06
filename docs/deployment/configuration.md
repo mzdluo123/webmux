@@ -57,6 +57,7 @@ JSON 输出契约见 [控制面 JSON 契约](../protocol/control-json.md#控制�
 | `agent_protocol`     | `true`                   | 在会话环境中设置 `WARP_CLI_AGENT_PROTOCOL_VERSION=1`，让 agent 发出结构化提醒事件                                                                                                                                                                   |
 | `bell_attention`     | `true`                   | 把终端响铃（输入 1 秒后）视为需要介入                                                                                                                                                                                                               |
 | `program_status`     | `true`                   | 识别 `OSC 7501` 程序状态报告，并由服务端应答 `OSC 7501;?` 探测                                                                                                                                                                                      |
+| `agent_pretrust`     | `true`                   | 启动 Claude Code、Codex、Copilot CLI 前把启动目录写入它们自己的“信任此文件夹”记录，避免会话卡在对话框；见 [文件夹信任预写](../cli-agents.md#文件夹信任预写)                                                                                         |
 | `allowed_origins`    | `[]`                     | 额外允许的完整 Origin，例如 `https://myhost.example`；须全小写，不能带路径、末尾斜杠或默认端口（http 的 `:80`、https 的 `:443`），否则启动失败                                                                                                      |
 | `tunnel`             | 未启用                   | Cloudflare Tunnel，见 [公网访问（Cloudflare Tunnel）](remote-access.md#公网访问cloudflare-tunnel)                                                                                                                                                   |
 | `push`               | 启用                     | 注意力 Web Push，见 [手机推送（Web Push）](pwa-and-push.md#手机推送web-push)                                                                                                                                                                        |
@@ -105,5 +106,5 @@ which codex-acp claude-agent-acp  # 必须能在服务的 PATH 或“加载 shel
 
 - 混合会话记录 `hybrid-sessions.json`（及其锁）只保存 webmux 会话与 agent 会话的对应关系、命令快照与状态，不含环境变量值、消息、排队内容或 token，最多 200 条。
   - 文件损坏、锁冲突或不可读写时只禁用混合会话的创建与恢复，普通会话不受影响，原文件不被覆盖。
-  - 启动配置的 `hybrid` 字段只在勾选时写入，文件仍为版本 `2`；回退到不认识该字段的旧版本前，先取消所有混合勾选，否则旧版本报告启动配置文件损坏。
+  - 启动配置的混合勾选在 `launch-configs.json` 中以 `hybrid` 键保存（HTTP API 中的字段名为 `chat`），只在勾选时写入，文件仍为版本 `2`；回退到不认识该字段的旧版本前，先取消所有混合勾选，否则旧版本报告启动配置文件损坏。
   - 详见 [混合会话](../hybrid-sessions.md)。

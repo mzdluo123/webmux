@@ -139,7 +139,7 @@ func TestReleaseRefusesUnsafeContents(t *testing.T) {
 			case "untracked":
 				putFile(t, filepath.Join(tree.Path, "untracked"), "new\n")
 			case "running":
-				item, err := h.s.CreateSession(context.Background(), SessionInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
+				item, err := h.s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
 				if err != nil {
 					t.Fatal(err)
 				}

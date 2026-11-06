@@ -105,7 +105,7 @@
           <p class="font-medium">保留的已归档会话（之后可重建并恢复）</p>
           <ul class="space-y-1">
             {#each preview.archived as record (record.id)}<li class="break-all">
-                {record.title || record.name} · {record.cwd}
+                {record.title} · {record.cwd}
               </li>{/each}
           </ul>
         </div>

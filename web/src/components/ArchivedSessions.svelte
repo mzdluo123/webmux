@@ -15,7 +15,7 @@
   import ReleasedBadge from "./ReleasedBadge.svelte";
   import { errorMessage } from "../error";
   import type { ArchiveActions } from "../archived";
-  import type { HybridRecord, Worktree } from "../schemas";
+  import type { ArchivedSession, Worktree } from "../schemas";
 
   // The archived (closed or interrupted) hybrid sessions of one workspace
   // group, below its live sessions: collapsed to a count by default, newest
@@ -31,7 +31,7 @@
   }: {
     // The workspace group's title, naming the section for assistive tech.
     title: string;
-    records: HybridRecord[];
+    records: ArchivedSession[];
     groupPath?: string;
     /**
      * The group's linked worktree when it can be removed or released; a
@@ -48,7 +48,7 @@
   let showAll = $state(false);
   let busy = $state("");
   let error = $state("");
-  let removing = $state<HybridRecord | null>(null);
+  let removing = $state<ArchivedSession | null>(null);
   let removeOpen = $state(false);
 
   const reveal = $derived(archive.filtering && records.length > 0);
@@ -64,12 +64,14 @@
     records.filter((record) => record.state === "interrupted").length,
   );
 
-  function recordTitle(record: HybridRecord) {
-    return record.title || record.name;
+  function recordTitle(record: ArchivedSession) {
+    return record.title;
   }
 
-  function since(record: HybridRecord) {
-    const at = Date.parse(record.interruptedAt ?? record.updatedAt);
+  function since(record: ArchivedSession) {
+    const at = Date.parse(
+      record.archive.interruptedAt ?? record.archive.updatedAt,
+    );
     const seconds = Math.max(0, Math.floor((archive.now - at) / 1000));
     if (seconds < 60) return "刚刚";
     if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
@@ -157,9 +159,9 @@
             </div>
             <Item.Description>
               <span class="flex flex-wrap gap-x-3 gap-y-1">
-                <span>{record.agent}</span>
+                <span>{record.agent.name}</span>
                 <span class="inline-flex items-center gap-1"
-                  >{#if record.side === "acp"}<IconMessageCircle
+                  >{#if record.view === "chat"}<IconMessageCircle
                       aria-hidden="true"
                     />聊天{:else}<IconTerminal2
                       aria-hidden="true"

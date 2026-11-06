@@ -62,7 +62,8 @@
     /** Why uploads are refused (session gone or exited); "" otherwise. */
     uploadUnavailable?: string;
     /** Where the session runs, shown read-only above the input. */
-    location?: Pick<SessionInfo, "workspace" | "cwd">;
+    location?: Pick<SessionInfo, "workspace" | "cwd"> &
+      Partial<Pick<SessionInfo, "view">>;
     /** Opens a changed file in the code panel. */
     onreview: (path: string) => void;
     /** Opens a code-location link in the code panel. */
@@ -102,7 +103,7 @@
         ? "会话已中断，请先恢复"
         : connection !== "connected" || !chat
           ? "正在连接聊天…"
-          : chat.side !== "acp"
+          : location?.view === "terminal"
             ? "会话不在聊天端"
             : ""),
   );
@@ -194,7 +195,7 @@
 </script>
 
 <FileDropZone
-  class="relative flex h-full min-h-0 flex-col bg-background"
+  class="@container relative flex h-full min-h-0 flex-col bg-background"
   data-chat-view
   role="region"
   aria-label="聊天"
@@ -284,6 +285,15 @@
         {/if}
       </div>
     </div>
+    {#if chat?.plan?.entries.length}
+      <!-- Wide panes leave empty space right of the centred transcript: pin
+           the plan there instead of stacking it above the input. -->
+      <div
+        class="pointer-events-none absolute top-3 right-6 bottom-6 z-10 hidden w-60 @[82rem]:flex @[82rem]:flex-col"
+      >
+        <ChatPlan plan={chat.plan} variant="panel" />
+      </div>
+    {/if}
     {#if !stick}
       <!-- Anchored to the message area, so a taller composer never covers it. -->
       <Button
@@ -319,7 +329,9 @@
         >
       </InlineNotice>
     {/if}
-    {#if chat?.plan?.entries.length}<ChatPlan plan={chat.plan} />{/if}
+    {#if chat?.plan?.entries.length}
+      <div class="@[82rem]:hidden"><ChatPlan plan={chat.plan} /></div>
+    {/if}
     {#if chat?.queue.items.length}
       <ChatQueue
         queue={chat.queue}

@@ -8,10 +8,11 @@
   import { errorMessage } from "../error";
   import type { ResumeChoice, ResumeOutcome } from "../recoverable";
   import type {
+    AgentCandidate,
     AgentConnector,
-    HybridCandidate,
-    HybridRecord,
+    ArchivedSession,
     SessionInfo,
+    SessionView,
   } from "../schemas";
 
   // "恢复到聊天 / 恢复到终端" for one closed or interrupted hybrid session,
@@ -27,10 +28,10 @@
     onbusy = () => {},
     onerror,
   }: {
-    record: HybridRecord;
+    record: ArchivedSession;
     resume: (
       id: string,
-      side: "tui" | "acp",
+      view: SessionView,
       choice?: ResumeChoice,
     ) => Promise<ResumeOutcome>;
     onresumed: (session: SessionInfo) => void;
@@ -50,23 +51,23 @@
   // A resume that needs the user's answer before it can be retried. Earlier
   // answers ride along, so a second question does not undo the first.
   let pending = $state<{
-    side: "tui" | "acp";
+    view: SessionView;
     choice: ResumeChoice;
     kind: "candidates" | "config_missing";
     message: string;
-    candidates: HybridCandidate[];
+    candidates: AgentCandidate[];
   } | null>(null);
   let pendingOpen = $state(false);
   let picked = $state("");
 
   // Resumes in flight; the refresh after a rebuild waits for them.
   let running = 0;
-  async function run(side: "tui" | "acp", choice: ResumeChoice = {}) {
+  async function run(view: SessionView, choice: ResumeChoice = {}) {
     running++;
     onbusy(true);
     onerror("");
     try {
-      const outcome = await resume(record.id, side, choice);
+      const outcome = await resume(record.id, view, choice);
       if (outcome.status === "resumed") {
         onresumed(outcome.session);
         return;
@@ -77,7 +78,7 @@
         return;
       }
       pending = {
-        side,
+        view,
         choice,
         kind: outcome.status,
         message: outcome.message,
@@ -86,7 +87,7 @@
       picked = pending.candidates[0]?.agentSessionId ?? "";
       pendingOpen = true;
     } catch (err) {
-      const message = `无法恢复“${record.title || record.name}”：${errorMessage(err)}`;
+      const message = `无法恢复“${record.title}”：${errorMessage(err)}`;
       if (rebuild) rebuild.failure = message;
       else onerror(message);
     } finally {
@@ -101,14 +102,14 @@
     pendingOpen = false;
     if (!answer) return;
     void run(
-      answer.side,
+      answer.view,
       answer.kind === "candidates"
         ? { ...answer.choice, agentSessionId: picked }
         : { ...answer.choice, confirmWithoutEnv: true },
     );
   }
 
-  // The chat side's connector is not installed; the terminal side still
+  // The chat view's connector is not installed; the terminal view still
   // works, with the answers given so far.
   let missing = $state<{
     connector: AgentConnector;
@@ -119,29 +120,29 @@
   function resumeTerminal() {
     const answer = missing;
     missingOpen = false;
-    if (answer) void run("tui", answer.choice);
+    if (answer) void run("terminal", answer.choice);
   }
 
   // A released record's worktree comes back first, once the user confirms
   // how. The record shown keeps its release until the records refresh, so
   // the release rebuilt here is remembered and not rebuilt twice.
-  let rebuildSide = $state<"tui" | "acp" | null>(null);
+  let rebuildView = $state<SessionView | null>(null);
   let rebuiltRelease = "";
-  function start(side: "tui" | "acp") {
+  function start(view: SessionView) {
     if (record.released && record.released.id !== rebuiltRelease)
-      rebuildSide = side;
-    else void run(side);
+      rebuildView = view;
+    else void run(view);
   }
   // The refresh after a rebuild can regroup the record and so replace this
   // component; it waits until the resume and every question it asked are
   // settled, and hands a failure to the caller, which outlives the regroup.
   let rebuild: { failure: string } | null = null;
   function rebuilt() {
-    const side = rebuildSide;
-    rebuildSide = null;
+    const view = rebuildView;
+    rebuildView = null;
     rebuiltRelease = record.released?.id ?? "";
     rebuild = { failure: "" };
-    if (side) void run(side);
+    if (view) void run(view);
     else settle();
   }
   function settle() {
@@ -152,16 +153,16 @@
   }
 </script>
 
-<Button size="sm" {disabled} onclick={() => start("acp")}>恢复到聊天</Button>
-<Button size="sm" variant="outline" {disabled} onclick={() => start("tui")}
+<Button size="sm" {disabled} onclick={() => start("chat")}>恢复到聊天</Button>
+<Button size="sm" variant="outline" {disabled} onclick={() => start("terminal")}
   >恢复到终端</Button
 >
 
-{#if rebuildSide && record.released}<RebuildWorktreeDialog
+{#if rebuildView && record.released}<RebuildWorktreeDialog
     id={record.id}
-    title={record.title || record.name}
+    title={record.title}
     released={record.released}
-    onclose={() => (rebuildSide = null)}
+    onclose={() => (rebuildView = null)}
     onrebuilt={rebuilt}
   />{/if}
 

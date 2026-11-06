@@ -28,7 +28,7 @@ beforeEach(() => {
   history.replaceState(null, "", "/");
   respond(/^GET \/api\/repositories$/, () => Response.json([repository()]));
   respond(/^GET \/api\/launch-configs$/, () => Response.json([launchConfig()]));
-  respond(/^GET \/api\/hybrid-sessions/, () => Response.json([record()]));
+  respond(/^GET \/api\/sessions$/, () => Response.json([record()]));
 });
 afterEach(() => {
   localStorage.removeItem("webmux.shellMode");
@@ -234,7 +234,7 @@ test("an archived chat resumes on its chat side, or says why it cannot", async (
   expect(location.pathname).toBe("/s/otherabc");
   expect(commands().at(-1)).toMatchObject({
     path: "/api/sessions/archivea/resume",
-    body: { side: "acp" },
+    body: { view: "chat" },
   });
 
   respond(/^POST \/api\/sessions\/archivea\/resume$/, () =>
@@ -252,7 +252,7 @@ test("the sidebar menu archives a live chat and deletes an archived record", asy
     () => new Response(null, { status: 204 }),
   );
   respond(
-    /^DELETE \/api\/hybrid-sessions\/archivea$/,
+    /^DELETE \/api\/sessions\/archivea$/,
     () => new Response(null, { status: 204 }),
   );
   render(ShellHarness, { drafts: createTerminalDrafts() });
@@ -286,7 +286,9 @@ test("the sidebar menu archives a live chat and deletes an archived record", asy
     .poll(() =>
       commands().some(
         (c) =>
-          c.method === "DELETE" && c.path === "/api/hybrid-sessions/archivea",
+          c.method === "DELETE" &&
+          c.path === "/api/sessions/archivea" &&
+          c.query === "?forget=1",
       ),
     )
     .toBe(true);
@@ -304,13 +306,17 @@ test("deleting an archived record whose linked worktree still exists opens workt
   respond(/^GET \/api\/repositories$/, () =>
     Response.json([repository({ worktrees: [worktree(), linked] })]),
   );
-  respond(/^GET \/api\/hybrid-sessions/, () =>
+  respond(/^GET \/api\/sessions$/, () =>
     Response.json([
       record({
         id: "archivew",
         title: "分支聊天",
         cwd: linked.path,
-        workspace: { repositoryId: "repo1", worktreeId: "wt1" },
+        workspace: {
+          repositoryId: "repo1",
+          worktreeId: "wt1",
+          worktreePath: linked.path,
+        },
       }),
     ]),
   );
@@ -327,7 +333,11 @@ test("deleting an archived record whose linked worktree still exists opens workt
             id: "archivew",
             title: "分支聊天",
             cwd: linked.path,
-            workspace: { repositoryId: "repo1", worktreeId: "wt1" },
+            workspace: {
+              repositoryId: "repo1",
+              worktreeId: "wt1",
+              worktreePath: linked.path,
+            },
           }),
         ],
         blockers: [],
@@ -372,7 +382,11 @@ const branchChat = record({
   id: "archivew",
   title: "分支聊天",
   cwd: branchTree.path,
-  workspace: { repositoryId: "repo1", worktreeId: "wt1" },
+  workspace: {
+    repositoryId: "repo1",
+    worktreeId: "wt1",
+    worktreePath: branchTree.path,
+  },
 });
 const releasedChat = record({
   ...branchChat,
@@ -392,7 +406,7 @@ test("the sidebar releases an archived chat's worktree after a preview and marks
   respond(/^GET \/api\/repositories$/, () =>
     Response.json([repository({ worktrees: [worktree(), branchTree] })]),
   );
-  respond(/^GET \/api\/hybrid-sessions/, () => Response.json([branchChat]));
+  respond(/^GET \/api\/sessions$/, () => Response.json([branchChat]));
   respond(
     /^POST \/api\/repositories\/repo1\/worktrees\/wt1\/release-preview$/,
     () =>
@@ -416,7 +430,7 @@ test("the sidebar releases an archived chat's worktree after a preview and marks
     respond(/^GET \/api\/repositories$/, () =>
       Response.json([repository({ worktrees: [worktree()] })]),
     );
-    respond(/^GET \/api\/hybrid-sessions/, () => Response.json([releasedChat]));
+    respond(/^GET \/api\/sessions$/, () => Response.json([releasedChat]));
     return Response.json({ releaseId: "rel1", recordIds: ["archivew"] });
   });
   render(ShellHarness, { drafts: createTerminalDrafts() });
@@ -462,7 +476,7 @@ test("the sidebar releases an archived chat's worktree after a preview and marks
 test("a released archived chat rebuilds its worktree after confirmation before resuming", async () => {
   shellUi.setMode("chat");
   history.replaceState(null, "", "/s/otherabc");
-  respond(/^GET \/api\/hybrid-sessions/, () => Response.json([releasedChat]));
+  respond(/^GET \/api\/sessions$/, () => Response.json([releasedChat]));
   respond(/^POST \/api\/hybrid-sessions\/archivew\/rebuild-preview$/, () =>
     Response.json({
       releaseId: "rel1",
@@ -511,7 +525,7 @@ test("a released archived chat rebuilds its worktree after confirmation before r
       path: "/api/hybrid-sessions/archivew/rebuild",
       body: { releaseId: "rel1", mode: "detached", commit: "c".repeat(40) },
     },
-    { path: "/api/sessions/archivew/resume", body: { side: "acp" } },
+    { path: "/api/sessions/archivew/resume", body: { view: "chat" } },
   ]);
 });
 

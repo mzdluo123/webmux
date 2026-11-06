@@ -4,7 +4,7 @@ import { cleanup, render } from "vitest-browser-svelte/pure";
 import ArchivedSessions from "../../src/components/ArchivedSessions.svelte";
 import type { ArchiveActions } from "../../src/archived";
 import type { ResumeOutcome } from "../../src/recoverable";
-import type { HybridRecord, SessionInfo, Worktree } from "../../src/schemas";
+import type { ArchivedSession, SessionInfo, Worktree } from "../../src/schemas";
 
 afterEach(async () => {
   await cleanup();
@@ -12,29 +12,44 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-const record: HybridRecord = {
+const record: ArchivedSession = {
   id: "hybrid22",
-  name: "webmux",
+  generation: "",
   title: "修复排序",
-  configId: "cfgomp01",
-  configMissing: false,
-  agent: "omp",
   cwd: "/repos/project",
   cmd: ["omp"],
-  side: "acp",
-  agentSessionId: "01a",
-  previousIds: [],
-  state: "interrupted",
-  queuedCount: 0,
+  status: "exited",
+  exitCode: null,
+  preview: "",
   createdAt: "2026-10-28T00:00:00Z",
-  updatedAt: "2026-10-28T00:00:00Z",
-  interruptedAt: "2026-10-28T00:00:00Z",
+  lastActiveAt: "2026-10-28T00:00:00Z",
+  cols: 0,
+  rows: 0,
+  clients: 0,
+  workspace: null,
+  attention: null,
+  reportedCwd: null,
+  configId: "cfgompaa",
+  state: "interrupted",
+  views: ["terminal", "chat"],
+  view: "chat",
+  transition: null,
+  agent: { name: "omp", title: "omp", icon: "pi", sessionId: "01a" },
+  archive: {
+    configMissing: false,
+    previousAgentSessionIds: [],
+    queuedCount: 0,
+    interruptedAt: "2026-10-28T00:00:00Z",
+    updatedAt: "2026-10-28T00:00:00Z",
+  },
+  listeningPorts: [],
 };
+const updatedAt = record.archive.updatedAt;
 const resumed = { id: record.id } as SessionInfo;
 const now = Date.parse("2026-10-28T00:05:00Z");
 
 function show(
-  records: HybridRecord[],
+  records: ArchivedSession[],
   resume: (...args: unknown[]) => Promise<ResumeOutcome>,
   patch: Partial<ArchiveActions> & {
     groupPath?: string;
@@ -77,8 +92,16 @@ test("is hidden without records and collapsed by default with a count", async ()
   await cleanup();
   show(
     [
-      { ...record, activity: "turn", queuedCount: 2 },
-      { ...record, id: "hybrid33", state: "closed", activity: "turn" },
+      {
+        ...record,
+        archive: { ...record.archive, activity: "turn", queuedCount: 2 },
+      },
+      {
+        ...record,
+        id: "hybrid33",
+        state: "closed",
+        archive: { ...record.archive, activity: "turn" },
+      },
     ],
     vi.fn(),
   );
@@ -102,18 +125,14 @@ test("is hidden without records and collapsed by default with a count", async ()
   await expect.element(group().getByText(/有 2 条排队消息/)).toBeVisible();
 });
 
-test("shows the stored title and falls back to the legacy record name", async () => {
-  show(
-    [record, { ...record, id: "hybrid33", title: "", name: "旧会话名称" }],
-    vi.fn(),
-  );
+test("shows each session's title", async () => {
+  show([record, { ...record, id: "hybrid33", title: "旧会话名称" }], vi.fn());
   await expand();
   await expect.element(group().getByText("修复排序")).toBeVisible();
   await expect.element(group().getByText("旧会话名称")).toBeVisible();
-  expect(group().getByText("webmux", { exact: true }).elements()).toEqual([]);
 });
 
-test("resumes to either side", async () => {
+test("resumes to either view", async () => {
   const resume = vi.fn(async () => ({
     status: "resumed" as const,
     session: resumed,
@@ -121,10 +140,10 @@ test("resumes to either side", async () => {
   const { onresumed } = show([record], resume);
   await expand();
   await page.getByRole("button", { name: "恢复到终端" }).click();
-  expect(resume).toHaveBeenCalledWith("hybrid22", "tui", {});
+  expect(resume).toHaveBeenCalledWith("hybrid22", "terminal", {});
   await vi.waitFor(() => expect(onresumed).toHaveBeenCalledWith(resumed));
   await page.getByRole("button", { name: "恢复到聊天" }).click();
-  expect(resume).toHaveBeenLastCalledWith("hybrid22", "acp", {});
+  expect(resume).toHaveBeenLastCalledWith("hybrid22", "chat", {});
 });
 
 test("asks which agent session to use when the recorded one is gone", async () => {
@@ -137,9 +156,9 @@ test("asks which agent session to use when the recorded one is gone", async () =
         {
           agentSessionId: "01b",
           title: "较早的对话",
-          updatedAt: record.updatedAt,
+          updatedAt,
         },
-        { agentSessionId: "01c", title: "", updatedAt: record.updatedAt },
+        { agentSessionId: "01c", title: "", updatedAt },
       ],
     })
     .mockResolvedValueOnce({ status: "resumed", session: resumed });
@@ -153,7 +172,7 @@ test("asks which agent session to use when the recorded one is gone", async () =
     .selectOptions("01c");
   await dialog.getByRole("button", { name: "确认" }).click();
   await vi.waitFor(() => expect(onresumed).toHaveBeenCalledOnce());
-  expect(resume).toHaveBeenLastCalledWith("hybrid22", "acp", {
+  expect(resume).toHaveBeenLastCalledWith("hybrid22", "chat", {
     agentSessionId: "01c",
   });
 });
@@ -175,7 +194,7 @@ test("confirms resuming without the deleted launch config's environment", async 
     .toMatchTextContent(/不再带有该配置保存的环境变量/);
   await dialog.getByRole("button", { name: "确认" }).click();
   await vi.waitFor(() =>
-    expect(resume).toHaveBeenLastCalledWith("hybrid22", "tui", {
+    expect(resume).toHaveBeenLastCalledWith("hybrid22", "terminal", {
       confirmWithoutEnv: true,
     }),
   );
@@ -191,9 +210,7 @@ test("a second question keeps the first answer", async () => {
     .mockResolvedValueOnce({
       status: "candidates",
       message: "agent 会话 01a 已不存在",
-      candidates: [
-        { agentSessionId: "01b", title: "", updatedAt: record.updatedAt },
-      ],
+      candidates: [{ agentSessionId: "01b", title: "", updatedAt }],
     })
     .mockResolvedValueOnce({ status: "resumed", session: resumed });
   const { onresumed } = show([record], resume);
@@ -211,7 +228,7 @@ test("a second question keeps the first answer", async () => {
     .getByRole("button", { name: "确认" })
     .click();
   await vi.waitFor(() => expect(onresumed).toHaveBeenCalledOnce());
-  expect(resume).toHaveBeenLastCalledWith("hybrid22", "acp", {
+  expect(resume).toHaveBeenLastCalledWith("hybrid22", "chat", {
     confirmWithoutEnv: true,
     agentSessionId: "01b",
   });
@@ -237,9 +254,12 @@ test("removing needs confirmation and failures stay inline", async () => {
     [
       {
         ...record,
-        agent: "claudecode",
         cmd: ["claude"],
-        agentSessionId: "01a18715-8504-7020-9f3d-257900000000",
+        agent: {
+          ...record.agent,
+          name: "claudecode",
+          sessionId: "01a18715-8504-7020-9f3d-257900000000",
+        },
       },
     ],
     vi.fn(async () => Promise.reject(new Error("网络中断"))),
@@ -430,7 +450,7 @@ test("a released record rebuilds its worktree after confirmation, then resumes",
   await dialog.getByRole("button", { name: "重建并恢复" }).click();
   await vi.waitFor(() => expect(onresumed).toHaveBeenCalledWith(resumed));
   expect(onrebuilt).toHaveBeenCalledExactlyOnceWith("");
-  expect(resume).toHaveBeenCalledWith("hybrid22", "acp", {});
+  expect(resume).toHaveBeenCalledWith("hybrid22", "chat", {});
   const [call] = rebuildCalls(fetch);
   expect(JSON.parse(String(call?.[1]?.body))).toEqual({
     releaseId: "rel1",

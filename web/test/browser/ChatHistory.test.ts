@@ -149,7 +149,11 @@ test("archived rows offer releasing a linked worktree and mark released records"
         id: "archivew",
         title: "分支聊天",
         cwd: linked.path,
-        workspace: { repositoryId: "repo1", worktreeId: "wt1" },
+        workspace: {
+          repositoryId: "repo1",
+          worktreeId: "wt1",
+          worktreePath: linked.path,
+        },
         updatedAt: "2026-10-28T02:00:00Z",
       }),
       record({ id: "archivem", title: "主工作区聊天" }),
