@@ -35,7 +35,7 @@
 | 按视图分派的 `send` 与 `interrupt`、`wait`、`logs`、`screen` 与会话事件                             | US-S09–US-S11；US-D05                               |
 | `api`、`kill`、`rm`（含 `--forget`）、`rename` 与 shell 补全                                        | US-S11–US-S12                                       |
 | `notify` 提醒（来源 `cli`）与清除                                                                   | US-S13；US-C06、US-C12                              |
-| 聊天视图：`send --reply` 与插话、`chat status/watch/answer/set/permission/queue`                    | US-S14；US-Q01–US-Q19                               |
+| 聊天视图：`send --reply` 与插话、`chat status/watch/log/answer/set/permission/queue`                | US-S14；US-Q01–US-Q19                               |
 | `view` 切换视图、`ls --archived` 列出、`resume` 恢复与 `rm --forget` 删除记录                       | US-S15                                              |
 | `worktree` 命令与主页显示（`homeWorktrees`）                                                        | US-S16；US-J01–US-J12                               |
 | `repo` 命令与仓库设置（初始化指令）                                                                 | US-S17；US-J12                                      |
