@@ -22,6 +22,7 @@ var webmux = manifest{
 		"internal/workspace":         service,
 		"internal/settings":          service,
 		"internal/launch":            service,
+		"internal/agenttrust":        service,
 		"internal/push":              service,
 		"internal/codeview":          service,
 		"internal/files":             service,
