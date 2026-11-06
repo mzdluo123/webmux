@@ -1022,7 +1022,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     const refused = attach(server, id);
     expect(await refused.exit).toBe(1);
     expect(refused.output()).toContain(
-      "会话在聊天视图，请在 Web 端操作，或切回终端后重新附着",
+      "会话在聊天视图，请用 webmux view SESSION terminal 切回终端后重新附着，或在 Web 端操作",
     );
   });
 });

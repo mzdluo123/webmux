@@ -36,12 +36,17 @@ async function cleanSessions(request: APIRequestContext) {
       )
       .toBe(true);
     if (closed === 404) continue;
+    // A session with a chat view is archived once closed; its record is
+    // deleted with the other archived sessions.
     let gone = false;
     await expect
       .poll(async () => {
         const response = await request.get(`/api/sessions/${session.id}`);
         gone = response.status() === 404;
-        return gone ? "exited" : (await response.json()).status;
+        if (gone) return "exited";
+        const info = await response.json();
+        gone = info.state !== "active";
+        return info.status;
       })
       .toBe("exited");
     if (gone) continue;

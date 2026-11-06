@@ -142,25 +142,32 @@ test("background hybrid choice waits for pane activation", async ({
   let ask: (() => void) | undefined;
   // The terminal stream reports the session's transition in its session
   // frame (kind 2); the same frame arrives when a different device starts
-  // the switch and its interrupt times out.
+  // the switch and its interrupt times out. Once asked, every later session
+  // frame keeps reporting the transition.
   await page.routeWebSocket(new RegExp(`/ws/s/${agentId}(\\?|$)`), (socket) => {
+    let awaiting = false;
     const server = socket.connectToServer();
+    const waiting = (info: object) =>
+      Buffer.concat([
+        Buffer.from([2]),
+        Buffer.from(
+          JSON.stringify({
+            ...info,
+            transition: { to: "chat", phase: "awaiting_choice" },
+          }),
+        ),
+      ]);
     server.onMessage((message) => {
-      socket.send(message);
-      if (typeof message === "string" || message[0] !== 2) return;
+      if (typeof message === "string" || message[0] !== 2) {
+        socket.send(message);
+        return;
+      }
       const info = JSON.parse(message.subarray(1).toString()) as object;
-      ask = () =>
-        socket.send(
-          Buffer.concat([
-            Buffer.from([2]),
-            Buffer.from(
-              JSON.stringify({
-                ...info,
-                transition: { to: "chat", phase: "awaiting_choice" },
-              }),
-            ),
-          ]),
-        );
+      socket.send(awaiting ? waiting(info) : message);
+      ask = () => {
+        awaiting = true;
+        socket.send(waiting(info));
+      };
     });
   });
   await openPaneMenu(foreground);
