@@ -919,7 +919,7 @@ func (e Env) renderScreen(ctx context.Context, client *localclient.Client, id st
 		}
 		if err != nil {
 			if gotSnapshot && ctx.Err() == nil {
-				stable = !(capped && errors.Is(err, context.DeadlineExceeded))
+				stable = !capped || !errors.Is(err, context.DeadlineExceeded)
 				break
 			}
 			switch websocket.CloseStatus(err) {
