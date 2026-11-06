@@ -46,6 +46,9 @@ type repositoryState struct {
 	gate        chan struct{}
 	flightMu    sync.Mutex
 	flight      *snapshotFlight
+	// swept is set once a sweep of orphan release refs ran; guarded by
+	// gate.
+	swept bool
 }
 type snapshotFlight struct {
 	done       chan struct{}
@@ -84,7 +87,7 @@ type Service struct {
 	reservations  map[string]bool
 	changed       chan struct{}
 	confirmations map[string]confirmation
-	quickStarts   quickStarts
+	creates       creates
 }
 
 // New never makes optional Git or storage availability a server startup failure.

@@ -2,10 +2,11 @@ import { describe, expect, test } from "vitest";
 import {
   placeArchived,
   recordWorktree,
+  releasableRecordWorktree,
   removableRecordWorktree,
   repositoryRecords,
 } from "../src/archived";
-import type { HybridRecord, Repository, Worktree } from "../src/schemas";
+import type { ArchivedSession, Repository, Worktree } from "../src/schemas";
 
 const tree = (id: string, path: string): Worktree => ({
   id,
@@ -35,37 +36,63 @@ const repository: Repository = {
   initInstruction: "",
   worktrees: [tree("main", "/work/main"), tree("nested", "/work/main/nested")],
 };
-const record = (id: string, patch: Partial<HybridRecord>): HybridRecord => ({
+const record = (
+  id: string,
+  patch: Partial<ArchivedSession>,
+): ArchivedSession => ({
   id,
-  name: id,
+  generation: "",
   title: id,
-  configId: "cfg",
-  configMissing: false,
-  agent: "omp",
   cwd: "/elsewhere",
   cmd: ["omp"],
-  side: "tui",
-  agentSessionId: null,
-  previousIds: [],
-  state: "closed",
-  queuedCount: 0,
+  status: "exited",
+  exitCode: null,
+  preview: "",
   createdAt: "2026-10-28T00:00:00Z",
-  updatedAt: "2026-10-28T00:00:00Z",
-  interruptedAt: null,
+  lastActiveAt: "2026-10-28T00:00:00Z",
+  cols: 0,
+  rows: 0,
+  clients: 0,
+  workspace: null,
+  attention: null,
+  reportedCwd: null,
+  configId: "cfgcfgcf",
+  state: "closed",
+  views: ["terminal", "chat"],
+  view: "terminal",
+  transition: null,
+  agent: { name: "omp", title: "omp", icon: "pi", sessionId: null },
+  archive: {
+    configMissing: false,
+    previousAgentSessionIds: [],
+    queuedCount: 0,
+    interruptedAt: null,
+    updatedAt: "2026-10-28T00:00:00Z",
+  },
+  listeningPorts: [],
   ...patch,
 });
-const ids = (records: readonly HybridRecord[] = []) => records.map((r) => r.id);
+const ids = (records: readonly ArchivedSession[] = []) =>
+  records.map((r) => r.id);
 
 describe("placeArchived", () => {
   const records = [
     // The recorded association wins over the directory.
     record("recorded", {
       cwd: "/work/main/nested",
-      workspace: { repositoryId: "r1", worktreeId: "main" },
+      workspace: {
+        repositoryId: "r1",
+        worktreeId: "main",
+        worktreePath: "/work/main/nested",
+      },
     }),
     record("gone", {
       cwd: "/work/gone",
-      workspace: { repositoryId: "r1", worktreeId: "gone" },
+      workspace: {
+        repositoryId: "r1",
+        worktreeId: "gone",
+        worktreePath: "/work/gone",
+      },
     }),
     // Legacy records join the deepest worktree containing their directory.
     record("deep", { cwd: "/work/main/nested/src/" }),
@@ -74,7 +101,11 @@ describe("placeArchived", () => {
     record("sibling", { cwd: "/work/main-copy" }),
     record("removed", {
       cwd: "/work/main",
-      workspace: { repositoryId: "r9", worktreeId: "main" },
+      workspace: {
+        repositoryId: "r9",
+        worktreeId: "main",
+        worktreePath: "/work/main",
+      },
     }),
   ];
 
@@ -115,10 +146,60 @@ describe("placeArchived", () => {
       removableRecordWorktree(
         record("stale", {
           cwd: "/work/prunable",
-          workspace: { repositoryId: "r1", worktreeId: "prunable" },
+          workspace: {
+            repositoryId: "r1",
+            worktreeId: "prunable",
+            worktreePath: "/work/prunable",
+          },
         }),
         repos,
       ),
     ).toBeUndefined();
+  });
+
+  test("offers releasing only linked worktrees of records not yet released", () => {
+    const repos: Repository[] = [
+      {
+        ...repository,
+        worktrees: [
+          { ...tree("main", "/work/main"), kind: "main" },
+          tree("feature", "/work/feature"),
+          { ...tree("prunable", "/work/prunable"), prunable: true },
+          { ...tree("offline", "/work/offline"), available: false },
+        ],
+      },
+    ];
+    const at = (worktreeId: string, patch: Partial<ArchivedSession> = {}) =>
+      record(worktreeId, {
+        cwd: `/work/${worktreeId}`,
+        workspace: {
+          repositoryId: "r1",
+          worktreeId,
+          worktreePath: `/work/${worktreeId}`,
+        },
+        ...patch,
+      });
+    expect(releasableRecordWorktree(at("feature"), repos)?.id).toBe("feature");
+    // The main checkout, a prunable or unavailable directory, a worktree no
+    // longer in the Git list and a direct directory never offer it.
+    for (const id of ["main", "prunable", "offline", "gone"])
+      expect(releasableRecordWorktree(at(id), repos), id).toBeUndefined();
+    expect(
+      releasableRecordWorktree(record("direct", { cwd: "/tmp" }), repos),
+    ).toBeUndefined();
+    // A released record has nothing left to release, and deleting it only
+    // deletes the record, even when a worktree is back at its path.
+    const released = at("feature", {
+      released: {
+        id: "rel1",
+        repositoryId: "r1",
+        path: "/work/feature",
+        commit: "c".repeat(40),
+        branch: "feature",
+        releasedAt: "2026-10-28T00:00:00Z",
+      },
+    });
+    expect(releasableRecordWorktree(released, repos)).toBeUndefined();
+    expect(removableRecordWorktree(released, repos)).toBeUndefined();
   });
 });

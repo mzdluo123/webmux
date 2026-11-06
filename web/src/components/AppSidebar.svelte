@@ -7,9 +7,9 @@
   import { removableRecordWorktree } from "../archived";
   import { homeWorktrees } from "../homeWorktrees.svelte";
   import { connectorMissingText } from "../hybrid";
-  import { removeRecord, resumeHybrid } from "../recoverable";
+  import { removeRecord, resumeSession } from "../recoverable";
   import type { Route } from "../route";
-  import type { HybridRecord } from "../schemas";
+  import type { ArchivedSession, HybridRelease } from "../schemas";
   import {
     getShell,
     openPage,
@@ -20,6 +20,7 @@
   import Brand from "./Brand.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import ChatHistory from "./ChatHistory.svelte";
+  import RebuildWorktreeDialog from "./RebuildWorktreeDialog.svelte";
   import ModeSwitch from "./ModeSwitch.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import WorkbenchTree from "./WorkbenchTree.svelte";
@@ -42,9 +43,7 @@
   const shell = getShell();
   const current = $derived(route.name === "terminal" ? route.id : "");
   const live = $derived(
-    shell.sessions.sessions.filter(
-      (session) => !session.hybrid || session.hybrid.state === "active",
-    ),
+    shell.sessions.sessions.filter((session) => session.state === "active"),
   );
   const configs = $derived(
     shell.launchConfigs.state.status === "ready"
@@ -60,9 +59,9 @@
   // The last failed sidebar action (resume or record deletion), shown above
   // the list.
   let resumeError = $state("");
-  let removing = $state<HybridRecord | null>(null);
+  let removing = $state<ArchivedSession | null>(null);
   let removeOpen = $state(false);
-  function askRemove(record: HybridRecord) {
+  function askRemove(record: ArchivedSession) {
     const worktree = removableRecordWorktree(record, shell.repositories.list);
     if (worktree) {
       shell.removeWorktree(worktree);
@@ -84,17 +83,35 @@
       resumeError = `无法删除“${recordTitle(record)}”的记录：${errorMessage(err)}`;
     }
   }
-  function recordTitle(record: HybridRecord) {
-    return record.name || record.title || record.agent;
+  function recordTitle(record: ArchivedSession) {
+    return record.title || record.agent.name;
   }
-  // An archived chat resumes on its chat side through the existing flow;
+  // An archived chat resumes on its chat view through the existing flow;
   // choices that need the user (another agent session, a deleted launch
-  // config) are made on the record's own page.
-  async function resume(record: HybridRecord) {
+  // config) are made on the record's own page. A released record's worktree
+  // is rebuilt first, once the user confirms how.
+  let rebuilding = $state<{
+    record: ArchivedSession;
+    released: HybridRelease;
+  } | null>(null);
+  function open(record: ArchivedSession) {
+    if (record.released) rebuilding = { record, released: record.released };
+    else void resume(record);
+  }
+  function rebuilt() {
+    const target = rebuilding;
+    rebuilding = null;
+    if (!target) return;
+    // The worktree is back and the release cleared, whatever the resume does.
+    void shell.repositories.refresh();
+    void shell.archived.refresh();
+    void resume(target.record);
+  }
+  async function resume(record: ArchivedSession) {
     resuming = record.id;
     resumeError = "";
     try {
-      const outcome = await resumeHybrid(record.id, "acp");
+      const outcome = await resumeSession(record.id, "chat");
       if (outcome.status === "resumed") {
         void shell.archived.refresh();
         openSession(outcome.session);
@@ -102,7 +119,7 @@
         resumeError = `${outcome.message}。${connectorMissingText(outcome.connector)}`;
       else openPage(`/s/${record.id}`);
     } catch (err) {
-      resumeError = `无法恢复“${record.name || record.title}”：${errorMessage(err)}`;
+      resumeError = `无法恢复“${record.title}”：${errorMessage(err)}`;
     } finally {
       resuming = "";
     }
@@ -156,12 +173,14 @@
         sessions={live}
         records={shell.archived.records}
         {configs}
+        repositories={shell.repositories.list}
         {current}
         {resuming}
         onopen={openSession}
-        onresume={(record) => void resume(record)}
+        onresume={open}
         onrename={shell.rename}
         onclose={shell.close}
+        onrelease={shell.releaseWorktree}
         onremove={askRemove}
       />
     {:else if !shell.sessions.loading && (shell.repositories.settled || shell.repositories.list.length)}
@@ -206,3 +225,13 @@
 >
   只删除 WebMux 的记录与本机草稿；agent 自己保存的会话不受影响。
 </ConfirmDialog>
+{#if rebuilding}
+  {@const { record, released } = rebuilding}
+  <RebuildWorktreeDialog
+    id={record.id}
+    title={recordTitle(record)}
+    {released}
+    onclose={() => (rebuilding = null)}
+    onrebuilt={rebuilt}
+  />
+{/if}

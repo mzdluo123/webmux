@@ -99,10 +99,11 @@ func TestSavedLaunchConfigLoadsBashrcAndForwardsArguments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := service.CreateSession(context.Background(), workspace.SessionInput{Cwd: home, ConfigID: &saved.ID})
+	created, err := service.Create(context.Background(), workspace.CreateInput{Cwd: home, ConfigID: &saved.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
+	s := created.Session
 	select {
 	case <-s.Done():
 	case <-time.After(5 * time.Second):
@@ -114,5 +115,25 @@ func TestSavedLaunchConfigLoadsBashrcAndForwardsArguments(t *testing.T) {
 	}
 	if !strings.Contains(out, "arg=<--resume>") || !strings.Contains(out, "arg=<two words>") || !strings.Contains(out, "arg=<>") || !strings.Contains(out, "arg=<$HOME>") {
 		t.Fatalf("saved command arguments missing or split: %q", out)
+	}
+}
+
+func TestAgentPretrustOption(t *testing.T) {
+	dir := t.TempDir()
+	for _, row := range []struct {
+		body string
+		want bool
+	}{{"", true}, {"agent_pretrust = false\n", false}} {
+		path := filepath.Join(dir, "c.toml")
+		if err := os.WriteFile(path, []byte(row.body), 0600); err != nil {
+			t.Fatal(err)
+		}
+		c, err := config.Load(path, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := SessionOptions(c).PreLaunch != nil; got != row.want {
+			t.Fatalf("%q: PreLaunch set = %v, want %v", row.body, got, row.want)
+		}
 	}
 }

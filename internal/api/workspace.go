@@ -58,7 +58,7 @@ func (s *Server) workspaceRoutes(mux *http.ServeMux) {
 	})
 	serveIn(mux, "POST "+repo+"/worktrees/{worktreeId}/removal-preview", http.StatusOK, workspaceFailure, func(r *http.Request, _ contract.RemovalPreviewRequest) (contract.RemovalPreview, error) {
 		preview, err := s.Workspace.PreviewRemoval(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"))
-		return wire.Preview(preview, s.configMissing), err
+		return wire.Preview(preview, s.archived), err
 	})
 	serveInDone(mux, "POST "+repo+"/worktrees/{worktreeId}/remove", workspaceFailure, func(r *http.Request, req contract.RemoveWorktreeRequest) error {
 		forgotten, err := s.Workspace.RemoveWorktree(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"), wire.RemoveWorktree(req))
@@ -68,5 +68,23 @@ func (s *Server) workspaceRoutes(mux *http.ServeMux) {
 			s.Artifacts.Remove(id)
 		}
 		return err
+	})
+	serveIn(mux, "POST "+repo+"/worktrees/{worktreeId}/release-preview", http.StatusOK, sessionFailure, func(r *http.Request, _ contract.ReleasePreviewRequest) (contract.ReleasePreview, error) {
+		preview, err := s.Workspace.PreviewRelease(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"))
+		return wire.ReleasePreview(preview, s.archived), err
+	})
+	serveIn(mux, "POST "+repo+"/worktrees/{worktreeId}/release", http.StatusOK, sessionFailure, func(r *http.Request, req contract.ReleaseWorktreeRequest) (contract.ReleaseResult, error) {
+		result, err := s.Workspace.ReleaseWorktree(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"), wire.ReleaseWorktree(req))
+		return wire.ReleaseResult(result), err
+	})
+	// Rebuilds bring a released record's worktree back; hybrid record
+	// errors keep their statuses.
+	serveIn(mux, "POST /api/hybrid-sessions/{id}/rebuild-preview", http.StatusOK, sessionFailure, func(r *http.Request, _ contract.RebuildPreviewRequest) (contract.RebuildPreview, error) {
+		preview, err := s.Workspace.PreviewRebuild(r.Context(), r.PathValue("id"))
+		return wire.RebuildPreview(preview), err
+	})
+	serveIn(mux, "POST /api/hybrid-sessions/{id}/rebuild", http.StatusOK, sessionFailure, func(r *http.Request, req contract.RebuildRequest) (contract.Worktree, error) {
+		tree, err := s.Workspace.RebuildWorktree(r.Context(), r.PathValue("id"), wire.RebuildWorktree(req))
+		return wire.Worktree(tree), err
 	})
 }

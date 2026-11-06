@@ -1,26 +1,34 @@
 <script lang="ts" module>
   import type {
-    HybridRecord,
+    ArchivedSession,
     LaunchConfigSummary,
+    Repository,
     SessionInfo,
+    Worktree,
   } from "../schemas";
 
   /**
-   * Live hybrid sessions and archived records, each sorted newest activity
+   * Live sessions with a chat view and archived sessions, each sorted newest activity
    * first. Terminal-only sessions are left out, and a live session wins over
    * a record with its ID.
    */
   export function chatHistorySections(
     sessions: readonly SessionInfo[],
-    records: readonly HybridRecord[],
-  ): { live: SessionInfo[]; archived: HybridRecord[] } {
+    records: readonly ArchivedSession[],
+  ): { live: SessionInfo[]; archived: ArchivedSession[] } {
     const live = sessions
-      .filter((session) => session.hybrid?.state === "active")
+      .filter(
+        (session) =>
+          session.views.includes("chat") && session.state === "active",
+      )
       .sort((a, b) => Date.parse(b.lastActiveAt) - Date.parse(a.lastActiveAt));
     const ids = new Set(live.map((session) => session.id));
     const archived = records
       .filter((record) => !ids.has(record.id))
-      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+      .sort(
+        (a, b) =>
+          Date.parse(b.archive.updatedAt) - Date.parse(a.archive.updatedAt),
+      );
     return { live, archived };
   }
 </script>
@@ -31,41 +39,50 @@
   import { Button } from "$lib/components/ui/button";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { releasableRecordWorktree } from "../archived";
   import { rowStatus, rowStatusLabels } from "../session-status";
   import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
+  import ReleasedBadge from "./ReleasedBadge.svelte";
   import RowStatus from "./RowStatus.svelte";
   import SidebarSessionMenu from "./SidebarSessionMenu.svelte";
 
   // The chat-mode sidebar: live chats flat by latest activity, with archived
   // records folded below them. The current row carries aria-current and every
   // row ends in a status dot; the "⋯" menu offers a live chat's rename and
-  // archive, and an archived one's resume and record deletion. Archived rows
-  // also resume when clicked.
+  // archive, and an archived one's resume, space release and record
+  // deletion. Archived rows also resume when clicked; a released one is
+  // marked so.
   let {
     sessions,
     records,
     configs,
+    repositories,
     current,
     resuming = "",
     onopen,
     onresume,
     onrename,
     onclose,
+    onrelease,
     onremove,
   }: {
     sessions: readonly SessionInfo[];
-    records: readonly HybridRecord[];
+    records: readonly ArchivedSession[];
     configs: readonly LaunchConfigSummary[];
+    /** Resolve which archived records' worktrees can be released. */
+    repositories: readonly Repository[];
     /** The session page shown, or "" on a home page. */
     current: string;
     /** The record being resumed; its row shows the progress. */
     resuming?: string;
     onopen: (session: SessionInfo) => void;
-    onresume: (record: HybridRecord) => void;
+    onresume: (record: ArchivedSession) => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
+    /** Asks to release the disk space of an archived record's worktree. */
+    onrelease: (worktree: Worktree) => void;
     /** Asks to delete an archived record. */
-    onremove: (record: HybridRecord) => void;
+    onremove: (record: ArchivedSession) => void;
   } = $props();
   const { live, archived } = $derived(chatHistorySections(sessions, records));
   let archivedExpanded = $state(false);
@@ -93,13 +110,10 @@
             variant="navigation-action"
             aria-current={session.id === current ? "page" : undefined}
             aria-label={`${session.title}（${rowStatusLabels[status]}）`}
-            title={`${session.title}（${session.hybrid?.agentTitle ?? ""} · ${rowStatusLabels[status]}）`}
+            title={`${session.title}（${session.agent?.title ?? ""} · ${rowStatusLabels[status]}）`}
             onclick={() => onopen(session)}
           >
-            <LaunchConfigIcon
-              icon={session.hybrid?.agentIcon ?? ""}
-              size="sm"
-            />
+            <LaunchConfigIcon icon={session.agent?.icon ?? ""} size="sm" />
             <span class="min-w-0 flex-1 truncate">{session.title}</span>
             <RowStatus {status} />
           </ListButton>
@@ -140,15 +154,19 @@
       <Collapsible.Content forceMount hidden={!archivedOpen} class="mt-0.5">
         <ul class="space-y-0.5" aria-label="已归档聊天">
           {#each archived as record (record.id)}
-            {@const title = record.name || record.title || record.agent}
+            {@const title = record.title || record.agent.name}
+            {@const releasable = releasableRecordWorktree(record, repositories)}
+            {@const state = record.released ? "已释放空间，已结束" : "已结束"}
             <li class="group/row relative">
               <!-- The same end padding as live rows keeps every status in one
                    column. -->
               <ListButton
                 variant="navigation-action"
                 aria-current={record.id === current ? "page" : undefined}
-                aria-label={`${title}（${resuming === record.id ? "正在恢复" : "已结束"}）`}
-                title={`${title}（${record.agent} · 已结束，点击恢复）`}
+                aria-label={`${title}（${resuming === record.id ? "正在恢复" : state}）`}
+                title={record.released
+                  ? `${title}（${record.agent.name} · 已释放空间：${record.released.path} · ${record.released.commit.slice(0, 12)}，点击重建并恢复）`
+                  : `${title}（${record.agent.name} · 已结束，点击恢复）`}
                 aria-busy={resuming === record.id}
                 disabled={!!resuming}
                 onclick={() => onresume(record)}
@@ -161,6 +179,9 @@
                 <span class="min-w-0 flex-1 truncate text-muted-foreground"
                   >{title}</span
                 >
+                {#if record.released}<ReleasedBadge
+                    released={record.released}
+                  />{/if}
                 {#if resuming === record.id}<span
                     class="shrink-0 text-xs font-normal text-muted-foreground"
                     >恢复中…</span
@@ -172,6 +193,9 @@
                 target={{
                   kind: "archived",
                   onresume: () => onresume(record),
+                  onrelease: releasable
+                    ? () => onrelease(releasable)
+                    : undefined,
                   onremove: () => onremove(record),
                 }}
               />
