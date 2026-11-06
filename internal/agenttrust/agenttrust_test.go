@@ -295,7 +295,7 @@ func TestPrepareCopilotAppendsTrustedFolder(t *testing.T) {
 		}
 	}
 	config := filepath.Join(dir, "config.json")
-	if err := os.WriteFile(config, []byte(`{"model":"x","trusted_folders":["/old"]}`), 0o600); err != nil {
+	if err := os.WriteFile(config, []byte(`{"model":"x","trustedFolders":["/old"]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	trust := newTrust(home, nil)
@@ -305,7 +305,7 @@ func TestPrepareCopilotAppendsTrustedFolder(t *testing.T) {
 	data, _ := os.ReadFile(config)
 	var doc struct {
 		Model   string   `json:"model"`
-		Folders []string `json:"trusted_folders"`
+		Folders []string `json:"trustedFolders"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
 		t.Fatalf("invalid JSON %q: %v", data, err)
@@ -326,12 +326,104 @@ func TestPrepareCopilotLeavesCommentedConfigUntouched(t *testing.T) {
 		}
 	}
 	config := filepath.Join(dir, "config.json")
-	seed := "// settings\n{\"trusted_folders\":[]}\n"
+	seed := "// settings\n{\"trustedFolders\":[]}\n"
 	if err := os.WriteFile(config, []byte(seed), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	newTrust(home, nil).Prepare(work, []string{"copilot"}, nil)
 	if data, _ := os.ReadFile(config); string(data) != seed {
 		t.Fatalf("config rewritten: %s", data)
+	}
+}
+
+func TestPrepareCopilotKeepsLegacyKeyOnlyWhenItIsTheOnlyOne(t *testing.T) {
+	home := t.TempDir()
+	work := filepath.Join(home, "p")
+	dir := filepath.Join(home, ".copilot")
+	for _, d := range []string{work, dir} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	config := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(config, []byte(`{"trusted_folders":["/old"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	newTrust(home, nil).Prepare(work, []string{"copilot"}, nil)
+	var doc map[string][]string
+	data, _ := os.ReadFile(config)
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc["trusted_folders"]) != 2 || doc["trustedFolders"] != nil {
+		t.Fatalf("config = %s", data)
+	}
+	if err := os.WriteFile(config, []byte(`{"trusted_folders":["/old"],"trustedFolders":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	newTrust(home, nil).Prepare(work, []string{"copilot"}, nil)
+	doc = nil
+	data, _ = os.ReadFile(config)
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc["trustedFolders"]) != 1 || len(doc["trusted_folders"]) != 1 {
+		t.Fatalf("current key not preferred: %s", data)
+	}
+}
+
+func TestPrepareWritesThroughSymlinkedConfig(t *testing.T) {
+	home := t.TempDir()
+	work := filepath.Join(home, "p")
+	dotfiles := filepath.Join(home, "dotfiles")
+	for _, d := range []string{work, dotfiles} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	target := filepath.Join(dotfiles, "claude.json")
+	if err := os.WriteFile(target, []byte("{}"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(home, ".claude.json")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	newTrust(home, nil).Prepare(work, []string{"claude"}, nil)
+
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("symlink replaced: %v, %v", info, err)
+	}
+	if readProjects(t, target)[canonical(t, work)]["hasTrustDialogAccepted"] != true {
+		t.Fatal("target not updated")
+	}
+	if info, _ := os.Stat(target); info.Mode().Perm() != 0o640 {
+		t.Fatalf("target mode = %v", info.Mode())
+	}
+	entries, _ := os.ReadDir(dotfiles)
+	if len(entries) != 1 {
+		t.Fatalf("temporary file left in %d entries", len(entries))
+	}
+}
+
+func TestPrepareLeavesDanglingSymlinkAlone(t *testing.T) {
+	home := t.TempDir()
+	work := filepath.Join(home, "p")
+	codex := filepath.Join(home, ".codex")
+	for _, d := range []string{work, codex} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := filepath.Join(codex, "config.toml")
+	if err := os.Symlink(filepath.Join(home, "missing.toml"), link); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	newTrust(home, nil).Prepare(work, []string{"codex"}, nil)
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("dangling link replaced: %v, %v", info, err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "missing.toml")); !os.IsNotExist(err) {
+		t.Fatalf("link target created: %v", err)
 	}
 }

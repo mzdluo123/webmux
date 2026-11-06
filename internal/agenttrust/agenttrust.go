@@ -143,6 +143,16 @@ func (t *Trust) trustable(cwd string) (string, error) {
 // an agent's config. A missing file is left alone unless create is set; edit
 // then receives nil. An edit that reports no change writes nothing.
 func editFile(path string, create bool, edit func(data []byte) ([]byte, bool, error)) error {
+	// Agent configs are often symlinks into a dotfiles repository. Rewrite the
+	// target, because renaming over the link would replace it with a regular
+	// file, and leave a dangling link alone.
+	if _, err := os.Lstat(path); err == nil {
+		resolved, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", path, err)
+		}
+		path = resolved
+	}
 	data, err := os.ReadFile(path)
 	mode := fs.FileMode(0o600)
 	switch {

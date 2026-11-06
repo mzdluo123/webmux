@@ -51,7 +51,7 @@ Claude Code、Codex 和 GitHub Copilot CLI 首次在某个目录启动时会询�
 | -------------- | ------------------------------------------ | -------------------------------------------------- |
 | Claude Code    | `~/.claude.json`（`CLAUDE_CONFIG_DIR`）    | `projects["<目录>"].hasTrustDialogAccepted = true` |
 | Codex          | `~/.codex/config.toml`（`CODEX_HOME`）     | `[projects."<目录>"]` 下 `trust_level = "trusted"` |
-| GitHub Copilot | `~/.copilot/config.json`（`COPILOT_HOME`） | 在 `trusted_folders` 数组追加目录                  |
+| GitHub Copilot | `~/.copilot/config.json`（`COPILOT_HOME`） | 在 `trustedFolders` 数组追加目录                   |
 
 - 环境变量先取会话自己的环境变量，再取服务进程的。目录先解析符号链接。
 - 只对启动目录写入。主目录、它的上级目录和文件系统根永不写入，因为这些 CLI 的信任范围包含其下所有子目录。
