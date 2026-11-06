@@ -345,3 +345,26 @@ func TestDropReleaseAfterLastRecord(t *testing.T) {
 		t.Fatal("ref kept after its last record")
 	}
 }
+
+// A worktree later created at a released path is not the released one:
+// removing it must keep the released records restorable.
+func TestRemovingOccupantKeepsReleasedRecords(t *testing.T) {
+	h := newQuickHarness(t, "")
+	tree, id := h.releasable("released-path")
+	h.release(tree)
+	occupant, err := h.s.CreateWorktree(context.Background(), h.repo.ID, CreateRequest{Path: tree.Path, Mode: "new", Branch: "occupant", Base: "HEAD"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview := previewTest(t, h.s, h.repo, occupant)
+	if len(preview.Archived) != 0 {
+		t.Fatalf("removal preview lists released records: %+v", preview.Archived)
+	}
+	forgotten, err := h.s.RemoveWorktree(context.Background(), h.repo.ID, occupant.ID, RemoveRequest{ConfirmationID: preview.ConfirmationID, Mode: "safe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(forgotten) != 0 || h.released(id) == nil {
+		t.Fatalf("released record forgotten: %v", forgotten)
+	}
+}

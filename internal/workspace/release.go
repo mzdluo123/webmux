@@ -66,11 +66,6 @@ type ReleaseResult struct {
 
 func releasedRef(id string) string { return releasedRefPrefix + id }
 
-// releasableRecords are the archived records in path not already released.
-func (s *Service) releasableRecords(path string) []hybrid.Record {
-	return slices.DeleteFunc(s.targetRecords(path), func(rec hybrid.Record) bool { return rec.Released != nil })
-}
-
 func recordIDs(list []hybrid.Record) []string {
 	ids := make([]string, len(list))
 	for i, rec := range list {
@@ -129,7 +124,7 @@ func (s *Service) PreviewRelease(ctx context.Context, repositoryID, worktreeID s
 		return ReleasePreview{}, err
 	}
 	commit := s.headCommit(ctx, state.tree)
-	records := s.releasableRecords(state.tree.Path)
+	records := s.targetRecords(state.tree.Path)
 	preview := ReleasePreview{
 		Worktree: state.tree, Commit: commit, Archived: records, Ignored: []IgnoredEntry{},
 		Blockers: releaseBlockers(state, commit, records),
@@ -293,7 +288,7 @@ func (s *Service) ReleaseWorktree(ctx context.Context, repositoryID, worktreeID 
 		return ReleaseResult{}, problemf(ErrConflict, "工作树身份、分支、锁或会话集合已变化，请重新预览")
 	}
 	commit := s.headCommit(ctx, current.tree)
-	records := s.releasableRecords(path)
+	records := s.targetRecords(path)
 	ids := recordIDs(records)
 	if commit != c.commit || !slices.Equal(ids, c.records) {
 		return ReleaseResult{}, problemf(ErrConflict, "提交或已归档记录已变化，请重新预览")
@@ -320,8 +315,9 @@ func (s *Service) ReleaseWorktree(ctx context.Context, repositoryID, worktreeID 
 	// Cleanup runs even when the request was cancelled midway.
 	cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(ctx), writeTimeout)
 	defer cleanupCancel()
+	// A failed mark may still have reached the disk, so the ref stays; the
+	// deferred sweep drops it only when the loaded records do not use it.
 	if err := s.hybrids.MarkReleased(ctx, ids, rel); err != nil {
-		s.dropRef(cleanupCtx, r, id)
 		return ReleaseResult{}, err
 	}
 	if _, err := s.git(ctx, r.entry.AnchorPath, "worktree", "remove", "--", path); err != nil {

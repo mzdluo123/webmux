@@ -330,7 +330,9 @@ func (s *Service) RemoveWorktree(ctx context.Context, repositoryID, worktreeID s
 }
 
 // targetRecords lists the closed and interrupted hybrid records whose
-// directory lies in path, most recently updated first.
+// directory lies in path, most recently updated first. Released records
+// are skipped: their worktree is gone, so whatever now occupies path is not
+// theirs, and removing or releasing it must leave them restorable.
 func (s *Service) targetRecords(path string) []hybrid.Record {
 	result := make([]hybrid.Record, 0)
 	if s.hybrids == nil {
@@ -341,6 +343,9 @@ func (s *Service) targetRecords(path string) []hybrid.Record {
 		return result
 	}
 	for _, rec := range list {
+		if rec.Released != nil {
+			continue
+		}
 		cwd, err := canonicalTarget(rec.Cwd)
 		if err != nil {
 			cwd = filepath.Clean(rec.Cwd)
