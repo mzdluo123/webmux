@@ -309,6 +309,50 @@ func TestChatLogOutputDoesNotCrowdOutConversation(t *testing.T) {
 	t.Logf("turns kept: %d, drop-only: %d", kept, naive)
 }
 
+func TestChatLogDegradeCursorSurvivesMerge(t *testing.T) {
+	// A long streamed run that crosses the protected part of the log
+	// collapses into one event. The scan position for shortening tool
+	// output must follow, or later tool output is evicted instead of shortened.
+	l := newChatLog(8000, ChatState{})
+	now := time.Now()
+	for range 50 {
+		l.append(now, chunk("a", RoleAgent, ""))
+	}
+	l.append(now, marker()) // seals the run
+	l.append(now, marker())
+	if l.degraded > len(l.events) {
+		t.Fatalf("scan position %d beyond %d events", l.degraded, len(l.events))
+	}
+	// Shortening the oldest output (about 1 KiB each) is enough to fit.
+	l.capacity = 9600
+	for _, id := range []string{"t1", "t2", "t3"} {
+		l.append(now, toolEvent(id, strings.Repeat("x", 3000)))
+	}
+	s, _ := l.subscribe(nil)
+	got := map[string]int{}
+	for _, e := range s.Events {
+		if e.Tool != nil {
+			got[e.Tool.ToolCallID] = len(toolText(e))
+		}
+	}
+	if got["t1"] != degradedToolBytes || got["t3"] != 3000 {
+		t.Fatalf("tool output lengths %v: the oldest should be shortened and the newest kept", got)
+	}
+}
+
+func TestChatLogKeepsNewestEventWhole(t *testing.T) {
+	// Even when the newest event alone is larger than the protected part of
+	// the budget, its output is not shortened.
+	big := strings.Repeat("x", 6000)
+	l := newChatLog(4*eventSize(toolEvent("a", big))/3, ChatState{})
+	l.append(time.Now(), toolEvent("a", big), toolEvent("b", big))
+	s, _ := l.subscribe(nil)
+	last := s.Events[len(s.Events)-1]
+	if last.Tool.ToolCallID != "b" || len(toolText(last)) != len(big) {
+		t.Fatalf("newest event: %s, %d bytes", last.Tool.ToolCallID, len(toolText(last)))
+	}
+}
+
 func TestChatLogConcurrentAppendAndSubscribe(t *testing.T) {
 	// Merging, shortening and dropping rewrite the log while subscribers
 	// read it; run with -race. Every subscriber must see a consistent text.

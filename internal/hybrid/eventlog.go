@@ -343,6 +343,9 @@ func (l *chatLog) mergeLocked(start int) {
 	l.events = append(l.events[:start], merged)
 	l.sizes = append(l.sizes[:start], size)
 	l.spans = append(l.spans[:start], span{first: firstSeq, ends: ends})
+	// The merged event is a message with no tool output to shorten, so it
+	// counts as scanned; the scan position must not point past the log.
+	l.degraded = min(l.degraded, start+1)
 }
 
 // remainderLocked returns merged event i without the chunks the client
@@ -367,6 +370,8 @@ func (l *chatLog) degradeLocked() {
 		boundary--
 		kept += l.sizes[boundary]
 	}
+	// The newest event stays whole even when it alone exceeds the window.
+	boundary = min(boundary, len(l.events)-1)
 	i := l.degraded
 	for ; i < boundary && l.bytes > l.capacity; i++ {
 		if e, ok := degradeTool(l.events[i]); ok {
