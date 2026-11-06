@@ -982,3 +982,28 @@ test("submits multi-select array fields in a form elicitation", async () => {
     },
   ]);
 });
+
+test("pins the plan beside the transcript on wide panes and above the input otherwise", async () => {
+  const socket = await open();
+  socket.frame(
+    snapshot(
+      chatState({
+        plan: {
+          entries: [
+            {
+              content: "定位排序函数",
+              priority: "medium",
+              status: "completed",
+            },
+            { content: "修改实现", priority: "medium", status: "in_progress" },
+          ],
+        },
+      }),
+    ),
+  );
+  const dock = page.getByRole("button", { name: /计划 1\/2/ });
+  await expect.element(dock).toBeInTheDocument();
+  const panel = page.getByRole("region", { name: "计划", includeHidden: true });
+  await expect.element(panel).toBeInTheDocument();
+  await expect.element(panel.getByText("修改实现")).toBeInTheDocument();
+});

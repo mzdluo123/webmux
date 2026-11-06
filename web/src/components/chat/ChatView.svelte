@@ -194,7 +194,7 @@
 </script>
 
 <FileDropZone
-  class="relative flex h-full min-h-0 flex-col bg-background"
+  class="@container relative flex h-full min-h-0 flex-col bg-background"
   data-chat-view
   role="region"
   aria-label="聊天"
@@ -284,6 +284,17 @@
         {/if}
       </div>
     </div>
+    {#if chat?.plan?.entries.length}
+      <!-- Wide panes leave empty space right of the centred transcript: pin
+           the plan there instead of stacking it above the input. -->
+      <div
+        class="pointer-events-none absolute top-3 right-6 bottom-6 z-10 hidden w-60 @[82rem]:block"
+      >
+        <div class="pointer-events-auto max-h-full">
+          <ChatPlan plan={chat.plan} variant="panel" />
+        </div>
+      </div>
+    {/if}
     {#if !stick}
       <!-- Anchored to the message area, so a taller composer never covers it. -->
       <Button
@@ -319,7 +330,9 @@
         >
       </InlineNotice>
     {/if}
-    {#if chat?.plan?.entries.length}<ChatPlan plan={chat.plan} />{/if}
+    {#if chat?.plan?.entries.length}
+      <div class="@[82rem]:hidden"><ChatPlan plan={chat.plan} /></div>
+    {/if}
     {#if chat?.queue.items.length}
       <ChatQueue
         queue={chat.queue}
