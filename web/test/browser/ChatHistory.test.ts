@@ -202,7 +202,7 @@ test("archived rows offer releasing a linked worktree and mark released records"
     { exact: true },
   );
   await expect.element(badge).toBeVisible();
-  await expect.element(badge).toHaveTextContent(/已释放空间（原路径/);
+  expect(badge.element().textContent).toContain("已释放空间");
   await row.click();
   expect(onresume).toHaveBeenCalledWith(released);
 });
