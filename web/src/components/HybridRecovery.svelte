@@ -20,8 +20,10 @@
   let error = $state("");
   const shell = findShell();
   // A rebuilt worktree changes the repository's worktrees and the records,
-  // whether or not the resume that follows succeeds.
-  function refresh() {
+  // whether or not the resume that follows succeeds; this page stays, so a
+  // failure shows here like any other.
+  function rebuilt(failure: string) {
+    if (failure) error = failure;
     void shell?.repositories.refresh();
     void shell?.archived.refresh();
   }
@@ -44,7 +46,7 @@
       {record}
       resume={resumeHybrid}
       onresumed={() => onresumed()}
-      onrebuilt={refresh}
+      onrebuilt={rebuilt}
       disabled={busy}
       onbusy={(active) => (busy = active)}
       onerror={(message) => (error = message)}

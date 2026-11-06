@@ -203,6 +203,33 @@ func TestReleaseRollsBackWhenGitRemovalFails(t *testing.T) {
 	}
 }
 
+// Git can fail after it has already dropped the worktree, e.g. when a file
+// inside cannot be deleted; the commit must then stay reachable.
+func TestReleaseKeepsMarkAndRefWhenGitFailsAfterRemoving(t *testing.T) {
+	h := newQuickHarness(t, "")
+	tree, id := h.releasable("partial")
+	preview, err := h.s.PreviewRelease(context.Background(), h.repo.ID, tree.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapper := filepath.Join(t.TempDir(), "git")
+	putFile(t, wrapper, "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = remove ] && { "+h.s.gitPath+" \"$@\"; echo partial >&2; exit 1; }; done\nexec "+h.s.gitPath+" \"$@\"\n")
+	if err := os.Chmod(wrapper, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	h.s.gitPath = wrapper
+	if _, err := h.s.ReleaseWorktree(context.Background(), h.repo.ID, tree.ID, ReleaseRequest{ConfirmationID: preview.ConfirmationID}); errorKind(err) != ErrConflict {
+		t.Fatalf("failed removal: %v", err)
+	}
+	rel := h.released(id)
+	if rel == nil || rel.Commit != preview.Commit {
+		t.Fatalf("release mark dropped: %+v", rel)
+	}
+	if !h.refExists(releasedRef(rel.ID)) {
+		t.Fatal("private ref dropped after git removed the worktree")
+	}
+}
+
 func TestRebuildModes(t *testing.T) {
 	h := newQuickHarness(t, "")
 	rebuild := func(id string, want, reason string) Worktree {
@@ -214,8 +241,12 @@ func TestRebuildModes(t *testing.T) {
 		if len(preview.Blockers) != 0 || preview.Mode != want || preview.Reason != reason {
 			t.Fatalf("preview = %+v, want %s/%s", preview, want, reason)
 		}
-		if _, err := h.s.RebuildWorktree(context.Background(), id, RebuildRequest{ReleaseID: preview.ReleaseID, Mode: "reuse", Commit: preview.Commit}); want != RebuildReuse && errorKind(err) != ErrConflict {
-			t.Fatalf("mismatched mode accepted: %v", err)
+		wrong := RebuildReuse
+		if want == RebuildReuse {
+			wrong = RebuildDetached
+		}
+		if _, err := h.s.RebuildWorktree(context.Background(), id, RebuildRequest{ReleaseID: preview.ReleaseID, Mode: wrong, Commit: preview.Commit}); errorKind(err) != ErrConflict {
+			t.Fatalf("mismatched mode %s accepted: %v", wrong, err)
 		}
 		tree, err := h.s.RebuildWorktree(context.Background(), id, RebuildRequest{ReleaseID: preview.ReleaseID, Mode: want, Commit: preview.Commit})
 		if err != nil {

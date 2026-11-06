@@ -446,7 +446,9 @@ test("the sidebar releases an archived chat's worktree after a preview and marks
     path: "/api/repositories/repo1/worktrees/wt1/release",
     body: { confirmationId: "conf1234" },
   });
-  await expect.element(archived.getByText("已释放空间")).toBeVisible();
+  await expect
+    .element(archived.getByTitle(/^原路径 /))
+    .toHaveTextContent(/^已释放空间/);
   // Released, the record offers no second release.
   await archived.getByRole("button", { name: "会话操作：分支聊天" }).click();
   await expect

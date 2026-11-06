@@ -197,13 +197,12 @@ test("archived rows offer releasing a linked worktree and mark released records"
   const row = archivedList().getByRole("button", {
     name: "已释放的聊天（已释放空间，已结束）",
   });
-  await expect.element(row.getByText("已释放空间")).toBeVisible();
-  await expect
-    .element(row.getByText("已释放空间"))
-    .toHaveAttribute(
-      "title",
-      `原路径 /repos/webmux.worktrees/old · 提交 ${"d".repeat(12)}`,
-    );
+  const badge = row.getByTitle(
+    `原路径 /repos/webmux.worktrees/old · 提交 ${"d".repeat(12)}`,
+    { exact: true },
+  );
+  await expect.element(badge).toBeVisible();
+  await expect.element(badge).toHaveTextContent(/^已释放空间/);
   await row.click();
   expect(onresume).toHaveBeenCalledWith(released);
 });

@@ -325,19 +325,38 @@ func (s *Service) ReleaseWorktree(ctx context.Context, repositoryID, worktreeID 
 		return ReleaseResult{}, err
 	}
 	if _, err := s.git(ctx, r.entry.AnchorPath, "worktree", "remove", "--", path); err != nil {
+		category := errorKind(err)
+		if category == ErrInternal {
+			category = ErrConflict
+		}
+		// Git deletes the directory past the point of no return even when
+		// a file inside cannot go, then drops its registration. Only a
+		// worktree still registered at path was left untouched; otherwise
+		// the mark and the ref stay so the commit remains reachable.
+		if !s.stillRegistered(cleanupCtx, r, path) {
+			slog.Warn("release removal failed after git dropped the worktree", "release", id, "error", err)
+			return ReleaseResult{}, problemf(category, "%v；工作树可能已部分删除，释放点已保留，请清理原路径后重建", err)
+		}
 		if _, clearErr := s.hybrids.ClearReleased(cleanupCtx, id); clearErr != nil {
 			slog.Warn("release rollback failed to clear records", "release", id, "error", clearErr)
 		} else {
 			s.dropRef(cleanupCtx, r, id)
 		}
-		category := errorKind(err)
-		if category == ErrInternal {
-			category = ErrConflict
-		}
 		return ReleaseResult{}, problemf(category, "%v；工作树未释放，请刷新实际状态", err)
 	}
 	slog.Info("worktree released", "release", id, "records", len(ids))
 	return ReleaseResult{ReleaseID: id, RecordIDs: ids}, nil
+}
+
+// stillRegistered reports whether Git still lists a worktree at path. A
+// failed read counts as not registered, which keeps a release's mark and
+// ref rather than risk losing its commit.
+func (s *Service) stillRegistered(ctx context.Context, r *repositoryState, path string) bool {
+	repository, err := s.current(ctx, r)
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(repository.Worktrees, func(tree Worktree) bool { return tree.Path == path })
 }
 
 // dropRef deletes release id's private ref; a failure is only logged and

@@ -44,11 +44,12 @@ export interface ArchiveActions {
   release?: (worktree: Worktree) => void;
   onresumed: (session: SessionInfo) => void;
   /**
-   * A released record's worktree was rebuilt before its resume: the
-   * repository's worktrees and the records changed, whether or not the
-   * resume then succeeds.
+   * A released record's worktree was rebuilt and the resume that followed is
+   * settled: the repository's worktrees and the records changed. Refreshing
+   * may move the record to another group and replace its section, so the
+   * page shows `failure`, a failed resume's explanation ("" otherwise).
    */
-  onrebuilt?: () => void;
+  onrebuilt?: (failure: string) => void;
 }
 
 export const EMPTY_ARCHIVE: RepositoryArchive = {

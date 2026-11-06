@@ -393,14 +393,12 @@ test("a released record is marked and deleting it removes only the record", asyn
     removeWorktree,
   });
   await expand();
-  const badge = group().getByText("已释放空间");
+  const badge = group().getByTitle(
+    `原路径 /repos/project-wt · 提交 ${"c".repeat(12)}`,
+    { exact: true },
+  );
   await expect.element(badge).toBeVisible();
-  await expect
-    .element(badge)
-    .toHaveAttribute(
-      "title",
-      `原路径 /repos/project-wt · 提交 ${"c".repeat(12)}`,
-    );
+  await expect.element(badge).toHaveTextContent(/^已释放空间/);
   expect(await menuItems()).toEqual(["删除记录"]);
   await page.getByRole("menuitem", { name: "删除记录" }).click();
   await page
@@ -431,7 +429,7 @@ test("a released record rebuilds its worktree after confirmation, then resumes",
   expect(resume).not.toHaveBeenCalled();
   await dialog.getByRole("button", { name: "重建并恢复" }).click();
   await vi.waitFor(() => expect(onresumed).toHaveBeenCalledWith(resumed));
-  expect(onrebuilt).toHaveBeenCalledOnce();
+  expect(onrebuilt).toHaveBeenCalledExactlyOnceWith("");
   expect(resume).toHaveBeenCalledWith("hybrid22", "acp", {});
   const [call] = rebuildCalls(fetch);
   expect(JSON.parse(String(call?.[1]?.body))).toEqual({
@@ -471,7 +469,7 @@ test("cancelling the rebuild changes nothing, and blockers disable it", async ()
     .toBeDisabled();
 });
 
-test("a resume failing after the rebuild reports it and still refreshes", async () => {
+test("a resume failing after the rebuild hands its reason to the refresh", async () => {
   stubRebuild({});
   const onrebuilt = vi.fn();
   show(
@@ -485,8 +483,35 @@ test("a resume failing after the rebuild reports it and still refreshes", async 
     .getByRole("dialog")
     .getByRole("button", { name: "重建并恢复" })
     .click();
+  // The refresh may regroup the record and replace this section, so the
+  // page, not the section, shows why the resume failed.
+  await vi.waitFor(() =>
+    expect(onrebuilt).toHaveBeenCalledExactlyOnceWith(
+      "无法恢复“修复排序”：agent 不可用",
+    ),
+  );
+  expect(page.getByRole("alert").elements()).toEqual([]);
+});
+
+test("the refresh after a rebuild waits for the questions the resume asks", async () => {
+  stubRebuild({});
+  const onrebuilt = vi.fn();
+  const resume = vi.fn(async () => ({
+    status: "config_missing" as const,
+    message: "启动配置已删除",
+  }));
+  show([released], resume, { onrebuilt });
+  await expand();
+  await page.getByRole("button", { name: "恢复到聊天" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "重建并恢复" })
+    .click();
+  const question = page.getByRole("alertdialog");
   await expect
-    .element(page.getByRole("alert"))
-    .toMatchTextContent(/无法恢复“修复排序”：agent 不可用/);
-  expect(onrebuilt).toHaveBeenCalledOnce();
+    .element(question)
+    .toMatchTextContent(/不再带有该配置保存的环境变量/);
+  expect(onrebuilt).not.toHaveBeenCalled();
+  await question.getByRole("button", { name: "取消" }).click();
+  await vi.waitFor(() => expect(onrebuilt).toHaveBeenCalledExactlyOnceWith(""));
 });

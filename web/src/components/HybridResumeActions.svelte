@@ -34,8 +34,13 @@
       choice?: ResumeChoice,
     ) => Promise<ResumeOutcome>;
     onresumed: (session: SessionInfo) => void;
-    /** The released worktree was rebuilt; the resume follows. */
-    onrebuilt?: () => void;
+    /**
+     * The released worktree was rebuilt and the resume that followed is
+     * settled, with every question it asked answered or dismissed: time to
+     * refresh. `failure` explains a resume that failed ("" otherwise); it is
+     * not reported through `onerror`, whose display a refresh may replace.
+     */
+    onrebuilt?: (failure: string) => void;
     disabled?: boolean;
     onbusy?: (busy: boolean) => void;
     /** Reports a failed resume; "" clears it when a new attempt starts. */
@@ -54,7 +59,10 @@
   let pendingOpen = $state(false);
   let picked = $state("");
 
+  // Resumes in flight; the refresh after a rebuild waits for them.
+  let running = 0;
   async function run(side: "tui" | "acp", choice: ResumeChoice = {}) {
+    running++;
     onbusy(true);
     onerror("");
     try {
@@ -78,9 +86,13 @@
       picked = pending.candidates[0]?.agentSessionId ?? "";
       pendingOpen = true;
     } catch (err) {
-      onerror(`无法恢复“${record.title || record.name}”：${errorMessage(err)}`);
+      const message = `无法恢复“${record.title || record.name}”：${errorMessage(err)}`;
+      if (rebuild) rebuild.failure = message;
+      else onerror(message);
     } finally {
+      running--;
       onbusy(false);
+      settle();
     }
   }
 
@@ -120,12 +132,23 @@
       rebuildSide = side;
     else void run(side);
   }
+  // The refresh after a rebuild can regroup the record and so replace this
+  // component; it waits until the resume and every question it asked are
+  // settled, and hands a failure to the caller, which outlives the regroup.
+  let rebuild: { failure: string } | null = null;
   function rebuilt() {
     const side = rebuildSide;
     rebuildSide = null;
     rebuiltRelease = record.released?.id ?? "";
-    onrebuilt();
+    rebuild = { failure: "" };
     if (side) void run(side);
+    else settle();
+  }
+  function settle() {
+    if (!rebuild || running || pendingOpen || missingOpen) return;
+    const { failure } = rebuild;
+    rebuild = null;
+    onrebuilt(failure);
   }
 </script>
 
@@ -143,7 +166,13 @@
   />{/if}
 
 <ConfirmDialog
-  bind:open={pendingOpen}
+  bind:open={
+    () => pendingOpen,
+    (open) => {
+      pendingOpen = open;
+      settle();
+    }
+  }
   title={pending?.kind === "candidates"
     ? "找不到原来的 agent 会话"
     : "启动配置已删除"}
@@ -161,7 +190,15 @@
   {/if}
 </ConfirmDialog>
 
-<AlertDialog.Root bind:open={missingOpen}>
+<AlertDialog.Root
+  bind:open={
+    () => missingOpen,
+    (open) => {
+      missingOpen = open;
+      settle();
+    }
+  }
+>
   <AlertDialog.Content>
     <AlertDialog.Header>
       <AlertDialog.Title>聊天端无法启动</AlertDialog.Title>

@@ -77,7 +77,7 @@ git update-ref refs/webmux/released/<releaseID> <commit>
 4. 执行 `git worktree remove -- <path>`（非强制）。
 5. 刷新仓库。
 
-第 4 步失败时，依次执行 `ClearReleased` 和 `update-ref -d`。
+第 4 步失败时，先重新读取仓库：工作树仍登记在原路径，才依次执行 `ClearReleased` 和 `update-ref -d`。Git 的 `worktree remove` 过了检查后即使目录内某个文件删不掉也会继续并移除登记，这时保留标记与引用，保证提交可达；读取失败同样按“已移除”处理。
 
 先标记再删除的理由：标记后，即使删除未发生，状态仍然安全，因为恢复会被拒绝，而重建预览检测到原路径已是保存提交上的 worktree 时会直接复用。反过来先删除再标记，一旦标记写入失败，就会出现“工作树已删除、记录却不知道提交”的不可恢复状态。
 
