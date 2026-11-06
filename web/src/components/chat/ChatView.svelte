@@ -288,11 +288,9 @@
       <!-- Wide panes leave empty space right of the centred transcript: pin
            the plan there instead of stacking it above the input. -->
       <div
-        class="pointer-events-none absolute top-3 right-6 bottom-6 z-10 hidden w-60 @[82rem]:block"
+        class="pointer-events-none absolute top-3 right-6 bottom-6 z-10 hidden w-60 @[82rem]:flex @[82rem]:flex-col"
       >
-        <div class="pointer-events-auto max-h-full">
-          <ChatPlan plan={chat.plan} variant="panel" />
-        </div>
+        <ChatPlan plan={chat.plan} variant="panel" />
       </div>
     {/if}
     {#if !stick}

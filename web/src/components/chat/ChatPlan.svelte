@@ -56,7 +56,7 @@
 
 {#if variant === "panel"}
   <section
-    class="flex max-h-full flex-col rounded-lg border bg-card text-sm"
+    class="pointer-events-auto flex max-h-full min-h-0 flex-col rounded-lg border bg-card text-sm"
     aria-label="计划"
     data-chat-plan="panel"
   >
