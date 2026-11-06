@@ -23,7 +23,10 @@ shell 命令按“普通会话 / 混合会话”和“终端端 / 聊天端”�
 - **BREAKING** `launch-config add|edit` 的 `--hybrid`/`--no-hybrid` 改为 `--chat`/`--no-chat`；`launch-config options` 改用 `POST /api/launch-configs/{id}/options`。
 - **BREAKING** `ls` 的表格与 `--json` 按新的会话信息显示视图，`--json` 不再含 `hybrid`。
 - **BREAKING** 一次性切换：删除的子命令与选项按未知命令或未知选项以 2 结束，不保留别名。
-- `agentguide` 的 `launch`、`chat`、`sessions`、`recipes` 主题与命令参考按新命令改写。
+- `agentguide` 的 `launch`、`chat`、`sessions`、`recipes` 主题按新命令改写。
+- **BREAKING** llms 手册去掉与 `--help` 重复的部分：`/llms/commands.md` 从全部命令帮助的副本改为一行一个命令的命令目录，运行时由命令表渲染，
+  仓库中不再保存生成的 `commands.md`；手写主题删除选项清单、按键清单与单命令示例，改为指向 `--help`；命令帮助不再复述手册中的概念说明。
+  一致性测试增加对手册中选项与重复示例的检查。
 
 ## Capabilities
 
@@ -37,16 +40,17 @@ shell 命令按“普通会话 / 混合会话”和“终端端 / 聊天端”�
 - `shell-session-control`：`send` 按视图分派；`rm --forget`；新增 `interrupt`、`view`、`resume`。
 - `shell-chat-control`：只保留聊天视图专有的命令，删除发送、取消、切换与历史命令。
 - `terminal-session-cli`：`ls` 的筛选、视图显示与 JSON 字段；附着时的移动提示取值。
-- `shell-cli-help`：示例改用新命令。
+- `shell-cli-help`：示例改用新命令；llms 的命令目录在运行时由命令表渲染，不再保存生成副本；帮助不复述手册中的概念说明。
 - `shell-workspace-control`：示例改用新命令，`launch-config add|edit` 的 `--hybrid` 改为 `--chat`。
-- `agent-shell-guide`：主题划分、示例与配方改用新命令。
+- `agent-shell-guide`：主题划分、示例与配方改用新命令；新增“手册与命令帮助的分工”：命令目录取代完整命令参考，手写主题不重复命令帮助，并有测试保证。
 
 ## Impact
 
 - CLI：`internal/sessioncmd`（`launch.go`、`control.go`、`chat.go`、`chat_more.go`、`launchconfig.go`、`completion.go`、`worktree.go`、`streams.go`、`help.go`）、
   `internal/attach` 的移动提示、`cmd/webmux` 端到端测试。
-- 手册：`internal/agentguide/agentguide.go` 的主题摘要与 `internal/agentguide/llms/*`（命令参考由命令表重新生成）。
-- 文档：`docs/usage/shell-control.md`，以及 `docs/user-stories/shell-control.md`（US-S07、US-S08、US-S09、US-S11、US-S12、US-S14、US-S15、US-S16、US-S17、US-S18）
+- 手册：`internal/agentguide`（改为由 `cmd/` 注入命令目录的 `Guide` 值，删除 `llms/commands.md`）、`internal/api/guide.go`、`internal/sessioncmd/help.go` 与 `guide.go`、
+  `cmd/webmux` 的装配与 `commands_test.go`，以及 `internal/agentguide/llms/*` 的手写主题。
+- 文档：`docs/usage/shell-control.md`，以及 `docs/user-stories/shell-control.md`（US-S04、US-S05、US-S07、US-S08、US-S09、US-S11、US-S12、US-S14、US-S15、US-S16、US-S17、US-S18）
   与 `docs/user-stories/hybrid-sessions.md`（US-Q 中引用 `run --start-side`、`chat switch|send|status|answer` 的条目）。
 - 依赖：`unify-session-surface` 的接口与字段；两个变更必须一起发布。
 - 兼容：写在脚本或 agent 提示中的 `webmux chat new|send|cancel|switch|ls|resume|forget`、`run --start-side`、`run --new-worktree BRANCH`、

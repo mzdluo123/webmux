@@ -17,15 +17,26 @@
 - [ ] 3.1 补全的已归档会话来源与 `worktree` 命令的已归档计数改读 `GET /api/sessions?state=archived`
 - [ ] 3.2 更新命令表一致性测试与 `internal/sessioncmd` 单元测试
 - [ ] 3.3 更新 `cmd/webmux` 端到端测试（真实服务进程与假 ACP agent），覆盖 `run --new-worktree --view chat --prompt --reply`、`send --reply`、`send` 的 `wrong_view`、`interrupt`、`view`、`resume`、`ls --archived`、`rm --forget`
-- [ ] 3.4 重新生成 `internal/agentguide/llms/commands.md`，改写 `launch`、`chat`、`sessions`、`recipes` 主题与 `agentguide.go` 的主题摘要
+- [ ] 3.4 改写 `launch`、`chat`、`sessions`、`recipes` 主题与 `agentguide.go` 的主题摘要
 
-## 4. 文档与用户故事
+## 4. 手册去重
 
-- [ ] 4.1 更新 `docs/usage/shell-control.md` 的命令示例与说明
-- [ ] 4.2 更新 `docs/user-stories/shell-control.md`（US-S07、US-S08、US-S09、US-S11、US-S12、US-S14、US-S15、US-S16、US-S17、US-S18）与 `docs/user-stories/hybrid-sessions.md` 中引用旧命令的条目，同步覆盖索引
-- [ ] 4.3 运行 `make docs-check`
+- [ ] 4.1 `internal/agentguide`：引入持有命令目录文本的 `Guide` 值，`Index`、`Page`、`Full` 改为它的方法；`commands` 主题从注入的目录渲染
+- [ ] 4.2 `internal/sessioncmd`：以 `Directory`（按分组每个命令一行的用法与摘要，页首指向 `--help` 与 `help --json`）取代 `Reference`；`webmux guide` 的离线副本用它渲染
+- [ ] 4.3 `cmd/webmux`：启动时渲染目录、构造 `agentguide.Guide` 并注入 `api.Deps`；`internal/api/guide.go` 改用注入的值
+- [ ] 4.4 删除 `internal/agentguide/llms/commands.md`、`TestGuideCommandReference` 与 `WEBMUX_UPDATE_GUIDE` 的说明
+- [ ] 4.5 手写主题删除选项清单、按键与枚举清单、默认值和单命令示例，改为写命令名并指向 `--help`；把 `wait`、`send` 等帮助中复述会话状态与 `self` 的段落缩为一句定义加 See also
+- [ ] 4.6 扩展 `TestHelpReferencesResolve`：校验页面与 `docs/usage/shell-control.md` 中的选项属于对应命令，除 `recipes` 外不得出现与命令表示例相同的命令行，命令目录覆盖全部可见命令且不含帮助小节
+- [ ] 4.7 更新 `internal/agentguide` 与 `internal/api` 中手册的测试（索引、链接、公开内容无实例信息），确认 `llms-full.txt` 不含任何 `Options:` 小节
 
-## 5. 验证
+## 5. 文档与用户故事
 
-- [ ] 5.1 与 `unify-session-surface` 一起运行 `make check` 与 `make test`
-- [ ] 5.2 用真实服务进程冒烟：普通 shell 的 `send --enter --wait`、`interrupt`；聊天视图会话的 `run --new-worktree --view chat --prompt --reply`、`send --reply`、`view`、`kill`、`ls --archived`、`resume`、`rm --forget --yes`；旧命令 `chat send` 以 2 结束
+- [ ] 5.1 更新 `docs/usage/shell-control.md` 的命令示例与说明，删除与 `--help` 重复的选项说明，手册部分说明命令目录与 `--help` 的分工
+- [ ] 5.2 更新 `docs/user-stories/shell-control.md`（US-S04、US-S05、US-S07、US-S08、US-S09、US-S11、US-S12、US-S14、US-S15、US-S16、US-S17、US-S18）与 `docs/user-stories/hybrid-sessions.md` 中引用旧命令的条目，同步覆盖索引
+- [ ] 5.3 运行 `make docs-check`
+
+## 6. 验证
+
+- [ ] 6.1 与 `unify-session-surface` 一起运行 `make check` 与 `make test`
+- [ ] 6.2 用真实服务进程冒烟：普通 shell 的 `send --enter --wait`、`interrupt`；聊天视图会话的 `run --new-worktree --view chat --prompt --reply`、`send --reply`、`view`、`kill`、`ls --archived`、`resume`、`rm --forget --yes`；旧命令 `chat send` 以 2 结束
+- [ ] 6.3 冒烟手册：`webmux guide commands` 每个命令一行；服务运行与未运行时 `webmux guide --full` 都不含 `Options:`；对比改动前后 `llms-full.txt` 的字节数

@@ -2,7 +2,8 @@
 
 ### Requirement: llms.txt 形式的 shell 工具手册
 
-服务端 SHALL 按 llms.txt 约定在站点根路径提供 WebMux shell 工具手册。内容来自共享包 `internal/agentguide` 嵌入的 Markdown，不写入任何磁盘文件。
+服务端 SHALL 按 llms.txt 约定在站点根路径提供 WebMux shell 工具手册。手写主题来自共享包 `internal/agentguide` 嵌入的 Markdown，`commands` 主题在启动时由命令表渲染，
+两者都不写入任何磁盘文件。
 
 - `GET /llms.txt` SHALL 返回索引，格式遵循 llms.txt：
   - 一个 H1 标题 `WebMux`；
@@ -12,14 +13,14 @@
   - 一个 `## Optional` 分组，列出不常用的主题。
 - `GET /llms/<主题>.md` SHALL 返回单个主题。主题至少包括：
   - `connect`：如何找到可执行文件与套接字（见“手册中的可执行文件定位”）、`WEBMUX_SESSION_ID`、`self`，以及会话内被禁止的操作；
-  - `sessions`：会话的列出（含已归档）、元数据、标签、输入（含 `--reply`）、中断、视图切换、等待、输出、屏幕、结束、恢复与删除记录；
+  - `sessions`：会话的列出（含已归档）、元数据、标签、输入（含 `--reply`）、中断、视图切换、等待、输出、屏幕、提醒、结束、恢复与删除记录；
   - `launch`：`run`（含 `--follow`、新建 worktree、聊天视图与首条提示）；
   - `chat`：聊天视图专有的操作：回答请求、运行时配置、队列、状态与观察；
   - `workspace`：仓库与仓库设置、worktree 与主页显示、启动配置与端口转发；
   - `artifacts`：临时文件夹；
-  - `notify`：提醒；
+  - `commands`：命令目录（见“手册与命令帮助的分工”）；
   - `recipes`：常用流程；
-  - `exit-codes`：退出码；
+  - `exit-codes`：所有命令共用的退出码与输出约定；
   - `rules`：操作守则。
 - `GET /llms-full.txt` SHALL 按索引顺序拼接全部主题，供一次性加载。
 - 响应 SHALL 使用 `text/markdown; charset=utf-8`（`/llms.txt` 与 `/llms-full.txt` 使用 `text/plain; charset=utf-8`），并带 `Cache-Control: no-store`。
@@ -70,3 +71,49 @@
 
 - **WHEN** agent 阅读 `/llms/recipes.md`
 - **THEN** 其中用 `webmux run --new-worktree --view chat --launch-config NAME --prompt … --reply` 启动 agent 并取回回复，不出现 `chat new` 或 `chat send`
+
+## ADDED Requirements
+
+### Requirement: 手册与命令帮助的分工
+
+命令表（见 `shell-cli-help`）SHALL 是单个命令用法的唯一来源；手册 SHALL 只承载命令帮助给不了的内容：能力索引、概念、选择命令的依据、跨命令流程与本实例信息。
+
+- `commands` 主题 SHALL 是命令目录，而不是命令帮助的副本：
+  - 按命令表的分组列出每个可见命令，每个命令一行：用法与一句话摘要，内容与 `webmux help` 的概览同源；
+  - SHALL NOT 包含命令的详细说明、位置参数、选项、输出、退出码或示例；
+  - 页首 SHALL 说明完整用法用 `webmux <命令> --help` 或 `webmux help --json` 查看。
+- `commands` 主题 SHALL 在服务启动时由 `cmd/` 用命令表渲染一次并注入手册；`webmux guide` 在服务未运行时 SHALL 用 CLI 自己的命令表渲染同一页。
+  仓库中 SHALL NOT 保存生成的 `commands.md`，也不需要“重新生成”的步骤。
+- 手写主题 SHALL NOT 重复命令帮助：
+  - SHALL NOT 列出某个命令的选项清单、按键或枚举取值清单、默认值；需要时写命令名并指向 `--help`；
+  - 单命令的用法示例只放在命令表的 Examples 中；除 `recipes` 外，手写主题中的命令行 SHALL NOT 与命令表中任何一条示例相同。`recipes` 是跨命令流程，不受此限；
+  - 会话状态、`self`、临时文件夹等概念 SHALL 只在手册中完整说明一次；命令帮助只给一句话定义并在 See also 中指向该主题。
+- 一个测试 SHALL 保证：
+  - 手写主题与 `docs/usage/shell-control.md` 中出现的每个 `webmux <命令> … --<选项>`，选项都属于该命令（或全局选项）；
+  - 除 `recipes` 外的手写主题中，没有与命令表示例完全相同的命令行；
+  - `commands` 主题列出命令表中每个可见命令，且不含 `Options:`、`Examples:` 等帮助小节。
+
+#### Scenario: 命令目录只有一行
+
+- **WHEN** agent 读取 `/llms/commands.md`
+- **THEN** `send` 只占一行，内容为用法与摘要，页首提示用 `webmux send --help` 查看选项
+
+#### Scenario: 手册中的选项过时
+
+- **WHEN** 开发者把 `send --reply` 改名，但 `sessions` 主题仍写 `webmux send <ID> 继续 --reply`
+- **THEN** 一致性测试失败，并指出该页与该选项
+
+#### Scenario: 重复的单命令示例
+
+- **WHEN** 开发者在 `sessions` 主题中加入与 `send` 帮助示例完全相同的命令行
+- **THEN** 一致性测试失败，提示改为指向 `webmux send --help`
+
+#### Scenario: 新增命令无需重新生成
+
+- **WHEN** 开发者在命令表中新增一个命令并重新构建
+- **THEN** `/llms/commands.md` 与 `webmux guide commands` 都列出该命令，仓库中没有需要更新的生成文件
+
+#### Scenario: 一次加载的体积
+
+- **WHEN** agent 读取 `/llms-full.txt`
+- **THEN** 其中没有任何命令的选项清单，完整的选项说明只能经 `--help` 或 `help --json` 获得

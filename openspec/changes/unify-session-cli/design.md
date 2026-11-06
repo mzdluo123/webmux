@@ -65,7 +65,29 @@
 ### C5 生成物
 
 补全的已归档会话来源改为 `GET /api/sessions?state=archived`；`worktree` 命令中对已归档会话的计数同样改读该接口。
-`internal/agentguide/llms/commands.md` 由命令表重新生成，`launch`、`chat`、`sessions`、`recipes` 主题与 `agentguide.go` 的主题摘要手工改写。
+`launch`、`chat`、`sessions`、`recipes` 主题与 `agentguide.go` 的主题摘要手工改写，并按 C6 去掉与命令帮助重复的部分。
+
+### C6 手册只保留命令帮助给不了的内容
+
+现状：`/llms/commands.md` 是全部 `--help` 的副本（67 KB，占 `llms-full.txt` 88 KB 的 76%），作为生成文件提交进仓库，靠 `TestGuideCommandReference` 与
+`WEBMUX_UPDATE_GUIDE=1` 保持同步；手写主题又重复了选项、按键清单与单命令示例（例如 `send … --enter --wait waiting,idle` 同时出现在 `send` 的帮助、
+`sessions`、`recipes` 与 `docs/usage/shell-control.md`）；`TestHelpReferencesResolve` 只检查命令名，不检查选项。
+
+分工：命令表是单个命令用法的唯一来源（`--help`、`help --json`、补全、命令目录）；手册只写能力索引、概念、选择命令的依据、跨命令流程与本实例信息。
+
+- `commands` 主题改为命令目录：按分组每个命令一行（用法与摘要，与 `webmux help` 概览同源），页首指向 `--help` 与 `help --json`。
+  读手册的 agent 一定有 shell 可以运行 `--help`，且 `--help` 与二进制版本一致，完整副本不提供额外信息。预计 `llms-full.txt` 降到约 25 KB。
+- 目录在运行时渲染，不再提交生成文件。`agentguide` 是 shared 层、`sessioncmd` 是 client 层，二者不能互相依赖，因此由 `cmd/webmux` 在启动时用
+  `sessioncmd.Commands()` 渲染目录文本，构造 `agentguide.Guide`（持有目录文本，提供 `Index`、`Page`、`Full`）并注入 `api.Deps`；
+  `webmux guide` 的离线副本由 `sessioncmd` 用自己的命令表渲染。删除 `TestGuideCommandReference`、`WEBMUX_UPDATE_GUIDE` 与 `Env.Reference`。
+- 手写主题删除选项清单、按键与枚举清单、默认值和单命令示例，改为写命令名并指向 `--help`；`recipes` 保留跨命令流程。
+  会话状态、`self`、临时文件夹只在手册中完整说明，命令帮助的 Description 缩为一句定义加 See also。
+- `TestHelpReferencesResolve` 扩展为：页面中 `webmux <命令> … --<选项>` 的选项必须属于该命令或全局选项，覆盖 `docs/usage/shell-control.md`；
+  除 `recipes` 外的主题不得包含与命令表示例相同的命令行；命令目录列出全部可见命令且不含帮助小节。
+
+备选：保留完整命令参考，只加选项校验。否决：重复本身没有消除，`llms-full.txt` 的大部分仍是 `--help` 的副本。
+
+备选：把 `--help` 翻译成中文，与手册合并。否决：会多出一份需要同步的说明；英文帮助、中文手册的分工在去重后不再产生重复内容。
 
 ## Risks / Trade-offs
 

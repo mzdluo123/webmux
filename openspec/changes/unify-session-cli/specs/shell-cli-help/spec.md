@@ -10,7 +10,8 @@
 - 会话类命令的选项只能经命令表声明（`Bind`），解析与帮助共用同一份声明。
 - 运维命令（`serve`、`config`、`service`、`update` 等）保留各自的解析器；它们的 `--help` 由分发层统一按命令表输出，测试 SHALL 比对每个运维命令实现接受的选项与命令表一致。
 - 除 `run` 等以其他程序 argv 结尾的命令外，选项 SHALL 可以写在位置参数之后；`--` 之后的参数 SHALL 原样作为位置参数。
-- `--help` 输出、`help --json`、shell 补全，以及 llms 中的命令参考，SHALL 全部由这张表生成或经测试比对，不维护第二份手写副本。
+- `--help` 输出、`help --json`、shell 补全，以及 llms 的命令目录（`/llms/commands.md`），SHALL 全部由这张表生成或经测试比对，不维护第二份手写副本。
+  命令目录 SHALL 在运行时渲染，仓库中 SHALL NOT 保存生成的副本（见 `agent-shell-guide` 的“手册与命令帮助的分工”）。
 - 共享命令放在 `internal/sessioncmd`，Linux/macOS CLI 与 Windows 控制台客户端 SHALL 得到相同的帮助。
   只属于某个平台的命令（例如 `service`）SHALL 只出现在该平台的帮助中。
 
@@ -34,6 +35,7 @@
 9. **See also**：相关命令，以及 `webmux guide <主题>`。
 
 帮助正文 SHALL 使用英文，与现有 CLI 一致；示例中的提示文字可以是中文。帮助 SHALL 按 80 列换行。
+说明中用到手册已完整说明的概念（会话状态的含义、`self`、临时文件夹）时，SHALL 只给一句话定义，并在 See also 中给出对应的 `webmux guide <主题>`，SHALL NOT 复述手册的完整说明。
 
 #### Scenario: 查看子命令帮助
 
