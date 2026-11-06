@@ -1,7 +1,10 @@
 package agenttrust
 
 import (
+	"strings"
+
 	"encoding/json"
+	"github.com/BurntSushi/toml"
 	"os"
 	"path/filepath"
 	"testing"
@@ -195,5 +198,140 @@ func TestPrepareIsIdempotentAndLeavesTrustedFileUntouched(t *testing.T) {
 	newTrust(home, nil).Prepare(work, []string{"claude"}, nil)
 	if data, _ := os.ReadFile(config); string(data) != seed {
 		t.Fatalf("file rewritten: %s", data)
+	}
+}
+
+func TestPrepareCodexAppendsProjectTableKeepingComments(t *testing.T) {
+	home := t.TempDir()
+	work := filepath.Join(home, `p "q"`)
+	if err := os.Mkdir(work, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.Mkdir(codexDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	config := filepath.Join(codexDir, "config.toml")
+	seed := "# my settings\nmodel = \"gpt\"\n\n[projects.\"/other\"]\ntrust_level = \"untrusted\"\n"
+	if err := os.WriteFile(config, []byte(seed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trust := newTrust(home, nil)
+	trust.Prepare(work, []string{"bash", "-ic", `exec -- "$@"`, "webmux", "codex", "--dangerously-bypass-approvals-and-sandbox"}, nil)
+
+	data, _ := os.ReadFile(config)
+	var doc struct {
+		Model    string `toml:"model"`
+		Projects map[string]struct {
+			TrustLevel string `toml:"trust_level"`
+		} `toml:"projects"`
+	}
+	if _, err := toml.Decode(string(data), &doc); err != nil {
+		t.Fatalf("invalid TOML %q: %v", data, err)
+	}
+	if doc.Projects[canonical(t, work)].TrustLevel != "trusted" || doc.Projects["/other"].TrustLevel != "untrusted" || doc.Model != "gpt" {
+		t.Fatalf("config = %s", data)
+	}
+	if !strings.HasPrefix(string(data), seed) {
+		t.Fatalf("original text changed: %s", data)
+	}
+	trust.Prepare(work, []string{"codex"}, nil)
+	if again, _ := os.ReadFile(config); string(again) != string(data) {
+		t.Fatalf("second launch rewrote the file: %s", again)
+	}
+}
+
+func TestPrepareCodexRespectsExplicitDecisionAndCodexHome(t *testing.T) {
+	home := t.TempDir()
+	work := filepath.Join(home, "p")
+	custom := filepath.Join(home, "custom")
+	for _, dir := range []string{work, custom} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	config := filepath.Join(custom, "config.toml")
+	seed := "[projects.\"" + canonical(t, work) + "\"]\ntrust_level = \"untrusted\"\n"
+	if err := os.WriteFile(config, []byte(seed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	newTrust(home, nil).Prepare(work, []string{"codex"}, map[string]string{"CODEX_HOME": custom})
+	if data, _ := os.ReadFile(config); string(data) != seed {
+		t.Fatalf("explicit untrusted decision overwritten: %s", data)
+	}
+}
+
+func TestPrepareCodexCreatesConfigOnlyWhenCodexDirExists(t *testing.T) {
+	home := t.TempDir()
+	work := filepath.Join(home, "p")
+	if err := os.Mkdir(work, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	trust := newTrust(home, nil)
+	trust.Prepare(work, []string{"codex"}, nil)
+	if _, err := os.Stat(filepath.Join(home, ".codex")); !os.IsNotExist(err) {
+		t.Fatalf("codex directory created: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(home, ".codex"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	trust.Prepare(work, []string{"codex"}, nil)
+	data, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+	if err != nil || !strings.Contains(string(data), `trust_level = "trusted"`) {
+		t.Fatalf("config = %q, %v", data, err)
+	}
+	if info, _ := os.Stat(filepath.Join(home, ".codex", "config.toml")); info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode = %v", info.Mode())
+	}
+}
+
+func TestPrepareCopilotAppendsTrustedFolder(t *testing.T) {
+	home := t.TempDir()
+	work := filepath.Join(home, "p")
+	dir := filepath.Join(home, ".copilot")
+	for _, d := range []string{work, dir} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	config := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(config, []byte(`{"model":"x","trusted_folders":["/old"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trust := newTrust(home, nil)
+	trust.Prepare(work, []string{"copilot", "--yolo"}, nil)
+	trust.Prepare(work, []string{"copilot", "--yolo"}, nil)
+
+	data, _ := os.ReadFile(config)
+	var doc struct {
+		Model   string   `json:"model"`
+		Folders []string `json:"trusted_folders"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("invalid JSON %q: %v", data, err)
+	}
+	want := []string{"/old", canonical(t, work)}
+	if doc.Model != "x" || len(doc.Folders) != 2 || doc.Folders[0] != want[0] || doc.Folders[1] != want[1] {
+		t.Fatalf("config = %s", data)
+	}
+}
+
+func TestPrepareCopilotLeavesCommentedConfigUntouched(t *testing.T) {
+	home := t.TempDir()
+	work := filepath.Join(home, "p")
+	dir := filepath.Join(home, ".copilot")
+	for _, d := range []string{work, dir} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	config := filepath.Join(dir, "config.json")
+	seed := "// settings\n{\"trusted_folders\":[]}\n"
+	if err := os.WriteFile(config, []byte(seed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	newTrust(home, nil).Prepare(work, []string{"copilot"}, nil)
+	if data, _ := os.ReadFile(config); string(data) != seed {
+		t.Fatalf("config rewritten: %s", data)
 	}
 }
