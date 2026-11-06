@@ -26,7 +26,7 @@ test("session links open the terminal in this tab without reloading", async ({
     },
   });
   expect(created.status()).toBe(201);
-  const { id } = await created.json();
+  const { id } = (await created.json()).session;
 
   await page.goto("/");
   const timeOrigin = await page.evaluate(() => performance.timeOrigin);

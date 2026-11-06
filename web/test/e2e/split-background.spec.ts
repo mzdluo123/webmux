@@ -1,7 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Locator, Page } from "@playwright/test";
-import type { ChatFrame } from "../../src/schemas";
 import { test, expect, createShell, openPaneMenu } from "./fixtures";
 
 async function command(page: Page, pane: Locator, value: string) {
@@ -127,48 +126,43 @@ test("background hybrid choice waits for pane activation", async ({
   const id = await createShell(page, "Typing shell", workDir);
   const foreground = page.locator(`[data-session-id="${id}"]`);
   const config = await request.post("/api/launch-configs", {
-    data: { name: "Pending agent", cmd: ["omp"], env: {}, hybrid: true },
+    data: { name: "Pending agent", cmd: ["omp"], env: {}, chat: true },
   });
   expect(config.status()).toBe(201);
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
       configId: (await config.json()).id,
-      startSide: "tui",
+      view: "terminal",
       name: "Pending agent",
     },
   });
   expect(created.status()).toBe(201);
-  const agentId = (await created.json()).id;
+  const agentId = (await created.json()).session.id;
   let ask: (() => void) | undefined;
-  await page.routeWebSocket(
-    new RegExp(`/ws/s/${agentId}/chat(\\?|$)`),
-    (socket) => {
-      let awaiting = false;
-      const server = socket.connectToServer();
-      server.onMessage((message) => {
-        if (awaiting) return;
-        socket.send(message);
-        const frame = JSON.parse(message.toString()) as ChatFrame;
-        if (frame.type !== "events") {
-          // The same frame arrives when a different device starts the switch.
-          ask = () => {
-            awaiting = true;
-            socket.send(
+  // The terminal stream reports the session's transition in its session
+  // frame (kind 2); the same frame arrives when a different device starts
+  // the switch and its interrupt times out.
+  await page.routeWebSocket(new RegExp(`/ws/s/${agentId}(\\?|$)`), (socket) => {
+    const server = socket.connectToServer();
+    server.onMessage((message) => {
+      socket.send(message);
+      if (typeof message === "string" || message[0] !== 2) return;
+      const info = JSON.parse(message.subarray(1).toString()) as object;
+      ask = () =>
+        socket.send(
+          Buffer.concat([
+            Buffer.from([2]),
+            Buffer.from(
               JSON.stringify({
-                type: "state",
-                state: {
-                  ...frame.state,
-                  side: "switching",
-                  phase: "awaiting_choice",
-                },
+                ...info,
+                transition: { to: "chat", phase: "awaiting_choice" },
               }),
-            );
-          };
-        }
-      });
-    },
-  );
+            ),
+          ]),
+        );
+    });
+  });
   await openPaneMenu(foreground);
   await page.getByRole("menuitem", { name: "加入已有会话…" }).click();
   await page

@@ -55,11 +55,11 @@ async function cleanSessions(request: APIRequestContext) {
 // Closed and interrupted hybrid sessions stay recoverable on the home page
 // until their records are removed.
 async function cleanHybridRecords(request: APIRequestContext) {
-  const response = await request.get("/api/hybrid-sessions");
-  expect(response.ok(), "List hybrid session records").toBeTruthy();
+  const response = await request.get("/api/sessions?state=archived");
+  expect(response.ok(), "List archived sessions").toBeTruthy();
   for (const record of await response.json()) {
     expect(
-      (await request.delete(`/api/hybrid-sessions/${record.id}`)).status(),
+      (await request.delete(`/api/sessions/${record.id}?forget=1`)).status(),
       `Remove hybrid record ${record.id}`,
     ).toBe(204);
   }
@@ -175,8 +175,10 @@ export const test = base.extend<
                 contentType: "text/plain",
               });
             }
-            await testInfo.attach("hybrid-sessions.json", {
-              body: await (await request.get("/api/hybrid-sessions")).body(),
+            await testInfo.attach("archived-sessions.json", {
+              body: await (
+                await request.get("/api/sessions?state=archived")
+              ).body(),
               contentType: "application/json",
             });
             const agentEvents = await readFile(
