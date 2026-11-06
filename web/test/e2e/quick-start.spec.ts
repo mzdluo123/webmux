@@ -261,7 +261,7 @@ test("the quick command menu inserts a preset as written and the server fills th
   await page.getByRole("button", { name: "发送", exact: true }).click();
 
   await expect(page).toHaveURL(/\/s\/[a-z2-7]{8}$/, { timeout: 30_000 });
-  const echoed = conversation(page).getByText(/^echo: 读手册：/);
-  await expect(echoed).toContainText("llms.txt");
-  await expect(echoed).not.toContainText("{{");
+  // The reply echoes the whole message over several paragraphs.
+  await expect(conversation(page)).toContainText("llms.txt");
+  await expect(conversation(page)).not.toContainText("{{");
 });
