@@ -398,7 +398,7 @@ test("a released record is marked and deleting it removes only the record", asyn
     { exact: true },
   );
   await expect.element(badge).toBeVisible();
-  await expect.element(badge).toHaveTextContent(/^已释放空间/);
+  await expect.element(badge).toHaveTextContent(/已释放空间（原路径/);
   expect(await menuItems()).toEqual(["删除记录"]);
   await page.getByRole("menuitem", { name: "删除记录" }).click();
   await page

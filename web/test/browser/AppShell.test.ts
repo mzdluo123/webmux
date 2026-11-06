@@ -448,7 +448,7 @@ test("the sidebar releases an archived chat's worktree after a preview and marks
   });
   await expect
     .element(archived.getByTitle(/^原路径 /))
-    .toHaveTextContent(/^已释放空间/);
+    .toHaveTextContent(/已释放空间（原路径/);
   // Released, the record offers no second release.
   await archived.getByRole("button", { name: "会话操作：分支聊天" }).click();
   await expect
