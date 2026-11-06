@@ -854,7 +854,8 @@ test.describe("hybrid sessions with the fake agent", () => {
     page,
     request,
     workDir,
-  }) => {
+  }, testInfo) => {
+    test.skip(!!testInfo.project.use.isMobile, "the desktop sidebar tree");
     const root = join(workDir, "delete-repo");
     const tree = join(workDir, "delete-repo-feature");
     await mkdir(root);
@@ -915,9 +916,9 @@ test.describe("hybrid sessions with the fake agent", () => {
     await rebuild
       .getByRole("button", { name: "重建并恢复", exact: true })
       .click();
-    await access(join(tree, ".gitignore"));
     await expectSide(page, "chat");
     await expect(conversation(page)).toContainText("echo: before-delete");
+    await access(join(tree, ".gitignore"));
   });
 
   test("after a backend restart both sides resume the recorded conversation", async ({
