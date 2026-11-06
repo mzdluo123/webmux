@@ -381,5 +381,6 @@
 
 本次局部核对（2026-11-06）：实现 OpenSpec 变更 `release-archived-worktree-space`（已归档工作树释放空间与恢复前重建），新增 US-J13，更新 US-Q12、US-Q19、US-C15 与覆盖索引。
 
-- 依据：本地仅运行 `go build ./...`、`go vet`（hybrid、workspace、api、wire、contract）、`gofmt`、`svelte-check`、Oxlint、`check:arch`、格式检查、`make docs-check`，以及重新录制 wire 快照的 `go test ./internal/api -run TestWireSnapshots -update`；Go race、Vitest、Storybook 与 E2E 交由 PR CI 运行。
-- 限制：未在本机运行其余测试套件，未做真机核对；未重新核验其余故事能力。
+- 依据：本地运行 `go build ./...`、`go vet`（hybrid、workspace、api、wire、contract）、`gofmt`、`svelte-check`、Oxlint、`check:arch`、格式检查、`make docs-check`，以及重新录制 wire 快照的 `go test ./internal/api -run TestWireSnapshots -update`；Go race、Vitest 单元与浏览器、Storybook、性能与四个 E2E 分片在 PR #344 的 CI 上通过。
+- 隔离演示服务（临时状态目录与 `/tmp/demo` 仓库，Claude Code 记录不启动 agent）上实际走通：侧栏“释放空间”预览与释放（目录删除、分支保留、私有引用建立、记录标注“已释放空间”并归入“已不可用工作区”），`rebuild-preview`/`rebuild` 接口在原路径检出原分支并清理私有引用；截取了侧栏与首页的桌面、Pixel 7、明暗主题前后对比截图。
+- 限制：未在本机运行测试套件；未在演示中点击“重建并恢复”启动真实 agent；未做真机核对；未重新核验其余故事能力。

@@ -43,4 +43,4 @@
 - [x] 6.2 Vitest 测试：覆盖 `releasableRecordWorktree` 的判定，以及 `ArchivedSessions` 和 `ChatHistory` 的菜单项、已释放标记、恢复前的确认流程
 - [x] 6.3 Playwright E2E（`hybrid.spec.ts`）：释放 → 已释放标记 → 恢复聊天时确认重建 → 进入聊天页
 - [x] 6.4 更新用户故事（新增 US-J13，更新 US-Q12、US-Q19、US-C15）和覆盖索引，在 `verification-log` 中只记录实际运行过的验证
-- [ ] 6.5 运行 `make check`、`pnpm --dir web check:arch` 和 `make test-fast`；在隔离演示服务上截取侧栏与首页的桌面、手机、明暗主题截图
+- [x] 6.5 运行 `make check`、`pnpm --dir web check:arch` 和 `make test-fast`（按用户要求在 PR CI 上运行完整门禁）；在隔离演示服务上截取侧栏与首页的桌面、手机、明暗主题截图
