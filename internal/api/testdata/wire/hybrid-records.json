@@ -16,6 +16,14 @@
       "name": "agent",
       "previousIds": [],
       "queuedCount": 0,
+      "released": {
+        "branch": "main",
+        "commit": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "id": "wirerelease",
+        "path": "<repo>",
+        "releasedAt": "<time>",
+        "repositoryId": "repo0001"
+      },
       "side": "acp",
       "state": "closed",
       "title": "agent",

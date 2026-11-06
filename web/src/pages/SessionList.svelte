@@ -229,7 +229,9 @@
     removeWorktree: (tree) => {
       removing = tree;
     },
+    release: shell.releaseWorktree,
     onresumed: () => void shell.archived.refresh(),
+    onrebuilt: refreshWorktrees,
   });
   // Only an actively producing session follows the tab indicator; idle live
   // sessions are still "active" for the list summary but not for this marker.

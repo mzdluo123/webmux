@@ -1,16 +1,25 @@
 import { api, APIError } from "./api";
 import { newRequestId } from "./ids";
 import {
+  EmptyRequestSchema,
   HybridConflictSchema,
   HybridRecordSchema,
   HybridRecordsSchema,
   NoContentSchema,
+  RebuildPreviewSchema,
+  RebuildRequestSchema,
+  ReleasePreviewSchema,
+  ReleaseResultSchema,
+  ReleaseWorktreeRequestSchema,
   SessionInfoSchema,
+  WorktreeSchema,
   type AgentConnector,
   type HybridCandidate,
   type HybridConflict,
   type HybridRecord,
+  type RebuildPreview,
   type SessionInfo,
+  type Worktree,
 } from "./schemas";
 
 /** The hybrid conflict a 409 carries, or undefined for any other failure. */
@@ -106,4 +115,66 @@ export async function resumeHybrid(
 
 export function removeRecord(id: string) {
   return api(`/hybrid-sessions/${id}`, NoContentSchema, "DELETE");
+}
+
+function worktreeRoute(worktree: Worktree) {
+  return `/repositories/${worktree.repositoryId}/worktrees/${worktree.id}`;
+}
+
+/**
+ * Reads what releasing `worktree` would remove and keep: its blockers, the
+ * archived records that stay, and the ignored files deleted with it.
+ */
+export function previewRelease(worktree: Worktree) {
+  return api(
+    worktreeRoute(worktree) + "/release-preview",
+    ReleasePreviewSchema,
+    "POST",
+    {},
+    undefined,
+    EmptyRequestSchema,
+  );
+}
+
+/** Releases the worktree a preview confirmed; its records stay archived. */
+export function releaseWorktree(worktree: Worktree, confirmationId: string) {
+  return api(
+    worktreeRoute(worktree) + "/release",
+    ReleaseResultSchema,
+    "POST",
+    { confirmationId },
+    undefined,
+    ReleaseWorktreeRequestSchema,
+  );
+}
+
+/** Reads how the released worktree of record `id` would be rebuilt. */
+export function previewRebuild(id: string) {
+  return api(
+    `/hybrid-sessions/${id}/rebuild-preview`,
+    RebuildPreviewSchema,
+    "POST",
+    {},
+    undefined,
+    EmptyRequestSchema,
+  );
+}
+
+/**
+ * Rebuilds the released worktree of record `id` the way `preview` showed;
+ * the server refuses when the repository has changed since.
+ */
+export function rebuildWorktree(id: string, preview: RebuildPreview) {
+  return api(
+    `/hybrid-sessions/${id}/rebuild`,
+    WorktreeSchema,
+    "POST",
+    {
+      releaseId: preview.releaseId,
+      mode: preview.mode,
+      commit: preview.commit,
+    },
+    undefined,
+    RebuildRequestSchema,
+  );
 }

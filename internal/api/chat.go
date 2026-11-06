@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/rainchan/webmux/internal/contract"
@@ -117,8 +118,20 @@ func (s *Server) chatRoutes(mux *http.ServeMux) {
 			return err
 		}
 		id := r.PathValue("id")
+		rec, err := h.Record(id)
+		if err != nil {
+			return err
+		}
 		if err := h.RemoveRecord(r.Context(), id); err != nil {
 			return err
+		}
+		// A released record was the last holder of its private ref unless
+		// another record shares the release; a failure is left to the
+		// workspace's sweep.
+		if rec.Released != nil {
+			if err := s.Workspace.DropRelease(r.Context(), *rec.Released); err != nil {
+				slog.Warn("released ref removal failed", "release", rec.Released.ID, "error", err)
+			}
 		}
 		// The folder outlived the shell for a possible resume; the record
 		// is gone, so nothing can come back for it.

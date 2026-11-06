@@ -1,0 +1,57 @@
+{
+  "status": 200,
+  "body": {
+    "archived": [
+      {
+        "agent": "omp",
+        "agentSessionId": "<agentSessionId#1>",
+        "cmd": [
+          "<fakeagent>/omp"
+        ],
+        "configId": "<id#4>",
+        "configMissing": false,
+        "createdAt": "<time>",
+        "cwd": "<released>",
+        "id": "<id#5>",
+        "interruptedAt": null,
+        "name": "agent",
+        "previousIds": [],
+        "queuedCount": 0,
+        "side": "acp",
+        "state": "closed",
+        "title": "agent",
+        "updatedAt": "<time>"
+      }
+    ],
+    "blockers": [],
+    "commit": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+    "confirmationId": "<confirmationId#1>",
+    "expiresAt": "<time>",
+    "ignored": [
+      {
+        "bytes": 20,
+        "path": "node_modules/"
+      }
+    ],
+    "ignoredBytes": 20,
+    "ignoredMore": 0,
+    "sizeComplete": true,
+    "worktree": {
+      "available": true,
+      "branch": "released",
+      "detached": false,
+      "dirty": false,
+      "error": "",
+      "hasIgnored": true,
+      "hasUntracked": false,
+      "head": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+      "id": "<id#3>",
+      "kind": "linked",
+      "lockReason": "",
+      "locked": false,
+      "path": "<released>",
+      "prunable": false,
+      "repositoryId": "<id#1>"
+    }
+  }
+}

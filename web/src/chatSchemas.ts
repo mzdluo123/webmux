@@ -43,6 +43,20 @@ export const HybridSwitchResultSchema = z.object({
 });
 export type HybridSwitchResult = z.infer<typeof HybridSwitchResultSchema>;
 
+// The worktree a record's session ran in was released to free disk space:
+// its original path and the commit it was on, kept so the worktree can be
+// rebuilt there before the session resumes. `branch` is omitted when the
+// worktree was detached.
+export const HybridReleaseSchema = z.object({
+  id: z.string(),
+  repositoryId: z.string(),
+  path: z.string(),
+  commit: z.string(),
+  branch: z.string().optional(),
+  releasedAt: datetime,
+});
+export type HybridRelease = z.infer<typeof HybridReleaseSchema>;
+
 export const HybridRecordSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -66,6 +80,8 @@ export const HybridRecordSchema = z.object({
   workspace: z
     .object({ repositoryId: z.string(), worktreeId: z.string() })
     .optional(),
+  // Set while the record's worktree is released; omitted otherwise.
+  released: HybridReleaseSchema.optional(),
 });
 export type HybridRecord = z.infer<typeof HybridRecordSchema>;
 export const HybridRecordsSchema = z.array(HybridRecordSchema);

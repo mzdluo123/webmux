@@ -636,6 +636,59 @@ export const RemoveWorktreeRequestSchema = z.object({
   confirmPath: z.string().optional(),
   closeSessions: z.boolean().optional(),
 });
+// Releasing a linked worktree's disk space keeps its archived records and
+// the commit it was on. Ignored entries are top-level paths relative to the
+// worktree, directories ending in "/"; at most 50 are listed and
+// `ignoredMore` counts the rest. `sizeComplete` is false when sizing ran out
+// of time or failed, so the byte counts are lower bounds.
+export const ReleasePreviewSchema = z.object({
+  confirmationId: z.string(),
+  expiresAt: z.iso.datetime({ offset: true }),
+  worktree: WorktreeSchema,
+  // Full OID; "" when HEAD does not resolve, which is also a blocker.
+  commit: z.string(),
+  // The records that stay archived and are marked released.
+  archived: z.array(HybridRecordSchema),
+  ignored: z.array(
+    z.object({
+      path: z.string(),
+      bytes: z.number().int().nonnegative().optional(),
+    }),
+  ),
+  ignoredMore: z.number().int().nonnegative(),
+  ignoredBytes: z.number().int().nonnegative().optional(),
+  sizeComplete: z.boolean(),
+  blockers: z.array(z.string()),
+});
+export type ReleasePreview = z.infer<typeof ReleasePreviewSchema>;
+export const ReleaseWorktreeRequestSchema = z.object({
+  confirmationId: z.string(),
+});
+export const ReleaseResultSchema = z.object({
+  releaseId: z.string(),
+  recordIds: z.array(z.string()),
+});
+// How a released record's worktree comes back at its original path: the
+// worktree already there, its branch, or the saved commit detached. A
+// detached rebuild of a record that had a branch says why.
+export const RebuildModeSchema = z.enum(["reuse", "branch", "detached"]);
+export const RebuildPreviewSchema = z.object({
+  releaseId: z.string(),
+  path: z.string(),
+  commit: z.string(),
+  branch: z.string().optional(),
+  mode: RebuildModeSchema,
+  reason: z
+    .enum(["branchMissing", "branchMoved", "branchCheckedOut"])
+    .optional(),
+  blockers: z.array(z.string()),
+});
+export type RebuildPreview = z.infer<typeof RebuildPreviewSchema>;
+export const RebuildRequestSchema = z.object({
+  releaseId: z.string(),
+  mode: RebuildModeSchema,
+  commit: z.string(),
+});
 
 export const DirectoriesSchema = z.array(z.string());
 // `reason` accompanies push 409s; other errors omit it.

@@ -17,9 +17,11 @@
 ## Capabilities
 
 ### New Capabilities
+
 - `archived-worktree-release`：为已归档聊天释放 linked worktree 的磁盘空间，保留提交以便之后在原路径重建，并在恢复聊天时二次确认重建。
 
 ### Modified Capabilities
+
 - `chat-sidebar`：打开已归档聊天时，已释放空间的记录先确认重建 worktree 再恢复；已归档菜单增加“释放空间”。
 - `workspace-overview`：已归档记录的更多菜单增加“释放空间”，并展示已释放状态；恢复已释放记录时需要确认重建。
 

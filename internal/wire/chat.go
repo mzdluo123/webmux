@@ -275,6 +275,10 @@ func HybridRecord(r hybrid.Record, configMissing bool) contract.HybridRecord {
 	if r.Workspace != nil {
 		out.Workspace = &contract.WorkspaceReference{RepositoryID: r.Workspace.RepositoryID, WorktreeID: r.Workspace.WorktreeID}
 	}
+	if r.Released != nil {
+		rel := contract.HybridRelease(*r.Released)
+		out.Released = &rel
+	}
 	return out
 }
 

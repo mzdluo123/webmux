@@ -4,6 +4,7 @@
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import ConnectorInstallHint from "./ConnectorInstallHint.svelte";
   import HybridCandidatePicker from "./HybridCandidatePicker.svelte";
+  import RebuildWorktreeDialog from "./RebuildWorktreeDialog.svelte";
   import { errorMessage } from "../error";
   import type { ResumeChoice, ResumeOutcome } from "../recoverable";
   import type {
@@ -14,13 +15,14 @@
   } from "../schemas";
 
   // "恢复到聊天 / 恢复到终端" for one closed or interrupted hybrid session,
-  // with the questions a resume may need answered first: another agent
-  // session when the recorded one is gone, or resuming without a deleted
-  // launch config's environment.
+  // with the questions a resume may need answered first: rebuilding a
+  // released worktree, another agent session when the recorded one is gone,
+  // or resuming without a deleted launch config's environment.
   let {
     record,
     resume,
     onresumed,
+    onrebuilt = () => {},
     disabled = false,
     onbusy = () => {},
     onerror,
@@ -32,6 +34,8 @@
       choice?: ResumeChoice,
     ) => Promise<ResumeOutcome>;
     onresumed: (session: SessionInfo) => void;
+    /** The released worktree was rebuilt; the resume follows. */
+    onrebuilt?: () => void;
     disabled?: boolean;
     onbusy?: (busy: boolean) => void;
     /** Reports a failed resume; "" clears it when a new attempt starts. */
@@ -105,12 +109,38 @@
     missingOpen = false;
     if (answer) void run("tui", answer.choice);
   }
+
+  // A released record's worktree comes back first, once the user confirms
+  // how. The record shown keeps its release until the records refresh, so
+  // the release rebuilt here is remembered and not rebuilt twice.
+  let rebuildSide = $state<"tui" | "acp" | null>(null);
+  let rebuiltRelease = "";
+  function start(side: "tui" | "acp") {
+    if (record.released && record.released.id !== rebuiltRelease)
+      rebuildSide = side;
+    else void run(side);
+  }
+  function rebuilt() {
+    const side = rebuildSide;
+    rebuildSide = null;
+    rebuiltRelease = record.released?.id ?? "";
+    onrebuilt();
+    if (side) void run(side);
+  }
 </script>
 
-<Button size="sm" {disabled} onclick={() => run("acp")}>恢复到聊天</Button>
-<Button size="sm" variant="outline" {disabled} onclick={() => run("tui")}
+<Button size="sm" {disabled} onclick={() => start("acp")}>恢复到聊天</Button>
+<Button size="sm" variant="outline" {disabled} onclick={() => start("tui")}
   >恢复到终端</Button
 >
+
+{#if rebuildSide && record.released}<RebuildWorktreeDialog
+    id={record.id}
+    title={record.title || record.name}
+    released={record.released}
+    onclose={() => (rebuildSide = null)}
+    onrebuilt={rebuilt}
+  />{/if}
 
 <ConfirmDialog
   bind:open={pendingOpen}

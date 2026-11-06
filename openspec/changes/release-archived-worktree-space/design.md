@@ -15,11 +15,13 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 由 `workspace.Service` 统一负责释放与重建的 Git 操作和并发协调。`hybrid` 只负责记录字段，以及在记录已释放时拒绝恢复。
 - 提交在释放期间始终可达，不依赖分支是否存在。
 - 释放与重建都使用“预览 → 带确认标识执行 → 重新校验”的流程，和删除保持一致。
 
 **Non-Goals:**
+
 - CLI 子命令、批量释放整个仓库、自动按时间释放。
 - 恢复被删除的忽略文件（依赖、`.env`），由用户自行重新生成。
 - 强制释放；用户需要丢弃修改时，走现有的强制删除。
@@ -113,16 +115,17 @@ git update-ref refs/webmux/released/<releaseID> <commit>
   - `reuse`：不执行 Git 操作。
 
   之后调用 `ClearReleased` 并删除私有引用。引用删除失败只记录日志，不影响结果，由 D8 的清扫兜底。
+
 - detached 模式在 `workspace` 内部新增一个 `addDetached` 辅助函数，不扩展公开的 `CreateRequest` 模式，避免影响新建工作树对话框的契约。
 
 ### D7 接口
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
+| 方法 | 路径                                                      | 说明                                                                                                                                                      |
+| ---- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | POST | `/api/repositories/{repo}/worktrees/{wt}/release-preview` | 返回 `ReleasePreview{confirmationId, expiresAt, worktree, commit, archived, ignored[{path, bytes?}], ignoredMore, ignoredBytes?, sizeComplete, blockers}` |
-| POST | `/api/repositories/{repo}/worktrees/{wt}/release` | 请求体 `{confirmationId}`，返回 `{releaseId, recordIds}` |
-| POST | `/api/hybrid-sessions/{id}/rebuild-preview` | 返回 `{releaseId, path, commit, branch?, mode, reason?, blockers}` |
-| POST | `/api/hybrid-sessions/{id}/rebuild` | 请求体 `{releaseId, mode, commit}`，返回重建后的 worktree |
+| POST | `/api/repositories/{repo}/worktrees/{wt}/release`         | 请求体 `{confirmationId}`，返回 `{releaseId, recordIds}`                                                                                                  |
+| POST | `/api/hybrid-sessions/{id}/rebuild-preview`               | 返回 `{releaseId, path, commit, branch?, mode, reason?, blockers}`                                                                                        |
+| POST | `/api/hybrid-sessions/{id}/rebuild`                       | 请求体 `{releaseId, mode, commit}`，返回重建后的 worktree                                                                                                 |
 
 - 这些接口由 `internal/api` 中的 workspace handler 调用 `workspace.Service`。错误沿用 `workspace` 的哨兵错误，在 `errors.go` 中映射。
 - 前端的恢复流程依次调用：重建预览 → 确认 → 重建 → `resumeHybrid`。这里不合并成一个服务端接口，以免控制器层编排两个服务；重建成功、恢复失败时，按 spec 保留工作树。

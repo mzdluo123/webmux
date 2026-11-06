@@ -128,6 +128,44 @@ type HybridRecord struct {
 	// Workspace is the registered worktree the session last belonged to;
 	// omitted when it had none or the record predates it.
 	Workspace *WorkspaceReference `json:"workspace,omitempty"`
+	// Released is set while the worktree directory is released to free
+	// space; the record resumes only after a rebuild.
+	Released *HybridRelease `json:"released,omitempty"`
+}
+
+// HybridRelease is a record's released worktree: its path, the commit a
+// private ref keeps, and the branch it had (omitted when detached).
+type HybridRelease struct {
+	ID           string    `json:"id"`
+	RepositoryID string    `json:"repositoryId"`
+	Path         string    `json:"path"`
+	Commit       string    `json:"commit"`
+	Branch       string    `json:"branch,omitempty"`
+	ReleasedAt   time.Time `json:"releasedAt"`
+}
+
+// RebuildPreviewRequest is the empty body of a rebuild preview.
+type RebuildPreviewRequest struct{}
+
+// RebuildPreview says how a released record's worktree would come back.
+// Mode is reuse, branch or detached; Reason (branchMissing, branchMoved,
+// branchCheckedOut) explains a detached rebuild of a record that had a
+// branch. Non-empty Blockers refuse the rebuild.
+type RebuildPreview struct {
+	ReleaseID string   `json:"releaseId"`
+	Path      string   `json:"path"`
+	Commit    string   `json:"commit"`
+	Branch    string   `json:"branch,omitempty"`
+	Mode      string   `json:"mode"`
+	Reason    string   `json:"reason,omitempty"`
+	Blockers  []string `json:"blockers"`
+}
+
+// RebuildRequest confirms a previewed rebuild; the answer is the Worktree.
+type RebuildRequest struct {
+	ReleaseID string `json:"releaseId"`
+	Mode      string `json:"mode"`
+	Commit    string `json:"commit"`
 }
 
 // HybridCandidate is an agent session offered when a record's agent

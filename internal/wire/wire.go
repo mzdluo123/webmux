@@ -157,6 +157,34 @@ func Preview(p workspace.Preview, configMissing func(configID string) bool) cont
 	}
 }
 
+func ReleasePreview(p workspace.ReleasePreview, configMissing func(configID string) bool) contract.ReleasePreview {
+	return contract.ReleasePreview{
+		ConfirmationID: p.ConfirmationID, ExpiresAt: p.ExpiresAt, Worktree: Worktree(p.Worktree), Commit: p.Commit,
+		Archived:    HybridRecords(p.Archived, configMissing),
+		Ignored:     each(p.Ignored, func(e workspace.IgnoredEntry) contract.IgnoredEntry { return contract.IgnoredEntry(e) }),
+		IgnoredMore: p.IgnoredMore, IgnoredBytes: p.IgnoredBytes, SizeComplete: p.SizeComplete, Blockers: required(p.Blockers),
+	}
+}
+
+func ReleaseWorktree(r contract.ReleaseWorktreeRequest) workspace.ReleaseRequest {
+	return workspace.ReleaseRequest(r)
+}
+
+func ReleaseResult(r workspace.ReleaseResult) contract.ReleaseResult {
+	return contract.ReleaseResult{ReleaseID: r.ReleaseID, RecordIDs: required(r.RecordIDs)}
+}
+
+func RebuildPreview(p workspace.RebuildPreview) contract.RebuildPreview {
+	return contract.RebuildPreview{
+		ReleaseID: p.ReleaseID, Path: p.Path, Commit: p.Commit, Branch: p.Branch,
+		Mode: p.Mode, Reason: p.Reason, Blockers: required(p.Blockers),
+	}
+}
+
+func RebuildWorktree(r contract.RebuildRequest) workspace.RebuildRequest {
+	return workspace.RebuildRequest(r)
+}
+
 func CreateWorktree(r contract.CreateWorktreeRequest) workspace.CreateRequest {
 	return workspace.CreateRequest(r)
 }

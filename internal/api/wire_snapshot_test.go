@@ -96,8 +96,22 @@ func wireSchema(name string) wireRules {
 		add("", "path", "cmd/*")
 	case "hybrid-records":
 		add("/*", "id", "id", "configId", "agentSessionId", "previousIds/*")
-		add("/*", "time", "createdAt", "updatedAt", "interruptedAt")
-		add("/*", "path", "cwd", "cmd/*")
+		add("/*", "time", "createdAt", "updatedAt", "interruptedAt", "released/releasedAt")
+		add("/*", "path", "cwd", "cmd/*", "released/path")
+	case "worktree-release-preview":
+		add("", "id", "confirmationId")
+		add("", "time", "expiresAt")
+		worktreeFields("/worktree")
+		add("/archived/*", "id", "id", "configId", "agentSessionId", "previousIds/*", "workspace/repositoryId", "workspace/worktreeId")
+		add("/archived/*", "time", "createdAt", "updatedAt", "interruptedAt")
+		add("/archived/*", "path", "cwd", "cmd/*")
+	case "worktree-release":
+		add("", "id", "releaseId", "recordIds/*")
+	case "hybrid-rebuild-preview":
+		add("", "id", "releaseId")
+		add("", "path", "path")
+	case "hybrid-rebuild":
+		worktreeFields("")
 	case "sessions-list", "sessions-list-empty":
 		sessionFields("/*")
 	case "ws-sessions-created", "ws-sessions-updated":
@@ -143,7 +157,7 @@ func wireSchema(name string) wireRules {
 		add("/*", "id", "id")
 		add("/*", "time", "createdAt", "updatedAt")
 		add("/*", "path", "cmd/*")
-	case "repository-register", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction":
+	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction":
 		repositoryFields("")
 	case "repositories", "repositories-empty":
 		repositoryFields("/*")
@@ -152,7 +166,7 @@ func wireSchema(name string) wireRules {
 		worktreeFields("/worktree")
 	case "repository-branches":
 		add("", "path", "defaultParent", "branches/*/worktreePaths/*")
-	case "worktree-create":
+	case "worktree-create", "worktree-create-release":
 		worktreeFields("")
 	case "worktree-removal-preview":
 		add("", "id", "confirmationId")
@@ -688,6 +702,7 @@ func TestWireSnapshots(t *testing.T) {
 		{"settings", wireSettings},
 		{"hybrid", wireHybrid},
 		{"hybrid-records", wireHybridRecords},
+		{"release", wireRelease},
 		{"forwards", wireForwards},
 		{"quick-start", wireQuickStart},
 	} {
@@ -1193,7 +1208,18 @@ func wireHybridRecords(f *wireFixture) {
 		}
 	}
 	closeShell()
+	// A released worktree shows on the record until it is rebuilt.
+	released := hybrid.Release{
+		ID: "wirerelease", RepositoryID: "repo0001", Path: cwd, Commit: "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+		Branch: "main", ReleasedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
+	}
+	if err := f.hybrids.MarkReleased(ctx, []string{id}, released); err != nil {
+		f.t.Fatal(err)
+	}
 	f.call("hybrid-records", "GET", "/api/hybrid-sessions?state=recoverable", nil, 200)
+	if _, err := f.hybrids.ClearReleased(ctx, released.ID); err != nil {
+		f.t.Fatal(err)
+	}
 
 	// The agent lost the session; another one in the directory is offered.
 	if err := os.Remove(filepath.Join(store, "sessions", sid+".json")); err != nil {
@@ -1215,6 +1241,55 @@ func wireHybridRecords(f *wireFixture) {
 	}
 	f.call("hybrid-resume-config-missing", "POST", path, contract.HybridResumeRequest{ClientRequestID: "wire-resume-3", Side: contract.HybridSideTUI}, 409)
 	f.call("hybrid-record-delete", "DELETE", "/api/hybrid-sessions/"+id, nil, 204)
+}
+
+// wireRelease pins releasing a linked worktree that holds an archived chat
+// and an ignored directory, and rebuilding it on its branch.
+func wireRelease(f *wireFixture) {
+	agent := fakeAgentPath(f.t, omp.Name)
+	f.norm.path(filepath.Dir(agent), "<fakeagent>")
+	repository := f.call("repository-register-release", "POST", "/api/repositories", map[string]string{"path": f.root}, 201)
+	base := "/api/repositories/" + str(repository, "id")
+	linked := filepath.Join(filepath.Dir(f.root), "released")
+	f.norm.path(linked, "<released>")
+	tree := f.call("worktree-create-release", "POST", base+"/worktrees", map[string]string{"path": linked, "mode": "new", "branch": "released", "base": "HEAD"}, 201)
+	path := str(tree, "path")
+	if err := os.WriteFile(filepath.Join(f.root, ".git", "info", "exclude"), []byte("node_modules/\n"), 0o600); err != nil {
+		f.t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(linked, "node_modules", "pkg"), 0o755); err != nil {
+		f.t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(linked, "node_modules", "pkg", "index.js"), []byte("module.exports = 1;\n"), 0o600); err != nil {
+		f.t.Fatal(err)
+	}
+	saved, err := f.launches.Create(launch.Input{Name: "agent", Cmd: []string{agent}, Env: map[string]string{"FAKEAGENT_STORE": f.t.TempDir()}, Hybrid: true})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.norm.id("id", saved.ID)
+	ctx, cancel := context.WithTimeout(f.ctx, chatTimeout)
+	defer cancel()
+	item, err := f.hybrids.Create(ctx, hybrid.CreateInput{Cwd: path, Name: "agent", ConfigID: saved.ID, Cmd: saved.Cmd, Env: saved.Env, StartSide: hybrid.SideACP})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	id := item.Info().ID
+	if err := f.manager.Close(id); err != nil {
+		f.t.Fatal(err)
+	}
+	select {
+	case <-item.Done():
+	case <-ctx.Done():
+		f.t.Fatal("session did not close")
+	}
+	treeURL := base + "/worktrees/" + str(tree, "id")
+	preview := f.call("worktree-release-preview", "POST", treeURL+"/release-preview", map[string]any{}, 200)
+	f.call("worktree-release", "POST", treeURL+"/release", contract.ReleaseWorktreeRequest{ConfirmationID: str(preview, "confirmationId")}, 200)
+	rebuild := f.call("hybrid-rebuild-preview", "POST", "/api/hybrid-sessions/"+id+"/rebuild-preview", map[string]any{}, 200)
+	f.call("hybrid-rebuild", "POST", "/api/hybrid-sessions/"+id+"/rebuild", contract.RebuildRequest{
+		ReleaseID: str(rebuild, "releaseId"), Mode: str(rebuild, "mode"), Commit: str(rebuild, "commit"),
+	}, 200)
 }
 
 // closed reads until the server closes conn and records the close code and

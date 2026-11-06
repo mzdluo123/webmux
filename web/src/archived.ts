@@ -35,9 +35,20 @@ export interface ArchiveActions {
     choice?: ResumeChoice,
   ) => Promise<ResumeOutcome>;
   remove: (id: string) => Promise<unknown>;
-  /** Opens the worktree removal confirmation when the record's linked worktree still exists. */
+  /**
+   * Opens the worktree removal confirmation when the record's linked
+   * worktree still exists and was not released.
+   */
   removeWorktree?: (worktree: Worktree) => void;
+  /** Opens the release preview of a record's linked worktree. */
+  release?: (worktree: Worktree) => void;
   onresumed: (session: SessionInfo) => void;
+  /**
+   * A released record's worktree was rebuilt before its resume: the
+   * repository's worktrees and the records changed, whether or not the
+   * resume then succeeds.
+   */
+  onrebuilt?: () => void;
 }
 
 export const EMPTY_ARCHIVE: RepositoryArchive = {
@@ -86,19 +97,33 @@ export function recordWorktree(
 }
 
 /**
+ * The linked worktree whose disk space releasing `record` frees, or
+ * undefined when there is none to release: a main/bare checkout, an
+ * unavailable or prunable directory, a worktree already gone, or a record
+ * already released.
+ */
+export function releasableRecordWorktree(
+  record: HybridRecord,
+  repositories: readonly Repository[],
+): Worktree | undefined {
+  if (record.released) return undefined;
+  const tree = recordWorktree(record, repositories);
+  return tree && tree.kind === "linked" && tree.available && !tree.prunable
+    ? tree
+    : undefined;
+}
+
+/**
  * The linked worktree that deleting `record` should remove through the
- * worktree confirmation dialog, or undefined when only the record itself can
- * be deleted (main/bare checkout, unavailable directory, or worktree already
- * gone).
+ * worktree confirmation dialog: the one its space could be released from.
+ * Undefined when only the record itself is deleted, including a released
+ * record, whose worktree is gone.
  */
 export function removableRecordWorktree(
   record: HybridRecord,
   repositories: readonly Repository[],
 ): Worktree | undefined {
-  const tree = recordWorktree(record, repositories);
-  return tree && tree.kind === "linked" && tree.available && !tree.prunable
-    ? tree
-    : undefined;
+  return releasableRecordWorktree(record, repositories);
 }
 
 /**
