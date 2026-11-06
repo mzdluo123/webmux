@@ -340,16 +340,21 @@ func TestChatLogDegradeCursorSurvivesMerge(t *testing.T) {
 	}
 }
 
-func TestChatLogKeepsNewestEventWhole(t *testing.T) {
-	// Even when the newest event alone is larger than the protected part of
-	// the budget, its output is not shortened.
-	big := strings.Repeat("x", 6000)
-	l := newChatLog(4*eventSize(toolEvent("a", big))/3, ChatState{})
-	l.append(time.Now(), toolEvent("a", big), toolEvent("b", big))
+func TestChatLogShortensOversizedNewestOutputBeforeDroppingConversation(t *testing.T) {
+	// The protected window is by size: a newest event that alone exceeds it
+	// is outside it. Shortening that output keeps the older conversation.
+	l := newChatLog(5200, ChatState{})
+	now := time.Now()
+	for range 5 {
+		l.append(now, marker())
+	}
+	l.append(now, toolEvent("big", strings.Repeat("x", 6000)))
 	s, _ := l.subscribe(nil)
-	last := s.Events[len(s.Events)-1]
-	if last.Tool.ToolCallID != "b" || len(toolText(last)) != len(big) {
-		t.Fatalf("newest event: %s, %d bytes", last.Tool.ToolCallID, len(toolText(last)))
+	if s.Snapshot.Truncated || len(s.Events) != 6 {
+		t.Fatalf("conversation dropped: %+v, %d events", s.Snapshot, len(s.Events))
+	}
+	if got := toolText(s.Events[5]); len(got) != degradedToolBytes {
+		t.Fatalf("newest output %d bytes", len(got))
 	}
 }
 

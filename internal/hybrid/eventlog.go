@@ -370,8 +370,8 @@ func (l *chatLog) degradeLocked() {
 		boundary--
 		kept += l.sizes[boundary]
 	}
-	// The newest event stays whole even when it alone exceeds the window.
-	boundary = min(boundary, len(l.events)-1)
+	// An event that alone exceeds the window is not inside it, so it can be
+	// shortened: keeping the conversation matters more than one large output.
 	i := l.degraded
 	for ; i < boundary && l.bytes > l.capacity; i++ {
 		if e, ok := degradeTool(l.events[i]); ok {
