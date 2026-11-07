@@ -2,14 +2,10 @@
   "status": 200,
   "body": {
     "load": {
-      "cpus": 0,
+      "cpus": 1,
       "fifteen": 0,
       "five": 0,
       "one": 0
-    },
-    "memory": {
-      "available": 0,
-      "total": 0
     },
     "ok": true,
     "sessions": 0

@@ -144,7 +144,8 @@ func wireSchema(name string) wireRules {
 		}
 	case "health":
 		// Host measurements differ on every machine and call.
-		add("", "hostStat", "load/one", "load/five", "load/fifteen", "load/cpus", "memory/total", "memory/available")
+		add("", "hostStat", "load/one", "load/five", "load/fifteen", "memory/total", "memory/available")
+		add("", "hostCPUs", "load/cpus")
 	case "config":
 		add("", "path", "defaultCwd")
 		add("", "hostname", "hostname")
@@ -335,8 +336,11 @@ func (n *wireNormalizer) value(rules wireRules, path string, v any) any {
 		}
 		return out
 	case float64:
-		if rules[path] == "hostStat" {
+		switch rules[path] {
+		case "hostStat":
 			return 0.0
+		case "hostCPUs":
+			return 1.0
 		}
 	case string:
 		switch rules[path] {
