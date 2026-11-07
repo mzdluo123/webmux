@@ -41,7 +41,8 @@
       {#snippet summary()}
         <ToolSummary tool={shown} waiting={waiting.includes(shown.id)} />
         {#if calls.length > 1}
-          <span class="shrink-0 text-xs tabular-nums">共 {calls.length} 步</span
+          <span class="shrink-0 text-xs tabular-nums @max-xs:hidden"
+            >共 {calls.length} 步</span
           >
         {/if}
       {/snippet}
