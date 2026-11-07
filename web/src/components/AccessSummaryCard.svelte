@@ -40,7 +40,7 @@
   } = $props();
 </script>
 
-<Card.Root {id} class="scroll-mt-4">
+<Card.Root flat {id} class="scroll-mt-4">
   <Card.Header>
     <Card.Title>{title}</Card.Title>
     <Card.Description>{description}</Card.Description>
