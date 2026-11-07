@@ -27,6 +27,7 @@
   import { useChatUpload, useUpload } from "../hooks/upload.svelte";
   import { useFullscreen } from "../hooks/fullscreen.svelte";
   import { hasTouchInput, isIOS } from "../touch-input";
+  import { findShell } from "../shell.svelte";
   import type { ButtonSize } from "$lib/components/ui/button";
   import QuickCommandMenu from "../components/QuickCommandMenu.svelte";
   import VoiceButton from "../components/VoiceButton.svelte";
