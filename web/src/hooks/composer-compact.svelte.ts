@@ -6,6 +6,7 @@ export function useComposerCompact(
   isBusy: () => boolean,
 ) {
   let expanded = $state(false);
+  let pointerInControl = false;
   const compact = $derived(!expanded && !isBusy());
 
   function hasOpenPortal(): boolean {
@@ -14,8 +15,21 @@ export function useComposerCompact(
     );
   }
 
+  function isPortalTarget(target: Node | null): boolean {
+    return (
+      target instanceof Element &&
+      !!target.closest(
+        '[data-slot="popover-content"], [data-slot="dropdown-menu-content"]',
+      )
+    );
+  }
+
   function checkFocus() {
     requestAnimationFrame(() => {
+      if (pointerInControl) {
+        pointerInControl = false;
+        return;
+      }
       const container = getContainer();
       if (container?.contains(document.activeElement) || hasOpenPortal()) {
         return;
@@ -26,22 +40,31 @@ export function useComposerCompact(
 
   $effect(() => {
     if (!expanded) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     function onPointerDown(event: PointerEvent) {
       const target = event.target as Node | null;
       const container = getContainer();
-      if (target && container?.contains(target)) return;
-      if (
-        target instanceof Element &&
-        target.closest(
-          '[data-slot="popover-content"], [data-slot="dropdown-menu-content"]',
-        )
-      ) {
+      if (target instanceof HTMLTextAreaElement) {
+        pointerInControl = false;
         return;
       }
+      if ((target && container?.contains(target)) || isPortalTarget(target)) {
+        pointerInControl = true;
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          pointerInControl = false;
+        }, 100);
+        return;
+      }
+      pointerInControl = false;
       checkFocus();
     }
     window.addEventListener("pointerdown", onPointerDown, true);
-    return () => window.removeEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      clearTimeout(timer);
+      pointerInControl = false;
+      window.removeEventListener("pointerdown", onPointerDown, true);
+    };
   });
 
   return {
@@ -49,10 +72,22 @@ export function useComposerCompact(
       return compact;
     },
     containerProps: {
-      onfocusin: () => {
-        expanded = true;
+      onfocusin: (event: FocusEvent) => {
+        if (event.target instanceof HTMLTextAreaElement) {
+          expanded = true;
+        }
       },
-      onfocusout: checkFocus,
+      onfocusout: (event: FocusEvent) => {
+        if (pointerInControl) {
+          pointerInControl = false;
+          return;
+        }
+        const container = getContainer();
+        const related = event.relatedTarget as Node | null;
+        if (related && container?.contains(related)) return;
+        if (!related && container?.contains(document.activeElement)) return;
+        checkFocus();
+      },
     },
   };
 }
