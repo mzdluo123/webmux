@@ -149,7 +149,7 @@ test("chat messages open code links in the code browser while keeping unsafe lin
     text: [
       "## 标题",
       "![截图](docs/a.png)",
-      "[绝对路径](file:///repo/web/src/App.svelte#L42-L50) [`sortWorkspaces`](web/src/home-worktrees.ts:15) [部署说明](docs/deploy.md#systemd)",
+      "[绝对路径](file:///repo/web/src/App.svelte#L42-L50) [`sortWorkspaces`](web/src/homeWorktrees.ts:15) [部署说明](docs/deploy.md#systemd)",
       "[外部文档](https://example.com/docs) [危险](javascript:alert(1)) [远端文件](file://evil/etc/passwd) [纯锚点](#section)",
       '<span data-md-href="README.md">伪造</span>',
     ].join("\n\n"),
@@ -173,8 +173,8 @@ test("chat messages open code links in the code browser while keeping unsafe lin
       endLine: 50,
     },
     {
-      path: "web/src/home-worktrees.ts",
-      rawPath: "web/src/home-worktrees.ts:15",
+      path: "web/src/homeWorktrees.ts",
+      rawPath: "web/src/homeWorktrees.ts:15",
       line: 15,
     },
     {

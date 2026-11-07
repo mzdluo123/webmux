@@ -151,7 +151,7 @@ const homeDiff = {
   newText: lines(12, "new"),
 };
 const worktreesDiff = {
-  path: "web/src/home-worktrees.ts",
+  path: "web/src/homeWorktrees.ts",
   oldText: lines(15, "before"),
   newText: lines(30, "after"),
 };
@@ -192,18 +192,18 @@ const history: EventBody[] = [
   tool(
     "read-1",
     "read",
-    "web/src/home-worktrees.ts",
+    "web/src/homeWorktrees.ts",
     "completed",
     [],
-    [{ path: "web/src/home-worktrees.ts", line: 15 }],
+    [{ path: "web/src/homeWorktrees.ts", line: 15 }],
   ),
   tool("read-2", "read", "web/src/session-list.ts", "completed"),
   tool("search-0", "search", "sortWorkspaces", "completed"),
   agentText(
     "a1",
-    "排序只比较了 [home-worktrees.ts](web/src/homeWorktrees.ts#L15-L30) 中的最近活动时间，没有考虑 [Home.svelte](file:///home/developer/webmux/web/src/pages/Home.svelte#L48) 的置顶状态。我先补测试，再修改 [`sortWorkspaces`](web/src/home-worktrees.ts:15)。",
+    "排序只比较了 [homeWorktrees.ts](web/src/homeWorktrees.ts#L15-L30) 中的最近活动时间，没有考虑 [Home.svelte](file:///home/developer/webmux/web/src/pages/Home.svelte#L48) 的置顶状态。我先补测试，再修改 [`sortWorkspaces`](web/src/homeWorktrees.ts:15)。",
   ),
-  tool("edit-1", "edit", "编辑 web/src/home-worktrees.ts", "completed", [
+  tool("edit-1", "edit", "编辑 web/src/homeWorktrees.ts", "completed", [
     worktreesDiff,
   ]),
   tool("edit-2", "edit", "编辑 web/src/pages/Home.svelte", "in_progress", [
@@ -420,7 +420,7 @@ export function chatFixture(scenario: Scenario, agent: Agent) {
       tool(
         "exec-1",
         "execute",
-        "pnpm --dir web exec vitest run test/home-worktrees.test.ts",
+        "pnpm --dir web exec vitest run test/homeWorktrees.test.ts",
         "pending",
       ),
       { kind: "request.open", request: permissionRequest },
@@ -561,8 +561,8 @@ export const terminalLines = (agent: Agent) =>
     "› 修复首页搜索的排序：置顶的工作区应排在最前。",
     "",
     "  ✓ Read web/src/pages/Home.svelte",
-    "  ✓ Read web/src/home-worktrees.ts",
-    "  ✓ Edit web/src/home-worktrees.ts (+30 −15)",
+    "  ✓ Read web/src/homeWorktrees.ts",
+    "  ✓ Edit web/src/homeWorktrees.ts (+30 −15)",
     "  ✓ Edit web/src/pages/Home.svelte (+12 −3)",
     "",
     "  排序已修复，测试通过。",
@@ -579,7 +579,7 @@ export const terminalLines = (agent: Agent) =>
 // The two files the chat changed, for the code panel.
 export const codeChanges = [
   ["web/src/pages/Home.svelte", "M"],
-  ["web/src/home-worktrees.ts", "M"],
+  ["web/src/homeWorktrees.ts", "M"],
 ].map(([path, status], i) =>
   CodeChangeSchema.parse({
     nodeId: `acp-change-${i}`,
