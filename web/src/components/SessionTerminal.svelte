@@ -29,6 +29,7 @@
   import { hasTouchInput, isIOS } from "../touch-input";
   import type { ButtonSize } from "$lib/components/ui/button";
   import QuickCommandMenu from "../components/QuickCommandMenu.svelte";
+  import VoiceButton from "../components/VoiceButton.svelte";
   import { quickCommands } from "../quick-commands.svelte";
   import type { ChatCodeLink } from "../markdown-link";
   import type {
@@ -105,6 +106,8 @@
     feedSession?: import("../schemas").SessionInfo;
   } = $props();
   const draft = untrack(() => drafts.get(id));
+  const shell = findShell();
+  const voiceEnabled = $derived(!!shell?.setup.value.voice);
   let composer = $state<TerminalInputComposer>();
   let chatView = $state<ChatView>();
   let sending = false;
@@ -636,6 +639,25 @@
       }
     }
   }
+  function insertVoiceResult(text: string) {
+    if (!text || !mounted) return;
+    const chat = hybrid.view === "chat";
+    const operation = beginInput();
+    const result = insertText(text, operation);
+    if (result === "failed") {
+      error =
+        chat || drafts.destination(draft, operation) === "draft"
+          ? "草稿正在提交到终端，语音识别内容未插入；请确认结果后重试。"
+          : "终端未就绪，语音识别内容未发送；请恢复连接后重试。";
+    } else {
+      error = "";
+      if (!hasTouchInput()) {
+        void tick().then(() => {
+          if (active && visible) focusInput();
+        });
+      }
+    }
+  }
   async function focusTerminal(event: Event) {
     event.preventDefault();
     if (hasTouchInput()) return;
@@ -650,6 +672,26 @@
 </script>
 
 {#snippet quickMenu(side: "top" | "bottom", size?: ButtonSize)}
+  {#if voiceEnabled}
+    <VoiceButton
+      {size}
+      disabled={hybrid.view === "chat"
+        ? hybrid.missing || !!draft.submission
+        : t.connection === "missing" ||
+          (draft.enabled
+            ? !!draft.submission
+            : t.exitCode !== null || t.connection === "exited" || !t.ready)}
+      onmousedown={(event) => {
+        if (side === "top" && hybrid.view !== "chat") event.preventDefault();
+      }}
+      onresult={insertVoiceResult}
+      onerror={(message) => {
+        if (!mounted) return;
+        if (hybrid.view === "chat" && chatView) chatView.setVoiceError(message);
+        else error = message;
+      }}
+    />
+  {/if}
   <QuickCommandMenu
     commands={quickCommands.list}
     target={hybrid.view === "chat"

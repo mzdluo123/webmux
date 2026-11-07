@@ -26,6 +26,7 @@
   import ChatUploadButton from "../components/chat/ChatUploadButton.svelte";
   import BranchCommandList from "../components/BranchCommandList.svelte";
   import QuickCommandMenu from "../components/QuickCommandMenu.svelte";
+  import VoiceButton from "../components/VoiceButton.svelte";
   import ConnectorInstallHint from "../components/ConnectorInstallHint.svelte";
   import FileDropZone from "../components/FileDropZone.svelte";
   import FileUploadProgress from "../components/FileUploadProgress.svelte";
@@ -350,11 +351,14 @@
     }
   }
   async function insertQuickCommand(cmd: QuickCommand) {
+    await insertTextAtCursor(cmd.command);
+  }
+  async function insertTextAtCursor(snippet: string) {
     const result = insertAtSelection(
       text,
       input?.selectionStart ?? text.length,
       input?.selectionEnd ?? text.length,
-      cmd.command,
+      snippet,
     );
     text = result.text;
     persistDraft();
@@ -686,12 +690,21 @@
               </span>
             {/if}
           </div>
+          {#if shell.setup.value.voice}
+            <VoiceButton
+              size="icon-touch"
+              disabled={sending}
+              onresult={(recognized) => void insertTextAtCursor(recognized)}
+              onerror={(message) => (uploadError = message)}
+            />
+          {/if}
           <QuickCommandMenu
             commands={quickCommands.list}
             target="chat"
             unavailable=""
             disabled={sending}
             side="top"
+            size="icon-touch"
             run={insertQuickCommand}
             manage={() => navigate("/settings#quick-commands")}
             onCloseAutoFocus={(event) => {
