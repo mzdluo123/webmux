@@ -49,7 +49,7 @@ test("renders the snapshot's timeline and updates a tool row in place", async ()
       },
       read("r1", "read", "web/src/pages/Home.svelte"),
       read("r2", "search", "sortWorkspaces"),
-      read("r3", "read", "web/src/homeWorktrees.ts"),
+      read("r3", "read", "web/src/home-worktrees.ts"),
       {
         kind: "message.append",
         message: { messageId: "a1", role: "agent", text: "排序只比较了" },
@@ -63,12 +63,12 @@ test("renders the snapshot's timeline and updates a tool row in place", async ()
         tool: {
           toolCallId: "edit-1",
           kind: "edit",
-          title: "编辑 web/src/homeWorktrees.ts",
+          title: "编辑 web/src/home-worktrees.ts",
           status: "in_progress",
           content: [
             {
               type: "diff",
-              path: "web/src/homeWorktrees.ts",
+              path: "web/src/home-worktrees.ts",
               oldText: "a\nb",
               newText: "a\nc\nd",
             },
@@ -121,7 +121,7 @@ test("renders the snapshot's timeline and updates a tool row in place", async ()
   await transcript.getByRole("button", { name: "在代码面板中查看" }).click();
   await expect
     .element(page.getByRole("status", { name: "Reviewed path" }))
-    .toHaveTextContent("web/src/homeWorktrees.ts");
+    .toHaveTextContent("web/src/home-worktrees.ts");
 });
 
 test("opens code links from agent messages, tool locations, resource links and read rows", async () => {
@@ -149,7 +149,7 @@ test("opens code links from agent messages, tool locations, resource links and r
           title: "搜索 sortWorkspaces",
           status: "completed",
           locations: [
-            { path: "web/src/homeWorktrees.ts", line: 15 },
+            { path: "web/src/home-worktrees.ts", line: 15 },
             { path: "web/src/pages/Home.svelte", line: 60 },
           ],
         },
@@ -206,7 +206,7 @@ test("opens code links from agent messages, tool locations, resource links and r
 
   await transcript.getByRole("link", { name: "sortWorkspaces" }).click();
   await expect.poll(readOpened).toEqual({
-    path: "web/src/homeWorktrees.ts",
+    path: "web/src/home-worktrees.ts",
     line: 15,
     endLine: 30,
   });
