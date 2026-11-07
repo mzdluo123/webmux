@@ -654,8 +654,10 @@
             cancel={() => uploads.cancel()}
             variant="card"
           />{/if}
-        <div class="flex items-center justify-end gap-2 px-2 pb-2">
-          <div class="mr-auto flex min-w-0 items-center gap-1">
+        <div class="flex items-center justify-end gap-1 px-2 pb-2">
+          <div
+            class="mr-auto flex min-w-0 items-center gap-0.5 overflow-hidden"
+          >
             <ChatUploadButton {uploads} disabled={sending} />
             {#if sending}
               <span
@@ -679,13 +681,13 @@
                     config={options}
                     disabled={locked}
                     modeDisabled={locked}
+                    loading={probing}
                     onmodechange={(mode) => {
                       permissionMode = mode;
                       persistDraft();
                     }}
                     onconfigchange={setOption}
                   />
-                  {@render probeStatus()}
                 {/if}
               </span>
             {/if}
