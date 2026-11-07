@@ -309,7 +309,26 @@ func (n *wireNormalizer) pathText(s string) string {
 }
 
 func (n *wireNormalizer) normalize(name string, v any) any {
+	if name == "health" {
+		v = withHostStats(v)
+	}
 	return n.value(wireSchema(name), "", v)
+}
+
+// withHostStats fills the host measurements the platform could not read, so
+// the snapshot is identical on Linux and macOS.
+func withHostStats(v any) any {
+	body, ok := v.(map[string]any)
+	if !ok {
+		return v
+	}
+	if body["load"] == nil {
+		body["load"] = map[string]any{"one": 0.0, "five": 0.0, "fifteen": 0.0, "cpus": 1.0}
+	}
+	if body["memory"] == nil {
+		body["memory"] = map[string]any{"total": 0.0, "available": 0.0}
+	}
+	return body
 }
 
 func (n *wireNormalizer) value(rules wireRules, path string, v any) any {

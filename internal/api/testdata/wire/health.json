@@ -7,6 +7,10 @@
       "five": 0,
       "one": 0
     },
+    "memory": {
+      "available": 0,
+      "total": 0
+    },
     "ok": true,
     "sessions": 0
   }
