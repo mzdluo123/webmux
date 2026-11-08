@@ -1,5 +1,11 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+  import IconArrowDown from "~icons/tabler/arrow-down";
+  import IconArrowLeft from "~icons/tabler/arrow-left";
+  import IconArrowRight from "~icons/tabler/arrow-right";
+  import IconArrowUp from "~icons/tabler/arrow-up";
+  import IconBackspace from "~icons/tabler/backspace";
+  import IconCornerDownLeft from "~icons/tabler/corner-down-left";
   import { Button } from "$lib/components/ui/button";
   import type { Modifiers } from "../input";
 
@@ -150,11 +156,13 @@
 </script>
 
 <div
-  class="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex items-end justify-between gap-2"
+  class="pointer-events-none absolute inset-x-2.5 bottom-2.5 z-10 flex items-end justify-between gap-2"
   role="toolbar"
   aria-label="终端浮动摇杆"
 >
-  <div class="pointer-events-auto grid grid-cols-2 gap-1.5">
+  <div
+    class="border-foreground/20 bg-background/55 pointer-events-auto grid grid-cols-2 gap-1.5 rounded-lg border p-1.5 shadow-md backdrop-blur-md"
+  >
     <Button
       variant="hud"
       size="sm"
@@ -166,6 +174,18 @@
         event.stopPropagation();
         send("\x1b");
       }}>Esc</Button
+    >
+    <Button
+      variant="hud"
+      size="sm"
+      data-gamepad-key="tab"
+      aria-label="Tab"
+      title="Tab"
+      onmousedown={keepFocus}
+      onclick={(event) => {
+        event.stopPropagation();
+        send("\t");
+      }}>Tab</Button
     >
     <Button
       variant="hud"
@@ -183,18 +203,6 @@
     <Button
       variant="hud"
       size="sm"
-      data-gamepad-key="tab"
-      aria-label="Tab"
-      title="Tab"
-      onmousedown={keepFocus}
-      onclick={(event) => {
-        event.stopPropagation();
-        send("\t");
-      }}>Tab</Button
-    >
-    <Button
-      variant="hud"
-      size="sm"
       data-gamepad-key="ctrl-c"
       aria-label="Ctrl+C"
       title="Ctrl+C"
@@ -204,13 +212,31 @@
         send("\x03");
       }}>Ctrl+C</Button
     >
+    <Button
+      variant="hud"
+      size="sm"
+      class="col-span-2 w-full"
+      data-gamepad-key="enter"
+      aria-label="回车"
+      title="回车"
+      onmousedown={keepFocus}
+      onclick={(event) => {
+        event.stopPropagation();
+        send("\r");
+      }}
+    >
+      <IconCornerDownLeft aria-hidden="true" />
+      <span>Enter</span>
+    </Button>
   </div>
 
-  <div class="pointer-events-auto grid grid-cols-3 gap-1">
+  <div
+    class="border-foreground/20 bg-background/55 pointer-events-auto grid grid-cols-3 gap-1.5 rounded-lg border p-1.5 shadow-md backdrop-blur-md"
+  >
     <div class="col-start-2 row-start-1">
       <Button
         variant="hud"
-        size="sm"
+        size="icon-sm"
         class="w-full"
         data-gamepad-key="up"
         aria-label="向上方向键"
@@ -222,13 +248,15 @@
         onpointerup={endPointer}
         onpointercancel={endPointer}
         onlostpointercapture={stopRepeat}
-        onclick={(event) => clickKey(arrowInputs.up, event)}>↑</Button
+        onclick={(event) => clickKey(arrowInputs.up, event)}
       >
+        <IconArrowUp aria-hidden="true" />
+      </Button>
     </div>
     <div class="col-start-3 row-start-1">
       <Button
         variant="hud"
-        size="sm"
+        size="icon-sm"
         class="w-full"
         data-gamepad-key="backspace"
         aria-label="退格"
@@ -239,13 +267,15 @@
         onpointerup={endPointer}
         onpointercancel={endPointer}
         onlostpointercapture={stopRepeat}
-        onclick={(event) => clickKey("\x7f", event)}>⌫</Button
+        onclick={(event) => clickKey("\x7f", event)}
       >
+        <IconBackspace aria-hidden="true" />
+      </Button>
     </div>
     <div class="col-start-1 row-start-2">
       <Button
         variant="hud"
-        size="sm"
+        size="icon-sm"
         class="w-full"
         data-gamepad-key="left"
         aria-label="向左方向键"
@@ -257,13 +287,15 @@
         onpointerup={endPointer}
         onpointercancel={endPointer}
         onlostpointercapture={stopRepeat}
-        onclick={(event) => clickKey(arrowInputs.left, event)}>←</Button
+        onclick={(event) => clickKey(arrowInputs.left, event)}
       >
+        <IconArrowLeft aria-hidden="true" />
+      </Button>
     </div>
     <div class="col-start-2 row-start-2">
       <Button
         variant="hud"
-        size="sm"
+        size="icon-sm"
         class="w-full"
         data-gamepad-key="down"
         aria-label="向下方向键"
@@ -275,13 +307,15 @@
         onpointerup={endPointer}
         onpointercancel={endPointer}
         onlostpointercapture={stopRepeat}
-        onclick={(event) => clickKey(arrowInputs.down, event)}>↓</Button
+        onclick={(event) => clickKey(arrowInputs.down, event)}
       >
+        <IconArrowDown aria-hidden="true" />
+      </Button>
     </div>
     <div class="col-start-3 row-start-2">
       <Button
         variant="hud"
-        size="sm"
+        size="icon-sm"
         class="w-full"
         data-gamepad-key="right"
         aria-label="向右方向键"
@@ -293,23 +327,10 @@
         onpointerup={endPointer}
         onpointercancel={endPointer}
         onlostpointercapture={stopRepeat}
-        onclick={(event) => clickKey(arrowInputs.right, event)}>→</Button
+        onclick={(event) => clickKey(arrowInputs.right, event)}
       >
-    </div>
-    <div class="col-start-3 row-start-3">
-      <Button
-        variant="hud"
-        size="sm"
-        class="w-full"
-        data-gamepad-key="enter"
-        aria-label="回车"
-        title="回车"
-        onmousedown={keepFocus}
-        onclick={(event) => {
-          event.stopPropagation();
-          send("\r");
-        }}>↵</Button
-      >
+        <IconArrowRight aria-hidden="true" />
+      </Button>
     </div>
   </div>
 </div>

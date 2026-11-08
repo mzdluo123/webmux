@@ -29,7 +29,7 @@
         // A ghost button whose resting text recedes until hovered.
         quiet: `text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 ${active}`,
         // Semi-transparent overlay control floating above terminal content.
-        hud: `border-border/50 bg-background/40 text-foreground/85 shadow-sm hover:bg-background/75 hover:text-foreground active:bg-background/85 dark:border-input/50 dark:bg-background/40 dark:hover:bg-background/70 ${active}`,
+        hud: `border-foreground/30 bg-card/75 text-foreground font-semibold shadow-sm backdrop-blur-md hover:border-foreground/50 hover:bg-card/90 active:bg-accent/90 dark:border-foreground/35 dark:bg-card/75 dark:hover:bg-card/90 ${active}`,
       },
       size: {
         default:
