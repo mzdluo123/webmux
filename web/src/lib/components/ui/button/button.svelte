@@ -28,6 +28,8 @@
         link: "text-primary underline-offset-4 hover:underline",
         // A ghost button whose resting text recedes until hovered.
         quiet: `text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 ${active}`,
+        // Semi-transparent overlay control floating above terminal content.
+        hud: `border-border/50 bg-background/40 text-foreground/85 shadow-sm hover:bg-background/75 hover:text-foreground active:bg-background/85 dark:border-input/50 dark:bg-background/40 dark:hover:bg-background/70 ${active}`,
       },
       size: {
         default:
