@@ -56,8 +56,27 @@ test("touch gamepad renders only when enabled and controlling, supports slide-to
   expect(send).toHaveBeenCalledWith("\x03");
   key("enter").click();
   expect(send).toHaveBeenCalledWith("\r");
-  key("ctrl").click();
-  expect(toggle).toHaveBeenCalledWith("ctrl");
+
+  // Touching/scrolling the terminal host fades the gamepad into semi-transparent state.
+  const host = document.querySelector<HTMLElement>(".terminal-host")!;
+  expect(gamepad!.getAttribute("data-faded")).toBeNull();
+  host.dispatchEvent(
+    new PointerEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 10,
+    }),
+  );
+  await expect.poll(() => gamepad!.getAttribute("data-faded")).toBe("true");
+  // Touching a gamepad button immediately restores full HUD visibility.
+  key("esc").dispatchEvent(
+    new PointerEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 11,
+    }),
+  );
+  await expect.poll(() => gamepad!.getAttribute("data-faded")).toBeNull();
 
   // Slide-to-steer on the D-Pad: press Up, then drag right past the threshold.
   send.mockClear();

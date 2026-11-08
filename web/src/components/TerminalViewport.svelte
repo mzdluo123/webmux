@@ -76,6 +76,34 @@
       (t.exitCode === null || t.exitCode === undefined) &&
       visible,
   );
+  let gamepadFaded = $state(false);
+  $effect(() => {
+    const host = container;
+    if (!host || !gamepadActive) {
+      gamepadFaded = false;
+      return;
+    }
+    let fadeTimer: ReturnType<typeof setTimeout> | undefined;
+    const onHostPointerDown = () => {
+      clearTimeout(fadeTimer);
+      gamepadFaded = true;
+    };
+    const onHostPointerEnd = () => {
+      clearTimeout(fadeTimer);
+      fadeTimer = setTimeout(() => {
+        gamepadFaded = false;
+      }, 600);
+    };
+    host.addEventListener("pointerdown", onHostPointerDown, true);
+    host.addEventListener("pointerup", onHostPointerEnd, true);
+    host.addEventListener("pointercancel", onHostPointerEnd, true);
+    return () => {
+      clearTimeout(fadeTimer);
+      host.removeEventListener("pointerdown", onHostPointerDown, true);
+      host.removeEventListener("pointerup", onHostPointerEnd, true);
+      host.removeEventListener("pointercancel", onHostPointerEnd, true);
+    };
+  });
 
   // Keep the hint off touch screens, including hybrids whose secondary pointer
   // is coarse, and mirror the platform's actual copy shortcut.
@@ -147,7 +175,13 @@
         ><IconArrowDown aria-hidden="true" />回到最新</Button
       >{/if}
     {#if gamepadActive}
-      <TouchGamepad {send} modifiers={t.modifiers} {toggle} />
+      <TouchGamepad
+        {send}
+        faded={gamepadFaded}
+        oninteract={() => {
+          gamepadFaded = false;
+        }}
+      />
     {/if}
   </div>
   <SoftKeys

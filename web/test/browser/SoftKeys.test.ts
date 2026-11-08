@@ -170,21 +170,12 @@ test("soft keys include Enter and deduplicate gamepad keys when gamepad mode is 
     keyboard: () => {},
   });
 
-  for (const removed of [
-    "Esc",
-    "Tab",
-    "↵",
-    "Ctrl",
-    "↑",
-    "↓",
-    "←",
-    "→",
-    "Ctrl+C",
-  ]) {
+  for (const removed of ["Esc", "Tab", "↵", "↑", "↓", "←", "→", "Ctrl+C"]) {
     expect(labels()).not.toContain(removed);
   }
   for (const kept of [
     "/",
+    "Ctrl",
     "Alt",
     "Shift",
     "Home",

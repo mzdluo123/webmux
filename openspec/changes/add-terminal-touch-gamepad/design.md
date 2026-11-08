@@ -19,7 +19,7 @@
 - 严格绑定控制端门禁：仅当 `touchGamepad.enabled && t.controlling && t.connection !== "missing" && t.exitCode === null && visible` 时渲染浮动摇杆层 `TouchGamepad.svelte` 并精简底部滚动栏。
 - 设计符合 WebMux 设计系统（`webmux-ui` / `frontend-architecture.md`）的半透明浮层按钮（在 `ui/button` 中提供专用的半透明浮层样式，遵守 `shadcn/no-restyle` 契约），使下方终端字符依然清晰可辨。
 - 支持十字方向盘滑动手势（按住向 `↑`、`↓`、`←`、`→` 方向滑动或长按连发）以及退格键长按连发，同时保证未触碰按钮的空白区域完全穿透（`pointer-events-none`），不影响 `.terminal-host` 的触摸滚动与长按选词。
-- 在底部 `SoftKeys.svelte` 与浮动摇杆 `TouchGamepad.svelte` 中均加入回车键 `↵`（`\r`）；当浮动摇杆激活显示时，从底部 `SoftKeys.svelte` 的 `.soft-row` 中动态移除 `Esc`、`Tab`、`↵`、`Ctrl`、`↑`、`↓`、`←`、`→`、`Ctrl+C`，减少横向滚动长度。
+- 在底部 `SoftKeys.svelte` 与浮动摇杆 `TouchGamepad.svelte` 中均加入回车键 `↵`（`\r`）；当浮动摇杆激活显示时，从底部 `SoftKeys.svelte` 的 `.soft-row` 中动态移除 `Esc`、`Tab`、`↵`、`↑`、`↓`、`←`、`→`、`Ctrl+C`（`Ctrl` 保留在底部滑动栏），减少横向滚动长度。
 
 **Non-Goals:**
 
@@ -55,14 +55,15 @@
 ### D4 左右分区的动作手游式布局与摇杆滑动连发手势
 
 - **决策**：
-  - **左侧拇指区（高频控制与确认簇，毛玻璃胶囊底座）**：
+  - **左侧拇指区（高频控制与确认簇，2×2 毛玻璃胶囊底座）**：
     - 第一行：`Esc`（`\x1b`）、`Tab`（`\t`）；
-    - 第二行：`Ctrl`（修饰键开关，`aria-pressed={modifiers.ctrl}`）、`Ctrl+C`（`\x03`）；
-    - 第三行（跨两列宽键）：`↵ Enter`（回车 `\r`，带 `IconCornerDownLeft`），符合“右手方向键选择、左手直接回车确认或 Esc 取消”的双手操作直觉。
-  - **右侧拇指区（十字方向摇杆 D-Pad + `⌫`，毛玻璃胶囊底座）**：
+    - 第二行：`Ctrl+C`（`\x03`）、`↵ Enter`（回车 `\r`，带 `IconCornerDownLeft`）；`Ctrl` 保留在底部横向滑动栏中。
+  - **右侧拇指区（十字方向摇杆 D-Pad + 左上角 `⌫`，毛玻璃胶囊底座）**：
     - 采用紧凑的 3×2 网格布局（使用高辨识度 Tabler 矢量图标）：
-      - 上中：`↑`（`\x1b[A`），右上：`⌫`（退格 `\x7f`，带 `IconBackspace`）；
+      - 左上：`⌫`（退格 `\x7f`，带 `IconBackspace`），上中：`↑`（`\x1b[A`）；
       - 下排：`←`（`\x1b[D`）、`↓`（`\x1b[B`）、`→`（`\x1b[C`）。
+  - **触摸/滑动终端时自动变半透明退让**：
+    - 当用户点击或滑动 `.terminal-host` 时，`TouchGamepad` 立即切换至低不透明度（`opacity-30`），松手后延迟恢复，避免阅读或滚屏时遮挡视线。
     - **摇杆滑动与长按连发机制**：
       - 用户既可以直接点按/长按单个方向键或 `⌫` 键（按下立即发送一次，按住 350ms 后每 75ms 自动连发）；
       - 也可以把右侧十字区当作**滑动摇杆**：手指在方向盘任意键按下后（通过 `setPointerCapture` 捕获指针），无需抬起手指，直接向 `↑`、`↓`、`←`、`→` 方向拖动偏移超过阈值（如 14px），即自动切换为目标方向并持续连发对应方向键，带来动作手游虚拟摇杆的顺滑手感。

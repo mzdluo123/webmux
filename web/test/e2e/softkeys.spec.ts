@@ -471,23 +471,16 @@ test("touch gamepad mode toggles in menu, shows only when controlling, deduplica
 
   // Controlling client sees the semi-transparent gamepad and deduplicated bottom row.
   await expect(gamepad).toBeVisible();
-  for (const label of [
-    "Esc",
-    "Tab",
-    "↵",
-    "Ctrl",
-    "↑",
-    "↓",
-    "←",
-    "→",
-    "Ctrl+C",
-  ]) {
+  for (const label of ["Esc", "Tab", "↵", "↑", "↓", "←", "→", "Ctrl+C"]) {
     await expect(
       bar
         .locator(".soft-row")
         .getByRole("button", { name: label, exact: true }),
     ).toHaveCount(0);
   }
+  await expect(
+    bar.locator(".soft-row").getByRole("button", { name: "Ctrl", exact: true }),
+  ).toBeVisible();
   await expect(
     bar.locator(".soft-row").getByRole("button", { name: "Alt", exact: true }),
   ).toBeVisible();

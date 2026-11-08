@@ -7,16 +7,15 @@
   import IconBackspace from "~icons/tabler/backspace";
   import IconCornerDownLeft from "~icons/tabler/corner-down-left";
   import { Button } from "$lib/components/ui/button";
-  import type { Modifiers } from "../input";
 
   let {
     send,
-    modifiers,
-    toggle,
+    faded = false,
+    oninteract,
   }: {
     send: (input: string) => void;
-    modifiers: Modifiers;
-    toggle: (key: keyof Modifiers) => void;
+    faded?: boolean;
+    oninteract?: () => void;
   } = $props();
 
   const repeatDelayMs = 350;
@@ -87,6 +86,7 @@
 
   function startDirection(direction: ArrowDirection, event: PointerEvent) {
     if (event.button !== 0 && event.pointerType === "mouse") return;
+    oninteract?.();
     event.preventDefault();
     event.stopPropagation();
     pointerHandled = true;
@@ -132,6 +132,7 @@
 
   function startBackspace(event: PointerEvent) {
     if (event.button !== 0 && event.pointerType === "mouse") return;
+    oninteract?.();
     event.preventDefault();
     event.stopPropagation();
     pointerHandled = true;
@@ -156,9 +157,12 @@
 </script>
 
 <div
-  class="pointer-events-none absolute inset-x-2.5 bottom-2.5 z-10 flex items-end justify-between gap-2"
+  class="pointer-events-none absolute inset-x-2.5 bottom-2.5 z-10 flex items-end justify-between gap-2 transition-opacity duration-200 {faded
+    ? 'opacity-30'
+    : 'opacity-100'}"
   role="toolbar"
   aria-label="终端浮动摇杆"
+  data-faded={faded ? "true" : undefined}
 >
   <div
     class="border-foreground/20 bg-background/55 pointer-events-auto grid grid-cols-2 gap-1.5 rounded-lg border p-1.5 shadow-md backdrop-blur-md"
@@ -170,6 +174,7 @@
       aria-label="Esc"
       title="Esc"
       onmousedown={keepFocus}
+      onpointerdown={() => oninteract?.()}
       onclick={(event) => {
         event.stopPropagation();
         send("\x1b");
@@ -182,6 +187,7 @@
       aria-label="Tab"
       title="Tab"
       onmousedown={keepFocus}
+      onpointerdown={() => oninteract?.()}
       onclick={(event) => {
         event.stopPropagation();
         send("\t");
@@ -190,23 +196,11 @@
     <Button
       variant="hud"
       size="sm"
-      data-gamepad-key="ctrl"
-      aria-label="Ctrl"
-      title="Ctrl"
-      aria-pressed={modifiers.ctrl}
-      onmousedown={keepFocus}
-      onclick={(event) => {
-        event.stopPropagation();
-        toggle("ctrl");
-      }}>Ctrl</Button
-    >
-    <Button
-      variant="hud"
-      size="sm"
       data-gamepad-key="ctrl-c"
       aria-label="Ctrl+C"
       title="Ctrl+C"
       onmousedown={keepFocus}
+      onpointerdown={() => oninteract?.()}
       onclick={(event) => {
         event.stopPropagation();
         send("\x03");
@@ -215,11 +209,11 @@
     <Button
       variant="hud"
       size="sm"
-      class="col-span-2 w-full"
       data-gamepad-key="enter"
       aria-label="回车"
       title="回车"
       onmousedown={keepFocus}
+      onpointerdown={() => oninteract?.()}
       onclick={(event) => {
         event.stopPropagation();
         send("\r");
@@ -233,6 +227,25 @@
   <div
     class="border-foreground/20 bg-background/55 pointer-events-auto grid grid-cols-3 gap-1.5 rounded-lg border p-1.5 shadow-md backdrop-blur-md"
   >
+    <div class="col-start-1 row-start-1">
+      <Button
+        variant="hud"
+        size="icon-sm"
+        class="w-full"
+        data-gamepad-key="backspace"
+        aria-label="退格"
+        title="退格（长按连发）"
+        aria-pressed={activeBackspace}
+        onmousedown={keepFocus}
+        onpointerdown={startBackspace}
+        onpointerup={endPointer}
+        onpointercancel={endPointer}
+        onlostpointercapture={stopRepeat}
+        onclick={(event) => clickKey("\x7f", event)}
+      >
+        <IconBackspace aria-hidden="true" />
+      </Button>
+    </div>
     <div class="col-start-2 row-start-1">
       <Button
         variant="hud"
@@ -251,25 +264,6 @@
         onclick={(event) => clickKey(arrowInputs.up, event)}
       >
         <IconArrowUp aria-hidden="true" />
-      </Button>
-    </div>
-    <div class="col-start-3 row-start-1">
-      <Button
-        variant="hud"
-        size="icon-sm"
-        class="w-full"
-        data-gamepad-key="backspace"
-        aria-label="退格"
-        title="退格（长按连发）"
-        aria-pressed={activeBackspace}
-        onmousedown={keepFocus}
-        onpointerdown={startBackspace}
-        onpointerup={endPointer}
-        onpointercancel={endPointer}
-        onlostpointercapture={stopRepeat}
-        onclick={(event) => clickKey("\x7f", event)}
-      >
-        <IconBackspace aria-hidden="true" />
       </Button>
     </div>
     <div class="col-start-1 row-start-2">

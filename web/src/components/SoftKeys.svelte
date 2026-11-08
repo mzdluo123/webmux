@@ -58,9 +58,6 @@
     ["alt", "Alt"],
     ["shift", "Shift"],
   ];
-  const visibleModifiers = $derived(
-    gamepad ? modifierKeys.filter(([key]) => key !== "ctrl") : modifierKeys,
-  );
   const visibleCombinations = $derived(
     gamepad
       ? combinations.filter(([label]) => label !== "Ctrl+C")
@@ -150,7 +147,7 @@
           input,
         )}{/each}
     {/if}
-    {#each visibleModifiers as [key, label] (key)}
+    {#each modifierKeys as [key, label] (key)}
       <Button
         variant="ghost"
         size="sm"
