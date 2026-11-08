@@ -7,7 +7,7 @@
 
 - [ ] 2.1 在 `web/src/lib/components/ui/button/button.svelte` 中扩展半透明浮层样式（并在 `docs/frontend-architecture.md` 登记），实现 `web/src/components/TouchGamepad.svelte`（左侧 `Esc`、`Ctrl`、`Tab`、`Ctrl+C` 功能键簇，右侧十字方向摇杆 `↑` `↓` `←` `→` 及 `⌫`、`↵`，支持滑动方向切换与长按连发）
 - [ ] 2.2 更新 `web/src/components/TerminalViewport.svelte`，仅在软键盘摇杆模式开启且当前客户端已接管控制（`t.controlling === true`）、会话未退出且终端视图可见时渲染 `TouchGamepad.svelte`，并保证未命中按钮区域完全穿透以维持终端触摸滚动
-- [ ] 2.3 更新 `web/src/components/SoftKeys.svelte`，当浮动摇杆激活显示时从底部 `.soft-row` 动态移除重复的 `Esc`、`Tab`、`Ctrl`、`↑`、`↓`、`←`、`→`、`Ctrl+C` 按键
+- [ ] 2.3 更新 `web/src/components/SoftKeys.svelte`，在底部软键栏中加入回车键 `↵`（`\r`），并在浮动摇杆激活显示时从底部 `.soft-row` 动态移除重复的 `Esc`、`Tab`、`↵`、`Ctrl`、`↑`、`↓`、`←`、`→`、`Ctrl+C` 按键
 
 ## 3. 测试、文档与架构守卫校验
 

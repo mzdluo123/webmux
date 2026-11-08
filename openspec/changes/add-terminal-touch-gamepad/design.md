@@ -19,7 +19,7 @@
 - 严格绑定控制端门禁：仅当 `touchGamepad.enabled && t.controlling && t.connection !== "missing" && t.exitCode === null && visible` 时渲染浮动摇杆层 `TouchGamepad.svelte` 并精简底部滚动栏。
 - 设计符合 WebMux 设计系统（`webmux-ui` / `frontend-architecture.md`）的半透明浮层按钮（在 `ui/button` 中提供专用的半透明浮层样式，遵守 `shadcn/no-restyle` 契约），使下方终端字符依然清晰可辨。
 - 支持十字方向盘滑动手势（按住向 `↑`、`↓`、`←`、`→` 方向滑动或长按连发）以及退格键长按连发，同时保证未触碰按钮的空白区域完全穿透（`pointer-events-none`），不影响 `.terminal-host` 的触摸滚动与长按选词。
-- 当浮动摇杆激活显示时，从底部 `SoftKeys.svelte` 的 `.soft-row` 中动态移除 `Esc`、`Tab`、`Ctrl`、`↑`、`↓`、`←`、`→`、`Ctrl+C`，减少横向滚动长度。
+- 在底部 `SoftKeys.svelte` 与浮动摇杆 `TouchGamepad.svelte` 中均加入回车键 `↵`（`\r`）；当浮动摇杆激活显示时，从底部 `SoftKeys.svelte` 的 `.soft-row` 中动态移除 `Esc`、`Tab`、`↵`、`Ctrl`、`↑`、`↓`、`←`、`→`、`Ctrl+C`，减少横向滚动长度。
 
 **Non-Goals:**
 

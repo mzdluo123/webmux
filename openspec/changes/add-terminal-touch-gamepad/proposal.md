@@ -21,8 +21,9 @@
 - **触摸穿透与终端滚动互不干扰**：
   - 浮动控件容器本身设为 `pointer-events-none`，仅各独立按钮/摇杆响应指针事件并调用 `stopPropagation()` 与 `preventDefault()`（同时阻止兼容层 `mousedown` 夺取或丢失焦点）。
   - 手指未碰到这几个浮动按钮时，在终端任意位置（包括按钮之间的空隙）滑动，照常由底层 `attachTouchGestures` 处理终端滚屏与长按选词；手指按在方向盘或浮动键上滑动时，指针被该控件捕获，彻底屏蔽底层终端滚动。
-- **底部软键栏动态去重（`web/src/components/SoftKeys.svelte`）**：
-  - 当浮动摇杆模式处于激活显示状态时，自动从最底下的横向滚动栏（`.soft-row`）中移除已在浮动层提供的重复按键（`Esc`、`Tab`、`Ctrl`、`↑`、`↓`、`←`、`→`、`Ctrl+C`），使底部栏只保留键盘开关、粘贴、符号、剩余修饰键（`Alt`、`Shift`）、`Home`/`End`/`PgUp`/`PgDn` 及剩余组合键，大幅缩短横向滚动距离。
+- **底部软键栏加入回车键并动态去重（`web/src/components/SoftKeys.svelte`）**：
+  - 在底部软键栏（`SoftKeys.svelte`）中新增回车键 `↵`（`\r`），使传统底栏模式与浮动摇杆模式都具备回车键；
+  - 当浮动摇杆模式处于激活显示状态时，自动从最底下的横向滚动栏（`.soft-row`）中移除已在浮动层提供的重复按键（`Esc`、`Tab`、`↵`、`Ctrl`、`↑`、`↓`、`←`、`→`、`Ctrl+C`），使底部栏只保留键盘开关、粘贴、符号、剩余修饰键（`Alt`、`Shift`）、`Home`/`End`/`PgUp`/`PgDn` 及剩余组合键，大幅缩短横向滚动距离。
 
 ## Capabilities
 
