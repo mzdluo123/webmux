@@ -4,8 +4,8 @@
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconArrowRight from "~icons/tabler/arrow-right";
   import IconArrowUp from "~icons/tabler/arrow-up";
-  import IconBackspace from "~icons/tabler/backspace";
   import IconCornerDownLeft from "~icons/tabler/corner-down-left";
+  import IconSpace from "~icons/tabler/space";
   import { Button } from "$lib/components/ui/button";
 
   let {
@@ -34,7 +34,6 @@
   let repeatTimer: ReturnType<typeof setInterval> | undefined;
   let activePointerId = $state<number | null>(null);
   let activeDirection = $state<ArrowDirection | null>(null);
-  let activeBackspace = $state(false);
   let originX = 0;
   let originY = 0;
   let pointerHandled = false;
@@ -46,7 +45,6 @@
     repeatTimer = undefined;
     activePointerId = null;
     activeDirection = null;
-    activeBackspace = false;
   }
 
   function startRepeat(input: string) {
@@ -92,7 +90,6 @@
     pointerHandled = true;
     activePointerId = event.pointerId;
     activeDirection = direction;
-    activeBackspace = false;
     originX = event.clientX;
     originY = event.clientY;
     capturePointer(event.currentTarget, event.pointerId);
@@ -128,19 +125,6 @@
     event.stopPropagation();
     releasePointer(event.currentTarget, event.pointerId);
     stopRepeat();
-  }
-
-  function startBackspace(event: PointerEvent) {
-    if (event.button !== 0 && event.pointerType === "mouse") return;
-    oninteract?.();
-    event.preventDefault();
-    event.stopPropagation();
-    pointerHandled = true;
-    activePointerId = event.pointerId;
-    activeBackspace = true;
-    activeDirection = null;
-    capturePointer(event.currentTarget, event.pointerId);
-    startRepeat("\x7f");
   }
 
   function clickKey(input: string, event: MouseEvent) {
@@ -232,18 +216,17 @@
         variant="hud"
         size="icon-sm"
         class="w-full"
-        data-gamepad-key="backspace"
-        aria-label="退格"
-        title="退格（长按连发）"
-        aria-pressed={activeBackspace}
+        data-gamepad-key="space"
+        aria-label="空格"
+        title="空格（切换选择）"
         onmousedown={keepFocus}
-        onpointerdown={startBackspace}
-        onpointerup={endPointer}
-        onpointercancel={endPointer}
-        onlostpointercapture={stopRepeat}
-        onclick={(event) => clickKey("\x7f", event)}
+        onpointerdown={() => oninteract?.()}
+        onclick={(event) => {
+          event.stopPropagation();
+          send(" ");
+        }}
       >
-        <IconBackspace aria-hidden="true" />
+        <IconSpace aria-hidden="true" />
       </Button>
     </div>
     <div class="col-start-2 row-start-1">

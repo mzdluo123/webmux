@@ -56,6 +56,8 @@ test("touch gamepad renders only when enabled and controlling, supports slide-to
   expect(send).toHaveBeenCalledWith("\x03");
   key("enter").click();
   expect(send).toHaveBeenCalledWith("\r");
+  key("space").click();
+  expect(send).toHaveBeenCalledWith(" ");
 
   // Touching/scrolling the terminal host fades the gamepad into semi-transparent state.
   const host = document.querySelector<HTMLElement>(".terminal-host")!;
@@ -110,22 +112,23 @@ test("touch gamepad renders only when enabled and controlling, supports slide-to
     }),
   );
 
-  // Backspace hold auto-repeat.
+  // Hold auto-repeat on the D-Pad.
   send.mockClear();
-  const backspace = key("backspace");
-  backspace.dispatchEvent(
+  up.dispatchEvent(
     new PointerEvent("pointerdown", {
       bubbles: true,
       cancelable: true,
       pointerId: 2,
       button: 0,
+      clientX: 100,
+      clientY: 100,
     }),
   );
   expect(send).toHaveBeenCalledTimes(1);
-  expect(send).toHaveBeenLastCalledWith("\x7f");
+  expect(send).toHaveBeenLastCalledWith("\x1b[A");
   await new Promise((resolve) => setTimeout(resolve, 480));
   expect(send.mock.calls.length).toBeGreaterThanOrEqual(2);
-  backspace.dispatchEvent(
+  up.dispatchEvent(
     new PointerEvent("pointerup", {
       bubbles: true,
       cancelable: true,

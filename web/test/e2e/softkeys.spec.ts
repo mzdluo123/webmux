@@ -511,10 +511,10 @@ test("touch gamepad mode toggles in menu, shows only when controlling, deduplica
     await otherContext.close();
   }
 
-  // Verify floating keys send input (including Enter and Backspace).
+  // Verify floating keys send input (including Enter and Space).
   const received = await recordInput(page, workDir);
   await gamepad.getByRole("button", { name: "Esc", exact: true }).tap();
-  await gamepad.getByRole("button", { name: "退格", exact: true }).tap();
+  await gamepad.getByRole("button", { name: "空格", exact: true }).tap();
   await gamepad.getByRole("button", { name: "回车", exact: true }).tap();
-  await expect.poll(() => readFile(received, "utf8")).toBe("\x1b\x7f\r");
+  await expect.poll(() => readFile(received, "utf8")).toBe("\x1b \r");
 });
