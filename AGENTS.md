@@ -32,7 +32,7 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 
 - Go: follow [docs/go-style.md](docs/go-style.md) and add no lint warnings (`make go-lint`). Return contextual errors. Services report sentinel errors (for example `workspace.ErrConflict`); only `internal/api/errors.go` maps them to HTTP statuses.
 - Concurrency: protect state with existing locks and never hold them across blocking network or PTY operations. Shared output chunks stay immutable. Exit publication follows PTY drain and process cleanup. Preserve cancellation/deadlines for PTY writes and join spawned connection goroutines.
-- Execute commands as argv, not shell-expanded strings. Session creation takes either a saved launch `configId` or an explicit full `cmd`/`env`, never both. A new install seeds editable launch configs (`internal/launch/presets.go`); nothing is wrapped implicitly: loading `.bashrc` needs an explicit command such as `bash -ic 'exec -- "$@"' webmux opencode`.
+- Execute commands as argv, not shell-expanded strings. Session creation takes either a saved launch `configId` or an explicit full `cmd`/`env`, never both. A new install seeds editable launch configs (`internal/launch/presets.go`); loading `.bashrc` needs an explicit `/usr/bin/env bash -ic` wrapper.
 - Security: preserve authentication and Origin checks on API/WebSocket paths. Never log terminal input/output or expose tokens through configuration responses.
 - Frontend: Svelte 5 runes per [docs/frontend-style.md](docs/frontend-style.md) (`$state` only for rendered state, `$derived` for computed values, `$effect` only for side effects with cleanup, typed `$props()`, `onclick` not `on:`). TypeScript is strict. Oxfmt: 80 columns, two spaces, semicolons, trailing commas.
 - Validate HTTP responses, WebSocket JSON, and local settings with Zod before updating state; derive types with `z.infer`. Reuse `api.ts` and `ws.ts`; do not add parallel request or reconnect conventions. PTY data stays binary. Failures use `APIError`; HTTP 401 triggers `webmux:auth`.
@@ -40,7 +40,7 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 - Any visible UI change: follow the `webmux-ui` skill (`.agents/skills/webmux-ui/SKILL.md`).
 - Icons: Iconify with the `tabler` collection, bundled locally. Icon-only controls need an accessible name and a visible tooltip; decorative icons use `aria-hidden="true"` ([docs/design-system.md](docs/design-system.md#icons)).
 - Names: PascalCase Svelte components, camelCase TypeScript functions, `*Schema` Zod contracts, Playwright `*.spec.ts`; files per [naming](docs/agent-rules/naming.md) (kebab-case TS, snake_case Go).
-- Use pnpm (never npm, Yarn, or Bun) with the frozen lockfile. Go 1.26+, Node 26.12.1 (`.nvmrc`), GNU Make. Release builds use `CGO_ENABLED=0`.
+- Use pnpm (never npm, Yarn, or Bun) with the frozen lockfile. Go 1.26+, Node 26.13.0 (`.nvmrc`), GNU Make. Release builds use `CGO_ENABLED=0`.
 
 ## Testing
 
@@ -55,7 +55,7 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 - Deliver changes via a Pull Request from a dedicated branch off `origin/main` (use an isolated `git worktree` when the current checkout is on `main` or shared); never commit or push directly to `main` unless the user explicitly asks otherwise. Follow Conventional Commits (`feat(web): ...`, `fix: ...`).
 - Follow every PR until all CI checks and PR bot checks/reviews (including `pullfrog[bot]` feedback and `pullfrog-approval`) pass; fix CI failures and address or resolve bot review findings on the branch until all checks are green.
 - Once checks pass, leave the PR open for maintainer review and merge; do not merge unless the user explicitly asks you to.
-- PRs that change visible UI MUST embed screenshots of the final implementation (before/after, light/dark and desktop/mobile where relevant, on isolated demo data, with URLs reviewers can open). Details in [testing](docs/agent-rules/testing.md#ui-pull-request-evidence).
+- UI PRs MUST embed final screenshots and GIFs for interaction/motion changes (before/after, light/dark and desktop/mobile where relevant, on isolated demo data, with URLs reviewers can open). Details in [testing](docs/agent-rules/testing.md#ui-pull-request-evidence).
 
 ## Documentation and User Stories
 

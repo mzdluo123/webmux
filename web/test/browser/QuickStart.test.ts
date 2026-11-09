@@ -160,6 +160,51 @@ test("defaults skip what is unusable, and the first send goes in one request", a
   expect(localStorage.getItem("webmux.quick-start-draft")).toBeNull();
 });
 
+test("long option labels leave both ends of the startup toolbar reachable", async () => {
+  await page.viewport(667, 720);
+  try {
+    const longOptions = Array.from({ length: 4 }, (_, index) => ({
+      id: `model-${index}`,
+      name: `模型 ${index + 1}`,
+      category: "model",
+      type: "select" as const,
+      value: "default",
+      options: [
+        { value: "default", name: "Long Provider / High Capability Model" },
+        { value: "other", name: "Fast Model" },
+      ],
+    }));
+    respond(/^GET \/api\/launch-configs$/, () =>
+      Response.json([launchConfig({ chatOptions: longOptions })]),
+    );
+    respond(/^POST \/api\/launch-configs\/\w+\/options$/, () =>
+      Response.json(longOptions),
+    );
+    const { toolbar } = await open();
+    const agent = toolbar.getByRole("button", { name: "Agent：Claude Code" });
+    await expect.element(agent).toBeEnabled();
+    const row = toolbar.element();
+    expect(row.scrollWidth).toBeGreaterThan(row.clientWidth);
+    expect(agent.element().getBoundingClientRect().left).toBeGreaterThanOrEqual(
+      row.getBoundingClientRect().left,
+    );
+    await agent.click();
+    await expect
+      .element(page.getByRole("menuitemradio", { name: /Claude Code/ }))
+      .toBeVisible();
+    await userEvent.keyboard("{Escape}");
+
+    const last = toolbar.getByRole("button", { name: /^模型 4：/ });
+    await last.click();
+    expect(row.scrollLeft).toBeGreaterThan(0);
+    await expect
+      .element(page.getByRole("menuitemradio", { name: "Fast Model" }))
+      .toBeVisible();
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
 test("switching pages away from /new and back keeps all composer choices, attachments and text", async () => {
   StagingXHR.sent = [];
   vi.stubGlobal("XMLHttpRequest", StagingXHR);
@@ -645,6 +690,15 @@ test("narrow screens start compact and expand the composer when focused", async 
     await expect.element(initCheckbox).not.toBeVisible();
     await expect.element(uploadButton).not.toBeVisible();
     await expect
+      .element(
+        page.getByRole("button", {
+          name: "会话选项",
+          exact: true,
+          includeHidden: true,
+        }),
+      )
+      .not.toBeVisible();
+    await expect
       .element(page.getByRole("button", { name: "发送", exact: true }))
       .toBeVisible();
 
@@ -654,6 +708,22 @@ test("narrow screens start compact and expand the composer when focused", async 
       .toBeVisible();
     await expect.element(initCheckbox).toBeVisible();
     await expect.element(uploadButton).toBeVisible();
+    await expect
+      .element(
+        page.getByRole("toolbar", { name: "启动选项", includeHidden: true }),
+      )
+      .not.toBeVisible();
+    await page.getByRole("button", { name: "会话选项", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "会话选项", exact: true });
+    const effort = sheet.getByRole("combobox", { name: "思考", exact: true });
+    await expect.element(effort).toHaveValue("medium");
+    await userEvent.selectOptions(effort, "high");
+    await expect.element(effort).toHaveValue("high");
+    await sheet.getByRole("button", { name: "关闭选项", exact: true }).click();
+    await page.getByRole("button", { name: "会话选项", exact: true }).click();
+    await expect.element(effort).toHaveValue("high");
+    await userEvent.keyboard("{Escape}");
+    await input.click();
 
     // Blurring while empty returns to the compact bar.
     (input.element() as HTMLTextAreaElement).blur();

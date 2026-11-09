@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { paneEnter } from "../hooks/pane-enter";
   import { settings, changeSettings } from "../settings.svelte";
   import { errorMessage } from "../error";
   import { onMount, tick, untrack, type Snippet } from "svelte";
@@ -189,9 +190,6 @@
   // Loaded on first use; the type-only import keeps it out of this chunk.
   let CodePanel = $state<typeof CodePanelComponent>();
   let loadingCode = false;
-  // Fade a pane in as it is shown; hidden panes restart the animation.
-  const paneEnter =
-    "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300";
   // A hybrid session off its terminal side keeps xterm mounted but hidden.
   const terminalShown = () =>
     hybrid.view === "terminal" || hybrid.view === "recovery";
@@ -889,7 +887,8 @@
         </div>
         <!-- A hybrid session's panes fade in as a switch lands on them. -->
         <div
-          class={["min-h-0 flex-1", hybrid.known && paneEnter]}
+          class="min-h-0 flex-1"
+          use:paneEnter={hybrid.known && terminalShown()}
           hidden={!terminalShown()}
         >
           <TerminalViewport
@@ -932,8 +931,8 @@
             class={[
               "flex min-h-0 flex-1 flex-col",
               !documentScroll && "h-full overflow-hidden",
-              paneEnter,
             ]}
+            use:paneEnter={true}
           >
             <ChatView
               bind:this={chatView}

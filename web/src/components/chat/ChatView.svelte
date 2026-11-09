@@ -481,7 +481,7 @@
   <div
     bind:this={dock}
     data-chat-dock
-    class="relative mx-auto w-full max-w-3xl space-y-2 px-3 pb-safe-2 sm:px-4"
+    class="relative mx-auto w-full max-w-3xl space-y-2 px-3 pb-safe-2 sm:px-4 [@media(height<480px)]:max-h-full [@media(height<480px)]:overflow-y-auto"
   >
     {#if !stick && documentScroll}
       <div

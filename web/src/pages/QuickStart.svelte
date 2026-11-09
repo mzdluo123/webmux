@@ -515,7 +515,7 @@
           <div
             class={[
               "-my-1 flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto px-1 py-1 [scrollbar-width:none]",
-              compact && "max-sm:hidden",
+              compact && "composer-mobile:hidden",
             ]}
             role="toolbar"
             aria-label="仓库与分支"
@@ -590,7 +590,7 @@
             <div
               class={[
                 "flex items-center gap-2 border-b px-3 py-1",
-                compact && "max-sm:hidden",
+                compact && "composer-mobile:hidden",
               ]}
             >
               <Checkbox
@@ -686,7 +686,9 @@
           {:else if agent}
             <!-- Narrow screens keep the agent and its options in the card, as
                  the chat composer does; the row above keeps the location. -->
-            <span class="flex min-w-0 items-center gap-0.5 sm:hidden">
+            <span
+              class="hidden min-w-0 items-center gap-0.5 composer-mobile:flex"
+            >
               {@render agentPicker("hidden @md:inline")}
               {@render sidePicker("hidden @md:inline")}
               {#if chat}
@@ -735,11 +737,11 @@
         {#snippet below()}
           {#if agent}
             <div
-              class="-my-1 flex min-w-0 flex-nowrap items-center justify-end gap-0.5 overflow-x-auto px-1 py-1 [scrollbar-width:none] max-sm:hidden"
+              class="-my-1 flex min-w-0 items-center overflow-x-auto px-1 py-1 [scrollbar-width:none] composer-mobile:hidden"
               role="toolbar"
               aria-label="启动选项"
             >
-              <div class="flex shrink-0 items-center gap-0.5">
+              <div class="ms-auto flex shrink-0 items-center gap-0.5">
                 {@render agentPicker()}
                 {@render sidePicker()}
                 {#if chat}
