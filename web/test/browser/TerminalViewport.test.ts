@@ -18,14 +18,14 @@ test("touch gamepad renders only when enabled and controlling, supports slide-to
   });
 
   // Not controlling: gamepad is hidden and bottom row keeps full keys.
-  expect(document.querySelector('[aria-label="终端浮动摇杆"]')).toBeNull();
+  expect(document.querySelector('[aria-label="终端摇杆"]')).toBeNull();
   expect(
     [...document.querySelectorAll(".soft-row button")].some(
       (b) => b.textContent === "Esc",
     ),
   ).toBe(true);
 
-  // Claiming control reveals the semi-transparent gamepad and trims bottom soft keys.
+  // Claiming control adds the gamepad to the soft-key bar and trims duplicate keys.
   await view.rerender({
     connection: "connected",
     restoring: false,
@@ -35,10 +35,15 @@ test("touch gamepad renders only when enabled and controlling, supports slide-to
     toggle,
   });
   const gamepad = document.querySelector<HTMLElement>(
-    '[aria-label="终端浮动摇杆"]',
+    '[aria-label="终端摇杆"]',
   );
   expect(gamepad).not.toBeNull();
-  expect(gamepad!.classList.contains("pointer-events-none")).toBe(true);
+  expect(gamepad!.closest(".soft-keys")).not.toBeNull();
+  expect(getComputedStyle(gamepad!).position).toBe("static");
+  const terminalArea = document.querySelector(".terminal-area")!;
+  expect(gamepad!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+    terminalArea.getBoundingClientRect().bottom,
+  );
   expect(
     [...document.querySelectorAll(".soft-row button")].some(
       (b) => b.textContent === "Esc",
@@ -58,27 +63,6 @@ test("touch gamepad renders only when enabled and controlling, supports slide-to
   expect(send).toHaveBeenCalledWith("\r");
   key("space").click();
   expect(send).toHaveBeenCalledWith(" ");
-
-  // Touching/scrolling the terminal host fades the gamepad into semi-transparent state.
-  const host = document.querySelector<HTMLElement>(".terminal-host")!;
-  expect(gamepad!.getAttribute("data-faded")).toBeNull();
-  host.dispatchEvent(
-    new PointerEvent("pointerdown", {
-      bubbles: true,
-      cancelable: true,
-      pointerId: 10,
-    }),
-  );
-  await expect.poll(() => gamepad!.getAttribute("data-faded")).toBe("true");
-  // Touching a gamepad button immediately restores full HUD visibility.
-  key("esc").dispatchEvent(
-    new PointerEvent("pointerdown", {
-      bubbles: true,
-      cancelable: true,
-      pointerId: 11,
-    }),
-  );
-  await expect.poll(() => gamepad!.getAttribute("data-faded")).toBeNull();
 
   // Slide-to-steer on the D-Pad: press Up, then drag right past the threshold.
   send.mockClear();

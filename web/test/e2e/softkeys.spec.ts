@@ -407,6 +407,10 @@ test("desktop devices can force the soft-key toolbar on and off through the term
     name: "强制显示底部工具栏",
     exact: true,
   });
+  const gamepadToggle = page.getByRole("menuitemcheckbox", {
+    name: "软键盘摇杆模式",
+    exact: true,
+  });
   const input = page.locator(".xterm-helper-textarea");
   const keyboard = bar.getByRole("button", { name: "唤起或收起键盘" });
 
@@ -426,16 +430,23 @@ test("desktop devices can force the soft-key toolbar on and off through the term
   await expect(input).not.toBeFocused();
 
   await menu.click();
+  await gamepadToggle.click();
+  await page.keyboard.press("Escape");
+  const gamepad = bar.getByRole("toolbar", { name: "终端摇杆" });
+  await expect(gamepad).toBeVisible();
+
+  await menu.click();
   await expect(override).toBeChecked();
   await override.click();
   await page.keyboard.press("Escape");
   await expect(bar).toBeHidden();
+  await expect(gamepad).toBeHidden();
   await menu.click();
   await expect(override).not.toBeChecked();
   await page.keyboard.press("Escape");
 });
 
-test("touch gamepad mode toggles in menu, shows only when controlling, deduplicates bottom keys, and lets untouched terminal area scroll", async ({
+test("touch gamepad mode lays out inside the soft-key bar without covering the terminal, follows control, and deduplicates bottom keys", async ({
   page,
   browser,
   workDir,
@@ -446,7 +457,7 @@ test("touch gamepad mode toggles in menu, shows only when controlling, deduplica
   );
   const id = await createShell(page, "Touch gamepad", workDir);
   const bar = page.getByRole("complementary", { name: "终端软键" });
-  const gamepad = page.getByRole("toolbar", { name: "终端浮动摇杆" });
+  const gamepad = bar.getByRole("toolbar", { name: "终端摇杆" });
   const menu = page.getByRole("button", { name: "终端菜单", exact: true });
   const toggleItem = page.getByRole("menuitemcheckbox", {
     name: "软键盘摇杆模式",
@@ -469,8 +480,26 @@ test("touch gamepad mode toggles in menu, shows only when controlling, deduplica
   await expect(toggleItem).toBeChecked();
   await page.keyboard.press("Escape");
 
-  // Controlling client sees the semi-transparent gamepad and deduplicated bottom row.
+  // Controlling client sees the gamepad in the bar and a deduplicated key row.
   await expect(gamepad).toBeVisible();
+  const terminalBox = await page.locator(".terminal-area").boundingBox();
+  const gamepadBox = await gamepad.boundingBox();
+  const barBox = await bar.boundingBox();
+  expect(terminalBox).not.toBeNull();
+  expect(gamepadBox).not.toBeNull();
+  expect(barBox).not.toBeNull();
+  expect(gamepadBox!.y).toBeGreaterThanOrEqual(
+    terminalBox!.y + terminalBox!.height,
+  );
+  expect(gamepadBox!.y).toBeGreaterThanOrEqual(barBox!.y);
+  expect(gamepadBox!.y + gamepadBox!.height).toBeLessThanOrEqual(
+    barBox!.y + barBox!.height,
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
   for (const label of ["Esc", "Tab", "↵", "↑", "↓", "←", "→", "Ctrl+C"]) {
     await expect(
       bar
@@ -493,7 +522,7 @@ test("touch gamepad mode toggles in menu, shows only when controlling, deduplica
     await otherPage
       .getByRole("button", { name: "接管控制", exact: true })
       .click();
-    // Observer must not show the floating gamepad, and bottom row restores full keys.
+    // Observer must not show the gamepad, and bottom row restores full keys.
     await expect(
       page.getByRole("button", { name: "接管控制", exact: true }),
     ).toBeVisible();
@@ -504,14 +533,14 @@ test("touch gamepad mode toggles in menu, shows only when controlling, deduplica
         .getByRole("button", { name: "Esc", exact: true }),
     ).toBeVisible();
 
-    // Claiming control back restores the floating gamepad.
+    // Claiming control back restores the gamepad.
     await page.getByRole("button", { name: "接管控制", exact: true }).tap();
     await expect(gamepad).toBeVisible();
   } finally {
     await otherContext.close();
   }
 
-  // Verify floating keys send input (including Enter and Space).
+  // Verify gamepad keys send input (including Enter and Space).
   const received = await recordInput(page, workDir);
   await gamepad.getByRole("button", { name: "Esc", exact: true }).tap();
   await gamepad.getByRole("button", { name: "空格", exact: true }).tap();

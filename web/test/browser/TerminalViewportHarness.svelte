@@ -47,7 +47,10 @@
 {#snippet quickMenu()}<span></span>{/snippet}
 {#snippet draftToggle()}<span></span>{/snippet}
 
-<div style="position: relative; width: 400px; height: 200px">
+<div
+  class="session-terminal force-soft-keys"
+  style="position: relative; width: 400px; height: 200px"
+>
   <TerminalViewport
     {terminal}
     visible
