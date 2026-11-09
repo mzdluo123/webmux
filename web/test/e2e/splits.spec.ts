@@ -242,7 +242,7 @@ test("existing sessions can join a split and missing panes can be dismissed", as
   const id = await createShell(page, "Anchor", workDir);
   const response = await request.post("/api/sessions", {
     data: {
-      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+      cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
       cwd: workDir,
       name: "Existing agent",
     },
@@ -285,7 +285,7 @@ test("返回列表 in a split leaves only its own pane", async ({
   const id = await createShell(page, "Anchor", workDir);
   const created = await request.post("/api/sessions", {
     data: {
-      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+      cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
       cwd: workDir,
       name: "Gone soon",
     },

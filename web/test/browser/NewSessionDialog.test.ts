@@ -564,12 +564,12 @@ test("an unavailable store explains why and still allows a custom command", asyn
     .element(page.getByText(/启动配置暂不可用：.*launch-configs\.json/))
     .toBeVisible();
   await option("自定义命令…").click();
-  await command().fill("/bin/bash --noprofile --norc -i");
+  await command().fill("/usr/bin/env bash --noprofile --norc -i");
   await submit().click();
   await vi.waitFor(() => expect(created).toHaveLength(1));
   expect(created[0]).toEqual({
     cwd: "/work",
-    cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+    cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
     name: "",
   });
 });

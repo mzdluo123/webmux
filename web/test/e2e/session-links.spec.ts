@@ -21,7 +21,7 @@ test("session links open the terminal in this tab without reloading", async ({
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
-      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+      cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
       name,
     },
   });
@@ -82,7 +82,7 @@ test("Home Screen session links keep authenticated navigation inside the app", a
       headers: { Authorization: `Bearer ${token}` },
       data: {
         cwd: server.workDir,
-        cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+        cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
         name: "Home Screen shell",
       },
     });

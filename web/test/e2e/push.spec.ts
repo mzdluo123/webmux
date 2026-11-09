@@ -153,7 +153,7 @@ test("the service worker shows a pushed alert and opens its session", async ({
     "Headless Chromium on macOS never lists the worker's notification.",
   );
   const created = await request.post("/api/sessions", {
-    data: { cmd: ["/bin/bash", "--noprofile", "--norc", "-i"] },
+    data: { cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"] },
   });
   const sessionId = ((await created.json()) as { session: { id: string } })
     .session.id;

@@ -17,7 +17,7 @@ test("workspace UI audit: touch targets, overflow and session discovery", async 
     const response = await request.post("/api/sessions", {
       data: {
         cwd: workDir,
-        cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+        cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
         name,
       },
     });

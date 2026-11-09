@@ -23,7 +23,7 @@ test("agent attention survives spinner output and clears on user input", async (
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
-      cmd: ["/bin/bash", "-c", agent],
+      cmd: ["/usr/bin/env", "bash", "-c", agent],
       name: "E2E agent",
     },
   });
@@ -97,7 +97,7 @@ test("opening a session does not clear attention through terminal replies", asyn
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
-      cmd: ["/bin/bash", "-c", queryingAgent],
+      cmd: ["/usr/bin/env", "bash", "-c", queryingAgent],
       name: "E2E querying agent",
     },
   });
@@ -156,7 +156,7 @@ test("program status reports drive attention and status", async ({
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
-      cmd: ["/bin/bash", "-c", statusAgent],
+      cmd: ["/usr/bin/env", "bash", "-c", statusAgent],
       name: "E2E status agent",
     },
   });
@@ -225,7 +225,7 @@ test("structured agents do not trigger the waiting heuristics", async ({
     const created = await request.post("/api/sessions", {
       data: {
         cwd: workDir,
-        cmd: ["/bin/bash", "-c", promptLike(structured)],
+        cmd: ["/usr/bin/env", "bash", "-c", promptLike(structured)],
         name: structured ? "E2E structured" : "E2E plain",
       },
     });
@@ -265,7 +265,7 @@ test("raises a top-right toast by default while browsing and navigates to the se
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
-      cmd: ["/bin/bash", "-c", delayedQuestionAgent],
+      cmd: ["/usr/bin/env", "bash", "-c", delayedQuestionAgent],
       name: "E2E toast agent",
     },
   });

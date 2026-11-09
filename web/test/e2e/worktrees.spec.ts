@@ -79,7 +79,7 @@ async function createTree(page: Page, branch: string, name: string) {
   const path = await page
     .getByLabel("新工作树完整路径", { exact: true })
     .inputValue();
-  await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
+  await useCustomCommand(page, "/usr/bin/env bash --noprofile --norc -i");
   await nameSession(page, name);
   await expect(branchInput).toHaveValue(branch);
   await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
@@ -122,7 +122,7 @@ test("repository → two worktrees → shared PTYs → guarded force removal ret
   await alphaGroup
     .getByRole("button", { name: "新建会话", exact: true })
     .click();
-  await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
+  await useCustomCommand(page, "/usr/bin/env bash --noprofile --norc -i");
   await nameSession(page, "Alpha helper");
   await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
   await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
@@ -222,7 +222,7 @@ test("failed agent start retains new worktree and retry does not create again; u
   ).toBeVisible();
   await page
     .getByLabel("自定义启动命令", { exact: true })
-    .fill("/bin/bash --noprofile --norc -i");
+    .fill("/usr/bin/env bash --noprofile --norc -i");
   await nameSession(page, "Retained shell");
   await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
   await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
@@ -286,7 +286,7 @@ test("external changes refresh and restart retains registry but not sessions", a
       await request.post("/api/sessions", {
         data: {
           cwd: external,
-          cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+          cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
         },
       })
     ).json()
@@ -332,7 +332,7 @@ test("without Git an isolated real service still starts and runs a direct shell"
       .getByRole("button", { name: "＋ 新建会话", exact: true })
       .first()
       .click();
-    await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
+    await useCustomCommand(page, "/usr/bin/env bash --noprofile --norc -i");
     await page
       .getByRole("button", { name: "创建并进入 →", exact: true })
       .click();
@@ -370,7 +370,11 @@ test("multiple repositories keep every session visible through local failure, co
     [workDir, "Direct shell"],
   ]) {
     const response = await request.post("/api/sessions", {
-      data: { cwd, cmd: ["/bin/bash", "--noprofile", "--norc", "-i"], name },
+      data: {
+        cwd,
+        cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
+        name,
+      },
     });
     expect(response.status()).toBe(201);
     entries.push((await response.json()).session);
@@ -562,7 +566,7 @@ test("existing branch creation, safe removal and stale destructive confirmation 
       await request.post("/api/sessions", {
         data: {
           cwd: path,
-          cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+          cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
           name: "New arrival",
         },
       })
@@ -716,7 +720,7 @@ test("direct launch still offers explicit directory creation without registering
     .first()
     .click();
   await useDirectory(page, path);
-  await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
+  await useCustomCommand(page, "/usr/bin/env bash --noprofile --norc -i");
   await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page

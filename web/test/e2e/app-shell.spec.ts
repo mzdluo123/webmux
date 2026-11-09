@@ -73,7 +73,7 @@ test.describe("desktop sidebar", () => {
     await page.setViewportSize({ width: 1280, height: 720 });
     const id = await shell(request, "Columns", {
       cwd: workDir,
-      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+      cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
     });
     await page.goto(`/s/${id}`);
     await expectConnected(page);

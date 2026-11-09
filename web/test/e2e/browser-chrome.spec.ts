@@ -23,7 +23,7 @@ test("a running session animates the tab chrome until it exits", async ({
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
-      cmd: ["/bin/bash", "-c", producer],
+      cmd: ["/usr/bin/env", "bash", "-c", producer],
       name: "E2E chrome",
     },
   });
@@ -71,7 +71,7 @@ test("reduced motion keeps a static running marker", async ({
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
-      cmd: ["/bin/bash", "-c", producer],
+      cmd: ["/usr/bin/env", "bash", "-c", producer],
       name: "E2E chrome reduced",
     },
   });

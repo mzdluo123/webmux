@@ -204,7 +204,7 @@ test("preset menu marks existing configs and restores one or all missing presets
     {
       name: "Shell",
       icon: "terminal",
-      cmd: ["/bin/bash", "-l", "-i"],
+      cmd: ["/usr/bin/env", "bash", "-l", "-i"],
       envNames: [],
       chatOptions: [],
       chat: false,

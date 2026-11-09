@@ -105,7 +105,7 @@ test("4x CPU: background output and status updates do not move session cards", a
         name,
         cwd: workDir,
         cmd: [
-          "/bin/bash",
+          "/usr/bin/env bash",
           "-c",
           name === "background-output"
             ? "sleep 4; printf 'one\\ntwo\\nthree\\nfour\\n'; sleep 2"
@@ -261,7 +261,7 @@ test("4x CPU: delayed repository discovery and Git refresh stay stable", async (
   const [repository] = await (await request.get("/api/repositories")).json();
   const created = await request.post("/api/sessions", {
     data: {
-      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+      cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
       name: "Repository CPU 4x",
       workspace: {
         repositoryId: repository.id,
@@ -295,7 +295,7 @@ test("4x CPU: a stalled repository request cannot block existing terminals", asy
 }, testInfo) => {
   const created = await request.post("/api/sessions", {
     data: {
-      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+      cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
       name: "Always reachable",
       cwd: workDir,
     },
