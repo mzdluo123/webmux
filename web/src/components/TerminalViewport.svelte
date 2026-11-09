@@ -87,6 +87,21 @@
     !hasTouchInput() && matchMedia("(pointer: fine)").matches;
 </script>
 
+{#snippet gamepadToggle()}
+  <Button
+    variant="ghost"
+    size="icon-sm"
+    aria-label={gamepadToggleLabel}
+    title={gamepadToggleLabel}
+    aria-expanded={gamepadActive}
+    disabled={!gamepadAvailable}
+    onmousedown={(event) => event.preventDefault()}
+    onclick={() => setTouchGamepad(!touchGamepad)}
+  >
+    <IconDeviceGamepad2 aria-hidden="true" />
+  </Button>
+{/snippet}
+
 <div class="terminal-column">
   <div class="terminal-area">
     <div
@@ -153,6 +168,7 @@
     modifiers={t.modifiers}
     locked={t.shiftLocked}
     gamepad={gamepadActive}
+    {gamepadToggle}
     {toggle}
     {lock}
     paste={() => {
@@ -161,18 +177,6 @@
     {keyboard}
   >
     {#snippet trailing()}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={gamepadToggleLabel}
-        title={gamepadToggleLabel}
-        aria-expanded={gamepadActive}
-        disabled={!gamepadAvailable}
-        onmousedown={(event) => event.preventDefault()}
-        onclick={() => setTouchGamepad(!touchGamepad)}
-      >
-        <IconDeviceGamepad2 aria-hidden="true" />
-      </Button>
       {@render draftToggle()}{@render quickMenu("top", "icon-sm", "ghost")}
     {/snippet}
   </SoftKeys>

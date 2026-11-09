@@ -18,6 +18,7 @@
     lock = () => {},
     paste,
     keyboard,
+    gamepadToggle,
     trailing,
   }: {
     send: (input: string) => void;
@@ -28,6 +29,7 @@
     lock?: (key: "shift") => void;
     paste: () => void;
     keyboard: () => void;
+    gamepadToggle?: Snippet;
     trailing?: Snippet;
   } = $props();
   const symbols = ["/", "@", "#", "!"] as const;
@@ -118,6 +120,7 @@
         onmousedown={keepFocus}
         onclick={paste}><IconClipboard aria-hidden="true" /></Button
       >
+      {@render gamepadToggle?.()}
       {#each symbols as symbol (symbol)}
         <Button
           variant="ghost"

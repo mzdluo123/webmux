@@ -138,6 +138,8 @@ test("soft-key action expands and collapses the gamepad", async () => {
   });
 
   const expand = page.getByRole("button", { name: "展开摇杆" });
+  expect(expand.element().closest(".soft-row")).not.toBeNull();
+  expect(expand.element().closest(".soft-trailing")).toBeNull();
   await expect.element(expand).toHaveAttribute("aria-expanded", "false");
   await expand.click();
   expect(setTouchGamepad).toHaveBeenCalledWith(true);

@@ -28,8 +28,13 @@ test("mobile soft keys stay in one row with paste visible and all keys reachable
   const paste = bar.getByRole("button", { name: "粘贴", exact: true });
   const keyboard = bar.getByRole("button", { name: "唤起或收起键盘" });
   const quick = bar.getByRole("button", { name: "快捷指令", exact: true });
+  const gamepadToggle = bar.getByRole("button", {
+    name: "展开摇杆",
+    exact: true,
+  });
   for (const width of [320, 390, 844]) {
     await page.setViewportSize({ width, height: 844 });
+    await expect(gamepadToggle).toBeInViewport({ ratio: 1 });
     await expect(paste).toBeInViewport({ ratio: 1 });
     await expect(keyboard).toBeInViewport({ ratio: 1 });
     await expect(quick).toBeInViewport({ ratio: 1 });
@@ -478,6 +483,12 @@ test("touch gamepad mode lays out inside the soft-key bar without covering the t
 
   // Controlling client sees the gamepad in the bar and a deduplicated key row.
   await expect(gamepad).toBeVisible();
+  for (const button of await bar.locator(".soft-trailing button").all()) {
+    await expect(button).toBeInViewport({ ratio: 1 });
+  }
+  for (const button of await gamepad.getByRole("button").all()) {
+    await expect(button).toBeInViewport({ ratio: 1 });
+  }
   const terminalBox = await page.locator(".terminal-area").boundingBox();
   const gamepadBox = await gamepad.boundingBox();
   const barBox = await bar.boundingBox();
