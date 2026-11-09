@@ -44,6 +44,10 @@ test("touch gamepad renders only when enabled and controlling, supports slide-to
   expect(gamepad!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
     terminalArea.getBoundingClientRect().bottom,
   );
+  for (const group of gamepad!.children) {
+    expect(getComputedStyle(group).borderTopWidth).toBe("0px");
+    expect(getComputedStyle(group).boxShadow).toBe("none");
+  }
   expect(
     [...document.querySelectorAll(".soft-row button")].some(
       (b) => b.textContent === "Esc",

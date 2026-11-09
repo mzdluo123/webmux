@@ -136,9 +136,7 @@
   role="toolbar"
   aria-label="终端摇杆"
 >
-  <div
-    class="border-foreground/20 bg-background/55 grid grid-cols-2 gap-1.5 rounded-lg border p-1.5 shadow-md backdrop-blur-md"
-  >
+  <div class="grid grid-cols-2 gap-1.5">
     <Button
       variant="hud"
       size="sm"
@@ -192,9 +190,7 @@
     </Button>
   </div>
 
-  <div
-    class="border-foreground/20 bg-background/55 grid grid-cols-3 gap-1.5 rounded-lg border p-1.5 shadow-md backdrop-blur-md"
-  >
+  <div class="grid grid-cols-3 gap-1.5">
     <div class="col-start-1 row-start-1">
       <Button
         variant="hud"
