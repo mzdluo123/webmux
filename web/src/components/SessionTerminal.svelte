@@ -809,8 +809,6 @@
     {setSizeLocked}
     keyboardSizeHold={keyboardSizeHold.enabled}
     {setKeyboardSizeHold}
-    touchGamepad={touchGamepad.enabled}
-    {setTouchGamepad}
     bind:codeShown
     bind:forceSoftKeys={
       () => forceSoftKeys, (value) => changeSettings({ forceSoftKeys: value })
@@ -897,6 +895,7 @@
             visible={terminalVisible()}
             sizeLocked={sizeLocked || keyboardHeld}
             touchGamepad={touchGamepad.enabled}
+            {setTouchGamepad}
             {findOpen}
             {uploads}
             {quickMenu}

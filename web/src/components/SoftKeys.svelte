@@ -5,7 +5,9 @@
   import IconLock from "~icons/tabler/lock";
   import { Button } from "$lib/components/ui/button";
   import { Separator } from "$lib/components/ui/separator";
+  import { createLongPress } from "../hooks/long-press";
   import type { Modifiers } from "../input";
+  import TouchGamepad from "./TouchGamepad.svelte";
 
   let {
     send,
@@ -16,6 +18,7 @@
     lock = () => {},
     paste,
     keyboard,
+    gamepadToggle,
     trailing,
   }: {
     send: (input: string) => void;
@@ -26,6 +29,7 @@
     lock?: (key: "shift") => void;
     paste: () => void;
     keyboard: () => void;
+    gamepadToggle?: Snippet;
     trailing?: Snippet;
   } = $props();
   const symbols = ["/", "@", "#", "!"] as const;
@@ -66,41 +70,22 @@
   const shiftTitle = $derived(
     locked ? "已锁定，点按解除" : "点按一次性，长按锁定",
   );
-  const longPressMs = 500;
-  const moveTolerance = 8;
-  let holdTimer: ReturnType<typeof setTimeout> | undefined;
-  let holdOrigin: { x: number; y: number } | undefined;
+  const shiftHold = createLongPress();
   // A long press locks Shift; the click that follows the release must not
   // toggle it back off.
   let held = false;
   function startHold(key: keyof Modifiers, event: PointerEvent) {
     if (key !== "shift") return;
     held = false;
-    clearTimeout(holdTimer);
-    holdOrigin = { x: event.clientX, y: event.clientY };
-    holdTimer = setTimeout(() => {
-      holdTimer = undefined;
+    shiftHold.start(event, () => {
       held = true;
       lock("shift");
-    }, longPressMs);
-  }
-  // A press that turns into a horizontal scroll of the soft-key row is not a
-  // long press. Mirror the touch-selection movement tolerance.
-  function moveHold(event: PointerEvent) {
-    if (!holdOrigin) return;
-    if (
-      Math.hypot(event.clientX - holdOrigin.x, event.clientY - holdOrigin.y) >=
-      moveTolerance
-    )
-      stopHold("shift");
+    });
   }
   function stopHold(key: keyof Modifiers) {
-    if (key !== "shift") return;
-    clearTimeout(holdTimer);
-    holdTimer = undefined;
-    holdOrigin = undefined;
+    if (key === "shift") shiftHold.cancel();
   }
-  onDestroy(() => clearTimeout(holdTimer));
+  onDestroy(shiftHold.cancel);
   // iOS Safari drops the active element on pointerdown even when the event is
   // canceled if the element has a click handler, so cancel the compatibility
   // mousedown instead. Canceling pointerdown would suppress that mousedown and
@@ -116,78 +101,82 @@
   >{/snippet}
 
 <aside class="soft-keys shrink-0 border-t bg-card" aria-label="终端软键">
-  <div class="soft-row">
-    <Button
-      variant="ghost"
-      size="sm"
-      aria-label="唤起或收起键盘"
-      title="唤起或收起键盘"
-      onmousedown={keepFocus}
-      onclick={keyboard}><IconKeyboard aria-hidden="true" /></Button
-    >
-    <Button
-      variant="ghost"
-      size="sm"
-      aria-label="粘贴"
-      title="粘贴"
-      onmousedown={keepFocus}
-      onclick={paste}><IconClipboard aria-hidden="true" /></Button
-    >
-    {#each symbols as symbol (symbol)}
+  {#if gamepad}<TouchGamepad {send} />{/if}
+  <div class="soft-keys-main">
+    <div class="soft-row">
       <Button
         variant="ghost"
         size="sm"
+        aria-label="唤起或收起键盘"
+        title="唤起或收起键盘"
         onmousedown={keepFocus}
-        onclick={() => send(symbol)}>{symbol}</Button
+        onclick={keyboard}><IconKeyboard aria-hidden="true" /></Button
       >
-    {/each}
-    {#if !gamepad}
-      {#each leadingKeys as [label, input] (label)}{@render sendKey(
-          label,
-          input,
-        )}{/each}
-    {/if}
-    {#each modifierKeys as [key, label] (key)}
       <Button
         variant="ghost"
         size="sm"
-        aria-pressed={modifiers[key]}
-        title={key === "shift" ? shiftTitle : undefined}
+        aria-label="粘贴"
+        title="粘贴"
         onmousedown={keepFocus}
-        onpointerdown={(event) => startHold(key, event)}
-        onpointermove={moveHold}
-        onpointerup={() => stopHold(key)}
-        onpointercancel={() => stopHold(key)}
-        onpointerleave={() => stopHold(key)}
-        onclick={() => {
-          if (key === "shift" && held) {
-            held = false;
-            return;
-          }
-          toggle(key);
-        }}
-        >{label}{#if key === "shift" && locked}<IconLock
-            aria-hidden="true"
-          />{/if}</Button
+        onclick={paste}><IconClipboard aria-hidden="true" /></Button
       >
-    {/each}
-    {#if !gamepad}
-      {#each arrowKeys as [label, input] (label)}{@render sendKey(
+      {@render gamepadToggle?.()}
+      {#each symbols as symbol (symbol)}
+        <Button
+          variant="ghost"
+          size="sm"
+          onmousedown={keepFocus}
+          onclick={() => send(symbol)}>{symbol}</Button
+        >
+      {/each}
+      {#if !gamepad}
+        {#each leadingKeys as [label, input] (label)}{@render sendKey(
+            label,
+            input,
+          )}{/each}
+      {/if}
+      {#each modifierKeys as [key, label] (key)}
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-pressed={modifiers[key]}
+          title={key === "shift" ? shiftTitle : undefined}
+          onmousedown={keepFocus}
+          onpointerdown={(event) => startHold(key, event)}
+          onpointermove={shiftHold.move}
+          onpointerup={() => stopHold(key)}
+          onpointercancel={() => stopHold(key)}
+          onpointerleave={() => stopHold(key)}
+          onclick={() => {
+            if (key === "shift" && held) {
+              held = false;
+              return;
+            }
+            toggle(key);
+          }}
+          >{label}{#if key === "shift" && locked}<IconLock
+              aria-hidden="true"
+            />{/if}</Button
+        >
+      {/each}
+      {#if !gamepad}
+        {#each arrowKeys as [label, input] (label)}{@render sendKey(
+            label,
+            input,
+          )}{/each}
+      {/if}
+      {#each navigationKeys as [label, input] (label)}{@render sendKey(
           label,
           input,
         )}{/each}
+      {#each visibleCombinations as [label, input] (label)}{@render sendKey(
+          label,
+          input,
+        )}{/each}
+    </div>
+    {#if trailing}
+      <Separator orientation="vertical" class="mx-1.5 h-6 self-center" />
+      <div class="soft-trailing">{@render trailing()}</div>
     {/if}
-    {#each navigationKeys as [label, input] (label)}{@render sendKey(
-        label,
-        input,
-      )}{/each}
-    {#each visibleCombinations as [label, input] (label)}{@render sendKey(
-        label,
-        input,
-      )}{/each}
   </div>
-  {#if trailing}
-    <Separator orientation="vertical" class="mx-1.5 h-6 self-center" />
-    <div class="soft-trailing">{@render trailing()}</div>
-  {/if}
 </aside>
