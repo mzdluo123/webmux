@@ -62,3 +62,7 @@
   - 聚焦消息框或表单控件、打开底部工具栏弹层、打开代码栏、分屏、桌面宽度或切到终端视图时自动回退到固定壳层与内部容器滚动，并在焦点与失焦切换时同步 `window.scrollY` 与 `scroller.scrollTop` 以保持阅读位置，切回终端前先执行 `window.scrollTo(0, 0)` 再适配 `t.fit()`。
 - 依据：`capabilities.test.ts` 单元测试（18 项）、`ChatView.test.ts` 浏览器组件测试（25 项）与 Playwright `hybrid.spec.ts` 移动端端到端用例通过；`make check`、`pnpm --dir web check:arch` 与 `make docs-check` 通过；隔离演示数据下截取 390×844 手机与 1280×720 桌面、浅色与深色主题前后对比截图。
 - 限制：在 Chromium 移动模拟下验证文档滚动与焦点回退，iOS Safari / Android Chrome 原生工具栏收起动画仍需真机体验；未重新核验其余故事能力。
+  本次局部核对（2026-11-09）更新 US-L03 与覆盖索引。浏览器 UI 的 PR 须同时附桌面、平板和手机截图，修改已有界面时逐视口提供前后对比。
+
+- 核对三种截图尺寸与 Storybook 的现有视口设置一致，并检查故事编号唯一、两份索引引用和来源链接。
+- 文档门禁、`TestAgents`、修改文档的格式及空白检查通过。验证范围为文档规范与故事引用。
