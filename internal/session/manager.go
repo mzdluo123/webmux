@@ -50,9 +50,9 @@ type Options struct {
 	// PreLaunch, when set, runs once for every session about to start a
 	// command, with the resolved launch directory, the argv and the session's
 	// explicit environment. It prepares the command's surroundings (for
-	// example an agent's folder-trust record) and must not block for long or
-	// fail the launch.
-	PreLaunch func(cwd string, argv []string, env map[string]string)
+	// example an agent's folder-trust record) and returns the environment for
+	// the launch. It must not block for long or fail the launch.
+	PreLaunch func(cwd string, argv []string, env map[string]string) map[string]string
 }
 type Event struct {
 	Type     string
@@ -176,7 +176,7 @@ type CreateInput struct {
 // saved launch config the session came from, empty for an explicit command, so
 // clients can apply that config's display settings.
 func (m *Manager) Create(in CreateInput) (*Session, error) {
-	cwd, err := m.resolveCreate(in)
+	cwd, err := m.resolveCreate(&in)
 	if err != nil {
 		return nil, err
 	}
@@ -206,9 +206,9 @@ func (m *Manager) Create(in CreateInput) (*Session, error) {
 	return s, nil
 }
 
-// resolveCreate validates the shared create input and returns the launch
-// directory.
-func (m *Manager) resolveCreate(in CreateInput) (string, error) {
+// resolveCreate validates the shared create input, returns the launch
+// directory and lets the pre-launch hook update the input's environment.
+func (m *Manager) resolveCreate(in *CreateInput) (string, error) {
 	if m.initErr != nil {
 		return "", fmt.Errorf("process reaper: %w", m.initErr)
 	}
@@ -234,7 +234,7 @@ func (m *Manager) resolveCreate(in CreateInput) (string, error) {
 		return "", fmt.Errorf("%w: path is not a directory", ErrInvalid)
 	}
 	if m.options.PreLaunch != nil && len(in.Cmd) > 0 {
-		m.options.PreLaunch(cwd, slices.Clone(in.Cmd), maps.Clone(in.Env))
+		in.Env = m.options.PreLaunch(cwd, slices.Clone(in.Cmd), maps.Clone(in.Env))
 	}
 	return cwd, nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -55,6 +56,10 @@ func (s *Service) TerminalInput(ctx context.Context, shell *session.Session, in 
 }
 
 func terminalInput(ctx context.Context, shell *session.Session, in InputRequest) (InputResult, error) {
+	return terminalInputWithDelay(ctx, shell, in, 0)
+}
+
+func terminalInputWithDelay(ctx context.Context, shell *session.Session, in InputRequest, delay time.Duration) (InputResult, error) {
 	if len(in.Attachments) > 0 || in.Mode != "" {
 		return InputResult{}, fmt.Errorf("%w: 附件与 mode 只适用于聊天视图", ErrWrongSide)
 	}
@@ -64,7 +69,7 @@ func terminalInput(ctx context.Context, shell *session.Session, in InputRequest)
 		submit = []byte("\r")
 	}
 	if err := writeTerminal(ctx, shell, session.ServerInput{
-		RequestID: in.ClientRequestID, Label: in.Label, Body: body, Submit: submit, Keys: in.Keys,
+		RequestID: in.ClientRequestID, Label: in.Label, Body: body, Submit: submit, SubmitDelay: delay, Keys: in.Keys,
 	}); err != nil {
 		return InputResult{}, err
 	}
@@ -119,7 +124,7 @@ func (s *Service) Input(ctx context.Context, id string, in InputRequest) (InputR
 		return InputResult{}, err
 	}
 	if side == SideTUI {
-		return terminalInput(ctx, a.shell, in)
+		return terminalInputWithDelay(ctx, a.shell, in, agentprofile.SubmitDelay(a.cmd.Agent))
 	}
 	if len(in.Keys) > 0 {
 		return InputResult{}, fmt.Errorf("%w: 按键只适用于终端视图", ErrWrongSide)

@@ -21,7 +21,7 @@
 
 `agent` 的字段：
 
-- `name`：档案名，`opencode`、`omp`、`codex`、`claudecode`、`agy`、`qoder` 或 `qodercn`。
+- `name`：档案名，`opencode`、`omp`、`codex`、`claudecode`、`agy`、`qoder`、`qodercn` 或 `kimi`。
 - `title`：档案的显示名，如 `OpenCode`、`Claude Code`；会话卡片与聊天页头部用它标识 agent。
 - `icon`：档案的品牌图标键，取值属于启动配置的图标目录（如 omp 为 `pi`）；浏览器不认识时只显示 `title`。
 - `sessionId`：agent 自己的会话 ID；尚未得知时为 `null`。
@@ -112,6 +112,13 @@ Claude Code 在两种冷恢复后都重应用 `model` 与 `effort`。`mode` 采�
 Claude Code 的 ACP 进程无参数执行 `claude-agent-acp`，`initialize` 固定请求 ACP v1。未显式配置时，服务端注入 `CLAUDE_CODE_EXECUTABLE` 为 TUI 实际 `claude` 的绝对路径；两端复用同一服务用户、`HOME`、`CLAUDE_CONFIG_DIR` 与已有认证，不另传或记录凭据。
 
 连接器要求 Node.js 22+；安装命令跟随 `latest`，实测版本 0.99.1 与 Claude Code 2.1.316 只用于版本提示，不构成未来版本兼容保证。聊天命令隐藏 `login` 与 `logout`，认证失败仍走 `auth_required`。
+
+Kimi 直接以 `kimi acp` 启动，无第三方连接器，恢复 TUI 使用 `kimi --session <id>`。
+
+- 模型与 `thinking` 由 Kimi 跨 load/resume 保留，WebMux 只重应用 `mode`。
+- `Already in <mode> mode` 在目标模式一致时按幂等成功处理。
+- 文本与 Enter 在同一提交回执内分隔 200ms。
+- `agent_pretrust` 为会话注入进程级 `KIMI_CODE_TRUST_WORKSPACE=1`，不写持久信任配置。
 
 ## 聊天通道 `GET /ws/s/{id}/chat`
 

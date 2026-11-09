@@ -16,7 +16,7 @@ import (
 
 // SessionOptions converts the loaded configuration for session.NewManager.
 func SessionOptions(c config.Config) session.Options {
-	var preLaunch func(string, []string, map[string]string)
+	var preLaunch func(string, []string, map[string]string) map[string]string
 	if c.AgentPretrust {
 		preLaunch = agenttrust.New().Prepare
 	}
