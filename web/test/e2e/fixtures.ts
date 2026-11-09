@@ -306,7 +306,7 @@ export async function createShell(
     .getByRole("button", { name: "＋ 新建会话", exact: true })
     .first()
     .click();
-  await useCustomCommand(page, "/usr/bin/env bash --noprofile --norc -i");
+  await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
   if (cwd) await useDirectory(page, cwd);
   await nameSession(page, name);
   await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();

@@ -69,7 +69,7 @@ test("returning to the foreground appends missed output without a full replay", 
       cwd: workDir,
       name: "Resume",
       cmd: [
-        "/usr/bin/env bash",
+        "/bin/bash",
         "-c",
         "printf 'before-marker\\n'; while [ ! -e go ]; do sleep 0.05; done; printf 'after-marker\\n'; exec sleep 600",
       ],

@@ -49,7 +49,7 @@ for (const initialization of ["connected", "font-pending"] as const) {
     const created = await request.post("/api/sessions", {
       data: {
         cwd: workDir,
-        cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
+        cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
         name,
       },
     });
@@ -160,7 +160,7 @@ test("real shell output survives reload, then closes and is removed", async ({
     id,
     title: marker,
     cwd: workDir,
-    cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
+    cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
   });
 
   // The whole marker never occurs in the typed command: only executing printf

@@ -406,11 +406,7 @@ test("the hybrid checkbox follows the server's verdict for the edited command", 
   const requests = serve({
     "/api/launch-configs/abcdefg2": (method, body) =>
       method === "GET"
-        ? Response.json({
-            ...saved,
-            cmd: ["/usr/bin/env", "bash", "-l"],
-            env: {},
-          })
+        ? Response.json({ ...saved, cmd: ["/bin/bash", "-l"], env: {} })
         : Response.json({ ...saved, ...(body as object) }),
     "/api/launch-configs/chat-support": (_method, body) => {
       asked.push(body);

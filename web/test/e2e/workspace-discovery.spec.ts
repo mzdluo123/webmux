@@ -199,7 +199,7 @@ test("branch search reveals a collapsed repository and preserves its layout", as
   const repo = repositories[0];
   const created = await request.post("/api/sessions", {
     data: {
-      cmd: ["/usr/bin/env", "bash", "--noprofile", "--norc", "-i"],
+      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
       name: "Repository agent",
       workspace: { repositoryId: repo.id, worktreeId: repo.worktrees[0].id },
     },

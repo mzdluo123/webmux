@@ -30,7 +30,7 @@ async function createConfig(page: Page, name: string) {
   await dialog.getByLabel("名称", { exact: true }).fill(name);
   await dialog
     .getByLabel("启动命令", { exact: true })
-    .fill("/usr/bin/env bash --noprofile --norc -i");
+    .fill("/bin/bash --noprofile --norc -i");
   await dialog.getByRole("combobox", { name: "图标", exact: true }).click();
   await page.getByRole("option", { name: "Codex", exact: true }).click();
   await dialog
@@ -85,13 +85,7 @@ test("a saved launch config starts a session with its environment and survives r
   await runCommand(page, 'printf "VAR=%s\\n" "$E2E_LAUNCH_VAR"');
   await expectTerminalLine(page, `VAR=${secret}`);
   const info = await (await request.get(`/api/sessions/${id}`)).json();
-  expect(info.cmd).toEqual([
-    "/usr/bin/env",
-    "bash",
-    "--noprofile",
-    "--norc",
-    "-i",
-  ]);
+  expect(info.cmd).toEqual(["/bin/bash", "--noprofile", "--norc", "-i"]);
 
   // Deleting the config leaves the running session alone.
   await page.goto("/settings#launch-configs");
@@ -120,7 +114,7 @@ test("saved preview changes and global fallbacks apply to an existing session", 
   workDir,
 }) => {
   const command = [
-    "/usr/bin/env bash",
+    "/bin/bash",
     "--noprofile",
     "--norc",
     "-c",
@@ -210,7 +204,7 @@ test("configs persist across a settings reload and remain selectable alongside m
   const select = page.getByRole("button", { name: "运行", exact: true });
   await expect(select).toContainText("E2E persisted");
   await expect(select.locator('[data-launch-icon="codex"] svg')).toBeVisible();
-  await expect(select).toContainText("/usr/bin/env bash --noprofile --norc -i");
+  await expect(select).toContainText("/bin/bash --noprofile --norc -i");
   await select.click();
   await expect(
     page.getByRole("option", { name: /^E2E persisted/ }),

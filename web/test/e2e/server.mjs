@@ -102,11 +102,11 @@ export async function startE2EServer({
       HOME: home,
       XDG_CONFIG_HOME: join(home, ".config"),
       TMPDIR: root,
-      SHELL: "/usr/bin/env bash",
+      SHELL: "/bin/bash",
       LANG: "C.UTF-8",
       LC_ALL: "C.UTF-8",
       PS1: "webmux-e2e$ ",
-      // Apple's /usr/bin/env bash otherwise prints a zsh migration banner.
+      // Apple's /bin/bash otherwise prints a zsh migration banner.
       BASH_SILENCE_DEPRECATION_WARNING: "1",
       HISTFILE: "/dev/null",
       FAKEAGENT_STORE: join(root, "agent-sessions"),
