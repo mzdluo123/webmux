@@ -10,6 +10,7 @@
     touchGamepad = false,
     send = () => {},
     toggle = () => {},
+    setTouchGamepad = () => {},
   }: {
     connection?: Connection;
     restoring?: boolean;
@@ -18,6 +19,7 @@
     touchGamepad?: boolean;
     send?: (input: string) => void;
     toggle?: (key: "ctrl" | "alt" | "shift") => void;
+    setTouchGamepad?: (value: boolean) => void;
   } = $props();
 
   const terminal = {
@@ -55,6 +57,7 @@
     {terminal}
     visible
     {touchGamepad}
+    {setTouchGamepad}
     {uploads}
     {quickMenu}
     {draftToggle}

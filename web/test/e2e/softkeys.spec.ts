@@ -407,10 +407,6 @@ test("desktop devices can force the soft-key toolbar on and off through the term
     name: "强制显示底部工具栏",
     exact: true,
   });
-  const gamepadToggle = page.getByRole("menuitemcheckbox", {
-    name: "软键盘摇杆模式",
-    exact: true,
-  });
   const input = page.locator(".xterm-helper-textarea");
   const keyboard = bar.getByRole("button", { name: "唤起或收起键盘" });
 
@@ -429,11 +425,12 @@ test("desktop devices can force the soft-key toolbar on and off through the term
   await keyboard.click();
   await expect(input).not.toBeFocused();
 
-  await menu.click();
-  await gamepadToggle.click();
-  await page.keyboard.press("Escape");
+  await bar.getByRole("button", { name: "展开摇杆", exact: true }).click();
   const gamepad = bar.getByRole("toolbar", { name: "终端摇杆" });
   await expect(gamepad).toBeVisible();
+  await expect(
+    bar.getByRole("button", { name: "收起摇杆", exact: true }),
+  ).toHaveAttribute("aria-expanded", "true");
 
   await menu.click();
   await expect(override).toBeChecked();
@@ -458,9 +455,8 @@ test("touch gamepad mode lays out inside the soft-key bar without covering the t
   const id = await createShell(page, "Touch gamepad", workDir);
   const bar = page.getByRole("complementary", { name: "终端软键" });
   const gamepad = bar.getByRole("toolbar", { name: "终端摇杆" });
-  const menu = page.getByRole("button", { name: "终端菜单", exact: true });
-  const toggleItem = page.getByRole("menuitemcheckbox", {
-    name: "软键盘摇杆模式",
+  const gamepadToggle = bar.getByRole("button", {
+    name: "展开摇杆",
     exact: true,
   });
 
@@ -473,12 +469,12 @@ test("touch gamepad mode lays out inside the soft-key bar without covering the t
     bar.getByRole("button", { name: "↵", exact: true }),
   ).toBeVisible();
 
-  // Enable touch gamepad mode via terminal menu.
-  await menu.tap();
-  await expect(toggleItem).not.toBeChecked();
-  await toggleItem.tap();
-  await expect(toggleItem).toBeChecked();
-  await page.keyboard.press("Escape");
+  // Expand the gamepad from the fixed soft-key action.
+  await expect(gamepadToggle).toHaveAttribute("aria-expanded", "false");
+  await gamepadToggle.tap();
+  await expect(
+    bar.getByRole("button", { name: "收起摇杆", exact: true }),
+  ).toHaveAttribute("aria-expanded", "true");
 
   // Controlling client sees the gamepad in the bar and a deduplicated key row.
   await expect(gamepad).toBeVisible();
@@ -546,4 +542,10 @@ test("touch gamepad mode lays out inside the soft-key bar without covering the t
   await gamepad.getByRole("button", { name: "空格", exact: true }).tap();
   await gamepad.getByRole("button", { name: "回车", exact: true }).tap();
   await expect.poll(() => readFile(received, "utf8")).toBe("\x1b \r");
+
+  await bar.getByRole("button", { name: "收起摇杆", exact: true }).tap();
+  await expect(gamepad).toBeHidden();
+  await expect(
+    bar.locator(".soft-row").getByRole("button", { name: "Esc", exact: true }),
+  ).toBeVisible();
 });

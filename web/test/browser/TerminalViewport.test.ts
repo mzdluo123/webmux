@@ -19,6 +19,9 @@ test("touch gamepad renders only when enabled and controlling, supports slide-to
 
   // Not controlling: gamepad is hidden and bottom row keeps full keys.
   expect(document.querySelector('[aria-label="终端摇杆"]')).toBeNull();
+  await expect
+    .element(page.getByRole("button", { name: "展开摇杆" }))
+    .toBeDisabled();
   expect(
     [...document.querySelectorAll(".soft-row button")].some(
       (b) => b.textContent === "Esc",
@@ -123,6 +126,32 @@ test("touch gamepad renders only when enabled and controlling, supports slide-to
       pointerId: 2,
     }),
   );
+});
+
+test("soft-key action expands and collapses the gamepad", async () => {
+  const setTouchGamepad = vi.fn();
+  const view = await render(Harness, {
+    connection: "connected",
+    controlling: true,
+    touchGamepad: false,
+    setTouchGamepad,
+  });
+
+  const expand = page.getByRole("button", { name: "展开摇杆" });
+  await expect.element(expand).toHaveAttribute("aria-expanded", "false");
+  await expand.click();
+  expect(setTouchGamepad).toHaveBeenCalledWith(true);
+
+  await view.rerender({
+    connection: "connected",
+    controlling: true,
+    touchGamepad: true,
+    setTouchGamepad,
+  });
+  const collapse = page.getByRole("button", { name: "收起摇杆" });
+  await expect.element(collapse).toHaveAttribute("aria-expanded", "true");
+  await collapse.click();
+  expect(setTouchGamepad).toHaveBeenCalledWith(false);
 });
 
 test.each(["connecting", "reconnecting"] as const)(

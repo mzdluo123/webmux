@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import IconArrowDown from "~icons/tabler/arrow-down";
+  import IconDeviceGamepad2 from "~icons/tabler/device-gamepad-2";
   import {
     Button,
     type ButtonSize,
@@ -45,6 +46,7 @@
     paste,
     keyboard,
     touchGamepad = false,
+    setTouchGamepad,
     findOpen = false,
     findBar,
   }: {
@@ -64,17 +66,19 @@
     paste: () => Promise<void>;
     keyboard: () => void;
     touchGamepad?: boolean;
+    setTouchGamepad: (value: boolean) => void;
     findOpen?: boolean;
     findBar?: Snippet;
   } = $props();
 
-  const gamepadActive = $derived(
-    touchGamepad &&
-      t.controlling === true &&
+  const gamepadAvailable = $derived(
+    t.controlling === true &&
       t.connection !== "missing" &&
       (t.exitCode === null || t.exitCode === undefined) &&
       visible,
   );
+  const gamepadActive = $derived(touchGamepad && gamepadAvailable);
+  const gamepadToggleLabel = $derived(gamepadActive ? "收起摇杆" : "展开摇杆");
 
   // Keep the hint off touch screens, including hybrids whose secondary pointer
   // is coarse, and mirror the platform's actual copy shortcut.
@@ -156,10 +160,20 @@
     }}
     {keyboard}
   >
-    {#snippet trailing()}{@render draftToggle()}{@render quickMenu(
-        "top",
-        "icon-sm",
-        "ghost",
-      )}{/snippet}
+    {#snippet trailing()}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={gamepadToggleLabel}
+        title={gamepadToggleLabel}
+        aria-expanded={gamepadActive}
+        disabled={!gamepadAvailable}
+        onmousedown={(event) => event.preventDefault()}
+        onclick={() => setTouchGamepad(!touchGamepad)}
+      >
+        <IconDeviceGamepad2 aria-hidden="true" />
+      </Button>
+      {@render draftToggle()}{@render quickMenu("top", "icon-sm", "ghost")}
+    {/snippet}
   </SoftKeys>
 </div>
