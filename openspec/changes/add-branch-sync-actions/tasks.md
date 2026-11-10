@@ -1,6 +1,6 @@
 ## 0. 前置
 
-- [ ] 0.1 确认 `enrich-repository-details` 与 `add-repository-maintenance` 已归档：`Worktree.operation`、`Branch` 的上游字段、`remoteGit` 与 URL 脱敏函数已在主干上。完成标准：`openspec validate add-branch-sync-actions --strict` 通过，且不出现“Archive would refuse”提示。
+- [x] 0.1 确认 `enrich-repository-details` 与 `add-repository-maintenance` 已归档：`Worktree.operation`、`Branch` 的上游字段、`remoteGit` 与 URL 脱敏函数已在主干上。完成标准：`openspec validate add-branch-sync-actions --strict` 通过，且不出现“Archive would refuse”提示。
 
 ## 1. 快进（`internal/workspace`）
 
