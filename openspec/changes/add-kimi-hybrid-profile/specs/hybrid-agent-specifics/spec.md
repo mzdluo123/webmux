@@ -91,6 +91,11 @@ Kimi 在底层模式已经等于目标值时可能返回 `Already in <mode> mode
 - **WHEN** 重应用 `mode=plan` 时 Kimi 返回 `Already in plan mode`，但配置字段仍为 `default`
 - **THEN** 系统按成功处理并在聊天视图显示 `mode=plan`，不提示恢复失败
 
+#### Scenario: 手动选择已生效的模式
+
+- **WHEN** 用户手动设置 `mode=plan` 时 Kimi 返回 `Already in plan mode`
+- **THEN** 系统同样按幂等成功处理并显示 `mode=plan`，不提示设置失败
+
 #### Scenario: 不吞掉其他配置错误
 
 - **WHEN** Kimi 对 mode 返回与目标不一致的错误或其他配置项返回错误
@@ -102,7 +107,12 @@ Kimi 档案 SHALL 声明 `session/resume` 可用于崩溃重连，SHALL 复用�
 
 Kimi 2.5.2 未声明 WebMux 可识别的私有 steering 能力，因此系统 SHALL NOT 对 Kimi 调用私有 steering 扩展；插话 SHALL 使用通用排队规则。`session/resume` SHALL 无历史回放，`session/load` SHALL 按通用规则开启新的日志生成并接收回放。
 
-向 Kimi TUI 提交文本与 Enter 时，系统 SHALL 在同一确认回执和输入临界区内分隔两次写入，间隔 200 毫秒，避免 Enter 被当作粘贴内容。其他 agent 的提交间隔 SHALL 保持为 0；重试同一请求 SHALL NOT 因分隔而重复写入。
+通过浏览器草稿或 API 向混合或普通 Kimi TUI 提交文本与 Enter 时，系统 SHALL 在同一确认回执和输入临界区内分隔两次写入，间隔 200 毫秒，避免 Enter 被当作粘贴内容。
+
+- 延迟期间系统 SHALL 继续持有输入锁，其他输入不得交错；
+- 空正文只发 Enter 时 SHALL NOT 等待；
+- 其他 agent 的提交间隔 SHALL 保持为 0；
+- 重试同一请求 SHALL NOT 因分隔而重复写入。
 
 #### Scenario: 崩溃后无回放重连
 
@@ -116,8 +126,13 @@ Kimi 2.5.2 未声明 WebMux 可识别的私有 steering 能力，因此系统 SH
 
 #### Scenario: 文本与 Enter 分隔提交
 
-- **WHEN** 用户通过 API 向 Kimi TUI 提交一条文本消息
+- **WHEN** 用户通过浏览器草稿或 API 向混合或普通 Kimi TUI 提交一条文本消息
 - **THEN** 文本写入 200ms 后才写入 Enter，整次提交只有一个确认回执，重试不重复发送
+
+#### Scenario: 空正文只发送 Enter
+
+- **WHEN** 用户向 Kimi TUI 提交空正文和 Enter
+- **THEN** 系统立即写入 Enter，不额外等待 200ms
 
 #### Scenario: 其他 agent 不增加延迟
 

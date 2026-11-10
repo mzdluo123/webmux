@@ -12,13 +12,16 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/agentprofile/kimi"
+	"github.com/rainchan/webmux/internal/agenttrust"
 	"github.com/rainchan/webmux/internal/session"
 )
 
 func TestKimiRoundTripAndConfigReapply(t *testing.T) {
-	h := newHarness(t, 0)
+	h := newHarness(t, 0, func(options *session.Options) {
+		options.PreLaunch = agenttrust.New().Prepare
+	})
 	h.fast()
-	in := h.input(kimi.Name, SideTUI, "KIMI_CODE_TRUST_WORKSPACE=1")
+	in := h.input(kimi.Name, SideTUI)
 	in.Cmd = append(in.Cmd, "--model", "kimi-code-plan-cn/kimi-for-coding", "--auto")
 	s := h.create(in)
 	id := s.Info().ID
@@ -128,6 +131,10 @@ func TestKimiReconnectReappliesOnlyMode(t *testing.T) {
 	})
 	if got := countCalls(t, h.store, "session/set_config_option"); got != callsBefore+1 {
 		t.Fatalf("set_config_option calls = %d, want %d (only mode)", got, callsBefore+1)
+	}
+	mode := "plan"
+	if err := h.svc.SetConfig(ctxT(t), id, ConfigInput{ClientRequestID: rid(), ConfigID: "mode", Value: &mode}); err != nil {
+		t.Fatalf("manually selecting the active mode: %v", err)
 	}
 }
 

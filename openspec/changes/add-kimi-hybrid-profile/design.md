@@ -36,7 +36,7 @@ WebMux 的 `internal/acp` 已实现 Kimi 所需的 ACP v1 方法、配置项、�
 - `ResumeFlag: "--session"`、`Positional: PositionalPrompt`；
 - `HiddenCommands: ["login", "logout"]`；
 - 默认 `ACPArg` 空值，即使用内置 `acp` 子命令；`Connector` 为空，原参数不透传；
-- `InitialPrompt` 为空，初始用户指令沿用安静后键入的回退路径，因为 `-p` 是非交互模式；API 提交同样通过档案声明的 200ms 文本/Enter 分隔避免粘贴爆发。
+- `InitialPrompt` 为空，初始用户指令沿用安静后键入的回退路径，因为 `-p` 是非交互模式；`Manager` 按 argv 保存档案声明的 200ms 文本/Enter 分隔，让浏览器草稿、REST 输入以及混合与普通会话行为一致。空正文只发 Enter 时不等待，延迟期间继续持有输入锁。
 
 `Identify` 只解释 `ProgramApp == "kimi-code"`，返回 agent 与 `RootCwd`，不解释子记录 ID。`InterruptKeys` 返回一次 Esc；`ResumesSessions` 返回 true；`ReapplyOnLoad` 只返回 `[]string{"mode"}`。不实现 `Steerer`、`LockTracker` 或 `ProcessRegistry`。
 
@@ -66,7 +66,7 @@ WebMux 的 `internal/acp` 已实现 Kimi 所需的 ACP v1 方法、配置项、�
 
 `ReapplyOnLoad` 不包含 `model` 或 `thinking`。这是与 Codex、Qoder 等档案不同的实测行为，必须保持精确，避免无意义的配置写入和潜在覆盖。
 
-Kimi 还可能让底层 mode 与 load/resume 报告值不一致：底层已经是目标 mode，却报告 `default`，再次设置返回 `Already in <mode> mode`。适配器通过 `ConfigErrorHandler` 只接受完全匹配的幂等 mode 错误，hybrid 将目标值作为最终实际值；其他错误仍按失败提示。
+Kimi 还可能让底层 mode 与 load/resume 报告值不一致：底层已经是目标 mode，却报告 `default`，再次设置返回 `Already in <mode> mode`。适配器通过 `ConfigErrorHandler` 只接受完全匹配的幂等 mode 错误，冷恢复与手动设置都由 hybrid 将目标值作为最终实际值；其他错误仍按失败提示。
 
 备选方案是把所有配置都重应用，实现虽更简单但违背实测，并可能覆盖 Kimi 自己恢复的状态，因此不采用。
 

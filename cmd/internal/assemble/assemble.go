@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
 	"github.com/rainchan/webmux/internal/agenttrust"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/session"
@@ -31,6 +32,7 @@ func SessionOptions(c config.Config) session.Options {
 		DisableBellAttention: !c.BellAttention,
 		DisableProgramStatus: !c.ProgramStatus,
 		PreLaunch:            preLaunch,
+		SubmitDelay:          agents.Default().SubmitDelay,
 	}
 }
 

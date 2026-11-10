@@ -47,7 +47,7 @@ type ConfigErrorHandler interface {
 	ConfigErrorHandled(err error, configID, value string) bool
 }
 
-// ConfigErrorHandled reports whether a permits idempotent configuration errors.
+// ConfigErrorHandled reports whether err is an idempotent configuration error.
 func ConfigErrorHandled(a Agent, err error, configID, value string) bool {
 	h, ok := a.(ConfigErrorHandler)
 	return ok && h.ConfigErrorHandled(err, configID, value)

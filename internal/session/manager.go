@@ -53,6 +53,9 @@ type Options struct {
 	// example an agent's folder-trust record) and returns the environment for
 	// the launch. It must not block for long or fail the launch.
 	PreLaunch func(cwd string, argv []string, env map[string]string) map[string]string
+	// SubmitDelay computes how long a command's terminal UI needs between
+	// submitted text and Enter. Nil means every command submits without delay.
+	SubmitDelay func(argv []string) time.Duration
 }
 type Event struct {
 	Type     string
@@ -241,6 +244,10 @@ func (m *Manager) resolveCreate(in *CreateInput) (string, error) {
 
 func (m *Manager) startOptions(in CreateInput) startOptions {
 	cols, rows, _ := requestedSize(in.Cols, in.Rows)
+	var submitDelay time.Duration
+	if m.options.SubmitDelay != nil {
+		submitDelay = m.options.SubmitDelay(in.Cmd)
+	}
 	return startOptions{
 		agentProtocol:   !m.options.DisableAgentProtocol,
 		bellAttention:   !m.options.DisableBellAttention,
@@ -249,6 +256,7 @@ func (m *Manager) startOptions(in CreateInput) startOptions {
 		env:             in.Env,
 		configID:        in.ConfigID,
 		terminalVersion: m.options.TerminalVersion,
+		submitDelay:     submitDelay,
 		serverEnv:       m.serverEnv(),
 		cols:            cols,
 		rows:            rows,

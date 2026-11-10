@@ -85,7 +85,8 @@ func (s *Session) writeRun(ctx context.Context, r *run, origin inputOrigin, part
 }
 
 // writeRunDelay is writeRun with a delay between parts, used only when a TUI
-// needs its text submission separated from the following Enter.
+// needs its text submission separated from the following Enter. The input gate
+// stays held during the delay, so other input for this run waits as well.
 func (s *Session) writeRunDelay(ctx context.Context, r *run, origin inputOrigin, delay time.Duration, parts ...[]byte) (int, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -103,11 +104,11 @@ func (s *Session) writeRunDelay(ctx context.Context, r *run, origin inputOrigin,
 		return 0, err
 	}
 	written := 0
-	for i, p := range parts {
+	for _, p := range parts {
 		if len(p) == 0 {
 			continue
 		}
-		if i > 0 && delay > 0 {
+		if written > 0 && delay > 0 {
 			select {
 			case <-ctx.Done():
 				return written, ctx.Err()

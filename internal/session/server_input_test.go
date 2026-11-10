@@ -86,7 +86,7 @@ func countOutput(b []byte, text string) int {
 }
 
 func TestSubmitServerSeparatesBodyAndSubmit(t *testing.T) {
-	m := NewManager(Options{DefaultCwd: t.TempDir()})
+	m := NewManager(Options{DefaultCwd: t.TempDir(), SubmitDelay: func([]string) time.Duration { return 50 * time.Millisecond }})
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -98,7 +98,7 @@ func TestSubmitServerSeparatesBodyAndSubmit(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	in := ServerInput{RequestID: "req-delay-1", Body: []byte("body"), Submit: []byte("\r"), SubmitDelay: 50 * time.Millisecond}
+	in := ServerInput{RequestID: "req-delay-1", Body: []byte("body"), Submit: []byte("\r")}
 	start := time.Now()
 	status, err := s.SubmitServer(ctx, in)
 	if err != nil || status.State != SubmissionWritten {

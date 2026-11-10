@@ -65,8 +65,8 @@
 
 - 聊天端直接运行同一服务用户的 `kimi acp`，复用其登录状态和 `KIMI_CODE_HOME`，不自动登录或注销；命令菜单隐藏 `/login` 与 `/logout`。
 - 启动参数不会透传给 ACP 子命令。`-m`/`--model` 映射模型，`--auto`、`--yolo`、`--plan` 映射同名模式；`--skills-dir` 与 `--add-dir` 会列为聊天端不生效。
-- 冷 `session/load` 与 `session/resume` 后，模型与思考等级由 Kimi 保留，WebMux 只重应用记录的模式。底层模式已生效时，`Already in <mode> mode` 按幂等成功处理并显示目标模式，其他配置错误照常提示。崩溃重连使用无历史回放的 `session/resume`，插话使用通用队列而不是私有 steering。
-- 向 TUI 输入文本与 Enter 时在同一回执内分隔 200ms，避免连续写入被 Kimi 当作粘贴内容；其他 agent 的提交方式不变。
+- 冷 `session/load` 与 `session/resume` 后，模型与思考等级由 Kimi 保留，WebMux 只重应用记录的模式。底层模式已生效时，无论冷恢复还是手动选择，`Already in <mode> mode` 都按幂等成功处理并显示目标模式，其他配置错误照常提示。崩溃重连使用无历史回放的 `session/resume`，插话使用通用队列而不是私有 steering。
+- 浏览器草稿和 API 向混合或普通 Kimi TUI 提交文本与 Enter 时，都在同一回执内分隔 200ms，避免连续写入被 Kimi 当作粘贴内容；延迟期间输入锁继续阻止其他输入交错，空正文只发 Enter 时不等待，其他 agent 的提交方式不变。
 - `agent_pretrust` 开启时为首次启动注入 `KIMI_CODE_TRUST_WORKSPACE=1`，恢复 TUI 与 ACP 继承同一环境；它只信任当前工作区，不写持久配置，详见 [文件夹信任预写](../cli-agents.md#文件夹信任预写)。
 
 ## Codex CLI 与 codex-acp

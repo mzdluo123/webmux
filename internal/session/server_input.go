@@ -15,10 +15,7 @@ type ServerInput struct {
 	Label     string
 	Body      []byte
 	Submit    []byte
-	// SubmitDelay separates Body from Submit within the same acknowledged
-	// submission, for terminal UIs that otherwise read Enter as paste content.
-	SubmitDelay time.Duration
-	Keys        [][]byte
+	Keys      [][]byte
 }
 
 // serverClientPrefix marks the controller of server-side input; it never
@@ -53,7 +50,7 @@ func (s *Session) SubmitServer(ctx context.Context, in ServerInput) (SubmissionS
 
 	status := SubmissionStatus{ID: in.RequestID, State: SubmissionWritten}
 	if len(in.Body) > 0 || len(in.Submit) > 0 {
-		written, err := s.writeRunDelay(ctx, r, inputUser, in.SubmitDelay, in.Body, in.Submit)
+		written, err := s.writeRunDelay(ctx, r, inputUser, s.options.submitDelay, in.Body, in.Submit)
 		if err != nil {
 			status.State, status.Error = SubmissionFailed, "write"
 			if written > 0 {

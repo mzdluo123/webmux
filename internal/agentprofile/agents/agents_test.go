@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
 	. "github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
@@ -659,6 +660,23 @@ func TestCodexChatConfig(t *testing.T) {
 	}
 	if seeds, unsupported := mustParse(t, "omp", "--model", "haiku").ChatConfig(); seeds != nil || unsupported != nil {
 		t.Fatalf("omp derives %+v %q", seeds, unsupported)
+	}
+}
+
+func TestRegistrySubmitDelay(t *testing.T) {
+	for _, tc := range []struct {
+		argv []string
+		want time.Duration
+	}{
+		{argv: []string{"kimi"}, want: 200 * time.Millisecond},
+		{argv: []string{"kimi", "--environment", "remote"}, want: 200 * time.Millisecond},
+		{argv: []string{"bash", "-ic", `exec -- "$@"`, "webmux", "kimi", "--auto"}, want: 200 * time.Millisecond},
+		{argv: []string{"opencode"}, want: 0},
+		{argv: []string{"sh", "-c", "kimi"}, want: 0},
+	} {
+		if got := registry.SubmitDelay(tc.argv); got != tc.want {
+			t.Errorf("SubmitDelay(%q) = %v, want %v", tc.argv, got, tc.want)
+		}
 	}
 }
 

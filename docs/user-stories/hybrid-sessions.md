@@ -100,7 +100,7 @@
   - 打开面板时从齿轮位置展开轮廓，文字与控件不缩放；系统启用“减少动态效果”时直接显示，快速关闭再打开也不残留裁切；
   - 变更经 `session/set_config_option` 生效并在所有设备同步，取值被记录用于切换与恢复后补齐；手机面板的下拉与开关只显示已确认的值，保存失败时保留原值并在面板内提示；
   - Claude 首次从 `--model`、`--effort` 与权限 argv 播种，`manual` 映射为 ACP `default`、危险跳过权限优先映射 `bypassPermissions`，不支持的值列入不生效参数；
-  - Kimi 首次从 `--model`、`--auto`、`--yolo` 与 `--plan` 播种 model/mode，plan 优先；`--skills-dir` 与 `--add-dir` 列入不生效参数，冷恢复只重应用 mode；
+  - Kimi 首次从 `--model`、`--auto`、`--yolo` 与 `--plan` 播种 model/mode，plan 优先；`--skills-dir` 与 `--add-dir` 列入不生效参数，冷恢复只重应用 mode；冷恢复或手动选择已生效模式时的 `Already in <mode> mode` 按幂等成功处理；
   - 冷 `session/load` 与 `session/resume` 后重应用记录的 model/effort，mode 以 transcript 恢复值为准，不回写过期 argv，回退显示实际值与通知；
   - 输入 `/` 打开随输入过滤的命令菜单。
 - **US-Q08 排队与插话**：作为使用者，我希望 agent 忙时继续发送消息并按顺序处理，以便不必等待也不会打断当前回合。
@@ -111,7 +111,7 @@
   - `refuse` 在不能立即发送时返回 409 `busy` 且不入队；`now` 取消正在运行的回合后把这条提示排到队首并立即发送，不留队列项，语义同队列的立即发送；
   - 队列可编辑、上移、删除、二次确认后立即发送；展开与收起平滑改变高度，上移和删除在服务端确认后让其余行平滑就位；减少动态效果时直接更新，关闭中的内容不可聚焦；
   - 回合被停止、出错或拒绝时队列暂停并提示继续或清空；
-  - 按 `clientRequestId` 去重，重试不重复发送；
+  - 按 `clientRequestId` 去重，重试不重复发送；浏览器草稿和 API 向混合或普通 Kimi TUI 提交文本与 Enter 时在同一回执内分隔 200ms，空正文不等待，延迟期间保持输入锁；
   - 只有档案与 agent 都声明支持（omp、Codex、Claude Code）且回合进行中时，输入文字后按 Ctrl/Cmd+Enter 才会插话（界面没有插话按钮），OpenCode、Antigravity CLI 与 Kimi 没有插话；
   - 回合进行中且没有文字与附件时，发送键变为停止键（名称“停止”），点击停止当前回合；有内容时保持“加入排队”；
   - Codex 与 Claude 的插话在回合已结束时返回 `promptRequired`（Claude 可为 `noRunningTurn`），这条消息排到队首作为下一回合发送，不产生 webmux 不知道的回合。
