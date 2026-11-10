@@ -172,22 +172,17 @@ export function useHybrid(
   const listed = $derived(
     shell?.sessions.sessions.find((session) => session.id === id),
   );
-  // A settled chat-side list entry is enough to open the chat channel before
-  // the terminal stream reports. A terminal-side hybrid still waits: showing
-  // side tabs before that stream arrives is the ordinary terminal page.
+  // A settled chat-side list entry only chooses the first pane. The chat
+  // channel still opens when this page's own stream reports, so a later
+  // switch keeps the same attach path.
   const hinted = $derived(listedSessionPane(listed));
-  // The session's streams exist: its terminal reported a chat view, moved,
-  // or the list already shows a settled chat view.
+  // The session's streams exist: its terminal reported a chat view, or moved.
   const streaming = $derived(
-    !!terminal.info?.views.includes("chat") ||
-      terminal.connection === "moved" ||
-      hinted !== null,
+    !!terminal.info?.views.includes("chat") || terminal.connection === "moved",
   );
   const known = $derived(streaming || !!state || !!record);
-  const where = $derived(current?.view ?? listed?.view);
-  const phase = $derived(
-    current ? current.transition?.phase : listed?.transition?.phase,
-  );
+  const where = $derived(current?.view);
+  const phase = $derived(current?.transition?.phase);
   const side = $derived<SwitchTarget | null>(phase ? null : (where ?? null));
   // A switch to the terminal seen on this page: the progress stays up until
   // the reattached stream drew the new run (terminalDrawn below).
@@ -203,13 +198,11 @@ export function useHybrid(
     !!phase || (!!requesting && where !== requesting) || arriving,
   );
   const view = $derived.by<HybridView>(() => {
-    if (!known) return "terminal";
+    // List says chat. Skip the terminal pane until this page's stream reports.
+    if (!known) return hinted ?? "terminal";
     if (terminal.connection === "missing" && !state)
       return record ? "recovery" : "terminal";
     if (moving || lingering) return "switching";
-    // Prefer the list until this page has read the session itself, so a
-    // chat-side session does not paint the terminal while the socket connects.
-    if (!current && hinted) return hinted;
     return where === "terminal" ? "terminal" : "chat";
   });
   const target = $derived(
