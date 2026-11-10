@@ -1,6 +1,6 @@
 ## 0. 前置
 
-- [ ] 0.1 归档 `batch-worktree-management`（`openspec archive batch-worktree-management`）。完成标准：再次运行 `openspec validate enrich-repository-details --strict` 时，不再出现任何“Archive would refuse this delta”提示。
+- [x] 0.1 归档 `batch-worktree-management`（`openspec archive batch-worktree-management`）。完成标准：再次运行 `openspec validate enrich-repository-details --strict` 时，不再出现任何“Archive would refuse this delta”提示。
 
 ## 1. 工作树状态模型（`internal/workspace`）
 
