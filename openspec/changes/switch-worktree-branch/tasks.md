@@ -4,14 +4,14 @@
 
 ## 1. 切换服务（`internal/workspace`）
 
-- [ ] 1.1 新增目标解析：`local` / `remote` / `new` / `detach` 四种目标解析为精确 OID，`remote` 推导出本地分支名，名称经 `check-ref-format --branch` 校验并拒绝以 `-` 开头的名称。完成标准：单测覆盖四种目标、远程同名本地分支已存在、名称 `--orphan`，以及不可解析的起点。
-- [ ] 1.2 新增阻止与警告检测：
+- [x] 1.1 新增目标解析：`local` / `remote` / `new` / `detach` 四种目标解析为精确 OID，`remote` 推导出本地分支名，名称经 `check-ref-format --branch` 校验并拒绝以 `-` 开头的名称。完成标准：单测覆盖四种目标、远程同名本地分支已存在、名称 `--orphan`，以及不可解析的起点。
+- [x] 1.2 新增阻止与警告检测：
   - 阻止：已跟踪修改、进行中操作（直接使用 `Worktree.operation`）、分支占用（附带占用者路径）、同一目标；
   - 警告：未跟踪文件、locked、`.gitmodules` 和运行会话。
 
   完成标准：单测覆盖每种阻止与警告；进行中操作的判定本身由 `enrich-repository-details` 的测试覆盖，这里只断言 `operation` 非空时预览不签发凭证。
-- [ ] 1.3 实现 `PreviewSwitch`：只读阶段在仓库门闩下执行，没有阻止条件时以 `purposeSwitch` 签发凭证，绑定工作树身份、`branch/head`、目标 OID 和会话 ID 集合。完成标准：有阻止条件时不签发凭证的测试，以及凭证不能用于删除或释放接口的测试。
-- [ ] 1.4 实现 `SwitchWorktree`，按以下顺序执行：
+- [x] 1.3 实现 `PreviewSwitch`：只读阶段在仓库门闩下执行，没有阻止条件时以 `purposeSwitch` 签发凭证，绑定工作树身份、`branch/head`、目标 OID 和会话 ID 集合。完成标准：有阻止条件时不签发凭证的测试，以及凭证不能用于删除或释放接口的测试。
+- [x] 1.4 实现 `SwitchWorktree`，按以下顺序执行：
   1. 取得门闩，重新读取，比对绑定内容，校验 `acknowledgeSessions`；
   2. 按 design 第 2 节的 argv 执行，使用 `WithoutCancel` 加 3 分钟上限；
   3. 以 `Background` 重读并返回 `Worktree`；
@@ -29,12 +29,12 @@
 ## 2. 契约、路由与快照
 
 - [ ] 2.1 在 `internal/contract` / `internal/wire` 中新增 `SwitchTarget`、`SwitchPreviewRequest`、`SwitchPreview`、`SwitchRequest`，并在 `web/src/schemas.ts` 中同步。完成标准：`web/test/wire-contract.test.ts` 通过。
-- [ ] 2.2 在 `internal/api/workspace.go` 中注册 `switch-preview` 与 `switch` 两个路由，沿用认证、Origin 校验和 `workspaceFailure`。完成标准：`workspace_test.go` 覆盖 401、403、400（非法名称）、409（状态变化）和 200，全部通过。
-- [ ] 2.3 补充 `wire_snapshot_test.go` 中的切换预览样例（含阻止条件与会话），然后运行 `go test ./internal/api -run TestWireSnapshots -update`。完成标准：快照只新增 `worktree-switch-preview.json`。
+- [x] 2.2 在 `internal/api/workspace.go` 中注册 `switch-preview` 与 `switch` 两个路由，沿用认证、Origin 校验和 `workspaceFailure`。完成标准：`workspace_test.go` 覆盖 401、403、400（非法名称）、409（状态变化）和 200，全部通过。
+- [x] 2.3 补充 `wire_snapshot_test.go` 中的切换预览样例（含阻止条件与会话），然后运行 `go test ./internal/api -run TestWireSnapshots -update`。完成标准：快照只新增 `worktree-switch-preview.json`。
 
 ## 3. CLI
 
-- [ ] 3.1 新增 `webmux worktree switch`：参数映射、标准错误中的预览输出、`--yes` 与终端确认、退出码 0/1/2，并接入帮助文本。完成标准：`worktree_test.go` 覆盖干净切换、非交互且有会话（退出码 2）、有修改（退出码 1）和 `--json` 输出。
+- [x] 3.1 新增 `webmux worktree switch`：参数映射、标准错误中的预览输出、`--yes` 与终端确认、退出码 0/1/2，并接入帮助文本。完成标准：`worktree_test.go` 覆盖干净切换、非交互且有会话（退出码 2）、有修改（退出码 1）和 `--json` 输出。
 
 ## 4. 前端（`web/src`）
 
