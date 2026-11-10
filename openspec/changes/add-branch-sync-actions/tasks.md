@@ -68,7 +68,7 @@
 
 ## 4. 契约、路由与快照
 
-- [ ] 4.1 在 `internal/contract` / `internal/wire` 中新增 design 第 5 节的类型，扩展 `Branch.mergedIntoDefault`，并在 `web/src/schemas.ts` 中同步。完成标准：`web/test/wire-contract.test.ts` 通过。
+- [x] 4.1 在 `internal/contract` / `internal/wire` 中新增 design 第 5 节的类型，扩展 `Branch.mergedIntoDefault`，并在 `web/src/schemas.ts` 中同步。完成标准：`web/test/wire-contract.test.ts` 通过。
 - [x] 4.2 在 `internal/api/workspace.go` 中注册三组预览与执行路由，沿用认证、Origin 校验与 `workspaceFailure`；凭证用途不匹配时返回 409。完成标准：`workspace_test.go` 为每组覆盖 401、403、400（非法参数）、409（状态变化或用途不匹配）和 200。
 - [x] 4.3 在 `wire_snapshot_test.go` 中补充样例：快进预览（含会话）、推送预览（发布）、推送结果（被拒）、删除预览（两组）与删除结果；然后运行 `go test ./internal/api -run TestWireSnapshots -update`。完成标准：快照只新增这些文件，以及 `branches` 样例中的 `mergedIntoDefault` 字段。
 
@@ -81,31 +81,31 @@
 
 ## 6. 前端（`web/src`）
 
-- [ ] 6.1 新增纯函数 `branchActions`，按 design 第 6 节的表格决定可用操作。完成标准：Vitest 单测覆盖表中每一行，以及 detached、bare、不可用、待清理的工作树没有任何分支操作。
-- [ ] 6.2 新增 `FastForwardBranch.svelte`、`PushBranch.svelte`、`DeleteBranches.svelte` 三个流程组件及各自的独立弹窗外壳，遵循 webmux-ui 规范：
+- [x] 6.1 新增纯函数 `branchActions`，按 design 第 6 节的表格决定可用操作。完成标准：Vitest 单测覆盖表中每一行，以及 detached、bare、不可用、待清理的工作树没有任何分支操作。
+- [x] 6.2 新增 `FastForwardBranch.svelte`、`PushBranch.svelte`、`DeleteBranches.svelte` 三个流程组件及各自的独立弹窗外壳，遵循 webmux-ui 规范：
   - 预览展示提交列表、阻止原因、警告与会话确认；
   - 推送展示脱敏 URL，发布时提供远程选择与目标名；
   - 删除分两组展示，“有独有提交”组需单独勾选，结果行可复制恢复命令。
 
   完成标准：浏览器组件测试覆盖每个流程的成功、阻止、409 后自动重新预览、过期预览响应被丢弃，以及删除时未勾选独有提交确认只删除“已包含”组。
-- [ ] 6.3 接入入口，完成后刷新仓库状态：
+- [x] 6.3 接入入口，完成后刷新仓库状态：
   - `WorktreeMenuItems`（首页、侧栏、仓库面板工作树行）；
   - `WorktreeDetails` 的“分支与上游”一节；
   - `RepositoryBranches` 的行操作与“清理分支（N）”；
   - 从仓库面板发起时作为子视图承载。
 
   完成标准：`WorkbenchTree.test.ts`、`RepositoryGroup.test.ts` 和仓库面板分支分区测试断言各状态下菜单项的显隐与“清理分支（N）”的计数；面板测试断言流程只占一层对话框。
-- [ ] 6.4 新增 E2E `branch-operations.spec.ts`，使用本地 bare 远程覆盖：
+- [x] 6.4 新增 E2E `branch-operations.spec.ts`，使用本地 bare 远程覆盖：
   - 在面板中获取远程后快进落后的工作树；
   - 发布一个没有上游的分支，并看到领先数归零；
   - 删除一个工作树后用“清理分支”删除遗留分支，并验证 squash merge 分支默认未选中。
 
   完成标准：`pnpm --dir web exec playwright test test/e2e/branch-operations.spec.ts` 通过，菜单操作复用 `repository-menu.ts` 中的 helper。
-- [ ] 6.5 为三个流程组件新增 Storybook story（含阻止、会话、长分支名、长 URL、两组删除），并加入 `overflow.spec.ts`。完成标准：在 390×844 和 320×568 视口下没有横向溢出，Storybook 测试通过。
+- [x] 6.5 为三个流程组件新增 Storybook story（含阻止、会话、长分支名、长 URL、两组删除），并加入 `overflow.spec.ts`。完成标准：在 390×844 和 320×568 视口下没有横向溢出，Storybook 测试通过。
 
 ## 7. 用户故事与集成验证
 
-- [ ] 7.1 新增用户故事（按计划为 US-J18：在 WebMux 中快进、推送和清理分支），更新 US-J14（删除工作树后清理遗留分支的入口），并把 `docs/user-stories.md` 的区间更新到当时的最大编号；编号以实施时下一个空闲编号为准，不预留空号。完成标准：`make docs-check` 通过。
+- [x] 7.1 新增用户故事（按计划为 US-J18：在 WebMux 中快进、推送和清理分支），更新 US-J14（删除工作树后清理遗留分支的入口），并把 `docs/user-stories.md` 的区间更新到当时的最大编号；编号以实施时下一个空闲编号为准，不预留空号。完成标准：`make docs-check` 通过。
 - [ ] 7.2 集成验证：依次运行 `make format`、`make check`、`pnpm --dir web check:arch`、`make test-fast`，再运行 6.4 中的 E2E。完成标准：全部通过。另外采集三种视口的截图，以及推送与清理流程的 GIF，供 PR 使用。
 
 ## Workflow follow-up
