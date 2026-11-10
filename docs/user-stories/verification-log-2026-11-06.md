@@ -192,4 +192,6 @@
   - 浏览器用例 `SwitchBranchDialog`、`RepositoryPanel`、`WorkbenchTree`、`RepositoryGroup`、`WorktreeCreateFields`、`NewSessionDialog` 等 10 个文件 148 项通过；
   - Storybook `overflow.spec.ts` 与 `design-system.spec.ts` 25 项通过（含切换弹窗三种场景在 320×568 双倍字号下）；
   - Playwright E2E `worktree-switch.spec.ts` 在桌面与 iPhone SE 项目 6 项通过，其中已打开代码标签页在切换后由变化检测标为“内容已更新”；`worktrees`、`repository-scope`、`workspace-ui`、`session-creation` 共 38 项通过。
-- 限制：未运行全量 `make test`、`make check` 与全量 E2E；未采集 PR 截图与 GIF；未在真机上验证；无头浏览器无法验证悬停与触屏常驻。
+  - 集成：`make format`、`make check`（含 `golangci-lint` v2.15.0）通过；`make test-go` 全部通过；Vitest Node 套件只有 `base64url.test.ts` 因本机 Node 24 缺少 `Uint8Array.prototype.toBase64` 失败；浏览器套件中 `RepositoryPanel.test.ts` 一项因前一个菜单仍在退出动画而偶发失败，已改为等待菜单关闭后连续 3 次通过；
+  - E2E `worktree-switch`、`worktrees`、`repository-scope`、`workspace-discovery` 共 48 项通过；在隔离演示仓库上采集桌面、平板、手机明暗主题截图与切换流程 GIF。
+- 限制：未运行全量 E2E 与 Storybook 构建（交给 CI）；未在真机上验证；无头浏览器无法验证悬停与触屏常驻。
