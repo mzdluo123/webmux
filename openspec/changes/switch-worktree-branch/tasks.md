@@ -1,6 +1,6 @@
 ## 0. 前置
 
-- [ ] 0.1 确认 `enrich-repository-details` 已归档：`openspec/specs/repository-details/spec.md` 存在，且 `Worktree.changes` 与 `Worktree.operation` 已在主干上。完成标准：`openspec validate switch-worktree-branch --strict` 通过，且不出现“Archive would refuse”提示。
+- [x] 0.1 确认 `enrich-repository-details` 已归档：`openspec/specs/repository-details/spec.md` 存在，且 `Worktree.changes` 与 `Worktree.operation` 已在主干上。完成标准：`openspec validate switch-worktree-branch --strict` 通过，且不出现“Archive would refuse”提示。
 
 ## 1. 切换服务（`internal/workspace`）
 
