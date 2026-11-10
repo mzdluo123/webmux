@@ -310,7 +310,7 @@
       >
         <ul class="space-y-1" aria-label="获取结果">
           {#each fetchResults as result (result.remote)}
-            <li class="break-all">
+            <li class="wrap-anywhere">
               <span class="font-medium">{result.remote}</span
               >：{result.status === "ok"
                 ? "已获取"

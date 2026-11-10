@@ -1,6 +1,6 @@
 ## 0. 前置
 
-- [ ] 0.1 确认 `enrich-repository-details` 已归档，并且 URL 脱敏函数与 `lastFetchedAt` 已在主干上。完成标准：`openspec validate add-repository-maintenance --strict` 通过。
+- [x] 0.1 确认 `enrich-repository-details` 已归档，并且 URL 脱敏函数与 `lastFetchedAt` 已在主干上。完成标准：`openspec validate add-repository-maintenance --strict` 通过。
 
 ## 1. 获取服务（`internal/workspace`）
 
@@ -48,7 +48,7 @@
 ## 5. 用户故事与集成验证
 
 - [x] 5.1 新增用户故事（按计划为 US-J17：获取远程并清理失效登记），更新 US-J14（清理失效登记的快捷入口），并把 `docs/user-stories.md` 的区间更新到当时的最大编号。`switch-worktree-branch` 与本变更可并行实施，编号以实施时下一个空闲编号为准，不预留空号。完成标准：`make docs-check` 通过。
-- [ ] 5.2 集成验证：依次运行 `make format`、`make check`、`pnpm --dir web check:arch`、`make test-fast`，再运行 4.3 中的 E2E。完成标准：全部通过。另外采集三种视口的截图供 PR 使用。
+- [x] 5.2 集成验证：依次运行 `make format`、`make check`、`pnpm --dir web check:arch`、`make test-fast`，再运行 4.3 中的 E2E。完成标准：全部通过。另外采集三种视口的截图供 PR 使用。
 
 ## Workflow follow-up
 
