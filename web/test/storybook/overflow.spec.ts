@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { assertRequiredButtons } from "./controls";
 
 import { stories } from "./cases";
-import { checkEachLayout, expectNoOverflow } from "./layouts";
+import { checkEachLayout, expectDialogFits, expectNoOverflow } from "./layouts";
 
 test("worktree heading keeps its width above mobile actions", async ({
   page,
@@ -160,24 +160,7 @@ for (const story of [
           .soft(page.getByRole("list", { name: "远程列表" }), name)
           .toBeVisible();
       await expectNoOverflow(page, name);
-      if (story !== "worktree-sync") {
-        // The dialog's height follows dvh, which can settle a frame after a
-        // viewport change on a loaded CI runner.
-        const viewport = page.viewportSize()!.height;
-        await expect.soft
-          .poll(
-            async () => {
-              const bounds = await dialog.boundingBox();
-              return (
-                bounds !== null &&
-                bounds.y >= -1 &&
-                bounds.y + bounds.height <= viewport + 1
-              );
-            },
-            { message: name, timeout: 2_000 },
-          )
-          .toBe(true);
-      }
+      if (story !== "worktree-sync") await expectDialogFits(page, dialog, name);
       if (story === "worktrees") {
         await dialog
           .getByRole("list", { name: "仓库工作树列表" })
@@ -225,12 +208,7 @@ for (const [story, shows] of [
       }
       await expect.soft(preview, name).toBeVisible();
       await expectNoOverflow(page, name);
-      const bounds = await dialog.boundingBox();
-      expect.soft(bounds, name).not.toBeNull();
-      expect.soft(bounds!.y, name).toBeGreaterThanOrEqual(-1);
-      expect
-        .soft(bounds!.y + bounds!.height, name)
-        .toBeLessThanOrEqual(page.viewportSize()!.height + 1);
+      await expectDialogFits(page, dialog, name);
       for (const control of [
         dialog.getByRole(shows.role, { name: shows.name }),
         dialog.getByRole("button", { name: "切换", exact: true }),
