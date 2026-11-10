@@ -24,7 +24,7 @@
 
 ## 2. 契约、路由与快照
 
-- [ ] 2.1 在 `internal/contract` / `internal/wire` 中新增 `FetchResult{remote, status, message}` 与 `FetchRemotesResponse{results, repository}`，并在 `web/src/schemas.ts` 中同步。完成标准：`web/test/wire-contract.test.ts` 通过。
+- [x] 2.1 在 `internal/contract` / `internal/wire` 中新增 `FetchResult{remote, status, message}` 与 `FetchRemotesResponse{results, repository}`，并在 `web/src/schemas.ts` 中同步。完成标准：`web/test/wire-contract.test.ts` 通过。
 - [x] 2.2 在 `internal/api/workspace.go` 中注册 `POST /api/repositories/{id}/fetch`，沿用认证、Origin 校验和 `workspaceFailure`；没有远程时返回 409 并说明原因。完成标准：`workspace_test.go` 覆盖 401、403、404、409 和 200。
 - [x] 2.3 在 `wire_snapshot_test.go` 中补充获取结果样例（含一个成功和一个认证失败的远程），然后运行 `go test ./internal/api -run TestWireSnapshots -update`。完成标准：快照只新增 `repository-fetch.json`。
 
@@ -35,19 +35,19 @@
 
 ## 4. 前端（`web/src`）
 
-- [ ] 4.1 在 `RepositoryPanel` 标题栏增加“获取远程”按钮：
+- [x] 4.1 在 `RepositoryPanel` 标题栏增加“获取远程”按钮：
   - 使用 tabler `cloud-download`，窄屏只显示图标并保留 `aria-label`/`title`；
   - 进行中显示进度，用 `InlineNotice` 逐个列出远程结果，并用响应中的 `repository` 更新仓库状态；
   - 没有远程时禁用并说明原因。
 
   完成标准：浏览器测试覆盖成功、部分失败、没有远程，以及进行中再次点击不重复发请求。
-- [ ] 4.2 在 `RepositoryWorktrees` 中增加“清理失效登记（N）”快捷入口：只预选未锁定的 `prunable` linked worktree，直接进入批量预览；N 为 0 时不显示。完成标准：浏览器测试覆盖 N 的计数排除 locked、点击后预选集合正确，以及 N 为 0 时入口隐藏。
-- [ ] 4.3 新增 E2E `repository-maintenance.spec.ts`：先用本地 bare 远程推进上游，在面板中获取后看到落后数；再从外部删除两个工作树目录，执行“清理失效登记”，确认后分支保留。完成标准：`pnpm --dir web exec playwright test test/e2e/repository-maintenance.spec.ts` 通过。
-- [ ] 4.4 更新 `RepositoryPanel` 的 Storybook story，加入获取进行中与部分失败的场景，并加入 `overflow.spec.ts`。完成标准：在 390×844 和 320×568 视口下没有横向溢出。
+- [x] 4.2 在 `RepositoryWorktrees` 中增加“清理失效登记（N）”快捷入口：只预选未锁定的 `prunable` linked worktree，直接进入批量预览；N 为 0 时不显示。完成标准：浏览器测试覆盖 N 的计数排除 locked、点击后预选集合正确，以及 N 为 0 时入口隐藏。
+- [x] 4.3 新增 E2E `repository-maintenance.spec.ts`：先用本地 bare 远程推进上游，在面板中获取后看到落后数；再从外部删除两个工作树目录，执行“清理失效登记”，确认后分支保留。完成标准：`pnpm --dir web exec playwright test test/e2e/repository-maintenance.spec.ts` 通过。
+- [x] 4.4 更新 `RepositoryPanel` 的 Storybook story，加入获取进行中与部分失败的场景，并加入 `overflow.spec.ts`。完成标准：在 390×844 和 320×568 视口下没有横向溢出。
 
 ## 5. 用户故事与集成验证
 
-- [ ] 5.1 新增用户故事（按计划为 US-J17：获取远程并清理失效登记），更新 US-J14（清理失效登记的快捷入口），并把 `docs/user-stories.md` 的区间更新到当时的最大编号。`switch-worktree-branch` 与本变更可并行实施，编号以实施时下一个空闲编号为准，不预留空号。完成标准：`make docs-check` 通过。
+- [x] 5.1 新增用户故事（按计划为 US-J17：获取远程并清理失效登记），更新 US-J14（清理失效登记的快捷入口），并把 `docs/user-stories.md` 的区间更新到当时的最大编号。`switch-worktree-branch` 与本变更可并行实施，编号以实施时下一个空闲编号为准，不预留空号。完成标准：`make docs-check` 通过。
 - [ ] 5.2 集成验证：依次运行 `make format`、`make check`、`pnpm --dir web check:arch`、`make test-fast`，再运行 4.3 中的 E2E。完成标准：全部通过。另外采集三种视口的截图供 PR 使用。
 
 ## Workflow follow-up

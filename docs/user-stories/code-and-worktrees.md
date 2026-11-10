@@ -291,7 +291,8 @@ US-I13 补充：弹出代码窗口取消原页面尚未完成的目录识别时�
   - 默认仅安全删除无阻塞项（含清理未锁定缺失目录的 `prunable` 登记）并自动跳过受阻项；仅当显式勾选默认未选中的强制删除授权（同时确认 `includeForce` 与 `closeSessions`）后，才关闭受阻项列出的活动会话并强制删除受阻目录；预览时干净的项即使开启批量强制仍按安全模式复核，防止预览后产生的新修改被静默丢弃；
   - 本地分支始终保留；可解析提交的已归档混合会话记录（含强制删除刚关闭的聊天）转为“已释放空间”保留；
   - 批量执行（`POST /api/repositories/{id}/worktrees/batch-remove`）预先保留全部拟删路径以拦截并发会话创建，逐项复核身份与会话，单项失败仅记录为 `failed` 而不中断其余项；
-  - 全部成功时分区回到刷新后的浏览列表并提示已删除数量，同时清理已删路径的草稿与主页固定项；存在失败项时停留在结果视图并保留失败项勾选以便重新预览重试。
+  - 全部成功时分区回到刷新后的浏览列表并提示已删除数量，同时清理已删路径的草稿与主页固定项；存在失败项时停留在结果视图并保留失败项勾选以便重新预览重试；
+  - 存在未锁定、目录已缺失且没有运行中会话的 `prunable` linked worktree 时，浏览状态显示“清理失效登记（N）”快捷入口，只预选这些条目并直接请求批量预览（US-J17），N 为 0 时不显示。
 - **US-J15 查看仓库与工作树的同步详情**：作为同时在多个工作树里推进任务的使用者，我希望在一个仓库面板里看到每个工作树相对上游的领先/落后、最近提交和修改情况，以及仓库的分支与远程，以便不切到终端就能判断哪些分支需要推送、更新或清理。
   验收要点：
   - 侧栏仓库菜单的“仓库详情…”打开仓库面板（桌面对话框，窄屏底部抽屉），以下划线 Tabs 分为“概览”“工作树”“分支”“远程”；“管理工作树…”与“批量管理…”直接停在“工作树”分区；仓库不可用时只有“概览”，说明原因并保留“从列表移除仓库…”；
@@ -317,6 +318,14 @@ US-I13 补充：弹出代码窗口取消原页面尚未完成的目录识别时�
   - 系统不贮藏、不丢弃修改，也不使用强制或合并式切换；客户端断开不会中止 Git，失败或超时后以刷新后的实际状态为准；
   - 成功后重新读取仓库：独立弹窗关闭，面板子视图回到该工作树的详情；首页与侧栏标题更新为新分支，工作树 ID 与主页置顶不变；已打开的代码视图由现有变化检测（约 5 秒）把受影响的标签页标为“内容已更新”；
   - 接口为 `POST /api/repositories/{id}/worktrees/{worktreeId}/switch-preview` 与 `…/switch`，沿用认证与 Origin 校验；CLI `webmux worktree switch` 支持同样的四种目标（见 [Shell 控制](../usage/shell-control.md)）。
+- **US-J17 获取远程并清理失效登记**：作为在终端外也会推进分支、偶尔手动删除工作树目录的使用者，我希望在仓库面板里获取全部远程并清理目录已不存在的工作树登记，以便面板里的领先/落后和工作树清单保持准确，而不用切到终端执行 `git fetch` 或 `git worktree prune`。
+  验收要点：
+  - 仓库面板标题栏常驻“获取远程”（tabler `cloud-download`，窄屏 `< 640px` 只显示图标并保留可访问名称与提示），各分区间不重复放置；仓库没有远程时禁用并说明“这个仓库没有配置远程，无法获取”，不可用仓库不显示；
+  - 点击后按钮显示进行中并禁用，再次点击不重复发请求；服务端按名称逐个执行 `fetch --prune --recurse-submodules=no`，每个远程有独立时限、整体最多 3 分钟，客户端断开后仍完成，同一仓库同时只获取一次，重复请求得到同一结果，获取期间不阻塞浏览、创建、删除与切换；
+  - 结果以提示框逐个列出在标题栏下方，直到关闭面板或再次获取：成功为“origin：已获取”，失败为认证失败、网络不可达、超时、远端拒绝或其他错误的说明；单个远程失败不影响其他远程，响应附带重新读取的仓库快照，面板与侧栏随之更新上次获取时间与领先/落后，“分支”分区重新读取；
+  - 获取以非交互方式运行（不等待终端或图形凭据提示，未自定义 ssh 时加 `BatchMode=yes`），不修改 Git 或凭据配置；错误信息与远程清单同样脱敏（令牌换成 `***`，最多 200 字符），服务日志不记录 URL 与 Git 输出原文；
+  - “工作树”分区的“清理失效登记（N）”只计入未锁定、目录已缺失、没有运行中会话的 `prunable` linked worktree，点击后进入批量预览，确认、归档记录保留与逐项结果沿用 US-J14，分支保留；被锁定的失效登记不计入、不预选，行内说明“已锁定，需在终端解锁后清理”；系统从不执行不区分条目的 `git worktree prune`；
+  - `POST /api/repositories/{id}/fetch` 沿用认证与 Origin 校验，没有远程时 409；CLI `webmux repo fetch REPO [--json]` 逐行输出每个远程的结果（全部成功 0，否则 1），`webmux worktree prune REPO [--yes] [--json]` 筛出同样的失效登记并走批量预览与删除，确认规则与 `worktree rm` 相同。
 
 依据：
 
@@ -326,6 +335,8 @@ US-I13 补充：弹出代码窗口取消原页面尚未完成的目录识别时�
 - [切换服务](../../internal/workspace/switch.go)、[切换服务端测试](../../internal/workspace/switch_test.go)、[切换流程](../../web/src/components/SwitchBranch.svelte)、[切换弹窗](../../web/src/components/SwitchBranchDialog.svelte)
 - [切换浏览器用例](../../web/test/browser/SwitchBranchDialog.test.ts)、[切换 E2E](../../web/test/e2e/worktree-switch.spec.ts)、[CLI 切换](../../internal/clicmd/worktree.go)
 - [工作树详情](../../web/src/components/WorktreeDetails.svelte)、[分支分区](../../web/src/components/RepositoryBranches.svelte)、[远程分区](../../web/src/components/RepositoryRemotes.svelte)、[同步摘要浏览器用例](../../web/test/browser/WorktreeSyncSummary.test.ts)
+- [获取服务](../../internal/workspace/fetch.go)、[远程调用与错误分类](../../internal/workspace/remotegit.go)、[获取服务端测试](../../internal/workspace/fetch_test.go)
+- [仓库命令](../../internal/clicmd/repo.go)、[工作树命令](../../internal/clicmd/worktree.go)、[仓库维护 E2E](../../web/test/e2e/repository-maintenance.spec.ts)
 
 - [释放空间](../../internal/workspace/release.go)、[重建](../../internal/workspace/rebuild.go)、[推送检查](../../internal/workspace/pushcheck.go)、[释放确认](../../web/src/components/ReleaseWorktreeDialog.svelte)、[重建确认](../../web/src/components/RebuildWorktreeDialog.svelte)
 - [推送警告](../../web/src/components/PushCheckNotice.svelte)、[对话框浏览器用例](../../web/test/browser/WorktreeDialogs.test.ts)、[释放服务端测试](../../internal/workspace/release_test.go)、[删除保留记录测试](../../internal/workspace/remove_retain_test.go)
