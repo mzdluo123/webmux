@@ -91,3 +91,11 @@
 - 范围：快速开始页复用 `web/src/branch-name.ts` 的 `suggestWorktreeBranch` 生成 `wt/<形容词>-<名词>` 分支名并在 `step: "worktree"`、`reason: "conflict"` 时自动换名重试（仅在 3 次重试用尽后展示失败状态）；词表组合扩充至 120×240（28,800 组）并改用随机抽取加回退扫描，避免每次复制洗牌全量词组。
 - 依据：`branch-name.test.ts` 单元测试、`QuickStart.test.ts` 与 `WorktreeCreateFields.test.ts` 浏览器组件测试通过；`pnpm --dir web check:arch` 与 `make check` 通过。
 - 限制：未运行全量 E2E 与 Storybook；未重新核验其余故事能力。
+
+本次局部核对（2026-11-10）：修复代码质量扫描发现的 Token 日志暴露、混合记录持久化与关闭竞态、聊天发送和预览资源问题，并补齐 CI 与测试治理；更新 US-A03、US-N03、US-K12、US-Q08、US-Q12、US-Q14、US-Q18、US-H09、US-L02、US-L05、US-L08 与覆盖索引，不新增或重编号故事。
+
+- 范围：启动链接和二维码不再携带 Token；混合记录状态锁不再覆盖文件 I/O，失败保留 dirty 重试并记录关闭写入错误；Create/Resume 关闭窗口受控；聊天发送失败保留两段输入，成功释放图片 Object URL；安装提示 rejection 显示备用说明；紧凑输入卡片不再充当嵌套按钮。
+- 贡献者治理：Go wire 快照同时触发前端契约测试并有分类器用例；fake-agent 名称统一清单并补 Qoder/QoderCN 双向 E2E；PTY 取消写入真实 drain、attach 取消结果归一、Codex 前提失效改为失败；新增故事 ID、范围、引用与退役一致性守卫。
+- 已运行：`make check`、完整 `make test`（Go race、640 项浏览器组件测试、58 项 Storybook、375 项 E2E 与 18 项性能测试通过）、Darwin/Windows vet、分类器 7 个路径场景、attach 取消 100 次重复，以及 Qoder/QoderCN 桌面与手机双向 E2E。
+- UI 证据：隔离真实应用完成安装提示与聊天发送失败在桌面、平板、手机的明暗主题前后对比及两段交互 GIF，检查无横向溢出；修复版启动日志不含 Token 或 `#token=`。
+- 限制：未在真实 macOS、iOS 或 Android 设备核对；无头捕获不证明 hover 与 coarse pointer 行为，未重新核验其余故事能力。
