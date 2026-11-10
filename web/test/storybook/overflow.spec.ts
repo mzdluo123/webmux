@@ -306,12 +306,7 @@ for (const story of [
         .soft(dialog.getByRole("button", { name: "取消" }), name)
         .toBeVisible();
       await expectNoOverflow(page, name);
-      const bounds = await dialog.boundingBox();
-      expect.soft(bounds, name).not.toBeNull();
-      expect.soft(bounds!.y, name).toBeGreaterThanOrEqual(-1);
-      expect
-        .soft(bounds!.y + bounds!.height, name)
-        .toBeLessThanOrEqual(page.viewportSize()!.height + 1);
+      await expectDialogFits(page, dialog, name);
       expect.soft(failures, name).toEqual([]);
     });
   });
