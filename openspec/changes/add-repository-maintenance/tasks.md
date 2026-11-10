@@ -4,13 +4,13 @@
 
 ## 1. 获取服务（`internal/workspace`）
 
-- [ ] 1.1 新增共用的 `Service.remoteGit`（design 第 3 节），在 `Service.git` 之上为单次调用追加环境变量，不影响其他调用：
+- [x] 1.1 新增共用的 `Service.remoteGit`（design 第 3 节），在 `Service.git` 之上为单次调用追加环境变量，不影响其他调用：
   - 设置 `SSH_ASKPASS_REQUIRE=never`；
   - 只有 `GIT_SSH_COMMAND`、`core.sshCommand` 与 `GIT_SSH` 都未设置时，才设置 `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`；
   - 失败转成 `RemoteFailure{status, message}`。
 
   完成标准：单测分别断言三者之一已设置时不注入、都未设置时注入，以及本地 bare 远程上调用的返回值。
-- [ ] 1.2 实现 `FetchRemotes`：
+- [x] 1.2 实现 `FetchRemotes`：
   - 读取远程清单，按名称排序后逐个执行 `fetch --prune --recurse-submodules=no --end-of-options <remote>`；
   - 每个远程有独立时限，整体上限 3 分钟，执行使用 `WithoutCancel`；
   - 全部结束后以 `Background` 重读快照，与逐远程结果一起返回。
@@ -19,19 +19,19 @@
   - 成功后远程已删除的分支被清除，`lastFetchedAt` 前进；
   - 一个远程不可达时，另一个远程仍然成功；
   - 请求 ctx 取消后获取仍然完成。
-- [ ] 1.3 实现按仓库的 `fetchFlight` 合并。完成标准：并发两次调用的测试断言 git fetch 只执行一次（用 hook 计数），两个调用方收到相同结果；同时进行的 `CreateWorktree` 不需要等待获取完成。
-- [ ] 1.4 在 `remoteGit` 中实现错误分类与消息脱敏（`auth`/`network`/`timeout`/`rejected`/`error`，消息最多 200 字符）。完成标准：表驱动单测覆盖每种关键字（含 `Host key verification failed` 归为 `auth`），以及包含 `https://u:tok@` 的输出，所有输出中都不含原始令牌；日志断言不含 URL。
+- [x] 1.3 实现按仓库的 `fetchFlight` 合并。完成标准：并发两次调用的测试断言 git fetch 只执行一次（用 hook 计数），两个调用方收到相同结果；同时进行的 `CreateWorktree` 不需要等待获取完成。
+- [x] 1.4 在 `remoteGit` 中实现错误分类与消息脱敏（`auth`/`network`/`timeout`/`rejected`/`error`，消息最多 200 字符）。完成标准：表驱动单测覆盖每种关键字（含 `Host key verification failed` 归为 `auth`），以及包含 `https://u:tok@` 的输出，所有输出中都不含原始令牌；日志断言不含 URL。
 
 ## 2. 契约、路由与快照
 
 - [ ] 2.1 在 `internal/contract` / `internal/wire` 中新增 `FetchResult{remote, status, message}` 与 `FetchRemotesResponse{results, repository}`，并在 `web/src/schemas.ts` 中同步。完成标准：`web/test/wire-contract.test.ts` 通过。
-- [ ] 2.2 在 `internal/api/workspace.go` 中注册 `POST /api/repositories/{id}/fetch`，沿用认证、Origin 校验和 `workspaceFailure`；没有远程时返回 409 并说明原因。完成标准：`workspace_test.go` 覆盖 401、403、404、409 和 200。
-- [ ] 2.3 在 `wire_snapshot_test.go` 中补充获取结果样例（含一个成功和一个认证失败的远程），然后运行 `go test ./internal/api -run TestWireSnapshots -update`。完成标准：快照只新增 `repository-fetch.json`。
+- [x] 2.2 在 `internal/api/workspace.go` 中注册 `POST /api/repositories/{id}/fetch`，沿用认证、Origin 校验和 `workspaceFailure`；没有远程时返回 409 并说明原因。完成标准：`workspace_test.go` 覆盖 401、403、404、409 和 200。
+- [x] 2.3 在 `wire_snapshot_test.go` 中补充获取结果样例（含一个成功和一个认证失败的远程），然后运行 `go test ./internal/api -run TestWireSnapshots -update`。完成标准：快照只新增 `repository-fetch.json`。
 
 ## 3. CLI
 
-- [ ] 3.1 新增 `webmux repo fetch REPO [--json]`，退出码为 0/1。完成标准：单测覆盖全部成功、部分失败和没有远程三种情况。
-- [ ] 3.2 新增 `webmux worktree prune REPO [--yes] [--json]`：在本地筛选失效登记，再走批量预览和执行，确认规则与 `worktree rm` 相同。完成标准：单测覆盖没有可清理项（退出码 0）、非交互且没有 `--yes`（退出码 2）、带 `--yes` 删除成功，以及部分失败（退出码 1）。
+- [x] 3.1 新增 `webmux repo fetch REPO [--json]`，退出码为 0/1。完成标准：单测覆盖全部成功、部分失败和没有远程三种情况。
+- [x] 3.2 新增 `webmux worktree prune REPO [--yes] [--json]`：在本地筛选失效登记，再走批量预览和执行，确认规则与 `worktree rm` 相同。完成标准：单测覆盖没有可清理项（退出码 0）、非交互且没有 `--yes`（退出码 2）、带 `--yes` 删除成功，以及部分失败（退出码 1）。
 
 ## 4. 前端（`web/src`）
 
