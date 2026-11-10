@@ -11,7 +11,6 @@ import {
 import { errorMessage } from "../error";
 import {
   eligibilityText,
-  listedSessionPane,
   shortId,
   switchSteps,
   switchTarget,
@@ -19,7 +18,6 @@ import {
   type SwitchStep,
   type SwitchTarget,
 } from "../hybrid";
-import { findShell } from "../shell.svelte";
 import { loadRecord, sessionConflict } from "../recoverable";
 import {
   SessionInfoSchema,
@@ -135,9 +133,6 @@ export function useHybrid(
 ): HybridSession {
   const chat = createChatSocket(id, live);
   const actions = chatActions(id);
-  // The shell list already knows a running session's side. Reading it here
-  // (not inside a later derived) keeps getContext on the init path.
-  const shell = findShell();
   onDestroy(() => {
     chat.dispose();
     clearTimeout(lingerTimer);
@@ -169,13 +164,6 @@ export function useHybrid(
   let reattachedFor: SessionInfo | undefined;
 
   const state = $derived(chat.state);
-  const listed = $derived(
-    shell?.sessions.sessions.find((session) => session.id === id),
-  );
-  // A settled chat-side list entry only chooses the first pane. The chat
-  // channel still opens when this page's own stream reports, so a later
-  // switch keeps the same attach path.
-  const hinted = $derived(listedSessionPane(listed));
   // The session's streams exist: its terminal reported a chat view, or moved.
   const streaming = $derived(
     !!terminal.info?.views.includes("chat") || terminal.connection === "moved",
@@ -198,8 +186,7 @@ export function useHybrid(
     !!phase || (!!requesting && where !== requesting) || arriving,
   );
   const view = $derived.by<HybridView>(() => {
-    // List says chat. Skip the terminal pane until this page's stream reports.
-    if (!known) return hinted ?? "terminal";
+    if (!known) return "terminal";
     if (terminal.connection === "missing" && !state)
       return record ? "recovery" : "terminal";
     if (moving || lingering) return "switching";

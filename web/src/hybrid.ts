@@ -54,18 +54,6 @@ export function sessionPageLabel(
   return "聊天";
 }
 
-/**
- * Chat pane to show from a list entry before this page has heard from the
- * session's own streams. Only a settled chat-side session: a terminal-side
- * hybrid still waits for its stream, so side tabs do not appear early.
- */
-export function listedSessionPane(
-  session: Pick<SessionInfo, "views" | "view" | "transition"> | undefined,
-): "chat" | null {
-  if (!session?.views.includes("chat") || session.transition) return null;
-  return session.view === "chat" ? "chat" : null;
-}
-
 /** Why the chat side cannot start: its connector is not installed. */
 export function connectorMissingText(connector: AgentConnector) {
   return `未安装 ${connector.title}（${connector.executable}）`;

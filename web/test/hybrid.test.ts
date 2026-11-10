@@ -4,7 +4,6 @@ import {
   connectorNoticeText,
   eligibilityText,
   chatSupportReason,
-  listedSessionPane,
   sessionPageLabel,
   sessionViewLabel,
   outdatedText,
@@ -29,7 +28,6 @@ describe("hybrid labels", () => {
       transition: null,
     };
     expect(sessionPageLabel(chat)).toBe("聊天");
-    expect(listedSessionPane(chat)).toBe("chat");
     expect(
       sessionPageLabel({
         views: ["terminal"],
@@ -37,13 +35,6 @@ describe("hybrid labels", () => {
         transition: null,
       }),
     ).toBe("终端");
-    expect(
-      listedSessionPane({
-        views: ["terminal", "chat"],
-        view: "terminal",
-        transition: null,
-      }),
-    ).toBeNull();
     expect(sessionPageLabel(undefined)).toBe("会话");
     expect(
       sessionPageLabel({
@@ -52,13 +43,6 @@ describe("hybrid labels", () => {
         transition: { to: "chat", phase: "stopping" },
       }),
     ).toBe("会话");
-    expect(
-      listedSessionPane({
-        views: ["terminal", "chat"],
-        view: "chat",
-        transition: { to: "terminal", phase: "starting" },
-      }),
-    ).toBeNull();
   });
 
   test("a transition means switching even before the view flips", () => {
