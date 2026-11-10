@@ -28,7 +28,7 @@
 
 ## 2. 契约、路由与快照
 
-- [ ] 2.1 在 `internal/contract` / `internal/wire` 中新增 `SwitchTarget`、`SwitchPreviewRequest`、`SwitchPreview`、`SwitchRequest`，并在 `web/src/schemas.ts` 中同步。完成标准：`web/test/wire-contract.test.ts` 通过。
+- [x] 2.1 在 `internal/contract` / `internal/wire` 中新增 `SwitchTarget`、`SwitchPreviewRequest`、`SwitchPreview`、`SwitchRequest`，并在 `web/src/schemas.ts` 中同步。完成标准：`web/test/wire-contract.test.ts` 通过。
 - [x] 2.2 在 `internal/api/workspace.go` 中注册 `switch-preview` 与 `switch` 两个路由，沿用认证、Origin 校验和 `workspaceFailure`。完成标准：`workspace_test.go` 覆盖 401、403、400（非法名称）、409（状态变化）和 200，全部通过。
 - [x] 2.3 补充 `wire_snapshot_test.go` 中的切换预览样例（含阻止条件与会话），然后运行 `go test ./internal/api -run TestWireSnapshots -update`。完成标准：快照只新增 `worktree-switch-preview.json`。
 
@@ -38,8 +38,8 @@
 
 ## 4. 前端（`web/src`）
 
-- [ ] 4.1 `NewSessionDialog` / `WorktreeCreateFields` 支持 `preset = {mode, branch?, startBranch?, name?}`，只用于设置初始值。完成标准：`WorktreeCreateFields.test.ts` 新增“已有分支预填”和“远程起点加默认名预填”两个用例，现有用例不变。
-- [ ] 4.2 新增切换流程内容组件 `SwitchBranch.svelte` 和独立弹窗外壳 `SwitchBranchDialog.svelte`，实现遵循 webmux-ui 规范，包含：
+- [x] 4.1 `NewSessionDialog` / `WorktreeCreateFields` 支持 `preset = {mode, branch?, startBranch?, name?}`，只用于设置初始值。完成标准：`WorktreeCreateFields.test.ts` 新增“已有分支预填”和“远程起点加默认名预填”两个用例，现有用例不变。
+- [x] 4.2 新增切换流程内容组件 `SwitchBranch.svelte` 和独立弹窗外壳 `SwitchBranchDialog.svelte`，实现遵循 webmux-ui 规范，包含：
   - 三种模式的分段控件，分组且可搜索的分支列表（当前分支与被占用分支禁用）；
   - 自动预览（`LatestRequest`），阻止原因、警告、会话列表与确认复选框；
   - “改为在新工作树打开”和“转到该工作树”两个替代操作。
@@ -51,20 +51,20 @@
   - 有会话时未勾选确认则不能提交；
   - 409 后自动重新预览；
   - 过期的预览响应被丢弃。
-- [ ] 4.3 接入“切换分支…”入口：
+- [x] 4.3 接入“切换分支…”入口：
   - `WorktreeMenuItems` 新增该项，bare、不可用、待清理的工作树不显示；首页、侧栏与仓库面板工作树行同时出现；
   - 在 `shell.svelte.ts` 与 `AppShell.svelte` 中注册 `switchBranch(worktree)` 和对应的 `LazyDialog`；在 `RepositoryPanel` 中注册同一流程的子视图；
   - 切换成功后执行 `repositories.refresh(true)`。
 
   完成标准：`WorkbenchTree.test.ts`、`RepositoryGroup.test.ts` 和仓库面板工作树分区测试断言菜单项的显隐；面板测试断言从行菜单发起时只有一层对话框。
-- [ ] 4.4 在 `RepositoryBranches` 中为未被占用的本地分支和远程分支增加“在新工作树打开…”行操作，打开 `shell.start({kind: "new-worktree", preset})`。完成标准：浏览器测试断言两种分支预填的模式与默认名。
-- [ ] 4.5 在 4.6 的 E2E 中打开该工作树的代码视图，切换后断言已打开的标签页在变化检测后显示新分支的内容（design 第 6 节与 Risks 中的结论），不新增刷新通道。
-- [ ] 4.6 新增 E2E `worktree-switch.spec.ts`，覆盖以下流程：从侧栏切换干净工作树、有修改时改为在新工作树打开、有运行 Shell 会话时确认后切换且会话仍在运行。完成标准：`pnpm --dir web exec playwright test test/e2e/worktree-switch.spec.ts` 通过，菜单操作复用 `repository-menu.ts` 中的 helper。
-- [ ] 4.7 新增 `SwitchBranchDialog` 的 Storybook story（含阻止、会话、长分支名三种场景），并加入 `overflow.spec.ts`。完成标准：在 390×844 和 320×568 视口下没有横向溢出。
+- [x] 4.4 在 `RepositoryBranches` 中为未被占用的本地分支和远程分支增加“在新工作树打开…”行操作，打开 `shell.start({kind: "new-worktree", preset})`。完成标准：浏览器测试断言两种分支预填的模式与默认名。
+- [x] 4.5 在 4.6 的 E2E 中打开该工作树的代码视图，切换后断言已打开的标签页在变化检测后显示新分支的内容（design 第 6 节与 Risks 中的结论），不新增刷新通道。
+- [x] 4.6 新增 E2E `worktree-switch.spec.ts`，覆盖以下流程：从侧栏切换干净工作树、有修改时改为在新工作树打开、有运行 Shell 会话时确认后切换且会话仍在运行。完成标准：`pnpm --dir web exec playwright test test/e2e/worktree-switch.spec.ts` 通过，菜单操作复用 `repository-menu.ts` 中的 helper。
+- [x] 4.7 新增 `SwitchBranchDialog` 的 Storybook story（含阻止、会话、长分支名三种场景），并加入 `overflow.spec.ts`。完成标准：在 390×844 和 320×568 视口下没有横向溢出。
 
 ## 5. 用户故事与集成验证
 
-- [ ] 5.1 新增用户故事（按计划为 US-J16：切换已有工作树的分支），更新 US-J05（在新工作树打开已有分支的新入口），并把 `docs/user-stories.md` 的区间更新到当时的最大编号。`add-repository-maintenance` 与本变更可并行实施，编号以实施时下一个空闲编号为准，不预留空号。完成标准：`make docs-check` 通过。
+- [x] 5.1 新增用户故事（按计划为 US-J16：切换已有工作树的分支），更新 US-J05（在新工作树打开已有分支的新入口），并把 `docs/user-stories.md` 的区间更新到当时的最大编号。`add-repository-maintenance` 与本变更可并行实施，编号以实施时下一个空闲编号为准，不预留空号。完成标准：`make docs-check` 通过。
 - [ ] 5.2 集成验证：依次运行 `make format`、`make check`、`pnpm --dir web check:arch`、`make test-fast`，再运行 4.6 中的 E2E。完成标准：全部通过。另外采集三种视口的截图，以及切换流程的 GIF，供 PR 使用。
 
 ## Workflow follow-up
