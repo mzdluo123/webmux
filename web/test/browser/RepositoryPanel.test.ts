@@ -302,12 +302,14 @@ test("a worktree row's menu offers details and a branch switch but no removal", 
     .getByRole("button", { name: "工作树操作：wt/stale-reg" })
     .click();
   // A prunable worktree has no checkout to switch.
-  expect(items()).toEqual(["工作树详情…"]);
+  await expect.poll(items).toEqual(["工作树详情…"]);
   await userEvent.keyboard("{Escape}");
+  // The first menu animates out; its items stay in the DOM until it is gone.
+  await expect.poll(items).toEqual([]);
   await dialog()
     .getByRole("button", { name: "工作树操作：wt/clean-feature" })
     .click();
-  expect(items()).toEqual(["工作树详情…", "切换分支…"]);
+  await expect.poll(items).toEqual(["工作树详情…", "切换分支…"]);
   await page.getByRole("menuitem", { name: "工作树详情…" }).click();
   await expect
     .element(
