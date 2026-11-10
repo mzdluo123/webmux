@@ -161,12 +161,22 @@ for (const story of [
           .toBeVisible();
       await expectNoOverflow(page, name);
       if (story !== "worktree-sync") {
-        const bounds = await dialog.boundingBox();
-        expect.soft(bounds, name).not.toBeNull();
-        expect.soft(bounds!.y, name).toBeGreaterThanOrEqual(-1);
-        expect
-          .soft(bounds!.y + bounds!.height, name)
-          .toBeLessThanOrEqual(page.viewportSize()!.height + 1);
+        // The dialog's height follows dvh, which can settle a frame after a
+        // viewport change on a loaded CI runner.
+        const viewport = page.viewportSize()!.height;
+        await expect.soft
+          .poll(
+            async () => {
+              const bounds = await dialog.boundingBox();
+              return (
+                bounds !== null &&
+                bounds.y >= -1 &&
+                bounds.y + bounds.height <= viewport + 1
+              );
+            },
+            { message: name, timeout: 2_000 },
+          )
+          .toBe(true);
       }
       if (story === "worktrees") {
         await dialog
