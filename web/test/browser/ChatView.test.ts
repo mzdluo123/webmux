@@ -875,6 +875,31 @@ test("conversation ticks distinguish roles, jump to history and preserve reading
       )
       .toBe(true);
 
+    const nearEnd = navigation.getByRole("button", {
+      name: /^第 10 轮 · AI：历史阅读期间的新回复/,
+    });
+    await nearEnd.click();
+    const nearEndOffset = scroller.scrollTop;
+    socket.frame({
+      type: "events",
+      generation: "g1",
+      items: events({
+        kind: "message.append",
+        message: {
+          messageId: "nav-new-3",
+          role: "agent",
+          text: Array.from(
+            { length: 8 },
+            (_, line) => `末尾历史跳转后的新段落 ${line + 1}`,
+          ).join("\n\n"),
+        },
+      }),
+    });
+    await expect
+      .element(transcript.getByText("末尾历史跳转后的新段落 8"))
+      .toBeVisible();
+    expect(scroller.scrollTop).toBe(nearEndOffset);
+
     await page.viewport(390, 844);
     await expect
       .poll(() =>

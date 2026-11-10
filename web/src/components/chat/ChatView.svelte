@@ -268,6 +268,9 @@
     lastScrollOffset = documentScroll ? window.scrollY : target.scrollTop;
   }
   let activeTurnFrame = 0;
+  let turnJumpFrame = 0;
+  let jumpingToTurn = false;
+  $effect(() => () => cancelAnimationFrame(turnJumpFrame));
   function updateActiveTurn() {
     const target = scrollRoot();
     if (!target || !transcript || !turns.length) {
@@ -299,7 +302,7 @@
     const top = documentScroll ? window.scrollY : target.scrollTop;
     const height = documentScroll ? window.innerHeight : target.clientHeight;
     lastScrollOffset = top;
-    stick = top + height >= target.scrollHeight - 32;
+    stick = jumpingToTurn ? false : top + height >= target.scrollHeight - 32;
     scheduleActiveTurn();
   }
   $effect(() => {
@@ -316,10 +319,20 @@
     );
     if (!message) return;
     // Historical reading must not be undone by the next streaming update.
+    // Keep the pause through the scroll event emitted by scrollIntoView,
+    // including when the target is clamped to the maximum scroll offset.
+    cancelAnimationFrame(turnJumpFrame);
+    jumpingToTurn = true;
     stick = false;
     activeTurnId = id;
     message.scrollIntoView({ block: "start", inline: "nearest" });
     follow();
+    turnJumpFrame = requestAnimationFrame(() => {
+      turnJumpFrame = requestAnimationFrame(() => {
+        turnJumpFrame = 0;
+        jumpingToTurn = false;
+      });
+    });
   }
   let previousDocumentScroll = untrack(() => documentScroll);
   $effect.pre(() => {
@@ -360,6 +373,9 @@
     return () => element.removeEventListener("scroll", follow);
   });
   function latest() {
+    cancelAnimationFrame(turnJumpFrame);
+    turnJumpFrame = 0;
+    jumpingToTurn = false;
     const target = scrollRoot();
     if (documentScroll) window.scrollTo({ top: target?.scrollHeight ?? 0 });
     else target?.scrollTo({ top: target.scrollHeight });
