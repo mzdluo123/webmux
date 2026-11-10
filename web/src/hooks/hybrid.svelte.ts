@@ -11,6 +11,7 @@ import {
 import { errorMessage } from "../error";
 import {
   eligibilityText,
+  listedSessionPane,
   shortId,
   switchSteps,
   switchTarget,
@@ -18,6 +19,7 @@ import {
   type SwitchStep,
   type SwitchTarget,
 } from "../hybrid";
+import { findShell } from "../shell.svelte";
 import { loadRecord, sessionConflict } from "../recoverable";
 import {
   SessionInfoSchema,
@@ -133,6 +135,9 @@ export function useHybrid(
 ): HybridSession {
   const chat = createChatSocket(id, live);
   const actions = chatActions(id);
+  // The shell list already knows a running session's side. Reading it here
+  // (not inside a later derived) keeps getContext on the init path.
+  const shell = findShell();
   onDestroy(() => {
     chat.dispose();
     clearTimeout(lingerTimer);
@@ -164,13 +169,25 @@ export function useHybrid(
   let reattachedFor: SessionInfo | undefined;
 
   const state = $derived(chat.state);
-  // The session's streams exist: its terminal reported a chat view, or moved.
+  const listed = $derived(
+    shell?.sessions.sessions.find((session) => session.id === id),
+  );
+  // The list entry is enough to know a hybrid session before the terminal
+  // stream reports. A chat-side session otherwise sits on the terminal pane
+  // until that stream is refused with 4409.
+  const hinted = $derived(listedSessionPane(listed));
+  // The session's streams exist: its terminal reported a chat view, moved,
+  // or the list already shows a chat view.
   const streaming = $derived(
-    !!terminal.info?.views.includes("chat") || terminal.connection === "moved",
+    !!terminal.info?.views.includes("chat") ||
+      terminal.connection === "moved" ||
+      hinted !== null,
   );
   const known = $derived(streaming || !!state || !!record);
-  const where = $derived(current?.view);
-  const phase = $derived(current?.transition?.phase);
+  const where = $derived(current?.view ?? listed?.view);
+  const phase = $derived(
+    current ? current.transition?.phase : listed?.transition?.phase,
+  );
   const side = $derived<SwitchTarget | null>(phase ? null : (where ?? null));
   // A switch to the terminal seen on this page: the progress stays up until
   // the reattached stream drew the new run (terminalDrawn below).
@@ -190,6 +207,9 @@ export function useHybrid(
     if (terminal.connection === "missing" && !state)
       return record ? "recovery" : "terminal";
     if (moving || lingering) return "switching";
+    // Prefer the list until this page has read the session itself, so a
+    // chat-side session does not paint the terminal while the socket connects.
+    if (!current && hinted) return hinted;
     return where === "terminal" ? "terminal" : "chat";
   });
   const target = $derived(

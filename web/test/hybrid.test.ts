@@ -4,6 +4,8 @@ import {
   connectorNoticeText,
   eligibilityText,
   chatSupportReason,
+  listedSessionPane,
+  sessionPageLabel,
   sessionViewLabel,
   outdatedText,
   shortId,
@@ -19,6 +21,45 @@ const connector = {
 };
 
 describe("hybrid labels", () => {
+  test("opening a chat session does not claim to load a terminal", () => {
+    const chat = {
+      views: ["terminal", "chat"] as const,
+      view: "chat" as const,
+      transition: null,
+    };
+    expect(sessionPageLabel(chat)).toBe("聊天");
+    expect(listedSessionPane(chat)).toBe("chat");
+    expect(
+      sessionPageLabel({
+        views: ["terminal"],
+        view: "terminal",
+        transition: null,
+      }),
+    ).toBe("终端");
+    expect(
+      listedSessionPane({
+        views: ["terminal"],
+        view: "terminal",
+        transition: null,
+      }),
+    ).toBeNull();
+    expect(sessionPageLabel(undefined)).toBe("会话");
+    expect(
+      sessionPageLabel({
+        views: ["terminal", "chat"],
+        view: "terminal",
+        transition: { to: "chat", phase: "stopping" },
+      }),
+    ).toBe("会话");
+    expect(
+      listedSessionPane({
+        views: ["terminal", "chat"],
+        view: "chat",
+        transition: { to: "terminal", phase: "starting" },
+      }),
+    ).toBe("switching");
+  });
+
   test("a transition means switching even before the view flips", () => {
     expect(sessionViewLabel({ view: "terminal", transition: null })).toBe(
       "终端",
