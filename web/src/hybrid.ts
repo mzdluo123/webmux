@@ -55,16 +55,15 @@ export function sessionPageLabel(
 }
 
 /**
- * Which pane to show from a list entry before this page has heard from the
- * session's own streams. Null for an ordinary terminal session, which keeps
- * the terminal pane.
+ * Chat pane to show from a list entry before this page has heard from the
+ * session's own streams. Only a settled chat-side session: a terminal-side
+ * hybrid still waits for its stream, so side tabs do not appear early.
  */
 export function listedSessionPane(
   session: Pick<SessionInfo, "views" | "view" | "transition"> | undefined,
-): "terminal" | "chat" | "switching" | null {
-  if (!session?.views.includes("chat")) return null;
-  if (session.transition) return "switching";
-  return session.view === "chat" ? "chat" : "terminal";
+): "chat" | null {
+  if (!session?.views.includes("chat") || session.transition) return null;
+  return session.view === "chat" ? "chat" : null;
 }
 
 /** Why the chat side cannot start: its connector is not installed. */

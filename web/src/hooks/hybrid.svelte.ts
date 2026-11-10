@@ -172,12 +172,12 @@ export function useHybrid(
   const listed = $derived(
     shell?.sessions.sessions.find((session) => session.id === id),
   );
-  // The list entry is enough to know a hybrid session before the terminal
-  // stream reports. A chat-side session otherwise sits on the terminal pane
-  // until that stream is refused with 4409.
+  // A settled chat-side list entry is enough to open the chat channel before
+  // the terminal stream reports. A terminal-side hybrid still waits: showing
+  // side tabs before that stream arrives is the ordinary terminal page.
   const hinted = $derived(listedSessionPane(listed));
   // The session's streams exist: its terminal reported a chat view, moved,
-  // or the list already shows a chat view.
+  // or the list already shows a settled chat view.
   const streaming = $derived(
     !!terminal.info?.views.includes("chat") ||
       terminal.connection === "moved" ||
