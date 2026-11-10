@@ -215,4 +215,7 @@
   - `pnpm --dir web check`、`check:test`、`check:storybook`、`lint`、`check:arch` 与 `go test ./internal/docguard` 通过；`branch-actions`、`wire-contract`、`wire-arrays` 单测通过；
   - 浏览器用例 `BranchOperations`、`RepositoryPanel`、`RepositoryGroup`、`WorkbenchTree`、`SwitchBranchDialog` 等通过；Storybook `overflow.spec.ts` 的仓库面板与分支操作场景通过；
   - Playwright E2E `branch-operations.spec.ts`、`worktree-switch.spec.ts` 与 `repository-maintenance.spec.ts` 在桌面与 iPhone SE 项目通过。
-- 限制：未运行全量 `make test`、`make check` 与全量 E2E；未采集 PR 截图与 GIF；未在真机上验证；无头浏览器无法验证悬停与触屏常驻。
+  - 集成：`make format`、`make check`（含 `golangci-lint` v2.15.0）通过；`make test-go` 全部通过；
+  - Vitest Node 套件只有 `base64url.test.ts` 因本机 Node 24 失败；浏览器套件中 `TerminalGraphics`、`TerminalSyncOutput` 各 1 项在整套并发运行时失败，单独重跑 24 项全部通过；
+  - E2E `branch-operations`、`repository-maintenance`、`worktree-switch`、`worktrees` 共 36 项通过；在隔离演示仓库上采集桌面、平板、手机明暗主题截图与发布、清理分支流程 GIF。
+- 限制：未在真机上验证；无头浏览器无法验证悬停与触屏常驻；全量 E2E 与 Storybook 构建交给 CI。

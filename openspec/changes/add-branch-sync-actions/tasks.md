@@ -106,7 +106,7 @@
 ## 7. 用户故事与集成验证
 
 - [x] 7.1 新增用户故事（按计划为 US-J18：在 WebMux 中快进、推送和清理分支），更新 US-J14（删除工作树后清理遗留分支的入口），并把 `docs/user-stories.md` 的区间更新到当时的最大编号；编号以实施时下一个空闲编号为准，不预留空号。完成标准：`make docs-check` 通过。
-- [ ] 7.2 集成验证：依次运行 `make format`、`make check`、`pnpm --dir web check:arch`、`make test-fast`，再运行 6.4 中的 E2E。完成标准：全部通过。另外采集三种视口的截图，以及推送与清理流程的 GIF，供 PR 使用。
+- [x] 7.2 集成验证：依次运行 `make format`、`make check`、`pnpm --dir web check:arch`、`make test-fast`，再运行 6.4 中的 E2E。完成标准：全部通过。另外采集三种视口的截图，以及推送与清理流程的 GIF，供 PR 使用。
 
 ## Workflow follow-up
 
