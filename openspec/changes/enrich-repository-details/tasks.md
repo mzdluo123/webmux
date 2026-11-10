@@ -69,7 +69,7 @@
   - 在 `docs/user-stories/code-and-worktrees.md` 中新增 US-J15（查看仓库与工作树的同步详情）；实施时 US-J15 已被占用则取下一个空闲编号；
   - 更新 US-J02、US-J03、US-J14 以及工作台导航相关故事中的入口描述；
   - 把 `docs/user-stories.md` 的区间更新到最大编号。
-- [ ] 6.2 集成验证：依次运行 `make format`、`make check`、`pnpm --dir web check:arch`、`make test-fast`，再运行 5.7 中的 E2E。完成标准：全部通过。在隔离演示数据上采集桌面、平板、手机三种视口和浅色/深色主题的前后对比截图，供 PR 使用。
+- [x] 6.2 集成验证：依次运行 `make format`、`make check`、`pnpm --dir web check:arch`、`make test-fast`，再运行 5.7 中的 E2E。完成标准：全部通过。在隔离演示数据上采集桌面、平板、手机三种视口和浅色/深色主题的前后对比截图，供 PR 使用。
 
 ## Workflow follow-up
 
