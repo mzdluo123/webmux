@@ -32,6 +32,7 @@
   import SidebarButton from "../components/SidebarButton.svelte";
   import { errorMessage } from "../error";
   import { useChatUpload } from "../hooks/upload.svelte";
+  import { useViewport } from "../hooks/viewport.svelte";
   import {
     configValues,
     failedStep,
@@ -297,6 +298,7 @@
   );
 
   let input = $state<HTMLTextAreaElement | null>(null);
+  const viewport = useViewport();
   onMount(() => {
     setBrowserChrome("新聊天 · WebMux", false);
     if (!hasTouchInput() && window.innerWidth >= 640) input?.focus();
@@ -373,7 +375,10 @@
   }
 </script>
 
-<main class="flex h-dvh flex-col">
+<main
+  class="flex h-(--viewport-height) flex-col overflow-hidden"
+  style:--viewport-height={`${viewport.height}px`}
+>
   <header
     class="app-header flex min-h-(--app-header-height) shrink-0 items-center gap-1 border-b bg-card px-1 sm:px-4"
   >
@@ -389,7 +394,7 @@
     label="松开以附加到这条消息"
   >
     <div
-      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 text-center"
+      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden px-4 text-center"
     >
       <h2 class="text-2xl font-medium">要让 agent 做什么？</h2>
       <p class="max-w-md text-sm text-muted-foreground">
@@ -400,7 +405,7 @@
     </div>
 
     <footer
-      class="mx-auto w-full max-w-3xl space-y-1.5 px-3 pb-safe-4 sm:px-4 sm:pb-6"
+      class="mx-auto w-full max-w-3xl space-y-1.5 px-3 pb-safe-2 sm:px-4 sm:pb-6"
       data-quick-start-composer
     >
       {#if missing}
