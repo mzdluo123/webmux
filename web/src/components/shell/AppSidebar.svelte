@@ -21,6 +21,7 @@
   } from "../../contracts/schemas";
   import {
     getShell,
+    openGitWorkbench,
     openPage,
     openSession,
     shellUi,
@@ -44,7 +45,10 @@
     onmode,
     onprimary,
   }: {
-    route: Extract<Route, { name: "sessions" | "quick-start" | "terminal" }>;
+    route: Extract<
+      Route,
+      { name: "sessions" | "quick-start" | "terminal" | "git" }
+    >;
     /** Desktop only; the drawer closes on its own. */
     collapsible?: boolean;
     onmode: (mode: ShellMode) => void;
@@ -289,6 +293,8 @@
           onremoveworktree={withTree((tree) => shell.removeWorktree(tree))}
           onswitchbranch={withTree((tree) => shell.switchBranch(tree))}
           onbranchoperation={shell.branchOperation}
+          onopengit={(repositoryId, worktreeId, view) =>
+            openGitWorkbench({ repositoryId, worktreeId, view })}
           onrename={shell.rename}
           onclose={shell.close}
           records={shell.archived.records}

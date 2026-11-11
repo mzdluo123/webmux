@@ -29,6 +29,7 @@
   import InlineNotice from "../shared/InlineNotice.svelte";
   import ListSearchInput from "../shared/ListSearchInput.svelte";
   import ManageWorktreesPreview from "./ManageWorktreesPreview.svelte";
+  import ManageWorktreesResultNotice from "./ManageWorktreesResultNotice.svelte";
   import ManageWorktreesSelectList from "./ManageWorktreesSelectList.svelte";
 
   // The repository panel's worktrees: every worktree of the repository,
@@ -46,6 +47,7 @@
     onopen,
     onswitch,
     onoperation,
+    ongit,
     onchange,
     onremoved,
   }: {
@@ -61,6 +63,7 @@
     onswitch: (worktreeId: string) => void;
     /** Opens a branch operation inside the panel. */
     onoperation: (operation: BranchOperation) => void;
+    ongit?: (worktreeId: string, view?: "commit") => void;
     onchange: () => void;
     onremoved?: (removedIds: string[]) => void;
   } = $props();
@@ -374,6 +377,7 @@
       {onopen}
       {onswitch}
       {onoperation}
+      {ongit}
     />
   {:else}
     <div class="space-y-1">
@@ -386,30 +390,11 @@
       {/if}
       <ManageWorktreesPreview groups={previewGroups} bind:includeForce {busy} />
     {:else if stage === "result" && lastResult}
-      <div class="rounded-lg border bg-muted/40 p-3 text-sm">
-        <p class="font-medium">
-          已删除 {resultSummary.removed} 个
-          {#if resultSummary.skipped > 0}，已跳过 {resultSummary.skipped} 个{/if}
-          ，失败 {resultSummary.failed.length} 个
-        </p>
-        <p class="mt-1 text-xs text-muted-foreground">
-          失败项的文件与未授权会话均未删除，已保留勾选以便重新读取最新状态后重试。
-        </p>
-      </div>
-
-      <InlineNotice tone="danger">
-        <ul class="space-y-1.5">
-          {#each resultSummary.failed as item (item.worktreeId)}
-            <li class="break-all">
-              <span class="font-medium">{item.branch || item.path}</span>
-              {#if item.branch}
-                <span class="font-mono text-xs">（{item.path}）</span>
-              {/if}
-              ：{item.error || "删除未完成"}
-            </li>
-          {/each}
-        </ul>
-      </InlineNotice>
+      <ManageWorktreesResultNotice
+        removed={resultSummary.removed}
+        skipped={resultSummary.skipped}
+        failed={resultSummary.failed}
+      />
     {/if}
   {/if}
 

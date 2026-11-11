@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import { z } from "zod";
 import { navigate, store, stored } from "../../platform/api";
+import { buildGitRouteHref, type GitRouteTarget } from "./route";
 import type { ArchiveSignal } from "../../domains/sessions/archive-signal";
 import type { BranchOperation } from "../../domains/workspace/branch-actions";
 import type { Archived } from "../sessions/archived.svelte";
@@ -191,6 +192,17 @@ export function openSession(session: Pick<SessionInfo, "id">) {
 /** Opens a page of the shell (a home page or a scope) and closes the drawer. */
 export function openPage(path: string) {
   drawerOpen = false;
-  if (location.pathname + location.hash === path) return;
+  const target = new URL(path, location.origin);
+  if (
+    location.pathname === target.pathname &&
+    location.search === target.search &&
+    location.hash === target.hash
+  )
+    return;
   navigate(path);
+}
+
+/** Opens the standalone `/git` workbench for a repository or worktree. */
+export function openGitWorkbench(target: GitRouteTarget) {
+  openPage(buildGitRouteHref(target));
 }

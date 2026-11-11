@@ -13,6 +13,10 @@
     selectedParentOverride,
     selectedCommitFilePath,
     desktop = true,
+    diffMode,
+    diffScrollTop = 0,
+    onDiffModeChange,
+    onDiffScrollChange,
     onBackToList,
     onSelectParent,
     onSelectCommitFile,
@@ -22,6 +26,10 @@
     selectedParentOverride?: string;
     selectedCommitFilePath: string | null;
     desktop?: boolean;
+    diffMode?: "unified" | "split";
+    diffScrollTop?: number;
+    onDiffModeChange?: (mode: "unified" | "split") => void;
+    onDiffScrollChange?: (top: number) => void;
     onBackToList?: () => void;
     onSelectParent: (commitOid: string, parentOid: string) => void;
     onSelectCommitFile: (path: string) => void;
@@ -152,11 +160,11 @@
     {#if desktop && showDiffPreview && activeFile}
       <div class="h-64 min-h-0 shrink-0 border-t border-git-border">
         <GitDiffViewer
-          path={activeFile.newPath}
-          oldPath={activeFile.oldPath}
-          status={activeFile.status}
-          binary={activeFile.binary}
-          hunks={activeFile.hunks}
+          file={activeFile}
+          preferredViewMode={diffMode}
+          scrollTop={diffScrollTop}
+          onViewModeChange={onDiffModeChange}
+          onScrollChange={onDiffScrollChange}
         />
       </div>
     {/if}

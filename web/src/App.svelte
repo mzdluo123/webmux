@@ -1,8 +1,10 @@
 <script lang="ts" module>
   type SessionPageModule = typeof import("./pages/Terminal.svelte");
+  type GitPageModule = typeof import("./pages/GitWorkbench.svelte");
   // Kept after the first visit. A resolved import still paints `{#await}`'s
   // pending branch, so later opens must render the module directly.
   let sessionPage: SessionPageModule | undefined;
+  let gitPage: GitPageModule | undefined;
 
   function cachedSessionPage() {
     return sessionPage;
@@ -12,6 +14,18 @@
     const pending = import("./pages/Terminal.svelte");
     void pending.then((mod) => {
       sessionPage = mod;
+    });
+    return pending;
+  }
+
+  function cachedGitPage() {
+    return gitPage;
+  }
+
+  function loadGitPage() {
+    const pending = import("./pages/GitWorkbench.svelte");
+    void pending.then((mod) => {
+      gitPage = mod;
     });
     return pending;
   }
@@ -67,6 +81,7 @@
 
   enterHome();
   let path = $state(location.pathname);
+  let search = $state(location.search);
   let ready = $state(false);
   let checking = $state(true);
   let token = $state(stored("token"));
@@ -76,10 +91,11 @@
   const shellRoute = $derived(
     route.name === "sessions" ||
       route.name === "quick-start" ||
-      route.name === "terminal"
+      route.name === "terminal" ||
+      route.name === "git"
       ? (route as Extract<
           Route,
-          { name: "sessions" | "quick-start" | "terminal" }
+          { name: "sessions" | "quick-start" | "terminal" | "git" }
         >)
       : null,
   );
@@ -139,6 +155,10 @@
     void sessionId;
     return cachedSessionPage();
   });
+  const openedGitPage = $derived.by(() => {
+    void path;
+    return cachedGitPage();
+  });
 
   async function check() {
     checking = true;
@@ -179,10 +199,14 @@
     });
     const change = () => {
       if (!shellRoute) enterHome();
-      if (path !== location.pathname) switcherOpen = false;
+      const pathChanged = path !== location.pathname;
+      if (pathChanged) switcherOpen = false;
       path = location.pathname;
-      focusRoute = true;
-      void tick().then(focusMain);
+      search = location.search;
+      if (pathChanged) {
+        focusRoute = true;
+        void tick().then(focusMain);
+      }
     };
     const auth = () => {
       stopP2P();
@@ -335,6 +359,22 @@
           {#snippet children(page)}
             {@render session(page)}
           {/snippet}
+        </LazyPage>
+      {/if}
+    {:else if route.name === "git"}
+      {#if openedGitPage}
+        <openedGitPage.default
+          repositoryId={route.repositoryId}
+          worktreeId={route.worktreeId}
+          {search}
+        />
+      {:else}
+        <LazyPage load={loadGitPage} label="Git 工作台">
+          {#snippet children(page)}<page.default
+              repositoryId={route.repositoryId}
+              worktreeId={route.worktreeId}
+              {search}
+            />{/snippet}
         </LazyPage>
       {/if}
     {:else if route.name === "quick-start"}

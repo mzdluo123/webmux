@@ -37,6 +37,7 @@
     host,
     initial,
     popout,
+    onOpenGit,
   }: {
     id: string;
     visible: boolean;
@@ -45,6 +46,7 @@
     initial?: CodeWorkspaceSnapshot;
     /** The pop-out toggle; absent where the panel cannot change windows. */
     popout?: { popped: boolean; toggle: () => void };
+    onOpenGit?: () => void;
   } = $props();
   const seed = untrack(() => initial);
   const navMin = 120,
@@ -246,6 +248,7 @@
           void ws.load();
           for (const tab of ws.s.tabs) void ws.refresh(tab);
         }}
+        {onOpenGit}
       />
       <div
         class="code-inner flex min-h-0 flex-1 overflow-hidden"

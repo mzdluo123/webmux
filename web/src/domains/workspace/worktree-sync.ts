@@ -70,6 +70,36 @@ export function switchableWorktree(tree: Worktree): boolean {
   return tree.kind !== "bare" && tree.available && !tree.prunable;
 }
 
+/**
+ * Whether a worktree currently reports uncommitted tracked, untracked, or
+ * conflicted changes (used to offer the direct `提交改动…` shortcut).
+ */
+export function canCommitWorktree(tree: Worktree | undefined): boolean {
+  if (!tree) return true;
+  return (
+    tree.available &&
+    !tree.prunable &&
+    !tree.locked &&
+    tree.kind !== "bare" &&
+    hasWorktreeChanges(tree)
+  );
+}
+
+export function hasWorktreeChanges(tree: Worktree | undefined): boolean {
+  if (!tree || !tree.available || tree.prunable || tree.kind === "bare") {
+    return false;
+  }
+  if (tree.dirty === true || tree.hasUntracked) return true;
+  if (!tree.changes) return false;
+  return (
+    tree.changes.staged +
+      tree.changes.unstaged +
+      tree.changes.untracked +
+      tree.changes.conflicted >
+    0
+  );
+}
+
 /** The words of a state without counts to show. */
 export function upstreamText(
   state: UpstreamState | { kind: "unknown" },

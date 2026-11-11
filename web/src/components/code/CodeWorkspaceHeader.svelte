@@ -10,6 +10,7 @@
     type CodeWorkspaceTab,
   } from "../../domains/code/code-workspace";
   import IconDots from "~icons/tabler/dots";
+  import IconGitBranch from "~icons/tabler/git-branch";
   import IconLayoutSidebarLeftCollapse from "~icons/tabler/layout-sidebar-left-collapse";
   import IconLayoutSidebarLeftExpand from "~icons/tabler/layout-sidebar-left-expand";
   import IconPhoto from "~icons/tabler/photo";
@@ -33,6 +34,7 @@
     supersedeOpenOnTabKey,
     close,
     refreshAll,
+    onOpenGit,
   }: {
     navOpen: boolean;
     navStatus: string;
@@ -48,6 +50,7 @@
     supersedeOpenOnTabKey: (event: KeyboardEvent) => void;
     close: (key: string) => void;
     refreshAll: () => void;
+    onOpenGit?: () => void;
   } = $props();
 </script>
 
@@ -120,6 +123,13 @@
     {/snippet}
   </Tabs.List>
   <div class="flex shrink-0 items-center gap-1 px-2 py-1">
+    {#if onOpenGit}<Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="在 Git 中查看"
+        title="在 Git 中查看"
+        onclick={onOpenGit}><IconGitBranch aria-hidden="true" /></Button
+      >{/if}
     <Button
       variant="ghost"
       size="icon-sm"
