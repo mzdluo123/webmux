@@ -155,32 +155,62 @@ func New(opts Options) *Service {
 }
 
 func (s *Service) initUDPMux() {
-	var muxes []ice.UDPMux
 	udpPort := s.udpPortCfg
-	if c4, err := net.ListenUDP("udp4", &net.UDPAddr{Port: udpPort}); err == nil {
-		s.udpConns = append(s.udpConns, c4)
-		muxes = append(muxes, webrtc.NewICEUDPMux(nil, c4))
-		if addr, ok := c4.LocalAddr().(*net.UDPAddr); ok {
-			udpPort = addr.Port
+	if udpPort <= 0 {
+		udpPort = probeFreeUDPPort()
+	}
+
+	var muxes []ice.UDPMux
+	seen := map[string]struct{}{}
+	ifaces, _ := net.Interfaces()
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
 		}
-	} else if udpPort != 0 {
-		if c4Any, errAny := net.ListenUDP("udp4", &net.UDPAddr{Port: 0}); errAny == nil {
-			s.udpConns = append(s.udpConns, c4Any)
-			muxes = append(muxes, webrtc.NewICEUDPMux(nil, c4Any))
-			if addr, ok := c4Any.LocalAddr().(*net.UDPAddr); ok {
-				udpPort = addr.Port
+		if !s.allowInterface(iface.Name) {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, raw := range addrs {
+			ip := extractInterfaceIP(raw)
+			if !usableCandidateIP(ip) {
+				continue
 			}
+			if iface.Flags&net.FlagLoopback != 0 && !ip.IsLoopback() {
+				continue
+			}
+			netw := "udp6"
+			bindIP := ip
+			if ip4 := ip.To4(); ip4 != nil {
+				netw = "udp4"
+				bindIP = ip4
+			}
+			key := netw + "|" + bindIP.String()
+			if _, dup := seen[key]; dup {
+				continue
+			}
+			seen[key] = struct{}{}
+
+			conn, listenErr := net.ListenUDP(netw, &net.UDPAddr{IP: bindIP, Port: udpPort})
+			if listenErr != nil && s.udpPortCfg <= 0 {
+				conn, listenErr = net.ListenUDP(netw, &net.UDPAddr{IP: bindIP, Port: 0})
+			}
+			if listenErr != nil {
+				continue
+			}
+			if udpPort <= 0 {
+				if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok {
+					udpPort = addr.Port
+				}
+			}
+			s.udpConns = append(s.udpConns, conn)
+			muxes = append(muxes, webrtc.NewICEUDPMux(nil, conn))
 		}
 	}
-	// Dual-stack IPv6 UDP listener on the same port (or automatic port) so
-	// IPv6 host/srflx candidates are gathered alongside IPv4.
-	if c6, err := net.ListenUDP("udp6", &net.UDPAddr{Port: udpPort}); err == nil {
-		s.udpConns = append(s.udpConns, c6)
-		muxes = append(muxes, webrtc.NewICEUDPMux(nil, c6))
-	} else if c6Any, err := net.ListenUDP("udp6", &net.UDPAddr{Port: 0}); err == nil {
-		s.udpConns = append(s.udpConns, c6Any)
-		muxes = append(muxes, webrtc.NewICEUDPMux(nil, c6Any))
-	}
+
 	if len(muxes) == 1 {
 		s.udpMux = muxes[0]
 	} else if len(muxes) > 1 {
@@ -193,6 +223,58 @@ func (s *Service) initUDPMux() {
 			s.mu.Unlock()
 		})
 	}
+}
+
+func (s *Service) allowInterface(name string) bool {
+	if s.ifaceFilter != nil {
+		return s.ifaceFilter.MatchString(name)
+	}
+	for _, prefix := range []string{"docker", "br-", "veth", "virbr", "cni", "podman"} {
+		if strings.HasPrefix(name, prefix) {
+			return false
+		}
+	}
+	return true
+}
+
+func probeFreeUDPPort() int {
+	for _, netw := range []string{"udp4", "udp6"} {
+		c, err := net.ListenUDP(netw, &net.UDPAddr{Port: 0})
+		if err != nil {
+			continue
+		}
+		addr, _ := c.LocalAddr().(*net.UDPAddr)
+		_ = c.Close()
+		if addr != nil && addr.Port > 0 {
+			return addr.Port
+		}
+	}
+	return 0
+}
+
+func extractInterfaceIP(addr net.Addr) net.IP {
+	switch v := addr.(type) {
+	case *net.IPNet:
+		return v.IP
+	case *net.IPAddr:
+		return v.IP
+	default:
+		return nil
+	}
+}
+
+func usableCandidateIP(ip net.IP) bool {
+	if len(ip) == 0 || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return false
+	}
+	if ip.To4() != nil {
+		return true
+	}
+	if len(ip) != net.IPv6len {
+		return false
+	}
+	// Skip deprecated IPv6 site-local unicast (fec0::/10).
+	return ip[0] != 0xfe || ip[1]&0xc0 != 0xc0
 }
 
 func (s *Service) mapperStatus() (PortMapStatus, string) {

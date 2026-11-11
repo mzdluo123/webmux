@@ -15,6 +15,20 @@ import (
 )
 
 func TestWebRTCControlStreamAndRPCEndToEnd(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		networks []webrtc.NetworkType
+	}{
+		{name: "dual-stack", networks: []webrtc.NetworkType{webrtc.NetworkTypeUDP4, webrtc.NetworkTypeUDP6}},
+		{name: "ipv4-only", networks: []webrtc.NetworkType{webrtc.NetworkTypeUDP4}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runWebRTCControlStreamAndRPCEndToEnd(t, tc.networks)
+		})
+	}
+}
+
+func runWebRTCControlStreamAndRPCEndToEnd(t *testing.T, clientNetworks []webrtc.NetworkType) {
 	echoDone := make(chan string, 1)
 	svc := New(Options{
 		AppVersion:  "test-1.0.0",
@@ -42,11 +56,15 @@ func TestWebRTCControlStreamAndRPCEndToEnd(t *testing.T) {
 	})
 	defer svc.Close()
 
-	clientPC, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	var clientSE webrtc.SettingEngine
+	clientSE.SetIncludeLoopbackCandidate(true)
+	clientSE.SetNetworkTypes(clientNetworks)
+	clientAPI := webrtc.NewAPI(webrtc.WithSettingEngine(clientSE))
+	clientPC, err := clientAPI.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer clientPC.Close()
+	defer func() { _ = clientPC.Close() }()
 
 	ctrlDC, err := clientPC.CreateDataChannel("webmux:control", nil)
 	if err != nil {

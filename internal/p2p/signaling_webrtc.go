@@ -91,12 +91,7 @@ func (s *Service) handleOffer(ctx context.Context, in SignalInput) (SignalOutput
 	se.SetSCTPMaxReceiveBufferSize(maxBufferedAmount)
 	se.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
 	se.SetIncludeLoopbackCandidate(true)
-	if s.ifaceFilter != nil {
-		re := s.ifaceFilter
-		se.SetInterfaceFilter(func(name string) bool {
-			return re.MatchString(name)
-		})
-	}
+	se.SetInterfaceFilter(s.allowInterface)
 	se.SetNetworkTypes([]webrtc.NetworkType{
 		webrtc.NetworkTypeUDP4,
 		webrtc.NetworkTypeUDP6,
