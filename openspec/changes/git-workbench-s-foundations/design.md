@@ -27,7 +27,7 @@
 
 **Non-Goals:**
 
-- 不在 S 阶段注册 `/git/{repositoryId}` 生产路由，不修改 `web/src/route.ts`、`App.svelte`、`AppShell.svelte` 或侧栏常驻菜单（属 V1a）。
+- 不在 S 阶段注册 `/git/{repositoryId}` 生产路由，不修改 `web/src/hooks/shared/route.ts`、`App.svelte`、`AppShell.svelte` 或侧栏常驻菜单（属 V1a）。
 - 不在 S 阶段新增 REST/WebSocket 控制器路由或改动 `internal/api/testdata/wire` 快照（属 V1a）。
 - 不在 S 阶段引入跨服务重启的操作记录、提交草稿、任务基线或审阅标记的 `statefile` 描述符与 `persistguard` 登记（属 V1b）。
 - 不在 S 阶段实现任意逐行（sub-hunk）暂存、三方冲突解决器、`Merge`/`Rebase`/`Cherry-pick`/`Stash` 写操作（属 V2/V3）。
@@ -144,7 +144,7 @@ ExecuteCommit (under worktreeWriteGate[canonicalWorktreePath])
   - 在 `ListButton` 的 `tv()` 新增 `variant="git-row"` 与 `variant="git-row-action"`（紧凑行高，`aria-selected="true"` 或 `aria-current="true"` 时应用 `bg-git-selected text-git-selected-foreground` 并附左侧或外框焦点指示，圆角固定为 `rounded-sm` 4px；行尾动作在桌面悬停/聚焦覆盖、触屏常驻预留槽位）；
   - 分栏调节直接复用 `$lib/components/ui/resizable`（`PaneGroup`、`Pane`、`ResizableHandle`），运行时面板比例与拓扑列高一律通过 `style:--*` 自定义属性驱动，并在 `web/eslint.config.mjs` 的 `Pane`/`ResizableHandle` 契约中显式登记新增布局钩子类名。
 - **业务组件拆分与可达性**：
-  - 纯 TypeScript 模型：`web/src/git-workbench-types.ts`（Zod 契约与演示/视图状态类型）、`web/src/git-graph-layout.ts`（车道几何与延续边计算）；
+  - 纯 TypeScript 模型：`web/src/contracts/git-workbench-schemas.ts`（Zod 契约与演示/视图状态类型）、`web/src/domains/workspace/git-workbench-state.ts` 与 `web/src/domains/workspace/git-graph-layout.ts`（车道几何与延续边计算）；
   - 视图组件（均控制在 `<500` 行内）：`GitWorkbenchShell.svelte`（顶栏、窄模式栏、响应式单栏/多栏容器与底部状态栏）、`GitLogPane.svelte`、`GitCommitPane.svelte`、`GitCommitPreviewDialog.svelte`、`GitBranchesPane.svelte`、`GitPushDialog.svelte`；
   - **Storybook 与守卫闭环**：
     - 在 `web/stories/GitWorkbench.stories.ts`（及 `Overflow.stories.ts` / `web/test/storybook/cases.ts`）导出交互故事，覆盖桌面三栏 `Log`、合并拓扑与筛选延续、`Commit` 部分暂存与完整 `index` 预览、`Branches` 占用引导、`Push` 宽对话框/手机全屏页及异常空态；

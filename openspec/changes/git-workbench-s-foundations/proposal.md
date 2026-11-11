@@ -55,5 +55,5 @@ WebMux 规划新增以 IntelliJ Git 为参照的独立「Git 工作台」，服�
   - `cmd/webmux` 及相关测试夹具：按需为 `codeview.Service` 注入 `workspace` 只读定位协作接口；S 阶段不新增对外 REST/WebSocket 路由、TOML 配置项或 `statefile` 持久化描述符，`internal/api/testdata/wire` 与 `internal/persistguard` 零破坏。
 - **前端代码与文档（目标实现影响面）**：
   - `web/src/design-tokens.css`、`web/src/lib/components/ui/`（新增 Git 工作台令牌与受控 variant）、`web/eslint.config.mjs`（如需为新增分栏面板登记 `Pane`/`ResizableHandle` 布局钩子）；
-  - `web/src/` 与 `web/src/components/` 新增可被 V1a 直接复用的 Git 工作台视图模型与布局组件，`web/stories/` 与 `web/test/storybook/cases.ts` 新增桌面/手机双主题评审故事（遵循 `knip` 可达性、`arch:dupes` 与单文件 `<500` 行预算）；
+  - `web/src/contracts/`、`web/src/domains/workspace/` 与 `web/src/components/workspace/` 新增可被 V1a 直接复用的 Git 工作台视图模型与布局组件，`web/stories/` 与 `web/test/storybook/cases.ts` 新增桌面/手机双主题评审故事（遵循 `knip` 可达性、`arch:dupes` 与单文件 `<500` 行预算）；
   - 实施阶段同步更新 `docs/design-system.md` 与 `docs/frontend-architecture.md` 的令牌/variant 登记表；因 S 阶段尚未向最终用户开放 `/git` 入口，用户故事将在 V1a 开放能力时随行为一并登记。

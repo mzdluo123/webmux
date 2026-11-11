@@ -7,6 +7,8 @@ export const stories = [
   "draft-composer",
   "code-changes",
   "workspace-dialog",
+  "git-workbench-shell",
+  "git-push-dialog",
 ] as const;
 
 export type Story = (typeof stories)[number];
