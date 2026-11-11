@@ -181,6 +181,22 @@
     - `POST .../git/commit-preview` 展示完整 `HEAD -> index` 待提交集合（含终端 CLI 预暂存文件）、身份、可执行 Hook、阻塞项与限时确认码；
     - `POST .../git/commit` 在独立 2 分钟受控窗口内执行提交（客户端断开不强杀已启动的 `git commit`），经 reflog 与 `{oid, parents, tree}` 复核返回 `matched`、`needs_review`（如 `pre-commit` Hook 改写索引）或 `uncertain`；
   - 访问与错误日志不输出文件内容、Diff 正文、提交消息全文或凭据；前端 `web/src/contracts/git-api-schemas.ts` 与 `web/src/platform/git-api.ts` 复用统一 `api()`/`apiBlob()`/`APIError` 与 wire 快照校验，不修改既有 `/api/sessions/{id}/code/*` 行为。
+- **US-J20 独立 `/git` 工作台路由、多入口联动与跨视图状态隔离**：作为同时管理多份工作树与会话的使用者，我希望在零活跃会话或任一会话旁通过独立 URL 打开一等公民 Git 工作台，在历史、提交与分支视图间自由往返而不丢阅读或草稿状态，并能无损返回原会话。
+  验收要点：
+  - 路由支持 `/git`、`/git/{repositoryId}`（只读仓库模式）与 `/git/{repositoryId}/worktrees/{worktreeId}`（工作树读写模式），并解析深链查询参数 `view=log|commit|branches`、`scope=all|branch|task|to-push|incoming`、`branch`、`commit`、`q` 与 `returnSession`；
+  - 显式 URL 查询参数优先级始终高于本地记忆，浏览器前进/后退仅改变查询串时响应式同步当前视图与筛选，不销毁单实例 `AppShell` 或重复建立 `/ws/sessions` 连接；在 `/git/...` 页面切换侧栏“工作台 / 聊天”模式保持当前 `/git/...` 路由；
+  - 零活跃会话下可通过侧栏仓库“⋯”菜单、首页仓库菜单、仓库面板头部“Git 工作台”按钮或直接访问 URL 打开工作台，全程不创建任何伪终端会话；创建并删除最后一个会话不会卸载或中断当前 `/git` 页面；
+  - 三类入口精确落位并支持无损返回会话：
+    - 仓库级入口打开只读仓库模式 `/git/{repositoryId}`；
+    - 工作树“⋯”菜单提供“在 Git 工作台打开”（`/git/{repositoryId}/worktrees/{worktreeId}`），且当工作树可用、未锁定、非 `bare` 并存在待处理改动时额外提供“提交改动…”直达 `?view=commit`；
+    - 会话代码工作区头部“在 Git 中查看”携带 `returnSession={sessionId}` 跳转并在顶栏提供“返回会话”；若原会话已退出、归档或删除则诚实提示状态，工作台继续独立可用；
+  - 顶栏语义分离与工作树写门禁：
+    - 顶栏左侧固定展示操作目标（仓库切换器、工作树切换器与当前检出分支/`HEAD` 徽标），与历史视图的 `branchFilter`（“历史筛选：…”徽标）严格分离；
+    - 只读仓库模式或 `bare` 工作树进入“提交 (Commit)”视图时显式要求选择可写工作树，绝不静默落到任意工作树；
+    - 工作树缺失、待清理或已锁定时禁用写操作并提供管理/修复或只读切换入口；
+  - 跨视图、跨工作树与跨设备尺寸隔离记忆：
+    - 按 `(hostId, repositoryId, worktreeId)` 隔离保留选中提交、父提交对比、筛选条件、列表与 Diff 滚动位置、已看标记与本地提交草稿，`Log -> Commit -> Branches -> Log` 往返不丢状态，切换工作树或仓库立即清空确认码与跨目录草稿；
+    - 分栏比例、引用栏显隐与统一/并排 Diff 偏好按设备尺寸档位（`desktop`、`compact`、`tablet`、`phone`）独立持久化，手机端操作不覆盖桌面端布局。
 
 依据：
 
@@ -210,3 +226,7 @@
 - Git 只读与暂存提交接口：[只读路由](../../../internal/api/git_read.go)、[暂存提交路由](../../../internal/api/git_write.go)、[线上契约](../../../internal/contract/git_read.go)、[转换层](../../../internal/wire/git.go)；
   [代码上下文与比较](../../../internal/codeview/git_lookup.go)、[历史与暂存提交服务](../../../internal/workspace/staging.go)、[前端契约](../../../web/src/contracts/git-api-schemas.ts)、[前端请求封装](../../../web/src/platform/git-api.ts)；
   [只读接口测试](../../../internal/api/git_read_test.go)、[暂存提交接口测试](../../../internal/api/git_write_test.go)、[快照录制](../../../internal/api/wire_git_snapshot_test.go)、[前端契约单测](../../../web/test/git-api.test.ts)。
+- 独立 `/git` 路由与壳层：
+  - 页面与状态：[Git 工作台页](../../../web/src/pages/GitWorkbench.svelte)、[控制器](../../../web/src/hooks/workspace/git-workbench-controller.svelte.ts)、[路由契约](../../../web/src/hooks/shared/route.ts)、[记忆模块](../../../web/src/domains/workspace/git-workbench-memory.ts)；
+  - 入口与门禁：[顶栏组件](../../../web/src/components/workspace/GitWorkbenchTopBar.svelte)、[写门禁](../../../web/src/components/workspace/GitWorktreeGuardState.svelte)、[代码头部入口](../../../web/src/components/code/CodeWorkspaceHeader.svelte)；
+  - 测试验证：[路由单测](../../../web/test/route.test.ts)、[记忆单测](../../../web/test/git-workbench-memory.test.ts)、[浏览器测试](../../../web/test/browser/GitWorkbenchRoute.test.ts)、[路由 E2E](../../../web/test/e2e/git-workbench-route.spec.ts)。

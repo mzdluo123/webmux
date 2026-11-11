@@ -16,7 +16,11 @@
     SessionInfo,
     Worktree,
   } from "../../contracts/schemas";
-  import type { RepositoryTab, Shell } from "../../hooks/shared/shell.svelte";
+  import {
+    openGitWorkbench,
+    type RepositoryTab,
+    type Shell,
+  } from "../../hooks/shared/shell.svelte";
   import CloseSessionDialog from "../sessions/CloseSessionDialog.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
   import RenameSessionDialog from "../sessions/RenameSessionDialog.svelte";
@@ -262,6 +266,14 @@
           viewingRepository = null;
         }}
         onrepository={(repo) => shell.repositories.replace(repo)}
+        ongit={(worktreeId, view) => {
+          viewingRepository = null;
+          openGitWorkbench({
+            repositoryId: currentRepo.id,
+            worktreeId,
+            view,
+          });
+        }}
         onclose={() => (viewingRepository = null)}
       />{/snippet}
   </LazyDialog>

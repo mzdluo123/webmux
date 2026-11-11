@@ -309,6 +309,10 @@ export function navigate(path: string) {
   history.pushState(null, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
+export function replacePath(path: string) {
+  history.replaceState(history.state, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
 const statusText = {
   running: "运行中",
   waiting: "可能在等你",

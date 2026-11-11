@@ -59,7 +59,7 @@
   }: {
     route: Extract<
       Route,
-      { name: "sessions" | "quick-start" | "terminal" | "handoff" }
+      { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
     >;
     drafts: TerminalDrafts;
     children: Snippet;
@@ -230,7 +230,13 @@
 
   // The new-session dialog belongs to the page it was opened on: a created
   // session navigates away, and the dialog must not follow it there.
-  const page = $derived(route.name === "terminal" ? route.id : route.name);
+  const page = $derived(
+    route.name === "terminal"
+      ? route.id
+      : route.name === "git"
+        ? `git:${route.repositoryId}:${route.worktreeId ?? ""}`
+        : route.name,
+  );
   $effect(() => {
     void page;
     untrack(() => (creating = null));
@@ -287,7 +293,9 @@
   function changeMode(next: ShellMode) {
     if (next === shellUi.mode) return;
     shellUi.setMode(next);
-    if (route.name !== "terminal") navigate(shellUi.home);
+    if (route.name !== "terminal" && route.name !== "git") {
+      navigate(shellUi.home);
+    }
   }
   function primary() {
     if (shellUi.mode === "chat") openPage("/new");

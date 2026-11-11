@@ -4,23 +4,31 @@
   import { Button } from "$lib/components/ui/button";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import type {
+    GitCommitFile,
     GitDiffLine,
     GitStagingHunk,
   } from "../../contracts/git-workbench-schemas";
+  import { syncElementScrollTop } from "../../domains/workspace/git-workbench-memory";
 
   let {
-    path,
-    oldPath = "",
-    status = "M",
-    binary = false,
+    file,
+    path: rawPath = "",
+    oldPath: rawOldPath = "",
+    status: rawStatus = "M",
+    binary: rawBinary = false,
     degradeReason = "",
-    hunks = [],
+    hunks: rawHunks = [],
     stageMode = "none",
     hunkStageAvailable = false,
+    preferredViewMode,
+    scrollTop = 0,
+    onViewModeChange,
+    onScrollChange,
     onStageHunk,
     onUnstageHunk,
   }: {
-    path: string;
+    file?: GitCommitFile;
+    path?: string;
     oldPath?: string;
     status?: string;
     binary?: boolean;
@@ -28,13 +36,27 @@
     hunks?: readonly GitStagingHunk[];
     stageMode?: "none" | "stage" | "unstage";
     hunkStageAvailable?: boolean;
+    preferredViewMode?: "unified" | "split";
+    scrollTop?: number;
+    onViewModeChange?: (mode: "unified" | "split") => void;
+    onScrollChange?: (scrollTop: number) => void;
     onStageHunk?: (hunkId: string) => void;
     onUnstageHunk?: (hunkId: string) => void;
   } = $props();
 
+  const path = $derived(file ? file.newPath : rawPath);
+  const oldPath = $derived(file ? (file.oldPath ?? "") : rawOldPath);
+  const status = $derived(file ? file.status : rawStatus);
+  const binary = $derived(file ? file.binary : rawBinary);
+  const hunks = $derived(file ? file.hunks : rawHunks);
+
   const wide = new MediaQuery("(min-width: 768px)");
-  let viewMode = $state<"unified" | "split">("unified");
-  const effectiveMode = $derived(wide.current ? viewMode : "unified");
+  let localViewMode = $state<"unified" | "split">("unified");
+  const chosenMode = $derived(preferredViewMode ?? localViewMode);
+  const effectiveMode = $derived(wide.current ? chosenMode : "unified");
+  let scrollEl = $state<HTMLDivElement>();
+
+  $effect(() => syncElementScrollTop(scrollEl, scrollTop));
 
   interface SplitPair {
     left: GitDiffLine | null;
@@ -91,9 +113,12 @@
     </div>
     {#if wide.current && !binary && hunks.length > 0}
       <SegmentedControl.Root
-        value={viewMode}
+        value={chosenMode}
         onValueChange={(val) => {
-          if (val === "unified" || val === "split") viewMode = val;
+          if (val === "unified" || val === "split") {
+            localViewMode = val;
+            onViewModeChange?.(val);
+          }
         }}
         aria-label="差异显示方式"
       >
@@ -103,7 +128,11 @@
     {/if}
   </div>
 
-  <div class="min-h-0 flex-1 overflow-y-auto p-3">
+  <div
+    bind:this={scrollEl}
+    class="min-h-0 flex-1 overflow-y-auto p-3"
+    onscroll={(e) => onScrollChange?.(e.currentTarget.scrollTop)}
+  >
     {#if degradeReason}
       <p
         class="mb-2 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-xs wrap-anywhere text-warning"

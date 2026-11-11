@@ -79,6 +79,7 @@
     onremoveworktree,
     onswitchbranch,
     onbranchoperation,
+    onopengit,
     onrename,
     onclose,
     onresume,
@@ -118,6 +119,11 @@
     onbranchoperation?: (
       repositoryId: string,
       operation: BranchOperation,
+    ) => void;
+    onopengit?: (
+      repositoryId: string,
+      worktreeId?: string,
+      view?: "commit",
     ) => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
@@ -418,6 +424,7 @@
           onhome={() => onhomeworktrees(node.repositoryId ?? "")}
           onmanage={() => onmanageworktrees(node.repositoryId ?? "")}
           ondetails={() => onrepositorydetails(node.repositoryId ?? "")}
+          ongit={onopengit && (() => onopengit(node.repositoryId ?? ""))}
         />
       {:else if node.kind === "worktree" && node.repositoryId && node.worktreeId}
         {@const repositoryId = node.repositoryId}
@@ -437,6 +444,9 @@
             worktree={node.worktree}
             onoperation={onbranchoperation &&
               ((operation) => onbranchoperation(repositoryId, operation))}
+            ongit={onopengit && (() => onopengit(repositoryId, worktreeId))}
+            oncommit={onopengit &&
+              (() => onopengit(repositoryId, worktreeId, "commit"))}
           />
         </SidebarRowMenu>
       {:else if node.session}

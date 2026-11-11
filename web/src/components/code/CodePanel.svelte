@@ -14,6 +14,7 @@
   import type { TextInsertion } from "../../domains/terminal/terminal-draft.svelte";
   import { popoutAvailable, popOut, type CodePopout } from "./code-popout";
   import { codePanelState } from "../../hooks/code/code-panel-state";
+  import { findShell, openGitWorkbench } from "../../hooks/shared/shell.svelte";
 
   let {
     id,
@@ -24,6 +25,7 @@
     sessionCwd,
     reportedCwd,
     reveal,
+    workspaceRef,
   }: {
     id: string;
     visible: boolean;
@@ -34,7 +36,25 @@
     reportedCwd: ReportedCwd | null;
     /** A code location another view asks to show, such as from chat output. */
     reveal?: CodeReveal;
+    workspaceRef?: { repositoryId: string; worktreeId?: string } | null;
   } = $props();
+
+  const shell = findShell();
+  const gitWorkspace = $derived.by(() => {
+    const ref =
+      workspaceRef !== undefined
+        ? workspaceRef
+        : shell?.sessions.sessions.find((s) => s.id === id)?.workspace;
+    if (!ref?.repositoryId) return null;
+    if (
+      shell &&
+      workspaceRef === undefined &&
+      !shell.repositories.list.some((r) => r.id === ref.repositoryId)
+    ) {
+      return null;
+    }
+    return ref;
+  });
 
   const host: CodeHost = {
     get draftEnabled() {
@@ -177,6 +197,16 @@
         initial={snapshot}
         popout={canPopOut
           ? { popped: false, toggle: () => void toggle() }
+          : undefined}
+        onOpenGit={gitWorkspace
+          ? () => {
+              keep();
+              openGitWorkbench({
+                repositoryId: gitWorkspace.repositoryId,
+                worktreeId: gitWorkspace.worktreeId || undefined,
+                returnSession: id,
+              });
+            }
           : undefined}
       />{/key}
   {/if}
