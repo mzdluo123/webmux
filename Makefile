@@ -41,7 +41,7 @@ RELEASE_FILES = $(addprefix $(ASSET_PREFIX),linux-amd64 linux-arm64 darwin-amd64
 	windows-amd64.exe windows-arm64.exe tray-windows-amd64.exe tray-windows-arm64.exe \
 	setup-windows-amd64.exe setup-windows-arm64.exe) $(LINUX_PACKAGES)
 
-.PHONY: web build tray installer linux-packages release release-build release-sign check docs-check persistence-check go-lint test test-fast test-go test-frontend test-unit test-browser test-e2e test-performance test-browsers-install cover cover-go cover-web frontend e2e-runtime format format-check install baseline test-install
+.PHONY: web build tray installer linux-packages release release-build release-sign check docs-check persistence-check go-lint test test-fast test-go test-frontend test-unit test-browser test-storybook test-e2e test-e2e-built test-performance test-browsers-install cover cover-go cover-web frontend e2e-runtime format format-check install baseline test-install
 web:
 	$(PNPM) --dir web install --frozen-lockfile
 	$(PNPM) --dir web build
@@ -137,22 +137,21 @@ go-lint:
 	$(GOLANGCI_LINT) run ./...
 
 test: e2e-runtime
-	$(MAKE) test-go
-	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test
+	$(MAKE) --output-sync=target -j test-go test-unit test-browser
+	$(MAKE) --output-sync=target -j test-storybook test-e2e-built
+	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test:performance
 
 # Fast iteration: Go race plus Vitest unit/browser, without Storybook, E2E or
 # performance. Builds the embedded frontend once; `test-go` can be run alone
 # against an existing `web/dist` for Go-only changes.
 test-fast: frontend
-	$(MAKE) test-go
-	$(MAKE) test-frontend
+	$(MAKE) --output-sync=target -j test-go test-unit test-browser
 
 test-go:
 	$(GO) test -race -parallel=$(GO_TEST_PARALLEL) ./...
 
 test-frontend:
-	$(PNPM) --dir web test:unit
-	$(PNPM) --dir web test:browser
+	$(MAKE) --output-sync=target -j test-unit test-browser
 
 cover: cover-go cover-web
 
@@ -187,7 +186,13 @@ test-unit:
 test-browser:
 	$(PNPM) --dir web test:browser
 
+test-storybook:
+	$(PNPM) --dir web test:storybook
+
 test-e2e: e2e-runtime
+	$(MAKE) test-e2e-built
+
+test-e2e-built:
 	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test:e2e
 
 test-performance: e2e-runtime
