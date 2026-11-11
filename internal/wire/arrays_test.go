@@ -58,6 +58,14 @@ func TestResponseArrayFixture(t *testing.T) {
 			Side: hybrid.SideTUI, State: hybrid.StateClosed, CreatedAt: chatTime, UpdatedAt: chatTime,
 			Workspace: &hybrid.WorkspaceRef{RepositoryID: "repo0001", WorktreeID: "tree0001"},
 		}, Archived{AgentTitle: "Oh My Pi", AgentIcon: "pi"}),
+		"gitChanges":       GitChanges(codeview.Changes{}),
+		"gitCompare":       GitCompare(codeview.Compare{TargetOID: "0123456789abcdef0123456789abcdef01234567"}),
+		"gitHistory":       GitHistoryPage(workspace.HistoryPage{Status: workspace.HistoryStatusReady, Scope: workspace.HistoryScopeAll, Commits: []workspace.HistoryRow{{OID: "0123456789abcdef0123456789abcdef01234567", ShortOID: "01234567", Subject: "init", AuthorAt: "2026-01-02T03:04:05Z", CommitterAt: "2026-01-02T03:04:05Z"}}}),
+		"gitCommitDetail":  GitCommitDetail(workspace.CommitDetail{OID: "0123456789abcdef0123456789abcdef01234567", ShortOID: "01234567", Subject: "init", Message: "init", AuthorAt: "2026-01-02T03:04:05Z", CommitterAt: "2026-01-02T03:04:05Z"}),
+		"gitStaging":       GitStagingOverview(workspace.StagingOverview{}),
+		"gitStagingDiff":   GitStagingFileDiff(workspace.StagingFileDiff{Identity: workspace.StageFileIdentity{Area: workspace.StageAreaUnstaged, Path: "a.txt"}, Hunks: []workspace.StagingHunk{{ID: "h1", Header: "@@ -1 +1 @@"}}}),
+		"gitCommitPreview": GitCommitPreview(workspace.CommitPreview{RepositoryID: "repo0001", WorktreeID: "tree0001", WorktreePath: "/w", HeadState: "branch", Branch: "main", IndexDigest: "digest"}),
+		"gitCommitResult":  GitCommitResult(workspace.CommitResult{Outcome: workspace.CommitOutcomeMatched, CommitOID: "0123456789abcdef0123456789abcdef01234567", TreeOID: "fedcba9876543210fedcba9876543210fedcba98", ExpectedTreeOID: "fedcba9876543210fedcba9876543210fedcba98"}),
 	}
 	got, err := json.MarshalIndent(values, "", "  ")
 	if err != nil {

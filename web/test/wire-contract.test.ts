@@ -48,7 +48,7 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.ArtifactsFolderSchema, ["artifacts-ensure", "artifacts-ensure-code"]],
   [S.CodeDiffSchema, ["code-diff"]],
   [S.CodeFileSchema, ["code-file", "code-file-pdf", "code-snapshot-file"]],
-  [S.CodeListingSchema, ["code-files", "code-tree"]],
+  [S.CodeListingSchema, ["code-files", "code-tree", "git-files", "git-tree"]],
   [S.CodeLocationSchema, ["code-locate", "code-locate-pdf"]],
   [S.ConfigSchema, ["config"]],
   [S.DirectoriesSchema, ["fs-dirs-default", "fs-dirs-empty", "fs-dirs-prefix"]],
@@ -138,6 +138,7 @@ const groups: Array<[z.ZodType, string[]]> = [
     S.RepositorySchema,
     [
       "repository-register-again",
+      "repository-register-git",
       "repository-register-instruction",
       "repository-register",
       "repository-register-release",
@@ -251,6 +252,31 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.PushResultSchema, ["branch-push"]],
   [S.BranchDeletePreviewSchema, ["branch-delete-preview"]],
   [S.BranchDeleteResultSchema, ["branch-delete"]],
+  // git-workbench-v1a-api
+  [S.GitContextSchema, ["git-context-repo", "git-context-worktree"]],
+  [S.GitFileSchema, ["git-file", "git-file-commit", "git-snapshot-file"]],
+  [S.GitChangesSchema, ["git-changes"]],
+  [S.GitDiffSchema, ["git-diff"]],
+  [S.GitCompareSchema, ["git-compare"]],
+  [S.GitHistoryPageSchema, ["git-history"]],
+  [S.GitCommitDetailResponseSchema, ["git-commit-detail"]],
+  [S.GitStagingOverviewSchema, ["git-staging"]],
+  [S.GitStagingFileDiffSchema, ["git-staging-diff", "git-staging-diff-staged"]],
+  [S.NoContentSchema, ["git-stage", "git-stage-file", "git-unstage"]],
+  [
+    S.GitCommitPreviewSchema,
+    ["git-commit-preview", "git-commit-preview-blocked"],
+  ],
+  [S.GitCommitResultSchema, ["git-commit"]],
+  [
+    S.GitConflictSchema,
+    [
+      "error-409-git-busy",
+      "error-409-git-context-mismatch",
+      "error-409-git-readonly",
+      "error-409-git-stale",
+    ],
+  ],
 ];
 const snapshotSchemas = new Map<string, z.ZodType>();
 for (const [schema, names] of groups)

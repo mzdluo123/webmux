@@ -10,18 +10,18 @@ import (
 func verifyWorktreeSameOnDisk(loc WorktreeLocation) error {
 	rootStat, err := os.Stat(loc.Path)
 	if err != nil || !rootStat.IsDir() {
-		return problemf(ErrConflict, "工作树目录不可访问或已被移除")
+		return problemf(ErrStale, "工作树目录不可访问或已被移除")
 	}
 	gitDir, err := worktreeGitDir(loc.Path)
 	if err != nil {
-		return problemf(ErrConflict, "无法定位工作树 Git 目录: %v", err)
+		return problemf(ErrStale, "无法定位工作树 Git 目录: %v", err)
 	}
 	if gitStat, err := os.Stat(gitDir); err != nil || !gitStat.IsDir() {
-		return problemf(ErrConflict, "工作树 Git 目录不可访问")
+		return problemf(ErrStale, "工作树 Git 目录不可访问")
 	}
 	commonStat, err := os.Stat(loc.CommonDir)
 	if err != nil || !commonStat.IsDir() {
-		return problemf(ErrConflict, "仓库 commonDir 不可访问")
+		return problemf(ErrStale, "仓库 commonDir 不可访问")
 	}
 	return nil
 }
@@ -58,10 +58,10 @@ func (s *Service) Stage(ctx context.Context, req StageRequest) error {
 		return err
 	}
 	if current.Conflicted {
-		return problemf(ErrConflict, "文件 %s 存在未解决的合并冲突，请进入冲突处理", cleanPath)
+		return problemf(ErrConflicted, "文件 %s 存在未解决的合并冲突，请进入冲突处理", cleanPath)
 	}
 	if current.Identity != req.Identity {
-		return problemf(ErrConflict, "文件 %s 的工作区或索引内容已变化，快照已过期，请刷新后重试", cleanPath)
+		return problemf(ErrStale, "文件 %s 的工作区或索引内容已变化，快照已过期，请刷新后重试", cleanPath)
 	}
 
 	if len(req.HunkIDs) == 0 {
@@ -159,10 +159,10 @@ func (s *Service) Unstage(ctx context.Context, req StageRequest) error {
 		return err
 	}
 	if current.Conflicted {
-		return problemf(ErrConflict, "文件 %s 存在未解决的合并冲突，请进入冲突处理", cleanPath)
+		return problemf(ErrConflicted, "文件 %s 存在未解决的合并冲突，请进入冲突处理", cleanPath)
 	}
 	if current.Identity != req.Identity {
-		return problemf(ErrConflict, "文件 %s 的索引或 HEAD 已变化，快照已过期，请刷新后重试", cleanPath)
+		return problemf(ErrStale, "文件 %s 的索引或 HEAD 已变化，快照已过期，请刷新后重试", cleanPath)
 	}
 
 	if len(req.HunkIDs) == 0 {
@@ -239,7 +239,7 @@ func validateRequestedHunks(available []StagingHunk, requested []string) (map[st
 			return nil, problemf(ErrInvalid, "代码块标识不能为空")
 		}
 		if !known[id] {
-			return nil, problemf(ErrConflict, "代码块标识 %s 不存在于当前快照，请刷新后重试", id)
+			return nil, problemf(ErrStale, "代码块标识 %s 不存在于当前快照，请刷新后重试", id)
 		}
 		selected[id] = true
 	}

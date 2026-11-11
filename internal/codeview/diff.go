@@ -187,7 +187,7 @@ func (b *binding) sourceFile(ctx context.Context, p, source string) (Document, e
 		return Document{}, problemf(ErrInvalid, "无效文件来源")
 	}
 	if !b.Diff {
-		return Document{}, problemf(ErrConflict, "Git 来源不可用")
+		return Document{}, problemf(ErrReadOnly, "Git 来源不可用")
 	}
 	if _, e := nodePath(nodeID(p)); e != nil {
 		return Document{}, e

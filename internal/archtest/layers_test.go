@@ -102,6 +102,7 @@ var webmux = manifest{
 		"internal/api.decodeOptional": {arg: 2},
 		"internal/api.decodeStrict":   {arg: 2},
 		"internal/api.serveCode":      {typeArgs: []int{0}},
+		"internal/api.serveGit":       {typeArgs: []int{0}},
 		"internal/api.serve":          {typeArgs: []int{0}},
 		"internal/api.serveIn":        {typeArgs: []int{0, 1}},
 		"internal/api.serveInDone":    {typeArgs: []int{0}},

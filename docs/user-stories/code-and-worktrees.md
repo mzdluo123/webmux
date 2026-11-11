@@ -176,4 +176,4 @@
 
 US-I13 补充：弹出代码窗口取消原页面尚未完成的目录识别时，不缓存普通目录降级结果；独立窗口可重新识别 Git 并使用 Diff。依据：[取消回归](../../internal/codeview/concurrency_test.go)。
 
-仓库登记与 worktree 管理（US-J01–US-J17）见[仓库与工作树用户故事](code-and-worktrees/worktrees.md)。
+仓库登记与 worktree 管理（US-J01–US-J19）见[仓库与工作树用户故事](code-and-worktrees/worktrees.md)。

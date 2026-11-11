@@ -1,0 +1,46 @@
+{
+  "status": 200,
+  "body": {
+    "blockers": [],
+    "branch": "main",
+    "confirmationId": "<confirmationId#1>",
+    "conflictedCount": 0,
+    "executableHooks": [],
+    "expectedTreeOid": "7316cdbc05a7070b8a86588a9bbaaf90fddca4e4",
+    "expiresAt": "<time>",
+    "headOid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+    "headState": "branch",
+    "identity": {
+      "authorEmail": "wire@example.invalid",
+      "authorName": "Wire test",
+      "committerEmail": "wire@example.invalid",
+      "committerName": "Wire test",
+      "signEnabled": false
+    },
+    "indexDigest": "4d9f528c935daf7d0e548c03694f48ec78f6aee532b8cfb6c0919708c0e173e1",
+    "repositoryId": "<id#1>",
+    "stagedFiles": [
+      {
+        "binary": false,
+        "modeChanged": false,
+        "newMode": "100644",
+        "newOid": "4c7442bcf5acd0f1e2a95fe4f12b12c6b779b585",
+        "newPath": "a.txt",
+        "oldMode": "100644",
+        "oldOid": "814f4a422927b82f5f8a43f8fab6d3839e3983f2",
+        "oldPath": "a.txt",
+        "status": "M"
+      }
+    ],
+    "unstagedCount": 0,
+    "untrackedCount": 1,
+    "warnings": [
+      {
+        "code": "remaining_changes",
+        "message": "仍有 0 项未暂存修改与 1 个未跟踪文件不会进入本次提交"
+      }
+    ],
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

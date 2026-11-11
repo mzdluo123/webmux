@@ -100,7 +100,7 @@ func (s *Service) bindWorktree(ctx context.Context, key scopeKey) (*binding, err
 		return nil, problemf(errorKind(err), "%s", err.Error())
 	}
 	if !loc.Available {
-		return nil, problemf(ErrConflict, "%s", loc.Reason)
+		return nil, problemf(ErrReadOnly, "%s", loc.Reason)
 	}
 	s.mu.Lock()
 	b := s.roots[key]
@@ -320,7 +320,7 @@ func (s *Service) TargetNodeRaw(ctx context.Context, t Target, cid, nid string) 
 	return holdTransfer(s, func() (*Transfer, error) {
 		return withTargetContext(ctx, s, t, cid, func(_ scopeKey, b *binding) (*Transfer, error) {
 			if !b.Browse {
-				return nil, problemf(ErrConflict, "当前上下文没有可用工作树文件目录")
+				return nil, problemf(ErrReadOnly, "当前上下文没有可用工作树文件目录")
 			}
 			p, e := nodePath(nid)
 			if e != nil {

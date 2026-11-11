@@ -73,6 +73,14 @@ func TestDirectConversionsKeepFieldOrder(t *testing.T) {
 		{"ChatRequestOutcome", hybrid.RequestOutcome{}, contract.ChatRequestOutcome{}},
 		{"ChatQueueRequest", hybrid.QueueEdit{}, contract.ChatQueueRequest{}},
 		{"AgentCandidate", hybrid.Candidate{}, contract.AgentCandidate{}},
+		{"GitContext", codeview.Context{}, contract.GitContext{}},
+		{"GitChange", codeview.Change{}, contract.GitChange{}},
+		{"GitRefBadge", workspace.HistoryRefBadge{}, contract.GitRefBadge{}},
+		{"GitHistoryEdge", workspace.HistoryEdge{}, contract.GitHistoryEdge{}},
+		{"GitCommitParent", workspace.CommitParent{}, contract.GitCommitParent{}},
+		{"GitCommitFileChange", workspace.CommitFileChange{}, contract.GitCommitFileChange{}},
+		{"GitStagingHunkLine", workspace.StagingHunkLine{}, contract.GitStagingHunkLine{}},
+		{"GitCommitIdentity", workspace.CommitIdentity{}, contract.GitCommitIdentity{}},
 	}
 	for _, pair := range pairs {
 		t.Run(pair.name, func(t *testing.T) {

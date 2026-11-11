@@ -232,6 +232,124 @@
     },
     "configWarnings": []
   },
+  "gitChanges": {
+    "nextCursor": "",
+    "total": 0,
+    "entries": [],
+    "contentVersion": "",
+    "checkedAt": "0001-01-01T00:00:00Z"
+  },
+  "gitCommitDetail": {
+    "oid": "0123456789abcdef0123456789abcdef01234567",
+    "shortOid": "01234567",
+    "subject": "init",
+    "body": "",
+    "message": "init",
+    "authorName": "",
+    "authorEmail": "",
+    "authorAt": "2026-01-02T03:04:05Z",
+    "committerName": "",
+    "committerEmail": "",
+    "committerAt": "2026-01-02T03:04:05Z",
+    "distinctCommitter": false,
+    "parents": [],
+    "comparedParentOid": "",
+    "refs": [],
+    "files": []
+  },
+  "gitCommitPreview": {
+    "confirmationId": "",
+    "expiresAt": null,
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "headState": "branch",
+    "branch": "main",
+    "indexDigest": "digest",
+    "stagedFiles": [],
+    "unstagedCount": 0,
+    "untrackedCount": 0,
+    "conflictedCount": 0,
+    "identity": {
+      "authorName": "",
+      "authorEmail": "",
+      "committerName": "",
+      "committerEmail": "",
+      "signEnabled": false
+    },
+    "executableHooks": [],
+    "blockers": [],
+    "warnings": []
+  },
+  "gitCommitResult": {
+    "outcome": "matched",
+    "commitOid": "0123456789abcdef0123456789abcdef01234567",
+    "parents": [],
+    "treeOid": "fedcba9876543210fedcba9876543210fedcba98",
+    "expectedTreeOid": "fedcba9876543210fedcba9876543210fedcba98",
+    "reviewReasons": []
+  },
+  "gitCompare": {
+    "baseOid": "",
+    "targetOid": "0123456789abcdef0123456789abcdef01234567",
+    "changes": {
+      "nextCursor": "",
+      "total": 0,
+      "entries": [],
+      "contentVersion": "",
+      "checkedAt": "0001-01-01T00:00:00Z"
+    }
+  },
+  "gitHistory": {
+    "status": "ready",
+    "scope": "all",
+    "refsChanged": false,
+    "nextCursor": "",
+    "rows": [
+      {
+        "oid": "0123456789abcdef0123456789abcdef01234567",
+        "shortOid": "01234567",
+        "parents": [],
+        "subject": "init",
+        "authorName": "",
+        "authorEmail": "",
+        "authorAt": "2026-01-02T03:04:05Z",
+        "committerName": "",
+        "committerAt": "2026-01-02T03:04:05Z",
+        "refs": [],
+        "lane": 0,
+        "activeLanes": [],
+        "edges": [],
+        "directParentsMissing": false
+      }
+    ]
+  },
+  "gitStaging": {
+    "unborn": false,
+    "staged": [],
+    "unstaged": [],
+    "conflicted": []
+  },
+  "gitStagingDiff": {
+    "identity": {
+      "area": "unstaged",
+      "path": "a.txt"
+    },
+    "conflicted": false,
+    "binary": false,
+    "hunkStageAvailable": false,
+    "hunks": [
+      {
+        "id": "h1",
+        "header": "@@ -1 +1 @@",
+        "oldStart": 0,
+        "oldLines": 0,
+        "newStart": 0,
+        "newLines": 0,
+        "lines": []
+      }
+    ]
+  },
   "launch": [
     {
       "id": "abcdefgh",
