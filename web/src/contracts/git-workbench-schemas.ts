@@ -1,29 +1,19 @@
 import { z } from "zod";
+import {
+  GitCommitParentSchema,
+  GitHistoryItemSchema,
+  GitHistoryScopeSchema,
+  GitRefBadgeSchema,
+  GitStagingHunkLineSchema,
+  GitStagingHunkSchema as GitWireStagingHunkSchema,
+  type GitHistoryEdge,
+  type GitHistoryScope,
+} from "./git-api-schemas";
+
+export { GitHistoryScopeSchema, type GitHistoryEdge, type GitHistoryScope };
 
 export const GitWorkbenchModeSchema = z.enum(["log", "commit", "branches"]);
 export type GitWorkbenchMode = z.infer<typeof GitWorkbenchModeSchema>;
-
-export const GitHistoryScopeSchema = z.enum([
-  "all",
-  "branch",
-  "to-push",
-  "incoming",
-]);
-export type GitHistoryScope = z.infer<typeof GitHistoryScopeSchema>;
-
-const GitRefBadgeSchema = z.object({
-  name: z.string(),
-  kind: z.enum(["head", "local", "remote", "tag"]),
-  worktreeId: z.string().optional(),
-});
-
-const GitHistoryEdgeSchema = z.object({
-  fromLane: z.number().int().nonnegative(),
-  toLane: z.number().int().nonnegative(),
-  targetOid: z.string(),
-  kind: z.enum(["direct", "indirect", "boundary"]),
-});
-export type GitHistoryEdge = z.infer<typeof GitHistoryEdgeSchema>;
 
 const GitCommitMetadataFields = {
   authorName: z.string(),
@@ -34,38 +24,19 @@ const GitCommitMetadataFields = {
   committerAt: z.string(),
 };
 
-export const GitHistoryRowSchema = z.object({
-  oid: z.string(),
-  shortOid: z.string(),
-  parents: z.array(z.string()),
-  lane: z.number().int().nonnegative(),
-  activeLanes: z.array(z.number().int().nonnegative()),
-  edges: z.array(GitHistoryEdgeSchema),
-  directParentsMissing: z.boolean(),
-  subject: z.string(),
-  ...GitCommitMetadataFields,
-  refs: z.array(GitRefBadgeSchema),
+export const GitHistoryRowSchema = GitHistoryItemSchema.extend({
+  committerEmail: z.string(),
   changedPaths: z.array(z.string()).default([]),
   branches: z.array(z.string()).default([]),
 });
 export type GitHistoryRow = z.infer<typeof GitHistoryRowSchema>;
 
-const GitDiffLineSchema = z.object({
-  kind: z.enum(["context", "delete", "add"]),
-  oldLine: z.number().int().positive().optional(),
-  newLine: z.number().int().positive().optional(),
-  text: z.string(),
-  lineEnding: z.enum(["lf", "crlf", "none"]).default("lf"),
+const GitDiffLineSchema = GitStagingHunkLineSchema.extend({
+  lineEnding: GitStagingHunkLineSchema.shape.lineEnding.default("lf"),
 });
 export type GitDiffLine = z.infer<typeof GitDiffLineSchema>;
 
-const GitStagingHunkSchema = z.object({
-  id: z.string(),
-  header: z.string(),
-  oldStart: z.number().int().nonnegative(),
-  oldLines: z.number().int().nonnegative(),
-  newStart: z.number().int().nonnegative(),
-  newLines: z.number().int().nonnegative(),
+const GitStagingHunkSchema = GitWireStagingHunkSchema.extend({
   lines: z.array(GitDiffLineSchema),
 });
 export type GitStagingHunk = z.infer<typeof GitStagingHunkSchema>;
@@ -80,12 +51,6 @@ const GitCommitFileSchema = z.object({
   hunks: z.array(GitStagingHunkSchema).default([]),
 });
 export type GitCommitFile = z.infer<typeof GitCommitFileSchema>;
-
-const GitCommitParentSchema = z.object({
-  oid: z.string(),
-  shortOid: z.string(),
-  subject: z.string(),
-});
 
 export const GitCommitDetailSchema = z.object({
   oid: z.string(),

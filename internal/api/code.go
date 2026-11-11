@@ -180,8 +180,14 @@ func (s *Server) codeNodeRaw(w http.ResponseWriter, r *http.Request) {
 }
 
 func sendTransfer(w http.ResponseWriter, r *http.Request, t *codeview.Transfer, err error, download bool) {
-	if err != nil {
+	sendTransferWithFailer(w, r, t, err, download, func(w http.ResponseWriter, err error) {
 		failure(w, codeStatus(err), err)
+	})
+}
+
+func sendTransferWithFailer(w http.ResponseWriter, r *http.Request, t *codeview.Transfer, err error, download bool, fail failer) {
+	if err != nil {
+		fail(w, err)
 		return
 	}
 	defer t.Close()

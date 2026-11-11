@@ -34,6 +34,7 @@ type CommitDetail struct {
 	ShortOID          string             `json:"shortOid"`
 	Subject           string             `json:"subject"`
 	Body              string             `json:"body"`
+	Message           string             `json:"message"`
 	AuthorName        string             `json:"authorName"`
 	AuthorEmail       string             `json:"authorEmail"`
 	AuthorAt          string             `json:"authorAt"`
@@ -78,13 +79,13 @@ func (s *Service) CommitDetail(ctx context.Context, repositoryID, commitOID, par
 	}
 
 	metaRaw, err := ReadGit(ctx, anchor, maxHistoryOutput, "log", "-1", "--no-show-signature",
-		"--format=%H%x00%P%x00%s%x00%b%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00",
+		"--format=%H%x00%P%x00%s%x00%b%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%B%x00",
 		commitOID, "--")
 	if err != nil {
 		return CommitDetail{}, err
 	}
 	fields := bytes.Split(metaRaw, []byte{0})
-	if len(fields) < 10 {
+	if len(fields) < 11 {
 		return CommitDetail{}, problemf(ErrInternal, "提交详情输出不完整")
 	}
 	rawParentIDs := strings.Fields(strings.TrimSpace(string(fields[1])))
@@ -152,6 +153,7 @@ func (s *Service) CommitDetail(ctx context.Context, repositoryID, commitOID, par
 		ShortOID:          shortOID,
 		Subject:           string(fields[2]),
 		Body:              strings.TrimRight(string(fields[3]), "\n"),
+		Message:           strings.TrimRight(string(fields[10]), "\n"),
 		AuthorName:        authorName,
 		AuthorEmail:       authorEmail,
 		AuthorAt:          authorAt,

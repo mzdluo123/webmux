@@ -133,7 +133,7 @@ func (s *Service) gitInputOutput(ctx context.Context, cwd string, stdin io.Reade
 			return nil, run.stderr, problemf(ErrUnavailable, "Git 无法执行: %v", err)
 		}
 		if isGitLockBusy(run.stderr) {
-			return nil, run.stderr, problemf(ErrConflict, "仓库正被其他 Git 进程占用，请稍后重试")
+			return nil, run.stderr, problemf(ErrLocked, "仓库正被其他 Git 进程占用，请稍后重试")
 		}
 		return nil, run.stderr, problemf(ErrInternal, "Git %s 失败: %s (%v)", args[0], strings.TrimSpace(run.stderr), err)
 	}
@@ -171,10 +171,10 @@ func (s *Service) locateEditableWorktree(ctx context.Context, repositoryID, work
 		return WorktreeLocation{}, err
 	}
 	if !loc.Available {
-		return WorktreeLocation{}, problemf(ErrConflict, "%s", loc.Reason)
+		return WorktreeLocation{}, problemf(ErrReadOnly, "%s", loc.Reason)
 	}
 	if loc.Kind == "bare" || loc.Path == "" {
-		return WorktreeLocation{}, problemf(ErrInvalid, "bare 仓库没有可操作的工作树索引")
+		return WorktreeLocation{}, problemf(ErrReadOnly, "bare 仓库没有可操作的工作树索引")
 	}
 	return loc, nil
 }

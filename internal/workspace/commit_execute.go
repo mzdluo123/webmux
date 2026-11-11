@@ -56,7 +56,7 @@ func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (
 
 	c, ok := s.takeConfirmation(req.ConfirmationID, purposeCommit, req.RepositoryID, req.WorktreeID)
 	if !ok || c.commitPreview == nil {
-		return CommitResult{}, problemf(ErrConflict, "提交预览已过期或失效，保留当前提交说明草稿，请重新预览")
+		return CommitResult{}, problemf(ErrStale, "提交预览已过期或失效，保留当前提交说明草稿，请重新预览")
 	}
 	confirmed := *c.commitPreview
 
@@ -73,7 +73,7 @@ func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (
 		return CommitResult{}, err
 	}
 	if loc.CommonDir != confirmed.commonDir || loc.Path != confirmed.worktreePath {
-		return CommitResult{}, problemf(ErrConflict, "工作树路径或仓库身份已变化，请重新预览")
+		return CommitResult{}, problemf(ErrStale, "工作树路径或仓库身份已变化，请重新预览")
 	}
 
 	recheckCtx, recheckCancel := context.WithTimeout(ctx, readTimeout)
@@ -83,14 +83,14 @@ func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (
 		return CommitResult{}, err
 	}
 	if len(current.blockers) > 0 {
-		return CommitResult{}, problemf(ErrConflict, "提交被阻止：%s；保留草稿，请重新预览", issueMessages(current.blockers))
+		return CommitResult{}, problemf(ErrBlocked, "提交被阻止：%s；保留草稿，请重新预览", issueMessages(current.blockers))
 	}
 	if current.headState != confirmed.headState ||
 		current.branch != confirmed.branch ||
 		current.headOID != confirmed.headOID ||
 		current.indexDigest != confirmed.indexDigest ||
 		current.expectedTreeOID != confirmed.expectedTreeOID {
-		return CommitResult{}, problemf(ErrConflict, "预览后 HEAD 或暂存区已被外部修改，当前确认已失效；保留提交说明草稿，请重新预览")
+		return CommitResult{}, problemf(ErrStale, "预览后 HEAD 或暂存区已被外部修改，当前确认已失效；保留提交说明草稿，请重新预览")
 	}
 
 	opID, err := randomID()
@@ -122,7 +122,7 @@ func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (
 
 	if run.err != nil {
 		if isGitLockBusy(run.stderr) {
-			return CommitResult{}, problemf(ErrConflict, "仓库正被其他进程占用（Git 锁冲突），未删除任何锁文件，请稍后重试")
+			return CommitResult{}, problemf(ErrLocked, "仓库正被其他进程占用（Git 锁冲突），未删除任何锁文件，请稍后重试")
 		}
 		var launch *exec.Error
 		if errors.As(run.err, &launch) || errors.Is(run.err, os.ErrNotExist) || errors.Is(run.err, os.ErrPermission) {
@@ -146,7 +146,7 @@ func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (
 			}
 			return CommitResult{}, problemf(ErrTimeout, "Git commit 执行超时: %v", run.ctxErr)
 		}
-		return CommitResult{}, problemf(ErrConflict, "Git commit 执行失败: %s", strings.TrimSpace(run.stderr))
+		return CommitResult{}, problemf(ErrHookFailed, "Git commit 执行失败: %s", strings.TrimSpace(run.stderr))
 	}
 
 	if reflogErr != nil || len(matches) == 0 {

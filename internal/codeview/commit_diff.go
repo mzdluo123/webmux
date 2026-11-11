@@ -35,6 +35,25 @@ func isFullCommitOID(value string) bool {
 	return true
 }
 
+func (b *binding) resolveFromTreeRef(ctx context.Context, fromOID string) (diffRef, canonicalFrom string, isEmpty bool, err error) {
+	cwd := b.gitCwd()
+	if cwd == "" {
+		return "", "", false, problemf(ErrConflict, "当前上下文无可用 Git 仓库")
+	}
+	emptyOut, err := git(ctx, cwd, "hash-object", "-t", "tree", os.DevNull)
+	if err != nil {
+		return "", "", false, err
+	}
+	emptyOID := strings.TrimSpace(string(emptyOut))
+	if fromOID == "" || fromOID == emptyOID {
+		return emptyOID, "", true, nil
+	}
+	if err := b.verifyCommitOID(ctx, fromOID); err != nil {
+		return "", "", false, err
+	}
+	return fromOID, fromOID, false, nil
+}
+
 func (b *binding) verifyCommitOID(ctx context.Context, oid string) error {
 	if !isFullCommitOID(oid) {
 		return problemf(ErrInvalid, "版本标识必须是完整的十六进制提交 OID")
@@ -183,7 +202,7 @@ func evalTransformRules(targetPath string, rules []attrRule) bool {
 	return active["filter"] || active["working-tree-encoding"]
 }
 
-func (b *binding) scanCommitChanges(ctx context.Context, fromOID, toOID string, visit func(Change) error) (string, error) {
+func (b *binding) scanCommitChanges(ctx context.Context, diffRef, canonicalFrom, toOID string, visit func(Change) error) (string, error) {
 	cwd := b.gitCwd()
 	hash := sha256.New()
 	emit := func(c Change) error {
@@ -192,7 +211,7 @@ func (b *binding) scanCommitChanges(ctx context.Context, fromOID, toOID string, 
 		}
 		c.Group = "commit"
 		c.NodeID = nodeID(c.NewPath)
-		c.ID = version([]string{fromOID, toOID, c.OldPath, c.NewPath, c.Status, c.OldOID, c.NewOID, c.OldMode, c.NewMode})
+		c.ID = version([]string{canonicalFrom, toOID, c.OldPath, c.NewPath, c.Status, c.OldOID, c.NewOID, c.OldMode, c.NewMode})
 		c.ReviewVersion = c.ID
 		_, _ = io.WriteString(hash, c.ID+"\x00")
 		if visit != nil {
@@ -200,7 +219,7 @@ func (b *binding) scanCommitChanges(ctx context.Context, fromOID, toOID string, 
 		}
 		return nil
 	}
-	args := []string{"diff-tree", "-r", "--raw", "-z", "--no-abbrev", "--find-renames", fromOID, toOID, "--"}
+	args := []string{"diff-tree", "-r", "--raw", "-z", "--no-abbrev", "--find-renames", diffRef, toOID, "--"}
 	phase := 0
 	var c Change
 	err := workspace.ReadGitRecords(ctx, cwd, func(record string) error {
@@ -301,7 +320,8 @@ func (s *Service) CommitFile(ctx context.Context, t Target, cid, commitOID, nid 
 func (s *Service) CommitChanges(ctx context.Context, t Target, cid, fromOID, toOID string, queries ...ChangeQuery) (Changes, error) {
 	return withTargetContext(ctx, s, t, cid, func(_ scopeKey, b *binding) (Changes, error) {
 		r := Changes{Entries: []Change{}, Checked: time.Now().UTC()}
-		if err := b.verifyCommitOID(ctx, fromOID); err != nil {
+		diffRef, canonicalFrom, _, err := b.resolveFromTreeRef(ctx, fromOID)
+		if err != nil {
 			return r, err
 		}
 		if err := b.verifyCommitOID(ctx, toOID); err != nil {
@@ -313,7 +333,6 @@ func (s *Service) CommitChanges(ctx context.Context, t Target, cid, fromOID, toO
 		}
 		var filterPath string
 		if q.NodeID != "" {
-			var err error
 			filterPath, err = nodePath(q.NodeID)
 			if err != nil {
 				return r, err
@@ -323,7 +342,6 @@ func (s *Service) CommitChanges(ctx context.Context, t Target, cid, fromOID, toO
 		if q.Cursor != "" {
 			var offset string
 			var ok bool
-			var err error
 			tag, offset, ok = strings.Cut(q.Cursor, ":")
 			start, err = strconv.Atoi(offset)
 			if !ok || tag == "" || err != nil || start < 0 {
@@ -331,7 +349,7 @@ func (s *Service) CommitChanges(ctx context.Context, t Target, cid, fromOID, toO
 			}
 		}
 		search := strings.ToLower(q.Q)
-		ver, err := b.scanCommitChanges(ctx, fromOID, toOID, func(c Change) error {
+		ver, err := b.scanCommitChanges(ctx, diffRef, canonicalFrom, toOID, func(c Change) error {
 			if q.NodeID != "" && c.NewPath != filterPath && c.OldPath != filterPath {
 				return nil
 			}
@@ -348,7 +366,7 @@ func (s *Service) CommitChanges(ctx context.Context, t Target, cid, fromOID, toO
 			return r, err
 		}
 		r.Version = ver
-		expected := version([]string{cid, fromOID, toOID, r.Version, q.Q, q.NodeID})
+		expected := version([]string{cid, canonicalFrom, toOID, r.Version, q.Q, q.NodeID})
 		if q.Cursor != "" && tag != expected {
 			return r, problemf(ErrConflict, "修改游标不属于当前比较上下文")
 		}
@@ -367,14 +385,15 @@ func (s *Service) CommitChanges(ctx context.Context, t Target, cid, fromOID, toO
 // between verified full hex commits fromOID (old) and toOID (new).
 func (s *Service) CommitDiff(ctx context.Context, t Target, cid, fromOID, toOID, changeID string) (Diff, error) {
 	return withTargetContext(ctx, s, t, cid, func(key scopeKey, b *binding) (Diff, error) {
-		if err := b.verifyCommitOID(ctx, fromOID); err != nil {
+		diffRef, canonicalFrom, isEmpty, err := b.resolveFromTreeRef(ctx, fromOID)
+		if err != nil {
 			return Diff{}, err
 		}
 		if err := b.verifyCommitOID(ctx, toOID); err != nil {
 			return Diff{}, err
 		}
 		var found *Change
-		_, err := b.scanCommitChanges(ctx, fromOID, toOID, func(entry Change) error {
+		_, err = b.scanCommitChanges(ctx, diffRef, canonicalFrom, toOID, func(entry Change) error {
 			if entry.ID == changeID {
 				copyEntry := entry
 				found = &copyEntry
@@ -393,7 +412,11 @@ func (s *Service) CommitDiff(ctx context.Context, t Target, cid, fromOID, toOID,
 		if _, err := nodePath(nodeID(found.NewPath)); err != nil {
 			return Diff{}, err
 		}
-		oldDoc, err := b.blob(ctx, found.OldPath, commitSourcePrefix+fromOID, found.OldOID, found.OldMode)
+		oldSource := "empty"
+		if !isEmpty {
+			oldSource = commitSourcePrefix + canonicalFrom
+		}
+		oldDoc, err := b.blob(ctx, found.OldPath, oldSource, found.OldOID, found.OldMode)
 		if err != nil {
 			return Diff{}, err
 		}
@@ -416,8 +439,8 @@ func (s *Service) CommitDiff(ctx context.Context, t Target, cid, fromOID, toOID,
 			if attrErr != nil {
 				return Diff{}, attrErr
 			}
-			if !transformed && found.OldPath != found.NewPath {
-				transformed, attrErr = b.hasCommitTransformAttr(ctx, fromOID, found.OldPath)
+			if !transformed && !isEmpty && found.OldPath != found.NewPath {
+				transformed, attrErr = b.hasCommitTransformAttr(ctx, canonicalFrom, found.OldPath)
 				if attrErr != nil {
 					return Diff{}, attrErr
 				}

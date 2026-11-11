@@ -177,7 +177,7 @@ func (s *Service) Tree(ctx context.Context, id, cid, nid string, include bool, c
 }
 func treeInBinding(ctx context.Context, cid string, b *binding, nid string, include bool, cursor string) (Listing, error) {
 	if !b.Browse {
-		return Listing{}, problemf(ErrConflict, "当前上下文没有可用工作树文件目录")
+		return Listing{}, problemf(ErrReadOnly, "当前上下文没有可用工作树文件目录")
 	}
 	p, e := nodePath(nid)
 	if e != nil {
@@ -216,7 +216,7 @@ func (s *Service) Search(ctx context.Context, id, cid, q string, include bool) (
 }
 func searchInBinding(ctx context.Context, b *binding, q string, include bool) (Listing, error) {
 	if !b.Browse {
-		return Listing{}, problemf(ErrConflict, "当前上下文没有可用工作树文件目录")
+		return Listing{}, problemf(ErrReadOnly, "当前上下文没有可用工作树文件目录")
 	}
 	r := Listing{Children: []Node{}, Complete: true, Checked: time.Now().UTC()}
 	ignored, limited, e := b.searchIgnored(ctx)

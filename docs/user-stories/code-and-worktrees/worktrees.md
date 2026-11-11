@@ -164,6 +164,23 @@
   - 删除分为“已包含”（提交都能从其他引用到达，默认勾选）与“有独有提交”（列出独有提交，默认不勾选，需逐个勾选）；被检出的分支不能删除并说明占用的工作树；结果逐项显示已删除、已跳过或失败，已删除的行可复制恢复命令 `git branch <名称> <OID>`，并说明垃圾回收前可恢复；
   - “分支”分区标明已合入默认分支的分支；存在清理候选（未被检出，且上游已删除或已合入默认分支）时标题行显示“清理分支（N）”，单次最多 50 个；
   - CLI `webmux repo ff`、`webmux repo push`（`--remote`、`--to`）、`webmux repo branch-rm`（`--cleanup`、`--unmerged`）调用同一组接口，终端确认与 `--yes` 规则同 `worktree rm`。
+- **US-J19 仓库与工作树 Git 只读、暂存与提交接口**：作为在不启动终端或混合会话时审阅与整理仓库提交的使用者及前端工作台调用方，我希望通过统一的仓库与工作树 Git REST 接口读取历史拓扑、比较任意提交、按文件或 Hunk 操作真实 `index` 并预览与执行提交，以便在零活动会话下安全完成完整 Git 审阅与提交流程。
+  验收要点：
+  - 无需 `sessionId` 或活动会话即可访问 `/api/repositories/{id}/git/*` 与 `/api/repositories/{id}/worktrees/{worktreeId}/git/*`，全部路由沿用 Bearer 认证（401）、Origin/Host 校验（403）与 `Cache-Control: no-store`；
+  - 仓库级与工作树级读取能力按是否绑定工作树分层开放：
+    - 省略 `worktreeId` 时 `GET .../git/context` 绑定仓库级只读上下文（`repository` 或 `bare`），支持 `GET .../git/file?source=commit:{oid}` 与 `GET .../git/compare`（含根提交空树与双向交换比较），对工作区 `tree`、`files`、`changes`、`diff` 返回 409 `reason: "readonly"`；
+    - 传入可用 `worktreeId` 时开放工作树目录、文件名搜索、`worktree|index|head|commit:{oid}` 四种来源快照及 `side=before|after` 的 `file`/`raw`（含 `HEAD`）；
+  - `contextId` 与 `snapshotId` 严格绑定 `(repositoryId, worktreeId)`：跨仓库混用返回 404，同仓库跨工作树混用返回 409 `reason: "context_mismatch"`，过期返回 409 `reason: "stale"`；非法 OID、非真实父提交 `parentOid`、修订注入或越界路径返回 400；
+  - 历史图与提交详情独立分页查询：
+    - `GET .../git/history` 返回 `status`（`ready` / `empty` / `unborn` / `no_worktree` / `no_upstream` / `upstream_gone` / `detached_no_branch`）、拓扑分页 `rows`（真实 `parents`、`refs`、`lane`、`activeLanes` 与 `direct|indirect|boundary` 边）、`nextCursor` 与 `refsChanged`；
+    - `GET .../git/commits/{oid}` 返回完整提交消息、作者与提交者元组、`comparedParentOid`（合并提交支持切换任一真实父 OID）与变更文件列表；
+  - 暂存操作直接读写目标工作树真实 Git `index`：
+    - `GET .../git/staging`、`GET .../git/staging/diff`、`POST .../git/stage` 与 `POST .../git/unstage` 支持整文件与单 Hunk 暂存/取消暂存（含 `unborn HEAD`）；
+    - 路径身份或 Hunk 变化返回 409 `reason: "stale"`，检测到外部 `.git/index.lock` 返回 409 `reason: "busy"` 且绝不删除锁文件；
+  - 提交采用预览确认与执行后复核两阶段保障：
+    - `POST .../git/commit-preview` 展示完整 `HEAD -> index` 待提交集合（含终端 CLI 预暂存文件）、身份、可执行 Hook、阻塞项与限时确认码；
+    - `POST .../git/commit` 在独立 2 分钟受控窗口内执行提交（客户端断开不强杀已启动的 `git commit`），经 reflog 与 `{oid, parents, tree}` 复核返回 `matched`、`needs_review`（如 `pre-commit` Hook 改写索引）或 `uncertain`；
+  - 访问与错误日志不输出文件内容、Diff 正文、提交消息全文或凭据；前端 `web/src/contracts/git-api-schemas.ts` 与 `web/src/platform/git-api.ts` 复用统一 `api()`/`apiBlob()`/`APIError` 与 wire 快照校验，不修改既有 `/api/sessions/{id}/code/*` 行为。
 
 依据：
 
@@ -189,4 +206,7 @@
 - [分支与提交信息](../../../internal/workspace/git.go)、[删除确认](../../../web/src/components/workspace/RemoveWorktreeDialog.svelte)
 - [仓库清单](../../../internal/workspace/registry.go)、[创建](../../../internal/workspace/create.go)、[删除](../../../internal/workspace/remove.go)、[工作区 API](../../../internal/api/workspace.go)
 - [仓库设置弹窗](../../../web/src/components/workspace/RepositorySettingsDialog.svelte)、[指令输入框](../../../web/src/components/sessions/InitInstructionField.svelte)、[添加仓库弹窗](../../../web/src/components/workspace/AddRepositoryDialog.svelte)
-- [指令浏览器用例](../../../web/test/browser/RepositoryInstruction.test.ts)、[指令服务端测试](../../../internal/workspace/instruction_test.go)。
+- [指令浏览器用例](../../../web/test/browser/RepositoryInstruction.test.ts)、[指令服务端测试](../../../internal/workspace/instruction_test.go)
+- Git 只读与暂存提交接口：[只读路由](../../../internal/api/git_read.go)、[暂存提交路由](../../../internal/api/git_write.go)、[线上契约](../../../internal/contract/git_read.go)、[转换层](../../../internal/wire/git.go)；
+  [代码上下文与比较](../../../internal/codeview/git_lookup.go)、[历史与暂存提交服务](../../../internal/workspace/staging.go)、[前端契约](../../../web/src/contracts/git-api-schemas.ts)、[前端请求封装](../../../web/src/platform/git-api.ts)；
+  [只读接口测试](../../../internal/api/git_read_test.go)、[暂存提交接口测试](../../../internal/api/git_write_test.go)、[快照录制](../../../internal/api/wire_git_snapshot_test.go)、[前端契约单测](../../../web/test/git-api.test.ts)。
