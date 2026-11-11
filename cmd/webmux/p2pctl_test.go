@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/rainchan/webmux/internal/config"
@@ -56,7 +57,7 @@ func TestP2PControllerSettingsLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reset.Source != "config" || len(reset.STUNServers) != 2 {
+	if reset.Source != "config" || !slices.Equal(reset.STUNServers, defaults.STUNServers) {
 		t.Fatalf("unexpected reset status: %+v", reset)
 	}
 }

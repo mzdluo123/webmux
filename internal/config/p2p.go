@@ -21,6 +21,8 @@ const MaxSTUNServers = 8
 // DefaultSTUNServers returns the built-in public STUN servers.
 func DefaultSTUNServers() []string {
 	return []string{
+		"stun:stun.miwifi.com:3478",
+		"stun:stun.chat.bilibili.com:3478",
 		"stun:stun.cloudflare.com:3478",
 		"stun:stun.l.google.com:19302",
 	}

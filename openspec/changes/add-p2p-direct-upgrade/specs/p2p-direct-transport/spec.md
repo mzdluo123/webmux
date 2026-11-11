@@ -8,16 +8,18 @@
 
 ### Requirement: 默认机会性升级与配置覆盖
 
-系统 SHALL 默认启用机会性 P2P 直连升级，默认开启本地路由器端口映射（UPnP IGD / NAT-PMP / PCP），并默认配置公共 STUN 服务器 `stun:stun.cloudflare.com:3478` 与 `stun:stun.l.google.com:19302`。
+系统 SHALL 默认启用机会性 P2P 直连升级，默认开启本地路由器端口映射（UPnP IGD / NAT-PMP / PCP）。
+默认公共 STUN 列表 SHALL 包含 `stun:stun.miwifi.com:3478`、`stun:stun.chat.bilibili.com:3478`、`stun:stun.cloudflare.com:3478` 与 `stun:stun.l.google.com:19302`。
 
 用户 SHALL 能够通过 `config.toml` 的 `[p2p]` 段或网页设置覆盖启用状态、端口映射开关与 STUN 列表：
+
 - 网页覆盖持久化于受控状态文件，执行重置后恢复 `config.toml` 配置；
 - 状态文件损坏时 SHALL 按 `fail_closed` 停用 P2P 升级，并保留原文件供诊断。
 
 #### Scenario: 默认配置启动
 
 - **WHEN** 用户未在 `config.toml` 或网页设置中修改 `[p2p]` 配置并启动服务
-- **THEN** `GET /api/p2p` 返回启用状态为真、端口映射开启、来源为 `config`，且包含预置的两台公共 STUN 服务器
+- **THEN** `GET /api/p2p` 返回启用状态为真、端口映射开启、来源为 `config`，且包含预置的四台公共 STUN 服务器
 
 #### Scenario: 网页修改 STUN 与端口映射并重启保留
 
@@ -34,6 +36,7 @@
 前端路径管理器 SHALL 始终先通过当前 HTTP/WebSocket 基线路径完成首屏连接与交互，不得阻塞首屏等待 P2P 协商。
 
 满足以下任一条件时，前端 SHALL 自动跳过后台自动升级（用户手动触发 A/B 测速除外）：
+
 - 页面访问源为回环地址（`localhost`、`127.0.0.1`、`::1`）；
 - 页面访问源为 RFC1918 或 ULA 局域网私网地址；
 - 页面访问源为 Tailscale 地址（`100.64.0.0/10` 或 `.ts.net`）；
@@ -70,6 +73,7 @@ WebRTC 信令（Offer、Answer、ICE Candidate 与会话关闭）SHALL 复用现
 服务端 WebRTC 引擎 SHALL 同时启用 IPv6 与 IPv4 候选收集。
 
 当端口映射开关处于开启状态时，服务端 SHALL 执行以下行为：
+
 - 在后台尝试通过本地网关（UPnP IGD 或 NAT-PMP/PCP）映射外部 UDP 端口并定期续期，将获得的映射用于候选收集；
 - 在服务退出或关闭开关时主动释放映射；
 - 网关不支持或映射失败时静默降级为纯 STUN 打洞，不得阻塞服务启动或会话运行。
@@ -98,6 +102,7 @@ WebRTC 信令（Offer、Answer、ICE Candidate 与会话关闭）SHALL 复用现
 升级至 P2P 后，DataChannel 传输层 SHALL 承载全部实时流通道（`/ws/sessions`、`/ws/s/{id}`、`/ws/s/{id}/chat`、`/ws/settings`、`/ws/voice`）以及 `/api/*` 请求/响应与文件上传。
 
 流通道适配层 SHALL 满足三项传输保障：
+
 - 大消息自动分片与按序重组，支持超过 64 KiB 的终端快照回放；
 - 应用层关闭帧透传业务状态码（如 `1000`、`4404`、`4408`、`4409`、`4410`）与原因；
 - 基于发送缓冲水位的慢客户端背压与超时断开保护。

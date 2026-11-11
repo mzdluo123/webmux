@@ -22,7 +22,8 @@
 - **US-H12 机会性 P2P 直连升级与双路径测速**：作为经高延迟中转入口连接 WebMux 的使用者，我希望先走现有连接立即打开会话，后台自动探测并无感升级到 WebRTC DataChannel 直连，失败或断连时自动退回基线连接而不中断终端，以便显著降低交互延迟。
   验收要点：
   - 默认配置与网页持久化覆盖：
-    - `[p2p]` 默认开启（`enabled = true`、`port_mapping = true`，预置 `stun:stun.cloudflare.com:3478` 与 `stun:stun.l.google.com:19302`）；
+    - `[p2p]` 默认开启（`enabled = true`、`port_mapping = true`）；
+    - 默认 STUN 列表包含 `stun:stun.miwifi.com:3478`、`stun:stun.chat.bilibili.com:3478`、`stun:stun.cloudflare.com:3478` 与 `stun:stun.l.google.com:19302`；
     - 设置页“网络”分区可在线开关直连升级、路由器自动端口映射（UPnP IGD / NAT-PMP / PCP）并编辑 `stun:`/`stuns:` 列表（拒绝 `turn:`/`turns:`）；
     - 网页覆盖保存在 `<state_dir>/p2p-settings.json`（目录 0700、文件 0600、独占锁）并立即生效，支持“恢复配置文件默认”；
   - 浏览器访问主机为本机回环、RFC1918/CGNAT/链路本地内网、`.ts.net` 或连续 3 次基线探测 RTT 中位数 `< 15 ms` 时自动跳过协商（`?p2p=force` 仅当前标签页强制探测）；

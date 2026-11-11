@@ -17,7 +17,7 @@ S0 已完成 `hub.MessageConn` 与前端 `ClientTransport` 抽象。在此基础
   - 在 `PeerConnection` 上承载控制通道（握手与应用层 ping/echo RTT 测量）、实时流通道（`/ws/sessions`、`/ws/s/{id}`、`/ws/s/{id}/chat`、`/ws/settings`、`/ws/voice`）以及 `/api/*` 轻量请求/响应与文件上传通道。
 - **配置段、受控状态存储与控制诊断接口**：
   - 新增 `[p2p]` 配置段与 `p2p-settings.json` 受控状态存储（`internal/p2psettings`，损坏时 `fail_closed`），暴露 `/api/p2p*` 控制和诊断接口。
-  - 默认开启机会性直连升级，预置 `stun:stun.cloudflare.com:3478` 与 `stun:stun.l.google.com:19302`，支持自定义 STUN 列表及端口映射开关。
+  - 默认开启机会性直连升级，预置小米、Bilibili、Cloudflare 与 Google 公共 STUN，支持自定义 STUN 列表及端口映射开关。
   - 禁止 WebMux 会话内进程通过本机套接字篡改 P2P 配置或发起信令。
 - **前端路径管理器（`web/src/p2p-*.ts`）与无感切换**：
   - 首屏始终先走当前 HTTP/WebSocket 连接；回环地址、局域网私网、Tailscale 地址或基线低延迟路径自动跳过升级。

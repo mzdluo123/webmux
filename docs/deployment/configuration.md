@@ -163,14 +163,19 @@ env = ["DASHSCOPE_API_KEY=sk-xxx"]
 [p2p]
 enabled = true
 port_mapping = true
-stun_servers = ["stun:stun.cloudflare.com:3478", "stun:stun.l.google.com:19302"]
+stun_servers = [
+  "stun:stun.miwifi.com:3478",
+  "stun:stun.chat.bilibili.com:3478",
+  "stun:stun.cloudflare.com:3478",
+  "stun:stun.l.google.com:19302",
+]
 ```
 
-| 键                 | 默认值                         | 作用                                                          |
-| ------------------ | ------------------------------ | ------------------------------------------------------------- |
-| `p2p.enabled`      | `true`                         | 是否允许浏览器协商 WebRTC DataChannel 直连升级                |
-| `p2p.port_mapping` | `true`                         | 自动向本地网关申请 UPnP IGD / NAT-PMP / PCP 外部 UDP 端口映射 |
-| `p2p.stun_servers` | Cloudflare 与 Google 公共 STUN | 仅允许 `stun:` 或 `stuns:` URI，拒绝 `turn:` / `turns:`       |
+| 键                 | 默认值                                         | 作用                                                          |
+| ------------------ | ---------------------------------------------- | ------------------------------------------------------------- |
+| `p2p.enabled`      | `true`                                         | 是否允许浏览器协商 WebRTC DataChannel 直连升级                |
+| `p2p.port_mapping` | `true`                                         | 自动向本地网关申请 UPnP IGD / NAT-PMP / PCP 外部 UDP 端口映射 |
+| `p2p.stun_servers` | 小米、Bilibili、Cloudflare 与 Google 公共 STUN | 仅允许 `stun:` 或 `stuns:` URI，拒绝 `turn:` / `turns:`       |
 
 #### `STDIN / STDOUT` 外部识别协议
 
