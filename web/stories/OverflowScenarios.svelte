@@ -6,9 +6,11 @@
   import TerminalInputComposer from "../src/components/terminal/TerminalInputComposer.svelte";
   import ScratchPanel from "../src/components/terminal/ScratchPanel.svelte";
   import CodeChangesList from "../src/components/code/CodeChangesList.svelte";
+  import GitWorkbenchShell from "../src/components/workspace/GitWorkbenchShell.svelte";
   import ResponsiveDialog from "../src/components/shared/ResponsiveDialog.svelte";
   import { Button } from "../src/lib/components/ui/button";
   import { createTerminalDrafts } from "../src/domains/terminal/terminal-draft.svelte";
+  import { buildGitWorkbenchFixture } from "./git-workbench-fixtures";
   import {
     changes,
     longError,
@@ -30,10 +32,14 @@
       | "close"
       | "composer"
       | "changes"
-      | "workspace-dialog";
+      | "workspace-dialog"
+      | "git-workbench"
+      | "git-push";
     saveError?: string;
   } = $props();
   let open = $state(true);
+  let gitView = $state(buildGitWorkbenchFixture("commit-needs-review", true));
+  let gitPushView = $state(buildGitWorkbenchFixture("push-dialog", true));
   let scratchOpen = $state(false);
   let notice = $state("");
   const drafts = createTerminalDrafts();
@@ -152,6 +158,14 @@
         </div>
       </ResponsiveDialog>
     {/if}
+  {:else if scenario === "git-workbench"}
+    <div class="flex min-h-[min(36rem,82dvh)] min-w-0 flex-col">
+      <GitWorkbenchShell bind:view={gitView} />
+    </div>
+  {:else if scenario === "git-push"}
+    <div class="flex min-h-[min(36rem,82dvh)] min-w-0 flex-col">
+      <GitWorkbenchShell bind:view={gitPushView} />
+    </div>
   {/if}
   {#if notice}<p class="mt-2 break-all" role="status">{notice}</p>{/if}
 </main>

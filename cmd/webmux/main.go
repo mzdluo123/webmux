@@ -336,6 +336,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	})
 	defer workspaces.Close()
 	codes := codeview.New(m, folders)
+	codes.UseWorkspace(workspaces)
 	defer codes.Close()
 	pushes := push.New(c.Push, c.StateDir, m, slog.Default(), nil)
 	// Forwards live in memory only; WebMux's own ports cannot be forwarded.

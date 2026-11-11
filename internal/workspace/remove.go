@@ -24,6 +24,7 @@ const (
 	purposeFastForward  purpose = "fast-forward"
 	purposePush         purpose = "push"
 	purposeBranchDelete purpose = "branch-delete"
+	purposeCommit       purpose = "commit"
 )
 
 type batchTarget struct {
@@ -47,10 +48,11 @@ type confirmation struct {
 	switching *switchState
 	// fastForward, push and branchDelete are what the branch operation
 	// previews bound.
-	fastForward  *fastForwardState
-	push         *pushState
-	branchDelete []branchDeleteTarget
-	timer        *time.Timer
+	fastForward   *fastForwardState
+	push          *pushState
+	branchDelete  []branchDeleteTarget
+	commitPreview *commitPreviewState
+	timer         *time.Timer
 }
 
 func (c *confirmation) closeHandles() {

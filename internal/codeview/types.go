@@ -60,12 +60,34 @@ func errorKind(err error) error {
 		return ErrTimeout
 	case errors.Is(err, os.ErrNotExist):
 		return ErrNotFound
+	case errors.Is(err, workspace.ErrInvalid):
+		return ErrInvalid
+	case errors.Is(err, workspace.ErrNotFound):
+		return ErrNotFound
+	case errors.Is(err, workspace.ErrConflict):
+		return ErrConflict
+	case errors.Is(err, workspace.ErrUnavailable):
+		return ErrUnavailable
 	case errors.Is(err, workspace.ErrTooLarge):
 		return ErrTooLarge
 	case errors.Is(err, workspace.ErrTimeout):
 		return ErrTimeout
 	}
 	return ErrInternal
+}
+
+// TargetResolver locates registered repositories and worktrees without
+// requiring any active session.
+type TargetResolver interface {
+	LocateRepository(ctx context.Context, repositoryID string) (workspace.RepositoryLocation, error)
+	LocateWorktree(ctx context.Context, repositoryID, worktreeID string) (workspace.WorktreeLocation, error)
+}
+
+// Target identifies a session-independent repository or worktree scope.
+// An empty WorktreeID addresses the repository-level read-only context.
+type Target struct {
+	RepositoryID string
+	WorktreeID   string
 }
 
 type Context struct {

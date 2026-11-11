@@ -30,6 +30,9 @@
         quiet: `text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 ${active}`,
         // High-contrast virtual key in the soft-key gamepad.
         hud: `border-foreground/30 bg-card/75 text-foreground font-semibold shadow-sm backdrop-blur-md hover:border-foreground/50 hover:bg-card/90 active:bg-accent/90 dark:border-foreground/35 dark:bg-card/75 dark:hover:bg-card/90 ${active}`,
+        // IntelliJ-style primary action inside the Git workbench.
+        "git-primary":
+          "bg-git-primary text-git-primary-foreground hover:bg-git-primary/90 focus-visible:border-git-primary focus-visible:ring-git-primary/40",
       },
       size: {
         default:
