@@ -189,6 +189,7 @@ beforeEach(() => {
         return Response.json({
           branches: [branch("main", "a".repeat(40), ["/repos/project"])],
           bases: [base("refs/heads/main", "a".repeat(40), "initial")],
+          tags: [],
           defaultBase: "a".repeat(40),
           defaultBaseSubject: "initial",
           defaultBranch: "main",

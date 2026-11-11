@@ -287,26 +287,57 @@
       <GitLogPane
         historyState={view.historyState}
         historyReason={view.historyReason}
+        nextCursor={view.nextCursor}
+        refsChanged={view.refsChanged}
+        historyLoadingMore={view.historyLoadingMore}
         scope={view.scope}
         branchFilter={view.branchFilter}
         searchQuery={view.searchQuery}
+        authorFilter={view.authorFilter}
+        sinceFilter={view.sinceFilter}
+        untilFilter={view.untilFilter}
         pathFilter={view.pathFilter}
         commits={view.commits}
         commitDetails={view.commitDetails}
         selectedCommitOid={view.selectedCommitOid}
         selectedParentByCommit={view.selectedParentByCommit}
         selectedCommitFilePath={view.selectedCommitFilePath}
+        selectionNotice={view.selectionNotice}
+        compareBaseMarkOid={view.compareBaseMarkOid}
+        compareMode={view.compareMode}
         branches={view.branches}
         checkedOutBranch={view.context.checkedOutBranch}
         onScopeChange={(scope) => (view = { ...view, scope })}
         onBranchFilterChange={handleBranchFilter}
         onSearchChange={(searchQuery) => (view = { ...view, searchQuery })}
+        onAuthorChange={(authorFilter) => (view = { ...view, authorFilter })}
+        onSinceChange={(sinceFilter) => (view = { ...view, sinceFilter })}
+        onUntilChange={(untilFilter) => (view = { ...view, untilFilter })}
         onPathFilterChange={(pathFilter) => (view = { ...view, pathFilter })}
+        onClearFilters={() =>
+          (view = {
+            ...view,
+            scope: "all",
+            branchFilter: null,
+            searchQuery: "",
+            authorFilter: "",
+            sinceFilter: "",
+            untilFilter: "",
+            pathFilter: "",
+          })}
+        onToggleFavorite={(name) =>
+          (view = {
+            ...view,
+            branches: view.branches.map((b) =>
+              b.name === name ? { ...b, favorite: !b.favorite } : b,
+            ),
+          })}
         onSelectCommit={(selectedCommitOid) =>
           (view = {
             ...view,
             selectedCommitOid,
             selectedCommitFilePath: null,
+            compareMode: null,
           })}
         onSelectParent={(commitOid, parentOid) =>
           (view = {
@@ -319,6 +350,40 @@
           })}
         onSelectCommitFile={(selectedCommitFilePath) =>
           (view = { ...view, selectedCommitFilePath })}
+        onMarkCompareBase={(compareBaseMarkOid) =>
+          (view = { ...view, compareBaseMarkOid })}
+        onStartCompare={(baseOid, targetOid) => {
+          const targetDetail = view.commitDetails[targetOid];
+          const pKey = targetDetail?.selectedParent ?? "";
+          const files = targetDetail?.filesByParent[pKey] ?? [];
+          view = {
+            ...view,
+            compareBaseMarkOid: null,
+            selectedCommitFilePath: files[0]?.newPath ?? null,
+            compareMode: {
+              baseOid,
+              targetOid,
+              files,
+              nextCursor: "",
+              loading: false,
+              loadingMore: false,
+              error: "",
+            },
+          };
+        }}
+        onSwapCompareDirection={() => {
+          const cmp = view.compareMode;
+          if (!cmp) return;
+          view = {
+            ...view,
+            compareMode: {
+              ...cmp,
+              baseOid: cmp.targetOid,
+              targetOid: cmp.baseOid,
+            },
+          };
+        }}
+        onExitCompare={() => (view = { ...view, compareMode: null })}
         onRequestCheckout={handleRequestCheckout}
         onOpenOccupiedWorktree={handleOpenOccupiedWorktree}
       />

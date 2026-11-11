@@ -72,6 +72,7 @@
   let {
     repository,
     worktree,
+    initialBranch,
     source = apiSwitchSource,
     busy = $bindable(false),
     ondone,
@@ -82,6 +83,7 @@
   }: {
     repository: Repository;
     worktree: Worktree;
+    initialBranch?: string;
     source?: SwitchSource;
     /** The switch runs; the host blocks closing and going back. */
     busy?: boolean;
@@ -109,6 +111,10 @@
       const result = await source.branches(repository.id, request.signal);
       if (!request.current()) return;
       data = result;
+      if (initialBranch && !chosen) {
+        const isLocal = result.branches.some((b) => b.name === initialBranch);
+        chosen = { kind: isLocal ? "local" : "remote", name: initialBranch };
+      }
       if (mode === "new" && !newName) newName = suggestion();
     } catch (err) {
       if (request.reportable()) loadError = errorMessage(err);

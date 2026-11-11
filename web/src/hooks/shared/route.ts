@@ -11,6 +11,10 @@ export interface GitRouteQuery {
   branch?: string;
   commit?: string;
   q?: string;
+  author?: string;
+  since?: string;
+  until?: string;
+  path?: string;
   returnSession?: string;
 }
 
@@ -102,6 +106,34 @@ export function parseGitRouteQuery(search: string): GitRouteQuery {
     if (rawQ.length <= 512) out.q = rawQ;
   }
 
+  if (params.has("author")) {
+    const rawAuthor = params.get("author") ?? "";
+    if (rawAuthor.length <= 256 && !/[\r\n\0]/.test(rawAuthor)) {
+      out.author = rawAuthor;
+    }
+  }
+
+  if (params.has("since")) {
+    const rawSince = (params.get("since") ?? "").trim();
+    if (rawSince.length <= 64 && !/[\r\n\0]/.test(rawSince)) {
+      out.since = rawSince;
+    }
+  }
+
+  if (params.has("until")) {
+    const rawUntil = (params.get("until") ?? "").trim();
+    if (rawUntil.length <= 64 && !/[\r\n\0]/.test(rawUntil)) {
+      out.until = rawUntil;
+    }
+  }
+
+  if (params.has("path")) {
+    const rawPath = params.get("path") ?? "";
+    if (rawPath.length <= 512 && !/[\r\n\0]/.test(rawPath)) {
+      out.path = rawPath;
+    }
+  }
+
   const rawReturnSession = params.get("returnSession")?.trim();
   if (rawReturnSession && sessionIdPattern.test(rawReturnSession)) {
     out.returnSession = rawReturnSession;
@@ -126,6 +158,10 @@ export function buildGitRouteHref(target: GitRouteTarget): string {
   if (target.branch) params.set("branch", target.branch);
   if (target.commit) params.set("commit", target.commit);
   if (target.q) params.set("q", target.q);
+  if (target.author) params.set("author", target.author);
+  if (target.since) params.set("since", target.since);
+  if (target.until) params.set("until", target.until);
+  if (target.path) params.set("path", target.path);
   if (target.returnSession && sessionIdPattern.test(target.returnSession)) {
     params.set("returnSession", target.returnSession);
   }

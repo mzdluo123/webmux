@@ -104,7 +104,10 @@
     tab: RepositoryTab;
   } | null>(null);
   let viewingWorktree = $state<Worktree | null>(null);
-  let switchingBranch = $state<Worktree | null>(null);
+  let switchingBranch = $state<{
+    worktree: Worktree;
+    initialBranch?: string;
+  } | null>(null);
   let releasingWorktree = $state<Worktree | null>(null);
   let operating = $state<{
     repositoryId: string;
@@ -173,9 +176,9 @@
       shellUi.drawerOpen = false;
       viewingWorktree = worktree;
     },
-    switchBranch(worktree) {
+    switchBranch(worktree, initialBranch) {
       shellUi.drawerOpen = false;
-      switchingBranch = worktree;
+      switchingBranch = { worktree, initialBranch };
     },
     releaseWorktree(worktree) {
       shellUi.drawerOpen = false;

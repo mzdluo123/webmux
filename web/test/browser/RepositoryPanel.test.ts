@@ -148,6 +148,7 @@ function source(
         : {
             branches: [],
             bases: [],
+            tags: [],
             defaultBase: null,
             defaultBaseSubject: "",
             defaultBranch: "main",
@@ -664,6 +665,7 @@ const branches = {
     base("refs/remotes/origin/main", "a".repeat(40), "发布 1.0"),
     base("refs/remotes/origin/feat/login-b", "9".repeat(40), "远程登录"),
   ],
+  tags: [],
   defaultBase: "a".repeat(40),
   defaultBaseSubject: "发布 1.0",
   defaultBranch: "main",

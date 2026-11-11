@@ -211,7 +211,7 @@
       !worktree.locked &&
       worktree.kind !== "bare"
     ) {
-      shell.switchBranch(worktree);
+      shell.switchBranch(worktree, branch);
       return;
     }
     shell.start({

@@ -28,6 +28,12 @@ export function groupWorkingChanges(
  * Clicking a branch in the Log pane ONLY updates the history filter and NEVER
  * mutates `context.checkedOutBranch`.
  */
+export interface LogClientFilterExtra {
+  authorFilter?: string;
+  sinceFilter?: string;
+  untilFilter?: string;
+}
+
 export function selectLogBranchFilter(
   state: GitWorkbenchViewState,
   branchName: string | null,
@@ -37,6 +43,11 @@ export function selectLogBranchFilter(
     branchName,
     state.searchQuery,
     state.pathFilter,
+    {
+      authorFilter: state.authorFilter,
+      sinceFilter: state.sinceFilter,
+      untilFilter: state.untilFilter,
+    },
   );
   const nextSelected =
     filtered.find((c) => c.oid === state.selectedCommitOid)?.oid ??
@@ -47,7 +58,7 @@ export function selectLogBranchFilter(
     branchFilter: branchName,
     selectedCommitOid: nextSelected,
     statusBanner: branchName
-      ? `按分支 ${branchName} 过滤历史（当前工作树检出仍为 ${state.context.checkedOutBranch ?? "只读上下文"}）`
+      ? `按引用 ${branchName} 过滤历史（当前工作树检出仍为 ${state.context.checkedOutBranch ?? "只读上下文"}）`
       : "显示全部可达历史引用",
   };
 }
@@ -57,14 +68,27 @@ export function filterLogCommits(
   branchFilter: string | null,
   searchQuery: string,
   pathFilter: string,
+  extra?: LogClientFilterExtra,
 ): GitHistoryRow[] {
   const q = searchQuery.trim().toLowerCase();
   const p = pathFilter.trim().toLowerCase();
+  const author = extra?.authorFilter?.trim().toLowerCase() ?? "";
+  const sinceMs = extra?.sinceFilter
+    ? Date.parse(extra.sinceFilter)
+    : Number.NaN;
+  const untilMs = extra?.untilFilter
+    ? Date.parse(
+        extra.untilFilter.includes("T")
+          ? extra.untilFilter
+          : `${extra.untilFilter}T23:59:59.999Z`,
+      )
+    : Number.NaN;
   return commits.filter((row) => {
     if (
       branchFilter &&
       row.branches.length > 0 &&
-      !row.branches.includes(branchFilter)
+      !row.branches.includes(branchFilter) &&
+      !row.refs.some((ref) => ref.name === branchFilter)
     ) {
       return false;
     }
@@ -72,9 +96,24 @@ export function filterLogCommits(
       q &&
       !row.subject.toLowerCase().includes(q) &&
       !row.authorName.toLowerCase().includes(q) &&
-      !row.shortOid.toLowerCase().includes(q)
+      !row.shortOid.toLowerCase().includes(q) &&
+      !row.oid.toLowerCase().startsWith(q)
     ) {
       return false;
+    }
+    if (
+      author &&
+      !row.authorName.toLowerCase().includes(author) &&
+      !row.authorEmail.toLowerCase().includes(author)
+    ) {
+      return false;
+    }
+    if (!Number.isNaN(sinceMs) || !Number.isNaN(untilMs)) {
+      const rowMs = Date.parse(row.committerAt || row.authorAt);
+      if (!Number.isNaN(rowMs)) {
+        if (!Number.isNaN(sinceMs) && rowMs < sinceMs) return false;
+        if (!Number.isNaN(untilMs) && rowMs > untilMs) return false;
+      }
     }
     if (p) {
       const hitPath = row.changedPaths.some((filePath) =>

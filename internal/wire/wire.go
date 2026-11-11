@@ -279,43 +279,6 @@ func Repository(r workspace.Repository) contract.Repository {
 
 func Repositories(in []workspace.Repository) []contract.Repository { return each(in, Repository) }
 
-func Branches(b workspace.Branches) contract.Branches {
-	branches := each(b.Branches, func(v workspace.Branch) contract.Branch {
-		return contract.Branch{
-			Name: v.Name, Head: v.Head, WorktreePaths: required(v.WorktreePaths), Subject: v.Subject, CommittedAt: v.CommittedAt,
-			Upstream: v.Upstream, Ahead: v.Ahead, Behind: v.Behind, UpstreamGone: v.UpstreamGone, MergedIntoDefault: v.MergedIntoDefault,
-		}
-	})
-	bases := each(b.Bases, func(v workspace.Base) contract.BranchBase { return contract.BranchBase(v) })
-	return contract.Branches{
-		Branches:           branches,
-		Bases:              bases,
-		DefaultBase:        b.DefaultBase,
-		DefaultBaseSubject: b.DefaultBaseSubject,
-		DefaultBranch:      b.DefaultBranch,
-		DefaultParent:      b.DefaultParent,
-	}
-}
-
-func Remotes(r workspace.Remotes) contract.Remotes {
-	return contract.Remotes{Remotes: each(r.Remotes, func(v workspace.Remote) contract.Remote { return contract.Remote(v) })}
-}
-
-func FetchRemotes(r workspace.FetchRemotesResult) contract.FetchRemotesResponse {
-	return contract.FetchRemotesResponse{
-		Results:    each(r.Results, func(v workspace.FetchResult) contract.FetchResult { return contract.FetchResult(v) }),
-		Repository: Repository(r.Repository),
-	}
-}
-
-func Commits(in []workspace.Commit) contract.Commits {
-	return contract.Commits{Commits: each(in, func(v workspace.Commit) contract.Commit { return contract.Commit(v) })}
-}
-
-func RefreshBranchBase(r workspace.BranchBaseRefresh) contract.RefreshBranchBaseResponse {
-	return contract.RefreshBranchBaseResponse(r)
-}
-
 // Preview converts a removal preview; archived describes each archived
 // record.
 func Preview(p workspace.Preview, archived func(hybrid.Record) Archived) contract.RemovalPreview {

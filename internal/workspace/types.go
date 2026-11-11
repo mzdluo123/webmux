@@ -187,9 +187,16 @@ type Commit struct {
 	Author      string `json:"author"`
 	CommittedAt string `json:"committedAt"`
 }
+type Tag struct {
+	Name        string `json:"name"`
+	Head        string `json:"head"`
+	Subject     string `json:"subject"`
+	CommittedAt string `json:"committedAt"`
+}
 type Branches struct {
 	Branches           []Branch `json:"branches"`
 	Bases              []Base   `json:"bases"`
+	Tags               []Tag    `json:"tags"`
 	DefaultBase        *string  `json:"defaultBase"`
 	DefaultBaseSubject string   `json:"defaultBaseSubject"`
 	DefaultBranch      *string  `json:"defaultBranch"`

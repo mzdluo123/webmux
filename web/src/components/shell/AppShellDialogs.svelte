@@ -55,7 +55,7 @@
     choosingHome: Repository | null;
     viewingRepository: { repository: Repository; tab: RepositoryTab } | null;
     viewingWorktree: Worktree | null;
-    switchingBranch: Worktree | null;
+    switchingBranch: { worktree: Worktree; initialBranch?: string } | null;
     releasingWorktree: Worktree | null;
     operating: { repositoryId: string; operation: BranchOperation } | null;
     forwarding: boolean;
@@ -300,7 +300,8 @@
   </LazyDialog>
 {/if}
 {#if switchingBranch}
-  {@const { repo, current } = resolveWorktreeDialogTarget(switchingBranch)}
+  {@const target = switchingBranch}
+  {@const { repo, current } = resolveWorktreeDialogTarget(target.worktree)}
   {#if repo}
     <LazyDialog
       load={() => import("../workspace/SwitchBranchDialog.svelte")}
@@ -310,6 +311,7 @@
       {#snippet children(page)}<page.default
           repository={repo}
           worktree={current}
+          initialBranch={target.initialBranch}
           onchange={() => void shell.repositories.refresh(true)}
           onnewworktree={(preset) =>
             shell.start({

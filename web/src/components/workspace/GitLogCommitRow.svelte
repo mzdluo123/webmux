@@ -1,4 +1,5 @@
 <script lang="ts">
+  import IconTag from "~icons/tabler/tag";
   import { Badge } from "$lib/components/ui/badge";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -7,22 +8,44 @@
     laneStrokeClass,
     type GitGraphRowLayout,
   } from "../../domains/workspace/git-graph-layout";
-  import type { GitHistoryRow } from "../../contracts/git-workbench-schemas";
+  import type {
+    GitCompareViewState,
+    GitHistoryRow,
+  } from "../../contracts/git-workbench-schemas";
   import GitRowActionMenu from "./GitRowActionMenu.svelte";
 
   let {
     row,
     layout,
     selected = false,
+    selectedCommitOid = null,
+    compareBaseMarkOid = null,
+    compareMode = null,
     showAuthorColumn = true,
     onSelect,
+    onMarkCompareBase,
+    onStartCompare,
   }: {
     row: GitHistoryRow;
     layout?: GitGraphRowLayout;
     selected?: boolean;
+    selectedCommitOid?: string | null;
+    compareBaseMarkOid?: string | null;
+    compareMode?: GitCompareViewState | null;
     showAuthorColumn?: boolean;
     onSelect: (oid: string) => void;
+    onMarkCompareBase?: (oid: string | null) => void;
+    onStartCompare?: (baseOid: string, targetOid: string) => void;
   } = $props();
+
+  function formatShortDate(iso: string): string {
+    if (!iso) return "";
+    const idx = iso.indexOf("T");
+    if (idx === 10) {
+      return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+    }
+    return iso.slice(0, 16);
+  }
 
   function copyOid(oid: string) {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -91,39 +114,100 @@
               : "outline"}
           class="max-w-full"
         >
+          {#if refBadge.kind === "tag"}
+            <IconTag class="size-3 shrink-0" aria-hidden="true" />
+          {/if}
           <span class="truncate" title={refBadge.name}>
             {refBadge.name}
           </span>
         </Badge>
       {/each}
+
       {#if row.directParentsMissing}
-        <Badge variant="warning" class="max-w-full">
+        <Badge
+          variant="warning"
+          class="max-w-full"
+          title="筛选条件省略了中间提交，虚线表示间接祖先关系"
+        >
           <span class="truncate">筛选省略中间节点</span>
         </Badge>
       {/if}
+
+      {#if compareBaseMarkOid === row.oid}
+        <Badge variant="info">比较起点</Badge>
+      {/if}
+
+      {#if compareMode?.baseOid === row.oid}
+        <Badge variant="info">对比起点</Badge>
+      {:else if compareMode?.targetOid === row.oid}
+        <Badge variant="info">对比终点</Badge>
+      {/if}
+
       <span
         class="min-w-[6ch] max-w-full flex-1 truncate font-medium"
         title={row.subject}
       >
         {row.subject}
       </span>
-      <span class="shrink-0 font-mono text-xs text-muted-foreground">
-        {row.shortOid}
-      </span>
+
       {#if showAuthorColumn}
-        <span class="hidden shrink-0 text-xs text-muted-foreground sm:inline">
+        <span
+          class="hidden max-w-28 shrink-0 truncate text-xs text-muted-foreground md:inline"
+          title={`${row.authorName} <${row.authorEmail}>`}
+        >
           {row.authorName}
         </span>
       {/if}
+
+      {#if row.committerAt}
+        <span
+          class="hidden shrink-0 font-mono text-xs text-muted-foreground lg:inline"
+          title={row.committerAt}
+        >
+          {formatShortDate(row.committerAt)}
+        </span>
+      {/if}
+
+      <span class="shrink-0 font-mono text-xs text-muted-foreground">
+        {row.shortOid}
+      </span>
     </div>
   </ListButton>
 
   <GitRowActionMenu label={`提交操作 ${row.shortOid}`}>
-    <DropdownMenu.Item onclick={() => copyOid(row.oid)}>
-      复制提交 OID ({row.shortOid})
-    </DropdownMenu.Item>
     <DropdownMenu.Item onclick={() => onSelect(row.oid)}>
       查看提交详情
     </DropdownMenu.Item>
+    <DropdownMenu.Item onclick={() => copyOid(row.oid)}>
+      复制提交 OID ({row.shortOid})
+    </DropdownMenu.Item>
+    {#if onMarkCompareBase || onStartCompare}
+      <DropdownMenu.Separator />
+      {#if onMarkCompareBase}
+        {#if compareBaseMarkOid === row.oid}
+          <DropdownMenu.Item onclick={() => onMarkCompareBase(null)}>
+            取消比较起点标记
+          </DropdownMenu.Item>
+        {:else}
+          <DropdownMenu.Item onclick={() => onMarkCompareBase(row.oid)}>
+            设为比较起点 ({row.shortOid})
+          </DropdownMenu.Item>
+        {/if}
+      {/if}
+      {#if onStartCompare && compareBaseMarkOid && compareBaseMarkOid !== row.oid}
+        <DropdownMenu.Item
+          onclick={() => onStartCompare(compareBaseMarkOid, row.oid)}
+        >
+          与起点 ({compareBaseMarkOid.slice(0, 7)}) 比较
+        </DropdownMenu.Item>
+      {/if}
+      {#if onStartCompare && selectedCommitOid && selectedCommitOid !== row.oid}
+        <DropdownMenu.Item
+          onclick={() => onStartCompare(row.oid, selectedCommitOid)}
+        >
+          与当前选中 ({selectedCommitOid.slice(0, 7)}) 比较
+        </DropdownMenu.Item>
+      {/if}
+    {/if}
   </GitRowActionMenu>
 </div>

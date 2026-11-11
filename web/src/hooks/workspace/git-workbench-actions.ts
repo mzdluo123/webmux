@@ -39,7 +39,22 @@ import {
   mapGitHistoryPage,
   mapGitStagingOverview,
 } from "../../domains/workspace/git-workbench-adapter";
+import { readFavoriteBranches } from "../../domains/workspace/git-favorites";
 import { groupWorkingChanges } from "../../domains/workspace/git-workbench-state";
+
+function resolveUsableWorktree(
+  worktreeId: string | undefined,
+  worktree: Worktree | undefined,
+): Worktree | undefined {
+  return worktreeId &&
+    worktree &&
+    worktree.available &&
+    !worktree.prunable &&
+    !worktree.locked &&
+    worktree.kind !== "bare"
+    ? worktree
+    : undefined;
+}
 
 export function emptyGitViewState(repositoryId: string): GitWorkbenchViewState {
   return {
@@ -52,15 +67,24 @@ export function emptyGitViewState(repositoryId: string): GitWorkbenchViewState {
     }),
     historyState: "empty",
     historyReason: "",
+    nextCursor: "",
+    refsChanged: false,
+    historyLoadingMore: false,
     scope: "all",
     branchFilter: null,
     searchQuery: "",
+    authorFilter: "",
+    sinceFilter: "",
+    untilFilter: "",
     pathFilter: "",
     commits: [],
     commitDetails: {},
     selectedCommitOid: null,
     selectedParentByCommit: {},
     selectedCommitFilePath: null,
+    selectionNotice: null,
+    compareBaseMarkOid: null,
+    compareMode: null,
     workingChanges: [],
     activeChangeId: null,
     reviewedPaths: [],
@@ -73,6 +97,39 @@ export function emptyGitViewState(repositoryId: string): GitWorkbenchViewState {
   };
 }
 
+export async function fetchGitHistoryPageMapped(options: {
+  repositoryId: string;
+  worktreeId?: string;
+  scope: GitHistoryScope;
+  branchFilter: string | null;
+  searchQuery?: string;
+  authorFilter?: string;
+  sinceFilter?: string;
+  untilFilter?: string;
+  pathFilter?: string;
+  cursor?: string;
+  limit?: number;
+  signal: AbortSignal;
+}) {
+  const page = await gitHistory(
+    options.repositoryId,
+    {
+      worktreeId: options.worktreeId,
+      scope: options.scope,
+      branch: options.branchFilter ?? undefined,
+      q: options.searchQuery?.trim() || undefined,
+      author: options.authorFilter?.trim() || undefined,
+      since: options.sinceFilter?.trim() || undefined,
+      until: options.untilFilter?.trim() || undefined,
+      path: options.pathFilter?.trim() || undefined,
+      cursor: options.cursor || undefined,
+      limit: options.limit ?? 100,
+    },
+    options.signal,
+  );
+  return mapGitHistoryPage(page);
+}
+
 export async function fetchGitTargetBundle(options: {
   repositoryId: string;
   worktreeId?: string;
@@ -81,38 +138,44 @@ export async function fetchGitTargetBundle(options: {
   sessions: readonly SessionInfo[];
   scope: GitHistoryScope;
   branchFilter: string | null;
+  searchQuery?: string;
+  authorFilter?: string;
+  sinceFilter?: string;
+  untilFilter?: string;
+  pathFilter?: string;
   signal: AbortSignal;
 }): Promise<{
   effectiveWorktreeId?: string;
+  gitContextId: string;
+  defaultBranch: string | null;
   context: GitWorktreeContext;
   historyState: GitWorkbenchViewState["historyState"];
   historyReason: string;
+  historyUpstream?: string;
+  lastFetchedAt?: string;
+  nextCursor: string;
+  refsChanged: boolean;
   commits: GitHistoryRow[];
   branches: GitBranchItem[];
 }> {
-  const validWt =
-    options.worktreeId &&
-    options.worktree &&
-    options.worktree.available &&
-    !options.worktree.prunable &&
-    !options.worktree.locked &&
-    options.worktree.kind !== "bare"
-      ? options.worktree
-      : undefined;
+  const validWt = resolveUsableWorktree(options.worktreeId, options.worktree);
   const effectiveWorktreeId = validWt?.id;
 
-  const [ctxRes, histRes, branchesRes] = await Promise.all([
+  const [ctxRes, hist, branchesRes] = await Promise.all([
     gitContext(options.repositoryId, effectiveWorktreeId, options.signal),
-    gitHistory(
-      options.repositoryId,
-      {
-        worktreeId: effectiveWorktreeId,
-        scope: effectiveWorktreeId ? options.scope : "all",
-        branch: options.branchFilter ?? undefined,
-        limit: 100,
-      },
-      options.signal,
-    ),
+    fetchGitHistoryPageMapped({
+      repositoryId: options.repositoryId,
+      worktreeId: effectiveWorktreeId,
+      scope: options.scope,
+      branchFilter: options.branchFilter,
+      searchQuery: options.searchQuery,
+      authorFilter: options.authorFilter,
+      sinceFilter: options.sinceFilter,
+      untilFilter: options.untilFilter,
+      pathFilter: options.pathFilter,
+      limit: 100,
+      signal: options.signal,
+    }),
     repositoryBranches(options.repositoryId, options.signal).catch(() => ({
       defaultBranch: null,
       defaultBase: null,
@@ -120,6 +183,7 @@ export async function fetchGitTargetBundle(options: {
       defaultParent: "",
       branches: [],
       bases: [],
+      tags: [],
     })),
   ]);
 
@@ -129,19 +193,31 @@ export async function fetchGitTargetBundle(options: {
     worktree: validWt ?? options.worktree,
     gitCtx: ctxRes,
   });
-  const hist = mapGitHistoryPage(histRes);
+  const localNames = new Set(branchesRes.branches.map((b) => b.name));
+  const favoriteNames = readFavoriteBranches(
+    options.repositoryId,
+    branchesRes.defaultBranch,
+    localNames,
+  );
   const branches = mapGitBranchesResponse(
     options.repository,
     context.worktreePath,
     options.sessions,
     branchesRes,
+    favoriteNames,
   );
 
   return {
     effectiveWorktreeId,
+    gitContextId: ctxRes.contextId,
+    defaultBranch: branchesRes.defaultBranch,
     context,
     historyState: hist.historyState,
     historyReason: hist.historyReason,
+    historyUpstream: hist.historyUpstream,
+    lastFetchedAt: hist.lastFetchedAt,
+    nextCursor: hist.nextCursor,
+    refsChanged: hist.refsChanged,
     commits: hist.commits,
     branches,
   };

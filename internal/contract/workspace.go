@@ -127,10 +127,19 @@ type FetchRemotesResponse struct {
 	Repository Repository    `json:"repository"`
 }
 
+// Tag is a lightweight or annotated tag peeled to its target commit.
+type Tag struct {
+	Name        string `json:"name"`
+	Head        string `json:"head"`
+	Subject     string `json:"subject"`
+	CommittedAt string `json:"committedAt"`
+}
+
 // Branches is the body of GET /api/repositories/{id}/branches.
 type Branches struct {
 	Branches           []Branch     `json:"branches"`
 	Bases              []BranchBase `json:"bases"`
+	Tags               []Tag        `json:"tags"`
 	DefaultBase        *string      `json:"defaultBase"`
 	DefaultBaseSubject string       `json:"defaultBaseSubject"`
 	DefaultBranch      *string      `json:"defaultBranch"`
