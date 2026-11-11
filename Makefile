@@ -25,8 +25,7 @@ TRAY_PKG = github.com/rainchan/webmux/internal/tray
 TRAY_LDFLAGS ?=
 MAKENSIS ?= makensis
 # Pinned nfpm, run through the Go toolchain so no separate install is needed.
-# v2.47+ requires a newer Go than go.mod pins for CI (GOTOOLCHAIN=local).
-NFPM ?= $(GO) run github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.46.3
+NFPM ?= $(GO) run github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0
 # A development version (X.Y.Z-dev.N) names its binaries, trays and
 # installers webmux-<version>-<release name without "webmux-">, so a
 # publish to the rolling `dev` Release uploads beside the outgoing build
