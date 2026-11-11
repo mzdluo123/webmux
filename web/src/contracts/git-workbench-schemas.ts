@@ -8,9 +8,15 @@ import {
   GitStagingHunkSchema as GitWireStagingHunkSchema,
   type GitHistoryEdge,
   type GitHistoryScope,
+  type GitHistoryStatus,
 } from "./git-api-schemas";
 
-export { GitHistoryScopeSchema, type GitHistoryEdge, type GitHistoryScope };
+export {
+  GitHistoryScopeSchema,
+  type GitHistoryEdge,
+  type GitHistoryScope,
+  type GitHistoryStatus,
+};
 
 export const GitWorkbenchModeSchema = z.enum(["log", "commit", "branches"]);
 export type GitWorkbenchMode = z.infer<typeof GitWorkbenchModeSchema>;
@@ -42,6 +48,7 @@ const GitStagingHunkSchema = GitWireStagingHunkSchema.extend({
 export type GitStagingHunk = z.infer<typeof GitStagingHunkSchema>;
 
 const GitCommitFileSchema = z.object({
+  changeId: z.string().optional(),
   oldPath: z.string().default(""),
   newPath: z.string(),
   status: z.enum(["A", "M", "D", "R", "C", "T"]),
@@ -96,7 +103,7 @@ const GitBranchOccupancySchema = z.object({
 
 export const GitBranchItemSchema = z.object({
   name: z.string(),
-  kind: z.enum(["local", "remote"]),
+  kind: z.enum(["local", "remote", "tag"]),
   head: z.string(),
   shortHead: z.string(),
   subject: z.string(),
@@ -180,20 +187,46 @@ export const GitWorktreeContextSchema = z.object({
 });
 export type GitWorktreeContext = z.infer<typeof GitWorktreeContextSchema>;
 
+export interface GitSelectionNotice {
+  message: string;
+  canJumpHead: boolean;
+}
+
+export interface GitCompareViewState {
+  baseOid: string;
+  targetOid: string;
+  files: GitCommitFile[];
+  nextCursor: string;
+  loading: boolean;
+  loadingMore: boolean;
+  error: string;
+}
+
 export interface GitWorkbenchViewState {
   mode: GitWorkbenchMode;
   context: GitWorktreeContext;
-  historyState: "ready" | "empty" | "unborn" | "no_upstream" | "no_worktree";
+  historyState: GitHistoryStatus;
   historyReason: string;
+  historyUpstream?: string;
+  lastFetchedAt?: string;
+  nextCursor?: string;
+  refsChanged?: boolean;
+  historyLoadingMore?: boolean;
   scope: GitHistoryScope;
   branchFilter: string | null;
   searchQuery: string;
+  authorFilter?: string;
+  sinceFilter?: string;
+  untilFilter?: string;
   pathFilter: string;
   commits: GitHistoryRow[];
   commitDetails: Record<string, GitCommitDetail>;
   selectedCommitOid: string | null;
   selectedParentByCommit: Record<string, string>;
   selectedCommitFilePath: string | null;
+  selectionNotice?: GitSelectionNotice | null;
+  compareBaseMarkOid?: string | null;
+  compareMode?: GitCompareViewState | null;
   workingChanges: GitWorkingChange[];
   activeChangeId: string | null;
   reviewedPaths: string[];

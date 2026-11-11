@@ -129,6 +129,7 @@
         committedAt: at,
       },
     ],
+    tags: [],
     defaultBase: null,
     defaultBaseSubject: "",
     defaultBranch: "main",

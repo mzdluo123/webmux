@@ -43,6 +43,7 @@ const branches = {
     base("refs/remotes/origin/HEAD", "a".repeat(40), "init"),
     base("refs/remotes/origin/upstream-fix", "c".repeat(40), "upstream fix"),
   ],
+  tags: [],
   defaultBase: "a".repeat(40),
   defaultBaseSubject: "init",
   defaultBranch: "main",

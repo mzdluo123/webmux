@@ -10,6 +10,45 @@ func GitContext(c codeview.Context) contract.GitContext {
 	return contract.GitContext(c)
 }
 
+func Branches(b workspace.Branches) contract.Branches {
+	branches := each(b.Branches, func(v workspace.Branch) contract.Branch {
+		return contract.Branch{
+			Name: v.Name, Head: v.Head, WorktreePaths: required(v.WorktreePaths), Subject: v.Subject, CommittedAt: v.CommittedAt,
+			Upstream: v.Upstream, Ahead: v.Ahead, Behind: v.Behind, UpstreamGone: v.UpstreamGone, MergedIntoDefault: v.MergedIntoDefault,
+		}
+	})
+	bases := each(b.Bases, func(v workspace.Base) contract.BranchBase { return contract.BranchBase(v) })
+	tags := each(b.Tags, func(v workspace.Tag) contract.Tag { return contract.Tag(v) })
+	return contract.Branches{
+		Branches:           branches,
+		Bases:              bases,
+		Tags:               tags,
+		DefaultBase:        b.DefaultBase,
+		DefaultBaseSubject: b.DefaultBaseSubject,
+		DefaultBranch:      b.DefaultBranch,
+		DefaultParent:      b.DefaultParent,
+	}
+}
+
+func Remotes(r workspace.Remotes) contract.Remotes {
+	return contract.Remotes{Remotes: each(r.Remotes, func(v workspace.Remote) contract.Remote { return contract.Remote(v) })}
+}
+
+func FetchRemotes(r workspace.FetchRemotesResult) contract.FetchRemotesResponse {
+	return contract.FetchRemotesResponse{
+		Results:    each(r.Results, func(v workspace.FetchResult) contract.FetchResult { return contract.FetchResult(v) }),
+		Repository: Repository(r.Repository),
+	}
+}
+
+func Commits(in []workspace.Commit) contract.Commits {
+	return contract.Commits{Commits: each(in, func(v workspace.Commit) contract.Commit { return contract.Commit(v) })}
+}
+
+func RefreshBranchBase(r workspace.BranchBaseRefresh) contract.RefreshBranchBaseResponse {
+	return contract.RefreshBranchBaseResponse(r)
+}
+
 func gitDocument(d codeview.Document) contract.GitDocument {
 	return contract.GitDocument{
 		NodeID: d.NodeID, Path: d.Path, Absolute: d.Absolute, Source: d.Source, OID: d.OID,

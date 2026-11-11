@@ -183,7 +183,7 @@
   - 访问与错误日志不输出文件内容、Diff 正文、提交消息全文或凭据；前端 `web/src/contracts/git-api-schemas.ts` 与 `web/src/platform/git-api.ts` 复用统一 `api()`/`apiBlob()`/`APIError` 与 wire 快照校验，不修改既有 `/api/sessions/{id}/code/*` 行为。
 - **US-J20 独立 `/git` 工作台路由、多入口联动与跨视图状态隔离**：作为同时管理多份工作树与会话的使用者，我希望在零活跃会话或任一会话旁通过独立 URL 打开一等公民 Git 工作台，在历史、提交与分支视图间自由往返而不丢阅读或草稿状态，并能无损返回原会话。
   验收要点：
-  - 路由支持 `/git`、`/git/{repositoryId}`（只读仓库模式）与 `/git/{repositoryId}/worktrees/{worktreeId}`（工作树读写模式），并解析深链查询参数 `view=log|commit|branches`、`scope=all|branch|task|to-push|incoming`、`branch`、`commit`、`q` 与 `returnSession`；
+  - 路由支持 `/git`、`/git/{repositoryId}`（只读仓库模式）与 `/git/{repositoryId}/worktrees/{worktreeId}`（工作树读写模式），并解析深链查询参数 `view=log|commit|branches`、`scope=all|branch|task|to-push|incoming`、`branch`、`commit`、`q`、`author`、`since`、`until`、`path` 与 `returnSession`；
   - 显式 URL 查询参数优先级始终高于本地记忆，浏览器前进/后退仅改变查询串时响应式同步当前视图与筛选，不销毁单实例 `AppShell` 或重复建立 `/ws/sessions` 连接；在 `/git/...` 页面切换侧栏“工作台 / 聊天”模式保持当前 `/git/...` 路由；
   - 零活跃会话下可通过侧栏仓库“⋯”菜单、首页仓库菜单、仓库面板头部“Git 工作台”按钮或直接访问 URL 打开工作台，全程不创建任何伪终端会话；创建并删除最后一个会话不会卸载或中断当前 `/git` 页面；
   - 三类入口精确落位并支持无损返回会话：
@@ -197,6 +197,27 @@
   - 跨视图、跨工作树与跨设备尺寸隔离记忆：
     - 按 `(hostId, repositoryId, worktreeId)` 隔离保留选中提交、父提交对比、筛选条件、列表与 Diff 滚动位置、已看标记与本地提交草稿，`Log -> Commit -> Branches -> Log` 往返不丢状态，切换工作树或仓库立即清空确认码与跨目录草稿；
     - 分栏比例、引用栏显隐与统一/并排 Diff 偏好按设备尺寸档位（`desktop`、`compact`、`tablet`、`phone`）独立持久化，手机端操作不覆盖桌面端布局。
+- **US-J21 Git 工作台历史视图：引用筛选、`%P` 拓扑分页、提交详情、两版本比较与 Pierre Diff 阅读**：作为检视仓库演进或对照分支差异的使用者，我希望在同一历史工作面筛选多分支拓扑提交图、切换合并父节点或比较任意两提交，并复用只读差异阅读器检查变更，绝不静默切换检出状态或改动 `.git/index`。
+  验收要点：
+  - 左侧引用筛选树与检出解耦：
+    - 桌面端左侧栏默认 `240px`（支持 `180–360px` 拖拽与折叠，`< 1280px` 收纳为抽屉），分组展示收藏分支（按主机与仓库持久化，默认收录 `defaultBranch`）、当前分支、本地分支、远端跟踪分支与标签（`refs/tags/`，附注标签解包至提交 OID），标注 `HEAD`、`已占用` 及上游领先/落后或 `上游已删`；
+    - 单击任一分支或标签仅筛选历史提交列表并更新顶栏浏览筛选徽标，顶栏活动工作树、磁盘检出分支与 `HEAD` 保持不变；切换分支必须经行尾菜单“检出分支…”进入预选目标分支的 `SwitchBranch` 预览确认流程，已由其他工作树占用的分支引导打开所在工作树；
+  - 快捷范围与服务端组合筛选：
+    - 支持 `所有历史`（默认）、`当前分支`、`待推送`、`远端新增` 快捷范围及说明 `#547` 任务基线依赖的受控“当前任务”弹层，并组合关键字（`q`）、作者（`author`）、起止日期（`since`/`until`）与字面路径（`path`）向服务端请求；
+    - 遇到 `no_worktree`、`detached_no_branch`、`no_upstream`、`upstream_gone`、`unborn` 或 `empty` 时直接展示明确中文原因提示，绝不误导显示为“0 个提交”；
+    - 筛选或刷新后若原选中提交仍在首屏则保留选中，否则说明原因并在存在 `HEAD` 时提供一键“定位当前 HEAD”；
+  - `%P` 拓扑车道图与游标流式分页：
+    - 基于真实父提交 `%P` 渲染节点、分支/标签/`HEAD` 徽标、`direct` 实线边、`indirect` 虚线边（当路径或关键字过滤省略中间节点时额外显示“筛选省略中间节点”）及页尾 `boundary` 延续短边；
+    - 滚动触底或点击“加载更多历史”通过不透明 `cursor` 追加下一页且不重排已渲染行；当分页或刷新返回 `refsChanged: true` 时给出非阻塞“分支引用已更新，可刷新”提示；
+  - 右上变更文件、右下提交详情与合并父节点切换：
+    - 右上“变更文件”展示状态徽标（`A`/`M`/`D`/`R`/`C`/`T`）、重命名路径（`oldPath → newPath`）、二进制标记与按路径二次过滤，支持 `ArrowUp`/`ArrowDown`/`Home`/`End` 键盘导航、单击在底部预览、`Enter` 或双击放大至主工作区；
+    - 右下“提交详情”展示完整消息（标题与保留换行的正文）、作者与提交者（`distinctCommitter` 为真时分开列出）、完整 OID 复制、可点击跳转的父提交 OID 与全部引用徽标；合并提交（`parents.length >= 2`）提供显式父节点切换器并联动刷新变更文件与差异；
+  - Pierre `CodeDiffReader` 复用、任意两版本比较与异步竞态隔离：
+    - 底部可折叠与高度可拖拽（`140–640px`）差异栏及主工作区放大态统一复用 Pierre `CodeDiffReader`，保留语法高亮 worker、文件内查找、行号跳转、自动换行与字号缩放、Unified/Split 切换、变更前后完整快照预览及原始文件下载；
+    - 差异面板对加载中、二进制、超预算/纯元数据变更与错误重试态给出中文内嵌反馈；放大态按 `Escape`（无打开面板时）或返回按钮恢复原提交、文件选中与列表滚动位置；
+    - 提交行与引用行菜单支持“设为比较起点 / 与起点比较 / 与当前选中提交比较”，只读拉取 `baseOid → targetOid` 变更文件列表与逐文件差异，支持一键“交换方向”与“退出比较”，全程不执行 `git checkout`、不触碰 `.git/index`、不自动触发 `git fetch`；
+    - 提交详情、父节点切换、单文件差异与两版本比较均绑定 `LatestRequest` 与 `AbortController`，快速连续切换时丢弃过期响应，绝不覆盖当前选中状态；
+    - 窄屏手机端（`< 640px`）采用“提交列表（含引用筛选抽屉）→ 提交详情与变更文件 → Unified 差异阅读”单列步进导航且无横向溢出。
 
 依据：
 
@@ -230,3 +251,10 @@
   - 页面与状态：[Git 工作台页](../../../web/src/pages/GitWorkbench.svelte)、[控制器](../../../web/src/hooks/workspace/git-workbench-controller.svelte.ts)、[路由契约](../../../web/src/hooks/shared/route.ts)、[记忆模块](../../../web/src/domains/workspace/git-workbench-memory.ts)；
   - 入口与门禁：[顶栏组件](../../../web/src/components/workspace/GitWorkbenchTopBar.svelte)、[写门禁](../../../web/src/components/workspace/GitWorktreeGuardState.svelte)、[代码头部入口](../../../web/src/components/code/CodeWorkspaceHeader.svelte)；
   - 测试验证：[路由单测](../../../web/test/route.test.ts)、[记忆单测](../../../web/test/git-workbench-memory.test.ts)、[浏览器测试](../../../web/test/browser/GitWorkbenchRoute.test.ts)、[路由 E2E](../../../web/test/e2e/git-workbench-route.spec.ts)。
+- Git 工作台历史视图：
+  - 服务端引用与范围：[分支与标签枚举](../../../internal/workspace/git_refs.go)、[历史范围解析](../../../internal/workspace/history_scope.go)、[历史分页与拓扑](../../../internal/workspace/history.go)、[历史测试](../../../internal/workspace/history_test.go)；
+  - 控制器：[历史与分页](../../../web/src/hooks/workspace/git-log-history.svelte.ts)、[两版本比较](../../../web/src/hooks/workspace/git-log-compare.svelte.ts)、[历史差异](../../../web/src/hooks/workspace/git-log-diff.svelte.ts)、[收藏分支](../../../web/src/domains/workspace/git-favorites.ts)；
+  - 左侧与中间视图：[Log 主面板](../../../web/src/components/workspace/GitLogPane.svelte)、[引用树](../../../web/src/components/workspace/GitLogBranchTree.svelte)、[筛选栏](../../../web/src/components/workspace/GitLogFilterBar.svelte)；
+  - 右侧变更与详情：[变更文件列表](../../../web/src/components/workspace/GitLogFilesPane.svelte)、[提交详情](../../../web/src/components/workspace/GitLogDetailPane.svelte)；
+  - 底部与放大差异：[差异面板](../../../web/src/components/workspace/GitLogDiffPanel.svelte)、[Pierre 阅读器](../../../web/src/components/code/CodeDiffReader.svelte)；
+  - 测试验证：[收藏与深链单测](../../../web/test/git-log-controller.test.ts)、[竞态与分页浏览器单测](../../../web/test/browser/GitLogController.test.ts)、[工作台组件测试](../../../web/test/browser/GitWorkbench.test.ts)、[历史视图 E2E](../../../web/test/e2e/git-workbench-log.spec.ts)。

@@ -12,6 +12,7 @@
   let {
     repository,
     worktree,
+    initialBranch,
     source,
     onchange,
     onnewworktree,
@@ -20,6 +21,7 @@
   }: {
     repository: Repository;
     worktree: Worktree;
+    initialBranch?: string;
     source?: SwitchSource;
     /** A switch ran; the repositories are read again. */
     onchange: () => void;
@@ -43,6 +45,7 @@
   <SwitchBranch
     {repository}
     {worktree}
+    {initialBranch}
     {source}
     bind:busy
     {onchange}

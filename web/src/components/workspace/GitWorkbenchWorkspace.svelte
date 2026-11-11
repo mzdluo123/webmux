@@ -72,43 +72,73 @@
     <GitLogPane
       historyState={controller.view.historyState}
       historyReason={controller.view.historyReason}
+      nextCursor={controller.view.nextCursor}
+      refsChanged={controller.view.refsChanged}
+      historyLoadingMore={controller.view.historyLoadingMore}
+      liveFiltered={true}
+      detailLoading={controller.detailLoading}
       scope={controller.view.scope}
       branchFilter={controller.view.branchFilter}
       searchQuery={controller.view.searchQuery}
+      authorFilter={controller.view.authorFilter}
+      sinceFilter={controller.view.sinceFilter}
+      untilFilter={controller.view.untilFilter}
       pathFilter={controller.view.pathFilter}
       commits={controller.view.commits}
       commitDetails={controller.view.commitDetails}
       selectedCommitOid={controller.view.selectedCommitOid}
       selectedParentByCommit={controller.view.selectedParentByCommit}
       selectedCommitFilePath={controller.view.selectedCommitFilePath}
+      selectionNotice={controller.view.selectionNotice}
+      compareBaseMarkOid={controller.view.compareBaseMarkOid}
+      compareMode={controller.view.compareMode}
       branches={controller.view.branches}
       checkedOutBranch={controller.view.context.checkedOutBranch}
+      logDiff={controller.logDiff}
       preferredShowBranches={deviceLayout.showBranchesPanel}
+      branchTreeWidth={deviceLayout.branchTreeWidth}
+      diffHeight={deviceLayout.diffHeight}
+      diffCollapsed={deviceLayout.diffCollapsed}
       showAuthorColumn={deviceLayout.showAuthorColumn}
-      threePaneSizes={deviceLayout.logThreePaneSizes}
       twoPaneSizes={deviceLayout.logTwoPaneSizes}
       diffMode={deviceLayout.diffMode}
       listScrollTop={controller.scrollOffsets.logList}
       diffScrollTop={controller.scrollOffsets.logDiff}
       onShowBranchesChange={(showBranchesPanel) =>
         onUpdateDeviceLayout({ showBranchesPanel })}
-      onThreePaneSizesChange={(logThreePaneSizes) =>
-        onUpdateDeviceLayout({ logThreePaneSizes })}
+      onBranchTreeWidthChange={(branchTreeWidth) =>
+        onUpdateDeviceLayout({ branchTreeWidth })}
+      onDiffHeightChange={(diffHeight) => onUpdateDeviceLayout({ diffHeight })}
+      onDiffCollapsedChange={(diffCollapsed) =>
+        onUpdateDeviceLayout({ diffCollapsed })}
       onTwoPaneSizesChange={(logTwoPaneSizes) =>
         onUpdateDeviceLayout({ logTwoPaneSizes })}
       onResetLayout={onResetDeviceLayout}
       onDiffModeChange={(diffMode) => onUpdateDeviceLayout({ diffMode })}
       onListScrollChange={(top) => controller.setScroll("logList", top)}
       onDiffScrollChange={(top) => controller.setScroll("logDiff", top)}
-      onScopeChange={(scope) =>
-        controller.setScope(scope, repository, worktree, sessions)}
+      onScopeChange={(scope) => controller.setScope(scope)}
       onBranchFilterChange={(branch) =>
         controller.setBranchFilter(branch, repository, worktree, sessions)}
       onSearchChange={(q) => controller.setSearchQuery(q)}
+      onAuthorChange={(a) => controller.setAuthorFilter(a)}
+      onSinceChange={(s) => controller.setSinceFilter(s)}
+      onUntilChange={(u) => controller.setUntilFilter(u)}
       onPathFilterChange={(p) => controller.setPathFilter(p)}
+      onClearFilters={() => controller.clearLogFilters()}
+      onRefreshHistory={() => void controller.refreshHistory()}
+      onLoadMoreHistory={() => void controller.loadMoreHistory()}
+      onJumpToHead={() => controller.jumpToHead()}
+      onDismissSelectionNotice={() => controller.dismissSelectionNotice()}
+      onToggleFavorite={(branch) => controller.toggleFavorite(branch)}
       onSelectCommit={(oid) => controller.selectCommit(oid)}
       onSelectParent={(cOid, pOid) => controller.selectParent(cOid, pOid)}
       onSelectCommitFile={(p) => controller.selectCommitFile(p)}
+      onMarkCompareBase={(oid) => controller.markCompareBase(oid)}
+      onStartCompare={(bOid, tOid) => void controller.startCompare(bOid, tOid)}
+      onLoadMoreCompareFiles={() => void controller.loadMoreCompareFiles()}
+      onSwapCompareDirection={() => controller.swapCompareDirection()}
+      onExitCompare={() => controller.exitCompare()}
       {onRequestCheckout}
       onOpenOccupiedWorktree={(wtId) => onSwitchWorktree(wtId)}
     />

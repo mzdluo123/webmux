@@ -40,6 +40,7 @@ const branches: Branches = {
     base("refs/remotes/origin/fix/b", tip),
     base("refs/remotes/origin/fix/c", tip),
   ],
+  tags: [],
   defaultBase: head,
   defaultBaseSubject: "",
   defaultBranch: "main",

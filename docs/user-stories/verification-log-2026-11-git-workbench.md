@@ -28,3 +28,21 @@
     - `test/e2e/git-workbench-route.spec.ts`（`chromium-desktop` 与 `chromium-mobile`）验证零会话不启动 PTY、最后会话删除存活、只读仓库 `Commit` 选工作树门禁、会话代码区往返恢复聊天草稿与阅读滚动位置、跨视图及 `Back`/`Forward` 状态恢复、跨工作树草稿隔离与单一 `/ws/sessions` 连接；
     - 在真实运行应用上完成桌面（1280×900）、平板（768×800）、手机（390×844）浅色与深色截图（含修改界面的前后对比）、交互 GIF 录制及 `scrollWidth <= innerWidth` 横向溢出检查。
 - 限制：无头 Chromium 的 `hover` 与 `any-pointer: coarse` 媒体特性与物理设备不同，行尾悬停显隐与物理触屏手感未验证，也未在真机 iOS/Android 浏览器上验证。
+
+## 2026-11-12：Git 工作台 04（V1a/V1b）真实数据接入的 Log 视图——拓扑图、分页筛选、提交详情、文件 Diff 与两版本比较（US-J20、US-J21）
+
+- 范围：
+  - 服务端引用与范围增强：在 `BranchesResult` / `/api/repositories/{id}/branches` 与 CLI `repo git branches` 中新增 `tags`（附注标签自动解包至目标提交 OID），扩展 `resolveNamedRefTip` 支持 `refs/tags/<name>` 历史筛选，并重录 wire 快照；
+  - 左侧引用筛选树与检出解耦：分组展示收藏分支（按主机与仓库持久化）、当前分支、本地分支、远端跟踪分支与标签，单击仅筛选历史而不切换工作树或磁盘 `HEAD`，行尾菜单“检出分支…”桥接预选分支的 `SwitchBranch` 预览确认；
+  - 快捷范围与组合筛选：支持快捷范围（含受控 `#547`“当前任务”说明弹层）、关键字、作者、起止日期、字面路径组合筛选、选中提交消失提示及一键“定位当前 HEAD”，同步扩展 URL 查询参数 `author`、`since`、`until`、`path`；
+  - `%P` 拓扑分页与提交详情：对接 `/git/history` 游标流式追加、`indirect` 虚线边与 `refsChanged` 提示；右上变更文件列表（键盘导航、路径二次过滤、重命名与二进制标记）与右下提交详情（合并提交多父节点切换、独立提交者、OID 复制、父提交跳转）联动；
+  - Pierre `CodeDiffReader` 与两版本比较：复用 `CodeDiffReader` 提供底部可折叠/拖拽高度差异栏、放大态、手机端单列三步 Unified 阅读及快照全文/下载；支持任意两提交只读比较、交换方向与 `LatestRequest` + `AbortController` 竞态隔离。
+- 依据：
+  - Go 单元与竞态测试：`go test -race ./internal/workspace ./internal/codeview ./internal/wire ./internal/api ./internal/clicmd ./internal/archtest ./internal/docguard` 通过（含 `TestBranchesTagsAndHistoryTagFiltering` 及 wire 快照校验）；
+  - 前端架构与单测门禁：`make check`、`test/git-log-controller.test.ts`、`test/route.test.ts` 与 `test/git-workbench.test.ts` 通过；
+  - 浏览器与 Storybook 测试：`test/browser/GitLogController.test.ts`、`test/browser/GitWorkbench.test.ts`、`test/browser/GitWorkbenchRoute.test.ts` 与 `pnpm --dir web test:storybook`（含多视口溢出巡检）通过；
+  - Playwright 端到端与视觉验证：
+    - `test/e2e/git-workbench-log.spec.ts` 与 `test/e2e/git-workbench-route.spec.ts`（桌面与窄屏项目）验证分支/标签筛选不改写磁盘 `HEAD`、显式“检出分支…”预选弹窗、路径过滤 `indirect` 虚线边、游标分页追加与合并父节点 `#1/#2` 切换；
+    - 同一 E2E 进一步验证任意两提交比较与方向交换、放大 Diff 返回保留列表滚动位置、手机窄屏三步导航零横向溢出，以及全程 `.git/index` 内容摘要与暂存区零改动；
+    - 在真实运行实例上完成桌面（1280×900）、平板（768×800）、手机（390×844）浅色与深色前后对比截图及常速交互 GIF 录制与逐张视觉核查。
+- 限制：无头 Chromium 的 `hover` 与 `any-pointer: coarse` 媒体特性与物理设备存在差异，拖拽分隔条的真实触控阻尼与真机 iOS/Android 浏览器表现未在物理设备上验证。
