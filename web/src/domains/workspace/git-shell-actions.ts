@@ -5,8 +5,118 @@ import type {
   GitPushPreviewModel,
   GitWorkbenchViewState,
 } from "../../contracts/git-workbench-schemas";
+import {
+  type GitCommitDraftConflictState,
+  joinCommitMessageDraft,
+  mergeCommitMessageDrafts,
+} from "./git-commit-draft-model";
 import type { GitSharedBranchActionKind } from "./git-branches-model";
-import { selectLogBranchFilter } from "./git-workbench-state";
+import {
+  applyStageHunk,
+  applyUnstageHunk,
+  selectLogBranchFilter,
+} from "./git-workbench-state";
+
+export function applyShellStageGroup(
+  changes: GitWorkbenchViewState["workingChanges"],
+  op: "stage" | "unstage",
+  group: "unstaged" | "staged" | "untracked",
+): GitWorkbenchViewState["workingChanges"] {
+  let next = changes;
+  for (const it of changes.filter((c) => c.group === group)) {
+    next =
+      op === "stage"
+        ? applyStageHunk(next, it.id)
+        : applyUnstageHunk(next, it.id);
+  }
+  return next;
+}
+
+export function applyShellStartCompare(
+  view: GitWorkbenchViewState,
+  baseOid: string,
+  targetOid: string,
+): GitWorkbenchViewState {
+  const d = view.commitDetails[targetOid];
+  const files = d?.filesByParent[d.selectedParent ?? ""] ?? [];
+  return {
+    ...view,
+    compareBaseMarkOid: null,
+    selectedCommitFilePath: files[0]?.newPath ?? null,
+    compareMode: {
+      baseOid,
+      targetOid,
+      files,
+      nextCursor: "",
+      loading: false,
+      loadingMore: false,
+      error: "",
+    },
+  };
+}
+
+export function applyShellClearFilters(
+  view: GitWorkbenchViewState,
+): GitWorkbenchViewState {
+  return {
+    ...view,
+    scope: "all",
+    branchFilter: null,
+    searchQuery: "",
+    authorFilter: "",
+    sinceFilter: "",
+    untilFilter: "",
+    pathFilter: "",
+  };
+}
+
+export function applyShellDraftResolution(
+  view: GitWorkbenchViewState,
+  conflict: GitCommitDraftConflictState | null,
+  strategy: "keep-local" | "adopt-remote" | "merge-both",
+): {
+  nextView: GitWorkbenchViewState;
+  nextRevision: number;
+} | null {
+  if (!conflict) return null;
+  if (strategy === "keep-local") {
+    return {
+      nextRevision: conflict.remoteDraft.revision + 1,
+      nextView: {
+        ...view,
+        statusBanner: "已保留本机输入并覆盖保存提交草稿",
+      },
+    };
+  }
+  if (strategy === "adopt-remote") {
+    return {
+      nextRevision: conflict.remoteDraft.revision,
+      nextView: {
+        ...view,
+        commitMessage: joinCommitMessageDraft(
+          conflict.remoteDraft.subject,
+          conflict.remoteDraft.body,
+        ),
+        statusBanner: "已采用另一设备保存的提交草稿版本",
+      },
+    };
+  }
+  const merged = mergeCommitMessageDrafts(
+    { subject: conflict.localSubject, body: conflict.localBody },
+    {
+      subject: conflict.remoteDraft.subject,
+      body: conflict.remoteDraft.body,
+    },
+  );
+  return {
+    nextRevision: conflict.remoteDraft.revision + 1,
+    nextView: {
+      ...view,
+      commitMessage: joinCommitMessageDraft(merged.subject, merged.body),
+      statusBanner: "已合并两份提交草稿并保存",
+    },
+  };
+}
 
 export function buildShellPushPreview(
   view: GitWorkbenchViewState,

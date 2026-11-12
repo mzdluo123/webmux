@@ -42,6 +42,7 @@
   const desktop = new MediaQuery("(min-width: 1024px)");
   let query = $state("");
   let selectedKey = $state<string | null>(null);
+  let listEl = $state<HTMLDivElement>();
 
   const grouped = $derived(
     groupAndSortGitBranches(branches, context.checkedOutBranch, query),
@@ -83,6 +84,50 @@
         item.occupiedBy.worktreeId,
         item.occupiedBy.worktreePath,
       );
+    }
+  }
+
+  function focusBranchButton(index: number) {
+    const btns = listEl?.querySelectorAll<HTMLButtonElement>(
+      "[data-branch-item-btn]",
+    );
+    btns?.[index]?.focus();
+  }
+
+  function handleBranchListKeydown(e: KeyboardEvent) {
+    if (allVisible.length === 0) return;
+    if (!(e.target instanceof HTMLElement)) return;
+    if (!e.target.hasAttribute("data-branch-item-btn")) return;
+
+    const currentIdx = Math.max(
+      0,
+      allVisible.findIndex(
+        (b) => b.kind === activeBranch?.kind && b.name === activeBranch?.name,
+      ),
+    );
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextIdx = Math.min(allVisible.length - 1, currentIdx + 1);
+      const next = allVisible[nextIdx]!;
+      selectedKey = `${next.kind}:${next.name}`;
+      focusBranchButton(nextIdx);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prevIdx = Math.max(0, currentIdx - 1);
+      const prev = allVisible[prevIdx]!;
+      selectedKey = `${prev.kind}:${prev.name}`;
+      focusBranchButton(prevIdx);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      const first = allVisible[0]!;
+      selectedKey = `${first.kind}:${first.name}`;
+      focusBranchButton(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      const lastIdx = allVisible.length - 1;
+      const last = allVisible[lastIdx]!;
+      selectedKey = `${last.kind}:${last.name}`;
+      focusBranchButton(lastIdx);
     }
   }
 </script>
@@ -139,7 +184,15 @@
       />
     </div>
 
-    <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-2">
+    <!-- Interactive container delegates ArrowUp/ArrowDown/Home/End across child branch buttons. -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div
+      bind:this={listEl}
+      class="min-h-0 flex-1 space-y-3 overflow-y-auto p-2"
+      role="region"
+      aria-label="分支列表"
+      onkeydown={handleBranchListKeydown}
+    >
       {@render branchGroup("current", "当前检出 (Current)", grouped.current)}
       {@render branchGroup(
         "favorites",

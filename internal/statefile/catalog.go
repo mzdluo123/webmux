@@ -19,6 +19,7 @@ const (
 	Conversation       ID = "conversation"
 	GitOperations      ID = "git-operations"
 	GitTaskBaselines   ID = "git-task-baselines"
+	GitWorkbenchState  ID = "git-workbench-state"
 )
 
 // Descriptor is the single runtime source of storage paths and policy.
@@ -41,6 +42,7 @@ var catalog = []Descriptor{
 	{Repositories, "repositories.json", "internal/workspace", "unavailable", "paths", 1, "version", 4 << 20, true, ""},
 	{GitOperations, "git-operations.json", "internal/workspace", "unavailable", "paths/urls", 1, "v", 2 << 20, true, ""},
 	{GitTaskBaselines, "git-task-baselines.json", "internal/workspace", "unavailable", "paths", 1, "v", 2 << 20, true, ""},
+	{GitWorkbenchState, "git-workbench-state.json", "internal/workspace", "unavailable", "paths/commit-draft", 1, "v", 2 << 20, true, ""},
 	{Tunnel, "tunnel-settings.json", "internal/tunnelsettings", "fail_closed", "token", 1, "v", 64 << 10, true, "tunnel.json"},
 	{TailscaleSettings, "tailscale-settings.json", "internal/tailscalesettings", "fail_closed", "none", 1, "v", 64 << 10, true, ""},
 	{VoiceSettings, "voice-settings.json", "internal/voicesettings", "fail_closed", "env", 1, "v", 64 << 10, true, ""},

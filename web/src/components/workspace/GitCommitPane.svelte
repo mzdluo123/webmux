@@ -1,13 +1,23 @@
 <script lang="ts">
   import { MediaQuery } from "svelte/reactivity";
   import IconArrowLeft from "~icons/tabler/arrow-left";
+  import IconPlayerTrackNext from "~icons/tabler/player-track-next";
   import IconRestore from "~icons/tabler/restore";
+  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as Resizable from "$lib/components/ui/resizable";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import type { GitReviewScope } from "../../contracts/git-workbench-schemas";
+  import type { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
   import type { GitPaneScrollCallbacks } from "../../domains/workspace/git-workbench-memory";
+  import { isChangeReviewed } from "../../domains/workspace/git-workbench-state";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
+  import {
+    computeLocalReviewProgress,
+    findNextUnreviewedTaskFile,
+    findNextUnreviewedWorkingChange,
+    type GitReviewProgressSummary,
+  } from "../../hooks/workspace/git-review-sync.svelte";
   import type { GitStagingDiffController } from "../../hooks/workspace/git-staging-diff.svelte";
   import GitLogDiffPanel from "./GitLogDiffPanel.svelte";
   import GitPanelToolbar from "./GitPanelToolbar.svelte";
@@ -29,8 +39,14 @@
     stagingDiff,
     stagingBusy = false,
     uncertainBlocked = false,
+    draftSaving = false,
+    draftRevision = 0,
+    draftConflict = null,
     activeDiffStale = false,
     activeDiffStaleReason = "",
+    uncommittedProgress: externalUncommittedProgress,
+    taskProgress: externalTaskProgress,
+    liveWorktreeIdentityForPath,
     hasActiveWorktreeSession = false,
     activeSessionCount = 0,
     exitedSessionCount = 0,
@@ -45,6 +61,9 @@
     onReviewScopeChange,
     onSelectChange,
     onToggleReviewed,
+    onToggleTaskReviewed,
+    onJumpNextUnreviewed,
+    onAddReworkItem,
     onStageChange,
     onUnstageChange,
     onStageGroup,
@@ -55,6 +74,10 @@
     onOpenCommitPreview,
     onOpenPush,
     onCreateBranchFromHead,
+    onResolveDraftKeepLocal,
+    onResolveDraftAdoptRemote,
+    onResolveDraftMergeBoth,
+    onRequestCommitAssist,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
     onSelectTaskFile,
@@ -76,9 +99,18 @@
       stagingDiff?: GitStagingDiffController;
       activeDiffStale?: boolean;
       activeDiffStaleReason?: string;
+      uncommittedProgress?: GitReviewProgressSummary;
+      taskProgress?: GitReviewProgressSummary;
+      liveWorktreeIdentityForPath?: (path: string) => string | undefined;
       paneSizes?: [number, number];
       onPaneSizesChange?: (sizes: [number, number]) => void;
       onReviewScopeChange?: (scope: GitReviewScope) => void;
+      onToggleTaskReviewed?: (path: string) => void;
+      onJumpNextUnreviewed?: (scope: GitReviewScope) => string | null;
+      onAddReworkItem?: (
+        input: Parameters<typeof createReworkDraftItem>[0],
+        options?: { openSheet?: boolean },
+      ) => void;
       onStageHunk: (changeId: string, hunkId: string) => void;
       onUnstageHunk: (changeId: string, hunkId: string) => void;
       onSelectTaskFile?: (path: string) => void;
@@ -118,10 +150,60 @@
     context.headState === "readonly" || !context.worktreePath,
   );
 
+  const activeProgress = $derived(
+    effectiveScope === "task"
+      ? (externalTaskProgress ??
+          computeLocalReviewProgress(
+            "task",
+            changes,
+            taskReview?.files ?? [],
+            reviewedPaths,
+            isChangeReviewed,
+          ))
+      : (externalUncommittedProgress ??
+          computeLocalReviewProgress(
+            "uncommitted",
+            changes,
+            taskReview?.files ?? [],
+            reviewedPaths,
+            isChangeReviewed,
+          )),
+  );
+
   function setReviewScope(next: GitReviewScope) {
     localReviewScope = next;
     mobileStep = "changes";
     onReviewScopeChange?.(next);
+  }
+
+  function handleNextUnreviewed() {
+    if (onJumpNextUnreviewed) {
+      const jumped = onJumpNextUnreviewed(effectiveScope);
+      if (jumped && !desktop.current) mobileStep = "diff";
+      return;
+    }
+    if (effectiveScope === "task") {
+      const files = taskReview?.files ?? [];
+      const nextPath = findNextUnreviewedTaskFile(
+        files,
+        taskReview?.selectedPath ?? null,
+        (p) => reviewedPaths.includes(`task:${p}`) || reviewedPaths.includes(p),
+      );
+      if (nextPath) {
+        onSelectTaskFile?.(nextPath);
+        if (!desktop.current) mobileStep = "diff";
+      }
+      return;
+    }
+    const nextChange = findNextUnreviewedWorkingChange(
+      changes,
+      activeChange?.id ?? null,
+      (c) => isChangeReviewed(reviewedPaths, c),
+    );
+    if (nextChange) {
+      onSelectChange(nextChange.id);
+      if (!desktop.current) mobileStep = "diff";
+    }
   }
 </script>
 
@@ -146,17 +228,19 @@
       {onOpenLogToPickBaseline}
       {onInspectCommit}
       onToggleReviewed={(path) =>
-        onToggleReviewed({
-          id: `task:${path}`,
-          path,
-          group: "unstaged",
-          status: "M",
-          binary: false,
-          hunkStageAvailable: false,
-          preStagedFromCli: false,
-          identityKey: "",
-          hunks: [],
-        })}
+        onToggleTaskReviewed
+          ? onToggleTaskReviewed(path)
+          : onToggleReviewed({
+              id: `task:${path}`,
+              path,
+              group: "unstaged",
+              status: "M",
+              binary: false,
+              hunkStageAvailable: false,
+              preStagedFromCli: false,
+              identityKey: "",
+              hunks: [],
+            })}
       {onReturnSession}
       {onOpenPush}
       {onArchiveSession}
@@ -173,6 +257,9 @@
       {readonlyMode}
       {stagingBusy}
       {uncertainBlocked}
+      {draftSaving}
+      {draftRevision}
+      {draftConflict}
       {hasActiveWorktreeSession}
       {activeSessionCount}
       {exitedSessionCount}
@@ -193,6 +280,10 @@
       {onOpenCommitPreview}
       {onOpenPush}
       {onCreateBranchFromHead}
+      {onResolveDraftKeepLocal}
+      {onResolveDraftAdoptRemote}
+      {onResolveDraftMergeBoth}
+      {onRequestCommitAssist}
       {onOpenWorktreeTerminal}
       {onNewWorktreeTerminal}
       {onReturnSession}
@@ -204,6 +295,9 @@
 
 {#snippet rightPaneContent(mobile: boolean)}
   {#if effectiveScope === "task"}
+    {@const activeTaskPath = activeTaskFile
+      ? activeTaskFile.newPath || activeTaskFile.oldPath
+      : ""}
     <GitLogDiffPanel
       logDiff={taskDiffReader}
       fallbackFile={activeTaskFile}
@@ -211,6 +305,11 @@
       fallbackRightLabel="当前工作区"
       backLabel="返回任务变更列表"
       presentation={mobile ? "mobile" : "docked"}
+      isTaskScope={true}
+      liveWorktreeIdentity={activeTaskPath
+        ? liveWorktreeIdentityForPath?.(activeTaskPath)
+        : undefined}
+      {onAddReworkItem}
       {diffMode}
       {onDiffModeChange}
       onBack={mobile ? () => (mobileStep = "changes") : undefined}
@@ -221,7 +320,9 @@
       aria-label="工作树文件差异与代码块暂存"
     >
       {#if mobile}
-        <div class="border-b border-git-border bg-git-panel p-2">
+        <div
+          class="flex items-center justify-between gap-2 border-b border-git-border bg-git-panel p-2"
+        >
           <Button
             size="xs"
             variant="ghost"
@@ -230,6 +331,17 @@
             <IconArrowLeft aria-hidden="true" />
             返回变更列表
           </Button>
+          {#if activeProgress.remaining > 0}
+            <Button
+              size="xs"
+              variant="outline"
+              onclick={handleNextUnreviewed}
+              data-testid="git-mobile-next-unreviewed"
+            >
+              <IconPlayerTrackNext aria-hidden="true" />
+              下一处未审阅 ({activeProgress.remaining})
+            </Button>
+          {/if}
         </div>
       {/if}
 
@@ -249,11 +361,15 @@
             stale={activeDiffStale}
             staleReason={activeDiffStaleReason}
             {hasActiveWorktreeSession}
+            liveWorktreeIdentity={liveWorktreeIdentityForPath?.(
+              activeChange.path,
+            )}
             {onDiffModeChange}
             {onStageChange}
             {onUnstageChange}
             {onStageHunk}
             {onUnstageHunk}
+            {onAddReworkItem}
             {onRefreshSnapshot}
             {onOpenWorktreeTerminal}
             {onNewWorktreeTerminal}
@@ -292,20 +408,44 @@
       </SegmentedControl.Item>
     </SegmentedControl.Root>
 
-    {#if desktop.current}
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        aria-label="重置提交分栏比例"
-        title="重置提交分栏比例"
-        onclick={() => {
-          onResetLayout?.();
-          paneResetKey++;
-        }}
-      >
-        <IconRestore aria-hidden="true" />
-      </Button>
-    {/if}
+    <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+      {#if !readonlyMode && activeProgress.total > 0}
+        <Badge
+          variant={activeProgress.remaining === 0 ? "secondary" : "outline"}
+          data-testid="git-review-progress-badge"
+        >
+          已审阅 {activeProgress.reviewed}/{activeProgress.total}
+        </Badge>
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={activeProgress.remaining === 0}
+          onclick={handleNextUnreviewed}
+          aria-label="下一处未审阅"
+          title="定位并打开下一处未审阅文件"
+          data-testid="git-next-unreviewed"
+        >
+          <IconPlayerTrackNext aria-hidden="true" />
+          <span class="sm:hidden">下一处</span>
+          <span class="max-sm:hidden">下一处未审阅</span>
+        </Button>
+      {/if}
+
+      {#if desktop.current}
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="重置提交分栏比例"
+          title="重置提交分栏比例"
+          onclick={() => {
+            onResetLayout?.();
+            paneResetKey++;
+          }}
+        >
+          <IconRestore aria-hidden="true" />
+        </Button>
+      {/if}
+    </div>
   </GitPanelToolbar>
 
   <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -327,7 +467,14 @@
           >
             {@render leftPaneContent()}
           </Resizable.Pane>
-          <Resizable.Handle withHandle class="git-divider" />
+          <Resizable.Handle
+            withHandle
+            class="git-divider"
+            ondblclick={() => {
+              onResetLayout?.();
+              paneResetKey++;
+            }}
+          />
           <Resizable.Pane
             defaultSize={paneSizes[1]}
             minSize={34}

@@ -4,8 +4,10 @@
     GitWorkingChange,
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
+  import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
+  import type { GitCommitComposerCallbacks } from "./GitCommitComposer.svelte";
 
-  export interface GitUncommittedChangesSharedProps {
+  export interface GitUncommittedChangesSharedProps extends GitCommitComposerCallbacks {
     context: GitWorktreeContext;
     changes: readonly GitWorkingChange[];
     reviewedPaths: readonly string[];
@@ -13,6 +15,9 @@
     taskReview?: GitTaskReviewState;
     stagingBusy?: boolean;
     uncertainBlocked?: boolean;
+    draftSaving?: boolean;
+    draftRevision?: number;
+    draftConflict?: GitCommitDraftConflictState | null;
     hasActiveWorktreeSession?: boolean;
     activeSessionCount?: number;
     exitedSessionCount?: number;
@@ -26,10 +31,6 @@
       group: "staged" | "unstaged" | "untracked",
     ) => void;
     onRefreshSnapshot?: () => void;
-    onCommitMessageChange: (msg: string) => void;
-    onOpenCommitPreview: (followUpPush: boolean) => void;
-    onOpenPush?: () => void;
-    onCreateBranchFromHead?: () => void;
     onOpenWorktreeTerminal?: () => void;
     onNewWorktreeTerminal?: () => void;
     onReturnSession?: () => void;
@@ -68,6 +69,9 @@
     readonlyMode = false,
     stagingBusy = false,
     uncertainBlocked = false,
+    draftSaving = false,
+    draftRevision = 0,
+    draftConflict = null,
     hasActiveWorktreeSession = false,
     activeSessionCount = 0,
     exitedSessionCount = 0,
@@ -85,6 +89,10 @@
     onOpenCommitPreview,
     onOpenPush,
     onCreateBranchFromHead,
+    onResolveDraftKeepLocal,
+    onResolveDraftAdoptRemote,
+    onResolveDraftMergeBoth,
+    onRequestCommitAssist,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
     onReturnSession,
@@ -111,8 +119,56 @@
     { key: "untracked", title: "未跟踪文件 (Untracked)" },
   ];
 
+  const visibleEntries = $derived.by(() => {
+    const out: GitWorkingChange[] = [];
+    for (const sec of sections) {
+      if (!collapsed[sec.key]) {
+        out.push(...grouped[sec.key]);
+      }
+    }
+    return out;
+  });
+
   function toggleGroup(key: string) {
     collapsed = { ...collapsed, [key]: !collapsed[key] };
+  }
+
+  function focusChangeRow(index: number) {
+    const rows = listScrollEl?.querySelectorAll<HTMLButtonElement>(
+      "[data-working-change-row]",
+    );
+    rows?.[index]?.focus();
+  }
+
+  function handleListKeydown(e: KeyboardEvent) {
+    if (visibleEntries.length === 0) return;
+    if (!(e.target instanceof HTMLElement)) return;
+    if (!e.target.hasAttribute("data-working-change-row")) return;
+
+    const currentIdx = Math.max(
+      0,
+      visibleEntries.findIndex((c) => c.id === activeChange?.id),
+    );
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextIdx = Math.min(visibleEntries.length - 1, currentIdx + 1);
+      onSelectChange(visibleEntries[nextIdx]!.id);
+      focusChangeRow(nextIdx);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prevIdx = Math.max(0, currentIdx - 1);
+      onSelectChange(visibleEntries[prevIdx]!.id);
+      focusChangeRow(prevIdx);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      onSelectChange(visibleEntries[0]!.id);
+      focusChangeRow(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      const lastIdx = visibleEntries.length - 1;
+      onSelectChange(visibleEntries[lastIdx]!.id);
+      focusChangeRow(lastIdx);
+    }
   }
 </script>
 
@@ -158,10 +214,15 @@
     />
   {/if}
 
+  <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
+  <!-- svelte-ignore a11y_interactive_supports_focus -->
   <div
     bind:this={listScrollEl}
     class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2"
+    role="listbox"
+    aria-label="工作树变更条目"
     onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
+    onkeydown={handleListKeydown}
   >
     {#if changes.length === 0 && !readonlyMode && taskReview?.status === "ready" && (taskReview.commitCount > 0 || context.ahead > 0)}
       <GitTaskDeliverySummary
@@ -215,21 +276,16 @@
               >
                 全部取消暂存
               </Button>
-            {:else if sec.key === "unstaged"}
+            {:else if sec.key === "unstaged" || sec.key === "untracked"}
               <Button
                 size="xs"
                 variant="ghost"
                 disabled={stagingBusy}
-                onclick={() => onStageGroup("stage", "unstaged")}
-              >
-                全部暂存
-              </Button>
-            {:else if sec.key === "untracked"}
-              <Button
-                size="xs"
-                variant="ghost"
-                disabled={stagingBusy}
-                onclick={() => onStageGroup("stage", "untracked")}
+                onclick={() =>
+                  onStageGroup(
+                    "stage",
+                    sec.key === "unstaged" ? "unstaged" : "untracked",
+                  )}
               >
                 全部暂存
               </Button>
@@ -270,9 +326,17 @@
     {readonlyMode}
     busy={stagingBusy}
     {uncertainBlocked}
+    {draftSaving}
+    {draftRevision}
+    {draftConflict}
+    canAssistCommitDraft={activeSessionCount > 0}
     {onCommitMessageChange}
     {onOpenCommitPreview}
     {onOpenPush}
     {onCreateBranchFromHead}
+    {onResolveDraftKeepLocal}
+    {onResolveDraftAdoptRemote}
+    {onResolveDraftMergeBoth}
+    {onRequestCommitAssist}
   />
 </section>

@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "body": {
+    "body": "draft body line",
+    "repositoryId": "<id#1>",
+    "revision": 1,
+    "subject": "feat: wire commit draft",
+    "updatedAt": "<time>",
+    "worktreeId": "<id#2>"
+  }
+}

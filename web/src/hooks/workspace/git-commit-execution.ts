@@ -73,6 +73,7 @@ export async function runConfirmCommitFlow(options: {
   patchView: (patch: Partial<GitWorkbenchViewState>) => void;
   onRefreshRepositories?: () => void;
   onAfterCommitRefresh?: () => void;
+  onCommitDraftCleared?: () => Promise<void> | void;
   onFollowUpPush?: (
     branch: string,
     precedingCommit: GitPrecedingCommit,
@@ -102,7 +103,10 @@ export async function runConfirmCommitFlow(options: {
       lastCommitOutcome: outcome,
       statusBanner: outcome.summary,
     });
-    await options.refreshStaging();
+    await Promise.all([
+      options.refreshStaging(),
+      shouldClearDraft ? options.onCommitDraftCleared?.() : undefined,
+    ]);
     await options.operations?.refreshOperations(options.repoId, options.wtId);
     options.onRefreshRepositories?.();
     options.onAfterCommitRefresh?.();

@@ -46,6 +46,15 @@
       "source": "internal/workspace/task_baseline_store.go"
     },
     {
+      "id": "git-workbench-state",
+      "path": "git-workbench-state.json",
+      "lock": "git-workbench-state.json.lock",
+      "owner": "internal/workspace",
+      "failure": "unavailable",
+      "web": "是",
+      "source": "internal/workspace/workbench_collab_store.go"
+    },
+    {
       "id": "tunnel",
       "path": "tunnel-settings.json",
       "lock": "tunnel-settings.json.lock",
@@ -763,6 +772,18 @@
     "internal/workspace/task_baseline_store.go|*Service.loadTaskBaselines|github.com/rainchan/webmux/internal/statefile.Open": {
       "count": 1,
       "owner": "git-task-baselines"
+    },
+    "internal/statefile/catalog.go|path|git-workbench-state.json": {
+      "count": 1,
+      "owner": "git-workbench-state"
+    },
+    "internal/workspace/inspect.go|InspectGitWorkbenchState|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
+      "count": 1,
+      "owner": "git-workbench-state"
+    },
+    "internal/workspace/workbench_collab_store.go|*Service.loadWorkbenchCollab|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "git-workbench-state"
     }
   }
 }

@@ -13,6 +13,15 @@ import (
 // wireGitWorkbench pins the repository/worktree Git read-only, staging,
 // commit-preview, commit execution and structured 409 conflict JSON contracts
 // with zero active terminal or hybrid sessions.
+func optStr(v any, key string) string {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return ""
+	}
+	s, _ := m[key].(string)
+	return s
+}
+
 func wireGitWorkbench(f *wireFixture) {
 	repository := f.call("repository-register-git", "POST", "/api/repositories", map[string]string{"path": f.root}, 201)
 	repoID := str(repository, "id")
@@ -136,5 +145,36 @@ func wireGitWorkbench(f *wireFixture) {
 	f.call("git-history-task", "GET", readBase+"/history?worktreeId="+wtID+"&scope=task", nil, 200)
 	f.call("git-task-changes", "GET", writeBase+"/task-changes", nil, 200)
 	f.call("git-task-diff", "GET", writeBase+"/task-diff?path=sub/b.txt", nil, 200)
+
+	// 6. Server-side review progress sync & optimistic commit draft concurrency.
+	reviews := f.call("git-reviews", "GET", writeBase+"/reviews?scope=task", nil, 200)
+	reviewFiles := field(reviews, "files").([]any)
+	firstReviewFile := reviewFiles[0]
+	f.call("git-reviews-put", "PUT", writeBase+"/reviews", contract.GitPutReviewsRequest{
+		Scope:  "task",
+		Action: "mark",
+		Item: &contract.GitReviewMarkIdentity{
+			Scope:          str(firstReviewFile, "scope"),
+			Area:           str(firstReviewFile, "area"),
+			Path:           str(firstReviewFile, "path"),
+			OldPath:        optStr(firstReviewFile, "oldPath"),
+			BaseMode:       optStr(firstReviewFile, "baseMode"),
+			BaseIdentity:   optStr(firstReviewFile, "baseIdentity"),
+			TargetMode:     optStr(firstReviewFile, "targetMode"),
+			TargetIdentity: optStr(firstReviewFile, "targetIdentity"),
+		},
+	}, 200)
+	f.call("git-commit-draft-empty", "GET", writeBase+"/commit-draft", nil, 200)
+	f.call("git-commit-draft-put", "PUT", writeBase+"/commit-draft", contract.GitPutCommitDraftRequest{
+		Subject:      "feat: wire commit draft",
+		Body:         "draft body line",
+		BaseRevision: 0,
+	}, 200)
+	f.call("error-409-git-draft-conflict", "PUT", writeBase+"/commit-draft", contract.GitPutCommitDraftRequest{
+		Subject:      "feat: stale client draft",
+		Body:         "",
+		BaseRevision: 0,
+	}, 409)
+
 	f.call("git-task-baseline-delete", "DELETE", writeBase+"/task-baseline", nil, 204)
 }

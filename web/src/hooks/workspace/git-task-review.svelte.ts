@@ -65,6 +65,11 @@ export interface GitTaskReviewControllerDeps {
   patchView: (patch: Partial<GitWorkbenchViewState>) => void;
   persist: (patch: { reviewScope?: GitReviewScope }) => void;
   onBaselineChanged: () => void;
+  onTaskRefreshed?: (
+    repoId: string,
+    wtId: string,
+    signal?: AbortSignal,
+  ) => void;
 }
 
 export function createGitTaskReviewController(
@@ -226,6 +231,7 @@ export function createGitTaskReviewController(
       } else if (!chosen || res.status !== "ready") {
         reader.clearDiff();
       }
+      deps.onTaskRefreshed?.(repoId, wtId, signal);
     } catch (err) {
       if (!req.reportable()) return;
       patchReview({

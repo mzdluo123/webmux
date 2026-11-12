@@ -21,6 +21,7 @@ import (
 	"github.com/rainchan/webmux/internal/tunnelsettings"
 	"github.com/rainchan/webmux/internal/voice"
 	"github.com/rainchan/webmux/internal/voicesettings"
+	"github.com/rainchan/webmux/internal/wire"
 	"github.com/rainchan/webmux/internal/workspace"
 )
 
@@ -160,7 +161,10 @@ func gitStatus(err error) int {
 // distinguish snapshot refresh ("stale") from external lock contention ("busy")
 // or read-only bare/repository contexts ("readonly").
 func gitReason(err error) string {
+	var draftConflict *workspace.DraftConflictError
 	switch {
+	case errors.As(err, &draftConflict):
+		return "draft_conflict"
 	case errors.Is(err, workspace.ErrLocked):
 		return "busy"
 	case errors.Is(err, workspace.ErrReadOnly), errors.Is(err, codeview.ErrReadOnly):
@@ -190,7 +194,13 @@ func gitFailure(w http.ResponseWriter, err error) {
 	w.Header().Set("Cache-Control", "no-store")
 	status := gitStatus(err)
 	if status == http.StatusConflict {
-		reply(w, status, contract.GitConflict{Error: err.Error(), Reason: gitReason(err)})
+		body := contract.GitConflict{Error: err.Error(), Reason: gitReason(err)}
+		var draftConflict *workspace.DraftConflictError
+		if errors.As(err, &draftConflict) {
+			cur := wire.GitCommitDraft(draftConflict.Current)
+			body.CurrentDraft = &cur
+		}
+		reply(w, status, body)
 		return
 	}
 	if status == http.StatusInternalServerError {

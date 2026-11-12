@@ -117,7 +117,9 @@
   let command = $state(stored("customCommand"));
   let startSide = $state<SessionView>(storedView(stored("hybridStartSide")));
   let name = $state("");
-  let prompt = $state("");
+  let prompt = $state(
+    untrack(() => (entry?.kind === "worktree" ? (entry.prompt ?? "") : "")),
+  );
   let error = $state("");
   // Starting on the chat view failed: its connector is not installed.
   let missingConnector = $state.raw<AgentConnector>();

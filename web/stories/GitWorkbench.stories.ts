@@ -52,3 +52,11 @@ export const CommitNeedsReview: Story = {
 export const OperationUncertainRecovery: Story = {
   args: { scenario: "operation-uncertain" },
 };
+
+export const CommitDraftConflict409: Story = {
+  args: { scenario: "commit-draft-conflict" },
+};
+
+export const ReworkSessionHandoff: Story = {
+  args: { scenario: "rework-session-handoff" },
+};

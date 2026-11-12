@@ -31,6 +31,13 @@ export interface GitStagingBindings {
   operations?: GitOperationsController;
   onRefreshRepositories?: () => void;
   onAfterCommitRefresh?: () => void;
+  onStagingRefreshed?: (
+    repoId: string,
+    wtId: string,
+    signal?: AbortSignal,
+  ) => void;
+  onBeforeOpenPreview?: () => Promise<boolean>;
+  onCommitDraftCleared?: () => Promise<void> | void;
 }
 
 export function createGitStagingController(bindings: GitStagingBindings) {
@@ -241,6 +248,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
     }
 
     void syncPreflightMetadata(repoId, wtId, signal);
+    bindings.onStagingRefreshed?.(repoId, wtId, signal);
   }
 
   async function refreshActiveSnapshot() {
@@ -361,6 +369,10 @@ export function createGitStagingController(bindings: GitStagingBindings) {
     const repoId = bindings.getRepoId();
     const wtId = bindings.getWorktreeId();
     if (!repoId || !wtId) return;
+    if (bindings.onBeforeOpenPreview) {
+      const ok = await bindings.onBeforeOpenPreview();
+      if (!ok) return;
+    }
     const req = actionReq.begin();
     await runOpenCommitPreview({
       repoId,
@@ -431,6 +443,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
         patchView: bindings.patchView,
         onRefreshRepositories: bindings.onRefreshRepositories,
         onAfterCommitRefresh: bindings.onAfterCommitRefresh,
+        onCommitDraftCleared: bindings.onCommitDraftCleared,
         onFollowUpPush,
       });
     } finally {

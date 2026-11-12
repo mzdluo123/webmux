@@ -343,6 +343,14 @@
   "gitOperations": {
     "operations": []
   },
+  "gitReviews": {
+    "scope": "uncommitted",
+    "status": "ready",
+    "totalFiles": 0,
+    "reviewedFiles": 0,
+    "files": [],
+    "applied": true
+  },
   "gitStaging": {
     "unborn": false,
     "staged": [],

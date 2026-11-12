@@ -236,3 +236,22 @@
     - 隔离实例 Playwright E2E（`git-workbench-task-baseline.spec.ts`、`git-workbench-commit-push.spec.ts`、`git-workbench-log.spec.ts`、`git-workbench-operations.spec.ts`、`git-workbench-route.spec.ts`，桌面与手机视口）全部通过。
 - 限制：
   - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
+
+本次局部核对（2026-11-13）：实现 Git 工作台 V1b 跨设备乐观锁提交草稿、服务端内容绑定审阅进度同步与一键跳下一处未审阅、返工意见草稿箱交回指定会话及 V1 使用文档收口（Issue #548），新增 US-J25，更新 US-I06、US-J07、US-J19–US-J24 与覆盖索引。
+
+- 范围：
+  - `internal/statefile`、`internal/archtest/persistence_inventory.json`、`cmd/webmux/configview.go` 与 `docs/persistence.md` 登记 `git-workbench-state.json`（`0600` 原子替换 + 独立锁，单条草稿 ≤ 32 KiB、2 MiB `Fits` 上界、绝不记录提交草稿正文日志，删树/释放/注销仓库同步清理）；
+  - `internal/workspace`、`internal/api`、`internal/contract`、`internal/wire` 新增 `GET/PUT .../git/commit-draft` 与 `GET/PUT .../git/reviews`（`scope=uncommitted|task`）及线上快照：
+    - 提交草稿按 `baseRevision` 乐观并发校验，修订号不匹配返回 `409 draft_conflict` 与远端最新草稿；仅在真实创建提交（`matched` / `needs_review`）后清空，预览过期、钩子/锁失败、`uncertain` 与推送取消/失败均保留草稿；
+    - 审阅标记绑定 Git blob OID 与 SHA-256 内容身份（不依赖 `mtime`），外部改动后自动失效并拦截过期 `PUT`（`applied: false`、`staleRejected: true`）；
+  - `web/src` 新增 `git-collab-api.ts`、`git-commit-draft*.ts`、`git-review-sync.svelte.ts`、`git-rework*.ts`、`GitCommitDraftConflictCard.svelte`、`GitDiffSelectionBar.svelte`、`GitReworkDialog.svelte` 等组件：
+    - 接通 `Commit` 双范围审阅进度徽章与“下一处未审阅”一键跳转、`409` 双栏草稿冲突裁决卡片、“让会话协助起草说明”入口；
+    - 接通 `Commit`、`相对任务起点的变化` 与 `Log` Diff 选行/逐块摘录至返工意见草稿箱、历史提交/索引/起点行号防串行标注、实时工作区改动新鲜度校验、多会话强制显式单选目标会话，以及仅填入目标会话输入草稿而不向 PTY 自动发送 `\r`；
+  - 新增 `docs/usage/git-workbench.md` 并与 `docs/README.md`、`docs/usage.md`、`docs/usage/code.md`、`docs/usage/worktrees.md`、`docs/protocol/http-workspace.md` 建立双向相对链接。
+- 依据：
+  - `make persistence-check`、`make docs-check`、`make check` 通过；
+  - `go test -race ./...` 全量通过（含 `internal/workspace`、`internal/api` wire 快照与 `internal/docguard`）；
+  - 前端 `git-collab.test.ts` 与全量 Vitest 单测（72 文件）、Vitest 浏览器套件（88 文件 / 740 项）、Storybook 全量多视口与 `320px` 2x 大字号溢出守卫（90 项）通过；
+  - 隔离实例全量 Playwright E2E（490 项，含 `git-workbench-v1-collab.spec.ts` 桌面与 320px 手机视口）及性能套件（`test:performance`）通过。
+- 限制：
+  - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。

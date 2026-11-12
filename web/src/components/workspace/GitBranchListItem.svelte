@@ -20,6 +20,7 @@
     branch,
     context,
     selected = false,
+    rowRole,
     branchFilter = null,
     sectionId,
     hideFavoriteInSection = false,
@@ -34,6 +35,7 @@
     branch: GitBranchItem;
     context: GitWorktreeContext;
     selected?: boolean;
+    rowRole?: "option";
     branchFilter?: string | null;
     sectionId?: string;
     hideFavoriteInSection?: boolean;
@@ -70,8 +72,11 @@
 >
   <ListButton
     variant="git-row"
+    role={rowRole}
+    data-branch-item-btn="true"
     data-has-action="true"
-    aria-selected={selected}
+    aria-selected={rowRole === "option" ? selected : undefined}
+    aria-current={rowRole === "option" ? undefined : selected || undefined}
     onclick={onSelectRow}
   >
     {#if branch.kind === "tag"}
