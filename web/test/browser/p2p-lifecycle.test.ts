@@ -1,30 +1,32 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { cleanup, render } from "vitest-browser-svelte/pure";
+import P2PSettings from "../../src/components/settings/P2PSettings.svelte";
 import {
   p2pState,
   startP2P,
   stopP2P,
   refreshP2PAfterSettingsChange,
   runP2PEchoABTest,
-} from "../../src/p2p.svelte";
-import type { NegotiatedSession } from "../../src/p2p-session";
-import type { P2PStatus } from "../../src/schemas";
-import type * as P2PFraming from "../../src/p2p-framing";
+} from "../../src/platform/p2p.svelte";
+import type { NegotiatedSession } from "../../src/platform/p2p-session";
+import type { P2PStatus } from "../../src/contracts/schemas";
+import type * as P2PFraming from "../../src/platform/p2p-framing";
 
 const mocks = vi.hoisted(() => ({
   status: vi.fn(),
   baseline: vi.fn(),
   negotiate: vi.fn(),
 }));
-vi.mock("../../src/api", () => ({ api: mocks.status }));
-vi.mock("../../src/p2p-session", () => ({
+vi.mock("../../src/platform/api", () => ({ api: mocks.status }));
+vi.mock("../../src/platform/p2p-session", () => ({
   measureBaselineHttpRtt: mocks.baseline,
   negotiateDirectPeer: mocks.negotiate,
 }));
-vi.mock("../../src/p2p-framing", async (original) => ({
+vi.mock("../../src/platform/p2p-framing", async (original) => ({
   ...(await original<typeof P2PFraming>()),
   isLocalOrOverlayHost: () => false,
 }));
-vi.mock("../../src/ws", () => ({ handoffLiveSockets: vi.fn() }));
+vi.mock("../../src/platform/ws", () => ({ handoffLiveSockets: vi.fn() }));
 
 const status: P2PStatus = {
   supported: true,
@@ -83,8 +85,9 @@ beforeEach(() => {
   mocks.baseline.mockReset().mockResolvedValue([100, 100, 100]);
   mocks.negotiate.mockReset().mockImplementation(async () => session());
 });
-afterEach(() => {
+afterEach(async () => {
   stopP2P();
+  await cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -187,4 +190,77 @@ test("stopping during an A/B negotiation closes a late peer without reporting su
   expect(obsolete.close).toHaveBeenCalled();
   expect(p2pState.abTest.directSuccess).toBe(false);
   expect(p2pState.abTest.running).toBe(false);
+});
+
+test("opening settings updates diagnostics without replacing a connected peer", async () => {
+  const connected = session();
+  mocks.negotiate.mockResolvedValueOnce(connected);
+  startP2P();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(p2pState.mode).toBe("p2p");
+  const switchCount = p2pState.switchCount;
+  mocks.status.mockResolvedValue({
+    ...status,
+    portMap: { state: "mapped", protocol: "pcp", externalPort: 43210 },
+  });
+
+  render(P2PSettings);
+  await vi.advanceTimersByTimeAsync(0);
+
+  expect(connected.close).not.toHaveBeenCalled();
+  expect(p2pState.mode).toBe("p2p");
+  expect(p2pState.switchCount).toBe(switchCount);
+  expect(p2pState.portMapState).toBe("mapped");
+  expect(p2pState.portMapExternalPort).toBe(43210);
+});
+
+test("port mapping polls preserve a slow negotiation until it can upgrade", async () => {
+  mocks.status.mockResolvedValue({
+    ...status,
+    portMapping: true,
+    portMap: { state: "probing" },
+  });
+  render(P2PSettings);
+  await vi.advanceTimersByTimeAsync(0);
+  const pending = Promise.withResolvers<NegotiatedSession>();
+  mocks.negotiate.mockReturnValueOnce(pending.promise);
+  startP2P();
+  await vi.advanceTimersByTimeAsync(0);
+  const signal = mocks.negotiate.mock.calls[0]![1] as AbortSignal;
+
+  await vi.advanceTimersByTimeAsync(6_000);
+  expect(signal.aborted).toBe(false);
+  const direct = session();
+  pending.resolve(direct);
+  await vi.advanceTimersByTimeAsync(0);
+
+  expect(p2pState.mode).toBe("p2p");
+  expect(p2pState.phase).toBe("connected");
+  expect(direct.close).not.toHaveBeenCalled();
+});
+
+test("port mapping polls preserve an in-flight A/B measurement", async () => {
+  mocks.status.mockResolvedValue({
+    ...status,
+    portMapping: true,
+    portMap: { state: "probing" },
+  });
+  render(P2PSettings);
+  await vi.advanceTimersByTimeAsync(0);
+  const pending = Promise.withResolvers<NegotiatedSession>();
+  mocks.negotiate.mockReturnValueOnce(pending.promise);
+  const result = runP2PEchoABTest([]);
+  await vi.advanceTimersByTimeAsync(0);
+  const signal = mocks.negotiate.mock.calls[0]![1] as AbortSignal;
+
+  await vi.advanceTimersByTimeAsync(2_000);
+  expect(signal.aborted).toBe(false);
+  const direct = session();
+  pending.resolve(direct);
+  await result;
+
+  expect(p2pState.abTest.directSuccess).toBe(true);
+  expect(p2pState.abTest.p2pMedianMs).toBe(10);
+  expect(p2pState.abTest.running).toBe(false);
+  expect(direct.close).toHaveBeenCalled();
 });

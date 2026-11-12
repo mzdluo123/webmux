@@ -2,14 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   measureBaselineHttpRtt,
   negotiateDirectPeer,
-} from "../src/p2p-session";
-import type { P2PICECandidate } from "../src/schemas";
+} from "../src/platform/p2p-session";
+import type { P2PICECandidate } from "../src/contracts/schemas";
 
 const { http } = vi.hoisted(() => ({ http: vi.fn<typeof fetch>() }));
-vi.mock("../src/transport", () => ({
+vi.mock("../src/platform/transport", () => ({
   defaultBrowserTransport: () => ({ fetch: http }),
 }));
-vi.mock("../src/storage", () => ({ stored: () => "test-token" }));
+vi.mock("../src/platform/storage", () => ({ stored: () => "test-token" }));
 
 interface SignalRequest {
   action: "offer" | "candidate" | "close";

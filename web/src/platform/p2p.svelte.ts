@@ -402,6 +402,14 @@ export function stopP2P() {
   }
 }
 
+export function refreshP2PStatus(status: P2PStatus) {
+  if (!status.supported || !status.enabled) {
+    refreshP2PAfterSettingsChange(status);
+    return;
+  }
+  applyServerP2PStatus(status);
+}
+
 export function refreshP2PAfterSettingsChange(status: P2PStatus) {
   activeEpoch++;
   abTestController?.abort();
