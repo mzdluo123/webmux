@@ -13,6 +13,8 @@ import {
   GitDiffSchema,
   GitFileSchema,
   GitHistoryPageSchema,
+  GitOperationSchema,
+  GitOperationsSchema,
   GitStageRequestSchema,
   GitStagingFileDiffSchema,
   GitStagingOverviewSchema,
@@ -432,6 +434,11 @@ export function gitCommitPreview(
   );
 }
 
+export interface GitOperationsParams {
+  worktreeId?: string;
+  limit?: number;
+}
+
 export function gitCommit(
   repositoryId: string,
   worktreeId: string,
@@ -445,5 +452,36 @@ export function gitCommit(
     request,
     signal,
     GitCommitRequestSchema,
+  );
+}
+
+export function gitOperations(
+  repositoryId: string,
+  params: GitOperationsParams = {},
+  signal?: AbortSignal,
+) {
+  return api(
+    withQuery(`${repoGitBase(repositoryId)}/operations`, {
+      worktreeId: params.worktreeId,
+      limit: params.limit,
+    }),
+    GitOperationsSchema,
+    "GET",
+    undefined,
+    signal,
+  );
+}
+
+export function gitOperation(
+  repositoryId: string,
+  operationId: string,
+  signal?: AbortSignal,
+) {
+  return api(
+    `${repoGitBase(repositoryId)}/operations/${encodeURIComponent(operationId)}`,
+    GitOperationSchema,
+    "GET",
+    undefined,
+    signal,
   );
 }

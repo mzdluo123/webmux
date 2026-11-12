@@ -41,11 +41,14 @@ type FastForwardPreview struct {
 type FastForwardRequest struct {
 	ConfirmationID      string
 	AcknowledgeSessions bool
+	ClientRequestID     string
+	WorktreeID          string
 }
 
 // FastForwardResult is the repository after a fast-forward.
 type FastForwardResult struct {
-	Repository Repository
+	OperationID string
+	Repository  Repository
 }
 
 // fastForwardState is what a fast-forward preview shows and its execution
@@ -104,6 +107,19 @@ func (s *Service) PreviewFastForward(ctx context.Context, repositoryID, branch s
 // request's cancellation no longer stops Git once it starts; any other
 // branch only has its ref moved, from the previewed commit.
 func (s *Service) FastForward(ctx context.Context, repositoryID string, req FastForwardRequest) (FastForwardResult, error) {
+	reqHash := hashOperationRequest(GitOpFastForward, repositoryID, req.WorktreeID, req.ConfirmationID, fmtBool(req.AcknowledgeSessions))
+	return runIdempotentOperation(
+		ctx, s, repositoryID, req.ClientRequestID, GitOpFastForward, reqHash,
+		func(op GitOperation) (FastForwardResult, error) {
+			return s.replayFastForwardOperation(repositoryID, op)
+		},
+		func(opID string) (FastForwardResult, error) {
+			return s.fastForwardOnce(ctx, repositoryID, req, opID, reqHash)
+		},
+	)
+}
+
+func (s *Service) fastForwardOnce(ctx context.Context, repositoryID string, req FastForwardRequest, opID, reqHash string) (FastForwardResult, error) {
 	c, ok := s.takeConfirmation(req.ConfirmationID, purposeFastForward, repositoryID, "")
 	if !ok || c.fastForward == nil {
 		return FastForwardResult{}, problemf(ErrConflict, "快进确认已失效，请重新预览")
@@ -141,6 +157,34 @@ func (s *Service) FastForward(ctx context.Context, repositoryID string, req Fast
 	}
 	anchor := r.entry.AnchorPath
 	from, to := current.branch.commit, current.branch.upstreamCommit
+	wtID, wtPath := req.WorktreeID, ""
+	if current.tree != nil {
+		wtID, wtPath = current.tree.ID, current.tree.Path
+	}
+	if err := s.recordOperationStart(GitOperation{
+		ID:              opID,
+		RepositoryID:    repositoryID,
+		WorktreeID:      wtID,
+		ClientRequestID: req.ClientRequestID,
+		RequestHash:     reqHash,
+		Kind:            GitOpFastForward,
+		Status:          GitOpRunning,
+		ConfirmationID:  req.ConfirmationID,
+		StartedAt:       time.Now().UTC(),
+		Summary:         "正在快进分支 " + name,
+		Preview: GitOperationPreview{
+			WorktreePath: wtPath,
+			Branch:       name,
+			HeadOID:      from,
+			Target:       current.branch.upstreamShort,
+			TargetOID:    to,
+		},
+	}); err != nil {
+		return FastForwardResult{}, err
+	}
+	if shouldAbortBeforeGit(ctx, opID) {
+		return FastForwardResult{}, errSimulatedCrash
+	}
 	runCtx, runCancel := context.WithTimeout(context.WithoutCancel(ctx), fastForwardTimeout)
 	defer runCancel()
 	var stderr string
@@ -149,21 +193,47 @@ func (s *Service) FastForward(ctx context.Context, repositoryID string, req Fast
 		_, stderr, runErr = s.gitOutput(runCtx, current.tree.Path, "merge", "--ff-only", "--no-autostash", "--end-of-options", to)
 	} else {
 		if _, err := s.git(runCtx, anchor, "merge-base", "--is-ancestor", from, to); err != nil {
+			retErr := err
 			if errorKind(err) == ErrInternal {
-				return FastForwardResult{}, problemf(ErrConflict, "上游提交不再包含分支的提交，请重新预览")
+				retErr = problemf(ErrConflict, "上游提交不再包含分支的提交，请重新预览")
 			}
-			return FastForwardResult{}, err
+			s.finalizeOperation(opID, func(op *GitOperation) {
+				op.Status = GitOpFailed
+				op.FailureKind = classifyFailureKind(retErr)
+				op.Summary = retErr.Error()
+			})
+			return FastForwardResult{}, retErr
 		}
 		_, stderr, runErr = s.gitOutput(runCtx, anchor, "update-ref", "-m", "webmux: fast-forward", "refs/heads/"+name, to, from)
+	}
+	if shouldAbortAfterGit(ctx, opID) {
+		return FastForwardResult{}, errSimulatedCrash
 	}
 	// The actual state counts, whatever Git or the client did.
 	refreshCtx, refreshCancel := context.WithTimeout(context.Background(), readTimeout)
 	defer refreshCancel()
 	if runErr != nil {
 		tip, _ := s.resolveCommit(refreshCtx, anchor, "refs/heads/"+name)
-		return FastForwardResult{}, fastForwardFailure(runErr, stderr, tip == to)
+		retErr := fastForwardFailure(runErr, stderr, tip == to)
+		s.finalizeOperation(opID, func(op *GitOperation) {
+			if tip == to || errorKind(retErr) == ErrTimeout {
+				op.Status = GitOpUncertain
+			} else {
+				op.Status = GitOpFailed
+			}
+			op.FailureKind = classifyFailureKind(retErr)
+			op.Summary = retErr.Error()
+			op.SanitizedOutput = stderr
+		})
+		return FastForwardResult{}, retErr
 	}
-	return FastForwardResult{Repository: s.readRepository(refreshCtx, r)}, nil
+	s.finalizeOperation(opID, func(op *GitOperation) {
+		op.Status = GitOpSucceeded
+		op.ActualOID = to
+		op.Summary = "已快进分支 " + name
+		op.SanitizedOutput = stderr
+	})
+	return FastForwardResult{OperationID: opID, Repository: s.readRepository(refreshCtx, r)}, nil
 }
 
 // fastForwardState reads branch, its upstream and the worktree checking it

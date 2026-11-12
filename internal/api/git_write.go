@@ -93,10 +93,11 @@ func (s *Server) gitWriteRoutes(mux *http.ServeMux) {
 		ctx, cancel := context.WithTimeout(r.Context(), gitCommitTimeout)
 		defer cancel()
 		res, err := s.Workspace.ExecuteCommit(ctx, workspace.ExecuteCommitRequest{
-			RepositoryID:   r.PathValue("id"),
-			WorktreeID:     r.PathValue("worktreeId"),
-			ConfirmationID: req.ConfirmationID,
-			Message:        req.Message,
+			RepositoryID:    r.PathValue("id"),
+			WorktreeID:      r.PathValue("worktreeId"),
+			ConfirmationID:  req.ConfirmationID,
+			ClientRequestID: req.ClientRequestID,
+			Message:         req.Message,
 		})
 		if err != nil {
 			gitFailure(w, err)

@@ -166,3 +166,45 @@ type GitCommitDetail struct {
 	Refs              []GitRefBadge         `json:"refs"`
 	Files             []GitCommitFileChange `json:"files"`
 }
+
+// GitOperationPreview summarizes the snapshot bound when a Git write operation started.
+type GitOperationPreview struct {
+	WorktreePath    string `json:"worktreePath,omitempty"`
+	HeadState       string `json:"headState,omitempty"`
+	Branch          string `json:"branch,omitempty"`
+	HeadOID         string `json:"headOid,omitempty"`
+	ExpectedTreeOID string `json:"expectedTreeOid,omitempty"`
+	Remote          string `json:"remote,omitempty"`
+	Target          string `json:"target,omitempty"`
+	TargetOID       string `json:"targetOid,omitempty"`
+	Publish         bool   `json:"publish,omitempty"`
+	Detached        bool   `json:"detached,omitempty"`
+}
+
+// GitOperation answers GET /api/repositories/{id}/git/operations/{operationId}.
+type GitOperation struct {
+	ID              string              `json:"id"`
+	RepositoryID    string              `json:"repositoryId"`
+	WorktreeID      string              `json:"worktreeId,omitempty"`
+	ClientRequestID string              `json:"clientRequestId,omitempty"`
+	Kind            string              `json:"kind"`
+	Status          string              `json:"status"`
+	ConfirmationID  string              `json:"confirmationId,omitempty"`
+	StartedAt       time.Time           `json:"startedAt"`
+	FinishedAt      *time.Time          `json:"finishedAt"`
+	Summary         string              `json:"summary"`
+	SanitizedOutput string              `json:"sanitizedOutput,omitempty"`
+	RemoteStatus    string              `json:"remoteStatus,omitempty"`
+	FetchResults    []FetchResult       `json:"fetchResults"`
+	Preview         GitOperationPreview `json:"preview"`
+	ActualOID       string              `json:"actualOid,omitempty"`
+	ActualTreeOID   string              `json:"actualTreeOid,omitempty"`
+	Parents         []string            `json:"parents"`
+	Subject         string              `json:"subject,omitempty"`
+	ReviewReasons   []string            `json:"reviewReasons"`
+}
+
+// GitOperations answers GET /api/repositories/{id}/git/operations.
+type GitOperations struct {
+	Operations []GitOperation `json:"operations"`
+}

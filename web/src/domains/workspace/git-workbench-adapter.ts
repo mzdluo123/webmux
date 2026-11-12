@@ -454,6 +454,7 @@ export function mapGitCommitResultResponse(
   result: GitCommitResult,
 ): GitCommitOutcome {
   return {
+    operationId: result.operationId,
     status: result.outcome,
     commitOid: result.commitOid,
     expectedTreeOid: result.expectedTreeOid,

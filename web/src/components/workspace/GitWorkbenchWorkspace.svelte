@@ -190,6 +190,8 @@
         commitMessage={controller.view.commitMessage}
         stagingDiff={controller.staging.reader}
         stagingBusy={controller.stagingBusy}
+        uncertainBlocked={controller.operations.hasUncertainUnresolved ||
+          controller.view.lastCommitOutcome?.status === "uncertain"}
         activeDiffStale={controller.staging.activeDiffStale}
         activeDiffStaleReason={controller.staging.activeDiffStaleReason}
         {hasActiveWorktreeSession}

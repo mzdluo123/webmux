@@ -201,3 +201,19 @@
   - 隔离实例 Playwright E2E（`p2p.spec.ts`，桌面与手机视口）覆盖本机自动跳过、真实 Chromium ↔ Pion WebRTC 直连升级、终端流与无 HTTP XHR 的分块文件上传、双路径回显测速及在线关闭无损回退，桌面（1280×900）、平板（768×800）与手机（390×844）无页面横向溢出。
 - 限制：
   - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS、iOS/Android 真机或跨运营商对称 NAT / 移动蜂窝公网链路上实测打洞成功率。
+
+本次局部核对（2026-11-12）：实现持久 Git 操作账本（`operationId`）、`clientRequestId` 断线重连幂等防重、服务重启真实 reflog/引用只读对账与 Git 工作台底部 24–28px 状态栏闭环（Issue #546），新增 US-J23 并更新覆盖索引与协议/持久化文档。
+
+- 范围：
+  - `internal/statefile`、`internal/archtest/persistence_inventory.json`、`cmd/webmux/configview.go` 与 `docs/persistence.md` 登记 `git-operations.json`（`0600` 原子替换 + 独立锁，单库 100 条、全局 1000 条、7 天保留、2 MiB `Fits` 上界、注销仓库同步清理、输出经凭据脱敏截断 ≤ 4 KiB）；
+  - `internal/workspace` 解耦两阶段预览凭证 `confirmationId` 与持久实例 `operationId` + `clientRequestId`：
+    - 对 `commit`、`push`、`fetch`、`fast_forward`、`switch` 实现在途请求合并、跨重连/重启幂等重放与参数冲突 `409 idempotency_conflict`；
+    - 启动时按 `GIT_REFLOG_ACTION=webmux-commit:<operationId>` 与本地引用只读对账崩溃遗留条目（零自动重试、零 `git reset`）；
+  - `internal/api`、`internal/contract`、`internal/wire` 新增 `GET /api/repositories/{id}/git/operations` 与 `GET /api/repositories/{id}/git/operations/{operationId}` 及线上快照；
+  - `web/src` 新增 `git-operations-model.ts`、`git-operations-controller.svelte.ts` 与 `GitWorkbenchStatusBar.svelte`，替换工作台纯静态底栏为 24–28px 实时状态栏与操作历史 `Popover`，接通网络中断自动查询恢复及 `uncertain` 防盲目重提门禁。
+- 依据：
+  - `make persistence-check`、`make docs-check`、`make check` 通过；
+  - `go test -race ./internal/workspace ./internal/api ./internal/wire ./internal/statefile ./internal/archtest ./cmd/webmux` 通过；
+  - 前端 `git-operations.test.ts`、`GitWorkbenchOperations.test.ts`、Storybook 套件与隔离实例 Playwright E2E（`git-workbench-operations.spec.ts`、`git-workbench-commit-push.spec.ts`，覆盖桌面与 320px 手机视口及响应中断无重复提交）通过。
+- 限制：
+  - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。

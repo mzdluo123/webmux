@@ -17,6 +17,8 @@ import {
   GitCommitResultSchema,
   GitCompareSchema,
   GitHistoryPageSchema,
+  GitOperationSchema,
+  GitOperationsSchema,
   GitStagingFileDiffSchema,
   GitStagingOverviewSchema,
   LaunchConfigSchema,
@@ -76,6 +78,8 @@ const schemas = {
   gitStagingDiff: GitStagingFileDiffSchema,
   gitCommitPreview: GitCommitPreviewSchema,
   gitCommitResult: GitCommitResultSchema,
+  gitOperation: GitOperationSchema,
+  gitOperations: GitOperationsSchema,
 };
 
 describe("Go response arrays match the browser contract", () => {

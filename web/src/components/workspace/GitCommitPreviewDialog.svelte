@@ -33,6 +33,7 @@
     repositoryId = "",
     worktreeId,
     submitting = false,
+    uncertainBlocked = false,
     onConfirm,
     onRefreshPreview,
     onCreateBranchFromHead,
@@ -43,6 +44,7 @@
     repositoryId?: string;
     worktreeId?: string;
     submitting?: boolean;
+    uncertainBlocked?: boolean;
     onConfirm: () => void;
     onRefreshPreview?: () => void;
     onCreateBranchFromHead?: () => void;
@@ -205,6 +207,7 @@
 
   const canExecute = $derived(
     !submitting &&
+      !uncertainBlocked &&
       !model.stale &&
       model.blockers.length === 0 &&
       model.stagedFiles.length > 0 &&

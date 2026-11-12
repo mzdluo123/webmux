@@ -107,9 +107,11 @@ type Remotes struct {
 	Remotes []Remote `json:"remotes"`
 }
 
-// FetchRemotesRequest is the empty body of POST
-// /api/repositories/{id}/fetch.
-type FetchRemotesRequest struct{}
+// FetchRemotesRequest is the body of POST /api/repositories/{id}/fetch.
+type FetchRemotesRequest struct {
+	ClientRequestID string `json:"clientRequestId,omitempty"`
+	WorktreeID      string `json:"worktreeId,omitempty"`
+}
 
 // FetchResult is the outcome of fetching one remote. Status is "ok",
 // "auth", "network", "timeout", "rejected" or "error"; Message is empty for
@@ -123,8 +125,9 @@ type FetchResult struct {
 // FetchRemotesResponse answers POST /api/repositories/{id}/fetch: one
 // result per remote, sorted by name, and the repository after the fetch.
 type FetchRemotesResponse struct {
-	Results    []FetchResult `json:"results"`
-	Repository Repository    `json:"repository"`
+	OperationID string        `json:"operationId,omitempty"`
+	Results     []FetchResult `json:"results"`
+	Repository  Repository    `json:"repository"`
 }
 
 // Tag is a lightweight or annotated tag peeled to its target commit.

@@ -382,6 +382,10 @@ func SwitchWorktree(r contract.SwitchRequest) workspace.SwitchRequest {
 	return workspace.SwitchRequest(r)
 }
 
+func SwitchResult(r workspace.SwitchResult) contract.SwitchResult {
+	return contract.SwitchResult{Worktree: Worktree(r.Worktree), OperationID: r.OperationID}
+}
+
 func CommitList(l workspace.CommitList) contract.CommitList {
 	return contract.CommitList{Total: l.Total, Items: each(l.Items, func(v workspace.Commit) contract.Commit { return contract.Commit(v) })}
 }
@@ -403,7 +407,7 @@ func FastForward(r contract.FastForwardRequest) workspace.FastForwardRequest {
 }
 
 func FastForwardResult(r workspace.FastForwardResult) contract.FastForwardResult {
-	return contract.FastForwardResult{Repository: Repository(r.Repository)}
+	return contract.FastForwardResult{OperationID: r.OperationID, Repository: Repository(r.Repository)}
 }
 
 func PushPreview(p workspace.PushPreview) contract.PushPreview {
@@ -418,7 +422,7 @@ func Push(r contract.PushRequest) workspace.PushRequest {
 }
 
 func PushResult(r workspace.PushResult) contract.PushResult {
-	return contract.PushResult{Status: r.Status, Message: r.Message, Repository: Repository(r.Repository)}
+	return contract.PushResult{OperationID: r.OperationID, Status: r.Status, Message: r.Message, Repository: Repository(r.Repository)}
 }
 
 func BranchDeletePreview(p workspace.BranchDeletePreview) contract.BranchDeletePreview {

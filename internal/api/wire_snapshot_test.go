@@ -169,6 +169,7 @@ func wireSchema(name string) wireRules {
 	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction", "repository-register-git":
 		repositoryFields("")
 	case "repository-fetch":
+		add("", "id", "operationId")
 		repositoryFields("/repository")
 	case "repositories", "repositories-empty":
 		repositoryFields("/*")
@@ -201,7 +202,10 @@ func wireSchema(name string) wireRules {
 	case "branch-delete-preview":
 		add("", "id", "confirmationId")
 		add("", "time", "expiresAt")
-	case "branch-push", "branch-delete":
+	case "branch-push":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+	case "branch-delete":
 		repositoryFields("/repository")
 	case "worktree-usage":
 		// The linked worktree's .git file holds a temporary path.
@@ -293,6 +297,16 @@ func wireSchema(name string) wireRules {
 		add("", "id", "confirmationId", "repositoryId", "worktreeId")
 		add("", "time", "expiresAt")
 		add("", "path", "worktreePath")
+	case "git-commit":
+		add("", "id", "operationId")
+	case "git-operation":
+		add("", "id", "id", "repositoryId", "worktreeId", "confirmationId")
+		add("", "time", "startedAt", "finishedAt")
+		add("/preview", "path", "worktreePath")
+	case "git-operations":
+		add("/operations/*", "id", "id", "repositoryId", "worktreeId", "confirmationId")
+		add("/operations/*", "time", "startedAt", "finishedAt")
+		add("/operations/*/preview", "path", "worktreePath")
 	}
 	return rules
 }

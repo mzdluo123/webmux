@@ -44,3 +44,7 @@ export const IndexLockBusy: Story = {
 export const CommitNeedsReview: Story = {
   args: { scenario: "commit-needs-review" },
 };
+
+export const OperationUncertainRecovery: Story = {
+  args: { scenario: "operation-uncertain" },
+};

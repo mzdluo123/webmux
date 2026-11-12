@@ -99,8 +99,17 @@ func wireGitWorkbench(f *wireFixture) {
 	}, 204)
 
 	preview := f.call("git-commit-preview", "POST", writeBase+"/commit-preview", contract.GitCommitPreviewRequest{}, 200)
-	f.call("git-commit", "POST", writeBase+"/commit", contract.GitCommitRequest{
-		ConfirmationID: str(preview, "confirmationId"),
-		Message:        "feat: commit staged a.txt",
+	commitRes := f.call("git-commit", "POST", writeBase+"/commit", contract.GitCommitRequest{
+		ConfirmationID:  str(preview, "confirmationId"),
+		ClientRequestID: "wire-commit-1",
+		Message:         "feat: commit staged a.txt",
 	}, 200)
+	opID := str(commitRes, "operationId")
+	f.call("git-operations", "GET", readBase+"/operations?worktreeId="+wtID+"&limit=20", nil, 200)
+	f.call("git-operation", "GET", readBase+"/operations/"+opID, nil, 200)
+	f.call("error-409-git-idempotency", "POST", writeBase+"/commit", contract.GitCommitRequest{
+		ConfirmationID:  str(preview, "confirmationId"),
+		ClientRequestID: "wire-commit-1",
+		Message:         "feat: different message with reused clientRequestId",
+	}, 409)
 }

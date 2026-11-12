@@ -170,7 +170,15 @@ export const FetchResultSchema = z.object({
   message: z.string(),
 });
 export type FetchResult = z.infer<typeof FetchResultSchema>;
+export const FetchRemotesRequestSchema = z
+  .object({
+    clientRequestId: z.string().min(1).max(128).optional(),
+    worktreeId: z.string().min(1).optional(),
+  })
+  .strict();
+export type FetchRemotesRequest = z.infer<typeof FetchRemotesRequestSchema>;
 export const FetchRemotesResponseSchema = z.object({
+  operationId: z.string().optional(),
   results: z.array(FetchResultSchema),
   repository: RepositorySchema,
 });
