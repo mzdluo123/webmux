@@ -2,6 +2,7 @@ import { errorMessage } from "../../platform/error";
 import type {
   GitWorkbenchMode,
   GitWorkbenchViewState,
+  GitWorkingChange,
 } from "../../contracts/git-workbench-schemas";
 import type {
   Repository,
@@ -10,12 +11,13 @@ import type {
 } from "../../contracts/schemas";
 import { deriveGitWorktreeContext } from "../../domains/workspace/git-workbench-adapter";
 import { writeGitTargetMemory } from "../../domains/workspace/git-workbench-memory";
-import { toggleReviewedPath } from "../../domains/workspace/git-workbench-state";
+import { toggleReviewedChange } from "../../domains/workspace/git-workbench-state";
 import { LatestRequest } from "../shared/remote-request.svelte";
 import { buildGitRouteHref, parseGitRouteQuery } from "../shared/route";
 import { createGitLogCompareController } from "./git-log-compare.svelte";
 import { createGitLogDiffController } from "./git-log-diff.svelte";
 import { createGitLogHistoryController } from "./git-log-history.svelte";
+import { createGitPushController } from "./git-push-controller.svelte";
 import {
   emptyGitViewState,
   fetchGitTargetBundle,
@@ -59,10 +61,8 @@ export function createGitWorkbenchController(
   const patchView = (patch: Partial<GitWorkbenchViewState>) => {
     view = { ...view, ...patch };
   };
-
-  function persist(patch: Parameters<typeof writeGitTargetMemory>[2]) {
+  const persist = (patch: Parameters<typeof writeGitTargetMemory>[2]) =>
     writeGitTargetMemory(currentRepoId, currentWorktreeId, patch);
-  }
 
   function updateUrl(
     mode: "push" | "replace",
@@ -87,6 +87,7 @@ export function createGitWorkbenchController(
     getView: () => view,
     patchView,
     onRefreshRepositories: options.onRefreshRepositories,
+    onAfterCommitRefresh: () => void logHistory.reloadHistory("refresh"),
   });
   const logDiff = createGitLogDiffController({
     getRepoId: () => currentRepoId,
@@ -112,6 +113,17 @@ export function createGitWorkbenchController(
     updateUrl,
     logDiff,
   });
+  const push = createGitPushController({
+    getRepoId: () => currentRepoId,
+    getRepoName: () => view.context.repositoryName,
+    getWorktreeId: () => effectiveWorktreeId ?? currentWorktreeId,
+    onRepositoryUpdated: options.onRepositoryUpdated,
+    onRefreshAfterPush: () => {
+      options.onRefreshRepositories?.();
+      void logHistory.reloadHistory("refresh");
+    },
+    onStatusBanner: (statusBanner) => patchView({ statusBanner }),
+  });
 
   function dispose() {
     targetReq.dispose();
@@ -119,6 +131,7 @@ export function createGitWorkbenchController(
     logHistory.dispose();
     logCompare.dispose();
     logDiff.dispose();
+    push.dispose();
   }
 
   async function loadTarget(
@@ -170,20 +183,18 @@ export function createGitWorkbenchController(
       }
       effectiveWorktreeId = bundle.effectiveWorktreeId;
       defaultBranchName = bundle.defaultBranch;
-      logDiff.seedContextId(
-        repoId,
-        bundle.effectiveWorktreeId,
-        bundle.gitContextId,
-      );
+      const effId = bundle.effectiveWorktreeId;
+      logDiff.seedContextId(repoId, effId, bundle.gitContextId);
+      staging.seedContextId(repoId, effId, bundle.gitContextId);
 
-      const headCandidate = bundle.context.headOid ?? null;
-      const selectedOid =
-        (view.selectedCommitOid &&
-        bundle.commits.some((c) => c.oid === view.selectedCommitOid)
-          ? view.selectedCommitOid
-          : headCandidate && bundle.commits.some((c) => c.oid === headCandidate)
-            ? headCandidate
-            : bundle.commits[0]?.oid) ?? null;
+      const head = bundle.context.headOid ?? null;
+      const hasOid = (oid: string | null) =>
+        Boolean(oid && bundle.commits.some((c) => c.oid === oid));
+      const selectedOid = hasOid(view.selectedCommitOid)
+        ? view.selectedCommitOid
+        : hasOid(head)
+          ? head
+          : (bundle.commits[0]?.oid ?? null);
 
       patchView({
         context: bundle.context,
@@ -199,9 +210,7 @@ export function createGitWorkbenchController(
         selectedCommitOid: selectedOid,
       });
       logHistory.ensureCommitLoaded(selectedOid);
-      if (bundle.effectiveWorktreeId) {
-        await staging.refresh(repoId, bundle.effectiveWorktreeId, req.signal);
-      }
+      if (effId) await staging.refresh(repoId, effId, req.signal);
     } catch (err) {
       if (req.reportable()) error = errorMessage(err);
     } finally {
@@ -324,6 +333,12 @@ export function createGitWorkbenchController(
     get stagingBusy() {
       return staging.stagingBusy;
     },
+    get staging() {
+      return staging;
+    },
+    get push() {
+      return push;
+    },
     get detailLoading() {
       return logHistory.detailLoading;
     },
@@ -405,14 +420,42 @@ export function createGitWorkbenchController(
         void staging.loadActiveDiff(currentRepoId, wtId, changeId);
       }
     },
-    toggleReviewed(path: string) {
-      const reviewedPaths = toggleReviewedPath(view.reviewedPaths, path);
+    toggleReviewed(change: GitWorkingChange | string) {
+      const target =
+        typeof change === "string"
+          ? (view.workingChanges.find(
+              (c) => c.id === change || c.path === change,
+            ) ?? { path: change })
+          : change;
+      const reviewedPaths = toggleReviewedChange(view.reviewedPaths, target);
       patchView({ reviewedPaths });
       persist({ reviewedPaths });
+    },
+    dismissLastCommitOutcome() {
+      patchView({ lastCommitOutcome: null });
+    },
+    inspectCommitInLog(oid: string) {
+      logCompare.resetTarget();
+      patchView({
+        mode: "log",
+        selectedCommitOid: oid,
+        selectedCommitFilePath: null,
+        compareMode: null,
+      });
+      persist({
+        mode: "log",
+        selectedCommitOid: oid,
+        selectedCommitFilePath: null,
+      });
+      updateUrl("push", { view: "log", commit: oid });
+      void logHistory.reloadHistory("refresh", oid);
     },
     setCommitMessage(commitMessage: string) {
       patchView({ commitMessage });
       persist({ commitMessage });
+    },
+    setStatusBanner(statusBanner: string) {
+      patchView({ statusBanner });
     },
     setScroll(
       kind: "logList" | "logDiff" | "commitList" | "commitDiff",
@@ -422,7 +465,11 @@ export function createGitWorkbenchController(
       persist({ [`${kind}ScrollTop`]: top });
     },
     stageOrUnstage: staging.stageOrUnstage,
+    stageOrUnstageGroup: staging.stageOrUnstageGroup,
+    refreshActiveSnapshot: staging.refreshActiveSnapshot,
+    checkExternalUpdates: staging.checkExternalUpdates,
     openCommitPreview: staging.openCommitPreview,
+    refreshCommitPreview: staging.refreshCommitPreview,
     closeCommitPreview: staging.closeCommitPreview,
     confirmCommit: staging.confirmCommit,
     async runFetch(wt?: Worktree, sessions: readonly SessionInfo[] = []) {

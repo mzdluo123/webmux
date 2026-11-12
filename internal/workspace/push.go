@@ -227,7 +227,7 @@ func (s *Service) upstreamPush(ctx context.Context, anchor string, state *pushSt
 		state.blockers = append(state.blockers, Issue{Code: issueSame, Message: "分支已与上游同步，没有可推送的提交"})
 	}
 	if ahead > 0 {
-		if state.commits, err = s.listCommits(ctx, anchor, b.commit, "^"+b.upstreamCommit); err != nil {
+		if state.commits, err = s.listCommitsLimit(ctx, anchor, maxPushListedCommits, b.commit, "^"+b.upstreamCommit); err != nil {
 			return err
 		}
 	}
@@ -272,7 +272,7 @@ func (s *Service) publishPush(ctx context.Context, r *repositoryState, state *pu
 	case state.remote == "":
 		state.blockers = append(state.blockers, Issue{Code: issueRemote, Message: "无法确定发布到哪个远程，请指定其中之一: " + strings.Join(remotes, ", ")})
 	}
-	state.commits, err = s.listCommits(ctx, anchor, b.commit, "--not", "--remotes")
+	state.commits, err = s.listCommitsLimit(ctx, anchor, maxPushListedCommits, b.commit, "--not", "--remotes")
 	return err
 }
 

@@ -58,6 +58,7 @@ export default defineConfig({
         "overflow.spec.ts",
         "design-system.spec.ts",
         "acp-chat*.spec.ts",
+        "git-workbench.spec.ts",
       ],
     },
   ],

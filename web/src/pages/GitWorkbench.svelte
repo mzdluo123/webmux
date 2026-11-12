@@ -6,7 +6,10 @@
     resetBrowserChrome,
     setBrowserChrome,
   } from "../platform/browser-chrome";
-  import type { GitWorkbenchMode } from "../contracts/git-workbench-schemas";
+  import type {
+    GitPrecedingCommit,
+    GitWorkbenchMode,
+  } from "../contracts/git-workbench-schemas";
   import {
     readGitDeviceLayout,
     resetGitDeviceLayout,
@@ -14,16 +17,18 @@
     writeGitDeviceLayout,
     type GitDeviceLayout,
   } from "../domains/workspace/git-workbench-memory";
-  import { upstreamState } from "../domains/workspace/worktree-sync";
   import { buildGitRouteHref, parseGitRouteQuery } from "../hooks/shared/route";
   import {
     getShell,
     openGitWorkbench,
     openSession,
   } from "../hooks/shared/shell.svelte";
+  import { dispatchGitPageBranchAction } from "../hooks/workspace/git-branch-action-dispatch";
   import { createGitWorkbenchController } from "../hooks/workspace/git-workbench-controller.svelte";
   import InlineNotice from "../components/shared/InlineNotice.svelte";
+  import GitCommitOutcomeBanner from "../components/workspace/GitCommitOutcomeBanner.svelte";
   import GitCommitPreviewDialog from "../components/workspace/GitCommitPreviewDialog.svelte";
+  import GitPushDialog from "../components/workspace/GitPushDialog.svelte";
   import GitWorkbenchTopBar from "../components/workspace/GitWorkbenchTopBar.svelte";
   import GitWorkbenchWorkspace from "../components/workspace/GitWorkbenchWorkspace.svelte";
   import GitWorktreeGuardState from "../components/workspace/GitWorktreeGuardState.svelte";
@@ -79,6 +84,14 @@
       ? repository?.worktrees.find((w) => w.id === worktreeId)
       : undefined,
   );
+  const activeWorktreeSessions = $derived(
+    worktreeId
+      ? shell.sessions.sessions.filter(
+          (s) =>
+            s.workspace?.worktreeId === worktreeId && s.status !== "exited",
+        )
+      : [],
+  );
 
   // Visiting `/git` directly picks the remembered or first registered repository.
   $effect(() => {
@@ -109,6 +122,23 @@
       : "Git 工作台 · WebMux";
     const running = shell.sessions.sessions.some((s) => s.status === "running");
     setBrowserChrome(title, running);
+  });
+
+  $effect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+    const onFocus = () => {
+      if (document.visibilityState === "visible") {
+        void controller.checkExternalUpdates();
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   });
 
   const returnSession = $derived(
@@ -155,6 +185,16 @@
     return null;
   });
 
+  const writableWorktree = $derived(
+    worktree &&
+      worktree.available &&
+      !worktree.prunable &&
+      !worktree.locked &&
+      worktree.kind !== "bare"
+      ? worktree
+      : undefined,
+  );
+
   function switchRepository(nextRepoId: string) {
     openGitWorkbench({
       repositoryId: nextRepoId,
@@ -175,50 +215,57 @@
     });
   }
 
-  function openNewWorktree() {
-    if (!repository) return;
+  const openNewWorktree = () =>
+    repository &&
     shell.start({ kind: "new-worktree", repositoryId: repository.id });
-  }
+  const openManageWorktrees = () =>
+    repository && shell.repositoryDetails(repository, "worktrees");
 
-  function openManageWorktrees() {
-    if (!repository) return;
-    shell.repositoryDetails(repository, "worktrees");
-  }
-
-  function handleUpdate() {
-    const branch = controller.view.context.checkedOutBranch;
-    if (!repository || !branch) return;
-    shell.branchOperation(repository.id, { kind: "fast-forward", branch });
-  }
-
-  function handlePush(branchOverride?: string) {
+  function handleUpdate(branchOverride?: string) {
     const branch = branchOverride ?? controller.view.context.checkedOutBranch;
-    if (!repository || !branch) return;
-    const publish =
-      worktree && branch === worktree.branch
-        ? upstreamState(worktree).kind === "none" ||
-          upstreamState(worktree).kind === "gone"
-        : !controller.view.context.upstream;
-    shell.branchOperation(repository.id, { kind: "push", branch, publish });
+    if (repository && branch) {
+      shell.branchOperation(repository.id, { kind: "fast-forward", branch });
+    }
+  }
+
+  function handlePush(
+    branchOverride?: string,
+    preceding?: GitPrecedingCommit | null,
+  ) {
+    const branch = branchOverride ?? controller.view.context.checkedOutBranch;
+    if (repository && branch) controller.push.openDialog(branch, preceding);
   }
 
   function handleCheckoutRequest(branch: string) {
     if (!repository) return;
-    if (
-      worktree &&
-      worktree.available &&
-      !worktree.prunable &&
-      !worktree.locked &&
-      worktree.kind !== "bare"
-    ) {
-      shell.switchBranch(worktree, branch);
-      return;
+    if (writableWorktree) shell.switchBranch(writableWorktree, branch);
+    else {
+      shell.start({
+        kind: "new-worktree",
+        repositoryId: repository.id,
+        preset: { mode: "existing", branch },
+      });
     }
-    shell.start({
-      kind: "new-worktree",
-      repositoryId: repository.id,
-      preset: { mode: "existing", branch },
-    });
+  }
+
+  function handleCreateBranchFromHead() {
+    if (!repository) return;
+    const headPoint =
+      controller.view.context.checkedOutBranch ||
+      controller.view.context.headOid ||
+      "HEAD";
+    if (writableWorktree) {
+      shell.switchBranch(writableWorktree, {
+        mode: "new",
+        startPoint: headPoint,
+      });
+    } else {
+      shell.start({
+        kind: "new-worktree",
+        repositoryId: repository.id,
+        preset: { mode: "new", startBranch: headPoint },
+      });
+    }
   }
 </script>
 
@@ -235,6 +282,7 @@
     {worktreeId}
     {worktree}
     context={controller.view.context}
+    branches={controller.view.branches}
     branchFilter={controller.view.branchFilter}
     fetching={controller.fetching}
     {canAddRepository}
@@ -247,8 +295,29 @@
     onAddRepository={() => shell.addRepository()}
     onNewWorktree={openNewWorktree}
     onManageWorktrees={openManageWorktrees}
+    onBranchFilterChange={(branch) =>
+      controller.setBranchFilter(
+        branch,
+        repository,
+        worktree,
+        shell.sessions.sessions,
+        true,
+      )}
+    onBranchAction={(kind, item) =>
+      dispatchGitPageBranchAction({
+        kind,
+        item,
+        repository,
+        worktree,
+        writableWorktree,
+        sessions: shell.sessions.sessions,
+        shell,
+        controller,
+        switchWorktree,
+        openPush: handlePush,
+      })}
     onFetch={() => void controller.runFetch(worktree, shell.sessions.sessions)}
-    onUpdate={handleUpdate}
+    onUpdate={() => handleUpdate()}
     onPush={() => handlePush()}
     onReturnSession={(id) => openSession({ id })}
   />
@@ -297,21 +366,13 @@
     {/if}
 
     {#if controller.view.lastCommitOutcome && controller.view.lastCommitOutcome.status !== "matched"}
-      <div class="border-b border-git-border bg-git-surface px-3 py-2">
-        <InlineNotice
-          tone={controller.view.lastCommitOutcome.status === "busy_locked"
-            ? "danger"
-            : "warning"}
-        >
-          <span class="font-semibold">
-            [{controller.view.lastCommitOutcome.status}]
-          </span>
-          {controller.view.lastCommitOutcome.summary}
-          {#if controller.view.lastCommitOutcome.reasons.length > 0}
-            （{controller.view.lastCommitOutcome.reasons.join("；")}）
-          {/if}
-        </InlineNotice>
-      </div>
+      <GitCommitOutcomeBanner
+        outcome={controller.view.lastCommitOutcome}
+        onInspectCommit={(oid) => controller.inspectCommitInLog(oid)}
+        onReloadVerify={() =>
+          void controller.reload(repository, worktree, shell.sessions.sessions)}
+        onDismiss={() => controller.dismissLastCommitOutcome()}
+      />
     {/if}
 
     <GitWorkbenchWorkspace
@@ -323,6 +384,7 @@
       {commitGuard}
       {canAddRepository}
       {deviceLayout}
+      hasActiveWorktreeSession={activeWorktreeSessions.length > 0}
       onUpdateDeviceLayout={updateDeviceLayout}
       onResetDeviceLayout={handleResetDeviceLayout}
       onAddRepository={() => shell.addRepository()}
@@ -331,7 +393,32 @@
       onNewWorktree={openNewWorktree}
       onManageWorktrees={openManageWorktrees}
       onRequestCheckout={handleCheckoutRequest}
-      onOpenPush={handlePush}
+      onOpenPush={(branch) => handlePush(branch)}
+      onBranchAction={(kind, item) =>
+        dispatchGitPageBranchAction({
+          kind,
+          item,
+          repository,
+          worktree,
+          writableWorktree,
+          sessions: shell.sessions.sessions,
+          shell,
+          controller,
+          switchWorktree,
+          openPush: handlePush,
+        })}
+      onCreateBranchFromHead={handleCreateBranchFromHead}
+      onOpenWorktreeTerminal={() => {
+        const s = activeWorktreeSessions[0];
+        if (s) openSession(s);
+      }}
+      onNewWorktreeTerminal={() =>
+        worktreeId &&
+        shell.start({
+          kind: "worktree",
+          repositoryId: repository.id,
+          worktreeId,
+        })}
     />
 
     <footer
@@ -354,9 +441,25 @@
       <GitCommitPreviewDialog
         model={controller.view.commitPreview}
         commitMessage={controller.view.commitMessage}
+        {repositoryId}
+        {worktreeId}
+        submitting={controller.staging.commitSubmitting}
         onConfirm={() =>
-          void controller.confirmCommit((branch) => handlePush(branch))}
+          void controller.confirmCommit((branch, preceding) =>
+            handlePush(branch, preceding),
+          )}
+        onRefreshPreview={() => void controller.refreshCommitPreview()}
+        onCreateBranchFromHead={handleCreateBranchFromHead}
         onClose={() => controller.closeCommitPreview()}
+      />
+    {/if}
+
+    {#if controller.push.open}
+      <GitPushDialog
+        push={controller.push}
+        onFetchRemote={() =>
+          void controller.runFetch(worktree, shell.sessions.sessions)}
+        onFastForwardBranch={(branch) => handleUpdate(branch)}
       />
     {/if}
   {/if}

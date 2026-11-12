@@ -14,7 +14,7 @@
 >
   <Tabs.List
     variant="line"
-    class="max-w-full flex-wrap"
+    class="h-auto min-h-8 max-w-full flex-wrap group-data-horizontal/tabs:h-auto"
     aria-label="Git 工作台视图"
   >
     <Tabs.Trigger value="log">

@@ -2,26 +2,34 @@
   import { MediaQuery } from "svelte/reactivity";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconCheck from "~icons/tabler/check";
+  import IconChevronDown from "~icons/tabler/chevron-down";
+  import IconChevronRight from "~icons/tabler/chevron-right";
   import IconMinus from "~icons/tabler/minus";
   import IconPlus from "~icons/tabler/plus";
+  import IconRefresh from "~icons/tabler/refresh";
   import IconRestore from "~icons/tabler/restore";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
   import * as Resizable from "$lib/components/ui/resizable";
-  import { Textarea } from "$lib/components/ui/textarea";
-  import { groupWorkingChanges } from "../../domains/workspace/git-workbench-state";
-  import {
-    syncElementScrollTop,
-    type GitPaneScrollCallbacks,
-  } from "../../domains/workspace/git-workbench-memory";
   import type {
     GitChangeGroup,
     GitWorkingChange,
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
-  import GitDiffViewer from "./GitDiffViewer.svelte";
+  import {
+    syncElementScrollTop,
+    type GitPaneScrollCallbacks,
+  } from "../../domains/workspace/git-workbench-memory";
+  import {
+    groupWorkingChanges,
+    isChangeReviewed,
+  } from "../../domains/workspace/git-workbench-state";
+  import type { GitStagingDiffController } from "../../hooks/workspace/git-staging-diff.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import GitCommitComposer from "./GitCommitComposer.svelte";
+  import GitConflictTerminalNotice from "./GitConflictTerminalNotice.svelte";
+  import GitStagingDiffPanel from "./GitStagingDiffPanel.svelte";
 
   let {
     context,
@@ -29,45 +37,69 @@
     activeChangeId,
     reviewedPaths,
     commitMessage,
+    stagingDiff,
+    stagingBusy = false,
+    activeDiffStale = false,
+    activeDiffStaleReason = "",
+    hasActiveWorktreeSession = false,
     paneSizes = [40, 60],
-    diffMode,
+    diffMode = "unified",
     listScrollTop = 0,
-    diffScrollTop = 0,
     onPaneSizesChange,
     onResetLayout,
     onDiffModeChange,
     onListScrollChange,
-    onDiffScrollChange,
     onSelectChange,
     onToggleReviewed,
     onStageChange,
     onUnstageChange,
+    onStageGroup,
     onStageHunk,
     onUnstageHunk,
+    onRefreshSnapshot,
     onCommitMessageChange,
     onOpenCommitPreview,
+    onOpenPush,
+    onCreateBranchFromHead,
+    onOpenWorktreeTerminal,
+    onNewWorktreeTerminal,
   }: {
     context: GitWorktreeContext;
     changes: readonly GitWorkingChange[];
     activeChangeId: string | null;
     reviewedPaths: readonly string[];
     commitMessage: string;
+    stagingDiff?: GitStagingDiffController;
+    stagingBusy?: boolean;
+    activeDiffStale?: boolean;
+    activeDiffStaleReason?: string;
+    hasActiveWorktreeSession?: boolean;
     paneSizes?: [number, number];
     onPaneSizesChange?: (sizes: [number, number]) => void;
     onSelectChange: (id: string) => void;
-    onToggleReviewed: (path: string) => void;
+    onToggleReviewed: (change: GitWorkingChange) => void;
     onStageChange: (changeId: string) => void;
     onUnstageChange: (changeId: string) => void;
+    onStageGroup?: (
+      op: "stage" | "unstage",
+      group: "staged" | "unstaged" | "untracked",
+    ) => void;
     onStageHunk: (changeId: string, hunkId: string) => void;
     onUnstageHunk: (changeId: string, hunkId: string) => void;
+    onRefreshSnapshot?: () => void;
     onCommitMessageChange: (msg: string) => void;
     onOpenCommitPreview: (followUpPush: boolean) => void;
+    onOpenPush?: () => void;
+    onCreateBranchFromHead?: () => void;
+    onOpenWorktreeTerminal?: () => void;
+    onNewWorktreeTerminal?: () => void;
   } & GitPaneScrollCallbacks = $props();
 
   const desktop = new MediaQuery("(min-width: 1280px)");
   let mobileStep = $state<"changes" | "diff">("changes");
   let paneResetKey = $state(0);
   let listScrollEl = $state<HTMLDivElement>();
+  let collapsed = $state<Record<string, boolean>>({});
 
   $effect(() => syncElementScrollTop(listScrollEl, listScrollTop));
 
@@ -85,10 +117,14 @@
     { key: "unstaged", title: "未暂存修改 (Unstaged)" },
     { key: "untracked", title: "未跟踪文件 (Untracked)" },
   ];
+
+  function toggleGroup(key: string) {
+    collapsed = { ...collapsed, [key]: !collapsed[key] };
+  }
 </script>
 
 {#snippet changeRow(item: GitWorkingChange)}
-  {@const isReviewed = reviewedPaths.includes(item.path)}
+  {@const isReviewed = isChangeReviewed(reviewedPaths, item)}
   {@const isReading = activeChange?.id === item.id}
   <div
     class="flex min-w-0 items-center gap-1 rounded-sm"
@@ -102,7 +138,7 @@
       aria-pressed={isReviewed}
       aria-label={`标记已审阅 ${item.path}`}
       title={isReviewed ? `已审阅 ${item.path}` : `标记已审阅 ${item.path}`}
-      onclick={() => onToggleReviewed(item.path)}
+      onclick={() => onToggleReviewed(item)}
     >
       <IconCheck aria-hidden="true" />
     </Button>
@@ -128,9 +164,13 @@
           </Badge>
           <span
             class="min-w-[6ch] max-w-full flex-1 truncate font-mono"
-            title={item.path}
+            title={item.oldPath && item.oldPath !== item.path
+              ? `${item.oldPath} → ${item.path}`
+              : item.path}
           >
-            {item.path}
+            {item.oldPath && item.oldPath !== item.path
+              ? `${item.oldPath} → ${item.path}`
+              : item.path}
           </span>
           {#if isReviewed}
             <Badge variant="secondary" class="max-w-full">
@@ -151,6 +191,7 @@
         <Button
           size="icon-xs"
           variant="ghost"
+          disabled={stagingBusy}
           aria-label={`取消暂存文件 ${item.path}`}
           title={`取消暂存文件 ${item.path}`}
           onclick={() => onUnstageChange(item.id)}
@@ -161,6 +202,7 @@
         <Button
           size="icon-xs"
           variant="ghost"
+          disabled={stagingBusy}
           aria-label={`暂存文件 ${item.path}`}
           title={`暂存文件 ${item.path}`}
           onclick={() => onStageChange(item.id)}
@@ -183,20 +225,33 @@
       <span class="min-w-0 truncate text-xs font-semibold text-foreground">
         变更树（阅读高亮 / 已审阅 / 真实暂存三态独立）
       </span>
-      {#if desktop.current}
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="重置提交分栏比例"
-          title="重置提交分栏比例"
-          onclick={() => {
-            onResetLayout?.();
-            paneResetKey++;
-          }}
-        >
-          <IconRestore aria-hidden="true" />
-        </Button>
-      {/if}
+      <div class="flex shrink-0 items-center gap-1">
+        {#if onRefreshSnapshot}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="刷新暂存区快照"
+            title="刷新暂存区快照"
+            onclick={onRefreshSnapshot}
+          >
+            <IconRefresh aria-hidden="true" />
+          </Button>
+        {/if}
+        {#if desktop.current}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="重置提交分栏比例"
+            title="重置提交分栏比例"
+            onclick={() => {
+              onResetLayout?.();
+              paneResetKey++;
+            }}
+          >
+            <IconRestore aria-hidden="true" />
+          </Button>
+        {/if}
+      </div>
     </div>
 
     {#if readonlyMode}
@@ -207,23 +262,86 @@
       </div>
     {/if}
 
+    {#if grouped.conflicted.length > 0 || context.operationInProgress}
+      <GitConflictTerminalNotice
+        message={`${
+          context.operationInProgress
+            ? `正在进行 Git 操作：${context.operationInProgress}（冲突 ${grouped.conflicted.length} 项）`
+            : `存在 ${grouped.conflicted.length} 个未解决冲突`
+        }。请前往工作树终端解决冲突。`}
+        {hasActiveWorktreeSession}
+        {onOpenWorktreeTerminal}
+        {onNewWorktreeTerminal}
+      />
+    {/if}
+
     <div
       bind:this={listScrollEl}
-      class="min-h-0 flex-1 space-y-3 overflow-y-auto p-2"
+      class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2"
       onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
     >
       {#each sections as sec (sec.key)}
         {@const list = grouped[sec.key]}
-        {#if list.length > 0 || sec.key === "staged" || sec.key === "unstaged"}
-          <div class="space-y-1">
-            <div class="flex items-center justify-between px-1">
-              <span class="text-xs font-semibold text-muted-foreground">
-                {sec.title}
-              </span>
-              <Badge variant="outline">{list.length}</Badge>
+        {@const isOpen = !collapsed[sec.key]}
+        <div class="space-y-0.5" data-change-section={sec.key}>
+          <div class="flex min-w-0 flex-wrap items-center gap-1">
+            <div class="min-w-[8rem] flex-1">
+              <ListButton
+                variant="git-section"
+                aria-expanded={isOpen}
+                onclick={() => toggleGroup(sec.key)}
+              >
+                {#if isOpen}
+                  <IconChevronDown
+                    class="size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                {:else}
+                  <IconChevronRight
+                    class="size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                {/if}
+                <span class="min-w-0 flex-1 truncate">{sec.title}</span>
+                <Badge variant="outline">{list.length}</Badge>
+              </ListButton>
             </div>
+
+            {#if !readonlyMode && list.length > 0 && onStageGroup}
+              {#if sec.key === "staged"}
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={stagingBusy}
+                  onclick={() => onStageGroup("unstage", "staged")}
+                >
+                  全部取消暂存
+                </Button>
+              {:else if sec.key === "unstaged"}
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={stagingBusy}
+                  onclick={() => onStageGroup("stage", "unstaged")}
+                >
+                  全部暂存
+                </Button>
+              {:else if sec.key === "untracked"}
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={stagingBusy}
+                  onclick={() => onStageGroup("stage", "untracked")}
+                >
+                  全部暂存
+                </Button>
+              {/if}
+            {/if}
+          </div>
+
+          {#if isOpen}
             {#if list.length === 0}
-              <p class="px-2 py-1 text-xs text-muted-foreground">暂无条目</p>
+              <p class="px-6 py-1 text-xs text-muted-foreground">暂无条目</p>
             {:else}
               <div class="space-y-0.5">
                 {#each list as entry (entry.id)}
@@ -231,51 +349,23 @@
                 {/each}
               </div>
             {/if}
-          </div>
-        {/if}
+          {/if}
+        </div>
       {/each}
     </div>
 
-    <div class="space-y-2 border-t border-git-border bg-git-panel p-3">
-      <div
-        class="flex min-w-0 flex-wrap items-center justify-between gap-1 text-xs text-muted-foreground"
-      >
-        <span class="truncate">
-          作者：{context.authorName || "(未配置)"} &lt;{context.authorEmail ||
-            "未配置"}&gt;
-        </span>
-        {#if context.signEnabled}
-          <Badge variant="info" class="max-w-full">
-            <span class="truncate">GPG/SSH 签名开启</span>
-          </Badge>
-        {/if}
-      </div>
-
-      <Textarea
-        value={commitMessage}
-        placeholder="输入提交标题与说明（提交内容严格来自真实 Git index 暂存区）…"
-        aria-label="提交说明"
-        disabled={readonlyMode}
-        oninput={(e) => onCommitMessageChange(e.currentTarget.value)}
-      />
-
-      <div class="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          disabled={readonlyMode || !commitMessage.trim()}
-          onclick={() => onOpenCommitPreview(true)}
-        >
-          提交并推送…
-        </Button>
-        <Button
-          variant="git-primary"
-          disabled={readonlyMode || !commitMessage.trim()}
-          onclick={() => onOpenCommitPreview(false)}
-        >
-          提交预览…
-        </Button>
-      </div>
-    </div>
+    <GitCommitComposer
+      {context}
+      stagedCount={grouped.staged.length}
+      conflictedCount={grouped.conflicted.length}
+      {commitMessage}
+      {readonlyMode}
+      busy={stagingBusy}
+      {onCommitMessageChange}
+      {onOpenCommitPreview}
+      {onOpenPush}
+      {onCreateBranchFromHead}
+    />
   </section>
 {/snippet}
 
@@ -303,27 +393,24 @@
           选择左侧任意变更项查看差异或逐块暂存。
         </p>
       {:else}
-        <GitDiffViewer
-          path={activeChange.path}
-          oldPath={activeChange.oldPath}
-          status={activeChange.status}
-          binary={activeChange.binary}
-          degradeReason={activeChange.degradeReason}
-          hunks={activeChange.hunks}
-          stageMode={readonlyMode
-            ? "none"
-            : activeChange.group === "staged"
-              ? "unstage"
-              : activeChange.group === "unstaged"
-                ? "stage"
-                : "none"}
-          hunkStageAvailable={activeChange.hunkStageAvailable}
-          preferredViewMode={diffMode}
-          scrollTop={diffScrollTop}
-          onViewModeChange={onDiffModeChange}
-          onScrollChange={onDiffScrollChange}
-          onStageHunk={(hunkId) => onStageHunk(activeChange.id, hunkId)}
-          onUnstageHunk={(hunkId) => onUnstageHunk(activeChange.id, hunkId)}
+        <GitStagingDiffPanel
+          change={activeChange}
+          {context}
+          {stagingDiff}
+          {diffMode}
+          {readonlyMode}
+          busy={stagingBusy}
+          stale={activeDiffStale}
+          staleReason={activeDiffStaleReason}
+          {hasActiveWorktreeSession}
+          {onDiffModeChange}
+          {onStageChange}
+          {onUnstageChange}
+          {onStageHunk}
+          {onUnstageHunk}
+          {onRefreshSnapshot}
+          {onOpenWorktreeTerminal}
+          {onNewWorktreeTerminal}
         />
       {/if}
     </div>

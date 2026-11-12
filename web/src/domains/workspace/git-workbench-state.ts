@@ -145,6 +145,51 @@ export function resolveCommitParentFiles(
   };
 }
 
+const REVIEW_VERSION_SEP = "::v=";
+
+function buildChangeReviewToken(change: {
+  id?: string;
+  path: string;
+  identityKey?: string;
+}): string {
+  const key = change.id || change.path;
+  const ver = change.identityKey?.trim();
+  return ver ? `${key}${REVIEW_VERSION_SEP}${ver}` : key;
+}
+
+export function isChangeReviewed(
+  reviewedPaths: readonly string[],
+  change: { id?: string; path: string; identityKey?: string },
+): boolean {
+  const token = buildChangeReviewToken(change);
+  if (reviewedPaths.includes(token)) return true;
+  if (!change.identityKey?.trim()) {
+    return (
+      reviewedPaths.includes(change.path) ||
+      Boolean(change.id && reviewedPaths.includes(change.id))
+    );
+  }
+  return false;
+}
+
+export function toggleReviewedChange(
+  reviewedPaths: readonly string[],
+  change: { id?: string; path: string; identityKey?: string },
+): string[] {
+  const key = change.id || change.path;
+  const token = buildChangeReviewToken(change);
+  const wasReviewed = isChangeReviewed(reviewedPaths, change);
+  const cleaned = reviewedPaths.filter(
+    (entry) =>
+      entry !== token &&
+      entry !== key &&
+      entry !== change.path &&
+      !entry.startsWith(`${key}${REVIEW_VERSION_SEP}`) &&
+      !entry.startsWith(`${change.path}${REVIEW_VERSION_SEP}`),
+  );
+  return wasReviewed ? cleaned : [...cleaned, token];
+}
+
 export function toggleReviewedPath(
   reviewedPaths: readonly string[],
   path: string,
@@ -341,7 +386,11 @@ export function buildCommitPreviewModel(
     expectedTreeOid: `tree-${grouped.staged.map((f) => f.path).join("+") || "empty"}`,
     authorName: state.context.authorName,
     authorEmail: state.context.authorEmail,
+    committerName: state.context.committerName,
+    committerEmail: state.context.committerEmail,
     signEnabled: state.context.signEnabled,
+    signFormat: state.context.signFormat || undefined,
+    operation: state.context.operationInProgress ?? undefined,
     executableHooks: state.context.executableHooks,
     stagedFiles: grouped.staged,
     unstagedCount: grouped.unstaged.length,
@@ -350,5 +399,7 @@ export function buildCommitPreviewModel(
     followUpPush,
     blockers,
     warnings,
+    stale: false,
+    dialogError: "",
   };
 }

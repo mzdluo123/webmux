@@ -55,6 +55,8 @@ test("worktree heading keeps its width above mobile actions", async ({
 
 for (const story of stories) {
   test(`${story} fits and keeps its controls reachable`, async ({ page }) => {
+    // Twelve layouts, and full-workbench stories trial-click two dozen controls in each.
+    test.slow();
     const failures: string[] = [];
     page.on("pageerror", (error) => failures.push(error.message));
     await page.route("**/api/**", (route) => route.abort());

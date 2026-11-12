@@ -306,3 +306,27 @@ func TestPushHoldsNoGateAndKeepsToSafeArguments(t *testing.T) {
 		t.Fatalf("push argv %q, want %q", args, want)
 	}
 }
+
+func TestPushPreviewListsAllOutgoingCommitsPastSummaryCap(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	s, r, root, _ := upstreamFixture(t)
+	const count = 25
+	for i := 1; i <= count; i++ {
+		localCommit(t, root, fmt.Sprintf("outgoing-%02d", i))
+	}
+
+	upstream := previewPush(t, s, r, "main", "", "")
+	if upstream.Commits.Total != count || len(upstream.Commits.Items) != count {
+		t.Fatalf("upstream commits total=%d len=%d, want %d", upstream.Commits.Total, len(upstream.Commits.Items), count)
+	}
+	if upstream.Commits.Items[0].Subject != "outgoing-25" || upstream.Commits.Items[count-1].Subject != "outgoing-01" {
+		t.Fatalf("unexpected commit ordering: first=%q last=%q", upstream.Commits.Items[0].Subject, upstream.Commits.Items[count-1].Subject)
+	}
+
+	gitTest(t, root, "branch", "feat/many")
+	publish := previewPush(t, s, r, "feat/many", "", "")
+	if publish.Commits.Total != count || len(publish.Commits.Items) != count {
+		t.Fatalf("publish commits total=%d len=%d, want %d", publish.Commits.Total, len(publish.Commits.Items), count)
+	}
+}
