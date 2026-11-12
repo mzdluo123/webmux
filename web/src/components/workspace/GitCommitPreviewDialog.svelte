@@ -266,14 +266,15 @@
 
     {#if model.headState === "detached"}
       <InlineNotice tone="warning">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>
+        <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <span class="min-w-0">
             当前工作树处于游离 HEAD；建议先从当前 HEAD 新建并切换分支后再提交。
           </span>
           {#if onCreateBranchFromHead}
             <Button
               size="xs"
               variant="outline"
+              wrap
               onclick={() => {
                 onClose();
                 onCreateBranchFromHead();
@@ -289,8 +290,8 @@
 
     {#if model.stale}
       <InlineNotice tone="warning">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>
+        <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <span class="min-w-0">
             {model.dialogError ||
               "暂存区或 HEAD 在预览打开期间已变化，当前确认令牌已失效；提交说明已保留。"}
           </span>
@@ -298,6 +299,7 @@
             <Button
               size="xs"
               variant="git-primary"
+              wrap
               disabled={submitting}
               onclick={onRefreshPreview}
             >
@@ -341,6 +343,7 @@
             {@const isExpanded = expandedFileId === file.id}
             <ListButton
               variant="git-row"
+              class="overflow-hidden"
               aria-expanded={isExpanded}
               aria-selected={isExpanded}
               onclick={() => toggleInspectFile(file.id)}
@@ -360,7 +363,9 @@
                   : file.path}
               </span>
               {#if file.preStagedFromCli}
-                <Badge variant="warning">终端预暂存</Badge>
+                <Badge variant="warning" class="max-w-full min-w-0 shrink">
+                  <span class="truncate">终端预暂存</span>
+                </Badge>
               {/if}
             </ListButton>
           {/each}
@@ -408,11 +413,18 @@
       </p>
     </div>
 
-    <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
-      <Button variant="outline" disabled={submitting} onclick={onClose}>
+    <div
+      class="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2 pt-1"
+    >
+      <Button variant="outline" wrap disabled={submitting} onclick={onClose}>
         取消
       </Button>
-      <Button variant="git-primary" disabled={!canExecute} onclick={onConfirm}>
+      <Button
+        variant="git-primary"
+        wrap
+        disabled={!canExecute}
+        onclick={onConfirm}
+      >
         {#if submitting}
           正在提交…
         {:else}

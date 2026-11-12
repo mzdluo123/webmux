@@ -21,19 +21,20 @@
   data-testid="git-commit-outcome-banner"
 >
   <InlineNotice tone={outcome.status === "busy_locked" ? "danger" : "warning"}>
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <div>
+    <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
+      <div class="min-w-0">
         <span class="font-semibold">[{outcome.status}]</span>
         {outcome.summary}
         {#if outcome.reasons.length > 0}
           （{outcome.reasons.join("；")}）
         {/if}
       </div>
-      <div class="flex flex-wrap items-center gap-1.5">
+      <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
         {#if outcome.commitOid}
           <Button
             size="xs"
             variant="outline"
+            wrap
             onclick={() =>
               outcome.commitOid && onInspectCommit(outcome.commitOid)}
           >
@@ -41,11 +42,13 @@
           </Button>
         {/if}
         {#if outcome.status === "uncertain"}
-          <Button size="xs" variant="outline" onclick={onReloadVerify}>
+          <Button size="xs" variant="outline" wrap onclick={onReloadVerify}>
             刷新历史与暂存区核实
           </Button>
         {/if}
-        <Button size="xs" variant="ghost" onclick={onDismiss}>关闭提示</Button>
+        <Button size="xs" variant="ghost" wrap onclick={onDismiss}>
+          关闭提示
+        </Button>
       </div>
     </div>
   </InlineNotice>
