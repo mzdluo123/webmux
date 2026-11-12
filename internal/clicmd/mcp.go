@@ -3,6 +3,7 @@ package clicmd
 import (
 	"context"
 	"flag"
+	"io"
 
 	"github.com/rainchan/webmux/internal/mcpcontrol"
 )
@@ -28,7 +29,26 @@ var mcpCommand = &Command{
 			if e.Stdin == nil {
 				return e.Usagef("mcp requires standard input")
 			}
-			if err := (mcpcontrol.Client{API: client}).Server().Serve(ctx, e.Stdin, e.Stdout); err != nil {
+			// sessionCommand intercepts SIGINT/SIGTERM in ctx. Closing an owned
+			// stdio reader is necessary to unblock an idle Scanner.Scan as well.
+			done, stopped := make(chan struct{}), make(chan struct{})
+			go func() {
+				defer close(stopped)
+				select {
+				case <-ctx.Done():
+					if closer, ok := e.Stdin.(io.Closer); ok {
+						_ = closer.Close()
+					}
+				case <-done:
+				}
+			}()
+			err := (mcpcontrol.Client{API: client}).Server().Serve(ctx, e.Stdin, e.Stdout)
+			close(done)
+			<-stopped
+			if ctx.Err() != nil {
+				return e.Fail(ctx.Err())
+			}
+			if err != nil {
 				return e.Fail(err)
 			}
 			return 0
