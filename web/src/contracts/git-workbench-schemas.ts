@@ -12,6 +12,7 @@ import {
   type GitOperation,
   type GitOperationKind,
   type GitOperationStatus,
+  type GitTaskBaseline,
 } from "./git-api-schemas";
 
 export {
@@ -22,10 +23,14 @@ export {
   type GitOperation,
   type GitOperationKind,
   type GitOperationStatus,
+  type GitTaskBaseline,
 };
 
 export const GitWorkbenchModeSchema = z.enum(["log", "commit", "branches"]);
 export type GitWorkbenchMode = z.infer<typeof GitWorkbenchModeSchema>;
+
+export const GitReviewScopeSchema = z.enum(["uncommitted", "task"]);
+export type GitReviewScope = z.infer<typeof GitReviewScopeSchema>;
 
 const GitCommitMetadataFields = {
   authorName: z.string(),
@@ -242,17 +247,36 @@ export interface GitCompareViewState {
   error: string;
 }
 
+export interface GitTaskReviewState {
+  status: "idle" | "loading" | "ready" | "no_task_baseline" | "error";
+  reason: string;
+  baseline: GitTaskBaseline | null;
+  headOid: string;
+  headUnborn: boolean;
+  commitCount: number;
+  uncommittedCount: number;
+  files: GitCommitFile[];
+  selectedPath: string | null;
+  searchQuery: string;
+  nextCursor: string;
+  loadingMore: boolean;
+  mutating: boolean;
+}
+
 export interface GitWorkbenchViewState {
   mode: GitWorkbenchMode;
   context: GitWorktreeContext;
   historyState: GitHistoryStatus;
   historyReason: string;
   historyUpstream?: string;
+  taskBaseline?: GitTaskBaseline | null;
   lastFetchedAt?: string;
   nextCursor?: string;
   refsChanged?: boolean;
   historyLoadingMore?: boolean;
   scope: GitHistoryScope;
+  reviewScope?: GitReviewScope;
+  taskReview?: GitTaskReviewState;
   branchFilter: string | null;
   searchQuery: string;
   authorFilter?: string;

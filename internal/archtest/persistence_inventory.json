@@ -37,6 +37,15 @@
       "source": "internal/workspace/operations_store.go"
     },
     {
+      "id": "git-task-baselines",
+      "path": "git-task-baselines.json",
+      "lock": "git-task-baselines.json.lock",
+      "owner": "internal/workspace",
+      "failure": "unavailable",
+      "web": "是",
+      "source": "internal/workspace/task_baseline_store.go"
+    },
+    {
       "id": "tunnel",
       "path": "tunnel-settings.json",
       "lock": "tunnel-settings.json.lock",
@@ -742,6 +751,18 @@
     "internal/statefile/database.go|path|.lock": {
       "count": 1,
       "owner": "conversation"
+    },
+    "internal/statefile/catalog.go|path|git-task-baselines.json": {
+      "count": 1,
+      "owner": "git-task-baselines"
+    },
+    "internal/workspace/inspect.go|InspectGitTaskBaselines|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
+      "count": 1,
+      "owner": "git-task-baselines"
+    },
+    "internal/workspace/task_baseline_store.go|*Service.loadTaskBaselines|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "git-task-baselines"
     }
   }
 }

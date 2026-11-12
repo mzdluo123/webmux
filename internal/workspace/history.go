@@ -17,23 +17,25 @@ const (
 	maxHistoryOutput    = 16 << 20
 )
 
-// HistoryScope names one of the first-stage history ranges.
+// HistoryScope names one of the history ranges.
 const (
 	HistoryScopeAll      = "all"
 	HistoryScopeBranch   = "branch"
+	HistoryScopeTask     = "task"
 	HistoryScopeToPush   = "to-push"
 	HistoryScopeIncoming = "incoming"
 )
 
 // HistoryStatus classifies the outcome of resolving a HistoryQuery's scope.
 const (
-	HistoryStatusReady         = "ready"
-	HistoryStatusEmpty         = "empty"
-	HistoryStatusUnborn        = "unborn"
-	HistoryStatusNoWorktree    = "no_worktree"
-	HistoryStatusNoUpstream    = "no_upstream"
-	HistoryStatusUpstreamGone  = "upstream_gone"
-	HistoryStatusDetachedNoRef = "detached_no_branch"
+	HistoryStatusReady          = "ready"
+	HistoryStatusEmpty          = "empty"
+	HistoryStatusUnborn         = "unborn"
+	HistoryStatusNoWorktree     = "no_worktree"
+	HistoryStatusNoTaskBaseline = "no_task_baseline"
+	HistoryStatusNoUpstream     = "no_upstream"
+	HistoryStatusUpstreamGone   = "upstream_gone"
+	HistoryStatusDetachedNoRef  = "detached_no_branch"
 )
 
 // HistoryQuery parameters are validated and passed as literal values, never as
@@ -91,14 +93,15 @@ type HistoryRow struct {
 
 // HistoryPage is one bounded page of repository/worktree commit history.
 type HistoryPage struct {
-	Status        string       `json:"status"`
-	Reason        string       `json:"reason"`
-	Scope         string       `json:"scope"`
-	Commits       []HistoryRow `json:"commits"`
-	NextCursor    string       `json:"nextCursor"`
-	RefsChanged   bool         `json:"refsChanged"`
-	LastFetchedAt *time.Time   `json:"lastFetchedAt"`
-	Upstream      string       `json:"upstream,omitempty"`
+	Status        string        `json:"status"`
+	Reason        string        `json:"reason"`
+	Scope         string        `json:"scope"`
+	Commits       []HistoryRow  `json:"commits"`
+	NextCursor    string        `json:"nextCursor"`
+	RefsChanged   bool          `json:"refsChanged"`
+	LastFetchedAt *time.Time    `json:"lastFetchedAt"`
+	Upstream      string        `json:"upstream,omitempty"`
+	TaskBaseline  *TaskBaseline `json:"taskBaseline,omitempty"`
 }
 
 type historyScopeSpec struct {
@@ -245,7 +248,7 @@ func (s *Service) History(ctx context.Context, q HistoryQuery) (HistoryPage, err
 		scope = HistoryScopeAll
 	}
 	switch scope {
-	case HistoryScopeAll, HistoryScopeBranch, HistoryScopeToPush, HistoryScopeIncoming:
+	case HistoryScopeAll, HistoryScopeBranch, HistoryScopeTask, HistoryScopeToPush, HistoryScopeIncoming:
 	default:
 		return HistoryPage{}, problemf(ErrInvalid, "不支持的历史范围: %s", scope)
 	}
@@ -301,7 +304,19 @@ func (s *Service) History(ctx context.Context, q HistoryQuery) (HistoryPage, err
 		return HistoryPage{}, err
 	}
 
-	spec, err := resolveHistoryScope(ctx, e.AnchorPath, q, trees, allHeads)
+	var taskBaseline *TaskBaseline
+	if q.WorktreeID != "" {
+		if scope == HistoryScopeTask {
+			if err := s.requireTaskBaselines(); err != nil {
+				return HistoryPage{}, err
+			}
+		}
+		if s.requireTaskBaselines() == nil {
+			taskBaseline = s.findTaskBaseline(q.RepositoryID, q.WorktreeID)
+		}
+	}
+
+	spec, err := resolveHistoryScope(ctx, e.AnchorPath, q, trees, allHeads, taskBaseline)
 	if err != nil {
 		return HistoryPage{}, err
 	}
@@ -313,6 +328,7 @@ func (s *Service) History(ctx context.Context, q HistoryQuery) (HistoryPage, err
 		Commits:       []HistoryRow{},
 		LastFetchedAt: lastFetched(e.CommonDir),
 		Upstream:      spec.upstream,
+		TaskBaseline:  taskBaseline,
 	}
 
 	filterDigest := historyFilterDigest(q, cleanPath)

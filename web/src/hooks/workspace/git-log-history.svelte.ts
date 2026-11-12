@@ -191,6 +191,9 @@ export function createGitLogHistoryController(
         historyState: hist.historyState,
         historyReason: hist.historyReason,
         historyUpstream: hist.historyUpstream,
+        ...(hist.taskBaseline !== undefined
+          ? { taskBaseline: hist.taskBaseline }
+          : {}),
         lastFetchedAt: hist.lastFetchedAt,
         nextCursor: hist.nextCursor,
         refsChanged: hist.refsChanged,

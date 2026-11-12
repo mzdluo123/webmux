@@ -79,6 +79,11 @@ func wireSchema(name string) wireRules {
 	documentFields := func(prefix string) {
 		add(prefix, "path", "absolutePath")
 	}
+	taskBaselineFields := func(prefix string) {
+		add(prefix, "id", "baselineId", "repositoryId", "worktreeId")
+		add(prefix, "time", "capturedAt")
+		add(prefix, "path", "worktreePath")
+	}
 	switch name {
 	case "settings-patch", "settings-reset", "ws-settings-update":
 		add("", "time", "updatedAt")
@@ -276,7 +281,7 @@ func wireSchema(name string) wireRules {
 	case "git-changes":
 		add("", "id", "nextCursor")
 		add("", "time", "checkedAt")
-	case "git-diff":
+	case "git-diff", "git-task-diff":
 		add("", "id", "snapshotId")
 		add("", "time", "checkedAt")
 		documentFields("/old")
@@ -288,9 +293,16 @@ func wireSchema(name string) wireRules {
 		add("/diff", "time", "checkedAt")
 		documentFields("/diff/old")
 		documentFields("/diff/new")
-	case "git-history":
+	case "git-history", "git-history-task", "git-history-no-baseline":
 		add("", "time", "lastFetchedAt")
 		add("/rows/*/refs/*", "id", "worktreeId")
+		taskBaselineFields("/taskBaseline")
+	case "git-task-baseline", "git-task-baseline-empty", "git-task-baseline-put":
+		taskBaselineFields("/baseline")
+	case "git-task-changes", "git-task-changes-no-baseline":
+		taskBaselineFields("/baseline")
+		add("/changes", "id", "nextCursor")
+		add("/changes", "time", "checkedAt")
 	case "git-commit-detail":
 		add("/refs/*", "id", "worktreeId")
 	case "git-commit-preview", "git-commit-preview-blocked":

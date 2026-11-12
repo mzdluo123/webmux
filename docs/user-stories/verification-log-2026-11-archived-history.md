@@ -217,3 +217,22 @@
   - 前端 `git-operations.test.ts`、`GitWorkbenchOperations.test.ts`、Storybook 套件与隔离实例 Playwright E2E（`git-workbench-operations.spec.ts`、`git-workbench-commit-push.spec.ts`，覆盖桌面与 320px 手机视口及响应中断无重复提交）通过。
 - 限制：
   - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
+
+本次局部核对（2026-11-13）：实现工作树固定任务审阅基线（`TaskBaseline`）、单份净变更审阅（`task-changes` / `task-diff`）、`Log` 当前任务范围接线与任务交付收尾摘要（Issue #547），新增 US-J24，更新 US-J19、US-J21、覆盖索引与协议/持久化文档。
+
+- 范围：
+  - `internal/statefile`、`internal/archtest/persistence_inventory.json`、`cmd/webmux/configview.go` 与 `docs/persistence.md` 登记 `git-task-baselines.json`；
+  - `internal/workspace` 实现固定任务审阅基线与任务历史范围：
+    - 新建工作树自动记录 `worktree_create` 基线，`unborn` 空仓首个会话启动记录 `unborn: true`（不伪造全零 OID），支持手动指定/清除（`manual_select` + 诚实记录设定前已存在修改）；
+    - 非 `unborn` 基线写入 `refs/webmux/baselines/<worktreeId>` 防 `git gc` 回收，删除/批量删除/释放工作树与注销仓库同步清理，并接通 `GET .../git/history?scope=task`（`baseOid..HEAD` 与 `no_task_baseline`）；
+  - `internal/codeview`、`internal/api`、`internal/contract`、`internal/wire` 新增 `GET/PUT/DELETE .../git/task-baseline`、`GET .../git/task-changes` 与 `GET .../git/task-diff`（单份净差异合并不重复计数，写入 `/git/snapshots/{snapshotId}`）及线上快照；
+  - `web/src` 新增 `git-task-api.ts`、`git-snapshot-diff-reader.svelte.ts`、`git-task-review.svelte.ts`、`GitTaskReviewPane.svelte` 与 `GitTaskDeliverySummary.svelte`：
+    - 接通 `Commit` 视图双审阅范围（工作区 100% 干净时仍可阅读任务净差异与直接发起宽幅推送预览）、`Log` 视图 `当前任务` 范围与提交行菜单设基线，以及不自动删树的收尾出口。
+- 依据：
+  - `make persistence-check`、`make docs-check`、`make check` 通过；
+  - `go test -race ./internal/statefile ./internal/workspace ./internal/codeview ./internal/api ./internal/wire ./internal/archtest ./internal/docguard ./cmd/...` 通过；
+  - 前端单测、浏览器与多视口测试通过：
+    - Vitest 全量单测、`GitWorkbench.test.ts` 与 `GitWorkbenchTaskBaseline.test.ts` 浏览器测试及 Storybook 全量多视口与 `320px` 大字号溢出守卫（87 项）通过；
+    - 隔离实例 Playwright E2E（`git-workbench-task-baseline.spec.ts`、`git-workbench-commit-push.spec.ts`、`git-workbench-log.spec.ts`、`git-workbench-operations.spec.ts`、`git-workbench-route.spec.ts`，桌面与手机视口）全部通过。
+- 限制：
+  - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。

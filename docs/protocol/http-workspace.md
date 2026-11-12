@@ -186,21 +186,21 @@
 
 ### 独立代码、历史对象比较与提交历史（`/api/repositories/{id}/git`）
 
-| 路由                                                                | 说明                                                                                             |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `GET /context?worktreeId`                                           | 绑定仓库只读根（`repository` / `bare`）或工作树根（`worktree`），返回 `contextId` 与能力         |
-| `GET /tree?contextId&nodeId&includeIgnored&cursor`                  | 工作树目录分页列表                                                                               |
-| `GET /files?contextId&q&includeIgnored`                             | 工作树有界文件名搜索                                                                             |
-| `GET /file?contextId&nodeId&source`                                 | 文件快照，`source` 支持 `worktree`、`index`、`head` 与 `commit:{oid}`                            |
-| `GET /changes?contextId&group&q&nodeId&cursor`                      | 工作树未暂存、已暂存与未跟踪修改分页列表                                                         |
-| `GET /diff?contextId&changeId`                                      | 工作树冻结双侧原文快照                                                                           |
-| `GET /compare?contextId&baseOid&targetOid&path&changeId&q&cursor`   | 任意两提交（或根提交空树 `baseOid=""`）间变更分页与单文件冻结双侧 Diff                           |
-| `GET /snapshots/{snapshotId}/file?side=before\|after`               | 读取快照修改前或修改后的完整文档                                                                 |
-| `GET /snapshots/{snapshotId}/raw?side=before\|after&download=1`     | 流式返回快照原始字节（≤100 MiB），复用 `/code` 传输槽与安全响应头；同时支持 `HEAD`               |
-| `GET /history?worktreeId&scope&branch&q&author&since&until&path...` | 拓扑分页历史图（`all` / `branch` / `to-push` / `incoming`），返回 `status`、`rows`（车道与边）等 |
-| `GET /commits/{oid}?parentOid`                                      | 提交详情、作者/提交者元组、真实父节点、`comparedParentOid`（合并提交可指定合法父 OID）与变更文件 |
-| `GET /operations?worktreeId&limit`                                  | 最近持久 Git 写操作账本（`limit` 默认 20，最大 100；支持按 `worktreeId` 过滤）                   |
-| `GET /operations/{operationId}`                                     | 单条 Git 写操作实例状态、预览摘要、复核原因与脱敏输出摘要（跨仓库访问返回 404）                  |
+| 路由                                                                | 说明                                                                                                           |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `GET /context?worktreeId`                                           | 绑定仓库只读根（`repository` / `bare`）或工作树根（`worktree`），返回 `contextId` 与能力                       |
+| `GET /tree?contextId&nodeId&includeIgnored&cursor`                  | 工作树目录分页列表                                                                                             |
+| `GET /files?contextId&q&includeIgnored`                             | 工作树有界文件名搜索                                                                                           |
+| `GET /file?contextId&nodeId&source`                                 | 文件快照，`source` 支持 `worktree`、`index`、`head` 与 `commit:{oid}`                                          |
+| `GET /changes?contextId&group&q&nodeId&cursor`                      | 工作树未暂存、已暂存与未跟踪修改分页列表                                                                       |
+| `GET /diff?contextId&changeId`                                      | 工作树冻结双侧原文快照                                                                                         |
+| `GET /compare?contextId&baseOid&targetOid&path&changeId&q&cursor`   | 任意两提交（或根提交空树 `baseOid=""`）间变更分页与单文件冻结双侧 Diff                                         |
+| `GET /snapshots/{snapshotId}/file?side=before\|after`               | 读取快照修改前或修改后的完整文档                                                                               |
+| `GET /snapshots/{snapshotId}/raw?side=before\|after&download=1`     | 流式返回快照原始字节（≤100 MiB），复用 `/code` 传输槽与安全响应头；同时支持 `HEAD`                             |
+| `GET /history?worktreeId&scope&branch&q&author&since&until&path...` | 拓扑分页历史图（`all` / `branch` / `task` / `to-push` / `incoming`），返回 `status`、`rows`、`taskBaseline` 等 |
+| `GET /commits/{oid}?parentOid`                                      | 提交详情、作者/提交者元组、真实父节点、`comparedParentOid`（合并提交可指定合法父 OID）与变更文件               |
+| `GET /operations?worktreeId&limit`                                  | 最近持久 Git 写操作账本（`limit` 默认 20，最大 100；支持按 `worktreeId` 过滤）                                 |
+| `GET /operations/{operationId}`                                     | 单条 Git 写操作实例状态、预览摘要、复核原因与脱敏输出摘要（跨仓库访问返回 404）                                |
 
 - 省略 `worktreeId` 时为仓库级只读上下文：允许 `compare` 与 `source=commit:{oid}`；调用工作区 `tree`、`files`、`changes`、`diff` 或 `source=worktree` 返回 409（`reason: "readonly"`）。
 - 跨仓库复用 `contextId` / `snapshotId` 返回 404；同仓库跨工作树混用返回 409（`reason: "context_mismatch"`）；上下文或快照过期返回 409（`reason: "stale"`）。只读 JSON 路由 10 秒超时。
@@ -215,7 +215,18 @@
 | `POST /unstage {identity, hunkIds?}`                       | 整文件或指定 `hunkIds` 从真实 `index` 取消暂存（含 `unborn HEAD`），成功返回 204                             |
 | `POST /commit-preview {}`                                  | 基于完整 `HEAD -> index` 生成提交预览（含 CLI 预暂存文件、身份、可执行 Hook、阻塞项与限时确认码）            |
 | `POST /commit {confirmationId, message, clientRequestId?}` | 复核 `HEAD` 与索引摘要后执行提交，返回 `{operationId?, outcome}`（`matched` / `needs_review` / `uncertain`） |
+| `GET /task-baseline`                                       | 读取工作树固定任务审阅基线 `{baseline}`（未记录时 `baseline: null`，仍为 200）                               |
+| `PUT /task-baseline {baseOid?}`                            | 将指定完整提交 OID（省略时取当前 `HEAD`，含 `unborn` 空仓）设为工作树任务基线，返回 `{baseline}`             |
+| `DELETE /task-baseline`                                    | 清除该工作树的任务审阅基线与私有保护引用，204                                                                |
+| `GET /task-changes?cursor&q&nodeId`                        | 计算相对任务起点的单份净变更分页列表（含 `commitCount`、`uncommittedCount` 与 `no_task_baseline` 状态）      |
+| `GET /task-diff?path&changeId`                             | 读取单份任务净变更文件（`baseOid`/空树 → 当前工作区）冻结双侧原文，并写入 `/git/snapshots/{snapshotId}`      |
 
+- 任务审阅基线保存在 `<state_dir>/git-task-baselines.json`：
+  - 新建工作树（`POST /worktrees`）自动按起点提交记录 `source: "worktree_create"`；
+  - `unborn` 空仓首个会话启动时记录 `unborn: true`（绝不伪造全零 OID）；
+  - 手动设置记录 `source: "manual_select"`，并诚实记录设定前已存在修改（`cleanAtStart` 与 `preExistingChanges`）。
+- 非 `unborn` 基线写入私有引用 `refs/webmux/baselines/<worktreeId>` 防止 `git gc` 回收起点对象，且绝不随 `fetch`、上游更新或本地 `HEAD` 前进自动漂移；关闭或归档会话保留基线，移除/批量移除/释放工作树、注销仓库或 `DELETE /task-baseline` 同步清理基线与私有引用。
+- `GET /task-changes` 将起点树与当前工作区状态合并为每个路径至多一条净变更（绝不把已提交与未提交编辑重复计数；往返修改还原后归零）；未记录基线时 `GET /task-changes` 与 `GET /history?scope=task` 返回 200（`status: "no_task_baseline"`），`GET /task-diff` 返回 409（`reason: "no_task_baseline"`）。
 - 外部 `.git/index.lock` 存在或并发写锁冲突时立即返回 409（`reason: "busy"`），绝不删除外部锁文件；路径身份或确认码过期返回 409（`reason: "stale"`）；存在冲突条目返回 409（`reason: "conflicted"`）；Hook 或签名失败且未生成提交返回 409（`reason: "commit_failed"`）。
 - `POST /commit`、`POST .../branches/push`、`POST .../fetch`、`POST .../branches/fast-forward` 与 `POST .../switch` 统一写入有界持久账本 `git-operations.json`，并严格区分快照预检凭证 `confirmationId` 与执行实例 `operationId` + `clientRequestId`：
   - 同一 `(repositoryId, clientRequestId)` 参数摘要一致时合并在途执行或重放已持久结果（跨断线重连与服务重启绝不重复执行底层 Git 写命令）；

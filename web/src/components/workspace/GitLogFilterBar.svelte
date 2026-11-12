@@ -1,15 +1,12 @@
 <script lang="ts">
   import IconFilter from "~icons/tabler/filter";
   import IconGitBranch from "~icons/tabler/git-branch";
-  import IconInfoCircle from "~icons/tabler/info-circle";
   import IconLayoutSidebar from "~icons/tabler/layout-sidebar";
   import IconRefresh from "~icons/tabler/refresh";
   import IconRestore from "~icons/tabler/restore";
   import IconX from "~icons/tabler/x";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
-  import * as Popover from "$lib/components/ui/popover";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import type {
@@ -92,6 +89,7 @@
           if (
             val === "all" ||
             val === "branch" ||
+            val === "task" ||
             val === "to-push" ||
             val === "incoming"
           ) {
@@ -102,37 +100,10 @@
       >
         <SegmentedControl.Item value="all">所有历史</SegmentedControl.Item>
         <SegmentedControl.Item value="branch">当前分支</SegmentedControl.Item>
+        <SegmentedControl.Item value="task">当前任务</SegmentedControl.Item>
         <SegmentedControl.Item value="to-push">待推送</SegmentedControl.Item>
         <SegmentedControl.Item value="incoming">远端新增</SegmentedControl.Item>
       </SegmentedControl.Root>
-
-      <Popover.Root>
-        <Popover.Trigger>
-          {#snippet child({ props })}
-            <Button
-              {...props}
-              size="xs"
-              variant="outline"
-              aria-label="当前任务范围说明"
-            >
-              <IconInfoCircle aria-hidden="true" />
-              当前任务
-            </Button>
-          {/snippet}
-        </Popover.Trigger>
-        <Popover.Content align="start" class="w-72 p-3">
-          <div class="space-y-1.5 text-xs">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-semibold text-foreground">当前任务范围</span>
-              <Badge variant="secondary">待 #547 接入</Badge>
-            </div>
-            <p class="leading-relaxed text-muted-foreground">
-              「当前任务」快捷范围依赖工作树任务基线（Base
-              Ref）模型，将在工作树生命周期与任务基线能力（#547）交付后启用。当前可通过「当前分支」或引用树按分支/标签筛选历史。
-            </p>
-          </div>
-        </Popover.Content>
-      </Popover.Root>
     </div>
 
     <div class="flex items-center gap-1">

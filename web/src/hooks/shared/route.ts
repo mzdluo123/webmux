@@ -80,11 +80,10 @@ export function parseGitRouteQuery(search: string): GitRouteQuery {
   }
 
   const rawScope = params.get("scope");
-  if (rawScope === "task") {
-    out.scope = "branch";
-  } else if (
+  if (
     rawScope === "all" ||
     rawScope === "branch" ||
+    rawScope === "task" ||
     rawScope === "to-push" ||
     rawScope === "incoming"
   ) {

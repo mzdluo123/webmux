@@ -116,14 +116,15 @@ type GitHistoryRow struct {
 
 // GitHistoryPage answers GET /api/repositories/{id}/git/history.
 type GitHistoryPage struct {
-	Status        string          `json:"status"`
-	Reason        string          `json:"reason,omitempty"`
-	Scope         string          `json:"scope"`
-	LastFetchedAt *time.Time      `json:"lastFetchedAt,omitempty"`
-	Upstream      string          `json:"upstream,omitempty"`
-	RefsChanged   bool            `json:"refsChanged"`
-	NextCursor    string          `json:"nextCursor"`
-	Rows          []GitHistoryRow `json:"rows"`
+	Status        string           `json:"status"`
+	Reason        string           `json:"reason,omitempty"`
+	Scope         string           `json:"scope"`
+	LastFetchedAt *time.Time       `json:"lastFetchedAt,omitempty"`
+	Upstream      string           `json:"upstream,omitempty"`
+	TaskBaseline  *GitTaskBaseline `json:"taskBaseline,omitempty"`
+	RefsChanged   bool             `json:"refsChanged"`
+	NextCursor    string           `json:"nextCursor"`
+	Rows          []GitHistoryRow  `json:"rows"`
 }
 
 // GitCommitParent summarizes one real parent of a commit.

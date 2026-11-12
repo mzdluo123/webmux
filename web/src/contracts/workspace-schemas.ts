@@ -18,7 +18,7 @@ export const CommitSchema = z.object({
 export type Commit = z.infer<typeof CommitSchema>;
 // Change counts of a worktree's status; one entry may be both staged and
 // unstaged.
-const WorktreeChangesSchema = z.object({
+export const WorktreeChangesSchema = z.object({
   staged: z.number().int().nonnegative(),
   unstaged: z.number().int().nonnegative(),
   untracked: z.number().int().nonnegative(),

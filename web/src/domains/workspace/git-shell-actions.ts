@@ -166,3 +166,84 @@ export function applyShellBranchAction(options: {
       return { ...view, statusBanner: `已打开删除分支确认：${branch.name}` };
   }
 }
+
+export function applyShellSetTaskBaseline(
+  view: GitWorkbenchViewState,
+  baseOidOverride?: string,
+): GitWorkbenchViewState {
+  const unborn = !baseOidOverride && view.context.headState === "unborn";
+  const baseOid = unborn ? "" : (baseOidOverride ?? view.context.headOid ?? "");
+  const cleanAtStart = view.workingChanges.length === 0;
+  const baseline = {
+    baselineId: `bl-${view.context.worktreeId ?? "wt-main"}`,
+    repositoryId: view.context.repositoryId,
+    worktreeId: view.context.worktreeId ?? "wt-main",
+    worktreePath: view.context.worktreePath ?? "/work/webmux",
+    source: "manual_select" as const,
+    unborn,
+    ...(baseOid ? { baseOid } : {}),
+    capturedAt: new Date().toISOString(),
+    cleanAtStart,
+    preExistingChanges: {
+      staged: view.workingChanges.filter((c) => c.group === "staged").length,
+      unstaged: view.workingChanges.filter((c) => c.group === "unstaged")
+        .length,
+      untracked: view.workingChanges.filter((c) => c.group === "untracked")
+        .length,
+      conflicted: view.workingChanges.filter((c) => c.group === "conflicted")
+        .length,
+    },
+  };
+  const label = unborn ? "空仓起点" : baseOid.slice(0, 7);
+  return {
+    ...view,
+    taskBaseline: baseline,
+    historyState:
+      view.scope === "task" && view.historyState === "no_task_baseline"
+        ? "ready"
+        : view.historyState,
+    taskReview: {
+      status: "ready",
+      reason: "",
+      baseline,
+      headOid: view.context.headOid ?? "",
+      headUnborn: view.context.headState === "unborn",
+      commitCount: view.taskReview?.commitCount ?? 0,
+      uncommittedCount: view.workingChanges.length,
+      files: view.taskReview?.files ?? [],
+      selectedPath: view.taskReview?.selectedPath ?? null,
+      searchQuery: view.taskReview?.searchQuery ?? "",
+      nextCursor: "",
+      loadingMore: false,
+      mutating: false,
+    },
+    statusBanner: `已将 ${label} 设为当前工作树任务起点`,
+  };
+}
+
+export function applyShellClearTaskBaseline(
+  view: GitWorkbenchViewState,
+): GitWorkbenchViewState {
+  return {
+    ...view,
+    taskBaseline: null,
+    historyState:
+      view.scope === "task" ? "no_task_baseline" : view.historyState,
+    taskReview: {
+      status: "no_task_baseline",
+      reason: "",
+      baseline: null,
+      headOid: view.context.headOid ?? "",
+      headUnborn: view.context.headState === "unborn",
+      commitCount: 0,
+      uncommittedCount: view.workingChanges.length,
+      files: [],
+      selectedPath: null,
+      searchQuery: "",
+      nextCursor: "",
+      loadingMore: false,
+      mutating: false,
+    },
+    statusBanner: "已清除当前工作树任务起点基线",
+  };
+}

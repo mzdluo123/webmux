@@ -41,6 +41,7 @@ import {
 } from "../../domains/workspace/git-workbench-adapter";
 import { readFavoriteBranches } from "../../domains/workspace/git-favorites";
 import { groupWorkingChanges } from "../../domains/workspace/git-workbench-state";
+import { emptyTaskReviewState } from "./git-task-review.svelte";
 
 function resolveUsableWorktree(
   worktreeId: string | undefined,
@@ -67,10 +68,13 @@ export function emptyGitViewState(repositoryId: string): GitWorkbenchViewState {
     }),
     historyState: "empty",
     historyReason: "",
+    taskBaseline: null,
     nextCursor: "",
     refsChanged: false,
     historyLoadingMore: false,
     scope: "all",
+    reviewScope: "uncommitted",
+    taskReview: emptyTaskReviewState(),
     branchFilter: null,
     searchQuery: "",
     authorFilter: "",
@@ -152,6 +156,7 @@ export async function fetchGitTargetBundle(options: {
   historyState: GitWorkbenchViewState["historyState"];
   historyReason: string;
   historyUpstream?: string;
+  taskBaseline: GitWorkbenchViewState["taskBaseline"];
   lastFetchedAt?: string;
   nextCursor: string;
   refsChanged: boolean;
@@ -215,6 +220,7 @@ export async function fetchGitTargetBundle(options: {
     historyState: hist.historyState,
     historyReason: hist.historyReason,
     historyUpstream: hist.historyUpstream,
+    taskBaseline: hist.taskBaseline,
     lastFetchedAt: hist.lastFetchedAt,
     nextCursor: hist.nextCursor,
     refsChanged: hist.refsChanged,

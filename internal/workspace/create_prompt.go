@@ -110,6 +110,7 @@ func (s *Service) startSession(ctx context.Context, cwd, name string, reference 
 			return nil, false, problemf(ErrConflict, "所选工作树不可作为启动目录: %s", tree.Error)
 		}
 		selected = &tree
+		s.ensureUnbornWorktreeBaseline(ctx, r, reference.RepositoryID, tree)
 		if cwd == "" {
 			cwd = tree.Path
 		}
@@ -138,6 +139,9 @@ func (s *Service) startSession(ctx context.Context, cwd, name string, reference 
 	association := s.association(ctx, path)
 	if selected != nil && (association == nil || association.RepositoryID != reference.RepositoryID || association.WorktreeID != reference.WorktreeID) {
 		return nil, false, problemf(ErrConflict, "所选工作树身份已变化或 cwd 属于嵌套仓库，请刷新")
+	}
+	if selected == nil && association != nil {
+		s.ensureUnbornAssociationBaseline(ctx, association.RepositoryID, association.WorktreeID, association.WorktreePath)
 	}
 	if err := requestCtx.Err(); err != nil {
 		return nil, false, err

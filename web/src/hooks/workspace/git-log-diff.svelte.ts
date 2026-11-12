@@ -1,84 +1,15 @@
-import type { FileDiffMetadata } from "@pierre/diffs";
-import { errorMessage } from "../../platform/error";
-import {
-  gitCompare,
-  gitSnapshotFile,
-  gitSnapshotRaw,
-} from "../../platform/git-api";
+import { gitCompare } from "../../platform/git-api";
 import type {
   GitCommitDetail,
   GitCommitFile,
   GitWorkbenchViewState,
 } from "../../contracts/git-workbench-schemas";
-import type {
-  GitDiff,
-  GitFile,
-  GitSnapshotSide,
-} from "../../contracts/schemas";
-import { resolveCalculatedDiff } from "../../domains/code/code-diff-client";
-import { LatestRequest } from "../shared/remote-request.svelte";
-import { createGitContextRunner } from "./git-context-cache";
+import {
+  createGitSnapshotDiffReader,
+  type GitDiffPanelReader,
+} from "./git-snapshot-diff-reader.svelte";
 
-type GitLogDiffPhase =
-  | "idle"
-  | "loading"
-  | "ready"
-  | "binary"
-  | "limited"
-  | "error";
-
-interface GitSnapshotSidePreview {
-  side: GitSnapshotSide;
-  loading: boolean;
-  file: GitFile | null;
-  error: string;
-}
-
-export interface GitLogDiffViewState {
-  phase: GitLogDiffPhase;
-  leftLabel: string;
-  rightLabel: string;
-  baseOid: string;
-  targetOid: string;
-  path: string;
-  oldPath: string;
-  status: GitCommitFile["status"] | "";
-  snapshotId: string;
-  fileDiff: FileDiffMetadata | null;
-  rawDiff: GitDiff | null;
-  reason: string;
-  snapshotSideDoc: GitSnapshotSidePreview | null;
-  downloadingSide: GitSnapshotSide | null;
-}
-
-function emptyLogDiffState(): GitLogDiffViewState {
-  return {
-    phase: "idle",
-    leftLabel: "",
-    rightLabel: "",
-    baseOid: "",
-    targetOid: "",
-    path: "",
-    oldPath: "",
-    status: "",
-    snapshotId: "",
-    fileDiff: null,
-    rawDiff: null,
-    reason: "",
-    snapshotSideDoc: null,
-    downloadingSide: null,
-  };
-}
-
-function isBinaryDiff(file: GitCommitFile, diff: GitDiff): boolean {
-  const binaryKinds = new Set(["binary", "image", "pdf"]);
-  return (
-    file.binary ||
-    diff.kind === "image" ||
-    binaryKinds.has(diff.old.kind) ||
-    binaryKinds.has(diff.new.kind)
-  );
-}
+export type { GitDiffPanelReader };
 
 export interface GitLogDiffControllerDeps {
   getRepoId: () => string;
@@ -89,31 +20,11 @@ export interface GitLogDiffControllerDeps {
 }
 
 export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
-  let state = $state.raw<GitLogDiffViewState>(emptyLogDiffState());
-  const ctxRunner = createGitContextRunner();
-  const diffReq = new LatestRequest();
-  const sideReq = new LatestRequest();
-
-  function dispose() {
-    diffReq.dispose();
-    sideReq.dispose();
-  }
-
-  function resetTarget() {
-    diffReq.cancel();
-    sideReq.cancel();
-    ctxRunner.reset();
-    state = emptyLogDiffState();
-  }
-
-  function clearDiff() {
-    diffReq.cancel();
-    sideReq.cancel();
-    state = emptyLogDiffState();
-  }
-
-  const seedContextId = ctxRunner.seed;
-  const withContext = ctxRunner.withContext;
+  const reader = createGitSnapshotDiffReader({
+    getRepoId: deps.getRepoId,
+    getWorktreeId: deps.getEffectiveWorktreeId,
+    onStatusBanner: (statusBanner) => deps.patchView({ statusBanner }),
+  });
 
   async function loadPairFileDiff(options: {
     baseOid: string;
@@ -122,111 +33,34 @@ export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
     rightLabel: string;
     file: GitCommitFile | null;
   }) {
-    const repoId = deps.getRepoId();
-    const worktreeId = deps.getEffectiveWorktreeId();
-    sideReq.cancel();
-    if (!repoId || !options.targetOid || !options.file) {
-      diffReq.cancel();
-      state = emptyLogDiffState();
+    if (!options.targetOid || !options.file) {
+      reader.clearDiff();
       return;
     }
-
-    const { file, baseOid, targetOid, leftLabel, rightLabel } = options;
-    const filePath = file.newPath || file.oldPath;
-    const req = diffReq.begin();
-    state = {
-      phase: "loading",
-      leftLabel,
-      rightLabel,
-      baseOid,
-      targetOid,
-      path: filePath,
-      oldPath: file.oldPath,
-      status: file.status,
-      snapshotId: "",
-      fileDiff: null,
-      rawDiff: null,
-      reason: "",
-      snapshotSideDoc: null,
-      downloadingSide: null,
-    };
-
-    try {
-      const res = await withContext(repoId, worktreeId, req.signal, (cid) =>
-        gitCompare(
-          repoId,
+    const filePath = options.file.newPath || options.file.oldPath;
+    await reader.loadFetchedDiff({
+      baseOid: options.baseOid,
+      targetOid: options.targetOid,
+      leftLabel: options.leftLabel,
+      rightLabel: options.rightLabel,
+      file: options.file,
+      missingReason: "未找到该路径对应的历史对象快照。",
+      fetchDiff: async (cid, signal) => {
+        const res = await gitCompare(
+          deps.getRepoId(),
           {
             contextId: cid,
-            worktreeId,
-            baseOid: baseOid || undefined,
-            targetOid,
-            path: file.changeId ? undefined : filePath,
-            changeId: file.changeId,
+            worktreeId: deps.getEffectiveWorktreeId(),
+            baseOid: options.baseOid || undefined,
+            targetOid: options.targetOid,
+            path: options.file?.changeId ? undefined : filePath,
+            changeId: options.file?.changeId,
           },
-          req.signal,
-        ),
-      );
-      if (!req.current() || repoId !== deps.getRepoId()) return;
-
-      const diff = res.diff ?? null;
-      if (!diff) {
-        state = {
-          ...state,
-          phase: "limited",
-          reason: "未找到该路径对应的历史对象快照。",
-        };
-        return;
-      }
-
-      if (isBinaryDiff(file, diff)) {
-        state = {
-          ...state,
-          phase: "binary",
-          snapshotId: diff.snapshotId,
-          rawDiff: diff,
-          reason: diff.reason || "二进制文件不直接展开文本行级差异。",
-        };
-        return;
-      }
-
-      if (diff.kind !== "text") {
-        state = {
-          ...state,
-          phase: "limited",
-          snapshotId: diff.snapshotId,
-          rawDiff: diff,
-          reason:
-            diff.reason ||
-            "该文件过大或仅包含元数据变更，可查看两侧完整文件或下载原始对象。",
-        };
-        return;
-      }
-
-      const calculated = await resolveCalculatedDiff(diff, req.signal);
-      if (!req.current() || repoId !== deps.getRepoId()) return;
-
-      if (calculated.calculation === "ready" && calculated.fileDiff) {
-        state = {
-          ...state,
-          phase: "ready",
-          snapshotId: diff.snapshotId,
-          rawDiff: diff,
-          fileDiff: calculated.fileDiff,
-          reason: "",
-        };
-      } else {
-        state = {
-          ...state,
-          phase: calculated.calculation === "error" ? "error" : "limited",
-          snapshotId: diff.snapshotId,
-          rawDiff: diff,
-          reason: calculated.calculationReason,
-        };
-      }
-    } catch (err) {
-      if (!req.reportable()) return;
-      state = { ...state, phase: "error", reason: errorMessage(err) };
-    }
+          signal,
+        );
+        return res.diff ?? null;
+      },
+    });
   }
 
   function syncForCommitDetail(
@@ -236,7 +70,7 @@ export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
     const view = deps.getView();
     if (view.compareMode) return;
     if (!detail) {
-      clearDiff();
+      reader.clearDiff();
       return;
     }
     const parentKey =
@@ -289,95 +123,15 @@ export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
     syncForCommitDetail(oid ? view.commitDetails[oid] : undefined, path);
   }
 
-  async function openSnapshotSide(side: GitSnapshotSide) {
-    const repoId = deps.getRepoId();
-    const worktreeId = deps.getEffectiveWorktreeId();
-    const snapshotId = state.snapshotId;
-    if (!repoId || !snapshotId) return;
-
-    const req = sideReq.begin();
-    state = {
-      ...state,
-      snapshotSideDoc: { side, loading: true, file: null, error: "" },
-    };
-    try {
-      const file = await withContext(repoId, worktreeId, req.signal, (cid) =>
-        gitSnapshotFile(
-          repoId,
-          snapshotId,
-          { side, contextId: cid, worktreeId },
-          req.signal,
-        ),
-      );
-      if (!req.current() || state.snapshotId !== snapshotId) return;
-      state = {
-        ...state,
-        snapshotSideDoc: { side, loading: false, file, error: "" },
-      };
-    } catch (err) {
-      if (!req.reportable()) return;
-      state = {
-        ...state,
-        snapshotSideDoc: {
-          side,
-          loading: false,
-          file: null,
-          error: errorMessage(err),
-        },
-      };
-    }
-  }
-
-  function closeSnapshotSide() {
-    sideReq.cancel();
-    state = { ...state, snapshotSideDoc: null };
-  }
-
-  async function downloadSnapshotSide(side: GitSnapshotSide) {
-    const repoId = deps.getRepoId();
-    const worktreeId = deps.getEffectiveWorktreeId();
-    const snapshotId = state.snapshotId;
-    if (!repoId || !snapshotId || state.downloadingSide) return;
-
-    state = { ...state, downloadingSide: side };
-    const ctrl = new AbortController();
-    try {
-      const blob = await withContext(repoId, worktreeId, ctrl.signal, (cid) =>
-        gitSnapshotRaw(
-          repoId,
-          snapshotId,
-          { side, contextId: cid, worktreeId, download: true },
-          ctrl.signal,
-        ),
-      );
-      const baseName =
-        (side === "before" ? state.oldPath || state.path : state.path)
-          .split("/")
-          .pop() || `snapshot-${side}`;
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = baseName;
-      anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (err) {
-      deps.patchView({ statusBanner: `快照下载失败：${errorMessage(err)}` });
-    } finally {
-      if (state.snapshotId === snapshotId) {
-        state = { ...state, downloadingSide: null };
-      }
-    }
-  }
-
   return {
     get state() {
-      return state;
+      return reader.state;
     },
-    dispose,
-    resetTarget,
-    clearDiff,
-    seedContextId,
-    withContext,
+    dispose: reader.dispose,
+    resetTarget: reader.resetTarget,
+    clearDiff: reader.clearDiff,
+    seedContextId: reader.seedContextId,
+    withContext: reader.withContext,
     loadPairFileDiff,
     syncForCommitDetail,
     selectActiveFile,
@@ -390,9 +144,9 @@ export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
         syncForCommitDetail(oid ? view.commitDetails[oid] : undefined);
       }
     },
-    openSnapshotSide,
-    closeSnapshotSide,
-    downloadSnapshotSide,
+    openSnapshotSide: reader.openSnapshotSide,
+    closeSnapshotSide: reader.closeSnapshotSide,
+    downloadSnapshotSide: reader.downloadSnapshotSide,
   };
 }
 export type GitLogDiffController = ReturnType<

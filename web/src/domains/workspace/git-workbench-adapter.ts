@@ -132,6 +132,7 @@ export function mapGitHistoryPage(page: GitHistoryPage): {
   historyState: GitWorkbenchViewState["historyState"];
   historyReason: string;
   historyUpstream?: string;
+  taskBaseline: GitWorkbenchViewState["taskBaseline"];
   lastFetchedAt?: string;
   nextCursor: string;
   refsChanged: boolean;
@@ -148,6 +149,7 @@ export function mapGitHistoryPage(page: GitHistoryPage): {
     historyState: page.status,
     historyReason: page.reason ?? "",
     historyUpstream: page.upstream,
+    taskBaseline: page.taskBaseline ?? null,
     lastFetchedAt: page.lastFetchedAt,
     nextCursor: page.nextCursor,
     refsChanged: page.refsChanged,

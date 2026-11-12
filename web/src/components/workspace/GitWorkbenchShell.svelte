@@ -16,7 +16,9 @@
   import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
   import {
     applyShellBranchAction,
+    applyShellClearTaskBaseline,
     applyShellCommitConfirm,
+    applyShellSetTaskBaseline,
     buildShellPushPreview,
   } from "../../domains/workspace/git-shell-actions";
   import {
@@ -251,6 +253,7 @@
         context={view.context}
         historyState={view.historyState}
         historyReason={view.historyReason}
+        taskBaseline={view.taskBaseline}
         nextCursor={view.nextCursor}
         refsChanged={view.refsChanged}
         historyLoadingMore={view.historyLoadingMore}
@@ -349,6 +352,9 @@
           }
         }}
         onExitCompare={() => (view = { ...view, compareMode: null })}
+        onSetTaskBaseline={!readonlyMode
+          ? (oid) => (view = applyShellSetTaskBaseline(view, oid))
+          : undefined}
         onRequestCheckout={handleRequestCheckout}
         onOpenOccupiedWorktree={handleOpenOccupiedWorktree}
       />
@@ -364,7 +370,10 @@
         activeChangeId={view.activeChangeId}
         reviewedPaths={view.reviewedPaths}
         commitMessage={view.commitMessage}
+        reviewScope={view.reviewScope}
+        taskReview={view.taskReview}
         uncertainBlocked={view.lastCommitOutcome?.status === "uncertain"}
+        onReviewScopeChange={(reviewScope) => (view = { ...view, reviewScope })}
         onSelectChange={(activeChangeId) =>
           (view = { ...view, activeChangeId })}
         onToggleReviewed={(c) =>
@@ -408,6 +417,21 @@
           (view = { ...view, commitMessage })}
         onOpenCommitPreview={openCommitPreview}
         onOpenPush={() => openPushDialog()}
+        onSelectTaskFile={(selectedPath) =>
+          view.taskReview &&
+          (view = {
+            ...view,
+            taskReview: { ...view.taskReview, selectedPath },
+          })}
+        onSetTaskBaseline={!readonlyMode
+          ? (oid) => (view = applyShellSetTaskBaseline(view, oid))
+          : undefined}
+        onClearTaskBaseline={!readonlyMode
+          ? () => (view = applyShellClearTaskBaseline(view))
+          : undefined}
+        onOpenLogToPickBaseline={() =>
+          (view = { ...view, mode: "log", scope: "all" })}
+        onInspectCommit={inspectCommitInLog}
       />
     </Tabs.Content>
 
