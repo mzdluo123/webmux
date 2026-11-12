@@ -344,6 +344,14 @@ func wireSchema(name string) wireRules {
 		taskBaselineFields("/baseline")
 		add("/changes", "id", "nextCursor")
 		add("/changes", "time", "checkedAt")
+	case "git-reviews", "git-reviews-put":
+		add("/files/*", "time", "reviewedAt")
+	case "git-commit-draft-empty", "git-commit-draft-put":
+		add("", "id", "repositoryId", "worktreeId")
+		add("", "time", "updatedAt")
+	case "error-409-git-draft-conflict":
+		add("/currentDraft", "id", "repositoryId", "worktreeId")
+		add("/currentDraft", "time", "updatedAt")
 	case "git-commit-detail":
 		add("/refs/*", "id", "worktreeId")
 	case "git-commit-preview", "git-commit-preview-blocked":

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { SelectedLineRange } from "@pierre/diffs";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconMinus from "~icons/tabler/minus";
@@ -6,12 +7,17 @@
   import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { ListButton } from "$lib/components/ui/list-button";
   import type {
     GitWorkingChange,
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
   import type { CodeDiffReaderState } from "../../contracts/schemas";
+  import {
+    type ActiveDiffReworkSelection,
+    createReworkDraftItem,
+    extractDiffRangeSnippet,
+    resolveStagingVersionDescriptor,
+  } from "../../domains/workspace/git-rework-model";
   import { createOfflineHunkDiffState } from "../../hooks/workspace/git-offline-diff.svelte";
   import {
     formatStagingComparisonEndpoints,
@@ -20,7 +26,9 @@
   import CodeDiffReader from "../code/CodeDiffReader.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import GitConflictTerminalNotice from "./GitConflictTerminalNotice.svelte";
+  import GitDiffSelectionBar from "./GitDiffSelectionBar.svelte";
   import GitDiffStyleSwitch from "./GitDiffStyleSwitch.svelte";
+  import GitStagingHunkStrip from "./GitStagingHunkStrip.svelte";
 
   let {
     change,
@@ -32,11 +40,13 @@
     stale = false,
     staleReason = "",
     hasActiveWorktreeSession = false,
+    liveWorktreeIdentity,
     onDiffModeChange,
     onStageChange,
     onUnstageChange,
     onStageHunk,
     onUnstageHunk,
+    onAddReworkItem,
     onRefreshSnapshot,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
@@ -50,30 +60,46 @@
     stale?: boolean;
     staleReason?: string;
     hasActiveWorktreeSession?: boolean;
+    liveWorktreeIdentity?: string;
     onDiffModeChange?: (mode: "unified" | "split") => void;
     onStageChange: (changeId: string) => void;
     onUnstageChange: (changeId: string) => void;
     onStageHunk: (changeId: string, hunkId: string) => void;
     onUnstageHunk: (changeId: string, hunkId: string) => void;
+    onAddReworkItem?: (
+      input: Parameters<typeof createReworkDraftItem>[0],
+      options?: { openSheet?: boolean },
+    ) => void;
     onRefreshSnapshot?: () => void;
     onOpenWorktreeTerminal?: () => void;
     onNewWorktreeTerminal?: () => void;
   } = $props();
 
-  let hunkIndex = $state(0);
-  let jumpSeq = $state(0);
-  let jumpTarget = $state<CodeDiffReaderState["top"]>(undefined);
+  let readerRef = $state<ReturnType<typeof CodeDiffReader>>();
+  let navState = $state<{
+    changeId: string;
+    hunkIndex: number;
+    jumpSeq: number;
+    jumpTarget: CodeDiffReaderState["top"];
+  }>({ changeId: "", hunkIndex: 0, jumpSeq: 0, jumpTarget: undefined });
+  let selectionSlot = $state.raw<{
+    changeId: string;
+    range: SelectedLineRange | null;
+  } | null>(null);
+  const hunkIndex = $derived(
+    navState.changeId === change.id ? navState.hunkIndex : 0,
+  );
+  const jumpSeq = $derived(
+    navState.changeId === change.id ? navState.jumpSeq : 0,
+  );
+  const jumpTarget = $derived(
+    navState.changeId === change.id ? navState.jumpTarget : undefined,
+  );
+  const selectedRange = $derived(
+    selectionSlot?.changeId === change.id ? selectionSlot.range : null,
+  );
   const offline = createOfflineHunkDiffState();
 
-  // Reset hunk selection when active change changes
-  $effect(() => {
-    void change.id;
-    hunkIndex = 0;
-    jumpSeq = 0;
-    jumpTarget = undefined;
-  });
-
-  // Offline / Storybook fixture fallback via createOfflineHunkDiffState
   $effect(() => {
     if (stagingDiff) return;
     if (change.group === "conflicted") {
@@ -130,10 +156,64 @@
       change.hunks.length > 0,
   );
 
+  const resolvedSelection = $derived.by<ActiveDiffReworkSelection | null>(
+    () => {
+      if (!onAddReworkItem || !fileDiff || !selectedRange) return null;
+      const extracted = extractDiffRangeSnippet(fileDiff, selectedRange);
+      if (!extracted) return null;
+      const desc = resolveStagingVersionDescriptor({
+        group: change.group,
+        side: extracted.side,
+        headOid: context.headOid,
+        liveWorktreeIdentity,
+      });
+      return {
+        path: change.path,
+        oldPath: change.oldPath,
+        ...extracted,
+        ...desc,
+      };
+    },
+  );
+
+  function clearStagingSelection() {
+    selectionSlot = null;
+    readerRef?.clearLineAction();
+  }
+
+  function addHunkToRework(hunk: GitWorkingChange["hunks"][number]) {
+    if (!onAddReworkItem) return;
+    const useNewSide = hunk.newLines > 0;
+    const startLine = Math.max(1, useNewSide ? hunk.newStart : hunk.oldStart);
+    const span = Math.max(1, useNewSide ? hunk.newLines : hunk.oldLines);
+    const endLine = startLine + span - 1;
+    const desc = resolveStagingVersionDescriptor({
+      group: change.group,
+      side: useNewSide ? "new" : "old",
+      headOid: context.headOid,
+      liveWorktreeIdentity,
+    });
+    const snippet = hunk.lines
+      .map(
+        (l) =>
+          `${l.kind === "add" ? "+" : l.kind === "delete" ? "-" : " "}${l.text}`,
+      )
+      .join("\n");
+    onAddReworkItem({
+      path: change.path,
+      oldPath: change.oldPath,
+      sourceKind: desc.sourceKind,
+      versionLabel: desc.versionLabel,
+      startLine,
+      endLine,
+      codeSnippet: snippet,
+      capturedWorktreeIdentity: desc.capturedWorktreeIdentity,
+    });
+  }
+
   function jumpToHunk(nextIdx: number) {
     if (change.hunks.length === 0) return;
     const clamped = Math.max(0, Math.min(change.hunks.length - 1, nextIdx));
-    hunkIndex = clamped;
     const hunk = change.hunks[clamped];
     if (!hunk) return;
     const line =
@@ -141,8 +221,12 @@
         ? Math.max(1, hunk.newStart)
         : Math.max(1, hunk.oldStart);
     const side = hunk.newLines > 0 ? "additions" : "deletions";
-    jumpTarget = { line, side };
-    jumpSeq += 1;
+    navState = {
+      changeId: change.id,
+      hunkIndex: clamped,
+      jumpSeq: jumpSeq + 1,
+      jumpTarget: { line, side },
+    };
   }
 </script>
 
@@ -275,68 +359,26 @@
   {/if}
 
   {#if canStageHunks}
-    <div
-      class="border-b border-git-border bg-git-panel px-2.5 py-1.5"
-      aria-label="代码块逐块暂存栏"
-      data-testid="git-hunk-action-strip"
-    >
-      <div class="mb-1 flex items-center justify-between text-xs">
-        <span class="font-semibold text-muted-foreground">
-          代码块逐块操作（常驻可见 · 支持桌面与触屏）
-        </span>
-        <span class="font-mono text-muted-foreground">
-          共 {change.hunks.length} 块
-        </span>
-      </div>
-      <div class="max-h-28 space-y-1 overflow-y-auto">
-        {#each change.hunks as hunk, idx (hunk.id)}
-          <div
-            class="flex min-w-0 flex-wrap items-center justify-between gap-1.5 rounded-sm border border-git-border bg-git-surface px-2 py-1"
-            data-hunk-id={hunk.id}
-          >
-            <div class="min-w-0 flex-1">
-              <ListButton
-                variant="git-row"
-                aria-selected={hunkIndex === idx}
-                onclick={() => jumpToHunk(idx)}
-              >
-                <span class="shrink-0 font-mono text-xs text-muted-foreground">
-                  #{idx + 1}
-                </span>
-                <span
-                  class="min-w-0 flex-1 truncate font-mono text-xs"
-                  title={hunk.header}
-                >
-                  {hunk.header}
-                </span>
-              </ListButton>
-            </div>
-            {#if stageMode === "stage"}
-              <Button
-                size="xs"
-                variant="outline"
-                disabled={busy || stale}
-                onclick={() => onStageHunk(change.id, hunk.id)}
-              >
-                <IconPlus aria-hidden="true" />
-                暂存此块
-              </Button>
-            {:else}
-              <Button
-                size="xs"
-                variant="outline"
-                disabled={busy || stale}
-                onclick={() => onUnstageHunk(change.id, hunk.id)}
-              >
-                <IconMinus aria-hidden="true" />
-                取消暂存此块
-              </Button>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    </div>
+    <GitStagingHunkStrip
+      changeId={change.id}
+      hunks={change.hunks}
+      {hunkIndex}
+      {stageMode}
+      {busy}
+      {stale}
+      canAddRework={Boolean(onAddReworkItem && !readonlyMode)}
+      onJumpToHunk={jumpToHunk}
+      onAddHunkToRework={addHunkToRework}
+      {onStageHunk}
+      {onUnstageHunk}
+    />
   {/if}
+
+  <GitDiffSelectionBar
+    selection={resolvedSelection}
+    {onAddReworkItem}
+    onClear={clearStagingSelection}
+  />
 
   <div class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
     {#if phase === "loading"}
@@ -346,6 +388,7 @@
     {:else if phase === "ready" && fileDiff}
       {#key `${change.id}:${jumpSeq}`}
         <CodeDiffReader
+          bind:this={readerRef}
           {fileDiff}
           side="new"
           expired={stale}
@@ -364,7 +407,9 @@
                 top: jumpTarget,
               }
             : undefined}
-          onselect={() => {}}
+          onselect={(range) => {
+            selectionSlot = range ? { changeId: change.id, range } : null;
+          }}
         />
       {/key}
     {:else}

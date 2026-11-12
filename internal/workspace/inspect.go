@@ -14,6 +14,10 @@ func InspectGitTaskBaselines(dir string) error {
 	_, err := statefile.ReadSnapshot[taskBaselineStore](dir, statefile.GitTaskBaselines, validateTaskBaselineStore)
 	return err
 }
+func InspectGitWorkbenchState(dir string) error {
+	_, err := statefile.ReadSnapshot[gitWorkbenchStateStore](dir, statefile.GitWorkbenchState, validateGitWorkbenchStateStore)
+	return err
+}
 func (s *Service) StorageError() error {
 	if s == nil {
 		return statefile.ErrUnavailableStore()
@@ -31,4 +35,10 @@ func (s *Service) TaskBaselinesStorageError() error {
 		return statefile.ErrUnavailableStore()
 	}
 	return s.baselinesStore.Err()
+}
+func (s *Service) WorkbenchStateStorageError() error {
+	if s == nil {
+		return statefile.ErrUnavailableStore()
+	}
+	return s.collabStore.Err()
 }

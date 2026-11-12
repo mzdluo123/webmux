@@ -310,6 +310,7 @@ func (s *Service) reconcileCommitOperation(ctx context.Context, r *repositorySta
 			op.Status = GitOpSucceeded
 			op.Summary = "服务重启对账确认提交已完成"
 		}
+		s.clearWorktreeCommitDraftBestEffort(op.RepositoryID, op.WorktreeID)
 		return
 	}
 

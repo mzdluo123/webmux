@@ -1,9 +1,5 @@
 <script lang="ts">
   import { MediaQuery } from "svelte/reactivity";
-  import IconArrowUp from "~icons/tabler/arrow-up";
-  import IconFolder from "~icons/tabler/folder";
-  import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
   import * as Tabs from "$lib/components/ui/tabs";
   import type {
     GitBranchItem,
@@ -13,12 +9,19 @@
     GitWorkbenchMode,
     GitWorkbenchViewState,
   } from "../../contracts/git-workbench-schemas";
+  import type { GitReworkItem, SessionInfo } from "../../contracts/schemas";
   import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
+  import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
+  import { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
   import {
     applyShellBranchAction,
+    applyShellClearFilters,
     applyShellClearTaskBaseline,
     applyShellCommitConfirm,
+    applyShellDraftResolution,
     applyShellSetTaskBaseline,
+    applyShellStageGroup,
+    applyShellStartCompare,
     buildShellPushPreview,
   } from "../../domains/workspace/git-shell-actions";
   import {
@@ -28,29 +31,48 @@
     selectLogBranchFilter,
     toggleReviewedChange,
   } from "../../domains/workspace/git-workbench-state";
+  import type { GitSessionHandoffMode } from "../../hooks/workspace/git-rework-controller.svelte";
   import GitBranchesPane from "./GitBranchesPane.svelte";
   import GitCommitOutcomeBanner from "./GitCommitOutcomeBanner.svelte";
   import GitCommitPane from "./GitCommitPane.svelte";
-  import GitCommitPreviewDialog from "./GitCommitPreviewDialog.svelte";
   import GitLogPane from "./GitLogPane.svelte";
-  import GitPushDialog from "./GitPushDialog.svelte";
-  import GitTopBarBranchPopover from "./GitTopBarBranchPopover.svelte";
   import GitWorkbenchModeTabs from "./GitWorkbenchModeTabs.svelte";
+  import GitWorkbenchShellDialogs from "./GitWorkbenchShellDialogs.svelte";
+  import GitWorkbenchShellHeader from "./GitWorkbenchShellHeader.svelte";
   import GitWorkbenchStatusBar from "./GitWorkbenchStatusBar.svelte";
 
   let {
     view = $bindable(),
     simulatedCommitOutcome = null,
     defaultPushPreview = null,
+    initialDraftConflict = null,
+    initialReworkItems = [],
+    simulatedActiveSessions = [],
+    initialReworkOpen = false,
     onOpenWorktree,
   }: {
     view: GitWorkbenchViewState;
     simulatedCommitOutcome?: GitCommitOutcome | null;
     defaultPushPreview?: GitPushPreviewModel | null;
+    initialDraftConflict?: GitCommitDraftConflictState | null;
+    initialReworkItems?: readonly GitReworkItem[];
+    simulatedActiveSessions?: readonly SessionInfo[];
+    initialReworkOpen?: boolean;
     onOpenWorktree?: (worktreeId: string, path: string) => void;
   } = $props();
 
   const desktop = new MediaQuery("(min-width: 1280px)");
+
+  let draftConflict = $derived(initialDraftConflict);
+  let draftRevision = $derived(initialDraftConflict?.remoteDraft.revision ?? 0);
+  let reworkItems = $derived([...initialReworkItems]);
+  let reworkOpen = $derived(initialReworkOpen);
+  let handoffMode = $state<GitSessionHandoffMode>("rework");
+  let selectedSessionId = $derived(
+    simulatedActiveSessions.length === 1
+      ? (simulatedActiveSessions[0]?.id ?? "")
+      : "",
+  );
 
   const readonlyMode = $derived(
     view.context.headState === "readonly" || !view.context.worktreePath,
@@ -153,80 +175,48 @@
       statusBanner: "已刷新历史与暂存区核实状态",
     };
   }
+
+  function resolveDraft(
+    strategy: "keep-local" | "adopt-remote" | "merge-both",
+  ) {
+    const res = applyShellDraftResolution(view, draftConflict, strategy);
+    if (!res) return;
+    draftRevision = res.nextRevision;
+    draftConflict = null;
+    view = res.nextView;
+  }
+
+  function handleAddReworkItem(
+    input: Parameters<typeof createReworkDraftItem>[0],
+    options?: { openSheet?: boolean },
+  ) {
+    reworkItems = [...reworkItems, createReworkDraftItem(input)];
+    if (options?.openSheet ?? true) {
+      handoffMode = "rework";
+      reworkOpen = true;
+    }
+  }
 </script>
 
 <div
   class="git-workbench flex h-full min-h-0 min-w-0 flex-col border border-git-border bg-git-surface text-foreground"
   data-testid="git-workbench"
 >
-  <header
-    class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel px-3 py-2"
-  >
-    <div class="flex min-w-0 flex-wrap items-center gap-2">
-      <div class="flex min-w-0 items-center gap-1.5">
-        <IconFolder
-          class="size-4 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <span class="truncate text-sm font-semibold">
-          {view.context.repositoryName}
-        </span>
-      </div>
-
-      <Badge variant={readonlyMode ? "warning" : "info"} class="max-w-full">
-        <span
-          class="truncate"
-          title={readonlyMode
-            ? "只读仓库（无工作树）"
-            : view.context.headState === "detached"
-              ? "游离 HEAD"
-              : view.context.headState === "unborn"
-                ? `未诞生 HEAD (${view.context.checkedOutBranch ?? "main"})`
-                : `当前检出：${view.context.checkedOutBranch ?? "HEAD"}`}
-        >
-          {#if readonlyMode}
-            只读仓库（无工作树）
-          {:else if view.context.headState === "detached"}
-            游离 HEAD
-          {:else if view.context.headState === "unborn"}
-            未诞生 HEAD ({view.context.checkedOutBranch ?? "main"})
-          {:else}
-            当前检出：{view.context.checkedOutBranch ?? "HEAD"}
-          {/if}
-        </span>
-      </Badge>
-
-      {#if view.branchFilter}
-        <Badge variant="outline" class="max-w-full">
-          <span class="truncate" title={`浏览筛选：${view.branchFilter}`}>
-            浏览筛选：{view.branchFilter}
-          </span>
-        </Badge>
-      {/if}
-
-      <GitTopBarBranchPopover
-        branches={view.branches}
-        context={view.context}
-        branchFilter={view.branchFilter}
-        compareBaseOid={view.context.headOid ?? view.commits[0]?.oid ?? null}
-        compareTargetLabel="与当前 HEAD 比较"
-        onSelectAll={() => handleBranchFilter(null)}
-        onBranchAction={handleBranchAction}
-      />
-    </div>
-
-    <div class="flex items-center gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={readonlyMode}
-        onclick={() => openPushDialog()}
-      >
-        <IconArrowUp aria-hidden="true" />
-        推送…
-      </Button>
-    </div>
-  </header>
+  <GitWorkbenchShellHeader
+    context={view.context}
+    branches={view.branches}
+    branchFilter={view.branchFilter}
+    compareBaseOid={view.context.headOid ?? view.commits[0]?.oid ?? null}
+    {readonlyMode}
+    reworkCount={reworkItems.length}
+    onSelectAllBranches={() => handleBranchFilter(null)}
+    onBranchAction={handleBranchAction}
+    onOpenRework={() => {
+      handoffMode = "rework";
+      reworkOpen = true;
+    }}
+    onOpenPush={() => openPushDialog()}
+  />
 
   {#if view.lastCommitOutcome && view.lastCommitOutcome.status !== "matched"}
     <GitCommitOutcomeBanner
@@ -282,17 +272,7 @@
         onSinceChange={(sinceFilter) => (view = { ...view, sinceFilter })}
         onUntilChange={(untilFilter) => (view = { ...view, untilFilter })}
         onPathFilterChange={(pathFilter) => (view = { ...view, pathFilter })}
-        onClearFilters={() =>
-          (view = {
-            ...view,
-            scope: "all",
-            branchFilter: null,
-            searchQuery: "",
-            authorFilter: "",
-            sinceFilter: "",
-            untilFilter: "",
-            pathFilter: "",
-          })}
+        onClearFilters={() => (view = applyShellClearFilters(view))}
         onToggleFavorite={(name) =>
           (view = {
             ...view,
@@ -320,24 +300,8 @@
           (view = { ...view, selectedCommitFilePath })}
         onMarkCompareBase={(compareBaseMarkOid) =>
           (view = { ...view, compareBaseMarkOid })}
-        onStartCompare={(baseOid, targetOid) => {
-          const d = view.commitDetails[targetOid];
-          const files = d?.filesByParent[d.selectedParent ?? ""] ?? [];
-          view = {
-            ...view,
-            compareBaseMarkOid: null,
-            selectedCommitFilePath: files[0]?.newPath ?? null,
-            compareMode: {
-              baseOid,
-              targetOid,
-              files,
-              nextCursor: "",
-              loading: false,
-              loadingMore: false,
-              error: "",
-            },
-          };
-        }}
+        onStartCompare={(baseOid, targetOid) =>
+          (view = applyShellStartCompare(view, baseOid, targetOid))}
         onSwapCompareDirection={() => {
           const cmp = view.compareMode;
           if (cmp) {
@@ -355,6 +319,7 @@
         onSetTaskBaseline={!readonlyMode
           ? (oid) => (view = applyShellSetTaskBaseline(view, oid))
           : undefined}
+        onAddReworkItem={!readonlyMode ? handleAddReworkItem : undefined}
         onRequestCheckout={handleRequestCheckout}
         onOpenOccupiedWorktree={handleOpenOccupiedWorktree}
       />
@@ -373,6 +338,10 @@
         reviewScope={view.reviewScope}
         taskReview={view.taskReview}
         uncertainBlocked={view.lastCommitOutcome?.status === "uncertain"}
+        {draftRevision}
+        {draftConflict}
+        hasActiveWorktreeSession={simulatedActiveSessions.length > 0}
+        activeSessionCount={simulatedActiveSessions.length}
         onReviewScopeChange={(reviewScope) => (view = { ...view, reviewScope })}
         onSelectChange={(activeChangeId) =>
           (view = { ...view, activeChangeId })}
@@ -381,6 +350,7 @@
             ...view,
             reviewedPaths: toggleReviewedChange(view.reviewedPaths, c),
           })}
+        onAddReworkItem={!readonlyMode ? handleAddReworkItem : undefined}
         onStageChange={(id) =>
           (view = {
             ...view,
@@ -391,18 +361,15 @@
             ...view,
             workingChanges: applyUnstageHunk(view.workingChanges, id),
           })}
-        onStageGroup={(op, group) => {
-          let next = view.workingChanges;
-          for (const it of view.workingChanges.filter(
-            (c) => c.group === group,
-          )) {
-            next =
-              op === "stage"
-                ? applyStageHunk(next, it.id)
-                : applyUnstageHunk(next, it.id);
-          }
-          view = { ...view, workingChanges: next };
-        }}
+        onStageGroup={(op, group) =>
+          (view = {
+            ...view,
+            workingChanges: applyShellStageGroup(
+              view.workingChanges,
+              op,
+              group,
+            ),
+          })}
         onStageHunk={(id, hId) =>
           (view = {
             ...view,
@@ -415,6 +382,15 @@
           })}
         onCommitMessageChange={(commitMessage) =>
           (view = { ...view, commitMessage })}
+        onResolveDraftKeepLocal={() => resolveDraft("keep-local")}
+        onResolveDraftAdoptRemote={() => resolveDraft("adopt-remote")}
+        onResolveDraftMergeBoth={() => resolveDraft("merge-both")}
+        onRequestCommitAssist={simulatedActiveSessions.length > 0
+          ? () => {
+              handoffMode = "commit-assist";
+              reworkOpen = true;
+            }
+          : undefined}
         onOpenCommitPreview={openCommitPreview}
         onOpenPush={() => openPushDialog()}
         onSelectTaskFile={(selectedPath) =>
@@ -467,29 +443,47 @@
     onReloadVerify={reloadVerifyOutcome}
   />
 
-  {#if view.commitPreview}
-    <GitCommitPreviewDialog
-      model={view.commitPreview}
-      commitMessage={view.commitMessage}
-      onConfirm={confirmCommit}
-      onClose={() => (view = { ...view, commitPreview: null })}
-    />
-  {/if}
-
-  {#if view.pushPreview}
-    <GitPushDialog
-      model={view.pushPreview}
-      onConfirm={confirmPush}
-      onClose={() => {
-        const hadPreceding = view.pushPreview?.precedingCommit;
-        view = {
-          ...view,
-          pushPreview: null,
-          statusBanner: hadPreceding
-            ? `本地已提交（${hadPreceding.shortOid}），已取消推送；本地提交已保留。`
-            : view.statusBanner,
-        };
-      }}
-    />
-  {/if}
+  <GitWorkbenchShellDialogs
+    {view}
+    {reworkOpen}
+    {handoffMode}
+    {reworkItems}
+    activeSessions={simulatedActiveSessions}
+    bind:selectedSessionId
+    onConfirmCommit={confirmCommit}
+    onCloseCommitPreview={() => (view = { ...view, commitPreview: null })}
+    onConfirmPush={confirmPush}
+    onClosePushPreview={() => {
+      const hadPreceding = view.pushPreview?.precedingCommit;
+      view = {
+        ...view,
+        pushPreview: null,
+        statusBanner: hadPreceding
+          ? `本地已提交（${hadPreceding.shortOid}），已取消推送；本地提交已保留。`
+          : view.statusBanner,
+      };
+    }}
+    onUpdateReworkNote={(id, note) =>
+      (reworkItems = reworkItems.map((it) =>
+        it.id === id ? { ...it, userNote: note } : it,
+      ))}
+    onRemoveReworkItem={(id) =>
+      (reworkItems = reworkItems.filter((it) => it.id !== id))}
+    onClearRework={() => (reworkItems = [])}
+    onCopyReworkMarkdown={() =>
+      (view = { ...view, statusBanner: "已复制结构化审阅意见 Markdown" })}
+    onDeliverToSession={(session) => {
+      reworkOpen = false;
+      if (handoffMode === "rework") reworkItems = [];
+      view = {
+        ...view,
+        statusBanner: `已将意见放入会话「${session.title || session.id}」输入草稿（未自动执行）`,
+      };
+    }}
+    onStartNewSessionWithDraft={() => {
+      reworkOpen = false;
+      view = { ...view, statusBanner: "已打开带预填草稿的新建工作树会话面板" };
+    }}
+    onCloseRework={() => (reworkOpen = false)}
+  />
 </div>

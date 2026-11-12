@@ -7,6 +7,7 @@ import {
   CodeDiffSchema,
   CodeDocumentSchema,
 } from "./code-schemas";
+import { GitCommitDraftSchema } from "./git-collab-schemas";
 import { FetchResultSchema, WorktreeChangesSchema } from "./workspace-schemas";
 
 // ---- Read-only repository/worktree Git context, snapshots & compare ----
@@ -343,12 +344,14 @@ export const GitConflictReasonSchema = z.enum([
   "commit_failed",
   "idempotency_conflict",
   "uncertain",
+  "draft_conflict",
 ]);
 export type GitConflictReason = z.infer<typeof GitConflictReasonSchema>;
 
 export const GitConflictSchema = z.object({
   error: z.string(),
   reason: GitConflictReasonSchema,
+  currentDraft: GitCommitDraftSchema.optional(),
 });
 export type GitConflict = z.infer<typeof GitConflictSchema>;
 

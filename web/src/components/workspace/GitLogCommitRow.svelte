@@ -56,12 +56,32 @@
       void navigator.clipboard.writeText(oid);
     }
   }
+
+  let menuOpen = $state(false);
+
+  function handleContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    menuOpen = true;
+  }
+
+  function handleRowKeydown(e: KeyboardEvent) {
+    if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+      e.preventDefault();
+      menuOpen = true;
+    }
+  }
 </script>
 
-<div class="group/row relative">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="group/row relative"
+  oncontextmenu={handleContextMenu}
+  onkeydown={handleRowKeydown}
+>
   <ListButton
     variant="git-row"
     role="option"
+    data-commit-row="true"
     data-has-action="true"
     aria-selected={selected}
     onclick={() => onSelect(row.oid)}
@@ -182,7 +202,7 @@
     </div>
   </ListButton>
 
-  <GitRowActionMenu label={`提交操作 ${row.shortOid}`}>
+  <GitRowActionMenu label={`提交操作 ${row.shortOid}`} bind:open={menuOpen}>
     <DropdownMenu.Item onclick={() => onSelect(row.oid)}>
       查看提交详情
     </DropdownMenu.Item>

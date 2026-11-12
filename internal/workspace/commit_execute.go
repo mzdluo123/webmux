@@ -295,6 +295,7 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 		op.ReviewReasons = reasons
 		op.SanitizedOutput = combinedOut
 	})
+	s.clearWorktreeCommitDraftBestEffort(req.RepositoryID, req.WorktreeID)
 	return res, nil
 }
 

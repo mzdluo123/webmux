@@ -17,6 +17,7 @@
     writeGitDeviceLayout,
     type GitDeviceLayout,
   } from "../domains/workspace/git-workbench-memory";
+  import { filterActiveWorktreeSessions } from "../domains/workspace/git-rework-model";
   import { buildGitRouteHref, parseGitRouteQuery } from "../hooks/shared/route";
   import {
     getShell,
@@ -27,8 +28,7 @@
   import { createGitWorkbenchController } from "../hooks/workspace/git-workbench-controller.svelte";
   import InlineNotice from "../components/shared/InlineNotice.svelte";
   import GitCommitOutcomeBanner from "../components/workspace/GitCommitOutcomeBanner.svelte";
-  import GitCommitPreviewDialog from "../components/workspace/GitCommitPreviewDialog.svelte";
-  import GitPushDialog from "../components/workspace/GitPushDialog.svelte";
+  import GitWorkbenchPageDialogs from "../components/workspace/GitWorkbenchPageDialogs.svelte";
   import GitWorkbenchStatusBar from "../components/workspace/GitWorkbenchStatusBar.svelte";
   import GitWorkbenchTopBar from "../components/workspace/GitWorkbenchTopBar.svelte";
   import GitWorkbenchWorkspace from "../components/workspace/GitWorkbenchWorkspace.svelte";
@@ -86,12 +86,11 @@
       : undefined,
   );
   const activeWorktreeSessions = $derived(
-    worktreeId
-      ? shell.sessions.sessions.filter(
-          (s) =>
-            s.workspace?.worktreeId === worktreeId && s.status !== "exited",
-        )
-      : [],
+    filterActiveWorktreeSessions(
+      shell.sessions.sessions,
+      worktreeId,
+      worktree?.path,
+    ),
   );
 
   // Visiting `/git` directly picks the remembered or first registered repository.
@@ -291,6 +290,10 @@
     {returnSession}
     {returnSessionArchived}
     sessionsReady={shell.sessions.connection === "connected"}
+    reworkCount={controller.rework.items.length}
+    onOpenRework={writableWorktree
+      ? () => controller.rework.openReworkSheet(activeWorktreeSessions)
+      : undefined}
     onSelectRepository={switchRepository}
     onSelectWorktree={(wtId) => switchWorktree(wtId)}
     onAddRepository={() => shell.addRepository()}
@@ -452,32 +455,17 @@
         )}
     />
 
-    {#if controller.view.commitPreview}
-      <GitCommitPreviewDialog
-        model={controller.view.commitPreview}
-        commitMessage={controller.view.commitMessage}
-        {repositoryId}
-        {worktreeId}
-        submitting={controller.staging.commitSubmitting}
-        uncertainBlocked={controller.operations.hasUncertainUnresolved ||
-          controller.view.lastCommitOutcome?.status === "uncertain"}
-        onConfirm={() =>
-          void controller.confirmCommit((branch, preceding) =>
-            handlePush(branch, preceding),
-          )}
-        onRefreshPreview={() => void controller.refreshCommitPreview()}
-        onCreateBranchFromHead={handleCreateBranchFromHead}
-        onClose={() => controller.closeCommitPreview()}
-      />
-    {/if}
-
-    {#if controller.push.open}
-      <GitPushDialog
-        push={controller.push}
-        onFetchRemote={() =>
-          void controller.runFetch(worktree, shell.sessions.sessions)}
-        onFastForwardBranch={(branch) => handleUpdate(branch)}
-      />
-    {/if}
+    <GitWorkbenchPageDialogs
+      {controller}
+      {shell}
+      {repositoryId}
+      {worktreeId}
+      {activeWorktreeSessions}
+      onCreateBranchFromHead={handleCreateBranchFromHead}
+      onPush={handlePush}
+      onFetchRemote={() =>
+        void controller.runFetch(worktree, shell.sessions.sessions)}
+      onFastForwardBranch={(branch) => handleUpdate(branch)}
+    />
   {/if}
 </main>

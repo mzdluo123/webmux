@@ -285,6 +285,7 @@
       fallbackRightLabel={selectedDetail?.shortOid ?? ""}
       presentation="maximized"
       {diffMode}
+      onAddReworkItem={props.onAddReworkItem}
       onDiffModeChange={props.onDiffModeChange}
       onToggleMaximized={() => (diffMaximized = false)}
       onBack={() => (diffMaximized = false)}
@@ -305,11 +306,12 @@
             role="separator"
             aria-orientation="vertical"
             aria-label="调整引用筛选栏宽度"
-            title="拖动调整引用筛选栏宽度"
+            title="拖动调整引用筛选栏宽度（双击恢复默认宽度）"
             aria-valuemin={TREE_BOUNDS.min}
             aria-valuemax={TREE_BOUNDS.max}
             aria-valuenow={effectiveTreeWidth}
             tabindex="0"
+            ondblclick={() => setTreeWidth(240)}
             onpointerdown={(e) =>
               dragWidth(e, effectiveTreeWidth, setTreeWidth)}
             onkeydown={(e) =>
@@ -374,11 +376,12 @@
           role="separator"
           aria-orientation="horizontal"
           aria-label="调整底部差异面板高度"
-          title="拖动调整底部差异面板高度"
+          title="拖动调整底部差异面板高度（双击恢复默认高度）"
           aria-valuemin={DIFF_BOUNDS.min}
           aria-valuemax={DIFF_BOUNDS.max}
           aria-valuenow={effectiveDiffHeight}
           tabindex="0"
+          ondblclick={() => setDiffHeight(280)}
           onpointerdown={(e) =>
             dragHeight(e, effectiveDiffHeight, setDiffHeight, true)}
           onkeydown={(e) =>
@@ -403,6 +406,7 @@
           presentation="docked"
           collapsed={effectiveDiffCollapsed}
           {diffMode}
+          onAddReworkItem={props.onAddReworkItem}
           onDiffModeChange={props.onDiffModeChange}
           onToggleCollapsed={() => setDiffCollapsed(!effectiveDiffCollapsed)}
           onToggleMaximized={() => {
@@ -439,6 +443,7 @@
     fallbackRightLabel={selectedDetail?.shortOid ?? ""}
     presentation="mobile"
     diffMode="unified"
+    onAddReworkItem={props.onAddReworkItem}
     onBack={() => (mobileStep = "detail")}
   />
 {/if}

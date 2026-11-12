@@ -6,6 +6,7 @@ import type {
   GitWorktreeContext,
 } from "../../contracts/git-workbench-schemas";
 import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
+import type { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
 import type { GitPaneScrollCallbacks } from "../../domains/workspace/git-workbench-memory";
 import type { GitLogDiffController } from "../../hooks/workspace/git-log-diff.svelte";
 
@@ -88,6 +89,10 @@ export interface GitLogPaneProps
   onSwapCompareDirection?: () => void;
   onExitCompare?: () => void;
   onSetTaskBaseline?: (baseOid?: string) => void;
+  onAddReworkItem?: (
+    input: Parameters<typeof createReworkDraftItem>[0],
+    options?: { openSheet?: boolean },
+  ) => void;
   onRequestCheckout: (branch: string) => void;
   onOpenOccupiedWorktree: (worktreeId: string, path: string) => void;
 }

@@ -23,7 +23,9 @@ export type GitWorkbenchScenario =
   | "empty-unborn"
   | "index-lock-busy"
   | "commit-needs-review"
-  | "operation-uncertain";
+  | "operation-uncertain"
+  | "commit-draft-conflict"
+  | "rework-session-handoff";
 
 export function buildGitWorkbenchFixture(
   scenario: GitWorkbenchScenario,
@@ -441,7 +443,9 @@ export function buildGitWorkbenchFixture(
     scenario === "empty-unborn" ||
     scenario === "index-lock-busy" ||
     scenario === "commit-needs-review" ||
-    scenario === "operation-uncertain"
+    scenario === "operation-uncertain" ||
+    scenario === "commit-draft-conflict" ||
+    scenario === "rework-session-handoff"
       ? "commit"
       : scenario === "branches-occupied"
         ? "branches"

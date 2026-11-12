@@ -57,6 +57,8 @@
     onRemoveWorktree?: () => void;
   } = $props();
 
+  let listEl = $state<HTMLDivElement>();
+
   const review = $derived(taskReview ?? emptyTaskReviewState());
   const readonlyMode = $derived(
     context.headState === "readonly" || !context.worktreePath,
@@ -76,6 +78,60 @@
       review.files[0] ??
       null,
   );
+
+  function isPathReviewed(path: string): boolean {
+    return (
+      reviewedPaths.includes(`task:${path}`) || reviewedPaths.includes(path)
+    );
+  }
+
+  function focusTaskRow(index: number) {
+    const rows = listEl?.querySelectorAll<HTMLButtonElement>(
+      "[data-task-file-row]",
+    );
+    rows?.[index]?.focus();
+  }
+
+  function handleListKeydown(e: KeyboardEvent) {
+    if (review.files.length === 0) return;
+    if (!(e.target instanceof HTMLElement)) return;
+    if (!e.target.hasAttribute("data-task-file-row")) return;
+
+    const activePath = activeFile
+      ? activeFile.newPath || activeFile.oldPath
+      : null;
+    const currentIdx = Math.max(
+      0,
+      review.files.findIndex((f) => (f.newPath || f.oldPath) === activePath),
+    );
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextIdx = Math.min(review.files.length - 1, currentIdx + 1);
+      const nextPath =
+        review.files[nextIdx]!.newPath || review.files[nextIdx]!.oldPath;
+      onSelectFile?.(nextPath);
+      focusTaskRow(nextIdx);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prevIdx = Math.max(0, currentIdx - 1);
+      const prevPath =
+        review.files[prevIdx]!.newPath || review.files[prevIdx]!.oldPath;
+      onSelectFile?.(prevPath);
+      focusTaskRow(prevIdx);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      const firstPath = review.files[0]!.newPath || review.files[0]!.oldPath;
+      onSelectFile?.(firstPath);
+      focusTaskRow(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      const lastIdx = review.files.length - 1;
+      const lastPath =
+        review.files[lastIdx]!.newPath || review.files[lastIdx]!.oldPath;
+      onSelectFile?.(lastPath);
+      focusTaskRow(lastIdx);
+    }
+  }
 </script>
 
 <section
@@ -208,10 +264,14 @@
     </div>
   {/if}
 
+  <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
+  <!-- svelte-ignore a11y_interactive_supports_focus -->
   <div
+    bind:this={listEl}
     class="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2"
     role="listbox"
     aria-label="相对任务起点的净变更文件"
+    onkeydown={handleListKeydown}
   >
     {#if review.status === "loading"}
       <p class="p-3 text-xs text-muted-foreground" role="status">
@@ -231,12 +291,13 @@
       {:else}
         {#each review.files as file (file.newPath || file.oldPath)}
           {@const path = file.newPath || file.oldPath}
-          {@const isReviewed = reviewedPaths.includes(path)}
+          {@const isReviewed = isPathReviewed(path)}
           {@const isSelected =
             (activeFile?.newPath || activeFile?.oldPath) === path}
           <div
             class="flex min-w-0 items-center gap-1 rounded-sm"
             data-task-file={path}
+            data-reviewed={isReviewed}
           >
             {#if onToggleReviewed}
               <Button
@@ -254,6 +315,7 @@
               <ListButton
                 variant="git-row"
                 role="option"
+                data-task-file-row="true"
                 aria-selected={isSelected}
                 onclick={() => onSelectFile?.(path)}
               >

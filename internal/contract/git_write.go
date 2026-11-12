@@ -138,8 +138,10 @@ type GitCommitResult struct {
 
 // GitConflict is the 409 JSON body of Git workbench endpoints, carrying a
 // machine-readable Reason ("stale", "busy", "readonly", "context_mismatch",
-// "conflicted", "blocked", "commit_failed", "idempotency_conflict", or "uncertain").
+// "no_task_baseline", "conflicted", "blocked", "commit_failed",
+// "idempotency_conflict", "uncertain", or "draft_conflict").
 type GitConflict struct {
-	Error  string `json:"error"`
-	Reason string `json:"reason"`
+	Error        string          `json:"error"`
+	Reason       string          `json:"reason"`
+	CurrentDraft *GitCommitDraft `json:"currentDraft,omitempty"`
 }
