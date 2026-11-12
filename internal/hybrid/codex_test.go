@@ -26,6 +26,9 @@ func (h *harness) codexInput(side Side, pathDir string, args ...string) CreateIn
 		pathDir = filepath.Dir(exe)
 	}
 	in := h.input(codex.Name, side, "FAKEAGENT_PROFILE=", "CODEX_HOME="+h.t.TempDir(), "PATH="+pathDir+":/usr/bin:/bin")
+	// Resolve the fake executable from this fixture's PATH, even when the
+	// tests run inside a Codex connector that exports its own CODEX_PATH.
+	in.Env["CODEX_PATH"] = ""
 	in.Cmd = append([]string{exe}, args...)
 	return in
 }
@@ -45,6 +48,7 @@ func configValue(options []ConfigOption, id string) string {
 // and model from the launch arguments back after every load, and hides
 // /logout.
 func TestCodexRoundTrip(t *testing.T) {
+	t.Setenv("CODEX_PATH", "/nonexistent/host-codex")
 	h := newHarness(t, 0)
 	h.fast()
 	s := h.create(h.codexInput(SideTUI, "", "--dangerously-bypass-approvals-and-sandbox", "-m", "gpt-b", "--search"))
