@@ -1,3 +1,9 @@
+import type {
+  GitAbortOperationPreview,
+  GitConflictFileDetail,
+  GitDivergencePreview,
+  GitInProgressOperation,
+} from "./git-conflict-schemas";
 import { z } from "zod";
 import {
   GitCommitParentSchema,
@@ -301,6 +307,11 @@ export interface GitWorkbenchViewState {
   pushPreview: GitPushPreviewModel | null;
   operations?: GitOperation[];
   activeOperation?: GitActiveOperationState | null;
+  inProgress?: GitInProgressOperation | null;
+  divergencePreview?: GitDivergencePreview | null;
+  abortPreview?: GitAbortOperationPreview | null;
+  conflictDetail?: GitConflictFileDetail | null;
+  conflictOpen?: boolean;
   statusBanner: string;
 }
 

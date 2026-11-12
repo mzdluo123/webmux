@@ -95,7 +95,7 @@ export const SwitchResultSchema = WorktreeSchema.extend({
 // Blockers and warnings are the switch's IssueSchema.
 // The first commits of a range (at most 20, newest first); `total` counts
 // the whole range.
-const CommitListSchema = z.object({
+export const CommitListSchema = z.object({
   total: z.number().int().nonnegative(),
   items: z.array(CommitSchema),
 });

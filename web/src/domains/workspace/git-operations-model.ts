@@ -48,6 +48,18 @@ export function gitOperationKindLabel(kind: GitOperationKind): string {
       return "快进更新";
     case "switch":
       return "切换分支";
+    case "merge":
+      return "合并分支";
+    case "rebase":
+      return "变基分支";
+    case "cherry_pick":
+      return "遴选提交";
+    case "revert":
+      return "还原提交";
+    case "continue":
+      return "继续操作";
+    case "abort":
+      return "中止操作";
   }
 }
 
@@ -68,6 +80,15 @@ export function gitOperationStatusLabel(status: GitOperationStatus): string {
   }
 }
 
+const SEQUENCER_KINDS = new Set([
+  "merge",
+  "rebase",
+  "cherry_pick",
+  "revert",
+  "continue",
+  "abort",
+]);
+
 export function mapGitOperationToCommitOutcome(
   op: GitOperation,
 ): GitCommitOutcome | null {
@@ -86,6 +107,7 @@ export function mapGitOperationToCommitOutcome(
     };
   }
   if (op.status === "needs_review") {
+    if (SEQUENCER_KINDS.has(op.kind)) return null;
     return {
       operationId: op.id,
       status: "needs_review",
@@ -123,7 +145,8 @@ export function findRestorableAttentionOperation(
 ): GitOperation | null {
   for (const op of operations) {
     if (acknowledgedIds.has(op.id)) continue;
-    if (op.status === "uncertain" || op.status === "needs_review") {
+    if (op.status === "uncertain") return op;
+    if (op.status === "needs_review" && !SEQUENCER_KINDS.has(op.kind)) {
       return op;
     }
   }

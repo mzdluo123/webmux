@@ -89,6 +89,8 @@ export interface GitLogPaneProps
   onSwapCompareDirection?: () => void;
   onExitCompare?: () => void;
   onSetTaskBaseline?: (baseOid?: string) => void;
+  onCherryPickCommit?: (oid: string) => void;
+  onRevertCommit?: (oid: string) => void;
   onAddReworkItem?: (
     input: Parameters<typeof createReworkDraftItem>[0],
     options?: { openSheet?: boolean },

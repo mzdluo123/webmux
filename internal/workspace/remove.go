@@ -25,6 +25,11 @@ const (
 	purposePush         purpose = "push"
 	purposeBranchDelete purpose = "branch-delete"
 	purposeCommit       purpose = "commit"
+	purposeMerge        purpose = "merge"
+	purposeRebase       purpose = "rebase"
+	purposeCherryPick   purpose = "cherry-pick"
+	purposeRevert       purpose = "revert"
+	purposeAbortOp      purpose = "abort-op"
 )
 
 type batchTarget struct {
@@ -52,6 +57,8 @@ type confirmation struct {
 	push          *pushState
 	branchDelete  []branchDeleteTarget
 	commitPreview *commitPreviewState
+	divergence    *divergencePreviewState
+	abortPreview  *abortPreviewState
 	timer         *time.Timer
 }
 

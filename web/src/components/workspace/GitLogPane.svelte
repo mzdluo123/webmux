@@ -190,6 +190,8 @@
         }
       : undefined}
     onSetTaskBaseline={props.onSetTaskBaseline}
+    onCherryPickCommit={props.onCherryPickCommit}
+    onRevertCommit={props.onRevertCommit}
   />
 {/snippet}
 
@@ -204,6 +206,8 @@
     loading={props.detailLoading}
     onSelectParent={props.onSelectParent}
     onJumpToCommit={props.onSelectCommit}
+    onCherryPickCommit={props.onCherryPickCommit}
+    onRevertCommit={props.onRevertCommit}
   />
 {/snippet}
 

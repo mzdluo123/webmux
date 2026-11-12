@@ -39,6 +39,8 @@
     onMarkCompareBase,
     onStartCompare,
     onSetTaskBaseline,
+    onCherryPickCommit,
+    onRevertCommit,
     ...filterProps
   }: GitLogFilterFields &
     GitLogFilterCallbacks & {
@@ -63,6 +65,8 @@
       onMarkCompareBase?: (oid: string | null) => void;
       onStartCompare?: (baseOid: string, targetOid: string) => void;
       onSetTaskBaseline?: (baseOid?: string) => void;
+      onCherryPickCommit?: (oid: string) => void;
+      onRevertCommit?: (oid: string) => void;
     } = $props();
 
   let listScrollEl = $state<HTMLDivElement>();
@@ -228,6 +232,8 @@
           {onMarkCompareBase}
           {onStartCompare}
           {onSetTaskBaseline}
+          {onCherryPickCommit}
+          {onRevertCommit}
         />
       {/each}
     {/if}

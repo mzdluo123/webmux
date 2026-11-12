@@ -27,6 +27,8 @@
     onMarkCompareBase,
     onStartCompare,
     onSetTaskBaseline,
+    onCherryPickCommit,
+    onRevertCommit,
   }: {
     row: GitHistoryRow;
     layout?: GitGraphRowLayout;
@@ -40,6 +42,8 @@
     onMarkCompareBase?: (oid: string | null) => void;
     onStartCompare?: (baseOid: string, targetOid: string) => void;
     onSetTaskBaseline?: (baseOid: string) => void;
+    onCherryPickCommit?: (oid: string) => void;
+    onRevertCommit?: (oid: string) => void;
   } = $props();
 
   function formatShortDate(iso: string): string {
@@ -213,6 +217,19 @@
       <DropdownMenu.Item onclick={() => onSetTaskBaseline(row.oid)}>
         设为当前工作树任务基线 ({row.shortOid})
       </DropdownMenu.Item>
+    {/if}
+    {#if onCherryPickCommit || onRevertCommit}
+      <DropdownMenu.Separator />
+      {#if onCherryPickCommit}
+        <DropdownMenu.Item onclick={() => onCherryPickCommit(row.oid)}>
+          遴选此提交到当前分支… (Cherry-pick)
+        </DropdownMenu.Item>
+      {/if}
+      {#if onRevertCommit}
+        <DropdownMenu.Item onclick={() => onRevertCommit(row.oid)}>
+          还原此提交… (Revert)
+        </DropdownMenu.Item>
+      {/if}
     {/if}
     {#if onMarkCompareBase || onStartCompare}
       <DropdownMenu.Separator />

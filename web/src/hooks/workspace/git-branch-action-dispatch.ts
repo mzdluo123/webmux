@@ -109,6 +109,26 @@ export function dispatchGitPageBranchAction(options: {
             : { mode: "existing", branch: item.name },
       });
       break;
+    case "merge-into-current":
+    case "rebase-onto": {
+      const isCurrentWithUpstream =
+        item.kind === "local" &&
+        item.name === controller.view.context.checkedOutBranch &&
+        Boolean(item.upstream);
+      const refKind: "local" | "remote" = isCurrentWithUpstream
+        ? "remote"
+        : item.kind === "remote"
+          ? "remote"
+          : "local";
+      const refName =
+        isCurrentWithUpstream && item.upstream ? item.upstream : item.name;
+      if (kind === "merge-into-current") {
+        void controller.divergence.openMergePreview(refKind, refName);
+      } else {
+        void controller.divergence.openRebasePreview(refKind, refName);
+      }
+      break;
+    }
     case "fetch":
       void controller.runFetch(worktree, sessions);
       break;

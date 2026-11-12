@@ -172,7 +172,10 @@ export function createGitWorkbenchController(
           sub.staging.refresh(repoId, effId, req.signal),
           sub.taskReview.refresh(repoId, effId, req.signal),
           sub.commitDraft.load(repoId, effId, req.signal),
+          sub.divergence.refreshState(repoId, effId, req.signal),
         ]);
+      } else {
+        sub.divergence.resetTarget();
       }
       await sub.operations.refreshOperations(repoId, effId ?? wtId, req.signal);
     } catch (err) {
@@ -302,6 +305,8 @@ export function createGitWorkbenchController(
     staging: sub.staging,
     taskReview: sub.taskReview,
     push: sub.push,
+    divergence: sub.divergence,
+    conflict: sub.conflict,
     logDiff: sub.logDiff,
     dispose() {
       targetReq.dispose();
@@ -414,6 +419,7 @@ export function createGitWorkbenchController(
       void sub.staging.checkExternalUpdates();
       void sub.taskReview.refresh();
       void sub.commitDraft.load();
+      void sub.divergence.refreshState();
     },
     openCommitPreview: sub.staging.openCommitPreview,
     refreshCommitPreview: sub.staging.refreshCommitPreview,

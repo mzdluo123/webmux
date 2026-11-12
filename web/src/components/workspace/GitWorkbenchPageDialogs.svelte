@@ -7,7 +7,9 @@
   } from "../../hooks/workspace/git-session-handoff";
   import type { createGitWorkbenchController } from "../../hooks/workspace/git-workbench-controller.svelte";
   import type { Shell } from "../../hooks/shared/shell.svelte";
+  import GitAbortOperationDialog from "./GitAbortOperationDialog.svelte";
   import GitCommitPreviewDialog from "./GitCommitPreviewDialog.svelte";
+  import GitDivergencePreviewDialog from "./GitDivergencePreviewDialog.svelte";
   import GitPushDialog from "./GitPushDialog.svelte";
   import GitReworkDialog from "./GitReworkDialog.svelte";
 
@@ -85,7 +87,44 @@
 {/if}
 
 {#if controller.push.open}
-  <GitPushDialog push={controller.push} {onFetchRemote} {onFastForwardBranch} />
+  <GitPushDialog
+    push={controller.push}
+    {onFetchRemote}
+    {onFastForwardBranch}
+    onMergeRemoteBranch={(remoteRef) =>
+      void controller.divergence.openMergePreview("remote", remoteRef)}
+    onRebaseOntoRemoteBranch={(remoteRef) =>
+      void controller.divergence.openRebasePreview("remote", remoteRef)}
+  />
+{/if}
+
+{#if controller.divergence.previewOpen}
+  <GitDivergencePreviewDialog
+    kind={controller.divergence.previewKind}
+    preview={controller.divergence.preview}
+    loading={controller.divergence.loadingPreview}
+    submitting={controller.divergence.submitting}
+    dialogError={controller.divergence.dialogError}
+    acknowledgeSessions={controller.divergence.acknowledgeSessions}
+    onAcknowledgeSessionsChange={(checked) =>
+      controller.divergence.setAcknowledgeSessions(checked)}
+    onConfirm={() => void controller.divergence.confirmDivergence()}
+    onClose={() => controller.divergence.closePreview()}
+  />
+{/if}
+
+{#if controller.divergence.abortOpen}
+  <GitAbortOperationDialog
+    abortPreview={controller.divergence.abortPreview}
+    fetching={controller.divergence.loadingPreview}
+    busy={controller.divergence.submitting}
+    errorMessage={controller.divergence.dialogError}
+    acknowledged={controller.divergence.acknowledgeSessions}
+    onAcknowledgeChange={(checked) =>
+      controller.divergence.setAcknowledgeSessions(checked)}
+    onConfirmAbort={() => void controller.divergence.confirmAbort()}
+    onDismiss={() => controller.divergence.closeAbortPreview()}
+  />
 {/if}
 
 {#if controller.rework.sheetOpen}

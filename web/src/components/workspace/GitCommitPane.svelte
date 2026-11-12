@@ -32,16 +32,11 @@
     changes,
     activeChangeId,
     reviewedPaths,
-    commitMessage,
     reviewScope: controlledReviewScope,
     taskReview,
     taskDiffReader,
     stagingDiff,
     stagingBusy = false,
-    uncertainBlocked = false,
-    draftSaving = false,
-    draftRevision = 0,
-    draftConflict = null,
     activeDiffStale = false,
     activeDiffStaleReason = "",
     uncommittedProgress: externalUncommittedProgress,
@@ -66,18 +61,11 @@
     onAddReworkItem,
     onStageChange,
     onUnstageChange,
-    onStageGroup,
     onStageHunk,
     onUnstageHunk,
     onRefreshSnapshot,
-    onCommitMessageChange,
-    onOpenCommitPreview,
     onOpenPush,
-    onCreateBranchFromHead,
-    onResolveDraftKeepLocal,
-    onResolveDraftAdoptRemote,
-    onResolveDraftMergeBoth,
-    onRequestCommitAssist,
+    onOpenConflictResolver,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
     onSelectTaskFile,
@@ -91,6 +79,7 @@
     onReturnSession,
     onArchiveSession,
     onRemoveWorktree,
+    ...composerAndDraftProps
   }: GitUncommittedChangesSharedProps &
     GitPaneScrollCallbacks & {
       activeChangeId: string | null;
@@ -248,18 +237,14 @@
     />
   {:else}
     <GitUncommittedChangesPane
+      {...composerAndDraftProps}
       {context}
       {changes}
       {activeChange}
       {reviewedPaths}
-      {commitMessage}
       {taskReview}
       {readonlyMode}
       {stagingBusy}
-      {uncertainBlocked}
-      {draftSaving}
-      {draftRevision}
-      {draftConflict}
       {hasActiveWorktreeSession}
       {activeSessionCount}
       {exitedSessionCount}
@@ -274,16 +259,9 @@
       {onToggleReviewed}
       {onStageChange}
       {onUnstageChange}
-      {onStageGroup}
       {onRefreshSnapshot}
-      {onCommitMessageChange}
-      {onOpenCommitPreview}
       {onOpenPush}
-      {onCreateBranchFromHead}
-      {onResolveDraftKeepLocal}
-      {onResolveDraftAdoptRemote}
-      {onResolveDraftMergeBoth}
-      {onRequestCommitAssist}
+      {onOpenConflictResolver}
       {onOpenWorktreeTerminal}
       {onNewWorktreeTerminal}
       {onReturnSession}
@@ -371,6 +349,7 @@
             {onUnstageHunk}
             {onAddReworkItem}
             {onRefreshSnapshot}
+            {onOpenConflictResolver}
             {onOpenWorktreeTerminal}
             {onNewWorktreeTerminal}
           />

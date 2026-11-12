@@ -48,6 +48,7 @@
     onUnstageHunk,
     onAddReworkItem,
     onRefreshSnapshot,
+    onOpenConflictResolver,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
   }: {
@@ -71,6 +72,7 @@
       options?: { openSheet?: boolean },
     ) => void;
     onRefreshSnapshot?: () => void;
+    onOpenConflictResolver?: (path?: string) => void;
     onOpenWorktreeTerminal?: () => void;
     onNewWorktreeTerminal?: () => void;
   } = $props();
@@ -344,9 +346,12 @@
         context.operationInProgress
           ? `（正在进行：${context.operationInProgress}）`
           : ""
-      }。冲突文件不可伪装为普通可提交文件，请在工作树终端完成冲突解决。`}
+      }。冲突文件不可伪装为普通可提交文件，请打开三方冲突解决器或在终端处理。`}
       {hasActiveWorktreeSession}
       newLabel="在此工作树新建终端"
+      onOpenConflictResolver={onOpenConflictResolver
+        ? () => onOpenConflictResolver(change.path)
+        : undefined}
       {onOpenWorktreeTerminal}
       {onNewWorktreeTerminal}
     />

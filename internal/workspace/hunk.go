@@ -204,6 +204,25 @@ func spliceHunkSubset(baseBytes, targetBytes []byte, keep map[string]bool) []byt
 }
 
 func myersDiffSpans(base, target []string) []editSpan {
+	raw := myersRawDiffSpans(base, target)
+	if len(raw) <= 1 {
+		return raw
+	}
+	merged := []editSpan{raw[0]}
+	for _, next := range raw[1:] {
+		last := &merged[len(merged)-1]
+		gap := next.oldStart - (last.oldStart + last.oldCount)
+		if gap < minHunkGapLines {
+			last.oldCount = (next.oldStart + next.oldCount) - last.oldStart
+			last.newCount = (next.newStart + next.newCount) - last.newStart
+		} else {
+			merged = append(merged, next)
+		}
+	}
+	return merged
+}
+
+func myersRawDiffSpans(base, target []string) []editSpan {
 	pref := 0
 	for pref < len(base) && pref < len(target) && base[pref] == target[pref] {
 		pref++
@@ -321,19 +340,5 @@ func myersDiffSpans(base, target []string) []editSpan {
 			newCount: ib - sb,
 		})
 	}
-	if len(raw) <= 1 {
-		return raw
-	}
-	merged := []editSpan{raw[0]}
-	for _, next := range raw[1:] {
-		last := &merged[len(merged)-1]
-		gap := next.oldStart - (last.oldStart + last.oldCount)
-		if gap < minHunkGapLines {
-			last.oldCount = (next.oldStart + next.oldCount) - last.oldStart
-			last.newCount = (next.newStart + next.newCount) - last.newStart
-		} else {
-			merged = append(merged, next)
-		}
-	}
-	return merged
+	return raw
 }

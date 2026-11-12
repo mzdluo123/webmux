@@ -1,10 +1,10 @@
-# Git 工作台与仓库级接口（US-J19–US-J25）
+# Git 工作台与仓库级接口（US-J19–US-J26）
 
-本页收录独立 Git 工作台与仓库级接口的用户故事（US-J19–US-J25）：
+本页收录独立 Git 工作台与仓库级接口的用户故事（US-J19–US-J26）：
 
 - 零活跃会话可用的仓库与工作树 Git REST 接口、独立 `/git` 路由与状态隔离；
 - 拓扑历史图与两版本比较、真实 `index` 暂存与提交三态复核、三处共享分支动作、宽幅推送确认框；
-- 持久 Git 操作账本、固定任务审阅基线收尾闭环，以及跨设备审阅进度同步、乐观锁提交草稿与返工意见交回指定会话。
+- 持久 Git 操作账本、固定任务审阅基线收尾闭环、跨设备审阅进度与乐观锁提交草稿及返工交回会话，以及合并/变基/遴选/还原协调恢复与内置三方冲突解决器。
 - 关联章节：[仓库登记、工作树生命周期与分支维护（US-J01–US-J18）](lifecycle.md)，总索引见[仓库登记与 worktree 管理](../worktrees.md)。
 
 ## J. Git 工作台与仓库级接口
@@ -73,7 +73,7 @@
   - Pierre `CodeDiffReader` 暂存阅读、降级兜底、冲突引导与过期快照门禁：
     - 右侧差异区复用 Pierre `CodeDiffReader`，顶栏标明文件路径、比较端点（`index → working tree` 或 `HEAD → index`，缺失侧显式注明“文件不存在”）、上/下一块跳转、Unified/Split 切换及整文件暂存/取消暂存；
     - 二进制、重命名/复制、符号链接/子模块、`.gitattributes` 含 `filter`/`working-tree-encoding`、纯删除、纯权限变更及超预算（`> 2 MiB` 或 `> 20,000` 行）文件展示明确 `degradeReason`，仅开放整文件 `Stage`/`Unstage`；
-    - 冲突条目（`Conflicts`）不伪装为可提交文件，展示进行中 Git 操作并提供跳转当前工作树活跃终端或新建该工作树终端会话入口；
+    - 冲突条目（`Conflicts`）不伪装为可提交文件，展示进行中 Git 操作并提供一键打开内置三方冲突解决器（US-J26）以及跳转或新建该工作树终端会话入口；
     - 外部终端或 Agent 修改当前文件或 `.git/index` 导致 `409 stale` 或前台检测到 `identityKey` 变化时，保留当前阅读视图、置灰旧快照暂存按钮并提示点击“刷新快照”；
   - 独立标题/正文编写、全量 `HEAD -> index` 提交预览与三态结果复核：
     - 提交编写区拆分标题（`Input`）与正文（`Textarea`），`Ctrl/Cmd+Enter` 仅打开提交预览确认框（绝不直接执行 `git commit`），实时显示生效作者身份、签名与可执行 Hook 摘要及前置阻塞提示；当 `index` 为空时禁用提交并说明原因，若当前分支存在待推提交则直接提供“推送待推提交…”入口；
@@ -91,11 +91,13 @@
     - 桌面端展示约 `900px` 双栏确认框，手机窄屏（`< 640px`）展示全屏确认页：
       - 左栏展示仓库、`sourceBranch → remote/targetBranch`（首次发布支持选择远程与编辑目标分支名）、脱敏 `pushUrl` 及全部待推提交列表（上限 500 条）；
       - 右栏展示所选待推提交的变更文件列表、真实 Pierre `CodeDiffReader` 文件差异及完整提交说明与作者信息；
-    - “提交并推送…”在第一步本地提交成功后若用户取消推送或推送失败（如远端非快进超前、鉴权失败），明确报告“本地已提交（`<shortOid>`），推送未完成/已取消”及原因，完整保留本地提交，并直接提供“获取远程 (Fetch)”与“快进更新… (Update)”入口，全程绝不提供 `--force`、`--no-verify` 或 `git add -A`。
-- **US-J23 持久 Git 操作账本、重连幂等对账与底部状态栏闭环**：作为在网络波动、刷新页面或升级重启服务期间执行 Git 写操作的使用者，我希望提交、推送、获取远程、快进与分支切换均记录持久 `operationId` 并按 `clientRequestId` 幂等去重，启动时按真实引用对账，并在底部状态栏查看进度与历史。
+    - “提交并推送…”两步独立恢复：
+      - 第一步本地提交成功后若用户取消推送或推送失败（如远端非快进超前、鉴权失败），明确报告“本地已提交（`<shortOid>`），推送未完成/已取消”及原因并完整保留本地提交；
+      - 直接提供“获取远程 (Fetch)”、“快进更新… (Update)”、“合并远端分支… (Merge)”与“变基到远端分支… (Rebase)”恢复入口（US-J26），全程绝不提供 `--force`、`--no-verify` 或 `git add -A`。
+- **US-J23 持久 Git 操作账本、重连幂等对账与底部状态栏闭环**：作为在网络波动、刷新页面或升级重启服务期间执行 Git 写操作的使用者，我希望全部受控 Git 写操作（提交、推送、获取远程、快进、切分支及合并/变基/遴选/还原/继续/中止）均记录持久 `operationId` 并幂等去重、启动对账，且在底部状态栏可查。
   验收要点：
   - 预检凭证与持久操作实例职责解耦：
-    - `confirmationId` 仅负责两阶段预览快照绑定（防过期/防错库）；`commit`、`push`、`fetch`、`fast_forward` 与 `switch` 统一生成服务端持久 `operationId` 并记录客户端 `clientRequestId`；
+    - `confirmationId` 仅负责两阶段预览快照绑定（防过期/防错库）；`commit`、`push`、`fetch`、`fast_forward`、`switch` 以及 `merge`、`rebase`、`cherry_pick`、`revert`、`continue`、`abort` 统一生成服务端持久 `operationId` 并记录客户端 `clientRequestId`；
     - 同一 `(repositoryId, clientRequestId)` 且参数摘要一致时，并发在途请求合并等待同一执行实例，已完成操作在断线重连或服务重启后直接重放持久结果，绝不二次执行底层 Git 写命令；
     - 复用相同 `clientRequestId` 但参数变化时返回 HTTP `409`（`reason: "idempotency_conflict"`）；
   - 有界 `statefile` 持久账本与隐私边界：
@@ -105,7 +107,7 @@
   - 服务启动真实 Git 引用与 reflog 只读对账（零自动重跑、零 `git reset`）：
     - 服务启动加载遗留 `pending`/`running` 条目时，绝不重新执行原 Git 写命令或执行任何 `git reset`；
     - `commit` 结合 `GIT_REFLOG_ACTION=webmux-commit:<operationId>` 与 `{oid, parents, tree}` 核对收敛为 `succeeded`、`needs_review`、`failed` 或 `uncertain`；
-    - `push`、`fast_forward` 与 `switch` 依据本地跟踪引用、上游配置及工作树 `HEAD`/洁净度只读收敛；`fetch` 中断统一标记为 `uncertain`；
+    - `push`、`fast_forward` 与 `switch` 依据本地跟踪引用、上游配置及工作树 `HEAD`/洁净度只读收敛；`merge`、`rebase`、`cherry_pick`、`revert`、`continue`、`abort` 结合 Git 序列目录状态、`ORIG_HEAD` 与 `refs/webmux/recovery/<worktreeId>/<kind>` 恢复锚点只读收敛；`fetch` 中断统一标记为 `uncertain`；
   - 底部 `24–28px` 状态栏、断线自动查询恢复与 `uncertain` 安全门禁：
     - 工作台底部常驻 `24–28px` 状态栏（桌面、平板与手机视口均不膨胀或横向溢出），展示工作树路径、最近 `FETCH` 时间、当前阶段（`等待校验` / `执行中` / `重连核对中`）或最近操作徽标与摘要；
     - 点击状态栏触发器展开碰撞内边距受控的 `Popover`，查看最近操作列表、`op:` 实例 ID、`reviewReasons` 与脱敏输出；
@@ -142,6 +144,34 @@
     - 防串行号保护：来自历史提交、`HEAD`、`index` 或任务起点删除侧的摘录显式标明版本身份并附带代码片段，绝不伪装成当前工作区实时行号；来自当前工作区的摘录在发送前向服务端复核最新内容身份，若文件已更新则先提示确认；
     - 目标会话显式路由：工作树仅有 1 个活跃会话时默认预选并标注视图（`终端 TUI` / `聊天视图`）；有 2 个及以上活跃会话时强制显式单选目标会话后才允许发送；无活跃会话时提供“复制结构化审阅意见 Markdown”与“在该工作树新建会话并带入意见”（预填目标工作树与草稿）；
     - 只进草稿框、零自动执行：确认发送后跳转到目标会话并将结构化 Markdown 写入该会话草稿（终端会话展开输入草稿框且绝不注入 `\r` 回车自动执行，混合聊天视图填入聊天输入框），其余未选中会话保持原状。
+- **US-J26 Git 工作台合并、变基、遴选、还原协调恢复与三方冲突解决器**：作为处理分叉分支或冲突提交的使用者，我希望在零活跃会话浏览器中显式预览执行 `Merge`、`Rebase`、`Cherry-pick` 与 `Revert`，重进恢复进行中横幅与诚实 `Abort` 预览，并用三方冲突解决器完成裁决与继续。
+  验收要点：
+  - 显式方向与爆炸半径预览及分叉推送闭环（`UI-05`、`UI-06`）：
+    - 多处统一操作入口：
+      - 顶栏分支弹层、`Log` 引用树与 `Branches` 视图提供“合并到当前分支… (Merge)”与“将当前分支变基到此处… (Rebase)”；
+      - `Log` 提交行菜单与提交详情提供“遴选此提交… (Cherry-pick)”与“还原此提交… (Revert)”；
+      - `GitPushDialog` 在远端非快进拒绝后原位展示“获取远程 (Fetch)”、“快进更新…”、“合并远端分支… (Merge)”与“变基到远端分支… (Rebase)”（全程禁止 `--force`）；
+    - 两阶段预览与活跃会话确认：
+      - 四类操作均采用 `*-preview` → 限时 `confirmationId` 确认，列出目标工作树、当前分支、源引用或提交、方向语句（`merge A into B` / `rebase B onto A`）、待合入或重放提交计数及 `git merge-tree` 预判冲突路径；
+      - 目标工作树存在运行中会话时强制要求显式勾选 `acknowledgeSessions`（未确认返回 `409 session_ack_required`）；
+    - 执行前自动写入私有保护引用 `refs/webmux/recovery/<worktreeId>/<kind>` 保存操作前 `HEAD`，完成后、中止后或移除/释放工作树时自动清理；
+  - 无状态重进协调恢复横幅与诚实 `Abort` 预览（`A13`、`G10`）：
+    - 无状态探查与重进恢复：
+      - `GET .../git/operation-state` 直接从 `.git` / worktree gitdir（`MERGE_HEAD`、`rebase-merge/`、`rebase-apply/`、`CHERRY_PICK_HEAD`、`REVERT_HEAD`、`ORIG_HEAD` 及 `refs/webmux/recovery/*`）与索引未合并条目重建进行中状态；
+      - 页面刷新、重连或从终端发起冲突操作后进入工作台均自动挂载 `GitInProgressBanner`；
+    - `继续操作 (Continue)` 在工作树仍存在任何未合并索引条目（`1..3` 阶未清空）时保持禁用，服务端 `POST .../git/operation-continue` 同步拦截并返回 `409 unmerged_entries`；
+    - `POST .../git/operation-abort-preview` 与 `GitAbortOperationDialog` 诚实展示回退目标提交 OID（`ORIG_HEAD` 或恢复锚点）、将回滚的路径清单与活跃会话确认，确认后干净恢复至操作前状态；
+  - 三方冲突解决器 `GitConflictView`、非颠倒变基标签与四步递进（`UI-07`、`U14`、`UI-12`）：
+    - 桌面三栏与窄屏常驻结果布局：
+      - 桌面端（`>= 1280px`）固定展示 `左侧只读来源 | 中间可编辑结果 (Result) | 右侧只读来源` 三栏，共同祖先 `Base`（`stage 1`）通过顶部对照切换器与弹层查看，**绝不顶替中间 `Result` 栏**；
+      - 窄屏（`< 1280px`，含 `320px` 与 `200%` 根字号）通过顶部 `SegmentedControl` 切换 `左侧来源 / 右侧来源 / 共同祖先 Base` 与逐块裁决卡，同时在底部**常驻显示可编辑 `Result` 区域**且零横向溢出；
+    - `rebase` 期间服务端将 `left` 固定映射为 `stage 3`（当前分支重放提交）、`right` 固定映射为 `stage 2`（变基目标基底），界面左右列永不对调，并在列头显式展示真实分支名、提交短 OID 与语义角色；
+    - 文本冲突四步递进门禁：
+      1. 草稿态：逐块接受左/右/双侧、一键应用全部非冲突改动或手动编辑；
+      2. `保存结果 (Save Result)`：拦截遗留 `<<<<<<<` 冲突标记，经 `internal/worktreefs` 的 `os.Root` 原子写回工作区文件，**不自动暂存**，`1..3` 阶保留；
+      3. `标记已解决 (Mark as Resolved)`：核对 `stageIdentityKey` 与 `diskSHA` 后写入 `stage 0` 并清除 `1..3` 阶；
+      4. `继续操作 (Continue)`：仅当全部未合并条目清零后启用并继续序列操作；
+    - 二进制、删改冲突（`delete_modify`）、子模块、符号链接与超大文件展示专用裁决卡（`GitConflictVariantCard`），支持显式 `choose_left`、`choose_right` 或 `delete` 并清除未合并索引阶。
 
 依据：
 
@@ -188,3 +218,14 @@
   - 前端控制器：[审阅同步控制器](../../../../web/src/hooks/workspace/git-review-sync.svelte.ts)、[草稿控制器](../../../../web/src/hooks/workspace/git-commit-draft.svelte.ts)、[返工控制器](../../../../web/src/hooks/workspace/git-rework-controller.svelte.ts)；
   - 前端组件：[草稿冲突卡片](../../../../web/src/components/workspace/GitCommitDraftConflictCard.svelte)、[Diff 选行摘录条](../../../../web/src/components/workspace/GitDiffSelectionBar.svelte)、[返工草稿箱弹窗](../../../../web/src/components/workspace/GitReworkDialog.svelte)；
   - 前端测试：[协同模型单测](../../../../web/test/git-collab.test.ts)、[跨端协同与会话交回 E2E](../../../../web/test/e2e/git-workbench-v1-collab.spec.ts)。
+- 合并、变基、遴选、还原协调恢复与三方冲突解决器：
+  - 服务端原子写与冲突解析：[工作区原子写入](../../../../internal/worktreefs/write.go)、[三方分段合并](../../../../internal/workspace/conflict_merge3.go)、[冲突探查](../../../../internal/workspace/conflict_inspect.go)、[冲突保存与解决](../../../../internal/workspace/conflict_resolve.go)；
+  - 服务端分叉预览：[进行中状态探查](../../../../internal/workspace/operation_inspect.go)、[分叉预览](../../../../internal/workspace/divergence_preview.go)；
+  - 服务端执行恢复：[分叉执行](../../../../internal/workspace/divergence_execute.go)、[继续与中止恢复](../../../../internal/workspace/operation_recovery.go)；
+  - 服务端路由契约：[分叉与冲突路由](../../../../internal/api/git_divergence.go)、[分叉契约](../../../../internal/contract/git_divergence.go)、[冲突契约](../../../../internal/contract/git_conflict.go)；
+  - 服务端测试：[服务层测试](../../../../internal/workspace/conflict_test.go)、[接口测试](../../../../internal/api/git_conflict_test.go)；
+  - 前端契约与模型：[冲突契约](../../../../web/src/contracts/git-conflict-schemas.ts)、[冲突请求封装](../../../../web/src/platform/git-conflict-api.ts)、[冲突领域模型](../../../../web/src/domains/workspace/git-conflict-model.ts)；
+  - 前端控制器：[分叉控制器](../../../../web/src/hooks/workspace/git-divergence-controller.svelte.ts)、[冲突控制器](../../../../web/src/hooks/workspace/git-conflict-controller.svelte.ts)；
+  - 前端横幅与弹窗：[进行中横幅](../../../../web/src/components/workspace/GitInProgressBanner.svelte)、[分叉预览弹窗](../../../../web/src/components/workspace/GitDivergencePreviewDialog.svelte)、[中止确认弹窗](../../../../web/src/components/workspace/GitAbortOperationDialog.svelte)；
+  - 前端冲突解决器：[三方冲突解决器](../../../../web/src/components/workspace/GitConflictView.svelte)、[窄屏冲突面板](../../../../web/src/components/workspace/GitConflictMobilePane.svelte)；
+  - 前端测试：[冲突模型单测](../../../../web/test/git-conflict.test.ts)、[冲突解决器浏览器测试](../../../../web/test/browser/GitConflictView.test.ts)、[分叉恢复与三方冲突解决 E2E](../../../../web/test/e2e/git-workbench-conflicts.spec.ts)。

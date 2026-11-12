@@ -1,6 +1,4 @@
 <script lang="ts">
-  import IconArrowDown from "~icons/tabler/arrow-down";
-  import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -11,11 +9,15 @@
     GitIssue,
     GitPushPreviewModel,
   } from "../../contracts/git-workbench-schemas";
+  import { formatPushRemoteTrackingRef } from "../../domains/workspace/git-divergence-model";
   import type { GitPushController } from "../../hooks/workspace/git-push-controller.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
   import GitIssueList from "./GitIssueList.svelte";
   import GitPushCommitInspector from "./GitPushCommitInspector.svelte";
+  import GitPushRejectedBanner, {
+    type GitPushRecoveryCallbacks,
+  } from "./GitPushRejectedBanner.svelte";
 
   let {
     push,
@@ -24,13 +26,13 @@
     onClose,
     onFetchRemote,
     onFastForwardBranch,
-  }: {
+    onMergeRemoteBranch,
+    onRebaseOntoRemoteBranch,
+  }: GitPushRecoveryCallbacks & {
     push?: GitPushController;
     model?: GitPushPreviewModel;
     onConfirm?: () => void;
     onClose?: () => void;
-    onFetchRemote?: () => void;
-    onFastForwardBranch?: (branch: string) => void;
   } = $props();
 
   let fixtureCommitOid = $state<string | null>(null);
@@ -67,6 +69,9 @@
   );
   const precedingCommit = $derived(
     push ? push.precedingCommit : (model?.precedingCommit ?? null),
+  );
+  const remoteTrackingRef = $derived(
+    formatPushRemoteTrackingRef(remoteName, targetBranch || sourceBranch),
   );
 
   const commitRows = $derived.by(() => {
@@ -172,59 +177,23 @@
   onclose={handleClose}
 >
   <div class="space-y-3" data-testid="git-push-dialog">
-    {#if precedingCommit}
-      {#if push?.rejected || push?.conflictError}
-        <InlineNotice tone="warning">
-          <div class="space-y-1.5">
-            <p class="font-medium">
-              本地已提交（{precedingCommit.shortOid} · {precedingCommit.subject}），推送未完成：{push
-                ?.rejected?.message ||
-                push?.conflictError}。本地提交已完整保留。
-            </p>
-            <div class="flex flex-wrap items-center gap-2">
-              {#if onFetchRemote}
-                <Button size="xs" variant="outline" onclick={onFetchRemote}>
-                  <IconRefresh aria-hidden="true" />
-                  获取远程 (Fetch)
-                </Button>
-              {/if}
-              {#if onFastForwardBranch}
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onclick={() => {
-                    const b = sourceBranch;
-                    handleClose();
-                    onFastForwardBranch(b);
-                  }}
-                >
-                  <IconArrowDown aria-hidden="true" />
-                  快进更新… (Update)
-                </Button>
-              {/if}
-            </div>
-          </div>
-        </InlineNotice>
-      {:else}
-        <InlineNotice tone="success">
-          第一步已完成：本地提交 <span class="font-mono"
-            >{precedingCommit.shortOid}</span
-          >（{precedingCommit.subject}）已创建。请核对本分支全部待推提交后确认推送。
-        </InlineNotice>
-      {/if}
-    {:else if push?.rejected || push?.conflictError}
-      <InlineNotice tone="danger">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>
-            推送未完成：{push?.rejected?.message || push?.conflictError}
-          </span>
-          {#if onFetchRemote}
-            <Button size="xs" variant="outline" onclick={onFetchRemote}>
-              <IconRefresh aria-hidden="true" />
-              获取远程 (Fetch)
-            </Button>
-          {/if}
-        </div>
+    {#if push?.rejected || push?.conflictError}
+      <GitPushRejectedBanner
+        {precedingCommit}
+        reason={push?.rejected?.message || push?.conflictError || ""}
+        {sourceBranch}
+        {remoteTrackingRef}
+        onCloseDialog={handleClose}
+        {onFetchRemote}
+        {onFastForwardBranch}
+        {onMergeRemoteBranch}
+        {onRebaseOntoRemoteBranch}
+      />
+    {:else if precedingCommit}
+      <InlineNotice tone="success">
+        第一步已完成：本地提交 <span class="font-mono"
+          >{precedingCommit.shortOid}</span
+        >（{precedingCommit.subject}）已创建。请核对本分支全部待推提交后确认推送。
       </InlineNotice>
     {/if}
 

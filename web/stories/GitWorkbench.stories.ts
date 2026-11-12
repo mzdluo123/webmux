@@ -60,3 +60,19 @@ export const CommitDraftConflict409: Story = {
 export const ReworkSessionHandoff: Story = {
   args: { scenario: "rework-session-handoff" },
 };
+
+export const ConflictThreeWayText: Story = {
+  args: { scenario: "conflict-three-way-text" },
+};
+
+export const ConflictBinaryVariant: Story = {
+  args: { scenario: "conflict-binary-variant" },
+};
+
+export const DivergenceRebasePreview: Story = {
+  args: { scenario: "divergence-rebase-preview" },
+};
+
+export const AbortOperationDialog: Story = {
+  args: { scenario: "abort-operation-dialog" },
+};
