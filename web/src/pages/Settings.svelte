@@ -11,6 +11,7 @@
   import { onMount } from "svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+  import { nextPromptPreference } from "../domains/chat/next-prompt.svelte";
   import { Label } from "$lib/components/ui/label";
   import InfoHint from "../components/shared/InfoHint.svelte";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
@@ -46,11 +47,12 @@
     returnSession && /^[a-z2-7]{8}$/.test(returnSession) ? returnSession : "";
   let defaultShell = $state<"" | StartupShell>("");
   let pendingUpdate = $state<PendingUpdate>();
-
+  let nextPromptConfigured = $state(false);
   async function loadConfig() {
     try {
       const config = await api("/config", ConfigSchema, "GET");
       pendingUpdate = config.pendingUpdate;
+      nextPromptConfigured = config.nextPrompt === true;
       defaultShell =
         config.defaultShell === "zsh"
           ? "zsh"
@@ -140,6 +142,29 @@
       </div>
       {#if pendingUpdate}<PendingUpdateNotice update={pendingUpdate} />{/if}
       <AppearanceSettings />
+      <Card.Root flat id="chat-behavior" class="scroll-mt-4">
+        <Card.Header><Card.Title>聊天行为</Card.Title></Card.Header>
+        <Card.Content>
+          <div class="flex items-center justify-between gap-3">
+            <div class="space-y-1">
+              <Label for="next-prompt-suggestions"
+                >下一步提示词建议（实验）</Label
+              >
+              <p class="text-xs text-muted-foreground">
+                {nextPromptConfigured
+                  ? "在此浏览器启用后，由服务端配置的 coding agent 根据本轮对话生成续接建议。"
+                  : "在服务端配置 next_prompt.cmd 并重启后可启用。"}
+              </p>
+            </div>
+            <Switch
+              id="next-prompt-suggestions"
+              checked={nextPromptConfigured && nextPromptPreference.enabled}
+              disabled={!nextPromptConfigured}
+              onCheckedChange={nextPromptPreference.set}
+            />
+          </div>
+        </Card.Content>
+      </Card.Root>
       <QuickCommandsSettings />
       <VoiceSettings />
       <LaunchConfigsSettings {defaultShell} />

@@ -38,6 +38,7 @@ const groups: Array<[z.ZodType, string[]]> = [
   ],
   [S.ConversationActivitySchema, ["conversation-activity"]],
   [S.ChatFrameSchema, ["ws-chat-events", "ws-chat-snapshot", "ws-chat-state"]],
+  [S.ChatNextPromptSchema, ["chat-next-prompt"]],
   [S.LaunchOptionsSchema, ["launch-config-options"]],
   [
     S.SessionInputResultSchema,
@@ -337,6 +338,18 @@ describe("Go wire snapshots", () => {
       expect(schema!.parse(body), file).toEqual(body);
     });
   }
+
+  it("preserves omitted and explicit next-prompt capabilities", () => {
+    const snapshot = JSON.parse(
+      readFileSync(directory + "config.json", "utf8"),
+    ) as { body: Record<string, unknown> };
+    const body = normalize(snapshot.body) as Record<string, unknown>;
+    expect(S.ConfigSchema.parse(body)).not.toHaveProperty("nextPrompt");
+    for (const nextPrompt of [true, false])
+      expect(S.ConfigSchema.parse({ ...body, nextPrompt }).nextPrompt).toBe(
+        nextPrompt,
+      );
+  });
 
   it("keeps document and change node IDs required, not merely accepted", () => {
     for (const schema of [S.CodeDocumentSchema, S.CodeChangeSchema])

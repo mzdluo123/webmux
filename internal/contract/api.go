@@ -42,6 +42,8 @@ type ServerConfig struct {
 	PortDetection bool `json:"portDetection"`
 	// Voice reports whether external speech recognition is configured.
 	Voice bool `json:"voice"`
+	// NextPrompt reports whether a coding agent is configured for suggestions.
+	NextPrompt bool `json:"nextPrompt,omitempty"`
 	// P2P reports whether opportunistic P2P direct upgrade is supported and
 	// enabled on this server; older servers omit it.
 	P2P bool `json:"p2p"`

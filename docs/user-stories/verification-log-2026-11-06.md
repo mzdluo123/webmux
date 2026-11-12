@@ -100,6 +100,11 @@
 - 依据：10 项桌面与手机 Chromium E2E 通过，含跨设备同步和终端主题回归。隔离演示服务截图覆盖桌面、平板和手机，手机 GIF 记录双向切换。
 - 限制：仅使用 Chromium 和移动视口模拟，未在真机浏览器上核对。
 
+本次局部核对（2026-11-10）更新 US-Q07 与覆盖索引。续接建议由部署者配置的 coding agent 生成，浏览器保留单独的实验开关。
+
+- Go 测试核对本轮上下文、结果复用、无效输出及协议快照。Chromium 桌面和手机使用隔离假 agent 验证开关、建议生成、Tab 导航、忽略后刷新及点按填入。
+- 核对部署配置、协议和故事来源链接。生成验证使用假 agent，未请求真实模型服务，也未重新核验其他故事。
+
 本次局部核对（2026-11-10）：修复代码质量扫描发现的 Token 日志暴露、混合记录持久化与关闭竞态、聊天发送和预览资源问题，并补齐 CI 与测试治理；更新 US-A03、US-N03、US-K12、US-Q08、US-Q12、US-Q14、US-Q18、US-H09、US-L02、US-L05、US-L08 与覆盖索引，不新增或重编号故事。
 
 - 范围：启动链接和二维码不再携带 Token；混合记录状态锁不再覆盖文件 I/O，失败保留 dirty 重试并记录关闭写入错误；Create/Resume 关闭窗口受控；聊天发送失败保留两段输入，成功释放图片 Object URL；安装提示 rejection 显示备用说明；紧凑输入卡片不再充当嵌套按钮。
@@ -256,44 +261,19 @@
 
 ## 2026-11-11：Handoff 02 完整 Activity 与 replay 对账（US-Q05、US-Q12）
 
-- 范围：UI 截断前的规范化消息、命令输入/退出码/输出、文件修改、计划、压缩、权限结果、错误、回合与切换；附件只存元数据和来源引用。
-- 存储：64 KiB 分块追加，快照保留相同前缀；完成后事务发布 position；长项按 UTF-8 字节分页；半条崩溃尾部保持未提交并标 gap。
-- 对账：ProviderThread + provider item ID，以及无 ID 的完整项有序前缀；native ID 改变、乱序、缺失或未知无 ID 内容保持 reconcile_required，TUI 缺口不被猜测性删除。
-- 验证：存储与 recorder 的针对性 Go race 测试通过，含大于 256 KiB 的消息/工具、重复文本、快照尾部、后台工具跨回合归属、v1 升级和实际 fake-agent 冷 load 去重。
-- 基准：Linux amd64 / Go 1.26.10，128 次 4 KiB 追加约 67.9 μs/op、60.31 MB/s、7,279 B/op；这是临时目录中的单次样本，不代表生产磁盘或全套性能验收。
-- 限制：当前提供服务层读取，REST 与浏览器历史查询在下一层接入；未在原生 macOS 执行本层测试，未验证真实 provider 的完整回放能力。
-- 评审补充：工具标题、命令输入与退出码独立分块保存，metadata-only patch 不改写累计输出；省略初始工具状态按 pending 处理，跨回合完成保持原 Run。新增回归覆盖这两种情况和输出零改写。
-- 插话补充：接受插话后切断无 native ID 的消息连续段，显式 failed 丢弃未消费草稿；实际 ACP 调用、关闭和重开数据库的回归测试验证顺序正确且不产生伪崩溃缺口。
+本节验证记录已原文迁入[交接核对记录](verification-log-2026-11-handoff.md#2026-11-11handoff-02-完整-activity-与-replay-对账us-q05us-q12)。
 
 ## 2026-11-11：Handoff 03 历史投影与分页 API（US-Q05、US-Q12）
 
-- 范围：归档或运行中的 Conversation 分页读取、长项 UTF-8 字节余文、类型化 portable projection；游标使用十进制 int64 字符串，独立于 chat generation/seq。
-- 验证：API Go race 测试覆盖认证/恶意 Origin、非法和重复游标、跨 Conversation、单页/聚合上限、并发追加和中文/emoji 拼接；wire snapshots 与 Zod 契约/游标测试共 232 项通过。
-- 隐私：只返回规范化可导出内容与必要来源，控制项显式标不可导出；响应 no-store，读取限时 10 秒。
-- 集成：`make check` 通过，包含前端架构检查、文档与持久化守卫、vet 和 linter；无可见 UI 改动。
-- 限制：尚无浏览器历史选择 UI，本层提供供后续 selector、preview 与 thread_read 复用的读取契约；未在真实 provider 上验证历史完整度。
+本节验证记录已原文迁入[交接核对记录](verification-log-2026-11-handoff.md#2026-11-11handoff-03-历史投影与分页-apius-q05us-q12)。
 
 ## 2026-11-11：Handoff 04 选择、预算与持久预览（US-Q20、US-K04）
 
-- 范围：新增 US-Q20，两个索引同步；整项 selector、UTF-8/JSON 成本、provider 用量与估算、目标变化失效、持久草稿、revision 冲突及 stale；配置上限对应 US-K04。
-- 验证：`make check`、完整 Go race 测试、238 项历史/预览 Zod 与 wire 测试通过；涵盖 64 KiB 边界、转义与计数位数、重复 ID、超大项、小窗口、附件预算、编辑重启与并发冲突。
-- 成本：1 万条候选、500 次 selector 基准约 1.13 ms/op、3.81 MB/op；选择阶段只加载成本元数据，之后读取被选中的完整项。这是本机单次样本。
-- 选择语义：按优先级逐项尝试，超大项跳过；预算缩小时总选择成本单调，所选集合可能变化，不承诺严格子集关系。
-- 隐私与边界：预览只存配置摘要和附件引用，不持久化 argv/env/blob；手工文本与用户新请求分开，原生注入与 MCP 工具能力保持禁用。
-- 限制：没有可见 UI 改动，本层不投递 prompt 或创建 worktree/session；尚未运行真实 provider 或原生 macOS 验收。
-- 失效补充：启动配置摘要包含聊天能力开关；目标选项基线与显式覆盖值单独保存，不依赖预算总数判断。禁用聊天后保留编辑、未知窗口下 model 漂移、明确覆盖前后及相同 POST 重试的 Go race 回归通过。
+本节验证记录已原文迁入[交接核对记录](verification-log-2026-11-handoff.md#2026-11-11handoff-04-选择预算与持久预览us-q20us-k04)。
 
 ## 2026-11-11：Handoff 05 inline 投递与持久幂等（US-Q20）
 
-- 范围：fork 到新 Conversation，cwd/已有或新 worktree，持久 receipt、资源 checkpoint、actor dispatch gate、独立用户请求与 inline coverage；US-Q20 和覆盖索引同步。
-- 验证：`make check`、完整 Go race 测试、242 项 Zod/wire 测试通过；API 覆盖认证/Origin、归档来源、connector 缺失、首次失败结果、显式重试与 payload 冲突。
-- 故障注入：receipt 后、worktree 创建后、session 创建后、调用前与调用后分别模拟中断并重开服务，保持资源与命令身份；未进入 actor 的阶段可继续，可能调用过的 unknown 不自动重发。
-- 实际协议回归：fake-agent 仅保存用户消息后退出，自动 load 失败时保留 unknown；显式恢复后以精确 native ID 和 payload hash 确认消费，未发送第二个 prompt。正常结果、明确 auth refusal 和后续错误不会混淆消费事实。
-- 展示边界：本地 Activity、时间线和标题只使用用户新请求，回放验证后恢复相同显示；历史内容不成为新的用户消息。
-- 限制：当前只执行 fork inline；同一 Conversation 切换、原生历史注入、MCP 工具和浏览器交接入口属于后续 stack 层，未宣称真实 provider 验收。
-
-- Handoff 05 评审补充：附件以持久 copy intention/hash 原子发布到目标私有 uploads，明确归目标会话所有；对账 hash 在 capability fallback 后与 dispatch gate 一起提交。新增回归覆盖来源文件消失、忘记来源、服务重启、fallback unknown/load、UI 与 Activity 附件元数据恢复，且未再发送 prompt。
-- Handoff 05 删除补充：目标拥有用户新请求、native/hash 与附件引用的回放 receipt，不依赖来源预览。v5 升级、忘记来源后重启/load、不同稳定 item ID 不改写、忘记目标级联删除测试通过；不会保存额外来源历史副本。attention 投影竞态测试改为等待实际 shell idle，连续 20 次 Go race 通过。
+本节验证记录已原文迁入[交接核对记录](verification-log-2026-11-handoff.md#2026-11-11handoff-05-inline-投递与持久幂等us-q20)。
 
 ## 2026-11-11：Handoff 06 同一对话切换与原生继续（US-Q12、US-Q20）
 
@@ -316,11 +296,28 @@
 - 依据：PR #538 首次完整 CI 的 `TestScreenKeepsChangingPrintsUnstableSnapshot` 在 1 秒返回 `stable=true`；未通过重跑掩盖失败，也未放宽测试。
 - 修复验证：静默、持续重绘、退出三项 screen 定向测试在 race 与跨包原子覆盖配置下以 `-count=20` 通过；未重新核验其他 CLI 行为。
 
+本次局部更新（2026-11-12）合并主分支并补强 US-Q07 的续接建议边界：
+
+- 保留主分支聊天输入历史、设置分区和 P2P 能力；沿用服务端已配置的 coding agent，不新增固定建议文案。
+- 断线或切换会话后清除已观察回合，重连历史不触发建议。补充真实聊天组件的 Tab、忽略、历史快照与重连测试，以及会话切换/刷新端到端覆盖。
+- 验证：前端与测试类型检查、前端架构检查（含 40 项测试）、3 项聊天建议浏览器回归、桌面和 320×568 手机端的 2 项定向 E2E、文档守卫通过。E2E 使用隔离假 agent，未请求真实模型服务。
+- 后续验证：前端 lint、Go 格式检查、`internal/hybrid`、`internal/api`、`internal/config` 的 race 测试和固定版本 golangci-lint 通过。首次 API/lint 检查缺少嵌入产物，构建前端后仅补跑受阻检查。
+- 隔离真实应用核验：主动断开聊天 WebSocket，观察服务端回合在断线时结束；重连后无历史建议请求，新回合可显示建议。Tab 移出输入框，忽略记录刷新后保留；录制最终交互 GIF，并检查桌面、平板、320×568 手机截图及桌面/手机深色截图。
+- 桌面、平板和手机均未出现页面级横向溢出；未验证真实触屏或真实模型服务，未重新核验其他故事。既有核对记录仍对应原日期的实现。
+- 再次合并 Handoff 历史 API 后，wire 回归发现未配置时的 `nextPrompt` 应保持省略，不能由前端补入 `false`；已修复契约并补测省略、显式开启和显式关闭三种响应。
+- 合并验证：241 项 Conversation/wire 契约测试、43 项聊天建议与启动配置浏览器测试、生产/测试类型检查、Hybrid/API/Conversation Go race 与固定版本 Go linter 通过；未因本次无可见 UI 变化的合并重拍界面证据。
+
 ## 2026-11-12：Handoff 历史 API 合并修复（US-Q05、US-Q12）
 
 - 范围：适配 main 的前端目录迁移；键盘选择启动配置的回归等待输入框聚焦，再按名称搜索，不依赖初始选中项的时序。
 - 验证：键盘选择定向浏览器测试、239 项历史游标与 wire 契约测试、API 与 Conversation Go race 测试通过；前端构建、生产/测试类型、Oxlint、架构守卫、文档与持久化守卫、Go vet 和固定版本 linter 通过。
 - 实例：启动隔离服务，在桌面 Chromium 打开新建会话，键盘切换启动配置并观察确认文案；未启动真实外部 Agent，未重新核验移动设备。
+
+## 2026-11-12：续接建议共享生成取消隔离（US-Q07）
+
+- 范围：建议生成改由会话生命周期管理，登记为服务关闭时需等待的后台工作；单个 HTTP 请求取消仅退出自身等待，不取消共享生成，也不清空同回合缓存。
+- 回归：用 FIFO 明确阻塞和释放生成进程；第二个请求确定进入等待后取消第一个请求，核对剩余请求收到建议、后续请求复用结果且生成只运行一次；另覆盖会话取消后进程清理与生成名额回收。定向 race 测试与固定版本 Go linter 通过。
+- 实例：使用新构建的隔离服务与配置式假生成器，通过真实 HTTP API 取消首个等待者；第二个请求返回 200 和预期建议，后续请求取得同一结果，实际生成次数为 1。未调用真实模型，也未改动界面或重拍原有 UI 证据。
 
 ## 2026-11-12：120 会话菜单的交互预算（US-C02；核验 US-C03、US-C15）
 

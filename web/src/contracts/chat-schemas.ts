@@ -441,3 +441,10 @@ export const SessionInputResultSchema = z.object({
   turnId: z.string().optional(),
   promptId: z.string().optional(),
 });
+
+export const ChatNextPromptRequestSchema = z.object({
+  turnId: z.string().min(1),
+  endedAt: datetime,
+});
+
+export const ChatNextPromptSchema = z.object({ text: z.string().max(480) });

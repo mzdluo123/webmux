@@ -18,6 +18,8 @@
 - [agent 注册表](../../internal/agentprofile/agents/agents.go)、[Codex 适配器](../../internal/agentprofile/codex/codex.go)、[适配器契约测试](../../internal/agentprofile/agenttest/agenttest.go)
 - [Claude Code 适配器](../../internal/agentprofile/claudecode/claudecode.go)、[Claude 注册记录](../../internal/agentprofile/claudecode/registry.go)、[Antigravity CLI 适配器](../../internal/agentprofile/agy/agy.go)
 - [会话外壳与伴随进程](../../internal/session/lifecycle.go)、[进程事实](../../internal/session/process_facts.go)、[聊天接口](../../internal/api/chat.go)、[聊天通道](../../internal/hub/chat.go)
+- [续接建议生成](../../internal/hybrid/next_prompt.go)、[服务端配置](../deployment/configuration.md#下一步提示词建议next_prompt)。
+- [续接建议偏好](../../web/src/domains/chat/next-prompt.svelte.ts)、[聊天建议回归测试](../../web/test/browser/ChatSuggestions.test.ts)。
 - [启动配置](../../internal/launch/types.go)、[聊天视图](../../web/src/components/chat/)、[代码链接解析](../../web/src/domains/code/markdown-link.ts)、[代码工作区](../../web/src/components/code/CodeWorkspace.svelte)、[会话页](../../web/src/pages/Terminal.svelte)
 - [已归档记录](../../web/src/components/sessions/ArchivedSessions.svelte)、[归位规则](../../web/src/domains/sessions/archived.ts)、[安装提示](../../web/src/components/sessions/ConnectorInstallHint.svelte)、[原生附着](../../internal/attach/attach.go)
 - [使用说明](../hybrid-sessions.md)、[协议](../protocol/http-hybrid.md)、[创建会话协议](../protocol/http-session-create.md)、[端到端测试](../../web/test/e2e/hybrid.spec.ts)。

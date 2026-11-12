@@ -1,20 +1,27 @@
 # Portable handoff 核对记录
 
 本页记录 2026-11-11 起交接增强层的实际验证。故事 ID 保持不变。
-身份、Activity、历史接口、预览和 inline 的先前依据见[基础层记录](verification-log-2026-11-06.md)；同一对话切换的验证保留在本页。
+身份基础的先前依据见[基础层记录](verification-log-2026-11-06.md)；Activity、历史接口、预览、inline 与同一对话切换的基础验证见[历史核对记录](verification-log-2026-11-archived-history.md)。
+
+## 2026-11-11：Handoff 02 完整 Activity 与 replay 对账（US-Q05、US-Q12）
+
+本节验证记录已原文迁入[历史核对记录](verification-log-2026-11-archived-history.md#2026-11-11handoff-02-完整-activity-与-replay-对账us-q05us-q12)。
+
+## 2026-11-11：Handoff 03 历史投影与分页 API（US-Q05、US-Q12）
+
+本节验证记录已原文迁入[历史核对记录](verification-log-2026-11-archived-history.md#2026-11-11handoff-03-历史投影与分页-apius-q05us-q12)。
+
+## 2026-11-11：Handoff 04 选择、预算与持久预览（US-Q20、US-K04）
+
+本节验证记录已原文迁入[历史核对记录](verification-log-2026-11-archived-history.md#2026-11-11handoff-04-选择预算与持久预览us-q20us-k04)。
+
+## 2026-11-11：Handoff 05 inline 投递与持久幂等（US-Q20）
+
+本节验证记录已原文迁入[历史核对记录](verification-log-2026-11-archived-history.md#2026-11-11handoff-05-inline-投递与持久幂等us-q20)。
 
 ## 2026-11-11：Handoff 06 同一对话切换与原生继续（US-Q12、US-Q20）
 
-- 范围：同一 Conversation 的 A→B→A 与 A→B→C、真实 session/resume、已确认 Run/position 覆盖、共享运行绑定与原生身份轮换；位置固定，不经过快速开始。
-- 协议回归：实际 fake-agent 验证 A 原生 ID/运行 ID 不变、只选择 B 的未见项、旧 Run 的迟到结果仍计入、保持一个 writer；缺少 resume 时生成 full fresh 草稿并等单独投递。
-- 并发与生命周期：前台回合、后台工作及 Codex 外部 writer 锁拒绝切换；持久 owner 阻止其他设备同时投递，重启后继续原 attempt，unknown 不绕过；忘记共享绑定保留其余线程。
-- 验证：`make check`、全仓 `go test -race -p 4 ./...`、268 项历史/Zod/wire 测试通过。继承的 CODEX_PATH、XDG 配置和运行时变量在测试中清除，使用隔离临时目录。
-- 限制：本层无可见 UI，尚未验证真实 provider 账户；nativeContinue 只标识原生 resume，不表示原生历史注入，后者属于下一层。
-- 评审补充：恢复与投递共用 Conversation 的 admission token，阻止旧 provider 在成功切换后通过普通归档恢复重开 writer；unknown 恢复拒绝终端端和原生 ID 替换。实际 fake-agent 回归覆盖拒绝后无新 shell、无新 prompt，原 writer 保持运行。
-- 中断补充：原生 TUI 实际退出后，确认 PID 0，再退场 actor/已退出 shell；切换在短时测试期限内完成，原 interrupted 记录保留，不再等执行总超时。
-- 来源恢复补充：旧 agent 因活跃回合或暂停队列拒绝退场时，失败目标的 owner 不再占用旧运行；目标明确失败的普通聊天保护与终端恢复语义不变，pending/unknown 仍覆盖来源与目标。
-- 实例核验：隔离 HOME/XDG 和 fake-agent 存储，实际私有 WebMux 可执行文件经认证 HTTP 完成忙碌来源的归档恢复、服务重启自动恢复；原生身份不变，普通输入均为 200。实际失败目标恢复后普通输入仍为 409、终端恢复为 200，pending/unknown 来源恢复到两端均为 409。
-- 定向验证：conversation、handoff、hybrid、API 未缓存 Go race、固定版本 linter 和文档治理通过；无真实 provider 或账户验收，未重新核验其他故事。
+本节验证记录已原文迁入[历史核对记录](verification-log-2026-11-archived-history.md#2026-11-11handoff-06-同一对话切换与原生继续us-q12us-q20)。
 
 ## Handoff 07：Codex 原生历史（US-Q12、US-Q20）
 
@@ -300,3 +307,10 @@
 测试使用隔离临时状态与 fake provider，未连接真实 provider 账号、未发出计费模型请求。
 版本矩阵是上游协议核实；未宣称在原生 macOS 或真实移动设备上运行本层测试。
 集成门禁和后续增强的实际结果在完成后追加，不把未运行项目记为通过。
+
+## 2026-11-12：续接建议与最终 native handoff 核心集成（US-Q07）
+
+- 合并 selection v9、draft v10、dispatch v11 及最终聊天滚动核心；保留原生 writer、unknown/pending 准入与冻结位置规则，不改动核心焦点或跟随控制。US-Q07 的建议验收迁入「模式与时间线」子页。
+- 验证：生产前端构建一次后复用嵌入产物，格式、文档、持久化、测试类型、前端 lint/架构、Go vet 与固定版本 linter 全部通过；原核心日志有一处 Oxfmt 差异，格式化该文件后继续门禁。3 项建议浏览器测试、253 项契约测试、桌面/手机 2 项建议 E2E，以及 Hybrid/API/Config/Conversation/Handoff 五包 race 通过。
+- 隔离真实应用：配置假生成命令后，新回合建议请求数为 1；Tab 离开空消息框，忽略后刷新保留同一回合标识且请求数为 0。断开聊天连接至服务端结束回合，重连后无历史建议、请求数为 0；下一新回合请求数为 1，点按仅填入草稿。
+- 本次无功能界面重设计，沿用已发布的截图/GIF；未连接真实 provider 或重测物理触屏，不把定向回归当作全套测试。

@@ -1,9 +1,17 @@
 <script lang="ts">
   import { horizontalWheel } from "../../hooks/shared/horizontal-wheel";
   import type { Snippet } from "svelte";
-  import type { ButtonSize, ButtonVariant } from "$lib/components/ui/button";
+  import {
+    Button,
+    type ButtonSize,
+    type ButtonVariant,
+  } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
-  import type { ChatActions, ConfigValue } from "../../platform/chat-api";
+  import {
+    requestNextPrompt,
+    type ChatActions,
+    type ConfigValue,
+  } from "../../platform/chat-api";
   import type { TimelineEntry } from "../../domains/chat/chat-model";
   import { errorMessage } from "../../platform/error";
   import { useTextareaDraft } from "../../hooks/terminal/textarea-draft.svelte";
@@ -18,6 +26,10 @@
     TerminalDraft,
     TerminalDrafts,
   } from "../../domains/terminal/terminal-draft.svelte";
+  import {
+    canSuggestNextPrompt,
+    nextPromptPreference,
+  } from "../../domains/chat/next-prompt.svelte";
   import { enterSendIntent } from "../../hooks/shared/enter-send";
   import ChatConfig from "./ChatConfig.svelte";
   import ChatLocation from "./ChatLocation.svelte";
@@ -76,6 +88,35 @@
   let recalledId = "";
   // Escape hides the menu for the text it was open on.
   let menuDismissed = $state<string | null>(null);
+  let observedTurn = $state<{
+    session: string;
+    turn: string;
+    startedAt?: string;
+  }>();
+  let unavailableChat: ChatState | undefined;
+  $effect(() => {
+    const session = draft.sessionId;
+    const { running, turnId, startedAt } = chat.turn;
+    if (unavailable) {
+      // A reopened socket can be connected before its fresh snapshot arrives.
+      // Do not mistake the retained pre-disconnect state for a live turn.
+      unavailableChat = chat;
+      observedTurn = undefined;
+      return;
+    }
+    if (observedTurn && observedTurn.session !== session)
+      observedTurn = undefined;
+    if (
+      chat !== unavailableChat &&
+      running &&
+      turnId &&
+      (observedTurn?.session !== session ||
+        observedTurn.turn !== turnId ||
+        observedTurn.startedAt !== startedAt)
+    ) {
+      observedTurn = { session, turn: turnId, startedAt };
+    }
+  });
   const running = $derived(chat.turn.running);
   const typed = $derived(draft.text.trim() !== "");
   const ready = $derived(typed || uploads.attachments.length > 0);
@@ -104,6 +145,64 @@
     !disabled && matches.length > 0 && menuDismissed !== draft.text,
   );
   const active = $derived(Math.min(highlighted, matches.length - 1));
+
+  const suggestionKey = $derived(
+    chat.turn.turnId && chat.turn.endedAt
+      ? `${chat.turn.turnId}:${chat.turn.endedAt}`
+      : undefined,
+  );
+  const canSuggest = $derived(
+    nextPromptPreference.enabled &&
+      observedTurn?.session === draft.sessionId &&
+      observedTurn.turn === chat.turn.turnId &&
+      observedTurn.startedAt === chat.turn.startedAt &&
+      suggestionKey &&
+      !nextPromptPreference.dismissed(draft.sessionId, suggestionKey) &&
+      !draft.text &&
+      !ready &&
+      !running &&
+      !uploading &&
+      !sending &&
+      !disabled &&
+      !chat.queue.items.length &&
+      canSuggestNextPrompt(chat),
+  );
+  let generated = $state<{ session: string; key: string; text: string }>();
+  $effect(() => {
+    const { turnId, endedAt } = chat.turn;
+    const session = draft.sessionId;
+    const key = suggestionKey;
+    if (!canSuggest || !key || !turnId || !endedAt) return;
+    if (generated?.session === session && generated.key === key) return;
+
+    const controller = new AbortController();
+    void requestNextPrompt(session, turnId, endedAt, controller.signal).then(
+      ({ text }) => {
+        if (!controller.signal.aborted) generated = { session, key, text };
+      },
+      () => {
+        if (!controller.signal.aborted) generated = { session, key, text: "" };
+      },
+    );
+    return () => controller.abort();
+  });
+  const suggestion = $derived(
+    canSuggest &&
+      generated?.session === draft.sessionId &&
+      generated.key === suggestionKey
+      ? generated.text
+      : "",
+  );
+  function dismissSuggestion() {
+    if (suggestionKey)
+      nextPromptPreference.dismiss(draft.sessionId, suggestionKey);
+  }
+  function acceptSuggestion() {
+    if (!suggestion) return;
+    drafts.edit(draft, suggestion, suggestion.length);
+    dismissSuggestion();
+    textarea?.focus();
+  }
 
   async function submit(mode: "auto" | "steer") {
     const text = draft.text.trim();
@@ -323,6 +422,24 @@
             >
           </ListButton>
         {/each}
+      </div>
+    {/if}
+  {/snippet}
+  {#snippet hints()}
+    {#if suggestion}
+      <div class="flex flex-wrap items-center gap-2 px-2 py-1">
+        <Button
+          variant="ghost"
+          size="xs"
+          class="max-w-full"
+          title={suggestion}
+          onclick={acceptSuggestion}
+        >
+          <span class="truncate text-left">{suggestion}</span>
+        </Button>
+        <Button variant="ghost" size="xs" onclick={dismissSuggestion}
+          >忽略</Button
+        >
       </div>
     {/if}
   {/snippet}

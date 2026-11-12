@@ -134,7 +134,7 @@ func (s *Server) routes() *http.ServeMux {
 		hostname, _ := os.Hostname()
 		voiceEnabled := s.Voice != nil && s.Voice.Enabled()
 		p2pEnabled := s.P2P != nil && s.P2P.Enabled()
-		reply(w, 200, contract.ServerConfig{DefaultCwd: c.DefaultCwd, DefaultShell: s.DefaultShell, Hostname: hostname, Workspace: wire.Capability(workspaces.Capability()), Tunnel: s.tunnelInfo(), PendingUpdate: s.pendingUpdate(), PortDetection: session.ListeningPortsSupported, Voice: voiceEnabled, P2P: p2pEnabled})
+		reply(w, 200, contract.ServerConfig{DefaultCwd: c.DefaultCwd, DefaultShell: s.DefaultShell, Hostname: hostname, Workspace: wire.Capability(workspaces.Capability()), Tunnel: s.tunnelInfo(), PendingUpdate: s.pendingUpdate(), PortDetection: session.ListeningPortsSupported, Voice: voiceEnabled, NextPrompt: s.Hybrid.NextPromptEnabled(), P2P: p2pEnabled})
 	})
 	s.sessionRoutes(mux)
 	serveIn(mux, "PATCH /api/sessions/{id}", http.StatusOK, renameFailure, s.rename)
