@@ -113,7 +113,7 @@
   class="flex h-[26px] min-w-0 shrink-0 items-center justify-between gap-2 overflow-hidden border-t border-git-border bg-git-panel px-2.5 text-xs text-muted-foreground"
   data-testid="git-workbench-status-bar"
 >
-  <div class="flex min-w-0 shrink items-center gap-1.5 max-sm:max-w-[35%]">
+  <div class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
     <IconFolder
       class="size-3.5 shrink-0 text-muted-foreground"
       aria-hidden="true"
@@ -127,7 +127,7 @@
   </div>
 
   <div
-    class="flex min-w-0 flex-1 items-center justify-end gap-2 overflow-hidden"
+    class="flex min-w-0 max-w-[70%] shrink items-center gap-2 overflow-hidden"
   >
     {#if fetchedLabel}
       <span
@@ -146,7 +146,7 @@
           <ListButton
             {...props}
             variant="git-status-trigger"
-            class="min-w-0 max-w-full overflow-hidden"
+            class="min-w-0 max-w-full shrink overflow-hidden"
             aria-label="展开 Git 操作记录与状态详情"
             title={barSummary}
             data-testid="git-operations-popover-trigger"
