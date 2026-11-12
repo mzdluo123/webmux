@@ -1,9 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
-import { APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import {
   gitCompare,
-  gitContext,
   gitSnapshotFile,
   gitSnapshotRaw,
 } from "../../platform/git-api";
@@ -19,6 +17,7 @@ import type {
 } from "../../contracts/schemas";
 import { resolveCalculatedDiff } from "../../domains/code/code-diff-client";
 import { LatestRequest } from "../shared/remote-request.svelte";
+import { createGitContextRunner } from "./git-context-cache";
 
 type GitLogDiffPhase =
   | "idle"
@@ -91,12 +90,7 @@ export interface GitLogDiffControllerDeps {
 
 export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
   let state = $state.raw<GitLogDiffViewState>(emptyLogDiffState());
-  let cachedContext: {
-    repoId: string;
-    worktreeId?: string;
-    contextId: string;
-  } | null = null;
-
+  const ctxRunner = createGitContextRunner();
   const diffReq = new LatestRequest();
   const sideReq = new LatestRequest();
 
@@ -108,7 +102,7 @@ export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
   function resetTarget() {
     diffReq.cancel();
     sideReq.cancel();
-    cachedContext = null;
+    ctxRunner.reset();
     state = emptyLogDiffState();
   }
 
@@ -118,56 +112,8 @@ export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
     state = emptyLogDiffState();
   }
 
-  function seedContextId(
-    repoId: string,
-    worktreeId: string | undefined,
-    contextId: string,
-  ) {
-    if (!repoId || !contextId) return;
-    cachedContext = { repoId, worktreeId, contextId };
-  }
-
-  async function ensureContextId(
-    repoId: string,
-    worktreeId: string | undefined,
-    signal: AbortSignal,
-    force = false,
-  ): Promise<string> {
-    if (
-      !force &&
-      cachedContext &&
-      cachedContext.repoId === repoId &&
-      cachedContext.worktreeId === worktreeId &&
-      cachedContext.contextId
-    ) {
-      return cachedContext.contextId;
-    }
-    const ctx = await gitContext(repoId, worktreeId, signal);
-    cachedContext = { repoId, worktreeId, contextId: ctx.contextId };
-    return ctx.contextId;
-  }
-
-  async function withContext<T>(
-    repoId: string,
-    worktreeId: string | undefined,
-    signal: AbortSignal,
-    run: (contextId: string) => Promise<T>,
-  ): Promise<T> {
-    const firstId = await ensureContextId(repoId, worktreeId, signal, false);
-    try {
-      return await run(firstId);
-    } catch (err) {
-      if (
-        !signal.aborted &&
-        err instanceof APIError &&
-        (err.status === 409 || err.status === 410)
-      ) {
-        const nextId = await ensureContextId(repoId, worktreeId, signal, true);
-        return await run(nextId);
-      }
-      throw err;
-    }
-  }
+  const seedContextId = ctxRunner.seed;
+  const withContext = ctxRunner.withContext;
 
   async function loadPairFileDiff(options: {
     baseOid: string;

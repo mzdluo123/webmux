@@ -2,32 +2,38 @@
   import { MediaQuery } from "svelte/reactivity";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconFolder from "~icons/tabler/folder";
-  import IconGitBranch from "~icons/tabler/git-branch";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { ListButton } from "$lib/components/ui/list-button";
-  import * as Popover from "$lib/components/ui/popover";
   import * as Tabs from "$lib/components/ui/tabs";
+  import type {
+    GitBranchItem,
+    GitCommitOutcome,
+    GitPrecedingCommit,
+    GitPushPreviewModel,
+    GitWorkbenchMode,
+    GitWorkbenchViewState,
+  } from "../../contracts/git-workbench-schemas";
+  import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
+  import {
+    applyShellBranchAction,
+    applyShellCommitConfirm,
+    buildShellPushPreview,
+  } from "../../domains/workspace/git-shell-actions";
   import {
     applyStageHunk,
     applyUnstageHunk,
     buildCommitPreviewModel,
     selectLogBranchFilter,
-    toggleReviewedPath,
+    toggleReviewedChange,
   } from "../../domains/workspace/git-workbench-state";
-  import type {
-    GitCommitOutcome,
-    GitPushPreviewModel,
-    GitWorkbenchMode,
-    GitWorkbenchViewState,
-  } from "../../contracts/git-workbench-schemas";
+  import InlineNotice from "../shared/InlineNotice.svelte";
   import GitBranchesPane from "./GitBranchesPane.svelte";
   import GitCommitPane from "./GitCommitPane.svelte";
   import GitCommitPreviewDialog from "./GitCommitPreviewDialog.svelte";
   import GitLogPane from "./GitLogPane.svelte";
   import GitPushDialog from "./GitPushDialog.svelte";
+  import GitTopBarBranchPopover from "./GitTopBarBranchPopover.svelte";
   import GitWorkbenchModeTabs from "./GitWorkbenchModeTabs.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
 
   let {
     view = $bindable(),
@@ -42,7 +48,6 @@
   } = $props();
 
   const desktop = new MediaQuery("(min-width: 1280px)");
-  let branchPopoverOpen = $state(false);
 
   const readonlyMode = $derived(
     view.context.headState === "readonly" || !view.context.worktreePath,
@@ -56,15 +61,13 @@
 
   function handleBranchFilter(branch: string | null) {
     view = selectLogBranchFilter(view, branch);
-    branchPopoverOpen = false;
   }
 
   function handleRequestCheckout(branch: string) {
     view = {
       ...view,
-      statusBanner: `已请求检出分支 ${branch}（Stage S 预览确认占位，不会静默切换工作树）`,
+      statusBanner: `已打开分支检出预览：${branch}（不会静默覆盖未提交改动）`,
     };
-    branchPopoverOpen = false;
   }
 
   function handleOpenOccupiedWorktree(worktreeId: string, path: string) {
@@ -73,7 +76,6 @@
       ...view,
       statusBanner: `已定位到占用该分支的工作树：${path} (${worktreeId})`,
     };
-    branchPopoverOpen = false;
   }
 
   function openCommitPreview(followUpPush: boolean) {
@@ -83,61 +85,42 @@
     };
   }
 
-  function openPushDialog(branchOverride?: string) {
-    const sourceBranch =
-      branchOverride ?? view.context.checkedOutBranch ?? "main";
-    const pushModel: GitPushPreviewModel = defaultPushPreview ?? {
-      repositoryName: view.context.repositoryName,
-      sourceBranch,
-      remote: "origin",
-      targetBranch: sourceBranch,
-      pushUrl: `https://example.invalid/${view.context.repositoryName}.git`,
-      publish: !view.context.upstream,
-      commits: Object.values(view.commitDetails),
-      blockers: readonlyMode
-        ? [
-            {
-              code: "no_worktree",
-              message: "无工作树只读模式下无法执行分支推送。",
-            },
-          ]
-        : [],
-      warnings: [],
+  function openPushDialog(
+    branchOverride?: string,
+    precedingCommit?: GitPrecedingCommit,
+  ) {
+    view = {
+      ...view,
+      pushPreview: buildShellPushPreview(
+        view,
+        readonlyMode,
+        defaultPushPreview,
+        branchOverride,
+        precedingCommit,
+      ),
     };
-    view = { ...view, pushPreview: pushModel };
+  }
+
+  function handleBranchAction(
+    kind: GitSharedBranchActionKind,
+    branch: GitBranchItem,
+  ) {
+    const next = applyShellBranchAction({
+      view,
+      kind,
+      branch,
+      onOpenWorktree,
+      onOpenPush: (name) => openPushDialog(name),
+    });
+    if (next) view = next;
   }
 
   function confirmCommit() {
-    const preview = view.commitPreview;
-    if (!preview) return;
-    const outcome: GitCommitOutcome = simulatedCommitOutcome ?? {
-      status: "matched",
-      commitOid: "f00dbabe1234567890abcdef1234567890abcdef",
-      expectedTreeOid: preview.expectedTreeOid,
-      actualTreeOid: preview.expectedTreeOid,
-      summary: `已从真实 Git index 创建提交（${preview.stagedFiles.length} 个文件）`,
-      reasons: [],
-    };
-
-    const remainingChanges =
-      outcome.status === "matched"
-        ? view.workingChanges.filter((c) => c.group !== "staged")
-        : view.workingChanges;
-
-    const shouldFollowUpPush =
-      preview.followUpPush && outcome.status === "matched";
-
-    view = {
-      ...view,
-      workingChanges: remainingChanges,
-      commitMessage: outcome.status === "matched" ? "" : view.commitMessage,
-      commitPreview: null,
-      lastCommitOutcome: outcome,
-      statusBanner: outcome.summary,
-    };
-
-    if (shouldFollowUpPush) {
-      openPushDialog(preview.branch);
+    const res = applyShellCommitConfirm(view, simulatedCommitOutcome);
+    if (!res) return;
+    view = res.nextView;
+    if (res.followUpPush) {
+      openPushDialog(res.followUpPush.branch, res.followUpPush.preceding);
     }
   }
 
@@ -201,44 +184,15 @@
         </Badge>
       {/if}
 
-      <Popover.Root bind:open={branchPopoverOpen}>
-        <Popover.Trigger>
-          {#snippet child({ props })}
-            <Button {...props} size="xs" variant="outline">
-              <IconGitBranch aria-hidden="true" />
-              分支快选
-            </Button>
-          {/snippet}
-        </Popover.Trigger>
-        <Popover.Content align="start" class="w-72 p-2">
-          <div class="space-y-1">
-            <p class="px-1.5 py-1 text-xs font-semibold text-muted-foreground">
-              切换历史筛选或查看分支状态
-            </p>
-            <ListButton
-              variant="git-row"
-              aria-selected={view.branchFilter === null}
-              onclick={() => handleBranchFilter(null)}
-            >
-              全部可达引用 (All)
-            </ListButton>
-            {#each view.branches as b (`${b.kind}:${b.name}`)}
-              <ListButton
-                variant="git-row"
-                aria-selected={view.branchFilter === b.name}
-                onclick={() => handleBranchFilter(b.name)}
-              >
-                <span class="min-w-0 flex-1 truncate">{b.name}</span>
-                {#if b.occupiedBy}
-                  <Badge variant="warning">已占用</Badge>
-                {:else if b.name === view.context.checkedOutBranch}
-                  <Badge variant="info">HEAD</Badge>
-                {/if}
-              </ListButton>
-            {/each}
-          </div>
-        </Popover.Content>
-      </Popover.Root>
+      <GitTopBarBranchPopover
+        branches={view.branches}
+        context={view.context}
+        branchFilter={view.branchFilter}
+        compareBaseOid={view.context.headOid ?? view.commits[0]?.oid ?? null}
+        compareTargetLabel="与当前 HEAD 比较"
+        onSelectAll={() => handleBranchFilter(null)}
+        onBranchAction={handleBranchAction}
+      />
     </div>
 
     <div class="flex items-center gap-2">
@@ -285,6 +239,7 @@
       class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
     >
       <GitLogPane
+        context={view.context}
         historyState={view.historyState}
         historyReason={view.historyReason}
         nextCursor={view.nextCursor}
@@ -309,6 +264,7 @@
         checkedOutBranch={view.context.checkedOutBranch}
         onScopeChange={(scope) => (view = { ...view, scope })}
         onBranchFilterChange={handleBranchFilter}
+        onBranchAction={handleBranchAction}
         onSearchChange={(searchQuery) => (view = { ...view, searchQuery })}
         onAuthorChange={(authorFilter) => (view = { ...view, authorFilter })}
         onSinceChange={(sinceFilter) => (view = { ...view, sinceFilter })}
@@ -353,9 +309,8 @@
         onMarkCompareBase={(compareBaseMarkOid) =>
           (view = { ...view, compareBaseMarkOid })}
         onStartCompare={(baseOid, targetOid) => {
-          const targetDetail = view.commitDetails[targetOid];
-          const pKey = targetDetail?.selectedParent ?? "";
-          const files = targetDetail?.filesByParent[pKey] ?? [];
+          const d = view.commitDetails[targetOid];
+          const files = d?.filesByParent[d.selectedParent ?? ""] ?? [];
           view = {
             ...view,
             compareBaseMarkOid: null,
@@ -373,15 +328,16 @@
         }}
         onSwapCompareDirection={() => {
           const cmp = view.compareMode;
-          if (!cmp) return;
-          view = {
-            ...view,
-            compareMode: {
-              ...cmp,
-              baseOid: cmp.targetOid,
-              targetOid: cmp.baseOid,
-            },
-          };
+          if (cmp) {
+            view = {
+              ...view,
+              compareMode: {
+                ...cmp,
+                baseOid: cmp.targetOid,
+                targetOid: cmp.baseOid,
+              },
+            };
+          }
         }}
         onExitCompare={() => (view = { ...view, compareMode: null })}
         onRequestCheckout={handleRequestCheckout}
@@ -401,42 +357,47 @@
         commitMessage={view.commitMessage}
         onSelectChange={(activeChangeId) =>
           (view = { ...view, activeChangeId })}
-        onToggleReviewed={(path) =>
+        onToggleReviewed={(c) =>
           (view = {
             ...view,
-            reviewedPaths: toggleReviewedPath(view.reviewedPaths, path),
+            reviewedPaths: toggleReviewedChange(view.reviewedPaths, c),
           })}
-        onStageChange={(changeId) =>
+        onStageChange={(id) =>
           (view = {
             ...view,
-            workingChanges: applyStageHunk(view.workingChanges, changeId),
+            workingChanges: applyStageHunk(view.workingChanges, id),
           })}
-        onUnstageChange={(changeId) =>
+        onUnstageChange={(id) =>
           (view = {
             ...view,
-            workingChanges: applyUnstageHunk(view.workingChanges, changeId),
+            workingChanges: applyUnstageHunk(view.workingChanges, id),
           })}
-        onStageHunk={(changeId, hunkId) =>
+        onStageGroup={(op, group) => {
+          let next = view.workingChanges;
+          for (const it of view.workingChanges.filter(
+            (c) => c.group === group,
+          )) {
+            next =
+              op === "stage"
+                ? applyStageHunk(next, it.id)
+                : applyUnstageHunk(next, it.id);
+          }
+          view = { ...view, workingChanges: next };
+        }}
+        onStageHunk={(id, hId) =>
           (view = {
             ...view,
-            workingChanges: applyStageHunk(
-              view.workingChanges,
-              changeId,
-              hunkId,
-            ),
+            workingChanges: applyStageHunk(view.workingChanges, id, hId),
           })}
-        onUnstageHunk={(changeId, hunkId) =>
+        onUnstageHunk={(id, hId) =>
           (view = {
             ...view,
-            workingChanges: applyUnstageHunk(
-              view.workingChanges,
-              changeId,
-              hunkId,
-            ),
+            workingChanges: applyUnstageHunk(view.workingChanges, id, hId),
           })}
         onCommitMessageChange={(commitMessage) =>
           (view = { ...view, commitMessage })}
         onOpenCommitPreview={openCommitPreview}
+        onOpenPush={() => openPushDialog()}
       />
     </Tabs.Content>
 
@@ -447,6 +408,7 @@
       <GitBranchesPane
         context={view.context}
         branches={view.branches}
+        branchFilter={view.branchFilter}
         onFilterInLog={(branch) => {
           view = {
             ...selectLogBranchFilter(view, branch),
@@ -456,6 +418,7 @@
         onRequestCheckout={handleRequestCheckout}
         onOpenOccupiedWorktree={handleOpenOccupiedWorktree}
         onOpenPush={(branch) => openPushDialog(branch)}
+        onBranchAction={handleBranchAction}
       />
     </Tabs.Content>
   </Tabs.Root>
@@ -489,7 +452,16 @@
     <GitPushDialog
       model={view.pushPreview}
       onConfirm={confirmPush}
-      onClose={() => (view = { ...view, pushPreview: null })}
+      onClose={() => {
+        const hadPreceding = view.pushPreview?.precedingCommit;
+        view = {
+          ...view,
+          pushPreview: null,
+          statusBanner: hadPreceding
+            ? `本地已提交（${hadPreceding.shortOid}），已取消推送；本地提交已保留。`
+            : view.statusBanner,
+        };
+      }}
     />
   {/if}
 </div>

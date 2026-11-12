@@ -13,6 +13,8 @@
     repository,
     worktree,
     initialBranch,
+    initialMode,
+    initialStartPoint,
     source,
     onchange,
     onnewworktree,
@@ -22,6 +24,8 @@
     repository: Repository;
     worktree: Worktree;
     initialBranch?: string;
+    initialMode?: "existing" | "new";
+    initialStartPoint?: string;
     source?: SwitchSource;
     /** A switch ran; the repositories are read again. */
     onchange: () => void;
@@ -46,6 +50,8 @@
     {repository}
     {worktree}
     {initialBranch}
+    {initialMode}
+    {initialStartPoint}
     {source}
     bind:busy
     {onchange}

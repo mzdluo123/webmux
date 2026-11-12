@@ -10,6 +10,11 @@ import (
 // maxListedCommits bounds the commits a branch operation preview lists.
 const maxListedCommits = 20
 
+// maxPushListedCommits bounds the outgoing commits a push preview lists so a
+// branch with dozens or hundreds of unpushed commits renders its full outgoing
+// list without an unbounded rev-list load.
+const maxPushListedCommits = 500
+
 // Blocker and warning codes of branch operation previews, besides the
 // shared ones of a switch.
 const (
@@ -101,6 +106,12 @@ func (s *Service) aheadBehind(ctx context.Context, anchor, from, to string) (int
 // listCommits lists the commits rev-list selects with revisions, full OIDs
 // and options this package builds: at most maxListedCommits and the total.
 func (s *Service) listCommits(ctx context.Context, anchor string, revisions ...string) (CommitList, error) {
+	return s.listCommitsLimit(ctx, anchor, maxListedCommits, revisions...)
+}
+
+// listCommitsLimit lists up to limit commits selected by revisions along with
+// the exact total count.
+func (s *Service) listCommitsLimit(ctx context.Context, anchor string, limit int, revisions ...string) (CommitList, error) {
 	count, err := s.git(ctx, anchor, append(append([]string{"rev-list", "--count"}, revisions...), "--")...)
 	if err != nil {
 		return CommitList{}, err
@@ -110,10 +121,10 @@ func (s *Service) listCommits(ctx context.Context, anchor string, revisions ...s
 		return CommitList{}, problemf(ErrInternal, "无法解析 Git 的提交计数: %q", count)
 	}
 	list := CommitList{Total: total, Items: []Commit{}}
-	if total == 0 {
+	if total == 0 || limit <= 0 {
 		return list, nil
 	}
-	args := append([]string{"log", "-n", strconv.Itoa(maxListedCommits), "--no-show-signature", "--format=%H%x00%s%x00%an%x00%cI%x00"}, revisions...)
+	args := append([]string{"log", "-n", strconv.Itoa(limit), "--no-show-signature", "--format=%H%x00%s%x00%an%x00%cI%x00"}, revisions...)
 	data, err := s.git(ctx, anchor, append(args, "--")...)
 	if err != nil {
 		return CommitList{}, err

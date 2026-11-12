@@ -6,14 +6,16 @@
 
   let {
     label,
+    open = $bindable(false),
     children,
   }: {
     label: string;
+    open?: boolean;
     children: Snippet;
   } = $props();
 </script>
 
-<DropdownMenu.Root>
+<DropdownMenu.Root bind:open>
   <DropdownMenu.Trigger>
     {#snippet child({ props })}
       <ListButton

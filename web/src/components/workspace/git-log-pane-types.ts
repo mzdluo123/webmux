@@ -3,7 +3,9 @@ import type {
   GitHistoryRow,
   GitHistoryScope,
   GitWorkbenchViewState,
+  GitWorktreeContext,
 } from "../../contracts/git-workbench-schemas";
+import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
 import type { GitPaneScrollCallbacks } from "../../domains/workspace/git-workbench-memory";
 import type { GitLogDiffController } from "../../hooks/workspace/git-log-diff.svelte";
 
@@ -50,6 +52,7 @@ export interface GitLogPaneProps
       | "selectedCommitFilePath"
       | "compareMode"
     > {
+  context?: GitWorktreeContext;
   historyReason?: string;
   liveFiltered?: boolean;
   detailLoading?: boolean;
@@ -69,6 +72,10 @@ export interface GitLogPaneProps
   onDiffCollapsedChange?: (collapsed: boolean) => void;
   onTwoPaneSizesChange?: (sizes: [number, number]) => void;
   onBranchFilterChange: (branch: string | null) => void;
+  onBranchAction?: (
+    kind: GitSharedBranchActionKind,
+    branch: GitBranchItem,
+  ) => void;
   onLoadMoreHistory?: () => void;
   onToggleFavorite?: (branch: string) => void;
   onSelectCommit: (oid: string) => void;

@@ -55,7 +55,12 @@
     choosingHome: Repository | null;
     viewingRepository: { repository: Repository; tab: RepositoryTab } | null;
     viewingWorktree: Worktree | null;
-    switchingBranch: { worktree: Worktree; initialBranch?: string } | null;
+    switchingBranch: {
+      worktree: Worktree;
+      initialBranch?: string;
+      initialMode?: "existing" | "new";
+      initialStartPoint?: string;
+    } | null;
     releasingWorktree: Worktree | null;
     operating: { repositoryId: string; operation: BranchOperation } | null;
     forwarding: boolean;
@@ -312,6 +317,8 @@
           repository={repo}
           worktree={current}
           initialBranch={target.initialBranch}
+          initialMode={target.initialMode}
+          initialStartPoint={target.initialStartPoint}
           onchange={() => void shell.repositories.refresh(true)}
           onnewworktree={(preset) =>
             shell.start({

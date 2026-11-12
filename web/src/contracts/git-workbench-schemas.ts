@@ -40,12 +40,10 @@ export type GitHistoryRow = z.infer<typeof GitHistoryRowSchema>;
 const GitDiffLineSchema = GitStagingHunkLineSchema.extend({
   lineEnding: GitStagingHunkLineSchema.shape.lineEnding.default("lf"),
 });
-export type GitDiffLine = z.infer<typeof GitDiffLineSchema>;
 
 const GitStagingHunkSchema = GitWireStagingHunkSchema.extend({
   lines: z.array(GitDiffLineSchema),
 });
-export type GitStagingHunk = z.infer<typeof GitStagingHunkSchema>;
 
 const GitCommitFileSchema = z.object({
   changeId: z.string().optional(),
@@ -91,6 +89,7 @@ export const GitWorkingChangeSchema = z.object({
   hunkStageAvailable: z.boolean(),
   degradeReason: z.string().optional(),
   preStagedFromCli: z.boolean().default(false),
+  identityKey: z.string().default(""),
   hunks: z.array(GitStagingHunkSchema).default([]),
 });
 export type GitWorkingChange = z.infer<typeof GitWorkingChangeSchema>;
@@ -113,6 +112,7 @@ export const GitBranchItemSchema = z.object({
   ahead: z.number().int().nonnegative().optional(),
   behind: z.number().int().nonnegative().optional(),
   upstreamGone: z.boolean().default(false),
+  mergedIntoDefault: z.boolean().default(false),
   occupiedBy: GitBranchOccupancySchema.optional(),
 });
 export type GitBranchItem = z.infer<typeof GitBranchItemSchema>;
@@ -142,7 +142,11 @@ export const GitCommitPreviewModelSchema = z.object({
   expectedTreeOid: z.string(),
   authorName: z.string(),
   authorEmail: z.string(),
+  committerName: z.string().default(""),
+  committerEmail: z.string().default(""),
   signEnabled: z.boolean(),
+  signFormat: z.string().optional(),
+  operation: z.string().optional(),
   executableHooks: z.array(z.string()),
   stagedFiles: z.array(GitWorkingChangeSchema),
   unstagedCount: z.number().int().nonnegative(),
@@ -151,8 +155,17 @@ export const GitCommitPreviewModelSchema = z.object({
   followUpPush: z.boolean(),
   blockers: z.array(GitIssueSchema),
   warnings: z.array(GitIssueSchema),
+  stale: z.boolean().default(false),
+  dialogError: z.string().default(""),
 });
 export type GitCommitPreviewModel = z.infer<typeof GitCommitPreviewModelSchema>;
+
+const GitPrecedingCommitSchema = z.object({
+  commitOid: z.string(),
+  shortOid: z.string(),
+  subject: z.string(),
+});
+export type GitPrecedingCommit = z.infer<typeof GitPrecedingCommitSchema>;
 
 export const GitPushPreviewModelSchema = z.object({
   repositoryName: z.string(),
@@ -161,6 +174,8 @@ export const GitPushPreviewModelSchema = z.object({
   targetBranch: z.string(),
   pushUrl: z.string(),
   publish: z.boolean(),
+  totalCommits: z.number().int().nonnegative().optional(),
+  precedingCommit: GitPrecedingCommitSchema.optional(),
   commits: z.array(GitCommitDetailSchema),
   blockers: z.array(GitIssueSchema),
   warnings: z.array(GitIssueSchema),
@@ -179,9 +194,13 @@ export const GitWorktreeContextSchema = z.object({
   ahead: z.number().int().nonnegative().default(0),
   behind: z.number().int().nonnegative().default(0),
   upstream: z.string().nullable().default(null),
-  authorName: z.string().default("Workspace Dev"),
-  authorEmail: z.string().default("dev@example.invalid"),
+  upstreamGone: z.boolean().default(false),
+  authorName: z.string().default(""),
+  authorEmail: z.string().default(""),
+  committerName: z.string().default(""),
+  committerEmail: z.string().default(""),
   signEnabled: z.boolean().default(false),
+  signFormat: z.string().default(""),
   executableHooks: z.array(z.string()).default([]),
   operationInProgress: z.string().nullable().default(null),
 });

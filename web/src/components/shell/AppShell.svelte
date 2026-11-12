@@ -107,6 +107,8 @@
   let switchingBranch = $state<{
     worktree: Worktree;
     initialBranch?: string;
+    initialMode?: "existing" | "new";
+    initialStartPoint?: string;
   } | null>(null);
   let releasingWorktree = $state<Worktree | null>(null);
   let operating = $state<{
@@ -176,9 +178,18 @@
       shellUi.drawerOpen = false;
       viewingWorktree = worktree;
     },
-    switchBranch(worktree, initialBranch) {
+    switchBranch(worktree, initial) {
       shellUi.drawerOpen = false;
-      switchingBranch = { worktree, initialBranch };
+      if (typeof initial === "string" || initial === undefined) {
+        switchingBranch = { worktree, initialBranch: initial };
+      } else {
+        switchingBranch = {
+          worktree,
+          initialBranch: initial.branch,
+          initialMode: initial.mode,
+          initialStartPoint: initial.startPoint,
+        };
+      }
     },
     releaseWorktree(worktree) {
       shellUi.drawerOpen = false;

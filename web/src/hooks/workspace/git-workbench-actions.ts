@@ -243,6 +243,7 @@ export async function fetchGitStagingState(options: {
   repositoryId: string;
   worktreeId: string;
   diffCache: ReadonlyMap<string, GitStagingFileDiff>;
+  webmuxStagedPaths?: ReadonlySet<string>;
   signal?: AbortSignal;
 }): Promise<{
   entryById: Map<string, GitStagingEntry>;
@@ -253,7 +254,11 @@ export async function fetchGitStagingState(options: {
     options.worktreeId,
     options.signal,
   );
-  const mapped = mapGitStagingOverview(overview, options.diffCache);
+  const mapped = mapGitStagingOverview(
+    overview,
+    options.diffCache,
+    options.webmuxStagedPaths,
+  );
   return {
     entryById: new Map(mapped.map((m) => [m.change.id, m.entry])),
     changes: mapped.map((m) => m.change),
@@ -266,10 +271,7 @@ export async function fetchGitStagingDiffForEntry(options: {
   entry: GitStagingEntry;
   signal: AbortSignal;
 }): Promise<{ diffKey: string; diff: GitStagingFileDiff } | null> {
-  if (
-    (options.entry.area !== "staged" && options.entry.area !== "unstaged") ||
-    options.entry.status === "?"
-  ) {
+  if (options.entry.area !== "staged" && options.entry.area !== "unstaged") {
     return null;
   }
   const diffKey = `${options.entry.area}:${options.entry.path}`;
@@ -294,7 +296,13 @@ export async function performStageMutation(options: {
   hunkId?: string;
   signal: AbortSignal;
 }): Promise<
-  { ok: true } | { ok: false; busyOutcome?: GitCommitOutcome; banner?: string }
+  | { ok: true }
+  | {
+      ok: false;
+      reason?: string;
+      busyOutcome?: GitCommitOutcome;
+      banner?: string;
+    }
 > {
   try {
     const payload = {
@@ -318,9 +326,11 @@ export async function performStageMutation(options: {
     }
     return { ok: true };
   } catch (err) {
-    if (gitConflictReason(err) === "busy") {
+    const reason = gitConflictReason(err);
+    if (reason === "busy") {
       return {
         ok: false,
+        reason,
         busyOutcome: {
           status: "busy_locked",
           summary: "检测到外部 Git index.lock，暂存操作已安全中止。",
@@ -328,7 +338,7 @@ export async function performStageMutation(options: {
         },
       };
     }
-    return { ok: false, banner: errorMessage(err) };
+    return { ok: false, reason, banner: errorMessage(err) };
   }
 }
 
@@ -343,7 +353,11 @@ export async function requestCommitPreviewModel(options: {
   confirmationId: string;
   authorName: string;
   authorEmail: string;
+  committerName: string;
+  committerEmail: string;
   signEnabled: boolean;
+  signFormat?: string;
+  operation?: string;
   executableHooks: string[];
   model: GitCommitPreviewModel;
 }> {
@@ -353,18 +367,23 @@ export async function requestCommitPreviewModel(options: {
     options.signal,
   );
   const grouped = groupWorkingChanges(options.workingChanges);
+  const model = mapGitCommitPreviewResponse(
+    options.repositoryName,
+    preview,
+    grouped.staged,
+    options.followUpPush,
+  );
   return {
     confirmationId: preview.confirmationId,
-    authorName: preview.identity.authorName,
-    authorEmail: preview.identity.authorEmail,
-    signEnabled: preview.identity.signEnabled,
-    executableHooks: preview.executableHooks,
-    model: mapGitCommitPreviewResponse(
-      options.repositoryName,
-      preview,
-      grouped.staged,
-      options.followUpPush,
-    ),
+    authorName: model.authorName,
+    authorEmail: model.authorEmail,
+    committerName: model.committerName,
+    committerEmail: model.committerEmail,
+    signEnabled: model.signEnabled,
+    signFormat: model.signFormat,
+    operation: model.operation,
+    executableHooks: model.executableHooks,
+    model,
   };
 }
 
@@ -376,7 +395,12 @@ export async function performGitCommitExecution(options: {
   signal: AbortSignal;
 }): Promise<
   | { ok: true; outcome: GitCommitOutcome }
-  | { ok: false; busyOutcome?: GitCommitOutcome; banner?: string }
+  | {
+      ok: false;
+      reason?: string;
+      busyOutcome?: GitCommitOutcome;
+      banner?: string;
+    }
 > {
   try {
     const result = await gitCommit(
@@ -390,9 +414,11 @@ export async function performGitCommitExecution(options: {
     );
     return { ok: true, outcome: mapGitCommitResultResponse(result) };
   } catch (err) {
-    if (gitConflictReason(err) === "busy") {
+    const reason = gitConflictReason(err);
+    if (reason === "busy") {
       return {
         ok: false,
+        reason,
         busyOutcome: {
           status: "busy_locked",
           summary: "检测到外部 Git index.lock，提交未执行。",
@@ -400,7 +426,7 @@ export async function performGitCommitExecution(options: {
         },
       };
     }
-    return { ok: false, banner: `提交失败：${errorMessage(err)}` };
+    return { ok: false, reason, banner: errorMessage(err) };
   }
 }
 

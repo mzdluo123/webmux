@@ -7,13 +7,18 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
+  import type {
+    GitBranchItem,
+    GitWorktreeContext,
+  } from "../../contracts/git-workbench-schemas";
   import type {
     Repository,
     SessionInfo,
     Worktree,
   } from "../../contracts/schemas";
+  import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
   import SidebarButton from "../shell/SidebarButton.svelte";
+  import GitTopBarBranchPopover from "./GitTopBarBranchPopover.svelte";
   import GitWorkbenchTargetSwitchers from "./GitWorkbenchTargetSwitchers.svelte";
 
   let {
@@ -22,6 +27,7 @@
     worktreeId,
     worktree,
     context,
+    branches = [],
     branchFilter,
     fetching = false,
     canAddRepository = true,
@@ -34,6 +40,8 @@
     onAddRepository,
     onNewWorktree,
     onManageWorktrees,
+    onBranchFilterChange,
+    onBranchAction,
     onFetch,
     onUpdate,
     onPush,
@@ -44,6 +52,7 @@
     worktreeId?: string;
     worktree: Worktree | undefined;
     context: GitWorktreeContext;
+    branches?: readonly GitBranchItem[];
     branchFilter: string | null;
     fetching?: boolean;
     canAddRepository?: boolean;
@@ -56,6 +65,11 @@
     onAddRepository: () => void;
     onNewWorktree: () => void;
     onManageWorktrees: () => void;
+    onBranchFilterChange?: (branch: string | null) => void;
+    onBranchAction?: (
+      kind: GitSharedBranchActionKind,
+      branch: GitBranchItem,
+    ) => void;
     onFetch: () => void;
     onUpdate: () => void;
     onPush: () => void;
@@ -80,6 +94,11 @@
       context.headState === "branch" &&
       context.checkedOutBranch,
     ),
+  );
+  const pushLabel = $derived(
+    canSyncBranch && (!context.upstream || context.upstreamGone)
+      ? "发布…"
+      : "推送…",
   );
   const syncDisabledReason = $derived(
     !repoAvailable
@@ -112,9 +131,11 @@
   data-testid="git-workbench-topbar"
 >
   <div
-    class="flex min-w-0 flex-wrap items-start justify-between gap-2 sm:items-center"
+    class="flex min-w-0 flex-nowrap items-center justify-between gap-1.5 sm:flex-wrap sm:gap-2"
   >
-    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:gap-2">
+    <div
+      class="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden sm:flex-wrap sm:gap-2 sm:overflow-visible"
+    >
       <SidebarButton class="sm:hidden" />
 
       <GitWorkbenchTargetSwitchers
@@ -166,10 +187,22 @@
           </Badge>
         {/if}
 
+        {#if repoAvailable && onBranchFilterChange && onBranchAction}
+          <GitTopBarBranchPopover
+            {branches}
+            {context}
+            {branchFilter}
+            compareBaseOid={context.headOid ?? null}
+            compareTargetLabel="与当前 HEAD 比较"
+            onSelectAll={() => onBranchFilterChange(null)}
+            {onBranchAction}
+          />
+        {/if}
+
         {#if branchFilter}
           <Badge
             variant="outline"
-            class="max-w-44"
+            class="max-w-28 sm:max-w-44"
             data-testid="git-filter-branch-badge"
           >
             <span class="truncate" title={`历史筛选：${branchFilter}`}>
@@ -188,10 +221,11 @@
           size="sm"
           variant="git-primary"
           onclick={() => onReturnSession(returnSession.id)}
+          aria-label="返回会话"
           title={`返回会话：${returnSession.title || returnSession.id}`}
         >
           <IconArrowBackUp aria-hidden="true" />
-          <span>返回会话</span>
+          <span class="max-sm:hidden">返回会话</span>
         </Button>
       {/if}
 
@@ -226,7 +260,7 @@
           onclick={onPush}
         >
           <IconArrowUp aria-hidden="true" />
-          <span>推送…</span>
+          <span>{pushLabel}</span>
         </Button>
       </div>
 
@@ -256,7 +290,7 @@
               快进更新
             </DropdownMenu.Item>
             <DropdownMenu.Item disabled={!canSyncBranch} onSelect={onPush}>
-              推送…
+              {pushLabel}
             </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Root>
