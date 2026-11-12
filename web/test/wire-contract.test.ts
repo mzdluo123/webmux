@@ -293,11 +293,14 @@ const groups: Array<[z.ZodType, string[]]> = [
     ["git-commit-preview", "git-commit-preview-blocked"],
   ],
   [S.GitCommitResultSchema, ["git-commit"]],
+  [S.GitOperationSchema, ["git-operation"]],
+  [S.GitOperationsSchema, ["git-operations"]],
   [
     S.GitConflictSchema,
     [
       "error-409-git-busy",
       "error-409-git-context-mismatch",
+      "error-409-git-idempotency",
       "error-409-git-readonly",
       "error-409-git-stale",
     ],

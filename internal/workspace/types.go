@@ -30,12 +30,14 @@ var (
 	ErrUnavailable = errors.New("workspace unavailable")
 	ErrTimeout     = errors.New("workspace operation timed out")
 
-	ErrReadOnly   error = conflictKind{"workspace target is read-only"}
-	ErrStale      error = conflictKind{"workspace snapshot is stale"}
-	ErrLocked     error = conflictKind{"workspace repository is busy"}
-	ErrConflicted error = conflictKind{"workspace has unresolved conflict"}
-	ErrBlocked    error = conflictKind{"workspace operation is blocked"}
-	ErrHookFailed error = conflictKind{"workspace commit failed"}
+	ErrReadOnly    error = conflictKind{"workspace target is read-only"}
+	ErrStale       error = conflictKind{"workspace snapshot is stale"}
+	ErrLocked      error = conflictKind{"workspace repository is busy"}
+	ErrConflicted  error = conflictKind{"workspace has unresolved conflict"}
+	ErrBlocked     error = conflictKind{"workspace operation is blocked"}
+	ErrHookFailed  error = conflictKind{"workspace commit failed"}
+	ErrIdempotency error = conflictKind{"workspace idempotency conflict"}
+	ErrUncertain   error = conflictKind{"workspace operation outcome is uncertain"}
 )
 
 type conflictKind struct {

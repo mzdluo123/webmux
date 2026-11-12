@@ -283,6 +283,7 @@
     "warnings": []
   },
   "gitCommitResult": {
+    "operationId": "op000001",
     "outcome": "matched",
     "commitOid": "0123456789abcdef0123456789abcdef01234567",
     "parents": [],
@@ -324,6 +325,23 @@
         "directParentsMissing": false
       }
     ]
+  },
+  "gitOperation": {
+    "id": "op000001",
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "kind": "commit",
+    "status": "succeeded",
+    "startedAt": "2026-01-02T03:04:05Z",
+    "finishedAt": null,
+    "summary": "committed",
+    "fetchResults": [],
+    "preview": {},
+    "parents": [],
+    "reviewReasons": []
+  },
+  "gitOperations": {
+    "operations": []
   },
   "gitStaging": {
     "unborn": false,

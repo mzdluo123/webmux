@@ -34,10 +34,15 @@ func Remotes(r workspace.Remotes) contract.Remotes {
 	return contract.Remotes{Remotes: each(r.Remotes, func(v workspace.Remote) contract.Remote { return contract.Remote(v) })}
 }
 
+func FetchRemotesRequest(r contract.FetchRemotesRequest) workspace.FetchRequest {
+	return workspace.FetchRequest(r)
+}
+
 func FetchRemotes(r workspace.FetchRemotesResult) contract.FetchRemotesResponse {
 	return contract.FetchRemotesResponse{
-		Results:    each(r.Results, func(v workspace.FetchResult) contract.FetchResult { return contract.FetchResult(v) }),
-		Repository: Repository(r.Repository),
+		OperationID: r.OperationID,
+		Results:     each(r.Results, func(v workspace.FetchResult) contract.FetchResult { return contract.FetchResult(v) }),
+		Repository:  Repository(r.Repository),
 	}
 }
 
@@ -271,6 +276,7 @@ func GitCommitPreview(p workspace.CommitPreview) contract.GitCommitPreview {
 
 func GitCommitResult(r workspace.CommitResult) contract.GitCommitResult {
 	return contract.GitCommitResult{
+		OperationID:     r.OperationID,
 		Outcome:         r.Outcome,
 		CommitOID:       r.CommitOID,
 		Parents:         required(r.Parents),
@@ -278,5 +284,35 @@ func GitCommitResult(r workspace.CommitResult) contract.GitCommitResult {
 		ExpectedTreeOID: r.ExpectedTreeOID,
 		Subject:         r.Subject,
 		ReviewReasons:   required(r.ReviewReasons),
+	}
+}
+
+func GitOperation(op workspace.GitOperation) contract.GitOperation {
+	return contract.GitOperation{
+		ID:              op.ID,
+		RepositoryID:    op.RepositoryID,
+		WorktreeID:      op.WorktreeID,
+		ClientRequestID: op.ClientRequestID,
+		Kind:            op.Kind,
+		Status:          op.Status,
+		ConfirmationID:  op.ConfirmationID,
+		StartedAt:       op.StartedAt,
+		FinishedAt:      op.FinishedAt,
+		Summary:         op.Summary,
+		SanitizedOutput: op.SanitizedOutput,
+		RemoteStatus:    op.RemoteStatus,
+		FetchResults:    each(op.FetchResults, func(v workspace.FetchResult) contract.FetchResult { return contract.FetchResult(v) }),
+		Preview:         contract.GitOperationPreview(op.Preview),
+		ActualOID:       op.ActualOID,
+		ActualTreeOID:   op.ActualTreeOID,
+		Parents:         required(op.Parents),
+		Subject:         op.Subject,
+		ReviewReasons:   required(op.ReviewReasons),
+	}
+}
+
+func GitOperations(in []workspace.GitOperation) contract.GitOperations {
+	return contract.GitOperations{
+		Operations: each(in, GitOperation),
 	}
 }

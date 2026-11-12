@@ -9,6 +9,9 @@ import {
   type GitHistoryEdge,
   type GitHistoryScope,
   type GitHistoryStatus,
+  type GitOperation,
+  type GitOperationKind,
+  type GitOperationStatus,
 } from "./git-api-schemas";
 
 export {
@@ -16,6 +19,9 @@ export {
   type GitHistoryEdge,
   type GitHistoryScope,
   type GitHistoryStatus,
+  type GitOperation,
+  type GitOperationKind,
+  type GitOperationStatus,
 };
 
 export const GitWorkbenchModeSchema = z.enum(["log", "commit", "branches"]);
@@ -124,6 +130,7 @@ const GitIssueSchema = z.object({
 export type GitIssue = z.infer<typeof GitIssueSchema>;
 
 export const GitCommitOutcomeSchema = z.object({
+  operationId: z.string().optional(),
   status: z.enum(["matched", "needs_review", "uncertain", "busy_locked"]),
   commitOid: z.string().optional(),
   expectedTreeOid: z.string().optional(),
@@ -132,6 +139,20 @@ export const GitCommitOutcomeSchema = z.object({
   reasons: z.array(z.string()).default([]),
 });
 export type GitCommitOutcome = z.infer<typeof GitCommitOutcomeSchema>;
+
+export type GitActiveOperationPhase =
+  | "idle"
+  | "validating"
+  | "running"
+  | "reconciling";
+
+export interface GitActiveOperationState {
+  phase: GitActiveOperationPhase;
+  kind?: GitOperationKind;
+  operationId?: string;
+  clientRequestId?: string;
+  summary: string;
+}
 
 export const GitCommitPreviewModelSchema = z.object({
   repositoryName: z.string(),
@@ -254,6 +275,8 @@ export interface GitWorkbenchViewState {
   commitPreview: GitCommitPreviewModel | null;
   lastCommitOutcome: GitCommitOutcome | null;
   pushPreview: GitPushPreviewModel | null;
+  operations?: GitOperation[];
+  activeOperation?: GitActiveOperationState | null;
   statusBanner: string;
 }
 

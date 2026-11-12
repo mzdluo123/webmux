@@ -162,6 +162,21 @@ func (s *Server) gitReadRoutes(mux *http.ServeMux) {
 		v, err := s.Workspace.CommitDetail(ctx, r.PathValue("id"), r.PathValue("oid"), r.URL.Query().Get("parentOid"))
 		return wire.GitCommitDetail(v), err
 	})
+
+	serveGit(mux, "GET"+base+"/operations", func(_ context.Context, r *http.Request) (contract.GitOperations, error) {
+		q := r.URL.Query()
+		limit, err := parseOptionalPositiveInt(q.Get("limit"))
+		if err != nil {
+			return contract.GitOperations{}, err
+		}
+		v, err := s.Workspace.ListGitOperations(r.PathValue("id"), q.Get("worktreeId"), limit)
+		return wire.GitOperations(v), err
+	})
+
+	serveGit(mux, "GET"+base+"/operations/{operationId}", func(_ context.Context, r *http.Request) (contract.GitOperation, error) {
+		v, err := s.Workspace.GetGitOperation(r.PathValue("id"), r.PathValue("operationId"))
+		return wire.GitOperation(v), err
+	})
 }
 
 func (s *Server) gitSnapshotRaw(w http.ResponseWriter, r *http.Request) {

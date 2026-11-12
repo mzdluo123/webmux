@@ -1,5 +1,6 @@
 import { navigate, replacePath } from "../../platform/api";
 import type {
+  GitHistoryRow,
   GitHistoryScope,
   GitWorkbenchMode,
   GitWorkbenchViewState,
@@ -145,6 +146,18 @@ export function applyPopstateQueryToView(
     selectedCommitOid: nextCommit,
   });
   return { nextView, reloadNeeded, nextCommit };
+}
+
+export function pickSelectedCommitAfterBundle(
+  currentSelected: string | null,
+  headOid: string | null | undefined,
+  commits: readonly GitHistoryRow[],
+): string | null {
+  const hasOid = (oid: string | null | undefined) =>
+    Boolean(oid && commits.some((c) => c.oid === oid));
+  if (hasOid(currentSelected)) return currentSelected;
+  if (hasOid(headOid)) return headOid ?? null;
+  return commits[0]?.oid ?? null;
 }
 
 export function computeGitTargetLoadKey(

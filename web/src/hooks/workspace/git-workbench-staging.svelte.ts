@@ -15,6 +15,7 @@ import {
   runConfirmCommitFlow,
   runOpenCommitPreview,
 } from "./git-commit-execution";
+import type { GitOperationsController } from "./git-operations-controller.svelte";
 import { createGitStagingDiffController } from "./git-staging-diff.svelte";
 import {
   fetchGitStagingDiffForEntry,
@@ -27,6 +28,7 @@ export interface GitStagingBindings {
   getWorktreeId: () => string | undefined;
   getView: () => GitWorkbenchViewState;
   patchView: (patch: Partial<GitWorkbenchViewState>) => void;
+  operations?: GitOperationsController;
   onRefreshRepositories?: () => void;
   onAfterCommitRefresh?: () => void;
 }
@@ -420,6 +422,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
         confirmationId,
         current,
         signal: req.signal,
+        operations: bindings.operations,
         clearWebmuxStaged: () => webmuxStagedPaths.clear(),
         refreshStaging: async () => {
           diffCache.clear();

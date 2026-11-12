@@ -1,9 +1,9 @@
-# Git 工作台与仓库级接口（US-J19–US-J22）
+# Git 工作台与仓库级接口（US-J19–US-J23）
 
-本页收录独立 Git 工作台与仓库级接口的用户故事（US-J19–US-J22）：
+本页收录独立 Git 工作台与仓库级接口的用户故事（US-J19–US-J23）：
 
 - 零活跃会话可用的仓库与工作树 Git REST 接口、独立 `/git` 路由与状态隔离；
-- 拓扑历史图与两版本比较、真实 `index` 暂存与提交三态复核、三处共享分支动作及宽幅推送确认框。
+- 拓扑历史图与两版本比较、真实 `index` 暂存与提交三态复核、三处共享分支动作、宽幅推送确认框及持久 Git 操作账本与重连幂等对账。
 - 关联章节：[仓库登记、工作树生命周期与分支维护（US-J01–US-J18）](lifecycle.md)，总索引见[仓库登记与 worktree 管理](../worktrees.md)。
 
 ## J. Git 工作台与仓库级接口
@@ -90,6 +90,25 @@
       - 左栏展示仓库、`sourceBranch → remote/targetBranch`（首次发布支持选择远程与编辑目标分支名）、脱敏 `pushUrl` 及全部待推提交列表（上限 500 条）；
       - 右栏展示所选待推提交的变更文件列表、真实 Pierre `CodeDiffReader` 文件差异及完整提交说明与作者信息；
     - “提交并推送…”在第一步本地提交成功后若用户取消推送或推送失败（如远端非快进超前、鉴权失败），明确报告“本地已提交（`<shortOid>`），推送未完成/已取消”及原因，完整保留本地提交，并直接提供“获取远程 (Fetch)”与“快进更新… (Update)”入口，全程绝不提供 `--force`、`--no-verify` 或 `git add -A`。
+- **US-J23 持久 Git 操作账本、重连幂等对账与底部状态栏闭环**：作为在网络波动、刷新页面或升级重启服务期间执行 Git 写操作的使用者，我希望提交、推送、获取远程、快进与分支切换均记录持久 `operationId` 并按 `clientRequestId` 幂等去重，启动时按真实引用对账，并在底部状态栏查看进度与历史。
+  验收要点：
+  - 预检凭证与持久操作实例职责解耦：
+    - `confirmationId` 仅负责两阶段预览快照绑定（防过期/防错库）；`commit`、`push`、`fetch`、`fast_forward` 与 `switch` 统一生成服务端持久 `operationId` 并记录客户端 `clientRequestId`；
+    - 同一 `(repositoryId, clientRequestId)` 且参数摘要一致时，并发在途请求合并等待同一执行实例，已完成操作在断线重连或服务重启后直接重放持久结果，绝不二次执行底层 Git 写命令；
+    - 复用相同 `clientRequestId` 但参数变化时返回 HTTP `409`（`reason: "idempotency_conflict"`）；
+  - 有界 `statefile` 持久账本与隐私边界：
+    - 账本以 `git-operations.json`（`0600` 原子替换 + 生命周期锁）持久保存并纳入 `statefile.Catalog`、`persistence_inventory.json` 与 `webmux config show` 诊断；
+    - 单仓库最多保留 100 条、全局最多 1000 条、超过 7 天淘汰已终结记录且整体满足 2 MiB `Fits` 上界；移除仓库登记（`DELETE /api/repositories/{id}`）时同步清理该仓库全部操作记录；
+    - 输出摘要经凭据脱敏并截断至 `<= 4 KiB`，绝不持久化环境变量、原始凭据、Diff 正文或文件内容；开放 `GET /api/repositories/{id}/git/operations?worktreeId&limit` 与 `GET /api/repositories/{id}/git/operations/{operationId}`（跨仓库访问返回 404）；
+  - 服务启动真实 Git 引用与 reflog 只读对账（零自动重跑、零 `git reset`）：
+    - 服务启动加载遗留 `pending`/`running` 条目时，绝不重新执行原 Git 写命令或执行任何 `git reset`；
+    - `commit` 结合 `GIT_REFLOG_ACTION=webmux-commit:<operationId>` 与 `{oid, parents, tree}` 核对收敛为 `succeeded`、`needs_review`、`failed` 或 `uncertain`；
+    - `push`、`fast_forward` 与 `switch` 依据本地跟踪引用、上游配置及工作树 `HEAD`/洁净度只读收敛；`fetch` 中断统一标记为 `uncertain`；
+  - 底部 `24–28px` 状态栏、断线自动查询恢复与 `uncertain` 安全门禁：
+    - 工作台底部常驻 `24–28px` 状态栏（桌面、平板与手机视口均不膨胀或横向溢出），展示工作树路径、最近 `FETCH` 时间、当前阶段（`等待校验` / `执行中` / `重连核对中`）或最近操作徽标与摘要；
+    - 点击状态栏触发器展开碰撞内边距受控的 `Popover`，查看最近操作列表、`op:` 实例 ID、`reviewReasons` 与脱敏输出；
+    - 请求超时或网络中断时前端优先通过 `GET .../git/operations` 按 `clientRequestId`/`operationId` 轮询恢复终态，刷新页面或跨设备打开时自动恢复未确认的 `needs_review` / `uncertain` 横幅；
+    - 处于未核实的 `uncertain` 状态时禁用盲目一键重新提交，引导先点击“刷新历史与暂存区核实”。
 
 依据：
 
@@ -117,3 +136,8 @@
   - 宽幅推送确认：[推送控制器](../../../../web/src/hooks/workspace/git-push-controller.svelte.ts)、[宽幅推送框](../../../../web/src/components/workspace/GitPushDialog.svelte)；
   - 单测与浏览器测试：[分支与审阅单测](../../../../web/test/git-branches-and-staging.test.ts)、[提交推送浏览器测试](../../../../web/test/browser/GitWorkbenchCommitPush.test.ts)；
   - 多视口与端到端测试：[Storybook 多视口测试](../../../../web/test/storybook/git-workbench.spec.ts)、[提交/分支/推送 E2E](../../../../web/test/e2e/git-workbench-commit-push.spec.ts)。
+- 持久 Git 操作账本、重连幂等对账与底部状态栏：
+  - 服务端账本与对账：[持久化目录登记](../../../../internal/statefile/catalog.go)、[操作账本存储](../../../../internal/workspace/operations_store.go)、[启动对账](../../../../internal/workspace/operations_reconcile.go)、[幂等重放](../../../../internal/workspace/operations_replay.go)；
+  - 服务端测试：[工作区幂等与崩溃对账测试](../../../../internal/workspace/operations_test.go)、[操作查询与 409 API 测试](../../../../internal/api/git_operations_test.go)；
+  - 前端控制器与组件：[操作领域模型](../../../../web/src/domains/workspace/git-operations-model.ts)、[操作与重连控制器](../../../../web/src/hooks/workspace/git-operations-controller.svelte.ts)、[底部状态栏与历史弹层](../../../../web/src/components/workspace/GitWorkbenchStatusBar.svelte)；
+  - 测试验证：[操作模型单测](../../../../web/test/git-operations.test.ts)、[状态栏与重连浏览器测试](../../../../web/test/browser/GitWorkbenchOperations.test.ts)、[持久账本与断线恢复 E2E](../../../../web/test/e2e/git-workbench-operations.spec.ts)。

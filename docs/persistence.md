@@ -13,6 +13,7 @@
 | bootstrap           | config.toml              | none                          | internal/config + cmd/webmux | 配置错误阻止启动      | 否       |
 | launch              | launch-configs.json      | launch-configs.json.lock      | internal/launch              | unavailable           | 是       |
 | repositories        | repositories.json        | repositories.json.lock        | internal/workspace           | unavailable           | 是       |
+| git-operations      | git-operations.json      | git-operations.json.lock      | internal/workspace           | unavailable           | 是       |
 | tunnel              | tunnel-settings.json     | tunnel-settings.json.lock     | internal/tunnelsettings      | fail_closed           | 是       |
 | tailscale-settings  | tailscale-settings.json  | tailscale-settings.json.lock  | internal/tailscalesettings   | fail_closed           | 是       |
 | voice-settings      | voice-settings.json      | voice-settings.json.lock      | internal/voicesettings       | fail_closed           | 是       |
@@ -68,7 +69,11 @@ ACP 聊天的规范化消息与工具内容在 UI 截断前保存为完整 Activ
 ## 统一行为与故障隔离
 
 - 每个 JSON 存储通过 `statefile.Open[T]` 取得注册 handle 和独立生命周期锁；数据与锁均为 0600、目录 0700。正常关闭显式解锁但不删除锁文件。`state_dir` 可为指向真实目录的符号链接；数据文件与锁自身仍拒绝符号链接。
-- 每个 JSON 存储都有条数与字节双重上限：写入前用 `Handle.Fits` 判断，超限时淘汰可丢弃的记录（hybrid 记录、agent 选项缓存）或以无效输入拒绝（启动配置、仓库登记），不会让存储进入 `TooLarge` 失败。延迟合并写入失败时记录错误日志，I/O 类失败每 30 秒重试。
+- 每个 JSON 存储都有条数与字节双重上限：写入前用 `Handle.Fits` 判断，超限时淘汰可丢弃的记录（hybrid 记录、agent 选项缓存、已终结的 Git 操作记录）或以无效输入拒绝（启动配置、仓库登记），不会让存储进入 `TooLarge` 失败。延迟合并写入失败时记录错误日志，I/O 类失败每 30 秒重试。
+- `git-operations.json` 记录 `commit`、`push`、`fetch`、`fast_forward`、`switch` 五类 Git 操作的实例状态、幂等键与脱敏输出摘要：
+  - 单条输出上限 4 KiB，单库最多 100 条、全局最多 1000 条、已终结记录保留 7 天，且整体受 2 MiB `Fits` 上界约束；
+  - 移除仓库登记时同步清理该仓库记录，不保存环境变量、原始凭据、Diff 或文件正文；
+  - 服务启动时对遗留的 `pending`/`running` 条目按本地 reflog 与分支引用执行只读对账，绝不自动重试或 `git reset`。
 - 读取有大小限制，拒绝符号链接、非普通文件、重复/未知/大小写变体键、缺失必需字段、非法 UTF-8、错误版本、尾随值与过深嵌套。损坏原文件保留。
 - Commit 和 Remove 强制目录同步。发布前失败保留旧状态；发布后同步失败报告 `commit_uncertain` 并冻结写入，不广播成功、不用旧内存覆盖已发布文件。
 - `unavailable` 只禁用对应功能；push 不再改名重建密钥。首次确认文件不存在时仍可初始化。

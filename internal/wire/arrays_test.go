@@ -65,7 +65,9 @@ func TestResponseArrayFixture(t *testing.T) {
 		"gitStaging":       GitStagingOverview(workspace.StagingOverview{}),
 		"gitStagingDiff":   GitStagingFileDiff(workspace.StagingFileDiff{Identity: workspace.StageFileIdentity{Area: workspace.StageAreaUnstaged, Path: "a.txt"}, Hunks: []workspace.StagingHunk{{ID: "h1", Header: "@@ -1 +1 @@"}}}),
 		"gitCommitPreview": GitCommitPreview(workspace.CommitPreview{RepositoryID: "repo0001", WorktreeID: "tree0001", WorktreePath: "/w", HeadState: "branch", Branch: "main", IndexDigest: "digest"}),
-		"gitCommitResult":  GitCommitResult(workspace.CommitResult{Outcome: workspace.CommitOutcomeMatched, CommitOID: "0123456789abcdef0123456789abcdef01234567", TreeOID: "fedcba9876543210fedcba9876543210fedcba98", ExpectedTreeOID: "fedcba9876543210fedcba9876543210fedcba98"}),
+		"gitCommitResult":  GitCommitResult(workspace.CommitResult{OperationID: "op000001", Outcome: workspace.CommitOutcomeMatched, CommitOID: "0123456789abcdef0123456789abcdef01234567", TreeOID: "fedcba9876543210fedcba9876543210fedcba98", ExpectedTreeOID: "fedcba9876543210fedcba9876543210fedcba98"}),
+		"gitOperation":     GitOperation(workspace.GitOperation{ID: "op000001", RepositoryID: "repo0001", WorktreeID: "tree0001", Kind: workspace.GitOpCommit, Status: workspace.GitOpSucceeded, StartedAt: chatTime, Summary: "committed"}),
+		"gitOperations":    GitOperations(nil),
 	}
 	got, err := json.MarshalIndent(values, "", "  ")
 	if err != nil {

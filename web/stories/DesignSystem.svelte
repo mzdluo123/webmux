@@ -471,6 +471,9 @@
           >修复首页排序</ListButton
         >
         <ListButton variant="navigation">更新文档</ListButton>
+        <ListButton variant="git-status-trigger" aria-expanded="false"
+          >提交 · 已完成</ListButton
+        >
       </Card.Content>
     </Card.Root>
     <Card.Root>

@@ -15,6 +15,7 @@
     commitMessage,
     readonlyMode = false,
     busy = false,
+    uncertainBlocked = false,
     onCommitMessageChange,
     onOpenCommitPreview,
     onOpenPush,
@@ -26,6 +27,7 @@
     commitMessage: string;
     readonlyMode?: boolean;
     busy?: boolean;
+    uncertainBlocked?: boolean;
     onCommitMessageChange: (msg: string) => void;
     onOpenCommitPreview: (followUpPush: boolean) => void;
     onOpenPush?: () => void;
@@ -65,12 +67,14 @@
   const canPreviewCommit = $derived(
     !readonlyMode &&
       !busy &&
+      !uncertainBlocked &&
       stagedCount > 0 &&
       conflictedCount === 0 &&
       Boolean(parsed.subject.trim()),
   );
   const canDirectPush = $derived(
     !readonlyMode &&
+      !uncertainBlocked &&
       stagedCount === 0 &&
       context.headState === "branch" &&
       Boolean(context.checkedOutBranch) &&
@@ -79,6 +83,8 @@
 
   const disabledHint = $derived.by(() => {
     if (readonlyMode) return "只读仓库模式无法创建提交。";
+    if (uncertainBlocked)
+      return "上次操作结果待核实（uncertain）：请先点击顶部提示中的「刷新历史与暂存区核实」，避免重复执行。";
     if (conflictedCount > 0)
       return "存在未解决冲突，请先在工作树终端解决全部冲突。";
     if (stagedCount === 0)

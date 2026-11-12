@@ -77,10 +77,15 @@ export type SwitchPreview = z.infer<typeof SwitchPreviewSchema>;
 export const SwitchRequestSchema = z
   .object({
     confirmationId: z.string().min(1),
+    clientRequestId: z.string().min(1).max(128).optional(),
     acknowledgeSessions: z.boolean(),
   })
   .strict();
 export type SwitchRequest = z.infer<typeof SwitchRequestSchema>;
+
+export const SwitchResultSchema = WorktreeSchema.extend({
+  operationId: z.string().optional(),
+});
 
 // ---- Branch sync actions (add-branch-sync-actions) ----
 // Fast-forward, push and delete of local branches: a preview, then a
@@ -124,14 +129,21 @@ export const FastForwardPreviewSchema = z.object({
 });
 export type FastForwardPreview = z.infer<typeof FastForwardPreviewSchema>;
 
+const ConfirmedOperationFields = {
+  confirmationId: z.string().min(1),
+  clientRequestId: z.string().min(1).max(128).optional(),
+  worktreeId: z.string().min(1).optional(),
+};
+
 export const FastForwardRequestSchema = z
   .object({
-    confirmationId: z.string().min(1),
+    ...ConfirmedOperationFields,
     acknowledgeSessions: z.boolean(),
   })
   .strict();
 
 export const FastForwardResultSchema = z.object({
+  operationId: z.string().optional(),
   repository: RepositorySchema,
 });
 export type FastForwardResult = z.infer<typeof FastForwardResultSchema>;
@@ -165,12 +177,13 @@ export const PushPreviewSchema = z.object({
 export type PushPreview = z.infer<typeof PushPreviewSchema>;
 
 export const PushRequestSchema = z
-  .object({ confirmationId: z.string().min(1) })
+  .object({ ...ConfirmedOperationFields })
   .strict();
 
 // Also a refused push answers 200; `message` explains it, redacted. The
 // statuses are those of a fetch.
 export const PushResultSchema = z.object({
+  operationId: z.string().optional(),
   status: FetchResultSchema.shape.status,
   message: z.string(),
   repository: RepositorySchema,

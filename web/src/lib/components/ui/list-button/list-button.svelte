@@ -73,6 +73,9 @@
           "flex min-h-7 w-full touch-manipulation items-center gap-1 rounded-sm px-1.5 py-1 text-left text-xs font-semibold text-muted-foreground outline-none select-none hover:bg-muted/70 hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-git-primary max-sm:min-h-(--control-touch-compact)",
         "git-row-action":
           "absolute inset-y-0 right-0 flex w-7 items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-git-primary aria-expanded:bg-muted aria-expanded:opacity-100 max-sm:w-(--control-touch-compact) max-sm:opacity-100 any-pointer-coarse:w-(--control-touch-compact) any-pointer-coarse:opacity-100 [&_svg]:size-4",
+        // Compact 22px trigger inside the 26px Git workbench bottom status bar.
+        "git-status-trigger":
+          "flex h-[22px] items-center gap-1.5 rounded-sm border border-transparent px-1.5 text-left text-xs text-muted-foreground transition-colors outline-none select-none hover:bg-muted/70 hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-git-primary aria-expanded:border-foreground/40 aria-expanded:bg-muted/70 aria-expanded:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0",
       },
     },
     defaultVariants: {

@@ -26,14 +26,15 @@
     selectLogBranchFilter,
     toggleReviewedChange,
   } from "../../domains/workspace/git-workbench-state";
-  import InlineNotice from "../shared/InlineNotice.svelte";
   import GitBranchesPane from "./GitBranchesPane.svelte";
+  import GitCommitOutcomeBanner from "./GitCommitOutcomeBanner.svelte";
   import GitCommitPane from "./GitCommitPane.svelte";
   import GitCommitPreviewDialog from "./GitCommitPreviewDialog.svelte";
   import GitLogPane from "./GitLogPane.svelte";
   import GitPushDialog from "./GitPushDialog.svelte";
   import GitTopBarBranchPopover from "./GitTopBarBranchPopover.svelte";
   import GitWorkbenchModeTabs from "./GitWorkbenchModeTabs.svelte";
+  import GitWorkbenchStatusBar from "./GitWorkbenchStatusBar.svelte";
 
   let {
     view = $bindable(),
@@ -133,6 +134,23 @@
       statusBanner: `已完成推送确认：${push.sourceBranch} → ${push.remote}/${push.targetBranch}`,
     };
   }
+
+  function inspectCommitInLog(oid: string) {
+    view = {
+      ...view,
+      mode: "log",
+      selectedCommitOid: oid,
+      selectedCommitFilePath: null,
+    };
+  }
+
+  function reloadVerifyOutcome() {
+    view = {
+      ...view,
+      lastCommitOutcome: null,
+      statusBanner: "已刷新历史与暂存区核实状态",
+    };
+  }
 </script>
 
 <div
@@ -209,21 +227,12 @@
   </header>
 
   {#if view.lastCommitOutcome && view.lastCommitOutcome.status !== "matched"}
-    <div class="border-b border-git-border bg-git-surface px-3 py-2">
-      <InlineNotice
-        tone={view.lastCommitOutcome.status === "busy_locked"
-          ? "danger"
-          : "warning"}
-      >
-        <span class="font-semibold">
-          [{view.lastCommitOutcome.status}]
-        </span>
-        {view.lastCommitOutcome.summary}
-        {#if view.lastCommitOutcome.reasons.length > 0}
-          （{view.lastCommitOutcome.reasons.join("；")}）
-        {/if}
-      </InlineNotice>
-    </div>
+    <GitCommitOutcomeBanner
+      outcome={view.lastCommitOutcome}
+      onInspectCommit={inspectCommitInLog}
+      onReloadVerify={reloadVerifyOutcome}
+      onDismiss={() => (view = { ...view, lastCommitOutcome: null })}
+    />
   {/if}
 
   <Tabs.Root
@@ -355,6 +364,7 @@
         activeChangeId={view.activeChangeId}
         reviewedPaths={view.reviewedPaths}
         commitMessage={view.commitMessage}
+        uncertainBlocked={view.lastCommitOutcome?.status === "uncertain"}
         onSelectChange={(activeChangeId) =>
           (view = { ...view, activeChangeId })}
         onToggleReviewed={(c) =>
@@ -423,21 +433,15 @@
     </Tabs.Content>
   </Tabs.Root>
 
-  <footer
-    class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-git-border bg-git-panel px-3 py-1.5 text-xs text-muted-foreground"
-  >
-    <span
-      class="min-w-0 truncate font-mono"
-      title={view.context.worktreePath ?? ""}
-    >
-      工作树：{view.context.worktreePath ?? "无工作树（只读仓库）"}
-    </span>
-    {#if view.statusBanner}
-      <span class="min-w-0 wrap-anywhere text-foreground" role="status">
-        {view.statusBanner}
-      </span>
-    {/if}
-  </footer>
+  <GitWorkbenchStatusBar
+    worktreePath={view.context.worktreePath}
+    statusBanner={view.statusBanner}
+    lastFetchedAt={view.lastFetchedAt}
+    activeOperation={view.activeOperation ?? null}
+    operations={view.operations ?? []}
+    onInspectCommit={inspectCommitInLog}
+    onReloadVerify={reloadVerifyOutcome}
+  />
 
   {#if view.commitPreview}
     <GitCommitPreviewDialog

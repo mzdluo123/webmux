@@ -1,4 +1,5 @@
 import { buildCommitPreviewModel } from "../src/domains/workspace/git-workbench-state";
+import { GitOperationSchema } from "../src/contracts/git-api-schemas";
 import {
   GitBranchItemSchema,
   GitCommitDetailSchema,
@@ -20,7 +21,8 @@ export type GitWorkbenchScenario =
   | "no-worktree"
   | "empty-unborn"
   | "index-lock-busy"
-  | "commit-needs-review";
+  | "commit-needs-review"
+  | "operation-uncertain";
 
 export function buildGitWorkbenchFixture(
   scenario: GitWorkbenchScenario,
@@ -431,15 +433,79 @@ export function buildGitWorkbenchFixture(
     scenario === "commit-preview" ||
     scenario === "empty-unborn" ||
     scenario === "index-lock-busy" ||
-    scenario === "commit-needs-review"
+    scenario === "commit-needs-review" ||
+    scenario === "operation-uncertain"
       ? "commit"
       : scenario === "branches-occupied"
         ? "branches"
         : "log";
 
+  const sampleOperations = [
+    GitOperationSchema.parse({
+      id: "8f31c0d9e4a27b56129043ab89cd01ef",
+      repositoryId: "repo-story",
+      worktreeId: "wt-main",
+      clientRequestId: "commit-demo-1",
+      kind: scenario === "operation-uncertain" ? "push" : "commit",
+      status:
+        scenario === "operation-uncertain"
+          ? "uncertain"
+          : scenario === "commit-needs-review"
+            ? "needs_review"
+            : "succeeded",
+      confirmationId: "cf9102ab34cd56ef78901234567890ab",
+      startedAt: "2026-04-12T08:04:10Z",
+      finishedAt: "2026-04-12T08:04:12Z",
+      summary:
+        scenario === "operation-uncertain"
+          ? "服务重启时推送结果无法仅凭本地引用确认，请先获取远程并核对远端分支状态"
+          : scenario === "commit-needs-review"
+            ? "提交已完成，但 pre-commit 钩子格式化并改写了树对象"
+            : "已创建提交 11111111：Merge branch 'feat/git-workbench' into main",
+      sanitizedOutput:
+        scenario === "operation-uncertain"
+          ? "remote: https://user:***@github.com/mzdluo123/webmux.git\nconnection reset before remote ref ack"
+          : "[main 1111111] Merge branch 'feat/git-workbench' into main\n 2 files changed, 64 insertions(+), 8 deletions(-)",
+      fetchResults: [],
+      preview: {
+        worktreePath: wtPath,
+        headState: "branch",
+        branch: "main",
+        headOid: "2222222222222222222222222222222222222222",
+        expectedTreeOid: "7316cdbc05a7070b8a86588a9bbaaf90fddca4e4",
+      },
+      actualOid: "1111111111111111111111111111111111111111",
+      actualTreeOid: "7316cdbc05a7070b8a86588a9bbaaf90fddca4e4",
+      parents: ["2222222222222222222222222222222222222222"],
+      subject: "Merge branch 'feat/git-workbench' into main",
+      reviewReasons:
+        scenario === "commit-needs-review"
+          ? [
+              "实际生成的提交树摘要与预览不一致（pre-commit 钩子修改了暂存文件）",
+            ]
+          : [],
+    }),
+    GitOperationSchema.parse({
+      id: "4a19b2e8c7f031256908da34bc78ef90",
+      repositoryId: "repo-story",
+      worktreeId: "wt-main",
+      clientRequestId: "fetch-demo-0",
+      kind: "fetch",
+      status: "succeeded",
+      startedAt: "2026-04-12T08:01:00Z",
+      finishedAt: "2026-04-12T08:01:02Z",
+      summary: "已获取全部远程（1 个）",
+      fetchResults: [{ remote: "origin", status: "ok", message: "" }],
+      preview: {},
+      parents: [],
+      reviewReasons: [],
+    }),
+  ];
+
   const base: GitWorkbenchViewState = {
     mode,
     context,
+    lastFetchedAt: "2026-04-12T08:01:02Z",
     historyState:
       scenario === "empty-unborn"
         ? "unborn"
@@ -476,6 +542,7 @@ export function buildGitWorkbenchFixture(
           })
         : scenario === "commit-needs-review"
           ? GitCommitOutcomeSchema.parse({
+              operationId: "8f31c0d9e4a27b56129043ab89cd01ef",
               status: "needs_review",
               commitOid: "abcd12349876543210abcdef1234567890abcdef",
               expectedTreeOid: "tree-expected-a1b2",
@@ -486,7 +553,15 @@ export function buildGitWorkbenchFixture(
                 "expected tree-expected-a1b2, actual tree-rewritten-c3d4",
               ],
             })
-          : null,
+          : scenario === "operation-uncertain"
+            ? GitCommitOutcomeSchema.parse({
+                operationId: "8f31c0d9e4a27b56129043ab89cd01ef",
+                status: "uncertain",
+                summary:
+                  "服务重启时推送结果无法仅凭本地引用确认，请先获取远程并核对远端分支状态。",
+                reasons: [],
+              })
+            : null,
     pushPreview:
       scenario === "push-dialog"
         ? GitPushPreviewModelSchema.parse({
@@ -559,10 +634,13 @@ export function buildGitWorkbenchFixture(
             ],
           })
         : null,
+    operations: scenario === "no-worktree" ? [] : sampleOperations,
     statusBanner:
       scenario === "no-worktree"
         ? "无工作树只读仓库上下文：历史与分支可正常浏览，工作区暂存与提交已禁用"
-        : "就绪 · 当前工作树 /work/webmux",
+        : scenario === "operation-uncertain"
+          ? "操作结果待核实（uncertain）：已禁用盲目一键重试，请先刷新核实"
+          : "已创建提交 11111111：Merge branch 'feat/git-workbench' into main",
   };
 
   if (scenario === "commit-preview") {

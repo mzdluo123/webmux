@@ -6,6 +6,7 @@
     branchOperations,
     type BranchFlowProps,
   } from "../../domains/workspace/branch-operations";
+  import { generateGitClientRequestId } from "../../domains/workspace/git-operations-model";
   import { PreviewFlow } from "../../hooks/workspace/preview-flow.svelte";
   import type { FastForwardPreview } from "../../contracts/schemas";
   import BranchCommitList from "./BranchCommitList.svelte";
@@ -59,6 +60,10 @@
         repositoryId,
         target.confirmationId,
         sessions.length > 0 && acknowledged,
+        {
+          clientRequestId: generateGitClientRequestId("fast_forward"),
+          worktreeId: target.worktree?.id,
+        },
       ),
     );
     busy = false;

@@ -13,8 +13,13 @@ import type {
   Repository,
 } from "../../contracts/schemas";
 import { branchOperations } from "../../domains/workspace/branch-operations";
+import {
+  generateGitClientRequestId,
+  isRecoverableNetworkFailure,
+} from "../../domains/workspace/git-operations-model";
 import { mapGitCommitDetailResponse } from "../../domains/workspace/git-workbench-adapter";
 import { LatestRequest } from "../shared/remote-request.svelte";
+import type { GitOperationsController } from "./git-operations-controller.svelte";
 import {
   createGitPushDiffController,
   type GitPushFileDiffState,
@@ -26,6 +31,7 @@ export interface GitPushControllerDeps {
   getRepoId: () => string;
   getRepoName: () => string;
   getWorktreeId: () => string | undefined;
+  operations?: GitOperationsController;
   onRepositoryUpdated?: (repo: Repository) => void;
   onRefreshAfterPush?: () => void;
   onStatusBanner: (banner: string) => void;
@@ -277,10 +283,22 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     running = true;
     rejected = null;
     conflictError = "";
+    const wtId = deps.getWorktreeId();
+    const clientRequestId = generateGitClientRequestId("push");
+    deps.operations?.setPhase(
+      "running",
+      "push",
+      `正在推送到 ${cur.remote}/${cur.target}…`,
+      { clientRequestId },
+    );
     try {
-      const result = await branchOperations.push(repoId, cur.confirmationId);
+      const result = await branchOperations.push(repoId, cur.confirmationId, {
+        clientRequestId,
+        worktreeId: wtId,
+      });
       deps.onRepositoryUpdated?.(result.repository);
       deps.onRefreshAfterPush?.();
+      await deps.operations?.refreshOperations(repoId, wtId);
 
       if (result.status === "ok") {
         const dest = `${cur.remote}/${cur.target}`;
@@ -302,6 +320,22 @@ export function createGitPushController(deps: GitPushControllerDeps) {
       );
       await refreshPreview();
     } catch (err) {
+      if (deps.operations && isRecoverableNetworkFailure(err)) {
+        const recovered = await deps.operations.recoverByClientRequest({
+          repositoryId: repoId,
+          worktreeId: wtId,
+          kind: "push",
+          clientRequestId,
+        });
+        if (recovered && recovered.status === "succeeded") {
+          deps.onRefreshAfterPush?.();
+          const dest = `${cur.remote}/${cur.target}`;
+          resetDialogState();
+          deps.onStatusBanner(recovered.summary || `已推送到 ${dest}`);
+          return;
+        }
+      }
+      await deps.operations?.refreshOperations(repoId, wtId);
       const msg = errorMessage(err);
       conflictError = msg;
       deps.onStatusBanner(
@@ -311,6 +345,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
       );
       await refreshPreview();
     } finally {
+      deps.operations?.clearActive();
       running = false;
     }
   }

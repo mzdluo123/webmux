@@ -65,3 +65,18 @@
     - `test/e2e/git-workbench-commit-push.spec.ts`、`test/e2e/git-workbench-log.spec.ts` 与 `test/e2e/git-workbench-route.spec.ts`（桌面与窄屏项目）验证真实单块 `index` 暂存、外部修改自动失效“已审阅”、`409 stale` 一键重生成预览与 `pre-commit` Hook 改写树返回 `needs_review` 中止自动推送；
     - 同一 E2E 进一步验证远端超前两步独立报错、首次发布分支、工作树占用保护与 `Shift+F10` 检出脏文件/活跃会话警告，并在真实运行实例上完成桌面、平板、手机浅色与深色前后对比截图及常速交互 GIF 核查。
 - 限制：无头 Chromium 的键盘焦点样式与物理移动设备触控反馈无法完全替代真机 iOS/Android 浏览器验收；外部 GPG 硬件密钥交互签名未在无头 CI 环境实测。
+
+## 2026-11-12：Git 工作台 06（V1a）持久 Git 操作账本、幂等恢复与底部状态栏（US-J23）
+
+- 范围：
+  - `internal/statefile`、`internal/archtest/persistence_inventory.json`、`cmd/webmux/configview.go` 与 `docs/persistence.md` 登记 `git-operations.json`（`0600` 原子替换 + 独立锁，单库 100 条、全局 1000 条、7 天保留、2 MiB `Fits` 上界、注销仓库同步清理、输出经凭据脱敏截断 ≤ 4 KiB）；
+  - `internal/workspace` 解耦两阶段预览凭证 `confirmationId` 与持久实例 `operationId` + `clientRequestId`：
+    - 对 `commit`、`push`、`fetch`、`fast_forward`、`switch` 实现在途请求合并、跨重连/重启幂等重放与参数冲突 `409 idempotency_conflict`；
+    - 启动时按 `GIT_REFLOG_ACTION=webmux-commit:<operationId>` 与本地引用只读对账崩溃遗留条目（零自动重试、零 `git reset`）；
+  - `internal/api`、`internal/contract`、`internal/wire` 新增 `GET /api/repositories/{id}/git/operations` 与 `GET /api/repositories/{id}/git/operations/{operationId}` 及线上快照；
+  - `web/src` 新增 `git-operations-model.ts`、`git-operations-controller.svelte.ts` 与 `GitWorkbenchStatusBar.svelte`，替换工作台纯静态底栏为 24–28px 实时状态栏与操作历史 `Popover`，接通网络中断自动查询恢复及 `uncertain` 防盲目重提门禁。
+- 依据：
+  - `make persistence-check`、`make docs-check`、`make check` 通过；
+  - `go test -race ./internal/workspace ./internal/api ./internal/wire ./internal/statefile ./internal/archtest ./cmd/webmux` 通过；
+  - 前端 `git-operations.test.ts`、`GitWorkbenchOperations.test.ts`、Storybook 套件与隔离实例 Playwright E2E（`git-workbench-operations.spec.ts`、`git-workbench-commit-push.spec.ts`，覆盖桌面与 320px 手机视口及响应中断无重复提交）通过。
+- 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
