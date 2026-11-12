@@ -201,7 +201,7 @@ func TestP2PUnknownAndZeroRTTAndUnsupportedStatus(t *testing.T) {
 	if code := e.Run(context.Background(), p2pStatusCommand, nil); code != 0 {
 		t.Fatal(code)
 	}
-	if text := stdout.String(); !strings.Contains(text, "compiled out") || strings.Contains(text, "UDP4/UDP6") || strings.Contains(text, "full ICE") {
+	if text := stdout.String(); !strings.Contains(text, "compiled out") || strings.Contains(text, "UDP4/UDP6") || strings.Contains(text, "full ICE") || strings.Contains(text, "per-peer sockets may") {
 		t.Fatalf("unsupported: %s", text)
 	}
 	stdout.Reset()

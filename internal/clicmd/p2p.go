@@ -67,7 +67,11 @@ func p2pReadCommand(peers bool) *Command {
 				} else {
 					_, _ = fmt.Fprintf(e.Stdout, "Supported: %t\nEnabled: %t\nSource: %s\nConfigured UDP port: %d (0 = automatic)\n", st.Supported, st.Enabled, st.Source, st.UDPPort)
 					if len(st.UDPBindings) == 0 {
-						_, _ = fmt.Fprintln(e.Stdout, "Bound ICE UDP sockets: none (per-peer sockets may still be used)")
+						note := "per-peer sockets may still be used"
+						if !st.Supported {
+							note = "WebRTC unavailable in this build"
+						}
+						_, _ = fmt.Fprintf(e.Stdout, "Bound ICE UDP sockets: none (%s)\n", note)
 					}
 					for _, b := range st.UDPBindings {
 						_, _ = fmt.Fprintf(e.Stdout, "Bound ICE UDP socket: %s port %d\n", b.Network, b.Port)
@@ -80,7 +84,7 @@ func p2pReadCommand(peers bool) *Command {
 					if st.StorageError != "" {
 						_, _ = fmt.Fprintln(e.Stdout, "Storage error:", st.StorageError)
 					}
-					_, _ = fmt.Fprintf(e.Stdout, "Compiled networks: %s; ICE: %s; TURN: %t\n%s\n", strings.Join(st.Capabilities.Networks, ", "), st.Capabilities.ICEMode, st.Capabilities.TURN, p2pStatusLimits(st.Supported))
+					_, _ = fmt.Fprintf(e.Stdout, "Compiled networks: %s; ICE: %s; TURN: %t\n%s\n", valueOr(strings.Join(st.Capabilities.Networks, ", "), "none"), st.Capabilities.ICEMode, st.Capabilities.TURN, p2pStatusLimits(st.Supported))
 				}
 				return contract.ExitOK
 			}

@@ -209,4 +209,7 @@
 - 边界：未改 UI、连接策略或持久配置；无 TURN、无 offer 方向交换；会话内设置与信令仍 403。
 - 已验证：`make check` 通过，包含前端生产构建、类型、文档、架构、格式、vet 与 Go lint（0 issues）。
 - 已验证：`go test -race ./internal/p2p ./internal/wire` 通过，覆盖实际绑定 UDP 端口、RTT 未知与已测 0ms；`go test -race -tags nop2p ./internal/p2p` 通过。
-- 完整 `make test` 与扩展 nop2p race 测试进行中；本记录尚不声明完整门禁通过。所有测试使用隔离服务或本地假 STUN，未连接现有开发服务。
+- 已验证：扩展 `go test -race -tags nop2p ./internal/p2p ./internal/wire ./internal/clicmd ./internal/api ./cmd/webmux` 与正常/nop2p 构建通过，nop2p 依赖清单没有 Pion。
+- 已验证：正常/nop2p 二进制的独立 Unix socket 实例通过 status/peers/probe 冒烟检查；nop2p 不暗示 full ICE 或逐 peer ICE 套接字，读取未写入持久配置。
+- 完整门禁使用 `env -u CODEX_PATH make test`：Go race、Vitest unit（856）与 browser（728）已通过；首次继承宿主 CODEX_PATH 导致两个未改动的 connector 测试失败，移除变量后隔离复测通过。
+- Storybook、E2E、性能及最终完整门禁、CI 结果记录在 [PR #562 的验证清单](https://github.com/mzdluo123/webmux/pull/562)。所有网络测试使用隔离服务或本地假 STUN，未连接现有开发服务。
