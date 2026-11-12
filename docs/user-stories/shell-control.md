@@ -160,7 +160,7 @@
 
 - **US-S21 从 MCP 启动和操作会话**：作为编排 agent，我希望在指定工作区启动会话、发送提示或中断，以便复用 WebMux 的执行与回执语义。
   - `session_launch` 复用创建 API，支持启动配置、argv、已有或新 worktree、初始提示、设置与权限模式；要求显式稳定 clientRequestId。
-  - 返回已有创建结果与可用链接；部分失败保留 step 和已创建资源，链接读取失败不把成功创建伪装为失败。
+  - 返回已有创建结果、可用链接与实际提交的 initialInput；仅按真实回执提供等待选择器，空白提示与空初始化指令不伪造回合；部分失败保留 step 和已创建资源，链接读取失败不把成功创建伪装为失败。
   - `session_send` 返回原输入回执，包括聊天回合 ID 或排队项与位置；终端写入不承诺执行完成。
   - `session_interrupt` 复用中断 API；所有写入重试复用请求 ID，不扩大原有去重保留范围。
   - [操作实现](../../internal/mcpcontrol/actions.go)、[回执测试](../../internal/mcpcontrol/actions_test.go)与 [MCP 使用说明](../usage/mcp.md)。

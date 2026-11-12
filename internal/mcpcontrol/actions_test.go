@@ -26,7 +26,7 @@ func TestActionsForwardStableReceipts(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case "/api/sessions":
-			return `{"session":{"id":"created","view":"chat"},"configWarnings":[]}`
+			return `{"session":{"id":"created","view":"chat"},"configWarnings":[],"initialInput":{"view":"chat","turnId":"first-turn"}}`
 		case "/api/sessions/created/details":
 			return `{"link":"http://localhost:7681/s/created"}`
 		case "/api/sessions/created/input":
@@ -47,7 +47,7 @@ func TestActionsForwardStableReceipts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), `"firstTurn":true`) || !strings.Contains(string(data), `http://localhost:7681/s/created`) {
+	if !strings.Contains(string(data), `"turnId":"first-turn"`) || !strings.Contains(string(data), `http://localhost:7681/s/created`) {
 		t.Fatalf("launch receipt %s", data)
 	}
 	if _, err := c.launch(context.Background(), raw); err != nil {
@@ -88,5 +88,23 @@ func TestLaunchPartialFailurePreservesCreatedResources(t *testing.T) {
 	_, err := c.launch(context.Background(), json.RawMessage(`{"clientRequestId":"stable-request","cmd":["bash"]}`))
 	if err == nil || !strings.Contains(err.Error(), `"sessionId":"created"`) || !strings.Contains(err.Error(), `"step":"prompt"`) {
 		t.Fatalf("partial failure lost: %v", err)
+	}
+}
+
+func TestLaunchDoesNotInventInitialTurn(t *testing.T) {
+	c := testClient(t, func(r *http.Request) string {
+		if r.Method == "POST" {
+			return `{"session":{"id":"idle","view":"chat"},"configWarnings":[]}`
+		}
+		return `{"session":{"id":"idle"}}`
+	})
+	for _, raw := range []string{`{"clientRequestId":"empty-request","configId":"config","view":"chat","prompt":"  "}`, `{"clientRequestId":"empty-request","configId":"config","view":"chat","useInitInstruction":true,"workspace":{"repositoryId":"repo","worktreeId":"tree"}}`} {
+		value, err := c.launch(context.Background(), json.RawMessage(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, exists := value.(map[string]any)["wait"]; exists {
+			t.Fatal("unsubmitted prompt returned a wait selector")
+		}
 	}
 }

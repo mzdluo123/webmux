@@ -73,10 +73,17 @@ func (c Client) launch(ctx context.Context, raw json.RawMessage) (any, error) {
 	// because a second metadata read is unavailable.
 	var details contract.SessionDetails
 	_ = c.API.GetBounded(ctx, "/api/sessions/"+url.PathEscape(result.Session.ID)+"/details", responseLimit, &details)
-	out := map[string]any{"clientRequestId": req.ClientRequestID, "session": result.Session, "worktree": result.Worktree, "configWarnings": result.ConfigWarnings, "link": details.Link}
-	if req.View == contract.ViewChat && (req.Prompt != "" || req.UseInitInstruction) {
-		out["wait"] = map[string]any{"sessionId": result.Session.ID, "firstTurn": true}
+	out := map[string]any{"clientRequestId": req.ClientRequestID, "session": result.Session, "worktree": result.Worktree, "configWarnings": result.ConfigWarnings, "link": details.Link, "initialInput": result.InitialInput}
+
+	if result.InitialInput != nil {
+		switch {
+		case result.InitialInput.TurnID != "":
+			out["wait"] = map[string]any{"sessionId": result.Session.ID, "turnId": result.InitialInput.TurnID}
+		case result.InitialInput.ItemID != "":
+			out["wait"] = map[string]any{"sessionId": result.Session.ID, "queueItemId": result.InitialInput.ItemID}
+		}
 	}
+
 	return out, nil
 }
 func (c Client) send(ctx context.Context, raw json.RawMessage) (any, error) {

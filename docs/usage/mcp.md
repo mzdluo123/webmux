@@ -45,7 +45,7 @@
 }
 ```
 
-返回 session、worktree、configWarnings、可用时的 link，以及首条聊天提示的等待选择器。
+返回 session、worktree、configWarnings、可用时的 link，实际提交初始聊天提示时的 initialInput 回执与等待选择器。
 创建响应丢失时重试相同请求；创建去重仅在服务进程内保留十分钟，服务重启后应先查询现有会话再决定是否重建。
 失败正文保留 step、已创建 sessionId/worktree；不会自动回滚，不要因后续提示失败而重复创建。
 
