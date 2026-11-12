@@ -21,14 +21,14 @@ import (
 // live in a CODEX_HOME of the test's own.
 func (h *harness) codexInput(side Side, pathDir string, args ...string) CreateInput {
 	h.t.Helper()
+	// Clear the host connector path before resolving this fixture's fake agent.
+	// An explicit launch value would also override the connector's defaults.
+	h.t.Setenv("CODEX_PATH", "")
 	exe := agentPath(h.t, codex.Name)
 	if pathDir == "" {
 		pathDir = filepath.Dir(exe)
 	}
 	in := h.input(codex.Name, side, "FAKEAGENT_PROFILE=", "CODEX_HOME="+h.t.TempDir(), "PATH="+pathDir+":/usr/bin:/bin")
-	// Resolve the fake executable from this fixture's PATH, even when the
-	// tests run inside a Codex connector that exports its own CODEX_PATH.
-	in.Env["CODEX_PATH"] = ""
 	in.Cmd = append([]string{exe}, args...)
 	return in
 }
