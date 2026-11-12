@@ -201,3 +201,12 @@
   - 隔离实例 Playwright E2E（`p2p.spec.ts`，桌面与手机视口）覆盖本机自动跳过、真实 Chromium ↔ Pion WebRTC 直连升级、终端流与无 HTTP XHR 的分块文件上传、双路径回显测速及在线关闭无损回退，桌面（1280×900）、平板（768×800）与手机（390×844）无页面横向溢出。
 - 限制：
   - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS、iOS/Android 真机或跨运营商对称 NAT / 移动蜂窝公网链路上实测打洞成功率。
+
+## 2026-11-12：shell P2P 只读诊断
+
+- 故事：新增 US-S20，同步主索引与覆盖索引；US-S04/US-S05 的命令自描述与连接手册复用现有入口。
+- 实现：`p2p status/peers/probe`、本机 `GET/HEAD /local/v1/p2p`；配置/peer 读取与 CLI 临时端口 STUN 探测明确区分。
+- 边界：未改 UI、连接策略或持久配置；无 TURN、无 offer 方向交换；会话内设置与信令仍 403。
+- 已验证：`make check` 通过，包含前端生产构建、类型、文档、架构、格式、vet 与 Go lint（0 issues）。
+- 已验证：`go test -race ./internal/p2p ./internal/wire` 通过，覆盖实际绑定 UDP 端口、RTT 未知与已测 0ms；`go test -race -tags nop2p ./internal/p2p` 通过。
+- 完整 `make test` 与扩展 nop2p race 测试进行中；本记录尚不声明完整门禁通过。所有测试使用隔离服务或本地假 STUN，未连接现有开发服务。
