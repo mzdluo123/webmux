@@ -8,10 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/coder/websocket"
-	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/localclient"
 )
 
@@ -28,35 +25,12 @@ func websocketClient(t *testing.T, handler http.HandlerFunc) Client {
 	t.Cleanup(api.Close)
 	return Client{API: api}
 }
-func TestTerminalReadPagesRawBytesWithoutInput(t *testing.T) {
-	c := websocketClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("offset") != "8" {
-			t.Error("cursor not forwarded")
+func TestTerminalReadUsesBoundedRawEndpoint(t *testing.T) {
+	c := testClient(t, func(r *http.Request) string {
+		if r.Method != "GET" || r.URL.Path != "/api/sessions/s/output" || r.URL.Query().Get("maxBytes") != "2" || r.URL.Query().Get("offset") != "8" {
+			t.Fatalf("unexpected raw read: %s %s", r.Method, r.URL)
 		}
-		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{"webmux"}})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		defer func() { _ = conn.CloseNow() }()
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second)
-		defer cancel()
-		pos := contract.StreamPosition{Generation: "0123456789abcdef", Mode: "reset", Start: 10, End: 16, Truncated: true}
-		data, err := json.Marshal(pos)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		for _, frame := range [][]byte{contract.Frame(contract.FramePosition, data), contract.Frame(contract.FrameSnapshot, []byte{'a', 0xff, 'b', 'c', 'd', 'e'})} {
-			if err := conn.Write(ctx, websocket.MessageBinary, frame); err != nil {
-				t.Error(err)
-				return
-			}
-		}
-		_, _, err = conn.Read(ctx)
-		if err == nil {
-			t.Error("read-only client sent terminal input")
-		}
+		return `{"generation":"0123456789abcdef","start":"10","end":"16","nextOffset":"12","encoding":"base64","data":"Yf8=","reset":true,"historyTruncated":true,"limited":true}`
 	})
 	result, err := c.read(context.Background(), json.RawMessage(`{"sessionId":"s","view":"terminal","generation":"0123456789abcdef","offset":"8","maxBytes":2}`))
 	if err != nil {
@@ -104,20 +78,5 @@ func TestReadRejectsInvalidCursorsBeforeAPI(t *testing.T) {
 		if _, err := c.read(context.Background(), json.RawMessage(raw)); err == nil {
 			t.Fatalf("accepted %s", raw)
 		}
-	}
-}
-func TestTerminalPageResume(t *testing.T) {
-	a := readArguments{Generation: "0123456789abcdef", MaxBytes: 2}
-	p := contract.StreamPosition{Generation: a.Generation, Mode: "append", Start: 12, End: 16}
-	result, err := terminalPage(a, 12, p, []byte("cdef"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := json.Marshal(result)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(data), `"data":"Y2Q="`) || !strings.Contains(string(data), `"reset":false`) {
-		t.Fatalf("resume: %s", data)
 	}
 }

@@ -2,7 +2,6 @@ package mcpcontrol
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -119,61 +118,14 @@ func (c Client) readTerminal(ctx context.Context, a readArguments) (any, error) 
 			return nil, errors.New("invalid terminal cursor")
 		}
 	}
-	path := "/ws/s/" + url.PathEscape(a.SessionID)
+	q := url.Values{"maxBytes": {strconv.Itoa(a.MaxBytes)}}
 	if a.Generation != "" {
-		path += "?" + url.Values{"generation": {a.Generation}, "offset": {a.Offset}}.Encode()
+		q.Set("generation", a.Generation)
+		q.Set("offset", strconv.FormatUint(offset, 10))
 	}
-	conn, err := c.API.DialWebSocket(ctx, path)
-	if err != nil {
+	var page contract.TerminalOutput
+	if err := c.API.GetBounded(ctx, "/api/sessions/"+url.PathEscape(a.SessionID)+"/output?"+q.Encode(), 256<<10, &page); err != nil {
 		return nil, apiError(err)
 	}
-	defer func() { _ = conn.CloseNow() }()
-	conn.SetReadLimit(responseLimit)
-	var position *contract.StreamPosition
-	var replay []byte
-	for {
-		_, data, err := conn.Read(ctx)
-		if err != nil {
-			return nil, errors.New("terminal replay unavailable")
-		}
-		if len(data) == 0 {
-			return nil, errors.New("invalid terminal frame")
-		}
-		switch data[0] {
-		case contract.FramePosition:
-			var p contract.StreamPosition
-			if json.Unmarshal(data[1:], &p) != nil || p.End < p.Start || p.End-p.Start > responseLimit || !generation.MatchString(p.Generation) || (p.Mode != "reset" && p.Mode != "append") {
-				return nil, errors.New("invalid terminal position")
-			}
-			position = &p
-			if p.End == p.Start {
-				return terminalPage(a, offset, p, nil)
-			}
-		case contract.FrameSnapshot, contract.FrameOutput:
-			if position == nil {
-				return nil, errors.New("terminal output without position")
-			}
-			remaining := position.End - position.Start - uint64(len(replay))
-			n := min(uint64(len(data)-1), remaining)
-			replay = append(replay, data[1:1+int(n)]...)
-			if uint64(len(replay)) == position.End-position.Start {
-				return terminalPage(a, offset, *position, replay)
-			}
-		case contract.FrameExit:
-			return nil, errors.New("terminal ended before replay completed")
-		}
-	}
-}
-func terminalPage(a readArguments, offset uint64, p contract.StreamPosition, replay []byte) (any, error) {
-	reset := a.Generation != "" && (p.Mode == "reset" || a.Generation != p.Generation || offset < p.Start || offset > p.End)
-	start := p.Start
-	if !reset && a.Generation != "" {
-		start = max(start, offset)
-	}
-	if start > p.End {
-		return nil, errors.New("terminal cursor exceeds replay")
-	}
-	n := min(uint64(a.MaxBytes), p.End-start)
-	data := replay[start-p.Start : start-p.Start+n]
-	return map[string]any{"view": "terminal", "generation": p.Generation, "start": strconv.FormatUint(start, 10), "end": strconv.FormatUint(p.End, 10), "nextOffset": strconv.FormatUint(start+n, 10), "encoding": "base64", "data": base64.StdEncoding.EncodeToString(data), "reset": reset, "historyTruncated": p.Truncated, "limited": start+n < p.End, "instructions": instructions}, nil
+	return map[string]any{"view": "terminal", "generation": page.Generation, "start": page.Start, "end": page.End, "nextOffset": page.NextOffset, "encoding": page.Encoding, "data": page.Data, "reset": page.Reset, "historyTruncated": page.HistoryTruncated, "limited": page.Limited, "instructions": instructions}, nil
 }

@@ -96,6 +96,7 @@
 返回 encoding=base64 的 data，以及 generation、start、end、nextOffset；下一页传回 generation 与 offset=nextOffset。
 maxBytes 范围 1–65536，limited 表示尚有回放字节；解码后按顺序拼接字节，避免把跨页 UTF-8 字符或 ANSI 序列拆开处理。
 游标已淘汰或 generation 变化时 reset 为 true，从仍保留的起点重新读取；historyTruncated 表示更早字节已丢弃。
+终端分页使用独立原始输出 API，历史淘汰后仍返回保留的后缀，不返回渲染恢复字节；每次只复制请求页，不附着客户端或触发重绘。
 终端回放不会变成持久日志；全屏 TUI 字节也不是当前画面的纯文本，画面读取可使用现有 `webmux screen`。
 每次读取限时十秒；读取超时或连接失败不停止会话。
 
