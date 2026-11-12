@@ -173,3 +173,36 @@ func TestWaitExitDoesNotTreatIdleAsCompletion(t *testing.T) {
 		t.Fatalf("exit result %+v", result)
 	}
 }
+
+func TestWaitUsesTurnEndBackgroundStateBeforeStateFrame(t *testing.T) {
+	ended := end("target")
+	ended.TurnEnd.Unfinished = true
+	c := chatFixture(t, []contract.ChatFrame{
+		{Type: "snapshot", From: 1, State: &contract.ChatState{Turn: contract.ChatTurn{TurnID: "target", Running: true, Unfinished: false}}},
+		{Type: "events", Items: []contract.ChatEvent{start("target", "")}},
+		{Type: "events", Items: []contract.ChatEvent{ended}},
+		{Type: "state", State: &contract.ChatState{Turn: contract.ChatTurn{TurnID: "target", Unfinished: true}}},
+	})
+	value, err := c.wait(context.Background(), json.RawMessage(`{"sessionId":"s","turnId":"target"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result := value.(waitResult); !result.Unfinished || result.Status != "ended" {
+		t.Fatalf("stale unfinished state: %+v", result)
+	}
+}
+func TestWaitKeepsIncompleteHistoryFlagAcrossLiveChunks(t *testing.T) {
+	c := chatFixture(t, []contract.ChatFrame{
+		{Type: "snapshot", From: 10, Truncated: true, State: &contract.ChatState{Turn: contract.ChatTurn{TurnID: "target", Running: true}}},
+		{Type: "events", Items: []contract.ChatEvent{message("reply", "agent", "retained prefix")}},
+		{Type: "events", Items: []contract.ChatEvent{message("reply", "agent", "live suffix"), end("target")}},
+	})
+	value, err := c.wait(context.Background(), json.RawMessage(`{"sessionId":"s","turnId":"target"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := value.(waitResult)
+	if result.Reply != "live suffix" || !result.ReplyTruncated {
+		t.Fatalf("partial reply advertised as complete: %+v", result)
+	}
+}

@@ -141,6 +141,7 @@ func (c Client) waitTurn(ctx context.Context, a waitArguments) (any, error) {
 	var state *contract.ChatState
 	snapshot, replayed, collecting := false, false, false
 	tracked, lastMessage := "", ""
+	historyIncomplete := false
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
@@ -180,9 +181,7 @@ func (c Client) waitTurn(ctx context.Context, a waitArguments) (any, error) {
 				}
 				result.TurnID = event.TurnEnd.TurnID
 				result.Status = "ended"
-				if state != nil && state.Turn.TurnID == event.TurnEnd.TurnID {
-					result.Unfinished = state.Turn.Unfinished
-				}
+				result.Unfinished = event.TurnEnd.Unfinished
 				result.StopReason = event.TurnEnd.StopReason
 				result.Error = event.TurnEnd.Error
 				return result, nil
@@ -190,7 +189,7 @@ func (c Client) waitTurn(ctx context.Context, a waitArguments) (any, error) {
 			if collecting && event.Message != nil && event.Message.Role == "agent" {
 				if lastMessage != event.Message.MessageID {
 					result.Reply = ""
-					result.ReplyTruncated = false
+					result.ReplyTruncated = historyIncomplete
 					lastMessage = event.Message.MessageID
 				}
 				appendReply(&result, event.Message.Text)
@@ -204,6 +203,7 @@ func (c Client) waitTurn(ctx context.Context, a waitArguments) (any, error) {
 				case a.TurnID != "" && state.Turn.TurnID == a.TurnID:
 					tracked = a.TurnID
 					collecting = true
+					historyIncomplete = true
 					result.ReplyTruncated = true
 					if !state.Turn.Running {
 						result.Status = "ended"
