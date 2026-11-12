@@ -3,28 +3,11 @@ package mcpcontrol
 import (
 	"context"
 	"encoding/json"
-	"net"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/rainchan/webmux/internal/localclient"
 )
 
-type testDialer struct{ address string }
-
-func (d testDialer) DialContext(ctx context.Context) (net.Conn, error) {
-	return (&net.Dialer{}).DialContext(ctx, "tcp", d.address)
-}
-func websocketClient(t *testing.T, handler http.HandlerFunc) Client {
-	t.Helper()
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-	api := localclient.New(testDialer{strings.TrimPrefix(server.URL, "http://")})
-	t.Cleanup(api.Close)
-	return Client{API: api}
-}
 func TestTerminalReadUsesBoundedRawEndpoint(t *testing.T) {
 	c := testClient(t, func(r *http.Request) string {
 		if r.Method != "GET" || r.URL.Path != "/api/sessions/s/output" || r.URL.Query().Get("maxBytes") != "2" || r.URL.Query().Get("offset") != "8" {
