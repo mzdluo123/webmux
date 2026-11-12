@@ -1,7 +1,9 @@
 <script lang="ts">
   import IconCheck from "~icons/tabler/check";
   import IconCopy from "~icons/tabler/copy";
+  import IconGitCherryPick from "~icons/tabler/git-cherry-pick";
   import IconGitCommit from "~icons/tabler/git-commit";
+  import IconRotate2 from "~icons/tabler/rotate-2";
   import IconTag from "~icons/tabler/tag";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -21,6 +23,8 @@
     loading = false,
     onSelectParent,
     onJumpToCommit,
+    onCherryPickCommit,
+    onRevertCommit,
   }: {
     detail: GitCommitDetail | null;
     selectedParentOverride?: string;
@@ -29,6 +33,8 @@
     loading?: boolean;
     onSelectParent: (commitOid: string, parentOid: string) => void;
     onJumpToCommit?: (oid: string) => void;
+    onCherryPickCommit?: (oid: string) => void;
+    onRevertCommit?: (oid: string) => void;
   } = $props();
 
   let copiedOid = $state<string | null>(null);
@@ -217,6 +223,34 @@
           >
             {detail.body}
           </p>
+        {/if}
+        {#if onCherryPickCommit || onRevertCommit}
+          <div class="flex flex-wrap items-center gap-1.5 pt-1">
+            {#if onCherryPickCommit}
+              <Button
+                size="xs"
+                variant="outline"
+                wrap
+                onclick={() => onCherryPickCommit(detail.oid)}
+                data-testid="git-log-detail-cherry-pick-btn"
+              >
+                <IconGitCherryPick aria-hidden="true" />
+                遴选此提交… (Cherry-pick)
+              </Button>
+            {/if}
+            {#if onRevertCommit}
+              <Button
+                size="xs"
+                variant="outline"
+                wrap
+                onclick={() => onRevertCommit(detail.oid)}
+                data-testid="git-log-detail-revert-btn"
+              >
+                <IconRotate2 aria-hidden="true" />
+                还原此提交… (Revert)
+              </Button>
+            {/if}
+          </div>
         {/if}
       </div>
 

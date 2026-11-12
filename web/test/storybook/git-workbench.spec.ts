@@ -15,6 +15,10 @@ for (const story of [
   "operation-uncertain-recovery",
   "commit-draft-conflict-409",
   "rework-session-handoff",
+  "conflict-three-way-text",
+  "conflict-binary-variant",
+  "divergence-rebase-preview",
+  "abort-operation-dialog",
 ] as const) {
   test(`git workbench ${story} fits every layout`, async ({ page }) => {
     test.slow();
@@ -32,7 +36,9 @@ for (const story of [
       if (
         story === "commit-full-index-preview" ||
         story === "push-confirmation-dialog" ||
-        story === "rework-session-handoff"
+        story === "rework-session-handoff" ||
+        story === "divergence-rebase-preview" ||
+        story === "abort-operation-dialog"
       ) {
         await expectDialogFits(page, dialog, name);
       }

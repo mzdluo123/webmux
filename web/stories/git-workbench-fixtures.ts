@@ -11,6 +11,7 @@ import {
   GitWorktreeContextSchema,
 } from "../src/contracts/git-workbench-schemas";
 import { longPath, longToken } from "./fixtures";
+import { applyGitStoryV2Scenario } from "./git-workbench-v2-fixtures";
 
 export type GitWorkbenchScenario =
   | "log-merge"
@@ -25,7 +26,11 @@ export type GitWorkbenchScenario =
   | "commit-needs-review"
   | "operation-uncertain"
   | "commit-draft-conflict"
-  | "rework-session-handoff";
+  | "rework-session-handoff"
+  | "conflict-three-way-text"
+  | "conflict-binary-variant"
+  | "divergence-rebase-preview"
+  | "abort-operation-dialog";
 
 export function buildGitWorkbenchFixture(
   scenario: GitWorkbenchScenario,
@@ -703,5 +708,5 @@ export function buildGitWorkbenchFixture(
     base.commitPreview = buildCommitPreviewModel(base, true);
   }
 
-  return base;
+  return applyGitStoryV2Scenario(base, scenario, stressLongText);
 }

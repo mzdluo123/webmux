@@ -1,4 +1,5 @@
 <script lang="ts">
+  import IconArrowsSplit2 from "~icons/tabler/arrows-split-2";
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import { Button } from "$lib/components/ui/button";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -8,6 +9,7 @@
     hasActiveWorktreeSession = false,
     openLabel = "跳转工作树终端",
     newLabel = "新建工作树终端",
+    onOpenConflictResolver,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
   }: {
@@ -15,6 +17,7 @@
     hasActiveWorktreeSession?: boolean;
     openLabel?: string;
     newLabel?: string;
+    onOpenConflictResolver?: () => void;
     onOpenWorktreeTerminal?: () => void;
     onNewWorktreeTerminal?: () => void;
   } = $props();
@@ -25,8 +28,25 @@
     <div class="flex flex-wrap items-center justify-between gap-2">
       <span>{message}</span>
       <div class="flex flex-wrap items-center gap-1.5">
+        {#if onOpenConflictResolver}
+          <Button
+            size="xs"
+            variant="git-primary"
+            wrap
+            onclick={onOpenConflictResolver}
+            data-testid="git-notice-open-conflict-resolver-btn"
+          >
+            <IconArrowsSplit2 aria-hidden="true" />
+            打开三方冲突解决器
+          </Button>
+        {/if}
         {#if hasActiveWorktreeSession && onOpenWorktreeTerminal}
-          <Button size="xs" variant="outline" onclick={onOpenWorktreeTerminal}>
+          <Button
+            size="xs"
+            variant="outline"
+            wrap
+            onclick={onOpenWorktreeTerminal}
+          >
             <IconTerminal2 aria-hidden="true" />
             {openLabel}
           </Button>
@@ -34,7 +54,8 @@
         {#if onNewWorktreeTerminal}
           <Button
             size="xs"
-            variant="git-primary"
+            variant="outline"
+            wrap
             onclick={onNewWorktreeTerminal}
           >
             <IconTerminal2 aria-hidden="true" />

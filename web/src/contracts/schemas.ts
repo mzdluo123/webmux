@@ -6,5 +6,6 @@ export * from "./branch-schemas";
 export * from "./code-schemas";
 export * from "./git-api-schemas";
 export * from "./git-collab-schemas";
+export * from "./git-conflict-schemas";
 export * from "./p2p-schemas";
 export * from "./conversation-schemas";

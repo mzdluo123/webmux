@@ -207,23 +207,38 @@
 
 ### 工作树真实 `index` 暂存与提交（`/api/repositories/{id}/worktrees/{worktreeId}/git`）
 
-| 路由                                                       | 说明                                                                                                                       |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `GET /staging`                                             | 读取真实 Git `index` 与工作区的已暂存、未暂存（含未跟踪）及冲突列表，签发 `StageFileIdentity`                              |
-| `GET /staging/diff?area&path&oldPath`                      | 单文件 `unstaged` / `staged` 统一 Hunk 列表、行尾标记与可逐块暂存判定（`hunkStageAvailable`）                              |
-| `POST /stage {identity, hunkIds?}`                         | 整文件或指定 `hunkIds` 暂存到真实 `index`，成功返回 204                                                                    |
-| `POST /unstage {identity, hunkIds?}`                       | 整文件或指定 `hunkIds` 从真实 `index` 取消暂存（含 `unborn HEAD`），成功返回 204                                           |
-| `POST /commit-preview {}`                                  | 基于完整 `HEAD -> index` 生成提交预览（含 CLI 预暂存文件、身份、可执行 Hook、阻塞项与限时确认码）                          |
-| `POST /commit {confirmationId, message, clientRequestId?}` | 复核 `HEAD` 与索引摘要后执行提交，返回 `{operationId?, outcome}`（`matched` / `needs_review` / `uncertain`）               |
-| `GET /task-baseline`                                       | 读取工作树固定任务审阅基线 `{baseline}`（未记录时 `baseline: null`，仍为 200）                                             |
-| `PUT /task-baseline {baseOid?}`                            | 将指定完整提交 OID（省略时取当前 `HEAD`，含 `unborn` 空仓）设为工作树任务基线，返回 `{baseline}`                           |
-| `DELETE /task-baseline`                                    | 清除该工作树的任务审阅基线与私有保护引用，204                                                                              |
-| `GET /task-changes?cursor&q&nodeId`                        | 计算相对任务起点的单份净变更分页列表（含 `commitCount`、`uncommittedCount` 与 `no_task_baseline` 状态）                    |
-| `GET /task-diff?path&changeId`                             | 读取单份任务净变更文件（`baseOid`/空树 → 当前工作区）冻结双侧原文，并写入 `/git/snapshots/{snapshotId}`                    |
-| `GET /reviews?scope=uncommitted\|task`                     | 读取工作树跨设备共享的已审阅文件列表与汇总计数（`totalFiles`、`reviewedFiles`、`files`）                                   |
-| `PUT /reviews {scope, action, item?, path?}`               | 按内容身份标记/取消标记已审阅（`mark` / `unmark` / `clear`）；文件已变化时返回 200 `{applied: false, staleRejected: true}` |
-| `GET /commit-draft`                                        | 读取工作树跨设备同步的提交说明草稿 `{repositoryId, worktreeId, subject, body, revision, updatedAt}`                        |
-| `PUT /commit-draft {subject, body, baseRevision}`          | 乐观锁保存提交说明草稿（上限 32 KiB）；`baseRevision` 不匹配时返回 409（`reason: "draft_conflict"`）并附带 `currentDraft`  |
+| 路由                                                                    | 说明                                                                                                                                 |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /staging`                                                          | 读取真实 Git `index` 与工作区的已暂存、未暂存（含未跟踪）及冲突列表，签发 `StageFileIdentity`                                        |
+| `GET /staging/diff?area&path&oldPath`                                   | 单文件 `unstaged` / `staged` 统一 Hunk 列表、行尾标记与可逐块暂存判定（`hunkStageAvailable`）                                        |
+| `POST /stage {identity, hunkIds?}`                                      | 整文件或指定 `hunkIds` 暂存到真实 `index`，成功返回 204                                                                              |
+| `POST /unstage {identity, hunkIds?}`                                    | 整文件或指定 `hunkIds` 从真实 `index` 取消暂存（含 `unborn HEAD`），成功返回 204                                                     |
+| `POST /commit-preview {}`                                               | 基于完整 `HEAD -> index` 生成提交预览（含 CLI 预暂存文件、身份、可执行 Hook、阻塞项与限时确认码）                                    |
+| `POST /commit {confirmationId, message, clientRequestId?}`              | 复核 `HEAD` 与索引摘要后执行提交，返回 `{operationId?, outcome}`（`matched` / `needs_review` / `uncertain`）                         |
+| `GET /task-baseline`                                                    | 读取工作树固定任务审阅基线 `{baseline}`（未记录时 `baseline: null`，仍为 200）                                                       |
+| `PUT /task-baseline {baseOid?}`                                         | 将指定完整提交 OID（省略时取当前 `HEAD`，含 `unborn` 空仓）设为工作树任务基线，返回 `{baseline}`                                     |
+| `DELETE /task-baseline`                                                 | 清除该工作树的任务审阅基线与私有保护引用，204                                                                                        |
+| `GET /task-changes?cursor&q&nodeId`                                     | 计算相对任务起点的单份净变更分页列表（含 `commitCount`、`uncommittedCount` 与 `no_task_baseline` 状态）                              |
+| `GET /task-diff?path&changeId`                                          | 读取单份任务净变更文件（`baseOid`/空树 → 当前工作区）冻结双侧原文，并写入 `/git/snapshots/{snapshotId}`                              |
+| `GET /reviews?scope=uncommitted\|task`                                  | 读取工作树跨设备共享的已审阅文件列表与汇总计数（`totalFiles`、`reviewedFiles`、`files`）                                             |
+| `PUT /reviews {scope, action, item?, path?}`                            | 按内容身份标记/取消标记已审阅（`mark` / `unmark` / `clear`）；文件已变化时返回 200 `{applied: false, staleRejected: true}`           |
+| `GET /commit-draft`                                                     | 读取工作树跨设备同步的提交说明草稿 `{repositoryId, worktreeId, subject, body, revision, updatedAt}`                                  |
+| `PUT /commit-draft {subject, body, baseRevision}`                       | 乐观锁保存提交说明草稿（上限 32 KiB）；`baseRevision` 不匹配时返回 409（`reason: "draft_conflict"`）并附带 `currentDraft`            |
+| `GET /operation-state`                                                  | 无状态探查进行中的 `merge` / `rebase` / `cherry_pick` / `revert` 进度、步骤、冲突列表与继续/中止门禁（重进恢复真源）                 |
+| `POST /merge-preview {refKind, refName}`                                | 预览将本地/远端分支合入当前工作树分支：返回方向语句、提交数、`git merge-tree` 冲突预判、活跃会话与限时 `confirmationId`              |
+| `POST /merge {confirmationId, acknowledgeSessions?, clientRequestId?}`  | 复核快照与会话确认后执行非交互合并，返回 `{operationId?, status, inProgress, summary}`                                               |
+| `POST /rebase-preview {refKind, refName}`                               | 预览将当前工作树分支变基到目标分支基底：返回方向语句、待重放提交列表、冲突预判、活跃会话与限时 `confirmationId`                      |
+| `POST /rebase {confirmationId, acknowledgeSessions?, clientRequestId?}` | 复核快照与会话确认后执行非交互变基，返回 `{operationId?, status, inProgress, summary}`                                               |
+| `POST /cherry-pick-preview {commitOid}`                                 | 预览将指定提交遴选到当前工作树分支（合并提交需先按单亲提交拆解，否则返回阻塞提示）                                                   |
+| `POST /cherry-pick {confirmationId, acknowledgeSessions?, ...}`         | 复核快照与会话确认后执行遴选，返回 `{operationId?, status, inProgress, summary}`                                                     |
+| `POST /revert-preview {commitOid}`                                      | 预览在当前工作树分支生成还原指定提交的反向更改                                                                                       |
+| `POST /revert {confirmationId, acknowledgeSessions?, clientRequestId?}` | 复核快照与会话确认后执行还原，返回 `{operationId?, status, inProgress, summary}`                                                     |
+| `POST /operation-continue {kind?, clientRequestId?}`                    | 仅当未合并索引条目（`1..3` 阶）清零时继续完成进行中的序列操作，返回 `{operationId?, status, inProgress, summary}`                    |
+| `POST /operation-abort-preview {}`                                      | 预览中止进行中操作的回退锚点 OID（`ORIG_HEAD` 或 `refs/webmux/recovery/*`）、将回滚的路径清单、活跃会话与 `confirmationId`           |
+| `POST /operation-abort {confirmationId, acknowledgeSessions?, ...}`     | 复核确认码与会话确认后中止进行中操作并清理 `refs/webmux/recovery/*` 锚点                                                             |
+| `GET /conflict?path`                                                    | 读取单文件三方冲突详情：索引 `1/2/3` 阶与工作区快照、真实分支/提交角色标签、三方分段（`segments`）及非文本冲突变体                   |
+| `POST /conflict/save {path, stageIdentityKey, content}`                 | 校验无遗留冲突标记且 `1..3` 阶身份未变后，经 `os.Root` 原子写回工作区文件（**不暂存**，保留 `1..3` 阶）                              |
+| `POST /conflict/resolve {path, stageIdentityKey, resolution, diskSHA?}` | 将已保存合并文本或显式 `choose_left` / `choose_right` / `delete` 写入索引 `0` 阶（或移除条目）并清除 `1..3` 阶，返回最新 `operation` |
 
 - 任务审阅基线保存在 `<state_dir>/git-task-baselines.json`：
   - 新建工作树（`POST /worktrees`）自动按起点提交记录 `source: "worktree_create"`；
@@ -232,7 +247,20 @@
 - 非 `unborn` 基线写入私有引用 `refs/webmux/baselines/<worktreeId>` 防止 `git gc` 回收起点对象，且绝不随 `fetch`、上游更新或本地 `HEAD` 前进自动漂移；关闭或归档会话保留基线，移除/批量移除/释放工作树、注销仓库或 `DELETE /task-baseline` 同步清理基线与私有引用。
 - `GET /task-changes` 将起点树与当前工作区状态合并为每个路径至多一条净变更（绝不把已提交与未提交编辑重复计数；往返修改还原后归零）；未记录基线时 `GET /task-changes` 与 `GET /history?scope=task` 返回 200（`status: "no_task_baseline"`），`GET /task-diff` 返回 409（`reason: "no_task_baseline"`）。
 - 外部 `.git/index.lock` 存在或并发写锁冲突时立即返回 409（`reason: "busy"`），绝不删除外部锁文件；路径身份或确认码过期返回 409（`reason: "stale"`）；存在冲突条目返回 409（`reason: "conflicted"`）；Hook 或签名失败且未生成提交返回 409（`reason: "commit_failed"`）。
-- `POST /commit`、`POST .../branches/push`、`POST .../fetch`、`POST .../branches/fast-forward` 与 `POST .../switch` 统一写入有界持久账本 `git-operations.json`，并严格区分快照预检凭证 `confirmationId` 与执行实例 `operationId` + `clientRequestId`：
+- `merge`、`rebase`、`cherry-pick`、`revert`、`operation-continue`、`operation-abort` 与冲突裁决遵循以下不变量：
+  - 发起序列操作前将操作前 `HEAD` 写入私有保护引用 `refs/webmux/recovery/<worktreeId>/<kind>`，作为 `ORIG_HEAD` 之外的恢复锚点与服务重启对账基线；操作正常完成、中止回退或移除/释放工作树时同步清理该私有引用。
+  - 若目标工作树存在运行中会话而请求未携带 `acknowledgeSessions: true`，执行与中止接口拒绝写入并返回 409（`reason: "session_ack_required"`）。
+  - `GET /conflict` 在 `rebase` 期间保持界面左右列稳定（绝不对调）：
+    - Git 在变基期间将目标基底放入 `stage 2`（`--ours`）、当前重放分支提交放入 `stage 3`（`--theirs`）；
+    - 服务端显式将 `left` 映射为 `stage 3`（当前分支重放提交）、`right` 映射为 `stage 2`（变基目标基底），并在两侧元数据返回真实分支名、提交短 OID 与语义角色。
+  - `POST /conflict/save` 拒绝包含遗留 `<<<<<<<` / `=======` / `>>>>>>>` 冲突标记的文本（409 `reason: "conflict_markers_present"`），并通过 `internal/worktreefs` 的 `os.Root` 边界防逃逸原子替换目标工作区文件，保留可执行位且**不修改 `.git/index`**。
+  - `POST /conflict/resolve` 支持四类显式裁决，并在未清零未合并条目时拦截 `operation-continue`：
+    - `resolution: "text"`：核对 `diskSHA` 与无冲突标记后将工作区合并文件写入 `stage 0`；
+    - `"choose_left"` / `"choose_right"`：直接提取对应阶 blob 检出到工作区并写入 `stage 0`（适用于二进制、删改冲突、子模块、符号链接与超大文件）；
+    - `"delete"`：删除工作区路径并从索引移除；
+    - 若工作区仍有未合并条目（`ls-files -u` 非空），`POST /operation-continue` 返回 409（`reason: "unmerged_entries"`）。
+- 所有受控 Git 写操作统一写入有界持久账本 `git-operations.json`，并严格区分快照预检凭证 `confirmationId` 与执行实例 `operationId` + `clientRequestId`：
+  - 覆盖 `POST /commit`、`POST .../branches/push`、`POST .../fetch`、`POST .../branches/fast-forward`、`POST .../switch` 以及 3 分 15 秒窗口内的 `merge`、`rebase`、`cherry-pick`、`revert`、`operation-continue`、`operation-abort`；
   - 同一 `(repositoryId, clientRequestId)` 参数摘要一致时合并在途执行或重放已持久结果（跨断线重连与服务重启绝不重复执行底层 Git 写命令）；
   - 复用相同 `clientRequestId` 但参数变化时返回 409（`reason: "idempotency_conflict"`）；若经服务重启对账后该操作为 `uncertain`，对非 commit 接口重放时返回 409（`reason: "uncertain"`）。
   - 服务启动时对崩溃遗留的 `pending`/`running` 条目按真实 Git 引用与 reflog（`GIT_REFLOG_ACTION=webmux-commit:<operationId>`）执行只读对账，收敛为 `succeeded`、`needs_review`、`failed` 或 `uncertain`，从不自动重跑或执行 `git reset`。

@@ -72,10 +72,10 @@ ACP 聊天的规范化消息与工具内容在 UI 截断前保存为完整 Activ
 
 - 每个 JSON 存储通过 `statefile.Open[T]` 取得注册 handle 和独立生命周期锁；数据与锁均为 0600、目录 0700。正常关闭显式解锁但不删除锁文件。`state_dir` 可为指向真实目录的符号链接；数据文件与锁自身仍拒绝符号链接。
 - 每个 JSON 存储都有条数与字节双重上限：写入前用 `Handle.Fits` 判断，超限时淘汰可丢弃的记录（hybrid 记录、agent 选项缓存、已终结的 Git 操作记录）或以无效输入拒绝（启动配置、仓库登记），不会让存储进入 `TooLarge` 失败。延迟合并写入失败时记录错误日志，I/O 类失败每 30 秒重试。
-- `git-operations.json` 记录 `commit`、`push`、`fetch`、`fast_forward`、`switch` 五类 Git 操作的实例状态、幂等键与脱敏输出摘要：
+- `git-operations.json` 记录 `commit`、`push`、`fetch`、`fast_forward`、`switch`、`merge`、`rebase`、`cherry_pick`、`revert`、`continue`、`abort` 等 Git 操作的实例状态、幂等键与脱敏输出摘要：
   - 单条输出上限 4 KiB，单库最多 100 条、全局最多 1000 条、已终结记录保留 7 天，且整体受 2 MiB `Fits` 上界约束；
   - 移除仓库登记时同步清理该仓库记录，不保存环境变量、原始凭据、Diff 或文件正文；
-  - 服务启动时对遗留的 `pending`/`running` 条目按本地 reflog 与分支引用执行只读对账，绝不自动重试或 `git reset`。
+  - 服务启动时对遗留的 `pending`/`running` 条目结合本地 reflog、分支引用、`.git/MERGE_HEAD` / `rebase-merge` / `CHERRY_PICK_HEAD` / `REVERT_HEAD` 与恢复锚点 `refs/webmux/recovery/<worktreeId>/<kind>` 执行只读对账，绝不自动重试或 `git reset`。
 - `git-task-baselines.json` 记录各工作树的固定任务审阅基线（`baselineId`、`repositoryId`、`worktreeId`、`worktreePath`、`baseOid` / `unborn`、`capturedAt`、`source`、`cleanAtStart` 与启动前脏改动计数摘要）：
   - 新建工作树或显式设定任务起点时写入并同步维护仓库私有保护引用 `refs/webmux/baselines/<worktreeId>`（`unborn` 基线不伪造空 OID 且不保留旧引用），全局最多 2000 条并受 2 MiB `Fits` 上界约束；
   - 归档单个会话不删除基线；工作树移除（`remove`、`batch-remove`、`release`）、仓库取消登记（`DELETE /api/repositories/{id}`）或显式清除（`DELETE .../task-baseline`）时同步清理记录与私有引用，不保存文件或 Diff 正文。

@@ -31,6 +31,7 @@
       group: "staged" | "unstaged" | "untracked",
     ) => void;
     onRefreshSnapshot?: () => void;
+    onOpenConflictResolver?: (path?: string) => void;
     onOpenWorktreeTerminal?: () => void;
     onNewWorktreeTerminal?: () => void;
     onReturnSession?: () => void;
@@ -93,6 +94,7 @@
     onResolveDraftAdoptRemote,
     onResolveDraftMergeBoth,
     onRequestCommitAssist,
+    onOpenConflictResolver,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
     onReturnSession,
@@ -207,8 +209,12 @@
         context.operationInProgress
           ? `正在进行 Git 操作：${context.operationInProgress}（冲突 ${grouped.conflicted.length} 项）`
           : `存在 ${grouped.conflicted.length} 个未解决冲突`
-      }。请前往工作树终端解决冲突。`}
+      }。请打开三方冲突解决器处理，或在工作树终端解决。`}
       {hasActiveWorktreeSession}
+      onOpenConflictResolver={grouped.conflicted.length > 0 &&
+      onOpenConflictResolver
+        ? () => onOpenConflictResolver(grouped.conflicted[0]?.path)
+        : undefined}
       {onOpenWorktreeTerminal}
       {onNewWorktreeTerminal}
     />
@@ -309,6 +315,7 @@
                   {onToggleReviewed}
                   {onStageChange}
                   {onUnstageChange}
+                  {onOpenConflictResolver}
                 />
               {/each}
             </div>

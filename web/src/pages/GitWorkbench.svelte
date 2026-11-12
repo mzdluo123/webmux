@@ -369,7 +369,7 @@
       </div>
     {/if}
 
-    {#if controller.view.lastCommitOutcome && controller.view.lastCommitOutcome.status !== "matched"}
+    {#if controller.view.lastCommitOutcome && controller.view.lastCommitOutcome.status !== "matched" && !controller.divergence.inProgress?.active}
       <GitCommitOutcomeBanner
         outcome={controller.view.lastCommitOutcome}
         onInspectCommit={(oid) => controller.inspectCommitInLog(oid)}

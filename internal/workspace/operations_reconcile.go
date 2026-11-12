@@ -243,6 +243,8 @@ func (s *Service) reconcileSingleOperation(op *GitOperation, r *repositoryState,
 		s.reconcileFastForwardOperation(ctx, r, op)
 	case GitOpSwitch:
 		s.reconcileSwitchOperation(ctx, r, op)
+	case GitOpMerge, GitOpRebase, GitOpCherryPick, GitOpRevert, GitOpContinue, GitOpAbort:
+		s.reconcileDivergenceOperation(ctx, r, op)
 	case GitOpFetch:
 		op.Status = GitOpUncertain
 		op.Summary = "服务重启时远程获取未完成确认，可重新获取远程刷新状态"

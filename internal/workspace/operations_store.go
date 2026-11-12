@@ -25,6 +25,12 @@ const (
 	GitOpFetch       = "fetch"
 	GitOpFastForward = "fast_forward"
 	GitOpSwitch      = "switch"
+	GitOpMerge       = "merge"
+	GitOpRebase      = "rebase"
+	GitOpCherryPick  = "cherry_pick"
+	GitOpRevert      = "revert"
+	GitOpContinue    = "continue"
+	GitOpAbort       = "abort"
 
 	GitOpPending     = "pending"
 	GitOpRunning     = "running"
@@ -165,7 +171,8 @@ func validateOperationLedger(stored gitOperationLedger) error {
 
 func validOpKind(kind string) bool {
 	switch kind {
-	case GitOpCommit, GitOpPush, GitOpFetch, GitOpFastForward, GitOpSwitch:
+	case GitOpCommit, GitOpPush, GitOpFetch, GitOpFastForward, GitOpSwitch,
+		GitOpMerge, GitOpRebase, GitOpCherryPick, GitOpRevert, GitOpContinue, GitOpAbort:
 		return true
 	}
 	return false

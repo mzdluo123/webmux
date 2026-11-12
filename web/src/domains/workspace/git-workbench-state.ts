@@ -324,7 +324,7 @@ export function buildCommitPreviewModel(
   if (state.context.operationInProgress) {
     blockers.push({
       code: "operation_in_progress",
-      message: `工作树正在进行 ${state.context.operationInProgress} 操作，请先在终端完成或中止`,
+      message: `工作树正在进行 ${state.context.operationInProgress} 操作，请先通过顶部恢复横幅继续或中止`,
     });
   }
   if (state.context.headState === "detached") {
