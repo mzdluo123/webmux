@@ -297,4 +297,3 @@ export const TerminalOutputSchema = z.object({
   historyTruncated: z.boolean(),
   limited: z.boolean(),
 });
-export type TerminalOutput = z.infer<typeof TerminalOutputSchema>;
