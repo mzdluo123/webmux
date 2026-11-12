@@ -137,7 +137,9 @@ func (c Client) waitTurn(ctx context.Context, a waitArguments) (any, error) {
 		return nil, apiError(err)
 	}
 	defer func() { _ = conn.CloseNow() }()
-	conn.SetReadLimit(responseLimit)
+	// The server sends retained chat history as one frame, as in the CLI.
+	// Bound model-visible replies separately from the transport replay.
+	conn.SetReadLimit(64 << 20)
 	var state *contract.ChatState
 	snapshot, replayed, collecting := false, false, false
 	tracked, lastMessage := "", ""

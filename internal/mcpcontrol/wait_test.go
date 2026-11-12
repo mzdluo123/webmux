@@ -26,7 +26,7 @@ func chatFixture(t *testing.T, frames []contract.ChatFrame) Client {
 			return
 		}
 		defer func() { _ = conn.CloseNow() }()
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		for _, frame := range frames {
 			data, err := json.Marshal(frame)
@@ -84,7 +84,7 @@ func TestWaitFollowsQueuedInput(t *testing.T) {
 }
 func TestWaitTimeoutOnlyEndsObservation(t *testing.T) {
 	c := chatFixture(t, []contract.ChatFrame{{Type: "snapshot", From: 1, State: &contract.ChatState{Turn: contract.ChatTurn{TurnID: "target", Running: true}}}, {Type: "events", Items: []contract.ChatEvent{start("target", "")}}})
-	value, err := c.wait(context.Background(), json.RawMessage(`{"sessionId":"s","turnId":"target","timeoutMs":20}`))
+	value, err := c.wait(context.Background(), json.RawMessage(`{"sessionId":"s","turnId":"target","timeoutMs":200}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,5 +204,20 @@ func TestWaitKeepsIncompleteHistoryFlagAcrossLiveChunks(t *testing.T) {
 	result := value.(waitResult)
 	if result.Reply != "live suffix" || !result.ReplyTruncated {
 		t.Fatalf("partial reply advertised as complete: %+v", result)
+	}
+}
+
+func TestWaitReadsLargeReplayButReturnsOnlySelectedReply(t *testing.T) {
+	c := chatFixture(t, []contract.ChatFrame{
+		{Type: "snapshot", From: 1, State: &contract.ChatState{Turn: contract.ChatTurn{TurnID: "target"}}},
+		{Type: "events", Items: []contract.ChatEvent{start("old", ""), message("old-reply", "agent", strings.Repeat("x", 5<<20)), end("old"), start("target", ""), message("answer", "agent", "short answer"), end("target")}},
+	})
+	value, err := c.wait(context.Background(), json.RawMessage(`{"sessionId":"s","turnId":"target"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := value.(waitResult)
+	if result.Reply != "short answer" || result.ReplyTruncated || result.Status != "ended" {
+		t.Fatalf("large unrelated history affected reply: %+v", result)
 	}
 }

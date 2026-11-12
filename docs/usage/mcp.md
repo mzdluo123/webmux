@@ -103,12 +103,14 @@ maxBytes 范围 1–65536，limited 表示尚有回放字节；解码后按顺�
 ## 等待指定回合或进程退出
 
 `session_wait` 要求选中一个具体聊天回合：使用 `session_send` 回执的 turnId，或排队回执的 queueItemId。
-`session_launch` 返回的 wait 对象使用 firstTurn=true，只接受仍保留的首回合，历史淘汰后不会误认后来的回合。
+`session_launch` 返回的 wait 对象使用真实初始输入回执的 turnId 或 queueItemId；没有提交提示时不提供等待选择器。
+也可显式传 firstTurn=true 选择仍保留的首回合；历史淘汰后不会误认后来的回合。
 
 ```json
 { "sessionId": "SESSION_ID", "turnId": "TURN_ID", "timeoutMs": 30000 }
 ```
 
+聊天回放帧沿用 CLI 的 64 MiB 传输上限，模型可见的最终回复仍最多 64 KiB，不因无关的较早历史超过 4 MiB 而失败。
 每次等待默认 30 秒、最多 60 秒。timeoutMs=0 读取初始回放后立即返回，连接和回放仍有十秒上限。
 返回 status、turnId、stopReason、reply、replyTruncated、waitTimedOut、unfinished 和 requests。
 
