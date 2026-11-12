@@ -76,6 +76,11 @@ func OpenConsole(onInterrupt func()) (*Console, error) {
 	return c, nil
 }
 
+// ReadInput uses cancellable synchronous I/O for either console or pipe stdin.
+func ReadInput(ctx context.Context, input *os.File, p []byte) (int, error) {
+	return (&Console{in: windows.Handle(input.Fd())}).ReadContext(ctx, p)
+}
+
 // ReadContext pins the synchronous console read to a thread so cancellation
 // interrupts only this read, leaving stdin open for the shell or next attach.
 func (c *Console) ReadContext(ctx context.Context, p []byte) (int, error) {
