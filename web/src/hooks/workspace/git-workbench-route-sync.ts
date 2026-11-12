@@ -14,7 +14,10 @@ import {
   type GitTargetMemory,
 } from "../../domains/workspace/git-workbench-memory";
 import { buildGitRouteHref, type GitRouteQuery } from "../shared/route";
-import { emptyGitViewState } from "./git-workbench-actions";
+import {
+  emptyGitViewState,
+  type fetchGitTargetBundle,
+} from "./git-workbench-actions";
 
 export function syncGitWorkbenchUrl(
   mode: "push" | "replace",
@@ -60,6 +63,12 @@ export function buildTargetInitialState(params: {
   worktree: Worktree | undefined;
 }): {
   memory: GitTargetMemory;
+  scrollOffsets: {
+    logList: number;
+    logDiff: number;
+    commitList: number;
+    commitDiff: number;
+  };
   view: GitWorkbenchViewState;
 } {
   const memory = applyGitQueryOverrides(
@@ -72,6 +81,7 @@ export function buildTargetInitialState(params: {
     ...emptyGitViewState(params.repositoryId),
     mode: memory.mode,
     scope: memory.scope,
+    reviewScope: memory.reviewScope,
     branchFilter: memory.branchFilter,
     searchQuery: memory.searchQuery,
     authorFilter: memory.authorFilter,
@@ -91,7 +101,16 @@ export function buildTargetInitialState(params: {
       gitCtx: null,
     }),
   };
-  return { memory, view };
+  return {
+    memory,
+    scrollOffsets: {
+      logList: memory.logListScrollTop,
+      logDiff: memory.logDiffScrollTop,
+      commitList: memory.commitListScrollTop,
+      commitDiff: memory.commitDiffScrollTop,
+    },
+    view,
+  };
 }
 
 export function applyPopstateQueryToView(
@@ -148,7 +167,7 @@ export function applyPopstateQueryToView(
   return { nextView, reloadNeeded, nextCommit };
 }
 
-export function pickSelectedCommitAfterBundle(
+function pickSelectedCommitAfterBundle(
   currentSelected: string | null,
   headOid: string | null | undefined,
   commits: readonly GitHistoryRow[],
@@ -158,6 +177,39 @@ export function pickSelectedCommitAfterBundle(
   if (hasOid(currentSelected)) return currentSelected;
   if (hasOid(headOid)) return headOid ?? null;
   return commits[0]?.oid ?? null;
+}
+
+export function buildBundleViewPatch(
+  currentSelectedCommitOid: string | null,
+  bundle: Awaited<ReturnType<typeof fetchGitTargetBundle>>,
+): {
+  selectedOid: string | null;
+  patch: Partial<GitWorkbenchViewState>;
+} {
+  const selectedOid = pickSelectedCommitAfterBundle(
+    currentSelectedCommitOid,
+    bundle.context.headOid,
+    bundle.commits,
+  );
+  return {
+    selectedOid,
+    patch: {
+      context: bundle.context,
+      historyState: bundle.historyState,
+      historyReason: bundle.historyReason,
+      historyUpstream: bundle.historyUpstream,
+      ...(bundle.taskBaseline !== undefined
+        ? { taskBaseline: bundle.taskBaseline }
+        : {}),
+      lastFetchedAt: bundle.lastFetchedAt,
+      nextCursor: bundle.nextCursor,
+      refsChanged: bundle.refsChanged,
+      historyLoadingMore: false,
+      commits: bundle.commits,
+      branches: bundle.branches,
+      selectedCommitOid: selectedOid,
+    },
+  };
 }
 
 export function computeGitTargetLoadKey(

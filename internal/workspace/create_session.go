@@ -413,9 +413,10 @@ func (s *Service) planWorktree(ctx context.Context, r *repositoryState, nw *NewW
 			return err
 		}
 		if plan.base == "" {
-			plan.base = "HEAD"
 			if branches.DefaultBase != nil {
 				plan.base = *branches.DefaultBase
+			} else if len(branches.Branches) != 0 || len(branches.Bases) != 0 {
+				plan.base = "HEAD"
 			}
 		}
 		if plan.branch == "" {

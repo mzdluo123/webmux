@@ -81,19 +81,27 @@ describe("route matching", () => {
 });
 
 describe("git workbench query contract", () => {
-  test("parses deep-link query params and normalizes scope=task to branch", () => {
+  test("parses deep-link query params including scope=task", () => {
     expect(
       parseGitRouteQuery(
         "?view=commit&scope=task&branch=feat%2Fshell&commit=0123456789abcdef&q=router&returnSession=abcdefgh",
       ),
     ).toEqual({
       view: "commit",
-      scope: "branch",
+      scope: "task",
       branch: "feat/shell",
       commit: "0123456789abcdef",
       q: "router",
       returnSession: "abcdefgh",
     });
+    expect(
+      buildGitRouteHref({
+        repositoryId: "repo-1",
+        worktreeId: "wt-2",
+        view: "log",
+        scope: "task",
+      }),
+    ).toBe("/git/repo-1/worktrees/wt-2?view=log&scope=task");
     expect(
       parseGitRouteQuery("?view=invalid&scope=nope&returnSession=BAD"),
     ).toEqual({});

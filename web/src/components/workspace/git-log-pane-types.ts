@@ -54,6 +54,7 @@ export interface GitLogPaneProps
     > {
   context?: GitWorktreeContext;
   historyReason?: string;
+  taskBaseline?: GitWorkbenchViewState["taskBaseline"];
   liveFiltered?: boolean;
   detailLoading?: boolean;
   commits: readonly GitHistoryRow[];
@@ -86,6 +87,7 @@ export interface GitLogPaneProps
   onLoadMoreCompareFiles?: () => void;
   onSwapCompareDirection?: () => void;
   onExitCompare?: () => void;
+  onSetTaskBaseline?: (baseOid?: string) => void;
   onRequestCheckout: (branch: string) => void;
   onOpenOccupiedWorktree: (worktreeId: string, path: string) => void;
 }

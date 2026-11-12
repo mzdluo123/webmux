@@ -168,6 +168,8 @@ func gitReason(err error) string {
 		return "readonly"
 	case errors.Is(err, codeview.ErrContextMismatch):
 		return "context_mismatch"
+	case errors.Is(err, codeview.ErrNoTaskBaseline):
+		return "no_task_baseline"
 	case errors.Is(err, workspace.ErrConflicted):
 		return "conflicted"
 	case errors.Is(err, workspace.ErrBlocked):

@@ -21,6 +21,10 @@ export const CommitFullIndexPreview: Story = {
   args: { scenario: "commit-preview" },
 };
 
+export const TaskBaselineCleanCommittedReview: Story = {
+  args: { scenario: "task-baseline-review" },
+};
+
 export const BranchesWorktreeOccupied: Story = {
   args: { scenario: "branches-occupied" },
 };

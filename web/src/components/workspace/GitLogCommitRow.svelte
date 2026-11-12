@@ -20,22 +20,26 @@
     selected = false,
     selectedCommitOid = null,
     compareBaseMarkOid = null,
+    taskBaselineOid = null,
     compareMode = null,
     showAuthorColumn = true,
     onSelect,
     onMarkCompareBase,
     onStartCompare,
+    onSetTaskBaseline,
   }: {
     row: GitHistoryRow;
     layout?: GitGraphRowLayout;
     selected?: boolean;
     selectedCommitOid?: string | null;
     compareBaseMarkOid?: string | null;
+    taskBaselineOid?: string | null;
     compareMode?: GitCompareViewState | null;
     showAuthorColumn?: boolean;
     onSelect: (oid: string) => void;
     onMarkCompareBase?: (oid: string | null) => void;
     onStartCompare?: (baseOid: string, targetOid: string) => void;
+    onSetTaskBaseline?: (baseOid: string) => void;
   } = $props();
 
   function formatShortDate(iso: string): string {
@@ -133,6 +137,10 @@
         </Badge>
       {/if}
 
+      {#if taskBaselineOid === row.oid}
+        <Badge variant="info">任务起点</Badge>
+      {/if}
+
       {#if compareBaseMarkOid === row.oid}
         <Badge variant="info">比较起点</Badge>
       {/if}
@@ -181,6 +189,11 @@
     <DropdownMenu.Item onclick={() => copyOid(row.oid)}>
       复制提交 OID ({row.shortOid})
     </DropdownMenu.Item>
+    {#if onSetTaskBaseline && taskBaselineOid !== row.oid}
+      <DropdownMenu.Item onclick={() => onSetTaskBaseline(row.oid)}>
+        设为当前工作树任务基线 ({row.shortOid})
+      </DropdownMenu.Item>
+    {/if}
     {#if onMarkCompareBase || onStartCompare}
       <DropdownMenu.Separator />
       {#if onMarkCompareBase}

@@ -386,6 +386,8 @@
       {repository}
       {worktree}
       sessions={shell.sessions.sessions}
+      archivedRecords={shell.archived.records}
+      {returnSession}
       {commitGuard}
       {canAddRepository}
       {deviceLayout}
@@ -424,6 +426,14 @@
           repositoryId: repository.id,
           worktreeId,
         })}
+      onOpenSession={(s) => openSession(s)}
+      onArchiveSession={(s) => shell.close(s)}
+      onRemoveWorktree={writableWorktree && writableWorktree.kind === "linked"
+        ? () =>
+            shell.removeWorktree(writableWorktree, {
+              onremoved: () => switchWorktree(undefined, "log"),
+            })
+        : undefined}
     />
 
     <GitWorkbenchStatusBar

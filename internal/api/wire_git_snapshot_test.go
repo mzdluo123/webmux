@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/rainchan/webmux/internal/contract"
 )
@@ -112,4 +113,28 @@ func wireGitWorkbench(f *wireFixture) {
 		ClientRequestID: "wire-commit-1",
 		Message:         "feat: different message with reused clientRequestId",
 	}, 409)
+
+	// 5. Fixed TaskBaseline, scope=task history, and single-entry net task diff.
+	f.call("git-task-baseline-empty", "GET", writeBase+"/task-baseline", nil, 200)
+	f.call("git-history-no-baseline", "GET", readBase+"/history?worktreeId="+wtID+"&scope=task", nil, 200)
+	f.call("git-task-changes-no-baseline", "GET", writeBase+"/task-changes", nil, 200)
+	f.call("error-409-git-no-task-baseline", "GET", writeBase+"/task-diff?path=sub/b.txt", nil, 409)
+
+	bPath := filepath.Join(f.root, "sub", "b.txt")
+	if err := os.WriteFile(bPath, []byte("bee\nbutterfly\nmoth\n"), 0o600); err != nil {
+		f.t.Fatal(err)
+	}
+	stamp := time.Unix(1700000000, 0)
+	if err := os.Chtimes(bPath, stamp, stamp); err != nil {
+		f.t.Fatal(err)
+	}
+
+	f.call("git-task-baseline-put", "PUT", writeBase+"/task-baseline", contract.GitPutTaskBaselineRequest{
+		BaseOID: firstOID,
+	}, 200)
+	f.call("git-task-baseline", "GET", writeBase+"/task-baseline", nil, 200)
+	f.call("git-history-task", "GET", readBase+"/history?worktreeId="+wtID+"&scope=task", nil, 200)
+	f.call("git-task-changes", "GET", writeBase+"/task-changes", nil, 200)
+	f.call("git-task-diff", "GET", writeBase+"/task-diff?path=sub/b.txt", nil, 200)
+	f.call("git-task-baseline-delete", "DELETE", writeBase+"/task-baseline", nil, 204)
 }

@@ -7,7 +7,7 @@ import {
   CodeDiffSchema,
   CodeDocumentSchema,
 } from "./code-schemas";
-import { FetchResultSchema } from "./workspace-schemas";
+import { FetchResultSchema, WorktreeChangesSchema } from "./workspace-schemas";
 
 // ---- Read-only repository/worktree Git context, snapshots & compare ----
 
@@ -35,7 +35,7 @@ export const GitFileSchema = z.object({
 export type GitFile = z.infer<typeof GitFileSchema>;
 
 export const GitChangeSchema = CodeChangeSchema.extend({
-  group: z.enum(["unstaged", "staged", "untracked", "commit"]),
+  group: z.enum(["unstaged", "staged", "untracked", "commit", "task"]),
 });
 export type GitChange = z.infer<typeof GitChangeSchema>;
 
@@ -67,6 +67,7 @@ export type GitSnapshotSide = z.infer<typeof GitSnapshotSideSchema>;
 export const GitHistoryScopeSchema = z.enum([
   "all",
   "branch",
+  "task",
   "to-push",
   "incoming",
 ]);
@@ -77,11 +78,31 @@ export const GitHistoryStatusSchema = z.enum([
   "empty",
   "unborn",
   "no_worktree",
+  "no_task_baseline",
   "no_upstream",
   "upstream_gone",
   "detached_no_branch",
 ]);
 export type GitHistoryStatus = z.infer<typeof GitHistoryStatusSchema>;
+
+const GitTaskBaselineSourceSchema = z.enum([
+  "worktree_create",
+  "manual_select",
+]);
+
+const GitTaskBaselineSchema = z.object({
+  baselineId: z.string(),
+  repositoryId: z.string(),
+  worktreeId: z.string(),
+  worktreePath: z.string(),
+  baseOid: z.string().optional(),
+  unborn: z.boolean(),
+  capturedAt: z.iso.datetime({ offset: true }),
+  source: GitTaskBaselineSourceSchema,
+  cleanAtStart: z.boolean(),
+  preExistingChanges: WorktreeChangesSchema,
+});
+export type GitTaskBaseline = z.infer<typeof GitTaskBaselineSchema>;
 
 export const GitRefBadgeSchema = z.object({
   name: z.string(),
@@ -122,6 +143,7 @@ export const GitHistoryPageSchema = z.object({
   scope: GitHistoryScopeSchema,
   lastFetchedAt: z.iso.datetime({ offset: true }).optional(),
   upstream: z.string().optional(),
+  taskBaseline: GitTaskBaselineSchema.optional(),
   refsChanged: z.boolean(),
   nextCursor: z.string(),
   rows: z.array(GitHistoryItemSchema),
@@ -315,6 +337,7 @@ export const GitConflictReasonSchema = z.enum([
   "busy",
   "stale",
   "context_mismatch",
+  "no_task_baseline",
   "conflicted",
   "blocked",
   "commit_failed",
@@ -388,4 +411,32 @@ export type GitOperation = z.infer<typeof GitOperationSchema>;
 
 export const GitOperationsSchema = z.object({
   operations: z.array(GitOperationSchema),
+});
+
+// ---- Fixed worktree task baseline & single-entry net task review ----
+
+export const GitTaskBaselineResponseSchema = z.object({
+  baseline: GitTaskBaselineSchema.nullable(),
+});
+
+export const GitPutTaskBaselineRequestSchema = z
+  .object({
+    baseOid: z.string().optional(),
+  })
+  .strict();
+export type GitPutTaskBaselineRequest = z.infer<
+  typeof GitPutTaskBaselineRequestSchema
+>;
+
+const GitTaskChangesStatusSchema = z.enum(["ready", "no_task_baseline"]);
+
+export const GitTaskChangesSchema = z.object({
+  status: GitTaskChangesStatusSchema,
+  reason: z.string().optional(),
+  baseline: GitTaskBaselineSchema.nullable(),
+  headOid: z.string().optional(),
+  headUnborn: z.boolean(),
+  commitCount: z.number().int().nonnegative(),
+  uncommittedCount: z.number().int().nonnegative(),
+  changes: GitChangesSchema,
 });

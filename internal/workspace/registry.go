@@ -104,6 +104,13 @@ type Service struct {
 	opsError     string
 	operations   []GitOperation
 	opFlights    map[string]*opFlight
+
+	baselinesMu        sync.Mutex
+	baselinesSaveMu    sync.Mutex
+	baselinesStore     *statefile.Handle[taskBaselineStore]
+	baselinesAvailable bool
+	baselinesError     string
+	baselines          []TaskBaseline
 }
 
 // New never makes optional Git or storage availability a server startup failure.
@@ -131,6 +138,11 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 		s.opsAvailable = true
 		s.reconcileOperationsOnStartup()
 	}
+	if err := s.loadTaskBaselines(); err != nil {
+		s.baselinesError = "Git 任务基线不可用: " + err.Error()
+	} else {
+		s.baselinesAvailable = true
+	}
 	return s
 }
 func (s *Service) Close() {
@@ -141,6 +153,7 @@ func (s *Service) Close() {
 	s.clearConfirmations()
 	s.mu.Unlock()
 	s.closeOperations()
+	s.closeTaskBaselines()
 }
 func (s *Service) Capability() Capability { s.mu.Lock(); defer s.mu.Unlock(); return s.capability }
 
@@ -370,6 +383,7 @@ func (s *Service) Unregister(id string) error {
 	s.entries = next
 	s.mu.Unlock()
 	s.purgeRepositoryOperations(id)
+	s.purgeRepositoryBaselines(r, id)
 	for _, info := range s.manager.List() {
 		if info.Workspace != nil && info.Workspace.RepositoryID == id {
 			s.manager.SetWorkspace(info.ID, info.Cwd, nil)

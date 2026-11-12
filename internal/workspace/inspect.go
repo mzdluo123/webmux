@@ -10,6 +10,10 @@ func InspectGitOperations(dir string) error {
 	_, err := statefile.ReadSnapshot[gitOperationLedger](dir, statefile.GitOperations, validateOperationLedger)
 	return err
 }
+func InspectGitTaskBaselines(dir string) error {
+	_, err := statefile.ReadSnapshot[taskBaselineStore](dir, statefile.GitTaskBaselines, validateTaskBaselineStore)
+	return err
+}
 func (s *Service) StorageError() error {
 	if s == nil {
 		return statefile.ErrUnavailableStore()
@@ -21,4 +25,10 @@ func (s *Service) OperationsStorageError() error {
 		return statefile.ErrUnavailableStore()
 	}
 	return s.opsStore.Err()
+}
+func (s *Service) TaskBaselinesStorageError() error {
+	if s == nil {
+		return statefile.ErrUnavailableStore()
+	}
+	return s.baselinesStore.Err()
 }

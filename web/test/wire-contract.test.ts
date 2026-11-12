@@ -281,13 +281,27 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.GitContextSchema, ["git-context-repo", "git-context-worktree"]],
   [S.GitFileSchema, ["git-file", "git-file-commit", "git-snapshot-file"]],
   [S.GitChangesSchema, ["git-changes"]],
-  [S.GitDiffSchema, ["git-diff"]],
+  [S.GitDiffSchema, ["git-diff", "git-task-diff"]],
   [S.GitCompareSchema, ["git-compare"]],
-  [S.GitHistoryPageSchema, ["git-history"]],
+  [
+    S.GitHistoryPageSchema,
+    ["git-history", "git-history-task", "git-history-no-baseline"],
+  ],
   [S.GitCommitDetailResponseSchema, ["git-commit-detail"]],
   [S.GitStagingOverviewSchema, ["git-staging"]],
   [S.GitStagingFileDiffSchema, ["git-staging-diff", "git-staging-diff-staged"]],
-  [S.NoContentSchema, ["git-stage", "git-stage-file", "git-unstage"]],
+  [
+    S.NoContentSchema,
+    ["git-stage", "git-stage-file", "git-unstage", "git-task-baseline-delete"],
+  ],
+  [
+    S.GitTaskBaselineResponseSchema,
+    ["git-task-baseline", "git-task-baseline-empty", "git-task-baseline-put"],
+  ],
+  [
+    S.GitTaskChangesSchema,
+    ["git-task-changes", "git-task-changes-no-baseline"],
+  ],
   [
     S.GitCommitPreviewSchema,
     ["git-commit-preview", "git-commit-preview-blocked"],
@@ -301,6 +315,7 @@ const groups: Array<[z.ZodType, string[]]> = [
       "error-409-git-busy",
       "error-409-git-context-mismatch",
       "error-409-git-idempotency",
+      "error-409-git-no-task-baseline",
       "error-409-git-readonly",
       "error-409-git-stale",
     ],

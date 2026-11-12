@@ -406,10 +406,13 @@ test("desktop Log pane filters by branch/tag without mutating checkedOutBranch, 
     .element(page.getByTestId("git-log-diff-panel"))
     .toHaveAttribute("data-diff-presentation", "docked");
 
-  // Controlled "当前任务" popover explains #547 task baseline.
-  await page.getByRole("button", { name: "当前任务范围说明" }).click();
-  await expect.element(page.getByText(/待 #547 接入/)).toBeVisible();
-  await userEvent.keyboard("{Escape}");
+  // "当前任务" scope is now a first-class SegmentedControl item (#547).
+  const scopeGroup = page.getByRole("radiogroup", { name: "提交范围" });
+  await scopeGroup.getByRole("radio", { name: "当前任务" }).click();
+  await expect
+    .element(scopeGroup.getByRole("radio", { name: "当前任务" }))
+    .toHaveAttribute("aria-checked", "true");
+  await scopeGroup.getByRole("radio", { name: "所有历史" }).click();
 
   // Switch merge commit parent to parent #2.
   await page.getByRole("radio", { name: /父节点 #2/ }).click();

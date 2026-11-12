@@ -120,6 +120,7 @@ URL+owner Bearer 网络控制、握手/生命周期/取消与重连：US-S25；�
 | Git 工作台历史视图：引用树与标签筛选不切检出、快捷范围与字面路径/作者/日期筛选、`%P` 拓扑分页与 `refsChanged`、合并父节点切换、任意两版本比较及 Pierre Diff 底部/放大阅读 | US-J21；US-J19–US-J20；US-I05–US-I07                |
 | Git 工作台提交暂存闭环、三态核对预览、顶栏/`Log`/`Branches` 三处共享分支动作与占用保护、~900px 宽幅双栏推送确认框及两步独立失败恢复                                       | US-J22；US-J16；US-J18–US-J20；US-I05–US-I07        |
 | 持久 Git 操作账本（`git-operations.json`）、`clientRequestId` 幂等合并与重放、服务重启真实 reflog/引用对账、底部 24–28px 状态栏与 `uncertain` 安全门禁                    | US-J23；US-J16–US-J19；US-J22；US-L05；US-L10       |
+| 工作树固定任务审阅基线（`git-task-baselines.json` 与 `refs/webmux/baselines/*`）、单份净变更审阅（含干净工作区）、`Log` 当前任务范围与交付收尾摘要                        | US-J24；US-J08；US-J18–US-J22；US-L05；US-L10       |
 | 已归档工作树释放空间：预览、保留提交与记录、推送检查警告、重建确认与私有引用清理                                                                                          | US-J13；US-Q12；US-Q19                              |
 | 移除登记、Git/存储/仓库故障降级                                                                                                                                           | US-J10–US-J11；US-K08                               |
 | 仓库初始化指令：仓库设置中编辑或清空、引用快捷指令、长度上限与快速开始/新建会话勾选                                                                                       | US-J12；US-Q18；US-B01                              |

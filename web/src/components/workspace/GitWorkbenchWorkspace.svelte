@@ -6,6 +6,7 @@
     GitWorkbenchMode,
   } from "../../contracts/git-workbench-schemas";
   import type {
+    ArchivedSession,
     Repository,
     SessionInfo,
     Worktree,
@@ -25,6 +26,8 @@
     repository,
     worktree,
     sessions,
+    archivedRecords = [],
+    returnSession,
     commitGuard,
     canAddRepository,
     deviceLayout,
@@ -42,12 +45,17 @@
     onCreateBranchFromHead,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
+    onOpenSession,
+    onArchiveSession,
+    onRemoveWorktree,
   }: {
     controller: ReturnType<typeof createGitWorkbenchController>;
     repositories: readonly Repository[];
     repository: Repository;
     worktree: Worktree | undefined;
     sessions: readonly SessionInfo[];
+    archivedRecords?: readonly ArchivedSession[];
+    returnSession?: SessionInfo;
     commitGuard: "pick-worktree" | "broken-worktree" | null;
     canAddRepository: boolean;
     deviceLayout: GitDeviceLayout;
@@ -68,9 +76,41 @@
     onCreateBranchFromHead: () => void;
     onOpenWorktreeTerminal: () => void;
     onNewWorktreeTerminal: () => void;
+    onOpenSession?: (session: SessionInfo) => void;
+    onArchiveSession?: (session: SessionInfo) => void;
+    onRemoveWorktree?: () => void;
   } = $props();
 
   const desktop = new MediaQuery("(min-width: 1280px)");
+  const writableWorktree = $derived(
+    Boolean(
+      worktree &&
+      worktree.available &&
+      !worktree.prunable &&
+      !worktree.locked &&
+      worktree.kind !== "bare",
+    ),
+  );
+  const worktreeSessions = $derived(
+    worktree
+      ? sessions.filter((s) => s.workspace?.worktreeId === worktree.id)
+      : [],
+  );
+  const activeWorktreeSessions = $derived(
+    worktreeSessions.filter((s) => s.status !== "exited"),
+  );
+  const exitedWorktreeSessions = $derived(
+    worktreeSessions.filter((s) => s.status === "exited"),
+  );
+  const archivedWorktreeCount = $derived(
+    worktree
+      ? archivedRecords.filter((r) => r.workspace?.worktreeId === worktree.id)
+          .length
+      : 0,
+  );
+  const preferredReturnSession = $derived(
+    returnSession ?? activeWorktreeSessions[0] ?? undefined,
+  );
 </script>
 
 <Tabs.Root
@@ -90,6 +130,7 @@
       context={controller.view.context}
       historyState={controller.view.historyState}
       historyReason={controller.view.historyReason}
+      taskBaseline={controller.view.taskBaseline}
       nextCursor={controller.view.nextCursor}
       refsChanged={controller.view.refsChanged}
       historyLoadingMore={controller.view.historyLoadingMore}
@@ -158,6 +199,9 @@
       onLoadMoreCompareFiles={() => void controller.loadMoreCompareFiles()}
       onSwapCompareDirection={() => controller.swapCompareDirection()}
       onExitCompare={() => controller.exitCompare()}
+      onSetTaskBaseline={writableWorktree
+        ? (oid) => void controller.taskReview.setBaseline(oid)
+        : undefined}
       {onRequestCheckout}
       onOpenOccupiedWorktree={(wtId) => onSwitchWorktree(wtId)}
     />
@@ -188,6 +232,9 @@
         activeChangeId={controller.view.activeChangeId}
         reviewedPaths={controller.view.reviewedPaths}
         commitMessage={controller.view.commitMessage}
+        reviewScope={controller.view.reviewScope}
+        taskReview={controller.view.taskReview}
+        taskDiffReader={controller.taskReview.diffReader}
         stagingDiff={controller.staging.reader}
         stagingBusy={controller.stagingBusy}
         uncertainBlocked={controller.operations.hasUncertainUnresolved ||
@@ -195,6 +242,9 @@
         activeDiffStale={controller.staging.activeDiffStale}
         activeDiffStaleReason={controller.staging.activeDiffStaleReason}
         {hasActiveWorktreeSession}
+        activeSessionCount={activeWorktreeSessions.length}
+        exitedSessionCount={exitedWorktreeSessions.length}
+        archivedSessionCount={archivedWorktreeCount}
         paneSizes={deviceLayout.commitPaneSizes}
         diffMode={deviceLayout.diffMode}
         listScrollTop={controller.scrollOffsets.commitList}
@@ -205,6 +255,7 @@
         onDiffModeChange={(diffMode) => onUpdateDeviceLayout({ diffMode })}
         onListScrollChange={(top) => controller.setScroll("commitList", top)}
         onDiffScrollChange={(top) => controller.setScroll("commitDiff", top)}
+        onReviewScopeChange={(s) => controller.taskReview.setReviewScope(s)}
         onSelectChange={(id) => controller.selectChange(id)}
         onToggleReviewed={(change) => controller.toggleReviewed(change)}
         onStageChange={(id) => void controller.stageOrUnstage("stage", id)}
@@ -223,6 +274,24 @@
         {onCreateBranchFromHead}
         {onOpenWorktreeTerminal}
         {onNewWorktreeTerminal}
+        onSelectTaskFile={(p) => controller.taskReview.selectFile(p)}
+        onTaskSearchChange={(q) => controller.taskReview.setSearchQuery(q)}
+        onLoadMoreTaskFiles={() => void controller.taskReview.loadMore()}
+        onRefreshTaskReview={() => void controller.taskReview.refresh()}
+        onSetTaskBaseline={(oid) => void controller.taskReview.setBaseline(oid)}
+        onClearTaskBaseline={() => void controller.taskReview.clearBaseline()}
+        onOpenLogToPickBaseline={() => {
+          if (controller.view.scope === "task") controller.setScope("all");
+          controller.setMode("log");
+        }}
+        onInspectCommit={(oid) => controller.inspectCommitInLog(oid)}
+        onReturnSession={preferredReturnSession && onOpenSession
+          ? () => onOpenSession(preferredReturnSession)
+          : undefined}
+        onArchiveSession={exitedWorktreeSessions[0] && onArchiveSession
+          ? () => onArchiveSession(exitedWorktreeSessions[0]!)
+          : undefined}
+        {onRemoveWorktree}
       />
     {/if}
   </Tabs.Content>

@@ -16,6 +16,7 @@ export type GitWorkbenchScenario =
   | "log-merge"
   | "commit-staging"
   | "commit-preview"
+  | "task-baseline-review"
   | "branches-occupied"
   | "push-dialog"
   | "no-worktree"
@@ -36,7 +37,12 @@ export function buildGitWorkbenchFixture(
     repositoryName: repoName,
     worktreeId: scenario === "no-worktree" ? null : "wt-main",
     worktreePath: scenario === "no-worktree" ? null : wtPath,
-    worktreeKind: scenario === "no-worktree" ? "bare" : "main",
+    worktreeKind:
+      scenario === "no-worktree"
+        ? "bare"
+        : scenario === "task-baseline-review"
+          ? "linked"
+          : "main",
     checkedOutBranch:
       scenario === "no-worktree"
         ? null
@@ -431,6 +437,7 @@ export function buildGitWorkbenchFixture(
   const mode =
     scenario === "commit-staging" ||
     scenario === "commit-preview" ||
+    scenario === "task-baseline-review" ||
     scenario === "empty-unborn" ||
     scenario === "index-lock-busy" ||
     scenario === "commit-needs-review" ||
@@ -502,10 +509,37 @@ export function buildGitWorkbenchFixture(
     }),
   ];
 
+  const sampleTaskBaseline =
+    scenario === "no-worktree"
+      ? null
+      : {
+          baselineId: "bl-wt-main",
+          repositoryId: "repo-story",
+          worktreeId: "wt-main",
+          worktreePath: wtPath,
+          source: "worktree_create" as const,
+          unborn: scenario === "empty-unborn",
+          ...(scenario === "empty-unborn" ? {} : { baseOid: baseRow.oid }),
+          capturedAt: "2026-04-10T10:05:00Z",
+          cleanAtStart: true,
+          preExistingChanges: {
+            staged: 0,
+            unstaged: 0,
+            untracked: 0,
+            conflicted: 0,
+          },
+        };
+  const sampleTaskFiles = mergeDetail.filesByParent[baseRow.oid] ?? [];
+  const effectiveWorkingChanges =
+    scenario === "no-worktree" || scenario === "task-baseline-review"
+      ? []
+      : workingChanges;
+
   const base: GitWorkbenchViewState = {
     mode,
     context,
     lastFetchedAt: "2026-04-12T08:01:02Z",
+    taskBaseline: sampleTaskBaseline,
     historyState:
       scenario === "empty-unborn"
         ? "unborn"
@@ -517,6 +551,24 @@ export function buildGitWorkbenchFixture(
         ? "当前仓库分支尚未创建首个提交（unborn HEAD），但仍可在提交面板暂存初始文件。"
         : "",
     scope: "all",
+    reviewScope: scenario === "task-baseline-review" ? "task" : "uncommitted",
+    taskReview: sampleTaskBaseline
+      ? {
+          status: "ready",
+          reason: "",
+          baseline: sampleTaskBaseline,
+          headOid: context.headOid ?? "",
+          headUnborn: context.headState === "unborn",
+          commitCount: scenario === "empty-unborn" ? 0 : 2,
+          uncommittedCount: effectiveWorkingChanges.length,
+          files: scenario === "empty-unborn" ? [] : sampleTaskFiles,
+          selectedPath: sampleTaskFiles[0]?.newPath ?? null,
+          searchQuery: "",
+          nextCursor: "",
+          loadingMore: false,
+          mutating: false,
+        }
+      : undefined,
     branchFilter: null,
     searchQuery: "",
     pathFilter: "",
@@ -526,7 +578,7 @@ export function buildGitWorkbenchFixture(
     selectedCommitOid: scenario === "empty-unborn" ? null : mergeRow.oid,
     selectedParentByCommit: {},
     selectedCommitFilePath: null,
-    workingChanges: scenario === "no-worktree" ? [] : workingChanges,
+    workingChanges: effectiveWorkingChanges,
     activeChangeId: scenario === "no-worktree" ? null : "unstaged:staging.go",
     reviewedPaths: ["internal/workspace/commit_execute.go"],
     commitMessage: "feat(git): stage S workbench foundations",
