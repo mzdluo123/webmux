@@ -1,12 +1,29 @@
+<script lang="ts" module>
+  export interface GitCommitComposerCallbacks {
+    onCommitMessageChange: (msg: string) => void;
+    onOpenCommitPreview: (followUpPush: boolean) => void;
+    onOpenPush?: () => void;
+    onCreateBranchFromHead?: () => void;
+    onResolveDraftKeepLocal?: () => void;
+    onResolveDraftAdoptRemote?: () => void;
+    onResolveDraftMergeBoth?: () => void;
+    onRequestCommitAssist?: () => void;
+  }
+</script>
+
 <script lang="ts">
   import IconArrowUp from "~icons/tabler/arrow-up";
+  import IconCheck from "~icons/tabler/check";
   import IconGitBranch from "~icons/tabler/git-branch";
+  import IconSparkles from "~icons/tabler/sparkles";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Textarea } from "$lib/components/ui/textarea";
   import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
+  import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import GitCommitDraftConflictCard from "./GitCommitDraftConflictCard.svelte";
 
   let {
     context,
@@ -16,11 +33,19 @@
     readonlyMode = false,
     busy = false,
     uncertainBlocked = false,
+    draftSaving = false,
+    draftRevision = 0,
+    draftConflict = null,
+    canAssistCommitDraft = false,
     onCommitMessageChange,
     onOpenCommitPreview,
     onOpenPush,
     onCreateBranchFromHead,
-  }: {
+    onResolveDraftKeepLocal,
+    onResolveDraftAdoptRemote,
+    onResolveDraftMergeBoth,
+    onRequestCommitAssist,
+  }: GitCommitComposerCallbacks & {
     context: GitWorktreeContext;
     stagedCount: number;
     conflictedCount?: number;
@@ -28,10 +53,10 @@
     readonlyMode?: boolean;
     busy?: boolean;
     uncertainBlocked?: boolean;
-    onCommitMessageChange: (msg: string) => void;
-    onOpenCommitPreview: (followUpPush: boolean) => void;
-    onOpenPush?: () => void;
-    onCreateBranchFromHead?: () => void;
+    draftSaving?: boolean;
+    draftRevision?: number;
+    draftConflict?: GitCommitDraftConflictState | null;
+    canAssistCommitDraft?: boolean;
   } = $props();
 
   const parsed = $derived.by(() => {
@@ -68,6 +93,7 @@
     !readonlyMode &&
       !busy &&
       !uncertainBlocked &&
+      !draftConflict &&
       stagedCount > 0 &&
       conflictedCount === 0 &&
       Boolean(parsed.subject.trim()),
@@ -83,6 +109,8 @@
 
   const disabledHint = $derived.by(() => {
     if (readonlyMode) return "只读仓库模式无法创建提交。";
+    if (draftConflict)
+      return "存在跨设备提交草稿版本冲突：请先在上方冲突卡片选择保留、采用远端或合并后再预览提交。";
     if (uncertainBlocked)
       return "上次操作结果待核实（uncertain）：请先点击顶部提示中的「刷新历史与暂存区核实」，避免重复执行。";
     if (conflictedCount > 0)
@@ -121,6 +149,14 @@
     </span>
 
     <div class="flex flex-wrap items-center gap-1">
+      {#if draftSaving}
+        <Badge variant="outline">正在同步草稿…</Badge>
+      {:else if draftRevision > 0 && commitMessage.trim()}
+        <Badge variant="outline" data-testid="git-commit-draft-synced">
+          <IconCheck class="size-3" aria-hidden="true" />
+          草稿已同步 #{draftRevision}
+        </Badge>
+      {/if}
       {#if context.signEnabled}
         <Badge variant="info">
           {context.signFormat
@@ -138,6 +174,16 @@
       {/if}
     </div>
   </div>
+
+  {#if draftConflict && onResolveDraftKeepLocal && onResolveDraftAdoptRemote && onResolveDraftMergeBoth}
+    <GitCommitDraftConflictCard
+      conflict={draftConflict}
+      saving={draftSaving}
+      onKeepLocal={onResolveDraftKeepLocal}
+      onAdoptRemote={onResolveDraftAdoptRemote}
+      onMergeBoth={onResolveDraftMergeBoth}
+    />
+  {/if}
 
   {#if detachedHead}
     <InlineNotice tone="warning">
@@ -184,30 +230,49 @@
     </p>
   {/if}
 
-  <div class="flex flex-wrap items-center justify-end gap-2">
-    {#if canDirectPush && onOpenPush}
-      <Button variant="outline" onclick={onOpenPush}>
-        <IconArrowUp aria-hidden="true" />
-        推送待推提交…
+  <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
+    <div class="min-w-0">
+      {#if !readonlyMode && stagedCount > 0 && canAssistCommitDraft && onRequestCommitAssist}
+        <Button
+          size="xs"
+          variant="ghost"
+          onclick={onRequestCommitAssist}
+          aria-label="让会话协助起草说明"
+          title="将已暂存文件摘要发送到会话草稿框协助起草提交说明"
+          data-testid="git-commit-assist-btn"
+        >
+          <IconSparkles aria-hidden="true" />
+          <span class="sm:hidden">会话起草</span>
+          <span class="max-sm:hidden">让会话协助起草说明</span>
+        </Button>
+      {/if}
+    </div>
+
+    <div class="flex flex-wrap items-center justify-end gap-2">
+      {#if canDirectPush && onOpenPush}
+        <Button variant="outline" onclick={onOpenPush}>
+          <IconArrowUp aria-hidden="true" />
+          推送待推提交…
+        </Button>
+      {/if}
+      <Button
+        variant="outline"
+        disabled={!canPreviewCommit || detachedHead}
+        title={detachedHead
+          ? "游离 HEAD 无法直接推送分支，请先新建分支"
+          : disabledHint || undefined}
+        onclick={() => onOpenCommitPreview(true)}
+      >
+        提交并推送…
       </Button>
-    {/if}
-    <Button
-      variant="outline"
-      disabled={!canPreviewCommit || detachedHead}
-      title={detachedHead
-        ? "游离 HEAD 无法直接推送分支，请先新建分支"
-        : disabledHint || undefined}
-      onclick={() => onOpenCommitPreview(true)}
-    >
-      提交并推送…
-    </Button>
-    <Button
-      variant="git-primary"
-      disabled={!canPreviewCommit}
-      title={disabledHint || undefined}
-      onclick={() => onOpenCommitPreview(false)}
-    >
-      提交预览…
-    </Button>
+      <Button
+        variant="git-primary"
+        disabled={!canPreviewCommit}
+        title={disabledHint || undefined}
+        onclick={() => onOpenCommitPreview(false)}
+      >
+        提交预览…
+      </Button>
+    </div>
   </div>
 </div>

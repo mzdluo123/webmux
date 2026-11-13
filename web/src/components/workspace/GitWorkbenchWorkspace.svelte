@@ -202,6 +202,16 @@
       onSetTaskBaseline={writableWorktree
         ? (oid) => void controller.taskReview.setBaseline(oid)
         : undefined}
+      onAddReworkItem={writableWorktree
+        ? (input, opts) => {
+            controller.rework.addItem(input, opts);
+            if (opts?.openSheet) {
+              controller.rework.syncDefaultSessionSelection(
+                activeWorktreeSessions,
+              );
+            }
+          }
+        : undefined}
       {onRequestCheckout}
       onOpenOccupiedWorktree={(wtId) => onSwitchWorktree(wtId)}
     />
@@ -239,8 +249,15 @@
         stagingBusy={controller.stagingBusy}
         uncertainBlocked={controller.operations.hasUncertainUnresolved ||
           controller.view.lastCommitOutcome?.status === "uncertain"}
+        draftSaving={controller.commitDraft.saving}
+        draftRevision={controller.commitDraft.revision}
+        draftConflict={controller.commitDraft.conflict}
         activeDiffStale={controller.staging.activeDiffStale}
         activeDiffStaleReason={controller.staging.activeDiffStaleReason}
+        uncommittedProgress={controller.reviews.uncommittedProgress}
+        taskProgress={controller.reviews.taskProgress}
+        liveWorktreeIdentityForPath={(path) =>
+          controller.reviews.liveWorktreeIdentityForPath(path)}
         {hasActiveWorktreeSession}
         activeSessionCount={activeWorktreeSessions.length}
         exitedSessionCount={exitedWorktreeSessions.length}
@@ -258,6 +275,17 @@
         onReviewScopeChange={(s) => controller.taskReview.setReviewScope(s)}
         onSelectChange={(id) => controller.selectChange(id)}
         onToggleReviewed={(change) => controller.toggleReviewed(change)}
+        onToggleTaskReviewed={(path) =>
+          void controller.toggleTaskReviewed(path)}
+        onJumpNextUnreviewed={(scope) => controller.jumpNextUnreviewed(scope)}
+        onAddReworkItem={(input, opts) => {
+          controller.rework.addItem(input, opts);
+          if (opts?.openSheet) {
+            controller.rework.syncDefaultSessionSelection(
+              activeWorktreeSessions,
+            );
+          }
+        }}
         onStageChange={(id) => void controller.stageOrUnstage("stage", id)}
         onUnstageChange={(id) => void controller.stageOrUnstage("unstage", id)}
         onStageGroup={(_op, group) =>
@@ -272,6 +300,14 @@
           void controller.openCommitPreview(followUpPush)}
         onOpenPush={() => onOpenPush()}
         {onCreateBranchFromHead}
+        onResolveDraftKeepLocal={() =>
+          void controller.commitDraft.resolveKeepLocal()}
+        onResolveDraftAdoptRemote={() =>
+          controller.commitDraft.resolveAdoptRemote()}
+        onResolveDraftMergeBoth={() =>
+          void controller.commitDraft.resolveMergeBoth()}
+        onRequestCommitAssist={() =>
+          controller.rework.openCommitAssistSheet(activeWorktreeSessions)}
         {onOpenWorktreeTerminal}
         {onNewWorktreeTerminal}
         onSelectTaskFile={(p) => controller.taskReview.selectFile(p)}

@@ -70,6 +70,43 @@
 
   const graphLayouts = $derived(computeGitGraphLayout(visibleCommits));
 
+  function focusCommitRow(index: number) {
+    const rows =
+      listScrollEl?.querySelectorAll<HTMLButtonElement>("[data-commit-row]");
+    rows?.[index]?.focus();
+  }
+
+  function handleListKeydown(e: KeyboardEvent) {
+    if (visibleCommits.length === 0) return;
+    if (!(e.target instanceof HTMLElement)) return;
+    if (!e.target.hasAttribute("data-commit-row")) return;
+
+    const currentIdx = Math.max(
+      0,
+      visibleCommits.findIndex((c) => c.oid === selectedCommitOid),
+    );
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextIdx = Math.min(visibleCommits.length - 1, currentIdx + 1);
+      onSelectCommit(visibleCommits[nextIdx]!.oid);
+      focusCommitRow(nextIdx);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prevIdx = Math.max(0, currentIdx - 1);
+      onSelectCommit(visibleCommits[prevIdx]!.oid);
+      focusCommitRow(prevIdx);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      onSelectCommit(visibleCommits[0]!.oid);
+      focusCommitRow(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      const lastIdx = visibleCommits.length - 1;
+      onSelectCommit(visibleCommits[lastIdx]!.oid);
+      focusCommitRow(lastIdx);
+    }
+  }
+
   function describeHistoryStatus(status: GitHistoryStatus): string {
     if (historyReason) return historyReason;
     switch (status) {
@@ -132,11 +169,14 @@
     </div>
   {/if}
 
+  <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
+  <!-- svelte-ignore a11y_interactive_supports_focus -->
   <div
     bind:this={listScrollEl}
     class="min-h-0 flex-1 overflow-y-auto p-1.5"
     role="listbox"
     aria-label="提交记录"
+    onkeydown={handleListKeydown}
     onscroll={(e) => {
       const el = e.currentTarget;
       onListScrollChange?.(el.scrollTop);

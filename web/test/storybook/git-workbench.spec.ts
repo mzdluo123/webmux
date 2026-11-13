@@ -5,6 +5,7 @@ for (const story of [
   "log-merge-topology",
   "commit-hunk-staging",
   "commit-full-index-preview",
+  "task-baseline-clean-committed-review",
   "branches-worktree-occupied",
   "push-confirmation-dialog",
   "no-worktree-readonly",
@@ -12,6 +13,8 @@ for (const story of [
   "index-lock-busy",
   "commit-needs-review",
   "operation-uncertain-recovery",
+  "commit-draft-conflict-409",
+  "rework-session-handoff",
 ] as const) {
   test(`git workbench ${story} fits every layout`, async ({ page }) => {
     test.slow();
@@ -28,7 +31,8 @@ for (const story of [
       await expectNoOverflow(page, name);
       if (
         story === "commit-full-index-preview" ||
-        story === "push-confirmation-dialog"
+        story === "push-confirmation-dialog" ||
+        story === "rework-session-handoff"
       ) {
         await expectDialogFits(page, dialog, name);
       }

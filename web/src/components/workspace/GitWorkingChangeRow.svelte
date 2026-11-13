@@ -48,7 +48,13 @@
   </Button>
 
   <div class="min-w-0 flex-1">
-    <ListButton variant="git-row" aria-selected={isReading} onclick={onSelect}>
+    <ListButton
+      variant="git-row"
+      role="option"
+      data-working-change-row="true"
+      aria-selected={isReading}
+      onclick={onSelect}
+    >
       <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
         <Badge
           variant={item.group === "conflicted"

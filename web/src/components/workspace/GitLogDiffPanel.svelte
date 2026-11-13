@@ -1,21 +1,26 @@
 <script lang="ts">
-  import type { FileDiffMetadata } from "@pierre/diffs";
+  import type { SelectedLineRange } from "@pierre/diffs";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconChevronUp from "~icons/tabler/chevron-up";
-  import IconDownload from "~icons/tabler/download";
   import IconFileText from "~icons/tabler/file-text";
   import IconMaximize from "~icons/tabler/maximize";
   import IconMinimize from "~icons/tabler/minimize";
-  import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import type { GitCommitFile } from "../../contracts/git-workbench-schemas";
-  import { resolveHunksCalculatedDiff } from "../../domains/code/code-diff-client";
+  import {
+    type ActiveDiffReworkSelection,
+    createReworkDraftItem,
+    extractDiffRangeSnippet,
+    resolveSnapshotVersionDescriptor,
+  } from "../../domains/workspace/git-rework-model";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
+  import { createOfflineHunkDiffState } from "../../hooks/workspace/git-offline-diff.svelte";
   import CodeDiffReader from "../code/CodeDiffReader.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import GitDiffSelectionBar from "./GitDiffSelectionBar.svelte";
+  import GitLogDiffFallbackView from "./GitLogDiffFallbackView.svelte";
   import GitPanelToolbar from "./GitPanelToolbar.svelte";
 
   let {
@@ -27,6 +32,9 @@
     presentation = "docked",
     collapsed = false,
     diffMode = "unified",
+    isTaskScope = false,
+    liveWorktreeIdentity,
+    onAddReworkItem,
     onDiffModeChange,
     onToggleCollapsed,
     onToggleMaximized,
@@ -40,6 +48,12 @@
     presentation?: "docked" | "maximized" | "mobile";
     collapsed?: boolean;
     diffMode?: "unified" | "split";
+    isTaskScope?: boolean;
+    liveWorktreeIdentity?: string;
+    onAddReworkItem?: (
+      input: Parameters<typeof createReworkDraftItem>[0],
+      options?: { openSheet?: boolean },
+    ) => void;
     onDiffModeChange?: (mode: "unified" | "split") => void;
     onToggleCollapsed?: () => void;
     onToggleMaximized?: () => void;
@@ -47,79 +61,38 @@
   } = $props();
 
   let readerRef = $state<ReturnType<typeof CodeDiffReader>>();
-  let offlineState = $state.raw<{
-    phase: "idle" | "loading" | "ready" | "binary" | "limited" | "error";
-    fileDiff: FileDiffMetadata | null;
-    reason: string;
-  }>({
-    phase: "idle",
-    fileDiff: null,
-    reason: "",
-  });
+  let selectionSlot = $state.raw<{
+    key: string;
+    range: SelectedLineRange | null;
+  } | null>(null);
+  const offline = createOfflineHunkDiffState();
 
   export function hasOpenReaderPanel(): boolean {
     return readerRef?.hasOpenPanel() ?? false;
   }
 
   $effect(() => {
-    if (logDiff) return;
     const file = fallbackFile;
-    if (!file) {
-      offlineState = { phase: "idle", fileDiff: null, reason: "" };
-      return;
-    }
-    if (file.binary) {
-      offlineState = {
-        phase: "binary",
-        fileDiff: null,
-        reason: "二进制文件不直接展开文本行级差异。",
-      };
-      return;
-    }
-    if (file.hunks.length === 0) {
-      offlineState = {
-        phase: "limited",
-        fileDiff: null,
-        reason: "此文件仅包含模式或重命名变更，无文本差异。",
-      };
-      return;
-    }
-
-    const ctrl = new AbortController();
-    offlineState = { phase: "loading", fileDiff: null, reason: "" };
-    const snapKey = `fixture:${fallbackLeftLabel}:${fallbackRightLabel}:${file.newPath}`;
-    void resolveHunksCalculatedDiff(
-      snapKey,
-      file.newPath,
-      file.oldPath,
-      file.status,
-      file.hunks,
-      ctrl.signal,
-    ).then((res) => {
-      if (ctrl.signal.aborted) return;
-      if (res.calculation === "ready" && res.fileDiff) {
-        offlineState = {
-          phase: "ready",
-          fileDiff: res.fileDiff,
-          reason: "",
-        };
-      } else {
-        offlineState = {
-          phase: res.calculation === "error" ? "error" : "limited",
-          fileDiff: null,
-          reason: res.calculationReason,
-        };
-      }
+    return offline.load({
+      disabled: Boolean(logDiff),
+      hasTarget: Boolean(file),
+      binary: Boolean(file?.binary),
+      binaryReason: "二进制文件不直接展开文本行级差异。",
+      emptyReason: "此文件仅包含模式或重命名变更，无文本差异。",
+      snapshotKey: `fixture:${fallbackLeftLabel}:${fallbackRightLabel}:${file?.newPath ?? ""}`,
+      path: file?.newPath ?? "",
+      oldPath: file?.oldPath ?? "",
+      status: file?.status ?? "M",
+      hunks: file?.hunks ?? [],
     });
-    return () => ctrl.abort();
   });
 
-  const phase = $derived(logDiff ? logDiff.state.phase : offlineState.phase);
+  const phase = $derived(logDiff ? logDiff.state.phase : offline.state.phase);
   const activeFileDiff = $derived(
-    logDiff ? logDiff.state.fileDiff : offlineState.fileDiff,
+    logDiff ? logDiff.state.fileDiff : offline.state.fileDiff,
   );
   const activeReason = $derived(
-    logDiff ? logDiff.state.reason : offlineState.reason,
+    logDiff ? logDiff.state.reason : offline.state.reason,
   );
   const leftEndpoint = $derived(
     logDiff ? logDiff.state.leftLabel : fallbackLeftLabel,
@@ -143,21 +116,42 @@
   const effectiveDiffStyle = $derived(
     presentation === "mobile" ? "unified" : diffMode,
   );
-</script>
 
-{#snippet downloadSideButton(side: "before" | "after", label: string)}
-  {#if logDiff}
-    <Button
-      size="xs"
-      variant="outline"
-      disabled={logDiff.state.downloadingSide !== null}
-      onclick={() => void logDiff.downloadSnapshotSide(side)}
-    >
-      <IconDownload aria-hidden="true" />
-      {label}
-    </Button>
-  {/if}
-{/snippet}
+  const selectionKey = $derived(`${leftEndpoint}:${rightEndpoint}:${filePath}`);
+  const selectedRange = $derived(
+    selectionSlot?.key === selectionKey ? selectionSlot.range : null,
+  );
+
+  const resolvedSelection = $derived.by<ActiveDiffReworkSelection | null>(
+    () => {
+      if (!onAddReworkItem || !activeFileDiff || !selectedRange || !filePath) {
+        return null;
+      }
+      const extracted = extractDiffRangeSnippet(activeFileDiff, selectedRange);
+      if (!extracted) return null;
+      const desc = resolveSnapshotVersionDescriptor({
+        isTaskScope,
+        side: extracted.side,
+        leftLabel: leftEndpoint,
+        rightLabel: rightEndpoint,
+        baseOid: logDiff?.state.baseOid ?? "",
+        targetOid: logDiff?.state.targetOid ?? "",
+        liveWorktreeIdentity,
+      });
+      return {
+        path: filePath,
+        oldPath: oldFilePath || undefined,
+        ...extracted,
+        ...desc,
+      };
+    },
+  );
+
+  function clearLogSelection() {
+    selectionSlot = null;
+    readerRef?.clearLineAction();
+  }
+</script>
 
 {#snippet snapshotSideButtons()}
   {#if sideDoc && logDiff}
@@ -198,11 +192,9 @@
       <span class="font-mono">{leftEndpoint || "空树"} → {rightEndpoint}</span>
     </Badge>
   {/if}
-
   {#if fileStatus}
     <Badge variant="secondary" class="shrink-0">{fileStatus}</Badge>
   {/if}
-
   <span
     class="min-w-0 truncate font-mono text-xs font-medium text-foreground"
     title={oldFilePath && oldFilePath !== filePath
@@ -320,54 +312,16 @@
   {/if}
 
   {#if !collapsed}
+    <GitDiffSelectionBar
+      selection={resolvedSelection}
+      {onAddReworkItem}
+      onClear={clearLogSelection}
+    />
+
     <div
       class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
-      {#if sideDoc}
-        <div class="min-h-0 flex-1 overflow-auto p-3">
-          {#if sideDoc.loading}
-            <p class="text-xs text-muted-foreground" role="status">
-              正在读取快照完整文件…
-            </p>
-          {:else if sideDoc.error}
-            <InlineNotice tone="danger">{sideDoc.error}</InlineNotice>
-          {:else if sideDoc.file}
-            <div
-              class="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground"
-            >
-              <span class="font-mono">
-                {sideDoc.side === "before" ? "变更前快照" : "变更后快照"} · {sideDoc
-                  .file.document.path}
-              </span>
-              <span>{sideDoc.file.document.lineCount} 行</span>
-            </div>
-            {#if sideDoc.file.document.kind === "text"}
-              <pre
-                class="overflow-x-auto rounded-md border border-git-border bg-git-panel p-3 font-mono text-xs leading-relaxed text-foreground">{sideDoc
-                  .file.document.text}</pre>
-            {:else}
-              <InlineNotice tone="info">
-                {sideDoc.file.document.reason ||
-                  "该快照不是可直接预览的文本文件。"}
-              </InlineNotice>
-            {/if}
-          {/if}
-        </div>
-      {:else if phase === "idle" || !filePath}
-        <div
-          class="flex flex-1 items-center justify-center p-4 text-xs text-muted-foreground"
-        >
-          在右上「变更文件」中单击文件即可在此预览历史差异；双击或按 Enter
-          可放大至主工作区。
-        </div>
-      {:else if phase === "loading"}
-        <div
-          class="flex flex-1 items-center justify-center p-4 text-xs text-muted-foreground"
-          role="status"
-        >
-          正在加载并计算历史差异快照…
-        </div>
-      {:else if phase === "ready" && activeFileDiff}
+      {#if !sideDoc && phase === "ready" && activeFileDiff && filePath}
         {#key activeFileDiff.cacheKey ?? `${leftEndpoint}:${rightEndpoint}:${filePath}`}
           <CodeDiffReader
             bind:this={readerRef}
@@ -376,71 +330,21 @@
             expired={false}
             draftEnabled={false}
             preferredDiffStyle={effectiveDiffStyle}
-            onselect={() => {}}
+            onselect={(range) => {
+              selectionSlot = range ? { key: selectionKey, range } : null;
+            }}
           />
         {/key}
-      {:else if phase === "binary"}
-        <div class="space-y-2.5 p-4 text-xs">
-          <InlineNotice tone="info">
-            {activeReason || "二进制文件不直接展开文本行级差异。"}
-          </InlineNotice>
-          {#if rawDiff && logDiff}
-            <div
-              class="flex flex-wrap items-center gap-2 text-muted-foreground"
-            >
-              {#if rawDiff.old.source !== "empty"}
-                <span
-                  >变更前：{rawDiff.old.size} B ({rawDiff.old.mediaType ||
-                    "binary"})</span
-                >
-                {#if rawDiff.old.downloadable}
-                  {@render downloadSideButton("before", "下载变更前文件")}
-                {/if}
-              {/if}
-              {#if rawDiff.new.source !== "empty"}
-                <span
-                  >变更后：{rawDiff.new.size} B ({rawDiff.new.mediaType ||
-                    "binary"})</span
-                >
-                {#if rawDiff.new.downloadable}
-                  {@render downloadSideButton("after", "下载变更后文件")}
-                {/if}
-              {/if}
-            </div>
-          {/if}
-        </div>
-      {:else if phase === "limited"}
-        <div class="space-y-2.5 p-4 text-xs">
-          <InlineNotice tone="warning">
-            {activeReason || "该文件超过内联差异预算或仅包含元数据变更。"}
-          </InlineNotice>
-          {#if rawDiff && logDiff}
-            <div class="flex flex-wrap items-center gap-2">
-              {#if rawDiff.old.source !== "empty" && rawDiff.old.downloadable}
-                {@render downloadSideButton("before", "下载变更前原始文件")}
-              {/if}
-              {#if rawDiff.new.source !== "empty" && rawDiff.new.downloadable}
-                {@render downloadSideButton("after", "下载变更后原始文件")}
-              {/if}
-            </div>
-          {/if}
-        </div>
-      {:else if phase === "error"}
-        <div class="space-y-2 p-4 text-xs">
-          <InlineNotice tone="danger">
-            差异读取失败：{activeReason}
-          </InlineNotice>
-          {#if logDiff}
-            <Button
-              size="xs"
-              variant="outline"
-              onclick={() => logDiff.retryActiveDiff()}
-            >
-              <IconRefresh aria-hidden="true" />
-              重试加载差异
-            </Button>
-          {/if}
-        </div>
+      {:else}
+        <GitLogDiffFallbackView
+          phase={!filePath && phase !== "loading"
+            ? "idle"
+            : phase === "ready"
+              ? "idle"
+              : phase}
+          reason={activeReason}
+          {logDiff}
+        />
       {/if}
     </div>
   {/if}

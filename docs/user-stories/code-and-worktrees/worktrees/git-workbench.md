@@ -1,9 +1,10 @@
-# Git 工作台与仓库级接口（US-J19–US-J24）
+# Git 工作台与仓库级接口（US-J19–US-J25）
 
-本页收录独立 Git 工作台与仓库级接口的用户故事（US-J19–US-J24）：
+本页收录独立 Git 工作台与仓库级接口的用户故事（US-J19–US-J25）：
 
 - 零活跃会话可用的仓库与工作树 Git REST 接口、独立 `/git` 路由与状态隔离；
-- 拓扑历史图与两版本比较、真实 `index` 暂存与提交三态复核、三处共享分支动作、宽幅推送确认框、持久 Git 操作账本与固定任务审阅基线收尾闭环。
+- 拓扑历史图与两版本比较、真实 `index` 暂存与提交三态复核、三处共享分支动作、宽幅推送确认框；
+- 持久 Git 操作账本、固定任务审阅基线收尾闭环，以及跨设备审阅进度同步、乐观锁提交草稿与返工意见交回指定会话。
 - 关联章节：[仓库登记、工作树生命周期与分支维护（US-J01–US-J18）](lifecycle.md)，总索引见[仓库登记与 worktree 管理](../worktrees.md)。
 
 ## J. Git 工作台与仓库级接口
@@ -125,6 +126,22 @@
   - 任务交付与收尾摘要及非自动删树保护（`G12`）：
     - 底部收尾摘要汇总净变更文件数、任务提交数、未提交项、待推提交与工作树关联的运行中/已结束/已归档会话计数；
     - 提供“返回会话”、“推送提交…”（直达 ~900px 宽幅 `GitPushDialog`）、“归档已完成会话”与 `linked` 工作树的“移除工作树…”（复用 `RemoveWorktreeDialog` 安全检查）出口，推送成功绝不自动删除工作树。
+- **US-J25 跨设备审阅进度同步、乐观锁提交草稿与返工意见交回指定会话**：作为多设备协同审阅者，我希望各工作树的“已审阅”进度与提交草稿经服务端安全同步，并可把带版本身份与行范围的结构化返工意见放入指定工作树会话草稿框，以闭合“编码 → 审阅 → 返工 / 提交”回路。
+  验收要点：
+  - 绑定内容身份的服务端审阅进度同步与自动失效（`GET/PUT .../git/reviews`）：
+    - 按工作树在 `git-workbench-state.json`（`0600` 原子替换 + 独立锁，纳入 `statefile.Catalog`、`persistence_inventory.json` 与 `webmux config show`）跨设备共享 `uncommitted`（`staged`、`unstaged`、`untracked`）与 `task` 两套审阅范围进度；
+    - 审阅键同时绑定两侧文件模式、Git blob OID 与工作区文件内容 SHA-256 摘要（从不依赖 `mtime`）：外部修改文件或变更暂存内容后旧标记自动失效；过期页面发起旧身份 `mark` 时返回 `200 {applied: false, staleRejected: true}` 与最新快照，绝不把新修改误标为已审阅；
+    - `Commit` 与 `相对任务起点的变化` 顶部常驻展示已审阅进度与一键“下一处未审阅”按钮，自动循环定位下一处未审阅条目（窄屏自动切入 Diff 阅读页）；
+  - 带 `baseRevision` 乐观版本检查的跨设备提交草稿（`GET/PUT .../git/commit-draft`）：
+    - 按工作树持久保存提交 `subject`、`body`、`revision` 与 `updatedAt`（单工作树上限 32 KiB，日志绝不输出草稿正文）；工作树存在活动会话且已暂存文件 `> 0` 时提供“让会话协助起草说明”辅助入口；
+    - 仅当真实提交成功落盘（`ExecuteCommit` 或服务重启对账确认为 `matched` / `needs_review`）后才自动清空草稿；预览过期、Hook/锁冲突报错、`uncertain` 或取消推送均完整保留草稿；
+    - 多设备并发编辑导致 `baseRevision` 不匹配时返回 HTTP `409`（`reason: "draft_conflict"`，附带 `currentDraft`），界面原位并排保留“本机当前输入”与“另一设备已保存版本”，提供“保留本机覆盖保存”、“采用远端版本”与“合并两份内容”三种显式恢复操作，绝不静默覆盖；
+    - 移除/批量移除/释放工作树或注销仓库时同步清理该工作树或仓库的提交草稿与审阅记录；
+  - 差异摘录返工意见草稿箱与目标会话安全交回：
+    - 在 `Commit`、`相对任务起点的变化` 与 `Log` 的任意 Pierre `CodeDiffReader` 中选择单行/连续行范围（或点击常驻 Hunk 条“加入意见”），均可连同修改要求加入按工作树隔离的“返工意见草稿箱”；编辑或发送返工意见绝不覆盖或清空正在编写的提交说明草稿；
+    - 防串行号保护：来自历史提交、`HEAD`、`index` 或任务起点删除侧的摘录显式标明版本身份并附带代码片段，绝不伪装成当前工作区实时行号；来自当前工作区的摘录在发送前向服务端复核最新内容身份，若文件已更新则先提示确认；
+    - 目标会话显式路由：工作树仅有 1 个活跃会话时默认预选并标注视图（`终端 TUI` / `聊天视图`）；有 2 个及以上活跃会话时强制显式单选目标会话后才允许发送；无活跃会话时提供“复制结构化审阅意见 Markdown”与“在该工作树新建会话并带入意见”（预填目标工作树与草稿）；
+    - 只进草稿框、零自动执行：确认发送后跳转到目标会话并将结构化 Markdown 写入该会话草稿（终端会话展开输入草稿框且绝不注入 `\r` 回车自动执行，混合聊天视图填入聊天输入框），其余未选中会话保持原状。
 
 依据：
 
@@ -164,3 +181,10 @@
   - 前端请求与状态：[任务接口封装](../../../../web/src/platform/git-task-api.ts)、[任务审阅控制器](../../../../web/src/hooks/workspace/git-task-review.svelte.ts)；
   - 前端面板组件：[任务净变更面板](../../../../web/src/components/workspace/GitTaskReviewPane.svelte)、[任务收尾摘要](../../../../web/src/components/workspace/GitTaskDeliverySummary.svelte)；
   - 前端测试：[任务接口单测](../../../../web/test/git-task-api.test.ts)、[任务基线浏览器测试](../../../../web/test/browser/GitWorkbenchTaskBaseline.test.ts)、[任务基线与收尾 E2E](../../../../web/test/e2e/git-workbench-task-baseline.spec.ts)。
+- 跨设备审阅进度同步、乐观锁提交草稿与返工意见交回会话：
+  - 服务端存储：[协同存储](../../../../internal/workspace/workbench_collab_store.go)、[提交草稿](../../../../internal/workspace/workbench_draft.go)、[审阅扫描](../../../../internal/workspace/workbench_reviews_scan.go)、[审阅服务](../../../../internal/workspace/workbench_reviews.go)；
+  - 服务端路由与测试：[协同路由](../../../../internal/api/git_collab.go)、[协同契约](../../../../internal/contract/git_collab.go)、[服务层测试](../../../../internal/workspace/workbench_collab_test.go)、[接口测试](../../../../internal/api/git_collab_test.go)；
+  - 前端领域模型：[草稿模型](../../../../web/src/domains/workspace/git-commit-draft-model.ts)、[返工意见模型](../../../../web/src/domains/workspace/git-rework-model.ts)、[会话草稿交回](../../../../web/src/hooks/workspace/git-session-handoff.ts)；
+  - 前端控制器：[审阅同步控制器](../../../../web/src/hooks/workspace/git-review-sync.svelte.ts)、[草稿控制器](../../../../web/src/hooks/workspace/git-commit-draft.svelte.ts)、[返工控制器](../../../../web/src/hooks/workspace/git-rework-controller.svelte.ts)；
+  - 前端组件：[草稿冲突卡片](../../../../web/src/components/workspace/GitCommitDraftConflictCard.svelte)、[Diff 选行摘录条](../../../../web/src/components/workspace/GitDiffSelectionBar.svelte)、[返工草稿箱弹窗](../../../../web/src/components/workspace/GitReworkDialog.svelte)；
+  - 前端测试：[协同模型单测](../../../../web/test/git-collab.test.ts)、[跨端协同与会话交回 E2E](../../../../web/test/e2e/git-workbench-v1-collab.spec.ts)。

@@ -367,6 +367,7 @@ func (s *Service) ReleaseWorktree(ctx context.Context, repositoryID, worktreeID 
 	}
 	slog.Info("worktree released", "release", id, "records", len(ids))
 	s.purgeWorktreeBaseline(cleanupCtx, r, repositoryID, worktreeID)
+	s.purgeWorktreeCollabState(repositoryID, worktreeID)
 	return ReleaseResult{ReleaseID: id, RecordIDs: ids}, nil
 }
 

@@ -111,6 +111,14 @@ type Service struct {
 	baselinesAvailable bool
 	baselinesError     string
 	baselines          []TaskBaseline
+
+	collabMu        sync.Mutex
+	collabSaveMu    sync.Mutex
+	collabStore     *statefile.Handle[gitWorkbenchStateStore]
+	collabAvailable bool
+	collabError     string
+	collabDrafts    []commitDraftRecord
+	collabReviews   []ReviewMarkRecord
 }
 
 // New never makes optional Git or storage availability a server startup failure.
@@ -136,12 +144,19 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 		s.opsError = "Git 操作账本不可用: " + err.Error()
 	} else {
 		s.opsAvailable = true
-		s.reconcileOperationsOnStartup()
 	}
 	if err := s.loadTaskBaselines(); err != nil {
 		s.baselinesError = "Git 任务基线不可用: " + err.Error()
 	} else {
 		s.baselinesAvailable = true
+	}
+	if err := s.loadWorkbenchCollab(); err != nil {
+		s.collabError = "Git 工作台协作状态不可用: " + err.Error()
+	} else {
+		s.collabAvailable = true
+	}
+	if s.opsAvailable {
+		s.reconcileOperationsOnStartup()
 	}
 	return s
 }
@@ -154,6 +169,7 @@ func (s *Service) Close() {
 	s.mu.Unlock()
 	s.closeOperations()
 	s.closeTaskBaselines()
+	s.closeWorkbenchCollab()
 }
 func (s *Service) Capability() Capability { s.mu.Lock(); defer s.mu.Unlock(); return s.capability }
 
@@ -384,6 +400,7 @@ func (s *Service) Unregister(id string) error {
 	s.mu.Unlock()
 	s.purgeRepositoryOperations(id)
 	s.purgeRepositoryBaselines(r, id)
+	s.purgeRepositoryCollabState(id)
 	for _, info := range s.manager.List() {
 		if info.Workspace != nil && info.Workspace.RepositoryID == id {
 			s.manager.SetWorkspace(info.ID, info.Cwd, nil)

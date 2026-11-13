@@ -3,6 +3,7 @@
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconDots from "~icons/tabler/dots";
+  import IconMessageForward from "~icons/tabler/message-forward";
   import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -35,6 +36,8 @@
     returnSession,
     returnSessionArchived = false,
     sessionsReady = false,
+    reworkCount = 0,
+    onOpenRework,
     onSelectRepository,
     onSelectWorktree,
     onAddRepository,
@@ -60,6 +63,8 @@
     returnSession?: SessionInfo;
     returnSessionArchived?: boolean;
     sessionsReady?: boolean;
+    reworkCount?: number;
+    onOpenRework?: () => void;
     onSelectRepository: (repositoryId: string) => void;
     onSelectWorktree: (worktreeId?: string) => void;
     onAddRepository: () => void;
@@ -216,6 +221,25 @@
     <div
       class="flex min-h-(--control-touch) shrink-0 items-center gap-1.5 sm:min-h-0"
     >
+      {#if worktreeUsable && onOpenRework}
+        <Button
+          size="sm"
+          variant="outline"
+          onclick={onOpenRework}
+          aria-label={reworkCount > 0
+            ? `返工意见草稿箱 (${reworkCount})`
+            : "返工意见草稿箱"}
+          title="打开返工意见草稿箱并交回指定会话"
+          data-testid="git-open-rework-btn"
+        >
+          <IconMessageForward aria-hidden="true" />
+          <span class="max-sm:hidden">返工意见</span>
+          {#if reworkCount > 0}
+            <Badge variant="info">{reworkCount}</Badge>
+          {/if}
+        </Button>
+      {/if}
+
       {#if returnSession}
         <Button
           size="sm"

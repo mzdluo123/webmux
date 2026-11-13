@@ -207,19 +207,23 @@
 
 ### 工作树真实 `index` 暂存与提交（`/api/repositories/{id}/worktrees/{worktreeId}/git`）
 
-| 路由                                                       | 说明                                                                                                         |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `GET /staging`                                             | 读取真实 Git `index` 与工作区的已暂存、未暂存（含未跟踪）及冲突列表，签发 `StageFileIdentity`                |
-| `GET /staging/diff?area&path&oldPath`                      | 单文件 `unstaged` / `staged` 统一 Hunk 列表、行尾标记与可逐块暂存判定（`hunkStageAvailable`）                |
-| `POST /stage {identity, hunkIds?}`                         | 整文件或指定 `hunkIds` 暂存到真实 `index`，成功返回 204                                                      |
-| `POST /unstage {identity, hunkIds?}`                       | 整文件或指定 `hunkIds` 从真实 `index` 取消暂存（含 `unborn HEAD`），成功返回 204                             |
-| `POST /commit-preview {}`                                  | 基于完整 `HEAD -> index` 生成提交预览（含 CLI 预暂存文件、身份、可执行 Hook、阻塞项与限时确认码）            |
-| `POST /commit {confirmationId, message, clientRequestId?}` | 复核 `HEAD` 与索引摘要后执行提交，返回 `{operationId?, outcome}`（`matched` / `needs_review` / `uncertain`） |
-| `GET /task-baseline`                                       | 读取工作树固定任务审阅基线 `{baseline}`（未记录时 `baseline: null`，仍为 200）                               |
-| `PUT /task-baseline {baseOid?}`                            | 将指定完整提交 OID（省略时取当前 `HEAD`，含 `unborn` 空仓）设为工作树任务基线，返回 `{baseline}`             |
-| `DELETE /task-baseline`                                    | 清除该工作树的任务审阅基线与私有保护引用，204                                                                |
-| `GET /task-changes?cursor&q&nodeId`                        | 计算相对任务起点的单份净变更分页列表（含 `commitCount`、`uncommittedCount` 与 `no_task_baseline` 状态）      |
-| `GET /task-diff?path&changeId`                             | 读取单份任务净变更文件（`baseOid`/空树 → 当前工作区）冻结双侧原文，并写入 `/git/snapshots/{snapshotId}`      |
+| 路由                                                       | 说明                                                                                                                       |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `GET /staging`                                             | 读取真实 Git `index` 与工作区的已暂存、未暂存（含未跟踪）及冲突列表，签发 `StageFileIdentity`                              |
+| `GET /staging/diff?area&path&oldPath`                      | 单文件 `unstaged` / `staged` 统一 Hunk 列表、行尾标记与可逐块暂存判定（`hunkStageAvailable`）                              |
+| `POST /stage {identity, hunkIds?}`                         | 整文件或指定 `hunkIds` 暂存到真实 `index`，成功返回 204                                                                    |
+| `POST /unstage {identity, hunkIds?}`                       | 整文件或指定 `hunkIds` 从真实 `index` 取消暂存（含 `unborn HEAD`），成功返回 204                                           |
+| `POST /commit-preview {}`                                  | 基于完整 `HEAD -> index` 生成提交预览（含 CLI 预暂存文件、身份、可执行 Hook、阻塞项与限时确认码）                          |
+| `POST /commit {confirmationId, message, clientRequestId?}` | 复核 `HEAD` 与索引摘要后执行提交，返回 `{operationId?, outcome}`（`matched` / `needs_review` / `uncertain`）               |
+| `GET /task-baseline`                                       | 读取工作树固定任务审阅基线 `{baseline}`（未记录时 `baseline: null`，仍为 200）                                             |
+| `PUT /task-baseline {baseOid?}`                            | 将指定完整提交 OID（省略时取当前 `HEAD`，含 `unborn` 空仓）设为工作树任务基线，返回 `{baseline}`                           |
+| `DELETE /task-baseline`                                    | 清除该工作树的任务审阅基线与私有保护引用，204                                                                              |
+| `GET /task-changes?cursor&q&nodeId`                        | 计算相对任务起点的单份净变更分页列表（含 `commitCount`、`uncommittedCount` 与 `no_task_baseline` 状态）                    |
+| `GET /task-diff?path&changeId`                             | 读取单份任务净变更文件（`baseOid`/空树 → 当前工作区）冻结双侧原文，并写入 `/git/snapshots/{snapshotId}`                    |
+| `GET /reviews?scope=uncommitted\|task`                     | 读取工作树跨设备共享的已审阅文件列表与汇总计数（`totalFiles`、`reviewedFiles`、`files`）                                   |
+| `PUT /reviews {scope, action, item?, path?}`               | 按内容身份标记/取消标记已审阅（`mark` / `unmark` / `clear`）；文件已变化时返回 200 `{applied: false, staleRejected: true}` |
+| `GET /commit-draft`                                        | 读取工作树跨设备同步的提交说明草稿 `{repositoryId, worktreeId, subject, body, revision, updatedAt}`                        |
+| `PUT /commit-draft {subject, body, baseRevision}`          | 乐观锁保存提交说明草稿（上限 32 KiB）；`baseRevision` 不匹配时返回 409（`reason: "draft_conflict"`）并附带 `currentDraft`  |
 
 - 任务审阅基线保存在 `<state_dir>/git-task-baselines.json`：
   - 新建工作树（`POST /worktrees`）自动按起点提交记录 `source: "worktree_create"`；
@@ -232,4 +236,11 @@
   - 同一 `(repositoryId, clientRequestId)` 参数摘要一致时合并在途执行或重放已持久结果（跨断线重连与服务重启绝不重复执行底层 Git 写命令）；
   - 复用相同 `clientRequestId` 但参数变化时返回 409（`reason: "idempotency_conflict"`）；若经服务重启对账后该操作为 `uncertain`，对非 commit 接口重放时返回 409（`reason: "uncertain"`）。
   - 服务启动时对崩溃遗留的 `pending`/`running` 条目按真实 Git 引用与 reflog（`GIT_REFLOG_ACTION=webmux-commit:<operationId>`）执行只读对账，收敛为 `succeeded`、`needs_review`、`failed` 或 `uncertain`，从不自动重跑或执行 `git reset`。
-- `POST /commit` 使用独立于 10 秒读超时的受控执行窗口（2 分钟上界），客户端连接断开不会强杀已进入引用更新的 `git commit`；访问、错误日志与持久账本不记录文件内容、Diff 正文、环境变量或凭据（输出摘要经凭据脱敏并限制 ≤ 4 KiB）。
+- `POST /commit` 使用独立于 10 秒读超时的受控执行窗口（2 分钟上界），客户端连接断开不会强杀已进入引用更新的 `git commit`；访问、错误日志与持久账本不记录文件内容、Diff 正文、提交草稿正文、环境变量或凭据（输出摘要经凭据脱敏并限制 ≤ 4 KiB）。
+- `git-workbench-state.json` 保存工作树提交草稿与审阅标记：
+  - `GET /reviews` 与 `PUT /reviews` 的标记键同时绑定两侧文件模式、Git blob OID 与工作区内容 SHA-256 摘要（从不依赖 `mtime`）：
+    - 文件内容或暂存状态变化后旧标记自动失效，不再显示为 `reviewed: true`；
+    - 旧页面用过期身份执行 `mark` 时不会报错中断，而是返回 200 `{applied: false, staleRejected: true}` 与最新 `files` 快照。
+  - `PUT /commit-draft` 要求 `baseRevision` 与服务端当前 `revision` 一致：
+    - 多端并发编辑触发版本不匹配时返回 409 `{"error": "...", "reason": "draft_conflict", "currentDraft": {...}}`，由前端原位并排保留本机输入与远端版本；
+    - 仅当真实提交创建成功（`matched` 或 `needs_review`，含服务重启对账确认）时服务端才清空该工作树的提交草稿并递增 `revision`。

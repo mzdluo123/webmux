@@ -361,6 +361,7 @@ func (s *Service) executeLockedRemoval(ctx context.Context, r *repositoryState, 
 	}
 	s.retainRecords(ctx, r, repositoryID, confirmed.tree, confirmedCommit, closedHybrids)
 	s.purgeWorktreeBaseline(ctx, r, repositoryID, worktreeID)
+	s.purgeWorktreeCollabState(repositoryID, worktreeID)
 	return nil
 }
 
