@@ -233,7 +233,7 @@
 </script>
 
 <div
-  class="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-background"
   data-testid="git-staging-diff-panel"
 >
   <GitStagingDiffHeader
@@ -256,7 +256,7 @@
   />
 
   {#if stale}
-    <div class="border-b border-git-border bg-git-panel px-3 py-2">
+    <div class="border-b bg-background px-3 py-2">
       <InlineNotice tone="warning">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span>
@@ -264,7 +264,7 @@
               "文件或暂存区已在外部变更，当前阅读快照已过期；暂存按钮已停用，请刷新后再操作。"}
           </span>
           {#if onRefreshSnapshot}
-            <Button size="xs" variant="outline" onclick={onRefreshSnapshot}>
+            <Button size="sm" variant="outline" onclick={onRefreshSnapshot}>
               <IconRefresh aria-hidden="true" />
               刷新快照
             </Button>
@@ -290,7 +290,7 @@
       {onNewWorktreeTerminal}
     />
   {:else if !change.hunkStageAvailable && change.degradeReason}
-    <div class="border-b border-git-border bg-git-panel px-3 py-1.5">
+    <div class="border-b bg-background px-3 py-1.5">
       <InlineNotice tone="warning">
         逐块暂存已降级：{change.degradeReason}（仍可使用右上角或文件行的整文件暂存/取消暂存）。
       </InlineNotice>

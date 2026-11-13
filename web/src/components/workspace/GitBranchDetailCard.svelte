@@ -80,9 +80,7 @@
     </div>
 
     {#if activeBranch.kind === "tag"}
-      <div
-        class="space-y-1.5 rounded-md border border-git-border bg-git-surface p-2.5 text-xs"
-      >
+      <div class="space-y-1.5 rounded-md border bg-background p-2.5 text-xs">
         <p class="font-mono break-all text-muted-foreground">
           目标提交 OID：{activeBranch.head}
         </p>
@@ -109,9 +107,7 @@
         {/if}
       </div>
     {:else if activeBranch.kind === "local" && activeUpstream}
-      <div
-        class="rounded-md border border-git-border bg-git-surface p-2.5 text-xs"
-      >
+      <div class="rounded-md border bg-background p-2.5 text-xs">
         <p class="wrap-anywhere">{activeUpstream.detailText}</p>
       </div>
     {/if}
@@ -138,7 +134,7 @@
       {#if activeBranch.occupiedBy}
         <Button
           size="sm"
-          variant="git-primary"
+          variant="outline"
           onclick={() => onRouteOp("open-occupied-worktree", activeBranch)}
         >
           打开所在工作树
@@ -153,7 +149,7 @@
       {:else if isCurrent && pushAct}
         <Button
           size="sm"
-          variant="git-primary"
+          variant="outline"
           disabled={pushAct.disabled}
           title={pushAct.disabledReason}
           onclick={() => onRouteOp("push", activeBranch)}
@@ -163,7 +159,7 @@
       {:else if activeBranch.kind !== "tag" && context.worktreePath}
         <Button
           size="sm"
-          variant="git-primary"
+          variant="outline"
           onclick={() => onRouteOp("checkout", activeBranch)}
         >
           {activeBranch.kind === "remote" ? "检出并跟踪…" : "检出到当前工作树…"}

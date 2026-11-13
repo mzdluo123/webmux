@@ -48,7 +48,7 @@
   data-testid="git-conflict-mobile-pane"
 >
   <!-- 1. Single-source read-only switcher (Left / Right / Common Ancestor Base) -->
-  <div class="space-y-2 rounded-lg border border-git-border bg-git-panel p-2.5">
+  <div class="space-y-2 rounded-lg border bg-background p-2.5">
     <SegmentedControl.Root
       wrap
       value={sourceSide}
@@ -72,7 +72,7 @@
     </div>
 
     <pre
-      class="max-h-36 overflow-y-auto rounded-md border border-git-border bg-git-surface p-2 font-mono text-xs whitespace-pre-wrap break-all text-foreground">{activeSide.present
+      class="max-h-36 overflow-y-auto rounded-md border bg-background p-2 font-mono text-xs whitespace-pre-wrap break-all text-foreground">{activeSide.present
         ? activeSide.text || "(空文件)"
         : "(此侧不存在该文件)"}</pre>
   </div>
@@ -80,13 +80,13 @@
   <!-- 2. Non-conflicting quick action + Per-conflict decision cards -->
   {#if progress.pendingNonConflicting > 0}
     <div
-      class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-git-border bg-git-panel p-2.5"
+      class="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background p-2.5"
     >
       <span class="min-w-0 flex-1 wrap-anywhere text-foreground">
         检测到 {progress.pendingNonConflicting} 处无冲突单侧改动可自动合入结果
       </span>
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         wrap
         onclick={onApplyAllNonConflicting}
@@ -101,7 +101,7 @@
       {#each conflictSegs as seg, idx (seg.id)}
         {@const choice = draft.choices[seg.id] ?? "unresolved"}
         <div
-          class="space-y-2 rounded-lg border border-git-border bg-git-panel p-2.5"
+          class="space-y-2 rounded-lg border bg-background p-2.5"
           data-mobile-conflict-card={seg.id}
         >
           <div class="flex flex-wrap items-center justify-between gap-1.5">
@@ -116,7 +116,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <div class="rounded-md border border-git-border bg-git-surface p-2">
+            <div class="rounded-md border bg-background p-2">
               <div class="mb-1 font-medium text-muted-foreground">
                 左侧 ({detail.left.refName || "当前分支"})：
               </div>
@@ -127,7 +127,7 @@
                   : "(删除此段)"}</pre>
             </div>
 
-            <div class="rounded-md border border-git-border bg-git-surface p-2">
+            <div class="rounded-md border bg-background p-2">
               <div class="mb-1 font-medium text-muted-foreground">
                 右侧 ({detail.right.refName || "合入来源"})：
               </div>
@@ -141,7 +141,7 @@
 
           <div class="flex flex-wrap items-center gap-1.5">
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               wrap
               aria-pressed={choice === "left"}
@@ -150,7 +150,7 @@
               接受左侧
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               wrap
               aria-pressed={choice === "right"}
@@ -159,7 +159,7 @@
               接受右侧
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               wrap
               aria-pressed={choice === "both_lr"}
@@ -168,7 +168,7 @@
               先左后右
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               wrap
               aria-pressed={choice === "both_rl"}
@@ -184,7 +184,7 @@
 
   <!-- 3. Continuously visible Editable Result area (never hidden behind tabs) -->
   <section
-    class="space-y-2 rounded-lg border border-git-border bg-git-panel p-2.5"
+    class="space-y-2 rounded-lg border bg-background p-2.5"
     aria-label="移动端常驻合并结果预览与编辑"
     data-testid="git-conflict-mobile-result"
   >
@@ -203,7 +203,7 @@
     {#if draft.manualEdited && progress.unresolvedConflicts > 0 && !progress.hasConflictMarkers}
       <div class="flex flex-wrap items-center justify-between gap-2">
         <span class="text-muted-foreground">已直接修改结果文本：</span>
-        <Button size="xs" variant="outline" wrap onclick={onConfirmManualEdits}>
+        <Button size="sm" variant="outline" wrap onclick={onConfirmManualEdits}>
           <IconCheck aria-hidden="true" />
           确认手动编辑已解决冲突
         </Button>
@@ -211,7 +211,7 @@
     {/if}
 
     <div
-      class="rounded-md border border-git-border bg-git-surface p-1.5 focus-within:ring-2 focus-within:ring-ring/40"
+      class="rounded-md border bg-background p-1.5 focus-within:ring-2 focus-within:ring-ring/40"
     >
       <Textarea
         variant="bare"

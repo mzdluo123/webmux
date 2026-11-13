@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { MediaQuery } from "svelte/reactivity";
   import * as Tabs from "$lib/components/ui/tabs";
   import type {
     GitBranchItem,
@@ -47,7 +46,7 @@
   import GitWorkbenchShellDialogs from "./GitWorkbenchShellDialogs.svelte";
   import GitWorkbenchShellHeader from "./GitWorkbenchShellHeader.svelte";
   import GitWorkbenchShellLogTab from "./GitWorkbenchShellLogTab.svelte";
-  import GitWorkbenchStatusBar from "./GitWorkbenchStatusBar.svelte";
+  import GitOperationsPopover from "./GitOperationsPopover.svelte";
 
   let {
     view = $bindable(),
@@ -69,7 +68,6 @@
     onOpenWorktree?: (worktreeId: string, path: string) => void;
   } = $props();
 
-  const desktop = new MediaQuery("(min-width: 1280px)");
   let draftConflict = $derived(initialDraftConflict);
   let draftRevision = $derived(initialDraftConflict?.remoteDraft.revision ?? 0);
   let reworkItems = $derived([...initialReworkItems]);
@@ -196,10 +194,23 @@
 </script>
 
 <div
-  class="git-workbench flex h-full min-h-0 min-w-0 flex-col border border-git-border bg-git-surface text-foreground"
+  class="git-workbench flex h-full min-h-0 min-w-0 flex-col border bg-background text-foreground"
   data-testid="git-workbench"
 >
+  {#snippet operationLedger()}
+    <GitOperationsPopover
+      worktreePath={view.context.worktreePath}
+      statusBanner={view.statusBanner}
+      lastFetchedAt={view.lastFetchedAt}
+      activeOperation={view.activeOperation ?? null}
+      operations={view.operations ?? []}
+      onInspectCommit={inspectCommitInLog}
+      onReloadVerify={reloadVerifyOutcome}
+    />
+  {/snippet}
+
   <GitWorkbenchShellHeader
+    operations={operationLedger}
     context={view.context}
     branches={view.branches}
     branchFilter={view.branchFilter}
@@ -259,13 +270,10 @@
     <Tabs.Root
       value={view.mode}
       onValueChange={setMode}
-      orientation={desktop.current ? "vertical" : "horizontal"}
+      orientation="horizontal"
       class="min-h-0 min-w-0 flex-1"
     >
-      <GitWorkbenchModeTabs
-        desktop={desktop.current}
-        stashCount={view.stashes?.length ?? 0}
-      />
+      <GitWorkbenchModeTabs stashCount={view.stashes?.length ?? 0} />
 
       <Tabs.Content
         value="log"
@@ -466,16 +474,6 @@
       </Tabs.Content>
     </Tabs.Root>
   {/if}
-
-  <GitWorkbenchStatusBar
-    worktreePath={view.context.worktreePath}
-    statusBanner={view.statusBanner}
-    lastFetchedAt={view.lastFetchedAt}
-    activeOperation={view.activeOperation ?? null}
-    operations={view.operations ?? []}
-    onInspectCommit={inspectCommitInLog}
-    onReloadVerify={reloadVerifyOutcome}
-  />
 
   <GitWorkbenchShellDialogs
     bind:view

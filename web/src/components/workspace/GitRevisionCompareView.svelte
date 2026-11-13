@@ -31,11 +31,11 @@
 </script>
 
 <div
-  class="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
   data-testid="git-revision-compare-view"
 >
   <div
-    class="grid grid-cols-1 gap-2.5 border-b border-git-border bg-git-panel p-3 text-xs sm:grid-cols-2"
+    class="grid grid-cols-1 gap-2.5 border-b bg-background p-3 text-xs sm:grid-cols-2"
   >
     <div class="space-y-1.5">
       <Label for="git-rev-compare-select">选择基准分支 / 标签 / 提交</Label>

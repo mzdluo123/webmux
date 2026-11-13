@@ -33,7 +33,7 @@
       <div class="flex min-w-0 items-center gap-1.5">
         <Badge variant="info">已选 {selectedItems.length} 项</Badge>
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           disabled={busy}
           onclick={onClearSelection}
@@ -45,7 +45,7 @@
 
       <div class="flex min-w-0 flex-wrap items-center gap-1">
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           disabled={busy}
           onclick={() => {
@@ -58,7 +58,7 @@
           暂存已选 ({selectedItems.length})
         </Button>
         <Button
-          size="xs"
+          size="sm"
           variant="destructive-outline"
           disabled={busy}
           onclick={() => {

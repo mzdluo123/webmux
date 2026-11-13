@@ -44,7 +44,7 @@
 
   <div class="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2">
     <div
-      class="flex min-w-0 flex-col justify-between gap-3 rounded-lg border border-git-border bg-git-panel p-3"
+      class="flex min-w-0 flex-col justify-between gap-3 rounded-lg border bg-background p-3"
     >
       <div class="space-y-1.5">
         <div class="flex flex-wrap items-center gap-1.5">
@@ -59,7 +59,7 @@
         </p>
         {#if detail.left.present && !detail.left.binary && detail.left.text}
           <pre
-            class="max-h-40 overflow-auto rounded-md border border-git-border bg-git-surface p-2 font-mono text-xs whitespace-pre-wrap break-all text-foreground">{detail
+            class="max-h-40 overflow-auto rounded-md border bg-background p-2 font-mono text-xs whitespace-pre-wrap break-all text-foreground">{detail
               .left.text}</pre>
         {/if}
       </div>
@@ -67,7 +67,7 @@
       <div>
         <Button
           size="sm"
-          variant="git-primary"
+          variant="default"
           wrap
           disabled={!detail.left.present || resolving}
           onclick={() => onResolveVariant("choose_left")}
@@ -80,7 +80,7 @@
     </div>
 
     <div
-      class="flex min-w-0 flex-col justify-between gap-3 rounded-lg border border-git-border bg-git-panel p-3"
+      class="flex min-w-0 flex-col justify-between gap-3 rounded-lg border bg-background p-3"
     >
       <div class="space-y-1.5">
         <div class="flex flex-wrap items-center gap-1.5">
@@ -95,7 +95,7 @@
         </p>
         {#if detail.right.present && !detail.right.binary && detail.right.text}
           <pre
-            class="max-h-40 overflow-auto rounded-md border border-git-border bg-git-surface p-2 font-mono text-xs whitespace-pre-wrap break-all text-foreground">{detail
+            class="max-h-40 overflow-auto rounded-md border bg-background p-2 font-mono text-xs whitespace-pre-wrap break-all text-foreground">{detail
               .right.text}</pre>
         {/if}
       </div>
@@ -117,7 +117,7 @@
   </div>
 
   <div
-    class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-git-border bg-git-surface p-3"
+    class="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background p-3"
   >
     <div class="min-w-0 space-y-0.5">
       <p class="font-medium text-foreground">

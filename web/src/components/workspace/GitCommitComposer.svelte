@@ -168,7 +168,7 @@
 </script>
 
 <div
-  class="space-y-1.5 border-t border-git-border bg-git-panel p-2.5"
+  class="space-y-1.5 border-t bg-background p-2.5"
   data-testid="git-commit-composer"
 >
   <div
@@ -226,7 +226,7 @@
           >当前处于游离 HEAD，建议先从当前 HEAD 新建并切换分支后再提交。</span
         >
         {#if onCreateBranchFromHead}
-          <Button size="xs" variant="outline" onclick={onCreateBranchFromHead}>
+          <Button size="sm" variant="outline" onclick={onCreateBranchFromHead}>
             <IconGitBranch aria-hidden="true" />
             从当前 HEAD 新建分支…
           </Button>
@@ -251,7 +251,7 @@
   <Textarea
     rows={2}
     value={parsed.body}
-    placeholder="补充提交正文描述（Body，选填）…"
+    placeholder="补充提交正文说明（选填）…"
     aria-label="补充正文描述"
     disabled={readonlyMode}
     oninput={(e) => updateBody(e.currentTarget.value)}
@@ -285,8 +285,8 @@
     <div class="min-w-0">
       {#if !readonlyMode && stagedCount > 0 && canAssistCommitDraft && onRequestCommitAssist}
         <Button
-          size="xs"
-          variant="ghost"
+          size="default"
+          variant="outline"
           onclick={onRequestCommitAssist}
           aria-label="让会话协助起草说明"
           title="将已暂存文件摘要发送到会话草稿框协助起草提交说明"
@@ -322,7 +322,7 @@
         提交并推送…
       </Button>
       <Button
-        variant="git-primary"
+        variant="default"
         disabled={!canPreviewCommit}
         title={disabledHint || undefined}
         onclick={() => onOpenCommitPreview(false)}

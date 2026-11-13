@@ -121,7 +121,7 @@
 
 {#snippet stashListSection()}
   <section
-    class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+    class="flex h-full min-h-0 min-w-0 flex-col bg-background"
     aria-label="仓库贮藏列表"
     data-testid="git-stash-list-pane"
   >
@@ -134,8 +134,8 @@
       <div class="flex shrink-0 items-center gap-1">
         {#if onOpenCreate}
           <Button
-            size="xs"
-            variant="git-primary"
+            size="sm"
+            variant="default"
             disabled={readonlyMode}
             title={readonlyMode
               ? "无工作树只读模式下无法创建贮藏，请先选择工作树"
@@ -163,7 +163,7 @@
     </GitPanelToolbar>
 
     {#if readonlyMode}
-      <div class="border-b border-git-border bg-git-panel p-2.5">
+      <div class="border-b bg-background p-2.5">
         <InlineNotice tone="info">
           当前处于无工作树只读模式，可检视所有贮藏详情与差异或丢弃旧条目；如需新建、应用或弹出贮藏，请切换到具体工作树。
         </InlineNotice>
@@ -193,7 +193,7 @@
         {#each entries as item (item.oid)}
           {@const selected = activeEntry?.oid === item.oid}
           <ListButton
-            variant="git-row"
+            variant="compact-row"
             aria-selected={selected}
             data-stash-row={item.stashRef}
             onclick={() => {
@@ -235,13 +235,11 @@
 {/snippet}
 
 {#snippet stashDetailHeader(entry: GitStashEntry, isMobile: boolean)}
-  <div
-    class="space-y-2 border-b border-git-border bg-git-panel px-3 py-2 text-xs"
-  >
+  <div class="space-y-2 border-b bg-background px-3 py-2 text-xs">
     {#if isMobile}
       <div>
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           onclick={() => (mobileStepOverride = null)}
         >
@@ -272,8 +270,8 @@
       <div class="flex flex-wrap items-center gap-1.5">
         {#if onOpenApply}
           <Button
-            size="xs"
-            variant="git-primary"
+            size="sm"
+            variant="default"
             wrap
             disabled={readonlyMode}
             title={readonlyMode
@@ -286,7 +284,7 @@
             安全弹出… (Pop)
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             wrap
             disabled={readonlyMode}
@@ -302,7 +300,7 @@
         {/if}
         {#if onOpenDrop}
           <Button
-            size="xs"
+            size="sm"
             variant="destructive-outline"
             wrap
             onclick={() => onOpenDrop(entry)}
@@ -346,7 +344,7 @@
           {@const isSelected =
             activeFile && stashFileKey(activeFile) === stashFileKey(file)}
           <ListButton
-            variant="git-row"
+            variant="compact-row"
             aria-selected={Boolean(isSelected)}
             data-stash-file-row={path}
             data-untracked={file.untracked}
@@ -404,7 +402,7 @@
 {/snippet}
 
 <div
-  class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
   data-testid="git-stash-pane"
 >
   {#if desktop.current}
@@ -445,7 +443,7 @@
   {:else if mobileStep === "list" || !activeEntry}
     {@render stashListSection()}
   {:else if mobileStep === "detail"}
-    <div class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface">
+    <div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
       {@render stashDetailHeader(activeEntry, true)}
       {@render stashFilesList(true)}
     </div>

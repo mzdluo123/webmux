@@ -71,7 +71,7 @@
 </script>
 
 <div class="flex min-w-0 flex-col gap-2.5">
-  <div class="rounded-lg border border-git-border bg-git-surface p-2">
+  <div class="rounded-lg border bg-background p-2">
     <div class="flex flex-wrap items-center justify-between gap-2 px-1 pb-1">
       <span class="text-xs font-semibold text-foreground">
         选中提交变更文件 ({resolved.files.length})
@@ -112,7 +112,7 @@
         {#each resolved.files as file (file.newPath || file.oldPath)}
           {@const fPath = file.newPath || file.oldPath}
           <ListButton
-            variant="git-row"
+            variant="compact-row"
             aria-selected={(activeFile?.newPath || activeFile?.oldPath) ===
               fPath}
             onclick={() => onSelectFile(fPath)}
@@ -131,7 +131,7 @@
 
   {#if activeFile}
     <div
-      class="code-panel flex h-44 min-w-0 flex-col overflow-hidden rounded-lg border border-git-border bg-git-surface sm:h-52"
+      class="code-panel flex h-44 min-w-0 flex-col overflow-hidden rounded-lg border bg-background sm:h-52"
       data-testid="git-push-file-diff"
     >
       {#if diffPhase === "loading"}
@@ -159,7 +159,7 @@
 
   {#if detail}
     <div
-      class="rounded-lg border border-git-border bg-git-panel p-2.5 text-xs"
+      class="rounded-lg border bg-background p-2.5 text-xs"
       data-testid="git-push-commit-meta"
     >
       <div

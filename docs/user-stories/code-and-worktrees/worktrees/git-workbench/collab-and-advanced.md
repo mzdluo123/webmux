@@ -68,7 +68,7 @@
   作为日常封存工作区、修正本地提交、维护引用远程并查证代码演进的使用者，我希望在工作台直接使用独立 `Stash` 视图与安全两步 `Pop`、受推送保护的 `Amend`/作者/`Sign-off`、分支/标签/远程维护，以及跨重命名单文件历史与逐行 `Blame`。
   验收要点：
   - 独立仓库级 `Stash` 视图与安全两步弹出（绝不因冲突丢弃贮藏）：
-    - 顶栏模式切换支持 `贮藏 (Stash)`（`?view=stash`）及提交面板快捷创建入口，因 `refs/stash` 归属仓库共享栈而在只读仓库与各工作树一致列出 `oid`、`stashRef`、`branch`、`baseOid` 与 `hasUntracked`；
+    - 顶栏模式切换支持 `贮藏`（`?view=stash`）及提交面板快捷创建入口，因 `refs/stash` 归属仓库共享栈而在只读仓库与各工作树一致列出 `oid`、`stashRef`、`branch`、`baseOid` 与 `hasUntracked`；
     - 新建贮藏采用两阶段预览确认，支持自定义说明、`-u`（包含未跟踪文件）与 `--keep-index`，活跃会话存在时要求显式勾选知晓确认；
     - 贮藏详情合并展示已跟踪改动（`base -> S`）与第 3 父节点未跟踪文件（`S^3`，标注 `未跟踪 (S^3)`），复用 Pierre `CodeDiffReader` 只读检视差异；
     - `Apply` 与 `Pop` 支持 `--index` 恢复原暂存态：
@@ -99,7 +99,7 @@
     - 与只改 `.git/index` 的 `Unstage` 严格分离：仅面向 `Unstaged` 与 `Untracked` 开放单文件、左侧列表多选文件（含已跟踪 + 未跟踪混合批量）、单 Hunk 与选中行四级丢弃范围，**绝不触碰已暂存索引条目**；
     - 两阶段预览确认（`POST .../git/discard-preview` → `POST .../git/discard`）列出将被覆盖或删除的路径及活跃会话警告（有运行中会话时强制要求 `acknowledgeSessions`）；
     - 执行写盘前在仓库锁下逐一重算目标磁盘文件最新 SHA-256，若预览打开后文件被终端或 CLI Agent 修改则立即返回 `409 stale` 拦截误覆盖，支持一键按最新身份刷新预览；
-    - 改写或删除前自动将原工作区内容保存至有界私有恢复提交 `refs/webmux/discard-recovery/<operationId>`（每仓保留最近 20 条，删树同步清理），在持久操作账本与底部状态栏披露 `recoveryOid` 及 `git restore --source=<oid> --worktree -- <paths>` 恢复命令；
+    - 改写或删除前自动将原工作区内容保存至有界私有恢复提交 `refs/webmux/discard-recovery/<operationId>`（每仓保留最近 20 条，删树同步清理），在持久操作账本与顶栏操作账本浮层披露 `recoveryOid` 及 `git restore --source=<oid> --worktree -- <paths>` 恢复命令；
   - 基于可追踪受控 Stash 的三阶段 `Smart Checkout` 与活跃 Agent 会话保护（`UI-08`、`G11`、衔接 `US-J16`）：
     - 当 `SwitchBranchDialog` 仅因未提交改动受阻（无进行中序列冲突、无其他工作树占用）时，在保留绿色推荐按钮 **“改为在新工作树打开”** 的同时提供显式 `Smart Checkout`（`暂存当前改动 -> 切换到目标分支 -> 在目标分支恢复改动`，支持勾选包含未跟踪文件）；
     - **活跃 CLI Agent 会话门禁**：当工作树存在运行中会话时，“改为在新工作树打开”始终保持主绿色默认入口，原地 `Smart Checkout` 默认收纳在风险说明折叠区并要求显式勾选会话知晓确认；

@@ -65,12 +65,12 @@
   );
 </script>
 
-<div class="space-y-2 border-b border-git-border bg-git-panel px-2.5 py-2">
+<div class="space-y-2 border-b bg-background px-2.5 py-2">
   <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       {#if !desktop && onOpenRefDrawer}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           aria-label="打开引用筛选抽屉"
           onclick={onOpenRefDrawer}
@@ -208,7 +208,7 @@
       <span class="min-w-0 truncate text-xs text-muted-foreground">
         已启用筛选{#if branchFilter}（引用：{branchFilter}）{/if}
       </span>
-      <Button size="xs" variant="ghost" onclick={onClearFilters}>
+      <Button size="sm" variant="ghost" onclick={onClearFilters}>
         <IconX aria-hidden="true" />
         重置全部筛选
       </Button>
@@ -218,7 +218,7 @@
   {#if refsChanged && onRefreshHistory}
     <InlineNotice tone="info">
       <span class="mr-2">分支引用已更新，可刷新获取最新提交图。</span>
-      <Button size="xs" variant="outline" onclick={onRefreshHistory}>
+      <Button size="sm" variant="outline" onclick={onRefreshHistory}>
         刷新历史
       </Button>
     </InlineNotice>
@@ -228,12 +228,12 @@
     <InlineNotice tone="warning">
       <span class="mr-2">{selectionNotice.message}</span>
       {#if selectionNotice.canJumpHead && onJumpToHead}
-        <Button size="xs" variant="outline" onclick={onJumpToHead}>
+        <Button size="sm" variant="outline" onclick={onJumpToHead}>
           定位当前 HEAD
         </Button>
       {/if}
       {#if onDismissSelectionNotice}
-        <Button size="xs" variant="ghost" onclick={onDismissSelectionNotice}>
+        <Button size="sm" variant="ghost" onclick={onDismissSelectionNotice}>
           关闭
         </Button>
       {/if}
@@ -248,7 +248,7 @@
         >，请在目标提交菜单点击「与起点比较」。
       </span>
       {#if onCancelCompareMark}
-        <Button size="xs" variant="ghost" onclick={onCancelCompareMark}>
+        <Button size="sm" variant="ghost" onclick={onCancelCompareMark}>
           取消
         </Button>
       {/if}

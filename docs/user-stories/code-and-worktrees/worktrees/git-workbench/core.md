@@ -24,6 +24,7 @@
   - 访问与错误日志不输出文件内容、Diff 正文、提交消息全文或凭据；前端 `web/src/contracts/git-api-schemas.ts` 与 `web/src/platform/git-api.ts` 复用统一 `api()`/`apiBlob()`/`APIError` 与 wire 快照校验，不修改既有 `/api/sessions/{id}/code/*` 行为。
 - **US-J20 独立 `/git` 工作台路由、多入口联动与跨视图状态隔离**：作为同时管理多份工作树与会话的使用者，我希望在零活跃会话或任一会话旁通过独立 URL 打开一等公民 Git 工作台，在历史、提交与分支视图间自由往返而不丢阅读或草稿状态，并能无损返回原会话。
   验收要点：
+  - 所有视口使用顶部水平下划线标签「历史」「提交」「分支」「贮藏」，复用 WebMux 原生令牌；同排工具栏控件等高，文件行通过眼睛图标切换审阅状态；已审阅态仅改变图标与主题色，保持同尺寸，不显示描边填充块。
   - 路由支持 `/git`、`/git/{repositoryId}`（只读仓库模式）与 `/git/{repositoryId}/worktrees/{worktreeId}`（工作树读写模式），并解析深链查询参数 `view=log|commit|branches|stash`、`scope=all|branch|task|to-push|incoming`、`branch`、`commit`、`q`、`author`、`since`、`until`、`path` 与 `returnSession`；
   - 显式 URL 查询参数优先级始终高于本地记忆，浏览器前进/后退仅改变查询串时响应式同步当前视图与筛选，不销毁单实例 `AppShell` 或重复建立 `/ws/sessions` 连接；在 `/git/...` 页面切换侧栏“工作台 / 聊天”模式保持当前 `/git/...` 路由；
   - 零活跃会话下可通过侧栏仓库“⋯”菜单、首页仓库菜单、仓库面板头部“Git 工作台”按钮或直接访问 URL 打开工作台，全程不创建任何伪终端会话；创建并删除最后一个会话不会卸载或中断当前 `/git` 页面；
@@ -33,7 +34,7 @@
     - 会话代码工作区头部“在 Git 中查看”携带 `returnSession={sessionId}` 跳转并在顶栏提供“返回会话”；若原会话已退出、归档或删除则诚实提示状态，工作台继续独立可用；
   - 顶栏语义分离与工作树写门禁：
     - 顶栏左侧固定展示操作目标（仓库切换器、工作树切换器与当前检出分支/`HEAD` 徽标），与历史视图的 `branchFilter`（“历史筛选：…”徽标）严格分离；
-    - 只读仓库模式或 `bare` 工作树进入“提交 (Commit)”视图时显式要求选择可写工作树，绝不静默落到任意工作树；
+    - 只读仓库模式或 `bare` 工作树进入“提交”视图时显式要求选择可写工作树，绝不静默落到任意工作树；
     - 工作树缺失、待清理或已锁定时禁用写操作并提供管理/修复或只读切换入口；
   - 跨视图、跨工作树与跨设备尺寸隔离记忆：
     - 按 `(hostId, repositoryId, worktreeId)` 隔离保留选中提交、父提交对比、筛选条件、列表与 Diff 滚动位置、已看标记与本地提交草稿，`Log -> Commit -> Branches -> Log` 往返不丢状态，切换工作树或仓库立即清空确认码与跨目录草稿；
@@ -52,7 +53,7 @@
     - 基于真实父提交 `%P` 渲染节点、分支/标签/`HEAD` 徽标、`direct` 实线边、`indirect` 虚线边（当路径或关键字过滤省略中间节点时额外显示“筛选省略中间节点”）及页尾 `boundary` 延续短边；
     - 滚动触底或点击“加载更多历史”通过不透明 `cursor` 追加下一页且不重排已渲染行；当分页或刷新返回 `refsChanged: true` 时给出非阻塞“分支引用已更新，可刷新”提示；
   - 右上变更文件、右下提交详情与合并父节点切换：
-    - 右上“变更文件”展示状态徽标（`A`/`M`/`D`/`R`/`C`/`T`）、重命名路径（`oldPath → newPath`）、二进制标记与按路径二次过滤，支持 `ArrowUp`/`ArrowDown`/`Home`/`End` 键盘导航、单击在底部预览、`Enter` 或双击放大至主工作区；
+    - 右上“变更文件”复用会话代码列表的状态图标与语义色（新增、修改、删除、重命名、复制、类型变更）、重命名路径（`oldPath → newPath`）、二进制标记与按路径二次过滤，支持 `ArrowUp`/`ArrowDown`/`Home`/`End` 键盘导航、单击在底部预览、`Enter` 或双击放大至主工作区；
     - 右下“提交详情”展示完整消息（标题与保留换行的正文）、作者与提交者（`distinctCommitter` 为真时分开列出）、完整 OID 复制、可点击跳转的父提交 OID 与全部引用徽标；合并提交（`parents.length >= 2`）提供显式父节点切换器并联动刷新变更文件与差异；
   - Pierre `CodeDiffReader` 复用、任意两版本比较与异步竞态隔离：
     - 底部可折叠与高度可拖拽（`140–640px`）差异栏及主工作区放大态统一复用 Pierre `CodeDiffReader`，保留语法高亮 worker、文件内查找、行号跳转、自动换行与字号缩放、Unified/Split 切换、变更前后完整快照预览及原始文件下载；
@@ -93,7 +94,8 @@
     - “提交并推送…”两步独立恢复：
       - 第一步本地提交成功后若用户取消推送或推送失败（如远端非快进超前、鉴权失败），明确报告“本地已提交（`<shortOid>`），推送未完成/已取消”及原因并完整保留本地提交；
       - 直接提供“获取远程 (Fetch)”、“快进更新… (Update)”、“合并远端分支… (Merge)”与“变基到远端分支… (Rebase)”恢复入口（US-J26），全程绝不提供 `--force`、`--no-verify` 或 `git add -A`。
-- **US-J23 持久 Git 操作账本、重连幂等对账与底部状态栏闭环**：作为在网络波动、刷新页面或升级重启服务期间执行 Git 写操作的使用者，我希望全部受控 Git 写操作（提交、推送、获取远程、快进、切分支及合并/变基/遴选/还原/继续/中止）均记录持久 `operationId` 并幂等去重、启动对账，且在底部状态栏可查。
+- **US-J23 持久 Git 操作账本、重连幂等对账与顶栏操作账本浮层闭环**：
+  作为在网络波动、刷新页面或升级重启服务期间执行 Git 写操作的使用者，我希望全部受控 Git 写操作（提交、推送、获取远程、快进、切分支及合并/变基/遴选/还原/继续/中止）均记录持久 `operationId` 并幂等去重、启动对账，且在顶栏操作账本浮层可查。
   验收要点：
   - 预检凭证与持久操作实例职责解耦：
     - `confirmationId` 仅负责两阶段预览快照绑定（防过期/防错库）；
@@ -109,9 +111,9 @@
     - 服务启动加载遗留 `pending`/`running` 条目时，绝不重新执行原 Git 写命令或执行任何 `git reset`；
     - `commit` 结合 `GIT_REFLOG_ACTION=webmux-commit:<operationId>` 与 `{oid, parents, tree}` 核对收敛为 `succeeded`、`needs_review`、`failed` 或 `uncertain`；
     - `push`、`fast_forward` 与 `switch` 依据本地跟踪引用、上游配置及工作树 `HEAD`/洁净度只读收敛；`merge`、`rebase`、`cherry_pick`、`revert`、`continue`、`abort` 结合 Git 序列目录状态、`ORIG_HEAD` 与 `refs/webmux/recovery/<worktreeId>/<kind>` 恢复锚点只读收敛；`fetch` 中断统一标记为 `uncertain`；
-  - 底部 `24–28px` 状态栏、断线自动查询恢复与 `uncertain` 安全门禁：
-    - 工作台底部常驻 `24–28px` 状态栏（桌面、平板与手机视口均不膨胀或横向溢出），展示工作树路径、最近 `FETCH` 时间、当前阶段（`等待校验` / `执行中` / `重连核对中`）或最近操作徽标与摘要；
-    - 点击状态栏触发器展开碰撞内边距受控的 `Popover`，查看最近操作列表、`op:` 实例 ID、`reviewReasons` 与脱敏输出；
+  - 顶栏操作账本浮层、断线自动查询恢复与 `uncertain` 安全门禁：
+    - 顶栏入口点击展开操作账本，浮层展示工作树路径与最近 `FETCH` 时间；进行中或异常时入口显示当前阶段（`等待校验` / `执行中` / `重连核对中`）或最近操作徽标与摘要；
+    - 点击顶栏操作账本触发器展开碰撞内边距受控的 `Popover`，查看最近操作列表、`op:` 实例 ID、`reviewReasons` 与脱敏输出；
     - 请求超时或网络中断时前端优先通过 `GET .../git/operations` 按 `clientRequestId`/`operationId` 轮询恢复终态，刷新页面或跨设备打开时自动恢复未确认的 `needs_review` / `uncertain` 横幅；
     - 处于未核实的 `uncertain` 状态时禁用盲目一键重新提交，引导先点击“刷新历史与暂存区核实”。
 
@@ -143,8 +145,9 @@
   - 宽幅推送确认：[推送控制器](../../../../../web/src/hooks/workspace/git-push-controller.svelte.ts)、[宽幅推送框](../../../../../web/src/components/workspace/GitPushDialog.svelte)；
   - 单测与浏览器测试：[分支与审阅单测](../../../../../web/test/git-branches-and-staging.test.ts)、[提交推送浏览器测试](../../../../../web/test/browser/GitWorkbenchCommitPush.test.ts)；
   - 多视口与端到端测试：[Storybook 多视口测试](../../../../../web/test/storybook/git-workbench.spec.ts)、[提交/分支/推送 E2E](../../../../../web/test/e2e/git-workbench-commit-push.spec.ts)。
-- 持久 Git 操作账本、重连幂等对账与底部状态栏：
+- 持久 Git 操作账本、重连幂等对账与顶栏操作账本浮层：
   - 服务端账本与对账：[持久化目录登记](../../../../../internal/statefile/catalog.go)、[操作账本存储](../../../../../internal/workspace/operations_store.go)、[启动对账](../../../../../internal/workspace/operations_reconcile.go)、[幂等重放](../../../../../internal/workspace/operations_replay.go)；
   - 服务端测试：[工作区幂等与崩溃对账测试](../../../../../internal/workspace/operations_test.go)、[操作查询与 409 API 测试](../../../../../internal/api/git_operations_test.go)；
-  - 前端控制器与组件：[操作领域模型](../../../../../web/src/domains/workspace/git-operations-model.ts)、[操作与重连控制器](../../../../../web/src/hooks/workspace/git-operations-controller.svelte.ts)、[底部状态栏与历史弹层](../../../../../web/src/components/workspace/GitWorkbenchStatusBar.svelte)；
-  - 测试验证：[操作模型单测](../../../../../web/test/git-operations.test.ts)、[状态栏与重连浏览器测试](../../../../../web/test/browser/GitWorkbenchOperations.test.ts)、[持久账本与断线恢复 E2E](../../../../../web/test/e2e/git-workbench-operations.spec.ts)。
+  - 前端控制器与组件：[操作领域模型](../../../../../web/src/domains/workspace/git-operations-model.ts)、[操作与重连控制器](../../../../../web/src/hooks/workspace/git-operations-controller.svelte.ts)；
+  - 账本入口：[顶栏操作账本浮层](../../../../../web/src/components/workspace/GitOperationsPopover.svelte)；
+  - 测试验证：[操作模型单测](../../../../../web/test/git-operations.test.ts)、[操作账本与重连浏览器测试](../../../../../web/test/browser/GitWorkbenchOperations.test.ts)、[持久账本与断线恢复 E2E](../../../../../web/test/e2e/git-workbench-operations.spec.ts)。

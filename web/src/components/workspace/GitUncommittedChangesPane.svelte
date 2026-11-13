@@ -158,10 +158,10 @@
       : [...batchSelectedIds, item.id];
   }
   const sections: { key: GitChangeGroup; title: string }[] = [
-    { key: "conflicted", title: "冲突 (Conflicts)" },
-    { key: "staged", title: "已暂存 (Staged · Git index)" },
-    { key: "unstaged", title: "未暂存修改 (Unstaged)" },
-    { key: "untracked", title: "未跟踪文件 (Untracked)" },
+    { key: "conflicted", title: "冲突" },
+    { key: "staged", title: "已暂存" },
+    { key: "unstaged", title: "未暂存" },
+    { key: "untracked", title: "未跟踪" },
   ];
 
   const visibleEntries = $derived.by(() => {
@@ -218,7 +218,7 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="工作树变更与提交"
 >
   <GitPanelToolbar>
@@ -228,7 +228,7 @@
     <div class="flex shrink-0 items-center gap-1">
       {#if !readonlyMode && onOpenStashCreate}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           disabled={stagingBusy ||
             changes.length === 0 ||
@@ -335,7 +335,7 @@
         <div class="flex min-w-0 flex-wrap items-center gap-1">
           <div class="min-w-0 basis-32 flex-1">
             <ListButton
-              variant="git-section"
+              variant="section-header"
               aria-expanded={isOpen}
               onclick={() => toggleGroup(sec.key)}
             >
@@ -355,7 +355,7 @@
           {#if !readonlyMode && list.length > 0 && onStageGroup}
             {#if sec.key === "staged"}
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 disabled={stagingBusy}
                 onclick={() => onStageGroup("unstage", "staged")}
@@ -365,7 +365,7 @@
             {:else if sec.key === "unstaged" || sec.key === "untracked"}
               {#if onDiscardChanges}
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="ghost"
                   disabled={stagingBusy}
                   onclick={() =>
@@ -379,7 +379,7 @@
                 </Button>
               {/if}
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 disabled={stagingBusy}
                 onclick={() =>

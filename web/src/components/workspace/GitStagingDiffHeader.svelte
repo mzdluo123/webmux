@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconListCheck from "~icons/tabler/list-check";
@@ -56,18 +57,10 @@
 </script>
 
 <header
-  class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel px-2.5 py-1.5"
+  class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-background px-2.5 py-1.5"
 >
   <div class="flex min-w-0 basis-48 flex-1 flex-wrap items-center gap-1.5">
-    <Badge
-      variant={change.group === "conflicted"
-        ? "destructive"
-        : change.group === "staged"
-          ? "info"
-          : "outline"}
-    >
-      {change.status}
-    </Badge>
+    <GitFileStatusIcon status={change.status} group={change.group} />
     <Badge variant="outline" class="max-w-full">
       <span class="truncate font-mono"
         >{endpoints.left} → {endpoints.right}</span
@@ -112,7 +105,7 @@
 
     {#if canStageLines}
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         aria-pressed={linePickerOpen}
         onclick={onToggleLinePicker}
@@ -129,7 +122,7 @@
 
     {#if canDiscardCurrentFile && onDiscardFile}
       <Button
-        size="xs"
+        size="sm"
         variant="destructive-outline"
         disabled={busy || stale}
         onclick={() => onDiscardFile(change.id, change.path)}
@@ -142,7 +135,7 @@
 
     {#if stageMode === "stage"}
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         disabled={busy || stale}
         onclick={() => onStageChange(change.id)}
@@ -152,7 +145,7 @@
       </Button>
     {:else if stageMode === "unstage"}
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         disabled={busy || stale}
         onclick={() => onUnstageChange(change.id)}

@@ -62,7 +62,7 @@
       />
     </div>
 
-    <div class="space-y-2 rounded-lg border border-git-border bg-git-panel p-3">
+    <div class="space-y-2 rounded-lg border bg-background p-3">
       <Label class="items-start">
         <Checkbox
           checked={includeUntracked}
@@ -98,7 +98,7 @@
       </p>
     {:else if preview}
       <div
-        class="grid grid-cols-1 gap-1.5 rounded-lg border border-git-border bg-git-surface p-3 text-xs sm:grid-cols-2"
+        class="grid grid-cols-1 gap-1.5 rounded-lg border bg-background p-3 text-xs sm:grid-cols-2"
       >
         <p class="wrap-anywhere">
           <span class="text-muted-foreground">当前分支：</span>

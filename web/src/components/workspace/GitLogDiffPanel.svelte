@@ -8,7 +8,8 @@
   import IconMinimize from "~icons/tabler/minimize";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import GitDiffStyleSwitch from "./GitDiffStyleSwitch.svelte";
+  import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import type { GitCommitFile } from "../../contracts/git-workbench-schemas";
   import {
     type ActiveDiffReworkSelection,
@@ -156,7 +157,7 @@
 {#snippet snapshotSideButtons()}
   {#if sideDoc && logDiff}
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       onclick={() => logDiff.closeSnapshotSide()}
     >
@@ -165,7 +166,7 @@
   {:else if logDiff && rawDiff && !collapsed}
     {#if rawDiff.old.source !== "empty" && rawDiff.old.kind === "text"}
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         onclick={() => void logDiff.openSnapshotSide("before")}
       >
@@ -175,7 +176,7 @@
     {/if}
     {#if rawDiff.new.source !== "empty" && rawDiff.new.kind === "text"}
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         onclick={() => void logDiff.openSnapshotSide("after")}
       >
@@ -193,7 +194,7 @@
     </Badge>
   {/if}
   {#if fileStatus}
-    <Badge variant="secondary" class="shrink-0">{fileStatus}</Badge>
+    <GitFileStatusIcon status={fileStatus} />
   {/if}
   <span
     class="min-w-0 truncate font-mono text-xs font-medium text-foreground"
@@ -212,18 +213,18 @@
 {/snippet}
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="历史文件差异视图"
   data-testid="git-log-diff-panel"
   data-diff-presentation={presentation}
 >
   {#if presentation === "mobile"}
     <header
-      class="flex min-w-0 flex-col gap-1.5 border-b border-git-border bg-git-panel px-2.5 py-1.5"
+      class="flex min-w-0 flex-col gap-1.5 border-b bg-background px-2.5 py-1.5"
     >
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         {#if onBack}
-          <Button size="xs" variant="ghost" class="shrink-0" onclick={onBack}>
+          <Button size="sm" variant="ghost" class="shrink-0" onclick={onBack}>
             <IconArrowLeft aria-hidden="true" />
             {backLabel}
           </Button>
@@ -242,7 +243,7 @@
         class="flex min-w-[15rem] flex-1 items-center gap-1.5 overflow-hidden"
       >
         {#if presentation === "maximized" && onBack}
-          <Button size="xs" variant="ghost" class="shrink-0" onclick={onBack}>
+          <Button size="sm" variant="ghost" class="shrink-0" onclick={onBack}>
             <IconArrowLeft aria-hidden="true" />
             返回日志列表
           </Button>
@@ -254,20 +255,11 @@
         {@render snapshotSideButtons()}
 
         {#if !collapsed && phase === "ready"}
-          <SegmentedControl.Root
+          <GitDiffStyleSwitch
             value={diffMode}
-            onValueChange={(val) => {
-              if (val === "unified" || val === "split") {
-                onDiffModeChange?.(val);
-              }
-            }}
-            aria-label="历史差异布局模式"
-          >
-            <SegmentedControl.Item value="unified"
-              >Unified</SegmentedControl.Item
-            >
-            <SegmentedControl.Item value="split">Split</SegmentedControl.Item>
-          </SegmentedControl.Root>
+            ariaLabel="历史差异布局模式"
+            onChange={(mode) => onDiffModeChange?.(mode)}
+          />
         {/if}
 
         {#if onToggleMaximized && filePath}

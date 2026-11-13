@@ -77,7 +77,7 @@
           </span>
           {#if onRefreshAfterStale}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={loading || submitting}
               onclick={onRefreshAfterStale}
@@ -96,9 +96,7 @@
         正在核验工作区文件哈希与影响范围…
       </p>
     {:else if preview}
-      <div
-        class="space-y-2 rounded-lg border border-git-border bg-git-panel p-3 text-xs"
-      >
+      <div class="space-y-2 rounded-lg border bg-background p-3 text-xs">
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           <Badge variant="destructive" class="max-w-full">
             <span class="truncate">破坏性写操作</span>
@@ -117,7 +115,7 @@
               将还原覆盖的已跟踪文件 ({preview.trackedOverwritePaths.length})：
             </p>
             <ul
-              class="max-h-28 space-y-0.5 overflow-y-auto rounded-sm border border-git-border bg-git-surface p-2 font-mono"
+              class="max-h-28 space-y-0.5 overflow-y-auto rounded-sm border bg-background p-2 font-mono"
               data-testid="git-discard-tracked-list"
             >
               {#each preview.trackedOverwritePaths as p (p)}
@@ -133,7 +131,7 @@
               将从磁盘删除的未跟踪文件 ({preview.untrackedDeletePaths.length})：
             </p>
             <ul
-              class="max-h-28 space-y-0.5 overflow-y-auto rounded-sm border border-git-border bg-git-surface p-2 font-mono"
+              class="max-h-28 space-y-0.5 overflow-y-auto rounded-sm border bg-background p-2 font-mono"
               data-testid="git-discard-untracked-list"
             >
               {#each preview.untrackedDeletePaths as p (p)}

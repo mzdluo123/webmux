@@ -51,7 +51,7 @@
   onclose={onClose}
 >
   <div class="space-y-3" data-testid="git-tag-create-dialog">
-    <div class="rounded-lg border border-git-border bg-git-panel p-3 text-xs">
+    <div class="rounded-lg border bg-background p-3 text-xs">
       <span class="text-muted-foreground">目标提交：</span>
       <span class="font-mono text-foreground">{targetOid.slice(0, 12)}</span>
       {#if targetLabel}

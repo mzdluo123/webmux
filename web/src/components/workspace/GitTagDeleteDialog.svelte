@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ItemGroup } from "$lib/components/ui/item";
   import { Badge } from "$lib/components/ui/badge";
   import type { GitBranchItem } from "../../contracts/git-workbench-schemas";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
@@ -31,9 +32,7 @@
   onclose={onClose}
 >
   <div class="space-y-3" data-testid="git-tag-delete-dialog">
-    <div
-      class="space-y-1.5 rounded-lg border border-git-border bg-git-panel p-2.5 text-xs"
-    >
+    <ItemGroup variant="panel" class="space-y-1.5">
       <div class="flex flex-wrap items-center gap-1.5">
         <Badge variant="destructive">
           <span class="font-mono">{target.name}</span>
@@ -50,7 +49,7 @@
           {target.tagMessage}
         </p>
       {/if}
-    </div>
+    </ItemGroup>
 
     <GitRecoveryCommandBox
       label="删除后重建命令："

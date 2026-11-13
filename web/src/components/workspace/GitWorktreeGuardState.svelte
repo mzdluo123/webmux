@@ -52,7 +52,7 @@
 {#snippet writableList(showDirty: boolean)}
   <div class="space-y-1">
     {#each writableWorktrees as wt (wt.id)}
-      <ListButton variant="git-row" onclick={() => onSelectWorktree(wt.id)}>
+      <ListButton variant="compact-row" onclick={() => onSelectWorktree(wt.id)}>
         <span
           class={`min-w-0 flex-1 truncate ${showDirty ? "font-medium" : ""}`}
         >
@@ -74,7 +74,7 @@
   data-testid={`git-guard-${kind}`}
 >
   <div
-    class="w-full max-w-lg space-y-4 rounded-lg border border-git-border bg-git-panel p-5 shadow-xs"
+    class="w-full max-w-lg space-y-4 rounded-lg border bg-background p-5 shadow-xs"
   >
     {#if kind === "empty-registry"}
       <div class="space-y-1.5">
@@ -93,7 +93,7 @@
       </div>
       {#if canAddRepository}
         <div class="flex flex-wrap gap-2">
-          <Button size="sm" variant="git-primary" onclick={onAddRepository}>
+          <Button size="sm" variant="default" onclick={onAddRepository}>
             <IconPlus aria-hidden="true" />
             <span>登记已有仓库…</span>
           </Button>
@@ -113,7 +113,7 @@
         <div class="space-y-1">
           {#each repositories as repo (repo.id)}
             <ListButton
-              variant="git-row"
+              variant="compact-row"
               onclick={() => onSelectRepository(repo.id)}
             >
               <span class="min-w-0 flex-1 truncate">{repo.name}</span>
@@ -175,7 +175,7 @@
         </p>
       {/if}
       <div class="flex flex-wrap gap-2">
-        <Button size="sm" variant="git-primary" onclick={onNewWorktree}>
+        <Button size="sm" variant="default" onclick={onNewWorktree}>
           <IconPlus aria-hidden="true" />
           <span>新建工作树…</span>
         </Button>

@@ -28,13 +28,11 @@
   }
 </script>
 
-<div
-  class="space-y-1.5 rounded-lg border border-git-border bg-git-surface p-3 text-xs"
->
+<div class="space-y-1.5 rounded-lg border bg-background p-3 text-xs">
   <div class="flex items-center justify-between gap-2">
     <span class="font-semibold text-foreground">{label}</span>
     <Button
-      size="icon-xs"
+      size="icon-sm"
       variant="ghost"
       aria-label={copyLabel}
       title={copyLabel}

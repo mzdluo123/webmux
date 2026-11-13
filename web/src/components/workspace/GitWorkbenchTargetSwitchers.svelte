@@ -82,7 +82,7 @@
       {:else}
         {#each repositories as repo (repo.id)}
           <ListButton
-            variant="git-row"
+            variant="compact-row"
             aria-selected={repository?.id === repo.id}
             onclick={() => {
               repoPopoverOpen = false;
@@ -97,9 +97,9 @@
         {/each}
       {/if}
       {#if canAddRepository}
-        <div class="border-t border-border pt-1">
+        <div class="border-t pt-1">
           <ListButton
-            variant="git-row"
+            variant="compact-row"
             onclick={() => {
               repoPopoverOpen = false;
               onAddRepository();
@@ -144,7 +144,7 @@
           操作目标工作树
         </p>
         <ListButton
-          variant="git-row"
+          variant="compact-row"
           aria-selected={!worktreeId}
           onclick={() => {
             wtPopoverOpen = false;
@@ -158,7 +158,7 @@
         </ListButton>
         {#each repository.worktrees as wt (wt.id)}
           <ListButton
-            variant="git-row"
+            variant="compact-row"
             aria-selected={worktreeId === wt.id}
             onclick={() => {
               wtPopoverOpen = false;
@@ -177,10 +177,10 @@
             {/if}
           </ListButton>
         {/each}
-        <div class="space-y-0.5 border-t border-border pt-1">
+        <div class="space-y-0.5 border-t pt-1">
           {#if repoAvailable}
             <ListButton
-              variant="git-row"
+              variant="compact-row"
               onclick={() => {
                 wtPopoverOpen = false;
                 onNewWorktree();
@@ -191,7 +191,7 @@
             </ListButton>
           {/if}
           <ListButton
-            variant="git-row"
+            variant="compact-row"
             onclick={() => {
               wtPopoverOpen = false;
               onManageWorktrees();

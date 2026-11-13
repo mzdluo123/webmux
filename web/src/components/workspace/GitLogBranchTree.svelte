@@ -73,7 +73,7 @@
       { id: "favorites", label: "收藏分支", items: grouped.favorites },
       { id: "local", label: "本地分支", items: grouped.local },
       { id: "remote", label: "远端跟踪分支", items: grouped.remote },
-      { id: "tags", label: "标签 (Tags)", items: grouped.tags },
+      { id: "tags", label: "标签", items: grouped.tags },
     ].filter((sec) => sec.items.length > 0),
   );
 
@@ -105,15 +105,15 @@
 </script>
 
 <aside
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-panel"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="历史引用筛选树"
 >
-  <div class="space-y-1.5 border-b border-git-border px-2.5 py-2">
+  <div class="space-y-1.5 border-b px-2.5 py-2">
     <div class="flex items-center justify-between gap-2">
       <span class="text-xs font-semibold text-foreground">引用筛选</span>
       {#if branchFilter}
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           onclick={() => onBranchFilterChange(null)}
         >
@@ -132,7 +132,7 @@
 
   <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-1.5">
     <ListButton
-      variant="git-row"
+      variant="compact-row"
       aria-selected={branchFilter === null}
       onclick={() => onBranchFilterChange(null)}
     >
@@ -140,7 +140,7 @@
         class="size-3.5 shrink-0 text-muted-foreground"
         aria-hidden="true"
       />
-      <span class="min-w-0 flex-1 truncate">全部引用 (All)</span>
+      <span class="min-w-0 flex-1 truncate">全部引用</span>
     </ListButton>
 
     {#if treeSections.length === 0}
@@ -151,7 +151,7 @@
       {#each treeSections as section (section.id)}
         <div class="space-y-0.5">
           <ListButton
-            variant="git-section"
+            variant="section-header"
             aria-expanded={!collapsed[section.id]}
             onclick={() => toggleSection(section.id)}
           >

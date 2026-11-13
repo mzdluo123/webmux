@@ -1,5 +1,7 @@
 <script lang="ts">
-  import IconCheck from "~icons/tabler/check";
+  import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
+  import IconEye from "~icons/tabler/eye";
+  import IconEyeCheck from "~icons/tabler/eye-check";
   import IconFlag from "~icons/tabler/flag";
   import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
@@ -135,7 +137,7 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="相对任务起点的净变更"
   data-testid="git-task-review-pane"
 >
@@ -180,7 +182,7 @@
       </InlineNotice>
     </div>
   {:else if review.status === "no_task_baseline"}
-    <div class="space-y-2 border-b border-git-border bg-git-panel p-3 text-xs">
+    <div class="space-y-2 border-b bg-background p-3 text-xs">
       <InlineNotice tone="info">
         当前工作树尚未记录任务起点基线。新建任务工作树会自动捕获起点；存量工作树可将当前
         HEAD 或日志中的历史提交手动指定为任务起点。
@@ -188,8 +190,8 @@
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         {#if onSetBaseline}
           <Button
-            size="xs"
-            variant="git-primary"
+            size="sm"
+            variant="default"
             disabled={review.mutating}
             onclick={() => onSetBaseline()}
           >
@@ -197,16 +199,14 @@
           </Button>
         {/if}
         {#if onOpenLogToPickBaseline}
-          <Button size="xs" variant="outline" onclick={onOpenLogToPickBaseline}>
+          <Button size="sm" variant="outline" onclick={onOpenLogToPickBaseline}>
             前往日志选择历史提交起点
           </Button>
         {/if}
       </div>
     </div>
   {:else if baseline}
-    <div
-      class="space-y-2 border-b border-git-border bg-git-panel px-3 py-2 text-xs"
-    >
+    <div class="space-y-2 border-b bg-background px-3 py-2 text-xs">
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         <span class="min-w-0 text-muted-foreground">
           任务提交 {review.commitCount} 笔 · 当前未提交 {review.uncommittedCount}
@@ -215,7 +215,7 @@
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           {#if !baseline.unborn && baseline.baseOid && onInspectCommit}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               onclick={() => onInspectCommit(baseline.baseOid!)}
             >
@@ -224,7 +224,7 @@
           {/if}
           {#if onSetBaseline}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={review.mutating}
               onclick={() => onSetBaseline()}
@@ -234,7 +234,7 @@
           {/if}
           {#if onClearBaseline}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               disabled={review.mutating}
               onclick={onClearBaseline}
@@ -300,35 +300,28 @@
             data-reviewed={isReviewed}
           >
             {#if onToggleReviewed}
-              <Button
-                size="icon-xs"
-                variant="ghost"
+              <ListButton
+                variant="review-toggle"
                 aria-pressed={isReviewed}
                 aria-label={`标记已审阅 ${path}`}
                 title={isReviewed ? `已审阅 ${path}` : `标记已审阅 ${path}`}
                 onclick={() => onToggleReviewed(path)}
               >
-                <IconCheck aria-hidden="true" />
-              </Button>
+                {#if isReviewed}<IconEyeCheck
+                    aria-hidden="true"
+                  />{:else}<IconEye aria-hidden="true" />{/if}
+              </ListButton>
             {/if}
             <div class="min-w-0 flex-1">
               <ListButton
-                variant="git-row"
+                variant="compact-row"
                 role="option"
                 data-task-file-row="true"
                 aria-selected={isSelected}
                 onclick={() => onSelectFile?.(path)}
               >
                 <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                  <Badge
-                    variant={file.status === "D"
-                      ? "destructive"
-                      : file.status === "A"
-                        ? "info"
-                        : "outline"}
-                  >
-                    {file.status}
-                  </Badge>
+                  <GitFileStatusIcon status={file.status} />
                   <span
                     class="min-w-[6ch] max-w-full flex-1 truncate font-mono"
                     title={file.oldPath && file.oldPath !== path
@@ -339,9 +332,6 @@
                       ? `${file.oldPath} → ${path}`
                       : path}
                   </span>
-                  {#if isReviewed}
-                    <Badge variant="secondary">已审阅</Badge>
-                  {/if}
                 </div>
               </ListButton>
             </div>
@@ -351,7 +341,7 @@
         {#if review.nextCursor && onLoadMore}
           <div class="pt-2">
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={review.loadingMore}
               onclick={onLoadMore}

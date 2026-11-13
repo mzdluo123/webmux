@@ -119,11 +119,11 @@ test("stages single hunk to real index (A02), invalidates reviewed mark on exter
 
   // Mark app.ts reviewed without staging, then mutate app.ts externally -> reviewed mark invalidates (A03)!
   await unstagedSec.getByRole("button", { name: "标记已审阅 app.ts" }).click();
-  await expect(unstagedSec.getByText("已审阅", { exact: true })).toBeVisible();
+  await expect(unstagedSec.locator('[data-reviewed="true"]')).toBeVisible();
 
   await writeFile(join(mainPath, "app.ts"), buildTwoHunkContent("external"));
   await page.getByRole("button", { name: "刷新暂存区快照" }).click();
-  await expect(unstagedSec.getByText("已审阅", { exact: true })).toHaveCount(0);
+  await expect(unstagedSec.locator('[data-reviewed="true"]')).toHaveCount(0);
 
   // Open app.ts diff and stage ONLY hunk #1 via the non-hover hunk action strip (A02)
   await unstagedSec

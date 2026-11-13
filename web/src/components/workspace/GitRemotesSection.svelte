@@ -31,7 +31,7 @@
   <dd class="flex min-w-0 items-start gap-1">
     <span class="min-w-0 flex-1 font-mono break-all">{value}</span>
     <Button
-      size="icon-xs"
+      size="icon-sm"
       variant="ghost"
       aria-label={`复制 ${name} 的${label}地址`}
       title={`复制 ${name} 的${label}地址`}
@@ -49,7 +49,7 @@
         远程仓库 ({remotes?.length ?? 0})
       </span>
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         onclick={() => controller.openAddDialog()}
         data-testid="git-remote-add-btn"
@@ -92,7 +92,7 @@
     <ul class="space-y-2" aria-label="远程列表">
       {#each remotes as remote (remote.name)}
         <li
-          class="space-y-2 rounded-lg border border-git-border bg-git-surface p-2.5"
+          class="space-y-2 rounded-lg border bg-background p-2.5"
           data-remote-row={remote.name}
         >
           <div class="flex min-w-0 items-center justify-between gap-2">
@@ -102,7 +102,7 @@
             {#if controller}
               <div class="flex shrink-0 items-center gap-1">
                 <Button
-                  size="icon-xs"
+                  size="icon-sm"
                   variant="ghost"
                   aria-label={`编辑远程 ${remote.name}`}
                   title={`编辑远程 ${remote.name}`}
@@ -111,7 +111,7 @@
                   <IconEdit aria-hidden="true" />
                 </Button>
                 <Button
-                  size="icon-xs"
+                  size="icon-sm"
                   variant="ghost"
                   aria-label={`移除远程 ${remote.name}`}
                   title={`移除远程 ${remote.name}`}

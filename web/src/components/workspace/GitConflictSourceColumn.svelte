@@ -46,15 +46,13 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label={isLeft ? "左侧只读来源版本" : "右侧只读来源版本"}
   data-testid={isLeft
     ? "git-conflict-left-column"
     : "git-conflict-right-column"}
 >
-  <div
-    class="space-y-1 border-b border-git-border bg-git-panel px-2.5 py-2 text-xs"
-  >
+  <div class="space-y-1 border-b bg-background px-2.5 py-2 text-xs">
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       <Badge variant={isLeft ? "info" : "outline"}>
         {isLeft ? "左侧来源" : "右侧来源"}
@@ -109,7 +107,7 @@
             {/if}
             <div class="flex flex-wrap items-center gap-1">
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
                 aria-pressed={choice === primaryChoice}
                 onclick={() => onChooseChunk(seg.id, primaryChoice)}
@@ -120,7 +118,7 @@
                 {#if isLeft}<IconArrowRight aria-hidden="true" />{/if}
               </Button>
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 aria-pressed={choice === bothChoice}
                 title={isLeft
@@ -142,7 +140,7 @@
 
           {#if showBase}
             <div
-              class="rounded-sm border border-git-border bg-git-panel p-1.5 font-mono text-muted-foreground"
+              class="rounded-sm border bg-background p-1.5 font-mono text-muted-foreground"
             >
               <div class="mb-0.5 font-sans text-xs font-medium">
                 共同祖先 Base ({seg.baseLines.length} 行)：
@@ -191,7 +189,7 @@
               </Badge>
             {/if}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               aria-pressed={applied}
               onclick={() => onToggleNonConflicting(seg.id)}

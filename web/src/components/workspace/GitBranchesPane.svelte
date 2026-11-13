@@ -163,18 +163,18 @@
 
 <div
   class={desktop.current
-    ? "flex h-full min-h-0 min-w-0 flex-row bg-git-surface"
-    : "flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-git-surface"}
+    ? "flex h-full min-h-0 min-w-0 flex-row bg-background"
+    : "flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-background"}
   data-slot="git-branches-pane"
 >
   <section
     class={desktop.current
-      ? "flex min-h-0 min-w-0 flex-1 flex-col border-r border-git-border"
-      : "flex shrink-0 min-w-0 flex-col border-b border-git-border"}
+      ? "flex min-h-0 min-w-0 flex-1 flex-col border-r"
+      : "flex shrink-0 min-w-0 flex-col border-b"}
     aria-label="分支与上游列表"
   >
     <div
-      class="flex min-w-0 flex-wrap items-center gap-2 border-b border-git-border bg-git-panel p-2.5"
+      class="flex min-w-0 flex-wrap items-center gap-2 border-b bg-background p-2.5"
     >
       <div class="min-w-0 flex-1 basis-36">
         <Input
@@ -187,7 +187,7 @@
       </div>
       {#if onOpenCreateTagFromHead && context.headOid}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           onclick={onOpenCreateTagFromHead}
           data-testid="git-branches-create-tag-head-btn"
@@ -209,23 +209,19 @@
       aria-label="分支列表"
       onkeydown={handleBranchListKeydown}
     >
-      {@render branchGroup("current", "当前检出 (Current)", grouped.current)}
-      {@render branchGroup(
-        "favorites",
-        "收藏分支 (Favorites)",
-        grouped.favorites,
-      )}
+      {@render branchGroup("current", "当前检出", grouped.current)}
+      {@render branchGroup("favorites", "收藏分支", grouped.favorites)}
       {@render branchGroup(
         "local",
-        "本地分支 (Local)",
+        "本地分支",
         grouped.local.filter((b) => !b.favorite),
       )}
       {@render branchGroup(
         "remote",
-        "远程跟踪分支 (Remote)",
+        "远程跟踪分支",
         grouped.remote.filter((b) => !b.favorite),
       )}
-      {@render branchGroup("tags", "标签 (Tags)", grouped.tags)}
+      {@render branchGroup("tags", "标签", grouped.tags)}
 
       {#if allVisible.length === 0}
         <p class="p-3 text-xs text-muted-foreground">没有匹配的分支或标签。</p>
@@ -235,8 +231,8 @@
 
   <section
     class={desktop.current
-      ? "flex w-96 shrink-0 flex-col space-y-4 overflow-y-auto bg-git-panel p-4"
-      : "flex shrink-0 flex-col space-y-4 bg-git-panel p-3"}
+      ? "flex w-96 shrink-0 flex-col space-y-4 overflow-y-auto bg-background p-4"
+      : "flex shrink-0 flex-col space-y-4 bg-background p-3"}
     aria-label="选中分支详情与工作树占用"
   >
     <GitBranchDetailCard
@@ -247,7 +243,7 @@
     />
 
     {#if remotes !== undefined || remotesController}
-      <div class="border-t border-git-border pt-3">
+      <div class="border-t pt-3">
         <GitRemotesSection
           remotes={remotes ?? []}
           controller={remotesController}

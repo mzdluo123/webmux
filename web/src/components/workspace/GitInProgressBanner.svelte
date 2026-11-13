@@ -39,7 +39,7 @@
 
 {#if operation.active}
   <section
-    class="border-b border-git-border bg-git-panel px-3 py-2 text-xs"
+    class="border-b bg-background px-3 py-2 text-xs"
     aria-label="进行中的 Git 操作协调恢复横幅"
     data-testid="git-in-progress-banner"
   >
@@ -104,8 +104,8 @@
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         {#if operation.conflictedCount > 0 && onOpenConflictResolver && !conflictResolverOpen}
           <Button
-            size="xs"
-            variant="git-primary"
+            size="sm"
+            variant="default"
             wrap
             disabled={busy}
             onclick={() =>
@@ -119,7 +119,7 @@
 
         {#if onContinue && operation.kind !== "unstash"}
           <Button
-            size="xs"
+            size="sm"
             variant="success"
             wrap
             disabled={!operation.canContinue || busy}
@@ -136,7 +136,7 @@
 
         {#if operation.canAbort && onOpenAbortPreview}
           <Button
-            size="xs"
+            size="sm"
             variant="destructive-outline"
             wrap
             disabled={busy}
@@ -150,7 +150,7 @@
 
         {#if hasActiveWorktreeSession && onOpenWorktreeTerminal}
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             wrap
             onclick={onOpenWorktreeTerminal}

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { MediaQuery } from "svelte/reactivity";
   import * as Tabs from "$lib/components/ui/tabs";
   import type {
     GitBranchItem,
@@ -84,7 +83,6 @@
     onRemoveWorktree?: () => void;
   } = $props();
 
-  const desktop = new MediaQuery("(min-width: 1280px)");
   const writableWorktree = $derived(
     Boolean(
       worktree &&
@@ -152,13 +150,10 @@
           controller.setMode(next);
         }
       }}
-      orientation={desktop.current ? "vertical" : "horizontal"}
+      orientation="horizontal"
       class="min-h-0 min-w-0 flex-1"
     >
-      <GitWorkbenchModeTabs
-        desktop={desktop.current}
-        stashCount={controller.stash.entries.length}
-      />
+      <GitWorkbenchModeTabs stashCount={controller.stash.entries.length} />
 
       <Tabs.Content
         value="log"

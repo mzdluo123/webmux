@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import IconArrowsExchange from "~icons/tabler/arrows-exchange";
   import IconFileSearch from "~icons/tabler/file-search";
   import IconHistory from "~icons/tabler/history";
@@ -126,10 +127,10 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="变更文件列表"
 >
-  <div class="space-y-1.5 border-b border-git-border bg-git-panel px-2.5 py-2">
+  <div class="space-y-1.5 border-b bg-background px-2.5 py-2">
     {#if compareMode}
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         <div class="flex min-w-0 items-center gap-1.5">
@@ -144,7 +145,7 @@
         <div class="flex items-center gap-1">
           {#if onSwapCompareDirection}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               aria-label="交换比较方向"
               onclick={onSwapCompareDirection}
@@ -155,7 +156,7 @@
           {/if}
           {#if onExitCompare}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               aria-label="退出两版本比较"
               onclick={onExitCompare}
@@ -180,7 +181,7 @@
       <div class="flex shrink-0 items-center gap-1">
         {#if activePath && onInspectFile}
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             onclick={() => activePath && onInspectFile(activePath, "history")}
             data-testid="git-log-file-history-btn"
@@ -189,7 +190,7 @@
             历史
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             onclick={() => activePath && onInspectFile(activePath, "blame")}
             data-testid="git-log-file-blame-btn"
@@ -253,7 +254,7 @@
       {#each visibleFiles as file (`${file.status}:${file.oldPath}:${fileKey(file)}`)}
         {@const pathKey = fileKey(file)}
         <ListButton
-          variant="git-row"
+          variant="compact-row"
           role="option"
           data-commit-file-row="true"
           aria-selected={activePath === pathKey}
@@ -265,17 +266,7 @@
             if (!phone) onExpandFile?.(pathKey);
           }}
         >
-          <Badge
-            variant={file.status === "D"
-              ? "destructive"
-              : file.status === "A"
-                ? "info"
-                : file.status === "R"
-                  ? "warning"
-                  : "outline"}
-          >
-            {file.status}
-          </Badge>
+          <GitFileStatusIcon status={file.status} />
 
           <span
             class="min-w-0 flex-1 truncate font-mono text-xs"
@@ -306,7 +297,7 @@
       {#if compareMode?.nextCursor && onLoadMoreCompareFiles}
         <div class="pt-1.5 text-center">
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             disabled={compareMode.loadingMore}
             onclick={onLoadMoreCompareFiles}

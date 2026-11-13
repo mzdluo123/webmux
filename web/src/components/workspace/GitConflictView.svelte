@@ -166,17 +166,17 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
   aria-label="三方冲突解决器"
   data-testid="git-conflict-view"
 >
   <!-- Top Action & File Navigation Toolbar -->
   <div
-    class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel px-3 py-2 text-xs"
+    class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-background px-3 py-2 text-xs"
   >
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         onclick={onClose}
         data-testid="git-conflict-back-btn"
@@ -230,7 +230,7 @@
         <Popover.Root>
           <Popover.Trigger>
             {#snippet child({ props })}
-              <Button {...props} size="xs" variant="ghost">
+              <Button {...props} size="sm" variant="ghost">
                 <IconEye aria-hidden="true" />
                 查看完整 Base
               </Button>
@@ -242,7 +242,7 @@
                 {detail.base.label} ({detail.base.role})
               </div>
               <pre
-                class="max-h-64 overflow-auto rounded-md border border-git-border bg-git-surface p-2 font-mono text-xs whitespace-pre-wrap break-all">{detail
+                class="max-h-64 overflow-auto rounded-md border bg-background p-2 font-mono text-xs whitespace-pre-wrap break-all">{detail
                   .base.present
                   ? detail.base.text || "(空文件)"
                   : "(共同祖先中无此文件)"}</pre>
@@ -256,7 +256,7 @@
       {#if detail?.textMergeable && progress}
         {#if conflictSegs.length > 1}
           <Button
-            size="icon-xs"
+            size="icon-sm"
             variant="outline"
             aria-label="上一处冲突块"
             title="上一处冲突块"
@@ -265,7 +265,7 @@
             <IconArrowUp aria-hidden="true" />
           </Button>
           <Button
-            size="icon-xs"
+            size="icon-sm"
             variant="outline"
             aria-label="下一处冲突块"
             title="下一处冲突块"
@@ -276,7 +276,7 @@
         {/if}
 
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           wrap
           disabled={progress.pendingNonConflicting === 0}
@@ -288,7 +288,7 @@
         </Button>
 
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           wrap
           disabled={!progress.canSaveResult ||
@@ -302,8 +302,8 @@
         </Button>
 
         <Button
-          size="xs"
-          variant="git-primary"
+          size="sm"
+          variant="default"
           wrap
           disabled={!progress.canMarkResolved ||
             conflict?.saving ||
@@ -320,7 +320,7 @@
 
       {#if onContinueOperation && inProgress?.kind !== "unstash"}
         <Button
-          size="xs"
+          size="sm"
           variant="success"
           wrap
           disabled={!effectiveCanContinue || divergenceBusy}
@@ -338,13 +338,13 @@
   </div>
 
   {#if conflict?.error}
-    <div class="border-b border-git-border bg-git-panel px-3 py-2">
+    <div class="border-b bg-background px-3 py-2">
       <InlineNotice tone="danger">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span>{conflict.error}</span>
           {#if conflict.stale || conflict.activePath}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onclick={() => void conflict.reloadCurrent()}
             >

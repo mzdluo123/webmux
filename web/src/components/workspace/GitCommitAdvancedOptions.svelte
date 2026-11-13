@@ -68,7 +68,7 @@
 </script>
 
 <div
-  class="rounded-md border border-git-border bg-git-surface px-1.5 py-0.5"
+  class="rounded-md border bg-background px-1.5 py-0.5"
   data-testid="git-commit-advanced-options"
 >
   <AdvancedSection title="高级提交选项" {summary} bind:open>
@@ -94,7 +94,7 @@
 
       {#if draftPrompt && onResolveAmendDraft}
         <div
-          class="space-y-2 rounded-md border border-git-border bg-git-panel p-2.5"
+          class="space-y-2 rounded-md border bg-background p-2.5"
           data-testid="git-amend-draft-prompt"
         >
           <p class="font-medium text-foreground">
@@ -105,21 +105,21 @@
           </p>
           <div class="flex flex-wrap items-center gap-1.5">
             <Button
-              size="xs"
-              variant="git-primary"
+              size="sm"
+              variant="default"
               onclick={() => onResolveAmendDraft("replace")}
             >
               替换为 HEAD 说明
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onclick={() => onResolveAmendDraft("merge")}
             >
               合并两份说明
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               onclick={() => onResolveAmendDraft("keep")}
             >

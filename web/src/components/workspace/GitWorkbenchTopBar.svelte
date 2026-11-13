@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import IconArrowBackUp from "~icons/tabler/arrow-back-up";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowUp from "~icons/tabler/arrow-up";
@@ -23,6 +24,7 @@
   import GitWorkbenchTargetSwitchers from "./GitWorkbenchTargetSwitchers.svelte";
 
   let {
+    operations,
     repositories,
     repository,
     worktreeId,
@@ -50,6 +52,7 @@
     onPush,
     onReturnSession,
   }: {
+    operations?: Snippet;
     repositories: readonly Repository[];
     repository: Repository | undefined;
     worktreeId?: string;
@@ -132,7 +135,7 @@
 </script>
 
 <header
-  class="flex min-w-0 flex-col gap-1.5 border-b border-git-border bg-git-panel px-2.5 py-2 sm:px-3"
+  class="flex min-w-0 flex-col gap-1.5 border-b bg-background px-2.5 py-2 sm:px-3"
   data-testid="git-workbench-topbar"
 >
   <div
@@ -175,21 +178,6 @@
               未诞生 HEAD ({context.checkedOutBranch ?? "main"})
             </span>
           </Badge>
-        {:else}
-          <Badge
-            variant="info"
-            class={branchFilter
-              ? "max-w-44 max-sm:hidden"
-              : "max-w-48 max-lg:hidden"}
-            data-testid="git-target-branch-badge"
-          >
-            <span
-              class="truncate"
-              title={`当前检出：${context.checkedOutBranch ?? "HEAD"}`}
-            >
-              检出：{context.checkedOutBranch ?? "HEAD"}
-            </span>
-          </Badge>
         {/if}
 
         {#if repoAvailable && onBranchFilterChange && onBranchAction}
@@ -218,12 +206,11 @@
       {/if}
     </div>
 
-    <div
-      class="flex min-h-(--control-touch) shrink-0 items-center gap-1.5 sm:min-h-0"
-    >
+    <div class="flex min-w-0 max-w-full shrink items-center gap-1.5">
+      {@render operations?.()}
       {#if worktreeUsable && onOpenRework}
         <Button
-          size="sm"
+          size="sm-touch"
           variant="outline"
           onclick={onOpenRework}
           aria-label={reworkCount > 0
@@ -242,8 +229,8 @@
 
       {#if returnSession}
         <Button
-          size="sm"
-          variant="git-primary"
+          size="sm-touch"
+          variant="outline"
           onclick={() => onReturnSession(returnSession.id)}
           aria-label="返回会话"
           title={`返回会话：${returnSession.title || returnSession.id}`}
@@ -255,7 +242,7 @@
 
       <div class="flex items-center gap-1.5 max-md:hidden">
         <Button
-          size="sm"
+          size="sm-touch"
           variant="outline"
           disabled={!repoAvailable || fetching}
           onclick={onFetch}
@@ -267,7 +254,7 @@
           <span>获取远程</span>
         </Button>
         <Button
-          size="sm"
+          size="sm-touch"
           variant="outline"
           disabled={!canSyncBranch}
           title={syncDisabledReason}
@@ -277,7 +264,7 @@
           <span>快进更新</span>
         </Button>
         <Button
-          size="sm"
+          size="sm-touch"
           variant="outline"
           disabled={!canSyncBranch}
           title={syncDisabledReason}
@@ -294,7 +281,7 @@
             {#snippet child({ props })}
               <Button
                 {...props}
-                size="icon-sm"
+                size="icon-touch"
                 variant="outline"
                 aria-label="更多同步操作"
                 title="更多同步操作"

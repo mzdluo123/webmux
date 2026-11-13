@@ -53,8 +53,8 @@
 
 <div
   class={compact
-    ? "space-y-2 rounded-md border border-git-border bg-git-panel p-2.5 text-xs"
-    : "shrink-0 space-y-2 border-t border-git-border bg-git-panel px-3 py-2.5 text-xs"}
+    ? "space-y-2 rounded-md border bg-background p-2.5 text-xs"
+    : "shrink-0 space-y-2 border-t bg-background px-3 py-2.5 text-xs"}
   data-testid="git-task-delivery-summary"
 >
   <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
@@ -95,7 +95,7 @@
 
   <div class="flex min-w-0 flex-wrap items-center gap-1.5">
     {#if compact && onSwitchToTaskReview}
-      <Button size="xs" variant="git-primary" onclick={onSwitchToTaskReview}>
+      <Button size="sm" variant="outline" onclick={onSwitchToTaskReview}>
         <IconGitCompare aria-hidden="true" />
         审阅相对任务起点的变化 ({netFileCount})
       </Button>
@@ -103,8 +103,8 @@
 
     {#if onOpenPush && !readonlyMode}
       <Button
-        size="xs"
-        variant={emphasizePush ? "git-primary" : "outline"}
+        size="sm"
+        variant={emphasizePush ? "default" : "outline"}
         disabled={!canPush}
         title={context.checkedOutBranch
           ? `打开 ${context.checkedOutBranch} 推送预览`
@@ -117,21 +117,21 @@
     {/if}
 
     {#if onReturnSession}
-      <Button size="xs" variant="outline" onclick={onReturnSession}>
+      <Button size="sm" variant="outline" onclick={onReturnSession}>
         <IconArrowBackUp aria-hidden="true" />
         返回会话
       </Button>
     {/if}
 
     {#if onArchiveSession && exitedSessionCount > 0}
-      <Button size="xs" variant="outline" onclick={onArchiveSession}>
+      <Button size="sm" variant="outline" onclick={onArchiveSession}>
         <IconArchive aria-hidden="true" />
         归档已完成会话
       </Button>
     {/if}
 
     {#if onRemoveWorktree && context.worktreeKind === "linked"}
-      <Button size="xs" variant="outline" onclick={onRemoveWorktree}>
+      <Button size="sm" variant="outline" onclick={onRemoveWorktree}>
         <IconTrash aria-hidden="true" />
         移除工作树…
       </Button>

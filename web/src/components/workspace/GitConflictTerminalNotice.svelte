@@ -23,15 +23,15 @@
   } = $props();
 </script>
 
-<div class="border-b border-git-border bg-git-panel px-3 py-2">
+<div class="border-b bg-background px-3 py-2">
   <InlineNotice tone="danger">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <span>{message}</span>
       <div class="flex flex-wrap items-center gap-1.5">
         {#if onOpenConflictResolver}
           <Button
-            size="xs"
-            variant="git-primary"
+            size="sm"
+            variant="default"
             wrap
             onclick={onOpenConflictResolver}
             data-testid="git-notice-open-conflict-resolver-btn"
@@ -42,7 +42,7 @@
         {/if}
         {#if hasActiveWorktreeSession && onOpenWorktreeTerminal}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             wrap
             onclick={onOpenWorktreeTerminal}
@@ -53,7 +53,7 @@
         {/if}
         {#if onNewWorktreeTerminal}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             wrap
             onclick={onNewWorktreeTerminal}

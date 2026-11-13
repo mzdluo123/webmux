@@ -28,7 +28,7 @@
 
 <div class="space-y-2.5">
   <div
-    class="grid min-w-0 grid-cols-1 gap-1.5 rounded-lg border border-git-border bg-git-panel p-3 text-xs sm:grid-cols-2"
+    class="grid min-w-0 grid-cols-1 gap-1.5 rounded-lg border bg-background p-3 text-xs sm:grid-cols-2"
   >
     <p class="wrap-anywhere">
       <span class="text-muted-foreground">目标分支：</span>

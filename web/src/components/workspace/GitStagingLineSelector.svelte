@@ -119,12 +119,12 @@
 </script>
 
 <section
-  class="flex min-h-44 min-w-0 flex-1 flex-col overflow-hidden bg-git-surface"
+  class="flex min-h-44 min-w-0 flex-1 flex-col overflow-hidden bg-background"
   aria-label="代码块逐行精细暂存"
   data-testid="git-staging-line-selector"
 >
   <div
-    class="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-git-border bg-git-panel px-2.5 py-1.5 text-xs"
+    class="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-1.5 border-b bg-background px-2.5 py-1.5 text-xs"
     data-testid="git-line-selector-action-bar"
   >
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -139,7 +139,7 @@
     <div class="flex min-w-0 flex-wrap items-center gap-1">
       {#if selectedCount > 0}
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           disabled={busy}
           onclick={clearSelection}
@@ -152,7 +152,7 @@
 
       {#if canDiscardLines && onDiscardLines}
         <Button
-          size="xs"
+          size="sm"
           variant="destructive-outline"
           wrap
           disabled={busy || stale || selectedCount === 0}
@@ -166,8 +166,8 @@
 
       {#if stageMode === "stage"}
         <Button
-          size="xs"
-          variant="git-primary"
+          size="sm"
+          variant="default"
           wrap
           disabled={busy || stale || selectedCount === 0}
           onclick={runStageSelected}
@@ -178,7 +178,7 @@
         </Button>
       {:else if stageMode === "unstage"}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           wrap
           disabled={busy || stale || selectedCount === 0}
@@ -197,11 +197,11 @@
       {@const changedAll = changedLineIndicesInHunk(hunk)}
       {@const hunkSelected = selectionMap[hunk.id] ?? []}
       <div
-        class="overflow-hidden rounded-md border border-git-border bg-git-panel"
+        class="overflow-hidden rounded-md border bg-background"
         data-line-hunk-id={hunk.id}
       >
         <div
-          class="flex min-w-0 flex-wrap items-center justify-between gap-1.5 border-b border-git-border px-2.5 py-1 text-xs"
+          class="flex min-w-0 flex-wrap items-center justify-between gap-1.5 border-b px-2.5 py-1 text-xs"
         >
           <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
             <span class="shrink-0 font-mono text-muted-foreground">
@@ -222,7 +222,7 @@
           </div>
           {#if changedAll.length > 0}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               disabled={busy || stale}
               onclick={() => handleSelectAllHunk(hunk)}
@@ -235,9 +235,7 @@
           {/if}
         </div>
 
-        <div
-          class="divide-y divide-git-border/50 bg-git-surface font-mono text-xs"
-        >
+        <div class="divide-y divide-border/50 bg-background font-mono text-xs">
           {#each hunk.lines as line, lIdx (`${hunk.id}:${lIdx}`)}
             {@const selectable = isChangedHunkLine(line)}
             {@const isChecked = hunkSelected.includes(lIdx)}
@@ -265,7 +263,7 @@
                   class="mt-0.5 shrink-0"
                 />
                 <ListButton
-                  variant="git-diff-line"
+                  variant="diff-line"
                   disabled={busy || stale}
                   onclick={(e) => handleLineToggle(hunk, lIdx, e.shiftKey)}
                 >

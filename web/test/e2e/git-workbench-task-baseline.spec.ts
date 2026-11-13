@@ -171,7 +171,8 @@ test("auto-captures task baseline on worktree create, aggregates single net diff
 
   // Click service.ts in clean worktree -> Pierre CodeDiffReader renders net diff ('seed' -> 'working-net')
   await reviewPane
-    .locator('[data-task-file="service.ts"] [data-slot="list-button"]')
+    .locator('[data-task-file="service.ts"]')
+    .getByRole("option")
     .click();
   await expect(
     page

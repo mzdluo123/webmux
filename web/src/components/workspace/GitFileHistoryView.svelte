@@ -47,7 +47,7 @@
 
 {#snippet historyList(isMobile: boolean)}
   <div
-    class="flex h-full min-h-0 min-w-0 flex-col border-git-border lg:w-80 lg:shrink-0 lg:border-r"
+    class="flex h-full min-h-0 min-w-0 flex-col lg:w-80 lg:shrink-0 lg:border-r"
     data-testid="git-file-history-list"
   >
     <div class="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
@@ -68,7 +68,7 @@
           {@const selected = activeRow?.oid === row.oid}
           {@const renamed = Boolean(row.oldPath && row.oldPath !== row.path)}
           <ListButton
-            variant="git-row"
+            variant="compact-row"
             aria-selected={selected}
             data-file-history-row={row.shortOid}
             onclick={() => {
@@ -113,7 +113,7 @@
         {#if nextCursor && onLoadMore}
           <div class="pt-1.5 text-center">
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={loadingMore}
               onclick={onLoadMore}
@@ -128,15 +128,15 @@
 {/snippet}
 
 {#snippet historyDiffSection(isMobile: boolean)}
-  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-git-surface">
+  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background">
     {#if activeRow}
       <div
-        class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel px-2.5 py-1.5 text-xs"
+        class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-background px-2.5 py-1.5 text-xs"
       >
         <div class="flex min-w-0 items-center gap-1.5">
           {#if isMobile}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               onclick={() => (mobileShowDiff = false)}
             >
@@ -155,7 +155,7 @@
         <div class="flex flex-wrap items-center gap-1.5">
           {#if onOpenBlameAt}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onclick={() => onOpenBlameAt(activeRow.oid, activeRow.path)}
               data-testid="git-file-history-blame-btn"
@@ -166,7 +166,7 @@
           {/if}
           {#if onJumpToCommit}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onclick={() => onJumpToCommit(activeRow.oid)}
               data-testid="git-file-history-jump-log-btn"
@@ -191,7 +191,7 @@
 {/snippet}
 
 <div
-  class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
   data-testid="git-file-history-view"
 >
   {#if desktop.current}

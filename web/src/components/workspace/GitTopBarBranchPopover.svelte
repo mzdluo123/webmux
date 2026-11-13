@@ -88,7 +88,7 @@
 
       <div class="max-h-80 space-y-2 overflow-y-auto pr-0.5">
         <ListButton
-          variant="git-row"
+          variant="compact-row"
           aria-selected={branchFilter === null}
           onclick={() => {
             open = false;
@@ -99,7 +99,7 @@
             class="size-3.5 shrink-0 text-muted-foreground"
             aria-hidden="true"
           />
-          <span class="min-w-0 flex-1 truncate">全部可达引用 (All)</span>
+          <span class="min-w-0 flex-1 truncate">全部可达引用</span>
         </ListButton>
 
         {#if popoverGroups.length === 0}

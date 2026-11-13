@@ -119,9 +119,7 @@
     {/if}
 
     {#if isCommitAssist}
-      <div
-        class="space-y-2 rounded-md border border-git-border bg-git-panel p-3"
-      >
+      <div class="space-y-2 rounded-md border bg-background p-3">
         <div class="flex items-center justify-between gap-2">
           <span class="font-semibold text-foreground">
             已暂存文件摘要（{stagedChanges.length} 项）
@@ -145,7 +143,7 @@
         {/if}
       </div>
     {:else if items.length === 0}
-      <div class="rounded-md border border-git-border bg-git-panel p-4">
+      <div class="rounded-md border bg-background p-4">
         <p class="text-muted-foreground">
           草稿箱暂无审阅意见。可在「提交」差异、「相对任务起点的变化」差异或「日志」历史差异中点击行号选区，或点击代码块上的「加入意见」添加。
         </p>
@@ -156,7 +154,7 @@
           <span class="font-semibold text-foreground">
             待交回审阅条目（共 {items.length} 条）
           </span>
-          <Button size="xs" variant="ghost" onclick={onClearAll}>
+          <Button size="sm" variant="ghost" onclick={onClearAll}>
             <IconTrash aria-hidden="true" />
             清空全部
           </Button>
@@ -165,7 +163,7 @@
         <div class="max-h-72 space-y-2.5 overflow-y-auto pr-0.5">
           {#each items as item, idx (item.id)}
             <div
-              class="space-y-2 rounded-md border border-git-border bg-git-panel p-2.5"
+              class="space-y-2 rounded-md border bg-background p-2.5"
               data-testid="git-rework-item"
               data-rework-path={item.path}
             >
@@ -196,7 +194,7 @@
                 </div>
 
                 <Button
-                  size="icon-xs"
+                  size="icon-sm"
                   variant="ghost"
                   aria-label={`移除审阅意见 ${item.path}`}
                   title={`移除审阅意见 ${item.path}`}
@@ -208,7 +206,7 @@
 
               {#if item.codeSnippet.trim()}
                 <pre
-                  class="max-h-28 overflow-y-auto rounded-sm border border-git-border bg-git-surface p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-foreground">{item.codeSnippet}</pre>
+                  class="max-h-28 overflow-y-auto rounded-sm border bg-background p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-foreground">{item.codeSnippet}</pre>
               {/if}
 
               <Textarea
@@ -236,7 +234,7 @@
             )}），实时行号可能已偏移。生成文本将自动附加偏移提醒，请确认是否继续发送。
           </span>
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onclick={onConfirmStale}
             data-testid="git-rework-confirm-stale"
@@ -247,7 +245,7 @@
       </InlineNotice>
     {/if}
 
-    <section class="min-w-0 space-y-2 border-t border-git-border pt-3">
+    <section class="min-w-0 space-y-2 border-t pt-3">
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <span class="font-semibold text-foreground">目标工作树接收会话</span>
         {#if activeSessions.length >= 2}
@@ -283,7 +281,7 @@
           </Button>
           <Button
             size="sm"
-            variant="git-primary"
+            variant="default"
             disabled={!canSubmitPayload}
             onclick={onStartNewSessionWithDraft}
             aria-label="在该工作树新建会话并带入意见"
@@ -298,7 +296,7 @@
       {:else if activeSessions.length === 1}
         {@const single = activeSessions[0]!}
         <div
-          class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-md border border-foreground/40 bg-git-panel px-3 py-2.5"
+          class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-md border border-foreground/40 bg-background px-3 py-2.5"
           data-testid="git-rework-single-session"
         >
           <div class="min-w-0 space-y-0.5">
@@ -337,10 +335,11 @@
 
     {#if activeSessions.length > 0}
       <div
-        class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-git-border pt-3"
+        class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t pt-3"
       >
         <Button
-          size="sm"
+          size="default"
+          wrap
           variant="outline"
           disabled={!canSubmitPayload}
           onclick={onCopyMarkdown}
@@ -356,10 +355,13 @@
         </Button>
 
         <div class="flex min-w-0 flex-wrap items-center gap-2">
-          <Button size="sm" variant="ghost" onclick={onClose}>关闭</Button>
+          <Button size="default" wrap variant="outline" onclick={onClose}
+            >关闭</Button
+          >
           <Button
-            size="sm"
-            variant="git-primary"
+            size="default"
+            wrap
+            variant="default"
             disabled={!canSendToSession}
             onclick={() => chosenSession && onDeliverToSession(chosenSession)}
             aria-label="发送到所选会话草稿"

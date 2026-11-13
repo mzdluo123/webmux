@@ -20,7 +20,7 @@
 </script>
 
 <div
-  class="space-y-2.5 rounded-md border border-warning/40 bg-git-surface p-2.5 text-xs"
+  class="space-y-2.5 rounded-md border border-warning/40 bg-background p-2.5 text-xs"
   role="alert"
   data-testid="git-commit-draft-conflict"
 >
@@ -31,7 +31,7 @@
 
   <div class="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
     <div
-      class="min-w-0 space-y-1.5 rounded-sm border border-git-border bg-git-panel p-2"
+      class="min-w-0 space-y-1.5 rounded-sm border bg-background p-2"
       data-testid="git-draft-conflict-local"
     >
       <div class="flex min-w-0 items-center justify-between gap-1.5">
@@ -46,14 +46,14 @@
       </p>
       {#if conflict.localBody.trim()}
         <pre
-          class="max-h-24 overflow-y-auto rounded-sm bg-git-surface p-1.5 font-mono text-xs whitespace-pre-wrap break-words text-muted-foreground">{conflict.localBody}</pre>
+          class="max-h-24 overflow-y-auto rounded-sm bg-background p-1.5 font-mono text-xs whitespace-pre-wrap break-words text-muted-foreground">{conflict.localBody}</pre>
       {:else}
         <p class="text-muted-foreground">（无补充正文）</p>
       {/if}
     </div>
 
     <div
-      class="min-w-0 space-y-1.5 rounded-sm border border-git-border bg-git-panel p-2"
+      class="min-w-0 space-y-1.5 rounded-sm border bg-background p-2"
       data-testid="git-draft-conflict-remote"
     >
       <div class="flex min-w-0 items-center justify-between gap-1.5">
@@ -70,7 +70,7 @@
       </p>
       {#if conflict.remoteDraft.body.trim()}
         <pre
-          class="max-h-24 overflow-y-auto rounded-sm bg-git-surface p-1.5 font-mono text-xs whitespace-pre-wrap break-words text-muted-foreground">{conflict
+          class="max-h-24 overflow-y-auto rounded-sm bg-background p-1.5 font-mono text-xs whitespace-pre-wrap break-words text-muted-foreground">{conflict
             .remoteDraft.body}</pre>
       {:else}
         <p class="text-muted-foreground">（无补充正文）</p>
@@ -80,7 +80,7 @@
 
   <div class="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       disabled={saving}
       onclick={onAdoptRemote}
@@ -89,7 +89,7 @@
       采用远端版本
     </Button>
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       disabled={saving}
       onclick={onKeepLocal}
@@ -98,8 +98,8 @@
       保留本机覆盖保存
     </Button>
     <Button
-      size="xs"
-      variant="git-primary"
+      size="sm"
+      variant="default"
       disabled={saving}
       onclick={onMergeBoth}
       data-testid="git-draft-merge-both"

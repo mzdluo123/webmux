@@ -275,7 +275,7 @@
           </span>
           {#if onCreateBranchFromHead}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               wrap
               onclick={() => {
@@ -300,8 +300,8 @@
           </span>
           {#if onRefreshPreview}
             <Button
-              size="xs"
-              variant="git-primary"
+              size="sm"
+              variant="default"
               wrap
               disabled={submitting}
               onclick={onRefreshPreview}
@@ -337,7 +337,7 @@
       </div>
 
       <div
-        class="max-h-44 space-y-0.5 overflow-y-auto rounded-lg border border-git-border bg-git-surface p-1.5"
+        class="max-h-44 space-y-0.5 overflow-y-auto rounded-lg border bg-background p-1.5"
       >
         {#if model.stagedFiles.length === 0}
           <p class="px-2 py-2 text-xs text-muted-foreground">
@@ -347,7 +347,7 @@
           {#each model.stagedFiles as file (file.id)}
             {@const isExpanded = expandedFileId === file.id}
             <ListButton
-              variant="git-row"
+              variant="compact-row"
               class="overflow-hidden"
               aria-expanded={isExpanded}
               aria-selected={isExpanded}
@@ -379,7 +379,7 @@
 
       {#if expandedFile}
         <div
-          class="code-panel flex h-52 min-w-0 flex-col overflow-hidden rounded-lg border border-git-border bg-git-surface"
+          class="code-panel flex h-52 min-w-0 flex-col overflow-hidden rounded-lg border bg-background"
           data-testid="git-commit-preview-diff"
         >
           {#if inspectState.phase === "loading"}
@@ -408,7 +408,7 @@
       {/if}
     </div>
 
-    <div class="rounded-lg border border-git-border bg-git-panel p-2.5">
+    <div class="rounded-lg border bg-background p-2.5">
       <span class="text-xs font-semibold text-muted-foreground">提交说明：</span
       >
       <p

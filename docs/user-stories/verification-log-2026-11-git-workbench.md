@@ -172,3 +172,17 @@
   - 前端 `git-v3-line-smart.test.ts` 与全量 Vitest 单测（75 文件 1,009 项）、`SwitchBranchDialog.test.ts` / `GitWorkbenchLineSmart.test.ts` 与全量浏览器套件（91 文件 749 项）、Storybook 全量套件（460 项，含多视口与 `320px` 2x 大字号溢出守卫）通过；
   - 隔离实例 Playwright E2E（103 项，含 `git-workbench-line-smart.spec.ts` 桌面与 320px 手机视口 6 项）及性能套件（18 项）通过。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
+
+## 2026-11-13：Git 工作台 12 原生设计系统重构（US-J20–US-J28）
+
+- 对应 US-J20–US-J28：复用原生色板、通用紧凑列表、等高控件、顶部水平标签与操作账本浮层，统一文件状态与审阅图标；故事 ID 和数量不变。
+- 已通过 Git 单元测试 52 项、浏览器组件测试 31 项、Storybook 矩阵与几何检查 34 项；Git E2E 最新全套通过 42 项，操作账本的两项修订断言另行重跑通过。
+- 对照基线 cdb1c247，在隔离 Storybook 数据下采集桌面、平板、手机的浅色与深色历史/暂存对比截图，并录制标签切换及操作账本展开/关闭 GIF。
+- 限制：无头 Chromium 不能替代真机触摸与物理 hover；没有进行真机验证。未重新核验其他故事组。
+
+### Git 工作台收尾润色
+
+- 沿用 US-J20–US-J28：历史 Diff 复用中文布局开关与文件状态图标，分组文案移除英文尾注，行内审阅采用仅切换图标和主题色的通用变体。
+- 已通过 `make check`、52 项 Git 单元、31 项浏览器组件、34 项 Storybook 与完整 44 项 Git E2E；浏览器断言覆盖审阅态切换前后同尺寸、零边框与透明底色。
+- 重录全部 12 张 After 与标签/账本 GIF；12 张 Before 哈希不变。公开资产与指定本地目录逐一哈希一致，目录仅保留 24 张 PNG 与 1 张 GIF。
+- 限制：验证使用隔离数据和无头 Chromium；未进行真机触摸与物理 hover 验证。

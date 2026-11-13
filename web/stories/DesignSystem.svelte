@@ -1,4 +1,6 @@
 <script lang="ts">
+  import IconEye from "~icons/tabler/eye";
+  import IconEyeCheck from "~icons/tabler/eye-check";
   import Brand from "../src/components/shell/Brand.svelte";
   import {
     IconArrowRight,
@@ -89,10 +91,7 @@
     ["warning", "等待 / 注意"],
     ["destructive", "失败 / 危险"],
     ["info", "提示"],
-    ["git-surface", "Git 工作台主表面"],
-    ["git-panel", "Git 侧栏面板"],
-    ["git-selected", "Git 选中行"],
-    ["git-primary", "Git 主要确认"],
+    ["default", "Git 主要确认"],
   ];
   const sessions: SessionInfo[] = [
     {
@@ -305,7 +304,7 @@
         <Button variant="link"
           >使用说明<IconArrowRight aria-hidden="true" /></Button
         >
-        <Button variant="git-primary">Git 提交预览</Button>
+        <Button variant="default">Git 提交预览</Button>
       </Card.Content>
     </Card.Root>
     <Card.Root>
@@ -471,8 +470,22 @@
           >修复首页排序</ListButton
         >
         <ListButton variant="navigation">更新文档</ListButton>
-        <ListButton variant="git-status-trigger" aria-expanded="false"
-          >提交 · 已完成</ListButton
+        <div class="flex items-center gap-2">
+          <ListButton
+            variant="review-toggle"
+            aria-pressed={false}
+            aria-label="标记演示文件为已看"
+            title="标记为已看"><IconEye aria-hidden="true" /></ListButton
+          >
+          <ListButton
+            variant="review-toggle"
+            aria-pressed={true}
+            aria-label="取消演示文件已看"
+            title="取消已看"><IconEyeCheck aria-hidden="true" /></ListButton
+          >
+        </div>
+        <Button size="sm" variant="ghost" aria-expanded="false"
+          >提交 · 已完成</Button
         >
       </Card.Content>
     </Card.Root>

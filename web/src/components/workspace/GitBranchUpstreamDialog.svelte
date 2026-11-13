@@ -41,7 +41,7 @@
   onclose={onClose}
 >
   <div class="space-y-3" data-testid="git-branch-upstream-dialog">
-    <div class="rounded-lg border border-git-border bg-git-panel p-3 text-xs">
+    <div class="rounded-lg border bg-background p-3 text-xs">
       <span class="text-muted-foreground">当前上游跟踪：</span>
       <span class="font-mono text-foreground">
         {currentUpstream || "未设置上游跟踪"}
@@ -106,7 +106,7 @@
           取消
         </Button>
         <Button
-          variant="git-primary"
+          variant="default"
           disabled={submitting || !selection.trim()}
           onclick={onConfirmSet}
           data-testid="git-branch-upstream-confirm-btn"

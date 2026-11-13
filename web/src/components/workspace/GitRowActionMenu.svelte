@@ -20,7 +20,7 @@
     {#snippet child({ props })}
       <ListButton
         {...props}
-        variant="git-row-action"
+        variant="file-tree-action"
         aria-label={label}
         title={label}
       >
