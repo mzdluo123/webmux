@@ -6,6 +6,7 @@ import type {
   GitCommitResult,
   GitContext,
   GitHistoryPage,
+  GitStageFileIdentity,
   GitStagingEntry,
   GitStagingFileDiff,
   GitStagingOverview,
@@ -26,6 +27,21 @@ import type {
 } from "../../contracts/git-workbench-schemas";
 import { remoteBranchBases } from "./branch-name";
 
+export function formatStageIdentityKey(identity: GitStageFileIdentity): string {
+  return [
+    identity.area,
+    identity.oldPath ?? "",
+    identity.path,
+    identity.oldBaseOid ?? "",
+    identity.oldBaseMode ?? "",
+    identity.baseOid ?? "",
+    identity.baseMode ?? "",
+    identity.targetOid ?? "",
+    identity.targetSha256 ?? "",
+    identity.targetMode ?? "",
+  ].join("|");
+}
+
 export function deriveGitWorktreeContext(options: {
   repository: Repository | undefined;
   repositoryId: string;
@@ -33,8 +49,12 @@ export function deriveGitWorktreeContext(options: {
   gitCtx: GitContext | null;
   authorName?: string;
   authorEmail?: string;
+  committerName?: string;
+  committerEmail?: string;
   signEnabled?: boolean;
+  signFormat?: string;
   executableHooks?: string[];
+  operationInProgress?: string | null;
 }): GitWorktreeContext {
   const { repository, repositoryId, worktree, gitCtx } = options;
   const repositoryName = repository?.name ?? (repositoryId || "Git 工作台");
@@ -50,6 +70,16 @@ export function deriveGitWorktreeContext(options: {
       ? worktree
       : undefined;
 
+  const sharedMeta = {
+    authorName: options.authorName ?? "",
+    authorEmail: options.authorEmail ?? "",
+    committerName: options.committerName ?? "",
+    committerEmail: options.committerEmail ?? "",
+    signEnabled: options.signEnabled ?? false,
+    signFormat: options.signFormat ?? "",
+    executableHooks: options.executableHooks ?? [],
+  };
+
   if (!writableWorktree) {
     return {
       repositoryId,
@@ -63,10 +93,8 @@ export function deriveGitWorktreeContext(options: {
       ahead: 0,
       behind: 0,
       upstream: null,
-      authorName: options.authorName ?? "",
-      authorEmail: options.authorEmail ?? "",
-      signEnabled: options.signEnabled ?? false,
-      executableHooks: options.executableHooks ?? [],
+      upstreamGone: false,
+      ...sharedMeta,
       operationInProgress: null,
     };
   }
@@ -91,11 +119,12 @@ export function deriveGitWorktreeContext(options: {
     ahead: writableWorktree.ahead ?? 0,
     behind: writableWorktree.behind ?? 0,
     upstream: writableWorktree.upstream ?? null,
-    authorName: options.authorName ?? "Git User",
-    authorEmail: options.authorEmail ?? "git@localhost",
-    signEnabled: options.signEnabled ?? false,
-    executableHooks: options.executableHooks ?? [],
-    operationInProgress: writableWorktree.operation ?? null,
+    upstreamGone: Boolean(writableWorktree.upstreamGone),
+    ...sharedMeta,
+    operationInProgress:
+      options.operationInProgress !== undefined
+        ? options.operationInProgress
+        : (writableWorktree.operation ?? null),
   };
 }
 
@@ -235,6 +264,7 @@ export function mapGitBranchesResponse(
       ahead: b.ahead ?? undefined,
       behind: b.behind ?? undefined,
       upstreamGone: b.upstreamGone,
+      mergedIntoDefault: Boolean(b.mergedIntoDefault),
       occupiedBy:
         occupyingTree && occupyingTree.path !== currentWorktreePath
           ? {
@@ -259,6 +289,7 @@ export function mapGitBranchesResponse(
       committedAt: rawBase?.committedAt ?? "",
       favorite: favSet ? favSet.has(r.name) : false,
       upstreamGone: false,
+      mergedIntoDefault: false,
     });
   }
 
@@ -272,6 +303,7 @@ export function mapGitBranchesResponse(
       committedAt: tag.committedAt,
       favorite: false,
       upstreamGone: false,
+      mergedIntoDefault: false,
     });
   }
 
@@ -301,6 +333,7 @@ export interface MappedStagingEntry {
 export function mapGitStagingOverview(
   overview: GitStagingOverview,
   diffCache: ReadonlyMap<string, GitStagingFileDiff>,
+  webmuxStagedPaths?: ReadonlySet<string>,
 ): MappedStagingEntry[] {
   const out: MappedStagingEntry[] = [];
 
@@ -311,6 +344,13 @@ export function mapGitStagingOverview(
     const id = `${group}:${entry.path}`;
     const diffKey = `${entry.area}:${entry.path}`;
     const cachedDiff = diffCache.get(diffKey);
+    const identityKey = formatStageIdentityKey(
+      cachedDiff?.identity ?? entry.identity,
+    );
+    const preStagedFromCli =
+      group === "staged" && webmuxStagedPaths
+        ? !webmuxStagedPaths.has(entry.path)
+        : false;
     out.push({
       entry,
       change: {
@@ -324,7 +364,8 @@ export function mapGitStagingOverview(
         hunkStageAvailable:
           cachedDiff?.hunkStageAvailable ?? entry.hunkStageAvailable,
         degradeReason: cachedDiff?.degradeReason ?? entry.degradeReason,
-        preStagedFromCli: false,
+        preStagedFromCli,
+        identityKey,
         hunks: cachedDiff?.hunks ?? [],
       },
     });
@@ -347,20 +388,40 @@ export function mapGitCommitPreviewResponse(
   const byPath = new Map(stagedChanges.map((item) => [item.path, item]));
   const stagedFiles: GitWorkingChange[] = preview.stagedFiles.map((file) => {
     const path = file.newPath || file.oldPath;
-    return (
-      byPath.get(path) ?? {
-        id: `staged:${path}`,
-        path,
-        oldPath: file.oldPath || undefined,
-        group: "staged",
-        status: normalizeWorkingStatus(file.status),
-        binary: file.binary,
-        hunkStageAvailable: false,
-        preStagedFromCli: true,
-        hunks: [],
-      }
-    );
+    const existing = byPath.get(path);
+    return existing
+      ? {
+          ...existing,
+          oldPath: file.oldPath || existing.oldPath,
+          binary: file.binary || existing.binary,
+        }
+      : {
+          id: `staged:${path}`,
+          path,
+          oldPath: file.oldPath || undefined,
+          group: "staged",
+          status: normalizeWorkingStatus(file.status),
+          binary: file.binary,
+          hunkStageAvailable: false,
+          preStagedFromCli: true,
+          identityKey: `${file.oldOid}:${file.newOid}:${file.oldMode}:${file.newMode}`,
+          hunks: [],
+        };
   });
+
+  const cliPreStagedCount = stagedFiles.filter(
+    (s) => s.preStagedFromCli,
+  ).length;
+  const warnings = [...preview.warnings];
+  if (
+    cliPreStagedCount > 0 &&
+    !warnings.some((w) => w.code === "cli_prestaged")
+  ) {
+    warnings.unshift({
+      code: "cli_prestaged",
+      message: `完整 index 预览已包含终端或外部工具预先暂存的 ${cliPreStagedCount} 个文件，请核对差异后再提交`,
+    });
+  }
 
   return {
     repositoryName,
@@ -371,7 +432,11 @@ export function mapGitCommitPreviewResponse(
     expectedTreeOid: preview.expectedTreeOid ?? "",
     authorName: preview.identity.authorName,
     authorEmail: preview.identity.authorEmail,
+    committerName: preview.identity.committerName,
+    committerEmail: preview.identity.committerEmail,
     signEnabled: preview.identity.signEnabled,
+    signFormat: preview.identity.signFormat,
+    operation: preview.operation,
     executableHooks: preview.executableHooks,
     stagedFiles,
     unstagedCount: preview.unstagedCount,
@@ -379,7 +444,9 @@ export function mapGitCommitPreviewResponse(
     conflictedCount: preview.conflictedCount,
     followUpPush,
     blockers: preview.blockers,
-    warnings: preview.warnings,
+    warnings,
+    stale: false,
+    dialogError: "",
   };
 }
 

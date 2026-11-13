@@ -55,12 +55,12 @@
         {...props}
         size="sm"
         variant="outline"
-        class="max-w-full min-w-0"
+        class="min-w-0 shrink"
         aria-label="切换仓库"
         title={repository?.anchorPath ?? "切换仓库"}
       >
         <IconFolder class="text-muted-foreground" aria-hidden="true" />
-        <span class="max-w-36 truncate font-semibold sm:max-w-48">
+        <span class="min-w-0 truncate font-semibold sm:max-w-48">
           {repository?.name ??
             (repositories.length === 0 ? "未登记仓库" : "选择仓库")}
         </span>
@@ -122,12 +122,12 @@
           {...props}
           size="sm"
           variant="outline"
-          class="max-w-full min-w-0"
+          class="min-w-0 shrink"
           aria-label="切换操作目标工作树"
           title={worktree?.path ?? "切换操作目标工作树"}
         >
           <IconGitBranch class="text-muted-foreground" aria-hidden="true" />
-          <span class="max-w-36 truncate sm:max-w-48">
+          <span class="min-w-0 truncate sm:max-w-48">
             {worktreeButtonLabel}
           </span>
           <IconChevronDown class="text-muted-foreground" aria-hidden="true" />

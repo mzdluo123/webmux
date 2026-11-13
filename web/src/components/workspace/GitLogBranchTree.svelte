@@ -1,34 +1,44 @@
 <script lang="ts">
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconChevronRight from "~icons/tabler/chevron-right";
-  import IconCloud from "~icons/tabler/cloud";
-  import IconDots from "~icons/tabler/dots";
   import IconGitBranch from "~icons/tabler/git-branch";
-  import IconStarFilled from "~icons/tabler/star-filled";
-  import IconTag from "~icons/tabler/tag";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
-  import type { GitBranchItem } from "../../contracts/git-workbench-schemas";
+  import {
+    GitWorktreeContextSchema,
+    type GitBranchItem,
+    type GitWorktreeContext,
+  } from "../../contracts/git-workbench-schemas";
+  import {
+    groupAndSortGitBranches,
+    type GitSharedBranchActionKind,
+  } from "../../domains/workspace/git-branches-model";
+  import GitBranchListItem from "./GitBranchListItem.svelte";
 
   let {
     branches,
+    context,
     branchFilter,
     checkedOutBranch,
     selectedCommitOid = null,
     onBranchFilterChange,
+    onBranchAction,
     onToggleFavorite,
     onCompareWithSelected,
     onRequestCheckout,
     onOpenOccupiedWorktree,
   }: {
     branches: readonly GitBranchItem[];
+    context?: GitWorktreeContext;
     branchFilter: string | null;
     checkedOutBranch: string | null;
     selectedCommitOid?: string | null;
     onBranchFilterChange: (branch: string | null) => void;
+    onBranchAction?: (
+      kind: GitSharedBranchActionKind,
+      branch: GitBranchItem,
+    ) => void;
     onToggleFavorite?: (branch: string) => void;
     onCompareWithSelected?: (refHeadOid: string) => void;
     onRequestCheckout: (branch: string) => void;
@@ -38,167 +48,61 @@
   let refQuery = $state("");
   let collapsed = $state<Record<string, boolean>>({});
 
-  const normalizedQuery = $derived(refQuery.trim().toLowerCase());
-  const filteredItems = $derived(
-    normalizedQuery
-      ? branches.filter(
-          (item) =>
-            item.name.toLowerCase().includes(normalizedQuery) ||
-            item.shortHead.toLowerCase().includes(normalizedQuery),
-        )
-      : branches,
+  const effectiveContext = $derived<GitWorktreeContext>(
+    context ??
+      GitWorktreeContextSchema.parse({
+        repositoryId: "",
+        repositoryName: "",
+        worktreePath: checkedOutBranch ? "/worktree" : null,
+        worktreeKind: checkedOutBranch ? "main" : "none",
+        headState: checkedOutBranch ? "branch" : "readonly",
+        checkedOutBranch,
+      }),
   );
 
-  const favoriteBranches = $derived(
-    filteredItems.filter((item) => item.favorite && item.kind !== "tag"),
-  );
-  const currentBranches = $derived(
-    filteredItems.filter(
-      (item) => item.kind === "local" && item.name === checkedOutBranch,
+  const grouped = $derived(
+    groupAndSortGitBranches(
+      branches,
+      effectiveContext.checkedOutBranch,
+      refQuery,
     ),
   );
-  const localBranches = $derived(
-    filteredItems.filter((item) => item.kind === "local"),
-  );
-  const remoteBranches = $derived(
-    filteredItems.filter((item) => item.kind === "remote"),
-  );
-  const tagItems = $derived(
-    filteredItems.filter((item) => item.kind === "tag"),
-  );
-
-  const sections = $derived(
+  const treeSections = $derived(
     [
-      { id: "favorites", label: "收藏分支", items: favoriteBranches },
-      { id: "current", label: "当前分支", items: currentBranches },
-      { id: "local", label: "本地分支", items: localBranches },
-      { id: "remote", label: "远端跟踪分支", items: remoteBranches },
-      { id: "tags", label: "标签 (Tags)", items: tagItems },
+      { id: "current", label: "当前分支", items: grouped.current },
+      { id: "favorites", label: "收藏分支", items: grouped.favorites },
+      { id: "local", label: "本地分支", items: grouped.local },
+      { id: "remote", label: "远端跟踪分支", items: grouped.remote },
+      { id: "tags", label: "标签 (Tags)", items: grouped.tags },
     ].filter((sec) => sec.items.length > 0),
   );
 
   function toggleSection(id: string) {
     collapsed = { ...collapsed, [id]: !collapsed[id] };
   }
+
+  function handleTreeAction(
+    kind: GitSharedBranchActionKind,
+    target: GitBranchItem,
+  ) {
+    if (kind === "filter-log") return onBranchFilterChange(target.name);
+    if (kind === "clear-filter") return onBranchFilterChange(null);
+    if (kind === "toggle-favorite" && onToggleFavorite) {
+      return onToggleFavorite(target.name);
+    }
+    if (kind === "compare" && onCompareWithSelected) {
+      return onCompareWithSelected(target.head);
+    }
+    if (onBranchAction) return onBranchAction(kind, target);
+    if (kind === "checkout") return onRequestCheckout(target.name);
+    if (kind === "open-occupied-worktree" && target.occupiedBy) {
+      onOpenOccupiedWorktree(
+        target.occupiedBy.worktreeId,
+        target.occupiedBy.worktreePath,
+      );
+    }
+  }
 </script>
-
-{#snippet refRow(sectionId: string, branch: GitBranchItem)}
-  <div class="group/row relative" data-ref-section={sectionId}>
-    <ListButton
-      variant="git-row"
-      data-has-action="true"
-      aria-selected={branchFilter === branch.name}
-      onclick={() => onBranchFilterChange(branch.name)}
-    >
-      {#if branch.kind === "tag"}
-        <IconTag
-          class="size-3.5 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-      {:else if branch.kind === "remote"}
-        <IconCloud
-          class="size-3.5 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-      {:else}
-        <IconGitBranch
-          class="size-3.5 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-      {/if}
-
-      {#if branch.favorite && sectionId !== "favorites"}
-        <IconStarFilled
-          class="size-3 shrink-0 text-warning"
-          aria-hidden="true"
-        />
-      {/if}
-
-      <span class="min-w-0 flex-1 truncate" title={branch.name}>
-        {branch.name}
-      </span>
-
-      {#if branch.kind === "local" && branch.name === checkedOutBranch}
-        <Badge variant="info">HEAD</Badge>
-      {/if}
-
-      {#if branch.occupiedBy}
-        <Badge
-          variant="warning"
-          title={`由另一工作树检出：${branch.occupiedBy.worktreePath}`}
-        >
-          已占用{branch.occupiedBy.activeSessions > 0
-            ? `·${branch.occupiedBy.activeSessions}`
-            : ""}
-        </Badge>
-      {/if}
-
-      {#if branch.upstreamGone}
-        <Badge variant="destructive">上游已删</Badge>
-      {:else if (branch.ahead ?? 0) > 0 || (branch.behind ?? 0) > 0}
-        <span
-          class="shrink-0 font-mono text-xs text-muted-foreground"
-          title={`领先 ${branch.ahead ?? 0}，落后 ${branch.behind ?? 0}`}
-        >
-          {#if (branch.ahead ?? 0) > 0}↑{branch.ahead}{/if}{#if (branch.behind ?? 0) > 0}↓{branch.behind}{/if}
-        </span>
-      {/if}
-    </ListButton>
-
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger>
-        {#snippet child({ props })}
-          <ListButton
-            {...props}
-            variant="git-row-action"
-            aria-label={`引用操作 ${branch.name}`}
-            title={`引用操作 ${branch.name}`}
-          >
-            <IconDots aria-hidden="true" />
-          </ListButton>
-        {/snippet}
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Content align="end">
-        <DropdownMenu.Item onclick={() => onBranchFilterChange(branch.name)}>
-          {branch.kind === "tag" ? "仅按此标签过滤历史" : "仅按此分支过滤历史"}
-        </DropdownMenu.Item>
-        {#if branchFilter === branch.name}
-          <DropdownMenu.Item onclick={() => onBranchFilterChange(null)}>
-            清除引用筛选
-          </DropdownMenu.Item>
-        {/if}
-        {#if branch.kind !== "tag" && onToggleFavorite}
-          <DropdownMenu.Item onclick={() => onToggleFavorite(branch.name)}>
-            {branch.favorite ? "取消收藏分支" : "收藏分支"}
-          </DropdownMenu.Item>
-        {/if}
-        {#if onCompareWithSelected && selectedCommitOid && selectedCommitOid !== branch.head}
-          <DropdownMenu.Item onclick={() => onCompareWithSelected(branch.head)}>
-            与当前选中提交比较
-          </DropdownMenu.Item>
-        {/if}
-        {#if branch.occupiedBy}
-          <DropdownMenu.Separator />
-          <DropdownMenu.Item
-            onclick={() =>
-              branch.occupiedBy &&
-              onOpenOccupiedWorktree(
-                branch.occupiedBy.worktreeId,
-                branch.occupiedBy.worktreePath,
-              )}
-          >
-            打开所在工作树
-          </DropdownMenu.Item>
-        {:else if branch.kind === "local" && branch.name !== checkedOutBranch}
-          <DropdownMenu.Separator />
-          <DropdownMenu.Item onclick={() => onRequestCheckout(branch.name)}>
-            检出分支…
-          </DropdownMenu.Item>
-        {/if}
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
-  </div>
-{/snippet}
 
 <aside
   class="flex h-full min-h-0 min-w-0 flex-col bg-git-panel"
@@ -239,12 +143,12 @@
       <span class="min-w-0 flex-1 truncate">全部引用 (All)</span>
     </ListButton>
 
-    {#if sections.length === 0}
+    {#if treeSections.length === 0}
       <p class="px-2 py-2 text-xs text-muted-foreground">
-        {normalizedQuery ? "没有匹配的分支或标签。" : "暂无分支或标签引用。"}
+        {refQuery.trim() ? "没有匹配的分支或标签。" : "暂无分支或标签引用。"}
       </p>
     {:else}
-      {#each sections as section (section.id)}
+      {#each treeSections as section (section.id)}
         <div class="space-y-0.5">
           <ListButton
             variant="git-section"
@@ -264,7 +168,23 @@
 
           {#if !collapsed[section.id]}
             {#each section.items as branch (`${section.id}:${branch.kind}:${branch.name}`)}
-              {@render refRow(section.id, branch)}
+              <GitBranchListItem
+                {branch}
+                context={effectiveContext}
+                selected={branchFilter === branch.name}
+                {branchFilter}
+                sectionId={section.id}
+                hideFavoriteInSection={section.id === "favorites"}
+                compareBaseOid={selectedCommitOid ??
+                  effectiveContext.headOid ??
+                  null}
+                compareTargetLabel={selectedCommitOid
+                  ? "与当前选中提交比较"
+                  : "与当前 HEAD 比较"}
+                menuLabel={`引用操作 ${branch.name}`}
+                onSelectRow={() => onBranchFilterChange(branch.name)}
+                onAction={handleTreeAction}
+              />
             {/each}
           {/if}
         </div>

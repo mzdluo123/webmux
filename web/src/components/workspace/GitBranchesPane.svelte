@@ -1,151 +1,97 @@
 <script lang="ts">
   import { MediaQuery } from "svelte/reactivity";
-  import IconGitBranch from "~icons/tabler/git-branch";
-  import IconStar from "~icons/tabler/star";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { Input } from "$lib/components/ui/input";
-  import { ListButton } from "$lib/components/ui/list-button";
   import type {
     GitBranchItem,
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
+  import {
+    groupAndSortGitBranches,
+    resolveGitBranchActions,
+    resolveGitBranchUpstream,
+    type GitSharedBranchActionKind,
+  } from "../../domains/workspace/git-branches-model";
   import InlineNotice from "../shared/InlineNotice.svelte";
-  import GitRowActionMenu from "./GitRowActionMenu.svelte";
+  import GitBranchListItem from "./GitBranchListItem.svelte";
 
   let {
     context,
     branches,
+    branchFilter = null,
     onFilterInLog,
     onRequestCheckout,
     onOpenOccupiedWorktree,
     onOpenPush,
+    onBranchAction,
   }: {
     context: GitWorktreeContext;
     branches: readonly GitBranchItem[];
+    branchFilter?: string | null;
     onFilterInLog: (branch: string) => void;
     onRequestCheckout: (branch: string) => void;
     onOpenOccupiedWorktree: (worktreeId: string, path: string) => void;
     onOpenPush: (branch: string) => void;
+    onBranchAction?: (
+      kind: GitSharedBranchActionKind,
+      branch: GitBranchItem,
+    ) => void;
   } = $props();
 
   const desktop = new MediaQuery("(min-width: 1024px)");
   let query = $state("");
-  let selectedName = $state<string | null>(null);
+  let selectedKey = $state<string | null>(null);
 
-  const filtered = $derived(
-    branches.filter((b) =>
-      query.trim()
-        ? b.name.toLowerCase().includes(query.trim().toLowerCase()) ||
-          b.subject.toLowerCase().includes(query.trim().toLowerCase())
-        : true,
-    ),
+  const grouped = $derived(
+    groupAndSortGitBranches(branches, context.checkedOutBranch, query),
   );
-
-  const currentBranch = $derived(
-    filtered.filter(
-      (b) => b.kind === "local" && b.name === context.checkedOutBranch,
-    ),
-  );
-  const favorites = $derived(
-    filtered.filter((b) => b.favorite && b.name !== context.checkedOutBranch),
-  );
-  const localBranches = $derived(
-    filtered.filter(
-      (b) =>
-        b.kind === "local" &&
-        !b.favorite &&
-        b.name !== context.checkedOutBranch,
-    ),
-  );
-  const remoteBranches = $derived(filtered.filter((b) => b.kind === "remote"));
-
+  const allVisible = $derived([
+    ...grouped.current,
+    ...grouped.favorites,
+    ...grouped.local.filter((b) => !b.favorite),
+    ...grouped.remote.filter((b) => !b.favorite),
+  ]);
   const activeBranch = $derived(
-    branches.find((b) => b.name === selectedName) ??
-      currentBranch[0] ??
-      filtered[0] ??
+    branches.find((b) => `${b.kind}:${b.name}` === selectedKey) ??
+      grouped.current[0] ??
+      allVisible[0] ??
       null,
   );
+  const activeUpstream = $derived(
+    activeBranch ? resolveGitBranchUpstream(activeBranch) : null,
+  );
+  const activeActions = $derived(
+    activeBranch
+      ? resolveGitBranchActions({
+          item: activeBranch,
+          context,
+          branchFilter,
+          compareBaseOid: context.headOid ?? null,
+          compareTargetLabel: "与当前 HEAD 比较",
+        })
+      : [],
+  );
+
+  function routeBranchOp(kind: GitSharedBranchActionKind, item: GitBranchItem) {
+    if (kind === "filter-log") return onFilterInLog(item.name);
+    if (onBranchAction) return onBranchAction(kind, item);
+    if (kind === "checkout") return onRequestCheckout(item.name);
+    if (kind === "push") return onOpenPush(item.name);
+    if (kind === "open-occupied-worktree" && item.occupiedBy) {
+      onOpenOccupiedWorktree(
+        item.occupiedBy.worktreeId,
+        item.occupiedBy.worktreePath,
+      );
+    }
+  }
 </script>
 
-{#snippet branchRow(item: GitBranchItem)}
-  {@const isCurrent =
-    item.kind === "local" && item.name === context.checkedOutBranch}
-  <div class="group/row relative">
-    <ListButton
-      variant="git-row"
-      data-has-action="true"
-      aria-selected={activeBranch?.name === item.name}
-      onclick={() => (selectedName = item.name)}
-    >
-      <IconGitBranch
-        class="size-3.5 shrink-0 text-muted-foreground"
-        aria-hidden="true"
-      />
-      {#if item.favorite}
-        <IconStar class="size-3 shrink-0 text-warning" aria-hidden="true" />
-      {/if}
-      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-        <span
-          class="min-w-[6ch] max-w-full flex-1 truncate font-medium"
-          title={item.name}
-        >
-          {item.name}
-        </span>
-
-        {#if isCurrent}
-          <Badge variant="info" class="max-w-full">
-            <span class="truncate">当前工作树</span>
-          </Badge>
-        {:else if item.occupiedBy}
-          <Badge variant="warning" class="max-w-full">
-            <span class="truncate">其他工作树已检出</span>
-          </Badge>
-        {/if}
-
-        {#if item.upstreamGone}
-          <Badge variant="destructive" class="max-w-full">
-            <span class="truncate">上游已移除</span>
-          </Badge>
-        {:else if (item.ahead ?? 0) > 0 || (item.behind ?? 0) > 0}
-          <Badge variant="outline">
-            ↑{item.ahead ?? 0} ↓{item.behind ?? 0}
-          </Badge>
-        {/if}
-      </div>
-    </ListButton>
-
-    <GitRowActionMenu label={`分支操作 ${item.name}`}>
-      <DropdownMenu.Item onclick={() => onFilterInLog(item.name)}>
-        在历史 (Log) 中筛选此分支
-      </DropdownMenu.Item>
-      {#if item.occupiedBy}
-        <DropdownMenu.Item
-          onclick={() =>
-            item.occupiedBy &&
-            onOpenOccupiedWorktree(
-              item.occupiedBy.worktreeId,
-              item.occupiedBy.worktreePath,
-            )}
-        >
-          打开所在工作树
-        </DropdownMenu.Item>
-      {:else if item.kind === "local" && !isCurrent && context.worktreePath}
-        <DropdownMenu.Item onclick={() => onRequestCheckout(item.name)}>
-          检出到当前工作树…
-        </DropdownMenu.Item>
-      {/if}
-      {#if item.kind === "local" && isCurrent}
-        <DropdownMenu.Item onclick={() => onOpenPush(item.name)}>
-          推送预览…
-        </DropdownMenu.Item>
-      {/if}
-    </GitRowActionMenu>
-  </div>
-{/snippet}
-
-{#snippet branchGroup(title: string, items: readonly GitBranchItem[])}
+{#snippet branchGroup(
+  sectionId: string,
+  title: string,
+  items: readonly GitBranchItem[],
+)}
   {#if items.length > 0}
     <div class="space-y-1">
       <div class="flex items-center justify-between px-1.5">
@@ -153,8 +99,22 @@
         <Badge variant="outline">{items.length}</Badge>
       </div>
       <div class="space-y-0.5">
-        {#each items as item (`${item.kind}:${item.name}`)}
-          {@render branchRow(item)}
+        {#each items as item (`${sectionId}:${item.kind}:${item.name}`)}
+          <GitBranchListItem
+            branch={item}
+            {context}
+            selected={activeBranch?.kind === item.kind &&
+              activeBranch?.name === item.name}
+            {branchFilter}
+            {sectionId}
+            currentLabel="当前工作树"
+            occupiedLabelStyle="verbose"
+            compareBaseOid={context.headOid ?? null}
+            compareTargetLabel="与当前 HEAD 比较"
+            menuLabel={`分支操作 ${item.name}`}
+            onSelectRow={() => (selectedKey = `${item.kind}:${item.name}`)}
+            onAction={routeBranchOp}
+          />
         {/each}
       </div>
     </div>
@@ -180,11 +140,23 @@
     </div>
 
     <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-2">
-      {@render branchGroup("当前检出 (Current)", currentBranch)}
-      {@render branchGroup("常用分支 (Favorites)", favorites)}
-      {@render branchGroup("本地分支 (Local)", localBranches)}
-      {@render branchGroup("远程跟踪分支 (Remote)", remoteBranches)}
-      {#if filtered.length === 0}
+      {@render branchGroup("current", "当前检出 (Current)", grouped.current)}
+      {@render branchGroup(
+        "favorites",
+        "收藏分支 (Favorites)",
+        grouped.favorites,
+      )}
+      {@render branchGroup(
+        "local",
+        "本地分支 (Local)",
+        grouped.local.filter((b) => !b.favorite),
+      )}
+      {@render branchGroup(
+        "remote",
+        "远程跟踪分支 (Remote)",
+        grouped.remote.filter((b) => !b.favorite),
+      )}
+      {#if allVisible.length === 0}
         <p class="p-3 text-xs text-muted-foreground">没有匹配的分支。</p>
       {/if}
     </div>
@@ -192,15 +164,21 @@
 
   <section
     class={desktop.current
-      ? "flex w-96 shrink-0 flex-col bg-git-panel p-4"
+      ? "flex w-96 shrink-0 flex-col overflow-y-auto bg-git-panel p-4"
       : "flex shrink-0 flex-col bg-git-panel p-3"}
     aria-label="选中分支详情与工作树占用"
   >
     {#if !activeBranch}
       <p class="text-xs text-muted-foreground">
-        选择任意分支查看上游与工作树状态。
+        选择任意分支查看上游、工作树占用与可执行操作。
       </p>
     {:else}
+      {@const isCurrent =
+        activeBranch.kind === "local" &&
+        activeBranch.name === context.checkedOutBranch}
+      {@const pushAct = activeActions.find((a) => a.kind === "push")}
+      {@const ffAct = activeActions.find((a) => a.kind === "fast-forward")}
+      {@const delAct = activeActions.find((a) => a.kind === "delete")}
       <div class="space-y-3">
         <div>
           <div class="flex min-w-0 flex-wrap items-center gap-2">
@@ -218,35 +196,22 @@
           </p>
         </div>
 
-        {#if activeBranch.upstream}
+        {#if activeBranch.kind === "local" && activeUpstream}
           <div
             class="rounded-md border border-git-border bg-git-surface p-2.5 text-xs"
           >
-            <p class="wrap-anywhere">
-              上游跟踪：<span class="font-mono">{activeBranch.upstream}</span>
-              {#if activeBranch.upstreamGone}
-                <span class="text-destructive">（远程分支已不存在）</span>
-              {:else}
-                <span
-                  >（领先 {activeBranch.ahead ?? 0} · 落后 {activeBranch.behind ??
-                    0}）</span
-                >
-              {/if}
-            </p>
+            <p class="wrap-anywhere">{activeUpstream.detailText}</p>
           </div>
-        {:else if activeBranch.kind === "local"}
-          <p class="text-xs text-muted-foreground">
-            尚未配置远程上游分支，推送时将执行首次发布（Publish Branch）。
-          </p>
         {/if}
 
         {#if activeBranch.occupiedBy}
           <InlineNotice tone="warning">
-            该分支已在另一工作树 <span class="font-mono break-all"
+            该分支已在另一工作树
+            <span class="font-mono break-all"
               >{activeBranch.occupiedBy.worktreePath}</span
             >
             检出（当前活跃会话：{activeBranch.occupiedBy.activeSessions} 个）。Git
-            不允许两个工作树同时检出同一本地分支，请直接前往该工作树继续操作。
+            不允许两个工作树同时检出同一本地分支，请直接前往该工作树或从该提交新建工作树分支。
           </InlineNotice>
         {/if}
 
@@ -254,7 +219,7 @@
           <Button
             size="sm"
             variant="outline"
-            onclick={() => onFilterInLog(activeBranch.name)}
+            onclick={() => routeBranchOp("filter-log", activeBranch)}
           >
             在历史中查看提交
           </Button>
@@ -264,30 +229,79 @@
               size="sm"
               variant="git-primary"
               onclick={() =>
-                activeBranch.occupiedBy &&
-                onOpenOccupiedWorktree(
-                  activeBranch.occupiedBy.worktreeId,
-                  activeBranch.occupiedBy.worktreePath,
-                )}
+                routeBranchOp("open-occupied-worktree", activeBranch)}
             >
               打开所在工作树
             </Button>
-          {:else if activeBranch.kind === "local" && activeBranch.name === context.checkedOutBranch}
+            <Button
+              size="sm"
+              variant="outline"
+              onclick={() => routeBranchOp("open-new-worktree", activeBranch)}
+            >
+              从该提交新建分支工作树…
+            </Button>
+          {:else if isCurrent && pushAct}
             <Button
               size="sm"
               variant="git-primary"
-              onclick={() => onOpenPush(activeBranch.name)}
+              disabled={pushAct.disabled}
+              title={pushAct.disabledReason}
+              onclick={() => routeBranchOp("push", activeBranch)}
             >
-              推送预览…
+              {pushAct.label}
             </Button>
-          {:else if activeBranch.kind === "local" && context.worktreePath}
+          {:else if activeBranch.kind !== "tag" && context.worktreePath}
             <Button
               size="sm"
               variant="git-primary"
-              onclick={() => onRequestCheckout(activeBranch.name)}
+              onclick={() => routeBranchOp("checkout", activeBranch)}
             >
-              检出分支…
+              {activeBranch.kind === "remote"
+                ? "检出并跟踪…"
+                : "检出到当前工作树…"}
             </Button>
+          {/if}
+
+          {#if !activeBranch.occupiedBy && activeBranch.kind !== "tag"}
+            <Button
+              size="sm"
+              variant="outline"
+              onclick={() => routeBranchOp("create-branch-from", activeBranch)}
+            >
+              从此分支新建分支…
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onclick={() => routeBranchOp("open-new-worktree", activeBranch)}
+            >
+              在新工作树打开…
+            </Button>
+          {/if}
+
+          {#if activeBranch.kind === "local"}
+            {#if ffAct}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={ffAct.disabled}
+                title={ffAct.disabledReason}
+                onclick={() => routeBranchOp("fast-forward", activeBranch)}
+              >
+                {ffAct.label}
+              </Button>
+            {/if}
+            {#if delAct}
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={delAct.disabled}
+                title={delAct.disabledReason}
+                onclick={() => routeBranchOp("delete", activeBranch)}
+              >
+                {delAct.label}
+              </Button>
+            {/if}
           {/if}
         </div>
       </div>

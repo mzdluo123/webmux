@@ -46,3 +46,22 @@
     - 同一 E2E 进一步验证任意两提交比较与方向交换、放大 Diff 返回保留列表滚动位置、手机窄屏三步导航零横向溢出，以及全程 `.git/index` 内容摘要与暂存区零改动；
     - 在真实运行实例上完成桌面（1280×900）、平板（768×800）、手机（390×844）浅色与深色前后对比截图及常速交互 GIF 录制与逐张视觉核查。
 - 限制：无头 Chromium 的 `hover` 与 `any-pointer: coarse` 媒体特性与物理设备存在差异，拖拽分隔条的真实触控阻尼与真机 iOS/Android 浏览器表现未在物理设备上验证。
+
+## 2026-11-12：Git 工作台 05（V1a）Commit 暂存闭环、三处共享分支动作与宽幅 Push 对话框（US-J22）
+
+- 范围：
+  - 服务端推送预览增强：`PushPreview` 上限提升至 `maxPushListedCommits = 500` 以完整列出待推提交，支持通过工作树或仓库级提交详情/单文件差异接口检视任意待推提交内容；
+  - `Commit` 真实 `index` 暂存与提交闭环：左侧 `Changes` 四组树实现阅读高亮、`identityKey` 绑定的“已审阅”与真实 Git `index`“已暂存”三态严格分离，支持分组批量、整文件及常驻不依赖悬停的逐块 `Stage`/`Unstage`、降级文件整文件兜底、冲突跳转终端及外部改动过期快照门禁；
+  - 全量 `HEAD -> index` 提交预览与三态复核：拆分标题/正文编写器（`Ctrl/Cmd+Enter` 仅打开预览），预览框支持逐文件展开阅读真实 `HEAD -> index` Pierre Diff、`409 stale` 原位刷新预览，以及 `matched`、`needs_review`（Hook 改写树自动中止串联推送）与 `uncertain` 三态复核；
+  - 三处共享分支动作与宽幅 `GitPushDialog`：
+    - 顶栏分支弹层、`Log` 引用树与 `Branches` 视图统一复用共享分支模型、工作树占用保护及 `⋯`/右键/`Shift+F10` 菜单；
+    - 桌面 ~900px 双栏、手机全屏推送确认框支持浏览全部待推提交及其 Pierre 文件 Diff，并在“提交并推送”第二步取消或失败时独立保留本地提交且提供 Fetch/Update 恢复入口；
+  - 文档树重构：因 `worktrees.md` 超过 48 KiB 体积上限，保留 `worktrees.md` 为树状索引，原文拆分为 `worktrees/lifecycle.md`（US-J01–US-J18）与 `worktrees/git-workbench.md`（US-J19–US-J22）。
+- 依据：
+  - Go 单元与竞态测试：`go test -race ./internal/workspace ./internal/codeview ./internal/wire ./internal/api ./internal/archtest ./internal/docguard` 通过；
+  - 前端架构与单测门禁：`make check`、`test/git-branches-and-staging.test.ts` 与 `test/git-workbench.test.ts` 通过；
+  - 浏览器与 Storybook 多视口测试：`test/browser/GitWorkbenchCommitPush.test.ts`、`test/browser/GitWorkbench.test.ts` 与 `pnpm --dir web test:storybook`（含 `git-workbench.spec.ts` 12 视口档位布局与对话框可达性巡检）通过；
+  - Playwright 端到端与视觉验证：
+    - `test/e2e/git-workbench-commit-push.spec.ts`、`test/e2e/git-workbench-log.spec.ts` 与 `test/e2e/git-workbench-route.spec.ts`（桌面与窄屏项目）验证真实单块 `index` 暂存、外部修改自动失效“已审阅”、`409 stale` 一键重生成预览与 `pre-commit` Hook 改写树返回 `needs_review` 中止自动推送；
+    - 同一 E2E 进一步验证远端超前两步独立报错、首次发布分支、工作树占用保护与 `Shift+F10` 检出脏文件/活跃会话警告，并在真实运行实例上完成桌面、平板、手机浅色与深色前后对比截图及常速交互 GIF 核查。
+- 限制：无头 Chromium 的键盘焦点样式与物理移动设备触控反馈无法完全替代真机 iOS/Android 浏览器验收；外部 GPG 硬件密钥交互签名未在无头 CI 环境实测。

@@ -498,7 +498,58 @@ export function buildGitWorkbenchFixture(
               ? `https://user:***@github.com/${longToken}/webmux.git`
               : "https://user:***@github.com/mzdluo123/webmux.git",
             publish: false,
-            commits: [mergeDetail],
+            commits: [
+              mergeDetail,
+              GitCommitDetailSchema.parse({
+                oid: featRow.oid,
+                shortOid: featRow.shortOid,
+                subject: featRow.subject,
+                body: "Adds multi-lane commit graph layout and keyboard navigation.",
+                authorName: featRow.authorName,
+                authorEmail: featRow.authorEmail,
+                authorAt: featRow.authorAt,
+                committerName: featRow.committerName,
+                committerEmail: featRow.committerEmail,
+                committerAt: featRow.committerAt,
+                distinctCommitter: false,
+                parents: [
+                  {
+                    oid: baseRow.oid,
+                    shortOid: baseRow.shortOid,
+                    subject: baseRow.subject,
+                  },
+                ],
+                selectedParent: baseRow.oid,
+                refs: featRow.refs,
+                filesByParent: {
+                  [baseRow.oid]: [
+                    {
+                      newPath: "web/src/domains/workspace/git-graph-layout.ts",
+                      status: "M",
+                      additions: 48,
+                      deletions: 6,
+                      hunks: [
+                        {
+                          id: "h-push-feat",
+                          header: "@@ -12,2 +12,4 @@",
+                          oldStart: 12,
+                          oldLines: 2,
+                          newStart: 12,
+                          newLines: 4,
+                          lines: [
+                            {
+                              kind: "add",
+                              newLine: 13,
+                              text: "export const GIT_GRAPH_DOT_RADIUS = 4;",
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              }),
+            ],
             blockers: [],
             warnings: [
               {

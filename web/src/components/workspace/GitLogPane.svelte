@@ -240,6 +240,7 @@
 {#snippet branchTreeContent(inDrawer: boolean)}
   <GitLogBranchTree
     branches={props.branches}
+    context={props.context}
     branchFilter={props.branchFilter}
     checkedOutBranch={props.checkedOutBranch}
     selectedCommitOid={props.selectedCommitOid}
@@ -247,6 +248,12 @@
       props.onBranchFilterChange(branch);
       if (inDrawer) refDrawerOpen = false;
     }}
+    onBranchAction={props.onBranchAction
+      ? (kind, branch) => {
+          if (inDrawer) refDrawerOpen = false;
+          props.onBranchAction?.(kind, branch);
+        }
+      : undefined}
     onToggleFavorite={props.onToggleFavorite}
     onCompareWithSelected={props.onStartCompare && props.selectedCommitOid
       ? (refHead) => {

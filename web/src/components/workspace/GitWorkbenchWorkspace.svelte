@@ -1,12 +1,16 @@
 <script lang="ts">
   import { MediaQuery } from "svelte/reactivity";
   import * as Tabs from "$lib/components/ui/tabs";
-  import type { GitWorkbenchMode } from "../../contracts/git-workbench-schemas";
+  import type {
+    GitBranchItem,
+    GitWorkbenchMode,
+  } from "../../contracts/git-workbench-schemas";
   import type {
     Repository,
     SessionInfo,
     Worktree,
   } from "../../contracts/schemas";
+  import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
   import type { GitDeviceLayout } from "../../domains/workspace/git-workbench-memory";
   import type { createGitWorkbenchController } from "../../hooks/workspace/git-workbench-controller.svelte";
   import GitBranchesPane from "./GitBranchesPane.svelte";
@@ -24,6 +28,7 @@
     commitGuard,
     canAddRepository,
     deviceLayout,
+    hasActiveWorktreeSession = false,
     onUpdateDeviceLayout,
     onResetDeviceLayout,
     onAddRepository,
@@ -33,6 +38,10 @@
     onManageWorktrees,
     onRequestCheckout,
     onOpenPush,
+    onBranchAction,
+    onCreateBranchFromHead,
+    onOpenWorktreeTerminal,
+    onNewWorktreeTerminal,
   }: {
     controller: ReturnType<typeof createGitWorkbenchController>;
     repositories: readonly Repository[];
@@ -42,6 +51,7 @@
     commitGuard: "pick-worktree" | "broken-worktree" | null;
     canAddRepository: boolean;
     deviceLayout: GitDeviceLayout;
+    hasActiveWorktreeSession?: boolean;
     onUpdateDeviceLayout: (patch: Partial<GitDeviceLayout>) => void;
     onResetDeviceLayout: () => void;
     onAddRepository: () => void;
@@ -51,6 +61,13 @@
     onManageWorktrees: () => void;
     onRequestCheckout: (branch: string) => void;
     onOpenPush: (branch?: string) => void;
+    onBranchAction: (
+      kind: GitSharedBranchActionKind,
+      branch: GitBranchItem,
+    ) => void;
+    onCreateBranchFromHead: () => void;
+    onOpenWorktreeTerminal: () => void;
+    onNewWorktreeTerminal: () => void;
   } = $props();
 
   const desktop = new MediaQuery("(min-width: 1280px)");
@@ -70,6 +87,7 @@
 
   <Tabs.Content value="log" class="min-h-0 min-w-0 flex-1 overflow-hidden p-0">
     <GitLogPane
+      context={controller.view.context}
       historyState={controller.view.historyState}
       historyReason={controller.view.historyReason}
       nextCursor={controller.view.nextCursor}
@@ -120,6 +138,7 @@
       onScopeChange={(scope) => controller.setScope(scope)}
       onBranchFilterChange={(branch) =>
         controller.setBranchFilter(branch, repository, worktree, sessions)}
+      {onBranchAction}
       onSearchChange={(q) => controller.setSearchQuery(q)}
       onAuthorChange={(a) => controller.setAuthorFilter(a)}
       onSinceChange={(s) => controller.setSinceFilter(s)}
@@ -169,6 +188,11 @@
         activeChangeId={controller.view.activeChangeId}
         reviewedPaths={controller.view.reviewedPaths}
         commitMessage={controller.view.commitMessage}
+        stagingDiff={controller.staging.reader}
+        stagingBusy={controller.stagingBusy}
+        activeDiffStale={controller.staging.activeDiffStale}
+        activeDiffStaleReason={controller.staging.activeDiffStaleReason}
+        {hasActiveWorktreeSession}
         paneSizes={deviceLayout.commitPaneSizes}
         diffMode={deviceLayout.diffMode}
         listScrollTop={controller.scrollOffsets.commitList}
@@ -180,16 +204,23 @@
         onListScrollChange={(top) => controller.setScroll("commitList", top)}
         onDiffScrollChange={(top) => controller.setScroll("commitDiff", top)}
         onSelectChange={(id) => controller.selectChange(id)}
-        onToggleReviewed={(p) => controller.toggleReviewed(p)}
+        onToggleReviewed={(change) => controller.toggleReviewed(change)}
         onStageChange={(id) => void controller.stageOrUnstage("stage", id)}
         onUnstageChange={(id) => void controller.stageOrUnstage("unstage", id)}
+        onStageGroup={(_op, group) =>
+          void controller.stageOrUnstageGroup(group)}
         onStageHunk={(id, hId) =>
           void controller.stageOrUnstage("stage", id, hId)}
         onUnstageHunk={(id, hId) =>
           void controller.stageOrUnstage("unstage", id, hId)}
+        onRefreshSnapshot={() => void controller.refreshActiveSnapshot()}
         onCommitMessageChange={(msg) => controller.setCommitMessage(msg)}
         onOpenCommitPreview={(followUpPush) =>
           void controller.openCommitPreview(followUpPush)}
+        onOpenPush={() => onOpenPush()}
+        {onCreateBranchFromHead}
+        {onOpenWorktreeTerminal}
+        {onNewWorktreeTerminal}
       />
     {/if}
   </Tabs.Content>
@@ -201,6 +232,7 @@
     <GitBranchesPane
       context={controller.view.context}
       branches={controller.view.branches}
+      branchFilter={controller.view.branchFilter}
       onFilterInLog={(branch) =>
         controller.setBranchFilter(
           branch,
@@ -212,6 +244,7 @@
       {onRequestCheckout}
       onOpenOccupiedWorktree={(wtId) => onSwitchWorktree(wtId)}
       onOpenPush={(branch) => onOpenPush(branch)}
+      {onBranchAction}
     />
   </Tabs.Content>
 </Tabs.Root>

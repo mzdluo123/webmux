@@ -150,7 +150,16 @@ export interface Shell {
    * Opens the switch of a worktree's branch outside the repository panel,
    * which shows the same flow as one of its subviews.
    */
-  switchBranch(worktree: Worktree, initialBranch?: string): void;
+  switchBranch(
+    worktree: Worktree,
+    initial?:
+      | string
+      | {
+          branch?: string;
+          mode?: "existing" | "new";
+          startPoint?: string;
+        },
+  ): void;
   /** Opens the shared release preview of an archived record's worktree. */
   releaseWorktree(worktree: Worktree): void;
   /**

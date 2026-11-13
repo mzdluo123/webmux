@@ -73,6 +73,8 @@
     repository,
     worktree,
     initialBranch,
+    initialMode = "existing",
+    initialStartPoint,
     source = apiSwitchSource,
     busy = $bindable(false),
     ondone,
@@ -84,6 +86,8 @@
     repository: Repository;
     worktree: Worktree;
     initialBranch?: string;
+    initialMode?: "existing" | "new";
+    initialStartPoint?: string;
     source?: SwitchSource;
     /** The switch runs; the host blocks closing and going back. */
     busy?: boolean;
@@ -99,7 +103,7 @@
   } = $props();
 
   type Mode = "existing" | "new" | "detach";
-  let mode = $state<Mode>("existing");
+  let mode = $state<Mode>(untrack(() => initialMode));
 
   let data = $state<Branches | null>(null);
   let loadError = $state("");
@@ -148,7 +152,7 @@
   );
   let newName = $state("");
   let startPoint = $state(
-    untrack(() => worktree.branch ?? worktree.head ?? ""),
+    untrack(() => initialStartPoint ?? worktree.branch ?? worktree.head ?? ""),
   );
   let startOpen = $state(false);
   let startSearch = $state("");

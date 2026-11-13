@@ -1,85 +1,327 @@
 <script lang="ts">
+  import IconArrowDown from "~icons/tabler/arrow-down";
+  import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
-  import { resolveCommitParentFiles } from "../../domains/workspace/git-workbench-state";
-  import type { GitPushPreviewModel } from "../../contracts/git-workbench-schemas";
-  import GitDiffViewer from "./GitDiffViewer.svelte";
-  import GitIssueList from "./GitIssueList.svelte";
+  import * as NativeSelect from "$lib/components/ui/native-select";
+  import type {
+    GitCommitDetail,
+    GitIssue,
+    GitPushPreviewModel,
+  } from "../../contracts/git-workbench-schemas";
+  import type { GitPushController } from "../../hooks/workspace/git-push-controller.svelte";
+  import InlineNotice from "../shared/InlineNotice.svelte";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import GitIssueList from "./GitIssueList.svelte";
+  import GitPushCommitInspector from "./GitPushCommitInspector.svelte";
 
   let {
+    push,
     model,
     onConfirm,
     onClose,
+    onFetchRemote,
+    onFastForwardBranch,
   }: {
-    model: GitPushPreviewModel;
-    onConfirm: () => void;
-    onClose: () => void;
+    push?: GitPushController;
+    model?: GitPushPreviewModel;
+    onConfirm?: () => void;
+    onClose?: () => void;
+    onFetchRemote?: () => void;
+    onFastForwardBranch?: (branch: string) => void;
   } = $props();
 
-  let selectedCommitOid = $state<string | null>(null);
-  let selectedFilePath = $state<string | null>(null);
+  let fixtureCommitOid = $state<string | null>(null);
+  let fixtureParentOid = $state("");
+  let fixtureFilePath = $state<string | null>(null);
 
-  const activeCommit = $derived(
-    model.commits.find((c) => c.oid === selectedCommitOid) ??
-      model.commits[0] ??
-      null,
+  const repositoryName = $derived(
+    push ? push.repositoryName : (model?.repositoryName ?? ""),
   );
-  const resolved = $derived(
-    activeCommit
-      ? resolveCommitParentFiles(activeCommit)
-      : { selectedParent: "", files: [] },
+  const sourceBranch = $derived(
+    push ? push.branch : (model?.sourceBranch ?? ""),
   );
-  const activeFile = $derived(
-    resolved.files.find((f) => f.newPath === selectedFilePath) ??
-      resolved.files[0] ??
-      null,
+  const remoteName = $derived(
+    push
+      ? push.publishing
+        ? push.remote || push.preview?.remote || "origin"
+        : (push.preview?.remote ?? "origin")
+      : (model?.remote ?? "origin"),
   );
-  const canPush = $derived(
-    model.blockers.length === 0 && model.commits.length > 0,
+  const targetBranch = $derived(
+    push
+      ? push.publishing
+        ? push.target || push.preview?.target || sourceBranch
+        : (push.preview?.target ?? sourceBranch)
+      : (model?.targetBranch ?? sourceBranch),
   );
+  const publishMode = $derived(
+    push
+      ? Boolean(push.publishing || push.preview?.publish)
+      : Boolean(model?.publish),
+  );
+  const pushUrl = $derived(
+    push ? (push.preview?.pushUrl ?? "") : (model?.pushUrl ?? ""),
+  );
+  const precedingCommit = $derived(
+    push ? push.precedingCommit : (model?.precedingCommit ?? null),
+  );
+
+  const commitRows = $derived.by(() => {
+    if (push) {
+      const items = push.preview?.commits.items ?? [];
+      return items.map((c) => ({
+        oid: c.hash,
+        shortOid: c.hash.slice(0, 7),
+        subject: c.subject,
+        author: c.author,
+      }));
+    }
+    const items = model?.commits ?? [];
+    return items.map((c) => ({
+      oid: c.oid,
+      shortOid: c.shortOid,
+      subject: c.subject,
+      author: c.authorName,
+    }));
+  });
+
+  const totalCommits = $derived(
+    push
+      ? (push.preview?.commits.total ?? commitRows.length)
+      : (model?.totalCommits ?? commitRows.length),
+  );
+
+  const blockers = $derived<GitIssue[]>(
+    push
+      ? (push.preview?.blockers ?? []).map((b) => ({
+          code: b.code,
+          message: b.message,
+        }))
+      : (model?.blockers ?? []),
+  );
+  const warnings = $derived<GitIssue[]>(
+    push
+      ? (push.preview?.warnings ?? []).map((w) => ({
+          code: w.code,
+          message: w.message,
+        }))
+      : (model?.warnings ?? []),
+  );
+
+  const activeCommitOid = $derived(
+    push
+      ? (push.selectedCommitOid ?? commitRows[0]?.oid ?? null)
+      : (fixtureCommitOid ?? commitRows[0]?.oid ?? null),
+  );
+  const activeDetail = $derived<GitCommitDetail | null>(
+    push
+      ? push.activeDetail
+      : ((model?.commits.find((c) => c.oid === activeCommitOid) ??
+          model?.commits[0] ??
+          null) as GitCommitDetail | null),
+  );
+  const selectedParent = $derived(
+    push ? push.selectedParentOid : fixtureParentOid,
+  );
+  const selectedFile = $derived(push ? push.selectedFilePath : fixtureFilePath);
+
+  const canConfirm = $derived.by(() => {
+    if (push) {
+      const cur = push.preview;
+      if (!cur || !cur.confirmationId || push.loading || push.running) {
+        return false;
+      }
+      if (blockers.length > 0) return false;
+      if (
+        push.publishing &&
+        (cur.remote !== push.remote || cur.target !== push.target.trim())
+      ) {
+        return false;
+      }
+      return true;
+    }
+    if (!model) return false;
+    if (model.blockers.length > 0) return false;
+    return model.publish || model.commits.length > 0;
+  });
+
+  function handleClose() {
+    if (push) push.closeDialog();
+    else onClose?.();
+  }
+
+  function handleConfirm() {
+    if (push) void push.confirmPush();
+    else onConfirm?.();
+  }
 </script>
 
 <ResponsiveDialog
-  title={`推送确认 · ${model.sourceBranch} → ${model.remote}/${model.targetBranch}`}
-  description={`即将向脱敏远端 ${model.pushUrl} 推送 ${model.commits.length} 个提交。`}
-  drawerDescription={`向 ${model.remote}/${model.targetBranch} 推送 ${model.commits.length} 个提交。`}
+  title={`推送确认 · ${sourceBranch} → ${remoteName}/${targetBranch || sourceBranch}`}
+  description={pushUrl
+    ? `仓库 ${repositoryName} · 目标远端 ${pushUrl} · 共 ${totalCommits} 个待推提交`
+    : `仓库 ${repositoryName} · 核对待推提交与文件差异后确认推送`}
+  drawerDescription={`共 ${totalCommits} 个待推提交 · 核对差异后确认推送`}
+  drawerFullScreen
   truncateDrawerTitle
-  class="sm:max-w-4xl"
-  onclose={onClose}
+  busy={push?.running ?? false}
+  class="sm:max-w-[min(900px,calc(100vw-2rem))]"
+  onclose={handleClose}
 >
-  <div class="space-y-4">
-    <div
-      class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-git-border bg-git-panel p-2.5 text-xs"
-    >
-      <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
-        <Badge variant="info" class="max-w-full">
-          <span class="truncate" title={model.sourceBranch}>
-            {model.sourceBranch}
+  <div class="space-y-3" data-testid="git-push-dialog">
+    {#if precedingCommit}
+      {#if push?.rejected || push?.conflictError}
+        <InlineNotice tone="warning">
+          <div class="space-y-1.5">
+            <p class="font-medium">
+              本地已提交（{precedingCommit.shortOid} · {precedingCommit.subject}），推送未完成：{push
+                ?.rejected?.message ||
+                push?.conflictError}。本地提交已完整保留。
+            </p>
+            <div class="flex flex-wrap items-center gap-2">
+              {#if onFetchRemote}
+                <Button size="xs" variant="outline" onclick={onFetchRemote}>
+                  <IconRefresh aria-hidden="true" />
+                  获取远程 (Fetch)
+                </Button>
+              {/if}
+              {#if onFastForwardBranch}
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onclick={() => {
+                    const b = sourceBranch;
+                    handleClose();
+                    onFastForwardBranch(b);
+                  }}
+                >
+                  <IconArrowDown aria-hidden="true" />
+                  快进更新… (Update)
+                </Button>
+              {/if}
+            </div>
+          </div>
+        </InlineNotice>
+      {:else}
+        <InlineNotice tone="success">
+          第一步已完成：本地提交 <span class="font-mono"
+            >{precedingCommit.shortOid}</span
+          >（{precedingCommit.subject}）已创建。请核对本分支全部待推提交后确认推送。
+        </InlineNotice>
+      {/if}
+    {:else if push?.rejected || push?.conflictError}
+      <InlineNotice tone="danger">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            推送未完成：{push?.rejected?.message || push?.conflictError}
           </span>
-        </Badge>
-        <span class="text-muted-foreground">→</span>
-        <Badge variant="outline" class="max-w-full">
-          <span
-            class="truncate"
-            title={`${model.remote}/${model.targetBranch}`}
+          {#if onFetchRemote}
+            <Button size="xs" variant="outline" onclick={onFetchRemote}>
+              <IconRefresh aria-hidden="true" />
+              获取远程 (Fetch)
+            </Button>
+          {/if}
+        </div>
+      </InlineNotice>
+    {/if}
+
+    {#if push?.loadError}
+      <InlineNotice tone="danger">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span>加载推送预览失败：{push.loadError}</span>
+          <Button
+            size="xs"
+            variant="outline"
+            onclick={() => void push.refreshPreview()}
           >
-            {model.remote}/{model.targetBranch}
-          </span>
-        </Badge>
-        {#if model.publish}
-          <Badge variant="warning" class="max-w-full">
-            <span class="truncate">首次发布上游 (Publish)</span>
+            重试加载
+          </Button>
+        </div>
+      </InlineNotice>
+    {/if}
+
+    <div
+      class="flex min-w-0 flex-col gap-2 rounded-lg border border-git-border bg-git-panel p-2.5 text-xs"
+    >
+      <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+          <span class="font-semibold text-foreground">{repositoryName}</span>
+          <Badge variant="info" class="max-w-full">
+            <span class="truncate" title={sourceBranch}>{sourceBranch}</span>
           </Badge>
+          <span class="text-muted-foreground">→</span>
+          <Badge variant="outline" class="max-w-full">
+            <span
+              class="truncate"
+              title={`${remoteName}/${targetBranch || sourceBranch}`}
+            >
+              {remoteName}/{targetBranch || sourceBranch}
+            </span>
+          </Badge>
+          {#if publishMode}
+            <Badge variant="warning" class="max-w-full">
+              <span class="truncate">首次发布上游 (Publish)</span>
+            </Badge>
+          {/if}
+        </div>
+
+        {#if pushUrl}
+          <span class="font-mono break-all text-muted-foreground">
+            {pushUrl}
+          </span>
         {/if}
       </div>
-      <span class="font-mono break-all text-muted-foreground">
-        {model.pushUrl}
-      </span>
+
+      {#if push && publishMode}
+        <div class="grid min-w-0 grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
+          <div class="space-y-1">
+            <span class="text-xs text-muted-foreground">发布远端 (Remote)</span>
+            {#if push.remotes.length > 0}
+              <NativeSelect.Root
+                size="sm"
+                class="w-full"
+                value={push.remote}
+                aria-label="选择发布远端"
+                onchange={(e) => push.setPublishRemote(e.currentTarget.value)}
+              >
+                {#each push.remotes as r (r.name)}
+                  <NativeSelect.Option value={r.name}>
+                    {r.name} ({r.pushUrl})
+                  </NativeSelect.Option>
+                {/each}
+              </NativeSelect.Root>
+            {:else}
+              <Input
+                size="sm"
+                mono
+                value={push.remote}
+                aria-label="远端名称"
+                oninput={(e) => push.setPublishRemote(e.currentTarget.value)}
+              />
+            {/if}
+          </div>
+
+          <div class="space-y-1">
+            <span class="text-xs text-muted-foreground">
+              远端分支名 (Target Branch)
+            </span>
+            <Input
+              size="sm"
+              mono
+              value={push.target}
+              placeholder={sourceBranch}
+              aria-label="远端目标分支名"
+              oninput={(e) => push.setPublishTarget(e.currentTarget.value)}
+            />
+          </div>
+        </div>
+      {/if}
     </div>
 
-    <GitIssueList blockers={model.blockers} warnings={model.warnings} />
+    <GitIssueList {blockers} {warnings} />
 
     <div
       class="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-12"
@@ -88,22 +330,44 @@
       <div
         class="min-w-0 space-y-2 rounded-lg border border-git-border bg-git-surface p-2 lg:col-span-5"
       >
-        <span class="px-1 text-xs font-semibold text-muted-foreground">
-          待推送提交 ({model.commits.length})
-        </span>
-        {#if model.commits.length === 0}
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-semibold text-foreground">
+            待推送提交 ({totalCommits})
+          </span>
+          {#if push?.loading}
+            <span class="text-xs text-muted-foreground">正在计算…</span>
+          {/if}
+        </div>
+
+        {#if push?.loading && commitRows.length === 0}
           <p class="px-2 py-3 text-xs text-muted-foreground">
-            当前分支没有领先远端的待推提交。
+            正在读取待推送提交列表…
+          </p>
+        {:else if commitRows.length === 0}
+          <p class="px-2 py-3 text-xs text-muted-foreground">
+            {#if publishMode}
+              当前分支与远端共享提交基底，首次发布将在远端创建分支引用并配置上游跟踪。
+            {:else}
+              当前分支没有领先远端上游的待推提交。
+            {/if}
           </p>
         {:else}
-          <div class="max-h-56 space-y-0.5 overflow-y-auto">
-            {#each model.commits as commit (commit.oid)}
+          <div
+            class="max-h-64 space-y-0.5 overflow-y-auto"
+            data-testid="git-push-commits-list"
+          >
+            {#each commitRows as commit (commit.oid)}
               <ListButton
                 variant="git-row"
-                aria-selected={activeCommit?.oid === commit.oid}
+                aria-selected={activeCommitOid === commit.oid}
                 onclick={() => {
-                  selectedCommitOid = commit.oid;
-                  selectedFilePath = null;
+                  if (push) {
+                    void push.selectCommit(commit.oid);
+                  } else {
+                    fixtureCommitOid = commit.oid;
+                    fixtureParentOid = "";
+                    fixtureFilePath = null;
+                  }
                 }}
               >
                 <span class="shrink-0 font-mono text-xs text-muted-foreground">
@@ -119,56 +383,45 @@
             {/each}
           </div>
         {/if}
-
-        {#if activeCommit}
-          <div class="border-t border-git-border pt-2">
-            <span class="px-1 text-xs font-semibold text-muted-foreground">
-              变更文件 ({resolved.files.length})
-            </span>
-            <div class="mt-1 max-h-36 space-y-0.5 overflow-y-auto">
-              {#each resolved.files as file (file.newPath)}
-                <ListButton
-                  variant="git-row"
-                  aria-selected={activeFile?.newPath === file.newPath}
-                  onclick={() => (selectedFilePath = file.newPath)}
-                >
-                  <Badge variant="outline">{file.status}</Badge>
-                  <span
-                    class="min-w-0 flex-1 truncate font-mono"
-                    title={file.newPath}
-                  >
-                    {file.newPath}
-                  </span>
-                </ListButton>
-              {/each}
-            </div>
-          </div>
-        {/if}
       </div>
 
-      <div
-        class="min-h-60 min-w-0 overflow-hidden rounded-lg border border-git-border bg-git-surface lg:col-span-7"
-      >
-        {#if activeFile}
-          <GitDiffViewer
-            path={activeFile.newPath}
-            oldPath={activeFile.oldPath}
-            status={activeFile.status}
-            binary={activeFile.binary}
-            hunks={activeFile.hunks}
-          />
-        {:else}
-          <p class="p-4 text-xs text-muted-foreground">
-            选择左侧待推提交与文件核对差异。
-          </p>
-        {/if}
+      <div class="min-w-0 lg:col-span-7">
+        <GitPushCommitInspector
+          detail={activeDetail}
+          detailLoading={push?.detailLoading ?? false}
+          selectedParentOverride={selectedParent}
+          selectedFilePath={selectedFile}
+          liveDiffState={push ? push.fileDiffState : null}
+          onSelectParent={(pOid) => {
+            if (push) push.selectParent(pOid);
+            else fixtureParentOid = pOid;
+          }}
+          onSelectFile={(fPath) => {
+            if (push) push.selectFile(fPath);
+            else fixtureFilePath = fPath;
+          }}
+        />
       </div>
     </div>
 
     <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
-      <Button variant="outline" onclick={onClose}>取消</Button>
-      <Button variant="git-primary" disabled={!canPush} onclick={onConfirm}>
-        {model.publish ? "发布并推送" : "确认推送"}
+      <Button
+        variant="outline"
+        disabled={push?.running ?? false}
+        onclick={handleClose}
+      >
+        取消
+      </Button>
+      <Button
+        variant="git-primary"
+        disabled={!canConfirm}
+        onclick={handleConfirm}
+      >
+        {#if push?.running}
+          正在推送…
+        {:else}
+          {publishMode ? "发布并推送" : "确认推送"}
+        {/if}
       </Button>
     </div>
   </div>
