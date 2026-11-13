@@ -376,7 +376,9 @@ test("desktop Log pane filters by branch/tag without mutating checkedOutBranch, 
   const filesListbox = page.getByRole("listbox", { name: "提交变更文件" });
   const diffPanel = page.getByTestId("git-log-diff-panel");
 
-  await expect.element(page.getByText("当前检出：main")).toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: "分支快选" }))
+    .toBeVisible();
   await expect
     .element(filesListbox.getByText("web/src/git-graph-layout.ts"))
     .toBeVisible();
@@ -423,7 +425,9 @@ test("desktop Log pane filters by branch/tag without mutating checkedOutBranch, 
   // Click tag in left tree: filters history ONLY, never mutates checkedOutBranch!
   const tree = page.getByRole("complementary", { name: "历史引用筛选树" });
   await tree.getByRole("button", { name: "v0.9.0" }).click();
-  await expect.element(page.getByText("当前检出：main")).toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: "分支快选" }))
+    .toBeVisible();
   await expect.element(page.getByText("浏览筛选：v0.9.0")).toBeVisible();
   await expect.element(page.getByText("筛选省略中间节点")).toBeVisible();
 
@@ -471,7 +475,9 @@ test("Commit pane separates reading/reviewed/staged states, stages single hunk, 
 
   // Mark reviewed without staging.
   await page.getByRole("button", { name: "标记已审阅 web/src/app.ts" }).click();
-  await expect.element(page.getByText("已审阅", { exact: true })).toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: /^标记已审阅 / }).first())
+    .toBeVisible();
 
   // Stage a single hunk from web/src/app.ts.
   const hunkButtons = page.getByRole("button", { name: "暂存此块" });

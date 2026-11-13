@@ -179,7 +179,7 @@ test("syncs review progress across devices, rejects stale marks, auto-invalidate
     await expect(
       pageB
         .locator('[data-change-section="unstaged"]')
-        .getByText("已审阅", { exact: true }),
+        .locator('[data-reviewed="true"]'),
     ).toBeVisible();
 
     // Click "下一处未审阅" on Device B -> jumps directly to beta.ts (and enters Diff step on narrow viewports)

@@ -21,25 +21,25 @@ afterEach(async () => {
   }
 });
 
-test("renders 24-28px status bar across desktop and phone viewports and expands operation history popover within viewport", async () => {
+test("renders compact operation trigger across desktop and phone viewports and expands operation history popover within viewport", async () => {
   await page.viewport(1280, 900);
   const initialState = buildGitWorkbenchFixture("commit-needs-review");
   await render(Harness, { initialState });
 
-  const statusBar = page.getByTestId("git-workbench-status-bar");
+  const statusBar = page.getByTestId("git-operations-popover-trigger");
   await expect.element(statusBar).toBeVisible();
   const desktopHeight = statusBar.element().getBoundingClientRect().height;
-  expect(desktopHeight).toBeGreaterThanOrEqual(24);
-  expect(desktopHeight).toBeLessThanOrEqual(28);
+  expect(desktopHeight).toBeGreaterThanOrEqual(32);
+  expect(desktopHeight).toBeLessThanOrEqual(44);
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
     window.innerWidth,
   );
 
-  // Check Phone viewport (390x844) does NOT inflate status bar beyond 28px or overflow horizontally
+  // Check Phone viewport (390x844) does NOT inflate status bar beyond 44px or overflow horizontally
   await page.viewport(390, 844);
   const phoneHeight = statusBar.element().getBoundingClientRect().height;
-  expect(phoneHeight).toBeGreaterThanOrEqual(24);
-  expect(phoneHeight).toBeLessThanOrEqual(28);
+  expect(phoneHeight).toBeGreaterThanOrEqual(32);
+  expect(phoneHeight).toBeLessThanOrEqual(44);
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
     window.innerWidth,
   );
