@@ -1,6 +1,8 @@
 ## Context
 
-WebMux 的 `internal/acp` 已实现 Devin 所需的 ACP v1 方法、配置项、图片/嵌入资源提示词与权限回调；`internal/hybrid` 已提供根进程回退识别、`session/list` 候选判定与 TUI/ACP 双向切换，且切换会先 `EndRun` 结束 TUI 再加载会话。Devin 的 TUI 本身就是 ACP 客户端（会话内由 `devin acp` 子进程服务），因此本设计主要增加适配器数据、trust 记录与少量注册，不扩展通用协议。实测基线见 `baseline.md`。
+WebMux 的 `internal/acp` 已实现 Devin 所需的 ACP v1 方法、配置项、图片/嵌入资源提示词与权限回调；`internal/hybrid` 已提供根进程回退识别、`session/list` 候选判定与 TUI/ACP 双向切换，且切换会先 `EndRun` 结束 TUI 再加载会话。
+
+Devin 的 TUI 本身就是 ACP 客户端（会话内由 `devin acp` 子进程服务），因此本设计主要增加适配器数据、trust 记录与少量注册，不扩展通用协议。实测基线见 `baseline.md`。
 
 ## Goals / Non-Goals
 
@@ -44,8 +46,10 @@ WebMux 的 `internal/acp` 已实现 Devin 所需的 ACP v1 方法、配置项、
 | Drop | `--prompt-file`（单值）、`--` 之后的位置参数与未识别参数 |
 | Session（拒绝混合） | `-c`/`--continue`、`-r`/`--resume`（可选值） |
 | Store（拒绝混合） | `--cloud`、`--config`（单值） |
-| NonInteractive（拒绝） | `-p`/`--print`（可选值）、`-h`/`--help`、`-V`/`--version` 与全部子命令（`acp`、`auth`、`cloud`、`desktop`、`doctor`、`forward`、`help`、`list`、`ls`、`mcp`、`migrate`、`models`、`plugins`、`rm`、`rules`、`sandbox`、`setup`、`skills`、`ssh`、`uninstall`、`update`、`version`） |
+| NonInteractive（拒绝） | `-p`/`--print`（可选值）、`-h`/`--help`、`-V`/`--version` 与全部子命令（清单见下） |
 | Directory（拒绝） | 位置 PATH 参数（打开 Desktop） |
+
+NonInteractive 覆盖的子命令为 `acp`、`auth`、`cloud`、`desktop`、`doctor`、`forward`、`help`、`list`、`ls`、`mcp`、`migrate`、`models`、`plugins`、`rm`、`rules`、`sandbox`、`setup`、`skills`、`ssh`、`uninstall`、`update`、`version`。
 
 `--resume`/`--continue` 遵循 Claude Code 先例按 `session_arg` 拒绝而非丢弃：它们明确选择已有会话或打开选择器，静默丢弃会让配置的语义与执行不符。`--config` 可改变 `session_store` 等存储配置且 `devin acp` 无对应参数，两端无法保证一致，按 `session_store` 拒绝。
 
@@ -53,13 +57,17 @@ WebMux 的 `internal/acp` 已实现 Devin 所需的 ACP v1 方法、配置项、
 
 ### D3：聊天端配置推导只映射能对齐的项
 
-`ChatSide`：`--model` → `model`；`--permission-mode` 的 `accept-edits`→`accept-edits`、`smart`→`smart`、`dangerous`→`bypass` 映射 `mode`；`auto` 无对应值，连同 `--sandbox`、`--verbosity`、`--respect-workspace-trust`、`--export` 一起列入 `unsupported`，由既有提示告知用户哪些参数不影响聊天端。ACP 的 `mode` 另有 `ask`/`plan`，仅通过聊天端配置项修改，不由 argv 推导。
+`ChatSide`：`--model` → `model`；`--permission-mode` 的 `accept-edits`→`accept-edits`、`smart`→`smart`、`dangerous`→`bypass` 映射 `mode`；`auto` 无对应值，连同 `--sandbox`、`--verbosity`、`--respect-workspace-trust`、`--export` 一起列入 `unsupported`，由既有提示告知用户哪些参数不影响聊天端。
+
+ACP 的 `mode` 另有 `ask`/`plan`，仅通过聊天端配置项修改，不由 argv 推导。
 
 `ReapplyOnLoad` 待实施期按跨进程 `session/load` 实测决定（见 Open Questions）；不预先写死。
 
 ### D4：会话 ID 完全复用 `session/list` 候选判定
 
-Devin 会话 ID 是词组 slug（`luminous-acorn`），作为不透明字符串处理，不改写、不假设 UUID。从聊天恢复的 TUI 用 `resumedSID` 精确回退；全新 TUI 用“规范化 cwd + 本次启动后 updatedAt”候选：零消息会话不出现在 `session/list`（实测），“聊天”按钮保持不可用并提示先发送消息，多候选沿用 `session_ambiguous`。`isLocked` 条目仍可作为候选：锁属正常持锁状态，候选判定不额外过滤。
+Devin 会话 ID 是词组 slug（`luminous-acorn`），作为不透明字符串处理，不改写、不假设 UUID。
+
+从聊天恢复的 TUI 用 `resumedSID` 精确回退；全新 TUI 用“规范化 cwd + 本次启动后 updatedAt”候选：零消息会话不出现在 `session/list`（实测），“聊天”按钮保持不可用并提示先发送消息，多候选沿用 `session_ambiguous`。`isLocked` 条目仍可作为候选：锁属正常持锁状态，候选判定不额外过滤。
 
 ### D5：会话锁只提供恢复路径，不改变切换编排
 
@@ -74,7 +82,9 @@ Devin 会话 ID 是词组 slug（`luminous-acorn`），作为不透明字符串�
 
 ### D6：agenttrust 预写 Devin 信任记录
 
-`agenttrust` 注册 `devin`，把会话目录追加到 `trusted_workspaces.json` 的 `trusted_paths`（位置为 `$XDG_DATA_HOME/devin/cli/`，默认 `~/.local/share/devin/cli/`）；文件缺失时创建最小 JSON，已有记录不重复。仍沿用 `trustable` 的主目录及祖先拒绝规则；失败仅记日志不阻断启动，Devin 退回自带 `Trust <dir>?` 提示。
+`agenttrust` 注册 `devin`，把会话目录追加到 `trusted_workspaces.json` 的 `trusted_paths`（位置为 `$XDG_DATA_HOME/devin/cli/`，默认 `~/.local/share/devin/cli/`）；文件缺失时创建最小 JSON，已有记录不重复。
+
+仍沿用 `trustable` 的主目录及祖先拒绝规则；失败仅记日志不阻断启动，Devin 退回自带 `Trust <dir>?` 提示。
 
 备选方案是注入 `--respect-workspace-trust false`：它跳过全部信任检查而非只信任所选目录，范围过大，不采用。
 

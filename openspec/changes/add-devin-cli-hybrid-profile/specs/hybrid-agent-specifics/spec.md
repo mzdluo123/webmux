@@ -18,7 +18,9 @@ Devin 的 ACP 进程与资格探测 SHALL 复用会话环境、服务用户与 `
 
 ### Requirement: Devin 的目录级工作区信任
 
-`agent_pretrust` 开启且启动命令识别为 `devin` 时，系统 SHALL 在首次启动前把会话目录追加到 `trusted_workspaces.json` 的 `trusted_paths`，使本次 TUI、恢复 TUI 与 ACP 进程不再停留在 `Trust <dir>?` 提示。该文件位于 `$XDG_DATA_HOME/devin/cli/`（未设置时为 `~/.local/share/devin/cli/`）；文件缺失时 SHALL 以最小 JSON 创建，已有目录 SHALL NOT 重复追加。
+`agent_pretrust` 开启且启动命令识别为 `devin` 时，系统 SHALL 在首次启动前把会话目录追加到 `trusted_workspaces.json` 的 `trusted_paths`，使本次 TUI、恢复 TUI 与 ACP 进程不再停留在 `Trust <dir>?` 提示。该文件位于 `$XDG_DATA_HOME/devin/cli/`（未设置时为 `~/.local/share/devin/cli/`）。
+
+文件缺失时 SHALL 连同父目录创建最小 JSON；已有目录 SHALL NOT 重复追加；已有文件的其他字段保持不变。
 
 系统 SHALL 沿用现有文件夹信任边界：主目录、其祖先与文件系统根 SHALL NOT 被自动信任。`agent_pretrust=false` 时 SHALL NOT 写入任何信任记录；写入失败 SHALL 仅记日志而不阻断启动，Devin 退回自带的信任提示。
 

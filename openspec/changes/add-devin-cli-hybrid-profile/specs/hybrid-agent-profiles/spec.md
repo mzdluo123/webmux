@@ -4,7 +4,9 @@
 
 系统 SHALL 内置 Devin CLI 档案，稳定标识为 `devin`，显示名称为 `Devin CLI`，图标为 `devin`，实测版本为 `3000.12.57`。直接执行 `devin` 或使用既有 Bash/Zsh 启动文件包装的 `devin` 配置 SHALL 判定为支持混合模式，不需要第三方 ACP 连接器。
 
-Devin 的 ACP 启动命令 SHALL 为 `devin acp`。TUI 恢复命令 SHALL 保留白名单参数并追加 `--resume <sessionId>`；中断键 SHALL 为一次 Esc（`\x1b`）。版本低于 `3000.12.57` 时 SHALL 按通用规则提示但不阻止切换；Devin 的 `agentInfo.version` 实测为 `0.0.0-dev`，版本核对 SHALL 使用 `devin --version` 的输出，SHALL NOT 以 `agentInfo.version` 判定。
+Devin 的 ACP 启动命令 SHALL 为 `devin acp`。TUI 恢复命令 SHALL 保留白名单参数并追加 `--resume <sessionId>`；中断键 SHALL 为一次 Esc（`\x1b`）。版本低于 `3000.12.57` 时 SHALL 按通用规则提示但不阻止切换。
+
+Devin 的 `agentInfo.version` 实测为 `0.0.0-dev`，版本核对 SHALL 使用 `devin --version` 的输出，SHALL NOT 以 `agentInfo.version` 判定。
 
 Devin 的 `session/resume` SHALL NOT 使用：其实测返回 `Method not found`，崩溃重连与切到聊天一律使用 `session/load` 回放。
 

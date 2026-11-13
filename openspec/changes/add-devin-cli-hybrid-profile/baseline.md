@@ -197,4 +197,26 @@
 
 `devin` 为原生二进制（`~/.local/bin/devin`），TUI 与 `devin acp` 均可经
 `bash|zsh -ic 'exec -- "$@" …'` 启动；ACP 经 fd 3 重定向后日志走 stderr、协议
-走 fd 3，与既有 `startupACPScript` 包装兼容（未逐项复测，列入实施验收）。
+走 fd 3，与既有 `startupACPScript` 包装兼容（已补测：包装后 initialize 响应
+经 fd 3 到达，日志仍走 stderr）。
+
+## 6. 实施期补测（2026-11-13）
+
+- **空会话不持久化**：`session/new` 成功但未发 prompt 的会话（如
+  `mangrove-spectrum`）在跨进程 `session/load` 时返回 `-32016
+  session_not_found`（`cognition.ai/errorKind: session_not_found`）。首个
+  prompt 完成后会话才写入 SQLite。混合侧因此 SHALL NOT 在 TUI 尚未产生回合前
+  假定会话可加载。
+- **跨进程 `session/load` 自带配置态**：load 响应含 `modes` 与
+  `configOptions`（`mode`/`model`/`thought_level`/`speed`），值为该会话持久化
+  的状态（实测：会话经 `session/set_mode` 改为 `plan` 后，新进程 load 仍报
+  `mode=plan`）。因此 `ReapplyOnLoad` 不需要，档案不声明。
+- **活动回合不回显 `user_message_chunk`**：实测 `session/prompt` 回合仅产生
+  `session_info_update`、`config_option_update`（×2）、`current_mode_update`
+  （×2）、`agent_thought_chunk`、`agent_message_chunk`、`usage_update`；
+  `user_message_chunk` 只出现在 `session/load` 回放中。无需 agy 式忽略规则。
+- **`session/cancel` 的 `stopReason`**：实测为 `"cancelled"`（标准值）。
+- **`session/set_mode`**：标准方法可用，返回 `{}`；模式随会话持久化。
+- **`session/request_permission` 选项形态**：`accept-edits`/`smart` 模式下
+  简单命令未触发权限请求，选项形态未捕获；WebMux 按标准 `options` 数组透传，
+  留待实机验收确认。
