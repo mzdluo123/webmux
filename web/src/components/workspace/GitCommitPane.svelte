@@ -39,6 +39,7 @@
     commitMessage,
     stagingDiff,
     stagingBusy = false,
+    uncertainBlocked = false,
     activeDiffStale = false,
     activeDiffStaleReason = "",
     hasActiveWorktreeSession = false,
@@ -71,6 +72,7 @@
     commitMessage: string;
     stagingDiff?: GitStagingDiffController;
     stagingBusy?: boolean;
+    uncertainBlocked?: boolean;
     activeDiffStale?: boolean;
     activeDiffStaleReason?: string;
     hasActiveWorktreeSession?: boolean;
@@ -361,6 +363,7 @@
       {commitMessage}
       {readonlyMode}
       busy={stagingBusy}
+      {uncertainBlocked}
       {onCommitMessageChange}
       {onOpenCommitPreview}
       {onOpenPush}

@@ -118,13 +118,15 @@ type GitCommitPreview struct {
 
 // GitCommitRequest is the body of POST .../git/commit.
 type GitCommitRequest struct {
-	ConfirmationID string `json:"confirmationId"`
-	Message        string `json:"message"`
+	ConfirmationID  string `json:"confirmationId"`
+	ClientRequestID string `json:"clientRequestId,omitempty"`
+	Message         string `json:"message"`
 }
 
 // GitCommitResult answers POST .../git/commit after reflog attribution and
 // {oid, parents, tree} verification.
 type GitCommitResult struct {
+	OperationID     string   `json:"operationId,omitempty"`
 	Outcome         string   `json:"outcome"`
 	CommitOID       string   `json:"commitOid,omitempty"`
 	Parents         []string `json:"parents"`
@@ -136,7 +138,7 @@ type GitCommitResult struct {
 
 // GitConflict is the 409 JSON body of Git workbench endpoints, carrying a
 // machine-readable Reason ("stale", "busy", "readonly", "context_mismatch",
-// "conflicted", "blocked", or "commit_failed").
+// "conflicted", "blocked", "commit_failed", "idempotency_conflict", or "uncertain").
 type GitConflict struct {
 	Error  string `json:"error"`
 	Reason string `json:"reason"`

@@ -174,6 +174,10 @@ func gitReason(err error) string {
 		return "blocked"
 	case errors.Is(err, workspace.ErrHookFailed):
 		return "commit_failed"
+	case errors.Is(err, workspace.ErrIdempotency):
+		return "idempotency_conflict"
+	case errors.Is(err, workspace.ErrUncertain):
+		return "uncertain"
 	default:
 		return "stale"
 	}
@@ -276,6 +280,10 @@ func artifactsFailure(w http.ResponseWriter, err error) {
 }
 
 func workspaceFailure(w http.ResponseWriter, err error) {
+	if errors.Is(err, workspace.ErrIdempotency) || errors.Is(err, workspace.ErrUncertain) {
+		reply(w, http.StatusConflict, contract.GitConflict{Error: err.Error(), Reason: gitReason(err)})
+		return
+	}
 	failure(w, workspaceStatus(err), err)
 }
 

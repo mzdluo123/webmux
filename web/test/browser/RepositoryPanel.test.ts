@@ -809,7 +809,11 @@ test("a worktree row's switch is a subview; a finished switch shows the worktree
   await view.getByRole("button", { name: "切换", exact: true }).click();
   expect(data.switch).toHaveBeenCalledWith(
     expect.objectContaining({ id: "clean1" }),
-    { confirmationId: "switch01", acknowledgeSessions: false },
+    {
+      confirmationId: "switch01",
+      acknowledgeSessions: false,
+      clientRequestId: expect.stringMatching(/^switch-/),
+    },
   );
   expect(handlers.onrefresh).toHaveBeenCalledOnce();
   await expect

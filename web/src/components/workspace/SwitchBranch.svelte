@@ -46,6 +46,7 @@
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import { APIError } from "../../platform/api";
   import { commitChoices } from "../../domains/workspace/commit-choices";
+  import { generateGitClientRequestId } from "../../domains/workspace/git-operations-model";
   import { errorMessage } from "../../platform/error";
   import { LatestRequest } from "../../hooks/shared/remote-request.svelte";
   import type { WorktreePreset } from "../../domains/sessions/worktree-preset";
@@ -293,6 +294,7 @@
     try {
       const tree = await source.switch(worktree, {
         confirmationId: confirmed.confirmationId,
+        clientRequestId: generateGitClientRequestId("switch"),
         acknowledgeSessions: acknowledged,
       });
       onchange();

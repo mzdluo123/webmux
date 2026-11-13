@@ -114,6 +114,7 @@ Git 工作台分栏使用 `git-pane` 与 `git-divider` 布局钩子类，只在�
 | `ListButton`        | `navigation` / `navigation-action` / `file-tree-overlay`    | 侧栏导航行：`aria-pressed` 标记选中的筛选，`aria-current="page"` 标记当前页面；后两者用于带行尾操作按钮的侧栏行，见表下说明                                                                     |
 | `Button`            | `variant="git-primary"`                                     | Git 工作台内的主要提交/推送确认按钮，消费 `--git-primary` 蓝色主动作令牌                                                                                                                        |
 | `ListButton`        | `variant="git-row"` / `variant="git-row-action"`            | Git 工作台紧凑选中行（`rounded-sm`，消费 `--git-selected`）及其行尾动作按钮（窄屏与触屏常驻、桌面悬停/聚焦显示）                                                                                |
+| `ListButton`        | `variant="git-status-trigger"`                              | Git 工作台底部 24–28px 状态栏中的展开触发器，点击打开最近 Git 操作记录弹层                                                                                                                      |
 | `ChatSelect`        | `labeled`、`searchable`                                     | 输入框下方的选择：`labeled` 同时显示当前值文字（快速开始的仓库与 agent），`searchable` 用可搜索面板筛选模型选项；带 `reason` 的选项保留在菜单中并禁用；基准分支改用可搜索的 `BranchCommandList` |
 
 `ListButton` 的 `navigation-action`（聊天历史）与 `file-tree-overlay`（工作台树）在鼠标设备上不为行尾操作按钮留空位：按钮在悬停、聚焦或菜单打开时覆盖行尾的状态圆点或计数（这些标记加上 `sidebar-row.ts` 的 `underRowAction` 让位）；触屏上留出按钮位置，按钮常驻。

@@ -1,8 +1,11 @@
 package workspace
 
 import (
+	"context"
+	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // artifactsDirPlaceholder stands for the session's interaction artifacts
@@ -87,4 +90,66 @@ func promptSize(instruction, user string) int {
 		return len(instruction) + 2 + len(user)
 	}
 	return len(instruction) - n*len(userReference) + n*len(user)
+}
+
+// validInstruction normalizes an initialization instruction: blank is none,
+// more than MaxInitInstruction characters is ErrInvalid.
+func validInstruction(text string) (string, error) {
+	if strings.TrimSpace(text) == "" {
+		return "", nil
+	}
+	if n := utf8.RuneCountInString(text); n > MaxInitInstruction {
+		return "", problemf(ErrInvalid, "初始化指令最多 %d 个字符，当前 %d 个", MaxInitInstruction, n)
+	}
+	return text, nil
+}
+
+// SetInitInstruction replaces repository id's initialization instruction;
+// blank clears it. The registry is saved first: a failed save leaves the
+// instruction as it was.
+func (s *Service) SetInitInstruction(ctx context.Context, id, text string) (Repository, error) {
+	instruction, err := validInstruction(text)
+	if err != nil {
+		return Repository{}, err
+	}
+	r, err := s.repository(id)
+	if err != nil {
+		return Repository{}, err
+	}
+	s.saveMu.Lock()
+	s.mu.Lock()
+	if err := s.requireRegistryLocked(); err != nil {
+		s.mu.Unlock()
+		s.saveMu.Unlock()
+		return Repository{}, err
+	}
+	entries := append([]*repositoryState(nil), s.entries...)
+	s.mu.Unlock()
+	found := false
+	for _, item := range entries {
+		found = found || item == r
+	}
+	if !found {
+		s.saveMu.Unlock()
+		return Repository{}, problemf(ErrNotFound, "仓库不存在")
+	}
+	err = s.saveWith(entries, r, instruction)
+	if err == nil {
+		s.mu.Lock()
+		r.instruction = instruction
+		s.mu.Unlock()
+	}
+	s.saveMu.Unlock()
+	if err != nil {
+		return Repository{}, fmt.Errorf("保存仓库清单: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	defer cancel()
+	snapshot, err := s.snapshot(ctx, r)
+	if err != nil {
+		// The instruction is saved; a failed read still answers the entry.
+		snapshot = s.unavailableRepository(r, err)
+	}
+	snapshot.InitInstruction = instruction
+	return snapshot, nil
 }

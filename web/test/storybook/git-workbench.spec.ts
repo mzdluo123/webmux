@@ -11,6 +11,7 @@ for (const story of [
   "empty-unborn-repository",
   "index-lock-busy",
   "commit-needs-review",
+  "operation-uncertain-recovery",
 ] as const) {
   test(`git workbench ${story} fits every layout`, async ({ page }) => {
     test.slow();

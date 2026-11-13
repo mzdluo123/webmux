@@ -12,13 +12,13 @@
 | GET        | `/api/repositories/{id}/commits?from=<oid>[&from=<oid>]`        | `{commits: [{hash, subject, author, committedAt}]}`：自 1–2 个完整提交 ID（本地与上游尖端）合并最近 50 条，新到旧，超出上限的起始提交仍会列出；非法 ID 400                          |
 | POST       | `/api/repositories/{id}/branches/refresh`                       | `{branch}`；fetch 已配置上游并返回远程基线或本地回退；`upstreamHead` 为 fetch 到的上游尖端（本地分叉时也返回），未成功时为空                                                        |
 | POST       | `/api/repositories/{id}/branches/fast-forward-preview`          | `{branch}`；快进预览 `{confirmationId, expiresAt, branch, from, to, upstream, commits, worktree, sessions, blockers, warnings}`，只读本地远程跟踪引用                               |
-| POST       | `/api/repositories/{id}/branches/fast-forward`                  | `{confirmationId, acknowledgeSessions}`；返回 `{repository}`                                                                                                                        |
+| POST       | `/api/repositories/{id}/branches/fast-forward`                  | `{confirmationId, acknowledgeSessions, clientRequestId?, worktreeId?}`；返回 `{operationId?, repository}`                                                                           |
 | POST       | `/api/repositories/{id}/branches/push-preview`                  | `{branch, remote?, target?}`（`remote`/`target` 只用于发布）；推送预览 `{confirmationId, expiresAt, branch, commit, remote, pushUrl, target, publish, commits, blockers, warnings}` |
-| POST       | `/api/repositories/{id}/branches/push`                          | `{confirmationId}`；返回 `{status, message, repository}`，远端拒绝也是 200                                                                                                          |
+| POST       | `/api/repositories/{id}/branches/push`                          | `{confirmationId, clientRequestId?, worktreeId?}`；返回 `{operationId?, status, message, repository}`，远端拒绝也是 200                                                             |
 | POST       | `/api/repositories/{id}/branches/delete-preview`                | `{branches}`（1–50 个本地分支）；`{confirmationId, expiresAt, items: [{branch, commit, group, unmerged, blockers}]}`                                                                |
 | POST       | `/api/repositories/{id}/branches/delete`                        | `{confirmationId, acknowledgeUnmerged}`；返回 `{results: [{branch, status, commit, message}], repository}`                                                                          |
 | GET        | `/api/repositories/{id}/remotes`                                | `{remotes: [{name, fetchUrl, pushUrl}]}`，按名称排序；URL 已去除凭据（见下），不联网                                                                                                |
-| POST       | `/api/repositories/{id}/fetch`                                  | 空 body `{}`；获取全部远程，返回 `{results: [{remote, status, message}], repository}`（见下）；没有远程 409                                                                         |
+| POST       | `/api/repositories/{id}/fetch`                                  | `{clientRequestId?, worktreeId?}`（可为空 `{}`）；获取全部远程，返回 `{operationId?, results: [{remote, status, message}], repository}`（见下）；没有远程 409                       |
 | POST       | `/api/repositories/{id}/worktrees`                              | `{path, mode: "new", branch, base}` 或 `{path, mode: "existing", branch}`，201                                                                                                      |
 | POST       | `/api/repositories/{id}/worktrees/{worktreeId}/removal-preview` | 删除预览：`{confirmationId, expiresAt, worktree, sessions, archived, commit, push, blockers, warnings, forceAllowed}`                                                               |
 | POST       | `/api/repositories/{id}/worktrees/{worktreeId}/remove`          | `{confirmationId, mode: "safe"}`；强制删除另需 `confirmPath` 与 `closeSessions: true`，204                                                                                          |
@@ -28,7 +28,7 @@
 | POST       | `/api/repositories/{id}/worktrees/{worktreeId}/usage`           | 计算工作树目录占用：空 body，返回 `{bytes, entries, complete}`；只在请求时遍历，不随仓库快照返回                                                                                    |
 | POST       | `/api/repositories/{id}/worktrees/{worktreeId}/release`         | `{confirmationId}`；删除目录、保留分支与已归档记录并标为已释放，`{releaseId, recordIds}`                                                                                            |
 | POST       | `/api/repositories/{id}/worktrees/{worktreeId}/switch-preview`  | 切换预览：`{target}`，返回 `{confirmationId, expiresAt, worktree, target, sessions, blockers, warnings}`（见下）                                                                    |
-| POST       | `/api/repositories/{id}/worktrees/{worktreeId}/switch`          | `{confirmationId, acknowledgeSessions}`；原地切换，200 返回刷新后的 `Worktree`                                                                                                      |
+| POST       | `/api/repositories/{id}/worktrees/{worktreeId}/switch`          | `{confirmationId, acknowledgeSessions, clientRequestId?}`；原地切换，200 返回刷新后的 `Worktree`                                                                                    |
 
 删除预览的 `sessions` 是该 worktree 中运行中的会话，`archived` 是其中已归档（`closed` 或 `interrupted`）的会话，二者都是 `SessionInfo`。
 
@@ -199,20 +199,26 @@
 | `GET /snapshots/{snapshotId}/raw?side=before\|after&download=1`     | 流式返回快照原始字节（≤100 MiB），复用 `/code` 传输槽与安全响应头；同时支持 `HEAD`               |
 | `GET /history?worktreeId&scope&branch&q&author&since&until&path...` | 拓扑分页历史图（`all` / `branch` / `to-push` / `incoming`），返回 `status`、`rows`（车道与边）等 |
 | `GET /commits/{oid}?parentOid`                                      | 提交详情、作者/提交者元组、真实父节点、`comparedParentOid`（合并提交可指定合法父 OID）与变更文件 |
+| `GET /operations?worktreeId&limit`                                  | 最近持久 Git 写操作账本（`limit` 默认 20，最大 100；支持按 `worktreeId` 过滤）                   |
+| `GET /operations/{operationId}`                                     | 单条 Git 写操作实例状态、预览摘要、复核原因与脱敏输出摘要（跨仓库访问返回 404）                  |
 
 - 省略 `worktreeId` 时为仓库级只读上下文：允许 `compare` 与 `source=commit:{oid}`；调用工作区 `tree`、`files`、`changes`、`diff` 或 `source=worktree` 返回 409（`reason: "readonly"`）。
 - 跨仓库复用 `contextId` / `snapshotId` 返回 404；同仓库跨工作树混用返回 409（`reason: "context_mismatch"`）；上下文或快照过期返回 409（`reason: "stale"`）。只读 JSON 路由 10 秒超时。
 
 ### 工作树真实 `index` 暂存与提交（`/api/repositories/{id}/worktrees/{worktreeId}/git`）
 
-| 路由                                     | 说明                                                                                              |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `GET /staging`                           | 读取真实 Git `index` 与工作区的已暂存、未暂存（含未跟踪）及冲突列表，签发 `StageFileIdentity`     |
-| `GET /staging/diff?area&path&oldPath`    | 单文件 `unstaged` / `staged` 统一 Hunk 列表、行尾标记与可逐块暂存判定（`hunkStageAvailable`）     |
-| `POST /stage {identity, hunkIds?}`       | 整文件或指定 `hunkIds` 暂存到真实 `index`，成功返回 204                                           |
-| `POST /unstage {identity, hunkIds?}`     | 整文件或指定 `hunkIds` 从真实 `index` 取消暂存（含 `unborn HEAD`），成功返回 204                  |
-| `POST /commit-preview {}`                | 基于完整 `HEAD -> index` 生成提交预览（含 CLI 预暂存文件、身份、可执行 Hook、阻塞项与限时确认码） |
-| `POST /commit {confirmationId, message}` | 复核 `HEAD` 与索引摘要后执行提交，返回 `outcome`（`matched` / `needs_review` / `uncertain`）      |
+| 路由                                                       | 说明                                                                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `GET /staging`                                             | 读取真实 Git `index` 与工作区的已暂存、未暂存（含未跟踪）及冲突列表，签发 `StageFileIdentity`                |
+| `GET /staging/diff?area&path&oldPath`                      | 单文件 `unstaged` / `staged` 统一 Hunk 列表、行尾标记与可逐块暂存判定（`hunkStageAvailable`）                |
+| `POST /stage {identity, hunkIds?}`                         | 整文件或指定 `hunkIds` 暂存到真实 `index`，成功返回 204                                                      |
+| `POST /unstage {identity, hunkIds?}`                       | 整文件或指定 `hunkIds` 从真实 `index` 取消暂存（含 `unborn HEAD`），成功返回 204                             |
+| `POST /commit-preview {}`                                  | 基于完整 `HEAD -> index` 生成提交预览（含 CLI 预暂存文件、身份、可执行 Hook、阻塞项与限时确认码）            |
+| `POST /commit {confirmationId, message, clientRequestId?}` | 复核 `HEAD` 与索引摘要后执行提交，返回 `{operationId?, outcome}`（`matched` / `needs_review` / `uncertain`） |
 
 - 外部 `.git/index.lock` 存在或并发写锁冲突时立即返回 409（`reason: "busy"`），绝不删除外部锁文件；路径身份或确认码过期返回 409（`reason: "stale"`）；存在冲突条目返回 409（`reason: "conflicted"`）；Hook 或签名失败且未生成提交返回 409（`reason: "commit_failed"`）。
-- `POST /commit` 使用独立于 10 秒读超时的受控执行窗口（2 分钟上界），客户端连接断开不会强杀已进入引用更新的 `git commit`；访问与错误日志不记录文件内容、Diff 正文、提交消息全文或凭据。
+- `POST /commit`、`POST .../branches/push`、`POST .../fetch`、`POST .../branches/fast-forward` 与 `POST .../switch` 统一写入有界持久账本 `git-operations.json`，并严格区分快照预检凭证 `confirmationId` 与执行实例 `operationId` + `clientRequestId`：
+  - 同一 `(repositoryId, clientRequestId)` 参数摘要一致时合并在途执行或重放已持久结果（跨断线重连与服务重启绝不重复执行底层 Git 写命令）；
+  - 复用相同 `clientRequestId` 但参数变化时返回 409（`reason: "idempotency_conflict"`）；若经服务重启对账后该操作为 `uncertain`，对非 commit 接口重放时返回 409（`reason: "uncertain"`）。
+  - 服务启动时对崩溃遗留的 `pending`/`running` 条目按真实 Git 引用与 reflog（`GIT_REFLOG_ACTION=webmux-commit:<operationId>`）执行只读对账，收敛为 `succeeded`、`needs_review`、`failed` 或 `uncertain`，从不自动重跑或执行 `git reset`。
+- `POST /commit` 使用独立于 10 秒读超时的受控执行窗口（2 分钟上界），客户端连接断开不会强杀已进入引用更新的 `git commit`；访问、错误日志与持久账本不记录文件内容、Diff 正文、环境变量或凭据（输出摘要经凭据脱敏并限制 ≤ 4 KiB）。

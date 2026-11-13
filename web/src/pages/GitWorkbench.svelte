@@ -29,6 +29,7 @@
   import GitCommitOutcomeBanner from "../components/workspace/GitCommitOutcomeBanner.svelte";
   import GitCommitPreviewDialog from "../components/workspace/GitCommitPreviewDialog.svelte";
   import GitPushDialog from "../components/workspace/GitPushDialog.svelte";
+  import GitWorkbenchStatusBar from "../components/workspace/GitWorkbenchStatusBar.svelte";
   import GitWorkbenchTopBar from "../components/workspace/GitWorkbenchTopBar.svelte";
   import GitWorkbenchWorkspace from "../components/workspace/GitWorkbenchWorkspace.svelte";
   import GitWorktreeGuardState from "../components/workspace/GitWorktreeGuardState.svelte";
@@ -370,7 +371,11 @@
         outcome={controller.view.lastCommitOutcome}
         onInspectCommit={(oid) => controller.inspectCommitInLog(oid)}
         onReloadVerify={() =>
-          void controller.reload(repository, worktree, shell.sessions.sessions)}
+          void controller.reloadAndVerifyUncertain(
+            repository,
+            worktree,
+            shell.sessions.sessions,
+          )}
         onDismiss={() => controller.dismissLastCommitOutcome()}
       />
     {/if}
@@ -421,21 +426,21 @@
         })}
     />
 
-    <footer
-      class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-git-border bg-git-panel px-3 py-1.5 text-xs text-muted-foreground"
-    >
-      <span
-        class="min-w-0 truncate font-mono"
-        title={controller.view.context.worktreePath ?? ""}
-      >
-        工作树：{controller.view.context.worktreePath ?? "无工作树（只读仓库）"}
-      </span>
-      {#if controller.view.statusBanner}
-        <span class="min-w-0 wrap-anywhere text-foreground" role="status">
-          {controller.view.statusBanner}
-        </span>
-      {/if}
-    </footer>
+    <GitWorkbenchStatusBar
+      worktreePath={controller.view.context.worktreePath}
+      statusBanner={controller.view.statusBanner}
+      lastFetchedAt={controller.view.lastFetchedAt ?? repository.lastFetchedAt}
+      activeOperation={controller.operations.active}
+      operations={controller.operations.operations}
+      onInspectCommit={(oid) => controller.inspectCommitInLog(oid)}
+      onRefreshOperations={() => void controller.operations.refreshOperations()}
+      onReloadVerify={() =>
+        void controller.reloadAndVerifyUncertain(
+          repository,
+          worktree,
+          shell.sessions.sessions,
+        )}
+    />
 
     {#if controller.view.commitPreview}
       <GitCommitPreviewDialog
@@ -444,6 +449,8 @@
         {repositoryId}
         {worktreeId}
         submitting={controller.staging.commitSubmitting}
+        uncertainBlocked={controller.operations.hasUncertainUnresolved ||
+          controller.view.lastCommitOutcome?.status === "uncertain"}
         onConfirm={() =>
           void controller.confirmCommit((branch, preceding) =>
             handlePush(branch, preceding),

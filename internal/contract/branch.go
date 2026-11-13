@@ -58,10 +58,18 @@ type SwitchPreview struct {
 
 // SwitchRequest confirms a previewed switch; AcknowledgeSessions is
 // required when the preview listed sessions. It answers 200 with the
-// refreshed Worktree.
+// refreshed Worktree and its durable OperationID.
 type SwitchRequest struct {
 	ConfirmationID      string `json:"confirmationId"`
 	AcknowledgeSessions bool   `json:"acknowledgeSessions"`
+	ClientRequestID     string `json:"clientRequestId,omitempty"`
+}
+
+// SwitchResult answers POST .../switch with the refreshed Worktree and its
+// durable OperationID.
+type SwitchResult struct {
+	Worktree
+	OperationID string `json:"operationId,omitempty"`
 }
 
 // CommitList is the first commits of a range, at most 20, newest first;
@@ -101,11 +109,14 @@ type FastForwardPreview struct {
 type FastForwardRequest struct {
 	ConfirmationID      string `json:"confirmationId"`
 	AcknowledgeSessions bool   `json:"acknowledgeSessions"`
+	ClientRequestID     string `json:"clientRequestId,omitempty"`
+	WorktreeID          string `json:"worktreeId,omitempty"`
 }
 
 // FastForwardResult answers a fast-forward with the refreshed repository.
 type FastForwardResult struct {
-	Repository Repository `json:"repository"`
+	OperationID string     `json:"operationId,omitempty"`
+	Repository  Repository `json:"repository"`
 }
 
 // PushPreviewRequest is the body of POST
@@ -137,16 +148,19 @@ type PushPreview struct {
 
 // PushRequest confirms a previewed push.
 type PushRequest struct {
-	ConfirmationID string `json:"confirmationId"`
+	ConfirmationID  string `json:"confirmationId"`
+	ClientRequestID string `json:"clientRequestId,omitempty"`
+	WorktreeID      string `json:"worktreeId,omitempty"`
 }
 
 // PushResult answers a push, also a refused one: Status is "ok", "auth",
 // "network", "timeout", "rejected" or "error", and Message explains a
 // failure with credentials redacted.
 type PushResult struct {
-	Status     string     `json:"status"`
-	Message    string     `json:"message"`
-	Repository Repository `json:"repository"`
+	OperationID string     `json:"operationId,omitempty"`
+	Status      string     `json:"status"`
+	Message     string     `json:"message"`
+	Repository  Repository `json:"repository"`
 }
 
 // BranchDeletePreviewRequest is the body of POST

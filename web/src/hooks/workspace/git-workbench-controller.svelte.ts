@@ -17,16 +17,17 @@ import { buildGitRouteHref, parseGitRouteQuery } from "../shared/route";
 import { createGitLogCompareController } from "./git-log-compare.svelte";
 import { createGitLogDiffController } from "./git-log-diff.svelte";
 import { createGitLogHistoryController } from "./git-log-history.svelte";
+import { createGitOperationsController } from "./git-operations-controller.svelte";
 import { createGitPushController } from "./git-push-controller.svelte";
 import {
   emptyGitViewState,
   fetchGitTargetBundle,
-  performRepositoryFetch,
 } from "./git-workbench-actions";
 import {
   applyPopstateQueryToView,
   buildTargetInitialState,
   computeGitTargetLoadKey,
+  pickSelectedCommitAfterBundle,
   syncGitWorkbenchUrl,
 } from "./git-workbench-route-sync";
 import { createGitStagingController } from "./git-workbench-staging.svelte";
@@ -50,7 +51,6 @@ export function createGitWorkbenchController(
   let view = $state<GitWorkbenchViewState>(emptyGitViewState(""));
   let loading = $state(false);
   let error = $state("");
-  let fetching = $state(false);
   let scrollOffsets = $state({
     logList: 0,
     logDiff: 0,
@@ -81,11 +81,23 @@ export function createGitWorkbenchController(
   }
 
   const targetReq = new LatestRequest();
+  const operations = createGitOperationsController({
+    getRepoId: () => currentRepoId,
+    getWorktreeId: () => effectiveWorktreeId ?? currentWorktreeId,
+    onOutcomeRestored: (lastCommitOutcome) => {
+      if (lastCommitOutcome) patchView({ lastCommitOutcome });
+    },
+    onStatusBanner: (statusBanner) => patchView({ statusBanner }),
+    onRepositoryUpdated: options.onRepositoryUpdated,
+    onReloadTarget: (repo, wt, sessions = []) =>
+      loadTarget(currentRepoId, currentWorktreeId, repo, wt, sessions),
+  });
   const staging = createGitStagingController({
     getRepoId: () => currentRepoId,
     getWorktreeId: () => effectiveWorktreeId ?? currentWorktreeId,
     getView: () => view,
     patchView,
+    operations,
     onRefreshRepositories: options.onRefreshRepositories,
     onAfterCommitRefresh: () => void logHistory.reloadHistory("refresh"),
   });
@@ -117,6 +129,7 @@ export function createGitWorkbenchController(
     getRepoId: () => currentRepoId,
     getRepoName: () => view.context.repositoryName,
     getWorktreeId: () => effectiveWorktreeId ?? currentWorktreeId,
+    operations,
     onRepositoryUpdated: options.onRepositoryUpdated,
     onRefreshAfterPush: () => {
       options.onRefreshRepositories?.();
@@ -127,6 +140,7 @@ export function createGitWorkbenchController(
 
   function dispose() {
     targetReq.dispose();
+    operations.dispose();
     staging.dispose();
     logHistory.dispose();
     logCompare.dispose();
@@ -187,14 +201,11 @@ export function createGitWorkbenchController(
       logDiff.seedContextId(repoId, effId, bundle.gitContextId);
       staging.seedContextId(repoId, effId, bundle.gitContextId);
 
-      const head = bundle.context.headOid ?? null;
-      const hasOid = (oid: string | null) =>
-        Boolean(oid && bundle.commits.some((c) => c.oid === oid));
-      const selectedOid = hasOid(view.selectedCommitOid)
-        ? view.selectedCommitOid
-        : hasOid(head)
-          ? head
-          : (bundle.commits[0]?.oid ?? null);
+      const selectedOid = pickSelectedCommitAfterBundle(
+        view.selectedCommitOid,
+        bundle.context.headOid,
+        bundle.commits,
+      );
 
       patchView({
         context: bundle.context,
@@ -211,6 +222,7 @@ export function createGitWorkbenchController(
       });
       logHistory.ensureCommitLoaded(selectedOid);
       if (effId) await staging.refresh(repoId, effId, req.signal);
+      await operations.refreshOperations(repoId, effId ?? wtId, req.signal);
     } catch (err) {
       if (req.reportable()) error = errorMessage(err);
     } finally {
@@ -246,6 +258,7 @@ export function createGitWorkbenchController(
       defaultBranchName = null;
       lastAppliedSearch = params.search;
       lastLoadedKey = desiredLoadKey;
+      operations.resetTarget();
       staging.resetTarget();
       logHistory.resetTarget();
       logCompare.resetTarget();
@@ -328,7 +341,10 @@ export function createGitWorkbenchController(
       return error;
     },
     get fetching() {
-      return fetching;
+      return operations.fetching;
+    },
+    get operations() {
+      return operations;
     },
     get stagingBusy() {
       return staging.stagingBusy;
@@ -392,18 +408,13 @@ export function createGitWorkbenchController(
       logHistory.ensureCommitLoaded(oid);
     },
     selectParent(commitOid: string, parentOid: string) {
-      const nextMap = {
+      const selectedParentByCommit = {
         ...view.selectedParentByCommit,
         [commitOid]: parentOid,
       };
-      patchView({
-        selectedParentByCommit: nextMap,
-        selectedCommitFilePath: null,
-      });
-      persist({
-        selectedParentByCommit: nextMap,
-        selectedCommitFilePath: null,
-      });
+      const patch = { selectedParentByCommit, selectedCommitFilePath: null };
+      patchView(patch);
+      persist(patch);
       void logHistory.loadCommitDetail(currentRepoId, commitOid, parentOid);
     },
     selectCommitFile: logDiff.selectActiveFile,
@@ -432,21 +443,27 @@ export function createGitWorkbenchController(
       persist({ reviewedPaths });
     },
     dismissLastCommitOutcome() {
+      operations.acknowledgeAttention(view.lastCommitOutcome?.operationId);
       patchView({ lastCommitOutcome: null });
+    },
+    async reloadAndVerifyUncertain(
+      repo?: Repository,
+      wt?: Worktree,
+      sessions: readonly SessionInfo[] = [],
+    ) {
+      operations.acknowledgeAttention();
+      patchView({ lastCommitOutcome: null });
+      await loadTarget(currentRepoId, currentWorktreeId, repo, wt, sessions);
     },
     inspectCommitInLog(oid: string) {
       logCompare.resetTarget();
-      patchView({
-        mode: "log",
+      const patch = {
+        mode: "log" as const,
         selectedCommitOid: oid,
         selectedCommitFilePath: null,
-        compareMode: null,
-      });
-      persist({
-        mode: "log",
-        selectedCommitOid: oid,
-        selectedCommitFilePath: null,
-      });
+      };
+      patchView({ ...patch, compareMode: null });
+      persist(patch);
       updateUrl("push", { view: "log", commit: oid });
       void logHistory.reloadHistory("refresh", oid);
     },
@@ -472,28 +489,6 @@ export function createGitWorkbenchController(
     refreshCommitPreview: staging.refreshCommitPreview,
     closeCommitPreview: staging.closeCommitPreview,
     confirmCommit: staging.confirmCommit,
-    async runFetch(wt?: Worktree, sessions: readonly SessionInfo[] = []) {
-      if (!currentRepoId || fetching) return;
-      fetching = true;
-      try {
-        const out = await performRepositoryFetch(currentRepoId);
-        options.onRepositoryUpdated?.(out.repository);
-        patchView({ statusBanner: out.banner });
-        const nextTree = currentWorktreeId
-          ? out.repository.worktrees.find((w) => w.id === currentWorktreeId)
-          : wt;
-        await loadTarget(
-          currentRepoId,
-          currentWorktreeId,
-          out.repository,
-          nextTree,
-          sessions,
-        );
-      } catch (err) {
-        patchView({ statusBanner: `获取远程失败：${errorMessage(err)}` });
-      } finally {
-        fetching = false;
-      }
-    },
+    runFetch: operations.runFetch,
   };
 }

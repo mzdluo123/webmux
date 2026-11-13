@@ -28,6 +28,15 @@
       "source": "internal/workspace/registry.go"
     },
     {
+      "id": "git-operations",
+      "path": "git-operations.json",
+      "lock": "git-operations.json.lock",
+      "owner": "internal/workspace",
+      "failure": "unavailable",
+      "web": "是",
+      "source": "internal/workspace/operations_store.go"
+    },
+    {
       "id": "tunnel",
       "path": "tunnel-settings.json",
       "lock": "tunnel-settings.json.lock",
@@ -514,6 +523,10 @@
       "count": 1,
       "owner": "repositories"
     },
+    "internal/statefile/catalog.go|path|git-operations.json": {
+      "count": 1,
+      "owner": "git-operations"
+    },
     "internal/statefile/catalog.go|path|run/server.json": {
       "count": 1,
       "owner": "runtime"
@@ -645,6 +658,14 @@
     "internal/workspace/inspect.go|Inspect|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
       "count": 1,
       "owner": "repositories"
+    },
+    "internal/workspace/inspect.go|InspectGitOperations|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
+      "count": 1,
+      "owner": "git-operations"
+    },
+    "internal/workspace/operations_store.go|*Service.loadOperations|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "git-operations"
     },
     "internal/workspace/registry.go|*Service.load|github.com/rainchan/webmux/internal/statefile.Open": {
       "count": 1,

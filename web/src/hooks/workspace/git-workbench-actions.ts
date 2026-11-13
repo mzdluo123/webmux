@@ -1,4 +1,4 @@
-import { fetchRepositoryRemotes, repositoryBranches } from "../../platform/api";
+import { repositoryBranches } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import {
   gitCommit,
@@ -391,12 +391,14 @@ export async function performGitCommitExecution(options: {
   repositoryId: string;
   worktreeId: string;
   confirmationId: string;
+  clientRequestId?: string;
   message: string;
   signal: AbortSignal;
 }): Promise<
   | { ok: true; outcome: GitCommitOutcome }
   | {
       ok: false;
+      rawError?: unknown;
       reason?: string;
       busyOutcome?: GitCommitOutcome;
       banner?: string;
@@ -408,6 +410,9 @@ export async function performGitCommitExecution(options: {
       options.worktreeId,
       {
         confirmationId: options.confirmationId,
+        ...(options.clientRequestId
+          ? { clientRequestId: options.clientRequestId }
+          : {}),
         message: options.message.trim(),
       },
       options.signal,
@@ -418,6 +423,7 @@ export async function performGitCommitExecution(options: {
     if (reason === "busy") {
       return {
         ok: false,
+        rawError: err,
         reason,
         busyOutcome: {
           status: "busy_locked",
@@ -426,22 +432,6 @@ export async function performGitCommitExecution(options: {
         },
       };
     }
-    return { ok: false, reason, banner: errorMessage(err) };
+    return { ok: false, rawError: err, reason, banner: errorMessage(err) };
   }
-}
-
-export async function performRepositoryFetch(repositoryId: string): Promise<{
-  repository: Repository;
-  banner: string;
-}> {
-  const res = await fetchRepositoryRemotes(repositoryId);
-  const okCount = res.results.filter((r) => r.status === "ok").length;
-  const failCount = res.results.length - okCount;
-  return {
-    repository: res.repository,
-    banner:
-      failCount === 0
-        ? `已获取全部远程（${okCount} 个）`
-        : `远程获取完成：成功 ${okCount} 个，失败 ${failCount} 个`,
-  };
 }

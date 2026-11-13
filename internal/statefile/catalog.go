@@ -17,6 +17,7 @@ const (
 	Hybrid             ID = "hybrid"
 	AgentOptions       ID = "agent-options"
 	Conversation       ID = "conversation"
+	GitOperations      ID = "git-operations"
 )
 
 // Descriptor is the single runtime source of storage paths and policy.
@@ -37,6 +38,7 @@ var catalog = []Descriptor{
 	{Conversation, "conversations.sqlite", "internal/conversation", "unavailable", "normalized conversation/history", 10, "user_version", 0, true, ""},
 	{Launch, "launch-configs.json", "internal/launch", "unavailable", "command/env", 2, "v", 4 << 20, true, ""},
 	{Repositories, "repositories.json", "internal/workspace", "unavailable", "paths", 1, "version", 4 << 20, true, ""},
+	{GitOperations, "git-operations.json", "internal/workspace", "unavailable", "paths/urls", 1, "v", 2 << 20, true, ""},
 	{Tunnel, "tunnel-settings.json", "internal/tunnelsettings", "fail_closed", "token", 1, "v", 64 << 10, true, "tunnel.json"},
 	{TailscaleSettings, "tailscale-settings.json", "internal/tailscalesettings", "fail_closed", "none", 1, "v", 64 << 10, true, ""},
 	{VoiceSettings, "voice-settings.json", "internal/voicesettings", "fail_closed", "env", 1, "v", 64 << 10, true, ""},

@@ -20,15 +20,17 @@ const (
 
 // ExecuteCommitRequest confirms and runs a previously previewed full-index commit.
 type ExecuteCommitRequest struct {
-	RepositoryID   string `json:"repositoryId"`
-	WorktreeID     string `json:"worktreeId"`
-	ConfirmationID string `json:"confirmationId"`
-	Message        string `json:"message"`
+	RepositoryID    string `json:"repositoryId"`
+	WorktreeID      string `json:"worktreeId"`
+	ConfirmationID  string `json:"confirmationId"`
+	ClientRequestID string `json:"clientRequestId,omitempty"`
+	Message         string `json:"message"`
 }
 
 // CommitResult classifies the outcome of ExecuteCommit after reflog attribution
 // and {oid, parents, tree} verification.
 type CommitResult struct {
+	OperationID     string   `json:"operationId,omitempty"`
 	Outcome         string   `json:"outcome"` // "matched" | "needs_review" | "uncertain"
 	CommitOID       string   `json:"commitOid,omitempty"`
 	Parents         []string `json:"parents,omitempty"`
@@ -44,6 +46,17 @@ type afterCommitHookKey struct{}
 // gate, runs normal `git commit` respecting hooks/filters/signing, never removes
 // external Git lock files, and reconciles the created commit via GIT_REFLOG_ACTION.
 func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (CommitResult, error) {
+	reqHash := hashOperationRequest(GitOpCommit, req.RepositoryID, req.WorktreeID, req.ConfirmationID, req.Message)
+	return runIdempotentOperation(
+		ctx, s, req.RepositoryID, req.ClientRequestID, GitOpCommit, reqHash,
+		replayCommitOperation,
+		func(opID string) (CommitResult, error) {
+			return s.executeCommitOnce(ctx, req, opID, reqHash)
+		},
+	)
+}
+
+func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitRequest, opID, reqHash string) (CommitResult, error) {
 	if strings.TrimSpace(req.Message) == "" {
 		return CommitResult{}, problemf(ErrInvalid, "提交说明不能为空")
 	}
@@ -93,10 +106,31 @@ func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (
 		return CommitResult{}, problemf(ErrStale, "预览后 HEAD 或暂存区已被外部修改，当前确认已失效；保留提交说明草稿，请重新预览")
 	}
 
-	opID, err := randomID()
-	if err != nil {
+	if err := s.recordOperationStart(GitOperation{
+		ID:              opID,
+		RepositoryID:    req.RepositoryID,
+		WorktreeID:      req.WorktreeID,
+		ClientRequestID: req.ClientRequestID,
+		RequestHash:     reqHash,
+		Kind:            GitOpCommit,
+		Status:          GitOpRunning,
+		ConfirmationID:  req.ConfirmationID,
+		StartedAt:       time.Now().UTC(),
+		Summary:         "正在创建提交",
+		Preview: GitOperationPreview{
+			WorktreePath:    loc.Path,
+			HeadState:       confirmed.headState,
+			Branch:          confirmed.branch,
+			HeadOID:         confirmed.headOID,
+			ExpectedTreeOID: confirmed.expectedTreeOID,
+		},
+	}); err != nil {
 		return CommitResult{}, err
 	}
+	if shouldAbortBeforeGit(ctx, opID) {
+		return CommitResult{}, errSimulatedCrash
+	}
+
 	reflogTag := "webmux-commit:" + opID
 
 	commitCtx, commitCancel := context.WithTimeout(context.WithoutCancel(ctx), commitExecuteTimeout)
@@ -119,53 +153,92 @@ func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (
 	if hook, ok := ctx.Value(afterCommitHookKey{}).(func(string)); ok && hook != nil {
 		hook(loc.Path)
 	}
+	if shouldAbortAfterGit(ctx, opID) {
+		return CommitResult{}, errSimulatedCrash
+	}
+
+	combinedOut := strings.TrimSpace(stdout.String() + "\n" + run.stderr)
+	failOp := func(retErr error) (CommitResult, error) {
+		s.finalizeOperation(opID, func(op *GitOperation) {
+			op.Status = GitOpFailed
+			op.FailureKind = classifyFailureKind(retErr)
+			op.Summary = retErr.Error()
+			op.SanitizedOutput = combinedOut
+		})
+		return CommitResult{}, retErr
+	}
 
 	if run.err != nil {
 		if isGitLockBusy(run.stderr) {
-			return CommitResult{}, problemf(ErrLocked, "仓库正被其他进程占用（Git 锁冲突），未删除任何锁文件，请稍后重试")
+			return failOp(problemf(ErrLocked, "仓库正被其他进程占用（Git 锁冲突），未删除任何锁文件，请稍后重试"))
 		}
 		var launch *exec.Error
 		if errors.As(run.err, &launch) || errors.Is(run.err, os.ErrNotExist) || errors.Is(run.err, os.ErrPermission) {
-			return CommitResult{}, problemf(ErrUnavailable, "Git 无法执行: %v", run.err)
+			return failOp(problemf(ErrUnavailable, "Git 无法执行: %v", run.err))
 		}
 	}
 
 	scanCtx, scanCancel := context.WithTimeout(context.Background(), readTimeout)
 	defer scanCancel()
 
-	matches, reflogErr := s.scanCommitReflog(scanCtx, loc.Path, reflogTag)
+	matches, reflogErr := s.scanCommitReflogWithBranch(scanCtx, loc.Path, true, loc.Path, confirmed.branch, reflogTag)
 	if run.err != nil && len(matches) == 0 {
 		if run.ctxErr != nil {
 			latestHead, hErr := s.resolveCommitReadOnly(scanCtx, loc.Path, "HEAD")
 			if reflogErr != nil || hErr != nil || latestHead != confirmed.headOID {
-				return CommitResult{
+				res := CommitResult{
+					OperationID:     opID,
 					Outcome:         CommitOutcomeUncertain,
 					ExpectedTreeOID: confirmed.expectedTreeOID,
 					ReviewReasons:   []string{"提交命令超时，无法唯一确认是否已产生提交，请检查提交历史"},
-				}, nil
+				}
+				s.finalizeOperation(opID, func(op *GitOperation) {
+					op.Status = GitOpUncertain
+					op.Summary = res.ReviewReasons[0]
+					op.ReviewReasons = res.ReviewReasons
+					op.SanitizedOutput = combinedOut
+				})
+				return res, nil
 			}
-			return CommitResult{}, problemf(ErrTimeout, "Git commit 执行超时: %v", run.ctxErr)
+			return failOp(problemf(ErrTimeout, "Git commit 执行超时: %v", run.ctxErr))
 		}
-		return CommitResult{}, problemf(ErrHookFailed, "Git commit 执行失败: %s", strings.TrimSpace(run.stderr))
+		return failOp(problemf(ErrHookFailed, "Git commit 执行失败: %s", strings.TrimSpace(run.stderr)))
 	}
 
 	if reflogErr != nil || len(matches) == 0 {
-		return CommitResult{
+		res := CommitResult{
+			OperationID:     opID,
 			Outcome:         CommitOutcomeUncertain,
 			ExpectedTreeOID: confirmed.expectedTreeOID,
 			ReviewReasons:   []string{"无法从 HEAD reflog 唯一确认本次操作的提交记录，请刷新历史核对"},
-		}, nil
+		}
+		s.finalizeOperation(opID, func(op *GitOperation) {
+			op.Status = GitOpUncertain
+			op.Summary = res.ReviewReasons[0]
+			op.ReviewReasons = res.ReviewReasons
+			op.SanitizedOutput = combinedOut
+		})
+		return res, nil
 	}
 
 	actualOID := matches[0]
 	actualTree, actualParents, subject, metaErr := s.readCommitTreeAndParents(scanCtx, loc.Path, actualOID)
 	if metaErr != nil {
-		return CommitResult{
+		res := CommitResult{
+			OperationID:     opID,
 			Outcome:         CommitOutcomeUncertain,
 			CommitOID:       actualOID,
 			ExpectedTreeOID: confirmed.expectedTreeOID,
 			ReviewReasons:   []string{"已定位提交对象但读取提交元数据失败，请刷新历史核对"},
-		}, nil
+		}
+		s.finalizeOperation(opID, func(op *GitOperation) {
+			op.Status = GitOpUncertain
+			op.ActualOID = actualOID
+			op.Summary = res.ReviewReasons[0]
+			op.ReviewReasons = res.ReviewReasons
+			op.SanitizedOutput = combinedOut
+		})
+		return res, nil
 	}
 
 	var expectedParents []string
@@ -195,10 +268,15 @@ func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (
 	}
 
 	outcome := CommitOutcomeMatched
+	ledgerStatus := GitOpSucceeded
+	summary := "已创建提交 " + shortOID(actualOID)
 	if len(reasons) > 0 {
 		outcome = CommitOutcomeNeedsReview
+		ledgerStatus = GitOpNeedsReview
+		summary = "已创建提交 " + shortOID(actualOID) + "（需复核钩子或树差异）"
 	}
-	return CommitResult{
+	res := CommitResult{
+		OperationID:     opID,
 		Outcome:         outcome,
 		CommitOID:       actualOID,
 		Parents:         actualParents,
@@ -206,11 +284,67 @@ func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (
 		ExpectedTreeOID: confirmed.expectedTreeOID,
 		Subject:         subject,
 		ReviewReasons:   reasons,
-	}, nil
+	}
+	s.finalizeOperation(opID, func(op *GitOperation) {
+		op.Status = ledgerStatus
+		op.Summary = summary
+		op.ActualOID = actualOID
+		op.ActualTreeOID = actualTree
+		op.Parents = actualParents
+		op.Subject = subject
+		op.ReviewReasons = reasons
+		op.SanitizedOutput = combinedOut
+	})
+	return res, nil
 }
 
-func (s *Service) scanCommitReflog(ctx context.Context, cwd, reflogTag string) ([]string, error) {
-	data, err := ReadGit(ctx, cwd, maxWorkspaceGitOutput, "log", "-g", "-n", "64", "--no-show-signature", "--format=%H%x00%gs%x00", "HEAD", "--")
+func shortOID(oid string) string {
+	if len(oid) > 8 {
+		return oid[:8]
+	}
+	return oid
+}
+
+func (s *Service) scanCommitReflogWithBranch(ctx context.Context, wtPath string, wtReachable bool, anchorPath, branch, reflogTag string) ([]string, error) {
+	seen := make(map[string]bool)
+	matches := make([]string, 0, 2)
+	addMatches := func(list []string) {
+		for _, oid := range list {
+			if !seen[oid] {
+				seen[oid] = true
+				matches = append(matches, oid)
+			}
+		}
+	}
+	var firstErr error
+	if wtReachable {
+		headMatches, err := s.scanReflogRef(ctx, wtPath, "HEAD", reflogTag)
+		if err != nil {
+			firstErr = err
+		} else {
+			addMatches(headMatches)
+		}
+	}
+	if branch != "" {
+		cwd := anchorPath
+		if wtReachable {
+			cwd = wtPath
+		}
+		branchMatches, err := s.scanReflogRef(ctx, cwd, "refs/heads/"+branch, reflogTag)
+		if err == nil {
+			addMatches(branchMatches)
+			if len(branchMatches) > 0 {
+				firstErr = nil
+			}
+		} else if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return matches, firstErr
+}
+
+func (s *Service) scanReflogRef(ctx context.Context, cwd, ref, reflogTag string) ([]string, error) {
+	data, err := ReadGit(ctx, cwd, maxWorkspaceGitOutput, "log", "-g", "-n", "64", "--no-show-signature", "--format=%H%x00%gs%x00", ref, "--")
 	if err != nil {
 		return nil, err
 	}
