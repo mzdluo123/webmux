@@ -5,7 +5,7 @@ import { uploadFile } from "../../platform/api";
 import { attachFileDrop } from "./file-drop";
 import type { ChatAttachment } from "../../contracts/schemas";
 import type { Connection } from "../../platform/ws";
-import { hasTouchInput } from "../../platform/touch-input";
+import { allowAutomaticInputFocus } from "./input-focus";
 import type {
   DraftOperation,
   InputDestination,
@@ -219,7 +219,7 @@ export function useUpload(
       if (
         inserted.terminal &&
         input.destination(operation) === "terminal" &&
-        !hasTouchInput()
+        allowAutomaticInputFocus()
       )
         terminal.focus();
     } catch (err) {

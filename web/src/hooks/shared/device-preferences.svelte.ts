@@ -34,3 +34,40 @@ export function deviceToggle(key: string, enabledByDefault: boolean) {
     },
   };
 }
+
+/** Versioned device data stays usable when storage is absent or malformed. */
+export function deviceObjectPreference<T>(
+  key: string,
+  schema: z.ZodType<T>,
+  fallback: () => T,
+) {
+  function readValue(): T {
+    const saved = stored(key);
+    if (!saved) return fallback();
+    try {
+      const parsed = schema.safeParse(JSON.parse(saved));
+      if (parsed.success) return parsed.data;
+    } catch {
+      // A truncated JSON document is not a reason to block the workspace.
+    }
+    store(key, null);
+    return fallback();
+  }
+  let value = $state.raw<T>(readValue());
+  return {
+    get value() {
+      return value;
+    },
+    set(next: T) {
+      const parsed = schema.safeParse(next);
+      if (!parsed.success) return false;
+      value = parsed.data;
+      store(key, JSON.stringify(parsed.data));
+      return true;
+    },
+    reset() {
+      value = fallback();
+      store(key, null);
+    },
+  };
+}

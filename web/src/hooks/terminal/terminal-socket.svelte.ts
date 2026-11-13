@@ -42,27 +42,12 @@ import {
   registerTerminalProtocolHandlers,
   restoreTerminalSnapshot,
 } from "./terminal-sync";
+import type {
+  TerminalSocketAttachment,
+  TerminalSocketView,
+} from "./terminal-socket-view";
 
 const inputSendError = "终端输入未发送：连接不可用或发送队列已满，请重试。";
-
-// What the session socket needs from the mounted terminal view.
-export interface TerminalSocketView {
-  // Fits the grid to the host, or to the controller's grid while observing.
-  fit(): void;
-  // Fits, then shows the newest output.
-  scrollToBottom(): void;
-  isVisible(): boolean;
-  // An application copy request (OSC 52) made by live output.
-  copy(text: string): void;
-  resetFind(): void;
-  preserveViewport(): boolean;
-}
-
-export interface TerminalSocketAttachment {
-  // Re-announces the colour scheme after a page theme change.
-  themeChanged(): void;
-  dispose(): void;
-}
 
 // Terminal stream of one session (`/ws/s/{id}`, docs/protocol/websocket.md).
 export function createTerminalSocket(id: string, manageChrome = true) {
@@ -77,13 +62,11 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   // terminal waits for the new run's first bytes before showing the pane.
   let drawn = $state<string>();
   let terminal: Terminal | undefined;
+  let graphicsUnsupported = $state(false);
   let socket: SocketConnection | undefined;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const identity = clientIdentity();
-  // Output continuity: `offset` counts the stream bytes handed to xterm since
-  // the snapshot of run `generation`. While `synced`, a reconnect asks the
-  // server for only the bytes after it.
   let generation: string | undefined;
   let offset = 0;
   let synced = false;
@@ -112,10 +95,6 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     let restoreFrame = 0;
     let restoreVersion = 0;
     terminal = term;
-    // Snapshots replay output whose OSC 52 copies already ran when it was
-    // live. xterm parses writes and runs their callbacks in order, so the
-    // reset boundary's callback opens the replay window exactly where the
-    // snapshot starts and the snapshot's callback closes it.
     let replaying = false;
     let graphics: TerminalGraphics | undefined;
     const writeOutput = (data: Uint8Array, parsed: () => void) => {
@@ -143,6 +122,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
           resetFind: () => view.resetFind(),
           scrollToBottom: () => view.scrollToBottom(),
           isDisposed: () => disposed,
+          isImmersive: () => view.isImmersive(),
           isCurrent: (v) => v === restoreVersion,
           setReplaying: (v) => (replaying = v),
           setRestoring: (v) => (restoring = v),
@@ -156,9 +136,18 @@ export function createTerminalSocket(id: string, manageChrome = true) {
         (id) => (restoreFrame = id),
       );
     };
+    let sentSize = "";
     const sendSize = () => {
-      if (controlling() && view.isVisible() && term.cols > 0 && term.rows > 0)
-        ws.send(1, encodeTerminalSize(term.cols, term.rows));
+      const size = `${term.cols}:${term.rows}`;
+      if (
+        controlling() &&
+        (view.isVisible() || view.isImmersive()) &&
+        term.cols > 0 &&
+        term.rows > 0 &&
+        sentSize !== size &&
+        ws.send(1, encodeTerminalSize(term.cols, term.rows))
+      )
+        sentSize = size;
     };
     // DEC mode 2031 reports: CSI ? 997 ; 1 n is dark, 2 is light.
     const root = document.documentElement;
@@ -195,9 +184,8 @@ export function createTerminalSocket(id: string, manageChrome = true) {
             appending && view.preserveViewport()
               ? term.buffer.active.viewportY
               : undefined;
-          // Output missed while hidden leaves a gap: stop writing, keep
-          // the offset, and let the foreground reconnect fill it in.
-          if (document.hidden || stale) stale = true;
+          // Immersive sessions keep parsing even when their DOM document hides.
+          if ((document.hidden && !view.isImmersive()) || stale) stale = true;
           else if (output.write(payload)) {
             offset += payload.length;
             const run = generation ?? info?.generation;
@@ -247,7 +235,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
           const position = resetPosition;
           resetPosition = undefined;
           // A hidden page keeps its terminal and resume point unchanged.
-          if (document.hidden) stale = true;
+          if (document.hidden && !view.isImmersive()) stale = true;
           else {
             stale = false;
             restore(payload, position?.generation ?? info?.generation);
@@ -266,9 +254,8 @@ export function createTerminalSocket(id: string, manageChrome = true) {
           control = ControlStateSchema.parse(
             JSON.parse(decoder.decode(payload)),
           );
-          // Announce the scheme whenever this terminal starts answering
-          // for the program: it may have asked before any browser was
-          // attached, or been answered with another device's theme.
+          if (!wasControlling) sentSize = "";
+          // A new controller answers queries using this device's theme.
           if (
             control.colorSchemeReports &&
             (!schemeReports || (controlling() && !wasControlling))
@@ -289,18 +276,17 @@ export function createTerminalSocket(id: string, manageChrome = true) {
           exitCode = ExitSchema.parse(
             JSON.parse(decoder.decode(payload)),
           ).exitCode;
-          if (stale && !document.hidden) restoreExited();
+          if (stale && (!document.hidden || view.isImmersive()))
+            restoreExited();
         }
       },
       (state) => {
         connection = state;
-        // Without a live stream the last running state is stale; a fresh state
-        // frame re-arms the marker after reconnect.
         if (manageChrome && (state === "reconnecting" || state === "missing"))
           resetBrowserChrome();
         if (state === "connected") {
+          sentSize = "";
           view.fit();
-          // The PTY grid follows only after the server confirms control.
           if (submissions.size) ws.send(4, encodeIdsQuery(submissions.keys()));
         }
         if (state === "connecting" || state === "reconnecting") {
@@ -323,18 +309,19 @@ export function createTerminalSocket(id: string, manageChrome = true) {
         error = message;
       },
       {
-        // Output missed while hidden left a gap: reconnecting resumes from the
-        // rendered offset. Otherwise a query for an unknown submission ID is a
-        // side-effect-free ping whose "missing" reply proves the socket alive.
         resume(send) {
           return !stale && send(4, encodeIdsQuery([newSubmissionId()]));
         },
       },
     );
     socket = ws;
-    graphics = attachTerminalGraphics(term, (text) => {
-      if (!replaying) ws.send(6, encoder.encode(text));
-    });
+    graphics = attachTerminalGraphics(
+      term,
+      (text) => {
+        if (!replaying) ws.send(6, encoder.encode(text));
+      },
+      (active) => (graphicsUnsupported = active),
+    );
     const resize = term.onResize(sendSize);
     const disposeProtocol = registerTerminalProtocolHandlers(
       term,
@@ -350,13 +337,17 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     }
     const visible = () => {
       // Live sessions reattach automatically; exited ones need explicit recovery.
-      if (!document.hidden && stale && exited) {
+      if ((!document.hidden || view.isImmersive()) && stale && exited) {
         restoreExited();
       }
     };
     document.addEventListener("visibilitychange", visible);
 
     return {
+      presentationChanged() {
+        if (!disposed && stale && (!document.hidden || view.isImmersive()))
+          ws.reconnect();
+      },
       themeChanged() {
         if (disposed) return;
         if (
@@ -383,6 +374,9 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   }
 
   return {
+    get graphicsUnsupported() {
+      return graphicsUnsupported;
+    },
     get info() {
       return info;
     },

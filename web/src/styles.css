@@ -731,3 +731,54 @@
   background: var(--background);
   box-shadow: 4px 0 10px #0002;
 }
+
+/* Explicit device modes, not pointer or screen-size guesses. The same design
+   system controls grow together, including portalled menus and dialogs. */
+html[data-ui-mode="tv"] {
+  font-size: 125%;
+  --control-sm: 2.75rem;
+  --control-default: 2.75rem;
+  --control-lg: 3rem;
+  --control-touch: 2.75rem;
+  --control-touch-compact: 2.75rem;
+  --tv-focus-width: 3px;
+  --tv-focus-offset: 3px;
+}
+html[data-ui-mode="tv"] .app-header {
+  --app-header-height: 3.5rem;
+}
+html[data-ui-mode="tv"] :focus:not(.xterm-helper-textarea) {
+  outline: var(--tv-focus-width) solid var(--primary);
+  outline-offset: var(--tv-focus-offset);
+  box-shadow: none;
+}
+html[data-ui-mode="tv"] [data-slot="dropdown-menu-item"],
+html[data-ui-mode="tv"] [data-slot="dropdown-menu-checkbox-item"],
+html[data-ui-mode="tv"] [data-slot="select-item"],
+html[data-ui-mode="tv"] [data-slot="input"],
+html[data-ui-mode="tv"] .wm-control {
+  min-height: var(--control-default);
+}
+html[data-ui-mode="tv"] [data-tv-scroll] {
+  scroll-margin-block: 0.5rem;
+}
+html[data-ui-mode="tv"] .session-terminal:not(.force-soft-keys) .soft-keys,
+html[data-headset-mode="true"]
+  .session-terminal:not(.force-soft-keys)
+  .soft-keys {
+  display: none;
+}
+html[data-headset-mode="true"]
+  .session-terminal:not(.force-soft-keys)
+  .quick-commands-header {
+  display: flex;
+}
+/* Remote users reach draft actions before choosing to edit its text. The
+   textarea keeps all native caret keys once deliberately selected. */
+html[data-ui-mode="tv"] .terminal-composer > [data-slot="textarea"] {
+  order: 2;
+}
+html[data-ui-mode="tv"] [data-tv-captured="true"] .terminal-host {
+  outline: var(--tv-focus-width) solid var(--primary);
+  outline-offset: calc(-1 * var(--tv-focus-width));
+}

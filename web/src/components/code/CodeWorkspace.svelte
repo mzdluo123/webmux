@@ -2,6 +2,7 @@
   import { errorMessage } from "../../platform/error";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
   import { onMount, untrack } from "svelte";
+  import { SvelteMap } from "svelte/reactivity";
   import CodeNavigator from "./CodeNavigator.svelte";
   import CodeWorkspaceHeader from "./CodeWorkspaceHeader.svelte";
   import { api } from "../../platform/api";
@@ -53,7 +54,7 @@
   let inner = $state<HTMLDivElement>();
   let navigator = $state<CodeNavigator>();
   let dropStatus = $state("");
-  const views = new WeakMap<CodeWorkspaceTab, CodeDocumentView>();
+  const views = new SvelteMap<CodeWorkspaceTab, CodeDocumentView>();
   const shown = $derived(visible || !!popout?.popped);
   let base = $derived(`/sessions/${id}/code`);
   const ws = useCodeWorkspaceState({
@@ -78,6 +79,15 @@
       (tab) => views.get(tab)?.capture() ?? $state.snapshot(tab.restore),
       () => navigator?.capture() ?? seed?.navigator,
     );
+  }
+  const xrContents = $derived.by(() => {
+    const tab = ws.s.tabs.find((item) => item.key === ws.s.active);
+    const navigation = navigator?.xrPanel();
+    const content = tab ? views.get(tab)?.xrPanel() : undefined;
+    return [...(navigation ? [navigation] : []), ...(content ? [content] : [])];
+  });
+  export function xrPanels() {
+    return xrContents;
   }
   function setNavWidth(width: number) {
     const limit = Math.min(navMax, (inner?.clientWidth ?? navMax) - 160);

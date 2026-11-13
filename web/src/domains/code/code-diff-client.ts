@@ -149,6 +149,16 @@ export function sourceLabel(source: string) {
           : "";
 }
 
+/** A missing new side and a HEAD file both initially show the old source. */
+export function defaultDiffSide(
+  diff?: CodeDiff,
+  file?: CodeFile,
+): "old" | "new" {
+  return diff?.new.source === "empty" || file?.document.source === "head"
+    ? "old"
+    : "new";
+}
+
 export async function fetchSnapshotSideFile(
   id: string,
   snapshotId: string,

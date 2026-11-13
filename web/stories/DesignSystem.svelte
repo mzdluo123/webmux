@@ -28,10 +28,15 @@
   import ResponsiveDialog from "../src/components/shared/ResponsiveDialog.svelte";
   import { session, now } from "./fixtures";
   import type { SessionInfo } from "../src/contracts/schemas";
+  import { untrack } from "svelte";
+  import { tvMode } from "../src/hooks/shared/tv-mode.svelte";
+  import { useTvNavigation } from "../src/hooks/shared/tv-navigation.svelte";
 
   let {
     section = "foundations",
+    tv = false,
   }: {
+    tv?: boolean;
     section?:
       | "foundations"
       | "actions"
@@ -41,6 +46,14 @@
       | "overlays"
       | "sessions";
   } = $props();
+  useTvNavigation(() => false);
+  $effect(() => {
+    const previous = untrack(() => tvMode.enabled);
+    tvMode.enabled = tv;
+    return () => {
+      tvMode.enabled = previous;
+    };
+  });
   let notice = $state("");
   let dialogOpen = $state(false);
   let confirmOpen = $state(false);

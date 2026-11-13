@@ -42,6 +42,7 @@
   bind:value
   bind:ref
   data-slot="command"
+  data-tv-native-keys
   class={cn(commandVariants({ variant }), className)}
   {...restProps}
 />

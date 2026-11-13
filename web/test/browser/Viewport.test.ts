@@ -2,9 +2,11 @@ import { afterEach, expect, test } from "vitest";
 import { page } from "vitest/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Harness from "./ViewportHarness.svelte";
+import { headsetMode } from "../../src/hooks/shared/headset-mode.svelte";
 
 afterEach(async () => {
   await cleanup();
+  headsetMode.enabled = false;
   window.scrollTo(0, 0);
 });
 
@@ -122,4 +124,60 @@ test("keyboard visibility follows IME-sized height changes, not chrome or rotati
   await page.viewport(400, 800);
   await expect.poll(shownKeyboard).toBe("hidden");
   expect(await shownDismissed()).toBe("false");
+});
+
+test("headset window height changes without text focus are not keyboard dismissals", async () => {
+  headsetMode.enabled = true;
+  await page.viewport(1920, 1080);
+  await render(Harness);
+  await expect.poll(shownHeight).toBe(1080);
+  expect(shownKeyboard()).toBe("hidden");
+  expect(document.activeElement?.tagName).not.toBe("INPUT");
+
+  // A controller browser can resize vertically without changing width.
+  await page.viewport(1920, 720);
+  await expect.poll(shownHeight).toBe(720);
+  expect(shownKeyboard()).toBe("hidden");
+  expect(shownDismissed()).toBe("false");
+  await page.viewport(1280, 720);
+  await expect.poll(shownKeyboard).toBe("unknown");
+  await page.viewport(1280, 500);
+  await expect.poll(shownHeight).toBe(500);
+  expect(shownKeyboard()).toBe("hidden");
+  expect(shownDismissed()).toBe("false");
+});
+
+test("headset system keyboard follows explicit focus through composition and dismissal", async () => {
+  headsetMode.enabled = true;
+  await page.viewport(1280, 900);
+  await render(Harness);
+  const field = page
+    .getByRole("textbox", { name: "Composition input" })
+    .element() as HTMLInputElement;
+  field.focus({ preventScroll: true });
+  await frames();
+  field.dispatchEvent(
+    new CompositionEvent("compositionstart", { bubbles: true, data: "" }),
+  );
+  await page.viewport(1280, 550);
+  await expect.poll(shownHeight).toBe(550);
+  expect(shownKeyboard()).toBe("visible");
+  expect(document.activeElement).toBe(field);
+  expect(shownDismissed()).toBe("false");
+
+  // Closing a menu must not focus this field; blur also must not classify the
+  // keyboard as gone before its closing viewport animation completes.
+  field.blur();
+  await frames();
+  expect(shownKeyboard()).toBe("visible");
+  await page.viewport(1280, 700);
+  await expect.poll(shownHeight).toBe(700);
+  expect(shownKeyboard()).toBe("visible");
+  await page.viewport(1280, 900);
+  await expect.poll(shownKeyboard).toBe("hidden");
+  expect(shownDismissed()).toBe("true");
+
+  await page.viewport(1280, 650);
+  await expect.poll(shownHeight).toBe(650);
+  expect(shownKeyboard()).toBe("hidden");
 });

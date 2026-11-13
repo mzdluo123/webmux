@@ -22,6 +22,8 @@ export const deviceScopedKeys: ReadonlySet<string> = new Set([
   "keyboardSizeHold",
   "touchGamepad",
   "voiceInput",
+  "tv-mode",
+  "headsetMode",
 ]);
 
 let currentHostId: string | null = null;

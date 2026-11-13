@@ -30,6 +30,8 @@
   import type { FileTarget } from "./CodeFileActions.svelte";
 
   import { longPress } from "../../hooks/shared/long-press";
+  import { xrTreePanel } from "../../domains/code/xr-code-navigation";
+  import { openFileTreeMenu } from "../../domains/code/file-tree-menu";
 
   let {
     listing,
@@ -77,21 +79,8 @@
     name: rootPath.split("/").filter(Boolean).at(-1) ?? "根目录",
     kind: "directory",
   });
-  // A pointer context menu opens at the pointer; a keyboard one (whose
-  // position may lie outside the row) opens at the row. Touch context menus
-  // come from the long press instead, which iOS Safari also supports.
   function contextMenu(event: MouseEvent, node: FileTarget) {
-    if (!menu) return;
-    event.preventDefault();
-    if (event instanceof PointerEvent && event.pointerType === "touch") return;
-    const row = event.currentTarget as HTMLElement;
-    const box = row.getBoundingClientRect();
-    const inside =
-      event.clientX >= box.left &&
-      event.clientX <= box.right &&
-      event.clientY >= box.top &&
-      event.clientY <= box.bottom;
-    menu(node, inside ? { x: event.clientX, y: event.clientY } : row, row);
+    openFileTreeMenu(event, node, menu);
   }
   // Rows register their node; one long-press listener on the tree resolves
   // the held row, so a directory refresh mid-press cannot cancel it.
@@ -129,6 +118,24 @@
       expanded: [...expanded],
       branches: [...branches],
     };
+  }
+  const xrNavigation = $derived(
+    xrTreePanel({
+      listing,
+      expanded,
+      branches,
+      loading,
+      errors,
+      toggle,
+      open: openFile,
+      more: (path) => {
+        if (path) void loadBranch(path, true);
+        else void loadMore();
+      },
+    }),
+  );
+  export function xrPanel() {
+    return xrNavigation;
   }
   function loadBranch(path: string, append = false): Promise<void> {
     const current = inflight.get(path);

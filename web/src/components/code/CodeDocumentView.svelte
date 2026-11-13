@@ -11,6 +11,7 @@
     fetchFileComparisonDiff,
     fetchSnapshotSideFile,
     resolveCalculatedDiff,
+    defaultDiffSide,
   } from "../../domains/code/code-diff-client";
   import type { FileDiffMetadata, SelectedLineRange } from "@pierre/diffs";
   import CodeDocumentHeader from "./CodeDocumentHeader.svelte";
@@ -22,6 +23,7 @@
   import { isImageType } from "../../domains/code/code-image";
   import { pdfMediaType, previewFormat } from "../../domains/code/code-preview";
   import type { TextInsertion } from "../../domains/terminal/terminal-draft.svelte";
+  import { xrCodePanel } from "../../domains/code/xr-code-panel";
 
   let {
     id,
@@ -134,11 +136,7 @@
         : shownDiff.new
       : file?.document,
   );
-  const defaultSide = $derived<"old" | "new">(
-    shownDiff?.new.source === "empty" || file?.document.source === "head"
-      ? "old"
-      : "new",
-  );
+  const defaultSide = $derived(defaultDiffSide(shownDiff, file));
   const snapshotId = $derived(shownDiff?.snapshotId ?? file?.snapshotId ?? "");
   // Diff snapshots need the side; file snapshots ignore it.
   const rawSide = $derived(shownDiff ? side : undefined);
@@ -157,6 +155,16 @@
     !shownDiff && doc?.kind === "text" ? previewFormat(doc.path) : undefined,
   );
   const formatPreview = $derived(formatView === "preview" && !!formatFile);
+  const xrContent = $derived(
+    xrCodePanel(
+      contextId,
+      doc,
+      shownDiff,
+      diffReady ? fileDiff : undefined,
+      calculationReason,
+    ),
+  );
+  export const xrPanel = () => xrContent;
   const pdfFile = $derived(
     !shownDiff && !!doc && doc.mediaType === pdfMediaType,
   );

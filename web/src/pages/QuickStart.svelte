@@ -49,7 +49,7 @@
   } from "../contracts/schemas";
   import { getShell, openSession } from "../hooks/shared/shell.svelte";
   import { enterSendIntent } from "../hooks/shared/enter-send";
-  import { hasTouchInput } from "../platform/touch-input";
+  import { allowAutomaticInputFocus } from "../hooks/shared/input-focus";
 
   const shell = getShell();
 
@@ -213,7 +213,7 @@
   const viewport = useViewport();
   onMount(() => {
     setBrowserChrome("新聊天 · WebMux", false);
-    if (!hasTouchInput() && window.innerWidth >= 640) input?.focus();
+    if (allowAutomaticInputFocus() && window.innerWidth >= 640) input?.focus();
     return resetBrowserChrome;
   });
 

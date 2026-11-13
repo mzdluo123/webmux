@@ -8,10 +8,15 @@
     type ButtonVariant,
   } from "$lib/components/ui/button";
   import SoftKeys from "./SoftKeys.svelte";
-  import type { Modifiers } from "../../platform/input";
+  import {
+    terminalKeys,
+    type Modifiers,
+  } from "../../domains/terminal/terminal-keys";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
   import type { Connection } from "../../platform/ws";
+  import { xrPresentation } from "../../hooks/shared/xr-presentation.svelte";
   import { hasTouchInput } from "../../platform/touch-input";
+  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
 
   interface ViewportTerminal {
     readonly selection: string;
@@ -49,6 +54,9 @@
     setTouchGamepad,
     findOpen = false,
     findBar,
+    focusTerminal,
+    scroll,
+    sendControl,
   }: {
     container?: HTMLDivElement;
     terminal: ViewportTerminal;
@@ -69,6 +77,9 @@
     setTouchGamepad: (value: boolean) => void;
     findOpen?: boolean;
     findBar?: Snippet;
+    focusTerminal?: () => void;
+    scroll?: (lines: number) => void;
+    sendControl?: (input: string) => void;
   } = $props();
 
   const gamepadAvailable = $derived(
@@ -85,6 +96,57 @@
   const mac = /Mac/.test(navigator.platform);
   const shortcutHint =
     !hasTouchInput() && matchMedia("(pointer: fine)").matches;
+
+  let captured = $state(false);
+  let inputButton = $state<HTMLButtonElement | null>(null);
+  $effect(() => {
+    if (!tvMode.enabled || xrPresentation.active || !visible || !container) {
+      captured = false;
+      return;
+    }
+    const host = container;
+    function release(event: Event) {
+      if (
+        event.defaultPrevented ||
+        (event as CustomEvent).detail !== "capture" ||
+        !captured
+      )
+        return;
+      event.preventDefault();
+      captured = false;
+      const header = Array.from(
+        host
+          .closest(".session-terminal")
+          ?.querySelectorAll<HTMLElement>(
+            "[data-tv-terminal-toolbar] button:not(:disabled)",
+          ) ?? [],
+      ).find((button) => button.getClientRects().length > 0);
+      (header ?? inputButton)?.focus();
+    }
+    function guard(event: FocusEvent) {
+      if (!(event.target instanceof Element)) return;
+      if (host.contains(event.target)) {
+        if (!captured && event.target.closest(".xterm")) inputButton?.focus();
+      } else {
+        captured = false;
+      }
+    }
+    window.addEventListener("webmux:tv-back", release);
+    document.addEventListener("focusin", guard);
+    if (host.contains(document.activeElement)) inputButton?.focus();
+    return () => {
+      window.removeEventListener("webmux:tv-back", release);
+      document.removeEventListener("focusin", guard);
+    };
+  });
+  function capture() {
+    captured = true;
+    focusTerminal?.();
+  }
+  function terminalKey(input: string) {
+    (sendControl ?? send)(input);
+    capture();
+  }
 </script>
 
 {#snippet gamepadToggle()}
@@ -102,7 +164,35 @@
   </Button>
 {/snippet}
 
-<div class="terminal-column">
+<div class="terminal-column" data-tv-captured={tvMode.enabled && captured}>
+  {#if tvMode.enabled && visible}
+    <div
+      class="flex shrink-0 flex-wrap items-center gap-2 border-b px-2 py-1"
+      role="toolbar"
+      aria-label="TV 终端输入"
+    >
+      <Button
+        bind:ref={inputButton}
+        variant="outline"
+        aria-pressed={captured}
+        onclick={capture}>终端输入</Button
+      >
+      <span class="text-sm text-muted-foreground"
+        >{captured ? "输入中 · 返回退出输入" : "导航中 · 确认进入输入"}</span
+      >
+      <Button variant="outline" onclick={() => terminalKey(terminalKeys.escape)}
+        >Esc</Button
+      >
+      <Button
+        variant="outline"
+        onclick={() => terminalKey(terminalKeys.interrupt)}>Ctrl+C</Button
+      >
+      {#if scroll}
+        <Button variant="ghost" onclick={() => scroll?.(-12)}>向上滚动</Button>
+        <Button variant="ghost" onclick={() => scroll?.(12)}>向下滚动</Button>
+      {/if}
+    </div>
+  {/if}
   <div class="terminal-area">
     <div
       class="terminal-host"

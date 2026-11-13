@@ -7,6 +7,7 @@
   import type { TimelineEntry } from "../../domains/chat/chat-model";
   import { errorMessage } from "../../platform/error";
   import { useTextareaDraft } from "../../hooks/terminal/textarea-draft.svelte";
+  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
   import type {
     ChatCommand,
@@ -27,6 +28,7 @@
   import ComposerCard from "./ComposerCard.svelte";
   import UsageRing from "./UsageRing.svelte";
 
+  import { editDraftKey } from "../../domains/terminal/draft-key";
   // The chat input. Its text is the session's draft, saved on this device
   // like the terminal draft. Sending while a turn runs queues on the server;
   // Ctrl/Cmd+Enter injects into the running turn when the agent takes it, and
@@ -103,6 +105,23 @@
   const menuOpen = $derived(
     !disabled && matches.length > 0 && menuDismissed !== draft.text,
   );
+  $effect(() => {
+    if (!tvMode.enabled) return;
+    const dismiss = (event: Event) => {
+      if (
+        event instanceof CustomEvent &&
+        !event.defaultPrevented &&
+        event.detail === "capture" &&
+        menuOpen &&
+        document.activeElement === textarea
+      ) {
+        event.preventDefault();
+        menuDismissed = draft.text;
+      }
+    };
+    window.addEventListener("webmux:tv-back", dismiss);
+    return () => window.removeEventListener("webmux:tv-back", dismiss);
+  });
   const active = $derived(Math.min(highlighted, matches.length - 1));
 
   async function submit(mode: "auto" | "steer") {
@@ -127,6 +146,13 @@
     } finally {
       sending = false;
     }
+  }
+  export function editKey(input: string) {
+    if (selection.composing || disabled || sending) return;
+    editDraftKey(draft, drafts, input);
+  }
+  export function submitDraft() {
+    void submit("auto");
   }
   function pick(command: ChatCommand) {
     recalledId = "";
@@ -283,6 +309,7 @@
   textareaProps={{
     "aria-controls": menuOpen ? "chat-commands" : undefined,
     "aria-expanded": menuOpen,
+    "data-tv-native-keys": "",
     ...selection.selectionProps,
     onkeydown: keydown,
   }}

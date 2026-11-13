@@ -54,13 +54,40 @@
   } from "./hooks/shared/session-switcher";
   import SessionList from "./pages/SessionList.svelte";
   import { matchRoute, type Route } from "./hooks/shared/route";
-  import { enterHome, openSession } from "./hooks/shared/shell.svelte";
+  import { enterHome, openSession, shellUi } from "./hooks/shared/shell.svelte";
   import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
   import { browserDraftStorage } from "./domains/terminal/draft-storage";
   import { clearHomeCache, homeCache } from "./domains/workspace/home-cache";
   import { sessionPageLabel } from "./domains/sessions/hybrid";
   import { sessionPins } from "./domains/sessions/session-pins.svelte";
   import { resetAttentionToasts } from "./domains/notifications/attention-toast.svelte";
+  import { useTvNavigation } from "./hooks/shared/tv-navigation.svelte";
+  import { headsetMode } from "./hooks/shared/headset-mode.svelte";
+  import { tvInput } from "./hooks/shared/tv-input.svelte";
+  import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
+  import InlineNotice from "./components/shared/InlineNotice.svelte";
+
+  useTvNavigation(() => {
+    if (shellUi.drawerOpen) {
+      shellUi.drawerOpen = false;
+      return true;
+    }
+    const routeBack = new CustomEvent("webmux:tv-back", {
+      cancelable: true,
+      detail: "route",
+    });
+    window.dispatchEvent(routeBack);
+    if (routeBack.defaultPrevented) return true;
+    if (location.pathname === "/") return false;
+    navigate("/");
+    return true;
+  });
+  $effect(() => {
+    document.documentElement.dataset.headsetMode = String(headsetMode.enabled);
+    return () => {
+      delete document.documentElement.dataset.headsetMode;
+    };
+  });
 
   const drafts = createTerminalDrafts({ storage: browserDraftStorage() });
   let uploadNotice = $state("");
@@ -275,6 +302,14 @@
     };
   });
 </script>
+
+{#if tvInput.message && !xrPresentation.active}
+  <div
+    class="pointer-events-none fixed inset-x-6 top-6 z-[100] mx-auto w-fit max-w-[calc(100%-3rem)] rounded-lg bg-background shadow-lg"
+  >
+    <InlineNotice>{tvInput.message}</InlineNotice>
+  </div>
+{/if}
 
 {#if !ready}
   <main class="flex min-h-dvh items-center justify-center p-6">
