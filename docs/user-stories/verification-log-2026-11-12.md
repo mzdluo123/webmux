@@ -70,3 +70,4 @@
 - `make check` 通过；主命令包、`internal/hybrid` 与 `internal/acp` 的全量 race 测试通过。主命令包首次受宿主 XDG 状态影响的隧道用例失败，清除宿主环境后全量重跑通过。
 - 默认配置、探测隔离与交接集成的定向 race 测试通过：独立 fake agent 在 new/load/resume 发现全部八个控制工具并成功调用 capabilities；关闭会话后控制及历史 helper 均退出。
 - 配置测试覆盖缺失可执行文件、无执行权限、缺失或未持有的 socket 和非 socket 文件；未修改 agent 全局配置或调用真实 provider。
+- CI 首次未通过源码文件规模守卫（main.go 为 509 行）；按重启恢复职责拆到独立文件后，完整架构与文档 race 守卫通过，Go lint 零问题。
