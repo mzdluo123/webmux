@@ -38,7 +38,7 @@
   - [会话与工作台](usage/sessions.md)：侧栏、会话列表与状态、新建会话、启动配置、设置与跨设备偏好。
   - [终端使用](usage/terminal.md)：回放与控制权、查找、分屏、复制粘贴、终端图形、文件上传与草稿模式。
   - [代码工作区](usage/code.md)：文件浏览、Git Diff、多格式预览、行号引用与独立窗口。
-  - [Git 工作台](usage/git-workbench.md)：多分支拓扑历史、真实索引逐块暂存与提交、固定任务起点净变更审阅、跨设备审阅/草稿同步与返工意见交回会话。
+  - [Git 工作台](usage/git-workbench.md)：多分支拓扑历史、真实索引暂存与高级提交（Amend/作者/Sign-off）、独立 Stash 视图、分支/标签/远程维护、单文件历史与逐行 Blame、三方冲突解决及跨设备协同。
   - [从本机终端使用](usage/command-line.md)：`run` / `attach`、Windows 终端与后台启动。
   - [仓库与 worktree](usage/worktrees.md)：仓库登记、新建工作树与起点选择、释放空间、删除与重建、推送检查。
   - [移动端使用](usage/mobile.md)：软键栏、虚拟键盘、触摸手势、锁定尺寸与全屏。

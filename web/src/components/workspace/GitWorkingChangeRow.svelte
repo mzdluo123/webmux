@@ -1,12 +1,14 @@
 <script lang="ts">
   import IconArrowsSplit2 from "~icons/tabler/arrows-split-2";
   import IconCheck from "~icons/tabler/check";
+  import IconHistory from "~icons/tabler/history";
   import IconMinus from "~icons/tabler/minus";
   import IconPlus from "~icons/tabler/plus";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
+  import type { GitFileInspectorTab } from "../../hooks/workspace/git-file-inspector-controller.svelte";
 
   let {
     item,
@@ -19,6 +21,7 @@
     onStageChange,
     onUnstageChange,
     onOpenConflictResolver,
+    onInspectFile,
   }: {
     item: GitWorkingChange;
     isReviewed?: boolean;
@@ -30,6 +33,7 @@
     onStageChange: (changeId: string) => void;
     onUnstageChange: (changeId: string) => void;
     onOpenConflictResolver?: (path: string) => void;
+    onInspectFile?: (path: string, tab: GitFileInspectorTab) => void;
   } = $props();
 </script>
 
@@ -91,6 +95,18 @@
       </div>
     </ListButton>
   </div>
+
+  {#if item.group !== "untracked" && onInspectFile}
+    <Button
+      size="icon-xs"
+      variant="ghost"
+      aria-label={`查看文件历史与 Blame ${item.path}`}
+      title={`文件历史 / Blame / 版本比较：${item.path}`}
+      onclick={() => onInspectFile(item.path, "history")}
+    >
+      <IconHistory aria-hidden="true" />
+    </Button>
+  {/if}
 
   {#if !readonlyMode}
     {#if item.group === "conflicted" && onOpenConflictResolver}

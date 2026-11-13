@@ -12,6 +12,7 @@ import {
 } from "../src/contracts/git-workbench-schemas";
 import { longPath, longToken } from "./fixtures";
 import { applyGitStoryV2Scenario } from "./git-workbench-v2-fixtures";
+import { applyGitStoryV2bScenario } from "./git-workbench-v2b-fixtures";
 
 export type GitWorkbenchScenario =
   | "log-merge"
@@ -30,7 +31,12 @@ export type GitWorkbenchScenario =
   | "conflict-three-way-text"
   | "conflict-binary-variant"
   | "divergence-rebase-preview"
-  | "abort-operation-dialog";
+  | "abort-operation-dialog"
+  | "stash-view-untracked"
+  | "stash-pop-conflict"
+  | "commit-amend-pushed"
+  | "branches-tags-remotes"
+  | "file-history-blame";
 
 export function buildGitWorkbenchFixture(
   scenario: GitWorkbenchScenario,
@@ -708,5 +714,9 @@ export function buildGitWorkbenchFixture(
     base.commitPreview = buildCommitPreviewModel(base, true);
   }
 
-  return applyGitStoryV2Scenario(base, scenario, stressLongText);
+  return applyGitStoryV2bScenario(
+    applyGitStoryV2Scenario(base, scenario, stressLongText),
+    scenario,
+    stressLongText,
+  );
 }

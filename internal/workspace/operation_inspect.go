@@ -86,7 +86,9 @@ func (s *Service) inspectInProgressLocked(ctx context.Context, loc WorktreeLocat
 		out.Kind = *op
 	} else if len(conflicted) > 0 {
 		out.Active = true
-		out.Kind = "merge"
+		out.Kind = "unstash"
+	} else {
+		s.clearUnstashRefBestEffort(ctx, loc.Path, loc.WorktreeID)
 	}
 
 	if !out.Active {
@@ -108,6 +110,8 @@ func (s *Service) inspectInProgressLocked(ctx context.Context, loc WorktreeLocat
 		s.populateSequencerOperationMeta(ctx, loc.Path, gitDir, "CHERRY_PICK_HEAD", "遴选提交", &out)
 	case "revert":
 		s.populateSequencerOperationMeta(ctx, loc.Path, gitDir, "REVERT_HEAD", "还原提交", &out)
+	case "unstash":
+		s.populateUnstashOperationMeta(ctx, loc.Path, loc.WorktreeID, &out)
 	}
 
 	out.CanAbort = out.Kind == "merge" || out.Kind == "rebase" || out.Kind == "cherry-pick" || out.Kind == "revert"

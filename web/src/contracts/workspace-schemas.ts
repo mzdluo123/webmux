@@ -135,12 +135,20 @@ const BranchBaseSchema = z.object({
   committedAt: z.string(),
 });
 export type BranchBase = z.infer<typeof BranchBaseSchema>;
-const TagSchema = z.object({
+export const TagSchema = z.object({
   name: z.string(),
   head: z.string(),
   subject: z.string(),
   committedAt: z.string(),
+  kind: z.enum(["lightweight", "annotated"]).optional(),
+  tagOid: z.string().optional(),
+  message: z.string().optional(),
+  taggerName: z.string().optional(),
+  taggerEmail: z.string().optional(),
+  taggedAt: z.string().optional(),
+  signed: z.boolean().optional(),
 });
+export type Tag = z.infer<typeof TagSchema>;
 export const BranchesSchema = z.object({
   branches: z.array(BranchSchema),
   bases: z.array(BranchBaseSchema),
@@ -155,7 +163,7 @@ export const CommitsSchema = z.object({
   commits: z.array(CommitSchema),
 });
 // GET /repositories/:id/remotes; URLs are redacted by the server.
-const RemoteSchema = z.object({
+export const RemoteSchema = z.object({
   name: z.string(),
   fetchUrl: z.string(),
   pushUrl: z.string(),
@@ -208,7 +216,7 @@ export const CreateWorktreeRequestSchema = z.object({
 // `noRemote`: none is configured; `unknown`: no commit or the check failed.
 // `branches` name at most a few containing branches ("origin/main"), `more`
 // counts the rest.
-const PushCheckSchema = z.object({
+export const PushCheckSchema = z.object({
   state: z.enum(["pushed", "unpushed", "noRemote", "unknown"]),
   branches: z.array(z.string()),
   more: z.number().int().nonnegative(),

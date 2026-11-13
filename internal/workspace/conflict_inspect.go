@@ -266,6 +266,13 @@ func populateConflictSideMeta(out *ConflictSide, side string, stage int, inProg 
 			out.Subject = inProg.SourceSubject
 			out.Role = "还原变更 (stage 3)"
 			out.Label = formatSideLabel(ref, inProg.SourceOID, "还原来源")
+		case "unstash":
+			ref := firstNonEmpty(inProg.SourceLabel, "贮藏变更")
+			out.RefName = ref
+			out.CommitOID = inProg.SourceOID
+			out.Subject = inProg.SourceSubject
+			out.Role = fmt.Sprintf("贮藏变更 (Stash · stage %d)", stage)
+			out.Label = formatSideLabel(ref, inProg.SourceOID, "贮藏来源")
 		default:
 			ref := firstNonEmpty(inProg.SourceLabel, "合入来源")
 			out.RefName = ref

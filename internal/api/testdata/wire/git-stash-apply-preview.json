@@ -1,0 +1,41 @@
+{
+  "status": 200,
+  "body": {
+    "blockers": [],
+    "confirmationId": "<confirmationId#9>",
+    "currentBranch": "main",
+    "detached": false,
+    "entry": {
+      "baseOid": "029aad08115e96af87a9df174c887599dc4eae5b",
+      "branch": "main",
+      "createdAt": "<time>",
+      "hasUntracked": true,
+      "index": 0,
+      "indexOid": "2de491136b2a4f02e817bf4323222f9a1ab93d2a",
+      "oid": "716b4010210d57411915de0d4032e1afc5b99a86",
+      "parents": [
+        "029aad08115e96af87a9df174c887599dc4eae5b",
+        "2de491136b2a4f02e817bf4323222f9a1ab93d2a",
+        "ed954172eedaaaa39dd220738b309ba06a6d4734"
+      ],
+      "shortOid": "716b4010",
+      "stashRef": "stash@{0}",
+      "summary": "On main: WIP: stash snapshot",
+      "untrackedOid": "ed954172eedaaaa39dd220738b309ba06a6d4734"
+    },
+    "expiresAt": "<time>",
+    "headOid": "029aad08115e96af87a9df174c887599dc4eae5b",
+    "headSubject": "Merge branch 'refs/heads/feat-conflict'",
+    "mode": "apply",
+    "overlappingPaths": [],
+    "reinstateIndex": false,
+    "repositoryId": "<id#1>",
+    "sessions": [],
+    "stagedCount": 0,
+    "unstagedCount": 0,
+    "untrackedCount": 0,
+    "warnings": [],
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

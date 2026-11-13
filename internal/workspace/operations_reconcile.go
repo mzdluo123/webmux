@@ -248,6 +248,11 @@ func (s *Service) reconcileSingleOperation(op *GitOperation, r *repositoryState,
 	case GitOpFetch:
 		op.Status = GitOpUncertain
 		op.Summary = "服务重启时远程获取未完成确认，可重新获取远程刷新状态"
+	case GitOpStashPush, GitOpStashApply, GitOpStashPop, GitOpStashDrop,
+		GitOpBranchRename, GitOpBranchUpstream,
+		GitOpTagCreate, GitOpTagDelete,
+		GitOpRemoteAdd, GitOpRemoteUpdate, GitOpRemoteRemove:
+		s.reconcileV2Operation(ctx, r, op)
 	default:
 		op.Status = GitOpUncertain
 		op.Summary = "服务重启时操作状态未知，请刷新核对"
@@ -271,7 +276,7 @@ func (s *Service) reconcileCommitOperation(ctx context.Context, r *repositorySta
 	matches, reflogErr := s.scanCommitReflogWithBranch(ctx, wtPath, wtReachable, r.entry.AnchorPath, op.Preview.Branch, reflogTag)
 	if len(matches) > 0 {
 		actualOID := matches[0]
-		actualTree, actualParents, subject, metaErr := s.readCommitTreeAndParents(ctx, readCwd, actualOID)
+		meta, metaErr := s.readCommitFullMeta(ctx, readCwd, actualOID)
 		if metaErr != nil {
 			op.Status = GitOpUncertain
 			op.ActualOID = actualOID
@@ -279,18 +284,18 @@ func (s *Service) reconcileCommitOperation(ctx context.Context, r *repositorySta
 			op.ReviewReasons = []string{op.Summary}
 			return
 		}
-		var expectedParents []string
-		if op.Preview.HeadOID != "" {
+		expectedParents := op.Preview.ExpectedParents
+		if !op.Preview.Amend && expectedParents == nil && op.Preview.HeadOID != "" {
 			expectedParents = []string{op.Preview.HeadOID}
 		}
 		reasons := make([]string, 0)
 		if len(matches) > 1 {
 			reasons = append(reasons, "同次提交过程中检测到多次引用更新（例如 post-commit 修正了提交）")
 		}
-		if op.Preview.ExpectedTreeOID != "" && actualTree != op.Preview.ExpectedTreeOID {
+		if op.Preview.ExpectedTreeOID != "" && meta.TreeOID != op.Preview.ExpectedTreeOID {
 			reasons = append(reasons, "实际生成的提交树摘要与预览不一致（可能由 pre-commit 等钩子修改并重新暂存了文件）")
 		}
-		if !slices.Equal(actualParents, expectedParents) {
+		if !slices.Equal(meta.Parents, expectedParents) {
 			reasons = append(reasons, "实际提交的父节点列表与预览不一致")
 		}
 		if wtReachable {
@@ -301,9 +306,13 @@ func (s *Service) reconcileCommitOperation(ctx context.Context, r *repositorySta
 			}
 		}
 		op.ActualOID = actualOID
-		op.ActualTreeOID = actualTree
-		op.Parents = actualParents
-		op.Subject = subject
+		op.ActualTreeOID = meta.TreeOID
+		op.Parents = meta.Parents
+		op.Subject = meta.Subject
+		op.AuthorName = meta.AuthorName
+		op.AuthorEmail = meta.AuthorEmail
+		op.CommitterName = meta.CommitterName
+		op.CommitterEmail = meta.CommitterEmail
 		op.ReviewReasons = reasons
 		if len(reasons) > 0 {
 			op.Status = GitOpNeedsReview

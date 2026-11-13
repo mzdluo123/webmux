@@ -25,6 +25,7 @@
     onJumpToCommit,
     onCherryPickCommit,
     onRevertCommit,
+    onCreateTagCommit,
   }: {
     detail: GitCommitDetail | null;
     selectedParentOverride?: string;
@@ -35,6 +36,7 @@
     onJumpToCommit?: (oid: string) => void;
     onCherryPickCommit?: (oid: string) => void;
     onRevertCommit?: (oid: string) => void;
+    onCreateTagCommit?: (oid: string, subject: string) => void;
   } = $props();
 
   let copiedOid = $state<string | null>(null);
@@ -224,7 +226,7 @@
             {detail.body}
           </p>
         {/if}
-        {#if onCherryPickCommit || onRevertCommit}
+        {#if onCherryPickCommit || onRevertCommit || onCreateTagCommit}
           <div class="flex flex-wrap items-center gap-1.5 pt-1">
             {#if onCherryPickCommit}
               <Button
@@ -248,6 +250,18 @@
               >
                 <IconRotate2 aria-hidden="true" />
                 还原此提交… (Revert)
+              </Button>
+            {/if}
+            {#if onCreateTagCommit}
+              <Button
+                size="xs"
+                variant="outline"
+                wrap
+                onclick={() => onCreateTagCommit(detail.oid, detail.subject)}
+                data-testid="git-log-detail-create-tag-btn"
+              >
+                <IconTag aria-hidden="true" />
+                新建标签…
               </Button>
             {/if}
           </div>

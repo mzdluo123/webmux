@@ -117,7 +117,7 @@
           </Button>
         {/if}
 
-        {#if onContinue}
+        {#if onContinue && operation.kind !== "unstash"}
           <Button
             size="xs"
             variant="success"

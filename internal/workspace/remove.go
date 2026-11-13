@@ -30,6 +30,11 @@ const (
 	purposeCherryPick   purpose = "cherry-pick"
 	purposeRevert       purpose = "revert"
 	purposeAbortOp      purpose = "abort-op"
+	purposeStashCreate  purpose = "stash-create"
+	purposeStashApply   purpose = "stash-apply"
+	purposeStashPop     purpose = "stash-pop"
+	purposeStashDrop    purpose = "stash-drop"
+	purposeBranchRename purpose = "branch-rename"
 )
 
 type batchTarget struct {
@@ -59,6 +64,10 @@ type confirmation struct {
 	commitPreview *commitPreviewState
 	divergence    *divergencePreviewState
 	abortPreview  *abortPreviewState
+	stashCreate   *stashCreateState
+	stashApply    *stashApplyState
+	stashDrop     *stashDropState
+	branchRename  *branchRenameState
 	timer         *time.Timer
 }
 
@@ -368,6 +377,7 @@ func (s *Service) executeLockedRemoval(ctx context.Context, r *repositoryState, 
 	}
 	s.retainRecords(ctx, r, repositoryID, confirmed.tree, confirmedCommit, closedHybrids)
 	s.purgeWorktreeBaseline(ctx, r, repositoryID, worktreeID)
+	s.clearUnstashRefBestEffort(ctx, r.entry.AnchorPath, worktreeID)
 	s.purgeWorktreeCollabState(repositoryID, worktreeID)
 	return nil
 }

@@ -84,6 +84,11 @@ func TestDirectConversionsKeepFieldOrder(t *testing.T) {
 		{"GitConflictFileSummary", workspace.ConflictFileSummary{}, contract.GitConflictFileSummary{}},
 		{"GitConflictSide", workspace.ConflictSide{}, contract.GitConflictSide{}},
 		{"GitConflictSnapshotIdentity", workspace.ConflictSnapshotIdentity{}, contract.GitConflictSnapshotIdentity{}},
+		{"GitOperationPreview", workspace.GitOperationPreview{}, contract.GitOperationPreview{}},
+		{"Tag", workspace.Tag{}, contract.Tag{}},
+		{"GitStashFileChange", workspace.StashFileChange{}, contract.GitStashFileChange{}},
+		{"GitBlameCommit", workspace.BlameCommit{}, contract.GitBlameCommit{}},
+		{"GitBlameLine", workspace.BlameLine{}, contract.GitBlameLine{}},
 	}
 	for _, pair := range pairs {
 		t.Run(pair.name, func(t *testing.T) {

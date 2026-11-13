@@ -141,6 +141,21 @@ export function dispatchGitPageBranchAction(options: {
     case "push":
       openPush(item.name);
       break;
+    case "rename-branch":
+      controller.refsManage.openRenameDialog(item.name);
+      break;
+    case "set-upstream":
+      controller.refsManage.openUpstreamDialog(item);
+      break;
+    case "create-tag":
+      controller.refsManage.openCreateTagDialog(
+        item.head,
+        `${item.name} (${item.shortHead})`,
+      );
+      break;
+    case "delete-tag":
+      controller.refsManage.openDeleteTagDialog(item);
+      break;
     case "delete":
       shell.branchOperation(repository.id, {
         kind: "delete",

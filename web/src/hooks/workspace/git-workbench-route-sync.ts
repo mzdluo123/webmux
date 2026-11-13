@@ -207,6 +207,8 @@ export function buildBundleViewPatch(
       historyLoadingMore: false,
       commits: bundle.commits,
       branches: bundle.branches,
+      stashes: bundle.stashes,
+      remotes: bundle.remotes,
       selectedCommitOid: selectedOid,
     },
   };

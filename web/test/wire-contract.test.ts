@@ -281,7 +281,10 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.GitContextSchema, ["git-context-repo", "git-context-worktree"]],
   [S.GitFileSchema, ["git-file", "git-file-commit", "git-snapshot-file"]],
   [S.GitChangesSchema, ["git-changes"]],
-  [S.GitDiffSchema, ["git-diff", "git-task-diff"]],
+  [
+    S.GitDiffSchema,
+    ["git-diff", "git-task-diff", "git-stash-diff", "git-revision-diff"],
+  ],
   [S.GitCompareSchema, ["git-compare"]],
   [
     S.GitHistoryPageSchema,
@@ -304,9 +307,13 @@ const groups: Array<[z.ZodType, string[]]> = [
   ],
   [
     S.GitCommitPreviewSchema,
-    ["git-commit-preview", "git-commit-preview-blocked"],
+    [
+      "git-commit-preview",
+      "git-commit-preview-blocked",
+      "git-commit-amend-preview",
+    ],
   ],
-  [S.GitCommitResultSchema, ["git-commit"]],
+  [S.GitCommitResultSchema, ["git-commit", "git-commit-amend"]],
   [S.GitOperationSchema, ["git-operation"]],
   [S.GitOperationsSchema, ["git-operations"]],
   [S.GitReviewsResponseSchema, ["git-reviews", "git-reviews-put"]],
@@ -338,6 +345,27 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.GitConflictFileDetailSchema, ["git-conflict-detail"]],
   [S.GitSaveConflictResponseSchema, ["git-conflict-save"]],
   [S.GitResolveConflictResponseSchema, ["git-conflict-resolve"]],
+  [S.GitStashListSchema, ["git-stashes"]],
+  [S.GitStashDetailSchema, ["git-stash-detail"]],
+  [S.GitStashCreatePreviewSchema, ["git-stash-create-preview"]],
+  [S.GitStashCreateResultSchema, ["git-stash-create"]],
+  [S.GitStashApplyPreviewSchema, ["git-stash-apply-preview"]],
+  [S.GitStashApplyResultSchema, ["git-stash-apply"]],
+  [S.GitStashDropPreviewSchema, ["git-stash-drop-preview"]],
+  [S.GitStashDropResultSchema, ["git-stash-drop"]],
+  [S.GitBranchRenamePreviewSchema, ["git-branch-rename-preview"]],
+  [
+    S.GitBranchMutationResultSchema,
+    ["git-branch-rename", "git-branch-upstream"],
+  ],
+  [S.GitTagCreateResultSchema, ["git-tag-create"]],
+  [S.GitTagDeleteResultSchema, ["git-tag-delete"]],
+  [
+    S.GitRemoteMutationResultSchema,
+    ["git-remote-add", "git-remote-update", "git-remote-remove"],
+  ],
+  [S.GitFileHistoryPageSchema, ["git-file-history"]],
+  [S.GitBlameResultSchema, ["git-blame"]],
   [
     S.GitConflictSchema,
     [

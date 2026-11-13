@@ -136,6 +136,13 @@ type Tag struct {
 	Head        string `json:"head"`
 	Subject     string `json:"subject"`
 	CommittedAt string `json:"committedAt"`
+	Kind        string `json:"kind"`
+	TagOID      string `json:"tagOid,omitempty"`
+	Message     string `json:"message,omitempty"`
+	TaggerName  string `json:"taggerName,omitempty"`
+	TaggerEmail string `json:"taggerEmail,omitempty"`
+	TaggedAt    string `json:"taggedAt,omitempty"`
+	Signed      bool   `json:"signed,omitempty"`
 }
 
 // Branches is the body of GET /api/repositories/{id}/branches.

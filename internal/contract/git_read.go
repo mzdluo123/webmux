@@ -170,16 +170,22 @@ type GitCommitDetail struct {
 
 // GitOperationPreview summarizes the snapshot bound when a Git write operation started.
 type GitOperationPreview struct {
-	WorktreePath    string `json:"worktreePath,omitempty"`
-	HeadState       string `json:"headState,omitempty"`
-	Branch          string `json:"branch,omitempty"`
-	HeadOID         string `json:"headOid,omitempty"`
-	ExpectedTreeOID string `json:"expectedTreeOid,omitempty"`
-	Remote          string `json:"remote,omitempty"`
-	Target          string `json:"target,omitempty"`
-	TargetOID       string `json:"targetOid,omitempty"`
-	Publish         bool   `json:"publish,omitempty"`
-	Detached        bool   `json:"detached,omitempty"`
+	WorktreePath    string   `json:"worktreePath,omitempty"`
+	HeadState       string   `json:"headState,omitempty"`
+	Branch          string   `json:"branch,omitempty"`
+	HeadOID         string   `json:"headOid,omitempty"`
+	ExpectedTreeOID string   `json:"expectedTreeOid,omitempty"`
+	ExpectedParents []string `json:"expectedParents,omitempty"`
+	Amend           bool     `json:"amend,omitempty"`
+	AuthorOverride  string   `json:"authorOverride,omitempty"`
+	Signoff         bool     `json:"signoff,omitempty"`
+	StashRef        string   `json:"stashRef,omitempty"`
+	StashOID        string   `json:"stashOid,omitempty"`
+	Remote          string   `json:"remote,omitempty"`
+	Target          string   `json:"target,omitempty"`
+	TargetOID       string   `json:"targetOid,omitempty"`
+	Publish         bool     `json:"publish,omitempty"`
+	Detached        bool     `json:"detached,omitempty"`
 }
 
 // GitOperation answers GET /api/repositories/{id}/git/operations/{operationId}.
@@ -202,6 +208,10 @@ type GitOperation struct {
 	ActualTreeOID   string              `json:"actualTreeOid,omitempty"`
 	Parents         []string            `json:"parents"`
 	Subject         string              `json:"subject,omitempty"`
+	AuthorName      string              `json:"authorName,omitempty"`
+	AuthorEmail     string              `json:"authorEmail,omitempty"`
+	CommitterName   string              `json:"committerName,omitempty"`
+	CommitterEmail  string              `json:"committerEmail,omitempty"`
 	ReviewReasons   []string            `json:"reviewReasons"`
 }
 

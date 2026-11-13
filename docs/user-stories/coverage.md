@@ -123,6 +123,7 @@ URL+owner Bearer 网络控制、握手/生命周期/取消与重连：US-S25；�
 | 工作树固定任务审阅基线（`git-task-baselines.json` 与 `refs/webmux/baselines/*`）、单份净变更审阅（含干净工作区）、`Log` 当前任务范围与交付收尾摘要                        | US-J24；US-J08；US-J18–US-J22；US-L05；US-L10                 |
 | Git 工作台跨设备审阅进度同步与自动失效、“下一处未审阅”、`baseRevision` 乐观锁提交草稿与 409 并排恢复、Diff 摘录返工意见草稿箱及指定会话无回车草稿交回                     | US-J25；US-J07；US-J19–US-J24；US-F01；US-Q07；US-L05；US-L10 |
 | Git 工作台 Merge/Rebase/Cherry-pick/Revert 两阶段方向预览、推送被拒分叉恢复、无状态重进恢复横幅、诚实 Abort 预览与内置三方冲突解决器（四步递进与二进制/删改裁决卡）       | US-J26；US-J16–US-J23；US-L05；US-L10                         |
+| Git 工作台独立 Stash 视图与安全两步 Pop、高级提交（Amend/作者/Sign-off 与已推送保护）、分支重命名/上游/标签/远程维护及单文件 `--follow` 历史与逐行 Blame 溯源             | US-J27；US-I01；US-J15；US-J19–US-J23；US-J26；US-L05；US-L10 |
 | 已归档工作树释放空间：预览、保留提交与记录、推送检查警告、重建确认与私有引用清理                                                                                          | US-J13；US-Q12；US-Q19                                        |
 | 移除登记、Git/存储/仓库故障降级                                                                                                                                           | US-J10–US-J11；US-K08                                         |
 | 仓库初始化指令：仓库设置中编辑或清空、引用快捷指令、长度上限与快速开始/新建会话勾选                                                                                       | US-J12；US-Q18；US-B01                                        |

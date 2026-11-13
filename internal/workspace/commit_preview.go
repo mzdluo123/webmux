@@ -5,9 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -16,13 +14,17 @@ import (
 type CommitIdentity struct {
 	AuthorName     string `json:"authorName"`
 	AuthorEmail    string `json:"authorEmail"`
+	AuthorOverride bool   `json:"authorOverride,omitempty"`
+	EnvAuthorName  string `json:"envAuthorName,omitempty"`
+	EnvAuthorEmail string `json:"envAuthorEmail,omitempty"`
 	CommitterName  string `json:"committerName"`
 	CommitterEmail string `json:"committerEmail"`
+	SignoffTrailer string `json:"signoffTrailer,omitempty"`
 	SignEnabled    bool   `json:"signEnabled"`
 	SignFormat     string `json:"signFormat,omitempty"`
 }
 
-// CommitPreview represents the complete HEAD -> index commit preview bound to a worktree.
+// CommitPreview represents the complete HEAD (or HEAD^ in Amend mode) -> index commit preview bound to a worktree.
 type CommitPreview struct {
 	ConfirmationID  string             `json:"confirmationId,omitempty"`
 	ExpiresAt       *time.Time         `json:"expiresAt,omitempty"`
@@ -32,6 +34,13 @@ type CommitPreview struct {
 	HeadState       string             `json:"headState"` // "branch" | "detached" | "unborn"
 	Branch          string             `json:"branch,omitempty"`
 	HeadOID         string             `json:"headOid,omitempty"`
+	HeadMessage     string             `json:"headMessage,omitempty"`
+	HeadParents     []string           `json:"headParents"`
+	HeadPush        PushCheck          `json:"headPush"`
+	Amend           bool               `json:"amend"`
+	AmendPushed     bool               `json:"amendPushed"`
+	AuthorOverride  string             `json:"authorOverride,omitempty"`
+	Signoff         bool               `json:"signoff"`
 	ExpectedTreeOID string             `json:"expectedTreeOid,omitempty"`
 	IndexDigest     string             `json:"indexDigest"`
 	StagedFiles     []CommitFileChange `json:"stagedFiles"`
@@ -51,6 +60,14 @@ type commitPreviewState struct {
 	headState       string
 	branch          string
 	headOID         string
+	headMessage     string
+	headParents     []string
+	headPush        PushCheck
+	amend           bool
+	amendPushed     bool
+	authorOverride  string
+	signoff         bool
+	expectedParents []string
 	expectedTreeOID string
 	indexDigest     string
 	stagedFiles     []CommitFileChange
@@ -67,12 +84,28 @@ type commitPreviewState struct {
 var commitHookNames = []string{"pre-commit", "prepare-commit-msg", "commit-msg", "post-commit"}
 
 // PreviewCommit inspects the full real Git index of the target worktree relative
-// to HEAD (including any changes previously staged via CLI) and checks blockers.
+// to HEAD with default options.
 func (s *Service) PreviewCommit(ctx context.Context, repositoryID, worktreeID string) (CommitPreview, error) {
+	return s.PreviewCommitWithOptions(ctx, repositoryID, worktreeID, CommitPreviewOptions{})
+}
+
+// PreviewCommitWithOptions inspects the full real Git index of the target worktree
+// relative to HEAD (or HEAD^ when Amend is enabled) and validates explicit options.
+func (s *Service) PreviewCommitWithOptions(ctx context.Context, repositoryID, worktreeID string, opts CommitPreviewOptions) (CommitPreview, error) {
+	canonicalAuthor, _, _, err := parseAuthorOverride(opts.AuthorOverride)
+	if err != nil {
+		return CommitPreview{}, err
+	}
+	opts.AuthorOverride = canonicalAuthor
+
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
 
 	loc, err := s.locateEditableWorktree(ctx, repositoryID, worktreeID)
+	if err != nil {
+		return CommitPreview{}, err
+	}
+	r, err := s.repository(repositoryID)
 	if err != nil {
 		return CommitPreview{}, err
 	}
@@ -84,7 +117,7 @@ func (s *Service) PreviewCommit(ctx context.Context, repositoryID, worktreeID st
 	if err := verifyWorktreeSameOnDisk(loc); err != nil {
 		return CommitPreview{}, err
 	}
-	state, err := s.buildCommitPreviewLocked(ctx, loc)
+	state, err := s.buildCommitPreviewLocked(ctx, r, loc, opts)
 	if err != nil {
 		return CommitPreview{}, err
 	}
@@ -96,6 +129,13 @@ func (s *Service) PreviewCommit(ctx context.Context, repositoryID, worktreeID st
 		HeadState:       state.headState,
 		Branch:          state.branch,
 		HeadOID:         state.headOID,
+		HeadMessage:     state.headMessage,
+		HeadParents:     state.headParents,
+		HeadPush:        state.headPush,
+		Amend:           state.amend,
+		AmendPushed:     state.amendPushed,
+		AuthorOverride:  state.authorOverride,
+		Signoff:         state.signoff,
 		ExpectedTreeOID: state.expectedTreeOID,
 		IndexDigest:     state.indexDigest,
 		StagedFiles:     state.stagedFiles,
@@ -125,7 +165,12 @@ func (s *Service) PreviewCommit(ctx context.Context, repositoryID, worktreeID st
 	return preview, nil
 }
 
-func (s *Service) buildCommitPreviewLocked(ctx context.Context, loc WorktreeLocation) (commitPreviewState, error) {
+func (s *Service) buildCommitPreviewLocked(ctx context.Context, r *repositoryState, loc WorktreeLocation, opts CommitPreviewOptions) (commitPreviewState, error) {
+	canonicalAuthor, overrideName, overrideEmail, err := parseAuthorOverride(opts.AuthorOverride)
+	if err != nil {
+		return commitPreviewState{}, err
+	}
+
 	branch, detached, err := s.symbolicRefHead(ctx, loc.Path)
 	if err != nil {
 		return commitPreviewState{}, err
@@ -143,12 +188,48 @@ func (s *Service) buildCommitPreviewLocked(ctx context.Context, loc WorktreeLoca
 	if err != nil {
 		return commitPreviewState{}, err
 	}
+	emptyTree, err := s.emptyTreeOID(ctx, loc.Path)
+	if err != nil {
+		return commitPreviewState{}, err
+	}
+
+	var headMeta commitFullMeta
+	headParents := []string{}
+	headPush := PushCheck{State: PushUnknown, Branches: []string{}}
+	if headOID != "" {
+		headMeta, err = s.readCommitFullMeta(ctx, loc.Path, headOID)
+		if err != nil {
+			return commitPreviewState{}, err
+		}
+		headParents = headMeta.Parents
+		if r != nil {
+			headPush = s.checkPushed(ctx, r, headOID)
+		}
+	}
 
 	baseTree := headOID
 	if baseTree == "" {
-		baseTree, err = s.emptyTreeOID(ctx, loc.Path)
-		if err != nil {
-			return commitPreviewState{}, err
+		baseTree = emptyTree
+	}
+	var expectedParents []string
+	if headOID != "" {
+		expectedParents = []string{headOID}
+	}
+	baseTreeOID := emptyTree
+	if headOID != "" {
+		baseTreeOID = headMeta.TreeOID
+	}
+
+	if opts.Amend && headOID != "" {
+		expectedParents = append([]string(nil), headMeta.Parents...)
+		if len(headMeta.Parents) == 0 {
+			baseTree = emptyTree
+			baseTreeOID = emptyTree
+		} else {
+			baseTree = headMeta.Parents[0]
+			if parentTree, pErr := s.readTreeOIDForCommit(ctx, loc.Path, headMeta.Parents[0]); pErr == nil {
+				baseTreeOID = parentTree
+			}
 		}
 	}
 
@@ -176,6 +257,18 @@ func (s *Service) buildCommitPreviewLocked(ctx context.Context, loc WorktreeLoca
 	if err != nil {
 		return commitPreviewState{}, err
 	}
+	if canonicalAuthor != "" {
+		ident.AuthorName = overrideName
+		ident.AuthorEmail = overrideEmail
+		ident.AuthorOverride = true
+	} else if opts.Amend && headOID != "" {
+		ident.AuthorName = headMeta.AuthorName
+		ident.AuthorEmail = headMeta.AuthorEmail
+	}
+	if opts.Signoff {
+		ident.SignoffTrailer = computeSignoffTrailer(ident)
+	}
+
 	hooks := s.detectCommitHooks(ctx, loc.Path)
 	var opName string
 	if op := detectOperation(loc.Path); op != nil {
@@ -203,7 +296,19 @@ func (s *Service) buildCommitPreviewLocked(ctx context.Context, loc WorktreeLoca
 			Message: "当前处于游离 HEAD 状态，请先创建或切换到本地分支后再提交",
 		})
 	}
-	if len(stagedFiles) == 0 && !hasUnmerged && st.changes.Conflicted == 0 {
+	if opts.Amend {
+		if headState == "unborn" {
+			blockers = append(blockers, Issue{
+				Code:    "unborn_amend",
+				Message: "当前分支尚无初始提交（unborn HEAD），无法修正上一次提交",
+			})
+		} else if !hasUnmerged && st.changes.Conflicted == 0 && len(headMeta.Parents) <= 1 && expectedTreeOID == baseTreeOID && headMeta.TreeOID != baseTreeOID {
+			blockers = append(blockers, Issue{
+				Code:    "empty_amend",
+				Message: "修正后的提交树与父提交完全一致（将退化为空提交），请保留至少一项更改或取消修正模式",
+			})
+		}
+	} else if len(stagedFiles) == 0 && !hasUnmerged && st.changes.Conflicted == 0 {
 		blockers = append(blockers, Issue{
 			Code:    "empty_index",
 			Message: "暂存区为空，没有可提交的已暂存修改",
@@ -217,6 +322,13 @@ func (s *Service) buildCommitPreviewLocked(ctx context.Context, loc WorktreeLoca
 		})
 	}
 
+	amendPushed := opts.Amend && headPush.State == PushPushed
+	if amendPushed {
+		warnings = append(warnings, Issue{
+			Code:    "amend_pushed",
+			Message: "该提交已推送至远端，修正将改写提交历史并导致分支与上游分叉",
+		})
+	}
 	if st.changes.Unstaged > 0 || st.changes.Untracked > 0 {
 		warnings = append(warnings, Issue{
 			Code:    "remaining_changes",
@@ -236,6 +348,14 @@ func (s *Service) buildCommitPreviewLocked(ctx context.Context, loc WorktreeLoca
 		headState:       headState,
 		branch:          branch,
 		headOID:         headOID,
+		headMessage:     headMeta.Message,
+		headParents:     headParents,
+		headPush:        headPush,
+		amend:           opts.Amend,
+		amendPushed:     amendPushed,
+		authorOverride:  canonicalAuthor,
+		signoff:         opts.Signoff,
+		expectedParents: expectedParents,
 		expectedTreeOID: expectedTreeOID,
 		indexDigest:     indexDigest,
 		stagedFiles:     stagedFiles,
@@ -332,57 +452,4 @@ func (s *Service) symbolicRefHead(ctx context.Context, cwd string) (branch strin
 		return "", true, nil
 	}
 	return "", false, problemf(ErrInternal, "读取 HEAD 引用失败: %s", strings.TrimSpace(run.stderr))
-}
-
-func (s *Service) readCommitIdentity(ctx context.Context, cwd string) (CommitIdentity, error) {
-	userName, _, err := s.configValue(ctx, cwd, "user.name")
-	if err != nil {
-		return CommitIdentity{}, err
-	}
-	userEmail, _, err := s.configValue(ctx, cwd, "user.email")
-	if err != nil {
-		return CommitIdentity{}, err
-	}
-	authorNameConf, _, _ := s.configValue(ctx, cwd, "author.name")
-	authorEmailConf, _, _ := s.configValue(ctx, cwd, "author.email")
-	committerNameConf, _, _ := s.configValue(ctx, cwd, "committer.name")
-	committerEmailConf, _, _ := s.configValue(ctx, cwd, "committer.email")
-	gpgSign, _, _ := s.configValue(ctx, cwd, "commit.gpgsign")
-	gpgFormat, _, _ := s.configValue(ctx, cwd, "gpg.format")
-
-	pick := func(values ...string) string {
-		for _, v := range values {
-			if strings.TrimSpace(v) != "" {
-				return v
-			}
-		}
-		return ""
-	}
-	signEnabled := strings.EqualFold(gpgSign, "true") || gpgSign == "1" || strings.EqualFold(gpgSign, "yes")
-	return CommitIdentity{
-		AuthorName:     pick(os.Getenv("GIT_AUTHOR_NAME"), authorNameConf, userName),
-		AuthorEmail:    pick(os.Getenv("GIT_AUTHOR_EMAIL"), authorEmailConf, userEmail, os.Getenv("EMAIL")),
-		CommitterName:  pick(os.Getenv("GIT_COMMITTER_NAME"), committerNameConf, userName),
-		CommitterEmail: pick(os.Getenv("GIT_COMMITTER_EMAIL"), committerEmailConf, userEmail, os.Getenv("EMAIL")),
-		SignEnabled:    signEnabled,
-		SignFormat:     gpgFormat,
-	}, nil
-}
-
-func (s *Service) detectCommitHooks(ctx context.Context, cwd string) []string {
-	active := make([]string, 0, len(commitHookNames))
-	for _, name := range commitHookNames {
-		data, err := ReadGit(ctx, cwd, 1024, "rev-parse", "--git-path", "hooks/"+name)
-		if err != nil {
-			continue
-		}
-		p := outputLine(data)
-		if !filepath.IsAbs(p) {
-			p = filepath.Join(cwd, p)
-		}
-		if info, err := os.Stat(p); err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0 {
-			active = append(active, name)
-		}
-	}
-	return active
 }

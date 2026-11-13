@@ -37,6 +37,8 @@ export function createGitWorkbenchController(
   let currentRepoId = $state("");
   let currentWorktreeId = $state<string | undefined>(undefined);
   let effectiveWorktreeId = $state<string | undefined>(undefined);
+  let currentRepository = $state<Repository | undefined>(undefined);
+  let currentSessions = $state<readonly SessionInfo[]>([]);
   let defaultBranchName: string | null = null;
   let lastAppliedSearch = "";
   let lastLoadedKey = "";
@@ -88,6 +90,8 @@ export function createGitWorkbenchController(
     getEffectiveWorktreeId: () => effectiveWorktreeId,
     getWorktreeTargetId,
     getDefaultBranch: () => defaultBranchName,
+    getRepository: () => currentRepository,
+    getSessions: () => currentSessions,
     getView: () => view,
     patchView,
     persist,
@@ -126,6 +130,8 @@ export function createGitWorkbenchController(
       patchUnavailableContext(repoId, repository, worktree);
       return;
     }
+    currentRepository = repository;
+    currentSessions = sessions;
 
     const req = targetReq.begin();
     loading = true;
@@ -160,12 +166,17 @@ export function createGitWorkbenchController(
       sub.logDiff.seedContextId(repoId, effId, bundle.gitContextId);
       sub.staging.seedContextId(repoId, effId, bundle.gitContextId);
       sub.taskReview.seedContextId(repoId, effId, bundle.gitContextId);
+      sub.stash.seedContextId(repoId, effId, bundle.gitContextId);
+      sub.fileInspector.seedContextId(repoId, effId, bundle.gitContextId);
 
       const { selectedOid, patch } = buildBundleViewPatch(
         view.selectedCommitOid,
         bundle,
       );
       patchView(patch);
+      if (view.mode === "stash") {
+        sub.stash.ensureSelectionLoaded();
+      }
       sub.logHistory.ensureCommitLoaded(selectedOid);
       if (effId) {
         await Promise.all([
@@ -193,6 +204,8 @@ export function createGitWorkbenchController(
     worktree: Worktree | undefined;
     sessions: readonly SessionInfo[];
   }) {
+    currentRepository = params.repository;
+    currentSessions = params.sessions;
     const query = parseGitRouteQuery(params.search);
     returnSessionId = query.returnSession;
     const targetChanged =
@@ -299,6 +312,7 @@ export function createGitWorkbenchController(
       return scrollOffsets;
     },
     commitDraft: sub.commitDraft,
+    commitOptions: sub.commitOptions,
     reviews: sub.reviews,
     rework: sub.rework,
     operations: sub.operations,
@@ -307,6 +321,9 @@ export function createGitWorkbenchController(
     push: sub.push,
     divergence: sub.divergence,
     conflict: sub.conflict,
+    stash: sub.stash,
+    refsManage: sub.refsManage,
+    fileInspector: sub.fileInspector,
     logDiff: sub.logDiff,
     dispose() {
       targetReq.dispose();
@@ -323,6 +340,9 @@ export function createGitWorkbenchController(
       patchView({ mode });
       persist({ mode });
       updateUrl("push", { view: mode });
+      if (mode === "stash") {
+        sub.stash.ensureSelectionLoaded();
+      }
     },
     setScope: sub.logHistory.setScope,
     setBranchFilter: sub.logHistory.setBranchFilter,

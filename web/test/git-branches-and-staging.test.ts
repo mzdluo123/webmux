@@ -241,6 +241,11 @@ describe("staging & commit preview adapter (A01, A12)", () => {
       headState: "branch",
       branch: "main",
       headOid: "1111111111111111111111111111111111111111",
+      headParents: [],
+      headPush: { state: "unpushed", branches: [], more: 0 },
+      amend: false,
+      amendPushed: false,
+      signoff: false,
       expectedTreeOid: "tree-1",
       indexDigest: "sha256-1",
       identity: {

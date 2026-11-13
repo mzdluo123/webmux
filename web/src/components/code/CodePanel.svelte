@@ -15,6 +15,8 @@
   import { popoutAvailable, popOut, type CodePopout } from "./code-popout";
   import { codePanelState } from "../../hooks/code/code-panel-state";
   import { findShell, openGitWorkbench } from "../../hooks/shared/shell.svelte";
+  import { createGitFileInspectorController } from "../../hooks/workspace/git-file-inspector-controller.svelte";
+  import GitFileInspectorDialog from "../workspace/GitFileInspectorDialog.svelte";
 
   let {
     id,
@@ -54,6 +56,10 @@
       return null;
     }
     return ref;
+  });
+  const fileInspector = createGitFileInspectorController({
+    getRepoId: () => gitWorkspace?.repositoryId ?? "",
+    getWorktreeId: () => gitWorkspace?.worktreeId || undefined,
   });
 
   const host: CodeHost = {
@@ -164,6 +170,7 @@
       window.removeEventListener("popstate", keep);
       mounted = false;
       popout?.dispose();
+      fileInspector.dispose();
     };
   });
 </script>
@@ -208,6 +215,25 @@
               });
             }
           : undefined}
+        onInspectGitFile={gitWorkspace
+          ? (path, tab) => fileInspector.openInspector({ path, tab })
+          : undefined}
       />{/key}
+  {/if}
+  {#if fileInspector.open && gitWorkspace}
+    <GitFileInspectorDialog
+      inspector={fileInspector}
+      hasWorktree={Boolean(gitWorkspace.worktreeId)}
+      onJumpToCommit={(oid) => {
+        keep();
+        openGitWorkbench({
+          repositoryId: gitWorkspace.repositoryId,
+          worktreeId: gitWorkspace.worktreeId || undefined,
+          view: "log",
+          commit: oid,
+          returnSession: id,
+        });
+      }}
+    />
   {/if}
 </div>

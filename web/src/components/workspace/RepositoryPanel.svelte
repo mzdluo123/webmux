@@ -366,9 +366,15 @@
           </Tabs.Content>
           <Tabs.Content value="remotes" class="pt-2">
             <RepositoryRemotes
+              repositoryId={repository.id}
               {remotes}
               error={remotesError}
               onretry={() => void readRemotes()}
+              onRemotesUpdated={(next) => {
+                remotes = next;
+                branchesRead++;
+                onrefresh();
+              }}
             />
           </Tabs.Content>
         </Tabs.Root>

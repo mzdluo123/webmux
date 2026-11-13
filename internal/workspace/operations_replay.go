@@ -8,22 +8,32 @@ func replayCommitOperation(op GitOperation) (CommitResult, error) {
 		return CommitResult{
 			OperationID:     op.ID,
 			Outcome:         CommitOutcomeMatched,
+			Amended:         op.Preview.Amend,
 			CommitOID:       op.ActualOID,
 			Parents:         op.Parents,
 			TreeOID:         op.ActualTreeOID,
 			ExpectedTreeOID: op.Preview.ExpectedTreeOID,
 			Subject:         op.Subject,
+			AuthorName:      op.AuthorName,
+			AuthorEmail:     op.AuthorEmail,
+			CommitterName:   op.CommitterName,
+			CommitterEmail:  op.CommitterEmail,
 			ReviewReasons:   op.ReviewReasons,
 		}, nil
 	case GitOpNeedsReview:
 		return CommitResult{
 			OperationID:     op.ID,
 			Outcome:         CommitOutcomeNeedsReview,
+			Amended:         op.Preview.Amend,
 			CommitOID:       op.ActualOID,
 			Parents:         op.Parents,
 			TreeOID:         op.ActualTreeOID,
 			ExpectedTreeOID: op.Preview.ExpectedTreeOID,
 			Subject:         op.Subject,
+			AuthorName:      op.AuthorName,
+			AuthorEmail:     op.AuthorEmail,
+			CommitterName:   op.CommitterName,
+			CommitterEmail:  op.CommitterEmail,
 			ReviewReasons:   op.ReviewReasons,
 		}, nil
 	case GitOpUncertain:
@@ -34,11 +44,16 @@ func replayCommitOperation(op GitOperation) (CommitResult, error) {
 		return CommitResult{
 			OperationID:     op.ID,
 			Outcome:         CommitOutcomeUncertain,
+			Amended:         op.Preview.Amend,
 			CommitOID:       op.ActualOID,
 			Parents:         op.Parents,
 			TreeOID:         op.ActualTreeOID,
 			ExpectedTreeOID: op.Preview.ExpectedTreeOID,
 			Subject:         op.Subject,
+			AuthorName:      op.AuthorName,
+			AuthorEmail:     op.AuthorEmail,
+			CommitterName:   op.CommitterName,
+			CommitterEmail:  op.CommitterEmail,
 			ReviewReasons:   reasons,
 		}, nil
 	default:

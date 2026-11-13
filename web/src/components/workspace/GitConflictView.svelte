@@ -318,7 +318,7 @@
         </Button>
       {/if}
 
-      {#if onContinueOperation}
+      {#if onContinueOperation && inProgress?.kind !== "unstash"}
         <Button
           size="xs"
           variant="success"
@@ -371,11 +371,17 @@
     >
       <Badge variant="success">全部冲突文件已解决</Badge>
       <p class="max-w-md leading-relaxed text-muted-foreground">
-        当前工作树已无未合并索引条目（stage 1..3
-        已全部清零）。现在可点击「继续操作」完成此次合并、变基、遴选或还原。
+        {#if inProgress?.kind === "unstash"}
+          当前工作树已无未合并索引条目（stage 1..3
+          已全部清零），且原贮藏条目仍安全保留在 Stash
+          列表中。现在可返回「提交」视图核对暂存改动或前往「贮藏」视图手动清理。
+        {:else}
+          当前工作树已无未合并索引条目（stage 1..3
+          已全部清零）。现在可点击「继续操作」完成此次合并、变基、遴选或还原。
+        {/if}
       </p>
       <div class="flex flex-wrap items-center justify-center gap-2">
-        {#if onContinueOperation}
+        {#if onContinueOperation && inProgress?.kind !== "unstash"}
           <Button
             size="sm"
             variant="success"

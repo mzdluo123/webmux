@@ -208,6 +208,7 @@
     onJumpToCommit={props.onSelectCommit}
     onCherryPickCommit={props.onCherryPickCommit}
     onRevertCommit={props.onRevertCommit}
+    onCreateTagCommit={props.onCreateTagCommit}
   />
 {/snippet}
 
@@ -232,6 +233,7 @@
       if (isPhone) mobileStep = "diff";
       else diffMaximized = true;
     }}
+    onInspectFile={props.onInspectCommitFile}
     onSwapCompareDirection={props.onSwapCompareDirection}
     onExitCompare={props.onExitCompare
       ? () => {
