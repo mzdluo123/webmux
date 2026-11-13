@@ -67,6 +67,6 @@
 ## 2026-11-13：ACP 默认注入控制 MCP（US-S20）
 
 - ACP 的 new/load/resume 默认携带当前实例的 `webmux` stdio 配置；历史保存关闭不影响控制工具，交接时保留独立的冻结历史服务。
-- `make check` 通过；`internal/hybrid` 与 `internal/acp` 的全量 race 测试通过。
+- `make check` 通过；主命令包、`internal/hybrid` 与 `internal/acp` 的全量 race 测试通过。主命令包首次受宿主 XDG 状态影响的隧道用例失败，清除宿主环境后全量重跑通过。
 - 默认配置、探测隔离与交接集成的定向 race 测试通过：独立 fake agent 在 new/load/resume 发现全部八个控制工具并成功调用 capabilities；关闭会话后控制及历史 helper 均退出。
-- 配置测试覆盖缺失可执行文件、无执行权限、缺失 socket 和非 socket 文件；未修改 agent 全局配置或调用真实 provider。
+- 配置测试覆盖缺失可执行文件、无执行权限、缺失或未持有的 socket 和非 socket 文件；未修改 agent 全局配置或调用真实 provider。

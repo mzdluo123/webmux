@@ -26,7 +26,8 @@ func TestControlMCPServersUsesCurrentInstance(t *testing.T) {
 	if err := os.Chmod(executable, 0700); err != nil {
 		t.Fatal(err)
 	}
-	servers := controlMCPServers(f.state, executable)
+	ownedSocket := ""
+	servers := controlMCPServers(executable, func() string { return ownedSocket })
 	if got := servers(context.Background()); len(got) != 0 {
 		t.Fatalf("injected without socket: %+v", got)
 	}
@@ -35,12 +36,17 @@ func TestControlMCPServersUsesCurrentInstance(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer listener.Close()
+	// An existing socket from another instance is never advertised.
+	if got := servers(context.Background()); len(got) != 0 {
+		t.Fatalf("injected unowned socket: %+v", got)
+	}
+	ownedSocket = socket
 	want := []acp.MCPServer{{Name: "webmux", Command: executable, Args: []string{"mcp", "--socket", socket}, Env: []acp.MCPEnv{}}}
 	if got := servers(context.Background()); !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 	for _, invalid := range []string{"", filepath.Join(f.dir, "missing"), f.dir} {
-		if got := controlMCPServers(f.state, invalid)(context.Background()); len(got) != 0 {
+		if got := controlMCPServers(invalid, func() string { return ownedSocket })(context.Background()); len(got) != 0 {
 			t.Fatalf("injected invalid executable %q: %+v", invalid, got)
 		}
 	}

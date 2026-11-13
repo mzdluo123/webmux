@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -281,9 +282,18 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 			slog.Warn("conversation database close failed")
 		}
 	}()
+	var localAPI atomic.Pointer[localRuntime]
 	hybrids := hybrid.New(hybrid.Options{
 		Conversations: conversations,
-		MCPServers:    controlMCPServers(c.StateDir, serverExecutable()),
+		MCPServers: controlMCPServers(serverExecutable(), func() string {
+			// Only advertise a listener this instance owns; another process may
+			// already hold the state directory's otherwise valid socket.
+			rt := localAPI.Load()
+			if rt == nil || rt.listener == nil {
+				return ""
+			}
+			return rt.listener.Addr().String()
+		}),
 		HistoryReader: historyReader(c.StateDir, serverExecutable(), conversations),
 		StateDir:      c.StateDir, Manager: m, ScrollbackBytes: sessionOptions.ScrollbackBytes,
 		Version: version, Logger: slog.Default(), Uploads: folders.UploadPath,
@@ -408,6 +418,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	// Remote-access systems report their links through one interface; a new
 	// forwarding system only needs to be appended here.
 	rt := startRuntime(ctx, c, listener.Addr(), deps, cancel, tunnels, tsCtl, []accessProvider{tunnels, tsCtl})
+	localAPI.Store(rt)
 	server := &http.Server{
 		Handler:           bridge.HTTPHandler,
 		ReadHeaderTimeout: 10 * time.Second,
