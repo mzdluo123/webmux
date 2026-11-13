@@ -141,7 +141,7 @@ func WriteRegular(rootPath, relPath string, content []byte, executable bool, req
 	}
 	defer func() { _ = unix.Close(dirfd) }()
 
-	exists, currentSum, existingPerm, err := readExistingDigestAt(dirfd, base, maxBytes)
+	exists, currentSum, _, err := readExistingDigestAt(dirfd, base, maxBytes)
 	if err != nil {
 		return "", err
 	}
@@ -154,11 +154,9 @@ func WriteRegular(rootPath, relPath string, content []byte, executable bool, req
 		}
 	}
 
-	perm := existingPerm
+	perm := uint32(0o644)
 	if executable {
 		perm = 0o755
-	} else if !exists {
-		perm = 0o644
 	}
 
 	var rnd [8]byte
@@ -236,4 +234,53 @@ func RemoveEntry(rootPath, relPath string) error {
 		return err
 	}
 	return nil
+}
+
+// RemoveVerified unlinks a regular file or symlink at relPath inside rootPath
+// ONLY if its on-disk content digest still matches expectedSHA256.
+func RemoveVerified(rootPath, relPath, expectedSHA256 string, maxBytes int64) error {
+	dirs, base, err := cleanSegments(relPath)
+	if err != nil {
+		return err
+	}
+	dirfd, err := openParentDir(rootPath, dirs, false)
+	if err != nil {
+		if errors.Is(err, unix.ENOENT) || errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("%w: file already removed", ErrStale)
+		}
+		return err
+	}
+	defer func() { _ = unix.Close(dirfd) }()
+
+	var st unix.Stat_t
+	if sErr := unix.Fstatat(dirfd, base, &st, unix.AT_SYMLINK_NOFOLLOW); sErr != nil {
+		if errors.Is(sErr, unix.ENOENT) {
+			return fmt.Errorf("%w: file already removed", ErrStale)
+		}
+		return sErr
+	}
+	kind := st.Mode & unix.S_IFMT
+	switch kind {
+	case unix.S_IFREG:
+		exists, sum, _, rErr := readExistingDigestAt(dirfd, base, maxBytes)
+		if rErr != nil {
+			return rErr
+		}
+		if !exists || (expectedSHA256 != "" && sum != expectedSHA256) {
+			return fmt.Errorf("%w: file digest changed on disk", ErrStale)
+		}
+	case unix.S_IFLNK:
+		buf := make([]byte, 4096)
+		n, lErr := unix.Readlinkat(dirfd, base, buf)
+		if lErr != nil {
+			return lErr
+		}
+		digest := sha256.Sum256(buf[:n])
+		if expectedSHA256 != "" && hex.EncodeToString(digest[:]) != expectedSHA256 {
+			return fmt.Errorf("%w: symlink target changed on disk", ErrStale)
+		}
+	default:
+		return fmt.Errorf("%w: target is not a regular file or symlink", ErrSymlink)
+	}
+	return unix.Unlinkat(dirfd, base, 0)
 }

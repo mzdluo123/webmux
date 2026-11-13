@@ -18,6 +18,10 @@
     type GitDeviceLayout,
   } from "../domains/workspace/git-workbench-memory";
   import { filterActiveWorktreeSessions } from "../domains/workspace/git-rework-model";
+  import {
+    GIT_CONFLICT_HANDOFF_EVENT,
+    type GitConflictHandoff,
+  } from "../domains/workspace/git-conflict-handoff";
   import { buildGitRouteHref, parseGitRouteQuery } from "../hooks/shared/route";
   import {
     getShell,
@@ -133,11 +137,19 @@
         void controller.checkExternalUpdates();
       }
     };
+    const onConflictHandoff = (e: Event) => {
+      const detail = (e as CustomEvent<GitConflictHandoff>).detail;
+      if (detail?.repositoryId === repositoryId) {
+        void controller.openConflictHandoff(detail.path);
+      }
+    };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
+    window.addEventListener(GIT_CONFLICT_HANDOFF_EVENT, onConflictHandoff);
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener(GIT_CONFLICT_HANDOFF_EVENT, onConflictHandoff);
     };
   });
 

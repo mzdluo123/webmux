@@ -20,6 +20,7 @@
     gitOperationKindLabel,
     gitOperationStatusLabel,
   } from "../../domains/workspace/git-operations-model";
+  import GitRecoveryCommandBox from "./GitRecoveryCommandBox.svelte";
 
   let {
     worktreePath = null,
@@ -320,6 +321,25 @@
               <p class="wrap-anywhere text-foreground">
                 {inspectedOp.summary || "无摘要"}
               </p>
+
+              {#if inspectedOp.recoveryOid || inspectedOp.stashOid}
+                <p class="font-mono break-all text-muted-foreground">
+                  {#if inspectedOp.recoveryOid}
+                    恢复对象 OID：{inspectedOp.recoveryOid}
+                  {:else if inspectedOp.stashOid}
+                    受控贮藏 OID：{inspectedOp.stashOid}
+                  {/if}
+                </p>
+              {/if}
+
+              {#if inspectedOp.recoveryCommand}
+                <GitRecoveryCommandBox
+                  label="紧急恢复命令："
+                  copyLabel="复制紧急恢复命令"
+                  command={inspectedOp.recoveryCommand}
+                  testId="git-operation-recovery-cmd"
+                />
+              {/if}
 
               {#if inspectedOp.reviewReasons.length > 0}
                 <ul class="list-disc space-y-0.5 pl-4 text-warning">

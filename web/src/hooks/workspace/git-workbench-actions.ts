@@ -26,6 +26,7 @@ import type {
 } from "../../contracts/git-workbench-schemas";
 import type {
   GitCommitPreviewRequest,
+  GitLineSelection,
   GitStagingEntry,
   GitStagingFileDiff,
   GitStashEntry,
@@ -316,6 +317,7 @@ export async function performStageMutation(options: {
   worktreeId: string;
   entry: GitStagingEntry;
   hunkId?: string;
+  lineSelections?: readonly GitLineSelection[];
   signal: AbortSignal;
 }): Promise<
   | { ok: true }
@@ -330,6 +332,14 @@ export async function performStageMutation(options: {
     const payload = {
       identity: options.entry.identity,
       ...(options.hunkId ? { hunkIds: [options.hunkId] } : {}),
+      ...(options.lineSelections?.length
+        ? {
+            lineSelections: options.lineSelections.map((s) => ({
+              hunkId: s.hunkId,
+              lineIndices: [...s.lineIndices],
+            })),
+          }
+        : {}),
     };
     if (options.kind === "stage") {
       await gitStage(

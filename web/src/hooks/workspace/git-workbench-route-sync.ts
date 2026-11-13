@@ -230,5 +230,5 @@ export function computeGitTargetLoadKey(
     worktree.kind !== "bare"
       ? worktree
       : undefined;
-  return `${repositoryId}:${usableWt?.id ?? ""}:${usableWt?.branch ?? ""}:${usableWt?.detached ? "1" : "0"}`;
+  return `${repositoryId}:${usableWt?.id ?? ""}:${usableWt?.branch ?? ""}:${usableWt?.detached ? "1" : "0"}:${usableWt?.head ?? ""}:${usableWt?.changes?.conflicted ?? 0}`;
 }

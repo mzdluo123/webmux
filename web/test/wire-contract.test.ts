@@ -292,10 +292,25 @@ const groups: Array<[z.ZodType, string[]]> = [
   ],
   [S.GitCommitDetailResponseSchema, ["git-commit-detail"]],
   [S.GitStagingOverviewSchema, ["git-staging"]],
-  [S.GitStagingFileDiffSchema, ["git-staging-diff", "git-staging-diff-staged"]],
+  [
+    S.GitStagingFileDiffSchema,
+    [
+      "git-staging-diff",
+      "git-staging-diff-staged",
+      "git-staging-diff-v3",
+      "git-staging-diff-v3-staged",
+    ],
+  ],
   [
     S.NoContentSchema,
-    ["git-stage", "git-stage-file", "git-unstage", "git-task-baseline-delete"],
+    [
+      "git-stage",
+      "git-stage-file",
+      "git-stage-lines",
+      "git-unstage",
+      "git-unstage-lines",
+      "git-task-baseline-delete",
+    ],
   ],
   [
     S.GitTaskBaselineResponseSchema,
@@ -366,6 +381,10 @@ const groups: Array<[z.ZodType, string[]]> = [
   ],
   [S.GitFileHistoryPageSchema, ["git-file-history"]],
   [S.GitBlameResultSchema, ["git-blame"]],
+  [S.GitDiscardPreviewSchema, ["git-discard-preview"]],
+  [S.GitDiscardResultSchema, ["git-discard"]],
+  [S.GitSmartCheckoutPreviewSchema, ["git-smart-checkout-preview"]],
+  [S.GitSmartCheckoutResultSchema, ["git-smart-checkout"]],
   [
     S.GitConflictSchema,
     [

@@ -30,6 +30,7 @@ import type {
   GitStashEntry,
 } from "./git-stash-schemas";
 import type { GitBlameResult, GitFileHistoryRow } from "./git-v2-schemas";
+import type { GitDiscardPreview } from "./git-v3-schemas";
 
 export {
   GitHistoryScopeSchema,
@@ -352,6 +353,8 @@ export interface GitWorkbenchViewState {
   stashCreatePreview?: GitStashCreatePreview | null;
   stashApplyPreview?: GitStashApplyPreview | null;
   stashDropPreview?: GitStashDropPreview | null;
+  discardPreview?: GitDiscardPreview | null;
+  defaultLinePickerOpen?: boolean;
   commitAmend?: boolean;
   commitAmendPushed?: boolean;
   commitAuthorOverride?: string;

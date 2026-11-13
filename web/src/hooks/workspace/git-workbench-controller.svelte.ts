@@ -10,6 +10,7 @@ import type {
   Worktree,
 } from "../../contracts/schemas";
 import { deriveGitWorktreeContext } from "../../domains/workspace/git-workbench-adapter";
+import { consumeConflictResolverHandoff } from "../../domains/workspace/git-conflict-handoff";
 import { writeGitTargetMemory } from "../../domains/workspace/git-workbench-memory";
 import { LatestRequest } from "../shared/remote-request.svelte";
 import { buildGitRouteHref, parseGitRouteQuery } from "../shared/route";
@@ -185,6 +186,15 @@ export function createGitWorkbenchController(
           sub.commitDraft.load(repoId, effId, req.signal),
           sub.divergence.refreshState(repoId, effId, req.signal),
         ]);
+        const handoff = consumeConflictResolverHandoff(repoId, effId);
+        if (
+          handoff.matched &&
+          (sub.divergence.inProgress?.conflictedCount ?? 0) > 0
+        ) {
+          await sub.conflict.openResolver(
+            handoff.path ?? sub.divergence.inProgress?.conflictedFiles[0]?.path,
+          );
+        }
       } else {
         sub.divergence.resetTarget();
       }
@@ -258,12 +268,14 @@ export function createGitWorkbenchController(
         query,
       );
       view = popped.nextView;
-      if (popped.reloadNeeded) {
-        void sub.logHistory.reloadHistory("filter", popped.nextCommit);
-      } else {
-        sub.logHistory.ensureCommitLoaded(popped.nextCommit);
+      if (desiredLoadKey === lastLoadedKey) {
+        if (popped.reloadNeeded) {
+          void sub.logHistory.reloadHistory("filter", popped.nextCommit);
+        } else {
+          sub.logHistory.ensureCommitLoaded(popped.nextCommit);
+        }
+        return;
       }
-      return;
     }
 
     if (desiredLoadKey !== lastLoadedKey) {
@@ -324,6 +336,7 @@ export function createGitWorkbenchController(
     stash: sub.stash,
     refsManage: sub.refsManage,
     fileInspector: sub.fileInspector,
+    discard: sub.discard,
     logDiff: sub.logDiff,
     dispose() {
       targetReq.dispose();
@@ -446,5 +459,14 @@ export function createGitWorkbenchController(
     closeCommitPreview: sub.staging.closeCommitPreview,
     confirmCommit: sub.staging.confirmCommit,
     runFetch: sub.operations.runFetch,
+    async openConflictHandoff(path?: string) {
+      const wtId = getWorktreeTargetId();
+      if (!currentRepoId || !wtId) return;
+      consumeConflictResolverHandoff(currentRepoId, wtId);
+      await sub.divergence.refreshState(currentRepoId, wtId);
+      await sub.conflict.openResolver(
+        path ?? sub.divergence.inProgress?.conflictedFiles[0]?.path,
+      );
+    },
   };
 }

@@ -1,0 +1,48 @@
+{
+  "status": 200,
+  "body": {
+    "discardedPaths": [
+      "sub/b.txt"
+    ],
+    "operationId": "<operationId#17>",
+    "recoveryCommand": "<recoveryCommand#1>",
+    "recoveryOid": "<recoveryOid#1>",
+    "recoveryRef": "<recoveryRef#4>",
+    "scope": "files",
+    "summary": "丢弃 1 个文件的未暂存/未跟踪修改（覆盖/恢复已跟踪 1 个，删除未跟踪 0 个）",
+    "worktree": {
+      "ahead": null,
+      "available": true,
+      "behind": null,
+      "branch": "main",
+      "changes": {
+        "conflicted": 0,
+        "staged": 0,
+        "unstaged": 0,
+        "untracked": 0
+      },
+      "detached": false,
+      "dirty": false,
+      "error": "",
+      "hasIgnored": false,
+      "hasUntracked": false,
+      "head": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+      "id": "<id#2>",
+      "kind": "main",
+      "lastCommit": {
+        "author": "Ada Lovelace",
+        "committedAt": "2026-01-02T03:04:05Z",
+        "hash": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+        "subject": "feat: amend merge commit with author override"
+      },
+      "lockReason": "",
+      "locked": false,
+      "operation": null,
+      "path": "<repo>",
+      "prunable": false,
+      "repositoryId": "<id#1>",
+      "upstream": null,
+      "upstreamGone": false
+    }
+  }
+}

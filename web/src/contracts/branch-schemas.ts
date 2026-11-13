@@ -25,7 +25,7 @@ export type Issue = z.infer<typeof IssueSchema>;
 // ("origin/fix/b") and creates the local branch `name` (default: `ref`
 // without its remote) tracking it; "new" takes `name` and `startPoint` and
 // sets no upstream; "detach" takes `commit`.
-const SwitchTargetSchema = z.discriminatedUnion("kind", [
+export const SwitchTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("local"), branch: z.string().min(1) }).strict(),
   z
     .object({

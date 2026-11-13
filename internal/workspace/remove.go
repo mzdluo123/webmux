@@ -17,24 +17,26 @@ import (
 type purpose string
 
 const (
-	purposeRemove       purpose = "remove"
-	purposeRelease      purpose = "release"
-	purposeBatchRemove  purpose = "batch-remove"
-	purposeSwitch       purpose = "switch"
-	purposeFastForward  purpose = "fast-forward"
-	purposePush         purpose = "push"
-	purposeBranchDelete purpose = "branch-delete"
-	purposeCommit       purpose = "commit"
-	purposeMerge        purpose = "merge"
-	purposeRebase       purpose = "rebase"
-	purposeCherryPick   purpose = "cherry-pick"
-	purposeRevert       purpose = "revert"
-	purposeAbortOp      purpose = "abort-op"
-	purposeStashCreate  purpose = "stash-create"
-	purposeStashApply   purpose = "stash-apply"
-	purposeStashPop     purpose = "stash-pop"
-	purposeStashDrop    purpose = "stash-drop"
-	purposeBranchRename purpose = "branch-rename"
+	purposeRemove        purpose = "remove"
+	purposeRelease       purpose = "release"
+	purposeBatchRemove   purpose = "batch-remove"
+	purposeSwitch        purpose = "switch"
+	purposeFastForward   purpose = "fast-forward"
+	purposePush          purpose = "push"
+	purposeBranchDelete  purpose = "branch-delete"
+	purposeCommit        purpose = "commit"
+	purposeMerge         purpose = "merge"
+	purposeRebase        purpose = "rebase"
+	purposeCherryPick    purpose = "cherry-pick"
+	purposeRevert        purpose = "revert"
+	purposeAbortOp       purpose = "abort-op"
+	purposeStashCreate   purpose = "stash-create"
+	purposeStashApply    purpose = "stash-apply"
+	purposeStashPop      purpose = "stash-pop"
+	purposeStashDrop     purpose = "stash-drop"
+	purposeBranchRename  purpose = "branch-rename"
+	purposeDiscard       purpose = "discard"
+	purposeSmartCheckout purpose = "smart-checkout"
 )
 
 type batchTarget struct {
@@ -68,6 +70,8 @@ type confirmation struct {
 	stashApply    *stashApplyState
 	stashDrop     *stashDropState
 	branchRename  *branchRenameState
+	discard       *discardPreviewState
+	smartCheckout *smartCheckoutState
 	timer         *time.Timer
 }
 

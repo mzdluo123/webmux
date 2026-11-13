@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconPlayerTrackNext from "~icons/tabler/player-track-next";
@@ -8,6 +9,7 @@
   import * as Resizable from "$lib/components/ui/resizable";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import type { GitReviewScope } from "../../contracts/git-workbench-schemas";
+  import type { GitHunkAndLineMutationProps } from "../../domains/workspace/git-line-selection";
   import type { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
   import type { GitPaneScrollCallbacks } from "../../domains/workspace/git-workbench-memory";
   import { isChangeReviewed } from "../../domains/workspace/git-workbench-state";
@@ -39,6 +41,7 @@
     stagingBusy = false,
     activeDiffStale = false,
     activeDiffStaleReason = "",
+    defaultLinePickerOpen = false,
     uncommittedProgress: externalUncommittedProgress,
     taskProgress: externalTaskProgress,
     liveWorktreeIdentityForPath,
@@ -63,6 +66,11 @@
     onUnstageChange,
     onStageHunk,
     onUnstageHunk,
+    onStageLines,
+    onUnstageLines,
+    onDiscardChanges,
+    onDiscardHunk,
+    onDiscardLines,
     onRefreshSnapshot,
     onOpenPush,
     onOpenConflictResolver,
@@ -88,6 +96,7 @@
       stagingDiff?: GitStagingDiffController;
       activeDiffStale?: boolean;
       activeDiffStaleReason?: string;
+      defaultLinePickerOpen?: boolean;
       uncommittedProgress?: GitReviewProgressSummary;
       taskProgress?: GitReviewProgressSummary;
       liveWorktreeIdentityForPath?: (path: string) => string | undefined;
@@ -100,8 +109,6 @@
         input: Parameters<typeof createReworkDraftItem>[0],
         options?: { openSheet?: boolean },
       ) => void;
-      onStageHunk: (changeId: string, hunkId: string) => void;
-      onUnstageHunk: (changeId: string, hunkId: string) => void;
       onSelectTaskFile?: (path: string) => void;
       onTaskSearchChange?: (q: string) => void;
       onLoadMoreTaskFiles?: () => void;
@@ -110,11 +117,13 @@
       onClearTaskBaseline?: () => void;
       onOpenLogToPickBaseline?: () => void;
       onInspectCommit?: (oid: string) => void;
-    } = $props();
+    } & GitHunkAndLineMutationProps = $props();
 
   const desktop = new MediaQuery("(min-width: 1280px)");
   let localReviewScope = $state<GitReviewScope>("uncommitted");
-  let mobileStep = $state<"changes" | "diff">("changes");
+  let mobileStep = $state<"changes" | "diff">(
+    untrack(() => (defaultLinePickerOpen ? "diff" : "changes")),
+  );
   let paneResetKey = $state(0);
 
   const effectiveScope = $derived(controlledReviewScope ?? localReviewScope);
@@ -140,23 +149,16 @@
   );
 
   const activeProgress = $derived(
-    effectiveScope === "task"
-      ? (externalTaskProgress ??
-          computeLocalReviewProgress(
-            "task",
-            changes,
-            taskReview?.files ?? [],
-            reviewedPaths,
-            isChangeReviewed,
-          ))
-      : (externalUncommittedProgress ??
-          computeLocalReviewProgress(
-            "uncommitted",
-            changes,
-            taskReview?.files ?? [],
-            reviewedPaths,
-            isChangeReviewed,
-          )),
+    (effectiveScope === "task"
+      ? externalTaskProgress
+      : externalUncommittedProgress) ??
+      computeLocalReviewProgress(
+        effectiveScope,
+        changes,
+        taskReview?.files ?? [],
+        reviewedPaths,
+        isChangeReviewed,
+      ),
   );
 
   function setReviewScope(next: GitReviewScope) {
@@ -167,14 +169,14 @@
 
   function handleNextUnreviewed() {
     if (onJumpNextUnreviewed) {
-      const jumped = onJumpNextUnreviewed(effectiveScope);
-      if (jumped && !desktop.current) mobileStep = "diff";
+      if (onJumpNextUnreviewed(effectiveScope) && !desktop.current) {
+        mobileStep = "diff";
+      }
       return;
     }
     if (effectiveScope === "task") {
-      const files = taskReview?.files ?? [];
       const nextPath = findNextUnreviewedTaskFile(
-        files,
+        taskReview?.files ?? [],
         taskReview?.selectedPath ?? null,
         (p) => reviewedPaths.includes(`task:${p}`) || reviewedPaths.includes(p),
       );
@@ -259,6 +261,7 @@
       {onToggleReviewed}
       {onStageChange}
       {onUnstageChange}
+      {onDiscardChanges}
       {onRefreshSnapshot}
       {onOpenPush}
       {onOpenConflictResolver}
@@ -299,11 +302,12 @@
     >
       {#if mobile}
         <div
-          class="flex items-center justify-between gap-2 border-b border-git-border bg-git-panel p-2"
+          class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel p-2"
         >
           <Button
             size="xs"
             variant="ghost"
+            wrap
             onclick={() => (mobileStep = "changes")}
           >
             <IconArrowLeft aria-hidden="true" />
@@ -313,6 +317,7 @@
             <Button
               size="xs"
               variant="outline"
+              wrap
               onclick={handleNextUnreviewed}
               data-testid="git-mobile-next-unreviewed"
             >
@@ -338,6 +343,7 @@
             busy={stagingBusy}
             stale={activeDiffStale}
             staleReason={activeDiffStaleReason}
+            {defaultLinePickerOpen}
             {hasActiveWorktreeSession}
             liveWorktreeIdentity={liveWorktreeIdentityForPath?.(
               activeChange.path,
@@ -347,6 +353,13 @@
             {onUnstageChange}
             {onStageHunk}
             {onUnstageHunk}
+            {onStageLines}
+            {onUnstageLines}
+            onDiscardFile={onDiscardChanges
+              ? (id, path) => onDiscardChanges([id], [path])
+              : undefined}
+            {onDiscardHunk}
+            {onDiscardLines}
             {onAddReworkItem}
             {onRefreshSnapshot}
             {onOpenConflictResolver}

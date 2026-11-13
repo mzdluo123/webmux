@@ -249,6 +249,41 @@ export function resolveSnapshotVersionDescriptor(options: {
   };
 }
 
+export function buildHunkReworkItemInput(options: {
+  change: GitWorkingChange;
+  hunk: GitWorkingChange["hunks"][number];
+  headOid: string | null;
+  liveWorktreeIdentity?: string;
+}): Parameters<typeof createReworkDraftItem>[0] {
+  const { change, hunk, headOid, liveWorktreeIdentity } = options;
+  const useNewSide = hunk.newLines > 0;
+  const startLine = Math.max(1, useNewSide ? hunk.newStart : hunk.oldStart);
+  const span = Math.max(1, useNewSide ? hunk.newLines : hunk.oldLines);
+  const endLine = startLine + span - 1;
+  const desc = resolveStagingVersionDescriptor({
+    group: change.group,
+    side: useNewSide ? "new" : "old",
+    headOid,
+    liveWorktreeIdentity,
+  });
+  const snippet = hunk.lines
+    .map(
+      (l) =>
+        `${l.kind === "add" ? "+" : l.kind === "delete" ? "-" : " "}${l.text}`,
+    )
+    .join("\n");
+  return {
+    path: change.path,
+    oldPath: change.oldPath,
+    sourceKind: desc.sourceKind,
+    versionLabel: desc.versionLabel,
+    startLine,
+    endLine,
+    codeSnippet: snippet,
+    capturedWorktreeIdentity: desc.capturedWorktreeIdentity,
+  };
+}
+
 export function createReworkDraftItem(input: {
   path: string;
   oldPath?: string;

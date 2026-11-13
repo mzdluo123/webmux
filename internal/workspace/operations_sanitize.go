@@ -58,7 +58,8 @@ func validOpKind(kind string) bool {
 		GitOpStashPush, GitOpStashApply, GitOpStashPop, GitOpStashDrop,
 		GitOpBranchRename, GitOpBranchUpstream,
 		GitOpTagCreate, GitOpTagDelete,
-		GitOpRemoteAdd, GitOpRemoteUpdate, GitOpRemoteRemove:
+		GitOpRemoteAdd, GitOpRemoteUpdate, GitOpRemoteRemove,
+		GitOpDiscard, GitOpSmartCheckout:
 		return true
 	}
 	return false

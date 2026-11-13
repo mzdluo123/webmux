@@ -13,6 +13,11 @@
   import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
+  import { applyOfflineLineMutation } from "../../domains/workspace/git-line-selection";
+  import {
+    buildShellDiscardPreview,
+    type PendingShellDiscard,
+  } from "../../domains/workspace/git-shell-v3-actions";
   import {
     applyShellBranchAction,
     applyShellClearTaskBaseline,
@@ -72,6 +77,7 @@
   let handoffMode = $state<GitSessionHandoffMode>("rework");
   let acknowledgeSessions = $state(false);
   let selectedStashFileKey = $state<string | null>(null);
+  let pendingDiscard = $state<PendingShellDiscard | null>(null);
   let selectedSessionId = $derived(
     simulatedActiveSessions.length === 1
       ? (simulatedActiveSessions[0]?.id ?? "")
@@ -80,14 +86,23 @@
   const readonlyMode = $derived(
     view.context.headState === "readonly" || !view.context.worktreePath,
   );
+  const stageLinesInShell = (
+    id: string,
+    sel: Parameters<typeof applyOfflineLineMutation>[2],
+    op: "stage" | "unstage",
+  ) =>
+    (view = {
+      ...view,
+      workingChanges: applyOfflineLineMutation(
+        view.workingChanges,
+        id,
+        sel,
+        op,
+      ),
+    });
 
   function setMode(next: string) {
-    if (
-      next === "log" ||
-      next === "commit" ||
-      next === "branches" ||
-      next === "stash"
-    ) {
+    if (["log", "commit", "branches", "stash"].includes(next)) {
       view = { ...view, mode: next as GitWorkbenchMode };
     }
   }
@@ -110,10 +125,7 @@
       ...view,
       commitPreview: buildCommitPreviewModel(view, followUpPush),
     });
-  const openPushDialog = (
-    branchOverride?: string,
-    precedingCommit?: GitPrecedingCommit,
-  ) =>
+  const openPushDialog = (branchOverride?: string, pre?: GitPrecedingCommit) =>
     (view = {
       ...view,
       pushPreview: buildShellPushPreview(
@@ -121,7 +133,7 @@
         readonlyMode,
         defaultPushPreview,
         branchOverride,
-        precedingCommit,
+        pre,
       ),
     });
   function handleBranchAction(
@@ -159,7 +171,18 @@
     draftConflict = null;
     view = res.nextView;
   }
-
+  function openShellDiscard(p: PendingShellDiscard) {
+    pendingDiscard = p;
+    acknowledgeSessions = false;
+    view = {
+      ...view,
+      discardPreview: buildShellDiscardPreview(
+        view,
+        p,
+        simulatedActiveSessions,
+      ),
+    };
+  }
   function handleAddReworkItem(
     input: Parameters<typeof createReworkDraftItem>[0],
     options?: { openSheet?: boolean },
@@ -286,6 +309,7 @@
               : "")}
           amendDraftPrompt={view.amendDraftConflict ?? null}
           hasActiveWorktreeSession={simulatedActiveSessions.length > 0}
+          defaultLinePickerOpen={Boolean(view.defaultLinePickerOpen)}
           activeSessionCount={simulatedActiveSessions.length}
           onReviewScopeChange={(reviewScope) =>
             (view = { ...view, reviewScope })}
@@ -326,6 +350,24 @@
               ...view,
               workingChanges: applyUnstageHunk(view.workingChanges, id, hId),
             })}
+          onStageLines={(id, sel) => stageLinesInShell(id, sel, "stage")}
+          onUnstageLines={(id, sel) => stageLinesInShell(id, sel, "unstage")}
+          onDiscardChanges={!readonlyMode
+            ? (_ids, paths) =>
+                openShellDiscard({ scope: "files", paths: [...paths] })
+            : undefined}
+          onDiscardHunk={!readonlyMode
+            ? (changeId, hunkId) =>
+                openShellDiscard({ scope: "hunks", changeId, hunkId })
+            : undefined}
+          onDiscardLines={!readonlyMode
+            ? (changeId, lineSelections) =>
+                openShellDiscard({
+                  scope: "lines",
+                  changeId,
+                  lineSelections: [...lineSelections],
+                })
+            : undefined}
           onCommitMessageChange={(commitMessage) =>
             (view = { ...view, commitMessage })}
           onResolveDraftKeepLocal={() => resolveDraft("keep-local")}
@@ -439,6 +481,7 @@
     bind:view
     bind:reworkOpen
     bind:reworkItems
+    bind:pendingDiscard
     {handoffMode}
     activeSessions={simulatedActiveSessions}
     {simulatedCommitOutcome}
