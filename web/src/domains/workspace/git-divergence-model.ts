@@ -19,6 +19,8 @@ export function gitSequencerKindLabel(
       return "还原 (Revert)";
     case "bisect":
       return "二分排错 (Bisect)";
+    case "unstash":
+      return "贮藏弹出 (Stash Pop)";
     default:
       return kind ? `操作 (${kind})` : "操作";
   }
@@ -76,6 +78,10 @@ export function formatInProgressHeadline(op: GitInProgressOperation): string {
   if (op.kind === "revert") {
     const src = op.sourceLabel || op.sourceOid?.slice(0, 7) || "目标提交";
     return `正在进行 ${kindText}${stepText}：还原提交 ${src}`;
+  }
+  if (op.kind === "unstash") {
+    const src = op.sourceLabel || op.sourceOid?.slice(0, 7) || "贮藏条目";
+    return `${kindText}存在未解决冲突（来源 ${src}，原贮藏条目已安全保留）：请逐个解决冲突文件`;
   }
   return `正在进行 ${kindText}${stepText}`;
 }

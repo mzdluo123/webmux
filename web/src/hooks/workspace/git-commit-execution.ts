@@ -1,8 +1,10 @@
+import { gitCommitPreview } from "../../platform/git-api";
 import type {
   GitCommitOutcome,
   GitPrecedingCommit,
   GitWorkbenchViewState,
 } from "../../contracts/git-workbench-schemas";
+import type { GitCommitPreviewRequest } from "../../contracts/schemas";
 import {
   generateGitClientRequestId,
   isRecoverableNetworkFailure,
@@ -10,17 +12,63 @@ import {
 } from "../../domains/workspace/git-operations-model";
 import { writeGitTargetMemory } from "../../domains/workspace/git-workbench-memory";
 import { errorMessage } from "../../platform/error";
+import type { GitCommitOptionsController } from "./git-commit-options.svelte";
 import type { GitOperationsController } from "./git-operations-controller.svelte";
 import {
   performGitCommitExecution,
   requestCommitPreviewModel,
 } from "./git-workbench-actions";
 
+export async function runSyncCommitPreflight(options: {
+  repoId: string;
+  wtId: string;
+  signal: AbortSignal;
+  isCurrent: () => boolean;
+  commitOptions?: GitCommitOptionsController;
+  getLatestView: () => GitWorkbenchViewState;
+  patchView: (patch: Partial<GitWorkbenchViewState>) => void;
+}) {
+  try {
+    const preview = await gitCommitPreview(
+      options.repoId,
+      options.wtId,
+      options.commitOptions?.buildPreviewRequest(),
+      options.signal,
+    );
+    if (!options.isCurrent() || options.signal.aborted) return;
+    options.commitOptions?.ingestPreflightMetadata({
+      headMessage: preview.headMessage,
+      amendPushed: preview.amendPushed,
+      signoffTrailer: preview.identity.signoffTrailer,
+      committerName: preview.identity.committerName,
+      committerEmail: preview.identity.committerEmail,
+    });
+    const latest = options.getLatestView();
+    options.patchView({
+      context: {
+        ...latest.context,
+        authorName: preview.identity.authorName,
+        authorEmail: preview.identity.authorEmail,
+        committerName: preview.identity.committerName,
+        committerEmail: preview.identity.committerEmail,
+        signEnabled: preview.identity.signEnabled,
+        signFormat: preview.identity.signFormat ?? "",
+        executableHooks: preview.executableHooks,
+        operationInProgress:
+          preview.operation ?? latest.context.operationInProgress,
+      },
+    });
+  } catch {
+    /* Readonly or transient worktree state keeps existing context */
+  }
+}
+
 export async function runOpenCommitPreview(options: {
   repoId: string;
   wtId: string;
   view: GitWorkbenchViewState;
   followUpPush: boolean;
+  previewRequest?: GitCommitPreviewRequest;
   signal: AbortSignal;
   isCurrent: () => boolean;
   setConfirmationId: (id: string) => void;
@@ -34,6 +82,7 @@ export async function runOpenCommitPreview(options: {
       repositoryName: options.view.context.repositoryName,
       workingChanges: options.view.workingChanges,
       followUpPush: options.followUpPush,
+      previewRequest: options.previewRequest,
       signal: options.signal,
     });
     if (!options.isCurrent()) return;
@@ -66,6 +115,7 @@ export async function runConfirmCommitFlow(options: {
   wtId: string;
   confirmationId: string;
   current: GitWorkbenchViewState;
+  acknowledgePushedAmend?: boolean;
   signal: AbortSignal;
   operations?: GitOperationsController;
   clearWebmuxStaged: () => void;
@@ -74,6 +124,7 @@ export async function runConfirmCommitFlow(options: {
   onRefreshRepositories?: () => void;
   onAfterCommitRefresh?: () => void;
   onCommitDraftCleared?: () => Promise<void> | void;
+  onCommitOptionsReset?: () => void;
   onFollowUpPush?: (
     branch: string,
     precedingCommit: GitPrecedingCommit,
@@ -97,6 +148,9 @@ export async function runConfirmCommitFlow(options: {
       commitMessage: nextMsg,
     });
     options.clearWebmuxStaged();
+    if (shouldClearDraft) {
+      options.onCommitOptionsReset?.();
+    }
     options.patchView({
       commitMessage: nextMsg,
       commitPreview: null,
@@ -131,6 +185,7 @@ export async function runConfirmCommitFlow(options: {
       confirmationId: options.confirmationId,
       clientRequestId,
       message: options.current.commitMessage,
+      acknowledgePushedAmend: options.acknowledgePushedAmend,
       signal: options.signal,
     });
 

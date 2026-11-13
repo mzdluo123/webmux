@@ -10,8 +10,12 @@
   import GitAbortOperationDialog from "./GitAbortOperationDialog.svelte";
   import GitCommitPreviewDialog from "./GitCommitPreviewDialog.svelte";
   import GitDivergencePreviewDialog from "./GitDivergencePreviewDialog.svelte";
+  import GitFileInspectorDialog from "./GitFileInspectorDialog.svelte";
   import GitPushDialog from "./GitPushDialog.svelte";
   import GitReworkDialog from "./GitReworkDialog.svelte";
+  import GitStashApplyDialog from "./GitStashApplyDialog.svelte";
+  import GitStashCreateDialog from "./GitStashCreateDialog.svelte";
+  import GitStashDropDialog from "./GitStashDropDialog.svelte";
 
   let {
     view = $bindable(),
@@ -158,5 +162,86 @@
       };
     }}
     onClose={() => (reworkOpen = false)}
+  />
+{/if}
+
+{#if view.stashCreatePreview}
+  <GitStashCreateDialog
+    message=""
+    includeUntracked={true}
+    keepIndex={false}
+    preview={view.stashCreatePreview}
+    {acknowledgeSessions}
+    onMessageChange={() => {}}
+    onIncludeUntrackedChange={() => {}}
+    onKeepIndexChange={() => {}}
+    onAcknowledgeSessionsChange={(checked) => (acknowledgeSessions = checked)}
+    onConfirm={() =>
+      (view = {
+        ...view,
+        stashCreatePreview: null,
+        statusBanner: "已确认保存贮藏",
+      })}
+    onClose={() => (view = { ...view, stashCreatePreview: null })}
+  />
+{/if}
+
+{#if view.stashApplyPreview}
+  <GitStashApplyDialog
+    mode={view.stashApplyPreview.mode}
+    reinstateIndex={view.stashApplyPreview.reinstateIndex}
+    target={view.stashApplyPreview.entry}
+    preview={view.stashApplyPreview}
+    {acknowledgeSessions}
+    onModeChange={(mode) =>
+      view.stashApplyPreview &&
+      (view = {
+        ...view,
+        stashApplyPreview: { ...view.stashApplyPreview, mode },
+      })}
+    onReinstateIndexChange={(reinstateIndex) =>
+      view.stashApplyPreview &&
+      (view = {
+        ...view,
+        stashApplyPreview: { ...view.stashApplyPreview, reinstateIndex },
+      })}
+    onAcknowledgeSessionsChange={(checked) => (acknowledgeSessions = checked)}
+    onConfirm={() =>
+      (view = {
+        ...view,
+        stashApplyPreview: null,
+        statusBanner: "已确认执行贮藏恢复",
+      })}
+    onClose={() => (view = { ...view, stashApplyPreview: null })}
+  />
+{/if}
+
+{#if view.stashDropPreview}
+  <GitStashDropDialog
+    target={view.stashDropPreview.entry}
+    preview={view.stashDropPreview}
+    onConfirm={() =>
+      (view = {
+        ...view,
+        stashDropPreview: null,
+        statusBanner: "已确认丢弃单条贮藏",
+      })}
+    onClose={() => (view = { ...view, stashDropPreview: null })}
+  />
+{/if}
+
+{#if view.fileInspectorOpen}
+  <GitFileInspectorDialog
+    hasWorktree={Boolean(view.context.worktreePath)}
+    fixtureHistoryRows={view.fixtureHistoryRows}
+    fixtureBlame={view.fixtureBlame}
+    onJumpToCommit={(oid) =>
+      (view = {
+        ...view,
+        fileInspectorOpen: false,
+        mode: "log",
+        selectedCommitOid: oid,
+      })}
+    onClose={() => (view = { ...view, fileInspectorOpen: false })}
   />
 {/if}

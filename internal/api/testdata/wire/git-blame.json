@@ -1,0 +1,73 @@
+{
+  "status": 200,
+  "body": {
+    "blobOid": "89673477bf2139ca6b5ab42049377d1ab0066e0c",
+    "commitOid": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+    "commits": [
+      {
+        "authorAt": "2026-01-02T03:04:05Z",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "boundary": true,
+        "oid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "shortOid": "2de8fe1f",
+        "summary": "initial"
+      },
+      {
+        "authorAt": "2026-01-02T03:04:05Z",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "oid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+        "previousOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "previousPath": "sub/b.txt",
+        "shortOid": "ecc8da44",
+        "summary": "feat: expand b.txt"
+      },
+      {
+        "authorAt": "2026-01-02T03:04:05Z",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "oid": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+        "previousOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "previousPath": "sub/b.txt",
+        "shortOid": "9c24118c",
+        "summary": "feat: dragonfly in b.txt"
+      }
+    ],
+    "kind": "text",
+    "lines": [
+      {
+        "commitOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "lineNumber": 1,
+        "origLine": 1,
+        "origPath": "sub/b.txt",
+        "shortOid": "2de8fe1f",
+        "text": "bee"
+      },
+      {
+        "commitOid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+        "lineNumber": 2,
+        "origLine": 2,
+        "origPath": "sub/b.txt",
+        "previousOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "previousPath": "sub/b.txt",
+        "shortOid": "ecc8da44",
+        "text": "butterfly"
+      },
+      {
+        "commitOid": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+        "lineNumber": 3,
+        "origLine": 2,
+        "origPath": "sub/b.txt",
+        "previousOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "previousPath": "sub/b.txt",
+        "shortOid": "9c24118c",
+        "text": "dragonfly"
+      }
+    ],
+    "mode": "100644",
+    "path": "sub/b.txt",
+    "shortOid": "e1a44d3f",
+    "totalLines": 3
+  }
+}

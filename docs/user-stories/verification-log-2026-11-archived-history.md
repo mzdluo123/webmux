@@ -277,3 +277,23 @@
   - 隔离实例全量 Playwright E2E（494 项，含 `git-workbench-conflicts.spec.ts` 桌面与 320px 手机视口）及性能套件（`test:performance`）通过。
 - 限制：
   - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
+
+本次局部核对（2026-11-13）：实现 Git 工作台 V2 独立 Stash 视图与日常高级操作（安全两步 `Pop`、受推送保护的 `Amend`/作者/`Sign-off`、分支重命名与上游绑定、标签管理、远程凭据保护配置、单文件 `--follow` 历史与逐行 `Blame` 溯源，Issue #550）。
+
+- 故事与文档同步：新增 US-J27，更新 US-I01、US-J15、US-J20、US-J22、US-J23，并将 `git-workbench.md` 按文档预算拆分为树形索引及 `git-workbench/core.md`（US-J19–US-J23）与 `git-workbench/collab-and-advanced.md`（US-J24–US-J27），同步更新覆盖索引与持久化/使用/协议文档。
+- 范围：
+  - `internal/workspace`、`internal/codeview`、`internal/api`、`internal/contract`、`internal/wire` 新增 V2 贮藏、高级提交、引用远程维护与单文件溯源端点及线上快照：
+    - 独立 `Stash` 栈读取、两阶段创建（`-u`、`--keep-index`）、安全两步 `Pop`（先 `apply --quiet <oid>`，冲突时 100% 保留原贮藏并进入无 `Continue` 的 `unstash` 冲突态）、按精确 OID 校验的 `Drop` 及合并 `S^3` 未跟踪父节点的 Diff 快照；
+    - 提交 `--amend`（含已有草稿保护、基于本地跟踪引用只读判定 `amendPushed` 与 `409 pushed_amend_ack_required` 强制确认）、`--author` 单次覆盖与 `-s / --signoff` 尾注预览；
+    - 本地分支两阶段重命名（`git branch -m`）、上游绑定/解绑、轻量与附注标签创建/删除、远程仓库增删改（内嵌凭据脱敏 `***` 且写入拒绝字面量 `***` 占位符），以及上述写操作的 `git-operations.json` 持久账本与启动只读对账；
+    - 单文件 `--follow` 跨重命名历史（`GET .../git/file-history`）、`--no-optional-locks` 只读逐行溯源（`GET .../git/blame`，支持沿父提交与前身路径链式回溯）及任意提交版本对 `HEAD`/`worktree` 的单文件比较快照；
+  - `web/src` 新增 V2 贮藏、高级提交、引用远程维护与单文件溯源前端实现：
+    - 契约与控制器：`git-stash-*`、`git-v2-*`、`git-commit-options.svelte.ts`、`git-refs-manage-controller.svelte.ts`、`git-remotes-controller.svelte.ts`、`git-file-inspector-controller.svelte.ts`；
+    - 视图与入口：`GitStashPane`、`GitCommitAdvancedOptions`、`GitRemotesSection`、`GitFileInspectorDialog`、`GitBlameView` 等组件，并在会话代码工作区头部与工作台变更/历史文件行接入单文件历史与 Blame 入口。
+- 依据：
+  - `make persistence-check`、`make docs-check`、`make check` 通过；
+  - `go test -race ./...` 全量通过（含 `internal/workspace`、`internal/codeview`、`internal/api` wire 快照与 `internal/docguard`）；
+  - 前端 `git-stash-and-v2.test.ts` 与全量 Vitest 单测（74 文件 / 994 项）、`GitWorkbenchStashBlame.test.ts` 与全量浏览器套件（90 文件 / 746 项）、Storybook 全量多视口与 `320px` 2x 大字号溢出守卫（99 项）通过；
+  - 隔离实例全量 Playwright E2E（454 项，含 `git-workbench-stash-blame.spec.ts` 桌面与手机视口）及性能套件（18 项）通过。
+- 限制：
+  - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。

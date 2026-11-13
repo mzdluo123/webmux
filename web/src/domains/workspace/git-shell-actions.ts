@@ -282,6 +282,26 @@ export function applyShellBranchAction(options: {
     case "push":
       onOpenPush(branch.name);
       return null;
+    case "rename-branch":
+      return {
+        ...view,
+        statusBanner: `已打开本地分支重命名预览：${branch.name}`,
+      };
+    case "set-upstream":
+      return {
+        ...view,
+        statusBanner: `已打开上游跟踪设置：${branch.name}`,
+      };
+    case "create-tag":
+      return {
+        ...view,
+        statusBanner: `已打开新建标签对话框：目标 ${branch.shortHead} (${branch.name})`,
+      };
+    case "delete-tag":
+      return {
+        ...view,
+        statusBanner: `已打开删除本地标签确认：${branch.name}`,
+      };
     case "delete":
       return { ...view, statusBanner: `已打开删除分支确认：${branch.name}` };
   }
@@ -339,6 +359,59 @@ export function applyShellSetTaskBaseline(
     },
     statusBanner: `已将 ${label} 设为当前工作树任务起点`,
   };
+}
+
+export function applyShellToggleAmend(
+  view: GitWorkbenchViewState,
+  checked: boolean,
+): GitWorkbenchViewState {
+  if (!checked) {
+    return {
+      ...view,
+      commitAmend: false,
+      amendDraftConflict: null,
+    };
+  }
+  const headOid = view.context.headOid ?? "";
+  const headDetail = headOid ? view.commitDetails[headOid] : undefined;
+  const headRow =
+    view.commits.find((c) => c.oid === headOid) ?? view.commits[0];
+  const headMsg = headDetail
+    ? [headDetail.subject, headDetail.body].filter(Boolean).join("\n\n").trim()
+    : (headRow?.subject ?? "").trim();
+  const curDraft = view.commitMessage.trim();
+  if (!curDraft && headMsg) {
+    return {
+      ...view,
+      commitAmend: true,
+      commitMessage: headMsg,
+      amendDraftConflict: null,
+    };
+  }
+  if (curDraft && headMsg && curDraft !== headMsg) {
+    return {
+      ...view,
+      commitAmend: true,
+      amendDraftConflict: { headMessage: headMsg, currentDraft: curDraft },
+    };
+  }
+  return { ...view, commitAmend: true, amendDraftConflict: null };
+}
+
+export function applyShellResolveAmendDraft(
+  view: GitWorkbenchViewState,
+  choice: "replace" | "merge" | "keep",
+): GitWorkbenchViewState {
+  const cur = view.amendDraftConflict;
+  if (!cur) return view;
+  if (choice === "keep") {
+    return { ...view, amendDraftConflict: null };
+  }
+  const commitMessage =
+    choice === "replace"
+      ? cur.headMessage
+      : `${cur.currentDraft}\n\n${cur.headMessage}`;
+  return { ...view, commitMessage, amendDraftConflict: null };
 }
 
 export function applyShellClearTaskBaseline(

@@ -5,6 +5,8 @@
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
+  import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";
+  import type { GitFileInspectorTab } from "../../hooks/workspace/git-file-inspector-controller.svelte";
   import type { GitCommitComposerCallbacks } from "./GitCommitComposer.svelte";
 
   export interface GitUncommittedChangesSharedProps extends GitCommitComposerCallbacks {
@@ -18,6 +20,12 @@
     draftSaving?: boolean;
     draftRevision?: number;
     draftConflict?: GitCommitDraftConflictState | null;
+    commitAmend?: boolean;
+    commitAmendPushed?: boolean;
+    commitAuthorOverride?: string;
+    commitSignoff?: boolean;
+    commitSignoffTrailer?: string;
+    amendDraftPrompt?: GitAmendDraftPrompt | null;
     hasActiveWorktreeSession?: boolean;
     activeSessionCount?: number;
     exitedSessionCount?: number;
@@ -31,6 +39,8 @@
       group: "staged" | "unstaged" | "untracked",
     ) => void;
     onRefreshSnapshot?: () => void;
+    onOpenStashCreate?: (includeUntracked?: boolean) => void;
+    onInspectFile?: (path: string, tab: GitFileInspectorTab) => void;
     onOpenConflictResolver?: (path?: string) => void;
     onOpenWorktreeTerminal?: () => void;
     onNewWorktreeTerminal?: () => void;
@@ -41,6 +51,7 @@
 </script>
 
 <script lang="ts">
+  import IconArchive from "~icons/tabler/archive";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconChevronRight from "~icons/tabler/chevron-right";
   import IconRefresh from "~icons/tabler/refresh";
@@ -73,6 +84,12 @@
     draftSaving = false,
     draftRevision = 0,
     draftConflict = null,
+    commitAmend = false,
+    commitAmendPushed = false,
+    commitAuthorOverride = "",
+    commitSignoff = false,
+    commitSignoffTrailer = "",
+    amendDraftPrompt = null,
     hasActiveWorktreeSession = false,
     activeSessionCount = 0,
     exitedSessionCount = 0,
@@ -86,6 +103,8 @@
     onUnstageChange,
     onStageGroup,
     onRefreshSnapshot,
+    onOpenStashCreate,
+    onInspectFile,
     onCommitMessageChange,
     onOpenCommitPreview,
     onOpenPush,
@@ -94,6 +113,10 @@
     onResolveDraftAdoptRemote,
     onResolveDraftMergeBoth,
     onRequestCommitAssist,
+    onToggleCommitAmend,
+    onResolveAmendDraft,
+    onCommitAuthorOverrideChange,
+    onToggleCommitSignoff,
     onOpenConflictResolver,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
@@ -179,20 +202,41 @@
   aria-label="工作树变更与提交"
 >
   <GitPanelToolbar>
-    <span class="min-w-0 truncate text-xs font-semibold text-foreground">
+    <span class="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
       变更树（阅读高亮 / 已审阅 / 真实暂存三态独立）
     </span>
-    {#if onRefreshSnapshot}
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        aria-label="刷新暂存区快照"
-        title="刷新暂存区快照"
-        onclick={onRefreshSnapshot}
-      >
-        <IconRefresh aria-hidden="true" />
-      </Button>
-    {/if}
+    <div class="flex shrink-0 items-center gap-1">
+      {#if !readonlyMode && onOpenStashCreate}
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={stagingBusy ||
+            changes.length === 0 ||
+            grouped.conflicted.length > 0}
+          title={changes.length === 0
+            ? "当前无未提交改动可贮藏"
+            : grouped.conflicted.length > 0
+              ? "存在未解决冲突时无法创建贮藏"
+              : "将当前工作树改动打包保存为贮藏 (Stash)"}
+          onclick={() => onOpenStashCreate(grouped.untracked.length > 0)}
+          data-testid="git-commit-stash-changes-btn"
+        >
+          <IconArchive aria-hidden="true" />
+          贮藏更改…
+        </Button>
+      {/if}
+      {#if onRefreshSnapshot}
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="刷新暂存区快照"
+          title="刷新暂存区快照"
+          onclick={onRefreshSnapshot}
+        >
+          <IconRefresh aria-hidden="true" />
+        </Button>
+      {/if}
+    </div>
   </GitPanelToolbar>
 
   {#if readonlyMode}
@@ -316,6 +360,7 @@
                   {onStageChange}
                   {onUnstageChange}
                   {onOpenConflictResolver}
+                  {onInspectFile}
                 />
               {/each}
             </div>
@@ -336,6 +381,12 @@
     {draftSaving}
     {draftRevision}
     {draftConflict}
+    {commitAmend}
+    {commitAmendPushed}
+    {commitAuthorOverride}
+    {commitSignoff}
+    {commitSignoffTrailer}
+    {amendDraftPrompt}
     canAssistCommitDraft={activeSessionCount > 0}
     {onCommitMessageChange}
     {onOpenCommitPreview}
@@ -345,5 +396,9 @@
     {onResolveDraftAdoptRemote}
     {onResolveDraftMergeBoth}
     {onRequestCommitAssist}
+    {onToggleCommitAmend}
+    {onResolveAmendDraft}
+    {onCommitAuthorOverrideChange}
+    {onToggleCommitSignoff}
   />
 </section>

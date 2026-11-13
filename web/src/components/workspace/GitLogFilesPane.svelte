@@ -1,5 +1,7 @@
 <script lang="ts">
   import IconArrowsExchange from "~icons/tabler/arrows-exchange";
+  import IconFileSearch from "~icons/tabler/file-search";
+  import IconHistory from "~icons/tabler/history";
   import IconMaximize from "~icons/tabler/maximize";
   import IconX from "~icons/tabler/x";
   import { Badge } from "$lib/components/ui/badge";
@@ -10,6 +12,7 @@
     GitCommitFile,
     GitCompareViewState,
   } from "../../contracts/git-workbench-schemas";
+  import type { GitFileInspectorTab } from "../../hooks/workspace/git-file-inspector-controller.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
   let {
@@ -23,6 +26,7 @@
     onSelectFile,
     onPreviewFile,
     onExpandFile,
+    onInspectFile,
     onSwapCompareDirection,
     onExitCompare,
     onLoadMoreCompareFiles,
@@ -37,6 +41,7 @@
     onSelectFile: (path: string) => void;
     onPreviewFile?: (path: string) => void;
     onExpandFile?: (path: string) => void;
+    onInspectFile?: (path: string, tab: GitFileInspectorTab) => void;
     onSwapCompareDirection?: () => void;
     onExitCompare?: () => void;
     onLoadMoreCompareFiles?: () => void;
@@ -163,7 +168,7 @@
       </div>
     {/if}
 
-    <div class="flex min-w-0 items-center justify-between gap-2">
+    <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
       <span class="min-w-0 truncate text-xs font-semibold text-foreground">
         变更文件 ({sourceFiles.length})
         {#if !compareMode && rightEndpoint}
@@ -172,17 +177,39 @@
           </span>
         {/if}
       </span>
-      {#if !phone && activePath && onExpandFile}
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="放大查看当前文件差异"
-          title="放大查看当前文件差异 (Enter / 双击)"
-          onclick={() => activePath && onExpandFile(activePath)}
-        >
-          <IconMaximize aria-hidden="true" />
-        </Button>
-      {/if}
+      <div class="flex shrink-0 items-center gap-1">
+        {#if activePath && onInspectFile}
+          <Button
+            size="xs"
+            variant="ghost"
+            onclick={() => activePath && onInspectFile(activePath, "history")}
+            data-testid="git-log-file-history-btn"
+          >
+            <IconHistory aria-hidden="true" />
+            历史
+          </Button>
+          <Button
+            size="xs"
+            variant="ghost"
+            onclick={() => activePath && onInspectFile(activePath, "blame")}
+            data-testid="git-log-file-blame-btn"
+          >
+            <IconFileSearch aria-hidden="true" />
+            Blame
+          </Button>
+        {/if}
+        {#if !phone && activePath && onExpandFile}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="放大查看当前文件差异"
+            title="放大查看当前文件差异 (Enter / 双击)"
+            onclick={() => activePath && onExpandFile(activePath)}
+          >
+            <IconMaximize aria-hidden="true" />
+          </Button>
+        {/if}
+      </div>
     </div>
 
     {#if sourceFiles.length > 0 || fileQuery}

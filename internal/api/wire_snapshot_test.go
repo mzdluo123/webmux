@@ -281,7 +281,7 @@ func wireSchema(name string) wireRules {
 	case "git-changes":
 		add("", "id", "nextCursor")
 		add("", "time", "checkedAt")
-	case "git-diff", "git-task-diff":
+	case "git-diff", "git-task-diff", "git-stash-diff", "git-revision-diff":
 		add("", "id", "snapshotId")
 		add("", "time", "checkedAt")
 		documentFields("/old")
@@ -313,11 +313,11 @@ func wireSchema(name string) wireRules {
 		add("/currentDraft", "time", "updatedAt")
 	case "git-commit-detail":
 		add("/refs/*", "id", "worktreeId")
-	case "git-commit-preview", "git-commit-preview-blocked":
+	case "git-commit-preview", "git-commit-preview-blocked", "git-commit-amend-preview":
 		add("", "id", "confirmationId", "repositoryId", "worktreeId")
 		add("", "time", "expiresAt")
 		add("", "path", "worktreePath")
-	case "git-commit":
+	case "git-commit", "git-commit-amend":
 		add("", "id", "operationId")
 	case "git-operation":
 		add("", "id", "id", "repositoryId", "worktreeId", "confirmationId")
@@ -353,6 +353,51 @@ func wireSchema(name string) wireRules {
 	case "git-conflict-resolve":
 		add("/inProgress", "id", "worktreeId")
 		add("/inProgress", "path", "worktreePath")
+	case "git-stashes":
+		add("/stashes/*", "time", "createdAt")
+	case "git-stash-detail":
+		add("/entry", "time", "createdAt")
+	case "git-stash-create-preview", "git-stash-apply-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		add("/entry", "time", "createdAt")
+		sessionFields("/sessions/*")
+	case "git-stash-create":
+		add("", "id", "operationId")
+		add("/entry", "time", "createdAt")
+		worktreeFields("/worktree")
+	case "git-stash-apply", "git-stash-pop":
+		add("", "id", "operationId")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
+	case "git-stash-drop-preview":
+		add("", "id", "confirmationId", "repositoryId")
+		add("", "time", "expiresAt")
+		add("/entry", "time", "createdAt")
+	case "git-stash-drop":
+		add("", "id", "operationId")
+		add("/stashes/*", "time", "createdAt")
+	case "git-branch-rename-preview":
+		add("", "id", "confirmationId", "repositoryId")
+		add("", "time", "expiresAt")
+		worktreeFields("/affectedWorktrees/*")
+		sessionFields("/sessions/*")
+	case "git-branch-rename", "git-branch-upstream":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+		add("/branches", "path", "defaultParent")
+		add("/branches/branches/*", "path", "worktreePaths/*")
+	case "git-tag-create", "git-tag-delete":
+		add("", "id", "operationId")
+		add("/tag", "time", "taggedAt")
+		add("/branches", "path", "defaultParent")
+		add("/branches/branches/*", "path", "worktreePaths/*")
+		add("/branches/tags/*", "time", "taggedAt")
+	case "git-remote-add", "git-remote-update", "git-remote-remove":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
 	}
 	return rules
 }

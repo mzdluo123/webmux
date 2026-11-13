@@ -8,7 +8,16 @@ import {
   CodeDocumentSchema,
 } from "./code-schemas";
 import { GitCommitDraftSchema } from "./git-collab-schemas";
-import { FetchResultSchema, WorktreeChangesSchema } from "./workspace-schemas";
+import { GitCommitOutcomeIdentityFields } from "./git-operation-schemas";
+import { PushCheckSchema, WorktreeChangesSchema } from "./workspace-schemas";
+
+export {
+  GitOperationSchema,
+  GitOperationsSchema,
+  type GitOperation,
+  type GitOperationKind,
+  type GitOperationStatus,
+} from "./git-operation-schemas";
 
 // ---- Read-only repository/worktree Git context, snapshots & compare ----
 
@@ -36,7 +45,15 @@ export const GitFileSchema = z.object({
 export type GitFile = z.infer<typeof GitFileSchema>;
 
 export const GitChangeSchema = CodeChangeSchema.extend({
-  group: z.enum(["unstaged", "staged", "untracked", "commit", "task"]),
+  group: z.enum([
+    "unstaged",
+    "staged",
+    "untracked",
+    "commit",
+    "task",
+    "stash",
+    "revision",
+  ]),
 });
 export type GitChange = z.infer<typeof GitChangeSchema>;
 
@@ -270,11 +287,26 @@ export const GitStageRequestSchema = z
   .strict();
 export type GitStageRequest = z.infer<typeof GitStageRequestSchema>;
 
+export const GitCommitPreviewRequestSchema = z
+  .object({
+    amend: z.boolean().optional(),
+    authorOverride: z.string().optional(),
+    signoff: z.boolean().optional(),
+  })
+  .strict();
+export type GitCommitPreviewRequest = z.infer<
+  typeof GitCommitPreviewRequestSchema
+>;
+
 export const GitCommitIdentitySchema = z.object({
   authorName: z.string(),
   authorEmail: z.string(),
+  authorOverride: z.boolean().optional(),
+  envAuthorName: z.string().optional(),
+  envAuthorEmail: z.string().optional(),
   committerName: z.string(),
   committerEmail: z.string(),
+  signoffTrailer: z.string().optional(),
   signEnabled: z.boolean(),
   signFormat: z.string().optional(),
 });
@@ -293,6 +325,13 @@ export const GitCommitPreviewSchema =
     headState: z.enum(["branch", "detached", "unborn"]),
     branch: z.string().optional(),
     headOid: z.string().optional(),
+    headMessage: z.string().optional(),
+    headParents: z.array(z.string()),
+    headPush: PushCheckSchema,
+    amend: z.boolean(),
+    amendPushed: z.boolean(),
+    authorOverride: z.string().optional(),
+    signoff: z.boolean(),
     expectedTreeOid: z.string().optional(),
     indexDigest: z.string(),
     stagedFiles: z.array(GitCommitFileChangeSchema),
@@ -312,6 +351,7 @@ export const GitCommitRequestSchema = z
     confirmationId: z.string().min(1),
     clientRequestId: z.string().min(1).max(128).optional(),
     message: z.string().min(1),
+    acknowledgePushedAmend: z.boolean().optional(),
   })
   .strict();
 export type GitCommitRequest = z.infer<typeof GitCommitRequestSchema>;
@@ -328,12 +368,11 @@ export type GitCommitOutcomeStatus = z.infer<
 export const GitCommitResultSchema = z.object({
   operationId: z.string().optional(),
   outcome: GitCommitOutcomeStatusSchema,
+  amended: z.boolean().optional(),
   commitOid: z.string().optional(),
-  parents: z.array(z.string()),
   treeOid: z.string().optional(),
   expectedTreeOid: z.string(),
-  subject: z.string().optional(),
-  reviewReasons: z.array(z.string()),
+  ...GitCommitOutcomeIdentityFields,
 });
 export type GitCommitResult = z.infer<typeof GitCommitResultSchema>;
 
@@ -358,73 +397,6 @@ export const GitConflictSchema = z.object({
   currentDraft: GitCommitDraftSchema.optional(),
 });
 export type GitConflict = z.infer<typeof GitConflictSchema>;
-
-// ---- Persistent Git operation ledger ----
-
-const GitOperationKindSchema = z.enum([
-  "commit",
-  "push",
-  "fetch",
-  "fast_forward",
-  "switch",
-  "merge",
-  "rebase",
-  "cherry_pick",
-  "revert",
-  "continue",
-  "abort",
-]);
-export type GitOperationKind = z.infer<typeof GitOperationKindSchema>;
-
-const GitOperationStatusSchema = z.enum([
-  "pending",
-  "running",
-  "succeeded",
-  "needs_review",
-  "failed",
-  "uncertain",
-]);
-export type GitOperationStatus = z.infer<typeof GitOperationStatusSchema>;
-
-const GitOperationPreviewSchema = z.object({
-  worktreePath: z.string().optional(),
-  headState: z.string().optional(),
-  branch: z.string().optional(),
-  headOid: z.string().optional(),
-  expectedTreeOid: z.string().optional(),
-  remote: z.string().optional(),
-  target: z.string().optional(),
-  targetOid: z.string().optional(),
-  publish: z.boolean().optional(),
-  detached: z.boolean().optional(),
-});
-
-export const GitOperationSchema = z.object({
-  id: z.string(),
-  repositoryId: z.string(),
-  worktreeId: z.string().optional(),
-  clientRequestId: z.string().optional(),
-  kind: GitOperationKindSchema,
-  status: GitOperationStatusSchema,
-  confirmationId: z.string().optional(),
-  startedAt: z.iso.datetime({ offset: true }),
-  finishedAt: z.iso.datetime({ offset: true }).nullable(),
-  summary: z.string(),
-  sanitizedOutput: z.string().optional(),
-  remoteStatus: FetchResultSchema.shape.status.optional(),
-  fetchResults: z.array(FetchResultSchema),
-  preview: GitOperationPreviewSchema,
-  actualOid: z.string().optional(),
-  actualTreeOid: z.string().optional(),
-  parents: z.array(z.string()),
-  subject: z.string().optional(),
-  reviewReasons: z.array(z.string()),
-});
-export type GitOperation = z.infer<typeof GitOperationSchema>;
-
-export const GitOperationsSchema = z.object({
-  operations: z.array(GitOperationSchema),
-});
 
 // ---- Fixed worktree task baseline & single-entry net task review ----
 

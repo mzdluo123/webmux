@@ -154,6 +154,10 @@ export type GitSharedBranchActionKind =
   | "fetch"
   | "fast-forward"
   | "push"
+  | "rename-branch"
+  | "set-upstream"
+  | "create-tag"
+  | "delete-tag"
   | "delete";
 
 export interface GitSharedBranchActionItem {
@@ -366,6 +370,22 @@ export function resolveGitBranchActions(options: {
       disabledReason: pushDisabledReason,
     });
 
+    actions.push(
+      {
+        kind: "rename-branch",
+        label: "重命名本地分支…",
+        separatorBefore: true,
+      },
+      {
+        kind: "set-upstream",
+        label: item.upstream ? "修改/取消上游跟踪…" : "设置上游跟踪分支…",
+      },
+      {
+        kind: "create-tag",
+        label: "在此提交新建标签…",
+      },
+    );
+
     const deleteDisabledReason = isCurrent
       ? "当前工作树已检出此分支，无法直接删除"
       : item.occupiedBy
@@ -380,6 +400,26 @@ export function resolveGitBranchActions(options: {
       disabledReason: deleteDisabledReason,
       separatorBefore: true,
     });
+  } else if (item.kind === "remote") {
+    actions.push({
+      kind: "create-tag",
+      label: "在此提交新建标签…",
+      separatorBefore: true,
+    });
+  } else if (item.kind === "tag") {
+    actions.push(
+      {
+        kind: "create-tag",
+        label: "在此提交新建另一标签…",
+        separatorBefore: true,
+      },
+      {
+        kind: "delete-tag",
+        label: "删除本地标签…",
+        destructive: true,
+        separatorBefore: true,
+      },
+    );
   }
 
   return actions;

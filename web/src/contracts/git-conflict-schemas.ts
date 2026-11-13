@@ -23,6 +23,7 @@ const GitSequencerKindSchema = z.enum([
   "cherry_pick",
   "revert",
   "bisect",
+  "unstash",
 ]);
 export type GitSequencerKind = z.infer<typeof GitSequencerKindSchema>;
 

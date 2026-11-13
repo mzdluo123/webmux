@@ -24,6 +24,8 @@
   } from "../../domains/code/code-diff-client";
   import CodeDiffReader from "../code/CodeDiffReader.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import GitCommitPreviewMetaCard from "./GitCommitPreviewMetaCard.svelte";
+  import GitDialogFooter from "./GitDialogFooter.svelte";
   import GitIssueList from "./GitIssueList.svelte";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
 
@@ -34,6 +36,8 @@
     worktreeId,
     submitting = false,
     uncertainBlocked = false,
+    acknowledgePushedAmend: controlledAckPushedAmend,
+    onAcknowledgePushedAmendChange,
     onConfirm,
     onRefreshPreview,
     onCreateBranchFromHead,
@@ -45,11 +49,22 @@
     worktreeId?: string;
     submitting?: boolean;
     uncertainBlocked?: boolean;
+    acknowledgePushedAmend?: boolean;
+    onAcknowledgePushedAmendChange?: (checked: boolean) => void;
     onConfirm: () => void;
     onRefreshPreview?: () => void;
     onCreateBranchFromHead?: () => void;
     onClose: () => void;
   } = $props();
+
+  let localAckPushedAmend = $state(false);
+  const effectiveAckPushedAmend = $derived(
+    controlledAckPushedAmend ?? localAckPushedAmend,
+  );
+  function handleAckPushedAmend(checked: boolean) {
+    localAckPushedAmend = checked;
+    onAcknowledgePushedAmendChange?.(checked);
+  }
 
   let expandedFileId = $state<string | null>(null);
   let inspectState = $state.raw<{
@@ -205,14 +220,24 @@
     return () => ctrl.abort();
   });
 
+  const needsPushedAck = $derived(
+    Boolean(model.amend && model.amendPushed && !effectiveAckPushedAmend),
+  );
   const canExecute = $derived(
     !submitting &&
       !uncertainBlocked &&
       !model.stale &&
       model.blockers.length === 0 &&
-      model.stagedFiles.length > 0 &&
+      (model.stagedFiles.length > 0 || Boolean(model.amend)) &&
+      !needsPushedAck &&
       commitMessage.trim().length > 0,
   );
+  const effectivePreviewMessage = $derived.by(() => {
+    const trimmed = commitMessage.trim();
+    if (!model.signoff || !model.signoffTrailer) return commitMessage;
+    if (trimmed.includes(model.signoffTrailer)) return commitMessage;
+    return `${trimmed}\n\n${model.signoffTrailer}`;
+  });
 
   function toggleInspectFile(id: string) {
     expandedFileId = expandedFileId === id ? null : id;
@@ -222,8 +247,12 @@
 <ResponsiveDialog
   title={model.followUpPush
     ? `确认提交并进入推送预览 · ${model.repositoryName}`
-    : `确认本地提交 · ${model.repositoryName}`}
-  description="以下为真实 Git index（HEAD → index）的完整提交清单，包含工作台与终端预先暂存的全部条目。"
+    : model.amend
+      ? `确认修正上一次提交 (Amend) · ${model.repositoryName}`
+      : `确认本地提交 · ${model.repositoryName}`}
+  description={model.amend
+    ? "以下为修正提交（HEAD^ → index）的完整清单，将替换当前 HEAD 提交。"
+    : "以下为真实 Git index（HEAD → index）的完整提交清单，包含工作台与终端预先暂存的全部条目。"}
   drawerDescription="核对完整 Git index 暂存清单后确认提交。"
   truncateDrawerTitle
   busy={submitting}
@@ -231,38 +260,12 @@
   onclose={onClose}
 >
   <div class="space-y-3">
-    <div
-      class="grid min-w-0 grid-cols-1 gap-1.5 rounded-lg border border-git-border bg-git-panel p-3 text-xs sm:grid-cols-2"
-    >
-      <p class="wrap-anywhere">
-        <span class="text-muted-foreground">目标分支：</span>
-        <span class="font-medium text-foreground">{model.branch}</span>
-      </p>
-      <p class="wrap-anywhere">
-        <span class="text-muted-foreground">工作树：</span>
-        <span class="font-mono text-foreground">{model.worktreePath}</span>
-      </p>
-      <p class="wrap-anywhere">
-        <span class="text-muted-foreground">作者身份：</span>
-        <span class="text-foreground">
-          {model.authorName || "(未配置)"} &lt;{model.authorEmail ||
-            "未配置"}&gt;
-        </span>
-      </p>
-      <p class="wrap-anywhere">
-        <span class="text-muted-foreground">签名与钩子：</span>
-        <span class="text-foreground">
-          {model.signEnabled
-            ? model.signFormat
-              ? `已启用 ${model.signFormat.toUpperCase()} 签名`
-              : "已启用签名"
-            : "未启用签名"} ·
-          {model.executableHooks.length > 0
-            ? model.executableHooks.join(", ")
-            : "无可执行钩子"}
-        </span>
-      </p>
-    </div>
+    <GitCommitPreviewMetaCard
+      {model}
+      acknowledgePushedAmend={effectiveAckPushedAmend}
+      {submitting}
+      onAcknowledgePushedAmendChange={handleAckPushedAmend}
+    />
 
     {#if model.headState === "detached"}
       <InlineNotice tone="warning">
@@ -324,7 +327,9 @@
     <div class="space-y-1.5">
       <div class="flex flex-wrap items-center justify-between gap-1">
         <span class="text-xs font-semibold text-foreground">
-          即将写入本次提交的完整 HEAD → index 条目 ({model.stagedFiles.length})
+          {model.amend
+            ? `即将写入修正提交的完整 HEAD^ → index 条目 (${model.stagedFiles.length})`
+            : `即将写入本次提交的完整 HEAD → index 条目 (${model.stagedFiles.length})`}
         </span>
         <span class="text-xs text-muted-foreground">
           未暂存排除：{model.unstagedCount} · 未跟踪排除：{model.untrackedCount}
@@ -408,29 +413,25 @@
       >
       <p
         class="mt-1 max-h-24 overflow-y-auto font-mono text-xs whitespace-pre-wrap wrap-anywhere text-foreground"
+        data-testid="git-commit-preview-message"
       >
-        {commitMessage}
+        {effectivePreviewMessage}
       </p>
     </div>
 
-    <div
-      class="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2 pt-1"
-    >
-      <Button variant="outline" wrap disabled={submitting} onclick={onClose}>
-        取消
-      </Button>
-      <Button
-        variant="git-primary"
-        wrap
-        disabled={!canExecute}
-        onclick={onConfirm}
-      >
-        {#if submitting}
-          正在提交…
-        {:else}
-          {model.followUpPush ? "确认提交并继续预览推送" : "确认本地提交"}
-        {/if}
-      </Button>
-    </div>
+    <GitDialogFooter
+      {submitting}
+      canConfirm={canExecute}
+      wrap
+      confirmLabel={model.followUpPush
+        ? "确认提交并继续预览推送"
+        : model.amend
+          ? "确认修正本地提交 (Amend)"
+          : "确认本地提交"}
+      submittingLabel="正在提交…"
+      confirmTestId="git-commit-preview-confirm-btn"
+      {onConfirm}
+      {onClose}
+    />
   </div>
 </ResponsiveDialog>

@@ -1,0 +1,54 @@
+{
+  "status": 200,
+  "body": {
+    "change": {
+      "changeId": "221d949deea9b9ee13b58968de5f657bc52444e821b8920850e1240bbaf2793f",
+      "group": "stash",
+      "newMode": "100644",
+      "newOid": "18f5855c40c8911cfe434c00fbc49f5dda47b44f",
+      "newPath": "stash-note.txt",
+      "nodeId": "c3Rhc2gtbm90ZS50eHQ",
+      "oldMode": "000000",
+      "oldOid": "0000000000000000000000000000000000000000",
+      "oldPath": "stash-note.txt",
+      "reviewVersion": "221d949deea9b9ee13b58968de5f657bc52444e821b8920850e1240bbaf2793f",
+      "status": "A"
+    },
+    "checkedAt": "<time>",
+    "kind": "text",
+    "new": {
+      "absolutePath": "<repo>/stash-note.txt",
+      "contentVersion": "0608636df3d369028c3bf67a5ad30dd0ee20aa1060622994e22d1d02ac68d2e8",
+      "downloadable": true,
+      "kind": "text",
+      "lineCount": 1,
+      "mediaType": "",
+      "nodeId": "c3Rhc2gtbm90ZS50eHQ",
+      "oid": "18f5855c40c8911cfe434c00fbc49f5dda47b44f",
+      "path": "stash-note.txt",
+      "reason": "",
+      "referenceable": true,
+      "size": 15,
+      "source": "commit:ed954172eedaaaa39dd220738b309ba06a6d4734",
+      "text": "untracked note\n"
+    },
+    "old": {
+      "absolutePath": "<repo>/stash-note.txt",
+      "contentVersion": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "downloadable": false,
+      "kind": "text",
+      "lineCount": 0,
+      "mediaType": "",
+      "nodeId": "c3Rhc2gtbm90ZS50eHQ",
+      "oid": "",
+      "path": "stash-note.txt",
+      "reason": "",
+      "referenceable": true,
+      "size": 0,
+      "source": "empty",
+      "text": ""
+    },
+    "reason": "",
+    "snapshotId": "<snapshotId#6>"
+  }
+}

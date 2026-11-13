@@ -60,6 +60,28 @@ export function gitOperationKindLabel(kind: GitOperationKind): string {
       return "继续操作";
     case "abort":
       return "中止操作";
+    case "stash_push":
+      return "新建贮藏";
+    case "stash_apply":
+      return "应用贮藏";
+    case "stash_pop":
+      return "弹出贮藏";
+    case "stash_drop":
+      return "丢弃贮藏";
+    case "branch_rename":
+      return "重命名分支";
+    case "branch_upstream":
+      return "设置上游跟踪";
+    case "tag_create":
+      return "新建标签";
+    case "tag_delete":
+      return "删除标签";
+    case "remote_add":
+      return "添加远程仓库";
+    case "remote_update":
+      return "编辑远程仓库";
+    case "remote_remove":
+      return "移除远程仓库";
   }
 }
 

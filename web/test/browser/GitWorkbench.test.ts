@@ -506,9 +506,9 @@ test("Branches pane guides occupied worktree instead of conflicting checkout and
   await page.getByRole("button", { name: "打开所在工作树" }).click();
   expect(onOpenWorktree).toHaveBeenCalledWith("wt-feat", "/work/webmux-feat");
 
-  // Explicitly assert no fake V2/V3 action buttons exist.
+  // Explicitly assert no unimplemented V3 action buttons (e.g. Force Push / Bisect) exist.
   await expect
-    .element(page.getByRole("button", { name: /Stash|Rebase|Cherry-pick/i }))
+    .element(page.getByRole("button", { name: /Force Push|Bisect/i }))
     .not.toBeInTheDocument();
 });
 

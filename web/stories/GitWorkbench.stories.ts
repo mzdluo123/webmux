@@ -76,3 +76,23 @@ export const DivergenceRebasePreview: Story = {
 export const AbortOperationDialog: Story = {
   args: { scenario: "abort-operation-dialog" },
 };
+
+export const StashViewUntracked: Story = {
+  args: { scenario: "stash-view-untracked" },
+};
+
+export const StashPopConflictPreserved: Story = {
+  args: { scenario: "stash-pop-conflict" },
+};
+
+export const CommitAmendPushedWarning: Story = {
+  args: { scenario: "commit-amend-pushed" },
+};
+
+export const BranchesTagsAndRemotes: Story = {
+  args: { scenario: "branches-tags-remotes" },
+};
+
+export const FileHistoryAndBlame: Story = {
+  args: { scenario: "file-history-blame" },
+};

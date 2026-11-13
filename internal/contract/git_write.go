@@ -77,17 +77,25 @@ type GitStageRequest struct {
 	HunkIDs  []string             `json:"hunkIds,omitempty"`
 }
 
-// GitCommitPreviewRequest is the optional empty JSON body of
+// GitCommitPreviewRequest is the optional JSON body of
 // POST .../git/commit-preview.
-type GitCommitPreviewRequest struct{}
+type GitCommitPreviewRequest struct {
+	Amend          bool   `json:"amend,omitempty"`
+	AuthorOverride string `json:"authorOverride,omitempty"`
+	Signoff        bool   `json:"signoff,omitempty"`
+}
 
 // GitCommitIdentity summarizes effective Git author, committer, and signing
 // configuration for a worktree commit preview.
 type GitCommitIdentity struct {
 	AuthorName     string `json:"authorName"`
 	AuthorEmail    string `json:"authorEmail"`
+	AuthorOverride bool   `json:"authorOverride,omitempty"`
+	EnvAuthorName  string `json:"envAuthorName,omitempty"`
+	EnvAuthorEmail string `json:"envAuthorEmail,omitempty"`
 	CommitterName  string `json:"committerName"`
 	CommitterEmail string `json:"committerEmail"`
+	SignoffTrailer string `json:"signoffTrailer,omitempty"`
 	SignEnabled    bool   `json:"signEnabled"`
 	SignFormat     string `json:"signFormat,omitempty"`
 }
@@ -103,6 +111,13 @@ type GitCommitPreview struct {
 	HeadState       string                `json:"headState"`
 	Branch          string                `json:"branch,omitempty"`
 	HeadOID         string                `json:"headOid,omitempty"`
+	HeadMessage     string                `json:"headMessage,omitempty"`
+	HeadParents     []string              `json:"headParents"`
+	HeadPush        PushCheck             `json:"headPush"`
+	Amend           bool                  `json:"amend"`
+	AmendPushed     bool                  `json:"amendPushed"`
+	AuthorOverride  string                `json:"authorOverride,omitempty"`
+	Signoff         bool                  `json:"signoff"`
 	ExpectedTreeOID string                `json:"expectedTreeOid,omitempty"`
 	IndexDigest     string                `json:"indexDigest"`
 	StagedFiles     []GitCommitFileChange `json:"stagedFiles"`
@@ -118,21 +133,27 @@ type GitCommitPreview struct {
 
 // GitCommitRequest is the body of POST .../git/commit.
 type GitCommitRequest struct {
-	ConfirmationID  string `json:"confirmationId"`
-	ClientRequestID string `json:"clientRequestId,omitempty"`
-	Message         string `json:"message"`
+	ConfirmationID         string `json:"confirmationId"`
+	ClientRequestID        string `json:"clientRequestId,omitempty"`
+	Message                string `json:"message"`
+	AcknowledgePushedAmend bool   `json:"acknowledgePushedAmend,omitempty"`
 }
 
 // GitCommitResult answers POST .../git/commit after reflog attribution and
-// {oid, parents, tree} verification.
+// {oid, parents, tree, author, committer} verification.
 type GitCommitResult struct {
 	OperationID     string   `json:"operationId,omitempty"`
 	Outcome         string   `json:"outcome"`
+	Amended         bool     `json:"amended,omitempty"`
 	CommitOID       string   `json:"commitOid,omitempty"`
 	Parents         []string `json:"parents"`
 	TreeOID         string   `json:"treeOid,omitempty"`
 	ExpectedTreeOID string   `json:"expectedTreeOid"`
 	Subject         string   `json:"subject,omitempty"`
+	AuthorName      string   `json:"authorName,omitempty"`
+	AuthorEmail     string   `json:"authorEmail,omitempty"`
+	CommitterName   string   `json:"committerName,omitempty"`
+	CommitterEmail  string   `json:"committerEmail,omitempty"`
 	ReviewReasons   []string `json:"reviewReasons"`
 }
 

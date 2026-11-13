@@ -19,6 +19,11 @@ for (const story of [
   "conflict-binary-variant",
   "divergence-rebase-preview",
   "abort-operation-dialog",
+  "stash-view-untracked",
+  "stash-pop-conflict-preserved",
+  "commit-amend-pushed-warning",
+  "branches-tags-and-remotes",
+  "file-history-and-blame",
 ] as const) {
   test(`git workbench ${story} fits every layout`, async ({ page }) => {
     test.slow();
@@ -38,7 +43,8 @@ for (const story of [
         story === "push-confirmation-dialog" ||
         story === "rework-session-handoff" ||
         story === "divergence-rebase-preview" ||
-        story === "abort-operation-dialog"
+        story === "abort-operation-dialog" ||
+        story === "file-history-and-blame"
       ) {
         await expectDialogFits(page, dialog, name);
       }

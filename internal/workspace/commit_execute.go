@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -20,23 +19,29 @@ const (
 
 // ExecuteCommitRequest confirms and runs a previously previewed full-index commit.
 type ExecuteCommitRequest struct {
-	RepositoryID    string `json:"repositoryId"`
-	WorktreeID      string `json:"worktreeId"`
-	ConfirmationID  string `json:"confirmationId"`
-	ClientRequestID string `json:"clientRequestId,omitempty"`
-	Message         string `json:"message"`
+	RepositoryID           string `json:"repositoryId"`
+	WorktreeID             string `json:"worktreeId"`
+	ConfirmationID         string `json:"confirmationId"`
+	ClientRequestID        string `json:"clientRequestId,omitempty"`
+	Message                string `json:"message"`
+	AcknowledgePushedAmend bool   `json:"acknowledgePushedAmend,omitempty"`
 }
 
 // CommitResult classifies the outcome of ExecuteCommit after reflog attribution
-// and {oid, parents, tree} verification.
+// and {oid, parents, tree, author, committer} verification.
 type CommitResult struct {
 	OperationID     string   `json:"operationId,omitempty"`
 	Outcome         string   `json:"outcome"` // "matched" | "needs_review" | "uncertain"
+	Amended         bool     `json:"amended,omitempty"`
 	CommitOID       string   `json:"commitOid,omitempty"`
 	Parents         []string `json:"parents,omitempty"`
 	TreeOID         string   `json:"treeOid,omitempty"`
 	ExpectedTreeOID string   `json:"expectedTreeOid"`
 	Subject         string   `json:"subject,omitempty"`
+	AuthorName      string   `json:"authorName,omitempty"`
+	AuthorEmail     string   `json:"authorEmail,omitempty"`
+	CommitterName   string   `json:"committerName,omitempty"`
+	CommitterEmail  string   `json:"committerEmail,omitempty"`
 	ReviewReasons   []string `json:"reviewReasons,omitempty"`
 }
 
@@ -46,7 +51,7 @@ type afterCommitHookKey struct{}
 // gate, runs normal `git commit` respecting hooks/filters/signing, never removes
 // external Git lock files, and reconciles the created commit via GIT_REFLOG_ACTION.
 func (s *Service) ExecuteCommit(ctx context.Context, req ExecuteCommitRequest) (CommitResult, error) {
-	reqHash := hashOperationRequest(GitOpCommit, req.RepositoryID, req.WorktreeID, req.ConfirmationID, req.Message)
+	reqHash := hashOperationRequest(GitOpCommit, req.RepositoryID, req.WorktreeID, req.ConfirmationID, req.Message, fmtBool(req.AcknowledgePushedAmend))
 	return runIdempotentOperation(
 		ctx, s, req.RepositoryID, req.ClientRequestID, GitOpCommit, reqHash,
 		replayCommitOperation,
@@ -77,6 +82,10 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 	if err != nil {
 		return CommitResult{}, err
 	}
+	r, err := s.repository(req.RepositoryID)
+	if err != nil {
+		return CommitResult{}, err
+	}
 	if err := s.acquireWorktreeWrite(ctx, loc.Path); err != nil {
 		return CommitResult{}, err
 	}
@@ -90,7 +99,11 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 	}
 
 	recheckCtx, recheckCancel := context.WithTimeout(ctx, readTimeout)
-	current, err := s.buildCommitPreviewLocked(recheckCtx, loc)
+	current, err := s.buildCommitPreviewLocked(recheckCtx, r, loc, CommitPreviewOptions{
+		Amend:          confirmed.amend,
+		AuthorOverride: confirmed.authorOverride,
+		Signoff:        confirmed.signoff,
+	})
 	recheckCancel()
 	if err != nil {
 		return CommitResult{}, err
@@ -105,7 +118,14 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 		current.expectedTreeOID != confirmed.expectedTreeOID {
 		return CommitResult{}, problemf(ErrStale, "预览后 HEAD 或暂存区已被外部修改，当前确认已失效；保留提交说明草稿，请重新预览")
 	}
+	if confirmed.amend && (confirmed.amendPushed || current.amendPushed) && !req.AcknowledgePushedAmend {
+		return CommitResult{}, problemf(ErrBlocked, "该提交已推送至远端，修正将改写提交历史并导致分支与上游分叉；请显式勾选风险确认后再执行")
+	}
 
+	startSummary := "正在创建提交"
+	if confirmed.amend {
+		startSummary = "正在修正（Amend）上一次提交"
+	}
 	if err := s.recordOperationStart(GitOperation{
 		ID:              opID,
 		RepositoryID:    req.RepositoryID,
@@ -116,13 +136,17 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 		Status:          GitOpRunning,
 		ConfirmationID:  req.ConfirmationID,
 		StartedAt:       time.Now().UTC(),
-		Summary:         "正在创建提交",
+		Summary:         startSummary,
 		Preview: GitOperationPreview{
 			WorktreePath:    loc.Path,
 			HeadState:       confirmed.headState,
 			Branch:          confirmed.branch,
 			HeadOID:         confirmed.headOID,
 			ExpectedTreeOID: confirmed.expectedTreeOID,
+			ExpectedParents: append([]string(nil), confirmed.expectedParents...),
+			Amend:           confirmed.amend,
+			AuthorOverride:  confirmed.authorOverride,
+			Signoff:         confirmed.signoff,
 		},
 	}); err != nil {
 		return CommitResult{}, err
@@ -132,17 +156,27 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 	}
 
 	reflogTag := "webmux-commit:" + opID
+	gitArgs := []string{
+		"-C", loc.Path,
+		"-c", "core.logAllRefUpdates=always",
+		"-c", "user.useConfigOnly=true",
+		"commit", "-F", "-",
+	}
+	if confirmed.amend {
+		gitArgs = append(gitArgs, "--amend")
+	}
+	if confirmed.signoff {
+		gitArgs = append(gitArgs, "--signoff")
+	}
+	if confirmed.authorOverride != "" {
+		gitArgs = append(gitArgs, "--author="+confirmed.authorOverride)
+	}
 
 	commitCtx, commitCancel := context.WithTimeout(context.WithoutCancel(ctx), commitExecuteTimeout)
 	stdout := &boundedOutput{limit: maxWorkspaceGitOutput, cancel: commitCancel}
 	run := runGitProcess(commitCtx, gitProcess{
-		path: s.gitPath,
-		args: []string{
-			"-C", loc.Path,
-			"-c", "core.logAllRefUpdates=always",
-			"-c", "user.useConfigOnly=true",
-			"commit", "-F", "-",
-		},
+		path:        s.gitPath,
+		args:        gitArgs,
 		env:         append(append([]string{}, gitEnv...), "GIT_REFLOG_ACTION="+reflogTag),
 		stdin:       strings.NewReader(req.Message),
 		stdout:      stdout,
@@ -189,6 +223,7 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 				res := CommitResult{
 					OperationID:     opID,
 					Outcome:         CommitOutcomeUncertain,
+					Amended:         confirmed.amend,
 					ExpectedTreeOID: confirmed.expectedTreeOID,
 					ReviewReasons:   []string{"提交命令超时，无法唯一确认是否已产生提交，请检查提交历史"},
 				}
@@ -209,6 +244,7 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 		res := CommitResult{
 			OperationID:     opID,
 			Outcome:         CommitOutcomeUncertain,
+			Amended:         confirmed.amend,
 			ExpectedTreeOID: confirmed.expectedTreeOID,
 			ReviewReasons:   []string{"无法从 HEAD reflog 唯一确认本次操作的提交记录，请刷新历史核对"},
 		}
@@ -222,11 +258,12 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 	}
 
 	actualOID := matches[0]
-	actualTree, actualParents, subject, metaErr := s.readCommitTreeAndParents(scanCtx, loc.Path, actualOID)
+	meta, metaErr := s.readCommitFullMeta(scanCtx, loc.Path, actualOID)
 	if metaErr != nil {
 		res := CommitResult{
 			OperationID:     opID,
 			Outcome:         CommitOutcomeUncertain,
+			Amended:         confirmed.amend,
 			CommitOID:       actualOID,
 			ExpectedTreeOID: confirmed.expectedTreeOID,
 			ReviewReasons:   []string{"已定位提交对象但读取提交元数据失败，请刷新历史核对"},
@@ -241,8 +278,8 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 		return res, nil
 	}
 
-	var expectedParents []string
-	if confirmed.headOID != "" {
+	expectedParents := confirmed.expectedParents
+	if !confirmed.amend && expectedParents == nil && confirmed.headOID != "" {
 		expectedParents = []string{confirmed.headOID}
 	}
 
@@ -253,11 +290,17 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 	if len(matches) > 1 {
 		reasons = append(reasons, "同次提交过程中检测到多次引用更新（例如 post-commit 修正了提交）")
 	}
-	if actualTree != confirmed.expectedTreeOID {
+	if meta.TreeOID != confirmed.expectedTreeOID {
 		reasons = append(reasons, "实际生成的提交树摘要与预览不一致（可能由 pre-commit 等钩子修改并重新暂存了文件）")
 	}
-	if !slices.Equal(actualParents, expectedParents) {
+	if !slices.Equal(meta.Parents, expectedParents) {
 		reasons = append(reasons, "实际提交的父节点列表与预览不一致")
+	}
+	if confirmed.identity.AuthorName != "" && (meta.AuthorName != confirmed.identity.AuthorName || meta.AuthorEmail != confirmed.identity.AuthorEmail) {
+		reasons = append(reasons, "实际提交作者信息与预览不一致（可能被提交钩子改写）")
+	}
+	if confirmed.identity.CommitterName != "" && (meta.CommitterName != confirmed.identity.CommitterName || meta.CommitterEmail != confirmed.identity.CommitterEmail) {
+		reasons = append(reasons, "实际提交者（Committer）信息与预览不一致")
 	}
 
 	latestHead, _ := s.resolveCommitReadOnly(scanCtx, loc.Path, "HEAD")
@@ -269,33 +312,47 @@ func (s *Service) executeCommitOnce(ctx context.Context, req ExecuteCommitReques
 
 	outcome := CommitOutcomeMatched
 	ledgerStatus := GitOpSucceeded
-	summary := "已创建提交 " + shortOID(actualOID)
+	verb := "已创建提交 "
+	if confirmed.amend {
+		verb = "已修正提交 "
+	}
+	summary := verb + shortOID(actualOID)
 	if len(reasons) > 0 {
 		outcome = CommitOutcomeNeedsReview
 		ledgerStatus = GitOpNeedsReview
-		summary = "已创建提交 " + shortOID(actualOID) + "（需复核钩子或树差异）"
+		summary = verb + shortOID(actualOID) + "（需复核钩子或树差异）"
 	}
 	res := CommitResult{
 		OperationID:     opID,
 		Outcome:         outcome,
+		Amended:         confirmed.amend,
 		CommitOID:       actualOID,
-		Parents:         actualParents,
-		TreeOID:         actualTree,
+		Parents:         meta.Parents,
+		TreeOID:         meta.TreeOID,
 		ExpectedTreeOID: confirmed.expectedTreeOID,
-		Subject:         subject,
+		Subject:         meta.Subject,
+		AuthorName:      meta.AuthorName,
+		AuthorEmail:     meta.AuthorEmail,
+		CommitterName:   meta.CommitterName,
+		CommitterEmail:  meta.CommitterEmail,
 		ReviewReasons:   reasons,
 	}
 	s.finalizeOperation(opID, func(op *GitOperation) {
 		op.Status = ledgerStatus
 		op.Summary = summary
 		op.ActualOID = actualOID
-		op.ActualTreeOID = actualTree
-		op.Parents = actualParents
-		op.Subject = subject
+		op.ActualTreeOID = meta.TreeOID
+		op.Parents = meta.Parents
+		op.Subject = meta.Subject
+		op.AuthorName = meta.AuthorName
+		op.AuthorEmail = meta.AuthorEmail
+		op.CommitterName = meta.CommitterName
+		op.CommitterEmail = meta.CommitterEmail
 		op.ReviewReasons = reasons
 		op.SanitizedOutput = combinedOut
 	})
 	s.clearWorktreeCommitDraftBestEffort(req.RepositoryID, req.WorktreeID)
+	s.readRepository(scanCtx, r)
 	return res, nil
 }
 
@@ -304,91 +361,4 @@ func shortOID(oid string) string {
 		return oid[:8]
 	}
 	return oid
-}
-
-func (s *Service) scanCommitReflogWithBranch(ctx context.Context, wtPath string, wtReachable bool, anchorPath, branch, reflogTag string) ([]string, error) {
-	seen := make(map[string]bool)
-	matches := make([]string, 0, 2)
-	addMatches := func(list []string) {
-		for _, oid := range list {
-			if !seen[oid] {
-				seen[oid] = true
-				matches = append(matches, oid)
-			}
-		}
-	}
-	var firstErr error
-	if wtReachable {
-		headMatches, err := s.scanReflogRef(ctx, wtPath, "HEAD", reflogTag)
-		if err != nil {
-			firstErr = err
-		} else {
-			addMatches(headMatches)
-		}
-	}
-	if branch != "" {
-		cwd := anchorPath
-		if wtReachable {
-			cwd = wtPath
-		}
-		branchMatches, err := s.scanReflogRef(ctx, cwd, "refs/heads/"+branch, reflogTag)
-		if err == nil {
-			addMatches(branchMatches)
-			if len(branchMatches) > 0 {
-				firstErr = nil
-			}
-		} else if firstErr == nil {
-			firstErr = err
-		}
-	}
-	return matches, firstErr
-}
-
-func (s *Service) scanReflogRef(ctx context.Context, cwd, ref, reflogTag string) ([]string, error) {
-	data, err := ReadGit(ctx, cwd, maxWorkspaceGitOutput, "log", "-g", "-n", "64", "--no-show-signature", "--format=%H%x00%gs%x00", ref, "--")
-	if err != nil {
-		return nil, err
-	}
-	if len(data) == 0 {
-		return nil, nil
-	}
-	fields := bytes.Split(bytes.TrimSuffix(data, []byte{0}), []byte{0})
-	matches := make([]string, 0, 2)
-	for i := 0; i+1 < len(fields); i += 2 {
-		oid := strings.TrimLeft(string(fields[i]), "\r\n")
-		gs := string(fields[i+1])
-		if !isObjectID(oid) {
-			continue
-		}
-		if gs == reflogTag || strings.HasPrefix(gs, reflogTag+":") || strings.HasPrefix(gs, reflogTag+" ") {
-			matches = append(matches, oid)
-		}
-	}
-	return matches, nil
-}
-
-func (s *Service) readCommitTreeAndParents(ctx context.Context, cwd, oid string) (treeOID string, parents []string, subject string, err error) {
-	data, err := ReadGit(ctx, cwd, maxWorkspaceGitOutput, "log", "-n", "1", "--no-show-signature", "--format=%T%x00%P%x00%s%x00", oid, "--")
-	if err != nil {
-		return "", nil, "", err
-	}
-	fields := bytes.Split(bytes.TrimSuffix(data, []byte{0}), []byte{0})
-	if len(fields) < 3 {
-		return "", nil, "", problemf(ErrInternal, "提交元数据格式无效")
-	}
-	treeOID = strings.TrimSpace(string(fields[0]))
-	rawParents := strings.TrimSpace(string(fields[1]))
-	if rawParents != "" {
-		parents = strings.Fields(rawParents)
-	}
-	subject = string(fields[2])
-	return treeOID, parents, subject, nil
-}
-
-func (s *Service) isAncestorReadOnly(ctx context.Context, cwd, ancestor, descendant string) bool {
-	if s.gitPath == "" {
-		return false
-	}
-	_, run := s.runGit(ctx, cwd, []string{"GIT_OPTIONAL_LOCKS=0"}, "merge-base", "--is-ancestor", ancestor, descendant)
-	return run.err == nil
 }

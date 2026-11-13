@@ -225,7 +225,7 @@ test("Log view filters refs/tags without checkout (U02), paginates %P topology &
     await expect(drawerTree).toBeVisible();
     await drawerTree
       .locator('[data-ref-section="tags"]')
-      .getByRole("button", { name: "v0.9.0", exact: true })
+      .getByRole("button", { name: /^v0\.9\.0(?:\s|$)/ })
       .click();
 
     await expect(
@@ -322,7 +322,7 @@ test("Log view filters refs/tags without checkout (U02), paginates %P topology &
     // Filter by annotated tag v0.9.0
     await tree
       .locator('[data-ref-section="tags"]')
-      .getByRole("button", { name: "v0.9.0", exact: true })
+      .getByRole("button", { name: /^v0\.9\.0(?:\s|$)/ })
       .click();
     await expect(
       page.getByRole("option", { name: /initial seed for log workbench/ }),

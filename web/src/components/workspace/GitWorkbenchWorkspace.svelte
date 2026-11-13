@@ -19,6 +19,7 @@
   import GitConflictView from "./GitConflictView.svelte";
   import GitInProgressBanner from "./GitInProgressBanner.svelte";
   import GitLogPane from "./GitLogPane.svelte";
+  import GitStashPane from "./GitStashPane.svelte";
   import GitWorkbenchModeTabs from "./GitWorkbenchModeTabs.svelte";
   import GitWorktreeGuardState from "./GitWorktreeGuardState.svelte";
 
@@ -142,14 +143,22 @@
     <Tabs.Root
       value={controller.view.mode}
       onValueChange={(next) => {
-        if (next === "log" || next === "commit" || next === "branches") {
+        if (
+          next === "log" ||
+          next === "commit" ||
+          next === "branches" ||
+          next === "stash"
+        ) {
           controller.setMode(next);
         }
       }}
       orientation={desktop.current ? "vertical" : "horizontal"}
       class="min-h-0 min-w-0 flex-1"
     >
-      <GitWorkbenchModeTabs desktop={desktop.current} />
+      <GitWorkbenchModeTabs
+        desktop={desktop.current}
+        stashCount={controller.stash.entries.length}
+      />
 
       <Tabs.Content
         value="log"
@@ -239,6 +248,17 @@
           onRevertCommit={writableWorktree
             ? (oid) => void controller.divergence.openRevertPreview(oid)
             : undefined}
+          onCreateTagCommit={(oid, subject) =>
+            controller.refsManage.openCreateTagDialog(
+              oid,
+              `${oid.slice(0, 7)} · ${subject}`,
+            )}
+          onInspectCommitFile={(path, tab) =>
+            controller.fileInspector.openInspector({
+              path,
+              tab,
+              rev: controller.view.selectedCommitOid ?? undefined,
+            })}
           onAddReworkItem={writableWorktree
             ? (input, opts) => {
                 controller.rework.addItem(input, opts);
@@ -289,6 +309,12 @@
             draftSaving={controller.commitDraft.saving}
             draftRevision={controller.commitDraft.revision}
             draftConflict={controller.commitDraft.conflict}
+            commitAmend={controller.commitOptions.amend}
+            commitAmendPushed={controller.commitOptions.amendPushed}
+            commitAuthorOverride={controller.commitOptions.authorOverride}
+            commitSignoff={controller.commitOptions.signoff}
+            commitSignoffTrailer={controller.commitOptions.signoffTrailer}
+            amendDraftPrompt={controller.commitOptions.draftPrompt}
             activeDiffStale={controller.staging.activeDiffStale}
             activeDiffStaleReason={controller.staging.activeDiffStaleReason}
             uncommittedProgress={controller.reviews.uncommittedProgress}
@@ -349,6 +375,18 @@
               void controller.commitDraft.resolveMergeBoth()}
             onRequestCommitAssist={() =>
               controller.rework.openCommitAssistSheet(activeWorktreeSessions)}
+            onToggleCommitAmend={(checked) =>
+              void controller.commitOptions.toggleAmend(checked)}
+            onResolveAmendDraft={(choice) =>
+              controller.commitOptions.resolveAmendDraft(choice)}
+            onCommitAuthorOverrideChange={(v) =>
+              controller.commitOptions.setAuthorOverride(v)}
+            onToggleCommitSignoff={(checked) =>
+              controller.commitOptions.setSignoff(checked)}
+            onOpenStashCreate={(incUntracked) =>
+              controller.stash.dialogs.openCreateDialog(incUntracked)}
+            onInspectFile={(path, tab) =>
+              controller.fileInspector.openInspector({ path, tab })}
             onOpenConflictResolver={(path) =>
               void controller.conflict.openResolver(path)}
             {onOpenWorktreeTerminal}
@@ -384,6 +422,8 @@
         <GitBranchesPane
           context={controller.view.context}
           branches={controller.view.branches}
+          remotes={controller.view.remotes}
+          remotesController={controller.refsManage.remotes}
           branchFilter={controller.view.branchFilter}
           onFilterInLog={(branch) =>
             controller.setBranchFilter(
@@ -397,6 +437,43 @@
           onOpenOccupiedWorktree={(wtId) => onSwitchWorktree(wtId)}
           onOpenPush={(branch) => onOpenPush(branch)}
           {onBranchAction}
+          onOpenCreateTagFromHead={controller.view.context.headOid
+            ? () =>
+                controller.refsManage.openCreateTagDialog(
+                  controller.view.context.headOid!,
+                  controller.view.context.checkedOutBranch || "HEAD",
+                )
+            : undefined}
+        />
+      </Tabs.Content>
+
+      <Tabs.Content
+        value="stash"
+        class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
+      >
+        <GitStashPane
+          context={controller.view.context}
+          entries={controller.stash.entries}
+          selectedStashOid={controller.stash.selectedStashOid}
+          detail={controller.stash.detail}
+          selectedFileKey={controller.stash.selectedFileKey}
+          diffReader={controller.stash.reader}
+          loadingList={controller.stash.loadingList}
+          loadingDetail={controller.stash.loadingDetail}
+          diffMode={deviceLayout.diffMode}
+          onDiffModeChange={(diffMode) => onUpdateDeviceLayout({ diffMode })}
+          onRefresh={() => void controller.stash.refreshList()}
+          onSelectStash={(oid) => void controller.stash.selectStash(oid)}
+          onSelectFile={(f) => controller.stash.selectFile(f)}
+          onOpenCreate={writableWorktree
+            ? () => controller.stash.dialogs.openCreateDialog(false)
+            : undefined}
+          onOpenApply={writableWorktree
+            ? (entry, mode) =>
+                controller.stash.dialogs.openApplyDialog(entry, mode)
+            : undefined}
+          onOpenDrop={(entry) =>
+            void controller.stash.dialogs.openDropDialog(entry)}
         />
       </Tabs.Content>
     </Tabs.Root>

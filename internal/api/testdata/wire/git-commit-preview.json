@@ -1,6 +1,8 @@
 {
   "status": 200,
   "body": {
+    "amend": false,
+    "amendPushed": false,
     "blockers": [],
     "branch": "main",
     "confirmationId": "<confirmationId#1>",
@@ -8,17 +10,29 @@
     "executableHooks": [],
     "expectedTreeOid": "7316cdbc05a7070b8a86588a9bbaaf90fddca4e4",
     "expiresAt": "<time>",
+    "headMessage": "feat: expand b.txt\n\ncommit body line",
     "headOid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+    "headParents": [
+      "2de8fe1f09b18871f913bbafa26fee479279c2b6"
+    ],
+    "headPush": {
+      "branches": [],
+      "more": 0,
+      "state": "noRemote"
+    },
     "headState": "branch",
     "identity": {
       "authorEmail": "wire@example.invalid",
       "authorName": "Wire test",
       "committerEmail": "wire@example.invalid",
       "committerName": "Wire test",
+      "envAuthorEmail": "wire@example.invalid",
+      "envAuthorName": "Wire test",
       "signEnabled": false
     },
     "indexDigest": "4d9f528c935daf7d0e548c03694f48ec78f6aee532b8cfb6c0919708c0e173e1",
     "repositoryId": "<id#1>",
+    "signoff": false,
     "stagedFiles": [
       {
         "binary": false,

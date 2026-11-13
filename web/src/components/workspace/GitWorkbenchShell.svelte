@@ -15,12 +15,12 @@
   import { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
   import {
     applyShellBranchAction,
-    applyShellClearFilters,
     applyShellClearTaskBaseline,
     applyShellDraftResolution,
+    applyShellResolveAmendDraft,
     applyShellSetTaskBaseline,
     applyShellStageGroup,
-    applyShellStartCompare,
+    applyShellToggleAmend,
     buildShellPushPreview,
   } from "../../domains/workspace/git-shell-actions";
   import {
@@ -31,15 +31,17 @@
     toggleReviewedChange,
   } from "../../domains/workspace/git-workbench-state";
   import type { GitSessionHandoffMode } from "../../hooks/workspace/git-rework-controller.svelte";
+  import { stashFileKey } from "../../hooks/workspace/git-stash-controller.svelte";
   import GitBranchesPane from "./GitBranchesPane.svelte";
   import GitCommitOutcomeBanner from "./GitCommitOutcomeBanner.svelte";
   import GitCommitPane from "./GitCommitPane.svelte";
   import GitConflictView from "./GitConflictView.svelte";
   import GitInProgressBanner from "./GitInProgressBanner.svelte";
-  import GitLogPane from "./GitLogPane.svelte";
+  import GitStashPane from "./GitStashPane.svelte";
   import GitWorkbenchModeTabs from "./GitWorkbenchModeTabs.svelte";
   import GitWorkbenchShellDialogs from "./GitWorkbenchShellDialogs.svelte";
   import GitWorkbenchShellHeader from "./GitWorkbenchShellHeader.svelte";
+  import GitWorkbenchShellLogTab from "./GitWorkbenchShellLogTab.svelte";
   import GitWorkbenchStatusBar from "./GitWorkbenchStatusBar.svelte";
 
   let {
@@ -69,6 +71,7 @@
   let reworkOpen = $derived(initialReworkOpen);
   let handoffMode = $state<GitSessionHandoffMode>("rework");
   let acknowledgeSessions = $state(false);
+  let selectedStashFileKey = $state<string | null>(null);
   let selectedSessionId = $derived(
     simulatedActiveSessions.length === 1
       ? (simulatedActiveSessions[0]?.id ?? "")
@@ -79,7 +82,12 @@
   );
 
   function setMode(next: string) {
-    if (next === "log" || next === "commit" || next === "branches") {
+    if (
+      next === "log" ||
+      next === "commit" ||
+      next === "branches" ||
+      next === "stash"
+    ) {
       view = { ...view, mode: next as GitWorkbenchMode };
     }
   }
@@ -231,103 +239,23 @@
       orientation={desktop.current ? "vertical" : "horizontal"}
       class="min-h-0 min-w-0 flex-1"
     >
-      <GitWorkbenchModeTabs desktop={desktop.current} />
+      <GitWorkbenchModeTabs
+        desktop={desktop.current}
+        stashCount={view.stashes?.length ?? 0}
+      />
 
       <Tabs.Content
         value="log"
         class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
       >
-        <GitLogPane
-          context={view.context}
-          historyState={view.historyState}
-          historyReason={view.historyReason}
-          taskBaseline={view.taskBaseline}
-          nextCursor={view.nextCursor}
-          refsChanged={view.refsChanged}
-          historyLoadingMore={view.historyLoadingMore}
-          scope={view.scope}
-          branchFilter={view.branchFilter}
-          searchQuery={view.searchQuery}
-          authorFilter={view.authorFilter}
-          sinceFilter={view.sinceFilter}
-          untilFilter={view.untilFilter}
-          pathFilter={view.pathFilter}
-          commits={view.commits}
-          commitDetails={view.commitDetails}
-          selectedCommitOid={view.selectedCommitOid}
-          selectedParentByCommit={view.selectedParentByCommit}
-          selectedCommitFilePath={view.selectedCommitFilePath}
-          selectionNotice={view.selectionNotice}
-          compareBaseMarkOid={view.compareBaseMarkOid}
-          compareMode={view.compareMode}
-          branches={view.branches}
-          checkedOutBranch={view.context.checkedOutBranch}
-          onScopeChange={(scope) => (view = { ...view, scope })}
-          onBranchFilterChange={handleBranchFilter}
+        <GitWorkbenchShellLogTab
+          bind:view
+          {readonlyMode}
+          onBranchFilter={handleBranchFilter}
           onBranchAction={handleBranchAction}
-          onSearchChange={(searchQuery) => (view = { ...view, searchQuery })}
-          onAuthorChange={(authorFilter) => (view = { ...view, authorFilter })}
-          onSinceChange={(sinceFilter) => (view = { ...view, sinceFilter })}
-          onUntilChange={(untilFilter) => (view = { ...view, untilFilter })}
-          onPathFilterChange={(pathFilter) => (view = { ...view, pathFilter })}
-          onClearFilters={() => (view = applyShellClearFilters(view))}
-          onToggleFavorite={(name) =>
-            (view = {
-              ...view,
-              branches: view.branches.map((b) =>
-                b.name === name ? { ...b, favorite: !b.favorite } : b,
-              ),
-            })}
-          onSelectCommit={(selectedCommitOid) =>
-            (view = {
-              ...view,
-              selectedCommitOid,
-              selectedCommitFilePath: null,
-              compareMode: null,
-            })}
-          onSelectParent={(commitOid, parentOid) =>
-            (view = {
-              ...view,
-              selectedParentByCommit: {
-                ...view.selectedParentByCommit,
-                [commitOid]: parentOid,
-              },
-              selectedCommitFilePath: null,
-            })}
-          onSelectCommitFile={(selectedCommitFilePath) =>
-            (view = { ...view, selectedCommitFilePath })}
-          onMarkCompareBase={(compareBaseMarkOid) =>
-            (view = { ...view, compareBaseMarkOid })}
-          onStartCompare={(baseOid, targetOid) =>
-            (view = applyShellStartCompare(view, baseOid, targetOid))}
-          onSwapCompareDirection={() => {
-            const cmp = view.compareMode;
-            if (cmp) {
-              view = {
-                ...view,
-                compareMode: {
-                  ...cmp,
-                  baseOid: cmp.targetOid,
-                  targetOid: cmp.baseOid,
-                },
-              };
-            }
-          }}
-          onExitCompare={() => (view = { ...view, compareMode: null })}
-          onSetTaskBaseline={!readonlyMode
-            ? (oid) => (view = applyShellSetTaskBaseline(view, oid))
-            : undefined}
-          onAddReworkItem={!readonlyMode ? handleAddReworkItem : undefined}
-          onCherryPickCommit={(oid) =>
-            (view = {
-              ...view,
-              statusBanner: `已打开遴选预览：${oid.slice(0, 7)}`,
-            })}
-          onRevertCommit={(oid) =>
-            (view = {
-              ...view,
-              statusBanner: `已打开还原预览：${oid.slice(0, 7)}`,
-            })}
+          onSetTaskBaseline={(oid) =>
+            (view = applyShellSetTaskBaseline(view, oid))}
+          onAddReworkItem={handleAddReworkItem}
           onRequestCheckout={handleRequestCheckout}
           onOpenOccupiedWorktree={handleOpenOccupiedWorktree}
         />
@@ -348,6 +276,15 @@
           uncertainBlocked={view.lastCommitOutcome?.status === "uncertain"}
           {draftRevision}
           {draftConflict}
+          commitAmend={Boolean(view.commitAmend)}
+          commitAmendPushed={Boolean(view.commitAmendPushed)}
+          commitAuthorOverride={view.commitAuthorOverride ?? ""}
+          commitSignoff={Boolean(view.commitSignoff)}
+          commitSignoffTrailer={view.commitSignoffTrailer ??
+            (view.context.committerName && view.context.committerEmail
+              ? `Signed-off-by: ${view.context.committerName} <${view.context.committerEmail}>`
+              : "")}
+          amendDraftPrompt={view.amendDraftConflict ?? null}
           hasActiveWorktreeSession={simulatedActiveSessions.length > 0}
           activeSessionCount={simulatedActiveSessions.length}
           onReviewScopeChange={(reviewScope) =>
@@ -402,6 +339,17 @@
             : undefined}
           onOpenCommitPreview={openCommitPreview}
           onOpenPush={() => openPushDialog()}
+          onToggleCommitAmend={(checked) =>
+            (view = applyShellToggleAmend(view, checked))}
+          onResolveAmendDraft={(choice) =>
+            (view = applyShellResolveAmendDraft(view, choice))}
+          onCommitAuthorOverrideChange={(commitAuthorOverride) =>
+            (view = { ...view, commitAuthorOverride })}
+          onToggleCommitSignoff={(commitSignoff) =>
+            (view = { ...view, commitSignoff })}
+          onOpenStashCreate={() =>
+            (view = { ...view, statusBanner: "已打开新建贮藏对话框" })}
+          onInspectFile={() => (view = { ...view, fileInspectorOpen: true })}
           onSelectTaskFile={(selectedPath) =>
             view.taskReview &&
             (view = {
@@ -429,6 +377,7 @@
         <GitBranchesPane
           context={view.context}
           branches={view.branches}
+          remotes={view.remotes}
           branchFilter={view.branchFilter}
           onFilterInLog={(branch) => {
             view = {
@@ -440,6 +389,37 @@
           onOpenOccupiedWorktree={handleOpenOccupiedWorktree}
           onOpenPush={(branch) => openPushDialog(branch)}
           onBranchAction={handleBranchAction}
+        />
+      </Tabs.Content>
+
+      <Tabs.Content
+        value="stash"
+        class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
+      >
+        <GitStashPane
+          context={view.context}
+          entries={view.stashes ?? []}
+          selectedStashOid={view.selectedStashOid ?? null}
+          detail={view.selectedStashDetail ?? null}
+          selectedFileKey={selectedStashFileKey}
+          onSelectStash={(selectedStashOid) =>
+            (view = { ...view, selectedStashOid })}
+          onSelectFile={(f) => (selectedStashFileKey = stashFileKey(f))}
+          onOpenCreate={!readonlyMode
+            ? () => (view = { ...view, statusBanner: "已打开新建贮藏对话框" })
+            : undefined}
+          onOpenApply={!readonlyMode
+            ? (entry, mode) =>
+                (view = {
+                  ...view,
+                  statusBanner: `已打开贮藏${mode === "pop" ? "安全弹出" : "应用"}确认：${entry.stashRef}`,
+                })
+            : undefined}
+          onOpenDrop={(entry) =>
+            (view = {
+              ...view,
+              statusBanner: `已打开丢弃贮藏确认：${entry.stashRef}`,
+            })}
         />
       </Tabs.Content>
     </Tabs.Root>

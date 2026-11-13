@@ -8,10 +8,19 @@
   import type { createGitWorkbenchController } from "../../hooks/workspace/git-workbench-controller.svelte";
   import type { Shell } from "../../hooks/shared/shell.svelte";
   import GitAbortOperationDialog from "./GitAbortOperationDialog.svelte";
+  import GitBranchRenameDialog from "./GitBranchRenameDialog.svelte";
+  import GitBranchUpstreamDialog from "./GitBranchUpstreamDialog.svelte";
   import GitCommitPreviewDialog from "./GitCommitPreviewDialog.svelte";
   import GitDivergencePreviewDialog from "./GitDivergencePreviewDialog.svelte";
+  import GitFileInspectorDialog from "./GitFileInspectorDialog.svelte";
   import GitPushDialog from "./GitPushDialog.svelte";
+  import GitRemotesDialogs from "./GitRemotesDialogs.svelte";
   import GitReworkDialog from "./GitReworkDialog.svelte";
+  import GitStashApplyDialog from "./GitStashApplyDialog.svelte";
+  import GitStashCreateDialog from "./GitStashCreateDialog.svelte";
+  import GitStashDropDialog from "./GitStashDropDialog.svelte";
+  import GitTagCreateDialog from "./GitTagCreateDialog.svelte";
+  import GitTagDeleteDialog from "./GitTagDeleteDialog.svelte";
 
   let {
     controller,
@@ -37,6 +46,9 @@
 
   const stagedChanges = $derived(
     controller.view.workingChanges.filter((c) => c.group === "staged"),
+  );
+  const remoteBranches = $derived(
+    controller.view.branches.filter((b) => b.kind === "remote"),
   );
 
   async function handleDeliverToSession(targetSession: SessionInfo) {
@@ -76,6 +88,9 @@
     submitting={controller.staging.commitSubmitting}
     uncertainBlocked={controller.operations.hasUncertainUnresolved ||
       controller.view.lastCommitOutcome?.status === "uncertain"}
+    acknowledgePushedAmend={controller.commitOptions.acknowledgePushedAmend}
+    onAcknowledgePushedAmendChange={(checked) =>
+      controller.commitOptions.setAcknowledgePushedAmend(checked)}
     onConfirm={() =>
       void controller.confirmCommit((branch, preceding) =>
         onPush(branch, preceding),
@@ -147,5 +162,128 @@
     onDeliverToSession={(s) => void handleDeliverToSession(s)}
     onStartNewSessionWithDraft={handleStartNewSessionWithDraft}
     onClose={() => controller.rework.closeSheet()}
+  />
+{/if}
+
+{#if controller.stash.dialogs.createOpen}
+  <GitStashCreateDialog
+    message={controller.stash.dialogs.createMessage}
+    includeUntracked={controller.stash.dialogs.createIncludeUntracked}
+    keepIndex={controller.stash.dialogs.createKeepIndex}
+    preview={controller.stash.dialogs.createPreview}
+    loading={controller.stash.dialogs.loadingPreview}
+    submitting={controller.stash.dialogs.submitting}
+    acknowledgeSessions={controller.stash.dialogs.acknowledgeSessions}
+    dialogError={controller.stash.dialogs.dialogError}
+    onMessageChange={(val) => controller.stash.dialogs.setCreateMessage(val)}
+    onIncludeUntrackedChange={(checked) =>
+      controller.stash.dialogs.setCreateIncludeUntracked(checked)}
+    onKeepIndexChange={(checked) =>
+      controller.stash.dialogs.setCreateKeepIndex(checked)}
+    onAcknowledgeSessionsChange={(checked) =>
+      controller.stash.dialogs.setAcknowledgeSessions(checked)}
+    onConfirm={() => void controller.stash.dialogs.confirmCreate()}
+    onClose={() => controller.stash.dialogs.closeDialogs()}
+  />
+{/if}
+
+{#if controller.stash.dialogs.applyOpen}
+  <GitStashApplyDialog
+    mode={controller.stash.dialogs.applyMode}
+    reinstateIndex={controller.stash.dialogs.applyReinstateIndex}
+    target={controller.stash.dialogs.applyTarget}
+    preview={controller.stash.dialogs.applyPreview}
+    loading={controller.stash.dialogs.loadingPreview}
+    submitting={controller.stash.dialogs.submitting}
+    acknowledgeSessions={controller.stash.dialogs.acknowledgeSessions}
+    dialogError={controller.stash.dialogs.dialogError}
+    onModeChange={(mode) => controller.stash.dialogs.setApplyMode(mode)}
+    onReinstateIndexChange={(checked) =>
+      controller.stash.dialogs.setApplyReinstateIndex(checked)}
+    onAcknowledgeSessionsChange={(checked) =>
+      controller.stash.dialogs.setAcknowledgeSessions(checked)}
+    onConfirm={() => void controller.stash.dialogs.confirmApply()}
+    onClose={() => controller.stash.dialogs.closeDialogs()}
+  />
+{/if}
+
+{#if controller.stash.dialogs.dropOpen}
+  <GitStashDropDialog
+    target={controller.stash.dialogs.dropTarget}
+    preview={controller.stash.dialogs.dropPreview}
+    loading={controller.stash.dialogs.loadingPreview}
+    submitting={controller.stash.dialogs.submitting}
+    dialogError={controller.stash.dialogs.dialogError}
+    onConfirm={() => void controller.stash.dialogs.confirmDrop()}
+    onClose={() => controller.stash.dialogs.closeDialogs()}
+  />
+{/if}
+
+{#if controller.refsManage.renameOpen}
+  <GitBranchRenameDialog
+    oldName={controller.refsManage.renameOldName}
+    newName={controller.refsManage.renameNewName}
+    preview={controller.refsManage.renamePreview}
+    loading={controller.refsManage.loadingPreview}
+    submitting={controller.refsManage.submitting}
+    acknowledgeSessions={controller.refsManage.renameAckSessions}
+    dialogError={controller.refsManage.dialogError}
+    onNewNameChange={(val) => controller.refsManage.setRenameNewName(val)}
+    onAcknowledgeSessionsChange={(checked) =>
+      controller.refsManage.setRenameAckSessions(checked)}
+    onConfirm={() => void controller.refsManage.confirmRename()}
+    onClose={() => controller.refsManage.closeDialogs()}
+  />
+{/if}
+
+{#if controller.refsManage.upstreamOpen}
+  <GitBranchUpstreamDialog
+    branchName={controller.refsManage.upstreamBranch}
+    currentUpstream={controller.refsManage.upstreamCurrent}
+    selection={controller.refsManage.upstreamSelection}
+    {remoteBranches}
+    submitting={controller.refsManage.submitting}
+    dialogError={controller.refsManage.dialogError}
+    onSelectionChange={(val) => controller.refsManage.setUpstreamSelection(val)}
+    onConfirmSet={() => void controller.refsManage.confirmSetUpstream(false)}
+    onConfirmUnset={() => void controller.refsManage.confirmSetUpstream(true)}
+    onClose={() => controller.refsManage.closeDialogs()}
+  />
+{/if}
+
+{#if controller.refsManage.tagCreateOpen}
+  <GitTagCreateDialog
+    targetOid={controller.refsManage.tagTargetOid}
+    targetLabel={controller.refsManage.tagTargetLabel}
+    tagName={controller.refsManage.tagName}
+    tagKind={controller.refsManage.tagKind}
+    tagMessage={controller.refsManage.tagMessage}
+    submitting={controller.refsManage.submitting}
+    dialogError={controller.refsManage.dialogError}
+    onTagNameChange={(val) => controller.refsManage.setTagName(val)}
+    onTagKindChange={(val) => controller.refsManage.setTagKind(val)}
+    onTagMessageChange={(val) => controller.refsManage.setTagMessage(val)}
+    onConfirm={() => void controller.refsManage.confirmCreateTag()}
+    onClose={() => controller.refsManage.closeDialogs()}
+  />
+{/if}
+
+{#if controller.refsManage.tagDeleteOpen && controller.refsManage.tagDeleteTarget}
+  <GitTagDeleteDialog
+    target={controller.refsManage.tagDeleteTarget}
+    submitting={controller.refsManage.submitting}
+    dialogError={controller.refsManage.dialogError}
+    onConfirm={() => void controller.refsManage.confirmDeleteTag()}
+    onClose={() => controller.refsManage.closeDialogs()}
+  />
+{/if}
+
+<GitRemotesDialogs remotes={controller.refsManage.remotes} />
+
+{#if controller.fileInspector.open}
+  <GitFileInspectorDialog
+    inspector={controller.fileInspector}
+    hasWorktree={Boolean(worktreeId)}
+    onJumpToCommit={(oid) => controller.inspectCommitInLog(oid)}
   />
 {/if}
