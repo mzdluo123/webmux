@@ -44,6 +44,9 @@
         // The actions button over the end of a file-tree row: shown while
         // its row is hovered or focused or its menu is open, always on
         // touch screens.
+        // Inline, always visible review toggle; state changes the icon tone only.
+        "review-toggle":
+          "flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring aria-pressed:text-primary max-sm:size-(--control-touch-compact) any-pointer-coarse:size-(--control-touch-compact) [&_svg]:size-4",
         "file-tree-action":
           "absolute inset-y-0 right-0 flex w-7 items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring aria-expanded:bg-muted aria-expanded:opacity-100 max-sm:w-(--control-touch-compact) any-pointer-coarse:w-(--control-touch-compact) any-pointer-coarse:opacity-100 [&_svg]:size-4",
         // One action of a bottom action sheet; data-destructive marks
