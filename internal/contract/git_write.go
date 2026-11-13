@@ -71,10 +71,18 @@ type GitStagingFileDiff struct {
 	Hunks              []GitStagingHunk     `json:"hunks"`
 }
 
+// GitLineSelection identifies selected changed lines (0-based indices into
+// GitStagingHunk.Lines, referencing only "delete" or "add" lines) inside one hunk.
+type GitLineSelection struct {
+	HunkID      string `json:"hunkId"`
+	LineIndices []int  `json:"lineIndices"`
+}
+
 // GitStageRequest is the body of POST .../git/stage and POST .../git/unstage.
 type GitStageRequest struct {
-	Identity GitStageFileIdentity `json:"identity"`
-	HunkIDs  []string             `json:"hunkIds,omitempty"`
+	Identity       GitStageFileIdentity `json:"identity"`
+	HunkIDs        []string             `json:"hunkIds,omitempty"`
+	LineSelections []GitLineSelection   `json:"lineSelections,omitempty"`
 }
 
 // GitCommitPreviewRequest is the optional JSON body of

@@ -297,3 +297,21 @@
   - 隔离实例全量 Playwright E2E（454 项，含 `git-workbench-stash-blame.spec.ts` 桌面与手机视口）及性能套件（18 项）通过。
 - 限制：
   - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
+
+本次局部核对（2026-11-13）：实现 Git 工作台 V3 任意逐行（Sub-hunk）暂存/取消暂存、带写盘前 SHA-256 新鲜度门禁与恢复快照的 `丢弃更改 (Discard Changes)`，以及基于可追踪受控 Stash 的三阶段 `Smart Checkout`（Issue #551）。
+
+- 故事与文档同步：新增 US-J28，更新 US-J16、US-J19、US-J23，并将 Git 工作台 HTTP 协议路由独立拆分为 `docs/protocol/http-git-workbench.md`，同步更新覆盖索引与持久化/使用/协议文档。
+- 范围：
+  - `internal/worktreefs` 新增 `WriteRegularFile` 支持保留可执行位覆盖或新建工作区普通文件；
+  - `internal/workspace`、`internal/api`、`internal/contract`、`internal/wire` 新增 V3 逐行补丁合成、受控丢弃更改与三阶段 `Smart Checkout` 端点及线上快照：
+    - `POST .../git/stage` 与 `POST .../git/unstage` 支持 `lineSelections: [{hunkId, lineIndices}]`，保留 `100644`/`100755` 权限、`LF`/`CRLF` 行尾与无末尾换行字节，且工作区原文件零改动；
+    - 两阶段 `discard-preview` / `discard` 支持单文件、多选文件（含未跟踪）、单 Hunk 与选中行，写盘前复核磁盘 SHA-256（`409 stale`）并写入有界恢复提交 `refs/webmux/discard-recovery/<opId>`（绝不触碰 `.git/index`）；
+    - 两阶段 `smart-checkout-preview` / `smart-checkout` 持久化三阶段状态机 `stashing -> switching -> unstashing`（切换失败自动回滚恢复，目标冲突时 100% 保留受控 `stashOid` 并接入 `GitConflictView` 三方裁决）及启动只读对账；
+  - `web/src` 新增逐行暂存面板 `GitStagingLineSelector`、`CodeDiffReader` 选区直连暂存、多选与局部 `GitDiscardPreviewDialog`，以及活跃会话折叠保护下的 `SwitchBranchSmartCheckout`。
+- 依据：
+  - `make persistence-check`、`make docs-check`、`make check` 通过；
+  - `go test -race ./...` 全量通过（含 `internal/worktreefs`、`internal/workspace`、`internal/api` wire 快照与 `internal/docguard`）；
+  - 前端 `git-v3-line-smart.test.ts` 与全量 Vitest 单测（75 文件 1,009 项）、`SwitchBranchDialog.test.ts` / `GitWorkbenchLineSmart.test.ts` 与全量浏览器套件（91 文件 749 项）、Storybook 全量套件（460 项，含多视口与 `320px` 2x 大字号溢出守卫）通过；
+  - 隔离实例 Playwright E2E（103 项，含 `git-workbench-line-smart.spec.ts` 桌面与 320px 手机视口 6 项）及性能套件（18 项）通过。
+- 限制：
+  - 仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。

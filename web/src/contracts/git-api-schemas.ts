@@ -279,10 +279,19 @@ export const GitStagingFileDiffSchema = z.object({
 });
 export type GitStagingFileDiff = z.infer<typeof GitStagingFileDiffSchema>;
 
+export const GitLineSelectionSchema = z
+  .object({
+    hunkId: z.string().min(1),
+    lineIndices: z.array(z.number().int().nonnegative()).min(1),
+  })
+  .strict();
+export type GitLineSelection = z.infer<typeof GitLineSelectionSchema>;
+
 export const GitStageRequestSchema = z
   .object({
     identity: GitStageFileIdentitySchema,
     hunkIds: z.array(z.string().min(1)).optional(),
+    lineSelections: z.array(GitLineSelectionSchema).optional(),
   })
   .strict();
 export type GitStageRequest = z.infer<typeof GitStageRequestSchema>;

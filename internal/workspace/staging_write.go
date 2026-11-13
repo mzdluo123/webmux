@@ -64,17 +64,29 @@ func (s *Service) Stage(ctx context.Context, req StageRequest) error {
 		return problemf(ErrStale, "文件 %s 的工作区或索引内容已变化，快照已过期，请刷新后重试", cleanPath)
 	}
 
-	if len(req.HunkIDs) == 0 {
+	if len(req.HunkIDs) > 0 && len(req.LineSelections) > 0 {
+		return problemf(ErrInvalid, "不能同时指定 hunkIds 与 lineSelections")
+	}
+	if len(req.HunkIDs) == 0 && len(req.LineSelections) == 0 {
 		return s.stageWholeFileLocked(ctx, loc.Path, cleanPath, current)
 	}
 	if !current.HunkStageAvailable {
-		return problemf(ErrConflict, "文件 %s 不支持逐块暂存: %s", cleanPath, current.DegradeReason)
+		return problemf(ErrConflict, "文件 %s 不支持逐块或逐行暂存: %s", cleanPath, current.DegradeReason)
 	}
-	keep, err := validateRequestedHunks(current.Hunks, req.HunkIDs)
-	if err != nil {
-		return err
+	var nextBytes []byte
+	if len(req.LineSelections) > 0 {
+		selected, lErr := validateLineSelections(current.Hunks, req.LineSelections)
+		if lErr != nil {
+			return lErr
+		}
+		nextBytes = spliceLineSelections(current.baseBytes, current.targetBytes, selected, true)
+	} else {
+		keep, hErr := validateRequestedHunks(current.Hunks, req.HunkIDs)
+		if hErr != nil {
+			return hErr
+		}
+		nextBytes = spliceHunkSubset(current.baseBytes, current.targetBytes, keep)
 	}
-	nextBytes := spliceHunkSubset(current.baseBytes, current.targetBytes, keep)
 	blobOID, err := s.writeBlobWithPathFilter(ctx, loc.Path, cleanPath, nextBytes)
 	if err != nil {
 		return err
@@ -165,34 +177,53 @@ func (s *Service) Unstage(ctx context.Context, req StageRequest) error {
 		return problemf(ErrStale, "文件 %s 的索引或 HEAD 已变化，快照已过期，请刷新后重试", cleanPath)
 	}
 
-	if len(req.HunkIDs) == 0 {
+	if len(req.HunkIDs) > 0 && len(req.LineSelections) > 0 {
+		return problemf(ErrInvalid, "不能同时指定 hunkIds 与 lineSelections")
+	}
+	if len(req.HunkIDs) == 0 && len(req.LineSelections) == 0 {
 		return s.unstageWholeFileLocked(ctx, loc.Path, cleanPath, cleanOldPath, current.Identity)
 	}
 	if !current.HunkStageAvailable {
-		return problemf(ErrConflict, "文件 %s 不支持逐块取消暂存: %s", cleanPath, current.DegradeReason)
+		return problemf(ErrConflict, "文件 %s 不支持逐块或逐行取消暂存: %s", cleanPath, current.DegradeReason)
 	}
-	unstageSet, err := validateRequestedHunks(current.Hunks, req.HunkIDs)
-	if err != nil {
-		return err
-	}
-	keep := make(map[string]bool, len(current.Hunks))
-	for _, h := range current.Hunks {
-		if !unstageSet[h.ID] {
-			keep[h.ID] = true
+	var nextBytes []byte
+	allReverted := false
+	if len(req.LineSelections) > 0 {
+		selected, lErr := validateLineSelections(current.Hunks, req.LineSelections)
+		if lErr != nil {
+			return lErr
 		}
+		allReverted = allHunkChangesSelected(current.Hunks, selected)
+		if allReverted && current.Identity.BaseOID == "" {
+			_, _, err = s.gitInputOutput(ctx, loc.Path, nil, nil, "update-index", "--force-remove", "--", cleanPath)
+			return err
+		}
+		nextBytes = spliceLineSelections(current.baseBytes, current.targetBytes, selected, false)
+	} else {
+		unstageSet, hErr := validateRequestedHunks(current.Hunks, req.HunkIDs)
+		if hErr != nil {
+			return hErr
+		}
+		keep := make(map[string]bool, len(current.Hunks))
+		for _, h := range current.Hunks {
+			if !unstageSet[h.ID] {
+				keep[h.ID] = true
+			}
+		}
+		allReverted = len(keep) == 0
+		if allReverted && current.Identity.BaseOID == "" {
+			_, _, err = s.gitInputOutput(ctx, loc.Path, nil, nil, "update-index", "--force-remove", "--", cleanPath)
+			return err
+		}
+		nextBytes = spliceHunkSubset(current.baseBytes, current.targetBytes, keep)
 	}
-	if len(keep) == 0 && current.Identity.BaseOID == "" {
-		_, _, err = s.gitInputOutput(ctx, loc.Path, nil, nil, "update-index", "--force-remove", "--", cleanPath)
-		return err
-	}
-	nextBytes := spliceHunkSubset(current.baseBytes, current.targetBytes, keep)
 	out, _, err := s.gitInputOutput(ctx, loc.Path, bytes.NewReader(nextBytes), nil, "hash-object", "-w", "--no-filters", "--stdin")
 	if err != nil {
 		return err
 	}
 	blobOID := strings.TrimSpace(string(out))
 	mode := current.Identity.TargetMode
-	if len(keep) == 0 && isRegularGitMode(current.Identity.BaseMode) {
+	if allReverted && isRegularGitMode(current.Identity.BaseMode) {
 		mode = current.Identity.BaseMode
 	}
 	if !isRegularGitMode(mode) {

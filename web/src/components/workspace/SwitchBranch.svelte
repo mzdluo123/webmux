@@ -5,9 +5,17 @@
     repositoryCommits,
     switchWorktree,
   } from "../../platform/api";
+  import {
+    gitSmartCheckout,
+    gitSmartCheckoutPreview,
+  } from "../../platform/git-v3-api";
   import type {
     Branches,
     Commit,
+    GitSmartCheckoutPreview,
+    GitSmartCheckoutPreviewRequest,
+    GitSmartCheckoutRequest,
+    GitSmartCheckoutResult,
     SwitchPreview,
     SwitchRequest,
     SwitchTarget,
@@ -28,27 +36,37 @@
       signal: AbortSignal,
     ): Promise<SwitchPreview>;
     switch(tree: Worktree, request: SwitchRequest): Promise<Worktree>;
+    smartPreview?: (
+      tree: Worktree,
+      request: GitSmartCheckoutPreviewRequest,
+      signal: AbortSignal,
+    ) => Promise<GitSmartCheckoutPreview>;
+    smartCheckout?: (
+      tree: Worktree,
+      request: GitSmartCheckoutRequest,
+    ) => Promise<GitSmartCheckoutResult>;
   }
   export const apiSwitchSource: SwitchSource = {
     branches: repositoryBranches,
     commits: repositoryCommits,
     preview: previewSwitch,
     switch: switchWorktree,
+    smartPreview: (tree, request, signal) =>
+      gitSmartCheckoutPreview(tree.repositoryId, tree.id, request, signal),
+    smartCheckout: (tree, request) =>
+      gitSmartCheckout(tree.repositoryId, tree.id, request),
   };
 </script>
 
 <script lang="ts">
   import { onDestroy, untrack } from "svelte";
-  import IconGitBranch from "~icons/tabler/git-branch";
   import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
-  import { Label } from "$lib/components/ui/label";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import { APIError } from "../../platform/api";
   import { commitChoices } from "../../domains/workspace/commit-choices";
   import { generateGitClientRequestId } from "../../domains/workspace/git-operations-model";
   import { errorMessage } from "../../platform/error";
   import { LatestRequest } from "../../hooks/shared/remote-request.svelte";
+  import { createSmartCheckoutController } from "../../hooks/workspace/git-smart-checkout.svelte";
   import type { WorktreePreset } from "../../domains/sessions/new-session-defaults";
   import type { Repository } from "../../contracts/schemas";
   import {
@@ -59,17 +77,17 @@
     resolveSwitchOccupantPath,
     suggestSwitchBranchName,
   } from "../../domains/workspace/worktree-sync";
-  import BranchCommandList from "./BranchCommandList.svelte";
-  import PickerField from "../shared/PickerField.svelte";
   import PreviewForm from "./PreviewForm.svelte";
-  import SwitchBranchCommitSelect from "./SwitchBranchCommitSelect.svelte";
   import SwitchBranchPreview from "./SwitchBranchPreview.svelte";
+  import SwitchBranchSmartCheckout from "./SwitchBranchSmartCheckout.svelte";
+  import SwitchBranchTargetFields, {
+    type SwitchTargetMode,
+  } from "./SwitchBranchTargetFields.svelte";
 
   // Switching a worktree's branch in place: choose an existing branch, a new
   // one or a commit to detach to; every choice is previewed by the server
   // (blockers, warnings, the sessions that keep running) and only a clean
-  // preview can be confirmed. The same content sits in a dialog (home page,
-  // sidebar) or in a repository panel subview; the host closes or goes back.
+  // preview can be confirmed (or carried across via tracked-stash Smart Checkout).
   let {
     repository,
     worktree,
@@ -82,6 +100,7 @@
     onchange,
     onnewworktree,
     ongoto,
+    onopenconflict,
     oncancel,
   }: {
     repository: Repository;
@@ -100,11 +119,12 @@
     onnewworktree: (preset: WorktreePreset) => void;
     /** Shows the worktree at a path: the one that has the target checked out. */
     ongoto: (path: string) => void;
+    /** Opens the 3-way conflict resolver when Smart Checkout encounters conflicts. */
+    onopenconflict?: (tree: Worktree, path?: string) => void;
     oncancel: () => void;
   } = $props();
 
-  type Mode = "existing" | "new" | "detach";
-  let mode = $state<Mode>(untrack(() => initialMode));
+  let mode = $state<SwitchTargetMode>(untrack(() => initialMode));
 
   let data = $state<Branches | null>(null);
   let loadError = $state("");
@@ -141,25 +161,9 @@
     remotes.map((item) => ({ name: item.name })),
   );
   let chosen = $state<{ kind: "local" | "remote"; name: string } | null>(null);
-  let branchOpen = $state(false);
-  let branchSearch = $state("");
-  const setBranchOpen = (next: boolean) => (
-    (branchOpen = next),
-    !next && (branchSearch = "")
-  );
-  const selectBranch = (name: string) => (
-    (chosen = { kind: localNames.has(name) ? "local" : "remote", name }),
-    setBranchOpen(false)
-  );
   let newName = $state("");
   let startPoint = $state(
     untrack(() => initialStartPoint ?? worktree.branch ?? worktree.head ?? ""),
-  );
-  let startOpen = $state(false);
-  let startSearch = $state("");
-  const setStartOpen = (next: boolean) => (
-    (startOpen = next),
-    !next && (startSearch = "")
   );
   const suggestion = (avoid?: string) =>
     suggestSwitchBranchName(localNames, repository, avoid);
@@ -167,6 +171,7 @@
   const startIsBranch = $derived(
     localNames.has(startPoint) || remotes.some((r) => r.name === startPoint),
   );
+
   let commits = $state<Commit[]>([]);
   let commitsRead = $state(false);
   let commitsError = $state("");
@@ -198,8 +203,6 @@
     if (next !== "existing" && next !== "new" && next !== "detach") return;
     if (next === mode) return;
     mode = next;
-    setBranchOpen(false);
-    setStartOpen(false);
     if (next === "new" && !newName && data) newName = suggestion();
     if (next === "detach" && !commitsRead) void readCommits();
   }
@@ -222,12 +225,29 @@
   let conflict = $state("");
   let error = $state("");
   const previews = new LatestRequest();
+
+  const smart = createSmartCheckoutController({
+    getWorktree: () => untrack(() => worktree),
+    getTarget: () => target,
+    getPlainPreview: () => preview,
+    getBusy: () => busy,
+    setBusy: (next) => {
+      busy = next;
+    },
+    getSource: () => source,
+    onDone: (tree) => ondone(tree),
+    onChange: () => onchange(),
+    onReloadPlainPreview: (next) => void readPreview(next),
+  });
+
   onDestroy(() => {
     previews.dispose();
     branchRequests.dispose();
     commitRequests.dispose();
+    smart.dispose();
   });
   void readBranches();
+
   async function readPreview(next: SwitchTarget) {
     const request = previews.begin();
     previewing = true;
@@ -237,21 +257,26 @@
       if (!request.current()) return;
       preview = result;
       acknowledged = false;
+      smart.syncPlainPreview(result);
     } catch (err) {
       if (request.reportable()) {
         preview = null;
         previewError = errorMessage(err);
+        smart.syncPlainPreview(null);
       }
     } finally {
       if (request.current()) previewing = false;
     }
   }
+
   function resetPreview() {
     previews.cancel();
     preview = null;
     previewing = false;
     previewError = "";
+    smart.resetAll();
   }
+
   $effect(() => {
     if (!targetKey) {
       untrack(resetPreview);
@@ -265,6 +290,7 @@
       conflict = "";
       error = "";
       previewing = true;
+      smart.resetAll();
     });
     const timer = setTimeout(
       () => void readPreview(next),
@@ -280,8 +306,6 @@
   const newWorktreePreset = $derived(
     resolveSwitchNewWorktreePreset(preview, target, startIsBranch),
   );
-
-  const short = (hash: string | null | undefined) => hash?.slice(0, 8) ?? "";
 
   async function submit() {
     if (!canSwitch || !preview || !target) return;
@@ -314,20 +338,6 @@
   }
 </script>
 
-{#snippet pickerFace(value: string, placeholder: string)}
-  {#if value}
-    <IconGitBranch
-      class="size-4 shrink-0 text-muted-foreground"
-      aria-hidden="true"
-    />
-    <span class="min-w-0 flex-1 truncate" title={value}>{value}</span>
-  {:else}
-    <span class="text-sm text-muted-foreground">
-      {data || loadError ? placeholder : "正在读取分支…"}
-    </span>
-  {/if}
-{/snippet}
-
 <PreviewForm {busy} {error} onsubmit={() => void submit()} onclose={oncancel}>
   {#snippet summary()}
     <p
@@ -336,115 +346,33 @@
       {worktree.path}
     </p>
   {/snippet}
-  <SegmentedControl.Root
-    size="form"
-    wrap
-    value={mode}
-    onValueChange={changeMode}
-    disabled={busy}
-    aria-label="切换目标"
-  >
-    <SegmentedControl.Item value="existing">已有分支</SegmentedControl.Item>
-    <SegmentedControl.Item value="new">新建分支</SegmentedControl.Item>
-    <SegmentedControl.Item value="detach">分离到提交</SegmentedControl.Item>
-  </SegmentedControl.Root>
-  {#if loadError}<p role="alert" class="text-sm break-all text-destructive">
-      无法读取分支：{loadError}
-    </p>{/if}
 
-  {#if mode === "existing"}
-    <div class="space-y-2">
-      <Label for="switch-branch">目标分支</Label>
-      <PickerField
-        id="switch-branch"
-        bind:open={() => branchOpen, setBranchOpen}
-        disabled={busy || !data}
-      >
-        {#snippet trigger()}{@render pickerFace(
-            chosen?.name ?? "",
-            "选择本地或远程分支",
-          )}{/snippet}
-        <BranchCommandList
-          label="目标分支"
-          branches={localItems}
-          remoteBranches={remoteItems}
-          selected={chosen?.name ?? ""}
-          loading={!data && !loadError}
-          failed={!!loadError}
-          disabled={busy}
-          bind:search={branchSearch}
-          onselect={selectBranch}
-        />
-      </PickerField>
-      <p class="text-xs text-muted-foreground">
-        远程分支会新建同名本地分支并设为其上游。
-      </p>
-    </div>
-  {:else if mode === "new"}
-    <div class="space-y-3">
-      <div class="space-y-2">
-        <div class="flex items-center justify-between gap-2">
-          <Label for="switch-new-branch">新分支名称</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy || !data}
-            onclick={() => (newName = suggestion(newName || undefined))}
-            >换一个</Button
-          >
-        </div>
-        <Input
-          id="switch-new-branch"
-          bind:value={newName}
-          disabled={busy}
-          placeholder="feature/my-task"
-          autocomplete="off"
-          autocapitalize="off"
-          autocorrect="off"
-          spellcheck={false}
-        />
-        {#if nameTaken}<p role="alert" class="text-xs text-destructive">
-            已有同名本地分支；请换一个名称，或在“已有分支”中选择它。
-          </p>{/if}
-      </div>
-      <div class="space-y-2">
-        <Label for="switch-start-point">起点</Label>
-        <PickerField
-          id="switch-start-point"
-          bind:open={() => startOpen, setStartOpen}
-          disabled={busy || !data}
-        >
-          {#snippet trigger()}{@render pickerFace(
-              startIsBranch || !startPoint
-                ? startPoint
-                : `当前提交 ${short(startPoint)}`,
-              "选择起点",
-            )}{/snippet}
-          <BranchCommandList
-            label="起点"
-            branches={localBranchList}
-            remoteBranches={remoteBranchList}
-            selected={startPoint}
-            loading={!data && !loadError}
-            failed={!!loadError}
-            disabled={busy}
-            bind:search={startSearch}
-            onselect={(name) => ((startPoint = name), setStartOpen(false))}
-          />
-        </PickerField>
-        <p class="text-xs text-muted-foreground">新分支不设置上游。</p>
-      </div>
-    </div>
-  {:else}
-    <SwitchBranchCommitSelect
-      bind:commit
-      {commitRows}
-      {commitsRead}
-      {commitsError}
-      {busy}
-    />
-  {/if}
+  <SwitchBranchTargetFields
+    {mode}
+    {busy}
+    {data}
+    {loadError}
+    chosenName={chosen?.name ?? ""}
+    {localItems}
+    {remoteItems}
+    {localBranchList}
+    {remoteBranchList}
+    bind:newName
+    {nameTaken}
+    bind:startPoint
+    {startIsBranch}
+    bind:commit
+    {commitRows}
+    {commitsRead}
+    {commitsError}
+    onModeChange={changeMode}
+    onSelectBranch={(name) => {
+      chosen = { kind: localNames.has(name) ? "local" : "remote", name };
+    }}
+    onSuggestName={() => {
+      newName = suggestion(newName || undefined);
+    }}
+  />
 
   <SwitchBranchPreview
     {preview}
@@ -455,6 +383,8 @@
     bind:acknowledged
     {busy}
   />
+
+  <SwitchBranchSmartCheckout {smart} {worktree} {busy} {onopenconflict} />
 
   {#snippet actions()}
     {#if occupant}

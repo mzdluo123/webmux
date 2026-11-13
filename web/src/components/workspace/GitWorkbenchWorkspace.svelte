@@ -361,6 +361,16 @@
               void controller.stageOrUnstage("stage", id, hId)}
             onUnstageHunk={(id, hId) =>
               void controller.stageOrUnstage("unstage", id, hId)}
+            onStageLines={(id, sel) =>
+              void controller.stageOrUnstage("stage", id, undefined, sel)}
+            onUnstageLines={(id, sel) =>
+              void controller.stageOrUnstage("unstage", id, undefined, sel)}
+            onDiscardChanges={(ids, paths) =>
+              controller.discard.openDiscardFiles(ids, paths)}
+            onDiscardHunk={(id, hId) =>
+              controller.discard.openDiscardHunk(id, hId)}
+            onDiscardLines={(id, sel) =>
+              controller.discard.openDiscardLines(id, sel)}
             onRefreshSnapshot={() => void controller.refreshActiveSnapshot()}
             onCommitMessageChange={(msg) => controller.setCommitMessage(msg)}
             onOpenCommitPreview={(followUpPush) =>

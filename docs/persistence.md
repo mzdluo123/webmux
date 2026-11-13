@@ -58,7 +58,7 @@ ACP 聊天的规范化消息与工具内容在 UI 截断前保存为完整 Activ
 - 每个存储都有条数与字节双重上限：写入前用 `Handle.Fits` 判断，超限时淘汰可丢弃的记录（hybrid 记录、agent 选项缓存、已终结的 Git 操作记录）或以无效输入拒绝（启动配置、仓库登记），不会让存储进入 `TooLarge` 失败。延迟合并写入失败时记录错误日志，I/O 类失败每 30 秒重试。
 - `git-operations.json` 记录受控 Git 写操作的实例状态、幂等键与脱敏输出摘要：
   - 覆盖基础与序列操作（`commit`、`push`、`fetch`、`fast_forward`、`switch`、`merge`、`rebase`、`cherry_pick`、`revert`、`continue`、`abort`）；
-  - 覆盖贮藏与引用远程操作（`stash_create`、`stash_apply`、`stash_pop`、`stash_drop`、`branch_rename`、`branch_upstream`、`tag_create`、`tag_delete`、`remote_add`、`remote_set_url`、`remote_remove`）；
+  - 覆盖贮藏、受控丢弃与智能切换等操作（`stash_push`、`stash_apply`、`stash_pop`、`stash_drop`、`discard`、`smart_checkout`、`branch_rename`、`branch_upstream`、`tag_create`、`tag_delete`、`remote_add`、`remote_update`、`remote_remove`）；
   - 单条输出上限 4 KiB，单库最多 100 条、全局最多 1000 条、已终结记录保留 7 天，且整体受 2 MiB `Fits` 上界约束；
   - 移除仓库登记时同步清理该仓库记录，不保存环境变量、原始凭据、Diff 或文件正文；
   - 服务启动时对遗留的 `pending`/`running` 条目结合本地 reflog、分支/标签/`refs/stash` 引用、远程配置、`.git/MERGE_HEAD` / `rebase-merge` / `CHERRY_PICK_HEAD` / `REVERT_HEAD` 与恢复锚点 `refs/webmux/recovery/<worktreeId>/<kind>` 执行只读对账，绝不自动重试或 `git reset`。

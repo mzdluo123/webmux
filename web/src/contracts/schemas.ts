@@ -10,4 +10,5 @@ export * from "./git-collab-schemas";
 export * from "./git-conflict-schemas";
 export * from "./git-stash-schemas";
 export * from "./git-v2-schemas";
+export * from "./git-v3-schemas";
 export * from "./p2p-schemas";

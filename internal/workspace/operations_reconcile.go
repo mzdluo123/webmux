@@ -253,6 +253,8 @@ func (s *Service) reconcileSingleOperation(op *GitOperation, r *repositoryState,
 		GitOpTagCreate, GitOpTagDelete,
 		GitOpRemoteAdd, GitOpRemoteUpdate, GitOpRemoteRemove:
 		s.reconcileV2Operation(ctx, r, op)
+	case GitOpDiscard, GitOpSmartCheckout:
+		s.reconcileV3Operation(ctx, r, op)
 	default:
 		op.Status = GitOpUncertain
 		op.Summary = "服务重启时操作状态未知，请刷新核对"

@@ -68,12 +68,14 @@ type StagingFileDiff struct {
 	worktreeRaw        []byte
 }
 
-// StageRequest requests whole-file (empty HunkIDs) or hunk-subset Stage / Unstage.
+// StageRequest requests whole-file (empty HunkIDs and LineSelections),
+// hunk-subset (HunkIDs), or sub-hunk line-subset (LineSelections) Stage / Unstage.
 type StageRequest struct {
-	RepositoryID string            `json:"repositoryId"`
-	WorktreeID   string            `json:"worktreeId"`
-	Identity     StageFileIdentity `json:"identity"`
-	HunkIDs      []string          `json:"hunkIds,omitempty"`
+	RepositoryID   string            `json:"repositoryId"`
+	WorktreeID     string            `json:"worktreeId"`
+	Identity       StageFileIdentity `json:"identity"`
+	HunkIDs        []string          `json:"hunkIds,omitempty"`
+	LineSelections []LineSelection   `json:"lineSelections,omitempty"`
 }
 
 func (s *Service) worktreeWriteLock(canonicalPath string) chan struct{} {

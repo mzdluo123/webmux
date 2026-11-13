@@ -16,7 +16,7 @@
     - `GET .../git/history` 返回 `status`（`ready` / `empty` / `unborn` / `no_worktree` / `no_task_baseline` / `no_upstream` / `upstream_gone` / `detached_no_branch`）、拓扑分页 `rows`（真实 `parents`、`refs`、`lane`、`activeLanes` 与 `direct|indirect|boundary` 边）、`nextCursor` 与 `refsChanged`；
     - `GET .../git/commits/{oid}` 返回完整提交消息、作者与提交者元组、`comparedParentOid`（合并提交支持切换任一真实父 OID）与变更文件列表；
   - 暂存操作直接读写目标工作树真实 Git `index`：
-    - `GET .../git/staging`、`GET .../git/staging/diff`、`POST .../git/stage` 与 `POST .../git/unstage` 支持整文件与单 Hunk 暂存/取消暂存（含 `unborn HEAD`）；
+    - `GET .../git/staging`、`GET .../git/staging/diff`、`POST .../git/stage` 与 `POST .../git/unstage` 支持整文件、单 Hunk 与任意逐行 `lineSelections`（US-J28）暂存/取消暂存（含 `unborn HEAD`）；
     - 路径身份或 Hunk 变化返回 409 `reason: "stale"`，检测到外部 `.git/index.lock` 返回 409 `reason: "busy"` 且绝不删除锁文件；
   - 提交采用预览确认与执行后复核两阶段保障：
     - `POST .../git/commit-preview` 展示完整 `HEAD -> index` 待提交集合（含终端 CLI 预暂存文件）、身份、可执行 Hook、阻塞项与限时确认码；
@@ -98,7 +98,7 @@
   - 预检凭证与持久操作实例职责解耦：
     - `confirmationId` 仅负责两阶段预览快照绑定（防过期/防错库）；
     - 基础与序列操作（`commit`、`push`、`fetch`、`fast_forward`、`switch`、`merge`、`rebase`、`cherry_pick`、`revert`、`continue`、`abort`）统一生成持久 `operationId` 并记录 `clientRequestId`；
-    - 贮藏与引用远程操作（`stash_create`、`stash_apply`、`stash_pop`、`stash_drop`、`branch_rename`、`branch_upstream`、`tag_create`、`tag_delete`、`remote_add`、`remote_set_url`、`remote_remove`）同样纳入持久账本；
+    - 贮藏、引用远程与 V3 高级操作（`stash_create`、`stash_apply`、`stash_pop`、`stash_drop`、`branch_rename`、`branch_upstream`、`tag_create`、`tag_delete`、`remote_add`、`remote_set_url`、`remote_remove`、`discard`、`smart_checkout`）同样纳入持久账本（US-J27、US-J28）；
     - 同一 `(repositoryId, clientRequestId)` 且参数摘要一致时，并发在途请求合并等待同一执行实例，已完成操作在断线重连或服务重启后直接重放持久结果，绝不二次执行底层 Git 写命令；
     - 复用相同 `clientRequestId` 但参数变化时返回 HTTP `409`（`reason: "idempotency_conflict"`）；
   - 有界 `statefile` 持久账本与隐私边界：

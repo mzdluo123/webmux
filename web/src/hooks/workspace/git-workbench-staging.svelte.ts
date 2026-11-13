@@ -4,6 +4,7 @@ import type {
   GitWorkbenchViewState,
 } from "../../contracts/git-workbench-schemas";
 import type {
+  GitLineSelection,
   GitStagingEntry,
   GitStagingFileDiff,
 } from "../../contracts/schemas";
@@ -263,6 +264,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
     kind: "stage" | "unstage",
     changeId: string,
     hunkId?: string,
+    lineSelections?: readonly GitLineSelection[],
   ) {
     const repoId = bindings.getRepoId();
     const wtId = bindings.getWorktreeId();
@@ -278,6 +280,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
         worktreeId: wtId,
         entry,
         hunkId,
+        lineSelections,
         signal: req.signal,
       });
       if (out.ok) {
@@ -455,6 +458,9 @@ export function createGitStagingController(bindings: GitStagingBindings) {
     },
     get reader() {
       return reader;
+    },
+    getEntry(changeId: string) {
+      return entryById.get(changeId);
     },
     dispose,
     resetTarget,

@@ -9,6 +9,7 @@ import type { buildGitRouteHref } from "../shared/route";
 import { createGitCommitDraftController } from "./git-commit-draft.svelte";
 import { createGitCommitOptionsController } from "./git-commit-options.svelte";
 import { createGitConflictController } from "./git-conflict-controller.svelte";
+import { createGitDiscardController } from "./git-discard-controller.svelte";
 import { createGitDivergenceController } from "./git-divergence-controller.svelte";
 import { createGitFileInspectorController } from "./git-file-inspector-controller.svelte";
 import { createGitLogCompareController } from "./git-log-compare.svelte";
@@ -233,6 +234,20 @@ export function createGitWorkbenchSubControllers(
     getHeadOid: () => deps.getView().context.headOid,
     onStatusBanner: (statusBanner) => deps.patchView({ statusBanner }),
   });
+  const discard = createGitDiscardController({
+    getRepoId: deps.getRepoId,
+    getWorktreeId: deps.getWorktreeTargetId,
+    patchView: deps.patchView,
+    getEntryIdentity: (changeId) => staging.getEntry(changeId)?.identity,
+    operations,
+    onAfterDiscard: async () => {
+      deps.onRefreshRepositories?.();
+      await Promise.all([
+        staging.refreshActiveSnapshot(),
+        taskReview.refresh(),
+      ]);
+    },
+  });
 
   function disposeAll() {
     commitDraft.dispose();
@@ -251,6 +266,7 @@ export function createGitWorkbenchSubControllers(
     stash.dispose();
     refsManage.dispose();
     fileInspector.dispose();
+    discard.dispose();
   }
 
   function resetAllTargets(repoId: string, wtId?: string) {
@@ -269,6 +285,7 @@ export function createGitWorkbenchSubControllers(
     stash.resetTarget();
     refsManage.resetTarget();
     fileInspector.resetTarget();
+    discard.resetTarget();
   }
 
   return {
@@ -288,6 +305,7 @@ export function createGitWorkbenchSubControllers(
     stash,
     refsManage,
     fileInspector,
+    discard,
     disposeAll,
     resetAllTargets,
   };

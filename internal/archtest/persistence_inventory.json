@@ -789,6 +789,10 @@
       "count": 1,
       "owner": "user-files"
     },
+    "internal/worktreefs/write.go|RemoveVerified|golang.org/x/sys/unix.Unlinkat": {
+      "count": 1,
+      "owner": "user-files"
+    },
     "internal/worktreefs/write.go|WriteRegular|golang.org/x/sys/unix.Openat": {
       "count": 1,
       "owner": "user-files"

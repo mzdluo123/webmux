@@ -50,6 +50,7 @@
   import SwitchBranch, { type SwitchSource } from "./SwitchBranch.svelte";
   import WorktreeDetails from "./WorktreeDetails.svelte";
   import { switchableWorktree } from "../../domains/workspace/worktree-sync";
+  import { requestConflictResolverHandoff } from "../../domains/workspace/git-conflict-handoff";
 
   // The repository panel: overview, worktrees, branches and remotes as line
   // tabs in one dialog (a bottom drawer on phones). A worktree's details and
@@ -441,6 +442,16 @@
               ondone={() => switched(id)}
               {onnewworktree}
               ongoto={openPath}
+              onopenconflict={ongit
+                ? (tree, path) => {
+                    requestConflictResolverHandoff(
+                      repository.id,
+                      tree.id,
+                      path,
+                    );
+                    ongit(tree.id, "commit");
+                  }
+                : undefined}
               oncancel={() => void back()}
             />{/key}
         {:else}

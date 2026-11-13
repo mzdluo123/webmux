@@ -398,6 +398,24 @@ func wireSchema(name string) wireRules {
 	case "git-remote-add", "git-remote-update", "git-remote-remove":
 		add("", "id", "operationId")
 		repositoryFields("/repository")
+	case "git-discard-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-discard":
+		add("", "id", "operationId", "recoveryOid", "recoveryRef", "recoveryCommand")
+		worktreeFields("/worktree")
+	case "git-smart-checkout-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		worktreeFields("/worktree")
+		sessionFields("/sessions/*")
+	case "git-smart-checkout":
+		add("", "id", "operationId", "stashOid", "recoveryCommand")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
 	}
 	return rules
 }

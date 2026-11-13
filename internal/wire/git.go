@@ -231,23 +231,51 @@ func GitStagingFileDiff(d workspace.StagingFileDiff) contract.GitStagingFileDiff
 	}
 }
 
+func gitLineSelectionRequest(s contract.GitLineSelection) workspace.LineSelection {
+	return workspace.LineSelection{
+		HunkID:      s.HunkID,
+		LineIndices: slicesCloneInts(s.LineIndices),
+	}
+}
+
+func slicesCloneInts(in []int) []int {
+	if in == nil {
+		return nil
+	}
+	out := make([]int, len(in))
+	copy(out, in)
+	return out
+}
+
+func gitStageIdentityRequest(id contract.GitStageFileIdentity) workspace.StageFileIdentity {
+	return workspace.StageFileIdentity{
+		Area:         workspace.StageArea(id.Area),
+		Path:         id.Path,
+		OldPath:      id.OldPath,
+		OldBaseOID:   id.OldBaseOID,
+		OldBaseMode:  id.OldBaseMode,
+		BaseOID:      id.BaseOID,
+		BaseMode:     id.BaseMode,
+		TargetOID:    id.TargetOID,
+		TargetSHA256: id.TargetSHA256,
+		TargetMode:   id.TargetMode,
+	}
+}
+
 func GitStageRequest(repositoryID, worktreeID string, req contract.GitStageRequest) workspace.StageRequest {
+	var lineSels []workspace.LineSelection
+	if len(req.LineSelections) > 0 {
+		lineSels = make([]workspace.LineSelection, len(req.LineSelections))
+		for i, sel := range req.LineSelections {
+			lineSels[i] = gitLineSelectionRequest(sel)
+		}
+	}
 	return workspace.StageRequest{
-		RepositoryID: repositoryID,
-		WorktreeID:   worktreeID,
-		Identity: workspace.StageFileIdentity{
-			Area:         workspace.StageArea(req.Identity.Area),
-			Path:         req.Identity.Path,
-			OldPath:      req.Identity.OldPath,
-			OldBaseOID:   req.Identity.OldBaseOID,
-			OldBaseMode:  req.Identity.OldBaseMode,
-			BaseOID:      req.Identity.BaseOID,
-			BaseMode:     req.Identity.BaseMode,
-			TargetOID:    req.Identity.TargetOID,
-			TargetSHA256: req.Identity.TargetSHA256,
-			TargetMode:   req.Identity.TargetMode,
-		},
-		HunkIDs: req.HunkIDs,
+		RepositoryID:   repositoryID,
+		WorktreeID:     worktreeID,
+		Identity:       gitStageIdentityRequest(req.Identity),
+		HunkIDs:        req.HunkIDs,
+		LineSelections: lineSels,
 	}
 }
 
@@ -308,11 +336,15 @@ func GitOperation(op workspace.GitOperation) contract.GitOperation {
 		ClientRequestID: op.ClientRequestID,
 		Kind:            op.Kind,
 		Status:          op.Status,
+		Phase:           op.Phase,
 		ConfirmationID:  op.ConfirmationID,
 		StartedAt:       op.StartedAt,
 		FinishedAt:      op.FinishedAt,
 		Summary:         op.Summary,
 		SanitizedOutput: op.SanitizedOutput,
+		StashOID:        op.StashOID,
+		RecoveryOID:     op.RecoveryOID,
+		RecoveryCommand: op.RecoveryCommand,
 		RemoteStatus:    op.RemoteStatus,
 		FetchResults:    each(op.FetchResults, func(v workspace.FetchResult) contract.FetchResult { return contract.FetchResult(v) }),
 		Preview:         contract.GitOperationPreview(op.Preview),

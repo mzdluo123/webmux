@@ -22,20 +22,21 @@
 
 ## 文档地图
 
-| 主题                                                             | 内容                                                                   |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [HTTP API：会话、启动配置与其他](protocol/http-sessions.md)      | 会话信息、按状态列出、输入与中断、结束与删除记录、冲突、上传与启动配置 |
-| [HTTP API：创建会话](protocol/http-session-create.md)            | 位置、命令、视图、首条提示、新 worktree、分步失败、创建前的上传与选项  |
-| [HTTP 与 WebSocket：聊天视图与混合会话](protocol/http-hybrid.md) | 视图与 agent 字段、切换、恢复、已归档会话、聊天通道与聊天命令          |
-| [HTTP API：仓库与代码工作区](protocol/http-workspace.md)         | 仓库与 worktree、只读代码、Diff、图片与下载                            |
-| [HTTP API：端口转发](protocol/http-forward.md)                   | 转发管理接口、`/forward/{port}/` 网关、转发凭据与兼容改写              |
-| [HTTP API：公网隧道设置](protocol/http-tunnel.md)                | `/api/tunnel` 系列、持久化与错误语义                                   |
-| [HTTP API：Tailscale 状态与设置](protocol/http-tailscale.md)     | `/api/tailscale` 检测、运行状态与网页设置                              |
-| [HTTP API：语音识别设置](protocol/http-voice.md)                 | `/api/voice/settings` 识别命令与环境变量的网页设置                     |
-| [HTTP API：注意力推送](protocol/http-push.md)                    | Web Push 订阅、来源资格与推送负载                                      |
-| [服务端偏好](protocol/settings.md)                               | `/api/settings`、`/ws/settings`、修订号与设备边界                      |
-| [WebSocket 接口](protocol/websocket.md)                          | 会话列表事件、终端帧、回放、提交、控制端与关闭码                       |
-| [本机 API](protocol/local-api.md)                                | Unix 套接字认证与 `/local/v1/*` 控制面                                 |
-| [控制面 JSON 契约](protocol/control-json.md)                     | `version`、`status`、`stop`、`config` 与 `update check` 的 JSON 输出   |
+| 主题                                                               | 内容                                                                                        |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| [HTTP API：会话、启动配置与其他](protocol/http-sessions.md)        | 会话信息、按状态列出、输入与中断、结束与删除记录、冲突、上传与启动配置                      |
+| [HTTP API：创建会话](protocol/http-session-create.md)              | 位置、命令、视图、首条提示、新 worktree、分步失败、创建前的上传与选项                       |
+| [HTTP 与 WebSocket：聊天视图与混合会话](protocol/http-hybrid.md)   | 视图与 agent 字段、切换、恢复、已归档会话、聊天通道与聊天命令                               |
+| [HTTP API：仓库与代码工作区](protocol/http-workspace.md)           | 仓库与 worktree、只读代码、Diff、图片与下载                                                 |
+| [HTTP API：Git 工作台与仓库级接口](protocol/http-git-workbench.md) | 零会话仓库/工作树 Git 只读、整文件/逐块/逐行暂存、丢弃更改、贮藏、分叉冲突与 Smart Checkout |
+| [HTTP API：端口转发](protocol/http-forward.md)                     | 转发管理接口、`/forward/{port}/` 网关、转发凭据与兼容改写                                   |
+| [HTTP API：公网隧道设置](protocol/http-tunnel.md)                  | `/api/tunnel` 系列、持久化与错误语义                                                        |
+| [HTTP API：Tailscale 状态与设置](protocol/http-tailscale.md)       | `/api/tailscale` 检测、运行状态与网页设置                                                   |
+| [HTTP API：语音识别设置](protocol/http-voice.md)                   | `/api/voice/settings` 识别命令与环境变量的网页设置                                          |
+| [HTTP API：注意力推送](protocol/http-push.md)                      | Web Push 订阅、来源资格与推送负载                                                           |
+| [服务端偏好](protocol/settings.md)                                 | `/api/settings`、`/ws/settings`、修订号与设备边界                                           |
+| [WebSocket 接口](protocol/websocket.md)                            | 会话列表事件、终端帧、回放、提交、控制端与关闭码                                            |
+| [本机 API](protocol/local-api.md)                                  | Unix 套接字认证与 `/local/v1/*` 控制面                                                      |
+| [控制面 JSON 契约](protocol/control-json.md)                       | `version`、`status`、`stop`、`config` 与 `update check` 的 JSON 输出                        |
 
 修改线上字段时，同时更新 [`web/src/contracts/schemas.ts`](../web/src/contracts/schemas.ts) 与 [`internal/contract`](../internal/contract)；每个子页只描述自己的主题，索引保持短小。

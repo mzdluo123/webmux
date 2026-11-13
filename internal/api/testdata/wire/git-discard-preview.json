@@ -1,0 +1,33 @@
+{
+  "status": 200,
+  "body": {
+    "blockers": [],
+    "confirmationId": "<confirmationId#13>",
+    "expiresAt": "<time>",
+    "hunkCount": 0,
+    "items": [
+      {
+        "action": "overwrite_tracked",
+        "path": "sub/b.txt",
+        "status": "M"
+      }
+    ],
+    "lineCount": 0,
+    "repositoryId": "<id#1>",
+    "scope": "files",
+    "sessions": [],
+    "summary": "丢弃 1 个文件的未暂存/未跟踪修改（覆盖/恢复已跟踪 1 个，删除未跟踪 0 个）",
+    "trackedOverwritePaths": [
+      "sub/b.txt"
+    ],
+    "untrackedDeletePaths": [],
+    "warnings": [
+      {
+        "code": "destructive_discard",
+        "message": "丢弃工作区修改会直接覆盖磁盘文件或删除未跟踪文件（已暂存的 index 条目不受影响）；执行前会自动保存短期恢复快照"
+      }
+    ],
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

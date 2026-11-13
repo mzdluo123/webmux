@@ -6,9 +6,9 @@
   import SwitchBranch, { type SwitchSource } from "./SwitchBranch.svelte";
 
   // The switch of a worktree's branch outside the repository panel (home
-  // page, sidebar): a dialog on desktop, a bottom drawer on phones. Every
-  // way out also closes it, so only one dialog is ever on screen; the host
-  // reads its own state in the handler before the close clears it.
+  // page, sidebar, Git workbench): a dialog on desktop, a bottom drawer on
+  // phones. Every way out also closes it, so only one dialog is ever on screen;
+  // the host reads its own state in the handler before the close clears it.
   let {
     repository,
     worktree,
@@ -19,6 +19,7 @@
     onchange,
     onnewworktree,
     ongoto,
+    onopenconflict,
     onclose,
   }: {
     repository: Repository;
@@ -33,6 +34,8 @@
     onnewworktree: (preset: WorktreePreset) => void;
     /** Opens the details of the worktree at a path. */
     ongoto: (path: string) => void;
+    /** Opens the 3-way conflict resolver when Smart Checkout encounters conflicts. */
+    onopenconflict?: (tree: Worktree, path?: string) => void;
     onclose: () => void;
   } = $props();
   let busy = $state(false);
@@ -40,7 +43,7 @@
 
 <ResponsiveDialog
   title={`切换分支：${worktreeTitle(worktree)}`}
-  description="在原位切换这个工作树的分支。有未提交的修改时不能切换；运行中的会话不会被关闭。"
+  description="在原位切换这个工作树的分支；有未提交修改时可通过受控贮藏 Smart Checkout 携带切换，运行中的会话不会被关闭。"
   drawerDescription="原位切换分支；会话不会被关闭。"
   truncateDrawerTitle
   {busy}
@@ -64,6 +67,12 @@
       ongoto(path);
       onclose();
     }}
+    onopenconflict={onopenconflict
+      ? (tree, path) => {
+          onopenconflict(tree, path);
+          onclose();
+        }
+      : undefined}
     oncancel={onclose}
   />
 </ResponsiveDialog>

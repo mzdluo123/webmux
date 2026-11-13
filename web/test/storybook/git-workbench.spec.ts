@@ -24,6 +24,8 @@ for (const story of [
   "commit-amend-pushed-warning",
   "branches-tags-and-remotes",
   "file-history-and-blame",
+  "sub-hunk-line-staging",
+  "discard-preview-dialog",
 ] as const) {
   test(`git workbench ${story} fits every layout`, async ({ page }) => {
     test.slow();
@@ -44,7 +46,8 @@ for (const story of [
         story === "rework-session-handoff" ||
         story === "divergence-rebase-preview" ||
         story === "abort-operation-dialog" ||
-        story === "file-history-and-blame"
+        story === "file-history-and-blame" ||
+        story === "discard-preview-dialog"
       ) {
         await expectDialogFits(page, dialog, name);
       }

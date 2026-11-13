@@ -180,27 +180,20 @@ func spliceHunkSubset(baseBytes, targetBytes []byte, keep map[string]bool) []byt
 	if len(spans) == 0 {
 		return append([]byte(nil), baseBytes...)
 	}
-	var out strings.Builder
+	fallbackEnding := dominantSplicedEnding(baseLines, targetLines)
+	outLines := make([]string, 0, max(len(baseLines), len(targetLines)))
 	cursor := 0
 	for i, sp := range spans {
-		for _, line := range baseLines[cursor:sp.oldStart] {
-			out.WriteString(line)
-		}
+		outLines = append(outLines, baseLines[cursor:sp.oldStart]...)
 		if keep[hunks[i].ID] {
-			for _, line := range targetLines[sp.newStart : sp.newStart+sp.newCount] {
-				out.WriteString(line)
-			}
+			outLines = append(outLines, targetLines[sp.newStart:sp.newStart+sp.newCount]...)
 		} else {
-			for _, line := range baseLines[sp.oldStart : sp.oldStart+sp.oldCount] {
-				out.WriteString(line)
-			}
+			outLines = append(outLines, baseLines[sp.oldStart:sp.oldStart+sp.oldCount]...)
 		}
 		cursor = sp.oldStart + sp.oldCount
 	}
-	for _, line := range baseLines[cursor:] {
-		out.WriteString(line)
-	}
-	return []byte(out.String())
+	outLines = append(outLines, baseLines[cursor:]...)
+	return normalizeSplicedLines(outLines, fallbackEnding)
 }
 
 func myersDiffSpans(base, target []string) []editSpan {

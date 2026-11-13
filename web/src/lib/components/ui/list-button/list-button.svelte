@@ -78,6 +78,9 @@
         // Compact gutter provenance button beside each blame source line.
         "git-blame-gutter":
           "flex w-36 shrink-0 items-center gap-1.5 border-r border-git-border px-2 py-0.5 text-left font-mono text-xs text-muted-foreground outline-none select-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-git-primary sm:w-52",
+        // Selectable changed diff line inside sub-hunk line staging.
+        "git-diff-line":
+          "flex min-w-0 flex-1 cursor-pointer items-start gap-2 text-left font-mono text-xs outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-git-primary disabled:cursor-not-allowed disabled:opacity-50",
       },
     },
     defaultVariants: {

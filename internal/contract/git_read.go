@@ -196,11 +196,15 @@ type GitOperation struct {
 	ClientRequestID string              `json:"clientRequestId,omitempty"`
 	Kind            string              `json:"kind"`
 	Status          string              `json:"status"`
+	Phase           string              `json:"phase,omitempty"`
 	ConfirmationID  string              `json:"confirmationId,omitempty"`
 	StartedAt       time.Time           `json:"startedAt"`
 	FinishedAt      *time.Time          `json:"finishedAt"`
 	Summary         string              `json:"summary"`
 	SanitizedOutput string              `json:"sanitizedOutput,omitempty"`
+	StashOID        string              `json:"stashOid,omitempty"`
+	RecoveryOID     string              `json:"recoveryOid,omitempty"`
+	RecoveryCommand string              `json:"recoveryCommand,omitempty"`
 	RemoteStatus    string              `json:"remoteStatus,omitempty"`
 	FetchResults    []FetchResult       `json:"fetchResults"`
 	Preview         GitOperationPreview `json:"preview"`

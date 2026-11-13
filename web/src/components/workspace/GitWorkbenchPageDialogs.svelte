@@ -11,6 +11,7 @@
   import GitBranchRenameDialog from "./GitBranchRenameDialog.svelte";
   import GitBranchUpstreamDialog from "./GitBranchUpstreamDialog.svelte";
   import GitCommitPreviewDialog from "./GitCommitPreviewDialog.svelte";
+  import GitDiscardPreviewDialog from "./GitDiscardPreviewDialog.svelte";
   import GitDivergencePreviewDialog from "./GitDivergencePreviewDialog.svelte";
   import GitFileInspectorDialog from "./GitFileInspectorDialog.svelte";
   import GitPushDialog from "./GitPushDialog.svelte";
@@ -285,5 +286,22 @@
     inspector={controller.fileInspector}
     hasWorktree={Boolean(worktreeId)}
     onJumpToCommit={(oid) => controller.inspectCommitInLog(oid)}
+  />
+{/if}
+
+{#if controller.discard.open}
+  <GitDiscardPreviewDialog
+    preview={controller.discard.preview}
+    loading={controller.discard.loadingPreview}
+    submitting={controller.discard.submitting}
+    staleRejected={controller.discard.staleRejected}
+    acknowledgeSessions={controller.discard.acknowledgeSessions}
+    dialogError={controller.discard.dialogError}
+    onAcknowledgeSessionsChange={(checked) =>
+      controller.discard.setAcknowledgeSessions(checked)}
+    onRefreshAfterStale={() =>
+      void controller.discard.refreshPreviewAfterStale()}
+    onConfirm={() => void controller.discard.confirmDiscard()}
+    onClose={() => controller.discard.closeDialog()}
   />
 {/if}

@@ -82,6 +82,10 @@ export function gitOperationKindLabel(kind: GitOperationKind): string {
       return "编辑远程仓库";
     case "remote_remove":
       return "移除远程仓库";
+    case "discard":
+      return "丢弃更改";
+    case "smart_checkout":
+      return "Smart Checkout";
   }
 }
 
