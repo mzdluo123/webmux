@@ -9,6 +9,8 @@
     "flex min-h-7 w-full touch-manipulation items-center gap-1.5 rounded-sm py-1 pl-1.5 text-left text-xs outline-none select-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground aria-[current=page]:ring-1 aria-[current=page]:ring-inset aria-[current=page]:ring-ring/50 disabled:opacity-50 data-[drop-target=true]:bg-primary/10 data-[drop-target=true]:ring-1 data-[drop-target=true]:ring-inset data-[drop-target=true]:ring-primary max-sm:min-h-(--control-touch-compact) max-sm:text-sm any-pointer-coarse:min-h-(--control-touch-compact) [-webkit-touch-callout:none]";
   const navigation =
     "relative flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary/10 aria-pressed:text-primary aria-pressed:before:absolute aria-pressed:before:inset-y-3 aria-pressed:before:left-0 aria-pressed:before:w-0.5 aria-pressed:before:rounded-full aria-pressed:before:bg-primary aria-[current=page]:bg-primary/10 aria-[current=page]:text-primary aria-[current=page]:before:absolute aria-[current=page]:before:inset-y-3 aria-[current=page]:before:left-0 aria-[current=page]:before:w-0.5 aria-[current=page]:before:rounded-full aria-[current=page]:before:bg-primary";
+  const compactRow =
+    "relative flex min-h-7 w-full min-w-0 touch-manipulation items-center gap-1.5 rounded-sm py-1 pr-2 pl-2 text-left text-xs outline-none select-none hover:bg-muted/70 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring aria-selected:bg-primary/10 aria-selected:text-foreground aria-selected:before:absolute aria-selected:before:inset-y-1 aria-selected:before:left-0 aria-selected:before:w-0.5 aria-selected:before:rounded-full aria-selected:before:bg-primary aria-[current=true]:bg-primary/10 aria-[current=true]:text-foreground aria-[current=true]:before:absolute aria-[current=true]:before:inset-y-1 aria-[current=true]:before:left-0 aria-[current=true]:before:w-0.5 aria-[current=true]:before:rounded-full aria-[current=true]:before:bg-primary data-[has-action=true]:pr-7 max-sm:min-h-(--control-touch-compact) max-sm:text-sm max-sm:data-[has-action=true]:pr-(--control-touch-compact) any-pointer-coarse:min-h-(--control-touch-compact) any-pointer-coarse:data-[has-action=true]:pr-(--control-touch-compact) [-webkit-touch-callout:none]";
   export const listButtonVariants = tv({
     base: "",
     variants: {
@@ -42,6 +44,9 @@
         // The actions button over the end of a file-tree row: shown while
         // its row is hovered or focused or its menu is open, always on
         // touch screens.
+        // Inline, always visible review toggle; state changes the icon tone only.
+        "review-toggle":
+          "flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring aria-pressed:text-primary max-sm:size-(--control-touch-compact) any-pointer-coarse:size-(--control-touch-compact) [&_svg]:size-4",
         "file-tree-action":
           "absolute inset-y-0 right-0 flex w-7 items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring aria-expanded:bg-muted aria-expanded:opacity-100 max-sm:w-(--control-touch-compact) any-pointer-coarse:w-(--control-touch-compact) any-pointer-coarse:opacity-100 [&_svg]:size-4",
         // One action of a bottom action sheet; data-destructive marks
@@ -64,6 +69,16 @@
         link: "rounded-sm text-left break-all text-primary underline underline-offset-2 outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring",
         "code-link":
           "rounded-sm text-left font-mono text-xs break-all text-primary underline underline-offset-2 outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring",
+        // Compact selectable rows and trailing action buttons inside the Git workbench.
+        "compact-row": compactRow,
+        "section-header":
+          "flex min-h-7 w-full touch-manipulation items-center gap-1 rounded-sm px-1.5 py-1 text-left text-xs font-semibold text-muted-foreground outline-none select-none hover:bg-muted/70 hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring max-sm:min-h-(--control-touch-compact)",
+        // Compact gutter provenance button beside each blame source line.
+        "provenance-gutter":
+          "flex w-36 shrink-0 items-center gap-1.5 border-r border-border px-2 py-0.5 text-left font-mono text-xs text-muted-foreground outline-none select-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring sm:w-52",
+        // Selectable changed diff line inside sub-hunk line staging.
+        "diff-line":
+          "flex min-w-0 flex-1 cursor-pointer items-start gap-2 text-left font-mono text-xs outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
       },
     },
     defaultVariants: {

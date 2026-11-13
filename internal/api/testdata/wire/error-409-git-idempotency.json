@@ -1,0 +1,7 @@
+{
+  "status": 409,
+  "body": {
+    "error": "clientRequestId 已被不同请求参数占用",
+    "reason": "idempotency_conflict"
+  }
+}

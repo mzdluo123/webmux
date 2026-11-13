@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/config"
@@ -83,6 +81,8 @@ type Service struct {
 	// worktreeGate bounds concurrent worktree status reads across every
 	// repository in a list, not just within one repository.
 	worktreeGate chan struct{}
+	writeGatesMu sync.Mutex
+	writeGates   map[string]chan struct{}
 	mu           sync.Mutex
 	// saveMu serializes registry read-modify-write cycles without holding mu
 	// across the state file commit.
@@ -96,6 +96,29 @@ type Service struct {
 	changed       chan struct{}
 	confirmations map[string]confirmation
 	creates       creates
+
+	opsMu        sync.Mutex
+	opsSaveMu    sync.Mutex
+	opsStore     *statefile.Handle[gitOperationLedger]
+	opsAvailable bool
+	opsError     string
+	operations   []GitOperation
+	opFlights    map[string]*opFlight
+
+	baselinesMu        sync.Mutex
+	baselinesSaveMu    sync.Mutex
+	baselinesStore     *statefile.Handle[taskBaselineStore]
+	baselinesAvailable bool
+	baselinesError     string
+	baselines          []TaskBaseline
+
+	collabMu        sync.Mutex
+	collabSaveMu    sync.Mutex
+	collabStore     *statefile.Handle[gitWorkbenchStateStore]
+	collabAvailable bool
+	collabError     string
+	collabDrafts    []commitDraftRecord
+	collabReviews   []ReviewMarkRecord
 }
 
 // New never makes optional Git or storage availability a server startup failure.
@@ -104,7 +127,7 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 	if stateDir == "" {
 		stateDir = config.DefaultStateDir()
 	}
-	s := &Service{manager: manager, launches: launches, defaultCwd: defaultCwd, stateDir: stateDir, fetchTimeout: branchFetchTimeout, fetchRemoteTimeout: fetchRemoteTimeout, worktreeGate: make(chan struct{}, 4), starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation)}
+	s := &Service{manager: manager, launches: launches, defaultCwd: defaultCwd, stateDir: stateDir, fetchTimeout: branchFetchTimeout, fetchRemoteTimeout: fetchRemoteTimeout, worktreeGate: make(chan struct{}, 4), writeGates: make(map[string]chan struct{}), starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation), opFlights: make(map[string]*opFlight)}
 	git, err := exec.LookPath("git")
 	if err != nil {
 		s.capability.GitError = "Git 不可用: " + err.Error()
@@ -117,15 +140,36 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 	} else {
 		s.capability.RegistryAvailable = true
 	}
+	if err := s.loadOperations(); err != nil {
+		s.opsError = "Git 操作账本不可用: " + err.Error()
+	} else {
+		s.opsAvailable = true
+	}
+	if err := s.loadTaskBaselines(); err != nil {
+		s.baselinesError = "Git 任务基线不可用: " + err.Error()
+	} else {
+		s.baselinesAvailable = true
+	}
+	if err := s.loadWorkbenchCollab(); err != nil {
+		s.collabError = "Git 工作台协作状态不可用: " + err.Error()
+	} else {
+		s.collabAvailable = true
+	}
+	if s.opsAvailable {
+		s.reconcileOperationsOnStartup()
+	}
 	return s
 }
 func (s *Service) Close() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.store.Close()
 	s.capability.RegistryAvailable = false
 	s.capability.RegistryError = "仓库服务已关闭"
 	s.clearConfirmations()
+	s.mu.Unlock()
+	s.closeOperations()
+	s.closeTaskBaselines()
+	s.closeWorkbenchCollab()
 }
 func (s *Service) Capability() Capability { s.mu.Lock(); defer s.mu.Unlock(); return s.capability }
 
@@ -227,67 +271,6 @@ func (s *Service) saveWith(entries []*repositoryState, changed *repositoryState,
 	return err
 }
 
-// validInstruction normalizes an initialization instruction: blank is none,
-// more than MaxInitInstruction characters is ErrInvalid.
-func validInstruction(text string) (string, error) {
-	if strings.TrimSpace(text) == "" {
-		return "", nil
-	}
-	if n := utf8.RuneCountInString(text); n > MaxInitInstruction {
-		return "", problemf(ErrInvalid, "初始化指令最多 %d 个字符，当前 %d 个", MaxInitInstruction, n)
-	}
-	return text, nil
-}
-
-// SetInitInstruction replaces repository id's initialization instruction;
-// blank clears it. The registry is saved first: a failed save leaves the
-// instruction as it was.
-func (s *Service) SetInitInstruction(ctx context.Context, id, text string) (Repository, error) {
-	instruction, err := validInstruction(text)
-	if err != nil {
-		return Repository{}, err
-	}
-	r, err := s.repository(id)
-	if err != nil {
-		return Repository{}, err
-	}
-	s.saveMu.Lock()
-	s.mu.Lock()
-	if err := s.requireRegistryLocked(); err != nil {
-		s.mu.Unlock()
-		s.saveMu.Unlock()
-		return Repository{}, err
-	}
-	entries := append([]*repositoryState(nil), s.entries...)
-	s.mu.Unlock()
-	found := false
-	for _, item := range entries {
-		found = found || item == r
-	}
-	if !found {
-		s.saveMu.Unlock()
-		return Repository{}, problemf(ErrNotFound, "仓库不存在")
-	}
-	err = s.saveWith(entries, r, instruction)
-	if err == nil {
-		s.mu.Lock()
-		r.instruction = instruction
-		s.mu.Unlock()
-	}
-	s.saveMu.Unlock()
-	if err != nil {
-		return Repository{}, fmt.Errorf("保存仓库清单: %w", err)
-	}
-	ctx, cancel := context.WithTimeout(ctx, readTimeout)
-	defer cancel()
-	snapshot, err := s.snapshot(ctx, r)
-	if err != nil {
-		// The instruction is saved; a failed read still answers the entry.
-		snapshot = s.unavailableRepository(r, err)
-	}
-	snapshot.InitInstruction = instruction
-	return snapshot, nil
-}
 func (s *Service) requireRegistryLocked() error {
 	if !s.capability.RegistryAvailable {
 		return problemf(ErrUnavailable, "%s", s.capability.RegistryError)
@@ -415,6 +398,9 @@ func (s *Service) Unregister(id string) error {
 	s.mu.Lock()
 	s.entries = next
 	s.mu.Unlock()
+	s.purgeRepositoryOperations(id)
+	s.purgeRepositoryBaselines(r, id)
+	s.purgeRepositoryCollabState(id)
 	for _, info := range s.manager.List() {
 		if info.Workspace != nil && info.Workspace.RepositoryID == id {
 			s.manager.SetWorkspace(info.ID, info.Cwd, nil)

@@ -20,7 +20,7 @@
   import DirectSessions from "../components/sessions/DirectSessions.svelte";
   import SidebarButton from "../components/shell/SidebarButton.svelte";
   import WorktreeBadges from "../components/workspace/WorktreeBadges.svelte";
-  import WorkspaceMenu from "../components/workspace/WorkspaceMenu.svelte";
+  import SessionListScopeMenu from "../components/workspace/SessionListScopeMenu.svelte";
   import { removeRecord, resumeSession } from "../domains/sessions/recoverable";
   import {
     placeArchived,
@@ -28,10 +28,7 @@
   } from "../domains/sessions/archived";
   import SessionListEmpty from "../components/sessions/SessionListEmpty.svelte";
   import { homeWorktrees } from "../domains/workspace/home-worktrees.svelte";
-  import {
-    setPinned,
-    worktreeTitle,
-  } from "../domains/workspace/home-worktrees";
+  import { setPinned } from "../domains/workspace/home-worktrees";
   import {
     deriveRepositoryExpanded,
     filterDirectSessions,
@@ -54,8 +51,7 @@
     resetBrowserChrome,
     setBrowserChrome,
   } from "../platform/browser-chrome";
-  import { getShell } from "../hooks/shared/shell.svelte";
-  import { switchableWorktree } from "../domains/workspace/worktree-sync";
+  import { getShell, openGitWorkbench } from "../hooks/shared/shell.svelte";
   import { z } from "zod";
 
   // The workbench home: every live session grouped by repository and
@@ -265,32 +261,26 @@
 {#snippet menu()}
   {@const repo = shell.settingsRepository}
   {#if repo}
-    {@const tree = selectedWorktree}
-    <WorkspaceMenu
-      repository={repo.name}
-      unavailable={repo.availability !== "available"}
+    <SessionListScopeMenu
+      {repo}
+      tree={selectedWorktree}
+      pinned={selectedPinned}
       onnewworktree={() =>
         shell.start({ kind: "new-worktree", repositoryId: repo.id })}
       onhome={() => shell.chooseHomeWorktrees(repo)}
       onmanage={() => shell.repositoryDetails(repo, "worktrees")}
       onsettings={shell.openRepositorySettings}
       ondetails={() => shell.repositoryDetails(repo)}
-      worktree={tree
-        ? {
-            title: worktreeTitle(tree),
-            ondetails: () => (worktreeDetailsOpen = true),
-            onswitch: switchableWorktree(tree)
-              ? () => shell.switchBranch(tree)
-              : undefined,
-            pinned: selectedPinned,
-            ontogglepin: () => pin(repo.id, [tree.id], !selectedPinned),
-            onremove:
-              tree.kind === "linked" ? () => (removing = tree) : undefined,
-            tree,
-            onoperation: (operation) =>
-              shell.branchOperation(repo.id, operation),
-          }
-        : undefined}
+      ongit={(worktreeId, view) =>
+        openGitWorkbench({ repositoryId: repo.id, worktreeId, view })}
+      onworktreedetails={() => (worktreeDetailsOpen = true)}
+      onswitch={(tree) => shell.switchBranch(tree)}
+      ontogglepin={() => {
+        if (selectedWorktree)
+          pin(repo.id, [selectedWorktree.id], !selectedPinned);
+      }}
+      onremove={(tree) => (removing = tree)}
+      onoperation={(operation) => shell.branchOperation(repo.id, operation)}
     />
   {/if}
 {/snippet}
@@ -457,6 +447,12 @@
               ondetailschange={(open) => (worktreeDetailsOpen = open)}
               onoperation={(operation) =>
                 shell.branchOperation(repo.id, operation)}
+              ongit={(tree, view) =>
+                openGitWorkbench({
+                  repositoryId: repo.id,
+                  worktreeId: tree.id,
+                  view,
+                })}
             />
           {/each}
           {#if direct.length || placement.direct.length}<DirectSessions

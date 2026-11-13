@@ -10,6 +10,13 @@ import (
 	"github.com/rainchan/webmux/internal/workspace"
 )
 
+func (b *binding) gitCwd() string {
+	if b.Root != "" {
+		return b.Root
+	}
+	return b.commonDir
+}
+
 func (b *binding) blob(ctx context.Context, p, source, oid, mode string) (Document, error) {
 	if mode == "000000" || strings.Trim(oid, "0") == "" {
 		return document(b.Root, p, "empty", "", nil), nil
@@ -20,7 +27,8 @@ func (b *binding) blob(ctx context.Context, p, source, oid, mode string) (Docume
 		d.Reason = "链接、子模块或特殊模式仅显示元信息"
 		return d, nil
 	}
-	sizeBytes, e := git(ctx, b.Root, "cat-file", "-s", oid)
+	cwd := b.gitCwd()
+	sizeBytes, e := git(ctx, cwd, "cat-file", "-s", oid)
 	if e != nil {
 		return Document{}, e
 	}
@@ -31,7 +39,7 @@ func (b *binding) blob(ctx context.Context, p, source, oid, mode string) (Docume
 	if headerCandidate(p) {
 		header := &headerWriter{}
 		if size > 0 {
-			if e := workspace.StreamGit(ctx, b.Root, header, "cat-file", "blob", oid); e != nil && !errors.Is(e, errHeaderFull) {
+			if e := workspace.StreamGit(ctx, cwd, header, "cat-file", "blob", oid); e != nil && !errors.Is(e, errHeaderFull) {
 				return Document{}, e
 			}
 		}
@@ -48,7 +56,7 @@ func (b *binding) blob(ctx context.Context, p, source, oid, mode string) (Docume
 		d.Downloadable = size <= MaxDownloadBytes
 		return d, nil
 	}
-	data, e := git(ctx, b.Root, "cat-file", "blob", oid)
+	data, e := git(ctx, cwd, "cat-file", "blob", oid)
 	if e != nil {
 		return Document{}, e
 	}
@@ -88,55 +96,66 @@ func (b *binding) capture(ctx context.Context, c Change) (Document, Document, er
 }
 func (s *Service) Diff(ctx context.Context, id, cid, changeID string) (Diff, error) {
 	return withRoot(ctx, s, id, cid, func(b *binding) (Diff, error) {
-		var c *Change
-		before, e := b.scanChanges(ctx, false, func(entry Change) error {
-			if entry.ID == changeID {
-				copy := entry
-				c = &copy
-			}
-			return nil
-		})
-		if e != nil {
-			return Diff{}, e
-		}
-		if c == nil {
-			return Diff{}, problemf(ErrConflict, "修改来源已改变，请刷新列表")
-		}
-		old, next, e := b.capture(ctx, *c)
-		if e != nil {
-			return Diff{}, e
-		}
-		after, e := b.scanChanges(ctx, false, nil)
-		if e != nil {
-			return Diff{}, e
-		}
-		if after != before {
-			return Diff{}, problemf(ErrConflict, "读取期间 Git 来源已改变")
-		}
-		r := Diff{Old: old, New: next, Kind: "text", Checked: time.Now().UTC(), Change: *c}
-		if strings.HasPrefix(c.Status, "U") {
-			r.Kind = "metadata"
-			r.Reason = "冲突文件仅显示元信息"
-		} else if kind, reason := classify(old, next); kind != "text" {
-			r.Kind = kind
-			r.Reason = reason
-		} else {
-			attrs, e := git(ctx, b.Root, "check-attr", "-z", "filter", "working-tree-encoding", "--", c.NewPath)
-			if e != nil {
-				return r, e
-			}
-			a := strings.Split(string(attrs), "\x00")
-			for i := 0; i+2 < len(a); i += 3 {
-				if a[i+2] != "unspecified" && a[i+2] != "unset" {
-					r.Kind = "metadata"
-					r.Reason = "需要内容转换，不能保证原始行映射"
-				}
-			}
-		}
-		v := &snapshot{session: id, context: cid, diff: &r, size: documentSize(old) + documentSize(next)}
-		r.Snapshot = s.put(v)
-		return r, nil
+		return s.diffInBinding(ctx, sessionScope(id, RootWorkspace), cid, b, changeID)
 	})
+}
+
+func (s *Service) diffInBinding(ctx context.Context, key scopeKey, cid string, b *binding, changeID string) (Diff, error) {
+	var c *Change
+	before, e := b.scanChanges(ctx, false, func(entry Change) error {
+		if entry.ID == changeID {
+			copy := entry
+			c = &copy
+		}
+		return nil
+	})
+	if e != nil {
+		return Diff{}, e
+	}
+	if c == nil {
+		return Diff{}, problemf(ErrConflict, "修改来源已改变，请刷新列表")
+	}
+	old, next, e := b.capture(ctx, *c)
+	if e != nil {
+		return Diff{}, e
+	}
+	after, e := b.scanChanges(ctx, false, nil)
+	if e != nil {
+		return Diff{}, e
+	}
+	if after != before {
+		return Diff{}, problemf(ErrConflict, "读取期间 Git 来源已改变")
+	}
+	r := Diff{Old: old, New: next, Kind: "text", Checked: time.Now().UTC(), Change: *c}
+	if strings.HasPrefix(c.Status, "U") {
+		r.Kind = "metadata"
+		r.Reason = "冲突文件仅显示元信息"
+	} else if kind, reason := classify(old, next); kind != "text" {
+		r.Kind = kind
+		r.Reason = reason
+	} else {
+		attrs, e := git(ctx, b.Root, "check-attr", "-z", "filter", "working-tree-encoding", "--", c.NewPath)
+		if e != nil {
+			return r, e
+		}
+		if hasTransformAttr(attrs) {
+			r.Kind = "metadata"
+			r.Reason = "需要内容转换，不能保证原始行映射"
+		}
+	}
+	v := &snapshot{owner: ownerScope(key), context: cid, diff: &r, size: documentSize(old) + documentSize(next)}
+	r.Snapshot = s.put(v)
+	return r, nil
+}
+
+func hasTransformAttr(attrs []byte) bool {
+	a := strings.Split(string(attrs), "\x00")
+	for i := 0; i+2 < len(a); i += 3 {
+		if a[i+2] != "unspecified" && a[i+2] != "unset" {
+			return true
+		}
+	}
+	return false
 }
 
 func isImage(d Document) bool { return strings.HasPrefix(d.MediaType, "image/") }
@@ -168,7 +187,7 @@ func (b *binding) sourceFile(ctx context.Context, p, source string) (Document, e
 		return Document{}, problemf(ErrInvalid, "无效文件来源")
 	}
 	if !b.Diff {
-		return Document{}, problemf(ErrConflict, "Git 来源不可用")
+		return Document{}, problemf(ErrReadOnly, "Git 来源不可用")
 	}
 	if _, e := nodePath(nodeID(p)); e != nil {
 		return Document{}, e

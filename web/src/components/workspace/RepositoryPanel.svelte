@@ -16,8 +16,6 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
-  import IconCloudDownload from "~icons/tabler/cloud-download";
-  import IconLoader2 from "~icons/tabler/loader-2";
   import { Button } from "$lib/components/ui/button";
   import * as Tabs from "$lib/components/ui/tabs";
   import {
@@ -43,15 +41,16 @@
   } from "../../contracts/schemas";
   import type { RepositoryTab } from "../../hooks/shared/shell.svelte";
   import BranchOperationFlow from "./BranchOperationFlow.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
   import RepositoryBranches from "./RepositoryBranches.svelte";
   import RepositoryOverview from "./RepositoryOverview.svelte";
+  import RepositoryPanelHeaderActions from "./RepositoryPanelHeaderActions.svelte";
   import RepositoryRemotes from "./RepositoryRemotes.svelte";
   import RepositoryWorktrees from "./RepositoryWorktrees.svelte";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
   import SwitchBranch, { type SwitchSource } from "./SwitchBranch.svelte";
   import WorktreeDetails from "./WorktreeDetails.svelte";
   import { switchableWorktree } from "../../domains/workspace/worktree-sync";
+  import { requestConflictResolverHandoff } from "../../domains/workspace/git-conflict-handoff";
 
   // The repository panel: overview, worktrees, branches and remotes as line
   // tabs in one dialog (a bottom drawer on phones). A worktree's details and
@@ -84,6 +83,7 @@
     onnewworktree,
     onrepository,
     onremoved,
+    ongit,
     onclose,
   }: {
     repository: Repository;
@@ -108,6 +108,7 @@
     /** A fetch read the repository again; replaces the listed snapshot. */
     onrepository?: (repository: Repository) => void;
     onremoved?: (removedIds: string[]) => void;
+    ongit?: (worktreeId?: string, view?: "commit") => void;
     onclose: () => void;
   } = $props();
 
@@ -257,8 +258,6 @@
   const worktreePaths = $derived(
     new Set(repository.worktrees.map((t) => t.path)),
   );
-  const fetchReasonId = $props.id();
-  const fetchLabel = $derived(fetching ? "正在获取远程" : "获取远程");
 </script>
 
 {#snippet subviewHeader(heading: string)}
@@ -276,33 +275,13 @@
 {/snippet}
 
 {#snippet fetchAction()}
-  <!-- A disabled button shows no hint, so the wrapper carries the reason. -->
-  <span class="inline-flex" title={fetchBlocked || fetchLabel}>
-    <Button
-      variant="outline"
-      size="sm"
-      class="max-sm:size-(--control-default)"
-      aria-label={fetchLabel}
-      aria-describedby={fetchBlocked ? fetchReasonId : undefined}
-      aria-busy={fetching}
-      disabled={fetching || !!fetchBlocked}
-      onclick={() => void fetchRemotes()}
-    >
-      {#if fetching}
-        <IconLoader2
-          aria-hidden="true"
-          class="animate-spin motion-reduce:animate-none"
-        />
-      {:else}
-        <IconCloudDownload aria-hidden="true" />
-      {/if}
-      <span class="hidden sm:inline">{fetching ? "正在获取…" : "获取远程"}</span
-      >
-    </Button>
-    {#if fetchBlocked}
-      <span id={fetchReasonId} class="sr-only">{fetchBlocked}</span>
-    {/if}
-  </span>
+  <RepositoryPanelHeaderActions
+    mode="actions"
+    {fetching}
+    {fetchBlocked}
+    onfetch={() => void fetchRemotes()}
+    ongit={ongit ? () => ongit() : undefined}
+  />
 {/snippet}
 
 <ResponsiveDialog
@@ -317,39 +296,15 @@
   {onclose}
 >
   <div bind:this={body} class="min-w-0 space-y-3">
-    {#if refreshing}
-      <p role="status" class="text-xs text-muted-foreground">
-        正在重新读取状态…（先显示上次读取的结果）
-      </p>
-    {:else if refreshError}
-      <InlineNotice tone="danger"
-        >重新读取失败：{refreshError}。以下为 {new Date(
-          repository.checkedAt,
-        ).toLocaleString()} 读取的状态，可能已过时。</InlineNotice
-      >
-    {/if}
-    {#if fetchError}
-      <InlineNotice tone="danger">获取远程失败：{fetchError}</InlineNotice>
-    {:else if fetchResults}
-      {@const tone =
-        failedFetches === 0
-          ? "success"
-          : failedFetches === fetchResults.length
-            ? "danger"
-            : "warning"}
-      <InlineNotice {tone}>
-        <ul class="space-y-1" aria-label="获取结果">
-          {#each fetchResults as result (result.remote)}
-            <li class="wrap-anywhere">
-              <span class="font-medium">{result.remote}</span
-              >：{result.status === "ok"
-                ? "已获取"
-                : result.message || "获取失败"}
-            </li>
-          {/each}
-        </ul>
-      </InlineNotice>
-    {/if}
+    <RepositoryPanelHeaderActions
+      mode="notices"
+      {refreshing}
+      {refreshError}
+      checkedAt={repository.checkedAt}
+      {fetchError}
+      {fetchResults}
+      {failedFetches}
+    />
     <div bind:this={tabsView} hidden={!!top}>
       {#if available}
         <Tabs.Root
@@ -392,6 +347,7 @@
               onopen={openWorktree}
               onswitch={(id) => void push({ kind: "switch", id })}
               onoperation={openOperation}
+              {ongit}
               {onchange}
               {onremoved}
             />
@@ -411,9 +367,15 @@
           </Tabs.Content>
           <Tabs.Content value="remotes" class="pt-2">
             <RepositoryRemotes
+              repositoryId={repository.id}
               {remotes}
               error={remotesError}
               onretry={() => void readRemotes()}
+              onRemotesUpdated={(next) => {
+                remotes = next;
+                branchesRead++;
+                onrefresh();
+              }}
             />
           </Tabs.Content>
         </Tabs.Root>
@@ -480,6 +442,16 @@
               ondone={() => switched(id)}
               {onnewworktree}
               ongoto={openPath}
+              onopenconflict={ongit
+                ? (tree, path) => {
+                    requestConflictResolverHandoff(
+                      repository.id,
+                      tree.id,
+                      path,
+                    );
+                    ongit(tree.id, "commit");
+                  }
+                : undefined}
               oncancel={() => void back()}
             />{/key}
         {:else}

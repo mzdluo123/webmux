@@ -19,22 +19,22 @@ import {
 
 type ChosenLaunchConfig = LaunchConfig | LaunchConfigSummary;
 
+export type { WorktreePreset } from "./worktree-preset";
+
 /** The contextual entry the new-session dialog was opened from, if any. */
 export type LaunchEntry =
-  | { kind: "worktree"; repositoryId: string; worktreeId: string }
+  | {
+      kind: "worktree";
+      repositoryId: string;
+      worktreeId: string;
+      prompt?: string;
+    }
   | { kind: "new-worktree"; repositoryId: string; preset?: WorktreePreset }
   | { kind: "directory"; cwd: string; workspace: SessionInfo["workspace"] };
 
-/**
- * Where a new session may start: inside one repository, or inside one of
- * its worktrees (that worktree, or a new one from its branch). Without a
- * scope the dialog offers every repository and any directory.
- */
+// Where a new session may start: inside one repository or one worktree.
 export type LaunchScope = { repositoryId: string; worktreeId?: string };
-/**
- * The dialog's location. A worktree target with an empty `worktreeId` is the
- * unset state: the repository is kept but the user must pick a target.
- */
+// A worktree target with an empty `worktreeId` keeps the repository unset.
 export type TargetKind = "directory" | "worktree" | "new-worktree";
 export type InitialTarget = {
   kind: TargetKind;

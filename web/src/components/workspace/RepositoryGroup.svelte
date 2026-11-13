@@ -45,6 +45,7 @@
     detailsOpen,
     ondetailschange,
     onoperation,
+    ongit,
   }: {
     repo: Repository;
     // All sessions associated with this repository.
@@ -76,6 +77,7 @@
     ondetailschange?: (open: boolean) => void;
     /** Starts a sync action of a worktree's branch. */
     onoperation?: (operation: BranchOperation) => void;
+    ongit?: (worktree: Worktree, view?: "commit") => void;
   } = $props();
 
   let contentReady = $state(false);
@@ -184,6 +186,8 @@
           archived={treeArchive}
           {archive}
           {onoperation}
+          ongit={ongit ? () => ongit(tree) : undefined}
+          oncommit={ongit ? () => ongit(tree, "commit") : undefined}
         />
       {/each}
       {@const missingArchive = shownArchive(archived.missing)}

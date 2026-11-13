@@ -14,7 +14,7 @@ import {
 
 // One blocker or warning of a preview; `path`, when set, is the worktree a
 // blocker refers to, such as the one that has the target branch checked out.
-const IssueSchema = z.object({
+export const IssueSchema = z.object({
   code: z.string(),
   message: z.string(),
   path: z.string().optional(),
@@ -25,7 +25,7 @@ export type Issue = z.infer<typeof IssueSchema>;
 // ("origin/fix/b") and creates the local branch `name` (default: `ref`
 // without its remote) tracking it; "new" takes `name` and `startPoint` and
 // sets no upstream; "detach" takes `commit`.
-const SwitchTargetSchema = z.discriminatedUnion("kind", [
+export const SwitchTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("local"), branch: z.string().min(1) }).strict(),
   z
     .object({
@@ -77,10 +77,15 @@ export type SwitchPreview = z.infer<typeof SwitchPreviewSchema>;
 export const SwitchRequestSchema = z
   .object({
     confirmationId: z.string().min(1),
+    clientRequestId: z.string().min(1).max(128).optional(),
     acknowledgeSessions: z.boolean(),
   })
   .strict();
 export type SwitchRequest = z.infer<typeof SwitchRequestSchema>;
+
+export const SwitchResultSchema = WorktreeSchema.extend({
+  operationId: z.string().optional(),
+});
 
 // ---- Branch sync actions (add-branch-sync-actions) ----
 // Fast-forward, push and delete of local branches: a preview, then a
@@ -90,7 +95,7 @@ export type SwitchRequest = z.infer<typeof SwitchRequestSchema>;
 // Blockers and warnings are the switch's IssueSchema.
 // The first commits of a range (at most 20, newest first); `total` counts
 // the whole range.
-const CommitListSchema = z.object({
+export const CommitListSchema = z.object({
   total: z.number().int().nonnegative(),
   items: z.array(CommitSchema),
 });
@@ -124,14 +129,21 @@ export const FastForwardPreviewSchema = z.object({
 });
 export type FastForwardPreview = z.infer<typeof FastForwardPreviewSchema>;
 
+const ConfirmedOperationFields = {
+  confirmationId: z.string().min(1),
+  clientRequestId: z.string().min(1).max(128).optional(),
+  worktreeId: z.string().min(1).optional(),
+};
+
 export const FastForwardRequestSchema = z
   .object({
-    confirmationId: z.string().min(1),
+    ...ConfirmedOperationFields,
     acknowledgeSessions: z.boolean(),
   })
   .strict();
 
 export const FastForwardResultSchema = z.object({
+  operationId: z.string().optional(),
   repository: RepositorySchema,
 });
 export type FastForwardResult = z.infer<typeof FastForwardResultSchema>;
@@ -165,12 +177,13 @@ export const PushPreviewSchema = z.object({
 export type PushPreview = z.infer<typeof PushPreviewSchema>;
 
 export const PushRequestSchema = z
-  .object({ confirmationId: z.string().min(1) })
+  .object({ ...ConfirmedOperationFields })
   .strict();
 
 // Also a refused push answers 200; `message` explains it, redacted. The
 // statuses are those of a fetch.
 export const PushResultSchema = z.object({
+  operationId: z.string().optional(),
   status: FetchResultSchema.shape.status,
   message: z.string(),
   repository: RepositorySchema,

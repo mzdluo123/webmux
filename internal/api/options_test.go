@@ -48,6 +48,7 @@ func testDeps(t testing.TB, d Deps) Deps {
 		d.Code = codeview.New(d.Manager, d.Artifacts)
 		t.Cleanup(d.Code.Close)
 	}
+	d.Code.UseWorkspace(d.Workspace)
 	if d.Files == nil {
 		d.Files = files.New(d.Config.DefaultCwd)
 	}

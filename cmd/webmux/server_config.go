@@ -173,3 +173,19 @@ func ensureToken(c *config.Config) error {
 	}
 	return nil
 }
+
+// printConfigNotice names the configuration in use and points at the local
+// API for the current token without putting credentials in captured output.
+func printConfigNotice(out io.Writer, c serverRun) {
+	if c.Token != "" {
+		_, _ = fmt.Fprintln(out, "Token: reveal it with: webmux status --json --reveal-token")
+	}
+	if c.ConfigPath == "" {
+		return
+	}
+	if c.ConfigCreated {
+		_, _ = fmt.Fprintln(out, "Created config:  "+c.ConfigPath)
+	} else {
+		_, _ = fmt.Fprintln(out, "Using config:    "+c.ConfigPath)
+	}
+}

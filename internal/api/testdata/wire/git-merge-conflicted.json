@@ -1,0 +1,86 @@
+{
+  "status": 200,
+  "body": {
+    "headOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "inProgress": {
+      "active": true,
+      "canAbort": true,
+      "canContinue": false,
+      "conflictedCount": 1,
+      "conflictedFiles": [
+        {
+          "kind": "text",
+          "path": "sub/b.txt",
+          "stage1Mode": "100644",
+          "stage1Oid": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+          "stage2Mode": "100644",
+          "stage2Oid": "de4296d3c6d9c4821c0fe09931f8422d01be768c",
+          "stage3Mode": "100644",
+          "stage3Oid": "efa25f5cb11c8d2fb11e015e85b70b7c498367f3",
+          "xy": "UU"
+        }
+      ],
+      "continueBlockers": [
+        {
+          "code": "conflicted",
+          "message": "仍有 1 个冲突文件尚未标记为已解决"
+        }
+      ],
+      "currentBranch": "main",
+      "detached": false,
+      "headOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+      "headSubject": "feat: commit staged a.txt",
+      "kind": "merge",
+      "origHeadOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+      "origHeadSubject": "feat: commit staged a.txt",
+      "sourceLabel": "refs/heads/feat-conflict",
+      "sourceOid": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+      "sourceSubject": "feat: dragonfly in b.txt",
+      "targetLabel": "main",
+      "targetOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+      "targetSubject": "feat: commit staged a.txt",
+      "worktreeId": "<id#2>",
+      "worktreePath": "<repo>"
+    },
+    "kind": "merge",
+    "operationId": "<operationId#2>",
+    "outcome": "conflicted",
+    "recoveryRef": "<recoveryRef#1>",
+    "subject": "feat: commit staged a.txt",
+    "summary": "将 feat-conflict（9c24118c）的 1 个提交合入工作树 repo 的分支 main（6b503797） 遇到 1 个冲突文件，请使用三方冲突解决器处理后继续或中止",
+    "worktree": {
+      "ahead": null,
+      "available": true,
+      "behind": null,
+      "branch": "main",
+      "changes": {
+        "conflicted": 1,
+        "staged": 0,
+        "unstaged": 0,
+        "untracked": 0
+      },
+      "detached": false,
+      "dirty": true,
+      "error": "",
+      "hasIgnored": false,
+      "hasUntracked": false,
+      "head": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+      "id": "<id#2>",
+      "kind": "main",
+      "lastCommit": {
+        "author": "Wire test",
+        "committedAt": "2026-01-02T03:04:05Z",
+        "hash": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+        "subject": "feat: commit staged a.txt"
+      },
+      "lockReason": "",
+      "locked": false,
+      "operation": "merge",
+      "path": "<repo>",
+      "prunable": false,
+      "repositoryId": "<id#1>",
+      "upstream": null,
+      "upstreamGone": false
+    }
+  }
+}

@@ -34,18 +34,39 @@ var (
 	ErrInternal    = errors.New("code view internal error")
 	ErrUnavailable = errors.New("code view unavailable")
 	ErrTimeout     = errors.New("code view operation timed out")
+
+	ErrReadOnly        error = conflictKind{"code view context is read-only"}
+	ErrStale           error = conflictKind{"code view snapshot is stale"}
+	ErrContextMismatch error = conflictKind{"code view context mismatch"}
+	ErrNoTaskBaseline  error = conflictKind{"code view worktree has no task baseline"}
 )
+
+type conflictKind struct {
+	msg string
+}
+
+func (e conflictKind) Error() string { return e.msg }
+func (e conflictKind) Unwrap() error { return ErrConflict }
 
 // Error carries the user-facing message; its kind is reachable through
 // errors.Is.
 type Error struct {
 	kind    error
+	subkind error
 	message string
 }
 
 func (e *Error) Error() string { return e.message }
-func (e *Error) Unwrap() error { return e.kind }
+func (e *Error) Unwrap() []error {
+	if e.subkind != nil {
+		return []error{e.kind, e.subkind}
+	}
+	return []error{e.kind}
+}
 func problemf(kind error, format string, args ...any) error {
+	if _, ok := kind.(conflictKind); ok {
+		return &Error{kind: ErrConflict, subkind: kind, message: fmt.Sprintf(format, args...)}
+	}
 	return &Error{kind: kind, message: fmt.Sprintf(format, args...)}
 }
 
@@ -60,12 +81,35 @@ func errorKind(err error) error {
 		return ErrTimeout
 	case errors.Is(err, os.ErrNotExist):
 		return ErrNotFound
+	case errors.Is(err, workspace.ErrInvalid):
+		return ErrInvalid
+	case errors.Is(err, workspace.ErrNotFound):
+		return ErrNotFound
+	case errors.Is(err, workspace.ErrConflict):
+		return ErrConflict
+	case errors.Is(err, workspace.ErrUnavailable):
+		return ErrUnavailable
 	case errors.Is(err, workspace.ErrTooLarge):
 		return ErrTooLarge
 	case errors.Is(err, workspace.ErrTimeout):
 		return ErrTimeout
 	}
 	return ErrInternal
+}
+
+// TargetResolver locates registered repositories and worktrees without
+// requiring any active session.
+type TargetResolver interface {
+	LocateRepository(ctx context.Context, repositoryID string) (workspace.RepositoryLocation, error)
+	LocateWorktree(ctx context.Context, repositoryID, worktreeID string) (workspace.WorktreeLocation, error)
+	ResolveTaskScope(ctx context.Context, repositoryID, worktreeID string) (workspace.TaskScopeSummary, error)
+}
+
+// Target identifies a session-independent repository or worktree scope.
+// An empty WorktreeID addresses the repository-level read-only context.
+type Target struct {
+	RepositoryID string
+	WorktreeID   string
 }
 
 type Context struct {
@@ -170,6 +214,36 @@ type Diff struct {
 	Reason   string    `json:"reason"`
 	Checked  time.Time `json:"checkedAt"`
 	Change   Change    `json:"change"`
+}
+
+type CompareQuery struct {
+	ContextID string
+	BaseOID   string
+	TargetOID string
+	Path      string
+	ChangeID  string
+	Q         string
+	Cursor    string
+}
+
+type Compare struct {
+	BaseOID   string
+	TargetOID string
+	Changes   Changes
+	Diff      *Diff
+}
+
+// TaskChanges holds the single net diff listing from a worktree's fixed
+// TaskBaseline to its live working tree alongside commit and uncommitted counts.
+type TaskChanges struct {
+	Status           string
+	Reason           string
+	Baseline         *workspace.TaskBaseline
+	HeadOID          string
+	HeadUnborn       bool
+	CommitCount      int
+	UncommittedCount int
+	Changes          Changes
 }
 type CheckRequest struct {
 	Context        string

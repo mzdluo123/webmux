@@ -354,6 +354,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	})
 	defer workspaces.Close()
 	codes := codeview.New(m, folders)
+	codes.UseWorkspace(workspaces)
 	defer codes.Close()
 	pushes := push.New(c.Push, c.StateDir, m, slog.Default(), nil)
 	// Forwards live in memory only; WebMux's own ports cannot be forwarded.
@@ -480,20 +481,4 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 		return err
 	}
 	return nil
-}
-
-// printConfigNotice names the configuration in use and points at the local
-// API for the current token without putting credentials in captured output.
-func printConfigNotice(out io.Writer, c serverRun) {
-	if c.Token != "" {
-		_, _ = fmt.Fprintln(out, "Token: reveal it with: webmux status --json --reveal-token")
-	}
-	if c.ConfigPath == "" {
-		return
-	}
-	if c.ConfigCreated {
-		_, _ = fmt.Fprintln(out, "Created config:  "+c.ConfigPath)
-	} else {
-		_, _ = fmt.Fprintln(out, "Using config:    "+c.ConfigPath)
-	}
 }

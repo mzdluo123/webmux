@@ -73,6 +73,22 @@ func TestDirectConversionsKeepFieldOrder(t *testing.T) {
 		{"ChatRequestOutcome", hybrid.RequestOutcome{}, contract.ChatRequestOutcome{}},
 		{"ChatQueueRequest", hybrid.QueueEdit{}, contract.ChatQueueRequest{}},
 		{"AgentCandidate", hybrid.Candidate{}, contract.AgentCandidate{}},
+		{"GitContext", codeview.Context{}, contract.GitContext{}},
+		{"GitChange", codeview.Change{}, contract.GitChange{}},
+		{"GitRefBadge", workspace.HistoryRefBadge{}, contract.GitRefBadge{}},
+		{"GitHistoryEdge", workspace.HistoryEdge{}, contract.GitHistoryEdge{}},
+		{"GitCommitParent", workspace.CommitParent{}, contract.GitCommitParent{}},
+		{"GitCommitFileChange", workspace.CommitFileChange{}, contract.GitCommitFileChange{}},
+		{"GitStagingHunkLine", workspace.StagingHunkLine{}, contract.GitStagingHunkLine{}},
+		{"GitCommitIdentity", workspace.CommitIdentity{}, contract.GitCommitIdentity{}},
+		{"GitConflictFileSummary", workspace.ConflictFileSummary{}, contract.GitConflictFileSummary{}},
+		{"GitConflictSide", workspace.ConflictSide{}, contract.GitConflictSide{}},
+		{"GitConflictSnapshotIdentity", workspace.ConflictSnapshotIdentity{}, contract.GitConflictSnapshotIdentity{}},
+		{"GitOperationPreview", workspace.GitOperationPreview{}, contract.GitOperationPreview{}},
+		{"Tag", workspace.Tag{}, contract.Tag{}},
+		{"GitStashFileChange", workspace.StashFileChange{}, contract.GitStashFileChange{}},
+		{"GitBlameCommit", workspace.BlameCommit{}, contract.GitBlameCommit{}},
+		{"GitBlameLine", workspace.BlameLine{}, contract.GitBlameLine{}},
 	}
 	for _, pair := range pairs {
 		t.Run(pair.name, func(t *testing.T) {

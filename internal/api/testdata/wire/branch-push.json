@@ -2,6 +2,7 @@
   "status": 200,
   "body": {
     "message": "远端有新的提交，请先获取远程再快进",
+    "operationId": "<operationId#1>",
     "repository": {
       "anchorPath": "<repo>",
       "availability": "available",

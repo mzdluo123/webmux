@@ -4,8 +4,8 @@ import {
   ArtifactsFolderSchema,
   BranchesSchema,
   CommitsSchema,
-  EmptyRequestSchema,
   ErrorSchema,
+  FetchRemotesRequestSchema,
   FetchRemotesResponseSchema,
   ForwardRequestSchema,
   ForwardSchema,
@@ -17,8 +17,9 @@ import {
   SwitchPreviewRequestSchema,
   SwitchPreviewSchema,
   SwitchRequestSchema,
+  SwitchResultSchema,
   UploadSchema,
-  WorktreeSchema,
+  type FetchRemotesRequest,
   type ForwardRequest,
   type ForwardUpdate,
   type SessionInfo,
@@ -283,30 +284,42 @@ export function previewSwitch(
     SwitchPreviewRequestSchema,
   );
 }
-export function switchWorktree(tree: Worktree, request: SwitchRequest) {
+export function switchWorktree(
+  tree: Worktree,
+  request: SwitchRequest,
+  signal?: AbortSignal,
+) {
   return api(
     worktreeRoute(tree) + "/switch",
-    WorktreeSchema,
+    SwitchResultSchema,
     "POST",
     request,
-    undefined,
+    signal,
     SwitchRequestSchema,
   );
 }
 // Fetches every remote of a repository; the server finishes the fetch even
 // when this request is abandoned, and answers with the repository read again.
-export function fetchRepositoryRemotes(id: string) {
+export function fetchRepositoryRemotes(
+  id: string,
+  request: FetchRemotesRequest = {},
+  signal?: AbortSignal,
+) {
   return api(
     `/repositories/${id}/fetch`,
     FetchRemotesResponseSchema,
     "POST",
-    {},
-    undefined,
-    EmptyRequestSchema,
+    request,
+    signal,
+    FetchRemotesRequestSchema,
   );
 }
 export function navigate(path: string) {
   history.pushState(null, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+export function replacePath(path: string) {
+  history.replaceState(history.state, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 const statusText = {

@@ -26,6 +26,7 @@
     onopen,
     onswitch,
     onoperation,
+    ongit,
   }: {
     stage: "browse" | "select";
     entries: readonly WorktreeBatchEntry[];
@@ -36,6 +37,7 @@
     onopen: (worktreeId: string) => void;
     onswitch: (worktreeId: string) => void;
     onoperation: (operation: BranchOperation) => void;
+    ongit?: (worktreeId: string, view?: "commit") => void;
   } = $props();
 
   const selectedSet = $derived(new Set(selectedIds));
@@ -164,6 +166,10 @@
                   : undefined}
                 worktree={entry.tree}
                 {onoperation}
+                ongit={ongit ? () => ongit(entry.tree.id) : undefined}
+                oncommit={ongit
+                  ? () => ongit(entry.tree.id, "commit")
+                  : undefined}
               />
             </DropdownMenu.Content>
           </DropdownMenu.Root>

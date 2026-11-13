@@ -107,6 +107,7 @@
       }
     ],
     "bases": [],
+    "tags": [],
     "defaultBase": null,
     "defaultBaseSubject": "",
     "defaultBranch": null,
@@ -231,6 +232,595 @@
       "listeningPorts": []
     },
     "configWarnings": []
+  },
+  "gitAbortPreview": {
+    "confirmationId": "",
+    "expiresAt": null,
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "kind": "merge",
+    "directionSummary": "abort",
+    "affectedPaths": [],
+    "sessions": [],
+    "blockers": [],
+    "warnings": []
+  },
+  "gitBlame": {
+    "commitOid": "0123456789abcdef0123456789abcdef01234567",
+    "shortOid": "01234567",
+    "path": "a.txt",
+    "kind": "text",
+    "totalLines": 0,
+    "commits": [],
+    "lines": []
+  },
+  "gitBranchMutationResult": {
+    "branch": "feat-v2",
+    "repository": {
+      "id": "",
+      "name": "",
+      "commonDir": "",
+      "anchorPath": "",
+      "availability": "unavailable",
+      "error": "",
+      "checkedAt": "0001-01-01T00:00:00Z",
+      "worktrees": [],
+      "initInstruction": "",
+      "lastFetchedAt": null
+    },
+    "branches": {
+      "branches": [],
+      "bases": [],
+      "tags": [],
+      "defaultBase": null,
+      "defaultBaseSubject": "",
+      "defaultBranch": null,
+      "defaultParent": ""
+    }
+  },
+  "gitBranchRenamePreview": {
+    "confirmationId": "",
+    "expiresAt": null,
+    "repositoryId": "repo0001",
+    "oldName": "feat",
+    "newName": "feat-v2",
+    "headOid": "0123456789abcdef0123456789abcdef01234567",
+    "subject": "init",
+    "affectedWorktrees": [],
+    "sessions": [],
+    "blockers": [],
+    "warnings": []
+  },
+  "gitChanges": {
+    "nextCursor": "",
+    "total": 0,
+    "entries": [],
+    "contentVersion": "",
+    "checkedAt": "0001-01-01T00:00:00Z"
+  },
+  "gitCommitDetail": {
+    "oid": "0123456789abcdef0123456789abcdef01234567",
+    "shortOid": "01234567",
+    "subject": "init",
+    "body": "",
+    "message": "init",
+    "authorName": "",
+    "authorEmail": "",
+    "authorAt": "2026-01-02T03:04:05Z",
+    "committerName": "",
+    "committerEmail": "",
+    "committerAt": "2026-01-02T03:04:05Z",
+    "distinctCommitter": false,
+    "parents": [],
+    "comparedParentOid": "",
+    "refs": [],
+    "files": []
+  },
+  "gitCommitPreview": {
+    "confirmationId": "",
+    "expiresAt": null,
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "headState": "branch",
+    "branch": "main",
+    "headParents": [],
+    "headPush": {
+      "state": "unknown",
+      "branches": [],
+      "more": 0
+    },
+    "amend": false,
+    "amendPushed": false,
+    "signoff": false,
+    "indexDigest": "digest",
+    "stagedFiles": [],
+    "unstagedCount": 0,
+    "untrackedCount": 0,
+    "conflictedCount": 0,
+    "identity": {
+      "authorName": "",
+      "authorEmail": "",
+      "committerName": "",
+      "committerEmail": "",
+      "signEnabled": false
+    },
+    "executableHooks": [],
+    "blockers": [],
+    "warnings": []
+  },
+  "gitCommitResult": {
+    "operationId": "op000001",
+    "outcome": "matched",
+    "commitOid": "0123456789abcdef0123456789abcdef01234567",
+    "parents": [],
+    "treeOid": "fedcba9876543210fedcba9876543210fedcba98",
+    "expectedTreeOid": "fedcba9876543210fedcba9876543210fedcba98",
+    "reviewReasons": []
+  },
+  "gitCompare": {
+    "baseOid": "",
+    "targetOid": "0123456789abcdef0123456789abcdef01234567",
+    "changes": {
+      "nextCursor": "",
+      "total": 0,
+      "entries": [],
+      "contentVersion": "",
+      "checkedAt": "0001-01-01T00:00:00Z"
+    }
+  },
+  "gitConflictDetail": {
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "path": "a.txt",
+    "xy": "UU",
+    "kind": "text",
+    "textMergeable": true,
+    "identity": {
+      "path": "a.txt",
+      "leftStage": 2,
+      "rightStage": 3
+    },
+    "base": {
+      "side": "base",
+      "label": "base",
+      "role": "base",
+      "stage": 1,
+      "present": false,
+      "sizeBytes": 0,
+      "binary": false
+    },
+    "left": {
+      "side": "left",
+      "label": "left",
+      "role": "left",
+      "stage": 2,
+      "present": false,
+      "sizeBytes": 0,
+      "binary": false
+    },
+    "right": {
+      "side": "right",
+      "label": "right",
+      "role": "right",
+      "stage": 3,
+      "present": false,
+      "sizeBytes": 0,
+      "binary": false
+    },
+    "segments": [
+      {
+        "id": "seg-0",
+        "kind": "conflict",
+        "baseStart": 1,
+        "baseLines": [],
+        "leftStart": 1,
+        "leftLines": [],
+        "rightStart": 1,
+        "rightLines": []
+      }
+    ],
+    "initialResultText": "",
+    "diskHasConflictMarker": false,
+    "diskModifiedFromBase": false
+  },
+  "gitConflictResolve": {
+    "path": "a.txt",
+    "inProgress": {
+      "active": false,
+      "worktreeId": "tree0001",
+      "worktreePath": "/w",
+      "detached": false,
+      "conflictedCount": 0,
+      "conflictedFiles": [],
+      "canContinue": false,
+      "canAbort": false,
+      "continueBlockers": []
+    }
+  },
+  "gitDivergencePreview": {
+    "confirmationId": "",
+    "expiresAt": null,
+    "kind": "merge",
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "directionSummary": "merge",
+    "recoveryHint": "abort",
+    "targetRef": "origin/main",
+    "targetKind": "remote",
+    "targetOid": "0123456789abcdef0123456789abcdef01234567",
+    "targetSubject": "init",
+    "fastForward": false,
+    "alreadyUpToDate": false,
+    "commits": {
+      "total": 0,
+      "items": []
+    },
+    "sessions": [],
+    "blockers": [],
+    "warnings": []
+  },
+  "gitDivergenceResult": {
+    "kind": "merge",
+    "outcome": "completed",
+    "summary": "done",
+    "inProgress": {
+      "active": false,
+      "worktreeId": "tree0001",
+      "worktreePath": "/w",
+      "detached": false,
+      "conflictedCount": 0,
+      "conflictedFiles": [],
+      "canContinue": false,
+      "canAbort": false,
+      "continueBlockers": []
+    },
+    "worktree": {
+      "id": "",
+      "repositoryId": "",
+      "path": "",
+      "kind": "main",
+      "branch": null,
+      "head": null,
+      "detached": false,
+      "locked": false,
+      "lockReason": "",
+      "prunable": false,
+      "available": false,
+      "dirty": null,
+      "hasUntracked": false,
+      "hasIgnored": false,
+      "error": "",
+      "upstream": null,
+      "ahead": null,
+      "behind": null,
+      "upstreamGone": false,
+      "lastCommit": null,
+      "changes": null,
+      "operation": null
+    }
+  },
+  "gitFileHistory": {
+    "status": "ready",
+    "path": "a.txt",
+    "commits": [
+      {
+        "oid": "0123456789abcdef0123456789abcdef01234567",
+        "shortOid": "01234567",
+        "parents": [],
+        "subject": "init",
+        "authorName": "",
+        "authorEmail": "",
+        "authorAt": "2026-01-02T03:04:05Z",
+        "status": "A",
+        "path": "a.txt"
+      }
+    ]
+  },
+  "gitHistory": {
+    "status": "ready",
+    "scope": "all",
+    "refsChanged": false,
+    "nextCursor": "",
+    "rows": [
+      {
+        "oid": "0123456789abcdef0123456789abcdef01234567",
+        "shortOid": "01234567",
+        "parents": [],
+        "subject": "init",
+        "authorName": "",
+        "authorEmail": "",
+        "authorAt": "2026-01-02T03:04:05Z",
+        "committerName": "",
+        "committerAt": "2026-01-02T03:04:05Z",
+        "refs": [],
+        "lane": 0,
+        "activeLanes": [],
+        "edges": [],
+        "directParentsMissing": false
+      }
+    ]
+  },
+  "gitInProgress": {
+    "active": false,
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "detached": false,
+    "conflictedCount": 0,
+    "conflictedFiles": [],
+    "canContinue": false,
+    "canAbort": false,
+    "continueBlockers": []
+  },
+  "gitOperation": {
+    "id": "op000001",
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "kind": "commit",
+    "status": "succeeded",
+    "startedAt": "2026-01-02T03:04:05Z",
+    "finishedAt": null,
+    "summary": "committed",
+    "fetchResults": [],
+    "preview": {},
+    "parents": [],
+    "reviewReasons": []
+  },
+  "gitOperations": {
+    "operations": []
+  },
+  "gitRemoteMutationResult": {
+    "remotes": [],
+    "repository": {
+      "id": "",
+      "name": "",
+      "commonDir": "",
+      "anchorPath": "",
+      "availability": "unavailable",
+      "error": "",
+      "checkedAt": "0001-01-01T00:00:00Z",
+      "worktrees": [],
+      "initInstruction": "",
+      "lastFetchedAt": null
+    }
+  },
+  "gitReviews": {
+    "scope": "uncommitted",
+    "status": "ready",
+    "totalFiles": 0,
+    "reviewedFiles": 0,
+    "files": [],
+    "applied": true
+  },
+  "gitStaging": {
+    "unborn": false,
+    "staged": [],
+    "unstaged": [],
+    "conflicted": []
+  },
+  "gitStagingDiff": {
+    "identity": {
+      "area": "unstaged",
+      "path": "a.txt"
+    },
+    "conflicted": false,
+    "binary": false,
+    "hunkStageAvailable": false,
+    "hunks": [
+      {
+        "id": "h1",
+        "header": "@@ -1 +1 @@",
+        "oldStart": 0,
+        "oldLines": 0,
+        "newStart": 0,
+        "newLines": 0,
+        "lines": []
+      }
+    ]
+  },
+  "gitStashApplyPreview": {
+    "confirmationId": "",
+    "expiresAt": null,
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "mode": "apply",
+    "entry": {
+      "stashRef": "stash@{0}",
+      "index": 0,
+      "oid": "0123456789abcdef0123456789abcdef01234567",
+      "shortOid": "01234567",
+      "parents": [],
+      "hasUntracked": false,
+      "summary": "WIP on main",
+      "createdAt": "2026-01-02T03:04:05Z"
+    },
+    "reinstateIndex": false,
+    "detached": false,
+    "stagedCount": 0,
+    "unstagedCount": 0,
+    "untrackedCount": 0,
+    "overlappingPaths": [],
+    "sessions": [],
+    "blockers": [],
+    "warnings": []
+  },
+  "gitStashApplyResult": {
+    "kind": "stash_apply",
+    "outcome": "completed",
+    "stashRef": "stash@{0}",
+    "stashOid": "0123456789abcdef0123456789abcdef01234567",
+    "stashDropped": false,
+    "stashPreserved": false,
+    "summary": "applied",
+    "inProgress": {
+      "active": false,
+      "worktreeId": "tree0001",
+      "worktreePath": "/w",
+      "detached": false,
+      "conflictedCount": 0,
+      "conflictedFiles": [],
+      "canContinue": false,
+      "canAbort": false,
+      "continueBlockers": []
+    },
+    "worktree": {
+      "id": "",
+      "repositoryId": "",
+      "path": "",
+      "kind": "main",
+      "branch": null,
+      "head": null,
+      "detached": false,
+      "locked": false,
+      "lockReason": "",
+      "prunable": false,
+      "available": false,
+      "dirty": null,
+      "hasUntracked": false,
+      "hasIgnored": false,
+      "error": "",
+      "upstream": null,
+      "ahead": null,
+      "behind": null,
+      "upstreamGone": false,
+      "lastCommit": null,
+      "changes": null,
+      "operation": null
+    }
+  },
+  "gitStashCreatePreview": {
+    "confirmationId": "",
+    "expiresAt": null,
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "detached": false,
+    "includeUntracked": false,
+    "keepIndex": false,
+    "stagedCount": 0,
+    "unstagedCount": 0,
+    "untrackedCount": 0,
+    "affectedPaths": [],
+    "sessions": [],
+    "blockers": [],
+    "warnings": []
+  },
+  "gitStashCreateResult": {
+    "entry": {
+      "stashRef": "stash@{0}",
+      "index": 0,
+      "oid": "0123456789abcdef0123456789abcdef01234567",
+      "shortOid": "01234567",
+      "parents": [],
+      "hasUntracked": false,
+      "summary": "WIP on main",
+      "createdAt": "2026-01-02T03:04:05Z"
+    },
+    "worktree": {
+      "id": "",
+      "repositoryId": "",
+      "path": "",
+      "kind": "main",
+      "branch": null,
+      "head": null,
+      "detached": false,
+      "locked": false,
+      "lockReason": "",
+      "prunable": false,
+      "available": false,
+      "dirty": null,
+      "hasUntracked": false,
+      "hasIgnored": false,
+      "error": "",
+      "upstream": null,
+      "ahead": null,
+      "behind": null,
+      "upstreamGone": false,
+      "lastCommit": null,
+      "changes": null,
+      "operation": null
+    }
+  },
+  "gitStashDetail": {
+    "entry": {
+      "stashRef": "stash@{0}",
+      "index": 0,
+      "oid": "0123456789abcdef0123456789abcdef01234567",
+      "shortOid": "01234567",
+      "parents": [],
+      "hasUntracked": false,
+      "summary": "WIP on main",
+      "createdAt": "2026-01-02T03:04:05Z"
+    },
+    "authorName": "",
+    "authorEmail": "",
+    "trackedCount": 0,
+    "untrackedCount": 0,
+    "files": []
+  },
+  "gitStashDropPreview": {
+    "confirmationId": "",
+    "expiresAt": null,
+    "repositoryId": "repo0001",
+    "entry": {
+      "stashRef": "stash@{0}",
+      "index": 0,
+      "oid": "0123456789abcdef0123456789abcdef01234567",
+      "shortOid": "01234567",
+      "parents": [],
+      "hasUntracked": false,
+      "summary": "WIP on main",
+      "createdAt": "2026-01-02T03:04:05Z"
+    },
+    "fileCount": 0,
+    "recoveryCommand": "git stash apply 0123456789abcdef0123456789abcdef01234567",
+    "blockers": [],
+    "warnings": []
+  },
+  "gitStashDropResult": {
+    "stashRef": "stash@{0}",
+    "stashOid": "0123456789abcdef0123456789abcdef01234567",
+    "recoveryCommand": "git stash apply 0123456789abcdef0123456789abcdef01234567",
+    "stashes": []
+  },
+  "gitStashList": {
+    "stashes": []
+  },
+  "gitTagCreateResult": {
+    "tag": {
+      "name": "v1.0.0",
+      "head": "0123456789abcdef0123456789abcdef01234567",
+      "subject": "init",
+      "committedAt": "2026-01-02T03:04:05Z",
+      "kind": "lightweight"
+    },
+    "branches": {
+      "branches": [],
+      "bases": [],
+      "tags": [],
+      "defaultBase": null,
+      "defaultBaseSubject": "",
+      "defaultBranch": null,
+      "defaultParent": ""
+    }
+  },
+  "gitTagDeleteResult": {
+    "name": "v1.0.0",
+    "targetOid": "0123456789abcdef0123456789abcdef01234567",
+    "recoveryCommand": "git tag v1.0.0 0123456789abcdef0123456789abcdef01234567",
+    "branches": {
+      "branches": [],
+      "bases": [],
+      "tags": [],
+      "defaultBase": null,
+      "defaultBaseSubject": "",
+      "defaultBranch": null,
+      "defaultParent": ""
+    }
   },
   "launch": [
     {

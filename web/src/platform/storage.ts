@@ -19,6 +19,7 @@ export const deviceScopedKeys: ReadonlySet<string> = new Set([
   "toastNotifications",
   "fontSize",
   "codeFontSize",
+  "gitWorkbenchLayout",
   "keyboardSizeHold",
   "touchGamepad",
   "voiceInput",

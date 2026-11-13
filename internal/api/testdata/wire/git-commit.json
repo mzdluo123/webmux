@@ -1,0 +1,19 @@
+{
+  "status": 200,
+  "body": {
+    "authorEmail": "wire@example.invalid",
+    "authorName": "Wire test",
+    "commitOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "committerEmail": "wire@example.invalid",
+    "committerName": "Wire test",
+    "expectedTreeOid": "7316cdbc05a7070b8a86588a9bbaaf90fddca4e4",
+    "operationId": "<operationId#1>",
+    "outcome": "matched",
+    "parents": [
+      "ecc8da449d18daa48261db409c9e0af26550cf64"
+    ],
+    "reviewReasons": [],
+    "subject": "feat: commit staged a.txt",
+    "treeOid": "7316cdbc05a7070b8a86588a9bbaaf90fddca4e4"
+  }
+}

@@ -40,6 +40,8 @@
     ondetailschange,
     lastFetchedAt,
     onoperation,
+    ongit,
+    oncommit,
   }: {
     title: string;
     path?: string;
@@ -72,6 +74,8 @@
     lastFetchedAt?: string | null;
     /** Starts a sync action of the worktree's branch (menu and details). */
     onoperation?: (operation: BranchOperation) => void;
+    ongit?: () => void;
+    oncommit?: () => void;
   } = $props();
   let localOpen = $state(false);
   const visible = $derived(
@@ -156,6 +160,8 @@
           {onremove}
           {worktree}
           {onoperation}
+          {ongit}
+          {oncommit}
         />
       </div>
       {@render notices()}

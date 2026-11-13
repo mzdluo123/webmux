@@ -55,6 +55,8 @@ test("worktree heading keeps its width above mobile actions", async ({
 
 for (const story of stories) {
   test(`${story} fits and keeps its controls reachable`, async ({ page }) => {
+    // Twelve layouts, and full-workbench stories trial-click two dozen controls in each.
+    test.slow();
     const failures: string[] = [];
     page.on("pageerror", (error) => failures.push(error.message));
     await page.route("**/api/**", (route) => route.abort());
@@ -199,6 +201,17 @@ for (const [story, shows] of [
   ["blockers", { role: "button", name: "改为在新工作树打开" }],
   ["sessions", { role: "checkbox", name: /我已了解/ }],
   ["long-names", { role: "button", name: "转到该工作树" }],
+  [
+    "smart-checkout-idle",
+    { role: "button", name: "Smart Checkout（携带修改切换）" },
+  ],
+  [
+    "smart-checkout-active-agent",
+    {
+      role: "button",
+      name: "仍在当前工作树原地携带修改切换（Smart Checkout）",
+    },
+  ],
 ] as const) {
   test(`switch branch ${story} fits every layout`, async ({ page }) => {
     test.slow();
