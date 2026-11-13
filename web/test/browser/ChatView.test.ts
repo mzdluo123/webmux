@@ -1056,9 +1056,9 @@ test("turn navigation marks the last message at the end of a compact transcript"
                 index === 7
                   ? "最后一轮回复，很短"
                   : Array.from(
-                        { length: 8 },
-                        (_, line) => `第 ${index + 1} 轮回复，段落 ${line + 1}`,
-                      ).join("\n\n"),
+                      { length: 8 },
+                      (_, line) => `第 ${index + 1} 轮回复，段落 ${line + 1}`,
+                    ).join("\n\n"),
             },
           },
         ]).flat(),
