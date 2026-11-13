@@ -993,6 +993,59 @@ func (a *agent) turn(ctx context.Context, sid, text, id string) (reply, stop str
 		}
 	}
 
+	if text == "fixture turn diff" {
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Edit app.ts", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", OldText: new("export const title = 'Old';\n"), NewText: "export const title = 'New';\n"}},
+		})
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Edit app.ts footer", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", OldText: new("export const footer = 'Before';\n"), NewText: "export const footer = 'After';\n"}},
+		})
+	}
+	if text == "fixture late diff begin" {
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: "fixture-late-diff", Title: "Background edit late.ts", Kind: "edit", Status: acp.ToolInProgress,
+		})
+	}
+	if text == "fixture late diff finish" {
+		done := acp.ToolCompleted
+		a.update(sid, &acp.ToolCallUpdate{
+			ToolCallID: "fixture-late-diff", Status: &done,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "late.ts", OldText: new("export const late = 'before';\n"), NewText: "export const late = 'after';\n"}},
+		})
+	}
+	if text == "fixture deleted file diff" {
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Delete removed.ts", Kind: "delete", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "removed.ts", OldText: new("export const removed = 'Deleted';\n"), NewText: ""}},
+		})
+	}
+	if text == "fixture create then edit diff" {
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Create app.ts", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", NewText: "keep\noriginal"}},
+		})
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Edit app.ts", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", OldText: new("keep\noriginal"), NewText: "keep\nreplacement"}},
+		})
+	}
+	if text == "fixture clear then rewrite diff" || text == "fixture clear then restore diff" {
+		before := "keep\noriginal"
+		after := "keep\nreplacement"
+		if text == "fixture clear then restore diff" {
+			after = before
+		}
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Clear app.ts", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", OldText: new(before), NewText: ""}},
+		})
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Rewrite app.ts", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", OldText: new(""), NewText: after}},
+		})
+	}
 	reply = "echo: " + text + extra
 	half := len(reply) / 2
 	for half > 0 && !utf8.RuneStart(reply[half]) {

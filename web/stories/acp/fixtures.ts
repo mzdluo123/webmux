@@ -168,6 +168,7 @@ const worktreesDiff = {
 };
 
 const history: EventBody[] = [
+  { kind: "turn.start", turnStart: { turnId: "turn-1", promptId: "u1" } },
   user("u1", "修复首页搜索的排序：置顶的工作区应排在最前。", [
     {
       path: "/tmp/webmux-upload-story/home-order.png",
@@ -556,6 +557,20 @@ export function chatFixture(scenario: Scenario, agent: Agent) {
     );
     if (scenario === "commands")
       events.push(
+        tool("edit-3", "edit", "编辑 Home.svelte 的另一片段", "completed", [
+          {
+            path: homeDiff.path,
+            oldText: "const pinnedFirst = false;\n",
+            newText: "const pinnedFirst = true;\n",
+          },
+        ]),
+        tool("delete-1", "delete", "移除旧排序模块", "completed", [
+          {
+            path: "web/src/legacy-sort.ts",
+            oldText: "export const legacySort = true;\n",
+            newText: "",
+          },
+        ]),
         agentText(
           "a2",
           "已修复排序并补充测试，12 个用例全部通过。置顶的工作区现在始终排在最前。",

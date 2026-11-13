@@ -29,6 +29,8 @@ export type ToolEntry = {
   status: ToolStatus;
   content: ChatContent[];
   locations: { path: string; line?: number }[];
+  /** Owning live turn; late patches keep it until an explicit tool restart. */
+  diffTurnId?: string;
   /** Created by a patch whose opening event fell out of the cached log. */
   partial: boolean;
   /**
@@ -57,7 +59,13 @@ export type TimelineEntry =
       level: "info" | "warning" | "error";
       text: string;
     }
-  | { type: "turnEnd"; id: string; stopReason: StopReason; error?: string }
+  | {
+      type: "turnEnd";
+      id: string;
+      stopReason: StopReason;
+      error?: string;
+      changes?: readonly ChatContent[];
+    }
   | {
       type: "marker";
       id: string;
@@ -118,6 +126,11 @@ export type ChatModel = {
   entries: TimelineEntry[];
   /** Entry position by "type:id", for upserts. */
   index: ReadonlyMap<string, number>;
+  /** Diff-bearing tools from the current turn, ordered by latest content update. */
+  turnDiff?: {
+    id: string;
+    tools: ReadonlyMap<string, { status: ToolStatus; diffs: ChatContent[] }>;
+  };
   /** Tool call and options of each permission request on a tool call. */
   requestTools: ReadonlyMap<
     string,
@@ -197,7 +210,8 @@ function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
     }
     case "tool.upsert": {
       const patch = event.tool;
-      return upsert(next, `tool:${patch.toolCallId}`, (prev) => {
+      const key = `tool:${patch.toolCallId}`;
+      const updated = upsert(next, key, (prev) => {
         const base: ToolEntry =
           prev?.type === "tool"
             ? prev
@@ -210,6 +224,7 @@ function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
                 content: [],
                 locations: [],
                 partial: patch.title === undefined,
+                diffTurnId: next.turnDiff?.id,
               };
         return {
           ...base,
@@ -218,8 +233,18 @@ function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
           status: patch.status ?? base.status,
           content: patch.content ?? base.content,
           locations: patch.locations ?? base.locations,
+          diffTurnId:
+            (patch.status === "pending" || patch.status === "in_progress") &&
+            base.status !== "pending" &&
+            base.status !== "in_progress"
+              ? next.turnDiff?.id
+              : base.diffTurnId,
         };
       });
+      const tool = updated.entries[updated.index.get(key)!];
+      return tool?.type === "tool"
+        ? trackTurnDiff(updated, patch, tool.status, tool.diffTurnId)
+        : updated;
     }
     case "info.set":
       return event.info.title === undefined
@@ -241,13 +266,23 @@ function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
         level: event.notice.level,
         text: event.notice.text,
       });
-    case "turn.end":
-      return append(next, {
+    case "turn.start":
+      return {
+        ...next,
+        turnDiff: { id: event.turnStart.turnId, tools: new Map() },
+      };
+    case "turn.end": {
+      const id = event.turnEnd.turnId;
+      const turn = next.turnDiff?.id === id ? next.turnDiff : undefined;
+      const changes = turn && summarizeTurnDiff(turn);
+      return append(turn ? { ...next, turnDiff: undefined } : next, {
         type: "turnEnd",
-        id: event.turnEnd.turnId,
+        id,
         stopReason: event.turnEnd.stopReason,
         ...(event.turnEnd.error ? { error: event.turnEnd.error } : {}),
+        ...(changes?.length ? { changes } : {}),
       });
+    }
     case "marker":
       return append(next, {
         type: "marker",
@@ -275,7 +310,6 @@ function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
         },
       });
     }
-    case "turn.start":
     case "plan.set":
     case "commands.set":
     case "config.set":
@@ -283,6 +317,66 @@ function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
       // State frames carry these; the timeline does not show them.
       return next;
   }
+}
+
+function trackTurnDiff(
+  model: ChatModel,
+  patch: Extract<ChatEvent, { kind: "tool.upsert" }>["tool"],
+  status: ToolStatus,
+  owner: string | undefined,
+): ChatModel {
+  const turn = model.turnDiff;
+  if (!turn || turn.id !== owner) return model;
+  const previous = turn.tools.get(patch.toolCallId);
+  const diffs = patch.content
+    ? patch.content.filter((block) => block.type === "diff" && !!block.path)
+    : previous?.diffs;
+  if (
+    (!previous && !diffs?.length) ||
+    (previous && !patch.content && status === previous.status)
+  )
+    return model;
+  const tools = new Map(turn.tools);
+  if (patch.content) tools.delete(patch.toolCallId);
+  if (diffs?.length) tools.set(patch.toolCallId, { status, diffs });
+  return { ...model, turnDiff: { id: turn.id, tools } };
+}
+
+function summarizeTurnDiff(turn: NonNullable<ChatModel["turnDiff"]>) {
+  const changes = new Map<string, ChatContent[]>();
+  for (const tool of turn.tools.values()) {
+    if (tool.status !== "completed") continue;
+    for (const block of tool.diffs) {
+      // Go omits empty newText and nil oldText (ACP's new-file origin).
+      // Only snapshot content identifies an absent side; patch-only/unknown
+      // blocks must not acquire a fabricated whole-file baseline.
+      const snapshot =
+        !block.text &&
+        !block.truncated &&
+        (block.oldText !== undefined || block.newText !== undefined);
+      const patch = snapshot
+        ? {
+            ...block,
+            oldText: block.oldText ?? "",
+            newText: block.newText ?? "",
+          }
+        : block;
+      const path = block.path!;
+      const patches = changes.get(path) ?? [];
+      const prior = patches.at(-1);
+      if (
+        prior &&
+        prior.oldText !== undefined &&
+        !prior.truncated &&
+        !patch.truncated &&
+        prior.newText === patch.oldText
+      )
+        patches[patches.length - 1] = { ...patch, oldText: prior.oldText };
+      else patches.push(patch);
+      changes.set(path, patches);
+    }
+  }
+  return [...changes.values()].flat();
 }
 
 function trackRequest(model: ChatModel, request: ChatRequest): ChatModel {

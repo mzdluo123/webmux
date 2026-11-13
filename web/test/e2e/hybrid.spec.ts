@@ -375,6 +375,162 @@ async function switchTo(page: Page, side: Side, confirm = false) {
 }
 
 test.describe("hybrid sessions with the fake agent", () => {
+  test("turn-end diff uses the tool's captured before and after text", async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    const id = await createHybrid(request, workDir, "chat");
+    await openHybrid(page, id, "chat");
+    await chatTurn(page, "fixture turn diff");
+    await page
+      .getByRole("button", { name: "本轮改动 · 1 个文件", exact: true })
+      .click();
+    const file = page.getByRole("button", { name: /^app\.ts/ });
+    await file.click();
+    await expect(file).toHaveAttribute("aria-pressed", "true");
+    const diff = page.getByRole("region", { name: "回合差异：app.ts" });
+    await expect(diff).toHaveCount(2);
+    await expect(diff.nth(0)).toContainText("export const title = 'Old';");
+    await expect(diff.nth(0)).toContainText("export const title = 'New';");
+    await expect(diff.nth(1)).toContainText("export const footer = 'Before';");
+    await expect(diff.nth(1)).toContainText("export const footer = 'After';");
+    await file.click();
+    await expect(file).toHaveAttribute("aria-pressed", "false");
+    await expect(diff).toHaveCount(0);
+  });
+
+  test("create then edit shows one final new-file diff across the Go wire", async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    const id = await createHybrid(request, workDir, "chat");
+    await openHybrid(page, id, "chat");
+    await chatTurn(page, "fixture create then edit diff");
+    await page
+      .getByRole("button", { name: "本轮改动 · 1 个文件", exact: true })
+      .click();
+    const file = page.getByRole("button", { name: /^app\.ts/ });
+    await expect(file).toContainText("新增 2 行，删除 0 行");
+    await file.click();
+    const diff = page.getByRole("region", { name: "回合差异：app.ts" });
+    await expect(diff).toHaveCount(1);
+    await expect(diff).toContainText("keep");
+    await expect(diff).toContainText("replacement");
+    await expect(diff).not.toContainText("original");
+  });
+
+  for (const [action, stats] of [
+    ["rewrite", "新增 1 行，删除 1 行"],
+    ["restore", "新增 0 行，删除 0 行"],
+  ] as const) {
+    test(`clear then ${action} shows only the net turn diff`, async ({
+      page,
+      request,
+      workDir,
+    }) => {
+      const id = await createHybrid(request, workDir, "chat");
+      await openHybrid(page, id, "chat");
+      await chatTurn(page, `fixture clear then ${action} diff`);
+      await page
+        .getByRole("button", { name: "本轮改动 · 1 个文件", exact: true })
+        .click();
+      const file = page.getByRole("button", { name: /^app\.ts/ });
+      await expect(file).toContainText(stats);
+      await file.click();
+      const diff = page.getByRole("region", { name: "回合差异：app.ts" });
+      await expect(diff).toHaveCount(1);
+      if (action === "rewrite") {
+        await expect(diff).toContainText("original");
+        await expect(diff).toContainText("replacement");
+      }
+    });
+  }
+
+  test("deleted turn-diff files search the captured old content", async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    const id = await createHybrid(request, workDir, "chat");
+    await openHybrid(page, id, "chat");
+    await chatTurn(page, "fixture deleted file diff");
+    await page
+      .getByRole("button", { name: "本轮改动 · 1 个文件", exact: true })
+      .click();
+    await page.getByRole("button", { name: /^removed\.ts/ }).click();
+    const diff = page.getByRole("region", { name: "回合差异：removed.ts" });
+    await expect(diff).toContainText("export const removed = 'Deleted';");
+    await diff.getByRole("button", { name: "文件内查找", exact: true }).click();
+    const search = diff.getByRole("textbox", { name: "查找", exact: true });
+    await search.fill("Deleted");
+    await search.press("Enter");
+    await expect(diff.getByRole("status")).toHaveText("修改前 · 1 / 1");
+  });
+
+  test.describe("macOS find shortcut ownership", () => {
+    test.use({
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    });
+
+    test("Cmd+F searches the focused turn diff, then the terminal after switching", async ({
+      page,
+      request,
+      workDir,
+    }, testInfo) => {
+      test.skip(
+        testInfo.project.use.isMobile,
+        "macOS desktop keyboard shortcut",
+      );
+      await page.addInitScript(() => {
+        Object.defineProperty(navigator, "platform", { get: () => "MacIntel" });
+      });
+      const id = await createHybrid(request, workDir, "chat");
+      await openHybrid(page, id, "chat");
+      await chatTurn(page, "fixture turn diff");
+      await page
+        .getByRole("button", { name: "本轮改动 · 1 个文件", exact: true })
+        .click();
+      await page.getByRole("button", { name: /^app\.ts/ }).click();
+      const diffs = page.getByRole("region", { name: "回合差异：app.ts" });
+      await expect(diffs).toHaveCount(2);
+      const diff = diffs.first();
+      await diff
+        .getByRole("button", { name: "文件内查找", exact: true })
+        .focus();
+      await page.keyboard.press("Meta+f");
+      const search = diff.getByRole("textbox", { name: "查找", exact: true });
+      await expect(search).toBeFocused();
+      await search.fill("New");
+      await search.press("Enter");
+      await expect(diff.getByRole("status")).toContainText(/1\s*\/\s*1/);
+      await diff
+        .locator('[data-line-type="change-deletion"][data-column-number="1"]')
+        .click();
+      await search.fill("Old");
+      await search.press("Enter");
+      await expect(diff.getByRole("status")).toHaveText("修改前 · 1 / 1");
+      await diff
+        .locator('[data-line-type="change-addition"][data-column-number="1"]')
+        .click();
+      await search.fill("New");
+      await search.press("Enter");
+      await expect(diff.getByRole("status")).toHaveText("修改后 · 1 / 1");
+      await expect(
+        page.getByRole("textbox", { name: "查找终端输出" }),
+      ).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await switchTo(page, "terminal");
+      await page.locator(".xterm-helper-textarea").focus();
+      await page.keyboard.press("Meta+f");
+      await expect(
+        page.getByRole("textbox", { name: "查找终端输出", exact: true }),
+      ).toBeFocused();
+    });
+  });
+
   test("session references enter the active split chat draft", async ({
     page,
     request,

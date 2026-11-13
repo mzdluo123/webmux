@@ -237,3 +237,42 @@
 - [正常速度容量提示与恢复录屏](../../.github/pr-assets/session-reference-capacity/capacity-retry.gif)约 4.8 秒，来自实际浏览器帧及墙钟时长，没有叠加或调速。
 - [实际状态清单](../../.github/pr-assets/session-reference-capacity/proof.json)记录消费事件、身份、导航、草稿和重试。
 - 全部私有服务、浏览器与录制中间件清理；没有真机、真实触控、原生修饰键或 hover/coarse 验证。公开链接由提交者后验。
+
+## 2026-11-12：回合 Diff 合并最终交接核心（US-Q05）
+
+- 保留同文件独立片段、共享 Diff 阅读器与增删统计；修改前、修改后及整文件删除的查找来源不变。
+- 定向回归：TurnChanges、CodeDiffReader、TerminalRendering 共 15 项浏览器测试，以及 chat-model、code-diff 共 20 项单元测试通过。
+- 实际私有应用：在独立 HOME、XDG 配置、状态目录与 FAKEAGENT_STORE 的真实后端运行 3 项 Chromium 桌面端到端场景；仅使用 fake agent，不连接真实供应商。
+- 已核对同文件两段 Diff 的展开收起、旧侧与新侧各 1 个匹配、删除文件默认旧侧查找，以及聊天 Diff 内 Cmd+F 与切回终端后的 Cmd+F 焦点归属。
+- 此次 macOS 快捷键通过 Chromium 模拟平台与按键核对，未声称在 macOS 真机验证；尾随换行的既有 diffStats 计数行为不在本次范围内。
+
+## 2026-11-12：空文件快照的回合 Diff 净改动（US-Q05）
+
+- 已知修改前快照存在时，将 wire 省略的空 `newText` 归一为空字符串再拼接；同文件先清空再改写保留净增删，清空后恢复保持零增删。
+- 未知、仅补丁与不能连续拼接的片段继续独立保留；不改变整文件删除、修改前后查找、快捷键归属或尾随换行统计策略。
+- `make check` 通过；turn-changes、chat-model、code-diff 共 28 项单元测试及 TurnChanges、CodeDiffReader、TerminalRendering 共 15 项浏览器测试通过。
+- 定向 Chromium E2E 在桌面与 iPhone SE 布局共 9 项通过，覆盖清空后改写/恢复、独立片段、删除文件默认旧侧查找与旧侧/新侧切换；1 项手机 macOS 快捷键场景按原规则跳过，桌面快捷键场景通过。
+- 独立实际私有应用 smoke 使用绝对路径 fake agent 与隔离 HOME/XDG/FAKEAGENT_STORE，捕获真实后端省略空 `newText` 的帧，再交给真实 reducer：改写为 1/1，恢复为 0/0，页面均只展开一个净 Diff。
+- 私有应用在 1280×720、390×844、375×667、320×568 的浅色/深色媒体设置下无文档横向溢出；未连接真实供应商，未核对真机、真实 macOS、悬停或触屏交互。
+
+## 2026-11-12：新建文件后编辑的净 Diff（US-Q05）
+
+- ACP 新文件的 `oldText` 允许省略或 `null`；Go 使用 nil 指针并在聊天 wire 中省略该字段。前端不增加 nullable JSON 分支，只在有完整快照且没有补丁正文或截断标记时归一不存在的一侧。
+- `keep\noriginal` 新建后改成 `keep\nreplacement`，回合摘要保留一个文件、一个最终 Diff，统计为新增 2 行、删除 0 行，而不是累计中间版本的 3/1。
+- 未知、仅补丁、截断与不连续片段继续独立；清空再改写的 1/1、清空再恢复的 0/0、尾随换行策略与查找快捷键归属不变。
+- 前端生产构建、生产/测试类型检查、Oxlint、架构守卫和源码格式检查通过；turn-changes、chat-model、code-diff 共 31 项单元测试及 TurnChanges、CodeDiffReader、TerminalRendering 共 15 项浏览器测试通过。
+- 独立私有生产应用使用绝对路径 fake omp 与隔离 HOME/XDG/FAKEAGENT_STORE；真实 Go WebSocket 新建帧省略 `oldText`，后续编辑帧带完整旧内容。捕获帧交给实际生产 reducer 得到一个 2/0 快照，页面也只展开一个包含 `keep` 与 `replacement` 的 Diff，没有旧版本 `original`。
+- 定向 E2E 桌面与 iPhone SE 共 11 项通过，1 项手机 macOS 快捷键场景按既有规则跳过；覆盖新建后编辑、清空后改写/恢复、独立片段、删除文件旧侧查找，以及桌面 Cmd+F 从聊天切回终端的焦点归属。
+- 同一真实后端与会话对比 87ea0df 的 reducer 生产 bundle 和修复后 bundle：前者两段 3/1，后者一段 2/0。桌面 1280×900、平板 768×800、手机 390×844 均有浅色/深色前后截图，另核对 375×667、320×568 无文档横向溢出；实际 DPR 为 1.25。
+- 证据位于 `.github/pr-assets/turn-diff-review/create-edit-*`：12 张前后截图、4 秒正常速度的展开/收起/再展开 GIF，以及真实 wire、生产 reducer 和各视口 displayedDiff 的 JSON。已检查截图与 GIF 帧序列；公开 PR 内嵌展示由发布者核对。
+- 限制：无真实供应商调用，未验证真机、真实 macOS、悬停或触屏；无新 UI 样式或布局修改。故事编号、数量与覆盖索引不变。
+
+## 2026-11-13：迟到后台工具不计入下一轮 Diff（US-Q05）
+
+- 实际复现第一轮 `in_progress` 工具在第二轮开始后发回完成 Diff；修复前第二轮错误显示一个文件的汇总。前端保留工具生命周期的回合归属，迟到补丁只更新原卡片；已结束汇总不追补，同一 ID 明确重新进入 pending/in_progress 时归入新轮。
+- 永久回归覆盖迟到完成仍更新原卡片、不污染新轮，以及终态工具 ID 明确重启后正常记录新轮。turn-changes 与 chat-model 共 27 项单元测试通过；原实现的迟到用例先失败，修复后通过。
+- `make check` 通过：生产及测试类型检查 419 文件无错误或警告，40 项架构与依赖测试、文档及持久化守卫、Oxlint、go vet 与 golangci-lint 全部通过。定向真实 ACP E2E 桌面与手机共 11 项通过，1 项手机 macOS 快捷键用例按原规则跳过，无重试。
+- 两个隔离生产二进制均使用绝对路径、校验 SHA256 的仓库 fake ACP。真实帧在第二轮开始后更新原工具，持久 Activity 仍为第一轮 position 6；修复前页面错误汇总为 1，修复后及真实重连回放均为 0，原工具卡片仍显示 late.ts 与 +1/−1。
+- `.github/pr-assets/late-tool-diff/` 保留真实帧、Activity、读屏文本及视口 JSON，桌面 1280×900、平板 768×800、手机 390×844 的明暗主题共 12 张前后截图，以及原工具卡片展开/收起的正常速度 GIF。另核对 375×667、320×568，两种主题均无文档横向溢出。
+- 截图实际 DPR 1，最初操作 DPR 1.25；GIF 由实际录屏转码。未声称工具卡片直接展示 Diff 正文，正文来自真实 wire 与 Activity；既有 fake 版本提示未隐藏。
+- 限制：仅仓库 fake ACP，无真实供应商调用；未验证真机、真实 macOS 或悬停/触屏。一次录帧脚本未解包 events 信封、一次 limit=100 读取被拒绝，相关不完整录屏不作证据；最终使用真实服务端回放和有效默认分页。故事编号、数量与覆盖索引不变。
