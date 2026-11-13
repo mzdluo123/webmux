@@ -135,5 +135,6 @@
 - 无/错/重复 Bearer、query/Cookie/仅 MCP ID 均401；非法 Origin/Host 为403，Unix 与关闭/尾斜杠入口404。真实请求另覆盖415/406、batch/null ID/重复键400、超限413及 no-store，之后 ping 仍成功。
 - loopback/wildcard 的 enabled+空 Token 启动均退出1，TOML 未改、未生成 Token 或 settings JSON；既有配置加载器仅创建空 lock 文件。
 - 全部 Go race、866 单元、731 浏览器、75 Storybook、472 E2E（48跳过）、18性能（2跳过）随完整 make test 通过；make test-fast、格式、docguard、persistence、架构与 vet 通过。
-- 固定 Go lint 2.15.0 最初因宿主二进制用 Go1.26 构建而不能加载 Go1.27.4；以项目 toolchain 重建同版本，修正两项静态提示后0 issues，运输层 race 再通过。
-- 本地完整前端类型构建仍受既有五项 implicit-any 错误阻挡，未改无关前端源码；Vite 构建和上述运行套件通过。未验证 OAuth-only hosted clients、互联网代理部署或其他操作系统实机。
+- 固定 Go lint 2.15.0 最初因宿主二进制用 Go1.26 构建而不能加载 Go1.27.4；以项目 toolchain 重建同版本，修正两项静态提示后0 issues，传输层 race 再通过。
+- 本地前端类型构建首次有五项 implicit-any 错误，未改无关前端源码；四个实现 PR 的 CI Format/check/build 均通过，Vite 和上述运行套件也通过。未验证 OAuth-only hosted clients、互联网代理部署或其他操作系统实机。
+- #586→#587→#588→#589 的首轮 CI 全部通过；#588 的配置名称审查已按真实 CLI 发现结果修正。Pullfrog 工作流390651953为 disabled_manually，未运行、未获其 approval，未擅自更改仓库工作流启用状态。
