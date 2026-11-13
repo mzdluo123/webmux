@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconFolder from "~icons/tabler/folder";
   import IconMessageForward from "~icons/tabler/message-forward";
@@ -12,6 +13,7 @@
   import GitTopBarBranchPopover from "./GitTopBarBranchPopover.svelte";
 
   let {
+    operations,
     context,
     branches,
     branchFilter,
@@ -23,6 +25,7 @@
     onOpenRework,
     onOpenPush,
   }: {
+    operations?: Snippet;
     context: GitWorktreeContext;
     branches: readonly GitBranchItem[];
     branchFilter: string | null;
@@ -53,28 +56,30 @@
       </span>
     </div>
 
-    <Badge variant={readonlyMode ? "warning" : "info"} class="max-w-full">
-      <span
-        class="truncate"
-        title={readonlyMode
-          ? "只读仓库（无工作树）"
-          : context.headState === "detached"
-            ? "游离 HEAD"
-            : context.headState === "unborn"
-              ? `未诞生 HEAD (${context.checkedOutBranch ?? "main"})`
-              : `当前检出：${context.checkedOutBranch ?? "HEAD"}`}
-      >
-        {#if readonlyMode}
-          只读仓库（无工作树）
-        {:else if context.headState === "detached"}
-          游离 HEAD
-        {:else if context.headState === "unborn"}
-          未诞生 HEAD ({context.checkedOutBranch ?? "main"})
-        {:else}
-          当前检出：{context.checkedOutBranch ?? "HEAD"}
-        {/if}
-      </span>
-    </Badge>
+    {#if readonlyMode || context.headState !== "branch"}
+      <Badge variant={readonlyMode ? "warning" : "info"} class="max-w-full">
+        <span
+          class="truncate"
+          title={readonlyMode
+            ? "只读仓库（无工作树）"
+            : context.headState === "detached"
+              ? "游离 HEAD"
+              : context.headState === "unborn"
+                ? `未诞生 HEAD (${context.checkedOutBranch ?? "main"})`
+                : `当前检出：${context.checkedOutBranch ?? "HEAD"}`}
+        >
+          {#if readonlyMode}
+            只读仓库（无工作树）
+          {:else if context.headState === "detached"}
+            游离 HEAD
+          {:else if context.headState === "unborn"}
+            未诞生 HEAD ({context.checkedOutBranch ?? "main"})
+          {:else}
+            当前检出：{context.checkedOutBranch ?? "HEAD"}
+          {/if}
+        </span>
+      </Badge>
+    {/if}
 
     {#if branchFilter}
       <Badge variant="outline" class="max-w-full">
@@ -96,6 +101,7 @@
   </div>
 
   <div class="flex flex-wrap items-center gap-2">
+    {@render operations?.()}
     {#if onOpenRework && !readonlyMode && reworkCount > 0}
       <Button
         size="sm"
