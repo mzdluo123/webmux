@@ -28,6 +28,8 @@
   import TerminalWorkspace from "./TerminalWorkspace.svelte";
   import VoiceButton from "../shared/VoiceButton.svelte";
   import ChatView from "../chat/ChatView.svelte";
+  import SideChatActions from "../chat/SideChatActions.svelte";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import SwitchProgress from "../chat/SwitchProgress.svelte";
   import type { createHeaderTerminalView } from "../../domains/terminal/session-terminal-io";
   import type { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
@@ -170,6 +172,8 @@
 
   let findPanel = $state<TerminalFindBar>();
   let chatView = $state<ChatView>();
+  let sideChat = $state<SideChatActions>();
+  const sideChatMenu = $derived(sideChat?.menu());
   let composer = $state<TerminalInputComposer>();
 
   export function focusFind() {
@@ -267,9 +271,40 @@
     />{/if}
 {/snippet}
 
+{#snippet sideMenu()}
+  {#if sideChatMenu?.child}
+    <DropdownMenu.Item
+      disabled={!sideChatMenu.canReturn}
+      onSelect={() => sideChat?.returnToParent()}>返回主会话</DropdownMenu.Item
+    >
+    <DropdownMenu.Item
+      disabled={!sideChatMenu.canBringBack}
+      onSelect={() => sideChat?.bringBack()}>把结论带回草稿</DropdownMenu.Item
+    >
+  {:else}
+    <DropdownMenu.Item
+      disabled={!sideChatMenu?.canStart}
+      onSelect={() => void sideChat?.start()}
+      >从最新回复开启旁聊</DropdownMenu.Item
+    >
+  {/if}
+{/snippet}
+
+{#snippet sessionMenu()}
+  {#if chatActions}
+    {@render chatActions()}
+  {/if}
+  {#if sideChatMenu?.child || sideChatMenu?.canStart}
+    {#if chatActions}<DropdownMenu.Separator />{/if}
+    {@render sideMenu()}
+  {/if}
+{/snippet}
+
 <TerminalHeader
-  {chatActions}
   {paneActions}
+  chatActions={chatActions || sideChatMenu?.child || sideChatMenu?.canStart
+    ? sessionMenu
+    : undefined}
   terminal={headerTerminal}
   {fullscreen}
   {draft}
@@ -295,6 +330,14 @@
   {leave}
   hybrid={hybrid.known ? hybrid : undefined}
 />
+{#if hybrid.view === "chat"}
+  <SideChatActions
+    bind:this={sideChat}
+    sessionId={id}
+    entries={hybrid.chat.model.entries}
+    {drafts}
+  />
+{/if}
 <TerminalWorkspace
   {codeShown}
   {desktop}

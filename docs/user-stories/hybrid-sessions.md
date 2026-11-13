@@ -12,6 +12,7 @@
 
 依据：
 
+- [开启旁聊与带回结论](../../web/src/components/chat/SideChatActions.svelte)
 - [输入卡片变形动画](../../web/src/hooks/shared/composer-morph.svelte.ts)、[抽屉入口动画](../../web/src/lib/components/ui/drawer/drawer-content.svelte)。
 
 - [混合会话服务](../../internal/hybrid/)、[连接器检查](../../internal/hybrid/connector.go)、[agent 适配器核心](../../internal/agentprofile/)、[ACP 客户端](../../internal/acp/)

@@ -197,11 +197,11 @@ type QuickStartOutcome =
   | { ok: false; failure: CreateSessionFailure };
 
 /**
- * Sends one quick start: a session created in a new worktree with its first
+ * Sends a validated session creation, optionally with a worktree and first
  * message. A dropped connection is retried once with the same request ID,
  * which the server answers with the first run's result.
  */
-async function sendQuickStart(
+export async function sendQuickStart(
   request: Omit<CreateSessionRequest, "clientRequestId">,
   clientRequestId = newRequestId(),
 ): Promise<QuickStartOutcome> {

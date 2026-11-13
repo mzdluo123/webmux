@@ -142,7 +142,214 @@ async function switchTo(page: Page, side: Side, confirm = false) {
   await expectSide(page, side);
 }
 
+async function openSessionMenu(page: Page) {
+  await page.getByRole("button", { name: "会话菜单", exact: true }).click();
+}
+
+async function sideChatAction(page: Page, name: string) {
+  await openSessionMenu(page);
+  for (const action of ["更换 Agent…", "交接到新聊天…"]) {
+    await expect(
+      page.getByRole("menuitem", { name: action, exact: true }),
+    ).toHaveCount(1);
+  }
+  const item = page.getByRole("menuitem", { name, exact: true });
+  await expect(item).toHaveCount(1);
+  await item.click();
+}
+
 test.describe("hybrid sessions with the fake agent", () => {
+  test("side chat returns to its labelled parent and carries back an edited draft", async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    const id = await createHybrid(request, workDir, "chat");
+    await openHybrid(page, id, "chat");
+    await chatTurn(page, "Review the workspace");
+    await composer(page).fill("Keep this draft.");
+    const creation = page.waitForRequest(
+      (request) =>
+        request.method() === "POST" &&
+        new URL(request.url()).pathname === "/api/sessions",
+    );
+    await sideChatAction(page, "从最新回复开启旁聊");
+    const body = (await creation).postDataJSON();
+    expect(body).toMatchObject({
+      view: "chat",
+      permissionMode: "ask",
+      cwd: workDir,
+      labels: { "webmux.side-chat-parent": id },
+    });
+    expect(body.clientRequestId).toEqual(expect.any(String));
+    expect(body.clientRequestId).not.toBe("");
+    await expect(page).not.toHaveURL(new RegExp(`/s/${id}$`));
+    await expect(composer(page)).toHaveValue(/echo: Review the workspace/);
+    const sideURL = page.url();
+    const sid = new URL(sideURL).pathname.split("/").at(-1);
+    const meta = await (await request.get(`/api/sessions/${sid}`)).json();
+    expect(meta.labels["webmux.side-chat-parent"]).toBe(id);
+    const parent = await (await request.get(`/api/sessions/${id}`)).json();
+    expect(meta.configId).toBe(parent.configId);
+    expect(body.configId).toBe(parent.configId);
+    const other = await page.context().newPage();
+    await other.goto(sideURL);
+    await sideChatAction(other, "返回主会话");
+    await expect(other).toHaveURL(new RegExp(`/s/${id}$`));
+    await other.close();
+    await chatTurn(page, "Explain the failing test");
+    // Once a side chat has a reply, it still cannot start a nested side chat.
+    await expect(
+      page.getByRole("button", { name: "从最新回复开启旁聊", exact: true }),
+    ).toHaveCount(0);
+    await openSessionMenu(page);
+    await expect(
+      page.getByRole("menuitem", { name: "从最新回复开启旁聊", exact: true }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("menuitem", { name: "把结论带回草稿", exact: true })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/s/${id}$`));
+    await expect(composer(page)).toHaveValue(
+      "Keep this draft.\n\n旁聊结论：\necho: Explain the failing test",
+    );
+  });
+
+  test("a fresh client recognizes a terminal parent and carries conclusions into its own draft", async ({
+    page,
+    request,
+    workDir,
+    browser,
+    server,
+  }, testInfo) => {
+    test.slow();
+    const id = await createHybrid(request, workDir, "chat");
+    await openHybrid(page, id, "chat");
+    await chatTurn(page, "Parent context");
+    await composer(page).fill("First client draft.");
+    await sideChatAction(page, "从最新回复开启旁聊");
+    await expect(page).not.toHaveURL(new RegExp(`/s/${id}$`));
+    const sideURL = page.url();
+    await chatTurn(page, "Side conclusion");
+    await sideChatAction(page, "返回主会话");
+    await switchTo(page, "terminal");
+
+    const { viewport, isMobile, hasTouch, userAgent, deviceScaleFactor } =
+      testInfo.project.use;
+    const other = await browser.newContext({
+      baseURL: server.baseURL,
+      viewport,
+      isMobile,
+      hasTouch,
+      userAgent,
+      deviceScaleFactor,
+    });
+    try {
+      // No copied browser storage: the relationship comes from server labels.
+      const client = await other.newPage();
+      await client.goto(sideURL);
+      await expectSide(client, "chat");
+      await expect(conversation(client)).toContainText("echo: Side conclusion");
+      await openSessionMenu(client);
+      await expect(
+        client.getByRole("menuitem", {
+          name: "从最新回复开启旁聊",
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      await expect(
+        client.getByRole("menuitem", { name: "把结论带回草稿", exact: true }),
+      ).toBeDisabled();
+      await client
+        .getByRole("menuitem", { name: "返回主会话", exact: true })
+        .click();
+      await expect(client).toHaveURL(new RegExp(`/s/${id}$`));
+      await expectSide(client, "terminal");
+      await switchTo(client, "chat");
+      await composer(client).fill("Second client draft.");
+      await client.goto(sideURL);
+      await expectSide(client, "chat");
+      await expect(conversation(client)).toContainText("echo: Side conclusion");
+      await sideChatAction(client, "把结论带回草稿");
+      await expect(client).toHaveURL(new RegExp(`/s/${id}$`));
+      await expect(composer(client)).toHaveValue(
+        "Second client draft.\n\n旁聊结论：\necho: Side conclusion",
+      );
+      await expectSide(page, "chat");
+      await expect(composer(page)).toHaveValue("First client draft.");
+
+      // Losing the parent must not turn the child into an ordinary chat.
+      const closed = await request.delete(`/api/sessions/${id}`);
+      expect(closed.status(), await closed.text()).toBe(204);
+      await client.goto(sideURL);
+      await expectSide(client, "chat");
+      await openSessionMenu(client);
+      await expect(
+        client.getByRole("menuitem", { name: "返回主会话", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        client.getByRole("menuitem", { name: "把结论带回草稿", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        client.getByRole("menuitem", {
+          name: "从最新回复开启旁聊",
+          exact: true,
+        }),
+      ).toHaveCount(0);
+    } finally {
+      await other.close();
+    }
+  });
+
+  test("a fresh client carries back a side reply before ever visiting its parent", async ({
+    page,
+    request,
+    workDir,
+    browser,
+    server,
+  }, testInfo) => {
+    const id = await createHybrid(request, workDir, "chat");
+    await openHybrid(page, id, "chat");
+    await chatTurn(page, "Main context");
+    await composer(page).fill("Only on the first client.");
+    await sideChatAction(page, "从最新回复开启旁聊");
+    await expect(page).not.toHaveURL(new RegExp(`/s/${id}$`));
+    const sideURL = page.url();
+    await chatTurn(page, "Conclusion from side");
+
+    const { viewport, isMobile, hasTouch, userAgent, deviceScaleFactor } =
+      testInfo.project.use;
+    const other = await browser.newContext({
+      baseURL: server.baseURL,
+      viewport,
+      isMobile,
+      hasTouch,
+      userAgent,
+      deviceScaleFactor,
+    });
+    try {
+      const client = await other.newPage();
+      const errors: string[] = [];
+      client.on("pageerror", (error) => errors.push(error.message));
+      // Its parent draft does not exist in this client's in-memory manager.
+      await client.goto(sideURL);
+      await expectSide(client, "chat");
+      await expect(conversation(client)).toContainText(
+        "echo: Conclusion from side",
+      );
+      await sideChatAction(client, "把结论带回草稿");
+      await expect(client).toHaveURL(new RegExp(`/s/${id}$`));
+      await expect(composer(client)).toHaveValue(
+        "旁聊结论：\necho: Conclusion from side",
+      );
+      expect(errors).toEqual([]);
+      await sideChatAction(page, "返回主会话");
+      await expect(composer(page)).toHaveValue("Only on the first client.");
+    } finally {
+      await other.close();
+    }
+  });
+
   test("phones switch chat and terminal in tabs and open code with the header button", async ({
     page,
     request,
