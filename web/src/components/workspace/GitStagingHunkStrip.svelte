@@ -77,7 +77,7 @@
         <div class="flex min-w-0 flex-wrap items-center gap-1">
           {#if canAddRework && onAddHunkToRework}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               onclick={() => onAddHunkToRework(hunk)}
               data-testid="git-hunk-add-rework"
@@ -89,7 +89,7 @@
           {#if stageMode === "stage"}
             {#if onDiscardHunk}
               <Button
-                size="xs"
+                size="sm"
                 variant="destructive-outline"
                 disabled={busy || stale}
                 onclick={() => onDiscardHunk(changeId, hunk.id)}
@@ -100,7 +100,7 @@
               </Button>
             {/if}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={busy || stale}
               onclick={() => onStageHunk(changeId, hunk.id)}
@@ -110,7 +110,7 @@
             </Button>
           {:else}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={busy || stale}
               onclick={() => onUnstageHunk(changeId, hunk.id)}

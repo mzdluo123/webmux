@@ -188,7 +188,7 @@
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         {#if onSetBaseline}
           <Button
-            size="xs"
+            size="sm"
             variant="default"
             disabled={review.mutating}
             onclick={() => onSetBaseline()}
@@ -197,7 +197,7 @@
           </Button>
         {/if}
         {#if onOpenLogToPickBaseline}
-          <Button size="xs" variant="outline" onclick={onOpenLogToPickBaseline}>
+          <Button size="sm" variant="outline" onclick={onOpenLogToPickBaseline}>
             前往日志选择历史提交起点
           </Button>
         {/if}
@@ -213,7 +213,7 @@
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           {#if !baseline.unborn && baseline.baseOid && onInspectCommit}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               onclick={() => onInspectCommit(baseline.baseOid!)}
             >
@@ -222,7 +222,7 @@
           {/if}
           {#if onSetBaseline}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={review.mutating}
               onclick={() => onSetBaseline()}
@@ -232,7 +232,7 @@
           {/if}
           {#if onClearBaseline}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               disabled={review.mutating}
               onclick={onClearBaseline}
@@ -299,7 +299,7 @@
           >
             {#if onToggleReviewed}
               <Button
-                size="icon-xs"
+                size="icon-sm"
                 variant="ghost"
                 aria-pressed={isReviewed}
                 aria-label={`标记已审阅 ${path}`}
@@ -349,7 +349,7 @@
         {#if review.nextCursor && onLoadMore}
           <div class="pt-2">
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={review.loadingMore}
               onclick={onLoadMore}

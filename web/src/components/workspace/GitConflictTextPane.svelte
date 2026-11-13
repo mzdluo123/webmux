@@ -97,7 +97,7 @@
           处冲突块待确认）
         </span>
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           onclick={onConfirmManualEdits}
           data-testid="git-conflict-confirm-manual-btn"

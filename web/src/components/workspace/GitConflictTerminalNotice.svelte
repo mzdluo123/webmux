@@ -30,7 +30,7 @@
       <div class="flex flex-wrap items-center gap-1.5">
         {#if onOpenConflictResolver}
           <Button
-            size="xs"
+            size="sm"
             variant="default"
             wrap
             onclick={onOpenConflictResolver}
@@ -42,7 +42,7 @@
         {/if}
         {#if hasActiveWorktreeSession && onOpenWorktreeTerminal}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             wrap
             onclick={onOpenWorktreeTerminal}
@@ -53,7 +53,7 @@
         {/if}
         {#if onNewWorktreeTerminal}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             wrap
             onclick={onNewWorktreeTerminal}

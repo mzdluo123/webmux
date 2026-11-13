@@ -113,7 +113,7 @@
         {#if nextCursor && onLoadMore}
           <div class="pt-1.5 text-center">
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={loadingMore}
               onclick={onLoadMore}
@@ -136,7 +136,7 @@
         <div class="flex min-w-0 items-center gap-1.5">
           {#if isMobile}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               onclick={() => (mobileShowDiff = false)}
             >
@@ -155,7 +155,7 @@
         <div class="flex flex-wrap items-center gap-1.5">
           {#if onOpenBlameAt}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onclick={() => onOpenBlameAt(activeRow.oid, activeRow.path)}
               data-testid="git-file-history-blame-btn"
@@ -166,7 +166,7 @@
           {/if}
           {#if onJumpToCommit}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onclick={() => onJumpToCommit(activeRow.oid)}
               data-testid="git-file-history-jump-log-btn"

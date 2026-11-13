@@ -86,7 +86,7 @@
         检测到 {progress.pendingNonConflicting} 处无冲突单侧改动可自动合入结果
       </span>
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         wrap
         onclick={onApplyAllNonConflicting}
@@ -141,7 +141,7 @@
 
           <div class="flex flex-wrap items-center gap-1.5">
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               wrap
               aria-pressed={choice === "left"}
@@ -150,7 +150,7 @@
               接受左侧
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               wrap
               aria-pressed={choice === "right"}
@@ -159,7 +159,7 @@
               接受右侧
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               wrap
               aria-pressed={choice === "both_lr"}
@@ -168,7 +168,7 @@
               先左后右
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               wrap
               aria-pressed={choice === "both_rl"}
@@ -203,7 +203,7 @@
     {#if draft.manualEdited && progress.unresolvedConflicts > 0 && !progress.hasConflictMarkers}
       <div class="flex flex-wrap items-center justify-between gap-2">
         <span class="text-muted-foreground">已直接修改结果文本：</span>
-        <Button size="xs" variant="outline" wrap onclick={onConfirmManualEdits}>
+        <Button size="sm" variant="outline" wrap onclick={onConfirmManualEdits}>
           <IconCheck aria-hidden="true" />
           确认手动编辑已解决冲突
         </Button>

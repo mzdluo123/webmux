@@ -104,7 +104,7 @@
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         {#if operation.conflictedCount > 0 && onOpenConflictResolver && !conflictResolverOpen}
           <Button
-            size="xs"
+            size="sm"
             variant="default"
             wrap
             disabled={busy}
@@ -119,7 +119,7 @@
 
         {#if onContinue && operation.kind !== "unstash"}
           <Button
-            size="xs"
+            size="sm"
             variant="success"
             wrap
             disabled={!operation.canContinue || busy}
@@ -136,7 +136,7 @@
 
         {#if operation.canAbort && onOpenAbortPreview}
           <Button
-            size="xs"
+            size="sm"
             variant="destructive-outline"
             wrap
             disabled={busy}
@@ -150,7 +150,7 @@
 
         {#if hasActiveWorktreeSession && onOpenWorktreeTerminal}
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             wrap
             onclick={onOpenWorktreeTerminal}

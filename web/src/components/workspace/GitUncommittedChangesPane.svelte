@@ -228,7 +228,7 @@
     <div class="flex shrink-0 items-center gap-1">
       {#if !readonlyMode && onOpenStashCreate}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           disabled={stagingBusy ||
             changes.length === 0 ||
@@ -355,7 +355,7 @@
           {#if !readonlyMode && list.length > 0 && onStageGroup}
             {#if sec.key === "staged"}
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 disabled={stagingBusy}
                 onclick={() => onStageGroup("unstage", "staged")}
@@ -365,7 +365,7 @@
             {:else if sec.key === "unstaged" || sec.key === "untracked"}
               {#if onDiscardChanges}
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="ghost"
                   disabled={stagingBusy}
                   onclick={() =>
@@ -379,7 +379,7 @@
                 </Button>
               {/if}
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 disabled={stagingBusy}
                 onclick={() =>

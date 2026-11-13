@@ -105,21 +105,21 @@
           </p>
           <div class="flex flex-wrap items-center gap-1.5">
             <Button
-              size="xs"
+              size="sm"
               variant="default"
               onclick={() => onResolveAmendDraft("replace")}
             >
               替换为 HEAD 说明
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onclick={() => onResolveAmendDraft("merge")}
             >
               合并两份说明
             </Button>
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               onclick={() => onResolveAmendDraft("keep")}
             >

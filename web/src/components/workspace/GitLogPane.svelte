@@ -428,7 +428,7 @@
 {:else if mobileStep === "detail"}
   <div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
     <div class="border-b bg-background px-2.5 py-1.5">
-      <Button size="xs" variant="ghost" onclick={() => (mobileStep = "list")}>
+      <Button size="sm" variant="ghost" onclick={() => (mobileStep = "list")}>
         <IconArrowLeft aria-hidden="true" />
         返回提交列表
       </Button>

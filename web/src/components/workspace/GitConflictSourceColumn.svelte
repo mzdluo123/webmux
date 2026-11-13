@@ -107,7 +107,7 @@
             {/if}
             <div class="flex flex-wrap items-center gap-1">
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
                 aria-pressed={choice === primaryChoice}
                 onclick={() => onChooseChunk(seg.id, primaryChoice)}
@@ -118,7 +118,7 @@
                 {#if isLeft}<IconArrowRight aria-hidden="true" />{/if}
               </Button>
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 aria-pressed={choice === bothChoice}
                 title={isLeft
@@ -189,7 +189,7 @@
               </Badge>
             {/if}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               aria-pressed={applied}
               onclick={() => onToggleNonConflicting(seg.id)}

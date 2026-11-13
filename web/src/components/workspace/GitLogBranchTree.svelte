@@ -113,7 +113,7 @@
       <span class="text-xs font-semibold text-foreground">引用筛选</span>
       {#if branchFilter}
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           onclick={() => onBranchFilterChange(null)}
         >

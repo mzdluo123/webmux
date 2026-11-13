@@ -44,14 +44,14 @@
     </p>
     <div class="flex flex-wrap items-center gap-2">
       {#if onFetchRemote}
-        <Button size="xs" variant="outline" wrap onclick={onFetchRemote}>
+        <Button size="sm" variant="outline" wrap onclick={onFetchRemote}>
           <IconRefresh aria-hidden="true" />
           获取远程 (Fetch)
         </Button>
       {/if}
       {#if onFastForwardBranch}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           wrap
           onclick={() => {
@@ -66,7 +66,7 @@
       {/if}
       {#if onMergeRemoteBranch && remoteTrackingRef}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           wrap
           onclick={() => {
@@ -82,7 +82,7 @@
       {/if}
       {#if onRebaseOntoRemoteBranch && remoteTrackingRef}
         <Button
-          size="xs"
+          size="sm"
           variant="default"
           wrap
           onclick={() => {

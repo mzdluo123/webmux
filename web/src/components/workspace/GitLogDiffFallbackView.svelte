@@ -22,7 +22,7 @@
 {#snippet downloadSideButton(side: "before" | "after", label: string)}
   {#if logDiff}
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       disabled={logDiff.state.downloadingSide !== null}
       onclick={() => void logDiff.downloadSnapshotSide(side)}
@@ -127,7 +127,7 @@
     </InlineNotice>
     {#if logDiff}
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         onclick={() => logDiff.retryActiveDiff()}
       >

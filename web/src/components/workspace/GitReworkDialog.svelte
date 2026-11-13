@@ -154,7 +154,7 @@
           <span class="font-semibold text-foreground">
             待交回审阅条目（共 {items.length} 条）
           </span>
-          <Button size="xs" variant="ghost" onclick={onClearAll}>
+          <Button size="sm" variant="ghost" onclick={onClearAll}>
             <IconTrash aria-hidden="true" />
             清空全部
           </Button>
@@ -194,7 +194,7 @@
                 </div>
 
                 <Button
-                  size="icon-xs"
+                  size="icon-sm"
                   variant="ghost"
                   aria-label={`移除审阅意见 ${item.path}`}
                   title={`移除审阅意见 ${item.path}`}
@@ -234,7 +234,7 @@
             )}），实时行号可能已偏移。生成文本将自动附加偏移提醒，请确认是否继续发送。
           </span>
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onclick={onConfirmStale}
             data-testid="git-rework-confirm-stale"
@@ -338,7 +338,7 @@
         class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t pt-3"
       >
         <Button
-          size="sm"
+          size="default"
           variant="outline"
           disabled={!canSubmitPayload}
           onclick={onCopyMarkdown}
@@ -354,9 +354,11 @@
         </Button>
 
         <div class="flex min-w-0 flex-wrap items-center gap-2">
-          <Button size="sm" variant="ghost" onclick={onClose}>关闭</Button>
+          <Button size="default" variant="outline" onclick={onClose}
+            >关闭</Button
+          >
           <Button
-            size="sm"
+            size="default"
             variant="default"
             disabled={!canSendToSession}
             onclick={() => chosenSession && onDeliverToSession(chosenSession)}

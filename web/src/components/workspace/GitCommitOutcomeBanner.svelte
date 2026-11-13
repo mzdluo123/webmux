@@ -32,7 +32,7 @@
       <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
         {#if outcome.commitOid}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             wrap
             onclick={() =>
@@ -42,11 +42,11 @@
           </Button>
         {/if}
         {#if outcome.status === "uncertain"}
-          <Button size="xs" variant="outline" wrap onclick={onReloadVerify}>
+          <Button size="sm" variant="outline" wrap onclick={onReloadVerify}>
             刷新历史与暂存区核实
           </Button>
         {/if}
-        <Button size="xs" variant="ghost" wrap onclick={onDismiss}>
+        <Button size="sm" variant="ghost" wrap onclick={onDismiss}>
           关闭提示
         </Button>
       </div>

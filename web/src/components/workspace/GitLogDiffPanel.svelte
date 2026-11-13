@@ -156,7 +156,7 @@
 {#snippet snapshotSideButtons()}
   {#if sideDoc && logDiff}
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       onclick={() => logDiff.closeSnapshotSide()}
     >
@@ -165,7 +165,7 @@
   {:else if logDiff && rawDiff && !collapsed}
     {#if rawDiff.old.source !== "empty" && rawDiff.old.kind === "text"}
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         onclick={() => void logDiff.openSnapshotSide("before")}
       >
@@ -175,7 +175,7 @@
     {/if}
     {#if rawDiff.new.source !== "empty" && rawDiff.new.kind === "text"}
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         onclick={() => void logDiff.openSnapshotSide("after")}
       >
@@ -223,7 +223,7 @@
     >
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         {#if onBack}
-          <Button size="xs" variant="ghost" class="shrink-0" onclick={onBack}>
+          <Button size="sm" variant="ghost" class="shrink-0" onclick={onBack}>
             <IconArrowLeft aria-hidden="true" />
             {backLabel}
           </Button>
@@ -242,7 +242,7 @@
         class="flex min-w-[15rem] flex-1 items-center gap-1.5 overflow-hidden"
       >
         {#if presentation === "maximized" && onBack}
-          <Button size="xs" variant="ghost" class="shrink-0" onclick={onBack}>
+          <Button size="sm" variant="ghost" class="shrink-0" onclick={onBack}>
             <IconArrowLeft aria-hidden="true" />
             返回日志列表
           </Button>
