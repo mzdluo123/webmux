@@ -33,6 +33,10 @@ export function syncGitWorkbenchUrl(
     branch: state.view.branchFilter ?? undefined,
     commit: state.view.selectedCommitOid ?? undefined,
     q: state.view.searchQuery || undefined,
+    author: state.view.authorFilter || undefined,
+    since: state.view.sinceFilter || undefined,
+    until: state.view.untilFilter || undefined,
+    path: state.view.pathFilter || undefined,
     returnSession: state.returnSession,
     ...overrides,
   });
@@ -69,6 +73,9 @@ export function buildTargetInitialState(params: {
     scope: memory.scope,
     branchFilter: memory.branchFilter,
     searchQuery: memory.searchQuery,
+    authorFilter: memory.authorFilter,
+    sinceFilter: memory.sinceFilter,
+    untilFilter: memory.untilFilter,
     pathFilter: memory.pathFilter,
     selectedCommitOid: memory.selectedCommitOid,
     selectedParentByCommit: memory.selectedParentByCommit,
@@ -100,9 +107,19 @@ export function applyPopstateQueryToView(
   const nextScope: GitHistoryScope = query.scope ?? "all";
   const nextBranch = query.branch ?? null;
   const nextSearch = query.q ?? "";
+  const nextAuthor = query.author ?? "";
+  const nextSince = query.since ?? "";
+  const nextUntil = query.until ?? "";
+  const nextPath = query.path ?? "";
   const nextCommit = query.commit ?? current.selectedCommitOid;
   const reloadNeeded =
-    nextScope !== current.scope || nextBranch !== current.branchFilter;
+    nextScope !== current.scope ||
+    nextBranch !== current.branchFilter ||
+    nextSearch !== current.searchQuery ||
+    nextAuthor !== (current.authorFilter ?? "") ||
+    nextSince !== (current.sinceFilter ?? "") ||
+    nextUntil !== (current.untilFilter ?? "") ||
+    nextPath !== current.pathFilter;
 
   const nextView: GitWorkbenchViewState = {
     ...current,
@@ -110,6 +127,10 @@ export function applyPopstateQueryToView(
     scope: nextScope,
     branchFilter: nextBranch,
     searchQuery: nextSearch,
+    authorFilter: nextAuthor,
+    sinceFilter: nextSince,
+    untilFilter: nextUntil,
+    pathFilter: nextPath,
     selectedCommitOid: nextCommit,
   };
   writeGitTargetMemory(repositoryId, worktreeId, {
@@ -117,6 +138,10 @@ export function applyPopstateQueryToView(
     scope: nextScope,
     branchFilter: nextBranch,
     searchQuery: nextSearch,
+    authorFilter: nextAuthor,
+    sinceFilter: nextSince,
+    untilFilter: nextUntil,
+    pathFilter: nextPath,
     selectedCommitOid: nextCommit,
   });
   return { nextView, reloadNeeded, nextCommit };

@@ -91,14 +91,20 @@ func resolveHistoryScope(ctx context.Context, anchor string, q HistoryQuery, tre
 	}
 
 	if q.Branch != "" {
-		oid, err := resolveNamedBranchTip(ctx, anchor, q.Branch)
+		oid, kind, localName, err := resolveNamedRefTip(ctx, anchor, q.Branch)
 		if err != nil {
 			return historyScopeSpec{}, err
 		}
 		if q.Scope == HistoryScopeAll || q.Scope == HistoryScopeBranch {
 			return historyScopeSpec{status: HistoryStatusReady, include: []string{oid}}, nil
 		}
-		return resolveUpstreamDeltaScope(ctx, anchor, q.Scope, q.Branch, oid)
+		if kind != "local" {
+			return historyScopeSpec{
+				status: HistoryStatusNoUpstream,
+				reason: "当前筛选引用不是本地分支，没有关联上游跟踪分支",
+			}, nil
+		}
+		return resolveUpstreamDeltaScope(ctx, anchor, q.Scope, localName, oid)
 	}
 
 	switch q.Scope {
@@ -150,20 +156,41 @@ func resolveHistoryScope(ctx context.Context, anchor string, q HistoryQuery, tre
 	return historyScopeSpec{}, problemf(ErrInvalid, "未知历史范围")
 }
 
-func resolveNamedBranchTip(ctx context.Context, anchor, branch string) (string, error) {
-	if strings.HasPrefix(branch, "-") || strings.Contains(branch, "..") {
-		return "", problemf(ErrInvalid, "分支名称无效")
+func resolveNamedRefTip(ctx context.Context, anchor, ref string) (oid, kind, localName string, err error) {
+	if strings.HasPrefix(ref, "-") || strings.Contains(ref, "..") || strings.ContainsAny(ref, " \t\r\n~^:?*[\\") {
+		return "", "", "", problemf(ErrInvalid, "分支或标签名称无效")
 	}
-	for _, prefix := range []string{"refs/heads/", "refs/remotes/"} {
-		out, err := ReadGit(ctx, anchor, 256, "rev-parse", "--verify", "--end-of-options", prefix+branch+"^{commit}")
-		if err == nil {
-			oid := strings.TrimSpace(string(out))
-			if isObjectID(oid) {
-				return oid, nil
+	type candidate struct {
+		fullRef   string
+		kind      string
+		localName string
+	}
+	var candidates []candidate
+	switch {
+	case strings.HasPrefix(ref, "refs/heads/"):
+		name := strings.TrimPrefix(ref, "refs/heads/")
+		candidates = []candidate{{fullRef: ref, kind: "local", localName: name}}
+	case strings.HasPrefix(ref, "refs/remotes/"):
+		candidates = []candidate{{fullRef: ref, kind: "remote"}}
+	case strings.HasPrefix(ref, "refs/tags/"):
+		candidates = []candidate{{fullRef: ref, kind: "tag"}}
+	default:
+		candidates = []candidate{
+			{fullRef: "refs/heads/" + ref, kind: "local", localName: ref},
+			{fullRef: "refs/remotes/" + ref, kind: "remote"},
+			{fullRef: "refs/tags/" + ref, kind: "tag"},
+		}
+	}
+	for _, c := range candidates {
+		out, revErr := ReadGit(ctx, anchor, 256, "rev-parse", "--verify", "--end-of-options", c.fullRef+"^{commit}")
+		if revErr == nil {
+			parsed := strings.TrimSpace(string(out))
+			if isObjectID(parsed) {
+				return parsed, c.kind, c.localName, nil
 			}
 		}
 	}
-	return "", problemf(ErrNotFound, "分支 %s 不存在", branch)
+	return "", "", "", problemf(ErrNotFound, "引用 %s 不存在", ref)
 }
 
 func resolveUpstreamDeltaScope(ctx context.Context, anchor, scope, branch, localOID string) (historyScopeSpec, error) {

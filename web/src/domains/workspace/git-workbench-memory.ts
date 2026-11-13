@@ -13,6 +13,9 @@ export type GitDeviceClass = z.infer<typeof GitDeviceClassSchema>;
 const GitDeviceLayoutSchema = z.object({
   showBranchesPanel: z.boolean(),
   showAuthorColumn: z.boolean(),
+  branchTreeWidth: z.number().min(180).max(360).default(240),
+  diffHeight: z.number().min(140).max(640).default(280),
+  diffCollapsed: z.boolean().default(false),
   logThreePaneSizes: z.tuple([z.number(), z.number(), z.number()]),
   logTwoPaneSizes: z.tuple([z.number(), z.number()]),
   commitPaneSizes: z.tuple([z.number(), z.number()]),
@@ -33,6 +36,9 @@ const GitTargetMemorySchema = z.object({
   scope: GitHistoryScopeSchema,
   branchFilter: z.string().max(256).nullable(),
   searchQuery: z.string().max(512),
+  authorFilter: z.string().max(256).default(""),
+  sinceFilter: z.string().max(64).default(""),
+  untilFilter: z.string().max(64).default(""),
   pathFilter: z.string().max(512),
   selectedCommitOid: z.string().max(64).nullable(),
   selectedParentByCommit: z.record(z.string().max(64), z.string().max(64)),
@@ -97,6 +103,9 @@ function defaultGitDeviceLayout(deviceClass: GitDeviceClass): GitDeviceLayout {
       return {
         showBranchesPanel: true,
         showAuthorColumn: true,
+        branchTreeWidth: 240,
+        diffHeight: 280,
+        diffCollapsed: false,
         logThreePaneSizes: [20, 46, 34],
         logTwoPaneSizes: [60, 40],
         commitPaneSizes: [40, 60],
@@ -106,6 +115,9 @@ function defaultGitDeviceLayout(deviceClass: GitDeviceClass): GitDeviceLayout {
       return {
         showBranchesPanel: false,
         showAuthorColumn: true,
+        branchTreeWidth: 240,
+        diffHeight: 260,
+        diffCollapsed: false,
         logThreePaneSizes: [22, 44, 34],
         logTwoPaneSizes: [56, 44],
         commitPaneSizes: [42, 58],
@@ -115,6 +127,9 @@ function defaultGitDeviceLayout(deviceClass: GitDeviceClass): GitDeviceLayout {
       return {
         showBranchesPanel: false,
         showAuthorColumn: true,
+        branchTreeWidth: 240,
+        diffHeight: 240,
+        diffCollapsed: false,
         logThreePaneSizes: [22, 44, 34],
         logTwoPaneSizes: [56, 44],
         commitPaneSizes: [44, 56],
@@ -124,6 +139,9 @@ function defaultGitDeviceLayout(deviceClass: GitDeviceClass): GitDeviceLayout {
       return {
         showBranchesPanel: false,
         showAuthorColumn: false,
+        branchTreeWidth: 240,
+        diffHeight: 240,
+        diffCollapsed: false,
         logThreePaneSizes: [20, 46, 34],
         logTwoPaneSizes: [60, 40],
         commitPaneSizes: [40, 60],
@@ -199,6 +217,9 @@ function defaultGitTargetMemory(): GitTargetMemory {
     scope: "all",
     branchFilter: null,
     searchQuery: "",
+    authorFilter: "",
+    sinceFilter: "",
+    untilFilter: "",
     pathFilter: "",
     selectedCommitOid: null,
     selectedParentByCommit: {},
@@ -303,6 +324,10 @@ export interface GitQueryOverrides {
   branch?: string;
   commit?: string;
   q?: string;
+  author?: string;
+  since?: string;
+  until?: string;
+  path?: string;
 }
 
 /**
@@ -326,5 +351,9 @@ export function applyGitQueryOverrides(
     if (!query.view) next.mode = "log";
   }
   if (query.q !== undefined) next.searchQuery = query.q;
+  if (query.author !== undefined) next.authorFilter = query.author;
+  if (query.since !== undefined) next.sinceFilter = query.since;
+  if (query.until !== undefined) next.untilFilter = query.until;
+  if (query.path !== undefined) next.pathFilter = query.path;
   return next;
 }

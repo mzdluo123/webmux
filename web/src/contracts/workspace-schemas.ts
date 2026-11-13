@@ -135,9 +135,16 @@ const BranchBaseSchema = z.object({
   committedAt: z.string(),
 });
 export type BranchBase = z.infer<typeof BranchBaseSchema>;
+const TagSchema = z.object({
+  name: z.string(),
+  head: z.string(),
+  subject: z.string(),
+  committedAt: z.string(),
+});
 export const BranchesSchema = z.object({
   branches: z.array(BranchSchema),
   bases: z.array(BranchBaseSchema),
+  tags: z.array(TagSchema),
   defaultBase: z.string().nullable(),
   defaultBaseSubject: z.string(),
   defaultBranch: z.string().nullable(),

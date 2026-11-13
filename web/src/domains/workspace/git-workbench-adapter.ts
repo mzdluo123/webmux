@@ -1,5 +1,6 @@
 import type {
   Branches,
+  GitChange,
   GitCommitDetailResponse,
   GitCommitPreview,
   GitCommitResult,
@@ -101,39 +102,26 @@ export function deriveGitWorktreeContext(options: {
 export function mapGitHistoryPage(page: GitHistoryPage): {
   historyState: GitWorkbenchViewState["historyState"];
   historyReason: string;
+  historyUpstream?: string;
+  lastFetchedAt?: string;
+  nextCursor: string;
+  refsChanged: boolean;
   commits: GitHistoryRow[];
 } {
-  let historyState: GitWorkbenchViewState["historyState"] = "ready";
-  switch (page.status) {
-    case "ready":
-      historyState = "ready";
-      break;
-    case "empty":
-      historyState = "empty";
-      break;
-    case "unborn":
-      historyState = "unborn";
-      break;
-    case "no_worktree":
-      historyState = "no_worktree";
-      break;
-    case "no_upstream":
-    case "upstream_gone":
-    case "detached_no_branch":
-      historyState = "no_upstream";
-      break;
-  }
-
   const commits: GitHistoryRow[] = page.rows.map((row) => ({
     ...row,
     committerEmail: row.authorEmail,
     changedPaths: [],
-    branches: row.refs.filter((r) => r.kind !== "tag").map((r) => r.name),
+    branches: row.refs.map((r) => r.name),
   }));
 
   return {
-    historyState,
+    historyState: page.status,
     historyReason: page.reason ?? "",
+    historyUpstream: page.upstream,
+    lastFetchedAt: page.lastFetchedAt,
+    nextCursor: page.nextCursor,
+    refsChanged: page.refsChanged,
     commits,
   };
 }
@@ -190,13 +178,30 @@ export function mapGitCommitDetailResponse(
   };
 }
 
+export function mapGitCompareChanges(
+  entries: readonly GitChange[],
+): GitCommitFile[] {
+  return entries.map((entry) => ({
+    changeId: entry.changeId,
+    oldPath: entry.oldPath,
+    newPath: entry.newPath || entry.oldPath,
+    status: normalizeCommitFileStatus(entry.status),
+    binary: false,
+    additions: 0,
+    deletions: 0,
+    hunks: [],
+  }));
+}
+
 export function mapGitBranchesResponse(
   repository: Repository | undefined,
   currentWorktreePath: string | null,
   sessions: readonly SessionInfo[],
   data: Branches,
+  favoriteNames?: readonly string[],
 ): GitBranchItem[] {
   const localNames = new Set(data.branches.map((b) => b.name));
+  const favSet = favoriteNames ? new Set(favoriteNames) : null;
   const remotes = remoteBranchBases(data.bases, localNames);
   const items: GitBranchItem[] = [];
 
@@ -223,7 +228,9 @@ export function mapGitBranchesResponse(
       shortHead: b.head.slice(0, 7),
       subject: b.subject,
       committedAt: b.committedAt,
-      favorite: b.name === "main" || b.name === "master",
+      favorite: favSet
+        ? favSet.has(b.name)
+        : b.name === "main" || b.name === "master",
       upstream: b.upstream ?? undefined,
       ahead: b.ahead ?? undefined,
       behind: b.behind ?? undefined,
@@ -250,6 +257,19 @@ export function mapGitBranchesResponse(
       shortHead: r.head.slice(0, 7),
       subject: r.subject,
       committedAt: rawBase?.committedAt ?? "",
+      favorite: favSet ? favSet.has(r.name) : false,
+      upstreamGone: false,
+    });
+  }
+
+  for (const tag of data.tags) {
+    items.push({
+      name: tag.name,
+      kind: "tag",
+      head: tag.head,
+      shortHead: tag.head.slice(0, 7),
+      subject: tag.subject,
+      committedAt: tag.committedAt,
       favorite: false,
       upstreamGone: false,
     });

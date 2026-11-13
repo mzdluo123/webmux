@@ -417,3 +417,73 @@ func TestHistoryReadOnlyNoExtDiffTextconvOrIndexTouch(t *testing.T) {
 		t.Fatalf(".git/index was modified by read-only history/detail: mtime %v -> %v", beforeStat.ModTime(), afterStat.ModTime())
 	}
 }
+
+func TestBranchesTagsAndHistoryTagFiltering(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	ctx := context.Background()
+
+	dir := initRepo(t)
+	firstOID := strings.TrimSpace(gitTest(t, dir, "rev-parse", "HEAD"))
+	gitTest(t, dir, "tag", "v0.1.0-light")
+
+	putFile(t, filepath.Join(dir, "second.txt"), "second\n")
+	gitTest(t, dir, "add", "second.txt")
+	gitTest(t, dir, "commit", "-m", "second release commit")
+	secondOID := strings.TrimSpace(gitTest(t, dir, "rev-parse", "HEAD"))
+	gitTest(t, dir, "tag", "-a", "v1.0.0", "-m", "Annotated v1.0.0")
+
+	putFile(t, filepath.Join(dir, "third.txt"), "third\n")
+	gitTest(t, dir, "add", "third.txt")
+	gitTest(t, dir, "commit", "-m", "post release work")
+	headBefore := strings.TrimSpace(gitTest(t, dir, "rev-parse", "HEAD"))
+
+	s, _ := testService(t, t.TempDir(), dir)
+	repo := registerTest(t, s, dir)
+
+	branches, err := s.Branches(ctx, repo.ID)
+	if err != nil {
+		t.Fatalf("Branches: %v", err)
+	}
+	tagMap := map[string]Tag{}
+	for _, tag := range branches.Tags {
+		tagMap[tag.Name] = tag
+	}
+	if tagMap["v0.1.0-light"].Head != firstOID {
+		t.Fatalf("lightweight tag head = %q, want %q", tagMap["v0.1.0-light"].Head, firstOID)
+	}
+	if tagMap["v1.0.0"].Head != secondOID {
+		t.Fatalf("annotated tag peeled head = %q, want %q", tagMap["v1.0.0"].Head, secondOID)
+	}
+
+	// Filtering history by annotated tag returns commits up to secondOID without mutating HEAD.
+	tagHist, err := s.History(ctx, HistoryQuery{
+		RepositoryID: repo.ID,
+		Scope:        HistoryScopeAll,
+		Branch:       "v1.0.0",
+	})
+	if err != nil {
+		t.Fatalf("History by tag: %v", err)
+	}
+	if tagHist.Status != HistoryStatusReady || len(tagHist.Commits) != 2 || tagHist.Commits[0].OID != secondOID {
+		t.Fatalf("unexpected tag history: %+v", tagHist)
+	}
+
+	// Requesting upstream delta scope (to-push) on a tag returns HistoryStatusNoUpstream with clear reason.
+	tagToPush, err := s.History(ctx, HistoryQuery{
+		RepositoryID: repo.ID,
+		Scope:        HistoryScopeToPush,
+		Branch:       "v1.0.0",
+	})
+	if err != nil {
+		t.Fatalf("History to-push by tag: %v", err)
+	}
+	if tagToPush.Status != HistoryStatusNoUpstream || tagToPush.Reason == "" {
+		t.Fatalf("expected HistoryStatusNoUpstream for tag to-push, got %+v", tagToPush)
+	}
+
+	headAfter := strings.TrimSpace(gitTest(t, dir, "rev-parse", "HEAD"))
+	if headAfter != headBefore {
+		t.Fatalf("HEAD changed during tag history filter: %s -> %s", headBefore, headAfter)
+	}
+}

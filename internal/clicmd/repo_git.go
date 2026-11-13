@@ -26,7 +26,7 @@ var repoBranchesCommand = &Command{
 	Arguments: []Item{repoArgument},
 	Output: "A table: BRANCH, HEAD, UPSTREAM, AHEAD/BEHIND (+AHEAD/-BEHIND, gone when the upstream branch no longer " +
 		"exists, - without an upstream), WORKTREES, with the default base and branch on standard error. With --json, " +
-		"the Branches object (branches, bases, defaultBase, defaultBranch, defaultParent).",
+		"the Branches object (branches, bases, tags, defaultBase, defaultBranch, defaultParent).",
 	Exit: exitsCommon(ExitItem{Code: 2, Text: "Also: REPO names nothing."}),
 	Examples: []Example{
 		{Command: "webmux repo branches .", Text: "See which branches are free for a new worktree."},

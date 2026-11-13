@@ -73,7 +73,10 @@ function createFixtureState(
     committerEmail: "bob@example.com",
     committerAt: "2026-04-12T08:05:00Z",
     refs: [{ name: "main", kind: "head", worktreeId: "wt-main" }],
-    changedPaths: ["web/src/git-graph-layout.ts"],
+    changedPaths: [
+      "web/src/git-graph-layout.ts",
+      "web/src/git-graph-colors.ts",
+    ],
     branches: ["main"],
   });
 
@@ -99,9 +102,12 @@ function createFixtureState(
     committerName: "Alice",
     committerEmail: "alice@example.com",
     committerAt: "2026-04-11T09:00:00Z",
-    refs: [{ name: "feat/git", kind: "local", worktreeId: "wt-feat" }],
+    refs: [
+      { name: "feat/git", kind: "local", worktreeId: "wt-feat" },
+      { name: "v0.9.0", kind: "tag" },
+    ],
     changedPaths: ["web/src/components/GitLogPane.svelte"],
-    branches: ["feat/git"],
+    branches: ["feat/git", "v0.9.0"],
   });
 
   const mergeDetail = GitCommitDetailSchema.parse({
@@ -155,6 +161,35 @@ function createFixtureState(
             },
           ],
         },
+        {
+          newPath: "web/src/git-graph-colors.ts",
+          status: "M",
+          additions: 12,
+          deletions: 2,
+          hunks: [
+            {
+              id: "h-log-2",
+              header: "@@ -1,1 +1,2 @@",
+              oldStart: 1,
+              oldLines: 1,
+              newStart: 1,
+              newLines: 2,
+              lines: [
+                {
+                  kind: "context",
+                  oldLine: 1,
+                  newLine: 1,
+                  text: "export const LANE_COLORS = [",
+                },
+                {
+                  kind: "add",
+                  newLine: 2,
+                  text: '  "var(--git-lane-0)",',
+                },
+              ],
+            },
+          ],
+        },
       ],
       "3333333333333333333333333333333333333333": [
         {
@@ -195,7 +230,23 @@ function createFixtureState(
           status: "A",
           additions: 220,
           deletions: 0,
-          hunks: [],
+          hunks: [
+            {
+              id: "h-feat-1",
+              header: "@@ -0,0 +1,1 @@",
+              oldStart: 0,
+              oldLines: 0,
+              newStart: 1,
+              newLines: 1,
+              lines: [
+                {
+                  kind: "add",
+                  newLine: 1,
+                  text: '<script lang="ts">',
+                },
+              ],
+            },
+          ],
         },
       ],
     },
@@ -279,6 +330,14 @@ function createFixtureState(
         activeSessions: 3,
       },
     }),
+    GitBranchItemSchema.parse({
+      name: "v0.9.0",
+      kind: "tag",
+      head: featRow.oid,
+      shortHead: featRow.shortOid,
+      subject: "release 0.9.0",
+      committedAt: featRow.committerAt,
+    }),
   ];
 
   return {
@@ -310,25 +369,97 @@ function createFixtureState(
   };
 }
 
-test("desktop Log pane filters by branch without mutating checkedOutBranch and switches merge parents", async () => {
+test("desktop Log pane filters by branch/tag without mutating checkedOutBranch, switches merge parents, and navigates Pierre Diff", async () => {
   await page.viewport(1280, 900);
   render(Harness, { initialState: createFixtureState("log") });
 
+  const filesListbox = page.getByRole("listbox", { name: "提交变更文件" });
+  const diffPanel = page.getByTestId("git-log-diff-panel");
+
   await expect.element(page.getByText("当前检出：main")).toBeVisible();
   await expect
-    .element(page.getByText("web/src/git-graph-layout.ts"))
+    .element(filesListbox.getByText("web/src/git-graph-layout.ts"))
     .toBeVisible();
+  await expect
+    .element(diffPanel.getByText("web/src/git-graph-layout.ts"))
+    .toBeVisible();
+  await expect
+    .element(diffPanel.getByRole("button", { name: "文件内查找" }))
+    .toBeVisible();
+
+  // Keyboard ArrowDown selects second file, Enter maximizes Diff, Escape restores docked mode.
+  const firstFileOpt = filesListbox.getByRole("option", {
+    name: /web\/src\/git-graph-layout\.ts/,
+  });
+  await firstFileOpt.click();
+  await userEvent.keyboard("{ArrowDown}");
+  await expect
+    .element(diffPanel.getByText("web/src/git-graph-colors.ts"))
+    .toBeVisible();
+
+  await userEvent.keyboard("{Enter}");
+  await expect
+    .element(page.getByTestId("git-log-diff-panel"))
+    .toHaveAttribute("data-diff-presentation", "maximized");
+  await userEvent.keyboard("{Escape}");
+  await expect
+    .element(page.getByTestId("git-log-diff-panel"))
+    .toHaveAttribute("data-diff-presentation", "docked");
+
+  // Controlled "当前任务" popover explains #547 task baseline.
+  await page.getByRole("button", { name: "当前任务范围说明" }).click();
+  await expect.element(page.getByText(/待 #547 接入/)).toBeVisible();
+  await userEvent.keyboard("{Escape}");
 
   // Switch merge commit parent to parent #2.
   await page.getByRole("radio", { name: /父节点 #2/ }).click();
-  await expect.element(page.getByText("docs/design-system.md")).toBeVisible();
+  await expect
+    .element(filesListbox.getByText("docs/design-system.md"))
+    .toBeVisible();
 
-  // Click branch in left tree: filters history ONLY, never mutates checkedOutBranch!
+  // Click tag in left tree: filters history ONLY, never mutates checkedOutBranch!
   const tree = page.getByRole("complementary", { name: "历史引用筛选树" });
-  await tree.getByRole("button", { name: "feat/git" }).click();
+  await tree.getByRole("button", { name: "v0.9.0" }).click();
   await expect.element(page.getByText("当前检出：main")).toBeVisible();
-  await expect.element(page.getByText("浏览筛选：feat/git")).toBeVisible();
+  await expect.element(page.getByText("浏览筛选：v0.9.0")).toBeVisible();
   await expect.element(page.getByText("筛选省略中间节点")).toBeVisible();
+
+  // Two-commit compare from commit row menu: mark base -> compare -> swap -> exit.
+  await tree.getByRole("button", { name: "全部引用 (All)" }).click();
+  await page.getByRole("button", { name: "提交操作 3333333" }).click();
+  await page.getByRole("menuitem", { name: /设为比较起点/ }).click();
+  await expect.element(page.getByText(/已设比较起点.*3333333/)).toBeVisible();
+
+  await page.getByRole("button", { name: "提交操作 1111111" }).click();
+  await page.getByRole("menuitem", { name: /与起点 \(3333333\) 比较/ }).click();
+  await expect
+    .element(
+      page
+        .getByRole("region", { name: "变更文件列表" })
+        .getByText("两版本比较"),
+    )
+    .toBeVisible();
+  await expect
+    .element(filesListbox.getByText("web/src/git-graph-layout.ts"))
+    .toBeVisible();
+
+  await page.getByRole("button", { name: "交换比较方向" }).click();
+  await expect
+    .element(
+      page
+        .getByRole("region", { name: "变更文件列表" })
+        .getByText("1111111 → 3333333"),
+    )
+    .toBeVisible();
+
+  await page.getByRole("button", { name: "退出两版本比较" }).click();
+  await expect
+    .element(
+      page
+        .getByRole("region", { name: "变更文件列表" })
+        .getByText("两版本比较"),
+    )
+    .not.toBeInTheDocument();
 });
 
 test("Commit pane separates reading/reviewed/staged states, stages single hunk, and shows full index preview", async () => {
@@ -378,7 +509,7 @@ test("Branches pane guides occupied worktree instead of conflicting checkout and
     .not.toBeInTheDocument();
 });
 
-test("narrow mobile viewport uses step navigation and 16px form inputs", async () => {
+test("narrow mobile viewport uses 3-step list -> detail -> Unified Pierre diff navigation and 16px form inputs", async () => {
   await page.viewport(390, 844);
   render(Harness, { initialState: createFixtureState("log") });
 
@@ -389,12 +520,29 @@ test("narrow mobile viewport uses step navigation and 16px form inputs", async (
   );
   expect(fontSize).toBeGreaterThanOrEqual(16);
 
-  // Tap commit row -> enters detail step with back button.
+  // Step 1 -> Step 2: tap commit row -> enters detail & changed files step.
   await page
     .getByRole("option", { name: /Merge branch 'feat\/git' into main/ })
     .click();
-  const backButton = page.getByRole("button", { name: "返回提交列表" });
-  await expect.element(backButton).toBeVisible();
-  await backButton.click();
+  const backToList = page.getByRole("button", { name: "返回提交列表" });
+  await expect.element(backToList).toBeVisible();
+
+  // Step 2 -> Step 3: tap changed file -> enters mobile Unified Pierre Diff step.
+  await page
+    .getByRole("listbox", { name: "提交变更文件" })
+    .getByRole("option", { name: /web\/src\/git-graph-layout\.ts/ })
+    .click();
+  const diffPanel = page.getByTestId("git-log-diff-panel");
+  await expect
+    .element(diffPanel)
+    .toHaveAttribute("data-diff-presentation", "mobile");
+  await expect
+    .element(diffPanel.getByRole("button", { name: "返回提交详情" }))
+    .toBeVisible();
+
+  // Step 3 -> Step 2 -> Step 1
+  await diffPanel.getByRole("button", { name: "返回提交详情" }).click();
+  await expect.element(backToList).toBeVisible();
+  await backToList.click();
   await expect.element(searchInput).toBeVisible();
 });

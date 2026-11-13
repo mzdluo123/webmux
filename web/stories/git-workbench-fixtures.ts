@@ -416,6 +416,14 @@ export function buildGitWorkbenchFixture(
       subject: baseRow.subject,
       committedAt: baseRow.committerAt,
     }),
+    GitBranchItemSchema.parse({
+      name: "v0.9.0",
+      kind: "tag",
+      head: baseRow.oid,
+      shortHead: baseRow.shortOid,
+      subject: baseRow.subject,
+      committedAt: baseRow.committerAt,
+    }),
   ];
 
   const mode =

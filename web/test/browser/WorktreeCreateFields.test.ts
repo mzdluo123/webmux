@@ -76,6 +76,7 @@ const branches = {
     branch("feature/calm-river", head, ["/repos/project.worktrees/calm-river"]),
   ],
   bases: [base("refs/heads/main", head, "修复终端重连")],
+  tags: [],
   defaultBase: head,
   defaultBaseSubject: "修复终端重连",
   defaultBranch: "main",

@@ -83,6 +83,7 @@
         committedAt: at,
       },
     ],
+    tags: [],
     defaultBase: head,
     defaultBaseSubject: "",
     defaultBranch: "main",
