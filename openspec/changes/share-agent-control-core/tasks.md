@@ -25,11 +25,11 @@
 
 网络详细执行清单见 [network-tasks](network-tasks.md)，其分组与下列入口逐一对应；必须逐项完成，不能仅完成下列概括就跳过子任务。
 
-- [ ] 3.1 完成网络清单第 1 组配置、安全启动与对应文档；验证默认关闭、空 Token 在自动补值前拒绝、配置来源与脱敏诊断测试通过。
-- [ ] 3.2 完成第 2 组真实 authority/Bearer REST/WS client 与远程身份；验证没有 Unix 代理、凭据重定向泄漏或伪造 self/parent，本地 stdio 身份不退化。
-- [ ] 3.3 完成第 3 组 HTTP 协议、会话、限额、并发与取消；验证严格 framing、版本/初始化、超时、断线、DELETE 和取消竞争的协议/race 用例通过。
-- [ ] 3.4 完成第 4 组 cmd/API 的 TCP-only 认证装配及安全说明；验证 Unix/P2P/static 无端点、Host/Origin/Bearer 负例、Controller DTO 与架构检查通过。
-- [ ] 3.5 完成第 5 组真实 Inspector URL 客户端 smoke、幂等重试/续读、冻结工具隔离和故事同步；记录实际客户端/协议版本，不把内部 fixture 当作外部兼容证据。
+- [x] 3.1 完成网络清单第 1 组配置、安全启动与对应文档；验证默认关闭、空 Token 在自动补值前拒绝、配置来源与脱敏诊断测试通过。
+- [x] 3.2 完成第 2 组真实 authority/Bearer REST/WS client 与远程身份；验证没有 Unix 代理、凭据重定向泄漏或伪造 self/parent，本地 stdio 身份不退化。
+- [x] 3.3 完成第 3 组 HTTP 协议、会话、限额、并发与取消；验证严格 framing、版本/初始化、超时、断线、DELETE 和取消竞争的协议/race 用例通过。
+- [x] 3.4 完成第 4 组 cmd/API 的 TCP-only 认证装配及安全说明；验证 Unix/P2P/static 无端点、Host/Origin/Bearer 负例、Controller DTO 与架构检查通过。
+- [x] 3.5 完成第 5 组真实 Inspector URL 客户端 smoke、幂等重试/续读、冻结工具隔离和故事同步；记录实际客户端/协议版本，不把内部 fixture 当作外部兼容证据。
 
 ## 4. Stack integration
 
