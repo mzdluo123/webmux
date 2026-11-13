@@ -283,6 +283,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	}()
 	hybrids := hybrid.New(hybrid.Options{
 		Conversations: conversations,
+		MCPServers:    controlMCPServers(c.StateDir, serverExecutable()),
 		HistoryReader: historyReader(c.StateDir, serverExecutable(), conversations),
 		StateDir:      c.StateDir, Manager: m, ScrollbackBytes: sessionOptions.ScrollbackBytes,
 		Version: version, Logger: slog.Default(), Uploads: folders.UploadPath,

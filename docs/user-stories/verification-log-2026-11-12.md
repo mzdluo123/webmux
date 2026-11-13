@@ -63,3 +63,10 @@
 - 首次浏览器套件的既有图形历史测试超时：图片移出视口不代表全部异步输出已解析。夹具改为等最终输出标记再搜索，保留图片恢复、清除与资源释放断言及原超时上限。
 - 修正同步点后，完整浏览器套件 731 项通过，Storybook 75 项通过，E2E 472 项通过/48 项跳过，独立性能套件 18 项通过/2 项跳过；复用此前通过的 Go race 与单元结果，不将首次失败的 `make test` 记为一次全绿。
 - 验收使用隔离 HOME/XDG、状态目录和本地 STUN，不访问或重启现有服务；未验证外网 NAT 穿透、物理触屏或 macOS/Windows 实机。
+
+## 2026-11-13：ACP 默认注入控制 MCP（US-S20）
+
+- ACP 的 new/load/resume 默认携带当前实例的 `webmux` stdio 配置；历史保存关闭不影响控制工具，交接时保留独立的冻结历史服务。
+- `make check` 通过；`internal/hybrid` 与 `internal/acp` 的全量 race 测试通过。
+- 默认配置、探测隔离与交接集成的定向 race 测试通过：独立 fake agent 在 new/load/resume 发现全部八个控制工具并成功调用 capabilities；关闭会话后控制及历史 helper 均退出。
+- 配置测试覆盖缺失可执行文件、无执行权限、缺失 socket 和非 socket 文件；未修改 agent 全局配置或调用真实 provider。
