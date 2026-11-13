@@ -21,6 +21,16 @@ import {
   type GitTaskBaseline,
 } from "./git-api-schemas";
 
+import { PushCheckSchema, type Remote } from "./workspace-schemas";
+import type {
+  GitStashApplyPreview,
+  GitStashCreatePreview,
+  GitStashDetail,
+  GitStashDropPreview,
+  GitStashEntry,
+} from "./git-stash-schemas";
+import type { GitBlameResult, GitFileHistoryRow } from "./git-v2-schemas";
+
 export {
   GitHistoryScopeSchema,
   type GitHistoryEdge,
@@ -32,7 +42,12 @@ export {
   type GitTaskBaseline,
 };
 
-export const GitWorkbenchModeSchema = z.enum(["log", "commit", "branches"]);
+export const GitWorkbenchModeSchema = z.enum([
+  "log",
+  "commit",
+  "branches",
+  "stash",
+]);
 export type GitWorkbenchMode = z.infer<typeof GitWorkbenchModeSchema>;
 
 export const GitReviewScopeSchema = z.enum(["uncommitted", "task"]);
@@ -131,6 +146,13 @@ export const GitBranchItemSchema = z.object({
   upstreamGone: z.boolean().default(false),
   mergedIntoDefault: z.boolean().default(false),
   occupiedBy: GitBranchOccupancySchema.optional(),
+  tagKind: z.enum(["lightweight", "annotated"]).optional(),
+  tagOid: z.string().optional(),
+  tagMessage: z.string().optional(),
+  taggerName: z.string().optional(),
+  taggerEmail: z.string().optional(),
+  taggedAt: z.string().optional(),
+  tagSigned: z.boolean().optional(),
 });
 export type GitBranchItem = z.infer<typeof GitBranchItemSchema>;
 
@@ -171,6 +193,17 @@ export const GitCommitPreviewModelSchema = z.object({
   headState: z.enum(["branch", "detached", "unborn"]),
   branch: z.string(),
   headOid: z.string(),
+  headMessage: z.string().default(""),
+  headParents: z.array(z.string()).default([]),
+  headPush: PushCheckSchema.optional(),
+  amend: z.boolean().default(false),
+  amendPushed: z.boolean().default(false),
+  authorOverride: z.string().default(""),
+  authorOverridden: z.boolean().default(false),
+  envAuthorName: z.string().default(""),
+  envAuthorEmail: z.string().default(""),
+  signoff: z.boolean().default(false),
+  signoffTrailer: z.string().default(""),
   expectedTreeOid: z.string(),
   authorName: z.string(),
   authorEmail: z.string(),
@@ -312,6 +345,25 @@ export interface GitWorkbenchViewState {
   abortPreview?: GitAbortOperationPreview | null;
   conflictDetail?: GitConflictFileDetail | null;
   conflictOpen?: boolean;
+  remotes?: Remote[];
+  stashes?: GitStashEntry[];
+  selectedStashOid?: string | null;
+  selectedStashDetail?: GitStashDetail | null;
+  stashCreatePreview?: GitStashCreatePreview | null;
+  stashApplyPreview?: GitStashApplyPreview | null;
+  stashDropPreview?: GitStashDropPreview | null;
+  commitAmend?: boolean;
+  commitAmendPushed?: boolean;
+  commitAuthorOverride?: string;
+  commitSignoff?: boolean;
+  commitSignoffTrailer?: string;
+  amendDraftConflict?: {
+    headMessage: string;
+    currentDraft: string;
+  } | null;
+  fileInspectorOpen?: boolean;
+  fixtureHistoryRows?: GitFileHistoryRow[];
+  fixtureBlame?: GitBlameResult | null;
   statusBanner: string;
 }
 

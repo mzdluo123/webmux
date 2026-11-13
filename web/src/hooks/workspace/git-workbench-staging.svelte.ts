@@ -1,5 +1,4 @@
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import { gitCommitPreview } from "../../platform/git-api";
 import type {
   GitPrecedingCommit,
   GitWorkbenchViewState,
@@ -14,7 +13,9 @@ import { LatestRequest } from "../shared/remote-request.svelte";
 import {
   runConfirmCommitFlow,
   runOpenCommitPreview,
+  runSyncCommitPreflight,
 } from "./git-commit-execution";
+import type { GitCommitOptionsController } from "./git-commit-options.svelte";
 import type { GitOperationsController } from "./git-operations-controller.svelte";
 import { createGitStagingDiffController } from "./git-staging-diff.svelte";
 import {
@@ -29,6 +30,7 @@ export interface GitStagingBindings {
   getView: () => GitWorkbenchViewState;
   patchView: (patch: Partial<GitWorkbenchViewState>) => void;
   operations?: GitOperationsController;
+  commitOptions?: GitCommitOptionsController;
   onRefreshRepositories?: () => void;
   onAfterCommitRefresh?: () => void;
   onStagingRefreshed?: (
@@ -85,34 +87,18 @@ export function createGitStagingController(bindings: GitStagingBindings) {
   ) {
     const req = preflightReq.begin();
     const effectiveSignal = signal ?? req.signal;
-    try {
-      const preview = await gitCommitPreview(repoId, wtId, effectiveSignal);
-      if (
-        !req.current() ||
-        effectiveSignal.aborted ||
-        repoId !== bindings.getRepoId() ||
-        wtId !== bindings.getWorktreeId()
-      ) {
-        return;
-      }
-      const latest = bindings.getView();
-      bindings.patchView({
-        context: {
-          ...latest.context,
-          authorName: preview.identity.authorName,
-          authorEmail: preview.identity.authorEmail,
-          committerName: preview.identity.committerName,
-          committerEmail: preview.identity.committerEmail,
-          signEnabled: preview.identity.signEnabled,
-          signFormat: preview.identity.signFormat ?? "",
-          executableHooks: preview.executableHooks,
-          operationInProgress:
-            preview.operation ?? latest.context.operationInProgress,
-        },
-      });
-    } catch {
-      /* Readonly or transient worktree state keeps existing context */
-    }
+    await runSyncCommitPreflight({
+      repoId,
+      wtId,
+      signal: effectiveSignal,
+      isCurrent: () =>
+        req.current() &&
+        repoId === bindings.getRepoId() &&
+        wtId === bindings.getWorktreeId(),
+      commitOptions: bindings.commitOptions,
+      getLatestView: bindings.getView,
+      patchView: bindings.patchView,
+    });
   }
 
   async function loadActiveDiff(
@@ -379,6 +365,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
       wtId,
       view: bindings.getView(),
       followUpPush,
+      previewRequest: bindings.commitOptions?.buildPreviewRequest(),
       signal: req.signal,
       isCurrent: () => req.current(),
       setConfirmationId: (id) => (commitConfirmationId = id),
@@ -433,6 +420,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
         wtId,
         confirmationId,
         current,
+        acknowledgePushedAmend: bindings.commitOptions?.acknowledgePushedAmend,
         signal: req.signal,
         operations: bindings.operations,
         clearWebmuxStaged: () => webmuxStagedPaths.clear(),
@@ -444,6 +432,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
         onRefreshRepositories: bindings.onRefreshRepositories,
         onAfterCommitRefresh: bindings.onAfterCommitRefresh,
         onCommitDraftCleared: bindings.onCommitDraftCleared,
+        onCommitOptionsReset: () => bindings.commitOptions?.resetAfterCommit(),
         onFollowUpPush,
       });
     } finally {

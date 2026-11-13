@@ -13,6 +13,7 @@
   import type { GitPushController } from "../../hooks/workspace/git-push-controller.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import GitDialogFooter from "./GitDialogFooter.svelte";
   import GitIssueList from "./GitIssueList.svelte";
   import GitPushCommitInspector from "./GitPushCommitInspector.svelte";
   import GitPushRejectedBanner, {
@@ -373,25 +374,13 @@
       </div>
     </div>
 
-    <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
-      <Button
-        variant="outline"
-        disabled={push?.running ?? false}
-        onclick={handleClose}
-      >
-        取消
-      </Button>
-      <Button
-        variant="git-primary"
-        disabled={!canConfirm}
-        onclick={handleConfirm}
-      >
-        {#if push?.running}
-          正在推送…
-        {:else}
-          {publishMode ? "发布并推送" : "确认推送"}
-        {/if}
-      </Button>
-    </div>
+    <GitDialogFooter
+      submitting={push?.running ?? false}
+      {canConfirm}
+      confirmLabel={publishMode ? "发布并推送" : "确认推送"}
+      submittingLabel="正在推送…"
+      onConfirm={handleConfirm}
+      onClose={handleClose}
+    />
   </div>
 </ResponsiveDialog>

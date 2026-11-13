@@ -57,6 +57,8 @@ func (s *Server) gitRoutes(mux *http.ServeMux) {
 	s.gitReadRoutes(mux)
 	s.gitWriteRoutes(mux)
 	s.gitDivergenceRoutes(mux)
+	s.gitStashRoutes(mux)
+	s.gitV2Routes(mux)
 	s.gitTaskRoutes(mux)
 	s.gitCollabRoutes(mux)
 }

@@ -339,16 +339,35 @@ export function buildCommitPreviewModel(
       message: "当前为无工作树只读仓库视图，请选择具体工作树后再提交",
     });
   }
-  if (grouped.staged.length === 0 && grouped.conflicted.length === 0) {
+  if (
+    grouped.staged.length === 0 &&
+    grouped.conflicted.length === 0 &&
+    !state.commitAmend
+  ) {
     blockers.push({
       code: "empty_index",
       message: "真实 Git index 暂存区为空，请先暂存至少一项修改",
     });
   }
-  if (!state.context.authorName.trim() || !state.context.authorEmail.trim()) {
+  if (state.commitAmend && state.context.headState === "unborn") {
+    blockers.push({
+      code: "unborn_head",
+      message: "当前分支尚无历史提交（unborn HEAD），无法执行修正提交 (Amend)",
+    });
+  }
+  if (
+    !state.commitAuthorOverride?.trim() &&
+    (!state.context.authorName.trim() || !state.context.authorEmail.trim())
+  ) {
     blockers.push({
       code: "missing_identity",
       message: "缺少 Git user.name 或 user.email 配置，请先配置作者身份",
+    });
+  }
+  if (state.commitAmend && state.commitAmendPushed) {
+    warnings.push({
+      code: "amend_pushed",
+      message: "该提交已推送至远端，修正将改写提交历史并导致分支与上游分叉",
     });
   }
 
@@ -376,6 +395,14 @@ export function buildCommitPreviewModel(
 
   const headState =
     state.context.headState === "readonly" ? "branch" : state.context.headState;
+  const rawOverride = state.commitAuthorOverride?.trim() || "";
+  const overrideMatch = /^([^<>]+?)\s*<([^<>\s]+@[^<>\s]+)>$/.exec(rawOverride);
+  const effectiveAuthorName = overrideMatch
+    ? (overrideMatch[1] ?? "").trim()
+    : state.context.authorName;
+  const effectiveAuthorEmail = overrideMatch
+    ? (overrideMatch[2] ?? "").trim()
+    : state.context.authorEmail;
 
   return {
     repositoryName: state.context.repositoryName,
@@ -383,9 +410,11 @@ export function buildCommitPreviewModel(
     headState,
     branch: state.context.checkedOutBranch ?? "(detached)",
     headOid: state.context.headOid ?? "",
+    headMessage: "",
+    headParents: [],
     expectedTreeOid: `tree-${grouped.staged.map((f) => f.path).join("+") || "empty"}`,
-    authorName: state.context.authorName,
-    authorEmail: state.context.authorEmail,
+    authorName: effectiveAuthorName,
+    authorEmail: effectiveAuthorEmail,
     committerName: state.context.committerName,
     committerEmail: state.context.committerEmail,
     signEnabled: state.context.signEnabled,
@@ -396,7 +425,18 @@ export function buildCommitPreviewModel(
     unstagedCount: grouped.unstaged.length,
     untrackedCount: grouped.untracked.length,
     conflictedCount: grouped.conflicted.length,
-    followUpPush,
+    followUpPush:
+      state.commitAmend && state.commitAmendPushed ? false : followUpPush,
+    amend: Boolean(state.commitAmend),
+    amendPushed: Boolean(state.commitAmend && state.commitAmendPushed),
+    authorOverride: rawOverride,
+    authorOverridden: Boolean(rawOverride),
+    envAuthorName: overrideMatch ? state.context.authorName : "",
+    envAuthorEmail: overrideMatch ? state.context.authorEmail : "",
+    signoff: Boolean(state.commitSignoff),
+    signoffTrailer: state.commitSignoff
+      ? `Signed-off-by: ${state.context.committerName} <${state.context.committerEmail}>`
+      : "",
     blockers,
     warnings,
     stale: false,

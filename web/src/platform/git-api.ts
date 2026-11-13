@@ -1,9 +1,9 @@
 import { APIError, api, apiBlob } from "./api";
 import {
   CodeListingSchema,
-  EmptyRequestSchema,
   GitChangesSchema,
   GitCommitDetailResponseSchema,
+  GitCommitPreviewRequestSchema,
   GitCommitPreviewSchema,
   GitCommitRequestSchema,
   GitCommitResultSchema,
@@ -19,6 +19,7 @@ import {
   GitStagingFileDiffSchema,
   GitStagingOverviewSchema,
   NoContentSchema,
+  type GitCommitPreviewRequest,
   type GitCommitRequest,
   type GitConflictReason,
   type GitHistoryScope,
@@ -101,7 +102,7 @@ export interface GitStagingDiffParams {
   oldPath?: string;
 }
 
-function withQuery(
+export function withGitQuery(
   path: string,
   entries: Record<string, string | number | boolean | undefined>,
 ): string {
@@ -114,11 +115,14 @@ function withQuery(
   return encoded ? `${path}?${encoded}` : path;
 }
 
-function repoGitBase(repositoryId: string): string {
+export function repoGitBase(repositoryId: string): string {
   return `/repositories/${encodeURIComponent(repositoryId)}/git`;
 }
 
-function worktreeGitBase(repositoryId: string, worktreeId: string): string {
+export function worktreeGitBase(
+  repositoryId: string,
+  worktreeId: string,
+): string {
   return `/repositories/${encodeURIComponent(repositoryId)}/worktrees/${encodeURIComponent(worktreeId)}/git`;
 }
 
@@ -137,7 +141,7 @@ export function gitContext(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(`${repoGitBase(repositoryId)}/context`, { worktreeId }),
+    withGitQuery(`${repoGitBase(repositoryId)}/context`, { worktreeId }),
     GitContextSchema,
     "GET",
     undefined,
@@ -151,7 +155,7 @@ export function gitTree(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(`${repoGitBase(repositoryId)}/tree`, {
+    withGitQuery(`${repoGitBase(repositoryId)}/tree`, {
       contextId: params.contextId,
       worktreeId: params.worktreeId,
       nodeId: params.nodeId,
@@ -171,7 +175,7 @@ export function gitFiles(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(`${repoGitBase(repositoryId)}/files`, {
+    withGitQuery(`${repoGitBase(repositoryId)}/files`, {
       contextId: params.contextId,
       worktreeId: params.worktreeId,
       q: params.q,
@@ -190,7 +194,7 @@ export function gitFile(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(`${repoGitBase(repositoryId)}/file`, {
+    withGitQuery(`${repoGitBase(repositoryId)}/file`, {
       contextId: params.contextId,
       nodeId: params.nodeId,
       source: params.source,
@@ -209,7 +213,7 @@ export function gitChanges(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(`${repoGitBase(repositoryId)}/changes`, {
+    withGitQuery(`${repoGitBase(repositoryId)}/changes`, {
       contextId: params.contextId,
       worktreeId: params.worktreeId,
       group: params.group,
@@ -230,7 +234,7 @@ export function gitDiff(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(`${repoGitBase(repositoryId)}/diff`, {
+    withGitQuery(`${repoGitBase(repositoryId)}/diff`, {
       contextId: params.contextId,
       changeId: params.changeId,
       worktreeId: params.worktreeId,
@@ -248,7 +252,7 @@ export function gitCompare(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(`${repoGitBase(repositoryId)}/compare`, {
+    withGitQuery(`${repoGitBase(repositoryId)}/compare`, {
       contextId: params.contextId,
       baseOid: params.baseOid,
       targetOid: params.targetOid,
@@ -272,7 +276,7 @@ export function gitSnapshotFile(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(
+    withGitQuery(
       `${repoGitBase(repositoryId)}/snapshots/${encodeURIComponent(snapshotId)}/file`,
       {
         side: params.side,
@@ -295,7 +299,7 @@ export function gitSnapshotRaw(
   received?: (bytes: number) => void,
 ) {
   return apiBlob(
-    withQuery(
+    withGitQuery(
       `${repoGitBase(repositoryId)}/snapshots/${encodeURIComponent(snapshotId)}/raw`,
       {
         side: params.side,
@@ -315,7 +319,7 @@ export function gitHistory(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(`${repoGitBase(repositoryId)}/history`, {
+    withGitQuery(`${repoGitBase(repositoryId)}/history`, {
       worktreeId: params.worktreeId,
       scope: params.scope,
       branch: params.branch,
@@ -341,7 +345,7 @@ export function gitCommitDetail(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(
+    withGitQuery(
       `${repoGitBase(repositoryId)}/commits/${encodeURIComponent(oid)}`,
       {
         parentOid,
@@ -375,7 +379,7 @@ export function gitStagingDiff(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(`${worktreeGitBase(repositoryId, worktreeId)}/staging/diff`, {
+    withGitQuery(`${worktreeGitBase(repositoryId, worktreeId)}/staging/diff`, {
       area: params.area,
       path: params.path,
       oldPath: params.oldPath,
@@ -422,15 +426,22 @@ export function gitUnstage(
 export function gitCommitPreview(
   repositoryId: string,
   worktreeId: string,
+  requestOrSignal?: GitCommitPreviewRequest | AbortSignal,
   signal?: AbortSignal,
 ) {
+  const isSignal =
+    requestOrSignal !== undefined && "aborted" in requestOrSignal;
+  const request: GitCommitPreviewRequest = isSignal
+    ? {}
+    : (requestOrSignal ?? {});
+  const abortSignal = isSignal ? requestOrSignal : signal;
   return api(
     `${worktreeGitBase(repositoryId, worktreeId)}/commit-preview`,
     GitCommitPreviewSchema,
     "POST",
-    {},
-    signal,
-    EmptyRequestSchema,
+    request,
+    abortSignal,
+    GitCommitPreviewRequestSchema,
   );
 }
 
@@ -461,7 +472,7 @@ export function gitOperations(
   signal?: AbortSignal,
 ) {
   return api(
-    withQuery(`${repoGitBase(repositoryId)}/operations`, {
+    withGitQuery(`${repoGitBase(repositoryId)}/operations`, {
       worktreeId: params.worktreeId,
       limit: params.limit,
     }),

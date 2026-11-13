@@ -26,6 +26,11 @@ import type {
   GitWorktreeContext,
 } from "../../contracts/git-workbench-schemas";
 import { remoteBranchBases } from "./branch-name";
+import {
+  mapCommitPreviewAdvancedFields,
+  mapGitTagItem,
+  mapV2CommitResultResponse,
+} from "./git-v2-adapter";
 
 export function formatStageIdentityKey(identity: GitStageFileIdentity): string {
   return [
@@ -157,7 +162,9 @@ export function mapGitHistoryPage(page: GitHistoryPage): {
   };
 }
 
-function normalizeCommitFileStatus(raw: string): GitCommitFile["status"] {
+export function normalizeCommitFileStatus(
+  raw: string,
+): GitCommitFile["status"] {
   const first = raw.trim().charAt(0).toUpperCase();
   if (
     first === "A" ||
@@ -296,17 +303,7 @@ export function mapGitBranchesResponse(
   }
 
   for (const tag of data.tags) {
-    items.push({
-      name: tag.name,
-      kind: "tag",
-      head: tag.head,
-      shortHead: tag.head.slice(0, 7),
-      subject: tag.subject,
-      committedAt: tag.committedAt,
-      favorite: false,
-      upstreamGone: false,
-      mergedIntoDefault: false,
-    });
+    items.push(mapGitTagItem(tag));
   }
 
   return items;
@@ -445,6 +442,7 @@ export function mapGitCommitPreviewResponse(
     untrackedCount: preview.untrackedCount,
     conflictedCount: preview.conflictedCount,
     followUpPush,
+    ...mapCommitPreviewAdvancedFields(preview),
     blockers: preview.blockers,
     warnings,
     stale: false,
@@ -455,18 +453,5 @@ export function mapGitCommitPreviewResponse(
 export function mapGitCommitResultResponse(
   result: GitCommitResult,
 ): GitCommitOutcome {
-  return {
-    operationId: result.operationId,
-    status: result.outcome,
-    commitOid: result.commitOid,
-    expectedTreeOid: result.expectedTreeOid,
-    actualTreeOid: result.treeOid,
-    summary:
-      result.outcome === "matched"
-        ? `已提交 ${result.commitOid?.slice(0, 7) ?? ""}${result.subject ? `：${result.subject}` : ""}`
-        : result.outcome === "needs_review"
-          ? "提交已完成，但钩子改写了最终树，请复核提交详情。"
-          : "提交结果未能在预期时间内确认，请刷新历史与暂存区核实。",
-    reasons: result.reviewReasons,
-  };
+  return mapV2CommitResultResponse(result);
 }

@@ -108,7 +108,16 @@
         {branch.name}
       </span>
 
-      {#if isCurrent}
+      {#if branch.kind === "tag"}
+        {#if branch.tagKind}
+          <Badge variant="outline">
+            {branch.tagKind === "annotated" ? "附注" : "轻量"}
+          </Badge>
+        {/if}
+        {#if branch.tagSigned}
+          <Badge variant="info">已签名</Badge>
+        {/if}
+      {:else if isCurrent}
         <Badge variant="info" class="max-w-full">
           <span class="truncate">{currentLabel}</span>
         </Badge>

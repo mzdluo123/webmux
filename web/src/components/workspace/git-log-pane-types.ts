@@ -8,6 +8,7 @@ import type {
 import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
 import type { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
 import type { GitPaneScrollCallbacks } from "../../domains/workspace/git-workbench-memory";
+import type { GitFileInspectorTab } from "../../hooks/workspace/git-file-inspector-controller.svelte";
 import type { GitLogDiffController } from "../../hooks/workspace/git-log-diff.svelte";
 
 export type GitLogFilterFields = Pick<
@@ -91,6 +92,8 @@ export interface GitLogPaneProps
   onSetTaskBaseline?: (baseOid?: string) => void;
   onCherryPickCommit?: (oid: string) => void;
   onRevertCommit?: (oid: string) => void;
+  onCreateTagCommit?: (oid: string, subject: string) => void;
+  onInspectCommitFile?: (path: string, tab: GitFileInspectorTab) => void;
   onAddReworkItem?: (
     input: Parameters<typeof createReworkDraftItem>[0],
     options?: { openSheet?: boolean },

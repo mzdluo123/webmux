@@ -1,4 +1,4 @@
-import { repositoryBranches } from "../../platform/api";
+import { repositoryBranches, repositoryRemotes } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import {
   gitCommit,
@@ -12,6 +12,7 @@ import {
   gitStagingDiff,
   gitUnstage,
 } from "../../platform/git-api";
+import { gitStashes } from "../../platform/git-stash-api";
 import type {
   GitBranchItem,
   GitCommitDetail,
@@ -24,8 +25,11 @@ import type {
   GitWorktreeContext,
 } from "../../contracts/git-workbench-schemas";
 import type {
+  GitCommitPreviewRequest,
   GitStagingEntry,
   GitStagingFileDiff,
+  GitStashEntry,
+  Remote,
   Repository,
   SessionInfo,
   Worktree,
@@ -162,35 +166,45 @@ export async function fetchGitTargetBundle(options: {
   refsChanged: boolean;
   commits: GitHistoryRow[];
   branches: GitBranchItem[];
+  stashes: GitStashEntry[];
+  remotes: Remote[];
 }> {
   const validWt = resolveUsableWorktree(options.worktreeId, options.worktree);
   const effectiveWorktreeId = validWt?.id;
 
-  const [ctxRes, hist, branchesRes] = await Promise.all([
-    gitContext(options.repositoryId, effectiveWorktreeId, options.signal),
-    fetchGitHistoryPageMapped({
-      repositoryId: options.repositoryId,
-      worktreeId: effectiveWorktreeId,
-      scope: options.scope,
-      branchFilter: options.branchFilter,
-      searchQuery: options.searchQuery,
-      authorFilter: options.authorFilter,
-      sinceFilter: options.sinceFilter,
-      untilFilter: options.untilFilter,
-      pathFilter: options.pathFilter,
-      limit: 100,
-      signal: options.signal,
-    }),
-    repositoryBranches(options.repositoryId, options.signal).catch(() => ({
-      defaultBranch: null,
-      defaultBase: null,
-      defaultBaseSubject: "",
-      defaultParent: "",
-      branches: [],
-      bases: [],
-      tags: [],
-    })),
-  ]);
+  const [ctxRes, hist, branchesRes, stashesRes, remotesRes] = await Promise.all(
+    [
+      gitContext(options.repositoryId, effectiveWorktreeId, options.signal),
+      fetchGitHistoryPageMapped({
+        repositoryId: options.repositoryId,
+        worktreeId: effectiveWorktreeId,
+        scope: options.scope,
+        branchFilter: options.branchFilter,
+        searchQuery: options.searchQuery,
+        authorFilter: options.authorFilter,
+        sinceFilter: options.sinceFilter,
+        untilFilter: options.untilFilter,
+        pathFilter: options.pathFilter,
+        limit: 100,
+        signal: options.signal,
+      }),
+      repositoryBranches(options.repositoryId, options.signal).catch(() => ({
+        defaultBranch: null,
+        defaultBase: null,
+        defaultBaseSubject: "",
+        defaultParent: "",
+        branches: [],
+        bases: [],
+        tags: [],
+      })),
+      gitStashes(options.repositoryId, options.signal).catch(() => ({
+        stashes: [],
+      })),
+      repositoryRemotes(options.repositoryId, options.signal).catch(() => ({
+        remotes: [],
+      })),
+    ],
+  );
 
   const context = deriveGitWorktreeContext({
     repository: options.repository,
@@ -226,6 +240,8 @@ export async function fetchGitTargetBundle(options: {
     refsChanged: hist.refsChanged,
     commits: hist.commits,
     branches,
+    stashes: stashesRes.stashes,
+    remotes: remotesRes.remotes,
   };
 }
 
@@ -354,6 +370,7 @@ export async function requestCommitPreviewModel(options: {
   repositoryName: string;
   workingChanges: readonly GitWorkingChange[];
   followUpPush: boolean;
+  previewRequest?: GitCommitPreviewRequest;
   signal: AbortSignal;
 }): Promise<{
   confirmationId: string;
@@ -367,9 +384,14 @@ export async function requestCommitPreviewModel(options: {
   executableHooks: string[];
   model: GitCommitPreviewModel;
 }> {
+  const effectiveFollowUpPush =
+    options.previewRequest?.amend && options.followUpPush
+      ? options.followUpPush
+      : options.followUpPush;
   const preview = await gitCommitPreview(
     options.repositoryId,
     options.worktreeId,
+    options.previewRequest,
     options.signal,
   );
   const grouped = groupWorkingChanges(options.workingChanges);
@@ -377,7 +399,7 @@ export async function requestCommitPreviewModel(options: {
     options.repositoryName,
     preview,
     grouped.staged,
-    options.followUpPush,
+    preview.amendPushed ? false : effectiveFollowUpPush,
   );
   return {
     confirmationId: preview.confirmationId,
@@ -399,6 +421,7 @@ export async function performGitCommitExecution(options: {
   confirmationId: string;
   clientRequestId?: string;
   message: string;
+  acknowledgePushedAmend?: boolean;
   signal: AbortSignal;
 }): Promise<
   | { ok: true; outcome: GitCommitOutcome }
@@ -420,6 +443,9 @@ export async function performGitCommitExecution(options: {
           ? { clientRequestId: options.clientRequestId }
           : {}),
         message: options.message.trim(),
+        ...(options.acknowledgePushedAmend
+          ? { acknowledgePushedAmend: true }
+          : {}),
       },
       options.signal,
     );

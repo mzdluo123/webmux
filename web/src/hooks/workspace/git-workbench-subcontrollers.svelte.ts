@@ -7,15 +7,19 @@ import type {
 import type { writeGitTargetMemory } from "../../domains/workspace/git-workbench-memory";
 import type { buildGitRouteHref } from "../shared/route";
 import { createGitCommitDraftController } from "./git-commit-draft.svelte";
+import { createGitCommitOptionsController } from "./git-commit-options.svelte";
 import { createGitConflictController } from "./git-conflict-controller.svelte";
 import { createGitDivergenceController } from "./git-divergence-controller.svelte";
+import { createGitFileInspectorController } from "./git-file-inspector-controller.svelte";
 import { createGitLogCompareController } from "./git-log-compare.svelte";
 import { createGitLogDiffController } from "./git-log-diff.svelte";
 import { createGitLogHistoryController } from "./git-log-history.svelte";
 import { createGitOperationsController } from "./git-operations-controller.svelte";
 import { createGitPushController } from "./git-push-controller.svelte";
+import { createGitRefsManageController } from "./git-refs-manage-controller.svelte";
 import { createGitReviewSyncController } from "./git-review-sync.svelte";
 import { createGitReworkController } from "./git-rework-controller.svelte";
+import { createGitStashController } from "./git-stash-controller.svelte";
 import { createGitTaskReviewController } from "./git-task-review.svelte";
 import { createGitStagingController } from "./git-workbench-staging.svelte";
 
@@ -24,6 +28,8 @@ export interface GitSubControllersBindings {
   getEffectiveWorktreeId: () => string | undefined;
   getWorktreeTargetId: () => string | undefined;
   getDefaultBranch: () => string | null;
+  getRepository: () => Repository | undefined;
+  getSessions: () => readonly SessionInfo[];
   getView: () => GitWorkbenchViewState;
   patchView: (patch: Partial<GitWorkbenchViewState>) => void;
   persist: (patch: Parameters<typeof writeGitTargetMemory>[2]) => void;
@@ -49,6 +55,13 @@ export function createGitWorkbenchSubControllers(
     getWorktreeId: deps.getWorktreeTargetId,
     getView: deps.getView,
     patchView: deps.patchView,
+  });
+  const commitOptions = createGitCommitOptionsController({
+    getRepoId: deps.getRepoId,
+    getWorktreeId: deps.getWorktreeTargetId,
+    getView: deps.getView,
+    patchView: deps.patchView,
+    onUpdateDraftMessage: (msg) => commitDraft.updateLocalMessage(msg),
   });
   const rework = createGitReworkController({
     getRepoId: deps.getRepoId,
@@ -127,6 +140,7 @@ export function createGitWorkbenchSubControllers(
     getView: deps.getView,
     patchView: deps.patchView,
     operations,
+    commitOptions,
     onRefreshRepositories: deps.onRefreshRepositories,
     onAfterCommitRefresh: () => {
       void logHistory.reloadHistory("refresh");
@@ -180,9 +194,49 @@ export function createGitWorkbenchSubControllers(
     onRefreshStaging: () => staging.refreshActiveSnapshot(),
     onStatusBanner: (statusBanner) => deps.patchView({ statusBanner }),
   });
+  const stash = createGitStashController({
+    getRepoId: deps.getRepoId,
+    getWorktreeId: deps.getWorktreeTargetId,
+    getView: deps.getView,
+    patchView: deps.patchView,
+    operations,
+    onAfterStashMutation: async () => {
+      deps.onRefreshRepositories?.();
+      await Promise.all([
+        staging.refreshActiveSnapshot(),
+        logHistory.reloadHistory("refresh"),
+        taskReview.refresh(),
+      ]);
+    },
+    onInProgressUpdated: (next) => divergence.setInProgressExternal(next),
+    onOpenConflictResolver: (path) => {
+      void conflict.openResolver(path);
+    },
+  });
+  const refsManage = createGitRefsManageController({
+    getRepoId: deps.getRepoId,
+    getWorktreeId: deps.getWorktreeTargetId,
+    getRepository: deps.getRepository,
+    getSessions: deps.getSessions,
+    getView: deps.getView,
+    patchView: deps.patchView,
+    operations,
+    onRefreshRepositories: deps.onRefreshRepositories,
+    onAfterRefsChanged: () => {
+      void logHistory.reloadHistory("refresh");
+    },
+  });
+  const fileInspector = createGitFileInspectorController({
+    getRepoId: deps.getRepoId,
+    getWorktreeId: deps.getWorktreeTargetId,
+    getBranches: () => deps.getView().branches,
+    getHeadOid: () => deps.getView().context.headOid,
+    onStatusBanner: (statusBanner) => deps.patchView({ statusBanner }),
+  });
 
   function disposeAll() {
     commitDraft.dispose();
+    commitOptions.dispose();
     reviews.dispose();
     rework.dispose();
     operations.dispose();
@@ -194,10 +248,14 @@ export function createGitWorkbenchSubControllers(
     push.dispose();
     divergence.dispose();
     conflict.dispose();
+    stash.dispose();
+    refsManage.dispose();
+    fileInspector.dispose();
   }
 
   function resetAllTargets(repoId: string, wtId?: string) {
     commitDraft.resetTarget();
+    commitOptions.resetTarget();
     reviews.resetTarget();
     rework.loadTarget(repoId, wtId);
     operations.resetTarget();
@@ -208,10 +266,14 @@ export function createGitWorkbenchSubControllers(
     logDiff.resetTarget();
     divergence.resetTarget();
     conflict.resetTarget();
+    stash.resetTarget();
+    refsManage.resetTarget();
+    fileInspector.resetTarget();
   }
 
   return {
     commitDraft,
+    commitOptions,
     reviews,
     rework,
     operations,
@@ -223,6 +285,9 @@ export function createGitWorkbenchSubControllers(
     push,
     divergence,
     conflict,
+    stash,
+    refsManage,
+    fileInspector,
     disposeAll,
     resetAllTargets,
   };

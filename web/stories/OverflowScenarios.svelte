@@ -159,11 +159,15 @@
       </ResponsiveDialog>
     {/if}
   {:else if scenario === "git-workbench"}
-    <div class="flex min-h-[min(36rem,82dvh)] min-w-0 flex-col">
+    <div
+      class="flex min-h-[min(36rem,82dvh)] min-w-0 flex-col xl:h-[min(46rem,86dvh)]"
+    >
       <GitWorkbenchShell bind:view={gitView} />
     </div>
   {:else if scenario === "git-push"}
-    <div class="flex min-h-[min(36rem,82dvh)] min-w-0 flex-col">
+    <div
+      class="flex min-h-[min(36rem,82dvh)] min-w-0 flex-col xl:h-[min(46rem,86dvh)]"
+    >
       <GitWorkbenchShell bind:view={gitPushView} />
     </div>
   {/if}

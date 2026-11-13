@@ -1,17 +1,10 @@
 package workspace
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"log/slog"
-	"regexp"
 	"slices"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/statefile"
@@ -20,17 +13,28 @@ import (
 const (
 	gitOperationsVersion = 1
 
-	GitOpCommit      = "commit"
-	GitOpPush        = "push"
-	GitOpFetch       = "fetch"
-	GitOpFastForward = "fast_forward"
-	GitOpSwitch      = "switch"
-	GitOpMerge       = "merge"
-	GitOpRebase      = "rebase"
-	GitOpCherryPick  = "cherry_pick"
-	GitOpRevert      = "revert"
-	GitOpContinue    = "continue"
-	GitOpAbort       = "abort"
+	GitOpCommit         = "commit"
+	GitOpPush           = "push"
+	GitOpFetch          = "fetch"
+	GitOpFastForward    = "fast_forward"
+	GitOpSwitch         = "switch"
+	GitOpMerge          = "merge"
+	GitOpRebase         = "rebase"
+	GitOpCherryPick     = "cherry_pick"
+	GitOpRevert         = "revert"
+	GitOpContinue       = "continue"
+	GitOpAbort          = "abort"
+	GitOpStashPush      = "stash_push"
+	GitOpStashApply     = "stash_apply"
+	GitOpStashPop       = "stash_pop"
+	GitOpStashDrop      = "stash_drop"
+	GitOpBranchRename   = "branch_rename"
+	GitOpBranchUpstream = "branch_upstream"
+	GitOpTagCreate      = "tag_create"
+	GitOpTagDelete      = "tag_delete"
+	GitOpRemoteAdd      = "remote_add"
+	GitOpRemoteUpdate   = "remote_update"
+	GitOpRemoteRemove   = "remote_remove"
 
 	GitOpPending     = "pending"
 	GitOpRunning     = "running"
@@ -50,16 +54,22 @@ const (
 
 // GitOperationPreview stores the bounded snapshot bound when a write operation starts.
 type GitOperationPreview struct {
-	WorktreePath    string `json:"worktreePath,omitempty"`
-	HeadState       string `json:"headState,omitempty"`
-	Branch          string `json:"branch,omitempty"`
-	HeadOID         string `json:"headOid,omitempty"`
-	ExpectedTreeOID string `json:"expectedTreeOid,omitempty"`
-	Remote          string `json:"remote,omitempty"`
-	Target          string `json:"target,omitempty"`
-	TargetOID       string `json:"targetOid,omitempty"`
-	Publish         bool   `json:"publish,omitempty"`
-	Detached        bool   `json:"detached,omitempty"`
+	WorktreePath    string   `json:"worktreePath,omitempty"`
+	HeadState       string   `json:"headState,omitempty"`
+	Branch          string   `json:"branch,omitempty"`
+	HeadOID         string   `json:"headOid,omitempty"`
+	ExpectedTreeOID string   `json:"expectedTreeOid,omitempty"`
+	ExpectedParents []string `json:"expectedParents,omitempty"`
+	Amend           bool     `json:"amend,omitempty"`
+	AuthorOverride  string   `json:"authorOverride,omitempty"`
+	Signoff         bool     `json:"signoff,omitempty"`
+	StashRef        string   `json:"stashRef,omitempty"`
+	StashOID        string   `json:"stashOid,omitempty"`
+	Remote          string   `json:"remote,omitempty"`
+	Target          string   `json:"target,omitempty"`
+	TargetOID       string   `json:"targetOid,omitempty"`
+	Publish         bool     `json:"publish,omitempty"`
+	Detached        bool     `json:"detached,omitempty"`
 }
 
 // GitOperation is one durable entry in git-operations.json.
@@ -84,6 +94,10 @@ type GitOperation struct {
 	ActualTreeOID   string              `json:"actualTreeOid,omitempty"`
 	Parents         []string            `json:"parents,omitempty"`
 	Subject         string              `json:"subject,omitempty"`
+	AuthorName      string              `json:"authorName,omitempty"`
+	AuthorEmail     string              `json:"authorEmail,omitempty"`
+	CommitterName   string              `json:"committerName,omitempty"`
+	CommitterEmail  string              `json:"committerEmail,omitempty"`
 	ReviewReasons   []string            `json:"reviewReasons,omitempty"`
 }
 
@@ -100,12 +114,6 @@ type opFlight struct {
 	result      any
 	err         error
 }
-
-var (
-	authHeaderPattern = regexp.MustCompile(`(?i)(authorization\s*[:=]\s*(?:bearer|basic|token)?\s*)[^\s'"]+`)
-	extraHdrPattern   = regexp.MustCompile(`(?i)(extraheader\s*[:=]\s*)[^\r\n]+`)
-	knownTokenPattern = regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9_]{16,}|github_pat_[A-Za-z0-9_]{16,}|glpat-[A-Za-z0-9_-]{12,})\b`)
-)
 
 func (s *Service) loadOperations() error {
 	expanded, err := pathutil.Expand(s.stateDir)
@@ -135,119 +143,12 @@ func (s *Service) closeOperations() {
 	s.opsError = "Git 操作账本已关闭"
 }
 
-func validateOperationLedger(stored gitOperationLedger) error {
-	if stored.V != gitOperationsVersion || stored.Operations == nil {
-		return errors.New("不支持或损坏的 Git 操作账本")
-	}
-	if len(stored.Operations) > MaxOperationsGlobal {
-		return fmt.Errorf("操作账本超过 %d 条记录", MaxOperationsGlobal)
-	}
-	ids := make(map[string]bool, len(stored.Operations))
-	reqKeys := make(map[string]bool, len(stored.Operations))
-	for _, op := range stored.Operations {
-		if op.ID == "" || op.RepositoryID == "" || ids[op.ID] {
-			return errors.New("操作记录身份无效或重复")
-		}
-		if !validOpKind(op.Kind) || !validOpStatus(op.Status) {
-			return errors.New("操作记录类型或状态无效")
-		}
-		if len(op.SanitizedOutput) > MaxOperationOutputBytes {
-			return errors.New("操作记录输出摘要超出上限")
-		}
-		ids[op.ID] = true
-		if op.ClientRequestID != "" {
-			if err := validateClientRequestID(op.ClientRequestID); err != nil {
-				return errors.New("操作记录 clientRequestId 无效")
-			}
-			key := op.RepositoryID + "\x00" + op.ClientRequestID
-			if reqKeys[key] {
-				return errors.New("操作记录 clientRequestId 重复")
-			}
-			reqKeys[key] = true
-		}
-	}
-	return nil
-}
-
-func validOpKind(kind string) bool {
-	switch kind {
-	case GitOpCommit, GitOpPush, GitOpFetch, GitOpFastForward, GitOpSwitch,
-		GitOpMerge, GitOpRebase, GitOpCherryPick, GitOpRevert, GitOpContinue, GitOpAbort:
-		return true
-	}
-	return false
-}
-
-func validOpStatus(status string) bool {
-	switch status {
-	case GitOpPending, GitOpRunning, GitOpSucceeded, GitOpNeedsReview, GitOpFailed, GitOpUncertain:
-		return true
-	}
-	return false
-}
-
-func validateClientRequestID(id string) error {
-	if id == "" {
-		return nil
-	}
-	if len(id) > MaxClientRequestIDLen {
-		return problemf(ErrInvalid, "clientRequestId 长度不能超过 %d 个字符", MaxClientRequestIDLen)
-	}
-	for i := 0; i < len(id); i++ {
-		if id[i] < 0x21 || id[i] > 0x7e {
-			return problemf(ErrInvalid, "clientRequestId 包含非法字符")
-		}
-	}
-	return nil
-}
-
-func hashOperationRequest(parts ...string) string {
-	h := sha256.New()
-	var buf [8]byte
-	for _, p := range parts {
-		binary.BigEndian.PutUint64(buf[:], uint64(len(p)))
-		_, _ = h.Write(buf[:])
-		_, _ = h.Write([]byte(p))
-	}
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-func sanitizeOperationOutput(raw string) string {
-	if strings.TrimSpace(raw) == "" {
-		return ""
-	}
-	rawLines := strings.Split(raw, "\n")
-	cleaned := make([]string, 0, len(rawLines))
-	for _, line := range rawLines {
-		line = strings.TrimRight(line, "\r")
-		if idx := strings.LastIndexByte(line, '\r'); idx >= 0 {
-			line = line[idx+1:]
-		}
-		line = redactLine(line)
-		line = authHeaderPattern.ReplaceAllString(line, "${1}"+redactedSecret)
-		line = extraHdrPattern.ReplaceAllString(line, "${1}"+redactedSecret)
-		line = knownTokenPattern.ReplaceAllString(line, redactedSecret)
-		if strings.TrimSpace(line) == "" && len(cleaned) == 0 {
-			continue
-		}
-		cleaned = append(cleaned, line)
-	}
-	out := strings.TrimSpace(strings.Join(cleaned, "\n"))
-	if len(out) <= MaxOperationOutputBytes {
-		return out
-	}
-	const ellipsis = "…"
-	limit := MaxOperationOutputBytes - len(ellipsis)
-	cut := strings.ToValidUTF8(out[:limit], "")
-	for len(cut) > 0 && !utf8.ValidString(cut) {
-		cut = cut[:len(cut)-1]
-	}
-	return cut + ellipsis
-}
-
 func cloneGitOperation(op GitOperation) GitOperation {
 	if op.FetchResults != nil {
 		op.FetchResults = append([]FetchResult(nil), op.FetchResults...)
+	}
+	if op.Preview.ExpectedParents != nil {
+		op.Preview.ExpectedParents = append([]string(nil), op.Preview.ExpectedParents...)
 	}
 	if op.Parents != nil {
 		op.Parents = append([]string(nil), op.Parents...)

@@ -1,0 +1,58 @@
+{
+  "status": 200,
+  "body": {
+    "entry": {
+      "baseOid": "029aad08115e96af87a9df174c887599dc4eae5b",
+      "branch": "main",
+      "createdAt": "<time>",
+      "hasUntracked": true,
+      "index": 0,
+      "indexOid": "2de491136b2a4f02e817bf4323222f9a1ab93d2a",
+      "oid": "716b4010210d57411915de0d4032e1afc5b99a86",
+      "parents": [
+        "029aad08115e96af87a9df174c887599dc4eae5b",
+        "2de491136b2a4f02e817bf4323222f9a1ab93d2a",
+        "ed954172eedaaaa39dd220738b309ba06a6d4734"
+      ],
+      "shortOid": "716b4010",
+      "stashRef": "stash@{0}",
+      "summary": "On main: WIP: stash snapshot",
+      "untrackedOid": "ed954172eedaaaa39dd220738b309ba06a6d4734"
+    },
+    "operationId": "<operationId#6>",
+    "worktree": {
+      "ahead": null,
+      "available": true,
+      "behind": null,
+      "branch": "main",
+      "changes": {
+        "conflicted": 0,
+        "staged": 0,
+        "unstaged": 0,
+        "untracked": 0
+      },
+      "detached": false,
+      "dirty": false,
+      "error": "",
+      "hasIgnored": false,
+      "hasUntracked": false,
+      "head": "029aad08115e96af87a9df174c887599dc4eae5b",
+      "id": "<id#2>",
+      "kind": "main",
+      "lastCommit": {
+        "author": "Wire test",
+        "committedAt": "2026-01-02T03:04:05Z",
+        "hash": "029aad08115e96af87a9df174c887599dc4eae5b",
+        "subject": "Merge branch 'refs/heads/feat-conflict'"
+      },
+      "lockReason": "",
+      "locked": false,
+      "operation": null,
+      "path": "<repo>",
+      "prunable": false,
+      "repositoryId": "<id#1>",
+      "upstream": null,
+      "upstreamGone": false
+    }
+  }
+}

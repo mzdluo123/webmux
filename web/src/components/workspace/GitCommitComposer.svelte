@@ -1,4 +1,6 @@
 <script lang="ts" module>
+  import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";
+
   export interface GitCommitComposerCallbacks {
     onCommitMessageChange: (msg: string) => void;
     onOpenCommitPreview: (followUpPush: boolean) => void;
@@ -8,6 +10,10 @@
     onResolveDraftAdoptRemote?: () => void;
     onResolveDraftMergeBoth?: () => void;
     onRequestCommitAssist?: () => void;
+    onToggleCommitAmend?: (checked: boolean) => void;
+    onResolveAmendDraft?: (choice: "replace" | "merge" | "keep") => void;
+    onCommitAuthorOverrideChange?: (value: string) => void;
+    onToggleCommitSignoff?: (checked: boolean) => void;
   }
 </script>
 
@@ -22,7 +28,9 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
+  import { validateAuthorOverrideInput } from "../../domains/workspace/git-v2-adapter";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import GitCommitAdvancedOptions from "./GitCommitAdvancedOptions.svelte";
   import GitCommitDraftConflictCard from "./GitCommitDraftConflictCard.svelte";
 
   let {
@@ -37,6 +45,12 @@
     draftRevision = 0,
     draftConflict = null,
     canAssistCommitDraft = false,
+    commitAmend = false,
+    commitAmendPushed = false,
+    commitAuthorOverride = "",
+    commitSignoff = false,
+    commitSignoffTrailer = "",
+    amendDraftPrompt = null,
     onCommitMessageChange,
     onOpenCommitPreview,
     onOpenPush,
@@ -45,6 +59,10 @@
     onResolveDraftAdoptRemote,
     onResolveDraftMergeBoth,
     onRequestCommitAssist,
+    onToggleCommitAmend,
+    onResolveAmendDraft,
+    onCommitAuthorOverrideChange,
+    onToggleCommitSignoff,
   }: GitCommitComposerCallbacks & {
     context: GitWorktreeContext;
     stagedCount: number;
@@ -57,6 +75,12 @@
     draftRevision?: number;
     draftConflict?: GitCommitDraftConflictState | null;
     canAssistCommitDraft?: boolean;
+    commitAmend?: boolean;
+    commitAmendPushed?: boolean;
+    commitAuthorOverride?: string;
+    commitSignoff?: boolean;
+    commitSignoffTrailer?: string;
+    amendDraftPrompt?: GitAmendDraftPrompt | null;
   } = $props();
 
   const parsed = $derived.by(() => {
@@ -84,23 +108,30 @@
     }
   }
 
+  const authorValidation = $derived(
+    validateAuthorOverrideInput(commitAuthorOverride),
+  );
   const identityMissing = $derived(
     !readonlyMode &&
+      !commitAuthorOverride.trim() &&
       (!context.authorName.trim() || !context.authorEmail.trim()),
   );
   const detachedHead = $derived(context.headState === "detached");
+  const unbornHead = $derived(context.headState === "unborn");
   const canPreviewCommit = $derived(
     !readonlyMode &&
       !busy &&
       !uncertainBlocked &&
       !draftConflict &&
-      stagedCount > 0 &&
+      (stagedCount > 0 || (commitAmend && !unbornHead)) &&
       conflictedCount === 0 &&
+      authorValidation.valid &&
       Boolean(parsed.subject.trim()),
   );
   const canDirectPush = $derived(
     !readonlyMode &&
       !uncertainBlocked &&
+      !commitAmend &&
       stagedCount === 0 &&
       context.headState === "branch" &&
       Boolean(context.checkedOutBranch) &&
@@ -115,8 +146,11 @@
       return "上次操作结果待核实（uncertain）：请先点击顶部提示中的「刷新历史与暂存区核实」，避免重复执行。";
     if (conflictedCount > 0)
       return "存在未解决冲突，请先在工作树终端解决全部冲突。";
-    if (stagedCount === 0)
-      return "暂存区为空：请先将变更加入“已暂存 (Staged)”后再提交。";
+    if (!authorValidation.valid) return authorValidation.error;
+    if (commitAmend && unbornHead)
+      return "当前工作树尚无提交（unborn HEAD），无法执行修正提交 (--amend)。";
+    if (stagedCount === 0 && !commitAmend)
+      return "暂存区为空：请先将变更加入“已暂存 (Staged)”后再提交，或开启修正上一次提交 (--amend)。";
     if (!parsed.subject.trim())
       return "请输入提交标题（Subject）后再预览提交。";
     return "";
@@ -134,7 +168,7 @@
 </script>
 
 <div
-  class="space-y-2 border-t border-git-border bg-git-panel p-3"
+  class="space-y-1.5 border-t border-git-border bg-git-panel p-2.5"
   data-testid="git-commit-composer"
 >
   <div
@@ -224,6 +258,23 @@
     onkeydown={handleKeydown}
   />
 
+  {#if onToggleCommitAmend || onCommitAuthorOverrideChange || onToggleCommitSignoff}
+    <GitCommitAdvancedOptions
+      {context}
+      {readonlyMode}
+      amend={commitAmend}
+      amendPushed={commitAmendPushed}
+      authorOverride={commitAuthorOverride}
+      signoff={commitSignoff}
+      signoffTrailer={commitSignoffTrailer}
+      draftPrompt={amendDraftPrompt}
+      onToggleAmend={onToggleCommitAmend}
+      {onResolveAmendDraft}
+      onAuthorOverrideChange={onCommitAuthorOverrideChange}
+      onToggleSignoff={onToggleCommitSignoff}
+    />
+  {/if}
+
   {#if disabledHint}
     <p class="text-xs text-muted-foreground" data-testid="git-commit-hint">
       {disabledHint}
@@ -257,11 +308,16 @@
       {/if}
       <Button
         variant="outline"
-        disabled={!canPreviewCommit || detachedHead}
+        disabled={!canPreviewCommit ||
+          detachedHead ||
+          (commitAmend && commitAmendPushed)}
         title={detachedHead
           ? "游离 HEAD 无法直接推送分支，请先新建分支"
-          : disabledHint || undefined}
+          : commitAmend && commitAmendPushed
+            ? "已推送提交修正后将导致分支与上游分叉，不支持一键普通推送（不提供强推）"
+            : disabledHint || undefined}
         onclick={() => onOpenCommitPreview(true)}
+        data-testid="git-commit-and-push-btn"
       >
         提交并推送…
       </Button>

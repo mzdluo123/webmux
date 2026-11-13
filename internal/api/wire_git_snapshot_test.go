@@ -260,4 +260,120 @@ func wireGitWorkbench(f *wireFixture) {
 		ConfirmationID:  str(abortPreview, "confirmationId"),
 		ClientRequestID: "wire-abort-1",
 	}, 200)
+
+	// 8. V2 Stash, Amend/Author/Sign-off, Branch Rename/Upstream, Tags, Remotes, File History & Blame (#550).
+	repoBase := "/api/repositories/" + repoID
+	if err := os.WriteFile(filepath.Join(f.root, "sub", "b.txt"), []byte("bee\nbutterfly\ndragonfly\nstash-line\n"), 0o600); err != nil {
+		f.t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(f.root, "stash-note.txt"), []byte("untracked note\n"), 0o600); err != nil {
+		f.t.Fatal(err)
+	}
+	stashPrev := f.call("git-stash-create-preview", "POST", writeBase+"/stash-preview", contract.GitStashCreatePreviewRequest{
+		Message:          "WIP: stash snapshot",
+		IncludeUntracked: true,
+	}, 200)
+	stashCreate := f.call("git-stash-create", "POST", writeBase+"/stash", contract.GitStashExecuteRequest{
+		ConfirmationID:  str(stashPrev, "confirmationId"),
+		ClientRequestID: "wire-stash-create-1",
+	}, 200)
+	stashEntry := field(stashCreate, "entry")
+	stashOID := str(stashEntry, "oid")
+	stashRef := str(stashEntry, "stashRef")
+	f.call("git-stashes", "GET", readBase+"/stashes", nil, 200)
+	f.call("git-stash-detail", "GET", readBase+"/stashes/"+stashOID, nil, 200)
+	f.call("git-stash-diff", "GET", readBase+"/stashes/"+stashOID+"/diff?"+url.Values{
+		"contextId": {wtCtxID},
+		"path":      {"stash-note.txt"},
+		"untracked": {"true"},
+	}.Encode(), nil, 200)
+
+	applyPrev := f.call("git-stash-apply-preview", "POST", writeBase+"/stash-apply-preview", contract.GitStashApplyPreviewRequest{
+		Mode:     "apply",
+		StashRef: stashRef,
+		StashOID: stashOID,
+	}, 200)
+	f.call("git-stash-apply", "POST", writeBase+"/stash-apply", contract.GitStashExecuteRequest{
+		ConfirmationID:  str(applyPrev, "confirmationId"),
+		ClientRequestID: "wire-stash-apply-1",
+	}, 200)
+	f.git("checkout", "--", "sub/b.txt")
+	f.git("clean", "-fd")
+
+	dropPrev := f.call("git-stash-drop-preview", "POST", readBase+"/stashes/drop-preview", contract.GitStashDropPreviewRequest{
+		StashRef: stashRef,
+		StashOID: stashOID,
+	}, 200)
+	f.call("git-stash-drop", "POST", readBase+"/stashes/drop", contract.GitStashDropRequest{
+		ConfirmationID:  str(dropPrev, "confirmationId"),
+		ClientRequestID: "wire-stash-drop-1",
+	}, 200)
+
+	amendPrev := f.call("git-commit-amend-preview", "POST", writeBase+"/commit-preview", contract.GitCommitPreviewRequest{
+		Amend:          true,
+		AuthorOverride: "Ada Lovelace <ada@example.com>",
+		Signoff:        true,
+	}, 200)
+	amendRes := f.call("git-commit-amend", "POST", writeBase+"/commit", contract.GitCommitRequest{
+		ConfirmationID:  str(amendPrev, "confirmationId"),
+		ClientRequestID: "wire-commit-amend-1",
+		Message:         "feat: amend merge commit with author override",
+	}, 200)
+	amendedOID := str(amendRes, "commitOid")
+
+	rnPrev := f.call("git-branch-rename-preview", "POST", repoBase+"/branches/rename-preview", contract.GitBranchRenamePreviewRequest{
+		OldName: "feat-conflict",
+		NewName: "feat-renamed",
+	}, 200)
+	f.call("git-branch-rename", "POST", repoBase+"/branches/rename", contract.GitBranchRenameRequest{
+		ConfirmationID:  str(rnPrev, "confirmationId"),
+		ClientRequestID: "wire-branch-rename-1",
+	}, 200)
+	f.call("git-branch-upstream", "POST", repoBase+"/branches/upstream", contract.GitBranchUpstreamRequest{
+		Branch:          "feat-renamed",
+		Upstream:        "",
+		ClientRequestID: "wire-branch-upstream-1",
+	}, 200)
+
+	f.call("git-tag-create", "POST", repoBase+"/tags", contract.GitTagCreateRequest{
+		Name:            "v1.0.0-wire",
+		TargetOID:       amendedOID,
+		Annotated:       false,
+		ClientRequestID: "wire-tag-create-1",
+	}, 201)
+	f.call("git-tag-delete", "POST", repoBase+"/tags/delete", contract.GitTagDeleteRequest{
+		Name:              "v1.0.0-wire",
+		ExpectedTargetOID: amendedOID,
+		ClientRequestID:   "wire-tag-delete-1",
+	}, 200)
+
+	f.call("git-remote-add", "POST", repoBase+"/remotes", contract.GitRemoteAddRequest{
+		Name:            "mirror",
+		FetchURL:        "https://alice:secret123@example.com/org/repo.git",
+		ClientRequestID: "wire-remote-add-1",
+	}, 201)
+	newFetch := "https://example.com/org/public.git"
+	f.call("git-remote-update", "PATCH", repoBase+"/remotes/mirror", contract.GitRemoteUpdateRequest{
+		FetchURL:        &newFetch,
+		ClientRequestID: "wire-remote-update-1",
+	}, 200)
+	f.call("git-remote-remove", "DELETE", repoBase+"/remotes/mirror", contract.GitRemoteRemoveRequest{
+		ClientRequestID: "wire-remote-remove-1",
+	}, 200)
+
+	f.call("git-file-history", "GET", readBase+"/file-history?worktreeId="+wtID+"&path="+url.QueryEscape("sub/b.txt"), nil, 200)
+	f.call("git-blame", "GET", readBase+"/blame?worktreeId="+wtID+"&rev="+amendedOID+"&path="+url.QueryEscape("sub/b.txt"), nil, 200)
+	if err := os.WriteFile(filepath.Join(f.root, "sub", "b.txt"), []byte("bee\nworktree-compare\n"), 0o600); err != nil {
+		f.t.Fatal(err)
+	}
+	bComparePath := filepath.Join(f.root, "sub", "b.txt")
+	if err := os.Chtimes(bComparePath, stamp, stamp); err != nil {
+		f.t.Fatal(err)
+	}
+	f.call("git-revision-diff", "GET", readBase+"/revision-diff?"+url.Values{
+		"worktreeId": {wtID},
+		"contextId":  {wtCtxID},
+		"baseOid":    {firstOID},
+		"path":       {"sub/b.txt"},
+	}.Encode(), nil, 200)
 }

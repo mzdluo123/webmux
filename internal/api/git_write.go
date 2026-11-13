@@ -73,7 +73,11 @@ func (s *Server) gitWriteRoutes(mux *http.ServeMux) {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), gitReadTimeout)
 		defer cancel()
-		preview, err := s.Workspace.PreviewCommit(ctx, r.PathValue("id"), r.PathValue("worktreeId"))
+		preview, err := s.Workspace.PreviewCommitWithOptions(ctx, r.PathValue("id"), r.PathValue("worktreeId"), workspace.CommitPreviewOptions{
+			Amend:          req.Amend,
+			AuthorOverride: req.AuthorOverride,
+			Signoff:        req.Signoff,
+		})
 		if err != nil {
 			gitFailure(w, err)
 			return
@@ -93,11 +97,12 @@ func (s *Server) gitWriteRoutes(mux *http.ServeMux) {
 		ctx, cancel := context.WithTimeout(r.Context(), gitCommitTimeout)
 		defer cancel()
 		res, err := s.Workspace.ExecuteCommit(ctx, workspace.ExecuteCommitRequest{
-			RepositoryID:    r.PathValue("id"),
-			WorktreeID:      r.PathValue("worktreeId"),
-			ConfirmationID:  req.ConfirmationID,
-			ClientRequestID: req.ClientRequestID,
-			Message:         req.Message,
+			RepositoryID:           r.PathValue("id"),
+			WorktreeID:             r.PathValue("worktreeId"),
+			ConfirmationID:         req.ConfirmationID,
+			ClientRequestID:        req.ClientRequestID,
+			Message:                req.Message,
+			AcknowledgePushedAmend: req.AcknowledgePushedAmend,
 		})
 		if err != nil {
 			gitFailure(w, err)

@@ -78,7 +78,12 @@ export function parseGitRouteQuery(search: string): GitRouteQuery {
   const out: GitRouteQuery = {};
 
   const rawView = params.get("view");
-  if (rawView === "log" || rawView === "commit" || rawView === "branches") {
+  if (
+    rawView === "log" ||
+    rawView === "commit" ||
+    rawView === "branches" ||
+    rawView === "stash"
+  ) {
     out.view = rawView;
   }
 

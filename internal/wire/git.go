@@ -261,6 +261,13 @@ func GitCommitPreview(p workspace.CommitPreview) contract.GitCommitPreview {
 		HeadState:       p.HeadState,
 		Branch:          p.Branch,
 		HeadOID:         p.HeadOID,
+		HeadMessage:     p.HeadMessage,
+		HeadParents:     required(p.HeadParents),
+		HeadPush:        PushCheck(p.HeadPush),
+		Amend:           p.Amend,
+		AmendPushed:     p.AmendPushed,
+		AuthorOverride:  p.AuthorOverride,
+		Signoff:         p.Signoff,
 		ExpectedTreeOID: p.ExpectedTreeOID,
 		IndexDigest:     p.IndexDigest,
 		StagedFiles:     each(p.StagedFiles, gitCommitFileChange),
@@ -279,11 +286,16 @@ func GitCommitResult(r workspace.CommitResult) contract.GitCommitResult {
 	return contract.GitCommitResult{
 		OperationID:     r.OperationID,
 		Outcome:         r.Outcome,
+		Amended:         r.Amended,
 		CommitOID:       r.CommitOID,
 		Parents:         required(r.Parents),
 		TreeOID:         r.TreeOID,
 		ExpectedTreeOID: r.ExpectedTreeOID,
 		Subject:         r.Subject,
+		AuthorName:      r.AuthorName,
+		AuthorEmail:     r.AuthorEmail,
+		CommitterName:   r.CommitterName,
+		CommitterEmail:  r.CommitterEmail,
 		ReviewReasons:   required(r.ReviewReasons),
 	}
 }
@@ -308,6 +320,10 @@ func GitOperation(op workspace.GitOperation) contract.GitOperation {
 		ActualTreeOID:   op.ActualTreeOID,
 		Parents:         required(op.Parents),
 		Subject:         op.Subject,
+		AuthorName:      op.AuthorName,
+		AuthorEmail:     op.AuthorEmail,
+		CommitterName:   op.CommitterName,
+		CommitterEmail:  op.CommitterEmail,
 		ReviewReasons:   required(op.ReviewReasons),
 	}
 }

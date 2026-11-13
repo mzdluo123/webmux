@@ -1,0 +1,10 @@
+{
+  "status": 200,
+  "body": {
+    "operationId": "<operationId#8>",
+    "recoveryCommand": "git stash apply 716b4010210d57411915de0d4032e1afc5b99a86",
+    "stashOid": "716b4010210d57411915de0d4032e1afc5b99a86",
+    "stashRef": "stash@{0}",
+    "stashes": []
+  }
+}
