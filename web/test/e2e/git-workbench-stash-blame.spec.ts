@@ -527,10 +527,9 @@ test("inspects --follow file history across rename, line-level Blame with parent
   // 1. Open from Git Workbench Commit view -> verify --follow History, Blame parent chain, Compare, and Jump to Log
   await page.goto(`/git/${repo.id}/worktrees/${mainWt.id}?view=commit`);
   await expect(page.getByTestId("git-workbench-topbar")).toBeVisible();
-  await page
-    .getByRole("button", { name: "查看文件历史与 Blame core-service.ts" })
-    .click();
+  await page.getByRole("button", { name: "文件操作 core-service.ts" }).click();
 
+  await page.getByRole("menuitem", { name: "文件历史与 Blame" }).click();
   const inspector = page.getByTestId("git-file-inspector-dialog");
   await expect(inspector).toBeVisible();
   await expect(page.getByTestId("git-file-history-rename-badge")).toContainText(

@@ -339,6 +339,7 @@
       >
         <Button
           size="default"
+          wrap
           variant="outline"
           disabled={!canSubmitPayload}
           onclick={onCopyMarkdown}
@@ -354,11 +355,12 @@
         </Button>
 
         <div class="flex min-w-0 flex-wrap items-center gap-2">
-          <Button size="default" variant="outline" onclick={onClose}
+          <Button size="default" wrap variant="outline" onclick={onClose}
             >关闭</Button
           >
           <Button
             size="default"
+            wrap
             variant="default"
             disabled={!canSendToSession}
             onclick={() => chosenSession && onDeliverToSession(chosenSession)}

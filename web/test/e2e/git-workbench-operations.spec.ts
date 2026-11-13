@@ -49,7 +49,7 @@ async function createRepoWithBareRemote(
   return { repo, mainWt, mainPath, remotePath };
 }
 
-test("records persistent operationId in bottom status bar, survives reload, and reconciles dropped POST /git/commit without duplicate commits (A07, UI-02)", async ({
+test("records persistent operationId in header operation ledger, survives reload, and reconciles dropped POST /git/commit without duplicate commits (A07, UI-02)", async ({
   page,
   request,
   workDir,
@@ -60,16 +60,21 @@ test("records persistent operationId in bottom status bar, survives reload, and 
     "ops-ledger",
   );
 
-  // 1. Stage ledger.ts and commit normally -> verify 24-28px bottom status bar + Popover + reload persistence
+  // 1. Stage ledger.ts and commit normally -> verify header operation ledger + Popover + reload persistence
   await writeFile(join(mainPath, "ledger.ts"), "export const ledger = 1;\n");
   await page.goto(`/git/${repo.id}/worktrees/${mainWt.id}?view=commit`);
   await expect(page.getByTestId("git-workbench-topbar")).toBeVisible();
 
-  const statusBar = page.getByTestId("git-workbench-status-bar");
+  const statusBar = page.getByTestId("git-operations-popover-trigger");
   await expect(statusBar).toBeVisible();
   const barBox = await statusBar.boundingBox();
-  expect(barBox!.height).toBeGreaterThanOrEqual(24);
-  expect(barBox!.height).toBeLessThanOrEqual(28);
+  expect(barBox!.height).toBeGreaterThanOrEqual(32);
+  const peer = page.getByTestId("git-workbench-topbar").getByRole("button", {
+    name:
+      (page.viewportSize()?.width ?? 1280) < 768 ? "更多同步操作" : "获取远程",
+    exact: true,
+  });
+  expect(barBox!.height).toBeCloseTo((await peer.boundingBox())!.height, 0);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,
@@ -93,7 +98,7 @@ test("records persistent operationId in bottom status bar, survives reload, and 
 
   // Status bar reflects completed commit operation
   const trigger = page.getByTestId("git-operations-popover-trigger");
-  await expect(trigger).toContainText("提交 · 已完成");
+  await expect(trigger).toBeVisible();
   await trigger.click();
 
   const popover = page.getByTestId("git-operations-popover");
@@ -109,7 +114,12 @@ test("records persistent operationId in bottom status bar, survives reload, and 
   await page.reload();
   await expect(
     page.getByTestId("git-operations-popover-trigger"),
-  ).toContainText("提交 · 已完成");
+  ).toBeVisible();
+  await page.getByTestId("git-operations-popover-trigger").click();
+  await expect(page.getByTestId("git-operation-detail")).toContainText(
+    "提交 · 已完成",
+  );
+  await page.keyboard.press("Escape");
 
   // 2. Simulate network connection drop AFTER backend executes POST /git/commit:
   // Frontend MUST recover via GET /git/operations using clientRequestId and NEVER commit twice!
@@ -157,10 +167,10 @@ test("records persistent operationId in bottom status bar, survives reload, and 
   expect(git(mainPath, ["log", "-1", "--pretty=%s"]).trim()).toBe(
     "feat(git): idempotent recovery after dropped response",
   );
-  await expect(page.getByTestId("git-status-summary")).toContainText(
-    `已创建提交 ${headShort}`,
-  );
   await page.getByTestId("git-operations-popover-trigger").click();
+  await expect(page.getByTestId("git-operation-detail")).toContainText(
+    headShort,
+  );
   await expect(
     page
       .getByTestId("git-operations-popover")

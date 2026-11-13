@@ -194,9 +194,9 @@ test("GitWorkbenchTopBar keeps fixed checked-out target distinct from history br
     },
   });
 
-  const targetBadge = page.getByTestId("git-target-branch-badge");
+  const targetBadge = page.getByRole("button", { name: "切换操作目标工作树" });
   await expect.element(targetBadge).toBeVisible();
-  expect(targetBadge.element().textContent).toContain("检出：main");
+  expect(targetBadge.element().textContent).toContain("main");
 
   const filterBadge = page.getByTestId("git-filter-branch-badge");
   await expect.element(filterBadge).toBeVisible();

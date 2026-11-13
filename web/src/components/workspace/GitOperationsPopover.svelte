@@ -105,7 +105,7 @@
   });
 </script>
 
-<div class="min-w-0 shrink-0">
+<div class="min-w-0 max-w-full shrink overflow-hidden">
   <Popover.Root bind:open>
     <Popover.Trigger>
       {#snippet child({ props })}
@@ -146,11 +146,11 @@
           {/if}
 
           <span
-            class="min-w-0 flex-1 truncate text-foreground"
+            class="min-w-0 flex-1 truncate text-foreground max-sm:hidden"
             role="status"
             data-testid="git-status-summary"
           >
-            {#if activePhaseLabel || statusBanner || (latestOp && latestOp.status !== "succeeded")}{barSummary}{/if}
+            {#if activePhaseLabel || (latestOp && latestOp.status !== "succeeded")}{barSummary}{/if}
           </span>
           {#if operations.length > 0}
             <span

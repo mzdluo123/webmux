@@ -23,7 +23,7 @@
 
 - 在不改动任何线上 HTTP/WebSocket 契约的前提下，让 `internal/codeview` 与 `internal/workspace` 具备零会话可用的仓库/工作树上下文、流式分页拓扑、真实 `index` 逐块/整文件映射及并发安全的提交结果识别能力。
 - 建立两级协调机制（仓库门控 + 工作树门控），使同仓库多工作树并行互不阻塞，同时对外部 CLI 与钩子保持诚实可验证的结果分类。
-- 在现有设计系统与架构守卫体系内正式落地 IntelliJ 风格双主题令牌、受控组件变体及可复用的桌面/手机 Git 工作台组件骨架，通过 Storybook 自动化矩阵完成视觉与交互评审闭环。
+- 在现有设计系统与架构守卫体系内正式落地 WebMux 原生双主题令牌、受控组件变体及可复用的桌面/手机 Git 工作台组件骨架，通过 Storybook 自动化矩阵完成视觉与交互评审闭环。
 
 **Non-Goals:**
 
@@ -52,7 +52,7 @@
 
 **备选方案与取舍**：
 
-- *新建第三个 `internal/gitcontext` 服务包同时导入 `codeview` 和 `workspace`*：会导致快照缓存池与 `O_NOFOLLOW` 文件读取逻辑分裂成两份，且增加 `internal/archtest` 包清单复杂度。直接在 `codeview` 内泛化作用域键既对全部现有会话级测试零侵入，又复用了同一套 64 MiB 快照内存治理。
+- _新建第三个 `internal/gitcontext` 服务包同时导入 `codeview` 和 `workspace`_：会导致快照缓存池与 `O_NOFOLLOW` 文件读取逻辑分裂成两份，且增加 `internal/archtest` 包清单复杂度。直接在 `codeview` 内泛化作用域键既对全部现有会话级测试零侵入，又复用了同一套 64 MiB 快照内存治理。
 
 ### 2. 无常驻索引的分页历史游标与双通道真实 parent 拓扑模型
 
@@ -71,7 +71,7 @@
 
 **备选方案与取舍**：
 
-- *在服务端维护全仓库内存提交图缓存*：首次打开大型仓库会带来明显冷启动开销与常驻内存负担，且需处理 `gc`/rebase 后的缓存失效；`git log --topo-order` 配合 Git 原生 `commit-graph` 在按页 100 条规模下耗时仅毫秒级，完全满足首期轻量部署定位。
+- _在服务端维护全仓库内存提交图缓存_：首次打开大型仓库会带来明显冷启动开销与常驻内存负担，且需处理 `gc`/rebase 后的缓存失效；`git log --topo-order` 配合 Git 原生 `commit-graph` 在按页 100 条规模下耗时仅毫秒级，完全满足首期轻量部署定位。
 
 ### 3. 基于冻结快照确定性重组的真实 `index` 代码块映射引擎
 
@@ -96,7 +96,7 @@
 
 **备选方案与取舍**：
 
-- *由前端拼接 unified diff 文本传给后端 `git apply --cached`*：
+- _由前端拼接 unified diff 文本传给后端 `git apply --cached`_：
   - 扩大了客户端注入任意补丁内容的攻击面，且在无末尾换行、相邻块部分选中行号偏移与 `CRLF` 混合行尾时极易因上下文计数或空白规则报错；
   - 服务端基于已校验快照字节精确重组并通过 `hash-object` + `update-index` 写入，既杜绝任意补丁注入，又天然支持多块任意子集一次暂存。
 
@@ -130,25 +130,21 @@ ExecuteCommit (under worktreeWriteGate[canonicalWorktreePath])
 
 **备选方案与取舍**：
 
-- *解析 `git commit` 标准输出首行的短哈希*：受钩子输出干扰、短哈希存在碰撞歧义，且进程超时中断时可能已落盘提交却未刷出完整 stdout；强制启用本次调用的 reflog 归属标记由 Git 引用事务锁保证原子性，拿到的是完整对象 ID。
+- _解析 `git commit` 标准输出首行的短哈希_：受钩子输出干扰、短哈希存在碰撞歧义，且进程超时中断时可能已落盘提交却未刷出完整 stdout；强制启用本次调用的 reflog 归属标记由 Git 引用事务锁保证原子性，拿到的是完整对象 ID。
 
 ### 5. 前端 Git 工作台语义令牌、受控变体与 Storybook 响应式架构
 
 **方案**：严格遵循 `docs/design-system.md` 与 `docs/frontend-architecture.md` 的三层令牌与组件封装规范：
 
-- **令牌层（`web/src/design-tokens.css`）**：在 `:root` 与 `.dark` 定义 Git 工作台语义变量并在 `@theme inline` 映射为 Tailwind 主题色：
-  - 表面与分隔：`--git-surface`（`#ffffff` / `#1e1f22`）、`--git-panel`（`#f7f8fa` / `#2b2d30`）、`--git-border`（`#d9dce3` / `#393b40`）；
-  - 选中与主动作：`--git-selected`（`#e8efff` / `#2e436e`）、`--git-selected-foreground`（`#25272d` / `#dfe1e5`）、`--git-primary`（`#2d65c7` / `#356bc1`）、`--git-primary-foreground`（`#ffffff`）。
+- **令牌层（`web/src/design-tokens.css`）**：复用应用明暗主题的 background、card、popover、border 与 primary，不维护平行色板。
 - **基础组件层（`web/src/lib/components/ui/`）**：
-  - 在 `Button` 的 `tv()` 新增 `variant="git-primary"`（消费 `bg-git-primary text-git-primary-foreground`，保留统一焦点环与禁用对比度）；
-  - 在 `ListButton` 的 `tv()` 新增 `variant="git-row"` 与 `variant="git-row-action"`（紧凑行高，`aria-selected="true"` 或 `aria-current="true"` 时应用 `bg-git-selected text-git-selected-foreground` 并附左侧或外框焦点指示，圆角固定为 `rounded-sm` 4px；行尾动作在桌面悬停/聚焦覆盖、触屏常驻预留槽位）；
   - 分栏调节直接复用 `$lib/components/ui/resizable`（`PaneGroup`、`Pane`、`ResizableHandle`），运行时面板比例与拓扑列高一律通过 `style:--*` 自定义属性驱动，并在 `web/eslint.config.mjs` 的 `Pane`/`ResizableHandle` 契约中显式登记新增布局钩子类名。
 - **业务组件拆分与可达性**：
   - 纯 TypeScript 模型：`web/src/contracts/git-workbench-schemas.ts`（Zod 契约与演示/视图状态类型）、`web/src/domains/workspace/git-workbench-state.ts` 与 `web/src/domains/workspace/git-graph-layout.ts`（车道几何与延续边计算）；
-  - 视图组件（均控制在 `<500` 行内）：`GitWorkbenchShell.svelte`（顶栏、窄模式栏、响应式单栏/多栏容器与底部状态栏）、`GitLogPane.svelte`、`GitCommitPane.svelte`、`GitCommitPreviewDialog.svelte`、`GitBranchesPane.svelte`、`GitPushDialog.svelte`；
+  - 视图组件（均控制在 `<500` 行内）：`GitWorkbenchShell.svelte`（顶栏水平标签、响应式单栏/多栏容器与操作账本 Popover）、`GitLogPane.svelte`、`GitCommitPane.svelte`、`GitCommitPreviewDialog.svelte`、`GitBranchesPane.svelte`、`GitPushDialog.svelte`；
   - **Storybook 与守卫闭环**：
     - 在 `web/stories/GitWorkbench.stories.ts`（及 `Overflow.stories.ts` / `web/test/storybook/cases.ts`）导出交互故事，覆盖桌面三栏 `Log`、合并拓扑与筛选延续、`Commit` 部分暂存与完整 `index` 预览、`Branches` 占用引导、`Push` 宽对话框/手机全屏页及异常空态；
-    - 同步在 `DesignSystem.svelte` 补充 Git 令牌与变体展示，使 `knip` 可达性、`check:arch` 与 `test:storybook` 全链路闭环。
+    - 同步在 `DesignSystem.svelte` 展示原生主要动作与通用紧凑列表变体，使 `knip` 可达性、`check:arch` 与 `test:storybook` 全链路闭环。
 
 ## Risks / Trade-offs
 
@@ -163,3 +159,6 @@ ExecuteCommit (under worktreeWriteGate[canonicalWorktreePath])
 2. 落地 `internal/workspace` 的分页历史与真实 parent 拓扑模型，以隔离临时 Git 仓库（含空仓库、多分支 merge、路径筛选隐藏与分页边界）完成 `-race` 单测验收。
 3. 落地 `internal/workspace` 的工作树协调锁、快照绑定文件/代码块 `Stage`/`Unstage` 及 `PreviewCommit`/`ExecuteCommit` 结果识别引擎，用真实系统 `git` 覆盖 `CRLF`、无尾换行、unborn `HEAD`、`.git/index.lock`、`pre-commit` 重暂存、`post-commit` 修正与外部并发 `git commit` 竞态测试。
 4. 扩展前端 `design-tokens.css` 与 `ui/` 组件变体，更新 `docs/design-system.md` 与 `docs/frontend-architecture.md`，随后构建 Git 工作台响应式组件与 Storybook 评审场景，通过 `make check` 与 `make test` 全量门禁。因 S 阶段不改持久化文件与对外线上路由，随时回退无任何状态迁移负担。
+
+Git 工作台 MUST 复用 background、card、popover、border、primary 与应用语义色；紧凑行使用浅底与左侧细线，主要动作使用标准 default。
+所有视口 MUST 使用顶部水平 line Tabs；最近操作、工作树路径、Fetch 时间、恢复命令与 operationId 通过顶栏 Popover 查看，异常状态显式提示。

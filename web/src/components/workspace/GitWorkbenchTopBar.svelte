@@ -206,7 +206,7 @@
       {/if}
     </div>
 
-    <div class="flex shrink-0 items-center gap-1.5">
+    <div class="flex min-w-0 max-w-full shrink items-center gap-1.5">
       {@render operations?.()}
       {#if worktreeUsable && onOpenRework}
         <Button
