@@ -87,6 +87,13 @@
   --code-property: #0000cc;
   --code-comment: #994400;
   --code-invalid: #ff0000;
+  --git-surface: #ffffff;
+  --git-panel: #f7f8fa;
+  --git-border: #d9dce3;
+  --git-selected: #e8efff;
+  --git-selected-foreground: #25272d;
+  --git-primary: #2d65c7;
+  --git-primary-foreground: #ffffff;
 }
 
 .dark {
@@ -145,6 +152,13 @@
   --code-comment: #8b949e;
   --code-invalid: #f85149;
   --sidebar-ring: oklch(0.56 0.021 213.5);
+  --git-surface: #1e1f22;
+  --git-panel: #2b2d30;
+  --git-border: #393b40;
+  --git-selected: #2e436e;
+  --git-selected-foreground: #dfe1e5;
+  --git-primary: #356bc1;
+  --git-primary-foreground: #ffffff;
 }
 
 @theme inline {
@@ -194,4 +208,11 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --color-git-surface: var(--git-surface);
+  --color-git-panel: var(--git-panel);
+  --color-git-border: var(--git-border);
+  --color-git-selected: var(--git-selected);
+  --color-git-selected-foreground: var(--git-selected-foreground);
+  --color-git-primary: var(--git-primary);
+  --color-git-primary-foreground: var(--git-primary-foreground);
 }

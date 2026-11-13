@@ -19,7 +19,11 @@ func lines(text string) []string {
 	return strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 }
 func document(root, p, source, oid string, data []byte) Document {
-	d := Document{NodeID: nodeID(p), rawPath: p, Path: displayPath(p), Absolute: displayPath(filepath.Join(root, p)), Source: source, OID: oid, Version: digest(data), Kind: "text", Referenceable: utf8.ValidString(p) && utf8.ValidString(root)}
+	abs := ""
+	if root != "" {
+		abs = displayPath(filepath.Join(root, p))
+	}
+	d := Document{NodeID: nodeID(p), rawPath: p, Path: displayPath(p), Absolute: abs, Source: source, OID: oid, Version: digest(data), Kind: "text", Referenceable: utf8.ValidString(p) && root != "" && utf8.ValidString(root)}
 	switch {
 	case len(data) > MaxBytes:
 		d.Kind = "too-large"
@@ -134,15 +138,15 @@ func (s *Service) put(v *snapshot) string {
 	s.bytes += v.size
 	return id
 }
-func (s *Service) get(id, sid string) (*snapshot, error) {
+func (s *Service) get(owner scopeKey, sid string) (*snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v := s.snapshots[sid]
 	if v == nil || time.Since(v.created) > Lifetime {
 		return nil, problemf(ErrGone, "内容快照已过期，请刷新")
 	}
-	if v.session != id {
-		return nil, problemf(ErrInvalid, "快照不属于此会话")
+	if v.owner != ownerScope(owner) {
+		return nil, problemf(ErrInvalid, "快照不属于此上下文")
 	}
 	v.timeUsed = time.Now()
 	return v, nil
@@ -152,36 +156,46 @@ func (s *Service) File(ctx context.Context, id, cid, nid string) (File, error) {
 }
 func (s *Service) FileSource(ctx context.Context, id, cid, nid, source string) (File, error) {
 	return withRoot(ctx, s, id, cid, func(b *binding) (File, error) {
-		p, e := nodePath(nid)
-		if e != nil {
-			return File{}, e
-		}
-		d, e := b.sourceFile(ctx, p, source)
-		if e != nil {
-			return File{}, e
-		}
-		f := File{Document: d, Checked: time.Now().UTC()}
-		f.Snapshot = s.put(&snapshot{session: id, context: cid, file: &f, size: documentSize(d) + 512})
-		return f, nil
+		return s.fileFromSource(ctx, sessionScope(id, RootWorkspace), cid, b, nid, source)
 	})
 }
+func (s *Service) fileFromSource(ctx context.Context, key scopeKey, cid string, b *binding, nid, source string) (File, error) {
+	if !b.Browse && (source == "" || source == "worktree") {
+		return File{}, problemf(ErrConflict, "当前上下文没有可用工作树文件目录")
+	}
+	p, e := nodePath(nid)
+	if e != nil {
+		return File{}, e
+	}
+	d, e := b.sourceFile(ctx, p, source)
+	if e != nil {
+		return File{}, e
+	}
+	f := File{Document: d, Checked: time.Now().UTC()}
+	f.Snapshot = s.put(&snapshot{owner: ownerScope(key), context: cid, file: &f, size: documentSize(d) + 512})
+	return f, nil
+}
 func (s *Service) SnapshotFile(ctx context.Context, id, sid, side string) (File, error) {
-	return withBinding(ctx, s, id, s.snapshotRoot(id, sid), func(*binding) (File, error) {
-		v, e := s.get(id, sid)
-		if e != nil {
-			return File{}, e
-		}
-		if v.file != nil {
-			return *v.file, nil
-		}
-		d := v.diff.New
-		if side == "old" {
-			d = v.diff.Old
-		} else if side != "new" {
-			return File{}, problemf(ErrInvalid, "请选择 old/new 来源")
-		}
-		return File{Snapshot: sid, Document: d, Checked: v.diff.Checked}, nil
+	key := sessionScope(id, s.snapshotRoot(id, sid))
+	return withScope(ctx, s, key, func(*binding) (File, error) {
+		return s.snapshotSideFile(key, sid, side)
 	})
+}
+func (s *Service) snapshotSideFile(key scopeKey, sid, side string) (File, error) {
+	v, e := s.get(key, sid)
+	if e != nil {
+		return File{}, e
+	}
+	if v.file != nil {
+		return *v.file, nil
+	}
+	d := v.diff.New
+	if side == "old" {
+		d = v.diff.Old
+	} else if side != "new" {
+		return File{}, problemf(ErrInvalid, "请选择 old/new 来源")
+	}
+	return File{Snapshot: sid, Document: d, Checked: v.diff.Checked}, nil
 }
 func documentSize(d Document) int {
 	return len(d.Text) + len(d.Path) + len(d.Absolute) + len(d.NodeID) + len(d.OID) + len(d.Reason) + 256

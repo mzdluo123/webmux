@@ -29,11 +29,15 @@ WebMux 是持续运行的终端工作台。视觉方向为克制的开发工具�
 
 唯一令牌入口是 `web/src/design-tokens.css`，由应用的 `styles.css` 引入，Storybook 直接使用同一份样式。
 
-| 层        | 内容                                                                                       | 修改规则                               |
-| --------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
-| Primitive | neutral、green、amber、blue 色阶，control 尺寸                                             | 定义原始值，避免散落到业务组件         |
-| Semantic  | background、card、popover、foreground、primary、muted、success、warning、destructive、info | 根据用途引用；明暗主题覆盖相同角色     |
-| Component | control-xs/sm/default/lg/touch，Tailwind radius-sm/md/lg/xl                                | 控件直接消费尺寸和圆角，页面只控制布局 |
+| 层        | 内容                                                                                                     | 修改规则                               |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Primitive | neutral、green、amber、blue 色阶，control 尺寸                                                           | 定义原始值，避免散落到业务组件         |
+| Semantic  | background、card、popover、foreground、primary、muted、success、warning、destructive、info，及 `--git-*` | 根据用途引用；明暗主题覆盖相同角色     |
+| Component | control-xs/sm/default/lg/touch，Tailwind radius-sm/md/lg/xl                                              | 控件直接消费尺寸和圆角，页面只控制布局 |
+
+- Git 工作台专属语义令牌（`--git-*`）：
+  - 表面与分隔线：`--git-surface`、`--git-panel` 与 `--git-border` 提供 IntelliJ 风格中性表面及 1px 分栏线。
+  - 选中与主动作：`--git-selected` / `--git-selected-foreground` 与 `--git-primary` / `--git-primary-foreground` 由 `ListButton variant="git-row" | "git-row-action"` 和 `Button variant="git-primary"` 消费。
 
 - 间距使用 Tailwind 的 4px 基准：4 / 8 / 12 / 16 / 24 / 32。
 - 圆角按角色取值，只使用 `--radius` 派生的 Tailwind 刻度，由 `arch:test` 检查：
