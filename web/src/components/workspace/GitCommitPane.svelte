@@ -305,7 +305,7 @@
           class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-background p-2"
         >
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             wrap
             onclick={() => (mobileStep = "changes")}
@@ -315,7 +315,7 @@
           </Button>
           {#if activeProgress.remaining > 0}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               wrap
               onclick={handleNextUnreviewed}
@@ -409,7 +409,7 @@
           已审阅 {activeProgress.reviewed}/{activeProgress.total}
         </Badge>
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           disabled={activeProgress.remaining === 0}
           onclick={handleNextUnreviewed}

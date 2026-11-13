@@ -275,7 +275,7 @@
           </span>
           {#if onCreateBranchFromHead}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               wrap
               onclick={() => {
@@ -300,7 +300,7 @@
           </span>
           {#if onRefreshPreview}
             <Button
-              size="xs"
+              size="sm"
               variant="default"
               wrap
               disabled={submitting}

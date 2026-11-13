@@ -134,7 +134,7 @@
       <div class="flex shrink-0 items-center gap-1">
         {#if onOpenCreate}
           <Button
-            size="xs"
+            size="sm"
             variant="default"
             disabled={readonlyMode}
             title={readonlyMode
@@ -239,7 +239,7 @@
     {#if isMobile}
       <div>
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           onclick={() => (mobileStepOverride = null)}
         >
@@ -270,7 +270,7 @@
       <div class="flex flex-wrap items-center gap-1.5">
         {#if onOpenApply}
           <Button
-            size="xs"
+            size="sm"
             variant="default"
             wrap
             disabled={readonlyMode}
@@ -284,7 +284,7 @@
             安全弹出… (Pop)
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             wrap
             disabled={readonlyMode}
@@ -300,7 +300,7 @@
         {/if}
         {#if onOpenDrop}
           <Button
-            size="xs"
+            size="sm"
             variant="destructive-outline"
             wrap
             onclick={() => onOpenDrop(entry)}

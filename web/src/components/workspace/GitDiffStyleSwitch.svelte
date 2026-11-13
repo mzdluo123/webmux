@@ -21,6 +21,6 @@
   }}
   aria-label={label}
 >
-  <SegmentedControl.Item value="unified">Unified</SegmentedControl.Item>
-  <SegmentedControl.Item value="split">Split</SegmentedControl.Item>
+  <SegmentedControl.Item value="unified">统一</SegmentedControl.Item>
+  <SegmentedControl.Item value="split">双栏</SegmentedControl.Item>
 </SegmentedControl.Root>

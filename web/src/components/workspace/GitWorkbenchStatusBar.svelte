@@ -359,7 +359,7 @@
               <div class="flex flex-wrap items-center justify-end gap-1.5">
                 {#if inspectedOp.actualOid && onInspectCommit && inspectedOp.kind === "commit"}
                   <Button
-                    size="xs"
+                    size="sm"
                     variant="outline"
                     onclick={() => {
                       open = false;
@@ -373,7 +373,7 @@
                 {/if}
                 {#if inspectedOp.status === "uncertain" && onReloadVerify}
                   <Button
-                    size="xs"
+                    size="sm"
                     variant="outline"
                     onclick={() => {
                       open = false;

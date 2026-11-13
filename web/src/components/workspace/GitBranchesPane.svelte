@@ -187,7 +187,7 @@
       </div>
       {#if onOpenCreateTagFromHead && context.headOid}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           onclick={onOpenCreateTagFromHead}
           data-testid="git-branches-create-tag-head-btn"

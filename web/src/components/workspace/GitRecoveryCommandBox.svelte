@@ -32,7 +32,7 @@
   <div class="flex items-center justify-between gap-2">
     <span class="font-semibold text-foreground">{label}</span>
     <Button
-      size="icon-xs"
+      size="icon-sm"
       variant="ghost"
       aria-label={copyLabel}
       title={copyLabel}

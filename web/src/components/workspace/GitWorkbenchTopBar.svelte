@@ -218,12 +218,10 @@
       {/if}
     </div>
 
-    <div
-      class="flex min-h-(--control-touch) shrink-0 items-center gap-1.5 sm:min-h-0"
-    >
+    <div class="flex shrink-0 items-center gap-1.5">
       {#if worktreeUsable && onOpenRework}
         <Button
-          size="sm"
+          size="sm-touch"
           variant="outline"
           onclick={onOpenRework}
           aria-label={reworkCount > 0
@@ -242,7 +240,7 @@
 
       {#if returnSession}
         <Button
-          size="sm"
+          size="sm-touch"
           variant="outline"
           onclick={() => onReturnSession(returnSession.id)}
           aria-label="返回会话"
@@ -255,7 +253,7 @@
 
       <div class="flex items-center gap-1.5 max-md:hidden">
         <Button
-          size="sm"
+          size="sm-touch"
           variant="outline"
           disabled={!repoAvailable || fetching}
           onclick={onFetch}
@@ -267,7 +265,7 @@
           <span>获取远程</span>
         </Button>
         <Button
-          size="sm"
+          size="sm-touch"
           variant="outline"
           disabled={!canSyncBranch}
           title={syncDisabledReason}
@@ -277,7 +275,7 @@
           <span>快进更新</span>
         </Button>
         <Button
-          size="sm"
+          size="sm-touch"
           variant="outline"
           disabled={!canSyncBranch}
           title={syncDisabledReason}
@@ -294,7 +292,7 @@
             {#snippet child({ props })}
               <Button
                 {...props}
-                size="icon-sm"
+                size="icon-touch"
                 variant="outline"
                 aria-label="更多同步操作"
                 title="更多同步操作"

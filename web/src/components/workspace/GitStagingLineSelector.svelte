@@ -139,7 +139,7 @@
     <div class="flex min-w-0 flex-wrap items-center gap-1">
       {#if selectedCount > 0}
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           disabled={busy}
           onclick={clearSelection}
@@ -152,7 +152,7 @@
 
       {#if canDiscardLines && onDiscardLines}
         <Button
-          size="xs"
+          size="sm"
           variant="destructive-outline"
           wrap
           disabled={busy || stale || selectedCount === 0}
@@ -166,7 +166,7 @@
 
       {#if stageMode === "stage"}
         <Button
-          size="xs"
+          size="sm"
           variant="default"
           wrap
           disabled={busy || stale || selectedCount === 0}
@@ -178,7 +178,7 @@
         </Button>
       {:else if stageMode === "unstage"}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           wrap
           disabled={busy || stale || selectedCount === 0}
@@ -222,7 +222,7 @@
           </div>
           {#if changedAll.length > 0}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               disabled={busy || stale}
               onclick={() => handleSelectAllHunk(hunk)}

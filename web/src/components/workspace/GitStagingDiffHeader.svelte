@@ -112,7 +112,7 @@
 
     {#if canStageLines}
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         aria-pressed={linePickerOpen}
         onclick={onToggleLinePicker}
@@ -129,7 +129,7 @@
 
     {#if canDiscardCurrentFile && onDiscardFile}
       <Button
-        size="xs"
+        size="sm"
         variant="destructive-outline"
         disabled={busy || stale}
         onclick={() => onDiscardFile(change.id, change.path)}
@@ -142,7 +142,7 @@
 
     {#if stageMode === "stage"}
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         disabled={busy || stale}
         onclick={() => onStageChange(change.id)}
@@ -152,7 +152,7 @@
       </Button>
     {:else if stageMode === "unstage"}
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         disabled={busy || stale}
         onclick={() => onUnstageChange(change.id)}

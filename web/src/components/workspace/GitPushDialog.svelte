@@ -203,7 +203,7 @@
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span>加载推送预览失败：{push.loadError}</span>
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onclick={() => void push.refreshPreview()}
           >

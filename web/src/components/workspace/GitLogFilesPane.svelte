@@ -144,7 +144,7 @@
         <div class="flex items-center gap-1">
           {#if onSwapCompareDirection}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               aria-label="交换比较方向"
               onclick={onSwapCompareDirection}
@@ -155,7 +155,7 @@
           {/if}
           {#if onExitCompare}
             <Button
-              size="xs"
+              size="sm"
               variant="ghost"
               aria-label="退出两版本比较"
               onclick={onExitCompare}
@@ -180,7 +180,7 @@
       <div class="flex shrink-0 items-center gap-1">
         {#if activePath && onInspectFile}
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             onclick={() => activePath && onInspectFile(activePath, "history")}
             data-testid="git-log-file-history-btn"
@@ -189,7 +189,7 @@
             历史
           </Button>
           <Button
-            size="xs"
+            size="sm"
             variant="ghost"
             onclick={() => activePath && onInspectFile(activePath, "blame")}
             data-testid="git-log-file-blame-btn"
@@ -306,7 +306,7 @@
       {#if compareMode?.nextCursor && onLoadMoreCompareFiles}
         <div class="pt-1.5 text-center">
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             disabled={compareMode.loadingMore}
             onclick={onLoadMoreCompareFiles}

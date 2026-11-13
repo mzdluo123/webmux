@@ -264,7 +264,7 @@
               "文件或暂存区已在外部变更，当前阅读快照已过期；暂存按钮已停用，请刷新后再操作。"}
           </span>
           {#if onRefreshSnapshot}
-            <Button size="xs" variant="outline" onclick={onRefreshSnapshot}>
+            <Button size="sm" variant="outline" onclick={onRefreshSnapshot}>
               <IconRefresh aria-hidden="true" />
               刷新快照
             </Button>

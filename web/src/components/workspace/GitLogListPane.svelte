@@ -202,7 +202,7 @@
           <span class="mr-2">{describeHistoryStatus(historyState)}</span>
           {#if historyState === "no_task_baseline" && onSetTaskBaseline}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onclick={() => onSetTaskBaseline()}
             >
@@ -247,7 +247,7 @@
         已加载 {visibleCommits.length} 条提交
       </span>
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         disabled={historyLoadingMore}
         onclick={onLoadMoreHistory}

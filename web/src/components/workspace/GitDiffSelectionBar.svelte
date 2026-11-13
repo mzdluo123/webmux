@@ -96,7 +96,7 @@
       </div>
 
       <Button
-        size="icon-xs"
+        size="icon-sm"
         variant="ghost"
         aria-label="取消行选择"
         title="取消行选择"
@@ -113,7 +113,7 @@
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         {#if stageMode === "stage" && onStageSelectedLines}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             wrap
             disabled={busy || stale}
@@ -129,7 +129,7 @@
         {/if}
         {#if stageMode === "unstage" && onUnstageSelectedLines}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             wrap
             disabled={busy || stale}
@@ -145,7 +145,7 @@
         {/if}
         {#if stageMode === "stage" && onDiscardSelectedLines}
           <Button
-            size="xs"
+            size="sm"
             variant="destructive-outline"
             wrap
             disabled={busy || stale}
@@ -180,7 +180,7 @@
           />
         </div>
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           onclick={() => submitAdd(true)}
           data-testid="git-selection-add-open"
@@ -188,7 +188,7 @@
           加入并查看草稿箱
         </Button>
         <Button
-          size="xs"
+          size="sm"
           variant="default"
           onclick={() => submitAdd(false)}
           data-testid="git-selection-add-rework"

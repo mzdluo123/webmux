@@ -176,7 +176,7 @@
   >
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         onclick={onClose}
         data-testid="git-conflict-back-btn"
@@ -230,7 +230,7 @@
         <Popover.Root>
           <Popover.Trigger>
             {#snippet child({ props })}
-              <Button {...props} size="xs" variant="ghost">
+              <Button {...props} size="sm" variant="ghost">
                 <IconEye aria-hidden="true" />
                 查看完整 Base
               </Button>
@@ -256,7 +256,7 @@
       {#if detail?.textMergeable && progress}
         {#if conflictSegs.length > 1}
           <Button
-            size="icon-xs"
+            size="icon-sm"
             variant="outline"
             aria-label="上一处冲突块"
             title="上一处冲突块"
@@ -265,7 +265,7 @@
             <IconArrowUp aria-hidden="true" />
           </Button>
           <Button
-            size="icon-xs"
+            size="icon-sm"
             variant="outline"
             aria-label="下一处冲突块"
             title="下一处冲突块"
@@ -276,7 +276,7 @@
         {/if}
 
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           wrap
           disabled={progress.pendingNonConflicting === 0}
@@ -288,7 +288,7 @@
         </Button>
 
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           wrap
           disabled={!progress.canSaveResult ||
@@ -302,7 +302,7 @@
         </Button>
 
         <Button
-          size="xs"
+          size="sm"
           variant="default"
           wrap
           disabled={!progress.canMarkResolved ||
@@ -320,7 +320,7 @@
 
       {#if onContinueOperation && inProgress?.kind !== "unstash"}
         <Button
-          size="xs"
+          size="sm"
           variant="success"
           wrap
           disabled={!effectiveCanContinue || divergenceBusy}
@@ -344,7 +344,7 @@
           <span>{conflict.error}</span>
           {#if conflict.stale || conflict.activePath}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onclick={() => void conflict.reloadCurrent()}
             >

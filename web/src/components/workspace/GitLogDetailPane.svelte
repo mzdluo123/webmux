@@ -228,7 +228,7 @@
           <div class="flex flex-wrap items-center gap-1.5 pt-1">
             {#if onCherryPickCommit}
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
                 wrap
                 onclick={() => onCherryPickCommit(detail.oid)}
@@ -240,7 +240,7 @@
             {/if}
             {#if onRevertCommit}
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
                 wrap
                 onclick={() => onRevertCommit(detail.oid)}
@@ -252,7 +252,7 @@
             {/if}
             {#if onCreateTagCommit}
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
                 wrap
                 onclick={() => onCreateTagCommit(detail.oid, detail.subject)}
@@ -295,7 +295,7 @@
               {#each detail.parents as parent (parent.oid)}
                 {#if onJumpToCommit}
                   <Button
-                    size="xs"
+                    size="sm"
                     variant="outline"
                     class="max-w-full"
                     title={parent.subject

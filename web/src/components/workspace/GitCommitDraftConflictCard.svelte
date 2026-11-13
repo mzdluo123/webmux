@@ -80,7 +80,7 @@
 
   <div class="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       disabled={saving}
       onclick={onAdoptRemote}
@@ -89,7 +89,7 @@
       采用远端版本
     </Button>
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       disabled={saving}
       onclick={onKeepLocal}
@@ -98,7 +98,7 @@
       保留本机覆盖保存
     </Button>
     <Button
-      size="xs"
+      size="sm"
       variant="default"
       disabled={saving}
       onclick={onMergeBoth}

@@ -59,7 +59,7 @@
     >
       <span class="text-muted-foreground">溯源轨迹：</span>
       {#each trail as crumb, idx (`${idx}:${crumb.rev}:${crumb.path}`)}
-        <Button size="xs" variant="ghost" onclick={() => onStepBack(idx)}>
+        <Button size="sm" variant="ghost" onclick={() => onStepBack(idx)}>
           <span class="font-mono">{crumb.label}</span>
         </Button>
         <span class="text-muted-foreground">/</span>
@@ -95,7 +95,7 @@
       <div class="flex flex-wrap items-center gap-1.5">
         {#if selectedCommit.previousOid && onReblameParent}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onclick={() =>
               onReblameParent(
@@ -110,7 +110,7 @@
         {/if}
         {#if onInspectCommitInHistory}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onclick={() => onInspectCommitInHistory(selectedCommit.oid)}
           >
@@ -120,7 +120,7 @@
         {/if}
         {#if onJumpToCommit}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onclick={() => onJumpToCommit(selectedCommit.oid)}
             data-testid="git-blame-jump-log-btn"

@@ -77,7 +77,7 @@
           </span>
           {#if onRefreshAfterStale}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={loading || submitting}
               onclick={onRefreshAfterStale}
