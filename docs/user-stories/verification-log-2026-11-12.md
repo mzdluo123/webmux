@@ -116,3 +116,5 @@
 - 非 Codex 的 omp 先发现 model 的允许值，再实际应用 smart；权限 ask 模式读取当前请求，以 optionId=allow 回答 kind=allow_once，不用 kind 替代，不扩大权限模式。
 - 普通 kill 保留标记、rm 清理；混合 archive/resume 保留同一路径，forget 清理；归档标记经真实服务重启仍保留，随后 forget 清理。记录淘汰与目录 sweep 的定向 race 回归通过。
 - 实际 CLI 拒绝配置 ID 而接受名称：示例、帮助和设计已据此统一为 CLI 名称/MCP API 配置 ID，不改变现有命令契约。
+- Codex 审查发现 launch 主题仍遗漏配置 ID 示例，现改为真实名称并明确 MCP/API 才用 ID；隔离注册仓库与 fake omp 的 `launch-config options "Opaque Guide Name" --json` 实际返回 mode/model 及 fast/smart 选项，渲染后的 launch 指南同步生效。
+- 栈顶 `make test-fast` 与完整 `make test` 通过；该指南 PR 的独立 CI 亦通过，包括 Go race、四个 E2E 分片、构建及打包检查。
