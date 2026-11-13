@@ -179,3 +179,40 @@
 - 不能粘贴到自身或其子目录（400）；移动是同根 `rename`，跨文件系统返回 409；移动到原目录时保持原位。
 - 非空目录未带 `recursive=1`，或目录中含 `.git` / 嵌套仓库时返回 409，不会删除一部分后停止。
 - 根不可写时 `writableAvailable` 为 false，写操作返回 403。上传与下载、ZIP 共用 4 个传输槽（429）；其余操作 60 秒超时。
+
+## 仓库与工作树 Git 接口
+
+无需活动终端或混合会话，所有响应带 `Cache-Control: no-store`，沿用 Bearer 认证与 Origin/Host 检查。
+
+### 独立代码、历史对象比较与提交历史（`/api/repositories/{id}/git`）
+
+| 路由                                                                | 说明                                                                                             |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `GET /context?worktreeId`                                           | 绑定仓库只读根（`repository` / `bare`）或工作树根（`worktree`），返回 `contextId` 与能力         |
+| `GET /tree?contextId&nodeId&includeIgnored&cursor`                  | 工作树目录分页列表                                                                               |
+| `GET /files?contextId&q&includeIgnored`                             | 工作树有界文件名搜索                                                                             |
+| `GET /file?contextId&nodeId&source`                                 | 文件快照，`source` 支持 `worktree`、`index`、`head` 与 `commit:{oid}`                            |
+| `GET /changes?contextId&group&q&nodeId&cursor`                      | 工作树未暂存、已暂存与未跟踪修改分页列表                                                         |
+| `GET /diff?contextId&changeId`                                      | 工作树冻结双侧原文快照                                                                           |
+| `GET /compare?contextId&baseOid&targetOid&path&changeId&q&cursor`   | 任意两提交（或根提交空树 `baseOid=""`）间变更分页与单文件冻结双侧 Diff                           |
+| `GET /snapshots/{snapshotId}/file?side=before\|after`               | 读取快照修改前或修改后的完整文档                                                                 |
+| `GET /snapshots/{snapshotId}/raw?side=before\|after&download=1`     | 流式返回快照原始字节（≤100 MiB），复用 `/code` 传输槽与安全响应头；同时支持 `HEAD`               |
+| `GET /history?worktreeId&scope&branch&q&author&since&until&path...` | 拓扑分页历史图（`all` / `branch` / `to-push` / `incoming`），返回 `status`、`rows`（车道与边）等 |
+| `GET /commits/{oid}?parentOid`                                      | 提交详情、作者/提交者元组、真实父节点、`comparedParentOid`（合并提交可指定合法父 OID）与变更文件 |
+
+- 省略 `worktreeId` 时为仓库级只读上下文：允许 `compare` 与 `source=commit:{oid}`；调用工作区 `tree`、`files`、`changes`、`diff` 或 `source=worktree` 返回 409（`reason: "readonly"`）。
+- 跨仓库复用 `contextId` / `snapshotId` 返回 404；同仓库跨工作树混用返回 409（`reason: "context_mismatch"`）；上下文或快照过期返回 409（`reason: "stale"`）。只读 JSON 路由 10 秒超时。
+
+### 工作树真实 `index` 暂存与提交（`/api/repositories/{id}/worktrees/{worktreeId}/git`）
+
+| 路由                                     | 说明                                                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GET /staging`                           | 读取真实 Git `index` 与工作区的已暂存、未暂存（含未跟踪）及冲突列表，签发 `StageFileIdentity`     |
+| `GET /staging/diff?area&path&oldPath`    | 单文件 `unstaged` / `staged` 统一 Hunk 列表、行尾标记与可逐块暂存判定（`hunkStageAvailable`）     |
+| `POST /stage {identity, hunkIds?}`       | 整文件或指定 `hunkIds` 暂存到真实 `index`，成功返回 204                                           |
+| `POST /unstage {identity, hunkIds?}`     | 整文件或指定 `hunkIds` 从真实 `index` 取消暂存（含 `unborn HEAD`），成功返回 204                  |
+| `POST /commit-preview {}`                | 基于完整 `HEAD -> index` 生成提交预览（含 CLI 预暂存文件、身份、可执行 Hook、阻塞项与限时确认码） |
+| `POST /commit {confirmationId, message}` | 复核 `HEAD` 与索引摘要后执行提交，返回 `outcome`（`matched` / `needs_review` / `uncertain`）      |
+
+- 外部 `.git/index.lock` 存在或并发写锁冲突时立即返回 409（`reason: "busy"`），绝不删除外部锁文件；路径身份或确认码过期返回 409（`reason: "stale"`）；存在冲突条目返回 409（`reason: "conflicted"`）；Hook 或签名失败且未生成提交返回 409（`reason: "commit_failed"`）。
+- `POST /commit` 使用独立于 10 秒读超时的受控执行窗口（2 分钟上界），客户端连接断开不会强杀已进入引用更新的 `git commit`；访问与错误日志不记录文件内容、Diff 正文、提交消息全文或凭据。

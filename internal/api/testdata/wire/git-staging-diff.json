@@ -1,0 +1,47 @@
+{
+  "status": 200,
+  "body": {
+    "binary": false,
+    "conflicted": false,
+    "hunkStageAvailable": true,
+    "hunks": [
+      {
+        "header": "@@ -1,2 +1,2 @@",
+        "id": "hunk-fa6abe9652b2b57c",
+        "lines": [
+          {
+            "kind": "context",
+            "lineEnding": "lf",
+            "newLine": 1,
+            "oldLine": 1,
+            "text": "one"
+          },
+          {
+            "kind": "delete",
+            "lineEnding": "lf",
+            "oldLine": 2,
+            "text": "two"
+          },
+          {
+            "kind": "add",
+            "lineEnding": "lf",
+            "newLine": 2,
+            "text": "three"
+          }
+        ],
+        "newLines": 2,
+        "newStart": 1,
+        "oldLines": 2,
+        "oldStart": 1
+      }
+    ],
+    "identity": {
+      "area": "unstaged",
+      "baseMode": "100644",
+      "baseOid": "814f4a422927b82f5f8a43f8fab6d3839e3983f2",
+      "path": "a.txt",
+      "targetMode": "100644",
+      "targetSha256": "c9b0fb1fa00b3a5ce714c876c35bb18f21eed970d33d9093a3cbd7cf0c9db3dc"
+    }
+  }
+}

@@ -20,7 +20,7 @@ const ChangePageSize = 200
 // Page reads, direct lookups and snapshot checks choose what to retain.
 func (b *binding) scanChanges(ctx context.Context, review bool, visit func(Change) error) (string, error) {
 	if !b.Diff {
-		return "", problemf(ErrConflict, "此目录的 Git 差异不可用")
+		return "", problemf(ErrReadOnly, "此目录的 Git 差异不可用")
 	}
 	// Use an anchored root so a worktree symlink cannot disclose metadata
 	// outside the code workspace. A vanished entry is not markable.

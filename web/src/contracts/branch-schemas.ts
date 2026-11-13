@@ -14,7 +14,7 @@ import {
 
 // One blocker or warning of a preview; `path`, when set, is the worktree a
 // blocker refers to, such as the one that has the target branch checked out.
-const IssueSchema = z.object({
+export const IssueSchema = z.object({
   code: z.string(),
   message: z.string(),
   path: z.string().optional(),

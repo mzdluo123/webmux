@@ -14,12 +14,19 @@ import (
 )
 
 // InspectStagingFile captures the exact identity and stageable hunks for one file.
-func (s *Service) InspectStagingFile(ctx context.Context, repositoryID, worktreeID string, area StageArea, relPath string) (StagingFileDiff, error) {
+func (s *Service) InspectStagingFile(ctx context.Context, repositoryID, worktreeID string, area StageArea, relPath string, oldPaths ...string) (StagingFileDiff, error) {
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
 	cleanPath, err := validateRepoRelPath(relPath)
 	if err != nil {
 		return StagingFileDiff{}, err
+	}
+	cleanOldPath := ""
+	if len(oldPaths) > 0 && oldPaths[0] != "" {
+		cleanOldPath, err = validateRepoRelPath(oldPaths[0])
+		if err != nil {
+			return StagingFileDiff{}, err
+		}
 	}
 	if area != StageAreaUnstaged && area != StageAreaStaged {
 		return StagingFileDiff{}, problemf(ErrInvalid, "不支持的暂存区域: %s", area)
@@ -34,7 +41,14 @@ func (s *Service) InspectStagingFile(ctx context.Context, repositoryID, worktree
 	defer s.releaseWorktreeWrite(loc.Path)
 
 	headOID, _ := s.resolveCommitReadOnly(ctx, loc.Path, "HEAD")
-	return s.inspectFileLocked(ctx, loc, headOID, area, cleanPath, "", "")
+	diff, err := s.inspectFileLocked(ctx, loc, headOID, area, cleanPath, cleanOldPath, "")
+	if err != nil {
+		return StagingFileDiff{}, err
+	}
+	if !diff.Conflicted && diff.Identity.BaseMode == "" && diff.Identity.TargetMode == "" && diff.Identity.OldBaseMode == "" {
+		return StagingFileDiff{}, problemf(ErrNotFound, "指定路径不存在可检视的变更")
+	}
+	return diff, nil
 }
 
 type indexStageEntry struct {

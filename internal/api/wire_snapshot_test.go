@@ -204,7 +204,7 @@ func wireSchema(name string) wireRules {
 		add("/*", "id", "id")
 		add("/*", "time", "createdAt", "updatedAt")
 		add("/*", "path", "cmd/*")
-	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction":
+	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction", "repository-register-git":
 		repositoryFields("")
 	case "repository-fetch":
 		repositoryFields("/repository")
@@ -301,6 +301,39 @@ func wireSchema(name string) wireRules {
 		add("", "id", "id")
 	case "push-test":
 		add("", "id", "removed/*")
+	case "git-context-repo", "git-context-worktree":
+		add("", "id", "contextId")
+		add("", "path", "rootPath")
+	case "git-tree", "git-files":
+		add("", "time", "checkedAt")
+	case "git-file", "git-file-commit", "git-snapshot-file":
+		add("", "id", "snapshotId")
+		add("", "time", "checkedAt")
+		documentFields("/document")
+	case "git-changes":
+		add("", "id", "nextCursor")
+		add("", "time", "checkedAt")
+	case "git-diff":
+		add("", "id", "snapshotId")
+		add("", "time", "checkedAt")
+		documentFields("/old")
+		documentFields("/new")
+	case "git-compare":
+		add("/changes", "id", "nextCursor")
+		add("/changes", "time", "checkedAt")
+		add("/diff", "id", "snapshotId")
+		add("/diff", "time", "checkedAt")
+		documentFields("/diff/old")
+		documentFields("/diff/new")
+	case "git-history":
+		add("", "time", "lastFetchedAt")
+		add("/rows/*/refs/*", "id", "worktreeId")
+	case "git-commit-detail":
+		add("/refs/*", "id", "worktreeId")
+	case "git-commit-preview", "git-commit-preview-blocked":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
 	}
 	return rules
 }
@@ -861,6 +894,7 @@ func TestWireSnapshots(t *testing.T) {
 		{"release", wireRelease},
 		{"forwards", wireForwards},
 		{"quick-start", wireQuickStart},
+		{"git-workbench", wireGitWorkbench},
 	} {
 		t.Run(group.name, func(t *testing.T) {
 			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}

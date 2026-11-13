@@ -161,6 +161,7 @@ func (s *Server) routes() *http.ServeMux {
 	s.conversationRoutes(mux)
 	s.handoffRoutes(mux)
 	s.workspaceRoutes(mux)
+	s.gitRoutes(mux)
 	s.pushRoutes(mux)
 	s.launchRoutes(mux)
 	s.settingsRoutes(mux)

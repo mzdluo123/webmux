@@ -29,18 +29,41 @@ var (
 	ErrInternal    = errors.New("workspace internal error")
 	ErrUnavailable = errors.New("workspace unavailable")
 	ErrTimeout     = errors.New("workspace operation timed out")
+
+	ErrReadOnly   error = conflictKind{"workspace target is read-only"}
+	ErrStale      error = conflictKind{"workspace snapshot is stale"}
+	ErrLocked     error = conflictKind{"workspace repository is busy"}
+	ErrConflicted error = conflictKind{"workspace has unresolved conflict"}
+	ErrBlocked    error = conflictKind{"workspace operation is blocked"}
+	ErrHookFailed error = conflictKind{"workspace commit failed"}
 )
+
+type conflictKind struct {
+	msg string
+}
+
+func (e conflictKind) Error() string { return e.msg }
+func (e conflictKind) Unwrap() error { return ErrConflict }
 
 // Error carries the user-facing message; its kind is reachable through
 // errors.Is.
 type Error struct {
 	kind    error
+	subkind error
 	message string
 }
 
 func (e *Error) Error() string { return e.message }
-func (e *Error) Unwrap() error { return e.kind }
+func (e *Error) Unwrap() []error {
+	if e.subkind != nil {
+		return []error{e.kind, e.subkind}
+	}
+	return []error{e.kind}
+}
 func problemf(kind error, format string, args ...any) error {
+	if _, ok := kind.(conflictKind); ok {
+		return &Error{kind: ErrConflict, subkind: kind, message: fmt.Sprintf(format, args...)}
+	}
 	return &Error{kind: kind, message: fmt.Sprintf(format, args...)}
 }
 
