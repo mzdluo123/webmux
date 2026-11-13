@@ -3,8 +3,6 @@
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconFolder from "~icons/tabler/folder";
   import IconGitBranch from "~icons/tabler/git-branch";
-  import IconGitCommit from "~icons/tabler/git-commit";
-  import IconHistory from "~icons/tabler/history";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -28,6 +26,7 @@
   import GitCommitPreviewDialog from "./GitCommitPreviewDialog.svelte";
   import GitLogPane from "./GitLogPane.svelte";
   import GitPushDialog from "./GitPushDialog.svelte";
+  import GitWorkbenchModeTabs from "./GitWorkbenchModeTabs.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
   let {
@@ -279,33 +278,7 @@
     orientation={desktop.current ? "vertical" : "horizontal"}
     class="min-h-0 min-w-0 flex-1"
   >
-    <div
-      class={desktop.current
-        ? "flex shrink-0 flex-col border-r border-git-border bg-git-panel p-1.5"
-        : "flex min-w-0 shrink-0 items-center border-b border-git-border bg-git-panel px-2"}
-    >
-      <Tabs.List
-        variant="line"
-        class="max-w-full flex-wrap"
-        aria-label="Git 工作台视图"
-      >
-        <Tabs.Trigger value="log">
-          <IconHistory aria-hidden="true" />
-          <span>历史</span>
-          <span class="max-sm:hidden">(Log)</span>
-        </Tabs.Trigger>
-        <Tabs.Trigger value="commit">
-          <IconGitCommit aria-hidden="true" />
-          <span>提交</span>
-          <span class="max-sm:hidden">(Commit)</span>
-        </Tabs.Trigger>
-        <Tabs.Trigger value="branches">
-          <IconGitBranch aria-hidden="true" />
-          <span>分支</span>
-          <span class="max-sm:hidden">(Branches)</span>
-        </Tabs.Trigger>
-      </Tabs.List>
-    </div>
+    <GitWorkbenchModeTabs desktop={desktop.current} />
 
     <Tabs.Content
       value="log"

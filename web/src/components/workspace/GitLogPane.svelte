@@ -1,24 +1,21 @@
 <script lang="ts">
   import { MediaQuery } from "svelte/reactivity";
   import IconArrowLeft from "~icons/tabler/arrow-left";
-  import IconDots from "~icons/tabler/dots";
   import IconLayoutSidebar from "~icons/tabler/layout-sidebar";
   import IconRestore from "~icons/tabler/restore";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { Input } from "$lib/components/ui/input";
-  import { ListButton } from "$lib/components/ui/list-button";
   import * as Resizable from "$lib/components/ui/resizable";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
-  import {
-    computeGitGraphLayout,
-    type GitLaneTone,
-  } from "../../domains/workspace/git-graph-layout";
+  import { computeGitGraphLayout } from "../../domains/workspace/git-graph-layout";
   import {
     filterLogCommits,
     resolveCommitParentFiles,
   } from "../../domains/workspace/git-workbench-state";
+  import {
+    syncElementScrollTop,
+    type GitPaneScrollCallbacks,
+  } from "../../domains/workspace/git-workbench-memory";
   import type {
     GitBranchItem,
     GitCommitDetail,
@@ -27,6 +24,7 @@
   } from "../../contracts/git-workbench-schemas";
   import GitDiffViewer from "./GitDiffViewer.svelte";
   import GitLogBranchTree from "./GitLogBranchTree.svelte";
+  import GitLogCommitRow from "./GitLogCommitRow.svelte";
   import GitLogDetailPane from "./GitLogDetailPane.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
@@ -44,6 +42,20 @@
     selectedCommitFilePath,
     branches,
     checkedOutBranch,
+    preferredShowBranches,
+    showAuthorColumn = true,
+    threePaneSizes = [20, 46, 34],
+    twoPaneSizes = [60, 40],
+    diffMode,
+    listScrollTop = 0,
+    diffScrollTop = 0,
+    onShowBranchesChange,
+    onThreePaneSizesChange,
+    onTwoPaneSizesChange,
+    onResetLayout,
+    onDiffModeChange,
+    onListScrollChange,
+    onDiffScrollChange,
     onScopeChange,
     onBranchFilterChange,
     onSearchChange,
@@ -67,6 +79,13 @@
     selectedCommitFilePath: string | null;
     branches: readonly GitBranchItem[];
     checkedOutBranch: string | null;
+    preferredShowBranches?: boolean;
+    showAuthorColumn?: boolean;
+    threePaneSizes?: [number, number, number];
+    twoPaneSizes?: [number, number];
+    onShowBranchesChange?: (open: boolean) => void;
+    onThreePaneSizesChange?: (sizes: [number, number, number]) => void;
+    onTwoPaneSizesChange?: (sizes: [number, number]) => void;
     onScopeChange: (scope: GitHistoryScope) => void;
     onBranchFilterChange: (branch: string | null) => void;
     onSearchChange: (q: string) => void;
@@ -76,12 +95,18 @@
     onSelectCommitFile: (path: string) => void;
     onRequestCheckout: (branch: string) => void;
     onOpenOccupiedWorktree: (worktreeId: string, path: string) => void;
-  } = $props();
+  } & GitPaneScrollCallbacks = $props();
 
   const desktop = new MediaQuery("(min-width: 1280px)");
-  let showBranchesPanel = $state(true);
+  let localShowBranches = $state(true);
+  const showBranchesPanel = $derived(
+    preferredShowBranches ?? localShowBranches,
+  );
   let mobileStep = $state<"list" | "detail" | "diff">("list");
   let paneResetKey = $state(0);
+  let listScrollEl = $state<HTMLDivElement>();
+
+  $effect(() => syncElementScrollTop(listScrollEl, listScrollTop));
 
   const visibleCommits = $derived(
     filterLogCommits(commits, branchFilter, searchQuery, pathFilter),
@@ -105,46 +130,6 @@
       resolvedParent.files[0] ??
       null,
   );
-
-  function laneStrokeClass(tone: GitLaneTone): string {
-    switch (tone) {
-      case 0:
-        return "stroke-git-primary";
-      case 1:
-        return "stroke-success";
-      case 2:
-        return "stroke-warning";
-      case 3:
-        return "stroke-info";
-      case 4:
-        return "stroke-destructive";
-      default:
-        return "stroke-muted-foreground";
-    }
-  }
-
-  function laneFillClass(tone: GitLaneTone): string {
-    switch (tone) {
-      case 0:
-        return "fill-git-primary";
-      case 1:
-        return "fill-success";
-      case 2:
-        return "fill-warning";
-      case 3:
-        return "fill-info";
-      case 4:
-        return "fill-destructive";
-      default:
-        return "fill-muted-foreground";
-    }
-  }
-
-  function copyOid(oid: string) {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      void navigator.clipboard.writeText(oid);
-    }
-  }
 </script>
 
 {#snippet commitListPane()}
@@ -183,7 +168,11 @@
               aria-pressed={showBranchesPanel}
               aria-label="切换引用筛选栏"
               title="切换引用筛选栏"
-              onclick={() => (showBranchesPanel = !showBranchesPanel)}
+              onclick={() => {
+                const next = !showBranchesPanel;
+                localShowBranches = next;
+                onShowBranchesChange?.(next);
+              }}
             >
               <IconLayoutSidebar aria-hidden="true" />
             </Button>
@@ -192,7 +181,10 @@
               variant="ghost"
               aria-label="重置分栏比例"
               title="重置分栏比例"
-              onclick={() => paneResetKey++}
+              onclick={() => {
+                onResetLayout?.();
+                paneResetKey++;
+              }}
             >
               <IconRestore aria-hidden="true" />
             </Button>
@@ -244,9 +236,11 @@
     </div>
 
     <div
+      bind:this={listScrollEl}
       class="min-h-0 flex-1 overflow-y-auto p-1.5"
       role="listbox"
       aria-label="提交记录"
+      onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
     >
       {#if historyState !== "ready"}
         <div class="p-2">
@@ -265,125 +259,16 @@
         </p>
       {:else}
         {#each visibleCommits as row, idx (row.oid)}
-          {@const layout = graphLayouts[idx]}
-          <div class="group/row relative">
-            <ListButton
-              variant="git-row"
-              role="option"
-              data-has-action="true"
-              aria-selected={selectedCommitOid === row.oid}
-              onclick={() => {
-                onSelectCommit(row.oid);
-                if (!desktop.current) mobileStep = "detail";
-              }}
-            >
-              {#if layout}
-                <svg
-                  width={layout.width}
-                  height={layout.height}
-                  viewBox={`0 0 ${layout.width} ${layout.height}`}
-                  class="shrink-0 overflow-visible"
-                  aria-hidden="true"
-                  data-graph-oid={row.oid}
-                >
-                  {#each layout.rails as rail (rail.lane)}
-                    <line
-                      x1={rail.x}
-                      y1={rail.y1}
-                      x2={rail.x}
-                      y2={rail.y2}
-                      stroke-width="1.75"
-                      class={laneStrokeClass(rail.tone)}
-                    />
-                  {/each}
-                  {#each layout.segments as seg (seg.key)}
-                    <path
-                      d={seg.d}
-                      fill="none"
-                      stroke-width="1.75"
-                      stroke-dasharray={seg.dashed
-                        ? "3 2"
-                        : seg.isBoundary
-                          ? "2 2"
-                          : undefined}
-                      data-edge-kind={seg.kind}
-                      class={laneStrokeClass(seg.tone)}
-                    />
-                  {/each}
-                  <circle
-                    cx={layout.nodeX}
-                    cy={layout.nodeY}
-                    r={layout.isMerge ? 4.2 : 3.4}
-                    class={laneFillClass(layout.nodeTone)}
-                  />
-                </svg>
-              {/if}
-
-              <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                {#each row.refs as refBadge (`${refBadge.kind}:${refBadge.name}`)}
-                  <Badge
-                    variant={refBadge.kind === "head"
-                      ? "info"
-                      : refBadge.kind === "remote"
-                        ? "secondary"
-                        : "outline"}
-                    class="max-w-full"
-                  >
-                    <span class="truncate" title={refBadge.name}>
-                      {refBadge.name}
-                    </span>
-                  </Badge>
-                {/each}
-                {#if row.directParentsMissing}
-                  <Badge variant="warning" class="max-w-full">
-                    <span class="truncate">筛选省略中间节点</span>
-                  </Badge>
-                {/if}
-                <span
-                  class="min-w-[6ch] max-w-full flex-1 truncate font-medium"
-                  title={row.subject}
-                >
-                  {row.subject}
-                </span>
-                <span class="shrink-0 font-mono text-xs text-muted-foreground">
-                  {row.shortOid}
-                </span>
-                <span
-                  class="hidden shrink-0 text-xs text-muted-foreground sm:inline"
-                >
-                  {row.authorName}
-                </span>
-              </div>
-            </ListButton>
-
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger>
-                {#snippet child({ props })}
-                  <ListButton
-                    {...props}
-                    variant="git-row-action"
-                    aria-label={`提交操作 ${row.shortOid}`}
-                    title={`提交操作 ${row.shortOid}`}
-                  >
-                    <IconDots aria-hidden="true" />
-                  </ListButton>
-                {/snippet}
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content align="end">
-                <DropdownMenu.Item onclick={() => copyOid(row.oid)}>
-                  复制提交 OID ({row.shortOid})
-                </DropdownMenu.Item>
-                <DropdownMenu.Item
-                  onclick={() => {
-                    onSelectCommit(row.oid);
-                    if (!desktop.current) mobileStep = "detail";
-                  }}
-                >
-                  查看提交详情
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Root>
-          </div>
+          <GitLogCommitRow
+            {row}
+            layout={graphLayouts[idx]}
+            selected={selectedCommitOid === row.oid}
+            {showAuthorColumn}
+            onSelect={(oid) => {
+              onSelectCommit(oid);
+              if (!desktop.current) mobileStep = "detail";
+            }}
+          />
         {/each}
       {/if}
     </div>
@@ -392,9 +277,23 @@
 
 {#if desktop.current}
   {#key paneResetKey}
-    <Resizable.PaneGroup direction="horizontal" class="h-full min-h-0 min-w-0">
+    <Resizable.PaneGroup
+      direction="horizontal"
+      class="h-full min-h-0 min-w-0"
+      onLayoutChange={(sizes) => {
+        if (showBranchesPanel && sizes.length === 3) {
+          onThreePaneSizesChange?.([sizes[0]!, sizes[1]!, sizes[2]!]);
+        } else if (!showBranchesPanel && sizes.length === 2) {
+          onTwoPaneSizesChange?.([sizes[0]!, sizes[1]!]);
+        }
+      }}
+    >
       {#if showBranchesPanel}
-        <Resizable.Pane defaultSize={20} minSize={14} class="git-pane">
+        <Resizable.Pane
+          defaultSize={threePaneSizes[0]}
+          minSize={14}
+          class="git-pane"
+        >
           <GitLogBranchTree
             {branches}
             {branchFilter}
@@ -407,14 +306,18 @@
         <Resizable.Handle withHandle class="git-divider" />
       {/if}
       <Resizable.Pane
-        defaultSize={showBranchesPanel ? 46 : 60}
+        defaultSize={showBranchesPanel ? threePaneSizes[1] : twoPaneSizes[0]}
         minSize={30}
         class="git-pane"
       >
         {@render commitListPane()}
       </Resizable.Pane>
       <Resizable.Handle withHandle class="git-divider" />
-      <Resizable.Pane defaultSize={34} minSize={24} class="git-pane">
+      <Resizable.Pane
+        defaultSize={showBranchesPanel ? threePaneSizes[2] : twoPaneSizes[1]}
+        minSize={24}
+        class="git-pane"
+      >
         <GitLogDetailPane
           detail={selectedDetail}
           selectedParentOverride={selectedCommitOid
@@ -422,6 +325,10 @@
             : undefined}
           {selectedCommitFilePath}
           desktop={true}
+          {diffMode}
+          {diffScrollTop}
+          {onDiffModeChange}
+          {onDiffScrollChange}
           {onSelectParent}
           {onSelectCommitFile}
         />
@@ -438,6 +345,10 @@
       : undefined}
     {selectedCommitFilePath}
     desktop={false}
+    {diffMode}
+    {diffScrollTop}
+    {onDiffModeChange}
+    {onDiffScrollChange}
     onBackToList={() => (mobileStep = "list")}
     {onSelectParent}
     {onSelectCommitFile}
@@ -454,11 +365,11 @@
     <div class="min-h-0 flex-1">
       {#if activeFile}
         <GitDiffViewer
-          path={activeFile.newPath}
-          oldPath={activeFile.oldPath}
-          status={activeFile.status}
-          binary={activeFile.binary}
-          hunks={activeFile.hunks}
+          file={activeFile}
+          preferredViewMode={diffMode}
+          scrollTop={diffScrollTop}
+          onViewModeChange={onDiffModeChange}
+          onScrollChange={onDiffScrollChange}
         />
       {/if}
     </div>

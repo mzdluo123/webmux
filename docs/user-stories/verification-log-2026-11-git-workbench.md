@@ -15,6 +15,16 @@
   - `make check`（含 `make web`、`pnpm --dir web check:arch`、`make docs-check`、`make persistence-check`、`go vet` 与 `golangci-lint`）通过。
 - 限制：V1a 仅交付 REST 契约、后端路由与前端 typed client/schema，尚未挂载 Git 工作台浏览器页面，未执行工作台 UI 截图或真实移动端浏览器交互验收。
 
-<!-- 后续 Git 工作台分层核对记录按阶段追加于下方 -->
+## 2026-11-12：Git 工作台 03（V1a）独立 `/git` 路由、`AppShell` 集成与多入口联动（US-I01、US-I02、US-J20）
 
----
+- 范围：
+  - 新增壳内独立路由 `/git`、`/git/{repositoryId}` 与 `/git/{repositoryId}/worktrees/{worktreeId}`，支持 `view`、`scope`、`branch`、`commit`、`q` 与 `returnSession` 深链查询参数及 `location.search` 响应式 `popstate` 同步；
+  - 打通仓库菜单与仓库面板头部（“Git 工作台”）、工作树菜单（“在 Git 工作台打开”与有改动时的“提交改动…”）及会话代码工作区头部（“在 Git 中查看”与顶栏“返回会话”）三类入口，实现代码阅读状态同步捕获与无损返回原会话；
+  - 实现顶栏固定操作目标（仓库切换、工作树选择、检出分支/`HEAD` 徽标）与历史筛选引用的语义分离、只读仓库与异常工作树写门禁、按 `(hostId, repositoryId, worktreeId)` 隔离视图状态与草稿记忆，以及按设备尺寸档位（`desktop`/`compact`/`tablet`/`phone`）隔离分栏比例与 Diff 显示偏好。
+- 依据：
+  - 单元与架构守卫：`pnpm --dir web check:arch`、`test/route.test.ts`、`test/git-workbench-memory.test.ts` 与 `go test -count=1 ./internal/docguard ./internal/archtest` 通过；
+  - 浏览器组件测试：`test/browser/GitWorkbenchRoute.test.ts`、`test/browser/GitWorkbench.test.ts`、`test/browser/WorkbenchTree.test.ts`、`test/browser/RepositoryPanel.test.ts` 与 `test/browser/RepositoryGroup.test.ts` 通过；
+  - Playwright 端到端与视觉验证：
+    - `test/e2e/git-workbench-route.spec.ts`（`chromium-desktop` 与 `chromium-mobile`）验证零会话不启动 PTY、最后会话删除存活、只读仓库 `Commit` 选工作树门禁、会话代码区往返恢复聊天草稿与阅读滚动位置、跨视图及 `Back`/`Forward` 状态恢复、跨工作树草稿隔离与单一 `/ws/sessions` 连接；
+    - 在真实运行应用上完成桌面（1280×900）、平板（768×800）、手机（390×844）浅色与深色截图（含修改界面的前后对比）、交互 GIF 录制及 `scrollWidth <= innerWidth` 横向溢出检查。
+- 限制：无头 Chromium 的 `hover` 与 `any-pointer: coarse` 媒体特性与物理设备不同，行尾悬停显隐与物理触屏手感未验证，也未在真机 iOS/Android 浏览器上验证。

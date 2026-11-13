@@ -13,6 +13,7 @@
     onmanage,
     onsettings,
     ondetails,
+    ongit,
   }: {
     unavailable?: boolean;
     onnewworktree: () => void;
@@ -20,10 +21,14 @@
     onmanage: () => void;
     onsettings?: () => void;
     ondetails: () => void;
+    ongit?: () => void;
   } = $props();
 </script>
 
 {#if !unavailable}
+  {#if ongit}
+    <DropdownMenu.Item onSelect={ongit}>Git 工作台</DropdownMenu.Item>
+  {/if}
   <DropdownMenu.Item onSelect={onnewworktree}>新建工作树…</DropdownMenu.Item>
   <DropdownMenu.Item onSelect={onhome}>主页显示…</DropdownMenu.Item>
   <DropdownMenu.Item onSelect={onmanage}>管理工作树…</DropdownMenu.Item>

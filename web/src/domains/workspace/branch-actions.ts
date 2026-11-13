@@ -25,6 +25,18 @@ export interface BranchActions {
   diverged: boolean;
 }
 
+export interface WorktreeMenuActionProps {
+  onswitch?: () => void;
+  pinned?: boolean;
+  ontogglepin?: () => void;
+  onremove?: () => void;
+  /** With `onoperation`, adds its branch's sync actions to the menu. */
+  worktree?: Worktree;
+  onoperation?: (operation: BranchOperation) => void;
+  ongit?: () => void;
+  oncommit?: () => void;
+}
+
 const none = (branch: string | null = null): BranchActions => ({
   branch,
   actions: [],

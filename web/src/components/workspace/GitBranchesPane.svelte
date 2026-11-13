@@ -1,6 +1,5 @@
 <script lang="ts">
   import { MediaQuery } from "svelte/reactivity";
-  import IconDots from "~icons/tabler/dots";
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconStar from "~icons/tabler/star";
   import { Badge } from "$lib/components/ui/badge";
@@ -13,6 +12,7 @@
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import GitRowActionMenu from "./GitRowActionMenu.svelte";
 
   let {
     context,
@@ -116,46 +116,32 @@
       </div>
     </ListButton>
 
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger>
-        {#snippet child({ props })}
-          <ListButton
-            {...props}
-            variant="git-row-action"
-            aria-label={`分支操作 ${item.name}`}
-            title={`分支操作 ${item.name}`}
-          >
-            <IconDots aria-hidden="true" />
-          </ListButton>
-        {/snippet}
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Content align="end">
-        <DropdownMenu.Item onclick={() => onFilterInLog(item.name)}>
-          在历史 (Log) 中筛选此分支
+    <GitRowActionMenu label={`分支操作 ${item.name}`}>
+      <DropdownMenu.Item onclick={() => onFilterInLog(item.name)}>
+        在历史 (Log) 中筛选此分支
+      </DropdownMenu.Item>
+      {#if item.occupiedBy}
+        <DropdownMenu.Item
+          onclick={() =>
+            item.occupiedBy &&
+            onOpenOccupiedWorktree(
+              item.occupiedBy.worktreeId,
+              item.occupiedBy.worktreePath,
+            )}
+        >
+          打开所在工作树
         </DropdownMenu.Item>
-        {#if item.occupiedBy}
-          <DropdownMenu.Item
-            onclick={() =>
-              item.occupiedBy &&
-              onOpenOccupiedWorktree(
-                item.occupiedBy.worktreeId,
-                item.occupiedBy.worktreePath,
-              )}
-          >
-            打开所在工作树
-          </DropdownMenu.Item>
-        {:else if item.kind === "local" && !isCurrent && context.worktreePath}
-          <DropdownMenu.Item onclick={() => onRequestCheckout(item.name)}>
-            检出到当前工作树…
-          </DropdownMenu.Item>
-        {/if}
-        {#if item.kind === "local" && isCurrent}
-          <DropdownMenu.Item onclick={() => onOpenPush(item.name)}>
-            推送预览…
-          </DropdownMenu.Item>
-        {/if}
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
+      {:else if item.kind === "local" && !isCurrent && context.worktreePath}
+        <DropdownMenu.Item onclick={() => onRequestCheckout(item.name)}>
+          检出到当前工作树…
+        </DropdownMenu.Item>
+      {/if}
+      {#if item.kind === "local" && isCurrent}
+        <DropdownMenu.Item onclick={() => onOpenPush(item.name)}>
+          推送预览…
+        </DropdownMenu.Item>
+      {/if}
+    </GitRowActionMenu>
   </div>
 {/snippet}
 

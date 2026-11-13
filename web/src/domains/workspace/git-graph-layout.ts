@@ -49,6 +49,40 @@ export function laneTone(lane: number): GitLaneTone {
   return (Math.abs(lane) % 6) as GitLaneTone;
 }
 
+export function laneStrokeClass(tone: GitLaneTone): string {
+  switch (tone) {
+    case 0:
+      return "stroke-git-primary";
+    case 1:
+      return "stroke-success";
+    case 2:
+      return "stroke-warning";
+    case 3:
+      return "stroke-info";
+    case 4:
+      return "stroke-destructive";
+    default:
+      return "stroke-muted-foreground";
+  }
+}
+
+export function laneFillClass(tone: GitLaneTone): string {
+  switch (tone) {
+    case 0:
+      return "fill-git-primary";
+    case 1:
+      return "fill-success";
+    case 2:
+      return "fill-warning";
+    case 3:
+      return "fill-info";
+    case 4:
+      return "fill-destructive";
+    default:
+      return "fill-muted-foreground";
+  }
+}
+
 /**
  * Computes per-row SVG coordinates for multi-lane commit topology:
  * - `direct` edges render solid curves/lines to in-page parents;

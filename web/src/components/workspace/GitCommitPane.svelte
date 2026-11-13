@@ -11,6 +11,10 @@
   import * as Resizable from "$lib/components/ui/resizable";
   import { Textarea } from "$lib/components/ui/textarea";
   import { groupWorkingChanges } from "../../domains/workspace/git-workbench-state";
+  import {
+    syncElementScrollTop,
+    type GitPaneScrollCallbacks,
+  } from "../../domains/workspace/git-workbench-memory";
   import type {
     GitChangeGroup,
     GitWorkingChange,
@@ -25,6 +29,15 @@
     activeChangeId,
     reviewedPaths,
     commitMessage,
+    paneSizes = [40, 60],
+    diffMode,
+    listScrollTop = 0,
+    diffScrollTop = 0,
+    onPaneSizesChange,
+    onResetLayout,
+    onDiffModeChange,
+    onListScrollChange,
+    onDiffScrollChange,
     onSelectChange,
     onToggleReviewed,
     onStageChange,
@@ -39,6 +52,8 @@
     activeChangeId: string | null;
     reviewedPaths: readonly string[];
     commitMessage: string;
+    paneSizes?: [number, number];
+    onPaneSizesChange?: (sizes: [number, number]) => void;
     onSelectChange: (id: string) => void;
     onToggleReviewed: (path: string) => void;
     onStageChange: (changeId: string) => void;
@@ -47,11 +62,14 @@
     onUnstageHunk: (changeId: string, hunkId: string) => void;
     onCommitMessageChange: (msg: string) => void;
     onOpenCommitPreview: (followUpPush: boolean) => void;
-  } = $props();
+  } & GitPaneScrollCallbacks = $props();
 
   const desktop = new MediaQuery("(min-width: 1280px)");
   let mobileStep = $state<"changes" | "diff">("changes");
   let paneResetKey = $state(0);
+  let listScrollEl = $state<HTMLDivElement>();
+
+  $effect(() => syncElementScrollTop(listScrollEl, listScrollTop));
 
   const grouped = $derived(groupWorkingChanges(changes));
   const activeChange = $derived(
@@ -171,7 +189,10 @@
           variant="ghost"
           aria-label="重置提交分栏比例"
           title="重置提交分栏比例"
-          onclick={() => paneResetKey++}
+          onclick={() => {
+            onResetLayout?.();
+            paneResetKey++;
+          }}
         >
           <IconRestore aria-hidden="true" />
         </Button>
@@ -186,7 +207,11 @@
       </div>
     {/if}
 
-    <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-2">
+    <div
+      bind:this={listScrollEl}
+      class="min-h-0 flex-1 space-y-3 overflow-y-auto p-2"
+      onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
+    >
       {#each sections as sec (sec.key)}
         {@const list = grouped[sec.key]}
         {#if list.length > 0 || sec.key === "staged" || sec.key === "unstaged"}
@@ -293,6 +318,10 @@
                 ? "stage"
                 : "none"}
           hunkStageAvailable={activeChange.hunkStageAvailable}
+          preferredViewMode={diffMode}
+          scrollTop={diffScrollTop}
+          onViewModeChange={onDiffModeChange}
+          onScrollChange={onDiffScrollChange}
           onStageHunk={(hunkId) => onStageHunk(activeChange.id, hunkId)}
           onUnstageHunk={(hunkId) => onUnstageHunk(activeChange.id, hunkId)}
         />
@@ -303,12 +332,20 @@
 
 {#if desktop.current}
   {#key paneResetKey}
-    <Resizable.PaneGroup direction="horizontal" class="h-full min-h-0 min-w-0">
-      <Resizable.Pane defaultSize={40} minSize={26} class="git-pane">
+    <Resizable.PaneGroup
+      direction="horizontal"
+      class="h-full min-h-0 min-w-0"
+      onLayoutChange={(sizes) => {
+        if (sizes.length === 2) {
+          onPaneSizesChange?.([sizes[0]!, sizes[1]!]);
+        }
+      }}
+    >
+      <Resizable.Pane defaultSize={paneSizes[0]} minSize={26} class="git-pane">
         {@render changesAndComposerPane()}
       </Resizable.Pane>
       <Resizable.Handle withHandle class="git-divider" />
-      <Resizable.Pane defaultSize={60} minSize={34} class="git-pane">
+      <Resizable.Pane defaultSize={paneSizes[1]} minSize={34} class="git-pane">
         {@render diffPane()}
       </Resizable.Pane>
     </Resizable.PaneGroup>
