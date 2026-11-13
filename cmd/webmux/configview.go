@@ -92,6 +92,8 @@ func configuredView(path string, c config.Config) contract.Configuration {
 			err = workspace.Inspect(c.StateDir)
 		case statefile.GitOperations:
 			err = workspace.InspectGitOperations(c.StateDir)
+		case statefile.GitTaskBaselines:
+			err = workspace.InspectGitTaskBaselines(c.StateDir)
 		case statefile.Push:
 			err = push.Inspect(c.StateDir)
 		case statefile.Tunnel:
@@ -183,6 +185,8 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps) contract.C
 			err = deps.Workspace.StorageError()
 		case statefile.GitOperations:
 			err = deps.Workspace.OperationsStorageError()
+		case statefile.GitTaskBaselines:
+			err = deps.Workspace.TaskBaselinesStorageError()
 		case statefile.Push:
 			err = deps.Push.Unavailable()
 		case statefile.Tunnel:

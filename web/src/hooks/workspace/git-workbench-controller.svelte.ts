@@ -19,15 +19,16 @@ import { createGitLogDiffController } from "./git-log-diff.svelte";
 import { createGitLogHistoryController } from "./git-log-history.svelte";
 import { createGitOperationsController } from "./git-operations-controller.svelte";
 import { createGitPushController } from "./git-push-controller.svelte";
+import { createGitTaskReviewController } from "./git-task-review.svelte";
 import {
   emptyGitViewState,
   fetchGitTargetBundle,
 } from "./git-workbench-actions";
 import {
   applyPopstateQueryToView,
+  buildBundleViewPatch,
   buildTargetInitialState,
   computeGitTargetLoadKey,
-  pickSelectedCommitAfterBundle,
   syncGitWorkbenchUrl,
 } from "./git-workbench-route-sync";
 import { createGitStagingController } from "./git-workbench-staging.svelte";
@@ -92,15 +93,6 @@ export function createGitWorkbenchController(
     onReloadTarget: (repo, wt, sessions = []) =>
       loadTarget(currentRepoId, currentWorktreeId, repo, wt, sessions),
   });
-  const staging = createGitStagingController({
-    getRepoId: () => currentRepoId,
-    getWorktreeId: () => effectiveWorktreeId ?? currentWorktreeId,
-    getView: () => view,
-    patchView,
-    operations,
-    onRefreshRepositories: options.onRefreshRepositories,
-    onAfterCommitRefresh: () => void logHistory.reloadHistory("refresh"),
-  });
   const logDiff = createGitLogDiffController({
     getRepoId: () => currentRepoId,
     getEffectiveWorktreeId: () => effectiveWorktreeId,
@@ -125,6 +117,28 @@ export function createGitWorkbenchController(
     updateUrl,
     logDiff,
   });
+  const taskReview = createGitTaskReviewController({
+    getRepoId: () => currentRepoId,
+    getWorktreeId: () => effectiveWorktreeId ?? currentWorktreeId,
+    getView: () => view,
+    patchView,
+    persist,
+    onBaselineChanged: () => {
+      if (view.scope === "task") void logHistory.reloadHistory("refresh");
+    },
+  });
+  const staging = createGitStagingController({
+    getRepoId: () => currentRepoId,
+    getWorktreeId: () => effectiveWorktreeId ?? currentWorktreeId,
+    getView: () => view,
+    patchView,
+    operations,
+    onRefreshRepositories: options.onRefreshRepositories,
+    onAfterCommitRefresh: () => {
+      void logHistory.reloadHistory("refresh");
+      void taskReview.refresh();
+    },
+  });
   const push = createGitPushController({
     getRepoId: () => currentRepoId,
     getRepoName: () => view.context.repositoryName,
@@ -134,6 +148,7 @@ export function createGitWorkbenchController(
     onRefreshAfterPush: () => {
       options.onRefreshRepositories?.();
       void logHistory.reloadHistory("refresh");
+      void taskReview.refresh();
     },
     onStatusBanner: (statusBanner) => patchView({ statusBanner }),
   });
@@ -142,11 +157,26 @@ export function createGitWorkbenchController(
     targetReq.dispose();
     operations.dispose();
     staging.dispose();
+    taskReview.dispose();
     logHistory.dispose();
     logCompare.dispose();
     logDiff.dispose();
     push.dispose();
   }
+
+  const patchUnavailableContext = (
+    repoId: string,
+    repository?: Repository,
+    worktree?: Worktree,
+  ) =>
+    patchView({
+      context: deriveGitWorktreeContext({
+        repository,
+        repositoryId: repoId,
+        worktree,
+        gitCtx: null,
+      }),
+    });
 
   async function loadTarget(
     repoId: string,
@@ -158,14 +188,7 @@ export function createGitWorkbenchController(
     if (!repoId || (repository && repository.availability !== "available")) {
       loading = false;
       effectiveWorktreeId = undefined;
-      patchView({
-        context: deriveGitWorktreeContext({
-          repository,
-          repositoryId: repoId,
-          worktree,
-          gitCtx: null,
-        }),
-      });
+      patchUnavailableContext(repoId, repository, worktree);
       return;
     }
 
@@ -195,33 +218,25 @@ export function createGitWorkbenchController(
       ) {
         return;
       }
-      effectiveWorktreeId = bundle.effectiveWorktreeId;
-      defaultBranchName = bundle.defaultBranch;
       const effId = bundle.effectiveWorktreeId;
+      effectiveWorktreeId = effId;
+      defaultBranchName = bundle.defaultBranch;
       logDiff.seedContextId(repoId, effId, bundle.gitContextId);
       staging.seedContextId(repoId, effId, bundle.gitContextId);
+      taskReview.seedContextId(repoId, effId, bundle.gitContextId);
 
-      const selectedOid = pickSelectedCommitAfterBundle(
+      const { selectedOid, patch } = buildBundleViewPatch(
         view.selectedCommitOid,
-        bundle.context.headOid,
-        bundle.commits,
+        bundle,
       );
-
-      patchView({
-        context: bundle.context,
-        historyState: bundle.historyState,
-        historyReason: bundle.historyReason,
-        historyUpstream: bundle.historyUpstream,
-        lastFetchedAt: bundle.lastFetchedAt,
-        nextCursor: bundle.nextCursor,
-        refsChanged: bundle.refsChanged,
-        historyLoadingMore: false,
-        commits: bundle.commits,
-        branches: bundle.branches,
-        selectedCommitOid: selectedOid,
-      });
+      patchView(patch);
       logHistory.ensureCommitLoaded(selectedOid);
-      if (effId) await staging.refresh(repoId, effId, req.signal);
+      if (effId) {
+        await Promise.all([
+          staging.refresh(repoId, effId, req.signal),
+          taskReview.refresh(repoId, effId, req.signal),
+        ]);
+      }
       await operations.refreshOperations(repoId, effId ?? wtId, req.signal);
     } catch (err) {
       if (req.reportable()) error = errorMessage(err);
@@ -260,6 +275,7 @@ export function createGitWorkbenchController(
       lastLoadedKey = desiredLoadKey;
       operations.resetTarget();
       staging.resetTarget();
+      taskReview.resetTarget();
       logHistory.resetTarget();
       logCompare.resetTarget();
       logDiff.resetTarget();
@@ -272,12 +288,7 @@ export function createGitWorkbenchController(
         repository: params.repository,
         worktree: params.worktree,
       });
-      scrollOffsets = {
-        logList: init.memory.logListScrollTop,
-        logDiff: init.memory.logDiffScrollTop,
-        commitList: init.memory.commitListScrollTop,
-        commitDiff: init.memory.commitDiffScrollTop,
-      };
+      scrollOffsets = init.scrollOffsets;
       view = init.view;
       if (!params.search && params.repositoryId) updateUrl("replace");
       void loadTarget(
@@ -318,14 +329,11 @@ export function createGitWorkbenchController(
           params.sessions,
         );
       } else {
-        patchView({
-          context: deriveGitWorktreeContext({
-            repository: params.repository,
-            repositoryId: params.repositoryId,
-            worktree: params.worktree,
-            gitCtx: null,
-          }),
-        });
+        patchUnavailableContext(
+          params.repositoryId,
+          params.repository,
+          params.worktree,
+        );
       }
     }
   }
@@ -343,23 +351,11 @@ export function createGitWorkbenchController(
     get fetching() {
       return operations.fetching;
     },
-    get operations() {
-      return operations;
-    },
     get stagingBusy() {
       return staging.stagingBusy;
     },
-    get staging() {
-      return staging;
-    },
-    get push() {
-      return push;
-    },
     get detailLoading() {
       return logHistory.detailLoading;
-    },
-    get logDiff() {
-      return logDiff;
     },
     get returnSessionId() {
       return returnSessionId;
@@ -367,6 +363,11 @@ export function createGitWorkbenchController(
     get scrollOffsets() {
       return scrollOffsets;
     },
+    operations,
+    staging,
+    taskReview,
+    push,
+    logDiff,
     dispose,
     syncRoute,
     reload: (
@@ -391,9 +392,7 @@ export function createGitWorkbenchController(
     refreshHistory: () => logHistory.reloadHistory("refresh"),
     loadMoreHistory: logHistory.loadMoreHistory,
     jumpToHead: logHistory.jumpToHead,
-    dismissSelectionNotice() {
-      patchView({ selectionNotice: null });
-    },
+    dismissSelectionNotice: () => patchView({ selectionNotice: null }),
     toggleFavorite: logHistory.toggleFavorite,
     selectCommit(oid: string) {
       logCompare.resetTarget();
@@ -427,9 +426,7 @@ export function createGitWorkbenchController(
       patchView({ activeChangeId: changeId });
       persist({ activeChangeId: changeId });
       const wtId = effectiveWorktreeId ?? currentWorktreeId;
-      if (wtId) {
-        void staging.loadActiveDiff(currentRepoId, wtId, changeId);
-      }
+      if (wtId) void staging.loadActiveDiff(currentRepoId, wtId, changeId);
     },
     toggleReviewed(change: GitWorkingChange | string) {
       const target =
@@ -471,9 +468,7 @@ export function createGitWorkbenchController(
       patchView({ commitMessage });
       persist({ commitMessage });
     },
-    setStatusBanner(statusBanner: string) {
-      patchView({ statusBanner });
-    },
+    setStatusBanner: (statusBanner: string) => patchView({ statusBanner }),
     setScroll(
       kind: "logList" | "logDiff" | "commitList" | "commitDiff",
       top: number,
@@ -483,8 +478,14 @@ export function createGitWorkbenchController(
     },
     stageOrUnstage: staging.stageOrUnstage,
     stageOrUnstageGroup: staging.stageOrUnstageGroup,
-    refreshActiveSnapshot: staging.refreshActiveSnapshot,
-    checkExternalUpdates: staging.checkExternalUpdates,
+    refreshActiveSnapshot: () => {
+      void staging.refreshActiveSnapshot();
+      void taskReview.refresh();
+    },
+    checkExternalUpdates: () => {
+      void staging.checkExternalUpdates();
+      void taskReview.refresh();
+    },
     openCommitPreview: staging.openCommitPreview,
     refreshCommitPreview: staging.refreshCommitPreview,
     closeCommitPreview: staging.closeCommitPreview,

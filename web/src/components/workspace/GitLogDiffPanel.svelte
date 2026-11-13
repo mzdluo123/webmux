@@ -13,15 +13,17 @@
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import type { GitCommitFile } from "../../contracts/git-workbench-schemas";
   import { resolveHunksCalculatedDiff } from "../../domains/code/code-diff-client";
-  import type { GitLogDiffController } from "../../hooks/workspace/git-log-diff.svelte";
+  import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
   import CodeDiffReader from "../code/CodeDiffReader.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import GitPanelToolbar from "./GitPanelToolbar.svelte";
 
   let {
     logDiff,
     fallbackFile = null,
     fallbackLeftLabel = "",
     fallbackRightLabel = "",
+    backLabel = "返回提交详情",
     presentation = "docked",
     collapsed = false,
     diffMode = "unified",
@@ -30,10 +32,11 @@
     onToggleMaximized,
     onBack,
   }: {
-    logDiff?: GitLogDiffController;
+    logDiff?: GitDiffPanelReader;
     fallbackFile?: GitCommitFile | null;
     fallbackLeftLabel?: string;
     fallbackRightLabel?: string;
+    backLabel?: string;
     presentation?: "docked" | "maximized" | "mobile";
     collapsed?: boolean;
     diffMode?: "unified" | "split";
@@ -230,7 +233,7 @@
         {#if onBack}
           <Button size="xs" variant="ghost" class="shrink-0" onclick={onBack}>
             <IconArrowLeft aria-hidden="true" />
-            返回提交详情
+            {backLabel}
           </Button>
         {/if}
         <div class="flex shrink-0 flex-wrap items-center gap-1">
@@ -242,9 +245,7 @@
       </div>
     </header>
   {:else}
-    <header
-      class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel px-2.5 py-1.5"
-    >
+    <GitPanelToolbar as="header">
       <div
         class="flex min-w-[15rem] flex-1 items-center gap-1.5 overflow-hidden"
       >
@@ -315,7 +316,7 @@
           </Button>
         {/if}
       </div>
-    </header>
+    </GitPanelToolbar>
   {/if}
 
   {#if !collapsed}

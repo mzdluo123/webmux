@@ -38,6 +38,7 @@ var (
 	ErrReadOnly        error = conflictKind{"code view context is read-only"}
 	ErrStale           error = conflictKind{"code view snapshot is stale"}
 	ErrContextMismatch error = conflictKind{"code view context mismatch"}
+	ErrNoTaskBaseline  error = conflictKind{"code view worktree has no task baseline"}
 )
 
 type conflictKind struct {
@@ -101,6 +102,7 @@ func errorKind(err error) error {
 type TargetResolver interface {
 	LocateRepository(ctx context.Context, repositoryID string) (workspace.RepositoryLocation, error)
 	LocateWorktree(ctx context.Context, repositoryID, worktreeID string) (workspace.WorktreeLocation, error)
+	ResolveTaskScope(ctx context.Context, repositoryID, worktreeID string) (workspace.TaskScopeSummary, error)
 }
 
 // Target identifies a session-independent repository or worktree scope.
@@ -229,6 +231,19 @@ type Compare struct {
 	TargetOID string
 	Changes   Changes
 	Diff      *Diff
+}
+
+// TaskChanges holds the single net diff listing from a worktree's fixed
+// TaskBaseline to its live working tree alongside commit and uncommitted counts.
+type TaskChanges struct {
+	Status           string
+	Reason           string
+	Baseline         *workspace.TaskBaseline
+	HeadOID          string
+	HeadUnborn       bool
+	CommitCount      int
+	UncommittedCount int
+	Changes          Changes
 }
 type CheckRequest struct {
 	Context        string

@@ -1,0 +1,92 @@
+{
+  "status": 200,
+  "body": {
+    "nextCursor": "",
+    "refsChanged": false,
+    "rows": [
+      {
+        "activeLanes": [
+          0
+        ],
+        "authorAt": "2026-01-02T03:04:05Z",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "committerAt": "2026-01-02T03:04:05Z",
+        "committerName": "Wire test",
+        "directParentsMissing": false,
+        "edges": [
+          {
+            "fromLane": 0,
+            "kind": "direct",
+            "targetOid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+            "toLane": 0
+          }
+        ],
+        "lane": 0,
+        "oid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+        "parents": [
+          "ecc8da449d18daa48261db409c9e0af26550cf64"
+        ],
+        "refs": [
+          {
+            "kind": "head",
+            "name": "HEAD -> main",
+            "worktreeId": "<id#2>"
+          },
+          {
+            "kind": "local",
+            "name": "main"
+          }
+        ],
+        "shortOid": "6b503797",
+        "subject": "feat: commit staged a.txt"
+      },
+      {
+        "activeLanes": [
+          0
+        ],
+        "authorAt": "2026-01-02T03:04:05Z",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "committerAt": "2026-01-02T03:04:05Z",
+        "committerName": "Wire test",
+        "directParentsMissing": false,
+        "edges": [
+          {
+            "fromLane": 0,
+            "kind": "boundary",
+            "targetOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+            "toLane": 0
+          }
+        ],
+        "lane": 0,
+        "oid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+        "parents": [
+          "2de8fe1f09b18871f913bbafa26fee479279c2b6"
+        ],
+        "refs": [],
+        "shortOid": "ecc8da44",
+        "subject": "feat: expand b.txt"
+      }
+    ],
+    "scope": "task",
+    "status": "ready",
+    "taskBaseline": {
+      "baseOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+      "baselineId": "<baselineId#1>",
+      "capturedAt": "<time>",
+      "cleanAtStart": false,
+      "preExistingChanges": {
+        "conflicted": 0,
+        "staged": 0,
+        "unstaged": 1,
+        "untracked": 1
+      },
+      "repositoryId": "<id#1>",
+      "source": "manual_select",
+      "unborn": false,
+      "worktreeId": "<id#2>",
+      "worktreePath": "<repo>"
+    }
+  }
+}

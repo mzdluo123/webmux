@@ -76,7 +76,7 @@ func readHistoryRefs(ctx context.Context, anchor string, trees []Worktree) (map[
 	return badges, tips, nil
 }
 
-func resolveHistoryScope(ctx context.Context, anchor string, q HistoryQuery, trees []Worktree, allTips []string) (historyScopeSpec, error) {
+func resolveHistoryScope(ctx context.Context, anchor string, q HistoryQuery, trees []Worktree, allTips []string, taskBaseline *TaskBaseline) (historyScopeSpec, error) {
 	var selectedTree *Worktree
 	if q.WorktreeID != "" {
 		for i := range trees {
@@ -88,6 +88,10 @@ func resolveHistoryScope(ctx context.Context, anchor string, q HistoryQuery, tre
 		if selectedTree == nil {
 			return historyScopeSpec{}, problemf(ErrNotFound, "工作树不存在，请刷新")
 		}
+	}
+
+	if q.Scope == HistoryScopeTask {
+		return resolveTaskHistoryScope(ctx, anchor, q, selectedTree, taskBaseline)
 	}
 
 	if q.Branch != "" {
@@ -154,6 +158,48 @@ func resolveHistoryScope(ctx context.Context, anchor string, q HistoryQuery, tre
 		return resolveUpstreamDeltaScope(ctx, anchor, q.Scope, *selectedTree.Branch, *selectedTree.Head)
 	}
 	return historyScopeSpec{}, problemf(ErrInvalid, "未知历史范围")
+}
+
+func resolveTaskHistoryScope(ctx context.Context, anchor string, q HistoryQuery, selectedTree *Worktree, taskBaseline *TaskBaseline) (historyScopeSpec, error) {
+	if selectedTree == nil || selectedTree.Kind == "bare" {
+		return historyScopeSpec{
+			status: HistoryStatusNoWorktree,
+			reason: "未选定可用工作树，无法解析“当前任务”范围；请选择具体工作树或切换到“所有历史”",
+		}, nil
+	}
+	if taskBaseline == nil {
+		return historyScopeSpec{
+			status: HistoryStatusNoTaskBaseline,
+			reason: "当前工作树尚未设定任务起点基线，可将当前 HEAD 或任意历史提交设为任务起点",
+		}, nil
+	}
+	var tipOID string
+	if q.Branch != "" {
+		oid, _, _, err := resolveNamedRefTip(ctx, anchor, q.Branch)
+		if err != nil {
+			return historyScopeSpec{}, err
+		}
+		tipOID = oid
+	} else {
+		if selectedTree.Head == nil || !isObjectID(*selectedTree.Head) {
+			return historyScopeSpec{
+				status: HistoryStatusUnborn,
+				reason: "当前工作树处于未诞生 HEAD 状态，尚无已提交的任务记录",
+			}, nil
+		}
+		tipOID = *selectedTree.Head
+	}
+	if taskBaseline.Unborn {
+		return historyScopeSpec{status: HistoryStatusReady, include: []string{tipOID}}, nil
+	}
+	if tipOID == taskBaseline.BaseOID {
+		return historyScopeSpec{status: HistoryStatusReady}, nil
+	}
+	return historyScopeSpec{
+		status:  HistoryStatusReady,
+		include: []string{tipOID},
+		exclude: []string{taskBaseline.BaseOID},
+	}, nil
 }
 
 func resolveNamedRefTip(ctx context.Context, anchor, ref string) (oid, kind, localName string, err error) {

@@ -131,6 +131,7 @@ func GitHistoryPage(p workspace.HistoryPage) contract.GitHistoryPage {
 		Scope:         p.Scope,
 		LastFetchedAt: p.LastFetchedAt,
 		Upstream:      p.Upstream,
+		TaskBaseline:  GitTaskBaselinePtr(p.TaskBaseline),
 		RefsChanged:   p.RefsChanged,
 		NextCursor:    p.NextCursor,
 		Rows:          each(p.Commits, gitHistoryRow),

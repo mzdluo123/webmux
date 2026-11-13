@@ -1,8 +1,10 @@
 import { z } from "zod";
 import {
   GitHistoryScopeSchema,
+  GitReviewScopeSchema,
   GitWorkbenchModeSchema,
   type GitHistoryScope,
+  type GitReviewScope,
   type GitWorkbenchMode,
 } from "../../contracts/git-workbench-schemas";
 import { activeHostId, store, stored } from "../../platform/storage";
@@ -34,6 +36,7 @@ type GitLayoutMap = z.infer<typeof GitLayoutMapSchema>;
 const GitTargetMemorySchema = z.object({
   mode: GitWorkbenchModeSchema,
   scope: GitHistoryScopeSchema,
+  reviewScope: GitReviewScopeSchema.default("uncommitted"),
   branchFilter: z.string().max(256).nullable(),
   searchQuery: z.string().max(512),
   authorFilter: z.string().max(256).default(""),
@@ -215,6 +218,7 @@ function defaultGitTargetMemory(): GitTargetMemory {
   return {
     mode: "log",
     scope: "all",
+    reviewScope: "uncommitted",
     branchFilter: null,
     searchQuery: "",
     authorFilter: "",
@@ -287,6 +291,9 @@ export function writeGitTargetMemory(
   const candidate: GitTargetMemory = {
     ...prev,
     ...patch,
+    reviewScope: hasWorktree
+      ? ((patch.reviewScope as GitReviewScope | undefined) ?? prev.reviewScope)
+      : "uncommitted",
     // Repository-only views never persist worktree-bound drafts or review marks.
     reviewedPaths: hasWorktree
       ? (patch.reviewedPaths ?? prev.reviewedPaths).slice(0, 200)
@@ -344,7 +351,13 @@ export function applyGitQueryOverrides(
     reviewedPaths: [...memory.reviewedPaths],
   };
   if (query.view) next.mode = query.view;
-  if (query.scope) next.scope = query.scope;
+  if (query.scope) {
+    if (query.view === "commit" && query.scope === "task") {
+      next.reviewScope = "task";
+    } else {
+      next.scope = query.scope;
+    }
+  }
   if (query.branch !== undefined) next.branchFilter = query.branch;
   if (query.commit) {
     next.selectedCommitOid = query.commit;

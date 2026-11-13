@@ -134,6 +134,7 @@
     desktop={desktop.current}
     historyState={props.historyState}
     historyReason={props.historyReason}
+    taskBaseline={props.taskBaseline}
     nextCursor={props.nextCursor}
     refsChanged={props.refsChanged}
     historyLoadingMore={props.historyLoadingMore}
@@ -188,6 +189,7 @@
           if (!multiColumn.current) mobileStep = "detail";
         }
       : undefined}
+    onSetTaskBaseline={props.onSetTaskBaseline}
   />
 {/snippet}
 

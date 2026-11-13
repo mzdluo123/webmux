@@ -1,9 +1,9 @@
-# Git 工作台与仓库级接口（US-J19–US-J23）
+# Git 工作台与仓库级接口（US-J19–US-J24）
 
-本页收录独立 Git 工作台与仓库级接口的用户故事（US-J19–US-J23）：
+本页收录独立 Git 工作台与仓库级接口的用户故事（US-J19–US-J24）：
 
 - 零活跃会话可用的仓库与工作树 Git REST 接口、独立 `/git` 路由与状态隔离；
-- 拓扑历史图与两版本比较、真实 `index` 暂存与提交三态复核、三处共享分支动作、宽幅推送确认框及持久 Git 操作账本与重连幂等对账。
+- 拓扑历史图与两版本比较、真实 `index` 暂存与提交三态复核、三处共享分支动作、宽幅推送确认框、持久 Git 操作账本与固定任务审阅基线收尾闭环。
 - 关联章节：[仓库登记、工作树生命周期与分支维护（US-J01–US-J18）](lifecycle.md)，总索引见[仓库登记与 worktree 管理](../worktrees.md)。
 
 ## J. Git 工作台与仓库级接口
@@ -16,7 +16,7 @@
     - 传入可用 `worktreeId` 时开放工作树目录、文件名搜索、`worktree|index|head|commit:{oid}` 四种来源快照及 `side=before|after` 的 `file`/`raw`（含 `HEAD`）；
   - `contextId` 与 `snapshotId` 严格绑定 `(repositoryId, worktreeId)`：跨仓库混用返回 404，同仓库跨工作树混用返回 409 `reason: "context_mismatch"`，过期返回 409 `reason: "stale"`；非法 OID、非真实父提交 `parentOid`、修订注入或越界路径返回 400；
   - 历史图与提交详情独立分页查询：
-    - `GET .../git/history` 返回 `status`（`ready` / `empty` / `unborn` / `no_worktree` / `no_upstream` / `upstream_gone` / `detached_no_branch`）、拓扑分页 `rows`（真实 `parents`、`refs`、`lane`、`activeLanes` 与 `direct|indirect|boundary` 边）、`nextCursor` 与 `refsChanged`；
+    - `GET .../git/history` 返回 `status`（`ready` / `empty` / `unborn` / `no_worktree` / `no_task_baseline` / `no_upstream` / `upstream_gone` / `detached_no_branch`）、拓扑分页 `rows`（真实 `parents`、`refs`、`lane`、`activeLanes` 与 `direct|indirect|boundary` 边）、`nextCursor` 与 `refsChanged`；
     - `GET .../git/commits/{oid}` 返回完整提交消息、作者与提交者元组、`comparedParentOid`（合并提交支持切换任一真实父 OID）与变更文件列表；
   - 暂存操作直接读写目标工作树真实 Git `index`：
     - `GET .../git/staging`、`GET .../git/staging/diff`、`POST .../git/stage` 与 `POST .../git/unstage` 支持整文件与单 Hunk 暂存/取消暂存（含 `unborn HEAD`）；
@@ -47,8 +47,9 @@
     - 桌面端左侧栏默认 `240px`（支持 `180–360px` 拖拽与折叠，`< 1280px` 收纳为抽屉），分组展示收藏分支（按主机与仓库持久化，默认收录 `defaultBranch`）、当前分支、本地分支、远端跟踪分支与标签（`refs/tags/`，附注标签解包至提交 OID），标注 `HEAD`、`已占用` 及上游领先/落后或 `上游已删`；
     - 单击任一分支或标签仅筛选历史提交列表并更新顶栏浏览筛选徽标，顶栏活动工作树、磁盘检出分支与 `HEAD` 保持不变；切换分支必须经行尾菜单“检出分支…”进入预选目标分支的 `SwitchBranch` 预览确认流程，已由其他工作树占用的分支引导打开所在工作树；
   - 快捷范围与服务端组合筛选：
-    - 支持 `所有历史`（默认）、`当前分支`、`待推送`、`远端新增` 快捷范围及说明 `#547` 任务基线依赖的受控“当前任务”弹层，并组合关键字（`q`）、作者（`author`）、起止日期（`since`/`until`）与字面路径（`path`）向服务端请求；
-    - 遇到 `no_worktree`、`detached_no_branch`、`no_upstream`、`upstream_gone`、`unborn` 或 `empty` 时直接展示明确中文原因提示，绝不误导显示为“0 个提交”；
+    - 支持 `所有历史`（默认）、`当前分支`、`当前任务`（`scope=task`，按固定任务基线精确解析 `baseOid..HEAD` 或 `unborn` 全历史）、`待推送`、`远端新增` 五种快捷范围；
+    - 支持组合关键字（`q`）、作者（`author`）、起止日期（`since`/`until`）与字面路径（`path`）向服务端请求，且可写工作树下提交行菜单提供一键“设为当前工作树任务基线”；
+    - 遇到 `no_worktree`、`no_task_baseline`、`detached_no_branch`、`no_upstream`、`upstream_gone`、`unborn` 或 `empty` 时直接展示明确中文原因提示与操作入口，绝不误导显示为“0 个提交”；
     - 筛选或刷新后若原选中提交仍在首屏则保留选中，否则说明原因并在存在 `HEAD` 时提供一键“定位当前 HEAD”；
   - `%P` 拓扑车道图与游标流式分页：
     - 基于真实父提交 `%P` 渲染节点、分支/标签/`HEAD` 徽标、`direct` 实线边、`indirect` 虚线边（当路径或关键字过滤省略中间节点时额外显示“筛选省略中间节点”）及页尾 `boundary` 延续短边；
@@ -109,6 +110,21 @@
     - 点击状态栏触发器展开碰撞内边距受控的 `Popover`，查看最近操作列表、`op:` 实例 ID、`reviewReasons` 与脱敏输出；
     - 请求超时或网络中断时前端优先通过 `GET .../git/operations` 按 `clientRequestId`/`operationId` 轮询恢复终态，刷新页面或跨设备打开时自动恢复未确认的 `needs_review` / `uncertain` 横幅；
     - 处于未核实的 `uncertain` 状态时禁用盲目一键重新提交，引导先点击“刷新历史与暂存区核实”。
+- **US-J24 工作树固定任务审阅基线、单份净变更审阅与任务交付收尾摘要**：作为在任务工作树中委派 CLI Agent 多轮提交修改后再统一审阅交付的使用者，我希望工作树固定记录任务起点基线，支持在工作区完全干净时按单份净差异审阅全部任务变化、筛选任务范围提交，并在收尾摘要中完成返回会话、推送、归档与安全清理。
+  验收要点：
+  - 固定任务基线自动捕获、手动指定与 GC 保护生命周期：
+    - 通过 WebMux 新建工作树（含快速开始新建任务工作树）时自动记录 `source: "worktree_create"` 的 `baseOid` 基线；`unborn` 空仓启动首个会话时自动记录 `unborn: true`（绝不伪造全零 OID）；
+    - 存量未记录基线的工作树支持通过 `PUT .../git/task-baseline`（将当前 `HEAD` 或 `Log` 历史提交设为起点，记录 `source: "manual_select"`）与 `DELETE .../git/task-baseline` 管理；
+    - 若手动设定基线时工作区存在未提交改动，`cleanAtStart` 为 `false` 并记录 `preExistingChanges`，界面显式提示“相对所选提交的全部变化（含设定前已存在修改）”；
+    - 基线持久化于 `git-task-baselines.json`（纳入 `statefile.Catalog`、`persistence_inventory.json` 与 `webmux config show`），非 `unborn` 基线同步写入 `refs/webmux/baselines/<worktreeId>` 防止 `git gc` 回收对象；
+    - 基线一经记录绝不随 `fetch`、远端默认分支推进或本地 `HEAD` 前进漂移；关闭或归档会话保留基线，移除/批量移除/释放工作树、注销仓库或清除基线时同步清理基线记录与私有引用；
+  - 单份净变更聚合审阅与干净工作区完整可读（`A09`）：
+    - `Commit` 视图顶部提供 `未提交改动` 与 `相对任务起点的变化` 双审阅范围切换并支持 `?view=commit&scope=task` 深链直达；
+    - `GET .../git/task-changes` 与 `GET .../git/task-diff` 将任务起点树与当前工作区状态合并为每条路径最多一项净变更：同一文件历经多笔提交与未提交编辑绝不重复计数，修改后还原归零，重命名保留 `oldPath → newPath`，并接入 `/git/snapshots/{snapshotId}` 支持变更前后全文与原始字节下载；
+    - 当 Agent 已将全部修改提交且工作区 100% 干净（`uncommittedCount === 0`）时，`相对任务起点的变化` 仍完整列出任务净变更文件并在 Pierre `CodeDiffReader` 中阅读差异，同时在 `未提交改动` 空状态展示一键切换审阅入口；
+  - 任务交付与收尾摘要及非自动删树保护（`G12`）：
+    - 底部收尾摘要汇总净变更文件数、任务提交数、未提交项、待推提交与工作树关联的运行中/已结束/已归档会话计数；
+    - 提供“返回会话”、“推送提交…”（直达 ~900px 宽幅 `GitPushDialog`）、“归档已完成会话”与 `linked` 工作树的“移除工作树…”（复用 `RemoveWorktreeDialog` 安全检查）出口，推送成功绝不自动删除工作树。
 
 依据：
 
@@ -141,3 +157,10 @@
   - 服务端测试：[工作区幂等与崩溃对账测试](../../../../internal/workspace/operations_test.go)、[操作查询与 409 API 测试](../../../../internal/api/git_operations_test.go)；
   - 前端控制器与组件：[操作领域模型](../../../../web/src/domains/workspace/git-operations-model.ts)、[操作与重连控制器](../../../../web/src/hooks/workspace/git-operations-controller.svelte.ts)、[底部状态栏与历史弹层](../../../../web/src/components/workspace/GitWorkbenchStatusBar.svelte)；
   - 测试验证：[操作模型单测](../../../../web/test/git-operations.test.ts)、[状态栏与重连浏览器测试](../../../../web/test/browser/GitWorkbenchOperations.test.ts)、[持久账本与断线恢复 E2E](../../../../web/test/e2e/git-workbench-operations.spec.ts)。
+- 工作树固定任务审阅基线、单份净变更与收尾摘要：
+  - 服务端存储与路由：[基线存储](../../../../internal/workspace/task_baseline_store.go)、[基线捕获与引用保护](../../../../internal/workspace/task_baseline.go)、[任务接口路由](../../../../internal/api/git_task.go)；
+  - 服务端净差异：[单份净变更与快照](../../../../internal/codeview/task_diff.go)；
+  - 服务端测试：[基线生命周期测试](../../../../internal/workspace/task_baseline_test.go)、[单份净差异测试](../../../../internal/codeview/task_diff_test.go)、[任务接口测试](../../../../internal/api/git_task_test.go)；
+  - 前端请求与状态：[任务接口封装](../../../../web/src/platform/git-task-api.ts)、[任务审阅控制器](../../../../web/src/hooks/workspace/git-task-review.svelte.ts)；
+  - 前端面板组件：[任务净变更面板](../../../../web/src/components/workspace/GitTaskReviewPane.svelte)、[任务收尾摘要](../../../../web/src/components/workspace/GitTaskDeliverySummary.svelte)；
+  - 前端测试：[任务接口单测](../../../../web/test/git-task-api.test.ts)、[任务基线浏览器测试](../../../../web/test/browser/GitWorkbenchTaskBaseline.test.ts)、[任务基线与收尾 E2E](../../../../web/test/e2e/git-workbench-task-baseline.spec.ts)。
