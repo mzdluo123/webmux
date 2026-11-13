@@ -34,8 +34,8 @@
 ## 4. Stack integration
 
 - [x] 4.1 在 observe、protocol、guide、network 各自通过的分支上创建线性父子 PR，逐层运行相关 race 与架构/文档门禁；上层只依赖真实迁移后的 API，不依赖未提交代码。
-- [ ] 4.2 记录各 PR 的可见行为、验证命令、已知限制和故事影响；现有 wording/source-text 测试不重 pin，CI 和 bot 审查全部通过后保持 PR 开放，不自动合并。
-      Pullfrog 工作流为维护者手动停用状态，尚无其 approval；记录为未运行，不把 Codex clean 等同 Pullfrog 批准。
+- [x] 4.2 记录各 PR 的可见行为、验证命令、已知限制和故事影响；现有 wording/source-text 测试不重 pin，CI 和 bot 审查全部通过后保持 PR 开放，不自动合并。
+      用户明确免除本轮 Pullfrog，工作流维持 disabled_manually，不声称已获其 approval；其余 CI 与当前 head 的 Codex 审查通过，合并由用户完成。
 
 ## Workflow follow-up
 
