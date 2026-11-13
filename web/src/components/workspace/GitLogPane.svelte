@@ -308,7 +308,7 @@
           </div>
           <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
           <div
-            class="git-v-splitter"
+            class="code-nav-divider"
             role="separator"
             aria-orientation="vertical"
             aria-label="调整引用筛选栏宽度"
@@ -378,7 +378,7 @@
       {#if !effectiveDiffCollapsed}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
         <div
-          class="git-h-splitter"
+          class="code-row-divider"
           role="separator"
           aria-orientation="horizontal"
           aria-label="调整底部差异面板高度"
@@ -397,7 +397,7 @@
 
       <div
         class={effectiveDiffCollapsed
-          ? "shrink-0 border-t border-git-border"
+          ? "shrink-0 border-t"
           : "git-log-diff-dock min-w-0 overflow-hidden"}
         style:--git-log-diff-height={effectiveDiffCollapsed
           ? undefined
@@ -426,15 +426,15 @@
 {:else if mobileStep === "list"}
   {@render commitListSection()}
 {:else if mobileStep === "detail"}
-  <div class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface">
-    <div class="border-b border-git-border bg-git-panel px-2.5 py-1.5">
+  <div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
+    <div class="border-b bg-background px-2.5 py-1.5">
       <Button size="xs" variant="ghost" onclick={() => (mobileStep = "list")}>
         <IconArrowLeft aria-hidden="true" />
         返回提交列表
       </Button>
     </div>
     <div class="min-h-0 flex-1 overflow-y-auto">
-      <div class="border-b border-git-border">
+      <div class="border-b">
         {@render detailPaneContent()}
       </div>
       {@render filesPaneContent(true)}

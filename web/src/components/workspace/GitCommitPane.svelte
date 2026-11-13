@@ -297,12 +297,12 @@
     />
   {:else}
     <section
-      class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+      class="flex h-full min-h-0 min-w-0 flex-col bg-background"
       aria-label="工作树文件差异与代码块暂存"
     >
       {#if mobile}
         <div
-          class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel p-2"
+          class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-background p-2"
         >
           <Button
             size="xs"
@@ -372,7 +372,7 @@
   {/if}
 {/snippet}
 
-<div class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface">
+<div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
   <GitPanelToolbar>
     <SegmentedControl.Root
       wrap

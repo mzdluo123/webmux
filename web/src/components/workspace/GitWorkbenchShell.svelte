@@ -196,7 +196,7 @@
 </script>
 
 <div
-  class="git-workbench flex h-full min-h-0 min-w-0 flex-col border border-git-border bg-git-surface text-foreground"
+  class="git-workbench flex h-full min-h-0 min-w-0 flex-col border bg-background text-foreground"
   data-testid="git-workbench"
 >
   <GitWorkbenchShellHeader

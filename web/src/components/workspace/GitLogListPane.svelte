@@ -133,7 +133,7 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="提交历史列表"
 >
   <GitLogFilterBar
@@ -150,7 +150,7 @@
 
   {#if filterProps.scope === "task" && taskBaseline}
     <div
-      class="flex min-w-0 flex-wrap items-center justify-between gap-1.5 border-b border-git-border bg-git-panel px-2.5 py-1.5 text-xs"
+      class="flex min-w-0 flex-wrap items-center justify-between gap-1.5 border-b bg-background px-2.5 py-1.5 text-xs"
     >
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         <span class="text-muted-foreground">任务起点：</span>
@@ -241,7 +241,7 @@
 
   {#if historyState === "ready" && nextCursor && onLoadMoreHistory}
     <div
-      class="flex shrink-0 items-center justify-between gap-2 border-t border-git-border bg-git-panel px-2.5 py-1.5"
+      class="flex shrink-0 items-center justify-between gap-2 border-t bg-background px-2.5 py-1.5"
     >
       <span class="text-xs text-muted-foreground">
         已加载 {visibleCommits.length} 条提交

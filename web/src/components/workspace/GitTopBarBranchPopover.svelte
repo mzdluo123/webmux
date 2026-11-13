@@ -88,7 +88,7 @@
 
       <div class="max-h-80 space-y-2 overflow-y-auto pr-0.5">
         <ListButton
-          variant="git-row"
+          variant="compact-row"
           aria-selected={branchFilter === null}
           onclick={() => {
             open = false;

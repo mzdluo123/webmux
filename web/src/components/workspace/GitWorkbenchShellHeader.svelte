@@ -40,7 +40,7 @@
 </script>
 
 <header
-  class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel px-3 py-2"
+  class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-background px-3 py-2"
 >
   <div class="flex min-w-0 flex-wrap items-center gap-2">
     <div class="flex min-w-0 items-center gap-1.5">

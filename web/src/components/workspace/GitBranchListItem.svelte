@@ -71,7 +71,7 @@
   {onAction}
 >
   <ListButton
-    variant="git-row"
+    variant="compact-row"
     role={rowRole}
     data-branch-item-btn="true"
     data-has-action="true"

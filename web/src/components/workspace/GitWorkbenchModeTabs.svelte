@@ -17,8 +17,8 @@
 
 <div
   class={desktop
-    ? "flex shrink-0 flex-col border-r border-git-border bg-git-panel p-1.5"
-    : "flex min-w-0 shrink-0 items-center border-b border-git-border bg-git-panel px-2"}
+    ? "flex shrink-0 flex-col border-r bg-background p-1.5"
+    : "flex min-w-0 shrink-0 items-center border-b bg-background px-2"}
 >
   <Tabs.List
     variant="line"

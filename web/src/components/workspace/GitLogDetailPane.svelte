@@ -70,11 +70,11 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="提交详情元数据"
 >
   <div
-    class="flex items-center justify-between gap-2 border-b border-git-border bg-git-panel px-2.5 py-1.5"
+    class="flex items-center justify-between gap-2 border-b bg-background px-2.5 py-1.5"
   >
     <span class="text-xs font-semibold text-foreground">
       {compareMode ? "两版本比较详情" : "提交详情"}
@@ -104,7 +104,7 @@
   <div class="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3 text-xs">
     {#if compareMode}
       <div class="space-y-2">
-        <div class="rounded-md border border-git-border bg-git-panel p-2.5">
+        <div class="rounded-md border bg-background p-2.5">
           <div class="flex items-center justify-between gap-2">
             <Badge variant="outline">比较起点 (Base)</Badge>
             <Button
@@ -131,7 +131,7 @@
           {/if}
         </div>
 
-        <div class="rounded-md border border-git-border bg-git-panel p-2.5">
+        <div class="rounded-md border bg-background p-2.5">
           <div class="flex items-center justify-between gap-2">
             <Badge variant="info">比较终点 (Target)</Badge>
             <Button
@@ -171,9 +171,7 @@
       </p>
     {:else}
       {#if detail.parents.length > 1}
-        <div
-          class="space-y-1 rounded-md border border-git-border bg-git-panel p-2"
-        >
+        <div class="space-y-1 rounded-md border bg-background p-2">
           <span class="font-medium text-foreground">合并提交对比父节点：</span>
           <SegmentedControl.Root
             wrap
@@ -269,7 +267,7 @@
       </div>
 
       <div
-        class="space-y-1 rounded-md border border-git-border bg-git-panel p-2.5 text-muted-foreground"
+        class="space-y-1 rounded-md border bg-background p-2.5 text-muted-foreground"
       >
         <p class="wrap-anywhere">
           <span class="font-medium text-foreground">作者：</span

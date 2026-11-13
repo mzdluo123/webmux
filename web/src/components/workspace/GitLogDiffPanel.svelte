@@ -212,14 +212,14 @@
 {/snippet}
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="历史文件差异视图"
   data-testid="git-log-diff-panel"
   data-diff-presentation={presentation}
 >
   {#if presentation === "mobile"}
     <header
-      class="flex min-w-0 flex-col gap-1.5 border-b border-git-border bg-git-panel px-2.5 py-1.5"
+      class="flex min-w-0 flex-col gap-1.5 border-b bg-background px-2.5 py-1.5"
     >
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         {#if onBack}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ItemGroup } from "$lib/components/ui/item";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import type { GitAbortOperationPreview } from "../../contracts/schemas";
@@ -65,7 +66,7 @@
       </p>
     {:else if abortPreview}
       <section
-        class="min-w-0 rounded-lg border border-destructive/30 bg-git-panel p-3"
+        class="min-w-0 rounded-lg border border-destructive/30 bg-background p-3"
       >
         <div class="mb-2 flex min-w-0 flex-wrap items-center gap-1.5">
           <Badge variant="destructive" class="max-w-full">
@@ -110,9 +111,7 @@
       />
 
       {#if abortPreview.affectedPaths.length > 0}
-        <div
-          class="space-y-1.5 rounded-lg border border-git-border bg-git-surface p-2.5 text-xs"
-        >
+        <ItemGroup variant="panel" class="space-y-1.5">
           <span class="font-semibold text-foreground">
             将被重置或丢弃冲突修改的路径 ({abortPreview.affectedPaths.length})
           </span>
@@ -121,7 +120,7 @@
               <li class="break-all text-muted-foreground">{path}</li>
             {/each}
           </ul>
-        </div>
+        </ItemGroup>
       {/if}
 
       <GitOperationSessionAck

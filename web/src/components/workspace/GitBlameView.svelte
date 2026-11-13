@@ -49,12 +49,12 @@
 </script>
 
 <div
-  class="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
   data-testid="git-blame-view"
 >
   {#if trail.length > 0 && onStepBack}
     <div
-      class="flex flex-wrap items-center gap-1.5 border-b border-git-border bg-git-panel px-3 py-1.5 text-xs"
+      class="flex flex-wrap items-center gap-1.5 border-b bg-background px-3 py-1.5 text-xs"
       data-testid="git-blame-breadcrumb"
     >
       <span class="text-muted-foreground">溯源轨迹：</span>
@@ -74,7 +74,7 @@
 
   {#if selectedCommit && data?.kind === "text"}
     <div
-      class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel px-3 py-2 text-xs"
+      class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-background px-3 py-2 text-xs"
       data-testid="git-blame-selected-commit-bar"
     >
       <div class="min-w-0 flex-1 basis-48 space-y-0.5">
@@ -121,7 +121,7 @@
         {#if onJumpToCommit}
           <Button
             size="xs"
-            variant="git-primary"
+            variant="outline"
             onclick={() => onJumpToCommit(selectedCommit.oid)}
             data-testid="git-blame-jump-log-btn"
           >
@@ -152,7 +152,7 @@
         </InlineNotice>
       </div>
     {:else}
-      <div class="divide-y divide-git-border/40 font-mono text-xs">
+      <div class="divide-y divide-border/40 font-mono text-xs">
         {#each data.lines as line, idx (line.lineNumber)}
           {@const prevLine = idx > 0 ? data.lines[idx - 1] : null}
           {@const groupStart =
@@ -166,7 +166,7 @@
             data-blame-line={line.lineNumber}
           >
             <ListButton
-              variant="git-blame-gutter"
+              variant="provenance-gutter"
               title={meta
                 ? `${meta.shortOid} · ${meta.authorName} · ${meta.summary}`
                 : line.commitOid}
@@ -183,7 +183,7 @@
               {/if}
             </ListButton>
             <span
-              class="w-10 shrink-0 select-none border-r border-git-border/60 px-1.5 py-0.5 text-right text-muted-foreground"
+              class="w-10 shrink-0 select-none border-r px-1.5 py-0.5 text-right text-muted-foreground"
             >
               {line.lineNumber}
             </span>

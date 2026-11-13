@@ -87,7 +87,7 @@
       </p>
     {:else if preview}
       <div
-        class="min-w-0 space-y-2 rounded-lg border border-git-border bg-git-panel p-3 text-xs"
+        class="min-w-0 space-y-2 rounded-lg border bg-background p-3 text-xs"
       >
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           {#if preview.fastForward}
@@ -187,7 +187,7 @@
         取消
       </Button>
       <Button
-        variant="git-primary"
+        variant="default"
         wrap
         disabled={!canConfirm}
         onclick={onConfirm}

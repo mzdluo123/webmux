@@ -135,7 +135,7 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="相对任务起点的净变更"
   data-testid="git-task-review-pane"
 >
@@ -180,7 +180,7 @@
       </InlineNotice>
     </div>
   {:else if review.status === "no_task_baseline"}
-    <div class="space-y-2 border-b border-git-border bg-git-panel p-3 text-xs">
+    <div class="space-y-2 border-b bg-background p-3 text-xs">
       <InlineNotice tone="info">
         当前工作树尚未记录任务起点基线。新建任务工作树会自动捕获起点；存量工作树可将当前
         HEAD 或日志中的历史提交手动指定为任务起点。
@@ -189,7 +189,7 @@
         {#if onSetBaseline}
           <Button
             size="xs"
-            variant="git-primary"
+            variant="default"
             disabled={review.mutating}
             onclick={() => onSetBaseline()}
           >
@@ -204,9 +204,7 @@
       </div>
     </div>
   {:else if baseline}
-    <div
-      class="space-y-2 border-b border-git-border bg-git-panel px-3 py-2 text-xs"
-    >
+    <div class="space-y-2 border-b bg-background px-3 py-2 text-xs">
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         <span class="min-w-0 text-muted-foreground">
           任务提交 {review.commitCount} 笔 · 当前未提交 {review.uncommittedCount}
@@ -313,7 +311,7 @@
             {/if}
             <div class="min-w-0 flex-1">
               <ListButton
-                variant="git-row"
+                variant="compact-row"
                 role="option"
                 data-task-file-row="true"
                 aria-selected={isSelected}

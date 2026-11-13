@@ -39,7 +39,7 @@
 
 {#if operation.active}
   <section
-    class="border-b border-git-border bg-git-panel px-3 py-2 text-xs"
+    class="border-b bg-background px-3 py-2 text-xs"
     aria-label="进行中的 Git 操作协调恢复横幅"
     data-testid="git-in-progress-banner"
   >
@@ -105,7 +105,7 @@
         {#if operation.conflictedCount > 0 && onOpenConflictResolver && !conflictResolverOpen}
           <Button
             size="xs"
-            variant="git-primary"
+            variant="default"
             wrap
             disabled={busy}
             onclick={() =>

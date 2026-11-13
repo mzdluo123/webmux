@@ -168,7 +168,7 @@
 </script>
 
 <div
-  class="space-y-1.5 border-t border-git-border bg-git-panel p-2.5"
+  class="space-y-1.5 border-t bg-background p-2.5"
   data-testid="git-commit-composer"
 >
   <div
@@ -322,7 +322,7 @@
         提交并推送…
       </Button>
       <Button
-        variant="git-primary"
+        variant="default"
         disabled={!canPreviewCommit}
         title={disabledHint || undefined}
         onclick={() => onOpenCommitPreview(false)}

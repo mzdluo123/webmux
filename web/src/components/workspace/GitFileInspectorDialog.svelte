@@ -68,7 +68,7 @@
   onclose={handleClose}
 >
   <div
-    class="flex h-[70vh] max-h-[640px] min-h-[360px] min-w-0 flex-col overflow-hidden rounded-lg border border-git-border bg-git-surface"
+    class="flex h-[70vh] max-h-[640px] min-h-[360px] min-w-0 flex-col overflow-hidden rounded-lg border bg-background"
     data-testid="git-file-inspector-dialog"
   >
     <Tabs.Root
@@ -76,7 +76,7 @@
       onValueChange={setTab}
       class="flex min-h-0 min-w-0 flex-1 flex-col"
     >
-      <div class="border-b border-git-border bg-git-panel px-2.5">
+      <div class="border-b bg-background px-2.5">
         <Tabs.List
           variant="line"
           class="max-w-full flex-wrap group-data-horizontal/tabs:h-auto"

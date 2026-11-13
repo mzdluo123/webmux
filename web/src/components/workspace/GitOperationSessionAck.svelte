@@ -20,7 +20,7 @@
 </script>
 
 {#if sessions.length > 0}
-  <div class="space-y-2 rounded-lg border border-git-border p-3">
+  <div class="space-y-2 rounded-lg border p-3">
     <WorktreeSessionList
       title="当前工作树运行中的会话（不会关闭或重启）"
       {sessions}

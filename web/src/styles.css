@@ -578,7 +578,7 @@
   overflow: hidden;
 }
 .git-divider {
-  background: var(--git-border);
+  background: var(--border);
   touch-action: none;
 }
 .git-branch-tree-pane {
@@ -587,47 +587,25 @@
   max-width: min(360px, 40%);
   flex-shrink: 0;
 }
-.git-v-splitter {
-  width: 5px;
-  flex-shrink: 0;
-  cursor: col-resize;
-  touch-action: none;
-  background: linear-gradient(
-    to right,
-    transparent 2px,
-    var(--git-border) 2px,
-    var(--git-border) 3px,
-    transparent 3px
-  );
-}
-.git-v-splitter:hover,
-.git-v-splitter:focus-visible {
-  background: var(--ring);
-  outline: none;
-}
 .git-log-diff-dock {
   height: var(--git-log-diff-height, 280px);
   min-height: 140px;
   max-height: 68%;
   flex-shrink: 0;
 }
-.git-h-splitter {
-  height: 5px;
+/* Shared horizontal counterpart to the code navigation divider. */
+.code-row-divider {
+  position: relative;
+  height: 1px;
   flex-shrink: 0;
+  background: var(--border);
   cursor: row-resize;
   touch-action: none;
-  background: linear-gradient(
-    to bottom,
-    transparent 2px,
-    var(--git-border) 2px,
-    var(--git-border) 3px,
-    transparent 3px
-  );
 }
-.git-h-splitter:hover,
-.git-h-splitter:focus-visible {
-  background: var(--ring);
-  outline: none;
+.code-row-divider::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
 }
 [data-code-scrollbar]::-webkit-scrollbar {
   width: 0;

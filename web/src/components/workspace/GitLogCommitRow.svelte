@@ -83,7 +83,7 @@
   onkeydown={handleRowKeydown}
 >
   <ListButton
-    variant="git-row"
+    variant="compact-row"
     role="option"
     data-commit-row="true"
     data-has-action="true"

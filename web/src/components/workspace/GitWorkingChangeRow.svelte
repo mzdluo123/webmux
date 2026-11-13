@@ -78,7 +78,7 @@
 
     <div class="min-w-0 flex-1">
       <ListButton
-        variant="git-row"
+        variant="compact-row"
         role="option"
         data-working-change-row="true"
         aria-selected={isReading}
