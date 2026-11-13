@@ -394,7 +394,7 @@
         <InlineNotice tone="warning">
           目标工作树不可用或已锁定，写操作已禁用；仓库历史仍可只读浏览。
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             class="ml-2"
             onclick={openManageWorktrees}

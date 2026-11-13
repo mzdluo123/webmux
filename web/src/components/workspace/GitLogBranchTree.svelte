@@ -73,7 +73,7 @@
       { id: "favorites", label: "收藏分支", items: grouped.favorites },
       { id: "local", label: "本地分支", items: grouped.local },
       { id: "remote", label: "远端跟踪分支", items: grouped.remote },
-      { id: "tags", label: "标签 (Tags)", items: grouped.tags },
+      { id: "tags", label: "标签", items: grouped.tags },
     ].filter((sec) => sec.items.length > 0),
   );
 
@@ -140,7 +140,7 @@
         class="size-3.5 shrink-0 text-muted-foreground"
         aria-hidden="true"
       />
-      <span class="min-w-0 flex-1 truncate">全部引用 (All)</span>
+      <span class="min-w-0 flex-1 truncate">全部引用</span>
     </ListButton>
 
     {#if treeSections.length === 0}

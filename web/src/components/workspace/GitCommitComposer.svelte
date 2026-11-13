@@ -251,7 +251,7 @@
   <Textarea
     rows={2}
     value={parsed.body}
-    placeholder="补充提交正文描述（Body，选填）…"
+    placeholder="补充提交正文说明（选填）…"
     aria-label="补充正文描述"
     disabled={readonlyMode}
     oninput={(e) => updateBody(e.currentTarget.value)}

@@ -112,6 +112,7 @@ Git 工作台分栏使用 `git-pane` 与 `git-divider` 布局钩子类，只在�
 | `Checkbox`          | —                                                           | 复选框，配合 `Label` 使用                                                                                                                                                                       |
 | `ListButton`        | `row` / `text` / `content` / `option` / `tab` / `tab-close` | 列表、标签栏与卡片中的可点击区域。它不带控件尺寸，虚拟列表的固定行高不受影响；独立的操作按钮仍用 `Button`                                                                                       |
 | `ListButton`        | `navigation` / `navigation-action` / `file-tree-overlay`    | 侧栏导航行：`aria-pressed` 标记选中的筛选，`aria-current="page"` 标记当前页面；后两者用于带行尾操作按钮的侧栏行，见表下说明                                                                     |
+| `ListButton`        | `variant="review-toggle"`                                   | 常驻行内审阅图标；32px、紧凑触控 36px，aria-pressed 仅改变主题文字色，不绘制边框或填充选中块。                                                                                                  |
 | `ListButton`        | `variant="compact-row"` / `variant="file-tree-action"`      | Git 工作台紧凑选中行（`rounded-sm`，浅主题底色与左侧细线）及其行尾动作按钮（窄屏与触屏常驻、桌面悬停/聚焦显示）                                                                                 |
 | `ChatSelect`        | `labeled`、`searchable`                                     | 输入框下方的选择：`labeled` 同时显示当前值文字（快速开始的仓库与 agent），`searchable` 用可搜索面板筛选模型选项；带 `reason` 的选项保留在菜单中并禁用；基准分支改用可搜索的 `BranchCommandList` |
 

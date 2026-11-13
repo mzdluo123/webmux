@@ -209,23 +209,19 @@
       aria-label="分支列表"
       onkeydown={handleBranchListKeydown}
     >
-      {@render branchGroup("current", "当前检出 (Current)", grouped.current)}
-      {@render branchGroup(
-        "favorites",
-        "收藏分支 (Favorites)",
-        grouped.favorites,
-      )}
+      {@render branchGroup("current", "当前检出", grouped.current)}
+      {@render branchGroup("favorites", "收藏分支", grouped.favorites)}
       {@render branchGroup(
         "local",
-        "本地分支 (Local)",
+        "本地分支",
         grouped.local.filter((b) => !b.favorite),
       )}
       {@render branchGroup(
         "remote",
-        "远程跟踪分支 (Remote)",
+        "远程跟踪分支",
         grouped.remote.filter((b) => !b.favorite),
       )}
-      {@render branchGroup("tags", "标签 (Tags)", grouped.tags)}
+      {@render branchGroup("tags", "标签", grouped.tags)}
 
       {#if allVisible.length === 0}
         <p class="p-3 text-xs text-muted-foreground">没有匹配的分支或标签。</p>

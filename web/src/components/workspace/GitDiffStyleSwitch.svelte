@@ -3,11 +3,11 @@
 
   let {
     value = "unified",
-    label = "差异视图模式",
+    ariaLabel = "差异视图模式",
     onChange,
   }: {
     value?: "unified" | "split";
-    label?: string;
+    ariaLabel?: string;
     onChange?: (mode: "unified" | "split") => void;
   } = $props();
 </script>
@@ -19,7 +19,7 @@
       onChange?.(val);
     }
   }}
-  aria-label={label}
+  aria-label={ariaLabel}
 >
   <SegmentedControl.Item value="unified">统一</SegmentedControl.Item>
   <SegmentedControl.Item value="split">双栏</SegmentedControl.Item>

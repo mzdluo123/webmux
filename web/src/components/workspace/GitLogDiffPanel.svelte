@@ -8,7 +8,8 @@
   import IconMinimize from "~icons/tabler/minimize";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import GitDiffStyleSwitch from "./GitDiffStyleSwitch.svelte";
+  import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import type { GitCommitFile } from "../../contracts/git-workbench-schemas";
   import {
     type ActiveDiffReworkSelection,
@@ -193,7 +194,7 @@
     </Badge>
   {/if}
   {#if fileStatus}
-    <Badge variant="secondary" class="shrink-0">{fileStatus}</Badge>
+    <GitFileStatusIcon status={fileStatus} />
   {/if}
   <span
     class="min-w-0 truncate font-mono text-xs font-medium text-foreground"
@@ -254,20 +255,11 @@
         {@render snapshotSideButtons()}
 
         {#if !collapsed && phase === "ready"}
-          <SegmentedControl.Root
+          <GitDiffStyleSwitch
             value={diffMode}
-            onValueChange={(val) => {
-              if (val === "unified" || val === "split") {
-                onDiffModeChange?.(val);
-              }
-            }}
-            aria-label="历史差异布局模式"
-          >
-            <SegmentedControl.Item value="unified"
-              >Unified</SegmentedControl.Item
-            >
-            <SegmentedControl.Item value="split">Split</SegmentedControl.Item>
-          </SegmentedControl.Root>
+            ariaLabel="历史差异布局模式"
+            onChange={(mode) => onDiffModeChange?.(mode)}
+          />
         {/if}
 
         {#if onToggleMaximized && filePath}

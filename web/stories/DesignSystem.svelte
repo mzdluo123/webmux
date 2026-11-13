@@ -1,4 +1,6 @@
 <script lang="ts">
+  import IconEye from "~icons/tabler/eye";
+  import IconEyeCheck from "~icons/tabler/eye-check";
   import Brand from "../src/components/shell/Brand.svelte";
   import {
     IconArrowRight,
@@ -468,6 +470,20 @@
           >修复首页排序</ListButton
         >
         <ListButton variant="navigation">更新文档</ListButton>
+        <div class="flex items-center gap-2">
+          <ListButton
+            variant="review-toggle"
+            aria-pressed={false}
+            aria-label="标记演示文件为已看"
+            title="标记为已看"><IconEye aria-hidden="true" /></ListButton
+          >
+          <ListButton
+            variant="review-toggle"
+            aria-pressed={true}
+            aria-label="取消演示文件已看"
+            title="取消已看"><IconEyeCheck aria-hidden="true" /></ListButton
+          >
+        </div>
         <Button size="sm" variant="ghost" aria-expanded="false"
           >提交 · 已完成</Button
         >

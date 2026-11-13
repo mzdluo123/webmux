@@ -41,6 +41,9 @@
         "file-tree-overlay": `${fileTree} pr-1.5 any-pointer-coarse:pr-(--control-touch-compact)`,
         "file-tree-root":
           "flex min-h-8 w-full touch-manipulation items-center gap-1.5 rounded-sm py-1 pr-7 pl-1.5 text-left text-xs font-semibold outline-none select-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring data-[drop-target=true]:bg-primary/10 data-[drop-target=true]:ring-1 data-[drop-target=true]:ring-inset data-[drop-target=true]:ring-primary max-sm:min-h-(--control-touch-compact) max-sm:pr-(--control-touch-compact) max-sm:text-sm any-pointer-coarse:min-h-(--control-touch-compact) any-pointer-coarse:pr-(--control-touch-compact) [-webkit-touch-callout:none]",
+        // Inline, always visible review toggle; state changes the icon tone only.
+        "review-toggle":
+          "flex size-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring aria-pressed:text-primary max-sm:size-(--control-touch-compact) any-pointer-coarse:size-(--control-touch-compact) [&_svg]:size-4",
         // The actions button over the end of a file-tree row: shown while
         // its row is hovered or focused or its menu is open, always on
         // touch screens. Inset by 1px so its hover fill leaves the row's

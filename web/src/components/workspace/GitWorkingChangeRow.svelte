@@ -69,9 +69,8 @@
       />
     {/if}
 
-    <Button
-      size="icon-sm"
-      variant="ghost"
+    <ListButton
+      variant="review-toggle"
       aria-pressed={isReviewed}
       aria-label={`标记已审阅 ${item.path}`}
       title={isReviewed ? `已审阅 ${item.path}` : `标记已审阅 ${item.path}`}
@@ -80,7 +79,7 @@
       {#if isReviewed}<IconEyeCheck aria-hidden="true" />{:else}<IconEye
           aria-hidden="true"
         />{/if}
-    </Button>
+    </ListButton>
 
     <div class="min-w-0 flex-1">
       <ListButton

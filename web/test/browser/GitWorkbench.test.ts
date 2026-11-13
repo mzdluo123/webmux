@@ -389,6 +389,18 @@ test("desktop Log pane filters by branch/tag without mutating checkedOutBranch, 
     .element(diffPanel.getByRole("button", { name: "文件内查找" }))
     .toBeVisible();
 
+  const layout = diffPanel.getByRole("radiogroup", {
+    name: "历史差异布局模式",
+  });
+  await layout.getByRole("radio", { name: "双栏", exact: true }).click();
+  await expect
+    .element(layout.getByRole("radio", { name: "双栏", exact: true }))
+    .toHaveAttribute("aria-checked", "true");
+  await layout.getByRole("radio", { name: "统一", exact: true }).click();
+  await expect
+    .element(layout.getByRole("radio", { name: "统一", exact: true }))
+    .toHaveAttribute("aria-checked", "true");
+
   // Keyboard ArrowDown selects second file, Enter maximizes Diff, Escape restores docked mode.
   const firstFileOpt = filesListbox.getByRole("option", {
     name: /web\/src\/git-graph-layout\.ts/,
@@ -432,7 +444,7 @@ test("desktop Log pane filters by branch/tag without mutating checkedOutBranch, 
   await expect.element(page.getByText("筛选省略中间节点")).toBeVisible();
 
   // Two-commit compare from commit row menu: mark base -> compare -> swap -> exit.
-  await tree.getByRole("button", { name: "全部引用 (All)" }).click();
+  await tree.getByRole("button", { name: "全部引用" }).click();
   await page.getByRole("button", { name: "提交操作 3333333" }).click();
   await page.getByRole("menuitem", { name: /设为比较起点/ }).click();
   await expect.element(page.getByText(/已设比较起点.*3333333/)).toBeVisible();
@@ -473,8 +485,20 @@ test("Commit pane separates reading/reviewed/staged states, stages single hunk, 
   await page.viewport(1280, 900);
   render(Harness, { initialState: createFixtureState("commit") });
 
-  // Mark reviewed without staging.
-  await page.getByRole("button", { name: "标记已审阅 web/src/app.ts" }).click();
+  // Mark reviewed without staging or changing the inline control's weight.
+  const review = page.getByRole("button", {
+    name: "标记已审阅 web/src/app.ts",
+  });
+  const before = review.element().getBoundingClientRect();
+  await review.click();
+  await expect.element(review).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("tab", { name: "提交", exact: true }).click();
+  const after = review.element().getBoundingClientRect();
+  expect(after.width).toBe(before.width);
+  expect(after.height).toBe(before.height);
+  const reviewedStyle = getComputedStyle(review.element());
+  expect(reviewedStyle.borderTopWidth).toBe("0px");
+  expect(reviewedStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
   await expect
     .element(page.getByRole("button", { name: /^标记已审阅 / }).first())
     .toBeVisible();
