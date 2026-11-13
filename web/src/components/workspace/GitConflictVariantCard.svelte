@@ -29,8 +29,10 @@
 >
   <InlineNotice tone="warning">
     <div class="space-y-1">
-      <div class="flex flex-wrap items-center gap-1.5">
-        <Badge variant="warning">{gitConflictKindLabel(detail.kind)}</Badge>
+      <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+        <Badge variant="warning" class="max-w-full">
+          <span class="truncate">{gitConflictKindLabel(detail.kind)}</span>
+        </Badge>
         <span class="font-mono break-all font-medium">{detail.path}</span>
       </div>
       <p class="leading-relaxed">

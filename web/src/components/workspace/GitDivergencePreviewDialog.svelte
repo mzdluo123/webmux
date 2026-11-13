@@ -87,19 +87,31 @@
       </p>
     {:else if preview}
       <div
-        class="space-y-2 rounded-lg border border-git-border bg-git-panel p-3 text-xs"
+        class="min-w-0 space-y-2 rounded-lg border border-git-border bg-git-panel p-3 text-xs"
       >
-        <div class="flex flex-wrap items-center gap-1.5">
+        <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           {#if preview.fastForward}
-            <Badge variant="success">可无冲突快进 (Fast-Forward)</Badge>
+            <Badge variant="success" class="max-w-full">
+              <span class="truncate">可无冲突快进 (Fast-Forward)</span>
+            </Badge>
           {/if}
           {#if preview.alreadyUpToDate}
-            <Badge variant="secondary">已包含目标提交，无需执行</Badge>
+            <Badge variant="secondary" class="max-w-full">
+              <span class="truncate">已包含目标提交，无需执行</span>
+            </Badge>
           {/if}
           {#if preview.currentBranch}
-            <Badge variant="info">{preview.currentBranch}</Badge>
+            <Badge variant="info" class="max-w-full">
+              <span class="truncate" title={preview.currentBranch}>
+                {preview.currentBranch}
+              </span>
+            </Badge>
           {/if}
-          <Badge variant="outline">{preview.targetRef}</Badge>
+          <Badge variant="outline" class="max-w-full">
+            <span class="truncate" title={preview.targetRef}>
+              {preview.targetRef}
+            </span>
+          </Badge>
         </div>
 
         <p class="text-sm font-medium wrap-anywhere text-foreground">

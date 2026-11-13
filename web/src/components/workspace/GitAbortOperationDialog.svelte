@@ -64,13 +64,21 @@
         正在读取操作前锚点（ORIG_HEAD）与未提交冲突文件…
       </p>
     {:else if abortPreview}
-      <section class="rounded-lg border border-destructive/30 bg-git-panel p-3">
-        <div class="mb-2 flex flex-wrap items-center gap-1.5">
-          <Badge variant="destructive">
-            中止 {gitSequencerKindLabel(abortPreview.kind)}
+      <section
+        class="min-w-0 rounded-lg border border-destructive/30 bg-git-panel p-3"
+      >
+        <div class="mb-2 flex min-w-0 flex-wrap items-center gap-1.5">
+          <Badge variant="destructive" class="max-w-full">
+            <span class="truncate">
+              中止 {gitSequencerKindLabel(abortPreview.kind)}
+            </span>
           </Badge>
           {#if abortPreview.currentBranch}
-            <Badge variant="info">{abortPreview.currentBranch}</Badge>
+            <Badge variant="info" class="max-w-full">
+              <span class="truncate" title={abortPreview.currentBranch}>
+                {abortPreview.currentBranch}
+              </span>
+            </Badge>
           {/if}
         </div>
         <p class="mb-2 text-sm font-semibold wrap-anywhere text-foreground">
