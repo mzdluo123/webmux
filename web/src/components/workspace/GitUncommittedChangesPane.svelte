@@ -158,10 +158,10 @@
       : [...batchSelectedIds, item.id];
   }
   const sections: { key: GitChangeGroup; title: string }[] = [
-    { key: "conflicted", title: "冲突 (Conflicts)" },
-    { key: "staged", title: "已暂存 (Staged · Git index)" },
-    { key: "unstaged", title: "未暂存修改 (Unstaged)" },
-    { key: "untracked", title: "未跟踪文件 (Untracked)" },
+    { key: "conflicted", title: "冲突" },
+    { key: "staged", title: "已暂存" },
+    { key: "unstaged", title: "未暂存" },
+    { key: "untracked", title: "未跟踪" },
   ];
 
   const visibleEntries = $derived.by(() => {

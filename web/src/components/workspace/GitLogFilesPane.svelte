@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import IconArrowsExchange from "~icons/tabler/arrows-exchange";
   import IconFileSearch from "~icons/tabler/file-search";
   import IconHistory from "~icons/tabler/history";
@@ -265,17 +266,7 @@
             if (!phone) onExpandFile?.(pathKey);
           }}
         >
-          <Badge
-            variant={file.status === "D"
-              ? "destructive"
-              : file.status === "A"
-                ? "info"
-                : file.status === "R"
-                  ? "warning"
-                  : "outline"}
-          >
-            {file.status}
-          </Badge>
+          <GitFileStatusIcon status={file.status} />
 
           <span
             class="min-w-0 flex-1 truncate font-mono text-xs"
