@@ -280,27 +280,31 @@ export const GitCommitIdentitySchema = z.object({
 });
 export type GitCommitIdentity = z.infer<typeof GitCommitIdentitySchema>;
 
-export const GitCommitPreviewSchema = z.object({
+export const GitWorktreeConfirmationEnvelopeSchema = z.object({
   confirmationId: z.string(),
   expiresAt: z.iso.datetime({ offset: true }).nullable(),
   repositoryId: z.string(),
   worktreeId: z.string(),
   worktreePath: z.string(),
-  headState: z.enum(["branch", "detached", "unborn"]),
-  branch: z.string().optional(),
-  headOid: z.string().optional(),
-  expectedTreeOid: z.string().optional(),
-  indexDigest: z.string(),
-  stagedFiles: z.array(GitCommitFileChangeSchema),
-  unstagedCount: z.number().int().nonnegative(),
-  untrackedCount: z.number().int().nonnegative(),
-  conflictedCount: z.number().int().nonnegative(),
-  operation: z.string().optional(),
-  identity: GitCommitIdentitySchema,
-  executableHooks: z.array(z.string()),
-  blockers: z.array(IssueSchema),
-  warnings: z.array(IssueSchema),
 });
+
+export const GitCommitPreviewSchema =
+  GitWorktreeConfirmationEnvelopeSchema.extend({
+    headState: z.enum(["branch", "detached", "unborn"]),
+    branch: z.string().optional(),
+    headOid: z.string().optional(),
+    expectedTreeOid: z.string().optional(),
+    indexDigest: z.string(),
+    stagedFiles: z.array(GitCommitFileChangeSchema),
+    unstagedCount: z.number().int().nonnegative(),
+    untrackedCount: z.number().int().nonnegative(),
+    conflictedCount: z.number().int().nonnegative(),
+    operation: z.string().optional(),
+    identity: GitCommitIdentitySchema,
+    executableHooks: z.array(z.string()),
+    blockers: z.array(IssueSchema),
+    warnings: z.array(IssueSchema),
+  });
 export type GitCommitPreview = z.infer<typeof GitCommitPreviewSchema>;
 
 export const GitCommitRequestSchema = z
@@ -363,6 +367,12 @@ const GitOperationKindSchema = z.enum([
   "fetch",
   "fast_forward",
   "switch",
+  "merge",
+  "rebase",
+  "cherry_pick",
+  "revert",
+  "continue",
+  "abort",
 ]);
 export type GitOperationKind = z.infer<typeof GitOperationKindSchema>;
 

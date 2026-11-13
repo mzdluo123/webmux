@@ -177,4 +177,87 @@ func wireGitWorkbench(f *wireFixture) {
 	}, 409)
 
 	f.call("git-task-baseline-delete", "DELETE", writeBase+"/task-baseline", nil, 204)
+
+	// 7. V2 Divergence (Merge / Rebase / Cherry-pick / Revert), 3-way conflict resolver, Continue & Abort.
+	// Clean working tree on main first so divergence previews are unblocked.
+	f.git("checkout", "--", "sub/b.txt")
+	f.git("clean", "-fd")
+	f.call("git-operation-state-idle", "GET", writeBase+"/operation-state", nil, 200)
+
+	// Create a diverging local branch `feat-conflict` from firstOID that edits sub/b.txt differently.
+	f.git("checkout", "-b", "feat-conflict", firstOID)
+	if err := os.WriteFile(filepath.Join(f.root, "sub", "b.txt"), []byte("bee\ndragonfly\n"), 0o600); err != nil {
+		f.t.Fatal(err)
+	}
+	f.git("add", "sub/b.txt")
+	f.git("commit", "-m", "feat: dragonfly in b.txt")
+	conflictBranchOID := f.gitOutput("rev-parse", "HEAD")
+	f.git("checkout", "main")
+
+	// Preview rebase, cherry-pick, revert, and merge.
+	f.call("git-rebase-preview", "POST", writeBase+"/rebase-preview", contract.GitBranchDivergencePreviewRequest{
+		RefKind: "local",
+		RefName: "feat-conflict",
+	}, 200)
+	f.call("git-cherry-pick-preview", "POST", writeBase+"/cherry-pick-preview", contract.GitCommitDivergencePreviewRequest{
+		CommitOID: conflictBranchOID,
+	}, 200)
+	f.call("git-revert-preview", "POST", writeBase+"/revert-preview", contract.GitCommitDivergencePreviewRequest{
+		CommitOID: secondOID,
+	}, 200)
+	mergePreview := f.call("git-merge-preview", "POST", writeBase+"/merge-preview", contract.GitBranchDivergencePreviewRequest{
+		RefKind: "local",
+		RefName: "feat-conflict",
+	}, 200)
+
+	// Execute merge -> hits text conflict in sub/b.txt (HTTP 200 outcome: "conflicted").
+	f.call("git-merge-conflicted", "POST", writeBase+"/merge", contract.GitDivergenceExecuteRequest{
+		ConfirmationID:  str(mergePreview, "confirmationId"),
+		ClientRequestID: "wire-merge-1",
+	}, 200)
+	f.call("git-operation-state", "GET", writeBase+"/operation-state", nil, 200)
+
+	// Attempting Continue before resolving must return 409 reason="conflicted".
+	f.call("error-409-git-conflicted", "POST", writeBase+"/operation-continue", contract.GitContinueOperationRequest{
+		Kind: "merge",
+	}, 409)
+
+	// Inspect 3-way conflict -> Save draft to worktree -> Mark as Resolved -> Continue!
+	conflictDetail := f.call("git-conflict-detail", "GET", writeBase+"/conflict?path="+url.QueryEscape("sub/b.txt"), nil, 200)
+	savedRes := f.call("git-conflict-save", "POST", writeBase+"/conflict/save", map[string]any{
+		"identity":   field(conflictDetail, "identity"),
+		"resultText": "bee\nbutterfly\ndragonfly\n",
+	}, 200)
+	f.call("git-conflict-resolve", "POST", writeBase+"/conflict/resolve", map[string]any{
+		"identity":   field(savedRes, "identity"),
+		"resolution": "text",
+		"resultText": "bee\nbutterfly\ndragonfly\n",
+	}, 200)
+	f.call("git-operation-continue", "POST", writeBase+"/operation-continue", contract.GitContinueOperationRequest{
+		Kind:            "merge",
+		ClientRequestID: "wire-continue-1",
+	}, 200)
+
+	// Trigger cherry-pick conflict and exercise PreviewAbortOperation + AbortOperation!
+	// Create another conflicting commit on feat-conflict so cherry-picking it conflicts cleanly.
+	f.git("checkout", "feat-conflict")
+	if err := os.WriteFile(filepath.Join(f.root, "sub", "b.txt"), []byte("bee\nfirefly\n"), 0o600); err != nil {
+		f.t.Fatal(err)
+	}
+	f.git("add", "sub/b.txt")
+	f.git("commit", "-m", "feat: firefly conflict")
+	fireflyOID := f.gitOutput("rev-parse", "HEAD")
+	f.git("checkout", "main")
+
+	cpPreview := f.call("git-cherry-pick-preview-2", "POST", writeBase+"/cherry-pick-preview", contract.GitCommitDivergencePreviewRequest{
+		CommitOID: fireflyOID,
+	}, 200)
+	f.call("git-cherry-pick-conflicted", "POST", writeBase+"/cherry-pick", contract.GitDivergenceExecuteRequest{
+		ConfirmationID: str(cpPreview, "confirmationId"),
+	}, 200)
+	abortPreview := f.call("git-abort-preview", "POST", writeBase+"/operation-abort-preview", contract.GitAbortOperationPreviewRequest{}, 200)
+	f.call("git-operation-abort", "POST", writeBase+"/operation-abort", contract.GitAbortOperationRequest{
+		ConfirmationID:  str(abortPreview, "confirmationId"),
+		ClientRequestID: "wire-abort-1",
+	}, 200)
 }

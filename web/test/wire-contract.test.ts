@@ -312,9 +312,37 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.GitReviewsResponseSchema, ["git-reviews", "git-reviews-put"]],
   [S.GitCommitDraftSchema, ["git-commit-draft-empty", "git-commit-draft-put"]],
   [
+    S.GitInProgressOperationSchema,
+    ["git-operation-state", "git-operation-state-idle"],
+  ],
+  [
+    S.GitDivergencePreviewSchema,
+    [
+      "git-merge-preview",
+      "git-rebase-preview",
+      "git-cherry-pick-preview",
+      "git-cherry-pick-preview-2",
+      "git-revert-preview",
+    ],
+  ],
+  [S.GitAbortOperationPreviewSchema, ["git-abort-preview"]],
+  [
+    S.GitDivergenceResultSchema,
+    [
+      "git-merge-conflicted",
+      "git-cherry-pick-conflicted",
+      "git-operation-continue",
+      "git-operation-abort",
+    ],
+  ],
+  [S.GitConflictFileDetailSchema, ["git-conflict-detail"]],
+  [S.GitSaveConflictResponseSchema, ["git-conflict-save"]],
+  [S.GitResolveConflictResponseSchema, ["git-conflict-resolve"]],
+  [
     S.GitConflictSchema,
     [
       "error-409-git-busy",
+      "error-409-git-conflicted",
       "error-409-git-context-mismatch",
       "error-409-git-draft-conflict",
       "error-409-git-idempotency",

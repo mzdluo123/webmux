@@ -800,6 +800,34 @@
     "internal/workspace/workbench_collab_store.go|*Service.loadWorkbenchCollab|github.com/rainchan/webmux/internal/statefile.Open": {
       "count": 1,
       "owner": "git-workbench-state"
+    },
+    "internal/worktreefs/write.go|RemoveEntry|golang.org/x/sys/unix.Unlinkat": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|WriteRegular|golang.org/x/sys/unix.Openat": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|WriteRegular|golang.org/x/sys/unix.Renameat": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|WriteRegular|golang.org/x/sys/unix.Unlinkat": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|openParentDir|golang.org/x/sys/unix.Open": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|openParentDir|golang.org/x/sys/unix.Openat": {
+      "count": 2,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|readExistingDigestAt|golang.org/x/sys/unix.Openat": {
+      "count": 1,
+      "owner": "read-only-codeview"
     }
   }
 }

@@ -1,0 +1,29 @@
+{
+  "status": 200,
+  "body": {
+    "inProgress": {
+      "active": true,
+      "canAbort": true,
+      "canContinue": true,
+      "conflictedCount": 0,
+      "conflictedFiles": [],
+      "continueBlockers": [],
+      "currentBranch": "main",
+      "detached": false,
+      "headOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+      "headSubject": "feat: commit staged a.txt",
+      "kind": "merge",
+      "origHeadOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+      "origHeadSubject": "feat: commit staged a.txt",
+      "sourceLabel": "refs/heads/feat-conflict",
+      "sourceOid": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+      "sourceSubject": "feat: dragonfly in b.txt",
+      "targetLabel": "main",
+      "targetOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+      "targetSubject": "feat: commit staged a.txt",
+      "worktreeId": "<id#2>",
+      "worktreePath": "<repo>"
+    },
+    "path": "sub/b.txt"
+  }
+}

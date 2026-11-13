@@ -7,6 +7,8 @@ import type {
 import type { writeGitTargetMemory } from "../../domains/workspace/git-workbench-memory";
 import type { buildGitRouteHref } from "../shared/route";
 import { createGitCommitDraftController } from "./git-commit-draft.svelte";
+import { createGitConflictController } from "./git-conflict-controller.svelte";
+import { createGitDivergenceController } from "./git-divergence-controller.svelte";
 import { createGitLogCompareController } from "./git-log-compare.svelte";
 import { createGitLogDiffController } from "./git-log-diff.svelte";
 import { createGitLogHistoryController } from "./git-log-history.svelte";
@@ -149,6 +151,35 @@ export function createGitWorkbenchSubControllers(
     },
     onStatusBanner: (statusBanner) => deps.patchView({ statusBanner }),
   });
+  const divergence = createGitDivergenceController({
+    getRepoId: deps.getRepoId,
+    getWorktreeId: deps.getWorktreeTargetId,
+    getView: deps.getView,
+    patchView: deps.patchView,
+    operations,
+    onAfterMutation: async () => {
+      deps.onRefreshRepositories?.();
+      await Promise.all([
+        staging.refreshActiveSnapshot(),
+        logHistory.reloadHistory("refresh"),
+        taskReview.refresh(),
+      ]);
+    },
+    onOpenConflictResolver: (path) => {
+      void conflict.openResolver(path);
+    },
+    onCloseConflictResolver: () => {
+      conflict.closeResolver();
+    },
+  });
+  const conflict = createGitConflictController({
+    getRepoId: deps.getRepoId,
+    getWorktreeId: deps.getWorktreeTargetId,
+    getInProgress: () => divergence.inProgress,
+    onInProgressUpdated: (next) => divergence.setInProgressExternal(next),
+    onRefreshStaging: () => staging.refreshActiveSnapshot(),
+    onStatusBanner: (statusBanner) => deps.patchView({ statusBanner }),
+  });
 
   function disposeAll() {
     commitDraft.dispose();
@@ -161,6 +192,8 @@ export function createGitWorkbenchSubControllers(
     logCompare.dispose();
     logDiff.dispose();
     push.dispose();
+    divergence.dispose();
+    conflict.dispose();
   }
 
   function resetAllTargets(repoId: string, wtId?: string) {
@@ -173,6 +206,8 @@ export function createGitWorkbenchSubControllers(
     logHistory.resetTarget();
     logCompare.resetTarget();
     logDiff.resetTarget();
+    divergence.resetTarget();
+    conflict.resetTarget();
   }
 
   return {
@@ -186,6 +221,8 @@ export function createGitWorkbenchSubControllers(
     logCompare,
     logDiff,
     push,
+    divergence,
+    conflict,
     disposeAll,
     resetAllTargets,
   };

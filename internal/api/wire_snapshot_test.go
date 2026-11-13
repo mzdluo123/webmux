@@ -368,6 +368,32 @@ func wireSchema(name string) wireRules {
 		add("/operations/*", "id", "id", "repositoryId", "worktreeId", "confirmationId")
 		add("/operations/*", "time", "startedAt", "finishedAt")
 		add("/operations/*/preview", "path", "worktreePath")
+	case "git-operation-state", "git-operation-state-idle":
+		add("", "id", "worktreeId")
+		add("", "path", "worktreePath")
+	case "git-merge-preview", "git-rebase-preview", "git-cherry-pick-preview", "git-cherry-pick-preview-2", "git-revert-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-abort-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-merge-conflicted", "git-cherry-pick-conflicted", "git-operation-continue", "git-operation-abort":
+		add("", "id", "operationId", "recoveryRef")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
+	case "git-conflict-detail":
+		add("", "id", "repositoryId", "worktreeId")
+		add("", "path", "worktreePath")
+	case "git-conflict-save":
+		// path and identity are deterministic once file bytes are fixed.
+	case "git-conflict-resolve":
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
 	}
 	return rules
 }

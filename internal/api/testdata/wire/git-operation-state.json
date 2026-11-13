@@ -1,0 +1,43 @@
+{
+  "status": 200,
+  "body": {
+    "active": true,
+    "canAbort": true,
+    "canContinue": false,
+    "conflictedCount": 1,
+    "conflictedFiles": [
+      {
+        "kind": "text",
+        "path": "sub/b.txt",
+        "stage1Mode": "100644",
+        "stage1Oid": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+        "stage2Mode": "100644",
+        "stage2Oid": "de4296d3c6d9c4821c0fe09931f8422d01be768c",
+        "stage3Mode": "100644",
+        "stage3Oid": "efa25f5cb11c8d2fb11e015e85b70b7c498367f3",
+        "xy": "UU"
+      }
+    ],
+    "continueBlockers": [
+      {
+        "code": "conflicted",
+        "message": "仍有 1 个冲突文件尚未标记为已解决"
+      }
+    ],
+    "currentBranch": "main",
+    "detached": false,
+    "headOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "headSubject": "feat: commit staged a.txt",
+    "kind": "merge",
+    "origHeadOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "origHeadSubject": "feat: commit staged a.txt",
+    "sourceLabel": "refs/heads/feat-conflict",
+    "sourceOid": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+    "sourceSubject": "feat: dragonfly in b.txt",
+    "targetLabel": "main",
+    "targetOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "targetSubject": "feat: commit staged a.txt",
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

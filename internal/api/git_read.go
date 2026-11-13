@@ -56,6 +56,7 @@ func parseOptionalPositiveInt(raw string) (int, error) {
 func (s *Server) gitRoutes(mux *http.ServeMux) {
 	s.gitReadRoutes(mux)
 	s.gitWriteRoutes(mux)
+	s.gitDivergenceRoutes(mux)
 	s.gitTaskRoutes(mux)
 	s.gitCollabRoutes(mux)
 }

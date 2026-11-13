@@ -233,6 +233,19 @@
     },
     "configWarnings": []
   },
+  "gitAbortPreview": {
+    "confirmationId": "",
+    "expiresAt": null,
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "kind": "merge",
+    "directionSummary": "abort",
+    "affectedPaths": [],
+    "sessions": [],
+    "blockers": [],
+    "warnings": []
+  },
   "gitChanges": {
     "nextCursor": "",
     "total": 0,
@@ -302,6 +315,139 @@
       "checkedAt": "0001-01-01T00:00:00Z"
     }
   },
+  "gitConflictDetail": {
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "path": "a.txt",
+    "xy": "UU",
+    "kind": "text",
+    "textMergeable": true,
+    "identity": {
+      "path": "a.txt",
+      "leftStage": 2,
+      "rightStage": 3
+    },
+    "base": {
+      "side": "base",
+      "label": "base",
+      "role": "base",
+      "stage": 1,
+      "present": false,
+      "sizeBytes": 0,
+      "binary": false
+    },
+    "left": {
+      "side": "left",
+      "label": "left",
+      "role": "left",
+      "stage": 2,
+      "present": false,
+      "sizeBytes": 0,
+      "binary": false
+    },
+    "right": {
+      "side": "right",
+      "label": "right",
+      "role": "right",
+      "stage": 3,
+      "present": false,
+      "sizeBytes": 0,
+      "binary": false
+    },
+    "segments": [
+      {
+        "id": "seg-0",
+        "kind": "conflict",
+        "baseStart": 1,
+        "baseLines": [],
+        "leftStart": 1,
+        "leftLines": [],
+        "rightStart": 1,
+        "rightLines": []
+      }
+    ],
+    "initialResultText": "",
+    "diskHasConflictMarker": false,
+    "diskModifiedFromBase": false
+  },
+  "gitConflictResolve": {
+    "path": "a.txt",
+    "inProgress": {
+      "active": false,
+      "worktreeId": "tree0001",
+      "worktreePath": "/w",
+      "detached": false,
+      "conflictedCount": 0,
+      "conflictedFiles": [],
+      "canContinue": false,
+      "canAbort": false,
+      "continueBlockers": []
+    }
+  },
+  "gitDivergencePreview": {
+    "confirmationId": "",
+    "expiresAt": null,
+    "kind": "merge",
+    "repositoryId": "repo0001",
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "directionSummary": "merge",
+    "recoveryHint": "abort",
+    "targetRef": "origin/main",
+    "targetKind": "remote",
+    "targetOid": "0123456789abcdef0123456789abcdef01234567",
+    "targetSubject": "init",
+    "fastForward": false,
+    "alreadyUpToDate": false,
+    "commits": {
+      "total": 0,
+      "items": []
+    },
+    "sessions": [],
+    "blockers": [],
+    "warnings": []
+  },
+  "gitDivergenceResult": {
+    "kind": "merge",
+    "outcome": "completed",
+    "summary": "done",
+    "inProgress": {
+      "active": false,
+      "worktreeId": "tree0001",
+      "worktreePath": "/w",
+      "detached": false,
+      "conflictedCount": 0,
+      "conflictedFiles": [],
+      "canContinue": false,
+      "canAbort": false,
+      "continueBlockers": []
+    },
+    "worktree": {
+      "id": "",
+      "repositoryId": "",
+      "path": "",
+      "kind": "main",
+      "branch": null,
+      "head": null,
+      "detached": false,
+      "locked": false,
+      "lockReason": "",
+      "prunable": false,
+      "available": false,
+      "dirty": null,
+      "hasUntracked": false,
+      "hasIgnored": false,
+      "error": "",
+      "upstream": null,
+      "ahead": null,
+      "behind": null,
+      "upstreamGone": false,
+      "lastCommit": null,
+      "changes": null,
+      "operation": null
+    }
+  },
   "gitHistory": {
     "status": "ready",
     "scope": "all",
@@ -325,6 +471,17 @@
         "directParentsMissing": false
       }
     ]
+  },
+  "gitInProgress": {
+    "active": false,
+    "worktreeId": "tree0001",
+    "worktreePath": "/w",
+    "detached": false,
+    "conflictedCount": 0,
+    "conflictedFiles": [],
+    "canContinue": false,
+    "canAbort": false,
+    "continueBlockers": []
   },
   "gitOperation": {
     "id": "op000001",

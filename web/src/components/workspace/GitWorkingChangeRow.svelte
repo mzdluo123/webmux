@@ -1,4 +1,5 @@
 <script lang="ts">
+  import IconArrowsSplit2 from "~icons/tabler/arrows-split-2";
   import IconCheck from "~icons/tabler/check";
   import IconMinus from "~icons/tabler/minus";
   import IconPlus from "~icons/tabler/plus";
@@ -17,6 +18,7 @@
     onToggleReviewed,
     onStageChange,
     onUnstageChange,
+    onOpenConflictResolver,
   }: {
     item: GitWorkingChange;
     isReviewed?: boolean;
@@ -27,6 +29,7 @@
     onToggleReviewed: (change: GitWorkingChange) => void;
     onStageChange: (changeId: string) => void;
     onUnstageChange: (changeId: string) => void;
+    onOpenConflictResolver?: (path: string) => void;
   } = $props();
 </script>
 
@@ -90,7 +93,17 @@
   </div>
 
   {#if !readonlyMode}
-    {#if item.group === "staged"}
+    {#if item.group === "conflicted" && onOpenConflictResolver}
+      <Button
+        size="icon-xs"
+        variant="ghost"
+        aria-label={`打开三方冲突解决器 ${item.path}`}
+        title={`打开三方冲突解决器 ${item.path}`}
+        onclick={() => onOpenConflictResolver(item.path)}
+      >
+        <IconArrowsSplit2 aria-hidden="true" />
+      </Button>
+    {:else if item.group === "staged"}
       <Button
         size="icon-xs"
         variant="ghost"

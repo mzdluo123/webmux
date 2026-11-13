@@ -116,3 +116,23 @@
   - 前端 `git-collab.test.ts` 与全量 Vitest 单测（72 文件）、Vitest 浏览器套件（88 文件 / 740 项）、Storybook 全量多视口与 `320px` 2x 大字号溢出守卫（90 项）通过；
   - 隔离实例全量 Playwright E2E（490 项，含 `git-workbench-v1-collab.spec.ts` 桌面与 320px 手机视口）及性能套件（`test:performance`）通过。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
+
+## 2026-11-13：Git 工作台 09（V2）历史分叉与多步操作预览、无状态协调恢复及三方冲突解决器（US-J22、US-J23、US-J26）
+
+- 范围：
+  - `internal/worktreefs` 新增原子工作树文本写入与受限路径删除（`WriteAtomicFile` / `DeleteFile`），强制拒绝父分量符号链接逃逸与 `.git` 目录写入；
+  - `internal/workspace`、`internal/api`、`internal/contract`、`internal/wire` 新增 V2 分叉预览执行、协调恢复与三方冲突裁决端点及线上快照：
+    - 两阶段分叉与遴选回滚端点：`merge`、`rebase`、`cherry-pick`、`revert` 预览与执行；
+    - 协调恢复与三方冲突端点：`GET .../git/operation-state`、`POST .../git/operation-continue`、`POST .../git/operation-abort-preview`、`POST .../git/operation-abort`、`GET .../git/conflict`、`POST .../git/conflict/save`、`POST .../git/conflict/resolve`；
+    - 拒绝暴露任何 `push --force` 开关；推送 `non_fast_forward` 被拒对话框内联提供 `Fetch`、`Fast-Forward`、合并远端分支与变基到远端分支；
+    - 从 `.git` 真实 sequencer 元数据无状态读取进行中操作进度、不反转 Rebase 来源列语义（左侧为当前分支重放提交，右侧为变基目标基底），诚实披露 `Abort` 缺失回退锚点；
+    - 严格分离“写入工作树草稿（不暂存）”与“标记已解决（清除 `1..3` 暂存阶段）”，覆盖文本三方分块与二进制/删改/子模块/符号链接/超大文件专卡裁决；
+  - `web/src` 新增 V2 分叉预览、进行中操作横幅与三方冲突解决器前端实现：
+    - 契约与控制器：`git-conflict-schemas.ts`、`git-conflict-api.ts`、`git-divergence-controller.svelte.ts`、`git-conflict-controller.svelte.ts`；
+    - 视图组件：`GitDivergencePreviewDialog.svelte`、`GitInProgressBanner.svelte`、`GitAbortOperationDialog.svelte`、`GitConflictView.svelte`（含桌面三栏与窄屏单列折叠面板）。
+- 依据：
+  - `make persistence-check`、`make docs-check`、`make check` 通过；
+  - `go test -race ./...` 全量通过（含 `internal/worktreefs`、`internal/workspace`、`internal/api` wire 快照与 `internal/docguard`）；
+  - 前端 `git-conflict.test.ts` 与全量 Vitest 单测（73 文件 / 950 项）、`GitConflictView.test.ts` 与全量浏览器套件（89 文件 / 743 项）、Storybook 全量多视口与 `320px` 2x 大字号溢出守卫（94 项）通过；
+  - 隔离实例全量 Playwright E2E（494 项，含 `git-workbench-conflicts.spec.ts` 桌面与 320px 手机视口）及性能套件（`test:performance`）通过。
+- 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。

@@ -1,0 +1,37 @@
+{
+  "status": 200,
+  "body": {
+    "alreadyUpToDate": false,
+    "blockers": [],
+    "commits": {
+      "items": [
+        {
+          "author": "Wire test",
+          "committedAt": "2026-01-02T03:04:05Z",
+          "hash": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+          "subject": "feat: dragonfly in b.txt"
+        }
+      ],
+      "total": 1
+    },
+    "confirmationId": "<confirmationId#3>",
+    "currentBranch": "main",
+    "directionSummary": "将提交 9c24118c（feat: dragonfly in b.txt）遴选应用到工作树 repo 的分支 main（6b503797）",
+    "expiresAt": "<time>",
+    "fastForward": false,
+    "headOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "headSubject": "feat: commit staged a.txt",
+    "kind": "cherry_pick",
+    "mergeBaseOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+    "recoveryHint": "若发生冲突，可在三方冲突解决器中解决后点击 Continue 生成新提交，或点击 Abort 恢复到起点 6b503797。",
+    "repositoryId": "<id#1>",
+    "sessions": [],
+    "targetKind": "commit",
+    "targetOid": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+    "targetRef": "9c24118c",
+    "targetSubject": "feat: dragonfly in b.txt",
+    "warnings": [],
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

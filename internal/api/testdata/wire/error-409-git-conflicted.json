@@ -1,0 +1,7 @@
+{
+  "status": 409,
+  "body": {
+    "error": "仍有 1 个未解决的合并冲突，必须全部标记已解决后才能继续",
+    "reason": "conflicted"
+  }
+}

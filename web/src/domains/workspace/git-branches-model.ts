@@ -149,6 +149,8 @@ export type GitSharedBranchActionKind =
   | "checkout"
   | "create-branch-from"
   | "open-new-worktree"
+  | "merge-into-current"
+  | "rebase-onto"
   | "fetch"
   | "fast-forward"
   | "push"
@@ -264,6 +266,60 @@ export function resolveGitBranchActions(options: {
     );
   }
 
+  // V2 Divergence actions (Merge into current branch / Rebase current branch onto target)
+  if (item.kind !== "tag") {
+    const canDivergeOnBranch =
+      hasWritableWorktree &&
+      context.headState === "branch" &&
+      Boolean(context.checkedOutBranch) &&
+      !context.operationInProgress;
+    const divergeDisabledReason = !hasWritableWorktree
+      ? "当前为只读仓库视图，请先选择工作树"
+      : context.operationInProgress
+        ? `工作树正在进行 ${context.operationInProgress} 操作，请先继续或中止`
+        : context.headState !== "branch" || !context.checkedOutBranch
+          ? "当前工作树未检出命名分支，请先检出分支"
+          : undefined;
+
+    if (!isCurrent) {
+      actions.push(
+        {
+          kind: "merge-into-current",
+          label: context.checkedOutBranch
+            ? `合入当前分支 (${context.checkedOutBranch})…`
+            : "将此分支合入当前分支…",
+          disabled: !canDivergeOnBranch,
+          disabledReason: divergeDisabledReason,
+          separatorBefore: true,
+        },
+        {
+          kind: "rebase-onto",
+          label: context.checkedOutBranch
+            ? `将 ${context.checkedOutBranch} 变基到此分支…`
+            : "将当前分支变基到此分支…",
+          disabled: !canDivergeOnBranch,
+          disabledReason: divergeDisabledReason,
+        },
+      );
+    } else if (item.upstream && !item.upstreamGone) {
+      actions.push(
+        {
+          kind: "merge-into-current",
+          label: `合并上游 (${item.upstream})…`,
+          disabled: !canDivergeOnBranch,
+          disabledReason: divergeDisabledReason,
+          separatorBefore: true,
+        },
+        {
+          kind: "rebase-onto",
+          label: `变基到上游 (${item.upstream})…`,
+          disabled: !canDivergeOnBranch,
+          disabledReason: divergeDisabledReason,
+        },
+      );
+    }
+  }
+
   // Local branch remote sync & safe deletion actions
   if (item.kind === "local") {
     actions.push({
@@ -278,7 +334,7 @@ export function resolveGitBranchActions(options: {
         : upstream.kind === "gone"
           ? "远程上游分支已删除"
           : upstream.kind === "diverged"
-            ? "本地与上游已分叉，请在终端合并或变基"
+            ? "本地与上游已分叉，请使用合并或变基上游分支"
             : upstream.kind === "synced" || upstream.kind === "ahead"
               ? "上游没有领先本地的新提交"
               : undefined;
@@ -296,7 +352,7 @@ export function resolveGitBranchActions(options: {
         : "推送… (Push)";
     const pushDisabledReason =
       upstream.kind === "diverged"
-        ? "本地与上游已分叉，请在终端合并或变基后再推送"
+        ? "本地与上游已分叉，请先合并或变基上游分支后再推送"
         : upstream.kind === "behind"
           ? "分支落后于上游，请先快进更新"
           : upstream.kind === "synced"

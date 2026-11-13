@@ -265,6 +265,16 @@ export function applyShellBranchAction(options: {
         ...view,
         statusBanner: `已请求在新工作树打开 ${branch.name}…`,
       };
+    case "merge-into-current":
+      return {
+        ...view,
+        statusBanner: `已打开合并预览：将 ${branch.name === view.context.checkedOutBranch && branch.upstream ? branch.upstream : branch.name} 合入 ${view.context.checkedOutBranch ?? "当前分支"}`,
+      };
+    case "rebase-onto":
+      return {
+        ...view,
+        statusBanner: `已打开变基预览：将 ${view.context.checkedOutBranch ?? "当前分支"} 变基到 ${branch.name === view.context.checkedOutBranch && branch.upstream ? branch.upstream : branch.name} 之上`,
+      };
     case "fetch":
       return { ...view, statusBanner: "已触发远程获取 (Fetch)" };
     case "fast-forward":
