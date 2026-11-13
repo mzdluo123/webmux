@@ -15,10 +15,23 @@ const TerminalMovedSchema = z.object({
 });
 const groups: Array<[z.ZodType, string[]]> = [
   [
+    S.HandoffDraftSchema,
+    ["handoff-draft-empty", "handoff-draft-saved", "handoff-draft-delivery"],
+  ],
+  [
     S.HandoffPreviewSchema,
     ["handoff-preview-empty", "handoff-preview-manual", "handoff-preview-get"],
   ],
   [S.ErrorSchema, ["handoff-preview-conflict"]],
+  [S.HandoffSelectionSchema, ["handoff-selection-empty"]],
+  [
+    S.HandoffDeliverySchema,
+    [
+      "handoff-delivery-pending",
+      "handoff-delivery-failed",
+      "handoff-delivery-retry",
+    ],
+  ],
   [
     S.ConversationActivitiesSchema,
     ["conversation-activities", "conversation-activities-empty"],
@@ -176,6 +189,7 @@ const groups: Array<[z.ZodType, string[]]> = [
       "ws-terminal-state",
     ],
   ],
+  [S.TerminalOutputSchema, ["terminal-output"]],
   [z.array(S.SessionInfoSchema), ["sessions-list-empty", "sessions-list"]],
   [
     S.SettingsSnapshotSchema,

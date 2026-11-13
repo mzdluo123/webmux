@@ -2,9 +2,17 @@
 
 ## 功能覆盖核对
 
+MCP 本机连接、能力发现、会话列表与详情：US-S20；创建、发送和中断：US-S21；增量历史与终端回放：US-S22；按回合或进程退出等待：US-S23。
+
 完整 Activity、replay 对账和有界持久历史读取：US-Q05、US-Q12。
 
 交接历史选择、动态预算、持久预览与并发编辑：US-Q20；部署预算上限：US-K04。
+
+交接历史选择、动态预算、持久预览、并发编辑、fork inline 投递和跨重启幂等：US-Q20；部署预算上限：US-K04。
+
+交接历史选择、动态预算、持久预览、并发编辑、fork 位置选择、服务端草稿恢复、独立任务编辑、inline 投递和跨重启幂等：US-Q20；长引用换行：US-Q05；部署预算上限：US-K04。
+
+交接历史选择、动态预算、持久预览、并发编辑、fork 位置选择、服务端草稿恢复、独立任务编辑、inline 投递和跨重启幂等：US-Q20；长引用换行：US-Q05；部署预算上限与历史保存开关：US-K04；关闭区间、删除及投递保护：US-Q12。
 
 以下索引把可见页面、服务入口与配套工具映射到故事，补充各组故事。底层锁、队列和解析实现归入其支撑的用户行为，不各自包装成独立产品功能。
 
@@ -42,7 +50,7 @@
 | `run --new-worktree --view chat --prompt --reply` 分派任务与 `launch-config options`                                                                                    | US-S08；US-Q18                                      |
 | 按视图分派的 `send` 与 `interrupt`、`wait`、`logs`、`screen`（含 `--scrollback`）与会话事件                                                                             | US-S09–US-S11；US-D05                               |
 | `resize` 命令与 `POST /api/sessions/{id}/resize`（脚本改终端尺寸，`--take` 接管控制权）                                                                                 | US-S19；US-D06                                      |
-| `p2p status/peers/probe`：本机只读诊断与 CLI 临时 UDP STUN 探测                                                                                                         | US-S20；US-H12                                      |
+| `p2p status/peers/probe`：本机只读诊断与 CLI 临时 UDP STUN 探测                                                                                                         | US-S24；US-H12                                      |
 | `api`、`kill`、`rm`（含 `--forget`）、`rename` 与 shell 补全                                                                                                            | US-S11–US-S12                                       |
 | `notify` 提醒（来源 `cli`）与清除                                                                                                                                       | US-S13；US-C06、US-C12                              |
 | 聊天视图：`send --reply`、发送模式与排队提示、`chat status/watch/log/answer/set/permission/queue`                                                                       | US-S14；US-Q01–US-Q19                               |

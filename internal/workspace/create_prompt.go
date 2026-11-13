@@ -6,15 +6,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/session"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/rainchan/webmux/internal/hybrid"
-	"github.com/rainchan/webmux/internal/launch"
-	"github.com/rainchan/webmux/internal/session"
 )
 
 // resolvedCommand is the command a session start runs.
@@ -83,7 +82,7 @@ func (s *Service) resolveCommand(in CreateInput) (resolvedCommand, error) {
 // startSession starts a session in cwd or the selected worktree. Launch
 // config errors keep their launch error kinds; a config with hybrid mode
 // starts a hybrid session, whose errors keep their hybrid kinds.
-func (s *Service) startSession(ctx context.Context, cwd, name string, reference *Reference, command resolvedCommand, side hybrid.Side, initialPrompt func(id string) (string, error)) (*session.Session, bool, error) {
+func (s *Service) startSession(ctx context.Context, cwd, name string, reference *Reference, command resolvedCommand, side hybrid.Side, initialPrompt func(id string) (string, error), identity *HandoffIdentity) (*session.Session, bool, error) {
 	requestCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
@@ -145,7 +144,12 @@ func (s *Service) startSession(ctx context.Context, cwd, name string, reference 
 	var item *session.Session
 	var promptSent bool
 	if command.hybrid {
+		var runtimeID, threadID, executionID string
+		if identity != nil {
+			runtimeID, threadID, executionID = identity.RuntimeID, identity.ProviderThreadID, identity.ExecutionID
+		}
 		item, err = s.hybrids.Create(requestCtx, hybrid.CreateInput{
+			RuntimeID: runtimeID, ProviderThreadID: threadID, ContextExecutionID: executionID,
 			Cwd: path, Name: name, ConfigID: command.configID, Cmd: command.cmd, Env: command.env, StartSide: side,
 			Cols: command.cols, Rows: command.rows, Attention: command.attention,
 			InitialPrompt: initialPrompt, InitialPromptSent: &promptSent,
@@ -192,21 +196,20 @@ func (s *Service) composeTerminalPrompt(id string, plan createPlan) (string, err
 
 // sendFirstMessage sends the plan's first message to a chat session just
 // started with its attachments.
-func (s *Service) sendFirstMessage(ctx context.Context, item *session.Session, requestID string, plan createPlan) error {
+func (s *Service) sendFirstMessage(ctx context.Context, item *session.Session, requestID string, plan createPlan) (hybrid.PromptResult, error) {
 	id := item.Info().ID
 	attachments, err := s.adoptUploads(id, plan.attachments)
 	if err != nil {
-		return err
+		return hybrid.PromptResult{}, err
 	}
 	text, err := s.composePrompt(id, plan)
 	if err != nil {
-		return err
+		return hybrid.PromptResult{}, err
 	}
 	if requestID == "" {
 		requestID = "first-" + id
 	}
-	_, err = s.hybrids.Prompt(ctx, id, hybrid.PromptInput{ClientRequestID: requestID, Text: text, TitleSource: plan.title, Attachments: attachments})
-	return err
+	return s.hybrids.Prompt(ctx, id, hybrid.PromptInput{ClientRequestID: requestID, Text: text, TitleSource: plan.title, Attachments: attachments})
 }
 
 // composePrompt is the first prompt of session id: the expanded

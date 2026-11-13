@@ -1,14 +1,16 @@
 package conversation
 
-// PreviewRequest is a bounded immutable snapshot, stored privately in SQLite.
+// PreviewRequest freezes source, target and config privately in SQLite.
+// UserText is an independently editable draft until an execution seals its revision.
 // It excludes launch argv/env, attachment bodies and provider private state.
 type PreviewRequest struct {
 	ConfigID, AgentName, ConfigFingerprint, TargetProviderThreadID string
 	AgentConfig                                                    map[string]string
 	TargetConfigBaseline                                           map[string]string
 	UserText                                                       string
-	Fork                                                           bool
-	Location                                                       PreviewLocation
+	Fork, ForceFresh                                               bool
+	NativePlanned                                                  bool
+	Location, SourceLocation                                       PreviewLocation
 	Attachments                                                    []PreviewAttachment
 }
 
@@ -24,15 +26,17 @@ type PreviewBudget struct {
 }
 
 type Preview struct {
-	ID, SourceConversationID, TargetConversationID, TargetProviderThreadID   string
-	Strategy, State, HistoryOrigin                                           string
-	SourcePosition, SourceRunOrdinal, FromRunOrdinal, ToRunOrdinal, Revision int64
-	ReconcileRequired, Stale                                                 bool
-	Request                                                                  PreviewRequest
-	Budget                                                                   PreviewBudget
-	RenderedText                                                             string
-	ManualText                                                               *string
-	SelectedItemIDs, OmittedItemIDs                                          []string
+	ID, SourceConversationID, TargetConversationID, TargetProviderThreadID                       string
+	Strategy, State, HistoryOrigin                                                               string
+	SourcePosition, SourceRunOrdinal, FromRunOrdinal, ToRunOrdinal, Revision, TargetSeenPosition int64
+	HistoryToolAvailable                                                                         bool
+	ReconcileRequired, Stale                                                                     bool
+	Request                                                                                      PreviewRequest
+	Budget                                                                                       PreviewBudget
+	RenderedText                                                                                 string
+	ManualText                                                                                   *string
+	SelectedItemIDs, OmittedItemIDs                                                              []string
+	SelectedCount, OmittedCount                                                                  int
 }
 
 type PreviewReservation struct {

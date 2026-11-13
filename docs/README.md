@@ -8,10 +8,13 @@
 2. **安装并连通手机**：按 [安装与升级](deployment/install-and-upgrade.md) 启动服务，再用 [远程访问与 HTTPS](deployment/remote-access.md) 在手机上扫码或打开访问链接。
 3. **开始第一次对话**：阅读 [使用指南](usage.md) 的上手步骤，用“快速开始”或“新建会话”启动你的第一个 CLI agent。
 
+- [MCP 会话控制](usage/mcp.md)：连接客户端、发现启动配置与查询会话。
+
 ## 了解 WebMux
 
 - [项目介绍](overview.md)：定位、设计理念、全部特性、混合会话概览与技术栈。
 - [User Stories](user-stories.md)：每项功能的用户目的与验收要点，适合评审和查找“某个功能能做什么”。[连接与会话](user-stories/access-and-sessions.md)覆盖登录、启动和工作区。[草稿用户故事](user-stories/terminal/drafts.md)收录草稿、暂存及发送确认。
+- [2026-11-12 起的核对记录](user-stories/verification-log-2026-11-12.md)：本机客户端响应处理与测试环境隔离的验证证据。
 - [常见问题与获取帮助](faq.md)：常见疑问、排障入口与反馈渠道。
 
 ## 安装与部署
@@ -51,7 +54,10 @@
 - [参与贡献](../CONTRIBUTING.md)：开发环境、常用命令、测试、PR 与 OpenSpec 工作流。
 - [架构设计](architecture.md)：会话模型、缓冲与回放、状态探测、分层规则 R0–R11。
 - [API 与协议](protocol.md)：REST、WebSocket 帧与错误码（按主题分页）。
+  - [交接操作](hybrid-sessions/handoff.md)：换 Agent、新聊天位置、草稿与恢复。
   - [交接预览](protocol/http-handoff.md)：整项历史选择、预算、revision 与 stale。
+  - [只读历史 MCP](protocol/handoff-mcp.md)：目标 scope、分页恢复、可用性和生命周期。
+  - [Codex 原生历史](protocol/handoff-native.md)：已核实的版本、角色、独立用户 turn 与 unknown 恢复。
   - [持久对话历史](protocol/http-conversation.md)：Activity 分页、长文本余文、完整性和 portable projection。
 - [配置与持久化清单](persistence.md)：状态目录中每类文件的格式与治理。
 - [OpenSpec 规格索引](specs.md)：按主题列出 `openspec/specs/` 下的全部 capability。
@@ -60,6 +66,7 @@
 
 ## 性能与质量
 
+- [交接故障矩阵与性能验收](protocol/handoff-validation.md)：迁移清理、unknown、全局关闭、SQLite 与 selector 实测。
 - [布局稳定性与 4× CPU 回归](performance.md)：性能测试的测量方式与阈值。
 - [页面性能与连接稳定性验证](page-performance.md)：页面加载与重连的实测记录。
 - [内嵌二进制体积](binary-size.md)：发布二进制的体积对比。

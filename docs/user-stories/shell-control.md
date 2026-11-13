@@ -150,7 +150,35 @@
   - `webmux resize SESSION COLSxROWS [--take]` 调用该接口，成功时以 0 结束；格式错误或越界以 2 结束且不发请求；409、404 与其他失败以 1 结束并在标准错误给出原因；
   - 之后第一个取得控制权的浏览器或 `attach` 仍按自己的窗口调整尺寸。
 
-- **US-S20 从 shell 只读排查 P2P / WebRTC**：作为排查 Hard NAT 或 UDP 直连失败的维护者，我希望在本机与会话内读取真实状态并做有界 STUN 探测，以便区分已验证信息与未知指标。
+- **US-S20 从 MCP 查询 WebMux**：作为使用 MCP 客户端的 agent，我希望发现启动配置、查询会话和父子关系，以便选择正确的工作位置。
+  - `webmux mcp` 使用 CLI 相同的本机 API 连接规则；协议只写 stdout，不读取 Token，不启动服务。
+  - `capabilities` 仅返回配置 ID、名称、聊天支持、工具列表与视图，不返回启动 argv 或环境值。
+  - `session_list` 支持状态、父会话、仓库和运行状态筛选，分页默认 20、最多 100，并报告 nextOffset、done、total。
+  - `session_get` 返回既有 SessionDetails；非法 ID、未知及重复参数在访问 API 前拒绝。
+  - 交接历史 MCP 保持独立，只读冻结的历史范围；控制入口不改变该范围。
+  - 使用说明与限制见 [MCP 控制](../usage/mcp.md)，实现见 [控制工具](../../internal/mcpcontrol/control.go)和 [CLI 入口](../../internal/clicmd/mcp.go)。
+
+- **US-S21 从 MCP 启动和操作会话**：作为编排 agent，我希望在指定工作区启动会话、发送提示或中断，以便复用 WebMux 的执行与回执语义。
+  - `session_launch` 复用创建 API，支持启动配置、argv、已有或新 worktree、初始提示、设置与权限模式；要求显式稳定 clientRequestId。
+  - 返回已有创建结果、可用链接与实际提交的 initialInput；仅按真实回执提供等待选择器，空白提示与空初始化指令不伪造回合；部分失败保留 step 和已创建资源，链接读取失败不把成功创建伪装为失败。
+  - `session_send` 返回原输入回执，包括聊天回合 ID 或排队项与位置；终端写入不承诺执行完成。
+  - `session_interrupt` 复用中断 API；所有写入重试复用请求 ID，不扩大原有去重保留范围。
+  - [操作实现](../../internal/mcpcontrol/actions.go)、[回执测试](../../internal/mcpcontrol/actions_test.go)与 [MCP 使用说明](../usage/mcp.md)。
+
+- **US-S22 从 MCP 增量读取输出**：作为编排 agent，我希望分页读取聊天历史或终端回放，并知道哪些内容已丢失，以便在有界上下文中判断结果。
+  - `session_read` activity 视图按持久 position 读取 exportable 项，长项按字节偏移续读，保留真实缺口与来源完整性元数据。
+  - terminal 视图按 generation/offset 返回 base64 原始字节，每页最大 64 KiB，明确 limited、reset 和 historyTruncated；不发送输入或取得终端控制。
+  - 读取限时十秒；非法游标和超限页被拒绝，失败不停止会话。
+  - [读取实现](../../internal/mcpcontrol/read.go)、[隔离回放测试](../../internal/mcpcontrol/read_test.go)与 [MCP 使用说明](../usage/mcp.md)。
+
+- **US-S23 从 MCP 等待指定执行结果**：作为编排 agent，我希望按输入回执等待正确的回合并取回回复，以免把旧结果或终端静默认作新任务完成。
+  - `session_wait` turn 模式要求 turnId、queueItemId 或 firstTurn 三选一，跟踪匹配回合，不以其他回合结果替代；首回合历史淘汰时明确失败。
+  - 默认等待 30 秒、最多 60 秒；超时仅结束观察，返回 waitTimedOut，不取消任务或重发输入；0 为有界初始状态读取。
+  - 返回最终回复（最大 64 KiB、UTF-8 边界安全）、结束原因、当前后台工作标记和截断信息；不返回 thought。
+  - 待回答请求使等待返回 waiting_for_user；工具不自动批准。exit 模式等待进程退出，idle 不算完成。
+  - [等待实现](../../internal/mcpcontrol/wait.go)、[回合与排队测试](../../internal/mcpcontrol/wait_test.go)及 [MCP 使用说明](../usage/mcp.md)。
+
+- **US-S24 从 shell 只读排查 P2P / WebRTC**：作为排查 Hard NAT 或 UDP 直连失败的维护者，我希望在本机与会话内读取真实状态并做有界 STUN 探测，以便区分已验证信息与未知指标。
   - `p2p status` 读取运行实例的编译支持、开关、有效 STUN、配置来源、共享 ICE UDP 实际绑定端口和网关映射；nop2p 明确报告 WebRTC 已裁剪。
   - `p2p peers` 显示连接状态、候选对、IP 族、RTT、流通道数与创建时间；未知 RTT 不显示为正常零值，已测 0ms 保留；浏览器报告与流通道计数范围有明确说明。
   - `p2p probe` 使用配置 STUN 或单个显式目标，从 CLI 临时 UDP4/UDP6 端口发一次绑定请求，每目标最多 3 秒，整体超时含 DNS 且不超过 1 分钟，可取消。

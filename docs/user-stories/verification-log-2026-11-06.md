@@ -283,6 +283,22 @@
 - 限制：没有可见 UI 改动，本层不投递 prompt 或创建 worktree/session；尚未运行真实 provider 或原生 macOS 验收。
 - 失效补充：启动配置摘要包含聊天能力开关；目标选项基线与显式覆盖值单独保存，不依赖预算总数判断。禁用聊天后保留编辑、未知窗口下 model 漂移、明确覆盖前后及相同 POST 重试的 Go race 回归通过。
 
+## 2026-11-11：Handoff 05 inline 投递与持久幂等（US-Q20）
+
+- 范围：fork 到新 Conversation，cwd/已有或新 worktree，持久 receipt、资源 checkpoint、actor dispatch gate、独立用户请求与 inline coverage；US-Q20 和覆盖索引同步。
+- 验证：`make check`、完整 Go race 测试、242 项 Zod/wire 测试通过；API 覆盖认证/Origin、归档来源、connector 缺失、首次失败结果、显式重试与 payload 冲突。
+- 故障注入：receipt 后、worktree 创建后、session 创建后、调用前与调用后分别模拟中断并重开服务，保持资源与命令身份；未进入 actor 的阶段可继续，可能调用过的 unknown 不自动重发。
+- 实际协议回归：fake-agent 仅保存用户消息后退出，自动 load 失败时保留 unknown；显式恢复后以精确 native ID 和 payload hash 确认消费，未发送第二个 prompt。正常结果、明确 auth refusal 和后续错误不会混淆消费事实。
+- 展示边界：本地 Activity、时间线和标题只使用用户新请求，回放验证后恢复相同显示；历史内容不成为新的用户消息。
+- 限制：当前只执行 fork inline；同一 Conversation 切换、原生历史注入、MCP 工具和浏览器交接入口属于后续 stack 层，未宣称真实 provider 验收。
+
+- Handoff 05 评审补充：附件以持久 copy intention/hash 原子发布到目标私有 uploads，明确归目标会话所有；对账 hash 在 capability fallback 后与 dispatch gate 一起提交。新增回归覆盖来源文件消失、忘记来源、服务重启、fallback unknown/load、UI 与 Activity 附件元数据恢复，且未再发送 prompt。
+- Handoff 05 删除补充：目标拥有用户新请求、native/hash 与附件引用的回放 receipt，不依赖来源预览。v5 升级、忘记来源后重启/load、不同稳定 item ID 不改写、忘记目标级联删除测试通过；不会保存额外来源历史副本。attention 投影竞态测试改为等待实际 shell idle，连续 20 次 Go race 通过。
+
+## 2026-11-11：Handoff 06 同一对话切换与原生继续（US-Q12、US-Q20）
+
+本节验证记录已原文迁入[交接核对记录](verification-log-2026-11-handoff.md)，包含切换、来源恢复与原生继续的依据及限制。
+
 ## 2026-11-12：移动网络 P2P 候选交换与切网恢复（US-H12）
 
 - 范围：候选串行批量交换及空拉取、30 秒后台协商窗口、取消与迟到响应清理；切网后重建 PeerConnection，隔离旧探测；区分直连失败与已连通但收益不足。
@@ -305,3 +321,26 @@
 - 范围：适配 main 的前端目录迁移；键盘选择启动配置的回归等待输入框聚焦，再按名称搜索，不依赖初始选中项的时序。
 - 验证：键盘选择定向浏览器测试、239 项历史游标与 wire 契约测试、API 与 Conversation Go race 测试通过；前端构建、生产/测试类型、Oxlint、架构守卫、文档与持久化守卫、Go vet 和固定版本 linter 通过。
 - 实例：启动隔离服务，在桌面 Chromium 打开新建会话，键盘切换启动配置并观察确认文案；未启动真实外部 Agent，未重新核验移动设备。
+
+## 2026-11-12：120 会话菜单的交互预算（US-C02；核验 US-C03、US-C15）
+
+- 依据：PR #528 的 CI `43179450363` 在 4× CPU 下测得 320 ms，超过既有 300 ms；pointerdown 处理为 228.5 ms。未缩小 120 会话样本、放宽阈值或增加重试。
+- CPU profile 热点位于 Floating UI 的 `offsetParent` 读取；仅会话卡片菜单设置 `preventScroll=false`，避免无用的全页滚动样式变更，不修改全局菜单组件或对话框。
+- 本机同场景采样：修改前最大交互 104 ms、菜单处理 75.7 ms；修改后分别为 64 ms、44.5 ms。这不是 CI 320 ms 的同机复测。
+- 未插桩的完整性能套件：18 通过、2 个既有移动端重绘用例跳过；120 会话桌面为 64 ms，移动端为 56 ms，CLS 均为 0。
+- 独立实际服务：隔离 HOME/XDG/状态目录，通过认证 REST 创建 120 个真实 `/bin/cat` PTY；使用同一批会话与实时 WebSocket 比较旧版 `7ad0811` 静态资源和修改后内嵌资源，不模拟后端。
+- 两次本机观察的菜单交互：桌面 136/176 → 64/72 ms，平板 120/136 → 64/64 ms，手机视口 104/112 → 56/64 ms；不是统计保证或真实设备验收。
+- 两版原本都能滚动文档 40 px，菜单均跟随按钮；修改后不再写入 body overflow。方向键、Escape 焦点恢复和对话框 modal 语义保留，不宣称新增滚动能力或修复对话框滚动。
+- 实际修改标题经 HTTP 保存并由列表同步，随后还原私有夹具；外部点击关闭菜单、筛选保留 120 个行节点均通过。
+- 前后共 12 张截图，覆盖 1280×900、768×800、390×844 CSS 视口的明暗主题；实际 DPR 为 1.25，像素尺寸记录在证据中。截图等待有限主题动画结束；首次测量也保留，未择优丢弃。
+- [完整观测与截图清单](../../.github/pr-assets/session-menu-performance/proof.json)、[桌面浅色](../../.github/pr-assets/session-menu-performance/after-desktop-light.png)、[手机深色](../../.github/pr-assets/session-menu-performance/after-phone-dark.png)。
+- [实际交互 GIF](../../.github/pr-assets/session-menu-performance/interaction-after.gif)：960×675、6.6 秒，保持原速，展示滚动、键盘菜单与修改标题/取消。
+- 旧资源经 DevTools 提供时，Chromium 155 要求额外的本机网络权限；权限仅在私有 loopback origin 的附着会话中生效，请求限制在 127.0.0.1，应用认证与 Origin 检查未绕过。
+- 静态门禁：生产与测试类型检查 0 错误/警告、Oxlint、前端架构全部通过（40 项）。未连接真实 provider 或发出计费请求；未在物理手机、原生 macOS 或真实触屏上验收。
+
+## 2026-11-12：页脚主机名夹具隔离（US-L12；核验 US-C01）
+
+- CI `43200347123` 的页脚短名称断言直接使用宿主机名 `runnervmccnms`，该运行环境发生裁切；宿主机名与字体宽度不受测试控制，不能将其视作固定短名称。
+- 夹具明确使用 `devbox` 和原有长名称，并等待字体就绪；保留不重叠、同一行对齐、短名不裁切及长名裁切的原断言，未修改生产布局或放宽断言。
+- 定向桌面 E2E 在禁用重试时通过。独立私有实际服务只控制配置响应中的 hostname，其余 API/WebSocket 真实：短名 gap 54.25 px、offset 0、不裁切；长名 gap 4 px、offset 0、裁切。
+- 同一真实界面中 CI 名称的本机测量为不裁切，进一步说明不能依赖宿主环境宽度；不把本机结果冒充 CI 复现。无可见产品变更，不新增故事或改变覆盖计数。

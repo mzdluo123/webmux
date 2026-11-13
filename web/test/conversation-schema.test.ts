@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   ConversationCursorSchema,
+  ConversationMessageRequestSchema,
   HandoffPreviewRequestSchema,
   HandoffEditRequestSchema,
+  HandoffSelectionSchema,
 } from "../src/contracts/schemas";
 
 describe("persistent history cursors", () => {
@@ -52,4 +54,69 @@ describe("handoff preview inputs", () => {
       }).success,
     ).toBe(false);
   });
+});
+
+it("requires an explicit delivery revision and retry decision", () => {
+  const input = {
+    clientRequestId: "message-command",
+    handoffId: "handoff",
+    revision: 1,
+    text: "new request",
+    configId: "config",
+    agentConfig: {},
+    location: {
+      cwd: "",
+      repositoryId: "",
+      worktreeId: "",
+      newWorktreeBase: "",
+      newWorktreeBranch: "",
+    },
+    attachments: [],
+    retry: false,
+  };
+  expect(ConversationMessageRequestSchema.safeParse(input).success).toBe(true);
+  expect(
+    ConversationMessageRequestSchema.safeParse({ ...input, revision: 0 })
+      .success,
+  ).toBe(false);
+  expect(
+    ConversationMessageRequestSchema.safeParse({ ...input, retry: undefined })
+      .success,
+  ).toBe(false);
+});
+
+it("reads bounded selection pages without truncating global counts", () => {
+  const item = {
+    activityId: "activity",
+    position: "9007199254740993",
+    selected: false,
+    reason: "manual_context",
+  };
+  const page = {
+    sourceLocation: {
+      cwd: "/source",
+      repositoryId: "",
+      worktreeId: "",
+      newWorktreeBase: "",
+      newWorktreeBranch: "",
+    },
+    sourceConversationId: "source",
+    sourcePosition: "9007199254740993",
+    revision: 2,
+    historyOrigin: "complete",
+    reconcileRequired: false,
+    manual: true,
+    selectedCount: 0,
+    omittedCount: 40000,
+    items: [item],
+    nextPosition: item.position,
+    done: false,
+  };
+  expect(HandoffSelectionSchema.parse(page).omittedCount).toBe(40000);
+  expect(
+    HandoffSelectionSchema.safeParse({
+      ...page,
+      items: Array.from({ length: 101 }, () => item),
+    }).success,
+  ).toBe(false);
 });

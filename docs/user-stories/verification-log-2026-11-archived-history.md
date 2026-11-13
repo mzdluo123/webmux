@@ -204,7 +204,7 @@
 
 ## 2026-11-12：shell P2P 只读诊断
 
-- 故事：新增 US-S20，同步主索引与覆盖索引；US-S04/US-S05 的命令自描述与连接手册复用现有入口。
+- 故事：新增 US-S24（集成时避开 main 已占用的 US-S20–US-S23），同步主索引与覆盖索引；US-S04/US-S05 的命令自描述与连接手册复用现有入口。
 - 实现：`p2p status/peers/probe`、本机 `GET/HEAD /local/v1/p2p`；配置/peer 读取与 CLI 临时端口 STUN 探测明确区分。
 - 边界：未改 UI、连接策略或持久配置；无 TURN、无 offer 方向交换；会话内设置与信令仍 403。
 - 已验证：`make check` 通过，包含前端生产构建、类型、文档、架构、格式、vet 与 Go lint（0 issues）。

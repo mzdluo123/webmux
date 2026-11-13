@@ -82,9 +82,26 @@ func wireSchema(name string) wireRules {
 		add(prefix, "path", "absolutePath")
 	}
 	switch name {
+	case "handoff-draft-empty", "handoff-draft-saved", "handoff-draft-delivery":
+		add("/source", "id", "id", "repositoryId", "worktreeId")
+		add("/source", "path", "cwd")
+		add("/preview", "id", "id", "sourceConversationId", "targetConversationId", "targetProviderThreadId", "configId", "selectedItemIds/*", "omittedItemIds/*")
+		add("/preview/location", "path", "cwd")
+		add("/preview/sourceLocation", "path", "cwd")
+		add("/delivery", "id", "executionId", "deliveryId", "handoffId", "sourceConversationId", "targetConversationId", "targetProviderThreadId", "sessionId")
+		add("/delivery", "time", "updatedAt")
+		if name == "handoff-draft-delivery" {
+			add("/preview", "emptyCoverage", "renderedText")
+		}
+	case "handoff-delivery-pending", "handoff-delivery-failed", "handoff-delivery-retry":
+		add("", "id", "executionId", "deliveryId", "handoffId", "sourceConversationId", "targetConversationId", "targetProviderThreadId", "sessionId")
+		add("", "time", "updatedAt")
+	case "handoff-selection-empty":
+		add("", "id", "sourceConversationId")
 	case "handoff-preview-empty", "handoff-preview-manual", "handoff-preview-get":
 		add("", "id", "id", "sourceConversationId", "targetConversationId", "targetProviderThreadId", "configId", "selectedItemIds/*", "omittedItemIds/*")
 		add("/location", "path", "cwd")
+		add("/sourceLocation", "path", "cwd")
 		if name == "handoff-preview-empty" {
 			add("", "emptyCoverage", "renderedText")
 		}
@@ -104,6 +121,8 @@ func wireSchema(name string) wireRules {
 		// The folder name holds the UID, a state directory hash and the
 		// session ID; the brief repeats it.
 		add("", "id", "dir", "prompt")
+	case "terminal-output":
+		add("", "id", "generation")
 	case "session-details":
 		sessionFields("/session")
 		add("/session", "path", "cmd/*")
@@ -113,6 +132,7 @@ func wireSchema(name string) wireRules {
 		"session-create-new-worktree", "session-create-new-worktree-retry":
 		sessionFields("/session")
 		add("/session", "path", "cmd/*")
+		add("/initialInput", "id", "turnId", "promptId", "itemId")
 		worktreeFields("/worktree")
 	case "session-get", "session-labels", "session-attention", "session-resize", "session-resize-take",
 		"ws-terminal-state", "ws-terminal-state-exited", "session-get-hybrid", "session-get-hybrid-work", "ws-terminal-state-hybrid", "hybrid-resume":
@@ -425,7 +445,7 @@ func (n *wireNormalizer) value(rules wireRules, path string, v any) any {
 		case "emptyCoverage":
 			// This fixture has no history items: this field contains generated
 			// attribution only, never a user message or edited free-form context.
-			return regexp.MustCompile(`[a-f0-9]{32}`).ReplaceAllStringFunc(v, func(id string) string { return n.id("historyReference", id) })
+			return regexp.MustCompile(`[a-f0-9]{32}`).ReplaceAllStringFunc(n.pathText(v), func(id string) string { return n.id("historyReference", id) })
 		case "path":
 			return n.pathText(v)
 		case "artifacts":
@@ -628,8 +648,10 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	t.Cleanup(forwards.Close)
 	guide := &agentguide.Instance{Version: "wire", LocalURL: "http://127.0.0.1:7681", Bin: "/opt/webmux/bin/webmux"}
 	guide.SetSocket("/run/user/1000/webmux/webmux.sock")
-	handoffs := handoff.New(handoff.Options{Conversations: conversations, Launch: launches, Hybrid: hybrids, Artifacts: folders, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
-	deps := Deps{Handoffs: handoffs, Conversations: conversations, Config: c, Manager: m, Public: public, Push: pushes, Launch: launches, Code: codes, Settings: prefs, Hybrid: hybrids, Artifacts: folders, Forward: forwards, DefaultShell: agentprofile.ShellBash, Guide: guide}
+	deps := testDeps(t, Deps{Conversations: conversations, Config: c, Manager: m, Public: public, Push: pushes, Launch: launches, Code: codes, Settings: prefs, Hybrid: hybrids, Artifacts: folders, Forward: forwards, DefaultShell: agentprofile.ShellBash, Guide: guide})
+	handoffs := handoff.New(handoff.Options{Workspace: deps.Workspace, Conversations: conversations, Launch: launches, Hybrid: hybrids, Artifacts: folders, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
+	deps.Handoffs = handoffs
+	t.Cleanup(handoffs.Close)
 	deps.InstalledVersion, deps.Launcher = func() string { return "0.5.0" }, contract.LauncherSystemd
 	server := httptest.NewServer(New(testDeps(t, deps)))
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -832,6 +854,7 @@ func TestWireSnapshots(t *testing.T) {
 		{"hybrid-records", wireHybridRecords},
 		{"conversation-history", wireConversationHistory},
 		{"handoff-previews", wireHandoffPreviews},
+		{"handoff-deliveries", wireHandoffDeliveries},
 		{"release", wireRelease},
 		{"forwards", wireForwards},
 		{"quick-start", wireQuickStart},
@@ -839,6 +862,21 @@ func TestWireSnapshots(t *testing.T) {
 		t.Run(group.name, func(t *testing.T) {
 			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 			group.run(newWireFixture(t, rec))
+		})
+	}
+}
+
+func TestWireSnapshotsHandoffDeliveryRoots(t *testing.T) {
+	base := t.TempDir()
+	for _, name := range []string{"short", "a-much-longer-temporary-root-for-handoff-delivery"} {
+		t.Run(name, func(t *testing.T) {
+			root := filepath.Join(base, name)
+			if err := os.Mkdir(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("TMPDIR", root)
+			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
+			wireHandoffDeliveries(newWireFixture(t, rec))
 		})
 	}
 }
@@ -951,6 +989,7 @@ func wireSessions(f *wireFixture) {
 	f.call("sessions-list", "GET", "/api/sessions", nil, 200)
 	f.call("error-400-sessions-list-state", "GET", "/api/sessions?state=recoverable", nil, 400)
 	f.call("session-get", "GET", "/api/sessions/"+runningID, nil, 200)
+	f.call("terminal-output", "GET", "/api/sessions/"+runningID+"/output?maxBytes=1", nil, 200)
 	cat := f.call("session-create-cat", "POST", "/api/sessions", map[string]any{"cmd": []string{"/bin/cat"}, "name": "cat"}, 201)
 	catID := str(field(cat, "session"), "id")
 	f.call("session-input", "POST", "/api/sessions/"+catID+"/input", contract.SessionInputRequest{ClientRequestID: "wire-input-1", Text: "echo hi", Submit: true}, 200)
@@ -1581,7 +1620,8 @@ func wireConversationHistory(f *wireFixture) {
 }
 
 func wireHandoffPreviews(f *wireFixture) {
-	source, err := f.conversations.EnsureRuntime(f.ctx, conversation.RuntimeInput{RuntimeID: "empty-source", Cwd: f.root, AgentName: "omp", Status: "closed", HistoryOrigin: "complete"})
+	f.norm.path("/wire/source", "<history-source>")
+	source, err := f.conversations.EnsureRuntime(f.ctx, conversation.RuntimeInput{RuntimeID: "empty-source", Cwd: "/wire/source", AgentName: "omp", Status: "closed", HistoryOrigin: "complete"})
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -1589,13 +1629,72 @@ func wireHandoffPreviews(f *wireFixture) {
 	if err != nil {
 		f.t.Fatal(err)
 	}
+	f.draft("handoff-draft-empty", source.ConversationID)
 	request := contract.HandoffPreviewRequest{ClientRequestID: "wire-preview", ConfigID: cfg.ID, UserText: "new user request", Fork: true}
 	created := f.call("handoff-preview-empty", "POST", "/api/conversations/"+source.ConversationID+"/handoff-previews", request, 201)
 	if selected, ok := field(created, "selectedItemIds").([]any); !ok || len(selected) != 0 {
 		f.t.Fatal("generated coverage normalizer requires an empty source")
 	}
 	id := str(created, "id")
-	f.call("handoff-preview-manual", "PATCH", "/api/handoffs/"+id, contract.HandoffEditRequest{Revision: 1, Text: "manual context 中文🙂"}, 200)
+	f.call("handoff-preview-manual", "PATCH", "/api/handoffs/"+id, contract.HandoffEditRequest{Revision: 1, Text: new("manual context 中文🙂")}, 200)
 	f.call("handoff-preview-get", "GET", "/api/handoffs/"+id, nil, 200)
-	f.call("handoff-preview-conflict", "PATCH", "/api/handoffs/"+id, contract.HandoffEditRequest{Revision: 1, Text: "stale editor"}, 409)
+	f.draft("handoff-draft-saved", source.ConversationID)
+	f.call("handoff-selection-empty", "GET", "/api/handoffs/"+id+"/selection", nil, 200)
+	f.call("handoff-preview-conflict", "PATCH", "/api/handoffs/"+id, contract.HandoffEditRequest{Revision: 1, Text: new("stale editor")}, 409)
+}
+
+func wireHandoffDeliveries(f *wireFixture) {
+	// Historical attribution is serialized into the coverage budget. Keep it
+	// fixed, as in wireHandoffPreviews, and use the real temporary repository
+	// only as the separately configured target working location.
+	source, err := f.conversations.EnsureRuntime(f.ctx, conversation.RuntimeInput{RuntimeID: "delivery-source", Cwd: "/wire/source", AgentName: "omp", Status: "closed", HistoryOrigin: "complete"})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	cfg, err := f.launches.Create(launch.Input{Name: "missing target", Cmd: []string{"/nonexistent/webmux-test/omp"}, Hybrid: true})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	p, err := f.handoffs.Preview(f.ctx, source.ConversationID, handoff.Request{ClientRequestID: "wire-preview", ConfigID: cfg.ID, Fork: true, UserText: "new request", Location: conversation.PreviewLocation{Cwd: f.root}})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	encoded, err := json.Marshal(p.RenderedText)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	if p.Budget.Used < int64(len(encoded)) || p.Budget.Used > p.Budget.History || p.Budget.OverBudget {
+		f.t.Fatalf("coverage does not fit its actual serialized budget: %+v, text bytes %d", p.Budget, len(encoded))
+	}
+	if !strings.Contains(p.RenderedText, `cwd="/wire/source"`) || strings.Contains(p.RenderedText, f.root) || p.Request.Location.Cwd != f.root {
+		f.t.Fatal("historical attribution and target working location were not kept separate")
+	}
+	input := contract.ConversationMessageRequest{ClientRequestID: "wire-message", HandoffID: p.ID, Revision: 1, Text: p.Request.UserText, ConfigID: cfg.ID, AgentConfig: p.Request.AgentConfig, Location: contract.HandoffLocation(p.Request.Location), Attachments: []contract.ChatAttachment{}}
+	path := "/api/conversations/" + source.ConversationID + "/messages"
+	f.call("handoff-delivery-pending", "POST", path, input, 202)
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		e, err := f.handoffs.Delivery(f.ctx, p.ID)
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		if e.Status == "failed" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	f.call("handoff-delivery-failed", "GET", "/api/handoffs/"+p.ID+"/delivery", nil, 200)
+	f.draft("handoff-draft-delivery", source.ConversationID)
+	f.call("handoff-delivery-retry", "POST", path, input, 202)
+}
+
+// Draft discovery has its own identity namespace so adding these captures does
+// not rename IDs in the existing preview and delivery snapshots.
+func (f *wireFixture) draft(name, conversationID string) {
+	previous := f.norm
+	f.norm = newWireNormalizer()
+	f.norm.path(f.root, "<root>")
+	f.norm.path("/wire/source", "<history-source>")
+	defer func() { f.norm = previous }()
+	f.call(name, "GET", "/api/conversations/"+conversationID+"/handoff-previews?fork=1", nil, 200)
 }

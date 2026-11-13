@@ -7,16 +7,20 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"slices"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/workspace"
 )
 
 type Options struct {
+	Workspace                                    *workspace.Service
 	Hybrid                                       *hybrid.Service
 	Artifacts                                    *artifacts.Service
 	Conversations                                *conversation.Service
@@ -24,20 +28,31 @@ type Options struct {
 	TokenCap, MaxPromptBytes, MaxPromptWireBytes int64
 }
 
-type Service struct{ options Options }
+type Service struct {
+	options Options
+	ctx     context.Context
+	cancel  context.CancelFunc
+	mu      sync.Mutex
+	flights map[string]bool
+	closed  bool
+	workers sync.WaitGroup
+	// pauseAfterPhase simulates process loss without publishing a false failure.
+	pauseAfterPhase func(string) bool
+}
 
 func New(o Options) *Service {
 	if o.TokenCap == 0 {
 		o.TokenCap = DefaultTokenCap
 	}
-	return &Service{options: o}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Service{options: o, ctx: ctx, cancel: cancel}
 }
 
 type Request struct {
 	ClientRequestID, ConfigID, TargetProviderThreadID string
 	AgentConfig                                       map[string]string
 	UserText                                          string
-	Fork                                              bool
+	Fork, ForceFresh                                  bool
 	Location                                          conversation.PreviewLocation
 	Attachments                                       []conversation.PreviewAttachment
 }
@@ -71,6 +86,9 @@ func configFingerprint(c launch.Config) (string, error) {
 }
 
 func validateRequest(in Request) error {
+	if in.ForceFresh && in.TargetProviderThreadID != "" {
+		return conversation.ErrInvalid
+	}
 	if len(in.ClientRequestID) < 8 || len(in.ClientRequestID) > 64 || in.ConfigID == "" || !utf8.ValidString(in.UserText) || len(in.UserText) > 1<<20 || len(in.Attachments) > 64 || len(in.AgentConfig) > 64 {
 		return conversation.ErrInvalid
 	}
@@ -91,6 +109,12 @@ func validateRequest(in Request) error {
 			return conversation.ErrInvalid
 		}
 	}
+	if in.Location.WorktreeID != "" && in.Location.RepositoryID == "" {
+		return conversation.ErrInvalid
+	}
+	if in.Location.NewWorktreeBranch != "" && (in.Location.WorktreeID != "" || in.Location.Cwd != "") {
+		return conversation.ErrInvalid
+	}
 	if in.Location.NewWorktreeBase != "" && in.Location.NewWorktreeBranch == "" {
 		return conversation.ErrInvalid
 	}
@@ -98,7 +122,7 @@ func validateRequest(in Request) error {
 }
 
 func (s *Service) Preview(ctx context.Context, source string, in Request) (conversation.Preview, error) {
-	if s.options.Conversations == nil || s.options.Launch == nil || s.options.TokenCap < 1024 || s.options.TokenCap > 64000 {
+	if !s.options.Conversations.HistoryEnabled() || s.options.Launch == nil || s.options.TokenCap < 1024 || s.options.TokenCap > 64000 {
 		return conversation.Preview{}, conversation.ErrUnavailable
 	}
 	if err := validateRequest(in); err != nil {
@@ -135,9 +159,25 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (conve
 	if err != nil {
 		return conversation.Preview{}, err
 	}
-	snapshotAttachments, err := s.attachmentSnapshot(ctx, source, in.Attachments)
-	if err != nil {
-		return conversation.Preview{}, err
+	if in.Fork && in.Location.NewWorktreeBranch == "" && in.Location.RepositoryID != "" && in.Location.WorktreeID != "" {
+		if s.options.Workspace == nil {
+			return conversation.Preview{}, conversation.ErrUnavailable
+		}
+		cwd := in.Location.Cwd
+		if cwd == "" {
+			sourceState, err := s.options.Conversations.Conversation(ctx, source)
+			if err != nil {
+				return conversation.Preview{}, err
+			}
+			if sourceState.RepositoryID == in.Location.RepositoryID && sourceState.WorktreeID == in.Location.WorktreeID {
+				cwd = sourceState.Cwd
+			}
+		}
+		directory, err := s.options.Workspace.HandoffDirectory(ctx, workspace.Reference{RepositoryID: in.Location.RepositoryID, WorktreeID: in.Location.WorktreeID}, cwd)
+		if err != nil {
+			return conversation.Preview{}, err
+		}
+		in.Location.Cwd = directory
 	}
 	support := config.HybridSupport()
 	if !config.Hybrid || !support.Supported {
@@ -149,6 +189,28 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (conve
 	}
 	agentConfig := maps.Clone(in.AgentConfig)
 	var targetBaseline map[string]string
+	if !in.Fork && !in.ForceFresh && in.TargetProviderThreadID == "" {
+		threads, err := s.options.Conversations.ProviderThreads(ctx, source)
+		if err != nil {
+			return conversation.Preview{}, err
+		}
+		for _, thread := range threads {
+			if thread.ConfigID != in.ConfigID || thread.AgentName != support.Agent || thread.AgentSessionID == "" {
+				continue
+			}
+			if runtimeID, err := s.options.Conversations.ThreadRuntime(ctx, thread.ID); err == nil {
+				if s.options.Hybrid != nil {
+					rec, err := s.options.Hybrid.Record(runtimeID)
+					if err != nil || !slices.Equal(rec.Cmd, config.Cmd) {
+						continue
+					}
+				}
+				in.TargetProviderThreadID = thread.ID
+				break
+			}
+		}
+	}
+
 	if in.TargetProviderThreadID != "" {
 		target, err := s.options.Conversations.ProviderThread(ctx, in.TargetProviderThreadID)
 		if err != nil {
@@ -163,7 +225,12 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (conve
 			agentConfig[key] = value
 		}
 	}
-	request := conversation.PreviewRequest{ConfigID: in.ConfigID, AgentName: support.Agent, ConfigFingerprint: fingerprint, TargetProviderThreadID: in.TargetProviderThreadID, AgentConfig: agentConfig, TargetConfigBaseline: targetBaseline, UserText: in.UserText, Fork: in.Fork, Location: in.Location, Attachments: snapshotAttachments}
+	snapshotAttachments, err := s.attachmentSnapshot(ctx, source, in.Attachments)
+	if err != nil {
+		return conversation.Preview{}, err
+	}
+	request := conversation.PreviewRequest{ConfigID: in.ConfigID, AgentName: support.Agent, ConfigFingerprint: fingerprint, TargetProviderThreadID: in.TargetProviderThreadID, AgentConfig: agentConfig, TargetConfigBaseline: targetBaseline, UserText: in.UserText, Fork: in.Fork, ForceFresh: in.ForceFresh, Location: in.Location, Attachments: snapshotAttachments}
+	request.NativePlanned = s.options.Hybrid != nil && s.options.Hybrid.NativeHistoryAvailable(ctx, in.ConfigID)
 	preview, err := s.options.Conversations.ReservePreview(ctx, conversation.PreviewReservation{SourceConversationID: source, ClientRequestID: in.ClientRequestID, RequestHash: hash, Request: request})
 	if err != nil {
 		return preview, err
@@ -187,6 +254,21 @@ func (s *Service) budget(ctx context.Context, p conversation.Preview) (Budget, e
 		}
 	}
 	window, threshold := target.ContextWindow, target.AutoCompactThreshold
+	if target.AgentSessionID == "" && window == 0 && p.Request.ForceFresh {
+		threads, err := s.options.Conversations.ProviderThreads(ctx, p.SourceConversationID)
+		if err != nil {
+			return Budget{}, err
+		}
+		for _, prior := range threads {
+			if prior.ID == target.ID || prior.ConfigID != target.ConfigID || prior.AgentName != target.AgentName || !prior.UsageMeasured || prior.ContextWindow <= 0 || !maps.Equal(prior.Config, p.Request.AgentConfig) {
+				continue
+			}
+			if window == 0 || prior.ContextWindow < window {
+				window = prior.ContextWindow
+				threshold = prior.AutoCompactThreshold
+			}
+		}
+	}
 	if !maps.Equal(target.Config, p.Request.AgentConfig) {
 		window, threshold = 0, 0
 	}
@@ -194,11 +276,11 @@ func (s *Service) budget(ctx context.Context, p conversation.Preview) (Budget, e
 	for i, a := range p.Request.Attachments {
 		attachments[i] = Attachment{Name: a.Name, MimeType: a.MimeType, Reference: a.Reference, Kind: a.Kind, Size: a.Size}
 	}
-	return ComputeBudget(BudgetInput{TokenCap: s.options.TokenCap, UserText: p.Request.UserText, Attachments: attachments, Used: used, Window: window, CompactionThreshold: threshold, Measured: target.UsageMeasured, Inline: true, MaxPromptBytes: s.options.MaxPromptBytes, MaxPromptWireBytes: s.options.MaxPromptWireBytes}), nil
+	return ComputeBudget(BudgetInput{TokenCap: s.options.TokenCap, UserText: p.Request.UserText, Attachments: attachments, Used: used, Window: window, CompactionThreshold: threshold, Measured: target.UsageMeasured, Inline: !p.Request.NativePlanned || p.ManualText != nil, MaxPromptBytes: s.options.MaxPromptBytes, MaxPromptWireBytes: s.options.MaxPromptWireBytes}), nil
 }
 
 func previewCoverage(p conversation.Preview) Coverage {
-	return Coverage{HandoffID: p.ID, ConversationID: p.SourceConversationID, FromRun: p.FromRunOrdinal, ToRun: p.ToRunOrdinal, SourcePosition: p.SourcePosition, HistoryOrigin: p.HistoryOrigin, ReconcileRequired: p.ReconcileRequired}
+	return Coverage{SourceLocation: p.Request.SourceLocation, HandoffID: p.ID, ConversationID: p.SourceConversationID, FromRun: p.FromRunOrdinal, ToRun: p.ToRunOrdinal, SourcePosition: p.SourcePosition, HistoryOrigin: p.HistoryOrigin, ReconcileRequired: p.ReconcileRequired}
 }
 
 func (s *Service) finishPreview(ctx context.Context, p conversation.Preview) (conversation.Preview, error) {
@@ -206,11 +288,40 @@ func (s *Service) finishPreview(ctx context.Context, p conversation.Preview) (co
 	if err != nil {
 		return p, err
 	}
-	candidates, err := s.options.Conversations.Candidates(ctx, p.SourceConversationID, p.SourcePosition, max(int64(0), p.FromRunOrdinal-1))
+	if budget.History < budget.Used || budget.OverBudget {
+		if !p.Request.Fork && !p.Request.ForceFresh && p.Request.TargetProviderThreadID != "" {
+			fresh, err := s.options.Conversations.FreshenPreview(ctx, p.ID)
+			if err != nil {
+				return p, err
+			}
+			return s.finishPreview(ctx, fresh)
+		}
+	}
+	afterPosition := int64(0)
+	if p.Strategy == "delta_since_target_last_seen" {
+		afterPosition = p.TargetSeenPosition
+	}
+	candidates, err := s.options.Conversations.Candidates(ctx, p.SourceConversationID, p.SourcePosition, afterPosition, p.TargetProviderThreadID)
 	if err != nil {
 		return p, err
 	}
+	if !p.Request.Fork && !p.Request.ForceFresh && p.Request.TargetProviderThreadID != "" {
+		filtered := candidates[:0]
+		for _, c := range candidates {
+			if c.Message.ProviderThreadID != p.TargetProviderThreadID || !c.Consumed {
+				filtered = append(filtered, c)
+			}
+		}
+		candidates = filtered
+	}
 	selection := Select(candidates, previewCoverage(p), budget.History)
+	if selection.OverBudget && !p.Request.Fork && !p.Request.ForceFresh && p.Request.TargetProviderThreadID != "" {
+		fresh, err := s.options.Conversations.FreshenPreview(ctx, p.ID)
+		if err != nil {
+			return p, err
+		}
+		return s.finishPreview(ctx, fresh)
+	}
 	messages := make([]conversation.HistoricalMessage, 0, len(selection.Selected))
 	ids := make([]string, 0, len(selection.Selected))
 	for _, candidate := range selection.Selected {
@@ -234,11 +345,15 @@ func (s *Service) finishPreview(ctx context.Context, p conversation.Preview) (co
 	if jsonBytes(text) > selection.Cost {
 		return p, conversation.ErrUnavailable
 	}
-	return s.options.Conversations.CompletePreview(ctx, p.ID, conversation.PreviewResult{RenderedText: text, Budget: conversation.PreviewBudget(budget), SelectedItemIDs: ids, OmittedItemIDs: selection.Omitted})
+	completed, err := s.options.Conversations.CompletePreview(ctx, p.ID, conversation.PreviewResult{RenderedText: text, Budget: conversation.PreviewBudget(budget), SelectedItemIDs: ids, OmittedItemIDs: selection.Omitted})
+	if err == nil {
+		completed.HistoryToolAvailable = s.historyToolAvailable(ctx, completed)
+	}
+	return completed, err
 }
 
 func (s *Service) Get(ctx context.Context, id string) (conversation.Preview, error) {
-	if s.options.Conversations == nil {
+	if !s.options.Conversations.HistoryEnabled() {
 		return conversation.Preview{}, conversation.ErrUnavailable
 	}
 	p, err := s.options.Conversations.Preview(ctx, id)
@@ -251,6 +366,7 @@ func (s *Service) Get(ctx context.Context, id string) (conversation.Preview, err
 	if err != nil {
 		return p, err
 	}
+	p.HistoryToolAvailable = s.historyToolAvailable(ctx, p)
 	saved := p.Budget
 	if current.Window != saved.Window || current.NativeUsed != saved.NativeUsed || current.Current != saved.Current || current.Reserve != saved.Reserve || current.History != saved.History || current.Source != saved.Source {
 		p.Stale = true
@@ -286,8 +402,17 @@ func (s *Service) Get(ctx context.Context, id string) (conversation.Preview, err
 }
 
 func (s *Service) Edit(ctx context.Context, id string, revision int64, text string) (conversation.Preview, error) {
-	if revision < 1 {
+	return s.EditDraft(ctx, id, revision, &text, nil)
+}
+
+func (s *Service) EditDraft(ctx context.Context, id string, revision int64, text, userText *string) (conversation.Preview, error) {
+	if revision < 1 || (text == nil && userText == nil) {
 		return conversation.Preview{}, conversation.ErrInvalid
+	}
+	for _, value := range []*string{text, userText} {
+		if value != nil && (len(*value) > 1<<20 || !utf8.ValidString(*value)) {
+			return conversation.Preview{}, conversation.ErrInvalid
+		}
 	}
 	p, err := s.Get(ctx, id)
 	if err != nil {
@@ -296,17 +421,24 @@ func (s *Service) Edit(ctx context.Context, id string, revision int64, text stri
 	if p.Revision != revision {
 		return p, conversation.ErrConflict
 	}
-	if len(text) > 1<<20 || !utf8.ValidString(text) {
-		return p, conversation.ErrInvalid
+	edited := p
+	if text != nil {
+		edited.ManualText = text
 	}
-	budget, err := s.budget(ctx, p)
+	if userText != nil {
+		edited.Request.UserText = *userText
+	}
+	budget, err := s.budget(ctx, edited)
 	if err != nil {
 		return p, err
 	}
-	context := coverageText(previewCoverage(p), 0, len(p.SelectedItemIDs)+len(p.OmittedItemIDs))
-	budget.Used = jsonBytes(context+"\n\nManual context:\n"+text) + 256
+	budget.Used = p.Budget.Used
+	if edited.ManualText != nil {
+		coverage := coverageText(previewCoverage(p), 0, p.SelectedCount+p.OmittedCount)
+		budget.Used = jsonBytes(coverage+"\n\nManual context:\n"+*edited.ManualText) + 256
+	}
 	budget.OverBudget = budget.OverBudget || budget.Used > budget.History
-	updated, err := s.options.Conversations.EditPreview(ctx, id, revision, text, conversation.PreviewBudget(budget))
+	updated, err := s.options.Conversations.EditDraft(ctx, id, revision, text, userText, conversation.PreviewBudget(budget))
 	if err != nil {
 		return updated, err
 	}
@@ -319,9 +451,13 @@ func InlineContext(p conversation.Preview) string {
 	if p.ManualText == nil {
 		return p.RenderedText
 	}
-	return coverageText(previewCoverage(p), 0, len(p.OmittedItemIDs)) + "\n\nManual context:\n" + *p.ManualText
+	return coverageText(previewCoverage(p), 0, p.OmittedCount) + "\n\nManual context:\n" + *p.ManualText
 }
 
 func InlinePrompt(p conversation.Preview) string {
 	return strings.TrimSuffix(InlineContext(p), "\n") + "\n\nUser message:\n" + p.Request.UserText
+}
+
+func (s *Service) historyToolAvailable(ctx context.Context, p conversation.Preview) bool {
+	return s.options.Hybrid != nil && s.options.Hybrid.HistoryReaderAvailable(ctx, conversation.ReaderScope{ConversationID: p.SourceConversationID, HandoffID: p.ID})
 }

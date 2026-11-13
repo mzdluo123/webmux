@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/session"
 	"os"
 	"path"
 	"path/filepath"
@@ -12,9 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/rainchan/webmux/internal/hybrid"
-	"github.com/rainchan/webmux/internal/session"
 )
 
 const (
@@ -91,6 +90,7 @@ type CreateInput struct {
 // created, nil when it used an existing location; ConfigWarnings describe
 // each AgentConfig item the agent did not take.
 type CreateResult struct {
+	InitialInput   *hybrid.PromptResult
 	Session        *session.Session
 	Worktree       *Worktree
 	ConfigWarnings []string
@@ -107,6 +107,7 @@ type CreateError struct {
 }
 
 func (e *CreateError) Error() string { return e.Err.Error() }
+
 func (e *CreateError) Unwrap() error { return e.Err }
 
 // createFlight is one create by client request ID: duplicates wait for done
@@ -213,12 +214,13 @@ func (s *Service) create(ctx context.Context, in CreateInput) (CreateResult, err
 	if name == "" && plan.side != hybrid.SideACP {
 		name = plan.title
 	}
-	item, promptSent, err := s.startSession(ctx, in.Cwd, name, reference, plan.command, plan.side, initialPrompt)
+	item, promptSent, err := s.startSession(ctx, in.Cwd, name, reference, plan.command, plan.side, initialPrompt, nil)
 	if err != nil {
 		return fail(StepSession, tree, "", err)
 	}
 	id := item.Info().ID
 	warnings := []string{}
+	var initialInput *hybrid.PromptResult
 	if plan.side == hybrid.SideACP && (len(in.AgentConfig) > 0 || in.PermissionMode != "") {
 		if warnings, err = s.applyAgentConfig(ctx, id, in); err != nil {
 			return fail(StepConfig, tree, id, err)
@@ -231,11 +233,15 @@ func (s *Service) create(ctx context.Context, in CreateInput) (CreateResult, err
 				return fail(StepPrompt, tree, id, err)
 			}
 			go func() { _ = item.SendWhenReady(context.Background(), text) }()
-		} else if err := s.sendFirstMessage(ctx, item, in.ClientRequestID, plan); err != nil {
-			return fail(StepPrompt, tree, id, err)
+		} else {
+			receipt, err := s.sendFirstMessage(ctx, item, in.ClientRequestID, plan)
+			if err != nil {
+				return fail(StepPrompt, tree, id, err)
+			}
+			initialInput = &receipt
 		}
 	}
-	return CreateResult{Session: item, Worktree: tree, ConfigWarnings: warnings}, nil
+	return CreateResult{Session: item, Worktree: tree, ConfigWarnings: warnings, InitialInput: initialInput}, nil
 }
 
 // createPlan is a checked create: the command, the side, the new
