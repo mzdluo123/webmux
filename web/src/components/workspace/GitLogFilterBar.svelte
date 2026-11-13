@@ -65,7 +65,7 @@
   );
 </script>
 
-<div class="space-y-2 border-b border-git-border bg-git-panel px-2.5 py-2">
+<div class="space-y-2 border-b bg-background px-2.5 py-2">
   <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       {#if !desktop && onOpenRefDrawer}

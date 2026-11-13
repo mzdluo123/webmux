@@ -9,7 +9,7 @@
     wrap = false,
     confirmLabel,
     submittingLabel = "正在处理…",
-    confirmVariant = "git-primary",
+    confirmVariant = "default",
     confirmTestId,
     onConfirm,
     onClose,
@@ -20,7 +20,7 @@
     wrap?: boolean;
     confirmLabel: string;
     submittingLabel?: string;
-    confirmVariant?: "git-primary" | "destructive";
+    confirmVariant?: "default" | "destructive";
     confirmTestId?: string;
     onConfirm: () => void;
     onClose: () => void;

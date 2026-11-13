@@ -74,9 +74,7 @@
     </SegmentedControl.Root>
 
     {#if entry}
-      <div
-        class="space-y-1 rounded-lg border border-git-border bg-git-panel p-3 text-xs"
-      >
+      <div class="space-y-1 rounded-lg border bg-background p-3 text-xs">
         <p class="font-mono text-foreground">
           {entry.stashRef} · {entry.shortOid}
           {#if entry.hasUntracked}
@@ -87,7 +85,7 @@
       </div>
     {/if}
 
-    <div class="rounded-lg border border-git-border bg-git-panel p-3">
+    <div class="rounded-lg border bg-background p-3">
       <Label class="items-start">
         <Checkbox
           checked={reinstateIndex}

@@ -63,7 +63,7 @@
 
 {#if (selection && onAddReworkItem) || hasLineMutation}
   <div
-    class="flex min-w-0 flex-col gap-1.5 border-b border-git-border bg-git-panel px-2.5 py-2 text-xs"
+    class="flex min-w-0 flex-col gap-1.5 border-b bg-background px-2.5 py-2 text-xs"
     role="region"
     aria-label="选中代码行加入审阅意见"
     data-testid="git-diff-selection-bar"
@@ -189,7 +189,7 @@
         </Button>
         <Button
           size="xs"
-          variant="git-primary"
+          variant="default"
           onclick={() => submitAdd(false)}
           data-testid="git-selection-add-rework"
         >

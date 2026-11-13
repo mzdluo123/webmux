@@ -52,15 +52,15 @@ export function laneTone(lane: number): GitLaneTone {
 export function laneStrokeClass(tone: GitLaneTone): string {
   switch (tone) {
     case 0:
-      return "stroke-git-primary";
+      return "stroke-primary";
     case 1:
-      return "stroke-success";
+      return "stroke-chart-2";
     case 2:
       return "stroke-warning";
     case 3:
       return "stroke-info";
     case 4:
-      return "stroke-destructive";
+      return "stroke-chart-4";
     default:
       return "stroke-muted-foreground";
   }
@@ -69,15 +69,15 @@ export function laneStrokeClass(tone: GitLaneTone): string {
 export function laneFillClass(tone: GitLaneTone): string {
   switch (tone) {
     case 0:
-      return "fill-git-primary";
+      return "fill-primary";
     case 1:
-      return "fill-success";
+      return "fill-chart-2";
     case 2:
       return "fill-warning";
     case 3:
       return "fill-info";
     case 4:
-      return "fill-destructive";
+      return "fill-chart-4";
     default:
       return "fill-muted-foreground";
   }

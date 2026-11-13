@@ -83,7 +83,7 @@
       {#if onRebaseOntoRemoteBranch && remoteTrackingRef}
         <Button
           size="xs"
-          variant="git-primary"
+          variant="default"
           wrap
           onclick={() => {
             const r = remoteTrackingRef;

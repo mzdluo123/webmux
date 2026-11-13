@@ -39,7 +39,7 @@
 </script>
 
 <div
-  class="border-b border-git-border bg-git-panel px-2.5 py-1.5"
+  class="border-b bg-background px-2.5 py-1.5"
   aria-label="代码块逐块暂存栏"
   data-testid="git-hunk-action-strip"
 >
@@ -54,12 +54,12 @@
   <div class="max-h-28 space-y-1 overflow-y-auto">
     {#each hunks as hunk, idx (hunk.id)}
       <div
-        class="flex min-w-0 flex-wrap items-center justify-between gap-1.5 rounded-sm border border-git-border bg-git-surface px-2 py-1"
+        class="flex min-w-0 flex-wrap items-center justify-between gap-1.5 rounded-sm border bg-background px-2 py-1"
         data-hunk-id={hunk.id}
       >
         <div class="min-w-0 basis-36 flex-1">
           <ListButton
-            variant="git-row"
+            variant="compact-row"
             aria-selected={hunkIndex === idx}
             onclick={() => onJumpToHunk(idx)}
           >

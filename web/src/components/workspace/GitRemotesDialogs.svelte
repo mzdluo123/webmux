@@ -105,9 +105,7 @@
     onclose={() => remotes.closeDialogs()}
   >
     <div class="space-y-3" data-testid="git-remote-remove-dialog">
-      <div
-        class="space-y-1 rounded-lg border border-git-border bg-git-panel p-3 text-xs"
-      >
+      <div class="space-y-1 rounded-lg border bg-background p-3 text-xs">
         <p class="font-mono font-semibold text-foreground">
           {remotes.removeTarget.name}
         </p>

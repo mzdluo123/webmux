@@ -23,7 +23,7 @@
   } = $props();
 </script>
 
-<div class="border-b border-git-border bg-git-panel px-3 py-2">
+<div class="border-b bg-background px-3 py-2">
   <InlineNotice tone="danger">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <span>{message}</span>
@@ -31,7 +31,7 @@
         {#if onOpenConflictResolver}
           <Button
             size="xs"
-            variant="git-primary"
+            variant="default"
             wrap
             onclick={onOpenConflictResolver}
             data-testid="git-notice-open-conflict-resolver-btn"

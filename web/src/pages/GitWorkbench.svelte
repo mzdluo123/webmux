@@ -284,7 +284,7 @@
 <svelte:window bind:innerWidth={viewportWidth} />
 
 <main
-  class="git-workbench flex h-dvh min-h-0 min-w-0 flex-col bg-git-surface text-foreground"
+  class="git-workbench flex h-dvh min-h-0 min-w-0 flex-col bg-background text-foreground"
   data-testid="git-workbench-page"
   data-device-class={deviceClass}
 >
@@ -360,13 +360,13 @@
     </div>
   {:else}
     {#if controller.error}
-      <div class="border-b border-git-border bg-git-surface px-3 py-2">
+      <div class="border-b border-border bg-background px-3 py-2">
         <InlineNotice tone="danger">{controller.error}</InlineNotice>
       </div>
     {/if}
 
     {#if worktreeId && commitGuard === "broken-worktree" && controller.view.mode !== "commit"}
-      <div class="border-b border-git-border bg-git-surface px-3 py-2">
+      <div class="border-b border-border bg-background px-3 py-2">
         <InlineNotice tone="warning">
           目标工作树不可用或已锁定，写操作已禁用；仓库历史仍可只读浏览。
           <Button

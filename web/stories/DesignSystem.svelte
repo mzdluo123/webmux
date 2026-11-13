@@ -89,10 +89,7 @@
     ["warning", "等待 / 注意"],
     ["destructive", "失败 / 危险"],
     ["info", "提示"],
-    ["git-surface", "Git 工作台主表面"],
-    ["git-panel", "Git 侧栏面板"],
-    ["git-selected", "Git 选中行"],
-    ["git-primary", "Git 主要确认"],
+    ["default", "Git 主要确认"],
   ];
   const sessions: SessionInfo[] = [
     {
@@ -305,7 +302,7 @@
         <Button variant="link"
           >使用说明<IconArrowRight aria-hidden="true" /></Button
         >
-        <Button variant="git-primary">Git 提交预览</Button>
+        <Button variant="default">Git 提交预览</Button>
       </Card.Content>
     </Card.Root>
     <Card.Root>
@@ -471,8 +468,8 @@
           >修复首页排序</ListButton
         >
         <ListButton variant="navigation">更新文档</ListButton>
-        <ListButton variant="git-status-trigger" aria-expanded="false"
-          >提交 · 已完成</ListButton
+        <Button size="sm" variant="ghost" aria-expanded="false"
+          >提交 · 已完成</Button
         >
       </Card.Content>
     </Card.Root>

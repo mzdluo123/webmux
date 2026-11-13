@@ -126,10 +126,10 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="变更文件列表"
 >
-  <div class="space-y-1.5 border-b border-git-border bg-git-panel px-2.5 py-2">
+  <div class="space-y-1.5 border-b bg-background px-2.5 py-2">
     {#if compareMode}
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         <div class="flex min-w-0 items-center gap-1.5">
@@ -253,7 +253,7 @@
       {#each visibleFiles as file (`${file.status}:${file.oldPath}:${fileKey(file)}`)}
         {@const pathKey = fileKey(file)}
         <ListButton
-          variant="git-row"
+          variant="compact-row"
           role="option"
           data-commit-file-row="true"
           aria-selected={activePath === pathKey}

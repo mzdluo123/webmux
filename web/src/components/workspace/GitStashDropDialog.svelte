@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ItemGroup } from "$lib/components/ui/item";
   import { Badge } from "$lib/components/ui/badge";
   import type {
     GitStashDropPreview,
@@ -52,9 +53,7 @@
 >
   <div class="space-y-3" data-testid="git-stash-drop-dialog">
     {#if entry}
-      <div
-        class="space-y-1.5 rounded-lg border border-git-border bg-git-panel p-2.5 text-xs"
-      >
+      <ItemGroup variant="panel" class="space-y-1.5">
         <div class="flex flex-wrap items-center gap-1.5">
           <Badge variant="destructive">
             <span class="font-mono">{entry.stashRef}</span>
@@ -67,7 +66,7 @@
         <p class="font-mono break-all text-muted-foreground">
           对象 OID：{entry.oid}
         </p>
-      </div>
+      </ItemGroup>
     {/if}
 
     {#if recoveryCmd}

@@ -92,7 +92,7 @@
     <ul class="space-y-2" aria-label="远程列表">
       {#each remotes as remote (remote.name)}
         <li
-          class="space-y-2 rounded-lg border border-git-border bg-git-surface p-2.5"
+          class="space-y-2 rounded-lg border bg-background p-2.5"
           data-remote-row={remote.name}
         >
           <div class="flex min-w-0 items-center justify-between gap-2">

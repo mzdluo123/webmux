@@ -36,7 +36,7 @@
 </script>
 
 <div
-  class="grid h-full min-h-0 min-w-0 grid-cols-3 divide-x divide-git-border overflow-hidden"
+  class="grid h-full min-h-0 min-w-0 grid-cols-3 divide-x divide-border overflow-hidden"
   data-testid="git-conflict-desktop-grid"
 >
   <GitConflictSourceColumn
@@ -52,13 +52,11 @@
 
   <!-- Column 2: Center Editable Result (NEVER replaced by Base) -->
   <section
-    class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+    class="flex h-full min-h-0 min-w-0 flex-col bg-background"
     aria-label="中间可编辑合并结果 Result"
     data-testid="git-conflict-center-result"
   >
-    <div
-      class="space-y-1 border-b border-git-border bg-git-panel px-2.5 py-2 text-xs"
-    >
+    <div class="space-y-1 border-b bg-background px-2.5 py-2 text-xs">
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         <div class="flex min-w-0 items-center gap-1.5">
           <Badge variant="success">合并结果 Result</Badge>
@@ -92,7 +90,7 @@
 
     {#if draft.manualEdited && progress.unresolvedConflicts > 0 && !progress.hasConflictMarkers}
       <div
-        class="flex flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel px-2.5 py-1.5 text-xs"
+        class="flex flex-wrap items-center justify-between gap-2 border-b bg-background px-2.5 py-1.5 text-xs"
       >
         <span class="text-muted-foreground">
           检测到你已直接编辑结果文本（剩余 {progress.unresolvedConflicts}

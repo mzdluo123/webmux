@@ -76,9 +76,7 @@
         正在校验分支引用格式与工作树影响范围…
       </p>
     {:else if preview}
-      <div
-        class="space-y-1.5 rounded-lg border border-git-border bg-git-panel p-3 text-xs"
-      >
+      <div class="space-y-1.5 rounded-lg border bg-background p-3 text-xs">
         <p class="wrap-anywhere">
           <span class="text-muted-foreground">重命名变更：</span>
           <span class="font-mono text-foreground">{preview.oldName}</span>

@@ -218,7 +218,7 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="工作树变更与提交"
 >
   <GitPanelToolbar>
@@ -335,7 +335,7 @@
         <div class="flex min-w-0 flex-wrap items-center gap-1">
           <div class="min-w-0 basis-32 flex-1">
             <ListButton
-              variant="git-section"
+              variant="section-header"
               aria-expanded={isOpen}
               onclick={() => toggleGroup(sec.key)}
             >

@@ -64,7 +64,7 @@
   {@const res = smart.lastResult}
   <section
     aria-label="Smart Checkout 冲突恢复指引"
-    class="space-y-3 rounded-lg border border-git-border bg-git-panel p-3 text-xs"
+    class="space-y-3 rounded-lg border border-border bg-background p-3 text-xs"
     data-testid="smart-checkout-conflict-card"
   >
     <div class="flex flex-wrap items-center gap-2">
@@ -89,7 +89,7 @@
       <div class="flex flex-wrap items-center gap-2">
         <Button
           type="button"
-          variant="git-primary"
+          variant="default"
           wrap
           onclick={() =>
             onopenconflict(

@@ -17,7 +17,7 @@
 </script>
 
 <div
-  class="border-b border-git-border bg-git-surface px-3 py-2"
+  class="border-b bg-background px-3 py-2"
   data-testid="git-commit-outcome-banner"
 >
   <InlineNotice tone={outcome.status === "busy_locked" ? "danger" : "warning"}>

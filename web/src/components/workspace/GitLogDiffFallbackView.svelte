@@ -53,7 +53,7 @@
       </div>
       {#if sideDoc.file.document.kind === "text"}
         <pre
-          class="overflow-x-auto rounded-md border border-git-border bg-git-panel p-3 font-mono text-xs leading-relaxed text-foreground">{sideDoc
+          class="overflow-x-auto rounded-md border bg-background p-3 font-mono text-xs leading-relaxed text-foreground">{sideDoc
             .file.document.text}</pre>
       {:else}
         <InlineNotice tone="info">

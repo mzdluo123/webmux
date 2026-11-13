@@ -105,10 +105,10 @@
 </script>
 
 <aside
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-panel"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label="历史引用筛选树"
 >
-  <div class="space-y-1.5 border-b border-git-border px-2.5 py-2">
+  <div class="space-y-1.5 border-b px-2.5 py-2">
     <div class="flex items-center justify-between gap-2">
       <span class="text-xs font-semibold text-foreground">引用筛选</span>
       {#if branchFilter}
@@ -132,7 +132,7 @@
 
   <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-1.5">
     <ListButton
-      variant="git-row"
+      variant="compact-row"
       aria-selected={branchFilter === null}
       onclick={() => onBranchFilterChange(null)}
     >
@@ -151,7 +151,7 @@
       {#each treeSections as section (section.id)}
         <div class="space-y-0.5">
           <ListButton
-            variant="git-section"
+            variant="section-header"
             aria-expanded={!collapsed[section.id]}
             onclick={() => toggleSection(section.id)}
           >

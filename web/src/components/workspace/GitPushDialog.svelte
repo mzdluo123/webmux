@@ -214,7 +214,7 @@
     {/if}
 
     <div
-      class="flex min-w-0 flex-col gap-2 rounded-lg border border-git-border bg-git-panel p-2.5 text-xs"
+      class="flex min-w-0 flex-col gap-2 rounded-lg border bg-background p-2.5 text-xs"
     >
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
@@ -298,7 +298,7 @@
       data-slot="git-push-body"
     >
       <div
-        class="min-w-0 space-y-2 rounded-lg border border-git-border bg-git-surface p-2 lg:col-span-5"
+        class="min-w-0 space-y-2 rounded-lg border bg-background p-2 lg:col-span-5"
       >
         <div class="flex items-center justify-between px-1">
           <span class="text-xs font-semibold text-foreground">
@@ -328,7 +328,7 @@
           >
             {#each commitRows as commit (commit.oid)}
               <ListButton
-                variant="git-row"
+                variant="compact-row"
                 aria-selected={activeCommitOid === commit.oid}
                 onclick={() => {
                   if (push) {

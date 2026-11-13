@@ -111,7 +111,7 @@
 </script>
 
 <footer
-  class="flex h-[26px] min-w-0 shrink-0 items-center justify-between gap-2 overflow-hidden border-t border-git-border bg-git-panel px-2.5 text-xs text-muted-foreground"
+  class="flex h-[26px] min-w-0 shrink-0 items-center justify-between gap-2 overflow-hidden border-t bg-background px-2.5 text-xs text-muted-foreground"
   data-testid="git-workbench-status-bar"
 >
   <div class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
@@ -144,9 +144,10 @@
     <Popover.Root bind:open>
       <Popover.Trigger>
         {#snippet child({ props })}
-          <ListButton
+          <Button
             {...props}
-            variant="git-status-trigger"
+            variant="ghost"
+            size="sm"
             class="min-w-0 max-w-full shrink overflow-hidden"
             aria-label="展开 Git 操作记录与状态详情"
             title={barSummary}
@@ -198,7 +199,7 @@
                 ({operations.length})
               </span>
             {/if}
-          </ListButton>
+          </Button>
         {/snippet}
       </Popover.Trigger>
 
@@ -236,7 +237,7 @@
 
         {#if activeOperation && activeOperation.phase !== "idle"}
           <div
-            class="flex items-center gap-2 rounded-md border border-git-border bg-git-panel px-2.5 py-2 text-xs"
+            class="flex items-center gap-2 rounded-md border bg-background px-2.5 py-2 text-xs"
             data-testid="git-active-operation-card"
           >
             <IconLoader2
@@ -264,14 +265,14 @@
           </p>
         {:else}
           <div
-            class="max-h-44 space-y-0.5 overflow-y-auto rounded-md border border-git-border bg-git-surface p-1"
+            class="max-h-44 space-y-0.5 overflow-y-auto rounded-md border bg-background p-1"
             role="listbox"
             aria-label="最近 Git 操作列表"
           >
             {#each operations as op (op.id)}
               {@const isSelected = inspectedOp?.id === op.id}
               <ListButton
-                variant="git-row"
+                variant="compact-row"
                 aria-selected={isSelected}
                 onclick={() => (selectedOpId = op.id)}
                 data-operation-id={op.id}
@@ -294,7 +295,7 @@
 
           {#if inspectedOp}
             <div
-              class="space-y-2 rounded-md border border-git-border bg-git-panel p-2.5 text-xs"
+              class="space-y-2 rounded-md border bg-background p-2.5 text-xs"
               data-testid="git-operation-detail"
             >
               <div class="flex flex-wrap items-center justify-between gap-1.5">
@@ -351,7 +352,7 @@
 
               {#if inspectedOp.sanitizedOutput}
                 <pre
-                  class="max-h-28 overflow-auto rounded-sm border border-git-border bg-git-surface p-2 font-mono text-xs whitespace-pre-wrap wrap-anywhere text-muted-foreground"
+                  class="max-h-28 overflow-auto rounded-sm border bg-background p-2 font-mono text-xs whitespace-pre-wrap wrap-anywhere text-muted-foreground"
                   data-testid="git-operation-output">{inspectedOp.sanitizedOutput}</pre>
               {/if}
 
