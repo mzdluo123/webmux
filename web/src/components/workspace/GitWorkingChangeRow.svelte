@@ -1,6 +1,8 @@
 <script lang="ts">
+  import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import IconArrowsSplit2 from "~icons/tabler/arrows-split-2";
-  import IconCheck from "~icons/tabler/check";
+  import IconEye from "~icons/tabler/eye";
+  import IconEyeCheck from "~icons/tabler/eye-check";
   import IconHistory from "~icons/tabler/history";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import GitRowActionMenu from "./GitRowActionMenu.svelte";
@@ -75,7 +77,9 @@
       title={isReviewed ? `已审阅 ${item.path}` : `标记已审阅 ${item.path}`}
       onclick={() => onToggleReviewed(item)}
     >
-      <IconCheck aria-hidden="true" />
+      {#if isReviewed}<IconEyeCheck aria-hidden="true" />{:else}<IconEye
+          aria-hidden="true"
+        />{/if}
     </Button>
 
     <div class="min-w-0 flex-1">
@@ -87,15 +91,7 @@
         onclick={onSelect}
       >
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-          <Badge
-            variant={item.group === "conflicted"
-              ? "destructive"
-              : item.group === "staged"
-                ? "info"
-                : "outline"}
-          >
-            {item.status}
-          </Badge>
+          <GitFileStatusIcon status={item.status} group={item.group} />
           <span
             class="min-w-[4ch] max-w-full flex-1 truncate font-mono"
             title={item.oldPath && item.oldPath !== item.path
@@ -106,11 +102,6 @@
               ? `${item.oldPath} → ${item.path}`
               : item.path}
           </span>
-          {#if isReviewed}
-            <Badge variant="secondary" class="max-w-full">
-              <span class="truncate">已审阅</span>
-            </Badge>
-          {/if}
           {#if item.preStagedFromCli}
             <Badge variant="warning" class="max-w-full">
               <span class="truncate">CLI 预暂存</span>

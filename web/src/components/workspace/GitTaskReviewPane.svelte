@@ -1,5 +1,7 @@
 <script lang="ts">
-  import IconCheck from "~icons/tabler/check";
+  import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
+  import IconEye from "~icons/tabler/eye";
+  import IconEyeCheck from "~icons/tabler/eye-check";
   import IconFlag from "~icons/tabler/flag";
   import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
@@ -306,7 +308,9 @@
                 title={isReviewed ? `已审阅 ${path}` : `标记已审阅 ${path}`}
                 onclick={() => onToggleReviewed(path)}
               >
-                <IconCheck aria-hidden="true" />
+                {#if isReviewed}<IconEyeCheck
+                    aria-hidden="true"
+                  />{:else}<IconEye aria-hidden="true" />{/if}
               </Button>
             {/if}
             <div class="min-w-0 flex-1">
@@ -318,15 +322,7 @@
                 onclick={() => onSelectFile?.(path)}
               >
                 <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                  <Badge
-                    variant={file.status === "D"
-                      ? "destructive"
-                      : file.status === "A"
-                        ? "info"
-                        : "outline"}
-                  >
-                    {file.status}
-                  </Badge>
+                  <GitFileStatusIcon status={file.status} />
                   <span
                     class="min-w-[6ch] max-w-full flex-1 truncate font-mono"
                     title={file.oldPath && file.oldPath !== path
@@ -337,9 +333,6 @@
                       ? `${file.oldPath} → ${path}`
                       : path}
                   </span>
-                  {#if isReviewed}
-                    <Badge variant="secondary">已审阅</Badge>
-                  {/if}
                 </div>
               </ListButton>
             </div>

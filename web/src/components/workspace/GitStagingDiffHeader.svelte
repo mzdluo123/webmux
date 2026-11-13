@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconListCheck from "~icons/tabler/list-check";
@@ -59,15 +60,7 @@
   class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-background px-2.5 py-1.5"
 >
   <div class="flex min-w-0 basis-48 flex-1 flex-wrap items-center gap-1.5">
-    <Badge
-      variant={change.group === "conflicted"
-        ? "destructive"
-        : change.group === "staged"
-          ? "info"
-          : "outline"}
-    >
-      {change.status}
-    </Badge>
+    <GitFileStatusIcon status={change.status} group={change.group} />
     <Badge variant="outline" class="max-w-full">
       <span class="truncate font-mono"
         >{endpoints.left} → {endpoints.right}</span
