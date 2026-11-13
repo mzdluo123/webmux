@@ -6,9 +6,14 @@
   } from "../../contracts/git-workbench-schemas";
   import type { GitReworkItem, SessionInfo } from "../../contracts/schemas";
   import { applyShellCommitConfirm } from "../../domains/workspace/git-shell-actions";
+  import {
+    applyShellDiscardConfirm,
+    type PendingShellDiscard,
+  } from "../../domains/workspace/git-shell-v3-actions";
   import type { GitSessionHandoffMode } from "../../hooks/workspace/git-rework-controller.svelte";
   import GitAbortOperationDialog from "./GitAbortOperationDialog.svelte";
   import GitCommitPreviewDialog from "./GitCommitPreviewDialog.svelte";
+  import GitDiscardPreviewDialog from "./GitDiscardPreviewDialog.svelte";
   import GitDivergencePreviewDialog from "./GitDivergencePreviewDialog.svelte";
   import GitFileInspectorDialog from "./GitFileInspectorDialog.svelte";
   import GitPushDialog from "./GitPushDialog.svelte";
@@ -21,6 +26,7 @@
     view = $bindable(),
     reworkOpen = $bindable(false),
     reworkItems = $bindable([]),
+    pendingDiscard = $bindable(null),
     handoffMode,
     activeSessions,
     simulatedCommitOutcome = null,
@@ -31,6 +37,7 @@
     view: GitWorkbenchViewState;
     reworkOpen?: boolean;
     reworkItems?: GitReworkItem[];
+    pendingDiscard?: PendingShellDiscard | null;
     handoffMode: GitSessionHandoffMode;
     activeSessions: readonly SessionInfo[];
     simulatedCommitOutcome?: GitCommitOutcome | null;
@@ -243,5 +250,21 @@
         selectedCommitOid: oid,
       })}
     onClose={() => (view = { ...view, fileInspectorOpen: false })}
+  />
+{/if}
+
+{#if view.discardPreview}
+  <GitDiscardPreviewDialog
+    preview={view.discardPreview}
+    {acknowledgeSessions}
+    onAcknowledgeSessionsChange={(checked) => (acknowledgeSessions = checked)}
+    onConfirm={() => {
+      view = applyShellDiscardConfirm(view, pendingDiscard);
+      pendingDiscard = null;
+    }}
+    onClose={() => {
+      pendingDiscard = null;
+      view = { ...view, discardPreview: null };
+    }}
   />
 {/if}

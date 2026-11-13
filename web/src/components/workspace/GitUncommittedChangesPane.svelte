@@ -38,6 +38,10 @@
       op: "stage" | "unstage",
       group: "staged" | "unstaged" | "untracked",
     ) => void;
+    onDiscardChanges?: (
+      changeIds: readonly string[],
+      paths: readonly string[],
+    ) => void;
     onRefreshSnapshot?: () => void;
     onOpenStashCreate?: (includeUntracked?: boolean) => void;
     onInspectFile?: (path: string, tab: GitFileInspectorTab) => void;
@@ -67,6 +71,7 @@
   import InlineNotice from "../shared/InlineNotice.svelte";
   import GitCommitComposer from "./GitCommitComposer.svelte";
   import GitConflictTerminalNotice from "./GitConflictTerminalNotice.svelte";
+  import GitDiscardBatchBar from "./GitDiscardBatchBar.svelte";
   import GitPanelToolbar from "./GitPanelToolbar.svelte";
   import GitTaskDeliverySummary from "./GitTaskDeliverySummary.svelte";
   import GitWorkingChangeRow from "./GitWorkingChangeRow.svelte";
@@ -102,6 +107,7 @@
     onStageChange,
     onUnstageChange,
     onStageGroup,
+    onDiscardChanges,
     onRefreshSnapshot,
     onOpenStashCreate,
     onInspectFile,
@@ -133,10 +139,24 @@
 
   let listScrollEl = $state<HTMLDivElement>();
   let collapsed = $state<Record<string, boolean>>({});
+  let batchSelectedIds = $state<string[]>([]);
 
   $effect(() => syncElementScrollTop(listScrollEl, listScrollTop));
 
   const grouped = $derived(groupWorkingChanges(changes));
+  const selectedBatchItems = $derived(
+    changes.filter(
+      (c) =>
+        (c.group === "unstaged" || c.group === "untracked") &&
+        batchSelectedIds.includes(c.id),
+    ),
+  );
+
+  function toggleBatchSelect(item: GitWorkingChange) {
+    batchSelectedIds = batchSelectedIds.includes(item.id)
+      ? batchSelectedIds.filter((id) => id !== item.id)
+      : [...batchSelectedIds, item.id];
+  }
   const sections: { key: GitChangeGroup; title: string }[] = [
     { key: "conflicted", title: "冲突 (Conflicts)" },
     { key: "staged", title: "已暂存 (Staged · Git index)" },
@@ -264,6 +284,22 @@
     />
   {/if}
 
+  {#if !readonlyMode && onDiscardChanges}
+    <GitDiscardBatchBar
+      selectedItems={selectedBatchItems}
+      busy={stagingBusy}
+      onStageSelected={(items) => {
+        for (const item of items) onStageChange(item.id);
+      }}
+      onDiscardSelected={(items) =>
+        onDiscardChanges(
+          items.map((i) => i.id),
+          items.map((i) => i.path),
+        )}
+      onClearSelection={() => (batchSelectedIds = [])}
+    />
+  {/if}
+
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
   <!-- svelte-ignore a11y_interactive_supports_focus -->
   <div
@@ -297,7 +333,7 @@
       {@const isOpen = !collapsed[sec.key]}
       <div class="space-y-0.5" data-change-section={sec.key}>
         <div class="flex min-w-0 flex-wrap items-center gap-1">
-          <div class="min-w-[8rem] flex-1">
+          <div class="min-w-0 basis-32 flex-1">
             <ListButton
               variant="git-section"
               aria-expanded={isOpen}
@@ -327,6 +363,21 @@
                 全部取消暂存
               </Button>
             {:else if sec.key === "unstaged" || sec.key === "untracked"}
+              {#if onDiscardChanges}
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={stagingBusy}
+                  onclick={() =>
+                    onDiscardChanges(
+                      list.map((i) => i.id),
+                      list.map((i) => i.path),
+                    )}
+                  data-testid={`git-discard-group-${sec.key}`}
+                >
+                  全部丢弃…
+                </Button>
+              {/if}
               <Button
                 size="xs"
                 variant="ghost"
@@ -353,12 +404,22 @@
                   item={entry}
                   isReviewed={isChangeReviewed(reviewedPaths, entry)}
                   isReading={activeChange?.id === entry.id}
+                  batchSelectable={Boolean(
+                    onDiscardChanges &&
+                    (entry.group === "unstaged" || entry.group === "untracked"),
+                  )}
+                  isSelectedForBatch={batchSelectedIds.includes(entry.id)}
                   {readonlyMode}
                   {stagingBusy}
                   onSelect={() => onSelectChange(entry.id)}
+                  onToggleBatchSelect={toggleBatchSelect}
                   {onToggleReviewed}
                   {onStageChange}
                   {onUnstageChange}
+                  onDiscardChange={onDiscardChanges &&
+                  (entry.group === "unstaged" || entry.group === "untracked")
+                    ? (item) => onDiscardChanges([item.id], [item.path])
+                    : undefined}
                   {onOpenConflictResolver}
                   {onInspectFile}
                 />

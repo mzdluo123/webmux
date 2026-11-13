@@ -96,3 +96,11 @@ export const BranchesTagsAndRemotes: Story = {
 export const FileHistoryAndBlame: Story = {
   args: { scenario: "file-history-blame" },
 };
+
+export const SubHunkLineStaging: Story = {
+  args: { scenario: "sub-hunk-line-staging" },
+};
+
+export const DiscardPreviewDialog: Story = {
+  args: { scenario: "discard-preview-dialog" },
+};

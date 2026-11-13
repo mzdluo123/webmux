@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
+  import { requestConflictResolverHandoff } from "../../domains/workspace/git-conflict-handoff";
   import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
   import {
     homeLayout,
@@ -329,6 +330,14 @@
           ongoto={(path) => {
             const tree = repo.worktrees.find((w) => w.path === path);
             if (tree) shell.worktreeDetails(tree);
+          }}
+          onopenconflict={(tree, path) => {
+            requestConflictResolverHandoff(repo.id, tree.id, path);
+            openGitWorkbench({
+              repositoryId: repo.id,
+              worktreeId: tree.id,
+              view: "commit",
+            });
           }}
           onclose={() => (switchingBranch = null)}
         />{/snippet}

@@ -1,11 +1,7 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { SelectedLineRange } from "@pierre/diffs";
-  import IconArrowDown from "~icons/tabler/arrow-down";
-  import IconArrowUp from "~icons/tabler/arrow-up";
-  import IconMinus from "~icons/tabler/minus";
-  import IconPlus from "~icons/tabler/plus";
   import IconRefresh from "~icons/tabler/refresh";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import type {
     GitWorkingChange,
@@ -13,22 +9,25 @@
   } from "../../contracts/git-workbench-schemas";
   import type { CodeDiffReaderState } from "../../contracts/schemas";
   import {
+    mapDiffRangeToLineSelections,
+    type GitHunkAndLineMutationProps,
+  } from "../../domains/workspace/git-line-selection";
+  import {
     type ActiveDiffReworkSelection,
+    buildHunkReworkItemInput,
     createReworkDraftItem,
     extractDiffRangeSnippet,
     resolveStagingVersionDescriptor,
   } from "../../domains/workspace/git-rework-model";
   import { createOfflineHunkDiffState } from "../../hooks/workspace/git-offline-diff.svelte";
-  import {
-    formatStagingComparisonEndpoints,
-    type GitStagingDiffController,
-  } from "../../hooks/workspace/git-staging-diff.svelte";
+  import type { GitStagingDiffController } from "../../hooks/workspace/git-staging-diff.svelte";
   import CodeDiffReader from "../code/CodeDiffReader.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import GitConflictTerminalNotice from "./GitConflictTerminalNotice.svelte";
   import GitDiffSelectionBar from "./GitDiffSelectionBar.svelte";
-  import GitDiffStyleSwitch from "./GitDiffStyleSwitch.svelte";
+  import GitStagingDiffHeader from "./GitStagingDiffHeader.svelte";
   import GitStagingHunkStrip from "./GitStagingHunkStrip.svelte";
+  import GitStagingLineSelector from "./GitStagingLineSelector.svelte";
 
   let {
     change,
@@ -40,12 +39,18 @@
     stale = false,
     staleReason = "",
     hasActiveWorktreeSession = false,
+    defaultLinePickerOpen = false,
     liveWorktreeIdentity,
     onDiffModeChange,
     onStageChange,
     onUnstageChange,
     onStageHunk,
     onUnstageHunk,
+    onStageLines,
+    onUnstageLines,
+    onDiscardFile,
+    onDiscardHunk,
+    onDiscardLines,
     onAddReworkItem,
     onRefreshSnapshot,
     onOpenConflictResolver,
@@ -61,12 +66,12 @@
     stale?: boolean;
     staleReason?: string;
     hasActiveWorktreeSession?: boolean;
+    defaultLinePickerOpen?: boolean;
     liveWorktreeIdentity?: string;
     onDiffModeChange?: (mode: "unified" | "split") => void;
     onStageChange: (changeId: string) => void;
     onUnstageChange: (changeId: string) => void;
-    onStageHunk: (changeId: string, hunkId: string) => void;
-    onUnstageHunk: (changeId: string, hunkId: string) => void;
+    onDiscardFile?: (changeId: string, path: string) => void;
     onAddReworkItem?: (
       input: Parameters<typeof createReworkDraftItem>[0],
       options?: { openSheet?: boolean },
@@ -75,9 +80,10 @@
     onOpenConflictResolver?: (path?: string) => void;
     onOpenWorktreeTerminal?: () => void;
     onNewWorktreeTerminal?: () => void;
-  } = $props();
+  } & GitHunkAndLineMutationProps = $props();
 
   let readerRef = $state<ReturnType<typeof CodeDiffReader>>();
+  let linePickerOpen = $state(untrack(() => defaultLinePickerOpen));
   let navState = $state<{
     changeId: string;
     hunkIndex: number;
@@ -131,7 +137,6 @@
     });
   });
 
-  const endpoints = $derived(formatStagingComparisonEndpoints(change));
   const phase = $derived(
     stagingDiff ? stagingDiff.state.phase : offline.state.phase,
   );
@@ -156,6 +161,19 @@
       change.group !== "untracked" &&
       change.hunkStageAvailable &&
       change.hunks.length > 0,
+  );
+  const canStageLines = $derived(
+    canStageHunks && Boolean(onStageLines || onUnstageLines),
+  );
+  const canDiscardCurrentFile = $derived(
+    !readonlyMode &&
+      (change.group === "unstaged" || change.group === "untracked") &&
+      Boolean(onDiscardFile),
+  );
+  const readerLineSelections = $derived(
+    canStageLines
+      ? mapDiffRangeToLineSelections(change.hunks, selectedRange)
+      : [],
   );
 
   const resolvedSelection = $derived.by<ActiveDiffReworkSelection | null>(
@@ -185,32 +203,14 @@
 
   function addHunkToRework(hunk: GitWorkingChange["hunks"][number]) {
     if (!onAddReworkItem) return;
-    const useNewSide = hunk.newLines > 0;
-    const startLine = Math.max(1, useNewSide ? hunk.newStart : hunk.oldStart);
-    const span = Math.max(1, useNewSide ? hunk.newLines : hunk.oldLines);
-    const endLine = startLine + span - 1;
-    const desc = resolveStagingVersionDescriptor({
-      group: change.group,
-      side: useNewSide ? "new" : "old",
-      headOid: context.headOid,
-      liveWorktreeIdentity,
-    });
-    const snippet = hunk.lines
-      .map(
-        (l) =>
-          `${l.kind === "add" ? "+" : l.kind === "delete" ? "-" : " "}${l.text}`,
-      )
-      .join("\n");
-    onAddReworkItem({
-      path: change.path,
-      oldPath: change.oldPath,
-      sourceKind: desc.sourceKind,
-      versionLabel: desc.versionLabel,
-      startLine,
-      endLine,
-      codeSnippet: snippet,
-      capturedWorktreeIdentity: desc.capturedWorktreeIdentity,
-    });
+    onAddReworkItem(
+      buildHunkReworkItemInput({
+        change,
+        hunk,
+        headOid: context.headOid,
+        liveWorktreeIdentity,
+      }),
+    );
   }
 
   function jumpToHunk(nextIdx: number) {
@@ -233,93 +233,27 @@
 </script>
 
 <div
-  class="flex h-full min-h-0 min-w-0 flex-col bg-git-surface"
+  class="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-git-surface"
   data-testid="git-staging-diff-panel"
 >
-  <header
-    class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-git-border bg-git-panel px-2.5 py-1.5"
-  >
-    <div class="flex min-w-[12rem] flex-1 flex-wrap items-center gap-1.5">
-      <Badge
-        variant={change.group === "conflicted"
-          ? "destructive"
-          : change.group === "staged"
-            ? "info"
-            : "outline"}
-      >
-        {change.status}
-      </Badge>
-      <Badge variant="outline">
-        <span class="font-mono">{endpoints.left} → {endpoints.right}</span>
-      </Badge>
-      <span
-        class="min-w-0 truncate font-mono text-xs font-medium text-foreground"
-        title={change.oldPath && change.oldPath !== change.path
-          ? `${change.oldPath} → ${change.path}`
-          : change.path}
-      >
-        {change.oldPath && change.oldPath !== change.path
-          ? `${change.oldPath} → ${change.path}`
-          : change.path}
-      </span>
-    </div>
-
-    <div class="flex shrink-0 flex-wrap items-center gap-1.5">
-      {#if change.hunks.length > 0}
-        <div class="flex items-center gap-1">
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            disabled={hunkIndex <= 0}
-            aria-label="上一变更块"
-            title="上一变更块"
-            onclick={() => jumpToHunk(hunkIndex - 1)}
-          >
-            <IconArrowUp aria-hidden="true" />
-          </Button>
-          <span class="font-mono text-xs text-muted-foreground">
-            {Math.min(hunkIndex + 1, change.hunks.length)}/{change.hunks.length}
-          </span>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            disabled={hunkIndex >= change.hunks.length - 1}
-            aria-label="下一变更块"
-            title="下一变更块"
-            onclick={() => jumpToHunk(hunkIndex + 1)}
-          >
-            <IconArrowDown aria-hidden="true" />
-          </Button>
-        </div>
-      {/if}
-
-      {#if phase === "ready"}
-        <GitDiffStyleSwitch value={diffMode} onChange={onDiffModeChange} />
-      {/if}
-
-      {#if stageMode === "stage"}
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={busy || stale}
-          onclick={() => onStageChange(change.id)}
-        >
-          <IconPlus aria-hidden="true" />
-          暂存整文件
-        </Button>
-      {:else if stageMode === "unstage"}
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={busy || stale}
-          onclick={() => onUnstageChange(change.id)}
-        >
-          <IconMinus aria-hidden="true" />
-          取消暂存整文件
-        </Button>
-      {/if}
-    </div>
-  </header>
+  <GitStagingDiffHeader
+    {change}
+    {hunkIndex}
+    {phase}
+    {diffMode}
+    {stageMode}
+    {canStageLines}
+    {linePickerOpen}
+    {canDiscardCurrentFile}
+    {busy}
+    {stale}
+    onJumpToHunk={jumpToHunk}
+    onToggleLinePicker={() => (linePickerOpen = !linePickerOpen)}
+    {onDiffModeChange}
+    {onDiscardFile}
+    {onStageChange}
+    {onUnstageChange}
+  />
 
   {#if stale}
     <div class="border-b border-git-border bg-git-panel px-3 py-2">
@@ -363,7 +297,7 @@
     </div>
   {/if}
 
-  {#if canStageHunks}
+  {#if canStageHunks && !(linePickerOpen && canStageLines)}
     <GitStagingHunkStrip
       changeId={change.id}
       hunks={change.hunks}
@@ -376,53 +310,85 @@
       onAddHunkToRework={addHunkToRework}
       {onStageHunk}
       {onUnstageHunk}
+      onDiscardHunk={change.group === "unstaged" ? onDiscardHunk : undefined}
     />
   {/if}
 
-  <GitDiffSelectionBar
-    selection={resolvedSelection}
-    {onAddReworkItem}
-    onClear={clearStagingSelection}
-  />
+  {#if !(linePickerOpen && canStageLines)}
+    <GitDiffSelectionBar
+      selection={resolvedSelection}
+      {stageMode}
+      lineSelections={readerLineSelections}
+      {busy}
+      {stale}
+      onStageSelectedLines={onStageLines
+        ? (sel) => onStageLines(change.id, sel)
+        : undefined}
+      onUnstageSelectedLines={onUnstageLines
+        ? (sel) => onUnstageLines(change.id, sel)
+        : undefined}
+      onDiscardSelectedLines={change.group === "unstaged" && onDiscardLines
+        ? (sel) => onDiscardLines(change.id, sel)
+        : undefined}
+      {onAddReworkItem}
+      onClear={clearStagingSelection}
+    />
+  {/if}
 
-  <div class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-    {#if phase === "loading"}
-      <p class="p-4 text-xs text-muted-foreground" role="status">
-        正在加载语法高亮差异快照…
-      </p>
-    {:else if phase === "ready" && fileDiff}
-      {#key `${change.id}:${jumpSeq}`}
-        <CodeDiffReader
-          bind:this={readerRef}
-          {fileDiff}
-          side="new"
-          expired={stale}
-          draftEnabled={false}
-          preferredDiffStyle={diffMode}
-          restore={jumpTarget
-            ? {
-                selected: null,
-                expanded: [],
-                search: {
-                  search: "",
-                  caseSensitive: false,
-                  regexp: false,
-                  wholeWord: false,
-                },
-                top: jumpTarget,
-              }
-            : undefined}
-          onselect={(range) => {
-            selectionSlot = range ? { changeId: change.id, range } : null;
-          }}
-        />
-      {/key}
-    {:else}
-      <div class="p-4">
-        <InlineNotice tone={phase === "error" ? "danger" : "info"}>
-          {reason || "当前条目无文本行级差异预览。"}
-        </InlineNotice>
-      </div>
-    {/if}
-  </div>
+  {#if linePickerOpen && canStageLines}
+    <GitStagingLineSelector
+      changeId={change.id}
+      hunks={change.hunks}
+      {stageMode}
+      canDiscardLines={change.group === "unstaged" && Boolean(onDiscardLines)}
+      {busy}
+      {stale}
+      {onStageLines}
+      {onUnstageLines}
+      {onDiscardLines}
+    />
+  {:else}
+    <div
+      class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      {#if phase === "loading"}
+        <p class="p-4 text-xs text-muted-foreground" role="status">
+          正在加载语法高亮差异快照…
+        </p>
+      {:else if phase === "ready" && fileDiff}
+        {#key `${change.id}:${jumpSeq}`}
+          <CodeDiffReader
+            bind:this={readerRef}
+            {fileDiff}
+            side="new"
+            expired={stale}
+            draftEnabled={false}
+            preferredDiffStyle={diffMode}
+            restore={jumpTarget
+              ? {
+                  selected: null,
+                  expanded: [],
+                  search: {
+                    search: "",
+                    caseSensitive: false,
+                    regexp: false,
+                    wholeWord: false,
+                  },
+                  top: jumpTarget,
+                }
+              : undefined}
+            onselect={(range) => {
+              selectionSlot = range ? { changeId: change.id, range } : null;
+            }}
+          />
+        {/key}
+      {:else}
+        <div class="p-4">
+          <InlineNotice tone={phase === "error" ? "danger" : "info"}>
+            {reason || "当前条目无文本行级差异预览。"}
+          </InlineNotice>
+        </div>
+      {/if}
+    </div>
+  {/if}
 </div>

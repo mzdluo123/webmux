@@ -1,0 +1,53 @@
+{
+  "status": 200,
+  "body": {
+    "binary": false,
+    "conflicted": false,
+    "hunkStageAvailable": true,
+    "hunks": [
+      {
+        "header": "@@ -1,3 +1,2 @@",
+        "id": "hunk-cebc8904f9853579",
+        "lines": [
+          {
+            "kind": "context",
+            "lineEnding": "lf",
+            "newLine": 1,
+            "oldLine": 1,
+            "text": "bee"
+          },
+          {
+            "kind": "delete",
+            "lineEnding": "lf",
+            "oldLine": 2,
+            "text": "butterfly"
+          },
+          {
+            "kind": "delete",
+            "lineEnding": "lf",
+            "oldLine": 3,
+            "text": "dragonfly"
+          },
+          {
+            "kind": "add",
+            "lineEnding": "lf",
+            "newLine": 2,
+            "text": "worktree-compare"
+          }
+        ],
+        "newLines": 2,
+        "newStart": 1,
+        "oldLines": 3,
+        "oldStart": 1
+      }
+    ],
+    "identity": {
+      "area": "unstaged",
+      "baseMode": "100644",
+      "baseOid": "89673477bf2139ca6b5ab42049377d1ab0066e0c",
+      "path": "sub/b.txt",
+      "targetMode": "100644",
+      "targetSha256": "7d4362d73d93c854762b5ba10319ddc279d1fc78f9e245d4707df9bed1d959f1"
+    }
+  }
+}

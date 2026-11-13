@@ -376,4 +376,74 @@ func wireGitWorkbench(f *wireFixture) {
 		"baseOid":    {firstOID},
 		"path":       {"sub/b.txt"},
 	}.Encode(), nil, 200)
+
+	// 9. V3 Sub-hunk line stage/unstage, Discard Changes, and 3-phase Smart Checkout (#551).
+	v3Diff := f.call("git-staging-diff-v3", "GET", writeBase+"/staging/diff?area=unstaged&path="+url.QueryEscape("sub/b.txt"), nil, 200)
+	v3Hunk := field(v3Diff, "hunks").([]any)[0]
+	var v3ChangedIdx int
+	for idx, rawLine := range field(v3Hunk, "lines").([]any) {
+		if str(rawLine, "kind") != "context" {
+			v3ChangedIdx = idx
+			break
+		}
+	}
+	f.call("git-stage-lines", "POST", writeBase+"/stage", contract.GitStageRequest{
+		Identity: decodeIdentity(f, field(v3Diff, "identity")),
+		LineSelections: []contract.GitLineSelection{
+			{HunkID: str(v3Hunk, "id"), LineIndices: []int{v3ChangedIdx}},
+		},
+	}, 204)
+	v3Staged := f.call("git-staging-diff-v3-staged", "GET", writeBase+"/staging/diff?area=staged&path="+url.QueryEscape("sub/b.txt"), nil, 200)
+	v3StagedHunk := field(v3Staged, "hunks").([]any)[0]
+	var v3UnstageIdx int
+	for idx, rawLine := range field(v3StagedHunk, "lines").([]any) {
+		if str(rawLine, "kind") != "context" {
+			v3UnstageIdx = idx
+			break
+		}
+	}
+	f.call("git-unstage-lines", "POST", writeBase+"/unstage", contract.GitStageRequest{
+		Identity: decodeIdentity(f, field(v3Staged, "identity")),
+		LineSelections: []contract.GitLineSelection{
+			{HunkID: str(v3StagedHunk, "id"), LineIndices: []int{v3UnstageIdx}},
+		},
+	}, 204)
+
+	discardPrev := f.call("git-discard-preview", "POST", writeBase+"/discard-preview", contract.GitDiscardPreviewRequest{
+		Scope: "files",
+		Paths: []string{"sub/b.txt"},
+	}, 200)
+	f.call("git-discard", "POST", writeBase+"/discard", contract.GitDiscardRequest{
+		ConfirmationID:  str(discardPrev, "confirmationId"),
+		ClientRequestID: "wire-discard-1",
+	}, 200)
+
+	// Smart Checkout on dirty worktree from main -> feat-renamed -> back to main.
+	f.git("branch", "feat-smart-target", "HEAD")
+	if err := os.WriteFile(filepath.Join(f.root, "smart-note.txt"), []byte("carry across checkout\n"), 0o600); err != nil {
+		f.t.Fatal(err)
+	}
+	scPrev := f.call("git-smart-checkout-preview", "POST", writeBase+"/smart-checkout-preview", contract.GitSmartCheckoutPreviewRequest{
+		Target: contract.SwitchTarget{Kind: "local", Branch: "feat-smart-target"},
+	}, 200)
+	f.call("git-smart-checkout", "POST", writeBase+"/smart-checkout", contract.GitSmartCheckoutRequest{
+		ConfirmationID:  str(scPrev, "confirmationId"),
+		ClientRequestID: "wire-smart-checkout-1",
+	}, 200)
+}
+
+func decodeIdentity(f *wireFixture, raw any) contract.GitStageFileIdentity {
+	m := raw.(map[string]any)
+	return contract.GitStageFileIdentity{
+		Area:         optStr(m, "area"),
+		Path:         optStr(m, "path"),
+		OldPath:      optStr(m, "oldPath"),
+		OldBaseOID:   optStr(m, "oldBaseOid"),
+		OldBaseMode:  optStr(m, "oldBaseMode"),
+		BaseOID:      optStr(m, "baseOid"),
+		BaseMode:     optStr(m, "baseMode"),
+		TargetOID:    optStr(m, "targetOid"),
+		TargetSHA256: optStr(m, "targetSha256"),
+		TargetMode:   optStr(m, "targetMode"),
+	}
 }

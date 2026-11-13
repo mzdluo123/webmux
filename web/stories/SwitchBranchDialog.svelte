@@ -5,18 +5,25 @@
   import { Button } from "../src/lib/components/ui/button";
   import type {
     Branches,
+    GitSmartCheckoutPreview,
     Repository,
     SwitchPreview,
     Worktree,
   } from "../src/contracts/schemas";
   import { longPath, longToken, session, worktree } from "./fixtures";
 
-  // The switch of a worktree's branch with a preview that is blocked, one
-  // that lists running sessions to acknowledge, and long names that must
-  // wrap. A preview appears once a target branch is chosen.
+  export type SwitchStoryScenario =
+    | "blockers"
+    | "sessions"
+    | "long-names"
+    | "smart-idle"
+    | "smart-agent";
+
   let {
     scenario = "blockers",
-  }: { scenario?: "blockers" | "sessions" | "long-names" } = $props();
+  }: {
+    scenario?: SwitchStoryScenario;
+  } = $props();
   let open = $state(true);
   const shown = untrack(() => scenario);
 
@@ -24,12 +31,18 @@
   const head = "1234567890abcdef1234567890abcdef12345678";
   const target = "abcdef1234567890abcdef1234567890abcdef12";
   const long = shown === "long-names";
+  const isSmart = shown === "smart-idle" || shown === "smart-agent";
   const current: Worktree = {
     ...worktree,
     kind: "linked",
     path: `${longPath}/current`,
     branch: long ? `feature/current-${longToken}` : "feature/current",
     head,
+    dirty: isSmart,
+    hasUntracked: isSmart,
+    changes: isSmart
+      ? { staged: 1, unstaged: 2, untracked: 1, conflicted: 0 }
+      : worktree.changes,
     locked: false,
     lockReason: "",
     prunable: false,
@@ -89,7 +102,22 @@
     defaultBranch: "main",
     defaultParent: longPath,
   };
-  const previews: Record<typeof scenario, Partial<SwitchPreview>> = {
+  const activeAgentSessions = [
+    { ...session, id: "abcdefga", status: "idle" as const },
+    {
+      ...session,
+      id: "abcdefgb",
+      title: `Claude Code · ${longToken}`,
+      status: "running" as const,
+      agent: {
+        name: "claude",
+        title: "Claude Code",
+        icon: "claudecode",
+        sessionId: "01a",
+      },
+    },
+  ];
+  const previews: Record<SwitchStoryScenario, Partial<SwitchPreview>> = {
     blockers: {
       blockers: [
         {
@@ -109,21 +137,7 @@
     sessions: {
       confirmationId: "storybook-confirmation",
       expiresAt: "2026-01-01T12:05:00Z",
-      sessions: [
-        { ...session, id: "abcdefga", status: "idle" },
-        {
-          ...session,
-          id: "abcdefgb",
-          title: `Claude Code · ${longToken}`,
-          status: "running",
-          agent: {
-            name: "claude",
-            title: "Claude Code",
-            icon: "claudecode",
-            sessionId: "01a",
-          },
-        },
-      ],
+      sessions: activeAgentSessions,
       warnings: [
         {
           code: "sessions",
@@ -138,6 +152,30 @@
           code: "occupied",
           message: `分支 ${chosen} 已被另一个工作树检出：${other.path}`,
           path: other.path,
+        },
+      ],
+    },
+    "smart-idle": {
+      blockers: [
+        {
+          code: "changes",
+          message: "有未提交的修改（已暂存 1、未暂存 2），直接切换会被阻止",
+        },
+      ],
+      warnings: [{ code: "untracked", message: "有 1 个未跟踪文件" }],
+    },
+    "smart-agent": {
+      sessions: activeAgentSessions,
+      blockers: [
+        {
+          code: "changes",
+          message: "有未提交的修改（已暂存 1、未暂存 2），直接切换会被阻止",
+        },
+      ],
+      warnings: [
+        {
+          code: "sessions",
+          message: "有 2 个运行中的会话；建议优先改为在新工作树打开",
         },
       ],
     },
@@ -167,6 +205,62 @@
       ...previews[shown],
     }),
     switch: async (tree) => ({ ...tree, branch: chosen }),
+    ...(isSmart
+      ? {
+          smartPreview: async (
+            tree,
+            req,
+          ): Promise<GitSmartCheckoutPreview> => ({
+            confirmationId: "storybook-smart-confirm",
+            expiresAt: "2026-01-01T12:05:00Z",
+            repositoryId: repository.id,
+            worktreeId: tree.id,
+            worktree: tree,
+            target: {
+              kind: req.target.kind,
+              branch: req.target.kind === "local" ? req.target.branch : chosen,
+              commit: target,
+              subject: `目标提交 ${longToken}`,
+              createsBranch: req.target.kind !== "local",
+              upstream: null,
+            },
+            includeUntracked: req.includeUntracked ?? true,
+            stagedCount: 1,
+            unstagedCount: 2,
+            untrackedCount: 1,
+            dirtyPaths: ["src/auth.ts", "src/session.ts", "notes.md"],
+            hasActiveAgent: shown === "smart-agent",
+            sessions: shown === "smart-agent" ? activeAgentSessions : [],
+            blockers: [],
+            warnings: [],
+          }),
+          smartCheckout: async (tree) => ({
+            operationId: "op-smart-story",
+            outcome: "completed",
+            phase: "completed",
+            stashOid: "9999aaaabbbbccccddddeeeeffff000011112222",
+            stashRestored: true,
+            stashDropped: true,
+            stashPreserved: false,
+            summary: `Smart Checkout 已完成：已携带修改切换至 ${chosen}`,
+            inProgress: {
+              active: false,
+              worktreeId: tree.id,
+              worktreePath: tree.path,
+              headOid: target,
+              headSubject: `目标提交 ${longToken}`,
+              currentBranch: chosen,
+              detached: false,
+              conflictedCount: 0,
+              conflictedFiles: [],
+              canContinue: false,
+              canAbort: false,
+              continueBlockers: [],
+            },
+            worktree: { ...tree, branch: chosen },
+          }),
+        }
+      : {}),
   };
 </script>
 
@@ -176,10 +270,12 @@
     <SwitchBranchDialog
       {repository}
       worktree={current}
+      initialBranch={isSmart ? chosen : undefined}
       {source}
       onchange={() => {}}
       onnewworktree={() => {}}
       ongoto={() => {}}
+      onopenconflict={() => {}}
       onclose={() => (open = false)}
     />
   {/if}

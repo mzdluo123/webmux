@@ -35,6 +35,8 @@ const (
 	GitOpRemoteAdd      = "remote_add"
 	GitOpRemoteUpdate   = "remote_update"
 	GitOpRemoteRemove   = "remote_remove"
+	GitOpDiscard        = "discard"
+	GitOpSmartCheckout  = "smart_checkout"
 
 	GitOpPending     = "pending"
 	GitOpRunning     = "running"
@@ -81,12 +83,16 @@ type GitOperation struct {
 	RequestHash     string              `json:"requestHash,omitempty"`
 	Kind            string              `json:"kind"`
 	Status          string              `json:"status"`
+	Phase           string              `json:"phase,omitempty"`
 	ConfirmationID  string              `json:"confirmationId,omitempty"`
 	StartedAt       time.Time           `json:"startedAt"`
 	FinishedAt      *time.Time          `json:"finishedAt,omitempty"`
 	Summary         string              `json:"summary"`
 	SanitizedOutput string              `json:"sanitizedOutput,omitempty"`
 	FailureKind     string              `json:"failureKind,omitempty"`
+	StashOID        string              `json:"stashOid,omitempty"`
+	RecoveryOID     string              `json:"recoveryOid,omitempty"`
+	RecoveryCommand string              `json:"recoveryCommand,omitempty"`
 	RemoteStatus    string              `json:"remoteStatus,omitempty"`
 	FetchResults    []FetchResult       `json:"fetchResults,omitempty"`
 	Preview         GitOperationPreview `json:"preview"`

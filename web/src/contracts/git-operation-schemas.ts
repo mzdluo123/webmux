@@ -26,6 +26,8 @@ const GitOperationKindSchema = z.enum([
   "remote_add",
   "remote_update",
   "remote_remove",
+  "discard",
+  "smart_checkout",
 ]);
 export type GitOperationKind = z.infer<typeof GitOperationKindSchema>;
 
@@ -75,11 +77,15 @@ export const GitOperationSchema = z.object({
   clientRequestId: z.string().optional(),
   kind: GitOperationKindSchema,
   status: GitOperationStatusSchema,
+  phase: z.string().optional(),
   confirmationId: z.string().optional(),
   startedAt: z.iso.datetime({ offset: true }),
   finishedAt: z.iso.datetime({ offset: true }).nullable(),
   summary: z.string(),
   sanitizedOutput: z.string().optional(),
+  stashOid: z.string().optional(),
+  recoveryOid: z.string().optional(),
+  recoveryCommand: z.string().optional(),
   remoteStatus: FetchResultSchema.shape.status.optional(),
   fetchResults: z.array(FetchResultSchema),
   preview: GitOperationPreviewSchema,

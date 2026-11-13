@@ -326,7 +326,11 @@ func (s *Service) populateUnstashOperationMeta(ctx context.Context, cwd, worktre
 	if isObjectID(stashOID) {
 		out.SourceOID = stashOID
 		out.SourceSubject = s.readCommitSubjectBestEffort(ctx, cwd, stashOID)
-		out.SourceLabel = "贮藏变更 " + shortOID(stashOID)
+		if strings.Contains(out.SourceSubject, "webmux-smart-checkout:") {
+			out.SourceLabel = "Smart Checkout 贮藏 " + shortOID(stashOID)
+		} else {
+			out.SourceLabel = "贮藏变更 " + shortOID(stashOID)
+		}
 	} else {
 		out.SourceLabel = "贮藏变更"
 	}

@@ -1,6 +1,6 @@
-# 任务基线、协同、冲突解决与日常高级操作（US-J24–US-J27）
+# 任务基线、协同、冲突解决与日常高级操作（US-J24–US-J28）
 
-本页收录 Git 工作台的任务审阅基线、跨设备审阅与返工交回会话、合并/变基/遴选/还原与三方冲突解决器，以及独立 `Stash` 视图、高级提交保护、引用远程维护与单文件历史及 Blame 故事（US-J24–US-J27）。
+本页收录 Git 工作台的任务审阅基线、跨设备审阅与返工交回会话、合并/变基/遴选/还原与三方冲突解决器、独立 `Stash` 视图与日常高级操作，以及任意逐行（Sub-hunk）暂存、受控丢弃更改与三阶段 `Smart Checkout` 故事（US-J24–US-J28）。
 基础故事见[Git 工作台基础闭环与账本](core.md)，分索引见[Git 工作台与仓库级接口](../git-workbench.md)。
 
 ## J. 任务基线、协同、冲突解决与日常高级操作
@@ -87,6 +87,28 @@
     - 从 Git 工作台变更/历史文件行及会话代码工作区头部按钮打开单文件检视器，提供 `文件历史 (--follow)`、`逐行溯源 (Blame)` 与 `跨版本比较` 三页签；
     - `GET .../git/file-history` 追踪文件跨重命名演进并展示 `oldPath → newPath` 与单提交文件 Diff；
     - `GET .../git/blame` 以 `--no-optional-locks` 执行只读 `git blame --porcelain`，支持按行查看提交信息、沿父提交与前身路径“追溯此提交之前版本”（带面包屑回退）及一键“在历史图中定位”跳转到 `Log`；跨版本比较支持任意提交版本与 `HEAD` 或实时 `worktree` 对照。
+- **US-J28 Git 工作台任意逐行（Sub-hunk）暂存、受控丢弃更改与基于可追踪 Stash 的三阶段 Smart Checkout**：
+  作为在同一文件中混杂多处修改或需带未提交改动原地切换分支的使用者，我希望按任意单行或行范围操作真实 Git `index`、在防陈旧覆盖与快照保护下丢弃局部更改，并通过可追踪受控 Stash 安全执行三阶段 `Smart Checkout`。
+  验收要点：
+  - 任意逐行（Sub-hunk）暂存与取消暂存（`UI-04`、`G02`、`A03`）：
+    - `POST .../git/stage` 与 `POST .../git/unstage` 支持 `lineSelections: [{hunkId, lineIndices}]`（与 `hunkIds` 互斥），对二进制、符号链接、重命名、含 `.gitattributes` 过滤器或冲突文件拒绝逐行操作（`409`）；
+    - 逐行暂存（`index -> worktree`）仅将选中的 `-` 行从 `index` 删除、选中的 `+` 行写入 `index`（未选中的 `-` 行保留在 `index`、未选中的 `+` 行不进入 `index`）；逐行取消暂存（`HEAD -> index`）仅把 `index` 中选中的变更行还原回 `HEAD`（含 `unborn HEAD`），**全程不改写工作区文件任何字节**；
+    - 合成目标索引 blob 时完整保留文件权限（`100644` / `100755`）、行尾（`LF` / `CRLF`）与文件末尾无换行（`none`）语义，校验 `StageFileIdentity` 过期即返回 `409 stale`；
+    - 前端提供桌面与触屏常驻可达的逐行选择面板（单行复选框、`Shift+点击` 连续范围、按块全选/清空，窄屏隐藏重复 Hunk 条保持 `320px` 与 `200%` 大字号零横向溢出），并支持在 Pierre `CodeDiffReader` 中拖选行范围直接一键暂存或取消暂存选中变更行；
+  - 受控 `丢弃更改 (Discard Changes)`、写盘前新鲜度门禁与恢复快照（`G11`）：
+    - 与只改 `.git/index` 的 `Unstage` 严格分离：仅面向 `Unstaged` 与 `Untracked` 开放单文件、左侧列表多选文件（含已跟踪 + 未跟踪混合批量）、单 Hunk 与选中行四级丢弃范围，**绝不触碰已暂存索引条目**；
+    - 两阶段预览确认（`POST .../git/discard-preview` → `POST .../git/discard`）列出将被覆盖或删除的路径及活跃会话警告（有运行中会话时强制要求 `acknowledgeSessions`）；
+    - 执行写盘前在仓库锁下逐一重算目标磁盘文件最新 SHA-256，若预览打开后文件被终端或 CLI Agent 修改则立即返回 `409 stale` 拦截误覆盖，支持一键按最新身份刷新预览；
+    - 改写或删除前自动将原工作区内容保存至有界私有恢复提交 `refs/webmux/discard-recovery/<operationId>`（每仓保留最近 20 条，删树同步清理），在持久操作账本与底部状态栏披露 `recoveryOid` 及 `git restore --source=<oid> --worktree -- <paths>` 恢复命令；
+  - 基于可追踪受控 Stash 的三阶段 `Smart Checkout` 与活跃 Agent 会话保护（`UI-08`、`G11`、衔接 `US-J16`）：
+    - 当 `SwitchBranchDialog` 仅因未提交改动受阻（无进行中序列冲突、无其他工作树占用）时，在保留绿色推荐按钮 **“改为在新工作树打开”** 的同时提供显式 `Smart Checkout`（`暂存当前改动 -> 切换到目标分支 -> 在目标分支恢复改动`，支持勾选包含未跟踪文件）；
+    - **活跃 CLI Agent 会话门禁**：当工作树存在运行中会话时，“改为在新工作树打开”始终保持主绿色默认入口，原地 `Smart Checkout` 默认收纳在风险说明折叠区并要求显式勾选会话知晓确认；
+    - 持久三阶段状态机（`POST .../git/smart-checkout-preview` → `POST .../git/smart-checkout`，`git-operations.json` 记录 `kind: "smart_checkout"`、`phase`、`stashOid`、`sourceBranch`、`targetBranch` 并支持重启只读对账）：
+      1. `stashing`：创建带 `webmux-smart-checkout:<operationId>` 标记的受控贮藏并确认落盘精确 `stashOid` 后才允许切换 `HEAD`；
+      2. `switching`：切换到目标分支；若切换失败则自动在原分支回放恢复 `stashOid`（零静默丢数）；
+      3. `unstashing`：在目标分支优先以 `--index` 应用 `stashOid`：
+         - 仅当 100% 无冲突恢复时按精确 OID 丢弃该受控临时贮藏（绝不误删用户自有贮藏）；
+         - 若产生合并冲突，**100% 保留 `stashOid`**、给出 `git stash apply <oid>` 恢复命令，并一键打开 `GitConflictView`（标注 `"Smart Checkout 贮藏 <shortOid>"` 来源）完成三方裁决。
 
 依据：
 
@@ -131,3 +153,15 @@
   - 前端视图组件：[贮藏主面板](../../../../../web/src/components/workspace/GitStashPane.svelte)、[高级提交选项](../../../../../web/src/components/workspace/GitCommitAdvancedOptions.svelte)、[分支详情卡片](../../../../../web/src/components/workspace/GitBranchDetailCard.svelte)；
   - 前端远程与溯源组件：[远程管理区](../../../../../web/src/components/workspace/GitRemotesSection.svelte)、[单文件历史与 Blame 弹窗](../../../../../web/src/components/workspace/GitFileInspectorDialog.svelte)、[逐行 Blame 视图](../../../../../web/src/components/workspace/GitBlameView.svelte)；
   - 前端测试：[贮藏与 V2 模型单测](../../../../../web/test/git-stash-and-v2.test.ts)、[浏览器组件测试](../../../../../web/test/browser/GitWorkbenchStashBlame.test.ts)、[全流程 E2E](../../../../../web/test/e2e/git-workbench-stash-blame.spec.ts)。
+- 任意逐行（Sub-hunk）暂存、受控丢弃更改与三阶段 Smart Checkout：
+  - 服务端逐行合成：[逐行补丁合成](../../../../../internal/workspace/hunk_lines.go)、[真实索引写入](../../../../../internal/workspace/staging_write.go)、[工作区受控文件替换](../../../../../internal/worktreefs/write.go)；
+  - 服务端丢弃更改：[丢弃类型](../../../../../internal/workspace/discard_types.go)、[丢弃预览](../../../../../internal/workspace/discard_preview.go)、[丢弃执行与恢复快照](../../../../../internal/workspace/discard_execute.go)；
+  - 服务端 Smart Checkout 预览与类型：[类型定义](../../../../../internal/workspace/smart_checkout_types.go)、[预览](../../../../../internal/workspace/smart_checkout_preview.go)；
+  - 服务端 Smart Checkout 执行与对账：[三阶段执行](../../../../../internal/workspace/smart_checkout_execute.go)、[V3 账本对账](../../../../../internal/workspace/operations_v3.go)；
+  - 服务端路由与契约：[V3 操作路由](../../../../../internal/api/git_v3_ops.go)、[V3 契约](../../../../../internal/contract/git_v3_ops.go)；
+  - 服务端测试：[逐行测试](../../../../../internal/workspace/hunk_lines_test.go)、[丢弃测试](../../../../../internal/workspace/discard_test.go)、[Smart Checkout 测试](../../../../../internal/workspace/smart_checkout_test.go)；
+  - 前端契约请求与模型：[V3 契约](../../../../../web/src/contracts/git-v3-schemas.ts)、[V3 请求封装](../../../../../web/src/platform/git-v3-api.ts)、[逐行选区纯函数模型](../../../../../web/src/domains/workspace/git-line-selection.ts)；
+  - 前端控制器：[丢弃控制器](../../../../../web/src/hooks/workspace/git-discard-controller.svelte.ts)、[Smart Checkout 控制器](../../../../../web/src/hooks/workspace/git-smart-checkout.svelte.ts)；
+  - 前端组件：[逐行选择面板](../../../../../web/src/components/workspace/GitStagingLineSelector.svelte)、[丢弃预览框](../../../../../web/src/components/workspace/GitDiscardPreviewDialog.svelte)、[Smart Checkout 面板](../../../../../web/src/components/workspace/SwitchBranchSmartCheckout.svelte)；
+  - 前端单测与浏览器测试：[逐行与 V3 单测](../../../../../web/test/git-v3-line-smart.test.ts)、[切分支测试](../../../../../web/test/browser/SwitchBranchDialog.test.ts)、[逐行与丢弃测试](../../../../../web/test/browser/GitWorkbenchLineSmart.test.ts)；
+  - 前端端到端测试：[全流程 E2E](../../../../../web/test/e2e/git-workbench-line-smart.spec.ts)。
