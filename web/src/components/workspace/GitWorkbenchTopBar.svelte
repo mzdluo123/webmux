@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import IconArrowBackUp from "~icons/tabler/arrow-back-up";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowUp from "~icons/tabler/arrow-up";
@@ -23,6 +24,7 @@
   import GitWorkbenchTargetSwitchers from "./GitWorkbenchTargetSwitchers.svelte";
 
   let {
+    operations,
     repositories,
     repository,
     worktreeId,
@@ -50,6 +52,7 @@
     onPush,
     onReturnSession,
   }: {
+    operations?: Snippet;
     repositories: readonly Repository[];
     repository: Repository | undefined;
     worktreeId?: string;
@@ -175,21 +178,6 @@
               未诞生 HEAD ({context.checkedOutBranch ?? "main"})
             </span>
           </Badge>
-        {:else}
-          <Badge
-            variant="info"
-            class={branchFilter
-              ? "max-w-44 max-sm:hidden"
-              : "max-w-48 max-lg:hidden"}
-            data-testid="git-target-branch-badge"
-          >
-            <span
-              class="truncate"
-              title={`当前检出：${context.checkedOutBranch ?? "HEAD"}`}
-            >
-              检出：{context.checkedOutBranch ?? "HEAD"}
-            </span>
-          </Badge>
         {/if}
 
         {#if repoAvailable && onBranchFilterChange && onBranchAction}
@@ -219,6 +207,7 @@
     </div>
 
     <div class="flex shrink-0 items-center gap-1.5">
+      {@render operations?.()}
       {#if worktreeUsable && onOpenRework}
         <Button
           size="sm-touch"

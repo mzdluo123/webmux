@@ -33,7 +33,7 @@
   import InlineNotice from "../components/shared/InlineNotice.svelte";
   import GitCommitOutcomeBanner from "../components/workspace/GitCommitOutcomeBanner.svelte";
   import GitWorkbenchPageDialogs from "../components/workspace/GitWorkbenchPageDialogs.svelte";
-  import GitWorkbenchStatusBar from "../components/workspace/GitWorkbenchStatusBar.svelte";
+  import GitOperationsPopover from "../components/workspace/GitOperationsPopover.svelte";
   import GitWorkbenchTopBar from "../components/workspace/GitWorkbenchTopBar.svelte";
   import GitWorkbenchWorkspace from "../components/workspace/GitWorkbenchWorkspace.svelte";
   import GitWorktreeGuardState from "../components/workspace/GitWorktreeGuardState.svelte";
@@ -288,7 +288,31 @@
   data-testid="git-workbench-page"
   data-device-class={deviceClass}
 >
+  {#snippet operationLedger()}
+    {#if repository}
+      <GitOperationsPopover
+        size="sm-touch"
+        worktreePath={controller.view.context.worktreePath}
+        statusBanner={controller.view.statusBanner}
+        lastFetchedAt={controller.view.lastFetchedAt ??
+          repository.lastFetchedAt}
+        activeOperation={controller.operations.active}
+        operations={controller.operations.operations}
+        onInspectCommit={(oid) => controller.inspectCommitInLog(oid)}
+        onRefreshOperations={() =>
+          void controller.operations.refreshOperations()}
+        onReloadVerify={() =>
+          void controller.reloadAndVerifyUncertain(
+            repository,
+            worktree,
+            shell.sessions.sessions,
+          )}
+      />
+    {/if}
+  {/snippet}
+
   <GitWorkbenchTopBar
+    operations={operationLedger}
     repositories={shell.repositories.list}
     {repository}
     {worktreeId}
@@ -449,22 +473,6 @@
               onremoved: () => switchWorktree(undefined, "log"),
             })
         : undefined}
-    />
-
-    <GitWorkbenchStatusBar
-      worktreePath={controller.view.context.worktreePath}
-      statusBanner={controller.view.statusBanner}
-      lastFetchedAt={controller.view.lastFetchedAt ?? repository.lastFetchedAt}
-      activeOperation={controller.operations.active}
-      operations={controller.operations.operations}
-      onInspectCommit={(oid) => controller.inspectCommitInLog(oid)}
-      onRefreshOperations={() => void controller.operations.refreshOperations()}
-      onReloadVerify={() =>
-        void controller.reloadAndVerifyUncertain(
-          repository,
-          worktree,
-          shell.sessions.sessions,
-        )}
     />
 
     <GitWorkbenchPageDialogs
