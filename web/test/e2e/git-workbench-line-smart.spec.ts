@@ -119,8 +119,12 @@ test("stages and unstages arbitrary sub-hunk lines with CRLF/no-newline fidelity
   await unstagedSec
     .locator('[data-slot="list-button"]', { hasText: "crlf-tail.txt" })
     .click();
-  await page.getByTestId("git-toggle-line-selector").click();
+  const toggleBtn = page.getByTestId("git-toggle-line-selector");
   const selector = page.getByTestId("git-staging-line-selector");
+  await expect(toggleBtn).toBeVisible();
+  if ((await toggleBtn.getAttribute("aria-pressed")) !== "true") {
+    await toggleBtn.click();
+  }
   await expect(selector).toBeVisible();
   await expect(selector.getByText("CRLF")).toBeVisible();
   await expect(selector.getByText("无末尾换行")).toBeVisible();
@@ -137,8 +141,9 @@ test("stages and unstages arbitrary sub-hunk lines with CRLF/no-newline fidelity
   await unstagedSec
     .locator('[data-slot="list-button"]', { hasText: "service.ts" })
     .click();
-  if (!(await selector.isVisible())) {
-    await page.getByTestId("git-toggle-line-selector").click();
+  await expect(toggleBtn).toBeVisible();
+  if ((await toggleBtn.getAttribute("aria-pressed")) !== "true") {
+    await toggleBtn.click();
   }
   await expect(selector).toBeVisible();
 
@@ -173,9 +178,11 @@ test("stages and unstages arbitrary sub-hunk lines with CRLF/no-newline fidelity
   await stagedSec
     .locator('[data-slot="list-button"]', { hasText: "service.ts" })
     .click();
-  if (!(await selector.isVisible())) {
-    await page.getByTestId("git-toggle-line-selector").click();
+  await expect(toggleBtn).toBeVisible();
+  if ((await toggleBtn.getAttribute("aria-pressed")) !== "true") {
+    await toggleBtn.click();
   }
+  await expect(selector).toBeVisible();
   await selector.getByRole("checkbox", { name: /第 4 行删除/ }).click();
   await selector.getByRole("checkbox", { name: /第 4 行新增/ }).click();
   await page.getByTestId("git-line-unstage-btn").click();
