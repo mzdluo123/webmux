@@ -199,6 +199,8 @@
 - 此轮 lint、source/test 类型（520文件零错误/警告）、40项架构、8项 XR 浏览器、生产构建及完整分屏 E2E 通过；分屏13项通过、1项跳过，禁用重试。
 - CI 分屏超时定位到终端页签点击：完成提示覆盖控件，悬停暂停消失，服务端未收到切换。夹具按需关闭提示，不要求提示必定出现，再等待页签选中/可用与终端可见。
 - 隔离应用实测相同提示确实遮挡页签：关闭后切换成功；归档仅移除混合窗格，Shell 路由保留，原变量仍输出 `split-marker:retained`。没有延长超时、增加重试或修改通知行为。
+- `9e360e61` 的 Codex 复审无发现，四个 CI E2E 分片通过；Go race 的 Git API 夹具绕过子进程登记，被 session reaper 抢先回收退出状态，出现 `waitid: no child processes`。
+- API 夹具八处命令启动统一经现有 `session.RunCommand` 登记，保留合并输出与 stdout-only 的区别，不忽略退出错误。API 与 session 全包在 CI 同样的 race/覆盖率模式下通过，Go lint 零问题；仅夹具维护，无新增故事行为。
 - 用户批准同步并归档已完成的 `git-workbench-s-foundations`：四份主规范保留12项要求、24个场景，逐份严格验证通过；全部95份主规范普通验证通过。全局严格验证仍有六份既有规范的 Purpose 占位警告，不宣称全局严格通过。
 - 用户单独批准 PR #598 保持 Pullfrog 停用并免除其 approval；没有启用工作流，也没有获得或声称 Pullfrog approval。现有 CI 与 Codex 仍按本 PR 当前提交的实际结果验收。
 - 头显/TV 实机条件未改变；XR 变更不归档，任务2.3、8.3、8.4仍未完成。

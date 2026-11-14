@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
@@ -114,11 +115,13 @@ func (q *quickAPI) failure(req contract.CreateSessionRequest, status int) contra
 
 func (q *quickAPI) worktrees() int {
 	q.t.Helper()
-	out, err := exec.Command("git", "-C", q.root, "worktree", "list", "--porcelain").Output()
+	cmd := exec.Command("git", "-C", q.root, "worktree", "list", "--porcelain")
+	cmd.Stderr = io.Discard
+	out, err := testCommandOutput(cmd)
 	if err != nil {
 		q.t.Fatal(err)
 	}
-	return strings.Count(string(out), "worktree ")
+	return strings.Count(out, "worktree ")
 }
 
 func TestCreateAPIRefusesBeforeCreating(t *testing.T) {

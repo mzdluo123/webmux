@@ -54,7 +54,7 @@ func fakeAgentPath(t testing.TB, profile string) string {
 		for _, name := range []string{omp.Name, opencode.Name, codex.Name, "codex-acp", "claude", "claude-agent-acp"} {
 			build := exec.Command("go", "build", "-o", filepath.Join(fakeAgent.dir, name), "../acp/testdata/fakeagent")
 			build.Env = fakeAgent.env
-			if out, err := build.CombinedOutput(); err != nil {
+			if out, err := testCommandOutput(build); err != nil {
 				fakeAgent.err = fmt.Errorf("go build: %w\n%s", err, out)
 				return
 			}

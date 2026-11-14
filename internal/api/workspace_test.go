@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -27,6 +28,18 @@ func testWorkspace(t *testing.T, m *session.Manager, cwd string) *workspace.Serv
 	return service
 }
 
+// Keep fixture children registered while session managers reap adopted children.
+// Callers can provide Stderr when they need stdout alone.
+func testCommandOutput(cmd *exec.Cmd) (string, error) {
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if cmd.Stderr == nil {
+		cmd.Stderr = &out
+	}
+	err := session.RunCommand(cmd)
+	return out.String(), err
+}
+
 // gitRepository isolates Git from the user's configuration and returns a
 // repository with one commit.
 func gitRepository(t *testing.T) string {
@@ -44,7 +57,7 @@ func gitRepository(t *testing.T) string {
 	root := t.TempDir()
 	for _, args := range [][]string{{"init", "-b", "main"}, {"commit", "--allow-empty", "-m", "initial"}} {
 		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
+		if out, err := testCommandOutput(cmd); err != nil {
 			t.Fatalf("Git fixture: %v %s", err, out)
 		}
 	}
@@ -170,7 +183,7 @@ func TestWorkspaceAPIRoutesAndErrorBoundaries(t *testing.T) {
 func gitWorkspaceAPI(t *testing.T, cwd string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", cwd}, args...)...)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out, err := testCommandOutput(cmd); err != nil {
 		t.Fatalf("Git fixture %v: %v %s", args, err, out)
 	}
 }
