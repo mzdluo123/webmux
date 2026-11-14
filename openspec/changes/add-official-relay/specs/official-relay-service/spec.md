@@ -40,7 +40,7 @@ MVP SHALL 使用 GitHub 账号允许列表实施邀请制。未获邀请的账�
 
 Relay SHALL 为每台主机分配具有至少 128 位随机熵的 DNS 安全公共标识，并将标识、账号数字身份与主机公钥持久化。公共标识 MUST NOT 由 WebMux Token、GitHub Token 或私钥派生。
 
-宿主连接时，Relay SHALL 使用随机质询验证签名。签名 transcript SHALL 绑定随机数、主机标识、协议版本和 Relay 受众，防止重放到其他会话或服务。无效签名 MUST NOT 替换该主机的现有有效连接。
+宿主连接时，Relay SHALL 使用随机质询验证签名。签名 transcript SHALL 绑定随机数、主机标识、协议版本、Relay 受众、绑定代际、连接器代际与 control/bulk 角色，防止重放到其他角色、会话或服务。无效签名 MUST NOT 替换该主机的现有有效连接。
 
 除显式释放主机名外，重新启动和重新绑定密钥 SHALL 保持公共地址不变。
 
@@ -56,14 +56,14 @@ Relay SHALL 为每台主机分配具有至少 128 位随机熵的 DNS 安全公�
 
 ### Requirement: 单活动连接器与撤销
 
-每个主机标识 SHALL 同时只有一个活动数据连接器。新的合法连接完成认证后 SHALL 替换旧连接；未完成认证前不得影响旧连接。
+每个主机标识 SHALL 同时只有一个活动逻辑连接器，内部最多包含 control 与 bulk 两条已认证 WSS/smux v2 物理连接。角色、绑定及连接器代际 SHALL 纳入签名；同代际重复角色 SHALL 拒绝。新的合法 control 认证后 SHALL 原子替换整个旧代际；未认证连接不得影响旧连接。
 
-Relay SHALL 只把公共请求路由到当前已认证且处于活动状态的连接器。连接器断开、绑定撤销或公钥替换后，对应公共入口 SHALL 立即停止转发；后续请求返回不可用响应，不得转入其他主机。
+Relay SHALL 只把公共请求路由到当前已认证且处于活动状态的逻辑连接器。control 断开、绑定撤销或公钥替换后，对应公共入口 SHALL 立即停止转发；后续请求返回不可用响应，不得转入其他主机。仅 bulk 失败 SHALL 按数据面要求降级，不能顶掉合法 control。
 
 #### Scenario: 同一主机的重复连接
 
-- **WHEN** 同一私钥建立第二条有效连接
-- **THEN** 新连接成为唯一活动连接器，旧连接被正常关闭
+- **WHEN** 同一私钥建立第二条有效 control 连接
+- **THEN** 新 control 成为唯一活动逻辑连接器，旧代际的 control 与 bulk 均正常关闭；同代际 bulk 接入不得触发此替换
 
 #### Scenario: 主机断开
 
@@ -191,23 +191,30 @@ Relay 重启 SHALL 使重启前的后台会话及跳转 code 失效，保留账�
 - **WHEN** 用户注销后台，派生宿主会话仍在使用
 - **THEN** Relay 撤销记录并通知宿主关闭该会话访问，收到确认后报告完成，不结束 PTY
 
-### Requirement: 独立服务器与 QUIC/WSS 双路径
+### Requirement: 独立服务器与 WSS 数据面
 
-MVP SHALL 部署在有独立公网 IP 的单台服务器，浏览器直接访问公共 HTTPS 域名；部署 SHALL 配置泛域名 DNS、有效证书、TCP 443 与 UDP 443，不依赖 CDN 或 Cloudflare 产品。
+MVP SHALL 部署在有独立公网 IP 的单台服务器，配置泛域名 DNS、有效证书与 TCP 443，浏览器直接使用 HTTPS/WebSocket；不依赖 CDN，不要求开放 UDP。
 
-宿主连接 SHALL 支持 quic-go 原生 TLS 1.3 双向 stream 与 WSS + yamux，提供相同的身份验证、Host 路由、流控和配额。QUIC SHALL 校验服务端证书，使用专用版本化 ALPN；两条路径 SHALL 共享每主机单活动连接器约束，且 MUST NOT 接受 0-RTT 认证或业务写入。
+宿主 SHALL 使用 TLS 1.3 WSS + smux v2，嵌入库而非受管 sidecar；MVP MUST NOT 探测 QUIC、配置 FEC 或自研可靠 UDP。服务器 TCP SHALL 使用 BBR；部署 SHALL 核实实际接口队列，不能仅凭 default_qdisc 宣称使用 fq。客户端 SHALL 如实记录操作系统算法，不假定 Windows 支持 BBR。
 
-浏览器侧 SHALL 继续使用 HTTPS/WebSocket，不要求浏览器建立自定义 QUIC。传输切换 SHALL 仅在建连或断线后发生，MUST NOT 自动重放非幂等请求；已有终端依靠 offset 续接。KCP SHALL 不进入 MVP 数据面，不自研可靠 UDP、加密或拥塞控制。
+批量流量 SHALL 使用 bulk，交互与控制 SHALL 使用 control。两条物理连接 SHALL 共用账号总配额和资源预算。control 断开 SHALL 撤销来源及派生会话并关闭 bulk；仅 bulk 断开 SHALL 保留交互、报告降级并拒绝新批量请求，不得转入 control。
 
-#### Scenario: 两种传输具有相同应用行为
+重连 MUST NOT 自动重放非幂等请求，终端 SHALL 沿用 offset 续接。窗口、stream 和账号配额 SHALL 有界，不能声称多 TCP 消除了所有排队。
 
-- **WHEN** 分别通过 QUIC 和 WSS 运行终端、上传下载、聊天与端口转发
-- **THEN** 两条路径通过相同的认证、撤销、慢客户端、内存上限和应用协议测试，QUIC 不额外叠加 yamux
+#### Scenario: bulk 失败保持交互可用
 
-#### Scenario: 高延迟收益可验证
+- **WHEN** 已认证逻辑连接器的 bulk 中断而 control 仍可用
+- **THEN** 终端继续服务，新批量请求返回 503，bulk 有界重连并重新认证同一代际，不能建立第三条连接
 
-- **WHEN** 在 RTT 50/150/300 ms、丢包 0/1/3%、带宽限制和 UDP 黑洞下测试两条路径
-- **THEN** 记录终端回显 p50/p95、吞吐、额外带宽、内存与回退耗时，以实测确定参数，不宣称未验证的延迟收益
+#### Scenario: control 断开立即撤权
+
+- **WHEN** control 断开或保活超时
+- **THEN** 来源和派生会话失效，bulk 关闭，不向孤立 bulk 路由请求
+
+#### Scenario: 性能与内存有证据
+
+- **WHEN** 运行自然链路、随机/突发丢包、带宽限制、大文件并发终端与慢端矩阵
+- **THEN** 记录样本量、p50/p95/p99、有效吞吐、连接数、总预算与资源，区分已测参数和待验收场景
 
 ### Requirement: 官方服务私钥与 OAuth 凭据隔离
 

@@ -60,9 +60,9 @@ Relay 的启用意图、服务端点、主机标识、公共地址和私钥 SHAL
 
 ### Requirement: 连接状态机与公网来源撤权
 
-Relay 客户端 SHALL 区分关闭、连接中、就绪和失败状态，并单独表示未配对、配对中与已配对。只有 Relay 认证和 stream 服务均就绪后，客户端才将固定 HTTPS 来源登记为允许的 Host/Origin 并公开地址。
+Relay 客户端 SHALL 区分关闭、连接中、就绪、bulk 降级和失败状态，并单独表示未配对、配对中与已配对。只有 control 认证和 stream 服务均就绪后，客户端才将固定 HTTPS 来源登记为允许的 Host/Origin 并公开地址；bulk 未就绪时 SHALL 显示降级并拒绝新批量请求。
 
-连接断开、认证失败、绑定撤销、关闭或服务退出时，客户端 SHALL 立即撤销该来源的 Host/Origin 授权。迟到的连接事件 MUST NOT 在关闭或新配置后重新授权旧地址。
+control 断开、绑定撤销、关闭或服务退出时，客户端 SHALL 立即撤销该来源的 Host/Origin 授权。新连接认证失败 MUST NOT 替换或撤销既有合法 control；仅 bulk 失败 SHALL 按同代际降级重连。迟到的连接事件 MUST NOT 在关闭或新配置后重新授权旧地址。
 
 启用状态下发生意外断线时，客户端 SHALL 按有界指数退避和随机抖动自动重连；本地会话和其他远程入口不受影响。代际或等效机制 SHALL 防止并行重连产生多个活动连接器。
 
@@ -169,27 +169,29 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 - **WHEN** Relay 登录会话过期且浏览器仍有活动 P2P 或 WebSocket 连接
 - **THEN** 相关访问连接被关闭、后续请求被拒绝，持久 PTY 继续运行
 
-### Requirement: 传输配置与可诊断回退
+### Requirement: WSS 连接隔离与重连诊断
 
-宿主 SHALL 支持 `auto`、`quic`、`wss` 传输模式，默认 auto；配置 SHALL 包含 HTTPS endpoint 和 QUIC endpoint，拨号目标 MUST 来自运维配置的已配对 Relay，不得接受浏览器指定的任意地址。
+宿主 SHALL 使用运维配置的 HTTPS endpoint 与 WSS + smux v2，MVP 传输固定 wss，不提供 auto/quic 或 UDP endpoint，不接受浏览器指定拨号地址。
 
-auto SHALL 优先 QUIC，仅在建连超时或网络不可达时回退 WSS；quic 模式失败 SHALL 报错而不回退，wss 模式 SHALL 不探测 UDP。证书、主机身份或协议验证失败 MUST NOT 通过回退绕过。活动 WSS SHALL 保持到正常断开，不因 QUIC 探测强制迁移。
+宿主 SHALL 在同一逻辑代际内认证 control/bulk 两条物理连接，角色纳入签名并共用配额。control 断开 SHALL 撤销来源及派生会话并关闭 bulk；仅 bulk 断开 SHALL 保留交互、显示降级和 bulkReady=false，有界重连 bulk，新批量请求返回不可用，不挤占 control。
 
-#### Scenario: UDP 黑洞时恢复可达性
+证书、pin、主机身份与协议错误 MUST NOT 通过重试绕过。网络重连 SHALL 使用有界退避，报告实际传输、角色就绪数与脱敏 reconnectReason；MUST NOT 自动重放非幂等业务请求。
 
-- **WHEN** auto 模式下 UDP 不可达而 TCP 443 可达
-- **THEN** QUIC 在有界建连期限后回退 WSS，显示当前传输与脱敏回退原因，并使用同一 host ID 与公共地址
+#### Scenario: UDP 黑洞不延迟 WSS 建连
 
-#### Scenario: 错误证书不触发降级绕过
+- **WHEN** UDP 不可达而目标 TCP 443 可达
+- **THEN** 客户端直接建立 WSS，不等待 QUIC 超时；实际可达性仍以 WSS 握手结果为准
 
-- **WHEN** QUIC 服务端证书校验失败
-- **THEN** 连接失败并报告安全错误，不以切换 WSS 掩盖该错误
+#### Scenario: 错误证书保持失败
+
+- **WHEN** WSS 服务证书或 pin 校验失败
+- **THEN** 连接失败并报告安全错误，不切换信任配置或其他传输
 
 ### Requirement: 内置官方端点与公开服务身份
 
-开源客户端 SHALL 内置官方 HTTPS/QUIC 地址、Relay 受众和官方 ECDSA P-256 TLS 服务身份公钥或对应 SHA-256 SPKI pin 集合。用户 SHALL 无需填写官方地址、公钥或 OAuth 应用配置即可发起 GitHub 配对；内置默认 MUST NOT 自动启用 Relay 或替代公网确认。
+开源客户端 SHALL 内置官方 HTTPS/WSS 地址、Relay 受众和官方 ECDSA P-256 TLS 服务身份公钥或对应 SHA-256 SPKI pin 集合。用户 SHALL 无需填写官方地址、公钥或 OAuth 应用配置即可发起 GitHub 配对；内置默认 MUST NOT 自动启用 Relay 或替代公网确认。
 
-所有到 Relay 的 HTTPS/WSS/QUIC 连接 SHALL 同时通过正常 TLS 证书链、有效期、主机名及公钥 pin 校验；MUST NOT 跳过 TLS 校验、自动学习未知公钥或在校验失败时降级绕过。公钥仅用于认证服务身份，宿主私钥 SHALL 继续逐机生成并用于主机认证。
+所有到 Relay 的 HTTPS/WSS 连接 SHALL 同时通过正常 TLS 证书链、有效期、主机名及公钥 pin 校验；MUST NOT 跳过 TLS 校验、自动学习未知公钥或在校验失败时降级绕过。公钥仅用于认证服务身份，宿主私钥 SHALL 继续逐机生成并用于主机认证。
 
 官方私钥、OAuth Client Secret 和用户 GitHub access token MUST NOT 进入开源仓库、客户端二进制或公开 API。OAuth Client ID SHALL 视为公开标识，不作为客户端认证秘密。
 
@@ -201,7 +203,7 @@ auto SHALL 优先 QUIC，仅在建连超时或网络不可达时回退 WSS；qui
 #### Scenario: 证书有效但官方公钥不匹配
 
 - **WHEN** 官方连接返回有效证书但其公钥不在内置信任集合
-- **THEN** 客户端拒绝连接，不提交配对材料或宿主身份凭据，不通过 WSS 回退绕过错误
+- **THEN** 客户端拒绝连接，不提交配对材料或宿主身份凭据，不通过重连绕过错误
 
 ### Requirement: 公钥轮换与自建信任隔离
 
