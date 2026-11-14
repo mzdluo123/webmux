@@ -249,3 +249,16 @@
 - 复审修正后`make check`、`make build`再次通过；42个受影响浏览器测试、29个布局/视图单元测试及17个XR/分屏E2E通过（5个按既有条件跳过、无重试）。缺失窗格回归断言可见状态公告及可操作返回入口，不绑定解释文案。
 - Pullfrog已按本轮用户授权启用；是否批准仍以本实现PR的实际审查结果为准，不沿用规划PR豁免。
 - 限制：无头Chromium未验证物理hover、any-pointer:coarse、真实头显/TV、系统键盘/IME、双眼可读性或帧率。原任务2.3、8.3、8.4保持未完成，故事总数仍为252。
+
+## 2026-11-14：工作区主页归档记录改为直接删除按钮（US-Q12）
+
+- 工作区主页已归档记录（`ArchivedSessions`）将“删除记录”从二级菜单改为紧邻“恢复”的独立纯图标按钮（打开确认框后删除）；故事总数保持 252：
+  - 主工作树、直接目录、已不可用工作区与已释放空间记录不再渲染仅含单项的 `⋯`“更多操作”二级菜单；
+  - 可移除链接工作树的未释放归档记录保留 `⋯`“更多操作”菜单，仅承载工作树联动操作（“释放空间”“删除记录和工作树”）；侧栏精简行菜单保持不变。
+- 本地验证全部通过：
+  - 静态与契约门禁：`make check`（含 `pnpm --dir web build`、`format-check`、`docs-check`、`persistence-check`、`internal/archtest`、`check:test`、`lint`、`check:arch`、`go vet`、`make go-lint`）及 `openspec validate --specs`（95 份主规范全部通过）；
+  - 测试套件：浏览器测试（`ArchivedSessions`、`SessionListArchived`、`AppShell`、`ChatHistory`、`WorkbenchTree` 共 64 项）、Storybook 构建与布局/溢出测试（`acp-chat.spec.ts`、`overflow.spec.ts` 共 60 项）及 E2E 测试（`hybrid.spec.ts` 归档与直接删除回归、`quick-start.spec.ts` 共 23 项通过）。
+- 视觉与视口核验：
+  - 在隔离实例采集 `1280×900`、`768×800`、`390×844` 亮暗主题前后对照截图、链接工作树状态截图及直接删除交互 GIF；
+  - 核验 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 亮暗主题下主工作树与链接工作树归档区均无横向溢出，且同排操作按钮等高居中对齐；
+  - 限制：无头 Chromium 未验证物理 `hover`、`any-pointer: coarse` 与 iOS/Android 真机表现。

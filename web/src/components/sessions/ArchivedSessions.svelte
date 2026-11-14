@@ -3,6 +3,7 @@
   import IconDots from "~icons/tabler/dots";
   import IconMessageCircle from "~icons/tabler/message-circle";
   import IconTerminal2 from "~icons/tabler/terminal-2";
+  import IconTrash from "~icons/tabler/trash";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as Collapsible from "$lib/components/ui/collapsible";
@@ -136,6 +137,10 @@
       {#if error}<InlineNotice tone="danger">{error}</InlineNotice>{/if}
       {#each shown as record (record.id)}
         {@const removableWorktree = record.released ? undefined : worktree}
+        {@const hasMoreActions = Boolean(
+          removableWorktree &&
+          (archive.release || archive.removeRecordAndWorktree),
+        )}
         <Item.Root
           variant="muted"
           class="min-w-0 flex-col flex-nowrap items-stretch"
@@ -187,47 +192,54 @@
               onbusy={(active) => (busy = active ? record.id : "")}
               onerror={(message) => (error = message)}
             />
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger disabled={!!busy}>
-                {#snippet child({ props })}
-                  <Button
-                    {...props}
-                    size="icon-sm"
-                    variant="ghost"
-                    class="size-9 sm:size-8"
-                    title={`更多操作 ${recordTitle(record)}`}
-                    aria-label={`更多操作 ${recordTitle(record)}`}
-                    ><IconDots class="size-4" aria-hidden="true" /></Button
-                  >
-                {/snippet}
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content align="end" class="min-w-48">
-                {#if removableWorktree && archive.release}
-                  {@const release = archive.release}
-                  <DropdownMenu.Item onSelect={() => release(removableWorktree)}
-                    >释放空间</DropdownMenu.Item
-                  >
-                  <DropdownMenu.Separator />
-                {/if}
-                <DropdownMenu.Item
-                  variant="destructive"
-                  onSelect={() => {
-                    removing = record;
-                    removeOpen = true;
-                  }}>删除记录</DropdownMenu.Item
-                >
-                {#if removableWorktree && archive.removeRecordAndWorktree}
-                  {@const removeRecordAndWorktree =
-                    archive.removeRecordAndWorktree}
-                  <DropdownMenu.Item
-                    variant="destructive"
-                    onSelect={() =>
-                      removeRecordAndWorktree(record, removableWorktree)}
-                    >删除记录和工作树</DropdownMenu.Item
-                  >
-                {/if}
-              </DropdownMenu.Content>
-            </DropdownMenu.Root>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              disabled={!!busy}
+              title={`删除记录 ${recordTitle(record)}`}
+              aria-label={`删除记录 ${recordTitle(record)}`}
+              onclick={() => {
+                removing = record;
+                removeOpen = true;
+              }}><IconTrash aria-hidden="true" /></Button
+            >
+            {#if removableWorktree && hasMoreActions}
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger disabled={!!busy}>
+                  {#snippet child({ props })}
+                    <Button
+                      {...props}
+                      size="icon-sm"
+                      variant="ghost"
+                      title={`更多操作 ${recordTitle(record)}`}
+                      aria-label={`更多操作 ${recordTitle(record)}`}
+                      ><IconDots aria-hidden="true" /></Button
+                    >
+                  {/snippet}
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content align="end" class="min-w-48">
+                  {#if archive.release}
+                    {@const release = archive.release}
+                    <DropdownMenu.Item
+                      onSelect={() => release(removableWorktree)}
+                      >释放空间</DropdownMenu.Item
+                    >
+                    {#if archive.removeRecordAndWorktree}<DropdownMenu.Separator
+                      />{/if}
+                  {/if}
+                  {#if archive.removeRecordAndWorktree}
+                    {@const removeRecordAndWorktree =
+                      archive.removeRecordAndWorktree}
+                    <DropdownMenu.Item
+                      variant="destructive"
+                      onSelect={() =>
+                        removeRecordAndWorktree(record, removableWorktree)}
+                      >删除记录和工作树</DropdownMenu.Item
+                    >
+                  {/if}
+                </DropdownMenu.Content>
+              </DropdownMenu.Root>
+            {/if}
           </Item.Actions>
         </Item.Root>
       {/each}

@@ -1571,6 +1571,12 @@ test.describe("hybrid sessions with the fake agent", () => {
       data: { path: root },
     });
     expect(registered.status(), await registered.text()).toBe(201);
+    const discardId = await createHybrid(request, root, "chat", {
+      name: "E2E discard",
+    });
+    expect((await request.delete(`/api/sessions/${discardId}`)).status()).toBe(
+      204,
+    );
     const id = await createHybrid(request, root, "chat", {
       name: "E2E archive",
     });
@@ -1593,9 +1599,23 @@ test.describe("hybrid sessions with the fake agent", () => {
     const row = archived
       .locator('[data-slot="item"]')
       .filter({ hasText: "E2E archive" });
+    const discardRow = archived
+      .locator('[data-slot="item"]')
+      .filter({ hasText: "E2E discard" });
     await expect(row).toBeHidden();
     await archived.getByRole("button", { name: /已归档/ }).click();
     await expect(row).toBeVisible();
+    await expect(
+      row.getByRole("button", { name: "更多操作 E2E archive", exact: true }),
+    ).toHaveCount(0);
+    await discardRow
+      .getByRole("button", { name: "删除记录 E2E discard", exact: true })
+      .click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "确认", exact: true })
+      .click();
+    await expect(discardRow).toHaveCount(0);
 
     await row.getByRole("button", { name: "恢复", exact: true }).click();
     await expect(row).toHaveCount(0);
