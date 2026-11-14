@@ -3,7 +3,6 @@
   import IconDots from "~icons/tabler/dots";
   import IconMessageCircle from "~icons/tabler/message-circle";
   import IconTerminal2 from "~icons/tabler/terminal-2";
-  import IconTrash from "~icons/tabler/trash";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as Collapsible from "$lib/components/ui/collapsible";
@@ -193,15 +192,13 @@
               onerror={(message) => (error = message)}
             />
             <Button
-              size="icon-sm"
+              size="sm"
               variant="destructive"
               disabled={!!busy}
-              title={`删除记录 ${recordTitle(record)}`}
-              aria-label={`删除记录 ${recordTitle(record)}`}
               onclick={() => {
                 removing = record;
                 removeOpen = true;
-              }}><IconTrash aria-hidden="true" /></Button
+              }}>删除</Button
             >
             {#if removableWorktree && hasMoreActions}
               <DropdownMenu.Root>

@@ -86,7 +86,7 @@ const expand = () =>
     .getByRole("button", { name: /已归档/ })
     .click();
 const removeRecord = () =>
-  page.getByRole("button", { name: "删除记录 修复排序" }).click();
+  page.getByRole("button", { name: "删除", exact: true }).click();
 
 test("is hidden without records and collapsed by default with a count", async () => {
   show([], vi.fn());
@@ -244,7 +244,7 @@ test("removing needs confirmation and failures stay inline", async () => {
     page.getByRole("button", { name: "更多操作 修复排序" }).elements(),
   ).toEqual([]);
   await expect
-    .element(page.getByRole("button", { name: "删除记录 修复排序" }))
+    .element(page.getByRole("button", { name: "删除", exact: true }))
     .toHaveClass("text-destructive");
   await removeRecord();
   const dialog = page.getByRole("alertdialog");
@@ -354,7 +354,7 @@ test("deleting a record and its worktree opens the worktree confirmation", async
   show([record], vi.fn(), { worktree: linked, removeRecordAndWorktree });
   await expand();
   await expect
-    .element(page.getByRole("button", { name: "删除记录 修复排序" }))
+    .element(page.getByRole("button", { name: "删除", exact: true }))
     .toBeVisible();
   await page.getByRole("button", { name: "更多操作 修复排序" }).click();
   expect(
@@ -454,7 +454,7 @@ test("offers releasing a linked worktree's space beside the direct delete button
     .element()
     .getBoundingClientRect();
   const deleteBox = page
-    .getByRole("button", { name: "删除记录 修复排序" })
+    .getByRole("button", { name: "删除", exact: true })
     .element()
     .getBoundingClientRect();
   const moreBox = page
@@ -472,7 +472,7 @@ test("offers releasing a linked worktree's space beside the direct delete button
   show([record], vi.fn(), { release });
   await expand();
   await expect
-    .element(page.getByRole("button", { name: "删除记录 修复排序" }))
+    .element(page.getByRole("button", { name: "删除", exact: true }))
     .toBeVisible();
   expect(
     page.getByRole("button", { name: "更多操作 修复排序" }).elements(),

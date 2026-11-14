@@ -231,7 +231,7 @@ test("archiving a hybrid session keeps its draft; deleting the record deletes it
   expect(drafts.valid(closed!)).toBe(true);
 
   await group.getByRole("button", { name: /已归档/ }).click();
-  await group.getByRole("button", { name: "删除记录 进行中" }).click();
+  await group.getByRole("button", { name: "删除", exact: true }).click();
   // The fetch stub only knows how to delete hybrid22; answer for this one.
   vi.mocked(fetch).mockImplementationOnce(async () => {
     records = [];
