@@ -42,3 +42,9 @@ func (s *Service) WorkbenchStateStorageError() error {
 	}
 	return s.collabStore.Err()
 }
+
+// InspectProjects validates the project catalog without opening its lifetime lock.
+func InspectProjects(dir string) error {
+	_, err := statefile.ReadSnapshot[projectRegistry](dir, statefile.Projects, validateProjects)
+	return err
+}

@@ -28,6 +28,15 @@
       "source": "internal/workspace/registry.go"
     },
     {
+      "id": "projects",
+      "path": "projects.json",
+      "lock": "projects.json.lock",
+      "owner": "internal/workspace",
+      "failure": "unavailable",
+      "web": "否",
+      "source": "internal/workspace/projects.go"
+    },
+    {
       "id": "git-operations",
       "path": "git-operations.json",
       "lock": "git-operations.json.lock",
@@ -832,6 +841,18 @@
     "internal/worktreefs/write.go|readExistingDigestAt|golang.org/x/sys/unix.Openat": {
       "count": 1,
       "owner": "read-only-codeview"
+    },
+    "internal/statefile/catalog.go|path|projects.json": {
+      "count": 1,
+      "owner": "projects"
+    },
+    "internal/workspace/inspect.go|InspectProjects|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
+      "count": 1,
+      "owner": "projects"
+    },
+    "internal/workspace/projects.go|*Service.loadProjects|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "projects"
     }
   }
 }
