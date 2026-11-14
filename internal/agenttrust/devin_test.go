@@ -55,6 +55,9 @@ func TestPrepareDevinAppendsKeepingOtherFields(t *testing.T) {
 	if err := os.WriteFile(config, []byte(`{"other":1,"trusted_paths":["/old"]}`), 0o640); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Chmod(config, 0o640); err != nil {
+		t.Fatal(err)
+	}
 	newTrust(home, nil).Prepare(work, []string{"devin"}, nil)
 
 	doc := readTrustedPaths(t, config)

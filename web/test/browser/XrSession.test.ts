@@ -12,6 +12,7 @@ import Harness from "./XrSessionHarness.svelte";
 import type {
   XrHeaderControl,
   XrSessionSource,
+  XrWorkspaceOptions,
 } from "../../src/domains/terminal/xr-workspace";
 
 const runtime = vi.hoisted(() => ({ start: vi.fn(), dispose: vi.fn() }));
@@ -32,6 +33,7 @@ function source(): XrSessionSource {
     id: "existing-session",
     title: "Shell",
     status: "connected",
+    primaryKind: "terminal",
     terminal: undefined,
     graphicsUnsupported: false,
     modifiers: { ctrl: false, alt: false, shift: false },
@@ -43,6 +45,8 @@ function source(): XrSessionSource {
     actions: () => [],
     input() {},
     focus() {},
+    canInput: () => true,
+    blur() {},
     latest() {},
     scroll() {},
     resize: () => false,
@@ -102,7 +106,7 @@ test("explicit 2D return activates its owning pane before ending VR", async () =
     expose: (value) => {
       header = value;
     },
-    open: () => opened.promise,
+    reveal: () => opened.promise,
   });
   await expect
     .element(page.getByRole("status", { name: "XR state" }))
@@ -202,4 +206,67 @@ test("unsupported browsers retain 2D without requesting permission", async () =>
   header.enter();
   expect(request).not.toHaveBeenCalled();
   expect(errors.at(-1)).toContain("不支持沉浸式 VR");
+});
+
+test("observation acquisition and readiness never activate a 2D pane", async () => {
+  let ready = false;
+  const observe = vi.fn(async () => {});
+  const unobserve = vi.fn();
+  const original = source();
+  original.blur = vi.fn();
+  await render(Harness, {
+    source: original,
+    errors,
+    observe,
+    unobserve,
+    ready: () => ready,
+    expose: (value) => {
+      header = value;
+    },
+  });
+  await expect
+    .element(page.getByRole("status"))
+    .toHaveTextContent("supported 2D idle");
+  header.enter();
+  await expect.poll(() => runtime.start.mock.calls.length).toBe(1);
+  const options = runtime.start.mock.calls[0]![1] as XrWorkspaceOptions;
+  expect(original.blur).toHaveBeenCalled();
+  expect(options.ready()).toBe(false);
+  ready = true;
+  expect(options.ready()).toBe(true);
+  await options.observe("vr-only");
+  options.unobserve("vr-only");
+  expect(observe).toHaveBeenCalledWith("vr-only");
+  expect(unobserve).toHaveBeenCalledWith("vr-only");
+  await expect
+    .element(page.getByRole("region", { name: "Active session" }))
+    .toHaveTextContent("other-session");
+  expect(session.end).not.toHaveBeenCalled();
+});
+
+test("a failed explicit 2D reveal preserves VR and its current pane", async () => {
+  await render(Harness, {
+    source: source(),
+    errors,
+    reveal: async () => {
+      throw new Error("2D pane capacity");
+    },
+    expose: (value) => {
+      header = value;
+    },
+  });
+  await expect
+    .element(page.getByRole("status"))
+    .toHaveTextContent("supported 2D idle");
+  header.enter();
+  await expect.poll(() => runtime.start.mock.calls.length).toBe(1);
+  await page.getByRole("button", { name: "返回 2D 原会话" }).click();
+  await expect.poll(() => errors.at(-1)).toContain("2D pane capacity");
+  expect(session.end).not.toHaveBeenCalled();
+  await expect
+    .element(page.getByRole("status"))
+    .toHaveTextContent("supported immersive idle");
+  await expect
+    .element(page.getByRole("region", { name: "Active session" }))
+    .toHaveTextContent("other-session");
 });

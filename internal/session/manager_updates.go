@@ -24,6 +24,15 @@ func (m *Manager) Unsubscribe(sub *ListSubscriber) {
 	defer m.mu.Unlock()
 	delete(m.subs, sub)
 }
+
+// NotifyRemoved invalidates a session's canonical record after its durable
+// removal, even when its runtime was already removed. It does not close a
+// runtime or replace Remove's earlier lifecycle notification.
+func (m *Manager) NotifyRemoved(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.publishLocked(Event{Type: "removed", ID: id})
+}
 func (m *Manager) publishLocked(e Event) {
 	for sub := range m.subs {
 		if sub.failed {

@@ -26,7 +26,7 @@
 **Non-Goals:**
 
 - 不把现有 CodeMirror、Diff DOM 或聊天 DOM 原样搬入 WebGL，也不追求 XR 与 2D 的每个视觉细节一致。
-- 不修改 Go 服务、REST/WebSocket 契约或服务端设置存储。
+- 不修改 REST/WebSocket JSON 契约或服务端设置存储。Go 服务仅允许本轮已批准的永久删除完成通知修复，不能据此扩展其他后端能力。
 - 不用 User-Agent 判断 TV，不为兼容浏览器保留的系统返回键注入历史记录或绕过浏览器安全限制。
 - 本轮不复制终端、代码、Diff、通知或草稿视图，不增加原生 VR 表单或混合切换确认，不将 TUI 输出转写为聊天。
 
@@ -150,6 +150,10 @@ flowchart LR
 
 会话删除由权威生命周期事件驱动，不能依赖把已挂载来源再加入 available 集合的旧逻辑。入场会话或最后一个 2D 窗格被删除时，若仍有 VR 观察来源，先维持当前页面及 XR 所有者，退出时再按有效原布局或既有删除后导航处理。
 
+永久删除的运行时退出与归档提交分属不同步骤；运行时 `removed` 不代表归档已经删除。归档删除提交后，后端必须以既有 `removed` 事件形状再次发布权威失效；前端收到后重新核对该来源的规范记录，并用代际保护阻止旧查询覆盖新结果。
+
+不存在、仍存在、归档可恢复与存储暂不可用分别处理；只有规范缺失才清理 2D 恢复所有者。新建 API 返回与会话清单事件之间的窗口保留待确认成员，不能用盲目清理缺席 ID 或定时重试代替提交后的通知。
+
 备选方案是另建一个隐藏观察组件树，或为每个聊天副本创建控制器。两者都会产生重复 socket、聊天归约与同客户端控制连接替换，因此不采用。
 
 ### 11. 会话、内容与视图三种身份分别管理
@@ -221,6 +225,6 @@ VR 键盘和实体键盘复用该目标；挂载、tick 或聚焦完成前后均
 - `hooks/terminal/terminal.svelte.ts` 保有共享 emulator/socket/input；`domains/terminal/xr-workspace.ts` 定义来源与操作契约，`xr-text.ts` 和 `domains/code/xr-code-panel.ts` 提供只读文本适配。
 - `hooks/terminal/xr-*` 拥有专属场景、Canvas、输入和清理；普通页面仅通过 `xr-session.svelte.ts` 的动态边界进入 Three.js。
 - 此映射说明实现位置，不证明任务完成或验收通过。电视与头显真机验收仍待执行；保留 tasks 8.3/8.4 的全部设备能力与证据要求，模拟环境不能替代。
-- 基础二阶段已合并；本轮多会话／多视图尚待 tasks 第9节实施。上述新增结构、行为和验证方案不表示代码或真机验收已完成。
+- 基础二阶段已合并；本轮多会话／多视图实现对应 tasks 第9节，新增任务依据本轮实际验证单独勾选，不复用原阶段的通过记录。
 - 主要接点为 `pages/Terminal.svelte`、`SessionTerminal.svelte`、`xr-session-source.svelte.ts`、`xr-session.svelte.ts`、`xr-workspace.ts`、`xr-panel.ts`、`xr-menu.ts`、`xr-keyboard.ts` 与 `domains/terminal/xr-layout.ts`。
-- 用户故事计划扩展 US-H15，设备验收仍保留2.3、8.3、8.4；本轮不替这些任务宣称真机通过。
+- 用户故事扩展 US-H15；设备验收仍保留2.3、8.3、8.4，不以模拟器结果宣称真机通过。

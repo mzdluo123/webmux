@@ -44,16 +44,15 @@ export function loadRecoverable(signal?: AbortSignal) {
   );
 }
 
-/**
- * Archived session `id`, the session page's fallback when the running
- * session is gone. Undefined when there is none: no such session (404), no
- * readable store (503), or a session that is still active. Other failures
- * prove nothing and are thrown.
- */
-export async function loadRecord(
+/** Distinguish a real 404 from an archived or still-present session. */
+export async function lookupSessionRecord(
   id: string,
   signal?: AbortSignal,
-): Promise<ArchivedSession | undefined> {
+): Promise<
+  | { kind: "record"; record: ArchivedSession }
+  | { kind: "present" }
+  | { kind: "missing" }
+> {
   let session: SessionInfo;
   try {
     session = await api(
@@ -64,12 +63,14 @@ export async function loadRecord(
       signal,
     );
   } catch (err) {
-    if (err instanceof APIError && (err.status === 404 || err.status === 503))
-      return undefined;
+    if (err instanceof APIError && err.status === 404)
+      return { kind: "missing" };
     throw err;
   }
   const archived = ArchivedSessionSchema.safeParse(session);
-  return archived.success ? archived.data : undefined;
+  return archived.success
+    ? { kind: "record", record: archived.data }
+    : { kind: "present" };
 }
 
 export type ResumeChoice = {

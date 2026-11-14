@@ -7,15 +7,18 @@
   import type { TerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
   import type { Shell } from "../../src/hooks/shared/shell.svelte";
   import ShellSessionPage from "./ShellSessionPage.svelte";
+  import Terminal from "../../src/pages/Terminal.svelte";
 
   // A shell page as App renders it, following the address: the home page,
   // quick start, or a stand-in for a session page inside the app shell.
   let {
     drafts,
     exposeShell,
+    terminalPage = false,
   }: {
     drafts: TerminalDrafts;
     exposeShell?: (shell: Shell) => void;
+    terminalPage?: boolean;
   } = $props();
   let path = $state(location.pathname);
   onMount(() => {
@@ -33,6 +36,11 @@
 
 <AppShell {route} {drafts}>
   {#if route.name === "quick-start"}<QuickStart />
+  {:else if route.name === "terminal" && terminalPage}<Terminal
+      id={route.id}
+      {drafts}
+      onUploadNotice={() => {}}
+    />
   {:else if route.name === "terminal"}<ShellSessionPage
       id={route.id}
       expose={exposeShell}

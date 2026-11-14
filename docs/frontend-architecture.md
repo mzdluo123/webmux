@@ -58,11 +58,15 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 - `hooks/terminal/terminal.svelte.ts` 的 `TerminalController` 保有唯一 xterm emulator、输入路由与 socket。DOM renderer 和 XR Canvas 共用这个解析模型；`setImmersive` 暂停 DOM 适配，退出后恢复，不建立第二个 PTY 或输入控制器。
 - `domains/terminal/` 放共享按键编码、XR 文本/面板契约与布局校验；`domains/code/` 放代码/Diff 的只读 XR 适配。`hooks/terminal/` 协调会话来源、异步 XR 所有权、Canvas、射线、场景与资源清理，不让领域依赖渲染层。
 - Three.js 运行时只允许在 XR 专属 `hooks/terminal/xr-*` 场景模块中导入。`xr-session.svelte.ts` 在用户手势请求会话后动态导入 `xr-workspace.ts`；普通页面与领域契约不得静态导入该场景入口或初始化 3D renderer。
-- XR 布局经版本化 Zod 校验并通过设备偏好存储，只含面板 ID、类型、会话引用、位置、尺寸与可见性。拖动/缩放结束才写入；不保存标题、输出、草稿、代码或 token，不进入设置 API 与同步帧。
+- XR 布局 version 2 经 Zod 校验并通过设备偏好存储，读取时迁移有效 version 1；区分会话、内容来源与视图实例，只保存 ID、类型、会话和来源引用、位置、尺寸与可见性，不保存标题、输出、草稿、代码、游标或 token。
 
 XR 面板姿态、纹理尺寸与每眼帧缓冲只影响呈现；PTY 网格仍由共享控制权流程管理，只有用户明确确认逻辑网格变化才可提交 resize。返回 2D、关闭面板和 XR 资源清理均不拥有服务端会话销毁权。
 
 同深度 XR 面板按统一表面顺序绘制和命中；终端子平面与所属面板共面，使用组内顺序覆盖背景。真实前后关系仍交给深度测试，控制器射线单独置顶，不用改变持久化姿态解决遮挡。
+
+`Terminal.svelte` 按会话键挂载 2D 与 VR 观察成员的去重并集；`TerminalSessionHost` 在引用转移时保留原 `SessionTerminal`。离屏成员在附着前取得 immersive，不参与 2D 几何与自动 fitting，原输入编辑器仍可显式聚焦。
+
+`xr-view-state.ts` 拥有有界绑定、观察事务与实例选择；来源只派生一次内容再分发给独立面板。输入按选中实例解析唯一来源，异步聚焦检查目标和所有者代际，失效后撤销捕获；只读聊天历史不复用通用输入动作。
 
 ## 检查项
 

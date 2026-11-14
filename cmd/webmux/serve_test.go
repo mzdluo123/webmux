@@ -40,6 +40,7 @@ func TestTunnelFlagAndGeneratedToken(t *testing.T) {
 		{"configured token kept", []string{"--config", enabled, "--tunnel", "--token", tunnelTestToken}, true, tunnelTestToken, false},
 	} {
 		t.Run(row.name, func(t *testing.T) {
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
 			// Loopback isolates the tunnel rule from wildcard token generation.
 			args := append([]string{"--listen", "127.0.0.1:7681"}, row.args...)
 			c, err := loadConfig(args)
@@ -85,6 +86,7 @@ const tunnelTestToken = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFG"
 
 func TestTunnelRejectsShortConfiguredToken(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", "")
 	_, err := loadConfig([]string{"--tunnel", "--token", "mine"})
 	if err == nil || !strings.Contains(err.Error(), "at least 43 characters") {
 		t.Fatalf("weak tunnel token error %v", err)

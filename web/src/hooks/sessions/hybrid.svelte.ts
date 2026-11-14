@@ -25,7 +25,7 @@ import {
   type HybridTerminal,
 } from "./hybrid-types";
 import {
-  loadRecord,
+  lookupSessionRecord,
   sessionConflict,
 } from "../../domains/sessions/recoverable";
 import {
@@ -57,6 +57,7 @@ export function useHybrid(
   drafts: TerminalDrafts,
   draft: TerminalDraft,
   manageChrome = true,
+  subscribeRemoved?: (listener: (id: string) => void) => () => void,
 ): HybridSession {
   const chat = createChatSocket(id, live);
   const actions = chatActions(id);
@@ -66,7 +67,9 @@ export function useHybrid(
   });
 
   let record = $state.raw<ArchivedSession>();
-  let lookup = $state<"none" | "found" | "absent" | "failed">("none");
+  let lookup = $state<"none" | "found" | "present" | "absent" | "failed">(
+    "none",
+  );
   // The session as last read: from a terminal frame while the stream is
   // attached, otherwise from the server whenever the chat channel or the
   // stream reports a change. The latest of the two wins.
@@ -260,19 +263,50 @@ export function useHybrid(
     reattachedFor = current;
     terminal.reconnect();
   });
-  $effect(() => {
-    if (!ended) return;
+  let recordEpoch = 0;
+  let recordController: AbortController | undefined;
+  function refreshRecord() {
+    recordController?.abort();
     const controller = new AbortController();
-    loadRecord(id, controller.signal).then(
-      (found) => {
-        record = found;
-        lookup = found ? "found" : "absent";
+    recordController = controller;
+    const epoch = ++recordEpoch;
+    // Runtime removal can precede the archive commit. Never reuse its
+    // cached recovery record after a later canonical invalidation.
+    record = undefined;
+    lookup = "none";
+    lookupSessionRecord(id, controller.signal).then(
+      (result) => {
+        if (disposed || controller.signal.aborted || epoch !== recordEpoch)
+          return;
+        record = result.kind === "record" ? result.record : undefined;
+        lookup =
+          result.kind === "missing"
+            ? "absent"
+            : result.kind === "record"
+              ? "found"
+              : "present";
       },
       () => {
-        if (!controller.signal.aborted) lookup = "failed";
+        if (!disposed && !controller.signal.aborted && epoch === recordEpoch)
+          lookup = "failed";
       },
     );
-    return () => controller.abort();
+  }
+  const unsubscribeRemoved = subscribeRemoved?.((removed) => {
+    if (removed === id) refreshRecord();
+  });
+  onDestroy(() => {
+    unsubscribeRemoved?.();
+    ++recordEpoch;
+    recordController?.abort();
+  });
+  $effect(() => {
+    if (!ended) return;
+    untrack(refreshRecord);
+    return () => {
+      ++recordEpoch;
+      recordController?.abort();
+    };
   });
 
   // Notices that reach this device while it does not show the timeline,
@@ -380,7 +414,7 @@ export function useHybrid(
       return record;
     },
     get missing() {
-      return terminal.connection === "missing" && lookup === "absent";
+      return lookup === "absent";
     },
     get connector() {
       return connector;

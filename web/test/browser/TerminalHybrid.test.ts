@@ -391,7 +391,10 @@ test("port prompts appear on both the terminal and chat views", async () => {
   await expect
     .element(page.getByRole("textbox", { name: "消息" }))
     .toBeVisible();
-  const listSocket = await socketAt("/ws/sessions", 1);
+  const listSocket = await socketAt("/ws/sessions");
+  expect(
+    sockets.filter((socket) => socket.path === "/ws/sessions"),
+  ).toHaveLength(1);
   listSocket.frame({
     type: "snapshot",
     sessions: [{ ...described(), listeningPorts: [] }],
