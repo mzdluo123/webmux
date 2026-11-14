@@ -8,6 +8,18 @@ export interface ProjectSelection {
   openedPath?: string;
 }
 
+// Context entries and catalog rows can use different ids for the same folder.
+export function sameProject(
+  project: Project,
+  current: Project | undefined,
+): boolean {
+  return (
+    !!current &&
+    project.repositoryId === current.repositoryId &&
+    project.path === current.path
+  );
+}
+
 export function projectTarget(selection: ProjectSelection) {
   const repository = selection.repository;
   const trees = repository?.worktrees ?? [];
@@ -52,7 +64,7 @@ export function contextProject(
 ): Project | undefined {
   if (repository)
     return {
-      id: repository.id,
+      id: "repository:" + repository.id,
       name: repository.name,
       path: repository.anchorPath,
       repositoryId: repository.id,

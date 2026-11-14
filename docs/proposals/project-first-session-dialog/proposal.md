@@ -1,4 +1,4 @@
-> 已实施。原规划与实施任务保留在文档区，交付见 [stacked PR #622](https://github.com/mzdluo123/webmux/stack/622)。操作方式见[新建会话](../../usage/sessions.md#新建会话)，实际验证见[核对记录](../../user-stories/verification-log-2026-11-15.md)。
+> 已实施。原规划与实施任务保留在文档区，交付见 [PR #627](https://github.com/mzdluo123/webmux/pull/627)。操作方式见[新建会话](../../usage/sessions.md#新建会话)，实际验证见[核对记录](../../user-stories/verification-log-2026-11-15.md)。
 
 ## Why
 

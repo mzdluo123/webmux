@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     projectTarget,
+    sameProject,
     projectRepositories,
     contextProject,
     scopeForProject,
@@ -230,7 +231,7 @@
   }
   function selectedProject(selection: ProjectSelection) {
     if (
-      selection.project.id !== currentProject?.id ||
+      !sameProject(selection.project, currentProject) ||
       (selection.openedPath &&
         projectTarget(selection).worktreeId !== worktreeId)
     ) {

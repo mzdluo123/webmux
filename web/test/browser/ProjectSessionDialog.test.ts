@@ -28,7 +28,7 @@ const repo = repository({
   ],
 });
 const git: Project = {
-  id: repo.id,
+  id: "repository:" + repo.id,
   name: repo.name,
   path: repo.anchorPath,
   repositoryId: repo.id,
@@ -340,45 +340,65 @@ test("GitHub setup remains reachable without requesting an unavailable source", 
     .toBeDisabled();
 });
 
-for (const mode of ["new", "existing"]) {
-  test(`returning to the same project preserves the complete ${mode} worktree draft`, async () => {
-    const view = await open({ repositories: [repo] });
-    await page.getByRole("option", { name: /webmux/ }).click();
-    await page.getByRole("button", { name: "工作位置", exact: true }).click();
-    await page.getByRole("option", { name: /^新建工作树/ }).click();
-    const name = page.getByRole("textbox", { name: "新分支名称", exact: true });
-    await expect.element(name).not.toHaveValue("");
-    if (mode === "new") await name.fill("feature/kept-draft");
-    else {
+for (const context of [false, true])
+  for (const mode of ["new", "existing"]) {
+    test(`returning to the same project from ${context ? "context" : "list"} preserves the complete ${mode} worktree draft`, async () => {
+      const view = await open({
+        repositories: [repo],
+        ...(context
+          ? {
+              entry: {
+                kind: "directory" as const,
+                cwd: repo.anchorPath,
+                workspace: {
+                  repositoryId: repo.id,
+                  worktreeId: "main",
+                  worktreePath: repo.anchorPath,
+                },
+              },
+              split: true,
+            }
+          : {}),
+      });
+      if (!context) await page.getByRole("option", { name: /webmux/ }).click();
+      await page.getByRole("button", { name: "工作位置", exact: true }).click();
+      await page.getByRole("option", { name: /^新建工作树/ }).click();
+      const name = page.getByRole("textbox", {
+        name: "新分支名称",
+        exact: true,
+      });
+      await expect.element(name).not.toHaveValue("");
+      if (mode === "new") await name.fill("feature/kept-draft");
+      else {
+        await page
+          .getByRole("radio", { name: "使用已有分支", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "已有本地分支", exact: true })
+          .click();
+        await page.getByRole("option", { name: /^feature\/available/ }).click();
+      }
       await page
-        .getByRole("radio", { name: "使用已有分支", exact: true })
+        .getByRole("button", { name: /^高级：.*存放目录$/, exact: true })
         .click();
-      await page
-        .getByRole("button", { name: "已有本地分支", exact: true })
-        .click();
-      await page.getByRole("option", { name: /^feature\/available/ }).click();
-    }
-    await page
-      .getByRole("button", { name: /^高级：.*存放目录$/, exact: true })
-      .click();
-    const path = page.getByRole("textbox", {
-      name: "新工作树完整路径",
-      exact: true,
+      const path = page.getByRole("textbox", {
+        name: "新工作树完整路径",
+        exact: true,
+      });
+      await path.fill("/repos/kept-draft");
+      await page.getByRole("button", { name: "更换项目", exact: true }).click();
+      await page.getByRole("option", { name: /webmux/ }).click();
+      await view.rerender({
+        repositories: [{ ...repo, checkedAt: "2026-11-15T01:00:00Z" }],
+      });
+      await expect.element(path).toHaveValue("/repos/kept-draft");
+      if (mode === "new")
+        await expect.element(name).toHaveValue("feature/kept-draft");
+      else
+        await expect
+          .element(
+            page.getByRole("button", { name: "已有本地分支", exact: true }),
+          )
+          .toHaveTextContent("feature/available");
     });
-    await path.fill("/repos/kept-draft");
-    await page.getByRole("button", { name: "更换项目", exact: true }).click();
-    await page.getByRole("option", { name: /webmux/ }).click();
-    await view.rerender({
-      repositories: [{ ...repo, checkedAt: "2026-11-15T01:00:00Z" }],
-    });
-    await expect.element(path).toHaveValue("/repos/kept-draft");
-    if (mode === "new")
-      await expect.element(name).toHaveValue("feature/kept-draft");
-    else
-      await expect
-        .element(
-          page.getByRole("button", { name: "已有本地分支", exact: true }),
-        )
-        .toHaveTextContent("feature/available");
-  });
-}
+  }

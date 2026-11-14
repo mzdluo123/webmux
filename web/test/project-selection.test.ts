@@ -2,6 +2,7 @@ import { suggestProjectClonePath } from "../src/domains/workspace/project-clone-
 import { describe, expect, test } from "vite-plus/test";
 import {
   contextProject,
+  sameProject,
   projectRepositories,
   projectTarget,
   scopeForProject,
@@ -14,7 +15,7 @@ import type { Project } from "../src/contracts/schemas";
 import { repository, worktree } from "./browser/shell-fixture";
 
 const project: Project = {
-  id: "repo1",
+  id: "repository:repo1",
   name: "webmux",
   path: "/repos/webmux",
   repositoryId: "repo1",
@@ -23,6 +24,27 @@ const project: Project = {
 };
 
 describe("project session boundaries", () => {
+  test("context and catalog identity follows the validated repository and path", () => {
+    const contextual = contextProject(repository());
+    expect(contextual?.id).toBe("repository:repo1");
+    expect(sameProject(project, contextual)).toBe(true);
+    expect(
+      sameProject({ ...project, id: "directory:promoted" }, contextual),
+    ).toBe(true);
+    expect(sameProject({ ...project, repositoryId: "other" }, contextual)).toBe(
+      false,
+    );
+    expect(sameProject({ ...project, path: "/repos/other" }, contextual)).toBe(
+      false,
+    );
+    expect(
+      sameProject(
+        { ...project, id: "directory:notes", path: "/notes", repositoryId: "" },
+        contextProject(undefined, "/notes"),
+      ),
+    ).toBe(true);
+  });
+
   test("a Git project with no selectable tree stays unset rather than using an unrelated cwd", () => {
     const selection = {
       project,
