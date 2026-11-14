@@ -57,7 +57,7 @@
 
 {#snippet drawerBody()}
   {#if pinDrawerHeader}
-    <ScrollArea class="min-h-0 flex-1">
+    <ScrollArea class="min-h-8 flex-1">
       <div class="px-4 pt-1 pb-safe-4">{@render children()}</div>
     </ScrollArea>
   {:else}
@@ -102,7 +102,7 @@
         if (busy) event.preventDefault();
       }}
     >
-      <ScrollArea class="min-h-0">
+      <ScrollArea class="min-h-8">
         <div class="grid gap-4 [&>*]:min-w-0">
           {#if actions}
             <div class="flex min-w-0 items-start gap-3 pr-8">
@@ -134,7 +134,7 @@
         {@render drawerHeader()}
         {@render drawerBody()}
       {:else}
-        <ScrollArea class="min-h-0 flex-1">
+        <ScrollArea class="min-h-8 flex-1">
           <div>
             {@render drawerHeader()}
             {@render drawerBody()}

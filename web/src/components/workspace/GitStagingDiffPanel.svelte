@@ -233,7 +233,7 @@
   }
 </script>
 
-<ScrollArea class="h-full min-h-0 w-full" data-testid="git-staging-diff-panel">
+<ScrollArea class="h-full min-h-8 w-full" data-testid="git-staging-diff-panel">
   <div class="flex min-h-full w-full min-w-0 flex-col bg-background">
     <GitStagingDiffHeader
       {change}

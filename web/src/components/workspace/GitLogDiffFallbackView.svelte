@@ -35,7 +35,7 @@
 {/snippet}
 
 {#if sideDoc}
-  <ScrollArea class="min-h-0 flex-1">
+  <ScrollArea class="min-h-8 flex-1">
     <div class="p-3">
       {#if sideDoc.loading}
         <p class="text-xs text-muted-foreground" role="status">

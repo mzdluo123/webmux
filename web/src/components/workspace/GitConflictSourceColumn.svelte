@@ -72,7 +72,7 @@
     </div>
   </div>
 
-  <ScrollArea class="min-h-0 flex-1">
+  <ScrollArea class="min-h-8 flex-1">
     <div class="space-y-1.5 p-2 text-xs">
       {#each segments as seg (seg.id)}
         {@const choice = draft.choices[seg.id] ?? "unresolved"}

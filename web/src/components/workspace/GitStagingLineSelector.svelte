@@ -193,7 +193,7 @@
     </div>
   </div>
 
-  <ScrollArea class="min-h-0 flex-1">
+  <ScrollArea class="min-h-8 flex-1">
     <div class="space-y-2 p-2">
       {#each hunks as hunk, hIdx (hunk.id)}
         {@const changedAll = changedLineIndicesInHunk(hunk)}

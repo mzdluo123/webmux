@@ -134,7 +134,7 @@
     </div>
   {/if}
 
-  <ScrollArea orientation="both" class="min-h-0 flex-1">
+  <ScrollArea orientation="both" class="min-h-8 flex-1">
     {#if loading && !data}
       <p class="p-4 text-xs text-muted-foreground" role="status">
         正在按行溯源计算只读 Blame 注解…

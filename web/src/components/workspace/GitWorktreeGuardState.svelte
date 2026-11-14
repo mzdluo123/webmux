@@ -70,7 +70,7 @@
   </div>
 {/snippet}
 
-<ScrollArea class="h-full min-h-0 flex-1" data-testid={`git-guard-${kind}`}>
+<ScrollArea class="h-full min-h-8 flex-1" data-testid={`git-guard-${kind}`}>
   <div class="flex min-h-full items-center justify-center p-4 sm:p-8">
     <div
       class="w-full max-w-lg space-y-4 rounded-lg border bg-background p-5 shadow-xs"

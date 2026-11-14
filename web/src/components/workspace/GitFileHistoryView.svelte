@@ -51,7 +51,7 @@
     class="flex h-full min-h-0 min-w-0 flex-col lg:w-80 lg:shrink-0 lg:border-r"
     data-testid="git-file-history-list"
   >
-    <ScrollArea class="min-h-0 flex-1">
+    <ScrollArea class="min-h-8 flex-1">
       <div class="space-y-1 p-2">
         {#if loading && rows.length === 0}
           <p class="p-3 text-xs text-muted-foreground" role="status">
@@ -182,7 +182,7 @@
       </div>
     {/if}
 
-    <div class="min-h-0 min-w-0 flex-1">
+    <div class="min-h-8 min-w-0 flex-1">
       <GitLogDiffPanel
         logDiff={diffReader}
         fallbackLeftLabel={activeRow?.comparedParentOid?.slice(0, 7) ?? "空树"}

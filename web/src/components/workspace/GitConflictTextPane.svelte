@@ -112,7 +112,7 @@
     <div
       class="flex min-h-0 flex-1 flex-col focus-within:ring-2 focus-within:ring-ring/40"
     >
-      <ScrollArea class="min-h-0 flex-1">
+      <ScrollArea class="min-h-8 flex-1">
         <div class="flex min-h-full flex-col p-2">
           <Textarea
             variant="bare"

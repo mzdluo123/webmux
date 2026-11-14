@@ -171,7 +171,7 @@
       </div>
     {/if}
 
-    <ScrollArea class="min-h-0 flex-1">
+    <ScrollArea class="min-h-8 flex-1">
       <div class="space-y-1 p-2">
         {#if loadingList && entries.length === 0}
           <p class="p-3 text-xs text-muted-foreground" role="status">
@@ -319,7 +319,7 @@
 {/snippet}
 
 {#snippet stashFilesList(isMobile: boolean)}
-  <ScrollArea class="min-h-0 flex-1">
+  <ScrollArea class="min-h-8 flex-1">
     <div class="p-2">
       {#if loadingDetail && !activeDetail}
         <p class="p-2.5 text-xs text-muted-foreground" role="status">
@@ -431,7 +431,7 @@
             {@render stashDetailHeader(activeEntry, false)}
             <Resizable.PaneGroup
               direction="vertical"
-              class="min-h-0 min-w-0 flex-1"
+              class="min-h-8 min-w-0 flex-1"
             >
               <Resizable.Pane defaultSize={38} minSize={20} class="git-pane">
                 {@render stashFilesList(false)}

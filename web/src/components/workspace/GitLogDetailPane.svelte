@@ -102,7 +102,7 @@
     {/if}
   </div>
 
-  <ScrollArea class="min-h-0 flex-1">
+  <ScrollArea class="min-h-8 flex-1">
     <div class="space-y-2.5 p-3 text-xs">
       {#if compareMode}
         <div class="space-y-2">

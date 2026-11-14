@@ -164,7 +164,7 @@
 {/snippet}
 
 <div class="h-full min-h-0 min-w-0 bg-background" data-slot="git-branches-pane">
-  <ScrollArea class="h-full min-h-0">
+  <ScrollArea class="h-full min-h-8">
     <div
       class={desktop.current
         ? "flex h-full min-h-0 min-w-0 flex-row"
@@ -204,7 +204,7 @@
         <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child options. -->
         <ScrollArea
           bind:viewportRef={listEl}
-          class="min-h-0 flex-1"
+          class="min-h-8 flex-1"
           viewportProps={{
             role: "listbox",
             "aria-label": "分支列表",
@@ -242,7 +242,7 @@
           : "flex shrink-0 flex-col bg-background"}
         aria-label="选中分支详情与工作树占用"
       >
-        <ScrollArea class="min-h-0 flex-1">
+        <ScrollArea class="min-h-8 flex-1">
           <div class={desktop.current ? "space-y-4 p-4" : "space-y-4 p-3"}>
             <GitBranchDetailCard
               {activeBranch}

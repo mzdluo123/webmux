@@ -24,7 +24,7 @@
   } = $props();
 </script>
 
-<ScrollArea class="min-h-0 flex-1" data-testid="git-conflict-variant-card">
+<ScrollArea class="min-h-8 flex-1" data-testid="git-conflict-variant-card">
   <div class="space-y-3 p-3 text-xs">
     <InlineNotice tone="warning">
       <div class="space-y-1">

@@ -177,7 +177,7 @@
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
   <ScrollArea
     bind:viewportRef={listScrollEl}
-    class="min-h-0 flex-1"
+    class="min-h-8 flex-1"
     viewportProps={{
       role: "listbox",
       "aria-label": "提交记录",

@@ -229,7 +229,7 @@
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Enter across child option buttons. -->
   <ScrollArea
     bind:viewportRef={listEl}
-    class="min-h-0 flex-1"
+    class="min-h-8 flex-1"
     viewportProps={{
       role: "listbox",
       "aria-label": "提交变更文件",

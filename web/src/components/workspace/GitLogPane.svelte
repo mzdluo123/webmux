@@ -459,7 +459,7 @@
           返回提交列表
         </Button>
       </div>
-      <ScrollArea class="min-h-0 flex-1">
+      <ScrollArea class="min-h-8 flex-1">
         <div>
           <div class="border-b">
             {@render detailPaneContent()}
