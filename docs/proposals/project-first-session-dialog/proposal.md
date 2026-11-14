@@ -1,4 +1,4 @@
-> 设计提案，尚未实施。为遵守在途变更目录数量上限，本方案暂存于文档区；实施前需转为正式 OpenSpec 变更。
+> 已实施。原规划与实施任务保留在文档区，交付见 [stacked PR #622](https://github.com/mzdluo123/webmux/stack/622)。操作方式见[新建会话](../../usage/sessions.md#新建会话)，实际验证见[核对记录](../../user-stories/verification-log-2026-11-15.md)。
 
 ## Why
 

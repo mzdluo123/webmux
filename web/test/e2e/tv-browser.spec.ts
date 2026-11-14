@@ -1,3 +1,5 @@
+import { mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   expect,
@@ -136,6 +138,14 @@ for (const width of [1280, 1920]) {
       ).ok(),
     ).toBe(true);
     const reconnect = await holdTerminalReattach(page);
+    const stalePath = join(workDir, "000-closed-project");
+    await mkdir(stalePath);
+    expect(
+      (
+        await request.post("/api/projects", { data: { path: stalePath } })
+      ).status(),
+    ).toBe(201);
+    await rm(stalePath, { recursive: true });
     expect(
       (
         await request.post("/api/projects", { data: { path: workDir } })
@@ -158,10 +168,7 @@ for (const width of [1280, 1920]) {
       page.locator('[role="option"]:not([aria-disabled="true"])').first(),
     ).toBeVisible();
     await page.keyboard.press("ArrowDown");
-    await expect(page.getByRole("option").first()).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    await expect(page.getByRole("option", { selected: true })).toBeEnabled();
     await page.keyboard.press("Enter");
     await expect(projects).toBeHidden();
     await select(
