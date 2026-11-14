@@ -187,7 +187,7 @@ auto SHALL 优先 QUIC，仅在建连超时或网络不可达时回退 WSS；qui
 
 ### Requirement: 内置官方端点与公开服务身份
 
-开源客户端 SHALL 内置官方 HTTPS/QUIC 地址、Relay 受众和官方 TLS 服务身份公钥或对应 SHA-256 SPKI pin 集合。用户 SHALL 无需填写官方地址、公钥或 OAuth 应用配置即可发起 GitHub 配对；内置默认 MUST NOT 自动启用 Relay 或替代公网确认。
+开源客户端 SHALL 内置官方 HTTPS/QUIC 地址、Relay 受众和官方 ECDSA P-256 TLS 服务身份公钥或对应 SHA-256 SPKI pin 集合。用户 SHALL 无需填写官方地址、公钥或 OAuth 应用配置即可发起 GitHub 配对；内置默认 MUST NOT 自动启用 Relay 或替代公网确认。
 
 所有到 Relay 的 HTTPS/WSS/QUIC 连接 SHALL 同时通过正常 TLS 证书链、有效期、主机名及公钥 pin 校验；MUST NOT 跳过 TLS 校验、自动学习未知公钥或在校验失败时降级绕过。公钥仅用于认证服务身份，宿主私钥 SHALL 继续逐机生成并用于主机认证。
 

@@ -6,8 +6,8 @@
 
 Relay 同时引入一个新的公网服务端和 WebMux 出站客户端，必须遵守以下约束：
 
-- 所有 JSON DTO 集中在 `internal/contract`，宿主与 Relay 控制器都归入 `internal/api`，服务错误只在 `internal/api/errors.go` 映射为 HTTP 状态；
-- 只有 `cmd/` 组装服务，新增 `internal/` 包必须登记架构分层与出站网络用途；
+- WebMux 宿主 JSON DTO 仍集中在 `internal/contract`，宿主控制器归入 `internal/api`，服务错误只在 `internal/api/errors.go` 映射为 HTTP 状态；跨仓库协议 DTO 通过公开子模块定义，宿主 contract 使用别名衔接；
+- WebMux 只有 `cmd/` 组装服务，新增宿主 `internal/` 包必须登记架构分层与出站网络用途；Relay 独立仓库建立自己的显式装配、服务和 HTTP 错误映射边界；
 - 构建保持 `CGO_ENABLED=0`，可复用 `coder/websocket` 和 `modernc.org/sqlite`；
 - Relay 不直接接触 PTY，必须保留现有认证、回放续接、慢客户端和会话退出语义。
 
@@ -29,18 +29,25 @@ Relay 同时引入一个新的公网服务端和 WebMux 出站客户端，必须
 
 ## Decisions
 
-### 1. 单二进制、分包职责
+### 1. 独立仓库与明确的协议边界
 
-新增 `cmd/webmux-relay`，在同一进程中监听公共 HTTPS/WSS（TCP 443）与连接器 QUIC（UDP 443）。包边界如下：
+Relay 在独立仓库开发和发布，一个 Go 二进制监听公共 HTTPS/WSS（TCP 443）与连接器 QUIC（UDP 443）。WebMux 不增加 `cmd/webmux-relay`，不链接或构造服务端注册库、GitHub OAuth 服务和官方后台。
 
-- `internal/relayproto`（shared）：协议版本、签名 transcript、challenge 类型和多路 stream 适配；DTO 仍放在 `internal/contract`。
-- `internal/relaycontrol`（service）：GitHub 授权交换、后台会话、一次性跳转授权、邀请名单、账号/主机注册、重新绑定、撤销和 SQLite 事务，不依赖 HTTP 服务端。
-- `internal/relay`（client）：宿主连接器、QUIC/WSS 认证、统一 stream 会话、回环拨号和重连，不导入 WebMux 服务或控制器。
-- `internal/relaysettings`（service）：宿主启用意图与私钥的受控持久化。
-- `internal/api/relay*.go`（controller）：宿主 `/api/relay*` 和 Relay 控制面、连接器及公共代理处理器，复用统一错误映射。
-- `cmd/webmux`、`cmd/webmux-relay` 分别组装上述服务，不共享进程内单例。
+两端职责如下：
 
-**备选方案**：独立 Relay 网关控制器包。否决原因是服务 sentinel 到 HTTP 状态的映射会绕开仓库规定的 `internal/api/errors.go`，并形成第二套错误约定。
+- WebMux `internal/relay`（client）：QUIC/WSS 宿主连接器、认证、流适配、回环拨号和重连；
+- WebMux `internal/relaysettings`（service）：受控设置、宿主私钥、配对身份与内存登录会话；
+- WebMux `internal/api/relay*.go`（controller）：宿主 `/api/relay*` 与受限登录入口，沿用统一错误映射；`cmd/webmux` 负责装配；
+- Relay 仓库 `cmd/webmux-relay`：服务端装配和启动；`internal/relaycontrol`：GitHub OAuth、账号绑定、SQLite、后台会话与跳转授权；
+- Relay 仓库 `internal/connector`：连接器认证、QUIC/WSS 服务端、活动连接与流配额；`internal/httpapi`：控制面、官方后台和公共反向代理，统一映射本仓库服务错误。
+
+共享内容在 WebMux 仓库 `protocol/relay/` 形成独立公开 Go 子模块，仅包含协议版本、wire DTO、签名 transcript、算法标识、错误码与一致性向量，依赖限于标准库。宿主 `internal/contract` 使用类型别名衔接 wire DTO，服务类型继续由 `internal/wire` 转换；WebMux 的既有契约与快照流程保持生效。
+
+两端分别实现 QUIC/yamux 的薄适配，不把业务、数据库、OAuth、HTTP handler 或 transport 依赖塞入协议模块。Relay 仅依赖发布的协议模块版本，禁止导入 WebMux `internal/`、复制未版本化 DTO 或依赖本地相对路径。采用子模块避免第三个仓库；其路径与例外须同步到架构规则和 contributor 工具，不能静默绕开守卫。
+
+协议规格继续由本 OpenSpec 管理，两仓实现 PR 链接相同 requirement 与跨仓库任务。首次发布固定协议 v1 与模块 v0.x；两端固定依赖版本，CI 独立测试本仓库，并以已发布产物/指定 commit 运行兼容矩阵；不兼容主版本必须拒绝，不能要求双方从各自主分支同步构建。
+
+**备选方案**：同仓库新增服务端启动命令。否决原因是公网多账号服务与单用户宿主的依赖、部署、凭据和发布周期不同。跨仓库不需要共享进程内服务或 HTTP 控制器。
 
 ### 2. QUIC 优先与 WSS + yamux 回退
 
@@ -87,6 +94,12 @@ WebMux-Relay-v1\n<relay-audience>\n<host-id>\n<nonce>
 
 nonce 只在单节点内存中短期保存并单次消费。新连接必须验证成功后才替换旧会话。删除绑定使用独立的签名质询，避免仅凭公开 host ID 撤销。
 
+宿主身份签名使用 Go `crypto/ed25519`；官方 TLS 证书身份使用 `crypto/ecdsa` 的 P-256 与 `crypto/x509`，均由标准库安全随机源生成。两者都是椭圆曲线签名，各自独立的密钥不能复用或互相转换。传输加密与临时密钥协商交给 TLS 1.3，不将签名密钥直接用于加密终端内容，不自研曲线运算、ECDH 或 ECIES。
+
+协议 v1 固定宿主身份算法 Ed25519 和官方服务身份 ECDSA P-256；拒绝未知算法、错误长度或曲线，禁止收到算法名就动态降级到其他实现。后续改算法需显式版本协商及迁移。
+
+参考：[Go Ed25519](https://pkg.go.dev/crypto/ed25519)、[Go ECDSA](https://pkg.go.dev/crypto/ecdsa)。
+
 ### 5. 固定标识与 SQLite 数据模型
 
 host ID 使用 128 位加密随机数的 32 字符小写十六进制形式，公共标签采用 `h-<host-id>`。公共地址由 Relay 配置的公共泛域名生成，数据库不保存 WebMux Token。
@@ -132,7 +145,7 @@ P2P 代码不需要新传输分支：Relay 页面仍是同源 HTTP/WebSocket，`
 - `DELETE /api/relay/enrollments`：取消等待中的配对；
 - `DELETE /api/relay/binding`：经 Relay 确认后删除绑定。
 
-Relay 控制面和连接器统一使用 `/v1/*`，主版本不兼容时拒绝连接且不替换旧会话。所有响应由 Zod schema 和 Go contract 同步约束，wire 快照一起更新。
+Relay 控制面和连接器统一使用 `/v1/*`，主版本不兼容时拒绝连接且不替换旧会话。宿主响应由 Zod schema 和 Go contract 同步约束，wire 快照一起更新；跨仓库 DTO 以公开协议模块为准，Relay 在自己的契约测试中验证同一版本。
 
 前端新增 `/settings/relay` 与设置入口卡片，复用现有 hook、请求和确认对话框模式。配对码只留在组件内存，离开页面即取消轮询并清除；不提供“记住 GitHub 凭据”能力。
 
@@ -194,7 +207,9 @@ Relay 接口分为 `/v1/auth/github/*` 登录与固定回调、`/v1/console/*` �
 
 开源客户端内置官方 HTTPS 控制面地址、QUIC 地址、Relay 受众与服务身份公钥。用户选择官方服务后只需 GitHub 登录配对并确认启用，无需填写地址、复制公钥或申请 OAuth 应用；默认关闭与公网风险确认保持不变，不因内置配置在启动时自动连接。
 
-官方公钥定义为官方 TLS 服务证书的 SPKI 公钥；随客户端分发公钥或 SHA-256 SPKI pin 集合，复用 Go `crypto/tls` 与 `crypto/x509` 的证书校验及公钥解析。HTTPS/WSS、QUIC 和兑换控制连接均先验证正常证书链、有效期及主机名，再校验公钥 pin；不采用 `InsecureSkipVerify`，不自研加密或另造服务端签名握手。
+官方服务身份采用 ECDSA P-256，对应 TLS 证书的 SPKI 公钥或 SHA-256 SPKI pin 集合随客户端分发；证书与公钥解析复用 Go `crypto/tls` 和 `crypto/x509`。
+
+所有 HTTPS/WSS、QUIC 和兑换控制连接均先验证正常证书链、有效期及主机名，再校验公钥 pin；不采用 `InsecureSkipVerify`，不自研加密或另造服务端签名握手。
 
 公钥轮换分为正常维护与泄露恢复：
 
@@ -235,7 +250,7 @@ Relay 接口分为 `/v1/auth/github/*` 登录与固定回调、`/v1/console/*` �
 
 ## Open Questions
 
-- Relay 独立仓库是建议方向，尚待确认。当前同仓库的包路径与构建任务暂保留；确认后须统一调整所有制品、协议共享和跨仓库验收，不在本次直接创建仓库。
+- Relay 独立仓库已确认；仓库正式名称、可见性及创建时机待确认，逻辑边界不依赖名称。本次仅更新规划，不创建仓库。
 
 - 正式公共域名、首个 VPS 区域、证书续期方式和邀请名单由运营部署决定，不改变协议或任务拆分。
 - QUIC/yamux 的具体窗口、保活、回退建连期限和 stream 默认值需通过第一阶段基准确定，规格只要求有界与可配置，不预设未经测量的数值。

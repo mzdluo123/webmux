@@ -11,6 +11,7 @@
 ## What Changes
 
 - 新增官方 Relay 单节点服务：同一 Go 进程提供 GitHub 配对、主机注册、公共 HTTPS 入口、宿主出站连接和 HTTP/WebSocket 反向代理；账号与主机绑定使用 SQLite 持久化。
+- 宿主身份使用 Ed25519，官方 TLS 服务身份使用 ECDSA P-256；分别生成、保管和轮换，复用 Go 标准密码库。
 - 每个账号在 MVP 中绑定一台 WebMux 主机。宿主使用本地生成的独立 Ed25519 密钥配对，获得固定随机公共主机名；配对和跳转不提交或分发 WebMux 长期登录 Token。
 - 宿主优先通过出站 QUIC 接入 Relay，UDP 不可用时回退 WSS + yamux，Relay 在多路 stream 上转发 REST、上传下载、WebSocket Upgrade 与端口转发流量。TLS 在 Relay 终止，本版本不宣称端到端加密。
 - WebMux 新增官方 Relay 设置、配对、启停、重连、删除绑定和状态展示；启用仍要求至少 43 字符登录 Token 与公网风险确认。
@@ -35,7 +36,8 @@
 
 ## Impact
 
-- 新增 `cmd/webmux-relay` 及 Relay 服务端、协议、宿主连接器与设置包；更新架构分层、持久化清单和部署配置。
+- Relay 服务端置于独立仓库，拥有自己的二进制、数据库、后台与发布流水线；WebMux 只增加宿主连接器、设置和会话认证。
+- 在 WebMux 仓库维护小型公开 Go 协议子模块供两端固定版本复用；更新宿主架构分层、持久化清单和跨仓库兼容性验证，不跨仓库导入 `internal/`。
 - 新增 `/api/relay*` 宿主控制接口与 Relay 控制面/连接器协议，更新 `internal/contract`、`internal/wire`、`web/src/contracts/schemas.ts` 和 wire 快照。
 - 更新 `cmd/webmux` 组装、`internal/api`、`internal/statefile`、本机状态、访问 URL 和 Web Push 来源登记。
 - 前端新增 Relay 设置组件、配对流程和状态展示，复用现有传输、设置存储、确认对话框与设计系统。

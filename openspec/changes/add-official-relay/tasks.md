@@ -2,17 +2,21 @@
 
 > UI 任务开始前先读 `webmux-ui` 技能与 `docs/design-system.md`、`docs/frontend-style.md`。所有自动化测试使用独立临时实例，不连接开发者现有 WebMux 或终端会话。
 
+本任务表覆盖两仓：第 2、3 节服务端逻辑与 7.1 在 Relay 仓库实现；第 4–6 节在 WebMux 实现。第 1、8–11 节跨仓协作；第 9 节区分后台/授权服务（Relay）与宿主会话/回调（WebMux），9.8 的两端 UI 各归其仓库。服务端包路径和命令相对 Relay 仓库，宿主路径相对 WebMux。
+
+服务端独立运行自己的格式、race、静态检查、构建及后台测试；WebMux 门禁不假装覆盖 Relay。联合验收须记录两端 commit、协议模块版本和测试结果，任何一端失败均不能发布完整能力。
+
 ## 1. 协议骨架与依赖验证
 
-- [ ] 1.1 引入 `quic-go`、`github.com/hashicorp/yamux` 与 `golang.org/x/oauth2` 并固定兼容版本，新增 `internal/relayproto` 的版本、签名 transcript 和 QUIC 原生 stream 与 WSS/`net.Conn`/yamux 适配；用真实双端测试证明双向 stream、半关闭、保活和窗口背压，并运行 `go test -race ./internal/relayproto`。
-- [ ] 1.2 为 Relay 控制面、连接器和宿主 API 建立 `internal/contract` DTO，登记 `relayproto`、`relaycontrol`、`relay`、`relaysettings` 的架构层级与出站用途；运行 `go test -race ./internal/archtest`。
+- [ ] 1.1 在 WebMux 定义 `protocol/relay` 公开 Go 子模块，固定协议版本、wire DTO、算法标识和签名向量；两仓分别引入 quic-go/yamux 的薄适配，x/oauth2 仅进 Relay。用真实双端验证 stream、半关闭、保活、背压，并分别运行 race 测试。
+- [ ] 1.2 在共享协议模块定义跨仓 DTO，宿主 `internal/contract` 用别名衔接；只登记宿主 relay/relaysettings 的架构和出站用途，同步公开子模块规则，运行 WebMux 架构守卫；Relay 建立独立的服务/控制器边界与契约测试。
 - [ ] 1.3 用表驱动测试固定协议主版本不兼容、错误私钥、nonce 重放、错误受众和单次消费行为，并验证日志与错误中不含签名和配对材料。
 
 ## 2. Relay 注册库与配对控制面
 
 - [ ] 2.1 在 `internal/relaycontrol` 建立 SQLite migration、accounts/hosts/enrollments 表和事务接口；测试账号唯一绑定、固定主机名、并发重新绑定、撤销、重启恢复及数据库故障 readiness，运行 `go test -race ./internal/relaycontrol`。
 - [ ] 2.2 实现可注入 HTTP 客户端的 GitHub Device Flow 与账号查询，使用假服务验证授权等待、过期、拒绝、邀请名单和访问凭据不落盘；不得连接真实 GitHub 做单元测试。
-- [ ] 2.3 实现配对创建、轮询、取消和显式重新绑定 API，覆盖一次性用户码、句柄摘要、速率限制、未邀请账号、过期清理和原子换钥；运行对应 `internal/api` 测试。
+- [ ] 2.3 实现配对创建、轮询、取消和显式重新绑定 API，覆盖一次性用户码、句柄摘要、速率限制、未邀请账号、过期清理和原子换钥；运行 Relay 仓库对应 `internal/httpapi` 测试。
 - [ ] 2.4 实现连接器 QUIC/WSS 共用质询签名认证和每主机单活动会话，验证未认证连接不能顶掉旧连接、合法新连接替换旧连接、撤销立即关闭入口。
 
 ## 3. 公共反向代理与故障隔离
@@ -49,7 +53,7 @@
 ## 7. 单节点部署、运维与用户故事
 
 - [ ] 7.1 实现 `cmd/webmux-relay` 的 TOML/环境装配、公共泛域名、TLS 证书文件、readiness、优雅关闭和证书重载，使用临时证书与随机端口完成启动/重启测试，并验证 `CGO_ENABLED=0 go build ./cmd/webmux-relay`。
-- [ ] 7.2 新增 Relay 部署示例和运维指南，覆盖 GitHub OAuth Device Flow、Code + PKCE 登录、邀请名单、DNS/证书、配额、备份恢复、单节点无 SLA、信任边界和日志脱敏；运行 `make docs-check`。
+- [ ] 7.2 新增 Relay 部署示例和运维指南，覆盖 GitHub OAuth Device Flow、Code + PKCE 登录、邀请名单、DNS/证书、配额、备份恢复、单节点无 SLA、信任边界和日志脱敏；服务端指南归 Relay，WebMux 用户指南链接固定版本的部署说明，并运行各自文档门禁。
 - [ ] 7.3 按用户故事维护流程新增官方 Relay 用户与部署者故事，更新索引、计数和代码依据，明确未执行的真机/公网验证，不宣称未完成的容量或隐私保证。
 - [ ] 7.4 对配置样例、架构、持久化、远程访问、安全策略和协议说明做必要同步，验证全部相对链接与锚点，并确认不更新 `AGENTS.md` 中未改变的既有规则。
 
@@ -89,4 +93,13 @@
 - [ ] 11.4 在第 4、5 阶段实现自建信任配置与安全切换，测试旧来源/会话撤销、独立重新配对、无旧凭据泄露及诊断来源和公开 key ID。
 - [ ] 11.5 在第 7 阶段由运营者提供正式公开端点与公钥，私钥和 OAuth Client Secret 从受限部署配置加载；检查公开客户端、API、日志和构建产物不含服务端秘密，OAuth Client ID 不被错误当作秘密。
 
-第 11 节同样按标注阶段执行并纳入最终门禁；Relay 是否独立仓库待确认，本次不创建新仓库或改变现有包职责。
+第 11 节同样按标注阶段执行并纳入最终门禁；Relay 采用独立仓库，本次仅更新规划，不创建仓库或实现代码。
+
+## 12. 独立仓库衔接与椭圆曲线身份
+
+- [ ] 12.1 实现前确认 Relay 仓库名称与可见性，建立独立 Go 模块、CI、版本发布与部署流程；不向任一代码仓库提交服务端私钥或 OAuth Secret。
+- [ ] 12.2 在第 1 阶段发布公开协议子模块并由两端固定版本引用；验证无跨仓 internal 导入、无业务依赖泄露，WebMux 公共协议的治理例外需显式更新架构文档与守卫。
+- [ ] 12.3 在第 1、11 阶段固定宿主 Ed25519 与官方 TLS ECDSA P-256；使用 Go 标准库生成测试密钥和证书，覆盖错误曲线、未知算法、畸形公钥、无效签名、TLS/SPKI pin 与两类独立换钥。
+- [ ] 12.4 在第 8 阶段以固定两端 commit、协议模块版本运行 QUIC/WSS、GitHub 登录、撤销与升级矩阵，验证不兼容主版本拒绝、独立回滚与错误信息；两仓 CI 和联合验收全部通过后再发布。
+
+第 12 节按标注阶段执行；协议契约与本变更的需求/任务对应关系在两仓实现 PR 中保持可追踪。
