@@ -264,11 +264,15 @@ export class XrPanel {
           width: 266,
           height: 56,
           run: () => {
-            if (action.confirm) {
-              this.pending = action;
+            const current =
+              this.text?.actions?.find((item) => item.id === action.id) ??
+              this.source?.actions().find((item) => item.id === action.id);
+            if (!current || current.disabled) return;
+            if (current.confirm) {
+              this.pending = current;
               this.confirmationOffset = 0;
               this.signature = "";
-            } else this.run(action);
+            } else this.run(current);
           },
         }),
       );
