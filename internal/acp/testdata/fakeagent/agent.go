@@ -379,17 +379,22 @@ func (a *agent) serve(ctx context.Context, m rpcMessage) (any, error) {
 			return nil, err
 		}
 		var ss *session
+		var err error
 		if a.cfg.profile == "devin" {
-			// Devin persists a session only once its first turn completes.
-			ss = a.st.draft(p.Cwd)
+			// A fresh session owns its actual ID, unlike a load's alias to
+			// an intentionally forked session. It is not saved until a turn.
+			ss, err = a.st.fresh(p.Cwd)
+			if err == nil {
+				a.mu.Lock()
+				a.live[ss.ID] = &liveSession{data: ss}
+				a.mu.Unlock()
+			}
 		} else {
-			var err error
 			ss, err = a.st.create(p.Cwd)
-			if err != nil {
-				return nil, err
+			if err == nil {
+				ss, err = a.open(ss.ID, ss)
 			}
 		}
-		ss, err := a.open(ss.ID, ss)
 		if err != nil {
 			return nil, err
 		}

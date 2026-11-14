@@ -53,8 +53,9 @@
 // events.log.
 //
 // The Devin TUI reports only app=devin root records (idle/working/done) and
-// holds a per-process session lock. Session IDs are adjective-noun slugs
-// (luminous-acorn). Its ACP side (agentInfo affogato "Devin Agent"
+// holds a per-process session lock. Session IDs have adjective-noun prefixes
+// (luminous-acorn); collisions get numeric suffixes using the writer leases.
+// Its ACP side (agentInfo affogato "Devin Agent"
 // 0.0.0-dev) has no session/resume: the method answers -32601 and the
 // capability is absent. A session from session/new is persisted, and so
 // listed, only once its first turn completes; session/list entries carry

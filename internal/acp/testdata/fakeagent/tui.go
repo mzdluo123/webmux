@@ -184,6 +184,17 @@ func (t *tui) warp(event string) {
 }
 
 func (t *tui) create() error {
+	if t.devin {
+		ss, err := t.st.fresh(t.cwd)
+		if err != nil {
+			return err
+		}
+		if t.cur != nil {
+			t.st.release(t.cur.ID)
+		}
+		t.cur = ss
+		return nil
+	}
 	return t.open(t.st.draft(t.cwd))
 }
 
