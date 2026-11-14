@@ -1,6 +1,7 @@
 import { tick, untrack } from "svelte";
 import { store, stored } from "../../platform/api";
-import type { ChatCodeLink } from "../../domains/code/markdown-link";
+import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
+import { checkRevealTarget } from "../../domains/code/code-reveal";
 import type { CodeReveal, SessionInfo } from "../../contracts/schemas";
 import {
   captureFindReturnFocus,
@@ -122,10 +123,15 @@ export function useSessionTerminalChrome(options: {
     codeTarget = { path, mode: "diff", key: (codeTarget?.key ?? 0) + 1 };
   }
 
-  function openCodeLocation(target: ChatCodeLink) {
+  const openCodeLocation: ChatCodeLinkHandler = async (target) => {
+    const failure = await checkRevealTarget(
+      `/sessions/${options.id()}/code`,
+      target,
+    );
+    if (failure) return failure;
     if (!options.isCodePanelPoppedOut()) codeShown = true;
     codeTarget = { ...target, mode: "file", key: (codeTarget?.key ?? 0) + 1 };
-  }
+  };
 
   const clipboardCtx: SessionClipboardContext = {
     get id() {

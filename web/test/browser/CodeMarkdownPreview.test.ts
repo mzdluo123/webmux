@@ -199,6 +199,39 @@ test("chat messages open code links in the code browser while keeping unsafe lin
   expect(requests).toEqual([]);
 });
 
+test("chat code links report unresolvable targets in place", async () => {
+  watchFetch();
+  const opened: ChatCodeLink[] = [];
+  render(CodeMarkdownPreview, {
+    text: "[源文件](/repo/cloudbuild.release.yaml) [同步副本](/repo.worktrees/sync/cloudbuild.release.yaml:129)",
+    variant: "message",
+    onopenlink: (target) => {
+      opened.push(target);
+      return Promise.resolve(
+        target.path.includes(".worktrees") ? "链接目标不在工作区内" : "",
+      );
+    },
+  });
+  (
+    page.getByRole("link", { name: "同步副本" }).element() as HTMLElement
+  ).focus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(page.getByText("链接目标不在工作区内")).toBeVisible();
+  expect(opened).toEqual([
+    {
+      path: "/repo.worktrees/sync/cloudbuild.release.yaml",
+      rawPath: "/repo.worktrees/sync/cloudbuild.release.yaml:129",
+      line: 129,
+    },
+  ]);
+  // A resolvable link on the next activation clears the notice.
+  await page.getByRole("link", { name: "源文件" }).click();
+  expect(opened.at(-1)).toEqual({ path: "/repo/cloudbuild.release.yaml" });
+  await expect
+    .poll(() => document.body.textContent)
+    .not.toContain("链接目标不在工作区内");
+});
+
 test("relative links open workspace paths and report failures in place", async () => {
   watchFetch();
   const space = workspace();

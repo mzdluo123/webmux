@@ -9,6 +9,7 @@ import {
 import {
   SymlinkTargetError,
   targetFailure,
+  type ChatCodeLink,
   type MarkdownWorkspace,
 } from "./markdown-link";
 import {
@@ -218,4 +219,34 @@ export async function locateRevealTarget(
     }
   }
   throw firstError;
+}
+
+/**
+ * Resolves a chat code-location link against the browsable roots without
+ * opening anything, returning a failure reason to show in place or "" when
+ * the target resolves. A context request that itself fails resolves to ""
+ * so the code panel keeps reporting that failure instead.
+ */
+export async function checkRevealTarget(
+  base: string,
+  target: ChatCodeLink,
+): Promise<string> {
+  let origin: CodeContext;
+  try {
+    origin = await api(`${base}/context`, CodeContextSchema);
+  } catch {
+    return "";
+  }
+  const params = (extra: Record<string, string> = {}) =>
+    new URLSearchParams({ contextId: origin.contextId, ...extra });
+  try {
+    await locateRevealTarget(base, params, origin, {
+      ...target,
+      mode: "file",
+      key: 0,
+    });
+    return "";
+  } catch (e) {
+    return targetFailure("链接目标", e);
+  }
 }
