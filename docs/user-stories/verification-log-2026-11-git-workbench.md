@@ -202,3 +202,19 @@
   - 浏览器套件 `test/browser/GitWorkbench.test.ts` 与 `test/browser/GitLogController.test.ts`（8 项，含 `1280×900` 与 `390×844` 相邻提交行 SVG 零间隙与正圆节点几何断言）及 Storybook `test/storybook/git-workbench.spec.ts`（27 项）通过；
   - 隔离实例 Playwright E2E `test/e2e/git-workbench-log.spec.ts`（桌面与 `320×568` 手机视口共 2 项）通过，并在隔离演示仓库下采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 12 张修复前后对比截图。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核验；未重新核对 `US-J21` 以外的其余故事。
+
+## 2026-11-14：Git 工作台顶栏按钮与目标切换器统一重构（US-J20、US-J23）
+
+- 范围：
+  - `web/src/components/workspace/GitWorkbenchTargetSwitchers.svelte` 将自定义 `Popover` + `ListButton` 仓库与工作树切换器统一替换为 shadcn `DropdownMenu`（`RadioGroup` / `RadioItem`）及标准 `Button variant="outline" size="sm"`；
+  - `web/src/components/workspace/GitOperationsPopover.svelte` 将操作账本触发器由无边框 `ghost` 嵌套实心 `Badge` 统一为 `Button variant="outline" size="sm" | "icon-sm"` 内联截断文本，消除空态空标签与跨排高度差异；
+  - `web/src/components/workspace/GitWorkbenchTopBar.svelte` 移除左侧目标组在 `flex-wrap` 容器内的 `flex-1`（`flex-basis: 0%`）挤压缺陷，并将右侧返工意见、返回会话、远程同步与更多菜单统一收敛为 `size="sm"` / `size="icon-sm"`（窄屏触控下由 `.git-workbench .wm-control` 统一提升至 `36px`）。
+- 依据：
+  - `make check`（含 `make web`、`pnpm --dir web check:arch`、`make docs-check`、`make persistence-check`、Oxlint、`go vet`、`golangci-lint`）通过；
+  - 浏览器与 Storybook 测试：
+    - `GitWorkbenchRoute.test.ts`、`GitWorkbenchOperations.test.ts`、`GitWorkbench.test.ts`、`GitWorkbenchLineSmart.test.ts` 通过（覆盖 `1280×900`、`768×800`、`390×844`、`320×568` 等高与防挤压断言）；
+    - Storybook `test/storybook/git-workbench.spec.ts`（27 项）通过；
+  - 端到端与视觉证据：
+    - 隔离实例 Playwright E2E `git-workbench-route.spec.ts`、`git-workbench-operations.spec.ts`、`git-workbench-commit-push.spec.ts`（14 项）通过；
+    - 隔离演示仓库下采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 12 张前后对比截图及顶栏菜单交互 GIF。
+- 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证物理 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核验；未重新核对 `US-J20`、`US-J23` 以外的其余故事。

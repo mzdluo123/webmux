@@ -139,11 +139,9 @@
   data-testid="git-workbench-topbar"
 >
   <div
-    class="flex min-w-0 flex-nowrap items-center justify-between gap-1.5 sm:flex-wrap sm:gap-2"
+    class="flex min-w-0 flex-wrap items-center justify-between gap-1.5 sm:gap-2"
   >
-    <div
-      class="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-hidden sm:flex-wrap sm:gap-2 sm:overflow-visible"
-    >
+    <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
       <SidebarButton class="sm:hidden" />
 
       <GitWorkbenchTargetSwitchers
@@ -206,11 +204,13 @@
       {/if}
     </div>
 
-    <div class="flex min-w-0 max-w-full shrink items-center gap-1.5">
+    <div
+      class="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5"
+    >
       {@render operations?.()}
       {#if worktreeUsable && onOpenRework}
         <Button
-          size="sm-touch"
+          size="sm"
           variant="outline"
           onclick={onOpenRework}
           aria-label={reworkCount > 0
@@ -229,7 +229,7 @@
 
       {#if returnSession}
         <Button
-          size="sm-touch"
+          size="sm"
           variant="outline"
           onclick={() => onReturnSession(returnSession.id)}
           aria-label="返回会话"
@@ -242,7 +242,7 @@
 
       <div class="flex items-center gap-1.5 max-md:hidden">
         <Button
-          size="sm-touch"
+          size="sm"
           variant="outline"
           disabled={!repoAvailable || fetching}
           onclick={onFetch}
@@ -254,7 +254,7 @@
           <span>获取远程</span>
         </Button>
         <Button
-          size="sm-touch"
+          size="sm"
           variant="outline"
           disabled={!canSyncBranch}
           title={syncDisabledReason}
@@ -264,7 +264,7 @@
           <span>快进更新</span>
         </Button>
         <Button
-          size="sm-touch"
+          size="sm"
           variant="outline"
           disabled={!canSyncBranch}
           title={syncDisabledReason}
@@ -281,7 +281,7 @@
             {#snippet child({ props })}
               <Button
                 {...props}
-                size="icon-touch"
+                size="icon-sm"
                 variant="outline"
                 aria-label="更多同步操作"
                 title="更多同步操作"

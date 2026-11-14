@@ -7,7 +7,9 @@ import GitWorktreeGuardState from "../../src/components/workspace/GitWorktreeGua
 import RepositoryPanelHeaderActions from "../../src/components/workspace/RepositoryPanelHeaderActions.svelte";
 import WorktreeControls from "../../src/components/workspace/WorktreeControls.svelte";
 import { GitWorktreeContextSchema } from "../../src/contracts/git-workbench-schemas";
+import { GitOperationSchema } from "../../src/contracts/schemas";
 import CodeWorkspaceHeaderHarness from "./CodeWorkspaceHeaderHarness.svelte";
+import GitWorkbenchTopBarHarness from "./GitWorkbenchTopBarHarness.svelte";
 import { repository, session, worktree } from "./shell-fixture";
 
 afterEach(async () => {
@@ -306,4 +308,127 @@ test("GitWorktreeGuardState enforces explicit worktree selection on repo-only Co
     page.getByRole("button", { name: "管理或修复工作树…" }),
   );
   expect(onManage).toHaveBeenCalledTimes(1);
+});
+
+test("GitWorkbenchTopBar keeps unified shadcn button sizing, readable switcher labels, and radio dropdowns even with long failed operation summaries", async () => {
+  await document.fonts.ready;
+  const mainWt = worktree({ id: "main", branch: "main" });
+  const featWt = worktree({
+    id: "feat1",
+    kind: "linked",
+    branch: "feat/long-worktree-branch-name-check",
+    path: "/repos/webmux.worktrees/feat1",
+  });
+  const repo1 = repository({
+    id: "repo1",
+    name: "webmux",
+    worktrees: [mainWt, featWt],
+  });
+  const repo2 = repository({
+    id: "repo2",
+    name: "another-repository-with-a-very-long-display-name",
+    worktrees: [worktree({ id: "main2", branch: "main" })],
+  });
+  const failedUpdate = GitOperationSchema.parse({
+    id: "op-update-failed-123456",
+    repositoryId: "repo1",
+    worktreeId: "main",
+    clientRequestId: "update-1",
+    kind: "fast_forward",
+    status: "failed",
+    preview: {
+      worktreePath: "/repos/webmux",
+      headState: "branch",
+      branch: "main",
+      headOid: "1".repeat(40),
+    },
+    parents: [],
+    fetchResults: [],
+    reviewReasons: [],
+    summary:
+      "fatal: Not possible to fast-forward, aborting: local branch main and origin/main have diverged across multiple commits",
+    sanitizedOutput: "fatal: Not possible to fast-forward, aborting.",
+    startedAt: "2026-11-14T06:00:00Z",
+    finishedAt: "2026-11-14T06:00:01Z",
+  });
+
+  const onSelectRepository = vi.fn();
+  const onSelectWorktree = vi.fn();
+
+  render(GitWorkbenchTopBarHarness, {
+    props: {
+      repositories: [repo1, repo2],
+      repository: repo1,
+      worktreeId: "main",
+      worktree: mainWt,
+      context: createContext({ checkedOutBranch: "main" }),
+      operations: [failedUpdate],
+      returnSession: session({ id: "sess1234", title: "提交改动" }),
+      reworkCount: 2,
+      onSelectRepository,
+      onSelectWorktree,
+    },
+  });
+
+  for (const [w, h] of [
+    [1280, 900],
+    [768, 800],
+    [390, 844],
+    [320, 568],
+  ] as const) {
+    await page.viewport(w, h);
+
+    const repoBtn = page
+      .getByRole("button", { name: "切换仓库" })
+      .element() as HTMLElement;
+    const wtBtn = page
+      .getByRole("button", { name: "切换操作目标工作树" })
+      .element() as HTMLElement;
+    const branchBtn = page
+      .getByRole("button", { name: "分支快选" })
+      .element() as HTMLElement;
+    const opsBtn = page
+      .getByTestId("git-operations-popover-trigger")
+      .element() as HTMLElement;
+
+    const repoRect = repoBtn.getBoundingClientRect();
+    const wtRect = wtBtn.getBoundingClientRect();
+    const branchRect = branchBtn.getBoundingClientRect();
+    const opsRect = opsBtn.getBoundingClientRect();
+
+    // Switchers never collapse to icon-only boxes or clip their icons outside the border.
+    expect(repoRect.width).toBeGreaterThanOrEqual(72);
+    expect(wtRect.width).toBeGreaterThanOrEqual(72);
+    expect(repoBtn.scrollWidth).toBeLessThanOrEqual(repoBtn.clientWidth + 1);
+    expect(wtBtn.scrollWidth).toBeLessThanOrEqual(wtBtn.clientWidth + 1);
+    expect(branchBtn.scrollWidth).toBeLessThanOrEqual(
+      branchBtn.clientWidth + 1,
+    );
+
+    // Every toolbar control shares the same height on desktop and compact touch.
+    expect(Math.abs(repoRect.height - wtRect.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(repoRect.height - branchRect.height)).toBeLessThanOrEqual(
+      1,
+    );
+    expect(Math.abs(repoRect.height - opsRect.height)).toBeLessThanOrEqual(1);
+
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+      window.innerWidth,
+    );
+  }
+
+  await page.viewport(1280, 900);
+  await page.getByRole("button", { name: "切换仓库" }).click();
+  await page
+    .getByTestId("git-repository-switcher-popover")
+    .getByRole("menuitemradio", { name: /another-repository/ })
+    .click();
+  expect(onSelectRepository).toHaveBeenCalledWith("repo2");
+
+  await page.getByRole("button", { name: "切换操作目标工作树" }).click();
+  await page
+    .getByTestId("git-worktree-switcher-popover")
+    .getByRole("menuitemradio", { name: /feat\/long-worktree/ })
+    .click();
+  expect(onSelectWorktree).toHaveBeenCalledWith("feat1");
 });
