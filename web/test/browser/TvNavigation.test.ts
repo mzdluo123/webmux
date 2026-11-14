@@ -251,3 +251,19 @@ test("TV Enter selects a command row rather than toggling text capture", async (
     .element(page.getByRole("status", { name: "选择结果", exact: true }))
     .toHaveTextContent("Project A");
 });
+
+test("TV command search keeps vertical arrows inside its native options", async () => {
+  await render(CommandHarness);
+  await page.getByRole("combobox", { name: "项目搜索", exact: true }).click();
+  await expect
+    .element(page.getByRole("option", { name: "Project A", exact: true }))
+    .toHaveAttribute("aria-selected", "true");
+  await userEvent.keyboard("{ArrowDown}");
+  await expect
+    .element(page.getByRole("option", { name: "Project B", exact: true }))
+    .toHaveAttribute("aria-selected", "true");
+  await userEvent.keyboard("{Enter}");
+  await expect
+    .element(page.getByRole("status", { name: "选择结果", exact: true }))
+    .toHaveTextContent("Project B");
+});

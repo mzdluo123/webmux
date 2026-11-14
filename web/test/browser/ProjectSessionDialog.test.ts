@@ -6,7 +6,7 @@ import NewSessionDialog from "../../src/components/sessions/NewSessionDialog.sve
 import type { Project } from "../../src/contracts/schemas";
 import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
 import { setPluginCapabilities } from "../../src/platform/plugin-host.svelte";
-import { repository, worktree, session } from "./shell-fixture";
+import { repository, worktree, session, branch, base } from "./shell-fixture";
 
 const plain: Project = {
   id: "directory:notes",
@@ -66,6 +66,31 @@ beforeEach(async () => {
         return Response.json([plain, git]);
       if (path === "/api/repositories/repo1/worktrees")
         return Response.json(repo);
+      if (path === "/api/repositories/repo1/branches")
+        return Response.json({
+          branches: [
+            branch("main", "a".repeat(40), [repo.anchorPath]),
+            branch("feature/available", "a".repeat(40)),
+          ],
+          bases: [base("refs/heads/main", "a".repeat(40), "initial")],
+          tags: [],
+          defaultBase: "a".repeat(40),
+          defaultBaseSubject: "initial",
+          defaultBranch: "main",
+          defaultParent: "/repos/worktrees",
+        });
+      if (path === "/api/repositories/repo1/branches/refresh")
+        return Response.json({
+          branch: "main",
+          base: "a".repeat(40),
+          baseSubject: "initial",
+          baseSource: "local",
+          upstream: "",
+          upstreamHead: "",
+          fetchWarning: "",
+        });
+      if (path === "/api/repositories/repo1/commits")
+        return Response.json({ commits: [] });
       if (path === "/api/projects" && method === "POST")
         return Response.json({ ...plain, path: body.path });
       if (path === "/api/sessions" && method === "POST")
@@ -166,9 +191,7 @@ test("project changes retain common draft and Escape returns to selection", asyn
   await expect
     .element(page.getByRole("textbox", { name: "自定义启动命令", exact: true }))
     .toHaveValue("/bin/sh -i");
-  await page
-    .getByRole("button", { name: "高级：会话名称", exact: true })
-    .click();
+
   await expect
     .element(page.getByRole("textbox", { name: /会话名称/ }))
     .toHaveValue("draft name");
@@ -253,6 +276,9 @@ test("explicit project selection clears the former directory context association
     },
   });
   await page.getByRole("button", { name: "更换项目", exact: true }).click();
+  await expect
+    .element(page.getByRole("combobox", { name: "搜索项目", exact: true }))
+    .toHaveFocus();
   await page.getByRole("option", { name: /Notes/ }).click();
   await page
     .getByRole("textbox", { name: "自定义启动命令", exact: true })
@@ -313,3 +339,46 @@ test("GitHub setup remains reachable without requesting an unavailable source", 
     .element(page.getByRole("button", { name: "克隆并继续", exact: true }))
     .toBeDisabled();
 });
+
+for (const mode of ["new", "existing"]) {
+  test(`returning to the same project preserves the complete ${mode} worktree draft`, async () => {
+    const view = await open({ repositories: [repo] });
+    await page.getByRole("option", { name: /webmux/ }).click();
+    await page.getByRole("button", { name: "工作位置", exact: true }).click();
+    await page.getByRole("option", { name: /^新建工作树/ }).click();
+    const name = page.getByRole("textbox", { name: "新分支名称", exact: true });
+    await expect.element(name).not.toHaveValue("");
+    if (mode === "new") await name.fill("feature/kept-draft");
+    else {
+      await page
+        .getByRole("radio", { name: "使用已有分支", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "已有本地分支", exact: true })
+        .click();
+      await page.getByRole("option", { name: /^feature\/available/ }).click();
+    }
+    await page
+      .getByRole("button", { name: /^高级：.*存放目录$/, exact: true })
+      .click();
+    const path = page.getByRole("textbox", {
+      name: "新工作树完整路径",
+      exact: true,
+    });
+    await path.fill("/repos/kept-draft");
+    await page.getByRole("button", { name: "更换项目", exact: true }).click();
+    await page.getByRole("option", { name: /webmux/ }).click();
+    await view.rerender({
+      repositories: [{ ...repo, checkedAt: "2026-11-15T01:00:00Z" }],
+    });
+    await expect.element(path).toHaveValue("/repos/kept-draft");
+    if (mode === "new")
+      await expect.element(name).toHaveValue("feature/kept-draft");
+    else
+      await expect
+        .element(
+          page.getByRole("button", { name: "已有本地分支", exact: true }),
+        )
+        .toHaveTextContent("feature/available");
+  });
+}

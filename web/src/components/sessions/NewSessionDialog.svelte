@@ -7,7 +7,7 @@
     type ProjectSelection,
   } from "../../domains/sessions/project-selection";
   import { errorMessage } from "../../platform/error";
-  import { untrack } from "svelte";
+  import { untrack, tick } from "svelte";
   import { navigate, recentDirs, stored } from "../../platform/api";
   import {
     pluginAvailable,
@@ -222,9 +222,10 @@
       : undefined,
   );
   const projectScope = $derived(scopeForProject(scope, currentProject));
-  function changeProject() {
+  async function changeProject() {
     pickerMounted = true;
     choosingProject = true;
+    await tick();
     projectPicker?.showProjects();
   }
   function selectedProject(selection: ProjectSelection) {
@@ -411,7 +412,7 @@
       />
     </div>
   {/if}
-  {#if !projectEnabled || !choosingProject}
+  <div hidden={projectEnabled && choosingProject}>
     <NewSessionForm
       {providers}
       {repositories}
@@ -479,7 +480,7 @@
       }}
       {onclose}
     />
-  {/if}
+  </div>
 </ResponsiveDialog>
 
 <NewSessionRecoveryDialogs

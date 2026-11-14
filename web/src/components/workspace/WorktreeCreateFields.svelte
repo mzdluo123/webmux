@@ -67,6 +67,8 @@
   // The preset sets the mode at once so the form never shows the other one
   // first; its branches wait for the list.
   let pendingPreset = untrack(() => preset);
+  // A status refresh for the same repository must not reinitialize its draft.
+  const repositoryId = $derived(repository.id);
   if (pendingPreset) mode = pendingPreset.mode;
   let data = $state<z.infer<typeof BranchesSchema> | null>(null);
   let error = $state("");
@@ -236,7 +238,7 @@
   }
 
   $effect(() => {
-    const id = repository.id;
+    const id = repositoryId;
     let active = true;
     clearRefresh();
     clearCommits();

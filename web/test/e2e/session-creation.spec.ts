@@ -266,3 +266,40 @@ test("split creation retains a new worktree across repository changes after comm
     repositories.find((item: { id: string }) => item.id === repo.id).worktrees,
   ).toHaveLength(2);
 });
+
+test("returning to a project preserves its worktree draft through a host repository refresh", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  await register(request, join(workDir, "draft-project"));
+  await page.goto("/");
+  await selectScope(page, "all");
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: "＋ 新建会话", exact: true })
+    .first()
+    .click();
+  await chooseSessionProject(page, "draft-project");
+  await chooseLocation(page, "新建工作树…");
+  const branch = page.getByLabel("新分支名称", { exact: true });
+  await expect(branch).not.toHaveValue("");
+  await branch.fill("feature/kept-draft");
+  await page
+    .getByRole("button", { name: "高级：起始提交与存放目录", exact: true })
+    .click();
+  const path = page.getByLabel("新工作树完整路径", { exact: true });
+  await path.fill(join(workDir, "kept-draft"));
+  await page.getByRole("button", { name: "更换项目", exact: true }).click();
+  const refreshed = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/repositories" &&
+      response.request().method() === "GET",
+  );
+  await chooseSessionProject(page, "draft-project");
+  await (await refreshed).finished();
+  await expect(branch).toHaveValue("feature/kept-draft");
+  await expect(path).toHaveValue(join(workDir, "kept-draft"));
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  expect(await (await request.get("/api/sessions")).json()).toEqual([]);
+});

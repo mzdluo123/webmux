@@ -31,6 +31,8 @@ export async function chooseSessionDirectory(page: Page, cwd?: string) {
 }
 
 export async function chooseSessionProject(page: Page, name: string) {
+  const change = page.getByRole("button", { name: "更换项目", exact: true });
+  await expect(projectSearch(page).or(change).first()).toBeVisible();
   if (!(await projectSearch(page).isVisible()))
     await page.getByRole("button", { name: "更换项目", exact: true }).click();
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

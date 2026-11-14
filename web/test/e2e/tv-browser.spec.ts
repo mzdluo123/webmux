@@ -157,7 +157,13 @@ for (const width of [1280, 1920]) {
     await expect(
       page.locator('[role="option"]:not([aria-disabled="true"])').first(),
     ).toBeVisible();
+    await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("option").first()).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     await page.keyboard.press("Enter");
+    await expect(projects).toBeHidden();
     await select(
       page,
       page.getByRole("button", { name: "创建并进入 →", exact: true }),
