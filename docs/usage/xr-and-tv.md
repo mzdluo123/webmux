@@ -44,6 +44,7 @@
 
 终端在 VR 中使用 Canvas 文字表面，不支持把 Kitty 等图片协议内容绘制到空间终端；出现图形提示时返回 2D 查看。
 聊天权限授权和带破坏性确认的操作保留确认步骤；复杂表单可返回 2D 填写，不会因为射线点选就绕过授权。
+聊天发送失败会保留草稿并显示空间错误通知；可直接重试，成功后清除提示。
 
 ## 布局、退出与限制
 
@@ -78,3 +79,5 @@
 ![IWER：权限确认与返回 2D 填写表单](../images/pr/xr-tv/xr-permission-confirm.webp)
 
 ![IWER：确认授权、返回 2D、提交表单并续接原聊天；剪除等待，动作未加速](../images/pr/xr-tv/permission-form.gif)
+
+![IWER：发送失败保留草稿并显示空间错误，成功重试后清除提示](../images/pr/xr-tv/xr-send-failure-iwer.webp)

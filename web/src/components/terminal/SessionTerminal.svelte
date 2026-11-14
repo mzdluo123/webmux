@@ -323,7 +323,8 @@
     showChat: revealChat,
     runQuick: runQuickCommand,
     error: (message) => (error = message),
-    notice: () => error || t.error || hybrid.chat.error,
+    notice: () =>
+      error || t.error || stage?.getChatError() || hybrid.chat.error,
   });
 
   onMount(() => {

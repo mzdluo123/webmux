@@ -102,6 +102,9 @@
   export function setVoiceError(message: string) {
     error = message;
   }
+  export function getError() {
+    return error;
+  }
   export function releaseEditing() {
     scrollMode.releaseEditing();
   }

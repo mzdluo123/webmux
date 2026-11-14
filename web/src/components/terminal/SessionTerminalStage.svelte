@@ -199,6 +199,9 @@
   export function sendChatDraft() {
     chatView?.submitDraft();
   }
+  export function getChatError() {
+    return chatView?.getError() ?? "";
+  }
   export function focusComposer() {
     composer?.focus();
   }
