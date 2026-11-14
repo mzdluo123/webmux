@@ -86,35 +86,41 @@ test("dirty output redraws only changed visible rows, including cursor and alter
   expect(view.update()).toBe(false);
 });
 
-test("scroll/theme/resize invalidate the texture, and long output stays bounded", async () => {
-  const { term, view, api } = await setup();
-  await write(
-    term,
-    Array.from({ length: 300 }, (_, i) => `line-${i}\r\n`).join(""),
-  );
-  expect(view.update()).toBe(true);
-  const initial = [view.canvas.width, view.canvas.height];
-  api.scrollLines(-50);
-  expect(view.update()).toBe(true);
-  expect(view.update()).toBe(false);
-  await write(term, "new-tail\r\n");
-  // Output outside the displayed history does not upload a redundant texture.
-  expect(view.update()).toBe(false);
-  expect([view.canvas.width, view.canvas.height]).toEqual(initial);
-  term.options.theme = { background: "#112233", foreground: "#ffffff" };
-  expect(view.update()).toBe(true);
-  expect(api.resizeGrid(1000, 1000)).toBe(true);
-  expect(view.update()).toBe(true);
-  expect(view.canvas.width).toBeLessThanOrEqual(4096);
-  expect(view.canvas.height).toBeLessThanOrEqual(4096);
-  expect(view.canvas.width * view.canvas.height).toBeLessThanOrEqual(
-    4 * 1024 * 1024,
-  );
-  view.dispose();
-  expect(view.canvas.width).toBe(0);
-  expect(view.canvas.height).toBe(0);
-  expect(view.update()).toBe(false);
-});
+// The 1000×1000 grid draws a million cells, which exceeds the default 15 s on
+// shared CI runners.
+test(
+  "scroll/theme/resize invalidate the texture, and long output stays bounded",
+  { timeout: 60_000 },
+  async () => {
+    const { term, view, api } = await setup();
+    await write(
+      term,
+      Array.from({ length: 300 }, (_, i) => `line-${i}\r\n`).join(""),
+    );
+    expect(view.update()).toBe(true);
+    const initial = [view.canvas.width, view.canvas.height];
+    api.scrollLines(-50);
+    expect(view.update()).toBe(true);
+    expect(view.update()).toBe(false);
+    await write(term, "new-tail\r\n");
+    // Output outside the displayed history does not upload a redundant texture.
+    expect(view.update()).toBe(false);
+    expect([view.canvas.width, view.canvas.height]).toEqual(initial);
+    term.options.theme = { background: "#112233", foreground: "#ffffff" };
+    expect(view.update()).toBe(true);
+    expect(api.resizeGrid(1000, 1000)).toBe(true);
+    expect(view.update()).toBe(true);
+    expect(view.canvas.width).toBeLessThanOrEqual(4096);
+    expect(view.canvas.height).toBeLessThanOrEqual(4096);
+    expect(view.canvas.width * view.canvas.height).toBeLessThanOrEqual(
+      4 * 1024 * 1024,
+    );
+    view.dispose();
+    expect(view.canvas.width).toBe(0);
+    expect(view.canvas.height).toBe(0);
+    expect(view.update()).toBe(false);
+  },
+);
 
 test("a cursor hidden before entering XR stays hidden using public parser tracking", async () => {
   const { term, view } = await setup();
