@@ -3,6 +3,8 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import WorkbenchTree from "../../src/components/shell/WorkbenchTree.svelte";
 import GitWorkbenchTopBar from "../../src/components/workspace/GitWorkbenchTopBar.svelte";
+import SessionListScopeMenu from "../../src/components/workspace/SessionListScopeMenu.svelte";
+import WorkspaceActions from "../../src/components/workspace/WorkspaceActions.svelte";
 import GitWorktreeGuardState from "../../src/components/workspace/GitWorktreeGuardState.svelte";
 import RepositoryPanelHeaderActions from "../../src/components/workspace/RepositoryPanelHeaderActions.svelte";
 import WorktreeControls from "../../src/components/workspace/WorktreeControls.svelte";
@@ -103,6 +105,70 @@ test("repository menu and repository panel expose Git workbench entry when avail
   await expect.element(headerBtn).toBeVisible();
   await userEvent.click(headerBtn);
   expect(onGitHeader).toHaveBeenCalledTimes(1);
+});
+
+test("home toolbar keeps the Git workbench entry outside the ⋯ menu", async () => {
+  // The button is permanent — it must render even before repositories settle
+  // so its late arrival cannot shift the row.
+  const onGit = vi.fn();
+  render(WorkspaceActions, {
+    compact: false,
+    refreshing: false,
+    onchange: vi.fn(),
+    onrefresh: vi.fn(),
+    ongit: onGit,
+  });
+  const button = page.getByRole("button", { name: "Git 工作台" });
+  await expect.element(button).toBeVisible();
+  await userEvent.click(button);
+  expect(onGit).toHaveBeenCalledTimes(1);
+  await cleanup();
+
+  const repoAvail = repository({ id: "repo1", name: "webmux" });
+  const props = {
+    onnewworktree: vi.fn(),
+    onhome: vi.fn(),
+    onmanage: vi.fn(),
+    onsettings: vi.fn(),
+    ondetails: vi.fn(),
+    onworktreedetails: vi.fn(),
+    onswitch: vi.fn(),
+    ontogglepin: vi.fn(),
+    onremove: vi.fn(),
+    onoperation: vi.fn(),
+  };
+
+  // Repository scope: the menu no longer repeats the entry the toolbar covers.
+  render(SessionListScopeMenu, { ...props, repo: repoAvail, ongit: vi.fn() });
+  await page.getByRole("button", { name: "仓库菜单：webmux" }).click();
+  expect(page.getByRole("menuitem", { name: "Git 工作台" }).elements()).toEqual(
+    [],
+  );
+  await userEvent.keyboard("{Escape}");
+  await cleanup();
+
+  // Picked worktree: the menu's worktree section keeps only the distinct
+  // commit entry; "在 Git 工作台打开" is covered by the toolbar button.
+  const dirty = worktree({
+    id: "dirty",
+    dirty: true,
+    changes: { staged: 0, unstaged: 2, untracked: 1, conflicted: 0 },
+  });
+  render(SessionListScopeMenu, {
+    ...props,
+    repo: repoAvail,
+    tree: dirty,
+    ongit: vi.fn(),
+  });
+
+  await page.getByRole("button", { name: "仓库菜单：webmux" }).click();
+  expect(
+    page.getByRole("menuitem", { name: "在 Git 工作台打开" }).elements(),
+  ).toEqual([]);
+  await expect
+    .element(page.getByRole("menuitem", { name: "提交改动…" }))
+    .toBeVisible();
+  await userEvent.keyboard("{Escape}");
 });
 
 test("worktree menu offers Git workbench entry and only shows commit action when dirty", async () => {

@@ -4,21 +4,26 @@
   import IconRefresh from "~icons/tabler/refresh";
   import { Button } from "$lib/components/ui/button";
   import SessionViewControls from "../terminal/SessionViewControls.svelte";
+  import GitWorkbenchButton from "./GitWorkbenchButton.svelte";
 
-  // The icon controls of the home page: list density, a Git refresh and the
-  // repository menu. Phones show them in the top bar, wider screens in the
-  // toolbar, so the title and these controls never take two rows.
+  // The icon controls of the home page: list density, a Git refresh, the Git
+  // workbench entry and the repository menu. Phones show them in the top bar,
+  // wider screens in the toolbar, so the title and these controls never take
+  // two rows. The workbench button is permanent — a late pop-in would shift
+  // the row when repositories finish loading.
   let {
     compact,
     refreshing,
     onchange,
     onrefresh,
+    ongit,
     menu,
   }: {
     compact: boolean;
     refreshing: boolean;
     onchange: (compact: boolean) => void;
     onrefresh: () => void;
+    ongit: () => void;
     // The "⋯" menu of the repository in scope; a disabled button stands in
     // while none is.
     menu?: Snippet;
@@ -39,6 +44,7 @@
     aria-hidden="true"
   /></Button
 >
+<GitWorkbenchButton {ongit} />
 {#if menu}{@render menu()}{:else}
   <!-- Keeps the toolbar's width while repositories are still loading. -->
   <Button

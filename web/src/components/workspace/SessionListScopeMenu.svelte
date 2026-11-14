@@ -49,7 +49,6 @@
   {onmanage}
   {onsettings}
   {ondetails}
-  ongit={ongit ? () => ongit() : undefined}
   worktree={tree
     ? {
         title: worktreeTitle(tree),
@@ -60,7 +59,6 @@
         onremove: tree.kind === "linked" ? () => onremove(tree) : undefined,
         tree,
         onoperation,
-        ongit: ongit ? () => ongit(tree.id) : undefined,
         oncommit:
           ongit &&
           tree.available &&

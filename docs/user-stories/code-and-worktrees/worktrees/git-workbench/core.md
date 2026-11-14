@@ -27,9 +27,9 @@
   - 所有视口使用顶部水平下划线标签「历史」「提交」「分支」「贮藏」，复用 WebMux 原生令牌；同排工具栏控件等高，文件行通过眼睛图标切换审阅状态；已审阅态仅改变图标与主题色，保持同尺寸，不显示描边填充块。
   - 路由支持 `/git`、`/git/{repositoryId}`（只读仓库模式）与 `/git/{repositoryId}/worktrees/{worktreeId}`（工作树读写模式），并解析深链查询参数 `view=log|commit|branches|stash`、`scope=all|branch|task|to-push|incoming`、`branch`、`commit`、`q`、`author`、`since`、`until`、`path` 与 `returnSession`；
   - 显式 URL 查询参数优先级始终高于本地记忆，浏览器前进/后退仅改变查询串时响应式同步当前视图与筛选，不销毁单实例 `AppShell` 或重复建立 `/ws/sessions` 连接；在 `/git/...` 页面切换侧栏“工作台 / 聊天”模式保持当前 `/git/...` 路由；
-  - 零活跃会话下可通过侧栏仓库“⋯”菜单、首页仓库菜单、仓库面板头部“Git 工作台”按钮或直接访问 URL 打开工作台，全程不创建任何伪终端会话；创建并删除最后一个会话不会卸载或中断当前 `/git` 页面；
+  - 零活跃会话下可通过首页工具栏“Git 工作台”按钮、侧栏仓库“⋯”菜单、仓库面板头部“Git 工作台”按钮或直接访问 URL 打开工作台，全程不创建任何伪终端会话；创建并删除最后一个会话不会卸载或中断当前 `/git` 页面；
   - 三类入口精确落位并支持无损返回会话：
-    - 仓库级入口打开只读仓库模式 `/git/{repositoryId}`；
+    - 仓库级入口打开只读仓库模式 `/git/{repositoryId}`；首页工具栏“Git 工作台”按钮常驻并随当前范围落位：选中工作树时直达 `/git/{repositoryId}/worktrees/{worktreeId}`，选中仓库时打开 `/git/{repositoryId}`，未选中仓库时经 `/git` 落位到最近使用的仓库；
     - 工作树“⋯”菜单提供“在 Git 工作台打开”（`/git/{repositoryId}/worktrees/{worktreeId}`），且当工作树可用、未锁定、非 `bare` 并存在待处理改动时额外提供“提交改动…”直达 `?view=commit`；
     - 会话代码工作区头部“在 Git 中查看”携带 `returnSession={sessionId}` 跳转并在顶栏提供“返回会话”；若原会话已退出、归档或删除则诚实提示状态，工作台继续独立可用；
   - 顶栏语义分离与工作树写门禁：
