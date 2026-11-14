@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/rainchan/webmux/internal/pathutil"
@@ -36,10 +37,11 @@ func (s *Service) runProjectClone(op projectCloneRecord) {
 		return
 	}
 	destination := filepath.Join(temporary.Path(), "repository")
+	env := s.projectCloneGitEnv(ctx, filepath.Dir(op.Path))
 	run := runGitProcess(ctx, gitProcess{
 		path:   s.gitPath,
 		args:   []string{"-C", filepath.Dir(op.Path), "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "clone", "--progress", "--", op.URL, destination},
-		env:    append(append([]string{}, gitEnv...), "GIT_SSH_COMMAND=ssh -oBatchMode=yes"),
+		env:    env,
 		stdout: io.Discard,
 		// Cloning can produce much more progress than a local Git command. Bound
 		// it independently; none of this output is logged or returned to clients.
@@ -53,13 +55,15 @@ func (s *Service) runProjectClone(op projectCloneRecord) {
 		s.finishProjectClone(op.ID, state, message, "")
 		return
 	}
-	if err := pathutil.PublishDirectory(destination, op.Path); err != nil {
-		s.finishProjectClone(op.ID, "failed", "无法发布克隆目录；目标可能已被占用，已有文件未被覆盖", "")
-		return
-	}
 	if err := s.changeProjectClone(op.ID, func(record *projectCloneRecord) {
 		record.State, record.Error, record.TemporaryPath = "registering", "", ""
 	}); err != nil {
+		return
+	}
+	// The durable intent precedes rename, so a crash immediately after publication
+	// remains eligible for registration retry without another network clone.
+	if err := pathutil.PublishDirectory(destination, op.Path); err != nil {
+		s.finishProjectClone(op.ID, "failed", "无法发布克隆目录；请检查目标是否被占用、目录权限以及文件系统是否支持原子独占重命名", "")
 		return
 	}
 	s.registerClonedProject(op)
@@ -83,4 +87,18 @@ func (s *Service) finishProjectClone(id, state, message, projectID string) {
 		record.State, record.Error, record.ProjectID = state, message, projectID
 		record.TemporaryPath = ""
 	})
+}
+
+// Preserve deployment-key wrappers configured by the service user. Only supply
+// the default OpenSSH BatchMode when no custom Git SSH transport was selected.
+func (s *Service) projectCloneGitEnv(ctx context.Context, parent string) []string {
+	env := append(append([]string{}, gitEnv...), "SSH_ASKPASS_REQUIRE=never")
+	if os.Getenv("GIT_SSH_COMMAND") != "" || os.Getenv("GIT_SSH") != "" {
+		return env
+	}
+	out, run := s.runGit(ctx, parent, nil, "config", "--get", "core.sshCommand")
+	if run.err == nil && len(out.Bytes()) > 0 {
+		return env
+	}
+	return append(env, "GIT_SSH_COMMAND=ssh -oBatchMode=yes")
 }

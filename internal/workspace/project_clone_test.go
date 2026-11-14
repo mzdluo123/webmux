@@ -260,11 +260,11 @@ func TestProjectCloneDoesNotStartAfterLedgerCommitFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	op, err := s.StartProjectClone(context.Background(), ProjectCloneRequest{RequestID: "cannot-save", URL: "https://example.invalid/repo.git", Path: filepath.Join(root, "target")})
-	if !errors.Is(err, ErrUnavailable) || op.ID != "" {
+	if err == nil || op.ID != "" {
 		t.Fatalf("admitted uncommitted operation: %+v %v", op, err)
 	}
-	if s.ProjectCloneStorageError() == nil {
-		t.Fatal("uncertain ledger remained available")
+	if s.ProjectCloneStorageError() != nil {
+		t.Fatal("failed pre-publication commit froze the ledger")
 	}
 	if len(s.clones) != 0 {
 		t.Fatal("failed admission published memory")
@@ -274,5 +274,28 @@ func TestProjectCloneDoesNotStartAfterLedgerCommitFailure(t *testing.T) {
 	}
 	if _, _, err := s.RegisterDirectoryProject(root); err != nil {
 		t.Fatalf("clone failure disabled directory projects: %v", err)
+	}
+}
+
+func TestProjectClonePreservesConfiguredSSHTransport(t *testing.T) {
+	s, root, _ := cloneTestService(t, "success")
+	t.Setenv("GIT_SSH_COMMAND", "deployment-key-wrapper")
+	env := s.projectCloneGitEnv(context.Background(), root)
+	for _, value := range env {
+		if strings.HasPrefix(value, "GIT_SSH_COMMAND=") {
+			t.Fatalf("overrode inherited transport: %s", value)
+		}
+	}
+	t.Setenv("GIT_SSH_COMMAND", "")
+	t.Setenv("GIT_SSH", "")
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(root, "gitconfig"))
+	if out, err := exec.Command(os.Getenv("WEBMUX_CLONE_TEST_GIT"), "config", "--global", "core.sshCommand", "deployment-key-wrapper").CombinedOutput(); err != nil {
+		t.Fatalf("config: %s %v", out, err)
+	}
+	env = s.projectCloneGitEnv(context.Background(), root)
+	for _, value := range env {
+		if strings.HasPrefix(value, "GIT_SSH_COMMAND=") {
+			t.Fatalf("overrode configured transport: %s", value)
+		}
 	}
 }
