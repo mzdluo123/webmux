@@ -7,7 +7,6 @@ import type { CodeReveal, SessionInfo } from "../../contracts/schemas";
 import {
   captureFindReturnFocus,
   clearFindFocus,
-  copySessionBuffer,
   copySessionText,
   isEditableActiveElement,
   pasteFromSessionClipboard,
@@ -292,7 +291,6 @@ export function useSessionTerminalChrome(options: {
     openCodeLocation,
     copyToClipboard,
     copyPending,
-    copy: () => copySessionBuffer(clipboardCtx),
     paste: () => pasteFromSessionClipboard(clipboardCtx),
     syncSessionEffects,
   };

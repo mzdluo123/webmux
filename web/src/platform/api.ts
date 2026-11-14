@@ -121,11 +121,6 @@ export async function api<T extends z.ZodType>(
     response.status === 204 ? undefined : await response.json(),
   );
 }
-export async function apiBuffer(id: string): Promise<Uint8Array> {
-  return new Uint8Array(
-    await (await request(`/sessions/${id}/buffer`)).arrayBuffer(),
-  );
-}
 // Raw bytes share the JSON transport's Bearer header, APIError and 401 event.
 // received, when given, sees the running byte count of a streamed body.
 export async function apiBlob(

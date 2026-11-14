@@ -4,7 +4,6 @@ import {
   APIError,
   api,
   apiBlob,
-  apiBuffer,
   store,
   uploadFile,
   uploadForm,
@@ -331,7 +330,7 @@ describe("ClientTransport & host base URL abstraction", () => {
     expect(MockXHR.instances[2]!.aborted).toBe(true);
   });
 
-  it("routes api(), apiBuffer(), apiBlob(), uploadFile(), and forwardLink() through a custom ClientTransport", async () => {
+  it("routes api(), apiBlob(), uploadFile(), and forwardLink() through a custom ClientTransport", async () => {
     // Ensure globals are never called when a custom transport is active.
     const forbiddenFetch = vi.fn();
     vi.stubGlobal("fetch", forbiddenFetch);
@@ -361,9 +360,6 @@ describe("ClientTransport & host base URL abstraction", () => {
             status: 401,
             headers: { "Content-Type": "application/json" },
           });
-        }
-        if (path === "/sessions/aaaaaaaa/buffer") {
-          return new Response(new Uint8Array([1, 2, 3, 4]), { status: 200 });
         }
         if (path === "/blob") {
           const stream = new ReadableStream<Uint8Array>({
@@ -404,9 +400,6 @@ describe("ClientTransport & host base URL abstraction", () => {
       Authorization: "Bearer p2p-secret",
       "Content-Type": "application/json",
     });
-
-    const buf = await apiBuffer("aaaaaaaa");
-    expect([...buf]).toEqual([1, 2, 3, 4]);
 
     const bytesProgress: number[] = [];
     const blob = await apiBlob("/blob", undefined, (n) =>

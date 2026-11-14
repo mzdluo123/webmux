@@ -40,7 +40,6 @@
     readonly connection: Connection;
     readonly exitCode: number | null;
     readonly restoring: boolean;
-    readonly historyTruncated: boolean;
     readonly canFind: boolean;
     scrollToBottom(): void;
     clear(): void;
@@ -72,7 +71,6 @@
     quickMenu,
     upload,
     toggleDraft,
-    copy,
     paste,
     showScratch,
     showFontSize,
@@ -103,7 +101,6 @@
     >;
     upload: (files: File[]) => Promise<void>;
     toggleDraft: () => void;
-    copy: () => Promise<void>;
     paste: () => Promise<void>;
     showScratch: () => void;
     showFontSize: () => void;
@@ -391,14 +388,6 @@
         <DropdownMenu.Separator />
         <DropdownMenu.Group>
           <DropdownMenu.GroupHeading>剪贴板</DropdownMenu.GroupHeading>
-          <DropdownMenu.Item
-            onSelect={() => {
-              void copy();
-            }}
-            >{t.historyTruncated
-              ? "复制全部缓冲（更早输出已被覆盖）"
-              : "复制全部缓冲"}</DropdownMenu.Item
-          >
           <DropdownMenu.Item
             onSelect={() => {
               void paste();

@@ -400,7 +400,6 @@
     exitCode: null,
     listeningPorts: [],
     restoring: false,
-    historyTruncated: false,
     canFind: true,
     scrollToBottom() {},
     clear() {},
@@ -454,7 +453,6 @@
     {quickMenu}
     upload={async () => {}}
     toggleDraft={() => {}}
-    copy={async () => {}}
     paste={async () => {}}
     showScratch={() => {}}
     showFontSize={() => {}}
