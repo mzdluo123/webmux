@@ -324,3 +324,31 @@ for (const story of [
     });
   });
 }
+
+for (const scene of [
+  "projects",
+  "empty",
+  "sources",
+  "new-project",
+  "local-folder",
+  "git-url",
+  "git-hub",
+  "git-hub-unavailable",
+  "registration-failure",
+]) {
+  test(`project picker ${scene} fits each layout`, async ({ page }) => {
+    test.slow();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", (route) => route.abort());
+    await page.goto(
+      `/iframe.html?id=workspace-project-picker--${scene}&viewMode=story`,
+    );
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await checkEachLayout(page, async ({ name }) => {
+      await expectDialogFits(page, page.getByRole("dialog"), name);
+      await expectNoOverflow(page, name);
+    });
+    expect(errors).toEqual([]);
+  });
+}

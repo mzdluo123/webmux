@@ -40,3 +40,23 @@ export const GitHubProjectsSchema = z.object({
   page: z.number().int().min(1).max(50),
   hasMore: z.boolean(),
 });
+
+export type Project = z.infer<typeof ProjectSchema>;
+export type ProjectCloneOperation = z.infer<typeof ProjectCloneOperationSchema>;
+export type GitHubProjects = z.infer<typeof GitHubProjectsSchema>;
+export const OpenProjectRequestSchema = z.object({ path: z.string().min(1) });
+export const CreateProjectRequestSchema = z.object({
+  parent: z.string().min(1),
+  name: z.string().min(1),
+  initializeGit: z.boolean(),
+});
+export const ProjectCloneRequestSchema = z.object({
+  requestId: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,119}$/),
+  url: z.string().min(1),
+  path: z.string().min(1),
+  source: z.literal("github").optional(),
+});
+export const ProjectCreationFailureSchema = z.object({
+  error: z.string(),
+  path: z.string().min(1),
+});

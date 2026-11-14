@@ -11,7 +11,10 @@
   import * as Command from "$lib/components/ui/command";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
 
-  let { value = $bindable("") }: { value: string } = $props();
+  let {
+    value = $bindable(""),
+    endpoint = "/fs/dirs",
+  }: { value: string; endpoint?: string } = $props();
   let open = $state(false);
   // Prepare the floating content only when browsing is first requested, then
   // retain it through closes so the primitive can restore focus and animate.
@@ -70,7 +73,7 @@
     error = "";
     const timer = setTimeout(() => {
       void api(
-        "/fs/dirs?prefix=" + encodeURIComponent(prefix),
+        endpoint + "?prefix=" + encodeURIComponent(prefix),
         DirectoriesSchema,
       )
         .then((result) => {

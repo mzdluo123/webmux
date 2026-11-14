@@ -38,10 +38,12 @@ export async function loadCreateSettingsContributions(): Promise<
       ).default;
     }),
     load("workspace", async () => {
-      const [location, fields] = await Promise.all([
+      const [location, fields, projects] = await Promise.all([
         import("../components/workspace/LocationPicker.svelte"),
         import("../components/workspace/WorktreeCreateFields.svelte"),
+        import("../components/workspace/ProjectPicker.svelte"),
       ]);
+      creation.ProjectPicker = projects.default;
       creation.LocationPicker = location.default;
       creation.WorktreeCreateFields = fields.default;
     }),

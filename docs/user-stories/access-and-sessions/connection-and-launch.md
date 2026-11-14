@@ -220,3 +220,6 @@
 远程克隆来源：[克隆服务](../../../internal/workspace/project_clone.go)、[克隆执行](../../../internal/workspace/project_clone_worker.go)、[克隆回归](../../../internal/workspace/project_clone_test.go)。
 
 GitHub 来源：[发现服务](../../../internal/workspace/project_github.go)、[受控进程回归](../../../internal/workspace/project_github_test.go)、[接口契约回归](../../../internal/api/project_github_test.go)。
+
+项目来源界面开发预览（US-B10–US-B12）：[Project picker Storybook](../../../web/stories/ProjectPicker.stories.ts) 展示项目列表、四种来源、配置降级及登记失败。
+该组件已作为 workspace 创建贡献提供，生产新建会话入口将在后续 stack 层接入；本层不改变现有入口行为。
