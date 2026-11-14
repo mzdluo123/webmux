@@ -515,3 +515,69 @@ test("IWER keeps B live when the entry owner is permanently removed", async ({
     await other.close();
   }
 });
+
+test("IWER keeps an archived entry read-only before and after the live snapshot", async ({
+  page,
+  request,
+  workDir,
+  xr,
+}, info) => {
+  test.skip(
+    !!info.project.use.isMobile,
+    "Immersive software-GL desktop runtime; real headset remains separate acceptance",
+  );
+  const a = await createChat(request, workDir, "XR archived entry");
+  const b = await createChat(request, workDir, "XR live peer");
+  expect((await request.delete(`/api/sessions/${a}`)).ok()).toBe(true);
+  await expect
+    .poll(
+      async () =>
+        (await (await request.get(`/api/sessions/${a}`)).json()).state,
+    )
+    .toBe("closed");
+  const snapshot = Promise.withResolvers<void>();
+  await page.routeWebSocket(/\/ws\/sessions(?:\?|$)/, async (socket) => {
+    await snapshot.promise;
+    socket.connectToServer();
+  });
+  try {
+    await page.goto(`/s/${a}`);
+    const recovery = page.getByRole("status", { name: "恢复会话" });
+    await expect(recovery).toBeVisible();
+    await xr.enter();
+    const initial = await chatLayout(xr, a);
+    await expectPainted(xr, initial, "只读");
+    snapshot.resolve();
+    await xr.menu("XR live peer");
+    await chatLayout(xr, b);
+    await expectPainted(xr, initial, "恢复会话");
+    expect(await active2d(page)).toBe(a);
+    await expect(page.locator(".split-terminal")).toHaveCount(1);
+    await xr.menu("退出 VR");
+    await expect(
+      page.getByRole("button", { name: "进入 VR", exact: true }),
+    ).toBeEnabled();
+    await xr.enter();
+    const resumed = await chatLayout(xr, a);
+    const surfaceId = await expectPainted(xr, resumed, "只读");
+    const surface = await xr.surface(surfaceId);
+    const action = surface?.text.find(
+      (line) => line.text === "返回 2D 恢复会话",
+    );
+    expect(action).toBeDefined();
+    await xr.panel(resumed, action!.x + 10, action!.y);
+    await expect(
+      page.getByRole("button", { name: "进入 VR", exact: true }),
+    ).toBeEnabled();
+    await expect(recovery).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/s/${a}$`));
+    expect((await (await request.get(`/api/sessions/${a}`)).json()).state).toBe(
+      "closed",
+    );
+    expect((await (await request.get(`/api/sessions/${b}`)).json()).state).toBe(
+      "active",
+    );
+  } finally {
+    snapshot.resolve();
+  }
+});

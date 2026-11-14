@@ -17,11 +17,12 @@ export function createXrSessionMembership(options: {
       options.live().map((session) => [session.id, session]),
     );
     for (const id of options.panes()) {
+      if (current.has(id)) continue;
       const info = options.info(id);
-      // API-created/navigation owners may precede their live create event.
-      // After membership was confirmed, a removed row must never be revived
-      // from a mounted controller's last cached description.
-      if (!confirmed.has(id) && (!info || info.state === "active"))
+      // Pending navigation owners may precede their live create event.
+      // Stale active metadata cannot revive a confirmed, removed live row.
+      // Mounted recovery records remain valid independently of that list.
+      if ((info && info.state !== "active") || !confirmed.has(id))
         current.set(id, { id, title: info?.title ?? id });
     }
     return [...current.values()];

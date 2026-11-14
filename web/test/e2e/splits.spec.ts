@@ -270,7 +270,11 @@ test("existing sessions can join a split and missing panes can be dismissed", as
     .toBe("exited");
   await request.delete(`/api/sessions/${existing.id}?remove=1`);
   await page.reload();
-  await expect(joined).toBeVisible();
+  await expect(
+    joined.getByRole("status").filter({
+      has: page.getByRole("button", { name: "返回列表", exact: true }),
+    }),
+  ).toBeVisible();
   await openPaneMenu(joined);
   await page.getByRole("menuitem", { name: "关闭窗格（保留会话）" }).click();
   await expect(page.locator(".split-terminal")).toHaveCount(1);
@@ -310,6 +314,11 @@ test("返回列表 in a split leaves only its own pane", async ({
     .toBe("exited");
   await request.delete(`/api/sessions/${gone.id}?remove=1`);
   await page.reload();
+  await expect(
+    pane.getByRole("status").filter({
+      has: page.getByRole("button", { name: "返回列表", exact: true }),
+    }),
+  ).toBeVisible();
   await pane.getByRole("button", { name: "返回列表" }).click();
   await expect(page.locator(".split-terminal")).toHaveCount(1);
   await expect(page).toHaveURL(new RegExp(`/s/${id}`));

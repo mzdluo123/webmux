@@ -76,10 +76,10 @@ export function useXrSessionSource(options: {
     options.blur();
   }
 
-  async function returnTo2D(reveal: () => void) {
+  async function returnTo2D(reveal?: () => void) {
     if (!workspace || !(await workspace.returnTo2D(options.id))) return;
     await tick();
-    reveal();
+    reveal?.();
   }
 
   async function answer(requestId: string, optionId: string) {
@@ -113,24 +113,28 @@ export function useXrSessionSource(options: {
       answer,
       openForm: () => returnTo2D(options.showChat),
     });
+    const recovering = hybrid.view === "recovery";
     if (hybrid.view === "chat") return panel;
     return {
       ...panel,
-      title: "聊天历史 · 只读",
+      title: recovering ? "恢复会话 · 只读" : "聊天历史 · 只读",
       lines: [
         {
-          text: hybrid.chat.model.entries.length
-            ? "当前在终端端运行；此处仅显示已有聊天历史，不能输入。"
-            : "当前在终端端运行，暂无可用聊天历史。",
+          text: recovering
+            ? "返回 2D 恢复会话后才能继续输入。"
+            : hybrid.chat.model.entries.length
+              ? "当前在终端端运行；此处仅显示已有聊天历史，不能输入。"
+              : "当前在终端端运行，暂无可用聊天历史。",
           tone: "muted" as const,
         },
-        ...panel.lines,
+        ...(recovering && !hybrid.chat.model.entries.length ? [] : panel.lines),
       ],
       actions: [
         {
           id: "chat-2d",
-          label: "返回 2D 切换到聊天",
-          run: () => returnTo2D(() => hybrid.request("chat")),
+          label: recovering ? "返回 2D 恢复会话" : "返回 2D 切换到聊天",
+          run: () =>
+            returnTo2D(recovering ? undefined : () => hybrid.request("chat")),
         },
       ],
     };
@@ -226,6 +230,7 @@ export function useXrSessionSource(options: {
       return hybrid.info?.title || t.info?.title || options.id;
     },
     get status() {
+      if (hybrid.view === "recovery") return "待恢复 · 只读";
       return `${hybrid.view === "chat" ? "聊天" : "终端"} · ${hybrid.view === "chat" ? hybrid.chat.connection : t.connection}${t.controlling ? " · 控制端" : ""}`;
     },
     get primaryKind() {
