@@ -14,6 +14,7 @@
 | launch              | launch-configs.json      | launch-configs.json.lock      | internal/launch              | unavailable           | 是       |
 | repositories        | repositories.json        | repositories.json.lock        | internal/workspace           | unavailable           | 是       |
 | projects            | projects.json            | projects.json.lock            | internal/workspace           | unavailable           | 是       |
+| project-clones      | project-clones.json      | project-clones.json.lock      | internal/workspace           | unavailable           | 否       |
 | git-operations      | git-operations.json      | git-operations.json.lock      | internal/workspace           | unavailable           | 是       |
 | git-task-baselines  | git-task-baselines.json  | git-task-baselines.json.lock  | internal/workspace           | unavailable           | 是       |
 | git-workbench-state | git-workbench-state.json | git-workbench-state.json.lock | internal/workspace           | unavailable           | 是       |
@@ -33,6 +34,9 @@
 <!-- persistence-inventory:end -->
 
 这份表的机器来源是 `internal/archtest/persistence_inventory.json`；`make persistence-check` 精确比较表格各单元格（允许 Markdown 对齐空格变化），拒绝遗漏、重复或过时条目。
+
+项目克隆操作使用独立账本；当前层只实现持久状态与启动时的中断识别，尚无克隆请求入口。
+重启把未完成克隆标为 interrupted，把已发布但未登记的操作标为 registration_failed；保留目录，不自动重试或清理。
 
 ### 插件选择与数据保留
 

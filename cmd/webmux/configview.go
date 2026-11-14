@@ -60,7 +60,7 @@ func storePlugin(id statefile.ID) string {
 	switch id {
 	case statefile.Launch:
 		return "launch"
-	case statefile.Projects, statefile.Repositories, statefile.GitOperations, statefile.GitTaskBaselines, statefile.GitWorkbenchState:
+	case statefile.ProjectClones, statefile.Projects, statefile.Repositories, statefile.GitOperations, statefile.GitTaskBaselines, statefile.GitWorkbenchState:
 		return "workspace"
 	case statefile.Tunnel:
 		return "cloudflare"
@@ -137,6 +137,8 @@ func configuredView(path string, c config.Config) contract.Configuration {
 		switch description.ID {
 		case statefile.Launch:
 			err = launch.Inspect(c.StateDir)
+		case statefile.ProjectClones:
+			err = workspace.InspectProjectClones(c.StateDir)
 		case statefile.Projects:
 			err = workspace.InspectProjects(c.StateDir)
 		case statefile.Repositories:
@@ -241,6 +243,8 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, plugins *p
 		switch description.ID {
 		case statefile.Launch:
 			err = plugins.launch.Unavailable()
+		case statefile.ProjectClones:
+			err = plugins.workspace.ProjectCloneStorageError()
 		case statefile.Projects:
 			err = plugins.workspace.ProjectStorageError()
 		case statefile.Repositories:
