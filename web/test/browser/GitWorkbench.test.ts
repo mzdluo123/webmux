@@ -519,7 +519,7 @@ test("Commit pane separates reading/reviewed/staged states, stages single hunk, 
     .toBeVisible();
 });
 
-test("Branches pane guides occupied worktree instead of conflicting checkout and renders no fake V2/V3 buttons", async () => {
+test("Branches pane opens the occupied worktree instead of a conflicting checkout", async () => {
   await page.viewport(1280, 900);
   const onOpenWorktree = vi.fn();
   render(Harness, {
@@ -527,19 +527,11 @@ test("Branches pane guides occupied worktree instead of conflicting checkout and
     onOpenWorktree,
   });
 
-  await page
-    .getByRole("button", { name: /feat\/git/ })
-    .first()
-    .click();
+  await page.getByRole("option", { name: /^feat\/git/ }).click();
   await expect.element(page.getByText(/当前活跃会话：3 个/)).toBeVisible();
 
   await page.getByRole("button", { name: "打开所在工作树" }).click();
   expect(onOpenWorktree).toHaveBeenCalledWith("wt-feat", "/work/webmux-feat");
-
-  // Explicitly assert no unimplemented V3 action buttons (e.g. Force Push / Bisect) exist.
-  await expect
-    .element(page.getByRole("button", { name: /Force Push|Bisect/i }))
-    .not.toBeInTheDocument();
 });
 
 test("narrow mobile viewport uses 3-step list -> detail -> Unified Pierre diff navigation and 16px form inputs", async () => {

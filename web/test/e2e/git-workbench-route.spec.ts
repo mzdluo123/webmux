@@ -133,7 +133,7 @@ test("standalone /git works with zero sessions, never spawns PTY, and survives l
   await expect(
     page
       .getByRole("region", { name: "分支与上游列表" })
-      .getByRole("button", { name: /^feat\/route/ }),
+      .getByRole("option", { name: /^feat\/route/ }),
   ).toBeVisible();
 
   // Repo-only Commit view MUST show explicit worktree guard and never silently pick a worktree.

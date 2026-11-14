@@ -376,7 +376,7 @@ test("shares occupancy-safe branch actions, Shift+F10 menu, and dirty/active-ses
   const listRegion = page.getByRole("region", { name: "分支与上游列表" });
 
   // Occupied branch shows active session count and navigates to occupied worktree without offering Checkout
-  await listRegion.getByRole("button", { name: /^feat\/occupied/ }).click();
+  await listRegion.getByRole("option", { name: /^feat\/occupied/ }).click();
   const detailRegion = page.getByRole("region", {
     name: "选中分支详情与工作树占用",
   });
@@ -389,7 +389,7 @@ test("shares occupancy-safe branch actions, Shift+F10 menu, and dirty/active-ses
   );
 
   // Open menu on unoccupied feat/ready via Shift+F10 on desktop or action button on phone (U08)
-  const readyBtn = listRegion.getByRole("button", { name: /^feat\/ready/ });
+  const readyBtn = listRegion.getByRole("option", { name: /^feat\/ready/ });
   if ((page.viewportSize()?.width ?? 1440) >= 640) {
     await readyBtn.focus();
     await page.keyboard.press("Shift+F10");
