@@ -8,7 +8,7 @@ WebMux 把服务器上的 CLI agent 或 Shell 会话跑在后台，你可以随�
 
 1. **想直接把任务交给 agent**（`chat` + `launch` + `files`，仓库流程另需 `workspace`）：点左上角切到**聊天模式**，选仓库、工作树方式与 agent，写下任务并发送。
    服务端会按所选方式启动聊天 agent 并发出第一条消息。见 [聊天模式](usage/chat.md)。
-2. **想管理多个终端或查看全局状态**：点右上角「新建会话」，填写目录与临时命令；开启 `launch` 后也可选保存的启动配置（如 Claude Code、Codex、Shell）。
+2. **想管理多个终端或查看全局状态**：点右上角「新建会话」，填写目录与临时命令；开启 `workspace` 项目能力后先选项目，开启 `launch` 后也可选保存的启动配置（如 Claude Code、Codex、Shell）。
    见 [会话与工作台](usage/sessions.md)。
 3. **随时审阅与接管**：开启 `chat` 后在会话页切换“聊天 | 终端”；开启 `code` 后点「代码」打开文件树与 Diff；Git 工作台还需同时开启 `workspace`。
 

@@ -2,7 +2,9 @@
 
 ## Purpose
 
-新建会话对话框用“位置”和“运行”两个选择行汇总一次会话创建所需的选择，默认值齐全时可直接创建，低频项折叠在“高级”中，并在手机宽度下无需滚动即可完成。
+新建会话先选择项目，再确认工作位置与运行方式；项目能力不可用时保留直接目录与命令创建。
+项目流程见[已实施的项目优先扩展](../../../docs/proposals/project-first-session-dialog/specs/new-session-dialog/spec.md)，项目目录与来源见[项目目录契约](../../../docs/proposals/project-first-session-dialog/specs/project-catalog/spec.md)。
+本文件保留会话设置与直接创建兼容约定；项目能力可用时，扩展中的项目范围、分层导航与滚动要求 SHALL 优先于下文的兼容位置约定。
 
 ## Requirements
 
