@@ -23,7 +23,7 @@ func (s *Service) ProjectDirectories(prefix string) ([]string, error) {
 // ordinary directories remain usable without Git. Git trust/permission errors
 // must not be silently presented as an ordinary non-Git project.
 func (s *Service) OpenProject(ctx context.Context, path string) (Project, bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	ctx, cancel := context.WithTimeout(ctx, writeTimeout)
 	defer cancel()
 	if s.ProjectStorageError() != nil {
 		return Project{}, false, problemf(ErrUnavailable, "项目清单不可用")
@@ -34,6 +34,13 @@ func (s *Service) OpenProject(ctx context.Context, path string) (Project, bool, 
 	dir, err := canonical(path)
 	if err != nil {
 		return Project{}, false, fmt.Errorf("%w: 项目目录: %w", ErrInvalid, err)
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		return Project{}, false, fmt.Errorf("%w: 项目目录: %w", ErrInvalid, err)
+	}
+	if !info.IsDir() {
+		return Project{}, false, problemf(ErrInvalid, "项目路径必须是文件夹")
 	}
 	projects, err := s.ListProjects()
 	if err != nil {
@@ -50,20 +57,7 @@ func (s *Service) OpenProject(ctx context.Context, path string) (Project, bool, 
 	if s.gitPath != "" {
 		_, stderr, err := s.gitOutput(ctx, dir, "rev-parse", "--git-common-dir")
 		if err == nil {
-			repo, created, err := s.Register(ctx, dir)
-			if err != nil {
-				return Project{}, false, err
-			}
-			projects, err := s.ListProjects()
-			if err != nil {
-				return Project{}, false, err
-			}
-			for _, p := range projects {
-				if p.RepositoryID == repo.ID {
-					return p, created, nil
-				}
-			}
-			return Project{}, false, problemf(ErrUnavailable, "仓库已登记但项目暂不可读取，请刷新")
+			return s.openGitProject(ctx, dir)
 		}
 		if !strings.Contains(stderr, "not a git repository") {
 			return Project{}, false, err
@@ -98,18 +92,21 @@ func (s *Service) CreateProject(ctx context.Context, parent, name string, initia
 		return Project{}, err
 	}
 	target := filepath.Join(base, name)
-	if err := os.Mkdir(target, 0755); err != nil {
+	if err := s.createProjectDirectory(target); err != nil {
 		if os.IsExist(err) {
 			return Project{}, problemf(ErrConflict, "目标目录已存在，请选择本地文件夹或修改名称")
 		}
-		return Project{}, fmt.Errorf("%w: 创建项目目录: %w", ErrInvalid, err)
+		if os.IsPermission(err) {
+			return Project{}, fmt.Errorf("%w: 服务用户无权创建项目目录: %w", ErrUnavailable, err)
+		}
+		return Project{}, fmt.Errorf("%w: 创建项目目录: %w", ErrInternal, err)
 	}
 	partial := Project{Path: target, Name: name}
 	if initializeGit {
 		if _, err := s.git(ctx, target, "init", "--initial-branch=main", "."); err != nil {
 			return partial, err
 		}
-		p, _, err := s.OpenProject(ctx, target)
+		p, _, err := s.openGitProject(ctx, target)
 		if err != nil {
 			return partial, err
 		}
@@ -120,4 +117,29 @@ func (s *Service) CreateProject(ctx context.Context, parent, name string, initia
 		return partial, err
 	}
 	return p, nil
+}
+
+func (s *Service) createProjectDirectory(path string) error {
+	if s.mkdirProject != nil {
+		return s.mkdirProject(path)
+	}
+	return os.Mkdir(path, 0755)
+}
+
+func (s *Service) openGitProject(ctx context.Context, dir string) (Project, bool, error) {
+	repo, created, err := s.registerRepository(ctx, dir)
+	if err != nil {
+		return Project{}, false, err
+	}
+	s.reassociate(ctx)
+	projects, err := s.ListProjects()
+	if err != nil {
+		return Project{}, false, err
+	}
+	for _, p := range projects {
+		if p.RepositoryID == repo.entry.ID {
+			return p, created, nil
+		}
+	}
+	return Project{}, false, problemf(ErrUnavailable, "仓库已登记但项目暂不可读取，请刷新")
 }

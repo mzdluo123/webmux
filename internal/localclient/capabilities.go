@@ -19,6 +19,7 @@ var capabilityPlugins = map[string]string{
 	"notifications.push": "notifications", "quick-commands.send": "quick-commands",
 	"voice.recognize": "voice", "forward.ports": "forward", "cloudflare.manage": "cloudflare",
 	"workspace.git-workbench": "workspace",
+	"workspace.projects":      "workspace",
 	"tailscale.manage":        "tailscale", "p2p.direct": "p2p", "mcp.control": "mcp", "immersive.xr": "immersive",
 }
 

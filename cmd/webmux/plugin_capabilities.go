@@ -51,9 +51,7 @@ func (p *pluginServices) capabilities(c config.Config) contract.Capabilities {
 		} else if reason = p.moduleUnavailable(feature.plugin); reason == "" {
 			switch feature.plugin {
 			case "workspace":
-				if !p.workspace.Capability().GitAvailable {
-					reason = contract.CapabilityReasonCommandUnavailable
-				}
+				reason = p.workspaceRegistryReason()
 			case "notifications":
 				if !c.Push.Enabled {
 					reason = contract.CapabilityReasonConfigurationOff
@@ -84,10 +82,8 @@ func (p *pluginServices) capabilities(c config.Config) contract.Capabilities {
 	workbenchReason := ""
 	if !c.Plugins.Has("workspace") || !c.Plugins.Has("code") {
 		workbenchReason = contract.CapabilityReasonPluginDisabled
-	} else if reason := p.moduleUnavailable("workspace"); reason != "" {
-		workbenchReason = reason
-	} else if !p.workspace.Capability().GitAvailable {
-		workbenchReason = contract.CapabilityReasonCommandUnavailable
+	} else {
+		workbenchReason = p.workspaceRegistryReason()
 	}
 	out.Capabilities = append(out.Capabilities, contract.Capability{ID: "workspace.git-workbench", Available: workbenchReason == "", Reason: workbenchReason})
 	return out
@@ -106,7 +102,7 @@ func (p *pluginServices) moduleUnavailable(id string) string {
 		if p.workspace == nil {
 			return contract.CapabilityReasonServiceUnavailable
 		}
-		if p.workspace.StorageError() != nil {
+		if p.workspace.StorageError() != nil && p.workspace.ProjectStorageError() != nil {
 			return contract.CapabilityReasonStorageUnavailable
 		}
 	case "code":
@@ -176,4 +172,19 @@ func (p *pluginServices) accessProviders() []accessProvider {
 		providers = append(providers, p.tailscale)
 	}
 	return providers
+}
+
+// Workspace may have healthy directory projects even when its Git registry is
+// unavailable; capability ownership must not flatten that partial health.
+func (p *pluginServices) workspaceRegistryReason() string {
+	if p.workspace == nil {
+		return contract.CapabilityReasonServiceUnavailable
+	}
+	if p.workspace.StorageError() != nil {
+		return contract.CapabilityReasonStorageUnavailable
+	}
+	if !p.workspace.Capability().GitAvailable {
+		return contract.CapabilityReasonCommandUnavailable
+	}
+	return ""
 }

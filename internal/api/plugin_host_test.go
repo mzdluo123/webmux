@@ -10,6 +10,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/localclient"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/settings"
@@ -48,8 +49,12 @@ func TestCoreOnlyHostKeepsCreateAndDiscovery(t *testing.T) {
 	if err := json.Unmarshal(discovery.Body, &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Version != 1 || len(snapshot.Plugins) != 14 || len(snapshot.Capabilities) != 15 {
+	if snapshot.Version != 1 || len(snapshot.Plugins) != 14 || len(snapshot.Capabilities) != 17 {
 		t.Fatalf("incomplete static discovery: %+v", snapshot)
+	}
+
+	if err := localclient.ValidateCapabilities(snapshot); err != nil {
+		t.Fatalf("fallback snapshot invalid: %v", err)
 	}
 	for _, plugin := range snapshot.Plugins {
 		if plugin.Enabled || plugin.Status != contract.PluginStatusDisabled || plugin.Reason != contract.CapabilityReasonPluginDisabled {

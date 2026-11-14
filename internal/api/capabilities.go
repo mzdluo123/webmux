@@ -22,5 +22,18 @@ func (s *Server) capabilitySnapshot() contract.Capabilities {
 		snapshot.Plugins = append(snapshot.Plugins, contract.PluginStatus{ID: definition.ID, Enabled: enabled, Status: status, Reason: reason})
 		snapshot.Capabilities = append(snapshot.Capabilities, contract.Capability{ID: ids[definition.ID], Available: false, Reason: reason})
 	}
+	for _, feature := range []struct {
+		id      string
+		enabled bool
+	}{
+		{"workspace.projects", s.Config.Plugins.Has("workspace")},
+		{"workspace.git-workbench", s.Config.Plugins.Has("workspace") && s.Config.Plugins.Has("code")},
+	} {
+		reason := contract.CapabilityReasonPluginDisabled
+		if feature.enabled {
+			reason = contract.CapabilityReasonServiceUnavailable
+		}
+		snapshot.Capabilities = append(snapshot.Capabilities, contract.Capability{ID: feature.id, Reason: reason})
+	}
 	return snapshot
 }

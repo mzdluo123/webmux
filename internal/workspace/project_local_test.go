@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -100,5 +101,97 @@ func TestProjectCreateRetainsDirectoryAfterSaveFailure(t *testing.T) {
 	registered, _, err := s.OpenProject(context.Background(), project.Path)
 	if err != nil || registered.ID == "" {
 		t.Fatalf("register recovery: %+v %v", registered, err)
+	}
+}
+
+func TestCreateGitProjectPromotesRetainedDirectory(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	parent := t.TempDir()
+	target := filepath.Join(parent, "retained")
+	if err := os.Mkdir(target, 0755); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := testService(t, t.TempDir(), parent)
+	original, _, err := s.RegisterDirectoryProject(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(target); err != nil {
+		t.Fatal(err)
+	}
+	project, err := s.CreateProject(context.Background(), parent, "retained", true)
+	if err != nil || project.RepositoryID == "" || project.ID != original.ID {
+		t.Fatalf("init masked by retained record: %+v %v", project, err)
+	}
+	repositories, err := s.List(context.Background())
+	if err != nil || len(repositories) != 1 || repositories[0].ID != project.RepositoryID {
+		t.Fatalf("repository not registered: %+v %v", repositories, err)
+	}
+}
+
+func TestOpenProjectRejectsFileBeforeGit(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(path, []byte("content"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := testService(t, t.TempDir(), t.TempDir())
+	// A Git executable is deliberately present; the directory validation must
+	// run before invoking it and return the same invalid-path category.
+	s.gitPath = "/definitely-not-a-git-command"
+	if _, _, err := s.OpenProject(context.Background(), path); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("file classified as Git failure: %v", err)
+	}
+}
+
+func TestCreateProjectPermissionFailureDoesNotPublish(t *testing.T) {
+	t.Parallel()
+	parent := t.TempDir()
+	s, _ := testService(t, t.TempDir(), parent)
+	// A per-service filesystem port also tests EACCES when the suite runs as root.
+	s.mkdirProject = func(path string) error { return &os.PathError{Op: "mkdir", Path: path, Err: os.ErrPermission} }
+	if _, err := s.CreateProject(context.Background(), parent, "denied", false); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("permission failure: %v", err)
+	}
+	projects, err := s.ListProjects()
+	if err != nil || len(projects) != 0 {
+		t.Fatalf("permission failure published: %+v %v", projects, err)
+	}
+	if _, err := os.Stat(filepath.Join(parent, "denied")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unexpected directory: %v", err)
+	}
+}
+
+func TestOpenProjectDoesNotReadPostCommitStatus(t *testing.T) {
+	realGit, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("requires Git")
+	}
+	marker := filepath.Join(t.TempDir(), "status-was-read")
+	t.Setenv("WEBMUX_TEST_GIT", realGit)
+	t.Setenv("WEBMUX_TEST_STATUS_MARKER", marker)
+	dir := initRepo(t)
+	wrapper := filepath.Join(t.TempDir(), "git-wrapper")
+	script := `#!/bin/sh
+for arg do
+ if [ "$arg" = status ]; then
+  printf visited > "$WEBMUX_TEST_STATUS_MARKER"
+  exit 1
+ fi
+done
+exec "$WEBMUX_TEST_GIT" "$@"
+`
+	if err := os.WriteFile(wrapper, []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := testService(t, t.TempDir(), dir)
+	s.gitPath = wrapper
+	project, created, err := s.OpenProject(context.Background(), dir)
+	if err != nil || !created || project.RepositoryID == "" {
+		t.Fatalf("registration: %+v %v %v", project, created, err)
+	}
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("registration read Git status after commit: %v", err)
 	}
 }
