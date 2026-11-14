@@ -1,3 +1,4 @@
+import { SvelteSet } from "svelte/reactivity";
 import {
   observeAttentionRemoved,
   observeAttentionSession,
@@ -17,9 +18,13 @@ export interface SessionList {
   readonly sessions: readonly SessionInfo[];
   /** No snapshot has arrived yet and nothing was cached. */
   readonly loading: boolean;
+  /** A live snapshot, not merely cached rows, has established membership. */
+  readonly ready: boolean;
   readonly connection: Connection;
   /** The connection's last error; "" while none. */
   readonly error: string;
+  /** Every removed event, including archive commits after the live row left. */
+  subscribeRemoved(listener: (id: string) => void): () => void;
   close(): void;
 }
 
@@ -38,8 +43,10 @@ export function createSessionList({
   if (cached) observeAttentionSnapshot(cached);
   let sessions = $state.raw<SessionInfo[]>(cached ?? []);
   let loading = $state(!cached);
+  let ready = $state(false);
   let connection = $state<Connection>("connecting");
   let error = $state("");
+  const removedListeners = new SvelteSet<(id: string) => void>();
   const socket = connectSessions(
     (event) => {
       if (event.type === "forwards") return;
@@ -62,7 +69,9 @@ export function createSessionList({
           if (records) drafts.reconcile([...ids, ...records]);
         });
         loading = false;
+        ready = true;
       } else if (event.type === "removed") {
+        for (const listener of removedListeners) listener(event.id);
         observeAttentionRemoved(event.id);
         sessionPins.refreshEnded(event.id);
         if (removedHybrid) void archived.refresh();
@@ -100,14 +109,24 @@ export function createSessionList({
     get loading() {
       return loading;
     },
+    get ready() {
+      return ready;
+    },
     get connection() {
       return connection;
     },
     get error() {
       return error;
     },
+    subscribeRemoved(listener) {
+      removedListeners.add(listener);
+      return () => {
+        removedListeners.delete(listener);
+      };
+    },
     close() {
       socket.close();
+      removedListeners.clear();
     },
   };
 }

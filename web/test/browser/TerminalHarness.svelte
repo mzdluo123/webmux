@@ -22,6 +22,8 @@
     sizeLocked?: () => boolean;
     // Simulates the keyboard button's height-only hold.
     heightHeld?: () => boolean;
+    // Observation owners claim immersive presentation before their first attach.
+    initialImmersive?: boolean;
   };
   const props: Props = $props();
   const {
@@ -77,6 +79,7 @@
     true,
     heightHeld,
   );
+  terminal.setImmersive(untrack(() => props.initialImmersive ?? false));
   expose?.(terminal);
 </script>
 

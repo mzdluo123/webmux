@@ -2,10 +2,11 @@ import { z } from "zod";
 
 export const XR_PANEL_LIMIT = 16;
 const coordinate = z.number().finite().min(-8).max(8);
-const xrPanelSchema = z.object({
+const xrPanelMetadataSchema = z.object({
   id: z.string().min(1).max(256),
   sessionId: z.string().min(1).max(128),
   kind: z.enum(["terminal", "chat", "code", "diff"]),
+  sourceId: z.string().min(1).max(256),
   position: z.tuple([
     coordinate,
     coordinate,
@@ -17,37 +18,61 @@ const xrPanelSchema = z.object({
   ]),
   visible: z.boolean(),
 });
+const xrPanelSchema = xrPanelMetadataSchema.refine(
+  (panel) => panel.kind !== "terminal" || panel.sourceId === "terminal",
+);
 export type XrPanelLayout = z.infer<typeof xrPanelSchema>;
 const xrLayoutSchema = z.object({
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
   panels: z.array(z.unknown()).max(XR_PANEL_LIMIT),
 });
 
 /** Invalid individual records do not discard their valid neighbours. */
 export function decodeXrLayout(
   value: unknown,
-  sessions: ReadonlySet<string>,
-): XrPanelLayout[] {
+  sessions?: ReadonlySet<string>,
+): XrPanelLayout[] | undefined {
   const document = xrLayoutSchema.safeParse(value);
-  if (!document.success) return [];
+  if (!document.success) return undefined;
   const seen = new Set<string>();
-  return document.data.panels.flatMap((record) => {
-    const panel = xrPanelSchema.safeParse(record);
+  let readable = document.data.panels.length === 0;
+  const panels = document.data.panels.flatMap((record) => {
+    let candidate = record;
+    if (document.data.version === 1) {
+      const legacy = xrPanelMetadataSchema
+        .omit({ sourceId: true })
+        .safeParse(record);
+      if (!legacy.success) return [];
+      const { id, sessionId, kind } = legacy.data;
+      const prefix = `${kind}:${sessionId}:`;
+      const sourceId =
+        kind === "terminal"
+          ? id === `terminal:${sessionId}`
+            ? "terminal"
+            : ""
+          : id.startsWith(prefix)
+            ? id.slice(prefix.length)
+            : "";
+      candidate = { ...legacy.data, sourceId };
+    }
+    const panel = xrPanelSchema.safeParse(candidate);
+    if (!panel.success) return [];
+    readable = true;
     if (
-      !panel.success ||
-      !sessions.has(panel.data.sessionId) ||
+      (sessions && !sessions.has(panel.data.sessionId)) ||
       seen.has(panel.data.id)
     )
       return [];
     seen.add(panel.data.id);
     return [panel.data];
   });
+  return readable ? panels : undefined;
 }
 
 /** Serialization deliberately projects only display metadata, never source content. */
 export function encodeXrLayout(panels: readonly XrPanelLayout[]) {
   return {
-    version: 1 as const,
+    version: 2 as const,
     panels: panels.slice(0, XR_PANEL_LIMIT).flatMap((panel) => {
       const parsed = xrPanelSchema.safeParse(panel);
       return parsed.success ? [parsed.data] : [];
@@ -60,11 +85,15 @@ export function defaultXrPanel(
   sessionId: string,
   kind: XrPanelLayout["kind"],
   index: number,
+  sourceId = kind === "terminal"
+    ? "terminal"
+    : id.slice(`${kind}:${sessionId}:`.length),
 ): XrPanelLayout {
   return {
     id,
     sessionId,
     kind,
+    sourceId,
     position: [((index % 3) - 1) * 1.65, -Math.floor(index / 3) * 1.25, -2.4],
     size: [1.6, 1.1],
     visible: true,

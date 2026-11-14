@@ -1,4 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
+import { render } from "vitest-browser-svelte/pure";
+import Harness from "./TerminalHarness.svelte";
 import type { ControlState } from "../../src/contracts/schemas";
 import type { TerminalController } from "../../src/domains/terminal/terminal-search";
 import {
@@ -7,6 +9,7 @@ import {
   openTerminalApi,
   sockets,
   inputText,
+  snapshot,
 } from "./terminal-fixture";
 
 installTerminalFixture();
@@ -139,4 +142,39 @@ test("draft encoding consumes the same one-shot modifiers without delivering inp
   api.toggleModifier("shift");
   expect(api.send("c")).toBe(true);
   expect(inputText(socket)).toBe("c");
+});
+
+test("new immersive owners attach without fitting their offscreen host", async () => {
+  let api!: TerminalController;
+  await render(Harness, {
+    initialImmersive: true,
+    expose: (value) => (api = value),
+  });
+  await expect.poll(() => sockets.length).toBe(1);
+  const socket = sockets[0]!;
+  socket.open();
+  socket.receive(1, snapshot);
+  expect(socket.sent.filter((frame) => frame[0] === 1)).toHaveLength(0);
+  expect(api.emulator!.cols).toBe(80);
+  expect(api.emulator!.rows).toBe(24);
+  socket.grantControl(96, 32);
+  await expect.poll(() => api.ready).toBe(true);
+  expect(api.emulator!.cols).toBe(96);
+  expect(api.emulator!.rows).toBe(32);
+  const sizes = socket.sent.filter((frame) => frame[0] === 1);
+  expect(sizes).toHaveLength(1);
+  const encoded = new Uint8Array(
+    sizes[0]!.buffer,
+    sizes[0]!.byteOffset + 1,
+    sizes[0]!.byteLength - 1,
+  );
+  expect(new TextDecoder().decode(encoded)).toBe(
+    JSON.stringify({ cols: 96, rows: 32 }),
+  );
+  host().style.width = "1px";
+  host().style.height = "1px";
+  api.fit();
+  expect(socket.sent.filter((frame) => frame[0] === 1)).toHaveLength(1);
+  expect(api.emulator!.cols).toBe(96);
+  expect(api.emulator!.rows).toBe(32);
 });

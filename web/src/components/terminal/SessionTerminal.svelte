@@ -34,11 +34,8 @@
     savedStorageLabel,
     createSessionDraftSender,
   } from "../../domains/terminal/session-terminal-io";
-  import type {
-    DraftOperation,
-    TerminalDrafts,
-    TextInsertion,
-  } from "../../domains/terminal/terminal-draft.svelte";
+  import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
+  import { createSessionTerminalInput } from "../../hooks/terminal/session-terminal-input.svelte";
   import { useXrSessionSource } from "../../hooks/terminal/xr-session-source.svelte";
   import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
 
@@ -59,6 +56,7 @@
     onleave,
     showForwards,
     feedSession,
+    subscribeRemoved,
     documentScroll = false,
     onscrollstate,
   }: {
@@ -78,6 +76,7 @@
     onarchived: () => void;
     showForwards: () => void;
     feedSession?: SessionInfo;
+    subscribeRemoved?: (listener: (id: string) => void) => () => void;
     documentScroll?: boolean;
     onscrollstate?: (state: ChatScrollState) => void;
   } = $props();
@@ -97,11 +96,37 @@
   let scratchOpen = $state(false);
   const forceSoftKeys = $derived(settings.values.forceSoftKeys ?? false);
   let mounted = false;
+  let seenHybrid = false;
   let codePanel = $state<CodePanelComponent>();
   let paneWidth = $state(0);
   const desktop = $derived(paneWidth >= 1024);
   let CodePanel = $state<typeof CodePanelComponent>();
   let loadingCode = false;
+  const input = createSessionTerminalInput({
+    draft,
+    drafts: untrack(() => drafts),
+    terminal: () => t,
+    mounted: () => mounted,
+    active: () => active && visible,
+    immersive: () => !!xr?.active,
+    chat: () => hybrid.view === "chat",
+    desktop: () => desktop,
+    root: () => terminalRoot,
+    focusChat: () => stage?.focusChat(),
+    focusComposer: () => stage?.focusComposer(),
+    editComposer: (value) => stage?.editComposerKey(value),
+    hideCode: () => (chrome.codeShown = false),
+    restoreFocus: () => chrome.restoreInputFocus(),
+    error: (message) => (error = message),
+  });
+  const {
+    beginInput,
+    insertText,
+    insertReference,
+    controlNotice,
+    softInput,
+    toggleDraft,
+  } = input;
   const terminalShown = () =>
     hybrid.view === "terminal" || hybrid.view === "recovery";
   const terminalVisible = () =>
@@ -147,51 +172,14 @@
       void tick().then(() => t.fit());
     }
   });
-  function beginInput(): DraftOperation {
-    const operation = drafts.begin(draft);
-    return hybrid.view === "chat"
-      ? { ...operation, startedInDraft: true }
-      : operation;
-  }
-  function insertReference(text: string) {
-    if (hybrid.view === "chat") return insertText(text, beginInput());
-    const result = insertText(text);
-    if (result === "terminal" && !desktop) {
-      chrome.codeShown = false;
-      void tick().then(() => t.fit());
-    }
-    return result;
-  }
-  function insertText(
-    text: string,
-    operation = drafts.begin(draft),
-  ): TextInsertion {
-    if (!mounted) return "failed";
-    return drafts.insert(draft, text, operation, t.paste);
-  }
-  function controlNotice() {
-    error = "终端控制需先退出草稿模式；草稿框内可正常复制、选择和编辑。";
-  }
-  function softInput(input: string) {
-    if (draft.enabled) stage?.editComposerKey(input);
-    else t.send(input);
-  }
   export function focus() {
-    if (!active || !visible) return;
-    if (hybrid.view === "chat") stage?.focusChat();
-    else if (draft.enabled) stage?.focusComposer();
-    else t.focus();
+    input.focus();
   }
   export function revealChat() {
     if (!desktop) chrome.codeShown = false;
   }
   export function send(input: string) {
     t.send(input);
-  }
-  function toggleDraft() {
-    drafts.setEnabled(draft, !draft.enabled);
-    t.resetModifiers();
-    if (draft.enabled) chrome.restoreInputFocus();
   }
   const reportDraft = createDraftReporter(
     draft,
@@ -241,7 +229,7 @@
     {
       draftEnabled: () => draft.enabled,
       focusDraft: () => {
-        if (active && visible) stage?.focusComposer();
+        if (input.active()) stage?.focusComposer();
       },
       key: (event) => stage?.handleTerminalKey(event),
       insertText: (text) => {
@@ -250,7 +238,7 @@
     },
     () => keyboardDismissed(),
     () => chrome.sizeLocked,
-    () => active && allowAutomaticInputFocus(),
+    () => active && !xr?.active && allowAutomaticInputFocus(),
     false,
     () => chrome.keyboardHeld,
   );
@@ -262,6 +250,7 @@
     untrack(() => drafts),
     draft,
     false,
+    untrack(() => subscribeRemoved),
   );
   chrome.syncSessionEffects(
     hybrid,
@@ -313,7 +302,8 @@
     hybrid,
     draft,
     codePanels: () => codePanel?.xrPanels() ?? [],
-    focus,
+    focus: input.focusXr,
+    blur: input.blurXr,
     editDraft: (input) => stage?.editComposerKey(input),
     editChat: (input) => stage?.editChatKey(input),
     sendDraft,
@@ -328,6 +318,13 @@
       [error, t.error, stage?.getChatError() || hybrid.chat.error]
         .filter(Boolean)
         .join(" "),
+  });
+  $effect(() => {
+    const record = hybrid.recoverable;
+    if (hybrid.known) seenHybrid = true;
+    if (record && hybrid.view === "recovery")
+      untrack(() => oninfo(record, t.connection));
+    if (hybrid.missing && (seenHybrid || xr?.active)) untrack(onremoved);
   });
 
   onMount(() => {
@@ -361,6 +358,9 @@
   bind:clientWidth={paneWidth}
   data-terminal-compact={!desktop}
   bind:this={terminalRoot}
+  onkeydowncapture={input.guardXrInput}
+  onbeforeinputcapture={input.guardXrInput}
+  onpastecapture={input.guardXrInput}
 >
   <SessionHandoff
     sourceId={hybrid.info?.conversationId ?? hybrid.recoverable?.conversationId}
@@ -416,7 +416,8 @@
     {xr}
     {desktop}
     {documentScroll}
-    chatVisible={active && visible && (desktop || !chrome.codeShown)}
+    chatVisible={((active && visible) || (input.xrFocused && !!xr?.active)) &&
+      (desktop || !chrome.codeShown || !!xr?.active)}
     {hybrid}
     terminal={t}
     {uploads}

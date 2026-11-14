@@ -470,30 +470,3 @@ func (s *Service) claimRecordConversation(ctx context.Context, id string) (func(
 	}
 	return s.ClaimConversation(b.ConversationID, "")
 }
-
-func (s *Service) removeRecord(ctx context.Context, id string) error {
-	release, err := s.claim(id)
-	if err != nil {
-		return err
-	}
-	defer release()
-	if _, err := s.Recoverable(id); err != nil {
-		return err
-	}
-	if err := s.clear(ctx, id); err != nil {
-		return err
-	}
-	if s.conversations != nil {
-		if err := s.conversations.MarkRuntimeForgetting(ctx, id); err != nil {
-			return fmt.Errorf("%w: conversation cleanup unavailable", ErrUnavailable)
-		}
-	}
-	if err := s.records.remove(id); err != nil {
-		return err
-	}
-	if err := s.forgetConversation(context.WithoutCancel(ctx), id); err != nil {
-		return err
-	}
-	s.log.Info("hybrid record removed", "id", id)
-	return nil
-}

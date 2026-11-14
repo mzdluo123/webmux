@@ -82,7 +82,7 @@ Use `--config vitest.browser.config.ts` for the Chromium component suite. Storyb
   - The release `Build` job only builds, checksums and verifies the real artifacts (including the deb/rpm install check); it does not rerun Go tests, which `Go race` already covers.
   - Stable and dev release builds install NSIS through `.github/scripts/install-nsis.sh`, using an isolated HTTPS kernel.org Ubuntu source and Ubuntu's archive signing key; the runner's global sources are unchanged, and index download failures stop the build.
 - CI builds the Linux E2E executable, fake agents and frontend output once in the `E2E runtime` job (`.github/scripts/package-e2e-runtime.mjs`).
-  - Go race and every E2E shard depend on that job and reuse its same-run artifact, including the locked Playwright runtime.
+  - Go race and every E2E shard depend on that job and reuse its same-run artifact, including the locked Playwright runtime and the IWER package whose standalone browser bundle drives the XR fixtures.
 - `.github/workflows/test.yml` runs parallel jobs:
   - Ubuntu: formatting/architecture guard/frontend build, Go race, Vitest, Storybook, single-worker 4x CPU performance, and four E2E shards (desktop and iPhone SE phone projects).
   - E2E shards reuse the executable and Playwright packages; they skip pnpm/frontend dependencies and Go setup.

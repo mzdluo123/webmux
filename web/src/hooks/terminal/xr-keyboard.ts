@@ -4,10 +4,10 @@ import {
   terminalLeadingKeys,
   terminalModifierKeys,
 } from "../../domains/terminal/terminal-keys";
-import type { XrSessionSource } from "../../domains/terminal/xr-workspace";
+import type { XrViewSelection } from "./xr-view-state";
 import { XrSurface, type XrRegion } from "./xr-surface";
 
-export function createXrKeyboard(source: () => XrSessionSource | undefined) {
+export function createXrKeyboard(target: () => XrViewSelection | undefined) {
   const surface = new XrSurface(1200, 540);
   surface.group.position.set(0, -0.95, -1.7);
   surface.setSize(1.5, 0.675);
@@ -15,21 +15,28 @@ export function createXrKeyboard(source: () => XrSessionSource | undefined) {
   let symbols = false;
   let signature = "";
   function send(value: string) {
-    const current = source();
-    current?.focus();
-    current?.input(value);
+    const current = target();
+    if (!current?.source.canInput(current.layout.kind, current.layout.sourceId))
+      return;
+    current.source.input(value);
     signature = "";
   }
   return {
     surface,
     update() {
       if (!surface.group.visible) return;
-      const current = source();
+      const binding = target();
+      const current = binding?.source;
+      const enabled =
+        !!binding &&
+        !!current?.canInput(binding.layout.kind, binding.layout.sourceId);
       const next = JSON.stringify([
         current?.id,
         current?.title,
         current?.modifiers,
         current?.shiftLocked,
+        binding?.layout.id,
+        enabled,
         symbols,
       ]);
       if (signature === next) return;
@@ -48,7 +55,7 @@ export function createXrKeyboard(source: () => XrSessionSource | undefined) {
             y: 56 + y * 76,
             width: 96,
             height: 72,
-            disabled: !current,
+            disabled: !enabled,
             run: () => send(key),
           }),
         ),
@@ -67,7 +74,7 @@ export function createXrKeyboard(source: () => XrSessionSource | undefined) {
           y: 366,
           width: 114,
           height: 72,
-          disabled: !current,
+          disabled: !enabled,
           run: () => send(value),
         }),
       );
@@ -76,13 +83,20 @@ export function createXrKeyboard(source: () => XrSessionSource | undefined) {
           id: `modifier:${key}`,
           label,
           selected: current?.modifiers[key],
-          disabled: !current,
+          disabled: !enabled,
           x: 8 + index * 160,
           y: 448,
           width: 156,
           height: 72,
           run: () => {
-            current?.toggleModifier(key);
+            const binding = target();
+            if (
+              binding?.source.canInput(
+                binding.layout.kind,
+                binding.layout.sourceId,
+              )
+            )
+              binding.source.toggleModifier(key);
             signature = "";
           },
         }),
@@ -96,9 +110,16 @@ export function createXrKeyboard(source: () => XrSessionSource | undefined) {
           y: 448,
           width: 190,
           height: 72,
-          disabled: !current,
+          disabled: !enabled,
           run: () => {
-            current?.lockModifier("shift");
+            const binding = target();
+            if (
+              binding?.source.canInput(
+                binding.layout.kind,
+                binding.layout.sourceId,
+              )
+            )
+              binding.source.lockModifier("shift");
             signature = "";
           },
         },
@@ -109,9 +130,16 @@ export function createXrKeyboard(source: () => XrSessionSource | undefined) {
           y: 448,
           width: 180,
           height: 72,
-          disabled: !current,
+          disabled: !enabled,
           run: () => {
-            current?.resetModifiers();
+            const binding = target();
+            if (
+              binding?.source.canInput(
+                binding.layout.kind,
+                binding.layout.sourceId,
+              )
+            )
+              binding.source.resetModifiers();
             signature = "";
           },
         },
@@ -142,7 +170,7 @@ export function createXrKeyboard(source: () => XrSessionSource | undefined) {
       surface.regions = regions;
       surface.draw(() =>
         surface.text(
-          `${current?.title ?? "选择会话"} · 沿用当前直接输入 / 草稿模式`,
+          `${current?.title ?? "请选择输入视图"} · ${binding?.layout.id.slice(-8) ?? "无目标"} · ${enabled ? "共享输入 / 草稿" : "只读，当前内容不可输入"}`,
           16,
           12,
           "#edf4ef",

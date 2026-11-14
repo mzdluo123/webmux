@@ -230,3 +230,20 @@
   - 全量 Go 竞态测试：`make test-go`（含新增 `internal/tray` 10 组会话组合提示词、`/ws/sessions` 细分类监听与断连回退未知分类回归）；
   - 跨平台检查：`make tray`、`GOOS=darwin go vet ./...`、Windows `amd64`/`arm64` 交叉编译 `cmd/webmux-tray` 与 `cmd/webmux-windows`、Windows `go vet` 及 `GOOS=windows golangci-lint run ./cmd/webmux-tray ./internal/tray/...`（零问题）。
 - 限制：在 Linux 环境下完成交叉编译与单测/竞态验证，未在原生 Windows + WSL 2 桌面实机点击 `MessageBoxW` 弹窗或观察系统托盘气泡。
+
+## 2026-11-14：VR 多会话观察、同聊天多视图与规范删除（US-H15、US-Q12）
+
+- 稳定复用2D与VR会话所有者；加入B后二维仍为一个窗格，原活动窗格与路由不变。同一聊天的历史与最新视图复用模型、连接、草稿和提交控制器。
+- 布局只写version2并迁移旧绑定，区分有效空布局与损坏记录；所有视图共用16槽位，只回收隐藏视图，不驱逐可见内容。
+- Chromium + IWER实际画面：A1保持历史，A2通过VR键盘提交并显示真实fake ACP回复，B独立更新；从前方射线移动副本，关闭重显后重置为A、B两个视图，二维仍为原单窗格。
+- 三视口1280×900、768×800、390×844的亮暗主题2D前后对照已按main `9fc770eb`和本实现重新采集；375×667、320×568及667×375的终端菜单均完整位于视口内，无页面横向溢出。
+- 空间镜像与6.2秒正常速度GIF见[使用指南](../usage/xr-and-tv.md#多会话与同对话多视图)；录制没有加速，数据来自独立后端，不连接既有开发会话。
+- 永久删除曾实际复现：`forget=1`结束后GET已404，B继续更新，但A仍缓存归档恢复。用户批准最小Go范围例外，复用既有`removed`事件增加归档提交后的通知，并以规范查询代际防止旧响应恢复已删除所有者。
+- 单纯清单缺席不删除2D恢复页面；配置/候选恢复、存储503、仍存在的会话与延迟新建事件均有独立回归，永久缺失只依据规范404判断。
+- 本轮最终门禁通过：`make check GOLANGCI_LINT=/var/tmp/webmux-xr-tools/golangci-lint`、`make build`及当前变更严格验证。固定golangci-lint 2.15.0以Go 1.27.4重建，零问题；前端523文件零类型错误与警告。
+- 完整`make test`通过：全量Go race、1120个单元测试、849个浏览器测试、106个Storybook测试、547个E2E（57个按既有条件跳过）、18个性能测试（2个跳过）；UI审计零违规。
+- 同一聊天的历史/最新视图、VR独立观察和规范永久删除均在真实应用与IWER回归中通过；普通终端缺失窗格仍可关闭或返回列表，未因VR引用清理被误收走。
+- 测试隔离修正包括权限夹具显式Chmod、隧道夹具独立XDG状态目录与Git夹具不继承宿主标签设置。本机`/tmp` inode耗尽及较长临时路径触及Unix socket上限后，完整门禁改用私有短磁盘目录`TMPDIR=/var/tmp/x.qF4vLH`通过，未降低worker数。
+- CI精简运行包先实际复现`Cannot find package 'iwer'`；补入固定版本IWER后，在没有完整开发依赖的隔离快照中运行全部3个XR场景，13.1秒通过、无重试，覆盖真实WebXR帧与fake ACP输入结果。
+- Pullfrog已按本轮用户授权启用；是否批准仍以本实现PR的实际审查结果为准，不沿用规划PR豁免。
+- 限制：无头Chromium未验证物理hover、any-pointer:coarse、真实头显/TV、系统键盘/IME、双眼可读性或帧率。原任务2.3、8.3、8.4保持未完成，故事总数仍为252。

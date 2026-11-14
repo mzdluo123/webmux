@@ -23,6 +23,37 @@ func (s *Service) RemoveRecord(ctx context.Context, id string) error {
 	return s.removeRecord(ctx, id)
 }
 
+func (s *Service) removeRecord(ctx context.Context, id string) error {
+	release, err := s.claim(id)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if _, err := s.Recoverable(id); err != nil {
+		return err
+	}
+	if err := s.clear(ctx, id); err != nil {
+		return err
+	}
+	if s.conversations != nil {
+		if err := s.conversations.MarkRuntimeForgetting(ctx, id); err != nil {
+			return fmt.Errorf("%w: conversation cleanup unavailable", ErrUnavailable)
+		}
+	}
+	if err := s.records.remove(id); err != nil {
+		return err
+	}
+	// clear's runtime notification can precede the archive commit. Publish
+	// again now so canonical readers cannot retain that earlier archive,
+	// even if the following conversation cleanup fails.
+	s.manager.NotifyRemoved(id)
+	if err := s.forgetConversation(context.WithoutCancel(ctx), id); err != nil {
+		return err
+	}
+	s.log.Info("hybrid record removed", "id", id)
+	return nil
+}
+
 // forgetPoll is how often Forget checks that a session it closed has
 // recorded the close.
 const forgetPoll = 50 * time.Millisecond
