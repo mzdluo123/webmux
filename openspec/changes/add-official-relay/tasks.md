@@ -4,7 +4,7 @@
 
 ## 1. 协议骨架与依赖验证
 
-- [ ] 1.1 引入 `github.com/hashicorp/yamux`，新增 `internal/relayproto` 的版本、签名 transcript 和 WSS/`net.Conn`/yamux 适配；用真实双端测试证明双向 stream、半关闭、保活和窗口背压，并运行 `go test -race ./internal/relayproto`。
+- [ ] 1.1 引入 `quic-go`、`github.com/hashicorp/yamux` 与 `golang.org/x/oauth2` 并固定兼容版本，新增 `internal/relayproto` 的版本、签名 transcript 和 QUIC 原生 stream 与 WSS/`net.Conn`/yamux 适配；用真实双端测试证明双向 stream、半关闭、保活和窗口背压，并运行 `go test -race ./internal/relayproto`。
 - [ ] 1.2 为 Relay 控制面、连接器和宿主 API 建立 `internal/contract` DTO，登记 `relayproto`、`relaycontrol`、`relay`、`relaysettings` 的架构层级与出站用途；运行 `go test -race ./internal/archtest`。
 - [ ] 1.3 用表驱动测试固定协议主版本不兼容、错误私钥、nonce 重放、错误受众和单次消费行为，并验证日志与错误中不含签名和配对材料。
 
@@ -13,11 +13,11 @@
 - [ ] 2.1 在 `internal/relaycontrol` 建立 SQLite migration、accounts/hosts/enrollments 表和事务接口；测试账号唯一绑定、固定主机名、并发重新绑定、撤销、重启恢复及数据库故障 readiness，运行 `go test -race ./internal/relaycontrol`。
 - [ ] 2.2 实现可注入 HTTP 客户端的 GitHub Device Flow 与账号查询，使用假服务验证授权等待、过期、拒绝、邀请名单和访问凭据不落盘；不得连接真实 GitHub 做单元测试。
 - [ ] 2.3 实现配对创建、轮询、取消和显式重新绑定 API，覆盖一次性用户码、句柄摘要、速率限制、未邀请账号、过期清理和原子换钥；运行对应 `internal/api` 测试。
-- [ ] 2.4 实现连接器 WSS 质询签名认证和每主机单活动会话，验证未认证连接不能顶掉旧连接、合法新连接替换旧连接、撤销立即关闭入口。
+- [ ] 2.4 实现连接器 QUIC/WSS 共用质询签名认证和每主机单活动会话，验证未认证连接不能顶掉旧连接、合法新连接替换旧连接、撤销立即关闭入口。
 
 ## 3. 公共反向代理与故障隔离
 
-- [ ] 3.1 实现 Relay 活动会话注册与 yamux stream 拨号、宿主固定回环拨号，使用临时回环服务验证未知 Host、离线主机、任意回源拒绝和 502/503 映射。
+- [ ] 3.1 实现 Relay 活动会话注册与统一 stream 拨号、宿主固定回环拨号，使用临时回环服务验证未知 Host、离线主机、任意回源拒绝和 502/503 映射。
 - [ ] 3.2 用 `httputil.ReverseProxy` 接入 REST、流式响应、二进制下载和 multipart 上传，测试原始 Host/Origin、转发头清理、状态码与正文一致，并断言不整包缓冲。
 - [ ] 3.3 用隔离的真实 WebMux 验证 `/ws/sessions`、终端回放/offset 续接、聊天、设置、语音和 `/forward/*`，覆盖 WebSocket 关闭码、Token 子协议、Cookie 与长连接不被普通 HTTP 超时截断。
 - [ ] 3.4 实现配对/IP 速率、每主机 stream、连接缓冲和保活配置，使用慢浏览器、慢宿主和大上传并发终端测试证明内存有界、超限返回 429/503 且其他主机不受影响。
@@ -49,12 +49,34 @@
 ## 7. 单节点部署、运维与用户故事
 
 - [ ] 7.1 实现 `cmd/webmux-relay` 的 TOML/环境装配、公共泛域名、TLS 证书文件、readiness、优雅关闭和证书重载，使用临时证书与随机端口完成启动/重启测试，并验证 `CGO_ENABLED=0 go build ./cmd/webmux-relay`。
-- [ ] 7.2 新增 Relay 部署示例和运维指南，覆盖 GitHub OAuth Device Flow、邀请名单、DNS/证书、配额、备份恢复、单节点无 SLA、信任边界和日志脱敏；运行 `make docs-check`。
+- [ ] 7.2 新增 Relay 部署示例和运维指南，覆盖 GitHub OAuth Device Flow、Code + PKCE 登录、邀请名单、DNS/证书、配额、备份恢复、单节点无 SLA、信任边界和日志脱敏；运行 `make docs-check`。
 - [ ] 7.3 按用户故事维护流程新增官方 Relay 用户与部署者故事，更新索引、计数和代码依据，明确未执行的真机/公网验证，不宣称未完成的容量或隐私保证。
 - [ ] 7.4 对配置样例、架构、持久化、远程访问、安全策略和协议说明做必要同步，验证全部相对链接与锚点，并确认不更新 `AGENTS.md` 中未改变的既有规则。
 
 ## 8. 全量验证与邀请制发布准备
 
 - [ ] 8.1 运行所有 Relay 相关 Go race、Vitest、浏览器和 E2E 用例，汇总协议、认证、背压、撤权和恢复矩阵；任何失败先修复再进入全量门禁。
-- [ ] 8.2 在隔离环境启动真实 Relay、WebMux 和浏览器，完成从 GitHub 假授权到公网路径登录、终端、上传、推送来源、P2P、Relay 重启和换钥的完整场景，并记录实际 RTT、内存和 yamux 参数依据。
+- [ ] 8.2 在隔离环境启动真实 Relay、WebMux 和浏览器，完成从 GitHub 假授权到公网路径登录、终端、上传、推送来源、P2P、Relay 重启和换钥的完整场景，并记录实际 RTT、内存和 QUIC/yamux 参数依据。
 - [ ] 8.3 运行 `make check` 与 `make test-fast`，合并前运行完整 `make test`；检查 `git status`，删除测试产生的临时文件，保留可复现的验证结果供实现 PR 摘要引用。
+
+## 9. GitHub 后台与一次性主机跳转
+
+- [ ] 9.1 扩展 SQLite migration 与宿主受控状态，保存所有者数字 ID、绑定代际、后台会话摘要和跳转授权摘要；验证原子消费、过期清理、存储上限和重启失效。
+- [ ] 9.2 使用 x/oauth2 实现 GitHub Code + PKCE、单次 state、固定回调和邀请校验；用假 GitHub 验证回调劫持、会话固定、最小权限与 token 丢弃。
+- [ ] 9.3 实现后台 host-only Cookie、所有者主机列表和打开入口；验证跨账号已知 host ID、离线主机与开放重定向均被拒绝。
+- [ ] 9.4 实现宿主 start/callback 的浏览器事务、PKCE verifier 与已认证控制通道兑换；覆盖 60 秒 code、5 分钟事务、重放、并发消费、错误受众和绑定代际。
+- [ ] 9.5 实现宿主内存会话与认证集成、12 小时绝对过期、Origin/CSRF 和 `/forward/*` 凭据剥离；验证其他入口不接受 Relay Cookie，弱恢复 Token 仍拒绝启用。
+- [ ] 9.6 实现后台注销、宿主注销、换钥、解绑、邀请撤销及连接断线后的失效；验证撤销确认、HTTP 拒绝、WebSocket/P2P/转发关闭和持久 PTY 保留。
+- [ ] 9.7 更新 Go/Zod DTO、统一错误映射、wire 快照与前端会话状态；复用 API/WS 封装和 401 处理，验证 Cookie 不可由脚本读取、不写浏览器持久化、认证 URL 不泄露到日志或 Referer。
+- [ ] 9.8 实现后台登录、主机列表、注销与宿主跳转界面，按 webmux-ui 采集桌面/平板/手机证据及交互 GIF；E2E 验证两台独立浏览器从 GitHub 假授权进入面板，不复制长期 Token。
+
+## 10. 双传输、直连部署与性能验收
+
+- [ ] 10.1 在第 1 阶段验证 QUIC TLS/ALPN、证书拒绝、禁用 0-RTT、stream deadline/取消/半关闭适配及双路径单活动连接器；失败时先修正设计再推进实现。
+- [ ] 10.2 在第 4 阶段实现 auto/quic/wss、运维端点校验、有界 QUIC 建连、网络故障回退与脱敏诊断；验证认证或证书失败不降级、活动 WSS 不被探测打断。
+- [ ] 10.3 在第 3 和第 8 阶段对两条路径复用完整 HTTP/WebSocket/流控/慢客户端测试矩阵，验证非幂等请求不自动重放，断线后终端按 offset 续接。
+- [ ] 10.4 在第 7 阶段提供独立 IP 直连部署示例：域名、泛域名证书、固定 GitHub 回调、TCP/UDP 443、防火墙、恢复 Token 和 Relay 登录信任；不引入 CDN 配置。
+- [ ] 10.5 在第 8 阶段运行 RTT 50/150/300 ms、丢包 0/1/3%、带宽限制与 UDP 黑洞测试，记录 p50/p95 回显、吞吐、额外带宽、内存、回退耗时和参数选择；不预设 QUIC 必然优于 WSS。
+- [ ] 10.6 在第 7 阶段同步用户故事的 GitHub 免 Token 访问、账号隔离、注销撤销、QUIC 回退与部署场景，保留已验证/待验证区分；最终重新运行第 8 阶段全量门禁。
+
+以上第 9、10 节按标注依赖插入第 1–8 阶段，不作为全量验证后的补做工作；最终发布门禁必须覆盖全部任务。

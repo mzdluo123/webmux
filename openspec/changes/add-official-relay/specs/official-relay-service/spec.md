@@ -144,3 +144,67 @@ Relay MUST NOT 记录 WebMux Token、GitHub Token、配对码、签名原文、A
 
 - **WHEN** 用户阅读官方 Relay 的配对确认或部署文档
 - **THEN** 可以看到 Relay 终止 TLS 并能访问转发内容，不会被误导为官方无法读取终端数据
+
+### Requirement: GitHub 浏览器登录与所有者后台
+
+Relay SHALL 提供 GitHub OAuth Authorization Code 登录，使用 PKCE S256、单次 state 和固定 HTTPS 回调 allowlist；MUST 复用 Go OAuth 组件，不自研 OAuth 客户端协议。设备配对与浏览器登录 SHALL 分别处理，登录成功本身 MUST NOT 新建、替换或撤销主机绑定。
+
+账号授权 SHALL 以 GitHub 数字 ID 为键并检查邀请名单；后台 SHALL 只列出该账号绑定的主机与在线状态。GitHub access token SHALL 仅用于读取身份，随后丢弃，不申请仓库权限。
+
+后台 SHALL 使用服务端不透明会话，其摘要存入 SQLite；Cookie MUST 为 host-only、Secure、HttpOnly、SameSite=Lax、Path=/ 的 `__Host-` Cookie，有效期不超过 12 小时，不无限续期。登录成功 SHALL 轮换会话 ID；登录与跳转材料 MUST NOT 写入浏览器持久化或日志。
+
+#### Scenario: 登录后看到自己的主机
+
+- **WHEN** 已邀请账号完成有效 GitHub 浏览器授权
+- **THEN** 后台只列出该数字 ID 的主机，未绑定账号看到配对指引，不自动建立绑定
+
+#### Scenario: 伪造 OAuth 回调
+
+- **WHEN** OAuth 回调缺少对应浏览器事务，state 无效或 PKCE 校验失败
+- **THEN** Relay 拒绝登录且不建立后台会话
+
+### Requirement: 单次主机跳转授权
+
+Relay SHALL 为已登录且获邀请的主机所有者签发不超过 60 秒有效的一次性不透明 code，绑定账号数字 ID、host ID、绑定代际、后台会话、固定宿主回调和 PKCE S256 challenge。
+兑换时，Relay SHALL 在宿主密钥认证的控制通道中验证 verifier，再事务性消费所存 code 摘要；签发和兑换 SHALL 再次校验邀请名单、后台会话和主机所有权。
+
+Relay MUST NOT 接受任意回调或开放重定向，MUST NOT 为非所有者、离线或撤销主机签发授权。浏览器 SHALL 只携带短期 code 和 state，不能接收 GitHub access token、宿主私钥或 WebMux 长期 Token。
+
+#### Scenario: code 被重放或过期
+
+- **WHEN** 宿主兑换已消费、过期、verifier 错误或绑定代际过时的 code
+- **THEN** Relay 拒绝兑换且不生成宿主会话，重复请求不能再次消费
+
+#### Scenario: 其他账号尝试打开已知主机
+
+- **WHEN** 已登录账号以已知 host ID 请求另一个账号的跳转授权
+- **THEN** Relay 拒绝签发，不泄露目标账号或主机详情
+
+### Requirement: 后台注销与授权撤销传播
+
+后台注销 SHALL 撤销当前后台会话、未消费 code 和派生宿主会话；换钥、解绑或移出邀请名单 SHALL 撤销相关全部授权。Relay SHALL 通过已认证控制通道传播撤销，事件送达前 MUST NOT 声称在线宿主已完成全局撤销；通道断开 SHALL 触发宿主本地会话失效。
+
+Relay 重启 SHALL 使重启前的后台会话及跳转 code 失效，保留账号和主机绑定。GitHub 网站注销 SHALL 不被描述为自动注销 WebMux。
+
+#### Scenario: 后台注销在线主机访问
+
+- **WHEN** 用户注销后台，派生宿主会话仍在使用
+- **THEN** Relay 撤销记录并通知宿主关闭该会话访问，收到确认后报告完成，不结束 PTY
+
+### Requirement: 独立服务器与 QUIC/WSS 双路径
+
+MVP SHALL 部署在有独立公网 IP 的单台服务器，浏览器直接访问公共 HTTPS 域名；部署 SHALL 配置泛域名 DNS、有效证书、TCP 443 与 UDP 443，不依赖 CDN 或 Cloudflare 产品。
+
+宿主连接 SHALL 支持 quic-go 原生 TLS 1.3 双向 stream 与 WSS + yamux，提供相同的身份验证、Host 路由、流控和配额。QUIC SHALL 校验服务端证书，使用专用版本化 ALPN；两条路径 SHALL 共享每主机单活动连接器约束，且 MUST NOT 接受 0-RTT 认证或业务写入。
+
+浏览器侧 SHALL 继续使用 HTTPS/WebSocket，不要求浏览器建立自定义 QUIC。传输切换 SHALL 仅在建连或断线后发生，MUST NOT 自动重放非幂等请求；已有终端依靠 offset 续接。KCP SHALL 不进入 MVP 数据面，不自研可靠 UDP、加密或拥塞控制。
+
+#### Scenario: 两种传输具有相同应用行为
+
+- **WHEN** 分别通过 QUIC 和 WSS 运行终端、上传下载、聊天与端口转发
+- **THEN** 两条路径通过相同的认证、撤销、慢客户端、内存上限和应用协议测试，QUIC 不额外叠加 yamux
+
+#### Scenario: 高延迟收益可验证
+
+- **WHEN** 在 RTT 50/150/300 ms、丢包 0/1/3%、带宽限制和 UDP 黑洞下测试两条路径
+- **THEN** 记录终端回显 p50/p95、吞吐、额外带宽、内存与回退耗时，以实测确定参数，不宣称未验证的延迟收益

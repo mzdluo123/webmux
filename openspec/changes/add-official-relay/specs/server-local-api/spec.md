@@ -6,7 +6,7 @@
 
 来自 WebMux 会话内进程的本机请求 SHALL 被禁止访问 `/api/relay` 及其子路径，包括读取配对材料、开始或轮询配对、修改设置、启停、重新绑定和删除绑定，统一返回 403。该限制 SHALL 与隧道和 P2P 控制采用相同的会话识别边界。
 
-同一用户的非会话本机客户端和经过 Token、Host、Origin 校验的浏览器 SHALL 按各自权限使用 Relay 接口；会话内进程的其他非敏感本机能力保持不变。
+同一用户的非会话本机客户端和经过 Token 或有效 Relay 会话认证并通过 Host、Origin 与适用 CSRF 校验的浏览器 SHALL 按各自权限使用 Relay 接口；会话内进程的其他非敏感本机能力保持不变。
 
 #### Scenario: 会话中的 agent 尝试开启 Relay
 
@@ -20,9 +20,9 @@
 
 ### Requirement: 本机状态中的 Relay 字段
 
-`/local/v1/status` 与 `webmux status --json` SHALL 在运行中的实例支持官方 Relay 时包含可选 `relay` 对象，字段至少包括期望 `enabled`、`paired`、连接 `state`、就绪时的 `publicUrl` 和失败时的脱敏 `error`。
+`/local/v1/status` 与 `webmux status --json` SHALL 在运行中的实例支持官方 Relay 时包含可选 `relay` 对象，字段至少包括期望 `enabled`、`paired`、连接 `state`、当前 `transport` 和脱敏 `fallbackReason`、就绪时的 `publicUrl` 和失败时的脱敏 `error`。
 
-该字段 SHALL 作为状态契约 v1 的可选新增字段；未运行或不支持 Relay 的实例 SHALL 省略。字段内容 MUST NOT 包含私钥、配对码、轮询句柄、GitHub 凭据或 WebMux Token。
+该字段 SHALL 作为状态契约 v1 的可选新增字段；未运行或不支持 Relay 的实例 SHALL 省略。字段内容 MUST NOT 包含私钥、配对码、轮询句柄、GitHub 凭据、登录 Cookie、跳转 code、PKCE verifier 或 WebMux Token。
 
 #### Scenario: Relay 就绪
 

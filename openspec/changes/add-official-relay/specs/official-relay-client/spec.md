@@ -78,7 +78,7 @@ Relay 客户端 SHALL 区分关闭、连接中、就绪和失败状态，并单�
 
 ### Requirement: 经 Relay 的完整应用行为与 P2P 基线
 
-Relay 就绪后，浏览器 SHALL 能通过公共地址使用现有登录、会话管理、终端回放与续接、聊天、语音、设置、上传下载和 `/forward/*` 端口转发。Relay 传输 MUST NOT 绕过 WebMux 的 Token、Host、Origin 或会话内进程限制。
+Relay 就绪后，浏览器 SHALL 能通过公共地址使用现有登录、会话管理、终端回放与续接、聊天、语音、设置、上传下载和 `/forward/*` 端口转发。Relay 传输 MUST NOT 绕过 WebMux 的认证、Host、Origin 或会话内进程限制；认证可使用既有 Token 或下述绑定 Relay Origin 的有效登录会话。
 
 现有 P2P SHALL 把 Relay 视为新的 HTTP/WebSocket 基线：首屏不等待 P2P，仍按既有候选与 RTT 策略机会性升级和回落。MVP MUST NOT 为 Relay 放宽直连候选限制、引入 TURN 或修改 P2P 帧协议。
 
@@ -91,8 +91,8 @@ Relay 就绪后，浏览器 SHALL 能通过公共地址使用现有登录、会�
 
 #### Scenario: Relay 不绕过认证
 
-- **WHEN** 未携带有效 WebMux Token 的浏览器经 Relay 请求 `/api/sessions` 或 `/ws/sessions`
-- **THEN** WebMux 返回与直连公网入口一致的 401，Relay 不代替用户认证
+- **WHEN** 未携带有效 WebMux Token 或 Relay 登录会话的浏览器经 Relay 请求 `/api/sessions` 或 `/ws/sessions`
+- **THEN** WebMux 返回与直连公网入口一致的 401，Relay 不以代理头或注入长期 Token 代替宿主认证
 
 ### Requirement: 固定访问地址、状态与推送来源
 
@@ -129,3 +129,58 @@ WebMux SHALL 在公网访问设置中提供开始配对、启停、刷新状态�
 
 - **WHEN** 用户删除绑定但 Relay 控制面无法确认撤销
 - **THEN** 本地连接保持关闭，绑定信息保留用于重试，界面明确显示远端尚未撤销
+
+### Requirement: GitHub 跳转与宿主浏览器会话
+
+宿主 SHALL 显式信任已配对 Relay 的所有者认证，并保存所有者 GitHub 数字 ID 与绑定代际。独立直连、Cloudflare 与 Tailscale 入口 SHALL 保持既有 Token 认证；Relay 会话 MUST NOT 在其他 Origin 使用。
+
+宿主 SHALL 为后台跳转创建绑定浏览器的单次 state 和 PKCE S256 事务，有效期不超过 5 分钟；回调必须校验事务，并通过宿主密钥认证的控制通道携 verifier 兑换 code。账号、host ID、受众或绑定代际不符 SHALL 拒绝登录，MUST NOT 仅相信浏览器携带的身份声明。
+
+成功后宿主 SHALL 创建绝对有效期不超过 12 小时的内存会话，使用 host-only、Secure、HttpOnly、SameSite=Lax、Path=/ 的 `__Host-` Cookie；MUST NOT 写入 localStorage、sessionStorage 或 URL。回调 SHALL 禁缓存、禁止 Referer 泄露并跳至无凭据 URL。长期 WebMux Token MUST NOT 参与跳转或自动下发。
+
+#### Scenario: 新设备免 Token 打开面板
+
+- **WHEN** 所有者在新设备登录官方后台并点击自己的在线主机
+- **THEN** 宿主验证一次性授权并打开可操作的面板，不要求输入 WebMux Token，不向浏览器下发该 Token
+
+#### Scenario: 回调被其他浏览器或主机使用
+
+- **WHEN** code 在没有对应临时 Cookie/state 的浏览器使用，或兑换身份与本机绑定不符
+- **THEN** 宿主拒绝建立会话且不改变任何绑定，用户可重新开始登录
+
+### Requirement: 会话认证覆盖与撤销
+
+Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端 SHALL 通过现有 API/WS 封装识别登录态。Cookie 写请求 MUST 校验同源 Origin 与 CSRF token，转发上游前 MUST 剥离宿主认证 Cookie 和 CSRF 材料。
+
+宿主注销、会话过期、对应后台会话撤销、绑定撤销、换钥、移出邀请名单、Relay 关闭或断线 SHALL 撤销相关宿主会话。宿主重启 SHALL 清空会话。撤销 SHALL 拒绝后续请求并关闭该会话建立的 WebSocket、P2P 和转发连接，但 MUST NOT 终止持久 PTY。
+
+#### Scenario: 关闭 Relay 后旧会话不能复用
+
+- **WHEN** 用户关闭后重新启用 Relay，再使用旧会话 Cookie 访问
+- **THEN** 旧会话被拒绝，用户需重新登录 GitHub 后台，主机配对和持久 PTY 保留
+
+#### Scenario: 端口转发不泄露登录会话
+
+- **WHEN** 已登录用户通过 `/forward/*` 访问目标应用
+- **THEN** 目标应用收不到宿主认证 Cookie 或 CSRF 材料，跨源伪造写请求被拒绝
+
+#### Scenario: 已升级 P2P 的会话过期
+
+- **WHEN** Relay 登录会话过期且浏览器仍有活动 P2P 或 WebSocket 连接
+- **THEN** 相关访问连接被关闭、后续请求被拒绝，持久 PTY 继续运行
+
+### Requirement: 传输配置与可诊断回退
+
+宿主 SHALL 支持 `auto`、`quic`、`wss` 传输模式，默认 auto；配置 SHALL 包含 HTTPS endpoint 和 QUIC endpoint，拨号目标 MUST 来自运维配置的已配对 Relay，不得接受浏览器指定的任意地址。
+
+auto SHALL 优先 QUIC，仅在建连超时或网络不可达时回退 WSS；quic 模式失败 SHALL 报错而不回退，wss 模式 SHALL 不探测 UDP。证书、主机身份或协议验证失败 MUST NOT 通过回退绕过。活动 WSS SHALL 保持到正常断开，不因 QUIC 探测强制迁移。
+
+#### Scenario: UDP 黑洞时恢复可达性
+
+- **WHEN** auto 模式下 UDP 不可达而 TCP 443 可达
+- **THEN** QUIC 在有界建连期限后回退 WSS，显示当前传输与脱敏回退原因，并使用同一 host ID 与公共地址
+
+#### Scenario: 错误证书不触发降级绕过
+
+- **WHEN** QUIC 服务端证书校验失败
+- **THEN** 连接失败并报告安全错误，不以切换 WSS 掩盖该错误
