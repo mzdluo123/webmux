@@ -15,7 +15,7 @@
 
 ## 阅读约定与产品边界
 
-- **使用者**：通过桌面、手机或平板浏览器使用服务器上的 Shell、CLI agent 和其他终端程序的人。
+- **使用者**：通过桌面、手机、平板、头显或 TV 浏览器使用服务器上的 Shell、CLI agent 和其他终端程序的人。
 - **部署者**：安装、配置和维护自己的 WebMux 服务的人，通常也是使用者。
 - **贡献者**：开发、测试和发布 WebMux 的人；相关故事单独列在 L 节。
 - WebMux 面向单用户，多设备连接仍共享同一服务用户的权限，不存在团队账号、成员角色或设备间文件隔离。
@@ -35,7 +35,7 @@
 | E    | 剪贴板与文件上传                       | US-E01–US-E07 |
 | F    | 草稿编写、保存与发送确认               | US-F01–US-F09 |
 | G    | 快捷指令与语音输入                     | US-G01–US-G07 |
-| H    | 手机、平板与触摸操作、慢速网络         | US-H01–US-H12 |
+| H    | 移动端、头显、TV、沉浸式与慢速网络     | US-H01–US-H15 |
 | I    | 代码工作区、Diff、引用与文件操作       | US-I01–US-I19 |
 | J    | 仓库登记与 worktree 管理               | US-J01–US-J28 |
 | K    | 配置、运行与服务管理                   | US-K01–US-K17 |
@@ -48,7 +48,7 @@
 | R    | 端口转发预览                           | US-R01–US-R04 |
 | S    | 脚本与 agent 控制                      | US-S01–US-S25 |
 
-目录共 249 条故事；S 组为 25 条。编号范围包含已保留的历史/退役条目，不表示本次重新验收全部能力。
+目录共 252 条故事；S 组为 25 条。编号范围包含已保留的历史/退役条目，不表示本次重新验收全部能力。
 
 ## 分组文档
 
@@ -66,6 +66,7 @@
 | [原生客户端、隧道与托盘](user-stories/clients-network-tray.md)                    | M–P                |
 | [终端分屏用户故事](user-stories/terminal-splits.md)                               | D13–D14            |
 | [网络压缩与 P2P 直连用户故事](user-stories/terminal-network.md)                   | H10–H12            |
+| [头显、TV 与沉浸式工作区](user-stories/terminal-xr-tv.md)                         | H13–H15            |
 | [语音输入用户故事](user-stories/terminal-voice.md)                                | G07                |
 | [混合会话](user-stories/hybrid-sessions.md)                                       | Q                  |
 | [端口转发预览](user-stories/port-forwarding.md)                                   | R                  |

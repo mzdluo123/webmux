@@ -7,23 +7,24 @@
   import IconCornerDownLeft from "~icons/tabler/corner-down-left";
   import IconSpace from "~icons/tabler/space";
   import { Button } from "$lib/components/ui/button";
+  import {
+    terminalKeys,
+    createTerminalKeyRepeat,
+  } from "../../domains/terminal/terminal-keys";
 
   let { send }: { send: (input: string) => void } = $props();
 
-  const repeatDelayMs = 350;
-  const repeatIntervalMs = 75;
+  const repeat = createTerminalKeyRepeat((input) => send(input));
   const steerThresholdPx = 14;
 
   const arrowInputs = {
-    up: "\x1b[A",
-    down: "\x1b[B",
-    left: "\x1b[D",
-    right: "\x1b[C",
+    up: terminalKeys.up,
+    down: terminalKeys.down,
+    left: terminalKeys.left,
+    right: terminalKeys.right,
   } as const;
   type ArrowDirection = keyof typeof arrowInputs;
 
-  let repeatDelay: ReturnType<typeof setTimeout> | undefined;
-  let repeatTimer: ReturnType<typeof setInterval> | undefined;
   let activePointerId = $state<number | null>(null);
   let activeDirection = $state<ArrowDirection | null>(null);
   let originX = 0;
@@ -31,24 +32,9 @@
   let pointerHandled = false;
 
   function stopRepeat() {
-    clearTimeout(repeatDelay);
-    clearInterval(repeatTimer);
-    repeatDelay = undefined;
-    repeatTimer = undefined;
+    repeat.stop();
     activePointerId = null;
     activeDirection = null;
-  }
-
-  function startRepeat(input: string) {
-    clearTimeout(repeatDelay);
-    clearInterval(repeatTimer);
-    send(input);
-    repeatDelay = setTimeout(() => {
-      repeatDelay = undefined;
-      repeatTimer = setInterval(() => {
-        send(input);
-      }, repeatIntervalMs);
-    }, repeatDelayMs);
   }
 
   function keepFocus(event: MouseEvent) {
@@ -84,7 +70,7 @@
     originX = event.clientX;
     originY = event.clientY;
     capturePointer(event.currentTarget, event.pointerId);
-    startRepeat(arrowInputs[direction]);
+    repeat.start(arrowInputs[direction]);
   }
 
   function moveDirection(event: PointerEvent) {
@@ -106,7 +92,7 @@
       activeDirection = nextDirection;
       originX = event.clientX;
       originY = event.clientY;
-      startRepeat(arrowInputs[nextDirection]);
+      repeat.start(arrowInputs[nextDirection]);
     }
   }
 
@@ -146,7 +132,7 @@
       onmousedown={keepFocus}
       onclick={(event) => {
         event.stopPropagation();
-        send("\x1b");
+        send(terminalKeys.escape);
       }}>Esc</Button
     >
     <Button
@@ -158,7 +144,7 @@
       onmousedown={keepFocus}
       onclick={(event) => {
         event.stopPropagation();
-        send("\t");
+        send(terminalKeys.tab);
       }}>Tab</Button
     >
     <Button
@@ -170,7 +156,7 @@
       onmousedown={keepFocus}
       onclick={(event) => {
         event.stopPropagation();
-        send("\x03");
+        send(terminalKeys.interrupt);
       }}>Ctrl+C</Button
     >
     <Button
@@ -182,7 +168,7 @@
       onmousedown={keepFocus}
       onclick={(event) => {
         event.stopPropagation();
-        send("\r");
+        send(terminalKeys.enter);
       }}
     >
       <IconCornerDownLeft aria-hidden="true" />
@@ -202,7 +188,7 @@
         onmousedown={keepFocus}
         onclick={(event) => {
           event.stopPropagation();
-          send(" ");
+          send(terminalKeys.space);
         }}
       >
         <IconSpace aria-hidden="true" />

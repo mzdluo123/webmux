@@ -143,6 +143,7 @@
           <GitBranchListItem
             branch={item}
             {context}
+            rowRole="option"
             selected={activeBranch?.kind === item.kind &&
               activeBranch?.name === item.name}
             {branchFilter}
@@ -198,15 +199,16 @@
       {/if}
     </div>
 
-    <!-- Interactive container delegates ArrowUp/ArrowDown/Home/End across child branch buttons. -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child options. -->
+    <!-- svelte-ignore a11y_interactive_supports_focus -->
     <div
       bind:this={listEl}
       class={desktop.current
         ? "min-h-0 flex-1 space-y-3 overflow-y-auto p-2"
         : "space-y-3 p-2"}
-      role="region"
+      role="listbox"
       aria-label="分支列表"
+      aria-orientation="vertical"
       onkeydown={handleBranchListKeydown}
     >
       {@render branchGroup("current", "当前检出", grouped.current)}

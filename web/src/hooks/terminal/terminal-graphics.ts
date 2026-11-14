@@ -39,6 +39,7 @@ interface RenderedPlacement {
 export function attachTerminalGraphics(
   term: Terminal,
   reply: (text: string) => void,
+  unsupportedChanged: (active: boolean) => void = () => {},
 ): TerminalGraphics {
   let disposed = false;
   const screen = term.element?.querySelector<HTMLElement>(".xterm-screen");
@@ -66,6 +67,28 @@ export function attachTerminalGraphics(
   let lastCellHeight = 0;
   let totalCanvasPixels = 0;
   const rendered = new Set<RenderedPlacement>();
+  let specialGraphics = false;
+  const reportUnsupported = () => {
+    let active = specialGraphics;
+    for (const placement of rendered)
+      if (placement.buffer === term.buffer.active) {
+        active = true;
+        break;
+      }
+    unsupportedChanged(active);
+  };
+  const sixel = term.parser.registerDcsHandler({ final: "q" }, () => {
+    specialGraphics = true;
+    unsupportedChanged(true);
+    return false;
+  });
+  const inlineImage = term.parser.registerOscHandler(1337, (data) => {
+    if (data.startsWith("File=")) {
+      specialGraphics = true;
+      unsupportedChanged(true);
+    }
+    return false;
+  });
 
   // Measuring forces a synchronous layout. Output frames and every placement
   // need the cell size, so keep it until the grid, screen box or DPR changes.
@@ -170,6 +193,7 @@ export function attachTerminalGraphics(
     }
     deferred = false;
     for (const canvas of retired.splice(0)) release(canvas);
+    reportUnsupported();
     if (rendered.size === 0) return;
     const cell = cellSize();
     if (!cell) return;
@@ -226,6 +250,7 @@ export function attachTerminalGraphics(
       deferred = true;
     } else release(placement.canvas);
     placement.dismissed();
+    if (!held()) reportUnsupported();
     schedule();
   }
 
@@ -276,6 +301,7 @@ export function attachTerminalGraphics(
           );
           layer.appendChild(canvas);
           rendered.add(placement);
+          if (!term.modes.synchronizedOutputMode) reportUnsupported();
           schedule();
         } catch (error) {
           remove(placement);
@@ -327,6 +353,7 @@ export function attachTerminalGraphics(
   });
   const parsed = term.onWriteParsed(() => {
     for (const placement of rendered) placement.anchor?.sync();
+    if (!term.modes.synchronizedOutputMode) reportUnsupported();
     schedule();
   });
   // The frame that ends a held update: xterm has just painted the new text,
@@ -356,6 +383,7 @@ export function attachTerminalGraphics(
       const token = ++resetToken;
       resetHold = "held";
       graphics.reset();
+      specialGraphics = false;
       return () => {
         if (token === resetToken && resetHold === "held")
           resetHold = "released";
@@ -373,6 +401,8 @@ export function attachTerminalGraphics(
       resize.dispose();
       parsed.dispose();
       rendering.dispose();
+      sixel.dispose();
+      inlineImage.dispose();
       for (const canvas of retired.splice(0)) release(canvas);
       observer.disconnect();
       stopDpr();

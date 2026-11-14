@@ -4,7 +4,7 @@ import type {
   SubmissionProgress,
 } from "../../contracts/schemas";
 import type { Connection } from "../../platform/ws";
-import type { Modifiers } from "../../platform/input";
+import type { Modifiers } from "./terminal-keys";
 import type { Terminal } from "@xterm/xterm";
 import type { SearchAddon } from "@xterm/addon-search";
 
@@ -121,6 +121,11 @@ export function executeTerminalFind(
 }
 
 export interface TerminalController {
+  readonly emulator: Terminal | undefined;
+  readonly graphicsUnsupported: boolean;
+  setImmersive(active: boolean): void;
+  scrollLines(lines: number): void;
+  resizeGrid(cols: number, rows: number): boolean;
   readonly ready: boolean;
   readonly info: SessionInfo | undefined;
   readonly connection: Connection;
@@ -166,6 +171,7 @@ export interface TerminalController {
   copySelection(): void;
   clearSelection(): void;
   send(input: string): boolean;
+  consumeInput(input: string): string;
   setFontSize(value: number): void;
   resetModifiers(): void;
   toggleModifier(key: keyof Modifiers): void;

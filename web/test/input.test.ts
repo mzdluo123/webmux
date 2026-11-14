@@ -1,5 +1,9 @@
-import { describe, expect, test } from "vitest";
-import { modifiedInput } from "../src/platform/input";
+import { describe, expect, test, vi } from "vitest";
+import {
+  createTerminalKeyRepeat,
+  modifiedInput,
+  terminalKeys,
+} from "../src/domains/terminal/terminal-keys";
 
 describe("one-shot terminal modifiers", () => {
   test.each([
@@ -87,4 +91,29 @@ describe("shift modifier", () => {
       "\x1bA",
     );
   });
+});
+
+test("shared held keys send once, switch direction once, and stop on release", () => {
+  vi.useFakeTimers();
+  try {
+    const send = vi.fn();
+    const repeat = createTerminalKeyRepeat(send);
+    repeat.start(terminalKeys.up);
+    expect(send.mock.calls).toEqual([[terminalKeys.up]]);
+    vi.advanceTimersByTime(424);
+    expect(send).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1);
+    expect(send.mock.calls).toEqual([[terminalKeys.up], [terminalKeys.up]]);
+    repeat.start(terminalKeys.left);
+    expect(send.mock.calls.at(-1)).toEqual([terminalKeys.left]);
+    repeat.stop();
+    vi.advanceTimersByTime(1000);
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(terminalKeys.interrupt).toBe("\x03");
+    expect(
+      modifiedInput(terminalKeys.tab, { ctrl: false, alt: false, shift: true }),
+    ).toBe("\x1b[Z");
+  } finally {
+    vi.useRealTimers();
+  }
 });

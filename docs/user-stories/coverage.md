@@ -89,6 +89,9 @@ URL+owner Bearer 网络控制、握手/生命周期/取消与重连：US-S25；�
 | 安装应用入口、安装状态、提示失败备用说明、非安全上下文提示与 Web App Manifest                                                                                             | US-H09；US-K10                                                |
 | 实时连接 permessage-deflate 按设备开关（手机默认开启）、静态资源构建期 brotli/gzip 预压缩与编码协商                                                                       | US-H10；US-H11                                                |
 | 机会性 WebRTC DataChannel P2P 直连升级、UPnP/NAT-PMP/PCP 端口映射、全通道切换、设置页网络诊断与双路径回显测速                                                             | US-H12；US-A04；US-K03；US-M08；US-L10                        |
+| 头显 2D 模式、主动系统键盘与视口稳定                                                                                                                                      | US-H13                                                        |
+| TV 浏览器大目标、Dpad 导航与输入捕获；Back 优先关闭模态/抽屉和阅读面板，聚焦 Git 日志依次退出放大 Diff、手机 Diff/详情并返回列表，再退路由                                | US-H14                                                        |
+| WebXR 能力探测、主动进入、现有会话空间面板、输入、布局与退出恢复                                                                                                          | US-H15；US-D02；US-D05–US-D06                                 |
 | 代码根目录、边界、文件导航、路径搜索与分页、文件标签焦点激活                                                                                                              | US-I01–US-I04；US-I11                                         |
 | 启动目录、Shell 报告目录、远端标记与复制目录                                                                                                                              | US-C04；US-C10                                                |
 | 会话链接当前标签页打开（US-C11 已退役）                                                                                                                                   | US-C14                                                        |

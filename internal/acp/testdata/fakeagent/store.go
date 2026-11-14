@@ -61,7 +61,7 @@ func openStore(dir, mode, profile string) (*store, error) {
 	return &store{dir: dir, mode: mode, profile: profile}, nil
 }
 
-// devinSlugWords compose Devin's adjective-noun session IDs
+// devinSlugWords compose Devin's adjective-noun session ID prefixes
 // (luminous-acorn, balanced-crepe).
 var devinSlugWords = [2][]string{
 	{"luminous", "balanced", "mangrove", "swift", "quiet", "amber", "hollow", "rapid"},
@@ -120,6 +120,49 @@ func (s *store) create(cwd string) (*session, error) {
 // in the terminal is only saved, and so listed, once it has a message.
 func (s *store) draft(cwd string) *session {
 	return &session{ID: s.newID(), Cwd: cwd, Messages: []message{}, Config: defaultConfig(s.profile), ActualMode: "default"}
+}
+
+// fresh claims a new Devin draft's writer lease before exposing its ID.
+// Unlike loading a session, a name collision must allocate another ID, not
+// fork existing data or alias an already open session. Saved sessions keep
+// their IDs even after their writers release the leases.
+func (s *store) fresh(cwd string) (*session, error) {
+	ss := s.draft(cwd)
+	prefix := ss.ID
+	for suffix := 0; ; suffix++ {
+		if suffix > 0 {
+			ss.ID = prefix + strconv.Itoa(suffix)
+		}
+		if err := s.claimLease(ss.ID); err != nil {
+			if errors.Is(err, fs.ErrExist) {
+				continue
+			}
+			return nil, err
+		}
+		// Check after the atomic claim: a previous writer could save and
+		// release the same ID while this process was allocating it.
+		_, err := os.Stat(s.path(ss.ID))
+		if errors.Is(err, fs.ErrNotExist) {
+			return ss, nil
+		}
+		s.release(ss.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+}
+
+// claimLease is the atomic writer claim shared by fresh drafts and loads.
+func (s *store) claimLease(id string) error {
+	p := filepath.Join(s.dir, "leases", id)
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	_, werr := fmt.Fprintf(f, "%d %s\n", os.Getpid(), s.mode)
+	cerr := f.Close()
+	s.event("open", id)
+	return errors.Join(werr, cerr)
 }
 
 func (s *store) load(id string) (*session, error) {
@@ -187,12 +230,9 @@ func (s *store) list(cwd string) ([]*session, error) {
 func (s *store) lease(ss *session) (*session, error) {
 	for range 3 {
 		p := filepath.Join(s.dir, "leases", ss.ID)
-		f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		err := s.claimLease(ss.ID)
 		if err == nil {
-			_, werr := fmt.Fprintf(f, "%d %s\n", os.Getpid(), s.mode)
-			cerr := f.Close()
-			s.event("open", ss.ID)
-			return ss, errors.Join(werr, cerr)
+			return ss, nil
 		}
 		if !errors.Is(err, fs.ErrExist) {
 			return nil, err

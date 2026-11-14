@@ -68,3 +68,76 @@ export function modifiedInput(input: string, modifiers: Modifiers): string {
   }
   return modifiers.alt ? "\x1b" + result : result;
 }
+
+export const terminalKeys = {
+  escape: "\x1b",
+  tab: "\t",
+  enter: "\r",
+  space: " ",
+  up: "\x1b[A",
+  down: "\x1b[B",
+  left: "\x1b[D",
+  right: "\x1b[C",
+  home: "\x1b[H",
+  end: "\x1b[F",
+  pageUp: "\x1b[5~",
+  pageDown: "\x1b[6~",
+  interrupt: "\x03",
+  eof: "\x04",
+  suspend: "\x1a",
+  clear: "\x0c",
+  reverseSearch: "\x12",
+} as const;
+export const terminalSymbols = ["/", "@", "#", "!"] as const;
+export const terminalLeadingKeys = [
+  ["Esc", terminalKeys.escape],
+  ["Tab", terminalKeys.tab],
+  ["↵", terminalKeys.enter],
+] as const;
+export const terminalArrowKeys = [
+  ["↑", terminalKeys.up],
+  ["↓", terminalKeys.down],
+  ["←", terminalKeys.left],
+  ["→", terminalKeys.right],
+] as const;
+export const terminalNavigationKeys = [
+  ["Home", terminalKeys.home],
+  ["End", terminalKeys.end],
+  ["PgUp", terminalKeys.pageUp],
+  ["PgDn", terminalKeys.pageDown],
+] as const;
+export const terminalCombinations = [
+  ["Ctrl+C", terminalKeys.interrupt],
+  ["Ctrl+D", terminalKeys.eof],
+  ["Ctrl+Z", terminalKeys.suspend],
+  ["Ctrl+L", terminalKeys.clear],
+  ["Ctrl+R", terminalKeys.reverseSearch],
+] as const;
+export const terminalModifierKeys = [
+  ["ctrl", "Ctrl"],
+  ["alt", "Alt"],
+  ["shift", "Shift"],
+] as const;
+
+/** Pointer ownership belongs to the caller; repeat only delivers raw keys. */
+export function createTerminalKeyRepeat(send: (input: string) => void) {
+  let delay: ReturnType<typeof setTimeout> | undefined;
+  let interval: ReturnType<typeof setInterval> | undefined;
+  function stop() {
+    clearTimeout(delay);
+    clearInterval(interval);
+    delay = undefined;
+    interval = undefined;
+  }
+  return {
+    stop,
+    start(input: string) {
+      stop();
+      send(input);
+      delay = setTimeout(() => {
+        delay = undefined;
+        interval = setInterval(() => send(input), 75);
+      }, 350);
+    },
+  };
+}

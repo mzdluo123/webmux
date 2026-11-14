@@ -31,6 +31,8 @@
   import SwitchProgress from "../chat/SwitchProgress.svelte";
   import type { createHeaderTerminalView } from "../../domains/terminal/session-terminal-io";
   import type { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
+  import type { XrHeaderControl } from "../../domains/terminal/xr-workspace";
+  import { useTvTerminalBack } from "../../hooks/terminal/tv-terminal-back.svelte";
 
   let {
     id,
@@ -100,6 +102,7 @@
     onChatEditChange,
     onChooseSwitch,
     container = $bindable(),
+    xr,
   }: {
     id: string;
     paneActions: Snippet<[boolean]>;
@@ -168,17 +171,36 @@
     onChatEditChange: (value: boolean) => void;
     onChooseSwitch: () => void;
     container: HTMLDivElement | undefined;
+    xr?: XrHeaderControl;
   } = $props();
 
   let findPanel = $state<TerminalFindBar>();
   let chatView = $state<ChatView>();
   let composer = $state<TerminalInputComposer>();
 
+  useTvTerminalBack({
+    host: () => container,
+    codeShown: () => codeShown,
+    closeCode: () => {
+      codeShown = false;
+    },
+    leave: () => leave(),
+  });
+
   export function focusFind() {
     findPanel?.focus();
   }
   export function focusChat() {
     chatView?.focus();
+  }
+  export function editChatKey(input: string) {
+    chatView?.editKey(input);
+  }
+  export function sendChatDraft() {
+    chatView?.submitDraft();
+  }
+  export function getChatError() {
+    return chatView?.getError() ?? "";
   }
   export function focusComposer() {
     composer?.focus();
@@ -227,9 +249,10 @@
   side: "top" | "bottom",
   size?: ButtonSize,
   variant?: ButtonVariant,
+  submenu?: boolean,
 )}
   <!-- In the terminal view the microphone lives in the draft box only. -->
-  {#if voiceEnabled && hybrid.view === "chat"}
+  {#if voiceEnabled && hybrid.view === "chat" && !submenu}
     {@render voiceButton(side, size, variant)}
   {/if}
   <QuickCommandMenu
@@ -246,6 +269,7 @@
     {side}
     {size}
     {variant}
+    {submenu}
     run={runQuickCommand}
     manage={manageQuickCommands}
     onCloseAutoFocus={focusTerminal}
@@ -271,6 +295,8 @@
 
 <TerminalHeader
   {chatActions}
+  {xr}
+  keyboard={holdBegin}
   {paneActions}
   terminal={headerTerminal}
   {fullscreen}
@@ -300,6 +326,7 @@
 <TerminalWorkspace
   {codeShown}
   {desktop}
+  immersive={xr?.active ?? false}
   draftOpen={draft.enabled && hybrid.view === "terminal"}
   onfind={hybrid.view === "terminal" ? showFind : undefined}
   {codePane}
@@ -359,6 +386,9 @@
         <TerminalViewport
           bind:container
           {terminal}
+          focusTerminal={() => terminal.focus()}
+          scroll={(lines) => terminal.scrollLines(lines)}
+          sendControl={(input) => terminal.send(input)}
           visible={terminalVisible}
           sizeLocked={sizeLocked || keyboardHeld}
           {touchGamepad}

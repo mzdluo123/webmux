@@ -390,10 +390,23 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
   await expect(
     chat.getByRole("status").filter({ hasText: "正在工作…" }),
   ).toHaveCount(0);
-  await chat
+  // Completion toasts can cover pane controls and pause expiry on hover.
+  // Dismiss them if present, without requiring one to appear.
+  const completionToast = page
+    .getByRole("region", { name: "会话通知", exact: true })
+    .locator(`[data-toast-session-id="${chatId}"]`);
+  await page.addLocatorHandler(completionToast, async () => {
+    await completionToast
+      .getByRole("button", { name: "关闭 Chat agent 的通知", exact: true })
+      .click();
+  });
+  const terminalTab = chat
     .getByRole("tablist", { name: "会话视图", exact: true })
-    .getByRole("tab", { name: "终端", exact: true })
-    .click();
+    .getByRole("tab", { name: "终端", exact: true });
+  await terminalTab.click();
+  await expect(terminalTab).toHaveAttribute("aria-selected", "true");
+  await expect(terminalTab).toBeEnabled();
+  await expect(chat.locator(".xterm")).toBeVisible();
   await expect(chat.locator(".xterm-rows")).toContainText("prompt>");
   await expect(anchor.locator(".xterm")).toHaveAttribute(
     "data-retained",
@@ -416,6 +429,11 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
     .getByRole("button", { name: "停止并归档", exact: true })
     .click();
   await expect(page.locator(".split-terminal")).toHaveCount(1);
-  await expect(page).toHaveURL(/\/s\//);
+  await expect(page).toHaveURL(new RegExp(`/s/${id}$`));
   await expect(page).toHaveTitle(/Shell beside chat · WebMux$/);
+  await expect(anchor).toBeVisible();
+  await expect(anchor.locator(".xterm")).toHaveAttribute(
+    "data-retained",
+    "yes",
+  );
 });

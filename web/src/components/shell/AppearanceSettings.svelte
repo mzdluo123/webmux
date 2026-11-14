@@ -17,6 +17,8 @@
   import * as Card from "$lib/components/ui/card";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
+  import { headsetMode } from "../../hooks/shared/headset-mode.svelte";
   const code = $derived(settings.values.codeReader ?? defaultCodeReader);
   let fontDraft = $state<number | undefined>(undefined);
   const fontInput = $derived(fontDraft ?? terminalFont.size);
@@ -35,6 +37,28 @@
     >
   </Card.Header>
   <Card.Content class="space-y-6">
+    <div class="flex items-center justify-between gap-4">
+      <div class="space-y-1">
+        <Label for="tv-mode">TV 模式</Label>
+        <p class="text-sm text-muted-foreground">
+          仅此浏览器：放大界面，使用方向键、确认与返回导航。
+        </p>
+      </div>
+      <Switch id="tv-mode" bind:checked={tvMode.enabled} aria-label="TV 模式" />
+    </div>
+    <div class="flex items-center justify-between gap-4">
+      <div class="space-y-1">
+        <Label for="headset-mode">头显浏览器模式</Label>
+        <p class="text-sm text-muted-foreground">
+          仅此浏览器：大窗口隐藏触屏软键，使用键盘入口主动唤起系统键盘。
+        </p>
+      </div>
+      <Switch
+        id="headset-mode"
+        bind:checked={headsetMode.enabled}
+        aria-label="头显浏览器模式"
+      />
+    </div>
     <div class="flex flex-wrap items-center justify-between gap-3">
       <p role="status" class="text-sm text-muted-foreground">
         {settings.saving

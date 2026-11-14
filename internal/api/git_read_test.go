@@ -63,11 +63,11 @@ func newGitAPITestEnv(t *testing.T) *gitAPITestEnv {
 func (e *gitAPITestEnv) gitOut(cwd string, args ...string) string {
 	e.t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", cwd}, args...)...)
-	out, err := cmd.CombinedOutput()
+	out, err := testCommandOutput(cmd)
 	if err != nil {
 		e.t.Fatalf("git %v: %v: %s", args, err, out)
 	}
-	return strings.TrimSpace(string(out))
+	return strings.TrimSpace(out)
 }
 
 func (e *gitAPITestEnv) doRaw(method, path string, body any, headers map[string]string, host string) *http.Response {

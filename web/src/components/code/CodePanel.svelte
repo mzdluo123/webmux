@@ -96,6 +96,9 @@
   export function isPoppedOut() {
     return !!popout;
   }
+  export function xrPanels() {
+    return workspace?.xrPanels() ?? [];
+  }
   // While the window starts, the workspace here is inert: the window restores
   // the state captured when popping began.
   let popping = $state(false);

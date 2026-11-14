@@ -102,8 +102,17 @@
   export function setVoiceError(message: string) {
     error = message;
   }
+  export function getError() {
+    return error;
+  }
   export function releaseEditing() {
     scrollMode.releaseEditing();
+  }
+  export function editKey(input: string) {
+    composer?.editKey(input);
+  }
+  export function submitDraft() {
+    composer?.submitDraft();
   }
   const entries = $derived(groupTimeline(model.entries));
   const turns = $derived(conversationTurns(model.entries));

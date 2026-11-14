@@ -25,6 +25,7 @@ WebMux 把服务器上的 CLI agent 或 Shell 会话跑在后台，你可以随�
 | 在本机终端里 `run` / `attach`，或在 Windows 用   | [从本机终端使用](usage/command-line.md)              |
 | 让脚本或 agent 控制 WebMux                       | [用脚本和 agent 控制 WebMux](usage/shell-control.md) |
 | 在手机上输入、用软键栏和手势                     | [移动端使用](usage/mobile.md)                        |
+| 在头显或电视浏览器操作、进入沉浸式 VR            | [头显与 TV 浏览器](usage/xr-and-tv.md)               |
 | 预览服务器上的开发服务器                         | [端口转发预览](usage/port-forwarding.md)             |
 | 让会话行显示 shell 当前目录                      | [Shell 目录报告](usage/shell-directory.md)           |
 | 接入某个 CLI agent                               | [CLI agent 接入](cli-agents.md)                      |

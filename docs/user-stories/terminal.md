@@ -326,3 +326,5 @@ US-H09 图标验收：应用图标与页头标志一致。maskable 版本为系�
 - [草稿输入框](../../web/src/components/terminal/TerminalInputComposer.svelte)、[终端页面](../../web/src/pages/Terminal.svelte)、[Web 应用清单](../../web/public/manifest.webmanifest)。
 
 偏好同步依据：[服务](../../internal/settings/service.go)、[统一前端入口](../../web/src/domains/settings/settings.svelte.ts)、[操作重放](../../web/src/domains/settings/settings-intent.ts)、[双客户端验收](../../web/test/e2e/settings-sync.spec.ts)。
+
+头显 2D、TV 导航与沉浸式工作区（US-H13–US-H15）见[头显与 TV 用户故事](terminal-xr-tv.md)。

@@ -744,7 +744,7 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"init", "-b", "main"}, {"add", "."}, {"commit", "-m", "initial"}} {
-		if out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
+		if out, err := testCommandOutput(exec.Command("git", append([]string{"-C", root}, args...)...)); err != nil {
 			t.Fatalf("Git fixture: %v %s", err, out)
 		}
 	}
@@ -946,7 +946,7 @@ func (f *wireFixture) send(conn *websocket.Conn, kind byte, p []byte) {
 // git changes the fixture repository outside the API.
 func (f *wireFixture) git(args ...string) {
 	f.t.Helper()
-	if out, err := exec.Command("git", append([]string{"-C", f.root}, args...)...).CombinedOutput(); err != nil {
+	if out, err := testCommandOutput(exec.Command("git", append([]string{"-C", f.root}, args...)...)); err != nil {
 		f.t.Fatalf("Git fixture %v: %v %s", args, err, out)
 	}
 }
@@ -955,11 +955,13 @@ func (f *wireFixture) git(args ...string) {
 // newline.
 func (f *wireFixture) gitOutput(args ...string) string {
 	f.t.Helper()
-	out, err := exec.Command("git", append([]string{"-C", f.root}, args...)...).Output()
+	cmd := exec.Command("git", append([]string{"-C", f.root}, args...)...)
+	cmd.Stderr = io.Discard
+	out, err := testCommandOutput(cmd)
 	if err != nil {
 		f.t.Fatalf("Git fixture %v: %v", args, err)
 	}
-	return strings.TrimSuffix(string(out), "\n")
+	return strings.TrimSuffix(out, "\n")
 }
 
 func withHost(host string) func(*wireRequest) { return func(r *wireRequest) { r.host = host } }

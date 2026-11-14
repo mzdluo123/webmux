@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
+import { editDraftKey } from "../../src/domains/terminal/draft-key";
 import {
   createDraftStorage,
   scratchEntriesLimit,
@@ -28,6 +29,19 @@ test("draft edits preserve Unicode, selections and session isolation across mode
   expect(a.text).toBe("");
   expect(a.enabled).toBe(true);
   expect(b.text).toBe("another session");
+});
+
+test("soft keys edit chat drafts without enabling terminal draft routing", () => {
+  const drafts = createTerminalDrafts();
+  const draft = drafts.get("chat-input");
+  drafts.setEnabled(draft, false);
+  editDraftKey(draft, drafts, "中e\u0301");
+  expect(draft.text).toBe("中e\u0301");
+  editDraftKey(draft, drafts, "\x7f");
+  expect(draft.text).toBe("中");
+  expect(draft.selectionStart).toBe(1);
+  expect(draft.selectionEnd).toBe(1);
+  expect(draft.enabled).toBe(false);
 });
 
 test("async input cannot downgrade after draft mode was enabled and closed", () => {

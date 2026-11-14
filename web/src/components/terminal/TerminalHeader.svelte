@@ -31,6 +31,9 @@
   import UploadFileInput from "../shared/UploadFileInput.svelte";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
   import TerminalShortcuts from "./TerminalShortcuts.svelte";
+  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
+  import TerminalDisplayControls from "./TerminalDisplayControls.svelte";
+  import type { XrHeaderControl } from "../../domains/terminal/xr-workspace";
 
   interface HeaderTerminal {
     readonly info: SessionInfo | undefined;
@@ -79,6 +82,8 @@
     hybrid,
     paneActions,
     chatActions,
+    xr,
+    keyboard,
   }: {
     terminal: HeaderTerminal;
     fullscreen: Fullscreen;
@@ -93,7 +98,9 @@
     setKeyboardSizeHold: (value: boolean) => void;
     codeShown: boolean;
     forceSoftKeys: boolean;
-    quickMenu: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
+    quickMenu: Snippet<
+      ["top" | "bottom", ButtonSize?, ButtonVariant?, boolean?]
+    >;
     upload: (files: File[]) => Promise<void>;
     toggleDraft: () => void;
     copy: () => Promise<void>;
@@ -107,6 +114,8 @@
     hybrid?: HeaderHybrid;
     paneActions?: Snippet<[boolean]>;
     chatActions?: Snippet;
+    xr?: XrHeaderControl;
+    keyboard?: () => void;
   } = $props();
   // A rename reaches the session list first; the list title wins here so
   // the header follows it on either side.
@@ -158,6 +167,7 @@
 </script>
 
 <header
+  data-tv-terminal-toolbar
   class="app-header terminal-header flex h-(--app-header-height) shrink-0 items-center gap-2 border-b bg-card px-1 sm:px-2"
 >
   <!-- Phones open the sidebar drawer here (a home-screen app has no back
@@ -235,7 +245,7 @@
       : undefined}
     code={{ shown: codeShown, set: (value) => (codeShown = value) }}
   />
-  {#if terminalShown}
+  {#if terminalShown && !tvMode.enabled}
     <Button
       variant="ghost"
       size="icon-sm"
@@ -258,7 +268,7 @@
     >
   {/if}
   <UploadFileInput bind:this={fileInput} {upload} />
-  {#if terminalShown}
+  {#if terminalShown && !tvMode.enabled}
     <div class="quick-commands-header flex items-center gap-1">
       {@render quickMenu("bottom", undefined, "ghost")}
     </div>
@@ -282,7 +292,7 @@
     onclick={() => (codeShown = !codeShown)}
     ><IconCode class="size-4" aria-hidden="true" /></Button
   >
-  {#if fullscreen.offered}<Button
+  {#if fullscreen.offered && !tvMode.enabled}<Button
       variant="ghost"
       size="icon-sm"
       class="max-sm:hidden"
@@ -290,7 +300,7 @@
       title={fullscreen.active ? "退出全屏" : "全屏"}
       aria-pressed={fullscreen.active}
       aria-busy={fullscreen.busy}
-      disabled={fullscreen.busy}
+      disabled={fullscreen.busy || xr?.busy || xr?.active}
       onclick={() => {
         void fullscreen.toggle();
       }}
@@ -298,7 +308,12 @@
       {#if fullscreen.active}<IconMinimize class="size-4" aria-hidden="true" />
       {:else}<IconMaximize class="size-4" aria-hidden="true" />{/if}
     </Button>{/if}
-  {#if paneActions}<div class="max-sm:hidden">
+  <TerminalDisplayControls
+    {xr}
+    {fullscreen}
+    keyboard={terminalShown ? keyboard : undefined}
+  />
+  {#if paneActions && !tvMode.enabled}<div class="max-sm:hidden">
       {@render paneActions(false)}
     </div>{/if}
   <DropdownMenu.Root>
@@ -324,9 +339,14 @@
       <!-- Grouped by purpose. Below 640px the header keeps only the view
            switch and this menu, so the entries of the hidden buttons live
            here (marked sm:hidden). -->
+      <TerminalDisplayControls {xr} {fullscreen} menu />
+      {#if tvMode.enabled && terminalShown}
+        {@render quickMenu("bottom", "sm", "ghost", true)}
+      {/if}
+      <DropdownMenu.Separator />
       {#if fullscreen.offered}<DropdownMenu.Item
-          class="sm:hidden"
-          disabled={fullscreen.busy}
+          class={tvMode.enabled ? undefined : "sm:hidden"}
+          disabled={fullscreen.busy || xr?.busy || xr?.active}
           onSelect={() => {
             void fullscreen.toggle();
           }}>{fullscreen.active ? "退出全屏" : "全屏"}</DropdownMenu.Item
@@ -341,7 +361,7 @@
         <DropdownMenu.Group>
           <DropdownMenu.GroupHeading>会话</DropdownMenu.GroupHeading>
           <DropdownMenu.CheckboxItem
-            class="sm:hidden"
+            class={tvMode.enabled ? undefined : "sm:hidden"}
             closeOnSelect
             checked={draft.enabled}
             disabled={t.connection === "missing"}
@@ -363,7 +383,7 @@
               : ""}</DropdownMenu.Item
           >
           <DropdownMenu.Item
-            class="sm:hidden"
+            class={tvMode.enabled ? undefined : "sm:hidden"}
             disabled={uploadDisabled}
             onSelect={() => fileInput?.open()}>上传文件</DropdownMenu.Item
           >
@@ -395,7 +415,7 @@
           <DropdownMenu.Item onSelect={showFontSize}>字体大小</DropdownMenu.Item
           >
           <DropdownMenu.Item
-            class="sm:hidden"
+            class={tvMode.enabled ? undefined : "sm:hidden"}
             onSelect={() => (shortcutsOpen = true)}>快捷键</DropdownMenu.Item
           >
         </DropdownMenu.Group>
@@ -419,7 +439,10 @@
           </DropdownMenu.CheckboxItem>
         </DropdownMenu.Group>
       {/if}
-      {#if paneActions}<div role="presentation" class="hidden max-sm:contents">
+      {#if paneActions}<div
+          role="presentation"
+          class={tvMode.enabled ? undefined : "hidden max-sm:contents"}
+        >
           <DropdownMenu.Separator />
           {@render paneActions(true)}
         </div>{/if}
@@ -442,6 +465,6 @@
   </DropdownMenu.Root>
   {#if terminalShown}<TerminalShortcuts
       bind:open={shortcutsOpen}
-      class="max-sm:hidden"
+      class={tvMode.enabled ? "hidden" : "max-sm:hidden"}
     />{/if}
 </header>

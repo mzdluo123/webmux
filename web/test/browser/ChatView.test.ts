@@ -4,6 +4,7 @@ import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte/pure";
 import type { ChatRequest, SessionInfo } from "../../src/contracts/schemas";
 import Harness from "./ChatViewHarness.svelte";
+import TvChatMenuHarness from "./TvChatMenuHarness.svelte";
 import {
   chatState,
   commands,
@@ -1189,6 +1190,29 @@ test("typing / lists and filters published commands without authentication flows
 
   await input.fill("/zz");
   await expect.element(menu).not.toBeInTheDocument();
+});
+
+test("TV Back dismisses the owning inline chat menu before releasing the editor", async () => {
+  render(TvChatMenuHarness, { id });
+  const socket = await socketAt(`/ws/s/${id}/chat`);
+  socket.frame(
+    snapshot(
+      chatState({
+        commands: [{ name: "compact", description: "压缩上下文" }],
+      }),
+    ),
+  );
+  const input = page.getByRole("textbox", { name: "消息" });
+  const menu = page.getByRole("listbox", { name: "命令" });
+  await input.fill("/");
+  await expect.element(menu).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(menu).not.toBeInTheDocument();
+  await expect.element(input).toHaveFocus();
+  await expect.element(input).toHaveValue("/");
+  await userEvent.keyboard("{Escape}");
+  await expect.element(input).not.toHaveFocus();
+  expect(commands()).toEqual([]);
 });
 
 test("the permission select sets the session's mode and shows the server's", async () => {

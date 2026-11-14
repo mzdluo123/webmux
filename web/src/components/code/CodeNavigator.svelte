@@ -22,6 +22,7 @@
   import * as NativeSelect from "$lib/components/ui/native-select";
   import * as Tabs from "$lib/components/ui/tabs";
   import IconPhoto from "~icons/tabler/photo";
+  import type { XrTextPanel } from "../../domains/terminal/xr-workspace";
 
   let {
     id,
@@ -129,6 +130,56 @@
       changesTop,
       clipboard: actions ? actions.capture() : restored?.clipboard,
     };
+  }
+  const xrNavigation = $derived.by((): XrTextPanel => {
+    const panel: XrTextPanel =
+      nav === "files"
+        ? (tree?.xrPanel() ?? {
+            id: "code-navigation",
+            kind: "code",
+            title: "文件导航",
+            lines: [
+              { text: pending ? "正在读取目录…" : navStatus || "目录不可用" },
+            ],
+          })
+        : {
+            id: "code-navigation",
+            kind: "code",
+            title: "Git 修改",
+            lines: changesError ? [{ text: changesError, tone: "error" }] : [],
+            actions: changes?.entries.map((change) => ({
+              id: change.changeId,
+              label: `${change.status} ${change.newPath || change.oldPath}`,
+              run: () => openDiff(change),
+            })),
+          };
+    return {
+      ...panel,
+      actions: [
+        {
+          id: "navigation-mode",
+          label: nav === "files" ? "查看 Git 修改" : "浏览文件",
+          disabled: nav === "files" && !changesEnabled,
+          run: async () => {
+            nav = nav === "files" ? "changes" : "files";
+            await load();
+          },
+        },
+        ...(panel.actions ?? []),
+        ...(nav === "changes" && changes?.nextCursor
+          ? [
+              {
+                id: "more-changes",
+                label: "加载更多修改",
+                run: () => load(true),
+              },
+            ]
+          : []),
+      ],
+    };
+  });
+  export function xrPanel() {
+    return xrNavigation;
   }
 
   // Files dragged from the system onto the workspace upload into the folder

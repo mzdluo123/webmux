@@ -92,10 +92,22 @@ func TestDevinCandidateChoice(t *testing.T) {
 	otherInput.Cwd = in.Cwd
 	otherID := h.create(otherInput).Info().ID
 	chatTurn(t, h, otherID, "other")
+	otherSID := devinStoredSessionID(t, h.store, "other")
+	if otherSID == sid {
+		t.Fatalf("fresh ACP session reused the terminal session ID %q", sid)
+	}
+	if got := devinStoredSessionID(t, h.store, "one"); got != sid {
+		t.Fatalf("terminal candidate changed from %q to %q", sid, got)
+	}
 	_, err := h.switchTo(id, SideACP)
 	var ambiguous *SessionAmbiguousError
 	if !errors.As(err, &ambiguous) || len(ambiguous.Candidates) != 2 {
 		t.Fatalf("switch with two candidates: %+v %v", ambiguous, err)
+	}
+	for _, want := range []string{sid, otherSID} {
+		if !slices.ContainsFunc(ambiguous.Candidates, func(candidate Candidate) bool { return candidate.AgentSessionID == want }) {
+			t.Fatalf("candidates %+v do not include %q", ambiguous.Candidates, want)
+		}
 	}
 	if _, err := h.svc.Switch(ctxT(t), id, SwitchInput{ClientRequestID: rid(), To: SideACP, AgentSessionID: sid}); err != nil {
 		t.Fatalf("switch with selected candidate: %v", err)

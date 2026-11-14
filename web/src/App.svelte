@@ -75,6 +75,12 @@
   import { sessionPageLabel } from "./domains/sessions/hybrid";
   import { sessionPins } from "./domains/sessions/session-pins.svelte";
   import { resetAttentionToasts } from "./domains/notifications/attention-toast.svelte";
+  import { useDeviceShell } from "./hooks/shared/device-shell.svelte";
+  import { tvInput } from "./hooks/shared/tv-input.svelte";
+  import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
+  import InlineNotice from "./components/shared/InlineNotice.svelte";
+
+  useDeviceShell();
 
   const drafts = createTerminalDrafts({ storage: browserDraftStorage() });
   let uploadNotice = $state("");
@@ -301,6 +307,14 @@
     };
   });
 </script>
+
+{#if tvInput.message && !xrPresentation.active}
+  <div
+    class="pointer-events-none fixed inset-x-6 top-6 z-[100] mx-auto w-fit max-w-[calc(100%-3rem)] rounded-lg bg-background shadow-lg"
+  >
+    <InlineNotice>{tvInput.message}</InlineNotice>
+  </div>
+{/if}
 
 {#if !ready}
   <main class="flex min-h-dvh items-center justify-center p-6">

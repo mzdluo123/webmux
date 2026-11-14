@@ -10,6 +10,7 @@
   } from "@pierre/diffs";
   import { captureCursor, restoreCursor } from "../../domains/code/code-search";
   import { createCodeFind } from "../../domains/code/code-find.svelte";
+  import { useTvPanelBack } from "../../hooks/shared/tv-panel-back.svelte";
   import { codeFont } from "../../hooks/code/code-font-preference.svelte";
   import {
     settings,
@@ -138,7 +139,11 @@
     scrollToLine,
     () => hasChanges,
   );
-
+  useTvPanelBack({
+    host: () => root,
+    hasLayer: () => Boolean(find.panel),
+    closeLayer: find.actions.closePanel,
+  });
   export function clearLineAction() {
     selected = null;
     viewer?.clearSelectedLines({ notify: false });
@@ -395,6 +400,7 @@
 
 <div
   bind:this={root}
+  data-tv-back-scope
   class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 >
   <div

@@ -387,6 +387,29 @@ export function toggleTerminalKeyboard(
   return false;
 }
 
+/** Explicit logical-grid changes never claim control or derive a DOM size. */
+export function resizeTerminalGrid(
+  terminal: Terminal | undefined,
+  controlling: boolean,
+  cols: number,
+  rows: number,
+): boolean {
+  if (
+    !terminal ||
+    !controlling ||
+    !Number.isInteger(cols) ||
+    !Number.isInteger(rows) ||
+    cols < 2 ||
+    cols > 1000 ||
+    rows < 1 ||
+    rows > 1000
+  )
+    return false;
+  if (terminal.cols !== cols || terminal.rows !== rows)
+    terminal.resize(cols, rows);
+  return true;
+}
+
 export function fitTerminalGrid(
   parent: HTMLElement,
   terminal: Terminal | undefined,

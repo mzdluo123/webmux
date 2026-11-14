@@ -51,6 +51,19 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 迁移文件时必须同时更新测试 mock、Storybook、worker URL、工具配置与文档链接；旧路径不保留垫片。
 
+### XR 与设备模式边界
+
+- `hooks/shared/` 拥有 TV/头显显式开关、设备偏好和 TV 导航生命周期；`platform/spatial-navigation.ts` 只计算几何候选。根属性由应用外壳设置，呈现使用共享设计系统令牌，不由设备 UA 推断业务模式。
+- 复合控件用 `data-tv-native-keys` 保留自己的键盘协议；聊天内联菜单在 `webmux:tv-back` 的 capture 阶段，仅消费自己拥有焦点时的返回，再由根导航释放编辑。
+- `hooks/terminal/terminal.svelte.ts` 的 `TerminalController` 保有唯一 xterm emulator、输入路由与 socket。DOM renderer 和 XR Canvas 共用这个解析模型；`setImmersive` 暂停 DOM 适配，退出后恢复，不建立第二个 PTY 或输入控制器。
+- `domains/terminal/` 放共享按键编码、XR 文本/面板契约与布局校验；`domains/code/` 放代码/Diff 的只读 XR 适配。`hooks/terminal/` 协调会话来源、异步 XR 所有权、Canvas、射线、场景与资源清理，不让领域依赖渲染层。
+- Three.js 运行时只允许在 XR 专属 `hooks/terminal/xr-*` 场景模块中导入。`xr-session.svelte.ts` 在用户手势请求会话后动态导入 `xr-workspace.ts`；普通页面与领域契约不得静态导入该场景入口或初始化 3D renderer。
+- XR 布局经版本化 Zod 校验并通过设备偏好存储，只含面板 ID、类型、会话引用、位置、尺寸与可见性。拖动/缩放结束才写入；不保存标题、输出、草稿、代码或 token，不进入设置 API 与同步帧。
+
+XR 面板姿态、纹理尺寸与每眼帧缓冲只影响呈现；PTY 网格仍由共享控制权流程管理，只有用户明确确认逻辑网格变化才可提交 resize。返回 2D、关闭面板和 XR 资源清理均不拥有服务端会话销毁权。
+
+同深度 XR 面板按统一表面顺序绘制和命中；终端子平面与所属面板共面，使用组内顺序覆盖背景。真实前后关系仍交给深度测试，控制器射线单独置顶，不用改变持久化姿态解决遮挡。
+
 ## 检查项
 
 | 命令          | 工具                    | 检查内容                                                                                                                                          |

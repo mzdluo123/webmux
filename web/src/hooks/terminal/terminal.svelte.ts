@@ -9,7 +9,10 @@ import {
   type TerminalFindResults,
 } from "../../domains/terminal/terminal-search";
 import { terminalFont } from "./terminal-font-preference.svelte";
-import { modifiedInput, type Modifiers } from "../../platform/input";
+import {
+  modifiedInput,
+  type Modifiers,
+} from "../../domains/terminal/terminal-keys";
 import { loadTerminalFont } from "../../platform/fonts";
 import { hasTouchInput } from "../../platform/touch-input";
 import { attachTouchGestures } from "./touch";
@@ -21,6 +24,7 @@ import {
   attachTerminalInput,
   bindTerminalViewport,
   fitTerminalGrid,
+  resizeTerminalGrid,
   toggleTerminalKeyboard,
   type TerminalClipboard,
   type TerminalUserInput,
@@ -29,9 +33,7 @@ import { createTerminalSocket } from "./terminal-socket.svelte";
 export type { TerminalController } from "../../domains/terminal/terminal-search";
 import type { TerminalController } from "../../domains/terminal/terminal-search";
 
-// One session's terminal: composes the xterm renderer, the session socket,
-// keyboard/IME/draft input and touch gestures on the host from
-// `getContainer`, and releases all of them when the component unmounts.
+// A single parsed model and socket survive every DOM/XR presentation change.
 export function useTerminal(
   getContainer: () => HTMLDivElement,
   id: string,
@@ -46,22 +48,15 @@ export function useTerminal(
   // only the host height changes. Width and font changes still refit.
   isHeightHeld: () => boolean = () => false,
 ): TerminalController {
-  let terminal: Terminal | undefined;
+  let terminal = $state.raw<Terminal>();
   let renderer: TerminalRenderer | undefined;
+  let immersive = false;
+  let presentationChanged = () => {};
   let scrollOnFit = false;
-  // A locked grid still needs its first fit; afterwards host changes keep it
-  // until the user unlocks. A hidden host drops the state so showing it again
-  // still adopts the available box.
   let sized = false;
-  // Whether output should keep the newest rows in view. Kept apart from
-  // `atBottom` because a host resize moves the grid under a stationary
-  // scrollTop; only a user scroll may stop following the tail.
-  let follow = true;
-  // Host width and font the grid was last fitted at, for the height hold.
-  // offsetWidth includes a scrollbar the held grid itself may cause.
   let fitWidth = 0;
   let fitFont = 0;
-  // Locked and held grids may exceed the host; both scroll it to the tail.
+  let follow = true;
   const gridFixed = () => isSizeLocked() || isHeightHeld();
   const stream = createTerminalSocket(id, manageChrome);
   const fontSize = $derived(terminalFont.size);
@@ -118,12 +113,9 @@ export function useTerminal(
       wasActive,
     );
   }
-  // Whether the newest output is in view: the xterm viewport sits at the
-  // buffer end and, for an observer panning a larger grid, the host does too.
   let atBottom = $state(true);
   let pasteResult = false;
-  // xterm reports `terminal.paste()` payload through onData, where it must stay
-  // literal even while a soft modifier is armed.
+  // Literal paste bypasses one-shot modifiers in xterm's onData callback.
   let pasting = false;
   let keyboardReopenAttempted = false;
   function anchorBottom(parent: HTMLElement) {
@@ -133,6 +125,18 @@ export function useTerminal(
     follow = true;
   }
   function safeFit() {
+    if (immersive) {
+      const grid = stream.control;
+      if (
+        terminal &&
+        stream.observing &&
+        grid &&
+        (terminal.cols !== grid.cols || terminal.rows !== grid.rows)
+      )
+        terminal.resize(grid.cols, grid.rows);
+      updateBottom();
+      return;
+    }
     const parent = getContainer();
     if (isVisible() && parent?.clientWidth > 0 && parent?.clientHeight > 0) {
       const held =
@@ -166,7 +170,8 @@ export function useTerminal(
     if (!terminal || !parent) return;
     const buffer = terminal.buffer.active;
     // Observers and locked grids scroll their host past the xterm viewport.
-    const scrollsHost = parent.classList.contains("observing") || gridFixed();
+    const scrollsHost =
+      !immersive && (parent.classList.contains("observing") || gridFixed());
     atBottom =
       buffer.viewportY >= buffer.baseY &&
       (!scrollsHost ||
@@ -176,12 +181,16 @@ export function useTerminal(
     if (userScrolled) follow = atBottom;
   }
   function scrollToBottom() {
+    if (immersive) {
+      terminal?.scrollToBottom();
+      follow = true;
+      updateBottom();
+      return;
+    }
     scrollOnFit = true;
     follow = true;
     safeFit();
   }
-  // One-shot modifiers clear after use; a locked Shift is a mode that stays
-  // on until it is tapped again.
   function releaseModifiers() {
     modifiers = { ctrl: false, alt: false, shift: shiftLocked };
   }
@@ -189,10 +198,13 @@ export function useTerminal(
     shiftLocked = false;
     modifiers = { ctrl: false, alt: false, shift: false };
   }
-  function send(input: string) {
+  function consumeInput(input: string) {
     const value = pasting ? input : modifiedInput(input, modifiers);
     releaseModifiers();
-    pasteResult = stream.sendInput(value);
+    return value;
+  }
+  function send(input: string) {
+    pasteResult = stream.sendInput(consumeInput(input));
     return pasteResult;
   }
 
@@ -201,8 +213,6 @@ export function useTerminal(
     untrack(() => {
       if (!terminal) return;
       terminal.options.fontSize = value;
-      // A locked grid keeps its PTY rows and columns; the font only rescales
-      // the pixels, so re-anchor instead of fitting back to the host.
       const lockedGrid = isSizeLocked() && sized;
       safeFit();
       if (lockedGrid && follow) {
@@ -233,6 +243,7 @@ export function useTerminal(
       const term = view.term;
       renderer = view;
       terminal = term;
+      view.setImmersive(immersive);
       search = new SearchAddon({ highlightLimit: terminalFindLimit });
       term.loadAddon(search);
       canFind = true;
@@ -257,13 +268,15 @@ export function useTerminal(
         fit: safeFit,
         scrollToBottom,
         isVisible,
+        isImmersive: () => immersive,
         copy: (text) => clipboard.copySelection(text),
         resetFind: () => {
           clearFind();
           findReplayed = true;
         },
-        preserveViewport: () => findActive,
+        preserveViewport: () => findActive || !follow,
       });
+      presentationChanged = attachment.presentationChanged;
       const detachInput = attachTerminalInput(term, parent, {
         userInput,
         clipboard,
@@ -292,8 +305,6 @@ export function useTerminal(
       if (!hasTouchInput() && isVisible() && isActive()) term.focus();
       return () => {
         disposed = true;
-        // Observers go first; the terminal itself is disposed two frames
-        // later, after the socket below has closed.
         view.dispose();
         detachTouch();
         detachInput();
@@ -321,6 +332,30 @@ export function useTerminal(
   });
 
   return {
+    get emulator() {
+      return terminal;
+    },
+    get graphicsUnsupported() {
+      return stream.graphicsUnsupported;
+    },
+    setImmersive(active) {
+      if (immersive === active) return;
+      immersive = active;
+      renderer?.setImmersive(active);
+      presentationChanged();
+      if (!active) safeFit();
+    },
+    scrollLines(lines) {
+      if (!Number.isFinite(lines)) return;
+      terminal?.scrollLines(Math.trunc(lines));
+      updateBottom(true);
+    },
+    resizeGrid(cols, rows) {
+      if (!resizeTerminalGrid(terminal, stream.controlling, cols, rows))
+        return false;
+      updateBottom();
+      return true;
+    },
     get ready() {
       return !!terminal && stream.accepting;
     },
@@ -406,6 +441,7 @@ export function useTerminal(
       terminal?.clearSelection();
     },
     send,
+    consumeInput,
     setFontSize,
     resetModifiers: clearModifiers,
     toggleModifier(key: keyof Modifiers) {

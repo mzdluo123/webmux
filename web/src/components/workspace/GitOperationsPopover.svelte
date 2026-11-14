@@ -226,14 +226,14 @@
       {:else}
         <div
           class="max-h-44 space-y-0.5 overflow-y-auto rounded-md border bg-background p-1"
-          role="listbox"
+          role="region"
           aria-label="最近 Git 操作列表"
         >
           {#each operations as op (op.id)}
             {@const isSelected = inspectedOp?.id === op.id}
             <ListButton
               variant="compact-row"
-              aria-selected={isSelected}
+              aria-current={isSelected || undefined}
               onclick={() => (selectedOpId = op.id)}
               data-operation-id={op.id}
             >

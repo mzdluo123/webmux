@@ -6,6 +6,7 @@
   import { errorMessage } from "../platform/error";
   import { isIOS, hasTouchInput } from "../platform/touch-input";
   import { chatDocumentScroll, isStandalone } from "../platform/capabilities";
+  import type { ChatScrollState } from "../platform/capabilities";
   import {
     setBrowserChrome,
     resetBrowserChrome,
@@ -37,6 +38,8 @@
     isPromptedPort,
   } from "../domains/workspace/forwards.svelte";
   import { applySessionEvent } from "../hooks/sessions/session-list";
+  import { createXrSessionWorkspace } from "../hooks/terminal/xr-session.svelte";
+  import { allowAutomaticInputFocus } from "../hooks/shared/input-focus";
 
   let {
     id,
@@ -72,6 +75,11 @@
   let prefix = $state(false);
   let busy = $state(false);
   let error = $state("");
+  createXrSessionWorkspace({
+    available: () => shell?.sessions.sessions ?? Object.values(info),
+    open: openExistingPane,
+    error: (message) => (error = message),
+  });
   let choosing = $state(false);
   let creating = $state<SessionInfo | null>(null);
   const splitBusy = $derived(busy || creating !== null);
@@ -85,17 +93,7 @@
   let workspace: HTMLDivElement;
   let mounted = false;
   const terminals: Record<string, SessionTerminal | undefined> = {};
-  let scrollStates = $state<
-    Record<
-      string,
-      {
-        chatView: boolean;
-        desktop: boolean;
-        codeShown: boolean;
-        editing: boolean;
-      }
-    >
-  >({});
+  let scrollStates = $state<Record<string, ChatScrollState>>({});
   const ids = $derived(paneIds(layout));
   const documentScroll = $derived.by(() => {
     const firstId = ids[0];
@@ -175,7 +173,8 @@
     active = sessionId;
     prefix = false;
     await tick();
-    if (mounted && keyboard && !hasTouchInput()) terminals[sessionId]?.focus();
+    if (mounted && keyboard && allowAutomaticInputFocus())
+      terminals[sessionId]?.focus();
   }
   // Removes a pane; the last one returns home.
   export function activateSession(sessionId: string) {
@@ -187,12 +186,20 @@
   // A reference can name the route anchor after its pane was closed.
   // Reuse the split chooser's add path without remounting surviving panes.
   export function reopenSession(sessionId: string) {
-    if (ids.length >= MAX_PANES) {
-      error = `最多同时打开 ${MAX_PANES} 个窗格。请先关闭一个窗格，再打开引用的会话。`;
-      return;
-    }
+    void openExistingPane(sessionId).catch(
+      (cause: unknown) => (error = errorMessage(cause)),
+    );
+  }
+  async function openExistingPane(sessionId: string) {
+    if (activateSession(sessionId)) return;
+    if (ids.length >= MAX_PANES)
+      throw new Error(
+        `最多同时打开 ${MAX_PANES} 个窗格；请先关闭一个再打开此会话。`,
+      );
     error = "";
-    void add(sessionId, "horizontal");
+    await add(sessionId, "horizontal");
+    if (!ids.includes(sessionId))
+      throw new Error(error || "无法打开此会话，服务端会话未被修改。");
   }
 
   async function revealMessage() {

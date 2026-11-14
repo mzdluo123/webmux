@@ -42,6 +42,7 @@
   - [从本机终端使用](usage/command-line.md)：`run` / `attach`、Windows 终端与后台启动。
   - [仓库与 worktree](usage/worktrees.md)：仓库登记、新建工作树与起点选择、释放空间、删除与重建、推送检查。
   - [移动端使用](usage/mobile.md)：软键栏、虚拟键盘、触摸手势、锁定尺寸与全屏。
+  - [头显与 TV 浏览器](usage/xr-and-tv.md)：头显 2D、TV 遥控导航、沉浸式 VR 与硬件前提。
   - [需要你介入的提醒](usage/attention.md)：agent 状态识别、徽章与声音提醒、`OSC 7501` 协议及旧版钩子。
   - [端口转发预览](usage/port-forwarding.md)：把服务器上的开发服务器经 WebMux 转发到浏览器，终端端口提示与兼容选项。
   - [Shell 目录报告](usage/shell-directory.md)：可选的 OSC 7 目录报告与 bash / zsh 配置片段。

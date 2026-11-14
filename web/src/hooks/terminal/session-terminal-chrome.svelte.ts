@@ -1,5 +1,6 @@
 import { tick, untrack } from "svelte";
 import { store, stored } from "../../platform/api";
+import type { ChatScrollState } from "../../platform/capabilities";
 import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
 import { checkRevealTarget } from "../../domains/code/code-reveal";
 import type { CodeReveal, SessionInfo } from "../../contracts/schemas";
@@ -24,6 +25,8 @@ import { codePanelState } from "../code/code-panel-state";
 import { createKeyboardSizeHold } from "./keyboard-size-hold";
 import { keyboardSizeHold } from "./keyboard-size-hold-preference.svelte";
 import type { KeyboardVisibility } from "../shared/viewport.svelte";
+import { headsetMode } from "../shared/headset-mode.svelte";
+import { allowAutomaticInputFocus } from "../shared/input-focus";
 
 export function useSessionTerminalChrome(options: {
   id: () => string;
@@ -51,12 +54,7 @@ export function useSessionTerminalChrome(options: {
   ) => Promise<void>;
   setError: (message: string) => void;
   oninfo: (info: SessionInfo, connection: string) => void;
-  onscrollstate?: (state: {
-    chatView: boolean;
-    desktop: boolean;
-    codeShown: boolean;
-    editing: boolean;
-  }) => void;
+  onscrollstate?: (state: ChatScrollState) => void;
 }) {
   let findOpen = $state(false);
   let findReturnFocus: HTMLElement | null = null;
@@ -75,7 +73,8 @@ export function useSessionTerminalChrome(options: {
   let choiceClosed = $state(false);
 
   const hold = createKeyboardSizeHold({
-    canHold: () => keyboardSizeHold.enabled && hasTouchInput(),
+    canHold: () =>
+      keyboardSizeHold.enabled && (hasTouchInput() || headsetMode.enabled),
     keyboardStays: isEditableActiveElement,
     onActive: (value) => (keyboardHeld = value),
     release: () => void tick().then(() => options.fitTerminal()),
@@ -104,12 +103,22 @@ export function useSessionTerminalChrome(options: {
     findOpen = false;
     clearFindFocus(
       options.clearTerminalFind,
-      hasTouchInput(),
+      hasTouchInput() || headsetMode.enabled,
       options.isActiveAndVisible,
       findReturnFocus,
       options.focusFallback,
       (fn) => void tick().then(fn),
     );
+  }
+
+  function restoreInputFocus(event?: Event) {
+    event?.preventDefault();
+    if (!allowAutomaticInputFocus()) return;
+    void tick().then(() => {
+      if (!options.isMounted() || !options.isActiveAndVisible()) return;
+      if (findOpen) options.focusFindBar();
+      else options.focusFallback();
+    });
   }
 
   function setSizeLocked(value: boolean) {
@@ -277,6 +286,7 @@ export function useSessionTerminalChrome(options: {
     beginHold: (target: EventTarget) => hold.begin(target),
     showFind,
     closeFind,
+    restoreInputFocus,
     setSizeLocked,
     review,
     openCodeLocation,

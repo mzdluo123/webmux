@@ -11,7 +11,8 @@
   import { useHybrid } from "../../hooks/sessions/hybrid.svelte";
   import { useChatUpload, useUpload } from "../../hooks/shared/upload.svelte";
   import { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
-  import { hasTouchInput, isIOS } from "../../platform/touch-input";
+  import { isIOS } from "../../platform/touch-input";
+  import type { ChatScrollState } from "../../platform/capabilities";
   import { findShell, shellUi } from "../../hooks/shared/shell.svelte";
   import { voicePreference } from "../../hooks/shared/voice-preference.svelte";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
@@ -38,6 +39,8 @@
     TerminalDrafts,
     TextInsertion,
   } from "../../domains/terminal/terminal-draft.svelte";
+  import { useXrSessionSource } from "../../hooks/terminal/xr-session-source.svelte";
+  import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
 
   let {
     id,
@@ -76,12 +79,7 @@
     showForwards: () => void;
     feedSession?: SessionInfo;
     documentScroll?: boolean;
-    onscrollstate?: (state: {
-      chatView: boolean;
-      desktop: boolean;
-      codeShown: boolean;
-      editing: boolean;
-    }) => void;
+    onscrollstate?: (state: ChatScrollState) => void;
   } = $props();
   const draft = untrack(() => drafts.get(id));
   const shell = findShell();
@@ -118,7 +116,7 @@
     isTerminalVisible: terminalVisible,
     isDesktop: () => desktop,
     focusFindBar: () => stage?.focusFind(),
-    focusComposer: () => stage?.focusComposer(),
+    focusComposer: () => chrome.restoreInputFocus(),
     clearTerminalFind: () => t.clearFind(),
     focusFallback: focus,
     fitTerminal: () => t.fit(),
@@ -193,11 +191,7 @@
   function toggleDraft() {
     drafts.setEnabled(draft, !draft.enabled);
     t.resetModifiers();
-    if (draft.enabled && !hasTouchInput()) {
-      void tick().then(() => {
-        if (active && visible) stage?.focusComposer();
-      });
-    }
+    if (draft.enabled) chrome.restoreInputFocus();
   }
   const reportDraft = createDraftReporter(
     draft,
@@ -256,7 +250,7 @@
     },
     () => keyboardDismissed(),
     () => chrome.sizeLocked,
-    () => active,
+    () => active && allowAutomaticInputFocus(),
     false,
     () => chrome.keyboardHeld,
   );
@@ -313,6 +307,28 @@
     },
   );
   const fullscreen = useFullscreen((message) => (error = message));
+  const xr = useXrSessionSource({
+    id: untrack(() => id),
+    terminal: t,
+    hybrid,
+    draft,
+    codePanels: () => codePanel?.xrPanels() ?? [],
+    focus,
+    editDraft: (input) => stage?.editComposerKey(input),
+    editChat: (input) => stage?.editChatKey(input),
+    sendDraft,
+    sendChat: () => stage?.sendChatDraft(),
+    toggleDraft,
+    showCode: () => (chrome.codeShown = true),
+    showChat: revealChat,
+    showSwitchChoice: () => (chrome.choiceClosed = false),
+    runQuick: runQuickCommand,
+    error: (message) => (error = message),
+    notice: () =>
+      [error, t.error, stage?.getChatError() || hybrid.chat.error]
+        .filter(Boolean)
+        .join(" "),
+  });
 
   onMount(() => {
     mounted = true;
@@ -332,26 +348,10 @@
       beginInput,
       insertText,
       setError: (msg) => (error = msg),
-      onInserted: () => {
-        if (!hasTouchInput()) {
-          void tick().then(() => {
-            if (active && visible) focus();
-          });
-        }
-      },
+      onInserted: () => chrome.restoreInputFocus(),
     });
   }
-  async function focusTerminal(event: Event) {
-    event.preventDefault();
-    if (hasTouchInput()) return;
-    await tick();
-    if (!active || !visible) return;
-    if (chrome.findOpen) {
-      stage?.focusFind();
-      return;
-    }
-    focus();
-  }
+  const focusTerminal = (event: Event) => chrome.restoreInputFocus(event);
 </script>
 
 <div
@@ -413,6 +413,7 @@
     {paneActions}
     {headerTerminal}
     {fullscreen}
+    {xr}
     {desktop}
     {documentScroll}
     chatVisible={active && visible && (desktop || !chrome.codeShown)}

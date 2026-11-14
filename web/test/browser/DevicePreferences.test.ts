@@ -1,6 +1,8 @@
 import { afterEach, expect, test, vi } from "vitest";
+import { z } from "zod";
 import {
   deviceNumberPreference,
+  deviceObjectPreference,
   deviceToggle,
 } from "../../src/hooks/shared/device-preferences.svelte";
 import { FontSizeSchema } from "../../src/contracts/schemas";
@@ -55,4 +57,45 @@ test("updates device preferences in memory when browser storage fails", () => {
   voice.enabled = false;
   expect(voice.enabled).toBe(false);
   expect(set).toHaveBeenCalledWith("webmux.voiceInput", "0");
+});
+
+const LayoutSchema = z.strictObject({
+  version: z.literal(1),
+  width: z.number().finite().min(0.4).max(4),
+});
+const defaultLayout = () => ({ version: 1 as const, width: 1.6 });
+
+test.each([
+  "{",
+  '{"version":2,"width":1}',
+  '{"version":1,"width":-1}',
+  '{"version":1,"width":1,"token":"not-allowed"}',
+])("invalid versioned device data cannot block the workspace: %s", (raw) => {
+  vi.spyOn(Storage.prototype, "getItem").mockReturnValue(raw);
+  const preference = deviceObjectPreference(
+    "xr-layout",
+    LayoutSchema,
+    defaultLayout,
+  );
+  expect(preference.value).toEqual(defaultLayout());
+  expect(preference.set({ version: 1, width: 2.4 })).toBe(true);
+  expect(preference.value.width).toBe(2.4);
+  expect(preference.set({ version: 1, width: Number.NaN })).toBe(false);
+  expect(preference.value.width).toBe(2.4);
+});
+
+test("versioned device data remains editable when storage writes are denied", () => {
+  vi.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new DOMException("Storage disabled", "SecurityError");
+  });
+  const preference = deviceObjectPreference(
+    "xr-layout",
+    LayoutSchema,
+    defaultLayout,
+  );
+  preference.set({ version: 1, width: 2 });
+  expect(preference.value.width).toBe(2);
+  preference.reset();
+  expect(preference.value.width).toBe(1.6);
 });
