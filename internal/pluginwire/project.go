@@ -14,5 +14,11 @@ func ProjectClone(op workspace.ProjectCloneOperation) contract.ProjectCloneOpera
 	return contract.ProjectCloneOperation{ID: op.ID, State: op.State, Path: op.Path, Error: op.Error, ProjectID: op.ProjectID}
 }
 func ProjectCloneRequest(req contract.ProjectCloneRequest) workspace.ProjectCloneRequest {
-	return workspace.ProjectCloneRequest{RequestID: req.RequestID, URL: req.URL, Path: req.Path}
+	return workspace.ProjectCloneRequest{RequestID: req.RequestID, Source: req.Source, URL: req.URL, Path: req.Path}
+}
+
+func GitHubProjects(p workspace.GitHubProjects) contract.GitHubProjects {
+	return contract.GitHubProjects{Available: p.Available, Reason: p.Reason, Login: p.Login, Page: p.Page, HasMore: p.HasMore, Repositories: each(p.Repositories, func(r workspace.GitHubRepository) contract.GitHubRepository {
+		return contract.GitHubRepository{FullName: r.FullName, Description: r.Description, Private: r.Private, CloneURL: r.CloneURL}
+	})}
 }

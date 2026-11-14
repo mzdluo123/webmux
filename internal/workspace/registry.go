@@ -84,10 +84,12 @@ type Service struct {
 	hybrids  *hybrid.Service
 	// commands lists the saved quick commands an initialization instruction
 	// may reference; nil means none exist.
-	commands     func() []QuickCommand
-	defaultCwd   string
-	gitPath      string
-	fetchTimeout time.Duration
+	commands      func() []QuickCommand
+	defaultCwd    string
+	gitPath       string
+	githubPath    string
+	githubTimeout time.Duration
+	fetchTimeout  time.Duration
 	// fetchRemoteTimeout bounds each remote of FetchRemotes.
 	fetchRemoteTimeout time.Duration
 	stateDir           string
@@ -146,6 +148,8 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 		stateDir = config.DefaultStateDir()
 	}
 	s := &Service{manager: manager, launches: launches, defaultCwd: defaultCwd, stateDir: stateDir, fetchTimeout: branchFetchTimeout, fetchRemoteTimeout: fetchRemoteTimeout, worktreeGate: make(chan struct{}, 4), writeGates: make(map[string]chan struct{}), starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation), opFlights: make(map[string]*opFlight)}
+	s.githubPath, _ = exec.LookPath("gh")
+	s.githubTimeout = githubRequestTimeout
 	git, err := exec.LookPath("git")
 	if err != nil {
 		s.capability.GitError = "Git 不可用: " + err.Error()

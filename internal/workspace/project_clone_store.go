@@ -22,6 +22,7 @@ var cloneSCPHost = regexp.MustCompile(`^([a-zA-Z0-9_][a-zA-Z0-9_.-]*@)?[a-zA-Z0-
 
 type projectCloneRecord struct {
 	ID            string `json:"id"`
+	Source        string `json:"source,omitempty"`
 	RequestID     string `json:"requestId"`
 	URL           string `json:"url"`
 	Path          string `json:"path"`
@@ -73,6 +74,9 @@ func validateProjectClones(stored projectCloneRegistry) error {
 	for _, op := range stored.Operations {
 		if !cloneOperationID.MatchString(op.ID) || ids[op.ID] || requests[op.RequestID] || !cloneRequestID.MatchString(op.RequestID) || !filepath.IsAbs(op.Path) || filepath.Clean(op.Path) != op.Path || strings.IndexFunc(op.Path, unicode.IsControl) >= 0 || validateProjectURL(op.URL) != nil {
 			return errors.New("项目克隆身份或来源无效")
+		}
+		if op.Source != "" && op.Source != "github" || op.Source == "github" && validateGitHubCloneURL(op.URL) != nil {
+			return errors.New("项目克隆来源无效")
 		}
 		ids[op.ID], requests[op.RequestID] = true, true
 		switch op.State {

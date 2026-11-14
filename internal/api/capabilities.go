@@ -28,6 +28,7 @@ func (s *Server) capabilitySnapshot() contract.Capabilities {
 	}{
 		{"workspace.projects", s.Config.Plugins.Has("workspace")},
 		{"workspace.clone", s.Config.Plugins.Has("workspace")},
+		{"workspace.github", s.Config.Plugins.Has("workspace")},
 		{"workspace.git-workbench", s.Config.Plugins.Has("workspace") && s.Config.Plugins.Has("code")},
 	} {
 		reason := contract.CapabilityReasonPluginDisabled

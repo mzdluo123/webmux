@@ -1078,6 +1078,7 @@ func TestWireSnapshots(t *testing.T) {
 		{"workspace", wireWorkspace},
 		{"projects", wireProjects},
 		{"projects-clone", wireProjectClones},
+		{"projects-github", wireProjectGitHub},
 		{"codeview", wireCodeview},
 		{"push", wirePush},
 		{"settings", wireSettings},
@@ -1094,6 +1095,9 @@ func TestWireSnapshots(t *testing.T) {
 		t.Run(group.name, func(t *testing.T) {
 			if group.name == "projects-clone" {
 				installWireProjectCloneGit(t)
+			}
+			if group.name == "projects-github" {
+				installWireProjectGitHub(t)
 			}
 			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 			group.run(newWireFixture(t, rec))
