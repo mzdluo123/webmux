@@ -167,6 +167,8 @@ webmux rm <ID> --forget --yes                    # 删除归档记录与临时�
 - 从开启了聊天视图的启动配置创建的会话有终端与聊天两个视图，`webmux ls` 在状态列显示它当前的视图（终端、聊天、切换中）。
   - `ls --json` 原样包含 `views`、`view`、`transition` 与 `agent`，不再含 `hybrid` 对象。
 - 启动配置用 `webmux launch-config add` 或 `webmux launch-config edit` 的 `--chat` / `--no-chat` 开启或关闭聊天视图（混合模式）；旧选项 `--hybrid` 已删除。
+  - 只选择 `launch` 时仍可新增和编辑普通终端配置。修改已有配置的名称、环境或预览，不会清除未启用聊天/通知插件拥有的已存选项；显式修改聊天开关需选择 `chat`。
+  - 未修改的提醒策略始终保留，包括通知插件已选择但推送投递尚未启用的情况。
 - `run --launch-config <名称>` 引用这类配置时创建混合会话，默认从终端开始；本地终端可以照常输入，附着中的终端不提供切换按键。
   - `--view chat` 从聊天开始（隐含 `--detach`）；
   - `--set ID=VALUE`、`--permission ask|auto`、`--attach-file PATH` 只在 `--view chat` 时可用。

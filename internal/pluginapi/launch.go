@@ -95,11 +95,7 @@ func (s *Server) launchChatRoutes(mux transport.Registrar) {
 }
 
 func (s *Server) launchWrite(req contract.LaunchConfigWrite, previous *launch.Config) (launch.Input, error) {
-	chat := false
-	if req.Chat != nil {
-		chat = *req.Chat
-	}
-	input := wire.LaunchInput(contract.LaunchConfigInput{Name: req.Name, Icon: req.Icon, Cmd: req.Cmd, Env: req.Env, Preview: req.Preview, Attention: req.Attention, Chat: chat})
+	input := wire.LaunchInput(req)
 	if !s.Config.Plugins.Has("chat") {
 		if req.Chat != nil {
 			return launch.Input{}, launch.ErrInvalid

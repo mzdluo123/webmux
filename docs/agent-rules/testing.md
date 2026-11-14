@@ -82,10 +82,10 @@ Use `--config vitest.browser.config.ts` for the Chromium component suite. Storyb
   - The release `Build` job only builds, checksums and verifies the real artifacts (including the deb/rpm install check); it does not rerun Go tests, which `Go race` already covers.
   - Stable and dev release builds install NSIS through `.github/scripts/install-nsis.sh`, using an isolated HTTPS kernel.org Ubuntu source and Ubuntu's archive signing key; the runner's global sources are unchanged, and index download failures stop the build.
 - CI builds the Linux E2E executable, fake agents and frontend output once in the `E2E runtime` job (`.github/scripts/package-e2e-runtime.mjs`).
-  - Go race and every E2E shard depend on that job and reuse its same-run artifact, including the locked Playwright runtime and the IWER package whose standalone browser bundle drives the XR fixtures.
+  - Go race and every E2E shard depend on that job and reuse its same-run artifact, including locked Playwright, Zod for validating capabilities with the production schemas, and IWER whose standalone browser bundle drives the XR fixtures.
 - `.github/workflows/test.yml` runs parallel jobs:
   - Ubuntu: formatting/architecture guard/frontend build, Go race, Vitest, Storybook, single-worker 4x CPU performance, and four E2E shards (desktop and iPhone SE phone projects).
-  - E2E shards reuse the executable and Playwright packages; they skip pnpm/frontend dependencies and Go setup.
+  - E2E shards reuse the executable and packaged runtime dependencies; they skip pnpm/frontend dependency installation and Go setup.
   - No macOS runner: GitHub's macOS arm64 capacity left jobs queued until they failed. The Ubuntu Go job vets the darwin build (`GOOS=darwin go vet`); macOS runtime behaviour (process tree, `sysctl`, `/private/var` paths) is not tested in CI, so run `make test` on a Mac when changing it.
   - `Test result` aggregates every job, accepts intentionally `skipped` results, and cross-checks that every job the classifier selected actually succeeded.
 - Every browser job installs Chromium through `.github/actions/playwright`, which caches the Linux apt packages because a slow Ubuntu mirror can otherwise consume a job's whole timeout.

@@ -79,8 +79,8 @@ func LaunchSummaries(in []launch.Summary, chatOptions func(configID string) []hy
 	})
 }
 
-func LaunchInput(r contract.LaunchConfigInput) launch.Input {
-	return launch.Input{Name: r.Name, Icon: r.Icon, Cmd: r.Cmd, Env: r.Env, Preview: launchPreview(r.Preview), Attention: launchAttention(r.Attention), Hybrid: r.Chat}
+func LaunchInput(r contract.LaunchConfigWrite) launch.Input {
+	return launch.Input{Name: r.Name, Icon: r.Icon, Cmd: r.Cmd, Env: r.Env, Preview: launchPreview(r.Preview), Attention: launchAttention(r.Attention), Hybrid: r.Chat != nil && *r.Chat}
 }
 
 func LaunchPresets(in []launch.Preset) []contract.LaunchPreset {

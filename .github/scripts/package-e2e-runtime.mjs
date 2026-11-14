@@ -12,13 +12,15 @@ await mkdir(join(destination, "web/node_modules/@playwright"), {
   recursive: true,
 });
 // Playwright has three runtime packages. XR fixtures only resolve IWER's
-// entry point and inject its self-contained browser bundle.
+// entry point and inject its self-contained browser bundle. Shared fixtures
+// also validate capabilities with the production contract's Zod schemas.
 // Copy exact lockfile-installed packages, following pnpm's links.
 for (const name of [
   "@playwright/test",
   "playwright",
   "playwright-core",
   "iwer",
+  "zod",
 ]) {
   await cp(
     name === "playwright-core"
