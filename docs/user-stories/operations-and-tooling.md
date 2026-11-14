@@ -30,6 +30,7 @@
 - **US-K04 调整会话与提醒行为**：作为部署者，我希望配置默认目录、缓冲和状态判断，并单独管理启动命令，以便适配自己的 agent 与资源预算。
   验收要点：
   - 支持 `default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`program_status`、`agent_pretrust`，校验正则；
+  - `agent_protocol`、`bell_attention`、`program_status` 属于核心 PTY 状态识别，不依赖通知或聊天插件；`agent_pretrust` 与 agent 专属提交延迟由 `launch` 启动集成提供，未选择时不装配；
   - 启动命令由显式 argv（核心）或 `launch` 保存配置提供，原 `shell`/`presets` 不提供内置命令；仅首次启用 `launch` 且文件缺失时写入常见 agent 预设；
   - 选择 `chat` 后，`history_capture` 默认开启，可在 TOML 全局关闭规范化正文和历史/交接入口；诊断显示生效值，旧正文与未决投递保护继续保留；
   - 选择 `chat` 后，`handoff_token_cap` 默认 16000，校验范围 1024–64000，限制交接历史保守预算；实际预算仍受上下文窗口和 prompt 上限约束；
@@ -154,6 +155,8 @@
   - `enabled` 不代表 `available`；原因区分插件未选择、配置关闭、构建/平台不支持、存储、命令或服务不可用，不泄漏凭据与内部路径；
   - 浏览器依次读取健康、能力、本地动态入口再进入首页；能力读取失败关闭可选功能，不猜全量启用；未选择插件不发 REST/WS、不加载实现 chunk 或启动后台工作；
   - 已选择插件的 chunk 下载失败只影响该功能并给出就地错误，不结束既有 PTY；CLI、托盘与 MCP 同样按实际能力发现入口；
+  - 已选择插件的能力从不可用恢复时，已有终端更新相应操作，不重建 PTY、连接所有者或草稿；能力再次不可用时收回相关操作；
+  - 插件加载错误可以收起，其他设置仍能编辑；收起不等于恢复模块或改变服务端能力事实；
   - 禁用路由和 WebSocket 在 SPA 回退前返回 404；网络 `/mcp` 只在选择 `mcp` 且 `[mcp].enabled=true` 时开放，仍仅 TCP、owner Bearer。
 - **US-K21 禁用后保留数据并有序退出**：作为部署者，我希望关闭某项功能不会改写其旧数据，以便之后重新启用时继续使用。
   验收要点：
@@ -170,7 +173,7 @@
 - [更新命令](../../cmd/webmux/updatecmd.go)、[签名与更新](../../internal/update/)、[自动更新单元](../../deploy/linux/webmux-update.service)、[定时器](../../deploy/linux/webmux-update.timer)
 - [安装脚本](../../deploy/linux/postinstall.sh)、[自动更新说明](../deployment/updates.md)
 - [通道文件](../../internal/update/channel_unix.go)、[通道命令](../../cmd/webmux/updatecmd.go)
-- [已安装版本识别](../../internal/update/installed.go)、[状态输出](../../internal/clicmd/status.go)、[待生效提示组件](../../web/src/components/notifications/PendingUpdateNotice.svelte)
+- [已安装版本识别](../../internal/update/installed.go)、[状态输出](../../internal/clicmd/status.go)、[待生效提示组件](../../web/src/components/shared/PendingUpdateNotice.svelte)
 - [提示逻辑](../../web/src/platform/pending-update.ts)、[提示用例](../../web/test/pending-update.test.ts)
 - [部署指南](../deployment.md)、[设置页](../../web/src/pages/Settings.svelte)、[设置导航](../../web/src/components/settings/SettingsNavigation.svelte)
 - [导航浏览器回归](../../web/test/browser/SettingsNavigation.test.ts)。

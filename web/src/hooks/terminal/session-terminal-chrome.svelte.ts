@@ -184,6 +184,7 @@ export function useSessionTerminalChrome(options: {
   function syncSessionEffects(
     hybrid: SessionHybridView & {
       info?: SessionInfo | null;
+      known: boolean;
       missing: boolean;
       awaitingChoice: boolean;
     },
@@ -215,7 +216,7 @@ export function useSessionTerminalChrome(options: {
       untrack(() => options.onscrollstate?.(state));
     });
     $effect(() => {
-      if (hybrid.missing) options.drafts.remove(options.id());
+      if (hybrid.known && hybrid.missing) options.drafts.remove(options.id());
     });
     $effect(() => {
       if (!hybrid.awaitingChoice) choiceClosed = false;

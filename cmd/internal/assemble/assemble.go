@@ -25,9 +25,9 @@ func SessionOptions(c config.Config) session.Options {
 		DefaultCwd:           c.DefaultCwd,
 		IdleAfter:            time.Duration(c.IdleAfterSeconds) * time.Second,
 		PromptPatterns:       c.PromptPatterns,
-		DisableAgentProtocol: !c.AgentProtocol || (!c.Plugins.Has("notifications") && !c.Plugins.Has("chat")),
-		DisableBellAttention: !c.BellAttention || !c.Plugins.Has("notifications"),
-		DisableProgramStatus: !c.ProgramStatus || (!c.Plugins.Has("notifications") && !c.Plugins.Has("chat")),
+		DisableAgentProtocol: !c.AgentProtocol,
+		DisableBellAttention: !c.BellAttention,
+		DisableProgramStatus: !c.ProgramStatus,
 	}
 	if c.Plugins.Has("launch") {
 		if c.AgentPretrust {

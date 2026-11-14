@@ -7,6 +7,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { errorMessage } from "../../platform/error";
   import {
     gitChanges,
@@ -336,45 +337,53 @@
         </span>
       </div>
 
-      <div
-        class="max-h-44 space-y-0.5 overflow-y-auto rounded-lg border bg-background p-1.5"
-      >
-        {#if model.stagedFiles.length === 0}
-          <p class="px-2 py-2 text-xs text-muted-foreground">
-            当前 Git index 中没有已暂存条目。
-          </p>
-        {:else}
-          {#each model.stagedFiles as file (file.id)}
-            {@const isExpanded = expandedFileId === file.id}
-            <ListButton
-              variant="compact-row"
-              class="overflow-hidden"
-              aria-expanded={isExpanded}
-              aria-selected={isExpanded}
-              onclick={() => toggleInspectFile(file.id)}
-            >
-              {#if isExpanded}
-                <IconChevronDown class="size-3.5 shrink-0" aria-hidden="true" />
-              {:else}
-                <IconChevronRight
-                  class="size-3.5 shrink-0"
-                  aria-hidden="true"
-                />
-              {/if}
-              <Badge variant="info">{file.status}</Badge>
-              <span class="min-w-0 flex-1 truncate font-mono" title={file.path}>
-                {file.oldPath && file.oldPath !== file.path
-                  ? `${file.oldPath} → ${file.path}`
-                  : file.path}
-              </span>
-              {#if file.preStagedFromCli}
-                <Badge variant="warning" class="max-w-full min-w-0 shrink">
-                  <span class="truncate">终端预暂存</span>
-                </Badge>
-              {/if}
-            </ListButton>
-          {/each}
-        {/if}
+      <div class="rounded-lg border bg-background">
+        <ScrollArea viewportClasses="max-h-44">
+          <div class="space-y-0.5 p-1.5">
+            {#if model.stagedFiles.length === 0}
+              <p class="px-2 py-2 text-xs text-muted-foreground">
+                当前 Git index 中没有已暂存条目。
+              </p>
+            {:else}
+              {#each model.stagedFiles as file (file.id)}
+                {@const isExpanded = expandedFileId === file.id}
+                <ListButton
+                  variant="compact-row"
+                  class="overflow-hidden"
+                  aria-expanded={isExpanded}
+                  aria-selected={isExpanded}
+                  onclick={() => toggleInspectFile(file.id)}
+                >
+                  {#if isExpanded}
+                    <IconChevronDown
+                      class="size-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                  {:else}
+                    <IconChevronRight
+                      class="size-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                  {/if}
+                  <Badge variant="info">{file.status}</Badge>
+                  <span
+                    class="min-w-0 flex-1 truncate font-mono"
+                    title={file.path}
+                  >
+                    {file.oldPath && file.oldPath !== file.path
+                      ? `${file.oldPath} → ${file.path}`
+                      : file.path}
+                  </span>
+                  {#if file.preStagedFromCli}
+                    <Badge variant="warning" class="max-w-full min-w-0 shrink">
+                      <span class="truncate">终端预暂存</span>
+                    </Badge>
+                  {/if}
+                </ListButton>
+              {/each}
+            {/if}
+          </div>
+        </ScrollArea>
       </div>
 
       {#if expandedFile}
@@ -411,12 +420,14 @@
     <div class="rounded-lg border bg-background p-2.5">
       <span class="text-xs font-semibold text-muted-foreground">提交说明：</span
       >
-      <p
-        class="mt-1 max-h-24 overflow-y-auto font-mono text-xs whitespace-pre-wrap wrap-anywhere text-foreground"
-        data-testid="git-commit-preview-message"
-      >
-        {effectivePreviewMessage}
-      </p>
+      <ScrollArea viewportClasses="mt-1 max-h-24">
+        <p
+          class="font-mono text-xs whitespace-pre-wrap wrap-anywhere text-foreground"
+          data-testid="git-commit-preview-message"
+        >
+          {effectivePreviewMessage}
+        </p>
+      </ScrollArea>
     </div>
 
     <GitDialogFooter

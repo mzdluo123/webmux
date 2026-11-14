@@ -10,6 +10,7 @@ import type { Repositories } from "../hooks/workspace/repositories.svelte";
 import type { Archived } from "../hooks/sessions/archived.svelte";
 import type { LaunchConfigs } from "../hooks/settings/launch-configs.svelte";
 import type { TerminalDrafts } from "../domains/terminal/terminal-draft.svelte";
+import { retainedTerminalDraftIds } from "../domains/terminal/terminal-draft-owners";
 import { pluginContributions } from "./registry.svelte";
 import { requestPluginHostRefresh } from "../platform/plugin-host.svelte";
 
@@ -26,6 +27,7 @@ export interface ShellSessionResources {
 /** Compose enabled projections around the one core session feed. */
 export function createShellSessionResources(
   drafts: TerminalDrafts,
+  currentSession: () => string | undefined,
 ): ShellSessionResources {
   const entries = pluginContributions.entries;
   const archived = entries.chat?.createArchived();
@@ -33,6 +35,13 @@ export function createShellSessionResources(
   const launchConfigs = entries.launch?.createLaunchConfigs();
   const setup = createServerSetup();
   const controller = new AbortController();
+  function reconcile(ids: string[]) {
+    if (controller.signal.aborted) return;
+    const primary = currentSession();
+    if (primary) ids.push(primary);
+    for (const id of retainedTerminalDraftIds(drafts)) ids.push(id);
+    drafts.reconcile(ids);
+  }
   const sessions = createSessionList({
     drafts,
     onreconnect: () => {
@@ -50,7 +59,7 @@ export function createShellSessionResources(
       if (event.type === "snapshot") {
         const ids = event.sessions.map((session) => session.id);
         void archived.refresh().then((records) => {
-          if (records) drafts.reconcile([...ids, ...records]);
+          if (records) reconcile([...ids, ...records]);
         });
       } else if (event.type === "removed") {
         if (
@@ -82,7 +91,7 @@ export function createShellSessionResources(
       if (archived)
         void archived.refresh().then((records) => {
           if (records)
-            drafts.reconcile([
+            reconcile([
               ...sessions.sessions.map((session) => session.id),
               ...records,
             ]);

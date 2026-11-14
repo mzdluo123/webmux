@@ -85,7 +85,7 @@ export interface GitPaneScrollCallbacks {
 }
 
 export function syncElementScrollTop(
-  el: HTMLElement | undefined,
+  el: HTMLElement | null | undefined,
   targetTop: number,
 ): void {
   if (el && Math.abs(el.scrollTop - targetTop) > 1) {

@@ -1,63 +1,42 @@
-import { SvelteMap } from "svelte/reactivity";
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { SessionInfo } from "../../contracts/schemas";
 import { applySessionEvent } from "../../domains/sessions/session-events";
 import { connectSessions, type SessionEvent } from "../sessions/session-feed";
+import type { SessionList } from "../sessions/session-list.svelte";
 
 interface TerminalPageFeedOptions {
   ids: () => string[];
-  info: () => Record<string, SessionInfo>;
-  forwarding: () => boolean;
-  chatEnabled: () => boolean;
+  source?: SessionList;
   forward: () =>
-    | {
-        isPromptedPort: (port: number) => boolean;
-        observeSessionEvent: (event: SessionEvent) => void;
-      }
+    | { observeSessionEvent: (event: SessionEvent) => void }
     | undefined;
   error: (message: string) => void;
 }
 
+/** Core membership and removal observation also runs without any plugins. */
 export function useTerminalPageFeed(options: TerminalPageFeedOptions) {
-  // Every session, for the forwarding dialog's detected ports.
-  let sessions = $state.raw<SessionInfo[]>([]);
-  const listening = $derived(
-    !!options.forward() &&
-      options
-        .ids()
-        .some((sessionId) =>
-          options
-            .info()
-            [sessionId]?.listeningPorts.some((entry) =>
-              options.forward()?.isPromptedPort(entry.port),
-            ),
-        ),
-  );
-  // The session-list connection carries the forward list and live session
-  // updates for panes on the chat view (whose terminal stream is detached).
-  // Otherwise this page opens it only while a pane listens on a port or the
-  // forwarding dialog is open.
-  const onChatSide = $derived(
-    options
-      .ids()
-      .some(
-        (sessionId) =>
-          options.chatEnabled() &&
-          options.info()[sessionId]?.views.includes("chat") &&
-          options.info()[sessionId]?.view !== "terminal",
-      ),
-  );
+  let standaloneSessions = $state.raw<SessionInfo[]>([]);
+  let standaloneReady = $state(false);
+  const removedListeners = new SvelteSet<(id: string) => void>();
+  const standaloneFeed = $derived(!options.source && options.ids().length > 0);
+  const sessions = $derived(options.source?.sessions ?? standaloneSessions);
   const byId = $derived(
     new SvelteMap(sessions.map((session) => [session.id, session])),
   );
+  // The shell owns its feed. A standalone page keeps one for every owner,
+  // including recovery before chat attaches, so final removal has no gap.
   $effect(() => {
-    if (!listening && !options.forwarding() && !onChatSide) return;
+    if (!standaloneFeed) return;
     const socket = connectSessions(
       (event) => {
-        sessions = applySessionEvent(sessions, event);
+        if (event.type === "snapshot") standaloneReady = true;
+        if (event.type === "removed")
+          for (const listener of removedListeners) listener(event.id);
+        standaloneSessions = applySessionEvent(standaloneSessions, event);
       },
       () => {},
       options.error,
-      options.forward()?.observeSessionEvent,
+      (event) => options.forward()?.observeSessionEvent(event),
     );
     return () => socket.close();
   });
@@ -66,8 +45,18 @@ export function useTerminalPageFeed(options: TerminalPageFeedOptions) {
     get sessions() {
       return sessions;
     },
+    get ready() {
+      return options.source?.ready ?? standaloneReady;
+    },
     get byId() {
       return byId;
+    },
+    subscribeRemoved(listener: (id: string) => void) {
+      if (options.source) return options.source.subscribeRemoved(listener);
+      removedListeners.add(listener);
+      return () => {
+        removedListeners.delete(listener);
+      };
     },
   };
 }

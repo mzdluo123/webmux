@@ -158,6 +158,8 @@ enabled = [] # 生成配置的默认值：仅 PTY 核心
 | `bell_attention`     | `true`                | 把终端响铃（输入 1 秒后）视为需要介入                                             |
 | `program_status`     | `true`                | 识别 `OSC 7501` 程序状态报告，并由服务端应答 `OSC 7501;?` 探测                    |
 
+这些识别开关属于核心 PTY，在显式零插件配置中仍生效；`notifications` 负责推送等通知投递，不决定核心会话的状态检测。
+
 ### 对话历史保存
 
 `history_capture` 默认 `true`。WebMux 将规范化聊天消息、工具事实与交接草稿保存在 `state_dir/conversations.sqlite`；PTY 与进程仍不会跨服务重启存活。
@@ -178,6 +180,8 @@ enabled = [] # 生成配置的默认值：仅 PTY 核心
 | 键               | 默认值 | 作用                                                                      |
 | ---------------- | ------ | ------------------------------------------------------------------------- |
 | `agent_pretrust` | `true` | 启动 agent 前把启动目录写入它自己的“信任此文件夹”记录，避免会话卡在对话框 |
+
+信任预写与 agent 专属提交延迟属于 `launch` 启动集成，只在选择该插件时装配。核心仍可用显式 argv 启动 agent，但不会自动预写信任记录；`agent_pretrust = true` 不会隐式启用插件。
 
 - 适用于 Claude Code、Codex、Copilot CLI、Antigravity CLI、Qoder、QoderCN 的持久信任记录，以及 Kimi 的进程级目录信任；见 [文件夹信任预写](../cli-agents.md#文件夹信任预写)。
 

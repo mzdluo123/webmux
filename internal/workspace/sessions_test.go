@@ -66,6 +66,61 @@ func TestMultiplePTYsKeepRealChildCwdAndIndependentBuffers(t *testing.T) {
 		t.Fatal("regroup stopped independent PTY")
 	}
 }
+func TestExplicitWorkspaceRequiresKnownRepositoryBeforeCreatingSession(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	root := initRepo(t)
+	s, m := testService(t, t.TempDir(), root)
+	registerTest(t, s, root)
+	creator := newCreateFixture(s, nil, nil)
+	t.Cleanup(creator.Close)
+	for _, tc := range []struct {
+		name      string
+		workspace *sessioncreate.Reference
+		worktree  *sessioncreate.NewWorktree
+	}{
+		{name: "empty workspace", workspace: &sessioncreate.Reference{}},
+		{name: "empty new worktree", worktree: &sessioncreate.NewWorktree{Mode: "new", Base: "HEAD", Branch: "must-not-exist"}},
+		{name: "unknown workspace", workspace: &sessioncreate.Reference{RepositoryID: "missing"}},
+		{name: "unknown new worktree", worktree: &sessioncreate.NewWorktree{RepositoryID: "missing", Mode: "new", Base: "HEAD", Branch: "must-not-exist"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			marker := filepath.Join(t.TempDir(), "started")
+			result, err := creator.Create(context.Background(), sessioncreate.Input{
+				Cmd:         []string{"/bin/sh", "-c", `printf started > "$1"`, "sh", marker},
+				Workspace:   tc.workspace,
+				NewWorktree: tc.worktree,
+			})
+			failed := quickFailure(t, err, sessioncreate.StepPrecheck, ErrNotFound)
+			if result.Session != nil || result.Location != nil || failed.SessionID != "" || failed.Location != nil {
+				t.Fatalf("rejected creation returned created resources: %+v, %+v", result, failed)
+			}
+			if len(m.List()) != 0 {
+				t.Fatalf("rejected creation started sessions: %+v", m.List())
+			}
+			if _, err := os.Stat(marker); !os.IsNotExist(err) {
+				t.Fatalf("rejected creation ran command: %v", err)
+			}
+			if trees := strings.Count(gitTest(t, root, "worktree", "list", "--porcelain"), "worktree "); trees != 1 {
+				t.Fatalf("rejected creation made worktrees: %d", trees)
+			}
+			if branches := gitTest(t, root, "branch", "--list", "must-not-exist"); strings.TrimSpace(branches) != "" {
+				t.Fatalf("rejected creation made branch: %s", branches)
+			}
+		})
+	}
+	direct, err := creator.Create(context.Background(), sessioncreate.Input{
+		Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf CWD_ONLY"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitDone(t, direct.Session)
+	if direct.Session.Info().Cwd != root || !strings.Contains(string(direct.Session.Buffer()), "CWD_ONLY") || len(m.List()) != 1 {
+		t.Fatalf("cwd-only creation did not run normally: %+v", direct.Session.Info())
+	}
+}
+
 func TestExplicitWorkspaceNeverFallsBackOrMatchesNestedRepository(t *testing.T) {
 	t.Parallel()
 	isolateGit(t)

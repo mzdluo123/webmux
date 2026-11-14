@@ -2,6 +2,7 @@
   import IconCheck from "~icons/tabler/check";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Textarea } from "$lib/components/ui/textarea";
   import type { GitConflictFileDetail } from "../../contracts/schemas";
   import type {
@@ -109,17 +110,21 @@
     {/if}
 
     <div
-      class="flex min-h-0 flex-1 flex-col overflow-y-auto p-2 focus-within:ring-2 focus-within:ring-ring/40"
+      class="flex min-h-0 flex-1 flex-col focus-within:ring-2 focus-within:ring-ring/40"
     >
-      <Textarea
-        variant="bare"
-        code
-        aria-label="合并结果文本编辑器"
-        value={draft.resultText}
-        oninput={(e) => onChangeResultText(e.currentTarget.value)}
-        class="min-h-full flex-1"
-        data-testid="git-conflict-result-textarea"
-      />
+      <ScrollArea class="min-h-8 flex-1">
+        <div class="flex min-h-full flex-col p-2">
+          <Textarea
+            variant="bare"
+            code
+            aria-label="合并结果文本编辑器"
+            value={draft.resultText}
+            oninput={(e) => onChangeResultText(e.currentTarget.value)}
+            class="min-h-full flex-1"
+            data-testid="git-conflict-result-textarea"
+          />
+        </div>
+      </ScrollArea>
     </div>
   </section>
 

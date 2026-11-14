@@ -40,6 +40,7 @@ func TestTunnelFlagAndGeneratedToken(t *testing.T) {
 		{"configured token kept", []string{"--config", enabled, "--tunnel", "--token", tunnelTestToken}, true, tunnelTestToken, false},
 	} {
 		t.Run(row.name, func(t *testing.T) {
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
 			// Loopback isolates the tunnel rule from wildcard token generation.
 			args := append([]string{"--listen", "127.0.0.1:7681"}, row.args...)
 			c, err := loadConfig(args)
@@ -86,13 +87,14 @@ const tunnelTestToken = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFG"
 func TestTunnelRejectsShortConfiguredToken(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("XDG_STATE_HOME", "")
 	path := filepath.Join(dir, "legacy.toml")
 	if err := os.WriteFile(path, []byte("listen = '127.0.0.1:7681'\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	_, err := loadConfig([]string{"--config", path, "--tunnel", "--token", "mine"})
-	if err == nil {
-		t.Fatal("an enabled tunnel accepted a weak configured owner token")
+	if err == nil || !strings.Contains(err.Error(), "at least 43 characters") {
+		t.Fatalf("weak tunnel token error %v", err)
 	}
 }
 

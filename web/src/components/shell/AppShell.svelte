@@ -64,7 +64,9 @@
   const ownDrafts = untrack(() => drafts);
   const contributions = pluginContributions.entries;
   const workspace = contributions.workspace;
-  const resources = createShellSessionResources(ownDrafts);
+  const resources = createShellSessionResources(ownDrafts, () =>
+    route.name === "terminal" ? route.id : undefined,
+  );
   const {
     sessions,
     setup,

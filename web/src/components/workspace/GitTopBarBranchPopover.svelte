@@ -5,6 +5,7 @@
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
   import * as Popover from "$lib/components/ui/popover";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type {
     GitBranchItem,
     GitWorktreeContext,
@@ -86,53 +87,55 @@
         oninput={(e) => (query = e.currentTarget.value)}
       />
 
-      <div class="max-h-80 space-y-2 overflow-y-auto pr-0.5">
-        <ListButton
-          variant="compact-row"
-          aria-current={branchFilter === null || undefined}
-          onclick={() => {
-            open = false;
-            onSelectAll();
-          }}
-        >
-          <IconGitBranch
-            class="size-3.5 shrink-0 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <span class="min-w-0 flex-1 truncate">全部可达引用</span>
-        </ListButton>
+      <ScrollArea viewportClasses="max-h-80">
+        <div class="space-y-2 pr-0.5">
+          <ListButton
+            variant="compact-row"
+            aria-current={branchFilter === null || undefined}
+            onclick={() => {
+              open = false;
+              onSelectAll();
+            }}
+          >
+            <IconGitBranch
+              class="size-3.5 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <span class="min-w-0 flex-1 truncate">全部可达引用</span>
+          </ListButton>
 
-        {#if popoverGroups.length === 0}
-          <p class="px-2 py-2 text-xs text-muted-foreground">
-            {query.trim() ? "没有匹配的分支。" : "暂无分支引用。"}
-          </p>
-        {:else}
-          {#each popoverGroups as grp (grp.key)}
-            <div class="space-y-0.5">
-              <div
-                class="flex items-center justify-between px-1.5 py-0.5 text-xs font-semibold text-muted-foreground"
-              >
-                <span>{grp.title}</span>
-                <span class="font-mono">{grp.rows.length}</span>
+          {#if popoverGroups.length === 0}
+            <p class="px-2 py-2 text-xs text-muted-foreground">
+              {query.trim() ? "没有匹配的分支。" : "暂无分支引用。"}
+            </p>
+          {:else}
+            {#each popoverGroups as grp (grp.key)}
+              <div class="space-y-0.5">
+                <div
+                  class="flex items-center justify-between px-1.5 py-0.5 text-xs font-semibold text-muted-foreground"
+                >
+                  <span>{grp.title}</span>
+                  <span class="font-mono">{grp.rows.length}</span>
+                </div>
+                {#each grp.rows as branch (`${grp.key}:${branch.kind}:${branch.name}`)}
+                  <GitBranchListItem
+                    {branch}
+                    {context}
+                    selected={branchFilter === branch.name}
+                    {branchFilter}
+                    sectionId={grp.key}
+                    {compareBaseOid}
+                    {compareTargetLabel}
+                    menuLabel={`顶栏分支操作 ${branch.name}`}
+                    onSelectRow={() => triggerAction("filter-log", branch)}
+                    onAction={triggerAction}
+                  />
+                {/each}
               </div>
-              {#each grp.rows as branch (`${grp.key}:${branch.kind}:${branch.name}`)}
-                <GitBranchListItem
-                  {branch}
-                  {context}
-                  selected={branchFilter === branch.name}
-                  {branchFilter}
-                  sectionId={grp.key}
-                  {compareBaseOid}
-                  {compareTargetLabel}
-                  menuLabel={`顶栏分支操作 ${branch.name}`}
-                  onSelectRow={() => triggerAction("filter-log", branch)}
-                  onAction={triggerAction}
-                />
-              {/each}
-            </div>
-          {/each}
-        {/if}
-      </div>
+            {/each}
+          {/if}
+        </div>
+      </ScrollArea>
     </div>
   </Popover.Content>
 </Popover.Root>

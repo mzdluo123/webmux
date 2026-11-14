@@ -158,8 +158,16 @@
         configId ? "PUT" : "POST",
         {
           ...launch,
-          ...(chatEnabled ? { chat: hybrid } : {}),
-          ...(notificationsEnabled ? { attention: draftAttention } : {}),
+          ...(pluginEnabled("chat")
+            ? { chat: chatEnabled ? hybrid : (loadedConfig?.chat ?? false) }
+            : {}),
+          ...(pluginEnabled("notifications")
+            ? {
+                attention: notificationsEnabled
+                  ? draftAttention
+                  : (loadedConfig?.attention ?? null),
+              }
+            : {}),
           ...(icon === "auto" ? {} : { icon }),
         },
       );

@@ -46,7 +46,9 @@ CLI 使用服务用户的权限、账号、环境和配置。WebMux 不代管模
 ## 文件夹信任预写
 
 Claude Code、Codex、GitHub Copilot CLI、Antigravity CLI、Qoder、QoderCN、Kimi 和 Devin 首次在某个目录启动时会询问“是否信任此文件夹”，`--dangerously-skip-permissions` 或 `--auto` 一类参数不会跳过这个问题；无人看着的会话会一直停在对话框上。
-`agent_pretrust`（默认开启）让 WebMux 在新建会话、命令被识别为这八款 CLI 时，先预处理启动目录的信任记录或环境，前六款的做法与 [Orca](https://www.onorca.dev/docs/agents/supported) 一致：
+选择 `launch` 启动集成时，`agent_pretrust` 默认开启，让 WebMux 在新建会话、命令被识别为这八款 CLI 时，先预处理启动目录的信任记录或环境，前六款的做法与 [Orca](https://www.onorca.dev/docs/agents/supported) 一致：
+
+未选择 `launch` 时，核心仍可直接运行这些 CLI，但不装配信任预写或 agent 专属提交延迟；配置开关为 `true` 不会隐式启用插件。
 
 | CLI             | 写入位置（环境变量可改）                            | 写入内容                                           |
 | --------------- | --------------------------------------------------- | -------------------------------------------------- |

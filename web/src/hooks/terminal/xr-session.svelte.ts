@@ -2,9 +2,9 @@ import { getContext, onDestroy, onMount, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { xrPresentation } from "../shared/xr-presentation.svelte";
 import type {
-  XrAvailableSession,
   XrHeaderControl,
   XrSessionSource,
+  XrWorkspaceOptions,
   XrWorkspaceRuntime,
 } from "../../domains/terminal/xr-workspace";
 import { errorMessage } from "../../platform/error";
@@ -12,17 +12,18 @@ import { errorMessage } from "../../platform/error";
 const contextKey = Symbol("xr-workspace");
 
 interface Workspace {
+  readonly active: boolean;
   register(source: XrSessionSource): () => void;
   header(id: string): XrHeaderControl;
-  returnTo2D(id: string): Promise<void>;
+  returnTo2D(id: string): Promise<boolean>;
 }
 
-/** One page owns XR; its mounted panes retain their existing sessions. */
-export function createXrSessionWorkspace(options: {
-  available(this: void): readonly XrAvailableSession[];
-  open(this: void, id: string): void | Promise<void>;
-  error(this: void, message: string): void;
-}): Workspace {
+/** One page owns XR; all 2D and observed members retain their sessions. */
+export function createXrSessionWorkspace(
+  options: Omit<XrWorkspaceOptions, "initialId" | "sources" | "exit"> & {
+    exited?(this: void): void;
+  },
+): Workspace {
   const sources = new SvelteMap<string, XrSessionSource>();
   let sourceList: XrSessionSource[] = [];
   let supported = $state(false);
@@ -49,7 +50,11 @@ export function createXrSessionWorkspace(options: {
     active = false;
     xrPresentation.active = false;
     busy = false;
-    for (const source of sources.values()) source.setImmersive(false);
+    for (const source of sources.values()) {
+      source.blur();
+      source.setImmersive(false);
+    }
+    options.exited?.();
   }
 
   function ended() {
@@ -92,7 +97,10 @@ export function createXrSessionWorkspace(options: {
         owner.addEventListener("end", ended);
         active = true;
         xrPresentation.active = true;
-        for (const source of sources.values()) source.setImmersive(true);
+        for (const source of sources.values()) {
+          source.blur();
+          source.setImmersive(true);
+        }
         // XR-only platform boundary: static loading would send the Three.js
         // runtime to ordinary browsers that cannot enter immersive sessions.
         const module = await import("./xr-workspace");
@@ -101,7 +109,10 @@ export function createXrSessionWorkspace(options: {
           initialId,
           sources: () => sourceList,
           available: options.available,
-          open: options.open,
+          ready: options.ready,
+          observe: options.observe,
+          unobserve: options.unobserve,
+          reveal: (id) => workspace.returnTo2D(id).then(() => undefined),
           error: options.error,
           exit,
         });
@@ -140,12 +151,16 @@ export function createXrSessionWorkspace(options: {
   });
 
   const workspace: Workspace = {
+    get active() {
+      return active;
+    },
     register(source) {
       sources.set(source.id, source);
       sourceList = [...sources.values()];
       if (active) source.setImmersive(true);
       return () => {
         if (sources.get(source.id) !== source) return;
+        source.blur();
         source.setImmersive(false);
         sources.delete(source.id);
         sourceList = [...sources.values()];
@@ -153,10 +168,12 @@ export function createXrSessionWorkspace(options: {
     },
     async returnTo2D(id) {
       try {
-        await options.open(id);
+        await options.reveal(id);
         await endSession();
+        return true;
       } catch (error) {
         options.error(`无法返回会话：${errorMessage(error)}`);
+        return false;
       }
     },
     header(id) {

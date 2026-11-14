@@ -67,8 +67,9 @@ type Snapshot struct {
 	Detection Detection
 	Status    contract.StatusV1
 	// HasStatus is false until the first status arrives.
-	HasStatus bool
-	Sessions  int
+	HasStatus     bool
+	Sessions      int
+	SessionCounts SessionCounts
 	// Reason is the latest failure or hint for the status line.
 	Reason    string
 	Reachable bool
@@ -251,8 +252,8 @@ type reachEvent struct {
 	err error
 }
 type sessionsEvent struct {
-	gen   int
-	count int
+	gen    int
+	counts SessionCounts
 }
 type watchEndEvent struct {
 	gen int

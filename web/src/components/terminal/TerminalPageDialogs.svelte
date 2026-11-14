@@ -33,7 +33,7 @@
     creating: SessionInfo | null;
     forwarding: boolean;
     excluded: string[];
-    feedSessions: SessionInfo[];
+    feedSessions: readonly SessionInfo[];
     onselect: (sessionId: string, direction: SplitDirection) => void;
     oncreated: (
       session: SessionInfo,

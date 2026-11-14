@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
@@ -26,6 +27,12 @@ func createStatus(err error) int {
 	}
 	if errors.Is(err, sessioncreate.ErrUnavailable) {
 		return http.StatusServiceUnavailable
+	}
+	if errors.Is(err, artifacts.ErrUnavailable) {
+		return http.StatusServiceUnavailable
+	}
+	if errors.Is(err, artifacts.ErrInvalid) {
+		return http.StatusBadRequest
 	}
 	return workspaceStatus(err)
 }

@@ -132,6 +132,7 @@
 
   function switcherShortcut(event: KeyboardEvent) {
     if (
+      xrPresentation.active ||
       !canSwitch ||
       switcherOpen ||
       !isSessionSwitcherShortcut(event) ||

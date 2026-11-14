@@ -40,6 +40,7 @@ vi.mock("../../src/platform/p2p-framing", async (original) => ({
 installChatFixture();
 let root: HTMLElement;
 let enabled: PluginID[];
+let unavailable: PluginID[];
 let voiceReady: boolean;
 let p2pReady: boolean;
 let discoveryReads: number;
@@ -70,6 +71,7 @@ const peerStatus: P2PStatus = {
 
 beforeEach(() => {
   enabled = [];
+  unavailable = [];
   voiceReady = false;
   p2pReady = false;
   discoveryReads = 0;
@@ -116,6 +118,7 @@ beforeEach(() => {
   respond(/^GET \/api\/capabilities$/, () => {
     discoveryReads++;
     const availability: Partial<Record<PluginID, boolean>> = {
+      ...Object.fromEntries(unavailable.map((id) => [id, false])),
       voice: voiceReady,
       p2p: p2pReady,
     };
@@ -204,6 +207,9 @@ test("same-origin reconnect replaces captured shell projections only when select
   await expect
     .element(page.getByRole("button", { name: "添加仓库", exact: true }))
     .toBeVisible();
+  expect(
+    page.getByRole("button", { name: "Git 工作台", exact: true }).elements(),
+  ).toEqual([]);
   enabled = [];
   const reconnecting = await reconnect(first, 1);
   await expect
@@ -234,6 +240,58 @@ test("same-origin reconnect replaces captured shell projections only when select
     .element(page.getByRole("button", { name: "添加仓库", exact: true }))
     .toBeVisible();
   await socketAt("/ws/sessions", 5);
+});
+
+test("existing terminal recovers optional controls without replacing its owner or draft", async () => {
+  await page.viewport(1280, 900);
+  enabled = ["files", "code", "voice"];
+  unavailable = ["files", "code"];
+  voicePreference.enabled = true;
+  const info = session({ id: "recover2" });
+  respond(/^GET \/api\/sessions\/recover2$/, () => Response.json(info));
+  await mount();
+  navigate(`/s/${info.id}`);
+  const terminal = await socketAt(`/ws/s/${info.id}`);
+  terminal.binary(2, info);
+  await expect
+    .element(page.getByRole("button", { name: "草稿模式", exact: true }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  const draft = page.getByRole("textbox", { name: "草稿内容", exact: true });
+  await draft.fill("retain this draft while services recover");
+  const owner = document.querySelector(".session-owner");
+  const emulator = document.querySelector(".xterm");
+  expect(owner).not.toBeNull();
+  expect(emulator).not.toBeNull();
+  for (const name of ["语音输入", "上传文件", "代码"])
+    expect(page.getByRole("button", { name, exact: true }).elements()).toEqual(
+      [],
+    );
+
+  // Another browser enables the services; this page only refreshes discovery.
+  unavailable = [];
+  voiceReady = true;
+  await requestPluginHostRefresh();
+  for (const name of ["语音输入", "上传文件", "代码"])
+    await expect
+      .element(page.getByRole("button", { name, exact: true }))
+      .toBeVisible();
+  expect(document.querySelector(".session-owner")).toBe(owner);
+  expect(document.querySelector(".xterm")).toBe(emulator);
+  expect(
+    sockets.filter((socket) => socket.path === `/ws/s/${info.id}`),
+  ).toEqual([terminal]);
+  expect(terminal.readyState).toBe(FakeSocket.OPEN);
+  await expect
+    .element(draft)
+    .toHaveValue("retain this draft while services recover");
+
+  voiceReady = false;
+  await requestPluginHostRefresh();
+  expect(
+    page.getByRole("button", { name: "语音输入", exact: true }).elements(),
+  ).toEqual([]);
+  expect(document.querySelector(".session-owner")).toBe(owner);
 });
 
 test("saving a recognizer refreshes availability before returning to terminal and quick start", async () => {

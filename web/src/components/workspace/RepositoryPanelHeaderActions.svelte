@@ -1,10 +1,10 @@
 <script lang="ts">
   import IconCloudDownload from "~icons/tabler/cloud-download";
-  import IconGitBranch from "~icons/tabler/git-branch";
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Button } from "$lib/components/ui/button";
   import type { FetchResult } from "../../contracts/schemas";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import GitWorkbenchButton from "./GitWorkbenchButton.svelte";
 
   let {
     mode = "actions",
@@ -38,19 +38,7 @@
 
 {#if mode === "actions"}
   <div class="inline-flex items-center gap-1.5">
-    {#if ongit}
-      <Button
-        variant="outline"
-        size="sm"
-        class="max-sm:size-(--control-default)"
-        aria-label="Git 工作台"
-        title="Git 工作台"
-        onclick={ongit}
-      >
-        <IconGitBranch aria-hidden="true" />
-        <span class="hidden sm:inline">Git 工作台</span>
-      </Button>
-    {/if}
+    {#if ongit}<GitWorkbenchButton {ongit} />{/if}
     <!-- A disabled button shows no hint, so the wrapper carries the reason. -->
     <span class="inline-flex" title={fetchBlocked || fetchLabel}>
       <Button

@@ -106,6 +106,7 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `web/`                                        | Svelte 5 前端，构建后通过 `go:embed` 嵌入二进制                                                            |
 
 Kimi 的 `agent_pretrust` 不写信任记录，而是由 `internal/agenttrust` 向会话环境注入进程级目录信任；Devin 则写入 `$XDG_DATA_HOME/devin/cli/trusted_workspaces.json`。
+Agent 信任预写与专属提交延迟仅在选择 `launch` 时装配；核心普通 argv 不要求该插件。PTY 的 `agent_protocol`、`bell_attention`、`program_status` 则是核心识别配置，与聊天、推送插件是否选择无关。
 
 `cmd/webmux` 是唯一装配根：先验证固定选择，用 `cmd/internal/assemble` 转换选项，再由 `plugin_{assembly,start,bind,capabilities}.go` 显式构造所选服务。
 `api.New` 只接收核心依赖及 `transport.Contribution` 路由/流/钩子；`pluginapi`、`pluginhub`、`pluginwire` 拥有可选控制器，不反向导入 `api`。

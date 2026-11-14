@@ -5,10 +5,12 @@
   import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
   import { touchGamepad } from "../../hooks/terminal/touch-gamepad-preference.svelte";
   import { useSessionTerminalChrome } from "../../hooks/terminal/session-terminal-chrome.svelte";
-  import { createSessionTerminalDraft } from "../../hooks/terminal/session-terminal-draft";
   import type { KeyboardVisibility } from "../../hooks/shared/viewport.svelte";
   import { terminalSession } from "../../hooks/sessions/terminal-session";
-  import type { TerminalPlugins } from "../../plugins/terminal";
+  import {
+    availableTerminalPlugins,
+    type TerminalPlugins,
+  } from "../../plugins/terminal";
   import { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
   import { isIOS } from "../../platform/touch-input";
   import type { ChatScrollState } from "../../platform/capabilities";
@@ -28,6 +30,7 @@
     deriveSendUnavailable,
   } from "../../domains/terminal/session-terminal-io";
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
+  import { createSessionTerminalInput } from "../../hooks/terminal/session-terminal-input.svelte";
   import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
   import { pluginAvailable } from "../../platform/plugin-host.svelte";
 
@@ -49,6 +52,7 @@
     onleave,
     showForwards,
     feedSession,
+    subscribeRemoved,
     documentScroll = false,
     onscrollstate,
   }: {
@@ -69,11 +73,14 @@
     onarchived: () => void;
     showForwards: () => void;
     feedSession?: SessionInfo;
+    subscribeRemoved?: (listener: (id: string) => void) => () => void;
     documentScroll?: boolean;
     onscrollstate?: (state: ChatScrollState) => void;
   } = $props();
   // The page keys the contribution snapshot, including explicit load retries.
   const plugins = untrack(() => initialPlugins);
+  const availablePlugins = $derived(availableTerminalPlugins(plugins));
+  const chatAvailable = $derived(!!availablePlugins.chat);
   const draft = untrack(() => drafts.get(id));
   const leave = () => (onleave ? onleave() : navigate(shellUi.home));
   const voiceEnabled = $derived(
@@ -91,20 +98,28 @@
   let scratchOpen = $state(false);
   const forceSoftKeys = $derived(settings.values.forceSoftKeys ?? false);
   let mounted = false;
+  let seenHybrid = false;
   let codePanel = $state<CodePanelComponent>();
   let paneWidth = $state(0);
   let codeLoaded = $state(false);
   const desktop = $derived(paneWidth >= 1024);
-  const input = createSessionTerminalDraft({
+  const input = createSessionTerminalInput({
     draft,
     drafts: untrack(() => drafts),
     terminal: () => t,
-    isMounted: () => mounted,
-    isChatView: () => hybrid.view === "chat",
-    editComposerKey: (input) => stage?.editComposerKey(input),
-    restoreInputFocus: () => chrome.restoreInputFocus(),
-    setError: (message) => (error = message),
-    setNotice: (message) => (notice = message),
+    mounted: () => mounted,
+    active: () => active && visible,
+    immersive: () => !!xr?.active,
+    chat: () => hybrid.view === "chat",
+    desktop: () => desktop,
+    root: () => terminalRoot,
+    focusChat: () => stage?.focusChat(),
+    focusComposer: () => stage?.focusComposer(),
+    editComposer: (value) => stage?.editComposerKey(value),
+    hideCode: () => (chrome.codeShown = false),
+    restoreFocus: () => chrome.restoreInputFocus(),
+    error: (message) => (error = message),
+    notice: (message) => (notice = message),
   });
   const terminalShown = () =>
     hybrid.view === "terminal" || hybrid.view === "recovery";
@@ -132,7 +147,8 @@
     isCodePanelPoppedOut: () => !!codePanel?.isPoppedOut(),
     insertText: input.insertText,
     uploadFiles: async (files, operation) => {
-      if (!uploads) throw new Error("文件插件未启用");
+      if (!uploads || !availablePlugins.files)
+        throw new Error("文件上传暂不可用");
       await uploads.uploadFiles(Array.from(files), operation);
     },
     setError: (msg) => (error = msg),
@@ -140,27 +156,16 @@
     onscrollstate: (state) => onscrollstate?.(state),
   });
   $effect(() => {
-    if (plugins.code && chrome.codeShown) codeLoaded = true;
+    if (!availablePlugins.code) chrome.codeShown = false;
+    else if (chrome.codeShown) codeLoaded = true;
     if (terminalVisible()) {
       if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
       void tick().then(() => t.fit());
     }
   });
-  function insertReference(text: string) {
-    if (hybrid.view === "chat")
-      return input.insertText(text, input.beginInput());
-    const result = input.insertText(text);
-    if (result === "terminal" && !desktop) {
-      chrome.codeShown = false;
-      void tick().then(() => t.fit());
-    }
-    return result;
-  }
+
   export function focus() {
-    if (!active || !visible) return;
-    if (hybrid.view === "chat") stage?.focusChat();
-    else if (draft.enabled) stage?.focusComposer();
-    else t.focus();
+    input.focus();
   }
   export function revealChat() {
     if (!desktop) chrome.codeShown = false;
@@ -169,8 +174,8 @@
     t.send(input);
   }
   async function runQuickCommand(cmd: QuickCommand) {
-    if (!plugins.quickCommands) throw new Error("快捷指令插件未启用");
-    return plugins.quickCommands.executeSessionQuickCommand(cmd, {
+    if (!availablePlugins.quickCommands) throw new Error("快捷指令暂不可用");
+    return availablePlugins.quickCommands.executeSessionQuickCommand(cmd, {
       id,
       isMounted: () => mounted,
       isChatView: () => hybrid.view === "chat",
@@ -197,7 +202,7 @@
     {
       draftEnabled: () => draft.enabled,
       focusDraft: () => {
-        if (active && visible) stage?.focusComposer();
+        if (input.active()) stage?.focusComposer();
       },
       key: (event) => stage?.handleTerminalKey(event),
       insertText: (text) => {
@@ -206,7 +211,7 @@
     },
     () => keyboardDismissed(),
     () => chrome.sizeLocked,
-    () => active && allowAutomaticInputFocus(),
+    () => active && !xr?.active && allowAutomaticInputFocus(),
     false,
     () => chrome.keyboardHeld,
   );
@@ -219,6 +224,8 @@
         untrack(() => drafts),
         draft,
         false,
+        untrack(() => subscribeRemoved),
+        () => chatAvailable,
       )
     : terminalSession(t);
   chrome.syncSessionEffects(
@@ -231,8 +238,11 @@
   const chatUploads =
     plugins.chat && files
       ? files.useChatUpload(
-          (file, progress, signal) =>
-            files.uploadFile(sessionId, file, progress, signal),
+          (file, progress, signal) => {
+            if (!availablePlugins.files)
+              return Promise.reject(new Error("文件上传暂不可用"));
+            return files.uploadFile(sessionId, file, progress, signal);
+          },
           (message) => (error = message),
           {
             get: () => draft.attachments,
@@ -259,6 +269,7 @@
       destination: (operation) => drafts.destination(draft, operation),
       insert: input.insertText,
     },
+    () => !!availablePlugins.files,
   );
   const fullscreen = useFullscreen((message) => (error = message));
   const xr = plugins.immersive?.useXrSessionSource({
@@ -266,12 +277,15 @@
     terminal: t,
     chatPanel: plugins.chat?.xrChatPanel,
     quickCommands: () =>
-      plugins.quickCommands?.availableCommands(!!plugins.files) ?? [],
-    codeAvailable: () => !!plugins.code,
+      availablePlugins.quickCommands?.availableCommands(
+        !!availablePlugins.files,
+      ) ?? [],
+    codeAvailable: () => !!availablePlugins.code,
     hybrid,
     draft,
     codePanels: () => codePanel?.xrPanels() ?? [],
-    focus,
+    focus: input.focusXr,
+    blur: input.blurXr,
     editDraft: (input) => stage?.editComposerKey(input),
     editChat: (input) => stage?.editChatKey(input),
     sendDraft: input.sendDraft,
@@ -290,6 +304,13 @@
       ]
         .filter(Boolean)
         .join(" "),
+  });
+  $effect(() => {
+    const record = hybrid.recoverable;
+    if (hybrid.known) seenHybrid = true;
+    if (record && hybrid.view === "recovery")
+      untrack(() => oninfo(record, t.connection));
+    if (hybrid.missing && (seenHybrid || xr?.active)) untrack(onremoved);
   });
 
   onMount(() => {
@@ -322,11 +343,15 @@
   bind:clientWidth={paneWidth}
   data-terminal-compact={!desktop}
   bind:this={terminalRoot}
+  onkeydowncapture={input.guardXrInput}
+  onbeforeinputcapture={input.guardXrInput}
+  onpastecapture={input.guardXrInput}
 >
   {#if plugins.chat}
     <plugins.chat.Handoff
-      sourceId={hybrid.info?.conversationId ??
-        hybrid.recoverable?.conversationId}
+      sourceId={availablePlugins.chat
+        ? (hybrid.info?.conversationId ?? hybrid.recoverable?.conversationId)
+        : undefined}
       root={terminalRoot}
       children={terminalStage}
     />
@@ -338,7 +363,7 @@
 {#if active && visible}
   <SessionTerminalDialogs
     {id}
-    {plugins}
+    plugins={availablePlugins}
     {draft}
     {drafts}
     {hybrid}
@@ -366,7 +391,7 @@
 
 {#snippet terminalStage(chatActions: Snippet | undefined)}
   <SessionTerminalStage
-    {plugins}
+    plugins={availablePlugins}
     bind:this={stage}
     bind:container
     bind:notice
@@ -381,14 +406,15 @@
     {paneActions}
     {headerTerminal}
     {fullscreen}
-    {xr}
+    xr={availablePlugins.immersive ? xr : undefined}
     {desktop}
     {documentScroll}
-    chatVisible={active && visible && (desktop || !chrome.codeShown)}
+    chatVisible={((active && visible) || (input.xrFocused && !!xr?.active)) &&
+      (desktop || !chrome.codeShown || !!xr?.active)}
     {hybrid}
     terminal={t}
-    {uploads}
-    {chatUploads}
+    uploads={availablePlugins.files ? uploads : undefined}
+    chatUploads={availablePlugins.chat ? chatUploads : undefined}
     {chatUploadUnavailable}
     {sendUnavailable}
     {quickUnavailable}
@@ -448,15 +474,15 @@
     onChooseSwitch={() => (chrome.choiceClosed = false)}
   >
     {#snippet codePane()}
-      {#if plugins.code && codeLoaded}<plugins.code.Panel
+      {#if availablePlugins.code && codeLoaded}<availablePlugins.code.Panel
           bind:this={codePanel}
           {id}
-          gitPlugin={plugins.git}
+          gitPlugin={availablePlugins.git}
           visible={visible && chrome.codeShown}
           connection={hybrid.view === "chat"
             ? hybrid.chat.connection
             : t.connection}
-          paste={insertReference}
+          paste={input.insertReference}
           draftEnabled={draft.enabled || hybrid.view === "chat"}
           reveal={chrome.codeTarget}
           sessionCwd={hybrid.info?.cwd ?? ""}

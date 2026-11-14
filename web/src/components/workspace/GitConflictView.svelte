@@ -13,6 +13,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as NativeSelect from "$lib/components/ui/native-select";
   import * as Popover from "$lib/components/ui/popover";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import type {
     GitConflictFileDetail,
@@ -241,11 +242,15 @@
               <div class="font-semibold text-foreground">
                 {detail.base.label} ({detail.base.role})
               </div>
-              <pre
-                class="max-h-64 overflow-auto rounded-md border bg-background p-2 font-mono text-xs whitespace-pre-wrap break-all">{detail
-                  .base.present
-                  ? detail.base.text || "(空文件)"
-                  : "(共同祖先中无此文件)"}</pre>
+              <div class="rounded-md border bg-background">
+                <ScrollArea viewportClasses="max-h-64">
+                  <pre
+                    class="p-2 font-mono text-xs whitespace-pre-wrap break-all">{detail
+                      .base.present
+                      ? detail.base.text || "(空文件)"
+                      : "(共同祖先中无此文件)"}</pre>
+                </ScrollArea>
+              </div>
             </div>
           </Popover.Content>
         </Popover.Root>

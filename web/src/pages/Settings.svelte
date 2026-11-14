@@ -25,7 +25,7 @@
     previewSettings,
   } from "../domains/settings/preview-settings.svelte";
   import { selectPreview } from "../domains/sessions/preview";
-  import PendingUpdateNotice from "../components/notifications/PendingUpdateNotice.svelte";
+  import PendingUpdateNotice from "../components/shared/PendingUpdateNotice.svelte";
   import { setBrowserChrome } from "../platform/browser-chrome";
   import InstallSettings from "../components/settings/InstallSettings.svelte";
   import SessionSwitcherTrigger from "../components/shell/SessionSwitcherTrigger.svelte";

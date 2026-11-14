@@ -129,11 +129,12 @@ export function useTerminal(
       const grid = stream.control;
       if (
         terminal &&
-        stream.observing &&
+        (stream.observing || !sized) &&
         grid &&
         (terminal.cols !== grid.cols || terminal.rows !== grid.rows)
       )
         terminal.resize(grid.cols, grid.rows);
+      if (grid) sized = true;
       updateBottom();
       return;
     }

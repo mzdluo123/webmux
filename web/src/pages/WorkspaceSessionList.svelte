@@ -7,12 +7,7 @@
   import { store, stored } from "../platform/api";
   import type { ArchivedSession, Worktree } from "../contracts/schemas";
   import { errorMessage } from "../platform/error";
-  import PendingUpdateNotice from "../components/notifications/PendingUpdateNotice.svelte";
-  import {
-    dismissUpdate,
-    dismissedUpdate,
-    homeUpdate,
-  } from "../platform/pending-update";
+  import HomeUpdateNotice from "../components/shared/HomeUpdateNotice.svelte";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import SessionFilters from "../components/sessions/SessionFilters.svelte";
   import SessionListNotices from "../components/sessions/SessionListNotices.svelte";
@@ -75,10 +70,6 @@
   const loading = $derived(shell.sessions.loading);
   const initializing = $derived(!shell.setup.settled);
   const error = $derived(shell.sessions.error);
-  let dismissedVersion = $state(dismissedUpdate());
-  const updateNotice = $derived(
-    homeUpdate(setup.pendingUpdate, dismissedVersion),
-  );
   let removing = $state<Worktree | null>(null);
   let removingRecord = $state<ArchivedSession | null>(null);
   let recordError = $state("");
@@ -301,6 +292,15 @@
     {refreshing}
     onchange={setCompact}
     onrefresh={() => void shell.repositories?.refresh(true)}
+    ongit={pluginAvailable("workspace.git-workbench")
+      ? () =>
+          openGitWorkbench({
+            repositoryId: shell.settingsRepository?.id ?? "",
+            worktreeId: shell.settingsRepository
+              ? selectedWorktree?.id
+              : undefined,
+          })
+      : undefined}
     menu={shell.settingsRepository ? menu : undefined}
   />
 {/snippet}
@@ -311,18 +311,7 @@
     reconnecting={shell.sessions.connection === "reconnecting"}
     {actions}
   />
-  {#if updateNotice}
-    {@const version = updateNotice.installedVersion}
-    <div class="mx-auto max-w-7xl px-4 pt-5 sm:px-8 sm:pt-6">
-      <PendingUpdateNotice
-        update={updateNotice}
-        ondismiss={() => {
-          dismissUpdate(version);
-          dismissedVersion = version;
-        }}
-      />
-    </div>
-  {/if}
+  <HomeUpdateNotice update={setup.pendingUpdate} inset />
   {#if loading || initializing}
     <div
       class="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-8 sm:py-6"

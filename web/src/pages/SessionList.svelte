@@ -7,6 +7,7 @@
   import SessionSwitcherTrigger from "../components/shell/SessionSwitcherTrigger.svelte";
   import SessionRow from "../components/sessions/SessionRow.svelte";
   import InlineNotice from "../components/shared/InlineNotice.svelte";
+  import HomeUpdateNotice from "../components/shared/HomeUpdateNotice.svelte";
   import { matchesSessionQuery } from "../domains/sessions/session-location";
   import {
     resetBrowserChrome,
@@ -48,6 +49,7 @@
     <SessionSwitcherTrigger size="icon-touch" />
     <Button onclick={() => shell.start()}>新建会话</Button>
   </header>
+  <HomeUpdateNotice update={shell.setup.value.pendingUpdate} />
   <Input
     aria-label="搜索会话"
     placeholder="搜索会话或目录"

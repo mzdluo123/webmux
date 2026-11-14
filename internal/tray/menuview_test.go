@@ -81,7 +81,7 @@ func TestVersionHintAndUpdateEntry(t *testing.T) {
 	}
 	running := snap(tray)
 	running.State, running.Running = StateExternal, &BuildInfo{Version: "0.2.0", Contract: 1}
-	if got := VersionHint(running); got != "WSL 中已安装 0.3.0，重启 WebMux 后生效，重启会结束所有会话" {
+	if got := VersionHint(running); got != "WSL 中已安装 0.3.0，重启 WebMux 后生效（普通终端会话会结束，混合会话会自动恢复）" {
 		t.Errorf("restart hint %q", got)
 	}
 	running.Running = &BuildInfo{Version: "0.3.0", Contract: 1}

@@ -80,6 +80,7 @@
     "eslint": "^10.14.0",
     "eslint-plugin-svelte": "^3.24.1",
     "fflate": "0.8.3",
+    "iwer": "2.8.0",
     "jscpd": "^5.4.3",
     "knip": "^6.44.2",
     "paneforge": "^1.0.2",

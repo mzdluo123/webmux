@@ -27,6 +27,7 @@ export interface XrSessionSource {
   id: string;
   readonly title: string;
   readonly status: string;
+  readonly primaryKind: "terminal" | "chat" | undefined;
   readonly terminal: Terminal | undefined;
   readonly graphicsUnsupported: boolean;
   readonly modifiers: Modifiers;
@@ -37,7 +38,13 @@ export interface XrSessionSource {
   panels(): readonly XrTextPanel[];
   actions(): readonly XrAction[];
   input(value: string): void;
-  focus(): void;
+  canInput(kind: "terminal" | XrTextPanel["kind"], sourceId?: string): boolean;
+  focus(
+    kind: "terminal" | XrTextPanel["kind"],
+    sourceId?: string,
+    isCurrent?: () => boolean,
+  ): void | Promise<void>;
+  blur(): void;
   latest(): void;
   scroll(lines: number): void;
   resize(cols: number, rows: number): boolean;
@@ -53,7 +60,10 @@ export interface XrWorkspaceOptions {
   initialId: string;
   sources(this: void): readonly XrSessionSource[];
   available(this: void): readonly XrAvailableSession[];
-  open(this: void, id: string): void | Promise<void>;
+  ready(this: void): boolean;
+  observe(this: void, id: string): Promise<void>;
+  unobserve(this: void, id: string): void;
+  reveal(this: void, id: string): void | Promise<void>;
   error(this: void, message: string): void;
   exit(this: void): void;
 }

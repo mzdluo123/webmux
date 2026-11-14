@@ -8,6 +8,7 @@ import { XrSurface, type XrRegion } from "./xr-surface";
 import { XrTerminalMesh } from "./xr-terminal-mesh";
 import { xrGraphemes } from "../../domains/terminal/xr-text";
 import { xrGridControls } from "./xr-grid-controls";
+import { drawXrPanelContent, drawUnavailableXrPanel } from "./xr-panel-content";
 
 export class XrPanel {
   readonly surface = new XrSurface();
@@ -22,6 +23,7 @@ export class XrPanel {
   private pending: XrAction | undefined;
   private column = 0;
   private confirmationOffset = 0;
+  private following = true;
 
   constructor(
     readonly layout: XrPanelLayout,
@@ -29,6 +31,7 @@ export class XrPanel {
     private changed: () => void,
     private exit: () => void,
     private error: (message: string) => void,
+    private split?: (id: string) => void,
   ) {
     this.applyLayout();
   }
@@ -42,7 +45,7 @@ export class XrPanel {
 
   scroll(lines: number) {
     if (this.layout.kind === "terminal") this.source?.scroll(lines);
-    else
+    else {
       this.offset = Math.max(
         0,
         Math.min(
@@ -50,6 +53,8 @@ export class XrPanel {
           this.offset + lines,
         ),
       );
+      this.following = this.offset >= (this.text?.lines.length ?? 0) - 18;
+    }
     this.signature = "";
   }
 
@@ -62,26 +67,21 @@ export class XrPanel {
     text: XrTextPanel | undefined,
     selected: boolean,
   ) {
-    const previous = this.text;
-    if (
-      text?.kind === "chat" &&
-      (!previous || this.offset >= previous.lines.length - 18)
-    )
+    if (text?.kind === "chat" && this.following)
       this.offset = Math.max(0, text.lines.length - 18);
     this.source = source;
     this.text = text;
     if (this.layout.kind === "terminal")
       this.terminalView.sync(source.terminal, this.layout.size);
-    if (!this.layout.visible) return;
-    this.terminalView.visible = !this.grid && !this.pending;
-    const actions = text?.actions?.length
-      ? [...text.actions, ...source.actions()]
-      : source.actions();
-    const title = text ? `${source.title} · ${text.title}` : source.title;
+    const actions = this.bindingActions(text);
+    const title = `${source.title}${text ? ` · ${text.title}` : ""} · 视图 ${this.layout.id.slice(-8)}`;
     if (this.pending)
       this.pending = actions.find(
         (action) => action.id === this.pending?.id && !action.disabled,
       );
+    if (!this.layout.visible) return;
+    this.terminalView.visible =
+      this.layout.kind === "terminal" && !this.grid && !this.pending;
     if (text)
       this.offset = Math.min(this.offset, Math.max(0, text.lines.length - 18));
     const lines = text?.lines.slice(this.offset, this.offset + 18) ?? [];
@@ -92,6 +92,7 @@ export class XrPanel {
       source.terminal?.rows,
       selected,
       source.graphicsUnsupported,
+      source.canInput(this.layout.kind, this.layout.sourceId),
       text?.title,
       lines,
       actions.map((action) => [
@@ -128,20 +129,9 @@ export class XrPanel {
         height: 58,
         mode: "move",
         selected,
+        run: () => this.activate(),
       },
-      {
-        id: "close",
-        label: "关闭",
-        x: 812,
-        y: 4,
-        width: 204,
-        height: 58,
-        run: () => {
-          this.layout.visible = false;
-          this.applyLayout();
-          this.changed();
-        },
-      },
+      this.closeRegion(),
       {
         id: "up",
         label: "↑ 历史",
@@ -170,6 +160,7 @@ export class XrPanel {
         run: () => {
           if (this.layout.kind === "terminal") this.source?.latest();
           this.offset = Math.max(0, (this.text?.lines.length ?? 0) - 18);
+          this.following = true;
           this.signature = "";
         },
       },
@@ -181,6 +172,7 @@ export class XrPanel {
         width: 190,
         height: 46,
         run: () => this.activate(),
+        selected,
       },
       {
         id: "resize",
@@ -221,6 +213,7 @@ export class XrPanel {
           ),
         0,
       );
+      this.column = Math.min(this.column, maxColumn);
       regions.push(
         {
           id: "text-left",
@@ -264,15 +257,14 @@ export class XrPanel {
           width: 266,
           height: 56,
           run: () => {
-            const current =
-              this.text?.actions?.find((item) => item.id === action.id) ??
-              this.source?.actions().find((item) => item.id === action.id);
+            const current = this.currentAction(action.id);
             if (!current || current.disabled) return;
+            this.activate();
             if (current.confirm) {
               this.pending = current;
               this.confirmationOffset = 0;
               this.signature = "";
-            } else this.run(current);
+            } else this.run(current.id);
           },
         }),
       );
@@ -297,7 +289,10 @@ export class XrPanel {
         y: 712,
         width: 870,
         height: 48,
-        run: this.exit,
+        run: () => {
+          this.activate();
+          this.exit();
+        },
       });
     if (this.pending) {
       const pending = this.pending;
@@ -316,9 +311,10 @@ export class XrPanel {
           width: 380,
           height: 90,
           run: () => {
+            const current = this.currentAction(pending.id);
             this.pending = undefined;
             this.signature = "";
-            if (!pending.disabled) this.run(pending);
+            if (current && !current.disabled) this.run(current.id);
           },
         },
         {
@@ -364,60 +360,66 @@ export class XrPanel {
         },
       );
     }
+    if (
+      !this.pending &&
+      this.layout.kind === "chat" &&
+      this.layout.sourceId === "chat" &&
+      this.split
+    )
+      regions.push({
+        id: "split",
+        label: "拆分视图",
+        x: 572,
+        y: 712,
+        width: 306,
+        height: 48,
+        run: () => this.split?.(this.layout.id),
+      });
     this.surface.regions = regions;
-    this.surface.draw(() => {
-      if (this.pending) {
-        this.surface.text("确认操作", 40, 140, "#edf4ef", "30px system-ui");
-        const message = xrGraphemes(this.pending.confirm ?? this.pending.label);
-        for (let row = 0; row < 6; row++) {
-          const start = (this.confirmationOffset + row) * 36;
-          this.surface.text(
-            message.slice(start, start + 36).join(""),
-            40,
-            210 + row * 32,
-          );
-        }
-      } else {
-        if (this.layout.kind === "terminal" && !source.terminal)
-          this.surface.text("正在挂载现有终端…", 32, 140);
-        lines.forEach((line, index) =>
-          this.surface.text(
-            xrGraphemes(line.text.replaceAll("\t", "    "))
-              .slice(this.column, this.column + 40)
-              .join(""),
-            30,
-            120 + index * 28,
-            line.tone === "added"
-              ? "#83d3a0"
-              : line.tone === "removed" || line.tone === "error"
-                ? "#f0a0a0"
-                : line.tone === "muted"
-                  ? "#a1ada5"
-                  : "#edf4ef",
-          ),
-        );
-      }
-      if (!source.graphicsUnsupported)
-        this.surface.text(
-          this.notice ||
-            "标题拖动 · 右下角缩放 · 内容拖动滚动（不改变终端网格）",
-          20,
-          724,
-          "#a1ada5",
-          "20px system-ui",
-        );
-    });
+    this.surface.draw(() =>
+      drawXrPanelContent(this.surface, source, this.layout, {
+        pending: this.pending,
+        confirmationOffset: this.confirmationOffset,
+        lines,
+        column: this.column,
+        notice: this.notice,
+      }),
+    );
   }
 
   private activate() {
-    this.select(this.layout.sessionId);
-    this.source?.focus();
+    this.select(this.layout.id);
   }
 
-  private run(action: XrAction) {
+  private bindingActions(text: XrTextPanel | undefined) {
+    const readonlyChat =
+      this.layout.kind === "chat" &&
+      this.layout.sourceId === "chat" &&
+      !this.source?.canInput("chat", "chat");
+    return [
+      ...(text?.actions ?? []),
+      ...(readonlyChat ? [] : (this.source?.actions() ?? [])),
+    ];
+  }
+
+  private currentAction(id: string) {
+    if (!this.layout.visible || !this.source) return undefined;
+    const text = this.source
+      ?.panels()
+      .find(
+        (panel) =>
+          panel.kind === this.layout.kind && panel.id === this.layout.sourceId,
+      );
+    return this.bindingActions(text).find((action) => action.id === id);
+  }
+
+  private run(id: string) {
     this.activate();
     void Promise.resolve()
-      .then(() => action.run())
+      .then(() => {
+        const current = this.currentAction(id);
+        if (current && !current.disabled) return current.run();
+      })
       .catch((cause: unknown) => this.error(String(cause)));
   }
 
@@ -443,20 +445,42 @@ export class XrPanel {
     this.terminalView.visible = false;
   }
 
+  private closeRegion(): XrRegion {
+    return {
+      id: "close",
+      label: "关闭",
+      x: 812,
+      y: 4,
+      width: 204,
+      height: 58,
+      run: () => {
+        this.layout.visible = false;
+        this.pending = undefined;
+        this.applyLayout();
+        this.changed();
+      },
+    };
+  }
+
   detach() {
-    if (!this.source) return;
+    if (this.signature === "unavailable") {
+      this.applyLayout();
+      return;
+    }
     this.terminalView.dispose();
     this.source = undefined;
     this.text = undefined;
     this.pending = undefined;
     this.grid = undefined;
-    this.signature = "";
-    this.surface.regions = [];
-    this.surface.draw(() => {});
-    this.surface.group.visible = false;
+    this.signature = "unavailable";
+    this.applyLayout();
+    drawUnavailableXrPanel(this.surface, this.layout, this.closeRegion());
   }
 
   dispose() {
+    this.source = undefined;
+    this.text = undefined;
+    this.pending = undefined;
     this.terminalView.dispose();
     this.surface.dispose();
   }

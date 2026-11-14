@@ -11,9 +11,15 @@ const require = createRequire(join(playwright, "package.json"));
 await mkdir(join(destination, "web/node_modules/@playwright"), {
   recursive: true,
 });
-// Playwright's runner has only these three runtime packages. Copy the exact
-// versions installed by the frozen pnpm lockfile, following pnpm's links.
-for (const name of ["@playwright/test", "playwright", "playwright-core"]) {
+// Playwright has three runtime packages. XR fixtures only resolve IWER's
+// entry point and inject its self-contained browser bundle.
+// Copy exact lockfile-installed packages, following pnpm's links.
+for (const name of [
+  "@playwright/test",
+  "playwright",
+  "playwright-core",
+  "iwer",
+]) {
   await cp(
     name === "playwright-core"
       ? dirname(require.resolve("playwright-core/package.json"))

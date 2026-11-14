@@ -22,8 +22,11 @@ const (
 )
 
 // gitEnv keeps every workspace Git call noninteractive and its output in
-// the fixed English the callers parse.
-var gitEnv = []string{"GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "LC_ALL=C"}
+// the fixed English the callers parse. GIT_OPTIONAL_LOCKS=0 stops read-only
+// commands (status, diff) from taking index.lock for their optional refresh:
+// writes still take required locks, and an unexpected lock keeps surfacing
+// as ErrLocked instead of racing the server's own status reads.
+var gitEnv = []string{"GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "LC_ALL=C"}
 
 func (s *Service) git(ctx context.Context, cwd string, args ...string) ([]byte, error) {
 	out, _, err := s.gitOutput(ctx, cwd, args...)

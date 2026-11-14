@@ -99,6 +99,10 @@ func (s *Service) removeRecord(ctx context.Context, id string) error {
 	if err := s.records.remove(id); err != nil {
 		return err
 	}
+	// clear's runtime notification can precede the archive commit. Publish
+	// again now so canonical readers cannot retain that earlier archive,
+	// even if the following conversation cleanup fails.
+	s.manager.NotifyRemoved(id)
 	if err := s.forgetConversation(context.WithoutCancel(ctx), id); err != nil {
 		return err
 	}

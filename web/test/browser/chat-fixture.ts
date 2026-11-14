@@ -6,6 +6,7 @@ import type {
   ChatFrame,
   ChatState,
 } from "../../src/contracts/schemas";
+import type { PluginID } from "../../src/contracts/plugin-schemas";
 import { enableHostPlugins, resetHostPlugins } from "./plugin-fixture";
 
 // A hybrid session's streams and commands without a backend: every
@@ -94,7 +95,7 @@ export function respond(pattern: RegExp, responder: Responder) {
   responders.unshift([pattern, responder]);
 }
 
-export function installChatFixture() {
+export function installChatFixture(plugins?: readonly PluginID[]) {
   beforeEach(async () => {
     sockets = [];
     requests = [];
@@ -119,7 +120,7 @@ export function installChatFixture() {
         return Response.json({ error: "not found" }, { status: 404 });
       }),
     );
-    await enableHostPlugins();
+    await enableHostPlugins(plugins);
   });
   afterEach(async () => {
     try {

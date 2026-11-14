@@ -27,7 +27,7 @@ func (s *Service) Prepare(ctx context.Context, in sessioncreate.Input) (out sess
 	if in.NewWorktree != nil {
 		repositoryID = in.NewWorktree.RepositoryID
 	}
-	if repositoryID != "" {
+	if reference != nil || in.NewWorktree != nil {
 		r, err := s.repository(repositoryID)
 		if err != nil {
 			return out, err

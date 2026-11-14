@@ -10,18 +10,27 @@
     source,
     errors,
     expose,
-    open = () => {},
+    reveal = () => {},
+    observe = async () => {},
+    unobserve = () => {},
+    ready = () => true,
   }: {
     source: XrSessionSource;
     errors: string[];
     expose: (header: XrHeaderControl) => void;
-    open?: (id: string) => void | Promise<void>;
+    reveal?: (id: string) => void | Promise<void>;
+    observe?: (id: string) => Promise<void>;
+    unobserve?: (id: string) => void;
+    ready?: () => boolean;
   } = $props();
   let activeSession = $state("other-session");
   const workspace = createXrSessionWorkspace({
     available: () => [{ id: source.id, title: source.title }],
-    open: async (id) => {
-      await open(id);
+    observe: (id) => observe(id),
+    unobserve: (id) => unobserve(id),
+    ready: () => ready(),
+    reveal: async (id) => {
+      await reveal(id);
       activeSession = id;
     },
     error: (message) => errors.push(message),

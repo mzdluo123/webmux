@@ -13,6 +13,8 @@ function git(
   return execFileSync("git", ["-C", root, ...args], {
     env: {
       ...process.env,
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
       GIT_AUTHOR_NAME: "Alice Author",
       GIT_AUTHOR_EMAIL: "alice@example.invalid",
       GIT_COMMITTER_NAME: "Alice Author",

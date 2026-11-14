@@ -24,15 +24,39 @@ export interface TerminalPlugins {
   errors?: string[];
 }
 
-/** Fixed local contributions; a failed optional chunk never blocks the PTY. */
+/** Availability may recover without replacing the terminal's selected owners. */
+export function availableTerminalPlugins(
+  selected: TerminalPlugins,
+): TerminalPlugins {
+  const files = pluginAvailable("files.upload") ? selected.files : undefined;
+  const code = pluginAvailable("code.browse") ? selected.code : undefined;
+  const workspace = pluginAvailable("workspace.manage")
+    ? selected.workspace
+    : undefined;
+  return {
+    chat: files && pluginAvailable("chat.acp") ? selected.chat : undefined,
+    files,
+    code,
+    quickCommands: pluginAvailable("quick-commands.send")
+      ? selected.quickCommands
+      : undefined,
+    voice: pluginAvailable("voice.recognize") ? selected.voice : undefined,
+    immersive: pluginAvailable("immersive.xr") ? selected.immersive : undefined,
+    forward: pluginAvailable("forward.ports") ? selected.forward : undefined,
+    workspace,
+    git:
+      workspace && code && pluginAvailable("workspace.git-workbench")
+        ? selected.git
+        : undefined,
+    errors: selected.errors,
+  };
+}
+
+/** Disabled implementations never load; an optional chunk failure leaves PTY usable. */
 export async function loadTerminalPlugins(): Promise<TerminalPlugins> {
   const errors: string[] = [];
-  async function load<T>(
-    id: PluginID,
-    capability: string,
-    implementation: () => Promise<T>,
-  ) {
-    if (!pluginEnabled(id) || !pluginAvailable(capability)) return undefined;
+  async function load<T>(id: PluginID, implementation: () => Promise<T>) {
+    if (!pluginEnabled(id)) return undefined;
     try {
       return await implementation();
     } catch (cause) {
@@ -51,24 +75,16 @@ export async function loadTerminalPlugins(): Promise<TerminalPlugins> {
     workspace,
     git,
   ] = await Promise.all([
-    load("chat", "chat.acp", () => import("./terminal-chat")),
-    load("files", "files.upload", () => import("./terminal-files")),
-    load("code", "code.browse", () => import("./terminal-code")),
-    load(
-      "quick-commands",
-      "quick-commands.send",
-      () => import("./terminal-quick-commands"),
-    ),
-    load("voice", "voice.recognize", () => import("./terminal-voice")),
-    load("immersive", "immersive.xr", () => import("./terminal-immersive")),
-    load("forward", "forward.ports", () => import("./terminal-forward")),
-    load("workspace", "workspace.manage", () => import("./terminal-workspace")),
+    load("chat", () => import("./terminal-chat")),
+    load("files", () => import("./terminal-files")),
+    load("code", () => import("./terminal-code")),
+    load("quick-commands", () => import("./terminal-quick-commands")),
+    load("voice", () => import("./terminal-voice")),
+    load("immersive", () => import("./terminal-immersive")),
+    load("forward", () => import("./terminal-forward")),
+    load("workspace", () => import("./terminal-workspace")),
     pluginEnabled("code")
-      ? load(
-          "workspace",
-          "workspace.git-workbench",
-          () => import("./terminal-git"),
-        )
+      ? load("workspace", () => import("./terminal-git"))
       : undefined,
   ]);
   return {
