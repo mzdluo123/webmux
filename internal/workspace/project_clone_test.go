@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/statefile"
 )
 
@@ -297,5 +298,64 @@ func TestProjectClonePreservesConfiguredSSHTransport(t *testing.T) {
 		if strings.HasPrefix(value, "GIT_SSH_COMMAND=") {
 			t.Fatalf("overrode configured transport: %s", value)
 		}
+	}
+}
+
+func TestProjectCloneWorkerTransitionFailureFailsPollingClosed(t *testing.T) {
+	s, root, state := cloneTestService(t, "success")
+	record := projectCloneRecord{ID: strings.Repeat("c", 32), RequestID: "transition-failure", URL: "https://example.invalid/repo.git", Path: filepath.Join(root, "target"), State: "running"}
+	s.cloneSaveMu.Lock()
+	err := s.commitProjectClones([]projectCloneRecord{record})
+	s.cloneSaveMu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(state, "project-clones.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(state, "project-clones.json"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.workerProjectCloneChange(record.ID, func(op *projectCloneRecord) { op.State = "failed" }); err == nil {
+		t.Fatal("transition unexpectedly committed")
+	}
+	if _, err := s.ProjectClone(record.ID); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("poll advertised an ownerless operation: %v", err)
+	}
+}
+
+func TestProjectCloneCleanupDoesNotRecordReplacedDirectoryAsOwned(t *testing.T) {
+	s, root, _ := cloneTestService(t, "success")
+	id := strings.Repeat("d", 32)
+	temporary, err := pathutil.MakeTemporaryDirectory(root, ".webmux-clone-"+id+"-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := t.TempDir()
+	if err := os.WriteFile(filepath.Join(foreign, "preserved"), []byte("data"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(temporary.Path(), temporary.Path()+"-moved"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(foreign, temporary.Path()); err != nil {
+		t.Fatal(err)
+	}
+	record := projectCloneRecord{ID: id, RequestID: "cleanup-replaced", URL: "https://example.invalid/repo.git", Path: filepath.Join(root, "target"), TemporaryPath: temporary.Path(), State: "failed"}
+	s.cloneSaveMu.Lock()
+	err = s.commitProjectClones([]projectCloneRecord{record})
+	s.cloneSaveMu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.cleanupProjectCloneTemporary(id, temporary)
+	s.cloneMu.Lock()
+	retained := s.clones[0]
+	s.cloneMu.Unlock()
+	if retained.TemporaryPath != "" || retained.Error == "" {
+		t.Fatalf("foreign data labelled owned: %+v", retained)
+	}
+	if _, err := os.Stat(filepath.Join(foreign, "preserved")); err != nil {
+		t.Fatalf("foreign data changed: %v", err)
 	}
 }

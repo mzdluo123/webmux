@@ -1,9 +1,13 @@
 package pathutil
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
+
+// ErrTemporaryDirectoryUnowned means the handle could not verify the root identity.
+var ErrTemporaryDirectoryUnowned = errors.New("temporary directory ownership cannot be verified")
 
 // TemporaryDirectory owns precisely one directory allocated by this handle.
 // It cannot be constructed from a client-supplied or persisted deletion path.
@@ -32,10 +36,10 @@ func (d *TemporaryDirectory) Remove() error {
 		return nil
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %v", ErrTemporaryDirectoryUnowned, err)
 	}
 	if !os.SameFile(d.identity, current) {
-		return fmt.Errorf("temporary directory was replaced: %s", d.path)
+		return fmt.Errorf("%w: root was replaced", ErrTemporaryDirectoryUnowned)
 	}
 	return os.RemoveAll(d.path)
 }

@@ -1,6 +1,7 @@
 package pathutil
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,7 +24,7 @@ func TestTemporaryDirectoryRefusesReplacedRoot(t *testing.T) {
 	if err := os.Symlink(foreign, handle.Path()); err != nil {
 		t.Fatal(err)
 	}
-	if err := handle.Remove(); err == nil {
+	if err := handle.Remove(); !errors.Is(err, ErrTemporaryDirectoryUnowned) {
 		t.Fatal("cleanup accepted a replacement root")
 	}
 	if _, err := os.Stat(filepath.Join(foreign, "preserved")); err != nil {

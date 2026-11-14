@@ -2,6 +2,8 @@ package workspace
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -10,15 +12,15 @@ import (
 )
 
 func (s *Service) runProjectClone(op projectCloneRecord) {
-	ctx, cancel := context.WithTimeout(s.cloneContext, projectCloneTimeout)
-	defer cancel()
 	select {
 	case s.cloneSlots <- struct{}{}:
 		defer func() { <-s.cloneSlots }()
-	case <-ctx.Done():
-		s.finishProjectClone(op.ID, "interrupted", "服务停止中断了克隆，请重新发起", "")
+	case <-s.cloneContext.Done():
+		s.finishProjectClone(op.ID, "interrupted", "服务停止中断了排队，请使用新的 requestId 重新发起", "")
 		return
 	}
+	ctx, cancel := context.WithTimeout(s.cloneContext, projectCloneTimeout)
+	defer cancel()
 	temporary, err := pathutil.MakeTemporaryDirectory(filepath.Dir(op.Path), ".webmux-clone-"+op.ID+"-")
 	if err != nil {
 		s.finishProjectClone(op.ID, "failed", "无法创建克隆临时目录，请检查服务用户的目录权限", "")
@@ -26,14 +28,9 @@ func (s *Service) runProjectClone(op projectCloneRecord) {
 	}
 	// The shared handle owns only the directory it allocated; neither request
 	// paths nor loaded ledger paths can be passed to recursive cleanup.
-	defer func() {
-		if err := temporary.Remove(); err != nil {
-			// Retain the owned path in the ledger for manual cleanup. Do not change a
-			// successfully registered project into a failed clone due to cleanup.
-			_ = s.changeProjectClone(op.ID, func(record *projectCloneRecord) { record.TemporaryPath = temporary.Path() })
-		}
-	}()
-	if err := s.changeProjectClone(op.ID, func(record *projectCloneRecord) { record.TemporaryPath = temporary.Path() }); err != nil {
+	defer s.cleanupProjectCloneTemporary(op.ID, temporary)
+
+	if err := s.workerProjectCloneChange(op.ID, func(record *projectCloneRecord) { record.TemporaryPath = temporary.Path() }); err != nil {
 		return
 	}
 	destination := filepath.Join(temporary.Path(), "repository")
@@ -48,15 +45,18 @@ func (s *Service) runProjectClone(op projectCloneRecord) {
 		stderrLimit: 1 << 20,
 	})
 	if run.err != nil || ctx.Err() != nil {
-		state, message := "failed", "克隆失败，请检查仓库地址、网络与服务端 Git 凭据"
+		state, message := "failed", "克隆失败，请检查仓库地址、网络与服务端 Git 凭据，使用新的 requestId 重新发起"
 		if ctx.Err() != nil {
-			state, message = "interrupted", "克隆被停止或超时，请重新发起"
+			state, message = "interrupted", "服务停止中断了克隆，请使用新的 requestId 重新发起"
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				message = "网络克隆超过 10 分钟，请使用新的 requestId 重新发起"
+			}
 		}
 		s.finishProjectClone(op.ID, state, message, "")
 		return
 	}
-	if err := s.changeProjectClone(op.ID, func(record *projectCloneRecord) {
-		record.State, record.Error, record.TemporaryPath = "registering", "", ""
+	if err := s.workerProjectCloneChange(op.ID, func(record *projectCloneRecord) {
+		record.State, record.Error = "registering", ""
 	}); err != nil {
 		return
 	}
@@ -81,9 +81,10 @@ func (s *Service) registerClonedProject(op projectCloneRecord) {
 }
 
 func (s *Service) finishProjectClone(id, state, message, projectID string) {
-	// A failed durable transition freezes this ledger; it must never expose an
-	// in-memory success which was not actually committed.
-	_ = s.changeProjectClone(id, func(record *projectCloneRecord) {
+	// Once a worker exits, a failed transition must fail polling closed rather
+	// than advertise an operation as running with no owner. Admission-only
+	// pre-publication failures remain retryable without freezing the store.
+	_ = s.workerProjectCloneChange(id, func(record *projectCloneRecord) {
 		record.State, record.Error, record.ProjectID = state, message, projectID
 		record.TemporaryPath = ""
 	})
@@ -101,4 +102,29 @@ func (s *Service) projectCloneGitEnv(ctx context.Context, parent string) []strin
 		return env
 	}
 	return append(env, "GIT_SSH_COMMAND=ssh -oBatchMode=yes")
+}
+
+// Worker failures differ from rejected admission: an admitted operation cannot
+// remain advertised as active after its worker exits without a durable result.
+func (s *Service) workerProjectCloneChange(id string, change func(*projectCloneRecord)) error {
+	if err := s.changeProjectClone(id, change); err != nil {
+		s.cloneMu.Lock()
+		s.cloneError = fmt.Errorf("克隆操作状态无法确认，请重启服务重新读取: %w", err)
+		s.cloneMu.Unlock()
+		return err
+	}
+	return nil
+}
+
+func (s *Service) cleanupProjectCloneTemporary(id string, temporary *pathutil.TemporaryDirectory) {
+	if err := temporary.Remove(); err != nil {
+		_ = s.workerProjectCloneChange(id, func(record *projectCloneRecord) {
+			if errors.Is(err, pathutil.ErrTemporaryDirectoryUnowned) {
+				record.TemporaryPath = ""
+				record.Error = "临时目录身份无法确认，已拒绝清理；该目录不再视为本操作所有"
+			} else {
+				record.TemporaryPath = temporary.Path()
+			}
+		})
+	}
 }
