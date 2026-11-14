@@ -22,7 +22,7 @@ export function xrChatPanel(options: {
   draft: string;
   answering: boolean;
   answer(requestId: string, optionId: string): Promise<void>;
-  openForm(this: void): void;
+  openForm(this: void): void | Promise<void>;
 }): XrTextPanel {
   const lines: XrTextLine[] = [];
   const actions: XrAction[] = [];

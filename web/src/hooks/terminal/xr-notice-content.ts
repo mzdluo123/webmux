@@ -9,7 +9,7 @@ export function xrNoticePanel(options: {
   notices: readonly HybridNotice[];
   awaitingChoice: boolean;
   forceSwitchNote: string;
-  openChoice(this: void): void;
+  openChoice(this: void): void | Promise<void>;
 }): XrTextPanel | undefined {
   const lines: XrTextLine[] = [];
   if (options.awaitingChoice) {

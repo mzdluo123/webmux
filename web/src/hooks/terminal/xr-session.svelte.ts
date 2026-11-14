@@ -58,6 +58,10 @@ export function createXrSessionWorkspace(options: {
   }
 
   function exit() {
+    void endSession();
+  }
+
+  function endSession() {
     const session = owner;
     if (!session) return;
     busy = true;
@@ -150,7 +154,7 @@ export function createXrSessionWorkspace(options: {
     async returnTo2D(id) {
       try {
         await options.open(id);
-        await exit();
+        await endSession();
       } catch (error) {
         options.error(`无法返回会话：${errorMessage(error)}`);
       }
