@@ -20,6 +20,7 @@ var capabilityPlugins = map[string]string{
 	"voice.recognize": "voice", "forward.ports": "forward", "cloudflare.manage": "cloudflare",
 	"workspace.git-workbench": "workspace",
 	"workspace.projects":      "workspace",
+	"workspace.clone":         "workspace",
 	"tailscale.manage":        "tailscale", "p2p.direct": "p2p", "mcp.control": "mcp", "immersive.xr": "immersive",
 }
 

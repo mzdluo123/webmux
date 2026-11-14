@@ -126,6 +126,15 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.ProjectsSchema, ["projects-empty", "projects"]],
   [S.ProjectSchema, ["project-create", "project-register-again"]],
   [
+    S.ProjectCloneOperationSchema,
+    [
+      "project-clone-start",
+      "project-clone-completed",
+      "project-clone-repeat",
+      "project-clone-register-repeat",
+    ],
+  ],
+  [
     S.CreateSessionResultSchema,
     [
       "session-create",

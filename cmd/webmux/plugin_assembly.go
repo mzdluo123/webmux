@@ -54,6 +54,9 @@ type pluginServices struct {
 // stop joins producers before the processes and stores they can still use.
 // It is also used on partially initialized startup failures.
 func (p *pluginServices) stop() {
+	if p.workspace != nil {
+		p.workspace.StopProjectClones()
+	}
 	if p.creation != nil {
 		p.creation.Close()
 	}

@@ -184,6 +184,15 @@
   - workspace.projects 单独报告目录能力，Git 不可用不阻断普通目录，未选择 workspace 时接口不挂载；
   - 这层只提供 API，现有新建会话弹窗尚未接入项目列表。
 
+- **US-B11 幂等克隆远程 Git 项目**：作为 API 调用者，我希望远程克隆在断线后继续并可恢复登记，以便创建项目时不重复下载或覆盖文件。
+  验收要点：
+  - workspace.clone 可用时，POST /api/projects/clone 接受 requestId、url、path，先持久记录再返回 202；同一请求与参数返回同一操作，参数不符返回 409；
+  - 允许不含凭据/查询参数的 HTTPS、SSH 和 user@host:path；拒绝本地及 ext 协议、控制字符和选项输入，不执行 shell 拼接命令；
+  - 两个网络克隆并发，其余排队；浏览器离开不取消任务，服务停止取消并等待整个子进程组；
+  - 只在自有临时目录克隆，原子发布绝不覆盖已有目标，即使它是空目录、文件或符号链接；失败只清理本操作创建的临时目录，替换过的目录拒绝递归删除；
+  - GET /api/projects/operations/{id} 可重连查询结果；克隆成功但登记失败保留目标，通过 POST /api/projects/operations/{id}/register 单独重试，不再次克隆；
+  - 公开错误不包含 Git stdout/stderr 或服务端凭据；禁用 workspace 时相关路由不挂载。
+
 依据：
 
 - [启动图标](../../../web/src/components/settings/LaunchConfigIcon.svelte)、[LobeHub 图标来源与许可](../../../web/src/icons/lobehub/README.md)
@@ -198,3 +207,5 @@
 来源补充：[统一创建回归](../../../web/test/e2e/session-creation.spec.ts)。
 
 项目来源：[项目 API](../../protocol/http-projects.md)、[本地项目服务](../../../internal/workspace/project_local.go)、[项目接口](../../../internal/pluginapi/project.go)、[项目 wire 回归](../../../internal/api/project_test.go)。
+
+远程克隆来源：[克隆服务](../../../internal/workspace/project_clone.go)、[克隆执行](../../../internal/workspace/project_clone_worker.go)、[克隆回归](../../../internal/workspace/project_clone_test.go)。

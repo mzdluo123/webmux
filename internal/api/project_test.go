@@ -15,12 +15,15 @@ func TestProjectRoutesRequireAuthAndOrigin(t *testing.T) {
 	manager := session.NewManager(session.Options{})
 	defer manager.Shutdown(context.Background())
 	handler := New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir())}))
-	for _, path := range []string{"/api/projects", "/api/projects/create"} {
+	for _, route := range []struct{ method, path string }{
+		{"POST", "/api/projects"}, {"POST", "/api/projects/create"}, {"POST", "/api/projects/clone"}, {"POST", "/api/projects/operations/missing/register"}, {"GET", "/api/projects/operations/missing"},
+	} {
+		path := route.path
 		for _, row := range []struct {
 			auth, origin string
 			want         int
 		}{{"", "", 401}, {"Bearer secret", "https://evil.example", 403}} {
-			request := httptest.NewRequest("POST", "http://webmux.example"+path, strings.NewReader(`{"path":"/tmp","parent":"/tmp","name":"never-created","initializeGit":false}`))
+			request := httptest.NewRequest(route.method, "http://webmux.example"+path, strings.NewReader(`{"path":"/tmp","parent":"/tmp","name":"never-created","initializeGit":false}`))
 			request.Header.Set("Authorization", row.auth)
 			request.Header.Set("Origin", row.origin)
 			recorder := httptest.NewRecorder()

@@ -88,3 +88,26 @@ func TestProjectCapabilitySurvivesCorruptGitRegistry(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectCloneCapabilityWithCorruptLedger(t *testing.T) {
+	t.Parallel()
+	state := t.TempDir()
+	if err := os.WriteFile(filepath.Join(state, "project-clones.json"), []byte(`{"version":99}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	service := workspace.New(state, nil, nil, t.TempDir())
+	defer service.Close()
+	plugins := pluginServices{workspace: service}
+	snapshot := plugins.capabilities(config.Config{Plugins: config.PluginConfig{Enabled: []string{"workspace"}}})
+	if err := localclient.ValidateCapabilities(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	for _, capability := range snapshot.Capabilities {
+		if capability.ID == "workspace.clone" && (capability.Available || capability.Reason != contract.CapabilityReasonStorageUnavailable) {
+			t.Fatalf("corrupt clone ledger: %+v", capability)
+		}
+		if capability.ID == "workspace.projects" && !capability.Available {
+			t.Fatalf("clone ledger disabled ordinary projects: %+v", capability)
+		}
+	}
+}

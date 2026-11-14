@@ -23,3 +23,20 @@ type ProjectCreationFailure struct {
 	Error string `json:"error"`
 	Path  string `json:"path"`
 }
+
+// ProjectCloneRequest identifies one durable, repeatable remote clone.
+type ProjectCloneRequest struct {
+	RequestID string `json:"requestId"`
+	URL       string `json:"url"`
+	Path      string `json:"path"`
+}
+
+// ProjectCloneOperation is safe to poll after a browser reconnects. Errors do
+// not include Git output or credentials from the service environment.
+type ProjectCloneOperation struct {
+	ID        string `json:"id"`
+	State     string `json:"state"`
+	Path      string `json:"path"`
+	Error     string `json:"error"`
+	ProjectID string `json:"projectId"`
+}

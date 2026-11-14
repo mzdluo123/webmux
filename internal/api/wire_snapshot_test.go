@@ -223,6 +223,9 @@ func wireSchema(name string) wireRules {
 	case "repository-fetch":
 		add("", "id", "operationId")
 		repositoryFields("/repository")
+	case "project-clone-start", "project-clone-completed", "project-clone-repeat", "project-clone-register-repeat":
+		add("", "id", "id", "projectId")
+		add("", "path", "path")
 	case "project-create", "project-register-again":
 		add("", "id", "id", "repositoryId")
 		add("", "path", "path")
@@ -1074,6 +1077,7 @@ func TestWireSnapshots(t *testing.T) {
 		{"launch", wireLaunch},
 		{"workspace", wireWorkspace},
 		{"projects", wireProjects},
+		{"projects-clone", wireProjectClones},
 		{"codeview", wireCodeview},
 		{"push", wirePush},
 		{"settings", wireSettings},
@@ -1088,6 +1092,9 @@ func TestWireSnapshots(t *testing.T) {
 		{"git-workbench", wireGitWorkbench},
 	} {
 		t.Run(group.name, func(t *testing.T) {
+			if group.name == "projects-clone" {
+				installWireProjectCloneGit(t)
+			}
 			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 			group.run(newWireFixture(t, rec))
 		})

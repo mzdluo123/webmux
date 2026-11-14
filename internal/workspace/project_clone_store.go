@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -91,6 +92,8 @@ func validateProjectClones(stored projectCloneRegistry) error {
 }
 
 func (s *Service) loadProjectClones() {
+	s.cloneContext, s.cloneCancel = context.WithCancel(context.Background())
+	s.cloneSlots = make(chan struct{}, projectCloneParallelism)
 	var stored projectCloneRegistry
 	var err error
 	s.cloneStore, stored, err = statefile.Open[projectCloneRegistry](s.stateDir, statefile.ProjectClones, validateProjectClones)
@@ -126,6 +129,7 @@ func (s *Service) loadProjectClones() {
 }
 
 func (s *Service) closeProjectClones() {
+	s.StopProjectClones()
 	s.cloneSaveMu.Lock()
 	defer s.cloneSaveMu.Unlock()
 	s.cloneMu.Lock()
