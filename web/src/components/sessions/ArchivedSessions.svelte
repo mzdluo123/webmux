@@ -136,6 +136,10 @@
       {#if error}<InlineNotice tone="danger">{error}</InlineNotice>{/if}
       {#each shown as record (record.id)}
         {@const removableWorktree = record.released ? undefined : worktree}
+        {@const hasMoreActions = Boolean(
+          removableWorktree &&
+          (archive.release || archive.removeRecordAndWorktree),
+        )}
         <Item.Root
           variant="muted"
           class="min-w-0 flex-col flex-nowrap items-stretch"
@@ -187,47 +191,53 @@
               onbusy={(active) => (busy = active ? record.id : "")}
               onerror={(message) => (error = message)}
             />
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger disabled={!!busy}>
-                {#snippet child({ props })}
-                  <Button
-                    {...props}
-                    size="icon-sm"
-                    variant="ghost"
-                    class="size-9 sm:size-8"
-                    title={`更多操作 ${recordTitle(record)}`}
-                    aria-label={`更多操作 ${recordTitle(record)}`}
-                    ><IconDots class="size-4" aria-hidden="true" /></Button
-                  >
-                {/snippet}
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content align="end" class="min-w-48">
-                {#if removableWorktree && archive.release}
-                  {@const release = archive.release}
-                  <DropdownMenu.Item onSelect={() => release(removableWorktree)}
-                    >释放空间</DropdownMenu.Item
-                  >
-                  <DropdownMenu.Separator />
-                {/if}
-                <DropdownMenu.Item
-                  variant="destructive"
-                  onSelect={() => {
-                    removing = record;
-                    removeOpen = true;
-                  }}>删除记录</DropdownMenu.Item
-                >
-                {#if removableWorktree && archive.removeRecordAndWorktree}
-                  {@const removeRecordAndWorktree =
-                    archive.removeRecordAndWorktree}
-                  <DropdownMenu.Item
-                    variant="destructive"
-                    onSelect={() =>
-                      removeRecordAndWorktree(record, removableWorktree)}
-                    >删除记录和工作树</DropdownMenu.Item
-                  >
-                {/if}
-              </DropdownMenu.Content>
-            </DropdownMenu.Root>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!!busy}
+              aria-label={`删除 ${recordTitle(record)}`}
+              onclick={() => {
+                removing = record;
+                removeOpen = true;
+              }}>删除</Button
+            >
+            {#if removableWorktree && hasMoreActions}
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger disabled={!!busy}>
+                  {#snippet child({ props })}
+                    <Button
+                      {...props}
+                      size="icon-sm"
+                      variant="ghost"
+                      title={`更多操作 ${recordTitle(record)}`}
+                      aria-label={`更多操作 ${recordTitle(record)}`}
+                      ><IconDots aria-hidden="true" /></Button
+                    >
+                  {/snippet}
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content align="end" class="min-w-48">
+                  {#if archive.release}
+                    {@const release = archive.release}
+                    <DropdownMenu.Item
+                      onSelect={() => release(removableWorktree)}
+                      >释放空间</DropdownMenu.Item
+                    >
+                    {#if archive.removeRecordAndWorktree}<DropdownMenu.Separator
+                      />{/if}
+                  {/if}
+                  {#if archive.removeRecordAndWorktree}
+                    {@const removeRecordAndWorktree =
+                      archive.removeRecordAndWorktree}
+                    <DropdownMenu.Item
+                      variant="destructive"
+                      onSelect={() =>
+                        removeRecordAndWorktree(record, removableWorktree)}
+                      >删除记录和工作树</DropdownMenu.Item
+                    >
+                  {/if}
+                </DropdownMenu.Content>
+              </DropdownMenu.Root>
+            {/if}
           </Item.Actions>
         </Item.Root>
       {/each}
@@ -244,6 +254,7 @@
 <ConfirmDialog
   bind:open={removeOpen}
   title={`删除“${removing ? recordTitle(removing) : ""}”的记录？`}
+  destructive
   onconfirm={confirmRemove}
 >
   只删除 WebMux 的记录与本机草稿；工作树与 agent 自己保存的会话不受影响。
