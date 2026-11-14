@@ -53,16 +53,27 @@ export function createProjectSources(
   let disposed = false;
   let githubGeneration = 0;
   let loadGeneration = 0;
+  let cloneEpoch = 0;
+  let pollingEpoch: number | null = null;
+  let cloneAbort = new AbortController();
   let githubAbort: AbortController | undefined;
   let pollTimer: ReturnType<typeof setTimeout> | undefined;
   const abort = new AbortController();
 
+  function stopObserving() {
+    cloneEpoch++;
+    cloneAbort.abort();
+    cloneAbort = new AbortController();
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = undefined;
+  }
   function remember(next: PendingClone | null) {
     pending = next;
     store(pendingKey, next ? JSON.stringify(next) : null);
   }
   async function select(project: Project) {
     if (busy || disposed || project.availability !== "available") return;
+    stopObserving();
     busy = true;
     error = "";
     try {
@@ -75,7 +86,11 @@ export function createProjectSources(
             abort.signal,
           )
         : undefined;
-      if (!disposed) onselect({ project, repository });
+      if (!disposed) {
+        remember(null);
+        operation = null;
+        onselect({ project, repository });
+      }
     } catch (err) {
       if (!disposed) error = errorMessage(err);
     } finally {
@@ -96,16 +111,17 @@ export function createProjectSources(
       );
       if (!disposed && generation === loadGeneration) projects = result;
     } catch (err) {
-      if (!disposed) error = errorMessage(err);
+      if (!disposed && generation === loadGeneration) error = errorMessage(err);
     } finally {
       if (!disposed && generation === loadGeneration) loading = false;
     }
   }
-  async function complete(op: ProjectCloneOperation) {
-    if (disposed) return;
+  async function complete(op: ProjectCloneOperation, epoch: number) {
+    if (disposed || epoch !== cloneEpoch || !pending) return;
     operation = op;
     if (op.state === "succeeded") {
       await load();
+      if (disposed || epoch !== cloneEpoch || !pending) return;
       const project = projects.find((p) => p.id === op.projectId);
       if (project) {
         remember(null);
@@ -114,25 +130,42 @@ export function createProjectSources(
         error ||= "克隆已完成，但项目暂未载入，请刷新项目列表";
       }
     } else if (op.state === "running" || op.state === "registering") {
-      pollTimer = setTimeout(() => void poll(op.id), 750);
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = setTimeout(() => void poll(op.id, epoch), 750);
     }
   }
-  async function poll(id: string) {
+  async function poll(id: string, epoch = cloneEpoch) {
+    if (disposed || epoch !== cloneEpoch || pollingEpoch === epoch || !pending)
+      return;
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = undefined;
+    pollingEpoch = epoch;
     try {
       const op = await api(
         `/projects/operations/${encodeURIComponent(id)}`,
         ProjectCloneOperationSchema,
         "GET",
         undefined,
-        abort.signal,
+        cloneAbort.signal,
       );
-      await complete(op);
+      if (disposed || epoch !== cloneEpoch) return;
+      error = "";
+      await complete(op, epoch);
     } catch (err) {
-      if (!disposed) error = errorMessage(err);
+      if (!disposed && epoch === cloneEpoch) error = errorMessage(err);
+    } finally {
+      if (pollingEpoch === epoch) pollingEpoch = null;
     }
   }
   async function submitClone(request: PendingClone) {
-    if (busy || disposed) return;
+    if (
+      busy ||
+      disposed ||
+      (pending && pending.requestId !== request.requestId)
+    )
+      return;
+    stopObserving();
+    const epoch = cloneEpoch;
     busy = true;
     error = "";
     remember(request);
@@ -143,20 +176,24 @@ export function createProjectSources(
         ProjectCloneOperationSchema,
         "POST",
         request,
-        abort.signal,
+        cloneAbort.signal,
         ProjectCloneRequestSchema,
       );
-      if (!disposed) remember({ ...request, operationId: admitted.id });
+      if (!disposed && epoch === cloneEpoch)
+        remember({ ...request, operationId: admitted.id });
     } catch (err) {
-      if (!disposed) {
+      if (!disposed && epoch === cloneEpoch) {
         error = errorMessage(err);
-        if (err instanceof APIError && [400, 404, 409].includes(err.status))
+        if (
+          err instanceof APIError &&
+          [400, 404, 409, 413, 422].includes(err.status)
+        )
           remember(null);
       }
     } finally {
-      if (!disposed) busy = false;
+      if (!disposed && epoch === cloneEpoch) busy = false;
     }
-    if (admitted) await complete(admitted);
+    if (admitted) await complete(admitted, epoch);
   }
   return {
     get projects() {
@@ -239,13 +276,14 @@ export function createProjectSources(
       return submitClone({ requestId: crypto.randomUUID(), url, path, source });
     },
     resume() {
-      if (!pending) return Promise.resolve();
+      if (!pending || busy) return Promise.resolve();
       return pending.operationId
         ? poll(pending.operationId)
         : submitClone(pending);
     },
     async retryRegistration() {
       if (!operation || busy) return;
+      const epoch = cloneEpoch;
       busy = true;
       error = "";
       let op: ProjectCloneOperation | undefined;
@@ -255,23 +293,18 @@ export function createProjectSources(
           ProjectCloneOperationSchema,
           "POST",
           undefined,
-          abort.signal,
+          cloneAbort.signal,
         );
       } catch (err) {
         if (!disposed) error = errorMessage(err);
       } finally {
         if (!disposed) busy = false;
       }
-      if (op) await complete(op);
+      if (op) await complete(op, epoch);
     },
     clearClone() {
-      if (
-        operation?.state === "running" ||
-        operation?.state === "registering" ||
-        busy
-      )
-        return;
-      if (pollTimer) clearTimeout(pollTimer);
+      if (busy) return;
+      stopObserving();
       remember(null);
       operation = null;
       error = "";
@@ -299,6 +332,7 @@ export function createProjectSources(
     },
     dispose() {
       disposed = true;
+      stopObserving();
       abort.abort();
       githubAbort?.abort();
       if (pollTimer) clearTimeout(pollTimer);

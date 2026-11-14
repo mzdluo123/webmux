@@ -6,6 +6,7 @@ import type { Project } from "../../src/contracts/schemas";
 
 vi.mock("../../src/platform/plugin-host.svelte", () => ({
   pluginAvailable: () => true,
+  pluginCapabilityRevision: () => 0,
 }));
 const project: Project = {
   id: "directory:demo",
@@ -211,4 +212,18 @@ test("registration failure retains path and retries registration without cloning
   expect(
     requests.some((r) => r.path.endsWith("/register") && r.method === "POST"),
   ).toBe(true);
+});
+
+test("source search matches the visible Chinese labels", async () => {
+  mount();
+  await page.getByRole("button", { name: "添加项目…", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "搜索项目来源", exact: true })
+    .fill("本地");
+  await expect
+    .element(page.getByRole("option", { name: /本地文件夹/ }))
+    .toBeVisible();
+  await expect
+    .element(page.getByRole("option", { name: /新建项目/ }))
+    .not.toBeInTheDocument();
 });

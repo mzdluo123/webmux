@@ -8,7 +8,10 @@
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconBrandGithub from "~icons/tabler/brand-github";
   import IconPlus from "~icons/tabler/plus";
-  import { pluginAvailable } from "../../platform/plugin-host.svelte";
+  import {
+    pluginAvailable,
+    pluginCapabilityRevision,
+  } from "../../platform/plugin-host.svelte";
   import {
     createProjectSources,
     type ProjectSources,
@@ -31,6 +34,7 @@
     controller?: ProjectSources;
     initialStep?: "projects" | "sources" | "new" | "local" | "git" | "github";
   } = $props();
+  const ownsController = untrack(() => !controller);
   const source = untrack(() => controller ?? createProjectSources(onselect));
   type Step = "projects" | "sources" | "new" | "local" | "git" | "github";
   let step = $state<Step>(untrack(() => initialStep));
@@ -69,9 +73,16 @@
 
   onMount(() => {
     void source.load();
-    if (source.pending && pluginAvailable("workspace.clone"))
-      void source.resume();
-    return () => source.dispose();
+    return () => {
+      if (ownsController) source.dispose();
+    };
+  });
+  $effect(() => {
+    pluginCapabilityRevision();
+    untrack(() => {
+      if (source.pending && pluginAvailable("workspace.clone"))
+        void source.resume();
+    });
   });
   async function go(next: Step) {
     step = next;
@@ -126,11 +137,14 @@
           disabled={source.busy}
           onclick={() => source.retryRegistration()}>重试项目登记</Button
         >{/if}
-      {#if source.operation && !cloneActive}<Button
+      {#if source.pending}<Button
           variant="ghost"
           disabled={source.busy}
-          onclick={() => source.clearClone()}>返回添加项目</Button
+          onclick={() => source.clearClone()}>暂不跟踪此克隆</Button
         >{/if}
+      <p class="text-xs text-muted-foreground">
+        停止跟踪不会取消服务端克隆，也不会删除已有文件。
+      </p>
     </div>
   {/if}
   {#if step === "projects" || step === "sources"}
@@ -199,13 +213,19 @@
         {/if}
         {#if step === "sources" || (!source.loading && source.projects.length === 0)}
           <Command.Group heading="项目来源">
-            <Command.Item value="new" onSelect={() => go("new")}
+            <Command.Item
+              value="new"
+              keywords={["新建项目 创建文件夹"]}
+              onSelect={() => go("new")}
               ><IconFolderPlus aria-hidden="true" /><ChoiceDetails
                 primary="新建项目"
                 secondary="创建文件夹，可选初始化 Git"
               /></Command.Item
             >
-            <Command.Item value="local" onSelect={() => go("local")}
+            <Command.Item
+              value="local"
+              keywords={["本地文件夹 打开文件夹"]}
+              onSelect={() => go("local")}
               ><IconFolder aria-hidden="true" /><ChoiceDetails
                 primary="本地文件夹"
                 secondary="打开服务端已有项目"
@@ -213,6 +233,7 @@
             >
             <Command.Item
               value="git"
+              keywords={["Git URL 克隆 仓库地址"]}
               disabled={!pluginAvailable("workspace.clone")}
               onSelect={() => go("git")}
               ><IconGitBranch aria-hidden="true" /><ChoiceDetails
@@ -224,6 +245,7 @@
             >
             <Command.Item
               value="github"
+              keywords={["GitHub 仓库 账号"]}
               disabled={!pluginAvailable("workspace.github")}
               onSelect={() => go("github")}
               ><IconBrandGithub aria-hidden="true" /><ChoiceDetails

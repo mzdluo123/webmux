@@ -70,7 +70,7 @@
     >
       {controller.github.login} · 第 {controller.github.page} 页
     </p>{/if}
-  <div class="flex items-center gap-2">
+  <div class="flex flex-wrap items-center gap-2">
     <Button
       variant="outline"
       size="sm"

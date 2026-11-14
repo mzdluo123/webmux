@@ -12,6 +12,29 @@ import type {
 import { base, branch } from "./shell-fixture";
 import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
 
+// HTTP assertions can finish before response decoding and preference writes.
+// Join the real creation helpers before resetting this suite's local settings.
+const submissions = vi.hoisted(() => ({ pending: [] as Promise<unknown>[] }));
+vi.mock(
+  "../../src/domains/sessions/new-session-defaults",
+  async (importOriginal) => {
+    const original =
+      await importOriginal<
+        typeof import("../../src/domains/sessions/new-session-defaults")
+      >();
+    return {
+      ...original,
+      submitNewSessionRequest: (
+        ...args: Parameters<typeof original.submitNewSessionRequest>
+      ) => {
+        const pending = original.submitNewSessionRequest(...args);
+        submissions.pending.push(pending);
+        return pending;
+      },
+    };
+  },
+);
+
 const config = {
   id: "abcdefg2",
   name: "Claude 恢复",
@@ -229,6 +252,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   try {
+    await Promise.allSettled(submissions.pending.splice(0));
     await cleanup();
     await userEvent.cleanup();
   } finally {

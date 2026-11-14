@@ -37,3 +37,13 @@
 - [桌面项目列表](../../web/test/evidence/project-picker/desktop-light-projects.png)、[平板来源列表](../../web/test/evidence/project-picker/tablet-light-sources.png)、[手机 GitHub 来源](../../web/test/evidence/project-picker/phone-light-github.png) 与对应深色图片已保存。
 - [手机正常速度交互 GIF](../../web/test/evidence/project-picker/phone-light-navigation.gif) 为 390×844 浅色演示，含四来源进入、输入、返回及选择成功；107 帧，约 13.4 秒。
 - 局限：无真机验证；无头浏览器未验证真实鼠标悬停和触屏常驻动作。GIF 选择后的结果为独立组件预览，并非生产会话设置。
+
+## 来源组件审查补充：异步选择与重连
+
+- 克隆完成后的项目读取带观察代次；用户停止跟踪或选择其他项目后，旧响应不能再触发选择。停止跟踪只清除浏览器跟踪记录，不取消服务端任务、不删除文件。
+- 每个操作只保留一个查询链；成功查询清除旧错误，停止跟踪与销毁会中止查询并清理计时器。能力恢复后可继续读取保存的操作。
+- 413 等明确拒绝不会保留未入队请求；缺少克隆能力时仍可停止跟踪旧请求，继续使用本地来源。借入控制器的组件不销毁调用方资源。
+- 来源搜索增加可见中文标签关键词；13 条浏览器交互/控制器回归、类型检查、lint 和完整架构门禁通过。
+- [手机恢复交互 GIF](../../web/test/evidence/project-picker/phone-light-recovery.gif) 展示登记失败后的停止跟踪、选择其他项目及返回；使用 390×844 浅色隔离预览。
+
+- CI 复核发现旧弹窗用例在等待 HTTP 被调用后就清理存储，真实创建 helper 后续写入偏好会污染下一用例；失败截图显示当前启动配置被前一用例的旧标识替代。夹具现在等待真实 helper 完成再清理，不增加超时或跳过断言。
