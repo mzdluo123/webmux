@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest";
+import { expect, test, vi } from "vite-plus/test";
 import type { ControlState } from "../../src/contracts/schemas";
 import type { TerminalController } from "../../src/domains/terminal/terminal-search";
 import {

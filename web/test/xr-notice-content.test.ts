@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { buildHybridNotices } from "../src/domains/sessions/hybrid";
 import { xrNoticePanel } from "../src/hooks/terminal/xr-notice-content";
 

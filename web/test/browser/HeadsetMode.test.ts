@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { headsetMode } from "../../src/hooks/shared/headset-mode.svelte";
 import { deviceToggle } from "../../src/hooks/shared/device-preferences.svelte";
 import { hasTouchInput } from "../../src/platform/touch-input";

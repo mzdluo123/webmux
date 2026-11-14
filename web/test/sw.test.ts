@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 type Parsed = { title: string; body: string; tag: string; sessionId: string };
 type Client = { url: string };
@@ -73,7 +73,10 @@ describe("notification click", () => {
     const other = { url: "https://other.example/s/abcdefgh" };
     expect(
       sw.chooseClient([list, session, other], origin, "/s/abcdefgh"),
-    ).toEqual({ client: session, navigate: false });
+    ).toEqual({
+      client: session,
+      navigate: false,
+    });
     expect(sw.chooseClient([other, list], origin, "/s/abcdefgh")).toEqual({
       client: list,
       navigate: true,

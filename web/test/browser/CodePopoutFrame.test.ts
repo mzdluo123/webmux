@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import CodePopoutFrameHarness from "./CodePopoutFrameHarness.svelte";
 import {

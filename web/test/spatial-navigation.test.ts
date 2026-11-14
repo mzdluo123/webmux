@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { spatialCandidate } from "../src/platform/spatial-navigation";
 
 const current = { left: 100, right: 150, top: 100, bottom: 150 };

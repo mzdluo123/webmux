@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { seedSettings } from "./settings-fixture";
 import { diffReview } from "../../src/domains/code/diff-review.svelte";
 import type { CodeChange } from "../../src/contracts/schemas";

@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { decodeBase64Url, encodeBase64Url } from "../src/platform/base64url";
 
 test("legacy Base64URL handling matches the typed-array methods", () => {

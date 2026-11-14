@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { resolveE2EWorkers } from "../playwright.config";
 
 describe("E2E workers", () => {

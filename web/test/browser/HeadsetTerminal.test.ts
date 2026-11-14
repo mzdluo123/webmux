@@ -1,5 +1,5 @@
-import { afterEach, expect, test } from "vitest";
-import { userEvent } from "vitest/browser";
+import { afterEach, expect, test } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 import { headsetMode } from "../../src/hooks/shared/headset-mode.svelte";
 import {
   blurAndTrackFocus,

@@ -2,8 +2,8 @@ import { terminalFont } from "../../src/hooks/terminal/terminal-font-preference.
 import { seedSettings } from "./settings-fixture";
 // Shared harness for the Terminal*.test.ts browser suites.
 import type { ComponentProps } from "svelte";
-import { afterEach, beforeEach, expect, vi } from "vitest";
-import { commands, page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, vi } from "vite-plus/test";
+import { commands, page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import type { TerminalController } from "../../src/hooks/terminal/terminal.svelte";
 import Harness from "./TerminalHarness.svelte";
@@ -418,7 +418,10 @@ export function geometry(socket: FixtureSocket) {
   const resize = socket.sent.filter((frame) => frame[0] === 1).at(-1)!;
   const { cols, rows } = JSON.parse(
     new TextDecoder().decode(resize.subarray(1)),
-  ) as { cols: number; rows: number };
+  ) as {
+    cols: number;
+    rows: number;
+  };
   const bounds = host().querySelector(".xterm-screen")!.getBoundingClientRect();
   return {
     row: bounds.height / rows,

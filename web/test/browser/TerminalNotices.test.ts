@@ -1,5 +1,5 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
 import type { ListeningPort } from "../../src/contracts/schemas";

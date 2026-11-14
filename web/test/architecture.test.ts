@@ -3,7 +3,7 @@
 import { globSync, readFileSync } from "node:fs";
 import { basename, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const UI_DIR = "src/lib/components/ui/";

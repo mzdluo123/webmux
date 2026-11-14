@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { chromeTitle } from "../src/platform/browser-chrome";
 
 test("running tabs keep the title and add the marker", () => {

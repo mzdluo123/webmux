@@ -1,6 +1,6 @@
 import "../../src/styles.css";
-import { expect, test } from "vitest";
-import { page } from "vitest/browser";
+import { expect, test } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
 import Terminal from "../../src/pages/Terminal.svelte";
 import type {

@@ -1,5 +1,5 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import SessionRow from "../../src/components/sessions/SessionRow.svelte";
 import type { SessionInfo } from "../../src/contracts/schemas";

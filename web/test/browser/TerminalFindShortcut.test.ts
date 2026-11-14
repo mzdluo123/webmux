@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest";
+import { expect, test, vi } from "vite-plus/test";
 import { terminalFindShortcut } from "../../src/hooks/terminal/terminal-find-shortcut";
 
 test("macOS shortcut ownership follows terminal/chat view changes", () => {

@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import type { QuickCommand } from "../../src/contracts/schemas";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 import { executeSessionQuickCommand } from "../../src/domains/terminal/session-terminal-io";

@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { afterEach, beforeEach, vi } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 import { cleanup } from "vitest-browser-svelte/pure";
 import type {
   ChatEvent,

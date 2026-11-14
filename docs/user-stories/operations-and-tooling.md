@@ -158,8 +158,9 @@
   - CI 和发布构建使用 `go.mod` 固定的 Go 1.27.4 工具链；
   - 本地与 CI 使用 `.nvmrc` 固定的 Node.js 26.13.0；
   - 本地通过官方独立脚本安装 pnpm 12.18.0，CI 使用 pnpm/action-setup；
-  - 使用 pnpm frozen lockfile；
-  - Vite 代理 API/WebSocket 到独立后端并需配置开发 Origin；
+  - 使用 pnpm frozen lockfile，安装项目本地的 `vite-plus` 1.6.0，不要求全局安装 `vp`；
+  - 构建使用 `pnpm --dir web exec vp build`；`pnpm --dir web build` 先运行拒绝 warning 的 `svelte-check --tsgo` 再构建；
+  - Vite+ 开发服务器代理 API/WebSocket 到独立后端并需配置开发 Origin；
   - `make web/build/install` 提供检查、打包与安装；
   - CI 将 pnpm store、Go 模块与 Go 构建/测试缓存分开，构建缓存使用按周滚动且随模块文件变化的 key 在 `main` 刷新。
 - **US-L02 分层验证与诊断**：作为贡献者，我希望运行 Go race、前端单元、浏览器与隔离 E2E 测试，以便验证会话、安全和交互行为。
@@ -167,6 +168,8 @@
   - agent 本地验证必须并发启动互不依赖的检查并收集所有退出结果，优先使用已有并行 Make 入口，详见 [本地验证规则](../agent-rules/testing.md#agent-local-validation)；
   - 共享产物先构建再消费，性能测试独占执行；因资源竞争降低并发或串行运行时说明具体原因，已通过的检查仅在后续变更、失败或未解决问题影响其结论时重跑；
   - 提供 `make test` 完整门禁与 `make test-fast` 快速入口、类型/格式/lint 检查；
+  - Vitest 单元、浏览器与架构测试通过项目本地 `pnpm --dir web exec vp test run` 运行，保留各套件配置与覆盖率合并；Storybook、Playwright 与性能测试保持独立入口；
+  - `pnpm --dir web exec vp fmt` 与 `pnpm --dir web exec vp lint` 统一格式化和通用 lint，保留格式规则、类型感知 Promise 规则与 warning 门禁；
   - 提供 `make cover`（`cover-go`、`cover-web`）与 CI 覆盖率报告：Go race 采集 atomic 语句覆盖率（排除测试守卫与假 agent 包）并输出包级摘要与 HTML，前端合并 Vitest Node 单元与 Chromium 浏览器组件测试的 V8 覆盖率，写入 `$GITHUB_STEP_SUMMARY` 并上传报告产物；
   - `make test` 一次构建前端与 E2E 程序供 E2E/性能复用，本地先并行运行 Go 与 Vitest，再并行运行 Storybook 与 E2E，性能套件随后单独运行；`make test-fast` 并行运行 Go 与 Vitest；
   - 本地 Vitest 浏览器、E2E、Storybook 按可用并行度分别最多 4、8、6 个 worker（`WEBMUX_E2E_WORKERS` 可覆盖 E2E，CI 为 2 个），Go 默认 `-parallel=4`（`GO_TEST_PARALLEL` 可调）；
@@ -211,14 +214,15 @@
   - 差异可见，有意变更用 `-update` 重新录制；本地状态快照的必填数组保持 `[]`，语音、转发兑换和本机隧道的服务错误状态也集中在 `internal/api/errors.go` 映射。
 - **US-L06 前端架构守卫**：作为贡献者或 coding agent，我希望在提交前得到复用组件、设计令牌和分层方面的具体报错，以便新增 UI 复用设计系统，而不是重造组件或复制样式。
   验收要点：
-  - `pnpm --dir web check:arch` 依次运行 ESLint（`@shadcn/lint` 与 Svelte 模板规则）、dependency-cruiser、jscpd、knip 与 Vitest 架构测试，`make check` 与 CI 的格式/构建 job 同样执行；
+  - `pnpm --dir web check:arch` 依次运行 ESLint（`@shadcn/lint` 与 Svelte 模板规则）、dependency-cruiser、jscpd、knip 与 Vitest 架构测试；
+  - 架构测试由 Vite+ `vp test` 承载，`make check` 与 CI 的格式/构建 job 同样执行完整架构守卫；
   - 报错说明应复用的组件、size/variant 或主题令牌；
   - 源码按契约、基础设施、领域主题、hooks、组件与页面分层；根目录只保留入口、声明与全局样式，领域模块、hooks 与组件必须有主题归属；
   - 依赖规则同时约束运行时与 type-only 导入，拒绝反向依赖、主题间循环与失效导入；临时真实模块样例验证允许和拒绝路径，迁移不保留旧路径垫片；
   - 圆角只允许设计系统刻度（标签 sm、控件 md、内容容器 lg，`rounded-xl` 仅限 Dialog/AlertDialog/Drawer 弹层），裸 `rounded`、`rounded-2xl` 以上与 CSS 固定像素圆角会列出文件位置；
   - 提交的基线为空，任何违规都会失败；
   - 引入带存量违规的新规则时可先记录基线，`arch:ratchet` 只删除已修复的记录；
-  - oxlint 仍是通用 lint。
+  - Vite+ `vp lint`（Oxlint）仍是通用 lint，不替代 ESLint 的架构和模板规则。
 - **US-L07 订阅模型辅助贡献**：作为维护者，我希望 Pullfrog 使用自己的 OpenCode Go 订阅运行任务，以便通过指定的 DeepSeek Flash 模型辅助仓库维护。
   验收要点：
   - Pullfrog workflow 接收 prompt 并显式指定 `opencode-go/deepseek-v4.1-flash` 与 `effort: high`，固定 High 推理等级；
@@ -237,9 +241,9 @@
 - **US-L09 前端代码质量基线**：作为贡献者或 coding agent，我希望前端代码质量有成文基线和可执行门禁，以便一致审查响应式状态、异步行为、类型和前后端契约。
   验收要点：
   - `docs/frontend-style.md` 以 Svelte 官方 Best practices 为主规范、Google TypeScript Style Guide 为补充，登记本地化取舍与 7 条日常审查规则；
-  - `pnpm --dir web lint` 以 Oxlint 类型感知运行 Promise 规则，`check:arch` 运行 Svelte 推荐模板规则；
+  - `pnpm --dir web lint` 通过 Vite+ 内置的 Oxlint 类型感知运行 Promise 规则，`check:arch` 保留 ESLint 的 Svelte 推荐模板规则；
   - `check:arch` 的 Knip 检查跟踪 CSS 导入，识别样式表直接使用的依赖；
-  - 所有 `svelte-check` 入口拒绝 warning；
+  - 所有 `svelte-check` 入口保留 `--tsgo` 并拒绝 warning；Vite+ 的 lint 不代替 Svelte/TypeScript 类型检查；
   - `check:test` 检查源码和顶层 Node 测试并进入 CI；
   - 严格索引、请求体 Zod 校验、Go 强类型枚举及 `wire-contract.test.ts` 防止契约漂移；
   - 中途 401、上传失败重试、重复提交、Dialog 焦点循环和列表断线恢复各有失败路径回归；
@@ -299,6 +303,7 @@
 - [Go 质量基线](../go-style.md)、[Go lint 配置](../../.golangci.yml)、[数组契约 fixture](../../internal/wire/arrays_test.go)
 - [数组 Zod 用例](../../web/test/wire-arrays.test.ts)、[推送 API 用例](../../internal/api/push_test.go)、[Node.js 版本](../../.nvmrc)
 - [CI 工具链](../../.github/actions/setup/action.yml)、[Makefile](../../Makefile)、[前端命令](../../web/package.json)、[Go 覆盖率汇总](../../.github/scripts/go-coverage-summary.sh)、[前端覆盖率合并](../../web/scripts/merge-coverage.mjs)
+- [Vite+ 配置](../../web/vite.config.ts)（构建、代理、格式化与 lint）
 - [贡献指南](../../CONTRIBUTING.md)、[Storybook](../storybook.md)、[评测说明](../../baseline/README.md)
 - [UI PR 截图要求](../agent-rules/testing.md#ui-pull-request-evidence)
 - [真实终端分配基准](../../internal/hub/hub_bench_test.go)、[CI](../../.github/workflows/test.yml)、[E2E 初始化](../../web/test/e2e/global-setup.mjs)

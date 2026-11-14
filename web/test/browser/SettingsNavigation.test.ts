@@ -3,8 +3,8 @@ import {
   stopSettings,
 } from "../../src/domains/settings/settings.svelte";
 import { emptySettings } from "../../src/domains/settings/settings-intent";
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Settings from "../../src/pages/Settings.svelte";
 

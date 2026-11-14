@@ -6,7 +6,7 @@ import {
   it,
   vi,
   type Mock,
-} from "vitest";
+} from "vite-plus/test";
 import {
   advise,
   describeTest,
@@ -148,7 +148,9 @@ function fakeBrowser(permission: NotificationPermission = "granted") {
       const reply = responses[`${init.method} ${path}`] ?? { status: 204 };
       return new Response(
         reply.body === undefined ? null : JSON.stringify(reply.body),
-        { status: reply.status },
+        {
+          status: reply.status,
+        },
       );
     }),
   );

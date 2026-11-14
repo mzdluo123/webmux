@@ -1,6 +1,6 @@
 // Native touch scrolling, wheel reports, two-finger pinch suppression and long-press selection.
-import { expect, test } from "vitest";
-import { commands, page } from "vitest/browser";
+import { expect, test } from "vite-plus/test";
+import { commands, page } from "vite-plus/test/browser";
 import {
   blurAndTrackFocus,
   expectDomText,

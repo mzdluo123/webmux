@@ -1,5 +1,12 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 import {
   GitWorkingChangeSchema,
   GitWorktreeContextSchema,

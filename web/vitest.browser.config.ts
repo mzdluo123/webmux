@@ -1,7 +1,10 @@
 import { availableParallelism } from "node:os";
 import { mergeConfig } from "vite";
-import { defineConfig } from "vitest/config";
-import { defineBrowserCommand, playwright } from "@vitest/browser-playwright";
+import { defineConfig } from "vite-plus";
+import {
+  defineBrowserCommand,
+  playwright,
+} from "vite-plus/test/browser-playwright";
 import viteConfig from "./vite.config";
 import { sharedCoverage } from "./vitest.config";
 

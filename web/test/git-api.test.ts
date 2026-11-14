@@ -1,5 +1,12 @@
 import { readFileSync } from "node:fs";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from "vite-plus/test";
 import { APIError } from "../src/platform/api";
 import {
   gitChanges,

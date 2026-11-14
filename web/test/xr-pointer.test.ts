@@ -6,7 +6,7 @@ import {
   PlaneGeometry,
   Scene,
 } from "three";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vite-plus/test";
 import { defaultXrPanel } from "../src/domains/terminal/xr-layout";
 import { createXrPointers } from "../src/hooks/terminal/xr-pointer";
 import type { XrPanel } from "../src/hooks/terminal/xr-panel";

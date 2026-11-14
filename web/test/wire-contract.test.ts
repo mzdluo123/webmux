@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import * as S from "../src/contracts/schemas";
 
@@ -465,7 +465,9 @@ describe("Go wire snapshots", () => {
   it("requires searchable message identity, role, excerpt and timestamp", () => {
     const snapshot = JSON.parse(
       readFileSync(directory + "chat-message-search.json", "utf8"),
-    ) as { body: unknown[] };
+    ) as {
+      body: unknown[];
+    };
     const match = S.ChatMessageMatchSchema.parse(normalize(snapshot.body[0]));
     for (const field of Object.keys(match)) {
       const incomplete = { ...match } as Record<string, unknown>;

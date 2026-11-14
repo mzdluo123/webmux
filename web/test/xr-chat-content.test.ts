@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import type { ChatContent } from "../src/contracts/schemas";
 import { emptyChat, type ToolEntry } from "../src/domains/chat/chat-model";
 import { xrChatPanel } from "../src/hooks/terminal/xr-chat-content";

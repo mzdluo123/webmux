@@ -1,5 +1,5 @@
-import { afterEach, expect, test } from "vitest";
-import { page } from "vitest/browser";
+import { afterEach, expect, test } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import WorktreeSyncSummary from "../../src/components/workspace/WorktreeSyncSummary.svelte";
 import type { Worktree } from "../../src/contracts/schemas";

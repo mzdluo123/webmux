@@ -1,6 +1,6 @@
 import { tick } from "svelte";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import { APIError } from "../../src/platform/api";
 import type { BranchOperation } from "../../src/domains/workspace/branch-actions";
