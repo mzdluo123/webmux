@@ -59,7 +59,7 @@
   }: {
     route: Extract<
       Route,
-      { name: "sessions" | "quick-start" | "terminal" | "handoff" }
+      { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
     >;
     drafts: TerminalDrafts;
     children: Snippet;
@@ -104,7 +104,12 @@
     tab: RepositoryTab;
   } | null>(null);
   let viewingWorktree = $state<Worktree | null>(null);
-  let switchingBranch = $state<Worktree | null>(null);
+  let switchingBranch = $state<{
+    worktree: Worktree;
+    initialBranch?: string;
+    initialMode?: "existing" | "new";
+    initialStartPoint?: string;
+  } | null>(null);
   let releasingWorktree = $state<Worktree | null>(null);
   let operating = $state<{
     repositoryId: string;
@@ -191,9 +196,18 @@
       shellUi.drawerOpen = false;
       viewingWorktree = worktree;
     },
-    switchBranch(worktree) {
+    switchBranch(worktree, initial) {
       shellUi.drawerOpen = false;
-      switchingBranch = worktree;
+      if (typeof initial === "string" || initial === undefined) {
+        switchingBranch = { worktree, initialBranch: initial };
+      } else {
+        switchingBranch = {
+          worktree,
+          initialBranch: initial.branch,
+          initialMode: initial.mode,
+          initialStartPoint: initial.startPoint,
+        };
+      }
     },
     releaseWorktree(worktree) {
       shellUi.drawerOpen = false;
@@ -230,7 +244,13 @@
 
   // The new-session dialog belongs to the page it was opened on: a created
   // session navigates away, and the dialog must not follow it there.
-  const page = $derived(route.name === "terminal" ? route.id : route.name);
+  const page = $derived(
+    route.name === "terminal"
+      ? route.id
+      : route.name === "git"
+        ? `git:${route.repositoryId}:${route.worktreeId ?? ""}`
+        : route.name,
+  );
   $effect(() => {
     void page;
     untrack(() => (creating = null));
@@ -287,7 +307,9 @@
   function changeMode(next: ShellMode) {
     if (next === shellUi.mode) return;
     shellUi.setMode(next);
-    if (route.name !== "terminal") navigate(shellUi.home);
+    if (route.name !== "terminal" && route.name !== "git") {
+      navigate(shellUi.home);
+    }
   }
   function primary() {
     if (shellUi.mode === "chat") openPage("/new");

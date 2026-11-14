@@ -1,0 +1,109 @@
+{
+  "status": 200,
+  "body": {
+    "base": {
+      "binary": false,
+      "blobOid": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+      "commitOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+      "label": "共同祖先 · stage 1",
+      "lineEnding": "lf",
+      "mode": "100644",
+      "present": true,
+      "role": "共同祖先 (Base)",
+      "side": "base",
+      "sizeBytes": 4,
+      "stage": 1,
+      "subject": "initial",
+      "text": "bee\n"
+    },
+    "diskHasConflictMarker": true,
+    "diskModifiedFromBase": false,
+    "identity": {
+      "leftStage": 2,
+      "operationKind": "merge",
+      "path": "sub/b.txt",
+      "rightStage": 3,
+      "stage1Mode": "100644",
+      "stage1Oid": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+      "stage2Mode": "100644",
+      "stage2Oid": "de4296d3c6d9c4821c0fe09931f8422d01be768c",
+      "stage3Mode": "100644",
+      "stage3Oid": "efa25f5cb11c8d2fb11e015e85b70b7c498367f3",
+      "worktreeMode": "100644",
+      "worktreeSha256": "8ca469eab88741ae8df4206f8a4c6d64fbfeb2b41d772bd552fbad32c62532dd"
+    },
+    "initialResultText": "bee\n",
+    "kind": "text",
+    "left": {
+      "binary": false,
+      "blobOid": "de4296d3c6d9c4821c0fe09931f8422d01be768c",
+      "commitOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+      "label": "main · 6b503797（当前分支）",
+      "lineEnding": "lf",
+      "mode": "100644",
+      "present": true,
+      "refName": "main",
+      "role": "当前工作树分支 (stage 2)",
+      "side": "left",
+      "sizeBytes": 14,
+      "stage": 2,
+      "subject": "feat: commit staged a.txt",
+      "text": "bee\nbutterfly\n"
+    },
+    "operationKind": "merge",
+    "path": "sub/b.txt",
+    "repositoryId": "<id#1>",
+    "right": {
+      "binary": false,
+      "blobOid": "efa25f5cb11c8d2fb11e015e85b70b7c498367f3",
+      "commitOid": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+      "label": "refs/heads/feat-conflict · 9c24118c（合入来源）",
+      "lineEnding": "lf",
+      "mode": "100644",
+      "present": true,
+      "refName": "refs/heads/feat-conflict",
+      "role": "合入目标分支 (stage 3)",
+      "side": "right",
+      "sizeBytes": 14,
+      "stage": 3,
+      "subject": "feat: dragonfly in b.txt",
+      "text": "bee\ndragonfly\n"
+    },
+    "segments": [
+      {
+        "baseLines": [
+          "bee"
+        ],
+        "baseStart": 1,
+        "id": "seg-0-2ec6fae67457",
+        "kind": "common",
+        "leftLines": [
+          "bee"
+        ],
+        "leftStart": 1,
+        "rightLines": [
+          "bee"
+        ],
+        "rightStart": 1
+      },
+      {
+        "baseLines": [],
+        "baseStart": 2,
+        "id": "seg-1-54c9d0107306",
+        "kind": "conflict",
+        "leftLines": [
+          "butterfly"
+        ],
+        "leftStart": 2,
+        "rightLines": [
+          "dragonfly"
+        ],
+        "rightStart": 2
+      }
+    ],
+    "textMergeable": true,
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>",
+    "xy": "UU"
+  }
+}

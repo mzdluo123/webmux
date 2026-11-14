@@ -51,6 +51,7 @@ export function useTvNavigation(back: () => boolean) {
     const root = document.documentElement;
     root.dataset.uiMode = "tv";
     let last: HTMLElement | null = null;
+    let lastScope: HTMLElement | null = null;
     let redirecting = false;
     let editing: HTMLElement | null = null;
     let tabbing = false;
@@ -99,7 +100,19 @@ export function useTvNavigation(back: () => boolean) {
     enhanceScroll();
     function focusChanged(event: FocusEvent) {
       const target = event.target;
-      if (target instanceof HTMLElement && visible(target)) last = target;
+      if (target instanceof HTMLElement && visible(target)) {
+        last = target;
+        lastScope = null;
+        // Keep focus in the surviving route surface when a nested view unmounts.
+        for (
+          let scope = target.closest<HTMLElement>("[data-tv-back-scope]");
+          scope;
+          scope =
+            scope.parentElement?.closest<HTMLElement>("[data-tv-back-scope]") ??
+            null
+        )
+          lastScope = scope;
+      }
       setTextTarget(textField(target), tabbing);
       tabbing = false;
     }
@@ -135,8 +148,8 @@ export function useTvNavigation(back: () => boolean) {
         event.key,
       );
       if (isBack) {
-        // Bits UI owns dismissal/focus restoration and its nested layer stack.
-        if (top && !top.matches('[data-slot="drawer-content"]')) {
+        // Native overlays own dismissal, focus restoration and nested layers.
+        if (top) {
           if (event.key === "Escape") return;
           event.preventDefault();
           event.stopImmediatePropagation();
@@ -154,7 +167,7 @@ export function useTvNavigation(back: () => boolean) {
         if (!handled && active?.matches(editable)) {
           active.blur();
           const scope = active.closest(
-            'form, [role="dialog"], main, .session-terminal',
+            'form, [role="dialog"], [data-tv-back-scope], main, .session-terminal',
           );
           const target =
             scope &&
@@ -175,14 +188,14 @@ export function useTvNavigation(back: () => boolean) {
       const field = textField(active);
       if (active?.closest(editable) && (!field || editing === field)) return;
       const widget = active?.closest(roving);
-      // Handled keys already returned above. Tabs/radios can leave on their
-      // unused axis; their own roving/selection keys always run first.
+      // Inline composites can leave on their unused axis after native selection.
       if (
-        widget &&
-        !field &&
-        !widget.matches(
-          '[role="tablist"], [role="radiogroup"], [role="combobox"][aria-expanded="false"]',
-        )
+        (widget &&
+          !field &&
+          !widget.matches(
+            '[role="tablist"], [role="radiogroup"], [role="listbox"][aria-orientation]:not([data-state]), [role="combobox"][aria-expanded="false"]',
+          )) ||
+        (widget?.matches('[role="listbox"]') && !!widget.closest(overlays))
       )
         return;
       if (
@@ -240,7 +253,11 @@ export function useTvNavigation(back: () => boolean) {
       const target =
         last?.isConnected && visible(last)
           ? last
-          : candidates(document.body)[0];
+          : candidates(
+              lastScope?.isConnected && visible(lastScope)
+                ? lastScope
+                : document.body,
+            )[0];
       if (target) focus(target);
       redirecting = false;
     }
@@ -316,15 +333,19 @@ export function useTvNavigation(back: () => boolean) {
         !event.shiftKey
       ) {
         const group = document.activeElement?.closest<HTMLElement>(
-          '[role="tablist"], [role="radiogroup"]',
+          '[role="tablist"], [role="radiogroup"], [role="listbox"][aria-orientation]:not([data-state])',
         );
-        if (group) {
+        if (
+          group &&
+          !group.closest("[data-tv-native-keys]") &&
+          !(group.matches('[role="listbox"]') && group.closest(overlays))
+        ) {
           const vertical =
             group.getAttribute("aria-orientation") === "vertical";
           const crossAxis = vertical
             ? event.key === "ArrowLeft" || event.key === "ArrowRight"
             : event.key === "ArrowUp" || event.key === "ArrowDown";
-          // Bits consumes all four arrows; TV navigation owns the unused axis.
+          // Inline composites own their selection axis; TV owns the unused axis.
           if (crossAxis) {
             keydown(event);
             event.preventDefault();

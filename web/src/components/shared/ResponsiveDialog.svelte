@@ -17,6 +17,7 @@
     children,
     busy = false,
     class: className,
+    drawerFullScreen = false,
     pinDrawerHeader = false,
     truncateDrawerTitle = false,
     actions,
@@ -30,6 +31,8 @@
     busy?: boolean;
     /** Extra desktop Dialog content classes. */
     class?: string;
+    /** Expand the mobile sheet to fill the full viewport height. */
+    drawerFullScreen?: boolean;
     /** Keep the drawer header fixed and scroll only the body. */
     pinDrawerHeader?: boolean;
     /**
@@ -52,7 +55,12 @@
 </script>
 
 {#snippet drawerBody()}
-  <div class={[pinDrawerHeader && "overflow-y-auto", "px-4 pt-1 pb-safe-4"]}>
+  <div
+    class={[
+      pinDrawerHeader && "min-h-0 flex-1 overflow-y-auto",
+      "px-4 pt-1 pb-safe-4",
+    ]}
+  >
     {@render children()}
   </div>
 {/snippet}
@@ -110,12 +118,16 @@
   </Dialog.Root>
 {:else}
   <Drawer.Root bind:open onOpenChange={changed} dismissible={!busy}>
-    <Drawer.Content class="data-[vaul-drawer-direction=bottom]:max-h-[95dvh]">
+    <Drawer.Content
+      class={drawerFullScreen
+        ? "h-dvh max-h-dvh data-[vaul-drawer-direction=bottom]:mt-0 data-[vaul-drawer-direction=bottom]:max-h-dvh"
+        : "data-[vaul-drawer-direction=bottom]:max-h-[95dvh]"}
+    >
       {#if pinDrawerHeader}
         {@render drawerHeader()}
         {@render drawerBody()}
       {:else}
-        <div class="min-h-0 overflow-y-auto">
+        <div class="min-h-0 flex-1 overflow-y-auto">
           {@render drawerHeader()}
           {@render drawerBody()}
         </div>

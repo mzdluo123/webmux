@@ -172,89 +172,102 @@ func pOrDot(p string) string {
 }
 func (s *Service) Tree(ctx context.Context, id, cid, nid string, include bool, cursor string) (Listing, error) {
 	return withRoot(ctx, s, id, cid, func(b *binding) (Listing, error) {
-		p, e := nodePath(nid)
-		if e != nil {
-			return Listing{}, e
-		}
-		r, e := b.listing(ctx, p, include)
-		if e != nil {
-			return r, e
-		}
-		start := 0
-		if cursor != "" {
-			v, n, ok := strings.Cut(cursor, ":")
-			start, e = strconv.Atoi(n)
-			if !ok || e != nil || start < 0 {
-				return r, problemf(ErrInvalid, "无效目录游标")
-			}
-			if v != r.Version {
-				return r, problemf(ErrConflict, "目录已改变，请重新读取")
-			}
-		}
-		if start > len(r.Children) {
-			return r, problemf(ErrInvalid, "无效目录页")
-		}
-		end := min(start+200, len(r.Children))
-		if end < len(r.Children) {
-			r.Next = fmt.Sprintf("%s:%d", r.Version, end)
-		}
-		r.Children = r.Children[start:end]
-		return r, nil
+		return treeInBinding(ctx, cid, b, nid, include, cursor)
 	})
+}
+func treeInBinding(ctx context.Context, cid string, b *binding, nid string, include bool, cursor string) (Listing, error) {
+	if !b.Browse {
+		return Listing{}, problemf(ErrReadOnly, "当前上下文没有可用工作树文件目录")
+	}
+	p, e := nodePath(nid)
+	if e != nil {
+		return Listing{}, e
+	}
+	r, e := b.listing(ctx, p, include)
+	if e != nil {
+		return r, e
+	}
+	token := version([]string{cid, r.Version})
+	start := 0
+	if cursor != "" {
+		v, n, ok := strings.Cut(cursor, ":")
+		start, e = strconv.Atoi(n)
+		if !ok || e != nil || start < 0 {
+			return r, problemf(ErrInvalid, "无效目录游标")
+		}
+		if v != token {
+			return r, problemf(ErrConflict, "目录已改变，请重新读取")
+		}
+	}
+	if start > len(r.Children) {
+		return r, problemf(ErrInvalid, "无效目录页")
+	}
+	end := min(start+200, len(r.Children))
+	if end < len(r.Children) {
+		r.Next = fmt.Sprintf("%s:%d", token, end)
+	}
+	r.Children = r.Children[start:end]
+	return r, nil
 }
 func (s *Service) Search(ctx context.Context, id, cid, q string, include bool) (Listing, error) {
 	return withRoot(ctx, s, id, cid, func(b *binding) (Listing, error) {
-		r := Listing{Children: []Node{}, Complete: true, Checked: time.Now().UTC()}
-		ignored, limited, e := b.searchIgnored(ctx)
+		return searchInBinding(ctx, b, q, include)
+	})
+}
+func searchInBinding(ctx context.Context, b *binding, q string, include bool) (Listing, error) {
+	if !b.Browse {
+		return Listing{}, problemf(ErrReadOnly, "当前上下文没有可用工作树文件目录")
+	}
+	r := Listing{Children: []Node{}, Complete: true, Checked: time.Now().UTC()}
+	ignored, limited, e := b.searchIgnored(ctx)
+	if e != nil {
+		return r, e
+	}
+	if limited {
+		r.Limited, r.Complete = true, false
+		r.Version = version(r.Children)
+		return r, nil
+	}
+	queue := []string{""}
+	visited := 0
+	query := strings.ToLower(q)
+	for len(queue) > 0 {
+		if e := ctx.Err(); e != nil {
+			return r, e
+		}
+		p := queue[0]
+		queue = queue[1:]
+		page, e := b.directory(ctx, p, include, ignored)
 		if e != nil {
 			return r, e
 		}
-		if limited {
-			r.Limited, r.Complete = true, false
-			r.Version = version(r.Children)
-			return r, nil
+		if page.Limited {
+			r.Limited = true
+			r.Complete = false
 		}
-		queue := []string{""}
-		visited := 0
-		query := strings.ToLower(q)
-		for len(queue) > 0 {
-			if e := ctx.Err(); e != nil {
-				return r, e
-			}
-			p := queue[0]
-			queue = queue[1:]
-			page, e := b.directory(ctx, p, include, ignored)
-			if e != nil {
-				return r, e
-			}
-			if page.Limited {
+		for _, n := range page.Children {
+			visited++
+			if visited >= 100000 || len(r.Children) >= 200 {
 				r.Limited = true
 				r.Complete = false
+				queue = nil
+				break
 			}
-			for _, n := range page.Children {
-				visited++
-				if visited >= 100000 || len(r.Children) >= 200 {
-					r.Limited = true
-					r.Complete = false
-					queue = nil
-					break
-				}
-				path, _ := nodePath(n.ID)
-				if n.Kind == "directory" {
-					queue = append(queue, path)
-				} else if strings.Contains(strings.ToLower(n.Path), query) {
-					r.Children = append(r.Children, n)
-				}
+			path, _ := nodePath(n.ID)
+			if n.Kind == "directory" {
+				queue = append(queue, path)
+			} else if strings.Contains(strings.ToLower(n.Path), query) {
+				r.Children = append(r.Children, n)
 			}
 		}
-		if b.Ignore {
-			if e := b.statuses(ctx, "", r.Children); e != nil {
-				return r, e
-			}
+	}
+	if b.Ignore {
+		if e := b.statuses(ctx, "", r.Children); e != nil {
+			return r, e
 		}
-		r.Version = version(r.Children)
-		return r, nil
-	})
+	}
+	r.Version = version(r.Children)
+	return r, nil
 }
 
 // Locate resolves a typed path from the session's local OSC 7 report, or its

@@ -8,6 +8,8 @@ import {
   CodeFileSchema,
   type CodeDiff,
   type CodeFile,
+  type GitDiff,
+  type GitStagingHunk,
 } from "../../contracts/schemas";
 
 // One job per active document. Terminating the Worker cancels synchronous
@@ -76,7 +78,7 @@ export function calculateDiff(
 }
 
 function buildFileDiffMetadata(
-  current: CodeDiff,
+  current: CodeDiff | GitDiff,
   fileDiff: FileDiffMetadata,
 ): FileDiffMetadata {
   return {
@@ -189,7 +191,7 @@ export type CalculatedDiffState = {
 };
 
 export async function resolveCalculatedDiff(
-  current: CodeDiff,
+  current: CodeDiff | GitDiff,
   signal: AbortSignal,
 ): Promise<CalculatedDiffState> {
   try {
@@ -220,6 +222,65 @@ export async function resolveCalculatedDiff(
         error instanceof Error
           ? error.message
           : "差异计算失败，请查看两侧完整文件",
+    };
+  }
+}
+
+/** Synthesizes old/new text from parsed diff hunks for offline fixture previews via the same Pierre Worker. */
+export async function resolveHunksCalculatedDiff(
+  snapshotId: string,
+  path: string,
+  oldPath: string,
+  status: string,
+  hunks: readonly GitStagingHunk[],
+  signal: AbortSignal,
+): Promise<CalculatedDiffState> {
+  const oldLines: string[] = [];
+  const newLines: string[] = [];
+  for (const hunk of hunks) {
+    for (const line of hunk.lines) {
+      if (line.kind !== "add") oldLines.push(line.text);
+      if (line.kind !== "delete") newLines.push(line.text);
+    }
+  }
+  const oldText = oldLines.length > 0 ? `${oldLines.join("\n")}\n` : "";
+  const newText = newLines.length > 0 ? `${newLines.join("\n")}\n` : "";
+  try {
+    const result = await calculateDiff(snapshotId, oldText, newText, signal);
+    if (result.kind === "ready") {
+      return {
+        modelSnapshot: snapshotId,
+        calculation: "ready",
+        calculationReason: "",
+        fileDiff: {
+          ...result.fileDiff,
+          name: path || oldPath,
+          prevName: oldPath && oldPath !== path ? oldPath : undefined,
+          type:
+            status === "A"
+              ? "new"
+              : status === "D"
+                ? "deleted"
+                : oldPath && oldPath !== path
+                  ? result.fileDiff.hunks.length
+                    ? "rename-changed"
+                    : "rename-pure"
+                  : result.fileDiff.type,
+          cacheKey: snapshotId,
+        },
+      };
+    }
+    return {
+      modelSnapshot: snapshotId,
+      calculation: result.kind,
+      calculationReason: result.reason,
+    };
+  } catch (error: unknown) {
+    return {
+      modelSnapshot: snapshotId,
+      calculation: "error",
+      calculationReason:
+        error instanceof Error ? error.message : "差异计算失败",
     };
   }
 }

@@ -1,0 +1,42 @@
+{
+  "status": 200,
+  "body": {
+    "operations": [
+      {
+        "actualOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+        "actualTreeOid": "7316cdbc05a7070b8a86588a9bbaaf90fddca4e4",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "clientRequestId": "wire-commit-1",
+        "committerEmail": "wire@example.invalid",
+        "committerName": "Wire test",
+        "confirmationId": "<confirmationId#1>",
+        "fetchResults": [],
+        "finishedAt": "<time>",
+        "id": "<operationId#1>",
+        "kind": "commit",
+        "parents": [
+          "ecc8da449d18daa48261db409c9e0af26550cf64"
+        ],
+        "preview": {
+          "branch": "main",
+          "expectedParents": [
+            "ecc8da449d18daa48261db409c9e0af26550cf64"
+          ],
+          "expectedTreeOid": "7316cdbc05a7070b8a86588a9bbaaf90fddca4e4",
+          "headOid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+          "headState": "branch",
+          "worktreePath": "<repo>"
+        },
+        "repositoryId": "<id#1>",
+        "reviewReasons": [],
+        "sanitizedOutput": "[main 6b50379] feat: commit staged a.txt\n 1 file changed, 1 insertion(+), 1 deletion(-)",
+        "startedAt": "<time>",
+        "status": "succeeded",
+        "subject": "feat: commit staged a.txt",
+        "summary": "已创建提交 6b503797",
+        "worktreeId": "<id#2>"
+      }
+    ]
+  }
+}

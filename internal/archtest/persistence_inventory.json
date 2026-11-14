@@ -28,6 +28,33 @@
       "source": "internal/workspace/registry.go"
     },
     {
+      "id": "git-operations",
+      "path": "git-operations.json",
+      "lock": "git-operations.json.lock",
+      "owner": "internal/workspace",
+      "failure": "unavailable",
+      "web": "是",
+      "source": "internal/workspace/operations_store.go"
+    },
+    {
+      "id": "git-task-baselines",
+      "path": "git-task-baselines.json",
+      "lock": "git-task-baselines.json.lock",
+      "owner": "internal/workspace",
+      "failure": "unavailable",
+      "web": "是",
+      "source": "internal/workspace/task_baseline_store.go"
+    },
+    {
+      "id": "git-workbench-state",
+      "path": "git-workbench-state.json",
+      "lock": "git-workbench-state.json.lock",
+      "owner": "internal/workspace",
+      "failure": "unavailable",
+      "web": "是",
+      "source": "internal/workspace/workbench_collab_store.go"
+    },
+    {
       "id": "tunnel",
       "path": "tunnel-settings.json",
       "lock": "tunnel-settings.json.lock",
@@ -514,6 +541,10 @@
       "count": 1,
       "owner": "repositories"
     },
+    "internal/statefile/catalog.go|path|git-operations.json": {
+      "count": 1,
+      "owner": "git-operations"
+    },
     "internal/statefile/catalog.go|path|run/server.json": {
       "count": 1,
       "owner": "runtime"
@@ -646,6 +677,14 @@
       "count": 1,
       "owner": "repositories"
     },
+    "internal/workspace/inspect.go|InspectGitOperations|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
+      "count": 1,
+      "owner": "git-operations"
+    },
+    "internal/workspace/operations_store.go|*Service.loadOperations|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "git-operations"
+    },
     "internal/workspace/registry.go|*Service.load|github.com/rainchan/webmux/internal/statefile.Open": {
       "count": 1,
       "owner": "repositories"
@@ -737,6 +776,62 @@
     "internal/artifacts/copy.go|copyUpload|os.Remove": {
       "count": 1,
       "owner": "user-files"
+    },
+    "internal/statefile/catalog.go|path|git-task-baselines.json": {
+      "count": 1,
+      "owner": "git-task-baselines"
+    },
+    "internal/workspace/inspect.go|InspectGitTaskBaselines|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
+      "count": 1,
+      "owner": "git-task-baselines"
+    },
+    "internal/workspace/task_baseline_store.go|*Service.loadTaskBaselines|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "git-task-baselines"
+    },
+    "internal/statefile/catalog.go|path|git-workbench-state.json": {
+      "count": 1,
+      "owner": "git-workbench-state"
+    },
+    "internal/workspace/inspect.go|InspectGitWorkbenchState|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
+      "count": 1,
+      "owner": "git-workbench-state"
+    },
+    "internal/workspace/workbench_collab_store.go|*Service.loadWorkbenchCollab|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "git-workbench-state"
+    },
+    "internal/worktreefs/write.go|RemoveEntry|golang.org/x/sys/unix.Unlinkat": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|RemoveVerified|golang.org/x/sys/unix.Unlinkat": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|WriteRegular|golang.org/x/sys/unix.Openat": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|WriteRegular|golang.org/x/sys/unix.Renameat": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|WriteRegular|golang.org/x/sys/unix.Unlinkat": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|openParentDir|golang.org/x/sys/unix.Open": {
+      "count": 1,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|openParentDir|golang.org/x/sys/unix.Openat": {
+      "count": 2,
+      "owner": "user-files"
+    },
+    "internal/worktreefs/write.go|readExistingDigestAt|golang.org/x/sys/unix.Openat": {
+      "count": 1,
+      "owner": "read-only-codeview"
     }
   }
 }

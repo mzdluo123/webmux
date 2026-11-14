@@ -81,6 +81,11 @@ func wireSchema(name string) wireRules {
 	documentFields := func(prefix string) {
 		add(prefix, "path", "absolutePath")
 	}
+	taskBaselineFields := func(prefix string) {
+		add(prefix, "id", "baselineId", "repositoryId", "worktreeId")
+		add(prefix, "time", "capturedAt")
+		add(prefix, "path", "worktreePath")
+	}
 	switch name {
 	case "handoff-draft-empty", "handoff-draft-saved", "handoff-draft-delivery":
 		add("/source", "id", "id", "repositoryId", "worktreeId")
@@ -204,9 +209,10 @@ func wireSchema(name string) wireRules {
 		add("/*", "id", "id")
 		add("/*", "time", "createdAt", "updatedAt")
 		add("/*", "path", "cmd/*")
-	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction":
+	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction", "repository-register-git":
 		repositoryFields("")
 	case "repository-fetch":
+		add("", "id", "operationId")
 		repositoryFields("/repository")
 	case "repositories", "repositories-empty":
 		repositoryFields("/*")
@@ -239,7 +245,10 @@ func wireSchema(name string) wireRules {
 	case "branch-delete-preview":
 		add("", "id", "confirmationId")
 		add("", "time", "expiresAt")
-	case "branch-push", "branch-delete":
+	case "branch-push":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+	case "branch-delete":
 		repositoryFields("/repository")
 	case "worktree-usage":
 		// The linked worktree's .git file holds a temporary path.
@@ -301,6 +310,153 @@ func wireSchema(name string) wireRules {
 		add("", "id", "id")
 	case "push-test":
 		add("", "id", "removed/*")
+	case "git-context-repo", "git-context-worktree":
+		add("", "id", "contextId")
+		add("", "path", "rootPath")
+	case "git-tree", "git-files":
+		add("", "time", "checkedAt")
+	case "git-file", "git-file-commit", "git-snapshot-file":
+		add("", "id", "snapshotId")
+		add("", "time", "checkedAt")
+		documentFields("/document")
+	case "git-changes":
+		add("", "id", "nextCursor")
+		add("", "time", "checkedAt")
+	case "git-diff", "git-task-diff", "git-stash-diff", "git-revision-diff":
+		add("", "id", "snapshotId")
+		add("", "time", "checkedAt")
+		documentFields("/old")
+		documentFields("/new")
+	case "git-compare":
+		add("/changes", "id", "nextCursor")
+		add("/changes", "time", "checkedAt")
+		add("/diff", "id", "snapshotId")
+		add("/diff", "time", "checkedAt")
+		documentFields("/diff/old")
+		documentFields("/diff/new")
+	case "git-history", "git-history-task", "git-history-no-baseline":
+		add("", "time", "lastFetchedAt")
+		add("/rows/*/refs/*", "id", "worktreeId")
+		taskBaselineFields("/taskBaseline")
+	case "git-task-baseline", "git-task-baseline-empty", "git-task-baseline-put":
+		taskBaselineFields("/baseline")
+	case "git-task-changes", "git-task-changes-no-baseline":
+		taskBaselineFields("/baseline")
+		add("/changes", "id", "nextCursor")
+		add("/changes", "time", "checkedAt")
+	case "git-reviews", "git-reviews-put":
+		add("/files/*", "time", "reviewedAt")
+	case "git-commit-draft-empty", "git-commit-draft-put":
+		add("", "id", "repositoryId", "worktreeId")
+		add("", "time", "updatedAt")
+	case "error-409-git-draft-conflict":
+		add("/currentDraft", "id", "repositoryId", "worktreeId")
+		add("/currentDraft", "time", "updatedAt")
+	case "git-commit-detail":
+		add("/refs/*", "id", "worktreeId")
+	case "git-commit-preview", "git-commit-preview-blocked", "git-commit-amend-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+	case "git-commit", "git-commit-amend":
+		add("", "id", "operationId")
+	case "git-operation":
+		add("", "id", "id", "repositoryId", "worktreeId", "confirmationId")
+		add("", "time", "startedAt", "finishedAt")
+		add("/preview", "path", "worktreePath")
+	case "git-operations":
+		add("/operations/*", "id", "id", "repositoryId", "worktreeId", "confirmationId")
+		add("/operations/*", "time", "startedAt", "finishedAt")
+		add("/operations/*/preview", "path", "worktreePath")
+	case "git-operation-state", "git-operation-state-idle":
+		add("", "id", "worktreeId")
+		add("", "path", "worktreePath")
+	case "git-merge-preview", "git-rebase-preview", "git-cherry-pick-preview", "git-cherry-pick-preview-2", "git-revert-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-abort-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-merge-conflicted", "git-cherry-pick-conflicted", "git-operation-continue", "git-operation-abort":
+		add("", "id", "operationId", "recoveryRef")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
+	case "git-conflict-detail":
+		add("", "id", "repositoryId", "worktreeId")
+		add("", "path", "worktreePath")
+	case "git-conflict-save":
+		// path and identity are deterministic once file bytes are fixed.
+	case "git-conflict-resolve":
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+	case "git-stashes":
+		add("/stashes/*", "time", "createdAt")
+	case "git-stash-detail":
+		add("/entry", "time", "createdAt")
+	case "git-stash-create-preview", "git-stash-apply-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		add("/entry", "time", "createdAt")
+		sessionFields("/sessions/*")
+	case "git-stash-create":
+		add("", "id", "operationId")
+		add("/entry", "time", "createdAt")
+		worktreeFields("/worktree")
+	case "git-stash-apply", "git-stash-pop":
+		add("", "id", "operationId")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
+	case "git-stash-drop-preview":
+		add("", "id", "confirmationId", "repositoryId")
+		add("", "time", "expiresAt")
+		add("/entry", "time", "createdAt")
+	case "git-stash-drop":
+		add("", "id", "operationId")
+		add("/stashes/*", "time", "createdAt")
+	case "git-branch-rename-preview":
+		add("", "id", "confirmationId", "repositoryId")
+		add("", "time", "expiresAt")
+		worktreeFields("/affectedWorktrees/*")
+		sessionFields("/sessions/*")
+	case "git-branch-rename", "git-branch-upstream":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+		add("/branches", "path", "defaultParent")
+		add("/branches/branches/*", "path", "worktreePaths/*")
+	case "git-tag-create", "git-tag-delete":
+		add("", "id", "operationId")
+		add("/tag", "time", "taggedAt")
+		add("/branches", "path", "defaultParent")
+		add("/branches/branches/*", "path", "worktreePaths/*")
+		add("/branches/tags/*", "time", "taggedAt")
+	case "git-remote-add", "git-remote-update", "git-remote-remove":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+	case "git-discard-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-discard":
+		add("", "id", "operationId", "recoveryOid", "recoveryRef", "recoveryCommand")
+		worktreeFields("/worktree")
+	case "git-smart-checkout-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		worktreeFields("/worktree")
+		sessionFields("/sessions/*")
+	case "git-smart-checkout":
+		add("", "id", "operationId", "stashOid", "recoveryCommand")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
 	}
 	return rules
 }
@@ -861,6 +1017,7 @@ func TestWireSnapshots(t *testing.T) {
 		{"release", wireRelease},
 		{"forwards", wireForwards},
 		{"quick-start", wireQuickStart},
+		{"git-workbench", wireGitWorkbench},
 	} {
 		t.Run(group.name, func(t *testing.T) {
 			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}

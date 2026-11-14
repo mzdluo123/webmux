@@ -35,6 +35,8 @@ WebMux 是持续运行的终端工作台。视觉方向为克制的开发工具�
 | Semantic  | background、card、popover、foreground、primary、muted、success、warning、destructive、info | 根据用途引用；明暗主题覆盖相同角色     |
 | Component | control-xs/sm/default/lg/touch，Tailwind radius-sm/md/lg/xl                                | 控件直接消费尺寸和圆角，页面只控制布局 |
 
+- Git 工作台复用 background、card、popover、border 与 primary；列表选中使用浅主题底色与左侧细线。
+
 - 间距使用 Tailwind 的 4px 基准：4 / 8 / 12 / 16 / 24 / 32。
 - 圆角按角色取值，只使用 `--radius` 派生的 Tailwind 刻度，由 `arch:test` 检查：
   - `rounded-sm`（4px）：标签、徽标、键帽、附件条、复选框，以及菜单、列表、文件树中的行。

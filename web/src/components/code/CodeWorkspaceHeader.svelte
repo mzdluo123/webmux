@@ -10,6 +10,8 @@
     type CodeWorkspaceTab,
   } from "../../domains/code/code-workspace";
   import IconDots from "~icons/tabler/dots";
+  import IconGitBranch from "~icons/tabler/git-branch";
+  import IconHistory from "~icons/tabler/history";
   import IconLayoutSidebarLeftCollapse from "~icons/tabler/layout-sidebar-left-collapse";
   import IconLayoutSidebarLeftExpand from "~icons/tabler/layout-sidebar-left-expand";
   import IconPhoto from "~icons/tabler/photo";
@@ -33,6 +35,9 @@
     supersedeOpenOnTabKey,
     close,
     refreshAll,
+    inspectablePath = "",
+    onOpenGit,
+    onInspectGitFile,
   }: {
     navOpen: boolean;
     navStatus: string;
@@ -48,6 +53,12 @@
     supersedeOpenOnTabKey: (event: KeyboardEvent) => void;
     close: (key: string) => void;
     refreshAll: () => void;
+    inspectablePath?: string;
+    onOpenGit?: () => void;
+    onInspectGitFile?: (
+      path: string,
+      tab: "history" | "blame" | "compare",
+    ) => void;
   } = $props();
 </script>
 
@@ -120,6 +131,47 @@
     {/snippet}
   </Tabs.List>
   <div class="flex shrink-0 items-center gap-1 px-2 py-1">
+    {#if onInspectGitFile && inspectablePath}<DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+          {#snippet child({ props })}<Button
+              {...props}
+              variant="ghost"
+              size="icon-sm"
+              aria-label="文件 Git 历史与 Blame"
+              title={`文件历史 / Blame / 比较（${inspectablePath}）`}
+              data-testid="code-git-file-inspector-trigger"
+              ><IconHistory aria-hidden="true" /></Button
+            >{/snippet}
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content
+          align="end"
+          collisionPadding={safeAreaPadding(section)}
+          class="w-56 max-w-[calc(100vw-1rem)]"
+        >
+          <DropdownMenu.Item
+            onclick={() => onInspectGitFile(inspectablePath, "history")}
+          >
+            文件历史 (--follow)
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onclick={() => onInspectGitFile(inspectablePath, "blame")}
+          >
+            逐行溯源 (Blame)
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onclick={() => onInspectGitFile(inspectablePath, "compare")}
+          >
+            与分支/提交比较
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>{/if}
+    {#if onOpenGit}<Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="在 Git 中查看"
+        title="在 Git 中查看"
+        onclick={onOpenGit}><IconGitBranch aria-hidden="true" /></Button
+      >{/if}
     <Button
       variant="ghost"
       size="icon-sm"

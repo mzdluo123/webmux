@@ -18,6 +18,7 @@
     onmanage,
     onsettings,
     ondetails,
+    ongit,
     worktree,
   }: {
     repository: string;
@@ -27,6 +28,7 @@
     onmanage: () => void;
     onsettings: () => void;
     ondetails: () => void;
+    ongit?: () => void;
     /** The picked worktree; its entries follow the repository's. */
     worktree?: {
       title: string;
@@ -38,6 +40,8 @@
       /** With `onoperation`, adds its branch's sync actions. */
       tree?: Worktree;
       onoperation?: (operation: BranchOperation) => void;
+      ongit?: () => void;
+      oncommit?: () => void;
     };
   } = $props();
   const label = $derived(`仓库菜单：${repository}`);
@@ -64,6 +68,7 @@
       {onmanage}
       {onsettings}
       {ondetails}
+      {ongit}
     />
     {#if worktree}
       <DropdownMenu.Separator />
@@ -76,6 +81,8 @@
         onremove={worktree.onremove}
         worktree={worktree.tree}
         onoperation={worktree.onoperation}
+        ongit={worktree.ongit}
+        oncommit={worktree.oncommit}
       />
     {/if}
   </DropdownMenu.Content>

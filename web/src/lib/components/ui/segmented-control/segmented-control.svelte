@@ -12,7 +12,7 @@
       },
       // Segments flow onto more rows on narrow screens; each row keeps room
       // for the underline below it.
-      wrap: { true: "h-auto flex-wrap justify-start gap-y-2" },
+      wrap: { true: "h-auto max-w-full flex-wrap justify-start gap-y-2" },
     },
     defaultVariants: { size: "default" },
   });

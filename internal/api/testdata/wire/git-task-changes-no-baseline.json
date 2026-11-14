@@ -1,0 +1,19 @@
+{
+  "status": 200,
+  "body": {
+    "baseline": null,
+    "changes": {
+      "checkedAt": "<time>",
+      "contentVersion": "",
+      "entries": [],
+      "nextCursor": "",
+      "total": 0
+    },
+    "commitCount": 0,
+    "headOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "headUnborn": false,
+    "reason": "当前工作树尚未设定任务起点基线，可将当前 HEAD 或历史提交设为任务起点。",
+    "status": "no_task_baseline",
+    "uncommittedCount": 1
+  }
+}

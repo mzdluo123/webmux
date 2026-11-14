@@ -14,6 +14,9 @@
   import type { TextInsertion } from "../../domains/terminal/terminal-draft.svelte";
   import { popoutAvailable, popOut, type CodePopout } from "./code-popout";
   import { codePanelState } from "../../hooks/code/code-panel-state";
+  import { findShell, openGitWorkbench } from "../../hooks/shared/shell.svelte";
+  import { createGitFileInspectorController } from "../../hooks/workspace/git-file-inspector-controller.svelte";
+  import GitFileInspectorDialog from "../workspace/GitFileInspectorDialog.svelte";
 
   let {
     id,
@@ -24,6 +27,7 @@
     sessionCwd,
     reportedCwd,
     reveal,
+    workspaceRef,
   }: {
     id: string;
     visible: boolean;
@@ -34,7 +38,29 @@
     reportedCwd: ReportedCwd | null;
     /** A code location another view asks to show, such as from chat output. */
     reveal?: CodeReveal;
+    workspaceRef?: { repositoryId: string; worktreeId?: string } | null;
   } = $props();
+
+  const shell = findShell();
+  const gitWorkspace = $derived.by(() => {
+    const ref =
+      workspaceRef !== undefined
+        ? workspaceRef
+        : shell?.sessions.sessions.find((s) => s.id === id)?.workspace;
+    if (!ref?.repositoryId) return null;
+    if (
+      shell &&
+      workspaceRef === undefined &&
+      !shell.repositories.list.some((r) => r.id === ref.repositoryId)
+    ) {
+      return null;
+    }
+    return ref;
+  });
+  const fileInspector = createGitFileInspectorController({
+    getRepoId: () => gitWorkspace?.repositoryId ?? "",
+    getWorktreeId: () => gitWorkspace?.worktreeId || undefined,
+  });
 
   const host: CodeHost = {
     get draftEnabled() {
@@ -147,6 +173,7 @@
       window.removeEventListener("popstate", keep);
       mounted = false;
       popout?.dispose();
+      fileInspector.dispose();
     };
   });
 </script>
@@ -181,6 +208,35 @@
         popout={canPopOut
           ? { popped: false, toggle: () => void toggle() }
           : undefined}
+        onOpenGit={gitWorkspace
+          ? () => {
+              keep();
+              openGitWorkbench({
+                repositoryId: gitWorkspace.repositoryId,
+                worktreeId: gitWorkspace.worktreeId || undefined,
+                returnSession: id,
+              });
+            }
+          : undefined}
+        onInspectGitFile={gitWorkspace
+          ? (path, tab) => fileInspector.openInspector({ path, tab })
+          : undefined}
       />{/key}
+  {/if}
+  {#if fileInspector.open && gitWorkspace}
+    <GitFileInspectorDialog
+      inspector={fileInspector}
+      hasWorktree={Boolean(gitWorkspace.worktreeId)}
+      onJumpToCommit={(oid) => {
+        keep();
+        openGitWorkbench({
+          repositoryId: gitWorkspace.repositoryId,
+          worktreeId: gitWorkspace.worktreeId || undefined,
+          view: "log",
+          commit: oid,
+          returnSession: id,
+        });
+      }}
+    />
   {/if}
 </div>

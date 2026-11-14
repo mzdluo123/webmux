@@ -73,6 +73,10 @@
 - [code-document-preview](../openspec/specs/code-document-preview/spec.md)：文档类文件预览
 - [code-popout-window](../openspec/specs/code-popout-window/spec.md)：代码工作区弹出为独立窗口
 - [code-tree-drop-upload](../openspec/specs/code-tree-drop-upload/spec.md)：拖放文件到资源管理器上传
+- [git-workbench-context](../openspec/specs/git-workbench-context/spec.md)：独立仓库/工作树上下文、对象比较与快照隔离
+- [git-history-graph](../openspec/specs/git-history-graph/spec.md)：分页提交历史、真实 parent 拓扑与提交详情
+- [git-index-staging-and-commit](../openspec/specs/git-index-staging-and-commit/spec.md)：真实索引暂存、提交预览、钩子与并发边界
+- [git-workbench-ui-foundation](../openspec/specs/git-workbench-ui-foundation/spec.md)：Git 工作台的原生双主题组件与响应式布局
 
 ## 仓库与工作树
 

@@ -24,6 +24,12 @@ import {
   type Remotes,
 } from "../../contracts/schemas";
 
+interface BranchOperationExecOptions {
+  clientRequestId?: string;
+  worktreeId?: string;
+  signal?: AbortSignal;
+}
+
 export interface BranchOperations {
   fastForwardPreview(
     repositoryId: string,
@@ -34,13 +40,18 @@ export interface BranchOperations {
     repositoryId: string,
     confirmationId: string,
     acknowledgeSessions: boolean,
+    options?: BranchOperationExecOptions,
   ): Promise<FastForwardResult>;
   pushPreview(
     repositoryId: string,
     request: PushPreviewRequest,
     signal: AbortSignal,
   ): Promise<PushPreview>;
-  push(repositoryId: string, confirmationId: string): Promise<PushResult>;
+  push(
+    repositoryId: string,
+    confirmationId: string,
+    options?: BranchOperationExecOptions,
+  ): Promise<PushResult>;
   deletePreview(
     repositoryId: string,
     branches: readonly string[],
@@ -77,13 +88,20 @@ export const branchOperations: BranchOperations = {
       signal,
       FastForwardPreviewRequestSchema,
     ),
-  fastForward: (id, confirmationId, acknowledgeSessions) =>
+  fastForward: (id, confirmationId, acknowledgeSessions, options) =>
     api(
       `${base(id)}/fast-forward`,
       FastForwardResultSchema,
       "POST",
-      { confirmationId, acknowledgeSessions },
-      undefined,
+      {
+        confirmationId,
+        acknowledgeSessions,
+        ...(options?.clientRequestId
+          ? { clientRequestId: options.clientRequestId }
+          : {}),
+        ...(options?.worktreeId ? { worktreeId: options.worktreeId } : {}),
+      },
+      options?.signal,
       FastForwardRequestSchema,
     ),
   pushPreview: (id, request, signal) =>
@@ -95,13 +113,19 @@ export const branchOperations: BranchOperations = {
       signal,
       PushPreviewRequestSchema,
     ),
-  push: (id, confirmationId) =>
+  push: (id, confirmationId, options) =>
     api(
       `${base(id)}/push`,
       PushResultSchema,
       "POST",
-      { confirmationId },
-      undefined,
+      {
+        confirmationId,
+        ...(options?.clientRequestId
+          ? { clientRequestId: options.clientRequestId }
+          : {}),
+        ...(options?.worktreeId ? { worktreeId: options.worktreeId } : {}),
+      },
+      options?.signal,
       PushRequestSchema,
     ),
   deletePreview: (id, branches, signal) =>

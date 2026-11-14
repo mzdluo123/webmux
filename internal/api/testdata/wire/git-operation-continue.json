@@ -1,0 +1,59 @@
+{
+  "status": 200,
+  "body": {
+    "headOid": "029aad08115e96af87a9df174c887599dc4eae5b",
+    "inProgress": {
+      "active": false,
+      "canAbort": false,
+      "canContinue": false,
+      "conflictedCount": 0,
+      "conflictedFiles": [],
+      "continueBlockers": [],
+      "currentBranch": "main",
+      "detached": false,
+      "headOid": "029aad08115e96af87a9df174c887599dc4eae5b",
+      "headSubject": "Merge branch 'refs/heads/feat-conflict'",
+      "worktreeId": "<id#2>",
+      "worktreePath": "<repo>"
+    },
+    "kind": "continue",
+    "operationId": "<operationId#3>",
+    "outcome": "completed",
+    "subject": "Merge branch 'refs/heads/feat-conflict'",
+    "summary": "已完成：继续完成 merge 操作",
+    "worktree": {
+      "ahead": null,
+      "available": true,
+      "behind": null,
+      "branch": "main",
+      "changes": {
+        "conflicted": 0,
+        "staged": 0,
+        "unstaged": 0,
+        "untracked": 0
+      },
+      "detached": false,
+      "dirty": false,
+      "error": "",
+      "hasIgnored": false,
+      "hasUntracked": false,
+      "head": "029aad08115e96af87a9df174c887599dc4eae5b",
+      "id": "<id#2>",
+      "kind": "main",
+      "lastCommit": {
+        "author": "Wire test",
+        "committedAt": "2026-01-02T03:04:05Z",
+        "hash": "029aad08115e96af87a9df174c887599dc4eae5b",
+        "subject": "Merge branch 'refs/heads/feat-conflict'"
+      },
+      "lockReason": "",
+      "locked": false,
+      "operation": null,
+      "path": "<repo>",
+      "prunable": false,
+      "repositoryId": "<id#1>",
+      "upstream": null,
+      "upstreamGone": false
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import { z } from "zod";
 import { navigate, store, stored } from "../../platform/api";
+import { buildGitRouteHref, type GitRouteTarget } from "./route";
 import type { ArchiveSignal } from "../../domains/sessions/archive-signal";
 import type { BranchOperation } from "../../domains/workspace/branch-actions";
 import type { Archived } from "../sessions/archived.svelte";
@@ -149,7 +150,16 @@ export interface Shell {
    * Opens the switch of a worktree's branch outside the repository panel,
    * which shows the same flow as one of its subviews.
    */
-  switchBranch(worktree: Worktree): void;
+  switchBranch(
+    worktree: Worktree,
+    initial?:
+      | string
+      | {
+          branch?: string;
+          mode?: "existing" | "new";
+          startPoint?: string;
+        },
+  ): void;
   /** Opens the shared release preview of an archived record's worktree. */
   releaseWorktree(worktree: Worktree): void;
   /**
@@ -193,6 +203,17 @@ export function openSession(session: Pick<SessionInfo, "id">) {
 /** Opens a page of the shell (a home page or a scope) and closes the drawer. */
 export function openPage(path: string) {
   drawerOpen = false;
-  if (location.pathname + location.hash === path) return;
+  const target = new URL(path, location.origin);
+  if (
+    location.pathname === target.pathname &&
+    location.search === target.search &&
+    location.hash === target.hash
+  )
+    return;
   navigate(path);
+}
+
+/** Opens the standalone `/git` workbench for a repository or worktree. */
+export function openGitWorkbench(target: GitRouteTarget) {
+  openPage(buildGitRouteHref(target));
 }

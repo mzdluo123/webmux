@@ -29,7 +29,7 @@
         : "size-3.5 shrink-0 transition-transform"}
       aria-hidden="true"
     />
-    <span class="shrink-0">{title}</span>
+    <span class={summary ? "shrink-0" : "min-w-0 wrap-anywhere"}>{title}</span>
     {#if summary}<span
         class="min-w-0 truncate font-mono text-xs"
         aria-hidden="true">{summary}</span

@@ -1,0 +1,27 @@
+{
+  "status": 200,
+  "body": {
+    "affectedPaths": [
+      "sub/b.txt"
+    ],
+    "blockers": [],
+    "confirmationId": "<confirmationId#7>",
+    "currentBranch": "main",
+    "directionSummary": "中止工作树 repo 上的 cherry-pick 操作，并将分支 main 恢复到操作前起点 6b503797",
+    "expiresAt": "<time>",
+    "headOid": "029aad08115e96af87a9df174c887599dc4eae5b",
+    "kind": "cherry-pick",
+    "repositoryId": "<id#1>",
+    "restoreOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "restoreSubject": "feat: commit staged a.txt",
+    "sessions": [],
+    "warnings": [
+      {
+        "code": "discard_conflict_edits",
+        "message": "中止操作将丢弃 1 个受影响文件中的冲突解决草稿与暂存改动"
+      }
+    ],
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

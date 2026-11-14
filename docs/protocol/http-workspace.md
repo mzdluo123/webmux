@@ -8,17 +8,25 @@
 | PATCH      | `/api/repositories/{id}`                                        | `{initInstruction}` 修改或清空（空字符串）初始化指令，200 返回仓库；超过 4000 个字符 400                                                                                            |
 | DELETE     | `/api/repositories/{id}`                                        | 仅移除登记，204                                                                                                                                                                     |
 | GET        | `/api/repositories/{id}/worktrees`                              | 刷新仓库快照（含 `checkedAt` 与 `worktrees`）                                                                                                                                       |
-| GET        | `/api/repositories/{id}/branches`                               | `{branches, bases, defaultBase, defaultBaseSubject, defaultBranch, defaultParent}`，不 fetch                                                                                        |
+| GET        | `/api/repositories/{id}/branches`                               | `{branches, bases, tags, defaultBase, defaultBaseSubject, defaultBranch, defaultParent}`，不 fetch                                                                                  |
+| POST       | `/api/repositories/{id}/branches/rename-preview`                | `{oldName, newName}`；预览本地分支重命名（含检出工作树、活跃会话与引用格式校验）                                                                                                    |
+| POST       | `/api/repositories/{id}/branches/rename`                        | `{confirmationId, acknowledgeSessions, clientRequestId?, worktreeId?}`；执行 `git branch -m` 并返回 `{operationId?, repository}`                                                    |
+| POST       | `/api/repositories/{id}/branches/upstream`                      | `{branch, upstream?, unset?, clientRequestId?, worktreeId?}`；绑定本地远程跟踪引用或解除上游，返回 `{operationId?, repository}`                                                     |
+| POST       | `/api/repositories/{id}/tags`                                   | `{name, target, message?, clientRequestId?, worktreeId?}`；创建轻量或附注标签（`message` 非空时 `git tag -a`），201 返回 `{operationId?, tag}`                                      |
+| DELETE     | `/api/repositories/{id}/tags/{name...}`                         | `{expectedOid?, clientRequestId?, worktreeId?}`；校验指向后删除标签并返回 `{operationId?, status, targetOid, recoveryCommand}`                                                      |
 | GET        | `/api/repositories/{id}/commits?from=<oid>[&from=<oid>]`        | `{commits: [{hash, subject, author, committedAt}]}`：自 1–2 个完整提交 ID（本地与上游尖端）合并最近 50 条，新到旧，超出上限的起始提交仍会列出；非法 ID 400                          |
 | POST       | `/api/repositories/{id}/branches/refresh`                       | `{branch}`；fetch 已配置上游并返回远程基线或本地回退；`upstreamHead` 为 fetch 到的上游尖端（本地分叉时也返回），未成功时为空                                                        |
 | POST       | `/api/repositories/{id}/branches/fast-forward-preview`          | `{branch}`；快进预览 `{confirmationId, expiresAt, branch, from, to, upstream, commits, worktree, sessions, blockers, warnings}`，只读本地远程跟踪引用                               |
-| POST       | `/api/repositories/{id}/branches/fast-forward`                  | `{confirmationId, acknowledgeSessions}`；返回 `{repository}`                                                                                                                        |
+| POST       | `/api/repositories/{id}/branches/fast-forward`                  | `{confirmationId, acknowledgeSessions, clientRequestId?, worktreeId?}`；返回 `{operationId?, repository}`                                                                           |
 | POST       | `/api/repositories/{id}/branches/push-preview`                  | `{branch, remote?, target?}`（`remote`/`target` 只用于发布）；推送预览 `{confirmationId, expiresAt, branch, commit, remote, pushUrl, target, publish, commits, blockers, warnings}` |
-| POST       | `/api/repositories/{id}/branches/push`                          | `{confirmationId}`；返回 `{status, message, repository}`，远端拒绝也是 200                                                                                                          |
+| POST       | `/api/repositories/{id}/branches/push`                          | `{confirmationId, clientRequestId?, worktreeId?}`；返回 `{operationId?, status, message, repository}`，远端拒绝也是 200                                                             |
 | POST       | `/api/repositories/{id}/branches/delete-preview`                | `{branches}`（1–50 个本地分支）；`{confirmationId, expiresAt, items: [{branch, commit, group, unmerged, blockers}]}`                                                                |
 | POST       | `/api/repositories/{id}/branches/delete`                        | `{confirmationId, acknowledgeUnmerged}`；返回 `{results: [{branch, status, commit, message}], repository}`                                                                          |
 | GET        | `/api/repositories/{id}/remotes`                                | `{remotes: [{name, fetchUrl, pushUrl}]}`，按名称排序；URL 已去除凭据（见下），不联网                                                                                                |
-| POST       | `/api/repositories/{id}/fetch`                                  | 空 body `{}`；获取全部远程，返回 `{results: [{remote, status, message}], repository}`（见下）；没有远程 409                                                                         |
+| POST       | `/api/repositories/{id}/remotes`                                | `{name, fetchUrl, pushUrl?, clientRequestId?}`；添加远程（拒绝非安全 scheme 或含字面量 `***` 的脱敏占位符），201 返回 `{operationId?, remotes}`                                     |
+| PATCH      | `/api/repositories/{id}/remotes/{name}`                         | `{fetchUrl?, pushUrl?, clientRequestId?}`；修改远程 fetch/push URL（同上拒绝字面量 `***`），返回 `{operationId?, remotes}`                                                          |
+| DELETE     | `/api/repositories/{id}/remotes/{name}`                         | `{clientRequestId?}`（可空）；移除指定远程配置，返回 `{operationId?, remotes}`                                                                                                      |
+| POST       | `/api/repositories/{id}/fetch`                                  | `{clientRequestId?, worktreeId?}`（可为空 `{}`）；获取全部远程，返回 `{operationId?, results: [{remote, status, message}], repository}`（见下）；没有远程 409                       |
 | POST       | `/api/repositories/{id}/worktrees`                              | `{path, mode: "new", branch, base}` 或 `{path, mode: "existing", branch}`，201                                                                                                      |
 | POST       | `/api/repositories/{id}/worktrees/{worktreeId}/removal-preview` | 删除预览：`{confirmationId, expiresAt, worktree, sessions, archived, commit, push, blockers, warnings, forceAllowed}`                                                               |
 | POST       | `/api/repositories/{id}/worktrees/{worktreeId}/remove`          | `{confirmationId, mode: "safe"}`；强制删除另需 `confirmPath` 与 `closeSessions: true`，204                                                                                          |
@@ -28,7 +36,7 @@
 | POST       | `/api/repositories/{id}/worktrees/{worktreeId}/usage`           | 计算工作树目录占用：空 body，返回 `{bytes, entries, complete}`；只在请求时遍历，不随仓库快照返回                                                                                    |
 | POST       | `/api/repositories/{id}/worktrees/{worktreeId}/release`         | `{confirmationId}`；删除目录、保留分支与已归档记录并标为已释放，`{releaseId, recordIds}`                                                                                            |
 | POST       | `/api/repositories/{id}/worktrees/{worktreeId}/switch-preview`  | 切换预览：`{target}`，返回 `{confirmationId, expiresAt, worktree, target, sessions, blockers, warnings}`（见下）                                                                    |
-| POST       | `/api/repositories/{id}/worktrees/{worktreeId}/switch`          | `{confirmationId, acknowledgeSessions}`；原地切换，200 返回刷新后的 `Worktree`                                                                                                      |
+| POST       | `/api/repositories/{id}/worktrees/{worktreeId}/switch`          | `{confirmationId, acknowledgeSessions, clientRequestId?}`；原地切换，200 返回刷新后的 `Worktree`                                                                                    |
 
 删除预览的 `sessions` 是该 worktree 中运行中的会话，`archived` 是其中已归档（`closed` 或 `interrupted`）的会话，二者都是 `SessionInfo`。
 
@@ -179,3 +187,10 @@
 - 不能粘贴到自身或其子目录（400）；移动是同根 `rename`，跨文件系统返回 409；移动到原目录时保持原位。
 - 非空目录未带 `recursive=1`，或目录中含 `.git` / 嵌套仓库时返回 409，不会删除一部分后停止。
 - 根不可写时 `writableAvailable` 为 false，写操作返回 403。上传与下载、ZIP 共用 4 个传输槽（429）；其余操作 60 秒超时。
+
+## 仓库与工作树 Git 接口
+
+无需活动终端或混合会话即可访问两套 Git 接口，完整路由表与安全一致性不变量见 [HTTP API：Git 工作台与仓库级接口](http-git-workbench.md)：
+
+- `/api/repositories/{id}/git/*`：仓库级只读上下文、跨提交对比、拓扑历史、贮藏读取及单文件历史与 Blame；
+- `/api/repositories/{id}/worktrees/{worktreeId}/git/*`：工作树真实 `index` 整文件/逐块/逐行暂存、提交、受控丢弃更改、贮藏写操作、分叉三方冲突裁决与三阶段 `Smart Checkout`。

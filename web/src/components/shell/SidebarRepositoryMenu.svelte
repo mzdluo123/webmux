@@ -11,6 +11,7 @@
     onhome,
     onmanage,
     ondetails,
+    ongit,
   }: {
     label: string;
     tabindex?: number;
@@ -19,6 +20,7 @@
     onhome: () => void;
     onmanage: () => void;
     ondetails: () => void;
+    ongit?: () => void;
   } = $props();
 </script>
 
@@ -29,5 +31,6 @@
     {onhome}
     {onmanage}
     {ondetails}
+    {ongit}
   />
 </SidebarRowMenu>

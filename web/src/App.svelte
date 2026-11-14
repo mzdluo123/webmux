@@ -1,8 +1,10 @@
 <script lang="ts" module>
   type SessionPageModule = typeof import("./pages/Terminal.svelte");
+  type GitPageModule = typeof import("./pages/GitWorkbench.svelte");
   // Kept after the first visit. A resolved import still paints `{#await}`'s
   // pending branch, so later opens must render the module directly.
   let sessionPage: SessionPageModule | undefined;
+  let gitPage: GitPageModule | undefined;
 
   function cachedSessionPage() {
     return sessionPage;
@@ -12,6 +14,18 @@
     const pending = import("./pages/Terminal.svelte");
     void pending.then((mod) => {
       sessionPage = mod;
+    });
+    return pending;
+  }
+
+  function cachedGitPage() {
+    return gitPage;
+  }
+
+  function loadGitPage() {
+    const pending = import("./pages/GitWorkbench.svelte");
+    void pending.then((mod) => {
+      gitPage = mod;
     });
     return pending;
   }
@@ -54,46 +68,26 @@
   } from "./hooks/shared/session-switcher";
   import SessionList from "./pages/SessionList.svelte";
   import { matchRoute, type Route } from "./hooks/shared/route";
-  import { enterHome, openSession, shellUi } from "./hooks/shared/shell.svelte";
+  import { enterHome, openSession } from "./hooks/shared/shell.svelte";
   import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
   import { browserDraftStorage } from "./domains/terminal/draft-storage";
   import { clearHomeCache, homeCache } from "./domains/workspace/home-cache";
   import { sessionPageLabel } from "./domains/sessions/hybrid";
   import { sessionPins } from "./domains/sessions/session-pins.svelte";
   import { resetAttentionToasts } from "./domains/notifications/attention-toast.svelte";
-  import { useTvNavigation } from "./hooks/shared/tv-navigation.svelte";
-  import { headsetMode } from "./hooks/shared/headset-mode.svelte";
+  import { useDeviceShell } from "./hooks/shared/device-shell.svelte";
   import { tvInput } from "./hooks/shared/tv-input.svelte";
   import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
   import InlineNotice from "./components/shared/InlineNotice.svelte";
 
-  useTvNavigation(() => {
-    if (shellUi.drawerOpen) {
-      shellUi.drawerOpen = false;
-      return true;
-    }
-    const routeBack = new CustomEvent("webmux:tv-back", {
-      cancelable: true,
-      detail: "route",
-    });
-    window.dispatchEvent(routeBack);
-    if (routeBack.defaultPrevented) return true;
-    if (location.pathname === "/") return false;
-    navigate("/");
-    return true;
-  });
-  $effect(() => {
-    document.documentElement.dataset.headsetMode = String(headsetMode.enabled);
-    return () => {
-      delete document.documentElement.dataset.headsetMode;
-    };
-  });
+  useDeviceShell();
 
   const drafts = createTerminalDrafts({ storage: browserDraftStorage() });
   let uploadNotice = $state("");
 
   enterHome();
   let path = $state(location.pathname);
+  let search = $state(location.search);
   let ready = $state(false);
   let checking = $state(true);
   let token = $state(stored("token"));
@@ -104,10 +98,13 @@
     route.name === "sessions" ||
       route.name === "quick-start" ||
       route.name === "handoff" ||
-      route.name === "terminal"
+      route.name === "terminal" ||
+      route.name === "git"
       ? (route as Extract<
           Route,
-          { name: "sessions" | "quick-start" | "terminal" | "handoff" }
+          {
+            name: "sessions" | "quick-start" | "terminal" | "handoff" | "git";
+          }
         >)
       : null,
   );
@@ -183,6 +180,10 @@
     void sessionId;
     return cachedSessionPage();
   });
+  const openedGitPage = $derived.by(() => {
+    void path;
+    return cachedGitPage();
+  });
 
   async function check() {
     checking = true;
@@ -223,11 +224,15 @@
     });
     const change = () => {
       if (!shellRoute) enterHome();
-      if (path !== location.pathname) switcherOpen = false;
+      const pathChanged = path !== location.pathname;
+      if (pathChanged) switcherOpen = false;
       pendingSessionOpen = "";
       path = location.pathname;
-      focusRoute = true;
-      void tick().then(focusMain);
+      search = location.search;
+      if (pathChanged) {
+        focusRoute = true;
+        void tick().then(focusMain);
+      }
     };
     const auth = () => {
       stopP2P();
@@ -415,6 +420,22 @@
               sourceId={route.name === "handoff" ? route.sourceId : ""}
             />{/key}{/snippet}
       </LazyPage>
+    {:else if route.name === "git"}
+      {#if openedGitPage}
+        <openedGitPage.default
+          repositoryId={route.repositoryId}
+          worktreeId={route.worktreeId}
+          {search}
+        />
+      {:else}
+        <LazyPage load={loadGitPage} label="Git 工作台">
+          {#snippet children(page)}<page.default
+              repositoryId={route.repositoryId}
+              worktreeId={route.worktreeId}
+              {search}
+            />{/snippet}
+        </LazyPage>
+      {/if}
     {:else if route.name === "quick-start"}
       <LazyPage
         load={() => import("./pages/QuickStart.svelte")}

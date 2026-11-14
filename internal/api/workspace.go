@@ -51,8 +51,8 @@ func (s *Server) workspaceRoutes(mux *http.ServeMux) {
 	})
 	// Fetching holds no repository gate and outlives a disconnected client;
 	// failures are per remote, with Git output redacted by the service.
-	serveIn(mux, "POST "+repo+"/fetch", http.StatusOK, workspaceFailure, func(r *http.Request, _ contract.FetchRemotesRequest) (contract.FetchRemotesResponse, error) {
-		result, err := s.Workspace.FetchRemotes(r.Context(), r.PathValue("id"))
+	serveIn(mux, "POST "+repo+"/fetch", http.StatusOK, workspaceFailure, func(r *http.Request, req contract.FetchRemotesRequest) (contract.FetchRemotesResponse, error) {
+		result, err := s.Workspace.FetchRemotesWithOptions(r.Context(), r.PathValue("id"), wire.FetchRemotesRequest(req))
 		return wire.FetchRemotes(result), err
 	})
 	serve(mux, "GET "+repo+"/commits", http.StatusOK, workspaceFailure, func(r *http.Request) (contract.Commits, error) {
@@ -109,9 +109,9 @@ func (s *Server) workspaceRoutes(mux *http.ServeMux) {
 	})
 	// Git keeps running when the client goes away; the answer is the
 	// worktree as it is afterwards.
-	serveIn(mux, "POST "+repo+"/worktrees/{worktreeId}/switch", http.StatusOK, workspaceFailure, func(r *http.Request, req contract.SwitchRequest) (contract.Worktree, error) {
-		tree, err := s.Workspace.SwitchWorktree(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"), wire.SwitchWorktree(req))
-		return wire.Worktree(tree), err
+	serveIn(mux, "POST "+repo+"/worktrees/{worktreeId}/switch", http.StatusOK, workspaceFailure, func(r *http.Request, req contract.SwitchRequest) (contract.SwitchResult, error) {
+		res, err := s.Workspace.SwitchWorktreeResult(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"), wire.SwitchWorktree(req))
+		return wire.SwitchResult(res), err
 	})
 	serveIn(mux, "POST "+repo+"/worktrees/batch-removal-preview", http.StatusOK, workspaceFailure, func(r *http.Request, req contract.BatchRemovalPreviewRequest) (contract.BatchRemovalPreview, error) {
 		preview, err := s.Workspace.PreviewBatchRemoval(r.Context(), r.PathValue("id"), req.WorktreeIDs)

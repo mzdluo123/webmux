@@ -87,7 +87,9 @@ Oxlint（`pnpm --dir web lint`）仍是通用 lint。它只读取 `.svelte` 的 
 | `CardTitle`                                                                                                                                                                         | 排版（不含字重）            | 标题字号随所在区域变化                                                         |
 | `CardContent`、`TabsContent`、`CommandList`、`ItemGroup`、`ItemActions`、`Collapsible`、`CollapsibleContent`、`DialogContent`、`DialogHeader`、`PopoverContent`、`ResponsiveDialog` | 内边距与间距                | 内容区域的留白取决于放入的内容，组件本身不规定                                 |
 | `CollapsibleTrigger`、`PopoverTrigger`                                                                                                                                              | 全部外观                    | bits-ui 原语，设计系统没有给它们任何样式；需要按钮外观时用 `child` 渲染 Button |
-| `Pane`、`ResizableHandle`                                                                                                                                                           | `styles.css` 中的布局钩子类 | 终端、草稿与代码分栏的显示和尺寸由响应式 CSS 控制                              |
+| `Pane`、`ResizableHandle`                                                                                                                                                           | `styles.css` 中的布局钩子类 | 终端、草稿、代码与 Git 分栏的显示和尺寸由响应式 CSS 控制                       |
+
+Git 工作台分栏使用 `git-pane` 与 `git-divider` 布局钩子类，只在样式表中表达分栏尺寸与 1px 分隔线。
 
 组件需要由样式表控制布局时，优先用 `data-*` 属性作为选择器（如 `DirectoryPicker` 的 `data-directory-picker`），只在样式表中写布局；外观仍通过 variant 表达。
 
@@ -123,6 +125,8 @@ Oxlint（`pnpm --dir web lint`）仍是通用 lint。它只读取 `.svelte` 的 
 | `Checkbox`          | —                                                           | 复选框，配合 `Label` 使用                                                                                                                                                                       |
 | `ListButton`        | `row` / `text` / `content` / `option` / `tab` / `tab-close` | 列表、标签栏与卡片中的可点击区域。它不带控件尺寸，虚拟列表的固定行高不受影响；独立的操作按钮仍用 `Button`                                                                                       |
 | `ListButton`        | `navigation` / `navigation-action` / `file-tree-overlay`    | 侧栏导航行：`aria-pressed` 标记选中的筛选，`aria-current="page"` 标记当前页面；后两者用于带行尾操作按钮的侧栏行，见表下说明                                                                     |
+| `ListButton`        | `variant="review-toggle"`                                   | 常驻行内审阅图标；32px、紧凑触控 36px，aria-pressed 仅改变主题文字色，不绘制边框或填充选中块。                                                                                                  |
+| `ListButton`        | `variant="compact-row"` / `variant="file-tree-action"`      | Git 工作台紧凑选中行（`rounded-sm`，浅主题底色与左侧细线）及其行尾动作按钮（窄屏与触屏常驻、桌面悬停/聚焦显示）                                                                                 |
 | `ChatSelect`        | `labeled`、`searchable`                                     | 输入框下方的选择：`labeled` 同时显示当前值文字（快速开始的仓库与 agent），`searchable` 用可搜索面板筛选模型选项；带 `reason` 的选项保留在菜单中并禁用；基准分支改用可搜索的 `BranchCommandList` |
 
 `ListButton` 的 `navigation-action`（聊天历史）与 `file-tree-overlay`（工作台树）在鼠标设备上不为行尾操作按钮留空位：按钮在悬停、聚焦或菜单打开时覆盖行尾的状态圆点或计数（这些标记加上 `sidebar-row.ts` 的 `underRowAction` 让位）；触屏上留出按钮位置，按钮常驻。
@@ -161,3 +165,5 @@ Oxlint（`pnpm --dir web lint`）仍是通用 lint。它只读取 `.svelte` 的 
 - 不要为了通过检查而扩大基线、添加 `eslint-disable` 或 `jscpd:ignore`。确有必要的例外，在 PR 中说明原因，并优先改为配置中的契约或白名单。
 
 治理过程与每批的决策记录见 OpenSpec 变更 `frontend-architecture-guard`。
+
+紧凑列表使用 `compact-row`，折叠头使用 `section-header`，来源槽位使用 `provenance-gutter`，可选择差异行使用 `diff-line`；焦点统一消费 ring。

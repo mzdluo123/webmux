@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
+  import { requestConflictResolverHandoff } from "../../domains/workspace/git-conflict-handoff";
   import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
   import {
     homeLayout,
@@ -16,7 +17,11 @@
     SessionInfo,
     Worktree,
   } from "../../contracts/schemas";
-  import type { RepositoryTab, Shell } from "../../hooks/shared/shell.svelte";
+  import {
+    openGitWorkbench,
+    type RepositoryTab,
+    type Shell,
+  } from "../../hooks/shared/shell.svelte";
   import CloseSessionDialog from "../sessions/CloseSessionDialog.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
   import RenameSessionDialog from "../sessions/RenameSessionDialog.svelte";
@@ -51,7 +56,12 @@
     choosingHome: Repository | null;
     viewingRepository: { repository: Repository; tab: RepositoryTab } | null;
     viewingWorktree: Worktree | null;
-    switchingBranch: Worktree | null;
+    switchingBranch: {
+      worktree: Worktree;
+      initialBranch?: string;
+      initialMode?: "existing" | "new";
+      initialStartPoint?: string;
+    } | null;
     releasingWorktree: Worktree | null;
     operating: { repositoryId: string; operation: BranchOperation } | null;
     forwarding: boolean;
@@ -262,6 +272,14 @@
           viewingRepository = null;
         }}
         onrepository={(repo) => shell.repositories.replace(repo)}
+        ongit={(worktreeId, view) => {
+          viewingRepository = null;
+          openGitWorkbench({
+            repositoryId: currentRepo.id,
+            worktreeId,
+            view,
+          });
+        }}
         onclose={() => (viewingRepository = null)}
       />{/snippet}
   </LazyDialog>
@@ -288,7 +306,8 @@
   </LazyDialog>
 {/if}
 {#if switchingBranch}
-  {@const { repo, current } = resolveWorktreeDialogTarget(switchingBranch)}
+  {@const target = switchingBranch}
+  {@const { repo, current } = resolveWorktreeDialogTarget(target.worktree)}
   {#if repo}
     <LazyDialog
       load={() => import("../workspace/SwitchBranchDialog.svelte")}
@@ -298,6 +317,9 @@
       {#snippet children(page)}<page.default
           repository={repo}
           worktree={current}
+          initialBranch={target.initialBranch}
+          initialMode={target.initialMode}
+          initialStartPoint={target.initialStartPoint}
           onchange={() => void shell.repositories.refresh(true)}
           onnewworktree={(preset) =>
             shell.start({
@@ -308,6 +330,14 @@
           ongoto={(path) => {
             const tree = repo.worktrees.find((w) => w.path === path);
             if (tree) shell.worktreeDetails(tree);
+          }}
+          onopenconflict={(tree, path) => {
+            requestConflictResolverHandoff(repo.id, tree.id, path);
+            openGitWorkbench({
+              repositoryId: repo.id,
+              worktreeId: tree.id,
+              view: "commit",
+            });
           }}
           onclose={() => (switchingBranch = null)}
         />{/snippet}

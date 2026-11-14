@@ -1,0 +1,23 @@
+{
+  "status": 200,
+  "body": {
+    "checkedAt": "<time>",
+    "document": {
+      "absolutePath": "",
+      "contentVersion": "c150e5a8a604acebd8d15bd7bf8ea96b2874bdcc91dee6319977d353251283b0",
+      "downloadable": true,
+      "kind": "text",
+      "lineCount": 1,
+      "mediaType": "",
+      "nodeId": "c3ViL2IudHh0",
+      "oid": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+      "path": "sub/b.txt",
+      "reason": "",
+      "referenceable": false,
+      "size": 4,
+      "source": "commit:2de8fe1f09b18871f913bbafa26fee479279c2b6",
+      "text": "bee\n"
+    },
+    "snapshotId": "<snapshotId#1>"
+  }
+}

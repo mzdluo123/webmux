@@ -10,6 +10,7 @@
   } from "@pierre/diffs";
   import { captureCursor, restoreCursor } from "../../domains/code/code-search";
   import { createCodeFind } from "../../domains/code/code-find.svelte";
+  import { useTvPanelBack } from "../../hooks/shared/tv-panel-back.svelte";
   import { codeFont } from "../../hooks/code/code-font-preference.svelte";
   import {
     settings,
@@ -54,6 +55,7 @@
     draftEnabled,
     onselect,
     restore,
+    preferredDiffStyle,
     hint = $bindable(""),
     emptyMessage = "文件内容没有变化；可通过“完整文件”查看内容",
   }: {
@@ -65,6 +67,7 @@
     // A captured reading state, applied once the diff has rendered with
     // layout.
     restore?: CodeDiffReaderState;
+    preferredDiffStyle?: "unified" | "split";
     // Selection guidance, rendered by the document's action bar.
     hint?: string;
     emptyMessage?: string;
@@ -105,7 +108,14 @@
   // The top line last measured while the diff had layout; a hidden tab
   // reports this one.
   let knownTop: CodeDiffReaderState["top"];
-  const diffStyle = $derived(width >= 760 ? "split" : "unified");
+  const diffStyle = $derived(
+    width < 640
+      ? "unified"
+      : (preferredDiffStyle ?? (width >= 760 ? "split" : "unified")),
+  );
+  export function hasOpenPanel() {
+    return Boolean(find.panel);
+  }
   const hasChanges = $derived(fileDiff.hunks.length > 0);
   const totals = $derived(
     fileDiff.hunks.reduce(
@@ -129,7 +139,11 @@
     scrollToLine,
     () => hasChanges,
   );
-
+  useTvPanelBack({
+    host: () => root,
+    hasLayer: () => Boolean(find.panel),
+    closeLayer: find.actions.closePanel,
+  });
   export function clearLineAction() {
     selected = null;
     viewer?.clearSelectedLines({ notify: false });
@@ -386,6 +400,7 @@
 
 <div
   bind:this={root}
+  data-tv-back-scope
   class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 >
   <div

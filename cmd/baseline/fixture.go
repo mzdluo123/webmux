@@ -67,6 +67,7 @@ func newFixture() *fixture {
 	f.folders = artifacts.New(artifacts.Options{TempDir: root, StateDir: c.StateDir, Manager: f.manager})
 	f.folders.Start(func(string) bool { return false })
 	f.code = codeview.New(f.manager, f.folders)
+	f.code.UseWorkspace(f.workspace)
 	f.preferences = settings.Open(c.StateDir)
 	f.server = httptest.NewServer(api.New(api.Deps{Settings: f.preferences, Config: c, Manager: f.manager, Workspace: f.workspace, Code: f.code, Files: files.New(c.DefaultCwd), Artifacts: f.folders}))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

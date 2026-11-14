@@ -9,7 +9,6 @@ import (
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
-	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
@@ -25,6 +24,10 @@ import (
 	"net/http"
 	"os"
 )
+
+// Services report transport-neutral error kinds; this file (together with
+// errors_hybrid.go and session_create_errors.go) is the only place that turns
+// them into HTTP statuses.
 
 func cancelled(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
@@ -126,6 +129,93 @@ func codeStatus(err error) int {
 	}
 }
 
+// gitStatus maps codeview and workspace error kinds for Git workbench routes.
+// Expired snapshots and contexts map to 409 so clients receive a uniform
+// structured conflict reason ("stale") alongside index/HEAD state conflicts.
+func gitStatus(err error) int {
+	var bad *badRequest
+	switch {
+	case errors.As(err, &bad):
+		return http.StatusBadRequest
+	case errors.Is(err, codeview.ErrInvalid), errors.Is(err, workspace.ErrInvalid):
+		return http.StatusBadRequest
+	case errors.Is(err, codeview.ErrForbidden):
+		return http.StatusForbidden
+	case errors.Is(err, codeview.ErrNotFound), errors.Is(err, workspace.ErrNotFound), errors.Is(err, os.ErrNotExist):
+		return http.StatusNotFound
+	case errors.Is(err, codeview.ErrGone), errors.Is(err, codeview.ErrConflict), errors.Is(err, workspace.ErrConflict):
+		return http.StatusConflict
+	case errors.Is(err, codeview.ErrTooLarge), errors.Is(err, workspace.ErrTooLarge):
+		return http.StatusRequestEntityTooLarge
+	case errors.Is(err, codeview.ErrBusy):
+		return http.StatusTooManyRequests
+	case errors.Is(err, codeview.ErrUnavailable), errors.Is(err, workspace.ErrUnavailable):
+		return http.StatusServiceUnavailable
+	case errors.Is(err, codeview.ErrTimeout), errors.Is(err, workspace.ErrTimeout), cancelled(err):
+		return http.StatusGatewayTimeout
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// gitReason classifies a 409 Git workbench conflict so the frontend can
+// distinguish snapshot refresh ("stale") from external lock contention ("busy")
+// or read-only bare/repository contexts ("readonly").
+func gitReason(err error) string {
+	var draftConflict *workspace.DraftConflictError
+	switch {
+	case errors.As(err, &draftConflict):
+		return "draft_conflict"
+	case errors.Is(err, workspace.ErrLocked):
+		return "busy"
+	case errors.Is(err, workspace.ErrReadOnly), errors.Is(err, codeview.ErrReadOnly):
+		return "readonly"
+	case errors.Is(err, codeview.ErrContextMismatch):
+		return "context_mismatch"
+	case errors.Is(err, codeview.ErrNoTaskBaseline):
+		return "no_task_baseline"
+	case errors.Is(err, workspace.ErrConflicted):
+		return "conflicted"
+	case errors.Is(err, workspace.ErrBlocked):
+		return "blocked"
+	case errors.Is(err, workspace.ErrHookFailed):
+		return "commit_failed"
+	case errors.Is(err, workspace.ErrIdempotency):
+		return "idempotency_conflict"
+	case errors.Is(err, workspace.ErrUncertain):
+		return "uncertain"
+	default:
+		return "stale"
+	}
+}
+
+// gitFailure answers a Git workbench error with Cache-Control: no-store,
+// structured 409 reason codes, and zero logging of file, diff, or commit text.
+func gitFailure(w http.ResponseWriter, err error) {
+	w.Header().Set("Cache-Control", "no-store")
+	status := gitStatus(err)
+	if status == http.StatusConflict {
+		body := contract.GitConflict{Error: err.Error(), Reason: gitReason(err)}
+		var draftConflict *workspace.DraftConflictError
+		if errors.As(err, &draftConflict) {
+			cur := wire.GitCommitDraft(draftConflict.Current)
+			body.CurrentDraft = &cur
+		}
+		reply(w, status, body)
+		return
+	}
+	if status == http.StatusInternalServerError {
+		slog.Error("git request failed", "status", status)
+		reply(w, status, contract.ErrorResponse{Error: http.StatusText(status)})
+		return
+	}
+	var bad *badRequest
+	if errors.As(err, &bad) {
+		err = bad.err
+	}
+	failure(w, status, err)
+}
+
 // launchStatus maps launch store errors to HTTP statuses; anything else is a
 // failed save.
 func launchStatus(err error) int {
@@ -201,162 +291,11 @@ func artifactsFailure(w http.ResponseWriter, err error) {
 	failure(w, status, err)
 }
 
-// hybridStatus maps hybrid session error kinds; ok is false for other
-// errors. ErrAgent and ErrAgentCall are bad gateways, never 500s: their
-// messages carry agent output for the requesting user and must not be
-// logged.
-func hybridStatus(err error) (status int, ok bool) {
-	switch {
-	case errors.Is(err, hybrid.ErrInvalid):
-		return http.StatusBadRequest, true
-	case errors.Is(err, hybrid.ErrTooLarge):
-		return http.StatusRequestEntityTooLarge, true
-	case errors.Is(err, hybrid.ErrNotFound):
-		return http.StatusNotFound, true
-	case errors.Is(err, hybrid.ErrLimit), errors.Is(err, hybrid.ErrConflict),
-		errors.Is(err, hybrid.ErrWrongSide), errors.Is(err, hybrid.ErrAnswered),
-		errors.Is(err, hybrid.ErrSwitching), errors.Is(err, hybrid.ErrSent),
-		errors.Is(err, hybrid.ErrSteeringUnavailable), errors.Is(err, hybrid.ErrBusy),
-		errors.Is(err, hybrid.ErrNotEligible),
-		errors.Is(err, hybrid.ErrSessionMissing), errors.Is(err, hybrid.ErrConfigMissing),
-		errors.Is(err, hybrid.ErrConnectorMissing), errors.Is(err, hybrid.ErrSessionAmbiguous),
-		errors.Is(err, hybrid.ErrExternalWriter), errors.Is(err, hybrid.ErrNoChatView),
-		errors.Is(err, hybrid.ErrNotActive), errors.Is(err, hybrid.ErrNotArchived),
-		errors.Is(err, hybrid.ErrInputFailed):
-		return http.StatusConflict, true
-	case errors.Is(err, hybrid.ErrAgent), errors.Is(err, hybrid.ErrAgentCall):
-		return http.StatusBadGateway, true
-	case errors.Is(err, hybrid.ErrUnavailable):
-		return http.StatusServiceUnavailable, true
-	}
-	return 0, false
-}
-
-// hybridReason is the contract.SessionConflict reason of a 409 hybrid
-// error; empty for a plain conflict.
-func hybridReason(err error) string {
-	switch {
-	case errors.Is(err, hybrid.ErrLimit):
-		return "limit"
-	case errors.Is(err, hybrid.ErrSwitching):
-		return "switching"
-	case errors.Is(err, hybrid.ErrWrongSide):
-		return "wrong_view"
-	case errors.Is(err, hybrid.ErrNoChatView):
-		return "no_chat_view"
-	case errors.Is(err, hybrid.ErrNotActive):
-		return "not_active"
-	case errors.Is(err, hybrid.ErrNotArchived):
-		return "not_archived"
-	case errors.Is(err, hybrid.ErrInputFailed):
-		return "input_failed"
-	case errors.Is(err, hybrid.ErrAnswered):
-		return "answered"
-	case errors.Is(err, hybrid.ErrSent):
-		return "sent"
-	case errors.Is(err, hybrid.ErrSteeringUnavailable):
-		return "steering_unavailable"
-	case errors.Is(err, hybrid.ErrBusy):
-		return "busy"
-	case errors.Is(err, hybrid.ErrNotEligible):
-		return "not_eligible"
-	case errors.Is(err, hybrid.ErrSessionMissing):
-		return "session_missing"
-	case errors.Is(err, hybrid.ErrConfigMissing):
-		return "config_missing"
-	case errors.Is(err, hybrid.ErrConnectorMissing):
-		return "connector_missing"
-	case errors.Is(err, hybrid.ErrSessionAmbiguous):
-		return "session_ambiguous"
-	case errors.Is(err, hybrid.ErrExternalWriter):
-		return "occupied_external"
-	}
-	return ""
-}
-
-// hybridFailure answers a hybrid error kind, with a SessionConflict body
-// for 409s that have a reason (not_eligible with its eligibility reason,
-// session_missing and session_ambiguous with their candidates,
-// connector_missing with its connector); false for other errors.
-func hybridFailure(w http.ResponseWriter, err error) bool {
-	status, ok := hybridStatus(err)
-	if !ok {
-		return false
-	}
-	if reason := hybridReason(err); reason != "" {
-		conflict := contract.SessionConflict{Error: err.Error(), Reason: reason}
-		var ineligible *hybrid.IneligibleError
-		if errors.As(err, &ineligible) {
-			conflict.Eligibility = ineligible.Reason
-		}
-		var missing *hybrid.SessionMissingError
-		if errors.As(err, &missing) {
-			conflict.Candidates = wire.AgentCandidates(missing.Candidates)
-		}
-		var ambiguous *hybrid.SessionAmbiguousError
-		if errors.As(err, &ambiguous) {
-			conflict.Candidates = wire.AgentCandidates(ambiguous.Candidates)
-		}
-		var connector *hybrid.ConnectorMissingError
-		if errors.As(err, &connector) {
-			conflict.Connector = wire.AgentConnector(connector.Connector)
-		}
-		var input *hybrid.InputFailedError
-		if errors.As(err, &input) {
-			submission := wire.SubmissionStatus(input.Status)
-			conflict.Submission = &submission
-		}
-		reply(w, status, conflict)
-		return true
-	}
-	failure(w, status, err)
-	return true
-}
-
-// sessionCommandFailure answers a failed session or chat command: hybrid
-// kinds with their SessionConflict, session errors with their statuses; a
-// request that ended first is a timeout.
-func sessionCommandFailure(w http.ResponseWriter, err error) {
-	var bad *badRequest
-	switch {
-	case errors.As(err, &bad):
-		failure(w, http.StatusBadRequest, bad.err)
-	case hybridFailure(w, err):
-	case errors.Is(err, session.ErrNotFound), errors.Is(err, session.ErrRunning), errors.Is(err, session.ErrExited),
-		errors.Is(err, session.ErrNoRun), errors.Is(err, session.ErrNotController),
-		errors.Is(err, session.ErrInvalid), errors.Is(err, session.ErrShuttingDown):
-		failure(w, sessionStatus(err), err)
-	case cancelled(err):
-		failure(w, http.StatusGatewayTimeout, err)
-	default:
-		failure(w, http.StatusInternalServerError, err)
-	}
-}
-
-// renameFailure answers a session rename: session errors, plus the hybrid
-// statuses of a record that cannot be written.
-func renameFailure(w http.ResponseWriter, err error) {
-	if hybridFailure(w, err) {
-		return
-	}
-	failure(w, sessionStatus(err), err)
-}
-
-// sessionFailure answers a session start: a saved launch config keeps its
-// launch statuses and a hybrid session its hybrid statuses (a full record
-// store is a 409 with reason limit); everything else is a workspace error.
-func sessionFailure(w http.ResponseWriter, err error) {
-	if errors.Is(err, launch.ErrInvalid) || errors.Is(err, launch.ErrNotFound) || errors.Is(err, launch.ErrDuplicate) || errors.Is(err, launch.ErrUnavailable) {
-		launchFailure(w, err)
-		return
-	}
-	if hybridFailure(w, err) {
-		return
-	}
-	failure(w, workspaceStatus(err), err)
-}
-
 func workspaceFailure(w http.ResponseWriter, err error) {
+	if errors.Is(err, workspace.ErrIdempotency) || errors.Is(err, workspace.ErrUncertain) {
+		reply(w, http.StatusConflict, contract.GitConflict{Error: err.Error(), Reason: gitReason(err)})
+		return
+	}
 	failure(w, workspaceStatus(err), err)
 }
 

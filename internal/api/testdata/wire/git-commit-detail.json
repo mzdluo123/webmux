@@ -1,0 +1,49 @@
+{
+  "status": 200,
+  "body": {
+    "authorAt": "2026-01-02T03:04:05Z",
+    "authorEmail": "wire@example.invalid",
+    "authorName": "Wire test",
+    "body": "commit body line",
+    "committerAt": "2026-01-02T03:04:05Z",
+    "committerEmail": "wire@example.invalid",
+    "committerName": "Wire test",
+    "comparedParentOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+    "distinctCommitter": false,
+    "files": [
+      {
+        "binary": false,
+        "modeChanged": false,
+        "newMode": "100644",
+        "newOid": "de4296d3c6d9c4821c0fe09931f8422d01be768c",
+        "newPath": "sub/b.txt",
+        "oldMode": "100644",
+        "oldOid": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+        "oldPath": "sub/b.txt",
+        "status": "M"
+      }
+    ],
+    "message": "feat: expand b.txt\n\ncommit body line",
+    "oid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+    "parents": [
+      {
+        "oid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "shortOid": "2de8fe1f",
+        "subject": "initial"
+      }
+    ],
+    "refs": [
+      {
+        "kind": "head",
+        "name": "HEAD -> main",
+        "worktreeId": "<id#2>"
+      },
+      {
+        "kind": "local",
+        "name": "main"
+      }
+    ],
+    "shortOid": "ecc8da44",
+    "subject": "feat: expand b.txt"
+  }
+}

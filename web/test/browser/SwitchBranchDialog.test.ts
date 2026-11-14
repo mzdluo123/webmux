@@ -40,6 +40,7 @@ const branches: Branches = {
     base("refs/remotes/origin/fix/b", tip),
     base("refs/remotes/origin/fix/c", tip),
   ],
+  tags: [],
   defaultBase: head,
   defaultBaseSubject: "",
   defaultBranch: "main",
@@ -138,6 +139,7 @@ test("a clean switch to a local branch previews, confirms and closes", async () 
   expect(source.switch).toHaveBeenCalledWith(main, {
     confirmationId: "confirm1",
     acknowledgeSessions: false,
+    clientRequestId: expect.stringMatching(/^switch-/),
   });
   await expect.poll(() => handlers.onclose.mock.calls.length).toBe(1);
   expect(handlers.onchange).toHaveBeenCalledOnce();
@@ -246,6 +248,7 @@ test("running sessions must be acknowledged before switching", async () => {
   expect(source.switch).toHaveBeenCalledWith(main, {
     confirmationId: "confirm1",
     acknowledgeSessions: true,
+    clientRequestId: expect.stringMatching(/^switch-/),
   });
   await expect.poll(() => handlers.onclose.mock.calls.length).toBe(1);
 });

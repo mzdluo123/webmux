@@ -44,16 +44,19 @@ type PushPreview struct {
 
 // PushRequest executes a push preview.
 type PushRequest struct {
-	ConfirmationID string
+	ConfirmationID  string
+	ClientRequestID string
+	WorktreeID      string
 }
 
 // PushResult is the outcome of a push: Status is one of the remote call
 // outcomes and Message, empty for ok, explains a failure with credentials
 // redacted. Repository is read after the push.
 type PushResult struct {
-	Status     string
-	Message    string
-	Repository Repository
+	OperationID string
+	Status      string
+	Message     string
+	Repository  Repository
 }
 
 // pushState is what a push preview shows and its execution rechecks.
@@ -113,6 +116,19 @@ func (s *Service) PreviewPush(ctx context.Context, repositoryID, branch, remote,
 // refusal is a result, not an error. A published branch gets its upstream
 // set afterwards, unless its configuration changed meanwhile.
 func (s *Service) Push(ctx context.Context, repositoryID string, req PushRequest) (PushResult, error) {
+	reqHash := hashOperationRequest(GitOpPush, repositoryID, req.WorktreeID, req.ConfirmationID)
+	return runIdempotentOperation(
+		ctx, s, repositoryID, req.ClientRequestID, GitOpPush, reqHash,
+		func(op GitOperation) (PushResult, error) {
+			return s.replayPushOperation(repositoryID, op)
+		},
+		func(opID string) (PushResult, error) {
+			return s.pushOnce(ctx, repositoryID, req, opID, reqHash)
+		},
+	)
+}
+
+func (s *Service) pushOnce(ctx context.Context, repositoryID string, req PushRequest, opID, reqHash string) (PushResult, error) {
 	c, ok := s.takeConfirmation(req.ConfirmationID, purposePush, repositoryID, "")
 	if !ok || c.push == nil {
 		return PushResult{}, problemf(ErrConflict, "推送确认已失效，请重新预览")
@@ -125,21 +141,67 @@ func (s *Service) Push(ctx context.Context, repositoryID string, req PushRequest
 	if err != nil {
 		return PushResult{}, err
 	}
+	if err := s.recordOperationStart(GitOperation{
+		ID:              opID,
+		RepositoryID:    repositoryID,
+		WorktreeID:      req.WorktreeID,
+		ClientRequestID: req.ClientRequestID,
+		RequestHash:     reqHash,
+		Kind:            GitOpPush,
+		Status:          GitOpRunning,
+		ConfirmationID:  req.ConfirmationID,
+		StartedAt:       time.Now().UTC(),
+		Summary:         "正在推送分支 " + current.branch.name + " 到 " + current.remote + "/" + current.target,
+		Preview: GitOperationPreview{
+			Branch:    current.branch.name,
+			Remote:    current.remote,
+			Target:    current.target,
+			TargetOID: current.branch.commit,
+			Publish:   current.publish,
+		},
+	}); err != nil {
+		return PushResult{}, err
+	}
+	if shouldAbortBeforeGit(ctx, opID) {
+		return PushResult{}, errSimulatedCrash
+	}
 	anchor := r.entry.AnchorPath
 	runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), pushTimeout)
 	defer cancel()
 	ref := "refs/heads/" + current.target
 	stdout, stderr, failure := s.remoteGitOutput(runCtx, anchor, pushArgs(current.remote, current.branch.commit, current.target)...)
-	result := PushResult{Status: remoteOK}
+	if shouldAbortAfterGit(ctx, opID) {
+		return PushResult{}, errSimulatedCrash
+	}
+	result := PushResult{OperationID: opID, Status: remoteOK}
+	ledgerStatus := GitOpSucceeded
+	summary := "已推送分支 " + current.branch.name + " 到 " + current.remote + "/" + current.target
 	if outcome := s.pushOutcome(stdout, stderr, failure, ref, anchor); outcome != nil {
 		result.Status, result.Message = outcome.Status, outcome.Message
+		summary = outcome.Message
+		if outcome.Status == remoteTimeout {
+			ledgerStatus = GitOpUncertain
+		} else {
+			ledgerStatus = GitOpFailed
+		}
 		// URLs and Git output stay out of the log: they can hold credentials.
 		slog.Warn("branch push failed", "repository", r.entry.ID, "remote", current.remote, "status", outcome.Status)
 	} else if current.publish {
 		if err := s.setUpstream(r, current); err != nil {
 			result.Message = "推送成功，但设置上游失败: " + err.Error()
+			ledgerStatus = GitOpNeedsReview
+			summary = result.Message
 		}
 	}
+	s.finalizeOperation(opID, func(op *GitOperation) {
+		op.Status = ledgerStatus
+		op.RemoteStatus = result.Status
+		op.Summary = summary
+		op.SanitizedOutput = string(stdout) + "\n" + stderr
+		if result.Status == remoteOK {
+			op.ActualOID = current.branch.commit
+		}
+	})
 	result.Repository = s.fetchedRepository(r)
 	return result, nil
 }
@@ -227,7 +289,7 @@ func (s *Service) upstreamPush(ctx context.Context, anchor string, state *pushSt
 		state.blockers = append(state.blockers, Issue{Code: issueSame, Message: "分支已与上游同步，没有可推送的提交"})
 	}
 	if ahead > 0 {
-		if state.commits, err = s.listCommits(ctx, anchor, b.commit, "^"+b.upstreamCommit); err != nil {
+		if state.commits, err = s.listCommitsLimit(ctx, anchor, maxPushListedCommits, b.commit, "^"+b.upstreamCommit); err != nil {
 			return err
 		}
 	}
@@ -272,7 +334,7 @@ func (s *Service) publishPush(ctx context.Context, r *repositoryState, state *pu
 	case state.remote == "":
 		state.blockers = append(state.blockers, Issue{Code: issueRemote, Message: "无法确定发布到哪个远程，请指定其中之一: " + strings.Join(remotes, ", ")})
 	}
-	state.commits, err = s.listCommits(ctx, anchor, b.commit, "--not", "--remotes")
+	state.commits, err = s.listCommitsLimit(ctx, anchor, maxPushListedCommits, b.commit, "--not", "--remotes")
 	return err
 }
 

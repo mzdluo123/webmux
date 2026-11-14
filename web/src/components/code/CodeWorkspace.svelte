@@ -38,6 +38,8 @@
     host,
     initial,
     popout,
+    onOpenGit,
+    onInspectGitFile,
   }: {
     id: string;
     visible: boolean;
@@ -46,6 +48,11 @@
     initial?: CodeWorkspaceSnapshot;
     /** The pop-out toggle; absent where the panel cannot change windows. */
     popout?: { popped: boolean; toggle: () => void };
+    onOpenGit?: () => void;
+    onInspectGitFile?: (
+      path: string,
+      tab: "history" | "blame" | "compare",
+    ) => void;
   } = $props();
   const seed = untrack(() => initial);
   const navMin = 120,
@@ -69,6 +76,13 @@
   const activePath = $derived(
     ws.s.tabs.find((tab) => tab.key === ws.s.active)?.file?.document.path ?? "",
   );
+  const activeGitPath = $derived.by(() => {
+    const tab = ws.s.tabs.find((t) => t.key === ws.s.active);
+    if (!tab || tab.rootKind === "artifacts") return "";
+    return (
+      tab.file?.document.path || tab.diff?.new.path || tab.diff?.old.path || ""
+    );
+  });
   const activeMenu = $derived(
     ws.s.tabs.find((tab) => tab.key === ws.s.active)?.menu,
   );
@@ -256,6 +270,9 @@
           void ws.load();
           for (const tab of ws.s.tabs) void ws.refresh(tab);
         }}
+        inspectablePath={activeGitPath}
+        {onOpenGit}
+        {onInspectGitFile}
       />
       <div
         class="code-inner flex min-h-0 flex-1 overflow-hidden"
