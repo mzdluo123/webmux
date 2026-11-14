@@ -112,7 +112,7 @@
     - `commit` 结合 `GIT_REFLOG_ACTION=webmux-commit:<operationId>` 与 `{oid, parents, tree}` 核对收敛为 `succeeded`、`needs_review`、`failed` 或 `uncertain`；
     - `push`、`fast_forward` 与 `switch` 依据本地跟踪引用、上游配置及工作树 `HEAD`/洁净度只读收敛；`merge`、`rebase`、`cherry_pick`、`revert`、`continue`、`abort` 结合 Git 序列目录状态、`ORIG_HEAD` 与 `refs/webmux/recovery/<worktreeId>/<kind>` 恢复锚点只读收敛；`fetch` 中断统一标记为 `uncertain`；
   - 顶栏操作账本浮层、断线自动查询恢复与 `uncertain` 安全门禁：
-    - 顶栏入口点击展开操作账本，浮层展示工作树路径与最近 `FETCH` 时间；进行中或异常时入口显示当前阶段（`等待校验` / `执行中` / `重连核对中`）或最近操作徽标与摘要；
+    - 顶栏入口采用与同排按钮一致的等高 `outline` 样式，点击展开操作账本浮层展示工作树路径与最近 `FETCH` 时间；进行中或异常时入口内联显示当前阶段（`等待校验` / `执行中` / `重连核对中`）或截断摘要，且不挤压左侧仓库与工作树切换下拉菜单；
     - 点击顶栏操作账本触发器展开碰撞内边距受控的 `Popover`，查看最近操作列表、`op:` 实例 ID、`reviewReasons` 与脱敏输出；
     - 请求超时或网络中断时前端优先通过 `GET .../git/operations` 按 `clientRequestId`/`operationId` 轮询恢复终态，刷新页面或跨设备打开时自动恢复未确认的 `needs_review` / `uncertain` 横幅；
     - 处于未核实的 `uncertain` 状态时禁用盲目一键重新提交，引导先点击“刷新历史与暂存区核实”。
@@ -125,7 +125,8 @@
 - 独立 `/git` 路由与壳层：
   - 页面与状态：[Git 工作台页](../../../../../web/src/pages/GitWorkbench.svelte)、[控制器](../../../../../web/src/hooks/workspace/git-workbench-controller.svelte.ts)；
   - 路由与记忆：[路由契约](../../../../../web/src/hooks/shared/route.ts)、[记忆模块](../../../../../web/src/domains/workspace/git-workbench-memory.ts)；
-  - 入口与门禁：[顶栏组件](../../../../../web/src/components/workspace/GitWorkbenchTopBar.svelte)、[写门禁](../../../../../web/src/components/workspace/GitWorktreeGuardState.svelte)、[代码头部入口](../../../../../web/src/components/code/CodeWorkspaceHeader.svelte)；
+  - 顶栏与目标切换：[顶栏组件](../../../../../web/src/components/workspace/GitWorkbenchTopBar.svelte)、[目标切换器](../../../../../web/src/components/workspace/GitWorkbenchTargetSwitchers.svelte)；
+  - 写门禁与代码入口：[写门禁](../../../../../web/src/components/workspace/GitWorktreeGuardState.svelte)、[代码头部入口](../../../../../web/src/components/code/CodeWorkspaceHeader.svelte)；
   - 测试验证：[路由单测](../../../../../web/test/route.test.ts)、[记忆单测](../../../../../web/test/git-workbench-memory.test.ts)、[浏览器测试](../../../../../web/test/browser/GitWorkbenchRoute.test.ts)、[路由 E2E](../../../../../web/test/e2e/git-workbench-route.spec.ts)。
 - Git 工作台历史视图：
   - 服务端引用与范围：[分支与标签枚举](../../../../../internal/workspace/git_refs.go)、[历史范围解析](../../../../../internal/workspace/history_scope.go)、[历史分页与拓扑](../../../../../internal/workspace/history.go)、[历史测试](../../../../../internal/workspace/history_test.go)；

@@ -360,7 +360,7 @@ test("retains cross-view state, isolates worktree drafts, handles query popstate
   await page.getByRole("button", { name: "切换操作目标工作树" }).click();
   await page
     .getByTestId("git-worktree-switcher-popover")
-    .getByRole("button", { name: /^main/ })
+    .getByRole("menuitemradio", { name: /^main/ })
     .click();
   await expect(page).toHaveURL(
     new RegExp(`/git/${repo.id}/worktrees/${mainWt.id}`),
@@ -372,7 +372,7 @@ test("retains cross-view state, isolates worktree drafts, handles query popstate
   await page.getByRole("button", { name: "切换操作目标工作树" }).click();
   await page
     .getByTestId("git-worktree-switcher-popover")
-    .getByRole("button", { name: /feat\/route/ })
+    .getByRole("menuitemradio", { name: /feat\/route/ })
     .click();
   await expect(commitInput).toHaveValue("feat(wt): isolated draft for featWt");
 

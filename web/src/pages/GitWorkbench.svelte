@@ -291,7 +291,6 @@
   {#snippet operationLedger()}
     {#if repository}
       <GitOperationsPopover
-        size="sm-touch"
         worktreePath={controller.view.context.worktreePath}
         statusBanner={controller.view.statusBanner}
         lastFetchedAt={controller.view.lastFetchedAt ??

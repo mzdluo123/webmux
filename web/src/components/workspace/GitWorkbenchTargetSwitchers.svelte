@@ -6,10 +6,11 @@
   import IconSettings from "~icons/tabler/settings";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { ListButton } from "$lib/components/ui/list-button";
-  import * as Popover from "$lib/components/ui/popover";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import type { Repository, Worktree } from "../../contracts/schemas";
   import { worktreeTitle } from "../../domains/workspace/home-worktrees";
+
+  const READONLY_WORKTREE = "__readonly__";
 
   let {
     repositories,
@@ -35,10 +36,10 @@
     onManageWorktrees: () => void;
   } = $props();
 
-  let repoPopoverOpen = $state(false);
-  let wtPopoverOpen = $state(false);
-
   const repoAvailable = $derived(repository?.availability === "available");
+  const repositoryButtonLabel = $derived(
+    repository?.name ?? (repositories.length === 0 ? "未登记仓库" : "选择仓库"),
+  );
   const worktreeButtonLabel = $derived(
     !worktreeId
       ? "只读仓库（无工作树）"
@@ -48,123 +49,95 @@
   );
 </script>
 
-<Popover.Root bind:open={repoPopoverOpen}>
-  <Popover.Trigger>
+<DropdownMenu.Root>
+  <DropdownMenu.Trigger>
     {#snippet child({ props })}
       <Button
         {...props}
         size="sm"
         variant="outline"
-        class="min-w-0 shrink"
         aria-label="切换仓库"
         title={repository?.anchorPath ?? "切换仓库"}
       >
-        <IconFolder class="text-muted-foreground" aria-hidden="true" />
-        <span class="min-w-0 truncate font-semibold sm:max-w-48">
-          {repository?.name ??
-            (repositories.length === 0 ? "未登记仓库" : "选择仓库")}
+        <IconFolder aria-hidden="true" />
+        <span class="max-w-28 truncate sm:max-w-44">
+          {repositoryButtonLabel}
         </span>
         <IconChevronDown class="text-muted-foreground" aria-hidden="true" />
       </Button>
     {/snippet}
-  </Popover.Trigger>
-  <Popover.Content
+  </DropdownMenu.Trigger>
+  <DropdownMenu.Content
     align="start"
-    class="w-72 p-2"
+    class="w-64"
     data-testid="git-repository-switcher-popover"
   >
-    <div class="space-y-1">
-      <p class="px-1.5 py-1 text-xs font-semibold text-muted-foreground">
-        已登记仓库
-      </p>
-      {#if repositories.length === 0}
-        <p class="px-1.5 py-2 text-xs text-muted-foreground">暂无已登记仓库</p>
-      {:else}
+    <DropdownMenu.Label>已登记仓库</DropdownMenu.Label>
+    {#if repositories.length === 0}
+      <DropdownMenu.Item disabled>暂无已登记仓库</DropdownMenu.Item>
+    {:else}
+      <DropdownMenu.RadioGroup
+        value={repository?.id ?? ""}
+        onValueChange={(id) => {
+          if (id) onSelectRepository(id);
+        }}
+      >
         {#each repositories as repo (repo.id)}
-          <ListButton
-            variant="compact-row"
-            aria-selected={repository?.id === repo.id}
-            onclick={() => {
-              repoPopoverOpen = false;
-              onSelectRepository(repo.id);
-            }}
-          >
+          <DropdownMenu.RadioItem value={repo.id} closeOnSelect>
             <span class="min-w-0 flex-1 truncate">{repo.name}</span>
             {#if repo.availability !== "available"}
               <Badge variant="destructive">不可用</Badge>
             {/if}
-          </ListButton>
+          </DropdownMenu.RadioItem>
         {/each}
-      {/if}
-      {#if canAddRepository}
-        <div class="border-t pt-1">
-          <ListButton
-            variant="compact-row"
-            onclick={() => {
-              repoPopoverOpen = false;
-              onAddRepository();
-            }}
-          >
-            <IconPlus aria-hidden="true" />
-            <span>登记已有仓库…</span>
-          </ListButton>
-        </div>
-      {/if}
-    </div>
-  </Popover.Content>
-</Popover.Root>
+      </DropdownMenu.RadioGroup>
+    {/if}
+    {#if canAddRepository}
+      <DropdownMenu.Separator />
+      <DropdownMenu.Item onSelect={onAddRepository}>
+        <IconPlus aria-hidden="true" />
+        <span>登记已有仓库…</span>
+      </DropdownMenu.Item>
+    {/if}
+  </DropdownMenu.Content>
+</DropdownMenu.Root>
 
 {#if repository}
-  <Popover.Root bind:open={wtPopoverOpen}>
-    <Popover.Trigger>
+  <DropdownMenu.Root>
+    <DropdownMenu.Trigger>
       {#snippet child({ props })}
         <Button
           {...props}
           size="sm"
           variant="outline"
-          class="min-w-0 shrink"
           aria-label="切换操作目标工作树"
           title={worktree?.path ?? "切换操作目标工作树"}
         >
-          <IconGitBranch class="text-muted-foreground" aria-hidden="true" />
-          <span class="min-w-0 truncate sm:max-w-48">
+          <IconGitBranch aria-hidden="true" />
+          <span class="max-w-28 truncate sm:max-w-44">
             {worktreeButtonLabel}
           </span>
           <IconChevronDown class="text-muted-foreground" aria-hidden="true" />
         </Button>
       {/snippet}
-    </Popover.Trigger>
-    <Popover.Content
+    </DropdownMenu.Trigger>
+    <DropdownMenu.Content
       align="start"
-      class="w-80 p-2"
+      class="w-72"
       data-testid="git-worktree-switcher-popover"
     >
-      <div class="space-y-1">
-        <p class="px-1.5 py-1 text-xs font-semibold text-muted-foreground">
-          操作目标工作树
-        </p>
-        <ListButton
-          variant="compact-row"
-          aria-selected={!worktreeId}
-          onclick={() => {
-            wtPopoverOpen = false;
-            onSelectWorktree(undefined);
-          }}
-        >
-          <span class="min-w-0 flex-1 truncate">
-            只读仓库视图（无工作树）
-          </span>
+      <DropdownMenu.Label>操作目标工作树</DropdownMenu.Label>
+      <DropdownMenu.RadioGroup
+        value={worktreeId ?? READONLY_WORKTREE}
+        onValueChange={(value) =>
+          onSelectWorktree(value === READONLY_WORKTREE ? undefined : value)}
+      >
+        <DropdownMenu.RadioItem value={READONLY_WORKTREE} closeOnSelect>
+          <span class="min-w-0 flex-1 truncate">只读仓库视图（无工作树）</span>
           <Badge variant="outline">只读</Badge>
-        </ListButton>
+        </DropdownMenu.RadioItem>
         {#each repository.worktrees as wt (wt.id)}
-          <ListButton
-            variant="compact-row"
-            aria-selected={worktreeId === wt.id}
-            onclick={() => {
-              wtPopoverOpen = false;
-              onSelectWorktree(wt.id);
-            }}
-          >
+          <DropdownMenu.RadioItem value={wt.id} closeOnSelect>
             <span class="min-w-0 flex-1 truncate">{worktreeTitle(wt)}</span>
             {#if !wt.available || wt.prunable}
               <Badge variant="destructive">缺失</Badge>
@@ -175,33 +148,20 @@
             {:else if wt.kind === "main"}
               <Badge variant="outline">主</Badge>
             {/if}
-          </ListButton>
+          </DropdownMenu.RadioItem>
         {/each}
-        <div class="space-y-0.5 border-t pt-1">
-          {#if repoAvailable}
-            <ListButton
-              variant="compact-row"
-              onclick={() => {
-                wtPopoverOpen = false;
-                onNewWorktree();
-              }}
-            >
-              <IconPlus aria-hidden="true" />
-              <span>新建工作树…</span>
-            </ListButton>
-          {/if}
-          <ListButton
-            variant="compact-row"
-            onclick={() => {
-              wtPopoverOpen = false;
-              onManageWorktrees();
-            }}
-          >
-            <IconSettings aria-hidden="true" />
-            <span>管理工作树…</span>
-          </ListButton>
-        </div>
-      </div>
-    </Popover.Content>
-  </Popover.Root>
+      </DropdownMenu.RadioGroup>
+      <DropdownMenu.Separator />
+      {#if repoAvailable}
+        <DropdownMenu.Item onSelect={onNewWorktree}>
+          <IconPlus aria-hidden="true" />
+          <span>新建工作树…</span>
+        </DropdownMenu.Item>
+      {/if}
+      <DropdownMenu.Item onSelect={onManageWorktrees}>
+        <IconSettings aria-hidden="true" />
+        <span>管理工作树…</span>
+      </DropdownMenu.Item>
+    </DropdownMenu.Content>
+  </DropdownMenu.Root>
 {/if}

@@ -20,7 +20,6 @@
   import GitRecoveryCommandBox from "./GitRecoveryCommandBox.svelte";
 
   let {
-    size = "sm",
     worktreePath = null,
     statusBanner = "",
     lastFetchedAt,
@@ -30,7 +29,6 @@
     onRefreshOperations,
     onReloadVerify,
   }: {
-    size?: "sm" | "sm-touch";
     worktreePath?: string | null;
     statusBanner?: string;
     lastFetchedAt?: string | null;
@@ -103,26 +101,39 @@
     }
     return "就绪";
   });
+  const hasActivePhase = $derived(
+    Boolean(activeOperation && activeOperation.phase !== "idle"),
+  );
+  const hasAbnormalLatest = $derived(
+    Boolean(!hasActivePhase && latestOp && latestOp.status !== "succeeded"),
+  );
+  const isIconOnly = $derived(
+    !hasActivePhase && !hasAbnormalLatest && operations.length === 0,
+  );
 </script>
 
-<div class="min-w-0 max-w-full shrink overflow-hidden">
+<div class="min-w-0 max-w-full shrink">
   <Popover.Root bind:open>
     <Popover.Trigger>
       {#snippet child({ props })}
         <Button
           {...props}
-          variant="ghost"
-          {size}
-          class="min-w-0 max-w-full shrink overflow-hidden"
+          variant="outline"
+          size={isIconOnly ? "icon-sm" : "sm"}
+          class="max-w-full min-w-0 shrink"
           aria-label="展开 Git 操作记录与状态详情"
           title={barSummary}
           data-testid="git-operations-popover-trigger"
         >
-          {#if activeOperation && activeOperation.phase !== "idle"}
+          {#if hasActivePhase}
             <IconLoader2 class="animate-spin text-info" aria-hidden="true" />
-            <Badge variant="info" class="max-w-full min-w-0 shrink">
-              <span class="truncate">{activePhaseLabel}</span>
-            </Badge>
+            <span
+              class="max-w-40 truncate sm:max-w-56"
+              role="status"
+              data-testid="git-status-summary"
+            >
+              {activePhaseLabel}
+            </span>
           {:else if latestOp && latestOp.status !== "succeeded"}
             {#if latestOp.status === "failed"}
               <IconX class="text-destructive" aria-hidden="true" />
@@ -131,27 +142,19 @@
             {:else}
               <IconLoader2 class="animate-spin text-info" aria-hidden="true" />
             {/if}
-            <Badge
-              variant={statusBadgeVariant(latestOp.status)}
-              class="max-w-full min-w-0 shrink"
+            <span
+              class="max-w-44 truncate sm:max-w-56"
+              role="status"
+              data-testid="git-status-summary"
             >
-              <span class="truncate">
-                {gitOperationKindLabel(latestOp.kind)} · {gitOperationStatusLabel(
-                  latestOp.status,
-                )}
-              </span>
-            </Badge>
+              {gitOperationKindLabel(latestOp.kind)} · {gitOperationStatusLabel(
+                latestOp.status,
+              )}
+            </span>
           {:else}
             <IconHistory aria-hidden="true" />
           {/if}
 
-          <span
-            class="min-w-0 flex-1 truncate text-foreground max-sm:hidden"
-            role="status"
-            data-testid="git-status-summary"
-          >
-            {#if activePhaseLabel || (latestOp && latestOp.status !== "succeeded")}{barSummary}{/if}
-          </span>
           {#if operations.length > 0}
             <span
               class="shrink-0 font-mono text-muted-foreground max-sm:hidden"
