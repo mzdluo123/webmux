@@ -137,10 +137,13 @@ export function installChatFixture(plugins?: readonly PluginID[]) {
 /** The open socket whose path is `path`, once the page created it. */
 export async function socketAt(path: string, nth = 0) {
   let found: FakeSocket | undefined;
-  await vi.waitFor(() => {
-    found = sockets.filter((socket) => socket.path === path)[nth];
-    if (!found) throw new Error(`no socket at ${path} (#${nth})`);
-  });
+  await vi.waitFor(
+    () => {
+      found = sockets.filter((socket) => socket.path === path)[nth];
+      if (!found) throw new Error(`no socket at ${path} (#${nth})`);
+    },
+    { timeout: 5_000 },
+  );
   if (found!.readyState === FakeSocket.CONNECTING) found!.open();
   return found!;
 }
