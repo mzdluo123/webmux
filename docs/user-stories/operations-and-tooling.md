@@ -21,7 +21,7 @@
 - **US-K03 检查与覆盖配置**：作为部署者，我希望启动前检查配置并用命令行覆盖地址或 token，以便发现配置错误和临时调整运行环境。
   验收要点：
   - `config check`/`validate` 校验而不启动服务，TOML 语法错误带行列号，可输出 JSON；
-  - 项目目录清单 `projects.json` 的存储状态随 workspace 插件显示；未选择 workspace 时诊断不读取清单。
+  - 项目目录清单 `projects.json` 与克隆账本 `project-clones.json` 的存储状态随 workspace 插件显示；未选择 workspace 时诊断不读取清单。
   - `config show` 只读查看磁盘配置，`--live` 查看已验证运行进程的内存快照（含 `[p2p]` 等网页覆盖后的生效值与各字段来源）；
   - 不可达报错、不回退磁盘，凭据仅输出是否配置；
   - 字段显式默认值仍保留来源且不含 token；

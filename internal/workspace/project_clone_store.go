@@ -112,7 +112,7 @@ func (s *Service) loadProjectClones() {
 			changed = true
 		case "registering":
 			op.State = "registration_failed"
-			op.Error = "仓库已克隆，服务重启前未完成登记，请重新登记已有目录"
+			op.Error = "克隆已完成，发布或登记被服务重启中断；目标存在时可重试登记，否则重新发起"
 			changed = true
 		}
 	}
@@ -145,13 +145,16 @@ func (s *Service) ProjectCloneStorageError() error {
 }
 
 // commitProjectClones requires cloneSaveMu. Memory becomes visible only after
-// durable publication; a failed state transition disables further execution.
+// durable publication; only uncertain publication freezes the ledger.
 func (s *Service) commitProjectClones(next []projectCloneRecord) error {
 	if err := s.cloneStore.Commit(projectCloneRegistry{Version: 1, Operations: next}); err != nil {
-		s.cloneMu.Lock()
-		s.cloneError = fmt.Errorf("保存项目克隆清单: %w", err)
-		s.cloneMu.Unlock()
-		return fmt.Errorf("%w: 项目克隆状态无法保存", ErrUnavailable)
+		if statefile.IsKind(err, statefile.CommitUncertain) {
+			s.cloneMu.Lock()
+			s.cloneError = fmt.Errorf("项目克隆清单提交结果不确定，请重启重新读取: %w", err)
+			s.cloneMu.Unlock()
+			return fmt.Errorf("%w: 项目克隆状态无法保存", ErrUnavailable)
+		}
+		return fmt.Errorf("保存项目克隆清单: %w", err)
 	}
 	s.cloneMu.Lock()
 	s.clones = slices.Clone(next)

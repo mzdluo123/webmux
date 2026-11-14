@@ -118,3 +118,23 @@ func TestValidateProjectCloneLedgerBounds(t *testing.T) {
 		t.Fatal("oversized ledger accepted")
 	}
 }
+
+func TestProjectCloneValidationFailureDoesNotFreezeLedger(t *testing.T) {
+	t.Parallel()
+	s, _ := testService(t, t.TempDir(), t.TempDir())
+	s.cloneSaveMu.Lock()
+	defer s.cloneSaveMu.Unlock()
+	invalid := projectCloneRecord{ID: "invalid", State: "failed"}
+	if err := s.commitProjectClones([]projectCloneRecord{invalid}); err == nil {
+		t.Fatal("invalid record accepted")
+	}
+	if err := s.ProjectCloneStorageError(); err != nil {
+		t.Fatalf("pre-publication validation froze valid store: %v", err)
+	}
+	if len(s.clones) != 0 {
+		t.Fatal("failed commit changed memory")
+	}
+	if err := s.commitProjectClones([]projectCloneRecord{}); err != nil {
+		t.Fatalf("cannot retry valid commit: %v", err)
+	}
+}
