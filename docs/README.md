@@ -68,6 +68,8 @@
 
 ## 性能与质量
 
+- [Relay 真实公网验证](relay-validation-604.md)：issue #604 的传输筛选、BBR、业务与证据边界。
+
 - [交接故障矩阵与性能验收](protocol/handoff-validation.md)：迁移清理、unknown、全局关闭、SQLite 与 selector 实测。
 - [布局稳定性与 4× CPU 回归](performance.md)：性能测试的测量方式与阈值。
 - [页面性能与连接稳定性验证](page-performance.md)：页面加载与重连的实测记录。
