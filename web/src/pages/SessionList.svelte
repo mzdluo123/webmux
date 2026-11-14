@@ -292,6 +292,11 @@
     {refreshing}
     onchange={setCompact}
     onrefresh={() => void shell.repositories.refresh(true)}
+    ongit={() =>
+      openGitWorkbench({
+        repositoryId: shell.settingsRepository?.id ?? "",
+        worktreeId: shell.settingsRepository ? selectedWorktree?.id : undefined,
+      })}
     menu={shell.settingsRepository ? menu : undefined}
   />
 {/snippet}
