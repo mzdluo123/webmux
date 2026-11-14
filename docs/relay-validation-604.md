@@ -2,7 +2,7 @@
 
 本轮建议 MVP 采用 **WSS + smux v2、控制/交互与批量两条有界连接、嵌入 Go 库**，A 段保持 HTTPS/WebSocket。
 服务器 TCP 使用 BBR；不在 MVP 引入 QUIC 优先探测、UDP 回退或 FEC。此决定针对下述实测路径与工程成本，不能概括所有网络或所有 QUIC 实现。
-关联：[issue #604](https://github.com/mzdluo123/webmux/issues/604)、[规划 PR #558](https://github.com/mzdluo123/webmux/pull/558)。
+关联：[issue #604](https://github.com/mzdluo123/webmux/issues/604)、[规划 PR #558](https://github.com/mzdluo123/webmux/pull/558)、[规划修订 PR #613](https://github.com/mzdluo123/webmux/pull/613)。
 
 ## 验证对象与环境
 
@@ -84,6 +84,7 @@ A 与 B 都跨同一 WAN 时，输入到真正 PTY 输出会经历两段路径�
 | mtu1280 | 测试 veth MTU 1280；QUIC 默认参数与初始包 1200 字节分测                                 |
 
 netem seeds=604/605，队列 limit=1000；未显式开启 duplicate/reorder，但 delay 抖动可能隐式重排，因此 rtt500 不是纯 RTT 单变量实验。
+UDP socket 缓冲与 GSO/GRO 等 offload 未统一控制或完整记录；其对损伤与计数的影响未隔离，不能把 tc 名义配置当作已验证的独立逐线包丢包概率。
 50/150 ms 不能在当前约 300 ms 公网链路上凭空实现；本轮不伪造这两个真实公网档位，也未穷举 0.5/5% 丢包与 50 ms 抖动。
 
 组件每阶段一般 12 s 小回显，clean 双向各 16 MiB、弱网各 8 MiB；个别故障/MTU 样本更小，以原始命令为准。
@@ -96,6 +97,8 @@ AES-256-CTR 固定测试流不可压缩，接收方 SHA-256 确认；速度以�
 
 以下 p95 为“下载期间 / 上传期间”小回显，单位 ms；吞吐为下载 / 上传有效 Mbps。
 current 为 Windows CTCP 客户端、BBR 服务端；bbr-current 为同机 WSL 测试 TCP socket BBR，UDP 协议仍使用各自算法。
+本轮按验证要求预设服务器 BBR，未做服务端 CUBIC/BBR 对照；它是部署默认，不是本轮证明的拥塞控制优胜者。
+current 与 bbr-current 同时改变客户端操作系统和 TCP 实现，不能将差异单独归因于 BBR。
 完整 p50/p95/p99、样本数、失败、建连耗时与原始命令在证据包中。
 
 | 档位 / 组合            | 轮数 | 并发下载/上传 p95 ms | 下载/上传 Mbps |
@@ -278,7 +281,7 @@ WSL 无历史监控数据，以下是测试结束后 `/proc` 的生命周期内�
 | T2 WSS + mux        | 已测原版/维护分支 yamux 与 smux；选择 smux v2 + 双连接                         |
 | T3 HTTP/2 CONNECT   | 本轮工程淘汰；仍需反向建流/控制映射，单 TCP 不消除底层丢包等待，未实测性能     |
 | T4 gRPC             | 本轮工程淘汰；消息/RPC 映射与现有透明 HTTP/WS 业务不匹配，未实测性能           |
-| T5 原生 QUIC        | 已测 v0.65.0 Reno/窗口/MTU/取消；保留研究，MVP 不优先探测                      |
+| T5 原生 QUIC        | 已测 v0.65.0 Reno/窗口/MTU/取消；保留研究，MVP 不探测 QUIC                     |
 | T6 H3/WebTransport  | 本轮工程淘汰；B 需要隧道协议，A 需要浏览器/前端适配；没有浏览器性能结论        |
 | T7 KCP/TLS/smux/FEC | 已测保守/激进参数及 FEC 开关；MVP 不引入，kcptun 成品未另跑                    |
 | T8 Hysteria         | 已测 BBR/Brutal 带宽设置；成绩好但反向注册、安全映射/进程管理另需工作          |
@@ -326,7 +329,7 @@ AF_PACKET 仅保存端口聚合计数，不保存包正文；受 GSO/GRO 和采�
 
 SHA-256：`e87a51cea7b8d8b75c9e20b3e8abdb53eedfd8634de473e129394e0e8a43de49`。
 
-源码为最终实验夹具，历史阶段的依赖和参数以构建信息、每次命令及报告标注为准；自然网络不会复现完全相同的数值。
+证据包保留实验封存时的夹具与统计；报告后续文字修订以仓库版本为准。历史阶段的依赖和参数以构建信息、每次命令及报告标注为准，自然网络不会复现完全相同的数值。
 
 证据包通过允许清单生成，仅包含源码、版本锁定、无正文统计和复现说明；不含证书私钥、Token、Cookie、SSH 私钥、生成后的凭据配置或管理命令队列。
 只在独立测试实例运行；按说明生成新的随机凭据。服务器管理命令使用 Windows OpenSSH，测量流量始终直连。
