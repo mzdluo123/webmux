@@ -8,6 +8,8 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
+
+	"github.com/rainchan/webmux/internal/streamproto"
 )
 
 const (
@@ -49,12 +51,12 @@ type rawChannel interface {
 }
 
 type inboundMsg struct {
-	typ  MessageType
+	typ  streamproto.MessageType
 	data []byte
 	err  error
 }
 
-// FramedConn adapts a rawChannel into a StreamConn with 32 KiB fragmentation,
+// FramedConn adapts a rawChannel into a streamproto.StreamConn with 32 KiB fragmentation,
 // application-level status close frames, read-size enforcement, and
 // BufferedAmount slow-client backpressure.
 type FramedConn struct {
@@ -69,7 +71,7 @@ type FramedConn struct {
 	closeOnce sync.Once
 	onDone    func()
 
-	fragTyp MessageType
+	fragTyp streamproto.MessageType
 	fragBuf []byte
 }
 
@@ -120,9 +122,9 @@ func (c *FramedConn) FeedRaw(packet []byte) {
 		return
 
 	case frameTextCont, frameTextFinal, frameBinaryCont, frameBinaryFinal:
-		msgTyp := MessageBinary
+		msgTyp := streamproto.MessageBinary
 		if op == frameTextCont || op == frameTextFinal {
-			msgTyp = MessageText
+			msgTyp = streamproto.MessageText
 		}
 		final := op == frameTextFinal || op == frameBinaryFinal
 
@@ -180,7 +182,7 @@ func (c *FramedConn) deliver(m inboundMsg) {
 	}
 }
 
-func (c *FramedConn) Read(ctx context.Context) (MessageType, []byte, error) {
+func (c *FramedConn) Read(ctx context.Context) (streamproto.MessageType, []byte, error) {
 	select {
 	case m := <-c.inCh:
 		if m.err != nil {
@@ -202,12 +204,12 @@ func (c *FramedConn) Read(ctx context.Context) (MessageType, []byte, error) {
 	}
 }
 
-func (c *FramedConn) Write(ctx context.Context, typ MessageType, p []byte) error {
+func (c *FramedConn) Write(ctx context.Context, typ streamproto.MessageType, p []byte) error {
 	var contOp, finalOp byte
 	switch typ {
-	case MessageText:
+	case streamproto.MessageText:
 		contOp, finalOp = frameTextCont, frameTextFinal
-	case MessageBinary:
+	case streamproto.MessageBinary:
 		contOp, finalOp = frameBinaryCont, frameBinaryFinal
 	default:
 		return fmt.Errorf("unsupported message type %v", typ)

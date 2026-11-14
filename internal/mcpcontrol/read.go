@@ -24,15 +24,28 @@ func unsigned(s string) (uint64, error) {
 	return strconv.ParseUint(s, 10, 64)
 }
 func (c Client) readTools() []mcpprotocol.Tool {
-	return []mcpprotocol.Tool{tool("session_read", "Read committed exportable chat activity, or a bounded raw terminal replay page encoded as base64. Cursors are decimal strings. Reports truncation, resets and missing history; never acquires terminal control.", true, map[string]any{
-		"sessionId": text(), "view": enumeration("activity", "terminal"),
-		"afterPosition": text(), "itemId": text(), "textOffset": text(), "limit": integer(1, 100), "maxBytesPerItem": integer(4, 65536),
+	views := []string{"terminal"}
+	description := "Read a bounded raw terminal replay page encoded as base64. Cursors are decimal strings. Reports truncation and resets; never acquires terminal control."
+	if c.hasCapability("chat.acp") {
+		views = append(views, "activity")
+		description = "Read committed exportable chat activity, or a bounded raw terminal replay page encoded as base64. Cursors are decimal strings. Reports truncation, resets and missing history; never acquires terminal control."
+	}
+	properties := map[string]any{
+		"sessionId": text(), "view": enumeration(views...),
 		"generation": text(), "offset": text(), "maxBytes": integer(1, 65536),
-	}, []string{"sessionId"}, c.read)}
+	}
+	if c.hasCapability("chat.acp") {
+		properties["afterPosition"], properties["itemId"], properties["textOffset"] = text(), text(), text()
+		properties["limit"], properties["maxBytesPerItem"] = integer(1, 100), integer(4, 65536)
+	}
+	return []mcpprotocol.Tool{tool("session_read", description, true, properties, []string{"sessionId"}, c.read)}
 }
 
 func (c Client) read(ctx context.Context, raw json.RawMessage) (any, error) {
 	a := contract.MCPSessionReadRequest{View: "activity", AfterPosition: "0", TextOffset: "0", Limit: 20, MaxBytesPerItem: 4000, MaxBytes: 65536}
+	if !c.hasCapability("chat.acp") {
+		a.View = "terminal"
+	}
 	if decode(raw, &a) != nil || !identity.MatchString(a.SessionID) {
 		return nil, errors.New("invalid session_read arguments")
 	}
@@ -58,6 +71,9 @@ func (c Client) readActivity(ctx context.Context, a contract.MCPSessionReadReque
 	offset, e2 := unsigned(a.TextOffset)
 	if e1 != nil || e2 != nil || after > 1<<63-1 || offset > 1<<63-1 || a.Limit < 1 || a.Limit > 100 || a.MaxBytesPerItem < 4 || a.MaxBytesPerItem > 65536 || a.Limit*a.MaxBytesPerItem > 256<<10 || a.ItemID == "" && offset != 0 || a.ItemID != "" && !regexpHistoryID.MatchString(a.ItemID) {
 		return nil, errors.New("invalid activity cursor or page")
+	}
+	if err := c.requireCapability(ctx, "chat.acp"); err != nil {
+		return nil, err
 	}
 	var session contract.SessionInfo
 	if err := c.API.GetBounded(ctx, "/api/sessions/"+url.PathEscape(a.SessionID), responseLimit, &session); err != nil {

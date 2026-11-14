@@ -277,7 +277,7 @@ func TestRunStartsAnAgentOnItsChatViewAndReplies(t *testing.T) {
 	if err := client.Do(ctx, http.MethodPost, "/api/repositories", contract.RegisterRepositoryRequest{Path: repo}, nil); err != nil {
 		t.Fatal(err)
 	}
-	config := contract.LaunchConfigInput{Name: "Fake", Cmd: []string{agent}, Env: map[string]string{"FAKEAGENT_STORE": t.TempDir(), "FAKEAGENT_TURN_DELAY": "5ms"}, Chat: true}
+	config := contract.LaunchConfigWrite{Name: "Fake", Cmd: []string{agent}, Env: map[string]string{"FAKEAGENT_STORE": t.TempDir(), "FAKEAGENT_TURN_DELAY": "5ms"}, Chat: new(true)}
 	if err := client.Do(ctx, http.MethodPost, "/api/launch-configs", config, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +305,7 @@ func TestRunStartsAnAgentOnItsChatViewAndReplies(t *testing.T) {
 	if _, _, code := f.cli(t, "run", "--launch-config", "Fake", "--view", "chat", "--reply"); code != contract.ExitUsage {
 		t.Fatalf("--reply without --prompt: %d", code)
 	}
-	if err := client.Do(ctx, http.MethodPost, "/api/launch-configs", contract.LaunchConfigInput{Name: "Plain", Cmd: []string{"sleep", "30"}}, nil); err != nil {
+	if err := client.Do(ctx, http.MethodPost, "/api/launch-configs", contract.LaunchConfigWrite{Name: "Plain", Cmd: []string{"sleep", "30"}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, stderr, code := f.cli(t, "run", "--launch-config", "Plain", "--view", "chat"); code != contract.ExitUsage || !strings.Contains(stderr, "chat view") {

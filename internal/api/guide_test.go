@@ -23,7 +23,7 @@ func TestGuideRoutes(t *testing.T) {
 	directory := "# 命令目录\n\n- `webmux ls [options]`: List sessions.\n"
 	guide := &agentguide.Instance{Guide: agentguide.New(directory), Version: "7.7.7", LocalURL: "http://127.0.0.1:7681", Bin: "/opt/webmux/bin/webmux"}
 	guide.SetSocket("/run/user/1000/webmux/webmux.sock")
-	deps := testDeps(t, Deps{Manager: m, Guide: guide, Config: config.Config{Token: "login-secret", Listen: "127.0.0.1:7681"}})
+	deps := testDeps(t, testServices{Manager: m, Guide: guide, Config: config.Config{Token: "login-secret", Listen: "127.0.0.1:7681"}})
 	tcp := New(deps)
 	local := NewLocal(deps, Local{Status: func() contract.StatusV1 { return contract.StatusV1{V: 1} }})
 	get := func(h http.Handler, path string) *httptest.ResponseRecorder {
@@ -84,7 +84,7 @@ func TestAgentGuideBrief(t *testing.T) {
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
 	guide := &agentguide.Instance{LocalURL: "http://127.0.0.1:7681", Bin: "/opt/webmux/bin/webmux"}
-	local := NewLocal(testDeps(t, Deps{Manager: m, Guide: guide}), Local{Status: func() contract.StatusV1 { return contract.StatusV1{V: 1} }})
+	local := NewLocal(testDeps(t, testServices{Manager: m, Guide: guide}), Local{Status: func() contract.StatusV1 { return contract.StatusV1{V: 1} }})
 	s, err := m.Create(session.CreateInput{Cmd: []string{"/bin/sh", "-c", "sleep 60"}})
 	if err != nil {
 		t.Fatal(err)
@@ -105,7 +105,7 @@ func TestAgentGuideBrief(t *testing.T) {
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("missing session: %d", w.Code)
 	}
-	noGuide := NewLocal(testDeps(t, Deps{Manager: m}), Local{Status: func() contract.StatusV1 { return contract.StatusV1{V: 1} }})
+	noGuide := NewLocal(testDeps(t, testServices{Manager: m}), Local{Status: func() contract.StatusV1 { return contract.StatusV1{V: 1} }})
 	w = httptest.NewRecorder()
 	noGuide.ServeHTTP(w, httptest.NewRequest("POST", "/api/sessions/"+id+"/agent-guide", nil))
 	if w.Code != http.StatusServiceUnavailable {
@@ -118,7 +118,7 @@ func TestGuideNamesTheCallerSession(t *testing.T) {
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
 	id, pid := leaderPID(t, m)
 	guide := &agentguide.Instance{Version: "7.7.7", LocalURL: "http://127.0.0.1:7681"}
-	deps := testDeps(t, Deps{Manager: m, Guide: guide, Config: config.Config{Token: "login-secret", Listen: "127.0.0.1:7681"}})
+	deps := testDeps(t, testServices{Manager: m, Guide: guide, Config: config.Config{Token: "login-secret", Listen: "127.0.0.1:7681"}})
 	local := NewLocal(deps, Local{Status: func() contract.StatusV1 { return contract.StatusV1{V: 1} }})
 	get := func(h http.Handler, path string, peer int) string {
 		req := httptest.NewRequest("GET", path, nil)

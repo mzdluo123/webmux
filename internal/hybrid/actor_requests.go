@@ -267,7 +267,9 @@ func (a *actor) autoApprove(p *pending) string {
 // a fresh or switched terminal shows before it reports an OSC title: that
 // would overwrite the recorded title on every terminal resume or switch.
 func (a *actor) saveShellInfo(info session.Info) {
-	a.saveWorkspace(info.Workspace)
+	if association, enabled := a.svc.workspaceReference(info.ID); enabled {
+		a.saveWorkspace(association)
+	}
 	if info.PlaceholderTitle {
 		return
 	}
@@ -276,7 +278,7 @@ func (a *actor) saveShellInfo(info session.Info) {
 
 // saveWorkspace keeps the record's repository association in sync with the
 // running session, so an archived record stays with its worktree.
-func (a *actor) saveWorkspace(w *session.Workspace) {
+func (a *actor) saveWorkspace(w *WorkspaceRef) {
 	var ref *WorkspaceRef
 	if w != nil {
 		ref = &WorkspaceRef{RepositoryID: w.RepositoryID, WorktreeID: w.WorktreeID}

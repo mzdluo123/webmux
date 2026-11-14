@@ -27,7 +27,7 @@ func TestSessionVerbsDriveAChatSession(t *testing.T) {
 	if err := client.Do(ctx, http.MethodPost, "/api/repositories", contract.RegisterRepositoryRequest{Path: repo}, nil); err != nil {
 		t.Fatal(err)
 	}
-	config := contract.LaunchConfigInput{Name: "Fake", Cmd: []string{agent}, Chat: true, Env: map[string]string{
+	config := contract.LaunchConfigWrite{Name: "Fake", Cmd: []string{agent}, Chat: new(true), Env: map[string]string{
 		"FAKEAGENT_STORE": t.TempDir(), "FAKEAGENT_TURN_DELAY": "5ms", "FAKEAGENT_PERMISSION": "1",
 	}}
 	if err := client.Do(ctx, http.MethodPost, "/api/launch-configs", config, nil); err != nil {

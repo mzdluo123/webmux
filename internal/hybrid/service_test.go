@@ -218,9 +218,10 @@ func TestCreateStartsEitherSide(t *testing.T) {
 				in := h.input(profile, side)
 				s := h.create(in)
 				info := s.Info()
-				if info.Hybrid == nil || info.Hybrid.Side != string(side) || info.Hybrid.State != string(StateActive) || info.Hybrid.Agent != profile ||
-					info.Hybrid.AgentTitle != p.Title || info.Hybrid.AgentIcon != p.Icon {
-					t.Fatalf("hybrid info %+v", info.Hybrid)
+				metadata := h.svc.Metadata(info.ID)
+				if metadata == nil || metadata.Side != string(side) || metadata.State != string(StateActive) || metadata.Agent != profile ||
+					metadata.AgentTitle != p.Title || metadata.AgentIcon != p.Icon {
+					t.Fatalf("hybrid info %+v", metadata)
 				}
 				if got := slices.Contains(info.Cmd, "--standalone"); got != (profile == opencode.Name) {
 					t.Fatalf("shown command %q", info.Cmd)
@@ -235,15 +236,15 @@ func TestCreateStartsEitherSide(t *testing.T) {
 					// The TUI may already have reported idle through OSC 7501, and
 					// omp names its session at once; OpenCode only after a turn.
 					if info.Status == session.StatusExited || s.Identity().PID != rec.PID ||
-						(profile == opencode.Name && info.Hybrid.AgentSessionID != nil) {
+						(profile == opencode.Name && metadata.AgentSessionID != nil) {
 						t.Fatalf("terminal side: status %s pid %d record pid %d", info.Status, s.Identity().PID, rec.PID)
 					}
 				case SideACP:
 					if info.Status != session.StatusIdle || s.Identity().PID != 0 || info.Generation != "" {
 						t.Fatalf("chat side runs a terminal: %+v", info)
 					}
-					if info.Hybrid.AgentSessionID == nil || rec.AgentSessionID != *info.Hybrid.AgentSessionID {
-						t.Fatalf("agent session %v, record %q", info.Hybrid.AgentSessionID, rec.AgentSessionID)
+					if metadata.AgentSessionID == nil || rec.AgentSessionID != *metadata.AgentSessionID {
+						t.Fatalf("agent session %v, record %q", metadata.AgentSessionID, rec.AgentSessionID)
 					}
 					if _, ok := rec.Config["model"]; !ok {
 						t.Fatalf("record config %v", rec.Config)
@@ -357,7 +358,7 @@ func TestCorruptStoreDisablesHybridOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ordinary session: %v", err)
 	}
-	if plain.Info().Hybrid != nil {
+	if h.svc.Metadata(plain.Info().ID) != nil {
 		t.Fatal("ordinary session has hybrid info")
 	}
 	if b, _ := os.ReadFile(path); string(b) != "{broken" {
@@ -429,7 +430,8 @@ func TestTerminalExitInterrupts(t *testing.T) {
 	waitFor(t, "interrupted record", func() bool { return h.record(id).State == StateInterrupted })
 	waitFor(t, "interrupted overlay", func() bool {
 		info := s.Info()
-		return info.Hybrid != nil && info.Hybrid.State == string(StateInterrupted) && info.Status == session.StatusExited
+		metadata := h.svc.Metadata(info.ID)
+		return metadata != nil && metadata.State == string(StateInterrupted) && info.Status == session.StatusExited
 	})
 	if rec := h.record(id); rec.InterruptedAt == nil || rec.PID != 0 || rec.Activity != "idle" {
 		t.Fatalf("interrupted record %+v", rec)

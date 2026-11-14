@@ -28,10 +28,35 @@ func stringMap() map[string]any {
 }
 
 func (c Client) actionTools() []mcpprotocol.Tool {
+	create := createProperties()
+	if !c.hasCapability("launch.configs") {
+		delete(create, "configId")
+		delete(create, "useInitInstruction")
+	}
+	if !c.hasCapability("workspace.manage") {
+		delete(create, "workspace")
+		delete(create, "newWorktree")
+		delete(create, "useInitInstruction")
+	}
+	if !c.hasCapability("chat.acp") {
+		create["view"] = enumeration("terminal")
+		delete(create, "agentConfig")
+		delete(create, "permissionMode")
+	}
+	if !c.hasCapability("files.upload") {
+		delete(create, "attachments")
+	}
+	input := map[string]any{"clientRequestId": text(), "text": text(), "submit": boolean(), "keys": stringsArray()}
+	if c.hasCapability("chat.acp") {
+		input["mode"] = enumeration("auto", "steer", "refuse", "now")
+	}
+	if c.hasCapability("files.upload") {
+		input["attachments"] = attachmentSchema()
+	}
 	return []mcpprotocol.Tool{
-		tool("session_launch", "Create a session, optionally in a new worktree with an initial prompt. Requires a stable clientRequestId; retry the identical request after a lost response. Creation is deduplicated by the server for ten minutes, in memory only. Partial failures retain created resources.", false, createProperties(), []string{"clientRequestId"}, c.launch),
+		tool("session_launch", "Create a session, optionally using the instance's enabled launch/workspace/chat capabilities. Requires a stable clientRequestId; retry the identical request after a lost response. Creation is deduplicated by the server for ten minutes, in memory only. Partial failures retain created resources.", false, create, []string{"clientRequestId"}, c.launch),
 		tool("session_send", "Send input through the current session view. Reuse clientRequestId on retries. Chat returns turnId or queued itemId; terminal acceptance does not prove execution or completion. Read state before sending.", false, map[string]any{
-			"sessionId": text(), "request": object(map[string]any{"clientRequestId": text(), "text": text(), "submit": boolean(), "keys": stringsArray(), "mode": enumeration("auto", "steer", "refuse", "now"), "attachments": attachmentSchema()}, "clientRequestId", "text"),
+			"sessionId": text(), "request": object(input, "clientRequestId", "text"),
 		}, []string{"sessionId", "request"}, c.send),
 		tool("session_interrupt", "Interrupt the current chat turn or send the terminal interrupt key. Does not delete the session or its history. Reuse clientRequestId on retries.", false, map[string]any{"sessionId": text(), "clientRequestId": text()}, []string{"sessionId", "clientRequestId"}, c.interrupt),
 	}

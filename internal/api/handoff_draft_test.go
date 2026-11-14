@@ -26,7 +26,7 @@ func TestHandoffDraftDiscoveryAndSeparateTaskRevision(t *testing.T) {
 	service := handoff.New(handoff.Options{Conversations: store, Launch: launches})
 	defer service.Close()
 	manager := session.NewManager(session.Options{})
-	handler := New(testDeps(t, Deps{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, Handoffs: service, Config: config.Config{Token: "secret"}}))
+	handler := New(testDeps(t, testServices{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, Handoffs: service, Config: config.Config{Token: "secret"}}))
 	send := func(method, path string, body any, auth bool) *httptest.ResponseRecorder {
 		t.Helper()
 		data, err := json.Marshal(body)
@@ -86,7 +86,7 @@ func TestDisabledHistoryRefusesHistoryDraftAndDeliveryRoutes(t *testing.T) {
 	defer svc.Close()
 	manager := session.NewManager(session.Options{})
 	defer manager.Shutdown(context.Background())
-	handler := New(testDeps(t, Deps{Manager: manager, Conversations: store, Handoffs: svc, Workspace: testWorkspace(t, manager, t.TempDir())}))
+	handler := New(testDeps(t, testServices{Manager: manager, Conversations: store, Handoffs: svc, Workspace: testWorkspace(t, manager, t.TempDir())}))
 	id := "0123456789abcdef0123456789abcdef"
 	for _, path := range []string{"/api/conversations/" + id + "/activities", "/api/conversations/" + id + "/activities/" + id, "/api/conversations/" + id + "/handoff-previews?fork=1", "/api/handoffs/" + id, "/api/handoffs/" + id + "/selection", "/api/handoffs/" + id + "/delivery"} {
 		r := httptest.NewRecorder()

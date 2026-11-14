@@ -176,7 +176,7 @@
 依据：
 
 - 剪贴板：[终端操作](../../web/src/components/terminal/SessionTerminal.svelte)、[处理逻辑](../../web/src/domains/terminal/terminal-clipboard.ts)。
-- 上传：[交互](../../web/src/hooks/shared/upload.svelte.ts)、[接口](../../internal/api/upload.go)、[临时文件夹](../../internal/artifacts/artifacts.go)。
+- 上传：[交互](../../web/src/hooks/shared/upload.svelte.ts)、[接口](../../internal/pluginapi/upload.go)、[临时文件夹](../../internal/artifacts/artifacts.go)。
 
 ## F. 草稿编写、保存与发送确认
 

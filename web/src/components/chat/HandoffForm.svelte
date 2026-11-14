@@ -14,34 +14,48 @@
   import ChatUploadButton from "./ChatUploadButton.svelte";
   import HandoffPreviewCard from "./HandoffPreviewCard.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
-  import LocationPicker from "../workspace/LocationPicker.svelte";
-  import WorktreeCreateFields from "../workspace/WorktreeCreateFields.svelte";
+  import { getPluginContributions } from "../../plugins/context";
+  import { pluginAvailable } from "../../platform/plugin-host.svelte";
 
   let { editor: e, fork }: { editor: HandoffEditor; fork: boolean } = $props();
   const shell = getShell();
+  const { LocationPicker, WorktreeCreateFields } =
+    getPluginContributions().creation;
+  const workspaceAvailable = pluginAvailable("workspace.manage");
   const agents = $derived(
-    shell.launchConfigs.state.status === "ready"
+    shell.launchConfigs?.state.status === "ready"
       ? shell.launchConfigs.state.configs.filter((item) => item.chat)
       : [],
   );
-  const repositories = $derived(shell.repositories.list);
+  const repositories = $derived(shell.repositories?.list ?? []);
   const agent = $derived(agents.find((item) => item.id === e.configId));
   const repository = $derived(
     repositories.find((item) => item.id === e.location.repositoryId),
   );
-  let worktreeFields = $state<WorktreeCreateFields>();
+  let worktreeFields = $state<{ isReady: () => boolean }>();
   let managedPath = $state("");
   const uploads = useChatUpload(
     uploadQuickStartFile,
     (message) => e.reportError(message),
     { get: () => e.attachments, set: (next) => (e.attachments = next) },
   );
+  const unsupportedLocation = $derived(
+    !workspaceAvailable &&
+      Boolean(
+        e.location.repositoryId ||
+        e.location.worktreeId ||
+        e.location.newWorktreeBranch ||
+        e.location.newWorktreeBase,
+      ),
+  );
   const locationReady = $derived(
-    !fork || e.locationKind === "directory"
-      ? !fork || !!e.location.cwd.trim()
-      : e.locationKind === "new-worktree"
-        ? (worktreeFields?.isReady() ?? false)
-        : !!e.location.repositoryId,
+    unsupportedLocation
+      ? false
+      : !fork || e.locationKind === "directory"
+        ? !fork || !!e.location.cwd.trim()
+        : e.locationKind === "new-worktree"
+          ? (worktreeFields?.isReady() ?? false)
+          : !!e.location.repositoryId,
   );
   const regenerate = $derived(
     !e.preview ||
@@ -51,9 +65,10 @@
         e.delivery?.status !== "failed"),
   );
   const disabled = $derived(
-    e.delivery?.status === "pending"
-      ? e.busy || e.saving || e.loading || !e.delivery.clientRequestId
-      : e.busy ||
+    unsupportedLocation ||
+      (e.delivery?.status === "pending"
+        ? e.busy || e.saving || e.loading || !e.delivery.clientRequestId
+        : e.busy ||
           e.saving ||
           !!uploads.progress ||
           e.loading ||
@@ -63,7 +78,7 @@
           !agent ||
           (!locationReady &&
             !(e.delivery?.status === "failed" && !e.choiceChanged)) ||
-          (!regenerate && !e.task.trim() && !e.attachments.length),
+          (!regenerate && !e.task.trim() && !e.attachments.length)),
   );
   const actionLabel = $derived(
     e.delivery?.status === "unknown"
@@ -121,7 +136,11 @@
       >
       <Button
         variant="outline"
-        disabled={e.busy || !!uploads.progress || e.locked || !e.configId}
+        disabled={e.busy ||
+          !!uploads.progress ||
+          e.locked ||
+          !e.configId ||
+          unsupportedLocation}
         onclick={() => void e.generate()}>保留编辑重新预览</Button
       >
     </div>
@@ -169,23 +188,44 @@
           ? e.preview.sourceLocation.cwd || "未记录，请重新预览"
           : (e.source?.cwd ?? "")}（仅供参考）
       </p>
-      <LocationPicker
-        {repositories}
-        recent={[]}
-        preferredRepositoryId={e.source?.repositoryId ?? ""}
-        createdTree={null}
-        newWorktreeSummary={e.location.newWorktreeBranch ||
-          "发送时创建新工作树"}
-        bind:kind={() => e.locationKind, kind}
-        bind:cwd={
-          () => e.location.cwd,
-          (value) => (e.location = { ...untrack(() => e.location), cwd: value })
-        }
-        bind:repositoryId={() => e.location.repositoryId, repositoryId}
-        bind:worktreeId={() => e.location.worktreeId, worktreeId}
-        disabled={e.busy || e.locked}
-      />
-      {#if e.locationKind === "new-worktree" && repository}
+      {#if workspaceAvailable && LocationPicker}
+        <LocationPicker
+          {repositories}
+          recent={[]}
+          preferredRepositoryId={e.source?.repositoryId ?? ""}
+          createdTree={null}
+          newWorktreeSummary={e.location.newWorktreeBranch ||
+            "发送时创建新工作树"}
+          bind:kind={() => e.locationKind, kind}
+          bind:cwd={
+            () => e.location.cwd,
+            (value) =>
+              (e.location = { ...untrack(() => e.location), cwd: value })
+          }
+          bind:repositoryId={() => e.location.repositoryId, repositoryId}
+          bind:worktreeId={() => e.location.worktreeId, worktreeId}
+          disabled={e.busy || e.locked}
+        />
+      {:else}
+        <div class="min-w-0 space-y-2">
+          <Label for="handoff-cwd">工作目录</Label>
+          <Input
+            id="handoff-cwd"
+            value={e.location.cwd}
+            oninput={(event) => {
+              e.location = {
+                ...emptyLocation(),
+                cwd: event.currentTarget.value,
+              };
+              e.locationKind = "directory";
+            }}
+            placeholder="输入已有目录的绝对路径"
+            autocomplete="off"
+            disabled={e.busy || e.locked}
+          />
+        </div>
+      {/if}
+      {#if workspaceAvailable && WorktreeCreateFields && e.locationKind === "new-worktree" && repository}
         {#key repository.id}<WorktreeCreateFields
             bind:this={worktreeFields}
             {repository}
@@ -224,6 +264,20 @@
         <Label>工作位置（保持不变）</Label>
         <p class="break-all text-muted-foreground">{e.source?.cwd ?? ""}</p>
       </div>
+    {/if}
+    {#if unsupportedLocation}
+      <InlineNotice tone="warning">
+        工作区插件不可用，保留的位置选择不能提交。
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={e.busy || e.locked}
+          onclick={() => {
+            e.location = { ...emptyLocation(), cwd: e.location.cwd };
+            e.locationKind = "directory";
+          }}>改用现有目录</Button
+        >
+      </InlineNotice>
     {/if}
   </fieldset>
   {#if e.choiceChanged && !e.sealed}<InlineNotice tone="warning"

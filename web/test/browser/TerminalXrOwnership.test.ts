@@ -30,7 +30,7 @@ const scene = vi.hoisted(() => ({ start: vi.fn(), dispose: vi.fn() }));
 vi.mock("../../src/hooks/terminal/xr-workspace", () => ({
   startXrWorkspace: scene.start,
 }));
-installChatFixture();
+installChatFixture(["launch", "files", "chat", "immersive", "workspace"]);
 
 const a = chat({ id: "xrownera", title: "Chat A", generation: "" });
 const b = chat({ id: "xrownerb", title: "Chat B", generation: "" });

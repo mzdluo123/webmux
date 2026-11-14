@@ -33,6 +33,15 @@
 
 这份表的机器来源是 `internal/archtest/persistence_inventory.json`；`make persistence-check` 精确比较表格各单元格（允许 Markdown 对齐空格变化），拒绝遗漏、重复或过时条目。
 
+### 插件选择与数据保留
+
+这份清单列出二进制支持的全部存储，不表示每次启动都打开。生成配置只选择核心；未选择的插件不构造服务、不取得锁、不写默认值、不迁移或启动清扫。
+`launch` 拥有启动配置；`workspace` 拥有仓库登记，Git 工作台存储需 `workspace` + `code`；`chat` 拥有 hybrid、agent-options 与 conversation；其余专属设置随对应插件打开。
+禁用不删除既有数据，重新选择并重启后仍按原来的版本、锁与故障规则读取。只有启用 `launch` 且文件不存在时才写预设，已存在空列表也不补写。
+核心 `settings.json` 继续保存 inactive 字段；API 拒绝写入禁用插件拥有的字段，不把它们重置为空。字段所有权见 [偏好协议](protocol/settings.md#原子更新)。
+`files` 开启而 `chat` 关闭时，无法确认归属的旧会话产物保守保留，不通过读取禁用的聊天数据库推断清理资格。
+停服先取消并等待创建、恢复和 handoff 等生产者，再停止 PTY/连接，最后释放存储锁。选择配置见 [内置插件选择](deployment/configuration.md#内置插件选择)。
+
 ## 对话事务存储
 
 `conversations.sqlite` 保存 Conversation、ProviderThread、单调 Run 序号，以及 handoff、delivery 和幂等 receipt 的事务基础。
@@ -97,7 +106,7 @@ ACP 聊天的规范化消息与工具内容在 UI 截断前保存为完整 Activ
 - Windows 托盘、日志、下载缓存、会话临时文件夹（含上传文件与快速开始的暂存上传）、代码树文件操作（写入用户工作区或临时文件夹）、`webmux repo settings --edit` 交给编辑器的临时文件与 baseline 结果属于独立生命周期，保持逐项登记的例外。
 - 外部 agent 的锁与 Claude 进程注册记录不属于 WebMux 存储；适配器只进行有界只读核对，不创建或修改这些文件，也不把路径、记录正文或进程事实写入 WebMux 状态。
 - Kimi ACP 会话切到 TUI 前是写入例外：适配器只把当前会话 `wire.jsonl` 的 `acp:<会话ID>` 环境绑定改为 `local`，避免 2.5.2 工具注册丢失。首次修改保留 `wire.jsonl.before-local-binding` 备份，临时文件原子替换，其他事件不变；这不属于 WebMux 存储。
-- 例外是 `agent_pretrust`（默认开启），见 [CLI agent 接入](cli-agents.md#文件夹信任预写)：
+- 例外是选择 `launch` 启动集成后的 `agent_pretrust`（默认开启），见 [CLI agent 接入](cli-agents.md#文件夹信任预写)；未选择时不写入这些记录：
   - 启动 Claude Code、Codex、Copilot CLI、Antigravity CLI、Qoder、QoderCN 或 Devin 会话前，`internal/agenttrust` 在该 agent 自己的配置文件里追加启动目录的“信任此文件夹”记录；Devin 的文件缺失时连父目录一起创建为最小 JSON。
   - 启动 Kimi 时改为注入进程级 `KIMI_CODE_TRUST_WORKSPACE=1`。
   - 配置写入走临时文件加改名，保留原权限与其他内容。

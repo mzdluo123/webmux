@@ -4,6 +4,7 @@
   import * as Card from "$lib/components/ui/card";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import { detectSupport } from "../../platform/push";
+  import { pluginEnabled } from "../../platform/plugin-host.svelte";
   import {
     adviseInstall,
     installation,
@@ -75,9 +76,15 @@
           Tailscale Serve、Cloudflare Named Tunnel 或 HTTPS 反向代理的地址打开
           WebMux。
         </p>
-        <a class="underline underline-offset-2" href="#access"
-          >查看公网访问配置</a
-        >
+        {#if pluginEnabled("cloudflare")}
+          <a class="underline underline-offset-2" href="#access"
+            >查看公网访问配置</a
+          >
+        {:else if pluginEnabled("tailscale")}
+          <a class="underline underline-offset-2" href="#tailscale"
+            >查看 Tailscale 配置</a
+          >
+        {/if}
       </InlineNotice>
     {/if}
 

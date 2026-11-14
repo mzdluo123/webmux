@@ -25,7 +25,7 @@ func TestDevinRoundTrip(t *testing.T) {
 	s := h.create(in)
 	id := s.Info().ID
 	h.waitReason(id, ReasonNoSessionID)
-	if s.Info().Hybrid.AgentSessionID != nil {
+	if h.svc.Metadata(s.Info().ID).AgentSessionID != nil {
 		t.Fatal("Devin terminal reported a session ID before its first message")
 	}
 	tuiTurn(t, s, "one")
@@ -60,7 +60,7 @@ func TestDevinRoundTrip(t *testing.T) {
 	h.mustSwitch(id, SideTUI)
 	waitFor(t, "resumed transcript", func() bool { return strings.Contains(string(s.Buffer()), "> two") })
 	h.waitEligible(id)
-	if got := *s.Info().Hybrid.AgentSessionID; got != sid {
+	if got := *h.svc.Metadata(s.Info().ID).AgentSessionID; got != sid {
 		t.Fatalf("resumed terminal session %s, want %s", got, sid)
 	}
 	tuiTurn(t, s, "three")

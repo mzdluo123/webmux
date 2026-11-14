@@ -12,13 +12,23 @@ import (
 )
 
 func (c Client) waitTools() []mcpprotocol.Tool {
-	return []mcpprotocol.Tool{tool("session_wait", "Wait for a specific chat turn, queued input, first launched turn, or terminal process exit. Never infer completion from idle. A timeout ends observation only; continue waiting with the same selector. Reports pending user requests without approving them.", true, map[string]any{
-		"sessionId": text(), "until": enumeration("turn", "exit"), "turnId": text(), "queueItemId": text(), "firstTurn": boolean(), "timeoutMs": integer(0, 60000),
-	}, []string{"sessionId"}, c.wait)}
+	until := []string{"exit"}
+	description := "Wait for terminal process exit. Never infer completion from idle. A timeout ends observation only; continue waiting with the same selector."
+	properties := map[string]any{"sessionId": text(), "until": enumeration(until...), "timeoutMs": integer(0, 60000)}
+	if c.hasCapability("chat.acp") {
+		until = append(until, "turn")
+		description = "Wait for a specific chat turn, queued input, first launched turn, or terminal process exit. Never infer completion from idle. A timeout ends observation only; continue waiting with the same selector. Reports pending user requests without approving them."
+		properties["until"] = enumeration(until...)
+		properties["turnId"], properties["queueItemId"], properties["firstTurn"] = text(), text(), boolean()
+	}
+	return []mcpprotocol.Tool{tool("session_wait", description, true, properties, []string{"sessionId"}, c.wait)}
 }
 
 func (c Client) wait(ctx context.Context, raw json.RawMessage) (any, error) {
 	a := contract.MCPSessionWaitRequest{Until: "turn", TimeoutMS: 30000}
+	if !c.hasCapability("chat.acp") {
+		a.Until = "exit"
+	}
 	if decode(raw, &a) != nil || !identity.MatchString(a.SessionID) || a.TimeoutMS < 0 || a.TimeoutMS > 60000 {
 		return nil, errors.New("invalid session_wait arguments")
 	}
@@ -50,6 +60,9 @@ func (c Client) wait(ctx context.Context, raw json.RawMessage) (any, error) {
 	defer cancel()
 	if a.Until == "exit" {
 		return c.waitExit(ctx, a)
+	}
+	if err := c.requireCapability(ctx, "chat.acp"); err != nil {
+		return nil, err
 	}
 	return c.waitTurn(ctx, a)
 }

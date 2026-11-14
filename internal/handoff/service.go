@@ -16,11 +16,24 @@ import (
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
-	"github.com/rainchan/webmux/internal/workspace"
+	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
+type Locations interface {
+	PlanHandoff(context.Context, sessioncreate.Input, string) (sessioncreate.HandoffPlan, error)
+	EnsureHandoffWorktree(context.Context, sessioncreate.HandoffPlan) (sessioncreate.Location, error)
+	HandoffDirectory(context.Context, sessioncreate.Reference, string) (string, error)
+}
+
+type Recovery interface {
+	EnsureHandoffSession(context.Context, sessioncreate.Input, sessioncreate.HandoffIdentity) (*session.Session, error)
+}
+
 type Options struct {
-	Workspace                                    *workspace.Service
+	Creation                                     sessioncreate.Chat
+	Locations                                    Locations
+	Recovery                                     Recovery
 	Hybrid                                       *hybrid.Service
 	Artifacts                                    *artifacts.Service
 	Conversations                                *conversation.Service
@@ -128,6 +141,9 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (conve
 	if err := validateRequest(in); err != nil {
 		return conversation.Preview{}, err
 	}
+	if err := s.checkLocation(in.Location); err != nil {
+		return conversation.Preview{}, err
+	}
 	if in.AgentConfig == nil {
 		in.AgentConfig = map[string]string{}
 	}
@@ -160,7 +176,7 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (conve
 		return conversation.Preview{}, err
 	}
 	if in.Fork && in.Location.NewWorktreeBranch == "" && in.Location.RepositoryID != "" && in.Location.WorktreeID != "" {
-		if s.options.Workspace == nil {
+		if s.options.Locations == nil {
 			return conversation.Preview{}, conversation.ErrUnavailable
 		}
 		cwd := in.Location.Cwd
@@ -173,7 +189,7 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (conve
 				cwd = sourceState.Cwd
 			}
 		}
-		directory, err := s.options.Workspace.HandoffDirectory(ctx, workspace.Reference{RepositoryID: in.Location.RepositoryID, WorktreeID: in.Location.WorktreeID}, cwd)
+		directory, err := s.options.Locations.HandoffDirectory(ctx, sessioncreate.Reference{RepositoryID: in.Location.RepositoryID, WorktreeID: in.Location.WorktreeID}, cwd)
 		if err != nil {
 			return conversation.Preview{}, err
 		}
@@ -460,4 +476,13 @@ func InlinePrompt(p conversation.Preview) string {
 
 func (s *Service) historyToolAvailable(ctx context.Context, p conversation.Preview) bool {
 	return s.options.Hybrid != nil && s.options.Hybrid.HistoryReaderAvailable(ctx, conversation.ReaderScope{ConversationID: p.SourceConversationID, HandoffID: p.ID})
+}
+
+// Reject unavailable Git selection before reservations, provider quiescence, or
+// any other side effect. Direct cwd chat does not require the workspace plugin.
+func (s *Service) checkLocation(location conversation.PreviewLocation) error {
+	if s.options.Locations == nil && (location.RepositoryID != "" || location.WorktreeID != "" || location.NewWorktreeBranch != "" || location.NewWorktreeBase != "") {
+		return conversation.ErrUnavailable
+	}
+	return nil
 }

@@ -5,19 +5,14 @@
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { errorMessage } from "../../platform/error";
-  import { recordTitle } from "../../domains/sessions/archived";
-  import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
-  import { connectorMissingText } from "../../domains/sessions/hybrid";
-  import {
-    removeRecord,
-    resumeSession,
-  } from "../../domains/sessions/recoverable";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
   import type { Route } from "../../hooks/shared/route";
   import type {
     ArchivedSession,
     HybridRelease,
     Worktree,
+    SessionInfo,
+    AgentConnector,
   } from "../../contracts/schemas";
   import {
     getShell,
@@ -27,15 +22,24 @@
     shellUi,
     type ShellMode,
   } from "../../hooks/shared/shell.svelte";
-  import AttentionInbox from "../notifications/AttentionInbox.svelte";
   import Brand from "./Brand.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
-  import ChatHistory from "../chat/ChatHistory.svelte";
-  import RebuildWorktreeDialog from "../workspace/RebuildWorktreeDialog.svelte";
   import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
   import ModeSwitch from "./ModeSwitch.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
-  import WorkbenchTree from "./WorkbenchTree.svelte";
+  import { pluginContributions } from "../../plugins/registry.svelte";
+  import { pluginAvailable } from "../../platform/plugin-host.svelte";
+  import LazyDialog from "../shared/LazyDialog.svelte";
+  const workspace = pluginContributions.entries.workspace;
+  const chat = pluginContributions.entries.chat;
+  const notifications = pluginContributions.entries.notifications;
+  const recordTitle = (record: ArchivedSession) =>
+    chat?.recordTitle(record) ?? record.title;
+  const connectorMissingText = (connector: AgentConnector) =>
+    chat?.connectorMissingText(connector) ?? "";
+  const removeRecord = (id: string) => chat!.removeRecord(id);
+  const resumeSession = (id: string, view: SessionInfo["view"]) =>
+    chat!.resumeSession(id, view);
 
   // The sidebar body, the same on desktop and in the phone drawer: brand and
   // mode switch, the mode's primary action, its navigation, then the global
@@ -66,7 +70,8 @@
     live.filter((session) => !pinnedIDs.has(session.id)),
   );
   const configs = $derived(
-    shell.launchConfigs.state.status === "ready"
+    pluginContributions.entries.launch &&
+      shell.launchConfigs?.state.status === "ready"
       ? shell.launchConfigs.state.configs
       : [],
   );
@@ -94,7 +99,7 @@
   // Runs a worktree action of the tree, by the IDs its rows carry.
   function withTree(action: (tree: Worktree) => void) {
     return (repositoryId: string, worktreeId: string) => {
-      const tree = shell.repositories.list
+      const tree = shell.repositories?.list
         .find((r) => r.id === repositoryId)
         ?.worktrees.find((w) => w.id === worktreeId);
       if (tree) action(tree);
@@ -111,7 +116,7 @@
     } catch (err) {
       resumeError = `工作树已删除，但无法删除“${recordTitle(record)}”的记录：${errorMessage(err)}`;
     } finally {
-      await shell.archived.refresh();
+      await shell.archived?.refresh();
     }
   }
   async function confirmRemove() {
@@ -123,7 +128,7 @@
       await removeRecord(record.id);
       sessionPins.refreshEnded(record.id);
       shell.drafts.remove(record.id);
-      await shell.archived.refresh();
+      await shell.archived?.refresh();
     } catch (err) {
       resumeError = `无法删除“${recordTitle(record)}”的记录：${errorMessage(err)}`;
     }
@@ -136,7 +141,10 @@
     released: HybridRelease;
   } | null>(null);
   function open(record: ArchivedSession) {
-    if (record.released) rebuilding = { record, released: record.released };
+    if (record.released && !workspace)
+      resumeError = "此归档需要工作区插件重建工作树；请启用工作区功能后恢复。";
+    else if (record.released)
+      rebuilding = { record, released: record.released };
     else void resume(record);
   }
   function rebuilt() {
@@ -144,8 +152,8 @@
     rebuilding = null;
     if (!target) return;
     // The worktree is back and the release cleared, whatever the resume does.
-    void shell.repositories.refresh();
-    void shell.archived.refresh();
+    void shell.repositories?.refresh();
+    void shell.archived?.refresh();
     void resume(target.record);
   }
   async function resume(record: ArchivedSession) {
@@ -154,7 +162,7 @@
     try {
       const outcome = await resumeSession(record.id, record.view);
       if (outcome.status === "resumed") {
-        void shell.archived.refresh();
+        void shell.archived?.refresh();
         openSession(outcome.session);
       } else if (outcome.status === "connector_missing")
         resumeError = `${outcome.message}。${connectorMissingText(outcome.connector)}`;
@@ -167,7 +175,7 @@
   }
   function scope(next: string, worktreeId?: string) {
     shellUi.setMode("workbench");
-    shell.repositories.select(next, worktreeId);
+    shell.repositories?.select(next, worktreeId);
     openPage("/");
   }
 </script>
@@ -188,7 +196,11 @@
     <span class="brand mr-auto min-w-0 overflow-hidden px-1 whitespace-nowrap"
       ><Brand /></span
     >
-    <ModeSwitch mode={shellUi.mode} onchange={onmode} />
+    {#if chat}<ModeSwitch
+        mode={shellUi.mode}
+        workspaces={!!workspace}
+        onchange={onmode}
+      />{/if}
   </div>
   <div class="px-2 pt-1">
     <Button
@@ -202,7 +214,18 @@
         />新聊天{:else}<IconPlus aria-hidden="true" />新建会话{/if}
     </Button>
   </div>
-  <AttentionInbox sessions={live} />
+  {#if !workspace}
+    <div class="px-2 pt-2">
+      <Button
+        variant="ghost"
+        size="sm-touch"
+        class="w-full"
+        aria-current={route.name === "sessions" ? "page" : undefined}
+        onclick={() => openPage("/")}>会话</Button
+      >
+    </div>
+  {/if}
+  {#if notifications}<notifications.Inbox sessions={live} />{/if}
   {#if pinned.length}
     <section
       class="max-h-36 shrink-0 overflow-y-auto px-2 pt-2"
@@ -237,12 +260,12 @@
         >
           {resumeError || sessionPins.error}
         </p>{/if}
-      {#if shellUi.mode === "chat"}
-        <ChatHistory
+      {#if shellUi.mode === "chat" && chat}
+        <chat.History
           sessions={unpinned}
-          records={shell.archived.records}
+          records={shell.archived?.records ?? []}
           {configs}
-          repositories={shell.repositories.list}
+          repositories={shell.repositories?.list ?? []}
           {current}
           {resuming}
           onopen={openSession}
@@ -253,18 +276,16 @@
           onremove={askRemove}
           onremoveworktree={askRemoveWithWorktree}
         />
-      {:else if !shell.sessions.loading && (shell.repositories.settled || shell.repositories.list.length)}
-        <!-- Drawn once sessions and repositories are known, so rows never
-           appear between rows already on screen during startup. -->
-        <WorkbenchTree
+      {:else if workspace && shell.repositories && !shell.sessions.loading && (shell.repositories.settled || shell.repositories.list.length)}
+        <workspace.Tree
           repositories={shell.repositories.list}
           sessions={unpinned}
-          home={homeWorktrees.value}
+          home={workspace.homeWorktrees.value}
           scope={route.name === "sessions"
-            ? (shell.repositories.choice ?? "all")
+            ? (shell.repositories?.choice ?? "all")
             : ""}
           worktree={route.name === "sessions"
-            ? (shell.repositories.worktree ?? "")
+            ? (shell.repositories?.worktree ?? "")
             : ""}
           {current}
           canCreate={setup.gitReady && setup.registryReady}
@@ -274,19 +295,19 @@
           onnewworktree={(repositoryId) =>
             shell.start({ kind: "new-worktree", repositoryId })}
           onhomeworktrees={(repositoryId) => {
-            const repo = shell.repositories.list.find(
+            const repo = shell.repositories?.list.find(
               (r) => r.id === repositoryId,
             );
             if (repo) shell.chooseHomeWorktrees(repo);
           }}
           onmanageworktrees={(repositoryId) => {
-            const repo = shell.repositories.list.find(
+            const repo = shell.repositories?.list.find(
               (r) => r.id === repositoryId,
             );
             if (repo) shell.repositoryDetails(repo, "worktrees");
           }}
           onrepositorydetails={(repositoryId) => {
-            const repo = shell.repositories.list.find(
+            const repo = shell.repositories?.list.find(
               (r) => r.id === repositoryId,
             );
             if (repo) shell.repositoryDetails(repo);
@@ -295,15 +316,32 @@
           onremoveworktree={withTree((tree) => shell.removeWorktree(tree))}
           onswitchbranch={withTree((tree) => shell.switchBranch(tree))}
           onbranchoperation={shell.branchOperation}
-          onopengit={(repositoryId, worktreeId, view) =>
-            openGitWorkbench({ repositoryId, worktreeId, view })}
+          onopengit={pluginAvailable("workspace.git-workbench")
+            ? (repositoryId, worktreeId, view) =>
+                openGitWorkbench({ repositoryId, worktreeId, view })
+            : undefined}
           onrename={shell.rename}
           onclose={shell.close}
-          records={shell.archived.records}
+          records={shell.archived?.records ?? []}
           {resuming}
           onresume={open}
           onremove={askRemove}
         />
+      {:else if !workspace || !shell.repositories}
+        <ul class="space-y-0.5">
+          {#each unpinned as session (session.id)}
+            <SidebarLiveSessionRow
+              {session}
+              {current}
+              icon={session.agent?.icon ??
+                configIcons.get(session.configId ?? "") ??
+                ""}
+              onopen={openSession}
+              onrename={shell.rename}
+              onclose={shell.close}
+            />
+          {/each}
+        </ul>
       {/if}
     </div>
   </ScrollArea>
@@ -324,13 +362,21 @@
 >
   只删除 WebMux 的记录与本机草稿；工作树与 agent 自己保存的会话不受影响。
 </ConfirmDialog>
-{#if rebuilding}
+{#if rebuilding && workspace && chat}
   {@const { record, released } = rebuilding}
-  <RebuildWorktreeDialog
-    id={record.id}
-    title={recordTitle(record)}
-    {released}
+  <LazyDialog
+    load={chat.rebuild}
+    label="恢复工作树"
     onclose={() => (rebuilding = null)}
-    onrebuilt={rebuilt}
-  />
+  >
+    {#snippet children(page)}
+      <page.default
+        id={record.id}
+        title={recordTitle(record)}
+        {released}
+        onclose={() => (rebuilding = null)}
+        onrebuilt={rebuilt}
+      />
+    {/snippet}
+  </LazyDialog>
 {/if}

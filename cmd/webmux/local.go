@@ -12,6 +12,7 @@ import (
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/client"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/pluginapi"
 	"github.com/rainchan/webmux/internal/runtime"
 )
 
@@ -28,7 +29,7 @@ type localRuntime struct {
 // startRuntime acquires the lock, listens on the socket and writes the
 // record. It must run after the TCP listener is bound and before it serves.
 // providers supply the access links of /local/v1/status, in display order.
-func startRuntime(ctx context.Context, c serverRun, addr net.Addr, deps api.Deps, shutdown func(), tunnels *tunnelController, tailscale *tailscaleController, providers []accessProvider) *localRuntime {
+func startRuntime(ctx context.Context, c serverRun, addr net.Addr, deps api.Deps, shutdown func(), plugins *pluginServices, providers []accessProvider) *localRuntime {
 	m := deps.Manager
 	rt := &localRuntime{dir: runtime.Dir(c.StateDir)}
 	if err := runtime.EnsureDir(rt.dir); err != nil {
@@ -77,14 +78,18 @@ func startRuntime(ctx context.Context, c serverRun, addr net.Addr, deps api.Deps
 		if deps.Guide != nil {
 			deps.Guide.SetSocket(path)
 		}
+		localOptions := api.Local{
+			Configuration: func() contract.Configuration { return effectiveView(c, record, deps, plugins) },
+			Status:        func() contract.StatusV1 { return localStatus(record, c, deps, plugins, providers) },
+			Shutdown:      shutdown,
+			InSession:     m.ContainsProcess,
+		}
+		if plugins.tunnel != nil {
+			localOptions.Tunnel = plugins.tunnel.SetEnabled
+			localOptions.TunnelFailure = pluginapi.LocalTunnelFailure
+		}
 		rt.server = &http.Server{
-			Handler: api.NewLocal(deps, api.Local{
-				Configuration: func() contract.Configuration { return effectiveView(c, record, deps) },
-				Status:        func() contract.StatusV1 { return localStatus(record, c, deps, tunnels, tailscale, providers) },
-				Shutdown:      shutdown,
-				InSession:     m.ContainsProcess,
-				Tunnel:        tunnels.SetEnabled,
-			}),
+			Handler:           api.NewLocal(deps, localOptions),
 			ReadHeaderTimeout: 10 * time.Second,
 			IdleTimeout:       60 * time.Second,
 			BaseContext:       func(net.Listener) context.Context { return ctx },
@@ -99,8 +104,8 @@ func startRuntime(ctx context.Context, c serverRun, addr net.Addr, deps api.Deps
 	return rt
 }
 
-func localStatus(record runtime.Record, c serverRun, deps api.Deps, tunnels *tunnelController, tailscale *tailscaleController, providers []accessProvider) contract.StatusV1 {
-	m, pushes := deps.Manager, deps.Push
+func localStatus(record runtime.Record, c serverRun, deps api.Deps, plugins *pluginServices, providers []accessProvider) contract.StatusV1 {
+	m := deps.Manager
 	s := client.FromRecord(record, client.NetInterfaces)
 	s.State = contract.StateRunning
 	s.LocalAPI = true
@@ -110,14 +115,25 @@ func localStatus(record runtime.Record, c serverRun, deps api.Deps, tunnels *tun
 	s.Health = contract.Health{Status: contract.HealthOK}
 	client.ApplyConfig(&s, record, c.ConfigPath, c.ConfigExplicit)
 	s.URLs.Access = accessLinks(providers)
-	tunnel := tunnels.Status()
-	s.Tunnel = &tunnel
-	ts := tailscale.Summary()
-	s.Tailscale = &ts
-	state := pushes.Status()
-	s.Push = &contract.PushStatus{Enabled: state.Enabled, Available: state.Available, Error: state.Error, Subscriptions: state.Subscriptions}
-	if host := tunnels.Settings().Hostname; host != "" {
-		s.Push.PublicOrigin = "https://" + host
+	if plugins.tunnel != nil {
+		tunnel := plugins.tunnel.Status()
+		s.Tunnel = &tunnel
+	}
+	if plugins.tailscale != nil {
+		ts := plugins.tailscale.Summary()
+		s.Tailscale = &ts
+	}
+	if c.Plugins.Has("notifications") {
+		s.Push = &contract.PushStatus{}
+		if plugins.push != nil {
+			state := plugins.push.Status()
+			s.Push = &contract.PushStatus{Enabled: state.Enabled, Available: state.Available, Error: state.Error, Subscriptions: state.Subscriptions}
+		}
+		if plugins.tunnel != nil {
+			if host := plugins.tunnel.Settings().Hostname; host != "" {
+				s.Push.PublicOrigin = "https://" + host
+			}
+		}
 	}
 	if deps.InstalledVersion != nil {
 		s.InstalledVersion = deps.InstalledVersion()

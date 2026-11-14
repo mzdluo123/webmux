@@ -20,13 +20,11 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/api"
-	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/localclient"
 	"github.com/rainchan/webmux/internal/session"
-	"github.com/rainchan/webmux/internal/workspace"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 // fakeTerminal feeds scripted input and records output.
@@ -84,8 +82,8 @@ func server(t *testing.T) (*session.Manager, *localclient.Client) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	m := session.NewManager(session.Options{})
-	ws := workspace.New(dir, m, nil, dir)
-	handler := api.NewLocal(api.Deps{Config: config.Config{DefaultCwd: dir}, Manager: m, Workspace: ws, Code: codeview.New(m, nil), Files: files.New(dir)}, api.Local{Status: func() contract.StatusV1 { return contract.StatusV1{} }})
+	create := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: dir})
+	handler := api.NewLocal(api.Deps{Config: config.Config{DefaultCwd: dir, Plugins: config.PluginConfig{Enabled: []string{}}}, Manager: m, Create: create}, api.Local{Status: func() contract.StatusV1 { return contract.StatusV1{} }})
 	socket := filepath.Join(dir, "s.sock")
 	l, err := net.Listen("unix", socket)
 	if err != nil {
@@ -97,8 +95,8 @@ func server(t *testing.T) (*session.Manager, *localclient.Client) {
 	t.Cleanup(func() {
 		client.Close()
 		_ = srv.Close()
+		create.Close()
 		m.Shutdown(context.Background())
-		ws.Close()
 	})
 	return m, client
 }

@@ -2,6 +2,7 @@
 
 预览在服务端选择已提交 Activity，保存为独立草稿；可切换同一 Conversation 的 agent，或 fork 到新的 Conversation。浏览器入口见[交接操作](../hybrid-sessions/handoff.md)。
 它不启动 agent、不创建 worktree，也不依赖浏览器缓存或活跃 actor。来源历史接口见[持久对话历史](http-conversation.md)。
+预览与投递需要 `chat` 及其 `launch` / `files` 依赖，并受历史开关限制；仓库/worktree 目标另需 `workspace`。禁用插件不打开、恢复或清扫其数据库，端点返回 404。
 
 ## 创建与读取
 

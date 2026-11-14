@@ -9,9 +9,9 @@ import (
 
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
-	"github.com/rainchan/webmux/internal/workspace"
 	"maps"
 )
 
@@ -129,7 +129,7 @@ func TestArchivedProviderCannotResumeBesideActiveConversationWriter(t *testing.T
 	ctx := context.Background()
 	before := h.promptCalls()
 	for _, side := range []string{"acp", "tui"} {
-		_, err := h.workspace.ResumeHybrid(ctx, original.ID, workspace.HybridResumeInput{ClientRequestID: "ordinary-old-provider-" + side, Side: side})
+		_, err := h.recovery.Resume(ctx, original.ID, hybridresume.Input{ClientRequestID: "ordinary-old-provider-" + side, Side: side})
 		if !errors.Is(err, hybrid.ErrSwitching) {
 			t.Fatalf("old provider admitted on %s: %v", side, err)
 		}
@@ -153,11 +153,11 @@ func TestUnknownDeliveryRecoveryCannotStartTerminalOrReplaceNativeIdentity(t *te
 	e := h.waitStatus(p.ID, "unknown")
 	h.close()
 	h.open()
-	for _, in := range []workspace.HybridResumeInput{
+	for _, in := range []hybridresume.Input{
 		{ClientRequestID: "unknown-terminal", Side: "tui"},
 		{ClientRequestID: "unknown-new-native", Side: "acp", AgentSessionID: "another-native-thread"},
 	} {
-		if _, err := h.workspace.ResumeHybrid(ctx, e.RuntimeID, in); !errors.Is(err, hybrid.ErrSwitching) {
+		if _, err := h.recovery.Resume(ctx, e.RuntimeID, in); !errors.Is(err, hybrid.ErrSwitching) {
 			t.Fatalf("unknown gate bypassed: %+v %v", in, err)
 		}
 	}
@@ -181,7 +181,7 @@ func TestInterruptedSourceQuiescesWithoutWaitingForExecutionTimeout(t *testing.T
 	if _, err := h.hybrids.Switch(ctx, id, hybrid.SwitchInput{ClientRequestID: "source-to-terminal", To: hybrid.SideTUI}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.hybrids.Input(ctx, id, hybrid.InputRequest{ClientRequestID: "terminal-exit-command", Text: "/exit", Submit: true}); err != nil {
+	if _, err := h.hybrids.Input(ctx, id, session.InputRequest{ClientRequestID: "terminal-exit-command", Text: "/exit", Submit: true}); err != nil {
 		t.Fatal(err)
 	}
 	for {
@@ -253,8 +253,12 @@ func TestProviderSwitchAtoBtoAResumesOnlyUnseenDelta(t *testing.T) {
 	}
 	b := h.waitStatus(p.ID, "inline")
 	live, err := h.manager.Get(b.RuntimeID)
-	if err != nil || live.Info().Hybrid == nil || live.Info().Hybrid.ConversationID != h.source.ConversationID || live.Info().Hybrid.ProviderThreadID != b.TargetProviderThreadID {
-		t.Fatal("runtime has no Conversation links", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := h.hybrids.Metadata(live.Info().ID)
+	if metadata == nil || metadata.ConversationID != h.source.ConversationID || metadata.ProviderThreadID != b.TargetProviderThreadID {
+		t.Fatal("runtime has no Conversation links")
 	}
 	waitIdle(t, h.hybrids, b.RuntimeID)
 	rec, err := h.hybrids.Record(originalRuntime)
@@ -483,7 +487,7 @@ func TestPreRetirementFailureAllowsUnchangedSourceResume(t *testing.T) {
 				}
 			}
 			before := h.promptCalls()
-			if _, err := h.workspace.ResumeHybrid(ctx, id, workspace.HybridResumeInput{ClientRequestID: "resume-unchanged-source", Side: "acp"}); err != nil {
+			if _, err := h.recovery.Resume(ctx, id, hybridresume.Input{ClientRequestID: "resume-unchanged-source", Side: "acp"}); err != nil {
 				t.Fatalf("failed target prevented source resume: %v", err)
 			}
 			resumed, err := h.hybrids.Record(id)
@@ -525,7 +529,7 @@ func TestUnresolvedSwitchCannotResumeSource(t *testing.T) {
 			h.close()
 			h.open()
 			for _, side := range []string{"acp", "tui"} {
-				if _, err := h.workspace.ResumeHybrid(ctx, ids[0], workspace.HybridResumeInput{ClientRequestID: "unresolved-source-" + side, Side: side}); !errors.Is(err, hybrid.ErrSwitching) {
+				if _, err := h.recovery.Resume(ctx, ids[0], hybridresume.Input{ClientRequestID: "unresolved-source-" + side, Side: side}); !errors.Is(err, hybrid.ErrSwitching) {
 					t.Fatalf("%s source bypassed owner on %s: %v", status, side, err)
 				}
 			}

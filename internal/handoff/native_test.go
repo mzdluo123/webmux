@@ -11,8 +11,8 @@ import (
 
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
-	"github.com/rainchan/webmux/internal/workspace"
 )
 
 func nativeTest(t *testing.T, extra map[string]string) *deliveryHarness {
@@ -129,7 +129,7 @@ func TestNativeCodexInjectsRolesBeforeIndependentUserPromptAndDeduplicatesLoad(t
 	assertTarget()
 	h.close()
 	h.open()
-	if _, err := h.workspace.ResumeHybrid(ctx, e.RuntimeID, workspace.HybridResumeInput{ClientRequestID: "native-load-replay", Side: "acp"}); err != nil {
+	if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: "native-load-replay", Side: "acp"}); err != nil {
 		t.Fatal(err)
 	}
 	assertTarget()
@@ -161,7 +161,7 @@ func TestNativeUnknownDoesNotFallbackOrRetryUntilExactLoadProof(t *testing.T) {
 	if nativeCalls(t, h) != 1 || h.promptCalls() != before {
 		t.Fatal("unknown injection retried after restart")
 	}
-	if _, err := h.workspace.ResumeHybrid(ctx, e.RuntimeID, workspace.HybridResumeInput{ClientRequestID: "native-explicit-proof", Side: "acp"}); err != nil {
+	if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: "native-explicit-proof", Side: "acp"}); err != nil {
 		t.Fatal(err)
 	}
 	proved, err := h.service.Delivery(ctx, p.ID)
@@ -201,7 +201,7 @@ func TestNativeUnknownReconcilesTargetReplayAfterForgettingSource(t *testing.T) 
 	for _, requestID := range []string{"retained-native-proof", "retained-native-repeat"} {
 		h.close()
 		h.open()
-		if _, err := h.workspace.ResumeHybrid(ctx, e.RuntimeID, workspace.HybridResumeInput{ClientRequestID: requestID, Side: "acp"}); err != nil {
+		if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: requestID, Side: "acp"}); err != nil {
 			t.Fatal(err)
 		}
 		receipt, err := h.store.Injection(ctx, e.DeliveryID)
@@ -357,7 +357,7 @@ func TestSameConversationNativeProofRetainsUnsentRequestWhenSourceBecomesStale(t
 	e := h.waitStatus(p.ID, "unknown")
 	h.close()
 	h.open()
-	if _, err := h.workspace.ResumeHybrid(ctx, e.RuntimeID, workspace.HybridResumeInput{ClientRequestID: "same-native-explicit-load", Side: "acp"}); err != nil {
+	if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: "same-native-explicit-load", Side: "acp"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.service.Deliver(ctx, h.source.ConversationID, in); err != nil {

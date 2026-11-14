@@ -3,7 +3,6 @@ package session
 import (
 	"maps"
 	"path/filepath"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,15 +22,9 @@ const (
 	StatusExited  = contract.SessionStatusExited
 )
 
-type Workspace struct {
-	RepositoryID string
-	WorktreeID   string
-	WorktreePath string
-}
-
 // ReportedCwd is the directory a program reported through OSC 7. It is a
 // navigation hint only; session ownership, file access roots and command
-// execution stay bound to the immutable launch directory and Workspace.
+// execution stay bound to the immutable launch directory.
 type ReportedCwd struct {
 	Path   string
 	Host   string
@@ -58,16 +51,10 @@ type Info struct {
 	Cols             uint16
 	Rows             uint16
 	Clients          int
-	Workspace        *Workspace
 	Attention        *Attention
 	ReportedCwd      *ReportedCwd
 	// ConfigID is the saved launch config used at creation, if any.
 	ConfigID string
-	// Hybrid is set only on a shell whose driver published an overlay.
-	Hybrid *HybridInfo
-	// ListeningPorts are the TCP ports the current run's process tree
-	// listens on, refreshed every 2 seconds (see ListeningPortsSupported).
-	ListeningPorts []ListeningPort
 	// ParentID is the session whose process created this one through the
 	// local API; empty otherwise. It lives in memory only.
 	ParentID string
@@ -276,12 +263,7 @@ func (s *Session) infoLocked() Info {
 	i := s.info
 	i.Clients = len(s.subs)
 	i.Cmd = append([]string(nil), i.Cmd...)
-	i.ListeningPorts = slices.Clone(i.ListeningPorts)
 	i.Labels = maps.Clone(i.Labels)
-	if i.Workspace != nil {
-		workspace := *i.Workspace
-		i.Workspace = &workspace
-	}
 	if i.ExitCode != nil {
 		code := *i.ExitCode
 		i.ExitCode = &code

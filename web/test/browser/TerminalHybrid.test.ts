@@ -110,7 +110,6 @@ async function onTerminalSide(state: ChatState, claude = false) {
     id,
     drafts,
     onUploadNotice: () => {},
-    reopen: () => {},
   });
   const terminal = await socketAt(terminalPath);
   terminal.binary(2, sessionInfo);

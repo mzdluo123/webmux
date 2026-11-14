@@ -3,10 +3,14 @@ import {
   stopSettings,
 } from "../../src/domains/settings/settings.svelte";
 import { emptySettings } from "../../src/domains/settings/settings-intent";
-import { afterEach, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Settings from "../../src/pages/Settings.svelte";
+import { PluginIDSchema } from "../../src/contracts/plugin-schemas";
+import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
+
+beforeEach(() => enableCreationPlugins(PluginIDSchema.options));
 
 const config = {
   id: "abcdefg2",
@@ -57,6 +61,7 @@ afterEach(async () => {
   } finally {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    resetCreationPlugins();
     localStorage.clear();
   }
 });

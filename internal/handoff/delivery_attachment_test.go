@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
-	"github.com/rainchan/webmux/internal/workspace"
 )
 
 func TestOwnedAttachmentFallbackReconcilesExactProviderTextAfterRestart(t *testing.T) {
@@ -79,7 +79,7 @@ func TestOwnedAttachmentFallbackReconcilesExactProviderTextAfterRestart(t *testi
 	if _, err := h.launches.Update(cfg.ID, launch.Input{Name: cfg.Name, Cmd: cfg.Cmd, Env: cfg.Env, Hybrid: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.workspace.ResumeHybrid(ctx, e.RuntimeID, workspace.HybridResumeInput{ClientRequestID: "attachment-reconcile", Side: "acp"}); err != nil {
+	if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: "attachment-reconcile", Side: "acp"}); err != nil {
 		t.Fatal(err)
 	}
 	h.waitStatus(p.ID, "inline")
@@ -133,7 +133,7 @@ func TestOwnedAttachmentFallbackReconcilesExactProviderTextAfterRestart(t *testi
 	sub.Close()
 	h.close()
 	h.open()
-	if _, err := h.workspace.ResumeHybrid(ctx, e.RuntimeID, workspace.HybridResumeInput{ClientRequestID: "load-after-source-forgotten", Side: "acp"}); err != nil {
+	if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: "load-after-source-forgotten", Side: "acp"}); err != nil {
 		t.Fatal(err)
 	}
 	again, err := h.hybrids.Subscribe(e.RuntimeID, nil)

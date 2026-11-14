@@ -5,11 +5,13 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 func configService(t *testing.T, launches *launch.Service) (*Service, string) {
@@ -40,22 +42,22 @@ func TestConfigIDRulesRunBeforeDirectoryChecks(t *testing.T) {
 	missing := filepath.Join(cwd, "missing")
 	for _, row := range []struct {
 		name string
-		in   CreateInput
+		in   sessioncreate.Input
 		kind error
 		text string
 	}{
-		{"empty", CreateInput{Cwd: missing, ConfigID: &empty}, ErrInvalid, "configId must not be empty"},
-		{"with cmd", CreateInput{Cwd: missing, ConfigID: &id, Cmd: []string{"x"}}, ErrInvalid, "configId cannot be combined with cmd or env"},
-		{"with env", CreateInput{Cwd: missing, ConfigID: &id, Env: map[string]string{"A": "1"}}, ErrInvalid, "configId cannot be combined with cmd or env"},
-		{"unknown", CreateInput{Cwd: missing, ConfigID: &unknown}, launch.ErrNotFound, launch.ErrNotFound.Error()},
-		{"forged env", CreateInput{Cwd: missing, Cmd: []string{"/bin/sh"}, Env: map[string]string{"WEBMUX_SESSION_ID": "x"}}, ErrInvalid, ""},
+		{"empty", sessioncreate.Input{Cwd: missing, ConfigID: &empty}, ErrInvalid, "configId must not be empty"},
+		{"with cmd", sessioncreate.Input{Cwd: missing, ConfigID: &id, Cmd: []string{"x"}}, ErrInvalid, "configId cannot be combined with cmd or env"},
+		{"with env", sessioncreate.Input{Cwd: missing, ConfigID: &id, Env: map[string]string{"A": "1"}}, ErrInvalid, "configId cannot be combined with cmd or env"},
+		{"unknown", sessioncreate.Input{Cwd: missing, ConfigID: &unknown}, launch.ErrNotFound, launch.ErrNotFound.Error()},
+		{"forged env", sessioncreate.Input{Cwd: missing, Cmd: []string{"/bin/sh"}, Env: map[string]string{"WEBMUX_SESSION_ID": "x"}}, ErrInvalid, ""},
 	} {
 		_, err := s.CreateSession(context.Background(), row.in)
-		if !errors.Is(err, row.kind) || (row.text != "" && err.Error() != row.text) {
+		if !errors.Is(err, row.kind) || (row.text != "" && !strings.Contains(err.Error(), row.text)) {
 			t.Errorf("%s: %v, want %v %q", row.name, err, row.kind, row.text)
 		}
 	}
-	item, err := s.CreateSession(context.Background(), CreateInput{ConfigID: &id})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{ConfigID: &id})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +65,7 @@ func TestConfigIDRulesRunBeforeDirectoryChecks(t *testing.T) {
 	if !reflect.DeepEqual(info.Cmd, saved.Cmd) || info.Cwd != cwd || info.ConfigID != saved.ID {
 		t.Fatalf("session from config: %+v", info)
 	}
-	direct, err := s.CreateSession(context.Background(), CreateInput{Cwd: cwd, Cmd: []string{"/bin/sh", "-c", "printf DIRECT"}})
+	direct, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: cwd, Cmd: []string{"/bin/sh", "-c", "printf DIRECT"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +77,7 @@ func TestConfigIDRulesRunBeforeDirectoryChecks(t *testing.T) {
 func TestConfigIDWithoutLaunchStoreIsUnavailable(t *testing.T) {
 	s, _ := configService(t, nil)
 	id := "abcdefgh"
-	if _, err := s.CreateSession(context.Background(), CreateInput{ConfigID: &id}); !errors.Is(err, launch.ErrUnavailable) {
+	if _, err := s.CreateSession(context.Background(), sessioncreate.Input{ConfigID: &id}); !errors.Is(err, sessioncreate.ErrUnavailable) {
 		t.Fatalf("nil store: %v", err)
 	}
 }
@@ -99,7 +101,7 @@ func TestConfigIDPassesAttentionSettingsToSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := saved.ID
-	item, err := s.CreateSession(context.Background(), CreateInput{ConfigID: &id})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{ConfigID: &id})
 	if err != nil {
 		t.Fatal(err)
 	}

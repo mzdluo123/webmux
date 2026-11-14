@@ -22,11 +22,13 @@
     value = $bindable(),
     id,
     commands,
+    commandsAvailable = true,
     label = "初始化指令",
   }: {
     value: string;
     id: string;
     commands: QuickCommand[];
+    commandsAvailable?: boolean;
     label?: string;
   } = $props();
   let field = $state<HTMLTextAreaElement | null>(null);
@@ -60,8 +62,9 @@
 <div class="space-y-2">
   <Label for={id}>{label}</Label>
   <p id={`${id}-help`} class="text-xs text-muted-foreground">
-    这是一段模板：写 {"{{快捷指令名称}}"} 会插入该快捷指令的文本（只展开一层，不递归）；写
-    <code>{"{{dir}}"}</code>
+    这是一段模板：
+    {#if commandsAvailable}写 {"{{快捷指令名称}}"} 会插入该快捷指令的文本（只展开一层，不递归）；{/if}
+    写 <code>{"{{dir}}"}</code>
     会换成新会话的临时文件夹路径，写 <code>{"{{webmux}}"}</code>
     会换成 WebMux 工具说明（手册地址、命令路径与临时文件夹），写
     <code>{"{{user}}"}</code>
@@ -111,7 +114,11 @@
         >
       {/each}
     </div>
-    {#if !names.length}
+    {#if !commandsAvailable}
+      <p class="text-xs text-muted-foreground">
+        快捷指令功能未启用或暂不可用；已有引用会保留，但不能展开。
+      </p>
+    {:else if !names.length}
       <p class="text-xs text-muted-foreground">
         还没有带名称的快捷指令，请先在设置中添加。
       </p>

@@ -107,6 +107,18 @@ test("repository menu and repository panel expose Git workbench entry when avail
   expect(onGitHeader).toHaveBeenCalledTimes(1);
 });
 
+test("home toolbar omits Git when the combined contribution is unavailable", async () => {
+  render(WorkspaceActions, {
+    compact: false,
+    refreshing: false,
+    onchange: vi.fn(),
+    onrefresh: vi.fn(),
+  });
+  expect(
+    page.getByRole("button", { name: "Git 工作台", exact: true }).elements(),
+  ).toEqual([]);
+});
+
 test("home toolbar keeps the Git workbench entry outside the ⋯ menu", async () => {
   // The button is permanent — it must render even before repositories settle
   // so its late arrival cannot shift the row.

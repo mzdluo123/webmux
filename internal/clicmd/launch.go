@@ -277,6 +277,22 @@ func (e Env) run(ctx context.Context, o runOptions, argv []string) int {
 		return code
 	}
 	defer client.Close()
+	var required []string
+	if o.launchConfigSet {
+		required = append(required, "launch.configs")
+	}
+	if o.worktree != "" || o.newWorktree || o.init {
+		required = append(required, "workspace.manage")
+	}
+	if o.view == string(contract.ViewChat) {
+		required = append(required, "chat.acp")
+	}
+	if len(o.attachments) > 0 {
+		required = append(required, "files.upload")
+	}
+	if err := requireCapabilities(ctx, client, required...); err != nil {
+		return e.Fail(err)
+	}
 	dir, err := e.ResolveCwd(ctx, o.cwd)
 	if err != nil {
 		_, _ = fmt.Fprintln(e.Stderr, "webmux run:", err)
@@ -314,9 +330,11 @@ func (e Env) run(ctx context.Context, o runOptions, argv []string) int {
 	// or a new one the server creates first.
 	var repos []contract.Repository
 	var newRepo contract.Repository
-	repos, err = repositories(ctx, client)
-	if err != nil && (o.worktree != "" || o.newWorktree) {
-		return e.Fail(err)
+	if o.worktree != "" || o.newWorktree || o.init {
+		repos, err = repositories(ctx, client)
+		if err != nil {
+			return e.Fail(err)
+		}
 	}
 	switch {
 	case o.worktree != "":

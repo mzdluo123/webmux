@@ -64,7 +64,7 @@
     visible: boolean;
     // Keeps the PTY grid fixed and lets the host scroll past its edges.
     sizeLocked?: boolean;
-    uploads: ViewportUploads;
+    uploads?: ViewportUploads;
     quickMenu: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
     // Phones keep the draft switch beside the quick commands.
     draftToggle: Snippet;
@@ -201,7 +201,7 @@
       bind:this={container}
     ></div>
     {@render findBar?.()}
-    {#if uploads.dragging}
+    {#if uploads?.dragging}
       <div
         class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-primary bg-background/90"
         role="status"

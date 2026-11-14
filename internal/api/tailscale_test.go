@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/pluginapi"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/tailscalesettings"
 )
@@ -49,11 +50,11 @@ func (c *tailscaleControlFixture) ResetSettings() (contract.TailscaleStatus, err
 	return c.view, c.err
 }
 
-func tailscaleAPIHandler(t *testing.T, control TailscaleControl) *Server {
+func tailscaleAPIHandler(t *testing.T, control pluginapi.TailscaleControl) *Server {
 	t.Helper()
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
-	deps := testDeps(t, Deps{Manager: m, Tailscale: control})
+	deps := testDeps(t, testServices{Manager: m, Tailscale: control})
 	deps.Config.Token = "login-secret"
 	return &Server{Deps: deps}
 }

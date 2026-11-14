@@ -1,8 +1,6 @@
 import { expect, test } from "vite-plus/test";
-import {
-  applySessionEvent,
-  unknownWorkspaces,
-} from "../src/hooks/sessions/session-list";
+import { applySessionEvent } from "../src/domains/sessions/session-events";
+import { unknownWorkspaces } from "../src/hooks/sessions/session-list";
 import type {
   Repository,
   SessionInfo,

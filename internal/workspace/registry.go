@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
@@ -62,16 +61,12 @@ type snapshotFlight struct {
 	waiters    int
 }
 type Service struct {
-	manager   *session.Manager
-	launches  *launch.Service
-	hybrids   *hybrid.Service
-	artifacts *artifacts.Service
+	manager  *session.Manager
+	launches *launch.Service
+	hybrids  *hybrid.Service
 	// commands lists the saved quick commands an initialization instruction
 	// may reference; nil means none exist.
-	commands func() []QuickCommand
-	// brief writes the {{webmux}} brief of a session; nil leaves an
-	// instruction that uses it unavailable.
-	brief        func(sessionID, dir string) string
+	commands     func() []QuickCommand
 	defaultCwd   string
 	gitPath      string
 	fetchTimeout time.Duration
@@ -84,6 +79,12 @@ type Service struct {
 	writeGatesMu sync.Mutex
 	writeGates   map[string]chan struct{}
 	mu           sync.Mutex
+	associations map[string]Association
+	// associationMu orders cache commits through their source publication.
+	// Capture reads only associationCacheMu, never registry or process state.
+	associationMu      sync.Mutex
+	associationCacheMu sync.RWMutex
+	stopAssociations   func()
 	// saveMu serializes registry read-modify-write cycles without holding mu
 	// across the state file commit.
 	saveMu        sync.Mutex
@@ -95,7 +96,6 @@ type Service struct {
 	reservations  map[string]bool
 	changed       chan struct{}
 	confirmations map[string]confirmation
-	creates       creates
 
 	opsMu        sync.Mutex
 	opsSaveMu    sync.Mutex
@@ -158,9 +158,15 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 	if s.opsAvailable {
 		s.reconcileOperationsOnStartup()
 	}
+	if manager != nil {
+		s.stopAssociations = manager.Observe(associationCleanup{service: s})
+	}
 	return s
 }
 func (s *Service) Close() {
+	if s.stopAssociations != nil {
+		s.stopAssociations()
+	}
 	s.mu.Lock()
 	s.store.Close()
 	s.capability.RegistryAvailable = false
@@ -178,18 +184,10 @@ func (s *Service) Capability() Capability { s.mu.Lock(); defer s.mu.Unlock(); re
 // ErrUnavailable.
 func (s *Service) UseHybrid(h *hybrid.Service) { s.hybrids = h }
 
-// UseArtifacts installs, once at assembly before serving, the folders quick
-// starts stage uploads in. Without it a quick start takes no attachments.
-func (s *Service) UseArtifacts(a *artifacts.Service) { s.artifacts = a }
-
 // UseQuickCommands installs, once at assembly before serving, the source of
 // the saved quick commands that initialization instructions reference by
 // name.
 func (s *Service) UseQuickCommands(list func() []QuickCommand) { s.commands = list }
-
-// UseBrief installs, once at assembly before serving, the writer of the
-// brief {{webmux}} expands to for a session and its artifacts folder.
-func (s *Service) UseBrief(brief func(sessionID, dir string) string) { s.brief = brief }
 
 func (s *Service) load() error {
 	expanded, err := pathutil.Expand(s.stateDir)
@@ -402,8 +400,8 @@ func (s *Service) Unregister(id string) error {
 	s.purgeRepositoryBaselines(r, id)
 	s.purgeRepositoryCollabState(id)
 	for _, info := range s.manager.List() {
-		if info.Workspace != nil && info.Workspace.RepositoryID == id {
-			s.manager.SetWorkspace(info.ID, info.Cwd, nil)
+		if association := s.Association(info.ID); association != nil && association.RepositoryID == id {
+			s.commitAssociation(info, nil, false)
 		}
 	}
 	return nil

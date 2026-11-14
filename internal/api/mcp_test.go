@@ -11,8 +11,8 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/mcphttp"
 	"github.com/rainchan/webmux/internal/mcpprotocol"
-	"github.com/rainchan/webmux/internal/p2p"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/streamproto"
 )
 
 func TestMCPAuthenticationAndExposure(t *testing.T) {
@@ -24,10 +24,9 @@ func TestMCPAuthenticationAndExposure(t *testing.T) {
 	defer endpoint.Close()
 	manager := session.NewManager(session.Options{})
 	defer manager.Shutdown(context.Background())
-	deps := testDeps(t, Deps{
-		Config:  config.Config{Listen: "127.0.0.1:7681", Token: "secret", MCP: config.MCPConfig{Enabled: true}, AllowedOrigins: []string{"https://trusted.example"}},
-		Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), MCP: endpoint,
-	})
+	services := testServices{Config: config.Config{Listen: "127.0.0.1:7681", Token: "secret", MCP: config.MCPConfig{Enabled: true}, AllowedOrigins: []string{"https://trusted.example"}},
+		Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), MCP: endpoint}
+	deps := testDeps(t, services)
 	bridge := NewBridge(deps)
 	const initialize = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"security-test","version":"1"}}}`
 	for _, tt := range []struct {
@@ -80,25 +79,33 @@ func TestMCPAuthenticationAndExposure(t *testing.T) {
 		}
 	}
 	for _, path := range []string{"/mcp", "/mcp/"} {
-		w := httptest.NewRecorder()
-		NewLocal(deps, Local{}).ServeHTTP(w, httptest.NewRequest(http.MethodPost, "http://webmux"+path, nil))
-		if w.Code != http.StatusNotFound {
-			t.Fatalf("local %s exposed MCP: %d", path, w.Code)
-		}
-		res := bridge.ServeRPC(context.Background(), p2p.RPCRequest{Method: http.MethodPost, Path: path})
-		if res.Status != http.StatusNotFound {
-			t.Fatalf("P2P %s exposed MCP: %+v", path, res)
+		for _, credential := range []string{"", "Bearer secret"} {
+			request := httptest.NewRequest(http.MethodPost, "http://webmux"+path, strings.NewReader(initialize))
+			request.Header.Set("Authorization", credential)
+			w := httptest.NewRecorder()
+			NewLocal(deps, Local{}).ServeHTTP(w, request)
+			if w.Code != http.StatusNotFound {
+				t.Fatalf("local %s exposed MCP: %d", path, w.Code)
+			}
+			res := bridge.ServeRPC(context.Background(), streamproto.RPCRequest{Method: http.MethodPost, Path: path, Headers: map[string]string{"Authorization": credential}, Body: []byte(initialize)})
+			if res.Status != http.StatusNotFound {
+				t.Fatalf("P2P %s exposed MCP: %+v", path, res)
+			}
 		}
 	}
-	deps.Config.MCP.Enabled = false
+	services.Config.MCP.Enabled = false
+	deps = testDeps(t, services)
 	for _, path := range []string{"/mcp", "/mcp/"} {
 		w := httptest.NewRecorder()
-		New(deps).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7681"+path, nil))
+		request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7681"+path, nil)
+		request.Header.Set("Authorization", "Bearer secret")
+		New(deps).ServeHTTP(w, request)
 		if w.Code != http.StatusNotFound || strings.Contains(w.Body.String(), "<!doctype") {
 			t.Fatalf("disabled %s returned %d %s", path, w.Code, w.Body.String())
 		}
 	}
-	deps.Config.MCP.Enabled, deps.Config.Token = true, ""
+	services.Config.MCP.Enabled, services.Config.Token = true, ""
+	deps = testDeps(t, services)
 	w := httptest.NewRecorder()
 	New(deps).ServeHTTP(w, httptest.NewRequest(http.MethodPost, "http://127.0.0.1:7681/mcp", strings.NewReader(initialize)))
 	if w.Code != http.StatusUnauthorized {

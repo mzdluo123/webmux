@@ -1,5 +1,8 @@
 # HTTP API：仓库与代码工作区
 
+仓库与 worktree 管理需要 `workspace`；会话代码端点需要 `code`；Git 工作台的 `/git/*` 组合路由需要两者同时选中。
+禁用的路由在 SPA 回退前返回 404，不隐式开启插件；先读取 [能力发现](../protocol.md#能力发现)。仓库/worktree 基础管理不要求 launch/chat。
+
 ## 仓库与 worktree
 
 | 方法       | 路径                                                            | 说明                                                                                                                                                                                |

@@ -219,6 +219,37 @@
   - 额外核验 `375×667`、`320×568`、`667×375` 打开终端菜单时均无横向溢出且浮层完整落在视口内；
   - 限制：无头 Chromium 未验证物理 `hover`、`any-pointer: coarse` 与 iOS/Android 真机表现。
 
+## 2026-11-14：终端核心与内置插件切换
+
+- 故事范围：US-B01–US-B03、US-B08、US-C01、US-C08、US-C12、US-C16–US-C18、US-K04、US-K10、US-M01–US-M02、US-M05、US-M08、US-Q01、US-Q12–US-Q13、US-Q18–US-Q20、US-S07、US-S20、US-S24–US-S25。
+- 新增 US-K18–US-K21；故事总数从 252 增至 256，原 ID 与历史记录保留。
+- 已执行的本轮静态及定向回归：
+  - `make build`、生产与测试 Svelte 类型检查通过：539 文件、0 错误、0 警告；
+  - 前端 lint、完整 `check:arch`（45 项）、单元套件（88 文件、1115 项）通过，没有扩大基线；
+  - Chromium 宿主转换 4 项通过：同源重连更换启用集、保存语音后新终端/快速开始可用、P2P 从业务关闭转为启用、认证失败及换主机释放资源；
+  - 重录 `TestWireSnapshots`；受影响 Go 包 race 及 Go lint 通过；最终全仓命令结果单独记录，不用局部结果替代；
+  - Windows 控制台与托盘的 amd64/arm64 交叉编译通过；darwin/arm64 的 `go vet ./...` 通过。
+- 隔离真实服务及浏览器：
+  - 零插件在手机上通过已有 cwd 和完整 argv 创建 bash，初始输入实际打印 `CORE_PHONE_PTY_OK`；原生 run 输出 `CORE_NATIVE_OK` 并返回退出码 7；
+  - native attach 写入 `CORE_ATTACH_OK`，分离后浏览器接管并打印 `CORE_BROWSER_CONTROL`，分屏的第二个真实 PTY 打印 `CORE_SPLIT_OK`；
+  - 代码单插件读取真实 README；阻断代码 chunk 时核心 PTY 仍可用，解除阻断并重新加载页面后恢复代码面板且同一会话保留回放；
+  - 7 个插件 profile 的桌面/手机 E2E 共 14 项通过；目录输入引用、初始仓库选择和关闭中抽屉的回归均已修复并定向通过；
+  - 仅 MCP 的真实 TCP 实例完成 initialize（200）、initialized（202）及 tools/list（200），发现 9 个核心工具，不要求 launch/chat；
+  - 仅 files 的真实上传返回 201；启动清扫后未知归档产物仍在，损坏聊天 JSON/SQLite 字节未变，仓库和启动配置路由均为 404；
+  - 聊天坏状态及独占锁未阻止核心启动；启动配置禁用前后字节一致，重新启用后同一记录可见；缺失依赖启动失败且没有生成业务状态目录；
+  - 同一源从 launch 重启为零插件后，浏览器未刷新文档即切为自定义命令表单；TCP/native 能力事实一致，401、Origin 403 与禁用路由 404 已分别核验。
+- 视觉证据：
+  - 已采集桌面 1280×900、平板 768×800、手机 390×844 的亮暗主题前后对照；[桌面浅色](../images/pr/terminal-core-plugins/after-desktop-light.png)、[手机深色](../images/pr/terminal-core-plugins/after-phone-dark.png)；
+  - 额外核验 1280×720、375×667、320×568、667×375 的创建表单，动画结束后浮层在视口内，无页面横向溢出，Tab 后只有一处可见焦点；
+  - [手机创建 GIF](../images/pr/terminal-core-plugins/core-create.gif) 为原始录制前 8 秒，未变速；真实终端输出 `CORE_PLUGIN_DEMO_OK`，补充[输出截图](../images/pr/terminal-core-plugins/core-terminal-phone-light.png)显示第二次创建的 `CORE_PLUGIN_SECOND_OK`。
+- OpenSpec：同步 3 份新增及 3 份现有主规范；98 份主规范标准校验通过，本次变更及 6 份目标规范严格校验通过。全仓严格模式仍有无关旧规范的 Purpose 占位警告，未改写这些规范。
+- 经用户确认归档本次变更；`make docs-check` 已通过，其他活动变更未移动。
+- 最终 `make check` 与 `make test` 全部通过：
+  - 全仓 Go race、架构、文档、持久化、vet 与 Go lint 通过，lint 为 0 issues；
+  - 单测 1115 项、浏览器组件 852 项、Storybook 106 项通过；
+  - E2E 564 项通过、54 项跳过；性能场景 18 项通过、2 项跳过，没有把跳过项记为验收通过。
+- PR 与 CI 结果在交付时记录。限制：未验证原生 Windows GUI 点击、macOS 运行、物理 hover/coarse pointer 及 iOS/Android 真机，不以交叉编译或无头截图替代。
+
 ## 2026-11-14：Windows 托盘重启确认时机与会话恢复说明（US-O03、US-O11）
 
 - Windows 托盘通过 `/ws/sessions` 区分普通终端会话、混合会话与当前工作状态；故事总数保持 252：
@@ -250,6 +281,26 @@
 - Pullfrog已按本轮用户授权启用；是否批准仍以本实现PR的实际审查结果为准，不沿用规划PR豁免。
 - 限制：无头Chromium未验证物理hover、any-pointer:coarse、真实头显/TV、系统键盘/IME、双眼可读性或帧率。原任务2.3、8.3、8.4保持未完成，故事总数仍为252。
 
+## 2026-11-14：插件主线整合与 PR 评审回归
+
+- 在插件实现上整合主线 `17c3d36f`，保留会话规范删除通知、托盘空闲混合会话重启规则、Git 工具栏入口与 ScrollArea，以及 VR 多会话/同聊天多视图。
+- 本轮进一步更新 US-B09、US-F03；其余沿用插件切换与主线相关故事，总数仍为 256。
+- 修复前证据：
+  - 两类空仓库引用在旧二进制真实服务中均返回 201 并产生会话；修复后均为 precheck 404，会话清单为空，保留 cwd-only 启动回归；
+  - 用修复前源码覆盖编译，新建核心状态回归因缺少协议环境失败；附件 Adopt/Ensure 的 Invalid/Unavailable 四种创建后失败均错误返回 500；
+  - 旧编译版本的桌面加载失败 E2E 实际丢失聊天/提醒选项，手机错误提示遮住健康编辑入口；旧真实终端已收到语音可用能力响应，但仍没有麦克风入口。
+- 后端定向 race 通过：空/未知仓库引用无 PTY、分支或工作树副作用；零插件显式状态开关驱动真实 PTY；附件失败保持 400/503、原因、prompt 步骤与已创建 sessionId，重试不重复创建。
+- PTY 状态识别与通知/聊天选择解耦；信任预写及 agent 专属提交延迟仍按批准方案归 `launch`，配置、示例、持久化说明与 US-B09 均明确前置条件。
+- 前端保留已读取的可选编辑字段，加载提示有界且可关闭；按 enabled 预载终端实现、按当前 availability 派生业务入口。修正聊天流 effect 的错误依赖及列表对账误回收活跃草稿。
+- 真实隔离浏览器与客户端复验：
+  - 同一终端语音 unavailable→available→unavailable，实际能力响应与麦克风显隐一致，xterm DOM 和未发送草稿保持；仅验证入口可用性，没有录音或调用识别程序；
+  - 手机阻断两个真实编辑器 chunk，提示高度 367px（844px 视口），真实点击关闭后可编辑并保存；服务端 chat=true 与完整 attention 策略保持；
+  - 零插件实际输出 `PROTOCOL=1` 并由 OSC 7501 进入 permission/waiting；手机创建得到独立输出行 `CORE_PLUGIN_DEMO_OK`，本机 follow 输出 `CORE_NATIVE_MERGED_OK` 并返回 7。
+- 最终代码的 `make check`、`make test` 全部通过：Go 全仓 race、vet、lint（0 issues）、文档/架构/持久化守卫；1128 单元、878 浏览器、106 Storybook；570 E2E 通过/58 跳过；18 性能通过/2 跳过。
+- 另跑加载失败、IWER 多视图、分屏与 Git 日志定向 E2E：25 通过、5 跳过，无重试；跳过项未计为通过。
+- 以主线 `17c3d36f` 重采六组亮暗主题 Before，并以最终二进制重采同视口零插件 After；三个尺寸均无页面横向溢出。此前有效的正常速度创建 GIF 保留，最终行为以上述隔离复验为准。
+- [PR #615](https://github.com/mzdluo123/webmux/pull/615) 保持打开，不自动合并；CI 与机器人最终状态以该 PR 为准，不沿用旧头部结果。原生 Windows/macOS、真机触控与头显限制不变。
+
 ## 2026-11-14：工作区主页归档记录改为直接删除按钮（US-Q12）
 
 - 工作区主页已归档记录（`ArchivedSessions`）将“删除记录”从二级菜单改为紧邻“恢复”的等高同尺寸红色文字按钮“删除”（`<Button size="sm" variant="destructive">`，点击打开确认框后删除）；故事总数保持 252：
@@ -262,3 +313,14 @@
   - 在隔离实例采集 `1280×900`、`768×800`、`390×844` 亮暗主题前后对照截图、链接工作树状态截图及直接删除交互 GIF；
   - 核验 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 亮暗主题下主工作树与链接工作树归档区均无横向溢出，且同排操作按钮等高居中对齐；
   - 限制：无头 Chromium 未验证物理 `hover`、`any-pointer: coarse` 与 iOS/Android 真机表现。
+
+## 2026-11-14：插件分支最新主线合并、CLI 写入与 CI 修复
+
+- 整合主线 `4a938902`；冲突仅为本文件的独立追加记录，保留两侧内容与各自历史计数。对应 US-B08、US-L02、US-Q12、US-S18，当前故事总数仍为 256。
+- 合并后 `make check`、72 项定向浏览器测试及桌面/手机两项归档 E2E 通过；隔离浏览器复验恢复/删除按钮等高，取消保留记录、确认仅删除目标，390px 视口无横向溢出。
+- CLI 回归先实际失败：仅选择 `launch` 时新增/编辑均被错误的显式 chat 字段拒绝；选择通知插件后编辑又会清空已有提醒策略。统一使用可区分省略与显式值的写入契约后，定向 race 回归通过。
+- 真实隔离服务中复验独立 CLI：仅 `launch` 的新增配置运行输出 `CLI_LAUNCH_ONLY_REAL_OK`；编辑保留未修改的 chat、完整 attention 和已有环境；禁用 chat 时显式修改被拒绝且无状态变化。
+- PR 失败日志明确显示 Windows vet 缺少跨平台测试 helper、四个 E2E 分片缺少 Zod。将纯 HTTP/JSON helper 移入无平台标签的测试文件，并按冻结锁文件将 Zod 打入既有精简产物，未跳过校验或改为安装全部前端依赖。
+- 原失败 Windows vet 命令、CLI 包 race 与最新 `make check` 通过。将 CI 产物打包解压至仓库之外，仅有 Playwright、IWER、Zod 运行依赖时，628 项 E2E 收集成功，真实 core-only PTY 用例通过。
+- 本轮完整 `make test` 的 Go race、单元/浏览器与 Storybook 通过；E2E 首次出现一项手机 Git 逐行暂存锁冲突，重试通过但整轮仍判失败，未记为全量通过。远端最终检查与评审以 PR 最新提交为准。
+- 对该手机用例进行隔离 Git Trace2 实验：4 worker、禁用重试的 12 次运行均通过，记录的可选锁参数均为 0，未复现先前锁冲突；不据此声称已修复其未知根因，也未放宽测试。

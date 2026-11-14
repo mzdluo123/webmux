@@ -9,8 +9,8 @@
   // The icon controls of the home page: list density, a Git refresh, the Git
   // workbench entry and the repository menu. Phones show them in the top bar,
   // wider screens in the toolbar, so the title and these controls never take
-  // two rows. The workbench button is permanent — a late pop-in would shift
-  // the row when repositories finish loading.
+  // two rows. The entry is present from first render only when its combined
+  // workspace/code capability is available.
   let {
     compact,
     refreshing,
@@ -23,7 +23,7 @@
     refreshing: boolean;
     onchange: (compact: boolean) => void;
     onrefresh: () => void;
-    ongit: () => void;
+    ongit?: () => void;
     // The "⋯" menu of the repository in scope; a disabled button stands in
     // while none is.
     menu?: Snippet;
@@ -44,7 +44,7 @@
     aria-hidden="true"
   /></Button
 >
-<GitWorkbenchButton {ongit} />
+{#if ongit}<GitWorkbenchButton {ongit} />{/if}
 {#if menu}{@render menu()}{:else}
   <!-- Keeps the toolbar's width while repositories are still loading. -->
   <Button

@@ -27,6 +27,7 @@ webmux open <ID> [--browser]           # 输出（并打开）不含 Token 的�
 ```
 
 - `--` 之后的参数原样作为 argv，不经 shell 展开；`--cwd` 指定启动目录（默认当前目录，`~` 由服务端展开）。
+- 显式命令的 `run`、`attach`、`ls`、`open` 属核心，不探测禁用的启动配置接口。`--launch-config` 需 `launch`，仓库/worktree 参数需 `workspace`，聊天参数需 `chat` 及其依赖；CLI 先读取实例能力，不以本地磁盘配置猜测。
 - 自定义命令的环境变量：
   - 默认继承**调用方 shell 的环境**（如 `PATH`、`VIRTUAL_ENV`、`SSH_AUTH_SOCK`、API key），在服务进程环境之上覆盖同名变量，`--env NAME=VALUE` 再覆盖继承值。
   - `TERM`、`COLORTERM`、宿主终端身份变量、`WEBMUX_SESSION_ID`、`WEBMUX_SOCKET`、`WEBMUX_BIN`、`PWD`/`OLDPWD` 与不合法的变量名不继承，会话仍以 WebMux 终端身份和 `--cwd` 目录启动。

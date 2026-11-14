@@ -18,16 +18,14 @@ import {
   type SwitchTarget,
 } from "../../domains/sessions/hybrid";
 export type { HybridNotice, HybridView } from "../../domains/sessions/hybrid";
-export type { HybridSession, HybridTerminal } from "./hybrid-types";
+export type { HybridSession } from "./hybrid-types";
 import {
   returnQueuedDraft,
   type HybridSession,
   type HybridTerminal,
 } from "./hybrid-types";
-import {
-  lookupSessionRecord,
-  sessionConflict,
-} from "../../domains/sessions/recoverable";
+import { lookupSessionRecord } from "../../domains/sessions/recoverable";
+import { sessionConflict } from "../../domains/sessions/session-conflict";
 import {
   SessionInfoSchema,
   type AgentConnector,
@@ -58,6 +56,7 @@ export function useHybrid(
   draft: TerminalDraft,
   manageChrome = true,
   subscribeRemoved?: (listener: (id: string) => void) => () => void,
+  available: () => boolean = () => true,
 ): HybridSession {
   const chat = createChatSocket(id, live);
   const actions = chatActions(id);
@@ -98,7 +97,7 @@ export function useHybrid(
   const streaming = $derived(
     !!terminal.info?.views.includes("chat") || terminal.connection === "moved",
   );
-  const known = $derived(streaming || !!state || !!record);
+  const known = $derived(available() && (streaming || !!state || !!record));
   const where = $derived(current?.view);
   const phase = $derived(current?.transition?.phase);
   const side = $derived<SwitchTarget | null>(phase ? null : (where ?? null));
@@ -163,7 +162,9 @@ export function useHybrid(
   });
 
   $effect(() => {
-    if (streaming) chat.open();
+    if (!streaming || !available()) return;
+    untrack(() => chat.open());
+    return () => chat.dispose();
   });
   // Every terminal frame is the newest description of the session.
   $effect(() => {
@@ -266,6 +267,7 @@ export function useHybrid(
   let recordEpoch = 0;
   let recordController: AbortController | undefined;
   function refreshRecord() {
+    if (!available()) return;
     recordController?.abort();
     const controller = new AbortController();
     recordController = controller;
@@ -301,7 +303,7 @@ export function useHybrid(
     recordController?.abort();
   });
   $effect(() => {
-    if (!ended) return;
+    if (!available() || !ended) return;
     untrack(refreshRecord);
     return () => {
       ++recordEpoch;

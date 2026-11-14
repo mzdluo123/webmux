@@ -80,7 +80,7 @@
   - 在 `wire.jsonl` 旁保存首次修改前的 `wire.jsonl.before-local-binding` 备份；
   - 没有事件日志的旧实现保持原行为，更新失败则取消终端启动并回滚。
 - 崩溃重连使用无历史回放的 `session/resume`；Kimi 不支持插话，回合中发送的消息进入通用队列。
-- 浏览器草稿和 API 向混合或普通 Kimi TUI 提交文本与 Enter 时，都在同一回执内分隔 200ms，避免连续写入被 Kimi 当作粘贴内容；延迟期间输入锁继续阻止其他输入交错，空正文只发 Enter 时不等待，其他 agent 的提交方式不变。
+- 选择 `launch` 启动集成时，浏览器草稿和 API 向混合或普通 Kimi TUI 提交文本与 Enter，都在同一回执内分隔 200ms，避免连续写入被 Kimi 当作粘贴内容；延迟期间输入锁继续阻止其他输入交错，空正文只发 Enter 时不等待，其他 agent 的提交方式不变。
 - `agent_pretrust` 开启时为首次启动注入 `KIMI_CODE_TRUST_WORKSPACE=1`，恢复 TUI 与 ACP 继承同一环境；它只信任当前工作区，不写持久配置，详见 [文件夹信任预写](../cli-agents.md#文件夹信任预写)。
 
 ## Devin CLI

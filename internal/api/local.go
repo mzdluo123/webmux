@@ -1,17 +1,16 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"strings"
 
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/runtime"
+	"github.com/rainchan/webmux/internal/transport"
 )
 
 // Local supplies the server-side state behind /local/v1/*.
@@ -27,7 +26,8 @@ type Local struct {
 	// its state at once. Enable preconditions answer 409; storage failures
 	// answer 503, including an emergency stop that was not persisted.
 	// Nil leaves /local/v1/tunnel unrouted.
-	Tunnel func(enabled bool) (contract.TunnelStatus, error)
+	Tunnel        func(enabled bool) (contract.TunnelStatus, error)
+	TunnelFailure func(http.ResponseWriter, error)
 }
 
 type peerKey struct{}
@@ -58,15 +58,9 @@ func NewLocal(d Deps, local Local) http.Handler {
 	}
 	s := newServer(d)
 	s.local = true
-	routes := s.routes()
+	routes := s.routes(transport.Local)
 	mux := http.NewServeMux()
-	// A narrow read capability for session callers. Existing /api/p2p controls
-	// remain forbidden, including GET /api/p2p.
-	mux.HandleFunc("GET "+contract.PathP2PDiagnostics, func(w http.ResponseWriter, _ *http.Request) {
-		if s.p2pControl(w) != nil {
-			reply(w, http.StatusOK, s.P2P.Status())
-		}
-	})
+	mux.Handle(contract.PathP2PDiagnostics, routes)
 	if local.Configuration != nil {
 		mux.HandleFunc("GET "+contract.PathConfiguration, func(w http.ResponseWriter, r *http.Request) { reply(w, 200, local.Configuration()) })
 	}
@@ -103,7 +97,7 @@ func NewLocal(d Deps, local Local) http.Handler {
 		}
 		reply(w, http.StatusOK, contract.TokenResponse{Token: c.Token})
 	})
-	if local.Tunnel != nil {
+	if local.Tunnel != nil && c.Plugins.Has("cloudflare") {
 		mux.HandleFunc("POST "+contract.PathTunnel, func(w http.ResponseWriter, r *http.Request) {
 			if local.fromSession(r) {
 				failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot control the tunnel"))
@@ -119,7 +113,11 @@ func NewLocal(d Deps, local Local) http.Handler {
 			}
 			status, err := local.Tunnel(*req.Enabled)
 			if err != nil {
-				localTunnelFailure(w, err)
+				if local.TunnelFailure != nil {
+					local.TunnelFailure(w, err)
+				} else {
+					failure(w, http.StatusConflict, err)
+				}
 				return
 			}
 			reply(w, http.StatusAccepted, status)
@@ -127,6 +125,7 @@ func NewLocal(d Deps, local Local) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer baseHeaders(w)()
+		r = r.WithContext(transport.LocalContext(r.Context()))
 		if r.URL.Path == "/mcp" || strings.HasPrefix(r.URL.Path, "/mcp/") {
 			http.NotFound(w, r)
 			return
@@ -135,35 +134,20 @@ func NewLocal(d Deps, local Local) http.Handler {
 			mux.ServeHTTP(w, r)
 			return
 		}
-		if (r.URL.Path == "/api/tunnel" || strings.HasPrefix(r.URL.Path, "/api/tunnel/")) && local.fromSession(r) {
+		if c.Plugins.Has("cloudflare") && (r.URL.Path == "/api/tunnel" || strings.HasPrefix(r.URL.Path, "/api/tunnel/")) && local.fromSession(r) {
 			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot control the tunnel"))
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/api/tailscale/") && local.fromSession(r) {
+		if c.Plugins.Has("tailscale") && strings.HasPrefix(r.URL.Path, "/api/tailscale/") && local.fromSession(r) {
 			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot change Tailscale settings"))
 			return
 		}
-		if (r.URL.Path == "/api/p2p" || strings.HasPrefix(r.URL.Path, "/api/p2p/")) && local.fromSession(r) {
+		if c.Plugins.Has("p2p") && (r.URL.Path == "/api/p2p" || strings.HasPrefix(r.URL.Path, "/api/p2p/")) && local.fromSession(r) {
 			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot control P2P"))
 			return
 		}
 		routes.ServeHTTP(w, r)
 	})
-}
-
-// decodeOptional accepts an empty body as the zero value.
-func decodeOptional(w http.ResponseWriter, r *http.Request, v any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 65536)
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		failure(w, http.StatusBadRequest, err)
-		return false
-	}
-	if len(data) == 0 {
-		return true
-	}
-	r.Body = io.NopCloser(bytes.NewReader(data))
-	return decode(w, r, v)
 }
 
 // fromSession fails closed: a peer without a known PID counts as inside.

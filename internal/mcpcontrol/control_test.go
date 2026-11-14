@@ -17,7 +17,8 @@ type roundTrip func(*http.Request) (*http.Response, error)
 func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 func testClient(t *testing.T, handler func(*http.Request) string) Client {
 	t.Helper()
-	return Client{API: &localclient.Client{HTTP: &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+	snapshot := testCapabilities(nil)
+	return Client{Capabilities: func() contract.Capabilities { return snapshot }, snapshot: &snapshot, API: &localclient.Client{HTTP: &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(handler(r))), Header: make(http.Header)}, nil
 	})}}}
 }

@@ -7,11 +7,10 @@
   import * as Dialog from "$lib/components/ui/dialog";
   import { api } from "../../platform/api";
   import { errorMessage } from "../../platform/error";
+  import { pluginContributions } from "../../plugins/registry.svelte";
   import type { Repositories } from "../../hooks/workspace/repositories.svelte";
   import type { SessionList } from "../../hooks/sessions/session-list.svelte";
   import {
-    ChatMessageMatchesSchema,
-    RepositoriesSchema,
     SessionInfoSchema,
     type ChatMessageMatch,
     type Repository,
@@ -27,7 +26,7 @@
     oncancel,
   }: {
     open: boolean;
-    source?: { sessions: SessionList; repositories: Repositories };
+    source?: { sessions: SessionList; repositories?: Repositories };
     onselect: (id: string, messageId?: string) => void;
     oncancel: () => void;
   } = $props();
@@ -46,7 +45,8 @@
   $effect(() => {
     searching = false;
     searchFailed = false;
-    if (!open || [...term].length < 2 || [...term].length > 120) {
+    const chat = pluginContributions.entries.chat;
+    if (!chat || !open || [...term].length < 2 || [...term].length > 120) {
       matches = [];
       return;
     }
@@ -54,13 +54,8 @@
     const value = term;
     searching = true;
     const timer = setTimeout(() => {
-      void api(
-        `/chat/search?q=${encodeURIComponent(value)}`,
-        ChatMessageMatchesSchema,
-        "GET",
-        undefined,
-        controller.signal,
-      )
+      void chat
+        .search(value, controller.signal)
         .then((items) => {
           if (!controller.signal.aborted) matches = items;
         })
@@ -83,9 +78,9 @@
   const loading = $derived(source?.sessions.loading ?? snapshot === null);
   const loadError = $derived(source?.sessions.error ?? error);
   const loadingMetadata = $derived(
-    source ? !source.repositories.settled : loadingRepositories,
+    source?.repositories ? !source.repositories.settled : loadingRepositories,
   );
-  const metadata = $derived(source?.repositories.list ?? repositories);
+  const metadata = $derived(source?.repositories?.list ?? repositories);
   const repositoryById = $derived(
     new Map(metadata.map((repository) => [repository.id, repository])),
   );
@@ -130,16 +125,12 @@
       .then((result) => {
         if (signal.aborted) return;
         snapshot = result;
-        if (result.some((session) => session.workspace)) {
+        const workspace = pluginContributions.entries.workspace;
+        if (workspace && result.some((session) => session.workspace)) {
           // A slow or unavailable Git registry should not block session access.
           loadingRepositories = true;
-          void api(
-            "/repositories",
-            RepositoriesSchema,
-            "GET",
-            undefined,
-            signal,
-          )
+          void workspace
+            .loadRepositories(signal)
             .then((result) => {
               if (!signal.aborted) repositories = result;
             })

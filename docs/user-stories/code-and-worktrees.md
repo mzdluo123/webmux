@@ -176,7 +176,7 @@
 - [Markdown 链接与图片路径解析](../../web/src/domains/code/markdown-link.ts)、[标题锚点](../../web/src/domains/code/markdown-slug.ts)、[代码块高亮](../../web/src/domains/code/code-highlight.ts)
 - [Markdown 预览](../../web/src/components/code/CodeMarkdownPreview.svelte)、[Diff 阅读](../../web/src/components/code/CodeDiffReader.svelte)、[图片预览](../../web/src/components/code/CodeImageView.svelte)
 - [代码引用](../../web/src/domains/code/code-reference.ts)、[代码服务](../../internal/codeview/)、[文件操作](../../internal/codeview/mutate.go)、[目录 ZIP 与上传](../../internal/codeview/archive.go)
-- [代码接口](../../internal/api/code.go)、[临时文件夹服务](../../internal/artifacts/artifacts.go)。
+- [代码接口](../../internal/pluginapi/code.go)、[临时文件夹服务](../../internal/artifacts/artifacts.go)。
 
 US-I13 补充：弹出代码窗口取消原页面尚未完成的目录识别时，不缓存普通目录降级结果；独立窗口可重新识别 Git 并使用 Diff。依据：[取消回归](../../internal/codeview/concurrency_test.go)。
 

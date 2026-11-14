@@ -11,13 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/statefile"
 	"github.com/rainchan/webmux/internal/tailscale"
 	"github.com/rainchan/webmux/internal/tailscalesettings"
-	"github.com/rainchan/webmux/internal/wire"
+	"github.com/rainchan/webmux/internal/transport"
 )
 
 const (
@@ -42,7 +42,7 @@ type tailscaleState struct {
 type tailscaleController struct {
 	svc            *tailscale.Service
 	store          *tailscalesettings.Service
-	public         *api.PublicOrigins
+	public         *transport.PublicOrigins
 	dir            string
 	path           string
 	lockPath       string
@@ -81,7 +81,7 @@ type tailscaleControllerOptions struct {
 	Store          *tailscalesettings.Service
 	Service        *tailscale.Service
 	StateDir       string
-	Public         *api.PublicOrigins
+	Public         *transport.PublicOrigins
 	Token          string
 	TokenGenerated bool
 	Out            io.Writer
@@ -369,7 +369,7 @@ func (tc *tailscaleController) Status() contract.TailscaleStatus {
 	status := tc.svc.Detect(ctx)
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	out := wire.TailscaleStatus(status)
+	out := pluginwire.TailscaleStatus(status)
 	out.ConfiguredProvider = tc.cfg.Provider
 	out.Mode = tc.cfg.Mode
 	out.Port = tc.cfg.Port

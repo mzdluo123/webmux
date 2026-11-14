@@ -7,6 +7,8 @@
 
 仓库登记、工作树生命周期、普通原地切换（`switch`）与会话内代码工作区见 [HTTP API：仓库与代码工作区](http-workspace.md)。
 
+这些 Git 工作台接口需要同时选择 `workspace`、`code`；缺少任一项时组合路由返回 404，不打开专属 Git 工作台存储。仓库/worktree 基础管理仍可单独使用 `workspace`；见 [能力发现](../protocol.md#能力发现)。
+
 所有响应均带 `Cache-Control: no-store`，沿用 Bearer 认证与 Origin/Host 检查。
 
 ## 独立代码、历史对象比较与提交历史（`/api/repositories/{id}/git`）

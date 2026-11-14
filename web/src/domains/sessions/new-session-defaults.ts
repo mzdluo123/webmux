@@ -151,12 +151,15 @@ export type InitialLaunch = { source: LaunchSource; configId: string };
 export function resolveInitialLaunch(
   lastLaunch: string,
   launchConfigs: LaunchConfigsState,
+  enabled = true,
 ): InitialLaunch | null {
   if (lastLaunch === "custom") return { source: "custom", configId: "" };
   const remembered =
     lastLaunch.startsWith("config:") && lastLaunch.length > 7
       ? lastLaunch.slice(7)
       : "";
+  if (!enabled)
+    return { source: remembered ? "unset" : "custom", configId: "" };
   if (launchConfigs.status === "loading") return null;
   const configs = launchConfigs.status === "ready" ? launchConfigs.configs : [];
   if (remembered)

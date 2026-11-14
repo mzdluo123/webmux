@@ -15,6 +15,7 @@ import (
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/workspace"
@@ -28,6 +29,8 @@ type deliveryHarness struct {
 	launches                       *launch.Service
 	hybrids                        *hybrid.Service
 	workspace                      *workspace.Service
+	recovery                       *hybridresume.Service
+	withoutWorkspace               bool
 	manager                        *session.Manager
 	folders                        *artifacts.Service
 	source                         conversation.Binding
@@ -41,6 +44,11 @@ func deliveryTest(t *testing.T, env map[string]string) *deliveryHarness {
 
 func deliveryTestWithSourceEnv(t *testing.T, env, sourceEnv map[string]string) *deliveryHarness {
 	t.Helper()
+	return deliveryTestWithPlugins(t, env, sourceEnv, false)
+}
+
+func deliveryTestWithPlugins(t *testing.T, env, sourceEnv map[string]string, withoutWorkspace bool) *deliveryHarness {
+	t.Helper()
 	if testing.Short() {
 		t.Skip("runs isolated fake agent")
 	}
@@ -48,7 +56,7 @@ func deliveryTestWithSourceEnv(t *testing.T, env, sourceEnv map[string]string) *
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &deliveryHarness{t: t, root: root, state: filepath.Join(root, "state"), agentStore: filepath.Join(root, "agent-store"), agent: filepath.Join(root, "bin", "omp")}
+	h := &deliveryHarness{t: t, root: root, state: filepath.Join(root, "state"), agentStore: filepath.Join(root, "agent-store"), agent: filepath.Join(root, "bin", "omp"), withoutWorkspace: withoutWorkspace}
 	cmd := exec.Command("go", "build", "-o", h.agent, "../acp/testdata/fakeagent")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build fake agent: %s %v", out, err)
@@ -111,10 +119,19 @@ func (h *deliveryHarness) open() {
 	h.folders = artifacts.New(artifacts.Options{StateDir: h.state, TempDir: h.root, Manager: h.manager})
 	h.hybrids = hybrid.New(hybrid.Options{StateDir: h.state, Manager: h.manager, Conversations: h.store, Uploads: h.folders.UploadPath})
 	h.folders.Start(func(id string) bool { _, err := h.hybrids.Record(id); return err == nil })
-	h.workspace = workspace.New(h.state, h.manager, h.launches, h.root)
-	h.workspace.UseHybrid(h.hybrids)
-	h.workspace.UseArtifacts(h.folders)
-	h.service = New(Options{Artifacts: h.folders, Conversations: h.store, Launch: h.launches, Hybrid: h.hybrids, Workspace: h.workspace, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
+	creation := h.hybrids.Creation()
+	resumeOptions := hybridresume.Options{DefaultCwd: h.root, Creation: creation}
+	options := Options{Artifacts: h.folders, Conversations: h.store, Launch: h.launches, Hybrid: h.hybrids, Creation: creation, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes}
+	if !h.withoutWorkspace {
+		h.workspace = workspace.New(h.state, h.manager, h.launches, h.root)
+		h.workspace.UseHybrid(h.hybrids)
+		resumeOptions.Locations = h.workspace
+		resumeOptions.ResumeLocations = h.workspace
+		options.Locations = h.workspace
+	}
+	h.recovery = hybridresume.New(h.hybrids, h.launches, resumeOptions)
+	options.Recovery = h.recovery
+	h.service = New(options)
 }
 
 func (h *deliveryHarness) close() {
@@ -124,7 +141,9 @@ func (h *deliveryHarness) close() {
 	h.service.Close()
 	h.hybrids.Close()
 	h.folders.Close()
-	h.workspace.Close()
+	if h.workspace != nil {
+		h.workspace.Close()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	h.manager.Shutdown(ctx)
@@ -319,7 +338,7 @@ func TestUnknownInlineConsumptionReconcilesOnlyFromNativeLoad(t *testing.T) {
 	if _, err := h.launches.Update(cfg.ID, launch.Input{Name: cfg.Name, Cmd: cfg.Cmd, Env: cfg.Env, Hybrid: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.workspace.ResumeHybrid(ctx, e.RuntimeID, workspace.HybridResumeInput{ClientRequestID: "explicit-reconcile", Side: "acp"}); err != nil {
+	if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: "explicit-reconcile", Side: "acp"}); err != nil {
 		t.Fatal(err)
 	}
 	got := h.waitStatus(p.ID, "inline")
@@ -420,7 +439,7 @@ func TestForgottenSourceUnknownStaysBlockedUntilActualTargetReplay(t *testing.T)
 	if _, err := h.launches.Update(cfg.ID, launch.Input{Name: cfg.Name, Cmd: cfg.Cmd, Env: cfg.Env, Hybrid: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.workspace.ResumeHybrid(ctx, e.RuntimeID, workspace.HybridResumeInput{ClientRequestID: "forgotten-source-proof", Side: "acp"}); err != nil {
+	if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: "forgotten-source-proof", Side: "acp"}); err != nil {
 		t.Fatal(err)
 	}
 	gate, held, err := h.store.RuntimeDispatch(ctx, e.RuntimeID)
@@ -469,7 +488,7 @@ func TestV10ForgottenSourceForkStillResumesAfterUpgrade(t *testing.T) {
 		t.Fatal(err, closeErr)
 	}
 	h.open()
-	if _, err := h.workspace.ResumeHybrid(ctx, e.RuntimeID, workspace.HybridResumeInput{ClientRequestID: "legacy-target-resume", Side: "acp"}); err != nil {
+	if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: "legacy-target-resume", Side: "acp"}); err != nil {
 		t.Fatal("successful legacy fork became unresumable", err)
 	}
 	if h.promptCalls() != 1 {

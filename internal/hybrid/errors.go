@@ -31,9 +31,6 @@ var (
 	// ErrNotArchived: the session is still active; only a closed or
 	// interrupted session can be resumed (409 not_archived).
 	ErrNotArchived = errors.New("会话仍在运行，只有已关闭或已中断的会话可以恢复")
-	// ErrInputFailed: terminal input was not (fully) written; the error is
-	// an *InputFailedError with the receipt (409 input_failed).
-	ErrInputFailed = errors.New("输入未写入终端")
 	// ErrAnswered: the request was already answered or withdrawn (409
 	// answered).
 	ErrAnswered = errors.New("该请求已被答复")

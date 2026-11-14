@@ -45,7 +45,7 @@ func uploadAPI(t *testing.T) (handler http.Handler, m *session.Manager, item *se
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler = New(testDeps(t, Deps{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, cwd), Artifacts: folders}))
+	handler = New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, cwd), Artifacts: folders}))
 	canonical, err := filepath.EvalSymlinks(root)
 	if err != nil || !strings.HasPrefix(folder, canonical+string(filepath.Separator)) {
 		t.Fatalf("folder %q outside %q (%v)", folder, root, err)
@@ -300,6 +300,9 @@ func (uploadGeneratedReader) Read(p []byte) (int, error) {
 }
 
 func TestUploadSizeLimitsRemovePartialFiles(t *testing.T) {
+	// The public upload contract allows 100 MiB per file and 101 MiB total,
+	// including multipart framing and any epilogue.
+	const fileLimit, bodyLimit int64 = 100 << 20, 101 << 20
 	for _, name := range []string{"oversized file", "oversized declared body", "oversized chunked epilogue"} {
 		t.Run(name, func(t *testing.T) {
 			handler, _, item, root, _ := uploadAPI(t)
@@ -308,13 +311,13 @@ func TestUploadSizeLimitsRemovePartialFiles(t *testing.T) {
 			ending := "\r\n--" + boundary + "--\r\n"
 			var body io.Reader
 			if name == "oversized chunked epilogue" {
-				body = io.MultiReader(strings.NewReader(header+"small"+ending), io.LimitReader(uploadGeneratedReader{}, maxUploadBodyBytes))
+				body = io.MultiReader(strings.NewReader(header+"small"+ending), io.LimitReader(uploadGeneratedReader{}, bodyLimit))
 			} else {
-				body = io.MultiReader(strings.NewReader(header), io.LimitReader(uploadGeneratedReader{}, maxUploadBytes+1), strings.NewReader(ending))
+				body = io.MultiReader(strings.NewReader(header), io.LimitReader(uploadGeneratedReader{}, fileLimit+1), strings.NewReader(ending))
 			}
 			r := uploadRequest(item, body, "multipart/form-data; boundary="+boundary)
 			if name == "oversized declared body" {
-				r.ContentLength = maxUploadBodyBytes + 1
+				r.ContentLength = bodyLimit + 1
 			}
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, r)

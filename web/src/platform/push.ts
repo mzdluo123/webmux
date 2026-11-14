@@ -85,15 +85,19 @@ export async function currentSubscription(): Promise<PushSubscription | null> {
   return (await registration?.pushManager.getSubscription()) ?? null;
 }
 
-async function register(subscription: PushSubscription): Promise<string> {
+async function register(
+  subscription: PushSubscription,
+  signal?: AbortSignal,
+): Promise<string> {
   const { id } = await api(
     "/push/subscriptions",
     PushSubscriptionResultSchema,
     "POST",
     subscription.toJSON(),
-    undefined,
+    signal,
     PushSubscriptionRequestSchema,
   );
+  signal?.throwIfAborted();
   store(SUBSCRIPTION_KEY, id);
   return id;
 }
@@ -160,22 +164,24 @@ export type SyncResult = "none" | "unavailable" | "synced" | "key-changed";
 // sync re-registers an existing subscription idempotently, for example after
 // the server rebuilt its store. Without one it does nothing: no worker
 // registration and no permission prompt.
-export async function sync(): Promise<SyncResult> {
+export async function sync(signal?: AbortSignal): Promise<SyncResult> {
   if (
     typeof Notification === "undefined" ||
     Notification.permission !== "granted"
   )
     return "none";
   const subscription = await currentSubscription();
+  signal?.throwIfAborted();
   if (!subscription) return "none";
-  const status = await pushStatus();
+  const status = await api("/push", PushStatusSchema, "GET", undefined, signal);
   if (!status.available || !status.publicKey) return "unavailable";
+  signal?.throwIfAborted();
   if (!sameKey(subscription.options.applicationServerKey, status.publicKey)) {
     await subscription.unsubscribe();
     store(SUBSCRIPTION_KEY, "");
     return "key-changed";
   }
-  await register(subscription);
+  await register(subscription, signal);
   return "synced";
 }
 

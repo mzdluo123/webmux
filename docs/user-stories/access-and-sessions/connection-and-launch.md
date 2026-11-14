@@ -62,7 +62,8 @@
 
 - **US-B01 启动 Shell 或 agent**：作为使用者，我希望通过自定义启动配置或显式命令运行 Shell、Open Code、Claude Code、Codex、omp 等程序，以便快速开始终端工作或遥控 agent。
   验收要点：
-  - 新建会话对话框以“位置”与“运行”两个选择行组成一页，“运行”在同一列表中提供保存的启动配置与末尾的“自定义命令…”；新安装预置常见 agent 的启动配置，没有不可修改的内置预设；
+  - 显式 argv、cwd 与环境变量属于核心能力；保存的配置与预设需 `launch`，仓库位置需 `workspace`，混合模式需 `chat`，附件及临时文件引用需 `files`。关闭这些插件不妨碍创建普通 PTY（US-K19）；
+  - 新建会话对话框以“位置”与“运行”两个选择行组成一页；启用 `launch` 时提供保存的启动配置与末尾的“自定义命令…”，首次启用且存储缺失时才写入常见 agent 预设，没有不可修改的内置预设；
   - Claude Code、Codex CLI、Antigravity CLI、Open Code、Qoder、QoderCN、Kimi、Devin 与 omp 的预置配置默认自动批准工具调用：
     - Claude Code `--dangerously-skip-permissions`；
     - Codex CLI `--dangerously-bypass-approvals-and-sandbox`；
@@ -90,6 +91,7 @@
   - 创建成功后按入口进入终端或加入当前布局。
 - **US-B02 自定义命令与参数**：作为进阶使用者，我希望填写完整命令及参数，或选用已保存的配置，以便运行自己的 CLI 工作流。
   验收要点：
+  - `launch` 未选择时只提供自定义命令，不读取配置列表；浏览器遗留 `configId` 不能转换成猜测命令或另一配置，必须显式选择并填写新命令；
   - 在启动配置与“自定义命令…”之间切换时保留手动输入和已选配置，但只提交当前方式；
   - 空手动命令不能误用保存配置；
   - 正确保留引号、空参数与参数边界，不进行 shell 展开；
@@ -98,6 +100,7 @@
   - 临时命令不落盘，保存配置不可用或仍在加载时可改选“自定义命令…”。
 - **US-B03 选择直接目录**：作为使用者，我希望直接指定任意可访问目录并复用最近使用的位置，以便启动普通项目而不必先登记 Git 仓库。
   验收要点：
+  - `workspace` 未选择时仍可输入或浏览直接目录、使用最近目录与默认目录；不读取仓库或工作树清单，不显示其位置选项，也不按旧仓库偏好切换项目；
   - “位置”选择器在一处列出主页当前仓库的工作树、最近目录、其他仓库的工作树与“输入或浏览目录…”，选中直接目录时显示可编辑的工作目录输入与浏览按钮；
   - 从首页的“新建会话”打开时范围收窄：选中仓库只列该仓库的工作树与“新建工作树…”；选中工作树（或点工作树行的“新建会话”）只列该工作树与“从当前工作树分支新建…”，起始分支默认为该工作树的分支；选中“全部仓库”、“直接会话”或从分屏、会话页打开时不收窄；
   - 默认位置优先级：上下文入口（工作树的“新建会话”、分屏源会话目录）> 主页选中仓库的可用主工作区（否则该仓库其他可用工作树）> 最近目录 > 服务默认目录；
@@ -132,6 +135,9 @@
   - 首页、终端、聊天页头与浏览器标签使用会话标题；终端或 agent 标题中的 Nerd Font 私有区图标在首页、侧栏、会话行和页头等界面沿用内置图标的字形显示。
 - **US-B08 管理启动配置**：作为使用者，我希望把常用的命令、参数和环境变量保存为服务端启动配置，以便在任何设备上一键选用而不必重复输入。
   验收要点：
+  - 本故事的存储、预设与设置入口仅在选择 `launch` 时存在；未选择时不打开、锁定、初始化或补写配置文件。混合开关需 `chat`，不因禁用聊天而清除已有混合字段；
+  - 已选择的聊天或通知编辑器加载失败时，修改名称等其他字段仍保留已读取的混合模式与提醒策略，不把缺少编辑器当成用户清空选项；
+  - CLI 在只选择 `launch` 时可新增并实际运行普通配置，也可修改名称、环境和预览；省略未启用插件拥有的写入字段，保留已存混合与提醒选项。显式聊天开关不因省略而伪装成功；
   - 设置页的启动配置以不带边框的行列表呈现（行高不低于 44px）：图标、名称、一行摘要（终端或混合会话、环境变量数、预览行数；完整命令只在编辑对话框中显示），整行点击编辑，行尾“⋯”菜单提供编辑与删除；
   - 设置页可新建、编辑、删除自定义启动配置，并选择自动匹配、通用终端或 LobeHub 品牌图标；配置最多 100 条且文件总大小不超过 4 MiB，超出时保存被拒绝并提示精简（400），其余配置与功能不受影响；
   - 图标随配置持久保存并在设置列表、新建会话选择器中显示，缺少图标的旧配置按可识别的直接命令或标准 Bash/Zsh 包装自动匹配，不改写原配置；
@@ -153,7 +159,8 @@
   - 存储不可用时显示原因，临时命令仍可用。编辑器可勾选混合模式，可用性由服务端判定并显示原因，列表显示“混合”标记（US-Q01）。
 - **US-B09 启动 agent 时不卡在“信任此文件夹”**：作为使用者，我希望 Claude Code、Codex、GitHub Copilot CLI、Antigravity CLI、Qoder、QoderCN、Kimi 和 Devin 在新目录启动时不停在信任对话框，以便无人看着的会话也能直接开始工作。
   验收要点：
-  - 默认开启 `agent_pretrust`；新建会话的命令被识别为这八款 CLI（直接执行、绝对路径、版本化二进制名或 Bash/Zsh 启动文件包装）时，先把启动目录记入该 CLI 自己的配置，或为 Kimi 注入进程级目录信任，再启动进程；
+  - 选择 `launch` 时默认开启 `agent_pretrust`；新建会话的命令被识别为这八款 CLI（直接执行、绝对路径、版本化二进制名或 Bash/Zsh 启动文件包装）时，先把启动目录记入该 CLI 自己的配置，或为 Kimi 注入进程级目录信任，再启动进程；
+  - 未选择 `launch` 时，普通 argv 仍可运行，但不装配信任预写或 agent 专属提交延迟，`agent_pretrust = true` 不会隐式开启启动集成；
   - 写入位置优先跟随会话环境变量，其次是服务进程的同名变量，最后回退到主目录下的默认位置：
     - Claude Code：`CLAUDE_CONFIG_DIR` 或 `~/.claude.json`；
     - Codex：`CODEX_HOME` 或 `~/.codex/config.toml`；
@@ -173,9 +180,10 @@
 - [启动图标](../../../web/src/components/settings/LaunchConfigIcon.svelte)、[LobeHub 图标来源与许可](../../../web/src/icons/lobehub/README.md)
 - [新建会话](../../../web/src/components/sessions/NewSessionDialog.svelte)、[位置选择](../../../web/src/components/workspace/LocationPicker.svelte)、[命令选择](../../../web/src/components/sessions/LaunchPicker.svelte)、[默认值解析](../../../web/src/domains/sessions/new-session-defaults.ts)
 - [启动配置编辑](../../../web/src/components/settings/LaunchConfigDialog.svelte)、[系统预设菜单](../../../web/src/components/settings/LaunchPresetMenu.svelte)、[启动配置存储](../../../internal/launch/store.go)、[首次启动预设](../../../internal/launch/presets.go)
-- [启动配置接口](../../../internal/api/launch.go)、[CLI agent 接入](../../cli-agents.md)
+- [启动配置接口](../../../internal/pluginapi/launch.go)、[CLI agent 接入](../../cli-agents.md)
 - [信任预写](../../../internal/agenttrust/agenttrust.go)、[会话钩子](../../../internal/session/manager.go)
-- [会话标题来源](../../../internal/hybrid/actor.go)、[会话覆盖层](../../../internal/session/lifecycle.go)、[聊天页头](../../../web/src/hooks/sessions/hybrid.svelte.ts)
-- [目录选择](../../../web/src/components/workspace/DirectoryPicker.svelte)、[命令解析](../../../internal/session/run_command.go)、[工作区会话创建](../../../internal/workspace/sessions.go)。
+- [会话标题来源](../../../internal/hybrid/actor.go)、[核心生命周期](../../../internal/session/lifecycle.go)、[聊天页头](../../../web/src/hooks/sessions/hybrid.svelte.ts)
+- [目录选择](../../../web/src/components/workspace/DirectoryPicker.svelte)、[命令解析](../../../internal/session/run_command.go)、[核心创建编排](../../../internal/sessioncreate/service.go)。
+- [可选创建端口](../../../internal/sessioncreate/types.go)、[工作区位置贡献](../../../internal/workspace/create_location.go)、[插件创建入口](../../../web/src/plugins/create.ts)。
 
 来源补充：[统一创建回归](../../../web/test/e2e/session-creation.spec.ts)。

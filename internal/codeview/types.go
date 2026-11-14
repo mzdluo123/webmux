@@ -103,6 +103,7 @@ type TargetResolver interface {
 	LocateRepository(ctx context.Context, repositoryID string) (workspace.RepositoryLocation, error)
 	LocateWorktree(ctx context.Context, repositoryID, worktreeID string) (workspace.WorktreeLocation, error)
 	ResolveTaskScope(ctx context.Context, repositoryID, worktreeID string) (workspace.TaskScopeSummary, error)
+	Association(id string) *workspace.Association
 }
 
 // Target identifies a session-independent repository or worktree scope.

@@ -27,7 +27,7 @@
     preview?: (path: string) => string | undefined;
     /** Tool calls whose permission request waits for an answer. */
     waiting: readonly string[];
-    onreview: (path: string) => void;
+    onreview?: (path: string) => void;
     onopenlocation?: ChatCodeLinkHandler;
   } = $props();
 

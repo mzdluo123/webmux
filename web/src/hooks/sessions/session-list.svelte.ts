@@ -1,27 +1,27 @@
 import { SvelteSet } from "svelte/reactivity";
-import {
-  observeAttentionRemoved,
-  observeAttentionSession,
-  observeAttentionSnapshot,
-} from "../../domains/notifications/attention-toast.svelte";
-import { connectSessions } from "../../domains/workspace/forwards.svelte";
-import { homeCache } from "../../domains/workspace/home-cache";
 import type { SessionInfo } from "../../contracts/schemas";
 import { sessionPins } from "../../domains/sessions/session-pins.svelte";
-import { applySessionEvent } from "./session-list";
+import { applySessionEvent } from "../../domains/sessions/session-events";
 import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
+import { terminalDraftRetained } from "../../domains/terminal/terminal-draft-owners";
 import type { Connection } from "../../platform/ws";
-import type { Archived } from "./archived.svelte";
+import { connectSessions, type SessionEvent } from "./session-feed";
 
-/** The live `/ws/sessions` list the shell's pages share. */
+let cachedSessions: SessionInfo[] | undefined;
+export function sessionListSnapshot() {
+  return cachedSessions;
+}
+export function clearSessionListSnapshot() {
+  cachedSessions = undefined;
+}
+
+/** The core feed has no repository, archive, attention or forwarding owner. */
 export interface SessionList {
   readonly sessions: readonly SessionInfo[];
-  /** No snapshot has arrived yet and nothing was cached. */
   readonly loading: boolean;
   /** A live snapshot, not merely cached rows, has established membership. */
   readonly ready: boolean;
   readonly connection: Connection;
-  /** The connection's last error; "" while none. */
   readonly error: string;
   /** Every removed event, including archive commits after the live row left. */
   subscribeRemoved(listener: (id: string) => void): () => void;
@@ -30,73 +30,51 @@ export interface SessionList {
 
 export function createSessionList({
   drafts,
-  archived,
   onreconnect,
+  onEvent,
 }: {
   drafts: TerminalDrafts;
-  archived: Archived;
-  /** The connection came back after dropping. */
-  onreconnect: () => void;
+  onreconnect?: () => void;
+  onEvent?: (event: SessionEvent, previous: readonly SessionInfo[]) => void;
 }): SessionList {
-  // The previous list renders at once and is refreshed behind the page.
-  const cached = homeCache.sessions();
-  if (cached) observeAttentionSnapshot(cached);
-  let sessions = $state.raw<SessionInfo[]>(cached ?? []);
-  let loading = $state(!cached);
+  let sessions = $state.raw<SessionInfo[]>(cachedSessions ?? []);
+  let loading = $state(!cachedSessions);
   let ready = $state(false);
   let connection = $state<Connection>("connecting");
   let error = $state("");
   const removedListeners = new SvelteSet<(id: string) => void>();
   const socket = connectSessions(
     (event) => {
-      if (event.type === "forwards") return;
-      // A session with a chat view leaves the list when it is closed or
-      // interrupted, and lives on as an archived session.
-      const removedHybrid =
-        event.type === "removed" &&
-        !!sessions
-          .find((session) => session.id === event.id)
-          ?.views.includes("chat");
+      const previous = sessions;
       sessions = applySessionEvent(sessions, event);
-      homeCache.rememberSessions(sessions);
+      cachedSessions = sessions;
+      onEvent?.(event, previous);
       if (event.type === "snapshot") {
-        observeAttentionSnapshot(event.sessions);
         sessionPins.refreshMissing(event.sessions);
-        const ids = event.sessions.map((session) => session.id);
-        // Recoverable hybrid sessions still own their drafts; without
-        // their IDs, leave saved drafts alone rather than guess.
-        void archived.refresh().then((records) => {
-          if (records) drafts.reconcile([...ids, ...records]);
-        });
         loading = false;
         ready = true;
       } else if (event.type === "removed") {
         for (const listener of removedListeners) listener(event.id);
-        observeAttentionRemoved(event.id);
         sessionPins.refreshEnded(event.id);
-        if (removedHybrid) void archived.refresh();
-        else drafts.remove(event.id);
-      } else {
-        observeAttentionSession(event.session);
+        const removed = previous.find((session) => session.id === event.id);
         if (
-          event.session.status === "exited" ||
-          event.session.state !== "active"
+          removed &&
+          !removed.views.includes("chat") &&
+          !terminalDraftRetained(drafts, event.id)
         )
-          sessionPins.refreshEnded(event.session.id);
-        if (
-          event.session.views.includes("chat") &&
-          (event.type === "created" || event.session.state !== "active")
-        ) {
-          // A resumed shell or one that just closed or was interrupted.
-          void archived.refresh();
-        }
+          drafts.remove(event.id);
+      } else if (
+        event.type !== "forwards" &&
+        (event.session.status === "exited" || event.session.state !== "active")
+      ) {
+        sessionPins.refreshEnded(event.session.id);
       }
     },
     (state) => {
       const reconnected =
         state === "connected" && connection === "reconnecting";
       connection = state;
-      if (reconnected) onreconnect();
+      if (reconnected) onreconnect?.();
     },
     (message) => {
       error = message;

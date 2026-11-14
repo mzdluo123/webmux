@@ -113,6 +113,7 @@ export function useUpload(
   terminal: UploadTerminal,
   setError: (message: string) => void,
   input: UploadInput,
+  available: () => boolean = () => true,
 ) {
   let progress = $state<UploadProgress | null>(null);
   let dragging = $state(false);
@@ -170,6 +171,10 @@ export function useUpload(
 
   async function uploadFiles(files: File[], operation = input.begin()) {
     if (!files.length) return;
+    if (!available()) {
+      setError("文件上传暂不可用");
+      return;
+    }
     if (!mounted || input.destination(operation) === "failed") return;
     if (progress) {
       setError("正在上传，请等待当前上传完成。");
@@ -232,7 +237,7 @@ export function useUpload(
 
   // Returns whether the paste carried files and was taken over as an upload.
   function filePaste(event: ClipboardEvent) {
-    return pasteFiles(event, uploadFiles);
+    return available() ? pasteFiles(event, uploadFiles) : false;
   }
 
   onMount(() => {
@@ -257,7 +262,7 @@ export function useUpload(
         dragging = true;
       },
       onOver: (transfer) => {
-        transfer.dropEffect = progress ? "none" : "copy";
+        transfer.dropEffect = !available() || progress ? "none" : "copy";
       },
       onLeave: () => {
         dragging = false;

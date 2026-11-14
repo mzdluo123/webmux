@@ -8,6 +8,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/transport"
 	"github.com/rainchan/webmux/internal/wire"
 )
 
@@ -16,7 +17,7 @@ var outputCursor = regexp.MustCompile(`^(0|[1-9][0-9]{0,19})$`)
 
 func (s *Server) output(r *http.Request) (contract.TerminalOutput, error) {
 	var out contract.TerminalOutput
-	q, err := readConversationQuery(r, "generation", "offset", "maxBytes")
+	q, err := transport.ParseQuery(r.URL.RawQuery, "generation", "offset", "maxBytes")
 	invalid := &badRequest{errors.New("invalid terminal output cursor or page")}
 	if err != nil || q.Has("generation") != q.Has("offset") {
 		return out, invalid

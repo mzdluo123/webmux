@@ -113,7 +113,7 @@
 依据：
 
 - 工作树固定任务审阅基线、单份净变更与收尾摘要：
-  - 服务端存储与路由：[基线存储](../../../../../internal/workspace/task_baseline_store.go)、[基线捕获与引用保护](../../../../../internal/workspace/task_baseline.go)、[任务接口路由](../../../../../internal/api/git_task.go)；
+  - 服务端存储与路由：[基线存储](../../../../../internal/workspace/task_baseline_store.go)、[基线捕获与引用保护](../../../../../internal/workspace/task_baseline.go)、[任务接口路由](../../../../../internal/pluginapi/git_task.go)；
   - 服务端净差异：[单份净变更与快照](../../../../../internal/codeview/task_diff.go)；
   - 服务端测试：[基线生命周期测试](../../../../../internal/workspace/task_baseline_test.go)、[单份净差异测试](../../../../../internal/codeview/task_diff_test.go)、[任务接口测试](../../../../../internal/api/git_task_test.go)；
   - 前端请求与状态：[任务接口封装](../../../../../web/src/platform/git-task-api.ts)、[任务审阅控制器](../../../../../web/src/hooks/workspace/git-task-review.svelte.ts)；
@@ -121,7 +121,7 @@
   - 前端测试：[任务接口单测](../../../../../web/test/git-task-api.test.ts)、[任务基线浏览器测试](../../../../../web/test/browser/GitWorkbenchTaskBaseline.test.ts)、[任务基线与收尾 E2E](../../../../../web/test/e2e/git-workbench-task-baseline.spec.ts)。
 - 跨设备审阅进度同步、乐观锁提交草稿与返工意见交回会话：
   - 服务端存储：[协同存储](../../../../../internal/workspace/workbench_collab_store.go)、[提交草稿](../../../../../internal/workspace/workbench_draft.go)、[审阅扫描](../../../../../internal/workspace/workbench_reviews_scan.go)、[审阅服务](../../../../../internal/workspace/workbench_reviews.go)；
-  - 服务端路由与测试：[协同路由](../../../../../internal/api/git_collab.go)、[协同契约](../../../../../internal/contract/git_collab.go)、[服务层测试](../../../../../internal/workspace/workbench_collab_test.go)、[接口测试](../../../../../internal/api/git_collab_test.go)；
+  - 服务端路由与测试：[协同路由](../../../../../internal/pluginapi/git_collab.go)、[协同契约](../../../../../internal/contract/git_collab.go)、[服务层测试](../../../../../internal/workspace/workbench_collab_test.go)、[接口测试](../../../../../internal/api/git_collab_test.go)；
   - 前端领域模型：[草稿模型](../../../../../web/src/domains/workspace/git-commit-draft-model.ts)、[返工意见模型](../../../../../web/src/domains/workspace/git-rework-model.ts)、[会话草稿交回](../../../../../web/src/hooks/workspace/git-session-handoff.ts)；
   - 前端控制器：[审阅同步控制器](../../../../../web/src/hooks/workspace/git-review-sync.svelte.ts)、[草稿控制器](../../../../../web/src/hooks/workspace/git-commit-draft.svelte.ts)、[返工控制器](../../../../../web/src/hooks/workspace/git-rework-controller.svelte.ts)；
   - 前端组件：[草稿冲突卡片](../../../../../web/src/components/workspace/GitCommitDraftConflictCard.svelte)、[Diff 选行摘录条](../../../../../web/src/components/workspace/GitDiffSelectionBar.svelte)、[返工草稿箱弹窗](../../../../../web/src/components/workspace/GitReworkDialog.svelte)；
@@ -131,7 +131,7 @@
   - 冲突探查与解决：[冲突探查](../../../../../internal/workspace/conflict_inspect.go)、[冲突保存与解决](../../../../../internal/workspace/conflict_resolve.go)；
   - 服务端分叉预览：[进行中状态探查](../../../../../internal/workspace/operation_inspect.go)、[分叉预览](../../../../../internal/workspace/divergence_preview.go)；
   - 服务端执行恢复：[分叉执行](../../../../../internal/workspace/divergence_execute.go)、[继续与中止恢复](../../../../../internal/workspace/operation_recovery.go)；
-  - 服务端路由契约：[分叉与冲突路由](../../../../../internal/api/git_divergence.go)、[分叉契约](../../../../../internal/contract/git_divergence.go)、[冲突契约](../../../../../internal/contract/git_conflict.go)；
+  - 服务端路由契约：[分叉与冲突路由](../../../../../internal/pluginapi/git_divergence.go)、[分叉契约](../../../../../internal/contract/git_divergence.go)、[冲突契约](../../../../../internal/contract/git_conflict.go)；
   - 服务端测试：[服务层测试](../../../../../internal/workspace/conflict_test.go)、[接口测试](../../../../../internal/api/git_conflict_test.go)；
   - 前端契约与模型：[冲突契约](../../../../../web/src/contracts/git-conflict-schemas.ts)、[冲突请求封装](../../../../../web/src/platform/git-conflict-api.ts)、[冲突领域模型](../../../../../web/src/domains/workspace/git-conflict-model.ts)；
   - 前端控制器：[分叉控制器](../../../../../web/src/hooks/workspace/git-divergence-controller.svelte.ts)、[冲突控制器](../../../../../web/src/hooks/workspace/git-conflict-controller.svelte.ts)；
@@ -143,7 +143,7 @@
   - 服务端代码差异与修订对比：[贮藏差异](../../../../../internal/codeview/stash_diff.go)、[修订差异](../../../../../internal/codeview/revision_diff.go)；
   - 服务端高级提交与引用远程：[Amend 辅助](../../../../../internal/workspace/commit_amend.go)、[分支重命名与上游](../../../../../internal/workspace/branch_manage.go)、[标签创建删除](../../../../../internal/workspace/tags.go)、[远程增删改](../../../../../internal/workspace/remotes_manage.go)；
   - 服务端文件溯源与账本对账：[跨重命名历史](../../../../../internal/workspace/file_history.go)、[逐行 Blame](../../../../../internal/workspace/blame.go)、[V2 启动对账](../../../../../internal/workspace/operations_v2.go)；
-  - 服务端路由与契约：[贮藏路由](../../../../../internal/api/git_stash.go)、[V2 操作路由](../../../../../internal/api/git_v2_ops.go)、[贮藏契约](../../../../../internal/contract/git_stash.go)、[V2 操作契约](../../../../../internal/contract/git_v2_ops.go)；
+  - 服务端路由与契约：[贮藏路由](../../../../../internal/pluginapi/git_stash.go)、[V2 操作路由](../../../../../internal/pluginapi/git_v2_ops.go)、[贮藏契约](../../../../../internal/contract/git_stash.go)、[V2 操作契约](../../../../../internal/contract/git_v2_ops.go)；
   - 贮藏与提交测试：[贮藏测试](../../../../../internal/workspace/stash_test.go)、[Amend 测试](../../../../../internal/workspace/commit_amend_test.go)；
   - 引用与溯源测试：[分支标签远程测试](../../../../../internal/workspace/branch_tag_remote_test.go)、[文件历史与 Blame 测试](../../../../../internal/workspace/blame_history_test.go)；
   - 服务端差异与 API 测试：[贮藏与修订快照测试](../../../../../internal/codeview/stash_revision_diff_test.go)、[接口综合测试](../../../../../internal/api/git_v2_ops_test.go)；
@@ -158,7 +158,7 @@
   - 服务端丢弃更改：[丢弃类型](../../../../../internal/workspace/discard_types.go)、[丢弃预览](../../../../../internal/workspace/discard_preview.go)、[丢弃执行与恢复快照](../../../../../internal/workspace/discard_execute.go)；
   - 服务端 Smart Checkout 预览与类型：[类型定义](../../../../../internal/workspace/smart_checkout_types.go)、[预览](../../../../../internal/workspace/smart_checkout_preview.go)；
   - 服务端 Smart Checkout 执行与对账：[三阶段执行](../../../../../internal/workspace/smart_checkout_execute.go)、[V3 账本对账](../../../../../internal/workspace/operations_v3.go)；
-  - 服务端路由与契约：[V3 操作路由](../../../../../internal/api/git_v3_ops.go)、[V3 契约](../../../../../internal/contract/git_v3_ops.go)；
+  - 服务端路由与契约：[V3 操作路由](../../../../../internal/pluginapi/git_v3_ops.go)、[V3 契约](../../../../../internal/contract/git_v3_ops.go)；
   - 服务端测试：[逐行测试](../../../../../internal/workspace/hunk_lines_test.go)、[丢弃测试](../../../../../internal/workspace/discard_test.go)、[Smart Checkout 测试](../../../../../internal/workspace/smart_checkout_test.go)；
   - 前端契约请求与模型：[V3 契约](../../../../../web/src/contracts/git-v3-schemas.ts)、[V3 请求封装](../../../../../web/src/platform/git-v3-api.ts)、[逐行选区纯函数模型](../../../../../web/src/domains/workspace/git-line-selection.ts)；
   - 前端控制器：[丢弃控制器](../../../../../web/src/hooks/workspace/git-discard-controller.svelte.ts)、[Smart Checkout 控制器](../../../../../web/src/hooks/workspace/git-smart-checkout.svelte.ts)；

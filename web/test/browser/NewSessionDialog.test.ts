@@ -10,6 +10,7 @@ import type {
   Worktree,
 } from "../../src/contracts/schemas";
 import { base, branch } from "./shell-fixture";
+import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
 
 const config = {
   id: "abcdefg2",
@@ -127,8 +128,9 @@ let acpConflict: unknown = null;
 let sessionFailures = 0;
 const origin = location.pathname + location.search;
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear();
+  await enableCreationPlugins();
   created = [];
   worktrees = [];
   removed = [];
@@ -232,6 +234,7 @@ afterEach(async () => {
   } finally {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    resetCreationPlugins();
     localStorage.clear();
     history.replaceState(null, "", origin);
   }
@@ -1189,4 +1192,151 @@ test("an unticked instruction is not sent", async () => {
   await submit().click();
   await vi.waitFor(() => expect(created).toHaveLength(1));
   expect(created[0]).not.toHaveProperty("useInitInstruction");
+});
+
+test("core creates cwd and custom argv without waiting for disabled launch resources", async () => {
+  await enableCreationPlugins([]);
+  open({ status: "loading" });
+  expect(launchField().elements()).toHaveLength(0);
+  expect(locationField().elements()).toHaveLength(0);
+  await directory().fill("/existing");
+  await command().fill("bash -lc 'printf hello'");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({
+    cwd: "/existing",
+    cmd: ["bash", "-lc", "printf hello"],
+    name: "",
+  });
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.every(
+        ([input]) =>
+          new URL(String(input), location.href).pathname === "/api/sessions",
+      ),
+  ).toBe(true);
+});
+
+test("core split drops workspace ownership even when the entry remembers it", async () => {
+  await enableCreationPlugins([]);
+  const oncreated = vi.fn();
+  open(
+    { status: "loading" },
+    {
+      split: true,
+      oncreated,
+      repositories: [repository],
+      entry: {
+        kind: "directory",
+        cwd: "/repos/project",
+        workspace: {
+          repositoryId: repository.id,
+          worktreeId: mainTree.id,
+          worktreePath: "/repos/project",
+        },
+      },
+    },
+  );
+  await command().fill("bash");
+  await page
+    .getByRole("button", { name: "创建并加入分屏 →", exact: true })
+    .click();
+  await vi.waitFor(() => expect(oncreated).toHaveBeenCalledOnce());
+  expect(created[0]).toEqual({
+    cwd: "/repos/project",
+    cmd: ["bash"],
+    name: "",
+  });
+});
+
+test("disabled remembered config asks for a new command instead of inferring argv", async () => {
+  await enableCreationPlugins([]);
+  localStorage.setItem("webmux.lastLaunch", "config:abcdefg2");
+  open({ status: "loading" });
+  await expect.element(page.getByText(/启动配置插件未启用/)).toBeVisible();
+  await expect.element(submit()).toBeDisabled();
+  expect(created).toEqual([]);
+  await command().fill("bash");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({ cwd: "/work", cmd: ["bash"], name: "" });
+});
+
+test("core reports a missing directory without offering or requesting mkdir", async () => {
+  await enableCreationPlugins([]);
+  open({ status: "loading" });
+  vi.mocked(fetch).mockResolvedValueOnce(
+    Response.json(
+      {
+        error: "directory: stat /missing: no such file or directory",
+      },
+      { status: 400 },
+    ),
+  );
+  await directory().fill("/missing");
+  await command().fill("bash");
+  await submit().click();
+  await expect
+    .element(page.getByRole("alert"))
+    .toMatchTextContent(/no such file or directory/);
+  expect(page.getByRole("alertdialog").elements()).toHaveLength(0);
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+});
+
+test("launch-only keeps saved launches with direct cwd and no workspace provider", async () => {
+  await enableCreationPlugins(["launch"]);
+  open({ status: "ready", configs: [config] });
+  expect(locationField().elements()).toHaveLength(0);
+  await expect.element(launchField()).toMatchTextContent(/Claude 恢复/);
+  await directory().fill("/existing");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({
+    cwd: "/existing",
+    configId: config.id,
+    name: "",
+  });
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+});
+
+test("workspace-only creates a custom command in its worktree without launch or files", async () => {
+  await enableCreationPlugins(["workspace"]);
+  open(
+    { status: "loading" },
+    {
+      repositories: [repository],
+      entry: {
+        kind: "worktree",
+        repositoryId: repository.id,
+        worktreeId: mainTree.id,
+      },
+    },
+  );
+  await expect.element(locationField()).toMatchTextContent(/project/);
+  expect(launchField().elements()).toHaveLength(0);
+  await command().fill("bash");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({
+    workspace: { repositoryId: repository.id, worktreeId: mainTree.id },
+    cmd: ["bash"],
+    name: "",
+  });
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+});
+
+test("files-only offers directory browsing without consulting workspace or launch", async () => {
+  await enableCreationPlugins(["files"]);
+  open({ status: "loading" });
+  await expect
+    .element(page.getByRole("button", { name: "浏览目录", exact: true }))
+    .toBeVisible();
+  expect(locationField().elements()).toHaveLength(0);
+  expect(launchField().elements()).toHaveLength(0);
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(0);
+  await command().fill("bash");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({ cwd: "/work", cmd: ["bash"], name: "" });
 });

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v4"
+	"github.com/rainchan/webmux/internal/streamproto"
 )
 
 const (
@@ -227,7 +228,7 @@ func (s *Service) attachRPCChannel(peer *peerEntry, dc *webrtc.DataChannel) {
 	dispatch := func(req rpcRequestWire, body []byte) {
 		defer release()
 		defer cancel()
-		resp := s.rpcHandler(ctx, RPCRequest{
+		resp := s.rpcHandler(ctx, streamproto.RPCRequest{
 			Method:  req.Method,
 			Path:    req.Path,
 			Headers: req.Headers,

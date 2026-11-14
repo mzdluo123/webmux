@@ -1,6 +1,7 @@
 import { onMount } from "svelte";
 import { api } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
+import { requestPluginHostRefresh } from "../../platform/plugin-host.svelte";
 import {
   VoiceSettingsSchema,
   VoiceSettingsUpdateSchema,
@@ -54,11 +55,14 @@ export function useVoiceSettings() {
 
   async function mutate(method: "PUT" | "DELETE", body?: unknown) {
     if (state.busy) return;
-    if (await run(method, body))
+    if (await run(method, body)) {
+      await requestPluginHostRefresh();
+      if (!mounted) return;
       state.notice =
         method === "PUT"
           ? "已保存，下一次录音起生效。"
           : "已恢复为配置文件中的设置。";
+    }
   }
 
   onMount(() => {

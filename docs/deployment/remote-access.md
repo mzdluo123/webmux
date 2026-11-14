@@ -2,6 +2,8 @@
 
 手机、局域网与公网访问：Tailscale、访问链接、Cloudflare Tunnel 与 HTTPS。
 
+直接经可信 VPN 访问核心 HTTP/WebSocket 不需要插件。由 WebMux 托管入口分别需要 `tailscale` 或 `cloudflare`；自动直连升级需要 `p2p`。先 [选择插件](configuration.md#内置插件选择) 并重启，再调整其业务开关。
+
 ## 手机访问（Tailscale）
 
 1. 在服务器和手机上安装 Tailscale 并加入同一网络。
@@ -57,7 +59,7 @@ offer/answer 角色不决定 UDP 发起方向，无需设置“反向连接”�
 webmux --tunnel
 ```
 
-推荐打开网页“设置 → 公网访问”，保存 Quick/Named 配置并启用，无需重启。首次网页保存前也可在配置中设置：
+选择 `cloudflare` 并重启后，可打开网页“设置 → 公网访问”，在线保存 Quick/Named 配置并启用；`--tunnel` 不会隐式选中插件。首次网页保存前也可在配置中设置：
 
 ```toml
 [tunnel]

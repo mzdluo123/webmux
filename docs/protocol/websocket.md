@@ -1,5 +1,8 @@
 # WebSocket 接口
 
+`/ws/sessions`、`/ws/s/{id}` 与 `/ws/settings` 属核心；聊天流需要 `chat`，语音流需要 `voice`。禁用流在 WebSocket 升级前返回 404，认证/Origin 不放宽；见 [能力发现](../protocol.md#能力发现)。
+会话列表经原子快照/订阅与统一投影生成；workspace/chat/forward 元数据分别由所属服务提供，不要求核心 hub 导入这些服务。禁用 forward 时快照的 `forwards=[]`，不启动端口扫描。
+
 ## WebSocket `/ws/sessions`
 
 会话列表，文本帧 JSON。连接后先收到 `snapshot`，之后为增量事件：

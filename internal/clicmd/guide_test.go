@@ -44,7 +44,7 @@ func guideEnv(t *testing.T, serve bool, session string) (Env, *bytes.Buffer, *by
 		if err != nil {
 			t.Fatal(err)
 		}
-		srv := &http.Server{Handler: mux}
+		srv := &http.Server{Handler: withTestCapabilities(mux)}
 		go func() { _ = srv.Serve(l) }()
 		t.Cleanup(func() { _ = srv.Close() })
 	}
@@ -117,34 +117,5 @@ func TestDirPrintsTheArtifactsFolder(t *testing.T) {
 	outside, _, _ := guideEnv(t, true, "")
 	if code := outside.Run(context.Background(), dirCommand, nil); code != contract.ExitUsage {
 		t.Fatalf("dir outside a session: %d", code)
-	}
-}
-
-// TestDirectoryListsEveryCommandOnce keeps the commands topic a directory:
-// one line per visible command, no help sections.
-func TestDirectoryListsEveryCommandOnce(t *testing.T) {
-	r := Commands()
-	page := Directory(r)
-	for _, c := range r.Visible("unix") {
-		if c.Bind == nil {
-			continue
-		}
-		line := "- `" + c.Usage() + "`: " + c.Summary + "\n"
-		if strings.Count(page, line) != 1 {
-			t.Errorf("directory lists %s %d times", c.Name, strings.Count(page, line))
-		}
-	}
-	for _, c := range r {
-		if c.Hidden && strings.Contains(page, "`webmux "+c.Name+" ") {
-			t.Errorf("directory lists hidden %s", c.Name)
-		}
-	}
-	for _, section := range []string{"Options:", "Examples:", "Arguments:", "Exit status:"} {
-		if strings.Contains(page, section) {
-			t.Errorf("directory contains %q", section)
-		}
-	}
-	if !strings.Contains(page, "--help") || !strings.Contains(page, "help --json") {
-		t.Error("directory does not point to --help and help --json")
 	}
 }

@@ -9,6 +9,44 @@ import (
 	"time"
 )
 
+type removalObserver struct{ events []Event }
+
+func (o *removalObserver) Observe(event Event) {
+	o.events = append(o.events, event)
+}
+
+func TestNotifyRemovedPublishesWithoutRuntimeToObserversAndSubscribers(t *testing.T) {
+	manager := NewManager(Options{})
+	t.Cleanup(func() { manager.Shutdown(context.Background()) })
+	subscriber := manager.Subscribe()
+	defer manager.Unsubscribe(subscriber)
+	observer := &removalObserver{}
+	stop := manager.Observe(observer)
+	defer stop()
+
+	const id = "archived"
+	manager.NotifyRemoved(id)
+	if len(observer.events) != 2 || observer.events[0].Type != "snapshot" ||
+		observer.events[1].Type != "removed" || observer.events[1].ID != id {
+		t.Fatalf("observer events: %+v", observer.events)
+	}
+	if event := <-subscriber.Out; event.Type != "snapshot" {
+		t.Fatalf("subscriber snapshot: %+v", event)
+	}
+	if event := <-subscriber.Out; event.Type != "removed" || event.ID != id {
+		t.Fatalf("subscriber removal: %+v", event)
+	}
+	if _, err := manager.Get(id); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("notification created a runtime: %v", err)
+	}
+
+	stop()
+	manager.NotifyRemoved(id)
+	if len(observer.events) != 2 {
+		t.Fatalf("stopped observer received removal: %+v", observer.events)
+	}
+}
+
 func TestCreateRejectsInvalidInput(t *testing.T) {
 	manager := NewManager(Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { manager.Shutdown(context.Background()) })

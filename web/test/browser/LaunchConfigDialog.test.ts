@@ -1,8 +1,11 @@
-import { afterEach, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import LaunchConfigDialog from "../../src/components/settings/LaunchConfigDialog.svelte";
 import type { LaunchConfig } from "../../src/contracts/schemas";
+import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
+
+beforeEach(() => enableCreationPlugins());
 
 const saved: LaunchConfig = {
   id: "abcdefg2",
@@ -48,6 +51,7 @@ afterEach(async () => {
   } finally {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    resetCreationPlugins();
   }
 });
 
@@ -504,4 +508,56 @@ test("the hybrid checkbox follows the server's verdict for the edited command", 
     method: "PUT",
     body: { cmd: ["omp", "--model", "haiku"], chat: true },
   });
+});
+
+test("launch-only editing preserves inactive plugin fields and never probes chat support", async () => {
+  await enableCreationPlugins(["launch"]);
+  const inactive: LaunchConfig = {
+    ...saved,
+    chat: true,
+    attention: {
+      mode: "urgent",
+      programStatus: false,
+      agentProtocol: true,
+      notify: true,
+      bell: false,
+      minTurnSeconds: 0,
+      doneDelaySeconds: 0,
+    },
+  };
+  const onsaved = vi.fn();
+  const requests = serve({
+    "/api/launch-configs/abcdefg2": (method, body) =>
+      Response.json(
+        method === "GET" ? inactive : { ...inactive, ...(body as object) },
+      ),
+  });
+  render(LaunchConfigDialog, { open: true, configId: inactive.id, onsaved });
+  await expect
+    .element(page.getByLabelText("名称", { exact: true }))
+    .toHaveValue(inactive.name);
+  expect(
+    page.getByRole("checkbox", { name: "混合模式（聊天 ↔ 终端）" }).elements(),
+  ).toHaveLength(0);
+  expect(
+    document.getElementById("launch-config-attention-fieldset"),
+  ).toBeNull();
+  await page.getByLabelText("名称", { exact: true }).fill("Renamed");
+  await save().click();
+  await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
+  expect(requests.map((request) => request.path)).toEqual([
+    "/api/launch-configs/abcdefg2",
+    "/api/launch-configs/abcdefg2",
+  ]);
+  expect(requests.at(-1)).toMatchObject({
+    body: { name: "Renamed" },
+  });
+  expect(requests.at(-1)!.body).not.toHaveProperty("chat");
+  expect(requests.at(-1)!.body).not.toHaveProperty("attention");
+  expect(onsaved).toHaveBeenCalledWith(
+    expect.objectContaining({
+      chat: inactive.chat,
+      attention: inactive.attention,
+    }),
+  );
 });

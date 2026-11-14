@@ -41,7 +41,7 @@ func newGitAPITestEnv(t *testing.T) *gitAPITestEnv {
 	c := config.Config{Listen: "127.0.0.1:7681", DefaultCwd: root, Token: "secret"}
 	m := session.NewManager(testSessionOptions(c))
 	ws := testWorkspace(t, m, root)
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Workspace: ws})))
+	server := httptest.NewServer(New(testDeps(t, testServices{Config: c, Manager: m, Workspace: ws})))
 	t.Cleanup(func() {
 		server.Close()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

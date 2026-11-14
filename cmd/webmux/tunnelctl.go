@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/transport"
 	"github.com/rainchan/webmux/internal/tunnel"
 	"github.com/rainchan/webmux/internal/tunnelsettings"
 )
@@ -25,7 +25,7 @@ type tunnelController struct {
 	web                                 bool
 	enabledSource, defaultEnabledSource string
 	local, token                        string
-	public                              *api.PublicOrigins
+	public                              *transport.PublicOrigins
 	locate                              func(context.Context) (string, error)
 	out                                 io.Writer
 	logger                              *slog.Logger
@@ -44,7 +44,7 @@ type tunnelControllerOptions struct {
 	Store  *tunnelsettings.Service
 	Local  string
 	Token  string
-	Public *api.PublicOrigins
+	Public *transport.PublicOrigins
 	Locate func(context.Context) (string, error)
 	Out    io.Writer
 	Logger *slog.Logger

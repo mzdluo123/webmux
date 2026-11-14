@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +13,12 @@ import (
 
 	"github.com/rainchan/webmux/internal/agentprofile/codex"
 	"github.com/rainchan/webmux/internal/agentprofile/omp"
+	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/pluginapi"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 // authBoundary sends body without credentials (401) and from a foreign
@@ -278,4 +282,94 @@ func TestCreateAPISendsStagedAttachments(t *testing.T) {
 		}
 		return false
 	})
+}
+
+// Fail only at the artifact port after the real PTY has been created.
+type failingCreateFiles struct {
+	err       error
+	sessionID string
+	calls     int
+}
+
+func (f *failingCreateFiles) StagedPath(path string) (string, error) {
+	return path, nil
+}
+
+func (f *failingCreateFiles) Adopt(id string, _ []string) ([]string, error) {
+	f.sessionID, f.calls = id, f.calls+1
+	return nil, f.err
+}
+
+func (f *failingCreateFiles) Ensure(id string) (string, error) {
+	f.sessionID, f.calls = id, f.calls+1
+	return "", f.err
+}
+
+func TestCreateAPIArtifactFailurePreservesCreatedSession(t *testing.T) {
+	for _, operation := range []string{"adopt", "ensure"} {
+		for _, kind := range []struct {
+			name   string
+			err    error
+			status int
+		}{
+			{"invalid", artifacts.ErrInvalid, http.StatusBadRequest},
+			{"unavailable", artifacts.ErrUnavailable, http.StatusServiceUnavailable},
+		} {
+			t.Run(operation+"/"+kind.name, func(t *testing.T) {
+				deps := coreOnlyDeps(t)
+				files := &failingCreateFiles{err: fmt.Errorf("%s staged prompt files: %w", operation, kind.err)}
+				creation := sessioncreate.New(deps.Manager, sessioncreate.Options{DefaultCwd: deps.Config.DefaultCwd, Files: files})
+				t.Cleanup(creation.Close)
+				deps.Create = creation
+				deps.Sessions = pluginapi.Bind(pluginapi.Deps{Manager: deps.Manager})
+				handler := NewBridge(deps).HTTPHandler
+				req := contract.CreateSessionRequest{
+					ClientRequestID: "artifact-failure-001",
+					Cmd:             []string{"/bin/sh", "-c", "read value"},
+					Prompt:          "inspect files",
+				}
+				if operation == "adopt" {
+					req.Attachments = []contract.ChatAttachment{{Path: "staged/prompt.txt"}}
+				} else {
+					req.Prompt, req.ExpandPrompt = "inspect {{dir}}", true
+				}
+				data, err := json.Marshal(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var sessionID string
+				for attempt := range 2 {
+					request := httptest.NewRequest(http.MethodPost, "http://webmux/api/sessions", strings.NewReader(string(data)))
+					request.Header.Set("Authorization", "Bearer core-secret")
+					response := httptest.NewRecorder()
+					handler.ServeHTTP(response, request)
+					if response.Code != kind.status {
+						t.Fatalf("attempt %d: status %d, want %d: %s", attempt, response.Code, kind.status, response.Body.String())
+					}
+					var failure contract.CreateSessionFailure
+					if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+						t.Fatal(err)
+					}
+					if failure.Step != contract.CreateStepPrompt || failure.Error != files.err.Error() || failure.SessionID == "" || failure.SessionID != files.sessionID {
+						t.Fatalf("partial creation failure: %+v; artifact session %q", failure, files.sessionID)
+					}
+					if attempt == 0 {
+						sessionID = failure.SessionID
+					} else if failure.SessionID != sessionID {
+						t.Fatalf("retry created a different session: %q != %q", failure.SessionID, sessionID)
+					}
+				}
+				if files.calls != 1 || len(deps.Manager.List()) != 1 {
+					t.Fatalf("retry repeated creation: artifact calls %d, sessions %+v", files.calls, deps.Manager.List())
+				}
+				request := httptest.NewRequest(http.MethodGet, "http://webmux/api/sessions/"+sessionID, nil)
+				request.Header.Set("Authorization", "Bearer core-secret")
+				response := httptest.NewRecorder()
+				handler.ServeHTTP(response, request)
+				if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), sessionID) {
+					t.Fatalf("created session is not accessible: %d %s", response.Code, response.Body.String())
+				}
+			})
+		}
+	}
 }

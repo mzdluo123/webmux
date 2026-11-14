@@ -22,7 +22,7 @@
     /** Tool calls whose permission request waits for an answer. */
     waiting: readonly string[];
     /** Opens a changed file in the code panel. */
-    onreview: (path: string) => void;
+    onreview?: (path: string) => void;
     /** Opens a referenced code file or line in the code panel. */
     onopenlocation?: ChatCodeLinkHandler;
   } = $props();

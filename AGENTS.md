@@ -6,15 +6,19 @@ WebMux is a single-user Linux/macOS web terminal for persistent PTY sessions, in
 
 ## Architecture
 
-- `cmd/webmux` loads TOML, converts it to `session.Options` (via `cmd/internal/assemble`), constructs every service (`session.Manager`, launch, workspace, codeview, files, push) and injects them into `api.New` as `api.Deps`. Only `cmd/` constructs services or converts configuration into service options. Keep explicit constructor-based wiring.
+- `cmd/webmux` loads TOML, converts options via `cmd/internal/assemble`, and constructs core plus selected builtins in `plugin_{assembly,start,bind,capabilities}.go`.
+  Only `cmd/` constructs services. `api.New` receives typed transport contributions, not optional services.
 - Layers are enforced by `internal/archtest` (rules R0–R11 in `docs/architecture.md`; manifest in `internal/archtest/layers_test.go`, where every new `internal/` package must be classified).
-  - Controllers: `internal/api`, `hub`, `wire`. Services: `session`, `workspace`, `launch`, `push`, `codeview`, `files`, and others. Shared: `contract`, `config`, `runtime`, `statefile`, `fetch`, `pathutil`, `attentionkind`. Out-of-server clients: `client`, `attach`, `tray/...`, `tunnel`, `service`, and others.
+  - Core controllers: `api`, `hub`, `wire`, `transport`; optional: `pluginapi`, `pluginhub`, `pluginwire`. Services include `session`, `sessioncreate`, workspace, launch and chat.
+    Shared includes `builtin`, `contract`, `streamproto`, config and runtime; clients stay outside services/controllers.
   - Shared packages and clients never import services or controllers. Only `cmd/` imports `internal/api`.
-- `internal/session` owns PTYs, bounded byte scrollback, metadata, status detection, and process cleanup. `internal/api` owns REST routes, authentication, Origin checks, error-to-status mapping, and static serving. `internal/hub` bridges session subscriptions to WebSockets and encodes terminal JSON frames. `internal/files` owns directory completion, mkdir, and upload storage.
+- `session` owns PTYs, bounded scrollback, core metadata, input/control and cleanup; `sessioncreate` owns argv/cwd/env with typed optional ports.
+  `api` owns auth, Origin and static serving; `hub` owns raw transport. `pluginwire.Projection` composes workspace/chat/forward overlays for all transports; core `wire` only converts core types.
 - `internal/hybrid` runs hybrid sessions (one actor each) and normalizes ACP updates into chat events; `internal/acp` is a stdlib-only ACP v1 client; `internal/agentprofile` holds per-agent profiles ([architecture](docs/architecture.md#混合会话)).
 - REST handles configuration, session operations, and filesystem requests. `/ws/sessions` delivers a snapshot followed by list events; `/ws/s/{id}` carries terminal frames; `/ws/s/{id}/chat` carries chat events. Raw PTY bytes reach xterm without server-side terminal emulation; OSC/title and preview parsing are side channels.
 - Replay capture and live subscription registration share a lock: preserve gap-free reattachment. Bounded queues disconnect slow clients rather than blocking PTY readers. Each connection has one data writer; cancelling a connection must not kill the persistent session.
-- Backend payloads and `web/src/contracts/schemas.ts` form one contract. Every JSON body and frame is a type in `internal/contract`, converted from service types in `internal/wire`; services never encode client-visible JSON. When changing JSON fields, update schemas, contract types, hub/frontend frame handling and consumers together, then re-record `internal/api/testdata/wire` with `go test ./internal/api -run TestWireSnapshots -update`.
+- JSON DTOs live in `internal/contract`; core `wire` and optional `pluginwire` convert service types. Services never encode client-visible JSON.
+  Update schemas, DTOs, projections, transport and consumers together; re-record `internal/api/testdata/wire` with `go test ./internal/api -run TestWireSnapshots -update`.
 
 ## Commands
 
@@ -30,9 +34,10 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 
 ## Conventions
 
-- Go: follow [docs/go-style.md](docs/go-style.md) and add no lint warnings (`make go-lint`). Return contextual errors. Services report sentinel errors (for example `workspace.ErrConflict`); only `internal/api/errors.go` maps them to HTTP statuses.
+- Go: follow [docs/go-style.md](docs/go-style.md); add no lint warnings (`make go-lint`). Return contextual errors. Services report sentinel errors; core `api` and optional `pluginapi` controllers map them to HTTP status.
 - Concurrency: protect state with existing locks and never hold them across blocking network or PTY operations. Shared output chunks stay immutable. Exit publication follows PTY drain and process cleanup. Preserve cancellation/deadlines for PTY writes and join spawned connection goroutines.
-- Execute commands as argv, not shell-expanded strings. Session creation takes either a saved launch `configId` or an explicit full `cmd`/`env`, never both. A new install seeds editable launch configs (`internal/launch/presets.go`); loading `.bashrc` needs an explicit `/usr/bin/env bash -ic` wrapper.
+- Execute argv, not shell-expanded strings. Creation takes saved `configId` (requires `launch`) or full `cmd`/`env`, never both.
+  Generated config selects core only (`plugins.enabled=[]`); omission retains the fixed legacy 14 builtins. Selection changes need restart. Only enabled `launch` seeds presets; `.bashrc` needs explicit `/usr/bin/env bash -ic`.
 - Security: preserve authentication and Origin checks on API/WebSocket paths. Never log terminal input/output or expose tokens through configuration responses.
 - Frontend: Svelte 5 runes per [docs/frontend-style.md](docs/frontend-style.md) (`$state` only for rendered state, `$derived` for computed values, `$effect` only for side effects with cleanup, typed `$props()`, `onclick` not `on:`). TypeScript is strict. Oxfmt: 80 columns, two spaces, semicolons, trailing commas.
 - Validate HTTP responses, WebSocket JSON, and local settings with Zod before updating state; derive types with `z.infer`. Reuse `api.ts` and `ws.ts`; do not add parallel request or reconnect conventions. PTY data stays binary. Failures use `APIError`; HTTP 401 triggers `webmux:auth`.

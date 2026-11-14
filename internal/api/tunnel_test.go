@@ -12,6 +12,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/pluginapi"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/tunnelsettings"
 )
@@ -82,11 +83,11 @@ func (c *tunnelControlFixture) SetEnabled(enabled bool) (contract.TunnelStatus, 
 	return contract.TunnelStatus{State: c.view.State, Enabled: &enabled, SettingsAvailable: true}, nil
 }
 
-func tunnelAPIHandler(t *testing.T, control TunnelSettingsControl) http.Handler {
+func tunnelAPIHandler(t *testing.T, control pluginapi.TunnelSettingsControl) http.Handler {
 	t.Helper()
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
-	return New(testDeps(t, Deps{Config: config.Config{Token: "login-secret"}, Manager: m, TunnelSettings: control}))
+	return New(testDeps(t, testServices{Config: config.Config{Token: "login-secret"}, Manager: m, TunnelSettings: control}))
 }
 
 func tunnelAPIRequest(h http.Handler, method, path, body, token, origin string) *httptest.ResponseRecorder {
@@ -201,45 +202,6 @@ func TestTunnelEndpointsViewsAndErrors(t *testing.T) {
 	}
 }
 
-func TestTunnelDynamicConfigAndPushOrigin(t *testing.T) {
-	control := newTunnelControlFixture()
-	control.view.Mode, control.view.Hostname = "named", "new.example.com"
-	public := &PublicOrigins{}
-	if err := public.Set("cloudflare", "https://new.example.com"); err != nil {
-		t.Fatal(err)
-	}
-	s := &Server{Deps: Deps{
-		Config:         config.Config{Tunnel: config.TunnelConfig{Token: "old-private", Hostname: "old.example.com"}},
-		Public:         public,
-		TunnelSettings: control,
-	}}
-	if got := s.tunnelInfo(); !got.Named || got.Hostname != "new.example.com" {
-		t.Fatalf("stale config %+v", got)
-	}
-	// The effective Named hostname anchors subscriptions. The stale TOML
-	// hostname is no longer an authorized public source, so the middleware
-	// rejects it even though the generic HTTPS rule would normalize it.
-	for _, row := range []struct {
-		host       string
-		authorized bool
-		want       string
-	}{
-		{"new.example.com", true, "https://new.example.com"},
-		{"old.example.com", false, "https://old.example.com"},
-	} {
-		// Tunnel and reverse-proxy traffic reaches the server over plain HTTP.
-		r := httptest.NewRequest("GET", "http://"+row.host+"/api/push", nil)
-		r.Header.Set("Origin", "https://"+row.host)
-		if got := s.originAllowed(r); got != row.authorized {
-			t.Fatalf("%s authorized = %v, want %v", row.host, got, row.authorized)
-		}
-		origin, reason := s.pushOrigin(r)
-		if origin != row.want || reason != "" {
-			t.Fatalf("%s push origin (%q, %q)", row.host, origin, reason)
-		}
-	}
-}
-
 func TestWireSnapshotsTunnel(t *testing.T) {
 	rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 	control := newTunnelControlFixture()
@@ -265,7 +227,7 @@ func TestWireSnapshotsTunnel(t *testing.T) {
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
 	enabled := false
-	local := NewLocal(testDeps(t, Deps{Manager: m}), Local{Status: func() contract.StatusV1 {
+	local := NewLocal(testDeps(t, testServices{Manager: m}), Local{Status: func() contract.StatusV1 {
 		return contract.StatusV1{V: 1, State: contract.StateRunning, Record: true, LocalAPI: true,
 			Tunnel: &contract.TunnelStatus{State: contract.TunnelOff, Enabled: &enabled, SettingsAvailable: true},
 			Drift:  []string{}, Warnings: []string{}, URLs: contract.URLs{Remote: []contract.RemoteURL{}}}

@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,7 +60,7 @@ func TestSmartCheckoutCleanRollbackAndTargetConflict(t *testing.T) {
 	}
 
 	// 1. Active session acknowledgement guard: start a session, verify AcknowledgeSessions is enforced!
-	sess, err := s.CreateSession(ctx, CreateInput{Cwd: dir, Cmd: []string{"/bin/sh", "-c", "printf READY; read v"}})
+	sess, err := s.CreateSession(ctx, sessioncreate.Input{Cwd: dir, Cmd: []string{"/bin/sh", "-c", "printf READY; read v"}})
 	if err != nil {
 		t.Fatal(err)
 	}

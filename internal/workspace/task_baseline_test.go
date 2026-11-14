@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,11 +118,9 @@ func TestTaskBaselineAutoCaptureGCProtectionRestartAndCleanup(t *testing.T) {
 	}
 
 	// Start and close/remove a session on wt: baseline MUST remain intact.
-	created, err := s.CreateSession(ctx, CreateInput{
-		Cwd:  wt.Path,
+	created, err := s.CreateSession(ctx, sessioncreate.Input{Cwd: wt.Path,
 		Name: "agent",
-		Cmd:  []string{"/bin/sh", "-c", "exit 0"},
-	})
+		Cmd:  []string{"/bin/sh", "-c", "exit 0"}})
 	if err != nil {
 		t.Fatalf("CreateSession on wt: %v", err)
 	}
@@ -204,11 +203,9 @@ func TestTaskBaselineUnbornDirtyManualSelectAndHistoryTaskScope(t *testing.T) {
 	}
 
 	// Starting a session on unborn worktree captures unborn=true without fake all-zero OID.
-	if _, err := s.CreateSession(ctx, CreateInput{
-		Cwd:  emptyDir,
+	if _, err := s.CreateSession(ctx, sessioncreate.Input{Cwd: emptyDir,
 		Name: "unborn-shell",
-		Cmd:  []string{"/bin/sh", "-c", "exit 0"},
-	}); err != nil {
+		Cmd:  []string{"/bin/sh", "-c", "exit 0"}}); err != nil {
 		t.Fatalf("CreateSession on unborn worktree: %v", err)
 	}
 	unbornBase, err := s.GetTaskBaseline(ctx, emptyRepo.ID, emptyMainWT)

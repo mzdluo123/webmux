@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,17 +32,20 @@ func TestAttachRefusedOffTheTerminalSide(t *testing.T) {
 	})
 	s, err := m.CreateShell(session.ShellInput{
 		CreateInput: session.CreateInput{Cmd: []string{"cat"}}, Argv: []string{"cat"},
-		Overlay: &session.Overlay{Hybrid: &session.HybridInfo{Side: "tui", State: "active", Agent: "omp"}},
+		Overlay: &session.Overlay{Destination: "terminal"},
 	}, idleDriver{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	var allowed atomic.Bool
+	allowed.Store(true)
+	contribution := Options{Terminal: func(string) (bool, string) { return allowed.Load(), "chat" }}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			return
 		}
-		Attach(r.Context(), s, NewWebSocketConn(c), session.AttachOptions{}, false)
+		Attach(r.Context(), s, NewWebSocketConn(c), session.AttachOptions{}, false, contribution)
 	}))
 	t.Cleanup(server.Close)
 	dial := func() (*websocket.Conn, context.Context) {
@@ -54,20 +58,16 @@ func TestAttachRefusedOffTheTerminalSide(t *testing.T) {
 		t.Cleanup(func() { _ = c.CloseNow() })
 		return c, ctx
 	}
-	for _, overlay := range []session.HybridInfo{
-		{Side: "tui", To: "acp", Phase: string(contract.PhaseInterrupting)},
-		{Side: "acp"},
-	} {
-		overlay.State, overlay.Agent = "active", "omp"
-		s.SetOverlay(&session.Overlay{Hybrid: &overlay})
+	for range 2 {
+		allowed.Store(false)
 		c, ctx := dial()
 		_, _, err := c.Read(ctx)
 		var closeErr websocket.CloseError
 		if !errors.As(err, &closeErr) || closeErr.Code != contract.CloseMoved || closeErr.Reason != "session moved: chat" {
-			t.Fatalf("%+v: attach got %v", overlay, err)
+			t.Fatalf("off-terminal attach got %v", err)
 		}
 	}
-	s.SetOverlay(&session.Overlay{Hybrid: &session.HybridInfo{Side: "tui", State: "active", Agent: "omp"}})
+	allowed.Store(true)
 	c, ctx := dial()
 	if kind, frame, err := c.Read(ctx); err != nil || kind != websocket.MessageBinary || len(frame) == 0 || frame[0] != contract.FrameControl {
 		t.Fatalf("terminal side attach: kind %v frame %x err %v", kind, frame, err)

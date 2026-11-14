@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/localclient"
 )
 
@@ -22,5 +23,6 @@ func websocketClient(t *testing.T, handler http.HandlerFunc) Client {
 	t.Cleanup(server.Close)
 	api := localclient.New(testDialer{strings.TrimPrefix(server.URL, "http://")})
 	t.Cleanup(api.Close)
-	return Client{API: api}
+	snapshot := testCapabilities(nil)
+	return Client{API: api, Capabilities: func() contract.Capabilities { return snapshot }, snapshot: &snapshot}
 }

@@ -8,6 +8,10 @@ Web 端的新建会话对话框、快速开始页与 `webmux run` 都调用它�
 
 创建成功时，实际提交初始聊天提示才返回可选 `initialInput`（沿用会话输入回执，含 turnId/promptId 或排队项）；空白提示和空初始化指令不返回该字段。
 
+**插件前提**：显式 `cmd`/`env` + `cwd` 的普通 PTY 创建属于核心，不需要 launch/workspace/files。
+`configId` 需要 `launch`；`workspace` / `newWorktree` / 仓库初始化指令需要 `workspace`；附件需要 `files`；聊天视图需要 `chat`（依赖 `launch` + `files`）；快捷指令展开需要 `quick-commands`。
+未提供对应贡献时不猜测命令或位置，也不隐式启用插件；先读取 [能力发现](../protocol.md#能力发现)。旧浏览器记住的 `configId` 不能回退为任意默认命令。
+
 ## 请求体
 
 ```jsonc

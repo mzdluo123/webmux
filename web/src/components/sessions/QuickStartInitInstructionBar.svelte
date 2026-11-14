@@ -7,8 +7,10 @@
   import {
     expandInitInstruction,
     usesArtifactDir,
+    parseQuickCommands,
   } from "../../domains/settings/quick-commands";
-  import { quickCommands } from "../../domains/settings/quick-commands.svelte";
+  import { settings } from "../../domains/settings/settings.svelte";
+  import { pluginAvailable } from "../../platform/plugin-host.svelte";
   import type { Repository } from "../../contracts/schemas";
 
   let {
@@ -26,7 +28,12 @@
   } = $props();
 
   const instructionPreview = $derived(
-    expandInitInstruction(repository.initInstruction ?? "", quickCommands.list),
+    expandInitInstruction(
+      repository.initInstruction ?? "",
+      pluginAvailable("quick-commands.send")
+        ? (settings.values.quickCommands ?? parseQuickCommands(""))
+        : [],
+    ),
   );
 </script>
 

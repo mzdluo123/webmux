@@ -9,6 +9,12 @@ import (
 	"github.com/0magnet/xterm-go/vt"
 )
 
+// xterm-go initializes its process-wide Unicode width table on first use
+// without synchronization. Prime it before sessions can parse output in parallel.
+func init() {
+	vt.Wcwidth('界')
+}
+
 const (
 	maxPreviewLines = 100
 	maxPreviewRunes = 120

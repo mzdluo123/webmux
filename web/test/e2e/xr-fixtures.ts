@@ -334,6 +334,7 @@ export class XrBrowser {
 }
 
 export const test = base.extend<{ xr: XrBrowser }>({
+  plugins: ["launch", "files", "chat", "immersive", "workspace"],
   xr: async ({ page }, use) => {
     await installIwer(page);
     await use(new XrBrowser(page));

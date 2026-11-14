@@ -108,6 +108,12 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 		return nil, err
 	}
 	a := newActor(s, cmd, cwd, in.ConfigID, side, in.Attention)
+	created := false
+	defer func() {
+		if !created {
+			s.clearMetadata(a.id)
+		}
+	}()
 	a.contextExecutionID = in.ContextExecutionID
 	cleanupConversation := func(ctx context.Context, id string) error {
 		if in.ProviderThreadID != "" && s.conversations != nil {
@@ -124,6 +130,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 		},
 		ID:      in.RuntimeID,
 		Overlay: a.overlay(),
+		Prepare: func(shell *session.Session) {
+			a.id, a.shell = shell.Info().ID, shell
+			a.publishMetadata()
+		},
 	}, a)
 	if err != nil {
 		return nil, shellError(err)
@@ -253,6 +263,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 	if err := ctx.Err(); err != nil {
 		s.log.Info("hybrid session created after its request ended", "id", a.id)
 	}
+	created = true
 	return shell, nil
 }
 

@@ -13,11 +13,19 @@
     hostStrain,
     SLOW_LATENCY_MS,
   } from "../../domains/sessions/host-health";
-  import { p2pState } from "../../platform/p2p.svelte";
+  import { pluginContributions } from "../../plugins/registry.svelte";
   import { HealthSchema, type Health } from "../../contracts/schemas";
   import { toggleTheme } from "../../hooks/settings/theme";
   import type { Connection } from "../../platform/ws";
-  import ForwardButton from "../workspace/ForwardButton.svelte";
+  const p2pState = $derived(
+    pluginContributions.entries.p2p?.p2pState ?? {
+      mode: "ws",
+      p2pRttMs: null,
+      candidateType: "",
+      ipFamily: "",
+    },
+  );
+  const forward = $derived(pluginContributions.entries.forward);
 
   // The sidebar's global footer, shared by both modes: the connection and
   // host, adding a repository, port forwarding, settings and the theme. A
@@ -208,15 +216,17 @@
       </dl>
     </Popover.Content>
   </Popover.Root>
-  <Button
-    variant="ghost"
-    size="icon-touch"
-    aria-label="添加仓库"
-    title="添加仓库"
-    disabled={!canAdd}
-    onclick={() => onadd()}><IconFolderPlus aria-hidden="true" /></Button
-  >
-  <ForwardButton onclick={onforward} />
+  {#if pluginContributions.entries.workspace}
+    <Button
+      variant="ghost"
+      size="icon-touch"
+      aria-label="添加仓库"
+      title="添加仓库"
+      disabled={!canAdd}
+      onclick={() => onadd()}><IconFolderPlus aria-hidden="true" /></Button
+    >
+  {/if}
+  {#if forward}<forward.Button onclick={onforward} />{/if}
   <Button
     href="/settings"
     variant="ghost"

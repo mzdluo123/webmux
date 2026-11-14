@@ -32,7 +32,8 @@ func p2pReadCommand(peers bool) *Command {
 	}
 	return &Command{
 		Name: "p2p " + name, Group: GroupServer, Summary: summary,
-		Description: "Reads the running instance over its local socket, including from a session; changes no settings. " + p2pLimits +
+		Description: "Reads the running instance over its local socket, including from a session; changes no settings. " +
+			"Requires the P2P plugin to be selected, but remains available when direct connectivity is disabled or unavailable. " + p2pLimits +
 			" Candidate metadata and RTT may be browser-reported. Missing metrics are unknown, not a healthy zero. " +
 			"Channels counts stream channels, excluding control and RPC channels.",
 		Output: "Readable status or peer table; --json prints the P2PStatus object or its peers array. Missing RTT is omitted.",
@@ -98,6 +99,12 @@ func (e Env) p2pStatus(ctx context.Context) (contract.P2PStatus, int) {
 		return contract.P2PStatus{}, code
 	}
 	defer client.Close()
+	if err := client.RequirePlugin(ctx, "p2p"); err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return contract.P2PStatus{}, e.p2pTimeout()
+		}
+		return contract.P2PStatus{}, e.Fail(err)
+	}
 	var st contract.P2PStatus
 	if err := client.Do(ctx, http.MethodGet, contract.PathP2PDiagnostics, nil, &st); err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {

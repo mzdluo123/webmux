@@ -286,6 +286,9 @@ func (c *Client) Token(ctx context.Context) (string, error) {
 // *APIError with 409 when the token is too weak and 403 for callers inside
 // a WebMux session.
 func (c *Client) SetTunnel(ctx context.Context, enabled bool) (contract.TunnelStatus, error) {
+	if err := c.RequireCapability(ctx, "cloudflare.manage"); err != nil {
+		return contract.TunnelStatus{}, err
+	}
 	var status contract.TunnelStatus
 	err := c.Do(ctx, http.MethodPost, contract.PathTunnel, contract.TunnelRequest{Enabled: &enabled}, &status)
 	return status, err
@@ -294,6 +297,9 @@ func (c *Client) SetTunnel(ctx context.Context, enabled bool) (contract.TunnelSt
 // Tailscale returns the full Tailscale view, including detection and enable
 // preconditions; refresh bypasses the server's detection cache.
 func (c *Client) Tailscale(ctx context.Context, refresh bool) (contract.TailscaleStatus, error) {
+	if err := c.RequireCapability(ctx, "tailscale.manage"); err != nil {
+		return contract.TailscaleStatus{}, err
+	}
 	path := "/api/tailscale"
 	if refresh {
 		path += "?refresh=1"
@@ -307,6 +313,9 @@ func (c *Client) Tailscale(ctx context.Context, refresh bool) (contract.Tailscal
 // page. It returns *APIError with 400 for invalid settings, 409 when the
 // entry point cannot be enabled and 403 for callers inside a WebMux session.
 func (c *Client) SetTailscale(ctx context.Context, update contract.TailscaleSettingsUpdate) (contract.TailscaleStatus, error) {
+	if err := c.RequireCapability(ctx, "tailscale.manage"); err != nil {
+		return contract.TailscaleStatus{}, err
+	}
 	var status contract.TailscaleStatus
 	err := c.Do(ctx, http.MethodPut, "/api/tailscale/settings", update, &status)
 	return status, err

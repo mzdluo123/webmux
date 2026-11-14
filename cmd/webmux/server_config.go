@@ -38,6 +38,18 @@ type serverRun struct {
 	P2PWebManaged bool
 }
 
+func (run *serverRun) closeSettings() {
+	if run.TunnelSettings != nil {
+		run.TunnelSettings.Close()
+	}
+	if run.TailscaleSettings != nil {
+		run.TailscaleSettings.Close()
+	}
+	if run.P2PSettings != nil {
+		run.P2PSettings.Close()
+	}
+}
+
 // flagParseError marks a flag error already reported by the flag set, so a
 // caller does not print the same message twice.
 type flagParseError struct{ err error }
@@ -107,30 +119,35 @@ func parseServerRun(name string, args []string, stderr io.Writer) (serverRun, er
 	if c.StateDir == "" {
 		c.StateDir = config.DefaultStateDir()
 	}
-	run.TunnelSettings = tunnelsettings.Open(c.StateDir, c.Tunnel)
-	var webManaged bool
-	c.Tunnel, webManaged = run.TunnelSettings.Effective()
-	if explicit["tunnel"] && run.TunnelSettings.Unavailable() == nil {
-		c.Tunnel.Enabled = *tunnelFlag
-		c.SetSource("tunnel.enabled", "cli")
-	}
-	run.TunnelWebManaged = webManaged && !explicit["tunnel"]
-	closeSettings := func() {
-		run.TunnelSettings.Close()
-		run.TailscaleSettings.Close()
-		run.P2PSettings.Close()
-	}
+	// Validate the module selection before opening any optional store.
 	if err = c.Validate(); err != nil {
-		run.TunnelSettings.Close()
 		return run, err
 	}
-	run.TailscaleSettings = tailscalesettings.Open(c.StateDir, c.Tailscale)
-	c.Tailscale, run.TailscaleWebManaged = run.TailscaleSettings.Effective()
-	run.P2PSettings = p2psettings.Open(c.StateDir, c.P2P)
-	c.P2P, run.P2PWebManaged = run.P2PSettings.Effective()
-	if c.Tailscale.Provider == "windows" && !wsl.Detected() {
-		closeSettings()
-		return run, errors.New(`tailscale.provider "windows" is only valid inside WSL; use "linux" or "auto"`)
+	if explicit["tunnel"] && *tunnelFlag && !c.Plugins.Has("cloudflare") {
+		return run, errors.New("cloudflare plugin is disabled; enable it in plugins.enabled before using --tunnel")
+	}
+	closeSettings := run.closeSettings
+	if c.Plugins.Has("cloudflare") {
+		run.TunnelSettings = tunnelsettings.Open(c.StateDir, c.Tunnel)
+		var webManaged bool
+		c.Tunnel, webManaged = run.TunnelSettings.Effective()
+		if explicit["tunnel"] && run.TunnelSettings.Unavailable() == nil {
+			c.Tunnel.Enabled = *tunnelFlag
+			c.SetSource("tunnel.enabled", "cli")
+		}
+		run.TunnelWebManaged = webManaged && !explicit["tunnel"]
+	}
+	if c.Plugins.Has("tailscale") {
+		run.TailscaleSettings = tailscalesettings.Open(c.StateDir, c.Tailscale)
+		c.Tailscale, run.TailscaleWebManaged = run.TailscaleSettings.Effective()
+		if c.Tailscale.Provider == "windows" && !wsl.Detected() {
+			closeSettings()
+			return run, errors.New(`tailscale.provider "windows" is only valid inside WSL; use "linux" or "auto"`)
+		}
+	}
+	if c.Plugins.Has("p2p") {
+		run.P2PSettings = p2psettings.Open(c.StateDir, c.P2P)
+		c.P2P, run.P2PWebManaged = run.P2PSettings.Effective()
 	}
 	hadToken := c.Token != ""
 	if err = ensureStartupToken(&c, run.TunnelWebManaged, run.TailscaleWebManaged); err != nil {
@@ -147,10 +164,11 @@ var errMCPOwnerToken = errors.New("mcp.enabled requires a configured nonempty ow
 // ensureStartupToken refuses a weak token only for TOML-enabled exposure.
 // Web-managed exposure keeps local access and fails closed in its controller.
 func ensureStartupToken(c *config.Config, tunnelWeb, tailscaleWeb bool) error {
-	if c.MCP.Enabled && c.Token == "" {
+	if c.Plugins.Has("mcp") && c.MCP.Enabled && c.Token == "" {
 		return errMCPOwnerToken
 	}
-	tomlExposure := (c.Tunnel.Enabled && !tunnelWeb) || (c.Tailscale.Enabled() && !tailscaleWeb)
+	tomlExposure := (c.Plugins.Has("cloudflare") && c.Tunnel.Enabled && !tunnelWeb) ||
+		(c.Plugins.Has("tailscale") && c.Tailscale.Enabled() && !tailscaleWeb)
 	if !tomlExposure && c.Token != "" && len(c.Token) < minTunnelTokenLength {
 		return nil
 	}
@@ -162,13 +180,13 @@ func ensureStartupToken(c *config.Config, tunnelWeb, tailscaleWeb bool) error {
 // without a tunnel, and a tunnel token must not be weaker than that form.
 func ensureToken(c *config.Config) error {
 	if c.Token == "" {
-		if c.Tunnel.Enabled || c.Tailscale.Enabled() || !loopbackListen(c.Listen) {
+		if (c.Plugins.Has("cloudflare") && c.Tunnel.Enabled) || (c.Plugins.Has("tailscale") && c.Tailscale.Enabled()) || !loopbackListen(c.Listen) {
 			c.Token = generateToken()
 			c.SetSource("token", "generated")
 		}
 		return nil
 	}
-	if (c.Tunnel.Enabled || c.Tailscale.Enabled()) && len(c.Token) < minTunnelTokenLength {
+	if ((c.Plugins.Has("cloudflare") && c.Tunnel.Enabled) || (c.Plugins.Has("tailscale") && c.Tailscale.Enabled())) && len(c.Token) < minTunnelTokenLength {
 		return fmt.Errorf("tunnel and Tailscale Serve/Funnel require the webmux token to be at least %d characters; leave it empty to generate one, or create one with openssl rand -base64 32", minTunnelTokenLength)
 	}
 	return nil

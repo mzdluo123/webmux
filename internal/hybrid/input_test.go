@@ -15,23 +15,23 @@ import (
 func TestInputDispatchesBySide(t *testing.T) {
 	h := newHarness(t, 0)
 	chat := h.create(h.input(omp.Name, SideACP)).Info().ID
-	result, err := h.svc.Input(ctxT(t), chat, InputRequest{ClientRequestID: rid(), Text: "hello"})
-	if err != nil || result.Side != SideACP || result.Prompt.PromptID == "" || result.Prompt.Queued {
+	result, err := h.svc.Input(ctxT(t), chat, session.InputRequest{ClientRequestID: rid(), Text: "hello"})
+	if err != nil || result.Side != string(SideACP) || result.Prompt.PromptID == "" || result.Prompt.Queued {
 		t.Fatalf("chat input %+v %v", result, err)
 	}
-	if _, err := h.svc.Input(ctxT(t), chat, InputRequest{ClientRequestID: rid(), Keys: [][]byte{[]byte("\x1b")}}); !errors.Is(err, ErrWrongSide) {
+	if _, err := h.svc.Input(ctxT(t), chat, session.InputRequest{ClientRequestID: rid(), Keys: [][]byte{[]byte("\x1b")}}); !errors.Is(err, ErrWrongSide) {
 		t.Fatalf("keys on the chat: %v", err)
 	}
 
 	terminal := h.create(h.input(omp.Name, SideTUI))
 	id := terminal.Info().ID
 	for _, mode := range []string{ModeSteer, ModeRefuse, ModeNow} {
-		if _, err := h.svc.Input(ctxT(t), id, InputRequest{ClientRequestID: rid(), Text: "x", Mode: mode}); !errors.Is(err, ErrWrongSide) {
+		if _, err := h.svc.Input(ctxT(t), id, session.InputRequest{ClientRequestID: rid(), Text: "x", Mode: mode}); !errors.Is(err, session.ErrWrongInputDestination) {
 			t.Fatalf("mode %s on the terminal: %v", mode, err)
 		}
 	}
-	result, err = h.svc.Input(ctxT(t), id, InputRequest{ClientRequestID: rid(), Label: "script", Text: "typed", Submit: true})
-	if err != nil || result.Side != SideTUI {
+	result, err = h.svc.Input(ctxT(t), id, session.InputRequest{ClientRequestID: rid(), Label: "script", Text: "typed", Submit: true})
+	if err != nil || result.Side != string(SideTUI) {
 		t.Fatalf("terminal input %+v %v", result, err)
 	}
 	if err := h.svc.Interrupt(ctxT(t), id, rid(), "script"); err != nil {
@@ -56,7 +56,7 @@ func TestInputRefusals(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.svc.Input(ctxT(t), id, InputRequest{ClientRequestID: rid(), Text: "x"}); !errors.Is(err, ErrSwitching) {
+	if _, err := h.svc.Input(ctxT(t), id, session.InputRequest{ClientRequestID: rid(), Text: "x"}); !errors.Is(err, ErrSwitching) {
 		t.Fatalf("input while switching: %v", err)
 	}
 	if err := h.svc.Interrupt(ctxT(t), id, rid(), "script"); !errors.Is(err, ErrSwitching) {
@@ -69,7 +69,7 @@ func TestInputRefusals(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.closeSession(id)
-	if _, err := h.svc.Input(ctxT(t), id, InputRequest{ClientRequestID: rid(), Text: "x"}); !errors.Is(err, ErrNotFound) {
+	if _, err := h.svc.Input(ctxT(t), id, session.InputRequest{ClientRequestID: rid(), Text: "x"}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("input after close: %v", err)
 	}
 }
@@ -83,19 +83,19 @@ func TestTerminalInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := (*Service)(nil).TerminalInput(ctxT(t), s, InputRequest{ClientRequestID: rid(), Attachments: []Attachment{{Path: "/x"}}}); !errors.Is(err, ErrWrongSide) {
+	if _, err := s.Input(ctxT(t), session.InputRequest{ClientRequestID: rid(), Attachments: []session.InputAttachment{{Path: "/x"}}}); !errors.Is(err, session.ErrWrongInputDestination) {
 		t.Fatalf("attachments on a terminal: %v", err)
 	}
-	if _, err := (*Service)(nil).TerminalInput(ctxT(t), s, InputRequest{ClientRequestID: rid(), Text: "hi", Submit: true}); err != nil {
+	if _, err := s.Input(ctxT(t), session.InputRequest{ClientRequestID: rid(), Text: "hi", Submit: true}); err != nil {
 		t.Fatal(err)
 	}
-	if err := (*Service)(nil).TerminalInterrupt(ctxT(t), s, rid(), "script"); err != nil {
+	if err := s.Interrupt(ctxT(t), rid(), "script"); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "cat exits on Ctrl-C", func() bool { return s.Info().Status == session.StatusExited })
-	_, err = (*Service)(nil).TerminalInput(ctxT(t), s, InputRequest{ClientRequestID: rid(), Text: "late"})
-	var failed *InputFailedError
-	if !errors.As(err, &failed) || !errors.Is(err, ErrInputFailed) {
+	_, err = s.Input(ctxT(t), session.InputRequest{ClientRequestID: rid(), Text: "late"})
+	var failed *session.InputFailedError
+	if !errors.As(err, &failed) || !errors.Is(err, session.ErrInputFailed) {
 		t.Fatalf("input after exit: %v", err)
 	}
 }
@@ -111,7 +111,7 @@ func TestTerminalInputUsesSessionSubmitDelay(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := time.Now()
-	if _, err := (*Service)(nil).TerminalInput(ctxT(t), s, InputRequest{ClientRequestID: rid(), Text: "hi", Submit: true}); err != nil {
+	if _, err := s.Input(ctxT(t), session.InputRequest{ClientRequestID: rid(), Text: "hi", Submit: true}); err != nil {
 		t.Fatal(err)
 	}
 	if elapsed := time.Since(start); elapsed < 50*time.Millisecond {

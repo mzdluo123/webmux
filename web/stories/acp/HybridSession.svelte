@@ -14,6 +14,8 @@
   import TerminalHeader from "../../src/components/terminal/TerminalHeader.svelte";
   import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
   import TerminalWorkspace from "../../src/components/terminal/TerminalWorkspace.svelte";
+  import * as chatPlugin from "../../src/plugins/terminal-chat";
+  import * as filesPlugin from "../../src/plugins/terminal-files";
   import type { ChatActions } from "../../src/platform/chat-api";
   import type {
     HybridNotice,
@@ -437,6 +439,7 @@
 
 <main class="terminal-page">
   <TerminalHeader
+    plugins={{ chat: chatPlugin, files: filesPlugin }}
     {terminal}
     {fullscreen}
     {draft}
@@ -462,6 +465,7 @@
     {hybrid}
   />
   <TerminalNotices
+    plugins={{ chat: chatPlugin, files: filesPlugin }}
     terminal={noticeTerminal}
     uploads={{ progress: null, cancel() {} }}
     {draft}

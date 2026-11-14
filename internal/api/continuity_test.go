@@ -47,7 +47,7 @@ func newContinuityFixture(t *testing.T, argv []string) *continuityFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())})))
+	server := httptest.NewServer(New(testDeps(t, testServices{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())})))
 	t.Cleanup(server.Close)
 	until := time.Now().Add(5 * time.Second)
 	for !bytes.Contains(item.Buffer(), []byte("READY")) {

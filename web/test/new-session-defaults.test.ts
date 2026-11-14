@@ -212,6 +212,22 @@ test("a remembered custom command applies before configs load; configs wait", ()
   expect(resolveInitialLaunch("", loading)).toBeNull();
 });
 
+test("disabled launch never waits on its provider or substitutes a remembered config", () => {
+  const loading: LaunchConfigsState = { status: "loading" };
+  expect(resolveInitialLaunch("", loading, false)).toEqual({
+    source: "custom",
+    configId: "",
+  });
+  expect(resolveInitialLaunch("config:one", loading, false)).toEqual({
+    source: "unset",
+    configId: "",
+  });
+  expect(resolveInitialLaunch("config:one", configs(), false)).toEqual({
+    source: "unset",
+    configId: "",
+  });
+});
+
 test("a worktree scope starts in that worktree; an unusable one asks for a new worktree", () => {
   const scope = { repositoryId: "a", worktreeId: "feature" };
   expect(resolveInitialTarget({ ...base, scope })).toMatchObject({

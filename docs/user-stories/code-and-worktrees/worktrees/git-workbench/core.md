@@ -119,7 +119,7 @@
 
 依据：
 
-- Git 只读与暂存提交接口：[只读路由](../../../../../internal/api/git_read.go)、[暂存提交路由](../../../../../internal/api/git_write.go)、[线上契约](../../../../../internal/contract/git_read.go)、[转换层](../../../../../internal/wire/git.go)；
+- Git 只读与暂存提交接口：[只读路由](../../../../../internal/pluginapi/git_read.go)、[暂存提交路由](../../../../../internal/pluginapi/git_write.go)、[线上契约](../../../../../internal/contract/git_read.go)、[转换层](../../../../../internal/pluginwire/git.go)；
   [代码上下文与比较](../../../../../internal/codeview/git_lookup.go)、[历史与暂存提交服务](../../../../../internal/workspace/staging.go)、[前端契约](../../../../../web/src/contracts/git-api-schemas.ts)、[前端请求封装](../../../../../web/src/platform/git-api.ts)；
   [只读接口测试](../../../../../internal/api/git_read_test.go)、[暂存提交接口测试](../../../../../internal/api/git_write_test.go)、[快照录制](../../../../../internal/api/wire_git_snapshot_test.go)、[前端契约单测](../../../../../web/test/git-api.test.ts)。
 - 独立 `/git` 路由与壳层：

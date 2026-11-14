@@ -110,7 +110,7 @@ func (s *Service) buildSmartCheckoutStateLocked(
 	}
 	hasAgent := false
 	for _, sess := range sessions {
-		if sess.Hybrid != nil {
+		if s.hybrids != nil && s.hybrids.Metadata(sess.ID) != nil {
 			hasAgent = true
 			break
 		}

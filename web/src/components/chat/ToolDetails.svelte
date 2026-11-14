@@ -20,7 +20,7 @@
   }: {
     tool: ToolEntry;
     /** Opens a changed file in the code panel. */
-    onreview: (path: string) => void;
+    onreview?: (path: string) => void;
     /** Opens a referenced code file or line in the code panel. */
     onopenlocation?: ChatCodeLinkHandler;
   } = $props();
@@ -49,9 +49,9 @@
         >{block.path}</span
       >
       {#if stats}<DiffCount added={stats.added} removed={stats.removed} />{/if}
-      {#if block.path}
+      {#if block.path && onreview}
         {@const path = block.path}
-        <Button variant="outline" size="xs" onclick={() => onreview(path)}
+        <Button variant="outline" size="xs" onclick={() => onreview?.(path)}
           >在代码面板中查看</Button
         >
       {/if}

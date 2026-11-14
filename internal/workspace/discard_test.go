@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -191,7 +192,7 @@ func TestDiscardFilesHunksLinesFreshnessAndRecoverySnapshot(t *testing.T) {
 	}
 
 	// 4. Active Session Guard: requires AcknowledgeSessions when a session is running!
-	sess, err := s.CreateSession(ctx, CreateInput{Cwd: dir, Cmd: []string{"/bin/sh", "-c", "printf READY; read v"}})
+	sess, err := s.CreateSession(ctx, sessioncreate.Input{Cwd: dir, Cmd: []string{"/bin/sh", "-c", "printf READY; read v"}})
 	if err != nil {
 		t.Fatal(err)
 	}

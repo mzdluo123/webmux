@@ -25,7 +25,7 @@ func Settings(ctx context.Context, sub *settings.Subscription, c MessageConn) {
 			if err != nil {
 				return
 			}
-			if write(ctx, c, MessageText, data) != nil {
+			if Write(ctx, c, MessageText, data) != nil {
 				return
 			}
 		}

@@ -20,6 +20,8 @@
 
 会话出现提问、等待授权、本轮完成、错误或终端通知时，WebMux 可以经浏览器推送服务（APNs、FCM、Mozilla）提醒已开启推送的设备；页面关闭或手机锁屏后仍能收到，点击通知回到对应会话。
 
+先选择 `notifications` 并重启，再启用 `[push]` 与设备订阅；PWA 安装本身不要求该插件。由 WebMux 托管 HTTPS 时还需对应的 `cloudflare` / `tailscale`，见 [插件选择](configuration.md#内置插件选择)。禁用推送插件不打开或重建既有密钥与订阅。
+
 ```toml
 [push]
 enabled = true

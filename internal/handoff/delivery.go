@@ -11,7 +11,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/hybrid"
-	"github.com/rainchan/webmux/internal/workspace"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 type MessageRequest struct {
@@ -47,10 +47,13 @@ func (s *Service) Close() {
 // Deliver returns a durable attempt immediately. A repeated command observes
 // that attempt and may resume preparation, but never re-enters a sending call.
 func (s *Service) Deliver(ctx context.Context, source string, in MessageRequest) (conversation.Execution, error) {
-	if !s.options.Conversations.HistoryEnabled() || s.options.Workspace == nil || s.options.Hybrid == nil {
+	if !s.options.Conversations.HistoryEnabled() || s.options.Creation == nil || s.options.Recovery == nil || s.options.Hybrid == nil || s.options.Launch == nil {
 		return conversation.Execution{}, conversation.ErrUnavailable
 	}
 	if err := validateRequest(Request{ClientRequestID: in.ClientRequestID, ConfigID: in.ConfigID, UserText: in.Text, AgentConfig: in.AgentConfig, Attachments: in.Attachments, Location: in.Location}); err != nil {
+		return conversation.Execution{}, err
+	}
+	if err := s.checkLocation(in.Location); err != nil {
 		return conversation.Execution{}, err
 	}
 	if in.AgentConfig == nil {
@@ -117,7 +120,7 @@ func (s *Service) startExecution(e conversation.Execution) {
 	go func() {
 		defer s.workers.Done()
 		defer func() { s.mu.Lock(); delete(s.flights, e.ID); s.mu.Unlock() }()
-		ctx, cancel := context.WithTimeout(s.ctx, workspace.CreateTimeout)
+		ctx, cancel := context.WithTimeout(s.ctx, sessioncreate.Timeout)
 		defer cancel()
 		s.driveExecution(ctx, e)
 	}()
@@ -165,6 +168,10 @@ func (s *Service) driveExecution(ctx context.Context, e conversation.Execution) 
 		fail("source_changed")
 		return
 	}
+	if err := s.checkLocation(p.Request.Location); err != nil {
+		fail("precheck")
+		return
+	}
 	actualAttachments, err := s.attachmentSnapshot(ctx, p.SourceConversationID, p.Request.Attachments)
 	if len(e.Attachments) == 0 && (err != nil || !slices.Equal(actualAttachments, p.Request.Attachments)) {
 		fail("attachments_changed")
@@ -193,45 +200,49 @@ func (s *Service) driveExecution(ctx context.Context, e conversation.Execution) 
 		}
 	}
 
-	in := workspace.CreateInput{ConfigID: &p.Request.ConfigID, Side: string(hybrid.SideACP), Cwd: p.Request.Location.Cwd}
+	in := sessioncreate.Input{ConfigID: &p.Request.ConfigID, Side: string(hybrid.SideACP), Cwd: p.Request.Location.Cwd}
 	location := p.Request.Location
 	if location.NewWorktreeBranch != "" {
 		in.Cwd = ""
-		in.NewWorktree = &workspace.NewWorktree{RepositoryID: location.RepositoryID, Mode: "new", Branch: location.NewWorktreeBranch, Base: location.NewWorktreeBase}
+		in.NewWorktree = &sessioncreate.NewWorktree{RepositoryID: location.RepositoryID, Mode: "new", Branch: location.NewWorktreeBranch, Base: location.NewWorktreeBase}
 	} else if location.RepositoryID != "" {
-		in.Workspace = &workspace.Reference{RepositoryID: location.RepositoryID, WorktreeID: location.WorktreeID}
+		in.Workspace = &sessioncreate.Reference{RepositoryID: location.RepositoryID, WorktreeID: location.WorktreeID}
 	}
 	if e.Phase == "reserved" {
-		plan, err := s.options.Workspace.PlanHandoff(ctx, in, e.DeliveryID)
-		if err != nil {
-			fail(executionErrorClass(err, "precheck"))
-			return
+		var plan sessioncreate.HandoffPlan
+		if s.options.Locations != nil {
+			var err error
+			plan, err = s.options.Locations.PlanHandoff(ctx, in, e.DeliveryID)
+			if err != nil {
+				fail(executionErrorClass(err, "precheck"))
+				return
+			}
 		}
 		e.WorktreePath, e.WorktreeBranch, e.WorktreeBase = plan.Path, plan.Branch, plan.Base
-		if !checkpoint("worktree", workspace.StepWorktree) {
+		if !checkpoint("worktree", sessioncreate.StepWorktree) {
 			return
 		}
 	}
 	if in.NewWorktree != nil {
-		tree, err := s.options.Workspace.EnsureHandoffWorktree(ctx, workspace.HandoffPlan{RepositoryID: location.RepositoryID, Path: e.WorktreePath, Branch: e.WorktreeBranch, Base: e.WorktreeBase})
+		tree, err := s.options.Locations.EnsureHandoffWorktree(ctx, sessioncreate.HandoffPlan{RepositoryID: location.RepositoryID, Path: e.WorktreePath, Branch: e.WorktreeBranch, Base: e.WorktreeBase})
 		if err != nil {
 			fail(executionErrorClass(err, "worktree"))
 			return
 		}
-		e.WorktreeID = tree.ID
+		e.WorktreeID = tree.WorktreeID
 		if s.pause("worktree_created") {
 			return
 		}
 		in.NewWorktree = nil
 		in.Cwd = ""
-		in.Workspace = &workspace.Reference{RepositoryID: location.RepositoryID, WorktreeID: tree.ID}
+		in.Workspace = &sessioncreate.Reference{RepositoryID: location.RepositoryID, WorktreeID: tree.WorktreeID}
 	}
 	if e.Phase == "worktree" {
-		if !checkpoint("session", workspace.StepSession) {
+		if !checkpoint("session", sessioncreate.StepSession) {
 			return
 		}
 	}
-	item, err := s.options.Workspace.EnsureHandoffSession(ctx, in, workspace.HandoffIdentity{RuntimeID: e.RuntimeID, ProviderThreadID: e.TargetProviderThreadID, ExecutionID: e.ID, RequireNativeResume: !p.Request.Fork})
+	item, err := s.options.Recovery.EnsureHandoffSession(ctx, in, sessioncreate.HandoffIdentity{RuntimeID: e.RuntimeID, ProviderThreadID: e.TargetProviderThreadID, ExecutionID: e.ID, RequireNativeResume: !p.Request.Fork})
 	if err != nil {
 		if !p.Request.Fork && (errors.Is(err, hybrid.ErrNativeResumeUnavailable) || errors.Is(err, hybrid.ErrSessionMissing) || errors.Is(err, hybrid.ErrProviderConfigChanged)) {
 			if fallbackErr := s.prepareFreshFallback(ctx, e, p); fallbackErr != nil {
@@ -267,10 +278,10 @@ func (s *Service) driveExecution(ctx context.Context, e conversation.Execution) 
 	if s.pause("session_created") {
 		return
 	}
-	if !checkpoint("session", workspace.StepConfig) {
+	if !checkpoint("session", sessioncreate.StepConfig) {
 		return
 	}
-	if warnings, err := s.options.Workspace.ConfigureHandoff(ctx, item.Info().ID, p.Request.AgentConfig, e.ID); err != nil || len(warnings) > 0 {
+	if warnings, err := s.options.Creation.Configure(ctx, item.Info().ID, sessioncreate.Input{AgentConfig: p.Request.AgentConfig, ClientRequestID: e.ID}); err != nil || len(warnings) > 0 {
 		fail("config")
 		return
 	}
@@ -296,7 +307,7 @@ func (s *Service) driveExecution(ctx context.Context, e conversation.Execution) 
 		return
 	}
 
-	if !checkpoint("ready", workspace.StepPrompt) {
+	if !checkpoint("ready", sessioncreate.StepPrompt) {
 		return
 	}
 	rec, err := s.options.Hybrid.Record(e.RuntimeID)
@@ -336,7 +347,7 @@ func (s *Service) driveExecution(ctx context.Context, e conversation.Execution) 
 		fail("source_changed")
 		return
 	}
-	if !checkpoint("sending", workspace.StepPrompt) {
+	if !checkpoint("sending", sessioncreate.StepPrompt) {
 		return
 	}
 	if s.pause("before_prompt") {
@@ -386,7 +397,7 @@ func executionErrorClass(err error, fallback string) string {
 	if errors.As(err, &connector) {
 		return "connector_missing"
 	}
-	if errors.Is(err, workspace.ErrConflict) {
+	if errors.Is(err, sessioncreate.ErrLocationConflict) {
 		return "location_conflict"
 	}
 	if errors.Is(err, hybrid.ErrConfigMissing) {

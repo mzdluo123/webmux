@@ -1,8 +1,11 @@
 # 通过 MCP 控制 WebMux
 
-WebMux 的 ACP 聊天会话默认获得 `webmux` MCP 服务，可以查询、创建和操作当前实例的会话，无需手动配置。
+选择 `mcp` 后，WebMux 的 ACP 聊天会话默认获得 `webmux` MCP 服务，可以查询、创建和操作当前实例的会话，无需手动配置。
 外部 MCP 客户端也可以连接同一组工具。
 交接自动注入的 `webmux-history` 仍然独立，只读取冻结的来源历史。
+
+先按 [内置插件选择](../deployment/configuration.md#内置插件选择) 启用 `mcp` 并重启；只选 `mcp` 也可控制核心 PTY，不强制开启 launch/chat。
+工具根据已认证的 `/api/capabilities` 裁剪参数、视图与发现内容，不调用禁用插件接口。聊天自动注入另需 `chat` 及依赖；冻结历史仍遵循来源与历史保存边界。
 
 ## ACP 默认接入
 
@@ -42,6 +45,9 @@ WebMux 的 ACP 聊天会话默认获得 `webmux` MCP 服务，可以查询、创
 
    ```toml
    token = "REPLACE_WITH_CONFIGURED_OWNER_TOKEN"
+   
+   [plugins]
+   enabled = ["mcp"] # 若还需其他功能，在同一列表显式加入
    
    [mcp]
    enabled = true
@@ -189,7 +195,7 @@ CLI 与 MCP 共用逻辑操作 ID、去重边界、完成证据、授权范围�
 
 ## 增量读取输出
 
-`session_read` 默认以 activity 视图读取已提交的规范化历史，支持运行中与已归档的聊天会话：
+启用 `chat` 时，`session_read` 默认以 activity 视图读取已提交的规范化历史，支持运行中与已归档的聊天会话；无 `chat` 时默认且仅提供 terminal 视图：
 
 ```json
 {
@@ -221,7 +227,7 @@ maxBytes 范围 1–65536，limited 表示尚有回放字节；解码后按顺�
 
 ## 等待指定回合或进程退出
 
-`session_wait` 要求选中一个具体聊天回合：使用 `session_send` 回执的 turnId，或排队回执的 queueItemId。
+启用 `chat` 时，`session_wait` 默认等待具体聊天回合：使用 `session_send` 回执的 turnId，或排队回执的 queueItemId；无 `chat` 时默认且仅支持 `until: "exit"`。
 `session_launch` 返回的 wait 对象使用真实初始输入回执的 turnId 或 queueItemId；没有提交提示时不提供等待选择器。
 也可显式传 firstTurn=true 选择仍保留的首回合；历史淘汰后不会误认后来的回合。
 

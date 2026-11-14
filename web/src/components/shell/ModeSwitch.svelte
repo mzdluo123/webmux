@@ -9,9 +9,11 @@
   let {
     mode,
     onchange,
+    workspaces = true,
   }: {
     mode: ShellMode;
     onchange: (mode: ShellMode) => void;
+    workspaces?: boolean;
   } = $props();
 </script>
 
@@ -28,9 +30,11 @@
   <Button
     variant="ghost"
     size="icon-touch"
-    aria-label="工作台模式"
+    aria-label={workspaces ? "工作台模式" : "会话模式"}
     aria-pressed={mode === "workbench"}
-    title="工作台模式：仓库、worktree 与全部会话"
+    title={workspaces
+      ? "工作台模式：仓库、worktree 与全部会话"
+      : "会话模式：全部终端与聊天会话"}
     onclick={() => onchange("workbench")}
     ><IconLayoutDashboard aria-hidden="true" /></Button
   >
