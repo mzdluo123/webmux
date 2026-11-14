@@ -6,8 +6,10 @@
     isExternalLink,
     parseChatCodeLink,
     type ChatCodeLink,
+    type ChatCodeLinkHandler,
   } from "../../domains/code/markdown-link";
   import DiffCount from "./DiffCount.svelte";
+  import InlineNotice from "../shared/InlineNotice.svelte";
 
   // What a tool call produced: output text, diffs, resource links and the
   // locations it touched. Diffs open in the code panel.
@@ -20,7 +22,7 @@
     /** Opens a changed file in the code panel. */
     onreview: (path: string) => void;
     /** Opens a referenced code file or line in the code panel. */
-    onopenlocation?: (target: ChatCodeLink) => void;
+    onopenlocation?: ChatCodeLinkHandler;
   } = $props();
 
   const blocks = $derived(
@@ -29,6 +31,12 @@
       stats: block.type === "diff" ? diffStats(block) : null,
     })),
   );
+  let linkFailure = $state("");
+  async function openLocation(target: ChatCodeLink) {
+    linkFailure = "";
+    const failure = await onopenlocation?.(target);
+    if (failure) linkFailure = failure;
+  }
 </script>
 
 {#each blocks as { block, stats }, i (i)}
@@ -63,8 +71,9 @@
       </p>
     {:else if target}
       <p>
-        <ListButton variant="code-link" onclick={() => onopenlocation?.(target)}
-          >{label}</ListButton
+        <ListButton
+          variant="code-link"
+          onclick={() => void openLocation(target)}>{label}</ListButton
         >
       </p>
     {:else}
@@ -86,7 +95,7 @@
       <ListButton
         variant="code-link"
         onclick={() =>
-          onopenlocation({
+          void openLocation({
             path: location.path,
             ...(location.line !== undefined && location.line >= 1
               ? { line: location.line }
@@ -98,3 +107,6 @@
     <p class="font-mono text-xs break-all">{label}</p>
   {/if}
 {/each}
+{#if linkFailure}<InlineNotice tone="warning" class="mt-1"
+    >{linkFailure}</InlineNotice
+  >{/if}

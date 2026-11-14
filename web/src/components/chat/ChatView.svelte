@@ -18,7 +18,7 @@
   import { errorMessage } from "../../platform/error";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
   import { observeTranscriptResize } from "../../hooks/chat/transcript-resize";
-  import type { ChatCodeLink } from "../../domains/code/markdown-link";
+  import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import type { ChatState, SessionInfo } from "../../contracts/schemas";
   import type {
     TerminalDraft,
@@ -69,7 +69,7 @@
     location?: Pick<SessionInfo, "workspace" | "cwd"> &
       Partial<Pick<SessionInfo, "view">>;
     onreview: (path: string) => void;
-    onopenlocation?: (target: ChatCodeLink) => void;
+    onopenlocation?: ChatCodeLinkHandler;
     onterminal: () => void;
     quickMenu?: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
     documentScroll?: boolean;

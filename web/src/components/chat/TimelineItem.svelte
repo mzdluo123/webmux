@@ -4,7 +4,7 @@
   import CodeMarkdownPreview from "../code/CodeMarkdownPreview.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import type { DisplayEntry } from "../../domains/chat/chat-model";
-  import type { ChatCodeLink } from "../../domains/code/markdown-link";
+  import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import type { StopReason } from "../../contracts/schemas";
   import { sessionReferenceParts } from "../../domains/sessions/session-reference";
   import ChatAttachmentImage from "./ChatAttachmentImage.svelte";
@@ -28,7 +28,7 @@
     /** Tool calls whose permission request waits for an answer. */
     waiting: readonly string[];
     onreview: (path: string) => void;
-    onopenlocation?: (target: ChatCodeLink) => void;
+    onopenlocation?: ChatCodeLinkHandler;
   } = $props();
 
   const turnEnds: Partial<

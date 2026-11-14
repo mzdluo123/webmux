@@ -4,6 +4,14 @@ import type { CodeReveal } from "../../contracts/schemas";
 /** A code file, directory, line range or heading target parsed from chat output. */
 export type ChatCodeLink = Omit<CodeReveal, "key" | "mode">;
 
+/**
+ * Opens a chat code link in the code browser; a resolved non-empty string is a
+ * failure reason the caller shows in place instead.
+ */
+export type ChatCodeLinkHandler = (
+  target: ChatCodeLink,
+) => void | Promise<string | undefined>;
+
 /** True for external links that open in a new browser tab. */
 export const isExternalLink = (value: string) =>
   /^(?:https?:|mailto:)/i.test(value.trim());
