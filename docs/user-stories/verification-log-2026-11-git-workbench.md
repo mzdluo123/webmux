@@ -186,3 +186,19 @@
 - 已通过 `make check`、52 项 Git 单元、31 项浏览器组件、34 项 Storybook 与完整 44 项 Git E2E；浏览器断言覆盖审阅态切换前后同尺寸、零边框与透明底色。
 - 重录全部 12 张 After 与标签/账本 GIF；12 张 Before 哈希不变。公开资产与指定本地目录逐一哈希一致，目录仅保留 24 张 PNG 与 1 张 GIF。
 - 限制：验证使用隔离数据和无头 Chromium；未进行真机触摸与物理 hover 验证。
+
+## 2026-11-14：Git 工作台提交拓扑轨道连续性修复（US-J21）
+
+- 范围：
+  - `web/src/domains/workspace/git-graph-layout.ts` 按跨行 `openLanes` 状态确定性推导提交行上下垂直轨道：
+    - 消除合并提交分叉车道上的悬空短竖线与关闭车道复用时的误入轨，并补齐根提交入轨；
+    - 分页追加加载目标父提交后，将 `boundary` 虚线边升级为连续实线 `direct` 边；
+  - `web/src/components/workspace/GitLogCommitRow.svelte` 将拓扑 `<svg>` 改为贴合 `ListButton` 全高的绝对定位层（`inset-y-0 h-full`）：
+    - 竖直轨道采用百分比纵坐标，曲线段采用 `preserveAspectRatio="none"` 与 `vector-effect="non-scaling-stroke"`，提交圆点保持未缩放外层正圆；
+    - 消除紧凑行内边距、触控最小行高与多行折行带来的行间断缝。
+- 依据：
+  - `make check`（含 `make docs-check`、`pnpm --dir web check:arch`、Oxlint、`go vet`、`golangci-lint`）通过；
+  - 前端单测 `test/git-workbench.test.ts` 与 `test/git-log-controller.test.ts`（8 项）通过；
+  - 浏览器套件 `test/browser/GitWorkbench.test.ts` 与 `test/browser/GitLogController.test.ts`（8 项，含 `1280×900` 与 `390×844` 相邻提交行 SVG 零间隙与正圆节点几何断言）及 Storybook `test/storybook/git-workbench.spec.ts`（27 项）通过；
+  - 隔离实例 Playwright E2E `test/e2e/git-workbench-log.spec.ts`（桌面与 `320×568` 手机视口共 2 项）通过，并在隔离演示仓库下采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 12 张修复前后对比截图。
+- 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核验；未重新核对 `US-J21` 以外的其余故事。

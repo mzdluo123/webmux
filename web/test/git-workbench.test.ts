@@ -429,22 +429,123 @@ describe("git graph layout geometry", () => {
     expect(laneToX(1)).toBe(GIT_GRAPH_LEFT_PAD + GIT_GRAPH_LANE_WIDTH);
     expect(laneTone(7)).toBe(1);
 
-    // Row 0: merge commit with 2 direct parent segments.
+    // Row 0: merge commit with 2 direct parent segments and no floating fork rail.
     const row0 = layout[0]!;
     expect(row0.isMerge).toBe(true);
     expect(row0.height).toBe(GIT_GRAPH_ROW_HEIGHT);
+    expect(row0.rails).toEqual([]);
     expect(row0.segments).toHaveLength(2);
     expect(row0.segments.every((s) => !s.dashed && !s.isBoundary)).toBe(true);
 
-    // Row 1: filtered row with omitted intermediate parent -> dashed indirect segment.
+    // Row 1: filtered row with omitted intermediate parent -> dashed indirect segment,
+    // incoming rail on lane 1, and full-height pass-through rail on lane 0.
     const row1 = layout[1]!;
     expect(row1.directParentsMissing).toBe(true);
+    expect(row1.rails).toEqual([
+      {
+        lane: 1,
+        x: laneToX(1),
+        y1: 0,
+        y2: GIT_GRAPH_ROW_HEIGHT / 2,
+        tone: laneTone(1),
+      },
+      {
+        lane: 0,
+        x: laneToX(0),
+        y1: 0,
+        y2: GIT_GRAPH_ROW_HEIGHT,
+        tone: laneTone(0),
+      },
+    ]);
     expect(row1.segments[0]!.dashed).toBe(true);
     expect(row1.segments[0]!.kind).toBe("indirect");
 
-    // Row 2: page boundary commit -> boundary continuation segment.
+    // Row 2: page boundary commit -> incoming rail on lane 0 + boundary continuation segment.
     const row2 = layout[2]!;
+    expect(row2.rails).toEqual([
+      {
+        lane: 0,
+        x: laneToX(0),
+        y1: 0,
+        y2: GIT_GRAPH_ROW_HEIGHT / 2,
+        tone: laneTone(0),
+      },
+    ]);
     expect(row2.segments[0]!.isBoundary).toBe(true);
     expect(row2.segments[0]!.kind).toBe("boundary");
+  });
+
+  test("connects boundary edges across appended pages, draws root incoming rails, and does not leak closed lanes", () => {
+    const state = makeBaseState();
+    const baseTemplate = state.commits[2]!;
+    const rootOid = "9999999999999999999999999999999999999999";
+    const newTipOid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    // Simulate appending page 2 containing rootOid (with empty activeLanes as emitted by backend)
+    // plus an unrelated branch tip reusing lane 1 after featRow closed lane 1 -> 0.
+    const newBranchTip = {
+      ...baseTemplate,
+      oid: newTipOid,
+      shortOid: "aaaaaaa",
+      parents: [rootOid],
+      lane: 1,
+      activeLanes: [0, 1],
+      edges: [
+        {
+          fromLane: 1,
+          toLane: 0,
+          targetOid: rootOid,
+          kind: "direct" as const,
+        },
+      ],
+    };
+    const rootCommit = {
+      ...baseTemplate,
+      oid: rootOid,
+      shortOid: "9999999",
+      parents: [],
+      lane: 0,
+      activeLanes: [],
+      edges: [],
+    };
+
+    const layout = computeGitGraphLayout([
+      state.commits[0]!,
+      state.commits[1]!,
+      newBranchTip,
+      state.commits[2]!,
+      rootCommit,
+    ]);
+
+    // newBranchTip reuses lane 1 after featRow closed lane 1 -> 0: no incoming rail on lane 1.
+    const tipLayout = layout[2]!;
+    expect(tipLayout.rails.some((r) => r.lane === 1)).toBe(false);
+    expect(tipLayout.rails).toEqual([
+      {
+        lane: 0,
+        x: laneToX(0),
+        y1: 0,
+        y2: GIT_GRAPH_ROW_HEIGHT,
+        tone: laneTone(0),
+      },
+    ]);
+
+    // baseRow's former boundary edge to rootOid becomes solid direct once rootCommit is loaded.
+    const baseLayout = layout[3]!;
+    expect(baseLayout.segments[0]!.isBoundary).toBe(false);
+    expect(baseLayout.segments[0]!.kind).toBe("direct");
+
+    // rootCommit receives an incoming rail into its dot despite activeLanes: [].
+    const rootLayout = layout[4]!;
+    expect(rootLayout.rails).toEqual([
+      {
+        lane: 0,
+        x: laneToX(0),
+        y1: 0,
+        y2: GIT_GRAPH_ROW_HEIGHT / 2,
+        tone: laneTone(0),
+      },
+    ]);
+    expect(rootLayout.segments).toEqual([]);
   });
 });

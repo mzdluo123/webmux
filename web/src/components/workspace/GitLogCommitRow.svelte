@@ -91,41 +91,57 @@
     onclick={() => onSelect(row.oid)}
   >
     {#if layout}
+      <span
+        class="w-(--graph-width) shrink-0"
+        style:--graph-width={`${layout.width}px`}
+        aria-hidden="true"
+      ></span>
       <svg
         width={layout.width}
-        height={layout.height}
-        viewBox={`0 0 ${layout.width} ${layout.height}`}
-        class="shrink-0 overflow-visible"
+        height="100%"
+        class="pointer-events-none absolute inset-y-0 left-2 h-full w-(--graph-width) overflow-visible"
+        style:--graph-width={`${layout.width}px`}
         aria-hidden="true"
         data-graph-oid={row.oid}
       >
         {#each layout.rails as rail (rail.lane)}
           <line
             x1={rail.x}
-            y1={rail.y1}
+            y1={rail.y1 === 0 ? "0%" : "50%"}
             x2={rail.x}
-            y2={rail.y2}
+            y2={rail.y2 === layout.height ? "100%" : "50%"}
             stroke-width="1.75"
             class={laneStrokeClass(rail.tone)}
           />
         {/each}
-        {#each layout.segments as seg (seg.key)}
-          <path
-            d={seg.d}
-            fill="none"
-            stroke-width="1.75"
-            stroke-dasharray={seg.dashed
-              ? "3 2"
-              : seg.isBoundary
-                ? "2 2"
-                : undefined}
-            data-edge-kind={seg.kind}
-            class={laneStrokeClass(seg.tone)}
-          />
-        {/each}
+        <svg
+          x="0"
+          y="0"
+          width={layout.width}
+          height="100%"
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
+          preserveAspectRatio="none"
+          class="overflow-visible"
+        >
+          {#each layout.segments as seg (seg.key)}
+            <path
+              d={seg.d}
+              fill="none"
+              stroke-width="1.75"
+              vector-effect="non-scaling-stroke"
+              stroke-dasharray={seg.dashed
+                ? "3 2"
+                : seg.isBoundary
+                  ? "2 2"
+                  : undefined}
+              data-edge-kind={seg.kind}
+              class={laneStrokeClass(seg.tone)}
+            />
+          {/each}
+        </svg>
         <circle
           cx={layout.nodeX}
-          cy={layout.nodeY}
+          cy="50%"
           r={layout.isMerge ? 4.2 : 3.4}
           class={laneFillClass(layout.nodeTone)}
         />
