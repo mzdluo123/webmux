@@ -41,8 +41,8 @@ func (s *Service) StartProjectClone(ctx context.Context, req ProjectCloneRequest
 		if err := validateGitHubCloneURL(req.URL); err != nil {
 			return ProjectCloneOperation{}, err
 		}
-		if !s.GitHubAvailable() {
-			return ProjectCloneOperation{}, problemf(ErrUnavailable, "服务端未安装 GitHub CLI（gh）")
+		if err := s.requireGitHubClone(ctx); err != nil {
+			return ProjectCloneOperation{}, err
 		}
 	}
 	target, err := projectCloneTarget(req.Path)

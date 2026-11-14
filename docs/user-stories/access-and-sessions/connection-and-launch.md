@@ -198,7 +198,7 @@
   - GET /api/projects/github 返回服务端登录名、owner/name、描述、私有状态和 HTTPS 克隆地址；默认列出自己的与协作仓库，搜索支持可访问仓库；
   - 每页 20 条，页码 1–50；搜索限 200 字节且拒绝控制字符，参数独立传给 gh，不执行 shell；
   - 缺少 gh、身份不可用、权限或网络失败返回 available=false 与可读原因，仓库数组仍为 []；失败不阻断普通目录；
-  - 只在显式查询时验证身份；workspace.github 能力仅检查所需命令与存储，不启动登录或修改认证配置；
+  - 只在显式查询时验证身份与 gh 克隆语法（需要支持 --no-upstream 的 2.88+ 版本）；workspace.github 能力仅检查所需命令与存储，不启动登录或修改认证配置；
   - source=github 的克隆使用服务端 gh 认证，来源限 github.com 的 HTTPS 仓库地址；source 参与幂等身份，普通 Git URL 克隆保持原行为；
   - 请求最长 20 秒，输出有界，取消会终止整个进程组；公开响应不包含 gh 原始输出或凭据；禁用 workspace 时接口不挂载。
 

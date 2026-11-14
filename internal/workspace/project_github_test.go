@@ -18,16 +18,22 @@ func githubTestService(t *testing.T, mode string) (*Service, string) {
 	t.Setenv("WEBMUX_GITHUB_ARGS", filepath.Join(root, "github-args"))
 	script := `#!/bin/sh
 printf '%s\n' "$@" >> "$WEBMUX_GITHUB_ARGS"
+if [ "$1" = repo ]; then
+ test "$2" = clone || exit 1
+ if [ "$3" = --help ]; then
+  if [ "$WEBMUX_GITHUB_MODE" = old ]; then printf 'old clone help'; else printf 'clone --no-upstream'; fi
+  exit 0
+ fi
+ test "$3" = --no-upstream || exit 1
+ test "$("$WEBMUX_CLONE_TEST_GIT" config --get protocol.allow)" = never || exit 81
+ test "$("$WEBMUX_CLONE_TEST_GIT" config --get protocol.https.allow)" = always || exit 82
+ "$WEBMUX_CLONE_TEST_GIT" init --initial-branch=main "$5"
+ exit $?
+fi
 case "$WEBMUX_GITHUB_MODE" in
  auth) printf 'SECRET_TOKEN=redact' >&2; exit 1 ;;
  block) sleep 60; exit 1 ;;
 esac
-if [ "$1" = repo ]; then
- test "$2" = clone || exit 1
- test "$3" = --no-upstream || exit 1
- "$WEBMUX_CLONE_TEST_GIT" init --initial-branch=main "$5"
- exit $?
-fi
 if [ "$6" = user ]; then printf '{"login":"demo"}'; exit 0; fi
 case "$WEBMUX_GITHUB_MODE" in
  permission) printf 'SECRET_TOKEN=permission' >&2; exit 1 ;;
@@ -76,7 +82,7 @@ func TestGitHubProjectsIdentityPagingAndSearch(t *testing.T) {
 }
 
 func TestGitHubProjectsDegradationAndTimeout(t *testing.T) {
-	for _, mode := range []string{"missing", "auth", "permission", "malformed", "unsafe", "block"} {
+	for _, mode := range []string{"missing", "auth", "permission", "malformed", "unsafe", "block", "old"} {
 		t.Run(mode, func(t *testing.T) {
 			s, _ := githubTestService(t, mode)
 			if mode == "missing" {
@@ -136,5 +142,35 @@ func TestGitHubCloneUsesAuthenticatedCLIAndSourceIdentity(t *testing.T) {
 		if _, err := s.StartProjectClone(context.Background(), req); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("unsafe GitHub URL accepted: %s %v", raw, err)
 		}
+	}
+}
+
+func TestGitHubCloneProtocolConfigurationIsTransient(t *testing.T) {
+	s, root := githubTestService(t, "success")
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_CONFIG_KEY_0", "user.name")
+	t.Setenv("GIT_CONFIG_VALUE_0", "Deployment User")
+	op, err := s.StartProjectClone(context.Background(), ProjectCloneRequest{RequestID: "transient-config", URL: "https://github.com/demo/repo.git", Path: filepath.Join(root, "target"), Source: "github"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if done := awaitProjectClone(t, s, op.ID); done.State != "succeeded" {
+		t.Fatalf("clone: %+v", done)
+	}
+	config, err := os.ReadFile(filepath.Join(root, "target", ".git", "config"))
+	if err != nil || strings.Contains(string(config), "[protocol") {
+		t.Fatalf("persisted clone restrictions: %s %v", config, err)
+	}
+	env, err := projectCloneProtocolEnv()
+	if err != nil || env[0] != "GIT_CONFIG_COUNT=4" || !strings.Contains(strings.Join(env, "\n"), "GIT_CONFIG_KEY_1=protocol.allow") {
+		t.Fatalf("overwrote inherited configuration: %v %v", env, err)
+	}
+}
+
+func TestGitHubCloneRejectsUnsupportedCLIWithoutAdmission(t *testing.T) {
+	s, root := githubTestService(t, "old")
+	op, err := s.StartProjectClone(context.Background(), ProjectCloneRequest{RequestID: "old-cli", URL: "https://github.com/demo/repo.git", Path: filepath.Join(root, "target"), Source: "github"})
+	if !errors.Is(err, ErrUnavailable) || op.ID != "" || !strings.Contains(err.Error(), "2.88") || len(s.clones) != 0 {
+		t.Fatalf("unsupported gh admitted: %+v %v", op, err)
 	}
 }

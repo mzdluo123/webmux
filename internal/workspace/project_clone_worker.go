@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/rainchan/webmux/internal/pathutil"
 )
@@ -39,7 +40,13 @@ func (s *Service) runProjectClone(op projectCloneRecord) {
 	args := []string{"-C", filepath.Dir(op.Path), "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "clone", "--progress", "--", op.URL, destination}
 	if op.Source == "github" {
 		program = s.githubPath
-		args = []string{"repo", "clone", "--no-upstream", op.URL, destination, "--", "--config", "protocol.allow=never", "--config", "protocol.https.allow=always", "--config", "protocol.ssh.allow=always"}
+		args = []string{"repo", "clone", "--no-upstream", op.URL, destination}
+		protocols, err := projectCloneProtocolEnv()
+		if err != nil {
+			s.finishProjectClone(op.ID, "failed", "服务端 GIT_CONFIG_COUNT 配置无效，请修正后使用新的 requestId 重新发起", "")
+			return
+		}
+		env = append(env, protocols...)
 		env = append(env, "GH_PROMPT_DISABLED=1", "GH_DEBUG=", "GH_HOST=github.com")
 	}
 	run := runGitProcess(ctx, gitProcess{
@@ -134,4 +141,24 @@ func (s *Service) cleanupProjectCloneTemporary(id string, temporary *pathutil.Te
 			}
 		})
 	}
+}
+
+// Git clone --config persists values in the new repository. Environment entries
+// constrain only the child process and preserve pre-existing numbered settings.
+func projectCloneProtocolEnv() ([]string, error) {
+	count := 0
+	if raw, ok := os.LookupEnv("GIT_CONFIG_COUNT"); ok {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 || parsed > 1024 {
+			return nil, errors.New("invalid GIT_CONFIG_COUNT")
+		}
+		count = parsed
+	}
+	entries := [][2]string{{"protocol.allow", "never"}, {"protocol.https.allow", "always"}, {"protocol.ssh.allow", "always"}}
+	env := []string{"GIT_CONFIG_COUNT=" + strconv.Itoa(count+len(entries))}
+	for index, entry := range entries {
+		suffix := strconv.Itoa(count + index)
+		env = append(env, "GIT_CONFIG_KEY_"+suffix+"="+entry[0], "GIT_CONFIG_VALUE_"+suffix+"="+entry[1])
+	}
+	return env, nil
 }

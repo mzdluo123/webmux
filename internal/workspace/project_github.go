@@ -62,6 +62,10 @@ func (s *Service) GitHubProjects(ctx context.Context, query string, page int) (G
 	}
 	ctx, cancel := context.WithTimeout(ctx, s.githubTimeout)
 	defer cancel()
+	if err := s.requireGitHubClone(ctx); err != nil {
+		result.Reason = err.Error()
+		return result, nil
+	}
 	var user struct {
 		Login string `json:"login"`
 	}
@@ -129,3 +133,23 @@ func (s *Service) githubJSON(ctx context.Context, endpoint string, fields []stri
 }
 
 const githubRequestTimeout = 20 * time.Second
+
+// Probe the local command grammar only on explicit source use/admission. Older
+// distro packages cannot suppress fork-parent fetches; fail before downloading
+// instead of blaming credentials after a successful private-fork clone.
+func (s *Service) requireGitHubClone(ctx context.Context) error {
+	if !s.GitHubAvailable() {
+		return problemf(ErrUnavailable, "服务端未安装 GitHub CLI（gh）")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out := &boundedOutput{limit: 64 << 10, cancel: cancel}
+	run := runGitProcess(ctx, gitProcess{path: s.githubPath, args: []string{"repo", "clone", "--help"}, env: []string{"GH_PROMPT_DISABLED=1", "GH_DEBUG=", "GH_NO_UPDATE_NOTIFIER=1"}, stdout: out, stderrLimit: 64 << 10})
+	if run.err != nil {
+		return problemf(ErrUnavailable, "无法检查服务端 gh 克隆能力，请检查 CLI 安装与执行权限")
+	}
+	if !strings.Contains(out.String(), "--no-upstream") {
+		return problemf(ErrUnavailable, "GitHub 来源需要支持 --no-upstream 的 gh（2.88 或更新版本）；请升级服务端 gh，或使用 Git URL 来源")
+	}
+	return nil
+}

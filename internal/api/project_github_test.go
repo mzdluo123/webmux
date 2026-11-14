@@ -10,6 +10,7 @@ func installWireProjectGitHub(t *testing.T) {
 	t.Helper()
 	root := t.TempDir()
 	script := `#!/bin/sh
+if [ "$1" = repo ]; then printf 'clone --no-upstream'; exit 0; fi
 if [ "$WEBMUX_WIRE_GITHUB_FAIL" = yes ]; then printf SECRET_TOKEN >&2; exit 1; fi
 if [ "$6" = user ]; then printf '{"login":"wire-user"}'; exit 0; fi
 printf '[{"full_name":"wire-user/private-project","description":"Private demo project","private":true,"clone_url":"https://github.com/wire-user/private-project.git"}]'

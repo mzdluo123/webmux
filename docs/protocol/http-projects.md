@@ -44,7 +44,7 @@ GET /api/projects/operations/{id} 查询操作，成功后以 projectId 选择�
 `GET /api/projects/github?query=...&page=1` 使用服务用户已有的 gh 登录查询 github.com，不启动登录或更改认证配置。
 返回 `{available, reason, login, repositories, page, hasMore}`；条目包含 fullName、description、private、cloneUrl。
 不填 query 时列出本人及协作仓库；填写后搜索可访问仓库名称。每页 20 条，最多 50 页；query 最长 200 字节且不能含控制字符。
-服务端 gh/Git 缺失、未登录、权限不足、网络错误与超时均返回 available=false 和可读原因，不伪装成空结果；repositories 始终为数组。
+服务端 gh/Git 缺失、gh 克隆语法不支持 --no-upstream（需要 2.88+）、未登录、权限不足、网络错误与超时均返回 available=false 和可读原因，不伪装成空结果；repositories 始终为数组。
 每次显式打开或刷新来源才读取身份；workspace.github 能力不发起网络请求，也不检查个人开发环境账号。
 请求最长 20 秒，输出上限 4 MiB；错误不回传 gh 输出，取消时清理进程组。
 
@@ -52,3 +52,5 @@ GET /api/projects/operations/{id} 查询操作，成功后以 projectId 选择�
 该来源通过 gh repo clone 使用已有认证，适用于私有仓库；不要求先配置全局 Git credential helper。
 source 参与幂等参数比较；省略它仍使用普通 Git URL 克隆，不自动切换认证方式。
 所有克隆先持久化 registering 再原子发布；发布不支持或失败不会覆盖目标。重启后若目标存在可单独重试登记，否则重新发起。
+
+克隆传输协议限制仅作用于子进程环境，不写入新仓库的 Git 配置；已有编号环境配置保留。
