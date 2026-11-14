@@ -41,7 +41,7 @@ func (d Descriptor) LockPath() string { return d.Path + ".lock" }
 var catalog = []Descriptor{
 	{Conversation, "conversations.sqlite", "internal/conversation", "unavailable", "normalized conversation/history", 10, "user_version", 0, true, ""},
 	{Launch, "launch-configs.json", "internal/launch", "unavailable", "command/env", 2, "v", 4 << 20, true, ""},
-	{ProjectClones, "project-clones.json", "internal/workspace", "unavailable", "paths/urls", 1, "version", 4 << 20, false, ""},
+	{ProjectClones, "project-clones.json", "internal/workspace", "unavailable", "paths/urls", 1, "version", 4 << 20, true, ""},
 	{Projects, "projects.json", "internal/workspace", "unavailable", "paths", 1, "version", 4 << 20, true, ""},
 	{Repositories, "repositories.json", "internal/workspace", "unavailable", "paths", 1, "version", 4 << 20, true, ""},
 	{GitOperations, "git-operations.json", "internal/workspace", "unavailable", "paths/urls", 1, "v", 2 << 20, true, ""},

@@ -9,3 +9,18 @@ export const ProjectSchema = z.object({
   error: z.string(),
 });
 export const ProjectsSchema = z.array(ProjectSchema);
+
+export const ProjectCloneOperationSchema = z.object({
+  id: z.string(),
+  state: z.enum([
+    "running",
+    "registering",
+    "succeeded",
+    "failed",
+    "interrupted",
+    "registration_failed",
+  ]),
+  path: z.string(),
+  error: z.string(),
+  projectId: z.string(),
+});

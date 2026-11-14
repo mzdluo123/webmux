@@ -15,7 +15,7 @@ func TestProjectRoutesRequireAuthAndOrigin(t *testing.T) {
 	manager := session.NewManager(session.Options{})
 	defer manager.Shutdown(context.Background())
 	handler := New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir())}))
-	for _, path := range []string{"/api/projects", "/api/projects/create"} {
+	for _, path := range []string{"/api/projects", "/api/projects/create", "/api/projects/clone", "/api/projects/operations/missing/register"} {
 		for _, row := range []struct {
 			auth, origin string
 			want         int

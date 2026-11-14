@@ -49,7 +49,7 @@ func TestCoreOnlyHostKeepsCreateAndDiscovery(t *testing.T) {
 	if err := json.Unmarshal(discovery.Body, &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Version != 1 || len(snapshot.Plugins) != 14 || len(snapshot.Capabilities) != 17 {
+	if snapshot.Version != 1 || len(snapshot.Plugins) != 14 || len(snapshot.Capabilities) != 18 {
 		t.Fatalf("incomplete static discovery: %+v", snapshot)
 	}
 

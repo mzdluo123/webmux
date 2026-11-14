@@ -9,6 +9,7 @@ import (
 )
 
 func (s *Server) projectRoutes(mux transport.Registrar) {
+	s.projectCloneRoutes(mux)
 	serve(mux, "GET /api/projects", http.StatusOK, workspaceFailure, func(r *http.Request) ([]contract.Project, error) {
 		projects, err := s.Workspace.ListProjects()
 		return wire.Projects(projects), err

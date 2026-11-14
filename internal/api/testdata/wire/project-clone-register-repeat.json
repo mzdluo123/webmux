@@ -1,0 +1,10 @@
+{
+  "status": 202,
+  "body": {
+    "error": "",
+    "id": "<id#1>",
+    "path": "<repo>/cloned project",
+    "projectId": "<projectId#1>",
+    "state": "succeeded"
+  }
+}

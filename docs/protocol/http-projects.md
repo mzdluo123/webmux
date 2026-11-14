@@ -28,3 +28,13 @@ initializeGit 默认行为由请求明确指定：false 仅创建目录，true �
 此接口属于 workspace，不依赖 files 的上传或目录接口。
 workspace.projects 表示项目清单存储是否可用；workspace.manage 仍反映既有 Git 管理可用性。
 项目接口统一使用认证及 Origin 校验；workspace 禁用时不挂载，也不打开项目文件。
+
+## Git URL 克隆
+
+workspace.clone 可用时，POST /api/projects/clone 接受 `{requestId, url, path}`，返回 202 和操作对象。
+requestId 为 1–120 个字母、数字、下划线或短横线，首字符必须是字母或数字；重试必须保留标识和参数，参数冲突返回 409。
+URL 支持 HTTPS、SSH 及 user@host:path；拒绝内嵌凭据、查询参数、本地/ext 协议及控制字符。path 的父目录必须存在，任何既有目标均拒绝覆盖。
+操作对象包含 id、state、path、error、projectId；state 为 running、registering、succeeded、failed、interrupted 或 registration_failed。
+GET /api/projects/operations/{id} 查询操作，成功后以 projectId 选择项目。浏览器断连不取消操作；并发上限 2，单次最长 10 分钟。
+克隆成功但登记失败时，目标目录保留；POST /api/projects/operations/{id}/register 返回 202 并只重试登记。已经成功的重试返回同一结果。
+错误不返回 Git 输出；服务停止会取消进程组并等待 worker，再关闭状态文件。服务崩溃后的未完成操作按持久账本标为中断，不自动重新下载。

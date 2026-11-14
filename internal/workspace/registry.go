@@ -73,6 +73,11 @@ type Service struct {
 	cloneStore   *statefile.Handle[projectCloneRegistry]
 	clones       []projectCloneRecord
 	cloneError   error
+	cloneContext context.Context
+	cloneCancel  context.CancelFunc
+	cloneWG      sync.WaitGroup
+	cloneSlots   chan struct{}
+	cloneStopped bool
 
 	manager  *session.Manager
 	launches *launch.Service

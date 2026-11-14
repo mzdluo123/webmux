@@ -42,7 +42,7 @@
       "lock": "project-clones.json.lock",
       "owner": "internal/workspace",
       "failure": "unavailable",
-      "web": "否",
+      "web": "是",
       "source": "internal/workspace/project_clone_store.go"
     },
     {
@@ -878,6 +878,10 @@
     "internal/pathutil/publish_linux.go|PublishDirectory|golang.org/x/sys/unix.Renameat2": {
       "count": 1,
       "owner": "project-clones"
+    },
+    "internal/pathutil/temporary.go|*TemporaryDirectory.Remove|os.RemoveAll": {
+      "count": 1,
+      "owner": "user-files"
     }
   }
 }
