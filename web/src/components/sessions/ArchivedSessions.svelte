@@ -195,6 +195,7 @@
               size="sm"
               variant="destructive"
               disabled={!!busy}
+              aria-label={`删除 ${recordTitle(record)}`}
               onclick={() => {
                 removing = record;
                 removeOpen = true;

@@ -1608,7 +1608,9 @@ test.describe("hybrid sessions with the fake agent", () => {
     await expect(
       row.getByRole("button", { name: "更多操作 E2E archive", exact: true }),
     ).toHaveCount(0);
-    await discardRow.getByRole("button", { name: "删除", exact: true }).click();
+    await discardRow
+      .getByRole("button", { name: "删除 E2E discard", exact: true })
+      .click();
     await page
       .getByRole("alertdialog")
       .getByRole("button", { name: "确认", exact: true })
