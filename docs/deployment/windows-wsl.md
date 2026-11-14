@@ -117,7 +117,7 @@ webmux-setup-windows-amd64.exe /S
 | `forward`       | `[]`                               | 兼容保留的历史转发地址字段                             |
 | `updateChannel` | `stable`                           | 更新通道：`stable` / `dev`，由“更新通道”子菜单维护     |
 
-路径类设置在下次启动 WebMux 时生效；切换发行版或启动方式会先停止由托盘管理的实例（有会话时先确认）。托盘日志位于 `%LOCALAPPDATA%\WebMux\tray.log`（1 MiB 轮转），不记录 token。
+路径类设置在下次启动 WebMux 时生效；切换发行版或启动方式会先停止由托盘管理的实例（有会话时先确认，普通终端会话会结束，混合会话下次启动时恢复）。托盘日志位于 `%LOCALAPPDATA%\WebMux\tray.log`（1 MiB 轮转），不记录 token。
 
 ## 两种启动方式
 
@@ -146,7 +146,7 @@ webmux-setup-windows-amd64.exe /S
 
 WebMux 默认仅监听 `127.0.0.1:7681`（不向局域网开放）。托盘菜单提供 **“允许局域网访问”** 开关：
 
-- 开启时，托盘通过 `webmux config listen` 将 WSL 配置文件中的 `listen` 设为 `0.0.0.0:<端口>`（若原配置未设置 token 会自动补齐随机 token），并重启受托盘管理的 WebMux 实例（有活动会话时先确认）；关闭时改回 `127.0.0.1:<端口>` 并重启。
+- 开启时，托盘通过 `webmux config listen` 将 WSL 配置文件中的 `listen` 设为 `0.0.0.0:<端口>`（若原配置未设置 token 会自动补齐随机 token），并重启受托盘管理的 WebMux 实例（存在普通终端会话或正在工作的会话时先确认；仅有空闲混合会话时直接重启并自动恢复）；关闭时改回 `127.0.0.1:<端口>` 并重启。
 - **mirrored 网络模式**或在 WSL 内安装了 Tailscale 时，WSL 监听 `0.0.0.0:<端口>` 后其他设备即可直接访问，“复制链接”子菜单会列出对应的远程链接。
 - **NAT 网络模式**（WSL 默认）：局域网与 Windows 主机上的 Tailscale 流量不会直接进入 WSL。
   - 当“允许局域网访问”开启且 WebMux 运行健康、已配置 token、Windows 侧可达时，托盘自动在 Windows 主机的所有候选非回环 IPv4 地址（Tailscale 与局域网网卡）上监听相同端口。

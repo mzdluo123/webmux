@@ -117,7 +117,7 @@ func (a *App) toggleTunnel() {
 func (a *App) toggleLANAccess() {
 	snap := a.snapshot()
 	enable := !snap.LANEnabled()
-	if snap.Actions().Restart && !confirmSessions("切换局域网访问需要重启 WebMux，", snap.Sessions) {
+	if snap.Actions().Restart && !confirmRestart("切换局域网访问需要重启 WebMux，", snap) {
 		a.kickUI()
 		return
 	}

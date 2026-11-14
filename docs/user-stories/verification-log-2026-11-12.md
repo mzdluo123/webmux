@@ -218,3 +218,15 @@
   - 在隔离实例采集 `1280×900`、`768×800`、`390×844` 亮暗主题前后对照截图；
   - 额外核验 `375×667`、`320×568`、`667×375` 打开终端菜单时均无横向溢出且浮层完整落在视口内；
   - 限制：无头 Chromium 未验证物理 `hover`、`any-pointer: coarse` 与 iOS/Android 真机表现。
+
+## 2026-11-14：Windows 托盘重启确认时机与会话恢复说明（US-O03、US-O11）
+
+- Windows 托盘通过 `/ws/sessions` 区分普通终端会话、混合会话与当前工作状态；故事总数保持 252：
+  - 重启核心（菜单“重启”及“允许局域网访问”切换触发的重启）在无会话或仅有已空闲混合会话时直接执行，不再弹确认框；
+  - 存在工作中会话、不可恢复的普通终端会话或尚未完成 `/ws/sessions` 会话分类时仍弹确认框，并按实际组成说明“混合会话会在重启后自动恢复”“普通终端会话不会保存”；
+  - 停止、切换 WSL 发行版/启动模式、退出托盘、首次初始化配置、安装新版本提示及核心意外退出气泡同步改为准确的普通终端会话/混合会话恢复表述。
+- 本地验证全部通过：
+  - 静态与契约门禁：`make check`（含 `pnpm --dir web build`、`format-check`、`docs-check`、`persistence-check`、`check:test`、`lint`、`check:arch`、`go vet`、`make go-lint`）及 `openspec validate --specs`（95 份主规范全部通过）；
+  - 全量 Go 竞态测试：`make test-go`（含新增 `internal/tray` 10 组会话组合提示词、`/ws/sessions` 细分类监听与断连回退未知分类回归）；
+  - 跨平台检查：`make tray`、`GOOS=darwin go vet ./...`、Windows `amd64`/`arm64` 交叉编译 `cmd/webmux-tray` 与 `cmd/webmux-windows`、Windows `go vet` 及 `GOOS=windows golangci-lint run ./cmd/webmux-tray ./internal/tray/...`（零问题）。
+- 限制：在 Linux 环境下完成交叉编译与单测/竞态验证，未在原生 Windows + WSL 2 桌面实机点击 `MessageBoxW` 弹窗或观察系统托盘气泡。

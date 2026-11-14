@@ -275,7 +275,7 @@ func TestAutoUpgradeOlderServer(t *testing.T) {
 	if service.count("install") != 1 || service.count("startTray") != 0 || service.count("shutdown") != 0 {
 		t.Fatalf("calls %v", service.calls)
 	}
-	if snap.Running == nil || snap.Running.Version != "0.2.0" || VersionHint(snap) != "WSL 中已安装 0.3.0，重启 WebMux 后生效，重启会结束所有会话" {
+	if snap.Running == nil || snap.Running.Version != "0.2.0" || VersionHint(snap) != "WSL 中已安装 0.3.0，重启 WebMux 后生效（普通终端会话会结束，混合会话会自动恢复）" {
 		t.Fatalf("after upgrade %q %+v", VersionHint(snap), snap.Running)
 	}
 	if notes := h.notifications(); len(notes) != 0 {
