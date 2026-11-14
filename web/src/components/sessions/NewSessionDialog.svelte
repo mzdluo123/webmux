@@ -8,7 +8,7 @@
     type ProjectSelection,
   } from "../../domains/sessions/project-selection";
   import { errorMessage } from "../../platform/error";
-  import { untrack, tick } from "svelte";
+  import { untrack } from "svelte";
   import { navigate, recentDirs, stored } from "../../platform/api";
   import {
     pluginAvailable,
@@ -43,6 +43,7 @@
   } from "../../contracts/schemas";
   import NewSessionRecoveryDialogs from "./NewSessionRecoveryDialogs.svelte";
   import NewSessionForm from "./NewSessionForm.svelte";
+  import ProjectSessionSteps from "./ProjectSessionSteps.svelte";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
 
@@ -99,7 +100,6 @@
         !hostRepositories.some((r) => r.id === selectedRepositoryId),
     ),
   );
-  let pickerMounted = $state(untrack(() => choosingProject));
   let projectPicker = $state<{
     back: () => boolean;
     showProjects: () => void;
@@ -223,10 +223,8 @@
       : undefined,
   );
   const projectScope = $derived(scopeForProject(scope, currentProject));
-  async function changeProject() {
-    pickerMounted = true;
+  function changeProject() {
     choosingProject = true;
-    await tick();
     projectPicker?.showProjects();
   }
   function selectedProject(selection: ProjectSelection) {
@@ -403,17 +401,15 @@
   {onclose}
   onback={back}
 >
-  {#if projectEnabled && providers.ProjectPicker && pickerMounted}
-    <div hidden={!choosingProject}>
-      <providers.ProjectPicker
-        bind:this={projectPicker}
-        {defaultCwd}
-        {recent}
-        onselect={selectedProject}
-      />
-    </div>
-  {/if}
-  <div hidden={projectEnabled && choosingProject}>
+  <ProjectSessionSteps
+    bind:this={projectPicker}
+    enabled={projectEnabled}
+    choosing={choosingProject}
+    Picker={providers.ProjectPicker}
+    {defaultCwd}
+    {recent}
+    onselect={selectedProject}
+  >
     <NewSessionForm
       {providers}
       {repositories}
@@ -481,7 +477,7 @@
       }}
       {onclose}
     />
-  </div>
+  </ProjectSessionSteps>
 </ResponsiveDialog>
 
 <NewSessionRecoveryDialogs

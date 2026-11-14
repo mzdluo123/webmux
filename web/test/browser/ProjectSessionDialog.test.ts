@@ -128,6 +128,9 @@ test("global project-first entry starts a plain directory without launch or file
     .toBeVisible();
   await page.getByRole("option", { name: /Notes/ }).click();
   await expect
+    .element(page.getByRole("textbox", { name: "自定义启动命令", exact: true }))
+    .toHaveFocus();
+  await expect
     .element(page.getByRole("textbox", { name: "工作目录", exact: true }))
     .not.toBeInTheDocument();
   await expect
@@ -152,6 +155,9 @@ test("global project-first entry starts a plain directory without launch or file
 test("newly registered Git snapshot scopes work positions before the host list refreshes", async () => {
   open({ repositories: [other] });
   await page.getByRole("option", { name: /webmux/ }).click();
+  await expect
+    .element(page.getByRole("button", { name: "工作位置", exact: true }))
+    .toHaveFocus();
   await page.getByRole("button", { name: "工作位置", exact: true }).click();
   await expect
     .element(page.getByRole("option", { name: /other-project/ }))

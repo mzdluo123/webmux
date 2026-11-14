@@ -171,6 +171,9 @@ for (const width of [1280, 1920]) {
     await expect(page.getByRole("option", { selected: true })).toBeEnabled();
     await page.keyboard.press("Enter");
     await expect(projects).toBeHidden();
+    await expect(
+      page.getByRole("button", { name: "运行", exact: true }),
+    ).toBeFocused();
     await select(
       page,
       page.getByRole("button", { name: "创建并进入 →", exact: true }),
