@@ -321,10 +321,13 @@
     toggleDraft,
     showCode: () => (chrome.codeShown = true),
     showChat: revealChat,
+    showSwitchChoice: () => (chrome.choiceClosed = false),
     runQuick: runQuickCommand,
     error: (message) => (error = message),
     notice: () =>
-      error || t.error || stage?.getChatError() || hybrid.chat.error,
+      [error, t.error, stage?.getChatError() || hybrid.chat.error]
+        .filter(Boolean)
+        .join(" "),
   });
 
   onMount(() => {

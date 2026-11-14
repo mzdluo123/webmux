@@ -14,6 +14,7 @@ const contextKey = Symbol("xr-workspace");
 interface Workspace {
   register(source: XrSessionSource): () => void;
   header(id: string): XrHeaderControl;
+  returnTo2D(id: string): Promise<void>;
 }
 
 /** One page owns XR; its mounted panes retain their existing sessions. */
@@ -60,7 +61,7 @@ export function createXrSessionWorkspace(options: {
     const session = owner;
     if (!session) return;
     busy = true;
-    void session.end().catch((error: unknown) => {
+    return session.end().catch((error: unknown) => {
       options.error(`退出 VR 失败：${errorMessage(error)}`);
       restore();
     });
@@ -145,6 +146,14 @@ export function createXrSessionWorkspace(options: {
         sources.delete(source.id);
         sourceList = [...sources.values()];
       };
+    },
+    async returnTo2D(id) {
+      try {
+        await options.open(id);
+        await exit();
+      } catch (error) {
+        options.error(`无法返回会话：${errorMessage(error)}`);
+      }
     },
     header(id) {
       return {

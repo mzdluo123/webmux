@@ -41,7 +41,10 @@
   let diffPanelRef = $state<ReturnType<typeof GitLogDiffPanel>>();
   let host: HTMLDivElement | undefined = $state();
 
-  useTvPanelBack({ host: () => host, closeLayer });
+  useTvPanelBack({
+    host: () => host,
+    closeLayer: () => !diffPanelRef?.hasOpenReaderPanel() && closeLayer(),
+  });
 
   const showBranchesPanel = $derived(
     props.preferredShowBranches ?? localShowBranches,
@@ -124,7 +127,6 @@
   }
 
   function closeLayer() {
-    if (diffPanelRef?.hasOpenReaderPanel()) return false;
     if (multiColumn.current && diffMaximized) diffMaximized = false;
     else if (!multiColumn.current && mobileStep !== "list")
       mobileStep = mobileStep === "diff" ? "detail" : "list";
@@ -133,7 +135,12 @@
   }
 
   function handleWindowKeydown(e: KeyboardEvent) {
-    if (e.defaultPrevented || e.key !== "Escape") return;
+    if (
+      e.defaultPrevented ||
+      e.key !== "Escape" ||
+      diffPanelRef?.hasOpenReaderPanel()
+    )
+      return;
     if (closeLayer()) e.preventDefault();
   }
 </script>

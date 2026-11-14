@@ -1,4 +1,4 @@
-import { onMount } from "svelte";
+import { onMount, tick } from "svelte";
 import type { HybridSession } from "../sessions/hybrid-types";
 import type { TerminalController } from "../../domains/terminal/terminal-search";
 import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
@@ -12,6 +12,7 @@ import { quickCommands } from "../../domains/settings/quick-commands.svelte";
 import { errorMessage } from "../../platform/error";
 import { findXrSessionWorkspace } from "./xr-session.svelte";
 import { xrChatPanel } from "./xr-chat-content";
+import { xrNoticePanel } from "./xr-notice-content";
 
 export function useXrSessionSource(options: {
   id: string;
@@ -27,6 +28,7 @@ export function useXrSessionSource(options: {
   toggleDraft(this: void): void;
   showCode(this: void): void;
   showChat(this: void): void;
+  showSwitchChoice(this: void): void;
   runQuick(this: void, command: QuickCommand): Promise<void>;
   error(this: void, message: string): void;
   notice(this: void): string;
@@ -36,6 +38,12 @@ export function useXrSessionSource(options: {
   const hybrid = options.hybrid;
   const draft = options.draft;
   let answering = $state(false);
+
+  async function returnTo2D(reveal: () => void) {
+    await workspace?.returnTo2D(options.id);
+    await tick();
+    reveal();
+  }
 
   async function answer(requestId: string, optionId: string) {
     if (answering) return;
@@ -56,10 +64,16 @@ export function useXrSessionSource(options: {
       draft: draft.text,
       answering,
       answer,
-      openForm: () => {
-        options.showChat();
-        workspace?.header(options.id).exit();
-      },
+      openForm: () => returnTo2D(options.showChat),
+    }),
+  );
+  const noticePanel = $derived(
+    xrNoticePanel({
+      error: options.notice(),
+      notices: hybrid.notices,
+      awaitingChoice: hybrid.awaitingChoice,
+      forceSwitchNote: hybrid.chat.state?.forceSwitchNote ?? "",
+      openChoice: () => returnTo2D(options.showSwitchChoice),
     }),
   );
   const panels = $derived.by((): readonly XrTextPanel[] => [
@@ -75,19 +89,7 @@ export function useXrSessionSource(options: {
         ]
       : []),
     ...options.codePanels(),
-    ...(options.notice()
-      ? [
-          {
-            id: "notice",
-            kind: "chat" as const,
-            title: "会话提示",
-            lines: options
-              .notice()
-              .split("\n")
-              .map((text) => ({ text, tone: "error" as const })),
-          },
-        ]
-      : []),
+    ...(noticePanel ? [noticePanel] : []),
   ]);
   const actions = $derived.by((): readonly XrAction[] => {
     const inChat = hybrid.view === "chat";
@@ -146,6 +148,7 @@ export function useXrSessionSource(options: {
             },
           ]
         : []),
+      ...(noticePanel?.actions ?? []),
     ];
   });
   const source: XrSessionSource = {

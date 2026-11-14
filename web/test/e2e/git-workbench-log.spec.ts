@@ -465,6 +465,76 @@ test("Log view filters refs/tags without checkout (U02), paginates %P topology &
   void baseOid;
 });
 
+test("Explicit log diff restore and back leave open reader panels without changing selection", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const { repo, mainWt, headOid } = await setupRichGitLogRepository(
+    request,
+    workDir,
+  );
+  const route = `/git/${repo.id}/worktrees/${mainWt.id}?view=log&commit=${headOid}`;
+  await page.goto(route);
+  const files = page.getByRole("listbox", { name: "提交变更文件" });
+  const selectedFile = files.getByRole("option", { name: /feature-lane\.ts/ });
+  await selectedFile.click();
+  const diff = page.getByTestId("git-log-diff-panel");
+
+  for (const readerPanel of ["文件内查找", "缩放"]) {
+    for (const navigation of ["退出放大差异", "返回日志列表"]) {
+      await diff.getByRole("button", { name: "放大差异到主工作区" }).click();
+      await expect(diff).toHaveAttribute("data-diff-presentation", "maximized");
+      const panelToggle = diff.getByRole("button", {
+        name: readerPanel,
+        exact: true,
+      });
+      await panelToggle.click();
+      await expect(panelToggle).toHaveAttribute("aria-expanded", "true");
+
+      await diff.getByRole("button", { name: navigation, exact: true }).click();
+      await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
+      await expect(
+        page.getByRole("listbox", { name: "提交记录" }),
+      ).toBeVisible();
+      await expect(selectedFile).toHaveAttribute("aria-selected", "true");
+      await expect(diff.locator(".code-diff-reader")).toContainText(
+        "from-second-parent",
+      );
+      await expect(page).toHaveURL(route);
+    }
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const selectedCommit = page.getByRole("option", {
+    name: /Merge branch 'feat\/graph-lane' into main/,
+  });
+  await selectedCommit.click();
+  for (const readerPanel of ["文件内查找", "缩放"]) {
+    await selectedFile.click();
+    await expect(diff).toHaveAttribute("data-diff-presentation", "mobile");
+    const panelToggle = diff.getByRole("button", {
+      name: readerPanel,
+      exact: true,
+    });
+    await panelToggle.click();
+    await expect(panelToggle).toHaveAttribute("aria-expanded", "true");
+
+    await diff.getByRole("button", { name: "返回提交详情" }).click();
+    await expect(
+      page.getByRole("button", { name: "返回提交列表" }),
+    ).toBeVisible();
+    await expect(diff).not.toBeVisible();
+    await expect(selectedFile).toHaveAttribute("aria-selected", "true");
+    await expect(page).toHaveURL(route);
+  }
+  await page.getByRole("button", { name: "返回提交列表" }).click();
+  await expect(page.getByRole("listbox", { name: "提交记录" })).toBeVisible();
+  await expect(selectedCommit).toHaveAttribute("aria-selected", "true");
+  await expect(page).toHaveURL(route);
+});
+
 test("TV Back unwinds reader, maximized log diff and phone steps before leaving Git", async ({
   page,
   request,

@@ -87,6 +87,38 @@ async function mount() {
   return view;
 }
 
+test("explicit 2D return activates its owning pane before ending VR", async () => {
+  const opened = Promise.withResolvers<void>();
+  await render(Harness, {
+    source: source(),
+    errors,
+    expose: (value) => {
+      header = value;
+    },
+    open: () => opened.promise,
+  });
+  await expect
+    .element(page.getByRole("status", { name: "XR state" }))
+    .toHaveTextContent("supported 2D idle");
+  header.enter();
+  await expect
+    .element(page.getByRole("status", { name: "XR state" }))
+    .toHaveTextContent("supported immersive idle");
+  await page.getByRole("button", { name: "返回 2D 原会话" }).click();
+  expect(session.end).not.toHaveBeenCalled();
+  await expect
+    .element(page.getByRole("region", { name: "Active session" }))
+    .toHaveTextContent("other-session");
+  opened.resolve();
+  await expect
+    .element(page.getByRole("status", { name: "XR state" }))
+    .toHaveTextContent("supported 2D idle");
+  await expect
+    .element(page.getByRole("region", { name: "Active session" }))
+    .toHaveTextContent("existing-session");
+  expect(session.end).toHaveBeenCalledOnce();
+});
+
 test("keeps the existing source through enter, system end, and re-entry", async () => {
   await mount();
   await page.getByRole("button", { name: "进入 VR" }).click();
