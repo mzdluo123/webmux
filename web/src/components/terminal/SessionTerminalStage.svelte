@@ -8,7 +8,7 @@
     ChatUploads,
     useUpload,
   } from "../../hooks/shared/upload.svelte";
-  import type { ChatCodeLink } from "../../domains/code/markdown-link";
+  import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import { quickCommands } from "../../domains/settings/quick-commands.svelte";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
   import { isVoiceDisabled } from "../../domains/terminal/session-terminal-io";
@@ -164,7 +164,7 @@
     holdBegin: () => void;
     codePane: Snippet;
     review: (path: string) => void;
-    openCodeLocation: (target: ChatCodeLink) => void;
+    openCodeLocation: ChatCodeLinkHandler;
     onChatEditChange: (value: boolean) => void;
     onChooseSwitch: () => void;
     container: HTMLDivElement | undefined;

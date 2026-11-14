@@ -13,7 +13,7 @@
   import {
     parseChatCodeLink,
     resolveMarkdownReference,
-    type ChatCodeLink,
+    type ChatCodeLinkHandler,
     type MarkdownWorkspace,
   } from "../../domains/code/markdown-link";
   import { headingIdPrefix } from "../../domains/code/markdown-slug";
@@ -50,7 +50,7 @@
     /** A captured reading position, applied after the first render with layout. */
     restore?: CodeMarkdownState;
     /** Opens a code-location link from a chat message in the code browser. */
-    onopenlink?: (target: ChatCodeLink) => void;
+    onopenlink?: ChatCodeLinkHandler;
   } = $props();
 
   const parts = $derived(
@@ -225,7 +225,12 @@
         const parsed = parseChatCodeLink(
           link.getAttribute("data-md-href") ?? "",
         );
-        if (parsed) onopenlink?.(parsed);
+        if (parsed) {
+          notice = "";
+          void Promise.resolve(onopenlink?.(parsed)).then((failure) => {
+            if (typeof failure === "string" && failure) notice = failure;
+          });
+        }
         return;
       }
       void follow(link);
@@ -277,6 +282,8 @@
         </div>
       {/if}
     {/each}
+    {#if notice}<InlineNotice tone="warning" class="mt-1">{notice}</InlineNotice
+      >{/if}
   </div>
 {:else}
   <div class="flex h-full min-h-0 flex-col">
