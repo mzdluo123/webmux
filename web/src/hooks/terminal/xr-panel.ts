@@ -168,8 +168,8 @@ export class XrPanel {
         width: 130,
         height: 46,
         run: () => {
-          if (this.layout.kind === "terminal") source.latest();
-          this.offset = Math.max(0, (text?.lines.length ?? 0) - 18);
+          if (this.layout.kind === "terminal") this.source?.latest();
+          this.offset = Math.max(0, (this.text?.lines.length ?? 0) - 18);
           this.signature = "";
         },
       },
