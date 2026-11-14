@@ -15,6 +15,7 @@
     description,
     drawerDescription,
     onclose,
+    onback,
     children,
     busy = false,
     class: className,
@@ -28,6 +29,8 @@
     /** Shorter drawer copy; defaults to `description`. */
     drawerDescription?: string;
     onclose: () => void;
+    /** Consume Escape for an inner navigation level before dismissing. */
+    onback?: () => boolean;
     children: Snippet;
     busy?: boolean;
     /** Extra desktop Dialog content classes. */
@@ -96,7 +99,7 @@
         className,
       )}
       onEscapeKeydown={(event) => {
-        if (busy) event.preventDefault();
+        if (busy || onback?.()) event.preventDefault();
       }}
       onInteractOutside={(event) => {
         if (busy) event.preventDefault();
@@ -126,6 +129,9 @@
 {:else}
   <Drawer.Root bind:open onOpenChange={changed} dismissible={!busy}>
     <Drawer.Content
+      onEscapeKeydown={(event) => {
+        if (busy || onback?.()) event.preventDefault();
+      }}
       class={drawerFullScreen
         ? "h-dvh max-h-dvh data-[vaul-drawer-direction=bottom]:mt-0 data-[vaul-drawer-direction=bottom]:max-h-dvh"
         : "data-[vaul-drawer-direction=bottom]:max-h-[95dvh]"}

@@ -17,6 +17,7 @@ import type {
   LaunchSource,
   TargetKind,
 } from "../domains/sessions/new-session-defaults";
+import type { ProjectSelection } from "../domains/sessions/project-selection";
 import type { WorktreePreset } from "../domains/sessions/worktree-preset";
 
 export interface CreationLocationProps {
@@ -37,6 +38,15 @@ export interface CreationLocationProps {
 }
 
 export interface CreationContributions {
+  ProjectPicker?: Component<
+    {
+      defaultCwd: string;
+      recent?: readonly string[];
+      onselect: (selection: ProjectSelection) => void;
+    },
+    { back: () => boolean }
+  >;
+
   LaunchPicker?: Component<
     {
       launchConfigs: LaunchConfigsState;
