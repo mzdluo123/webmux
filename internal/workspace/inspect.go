@@ -48,3 +48,9 @@ func InspectProjects(dir string) error {
 	_, err := statefile.ReadSnapshot[projectRegistry](dir, statefile.Projects, validateProjects)
 	return err
 }
+
+// InspectProjectClones validates persisted clone operations without acquiring the service lock.
+func InspectProjectClones(dir string) error {
+	_, err := statefile.ReadSnapshot[projectCloneRegistry](dir, statefile.ProjectClones, validateProjectClones)
+	return err
+}

@@ -340,3 +340,10 @@
 - 审查补充：实际能力快照经过 localclient 严格校验；覆盖禁用、服务缺失、存储故障与 Git 清单局部损坏，并同步核心 fallback 能力集合。
 - 回归覆盖保留目录重新创建 Git 项目、文件路径拒绝及权限失败；权限失败使用每实例文件系统端口注入 EACCES，不依赖测试进程权限。
 - 登记项目直接使用仓库身份提交，不再等待提交后的 Git 快照，避免已保存却因读取超时报告失败。
+
+## 2026-11-15：项目克隆基础（stack 第 3a 层）
+
+- 范围：US-K03、US-K08；workspace 独立克隆账本、启动中断识别、Git URL 协议与凭据校验，以及无覆盖目录发布基础；尚无克隆 worker/API。
+- 本地通过：workspace、pathutil、statefile、archtest race 测试，纯核心禁用存储与配置诊断测试，固定 Go lint、文档/格式/持久化清单检查。
+- 目录发布验证已有空目录、文件、目录符号链接及悬空符号链接均不被覆盖；Linux 实际运行通过，Darwin arm64 仅交叉编译通过，未在 macOS 实机执行。
+- 重启验证 running → interrupted、registering → registration_failed 持久写入，保留临时目录及已发布目录，不自动重启克隆；损坏账本不阻断普通目录登记。

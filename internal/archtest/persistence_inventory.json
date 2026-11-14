@@ -37,6 +37,15 @@
       "source": "internal/workspace/projects.go"
     },
     {
+      "id": "project-clones",
+      "path": "project-clones.json",
+      "lock": "project-clones.json.lock",
+      "owner": "internal/workspace",
+      "failure": "unavailable",
+      "web": "否",
+      "source": "internal/workspace/project_clone_store.go"
+    },
+    {
       "id": "git-operations",
       "path": "git-operations.json",
       "lock": "git-operations.json.lock",
@@ -853,6 +862,22 @@
     "internal/workspace/projects.go|*Service.loadProjects|github.com/rainchan/webmux/internal/statefile.Open": {
       "count": 1,
       "owner": "projects"
+    },
+    "internal/statefile/catalog.go|path|project-clones.json": {
+      "count": 1,
+      "owner": "project-clones"
+    },
+    "internal/workspace/inspect.go|InspectProjectClones|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
+      "count": 1,
+      "owner": "project-clones"
+    },
+    "internal/workspace/project_clone_store.go|*Service.loadProjectClones|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "project-clones"
+    },
+    "internal/pathutil/publish_linux.go|PublishDirectory|golang.org/x/sys/unix.Renameat2": {
+      "count": 1,
+      "owner": "project-clones"
     }
   }
 }
