@@ -56,6 +56,7 @@
       archive: {
         configMissing: false,
         previousAgentSessionIds: [],
+        storedBytes: 0,
         queuedCount: 0,
         interruptedAt: null,
         ...archive,
@@ -68,6 +69,8 @@
     record(
       "archivda",
       "omp · 修复首页排序后补充回归测试与文档说明，确认长标题会截断",
+      {},
+      { storedBytes: 9830 },
     ),
     record(
       "archivdb",

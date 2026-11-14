@@ -183,8 +183,8 @@ func TestArchivedSession(t *testing.T) {
 	rec.SetAgentSessionID("two")
 	rec.InterruptedAt = &at
 	rec.Workspace = &hybrid.WorkspaceRef{RepositoryID: "r1", WorktreeID: "w1"}
-	out = ArchivedSession(rec, Archived{})
-	if out.Title != "named" || *out.Agent.SessionID != "two" || len(out.Archive.PreviousAgentSessionIDs) != 1 || !out.Archive.InterruptedAt.Equal(at) {
+	out = ArchivedSession(rec, Archived{StoredBytes: 2048})
+	if out.Title != "named" || *out.Agent.SessionID != "two" || len(out.Archive.PreviousAgentSessionIDs) != 1 || !out.Archive.InterruptedAt.Equal(at) || out.Archive.StoredBytes != 2048 {
 		t.Fatalf("archived %+v", out)
 	}
 	if out.Workspace == nil || out.Workspace.RepositoryID != "r1" || out.Workspace.WorktreeID != "w1" {

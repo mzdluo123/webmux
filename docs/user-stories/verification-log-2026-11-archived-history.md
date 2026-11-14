@@ -213,3 +213,18 @@
 - 已验证：正常/nop2p 二进制的独立 Unix socket 实例通过 status/peers/probe 冒烟检查；nop2p 不暗示 full ICE 或逐 peer ICE 套接字，读取未写入持久配置。
 - 完整门禁使用 `env -u CODEX_PATH make test`：Go race、Vitest unit（856）与 browser（728）已通过；首次继承宿主 CODEX_PATH 导致两个未改动的 connector 测试失败，移除变量后隔离复测通过。
 - Storybook、E2E、性能及最终完整门禁、CI 结果记录在 [PR #562 的验证清单](https://github.com/mzdluo123/webmux/pull/562)。所有网络测试使用隔离服务或本地假 STUN，未连接现有开发服务。
+
+## 2026-11-15：已归档记录按 agent 历史行展示
+
+- 故事：更新 US-Q12 的首页已归档卡片验收要点，不新增故事、不改变覆盖索引计数。
+- 实现：
+  - `SessionArchive` 新增 `storedBytes`：`conversation.StoredBytes` 汇总该会话 `activity` 的消息、工具输出与标题字节，经 `featurewire.ArchivedSession` 输出；只有终端回合的记录为 0，不含附件、索引与 agent 自己的历史；
+  - `ArchivedSessions.svelte` 卡片改为 agent 历史样式：首行 agent 图标与标题（已释放空间徽章保留），第二行 agent 与所在端，第三行依次为时间、记录大小、状态与完整目录；状态改为勾选“已关闭”或警告“已中断”，文案接入 Paraglide 双语词条；
+  - 目录始终显示，不再因与分组目录相同而隐藏；组件与调用方移除不再使用的 `groupPath` 属性；窄屏隐藏“·”分隔符，宽屏为目录列分配 `sm:flex-1` 行内截断，避免长路径换行导致行尾悬挂标点。
+- 依据：
+  - `go test -race ./internal/conversation ./internal/featurewire ./internal/featureapi ./internal/api -run 'TestStoredBytesCountsTextAndHeadings|TestArchivedSession|TestWireSnapshots'` 通过；
+  - `web/test/browser/ArchivedSessions.test.ts` 20 项、`i18n`/`wire-contract`/`archived` 单元测试通过；
+  - `make check`（含 `pnpm --dir web check`、`lint`、`check:arch`、`vp fmt --check`、`make docs-check`、`golangci-lint`）与 `make build` 通过。
+  - 隔离实例（复制状态目录，仅保留 12 条已归档记录）在无头 Chromium 中查看：`cmhsx2ln` 显示 `52 分钟前 · 9.6 KB · 已关闭 · /home/RuabbitX/sources/webmux.worktrees/vr-fix`，纯终端记录显示 `0 B`；桌面 1280×900 与手机 390×844 明暗主题下无页面横向溢出，手机路径换行并保留悬停原文。
+  - PR 证据：[`.github/pr-assets/archived-card-meta/`](../../.github/pr-assets/archived-card-meta/) 含桌面 1280×900、平板 768×800、手机 390×844 的明暗前后对照，以及工作树 `9.6 KB` 记录对照；base 与 HEAD 二进制读取同一份 12 条归档记录，使用相同滚动位置与主题。
+- 限制：仅在 Linux/WSL2 与无头 Chromium 验证；未验证真实移动设备、悬停提示在触屏上的可达性，也未连接开发者正在运行的服务。

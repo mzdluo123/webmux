@@ -68,6 +68,7 @@ func side(v contract.SessionView) string {
 type Archived struct {
 	ConversationID, ProviderThreadID string
 	ConfigMissing                    bool
+	StoredBytes                      int64
 	AgentTitle                       string
 	AgentIcon                        string
 }
@@ -91,7 +92,8 @@ func ArchivedSession(r hybrid.Record, a Archived) contract.SessionInfo {
 		Agent: &contract.SessionAgent{Name: r.Agent, Title: a.AgentTitle, Icon: a.AgentIcon},
 		Archive: &contract.SessionArchive{
 			ConfigMissing: a.ConfigMissing, PreviousAgentSessionIDs: required(slices.Clone(r.PreviousIDs)),
-			Activity: r.Activity, QueuedCount: r.QueuedCount, UpdatedAt: r.UpdatedAt,
+			StoredBytes: a.StoredBytes,
+			Activity:    r.Activity, QueuedCount: r.QueuedCount, UpdatedAt: r.UpdatedAt,
 		},
 	}
 	if r.AgentSessionID != "" {

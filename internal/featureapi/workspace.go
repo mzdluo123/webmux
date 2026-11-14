@@ -97,7 +97,7 @@ func (s *Server) workspaceRoutes(mux transport.Registrar) {
 	})
 	serveIn(mux, "POST "+repo+"/worktrees/{worktreeId}/removal-preview", http.StatusOK, workspaceFailure, func(r *http.Request, _ contract.RemovalPreviewRequest) (contract.RemovalPreview, error) {
 		preview, err := s.Workspace.PreviewRemoval(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"))
-		return wire.Preview(preview, s.archived, s.sessionSnapshot), err
+		return wire.Preview(preview, s.archived(r.Context()), s.sessionSnapshot), err
 	})
 	// The archived records of the removed directory stay, released, with
 	// their artifact folders: they can be rebuilt and resumed.
@@ -116,7 +116,7 @@ func (s *Server) workspaceRoutes(mux transport.Registrar) {
 	})
 	serveIn(mux, "POST "+repo+"/worktrees/batch-removal-preview", http.StatusOK, workspaceFailure, func(r *http.Request, req contract.BatchRemovalPreviewRequest) (contract.BatchRemovalPreview, error) {
 		preview, err := s.Workspace.PreviewBatchRemoval(r.Context(), r.PathValue("id"), req.WorktreeIDs)
-		return wire.BatchPreview(preview, s.archived, s.sessionSnapshot), err
+		return wire.BatchPreview(preview, s.archived(r.Context()), s.sessionSnapshot), err
 	})
 	serveIn(mux, "POST "+repo+"/worktrees/batch-remove", http.StatusOK, workspaceFailure, func(r *http.Request, req contract.BatchRemoveWorktreesRequest) (contract.BatchRemoveResult, error) {
 		result, err := s.Workspace.BatchRemoveWorktrees(r.Context(), r.PathValue("id"), wire.BatchRemoveWorktrees(req))
@@ -134,7 +134,7 @@ func (s *Server) workspaceChatRoutes(mux transport.Registrar) {
 	const repo = "/api/repositories/{id}"
 	serveIn(mux, "POST "+repo+"/worktrees/{worktreeId}/release-preview", http.StatusOK, sessionFailure, func(r *http.Request, _ contract.ReleasePreviewRequest) (contract.ReleasePreview, error) {
 		preview, err := s.Workspace.PreviewRelease(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"))
-		return wire.ReleasePreview(preview, s.archived), err
+		return wire.ReleasePreview(preview, s.archived(r.Context())), err
 	})
 	serveIn(mux, "POST "+repo+"/worktrees/{worktreeId}/release", http.StatusOK, sessionFailure, func(r *http.Request, req contract.ReleaseWorktreeRequest) (contract.ReleaseResult, error) {
 		result, err := s.Workspace.ReleaseWorktree(r.Context(), r.PathValue("id"), r.PathValue("worktreeId"), wire.ReleaseWorktree(req))

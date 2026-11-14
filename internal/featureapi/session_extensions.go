@@ -45,7 +45,7 @@ func (s *Server) sessionExtensionRoutes(mux transport.Registrar) {
 		})
 	}
 }
-func (s *Server) ListArchived(_ context.Context, states []contract.SessionState) ([]contract.SessionInfo, error) {
+func (s *Server) ListArchived(ctx context.Context, states []contract.SessionState) ([]contract.SessionInfo, error) {
 	out := []contract.SessionInfo{}
 	if s.Hybrid == nil {
 		return out, nil
@@ -56,16 +56,24 @@ func (s *Server) ListArchived(_ context.Context, states []contract.SessionState)
 	}
 	for _, rec := range records {
 		if slices.Contains(states, contract.SessionState(rec.State)) {
-			out = append(out, featurewire.ArchivedSession(rec, s.archived(rec)))
+			out = append(out, featurewire.ArchivedSession(rec, s.archivedRecord(ctx, rec)))
 		}
 	}
 	return out, nil
 }
-func (s *Server) archived(rec hybrid.Record) featurewire.Archived {
+func (s *Server) archived(ctx context.Context) func(hybrid.Record) featurewire.Archived {
+	return func(rec hybrid.Record) featurewire.Archived { return s.archivedRecord(ctx, rec) }
+}
+func (s *Server) archivedRecord(ctx context.Context, rec hybrid.Record) featurewire.Archived {
 	out := featurewire.Archived{ConfigMissing: s.configMissing(rec.ConfigID)}
 	if s.Conversations != nil {
-		if binding, err := s.Conversations.Binding(context.Background(), rec.ID); err == nil {
+		if binding, err := s.Conversations.Binding(ctx, rec.ID); err == nil {
 			out.ConversationID, out.ProviderThreadID = binding.ConversationID, binding.ProviderThreadID
+			// A size is a display detail: a failed count leaves it at 0
+			// instead of failing the archive listing.
+			if stored, err := s.Conversations.StoredBytes(ctx, binding.ConversationID); err == nil {
+				out.StoredBytes = stored
+			}
 		}
 	}
 	if s.Hybrid != nil {
@@ -73,10 +81,10 @@ func (s *Server) archived(rec hybrid.Record) featurewire.Archived {
 	}
 	return out
 }
-func (s *Server) Info(_ context.Context, id string) (contract.SessionInfo, error) {
-	return s.sessionInfo(id)
+func (s *Server) Info(ctx context.Context, id string) (contract.SessionInfo, error) {
+	return s.sessionInfo(ctx, id)
 }
-func (s *Server) sessionInfo(id string) (contract.SessionInfo, error) {
+func (s *Server) sessionInfo(ctx context.Context, id string) (contract.SessionInfo, error) {
 	item, err := s.Manager.Get(id)
 	if err == nil && s.sessionSnapshot(item.Info()).State == contract.SessionStateActive {
 		return s.sessionSnapshot(item.Info()), nil
@@ -85,7 +93,7 @@ func (s *Server) sessionInfo(id string) (contract.SessionInfo, error) {
 		rec, recErr := s.Hybrid.Record(id)
 		switch {
 		case recErr == nil && rec.State != hybrid.StateActive:
-			return featurewire.ArchivedSession(rec, s.archived(rec)), nil
+			return featurewire.ArchivedSession(rec, s.archivedRecord(ctx, rec)), nil
 		case err != nil && errors.Is(recErr, hybrid.ErrUnavailable):
 			return contract.SessionInfo{}, recErr
 		}

@@ -36,7 +36,7 @@ func (s *Server) EnrichDetails(ctx context.Context, info session.Info, out *cont
 		}
 	}
 	if out.Session.State != contract.SessionStateActive {
-		if described, err := s.sessionInfo(info.ID); err == nil {
+		if described, err := s.sessionInfo(ctx, info.ID); err == nil {
 			out.Session = described
 		}
 	}

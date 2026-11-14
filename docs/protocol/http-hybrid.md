@@ -57,6 +57,7 @@
 
 - `configMissing`：启动配置是否已删除；
 - `previousAgentSessionIds`：最近 8 个历史 agent 会话 ID（当前 ID 在 `agent.sessionId`）；
+- `storedBytes`：WebMux 保存的聊天文本字节数（消息、工具输出与标题），不含索引、附件和 agent 自己的历史；只运行过终端的记录为 0；
 - `activity`：中断前的活动 `idle`、`turn` 或 `switching`，后两者表示上一轮可能未完成；
 - `queuedCount`：中断时丢失的排队条数；
 - `interruptedAt` 与 `updatedAt`：时间戳，`lastActiveAt` 等于 `updatedAt`。

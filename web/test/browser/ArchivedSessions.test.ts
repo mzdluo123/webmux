@@ -42,6 +42,7 @@ const record: ArchivedSession = {
   archive: {
     configMissing: false,
     previousAgentSessionIds: [],
+    storedBytes: 2048,
     queuedCount: 0,
     interruptedAt: "2026-10-28T00:00:00Z",
     updatedAt: "2026-10-28T00:00:00Z",
@@ -56,13 +57,12 @@ function show(
   records: ArchivedSession[],
   resume: (...args: unknown[]) => Promise<ResumeOutcome>,
   patch: Partial<ArchiveActions> & {
-    groupPath?: string;
     worktree?: Worktree;
   } = {},
 ) {
   const remove = vi.fn(async () => {});
   const onresumed = vi.fn();
-  const { groupPath, worktree, ...actions } = patch;
+  const { worktree, ...actions } = patch;
   const archive: ArchiveActions = {
     now,
     filtering: false,
@@ -74,7 +74,6 @@ function show(
   render(ArchivedSessions, {
     title: "main",
     records,
-    groupPath,
     worktree,
     archive,
   });
@@ -118,6 +117,11 @@ test("is hidden without records and collapsed by default with a count", async ()
     .element(group().getByText("/repos/project").first())
     .toBeVisible();
   await expect.element(group().getByText("5 分钟前").first()).toBeVisible();
+  const size = group().getByText("2.0 KB").first();
+  await expect.element(size).toBeVisible();
+  expect(size.element().getAttribute("title")).toBe(
+    "聊天文本大小（不含附件、索引与 agent 自己的历史）",
+  );
   // Only the interrupted record warns; a closed one finished cleanly.
   expect(
     group()
@@ -127,11 +131,39 @@ test("is hidden without records and collapsed by default with a count", async ()
   await expect.element(group().getByText(/有 2 条排队消息/)).toBeVisible();
 });
 
-test("shows each session's title", async () => {
-  show([record, { ...record, id: "hybrid33", title: "旧会话名称" }], vi.fn());
+test("shows each session's title and falls back to the agent name", async () => {
+  show(
+    [
+      record,
+      { ...record, id: "hybrid33", title: "旧会话名称" },
+      { ...record, id: "hybrid44", title: "" },
+    ],
+    vi.fn(),
+  );
   await expand();
   await expect.element(group().getByText("修复排序")).toBeVisible();
   await expect.element(group().getByText("旧会话名称")).toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: "删除 omp", exact: true }))
+    .toBeVisible();
+});
+
+test("an unknown agent icon draws no terminal fallback", async () => {
+  show([{ ...record, agent: { ...record.agent, icon: "" } }], vi.fn());
+  await expand();
+  const card = group().elements()[0].querySelector("[data-archived-id]");
+  expect(card?.querySelector("[data-launch-icon]")).toBeNull();
+});
+
+test("long directory paths truncate inline above sm with a full-path title", async () => {
+  const longCwd =
+    "/home/developer/workspaces/webmux.worktrees/feat-archived-card-meta-very-long-directory-path";
+  show([{ ...record, cwd: longCwd }], vi.fn());
+  await expand();
+  const pathEl = group().getByTitle(longCwd, { exact: true }).element();
+  expect(pathEl.textContent).toBe(longCwd);
+  expect(pathEl.classList.contains("truncate")).toBe(true);
+  expect(pathEl.classList.contains("sm:flex-1")).toBe(true);
 });
 
 test.each(["chat", "terminal"] as const)(
@@ -283,7 +315,7 @@ test("removing needs confirmation and failures stay inline", async () => {
     .toMatchTextContent(/无法恢复“修复排序”：网络中断/);
 });
 
-test("hides the directory a group already names and pages long lists", async () => {
+test("shows each record's directory and pages long lists", async () => {
   const records = Array.from({ length: 7 }, (_, i) => ({
     ...record,
     id: `hybrid${i}0`,
@@ -293,14 +325,11 @@ test("hides the directory a group already names and pages long lists", async () 
   show(
     [...records, { ...record, id: "hybridsu", cwd: "/repos/project/web" }],
     vi.fn(),
-    {
-      groupPath: "/repos/project",
-    },
   );
   await expand();
-  expect(
-    group().getByText("/repos/project", { exact: true }).elements(),
-  ).toEqual([]);
+  await expect
+    .element(group().getByText("/repos/project", { exact: true }).first())
+    .toBeVisible();
   await expect.element(group().getByText("记录 4")).toBeVisible();
   expect(group().getByText("记录 5").elements()).toEqual([]);
   await group().getByRole("button", { name: "显示全部 8 条" }).click();

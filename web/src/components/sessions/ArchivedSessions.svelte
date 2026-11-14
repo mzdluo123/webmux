@@ -1,5 +1,7 @@
 <script lang="ts">
+  import IconAlertTriangle from "~icons/tabler/alert-triangle";
   import IconChevronDown from "~icons/tabler/chevron-down";
+  import IconCircleCheck from "~icons/tabler/circle-check";
   import IconDots from "~icons/tabler/dots";
   import IconMessageCircle from "~icons/tabler/message-circle";
   import IconTerminal2 from "~icons/tabler/terminal-2";
@@ -13,9 +15,16 @@
   import HybridRecordHints from "./HybridRecordHints.svelte";
   import HybridResumeActions from "./HybridResumeActions.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import LaunchConfigIcon, {
+    hasLaunchIcon,
+  } from "../settings/LaunchConfigIcon.svelte";
   import ReleasedBadge from "../workspace/ReleasedBadge.svelte";
   import { errorMessage } from "../../platform/error";
-  import type { ArchiveActions } from "../../domains/sessions/archived";
+  import {
+    recordTitle,
+    type ArchiveActions,
+  } from "../../domains/sessions/archived";
+  import { formatBytes } from "../../domains/sessions/host-health";
   import type { ArchivedSession, Worktree } from "../../contracts/schemas";
 
   // The archived (closed or interrupted) hybrid sessions of one workspace
@@ -26,14 +35,12 @@
   let {
     title,
     records,
-    groupPath,
     worktree,
     archive,
   }: {
     // The workspace group's title, naming the section for assistive tech.
     title: string;
     records: ArchivedSession[];
-    groupPath?: string;
     /**
      * The group's linked worktree when it can be removed or released; a
      * released record never targets it, deleting only itself.
@@ -64,10 +71,6 @@
   const interrupted = $derived(
     records.filter((record) => record.state === "interrupted").length,
   );
-
-  function recordTitle(record: ArchivedSession) {
-    return record.title;
-  }
 
   function since(record: ArchivedSession) {
     const at = Date.parse(
@@ -157,19 +160,17 @@
           data-archived-id={record.id}
         >
           <Item.Content class="min-w-0">
-            <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <div class="flex min-w-0 items-center gap-2">
+              {#if hasLaunchIcon(record.agent.icon)}<LaunchConfigIcon
+                  icon={record.agent.icon}
+                  size="sm"
+                />{/if}
               <Item.Title
                 class="min-w-0 max-w-full"
                 title={recordTitle(record)}
               >
                 <span class="truncate">{recordTitle(record)}</span>
               </Item.Title>
-              <Badge
-                variant={record.state === "interrupted" ? "warning" : "outline"}
-                >{record.state === "closed"
-                  ? m.s3_state_closed()
-                  : m.s3_turn_cancelled()}</Badge
-              >
               {#if record.released}<ReleasedBadge
                   released={record.released}
                 />{/if}
@@ -179,19 +180,55 @@
                 <span>{record.agent.name}</span>
                 <span class="inline-flex items-center gap-1"
                   >{#if record.view === "chat"}<IconMessageCircle
+                      class="shrink-0"
                       aria-hidden="true"
                     />{m.s3_view_chat()}{:else}<IconTerminal2
+                      class="shrink-0"
                       aria-hidden="true"
                     />{m.s3_view_terminal()}{/if}</span
                 >
-                <span>{since(record)}</span>
               </span>
             </Item.Description>
-            {#if record.cwd !== groupPath}<p
-                class="font-mono text-xs break-all text-muted-foreground"
+            <!-- The omp history line: time, stored size, outcome, directory.
+                 Each field keeps its own element so a narrow screen wraps
+                 them instead of clipping the path, while >= sm truncates
+                 long paths inline without leaving a trailing separator. -->
+            <p
+              class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
+            >
+              <span class="sm:shrink-0">{since(record)}</span>
+              <span aria-hidden="true" class="max-sm:hidden">·</span>
+              <span
+                class="sm:shrink-0"
+                title={m.s3_archived_stored_bytes_title()}
+                >{formatBytes(record.archive.storedBytes)}</span
               >
-                {record.cwd}
-              </p>{/if}
+              <span aria-hidden="true" class="max-sm:hidden">·</span>
+              {#if record.state === "closed"}
+                <span
+                  class="inline-flex items-center gap-1 text-success sm:shrink-0"
+                >
+                  <IconCircleCheck
+                    class="shrink-0"
+                    aria-hidden="true"
+                  />{m.s3_state_closed()}
+                </span>
+              {:else}
+                <span
+                  class="inline-flex items-center gap-1 text-warning sm:shrink-0"
+                >
+                  <IconAlertTriangle
+                    class="shrink-0"
+                    aria-hidden="true"
+                  />{m.s3_turn_cancelled()}
+                </span>
+              {/if}
+              <span aria-hidden="true" class="max-sm:hidden">·</span>
+              <span
+                class="min-w-0 max-w-full truncate font-mono sm:flex-1"
+                title={record.cwd}>{record.cwd}</span
+              >
+            </p>
             <HybridRecordHints {record} />
           </Item.Content>
           <Item.Actions class="flex flex-wrap gap-2">
