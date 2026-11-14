@@ -6,7 +6,7 @@
 
 ## What Changes
 
-- 新建会话弹窗先显示可搜索的项目列表，已有项目显示名称、路径及不可用原因。
+- workspace 项目能力可用时，新建会话弹窗先显示可搜索的项目列表，已有项目显示名称、路径及不可用原因。
 - 添加项目提供「新建项目」「本地文件夹」「Git URL」「GitHub 仓库」四个来源，在同一弹窗内逐层前进和返回。
 - 普通非 Git 文件夹也作为持久项目；Git 项目继续复用仓库和工作树能力。
 - 项目选定后显示会话启动页；工作位置默认为项目目录，工作树作为项目内的可选项。
@@ -25,9 +25,10 @@
 
 ## Impact
 
-- 前端：NewSessionDialog、LocationPicker、DirectoryPicker、LaunchPicker、AppShell，以及相关组件测试和 Storybook。
-- 服务端：项目清单与接入操作，复用 workspace 的仓库归一化和 files 的目录能力；由 cmd 构造服务并注入 api。
-- 契约：新增项目接口时同步 internal/contract、internal/wire、schemas.ts 和 wire 快照，不改变现有 sessions 创建字段互斥规则。
+- 前端：components/sessions 下的 NewSessionDialog、NewSessionForm 和 LaunchPicker；components/workspace 下的位置组件，以及 plugins 的创建贡献和相关测试。
+- 服务端：项目清单与接入操作归属 workspace 插件；由 cmd 的 plugin 装配构造，pluginapi 注册 transport contributions，pluginwire 转换可选数据。核心 sessioncreate 只消费 typed ports。
+- 契约：新增项目接口时同步 internal/contract、internal/pluginwire、web/src/contracts/schemas.ts 和 wire 快照，不改变现有 sessions 创建字段互斥规则。
+- 保持 plugins.enabled=[] 的纯核心目录＋命令创建，不引入 workspace/files/launch/chat 必选依赖；新增 workspace.projects 等细粒度能力，避免把无 Git 等同于无项目目录能力。
 - 不重做整个侧栏，不迁移 QuickStart 页面；此次统一范围为新建会话弹窗及其上下文入口。
 - 本次交付为设计与实施计划，尚未改变产品行为；用户故事在实施时更新。
 
