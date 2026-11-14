@@ -51,7 +51,7 @@ Relay 在独立仓库开发和发布，一个 Go 二进制监听公共 HTTPS/WSS
 
 ### 2. WSS + smux v2 与有界连接隔离
 
-依据 [issue #604 验证报告](../../../docs/relay-validation-604.md)，MVP 使用 `coder/websocket` v1.8.15 与 `xtaci/smux` v1.5.58，嵌入两端 Go 进程。A 保持 HTTPS/WebSocket，B 使用 TLS 1.3 WSS；不引入 QUIC 优先探测、UDP 回退、FEC 或独立隧道进程。
+依据 [issue #604 验证报告](../../../docs/relay-validation-604.md)，MVP 使用 `coder/websocket` v1.8.15 与 `xtaci/smux` v1.5.58，嵌入两端 Go 进程。A 保持 HTTPS/WebSocket，B 使用 TLS 1.3 WSS；不引入 QUIC 探测、UDP 回退、FEC 或独立隧道进程。
 
 同一个逻辑宿主连接器最多两条已认证物理连接：control 承载控制和交互，bulk 承载已分类的上传下载。两条连接共用 host ID、绑定代际、连接器代际和账号配额，不能作为两个宿主领取资源。每条 WSS 独立读循环与序列化写入方，smux v2 提供双向建流、流级窗口及背压。
 
