@@ -84,7 +84,7 @@ func (t *TargetService) Status(ctx context.Context) (contract.StatusV1, error) {
 	return t.Current().Status(ctx)
 }
 
-func (t *TargetService) Watch(ctx context.Context, sessions func(int)) error {
+func (t *TargetService) Watch(ctx context.Context, sessions func(SessionCounts)) error {
 	return t.Current().Watch(ctx, sessions)
 }
 

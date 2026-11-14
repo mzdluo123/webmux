@@ -159,7 +159,7 @@ func VersionHint(snap Snapshot) string {
 		hints = append(hints, wsl+" 比托盘新，请升级托盘")
 	}
 	if r := snap.Running; r != nil && snap.Compat != "" && installed != "" && r.Version != installed {
-		hints = append(hints, "WSL 中已安装 "+installed+"，重启 WebMux 后生效，重启会结束所有会话")
+		hints = append(hints, "WSL 中已安装 "+installed+"，重启 WebMux 后生效（普通终端会话会结束，混合会话会自动恢复）")
 	}
 	if snap.UpgradeError != "" {
 		hints = append(hints, "自动升级 WSL 中的 webmux 失败："+snap.UpgradeError)

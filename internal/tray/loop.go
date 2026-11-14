@@ -74,8 +74,8 @@ func snapshotKey(s Snapshot) string {
 		running = s.Running.String()
 	}
 	return fmt.Sprintf(
-		"%s|%s|%v|%d|%s|%v|%v|%s|%s|%v|%v|%+v|%v|%s|%v|%s|%s|%s|%v|%v|%v|%q|%s",
-		s.State, s.Mode, s.Detection, s.Sessions, s.Reason, s.Reachable,
+		"%s|%s|%v|%d|%+v|%s|%v|%v|%s|%s|%v|%v|%+v|%v|%s|%v|%s|%s|%s|%v|%v|%v|%q|%s",
+		s.State, s.Mode, s.Detection, s.Sessions, s.SessionCounts, s.Reason, s.Reachable,
 		s.HasStatus, s.Status.State, s.Status.Version, s.Status.Drift,
 		s.Status.Config, s.Status.URLs, s.Settings, s.Blocker, s.Installed,
 		s.Compat, running, s.RunningCompat, s.Degraded, tunnelKey(s.Status.Tunnel),
@@ -184,7 +184,7 @@ func (s *Supervisor) ensureWatch(ctx context.Context, ls *loopState) {
 	ls.watchStop = stop
 	gen := ls.gen
 	go func() {
-		err := s.service.Watch(watchCtx, func(count int) { s.post(sessionsEvent{gen: gen, count: count}) })
+		err := s.service.Watch(watchCtx, func(counts SessionCounts) { s.post(sessionsEvent{gen: gen, counts: counts}) })
 		s.post(watchEndEvent{gen: gen, err: err})
 	}()
 }

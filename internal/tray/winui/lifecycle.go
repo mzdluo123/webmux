@@ -4,7 +4,6 @@ package winui
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -94,11 +93,11 @@ func (a *App) initConfig() {
 	if !snap.Actions().Restart {
 		return
 	}
-	text := "已生成配置与 Token，重启 WebMux 后生效。\n\n现在重启 WebMux 吗？"
-	if snap.Sessions > 0 {
-		text += fmt.Sprintf("重启将结束 %d 个终端会话，且不可恢复。", snap.Sessions)
+	text := "已生成配置与 Token，重启 WebMux 后生效。"
+	if note := tray.RestartSessionNote(snap); note != "" {
+		text += "\n\n" + note
 	}
-	if confirm(text) {
+	if confirm(text + "\n\n现在重启 WebMux 吗？") {
 		a.sup.Restart()
 	}
 }
@@ -120,13 +119,13 @@ func (a *App) installed(err error) {
 	if !snap.HasStatus || snap.Status.State != contract.StateRunning {
 		return
 	}
-	text := "新版本在重启 WebMux 后生效，重启会结束所有终端会话。"
+	text := tray.InstalledRestartNotice
 	if !snap.Actions().Restart {
 		messageBox(text, windows.MB_OK|windows.MB_ICONINFORMATION)
 		return
 	}
-	if snap.Sessions > 0 {
-		text += fmt.Sprintf("\n\n当前有 %d 个终端会话。", snap.Sessions)
+	if note := tray.RestartSessionNote(snap); note != "" {
+		text += "\n\n" + note
 	}
 	if confirm(text + "\n\n现在重启 WebMux 吗？") {
 		a.sup.Restart()
@@ -155,14 +154,14 @@ func (a *App) updateTray() {
 
 func (a *App) stopWebMux() {
 	snap := a.sup.Snapshot()
-	if confirmSessions("停止 WebMux ", snap.Sessions) {
+	if confirmStop("停止 WebMux ", snap) {
 		a.sup.Stop()
 	}
 }
 
 func (a *App) restartWebMux() {
 	snap := a.sup.Snapshot()
-	if confirmSessions("重启 WebMux ", snap.Sessions) {
+	if confirmRestart("重启 WebMux ", snap) {
 		a.sup.Restart()
 	}
 }

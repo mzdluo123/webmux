@@ -37,9 +37,9 @@ type Service interface {
 	// when the bridge reports that WebMux is not running. A contract the
 	// tray does not speak is a *ContractError on both paths.
 	Status(ctx context.Context) (contract.StatusV1, error)
-	// Watch follows /ws/sessions, reporting the session count, until the
-	// subscription ends.
-	Watch(ctx context.Context, sessions func(int)) error
+	// Watch follows /ws/sessions, reporting the classified session counts,
+	// until the subscription ends.
+	Watch(ctx context.Context, sessions func(SessionCounts)) error
 	StartTray(ctx context.Context) (Process, error)
 	Shutdown(ctx context.Context, force bool) error
 	ForceStop(ctx context.Context) (contract.StopV1, error)
@@ -164,14 +164,14 @@ func (s *WSLService) Status(ctx context.Context) (contract.StatusV1, error) {
 	return status, err
 }
 
-func (s *WSLService) Watch(ctx context.Context, sessions func(int)) error {
+func (s *WSLService) Watch(ctx context.Context, sessions func(SessionCounts)) error {
 	conn, err := s.local().DialWebSocket(ctx, "/ws/sessions")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = conn.CloseNow() }()
 	conn.SetReadLimit(16 << 20)
-	ids := map[string]bool{}
+	items := map[string]contract.SessionInfo{}
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
@@ -183,21 +183,21 @@ func (s *WSLService) Watch(ctx context.Context, sessions func(int)) error {
 		}
 		switch event.Type {
 		case "snapshot":
-			ids = map[string]bool{}
+			items = make(map[string]contract.SessionInfo, len(event.Sessions))
 			for _, item := range event.Sessions {
-				ids[item.ID] = true
+				items[item.ID] = item
 			}
 		case "created", "updated":
 			if event.Session == nil {
 				continue
 			}
-			ids[event.Session.ID] = true
+			items[event.Session.ID] = *event.Session
 		case "removed":
-			delete(ids, event.ID)
+			delete(items, event.ID)
 		default:
 			continue
 		}
-		sessions(len(ids))
+		sessions(SummarizeSessions(items))
 	}
 }
 

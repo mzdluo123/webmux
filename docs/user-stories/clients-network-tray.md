@@ -157,10 +157,12 @@
   - 按方式保持 WSL 存活；
   - 托盘托管意外退出后退避重启，10 分钟内最多 5 次；
   - systemd 重启策略交给单元。
-- **US-O03 管理所属实例**：作为 Windows 使用者，我希望托盘区分自己管理的服务和外部实例，以便不误停其他终端启动的工作。
+- **US-O03 管理所属实例**：作为 Windows 使用者，我希望托盘区分自己管理的服务和外部实例，并在重启或停止时准确判断现有会话是否需要确认，以便不误停外部工作，也不会在仅有空闲混合会话时被错误的“不可恢复”警告阻拦。
   验收要点：
   - 可启动、停止、重启所属实例；
-  - 有会话的停止、重启或切换目标先确认；
+  - 托盘通过 `/ws/sessions` 实时区分普通终端会话与混合会话，以及会话是否正在工作（运行中、切换视图中或等待权限/提问答复）；
+  - 重启（含菜单“重启”及切换“允许局域网访问”触发的重启）在无会话或仅有已空闲混合会话时直接执行；仅当存在正在工作的会话、存在普通终端会话或会话明细尚未就绪时先弹窗确认，准确说明普通终端会话不会保存、混合会话会在重启后自动恢复（排队消息不保留）；
+  - 停止、切换发行版或切换启动方式在存在会话时先弹窗确认，准确说明普通终端会话不会保存、混合会话会在下次启动时恢复；
   - 外部或启动方式不符的实例只提供访问操作；
   - 不擅自接管停止权限。
 - **US-O04 登录启动与单实例**：作为 Windows 使用者，我希望登录后出现一个托盘实例，以便随时找到服务入口。
@@ -218,7 +220,7 @@
   - WSL 为较新的开发版而托盘通道为正式版时，提示“WSL 中为开发版 <版本>，托盘使用正式版通道”，安装版托盘不自动检查，改为提供“切换到开发版通道并更新托盘”（见 US-O14）；
   - 契约不兼容仍可启动、停止、重启，以 Windows 侧可达性判断运行并显示“运行中（不兼容，功能受限）”，状态无法解析不判失败、不自动重启；
   - 缺少本机 API 时禁用启动；
-  - 运行实例与已安装文件版本不同时提示重启后生效，只有托盘管理的实例可从菜单重启。
+  - 运行实例与已安装文件版本不同时提示重启后生效（说明普通终端会话会结束、混合会话会自动恢复），只有托盘管理的实例可从菜单重启。
 - **US-O12 用安装程序安装与卸载托盘**：作为 Windows 使用者，我希望用安装程序安装、升级和卸载托盘，以便获得固定位置、开始菜单入口和卸载项，而不必手工放置 exe。
   验收要点：
   - `webmux-setup-windows-<架构>.exe` 按当前用户安装、安装本身不需要管理员，默认目录 `%LOCALAPPDATA%\Programs\WebMux`（可更改，升级沿用上次目录）；
@@ -268,7 +270,7 @@ Windows 原生终端客户端复用 US-M01–US-M06：提供 run、attach、ls�
 
 - [Windows CLI](../../cmd/webmux-windows/main_windows.go)、[WSL 桥接与路径](../../internal/wslclient/)、[托盘服务与安装](../../internal/tray/)
 - [托盘自更新](../../internal/tray/selfupdate.go)、[安装版识别与启动安装程序](../../internal/tray/traysys/install_windows.go)、[自动更新说明](../deployment/updates.md)
-- [兼容判定](../../internal/tray/compat.go)、[托盘菜单](../../internal/tray/winui/menu.go)、[转发](../../internal/tray/forward/)
+- [兼容判定](../../internal/tray/compat.go)、[会话确认](../../internal/tray/sessions.go)、[托盘菜单](../../internal/tray/winui/menu.go)、[转发](../../internal/tray/forward/)
 - [敏感剪贴板](../../internal/tray/winui/clipboard.go)、[退出请求](../../internal/tray/traysys/quit.go)、[单实例与退出事件](../../internal/tray/traysys/instance_windows.go)
 - [安装程序脚本](../../deploy/windows/webmux.nsi)、[安装程序冒烟](../../.github/scripts/windows-installer-smoke.ps1)、[Windows 部署](../deployment/windows-wsl.md)。
 
