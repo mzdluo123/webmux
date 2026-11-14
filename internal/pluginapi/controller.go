@@ -83,6 +83,7 @@ func (s *Server) Contributions() []transport.Contribution {
 	add("code", s.codeRoutes)
 	add("workspace", func(mux transport.Registrar) {
 		s.workspaceRoutes(mux)
+		s.projectRoutes(mux)
 		s.gitRoutes(mux)
 	})
 	if s.Config.Plugins.Has("workspace") && s.Config.Plugins.Has("code") {

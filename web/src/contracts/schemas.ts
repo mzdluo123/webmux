@@ -13,3 +13,4 @@ export * from "./git-v2-schemas";
 export * from "./git-v3-schemas";
 export * from "./p2p-schemas";
 export * from "./conversation-schemas";
+export * from "./project-schemas";

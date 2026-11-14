@@ -45,7 +45,7 @@ func TestCoreOnlyServeDoesNotInitializePluginState(t *testing.T) {
 			t.Fatalf("core-only instance initialized plugin %+v", plugin)
 		}
 	}
-	for _, path := range []string{"/api/repositories", "/api/launch-configs", "/api/fs/dirs", "/ws/voice"} {
+	for _, path := range []string{"/api/projects", "/api/projects/directories", "/api/repositories", "/api/launch-configs", "/api/fs/dirs", "/ws/voice"} {
 		response := request(path)
 		response.Body.Close()
 		if response.StatusCode != http.StatusNotFound {

@@ -72,6 +72,15 @@ func (p *pluginServices) capabilities(c config.Config) contract.Capabilities {
 		}
 		out.Capabilities = append(out.Capabilities, contract.Capability{ID: feature.capability, Available: reason == "", Reason: reason})
 	}
+	projectReason := ""
+	if !c.Plugins.Has("workspace") {
+		projectReason = contract.CapabilityReasonPluginDisabled
+	} else if p.workspace == nil {
+		projectReason = contract.CapabilityReasonServiceUnavailable
+	} else if p.workspace.ProjectStorageError() != nil {
+		projectReason = contract.CapabilityReasonStorageUnavailable
+	}
+	out.Capabilities = append(out.Capabilities, contract.Capability{ID: "workspace.projects", Available: projectReason == "", Reason: projectReason})
 	workbenchReason := ""
 	if !c.Plugins.Has("workspace") || !c.Plugins.Has("code") {
 		workbenchReason = contract.CapabilityReasonPluginDisabled

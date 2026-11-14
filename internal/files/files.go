@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 	"unicode"
@@ -65,47 +64,9 @@ func New(defaultCwd string) *Service { return &Service{defaultCwd: defaultCwd} }
 // path starts with prefix. A prefix ending in "/" (or "~") lists that
 // directory. Visible names sort before hidden ones.
 func (s *Service) Complete(prefix string) ([]string, error) {
-	if prefix == "" {
-		prefix = s.defaultCwd + string(os.PathSeparator)
-	}
-	expanded, err := pathutil.Expand(prefix)
+	out, err := pathutil.CompleteDirectories(prefix, s.defaultCwd)
 	if err != nil {
 		return nil, fail(ErrInvalid, err)
-	}
-	dir, base := filepath.Split(expanded)
-	if strings.HasSuffix(prefix, "/") || prefix == "~" {
-		dir = expanded
-		base = ""
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fail(ErrInvalid, err)
-	}
-	sort.Slice(entries, func(i, j int) bool {
-		left, right := entries[i].Name(), entries[j].Name()
-		leftHidden, rightHidden := strings.HasPrefix(left, "."), strings.HasPrefix(right, ".")
-		if leftHidden != rightHidden {
-			return !leftHidden
-		}
-		return left < right
-	})
-	out := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if !strings.HasPrefix(entry.Name(), base) {
-			continue
-		}
-		full := filepath.Join(dir, entry.Name())
-		isDir := entry.IsDir()
-		if entry.Type()&os.ModeSymlink != 0 {
-			stat, err := os.Stat(full)
-			if err != nil {
-				continue
-			}
-			isDir = stat.IsDir()
-		}
-		if isDir {
-			out = append(out, full)
-		}
 	}
 	return out, nil
 }

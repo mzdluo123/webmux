@@ -175,6 +175,15 @@
   - 任何失败只记录日志，会话照常启动；`agent_pretrust = false` 时不写任何文件，也不注入 Kimi trust 环境；
   - 其他 CLI 与已运行会话不受影响，说明与限制见 [CLI agent 接入](../../cli-agents.md#文件夹信任预写)。
 
+- **US-B10 通过 API 打开或创建本地项目**：作为 API 调用者，我希望先登记项目再启动会话，以便复用服务端的普通文件夹或 Git 仓库。
+  验收要点：
+  - 选择 workspace 后提供项目列表、已有目录登记、父目录浏览和新建目录接口；不需要 files、launch 或 chat；
+  - 普通目录无需 Git；新建默认只创建目录，显式开启初始化才创建 main 分支的空 Git 仓库，不要求作者身份或生成初始提交；
+  - 相同规范路径去重，Git 子目录归一到已登记仓库；不会覆盖既有目标或修改原仓库初始化指令；
+  - 创建后登记失败时保留目录并返回恢复路径，可再次登记；认证和 Origin 校验覆盖所有项目接口；
+  - workspace.projects 单独报告目录能力，Git 不可用不阻断普通目录，未选择 workspace 时接口不挂载；
+  - 这层只提供 API，现有新建会话弹窗尚未接入项目列表。
+
 依据：
 
 - [启动图标](../../../web/src/components/settings/LaunchConfigIcon.svelte)、[LobeHub 图标来源与许可](../../../web/src/icons/lobehub/README.md)
@@ -187,3 +196,5 @@
 - [可选创建端口](../../../internal/sessioncreate/types.go)、[工作区位置贡献](../../../internal/workspace/create_location.go)、[插件创建入口](../../../web/src/plugins/create.ts)。
 
 来源补充：[统一创建回归](../../../web/test/e2e/session-creation.spec.ts)。
+
+项目来源：[项目 API](../../protocol/http-projects.md)、[本地项目服务](../../../internal/workspace/project_local.go)、[项目接口](../../../internal/pluginapi/project.go)、[项目 wire 回归](../../../internal/api/project_test.go)。

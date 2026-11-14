@@ -13,7 +13,7 @@
 | bootstrap           | config.toml              | none                          | internal/config + cmd/webmux | 配置错误阻止启动      | 否       |
 | launch              | launch-configs.json      | launch-configs.json.lock      | internal/launch              | unavailable           | 是       |
 | repositories        | repositories.json        | repositories.json.lock        | internal/workspace           | unavailable           | 是       |
-| projects            | projects.json            | projects.json.lock            | internal/workspace           | unavailable           | 否       |
+| projects            | projects.json            | projects.json.lock            | internal/workspace           | unavailable           | 是       |
 | git-operations      | git-operations.json      | git-operations.json.lock      | internal/workspace           | unavailable           | 是       |
 | git-task-baselines  | git-task-baselines.json  | git-task-baselines.json.lock  | internal/workspace           | unavailable           | 是       |
 | git-workbench-state | git-workbench-state.json | git-workbench-state.json.lock | internal/workspace           | unavailable           | 是       |
@@ -37,7 +37,7 @@
 ### 插件选择与数据保留
 
 这份清单列出二进制支持的全部存储，不表示每次启动都打开。生成配置只选择核心；未选择的插件不构造服务、不取得锁、不写默认值、不迁移或启动清扫。
-`launch` 拥有启动配置；`workspace` 拥有仓库登记及独立项目目录清单（目前只提供内部服务，尚无网页入口），Git 工作台存储需 `workspace` + `code`；`chat` 拥有 hybrid、agent-options 与 conversation；其余专属设置随对应插件打开。
+`launch` 拥有启动配置；`workspace` 拥有仓库登记及独立项目目录清单（可经项目 API 登记，尚无网页入口），Git 工作台存储需 `workspace` + `code`；`chat` 拥有 hybrid、agent-options 与 conversation；其余专属设置随对应插件打开。
 禁用不删除既有数据，重新选择并重启后仍按原来的版本、锁与故障规则读取。只有启用 `launch` 且文件不存在时才写预设，已存在空列表也不补写。
 核心 `settings.json` 继续保存 inactive 字段；API 拒绝写入禁用插件拥有的字段，不把它们重置为空。字段所有权见 [偏好协议](protocol/settings.md#原子更新)。
 `files` 开启而 `chat` 关闭时，无法确认归属的旧会话产物保守保留，不通过读取禁用的聊天数据库推断清理资格。
