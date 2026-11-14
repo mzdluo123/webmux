@@ -29,7 +29,7 @@
 <ScrollAreaPrimitive.Root
   bind:ref
   data-slot="scroll-area"
-  class={cn("relative", className)}
+  class={cn("relative flex min-h-0 min-w-0 flex-col", className)}
   {...restProps}
 >
   <ScrollAreaPrimitive.Viewport
@@ -38,7 +38,7 @@
     data-slot="scroll-area-viewport"
     {onscroll}
     class={cn(
-      "size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1",
+      "size-full min-h-0 min-w-0 rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1",
       viewportClasses,
     )}
   >
