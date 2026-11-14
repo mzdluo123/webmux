@@ -2,11 +2,14 @@
   import type {
     AgentConnector,
     Repository,
+    Project,
     SessionView,
   } from "../../contracts/schemas";
   import type { LaunchConfigsState } from "../../domains/settings/launch-configs";
   import {
     formatSubmitButtonLabel,
+    buildNewSessionSummary,
+    formatLocationSummaryText,
     resolveEntryPreset,
     resolvePreferredStartBranch,
     type LaunchEntry,
@@ -21,6 +24,8 @@
     CreationContributions,
     CreationLocationProps,
   } from "../../plugins/context";
+  import IconFolder from "~icons/tabler/folder";
+  import ChoiceDetails from "../shared/ChoiceDetails.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
@@ -31,8 +36,10 @@
   import FirstMessageFields from "./FirstMessageFields.svelte";
   import CustomCommandField from "./CustomCommandField.svelte";
 
-  interface Props extends CreationLocationProps {
+  interface Props extends Omit<CreationLocationProps, "newWorktreeSummary"> {
     providers: CreationContributions;
+    project?: Project;
+    onprojectchange?: () => void;
     busy: boolean;
     fieldsRepository: Repository | undefined;
     worktreeFields: { isReady: () => boolean } | undefined;
@@ -63,7 +70,6 @@
     name: string;
     error: string;
     missingConnector: AgentConnector | undefined;
-    summary: string;
     targetReady: boolean;
     commandReady: boolean;
     oncreate: () => void;
@@ -73,12 +79,13 @@
 
   let {
     providers,
+    project,
+    onprojectchange,
     repositories,
     scope,
     recent,
     preferredRepositoryId,
     createdTree,
-    newWorktreeSummary,
     onremove,
     kind = $bindable(),
     cwd = $bindable(),
@@ -114,13 +121,47 @@
     name = $bindable(),
     error,
     missingConnector,
-    summary,
     targetReady,
     commandReady,
     oncreate,
     onterminalcreate,
     onclose,
   }: Props = $props();
+  const repository = $derived(
+    repositories.find((item) => item.id === repositoryId),
+  );
+  const worktree = $derived(
+    createdTree?.id === worktreeId
+      ? createdTree
+      : repository?.worktrees.find((item) => item.id === worktreeId),
+  );
+  const chosenConfig = $derived(
+    source === "config" && launchConfigs.status === "ready"
+      ? launchConfigs.configs.find((item) => item.id === configId)
+      : undefined,
+  );
+  const treeTargetMissing = $derived(treeOnly && kind !== "new-worktree");
+  const newWorktreeSummary = $derived(
+    branchMode === "new"
+      ? `${branch || "新分支"} ← ${startBranch || "…"}`
+      : `已有分支 ${branch || "未选择"}`,
+  );
+  const locationText = $derived(
+    formatLocationSummaryText(kind, cwd, repository, worktree, branch),
+  );
+  const summary = $derived(
+    buildNewSessionSummary({
+      treeTargetMissing,
+      targetReady,
+      treeOnly,
+      kind,
+      locationText,
+      commandReady,
+      source,
+      chosenConfig,
+      command,
+    }),
+  );
 </script>
 
 <form
@@ -128,7 +169,35 @@
   onsubmit={(event) => (event.preventDefault(), oncreate())}
 >
   <fieldset disabled={busy} class="min-w-0 space-y-4">
-    {#if workspaceEnabled && providers.LocationPicker}
+    {#if project}
+      <div class="space-y-2">
+        <Label>项目</Label>
+        {#if onprojectchange}<Button
+            variant="outline"
+            wrap
+            class="w-full justify-start"
+            aria-label="更换项目"
+            onclick={onprojectchange}
+            ><IconFolder aria-hidden="true" /><ChoiceDetails
+              primary={project.name}
+              secondary={project.path}
+            /></Button
+          >
+        {:else}<div class="flex min-w-0 items-center gap-2">
+            <IconFolder aria-hidden="true" /><ChoiceDetails
+              primary={project.name}
+              secondary={project.path}
+            />
+          </div>{/if}
+        {#if project.error}<p
+            role="status"
+            class="break-words text-sm text-destructive"
+          >
+            {project.error}
+          </p>{/if}
+      </div>
+    {/if}
+    {#if workspaceEnabled && providers.LocationPicker && (!project || project.repositoryId)}
       <providers.LocationPicker
         {repositories}
         {scope}
@@ -142,8 +211,13 @@
         bind:repositoryId
         bind:worktreeId
         disabled={busy}
+        projectScoped={!!project}
       />
-    {:else}
+    {:else if project?.repositoryId}
+      <p role="status" class="text-sm text-muted-foreground">
+        当前项目的 Git 工作位置暂不可用，请检查服务端 Git 与仓库状态。
+      </p>
+    {:else if !project}
       <div class="space-y-2">
         <Label for="cwd">工作目录</Label>
         <DirectoryInput
@@ -281,7 +355,7 @@
       >
         {summary}
       </p>
-      <div class="flex justify-end gap-2">
+      <div class="flex flex-wrap justify-end gap-2">
         <Button
           type="button"
           variant="outline"

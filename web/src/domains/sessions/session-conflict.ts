@@ -10,3 +10,12 @@ export function sessionConflict(err: unknown): SessionConflict | undefined {
   const conflict = SessionConflictSchema.safeParse(err.body);
   return conflict.success ? conflict.data : undefined;
 }
+
+export function isDirectoryNotFoundError(err: unknown): boolean {
+  return (
+    err instanceof APIError &&
+    err.status === 400 &&
+    err.message.startsWith("directory:") &&
+    err.message.includes("no such file or directory")
+  );
+}

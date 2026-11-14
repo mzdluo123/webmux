@@ -274,6 +274,10 @@ export function useTvNavigation(back: () => boolean) {
         return;
       }
       const field = textField(document.activeElement);
+      // Command search uses Enter to choose its active row, including project
+      // selection; it must not toggle the generic TV text-edit capture.
+      if (field?.closest('[data-slot="command"]') && event.key === "Enter")
+        return;
       if (field) {
         const modified = event.ctrlKey || event.metaKey || event.altKey;
         const cursor =

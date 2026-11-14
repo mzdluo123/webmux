@@ -7,6 +7,7 @@ import type { Project } from "../../src/contracts/schemas";
 vi.mock("../../src/platform/plugin-host.svelte", () => ({
   pluginAvailable: () => true,
   pluginCapabilityRevision: () => 0,
+  requestPluginHostRefresh: async () => {},
 }));
 const project: Project = {
   id: "directory:demo",
@@ -226,4 +227,25 @@ test("source search matches the visible Chinese labels", async () => {
   await expect
     .element(page.getByRole("option", { name: /新建项目/ }))
     .not.toBeInTheDocument();
+});
+
+test("remote URL suggests a destination but preserves an edited target", async () => {
+  mount();
+  await source("Git URL");
+  await page
+    .getByRole("textbox", { name: "Git 仓库地址", exact: true })
+    .fill("https://example.invalid/demo/repo.git");
+  const target = page.getByRole("textbox", {
+    name: "克隆到新目录",
+    exact: true,
+  });
+  await target.click();
+  await expect.element(target).toHaveValue("/projects/repo");
+  await target.fill("/projects/custom-target");
+  await page
+    .getByRole("textbox", { name: "Git 仓库地址", exact: true })
+    .fill("https://example.invalid/demo/other.git");
+  await target.click();
+  await expect.element(target).toHaveValue("/projects/custom-target");
+  expect(requests.some((request) => request.method === "POST")).toBe(false);
 });

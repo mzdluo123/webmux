@@ -11,6 +11,7 @@ import {
   test,
   useCustomCommand,
 } from "./fixtures";
+import { chooseSessionProject, sessionLocation } from "./session-project";
 import { repositoryMenu } from "./repository-menu";
 
 const exec = promisify(execFile);
@@ -64,13 +65,19 @@ test("global and worktree creation use the selected repository instead of an unr
     .getByRole("button", { name: "＋ 新建会话", exact: true })
     .first()
     .click();
-  const location = page.getByRole("button", { name: "位置", exact: true });
-  await expect(location).toContainText("second · 主工作区 · main");
+  const location = sessionLocation(page);
+  await expect(location).toContainText("主工作区 · main");
+  await expect(
+    page.getByRole("dialog").getByText("second", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "取消", exact: true }).click();
   expect(await (await request.get("/api/sessions")).json()).toEqual([]);
   const group = page.locator(`[data-worktree-id="${second.worktrees[0].id}"]`);
   await group.getByRole("button", { name: "新建会话", exact: true }).click();
-  await expect(location).toContainText("second · 主工作区 · main");
+  await expect(location).toContainText("主工作区 · main");
+  await expect(
+    page.getByRole("dialog").getByText("second", { exact: true }),
+  ).toBeVisible();
   await useCustomCommand(page, "/bin/sh -i");
   await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
   await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
@@ -152,7 +159,7 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
     await page
       .getByRole("menuitem", { name: "新建会话…", exact: true })
       .click();
-    await expect(page.getByLabel("工作目录", { exact: true })).toHaveValue(cwd);
+    await expect(sessionLocation(page)).toContainText(cwd);
   };
   await open();
   await page.getByRole("button", { name: "取消", exact: true }).click();
@@ -197,8 +204,8 @@ test("split creation retains a new worktree across repository changes after comm
   await page.getByRole("menuitem", { name: "新建会话…", exact: true }).click();
   // The pane's repository is listed first, so its "new worktree" comes first.
   await chooseLocation(page, "新建工作树…");
-  const location = page.getByRole("button", { name: "位置", exact: true });
-  await expect(location).toContainText("新建工作树 · project");
+  const location = sessionLocation(page);
+  await expect(location).toContainText("新建工作树");
   const branch = page.getByLabel("新分支名称", { exact: true });
   await expect(branch).not.toHaveValue("");
   await branch.fill("feature/retry-target");
@@ -211,9 +218,11 @@ test("split creation retains a new worktree across repository changes after comm
     .getByRole("button", { name: "创建并加入分屏 →", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText("webmux-missing-agent");
-  await expect(location).toContainText("project · feature/retry-target");
+  await expect(location).toContainText("feature/retry-target");
+  await chooseSessionProject(page, other.name);
   await chooseLocation(page, `主工作区 · main ${other.anchorPath}`);
   await expect(location).not.toContainText("retry-target");
+  await chooseSessionProject(page, repo.name);
   await location.click();
   const retained = page.getByRole("option", {
     name: /^feature\/retry-target/,

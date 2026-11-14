@@ -5,10 +5,12 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { pluginAvailable } from "../../platform/plugin-host.svelte";
   import type { ProjectSources } from "../../hooks/workspace/project-sources.svelte";
+  import { suggestProjectClonePath } from "../../domains/workspace/project-clone-path";
   import ProjectDirectoryField from "./ProjectDirectoryField.svelte";
   let {
     source,
     controller,
+    cloneParent,
     parent = $bindable(""),
     name = $bindable(""),
     path = $bindable(""),
@@ -17,6 +19,7 @@
   }: {
     source: "new" | "local" | "git";
     controller: ProjectSources;
+    cloneParent: string;
     parent: string;
     name: string;
     path: string;
@@ -49,6 +52,9 @@
           autocomplete="off"
         />
       </div>
+      {#if name}<p class="break-all font-mono text-xs text-muted-foreground">
+          将创建：{parent.replace(/\/+$/, "")}/{name}
+        </p>{/if}
       <Label
         ><Checkbox
           bind:checked={initializeGit}
@@ -74,6 +80,9 @@
         <Label for="project-url">Git 仓库地址</Label><Input
           id="project-url"
           bind:value={url}
+          onblur={() => {
+            if (!path.trim()) path = suggestProjectClonePath(cloneParent, url);
+          }}
           required
           placeholder="https://… 或 git@host:owner/repo.git"
           autocapitalize="off"

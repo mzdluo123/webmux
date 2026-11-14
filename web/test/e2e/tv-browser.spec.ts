@@ -103,6 +103,7 @@ for (const width of [1280, 1920]) {
   test(`TV remote creates, sends once, releases capture and reconnects at ${width}`, async ({
     page,
     request,
+    workDir,
   }, info) => {
     test.skip(!!info.project.use.isMobile, "TV large-screen remote workflow");
     await page.setViewportSize({ width, height: width === 1280 ? 720 : 1080 });
@@ -135,6 +136,11 @@ for (const width of [1280, 1920]) {
       ).ok(),
     ).toBe(true);
     const reconnect = await holdTerminalReattach(page);
+    expect(
+      (
+        await request.post("/api/projects", { data: { path: workDir } })
+      ).status(),
+    ).toBe(201);
     await page.goto("/");
     await expect(page.locator("html")).toHaveAttribute("data-ui-mode", "tv");
     const create = page
@@ -143,6 +149,15 @@ for (const width of [1280, 1920]) {
       .first();
     await select(page, create);
     await expect(page.getByRole("dialog")).toBeVisible();
+    const projects = page.getByRole("combobox", {
+      name: "搜索项目",
+      exact: true,
+    });
+    await remoteTo(page, projects);
+    await expect(
+      page.locator('[role="option"]:not([aria-disabled="true"])').first(),
+    ).toBeVisible();
+    await page.keyboard.press("Enter");
     await select(
       page,
       page.getByRole("button", { name: "创建并进入 →", exact: true }),

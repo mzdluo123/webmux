@@ -89,6 +89,9 @@
     await tick();
     (searchInput ?? root?.querySelector("input"))?.focus();
   }
+  export function showProjects() {
+    void go("projects");
+  }
   export function back(): boolean {
     if (step === "projects") return false;
     void go(step === "sources" ? "projects" : "sources");
@@ -246,7 +249,7 @@
             <Command.Item
               value="github"
               keywords={["GitHub 仓库 账号"]}
-              disabled={!pluginAvailable("workspace.github")}
+              disabled={source.busy}
               onSelect={() => go("github")}
               ><IconBrandGithub aria-hidden="true" /><ChoiceDetails
                 primary="GitHub 仓库"
@@ -271,12 +274,14 @@
   {:else if step === "github"}
     <GitHubProjectSource
       controller={source}
+      parent={defaultCwd}
       bind:query={githubQuery}
       bind:url={githubURL}
       bind:path={githubPath}
     />
   {:else}
     <ProjectSourceForm
+      cloneParent={defaultCwd}
       source={step}
       controller={source}
       bind:parent

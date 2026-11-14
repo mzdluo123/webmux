@@ -1,0 +1,242 @@
+[
+  {
+    "label": "before/desktop/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/desktop/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/tablet/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/tablet/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/phone/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/phone/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/small-phone/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/small-phone/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/se/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/se/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/landscape/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "before/landscape/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/desktop/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "desktop/light/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "desktop/light/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/desktop/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "desktop/dark/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "desktop/dark/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/tablet/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "tablet/light/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "tablet/light/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/tablet/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "tablet/dark/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "tablet/dark/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/phone/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "phone/light/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "phone/light/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/phone/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "phone/dark/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "phone/dark/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/small-phone/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "small-phone/light/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "small-phone/light/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/small-phone/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "small-phone/dark/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "small-phone/dark/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/se/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "se/light/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "se/light/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/se/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "se/dark/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "se/dark/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/landscape/light/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "landscape/light/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "landscape/light/git-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "after/landscape/dark/global",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "landscape/dark/plain-setup",
+    "overflow": false,
+    "inside": true
+  },
+  {
+    "label": "landscape/dark/git-setup",
+    "overflow": false,
+    "inside": true
+  }
+]

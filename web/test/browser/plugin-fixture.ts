@@ -40,6 +40,7 @@ export async function enableCreationPlugins(
     "chat",
     "notifications",
   ],
+  projects = false,
 ): Promise<void> {
   resetCreateSettingsContributions();
   setPluginCapabilities({
@@ -52,6 +53,13 @@ export async function enableCreationPlugins(
     })),
     capabilities: [
       { id: "terminal.pty", available: true },
+      ...(projects && enabled.includes("workspace")
+        ? [
+            { id: "workspace.projects", available: true },
+            { id: "workspace.clone", available: true },
+            { id: "workspace.github", available: true },
+          ]
+        : []),
       ...enabled.map((id) => ({
         id: primaryCapabilities[id],
         available: true,

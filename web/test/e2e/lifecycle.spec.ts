@@ -1,3 +1,4 @@
+import { ensureSessionSetup } from "./session-project";
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import type { WebSocket } from "@playwright/test";
@@ -96,6 +97,7 @@ for (const initialization of ["connected", "font-pending"] as const) {
         .first();
       await expect(create).toBeEnabled();
       await create.click();
+      await ensureSessionSetup(page);
       await expect(
         page.getByRole("button", { name: "运行", exact: true }),
       ).toBeVisible();
