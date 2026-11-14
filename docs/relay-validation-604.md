@@ -1,7 +1,7 @@
 # Relay 真实公网验证报告：issue #604
 
 本轮建议 MVP 采用 **WSS + smux v2、控制/交互与批量两条有界连接、嵌入 Go 库**，A 段保持 HTTPS/WebSocket。
-服务器 TCP 使用 BBR；不在 MVP 引入 QUIC 优先探测、UDP 回退或 FEC。此决定针对下述实测路径与工程成本，不能概括所有网络或所有 QUIC 实现。
+服务器 TCP 使用 BBR；不在 MVP 引入 QUIC 探测、UDP 回退或 FEC。此决定针对下述实测路径与工程成本，不能概括所有网络或所有 QUIC 实现。
 关联：[issue #604](https://github.com/mzdluo123/webmux/issues/604)、[规划 PR #558](https://github.com/mzdluo123/webmux/pull/558)、[规划修订 PR #613](https://github.com/mzdluo123/webmux/pull/613)。
 
 ## 验证对象与环境
