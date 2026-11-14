@@ -243,9 +243,15 @@ test("removing needs confirmation and failures stay inline", async () => {
   expect(
     page.getByRole("button", { name: "更多操作 修复排序" }).elements(),
   ).toEqual([]);
+  await expect
+    .element(page.getByRole("button", { name: "删除记录 修复排序" }))
+    .toHaveClass("text-destructive");
   await removeRecord();
   const dialog = page.getByRole("alertdialog");
   await expect.element(dialog).toMatchTextContent(/修复排序/);
+  await expect
+    .element(dialog.getByRole("button", { name: "确认" }))
+    .toHaveClass("text-destructive");
   await dialog.getByRole("button", { name: "取消" }).click();
   expect(remove).not.toHaveBeenCalled();
   await removeRecord();

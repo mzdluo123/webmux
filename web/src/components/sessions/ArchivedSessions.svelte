@@ -194,7 +194,7 @@
             />
             <Button
               size="icon-sm"
-              variant="ghost"
+              variant="destructive"
               disabled={!!busy}
               title={`删除记录 ${recordTitle(record)}`}
               aria-label={`删除记录 ${recordTitle(record)}`}
@@ -256,6 +256,7 @@
 <ConfirmDialog
   bind:open={removeOpen}
   title={`删除“${removing ? recordTitle(removing) : ""}”的记录？`}
+  destructive
   onconfirm={confirmRemove}
 >
   只删除 WebMux 的记录与本机草稿；工作树与 agent 自己保存的会话不受影响。
