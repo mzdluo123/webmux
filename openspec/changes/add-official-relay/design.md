@@ -108,7 +108,7 @@ SQLite 至少包含：
 TOML `[relay]` 的运维配置包括：
 
 - `enabled`：默认启用意图；
-- `endpoint` 与 `quic_endpoint`：HTTPS 和 QUIC 端点，验证属于配对 Relay 受众，不接受浏览器传入拨号地址；
+- `endpoint` 与 `quic_endpoint`：默认取内置官方 HTTPS/QUIC 地址；自建配置必须连同独立的服务身份公钥显式提供，不能沿用官方信任身份，不接受浏览器传入拨号地址；
 - `transport`：默认 auto；quic 模式失败则报错，wss 模式不探测 UDP。
 
 宿主控制器复用 tunnel 的模式：任何应用、关闭、失败和退出先 `PublicOrigins.Clear("relay")`，再递增代际并取消旧 worker；新 worker 等前任退出。认证和传输 accept 循环均就绪后才 `Set("relay", publicURL)`。
@@ -190,6 +190,29 @@ Relay 接口分为 `/v1/auth/github/*` 登录与固定回调、`/v1/console/*` �
 
 参考：[GitHub PKCE 支持](https://github.blog/changelog/2025-07-14-pkce-support-for-oauth-and-github-app-authentication/)、[x/oauth2](https://pkg.go.dev/golang.org/x/oauth2)、[quic-go stream](https://quic-go.net/docs/quic/streams/)。
 
+### 13. 内置官方地址与公开信任配置
+
+开源客户端内置官方 HTTPS 控制面地址、QUIC 地址、Relay 受众与服务身份公钥。用户选择官方服务后只需 GitHub 登录配对并确认启用，无需填写地址、复制公钥或申请 OAuth 应用；默认关闭与公网风险确认保持不变，不因内置配置在启动时自动连接。
+
+官方公钥定义为官方 TLS 服务证书的 SPKI 公钥；随客户端分发公钥或 SHA-256 SPKI pin 集合，复用 Go `crypto/tls` 与 `crypto/x509` 的证书校验及公钥解析。HTTPS/WSS、QUIC 和兑换控制连接均先验证正常证书链、有效期及主机名，再校验公钥 pin；不采用 `InsecureSkipVerify`，不自研加密或另造服务端签名握手。
+
+公钥轮换分为正常维护与泄露恢复：
+
+- 正常维护：TLS 证书续期可保留服务身份公钥；换钥采用当前与下一公钥的重叠信任窗口，先发布客户端再切换服务端，最终版本移除旧 pin。
+- 泄露恢复：发布移除泄露 pin 的安全版本，旧客户端可能需要升级才能恢复连接，不能承诺离线客户端立即撤销旧公钥。
+
+未知公钥必须拒绝，不能自动学习首个公钥、通过失败连接下载替代 pin 或退回仅验证普通证书。
+
+保密材料分开管理：
+
+- 官方 TLS 身份私钥、GitHub OAuth Client Secret 和其他服务端秘密通过受限部署配置或密钥文件注入，不提交任何仓库、不放入客户端产物或 API 响应；
+- OAuth Client ID 与回调 URI 本身不是秘密，可以公开；用户 GitHub access token 仍按既定流程短期使用后丢弃；
+- 宿主私钥仍逐机本地生成，官方公钥不能作为共享客户端凭据，也不能替代宿主签名认证、账号所有权校验或邀请名单。
+
+自建中转使用显式配置的独立 HTTPS/QUIC 地址、受众与公钥集合，仍要求正常 TLS 校验。更换任一信任配置须先停连接、撤销旧来源及登录会话，再经确认重新配对；不得把旧 host ID、宿主凭据或未完成授权材料发送给新服务。诊断区分内置官方默认与自建覆盖，并可显示公开 key ID，私密材料继续脱敏。
+
+正式域名与公钥尚未提供，本规划不填写虚构生产地址或生成官方私钥。实现发布前由运营者提供公开端点与公钥；缺失、占位或不匹配配置须使官方连接保持不可用并明确报错，禁止以占位配置发布可用声明。
+
 ## Risks / Trade-offs
 
 - **[Risk] Relay 是宿主登录信任方** → 配对确认明示其可授权远程 Shell，控制通道断线即撤销派生会话，保留本机 Token 恢复路径。
@@ -211,6 +234,8 @@ Relay 接口分为 `/v1/auth/github/*` 登录与固定回调、`/v1/console/*` �
 5. 回滚 Relay 服务时保留数据库、公共 DNS 和证书；恢复同一版本或兼容 migration 后，宿主自动重连。多节点迁移不在本 MVP 内。
 
 ## Open Questions
+
+- Relay 独立仓库是建议方向，尚待确认。当前同仓库的包路径与构建任务暂保留；确认后须统一调整所有制品、协议共享和跨仓库验收，不在本次直接创建仓库。
 
 - 正式公共域名、首个 VPS 区域、证书续期方式和邀请名单由运营部署决定，不改变协议或任务拆分。
 - QUIC/yamux 的具体窗口、保活、回退建连期限和 stream 默认值需通过第一阶段基准确定，规格只要求有界与可配置，不预设未经测量的数值。

@@ -208,3 +208,14 @@ MVP SHALL 部署在有独立公网 IP 的单台服务器，浏览器直接访问
 
 - **WHEN** 在 RTT 50/150/300 ms、丢包 0/1/3%、带宽限制和 UDP 黑洞下测试两条路径
 - **THEN** 记录终端回显 p50/p95、吞吐、额外带宽、内存与回退耗时，以实测确定参数，不宣称未验证的延迟收益
+
+### Requirement: 官方服务私钥与 OAuth 凭据隔离
+
+官方 Relay SHALL 从受限运行环境或密钥文件加载身份私钥及 GitHub OAuth Client Secret，MUST NOT 将其提交到开源或其他代码仓库、打入公开客户端或通过控制面返回。用户 access token SHALL 继续短期使用后丢弃。
+
+服务 SHALL 向客户端提供匹配公开信任配置的 TLS 身份；运维 SHALL 配合客户端重叠信任集合安排正常公钥轮换。公开地址、公钥、OAuth Client ID 与回调 URI SHALL 不被当作保密凭据；持有公开信息不能获得账号或主机权限。
+
+#### Scenario: 客户端发布与服务部署分离
+
+- **WHEN** 发布开源客户端并部署官方 Relay
+- **THEN** 客户端仅含官方地址及公开信任材料，身份私钥与 OAuth Client Secret 由官方部署注入，不出现在产物、响应或日志中

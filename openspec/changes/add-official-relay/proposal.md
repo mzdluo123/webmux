@@ -17,6 +17,7 @@
 - 新增官方后台 GitHub 登录、所有者主机列表和免 Token 跳转；宿主显式信任已配对 Relay 的所有者授权，独立直连入口继续使用 Token。
 - MVP 部署在有独立公网 IP 的单台服务器，用户直连；提供 HTTPS 域名与证书，不引入 CDN、Spectrum 或 Cloudflare Tunnel 依赖。
 - Relay 就绪后复用 `PublicOrigins` 登记公共 Host/Origin，断开或关闭立即撤权；固定 HTTPS 入口纳入现有访问链接、状态输出与 Web Push 来源。
+- 开源客户端内置官方 HTTPS/QUIC 地址与官方服务身份公钥，用户无需填写端点或配置 GitHub OAuth 应用；官方私钥、OAuth Client Secret 和用户授权凭据仅由服务端保密管理。
 - 官方 Relay 默认关闭，独立于 Cloudflare Tunnel 和 Tailscale。现有 P2P 配置、直连候选限制与无损切换协议不变，Relay 仅成为新的基线路径。
 - MVP 仅支持单节点、单进程、每账号一台主机和邀请制运营；不包含多区域、高可用、自定义域名、匿名配额、TURN、端到端加密或独立稳定域名壳。
 
