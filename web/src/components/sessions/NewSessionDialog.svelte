@@ -120,17 +120,18 @@
   );
 
   const lastLaunch = stored("lastLaunch");
-  let source = $state<LaunchSource>(
+  const startsCustom =
     lastLaunch === "custom" ||
-      (!launchEnabled && !lastLaunch.startsWith("config:"))
-      ? "custom"
-      : "unset",
-  );
+    (!launchEnabled && !lastLaunch.startsWith("config:"));
+  let source = $state<LaunchSource>(startsCustom ? "custom" : "unset");
   let configId = $state("");
   // Defaults apply once, and never after the user picked a source.
   let launchResolved = lastLaunch === "custom";
   let launchTouched = false;
-  let command = $state(stored("customCommand"));
+  // A remembered command belongs to the remembered launch method: starting on
+  // a config or an unresolved choice must not prefill it when the user later
+  // switches to a custom command.
+  let command = $state(startsCustom ? stored("customCommand") : "");
   let startSide = $state<SessionView>(storedView(stored("hybridStartSide")));
   let name = $state("");
   let prompt = $state(
