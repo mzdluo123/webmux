@@ -124,6 +124,7 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.PushTestResultSchema, ["push-test"]],
   [S.RepositoriesSchema, ["repositories-empty", "repositories"]],
   [S.ProjectsSchema, ["projects-empty", "projects"]],
+  [S.GitHubProjectsSchema, ["projects-github", "projects-github-unavailable"]],
   [S.ProjectSchema, ["project-create", "project-register-again"]],
   [
     S.ProjectCloneOperationSchema,

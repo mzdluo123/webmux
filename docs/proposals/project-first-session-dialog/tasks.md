@@ -10,7 +10,7 @@
 
 - [x] 2.1 实现受期限约束的 argv Git 克隆与独占临时目录发布；验证选项注入、凭据 URL 拒绝、目标不覆盖以及失败只清理自有资源。
 - [x] 2.2 增加项目操作 ID、幂等提交和状态查询；验证断线重连不重复克隆、登记失败保留目录并可重试登记。
-- [ ] 2.3 接入服务端 gh 仓库搜索和分页；用受控假进程验证未安装、未登录、无权限、私有仓库和超时，不连接个人开发环境账号。
+- [x] 2.3 接入服务端 gh 仓库搜索和分页；用受控假进程验证未安装、未登录、无权限、私有仓库和超时，不连接个人开发环境账号。
 - [ ] 2.4 通过 cmd/webmux/plugin_* 装配 workspace 项目服务，由 pluginapi 注册 transport contribution，pluginwire 转换数据，核心 sessioncreate 仅消费 typed ports；运行插件边界与分层测试。
 - [ ] 2.5 增加 contract、pluginwire 和 contracts/schemas.ts 的 Zod 项目接口；验证认证/Origin 拒绝与凭据不外泄，更新 wire 快照并通过契约测试。
 

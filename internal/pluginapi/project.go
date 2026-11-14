@@ -2,6 +2,7 @@ package pluginapi
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/rainchan/webmux/internal/contract"
 	wire "github.com/rainchan/webmux/internal/pluginwire"
@@ -10,6 +11,18 @@ import (
 
 func (s *Server) projectRoutes(mux transport.Registrar) {
 	s.projectCloneRoutes(mux)
+	serve(mux, "GET /api/projects/github", http.StatusOK, workspaceFailure, func(r *http.Request) (contract.GitHubProjects, error) {
+		page := 1
+		if raw := r.URL.Query().Get("page"); raw != "" {
+			var err error
+			page, err = strconv.Atoi(raw)
+			if err != nil {
+				page = 0
+			}
+		}
+		result, err := s.Workspace.GitHubProjects(r.Context(), r.URL.Query().Get("query"), page)
+		return wire.GitHubProjects(result), err
+	})
 	serve(mux, "GET /api/projects", http.StatusOK, workspaceFailure, func(r *http.Request) ([]contract.Project, error) {
 		projects, err := s.Workspace.ListProjects()
 		return wire.Projects(projects), err

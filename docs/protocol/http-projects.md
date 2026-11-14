@@ -38,3 +38,17 @@ URL 支持 HTTPS、SSH 及 user@host:path；拒绝内嵌凭据、查询参数、
 GET /api/projects/operations/{id} 查询操作，成功后以 projectId 选择项目。浏览器断连不取消操作；并发上限 2，单次网络克隆最长 10 分钟，排队不占用此期限。
 克隆成功但登记失败时，目标目录保留；POST /api/projects/operations/{id}/register 返回 202 并只重试登记。已经成功的重试返回同一结果。
 错误不返回 Git 输出；服务停止会取消进程组并等待 worker，再关闭状态文件。服务崩溃后的未完成操作按持久账本标为中断，不自动重新下载。
+
+## GitHub 仓库来源
+
+`GET /api/projects/github?query=...&page=1` 使用服务用户已有的 gh 登录查询 github.com，不启动登录或更改认证配置。
+返回 `{available, reason, login, repositories, page, hasMore}`；条目包含 fullName、description、private、cloneUrl。
+不填 query 时列出本人及协作仓库；填写后搜索可访问仓库名称。每页 20 条，最多 50 页；query 最长 200 字节且不能含控制字符。
+服务端 gh/Git 缺失、未登录、权限不足、网络错误与超时均返回 available=false 和可读原因，不伪装成空结果；repositories 始终为数组。
+每次显式打开或刷新来源才读取身份；workspace.github 能力不发起网络请求，也不检查个人开发环境账号。
+请求最长 20 秒，输出上限 4 MiB；错误不回传 gh 输出，取消时清理进程组。
+
+选择 GitHub 仓库后，克隆请求额外传 `source: "github"`，URL 限 github.com 的 HTTPS 仓库地址。
+该来源通过 gh repo clone 使用已有认证，适用于私有仓库；不要求先配置全局 Git credential helper。
+source 参与幂等参数比较；省略它仍使用普通 Git URL 克隆，不自动切换认证方式。
+所有克隆先持久化 registering 再原子发布；发布不支持或失败不会覆盖目标。重启后若目标存在可单独重试登记，否则重新发起。

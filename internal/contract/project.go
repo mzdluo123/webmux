@@ -27,6 +27,7 @@ type ProjectCreationFailure struct {
 // ProjectCloneRequest identifies one durable, repeatable remote clone.
 type ProjectCloneRequest struct {
 	RequestID string `json:"requestId"`
+	Source    string `json:"source,omitempty"`
 	URL       string `json:"url"`
 	Path      string `json:"path"`
 }
@@ -39,4 +40,20 @@ type ProjectCloneOperation struct {
 	Path      string `json:"path"`
 	Error     string `json:"error"`
 	ProjectID string `json:"projectId"`
+}
+
+// GitHubProjects describes the service user's explicit GitHub source query.
+type GitHubProjects struct {
+	Available    bool               `json:"available"`
+	Reason       string             `json:"reason"`
+	Login        string             `json:"login"`
+	Repositories []GitHubRepository `json:"repositories"`
+	Page         int                `json:"page"`
+	HasMore      bool               `json:"hasMore"`
+}
+type GitHubRepository struct {
+	FullName    string `json:"fullName"`
+	Description string `json:"description"`
+	Private     bool   `json:"private"`
+	CloneURL    string `json:"cloneUrl"`
 }

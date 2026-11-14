@@ -18,7 +18,7 @@ const projectCloneTimeout = 10 * time.Minute
 // Two network clones may run at once; the durable ledger bounds queued work.
 const projectCloneParallelism = 2
 
-type ProjectCloneRequest struct{ RequestID, URL, Path string }
+type ProjectCloneRequest struct{ RequestID, URL, Path, Source string }
 type ProjectCloneOperation struct{ ID, State, Path, Error, ProjectID string }
 
 func cloneOperation(op projectCloneRecord) ProjectCloneOperation {
@@ -34,6 +34,17 @@ func (s *Service) StartProjectClone(ctx context.Context, req ProjectCloneRequest
 	if err := validateProjectURL(req.URL); err != nil {
 		return ProjectCloneOperation{}, err
 	}
+	if req.Source != "" && req.Source != "github" {
+		return ProjectCloneOperation{}, problemf(ErrInvalid, "克隆来源无效")
+	}
+	if req.Source == "github" {
+		if err := validateGitHubCloneURL(req.URL); err != nil {
+			return ProjectCloneOperation{}, err
+		}
+		if !s.GitHubAvailable() {
+			return ProjectCloneOperation{}, problemf(ErrUnavailable, "服务端未安装 GitHub CLI（gh）")
+		}
+	}
 	target, err := projectCloneTarget(req.Path)
 	if err != nil {
 		return ProjectCloneOperation{}, err
@@ -48,7 +59,7 @@ func (s *Service) StartProjectClone(ctx context.Context, req ProjectCloneRequest
 	s.cloneMu.Unlock()
 	for _, op := range next {
 		if op.RequestID == req.RequestID {
-			if op.URL != req.URL || op.Path != target {
+			if op.URL != req.URL || op.Path != target || op.Source != req.Source {
 				return ProjectCloneOperation{}, problemf(ErrConflict, "该请求标识已用于其他克隆，请新建请求")
 			}
 			return cloneOperation(op), nil
@@ -69,7 +80,7 @@ func (s *Service) StartProjectClone(ctx context.Context, req ProjectCloneRequest
 	if err != nil {
 		return ProjectCloneOperation{}, fmt.Errorf("生成克隆标识: %w", err)
 	}
-	op := projectCloneRecord{ID: id, RequestID: req.RequestID, URL: req.URL, Path: target, State: "running"}
+	op := projectCloneRecord{ID: id, RequestID: req.RequestID, URL: req.URL, Path: target, Source: req.Source, State: "running"}
 	next = append(next, op)
 	if !s.cloneStore.Fits(projectCloneRegistry{Version: 1, Operations: next}) {
 		return ProjectCloneOperation{}, problemf(ErrTooLarge, "克隆操作清单超过存储限制")

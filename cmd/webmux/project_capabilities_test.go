@@ -29,7 +29,7 @@ func TestProjectCapabilityWithoutGitOrFiles(t *testing.T) {
 				t.Fatalf("local projects unavailable: %+v", capability)
 			}
 		}
-		if capability.ID == "workspace.manage" && capability.Available {
+		if (capability.ID == "workspace.manage" || capability.ID == "workspace.clone" || capability.ID == "workspace.github") && capability.Available {
 			t.Fatal("Git capability available without Git")
 		}
 	}
@@ -41,7 +41,7 @@ func TestProjectCapabilityWithoutGitOrFiles(t *testing.T) {
 		t.Fatalf("disabled snapshot invalid: %v", err)
 	}
 	for _, capability := range snapshot.Capabilities {
-		if capability.ID == "workspace.projects" && (capability.Available || capability.Reason != contract.CapabilityReasonPluginDisabled) {
+		if (capability.ID == "workspace.projects" || capability.ID == "workspace.clone" || capability.ID == "workspace.github") && (capability.Available || capability.Reason != contract.CapabilityReasonPluginDisabled) {
 			t.Fatalf("disabled: %+v", capability)
 		}
 	}
@@ -109,5 +109,39 @@ func TestProjectCloneCapabilityWithCorruptLedger(t *testing.T) {
 		if capability.ID == "workspace.projects" && !capability.Available {
 			t.Fatalf("clone ledger disabled ordinary projects: %+v", capability)
 		}
+	}
+}
+
+func TestGitHubCapabilityDiscoveryDoesNotRunCLI(t *testing.T) {
+	root := t.TempDir()
+	marker := filepath.Join(root, "invoked")
+	t.Setenv("WEBMUX_CAPABILITY_PROBE_MARKER", marker)
+	for _, name := range []string{"git", "gh"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("#!/bin/sh\nprintf invoked > \"$WEBMUX_CAPABILITY_PROBE_MARKER\"\nexit 87\n"), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", root)
+	service := workspace.New(t.TempDir(), nil, nil, root)
+	defer service.Close()
+	plugins := pluginServices{workspace: service}
+	snapshot := plugins.capabilities(config.Config{Plugins: config.PluginConfig{Enabled: []string{"workspace"}}})
+	if err := localclient.ValidateCapabilities(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, capability := range snapshot.Capabilities {
+		if capability.ID == "workspace.github" {
+			found = true
+			if !capability.Available {
+				t.Fatalf("executable discovery failed: %+v", capability)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("missing GitHub capability")
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("capability discovery executed external commands: %v", err)
 	}
 }

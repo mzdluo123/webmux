@@ -193,6 +193,15 @@
   - GET /api/projects/operations/{id} 可重连查询结果；克隆成功但登记失败保留目标，通过 POST /api/projects/operations/{id}/register 单独重试，不再次克隆；
   - 公开错误不包含 Git stdout/stderr 或服务端凭据；禁用 workspace 时相关路由不挂载。
 
+- **US-B12 通过服务端 GitHub 身份选择仓库**：作为 API 调用者，我希望浏览和搜索服务用户有权访问的仓库，以便选择私有或协作项目并复用现有登录。
+  验收要点：
+  - GET /api/projects/github 返回服务端登录名、owner/name、描述、私有状态和 HTTPS 克隆地址；默认列出自己的与协作仓库，搜索支持可访问仓库；
+  - 每页 20 条，页码 1–50；搜索限 200 字节且拒绝控制字符，参数独立传给 gh，不执行 shell；
+  - 缺少 gh、身份不可用、权限或网络失败返回 available=false 与可读原因，仓库数组仍为 []；失败不阻断普通目录；
+  - 只在显式查询时验证身份；workspace.github 能力仅检查所需命令与存储，不启动登录或修改认证配置；
+  - source=github 的克隆使用服务端 gh 认证，来源限 github.com 的 HTTPS 仓库地址；source 参与幂等身份，普通 Git URL 克隆保持原行为；
+  - 请求最长 20 秒，输出有界，取消会终止整个进程组；公开响应不包含 gh 原始输出或凭据；禁用 workspace 时接口不挂载。
+
 依据：
 
 - [启动图标](../../../web/src/components/settings/LaunchConfigIcon.svelte)、[LobeHub 图标来源与许可](../../../web/src/icons/lobehub/README.md)
@@ -209,3 +218,5 @@
 项目来源：[项目 API](../../protocol/http-projects.md)、[本地项目服务](../../../internal/workspace/project_local.go)、[项目接口](../../../internal/pluginapi/project.go)、[项目 wire 回归](../../../internal/api/project_test.go)。
 
 远程克隆来源：[克隆服务](../../../internal/workspace/project_clone.go)、[克隆执行](../../../internal/workspace/project_clone_worker.go)、[克隆回归](../../../internal/workspace/project_clone_test.go)。
+
+GitHub 来源：[发现服务](../../../internal/workspace/project_github.go)、[受控进程回归](../../../internal/workspace/project_github_test.go)、[接口契约回归](../../../internal/api/project_github_test.go)。

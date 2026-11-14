@@ -88,6 +88,11 @@ func (p *pluginServices) capabilities(c config.Config) contract.Capabilities {
 		}
 	}
 	out.Capabilities = append(out.Capabilities, contract.Capability{ID: "workspace.clone", Available: cloneReason == "", Reason: cloneReason})
+	githubReason := cloneReason
+	if githubReason == "" && !p.workspace.GitHubAvailable() {
+		githubReason = contract.CapabilityReasonCommandUnavailable
+	}
+	out.Capabilities = append(out.Capabilities, contract.Capability{ID: "workspace.github", Available: githubReason == "", Reason: githubReason})
 	workbenchReason := ""
 	if !c.Plugins.Has("workspace") || !c.Plugins.Has("code") {
 		workbenchReason = contract.CapabilityReasonPluginDisabled

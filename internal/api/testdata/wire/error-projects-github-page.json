@@ -1,0 +1,6 @@
+{
+  "status": 400,
+  "body": {
+    "error": "GitHub 搜索或页码无效"
+  }
+}

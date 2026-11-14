@@ -21,6 +21,7 @@ var capabilityPlugins = map[string]string{
 	"workspace.git-workbench": "workspace",
 	"workspace.projects":      "workspace",
 	"workspace.clone":         "workspace",
+	"workspace.github":        "workspace",
 	"tailscale.manage":        "tailscale", "p2p.direct": "p2p", "mcp.control": "mcp", "immersive.xr": "immersive",
 }
 

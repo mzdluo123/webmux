@@ -35,9 +35,16 @@ func (s *Service) runProjectClone(op projectCloneRecord) {
 	}
 	destination := filepath.Join(temporary.Path(), "repository")
 	env := s.projectCloneGitEnv(ctx, filepath.Dir(op.Path))
+	program := s.gitPath
+	args := []string{"-C", filepath.Dir(op.Path), "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "clone", "--progress", "--", op.URL, destination}
+	if op.Source == "github" {
+		program = s.githubPath
+		args = []string{"repo", "clone", "--no-upstream", op.URL, destination, "--", "--config", "protocol.allow=never", "--config", "protocol.https.allow=always", "--config", "protocol.ssh.allow=always"}
+		env = append(env, "GH_PROMPT_DISABLED=1", "GH_DEBUG=", "GH_HOST=github.com")
+	}
 	run := runGitProcess(ctx, gitProcess{
-		path:   s.gitPath,
-		args:   []string{"-C", filepath.Dir(op.Path), "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.ssh.allow=always", "clone", "--progress", "--", op.URL, destination},
+		path:   program,
+		args:   args,
 		env:    env,
 		stdout: io.Discard,
 		// Cloning can produce much more progress than a local Git command. Bound
