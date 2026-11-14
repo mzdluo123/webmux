@@ -303,6 +303,22 @@ func (s *Service) Binding(ctx context.Context, runtimeID string) (Binding, error
 	return b, storageError(ctx, err)
 }
 
+// StoredBytes is how much chat text the conversation keeps on disk: the bytes
+// of every activity's message or tool output plus its heading. Indexes,
+// attachments and counts kept for delivery are not bytes the user wrote or
+// read, so they are excluded.
+func (s *Service) StoredBytes(ctx context.Context, conversationID string) (int64, error) {
+	if s == nil {
+		return 0, ErrUnavailable
+	}
+	if s.broken != nil {
+		return 0, s.broken
+	}
+	var total int64
+	err := s.db.QueryRowContext(ctx, "SELECT COALESCE(sum(byte_length+heading_length),0) FROM activity WHERE conversation_id=?", conversationID).Scan(&total)
+	return total, storageError(ctx, err)
+}
+
 // ForgetRuntime cascades through identities, runs, handoffs and receipts. SQLite
 // secure_delete overwrites deleted cells; rollback journals disappear at commit.
 func (s *Service) ForgetRuntime(ctx context.Context, runtimeID string) error {

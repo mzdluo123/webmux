@@ -67,6 +67,11 @@ type SessionAgent struct {
 type SessionArchive struct {
 	ConfigMissing           bool     `json:"configMissing"`
 	PreviousAgentSessionIDs []string `json:"previousAgentSessionIds"`
+	// StoredBytes is how much chat text the record keeps on disk: the bytes of
+	// its messages, tool output and headings. It excludes indexes, attachments
+	// and the agent's own transcript; a record that never saved chat (a
+	// terminal-only session) reports 0.
+	StoredBytes int64 `json:"storedBytes"`
 	// Activity is what an interrupted session was doing: idle, turn or
 	// switching; a turn or switch may not have finished.
 	Activity string `json:"activity,omitempty"`

@@ -77,6 +77,7 @@ const record = (
   archive: {
     configMissing: false,
     previousAgentSessionIds: [],
+    storedBytes: 0,
     queuedCount: 0,
     interruptedAt: null,
     updatedAt: "2026-10-28T00:00:00Z",

@@ -1077,6 +1077,7 @@
   "s3_archived_interrupted_count": "{count} interrupted",
   "s3_archived_remove_failed": "Failed to delete record for “{title}”: {error}",
   "s3_archived_section_label": "Archived sessions in {title}",
+  "s3_archived_stored_bytes_title": "Stored chat text size (excludes attachments, indexes, and the agent’s own transcript)",
   "s3_attachment_short": "Attachment",
   "s3_attachments_label": "Attachments",
   "s3_back_to_list": "Back to list",

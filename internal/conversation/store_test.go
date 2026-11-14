@@ -210,6 +210,35 @@ func TestMetadataSyncAndOrphanPruning(t *testing.T) {
 	}
 }
 
+func TestStoredBytesCountsTextAndHeadings(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	a, b := bindTest(t, s, "a"), bindTest(t, s, "b")
+	if got, err := s.StoredBytes(ctx, a.ConversationID); err != nil || got != 0 {
+		t.Fatalf("empty conversation: %d %v", got, err)
+	}
+	r := runTest(t, s, a, "prompt")
+	text := "hello 世界"
+	activityTest(t, s, a, r.ID, "message", "provider-id", text)
+	heading := "run tests"
+	if _, err := s.WriteActivity(ctx, ActivityInput{ProviderThreadID: a.ProviderThreadID, RunID: r.ID, LocalKey: "tool", ProviderItemID: "tool", Kind: "tool", Role: "agent", Status: "completed", Source: "live", Text: "ok", Heading: &heading}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.StoredBytes(ctx, a.ConversationID); err != nil || got != int64(len(text)+len("ok")+len(heading)) {
+		t.Fatalf("stored bytes %d, want %d: %v", got, len(text)+len("ok")+len(heading), err)
+	}
+	replaced := "hello 世界!"
+	if _, err := s.WriteActivity(ctx, ActivityInput{ProviderThreadID: a.ProviderThreadID, RunID: r.ID, LocalKey: "message", ProviderItemID: "provider-id", Kind: "message", Role: "agent", Status: "in_progress", Source: "live", Text: replaced, Replace: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.StoredBytes(ctx, a.ConversationID); err != nil || got != int64(len(replaced)+len("ok")+len(heading)) {
+		t.Fatalf("replaced stored bytes %d, want %d: %v", got, len(replaced)+len("ok")+len(heading), err)
+	}
+	if got, err := s.StoredBytes(ctx, b.ConversationID); err != nil || got != 0 {
+		t.Fatalf("other conversation %d %v", got, err)
+	}
+}
+
 func TestStoreVersionsCorruptionAndLockIsolation(t *testing.T) {
 	for _, mode := range []string{"empty", "current", "future", "corrupt", "incomplete"} {
 		t.Run(mode, func(t *testing.T) {

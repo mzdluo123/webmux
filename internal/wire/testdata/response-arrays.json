@@ -39,6 +39,7 @@
     "archive": {
       "configMissing": false,
       "previousAgentSessionIds": [],
+      "storedBytes": 0,
       "queuedCount": 0,
       "interruptedAt": null,
       "updatedAt": "2026-01-02T03:04:05Z"

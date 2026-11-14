@@ -987,6 +987,7 @@
   "s3_archived_interrupted_count": "{count} 条已中断",
   "s3_archived_remove_failed": "无法删除“{title}”的记录：{error}",
   "s3_archived_section_label": "{title} 的已归档会话",
+  "s3_archived_stored_bytes_title": "聊天文本大小（不含附件、索引与 agent 自己的历史）",
   "s3_attachment_short": "附件",
   "s3_attachments_label": "附件",
   "s3_back_to_list": "返回列表",

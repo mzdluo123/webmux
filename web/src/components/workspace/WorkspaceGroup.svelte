@@ -195,7 +195,6 @@
   {#if archive && archived.length}<ArchivedSessions
       {title}
       records={archived}
-      {groupPath}
       worktree={worktree &&
       worktree.kind === "linked" &&
       worktree.available &&

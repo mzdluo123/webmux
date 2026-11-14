@@ -67,7 +67,7 @@ func (s *Server) handoffDraft(r *http.Request) (contract.HandoffDraft, error) {
 	if err != nil {
 		return out, err
 	}
-	delivery := s.handoffDelivery(e)
+	delivery := s.handoffDelivery(ctx, e)
 	out.Delivery = &delivery
 	return out, nil
 }
