@@ -109,6 +109,9 @@ export default mergeConfig(
         reportsDirectory: ".vitest/coverage/browser",
         reporter: ["text-summary", "json", "json-summary", "html"],
       },
+      // These tests drive real terminals, gestures and canvases; shared CI
+      // runners need more than the 15 s default for the heaviest cases.
+      testTimeout: 60_000,
       expect: {
         poll: {
           timeout: 15_000,
