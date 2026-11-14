@@ -273,7 +273,7 @@ test("browsing a worktree opens its details inside the panel; 返回 keeps the s
   const list = dialog().getByRole("list", { name: "仓库工作树列表" });
   await expect.element(list).toBeVisible();
   // The dialog body is the one scroll container; the list grows inside it.
-  const rows = dialog().element();
+  const rows = dialog().locator("[data-slot='scroll-area-viewport']").element();
   rows.scrollTop = 60;
   const scrolled = rows.scrollTop;
   expect(scrolled).toBeGreaterThan(0);
