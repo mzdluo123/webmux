@@ -61,6 +61,12 @@ type snapshotFlight struct {
 	waiters    int
 }
 type Service struct {
+	projectMu     sync.Mutex
+	projectSaveMu sync.Mutex
+	projectStore  *statefile.Handle[projectRegistry]
+	projects      []directoryProject
+	projectError  error
+
 	manager  *session.Manager
 	launches *launch.Service
 	hybrids  *hybrid.Service
@@ -140,6 +146,7 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 	} else {
 		s.capability.RegistryAvailable = true
 	}
+	s.loadProjects()
 	if err := s.loadOperations(); err != nil {
 		s.opsError = "Git 操作账本不可用: " + err.Error()
 	} else {
@@ -164,6 +171,7 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 	return s
 }
 func (s *Service) Close() {
+	s.closeProjects()
 	if s.stopAssociations != nil {
 		s.stopAssociations()
 	}
