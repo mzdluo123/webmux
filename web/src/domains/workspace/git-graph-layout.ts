@@ -115,61 +115,110 @@ export function computeGitGraphLayout(
   const totalWidth =
     GIT_GRAPH_LEFT_PAD * 2 + Math.max(1, maxLane + 1) * GIT_GRAPH_LANE_WIDTH;
   const midY = GIT_GRAPH_ROW_HEIGHT / 2;
+  const openLanes = new Map<number, { targetOid: string; inList: boolean }>();
 
   return rows.map((row, index) => {
-    const prevActive = index > 0 ? (rows[index - 1]?.activeLanes ?? []) : [];
-    const rails: GitGraphRail[] = [];
-
-    for (const lane of row.activeLanes) {
-      if (lane === row.lane) {
-        if (prevActive.includes(lane)) {
-          rails.push({
-            lane,
-            x: laneToX(lane),
-            y1: 0,
-            y2: midY,
-            tone: laneTone(lane),
-          });
-        }
-        continue;
+    for (const [lane, state] of openLanes) {
+      if (
+        !state.inList &&
+        lane !== row.lane &&
+        !row.activeLanes.includes(lane)
+      ) {
+        openLanes.delete(lane);
       }
-      // Pass-through lane rail across this row.
-      const continuesFromPrev = prevActive.includes(lane);
+    }
+
+    const rails: GitGraphRail[] = [];
+    const incomingSegments: GitGraphPathSegment[] = [];
+
+    if (openLanes.has(row.lane)) {
+      rails.push({
+        lane: row.lane,
+        x: laneToX(row.lane),
+        y1: 0,
+        y2: midY,
+        tone: laneTone(row.lane),
+      });
+      openLanes.delete(row.lane);
+    }
+
+    for (const [lane, state] of openLanes) {
+      if (state.targetOid !== row.oid) continue;
+      const startX = laneToX(lane);
+      const endX = laneToX(row.lane);
+      const ctrlY = midY * 0.55;
+      incomingSegments.push({
+        key: `${row.oid}-in-${lane}`,
+        d: `M ${startX} 0 C ${startX} ${ctrlY}, ${endX} ${ctrlY}, ${endX} ${midY}`,
+        kind: "direct",
+        dashed: false,
+        isBoundary: false,
+        targetOid: row.oid,
+        tone: laneTone(lane),
+      });
+      openLanes.delete(lane);
+    }
+
+    const passThroughLanes = [...openLanes.keys()].sort((a, b) => a - b);
+    for (const lane of passThroughLanes) {
       rails.push({
         lane,
         x: laneToX(lane),
-        y1: continuesFromPrev ? 0 : midY,
+        y1: 0,
         y2: GIT_GRAPH_ROW_HEIGHT,
         tone: laneTone(lane),
       });
     }
 
-    const segments: GitGraphPathSegment[] = row.edges.map((edge, edgeIdx) => {
-      const startX = laneToX(edge.fromLane);
-      const endX = laneToX(edge.toLane);
-      const targetRow = rowIndexByOid.get(edge.targetOid);
-      const isBoundary = edge.kind === "boundary" || targetRow === undefined;
-      const dashed = edge.kind === "indirect";
-      const endY = GIT_GRAPH_ROW_HEIGHT;
+    const outgoingSegments: GitGraphPathSegment[] = row.edges.map(
+      (edge, edgeIdx) => {
+        const startX = laneToX(edge.fromLane);
+        const endX = laneToX(edge.toLane);
+        const targetRow = rowIndexByOid.get(edge.targetOid);
+        const inList = targetRow !== undefined && targetRow > index;
+        const dashed = edge.kind === "indirect";
+        const isBoundary = !dashed && !inList;
+        const resolvedKind: GitHistoryEdge["kind"] = dashed
+          ? "indirect"
+          : isBoundary
+            ? "boundary"
+            : "direct";
+        const endY = GIT_GRAPH_ROW_HEIGHT;
 
-      let d: string;
-      if (startX === endX) {
-        d = `M ${startX} ${midY} L ${endX} ${endY}`;
-      } else {
-        const ctrlY = midY + (endY - midY) * 0.55;
-        d = `M ${startX} ${midY} C ${startX} ${ctrlY}, ${endX} ${ctrlY}, ${endX} ${endY}`;
-      }
+        let d: string;
+        if (startX === endX) {
+          d = `M ${startX} ${midY} L ${endX} ${endY}`;
+        } else {
+          const ctrlY = midY + (endY - midY) * 0.55;
+          d = `M ${startX} ${midY} C ${startX} ${ctrlY}, ${endX} ${ctrlY}, ${endX} ${endY}`;
+        }
 
-      return {
-        key: `${row.oid}-${edge.targetOid}-${edgeIdx}`,
-        d,
-        kind: isBoundary && edge.kind === "direct" ? "boundary" : edge.kind,
-        dashed,
-        isBoundary,
-        targetOid: edge.targetOid,
-        tone: laneTone(edge.toLane),
-      };
-    });
+        if (inList) {
+          openLanes.set(edge.toLane, {
+            targetOid: edge.targetOid,
+            inList: true,
+          });
+        } else if (
+          index + 1 < rows.length &&
+          !openLanes.get(edge.toLane)?.inList
+        ) {
+          openLanes.set(edge.toLane, {
+            targetOid: edge.targetOid,
+            inList: false,
+          });
+        }
+
+        return {
+          key: `${row.oid}-${edge.targetOid}-${edgeIdx}`,
+          d,
+          kind: resolvedKind,
+          dashed,
+          isBoundary,
+          targetOid: edge.targetOid,
+          tone: edgeIdx === 0 ? laneTone(edge.fromLane) : laneTone(edge.toLane),
+        };
+      },
+    );
 
     return {
       oid: row.oid,
@@ -182,7 +231,7 @@ export function computeGitGraphLayout(
       directParentsMissing: row.directParentsMissing,
       nodeTone: laneTone(row.lane),
       rails,
-      segments,
+      segments: [...incomingSegments, ...outgoingSegments],
     };
   });
 }

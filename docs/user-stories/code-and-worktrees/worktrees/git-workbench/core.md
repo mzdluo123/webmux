@@ -50,7 +50,7 @@
     - 遇到 `no_worktree`、`no_task_baseline`、`detached_no_branch`、`no_upstream`、`upstream_gone`、`unborn` 或 `empty` 时直接展示明确中文原因提示与操作入口，绝不误导显示为“0 个提交”；
     - 筛选或刷新后若原选中提交仍在首屏则保留选中，否则说明原因并在存在 `HEAD` 时提供一键“定位当前 HEAD”；
   - `%P` 拓扑车道图与游标流式分页：
-    - 基于真实父提交 `%P` 渲染节点、分支/标签/`HEAD` 徽标、`direct` 实线边、`indirect` 虚线边（当路径或关键字过滤省略中间节点时额外显示“筛选省略中间节点”）及页尾 `boundary` 延续短边；
+    - 基于真实父提交 `%P` 渲染节点、分支/标签/`HEAD` 徽标、`direct` 实线边、`indirect` 虚线边（当路径或关键字过滤省略中间节点时额外显示“筛选省略中间节点”）及页尾 `boundary` 延续短边，车道与曲线贯穿单行及徽标换行行高且跨分页连续衔接；
     - 滚动触底或点击“加载更多历史”通过不透明 `cursor` 追加下一页且不重排已渲染行；当分页或刷新返回 `refsChanged: true` 时给出非阻塞“分支引用已更新，可刷新”提示；
   - 右上变更文件、右下提交详情与合并父节点切换：
     - 右上“变更文件”复用会话代码列表的状态图标与语义色（新增、修改、删除、重命名、复制、类型变更）、重命名路径（`oldPath → newPath`）、二进制标记与按路径二次过滤，支持 `ArrowUp`/`ArrowDown`/`Home`/`End` 键盘导航、单击在底部预览、`Enter` 或双击放大至主工作区；
@@ -130,8 +130,9 @@
 - Git 工作台历史视图：
   - 服务端引用与范围：[分支与标签枚举](../../../../../internal/workspace/git_refs.go)、[历史范围解析](../../../../../internal/workspace/history_scope.go)、[历史分页与拓扑](../../../../../internal/workspace/history.go)、[历史测试](../../../../../internal/workspace/history_test.go)；
   - 控制器：[历史与分页](../../../../../web/src/hooks/workspace/git-log-history.svelte.ts)、[两版本比较](../../../../../web/src/hooks/workspace/git-log-compare.svelte.ts)、[历史差异](../../../../../web/src/hooks/workspace/git-log-diff.svelte.ts)；
-  - 收藏领域模型：[收藏分支](../../../../../web/src/domains/workspace/git-favorites.ts)；
-  - 左侧与中间视图：[Log 主面板](../../../../../web/src/components/workspace/GitLogPane.svelte)、[引用树](../../../../../web/src/components/workspace/GitLogBranchTree.svelte)、[筛选栏](../../../../../web/src/components/workspace/GitLogFilterBar.svelte)；
+  - 领域模型：[拓扑图布局](../../../../../web/src/domains/workspace/git-graph-layout.ts)、[收藏分支](../../../../../web/src/domains/workspace/git-favorites.ts)；
+  - 左侧引用与筛选：[Log 主面板](../../../../../web/src/components/workspace/GitLogPane.svelte)、[引用树](../../../../../web/src/components/workspace/GitLogBranchTree.svelte)、[筛选栏](../../../../../web/src/components/workspace/GitLogFilterBar.svelte)；
+  - 中间提交列表与拓扑：[提交列表面板](../../../../../web/src/components/workspace/GitLogListPane.svelte)、[提交拓扑行](../../../../../web/src/components/workspace/GitLogCommitRow.svelte)；
   - 右侧变更与详情：[变更文件列表](../../../../../web/src/components/workspace/GitLogFilesPane.svelte)、[提交详情](../../../../../web/src/components/workspace/GitLogDetailPane.svelte)；
   - 底部与放大差异：[差异面板](../../../../../web/src/components/workspace/GitLogDiffPanel.svelte)、[Pierre 阅读器](../../../../../web/src/components/code/CodeDiffReader.svelte)；
   - 单测与组件测试：[收藏与深链单测](../../../../../web/test/git-log-controller.test.ts)、[竞态与分页浏览器单测](../../../../../web/test/browser/GitLogController.test.ts)、[工作台组件测试](../../../../../web/test/browser/GitWorkbench.test.ts)；

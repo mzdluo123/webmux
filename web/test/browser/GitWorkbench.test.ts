@@ -579,3 +579,41 @@ test("narrow mobile viewport uses 3-step list -> detail -> Unified Pierre diff n
   await backToList.click();
   await expect.element(searchInput).toBeVisible();
 });
+
+test("commit graph SVGs touch edge-to-edge without vertical gaps across wrapped and compact rows", async () => {
+  for (const [width, height] of [
+    [1280, 900],
+    [390, 844],
+  ] as const) {
+    await page.viewport(width, height);
+    render(Harness, { initialState: createFixtureState("log") });
+
+    await expect
+      .element(page.getByRole("listbox", { name: "提交记录" }))
+      .toBeVisible();
+
+    const svgs = [
+      ...document.querySelectorAll<SVGSVGElement>("svg[data-graph-oid]"),
+    ];
+    expect(svgs.length).toBeGreaterThanOrEqual(2);
+
+    for (let i = 0; i < svgs.length; i++) {
+      const svgRect = svgs[i]!.getBoundingClientRect();
+      const rowRect =
+        svgs[i]!.closest("[data-commit-row]")!.getBoundingClientRect();
+      expect(Math.abs(svgRect.top - rowRect.top)).toBeLessThan(0.5);
+      expect(Math.abs(svgRect.bottom - rowRect.bottom)).toBeLessThan(0.5);
+
+      const circle = svgs[i]!.querySelector("circle")!;
+      const circleRect = circle.getBoundingClientRect();
+      expect(Math.abs(circleRect.width - circleRect.height)).toBeLessThan(0.5);
+
+      if (i + 1 < svgs.length) {
+        const nextRect = svgs[i + 1]!.getBoundingClientRect();
+        expect(Math.abs(nextRect.top - svgRect.bottom)).toBeLessThan(0.5);
+      }
+    }
+
+    await cleanup();
+  }
+});
