@@ -4,6 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as Drawer from "$lib/components/ui/drawer";
   import * as Resizable from "$lib/components/ui/resizable";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import {
     filterLogCommits,
     resolveCommitParentFiles,
@@ -458,12 +459,14 @@
           返回提交列表
         </Button>
       </div>
-      <div class="min-h-0 flex-1 overflow-y-auto">
-        <div class="border-b">
-          {@render detailPaneContent()}
+      <ScrollArea class="min-h-8 flex-1">
+        <div>
+          <div class="border-b">
+            {@render detailPaneContent()}
+          </div>
+          {@render filesPaneContent(true)}
         </div>
-        {@render filesPaneContent(true)}
-      </div>
+      </ScrollArea>
     </div>
   {:else}
     <GitLogDiffPanel

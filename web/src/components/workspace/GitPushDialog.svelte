@@ -4,6 +4,7 @@
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
   import * as NativeSelect from "$lib/components/ui/native-select";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type {
     GitCommitDetail,
     GitIssue,
@@ -322,36 +323,40 @@
             {/if}
           </p>
         {:else}
-          <div
-            class="max-h-64 space-y-0.5 overflow-y-auto"
+          <ScrollArea
+            viewportClasses="max-h-64"
             data-testid="git-push-commits-list"
           >
-            {#each commitRows as commit (commit.oid)}
-              <ListButton
-                variant="compact-row"
-                aria-selected={activeCommitOid === commit.oid}
-                onclick={() => {
-                  if (push) {
-                    void push.selectCommit(commit.oid);
-                  } else {
-                    fixtureCommitOid = commit.oid;
-                    fixtureParentOid = "";
-                    fixtureFilePath = null;
-                  }
-                }}
-              >
-                <span class="shrink-0 font-mono text-xs text-muted-foreground">
-                  {commit.shortOid}
-                </span>
-                <span
-                  class="min-w-0 flex-1 truncate font-medium"
-                  title={commit.subject}
+            <div class="space-y-0.5">
+              {#each commitRows as commit (commit.oid)}
+                <ListButton
+                  variant="compact-row"
+                  aria-selected={activeCommitOid === commit.oid}
+                  onclick={() => {
+                    if (push) {
+                      void push.selectCommit(commit.oid);
+                    } else {
+                      fixtureCommitOid = commit.oid;
+                      fixtureParentOid = "";
+                      fixtureFilePath = null;
+                    }
+                  }}
                 >
-                  {commit.subject}
-                </span>
-              </ListButton>
-            {/each}
-          </div>
+                  <span
+                    class="shrink-0 font-mono text-xs text-muted-foreground"
+                  >
+                    {commit.shortOid}
+                  </span>
+                  <span
+                    class="min-w-0 flex-1 truncate font-medium"
+                    title={commit.subject}
+                  >
+                    {commit.subject}
+                  </span>
+                </ListButton>
+              {/each}
+            </div>
+          </ScrollArea>
         {/if}
       </div>
 

@@ -2,6 +2,7 @@
   import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { GitDiscardPreview } from "../../contracts/schemas";
   import { canConfirmPreviewModel } from "../../domains/workspace/git-v2-adapter";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -114,14 +115,18 @@
             <p class="font-semibold text-foreground">
               将还原覆盖的已跟踪文件 ({preview.trackedOverwritePaths.length})：
             </p>
-            <ul
-              class="max-h-28 space-y-0.5 overflow-y-auto rounded-sm border bg-background p-2 font-mono"
+            <div
+              class="rounded-sm border bg-background"
               data-testid="git-discard-tracked-list"
             >
-              {#each preview.trackedOverwritePaths as p (p)}
-                <li class="break-all text-foreground">{p}</li>
-              {/each}
-            </ul>
+              <ScrollArea viewportClasses="max-h-28">
+                <ul class="space-y-0.5 p-2 font-mono">
+                  {#each preview.trackedOverwritePaths as p (p)}
+                    <li class="break-all text-foreground">{p}</li>
+                  {/each}
+                </ul>
+              </ScrollArea>
+            </div>
           </div>
         {/if}
 
@@ -130,14 +135,18 @@
             <p class="font-semibold text-destructive">
               将从磁盘删除的未跟踪文件 ({preview.untrackedDeletePaths.length})：
             </p>
-            <ul
-              class="max-h-28 space-y-0.5 overflow-y-auto rounded-sm border bg-background p-2 font-mono"
+            <div
+              class="rounded-sm border bg-background"
               data-testid="git-discard-untracked-list"
             >
-              {#each preview.untrackedDeletePaths as p (p)}
-                <li class="break-all text-destructive">{p}</li>
-              {/each}
-            </ul>
+              <ScrollArea viewportClasses="max-h-28">
+                <ul class="space-y-0.5 p-2 font-mono">
+                  {#each preview.untrackedDeletePaths as p (p)}
+                    <li class="break-all text-destructive">{p}</li>
+                  {/each}
+                </ul>
+              </ScrollArea>
+            </div>
           </div>
         {/if}
       </div>

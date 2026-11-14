@@ -227,6 +227,28 @@ describe("frontend architecture", () => {
     ).toEqual([]);
   });
 
+  test("git workbench scroll regions use ScrollArea, not native overflow", () => {
+    const gitFiles = [
+      "src/pages/GitWorkbench.svelte",
+      ...globSync("src/components/workspace/Git*.svelte", { cwd: root }),
+    ].map((file) => file.replaceAll("\\", "/"));
+    const nativeScroll = [
+      /(?<![\w-])overflow-(?:x-|y-)?(?:auto|scroll)(?![\w-])/,
+      /overflow(?:-[xy])?\s*:\s*(?:auto|scroll)\b/,
+    ];
+    const violations = gitFiles.flatMap((file) => {
+      const source = withoutComments(readFileSync(`${root}/${file}`, "utf8"));
+      return nativeScroll
+        .filter((pattern) => pattern.test(source))
+        .map((pattern) => `${file}: ${pattern.source}`);
+    });
+    expect(
+      violations,
+      "Use $lib/components/ui/scroll-area (ScrollArea) for every " +
+        "scrollable region in the Git workbench.",
+    ).toEqual([]);
+  });
+
   test("corner radii follow the role scale", () => {
     expect(styleFiles).toContain("src/styles.css");
     expect(

@@ -7,6 +7,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as RadioGroup from "$lib/components/ui/radio-group";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Textarea } from "$lib/components/ui/textarea";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
   import type { GitReworkItem, SessionInfo } from "../../contracts/schemas";
@@ -131,15 +132,17 @@
             当前暂存区为空，请先暂存变更后再请求协助起草。
           </p>
         {:else}
-          <ul class="max-h-40 space-y-1 overflow-y-auto font-mono">
-            {#each stagedChanges as item (item.id)}
-              <li class="truncate text-foreground">
-                [{item.status}] {item.oldPath && item.oldPath !== item.path
-                  ? `${item.oldPath} → ${item.path}`
-                  : item.path}
-              </li>
-            {/each}
-          </ul>
+          <ScrollArea viewportClasses="max-h-40">
+            <ul class="space-y-1 font-mono">
+              {#each stagedChanges as item (item.id)}
+                <li class="truncate text-foreground">
+                  [{item.status}] {item.oldPath && item.oldPath !== item.path
+                    ? `${item.oldPath} → ${item.path}`
+                    : item.path}
+                </li>
+              {/each}
+            </ul>
+          </ScrollArea>
         {/if}
       </div>
     {:else if items.length === 0}
@@ -160,65 +163,71 @@
           </Button>
         </div>
 
-        <div class="max-h-72 space-y-2.5 overflow-y-auto pr-0.5">
-          {#each items as item, idx (item.id)}
-            <div
-              class="space-y-2 rounded-md border bg-background p-2.5"
-              data-testid="git-rework-item"
-              data-rework-path={item.path}
-            >
+        <ScrollArea viewportClasses="max-h-72">
+          <div class="space-y-2.5 pr-0.5">
+            {#each items as item, idx (item.id)}
               <div
-                class="flex min-w-0 flex-wrap items-center justify-between gap-1.5"
+                class="space-y-2 rounded-md border bg-background p-2.5"
+                data-testid="git-rework-item"
+                data-rework-path={item.path}
               >
-                <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                  <Badge variant="outline">#{idx + 1}</Badge>
-                  <span
-                    class="min-w-0 truncate font-mono font-medium text-foreground"
-                    title={item.path}
-                  >
-                    {item.path}
-                  </span>
-                  <Badge
-                    variant={item.sourceKind === "worktree"
-                      ? "info"
-                      : "secondary"}
-                    class="max-w-full"
-                  >
-                    <span class="truncate">{item.versionLabel}</span>
-                  </Badge>
-                  <Badge variant="outline">
-                    <span class="font-mono">
-                      {formatLineRangeLabel(item.startLine, item.endLine)}
+                <div
+                  class="flex min-w-0 flex-wrap items-center justify-between gap-1.5"
+                >
+                  <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <Badge variant="outline">#{idx + 1}</Badge>
+                    <span
+                      class="min-w-0 truncate font-mono font-medium text-foreground"
+                      title={item.path}
+                    >
+                      {item.path}
                     </span>
-                  </Badge>
+                    <Badge
+                      variant={item.sourceKind === "worktree"
+                        ? "info"
+                        : "secondary"}
+                      class="max-w-full"
+                    >
+                      <span class="truncate">{item.versionLabel}</span>
+                    </Badge>
+                    <Badge variant="outline">
+                      <span class="font-mono">
+                        {formatLineRangeLabel(item.startLine, item.endLine)}
+                      </span>
+                    </Badge>
+                  </div>
+
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`移除审阅意见 ${item.path}`}
+                    title={`移除审阅意见 ${item.path}`}
+                    onclick={() => onRemoveItem(item.id)}
+                  >
+                    <IconTrash aria-hidden="true" />
+                  </Button>
                 </div>
 
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={`移除审阅意见 ${item.path}`}
-                  title={`移除审阅意见 ${item.path}`}
-                  onclick={() => onRemoveItem(item.id)}
-                >
-                  <IconTrash aria-hidden="true" />
-                </Button>
+                {#if item.codeSnippet.trim()}
+                  <div class="rounded-sm border bg-background">
+                    <ScrollArea viewportClasses="max-h-28">
+                      <pre
+                        class="p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-foreground">{item.codeSnippet}</pre>
+                    </ScrollArea>
+                  </div>
+                {/if}
+
+                <Textarea
+                  rows={2}
+                  value={item.userNote}
+                  placeholder="填写具体返工修改说明（留空将使用默认提示）…"
+                  aria-label={`第 ${idx + 1} 条审阅意见说明`}
+                  oninput={(e) => onUpdateNote(item.id, e.currentTarget.value)}
+                />
               </div>
-
-              {#if item.codeSnippet.trim()}
-                <pre
-                  class="max-h-28 overflow-y-auto rounded-sm border bg-background p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-foreground">{item.codeSnippet}</pre>
-              {/if}
-
-              <Textarea
-                rows={2}
-                value={item.userNote}
-                placeholder="填写具体返工修改说明（留空将使用默认提示）…"
-                aria-label={`第 ${idx + 1} 条审阅意见说明`}
-                oninput={(e) => onUpdateNote(item.id, e.currentTarget.value)}
-              />
-            </div>
-          {/each}
-        </div>
+            {/each}
+          </div>
+        </ScrollArea>
       </div>
     {/if}
 

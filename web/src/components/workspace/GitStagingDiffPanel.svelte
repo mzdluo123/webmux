@@ -7,6 +7,7 @@
     GitWorkingChange,
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { CodeDiffReaderState } from "../../contracts/schemas";
   import {
     mapDiffRangeToLineSelections,
@@ -232,163 +233,162 @@
   }
 </script>
 
-<div
-  class="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-background"
-  data-testid="git-staging-diff-panel"
->
-  <GitStagingDiffHeader
-    {change}
-    {hunkIndex}
-    {phase}
-    {diffMode}
-    {stageMode}
-    {canStageLines}
-    {linePickerOpen}
-    {canDiscardCurrentFile}
-    {busy}
-    {stale}
-    onJumpToHunk={jumpToHunk}
-    onToggleLinePicker={() => (linePickerOpen = !linePickerOpen)}
-    {onDiffModeChange}
-    {onDiscardFile}
-    {onStageChange}
-    {onUnstageChange}
-  />
-
-  {#if stale}
-    <div class="border-b bg-background px-3 py-2">
-      <InlineNotice tone="warning">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>
-            {staleReason ||
-              "文件或暂存区已在外部变更，当前阅读快照已过期；暂存按钮已停用，请刷新后再操作。"}
-          </span>
-          {#if onRefreshSnapshot}
-            <Button size="sm" variant="outline" onclick={onRefreshSnapshot}>
-              <IconRefresh aria-hidden="true" />
-              刷新快照
-            </Button>
-          {/if}
-        </div>
-      </InlineNotice>
-    </div>
-  {/if}
-
-  {#if change.group === "conflicted"}
-    <GitConflictTerminalNotice
-      message={`存在未解决冲突${
-        context.operationInProgress
-          ? `（正在进行：${context.operationInProgress}）`
-          : ""
-      }。冲突文件不可伪装为普通可提交文件，请打开三方冲突解决器或在终端处理。`}
-      {hasActiveWorktreeSession}
-      newLabel="在此工作树新建终端"
-      onOpenConflictResolver={onOpenConflictResolver
-        ? () => onOpenConflictResolver(change.path)
-        : undefined}
-      {onOpenWorktreeTerminal}
-      {onNewWorktreeTerminal}
-    />
-  {:else if !change.hunkStageAvailable && change.degradeReason}
-    <div class="border-b bg-background px-3 py-1.5">
-      <InlineNotice tone="warning">
-        逐块暂存已降级：{change.degradeReason}（仍可使用右上角或文件行的整文件暂存/取消暂存）。
-      </InlineNotice>
-    </div>
-  {/if}
-
-  {#if canStageHunks && !(linePickerOpen && canStageLines)}
-    <GitStagingHunkStrip
-      changeId={change.id}
-      hunks={change.hunks}
+<ScrollArea class="h-full min-h-8 w-full" data-testid="git-staging-diff-panel">
+  <div class="flex min-h-full w-full min-w-0 flex-col bg-background">
+    <GitStagingDiffHeader
+      {change}
       {hunkIndex}
+      {phase}
+      {diffMode}
       {stageMode}
+      {canStageLines}
+      {linePickerOpen}
+      {canDiscardCurrentFile}
       {busy}
       {stale}
-      canAddRework={Boolean(onAddReworkItem && !readonlyMode)}
       onJumpToHunk={jumpToHunk}
-      onAddHunkToRework={addHunkToRework}
-      {onStageHunk}
-      {onUnstageHunk}
-      onDiscardHunk={change.group === "unstaged" ? onDiscardHunk : undefined}
+      onToggleLinePicker={() => (linePickerOpen = !linePickerOpen)}
+      {onDiffModeChange}
+      {onDiscardFile}
+      {onStageChange}
+      {onUnstageChange}
     />
-  {/if}
 
-  {#if !(linePickerOpen && canStageLines)}
-    <GitDiffSelectionBar
-      selection={resolvedSelection}
-      {stageMode}
-      lineSelections={readerLineSelections}
-      {busy}
-      {stale}
-      onStageSelectedLines={onStageLines
-        ? (sel) => onStageLines(change.id, sel)
-        : undefined}
-      onUnstageSelectedLines={onUnstageLines
-        ? (sel) => onUnstageLines(change.id, sel)
-        : undefined}
-      onDiscardSelectedLines={change.group === "unstaged" && onDiscardLines
-        ? (sel) => onDiscardLines(change.id, sel)
-        : undefined}
-      {onAddReworkItem}
-      onClear={clearStagingSelection}
-    />
-  {/if}
+    {#if stale}
+      <div class="border-b bg-background px-3 py-2">
+        <InlineNotice tone="warning">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {staleReason ||
+                "文件或暂存区已在外部变更，当前阅读快照已过期；暂存按钮已停用，请刷新后再操作。"}
+            </span>
+            {#if onRefreshSnapshot}
+              <Button size="sm" variant="outline" onclick={onRefreshSnapshot}>
+                <IconRefresh aria-hidden="true" />
+                刷新快照
+              </Button>
+            {/if}
+          </div>
+        </InlineNotice>
+      </div>
+    {/if}
 
-  {#if linePickerOpen && canStageLines}
-    <GitStagingLineSelector
-      changeId={change.id}
-      hunks={change.hunks}
-      {stageMode}
-      canDiscardLines={change.group === "unstaged" && Boolean(onDiscardLines)}
-      {busy}
-      {stale}
-      {onStageLines}
-      {onUnstageLines}
-      {onDiscardLines}
-    />
-  {:else}
-    <div
-      class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-    >
-      {#if phase === "loading"}
-        <p class="p-4 text-xs text-muted-foreground" role="status">
-          正在加载语法高亮差异快照…
-        </p>
-      {:else if phase === "ready" && fileDiff}
-        {#key `${change.id}:${jumpSeq}`}
-          <CodeDiffReader
-            bind:this={readerRef}
-            {fileDiff}
-            side="new"
-            expired={stale}
-            draftEnabled={false}
-            preferredDiffStyle={diffMode}
-            restore={jumpTarget
-              ? {
-                  selected: null,
-                  expanded: [],
-                  search: {
-                    search: "",
-                    caseSensitive: false,
-                    regexp: false,
-                    wholeWord: false,
-                  },
-                  top: jumpTarget,
-                }
-              : undefined}
-            onselect={(range) => {
-              selectionSlot = range ? { changeId: change.id, range } : null;
-            }}
-          />
-        {/key}
-      {:else}
-        <div class="p-4">
-          <InlineNotice tone={phase === "error" ? "danger" : "info"}>
-            {reason || "当前条目无文本行级差异预览。"}
-          </InlineNotice>
-        </div>
-      {/if}
-    </div>
-  {/if}
-</div>
+    {#if change.group === "conflicted"}
+      <GitConflictTerminalNotice
+        message={`存在未解决冲突${
+          context.operationInProgress
+            ? `（正在进行：${context.operationInProgress}）`
+            : ""
+        }。冲突文件不可伪装为普通可提交文件，请打开三方冲突解决器或在终端处理。`}
+        {hasActiveWorktreeSession}
+        newLabel="在此工作树新建终端"
+        onOpenConflictResolver={onOpenConflictResolver
+          ? () => onOpenConflictResolver(change.path)
+          : undefined}
+        {onOpenWorktreeTerminal}
+        {onNewWorktreeTerminal}
+      />
+    {:else if !change.hunkStageAvailable && change.degradeReason}
+      <div class="border-b bg-background px-3 py-1.5">
+        <InlineNotice tone="warning">
+          逐块暂存已降级：{change.degradeReason}（仍可使用右上角或文件行的整文件暂存/取消暂存）。
+        </InlineNotice>
+      </div>
+    {/if}
+
+    {#if canStageHunks && !(linePickerOpen && canStageLines)}
+      <GitStagingHunkStrip
+        changeId={change.id}
+        hunks={change.hunks}
+        {hunkIndex}
+        {stageMode}
+        {busy}
+        {stale}
+        canAddRework={Boolean(onAddReworkItem && !readonlyMode)}
+        onJumpToHunk={jumpToHunk}
+        onAddHunkToRework={addHunkToRework}
+        {onStageHunk}
+        {onUnstageHunk}
+        onDiscardHunk={change.group === "unstaged" ? onDiscardHunk : undefined}
+      />
+    {/if}
+
+    {#if !(linePickerOpen && canStageLines)}
+      <GitDiffSelectionBar
+        selection={resolvedSelection}
+        {stageMode}
+        lineSelections={readerLineSelections}
+        {busy}
+        {stale}
+        onStageSelectedLines={onStageLines
+          ? (sel) => onStageLines(change.id, sel)
+          : undefined}
+        onUnstageSelectedLines={onUnstageLines
+          ? (sel) => onUnstageLines(change.id, sel)
+          : undefined}
+        onDiscardSelectedLines={change.group === "unstaged" && onDiscardLines
+          ? (sel) => onDiscardLines(change.id, sel)
+          : undefined}
+        {onAddReworkItem}
+        onClear={clearStagingSelection}
+      />
+    {/if}
+
+    {#if linePickerOpen && canStageLines}
+      <GitStagingLineSelector
+        changeId={change.id}
+        hunks={change.hunks}
+        {stageMode}
+        canDiscardLines={change.group === "unstaged" && Boolean(onDiscardLines)}
+        {busy}
+        {stale}
+        {onStageLines}
+        {onUnstageLines}
+        {onDiscardLines}
+      />
+    {:else}
+      <div
+        class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      >
+        {#if phase === "loading"}
+          <p class="p-4 text-xs text-muted-foreground" role="status">
+            正在加载语法高亮差异快照…
+          </p>
+        {:else if phase === "ready" && fileDiff}
+          {#key `${change.id}:${jumpSeq}`}
+            <CodeDiffReader
+              bind:this={readerRef}
+              {fileDiff}
+              side="new"
+              expired={stale}
+              draftEnabled={false}
+              preferredDiffStyle={diffMode}
+              restore={jumpTarget
+                ? {
+                    selected: null,
+                    expanded: [],
+                    search: {
+                      search: "",
+                      caseSensitive: false,
+                      regexp: false,
+                      wholeWord: false,
+                    },
+                    top: jumpTarget,
+                  }
+                : undefined}
+              onselect={(range) => {
+                selectionSlot = range ? { changeId: change.id, range } : null;
+              }}
+            />
+          {/key}
+        {:else}
+          <div class="p-4">
+            <InlineNotice tone={phase === "error" ? "danger" : "info"}>
+              {reason || "当前条目无文本行级差异预览。"}
+            </InlineNotice>
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
+</ScrollArea>

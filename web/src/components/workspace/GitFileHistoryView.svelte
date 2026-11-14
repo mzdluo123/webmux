@@ -6,6 +6,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { GitFileHistoryRow } from "../../contracts/schemas";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -50,80 +51,82 @@
     class="flex h-full min-h-0 min-w-0 flex-col lg:w-80 lg:shrink-0 lg:border-r"
     data-testid="git-file-history-list"
   >
-    <div class="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-      {#if loading && rows.length === 0}
-        <p class="p-3 text-xs text-muted-foreground" role="status">
-          正在读取单文件重命名追踪历史 (--follow)…
-        </p>
-      {:else if error}
-        <div class="p-2">
-          <InlineNotice tone="danger">{error}</InlineNotice>
-        </div>
-      {:else if rows.length === 0}
-        <p class="p-3 text-xs text-muted-foreground">
-          未找到该文件在当前修订下的提交历史。
-        </p>
-      {:else}
-        {#each rows as row (`${row.oid}:${row.path}`)}
-          {@const selected = activeRow?.oid === row.oid}
-          {@const renamed = Boolean(row.oldPath && row.oldPath !== row.path)}
-          <ListButton
-            variant="compact-row"
-            aria-selected={selected}
-            data-file-history-row={row.shortOid}
-            onclick={() => {
-              onSelectRow(row);
-              if (isMobile) mobileShowDiff = true;
-            }}
-          >
-            <div class="flex min-w-0 flex-1 flex-col gap-1">
-              <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                <Badge
-                  variant={row.status.startsWith("R")
-                    ? "warning"
-                    : row.status === "A"
-                      ? "info"
-                      : "outline"}
-                >
-                  {row.status}
-                </Badge>
-                <span class="font-mono text-xs text-muted-foreground">
-                  {row.shortOid}
-                </span>
-                <span class="truncate text-xs text-muted-foreground">
-                  {row.authorName}
-                </span>
-              </div>
-              <p class="truncate text-xs font-medium text-foreground">
-                {row.subject}
-              </p>
-              {#if renamed}
-                <span
-                  class="truncate font-mono text-xs text-warning"
-                  title={`${row.oldPath} → ${row.path}`}
-                  data-testid="git-file-history-rename-badge"
-                >
-                  {row.oldPath} → {row.path}
-                </span>
-              {/if}
-            </div>
-          </ListButton>
-        {/each}
-
-        {#if nextCursor && onLoadMore}
-          <div class="pt-1.5 text-center">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={loadingMore}
-              onclick={onLoadMore}
-            >
-              {loadingMore ? "加载中…" : "加载更早提交"}
-            </Button>
+    <ScrollArea class="min-h-8 flex-1">
+      <div class="space-y-1 p-2">
+        {#if loading && rows.length === 0}
+          <p class="p-3 text-xs text-muted-foreground" role="status">
+            正在读取单文件重命名追踪历史 (--follow)…
+          </p>
+        {:else if error}
+          <div class="p-2">
+            <InlineNotice tone="danger">{error}</InlineNotice>
           </div>
+        {:else if rows.length === 0}
+          <p class="p-3 text-xs text-muted-foreground">
+            未找到该文件在当前修订下的提交历史。
+          </p>
+        {:else}
+          {#each rows as row (`${row.oid}:${row.path}`)}
+            {@const selected = activeRow?.oid === row.oid}
+            {@const renamed = Boolean(row.oldPath && row.oldPath !== row.path)}
+            <ListButton
+              variant="compact-row"
+              aria-selected={selected}
+              data-file-history-row={row.shortOid}
+              onclick={() => {
+                onSelectRow(row);
+                if (isMobile) mobileShowDiff = true;
+              }}
+            >
+              <div class="flex min-w-0 flex-1 flex-col gap-1">
+                <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <Badge
+                    variant={row.status.startsWith("R")
+                      ? "warning"
+                      : row.status === "A"
+                        ? "info"
+                        : "outline"}
+                  >
+                    {row.status}
+                  </Badge>
+                  <span class="font-mono text-xs text-muted-foreground">
+                    {row.shortOid}
+                  </span>
+                  <span class="truncate text-xs text-muted-foreground">
+                    {row.authorName}
+                  </span>
+                </div>
+                <p class="truncate text-xs font-medium text-foreground">
+                  {row.subject}
+                </p>
+                {#if renamed}
+                  <span
+                    class="truncate font-mono text-xs text-warning"
+                    title={`${row.oldPath} → ${row.path}`}
+                    data-testid="git-file-history-rename-badge"
+                  >
+                    {row.oldPath} → {row.path}
+                  </span>
+                {/if}
+              </div>
+            </ListButton>
+          {/each}
+
+          {#if nextCursor && onLoadMore}
+            <div class="pt-1.5 text-center">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={loadingMore}
+                onclick={onLoadMore}
+              >
+                {loadingMore ? "加载中…" : "加载更早提交"}
+              </Button>
+            </div>
+          {/if}
         {/if}
-      {/if}
-    </div>
+      </div>
+    </ScrollArea>
   </div>
 {/snippet}
 
@@ -179,7 +182,7 @@
       </div>
     {/if}
 
-    <div class="min-h-0 min-w-0 flex-1">
+    <div class="min-h-8 min-w-0 flex-1">
       <GitLogDiffPanel
         logDiff={diffReader}
         fallbackLeftLabel={activeRow?.comparedParentOid?.slice(0, 7) ?? "空树"}

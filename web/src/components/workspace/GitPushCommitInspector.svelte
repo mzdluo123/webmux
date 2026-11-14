@@ -2,6 +2,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { ListButton } from "$lib/components/ui/list-button";
   import * as NativeSelect from "$lib/components/ui/native-select";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type {
     GitCommitDetail,
     GitCommitFile,
@@ -108,24 +109,26 @@
         该提交不包含文本或路径变更。
       </p>
     {:else}
-      <div class="max-h-32 space-y-0.5 overflow-y-auto">
-        {#each resolved.files as file (file.newPath || file.oldPath)}
-          {@const fPath = file.newPath || file.oldPath}
-          <ListButton
-            variant="compact-row"
-            aria-selected={(activeFile?.newPath || activeFile?.oldPath) ===
-              fPath}
-            onclick={() => onSelectFile(fPath)}
-          >
-            <Badge variant="outline">{file.status}</Badge>
-            <span class="min-w-0 flex-1 truncate font-mono" title={fPath}>
-              {file.oldPath && file.oldPath !== file.newPath
-                ? `${file.oldPath} → ${file.newPath}`
-                : fPath}
-            </span>
-          </ListButton>
-        {/each}
-      </div>
+      <ScrollArea viewportClasses="max-h-32">
+        <div class="space-y-0.5">
+          {#each resolved.files as file (file.newPath || file.oldPath)}
+            {@const fPath = file.newPath || file.oldPath}
+            <ListButton
+              variant="compact-row"
+              aria-selected={(activeFile?.newPath || activeFile?.oldPath) ===
+                fPath}
+              onclick={() => onSelectFile(fPath)}
+            >
+              <Badge variant="outline">{file.status}</Badge>
+              <span class="min-w-0 flex-1 truncate font-mono" title={fPath}>
+                {file.oldPath && file.oldPath !== file.newPath
+                  ? `${file.oldPath} → ${file.newPath}`
+                  : fPath}
+              </span>
+            </ListButton>
+          {/each}
+        </div>
+      </ScrollArea>
     {/if}
   </div>
 

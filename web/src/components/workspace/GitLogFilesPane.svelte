@@ -9,6 +9,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type {
     GitCommitFile,
     GitCompareViewState,
@@ -49,7 +50,7 @@
   } = $props();
 
   let fileQuery = $state("");
-  let listEl = $state<HTMLDivElement>();
+  let listEl = $state<HTMLElement | null>(null);
 
   const sourceFiles = $derived(compareMode ? compareMode.files : files);
   const normalizedQuery = $derived(fileQuery.trim().toLowerCase());
@@ -226,86 +227,89 @@
   </div>
 
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Enter across child option buttons. -->
-  <!-- svelte-ignore a11y_interactive_supports_focus -->
-  <div
-    bind:this={listEl}
-    class="min-h-0 flex-1 overflow-y-auto p-1.5"
-    role="listbox"
-    aria-label="提交变更文件"
-    onkeydown={handleListKeydown}
+  <ScrollArea
+    bind:viewportRef={listEl}
+    class="min-h-8 flex-1"
+    viewportProps={{
+      role: "listbox",
+      "aria-label": "提交变更文件",
+      onkeydown: handleListKeydown,
+    }}
   >
-    {#if compareMode?.loading || loading}
-      <p class="p-2.5 text-xs text-muted-foreground" role="status">
-        正在加载变更文件列表…
-      </p>
-    {:else if compareMode?.error}
-      <div class="p-2">
-        <InlineNotice tone="danger">{compareMode.error}</InlineNotice>
-      </div>
-    {:else if visibleFiles.length === 0}
-      <p class="p-2.5 text-xs text-muted-foreground">
-        {normalizedQuery
-          ? "没有匹配过滤路径的变更文件。"
-          : compareMode
-            ? "这两个提交版本之间没有文件差异。"
-            : "当前提交在此父节点对比下没有文件变更。"}
-      </p>
-    {:else}
-      {#each visibleFiles as file (`${file.status}:${file.oldPath}:${fileKey(file)}`)}
-        {@const pathKey = fileKey(file)}
-        <ListButton
-          variant="compact-row"
-          role="option"
-          data-commit-file-row="true"
-          aria-selected={activePath === pathKey}
-          onclick={() => {
-            onSelectFile(pathKey);
-            onPreviewFile?.(pathKey);
-          }}
-          ondblclick={() => {
-            if (!phone) onExpandFile?.(pathKey);
-          }}
-        >
-          <GitFileStatusIcon status={file.status} />
-
-          <span
-            class="min-w-0 flex-1 truncate font-mono text-xs"
-            title={file.oldPath && file.oldPath !== file.newPath
-              ? `${file.oldPath} → ${file.newPath}`
-              : pathKey}
-          >
-            {file.oldPath && file.oldPath !== file.newPath
-              ? `${file.oldPath} → ${file.newPath}`
-              : pathKey}
-          </span>
-
-          {#if file.binary}
-            <Badge variant="secondary">二进制</Badge>
-          {/if}
-
-          {#if file.additions > 0 || file.deletions > 0}
-            <span class="shrink-0 font-mono text-xs text-success">
-              +{file.additions}
-            </span>
-            <span class="shrink-0 font-mono text-xs text-destructive">
-              -{file.deletions}
-            </span>
-          {/if}
-        </ListButton>
-      {/each}
-
-      {#if compareMode?.nextCursor && onLoadMoreCompareFiles}
-        <div class="pt-1.5 text-center">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={compareMode.loadingMore}
-            onclick={onLoadMoreCompareFiles}
-          >
-            {compareMode.loadingMore ? "加载中…" : "加载更多变更文件"}
-          </Button>
+    <div class="p-1.5">
+      {#if compareMode?.loading || loading}
+        <p class="p-2.5 text-xs text-muted-foreground" role="status">
+          正在加载变更文件列表…
+        </p>
+      {:else if compareMode?.error}
+        <div class="p-2">
+          <InlineNotice tone="danger">{compareMode.error}</InlineNotice>
         </div>
+      {:else if visibleFiles.length === 0}
+        <p class="p-2.5 text-xs text-muted-foreground">
+          {normalizedQuery
+            ? "没有匹配过滤路径的变更文件。"
+            : compareMode
+              ? "这两个提交版本之间没有文件差异。"
+              : "当前提交在此父节点对比下没有文件变更。"}
+        </p>
+      {:else}
+        {#each visibleFiles as file (`${file.status}:${file.oldPath}:${fileKey(file)}`)}
+          {@const pathKey = fileKey(file)}
+          <ListButton
+            variant="compact-row"
+            role="option"
+            data-commit-file-row="true"
+            aria-selected={activePath === pathKey}
+            onclick={() => {
+              onSelectFile(pathKey);
+              onPreviewFile?.(pathKey);
+            }}
+            ondblclick={() => {
+              if (!phone) onExpandFile?.(pathKey);
+            }}
+          >
+            <GitFileStatusIcon status={file.status} />
+
+            <span
+              class="min-w-0 flex-1 truncate font-mono text-xs"
+              title={file.oldPath && file.oldPath !== file.newPath
+                ? `${file.oldPath} → ${file.newPath}`
+                : pathKey}
+            >
+              {file.oldPath && file.oldPath !== file.newPath
+                ? `${file.oldPath} → ${file.newPath}`
+                : pathKey}
+            </span>
+
+            {#if file.binary}
+              <Badge variant="secondary">二进制</Badge>
+            {/if}
+
+            {#if file.additions > 0 || file.deletions > 0}
+              <span class="shrink-0 font-mono text-xs text-success">
+                +{file.additions}
+              </span>
+              <span class="shrink-0 font-mono text-xs text-destructive">
+                -{file.deletions}
+              </span>
+            {/if}
+          </ListButton>
+        {/each}
+
+        {#if compareMode?.nextCursor && onLoadMoreCompareFiles}
+          <div class="pt-1.5 text-center">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={compareMode.loadingMore}
+              onclick={onLoadMoreCompareFiles}
+            >
+              {compareMode.loadingMore ? "加载中…" : "加载更多变更文件"}
+            </Button>
+          </div>
+        {/if}
       {/if}
-    {/if}
-  </div>
+    </div>
+  </ScrollArea>
 </section>
