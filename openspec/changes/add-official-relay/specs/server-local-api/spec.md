@@ -20,7 +20,9 @@
 
 ### Requirement: 本机状态中的 Relay 字段
 
-`/local/v1/status` 与 `webmux status --json` SHALL 在运行中的实例支持官方 Relay 时包含可选 `relay` 对象，字段至少包括期望 `enabled`、`paired`、连接 `state`、当前 `transport` 和脱敏 `fallbackReason`、就绪时的 `publicUrl` 和失败时的脱敏 `error`。
+`/local/v1/status` 与 `webmux status --json` SHALL 在运行中的实例支持官方 Relay 时包含可选 `relay` 对象，字段至少包括期望 `enabled`、`paired`、连接 `state`、当前 `transport`、`bulkReady`、角色就绪数及脱敏 `reconnectReason`、就绪时的 `publicUrl` 和失败时的脱敏 `error`。
+
+仅 bulk 失败 SHALL 显示降级且保持交互；control 失败 SHALL 显示离线并撤销公共地址授权。
 
 该字段 SHALL 作为状态契约 v1 的可选新增字段；未运行或不支持 Relay 的实例 SHALL 省略。字段内容 MUST NOT 包含私钥、配对码、轮询句柄、GitHub 凭据、登录 Cookie、跳转 code、PKCE verifier 或 WebMux Token。
 

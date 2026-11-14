@@ -16,7 +16,7 @@ Relay 同时引入一个新的公网服务端和 WebMux 出站客户端，必须
 **Goals:**
 
 - 用一个单节点 Go 二进制完成邀请制配对、注册、认证、反向代理和恢复。
-- 在独立公网服务器部署，浏览器直连 HTTPS；宿主 QUIC 优先，UDP 不可用时以 TCP 443 WSS 提供基线。
+- 在独立公网服务器部署，浏览器直连 HTTPS；宿主使用 TCP 443 WSS 与两条有界物理连接。
 - GitHub 登录官方后台后可进入自己的 WebMux，无需跨设备复制长期 Token。
 - 宿主只主动连接配置的 Relay，只把 stream 接到本机 WebMux 回环地址。
 - 密钥、绑定和启停状态可恢复，所有公网授权都能同步撤销。
@@ -31,42 +31,47 @@ Relay 同时引入一个新的公网服务端和 WebMux 出站客户端，必须
 
 ### 1. 独立仓库与明确的协议边界
 
-Relay 在独立仓库开发和发布，一个 Go 二进制监听公共 HTTPS/WSS（TCP 443）与连接器 QUIC（UDP 443）。WebMux 不增加 `cmd/webmux-relay`，不链接或构造服务端注册库、GitHub OAuth 服务和官方后台。
+Relay 在独立仓库开发和发布，一个 Go 二进制监听公共 HTTPS/WSS（TCP 443），复用同一端口接入宿主连接器。WebMux 不增加 `cmd/webmux-relay`，不链接或构造服务端注册库、GitHub OAuth 服务和官方后台。
 
 两端职责如下：
 
-- WebMux `internal/relay`（client）：QUIC/WSS 宿主连接器、认证、流适配、回环拨号和重连；
+- WebMux `internal/relay`（client）：WSS/smux 宿主连接器、认证、流适配、回环拨号和重连；
 - WebMux `internal/relaysettings`（service）：受控设置、宿主私钥、配对身份与内存登录会话；
 - WebMux `internal/api/relay*.go`（controller）：宿主 `/api/relay*` 与受限登录入口，沿用统一错误映射；`cmd/webmux` 负责装配；
 - Relay 仓库 `cmd/webmux-relay`：服务端装配和启动；`internal/relaycontrol`：GitHub OAuth、账号绑定、SQLite、后台会话与跳转授权；
-- Relay 仓库 `internal/connector`：连接器认证、QUIC/WSS 服务端、活动连接与流配额；`internal/httpapi`：控制面、官方后台和公共反向代理，统一映射本仓库服务错误。
+- Relay 仓库 `internal/connector`：连接器认证、WSS/smux 服务端、活动连接与流配额；`internal/httpapi`：控制面、官方后台和公共反向代理，统一映射本仓库服务错误。
 
 共享内容在 WebMux 仓库 `protocol/relay/` 形成独立公开 Go 子模块，仅包含协议版本、wire DTO、签名 transcript、算法标识、错误码与一致性向量，依赖限于标准库。宿主 `internal/contract` 使用类型别名衔接 wire DTO，服务类型继续由 `internal/wire` 转换；WebMux 的既有契约与快照流程保持生效。
 
-两端分别实现 QUIC/yamux 的薄适配，不把业务、数据库、OAuth、HTTP handler 或 transport 依赖塞入协议模块。Relay 仅依赖发布的协议模块版本，禁止导入 WebMux `internal/`、复制未版本化 DTO 或依赖本地相对路径。采用子模块避免第三个仓库；其路径与例外须同步到架构规则和 contributor 工具，不能静默绕开守卫。
+两端分别实现 WSS/smux 的薄适配，不把业务、数据库、OAuth、HTTP handler 或 transport 依赖塞入协议模块。Relay 仅依赖发布的协议模块版本，禁止导入 WebMux `internal/`、复制未版本化 DTO 或依赖本地相对路径。采用子模块避免第三个仓库；其路径与例外须同步到架构规则和 contributor 工具，不能静默绕开守卫。
 
 协议规格继续由本 OpenSpec 管理，两仓实现 PR 链接相同 requirement 与跨仓库任务。首次发布固定协议 v1 与模块 v0.x；两端固定依赖版本，CI 独立测试本仓库，并以已发布产物/指定 commit 运行兼容矩阵；不兼容主版本必须拒绝，不能要求双方从各自主分支同步构建。
 
 **备选方案**：同仓库新增服务端启动命令。否决原因是公网多账号服务与单用户宿主的依赖、部署、凭据和发布周期不同。跨仓库不需要共享进程内服务或 HTTP 控制器。
 
-### 2. QUIC 优先与 WSS + yamux 回退
+### 2. WSS + smux v2 与有界连接隔离
 
-宿主优先使用 `github.com/quic-go/quic-go` 建立 TLS 1.3 QUIC 连接，校验服务端证书与主机名，使用专用 ALPN `webmux-relay-v1`。首个双向 stream 完成控制认证，后续原生双向 stream 承载代理连接；QUIC 不叠加 yamux。
+依据 [issue #604 验证报告](../../../docs/relay-validation-604.md)，MVP 使用 `coder/websocket` v1.8.15 与 `xtaci/smux` v1.5.58，嵌入两端 Go 进程。A 保持 HTTPS/WebSocket，B 使用 TLS 1.3 WSS；不引入 QUIC 优先探测、UDP 回退、FEC 或独立隧道进程。
 
-QUIC 建连超时或网络不可达时，使用 `coder/websocket` 建立二进制 WSS，完成相同认证后以 `websocket.NetConn` 和 `github.com/hashicorp/yamux` 建立流会话。两条路径只共享应用层 stream 接口；QUIC stream 的地址、deadline、CloseWrite 与取消通过薄适配接入 `net.Conn`，不强行把整个 QUIC 连接当作 `net.Conn`。
+同一个逻辑宿主连接器最多两条已认证物理连接：control 承载控制和交互，bulk 承载已分类的上传下载。两条连接共用 host ID、绑定代际、连接器代际和账号配额，不能作为两个宿主领取资源。每条 WSS 独立读循环与序列化写入方，smux v2 提供双向建流、流级窗口及背压。
 
-选择 yamux 的原因是双方均可主动建流、按 stream 窗口更新实现背压、带保活，并能直接在有序可靠字节流上运行。实现时固定：
+初始调参基线为每连接接收缓冲 4 MiB、每 stream 1 MiB、保活 10 秒、失活 30 秒。物理连接数增加会扩大总窗口和内存预算，必须同时限制每账号总 stream、总缓冲和速率；这些是实现起点，不能宣称完成容量验收。
 
-- 每条 WSS 只有一个读取循环和一个序列化写入方；
-- 每主机一条已认证的活动传输会话，配置最大 stream、接受背压、窗口和保活参数；
-- 所有 stream 由 context 和关闭路径统一回收，不在锁内执行网络读写；
-- yamux 只提供传输，不承载业务 JSON。
+路由按已验证的请求语义分类，上传、文件节点下载、归档及 `/forward/*` 批量请求使用 bulk；终端、会话事件和授权控制留在 control。未知通用转发不能仅凭后缀猜测大小，必须有明确且有界的分类策略和测试，不能整包读取后再决定。
 
-切换仅发生在建连或断线重连时，不迁移存量 stream，不自动重试非幂等 HTTP 请求；浏览器使用既有 offset 续接。活动 WSS 不为探测 QUIC 而被打断。认证失败、证书错误或协议不兼容不得通过回退绕过；仅网络不可达或建连超时触发回退。禁用 QUIC 0-RTT，认证与业务写入都不接受早期数据。
+control 验证完成后建立逻辑代际；bulk 认证必须绑定同一代际和角色，重复角色拒绝。新的合法 control 原子替换整个旧代际，未认证连接不影响旧连接。
 
-**备选方案**：KCP 需要再组合 TLS、流复用和参数调优；MVP 选择原生 TLS 与多路流的 QUIC，保留 KCP 为后续测量驱动的备选。自定义可靠 UDP、加密或分片帧均不采用。
+control 断开立即撤销 PublicOrigins 及派生会话并关闭 bulk。只有 bulk 断开时保留交互，标记 bulkReady=false，新批量请求返回 503，并有界重建 bulk，不能挤入 control。
 
-参数由可重复网络测试确定：RTT 50/150/300 ms、丢包 0/1/3%、UDP 黑洞与限带宽，测量终端回显 p50/p95、上传吞吐、额外带宽、内存和回退耗时；不把高 RTT 本身视为必然提速。
+不迁移存量 stream，不自动重试非幂等 HTTP 请求；浏览器沿用 offset 续接。所有 stream 由 context、deadline 和关闭路径回收，长连接不使用普通请求短超时。证书、pin、身份和协议错误均 fail-closed，不能通过重连改变信任配置。
+
+TCP 服务器采用 BBR，部署优先使用 fq 并检查实际接口队列；本轮物理接口保留 mq/fq_codel，未实测替换成 fq 的收益。
+
+宿主使用操作系统实际算法，支持时按 socket 选择 BBR，不要求 Windows 提供 BBR 或用管理员权限更改系统全局设置。WSS 可达性只在本次路径验证，企业代理、移动网络和多运营商仍待验收。
+
+**备选判断**：本次 quic-go Reno 在受损链路吞吐偏低，KCP 激进配置及 FEC 在 3% 丢包/突发损伤下交互尾延迟较高；不能泛化为所有 QUIC/KCP。
+
+Hysteria BBR 自然链路成绩好，但普通正向代理还缺反向注册和撤销。frp/SSH 需要账号、固定 Host、配额、身份桥接与生命周期包装，MVP 先嵌入成熟库，避免增加受管进程及跨协议身份映射。
 
 ### 3. `httputil.ReverseProxy` 保留应用语义
 
@@ -86,13 +91,13 @@ QUIC 建连超时或网络不可达时，使用 `coder/websocket` 建立二进�
 4. 邀请名单通过后，在一个 SQLite 事务内创建绑定；重新绑定必须带显式标志并替换旧公钥。
 5. 宿主轮询自己的配对句柄取得 host ID 与固定公共地址。
 
-连接认证在 QUIC 控制 stream 或 WSS 控制帧内完成：宿主声明协议版本和 host ID，Relay 返回单次随机 nonce，宿主签名以下 transcript：
+每条物理连接先通过 WSS 认证消息完成握手，再开始 smux 会话。宿主声明协议版本和 host ID，Relay 为 control 分配候选连接器代际并返回单次随机 nonce；bulk 只加入当前代际。宿主签名以下 transcript：
 
 ```text
-WebMux-Relay-v1\n<relay-audience>\n<host-id>\n<nonce>
+WebMux-Relay-v1\n<relay-audience>\n<host-id>\n<binding-generation>\n<connector-generation>\n<role>\n<nonce>
 ```
 
-nonce 只在单节点内存中短期保存并单次消费。新连接必须验证成功后才替换旧会话。删除绑定使用独立的签名质询，避免仅凭公开 host ID 撤销。
+nonce 只在单节点内存中短期保存并单次消费。新 control 连接必须验证成功后才替换旧逻辑会话；bulk 只能加入其认证的同代际。删除绑定使用独立的签名质询，避免仅凭公开 host ID 撤销。
 
 宿主身份签名使用 Go `crypto/ed25519`；官方 TLS 证书身份使用 `crypto/ecdsa` 的 P-256 与 `crypto/x509`，均由标准库安全随机源生成。两者都是椭圆曲线签名，各自独立的密钥不能复用或互相转换。传输加密与临时密钥协商交给 TLS 1.3，不将签名密钥直接用于加密终端内容，不自研曲线运算、ECDH 或 ECIES。
 
@@ -121,10 +126,12 @@ SQLite 至少包含：
 TOML `[relay]` 的运维配置包括：
 
 - `enabled`：默认启用意图；
-- `endpoint` 与 `quic_endpoint`：默认取内置官方 HTTPS/QUIC 地址；自建配置必须连同独立的服务身份公钥显式提供，不能沿用官方信任身份，不接受浏览器传入拨号地址；
-- `transport`：默认 auto；quic 模式失败则报错，wss 模式不探测 UDP。
+- `endpoint`：默认取内置官方 HTTPS/WSS 地址；自建配置必须连同独立的服务身份公钥显式提供，不能沿用官方信任身份，不接受浏览器传入拨号地址；
+- `transport`：MVP 固定 wss；不提供 auto/quic 配置。
 
-宿主控制器复用 tunnel 的模式：任何应用、关闭、失败和退出先 `PublicOrigins.Clear("relay")`，再递增代际并取消旧 worker；新 worker 等前任退出。认证和传输 accept 循环均就绪后才 `Set("relay", publicURL)`。
+宿主控制器复用 tunnel 的模式：配置应用、关闭、control 失败和退出先 `PublicOrigins.Clear("relay")`，再递增代际并取消旧 worker；新 worker 等前任退出。
+
+control 认证和 accept 循环就绪后才 `Set("relay", publicURL)`；bulk 未就绪时显示降级，批量请求返回 503。仅 bulk 失败不递增逻辑代际、不撤销仍有效的 control 来源，按同代际重建该角色。
 
 意外断线使用有界指数退避和随机抖动。关闭时即便持久化失败也先停连接并返回 `notPersisted`；存储损坏时禁止启动，不从 TOML 重新暴露。
 
@@ -151,7 +158,7 @@ Relay 控制面和连接器统一使用 `/v1/*`，主版本不兼容时拒绝连
 
 ### 9. 单节点运维与限制
 
-MVP 由运维者提供解析到独立服务器 IP 的通配符 DNS、证书和私钥，并开放 TCP/UDP 443；独立 IP 不替代泛域名和 HTTPS 证书要求。进程支持证书热重载或由服务管理器重启，ACME 留到后续。
+MVP 由运维者提供解析到独立服务器 IP 的通配符 DNS、证书和私钥，并开放 TCP 443；独立 IP 不替代泛域名和 HTTPS 证书要求。进程支持证书热重载或由服务管理器重启，ACME 留到后续。
 
 GitHub OAuth 使用固定后台 HTTPS 回调地址；Client ID 与密钥通过环境或受限服务配置注入，不进入日志。
 
@@ -199,17 +206,17 @@ Relay 接口分为 `/v1/auth/github/*` 登录与固定回调、`/v1/console/*` �
 
 宿主 `/auth/relay/start`、`/auth/relay/callback` 是受限认证入口，注销与会话状态归入 `/api/relay/auth/*`。无认证入口仅处理有界认证事务，不能读取业务数据或更改 Relay 开关；DTO、错误映射、Zod 与 wire 快照同步更新。
 
-依赖固定经过兼容性和许可审查的版本：传输用 quic-go 与 yamux，OAuth 用 x/oauth2，反向代理用 Go 标准库，SQLite 与 WebSocket 沿用已有库。优先使用库的 deadline、限流和密码学原语，不自研拥塞控制、可靠 UDP、证书校验或 OAuth token 解析。
+依赖固定经过兼容性和许可审查的版本：传输用 coder/websocket 与 smux v2，OAuth 用 x/oauth2，反向代理用 Go 标准库，SQLite 与 WebSocket 沿用已有库。优先使用库的 deadline、限流和密码学原语，不自研拥塞控制、可靠 UDP、证书校验或 OAuth token 解析。
 
-参考：[GitHub PKCE 支持](https://github.blog/changelog/2025-07-14-pkce-support-for-oauth-and-github-app-authentication/)、[x/oauth2](https://pkg.go.dev/golang.org/x/oauth2)、[quic-go stream](https://quic-go.net/docs/quic/streams/)。
+参考：[GitHub PKCE 支持](https://github.blog/changelog/2025-07-14-pkce-support-for-oauth-and-github-app-authentication/)、[x/oauth2](https://pkg.go.dev/golang.org/x/oauth2)、[smux](https://github.com/xtaci/smux)。
 
 ### 13. 内置官方地址与公开信任配置
 
-开源客户端内置官方 HTTPS 控制面地址、QUIC 地址、Relay 受众与服务身份公钥。用户选择官方服务后只需 GitHub 登录配对并确认启用，无需填写地址、复制公钥或申请 OAuth 应用；默认关闭与公网风险确认保持不变，不因内置配置在启动时自动连接。
+开源客户端内置官方 HTTPS 控制面与 WSS 地址、Relay 受众与服务身份公钥。用户选择官方服务后只需 GitHub 登录配对并确认启用，无需填写地址、复制公钥或申请 OAuth 应用；默认关闭与公网风险确认保持不变，不因内置配置在启动时自动连接。
 
 官方服务身份采用 ECDSA P-256，对应 TLS 证书的 SPKI 公钥或 SHA-256 SPKI pin 集合随客户端分发；证书与公钥解析复用 Go `crypto/tls` 和 `crypto/x509`。
 
-所有 HTTPS/WSS、QUIC 和兑换控制连接均先验证正常证书链、有效期及主机名，再校验公钥 pin；不采用 `InsecureSkipVerify`，不自研加密或另造服务端签名握手。
+所有 HTTPS/WSS 和兑换控制连接均先验证正常证书链、有效期及主机名，再校验公钥 pin；不采用 `InsecureSkipVerify`，不自研加密或另造服务端签名握手。
 
 公钥轮换分为正常维护与泄露恢复：
 
@@ -224,7 +231,7 @@ Relay 接口分为 `/v1/auth/github/*` 登录与固定回调、`/v1/console/*` �
 - OAuth Client ID 与回调 URI 本身不是秘密，可以公开；用户 GitHub access token 仍按既定流程短期使用后丢弃；
 - 宿主私钥仍逐机本地生成，官方公钥不能作为共享客户端凭据，也不能替代宿主签名认证、账号所有权校验或邀请名单。
 
-自建中转使用显式配置的独立 HTTPS/QUIC 地址、受众与公钥集合，仍要求正常 TLS 校验。更换任一信任配置须先停连接、撤销旧来源及登录会话，再经确认重新配对；不得把旧 host ID、宿主凭据或未完成授权材料发送给新服务。诊断区分内置官方默认与自建覆盖，并可显示公开 key ID，私密材料继续脱敏。
+自建中转使用显式配置的独立 HTTPS/WSS 地址、受众与公钥集合，仍要求正常 TLS 校验。更换任一信任配置须先停连接、撤销旧来源及登录会话，再经确认重新配对；不得把旧 host ID、宿主凭据或未完成授权材料发送给新服务。诊断区分内置官方默认与自建覆盖，并可显示公开 key ID，私密材料继续脱敏。
 
 正式域名与公钥尚未提供，本规划不填写虚构生产地址或生成官方私钥。实现发布前由运营者提供公开端点与公钥；缺失、占位或不匹配配置须使官方连接保持不可用并明确报错，禁止以占位配置发布可用声明。
 
@@ -233,7 +240,7 @@ Relay 接口分为 `/v1/auth/github/*` 登录与固定回调、`/v1/console/*` �
 - **[Risk] Relay 是宿主登录信任方** → 配对确认明示其可授权远程 Shell，控制通道断线即撤销派生会话，保留本机 Token 恢复路径。
 - **[Risk] Relay 能看到所有转发内容** → 配对和部署文档明确信任模型，默认关闭敏感日志；不把本版本描述为 E2EE。
 - **[Risk] 单节点故障使全部入口离线** → MVP 明确无 SLA，宿主保留本机会话并自动重连；生产前备份 SQLite 和配置，后续再引入分片。
-- **[Risk] yamux over WebSocket 叠加缓冲导致队头阻塞** → 每请求独立 stream、限制窗口和缓冲，使用大上传并发终端的真实集成测试验证；不在同一 stream 混合不同请求。
+- **[Risk] smux over WebSocket 叠加缓冲导致队头阻塞** → 每请求独立 stream、限制窗口和缓冲，使用大上传并发终端的真实集成测试验证；不在同一 stream 混合不同请求。
 - **[Risk] 公共泛域名成为开放代理或扫描目标** → 精确 Host 映射、独立密钥认证、账号配额、固定回环目标和邀请名单；随机 ID 不作为认证替代。
 - **[Risk] WebSocket/升级路径被普通 HTTP 超时误杀** → 分离超时策略，长期覆盖终端、聊天和语音连接。
 - **[Risk] 私钥丢失导致用户无法恢复地址** → GitHub 显式重新绑定保留 host ID，撤销旧公钥并断开旧会话。
@@ -253,4 +260,4 @@ Relay 接口分为 `/v1/auth/github/*` 登录与固定回调、`/v1/console/*` �
 - Relay 独立仓库已确认；仓库正式名称、可见性及创建时机待确认，逻辑边界不依赖名称。本次仅更新规划，不创建仓库。
 
 - 正式公共域名、首个 VPS 区域、证书续期方式和邀请名单由运营部署决定，不改变协议或任务拆分。
-- QUIC/yamux 的具体窗口、保活、回退建连期限和 stream 默认值需通过第一阶段基准确定，规格只要求有界与可配置，不预设未经测量的数值。
+- WSS/smux 的初始参数见第 2 节；最终 stream/账号限额、多宿主容量及 8–24 小时稳定性仍需生产实现验收。
