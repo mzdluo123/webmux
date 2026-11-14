@@ -230,9 +230,11 @@
   <ScrollArea
     bind:viewportRef={listEl}
     class="min-h-0 flex-1"
-    role="listbox"
-    aria-label="提交变更文件"
-    onkeydown={handleListKeydown}
+    viewportProps={{
+      role: "listbox",
+      "aria-label": "提交变更文件",
+      onkeydown: handleListKeydown,
+    }}
   >
     <div class="p-1.5">
       {#if compareMode?.loading || loading}

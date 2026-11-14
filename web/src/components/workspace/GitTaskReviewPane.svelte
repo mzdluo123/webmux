@@ -269,9 +269,11 @@
   <ScrollArea
     bind:viewportRef={listEl}
     class="min-h-0 flex-1"
-    role="listbox"
-    aria-label="相对任务起点的净变更文件"
-    onkeydown={handleListKeydown}
+    viewportProps={{
+      role: "listbox",
+      "aria-label": "相对任务起点的净变更文件",
+      onkeydown: handleListKeydown,
+    }}
   >
     <div class="space-y-0.5 p-2">
       {#if review.status === "loading"}

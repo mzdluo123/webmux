@@ -178,9 +178,11 @@
   <ScrollArea
     bind:viewportRef={listScrollEl}
     class="min-h-0 flex-1"
-    role="listbox"
-    aria-label="提交记录"
-    onkeydown={handleListKeydown}
+    viewportProps={{
+      role: "listbox",
+      "aria-label": "提交记录",
+      onkeydown: handleListKeydown,
+    }}
     onscroll={(e) => {
       const el = e.currentTarget;
       onListScrollChange?.(el.scrollTop);

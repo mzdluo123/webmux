@@ -205,10 +205,12 @@
         <ScrollArea
           bind:viewportRef={listEl}
           class="min-h-0 flex-1"
-          role="listbox"
-          aria-label="分支列表"
-          aria-orientation="vertical"
-          onkeydown={handleBranchListKeydown}
+          viewportProps={{
+            role: "listbox",
+            "aria-label": "分支列表",
+            "aria-orientation": "vertical",
+            onkeydown: handleBranchListKeydown,
+          }}
         >
           <div class="space-y-3 p-2">
             {@render branchGroup("current", "当前检出", grouped.current)}

@@ -45,11 +45,12 @@ test("the drawer header scrolls with the body unless pinned", async () => {
   await page.viewport(390, 844);
   const view = await render(Harness, { onclose: () => {} });
   await expect.element(body()).toBeVisible();
-  let scroller = body().element().closest(".overflow-y-auto")!;
-  expect(scroller.contains(title().element())).toBe(true);
+  const scrollerOf = () =>
+    body().element().closest("[data-slot=scroll-area-viewport]")!;
+  expect(scrollerOf().contains(title().element())).toBe(true);
   await view.rerender({ pinDrawerHeader: true });
   await vi.waitFor(() => {
-    scroller = body().element().closest(".overflow-y-auto")!;
+    const scroller = scrollerOf();
     expect(scroller).toBeTruthy();
     expect(scroller.contains(title().element())).toBe(false);
   });

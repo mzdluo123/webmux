@@ -11,6 +11,7 @@
     scrollbarXClasses = "",
     scrollbarYClasses = "",
     viewportClasses = "",
+    viewportProps = {},
     onscroll,
     children,
     ...restProps
@@ -19,6 +20,7 @@
     scrollbarXClasses?: string | undefined;
     scrollbarYClasses?: string | undefined;
     viewportClasses?: string | undefined;
+    viewportProps?: WithoutChild<ScrollAreaPrimitive.ViewportProps> | undefined;
     viewportRef?: HTMLElement | null;
     onscroll?: ScrollAreaPrimitive.ViewportProps["onscroll"];
   } = $props();
@@ -31,6 +33,7 @@
   {...restProps}
 >
   <ScrollAreaPrimitive.Viewport
+    {...viewportProps}
     bind:ref={viewportRef}
     data-slot="scroll-area-viewport"
     {onscroll}

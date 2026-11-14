@@ -305,10 +305,12 @@
   <ScrollArea
     bind:viewportRef={listScrollEl}
     class="min-h-0 flex-1"
-    role="listbox"
-    aria-label="工作树变更条目"
+    viewportProps={{
+      role: "listbox",
+      "aria-label": "工作树变更条目",
+      onkeydown: handleListKeydown,
+    }}
     onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
-    onkeydown={handleListKeydown}
   >
     <div class="space-y-2 p-2">
       {#if changes.length === 0 && !readonlyMode && taskReview?.status === "ready" && (taskReview.commitCount > 0 || context.ahead > 0)}
