@@ -223,6 +223,12 @@ func wireSchema(name string) wireRules {
 	case "repository-fetch":
 		add("", "id", "operationId")
 		repositoryFields("/repository")
+	case "project-create", "project-register-again":
+		add("", "id", "id", "repositoryId")
+		add("", "path", "path")
+	case "projects", "projects-empty":
+		add("/*", "id", "id", "repositoryId")
+		add("/*", "path", "path")
 	case "repositories", "repositories-empty":
 		repositoryFields("/*")
 	case "error-409-session-create-worktree":
@@ -1067,6 +1073,7 @@ func TestWireSnapshots(t *testing.T) {
 		{"basics-errors-fs-upload", wireBasics},
 		{"launch", wireLaunch},
 		{"workspace", wireWorkspace},
+		{"projects", wireProjects},
 		{"codeview", wireCodeview},
 		{"push", wirePush},
 		{"settings", wireSettings},

@@ -33,7 +33,7 @@
       "lock": "projects.json.lock",
       "owner": "internal/workspace",
       "failure": "unavailable",
-      "web": "否",
+      "web": "是",
       "source": "internal/workspace/projects.go"
     },
     {

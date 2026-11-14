@@ -87,3 +87,5 @@
 ## 待评审设计
 
 - [项目优先的新建会话弹窗](proposals/project-first-session-dialog/proposal.md)：项目列表、四种来源和会话设置的设计提案，尚未实施。
+
+项目 API：[本地项目接口](protocol/http-projects.md)描述 workspace 的目录登记、创建和浏览。

@@ -123,6 +123,8 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.PushSubscriptionResultSchema, ["push-subscribe-gone", "push-subscribe"]],
   [S.PushTestResultSchema, ["push-test"]],
   [S.RepositoriesSchema, ["repositories-empty", "repositories"]],
+  [S.ProjectsSchema, ["projects-empty", "projects"]],
+  [S.ProjectSchema, ["project-create", "project-register-again"]],
   [
     S.CreateSessionResultSchema,
     [
