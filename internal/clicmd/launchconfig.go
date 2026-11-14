@@ -187,6 +187,9 @@ func visited(fs *flag.FlagSet) map[string]bool {
 
 // checkChat asks the server whether argv can have a chat view.
 func (e Env) checkChat(ctx context.Context, client *localclient.Client, argv []string) (int, bool) {
+	if err := client.RequireCapability(ctx, "chat.acp"); err != nil {
+		return e.Fail(err), false
+	}
 	var support contract.ChatSupport
 	if err := client.Do(ctx, http.MethodPost, "/api/launch-configs/chat-support", contract.ChatSupportRequest{Cmd: argv}, &support); err != nil {
 		return e.Fail(err), false

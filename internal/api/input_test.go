@@ -17,7 +17,7 @@ import (
 func TestDisconnectDuringBlockedInputDetachesClient(t *testing.T) {
 	c := config.Config{}
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())})))
+	server := httptest.NewServer(New(testDeps(t, testServices{Config: c, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())})))
 	defer server.Close()
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)

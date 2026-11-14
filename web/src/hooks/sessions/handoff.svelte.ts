@@ -2,12 +2,9 @@ import {
   generateHandoffPreview,
   recoverHandoffPreview,
   saveHandoffEdits,
-  sendReviewedHandoff,
-  isHandoffComplete,
 } from "../../domains/sessions/handoff-recovery";
 import { APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
-import { newRequestId } from "../../platform/ids";
 import {
   emptyLocation,
   handoffDraftStorage,
@@ -19,13 +16,14 @@ import {
 } from "../../domains/sessions/handoff-draft";
 import type {
   ChatAttachment,
-  HandoffDelivery,
   HandoffDraft,
   HandoffLocation,
   HandoffPreview,
 } from "../../contracts/schemas";
 import type { TargetKind } from "../../domains/sessions/new-session-defaults";
 import { threadAPI } from "../../platform/thread-api";
+import { pluginAvailable } from "../../platform/plugin-host.svelte";
+import { createHandoffDelivery } from "./handoff-delivery.svelte";
 
 // One controller per source/mode; mounted outside ChatView. Persistent preview
 // revisions own the history. Local storage holds pre-preview task/choices and
@@ -37,9 +35,13 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   let recoveryBase = recovery;
   let orphan = false;
   let unpreviewed = !recovery;
+  function sourceLocation(value: HandoffDraft["source"]): HandoffLocation {
+    return pluginAvailable("workspace.manage")
+      ? handoffSourceLocation(value)
+      : { ...emptyLocation(), cwd: value.cwd };
+  }
   let source = $state<HandoffDraft["source"] | null>(null);
   let preview = $state<HandoffPreview | null>(null);
-  let delivery = $state<HandoffDelivery | null>(null);
   let configId = $state(choice?.configId ?? "");
   let model = $state(choice?.model ?? "");
   let task = $state(choice?.task ?? "");
@@ -55,19 +57,53 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   let saveJob: Promise<boolean> | null = null;
   let disposed = false;
   let sourceMissing = false;
-  let lastRequestId = "";
   const lifetime = new AbortController();
   const dirty = $derived(
     preview !== null &&
       (context !== preview.renderedText || task !== preview.userText),
   );
-  const locked = $derived(
-    delivery !== null && ["pending", "unknown"].includes(delivery.status),
-  );
-  const sealed = $derived(isHandoffComplete(delivery));
   const choiceChanged = $derived(
     handoffChoicesDiffer(preview, configId, model, attachments, location),
   );
+  const delivery = createHandoffDelivery(sourceId, {
+    get preview() {
+      return preview;
+    },
+    set preview(value: HandoffPreview | null) {
+      preview = value;
+    },
+    get busy() {
+      return busy;
+    },
+    set busy(value: boolean) {
+      busy = value;
+    },
+    get conflict() {
+      return conflict;
+    },
+    set conflict(value: boolean) {
+      conflict = value;
+    },
+    get error() {
+      return error;
+    },
+    set error(value: string) {
+      error = value;
+    },
+    get dirty() {
+      return dirty;
+    },
+    get choiceChanged() {
+      return choiceChanged;
+    },
+    hasSource: () => source !== null,
+    isDisposed: () => disposed,
+    save,
+    remember,
+    nextTask,
+  });
+  const locked = $derived(delivery.locked);
+  const sealed = $derived(delivery.sealed);
 
   function adopt(p: HandoffPreview) {
     orphan = false;
@@ -109,7 +145,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     model = "";
     attachments = [];
     if (source) {
-      location = handoffSourceLocation(source);
+      location = sourceLocation(source);
       locationKind = handoffLocationKind(location);
     }
   }
@@ -126,7 +162,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
         lifetime.signal,
       );
       if (disposed) return;
-      delivery = draft.delivery;
+      delivery.value = draft.delivery;
       if (draft.preview) {
         preview = draft.preview;
         context = draft.preview.renderedText;
@@ -136,7 +172,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
             "服务端已有其他版本，已保留本设备尚未预览的任务与选项。请选择读取服务端版本或保留编辑重新预览。";
         } else adopt(draft.preview);
       } else if (!choice) {
-        location = handoffSourceLocation(draft.source);
+        location = sourceLocation(draft.source);
         locationKind = handoffLocationKind(location);
       }
       if (recovery && draft.preview?.id === recovery.handoffId) {
@@ -168,7 +204,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
         sourceMissing = true;
         source = null;
         preview = null;
-        delivery = null;
+        delivery.value = null;
         task = "";
         context = "";
         attachments = [];
@@ -247,20 +283,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
         } else if (!dirty && !choiceChanged) adopt(updated);
         else preview = updated;
       }
-      try {
-        const next = await threadAPI.delivery(p.id, lifetime.signal);
-        if (!disposed && preview?.id === p.id) {
-          const completed = sealed;
-          delivery = next;
-          if (!completed && isHandoffComplete(next)) {
-            if (!dirty && !choiceChanged) nextTask();
-            else remember();
-          }
-          if (lastRequestId === next.clientRequestId) lastRequestId = "";
-        }
-      } catch (cause) {
-        if (!(cause instanceof APIError && cause.status === 404)) throw cause;
-      }
+      await delivery.refresh(p.id, lifetime.signal);
     } catch (cause) {
       if (!disposed) error = errorMessage(cause);
     }
@@ -282,62 +305,9 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       );
       if (!disposed) {
         adopt(p);
-        delivery = null;
-        lastRequestId = "";
+        delivery.reset();
         storage.saveRecovery(null);
       }
-    } catch (cause) {
-      if (!disposed) error = errorMessage(cause);
-    } finally {
-      if (!disposed) busy = false;
-    }
-  }
-  async function send() {
-    if (
-      !preview ||
-      !source ||
-      busy ||
-      conflict ||
-      choiceChanged ||
-      (delivery !== null &&
-        ["unknown", "inline", "injected"].includes(delivery.status))
-    )
-      return;
-    busy = true;
-    error = "";
-    try {
-      if (!(await save())) return;
-      if (dirty || choiceChanged || conflict) {
-        error = "草稿仍有更改，尚未发送。请检查保存后的预览。";
-        return;
-      }
-      const reviewed = preview;
-      const p = await threadAPI.get(reviewed.id);
-      if (p.revision !== reviewed.revision) {
-        conflict = true;
-        error =
-          "服务端已有其他版本，尚未发送。请读取服务端版本或保留编辑重新预览。";
-        remember();
-        return;
-      }
-      preview = p;
-      if (
-        (p.stale || p.budget.overBudget) &&
-        !["pending", "failed"].includes(delivery?.status ?? "")
-      )
-        return;
-      // Pending preparations resume their original receipt after refresh;
-      // only a known failed attempt receives a new explicit retry command.
-      const retry =
-        delivery?.status === "failed" ||
-        (delivery?.status === "pending" && delivery.retry);
-      const requestId =
-        delivery?.status === "pending"
-          ? delivery.clientRequestId
-          : (lastRequestId ||= newRequestId());
-      delivery = await sendReviewedHandoff(sourceId, p, requestId, retry);
-      if (sealed && !dirty && !choiceChanged) nextTask();
-      lastRequestId = "";
     } catch (cause) {
       if (!disposed) error = errorMessage(cause);
     } finally {
@@ -367,13 +337,12 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     }
   }
   async function replacement() {
-    const id = delivery?.replacementHandoffId;
+    const id = delivery.value?.replacementHandoffId;
     if (!id || busy) return;
     busy = true;
     try {
       adopt(await threadAPI.get(id));
-      delivery = null;
-      lastRequestId = "";
+      delivery.reset();
       error = "";
     } catch (cause) {
       error = errorMessage(cause);
@@ -408,7 +377,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       return preview;
     },
     get delivery() {
-      return delivery;
+      return delivery.value;
     },
     get configId() {
       return configId;
@@ -488,7 +457,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     save,
     closeSave,
     generate,
-    send,
+    send: delivery.send,
     refresh,
     serverVersion,
     replacement,

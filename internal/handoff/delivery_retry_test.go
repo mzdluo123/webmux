@@ -11,8 +11,8 @@ import (
 
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/session"
-	"github.com/rainchan/webmux/internal/workspace"
 )
 
 func refusedHandoff(t *testing.T, fork bool, extra map[string]string) (*deliveryHarness, conversation.Preview, MessageRequest, conversation.Execution, string) {
@@ -109,7 +109,7 @@ func TestFailedDeliveryOwnerSurvivesArchiveAndRestart(t *testing.T) {
 			if mode == "archive-terminal" {
 				side = "tui"
 			}
-			if _, err := h.workspace.ResumeHybrid(ctx, failed.RuntimeID, workspace.HybridResumeInput{ClientRequestID: "resume-failed-owner", Side: side}); err != nil {
+			if _, err := h.recovery.Resume(ctx, failed.RuntimeID, hybridresume.Input{ClientRequestID: "resume-failed-owner", Side: side}); err != nil {
 				t.Fatal(err)
 			}
 			if side == "tui" {

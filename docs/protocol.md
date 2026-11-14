@@ -1,9 +1,9 @@
 # API 与协议
 
-所有 API 以 `/api` 为前缀，WebSocket 以 `/ws` 为前缀，其余路径返回嵌入的前端（SPA 回退）。数据契约：
+API 以 `/api` 为前缀，WebSocket 以 `/ws` 为前缀。禁用或未知 API/WS 路径在 SPA 回退前返回 404；其余前端路径返回嵌入应用。数据契约：
 
 - 前端的完整数据契约定义在 [`web/src/contracts/schemas.ts`](../web/src/contracts/schemas.ts)。
-- 后端对应的线上类型都在 [`internal/contract`](../internal/contract)（REST 按资源分文件，终端帧与 `/ws/sessions` 事件在 `terminal.go`），由 `internal/wire` 与 Service 类型互相转换。
+- 后端线上类型在 [`internal/contract`](../internal/contract)；核心转换归 `internal/wire`，可选业务归 `internal/pluginwire`，会话出口共用 `pluginwire.Projection`。
 - 两边的字段保持一致，`internal/api/testdata/wire` 的快照测试固定了每个端点和帧的 JSON 形状。
 
 ## 认证与 Origin
@@ -19,6 +19,19 @@
 - 静态页面公开；所有 API 与 WebSocket 都受认证和 Origin 检查保护。认证失败返回 401，Origin 拒绝返回 403。
 - 端口转发网关 `/forward/{port}/` 是唯一使用 Cookie 的路径：`webmux_forward` 是独立于主 Token 的转发凭据，只能访问网关，见 [端口转发](protocol/http-forward.md)。
 - 错误响应为 JSON `{"error": "..."}`。
+
+## 能力发现
+
+`GET /api/capabilities` 返回 `{version: 1, plugins: [...], capabilities: [...]}`，在 TCP、本机套接字与已建立 P2P RPC 上提供，同样遵循各传输认证策略。
+`/api/health` 和 `webmux status` 说明实例是否健康、会话数与连接入口，不是插件发现接口。CLI、托盘和 MCP 用当前实例能力决定入口；不能靠端点试错或磁盘配置猜测。
+
+- `plugins` 固定列出 14 个 ID；每项含 `id`、`enabled`、`status`（`disabled` / `ready` / `unavailable`）及可选 `reason`。
+- `capabilities` 每项含 `id`、`available` 和可选 `reason`；核心 `terminal.pty` 始终可用，组合能力含 `workspace.git-workbench`。
+- `enabled` 是启动选择；`ready` 不等于业务开关打开、外部命令存在或每个 agent 连接器可用。具体入口还须读取对应业务状态。
+- 原因码仅为 `plugin_disabled`、`configuration_off`、`unsupported`、`storage_unavailable`、`command_unavailable`、`service_unavailable`，不包含命令、凭据、路径或底层错误正文。
+- 浏览器在发现成功前不初始化可选功能；禁用的 REST/WS 返回 404，认证和 Origin 策略不因此放宽。已选择但存储故障仍按主题接口返回不可用错误。
+
+完整选择与依赖见 [内置插件选择](deployment/configuration.md#内置插件选择)。`mcp` 被选中后仍需 `[mcp].enabled=true` 与 owner Token；精确 `/mcp` 仅 TCP，不经本机或 P2P 暴露。
 
 ## 文档地图
 

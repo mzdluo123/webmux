@@ -14,7 +14,7 @@
   import { formatBytes } from "../../domains/code/code-image";
   import { errorMessage } from "../../platform/error";
   import { LatestRequest } from "../../hooks/shared/remote-request.svelte";
-  import { measureWorktree } from "../../domains/sessions/recoverable";
+  import { measureWorktree } from "../../domains/workspace/worktree-usage";
   import type {
     SessionInfo,
     Worktree,

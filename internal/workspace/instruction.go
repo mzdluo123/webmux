@@ -73,25 +73,6 @@ func expandInstruction(template string, commands []QuickCommand) (string, []stri
 	return text, missing
 }
 
-// fillUser puts the user's message where instruction has {{user}}. Without
-// one, the message follows the instruction after a blank line. The message
-// is inserted last, so nothing in it is read as a reference.
-func fillUser(instruction, user string) string {
-	if !strings.Contains(instruction, userReference) {
-		return instruction + "\n\n" + user
-	}
-	return strings.ReplaceAll(instruction, userReference, user)
-}
-
-// promptSize is the byte length fillUser would produce.
-func promptSize(instruction, user string) int {
-	n := strings.Count(instruction, userReference)
-	if n == 0 {
-		return len(instruction) + 2 + len(user)
-	}
-	return len(instruction) - n*len(userReference) + n*len(user)
-}
-
 // validInstruction normalizes an initialization instruction: blank is none,
 // more than MaxInitInstruction characters is ErrInvalid.
 func validInstruction(text string) (string, error) {

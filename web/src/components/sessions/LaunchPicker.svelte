@@ -1,7 +1,11 @@
 <script lang="ts">
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import { joinArgs } from "../../platform/api";
-  import { connectorNoticeText } from "../../domains/sessions/hybrid";
+  import {
+    pluginAvailable,
+    pluginEnabled,
+  } from "../../platform/plugin-host.svelte";
+  import { getPluginContributions } from "../../plugins/context";
   import {
     launchConfigIcon,
     type LaunchConfigsState,
@@ -9,9 +13,8 @@
   import type { LaunchSource } from "../../domains/sessions/new-session-defaults";
   import type { SessionView } from "../../contracts/schemas";
   import * as Command from "$lib/components/ui/command";
-  import { Input } from "$lib/components/ui/input";
+  import CustomCommandField from "./CustomCommandField.svelte";
   import { Label } from "$lib/components/ui/label";
-  import * as RadioGroup from "$lib/components/ui/radio-group";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
   import LaunchConfigIcon from "../settings/LaunchConfigIcon.svelte";
   import PickerField from "../shared/PickerField.svelte";
@@ -38,6 +41,10 @@
     onchoose: () => void;
   } = $props();
   let open = $state(false);
+  const providers = getPluginContributions().creation;
+  const chatEnabled = $derived(
+    pluginAvailable("chat.acp") && !!providers.LaunchStartSideFields,
+  );
   let search = $state("");
   // The desktop list stays mounted while closed; each opening starts unfiltered.
   function setOpen(next: boolean) {
@@ -122,6 +129,7 @@
               keywords={[config.name, joinArgs(config.cmd)]}
               data-checked={chosen?.id === config.id}
               onSelect={() => choose("config", config.id)}
+              disabled={config.chat && !chatEnabled}
             >
               <LaunchConfigIcon icon={launchConfigIcon(config)} />
               <ChoiceDetails
@@ -129,6 +137,13 @@
                 secondary={joinArgs(config.cmd)}
                 envCount={config.envNames.length}
               />
+              {#if config.chat && !chatEnabled}
+                <span class="text-xs text-muted-foreground"
+                  >{pluginEnabled("chat")
+                    ? "聊天功能暂不可用"
+                    : "聊天插件未启用"}</span
+                >
+              {/if}
             </Command.Item>
           {/each}
         </Command.Group>
@@ -146,48 +161,22 @@
       </Command.List>
     </Command.Root>
   </PickerField>
-  {#if source === "custom"}
-    <Input
-      id="custom-command"
-      aria-label="自定义启动命令"
-      aria-describedby="custom-command-help"
-      bind:value={command}
-      mono
-      placeholder="agent --resume 或 bash -lc 'npm run dev'"
-      autocomplete="off"
-      autocapitalize="off"
-      autocorrect="off"
-      spellcheck={false}
-    />
-    <p id="custom-command-help" class="text-xs text-muted-foreground">
-      直接执行，不展开变量或管道；需要 shell 语法请用 bash -lc '命令'。
+  {#if source === "unset" && launchConfigs.status === "unavailable"}
+    <p role="alert" class="text-sm text-destructive">
+      启动配置存储暂不可用：{launchConfigs.error}。可重新选择自定义命令。
     </p>
-  {:else if chosen?.chat}
-    <RadioGroup.Root
-      bind:value={
-        () => startSide,
-        (next) => {
-          if (next === "terminal" || next === "chat") startSide = next;
-        }
-      }
-      aria-label="起始端"
+  {:else if source === "unset" && launchConfigs.status === "ready"}
+    <p role="status" class="text-sm text-muted-foreground">
+      原启动配置已删除或当前不可用。请重新选择启动方式，不会推测旧配置的命令或环境变量。
+    </p>
+  {/if}
+  {#if source === "custom"}
+    <CustomCommandField bind:command {disabled} />
+  {:else if chosen?.chat && chatEnabled && providers.LaunchStartSideFields}
+    <providers.LaunchStartSideFields
+      bind:startSide
+      support={chosen.chatSupport}
       {disabled}
-    >
-      <RadioGroup.Item
-        value="terminal"
-        aria-label="从终端开始"
-        title="从终端开始"
-        description="先在终端里运行，随时可切到聊天"
-      />
-      <RadioGroup.Item
-        value="chat"
-        aria-label="从聊天开始"
-        title="从聊天开始"
-        description="直接打开聊天界面，随时可切到终端"
-      />
-    </RadioGroup.Root>
-    {#if chosen.chatSupport.connector}<p class="text-xs text-muted-foreground">
-        {connectorNoticeText(chosen.chatSupport.connector)}。
-      </p>{/if}
+    />
   {/if}
 </div>

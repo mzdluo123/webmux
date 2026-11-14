@@ -193,6 +193,6 @@
 - [推送警告](../../../../web/src/components/settings/PushCheckNotice.svelte)、[对话框浏览器用例](../../../../web/test/browser/WorktreeDialogs.test.ts)、[释放服务端测试](../../../../internal/workspace/release_test.go)、[删除保留记录测试](../../../../internal/workspace/remove_retain_test.go)
 - [工作区总览](../../../../web/src/components/workspace/WorkspaceGroup.svelte)、[主页选择](../../../../web/src/domains/workspace/home-worktrees.ts)、[分支与路径表单](../../../../web/src/components/workspace/WorktreeCreateFields.svelte)
 - [分支与提交信息](../../../../internal/workspace/git.go)、[删除确认](../../../../web/src/components/workspace/RemoveWorktreeDialog.svelte)
-- [仓库清单](../../../../internal/workspace/registry.go)、[创建](../../../../internal/workspace/create.go)、[删除](../../../../internal/workspace/remove.go)、[工作区 API](../../../../internal/api/workspace.go)
+- [仓库清单](../../../../internal/workspace/registry.go)、[创建](../../../../internal/workspace/create.go)、[删除](../../../../internal/workspace/remove.go)、[工作区 API](../../../../internal/pluginapi/workspace.go)
 - [仓库设置弹窗](../../../../web/src/components/workspace/RepositorySettingsDialog.svelte)、[指令输入框](../../../../web/src/components/sessions/InitInstructionField.svelte)、[添加仓库弹窗](../../../../web/src/components/workspace/AddRepositoryDialog.svelte)
 - [指令浏览器用例](../../../../web/test/browser/RepositoryInstruction.test.ts)、[指令服务端测试](../../../../internal/workspace/instruction_test.go)

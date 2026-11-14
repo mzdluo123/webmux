@@ -145,6 +145,16 @@ func (e Env) send(ctx context.Context, o sendOptions, args []string) int {
 		return code
 	}
 	defer client.Close()
+	var required []string
+	if o.reply || o.mode != "" || len(o.attachments) > 0 {
+		required = append(required, "chat.acp")
+	}
+	if len(o.attachments) > 0 {
+		required = append(required, "files.upload")
+	}
+	if err := requireCapabilities(ctx, client, required...); err != nil {
+		return e.Fail(err)
+	}
 	base := "/api/sessions/" + url.PathEscape(id)
 	request := contract.SessionInputRequest{ClientRequestID: newRequestID(), Text: text, Submit: o.enter, Keys: o.keys, Mode: o.mode}
 	// Uploads and --reply need the chat view: check it before anything is

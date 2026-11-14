@@ -84,10 +84,15 @@ func TestTunnelFlagAndGeneratedToken(t *testing.T) {
 const tunnelTestToken = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFG"
 
 func TestTunnelRejectsShortConfiguredToken(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	_, err := loadConfig([]string{"--tunnel", "--token", "mine"})
-	if err == nil || !strings.Contains(err.Error(), "at least 43 characters") {
-		t.Fatalf("weak tunnel token error %v", err)
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	path := filepath.Join(dir, "legacy.toml")
+	if err := os.WriteFile(path, []byte("listen = '127.0.0.1:7681'\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := loadConfig([]string{"--config", path, "--tunnel", "--token", "mine"})
+	if err == nil {
+		t.Fatal("an enabled tunnel accepted a weak configured owner token")
 	}
 }
 
@@ -146,7 +151,7 @@ func startTunnelServe(t *testing.T) *tunnelRun {
 // startServe runs serve in-process with the fake cloudflared configured.
 // With startupTunnel it takes the --tunnel path and waits for the public URL.
 // The state directory sits under /tmp so the local API socket fits sun_path.
-func startServe(t *testing.T, startupTunnel bool, token string) *tunnelRun {
+func startServe(t *testing.T, startupTunnel bool, token string, plugins ...[]string) *tunnelRun {
 	t.Helper()
 	if os.Getenv("WEBMUX_TEST_OUTER_SESSION") != "" {
 		t.Skip("the test process tree belongs to the outer WebMux session")
@@ -168,6 +173,9 @@ func startServe(t *testing.T, startupTunnel bool, token string) *tunnelRun {
 		t.Fatal(err)
 	}
 	c.Listen, c.Token, c.StateDir = "127.0.0.1:0", token, state
+	if len(plugins) != 0 {
+		c.Plugins.Enabled = plugins[0]
+	}
 	c.Tunnel = config.TunnelConfig{Enabled: startupTunnel, Cloudflared: bin}
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)

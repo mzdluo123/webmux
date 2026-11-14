@@ -39,6 +39,7 @@ type Config struct {
 	Voice            VoiceConfig       `toml:"voice"`
 	P2P              P2PConfig         `toml:"p2p"`
 	MCP              MCPConfig         `toml:"mcp"`
+	Plugins          PluginConfig      `toml:"plugins"`
 }
 
 // MCPConfig controls the opt-in, owner-authenticated TCP MCP endpoint.
@@ -331,6 +332,9 @@ func Load(path string, required bool) (Config, error) {
 	return c, nil
 }
 func (c *Config) Validate() error {
+	if err := c.Plugins.Validate(); err != nil {
+		return err
+	}
 	_, port, err := net.SplitHostPort(c.Listen)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)

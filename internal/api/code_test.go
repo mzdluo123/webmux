@@ -36,7 +36,7 @@ func TestCodeAPIReadOnlyAndSessionSecurity(t *testing.T) {
 	c.Token = "secret"
 	m := session.NewManager(testSessionOptions(c))
 	codes := codeview.New(m, nil)
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd), Code: codes})))
+	server := httptest.NewServer(New(testDeps(t, testServices{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd), Code: codes})))
 	defer server.Close()
 	defer codes.Close()
 	defer func() {
@@ -117,7 +117,7 @@ func TestCodeRawBytesHeadersAndStreaming(t *testing.T) {
 	c.Token = "secret"
 	m := session.NewManager(testSessionOptions(c))
 	codes := codeview.New(m, nil)
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd), Code: codes})))
+	server := httptest.NewServer(New(testDeps(t, testServices{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd), Code: codes})))
 	defer server.Close()
 	defer codes.Close()
 	defer func() {
@@ -234,39 +234,7 @@ func TestCodeRawBytesHeadersAndStreaming(t *testing.T) {
 		t.Fatalf("expired: %d %v", res.StatusCode, errBody)
 	}
 	res.Body.Close()
-	// A reader slower than the lookup timeout still receives every byte.
-	defer func(previous time.Duration) { rawLookupTimeout = previous }(rawLookupTimeout)
-	rawLookupTimeout = time.Second
-	slow := do("GET", zip, "secret", "")
-	first := make([]byte, 1024)
-	if _, e = io.ReadFull(slow.Body, first); e != nil {
-		t.Fatal(e)
-	}
-	time.Sleep(2 * rawLookupTimeout)
-	rest, e := io.ReadAll(slow.Body)
-	slow.Body.Close()
-	if e != nil || !bytes.Equal(append(first, rest...), large) {
-		t.Fatalf("slow read truncated: %d %v", len(first)+len(rest), e)
-	}
-	if slow.Header.Get("Content-Type") != "application/octet-stream" || !strings.HasPrefix(slow.Header.Get("Content-Disposition"), "attachment") {
-		t.Fatalf("zip headers %v", slow.Header)
-	}
 	check(do("GET", zip, "secret", ""), large, "application/octet-stream", "attachment", "bundle.zip")
-}
-
-func TestContentDispositionFallback(t *testing.T) {
-	for name, want := range map[string]string{
-		"pic.png":     `inline; filename=pic.png`,
-		"a b.png":     `inline; filename="a b.png"`,
-		"tab\there":   `inline; filename=download`,
-		"del\x7f.png": `inline; filename=download`,
-		"\xff.png":    `inline; filename=download`,
-		"图.png":       `inline; filename*=utf-8''%E5%9B%BE.png`,
-	} {
-		if got := contentDisposition("inline", name); got != want {
-			t.Errorf("%q: %q want %q", name, got, want)
-		}
-	}
 }
 
 // File operations share the code routes' authentication, Origin and status
@@ -280,7 +248,7 @@ func TestCodeFileOperationsAPI(t *testing.T) {
 	c.Token = "secret"
 	m := session.NewManager(testSessionOptions(c))
 	codes := codeview.New(m, nil)
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd), Code: codes})))
+	server := httptest.NewServer(New(testDeps(t, testServices{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd), Code: codes})))
 	defer server.Close()
 	defer codes.Close()
 	defer func() {

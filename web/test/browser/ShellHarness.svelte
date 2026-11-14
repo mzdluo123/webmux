@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import AppShell from "../../src/components/shell/AppShell.svelte";
   import QuickStart from "../../src/pages/QuickStart.svelte";
-  import SessionList from "../../src/pages/SessionList.svelte";
+  import WorkspaceSessionList from "../../src/pages/WorkspaceSessionList.svelte";
   import { matchRoute } from "../../src/hooks/shared/route";
   import type { TerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
   import type { Shell } from "../../src/hooks/shared/shell.svelte";
@@ -37,5 +37,5 @@
       id={route.id}
       expose={exposeShell}
     />
-  {:else}<SessionList />{/if}
+  {:else}<WorkspaceSessionList />{/if}
 </AppShell>

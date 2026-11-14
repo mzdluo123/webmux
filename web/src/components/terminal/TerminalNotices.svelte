@@ -4,9 +4,8 @@
   import IconX from "~icons/tabler/x";
   import type { HybridNotice } from "../../hooks/sessions/hybrid.svelte";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
-  import FileUploadProgress from "../shared/FileUploadProgress.svelte";
+  import type { TerminalPlugins } from "../../plugins/terminal";
   import StripNotice from "../shared/StripNotice.svelte";
-  import TerminalPortPrompts from "./TerminalPortPrompts.svelte";
   import type { ControlState, ListeningPort } from "../../contracts/schemas";
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
   import type { Connection } from "../../platform/ws";
@@ -27,6 +26,7 @@
   // Status strips between the header and the terminal, in display order.
   let {
     terminal: t,
+    plugins = {},
     uploads,
     draft,
     draftSaved,
@@ -47,7 +47,8 @@
     leave,
   }: {
     terminal: NoticeTerminal;
-    uploads: NoticeUploads;
+    plugins?: TerminalPlugins;
+    uploads?: NoticeUploads;
     draft: TerminalDraft;
     draftSaved: string;
     error: string;
@@ -97,9 +98,9 @@
     {/snippet}
   </StripNotice>
 {/if}
-{#if uploads.progress}<FileUploadProgress
+{#if plugins.files && uploads?.progress}<plugins.files.Progress
     progress={uploads.progress}
-    cancel={() => uploads.cancel()}
+    cancel={() => uploads?.cancel()}
   />{/if}
 {#if pendingCopy}
   <StripNotice label="待处理的复制请求">
@@ -119,7 +120,7 @@
     >{item.text}</StripNotice
   >
 {/each}
-{#if session}<TerminalPortPrompts
+{#if plugins.forward && session}<plugins.forward.PortPrompts
     {session}
     {listening}
     onshowall={showForwards}

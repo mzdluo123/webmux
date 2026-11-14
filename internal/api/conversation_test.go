@@ -33,7 +33,7 @@ func historyAPI(t *testing.T) (http.Handler, *conversation.Service, conversation
 		t.Fatal(err)
 	}
 	manager := session.NewManager(session.Options{})
-	return New(testDeps(t, Deps{Config: config.Config{Token: "secret"}, Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: s})), s, binding
+	return New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: s})), s, binding
 }
 
 func historyRequest(handler http.Handler, path, token, origin string) *httptest.ResponseRecorder {

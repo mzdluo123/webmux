@@ -1,5 +1,6 @@
 import { api, APIError } from "../../platform/api";
 import { newRequestId } from "../../platform/ids";
+import { sessionConflict } from "./session-conflict";
 import {
   ArchivedSessionSchema,
   ArchivedSessionsSchema,
@@ -10,26 +11,16 @@ import {
   ReleasePreviewSchema,
   ReleaseResultSchema,
   ReleaseWorktreeRequestSchema,
-  SessionConflictSchema,
   SessionInfoSchema,
   WorktreeSchema,
-  WorktreeUsageSchema,
   type AgentCandidate,
   type AgentConnector,
   type ArchivedSession,
   type RebuildPreview,
-  type SessionConflict,
   type SessionInfo,
   type SessionView,
   type Worktree,
 } from "../../contracts/schemas";
-
-/** The session conflict a 409 carries, or undefined for any other failure. */
-export function sessionConflict(err: unknown): SessionConflict | undefined {
-  if (!(err instanceof APIError) || err.status !== 409) return undefined;
-  const conflict = SessionConflictSchema.safeParse(err.body);
-  return conflict.success ? conflict.data : undefined;
-}
 
 // Archived sessions that can be resumed: closed or interrupted sessions
 // whose agent conversation lives on in the agent's own store.
@@ -126,18 +117,6 @@ export function removeRecord(id: string) {
 
 function worktreeRoute(worktree: Worktree) {
   return `/repositories/${worktree.repositoryId}/worktrees/${worktree.id}`;
-}
-
-/** Measures the disk space of `worktree`'s directory; walks it on demand. */
-export function measureWorktree(worktree: Worktree, signal?: AbortSignal) {
-  return api(
-    worktreeRoute(worktree) + "/usage",
-    WorktreeUsageSchema,
-    "POST",
-    {},
-    signal,
-    EmptyRequestSchema,
-  );
 }
 
 /**

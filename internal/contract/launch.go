@@ -88,6 +88,18 @@ type LaunchConfigInput struct {
 	Chat      bool               `json:"chat"`
 }
 
+// LaunchConfigWrite distinguishes an omitted chat field so a launch-only
+// editor cannot erase a stored chat choice owned by an inactive plugin.
+type LaunchConfigWrite struct {
+	Name      string             `json:"name"`
+	Icon      string             `json:"icon,omitempty"`
+	Cmd       []string           `json:"cmd"`
+	Env       map[string]string  `json:"env"`
+	Preview   *PreviewSettings   `json:"preview"`
+	Attention *AttentionSettings `json:"attention"`
+	Chat      *bool              `json:"chat"`
+}
+
 // LaunchPreset describes one built-in launch preset that can be restored.
 type LaunchPreset struct {
 	Name     string   `json:"name"`

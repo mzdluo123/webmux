@@ -56,11 +56,11 @@ func TestCodexRoundTrip(t *testing.T) {
 	if cmd := s.Info().Cmd; !slices.Contains(cmd, "--no-daemon") {
 		t.Fatalf("terminal command %q", cmd)
 	}
-	waitFor(t, "session from the writer lock", func() bool { return s.Info().Hybrid.AgentSessionID != nil })
+	waitFor(t, "session from the writer lock", func() bool { return h.svc.Metadata(s.Info().ID).AgentSessionID != nil })
 	h.waitReason(id, ReasonNoSessionID)
 	tuiTurn(t, s, "one")
 	h.waitEligible(id)
-	sid := *s.Info().Hybrid.AgentSessionID
+	sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 
 	r := h.mustSwitch(id, SideACP)
 	if !slices.Equal(r.Unsupported, []string{"--search"}) {
@@ -86,7 +86,7 @@ func TestCodexRoundTrip(t *testing.T) {
 	waitFor(t, "resumed transcript", func() bool { return strings.Contains(string(s.Buffer()), "> two") })
 	tuiTurn(t, s, "three")
 	h.waitEligible(id)
-	if got := *s.Info().Hybrid.AgentSessionID; got != sid {
+	if got := *h.svc.Metadata(s.Info().ID).AgentSessionID; got != sid {
 		t.Fatalf("resumed terminal names session %s, want %s", got, sid)
 	}
 	h.mustSwitch(id, SideACP)
@@ -233,8 +233,8 @@ func TestCodexExternalWriter(t *testing.T) {
 	id := s.Info().ID
 	tuiTurn(t, s, "one")
 	h.waitEligible(id)
-	waitFor(t, "session from the writer lock", func() bool { return s.Info().Hybrid.AgentSessionID != nil })
-	sid := *s.Info().Hybrid.AgentSessionID
+	waitFor(t, "session from the writer lock", func() bool { return h.svc.Metadata(s.Info().ID).AgentSessionID != nil })
+	sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 	h.closeSession(id)
 	other, err := h.manager.Create(session.CreateInput{Cwd: in.Cwd, Cmd: []string{in.Cmd[0], "resume", sid}, Env: in.Env})
 	if err != nil {

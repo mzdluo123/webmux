@@ -3,6 +3,8 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import TimelineItem from "../../src/components/chat/TimelineItem.svelte";
+import ToolDetails from "../../src/components/chat/ToolDetails.svelte";
+import type { ToolEntry } from "../../src/domains/chat/chat-model";
 
 afterEach(async () => {
   await cleanup();
@@ -86,4 +88,21 @@ test("agent markdown session references stay in-app links instead of code locati
     .toHaveAttribute("data-md-href", "src/App.svelte:12");
   await code.click();
   expect(onopenlocation).toHaveBeenCalledTimes(1);
+});
+
+test("chat diff remains readable without the optional code contribution", async () => {
+  const tool: ToolEntry = {
+    type: "tool",
+    id: "edit",
+    kind: "edit",
+    title: "Edit source",
+    status: "completed",
+    partial: false,
+    locations: [],
+    content: [{ type: "diff", path: "app.ts", oldText: "old", newText: "new" }],
+  };
+  render(ToolDetails, { tool });
+  await expect.element(page.getByText("app.ts", { exact: true })).toBeVisible();
+  const action = page.getByRole("button", { name: "在代码面板中查看" });
+  await expect.element(action).not.toBeInTheDocument();
 });

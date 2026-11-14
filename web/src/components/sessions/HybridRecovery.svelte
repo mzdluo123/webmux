@@ -26,8 +26,8 @@
   // failure shows here like any other.
   function rebuilt(failure: string) {
     if (failure) error = failure;
-    void shell?.repositories.refresh();
-    void shell?.archived.refresh();
+    void shell?.repositories?.refresh();
+    void shell?.archived?.refresh();
   }
 </script>
 

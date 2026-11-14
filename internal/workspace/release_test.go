@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 // archive starts a chat session in dir and closes it, leaving an archived
@@ -123,7 +125,8 @@ func TestReleaseWithOnlyIgnoredFilesKeepsCommitBranchAndRecords(t *testing.T) {
 		t.Fatalf("release = %+v", rel)
 	}
 	// Resuming before a rebuild is refused.
-	if _, err := h.s.ResumeHybrid(context.Background(), id, HybridResumeInput{ClientRequestID: "resume-released"}); !errors.Is(err, hybrid.ErrConflict) {
+	resumer := hybridresume.New(h.hybrids, h.launches, hybridresume.Options{ResumeLocations: h.s})
+	if _, err := resumer.Resume(context.Background(), id, hybridresume.Input{ClientRequestID: "resume-released"}); !errors.Is(err, hybrid.ErrConflict) {
 		t.Fatalf("released record resumed: %v", err)
 	}
 }
@@ -139,7 +142,7 @@ func TestReleaseRefusesUnsafeContents(t *testing.T) {
 			case "untracked":
 				putFile(t, filepath.Join(tree.Path, "untracked"), "new\n")
 			case "running":
-				item, err := h.s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
+				item, err := h.s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
 				if err != nil {
 					t.Fatal(err)
 				}

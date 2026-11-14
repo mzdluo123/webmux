@@ -29,12 +29,10 @@ func TestConfigVoiceFlagAndNoLeak(t *testing.T) {
 		},
 	}
 	voiceSvc := voice.New(voice.Options{Cmd: cfg.Voice.Cmd, Env: cfg.Voice.Env})
-	handler := New(testDeps(t, Deps{
-		Config:    cfg,
+	handler := New(testDeps(t, testServices{Config: cfg,
 		Manager:   m,
 		Workspace: testWorkspace(t, m, t.TempDir()),
-		Voice:     voiceSvc,
-	}))
+		Voice:     voiceSvc}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
 	req.Header.Set("Authorization", "Bearer "+loginToken)
@@ -63,11 +61,9 @@ func TestVoiceWebSocketAuthDisabledAndStreaming(t *testing.T) {
 	defer m.Shutdown(context.Background())
 
 	t.Run("disabled returns 404", func(t *testing.T) {
-		server := httptest.NewServer(New(testDeps(t, Deps{
-			Config:    config.Config{Token: "secret"},
+		server := httptest.NewServer(New(testDeps(t, testServices{Config: config.Config{Token: "secret"},
 			Manager:   m,
-			Workspace: testWorkspace(t, m, t.TempDir()),
-		})))
+			Workspace: testWorkspace(t, m, t.TempDir())})))
 		defer server.Close()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -90,12 +86,10 @@ func TestVoiceWebSocketAuthDisabledAndStreaming(t *testing.T) {
 		voiceSvc := voice.New(voice.Options{
 			Cmd: []string{"/bin/sh", "-c", script},
 		})
-		server := httptest.NewServer(New(testDeps(t, Deps{
-			Config:    config.Config{Token: "secret"},
+		server := httptest.NewServer(New(testDeps(t, testServices{Config: config.Config{Token: "secret"},
 			Manager:   m,
 			Workspace: testWorkspace(t, m, t.TempDir()),
-			Voice:     voiceSvc,
-		})))
+			Voice:     voiceSvc})))
 		defer server.Close()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

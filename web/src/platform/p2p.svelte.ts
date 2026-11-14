@@ -95,6 +95,7 @@ let started = false;
 let probeController: AbortController | null = null;
 let abTestController: AbortController | null = null;
 let networkConnection: EventTarget | undefined;
+let disconnectHost: (() => void) | undefined;
 
 function hasForceFlag(): boolean {
   if (
@@ -367,6 +368,7 @@ export function startP2P() {
   started = true;
   hasForceFlag();
   const epoch = ++activeEpoch;
+  disconnectHost = onActiveHostChange(() => stopP2P());
   if (typeof window !== "undefined") {
     window.addEventListener("online", handleNetworkChange);
     networkConnection = (navigator as Navigator & { connection?: EventTarget })
@@ -379,6 +381,9 @@ export function startP2P() {
 
 export function stopP2P() {
   started = false;
+  disconnectHost?.();
+  disconnectHost = undefined;
+  forceMode = false;
   abTestController?.abort();
   probeController?.abort();
   probeController = null;
@@ -480,8 +485,3 @@ export async function runP2PEchoABTest(stunServers: string[]): Promise<void> {
     p2pState.abTest.running = false;
   }
 }
-
-onActiveHostChange(() => {
-  forceMode = false;
-  stopP2P();
-});

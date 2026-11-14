@@ -5,43 +5,68 @@ import (
 	"encoding/json"
 
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/wire"
 )
 
-// List streams /ws/sessions: a snapshot of the sessions and forwards, then
-// session events and a forwards event after each forward change. forwards
-// may be nil, which lists none.
-func List(ctx context.Context, m *session.Manager, forwards *forward.Service, c MessageConn) {
-	ctx, cancel := context.WithCancel(ctx)
-	// Subscribing to forwards before reading the list leaves no change
-	// unannounced; a signal already covered by the snapshot only repeats it.
-	var changes <-chan struct{}
-	if forwards != nil {
-		fsub := forwards.Subscribe()
-		defer forwards.Unsubscribe(fsub)
-		changes = fsub.C
+// Absorb short metadata bursts; a stalled client never blocks publication.
+const projectedListQueueCapacity = 256
+
+type projectedList struct {
+	Out     chan contract.SessionEvent
+	Slow    chan struct{}
+	project func(session.Info) contract.SessionInfo
+	failed  bool
+}
+
+var _ session.ListObserver = (*projectedList)(nil)
+
+func (s *projectedList) Observe(event session.Event) {
+	if s.failed {
+		return
 	}
-	sub := m.Subscribe()
-	defer m.Unsubscribe(sub)
+	value := wire.SessionEvent(event, s.project)
+	select {
+	case s.Out <- value:
+	default:
+		s.failed = true
+		close(s.Slow)
+	}
+}
+
+// List registers every contribution before capturing the core snapshot. Plugin
+// caches commit before Notify, so a concurrent change is either in this
+// snapshot or in the bounded, ordered core subscription (possibly both).
+func List(ctx context.Context, m *session.Manager, c MessageConn, contribution Options) {
+	ctx, cancel := context.WithCancel(ctx)
+	var changes <-chan struct{}
+	if contribution.SubscribeForwards != nil {
+		var stop func()
+		changes, stop = contribution.SubscribeForwards()
+		defer stop()
+	}
+	sub := &projectedList{Out: make(chan contract.SessionEvent, projectedListQueueCapacity), Slow: make(chan struct{}), project: contribution.Project}
+	stop := m.Observe(sub)
+	defer stop()
 	reader := c.CloseRead(ctx)
-	defer func() {
-		cancel()
-		_ = c.CloseNow()
-	}()
+	defer func() { cancel(); _ = c.CloseNow() }()
 	send := func(event contract.SessionEvent) bool {
 		data, err := json.Marshal(event)
-		if err != nil || write(ctx, c, MessageText, data) != nil {
+		if err != nil || Write(ctx, c, MessageText, data) != nil {
 			_ = c.Close(StatusSlowClient, "write timeout")
 			return false
 		}
 		return true
 	}
-	// Subscribe queued the snapshot first; it must precede forwards events.
+	forwards := func() []contract.Forward {
+		if contribution.Forwards != nil {
+			return contribution.Forwards()
+		}
+		return []contract.Forward{}
+	}
 	var view activeView
-	snapshot := wire.SessionEvent(view.filter(<-sub.Out))
-	snapshot.Forwards = forwardList(forwards)
+	snapshot := view.filter(<-sub.Out)
+	snapshot.Forwards = forwards()
 	if !send(snapshot) {
 		return
 	}
@@ -53,43 +78,40 @@ func List(ctx context.Context, m *session.Manager, forwards *forward.Service, c 
 			_ = c.Close(StatusSlowClient, "slow client")
 			return
 		case event := <-sub.Out:
-			event, ok := view.event(event)
-			if ok && !send(wire.SessionEvent(event)) {
+			projected, ok := view.event(event)
+			if ok && !send(projected) {
 				return
 			}
 		case <-changes:
-			if !send(contract.SessionEvent{Type: "forwards", Forwards: forwardList(forwards)}) {
+			if !send(contract.SessionEvent{Type: "forwards", Forwards: forwards()}) {
 				return
 			}
 		}
 	}
 }
 
-// activeView keeps the session list a connection sees to active sessions:
-// a hybrid shell that was closed or interrupted leaves it with a removed
-// event, and comes back with a created event if it becomes active again.
-type activeView struct {
-	hidden map[string]bool
+// activeView filters the host's typed projection, not any plugin's model.
+type activeView struct{ hidden map[string]bool }
+
+func active(info contract.SessionInfo) bool {
+	return info.State == "" || info.State == contract.SessionStateActive
 }
 
-// filter drops the inactive sessions of a snapshot and remembers them.
-func (v *activeView) filter(e session.Event) session.Event {
-	v.hidden = map[string]bool{}
-	sessions := make([]session.Info, 0, len(e.Sessions))
+func (v *activeView) filter(e contract.SessionEvent) contract.SessionEvent {
+	v.hidden = make(map[string]bool)
+	visible := make([]contract.SessionInfo, 0, len(e.Sessions))
 	for _, info := range e.Sessions {
-		if wire.Active(info) {
-			sessions = append(sessions, info)
+		if active(info) {
+			visible = append(visible, info)
 		} else {
 			v.hidden[info.ID] = true
 		}
 	}
-	e.Sessions = sessions
+	e.Sessions = visible
 	return e
 }
 
-// event translates one list event for the connection; ok is false when it
-// concerns a session the connection does not see.
-func (v *activeView) event(e session.Event) (session.Event, bool) {
+func (v *activeView) event(e contract.SessionEvent) (contract.SessionEvent, bool) {
 	switch e.Type {
 	case "snapshot":
 		return v.filter(e), true
@@ -105,24 +127,17 @@ func (v *activeView) event(e session.Event) (session.Event, bool) {
 	}
 	id := e.Session.ID
 	switch {
-	case !wire.Active(*e.Session) && v.hidden[id]:
+	case !active(*e.Session) && v.hidden[id]:
 		return e, false
-	case !wire.Active(*e.Session):
+	case !active(*e.Session):
 		v.hidden[id] = true
 		if e.Type == "created" {
 			return e, false
 		}
-		return session.Event{Type: "removed", ID: id}, true
+		return contract.SessionEvent{Type: "removed", ID: id}, true
 	case v.hidden[id]:
 		delete(v.hidden, id)
 		e.Type = "created"
 	}
 	return e, true
-}
-
-func forwardList(forwards *forward.Service) []contract.Forward {
-	if forwards == nil {
-		return []contract.Forward{}
-	}
-	return wire.Forwards(forwards.List())
 }

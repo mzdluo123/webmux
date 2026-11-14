@@ -337,7 +337,9 @@ func (a *actor) flush() {
 		a.chat.Recovery = &RecoveryTip{State: a.state}
 	}
 	a.log.setState(a.chat)
+	a.publishMetadata()
 	a.shell.SetOverlay(a.overlay())
+	a.svc.manager.Notify(a.id)
 	a.saveShellInfo(a.shell.Info())
 }
 
@@ -349,17 +351,10 @@ func (a *actor) overlay() *session.Overlay {
 	if a.side == SideSwitching && a.switching != nil {
 		side, to = a.switching.from, a.switching.to
 	}
-	info := &session.HybridInfo{
-		ConversationID: a.conversationID, ProviderThreadID: a.activity.thread,
-		Side: string(side), To: string(to), Phase: string(a.chat.Phase),
-		State: string(a.state), Agent: a.cmd.Profile.Name,
-		AgentTitle: a.cmd.Profile.Title, AgentIcon: a.cmd.Profile.Icon,
+	o := &session.Overlay{Destination: string(viewOf(side))}
+	if to != "" {
+		o.Destination = string(viewOf(to))
 	}
-	if a.agentSessionID != "" {
-		id := a.agentSessionID
-		info.AgentSessionID = &id
-	}
-	o := &session.Overlay{Hybrid: info}
 	if a.side == SideACP && a.titleSession == a.agentSessionID {
 		// The terminal drives the title on its own side (OSC 0/2), so only
 		// the chat side publishes the agent's session title, and only while
@@ -369,10 +364,6 @@ func (a *actor) overlay() *session.Overlay {
 	if a.side == SideACP && a.state == StateActive {
 		o.Attention = a.currentAttention()
 		o.Preview = a.preview.text
-		// The work detail is only meaningful while a turn is in flight.
-		if a.turn != nil {
-			info.Work = a.workLine
-		}
 		switch {
 		case o.Attention != nil:
 			o.Status = session.StatusWaiting

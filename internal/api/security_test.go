@@ -17,6 +17,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/transport"
 	assets "github.com/rainchan/webmux/web"
 )
 
@@ -24,7 +25,7 @@ func TestAuthenticationAndOriginBoundaries(t *testing.T) {
 	c := config.Config{Token: "secret", AllowedOrigins: []string{"https://trusted.example"}}
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	handler := New(testDeps(t, Deps{Config: c, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
+	handler := New(testDeps(t, testServices{Config: c, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
 	for _, row := range []struct {
 		name, authorization, cookie, query, origin string
 		want                                       int
@@ -71,7 +72,7 @@ func tokenProtocols(token string) []string {
 func TestWebSocketHandshakeBoundaries(t *testing.T) {
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())})))
+	server := httptest.NewServer(New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())})))
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -125,8 +126,8 @@ func TestPublicOriginBoundaries(t *testing.T) {
 	c := config.Config{Listen: "127.0.0.1:7681", Token: "secret"}
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	public := &PublicOrigins{}
-	handler := New(testDeps(t, Deps{Config: c, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Public: public}))
+	public := &transport.PublicOrigins{}
+	handler := New(testDeps(t, testServices{Config: c, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Public: public}))
 	request := func(host, origin string) int {
 		r := httptest.NewRequest(http.MethodPost, "http://"+host+"/api/fs/mkdir", strings.NewReader(`{}`))
 		r.Header.Set("Authorization", "Bearer secret")
@@ -169,7 +170,7 @@ func TestPublicOriginBoundaries(t *testing.T) {
 		}
 	}
 
-	wildcardHandler := New(testDeps(t, Deps{Config: config.Config{Listen: "0.0.0.0:7681", Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
+	wildcardHandler := New(testDeps(t, testServices{Config: config.Config{Listen: "0.0.0.0:7681", Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
 	wildcardReq := func(host, origin string) int {
 		r := httptest.NewRequest(http.MethodPost, "http://"+host+"/api/fs/mkdir", strings.NewReader(`{}`))
 		r.Header.Set("Authorization", "Bearer secret")
@@ -189,8 +190,8 @@ func TestPublicOriginBoundaries(t *testing.T) {
 func TestPublicOriginWebSocketHandshake(t *testing.T) {
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	public := &PublicOrigins{}
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: config.Config{Listen: "127.0.0.1:7681", Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Public: public})))
+	public := &transport.PublicOrigins{}
+	server := httptest.NewServer(New(testDeps(t, testServices{Config: config.Config{Listen: "127.0.0.1:7681", Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Public: public})))
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -242,7 +243,7 @@ func TestStaticFontFilesAreTypedAndImmutable(t *testing.T) {
 	}
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	handler := New(testDeps(t, Deps{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
+	handler := New(testDeps(t, testServices{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
 	r := httptest.NewRequest(http.MethodGet, "/"+name, nil)
 	r.Header.Set("Accept-Encoding", "gzip")
 	w := httptest.NewRecorder()
@@ -281,7 +282,7 @@ func TestStaticStylesheetGzip(t *testing.T) {
 	name, want := staticStylesheet(t)
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	handler := New(testDeps(t, Deps{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
+	handler := New(testDeps(t, testServices{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
 	r := httptest.NewRequest(http.MethodGet, "/"+name, nil)
 	r.Header.Set("Accept-Encoding", "gzip")
 	w := httptest.NewRecorder()
@@ -308,7 +309,7 @@ func TestStaticStylesheetGzip(t *testing.T) {
 func TestStaticFallbackDoesNotMaskMissingResources(t *testing.T) {
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	handler := New(testDeps(t, Deps{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
+	handler := New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
 	for _, row := range []struct {
 		path string
 		want int

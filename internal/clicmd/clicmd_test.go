@@ -140,7 +140,7 @@ func env(t *testing.T, f *fakeServer) (Env, *bytes.Buffer, *bytes.Buffer, *[]str
 		if err != nil {
 			t.Fatal(err)
 		}
-		srv := &http.Server{Handler: f.handler()}
+		srv := &http.Server{Handler: withTestCapabilities(f.handler())}
 		go func() { _ = srv.Serve(l) }()
 		t.Cleanup(func() { _ = srv.Close() })
 	}

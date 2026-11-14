@@ -151,6 +151,9 @@ func (e Env) list(ctx context.Context, filter listFilter, asJSON bool) int {
 	}
 	defer client.Close()
 	if filter.repo != "" {
+		if err := client.RequireCapability(ctx, "workspace.manage"); err != nil {
+			return e.Fail(err)
+		}
 		repos, err := repositories(ctx, client)
 		if err != nil {
 			return e.Fail(err)

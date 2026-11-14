@@ -116,10 +116,21 @@ program_status = true
 
 # Save custom launch configurations in Settings → 启动配置.
 # Their complete argv and optional environment are stored separately in
-# <state_dir>/launch-configs.json. A new installation seeds Shell, nine CLI
-# agents and omp; see docs/cli-agents.md. Edit or delete them freely.
+# <state_dir>/launch-configs.json. When the launch plugin is enabled, its first
+# start seeds the editable presets described in docs/cli-agents.md.
 # Commands run directly, without an implicit shell. To load ~/.bashrc for
 # Open Code, save argv ["bash", "-ic", "exec opencode \"$@\"", "opencode"].
 
 # 主题、字号、阅读偏好、快捷指令与主页工作树由 settings.json 管理并跨设备同步。
 # TOML 保留启动、安全、进程策略与专用公网访问服务的默认值。
+
+# New installations start with the terminal core only. Changes require restart.
+# Omit this table only to retain the legacy full feature set on an existing
+# installation. Explicit [] means no plugins; missing dependencies are errors.
+# Available IDs: launch, workspace, code, files, chat, notifications,
+# quick-commands, voice, forward, cloudflare, tailscale, p2p, mcp, immersive.
+# chat requires launch and files. Plugins do not enable their network services:
+# the existing [tunnel], [tailscale], [mcp], [p2p], etc. switches still apply.
+[plugins]
+enabled = []
+# Example: enabled = ["launch", "files", "chat", "workspace", "code"]

@@ -148,8 +148,9 @@ func TestResumeAfterRestart(t *testing.T) {
 					h.fast()
 					s := h.mustResume(id, ResumeInput{Side: side, Env: in.Env})
 					info := s.Info()
-					if info.Hybrid == nil || info.Hybrid.Side != string(side) || info.Hybrid.State != string(StateActive) || info.Hybrid.AgentSessionID == nil || *info.Hybrid.AgentSessionID != sid {
-						t.Fatalf("resumed hybrid info %+v", info.Hybrid)
+					metadata := h.svc.Metadata(info.ID)
+					if metadata == nil || metadata.Side != string(side) || metadata.State != string(StateActive) || metadata.AgentSessionID == nil || *metadata.AgentSessionID != sid {
+						t.Fatalf("resumed hybrid info %+v", metadata)
 					}
 					rec := h.record(id)
 					if rec.State != StateActive || rec.Side != side || rec.AgentSessionID != sid || rec.InterruptedAt != nil || rec.Activity != "" || rec.PID <= 0 || rec.Process == nil {
@@ -302,8 +303,8 @@ func TestResumeInterruptedTerminal(t *testing.T) {
 		t.Fatalf("manager holds %v, %v", got, err)
 	}
 	waitFor(t, "previous conversation", func() bool { return strings.Contains(string(resumed.Buffer()), "> hello there") })
-	if info := resumed.Info(); info.Status == session.StatusExited || info.Hybrid.State != string(StateActive) || info.Hybrid.Side != string(SideTUI) {
-		t.Fatalf("resumed %+v hybrid %+v", info, info.Hybrid)
+	if info := resumed.Info(); info.Status == session.StatusExited || h.svc.Metadata(info.ID).State != string(StateActive) || h.svc.Metadata(info.ID).Side != string(SideTUI) {
+		t.Fatalf("resumed %+v hybrid %+v", info, h.svc.Metadata(info.ID))
 	}
 	tuiTurn(t, resumed, "still here")
 	noViolations(t, h.store)
@@ -448,12 +449,12 @@ func TestRecordKeepsWorkspace(t *testing.T) {
 	h := newHarness(t, 0)
 	in := h.input(omp.Name, SideTUI)
 	s := h.create(in)
-	id, cwd := s.Info().ID, s.Info().Cwd
+	id := s.Info().ID
 	if h.record(id).Workspace != nil || strings.Contains(h.file(), `"workspace"`) {
 		t.Fatalf("unassociated record has a workspace: %s", h.file())
 	}
 	want := WorkspaceRef{RepositoryID: "repo0001", WorktreeID: "tree0001"}
-	h.manager.SetWorkspace(id, cwd, &session.Workspace{RepositoryID: want.RepositoryID, WorktreeID: want.WorktreeID, WorktreePath: cwd})
+	h.svc.SetWorkspaceSource(func(string) *WorkspaceRef { value := want; return &value })
 
 	h.restart()
 	rec := h.record(id)
@@ -462,22 +463,18 @@ func TestRecordKeepsWorkspace(t *testing.T) {
 	}
 	h.svc.timing.observe = 10 * time.Millisecond
 
-	s = h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
 	if rec := h.record(id); rec.Workspace == nil || *rec.Workspace != want {
 		t.Fatalf("record right after resume: workspace %+v", rec.Workspace)
 	}
 
 	moved := WorkspaceRef{RepositoryID: "repo0002", WorktreeID: "tree0002"}
-	h.manager.SetWorkspace(id, s.Info().Cwd, &session.Workspace{
-		RepositoryID: moved.RepositoryID,
-		WorktreeID:   moved.WorktreeID,
-		WorktreePath: s.Info().Cwd,
-	})
+	h.svc.SetWorkspaceSource(func(string) *WorkspaceRef { value := moved; return &value })
 	waitFor(t, "a resolved association", func() bool {
 		rec := h.record(id)
 		return rec.Workspace != nil && *rec.Workspace == moved
 	})
-	h.manager.SetWorkspace(id, s.Info().Cwd, nil)
+	h.svc.SetWorkspaceSource(func(string) *WorkspaceRef { return nil })
 	h.closeSession(id)
 	if rec := h.record(id); rec.State != StateClosed || rec.Workspace != nil {
 		t.Fatalf("record after the association went away: state %s, workspace %+v", rec.State, rec.Workspace)

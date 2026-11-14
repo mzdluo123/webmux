@@ -5,15 +5,10 @@
 MCP 本机连接、能力发现、会话列表与详情：US-S20；创建、发送和中断：US-S21；增量历史与终端回放：US-S22；按回合或进程退出等待：US-S23。
 URL+owner Bearer 网络控制、握手/生命周期/取消与重连：US-S25；默认关闭及配置和安全边界：US-A02–US-A03、US-K09。
 
-完整 Activity、replay 对账和有界持久历史读取：US-Q05、US-Q12。
-
-交接历史选择、动态预算、持久预览与并发编辑：US-Q20；部署预算上限：US-K04。
-
-交接历史选择、动态预算、持久预览、并发编辑、fork inline 投递和跨重启幂等：US-Q20；部署预算上限：US-K04。
-
-交接历史选择、动态预算、持久预览、并发编辑、fork 位置选择、服务端草稿恢复、独立任务编辑、inline 投递和跨重启幂等：US-Q20；长引用换行：US-Q05；部署预算上限：US-K04。
-
 交接历史选择、动态预算、持久预览、并发编辑、fork 位置选择、服务端草稿恢复、独立任务编辑、inline 投递和跨重启幂等：US-Q20；长引用换行：US-Q05；部署预算上限与历史保存开关：US-K04；关闭区间、删除及投递保护：US-Q12。
+插件选择、固定旧配置语义与重启边界：US-K18；核心 PTY 与遗留偏好降级：US-K19；认证能力发现、动态入口及禁用路由：US-K20；禁用数据保留与有序关闭：US-K21。
+
+目录共 256 条（K 组 US-K01–US-K21，共 21 条）。可选行为以对应插件已选择且能力可用为前提，依赖矩阵见[阅读约定](../user-stories.md#阅读约定与产品边界)，不是全目录已重验声明。
 
 以下索引把可见页面、服务入口与配套工具映射到故事，补充各组故事。底层锁、队列和解析实现归入其支撑的用户行为，不各自包装成独立产品功能。
 
@@ -140,8 +135,8 @@ URL+owner Bearer 网络控制、握手/生命周期/取消与重连：US-S25；�
 | 运行中服务的待生效版本：状态、本机 API、配置响应与 Web UI 提示                                                                                                            | US-K16                                                        |
 | 更新通道：`update channel`、`/etc/webmux/update-channel`、开发版通道与切回不降级                                                                                          | US-K17                                                        |
 | `install.sh` 开发版安装：`WEBMUX_CHANNEL`、当前开发版 `WEBMUX_VERSION`                                                                                                    | US-K11                                                        |
-| config init/path/show/validate/check 与启动参数覆盖                                                                                                                       | US-K02–US-K04                                                 |
-| 所有 TOML 配置项：访问、会话、提醒、存储                                                                                                                                  | US-A03；US-K03–US-K04；US-K08–US-K09；US-N01–US-N04           |
+| config init/path/show/validate/check、插件选择、核心终端、能力发现与数据保留                                                                                              | US-K02–US-K04；US-K18–US-K21                                  |
+| 所有 TOML 配置项：访问、会话、提醒、存储、内置插件                                                                                                                        | US-A03；US-K03–US-K04；US-K08–US-K09；US-K18；US-N01–US-N04   |
 | service install/--dry-run/--force/start/stop/restart/status/logs/uninstall                                                                                                | US-K05–US-K07                                                 |
 | version/version --json/help、VPN/HTTPS 代理与升级                                                                                                                         | US-K09                                                        |
 | 持久化文件、锁、写入入口与清单防漂移                                                                                                                                      | US-L10                                                        |

@@ -8,10 +8,9 @@ import type {
   XrSessionSource,
   XrTextPanel,
 } from "../../domains/terminal/xr-workspace";
-import { quickCommands } from "../../domains/settings/quick-commands.svelte";
 import { errorMessage } from "../../platform/error";
 import { findXrSessionWorkspace } from "./xr-session.svelte";
-import { xrChatPanel } from "./xr-chat-content";
+import type { xrChatPanel } from "./xr-chat-content";
 import { xrNoticePanel } from "./xr-notice-content";
 
 export function useXrSessionSource(options: {
@@ -19,6 +18,9 @@ export function useXrSessionSource(options: {
   terminal: TerminalController;
   hybrid: HybridSession;
   draft: TerminalDraft;
+  chatPanel?: typeof xrChatPanel;
+  quickCommands(this: void): readonly QuickCommand[];
+  codeAvailable(this: void): boolean;
   codePanels(this: void): readonly XrTextPanel[];
   focus(this: void): void;
   editDraft(this: void, input: string): void;
@@ -58,26 +60,30 @@ export function useXrSessionSource(options: {
   }
 
   const chatPanel = $derived(
-    xrChatPanel({
-      model: hybrid.chat.model,
-      state: hybrid.chat.state,
-      draft: draft.text,
-      answering,
-      answer,
-      openForm: () => returnTo2D(options.showChat),
-    }),
+    hybrid.known && options.chatPanel
+      ? options.chatPanel({
+          model: hybrid.chat.model,
+          state: hybrid.chat.state,
+          draft: draft.text,
+          answering,
+          answer,
+          openForm: () => returnTo2D(options.showChat),
+        })
+      : undefined,
   );
   const noticePanel = $derived(
     xrNoticePanel({
       error: options.notice(),
       notices: hybrid.notices,
       awaitingChoice: hybrid.awaitingChoice,
-      forceSwitchNote: hybrid.chat.state?.forceSwitchNote ?? "",
+      forceSwitchNote: hybrid.known
+        ? (hybrid.chat.state?.forceSwitchNote ?? "")
+        : "",
       openChoice: () => returnTo2D(options.showSwitchChoice),
     }),
   );
   const panels = $derived.by((): readonly XrTextPanel[] => [
-    ...(hybrid.known ? [chatPanel] : []),
+    ...(chatPanel ? [chatPanel] : []),
     ...(!hybrid.known && draft.enabled
       ? [
           {
@@ -94,7 +100,9 @@ export function useXrSessionSource(options: {
   const actions = $derived.by((): readonly XrAction[] => {
     const inChat = hybrid.view === "chat";
     return [
-      { id: "code", label: "打开代码工作区", run: options.showCode },
+      ...(options.codeAvailable()
+        ? [{ id: "code", label: "打开代码工作区", run: options.showCode }]
+        : []),
       ...(!inChat
         ? [
             {
@@ -119,7 +127,7 @@ export function useXrSessionSource(options: {
       ...(!t.controlling && !inChat
         ? [{ id: "claim", label: "取得终端控制", run: () => t.claim() }]
         : []),
-      ...quickCommands.list.map((command) => ({
+      ...options.quickCommands().map((command) => ({
         id: `quick:${command.id}`,
         label: `快捷指令：${command.name}`,
         run: () => options.runQuick(command),

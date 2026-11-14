@@ -97,12 +97,15 @@ type Service struct {
 	records           *records
 	// options remembers each launch config's agent options for display
 	// before a session starts (agent-options.json).
-	options  *agentOptions
-	capacity int
-	version  string
-	log      *slog.Logger
-	timing   timing
-	uploads  func(id, path string) (string, error)
+	options    *agentOptions
+	capacity   int
+	version    string
+	log        *slog.Logger
+	timing     timing
+	uploads    func(id, path string) (string, error)
+	workspace  func(id string) *WorkspaceRef
+	metadataMu sync.RWMutex
+	metadata   map[string]*Metadata
 	// agents recognises launch commands and terminal signals.
 	agents *agentprofile.Registry
 	// userHome is the service user's home directory, where agents keep
@@ -148,7 +151,8 @@ func New(o Options) *Service {
 	s := &Service{
 		mcpServers: o.MCPServers, historyReader: o.HistoryReader, conversations: o.Conversations, manager: o.Manager, records: openRecords(o.StateDir), options: openAgentOptions(o.StateDir), capacity: capacity, version: o.Version, log: log,
 		uploads: o.Uploads, userHome: userHome, agents: agents.Default(),
-		timing: defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
+		metadata: make(map[string]*Metadata),
+		timing:   defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
 		recovering: make(map[string]bool),
 	}
 	restarted, err := s.records.recoverAfterRestart(time.Now())

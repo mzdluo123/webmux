@@ -1,4 +1,3 @@
-import type { z } from "zod";
 import {
   matchesArchivedQuery,
   placeArchived,
@@ -11,7 +10,6 @@ import {
 import type {
   ArchivedSession,
   Repository,
-  SessionEventSchema,
   SessionInfo,
   Worktree,
 } from "../../contracts/schemas";
@@ -20,42 +18,6 @@ import {
   matchesStatusFilter,
   type StatusFilter,
 } from "../../domains/sessions/session-status";
-
-function compare(a: SessionInfo, b: SessionInfo) {
-  return (
-    Date.parse(b.createdAt) - Date.parse(a.createdAt) ||
-    a.id.localeCompare(b.id)
-  );
-}
-
-/** Keep creation order without sorting the full list on every output update. */
-export function applySessionEvent(
-  sessions: SessionInfo[],
-  event: z.infer<typeof SessionEventSchema>,
-): SessionInfo[] {
-  if (event.type === "snapshot") return [...event.sessions].sort(compare);
-  // Forwards live in forwards.svelte.ts; the session list is unchanged.
-  if (event.type === "forwards") return sessions;
-  const id = event.type === "removed" ? event.id : event.session.id;
-  const index = sessions.findIndex((session) => session.id === id);
-  if (event.type === "removed") {
-    if (index === -1) return sessions;
-    return sessions.filter((session) => session.id !== id);
-  }
-  const next = [...sessions];
-  if (index !== -1) {
-    if (sessions[index]!.createdAt === event.session.createdAt) {
-      next[index] = event.session;
-      return next;
-    }
-    next.splice(index, 1);
-  }
-  const position = next.findIndex(
-    (session) => compare(event.session, session) < 0,
-  );
-  next.splice(position === -1 ? next.length : position, 0, event.session);
-  return next;
-}
 
 /**
  * The repositories and worktrees that live sessions name but the repository

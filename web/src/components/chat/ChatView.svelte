@@ -68,7 +68,7 @@
     uploadUnavailable?: string;
     location?: Pick<SessionInfo, "workspace" | "cwd"> &
       Partial<Pick<SessionInfo, "view">>;
-    onreview: (path: string) => void;
+    onreview?: (path: string) => void;
     onopenlocation?: ChatCodeLinkHandler;
     onterminal: () => void;
     quickMenu?: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;

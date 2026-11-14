@@ -17,6 +17,7 @@ var p2pProbeCommand = &Command{
 	Name: "p2p probe", Group: GroupServer,
 	Summary: "Send bounded STUN/UDP binding requests from ephemeral CLI sockets.",
 	Description: "Uses the running server's configured STUN list, or one explicit --server without contacting the server. " +
+		"Server lookup requires the P2P plugin to be selected, not direct connectivity to be available. " +
 		"Each target gets one UDP datagram and at most 3s, within the overall timeout. " +
 		"Probes this CLI's network and ephemeral ports, not the running server's ICE sockets or gateway mapping. " +
 		"A valid response only verifies a STUN binding exchange with that target; it neither classifies NAT nor guarantees WebRTC traversal. " +

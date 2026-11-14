@@ -30,9 +30,9 @@
 - **US-K04 调整会话与提醒行为**：作为部署者，我希望配置默认目录、缓冲和状态判断，并单独管理启动命令，以便适配自己的 agent 与资源预算。
   验收要点：
   - 支持 `default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`program_status`、`agent_pretrust`，校验正则；
-  - 启动命令完全通过自定义配置或显式 argv 提供，原 `shell`/`presets` 配置项不再提供内置命令，新安装首次启动在 `launch-configs.json` 写入常见 agent 预设；
-  - `history_capture` 默认开启，可在 TOML 全局关闭规范化正文和历史/交接入口；诊断显示生效值，旧正文与未决投递保护继续保留；
-  - `handoff_token_cap` 默认 16000，校验范围 1024–64000，限制交接历史保守预算；实际预算仍受上下文窗口和 prompt 上限约束；
+  - 启动命令由显式 argv（核心）或 `launch` 保存配置提供，原 `shell`/`presets` 不提供内置命令；仅首次启用 `launch` 且文件缺失时写入常见 agent 预设；
+  - 选择 `chat` 后，`history_capture` 默认开启，可在 TOML 全局关闭规范化正文和历史/交接入口；诊断显示生效值，旧正文与未决投递保护继续保留；
+  - 选择 `chat` 后，`handoff_token_cap` 默认 16000，校验范围 1024–64000，限制交接历史保守预算；实际预算仍受上下文窗口和 prompt 上限约束；
   - 提醒集成方式见 [使用指南](../usage/attention.md)。
 - **US-K05 安装后台用户服务**：作为部署者，我希望以当前用户安装并启动后台服务，以便不需要一直开着前台终端。
   验收要点：
@@ -71,11 +71,12 @@
 - **US-K10 定位设置分区**：作为使用者，我希望通过分区导航快速找到设置项，以便在桌面和手机上减少长页面翻找。
   验收要点：
   - 桌面左侧显示固定分区导航，手机顶部显示可横向滚动的吸顶导航；
-  - 提供外观与阅读、快捷指令、启动配置、草稿与暂存、网络、公网访问、Tailscale、安装应用、通知推送、输出预览十个入口；
+  - 按已选择的插件显示快捷指令、启动配置、网络诊断、公网访问、Tailscale 与通知推送分区；核心外观与阅读、草稿与暂存、安装应用、输出预览不因此消失；
   - 点击或键盘激活滚动到对应分区并转移焦点，滚动时高亮当前分区；
   - Home Screen App 中吸顶导航按实际顶栏高度定位，不遮挡顶栏；
   - 支持地址片段直达和浏览器前进后退；
   - 定位不卸载表单、不丢失尚未保存的输入。
+  - 旧片段指向已禁用分区时不加载其组件或访问接口，回到可用设置；保存核心字段不会清除旧插件偏好，直接写入未启用插件字段被拒绝；
 - **US-K11 一键安装**：作为部署者，我希望用一条命令安装匹配平台的二进制，并在网络受限时自动尝试镜像，以便不必手动分辨版本、架构和校验步骤。
   验收要点：
   - 提供 POSIX `sh` 脚本，支持 Linux/macOS 的 amd64/arm64；
@@ -136,6 +137,31 @@
   - deb/rpm 开发版安装包文件名为 `-dev.N`，包内版本为 `X.Y.Z~dev.N`，排在 `X.Y.Z` 之前；
   - 只升级不降级：从开发版切回正式版且当前开发版高于最新正式版时不安装，说明“当前开发版 X 高于最新正式版 Y，正式版超过它后自动更新”。
 
+- **US-K18 选择本次运行的内置插件**：作为部署者，我希望显式选择业务功能，以便只运行需要的终端工作环境。
+  验收要点：
+  - `[plugins] enabled = []` 只运行核心；新生成的默认配置显式使用空数组。旧配置缺表或缺 `enabled` 时启用固定的旧功能集合，不随未来新增插件扩张；
+  - 可选 ID 为 `launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`、`immersive`；
+  - 未知、重复 ID 与缺少依赖在启动前拒绝，不自动补依赖；`chat` 要求显式选择 `launch`、`files`，Git 工作台要求同时选择 `workspace`、`code`；
+  - 插件选择变更须重启，网页设置不安装插件、不热切换选择，也不加载远程脚本。
+- **US-K19 不启用插件也能工作**：作为只需要终端的使用者，我希望核心模式仍能创建和接续 Shell，以便不依赖仓库或 agent 业务服务。
+  验收要点：
+  - 浏览器和 CLI 可用显式 argv、cwd、env 创建真实 PTY，保留输入、输出、控制、尺寸、回放、分屏和原生附着；
+  - 新建对话框保留自定义命令和直接目录；没有配置、仓库、上传入口，不因缺少插件而要求先创建业务配置；
+  - 旧 `configId` 要求明确重选命令，不猜 argv；旧聊天模式、仓库筛选、设置片段与分屏插件偏好不能触发禁用接口或阻止核心会话打开。
+- **US-K20 发现实际可用能力**：作为使用者或客户端作者，我希望区分已选择与可用功能，以便不调用未开放入口。
+  验收要点：
+  - TCP、本机套接字与启用的 P2P 共用 `GET /api/capabilities` v1，保留各自认证及来源边界，提供核心 `terminal.pty`、插件选择及独立能力状态；
+  - `enabled` 不代表 `available`；原因区分插件未选择、配置关闭、构建/平台不支持、存储、命令或服务不可用，不泄漏凭据与内部路径；
+  - 浏览器依次读取健康、能力、本地动态入口再进入首页；能力读取失败关闭可选功能，不猜全量启用；未选择插件不发 REST/WS、不加载实现 chunk 或启动后台工作；
+  - 已选择插件的 chunk 下载失败只影响该功能并给出就地错误，不结束既有 PTY；CLI、托盘与 MCP 同样按实际能力发现入口；
+  - 禁用路由和 WebSocket 在 SPA 回退前返回 404；网络 `/mcp` 只在选择 `mcp` 且 `[mcp].enabled=true` 时开放，仍仅 TCP、owner Bearer。
+- **US-K21 禁用后保留数据并有序退出**：作为部署者，我希望关闭某项功能不会改写其旧数据，以便之后重新启用时继续使用。
+  验收要点：
+  - 未选择插件不打开、加锁、补种、迁移或清扫其存储，不启动对应恢复、探测与 worker；已有文件、数据库与配置原样保留；
+  - 共享设置保留未启用插件字段，核心设置修改不覆盖它们，API 不允许修改未启用字段；
+  - 仅启用 `files` 而未启用 `chat` 时，对无法确认归属的历史上传保守保留，不借缺少聊天记录删除未知文件；
+  - 退出先关闭准入并等待在途创建、恢复、交接与可选生产者退出，再停止 PTY，最后关闭存储；不在关闭后启动新会话或 actor。
+
 依据：
 
 - [CLI 命令](../../cmd/webmux/main.go)、[启动](../../cmd/webmux/main.go)、[后台启动](../../cmd/webmux/start.go)
@@ -148,6 +174,9 @@
 - [提示逻辑](../../web/src/platform/pending-update.ts)、[提示用例](../../web/test/pending-update.test.ts)
 - [部署指南](../deployment.md)、[设置页](../../web/src/pages/Settings.svelte)、[设置导航](../../web/src/components/settings/SettingsNavigation.svelte)
 - [导航浏览器回归](../../web/test/browser/SettingsNavigation.test.ts)。
+- [插件选择](../../internal/config/plugins.go)、[固定目录与依赖](../../internal/builtin/catalog.go)、[装配](../../cmd/webmux/plugin_assembly.go)、[启动](../../cmd/webmux/plugin_start.go)。
+- [能力状态](../../cmd/webmux/plugin_capabilities.go)、[能力接口](../../internal/api/capabilities.go)、[路由贡献](../../cmd/webmux/plugin_bind.go)、[共享传输](../../internal/transport/routes.go)。
+- [前端能力宿主](../../web/src/platform/plugin-host.svelte.ts)、[动态入口](../../web/src/plugins/registry.svelte.ts)、[核心创建](../../internal/sessioncreate/service.go)。
 
 ## L. 开发、验证与发布支持
 
@@ -211,7 +240,7 @@
   - `go test ./...` 包含 `internal/archtest`：未归类或失效的包、越界依赖、Controller 直接 I/O 或使用未登记的 Service 包级函数、Service 携带 HTTP 状态、编解码非 `contract` 类型、Controller 在登记函数之外读取请求体等违规一次列出位置、R0–R11 编号及修复提示；
   - 同一包还检查 `internal/acp`、`internal/hybrid`、`internal/agentprofile` 核心与 `web/src`（启动配置图标目录除外）的生产代码不出现任何已注册 agent 的名称或可执行文件名，agent 差异只能放在 `internal/agentprofile/<agent>` 适配器中。纯函数例外需理由且仍被使用；
   - 允许业务整数与非错误对象的领域 Status。R9 检查包级初始化及编码器函数值/方法值，登记函数不能借别名绕过。固定样例覆盖违规与合规写法。141 份线上快照分九组独立运行（另有不可用服务场景单独运行），仅归一化明确动态字段，业务正文、确定性 Git OID、摘要和固定输入保留；
-  - 差异可见，有意变更用 `-update` 重新录制；本地状态快照的必填数组保持 `[]`，语音、转发兑换和本机隧道的服务错误状态也集中在 `internal/api/errors.go` 映射。
+  - 差异可见，有意变更用 `-update` 重新录制；本地状态快照的必填数组保持 `[]`，核心错误由共享传输映射，可选服务错误集中在 `internal/pluginapi/errors.go`。
 - **US-L06 前端架构守卫**：作为贡献者或 coding agent，我希望在提交前得到复用组件、设计令牌和分层方面的具体报错，以便新增 UI 复用设计系统，而不是重造组件或复制样式。
   验收要点：
   - `pnpm --dir web check:arch` 依次运行 ESLint（`@shadcn/lint` 与 Svelte 模板规则）、dependency-cruiser、jscpd、knip 与 Vitest 架构测试；
@@ -300,7 +329,7 @@
 依据：
 
 - [前端代码质量基线](../frontend-style.md)、[AGENTS.md](../../AGENTS.md)、[CONTRIBUTING.md](../../CONTRIBUTING.md)
-- [Go 质量基线](../go-style.md)、[Go lint 配置](../../.golangci.yml)、[数组契约 fixture](../../internal/wire/arrays_test.go)
+- [Go 质量基线](../go-style.md)、[Go lint 配置](../../.golangci.yml)、[数组契约 fixture](../../internal/pluginwire/arrays_test.go)
 - [数组 Zod 用例](../../web/test/wire-arrays.test.ts)、[推送 API 用例](../../internal/api/push_test.go)、[Node.js 版本](../../.nvmrc)
 - [CI 工具链](../../.github/actions/setup/action.yml)、[Makefile](../../Makefile)、[前端命令](../../web/package.json)、[Go 覆盖率汇总](../../.github/scripts/go-coverage-summary.sh)、[前端覆盖率合并](../../web/scripts/merge-coverage.mjs)
 - [Vite+ 配置](../../web/vite.config.ts)（构建、代理、格式化与 lint）

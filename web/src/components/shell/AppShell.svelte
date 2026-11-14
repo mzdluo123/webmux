@@ -9,11 +9,6 @@
   import { navigate } from "../../platform/api";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import { createArchiveSignal } from "../../domains/sessions/archive-signal";
-  import { createArchived } from "../../hooks/sessions/archived.svelte";
-  import { createLaunchConfigs } from "../../hooks/settings/launch-configs.svelte";
-  import { createRepositories } from "../../hooks/workspace/repositories.svelte";
-  import { createServerSetup } from "../../hooks/workspace/server-setup.svelte";
-  import { createSessionList } from "../../hooks/sessions/session-list.svelte";
   import {
     resolveLaunchScope,
     type LaunchEntry,
@@ -26,7 +21,6 @@
     SessionInfo,
     Worktree,
   } from "../../contracts/schemas";
-  import { unknownWorkspaces } from "../../hooks/sessions/session-list";
   import {
     openPage,
     openSession,
@@ -40,9 +34,10 @@
   } from "../../hooks/shared/shell.svelte";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
-  import AppShellDialogs from "./AppShellDialogs.svelte";
+  import CoreShellDialogs from "./CoreShellDialogs.svelte";
+  import { pluginContributions } from "../../plugins/registry.svelte";
+  import { createShellSessionResources } from "../../plugins/shell-resources";
   import AppSidebar from "./AppSidebar.svelte";
-  import AttentionToasts from "../notifications/AttentionToasts.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarRailSessions from "./SidebarRailSessions.svelte";
 
@@ -67,25 +62,21 @@
 
   // The drafts store lives as long as the app; the shell never swaps it.
   const ownDrafts = untrack(() => drafts);
-  const archived = createArchived();
-  const archiveSignal = createArchiveSignal();
-  const repositories = createRepositories();
-  const setup = createServerSetup();
-  const launchConfigs = createLaunchConfigs();
-  const sessions = createSessionList({
-    drafts: ownDrafts,
+  const contributions = pluginContributions.entries;
+  const workspace = contributions.workspace;
+  const resources = createShellSessionResources(ownDrafts);
+  const {
+    sessions,
+    setup,
     archived,
-    onreconnect: () => void repositories.refresh(),
-  });
+    repositories,
+    launchConfigs,
+    refreshWorktrees,
+  } = resources;
+  const archiveSignal = createArchiveSignal();
   export function sessionSwitcherSource() {
     return { sessions, repositories };
   }
-
-  // Optional Git discovery and the setup read never hold the page; each
-  // fills in when it arrives.
-  void setup.load();
-  void launchConfigs.load(true);
-  void repositories.refresh();
 
   let creating = $state<{
     entry?: LaunchEntry;
@@ -121,9 +112,9 @@
   // The home view's repository; elsewhere the toolbar has no settings button.
   const settingsRepository = $derived(
     route.name === "sessions" && setup.value.registryReady
-      ? (repositories.list.find((repo) => repo.id === repositories.choice) ??
-          ((repositories.choice ?? "all") === "all" &&
-          repositories.list.length === 1
+      ? (repositories?.list.find((repo) => repo.id === repositories.choice) ??
+          ((repositories?.choice ?? "all") === "all" &&
+          repositories?.list.length === 1
             ? repositories.list[0]
             : undefined))
       : undefined,
@@ -159,16 +150,18 @@
       shellUi.drawerOpen = false;
       creating = {
         entry,
-        scope: resolveLaunchScope({
-          entry,
-          home: route.name === "sessions",
-          choice: repositories.choice,
-          worktreeId: repositories.worktree,
-          repositories: repositories.list,
-        }),
+        scope: repositories
+          ? resolveLaunchScope({
+              entry,
+              home: route.name === "sessions",
+              choice: repositories.choice,
+              worktreeId: repositories.worktree,
+              repositories: repositories.list,
+            })
+          : undefined,
       };
       // Pick up configs changed on other devices since the page loaded.
-      void launchConfigs.load();
+      if (launchConfigs) void launchConfigs.load();
     },
     rename(session) {
       shellUi.drawerOpen = false;
@@ -190,7 +183,7 @@
       shellUi.drawerOpen = false;
       viewingRepository = { repository, tab };
       // The panel shows the last snapshot while Git is read again.
-      void repositories.refresh();
+      if (repositories) void repositories.refresh();
     },
     worktreeDetails(worktree) {
       shellUi.drawerOpen = false;
@@ -235,9 +228,7 @@
   };
   setShell(shell);
   onDestroy(() => {
-    sessions.close();
-    repositories.dispose();
-    launchConfigs.dispose();
+    resources.dispose();
     // Leaving the shell (settings) must not reopen the drawer on return.
     shellUi.drawerOpen = false;
   });
@@ -262,11 +253,10 @@
   // asking again would only repeat the Git discovery.
   const askedFor = new SvelteSet<string>();
   $effect(() => {
-    if (!repositories.settled) return;
-    const unknown = unknownWorkspaces(
-      sessions.sessions,
-      repositories.list,
-    ).filter((key) => !askedFor.has(key));
+    if (!repositories?.settled || !workspace) return;
+    const unknown = workspace
+      .unknownWorkspaces(sessions.sessions, repositories.list)
+      .filter((key) => !askedFor.has(key));
     if (!unknown.length) return;
     for (const key of unknown) askedFor.add(key);
     untrack(() => void repositories.refresh(true));
@@ -308,22 +298,17 @@
     if (next === shellUi.mode) return;
     shellUi.setMode(next);
     if (route.name !== "terminal" && route.name !== "git") {
-      navigate(shellUi.home);
+      navigate(
+        next === "chat"
+          ? (contributions.chat?.navigation[0]?.href ?? shellUi.home)
+          : (workspace?.navigation[0]?.href ?? shellUi.home),
+      );
     }
   }
   function primary() {
-    if (shellUi.mode === "chat") openPage("/new");
+    if (shellUi.mode === "chat")
+      openPage(contributions.chat?.navigation[0]?.href ?? "/new");
     else shell.start();
-  }
-  function refreshWorktrees() {
-    void repositories.refresh();
-    void archived.refresh().then((records) => {
-      if (records)
-        ownDrafts.reconcile([
-          ...sessions.sessions.map((session) => session.id),
-          ...records,
-        ]);
-    });
   }
   // Dragging or arrow keys on the sidebar's edge set its width.
   const setWidth = (width: number) => shellUi.setWidth(width);
@@ -410,7 +395,7 @@
     {@render children()}
   </div>
 </div>
-<AttentionToasts />
+{#if contributions.notifications}<contributions.notifications.Toasts />{/if}
 
 <!-- noBodyStyles: the page under it keeps its scroll position and layout. -->
 <Drawer.Root direction="left" noBodyStyles bind:open={shellUi.drawerOpen}>
@@ -420,20 +405,29 @@
   </Drawer.Content>
 </Drawer.Root>
 
-<AppShellDialogs
+<CoreShellDialogs
   {shell}
   bind:creating
   bind:renaming
   bind:closing
-  bind:removingWorktree
-  bind:choosingHome
-  bind:viewingRepository
-  bind:viewingWorktree
-  bind:switchingBranch
-  bind:releasingWorktree
-  bind:operating
   bind:forwarding
-  bind:adding
-  bind:configuring
+  {repositories}
+  {launchConfigs}
+  {archived}
   onrefreshworktrees={refreshWorktrees}
 />
+{#if workspace}
+  <workspace.Dialogs
+    {shell}
+    bind:removingWorktree
+    bind:choosingHome
+    bind:viewingRepository
+    bind:viewingWorktree
+    bind:switchingBranch
+    bind:releasingWorktree
+    bind:operating
+    bind:adding
+    bind:configuring
+    onrefreshworktrees={refreshWorktrees}
+  />
+{/if}

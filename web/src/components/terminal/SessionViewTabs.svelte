@@ -25,10 +25,10 @@
       chatUnavailable: string;
       request: (to: SwitchTarget) => void;
     };
-    code: { shown: boolean; set: (shown: boolean) => void };
+    code?: { shown: boolean; set: (shown: boolean) => void };
   } = $props();
   const phone = new MediaQuery("(max-width: 639px)");
-  const inCode = $derived(phone.current && code.shown);
+  const inCode = $derived(phone.current && code?.shown);
   const shown = $derived(hybrid?.target ?? hybrid?.side ?? "");
   const unavailable = $derived(hybrid?.chatUnavailable ?? "");
   const switching = $derived(!!hybrid?.switching);
@@ -40,7 +40,7 @@
     bind:value={
       () => (inCode ? "" : shown),
       (to) => {
-        if (inCode) code.set(false);
+        if (inCode) code?.set(false);
         if ((to === "chat" || to === "terminal") && to !== shown)
           hybrid.request(to);
       }

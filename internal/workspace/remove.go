@@ -375,7 +375,7 @@ func (s *Service) executeLockedRemoval(ctx context.Context, r *repositoryState, 
 	// removal closed, stay restorable.
 	var closedHybrids []string
 	for _, info := range current.sessions {
-		if closed[info.ID] && info.Hybrid != nil {
+		if closed[info.ID] && s.hybrids != nil && s.hybrids.Metadata(info.ID) != nil {
 			closedHybrids = append(closedHybrids, info.ID)
 		}
 	}

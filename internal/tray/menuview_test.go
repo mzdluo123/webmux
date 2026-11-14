@@ -379,8 +379,8 @@ func TestPushEntry(t *testing.T) {
 	}
 	hidden := snap(&contract.PushStatus{Enabled: true})
 	hidden.Status.Tunnel = nil
-	if got := PushEntry(hidden); got.Show {
-		t.Fatalf("push shown without tunnel entries: %+v", got)
+	if got := PushEntry(hidden); !got.Show {
+		t.Fatalf("notifications incorrectly depend on tunnel control: %+v", got)
 	}
 }
 

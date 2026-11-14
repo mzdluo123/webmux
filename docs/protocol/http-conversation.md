@@ -2,6 +2,7 @@
 
 使用 Conversation ID 读取已提交的规范化 Activity，不需要启动或恢复 agent。归档后和服务重启后仍可读取。
 本接口供历史集成与后续交接使用；实时聊天继续使用原有 WebSocket 缓存。
+本页需要选择 `chat`（依赖 `launch` + `files`）且开启历史读取；禁用插件时返回 404，不打开或迁移数据库。停用不删除旧正文，见 [持久化清单](../persistence.md#插件选择与数据保留)。
 
 ## 读取一页 Activity
 

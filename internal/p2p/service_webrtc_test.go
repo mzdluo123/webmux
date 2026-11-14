@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v4"
+	"github.com/rainchan/webmux/internal/streamproto"
 )
 
 func TestWebRTCControlStreamAndRPCEndToEnd(t *testing.T) {
@@ -36,7 +37,7 @@ func runWebRTCControlStreamAndRPCEndToEnd(t *testing.T, clientNetworks []webrtc.
 		Enabled:     true,
 		PortMapping: false,
 		STUNServers: []string{},
-		StreamHandler: func(ctx context.Context, path string, conn StreamConn) {
+		StreamHandler: func(ctx context.Context, path string, conn streamproto.StreamConn) {
 			echoDone <- path
 			conn.SetReadLimit(1024 * 1024)
 			typ, msg, err := conn.Read(ctx)
@@ -46,8 +47,8 @@ func runWebRTCControlStreamAndRPCEndToEnd(t *testing.T, clientNetworks []webrtc.
 			_ = conn.Write(ctx, typ, append([]byte("echo:"), msg...))
 			_ = conn.Close(4410, "done")
 		},
-		RPCHandler: func(_ context.Context, req RPCRequest) RPCResponse {
-			return RPCResponse{
+		RPCHandler: func(_ context.Context, req streamproto.RPCRequest) streamproto.RPCResponse {
+			return streamproto.RPCResponse{
 				Status:     201,
 				StatusText: "Created",
 				Headers:    map[string]string{"Content-Type": "application/octet-stream", "X-Path": req.Path},
@@ -192,14 +193,14 @@ func runWebRTCControlStreamAndRPCEndToEnd(t *testing.T, clientNetworks []webrtc.
 	_, _ = rand.Read(payload)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := clientStream.Write(ctx, MessageBinary, payload); err != nil {
+	if err := clientStream.Write(ctx, streamproto.MessageBinary, payload); err != nil {
 		t.Fatal(err)
 	}
 	if gotPath := <-echoDone; gotPath != "/ws/s/abc?client=c1&offset=0" {
 		t.Fatalf("unexpected stream path %q", gotPath)
 	}
 	typ, echoed, err := clientStream.Read(ctx)
-	if err != nil || typ != MessageBinary || !bytes.Equal(echoed, append([]byte("echo:"), payload...)) {
+	if err != nil || typ != streamproto.MessageBinary || !bytes.Equal(echoed, append([]byte("echo:"), payload...)) {
 		t.Fatalf("stream echo mismatch typ=%v len=%d err=%v", typ, len(echoed), err)
 	}
 	_, _, err = clientStream.Read(ctx)

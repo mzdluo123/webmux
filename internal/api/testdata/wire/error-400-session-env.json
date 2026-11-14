@@ -1,7 +1,7 @@
 {
   "status": 400,
   "body": {
-    "error": "WEBMUX_SESSION_ID is reserved",
+    "error": "invalid session request: WEBMUX_SESSION_ID is reserved",
     "step": "precheck"
   }
 }

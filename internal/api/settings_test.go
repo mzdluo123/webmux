@@ -26,7 +26,7 @@ func settingsHandler(t *testing.T) http.Handler {
 	t.Cleanup(prefs.Close)
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
-	return New(testDeps(t, Deps{Config: config.Config{Token: "login-secret"}, Manager: m, Settings: prefs}))
+	return New(testDeps(t, testServices{Config: config.Config{Token: "login-secret"}, Manager: m, Settings: prefs}))
 }
 func TestSettingsHTTPContract(t *testing.T) {
 	h := settingsHandler(t)
@@ -123,7 +123,7 @@ func TestSessionPinsRetainRecoverableInterruptedSessions(t *testing.T) {
 	t.Cleanup(h.Close)
 	prefs := settings.Open(dir)
 	t.Cleanup(prefs.Close)
-	handler := New(testDeps(t, Deps{Config: config.Config{Token: "login-secret"}, Manager: m, Settings: prefs, Hybrid: h}))
+	handler := New(testDeps(t, testServices{Config: config.Config{Token: "login-secret"}, Manager: m, Settings: prefs, Hybrid: h}))
 	check := func(w *httptest.ResponseRecorder, revision int64, want []string) {
 		t.Helper()
 		var got contract.SettingsSnapshot

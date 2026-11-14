@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import ShellHarness from "./ShellHarness.svelte";
+import { enableHostPlugins, resetHostPlugins } from "./plugin-fixture";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 import type {
   ArchivedSession,
@@ -139,7 +140,7 @@ class FakeSocket {
   }
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   records = [record];
   repositories = [];
   sockets.length = 0;
@@ -169,6 +170,7 @@ beforeEach(() => {
       return Response.json({ error: "not found" }, { status: 404 });
     }),
   );
+  await enableHostPlugins();
 });
 
 afterEach(async () => {
@@ -176,6 +178,7 @@ afterEach(async () => {
     await cleanup();
     await userEvent.cleanup();
   } finally {
+    resetHostPlugins();
     vi.unstubAllGlobals();
     history.replaceState(null, "", "/");
     vi.restoreAllMocks();

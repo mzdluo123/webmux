@@ -13,12 +13,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/statefile"
 	"github.com/rainchan/webmux/internal/tailscale"
 	"github.com/rainchan/webmux/internal/tailscalesettings"
+	"github.com/rainchan/webmux/internal/transport"
 )
 
 func fakeTailscale(t *testing.T, status, serve string) (string, string) {
@@ -55,7 +55,7 @@ func testTailscaleController(t *testing.T, cli, stateDir string, cfg config.Tail
 	t.Helper()
 	service := tailscale.New(tailscale.Options{Command: cli, Provider: cfg.Provider, IsWSL: func() bool { return false }})
 	return newTailscaleController(tailscaleControllerOptions{
-		Cfg: cfg, Service: service, StateDir: stateDir, Public: &api.PublicOrigins{},
+		Cfg: cfg, Service: service, StateDir: stateDir, Public: &transport.PublicOrigins{},
 		Token: "token", Out: io.Discard, Logger: slog.New(slog.DiscardHandler),
 		IsWSL: func() bool { return false }, NetworkingMode: func(context.Context) string { return "unknown" },
 	})
@@ -168,7 +168,7 @@ func TestUpdateSettingsReplacesEntryAtRuntime(t *testing.T) {
 	defer store.Close()
 	service := tailscale.New(tailscale.Options{Command: cli, Provider: "auto", IsWSL: func() bool { return false }})
 	ctl := newTailscaleController(tailscaleControllerOptions{
-		Cfg: toml, Store: store, Service: service, StateDir: dir, Public: &api.PublicOrigins{},
+		Cfg: toml, Store: store, Service: service, StateDir: dir, Public: &transport.PublicOrigins{},
 		Token: strings.Repeat("t", minTunnelTokenLength), Out: io.Discard,
 		Logger: slog.New(slog.DiscardHandler), IsWSL: func() bool { return false },
 		NetworkingMode: func(context.Context) string { return "unknown" },
@@ -299,7 +299,7 @@ func TestPrepareRemovesEntryBeforeProviderChange(t *testing.T) {
 	service := tailscale.New(tailscale.Options{Command: cli, Provider: "linux", IsWSL: func() bool { return true }})
 	ctl := newTailscaleController(tailscaleControllerOptions{
 		Cfg: config.TailscaleConfig{Mode: "serve", Provider: "linux"}, Service: service, StateDir: dir,
-		Public: &api.PublicOrigins{}, Token: "token", Out: io.Discard,
+		Public: &transport.PublicOrigins{}, Token: "token", Out: io.Discard,
 		Logger: slog.New(slog.DiscardHandler), IsWSL: func() bool { return true },
 		NetworkingMode: func(context.Context) string { return "mirrored" },
 	})
@@ -418,7 +418,7 @@ func TestWindowsProviderNATFailsClosed(t *testing.T) {
 	service := tailscale.New(tailscale.Options{Command: cli, Provider: "windows", IsWSL: func() bool { return true }})
 	ctl := newTailscaleController(tailscaleControllerOptions{
 		Cfg: config.TailscaleConfig{Mode: "serve", Provider: "windows"}, Service: service, StateDir: dir,
-		Public: &api.PublicOrigins{}, Token: "token", Out: io.Discard,
+		Public: &transport.PublicOrigins{}, Token: "token", Out: io.Discard,
 		Logger: slog.New(slog.DiscardHandler), IsWSL: func() bool { return true },
 		NetworkingMode: func(context.Context) string { return "nat" },
 	})

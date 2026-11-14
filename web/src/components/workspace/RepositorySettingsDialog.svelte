@@ -2,7 +2,9 @@
   import { untrack } from "svelte";
   import { errorMessage } from "../../platform/error";
   import { api } from "../../platform/api";
-  import { quickCommands } from "../../domains/settings/quick-commands.svelte";
+  import { settings } from "../../domains/settings/settings.svelte";
+  import { parseQuickCommands } from "../../domains/settings/quick-commands";
+  import { pluginAvailable } from "../../platform/plugin-host.svelte";
   import {
     INIT_INSTRUCTION_MAX,
     RepositorySchema,
@@ -27,6 +29,11 @@
   let instruction = $state(untrack(() => repository.initInstruction));
   let busy = $state(false);
   let error = $state("");
+  const commands = $derived(
+    pluginAvailable("quick-commands.send")
+      ? (settings.values.quickCommands ?? parseQuickCommands(""))
+      : [],
+  );
   async function save() {
     busy = true;
     error = "";
@@ -64,7 +71,8 @@
   >
     <InitInstructionField
       id="repository-instruction-edit"
-      commands={quickCommands.list}
+      {commands}
+      commandsAvailable={pluginAvailable("quick-commands.send")}
       bind:value={instruction}
     />
     {#if error}<p role="alert" class="break-all text-sm text-destructive">

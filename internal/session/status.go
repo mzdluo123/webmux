@@ -3,7 +3,6 @@ package session
 import (
 	"maps"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -133,39 +132,15 @@ func sameDisplay(a, b Info) bool {
 	return a.Title == b.Title && a.Status == b.Status && a.Preview == b.Preview &&
 		a.LastActiveAt.Equal(b.LastActiveAt) && a.Cols == b.Cols && a.Rows == b.Rows &&
 		a.Clients == b.Clients && sameExit(a.ExitCode, b.ExitCode) &&
-		sameWorkspace(a.Workspace, b.Workspace) && sameAttention(a.Attention, b.Attention) &&
+		sameAttention(a.Attention, b.Attention) &&
 		sameReportedCwd(a.ReportedCwd, b.ReportedCwd) &&
-		a.Generation == b.Generation && sameHybrid(a.Hybrid, b.Hybrid) &&
-		slices.Equal(a.ListeningPorts, b.ListeningPorts) &&
+		a.Generation == b.Generation &&
 		// Labels and the parent change outside output; comparing them lets
 		// the next tick repair a stale snapshot published after a fresh one.
 		a.ParentID == b.ParentID && maps.Equal(a.Labels, b.Labels)
 }
 
-func sameHybrid(a, b *HybridInfo) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return a.Side == b.Side && a.To == b.To && a.Phase == b.Phase &&
-		a.State == b.State && a.Agent == b.Agent &&
-		a.AgentTitle == b.AgentTitle && a.AgentIcon == b.AgentIcon &&
-		sameString(a.AgentSessionID, b.AgentSessionID) && a.Work == b.Work
-}
-
-func sameString(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
-}
 func sameExit(a, b *int) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
-}
-
-func sameWorkspace(a, b *Workspace) bool {
 	if a == nil || b == nil {
 		return a == b
 	}

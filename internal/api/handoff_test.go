@@ -14,6 +14,7 @@ import (
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/handoff"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/workspace"
@@ -31,7 +32,9 @@ func TestHandoffPreviewAPIRevisionStalenessAndPrivacy(t *testing.T) {
 	// historyAPI provides an isolated service and manager; only this fixture's
 	// conversation dependency is needed for previews, with no runtime creation.
 	manager := session.NewManager(session.Options{})
-	handler := New(testDeps(t, Deps{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, Handoffs: previews, Config: config.Config{Token: "secret"}}))
+	t.Cleanup(func() { manager.Shutdown(context.Background()) })
+	t.Cleanup(previews.Close)
+	handler := New(testDeps(t, testServices{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, Handoffs: previews, Config: config.Config{Token: "secret"}}))
 	seedHistory(t, store, source, "source text 中文🙂")
 	request := func(method, path string, input any, authorization, origin string) *httptest.ResponseRecorder {
 		t.Helper()
@@ -132,12 +135,14 @@ func TestHandoffDeliveryAPIAuthDurableFailuresAndExplicitRetry(t *testing.T) {
 	}
 	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: manager})
 	defer hybrids.Close()
-	workspaces := workspace.New(t.TempDir(), manager, launches, t.TempDir())
+	cwd := t.TempDir()
+	workspaces := workspace.New(t.TempDir(), manager, launches, cwd)
 	defer workspaces.Close()
 	workspaces.UseHybrid(hybrids)
-	service := handoff.New(handoff.Options{Conversations: store, Launch: launches, Hybrid: hybrids, Workspace: workspaces, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
+	recovery := hybridresume.New(hybrids, launches, hybridresume.Options{DefaultCwd: cwd, Creation: hybrids.Creation(), Locations: workspaces, ResumeLocations: workspaces})
+	service := handoff.New(handoff.Options{Conversations: store, Launch: launches, Hybrid: hybrids, Creation: hybrids.Creation(), Recovery: recovery, Locations: workspaces, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
 	defer service.Close()
-	handler := New(testDeps(t, Deps{Manager: manager, Workspace: workspaces, Conversations: store, Handoffs: service, Config: config.Config{Token: "secret"}}))
+	handler := New(testDeps(t, testServices{Manager: manager, Workspace: workspaces, Launch: launches, Hybrid: hybrids, Conversations: store, Handoffs: service, Config: config.Config{Token: "secret", DefaultCwd: cwd}}))
 	if err := store.SyncRuntime(context.Background(), conversation.RuntimeInput{RuntimeID: "archived", Cwd: t.TempDir(), AgentName: "test", Status: "closed"}); err != nil {
 		t.Fatal(err)
 	}

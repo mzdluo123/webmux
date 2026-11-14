@@ -15,8 +15,7 @@
   import { popoutAvailable, popOut, type CodePopout } from "./code-popout";
   import { codePanelState } from "../../hooks/code/code-panel-state";
   import { findShell, openGitWorkbench } from "../../hooks/shared/shell.svelte";
-  import { createGitFileInspectorController } from "../../hooks/workspace/git-file-inspector-controller.svelte";
-  import GitFileInspectorDialog from "../workspace/GitFileInspectorDialog.svelte";
+  import type { TerminalPlugins } from "../../plugins/terminal";
 
   let {
     id,
@@ -28,6 +27,7 @@
     reportedCwd,
     reveal,
     workspaceRef,
+    gitPlugin: initialGitPlugin,
   }: {
     id: string;
     visible: boolean;
@@ -39,10 +39,13 @@
     /** A code location another view asks to show, such as from chat output. */
     reveal?: CodeReveal;
     workspaceRef?: { repositoryId: string; worktreeId?: string } | null;
+    gitPlugin?: TerminalPlugins["git"];
   } = $props();
+  const gitPlugin = untrack(() => initialGitPlugin);
 
   const shell = findShell();
   const gitWorkspace = $derived.by(() => {
+    if (!gitPlugin) return null;
     const ref =
       workspaceRef !== undefined
         ? workspaceRef
@@ -51,13 +54,13 @@
     if (
       shell &&
       workspaceRef === undefined &&
-      !shell.repositories.list.some((r) => r.id === ref.repositoryId)
+      !shell.repositories?.list.some((r) => r.id === ref.repositoryId)
     ) {
       return null;
     }
     return ref;
   });
-  const fileInspector = createGitFileInspectorController({
+  const fileInspector = gitPlugin?.createGitFileInspectorController({
     getRepoId: () => gitWorkspace?.repositoryId ?? "",
     getWorktreeId: () => gitWorkspace?.worktreeId || undefined,
   });
@@ -173,7 +176,7 @@
       window.removeEventListener("popstate", keep);
       mounted = false;
       popout?.dispose();
-      fileInspector.dispose();
+      fileInspector?.dispose();
     };
   });
 </script>
@@ -218,13 +221,13 @@
               });
             }
           : undefined}
-        onInspectGitFile={gitWorkspace
-          ? (path, tab) => fileInspector.openInspector({ path, tab })
+        onInspectGitFile={gitWorkspace && fileInspector
+          ? (path, tab) => fileInspector?.openInspector({ path, tab })
           : undefined}
       />{/key}
   {/if}
-  {#if fileInspector.open && gitWorkspace}
-    <GitFileInspectorDialog
+  {#if gitPlugin && fileInspector?.open && gitWorkspace}
+    <gitPlugin.InspectorDialog
       inspector={fileInspector}
       hasWorktree={Boolean(gitWorkspace.worktreeId)}
       onJumpToCommit={(oid) => {

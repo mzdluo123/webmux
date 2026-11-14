@@ -194,9 +194,9 @@ func TestSwitchRoundTripFromTerminal(t *testing.T) {
 			id := s.Info().ID
 			tuiTurn(t, s, "one")
 			h.waitEligible(id)
-			sid := *s.Info().Hybrid.AgentSessionID
+			sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 			h.mustSwitch(id, SideACP)
-			if info := s.Info(); info.Hybrid.Side != string(SideACP) || s.Identity().PID != 0 {
+			if info := s.Info(); h.svc.Metadata(info.ID).Side != string(SideACP) || s.Identity().PID != 0 {
 				t.Fatalf("after switch to chat %+v", info)
 			}
 			if got := h.replayedUsers(id); !slices.Equal(got, []string{"one"}) {
@@ -369,8 +369,8 @@ func TestSwitchAwaitingChoice(t *testing.T) {
 
 	done := startSwitch(h, id, SideACP)
 	h.waitPhase(id, PhaseAwaitingChoice)
-	if info := s.Info(); info.Hybrid.Side != string(SideTUI) || info.Hybrid.To != string(SideACP) || info.Hybrid.Phase != string(PhaseAwaitingChoice) {
-		t.Fatalf("overlay while awaiting %+v", info.Hybrid)
+	if info := s.Info(); h.svc.Metadata(info.ID).Side != string(SideTUI) || h.svc.Metadata(info.ID).To != string(SideACP) || h.svc.Metadata(info.ID).Phase != string(PhaseAwaitingChoice) {
+		t.Fatalf("overlay while awaiting %+v", h.svc.Metadata(info.ID))
 	}
 	if _, err := s.Attach(); err != nil {
 		t.Fatalf("run gone while awaiting: %v", err)
@@ -389,8 +389,8 @@ func TestSwitchAwaitingChoice(t *testing.T) {
 	if out.err != nil || out.result.Side != SideTUI {
 		t.Fatalf("cancelled switch %+v %v", out.result, out.err)
 	}
-	if info := s.Info(); info.Hybrid.Side != string(SideTUI) || info.Hybrid.Phase != "" || s.Identity().PID != pid {
-		t.Fatalf("after cancel %+v pid %d", info.Hybrid, s.Identity().PID)
+	if info := s.Info(); h.svc.Metadata(info.ID).Side != string(SideTUI) || h.svc.Metadata(info.ID).Phase != "" || s.Identity().PID != pid {
+		t.Fatalf("after cancel %+v pid %d", h.svc.Metadata(info.ID), s.Identity().PID)
 	}
 	if _, err := h.svc.Switch(ctxT(t), id, SwitchInput{ClientRequestID: rid(), Choice: ChoiceForce}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("choice without a waiting switch: %v", err)
@@ -449,8 +449,8 @@ func TestSwitchChoiceRacesIdle(t *testing.T) {
 	if out.err != nil || out.result.Side != SideTUI {
 		t.Fatalf("switch after an accepted cancel %+v %v", out.result, out.err)
 	}
-	if info := s.Info(); info.Hybrid.Side != string(SideTUI) || info.Status == session.StatusExited {
-		t.Fatalf("after cancel %+v", info.Hybrid)
+	if info := s.Info(); h.svc.Metadata(info.ID).Side != string(SideTUI) || info.Status == session.StatusExited {
+		t.Fatalf("after cancel %+v", h.svc.Metadata(info.ID))
 	}
 }
 
@@ -550,8 +550,8 @@ func TestSwitchConflicts(t *testing.T) {
 	if err := h.manager.Close(id); !errors.Is(err, ErrSwitching) {
 		t.Fatalf("close while switching: %v", err)
 	}
-	if h := s.Info().Hybrid; h.Side != string(SideTUI) || h.To != string(SideACP) {
-		t.Fatalf("side while switching %+v", s.Info().Hybrid)
+	if metadata := h.svc.Metadata(s.Info().ID); metadata.Side != string(SideTUI) || metadata.To != string(SideACP) {
+		t.Fatalf("side while switching %+v", metadata)
 	}
 	if _, err := s.Attach(); err == nil {
 		t.Fatal("terminal attachable while loading")
@@ -705,13 +705,13 @@ func TestEligibilityBeforeFirstMessage(t *testing.T) {
 	if _, err := h.switchTo(open.Info().ID, SideACP); !errors.As(err, &ineligible) || ineligible.Reason != ReasonNoSessionID {
 		t.Fatalf("switch before the first message: %v", err)
 	}
-	if info := open.Info(); info.Hybrid.Side != string(SideTUI) || open.Identity().PID == 0 {
-		t.Fatalf("refused switch changed the session %+v", info.Hybrid)
+	if info := open.Info(); h.svc.Metadata(info.ID).Side != string(SideTUI) || open.Identity().PID == 0 {
+		t.Fatalf("refused switch changed the session %+v", h.svc.Metadata(info.ID))
 	}
 
 	ompSess := h.create(h.input(omp.Name, SideTUI))
 	id := ompSess.Info().ID
-	waitFor(t, "omp session id", func() bool { return ompSess.Info().Hybrid.AgentSessionID != nil })
+	waitFor(t, "omp session id", func() bool { return h.svc.Metadata(ompSess.Info().ID).AgentSessionID != nil })
 	h.waitReason(id, ReasonNotListed)
 	if _, err := h.switchTo(id, SideACP); !errors.As(err, &ineligible) || ineligible.Reason != ReasonNotListed {
 		t.Fatalf("switch before the session is saved: %v", err)
@@ -752,7 +752,7 @@ func TestEligibilityOccupied(t *testing.T) {
 	id := s.Info().ID
 	tuiTurn(t, s, "first")
 	h.waitEligible(id)
-	sid := *s.Info().Hybrid.AgentSessionID
+	sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 	event := `{"v":1,"event":"session_start","agent":"omp","plugin_version":"1.0.0","session_id":"` + sid + `","cwd":"/tmp"}`
 	plain, err := h.manager.Create(session.CreateInput{Cwd: t.TempDir(), Cmd: []string{"sh", "-c", `printf '\033]777;notify;warp://cli-agent;%s\007' '` + event + `'; exec sleep 60`}})
 	if err != nil {
@@ -763,7 +763,7 @@ func TestEligibilityOccupied(t *testing.T) {
 	if _, err := h.switchTo(id, SideACP); !errors.As(err, &ineligible) || ineligible.Reason != ReasonOccupied {
 		t.Fatalf("switch: %v", err)
 	}
-	if plain.Info().Hybrid != nil {
+	if h.svc.Metadata(plain.Info().ID) != nil {
 		t.Fatal("ordinary session got hybrid info")
 	}
 	plain.Close()
@@ -780,10 +780,10 @@ func TestAgentSessionIDChange(t *testing.T) {
 	id := s.Info().ID
 	tuiTurn(t, s, "first")
 	h.waitEligible(id)
-	old := *s.Info().Hybrid.AgentSessionID
+	old := *h.svc.Metadata(s.Info().ID).AgentSessionID
 	typeLine(t, s, "/new")
-	waitFor(t, "new agent session", func() bool { p := s.Info().Hybrid.AgentSessionID; return p != nil && *p != old })
-	fresh := *s.Info().Hybrid.AgentSessionID
+	waitFor(t, "new agent session", func() bool { p := h.svc.Metadata(s.Info().ID).AgentSessionID; return p != nil && *p != old })
+	fresh := *h.svc.Metadata(s.Info().ID).AgentSessionID
 	if c := h.chatState(id).IDChange; c == nil || c.From != old || c.To != fresh {
 		t.Fatalf("id change %+v", c)
 	}
@@ -808,7 +808,7 @@ func TestProbeDebounce(t *testing.T) {
 	h.svc.timing.probeDelay = 600 * time.Millisecond
 	s := h.create(h.input(omp.Name, SideTUI))
 	id := s.Info().ID
-	waitFor(t, "omp session id", func() bool { return s.Info().Hybrid.AgentSessionID != nil })
+	waitFor(t, "omp session id", func() bool { return h.svc.Metadata(s.Info().ID).AgentSessionID != nil })
 	if err := s.WriteContext(ctxT(t), []byte("/new\r/new\r/new\r")); err != nil {
 		t.Fatal(err)
 	}

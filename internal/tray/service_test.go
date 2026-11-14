@@ -14,13 +14,9 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/api"
-	"github.com/rainchan/webmux/internal/codeview"
-	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/localclient"
 	"github.com/rainchan/webmux/internal/session"
-	"github.com/rainchan/webmux/internal/workspace"
 )
 
 // stoppedRunner answers `webmux status --json` like an installed webmux
@@ -51,10 +47,7 @@ func TestWSLServiceStatusAndWatch(t *testing.T) {
 
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	ws := workspace.New(dir, m, nil, dir)
-	defer ws.Close()
-	c := config.Config{DefaultCwd: dir}
-	handler := api.NewLocal(api.Deps{Config: c, Manager: m, Workspace: ws, Code: codeview.New(m, nil), Files: files.New(dir)}, api.Local{Status: func() contract.StatusV1 {
+	handler := api.NewLocal(api.Deps{Manager: m}, api.Local{Status: func() contract.StatusV1 {
 		return contract.StatusV1{V: 1, State: contract.StateRunning, LocalAPI: true, Record: true}
 	}})
 

@@ -18,6 +18,7 @@ import (
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 const quickTimeout = 30 * time.Second
@@ -58,15 +59,21 @@ func fakeAgentPath(t *testing.T, profile string) string {
 }
 
 type quickHarness struct {
-	t        *testing.T
-	s        *Service
-	manager  *session.Manager
-	launches *launch.Service
-	hybrids  *hybrid.Service
-	root     string
-	store    string
-	repo     Repository
-	configID string
+	t            *testing.T
+	s            *Service
+	manager      *session.Manager
+	launches     *launch.Service
+	hybrids      *hybrid.Service
+	root         string
+	store        string
+	repo         Repository
+	configID     string
+	createMu     sync.Mutex
+	creator      *sessioncreate.Service
+	creatorFiles *artifacts.Service
+	creatorBrief uintptr
+	files        *artifacts.Service
+	brief        func(string, string) string
 }
 
 func newQuickHarness(t *testing.T, instruction string) *quickHarness {
@@ -87,6 +94,12 @@ func newQuickHarness(t *testing.T, instruction string) *quickHarness {
 	h.hybrids = hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: h.manager})
 	h.s = New(t.TempDir(), h.manager, h.launches, root)
 	h.s.UseHybrid(h.hybrids)
+	h.hybrids.SetWorkspaceSource(func(id string) *hybrid.WorkspaceRef {
+		if association := h.s.Association(id); association != nil {
+			return &hybrid.WorkspaceRef{RepositoryID: association.RepositoryID, WorktreeID: association.WorktreeID}
+		}
+		return nil
+	})
 	t.Cleanup(func() {
 		h.hybrids.Close()
 		h.s.Close()
@@ -120,19 +133,35 @@ func (h *quickHarness) config(name, agent string, env map[string]string, hybridM
 
 // input is a chat started in a new worktree on branch, the quick start
 // page's request.
-func (h *quickHarness) input(requestID, branch string) CreateInput {
+func (h *quickHarness) input(requestID, branch string) sessioncreate.Input {
 	configID := h.configID
-	return CreateInput{
-		ClientRequestID: requestID, ConfigID: &configID, Side: string(hybrid.SideACP),
-		NewWorktree: &NewWorktree{RepositoryID: h.repo.ID, Mode: "new", Base: "HEAD", Branch: branch},
-		Prompt:      "修复首页排序",
-	}
+	return sessioncreate.Input{ClientRequestID: requestID, ConfigID: &configID, Side: string(hybrid.SideACP),
+		NewWorktree: &sessioncreate.NewWorktree{RepositoryID: h.repo.ID, Mode: "new", Base: "HEAD", Branch: branch},
+		Prompt:      "修复首页排序"}
 }
 
-func (h *quickHarness) start(in CreateInput) (CreateResult, error) {
+func (h *quickHarness) start(in sessioncreate.Input) (sessioncreate.Result, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), quickTimeout)
 	defer cancel()
-	return h.s.Create(ctx, in)
+	var brief uintptr
+	if h.brief != nil {
+		brief = reflect.ValueOf(h.brief).Pointer()
+	}
+	h.createMu.Lock()
+	if h.creator == nil || h.creatorFiles != h.files || h.creatorBrief != brief {
+		h.creator = newCreateFixture(h.s, h.files, h.brief)
+		h.t.Cleanup(h.creator.Close)
+		h.creatorFiles, h.creatorBrief = h.files, brief
+	}
+	creator := h.creator
+	h.createMu.Unlock()
+	return creator.Create(ctx, in)
+}
+func (h *quickHarness) createSession(ctx context.Context, in sessioncreate.Input) (*session.Session, error) {
+	creator := newCreateFixture(h.s, h.files, h.brief)
+	h.t.Cleanup(creator.Close)
+	result, err := creator.Create(ctx, in)
+	return fixtureSession(result, err)
 }
 
 // worktrees counts the repository's worktrees, the main one included.
@@ -197,10 +226,11 @@ func (h *quickHarness) setConfigCalls() int {
 	return strings.Count(string(b), " call "+acp.MethodSessionSetConfigOption+" ")
 }
 
-func quickFailure(t *testing.T, err error, step string, kind error) *CreateError {
+func quickFailure(t *testing.T, err error, step string, kind error) *sessioncreate.Error {
 	t.Helper()
-	var failed *CreateError
-	if !errors.As(err, &failed) || failed.Step != step || !errors.Is(err, kind) {
+	var failed *sessioncreate.Error
+	matches := errors.Is(err, kind) || kind == ErrInvalid && errors.Is(err, session.ErrInvalid) || kind == ErrUnavailable && errors.Is(err, sessioncreate.ErrUnavailable)
+	if !errors.As(err, &failed) || failed.Step != step || !matches {
 		t.Fatalf("error %v, want step %s kind %v", err, step, kind)
 	}
 	return failed
@@ -221,17 +251,18 @@ func TestQuickStartRunsEveryStep(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantPath := filepath.Join(h.root+".worktrees", "brisk-otter")
-	if result.Worktree.Path != wantPath || result.Worktree.Branch == nil || *result.Worktree.Branch != "wt/brisk-otter" {
-		t.Fatalf("worktree %+v", result.Worktree)
+	if createdTree(result.Location).Path != wantPath || createdTree(result.Location).Branch == nil || *createdTree(result.Location).Branch != "wt/brisk-otter" {
+		t.Fatalf("worktree %+v", createdTree(result.Location))
 	}
 	item, err := h.manager.Get(result.Session.Info().ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	info := item.Info()
-	if info.Hybrid == nil || info.Hybrid.Side != string(hybrid.SideACP) || info.Cwd != wantPath || info.ConfigID != h.configID ||
-		info.Workspace == nil || info.Workspace.RepositoryID != h.repo.ID || info.Workspace.WorktreeID != result.Worktree.ID {
-		t.Fatalf("session %+v hybrid %+v", info, info.Hybrid)
+	metadata, association := h.hybrids.Metadata(info.ID), h.s.Association(info.ID)
+	if metadata == nil || metadata.Side != string(hybrid.SideACP) || info.Cwd != wantPath || info.ConfigID != h.configID ||
+		association == nil || association.RepositoryID != h.repo.ID || association.WorktreeID != result.Location.WorktreeID {
+		t.Fatalf("session %+v hybrid %+v workspace %+v", info, metadata, association)
 	}
 	if len(result.ConfigWarnings) != 1 || !strings.Contains(result.ConfigWarnings[0], "effort") {
 		t.Fatalf("warnings %q", result.ConfigWarnings)
@@ -264,7 +295,7 @@ func TestQuickStartInstructionTemplate(t *testing.T) {
 	h := newQuickHarness(t, "规则：\n{{规则}}\n{{ 产物 }}")
 	folders := artifacts.New(artifacts.Options{TempDir: t.TempDir(), StateDir: t.TempDir(), Manager: h.manager})
 	t.Cleanup(folders.Close)
-	h.s.UseArtifacts(folders)
+	h.files = folders
 	h.s.UseQuickCommands(func() []QuickCommand {
 		return []QuickCommand{{Name: "规则", Text: "先读 AGENTS.md"}, {Name: "产物", Text: "文件放 {{dir}}，不要{{规则}}"}}
 	})
@@ -307,15 +338,15 @@ func TestQuickStartInstructionWebMuxBrief(t *testing.T) {
 	in := h.input("quick-start-wmx1", "wt/wmx1")
 	in.UseInitInstruction = true
 	_, err := h.start(in)
-	failed := quickFailure(t, err, StepPrecheck, ErrUnavailable)
+	failed := quickFailure(t, err, sessioncreate.StepPrecheck, ErrUnavailable)
 	if !strings.Contains(failed.Error(), "WebMux 工具说明不可用") || h.worktrees() != before {
 		t.Fatalf("without a brief: %v", err)
 	}
 
 	folders := artifacts.New(artifacts.Options{TempDir: t.TempDir(), StateDir: t.TempDir(), Manager: h.manager})
 	t.Cleanup(folders.Close)
-	h.s.UseArtifacts(folders)
-	h.s.UseBrief(func(id, dir string) string { return "BRIEF " + id + " " + dir + " {{dir}}" })
+	h.files = folders
+	h.brief = func(id, dir string) string { return "BRIEF " + id + " " + dir + " {{dir}}" }
 	in = h.input("quick-start-wmx2", "wt/wmx2")
 	in.Prompt = "修复 lint"
 	in.UseInitInstruction = true
@@ -363,8 +394,8 @@ func TestQuickStartExpandPrompt(t *testing.T) {
 	h := newQuickHarness(t, "规则 {{dir}}\n{{user}}")
 	folders := artifacts.New(artifacts.Options{TempDir: t.TempDir(), StateDir: t.TempDir(), Manager: h.manager})
 	t.Cleanup(folders.Close)
-	h.s.UseArtifacts(folders)
-	h.s.UseBrief(func(id, dir string) string { return "BRIEF " + id + " {{dir}} {{user}}" })
+	h.files = folders
+	h.brief = func(id, dir string) string { return "BRIEF " + id + " {{dir}} {{user}}" }
 
 	const prompt = "放 {{dir}}\n{{webmux}}\n{{user}} {{规则}}"
 	off := h.input("quick-start-xoff", "wt/xoff")
@@ -441,7 +472,7 @@ func TestQuickStartExpandPromptUnavailable(t *testing.T) {
 		in.Prompt = prompt
 		in.ExpandPrompt = true
 		_, err := h.start(in)
-		quickFailure(t, err, StepPrecheck, ErrUnavailable)
+		quickFailure(t, err, sessioncreate.StepPrecheck, ErrUnavailable)
 	}
 	if h.worktrees() != before {
 		t.Fatal("a worktree was created for an unavailable placeholder")
@@ -463,7 +494,7 @@ func TestQuickStartInstructionUnknownReference(t *testing.T) {
 	in := h.input("quick-start-bad1", "wt/bad")
 	in.UseInitInstruction = true
 	_, err := h.start(in)
-	failed := quickFailure(t, err, StepPrecheck, ErrInvalid)
+	failed := quickFailure(t, err, sessioncreate.StepPrecheck, ErrInvalid)
 	if !strings.Contains(failed.Error(), "缺失、也缺") {
 		t.Fatalf("error %q does not name the missing commands", failed.Error())
 	}
@@ -521,7 +552,7 @@ func TestQuickStartFailures(t *testing.T) {
 	in := h.input("quick-start-101", "wt/plain")
 	in.ConfigID = &plain
 	_, err := h.start(in)
-	quickFailure(t, err, StepPrecheck, ErrInvalid)
+	quickFailure(t, err, sessioncreate.StepPrecheck, ErrInvalid)
 
 	in = h.input("quick-start-102", "wt/codex")
 	in.ConfigID = &codex
@@ -530,22 +561,22 @@ func TestQuickStartFailures(t *testing.T) {
 	if !errors.As(err, &missing) || missing.Connector.Executable != "codex-acp" {
 		t.Fatalf("connector: %v", err)
 	}
-	quickFailure(t, err, StepPrecheck, hybrid.ErrConnectorMissing)
+	quickFailure(t, err, sessioncreate.StepPrecheck, hybrid.ErrConnectorMissing)
 
 	in = h.input("quick-start-103", "wt/missing")
 	in.NewWorktree.RepositoryID = "missing"
 	_, err = h.start(in)
-	quickFailure(t, err, StepPrecheck, ErrNotFound)
+	quickFailure(t, err, sessioncreate.StepPrecheck, ErrNotFound)
 
 	in = h.input("quick-start-104", "wt/blank")
 	in.Prompt = " \n"
 	in.Attachments = []string{"/tmp/x"}
 	_, err = h.start(in)
-	quickFailure(t, err, StepPrecheck, ErrInvalid)
+	quickFailure(t, err, sessioncreate.StepPrecheck, ErrUnavailable)
 
 	in = h.input("bad id", "wt/bad-id")
 	_, err = h.start(in)
-	quickFailure(t, err, StepPrecheck, ErrInvalid)
+	quickFailure(t, err, sessioncreate.StepPrecheck, ErrInvalid)
 
 	if got := h.worktrees(); got != 1 || len(h.manager.List()) != 0 {
 		t.Fatalf("a refused quick start created %d worktrees, sessions %+v", got, h.manager.List())
@@ -555,11 +586,11 @@ func TestQuickStartFailures(t *testing.T) {
 	in = h.input("quick-start-105", "wt/broken")
 	in.ConfigID = &broken
 	_, err = h.start(in)
-	failed := quickFailure(t, err, StepSession, hybrid.ErrAgent)
-	if failed.Worktree == nil || failed.SessionID != "" {
+	failed := quickFailure(t, err, sessioncreate.StepSession, hybrid.ErrAgent)
+	if failed.Location == nil || failed.SessionID != "" {
 		t.Fatalf("session failure %+v", failed)
 	}
-	if stat, err := os.Stat(failed.Worktree.Path); err != nil || !stat.IsDir() {
+	if stat, err := os.Stat(failed.Location.Path); err != nil || !stat.IsDir() {
 		t.Fatalf("worktree removed: %v", err)
 	}
 	if got := h.worktrees(); got != 2 {
@@ -569,8 +600,8 @@ func TestQuickStartFailures(t *testing.T) {
 	// The branch's directory now exists: a conflict at the worktree step.
 	in = h.input("quick-start-106", "wt/broken")
 	_, err = h.start(in)
-	failed = quickFailure(t, err, StepWorktree, ErrConflict)
-	if failed.Worktree != nil || len(h.manager.List()) != 0 {
+	failed = quickFailure(t, err, sessioncreate.StepWorktree, ErrConflict)
+	if failed.Location != nil || len(h.manager.List()) != 0 {
 		t.Fatalf("worktree failure %+v", failed)
 	}
 }
@@ -579,10 +610,9 @@ func TestQuickStartFailures(t *testing.T) {
 // retention gets the same outcome; after it the ID runs again.
 func TestQuickStartDedupesByRequestID(t *testing.T) {
 	h := newQuickHarness(t, "")
-	h.s.creates.retention = time.Second
 	in := h.input("quick-start-201", "wt/shared")
 	const callers = 4
-	results := make([]CreateResult, callers)
+	results := make([]sessioncreate.Result, callers)
 	errs := make([]error, callers)
 	var wg sync.WaitGroup
 	for i := range callers {
@@ -594,7 +624,7 @@ func TestQuickStartDedupesByRequestID(t *testing.T) {
 	}
 	wg.Wait()
 	for i := range callers {
-		if errs[i] != nil || results[i].Session.Info().ID != results[0].Session.Info().ID || results[i].Worktree.ID != results[0].Worktree.ID {
+		if errs[i] != nil || results[i].Session.Info().ID != results[0].Session.Info().ID || createdTree(results[i].Location).ID != createdTree(results[0].Location).ID {
 			t.Fatalf("caller %d: %+v %v, first %+v", i, results[i], errs[i], results[0])
 		}
 	}
@@ -608,20 +638,6 @@ func TestQuickStartDedupesByRequestID(t *testing.T) {
 	h.waitTurnEnd(results[0].Session.Info().ID)
 	if got := userTexts(h.events(results[0].Session.Info().ID)); len(got) != 1 {
 		t.Fatalf("user messages %q", got)
-	}
-	// Past the retention the same ID is a new request: its branch now
-	// exists, so it fails at the worktree step.
-	deadline := time.Now().Add(quickTimeout)
-	for {
-		_, err := h.start(in)
-		if err != nil {
-			quickFailure(t, err, StepWorktree, ErrConflict)
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("finished quick start never expired")
-		}
-		time.Sleep(50 * time.Millisecond)
 	}
 }
 
@@ -640,7 +656,7 @@ func TestQuickStartMatchesManualStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	configID := h.configID
-	item, err := h.s.CreateSession(ctx, CreateInput{ConfigID: &configID, Side: "acp", Workspace: &Reference{RepositoryID: h.repo.ID, WorktreeID: tree.ID}})
+	item, err := h.createSession(ctx, sessioncreate.Input{ConfigID: &configID, Side: "acp", Workspace: &sessioncreate.Reference{RepositoryID: h.repo.ID, WorktreeID: tree.ID}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -650,29 +666,33 @@ func TestQuickStartMatchesManualStart(t *testing.T) {
 	}
 	h.waitTurnEnd(quick.Session.Info().ID)
 	h.waitTurnEnd(manual)
-	info := func(id string) session.Info {
+	type snapshot struct {
+		Core      session.Info
+		Workspace *Association
+		Chat      *hybrid.Metadata
+	}
+	info := func(id string) snapshot {
 		item, err := h.manager.Get(id)
 		if err != nil {
 			t.Fatal(err)
 		}
 		i := item.Info()
 		i.ID, i.Generation, i.Title, i.Cwd, i.CreatedAt, i.LastActiveAt, i.Preview = "", "", "", "", time.Time{}, time.Time{}, ""
-		if i.Workspace != nil {
-			w := *i.Workspace
-			w.WorktreeID, w.WorktreePath = "", ""
-			i.Workspace = &w
+		association := h.s.Association(id)
+		if association != nil {
+			association.WorktreeID, association.WorktreePath = "", ""
 		}
-		if i.Hybrid != nil {
-			hy := *i.Hybrid
-			hy.AgentSessionID = nil
-			i.Hybrid = &hy
+		metadata := h.hybrids.Metadata(id)
+		if metadata != nil {
+			metadata.AgentSessionID = nil
+			metadata.ConversationID, metadata.ProviderThreadID = "", ""
 		}
 		if i.Attention != nil {
 			a := *i.Attention
 			a.Since = time.Time{}
 			i.Attention = &a
 		}
-		return i
+		return snapshot{Core: i, Workspace: association, Chat: metadata}
 	}
 	if a, b := info(quick.Session.Info().ID), info(manual); !reflect.DeepEqual(a, b) {
 		t.Fatalf("session info differs:\nquick  %+v\nmanual %+v", a, b)
@@ -702,17 +722,15 @@ func TestQuickStartMatchesManualStart(t *testing.T) {
 // its first prompt. The instruction needs a repository location.
 func TestCreateSessionFirstMessage(t *testing.T) {
 	h := newQuickHarness(t, "先读 AGENTS.md\n{{user}}")
-	ref := &Reference{RepositoryID: h.repo.ID, WorktreeID: h.repo.Worktrees[0].ID}
+	ref := &sessioncreate.Reference{RepositoryID: h.repo.ID, WorktreeID: h.repo.Worktrees[0].ID}
 	ctx := context.Background()
 
-	if _, err := h.s.CreateSession(ctx, CreateInput{Cmd: []string{"/bin/cat"}, UseInitInstruction: true}); errorKind(err) != ErrInvalid {
+	if _, err := h.createSession(ctx, sessioncreate.Input{Cmd: []string{"/bin/cat"}, UseInitInstruction: true}); !errors.Is(err, session.ErrInvalid) {
 		t.Fatalf("instruction without repository: %v", err)
 	}
 
-	item, err := h.s.CreateSession(ctx, CreateInput{
-		Cmd: []string{"/bin/sh", "-c", "echo ready; exec cat"}, Workspace: ref,
-		UseInitInstruction: true, Prompt: "修复排序",
-	})
+	item, err := h.createSession(ctx, sessioncreate.Input{Cmd: []string{"/bin/sh", "-c", "echo ready; exec cat"}, Workspace: ref,
+		UseInitInstruction: true, Prompt: "修复排序"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -729,7 +747,7 @@ func TestCreateSessionFirstMessage(t *testing.T) {
 		t.Fatalf("instruction missing: %q", item.Buffer())
 	}
 
-	chat, err := h.s.CreateSession(ctx, CreateInput{ConfigID: &h.configID, Side: "acp", Workspace: ref, UseInitInstruction: true, Prompt: "修复排序"})
+	chat, err := h.createSession(ctx, sessioncreate.Input{ConfigID: &h.configID, Side: "acp", Workspace: ref, UseInitInstruction: true, Prompt: "修复排序"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -747,27 +765,27 @@ func TestCreateSessionTerminalPromptTitle(t *testing.T) {
 	h := newQuickHarness(t, "先读 AGENTS.md\n{{user}}")
 	folders := artifacts.New(artifacts.Options{TempDir: t.TempDir(), StateDir: t.TempDir(), Manager: h.manager})
 	t.Cleanup(folders.Close)
-	h.s.UseArtifacts(folders)
-	h.s.UseBrief(func(id, dir string) string { return "BRIEF" })
-	ref := &Reference{RepositoryID: h.repo.ID, WorktreeID: h.repo.Worktrees[0].ID}
+	h.files = folders
+	h.brief = func(id, dir string) string { return "BRIEF" }
+	ref := &sessioncreate.Reference{RepositoryID: h.repo.ID, WorktreeID: h.repo.Worktrees[0].ID}
 	dir := filepath.Base(h.root)
 	shell := h.config("shell", "/bin/cat", nil, false)
 	long := strings.Repeat("长", 100)
 	for _, tc := range []struct {
 		name string
-		in   CreateInput
+		in   sessioncreate.Input
 		want string
 	}{
-		{"prompt", CreateInput{Prompt: " 修复\n排序\t问题 "}, "修复 排序 问题"},
-		{"instruction not in title", CreateInput{Prompt: "修复排序", UseInitInstruction: true}, "修复排序"},
-		{"instruction only", CreateInput{UseInitInstruction: true}, dir},
-		{"explicit name", CreateInput{Name: "我的名字", Prompt: "修复排序"}, "我的名字"},
-		{"no prompt", CreateInput{}, dir},
-		{"long", CreateInput{Prompt: long}, strings.Repeat("长", 79) + "…"},
-		{"placeholder dropped", CreateInput{Prompt: "{{dir}} 修复排序 {{webmux}}", ExpandPrompt: true}, "修复排序"},
-		{"only placeholder", CreateInput{Prompt: "{{dir}}", ExpandPrompt: true}, dir},
-		{"plain shell", CreateInput{ConfigID: &shell, Prompt: " 修复\n排序 "}, "修复 排序"},
-		{"plain shell without prompt", CreateInput{ConfigID: &shell}, dir},
+		{"prompt", sessioncreate.Input{Prompt: " 修复\n排序\t问题 "}, "修复 排序 问题"},
+		{"instruction not in title", sessioncreate.Input{Prompt: "修复排序", UseInitInstruction: true}, "修复排序"},
+		{"instruction only", sessioncreate.Input{UseInitInstruction: true}, dir},
+		{"explicit name", sessioncreate.Input{Name: "我的名字", Prompt: "修复排序"}, "我的名字"},
+		{"no prompt", sessioncreate.Input{}, dir},
+		{"long", sessioncreate.Input{Prompt: long}, strings.Repeat("长", 79) + "…"},
+		{"placeholder dropped", sessioncreate.Input{Prompt: "{{dir}} 修复排序 {{webmux}}", ExpandPrompt: true}, "修复排序"},
+		{"only placeholder", sessioncreate.Input{Prompt: "{{dir}}", ExpandPrompt: true}, dir},
+		{"plain shell", sessioncreate.Input{ConfigID: &shell, Prompt: " 修复\n排序 "}, "修复 排序"},
+		{"plain shell without prompt", sessioncreate.Input{ConfigID: &shell}, dir},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			in := tc.in
@@ -776,7 +794,7 @@ func TestCreateSessionTerminalPromptTitle(t *testing.T) {
 			}
 			in.Side = "tui"
 			in.Workspace = ref
-			item, err := h.s.CreateSession(context.Background(), in)
+			item, err := h.createSession(context.Background(), in)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -791,8 +809,8 @@ func TestCreateSessionTerminalPromptTitle(t *testing.T) {
 // instruction prefixed to the first prompt.
 func TestCreateSessionChatTitleIgnoresInstruction(t *testing.T) {
 	h := newQuickHarness(t, "先读 AGENTS.md\n{{user}}")
-	ref := &Reference{RepositoryID: h.repo.ID, WorktreeID: h.repo.Worktrees[0].ID}
-	chat, err := h.s.CreateSession(context.Background(), CreateInput{ConfigID: &h.configID, Side: "acp", Workspace: ref, UseInitInstruction: true, Prompt: "修复排序"})
+	ref := &sessioncreate.Reference{RepositoryID: h.repo.ID, WorktreeID: h.repo.Worktrees[0].ID}
+	chat, err := h.createSession(context.Background(), sessioncreate.Input{ConfigID: &h.configID, Side: "acp", Workspace: ref, UseInitInstruction: true, Prompt: "修复排序"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -814,12 +832,12 @@ func TestQuickStartTerminalSide(t *testing.T) {
 	h := newQuickHarness(t, "")
 	folders := artifacts.New(artifacts.Options{TempDir: t.TempDir(), StateDir: t.TempDir(), Manager: h.manager})
 	t.Cleanup(folders.Close)
-	h.s.UseArtifacts(folders)
+	h.files = folders
 
 	bad := h.input("quick-start-tui0", "wt/tui-bad")
 	bad.Side = "tui"
 	bad.AgentConfig = map[string]string{"model": "smart"}
-	if _, err := h.start(bad); err == nil || errorKind(err) != ErrInvalid {
+	if _, err := h.start(bad); !errors.Is(err, session.ErrInvalid) {
 		t.Fatalf("agentConfig on a terminal start: %v", err)
 	}
 	staging, err := folders.EnsureStaging()
@@ -909,7 +927,7 @@ func TestCreateGeneratesBranch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tree := result.Worktree
+	tree := createdTree(result.Location)
 	if tree == nil || tree.Branch == nil || !strings.HasPrefix(*tree.Branch, "wt/") {
 		t.Fatalf("worktree %+v", tree)
 	}
@@ -930,15 +948,15 @@ func TestCreateRefusesBeforeCreating(t *testing.T) {
 	in.Side = string(hybrid.SideTUI)
 	in.PermissionMode = "auto"
 	_, err := h.start(in)
-	quickFailure(t, err, StepPrecheck, ErrInvalid)
+	quickFailure(t, err, sessioncreate.StepPrecheck, ErrInvalid)
 	in = h.input("create-refuse-2", "wt/refuse")
 	in.Cwd = h.root
 	_, err = h.start(in)
-	quickFailure(t, err, StepPrecheck, ErrInvalid)
+	quickFailure(t, err, sessioncreate.StepPrecheck, ErrInvalid)
 	in = h.input("create-refuse-3", "wt/refuse")
 	in.NewWorktree.Mode = "other"
 	_, err = h.start(in)
-	quickFailure(t, err, StepPrecheck, ErrInvalid)
+	quickFailure(t, err, sessioncreate.StepPrecheck, ErrInvalid)
 	if got := h.worktrees(); got != 1 || len(h.manager.List()) != 0 {
 		t.Fatalf("a refused create made %d worktrees, sessions %+v", got, h.manager.List())
 	}
@@ -967,12 +985,42 @@ func TestCreateInitialInputReceiptOnlyForSubmittedChat(t *testing.T) {
 			if (result.InitialInput != nil) != tt.want {
 				t.Fatalf("initial receipt %+v want submitted=%v", result.InitialInput, tt.want)
 			}
-			if tt.want && result.InitialInput.TurnID == "" {
+			if tt.want && result.InitialInput.Prompt.TurnID == "" {
 				t.Fatalf("submitted prompt has no turn receipt: %+v", result.InitialInput)
 			}
 			if !tt.want && len(userTexts(h.events(result.Session.Info().ID))) != 0 {
 				t.Fatal("empty launch submitted a user prompt")
 			}
 		})
+	}
+}
+
+func TestDirectChatExpandsHomeBeforePreflight(t *testing.T) {
+	h := newQuickHarness(t, "")
+	t.Setenv("HOME", filepath.Dir(h.root))
+	folders := artifacts.New(artifacts.Options{TempDir: t.TempDir(), StateDir: t.TempDir(), Manager: h.manager})
+	t.Cleanup(folders.Close)
+	creator := sessioncreate.New(h.manager, sessioncreate.Options{
+		DefaultCwd: h.root, Commands: h.launches, Files: folders, Chat: h.hybrids.Creation(),
+	})
+	t.Cleanup(creator.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), quickTimeout)
+	defer cancel()
+	result, err := creator.Create(ctx, sessioncreate.Input{
+		Cwd: "~/repo", ConfigID: &h.configID, Side: "acp", Prompt: "home-relative chat",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := sessioncreate.Directory(h.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Session.Info().Cwd != want {
+		t.Fatalf("chat cwd %q, want %q", result.Session.Info().Cwd, want)
+	}
+	h.waitTurnEnd(result.Session.Info().ID)
+	if got := userTexts(h.events(result.Session.Info().ID)); !reflect.DeepEqual(got, []string{"home-relative chat"}) {
+		t.Fatalf("initial chat message %q", got)
 	}
 }

@@ -2,20 +2,22 @@
   import { errorMessage } from "../../platform/error";
   import { untrack } from "svelte";
   import { navigate, recentDirs, stored } from "../../platform/api";
+  import {
+    pluginAvailable,
+    pluginEnabled,
+  } from "../../platform/plugin-host.svelte";
+  import { getPluginContributions } from "../../plugins/context";
   import type { LaunchConfigsState } from "../../domains/settings/launch-configs";
   import {
     buildNewSessionSummary,
     formatLocationSummaryText,
-    formatSubmitButtonLabel,
     isCommandReady,
     isDirectoryNotFoundError,
     isLocationTargetReady,
-    resolveEntryPreset,
     resolveFallbackAfterWorktreeRemoved,
     resolveInitialLaunch,
     resolveInitialTarget,
     resolveInstructionRepository,
-    resolvePreferredStartBranch,
     storedView,
     submitNewSessionRequest,
     validateNewSessionSubmit,
@@ -23,8 +25,7 @@
     type LaunchScope,
     type LaunchSource,
   } from "../../domains/sessions/new-session-defaults";
-  import { sessionConflict } from "../../domains/sessions/recoverable";
-  import ConnectorInstallHint from "./ConnectorInstallHint.svelte";
+  import { sessionConflict } from "../../domains/sessions/session-conflict";
   import type {
     AgentConnector,
     Repository,
@@ -32,19 +33,10 @@
     SessionView,
     Worktree,
   } from "../../contracts/schemas";
-  import { Button } from "$lib/components/ui/button";
-  import { Checkbox } from "$lib/components/ui/checkbox";
-  import { Input } from "$lib/components/ui/input";
-  import { Label } from "$lib/components/ui/label";
-  import SplitDirectionChoice from "../terminal/SplitDirectionChoice.svelte";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
-  import AdvancedSection from "../shared/AdvancedSection.svelte";
-  import FirstMessageFields from "./FirstMessageFields.svelte";
-  import LaunchPicker from "./LaunchPicker.svelte";
-  import LocationPicker from "../workspace/LocationPicker.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
+  import NewSessionForm from "./NewSessionForm.svelte";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
-  import WorktreeCreateFields from "../workspace/WorktreeCreateFields.svelte";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
 
   interface Props {
@@ -82,13 +74,30 @@
     onworktreeremoved,
     onclose,
   }: Props = $props();
+  const providers = getPluginContributions().creation;
+  const workspaceEnabled = $derived(
+    pluginAvailable("workspace.manage") && !!providers.LocationPicker,
+  );
+  const launchEnabled = pluginEnabled("launch") && !!providers.LaunchPicker;
+  const chatEnabled = $derived(
+    pluginAvailable("chat.acp") && !!providers.LaunchStartSideFields,
+  );
+  const filesEnabled = $derived(
+    pluginAvailable("files.upload") && !!providers.DirectoryPicker,
+  );
   const recent = recentDirs();
   const initial = untrack(() =>
     resolveInitialTarget({
-      entry,
-      scope,
-      selectedRepositoryId: scope?.repositoryId ?? selectedRepositoryId,
-      repositories,
+      entry: workspaceEnabled
+        ? entry
+        : entry?.kind === "directory"
+          ? { ...entry, workspace: null }
+          : undefined,
+      scope: workspaceEnabled ? scope : undefined,
+      selectedRepositoryId: workspaceEnabled
+        ? (scope?.repositoryId ?? selectedRepositoryId)
+        : "",
+      repositories: workspaceEnabled ? repositories : [],
       recent,
       defaultCwd,
     }),
@@ -96,7 +105,9 @@
   const preferredRepositoryId = initial.repositoryId;
   // A split keeps the pane's workspace while its directory is unchanged.
   const entryDirectory = untrack(() =>
-    entry?.kind === "directory" ? entry : null,
+    entry?.kind === "directory"
+      ? { ...entry, workspace: workspaceEnabled ? entry.workspace : null }
+      : null,
   );
   let kind = $state(initial.kind);
   let cwd = $state(initial.cwd);
@@ -104,11 +115,16 @@
   let worktreeId = $state(initial.worktreeId);
   let withSession = $state(untrack(() => intent === "session"));
   let direction = $state<SplitDirection>("horizontal");
-  const treeOnly = $derived(intent === "worktree" && !withSession);
+  const treeOnly = $derived(
+    workspaceEnabled && intent === "worktree" && !withSession,
+  );
 
   const lastLaunch = stored("lastLaunch");
   let source = $state<LaunchSource>(
-    lastLaunch === "custom" ? "custom" : "unset",
+    lastLaunch === "custom" ||
+      (!launchEnabled && !lastLaunch.startsWith("config:"))
+      ? "custom"
+      : "unset",
   );
   let configId = $state("");
   // Defaults apply once, and never after the user picked a source.
@@ -118,7 +134,11 @@
   let startSide = $state<SessionView>(storedView(stored("hybridStartSide")));
   let name = $state("");
   let prompt = $state(
-    untrack(() => (entry?.kind === "worktree" ? (entry.prompt ?? "") : "")),
+    untrack(() =>
+      workspaceEnabled && entry?.kind === "worktree"
+        ? (entry.prompt ?? "")
+        : "",
+    ),
   );
   let error = $state("");
   // Starting on the chat view failed: its connector is not installed.
@@ -130,14 +150,20 @@
   let mkdirMounted = $state(false);
 
   const configs = $derived(
-    launchConfigs.status === "ready" ? launchConfigs.configs : [],
+    launchEnabled && launchConfigs.status === "ready"
+      ? launchConfigs.configs
+      : [],
   );
   const chosenConfig = $derived(
     source === "config" ? configs.find((c) => c.id === configId) : undefined,
   );
   $effect(() => {
     if (!launchResolved && !launchTouched) {
-      const resolved = resolveInitialLaunch(lastLaunch, launchConfigs);
+      const resolved = resolveInitialLaunch(
+        lastLaunch,
+        launchConfigs,
+        launchEnabled,
+      );
       if (resolved) {
         launchResolved = true;
         source = resolved.source;
@@ -151,7 +177,8 @@
       !chosenConfig
     )
       source = "unset";
-    if (chosenConfig?.chat) {
+    if (!chatEnabled && chosenConfig?.chat) source = "unset";
+    if (chatEnabled && chosenConfig?.chat) {
       startSide = storedView(
         stored("hybridStartSide:" + chosenConfig.id) ||
           stored("hybridStartSide"),
@@ -169,7 +196,9 @@
     ),
   );
   const hasInstruction = $derived(!!instructionRepository?.initInstruction);
-  const startsOnChat = $derived(!!chosenConfig?.chat && startSide === "chat");
+  const startsOnChat = $derived(
+    chatEnabled && !!chosenConfig?.chat && startSide === "chat",
+  );
   let instructionChoice = $state<boolean | undefined>();
   const useInstruction = $derived(instructionChoice ?? startsOnChat);
   const commandReady = $derived(isCommandReady(source, chosenConfig, command));
@@ -179,7 +208,7 @@
   let branch = $state("");
   let base = $state("");
   let startBranch = $state("");
-  let worktreeFields = $state<WorktreeCreateFields>();
+  let worktreeFields = $state<{ isReady: () => boolean }>();
   let fieldsRepositoryId = $state(
     initial.kind === "new-worktree" ? initial.repositoryId : "",
   );
@@ -279,10 +308,10 @@
         useInstruction,
         chosenConfig,
         name,
-        startSide,
+        startSide: chatEnabled ? startSide : "terminal",
         source,
         command,
-        makeDirectory,
+        makeDirectory: filesEnabled && makeDirectory,
         recent,
         adoptTree,
       });
@@ -296,6 +325,7 @@
       if (kind !== "directory") onchange();
       const conflict = sessionConflict(err);
       if (
+        filesEnabled &&
         kind === "directory" &&
         !makeDirectory &&
         isDirectoryNotFoundError(err)
@@ -321,150 +351,76 @@
   {busy}
   {onclose}
 >
-  <form
-    class="min-w-0"
-    onsubmit={(event) => (event.preventDefault(), void create())}
-  >
-    <fieldset disabled={busy} class="min-w-0 space-y-4">
-      <LocationPicker
-        {repositories}
-        {scope}
-        {recent}
-        {preferredRepositoryId}
-        {createdTree}
-        {newWorktreeSummary}
-        onremove={(tree) => (removing = tree)}
-        bind:kind={
-          () => kind,
-          (next) => {
-            kind = next;
-            if (kind === "new-worktree") fieldsRepositoryId = repositoryId;
-          }
-        }
-        bind:cwd
-        bind:repositoryId={
-          () => repositoryId,
-          (next) => {
-            repositoryId = next;
-            if (kind === "new-worktree") fieldsRepositoryId = repositoryId;
-          }
-        }
-        bind:worktreeId
-        disabled={busy}
-      />
-      {#if fieldsRepository}
-        <fieldset
-          disabled={busy || kind !== "new-worktree"}
-          hidden={kind !== "new-worktree"}
-          class="min-w-0"
-        >
-          {#key fieldsRepository.id}<WorktreeCreateFields
-              bind:this={worktreeFields}
-              repository={fieldsRepository}
-              preferredStartBranch={resolvePreferredStartBranch(
-                fieldsRepository,
-                scope?.worktreeId,
-              )}
-              preset={resolveEntryPreset(entry, fieldsRepository.id)}
-              disabled={busy || kind !== "new-worktree"}
-              bind:path={newPath}
-              bind:mode={branchMode}
-              bind:branch
-              bind:base
-              bind:startBranch
-            />{/key}
-        </fieldset>
-      {/if}
-      {#if createdTree && kind === "worktree" && worktreeId === createdTree.id}
-        <p role="status" class="text-sm text-primary">
-          工作树已创建。再次提交只启动会话，不会重复创建分支或目录。
-        </p>
-      {/if}
-      {#if intent === "worktree"}
-        <div class="flex items-center gap-2">
-          <Checkbox id="worktree-with-session" bind:checked={withSession} />
-          <Label for="worktree-with-session">创建后启动会话</Label>
-        </div>
-      {/if}
-      {#if !treeOnly}
-        <LaunchPicker
-          {launchConfigs}
-          bind:source
-          bind:configId
-          bind:command
-          bind:startSide
-          disabled={busy}
-          onchoose={() => (launchTouched = true)}
-        />
-        <FirstMessageFields
-          repositoryName={instructionRepository?.name}
-          {hasInstruction}
-          bind:useInstruction={
-            () => useInstruction, (next) => (instructionChoice = next)
-          }
-          bind:prompt
-          chat={startsOnChat}
-          disabled={busy}
-        />
-        {#if split}<SplitDirectionChoice bind:direction />{/if}
-        <AdvancedSection title="高级：会话名称" summary={name}>
-          <div class="space-y-2">
-            <Label for="session-name"
-              >会话名称 <span class="text-muted-foreground">可选</span></Label
-            ><Input
-              id="session-name"
-              bind:value={name}
-              placeholder="留空则用首条提示，没有则跟随终端标题"
-            />
-          </div>
-        </AdvancedSection>
-      {/if}
-      {#if error}<p role="alert" class="text-sm text-destructive">
-          {error}
-        </p>{/if}
-      {#if missingConnector}
-        <ConnectorInstallHint connector={missingConnector}>
-          {#snippet actions()}<Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onclick={() => {
-                startSide = "terminal";
-                void create();
-              }}>改为从终端开始</Button
-            >{/snippet}
-        </ConnectorInstallHint>
-      {/if}
-      <div
-        class="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center"
-      >
-        <p
-          id="session-summary"
-          class="min-w-0 flex-1 text-sm wrap-anywhere text-muted-foreground"
-        >
-          {summary}
-        </p>
-        <div class="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onclick={onclose}>取消</Button
-          >
-          <Button
-            type="submit"
-            aria-describedby="session-summary"
-            disabled={busy || !targetReady || (!treeOnly && !commandReady)}
-            >{formatSubmitButtonLabel(busy, treeOnly, split)}</Button
-          >
-        </div>
-      </div>
-    </fieldset>
-  </form>
+  <NewSessionForm
+    {providers}
+    {repositories}
+    {scope}
+    {recent}
+    {preferredRepositoryId}
+    {createdTree}
+    {newWorktreeSummary}
+    onremove={(tree) => (removing = tree)}
+    bind:kind={
+      () => kind,
+      (next) => {
+        kind = next;
+        if (kind === "new-worktree") fieldsRepositoryId = repositoryId;
+      }
+    }
+    bind:cwd
+    bind:repositoryId={
+      () => repositoryId,
+      (next) => {
+        repositoryId = next;
+        if (kind === "new-worktree") fieldsRepositoryId = repositoryId;
+      }
+    }
+    bind:worktreeId
+    {busy}
+    {fieldsRepository}
+    bind:worktreeFields
+    {entry}
+    bind:newPath
+    bind:branchMode
+    bind:branch
+    bind:base
+    bind:startBranch
+    {workspaceEnabled}
+    {intent}
+    bind:withSession
+    {treeOnly}
+    {launchConfigs}
+    bind:source
+    bind:configId
+    bind:command
+    bind:startSide
+    onlaunchchoose={() => (launchTouched = true)}
+    {lastLaunch}
+    {instructionRepository}
+    {hasInstruction}
+    bind:useInstruction={
+      () => useInstruction, (next) => (instructionChoice = next)
+    }
+    bind:prompt
+    {startsOnChat}
+    {split}
+    bind:direction
+    bind:name
+    {error}
+    {missingConnector}
+    {summary}
+    {targetReady}
+    {commandReady}
+    oncreate={() => void create()}
+    onterminalcreate={() => {
+      startSide = "terminal";
+      void create();
+    }}
+    {onclose}
+  />
 </ResponsiveDialog>
 
-{#if removing}
+{#if workspaceEnabled && removing}
   {@const target = removing}
   <LazyDialog
     load={() => import("../workspace/RemoveWorktreeDialog.svelte")}
@@ -480,7 +436,7 @@
   </LazyDialog>
 {/if}
 
-{#if mkdirMounted}<AlertDialog.Root bind:open={mkdirOpen}>
+{#if filesEnabled && mkdirMounted}<AlertDialog.Root bind:open={mkdirOpen}>
     <AlertDialog.Content>
       <AlertDialog.Header
         ><AlertDialog.Title>目录不存在，是否创建？</AlertDialog.Title

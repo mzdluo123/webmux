@@ -10,20 +10,29 @@ export interface Archived {
    * be read; a later call supersedes an earlier one still in flight.
    */
   refresh(): Promise<string[] | null>;
+  dispose(): void;
 }
 
 export function createArchived(): Archived {
   let records = $state.raw<ArchivedSession[]>([]);
   let request = 0;
+  let controller: AbortController | undefined;
   return {
     get records() {
       return records;
     },
+    dispose() {
+      request++;
+      controller?.abort();
+    },
     async refresh() {
       const current = ++request;
+      controller?.abort();
+      controller = new AbortController();
       try {
-        const next = await loadRecoverable();
-        if (current === request) records = next;
+        const next = await loadRecoverable(controller.signal);
+        if (current !== request) return null;
+        records = next;
         return next.map((record) => record.id);
       } catch (err) {
         // An unavailable store (503) or a server without hybrid sessions

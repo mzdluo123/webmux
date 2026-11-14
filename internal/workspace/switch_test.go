@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 // switchFixture is a repository whose main worktree is on main, with a
@@ -168,7 +169,7 @@ func TestSwitchBlockersAndWarnings(t *testing.T) {
 	putFile(t, filepath.Join(tree.Path, "notes"), "untracked\n")
 	putFile(t, filepath.Join(tree.Path, ".gitmodules"), "")
 	gitTest(t, root, "worktree", "lock", "--reason", "on a USB disk", tree.Path)
-	item, err := s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +250,7 @@ func TestSwitchRechecksWhatThePreviewBound(t *testing.T) {
 
 	// A session started after the preview.
 	preview := previewSwitch(t, s, r, tree, feat)
-	item, err := s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
 	if err != nil {
 		t.Fatal(err)
 	}

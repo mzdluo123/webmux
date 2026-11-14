@@ -2,12 +2,13 @@ import { getContext, setContext } from "svelte";
 import { z } from "zod";
 import { navigate, store, stored } from "../../platform/api";
 import { buildGitRouteHref, type GitRouteTarget } from "./route";
+import { pluginEnabled } from "../../platform/plugin-host.svelte";
 import type { ArchiveSignal } from "../../domains/sessions/archive-signal";
 import type { BranchOperation } from "../../domains/workspace/branch-actions";
 import type { Archived } from "../sessions/archived.svelte";
 import type { LaunchConfigs } from "../settings/launch-configs.svelte";
 import type { Repositories } from "../workspace/repositories.svelte";
-import type { ServerSetup } from "../workspace/server-setup.svelte";
+import type { ServerSetup } from "./server-setup.svelte";
 import type { SessionList } from "../sessions/session-list.svelte";
 import type { LaunchEntry } from "../../domains/sessions/new-session-defaults";
 import type {
@@ -63,8 +64,8 @@ export const shellUi = {
   },
   /** Remembers the mode; the sidebar follows, the page stays. */
   setMode(next: ShellMode) {
-    mode = next;
-    store("shellMode", next);
+    mode = next === "chat" && !pluginEnabled("chat") ? "workbench" : next;
+    store("shellMode", mode);
   },
   get collapsed() {
     return collapsed;
@@ -99,6 +100,10 @@ export const shellUi = {
  * so going back never lands on the workbench home first.
  */
 export function enterHome() {
+  if (mode === "chat" && !pluginEnabled("chat")) {
+    mode = "workbench";
+    store("shellMode", mode);
+  }
   if (location.pathname === "/" && mode === "chat")
     history.replaceState(
       history.state,
@@ -113,12 +118,12 @@ export interface Shell {
   readonly activeChat?: SessionInfo;
   setActivePane(id: string): void;
   readonly sessions: SessionList;
-  readonly repositories: Repositories;
-  readonly archived: Archived;
+  readonly repositories?: Repositories;
+  readonly archived?: Archived;
   /** The user archived a session from the shell; open pages may leave it. */
   readonly archiveSignal: ArchiveSignal;
   readonly setup: ServerSetup;
-  readonly launchConfigs: LaunchConfigs;
+  readonly launchConfigs?: LaunchConfigs;
   /** Opens the new-session dialog, optionally at a contextual entry. */
   start(entry?: LaunchEntry): void;
   /** Opens the shared rename dialog for a live session. */

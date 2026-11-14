@@ -65,7 +65,7 @@ func TestEndRunMovesSubscribersWithoutExit(t *testing.T) {
 	driver := newFakeDriver()
 	s := createShell(t, m, driver, "/bin/sh", "-c", "printf READY; exec sleep 30")
 	waitForOutput(t, s, "READY")
-	s.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp", Phase: "switching"}})
+	s.SetOverlay(&Overlay{Destination: "acp"})
 	sub := attached(s.AttachClient(AttachOptions{Client: "browser"}))
 	s.mu.Lock()
 	pid := s.run.cmd.Process.Pid
@@ -94,7 +94,7 @@ func TestEndRunMovesSubscribersWithoutExit(t *testing.T) {
 		t.Fatalf("messages after moved: %v", queuedKinds(sub))
 	}
 	info := s.Info()
-	if info.ExitCode != nil || info.Status != StatusIdle || info.Clients != 0 || info.Hybrid == nil || info.Hybrid.Side != "acp" {
+	if info.ExitCode != nil || info.Status != StatusIdle || info.Clients != 0 {
 		t.Fatalf("shell after EndRun: %+v", info)
 	}
 	if _, err := s.AttachClient(AttachOptions{}); !errors.Is(err, ErrNoRun) {
@@ -125,7 +125,7 @@ func TestReplayAfterMoveClientsKeepsMoved(t *testing.T) {
 	m := shellManager(t)
 	s := createShell(t, m, newFakeDriver(), "/bin/sh", "-c", "printf READY; exec sleep 30")
 	waitForOutput(t, s, "READY")
-	s.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp", Phase: "switching"}})
+	s.SetOverlay(&Overlay{Destination: "acp"})
 	sub := attached(s.AttachClient(AttachOptions{Client: "browser"}))
 	s.MoveClients()
 	s.Replay(sub)
@@ -326,49 +326,41 @@ func TestReservedIDsAreNeverAssigned(t *testing.T) {
 	}
 }
 
-func TestOverlayReportsChatSideAndIsPublished(t *testing.T) {
+func TestDriverOverlayIsPublished(t *testing.T) {
 	t.Parallel()
 	m := shellManager(t)
 	s := createShell(t, m, newFakeDriver())
 	list := m.Subscribe()
 	defer m.Unsubscribe(list)
-	agentSession := "ses_1"
 	since := time.Now()
-	overlay := &Overlay{
-		Hybrid:    &HybridInfo{Side: "acp", State: "active", Agent: "opencode", AgentSessionID: &agentSession},
-		Status:    StatusWaiting,
+	overlay := &Overlay{Destination: "acp", Status: StatusWaiting,
 		Attention: &Attention{Kind: "permission", Source: SourceAgent, Since: since},
-		Preview:   "Allow edit?",
-	}
+		Preview:   "Allow edit?"}
 	s.SetOverlay(overlay)
-	agentSession = "changed by caller"
+	overlay.Attention.Kind = "changed by caller"
 	info := s.Info()
-	if info.Status != StatusWaiting || info.Preview != "Allow edit?" || info.Attention == nil || info.Attention.Kind != "permission" ||
-		info.Hybrid == nil || info.Hybrid.AgentSessionID == nil || *info.Hybrid.AgentSessionID != "ses_1" {
+	if info.Status != StatusWaiting || info.Preview != "Allow edit?" || info.Attention == nil || info.Attention.Kind != "permission" {
 		t.Fatalf("chat-side info: %+v", info)
 	}
 	deadline := time.After(5 * time.Second)
 	for published := false; !published; {
 		select {
 		case event := <-list.Out:
-			published = event.Type == "updated" && event.Session.ID == info.ID && event.Session.Hybrid != nil && event.Session.Status == StatusWaiting
+			published = event.Type == "updated" && event.Session.ID == info.ID && event.Session.Status == StatusWaiting
 		case <-deadline:
 			t.Fatal("overlay was not published to list subscribers")
 		}
 	}
-	// While a run exists, only Hybrid comes from the overlay.
+	// A live run owns its own displayed state.
 	if err := s.StartRun([]string{"/bin/sh", "-c", "printf TUI; exec sleep 30"}); err != nil {
 		t.Fatal(err)
 	}
 	waitForOutput(t, s, "TUI")
 	info = s.Info()
-	if info.Hybrid == nil || info.Status == StatusWaiting || info.Attention != nil || info.Preview == "Allow edit?" {
+	if info.Status == StatusWaiting || info.Attention != nil || info.Preview == "Allow edit?" {
 		t.Fatalf("terminal-side info: %+v", info)
 	}
 	s.SetOverlay(nil)
-	if s.Info().Hybrid != nil {
-		t.Fatal("cleared overlay still reported")
-	}
 }
 
 func TestOverlayTitleNamesOnlyUnnamedChatShells(t *testing.T) {
@@ -381,23 +373,23 @@ func TestOverlayTitleNamesOnlyUnnamedChatShells(t *testing.T) {
 		t.Fatal(err)
 	}
 	derived := unnamed.Info().Title
-	unnamed.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp"}, Title: "chat title"})
+	unnamed.SetOverlay(&Overlay{Destination: "acp", Title: "chat title"})
 	if got := unnamed.Info().Title; got != "chat title" {
 		t.Fatalf("unnamed chat title %q", got)
 	}
 	// An empty title keeps the name derived from the launch directory.
-	unnamed.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp"}})
+	unnamed.SetOverlay(&Overlay{Destination: "acp"})
 	if got := unnamed.Info().Title; got != derived {
 		t.Fatalf("cleared chat title %q, want %q", got, derived)
 	}
-	unnamed.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp"}, Title: "chat title"})
+	unnamed.SetOverlay(&Overlay{Destination: "acp", Title: "chat title"})
 
 	// A creation name always wins over the agent's title.
 	named, err := m.CreateShell(ShellInput{CreateInput: CreateInput{Cwd: base, Name: "mine", Cmd: []string{"agent"}}}, newFakeDriver())
 	if err != nil {
 		t.Fatal(err)
 	}
-	named.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp"}, Title: "chat title"})
+	named.SetOverlay(&Overlay{Destination: "acp", Title: "chat title"})
 	if got := named.Info().Title; got != "mine" {
 		t.Fatalf("named chat title %q", got)
 	}
@@ -412,15 +404,12 @@ func TestOverlayTitleNamesOnlyUnnamedChatShells(t *testing.T) {
 	}
 }
 
-func TestOrdinarySessionHasNoHybridInfo(t *testing.T) {
+func TestOrdinarySessionRefusesShellOperations(t *testing.T) {
 	t.Parallel()
 	m := shellManager(t)
 	s, err := m.Create(CreateInput{Cmd: []string{"/bin/sleep", "30"}})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if s.Info().Hybrid != nil {
-		t.Fatal("ordinary session reports hybrid info")
 	}
 	if err = s.StartRun([]string{"/bin/sleep", "1"}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("StartRun on an ordinary session: %v", err)

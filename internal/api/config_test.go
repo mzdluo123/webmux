@@ -21,12 +21,10 @@ func TestConfigDefaultShell(t *testing.T) {
 		t.Run(shell, func(t *testing.T) {
 			m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 			defer m.Shutdown(context.Background())
-			handler := New(testDeps(t, Deps{
-				Config:       config.Config{Token: loginToken},
+			handler := New(testDeps(t, testServices{Config: config.Config{Token: loginToken},
 				DefaultShell: shell,
 				Manager:      m,
-				Workspace:    testWorkspace(t, m, t.TempDir()),
-			}))
+				Workspace:    testWorkspace(t, m, t.TempDir())}))
 			req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
 			req.Header.Set("Authorization", "Bearer "+loginToken)
 			recorder := httptest.NewRecorder()
@@ -118,7 +116,7 @@ func TestConfigTunnelStatus(t *testing.T) {
 		t.Run(row.name, func(t *testing.T) {
 			m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 			defer m.Shutdown(context.Background())
-			handler := New(testDeps(t, Deps{Config: row.cfg, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Tunnel: row.load}))
+			handler := New(testDeps(t, testServices{Config: row.cfg, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Tunnel: row.load}))
 			req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
 			req.Header.Set("Authorization", "Bearer "+loginToken)
 			recorder := httptest.NewRecorder()

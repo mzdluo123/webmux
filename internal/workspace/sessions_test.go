@@ -2,7 +2,6 @@ package workspace
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,19 +9,8 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
-
-func TestSessionCreateErrorKinds(t *testing.T) {
-	if got := errorKind(sessionCreateError(session.ErrInvalid)); got != ErrInvalid {
-		t.Fatalf("invalid input mapped to %v", got)
-	}
-	if got := errorKind(sessionCreateError(session.ErrShuttingDown)); got != ErrUnavailable {
-		t.Fatalf("shutdown mapped to %v", got)
-	}
-	if got := errorKind(sessionCreateError(errors.New("fork failed"))); got != ErrInternal {
-		t.Fatalf("unknown failure mapped to %v", got)
-	}
-}
 
 func TestMultiplePTYsKeepRealChildCwdAndIndependentBuffers(t *testing.T) {
 	t.Parallel()
@@ -35,17 +23,17 @@ func TestMultiplePTYsKeepRealChildCwdAndIndependentBuffers(t *testing.T) {
 	if err := os.MkdirAll(child, 0700); err != nil {
 		t.Fatal(err)
 	}
-	first, err := s.CreateSession(context.Background(), CreateInput{Cwd: child, Cmd: []string{"/bin/sh", "-c", "printf FIRST; read value; printf 'GOT:%s' \"$value\""}, Name: "first", Workspace: &Reference{r.ID, tree.ID}})
+	first, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: child, Cmd: []string{"/bin/sh", "-c", "printf FIRST; read value; printf 'GOT:%s' \"$value\""}, Name: "first", Workspace: &sessioncreate.Reference{RepositoryID: r.ID, WorktreeID: tree.ID}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := s.CreateSession(context.Background(), CreateInput{Cwd: child, Cmd: []string{"/bin/sh", "-c", "printf SECOND; read value"}, Name: "second"})
+	second, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: child, Cmd: []string{"/bin/sh", "-c", "printf SECOND; read value"}, Name: "second"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	waitOutput(t, first, "FIRST")
 	waitOutput(t, second, "SECOND")
-	if first.Info().Cwd != child || first.Info().Workspace == nil || second.Info().Workspace == nil || first.Info().ID == second.Info().ID {
+	if first.Info().Cwd != child || s.Association(first.Info().ID) == nil || s.Association(second.Info().ID) == nil || first.Info().ID == second.Info().ID {
 		t.Fatalf("independent launch metadata: %+v %+v", first.Info(), second.Info())
 	}
 	if err := first.Write([]byte("one\n")); err != nil {
@@ -68,7 +56,7 @@ func TestMultiplePTYsKeepRealChildCwdAndIndependentBuffers(t *testing.T) {
 	}
 	select {
 	case event := <-sub.Out:
-		if event.Type != "updated" || event.Session == nil || event.Session.ID != second.Info().ID || event.Session.Workspace != nil {
+		if event.Type != "updated" || event.Session == nil || event.Session.ID != second.Info().ID || s.Association(event.Session.ID) != nil {
 			t.Fatalf("regroup event: %+v", event)
 		}
 	case <-time.After(time.Second):
@@ -91,19 +79,19 @@ func TestExplicitWorkspaceNeverFallsBackOrMatchesNestedRepository(t *testing.T) 
 	}
 	gitTest(t, nested, "init")
 	for _, cwd := range []string{root, nested} {
-		if _, err := s.CreateSession(context.Background(), CreateInput{Cwd: cwd, Cmd: []string{"/bin/sh"}, Workspace: &Reference{r.ID, tree.ID}}); err == nil {
+		if _, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: cwd, Cmd: []string{"/bin/sh"}, Workspace: &sessioncreate.Reference{RepositoryID: r.ID, WorktreeID: tree.ID}}); err == nil {
 			t.Fatalf("conflicting cwd accepted: %q", cwd)
 		}
 	}
-	direct, err := s.CreateSession(context.Background(), CreateInput{Cwd: nested, Cmd: []string{"/bin/sh", "-c", "printf NESTED"}})
+	direct, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: nested, Cmd: []string{"/bin/sh", "-c", "printf NESTED"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	waitDone(t, direct)
-	if direct.Info().Workspace != nil {
+	if s.Association(direct.Info().ID) != nil {
 		t.Fatal("nested unregistered repository matched outer worktree")
 	}
-	prior, err := s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf OLD; read value"}})
+	prior, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf OLD; read value"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,13 +99,13 @@ func TestExplicitWorkspaceNeverFallsBackOrMatchesNestedRepository(t *testing.T) 
 	if err := os.Rename(tree.Path, tree.Path+"-gone"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateSession(context.Background(), CreateInput{Cmd: []string{"/bin/sh"}, Workspace: &Reference{r.ID, tree.ID}}); err == nil {
+	if _, err := s.CreateSession(context.Background(), sessioncreate.Input{Cmd: []string{"/bin/sh"}, Workspace: &sessioncreate.Reference{RepositoryID: r.ID, WorktreeID: tree.ID}}); err == nil {
 		t.Fatal("missing selected tree fell back to default")
 	}
 	if _, err := s.Refresh(context.Background(), r.ID); err != nil {
 		t.Fatal(err)
 	}
-	if prior.Info().Workspace == nil || prior.Info().Workspace.WorktreeID != tree.ID || prior.Info().Status == session.StatusExited {
+	if s.Association(prior.Info().ID) == nil || s.Association(prior.Info().ID).WorktreeID != tree.ID || prior.Info().Status == session.StatusExited {
 		t.Fatal("unavailable workspace session lost association or process")
 	}
 }
@@ -128,7 +116,7 @@ func TestCloseTimeoutDoesNotDeleteTreeAndReleasesReservation(t *testing.T) {
 	s, _ := testService(t, t.TempDir(), root)
 	r := registerTest(t, s, root)
 	tree := linkedTest(t, s, r, "close-timeout")
-	item, err := s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/bash", "-c", `trap '' HUP; printf READY; while :; do sleep 1; done`}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/bash", "-c", `trap '' HUP; printf READY; while :; do sleep 1; done`}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +130,7 @@ func TestCloseTimeoutDoesNotDeleteTreeAndReleasesReservation(t *testing.T) {
 	}
 	assertExists(t, tree.Path)
 	waitDone(t, item)
-	next, err := s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf RELEASED"}})
+	next, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf RELEASED"}})
 	if err != nil {
 		t.Fatal("timeout retained reservation", err)
 	}

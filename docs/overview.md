@@ -2,6 +2,9 @@
 
 WebMux 是一个单二进制的 Web 终端服务，为在浏览器和手机上遥控 Claude Code、Codex、omp 等 CLI agent 而设计。本页是首页 [README](../README.md) 的完整版：定位、设计理念、全部特性与技术栈。操作步骤见 [使用指南](usage.md)，部署见 [部署指南](deployment.md)。
 
+新生成配置只启用持久 PTY 核心；下列扩展能力按 [14 个内置插件](deployment/configuration.md#内置插件选择) 显式选择并重启。
+插件随同一二进制发布，禁用时不加载前端实现、不启动后端服务或打开所属存储；不是插件市场、热加载或安全隔离。旧配置未声明选择时保留固定旧版全量功能。
+
 ## 定位
 
 PTY 会话由服务端持有，浏览器只是“附着”上去：手机锁屏、切换网络、关闭标签页都不会结束正在运行的 agent，重新打开即可回放断线期间的全部输出。
@@ -27,14 +30,14 @@ Windows 不是“顺带能用”的平台。
 ### 低侵入性
 
 - 一个静态二进制，以当前用户身份运行，不需要 root 或管理员权限。
-- 不改写 shell 配置，不依赖 tmux、数据库或语言运行时。
+- 不改写 shell 配置，不依赖 tmux、外部数据库服务或语言运行时。
 - 用户级服务由 `webmux service` 管理（systemd --user / launchd），卸载时保留配置。
-- 会话只在内存中；状态目录只保存显式登记的 JSON 文件（仓库清单、启动配置、偏好、推送、隧道与 Tailscale 设置、混合会话记录），见 [配置与持久化清单](persistence.md)。
+- PTY 与进程只在内存中；所选插件保存登记的 JSON 状态，`chat` 还使用嵌入式 SQLite 保存对话身份、历史与交接，见 [配置与持久化清单](persistence.md)。
 - 托盘不静默安装或升级，也不修改防火墙。
 
 ### 融入现有终端 agent 工作流
 
-- Claude Code、Codex、omp 等 agent 的终端端原样运行在真实 PTY 中，无需插件或改写其配置。
+- Claude Code、Codex、omp 等 agent 的终端端原样运行在真实 PTY 中，无需 agent 扩展或改写其配置；自定义 argv/cwd 属核心。
 - 聊天端（[混合会话](hybrid-sessions.md)）经 ACP 连接同一个 agent 会话；Codex 与 Claude Code 需要另外安装第三方 ACP 连接器，缺失时终端端照常使用。
 - 原始字节直通 xterm.js，TUI 渲染与原生终端一致。
 - 在习惯的终端里 `webmux run -- claude` 启动，`Ctrl+]` 分离后在手机上继续，回到电脑 `webmux attach <ID>` 接续，全程是同一个进程。
@@ -66,8 +69,8 @@ Windows 不是“顺带能用”的平台。
 ### Agent 协作
 
 - **自定义启动配置**：在设置页保存 Shell、Open Code、Claude Code、Codex、omp 等程序的完整命令与环境变量，新建会话时统一选用。
-  - 新安装首次启动时预置 [十一款 CLI agent](cli-agents.md)，以及 Shell 和 omp；每项附带本地品牌图标，均可编辑或删除。
-  - Codex CLI、Antigravity CLI、Open Code、omp、Claude Code、Qoder、QoderCN 与 Kimi 默认开启混合模式；也可填写一次性命令。
+  - 开启 `launch` 后首次创建缺失文件时，预置 [十二款 CLI agent](cli-agents.md)、Shell 与 omp，共 14 项；图标本地打包，均可编辑或删除。
+  - 混合预设的实际聊天功能另需 `chat` 及其依赖；无 `launch` 也可填写一次性命令。
 - **ACP 混合会话**：OpenCode / omp / Codex CLI / Claude Code / Antigravity CLI / Qoder / QoderCN / Kimi 对话在原生 TUI 与聊天视图之间切换，支持多设备队列、插话、权限请求、附件与重启恢复，见下节。
 - **需要你介入的提醒**：识别 agent 的终端通知与状态信号，在总览、侧栏、标签页和手机推送中提示，见 [需要你介入的提醒](usage/attention.md)。
 
@@ -83,7 +86,7 @@ Windows 不是“顺带能用”的平台。
 - **安装为应用与推送**：可安装为 PWA；agent 等你回复时，锁屏的手机也能收到 Web Push 通知，见 [安装为应用与手机推送](deployment/pwa-and-push.md)。
 - **远程访问**：推荐 Tailscale / WireGuard 等可信 VPN；也可托管 [Tailscale Serve / Funnel](tailscale.md) 或 [Cloudflare Named Tunnel](cloudflare-tunnel.md) 提供 HTTPS 入口。
 - **Windows（WSL）**：托盘程序管理 WSL 中的服务与访问入口，控制台客户端在 PowerShell / Windows Terminal 中附着会话。
-- **零运行时依赖**：前端嵌入 Go 二进制，运行端只需 Linux、macOS 或 WSL 2 与一个 shell，无需 Node.js、Go、tmux 或数据库。
+- **零外部运行时依赖**：前端嵌入 Go 二进制，运行端只需 Linux、macOS 或 WSL 2 与 shell，无需 Node.js、Go、tmux 或单独部署数据库。
 
 ## 混合会话（ACP 聊天 ↔ 终端）
 

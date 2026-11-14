@@ -88,7 +88,7 @@ func (s *maintenanceServer) env(t *testing.T, stdin string, interactive bool) (E
 		}
 		_ = json.NewEncoder(w).Encode(result)
 	})
-	srv := &http.Server{Handler: mux}
+	srv := &http.Server{Handler: withTestCapabilities(mux)}
 	go func() { _ = srv.Serve(l) }()
 	t.Cleanup(func() { _ = srv.Close() })
 	var stdout, stderr bytes.Buffer

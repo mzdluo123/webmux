@@ -145,6 +145,9 @@ func (s *WSLService) Status(ctx context.Context) (contract.StatusV1, error) {
 		if errors.Is(err, errNoContract) {
 			return contract.StatusV1{}, fmt.Errorf("local status: %w", err)
 		}
+		if err == nil && status.State == contract.StateRunning {
+			status = s.capabilityStatus(ctx, status)
+		}
 		return status, err
 	}
 	if !errors.Is(err, localclient.ErrNotRunning) {
@@ -161,7 +164,41 @@ func (s *WSLService) Status(ctx context.Context) (contract.StatusV1, error) {
 	if errors.Is(err, errNoContract) {
 		return contract.StatusV1{}, fmt.Errorf("%w: status --json: %s", ErrWebmuxTooOld, strings.TrimSpace(wslclient.DecodeOutput(res.Stderr)))
 	}
+	if err == nil && status.State == contract.StateRunning {
+		status = s.capabilityStatus(ctx, status)
+	}
 	return status, err
+}
+
+// capabilityStatus hides optional controls when discovery fails, without making
+// the PTY instance look unhealthy. Older/invalid snapshots never grant access.
+func (s *WSLService) capabilityStatus(ctx context.Context, status contract.StatusV1) contract.StatusV1 {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	snapshot, err := s.local().Capabilities(ctx)
+	available := func(id string) bool {
+		return err == nil && localclient.CapabilityAvailable(snapshot, id)
+	}
+	if !available("cloudflare.manage") {
+		status.Tunnel = nil
+	}
+	if !available("tailscale.manage") {
+		status.Tailscale = nil
+	}
+	// Push is diagnostic-only: selected providers retain configuration and
+	// storage-recovery hints even when delivery is unavailable. The access
+	// providers above expose mutation controls, so keep their availability gate.
+	if err != nil || !localclient.PluginEnabled(snapshot, "notifications") {
+		status.Push = nil
+	}
+	access := make([]contract.AccessLink, 0, len(status.URLs.Access))
+	for _, item := range status.URLs.Access {
+		if item.Provider == "cloudflare" && available("cloudflare.manage") || item.Provider == "tailscale" && available("tailscale.manage") {
+			access = append(access, item)
+		}
+	}
+	status.URLs.Access = access
+	return status
 }
 
 func (s *WSLService) Watch(ctx context.Context, sessions func(int)) error {

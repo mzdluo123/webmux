@@ -40,7 +40,7 @@
 
 ## 实现依据
 
-- [显示入口](../../web/src/components/terminal/TerminalDisplayControls.svelte)、[设置入口](../../web/src/components/shell/AppearanceSettings.svelte)
+- [显示入口](../../web/src/components/terminal/TerminalDisplayControls.svelte)、[设置入口](../../web/src/components/settings/AppearanceSettings.svelte)
 - [TV 导航](../../web/src/hooks/shared/tv-navigation.svelte.ts)、[终端输入与控制键](../../web/src/components/terminal/TerminalViewport.svelte)
 - [XR 生命周期与能力探测](../../web/src/hooks/terminal/xr-session.svelte.ts)、[工作区](../../web/src/hooks/terminal/xr-workspace.ts)
 - [面板](../../web/src/hooks/terminal/xr-panel.ts)、[会话与面板菜单](../../web/src/hooks/terminal/xr-menu.ts)、[键盘](../../web/src/hooks/terminal/xr-keyboard.ts)

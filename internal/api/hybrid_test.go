@@ -53,7 +53,6 @@ func newHybridAPI(t *testing.T, prepare func(state string)) *hybridAPI {
 	})
 	ws := workspace.New(t.TempDir(), h.manager, h.store, h.cwd)
 	ws.UseHybrid(hybrids)
-	ws.UseArtifacts(h.folders)
 	t.Cleanup(func() {
 		hybrids.Close()
 		ws.Close()
@@ -62,7 +61,7 @@ func newHybridAPI(t *testing.T, prepare func(state string)) *hybridAPI {
 		defer cancel()
 		h.manager.Shutdown(ctx)
 	})
-	h.handler = New(testDeps(t, Deps{Config: config.Config{Token: "secret", DefaultCwd: h.cwd}, Manager: h.manager, Launch: h.store, Workspace: ws, Hybrid: hybrids, Artifacts: h.folders}))
+	h.handler = New(testDeps(t, testServices{Config: config.Config{Token: "secret", DefaultCwd: h.cwd}, Manager: h.manager, Launch: h.store, Workspace: ws, Hybrid: hybrids, Artifacts: h.folders}))
 	return h
 }
 

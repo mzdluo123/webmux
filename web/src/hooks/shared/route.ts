@@ -4,6 +4,28 @@ import type {
   GitHistoryScope,
   GitWorkbenchMode,
 } from "../../contracts/git-workbench-schemas";
+import type { PluginID } from "../../contracts/plugin-schemas";
+
+/** Only built-in route ownership; the server never supplies script locations. */
+export function routePlugin(route: Route): PluginID | undefined {
+  switch (route.name) {
+    case "code":
+      return "code";
+    case "git":
+      return "workspace";
+    case "quick-start":
+    case "handoff":
+      return "chat";
+    case "settings-tailscale":
+      return "tailscale";
+    case "settings-tunnel":
+      return "cloudflare";
+    case "forward-auth":
+      return "forward";
+    default:
+      return undefined;
+  }
+}
 
 export interface GitRouteQuery {
   view?: GitWorkbenchMode;

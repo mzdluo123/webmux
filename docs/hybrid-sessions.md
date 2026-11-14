@@ -2,6 +2,8 @@
 
 混合会话让同一段 agent 对话在原生 TUI（终端视图）与聊天视图之间切换：原生 TUI 适合在电脑上精细操作，聊天视图适合在手机上阅读和回复。
 
+前提：显式选择 `chat`、`launch`、`files` 并重启；基于仓库的快速开始另需 `workspace`，见 [插件选择](deployment/configuration.md#内置插件选择)。禁用聊天不会删除已有记录，但不打开、恢复或清扫它们；普通 PTY 继续可用。
+
 最快上手：切到聊天模式，在快速开始页选好仓库与 agent 并发送首条任务；之后用会话页头部的“聊天 | 终端”控件来回切换。
 
 - 支持 OpenCode、omp、Codex CLI、Claude Code、Antigravity CLI（`agy`）、Qoder、QoderCN、Kimi Code CLI 与 Devin CLI。
@@ -12,7 +14,7 @@
 
 ## 怎么开启
 
-新安装首次启动时预置的 OpenCode、omp、Codex CLI、Claude Code、Antigravity CLI、Qoder、QoderCN、Kimi Code CLI 与 Devin CLI 配置已默认勾选 **“混合模式（聊天 ↔ 终端）”**，可通过以下两种方式直接开启：
+启用 `launch` 后首次打开缺失文件时，OpenCode、omp、Codex CLI、Claude Code、Antigravity CLI、Qoder、QoderCN、Kimi Code CLI 与 Devin CLI 预设已勾选 **“混合模式（聊天 ↔ 终端）”**；同时启用 `chat` 后可通过两种方式开启：
 
 | 方式                        | 怎么做                                                                                      | 从哪个视图开始                                    |
 | --------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------- |

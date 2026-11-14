@@ -18,16 +18,14 @@ import {
   type SwitchTarget,
 } from "../../domains/sessions/hybrid";
 export type { HybridNotice, HybridView } from "../../domains/sessions/hybrid";
-export type { HybridSession, HybridTerminal } from "./hybrid-types";
+export type { HybridSession } from "./hybrid-types";
 import {
   returnQueuedDraft,
   type HybridSession,
   type HybridTerminal,
 } from "./hybrid-types";
-import {
-  loadRecord,
-  sessionConflict,
-} from "../../domains/sessions/recoverable";
+import { loadRecord } from "../../domains/sessions/recoverable";
+import { sessionConflict } from "../../domains/sessions/session-conflict";
 import {
   SessionInfoSchema,
   type AgentConnector,

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
 )
 
 // cleanArchived creates a linked worktree with nothing but one archived
@@ -65,7 +66,8 @@ func TestRemovalKeepsArchivedRecordsAsReleased(t *testing.T) {
 			if rebuilt.Path != tree.Path || rebuilt.Head == nil || *rebuilt.Head != *tree.Head || h.released(id) != nil {
 				t.Fatalf("rebuilt = %+v", rebuilt)
 			}
-			if _, err := h.s.ResumeHybrid(context.Background(), id, HybridResumeInput{ClientRequestID: "resume-" + mode}); err != nil {
+			resumer := hybridresume.New(h.hybrids, h.launches, hybridresume.Options{ResumeLocations: h.s})
+			if _, err := resumer.Resume(context.Background(), id, hybridresume.Input{ClientRequestID: "resume-" + mode}); err != nil {
 				t.Fatalf("resume after rebuild: %v", err)
 			}
 		})

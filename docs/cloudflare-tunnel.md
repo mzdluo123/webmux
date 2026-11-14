@@ -34,6 +34,7 @@ WebMux 启动并管理 `cloudflared` 子进程；Cloudflare 边缘把公共主�
 
 ## 3. 前置条件
 
+- 先 [选择 `cloudflare` 插件](deployment/configuration.md#内置插件选择) 并重启；网页开关或 `--tunnel` 不会隐式选中它。
 - 一个 Cloudflare 账号。
 - 一个已添加到 Cloudflare 并生效的域名。Cloudflare 只会为已接入的域名提供公共主机名。
 - WebMux 已能正常运行。隧道模式下若显式配置根 `token`，至少需要 43 个字符；留空则每次启动自动生成。`webmux config init` 生成的 Token 满足要求。

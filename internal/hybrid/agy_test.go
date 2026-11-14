@@ -67,7 +67,7 @@ func TestAgyRoundTripAndConfigReapply(t *testing.T) {
 	h.waitReason(id, ReasonNoSessionID)
 	tuiTurn(t, s, "one")
 	h.waitEligible(id)
-	sid := *s.Info().Hybrid.AgentSessionID
+	sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 	if len(sid) != 36 {
 		t.Fatalf("expected 36-char UUID session ID, got %q", sid)
 	}
@@ -99,7 +99,7 @@ func TestAgyRoundTripAndConfigReapply(t *testing.T) {
 	waitFor(t, "resumed transcript", func() bool { return strings.Contains(string(s.Buffer()), "> two") })
 	tuiTurn(t, s, "three")
 	h.waitEligible(id)
-	if got := *s.Info().Hybrid.AgentSessionID; got != sid {
+	if got := *h.svc.Metadata(s.Info().ID).AgentSessionID; got != sid {
 		t.Fatalf("resumed terminal session %s, want %s", got, sid)
 	}
 

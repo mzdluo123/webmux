@@ -1,6 +1,7 @@
 import { onMount } from "svelte";
 import { api } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
+import { requestPluginHostRefresh } from "../../platform/plugin-host.svelte";
 import {
   refreshP2PAfterSettingsChange,
   refreshP2PStatus,
@@ -83,6 +84,8 @@ export function useP2PSettings() {
       ui.status = next;
       ui.revision++;
       refreshP2PAfterSettingsChange(next);
+      await requestPluginHostRefresh();
+      if (requests.disposed) return false;
       schedulePortMapPoll(next);
       ui.feedback =
         method === "DELETE" ? "已恢复配置文件默认。" : "P2P 设置已保存。";

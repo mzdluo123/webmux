@@ -1,10 +1,8 @@
 <script lang="ts" module>
   type SessionPageModule = typeof import("./pages/Terminal.svelte");
-  type GitPageModule = typeof import("./pages/GitWorkbench.svelte");
   // Kept after the first visit. A resolved import still paints `{#await}`'s
   // pending branch, so later opens must render the module directly.
   let sessionPage: SessionPageModule | undefined;
-  let gitPage: GitPageModule | undefined;
 
   function cachedSessionPage() {
     return sessionPage;
@@ -17,31 +15,15 @@
     });
     return pending;
   }
-
-  function cachedGitPage() {
-    return gitPage;
-  }
-
-  function loadGitPage() {
-    const pending = import("./pages/GitWorkbench.svelte");
-    void pending.then((mod) => {
-      gitPage = mod;
-    });
-    return pending;
-  }
 </script>
 
 <script lang="ts">
-  import Brand from "./components/shell/Brand.svelte";
+  import ConnectionGate from "./components/shell/ConnectionGate.svelte";
   import {
     startSettings,
     stopSettings,
+    settings,
   } from "./domains/settings/settings.svelte";
-  import {
-    markFirstScreenReady,
-    startP2P,
-    stopP2P,
-  } from "./platform/p2p.svelte";
   import { errorMessage } from "./platform/error";
   import { onMount, tick } from "svelte";
   import {
@@ -52,14 +34,11 @@
     stored,
   } from "./platform/api";
   import { HealthSchema } from "./contracts/schemas";
-  import { sync as syncPush } from "./platform/push";
   import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
-  import { Label } from "$lib/components/ui/label";
-  import * as Card from "$lib/components/ui/card";
-  import TokenHelp from "./components/shared/TokenHelp.svelte";
   import LazyPage from "./components/shared/LazyPage.svelte";
   import AppShell from "./components/shell/AppShell.svelte";
+  import PluginPage from "./plugins/PluginPage.svelte";
+  import PluginLoadNotices from "./plugins/PluginLoadNotices.svelte";
   import SessionSwitcher from "./components/shell/SessionSwitcher.svelte";
   import type TerminalPage from "./pages/Terminal.svelte";
   import {
@@ -67,14 +46,31 @@
     provideSessionSwitcher,
   } from "./hooks/shared/session-switcher";
   import SessionList from "./pages/SessionList.svelte";
-  import { matchRoute, type Route } from "./hooks/shared/route";
+  import { matchRoute, routePlugin, type Route } from "./hooks/shared/route";
   import { enterHome, openSession } from "./hooks/shared/shell.svelte";
   import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
   import { browserDraftStorage } from "./domains/terminal/draft-storage";
-  import { clearHomeCache, homeCache } from "./domains/workspace/home-cache";
-  import { sessionPageLabel } from "./domains/sessions/hybrid";
+  import { clearHomeCache } from "./domains/workspace/home-cache";
   import { sessionPins } from "./domains/sessions/session-pins.svelte";
-  import { resetAttentionToasts } from "./domains/notifications/attention-toast.svelte";
+  import {
+    clearSessionListSnapshot,
+    sessionListSnapshot,
+  } from "./hooks/sessions/session-list.svelte";
+  import { CapabilitiesSchema } from "./contracts/plugin-schemas";
+  import {
+    pluginEnabled,
+    pluginAvailable,
+    setPluginCapabilities,
+    resetPluginCapabilities,
+    requestPluginHostRefresh,
+  } from "./platform/plugin-host.svelte";
+  import {
+    loadPluginContributions,
+    disposePluginContributions,
+    pluginContributions,
+  } from "./plugins/registry.svelte";
+  import { watchPluginHostRefresh } from "./plugins/host-refresh";
+  import { onActiveHostChange } from "./platform/storage";
   import { useDeviceShell } from "./hooks/shared/device-shell.svelte";
   import { tvInput } from "./hooks/shared/tv-input.svelte";
   import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
@@ -85,14 +81,25 @@
   const drafts = createTerminalDrafts({ storage: browserDraftStorage() });
   let uploadNotice = $state("");
 
-  enterHome();
   let path = $state(location.pathname);
   let search = $state(location.search);
   let ready = $state(false);
+  let rebuildingPlugins = $state(false);
   let checking = $state(true);
   let token = $state(stored("token"));
   let error = $state("");
+  let discoveryError = $state("");
+  let bootstrapEpoch = 0;
+  let bootstrapAbort: AbortController | undefined;
   const route = $derived(matchRoute(path));
+  const contributions = $derived(pluginContributions.entries);
+  const requiredPlugin = $derived(routePlugin(route));
+  const routeUnavailable = $derived(
+    requiredPlugin &&
+      (!pluginEnabled(requiredPlugin) ||
+        pluginContributions.errors[requiredPlugin] ||
+        (route.name === "git" && !pluginAvailable("workspace.git-workbench"))),
+  );
   const sessionId = $derived(route.name === "terminal" ? route.id : "");
   const shellRoute = $derived(
     route.name === "sessions" ||
@@ -165,14 +172,13 @@
     openSession({ id });
   }
 
-  // The frame of a pop-out code window; it only shows the code workspace.
-  const codeId = $derived(route.name === "code" ? route.id : "");
   // The list already names the side. The loading line must not call a chat
   // session a terminal while this page's chunk is still arriving.
   const pageLabel = $derived(
-    sessionPageLabel(
-      homeCache.sessions()?.find((session) => session.id === sessionId),
-    ),
+    sessionListSnapshot()?.find((session) => session.id === sessionId)?.view ===
+      "chat"
+      ? "聊天"
+      : "终端",
   );
   // Re-read the cached chunk when the open session changes. Filling the
   // cache during this visit must not replace the page already on screen.
@@ -180,28 +186,60 @@
     void sessionId;
     return cachedSessionPage();
   });
-  const openedGitPage = $derived.by(() => {
-    void path;
-    return cachedGitPage();
+  // Settings can reconnect while no shell session feed is mounted.
+  let settingsHadConnection = false;
+  let settingsWasConnected = false;
+  $effect(() => {
+    const connected = settings.connected;
+    if (ready && connected && !settingsWasConnected && settingsHadConnection)
+      void requestPluginHostRefresh();
+    if (connected) settingsHadConnection = true;
+    settingsWasConnected = connected;
   });
 
   async function check() {
     checking = true;
+    bootstrapAbort?.abort();
+    const controller = new AbortController();
+    bootstrapAbort = controller;
+    const epoch = ++bootstrapEpoch;
     try {
-      await api("/health", HealthSchema);
-      ready = true;
-      markFirstScreenReady();
+      disposePluginContributions();
+      resetPluginCapabilities();
+      await api("/health", HealthSchema, "GET", undefined, controller.signal);
+      discoveryError = "";
+      try {
+        const capabilities = await api(
+          "/capabilities",
+          CapabilitiesSchema,
+          "GET",
+          undefined,
+          controller.signal,
+        );
+        if (epoch !== bootstrapEpoch) return;
+        setPluginCapabilities(capabilities);
+        enterHome();
+        path = location.pathname;
+        await loadPluginContributions({
+          forwardAuth: route.name === "forward-auth",
+          codePopout: route.name === "code",
+        });
+      } catch (discoveryFailure) {
+        if (epoch !== bootstrapEpoch) return;
+        resetPluginCapabilities();
+        disposePluginContributions();
+        discoveryError = `无法发现可选功能；终端仍可使用。${errorMessage(discoveryFailure)}`;
+        enterHome();
+        path = location.pathname;
+      }
+      if (epoch !== bootstrapEpoch) return;
       startSettings();
-      if (route.name !== "forward-auth") startP2P();
+      ready = true;
       error = "";
-      // Re-registers an existing push subscription, e.g. after the server
-      // rebuilt its store; without one it touches nothing.
-      if (route.name !== "code" && route.name !== "forward-auth")
-        void syncPush().catch(() => undefined);
     } catch (err) {
-      error = errorMessage(err);
+      if (epoch === bootstrapEpoch) error = errorMessage(err);
     } finally {
-      checking = false;
+      if (epoch === bootstrapEpoch) checking = false;
     }
   }
 
@@ -223,7 +261,7 @@
       subtree: true,
     });
     const change = () => {
-      if (!shellRoute) enterHome();
+      if (ready && !shellRoute) enterHome();
       const pathChanged = path !== location.pathname;
       if (pathChanged) switcherOpen = false;
       pendingSessionOpen = "";
@@ -235,11 +273,16 @@
       }
     };
     const auth = () => {
-      stopP2P();
+      bootstrapEpoch++;
+      bootstrapAbort?.abort();
+      pluginRefresh.cancel();
+      disposePluginContributions();
+      rebuildingPlugins = false;
+      resetPluginCapabilities();
       stopSettings();
       drafts.clearAll();
       clearHomeCache();
-      resetAttentionToasts();
+      clearSessionListSnapshot();
       uploadNotice = "";
       pendingSessionOpen = "";
       ready = false;
@@ -293,10 +336,33 @@
     window.addEventListener("webmux:auth", auth);
     if (consumeTokenFragment()) token = stored("token");
     const disconnectPins = sessionPins.connect();
+    const disconnectHost = onActiveHostChange(() => {
+      auth();
+      token = stored("token");
+      void check();
+    });
+    const pluginRefresh = watchPluginHostRefresh({
+      ready: () => ready,
+      epoch: () => bootstrapEpoch,
+      context: () => ({
+        forwardAuth: route.name === "forward-auth",
+        codePopout: route.name === "code",
+      }),
+      onRebuilding: (value) => {
+        rebuildingPlugins = value;
+        if (value) switcherOpen = false;
+      },
+      onError: (message) => (discoveryError = message),
+    });
     void check();
     return () => {
       disconnectPins();
-      stopP2P();
+      disconnectHost();
+      pluginRefresh.dispose();
+      bootstrapAbort?.abort();
+      bootstrapEpoch++;
+      disposePluginContributions();
+      resetPluginCapabilities();
       stopSettings();
       routes.disconnect();
       drafts.clearAll();
@@ -317,79 +383,37 @@
 {/if}
 
 {#if !ready}
-  <main class="flex min-h-dvh items-center justify-center p-6">
-    <Card.Root class="w-full max-w-md">
-      <Card.Header>
-        <p class="brand mb-6"><Brand /></p>
-        <Card.Title class="text-2xl">你的终端，始终在线。</Card.Title>
-        <Card.Description>在可信内网中连接这台机器。</Card.Description>
-      </Card.Header>
-      <Card.Content>
-        {#if checking}
-          <p role="status" class="text-muted-foreground">正在连接…</p>
-        {:else}
-          <form
-            class="space-y-5"
-            onsubmit={(event) => {
-              event.preventDefault();
-              store("token", token);
-              void check();
-            }}
-          >
-            <div class="space-y-2">
-              <div class="flex items-center gap-1">
-                <Label for="token">共享 Token</Label>
-                <TokenHelp />
-              </div>
-              <Input
-                id="token"
-                type="password"
-                bind:value={token}
-                autocomplete="current-password"
-              />
-            </div>
-            {#if error}<p role="alert" class="text-destructive">{error}</p>{/if}
-            <Button type="submit" class="w-full">连接 WebMux →</Button>
-          </form>
-        {/if}
-      </Card.Content>
-    </Card.Root>
+  <ConnectionGate
+    {checking}
+    {error}
+    bind:token
+    onconnect={() => {
+      store("token", token);
+      void check();
+    }}
+  />
+{:else if rebuildingPlugins}
+  <main class="mx-auto max-w-xl p-6" aria-busy="true">
+    <InlineNotice>实例功能已更改，正在重新连接…</InlineNotice>
   </main>
-{:else if codeId}
-  <LazyPage
-    load={() => import("./pages/CodePopout.svelte")}
-    label="代码"
-    errorMessage={() => "代码窗口加载失败，请关闭后重新打开。"}
-  >
-    {#snippet children(page)}<page.default id={codeId} />{/snippet}
-  </LazyPage>
-{:else if route.name === "settings-tailscale"}
-  <LazyPage
-    load={() => import("./pages/TailscaleSettingsPage.svelte")}
-    label="Tailscale 设置"
-    loadingText="正在加载 Tailscale 设置…"
-  >
-    {#snippet children(page)}<page.default />{/snippet}
-  </LazyPage>
-{:else if route.name === "settings-tunnel"}
-  <LazyPage
-    load={() => import("./pages/TunnelSettingsPage.svelte")}
-    label="公网访问设置"
-  >
-    {#snippet children(page)}<page.default />{/snippet}
-  </LazyPage>
+{:else if routeUnavailable}
+  <main class="mx-auto max-w-xl space-y-4 p-6">
+    <h1 class="text-2xl font-semibold">功能未启用</h1>
+    <InlineNotice tone="warning"
+      >{requiredPlugin && pluginContributions.errors[requiredPlugin]
+        ? `${requiredPlugin} 加载失败：${pluginContributions.errors[requiredPlugin]}`
+        : route.name === "git" && pluginEnabled("workspace")
+          ? "Git 工作台需要同时启用工作区与代码插件，并确保服务可用。"
+          : `此页面需要 ${requiredPlugin} 插件。请在服务端配置中启用后重启。`}</InlineNotice
+    >
+    <Button href="/">返回会话</Button>
+  </main>
 {:else if route.name === "settings"}
   <LazyPage load={() => import("./pages/Settings.svelte")} label="设置">
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
-{:else if route.name === "forward-auth"}
-  <LazyPage
-    load={() => import("./pages/ForwardAuth.svelte")}
-    label="端口转发"
-    loadingText="正在打开转发…"
-  >
-    {#snippet children(page)}<page.default />{/snippet}
-  </LazyPage>
+{:else if !shellRoute}
+  <PluginPage {route} {search} />
 {:else if shellRoute}
   <AppShell bind:this={shell} route={shellRoute} {drafts}>
     {#if sessionId}
@@ -409,44 +433,22 @@
           {/snippet}
         </LazyPage>
       {/if}
-    {:else if route.name === "handoff"}
-      <LazyPage
-        load={() => import("./pages/Handoff.svelte")}
-        label="交接到新聊天"
-      >
-        {#snippet children(
-          page,
-        )}{#key route.name === "handoff" ? route.sourceId : ""}<page.default
-              sourceId={route.name === "handoff" ? route.sourceId : ""}
-            />{/key}{/snippet}
-      </LazyPage>
-    {:else if route.name === "git"}
-      {#if openedGitPage}
-        <openedGitPage.default
-          repositoryId={route.repositoryId}
-          worktreeId={route.worktreeId}
-          {search}
-        />
-      {:else}
-        <LazyPage load={loadGitPage} label="Git 工作台">
-          {#snippet children(page)}<page.default
-              repositoryId={route.repositoryId}
-              worktreeId={route.worktreeId}
-              {search}
-            />{/snippet}
-        </LazyPage>
-      {/if}
-    {:else if route.name === "quick-start"}
-      <LazyPage
-        load={() => import("./pages/QuickStart.svelte")}
-        label="快速开始"
-      >
-        {#snippet children(page)}<page.default />{/snippet}
-      </LazyPage>
+    {:else if route.name !== "sessions" || contributions.workspace}
+      <PluginPage {route} {search} />
     {:else}
       <SessionList />
     {/if}
   </AppShell>
+{/if}
+
+{#if ready && discoveryError}
+  <div class="fixed inset-x-2 bottom-2 z-50">
+    <InlineNotice tone="warning">{discoveryError}</InlineNotice>
+  </div>
+{/if}
+
+{#if ready}
+  <PluginLoadNotices errors={pluginContributions.errors} />
 {/if}
 
 {#snippet session(page: SessionPageModule)}

@@ -105,7 +105,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	webmux := global.String("webmux", "", "webmux inside WSL (default: WEBMUX_WSL_PATH, the tray setting, then ~/.local/bin/webmux)")
 	registry := append(windowsCommands(), clicmd.Commands()...)
 	help := clicmd.Env{Stdout: stdout, Stderr: stderr, Platform: "windows", Version: version, Commands: registry,
-		HelpFooter: "Global options before COMMAND: --distro NAME selects the WSL distribution, --webmux PATH the webmux inside it."}
+		HelpFooter: "Global options before COMMAND: --distro NAME selects the WSL distribution, --webmux PATH the webmux inside it. Optional commands require enabled server plugins; plain run/attach/ls/open use the terminal core."}
 	// Help before any command (webmux --help, -h, -help) is the overview on
 	// standard output, as on Linux and macOS.
 	global.SetOutput(io.Discard)

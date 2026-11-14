@@ -8,6 +8,10 @@ import {
   type Page,
 } from "@playwright/test";
 import { startE2EServer, type E2EServer } from "./server.mjs";
+import {
+  CapabilitiesSchema,
+  type PluginID,
+} from "../../src/contracts/plugin-schemas";
 
 type Session = { id: string; status: string; exitCode: number | null };
 
@@ -95,14 +99,54 @@ async function cleanP2PSettings(request: APIRequestContext) {
   expect([200, 501]).toContain(response.status());
 }
 
+async function cleanPlugins(
+  request: APIRequestContext,
+  enabled: ReadonlySet<PluginID>,
+) {
+  if (enabled.has("chat")) await cleanHybridRecords(request);
+  if (enabled.has("workspace")) await cleanRepositories(request);
+  if (enabled.has("launch")) await cleanLaunchConfigs(request);
+  if (enabled.has("p2p")) await cleanP2PSettings(request);
+}
+
+async function resetSettings(
+  request: APIRequestContext,
+  enabled: ReadonlySet<PluginID>,
+) {
+  const response = await request.get("/api/settings");
+  expect(response.ok()).toBeTruthy();
+  const prefs = await response.json();
+  const changes: Record<string, null> = {
+    theme: null,
+    sessionPins: null,
+    forceSoftKeys: null,
+  };
+  if (enabled.has("code")) {
+    changes.preview = null;
+    changes.codeReader = null;
+  }
+  if (enabled.has("quick-commands")) changes.quickCommands = null;
+  if (enabled.has("workspace")) changes.homeWorktrees = null;
+  if (enabled.has("forward")) changes.ignoreHighPorts = null;
+  expect(
+    (
+      await request.patch("/api/settings", {
+        data: { baseRevision: prefs.revision, changes },
+      })
+    ).ok(),
+  ).toBeTruthy();
+}
+
 export const test = base.extend<
   { workDir: string; _isolation: void },
-  { server: E2EServer }
+  { server: E2EServer; plugins: PluginID[] | undefined }
 >({
+  // Missing preserves legacy defaults; [] is explicitly core-only. Do not
+  // resolve dependencies here: the real backend validates the exact selection.
+  plugins: [undefined, { scope: "worker", option: true }],
   server: [
-    // oxlint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for fixture dependencies.
-    async ({}, use) => {
-      const server = await startE2EServer();
+    async ({ plugins }, use) => {
+      const server = await startE2EServer({ plugins });
       try {
         await use(server);
       } finally {
@@ -124,31 +168,19 @@ export const test = base.extend<
   },
   _isolation: [
     async ({ request, page, server }, use, testInfo) => {
+      const capabilityResponse = await request.get("/api/capabilities");
+      expect(capabilityResponse.ok()).toBeTruthy();
+      const capabilities = CapabilitiesSchema.parse(
+        await capabilityResponse.json(),
+      );
+      const enabled = new Set(
+        capabilities.plugins
+          .filter((plugin) => plugin.enabled)
+          .map((plugin) => plugin.id),
+      );
       await cleanSessions(request);
-      await cleanHybridRecords(request);
-      await cleanRepositories(request);
-      await cleanLaunchConfigs(request);
-      await cleanP2PSettings(request);
-      const prefs = await (await request.get("/api/settings")).json();
-      expect(
-        (
-          await request.patch("/api/settings", {
-            data: {
-              baseRevision: prefs.revision,
-              changes: {
-                theme: null,
-                preview: null,
-                codeReader: null,
-                quickCommands: null,
-                homeWorktrees: null,
-                sessionPins: null,
-                forceSoftKeys: null,
-                ignoreHighPorts: null,
-              },
-            },
-          })
-        ).ok(),
-      ).toBeTruthy();
+      await cleanPlugins(request, enabled);
+      await resetSettings(request, enabled);
       const browserLogs: string[] = [];
       page.on("console", (message) =>
         browserLogs.push(`[${message.type()}] ${message.text()}`),
@@ -188,12 +220,13 @@ export const test = base.extend<
                 contentType: "text/plain",
               });
             }
-            await testInfo.attach("archived-sessions.json", {
-              body: await (
-                await request.get("/api/sessions?state=archived")
-              ).body(),
-              contentType: "application/json",
-            });
+            if (enabled.has("chat"))
+              await testInfo.attach("archived-sessions.json", {
+                body: await (
+                  await request.get("/api/sessions?state=archived")
+                ).body(),
+                contentType: "application/json",
+              });
             const agentEvents = await readFile(
               join(server.env.FAKEAGENT_STORE!, "events.log"),
               "utf8",
@@ -206,35 +239,17 @@ export const test = base.extend<
           }
         } finally {
           await cleanSessions(request);
-          await cleanHybridRecords(request);
-          await cleanRepositories(request);
-          await cleanLaunchConfigs(request);
-          await cleanP2PSettings(request);
-          const prefs = await (await request.get("/api/settings")).json();
-          expect(
-            (
-              await request.patch("/api/settings", {
-                data: {
-                  baseRevision: prefs.revision,
-                  changes: {
-                    theme: null,
-                    preview: null,
-                    codeReader: null,
-                    quickCommands: null,
-                    homeWorktrees: null,
-                    sessionPins: null,
-                    forceSoftKeys: null,
-                    ignoreHighPorts: null,
-                  },
-                },
-              })
-            ).ok(),
-          ).toBeTruthy();
+          await cleanPlugins(request, enabled);
+          await resetSettings(request, enabled);
         }
       }
     },
     { auto: true },
   ],
+});
+
+export const coreTest = test.extend<{}, { plugins: PluginID[] | undefined }>({
+  plugins: [[], { scope: "worker", option: true }],
 });
 
 export { expect };
@@ -271,9 +286,27 @@ export async function backToList(page: Page) {
  * reachable: phones keep them in the drawer.
  */
 export async function revealSidebar(page: Page): Promise<boolean> {
-  const open = page.getByRole("button", { name: "打开侧栏" }).first();
+  const open = page
+    .getByRole("button", { name: /^(打开|展开)侧栏$/ })
+    .filter({ visible: true })
+    .first();
+  const navigation = page.getByRole("navigation", {
+    name: "导航",
+    exact: true,
+  });
+  // Capability bootstrap and lazy pages may not have mounted the mobile
+  // trigger yet. An immediate isVisible() would mistake that for desktop.
+  await expect
+    .poll(
+      async () => (await open.isVisible()) || (await navigation.isVisible()),
+    )
+    .toBe(true);
   if (!(await open.isVisible())) return false;
+  // A closing drawer is still visible during its exit animation. Prefer
+  // the trigger's open state rather than mistaking that for an open drawer.
+  if ((await open.getAttribute("aria-expanded")) === "true") return false;
   await open.click();
+  await expect(navigation).toBeVisible();
   return true;
 }
 

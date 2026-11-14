@@ -20,6 +20,9 @@
 
 `PATCH /api/settings` 请求为 `{baseRevision, changes}`。changes 只包含本次修改的已知键；null 恢复默认，不提供的键保持不变。请求上限 2 MiB，拒绝重复键、未知字段、大小写变体、无效类型和多个 JSON 值。
 
+禁用插件拥有的字段保留在读取快照与磁盘中，但 PATCH 该字段返回 400，即使请求值为 null；更新其他字段不会清空 inactive 值。
+`preview` / `codeReader` 归 `code`，`quickCommands` 归 `quick-commands`，`homeWorktrees` 归 `workspace`，`ignoreHighPorts` 归 `forward`；其余字段属核心。
+
 修订号一致时持久提交后返回完整新快照；revision 增一，updatedAt 为 UTC 时间。冲突 409，非法请求 400，认证 401，Origin 403，存储不可用 503。错误不回显设置值。客户端重读后按字段/ID 操作意图最多重试一次，不上传整个旧快照；网络失败不会后台重放。
 
 ## 实时事件

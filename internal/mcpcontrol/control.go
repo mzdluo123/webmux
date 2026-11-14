@@ -28,9 +28,23 @@ type Client struct {
 	API          *localclient.Client
 	GuideContext agentguide.Context
 	guide        *guideSnapshot
+	// Capabilities supplies the host's snapshot without making a network call
+	// before its listeners start. Stdio clients discover through API instead.
+	Capabilities func() contract.Capabilities
+	snapshot     *contract.Capabilities
 }
 
 func (c Client) Registry(versions ...string) (*mcpprotocol.Registry, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	snapshot, err := c.instanceCapabilities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := localclient.RequireSnapshotCapability(snapshot, "mcp.control"); err != nil {
+		return nil, err
+	}
+	c.snapshot = &snapshot
 	guide := guideSnapshot{context: c.normalizedGuideContext()}
 	c.guide = &guide
 	tools := c.tools()
@@ -41,7 +55,7 @@ func (c Client) Registry(versions ...string) (*mcpprotocol.Registry, error) {
 
 func (c Client) tools() []mcpprotocol.Tool {
 	return append(append(append(append(c.actionTools(), c.readTools()...), c.waitTools()...), c.guideTools()...), []mcpprotocol.Tool{
-		tool("capabilities", "List available launch configurations and supported WebMux control tools. Does not start an agent or probe authentication.", true, map[string]any{}, nil, c.capabilities),
+		tool("capabilities", "List this instance's supported views, available launch configurations and control tools. Does not start an agent or probe authentication.", true, map[string]any{}, nil, c.capabilities),
 		tool("session_list", "List sessions with bounded pagination; optionally filter by state, parent, repository or status.", true, map[string]any{
 			"state": enumeration("active", "closed", "interrupted", "archived", "all"), "parentId": text(), "repositoryId": text(), "status": enumeration("running", "waiting", "idle", "exited"),
 			"offset": integer(0, 100000), "limit": integer(1, 100),
@@ -95,22 +109,60 @@ func (c Client) capabilities(ctx context.Context, raw json.RawMessage) (any, err
 	if err := decode(raw, &contract.MCPControlCapabilitiesRequest{}); err != nil {
 		return nil, err
 	}
-	var configs []contract.LaunchConfigSummary
-	if err := c.API.GetBounded(ctx, "/api/launch-configs", responseLimit, &configs); err != nil {
+	snapshot, err := c.instanceCapabilities(ctx)
+	if err != nil {
 		return nil, apiError(err)
+	}
+	c.snapshot = &snapshot
+	var configs []contract.LaunchConfigSummary
+	if localclient.CapabilityAvailable(snapshot, "launch.configs") {
+		if err := c.API.GetBounded(ctx, "/api/launch-configs", responseLimit, &configs); err != nil {
+			return nil, apiError(err)
+		}
 	}
 	// Only return what is needed for selection; command arguments and environment
 	// names do not need to enter the model's context.
 	launches := make([]contract.MCPControlLaunchConfig, 0, len(configs))
 	for _, config := range configs {
-		launches = append(launches, contract.MCPControlLaunchConfig{ID: config.ID, Name: config.Name, Chat: config.Chat, Support: config.ChatSupport})
+		item := contract.MCPControlLaunchConfig{ID: config.ID, Name: config.Name}
+		if localclient.CapabilityAvailable(snapshot, "chat.acp") {
+			item.Chat, item.Support = config.Chat, config.ChatSupport
+		}
+		launches = append(launches, item)
 	}
 	guide := c.guideContext()
 	names := make([]string, 0, len(guide.Tools))
 	for _, t := range guide.Tools {
 		names = append(names, t.Name)
 	}
-	return contract.MCPControlCapabilitiesResult{Tools: names, LaunchConfigs: launches, Views: []string{"terminal", "chat"}, Instructions: c.guideInstructions(guide), Transport: guide.Transport, Locality: guide.Locality, SelfSessionID: guide.SelfSessionID}, nil
+	views := []string{"terminal"}
+	if localclient.CapabilityAvailable(snapshot, "chat.acp") {
+		views = append(views, "chat")
+	}
+	return contract.MCPControlCapabilitiesResult{Tools: names, LaunchConfigs: launches, Views: views, Instructions: c.guideInstructions(guide), Transport: guide.Transport, Locality: guide.Locality, SelfSessionID: guide.SelfSessionID}, nil
+}
+
+func (c Client) instanceCapabilities(ctx context.Context) (contract.Capabilities, error) {
+	if c.Capabilities != nil {
+		snapshot := c.Capabilities()
+		return snapshot, localclient.ValidateCapabilities(snapshot)
+	}
+	if c.API == nil {
+		return contract.Capabilities{}, errors.New("WebMux capabilities unavailable")
+	}
+	return c.API.Capabilities(ctx)
+}
+
+func (c Client) hasCapability(id string) bool {
+	return c.snapshot != nil && localclient.CapabilityAvailable(*c.snapshot, id)
+}
+
+func (c Client) requireCapability(ctx context.Context, id string) error {
+	snapshot, err := c.instanceCapabilities(ctx)
+	if err != nil {
+		return apiError(err)
+	}
+	return localclient.RequireSnapshotCapability(snapshot, id)
 }
 
 func (c Client) list(ctx context.Context, raw json.RawMessage) (any, error) {

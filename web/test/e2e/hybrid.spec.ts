@@ -12,6 +12,7 @@ import {
   openPaneMenu,
   openSessionLink,
   runCommand,
+  revealSidebar,
   test,
   useDirectory,
 } from "./fixtures";
@@ -1639,10 +1640,7 @@ test.describe("hybrid sessions with the fake agent", () => {
         const archived = await request.delete(`/api/sessions/${id}`);
         expect(archived.status(), await archived.text()).toBe(204);
         await page.goto("/");
-        const showSidebar = page
-          .getByRole("button", { name: "打开侧栏" })
-          .first();
-        if (await showSidebar.isVisible()) await showSidebar.click();
+        await revealSidebar(page);
         await page
           .getByRole("button", {
             name: mode === "chat" ? "聊天模式" : "工作台模式",

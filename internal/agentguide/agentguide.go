@@ -139,7 +139,8 @@ func (g Guide) Page(name string) (string, bool) {
 }
 
 const summary = "WebMux 是单用户的 Web 终端：会话是服务端持有的 PTY 与进程，浏览器断开不会结束会话。" +
-	"`webmux` 命令经本机套接字控制它，不需要 Token；命令以服务用户的身份运行，不是沙箱。"
+	"`webmux` 命令经本机套接字控制它，不需要 Token；命令以服务用户的身份运行，不是沙箱。" +
+	"本手册与静态命令目录可能列出未启用的插件命令；经过鉴权的 `/api/capabilities` 才是当前实例可执行能力的依据，列出不代表可用。"
 
 const prefix = "下文的 `webmux` 指 WebMux 可执行文件：优先使用 `\"$WEBMUX_BIN\"`，" +
 	"其次是 `{{webmux}}` 简述或本实例信息中的绝对路径，最后才是 `PATH` 中的 `webmux`。" +

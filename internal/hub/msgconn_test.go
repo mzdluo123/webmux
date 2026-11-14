@@ -3,7 +3,6 @@ package hub
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -11,10 +10,8 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/settings"
-	"github.com/rainchan/webmux/internal/voice"
 )
 
 type recordedFrame struct {
@@ -168,7 +165,7 @@ func TestNewWebSocketConnNil(t *testing.T) {
 }
 
 func TestMessageConnWriteMessagesCloseCodesAndDeadline(t *testing.T) {
-	movedSide := string(hybrid.SideACP)
+	movedSide := "chat"
 	exitZero := 0
 
 	tests := []struct {
@@ -299,7 +296,7 @@ func TestMessageConnCloseReadHalfCloseOnWriteOnlyStreams(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			List(t.Context(), m, nil, conn)
+			List(t.Context(), m, conn, Options{})
 		}()
 
 		deadline := time.After(5 * time.Second)
@@ -350,93 +347,4 @@ func TestMessageConnCloseReadHalfCloseOnWriteOnlyStreams(t *testing.T) {
 			t.Fatal("Settings did not exit after peer closed")
 		}
 	})
-}
-
-func TestMessageConnCloseChatCodes(t *testing.T) {
-	tests := []struct {
-		name       string
-		give       error
-		wantCode   StatusCode
-		wantReason string
-	}{
-		{
-			name:       "slow",
-			give:       hybrid.ErrSlow,
-			wantCode:   StatusSlowClient,
-			wantReason: "slow client",
-		},
-		{
-			name:       "reset",
-			give:       hybrid.ErrReset,
-			wantCode:   StatusTryAgainLater,
-			wantReason: "chat log reset; reconnect",
-		},
-		{
-			name:       "ended",
-			give:       hybrid.ErrEnded,
-			wantCode:   StatusSessionExited,
-			wantReason: "session ended",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			conn := newFakeMessageConn()
-			closeChat(conn, tt.give)
-			closed, code, reason, _, _ := conn.status()
-			if !closed || code != tt.wantCode || reason != tt.wantReason {
-				t.Fatalf("closeChat(%v) = (%v, %d, %q), want (true, %d, %q)", tt.give, closed, code, reason, tt.wantCode, tt.wantReason)
-			}
-		})
-	}
-}
-
-func TestMessageConnVoiceNormalClosureAndReadLimit(t *testing.T) {
-	svc := voice.New(voice.Options{
-		Cmd:           []string{"sh", "-c", `cat >/dev/null; printf '{"type":"final","text":"hello"}\n'`},
-		Cwd:           t.TempDir(),
-		ReadyDelay:    5 * time.Millisecond,
-		FinishTimeout: 2 * time.Second,
-	})
-	sess, err := svc.Start(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	conn := newFakeMessageConn()
-	conn.sendFromPeer(MessageBinary, []byte{0, 1, 2, 3})
-	stopMsg, err := json.Marshal(contract.VoiceClientMessage{Type: "stop"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	conn.sendFromPeer(MessageText, stopMsg)
-
-	Voice(t.Context(), sess, svc.FinishTimeout(), conn)
-
-	closed, code, reason, limit, _ := conn.status()
-	if limit != 65536 {
-		t.Fatalf("voice readLimit = %d, want 65536", limit)
-	}
-	if !closed || code != StatusNormalClosure || reason != "done" {
-		t.Fatalf("voice close = (%v, %d, %q), want (true, %d, %q)", closed, code, reason, StatusNormalClosure, "done")
-	}
-	frames := conn.frames()
-	if len(frames) == 0 {
-		t.Fatal("expected voice events to be written")
-	}
-	var sawFinal bool
-	for _, f := range frames {
-		if f.typ != MessageText {
-			t.Fatalf("unexpected voice frame type %v", f.typ)
-		}
-		var ev contract.VoiceServerEvent
-		if err := json.Unmarshal(f.data, &ev); err != nil {
-			t.Fatalf("unmarshal voice event: %v", err)
-		}
-		if ev.Type == "final" && ev.Text == "hello" {
-			sawFinal = true
-		}
-	}
-	if !sawFinal {
-		t.Fatalf("did not observe final voice event in %d frames", len(frames))
-	}
 }

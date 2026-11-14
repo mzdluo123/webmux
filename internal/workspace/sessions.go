@@ -2,13 +2,10 @@ package workspace
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"slices"
 	"sort"
 
-	"github.com/rainchan/webmux/internal/hybrid"
-	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -71,7 +68,26 @@ func (s *Service) unreserve(path string) {
 	delete(s.reservations, path)
 	s.notifyLocked()
 }
-func (s *Service) association(ctx context.Context, cwd string) *session.Workspace {
+
+// Association belongs to the workspace plugin, not the terminal host.
+type Association struct {
+	RepositoryID string
+	WorktreeID   string
+	WorktreePath string
+}
+
+// Association returns a caller-owned cached association without Git I/O.
+func (s *Service) Association(id string) *Association {
+	s.associationCacheMu.RLock()
+	defer s.associationCacheMu.RUnlock()
+	value, ok := s.associations[id]
+	if !ok {
+		return nil
+	}
+	return &value
+}
+
+func (s *Service) association(ctx context.Context, cwd string) *Association {
 	if s.gitPath == "" {
 		return nil
 	}
@@ -94,7 +110,7 @@ func (s *Service) association(ctx context.Context, cwd string) *session.Workspac
 	}
 	for _, r := range s.entries {
 		if r.entry.CommonDir == common {
-			return &session.Workspace{RepositoryID: r.entry.ID, WorktreeID: worktreeID(r.entry.ID, path), WorktreePath: path}
+			return &Association{RepositoryID: r.entry.ID, WorktreeID: worktreeID(r.entry.ID, path), WorktreePath: path}
 		}
 	}
 	return nil
@@ -102,15 +118,22 @@ func (s *Service) association(ctx context.Context, cwd string) *session.Workspac
 
 // Association commits are ordered with registry removal. Git resolution never
 // holds the registry/session locks, and a removed registration cannot reappear.
-func (s *Service) commitAssociation(info session.Info, association *session.Workspace, preserve bool) {
+func (s *Service) commitAssociation(info session.Info, association *Association, preserve bool) {
+	s.associationMu.Lock()
+	defer s.associationMu.Unlock()
+	item, err := s.manager.Get(info.ID)
+	if err != nil || item.Info().Cwd != info.Cwd {
+		return
+	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.associationCacheMu.Lock()
+	current, exists := s.associations[info.ID]
 	registered := false
 	id := ""
 	if association != nil {
 		id = association.RepositoryID
-	} else if preserve && info.Workspace != nil {
-		id = info.Workspace.RepositoryID
+	} else if preserve && exists {
+		id = current.RepositoryID
 	}
 	for _, r := range s.entries {
 		if r.entry.ID == id {
@@ -121,9 +144,28 @@ func (s *Service) commitAssociation(info session.Info, association *session.Work
 	if !registered {
 		association = nil
 	} else if association == nil && preserve {
-		association = info.Workspace
+		association = &current
 	}
-	s.manager.SetWorkspace(info.ID, info.Cwd, association)
+	changed := exists != (association != nil) || association != nil && current != *association
+	if association == nil {
+		delete(s.associations, info.ID)
+	} else {
+		if s.associations == nil {
+			s.associations = make(map[string]Association)
+		}
+		s.associations[info.ID] = *association
+	}
+	s.associationCacheMu.Unlock()
+	s.mu.Unlock()
+	// Removal can win after the initial lookup and before this cache commit.
+	// Its observer deletes older entries; this lookup covers the late writer.
+	if _, err := s.manager.Get(info.ID); err != nil {
+		s.forgetAssociation(info.ID)
+		return
+	}
+	if changed {
+		s.manager.Notify(info.ID)
+	}
 }
 func (s *Service) reassociate(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
@@ -135,85 +177,31 @@ func (s *Service) reassociate(ctx context.Context) {
 		association := s.association(ctx, info.Cwd)
 		// If the original checkout disappeared, retain its identity instead of
 		// silently rebinding the record to a newly created checkout at that path.
-		if info.Workspace != nil && association != nil && *association != *info.Workspace {
+		if current := s.Association(info.ID); current != nil && association != nil && *association != *current {
 			association = nil
 		}
 		s.commitAssociation(info, association, true)
 	}
 }
 
-// HybridResumeInput resumes a hybrid session record. Side is tui, acp or
-// empty for the recorded side; AgentSessionID picks a candidate offered
-// after the recorded agent session went missing; ConfirmWithoutEnv accepts
-// resuming without the environment of a deleted launch config.
-type HybridResumeInput struct {
-	ContextExecutionID  string
-	RequireNativeResume bool
-	ClientRequestID     string
-	Side                string
-	AgentSessionID      string
-	ConfirmWithoutEnv   bool
-}
-
-// ResumeHybrid resumes a closed or interrupted hybrid session under its
-// recorded ID. The command is the record's snapshot; the environment is
-// read again from the record's launch config. A deleted config fails with
-// hybrid.ErrConfigMissing unless ConfirmWithoutEnv, which resumes without
-// its environment. The session joins its directory's repository like a
-// new one.
-func (s *Service) ResumeHybrid(ctx context.Context, id string, in HybridResumeInput) (*session.Session, error) {
-	if s.hybrids == nil {
-		return nil, problemf(ErrUnavailable, "混合会话不可用")
+// PrepareResume preserves worktree-removal exclusion and commits an optional
+// repository association only after the chat coordinator restores its runtime.
+func (s *Service) PrepareResume(ctx context.Context, cwd string) (func(*session.Session), func(), error) {
+	if err := s.beginStart(cwd); err != nil {
+		return nil, nil, handoffLocationError(err)
 	}
-	rec, err := s.hybrids.Recoverable(id)
-	if err != nil {
-		return nil, err
-	}
-	var env map[string]string
-	var attention *session.AttentionPolicy
-	saved, err := s.launches.Get(rec.ConfigID)
-	switch {
-	case err == nil:
-		env = saved.Env
-		attention = attentionPolicy(saved.Attention)
-	case !errors.Is(err, launch.ErrNotFound):
-		return nil, err
-	case !in.ConfirmWithoutEnv:
-		return nil, hybrid.ErrConfigMissing
-	}
-	if err := s.beginStart(rec.Cwd); err != nil {
-		return nil, err
-	}
-	defer s.endStart(rec.Cwd)
 	lookup, cancel := context.WithTimeout(ctx, readTimeout)
-	association := s.association(lookup, rec.Cwd)
+	association := s.association(lookup, cwd)
 	cancel()
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		s.endStart(cwd)
+		return nil, nil, err
 	}
-	item, err := s.hybrids.Resume(ctx, id, hybrid.ResumeInput{
-		ContextExecutionID: in.ContextExecutionID, RequireNativeResume: in.RequireNativeResume, ClientRequestID: in.ClientRequestID, Side: hybrid.Side(in.Side), AgentSessionID: in.AgentSessionID,
-		Env: env, Attention: attention,
-	})
-	if err != nil {
-		return nil, err
-	}
-	s.commitAssociation(item.Info(), association, false)
-	return item, nil
+	return func(item *session.Session) {
+		s.commitAssociation(item.Info(), association, false)
+	}, func() { s.endStart(cwd) }, nil
 }
 
-// sessionCreateError keeps user-correctable startup failures as 400s while a
-// shutdown or reaper failure stays a server-side error.
-func sessionCreateError(err error) error {
-	switch {
-	case errors.Is(err, session.ErrInvalid):
-		return problemf(ErrInvalid, "启动会话失败: %v", err)
-	case errors.Is(err, session.ErrShuttingDown):
-		return problemf(ErrUnavailable, "启动会话失败: %v", err)
-	default:
-		return problemf(ErrInternal, "启动会话失败: %v", err)
-	}
-}
 func (s *Service) targetSessions(path string) []session.Info {
 	result := make([]session.Info, 0)
 	for _, info := range s.manager.List() {
@@ -257,4 +245,18 @@ func remainingSessions(before, after []session.Info) bool {
 		}
 	}
 	return true
+}
+
+type associationCleanup struct{ service *Service }
+
+func (observer associationCleanup) Observe(event session.Event) {
+	if event.Type == "removed" {
+		observer.service.forgetAssociation(event.ID)
+	}
+}
+
+func (s *Service) forgetAssociation(id string) {
+	s.associationCacheMu.Lock()
+	delete(s.associations, id)
+	s.associationCacheMu.Unlock()
 }

@@ -4,7 +4,7 @@
   import RenameSessionDialog from "./RenameSessionDialog.svelte";
   import type { SessionInfo } from "../../contracts/schemas";
   import { previewFor } from "../../domains/settings/launch-previews.svelte";
-  import { selectPreview } from "../../domains/workspace/preview";
+  import { selectPreview } from "../../domains/sessions/preview";
   import { useCopied } from "../../hooks/shared/copied.svelte";
   import { locationHints } from "../../domains/sessions/session-location";
   import IconChevronRight from "~icons/tabler/chevron-right";

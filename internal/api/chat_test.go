@@ -464,7 +464,7 @@ func TestChatCommandConflicts(t *testing.T) {
 		{context.Canceled, 504, ""},
 	} {
 		w := httptest.NewRecorder()
-		sessionCommandFailure(w, row.err)
+		pluginCommandFailure(w, row.err)
 		var body contract.SessionConflict
 		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)

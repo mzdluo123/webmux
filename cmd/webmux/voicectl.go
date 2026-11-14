@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -35,6 +37,22 @@ func (c *voiceController) options(v config.VoiceConfig) voice.Options {
 	cfg := c.base
 	cfg.Voice = v
 	return assemble.VoiceOptions(cfg)
+}
+
+// recognizerAvailable probes only an enabled module's configured executable.
+// Like exec.Command, bare names use the server PATH; relative paths containing
+// a slash run beneath the recording's configured working directory.
+func (c *voiceController) recognizerAvailable() bool {
+	cfg, _ := c.store.Effective()
+	if len(cfg.Cmd) == 0 {
+		return false
+	}
+	command := cfg.Cmd[0]
+	if !filepath.IsAbs(command) && strings.Contains(command, "/") {
+		command = filepath.Join(c.base.DefaultCwd, command)
+	}
+	_, err := exec.LookPath(command)
+	return err == nil
 }
 
 func (c *voiceController) Settings() contract.VoiceSettings {

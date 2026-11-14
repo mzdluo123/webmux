@@ -6,7 +6,7 @@ import {
   updateForward,
 } from "../../platform/api";
 import {
-  SessionEventSchema,
+  type SessionEventSchema,
   type Forward,
   type ForwardOptions,
   type ForwardRequest,
@@ -15,13 +15,8 @@ import {
 } from "../../contracts/schemas";
 import { settings } from "../settings/settings.svelte";
 import { hostOrigin } from "../../platform/transport";
-import {
-  connect,
-  type Connection,
-  type SocketConnection,
-} from "../../platform/ws";
 
-export type SessionEvent = z.infer<typeof SessionEventSchema>;
+type SessionEvent = z.infer<typeof SessionEventSchema>;
 
 // The server's port forwards for this tab, replaced whole by the
 // `/ws/sessions` snapshot and every `forwards` event; successful writes
@@ -58,42 +53,15 @@ function upsert(forward: Forward) {
   replace([...list.filter((entry) => entry.port !== forward.port), forward]);
 }
 
-/**
- * Validates one `/ws/sessions` frame. Snapshot and `forwards` events replace
- * the forward list; an invalid frame throws before any state changes.
- */
-export function receiveSessionFrame(data: string | ArrayBuffer): SessionEvent {
-  if (typeof data !== "string") throw new Error("会话列表帧必须是 JSON 文本");
-  const event = SessionEventSchema.parse(JSON.parse(data));
+export function observeSessionEvent(event: SessionEvent): void {
   if (event.type === "snapshot" || event.type === "forwards") {
     replace(event.forwards);
     ready = true;
   }
-  return event;
 }
 
-/**
- * The session-list connection. Session events go to `onEvent`; forwards stay
- * in this module. Closing it marks the list stale until the next snapshot.
- */
-export function connectSessions(
-  onEvent: (event: SessionEvent) => void,
-  onState: (state: Connection) => void,
-  onError: (message: string) => void,
-): SocketConnection {
-  const socket = connect(
-    "/ws/sessions",
-    (data) => onEvent(receiveSessionFrame(data)),
-    onState,
-    onError,
-  );
-  return {
-    ...socket,
-    close() {
-      socket.close();
-      ready = false;
-    },
-  };
+export function disconnectSessionFeed(): void {
+  ready = false;
 }
 
 export async function addForward(request: ForwardRequest): Promise<Forward> {

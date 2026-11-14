@@ -1,8 +1,6 @@
 <script lang="ts">
   import Brand from "../components/shell/Brand.svelte";
-  import AppearanceSettings from "../components/shell/AppearanceSettings.svelte";
-  import QuickCommandsSettings from "../components/settings/QuickCommandsSettings.svelte";
-  import LaunchConfigsSettings from "../components/settings/LaunchConfigsSettings.svelte";
+  import AppearanceSettings from "../components/settings/AppearanceSettings.svelte";
   import {
     settings,
     changeSettings,
@@ -26,19 +24,39 @@
     defaultPreviewSettings,
     previewSettings,
   } from "../domains/settings/preview-settings.svelte";
-  import { selectPreview } from "../domains/workspace/preview";
+  import { selectPreview } from "../domains/sessions/preview";
   import PendingUpdateNotice from "../components/notifications/PendingUpdateNotice.svelte";
-  import TunnelSettings from "../components/settings/TunnelSettings.svelte";
   import { setBrowserChrome } from "../platform/browser-chrome";
-  import TailscaleSettings from "../components/settings/TailscaleSettings.svelte";
-  import PushSettings from "../components/settings/PushSettings.svelte";
   import InstallSettings from "../components/settings/InstallSettings.svelte";
-  import VoiceSettings from "../components/settings/VoiceSettings.svelte";
   import SessionSwitcherTrigger from "../components/shell/SessionSwitcherTrigger.svelte";
   import SettingsNavigation from "../components/settings/SettingsNavigation.svelte";
   import NetworkSettings from "../components/settings/NetworkSettings.svelte";
   import { Switch } from "$lib/components/ui/switch";
   import { browserDraftStorage } from "../domains/terminal/draft-storage";
+  import { getPluginContributions } from "../plugins/context";
+
+  const pluginSections = getPluginContributions().settings;
+  const launchSections = pluginSections.filter((section) =>
+    ["code-reader", "quick-commands", "voice", "launch-configs"].includes(
+      section.id,
+    ),
+  );
+  const accessSections = pluginSections.filter((section) =>
+    ["access", "tailscale"].includes(section.id),
+  );
+  const notificationSections = pluginSections.filter(
+    (section) => section.id === "push",
+  );
+  const sections = [
+    { id: "appearance", label: "外观与阅读" },
+    ...launchSections,
+    { id: "drafts", label: "草稿与暂存" },
+    { id: "network", label: "网络" },
+    ...accessSections,
+    { id: "install", label: "安装应用" },
+    ...notificationSections,
+    { id: "preview", label: "输出预览" },
+  ];
 
   // Only a session ID is accepted as the return target, never an arbitrary path.
   const returnSession = new URLSearchParams(location.search).get("session");
@@ -125,7 +143,7 @@
     </div>
   </header>
   <div class="settings-layout mx-auto max-w-6xl px-4 sm:px-8">
-    <SettingsNavigation />
+    <SettingsNavigation {sections} />
     <main
       id="settings-content"
       class="settings-content min-w-0 space-y-6 py-8 sm:py-10"
@@ -140,9 +158,13 @@
       </div>
       {#if pendingUpdate}<PendingUpdateNotice update={pendingUpdate} />{/if}
       <AppearanceSettings />
-      <QuickCommandsSettings />
-      <VoiceSettings />
-      <LaunchConfigsSettings {defaultShell} />
+      {#each launchSections as section (section.id)}
+        {#if section.id === "launch-configs"}
+          <section.Component {defaultShell} />
+        {:else}
+          <section.Component />
+        {/if}
+      {/each}
       <Card.Root flat id="drafts" class="scroll-mt-4">
         <Card.Header>
           <Card.Title>草稿与暂存</Card.Title>
@@ -181,10 +203,13 @@
         </Card.Content>
       </Card.Root>
       <NetworkSettings />
-      <TunnelSettings />
-      <TailscaleSettings />
+      {#each accessSections as section (section.id)}
+        <section.Component />
+      {/each}
       <InstallSettings />
-      <PushSettings />
+      {#each notificationSections as section (section.id)}
+        <section.Component />
+      {/each}
       <Card.Root flat id="preview">
         <Card.Header>
           <Card.Title>会话输出预览</Card.Title>

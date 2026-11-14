@@ -9,14 +9,18 @@
   } from "../../contracts/schemas";
   import { errorMessage } from "../../platform/error";
   import type { LaunchConfigsState } from "../../domains/settings/launch-configs";
-  import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
-  import { setPinned } from "../../domains/workspace/home-worktrees";
+  import type { TerminalPlugins } from "../../plugins/terminal";
+  import {
+    pluginAvailable,
+    pluginEnabled,
+  } from "../../platform/plugin-host.svelte";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
   import SplitSessionDialog from "./SplitSessionDialog.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
 
   let {
     choosing = $bindable(false),
+    plugins,
     creating = $bindable<SessionInfo | null>(null),
     forwarding = $bindable(false),
     excluded,
@@ -25,6 +29,7 @@
     oncreated,
   }: {
     choosing: boolean;
+    plugins: TerminalPlugins;
     creating: SessionInfo | null;
     forwarding: boolean;
     excluded: string[];
@@ -54,34 +59,38 @@
     repositories = [];
     const controller = new AbortController();
     creationController = controller;
-    void api(
-      "/launch-configs",
-      LaunchConfigsSchema,
-      "GET",
-      undefined,
-      controller.signal,
-    )
-      .then((configs) => {
-        if (!controller.signal.aborted)
-          launchConfigs = { status: "ready", configs };
-      })
-      .catch((err) => {
-        if (!controller.signal.aborted)
-          launchConfigs = { status: "unavailable", error: errorMessage(err) };
-      });
-    void api(
-      "/repositories",
-      RepositoriesSchema,
-      "GET",
-      undefined,
-      controller.signal,
-    )
-      .then((result) => {
-        if (!controller.signal.aborted) repositories = result;
-      })
-      .catch(() => {
-        // The current launch directory remains usable without Git management.
-      });
+    if (pluginEnabled("launch") && pluginAvailable("launch.configs")) {
+      void api(
+        "/launch-configs",
+        LaunchConfigsSchema,
+        "GET",
+        undefined,
+        controller.signal,
+      )
+        .then((configs) => {
+          if (!controller.signal.aborted)
+            launchConfigs = { status: "ready", configs };
+        })
+        .catch((err) => {
+          if (!controller.signal.aborted)
+            launchConfigs = { status: "unavailable", error: errorMessage(err) };
+        });
+    } else launchConfigs = { status: "ready", configs: [] };
+    if (plugins.workspace) {
+      void api(
+        "/repositories",
+        RepositoriesSchema,
+        "GET",
+        undefined,
+        controller.signal,
+      )
+        .then((result) => {
+          if (!controller.signal.aborted) repositories = result;
+        })
+        .catch(() => {
+          // The current launch directory remains usable without Git management.
+        });
+    }
     return () => controller.abort();
   });
 </script>
@@ -131,8 +140,13 @@
             (item) => item.id === tree.repositoryId,
           );
           if (repo)
-            homeWorktrees.save(
-              setPinned(homeWorktrees.value, repo, [tree.id], true),
+            plugins.workspace?.homeWorktrees.save(
+              plugins.workspace.setPinned(
+                plugins.workspace.homeWorktrees.value,
+                repo,
+                [tree.id],
+                true,
+              ),
             );
         }}
         onworktreeremoved={(tree) => {
@@ -157,7 +171,7 @@
   </LazyDialog>
 {/if}
 <!-- Opened from a port prompt, so this server detects listening ports. -->
-{#if forwarding}
+{#if plugins.forward && forwarding}
   <LazyDialog
     onclose={() => (forwarding = false)}
     label="端口转发"

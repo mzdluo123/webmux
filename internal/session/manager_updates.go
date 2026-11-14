@@ -24,7 +24,27 @@ func (m *Manager) Unsubscribe(sub *ListSubscriber) {
 	defer m.mu.Unlock()
 	delete(m.subs, sub)
 }
+
+// Observe registers a cache-only observer and captures its initial snapshot
+// under the same lock. Publication calls observers without a session lock.
+func (m *Manager) Observe(observer ListObserver) func() {
+	m.mu.Lock()
+	if m.observers == nil {
+		m.observers = make(map[ListObserver]struct{})
+	}
+	m.observers[observer] = struct{}{}
+	observer.Observe(Event{Type: "snapshot", Sessions: m.listLocked()})
+	m.mu.Unlock()
+	return func() {
+		m.mu.Lock()
+		delete(m.observers, observer)
+		m.mu.Unlock()
+	}
+}
 func (m *Manager) publishLocked(e Event) {
+	for observer := range m.observers {
+		observer.Observe(e)
+	}
 	for sub := range m.subs {
 		if sub.failed {
 			continue
@@ -44,8 +64,7 @@ func (m *Manager) updates() {
 	previous := make(map[string]Info)
 	previewSent := make(map[string]time.Time)
 	var snapshot procpeek.Snapshot
-	var ports procpeek.PortScanner
-	probeTick, portTick := false, false
+	probeTick := false
 	for {
 		select {
 		case <-m.done:
@@ -66,13 +85,6 @@ func (m *Manager) updates() {
 			// Classify every 500 ms using the once-per-second process table.
 			// This leaves headroom for delivering the 3-second waiting signal.
 			// Classification reads /proc, so it runs without the manager lock.
-			// Listening ports change rarely: every other process table.
-			if probeTick {
-				portTick = !portTick
-				if portTick {
-					m.scanPorts(&ports, snapshot, list)
-				}
-			}
 			infos := make(map[*Session]Info, len(list))
 			for _, s := range list {
 				s.evaluate(now, snapshot, m.options.IdleAfter, m.patterns)
@@ -138,9 +150,9 @@ func (m *Manager) Shutdown(ctx context.Context) {
 	<-m.updatesDone
 }
 
-// SetWorkspace commits a separately resolved association only for the same
-// session and immutable launch directory. No filesystem or Git work runs here.
-func (m *Manager) SetWorkspace(id, cwd string, workspace *Workspace) {
+// Notify publishes a plugin's already-committed metadata change through the
+// same bounded, ordered source as process updates. It performs no plugin I/O.
+func (m *Manager) Notify(id string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s, ok := m.sessions[id]
@@ -148,18 +160,8 @@ func (m *Manager) SetWorkspace(id, cwd string, workspace *Workspace) {
 		return
 	}
 	s.mu.Lock()
-	if s.info.Cwd != cwd || sameWorkspace(s.info.Workspace, workspace) {
-		s.mu.Unlock()
-		return
-	}
-	if workspace == nil {
-		s.info.Workspace = nil
-	} else {
-		value := *workspace
-		s.info.Workspace = &value
-	}
 	info := s.infoLocked()
-	s.broadcastLocked(s.stateLocked())
+	s.broadcastLocked(Message{Info: &info})
 	s.mu.Unlock()
 	m.publishLocked(Event{Type: "updated", Session: &info})
 }

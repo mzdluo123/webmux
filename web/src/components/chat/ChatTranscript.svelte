@@ -24,7 +24,7 @@
     documentScroll: boolean;
     preview: (path: string) => string | undefined;
     waiting: readonly string[];
-    onreview: (path: string) => void;
+    onreview?: (path: string) => void;
     onopenlocation?: (target: ChatCodeLink) => void;
     onjump: (id: string) => boolean;
   } = $props();

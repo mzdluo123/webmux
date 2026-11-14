@@ -2,7 +2,7 @@ import { tick, untrack } from "svelte";
 import { store, stored } from "../../platform/api";
 import type { ChatScrollState } from "../../platform/capabilities";
 import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
-import { checkRevealTarget } from "../../domains/code/code-reveal";
+import type { checkRevealTarget } from "../../domains/code/code-reveal";
 import type { CodeReveal, SessionInfo } from "../../contracts/schemas";
 import {
   captureFindReturnFocus,
@@ -20,7 +20,6 @@ import type {
   TextInsertion,
 } from "../../domains/terminal/terminal-draft.svelte";
 import { hasTouchInput } from "../../platform/touch-input";
-import { codePanelState } from "../code/code-panel-state";
 import { createKeyboardSizeHold } from "./keyboard-size-hold";
 import { keyboardSizeHold } from "./keyboard-size-hold-preference.svelte";
 import type { KeyboardVisibility } from "../shared/viewport.svelte";
@@ -29,6 +28,10 @@ import { allowAutomaticInputFocus } from "../shared/input-focus";
 
 export function useSessionTerminalChrome(options: {
   id: () => string;
+  code?: {
+    codePanelState: { shown(): boolean; setShown(value: boolean): void };
+    checkRevealTarget: typeof checkRevealTarget;
+  };
   draft: TerminalDraft;
   drafts: TerminalDrafts;
   isMounted: () => boolean;
@@ -65,8 +68,8 @@ export function useSessionTerminalChrome(options: {
   let copyOpen = $state(false);
   let copyText = $state("");
   let pendingCopy = $state<string | null>(null);
-  let codeShown = $state(codePanelState.shown());
-  $effect(() => codePanelState.setShown(codeShown));
+  let codeShown = $state(options.code?.codePanelState.shown() ?? false);
+  $effect(() => options.code?.codePanelState.setShown(codeShown));
   let codeTarget = $state<CodeReveal>();
   let chatEditing = $state(false);
   let choiceClosed = $state(false);
@@ -127,12 +130,14 @@ export function useSessionTerminalChrome(options: {
   }
 
   function review(path: string) {
+    if (!options.code) return;
     if (!options.isCodePanelPoppedOut()) codeShown = true;
     codeTarget = { path, mode: "diff", key: (codeTarget?.key ?? 0) + 1 };
   }
 
   const openCodeLocation: ChatCodeLinkHandler = async (target) => {
-    const failure = await checkRevealTarget(
+    if (!options.code) return "代码插件未启用";
+    const failure = await options.code.checkRevealTarget(
       `/sessions/${options.id()}/code`,
       target,
     );

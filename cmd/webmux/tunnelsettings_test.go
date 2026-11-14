@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/transport"
 	"github.com/rainchan/webmux/internal/tunnelsettings"
 )
 
@@ -30,7 +30,7 @@ func settingsController(t *testing.T, cfg config.TunnelConfig, locate func(conte
 	t.Cleanup(store.Close)
 	tc := newTunnelController(tunnelControllerOptions{
 		Cfg: cfg, Store: store, Local: "http://127.0.0.1:1", Token: tunnelTestToken,
-		Public: &api.PublicOrigins{}, Locate: locate, Out: io.Discard,
+		Public: &transport.PublicOrigins{}, Locate: locate, Out: io.Discard,
 		Logger: slog.New(slog.DiscardHandler),
 	})
 	t.Cleanup(tc.Close)
@@ -215,7 +215,7 @@ func TestTunnelStartupWebPrecedenceFlagsAndShortToken(t *testing.T) {
 				}
 				tc := newTunnelController(tunnelControllerOptions{
 					Cfg: c.Tunnel, Store: c.TunnelSettings, Local: "http://127.0.0.1:1", Token: c.Token,
-					Public: &api.PublicOrigins{}, Locate: func(context.Context) (string, error) { return "", errors.New("missing") },
+					Public: &transport.PublicOrigins{}, Locate: func(context.Context) (string, error) { return "", errors.New("missing") },
 					Out: io.Discard, Logger: slog.New(slog.DiscardHandler),
 				})
 				if *tc.Status().Enabled != row.wantEnabled {

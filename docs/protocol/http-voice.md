@@ -2,6 +2,8 @@
 
 所有端点需要认证并通过 Host/Origin 检查。
 
+需要选择 `voice`；禁用时本页设置与 `/ws/voice` 返回 404，不打开语音设置文件或启动识别进程。已选择仍需配置可用的识别命令，见 [能力发现](../protocol.md#能力发现)。
+
 - 语音识别命令与环境变量的网页设置保存在 `voice-settings.json`（见 [持久化清单](../persistence.md)），覆盖 `config.toml` 的 `[voice]`。
 - 保存后立即用于下一次录音，不需要重启；正在进行的录音不受影响。
 - `/ws/voice` 见 [WebSocket 接口](websocket.md#websocket-wsvoice)；`GET /api/config` 的 `voice` 反映当前生效的设置。

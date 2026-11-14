@@ -14,6 +14,7 @@ import (
 
 	"github.com/pion/ice/v4"
 	"github.com/pion/webrtc/v4"
+	"github.com/rainchan/webmux/internal/streamproto"
 )
 
 const (
@@ -91,8 +92,8 @@ type Service struct {
 	maxPeers      int
 	maxChannels   int
 	idleTimeout   time.Duration
-	streamHandler StreamHandler
-	rpcHandler    RPCHandler
+	streamHandler streamproto.StreamHandler
+	rpcHandler    streamproto.RPCHandler
 
 	mu          sync.Mutex
 	closed      bool

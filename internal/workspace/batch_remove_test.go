@@ -11,6 +11,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 func TestPrunableMissingWorktreeCleanupRetainsBranchesUnselectedEntriesAndArchivedRecords(t *testing.T) {
@@ -122,10 +123,8 @@ func TestBatchRemovalSafeAndForceModesAndPurposeIsolation(t *testing.T) {
 	putFile(t, filepath.Join(dirtyTree.Path, "untracked.txt"), "draft\n")
 
 	activeTree := linkedTest(t, h.s, h.repo, "batch-active")
-	ptyItem, err := h.s.CreateSession(context.Background(), CreateInput{
-		Cwd: activeTree.Path,
-		Cmd: []string{"/bin/sh", "-c", "printf READY; read value"},
-	})
+	ptyItem, err := h.s.CreateSession(context.Background(), sessioncreate.Input{Cwd: activeTree.Path,
+		Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,10 +391,8 @@ func TestBatchRemovalPartialFailureIsolationAndPathReservation(t *testing.T) {
 	}
 
 	// Even while removing resTarget1, resTarget2's path is already reserved!
-	if _, err := s.CreateSession(context.Background(), CreateInput{
-		Cwd: resTarget2.Path,
-		Cmd: []string{"/bin/sh", "-c", "exit 0"},
-	}); errorKind(err) != ErrConflict {
+	if _, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: resTarget2.Path,
+		Cmd: []string{"/bin/sh", "-c", "exit 0"}}); errorKind(err) != ErrConflict {
 		t.Fatalf("expected concurrent CreateSession on reserved target2 to conflict, got: %v", err)
 	}
 	close(releaseGit)

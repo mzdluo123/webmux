@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/localclient"
 )
 
 // Command groups, in the order help lists them.
@@ -249,6 +250,20 @@ func (e Env) Run(ctx context.Context, c *Command, args []string) int {
 		return code
 	}
 	e.current = c
+	if required := RequiredCapabilities(c.Name); len(required) > 0 && e.Connect != nil {
+		connect := e.Connect
+		e.Connect = func() (*localclient.Client, error) {
+			client, err := connect()
+			if err != nil {
+				return nil, err
+			}
+			if err := requireCapabilities(ctx, client, required...); err != nil {
+				client.Close()
+				return nil, err
+			}
+			return client, nil
+		}
+	}
 	return action(ctx, e, positional)
 }
 

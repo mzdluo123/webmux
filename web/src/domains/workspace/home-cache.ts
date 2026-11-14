@@ -1,8 +1,4 @@
-import type {
-  PendingUpdate,
-  Repository,
-  SessionInfo,
-} from "../../contracts/schemas";
+import type { PendingUpdate, Repository } from "../../contracts/schemas";
 
 // Server-derived values the workspace page needs to draw its first frame.
 export interface HomeSetup {
@@ -25,18 +21,13 @@ export interface HomeSetup {
 // Nothing is persisted: a reload starts empty and `clearHomeCache` drops it
 // when authentication is lost.
 let repositories: Repository[] | undefined;
-let sessions: SessionInfo[] | undefined;
 let setup: HomeSetup | undefined;
 
 export const homeCache = {
   repositories: () => repositories,
-  sessions: () => sessions,
   setup: () => setup,
   rememberRepositories(value: Repository[]): void {
     repositories = value;
-  },
-  rememberSessions(value: SessionInfo[]): void {
-    sessions = value;
   },
   rememberSetup(value: HomeSetup): void {
     setup = value;
@@ -45,6 +36,5 @@ export const homeCache = {
 
 export function clearHomeCache(): void {
   repositories = undefined;
-  sessions = undefined;
   setup = undefined;
 }

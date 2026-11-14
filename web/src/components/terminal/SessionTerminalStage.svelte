@@ -9,33 +9,28 @@
     useUpload,
   } from "../../hooks/shared/upload.svelte";
   import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
-  import { quickCommands } from "../../domains/settings/quick-commands.svelte";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
-  import { isVoiceDisabled } from "../../domains/terminal/session-terminal-io";
   import type {
     TerminalDraft,
     TerminalDrafts,
   } from "../../domains/terminal/terminal-draft.svelte";
-  import ConnectorInstallHint from "../sessions/ConnectorInstallHint.svelte";
   import DraftToggle from "./DraftToggle.svelte";
-  import HybridRecovery from "../sessions/HybridRecovery.svelte";
-  import QuickCommandMenu from "../settings/QuickCommandMenu.svelte";
   import TerminalFindBar from "./TerminalFindBar.svelte";
   import TerminalHeader from "./TerminalHeader.svelte";
   import TerminalInputComposer from "./TerminalInputComposer.svelte";
   import TerminalNotices from "./TerminalNotices.svelte";
   import TerminalViewport from "./TerminalViewport.svelte";
   import TerminalWorkspace from "./TerminalWorkspace.svelte";
-  import VoiceButton from "../shared/VoiceButton.svelte";
-  import ChatView from "../chat/ChatView.svelte";
-  import SwitchProgress from "../chat/SwitchProgress.svelte";
   import type { createHeaderTerminalView } from "../../domains/terminal/session-terminal-io";
   import type { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
   import type { XrHeaderControl } from "../../domains/terminal/xr-workspace";
   import { useTvTerminalBack } from "../../hooks/terminal/tv-terminal-back.svelte";
+  import type { TerminalPlugins } from "../../plugins/terminal";
+  import type ChatViewComponent from "../chat/ChatView.svelte";
 
   let {
     id,
+    plugins,
     paneActions,
     chatActions,
     headerTerminal,
@@ -104,6 +99,7 @@
     xr,
   }: {
     id: string;
+    plugins: TerminalPlugins;
     paneActions: Snippet<[boolean]>;
     chatActions?: Snippet;
     headerTerminal: ReturnType<typeof createHeaderTerminalView>;
@@ -115,8 +111,8 @@
     chatVisible: boolean;
     hybrid: HybridSession;
     terminal: TerminalController;
-    uploads: ReturnType<typeof useUpload>;
-    chatUploads: ChatUploads;
+    uploads: ReturnType<typeof useUpload> | undefined;
+    chatUploads: ChatUploads | undefined;
     chatUploadUnavailable: string;
     sendUnavailable: string;
     quickUnavailable: string;
@@ -173,7 +169,7 @@
   } = $props();
 
   let findPanel = $state<TerminalFindBar>();
-  let chatView = $state<ChatView>();
+  let chatView = $state<ChatViewComponent>();
   let composer = $state<TerminalInputComposer>();
 
   useTvTerminalBack({
@@ -229,16 +225,16 @@
   size?: ButtonSize,
   variant?: ButtonVariant,
 )}
-  <VoiceButton
-    {size}
-    {variant}
-    disabled={isVoiceDisabled(hybrid, terminal, draft)}
-    onmousedown={(event) => {
-      if (side === "top" && hybrid.view !== "chat") event.preventDefault();
-    }}
-    onresult={insertVoiceResult}
-    onerror={onVoiceError}
-  />
+  {#if plugins.voice}<plugins.voice.Button
+      {size}
+      {variant}
+      disabled={plugins.voice.isVoiceDisabled(hybrid, terminal, draft)}
+      onmousedown={(event) => {
+        if (side === "top" && hybrid.view !== "chat") event.preventDefault();
+      }}
+      onresult={insertVoiceResult}
+      onerror={onVoiceError}
+    />{/if}
 {/snippet}
 {#snippet draftVoice()}
   {@render voiceButton("top", "icon-sm", "ghost")}
@@ -253,25 +249,25 @@
   {#if voiceEnabled && hybrid.view === "chat" && !submenu}
     {@render voiceButton(side, size, variant)}
   {/if}
-  <QuickCommandMenu
-    commands={quickCommands.list}
-    target={hybrid.view === "chat"
-      ? "chat"
-      : draft.enabled
-        ? "draft"
-        : "terminal"}
-    unavailable={quickUnavailable}
-    disabled={hybrid.view === "chat"
-      ? hybrid.missing
-      : terminal.connection === "missing"}
-    {side}
-    {size}
-    {variant}
-    {submenu}
-    run={runQuickCommand}
-    manage={manageQuickCommands}
-    onCloseAutoFocus={focusTerminal}
-  />
+  {#if plugins.quickCommands}<plugins.quickCommands.Menu
+      commands={plugins.quickCommands.availableCommands(!!plugins.files)}
+      target={hybrid.view === "chat"
+        ? "chat"
+        : draft.enabled
+          ? "draft"
+          : "terminal"}
+      unavailable={quickUnavailable}
+      disabled={hybrid.view === "chat"
+        ? hybrid.missing
+        : terminal.connection === "missing"}
+      {side}
+      {size}
+      {variant}
+      {submenu}
+      run={runQuickCommand}
+      manage={manageQuickCommands}
+      onCloseAutoFocus={focusTerminal}
+    />{/if}
 {/snippet}
 {#snippet draftToggle()}
   <DraftToggle
@@ -284,7 +280,7 @@
   />
 {/snippet}
 {#snippet recovery()}
-  {#if hybrid.recoverable}<HybridRecovery
+  {#if plugins.chat && hybrid.recoverable}<plugins.chat.Recovery
       record={hybrid.recoverable}
       onresumed={reopen}
       {leave}
@@ -292,6 +288,7 @@
 {/snippet}
 
 <TerminalHeader
+  {plugins}
   {chatActions}
   {xr}
   keyboard={holdBegin}
@@ -301,7 +298,7 @@
   {draft}
   {draftSaved}
   {scratchSaved}
-  uploading={uploads.progress !== null}
+  uploading={uploads?.progress != null}
   {desktop}
   {sizeLocked}
   {setSizeLocked}
@@ -310,7 +307,7 @@
   bind:codeShown
   bind:forceSoftKeys
   {quickMenu}
-  upload={uploads.uploadFiles}
+  upload={uploads?.uploadFiles}
   {toggleDraft}
   {paste}
   {showScratch}
@@ -319,6 +316,7 @@
   close={closeSession}
   {leave}
   hybrid={hybrid.known ? hybrid : undefined}
+  codeAvailable={!!plugins.code}
 />
 <TerminalWorkspace
   {codeShown}
@@ -344,6 +342,7 @@
           {leave}
           {terminal}
           {uploads}
+          {plugins}
           {draft}
           {draftSaved}
           {error}
@@ -365,10 +364,10 @@
               : undefined}
           {showForwards}
         />
-        {#if hybrid.connector && hybrid.view === "terminal"}<div
+        {#if plugins.chat && hybrid.connector && hybrid.view === "terminal"}<div
             class="shrink-0 border-b px-4 py-2"
           >
-            <ConnectorInstallHint
+            <plugins.chat.ConnectorHint
               connector={hybrid.connector}
               detail="安装后会自动重新检测"
               ondismiss={() => hybrid.dismissConnector()}
@@ -416,7 +415,7 @@
           {/snippet}
         </TerminalViewport>
       </div>
-      {#if hybrid.view === "chat"}
+      {#if plugins.chat && chatUploads && hybrid.view === "chat"}
         <div
           class={[
             "flex min-h-0 flex-1 flex-col",
@@ -424,7 +423,7 @@
           ]}
           use:paneEnter={true}
         >
-          <ChatView
+          <plugins.chat.ChatView
             bind:this={chatView}
             sessionId={id}
             visible={chatVisible}
@@ -437,16 +436,16 @@
             uploadUnavailable={chatUploadUnavailable}
             location={hybrid.info}
             actions={hybrid.actions}
-            onreview={review}
-            onopenlocation={openCodeLocation}
+            onreview={plugins.code ? review : undefined}
+            onopenlocation={plugins.code ? openCodeLocation : undefined}
             onterminal={() => hybrid.request("terminal")}
             {quickMenu}
             {documentScroll}
             oneditchange={onChatEditChange}
           />
         </div>
-      {:else if hybrid.view === "switching"}
-        <SwitchProgress
+      {:else if plugins.chat && hybrid.view === "switching"}
+        <plugins.chat.SwitchProgress
           target={hybrid.target}
           steps={hybrid.steps}
           awaitingChoice={hybrid.awaitingChoice}
@@ -467,7 +466,7 @@
       send={() => sendDraft()}
       resend={() => sendDraft(true)}
       release={releaseDraftSubmission}
-      filePaste={uploads.filePaste}
+      filePaste={(event) => uploads?.filePaste(event) ?? false}
       {controlNotice}
       voice={voiceEnabled ? draftVoice : undefined}
     />

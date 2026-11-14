@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,13 +35,21 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/handoff"
+	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/pluginapi"
+	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/settings"
+	"github.com/rainchan/webmux/internal/transport"
+	"github.com/rainchan/webmux/internal/workspace"
 )
 
 // The wire snapshots pin the JSON the browser's Zod contract
@@ -705,6 +714,47 @@ type wireFixture struct {
 	conversations *conversation.Service
 	handoffs      *handoff.Service
 	root          string
+	projection    pluginwire.Projection
+	metadataMu    sync.RWMutex
+	metadataID    string
+	metadata      *hybrid.Metadata
+}
+
+// The synthetic shell below pins transient states independently of provider
+// scheduling, while using the same plugin-owned metadata and converter as live
+// chat sessions. All other sessions use the real service projection.
+func (f *wireFixture) project(info session.Info) contract.SessionInfo {
+	out := f.projection.Session(info)
+	if metadata := f.chatMetadata(info.ID); metadata != nil {
+		pluginwire.ProjectChat(&out, metadata)
+	}
+	return out
+}
+
+func (f *wireFixture) chatMetadata(id string) *hybrid.Metadata {
+	f.metadataMu.RLock()
+	defer f.metadataMu.RUnlock()
+	if id == f.metadataID {
+		return f.metadata
+	}
+	return nil
+}
+
+func (f *wireFixture) terminal(id string) (bool, string) {
+	if metadata := f.chatMetadata(id); metadata != nil {
+		if metadata.To != "" {
+			return false, string(pluginwire.View(metadata.To))
+		}
+		return metadata.Side == string(hybrid.SideTUI), string(pluginwire.View(metadata.Side))
+	}
+	return f.projection.Terminal(id)
+}
+
+func (f *wireFixture) setChatMetadata(id string, metadata hybrid.Metadata) {
+	f.metadataMu.Lock()
+	f.metadataID, f.metadata = id, &metadata
+	f.metadataMu.Unlock()
+	f.manager.Notify(id)
 }
 
 // newWireFixture runs every service the router serves, against a Git
@@ -790,7 +840,7 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	folders.Start(func(string) bool { return false })
 	t.Cleanup(folders.Close)
 	codes := codeview.New(m, folders)
-	public := &PublicOrigins{}
+	public := &transport.PublicOrigins{}
 	if err := public.Set("cloudflare", "https://abc.trycloudflare.com"); err != nil {
 		t.Fatal(err)
 	}
@@ -807,12 +857,20 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	t.Cleanup(forwards.Close)
 	guide := &agentguide.Instance{Version: "wire", LocalURL: "http://127.0.0.1:7681", Bin: "/opt/webmux/bin/webmux"}
 	guide.SetSocket("/run/user/1000/webmux/webmux.sock")
-	deps := testDeps(t, Deps{Conversations: conversations, Config: c, Manager: m, Public: public, Push: pushes, Launch: launches, Code: codes, Settings: prefs, Hybrid: hybrids, Artifacts: folders, Forward: forwards, DefaultShell: agentprofile.ShellBash, Guide: guide})
-	handoffs := handoff.New(handoff.Options{Workspace: deps.Workspace, Conversations: conversations, Launch: launches, Hybrid: hybrids, Artifacts: folders, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
-	deps.Handoffs = handoffs
+	workspaces := workspace.New(t.TempDir(), m, launches, root)
+	workspaces.UseHybrid(hybrids)
+	t.Cleanup(workspaces.Close)
+	codes.UseWorkspace(workspaces)
+	recovery := hybridresume.New(hybrids, launches, hybridresume.Options{DefaultCwd: root, Creation: hybrids.Creation(), Locations: workspaces, ResumeLocations: workspaces})
+	handoffs := handoff.New(handoff.Options{Creation: hybrids.Creation(), Recovery: recovery, Locations: workspaces, Conversations: conversations, Launch: launches, Hybrid: hybrids, Artifacts: folders, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
 	t.Cleanup(handoffs.Close)
-	deps.InstalledVersion, deps.Launcher = func() string { return "0.5.0" }, contract.LauncherSystemd
-	server := httptest.NewServer(New(testDeps(t, deps)))
+	f := &wireFixture{wireRecorder: rec, manager: m, hybrids: hybrids, launches: launches, conversations: conversations, handoffs: handoffs, root: root, projection: pluginwire.Projection{Workspace: workspaces, Chat: hybrids, Forward: forwards}}
+	controllers := pluginapi.Bind(pluginapi.Deps{Config: c, Manager: m, Settings: prefs, Workspace: workspaces, Code: codes, Files: files.New(root), Artifacts: folders, Handoffs: handoffs, Conversations: conversations, Push: pushes, Launch: launches, Hybrid: hybrids, Resume: recovery, Forward: forwards, Guide: guide, Public: public, ProjectSession: f.project})
+	creation := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: root, Commands: launches, Locations: workspaces, Files: folders, Chat: hybrids.Creation(), Brief: func(id, dir string) string {
+		return guide.Brief(agentguide.BriefInput{SessionID: id, Dir: dir})
+	}})
+	core := Deps{Config: c, Manager: m, Settings: prefs, Create: creation, Sessions: controllers, Contributions: controllers.Contributions(), ProjectSession: f.project, SessionProjection: hub.Options{Project: f.project, Terminal: f.terminal, SubscribeForwards: f.projection.SubscribeForwards, Forwards: f.projection.Forwards}, EnrichDetails: controllers.EnrichDetails, KeepSessionPin: controllers.KeepSessionPin, EnrichConfig: controllers.EnrichConfig, Renamed: controllers.Renamed, DefaultShell: agentprofile.ShellBash, Public: public, Guide: guide, InstalledVersion: func() string { return "0.5.0" }, Launcher: contract.LauncherSystemd}
+	server := httptest.NewServer(New(core))
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(func() {
 		cancel()
@@ -826,7 +884,8 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 		m.Shutdown(shutdown)
 	})
 	rec.norm.path(strings.TrimPrefix(server.URL, "http://"), "<server>")
-	return &wireFixture{wireRecorder: rec, ctx: ctx, server: server, manager: m, hybrids: hybrids, launches: launches, conversations: conversations, handoffs: handoffs, root: root}
+	f.ctx, f.server = ctx, server
+	return f
 }
 
 type wireRequest struct {
@@ -1288,7 +1347,7 @@ func wireBasics(f *wireFixture) {
 	oversized.Host = strings.TrimPrefix(f.server.URL, "http://")
 	oversized.Header.Set("Authorization", "Bearer secret")
 	oversized.Header.Set("Content-Type", "multipart/form-data; boundary=x")
-	oversized.ContentLength = maxUploadBodyBytes + 1
+	oversized.ContentLength = 101<<20 + 1
 	tooLarge := httptest.NewRecorder()
 	f.server.Config.Handler.ServeHTTP(tooLarge, oversized)
 	f.record("error-413-upload", tooLarge.Code, tooLarge.Body.Bytes())
@@ -1477,7 +1536,7 @@ func TestWireSnapshotsUnavailableServices(t *testing.T) {
 	rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	handler := New(testDeps(t, Deps{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
+	handler := New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
 	for _, row := range []struct {
 		name, method, path, body string
 		want                     int
@@ -1525,13 +1584,14 @@ func wireHybrid(f *wireFixture) {
 		f.t.Fatal(err)
 	}
 	id := item.Info().ID
-	item.SetOverlay(&session.Overlay{Hybrid: &session.HybridInfo{Side: "tui", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi"}})
+	f.setChatMetadata(id, hybrid.Metadata{Side: "tui", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi"})
 	f.call("session-get-hybrid", "GET", "/api/sessions/"+id, nil, 200)
 
 	terminal := f.dial("/ws/s/" + id + "?client=wire-client-1&label=Wire")
 	f.frame(terminal, "ws-terminal-state-hybrid", 2, nil)
 	agentSessionID := "ses_wire"
-	item.SetOverlay(&session.Overlay{Hybrid: &session.HybridInfo{Side: "acp", Phase: "loading", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi", AgentSessionID: &agentSessionID, Work: "读取 internal/wire/wire.go"}})
+	f.setChatMetadata(id, hybrid.Metadata{Side: "acp", Phase: "loading", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi", AgentSessionID: &agentSessionID, Work: "读取 internal/wire/wire.go"})
+	item.SetOverlay(&session.Overlay{Destination: "chat"})
 	f.call("session-get-hybrid-work", "GET", "/api/sessions/"+id, nil, 200)
 	if err := item.EndRun(f.ctx); err != nil {
 		f.t.Fatal(err)
@@ -1592,7 +1652,7 @@ func wireChat(f *wireFixture) {
 	// omp reports its session at start but saves it with the first
 	// message: the switch is refused as not listed.
 	deadline := time.Now().Add(chatTimeout)
-	for terminal.Info().Hybrid.AgentSessionID == nil {
+	for f.hybrids.Metadata(terminal.Info().ID).AgentSessionID == nil {
 		if time.Now().After(deadline) {
 			f.t.Fatal("terminal reported no agent session")
 		}
@@ -1636,9 +1696,14 @@ func wireHybridRecords(f *wireFixture) {
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	id, sid := item.Info().ID, *item.Info().Hybrid.AgentSessionID
-	// The record keeps the worktree the session belonged to when it closed.
-	f.manager.SetWorkspace(id, item.Info().Cwd, &session.Workspace{RepositoryID: "repo0001", WorktreeID: "tree0001", WorktreePath: item.Info().Cwd})
+	id, sid := item.Info().ID, *f.hybrids.Metadata(item.Info().ID).AgentSessionID
+	// The record captures its association through the workspace plugin port.
+	f.hybrids.SetWorkspaceSource(func(current string) *hybrid.WorkspaceRef {
+		if current != id {
+			return nil
+		}
+		return &hybrid.WorkspaceRef{RepositoryID: "repo0001", WorktreeID: "tree0001"}
+	})
 	closeShell := func() {
 		if err := f.manager.Close(id); err != nil {
 			f.t.Fatal(err)

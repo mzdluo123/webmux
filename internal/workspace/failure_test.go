@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,7 +59,7 @@ func TestPublishedRegistryFailureDisablesFurtherWrites(t *testing.T) {
 	if err != nil || string(after) != string(data) {
 		t.Fatalf("failure state overwrote published data: %v", err)
 	}
-	item, err := s.CreateSession(context.Background(), CreateInput{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf DIRECT_AFTER_STORAGE_FAILURE"}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf DIRECT_AFTER_STORAGE_FAILURE"}})
 	if err != nil {
 		t.Fatal(err)
 	}

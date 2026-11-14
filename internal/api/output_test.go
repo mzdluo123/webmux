@@ -18,7 +18,7 @@ func TestRawOutputPagesPreserveRetainedSuffix(t *testing.T) {
 	opts.ScrollbackBytes = 8
 	manager := session.NewManager(opts)
 	defer manager.Shutdown(context.Background())
-	handler := New(testDeps(t, Deps{Config: cfg, Manager: manager, Workspace: testWorkspace(t, manager, cfg.DefaultCwd)}))
+	handler := New(testDeps(t, testServices{Config: cfg, Manager: manager, Workspace: testWorkspace(t, manager, cfg.DefaultCwd)}))
 	item, err := manager.Create(session.CreateInput{Cmd: []string{"/bin/sh", "-c", "printf abcdefghijklmnop"}})
 	if err != nil {
 		t.Fatal(err)

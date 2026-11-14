@@ -139,18 +139,6 @@ func (s *Service) captureWorktreeCreateBaseline(ctx context.Context, r *reposito
 	}
 }
 
-// ensureUnbornWorktreeBaseline captures an unborn task baseline when a session
-// starts in an unborn worktree that has no baseline yet.
-func (s *Service) ensureUnbornWorktreeBaseline(ctx context.Context, r *repositoryState, repositoryID string, tree Worktree) {
-	if tree.Head != nil || tree.Kind == "bare" || !tree.Available {
-		return
-	}
-	if s.findTaskBaseline(repositoryID, tree.ID) != nil {
-		return
-	}
-	s.captureWorktreeCreateBaseline(ctx, r, repositoryID, tree)
-}
-
 func (s *Service) ensureUnbornAssociationBaseline(ctx context.Context, repositoryID, worktreeID, worktreePath string) {
 	if repositoryID == "" || worktreeID == "" || worktreePath == "" {
 		return

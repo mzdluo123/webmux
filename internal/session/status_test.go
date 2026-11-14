@@ -83,22 +83,6 @@ func TestStatusUsesLatestPreviewLine(t *testing.T) {
 	}
 }
 
-func TestWorkspaceMetadataParticipatesInDisplayComparison(t *testing.T) {
-	a := Info{}
-	b := Info{Workspace: &Workspace{RepositoryID: "repository", WorktreeID: "tree", WorktreePath: "/tree"}}
-	if sameDisplay(a, b) {
-		t.Fatal("association change was invisible")
-	}
-	a.Workspace = &Workspace{RepositoryID: "repository", WorktreeID: "tree", WorktreePath: "/tree"}
-	if !sameDisplay(a, b) {
-		t.Fatal("equal workspace values were compared by pointer")
-	}
-	b.Workspace.WorktreePath = "/moved"
-	if sameDisplay(a, b) {
-		t.Fatal("workspace path change was invisible")
-	}
-}
-
 func TestReportedCwdParticipatesInDisplayComparison(t *testing.T) {
 	a := Info{}
 	since := time.Now()
@@ -113,48 +97,6 @@ func TestReportedCwdParticipatesInDisplayComparison(t *testing.T) {
 	b.ReportedCwd.Remote = true
 	if sameDisplay(a, b) {
 		t.Fatal("remote classification change was invisible")
-	}
-}
-
-func TestHybridMetadataParticipatesInDisplayComparison(t *testing.T) {
-	id := "ses_1"
-	a := Info{Hybrid: &HybridInfo{
-		Side: "acp", State: "active", Agent: "omp",
-		AgentTitle: "omp", AgentIcon: "pi", AgentSessionID: &id,
-	}}
-	b := Info{Hybrid: a.Hybrid.clone()}
-	if !sameDisplay(a, b) {
-		t.Fatal("equal hybrid values were compared by pointer")
-	}
-	b.Hybrid.Work = "读取 internal/wire/wire.go"
-	if sameDisplay(a, b) {
-		t.Fatal("hybrid work change was invisible")
-	}
-	b.Hybrid.Work = ""
-	b.Hybrid.AgentTitle = "OpenCode"
-	if sameDisplay(a, b) {
-		t.Fatal("hybrid agent title change was invisible")
-	}
-	b.Hybrid.AgentTitle = "omp"
-	b.Hybrid.AgentIcon = "opencode"
-	if sameDisplay(a, b) {
-		t.Fatal("hybrid agent icon change was invisible")
-	}
-}
-
-func TestListeningPortsParticipateInDisplayComparison(t *testing.T) {
-	a := Info{}
-	b := Info{ListeningPorts: []ListeningPort{{Port: 5173, Process: "node"}}}
-	if sameDisplay(a, b) {
-		t.Fatal("new listening port was invisible")
-	}
-	a.ListeningPorts = []ListeningPort{{Port: 5173, Process: "node"}}
-	if !sameDisplay(a, b) {
-		t.Fatal("equal listening ports were compared by identity")
-	}
-	b.ListeningPorts = []ListeningPort{{Port: 5173, Process: "bun"}}
-	if sameDisplay(a, b) {
-		t.Fatal("listening process change was invisible")
 	}
 }
 

@@ -389,15 +389,15 @@
       "count": 1,
       "owner": "read-only-codeview"
     },
-    "internal/codeview/service.go|*binding.open|golang.org/x/sys/unix.Open": {
+    "internal/codeview/root_open.go|*binding.open|golang.org/x/sys/unix.Open": {
       "count": 1,
       "owner": "read-only-codeview"
     },
-    "internal/codeview/service.go|*binding.open|golang.org/x/sys/unix.Openat": {
+    "internal/codeview/root_open.go|*binding.open|golang.org/x/sys/unix.Openat": {
       "count": 1,
       "owner": "read-only-codeview"
     },
-    "internal/codeview/service.go|*binding.open|os.NewFile": {
+    "internal/codeview/root_open.go|*binding.open|os.NewFile": {
       "count": 2,
       "owner": "read-only-codeview"
     },

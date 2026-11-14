@@ -6,6 +6,8 @@
 
 `version`：`{"v": 1, "version": "0.3.0", "contract": 1}`。`contract` 是该构建支持的控制契约版本，不读取配置、不启动服务；客户端据此判断兼容。不带 `--json` 的 `webmux version` 与 `webmux --version` 仍输出 `webmux <版本>`。旧版本会忽略 `--json` 并输出文本，客户端应回退解析文本。
 
+此控制契约的 `v: 1` 不等于能力响应的 `version: 1`。`status` 表达实例健康与连接信息，不列出全量功能；插件选择和实际可用入口使用已认证的 [`GET /api/capabilities`](../protocol.md#能力发现)。
+
 `status`（亦为 `/local/v1/status`）：
 
 ```jsonc

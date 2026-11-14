@@ -218,3 +218,34 @@
   - 在隔离实例采集 `1280×900`、`768×800`、`390×844` 亮暗主题前后对照截图；
   - 额外核验 `375×667`、`320×568`、`667×375` 打开终端菜单时均无横向溢出且浮层完整落在视口内；
   - 限制：无头 Chromium 未验证物理 `hover`、`any-pointer: coarse` 与 iOS/Android 真机表现。
+
+## 2026-11-14：终端核心与内置插件切换
+
+- 故事范围：US-B01–US-B03、US-B08、US-C01、US-C08、US-C12、US-C16–US-C18、US-K04、US-K10、US-M01–US-M02、US-M05、US-M08、US-Q01、US-Q12–US-Q13、US-Q18–US-Q20、US-S07、US-S20、US-S24–US-S25。
+- 新增 US-K18–US-K21；故事总数从 252 增至 256，原 ID 与历史记录保留。
+- 已执行的本轮静态及定向回归：
+  - `make build`、生产与测试 Svelte 类型检查通过：539 文件、0 错误、0 警告；
+  - 前端 lint、完整 `check:arch`（45 项）、单元套件（88 文件、1115 项）通过，没有扩大基线；
+  - Chromium 宿主转换 4 项通过：同源重连更换启用集、保存语音后新终端/快速开始可用、P2P 从业务关闭转为启用、认证失败及换主机释放资源；
+  - 重录 `TestWireSnapshots`；受影响 Go 包 race 及 Go lint 通过；最终全仓命令结果单独记录，不用局部结果替代；
+  - Windows 控制台与托盘的 amd64/arm64 交叉编译通过；darwin/arm64 的 `go vet ./...` 通过。
+- 隔离真实服务及浏览器：
+  - 零插件在手机上通过已有 cwd 和完整 argv 创建 bash，初始输入实际打印 `CORE_PHONE_PTY_OK`；原生 run 输出 `CORE_NATIVE_OK` 并返回退出码 7；
+  - native attach 写入 `CORE_ATTACH_OK`，分离后浏览器接管并打印 `CORE_BROWSER_CONTROL`，分屏的第二个真实 PTY 打印 `CORE_SPLIT_OK`；
+  - 代码单插件读取真实 README；阻断代码 chunk 时核心 PTY 仍可用，解除阻断并重新加载页面后恢复代码面板且同一会话保留回放；
+  - 7 个插件 profile 的桌面/手机 E2E 共 14 项通过；目录输入引用、初始仓库选择和关闭中抽屉的回归均已修复并定向通过；
+  - 仅 MCP 的真实 TCP 实例完成 initialize（200）、initialized（202）及 tools/list（200），发现 9 个核心工具，不要求 launch/chat；
+  - 仅 files 的真实上传返回 201；启动清扫后未知归档产物仍在，损坏聊天 JSON/SQLite 字节未变，仓库和启动配置路由均为 404；
+  - 聊天坏状态及独占锁未阻止核心启动；启动配置禁用前后字节一致，重新启用后同一记录可见；缺失依赖启动失败且没有生成业务状态目录；
+  - 同一源从 launch 重启为零插件后，浏览器未刷新文档即切为自定义命令表单；TCP/native 能力事实一致，401、Origin 403 与禁用路由 404 已分别核验。
+- 视觉证据：
+  - 已采集桌面 1280×900、平板 768×800、手机 390×844 的亮暗主题前后对照；[桌面浅色](../images/pr/terminal-core-plugins/after-desktop-light.png)、[手机深色](../images/pr/terminal-core-plugins/after-phone-dark.png)；
+  - 额外核验 1280×720、375×667、320×568、667×375 的创建表单，动画结束后浮层在视口内，无页面横向溢出，Tab 后只有一处可见焦点；
+  - [手机创建 GIF](../images/pr/terminal-core-plugins/core-create.gif) 为原始录制前 8 秒，未变速；真实终端输出 `CORE_PLUGIN_DEMO_OK`，补充[输出截图](../images/pr/terminal-core-plugins/core-terminal-phone-light.png)显示第二次创建的 `CORE_PLUGIN_SECOND_OK`。
+- OpenSpec：同步 3 份新增及 3 份现有主规范；98 份主规范标准校验通过，本次变更及 6 份目标规范严格校验通过。全仓严格模式仍有无关旧规范的 Purpose 占位警告，未改写这些规范。
+- 经用户确认归档本次变更；`make docs-check` 已通过，其他活动变更未移动。
+- 最终 `make check` 与 `make test` 全部通过：
+  - 全仓 Go race、架构、文档、持久化、vet 与 Go lint 通过，lint 为 0 issues；
+  - 单测 1115 项、浏览器组件 852 项、Storybook 106 项通过；
+  - E2E 564 项通过、54 项跳过；性能场景 18 项通过、2 项跳过，没有把跳过项记为验收通过。
+- PR 与 CI 结果在交付时记录。限制：未验证原生 Windows GUI 点击、macOS 运行、物理 hover/coarse pointer 及 iOS/Android 真机，不以交叉编译或无头截图替代。

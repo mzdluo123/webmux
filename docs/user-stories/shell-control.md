@@ -50,6 +50,7 @@
   - 初始化说明与手册使用同一规则源；只在确有本机文件能力时建议写入交付目录，不把服务端绝对路径或 stdio 本身视为远程写入/会话身份。
 
 - **US-S07 从 shell 启动、跟随或等待会话**：作为脚本或 agent，我希望 `run` 具备 Web 端新建会话对话框的全部位置选择，并能不经终端跟随输出或等待状态，以便把启动、等待和取结果写进脚本。
+  - 显式 argv、cwd、env、终端输入与跟随属于核心；按实际能力使用 `launch` 配置、`workspace` 位置、`chat` 视图和 `files` 附件。普通命令不预读禁用业务接口，显式请求未启用能力时给出不可用原因；
   - 位置：
     - 当前目录所在的已登记 worktree 自动关联；
     - `--worktree REPO:WORKTREE|PATH` 选已有 worktree，`--cwd` 须在其中；
@@ -156,7 +157,8 @@
   - 之后第一个取得控制权的浏览器或 `attach` 仍按自己的窗口调整尺寸。
 
 - **US-S20 从 MCP 查询 WebMux**：作为使用 MCP 客户端的 agent，我希望发现启动配置、查询会话和父子关系，以便选择正确的工作位置。
-  - 实际 ACP 会话的 new/load/resume 默认注入当前实例的 `webmux` stdio MCP；不依赖历史保存，不修改 agent 全局或启动配置，既有连接重新打开后生效。
+  - 选择 `mcp` 才开放控制 MCP；可独立于 `launch`、`workspace`、`chat` 运行，发现结果以当前实例能力为准，不为核心会话列表探测禁用的配置或聊天接口；
+  - 同时选择 `chat`、`mcp` 时，实际 ACP 会话的 new/load/resume 默认注入当前实例的 `webmux` stdio MCP；不依赖历史保存，不修改 agent 全局或启动配置，既有连接重新打开后生效。
   - 能力、模型和身份探测不启动控制 MCP；可执行文件或 socket 不可用时省略可选服务。
   - `webmux mcp` 使用 CLI 相同的本机 API 连接规则；协议只写 stdout，不读取 Token，不启动服务。
   - `capabilities` 返回配置 ID/名称/聊天支持、工具、视图、共享指引及 transport/locality/selfSessionId；不返回 argv 或环境值，未知 self 为 null，stdio 不自动证明会话身份。
@@ -195,6 +197,7 @@
   - 网络断线不等于取消，重新连接仍用原 turn/queue 选择器续等；显式请求取消只结束该观察，不伪造任务结束。
 
 - **US-S24 从 shell 只读排查 P2P / WebRTC**：作为排查 Hard NAT 或 UDP 直连失败的维护者，我希望在本机与会话内读取真实状态并做有界 STUN 探测，以便区分已验证信息与未知指标。
+  - 服务端状态、对端与设置需选择 `p2p`，未选择时客户端按能力报告禁用，不探测其 API；独立 CLI UDP 探测仍可在显式给出 STUN 时离线运行，不启动服务 P2P；
   - `p2p status` 读取运行实例的编译支持、开关、有效 STUN、配置来源、共享 ICE UDP 实际绑定端口和网关映射；nop2p 明确报告 WebRTC 已裁剪。
   - `p2p peers` 显示连接状态、候选对、IP 族、RTT、流通道数与创建时间；未知 RTT 不显示为正常零值，已测 0ms 保留；浏览器报告与流通道计数范围有明确说明。
   - `p2p probe` 使用配置 STUN 或单个显式目标，从 CLI 临时 UDP4/UDP6 端口发一次绑定请求，每目标最多 3 秒，整体超时含 DNS 且不超过 1 分钟，可取消。
@@ -203,7 +206,7 @@
   - 本机新增 `GET /local/v1/p2p` 窄只读能力；原有会话内 P2P 控制仍 403，TCP 认证与 Origin 保持；UI、连接策略、持久配置不变，不实现 TURN 或交换 offer 方向。
 
 - **US-S25 通过 URL 连接网络 MCP**：作为外部 MCP 客户端使用者，我希望只配置实例 URL 与 owner Bearer 就能控制 WebMux，以便不在客户端安装 WebMux 或连接服务端 socket。
-  - 默认关闭；配置非空根 token 和 `[mcp] enabled=true` 并重启后开放 TCP 精确 `/mcp`，空 token 在自动生成前启动失败；禁用并重启撤销入口。
+  - 网络入口默认关闭；先选择 `mcp`，再配置非空根 token 和 `[mcp] enabled=true` 并重启，才开放 TCP 精确 `/mcp`；空 token 在自动生成前启动失败，取消插件选择或关闭网络开关后重启均撤销入口。
   - 同一 owner 凭据授予完整 REST 与任意 argv 权限，精选工具不是 ACL 或沙箱；Host / Origin 校验仍执行，代理保留边界，远程部署使用可信 VPN / TLS。
   - 使用 initialize-era JSON-only Streamable HTTP，基线 2025-11-25，兼容 2025-03-26 / 2025-06-18；支持 URL 和 Authorization 的 legacy 客户端无需 command/socket。
   - 成功 initialize 返回会话头，后续携带 Bearer、会话头和匹配版本；initialized 后使用工具。POST 请求 200、通知 202、有效 GET 405、DELETE 清理并等待在途调用后 204。
@@ -224,9 +227,9 @@
 - [会话控制命令](../../internal/clicmd/control.go)、[补全](../../internal/clicmd/completion.go)
 - [notify 命令](../../internal/clicmd/notify.go)、[脚本提醒](../../internal/session/manager_attention.go)、[推送正文](../../internal/push/alert.go)
 - [worktree 与主页显示命令](../../internal/clicmd/worktree.go)、[仓库命令](../../internal/clicmd/repo.go)、[启动配置命令](../../internal/clicmd/launchconfig.go)、[转发命令](../../internal/clicmd/forward.go)
-- [聊天命令](../../internal/clicmd/chat.go)、[聊天历史、设置与队列命令](../../internal/clicmd/chat_config_queue.go)、[聊天接口](../../internal/api/chat.go)
+- [聊天命令](../../internal/clicmd/chat.go)、[聊天历史、设置与队列命令](../../internal/clicmd/chat_config_queue.go)、[聊天接口](../../internal/pluginapi/chat.go)
 - [启动命令](../../internal/clicmd/launch.go)、[会话列表订阅、跟随与回合跟踪](../../internal/clicmd/streams.go)、[仓库与主页显示](../../internal/clicmd/workspace.go)
-- [会话创建与初始化指令展开](../../internal/workspace/create_session.go)、[会话接口](../../internal/api/sessions.go)、[快捷指令运行](../../web/src/components/terminal/SessionTerminal.svelte)、[预设与内置变量](../../web/src/domains/settings/quick-commands.ts)
+- [核心创建与初始化指令展开](../../internal/sessioncreate/service.go)、[会话接口](../../internal/api/sessions.go)、[快捷指令运行](../../web/src/components/terminal/SessionTerminal.svelte)、[预设与内置变量](../../web/src/domains/settings/quick-commands.ts)
 - [脚本调整尺寸](../../internal/session/session.go)、[尺寸校验与创建尺寸](../../internal/session/manager.go)、[尺寸请求类型](../../internal/contract/sessions.go)、[resize 命令与 screen 滚动历史](../../internal/clicmd/control.go)
 
 P2P 诊断依据：[命令](../../internal/clicmd/p2p.go)、[UDP 探测](../../internal/clicmd/p2p_probe.go)、[隔离测试](../../internal/clicmd/p2p_test.go)、[本机安全边界](../../internal/api/p2p_test.go)。

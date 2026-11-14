@@ -28,7 +28,7 @@ func TestWebSocketCompressionOptIn(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := session.NewManager(testSessionOptions(c))
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd)})))
+	server := httptest.NewServer(New(testDeps(t, testServices{Config: c, Manager: m, Workspace: testWorkspace(t, m, c.DefaultCwd)})))
 	t.Cleanup(server.Close)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)

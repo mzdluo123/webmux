@@ -9,8 +9,10 @@ import (
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
 	"github.com/rainchan/webmux/internal/agenttrust"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/p2p"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/streamproto"
 	"github.com/rainchan/webmux/internal/tailscale"
 	"github.com/rainchan/webmux/internal/voice"
 	"github.com/rainchan/webmux/internal/wsl"
@@ -18,23 +20,22 @@ import (
 
 // SessionOptions converts the loaded configuration for session.NewManager.
 func SessionOptions(c config.Config) session.Options {
-	var preLaunch func(string, []string, map[string]string) map[string]string
-	if c.AgentPretrust {
-		preLaunch = agenttrust.New().Prepare
+	options := session.Options{
+		ScrollbackBytes:      c.ScrollbackBytes,
+		DefaultCwd:           c.DefaultCwd,
+		IdleAfter:            time.Duration(c.IdleAfterSeconds) * time.Second,
+		PromptPatterns:       c.PromptPatterns,
+		DisableAgentProtocol: !c.AgentProtocol || (!c.Plugins.Has("notifications") && !c.Plugins.Has("chat")),
+		DisableBellAttention: !c.BellAttention || !c.Plugins.Has("notifications"),
+		DisableProgramStatus: !c.ProgramStatus || (!c.Plugins.Has("notifications") && !c.Plugins.Has("chat")),
 	}
-	return session.Options{
-		ScrollbackBytes: c.ScrollbackBytes,
-		DefaultCwd:      c.DefaultCwd,
-		IdleAfter:       time.Duration(c.IdleAfterSeconds) * time.Second,
-		PromptPatterns:  c.PromptPatterns,
-		ExcludePorts:    listenPorts(c.Listen),
-
-		DisableAgentProtocol: !c.AgentProtocol,
-		DisableBellAttention: !c.BellAttention,
-		DisableProgramStatus: !c.ProgramStatus,
-		PreLaunch:            preLaunch,
-		SubmitDelay:          agents.Default().SubmitDelay,
+	if c.Plugins.Has("launch") {
+		if c.AgentPretrust {
+			options.PreLaunch = agenttrust.New().Prepare
+		}
+		options.SubmitDelay = agents.Default().SubmitDelay
 	}
+	return options
 }
 
 // listenPorts is the configured TCP port of WebMux's own listener. Port 0
@@ -49,6 +50,11 @@ func listenPorts(listen string) []int {
 		return nil
 	}
 	return []int{port}
+}
+
+// ForwardOptions keeps port discovery out of the terminal-core manager.
+func ForwardOptions(c config.Config, manager *session.Manager) forward.Config {
+	return forward.Config{Manager: manager, ExcludePorts: listenPorts(c.Listen)}
 }
 
 // TailscaleOptions converts [tailscale] for tailscale.New.
@@ -67,7 +73,7 @@ func VoiceOptions(c config.Config) voice.Options {
 }
 
 // P2POptions converts [p2p] for p2p.New.
-func P2POptions(c config.Config, appVersion string, stream p2p.StreamHandler, rpc p2p.RPCHandler) p2p.Options {
+func P2POptions(c config.Config, appVersion string, stream streamproto.StreamHandler, rpc streamproto.RPCHandler) p2p.Options {
 	return p2p.Options{
 		AppVersion:    appVersion,
 		Enabled:       c.P2P.Enabled,

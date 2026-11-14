@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/localclient"
 	"github.com/rainchan/webmux/internal/runtime"
+	"github.com/rainchan/webmux/internal/transport"
 	"github.com/rainchan/webmux/internal/tunnelsettings"
 )
 
@@ -301,7 +301,7 @@ func TestServeShutdownStopsRuntimeTunnel(t *testing.T) {
 }
 
 func TestTunnelControllerStopCancelsLocate(t *testing.T) {
-	public := &api.PublicOrigins{}
+	public := &transport.PublicOrigins{}
 	entered := make(chan struct{})
 	locate := func(ctx context.Context) (string, error) {
 		close(entered)

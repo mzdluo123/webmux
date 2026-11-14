@@ -1,12 +1,14 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import {
-  connectSessions,
+  observeSessionEvent,
+  disconnectSessionFeed,
   forwardLink,
   forwards,
   ignorePort,
   isIgnored,
   pruneIgnored,
 } from "../../src/domains/workspace/forwards.svelte";
+import { connectSessions } from "../../src/hooks/sessions/session-feed";
 import {
   setClientTransport,
   setHostBaseUrl,
@@ -43,7 +45,19 @@ function open() {
   vi.stubGlobal("WebSocket", MockWebSocket);
   const onEvent = vi.fn();
   const onError = vi.fn();
-  const connection = connectSessions(onEvent, vi.fn(), onError);
+  const socketConnection = connectSessions(
+    onEvent,
+    vi.fn(),
+    onError,
+    observeSessionEvent,
+  );
+  const connection = {
+    ...socketConnection,
+    close() {
+      socketConnection.close();
+      disconnectSessionFeed();
+    },
+  };
   const socket = MockWebSocket.instances.at(-1)!;
   socket.onopen?.();
   const send = (value: unknown) =>

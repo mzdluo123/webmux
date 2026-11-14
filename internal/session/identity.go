@@ -91,6 +91,9 @@ func (s *Session) rootPIDs() []int {
 	return pids
 }
 
+// ProcessRoots returns the live PTY and sidecar roots for process adapters.
+func (s *Session) ProcessRoots() []int { return s.rootPIDs() }
+
 // RunChildren returns the executable base names of the current run's root
 // process's direct children, read on demand for profiles that allow a
 // launcher as the root. Empty without a live run or a readable process

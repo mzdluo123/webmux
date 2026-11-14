@@ -6,6 +6,7 @@ import type {
   ChatFrame,
   ChatState,
 } from "../../src/contracts/schemas";
+import { enableHostPlugins, resetHostPlugins } from "./plugin-fixture";
 
 // A hybrid session's streams and commands without a backend: every
 // WebSocket the page opens is a FakeSocket the test drives, and every API
@@ -94,7 +95,7 @@ export function respond(pattern: RegExp, responder: Responder) {
 }
 
 export function installChatFixture() {
-  beforeEach(() => {
+  beforeEach(async () => {
     sockets = [];
     requests = [];
     responders = [];
@@ -118,12 +119,14 @@ export function installChatFixture() {
         return Response.json({ error: "not found" }, { status: 404 });
       }),
     );
+    await enableHostPlugins();
   });
   afterEach(async () => {
     try {
       await cleanup();
       await userEvent.cleanup();
     } finally {
+      resetHostPlugins();
       vi.unstubAllGlobals();
       vi.restoreAllMocks();
     }

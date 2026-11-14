@@ -120,6 +120,12 @@ func renderHelp(w io.Writer, r Registry, c *Command, opts []Option) {
 			b.WriteString("\n" + wrap(paragraph, "", helpWidth))
 		}
 	}
+	if required := RequiredCapabilities(c.Name); len(required) > 0 {
+		b.WriteString("\n" + wrap("Requires instance capabilities: "+strings.Join(required, ", ")+". Disabled plugins cannot execute this command.", "", helpWidth))
+	}
+	if c.Name == "run" {
+		b.WriteString("\n" + wrap("Plain argv requires only terminal.pty. --launch-config requires launch.configs; worktree and --init options require workspace.manage; chat options require chat.acp; attachments require files.upload.", "", helpWidth))
+	}
 	if children := r.Children(c.Name); len(children) > 0 {
 		b.WriteString("\nCommands:\n")
 		writeItems(&b, commandItems(children))
@@ -290,6 +296,7 @@ type HelpDoc struct {
 	ExitCodes   []ExitItem `json:"exitCodes"`
 	Examples    []Example  `json:"examples"`
 	SeeAlso     []string   `json:"seeAlso"`
+	Requires    []string   `json:"requires"`
 }
 
 // HelpTree is the help --json document.
@@ -307,7 +314,8 @@ func (e Env) Docs(r Registry) []HelpDoc {
 			Path: strings.Fields(c.Name), Group: c.Group, Usage: c.Usage(), Summary: c.Summary,
 			Description: c.Description, Args: nonNil(c.Arguments), Options: nonNil(e.Options(c)),
 			Env: nonNil(c.Env), Output: c.Output, ExitCodes: nonNil(c.Exit), Examples: nonNil(c.Examples),
-			SeeAlso: nonNil(c.SeeAlso),
+			SeeAlso:  nonNil(c.SeeAlso),
+			Requires: nonNil(RequiredCapabilities(c.Name)),
 		})
 	}
 	return docs
@@ -370,6 +378,7 @@ func PrintOverview(w io.Writer, r Registry) {
 	var b strings.Builder
 	b.WriteString("Usage: webmux <command> [options] [arguments]\n\n")
 	b.WriteString(wrap("WebMux keeps terminal sessions alive in the browser and on the command line. Run 'webmux <command> --help' for a command's options and examples, or 'webmux help --json' for the whole command tree.", "", helpWidth))
+	b.WriteString("\n" + wrap("This is the static command catalog. Optional commands require enabled instance capabilities; discover the running instance through /api/capabilities. Plain argv run, attach, ls and open use the terminal core.", "", helpWidth))
 	for _, group := range Groups {
 		var items []Item
 		for _, c := range r {
@@ -382,7 +391,11 @@ func PrintOverview(w io.Writer, r Registry) {
 					continue
 				}
 			}
-			items = append(items, Item{Name: c.Name, Text: c.Summary})
+			summary := c.Summary
+			if required := RequiredCapabilities(c.Name); len(required) > 0 {
+				summary += " Requires: " + strings.Join(required, ", ") + "."
+			}
+			items = append(items, Item{Name: c.Name, Text: summary})
 		}
 		if len(items) == 0 {
 			continue
@@ -411,6 +424,8 @@ func Directory(r Registry) string {
 	b.WriteString("每个命令一行：用法与一句话摘要，与 `webmux help` 的概览同源（英文）。" +
 		"选项、默认值、输出、退出码与示例用 `webmux <命令> --help` 查看，整棵命令树用 `webmux help --json`；" +
 		"不要猜测选项。退出码约定见 [退出码](/llms/exit-codes.md)。\n")
+	b.WriteString("\n这是静态命令目录，不保证当前实例可执行所有命令；实际可用能力以 `/api/capabilities` 为准。" +
+		"普通 argv run/attach/ls/open 只依赖终端核心；run 的启动配置、工作树、聊天与附件选项分别依赖 launch.configs、workspace.manage、chat.acp、files.upload。\n")
 	visible := r.Visible("unix")
 	for _, group := range Groups {
 		var cmds []*Command
@@ -425,7 +440,11 @@ func Directory(r Registry) string {
 		slices.SortStableFunc(cmds, func(a, b *Command) int { return strings.Compare(a.Name, b.Name) })
 		b.WriteString("\n## " + group + "\n\n")
 		for _, c := range cmds {
-			fmt.Fprintf(&b, "- `%s`: %s\n", c.Usage(), c.Summary)
+			summary := c.Summary
+			if required := RequiredCapabilities(c.Name); len(required) > 0 {
+				summary += " Requires: " + strings.Join(required, ", ") + "."
+			}
+			fmt.Fprintf(&b, "- `%s`: %s\n", c.Usage(), summary)
 		}
 	}
 	return b.String()

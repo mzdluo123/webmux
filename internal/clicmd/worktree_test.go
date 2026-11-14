@@ -168,7 +168,7 @@ func (s *settingsServer) serve(t *testing.T) Env {
 		s.revision++
 		_ = json.NewEncoder(w).Encode(contract.SettingsSnapshot{Revision: s.revision})
 	})
-	srv := &http.Server{Handler: mux}
+	srv := &http.Server{Handler: withTestCapabilities(mux)}
 	go func() { _ = srv.Serve(l) }()
 	t.Cleanup(func() { _ = srv.Close() })
 	return Env{Connect: func() (*localclient.Client, error) { return localclient.New(localclient.UnixDialer{Path: socket}), nil }}
@@ -257,7 +257,7 @@ func (s *switchServer) serve(t *testing.T) (Env, *bytes.Buffer, *bytes.Buffer) {
 		switched.Branch, switched.Head = new(s.targets[len(s.targets)-1].Branch+s.targets[len(s.targets)-1].Name), new("c1")
 		_ = json.NewEncoder(w).Encode(switched)
 	})
-	srv := &http.Server{Handler: mux}
+	srv := &http.Server{Handler: withTestCapabilities(mux)}
 	go func() { _ = srv.Serve(l) }()
 	t.Cleanup(func() { _ = srv.Close() })
 	var stdout, stderr bytes.Buffer

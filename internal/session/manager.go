@@ -37,9 +37,6 @@ type Options struct {
 	DisableBellAttention bool
 	// DisableProgramStatus ignores OSC 7501 and leaves its query unanswered.
 	DisableProgramStatus bool
-	// ExcludePorts are WebMux's own listening ports, never reported in
-	// Info.ListeningPorts.
-	ExcludePorts []int
 	// Executable is the running server's executable, advertised to every
 	// session as WEBMUX_BIN; empty advertises nothing.
 	Executable string
@@ -64,13 +61,21 @@ type ListSubscriber struct {
 	Slow   chan struct{}
 	failed bool
 }
+
+// ListObserver captures a typed controller projection at the ordered list
+// publication boundary. Observe must only read in-memory caches and enqueue
+// without blocking; it must never call the manager or perform I/O.
+type ListObserver interface {
+	Observe(Event)
+}
 type Manager struct {
-	mu       sync.Mutex
-	sessions map[string]*Session
-	subs     map[*ListSubscriber]struct{}
-	options  Options
-	patterns []*regexp.Regexp
-	done     chan struct{}
+	mu        sync.Mutex
+	sessions  map[string]*Session
+	subs      map[*ListSubscriber]struct{}
+	observers map[ListObserver]struct{}
+	options   Options
+	patterns  []*regexp.Regexp
+	done      chan struct{}
 	// updatesDone closes when the classification loop has returned.
 	updatesDone chan struct{}
 	stopOnce    sync.Once
@@ -84,7 +89,7 @@ type Manager struct {
 	socket string
 }
 
-// Error kinds; the workspace maps them to request errors.
+// Error kinds are translated by the owning controller.
 var (
 	ErrNotFound     = errors.New("session not found")
 	ErrRunning      = errors.New("session is still running")
@@ -156,9 +161,8 @@ func NewManager(o Options) *Manager {
 	return m
 }
 
-// CreateInput is the resolved start request. Cmd and Env may come from the
-// saved launch config named by ConfigID; the workspace layer validates that
-// client input does not combine the two forms.
+// CreateInput is the resolved process start request. ConfigID is optional,
+// opaque creation attribution; the host never resolves saved configurations.
 type CreateInput struct {
 	Cwd      string
 	Cmd      []string

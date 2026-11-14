@@ -80,7 +80,7 @@ FROM positions CROSS JOIN activity a WHERE a.id=?`, count, seed); err != nil {
 	previews := handoff.New(handoff.Options{Conversations: store, Launch: launches, TokenCap: 1024, MaxPromptBytes: 64 << 10, MaxPromptWireBytes: 14 << 20})
 	defer previews.Close()
 	manager := session.NewManager(session.Options{})
-	handler := New(testDeps(t, Deps{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, Handoffs: previews, Config: config.Config{Token: "secret"}}))
+	handler := New(testDeps(t, testServices{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, Handoffs: previews, Config: config.Config{Token: "secret"}}))
 	request := func(method, path string, body any) contract.HandoffPreview {
 		t.Helper()
 		data, err := json.Marshal(body)

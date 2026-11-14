@@ -7,19 +7,21 @@
   import IconTrash from "~icons/tabler/trash";
   import { Button } from "$lib/components/ui/button";
   import * as Command from "$lib/components/ui/command";
-  import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
-  import DirectoryPicker from "./DirectoryPicker.svelte";
+  import DirectoryInput from "../shared/DirectoryInput.svelte";
+  import {
+    getPluginContributions,
+    type CreationLocationProps,
+  } from "../../plugins/context";
   import PickerField from "../shared/PickerField.svelte";
   import {
     directoryName,
     selectableWorktree,
     worktreeLabel,
-    type LaunchScope,
-    type TargetKind,
   } from "../../domains/sessions/new-session-defaults";
   import type { Repository, Worktree } from "../../contracts/schemas";
+  import { pluginAvailable } from "../../platform/plugin-host.svelte";
 
   // The "where" row of the new-session dialog: recent directories, worktrees
   // of every repository, a typed or browsed directory, and "new worktree".
@@ -36,27 +38,8 @@
     repositoryId = $bindable(),
     worktreeId = $bindable(),
     disabled = false,
-  }: {
-    repositories: readonly Repository[];
-    recent: readonly string[];
-    /** Listed first: the home page's or the context entry's repository. */
-    preferredRepositoryId: string;
-    /** A tree created by this dialog that the repository list may lack. */
-    createdTree: Worktree | null;
-    newWorktreeSummary: string;
-    /** Asks to delete a linked worktree; the picker never deletes itself. */
-    onremove?: (tree: Worktree) => void;
-    /**
-     * Narrows the list to the current repository, or to the current
-     * worktree and a new worktree from its branch; no other places.
-     */
-    scope?: LaunchScope;
-    kind: TargetKind;
-    cwd: string;
-    repositoryId: string;
-    worktreeId: string;
-    disabled?: boolean;
-  } = $props();
+  }: CreationLocationProps = $props();
+  const providers = getPluginContributions().creation;
   let open = $state(false);
   let search = $state("");
   // The desktop list stays mounted while closed; each opening starts unfiltered.
@@ -259,21 +242,13 @@
     </Command.Root>
   </PickerField>
   {#if kind === "directory"}
-    <div class="flex gap-2">
-      <Input
-        id="cwd"
-        aria-label="工作目录"
-        bind:ref={cwdInput}
-        bind:value={cwd}
-        mono
-        placeholder="~/projects"
-        required
-        autocomplete="off"
-        autocapitalize="off"
-        autocorrect="off"
-        spellcheck={false}
-      />
-      <DirectoryPicker bind:value={cwd} />
-    </div>
+    <DirectoryInput
+      bind:ref={cwdInput}
+      bind:value={cwd}
+      placeholder="~/projects"
+      Picker={pluginAvailable("files.upload")
+        ? providers.DirectoryPicker
+        : undefined}
+    />
   {/if}
 </div>

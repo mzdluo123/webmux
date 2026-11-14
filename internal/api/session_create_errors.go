@@ -1,37 +1,65 @@
 package api
 
 import (
+	"context"
 	"errors"
-	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/hybrid"
-	"github.com/rainchan/webmux/internal/launch"
-	"github.com/rainchan/webmux/internal/wire"
-	"github.com/rainchan/webmux/internal/workspace"
 	"log/slog"
 	"net/http"
+
+	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
+	"github.com/rainchan/webmux/internal/wire"
 )
 
-// createStatus maps the error of a create step like the endpoint of that
-// step does: launch configs and hybrid sessions keep their statuses, the
-// rest are workspace errors.
-func createStatus(err error) int {
-	if errors.Is(err, launch.ErrInvalid) || errors.Is(err, launch.ErrNotFound) || errors.Is(err, launch.ErrDuplicate) || errors.Is(err, launch.ErrUnavailable) {
-		return launchStatus(err)
-	}
-	if status, ok := hybridStatus(err); ok {
-		return status
-	}
-	return workspaceStatus(err)
+func cancelled(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
-
-// createFailure answers a failed create with its step, what it had
-// created, and the SessionConflict details of a hybrid conflict; Reason is
-// "conflict" for an existing branch or path.
+func sessionStatus(err error) int {
+	switch {
+	case errors.Is(err, session.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, session.ErrRunning), errors.Is(err, session.ErrExited), errors.Is(err, session.ErrNoRun), errors.Is(err, session.ErrNotController), errors.Is(err, session.ErrInputFailed), errors.Is(err, session.ErrWrongInputDestination):
+		return http.StatusConflict
+	case errors.Is(err, session.ErrInvalid):
+		return http.StatusBadRequest
+	case errors.Is(err, session.ErrShuttingDown), errors.Is(err, sessioncreate.ErrUnavailable):
+		return http.StatusServiceUnavailable
+	case cancelled(err):
+		return http.StatusGatewayTimeout
+	default:
+		return http.StatusInternalServerError
+	}
+}
+func sessionCommandFailure(w http.ResponseWriter, err error) {
+	var bad *badRequest
+	if errors.As(err, &bad) {
+		failure(w, http.StatusBadRequest, bad.err)
+		return
+	}
+	if errors.Is(err, session.ErrInputFailed) {
+		body := contract.SessionConflict{Error: err.Error(), Reason: "input_failed"}
+		var failed *session.InputFailedError
+		if errors.As(err, &failed) {
+			status := wire.SubmissionStatus(failed.Status)
+			body.Submission = &status
+		}
+		reply(w, http.StatusConflict, body)
+		return
+	}
+	if errors.Is(err, session.ErrWrongInputDestination) {
+		reply(w, http.StatusConflict, contract.SessionConflict{Error: err.Error(), Reason: "wrong_view"})
+		return
+	}
+	failure(w, sessionStatus(err), err)
+}
+func renameFailure(w http.ResponseWriter, err error) { sessionCommandFailure(w, err) }
+func createStatus(err error) int                     { return sessionStatus(err) }
 func createFailure(w http.ResponseWriter, err error) {
-	body := contract.CreateSessionFailure{Step: workspace.StepPrecheck}
-	var failed *workspace.CreateError
+	body := contract.CreateSessionFailure{Step: sessioncreate.StepPrecheck}
+	var failed *sessioncreate.Error
 	if errors.As(err, &failed) {
-		body.Step, body.Worktree, body.SessionID = failed.Step, wire.OptionalWorktree(failed.Worktree), failed.SessionID
+		body.Step, body.SessionID = failed.Step, failed.SessionID
 		err = failed.Err
 	}
 	status := createStatus(err)
@@ -39,19 +67,6 @@ func createFailure(w http.ResponseWriter, err error) {
 	if status == http.StatusInternalServerError {
 		slog.Error("session create failed", "step", body.Step, "error", err)
 		body.Error = http.StatusText(status)
-	}
-	if _, ok := hybridStatus(err); ok {
-		body.Reason = hybridReason(err)
-		var ineligible *hybrid.IneligibleError
-		if errors.As(err, &ineligible) {
-			body.Eligibility = ineligible.Reason
-		}
-		var connector *hybrid.ConnectorMissingError
-		if errors.As(err, &connector) {
-			body.Connector = wire.AgentConnector(connector.Connector)
-		}
-	} else if errors.Is(err, workspace.ErrConflict) {
-		body.Reason = "conflict"
 	}
 	reply(w, status, body)
 }

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	// ErrNoRun: the shell has no PTY run, e.g. it is on the chat side.
+	// ErrNoRun: the driver currently hosts no PTY run.
 	ErrNoRun = errors.New("session has no terminal run")
 	// ErrExists: a requested session ID is already in use.
 	ErrExists = errors.New("session ID already exists")
@@ -18,13 +18,12 @@ var (
 	ErrClosed = errors.New("session is closed")
 )
 
-// Driver owns a shell's lifecycle beyond its PTY runs (internal/hybrid).
+// Driver owns a shell's lifecycle beyond its PTY runs.
 // The session calls it without holding any session or manager lock.
 type Driver interface {
 	// Close handles a user's close request (Manager.Close); the driver
 	// decides how to end the shell, or refuses with an error Manager.Close
-	// returns (a hybrid session in the middle of a switch). Shutdown never
-	// calls it.
+	// returns. Shutdown closes processes directly without calling it.
 	Close() error
 	// RunExited reports that the current run exited by itself, after its
 	// exit was published like an ordinary session's. Runs ended by EndRun
@@ -32,51 +31,19 @@ type Driver interface {
 	RunExited(code int)
 }
 
-// HybridInfo is the driver's description of a hybrid shell. Side is the
-// last settled side; To is the side a switch in progress moves to, empty
-// outside a switch. Work is the driver's one-line summary of what the agent
-// is doing (a running turn's current tool call or plan step); it is empty
-// outside a turn.
-type HybridInfo struct {
-	ConversationID, ProviderThreadID string
-	Side                             string
-	To                               string
-	Phase                            string
-	State                            string
-	Agent                            string
-	AgentTitle                       string
-	AgentIcon                        string
-	AgentSessionID                   *string
-	Work                             string
-}
-
-// Overlay is what a driver reports for its shell. Hybrid is always shown;
-// Status, Attention, Preview and Title replace the PTY-derived values only
-// while the shell has no run. A zero Status or empty Title keeps the shell's
-// own.
+// Overlay reports generic process-host state while a shell has no PTY run.
+// Destination is an opaque view-routing hint used when detaching clients.
+// Status, Attention, Preview and Title apply only without a run.
 type Overlay struct {
-	Hybrid    *HybridInfo
-	Status    Status
-	Attention *Attention
-	Preview   string
-	Title     string
-}
-
-func (h *HybridInfo) clone() *HybridInfo {
-	if h == nil {
-		return nil
-	}
-	c := *h
-	if h.AgentSessionID != nil {
-		id := *h.AgentSessionID
-		c.AgentSessionID = &id
-	}
-	return &c
+	Destination string
+	Status      Status
+	Attention   *Attention
+	Preview     string
+	Title       string
 }
 
 func (o *Overlay) clone() *Overlay {
 	c := *o
-	c.Hybrid = o.Hybrid.clone()
 	if o.Attention != nil {
 		attention := *o.Attention
 		c.Attention = &attention
@@ -87,7 +54,6 @@ func (o *Overlay) clone() *Overlay {
 // applyTo writes the overlay into an Info copy that owns no shared pointers.
 // Title applies only to an unnamed shell, so a creation name always wins.
 func (o *Overlay) applyTo(i *Info, noRun, unnamed bool) {
-	i.Hybrid = o.Hybrid.clone()
 	if !noRun {
 		return
 	}
@@ -105,16 +71,12 @@ func (o *Overlay) applyTo(i *Info, noRun, unnamed bool) {
 	}
 }
 
-// side is where the shell is or, during a switch, where it moves to: the
-// side a moved terminal client is told about.
+// side returns the driver's opaque routing destination.
 func (o *Overlay) side() string {
-	if o == nil || o.Hybrid == nil {
+	if o == nil {
 		return ""
 	}
-	if o.Hybrid.To != "" {
-		return o.Hybrid.To
-	}
-	return o.Hybrid.Side
+	return o.Destination
 }
 
 // shellState is the part of Session only shells use. shell, driver and the
@@ -140,6 +102,9 @@ type ShellInput struct {
 	ID      string
 	Argv    []string
 	Overlay *Overlay
+	// Prepare binds cached driver state before the created event is visible.
+	// It runs without session or manager locks.
+	Prepare func(*Session)
 }
 
 // CreateShell registers a shell driven by d. It is listed and published like
@@ -189,6 +154,9 @@ func (m *Manager) CreateShell(in ShellInput, d Driver) (*Session, error) {
 		}
 		s.installRunLocked(r, generation)
 		s.startRun(r)
+	}
+	if in.Prepare != nil {
+		in.Prepare(s)
 	}
 	if err = m.register(s); err != nil {
 		return nil, err

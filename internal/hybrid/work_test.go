@@ -307,7 +307,7 @@ func TestHybridWorkDetailDuringTurn(t *testing.T) {
 			select {
 			case ev := <-listSub.Out:
 				if ev.Type == "updated" && ev.Session != nil && ev.Session.ID == id &&
-					ev.Session.Hybrid != nil && ev.Session.Hybrid.Work == "Read file" {
+					h.svc.Metadata(ev.Session.ID) != nil && h.svc.Metadata(ev.Session.ID).Work == "Read file" {
 					return true
 				}
 			default:
@@ -321,7 +321,7 @@ func TestHybridWorkDetailDuringTurn(t *testing.T) {
 			select {
 			case ev := <-listSub.Out:
 				if ev.Type == "updated" && ev.Session != nil && ev.Session.ID == id &&
-					ev.Session.Hybrid != nil && ev.Session.Hybrid.Work == "" {
+					h.svc.Metadata(ev.Session.ID) != nil && h.svc.Metadata(ev.Session.ID).Work == "" {
 					return true
 				}
 			default:

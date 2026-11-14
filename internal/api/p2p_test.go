@@ -14,7 +14,10 @@ import (
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/p2p"
 	"github.com/rainchan/webmux/internal/p2psettings"
+	"github.com/rainchan/webmux/internal/pluginapi"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/streamproto"
+	"github.com/rainchan/webmux/internal/transport"
 )
 
 type p2pControlFixture struct {
@@ -102,15 +105,13 @@ func (f *p2pControlFixture) Signal(_ context.Context, req contract.P2PSignalRequ
 	}, nil
 }
 
-func p2pAPIHandler(t *testing.T, control P2PControl) Bridge {
+func p2pAPIHandler(t *testing.T, control pluginapi.P2PControl) transport.Bridge {
 	t.Helper()
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
-	return NewBridge(testDeps(t, Deps{
-		Config:  config.Config{Token: "login-secret"},
+	return NewBridge(testDeps(t, testServices{Config: config.Config{Token: "login-secret"},
 		Manager: m,
-		P2P:     control,
-	}))
+		P2P:     control}))
 }
 
 func TestP2PEndpointsSecurityAndValidation(t *testing.T) {
@@ -199,12 +200,10 @@ func TestLocalSessionProcessCannotControlP2P(t *testing.T) {
 	defer m.Shutdown(context.Background())
 	control := newP2PControlFixture()
 	inside := map[int]bool{20: true}
-	handler := NewLocal(testDeps(t, Deps{
-		Config:    config.Config{},
+	handler := NewLocal(testDeps(t, testServices{Config: config.Config{},
 		Manager:   m,
 		Workspace: testWorkspace(t, m, t.TempDir()),
-		P2P:       control,
-	}), Local{
+		P2P:       control}), Local{
 		Status:    func() contract.StatusV1 { return contract.StatusV1{V: 1} },
 		InSession: func(pid int) bool { return inside[pid] },
 	})
@@ -243,6 +242,9 @@ func TestLocalSessionProcessCannotControlP2P(t *testing.T) {
 		if w.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("diagnostics %s: %d", method, w.Code)
 		}
+		if w.Header().Get("Allow") != "GET, HEAD" {
+			t.Fatalf("diagnostics %s allowed methods: %q", method, w.Header().Get("Allow"))
+		}
 	}
 	for _, tc := range []struct{ method, path string }{
 		{"PUT", "/api/p2p/settings"}, {"DELETE", "/api/p2p/settings"}, {"POST", "/api/p2p/signal"},
@@ -277,7 +279,7 @@ func TestP2PRPCAuthAndRouting(t *testing.T) {
 	bridge := p2pAPIHandler(t, control)
 
 	// Missing token -> 401
-	unauth := bridge.ServeRPC(context.Background(), p2p.RPCRequest{
+	unauth := bridge.ServeRPC(context.Background(), streamproto.RPCRequest{
 		Method: "GET",
 		Path:   "/api/health",
 	})
@@ -286,7 +288,7 @@ func TestP2PRPCAuthAndRouting(t *testing.T) {
 	}
 
 	// Non-/api path (e.g. /local/v1/token) -> 404
-	localAttempt := bridge.ServeRPC(context.Background(), p2p.RPCRequest{
+	localAttempt := bridge.ServeRPC(context.Background(), streamproto.RPCRequest{
 		Method:  "GET",
 		Path:    "/local/v1/token",
 		Headers: map[string]string{"Authorization": "Bearer login-secret"},
@@ -296,7 +298,7 @@ func TestP2PRPCAuthAndRouting(t *testing.T) {
 	}
 
 	// Valid /api/config request -> 200 with p2p: true
-	okResp := bridge.ServeRPC(context.Background(), p2p.RPCRequest{
+	okResp := bridge.ServeRPC(context.Background(), streamproto.RPCRequest{
 		Method:  "GET",
 		Path:    "/api/config",
 		Headers: map[string]string{"Authorization": "Bearer login-secret"},

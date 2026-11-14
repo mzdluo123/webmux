@@ -63,8 +63,9 @@ func (s *sizeServer) handler(stop <-chan struct{}) http.Handler {
 	return mux
 }
 
-func serveUnix(t *testing.T, stop chan struct{}, h http.Handler) (Env, *bytes.Buffer, *bytes.Buffer) {
+func serveUnix(t *testing.T, stop chan struct{}, h http.Handler, capabilities ...contract.Capabilities) (Env, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
+	h = withTestCapabilities(h, capabilities...)
 	var (
 		mu      sync.Mutex
 		closing bool

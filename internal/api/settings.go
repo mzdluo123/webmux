@@ -5,8 +5,6 @@ import (
 	"net/http"
 
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/hub"
-	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/settings"
 	"github.com/rainchan/webmux/internal/wire"
@@ -26,6 +24,13 @@ func (s *Server) settingsRoutes(mux *http.ServeMux) {
 		if !decodeStrict(w, r, &req, 2<<20, settings.ErrInvalid) {
 			return
 		}
+		for field := range req.Changes {
+			owner := settingsOwner(field)
+			if owner != "" && !s.Config.Plugins.Has(owner) {
+				failure(w, http.StatusBadRequest, settings.ErrInvalid)
+				return
+			}
+		}
 		changes, err := wire.SettingsChanges(req)
 		if err != nil {
 			failure(w, 400, err)
@@ -38,41 +43,41 @@ func (s *Server) settingsRoutes(mux *http.ServeMux) {
 		}
 		reply(w, 200, wire.SettingsSnapshot(v))
 	})
-	mux.HandleFunc("GET /ws/settings", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := s.Settings.PruneSessionPins(s.keepSessionPin); err != nil {
-			failure(w, settingsStatus(err), err)
-			return
-		}
-		sub, err := s.Settings.Subscribe()
-		if err != nil {
-			failure(w, settingsStatus(err), err)
-			return
-		}
-		defer sub.Close()
-		c := s.accept(w, r)
-		if c == nil {
-			return
-		}
-		hub.Settings(r.Context(), sub, c)
-	})
 }
 
-// Retain interrupted hybrids so their original position returns on resume.
-// A broken archive cannot tell whether a missing session is recoverable.
+// Active core sessions retain their pins; optional archives supply their own
+// retention policy without making the settings host import their store.
 func (s *Server) keepSessionPin(id string) bool {
-	if item, err := s.Manager.Get(id); err == nil {
-		info := item.Info()
-		if info.Hybrid == nil {
-			return info.Status != session.StatusExited
-		}
-		if wire.Active(info) && info.Status != session.StatusExited {
-			return true
-		}
+	if item, err := s.Manager.Get(id); err == nil && item.Info().Status != session.StatusExited {
+		return true
 	}
-	if s.Hybrid == nil {
-		return false
+	return s.KeepSessionPin != nil && s.KeepSessionPin(id)
+}
+
+func settingsStatus(err error) int {
+	if errors.Is(err, settings.ErrInvalid) {
+		return http.StatusBadRequest
 	}
-	record, err := s.Hybrid.Record(id)
-	return errors.Is(err, hybrid.ErrUnavailable) ||
-		(err == nil && record.State != hybrid.StateClosed)
+	if errors.Is(err, settings.ErrConflict) {
+		return http.StatusConflict
+	}
+	if errors.Is(err, settings.ErrUnavailable) {
+		return http.StatusServiceUnavailable
+	}
+	return http.StatusInternalServerError
+}
+
+func settingsOwner(field string) string {
+	switch field {
+	case "preview", "codeReader":
+		return "code"
+	case "quickCommands":
+		return "quick-commands"
+	case "homeWorktrees":
+		return "workspace"
+	case "ignoreHighPorts":
+		return "forward"
+	default:
+		return ""
+	}
 }

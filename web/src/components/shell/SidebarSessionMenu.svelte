@@ -3,7 +3,7 @@
   import type { SessionInfo } from "../../contracts/schemas";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
   import { findShell, shellUi } from "../../hooks/shared/shell.svelte";
-  import { insertAtSelection } from "../../domains/settings/quick-commands";
+  import { insertAtSelection } from "../../lib/text-insertion";
   import { sessionReference } from "../../domains/sessions/session-reference";
   import SidebarRowMenu from "./SidebarRowMenu.svelte";
 

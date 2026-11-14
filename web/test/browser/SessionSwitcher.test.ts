@@ -6,12 +6,26 @@ import type {
   ChatMessageMatch,
   SessionInfo,
 } from "../../src/contracts/schemas";
+import {
+  CapabilitiesSchema,
+  PluginIDSchema,
+} from "../../src/contracts/plugin-schemas";
+import {
+  setPluginCapabilities,
+  resetPluginCapabilities,
+} from "../../src/platform/plugin-host.svelte";
+import {
+  loadPluginContributions,
+  disposePluginContributions,
+} from "../../src/plugins/registry.svelte";
 
 afterEach(async () => {
   try {
     await cleanup();
     await userEvent.cleanup();
   } finally {
+    disposePluginContributions();
+    resetPluginCapabilities();
     vi.unstubAllGlobals();
   }
 });
@@ -87,6 +101,28 @@ test("session title matches stay above message matches and preserve backend mess
       return Response.json([]);
     }),
   );
+  const enabled: Partial<Record<string, true>> = {
+    chat: true,
+    launch: true,
+    files: true,
+  };
+  setPluginCapabilities(
+    CapabilitiesSchema.parse({
+      version: 1,
+      plugins: PluginIDSchema.options.map((id) => ({
+        id,
+        enabled: !!enabled[id],
+        status: enabled[id] ? "ready" : "disabled",
+      })),
+      capabilities: [
+        { id: "terminal.pty", available: true },
+        { id: "chat.acp", available: true },
+        { id: "launch.configs", available: true },
+        { id: "files.upload", available: true },
+      ],
+    }),
+  );
+  await loadPluginContributions({ forwardAuth: true, codePopout: true });
 
   const onselect = vi.fn();
   render(SessionSwitcher, {

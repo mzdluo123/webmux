@@ -71,8 +71,8 @@
   }
 
   const controller = createGitWorkbenchController({
-    onRepositoryUpdated: (repo) => shell.repositories.replace(repo),
-    onRefreshRepositories: () => void shell.repositories.refresh(true),
+    onRepositoryUpdated: (repo) => shell.repositories?.replace(repo),
+    onRefreshRepositories: () => void shell.repositories?.refresh(true),
   });
   onDestroy(() => {
     controller.dispose();
@@ -81,7 +81,7 @@
 
   const repository = $derived(
     repositoryId
-      ? shell.repositories.list.find((r) => r.id === repositoryId)
+      ? shell.repositories?.list.find((r) => r.id === repositoryId)
       : undefined,
   );
   const worktree = $derived(
@@ -99,11 +99,12 @@
 
   // Visiting `/git` directly picks the remembered or first registered repository.
   $effect(() => {
-    if (repositoryId || !shell.repositories.settled) return;
+    if (repositoryId || !shell.repositories?.settled) return;
     if (shell.repositories.list.length === 0) return;
     const preferred =
-      shell.repositories.list.find((r) => r.id === shell.repositories.choice) ??
-      shell.repositories.list[0];
+      shell.repositories.list.find(
+        (r) => r.id === shell.repositories?.choice,
+      ) ?? shell.repositories.list[0];
     if (!preferred) return;
     const query = parseGitRouteQuery(search);
     replacePath(buildGitRouteHref({ repositoryId: preferred.id, ...query }));
@@ -161,7 +162,7 @@
   const returnSessionArchived = $derived(
     Boolean(
       controller.returnSessionId &&
-      shell.archived.records.some((r) => r.id === controller.returnSessionId),
+      shell.archived?.records.some((r) => r.id === controller.returnSessionId),
     ),
   );
   const canAddRepository = $derived(
@@ -169,6 +170,7 @@
   );
 
   const pageGuard = $derived.by(() => {
+    if (!shell.repositories) return "empty-registry" as const;
     if (!shell.repositories.settled && shell.repositories.list.length === 0) {
       return null;
     }
@@ -312,7 +314,7 @@
 
   <GitWorkbenchTopBar
     operations={operationLedger}
-    repositories={shell.repositories.list}
+    repositories={shell.repositories?.list ?? []}
     {repository}
     {worktreeId}
     {worktree}
@@ -364,7 +366,7 @@
   {#if pageGuard}
     <GitWorktreeGuardState
       kind={pageGuard}
-      repositories={shell.repositories.list}
+      repositories={shell.repositories?.list ?? []}
       {repository}
       {worktree}
       {canAddRepository}
@@ -420,11 +422,11 @@
 
     <GitWorkbenchWorkspace
       {controller}
-      repositories={shell.repositories.list}
+      repositories={shell.repositories?.list ?? []}
       {repository}
       {worktree}
       sessions={shell.sessions.sessions}
-      archivedRecords={shell.archived.records}
+      archivedRecords={shell.archived?.records ?? []}
       {returnSession}
       {commitGuard}
       {canAddRepository}

@@ -23,7 +23,7 @@ func TestConfigPendingUpdate(t *testing.T) {
 		{"installed", func() string { return "0.5.0" }, &contract.PendingUpdate{InstalledVersion: "0.5.0", Launcher: contract.LauncherLaunchd}},
 	} {
 		t.Run(row.name, func(t *testing.T) {
-			h := New(testDeps(t, Deps{Manager: m, InstalledVersion: row.installed, Launcher: contract.LauncherLaunchd}))
+			h := New(testDeps(t, testServices{Manager: m, InstalledVersion: row.installed, Launcher: contract.LauncherLaunchd}))
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, httptest.NewRequest("GET", "http://127.0.0.1:7681/api/config", nil))
 			var got contract.ServerConfig
@@ -41,7 +41,7 @@ func TestWireSnapshotsInstalledVersion(t *testing.T) {
 	rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
-	local := NewLocal(testDeps(t, Deps{Manager: m}), Local{Status: func() contract.StatusV1 {
+	local := NewLocal(testDeps(t, testServices{Manager: m}), Local{Status: func() contract.StatusV1 {
 		return contract.StatusV1{V: 1, State: contract.StateRunning, Record: true, LocalAPI: true,
 			Version: "0.4.0", Launcher: contract.LauncherSystemd, InstalledVersion: "0.5.0",
 			Drift: []string{}, Warnings: []string{}, URLs: contract.URLs{Remote: []contract.RemoteURL{}}}

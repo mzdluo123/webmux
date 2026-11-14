@@ -6,6 +6,12 @@
 - 新增、拆分或改名 capability 时，在同一变更中更新本页；`internal/docguard` 会把没有链接到的规格报告为不可达。
 - 规格描述“应当怎样”；功能用途与验收要点见 [User Stories](user-stories.md)，工作流见 [参与贡献](../CONTRIBUTING.md#openspec-工作流可选)。
 
+## 核心与内置插件
+
+- [terminal-core-host](../openspec/specs/terminal-core-host/spec.md)：零插件终端工作流、连续输出与统一安全边界
+- [builtin-plugin-lifecycle](../openspec/specs/builtin-plugin-lifecycle/spec.md)：显式启用集、依赖、数据保留及有序启动关闭
+- [plugin-ui-contributions](../openspec/specs/plugin-ui-contributions/spec.md)：鉴权能力发现、全栈贡献、客户端消费和资源清理
+
 ## 会话与终端
 
 - [terminal-control](../openspec/specs/terminal-control/spec.md)：多设备同时打开同一会话时的唯一控制端与接管

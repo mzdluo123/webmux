@@ -20,16 +20,17 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 源码按「层 + 业务主题」组织，根目录只保留 `App.svelte`、`main.ts`、声明与全局样式。dependency-cruiser 同时检查运行时与 type-only 导入：
 
-| 层             | 路径                     | 可以依赖                                     |
-| -------------- | ------------------------ | -------------------------------------------- |
-| 契约           | `src/contracts/`         | 契约、第三方包                               |
-| 基础设施       | `src/platform/`          | 基础设施、契约、`lib` 工具                   |
-| 设计系统叶子   | `src/lib/components/ui/` | `src/lib/`、第三方包                         |
-| 通用工具       | `src/lib/`               | `lib`、第三方包，不依赖业务                  |
-| 领域逻辑与状态 | `src/domains/<主题>/`    | 领域逻辑、基础设施、契约、工具；不依赖渲染层 |
-| Hooks          | `src/hooks/<主题>/`      | 领域逻辑、基础设施、契约、工具；不依赖渲染层 |
-| 业务组件       | `src/components/<主题>/` | 以上各层；不依赖页面与应用编排               |
-| 页面           | `src/pages/`             | 以上各层；由 `App.svelte` 组合               |
+| 层             | 路径                     | 可以依赖                                            |
+| -------------- | ------------------------ | --------------------------------------------------- |
+| 契约           | `src/contracts/`         | 契约、第三方包                                      |
+| 基础设施       | `src/platform/`          | 基础设施、契约、`lib` 工具                          |
+| 设计系统叶子   | `src/lib/components/ui/` | `src/lib/`、第三方包                                |
+| 通用工具       | `src/lib/`               | `lib`、第三方包，不依赖业务                         |
+| 领域逻辑与状态 | `src/domains/<主题>/`    | 领域逻辑、基础设施、契约、工具；不依赖渲染层        |
+| Hooks          | `src/hooks/<主题>/`      | 领域逻辑、基础设施、契约、工具；不依赖渲染层        |
+| 业务组件       | `src/components/<主题>/` | 以上各层；不依赖页面与应用编排                      |
+| 页面           | `src/pages/`             | 以上各层；由 `App.svelte` 组合                      |
+| 应用贡献       | `src/plugins/`           | 显式动态入口、页面/组件及以上各层；底层不反向依赖它 |
 
 主题包括 `sessions`、`terminal`、`chat`、`code`、`workspace`、`settings` 与 `notifications`。领域目录把相同业务概念的纯算法与响应式状态放在一起；资源生命周期与跨主题流程放在 hooks，而不是让底层领域反向依赖控制器。
 
@@ -50,6 +51,15 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 5. 可渲染内容放在对应主题组件中；页面负责布局与组合，设计系统负责外观。
 
 迁移文件时必须同时更新测试 mock、Storybook、worker URL、工具配置与文档链接；旧路径不保留垫片。
+
+### 内置插件启动与贡献
+
+`App.svelte` 依次完成 health → 经 Zod 校验的 `/api/capabilities` → 本地动态贡献 → 首页；发现失败或版本不符时 fail-closed，不猜测旧版全量功能。
+`platform/plugin-host.svelte.ts` 只保存能力状态，提供 `pluginEnabled` / `pluginAvailable`，不导入业务组件或执行网络 I/O。
+`plugins/registry.svelte.ts` 与创建、设置、终端贡献入口拥有静态可审计的动态 import；只加载已选择的插件。
+禁用插件不仅隐藏入口：不得加载实现 chunk、调用其 REST/WS、启动计时器、后台探测或 provider。单个可选 chunk 失败留在该功能内，不使 PTY 终端整体失败。
+核心新建对话框可直接填写 argv 与 cwd，无需 launch/workspace/files；缺少 launch 时，旧浏览器记住的 `configId` 不能猜成命令，必须重新显式填写。
+选择与组合规则见 [配置](deployment/configuration.md#内置插件选择)，后端事实与插件状态不是同一个布尔值，见 [能力发现](protocol.md#能力发现)。
 
 ### XR 与设备模式边界
 

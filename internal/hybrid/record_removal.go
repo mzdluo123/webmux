@@ -76,6 +76,7 @@ func (s *Service) clear(ctx context.Context, id string) error {
 	}
 	switch err := s.manager.Remove(id); {
 	case err == nil, errors.Is(err, session.ErrNotFound):
+		s.clearMetadata(id)
 		return nil
 	case errors.Is(err, session.ErrRunning):
 		return fmt.Errorf("%w: 会话的进程仍在运行", ErrConflict)

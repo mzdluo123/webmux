@@ -11,6 +11,7 @@ import (
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/session"
 )
 
 func TestDefinitiveDeliveryFailureAllowsTerminalAuthenticationAndExplicitRetry(t *testing.T) {
@@ -42,7 +43,7 @@ func TestDefinitiveDeliveryFailureAllowsTerminalAuthenticationAndExplicitRetry(t
 	if _, err := h.hybrids.Switch(ctx, failed.RuntimeID, hybrid.SwitchInput{ClientRequestID: "failed-to-terminal", To: hybrid.SideTUI}); err != nil {
 		t.Fatalf("definite failure prevented recovery: %v", err)
 	}
-	if _, err := h.hybrids.Input(ctx, failed.RuntimeID, hybrid.InputRequest{ClientRequestID: "authenticate-in-terminal", Text: "/login", Submit: true}); err != nil {
+	if _, err := h.hybrids.Input(ctx, failed.RuntimeID, session.InputRequest{ClientRequestID: "authenticate-in-terminal", Text: "/login", Submit: true}); err != nil {
 		t.Fatal(err)
 	}
 	for {

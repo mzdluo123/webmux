@@ -367,19 +367,18 @@ func AccessEntries(snap Snapshot) []AccessItem {
 
 // PushItem describes the phone push hint under the tunnel entries.
 type PushItem struct {
-	// Show is false when the tunnel entries are hidden or the server
-	// predates push.
+	// Show is false when no instance runs or it lacks notifications support.
 	Show bool
 	// Info is the hint line; Guide is the setup dialog text. Neither
 	// carries a token, tunnel credential or subscription endpoint.
 	Info, Guide string
 }
 
-// PushEntry derives the push hint. Phones can only subscribe from a Named
-// Tunnel origin, so the hint names that prerequisite first.
+// PushEntry derives the push hint independently of tunnel control. A server may
+// offer notifications while Cloudflare is disabled or another access path is used.
 func PushEntry(snap Snapshot) PushItem {
 	p := snap.Status.Push
-	if p == nil || !TunnelEntry(snap).Show {
+	if !snap.HasStatus || snap.Status.State != contract.StateRunning || p == nil || !snap.Actions().Access {
 		return PushItem{}
 	}
 	item := PushItem{Show: true}
@@ -395,7 +394,8 @@ func PushEntry(snap Snapshot) PushItem {
 	default:
 		item.Info = fmt.Sprintf("手机推送：%d 台设备已开启", p.Subscriptions)
 	}
-	item.Guide = pushGuide(p, snap.Status.URLs.Local, snap.Status.Tunnel.SettingsAvailable)
+	webSettings := snap.Status.Tunnel != nil && snap.Status.Tunnel.SettingsAvailable
+	item.Guide = pushGuide(p, snap.Status.URLs.Local, webSettings)
 	return item
 }
 

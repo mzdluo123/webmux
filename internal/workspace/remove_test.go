@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 func previewTest(t *testing.T, s *Service, r Repository, tree Worktree) Preview {
@@ -49,7 +50,7 @@ func TestSafeRemovalProtectsEveryContentCategoryAndRetainsBranches(t *testing.T)
 				putFile(t, filepath.Join(tree.Path, "untracked"), "new")
 			case "running":
 				var err error
-				item, err = s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
+				item, err = s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -82,7 +83,7 @@ func TestSafeRemovalProtectsEveryContentCategoryAndRetainsBranches(t *testing.T)
 		t.Fatal(err)
 	}
 	clean := linkedTest(t, s, r, "clean")
-	exited, err := s.CreateSession(context.Background(), CreateInput{Cwd: clean.Path, Cmd: []string{"/bin/sh", "-c", "printf RETAINED"}})
+	exited, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: clean.Path, Cmd: []string{"/bin/sh", "-c", "printf RETAINED"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +99,7 @@ func TestSafeRemovalProtectsEveryContentCategoryAndRetainsBranches(t *testing.T)
 		t.Fatalf("worktree not removed: %v", err)
 	}
 	gitTest(t, root, "show-ref", "--verify", "refs/heads/clean")
-	if !strings.Contains(string(exited.Buffer()), "RETAINED") || exited.Info().Workspace == nil {
+	if !strings.Contains(string(exited.Buffer()), "RETAINED") || s.Association(exited.Info().ID) == nil {
 		t.Fatal("exited session record lost")
 	}
 }
@@ -111,7 +112,7 @@ func TestStaleConfirmationsRejectBeforeClosingPTY(t *testing.T) {
 	for _, change := range []string{"expired", "branch", "lock", "new-session", "replacement"} {
 		t.Run(change, func(t *testing.T) {
 			tree := linkedTest(t, s, r, "stale-"+change)
-			item, err := s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf ALIVE; read value"}})
+			item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf ALIVE; read value"}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -129,7 +130,7 @@ func TestStaleConfirmationsRejectBeforeClosingPTY(t *testing.T) {
 			case "lock":
 				gitTest(t, root, "worktree", "lock", tree.Path)
 			case "new-session":
-				if _, err := s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "read value"}}); err != nil {
+				if _, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "read value"}}); err != nil {
 					t.Fatal(err)
 				}
 			case "replacement":
@@ -168,12 +169,12 @@ func TestForceRemovalRequiresExplicitAuthorizationAndWaitsForPTYCleanup(t *testi
 	// A separate job ignores HUP and retains the PTY. The existing session
 	// cleanup must terminate/reap it before worktree removal can succeed.
 	script := `set -m; (trap '' HUP; exec sleep 30) & printf 'CHILD=%s\n' "$!"; trap 'printf FINAL_DRAIN; exit 0' HUP; read value`
-	item, err := s.CreateSession(context.Background(), CreateInput{Cwd: alias, Cmd: []string{"/bin/bash", "-c", script}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: alias, Cmd: []string{"/bin/bash", "-c", script}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	waitOutput(t, item, "CHILD=")
-	if item.Info().Cwd != child || item.Info().Workspace == nil || item.Info().Workspace.WorktreeID != tree.ID {
+	if item.Info().Cwd != child || s.Association(item.Info().ID) == nil || s.Association(item.Info().ID).WorktreeID != tree.ID {
 		t.Fatalf("symlink launch metadata: %+v", item.Info())
 	}
 	line := strings.Split(strings.Split(string(item.Buffer()), "CHILD=")[1], "\r")[0]
@@ -256,7 +257,7 @@ func TestUnsupportedRemovalAndReservationRelease(t *testing.T) {
 			if err := s.RemoveWorktree(context.Background(), r.ID, tree.ID, forceRequest(p)); errorKind(err) != ErrConflict {
 				t.Fatalf("unsupported removal: %v", err)
 			}
-			item, err := s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf UNRESERVED"}})
+			item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf UNRESERVED"}})
 			if err != nil {
 				t.Fatal("reservation leaked", err)
 			}
@@ -287,7 +288,7 @@ func TestDeletionReservationsBlockDirectAndSymlinkChildLaunches(t *testing.T) {
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
-			_, err := s.CreateSession(context.Background(), CreateInput{Cwd: path, Cmd: []string{"/bin/sh", "-c", "printf BYPASS"}})
+			_, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: path, Cmd: []string{"/bin/sh", "-c", "printf BYPASS"}})
 			if errorKind(err) != ErrConflict {
 				t.Errorf("deletion reservation bypassed by %q: %v", path, err)
 			}
@@ -295,7 +296,7 @@ func TestDeletionReservationsBlockDirectAndSymlinkChildLaunches(t *testing.T) {
 	}
 	wg.Wait()
 	s.unreserve(tree.Path)
-	item, err := s.CreateSession(context.Background(), CreateInput{Cwd: alias, Cmd: []string{"/bin/sh", "-c", "printf RELEASED"}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: alias, Cmd: []string{"/bin/sh", "-c", "printf RELEASED"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,7 +357,7 @@ func TestRemovalCancellationAndGitFailurePreserveTruth(t *testing.T) {
 	s, _ := testService(t, t.TempDir(), root)
 	r := registerTest(t, s, root)
 	tree := linkedTest(t, s, r, "failed-remove")
-	item, err := s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf ALIVE; read value"}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf ALIVE; read value"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,7 +395,7 @@ func TestRemovalCancellationAndGitFailurePreserveTruth(t *testing.T) {
 	if strings.Count(string(args), "--force\n") != 1 {
 		t.Fatalf("not single force: %s", args)
 	}
-	retry, err := s.CreateSession(context.Background(), CreateInput{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf RETRY"}})
+	retry, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: tree.Path, Cmd: []string{"/bin/sh", "-c", "printf RETRY"}})
 	if err != nil {
 		t.Fatal("failure leaked reservation", err)
 	}

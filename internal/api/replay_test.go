@@ -29,7 +29,7 @@ func TestReplayDiscardsIncompleteHistoryAfterBufferWrap(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("output process did not exit")
 	}
-	server := httptest.NewServer(New(testDeps(t, Deps{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())})))
+	server := httptest.NewServer(New(testDeps(t, testServices{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())})))
 	defer server.Close()
 	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/ws/s/"+s.Info().ID, nil)
 	if err != nil {

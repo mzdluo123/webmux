@@ -20,12 +20,10 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/api"
-	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/session"
-	"github.com/rainchan/webmux/internal/workspace"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 const token = "forward-secret-token"
@@ -49,13 +47,14 @@ func newBackend(t *testing.T) *backend {
 		t.Fatal(err)
 	}
 	c.Listen, c.Token, c.StateDir, c.DefaultCwd = l.Addr().String(), token, t.TempDir(), t.TempDir()
+	c.Plugins.Enabled = []string{}
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	m := session.NewManager(session.Options{DefaultCwd: c.DefaultCwd, ScrollbackBytes: c.ScrollbackBytes})
-	ws := workspace.New(c.StateDir, m, nil, c.DefaultCwd)
+	create := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: c.DefaultCwd})
 	b := &backend{addr: l.Addr().String()}
-	handler := api.New(api.Deps{Config: c, Manager: m, Workspace: ws, Code: codeview.New(m, nil), Files: files.New(c.DefaultCwd)})
+	handler := api.New(api.Deps{Config: c, Manager: m, Create: create})
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b.requests.Add(1)
 		handler.ServeHTTP(w, r)
@@ -63,8 +62,8 @@ func newBackend(t *testing.T) *backend {
 	go func() { _ = server.Serve(l) }()
 	b.close = func() {
 		_ = server.Close()
+		create.Close()
 		m.Shutdown(context.Background())
-		ws.Close()
 	}
 	t.Cleanup(b.close)
 	return b

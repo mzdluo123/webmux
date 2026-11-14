@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { selectPreview } from "../src/domains/workspace/preview";
+import { selectPreview } from "../src/domains/sessions/preview";
 
 const output = Array.from({ length: 12 }, (_, index) => `line ${index + 1}`);
 

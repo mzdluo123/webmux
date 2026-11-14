@@ -4,6 +4,9 @@
 
 先从下面的常见任务找到对应命令；单个命令的全部选项、默认值、输出与示例写在 `webmux <命令> --help` 中，本页不重复。`webmux help --json` 输出机器可读的命令树。
 
+CLI 用当前实例的 `/api/capabilities` 判断可选操作，不靠 health/status 或本地配置猜测。自定义命令、附着、输出与提醒属核心；启动配置需 `launch`，仓库/worktree 需 `workspace`，聊天需 `chat` 及依赖，临时文件夹需 `files`。
+下表示例按对应功能已启用书写；先按 [内置插件选择](../deployment/configuration.md#内置插件选择) 配置并重启，禁用接口不会被探测或自动开启。
+
 ## 常见任务
 
 | 我想……                                  | 命令                                                                                     |

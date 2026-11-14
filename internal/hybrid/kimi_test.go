@@ -26,7 +26,7 @@ func TestKimiRoundTripAndConfigReapply(t *testing.T) {
 	s := h.create(in)
 	id := s.Info().ID
 	h.waitReason(id, ReasonNoSessionID)
-	if s.Info().Hybrid.AgentSessionID != nil {
+	if h.svc.Metadata(s.Info().ID).AgentSessionID != nil {
 		t.Fatal("Kimi terminal reported a session ID before its first message")
 	}
 	tuiTurn(t, s, "one")
@@ -59,7 +59,7 @@ func TestKimiRoundTripAndConfigReapply(t *testing.T) {
 	h.mustSwitch(id, SideTUI)
 	waitFor(t, "resumed transcript", func() bool { return strings.Contains(string(s.Buffer()), "> two") })
 	h.waitEligible(id)
-	if got := *s.Info().Hybrid.AgentSessionID; got != sid {
+	if got := *h.svc.Metadata(s.Info().ID).AgentSessionID; got != sid {
 		t.Fatalf("resumed terminal session %s, want %s", got, sid)
 	}
 	tuiTurn(t, s, "three")
@@ -271,7 +271,7 @@ func TestKimiInputSubmitDelay(t *testing.T) {
 	h.fast()
 	s := h.create(h.input(kimi.Name, SideTUI))
 	start := time.Now()
-	_, err := h.svc.Input(ctxT(t), s.Info().ID, InputRequest{ClientRequestID: rid(), Text: "delayed", Submit: true})
+	_, err := h.svc.Input(ctxT(t), s.Info().ID, session.InputRequest{ClientRequestID: rid(), Text: "delayed", Submit: true})
 	if err != nil {
 		t.Fatal(err)
 	}
