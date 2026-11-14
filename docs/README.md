@@ -83,3 +83,7 @@
 
 - [文档治理](doc-governance.md)：文档规模、链接可达性与 README 预算。
 - [Agent 规则](agent-rules.md)：从 `AGENTS.md` 迁出的仓库地图、约定、测试与 User Stories 维护规则。
+
+## 待评审设计
+
+- [项目优先的新建会话弹窗](proposals/project-first-session-dialog/proposal.md)：项目列表、四种来源和会话设置的设计提案，尚未实施。
