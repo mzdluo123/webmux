@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { z } from "zod";
 import { api } from "../src/platform/api";
 import { CreateSessionRequestSchema } from "../src/contracts/schemas";

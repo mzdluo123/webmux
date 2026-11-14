@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import {
   GitBranchItemSchema,
   GitHistoryRowSchema,
@@ -110,7 +110,10 @@ describe("Git Workbench V2 (#550): Stash, Commit Amend/Author/Signoff, Refs & Re
     expect(validateAuthorOverrideInput("")).toEqual({ valid: true, error: "" });
     expect(
       validateAuthorOverrideInput("Co Author <co@example.invalid>"),
-    ).toEqual({ valid: true, error: "" });
+    ).toEqual({
+      valid: true,
+      error: "",
+    });
     expect(validateAuthorOverrideInput("missing-email").valid).toBe(false);
     expect(validateAuthorOverrideInput("-bad <co@example.invalid>").valid).toBe(
       false,

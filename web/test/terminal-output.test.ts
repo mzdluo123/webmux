@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createOutputBudget } from "../src/domains/terminal/terminal-output";
 
 describe("terminal output budget", () => {

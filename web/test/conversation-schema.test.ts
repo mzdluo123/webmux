@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   ConversationCursorSchema,
   ConversationMessageRequestSchema,
@@ -41,7 +41,10 @@ describe("handoff preview inputs", () => {
     ).toBe("new task");
     expect(
       HandoffEditRequestSchema.parse({ revision: 2, text: "manual history" }),
-    ).toEqual({ revision: 2, text: "manual history" });
+    ).toEqual({
+      revision: 2,
+      text: "manual history",
+    });
   });
   it("rejects invalid optimistic revisions and missing command IDs", () => {
     expect(

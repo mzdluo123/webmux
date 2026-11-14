@@ -16,9 +16,12 @@ make cover-web                    # Merged Vitest unit + browser coverage
 make test-browsers-install        # Chromium (+ Linux libraries; may require sudo)
 ```
 
-- Target a frontend test with `pnpm --dir web exec vitest run --config vitest.config.ts test/input.test.ts`.
+- Target a frontend test with `pnpm --dir web exec vp test run --config vitest.config.ts test/input.test.ts`.
 - Target an E2E spec with `pnpm --dir web exec playwright test test/e2e/terminal.spec.ts`.
 - Target a Go package with `go test -race ./internal/session`.
+
+The project-local Vite+ 1.6.0 runs the Vitest suites through `vp test`; pnpm still installs dependencies and runs scripts.
+Use `--config vitest.browser.config.ts` for the Chromium component suite. Storybook and Playwright keep their separate commands.
 
 ## Agent local validation
 
@@ -43,7 +46,7 @@ make test-browsers-install        # Chromium (+ Linux libraries; may require sud
 - Preserve behavioral coverage for authentication/Origin rejection, argv boundaries, replay continuity, exit ordering, cancellation, terminal input/rendering, and touch interactions.
 - Coverage is reported without a hard numeric threshold:
   - Go race collects cross-package atomic statement coverage (`-coverpkg`, excluding test-only guard/fixture packages).
-  - Vitest merges V8 coverage across the Node unit and headless Chromium browser suites.
+  - Vite+ `vp test` runs the Vitest suites and merges V8 coverage across the Node unit and headless Chromium browser suites through the existing coverage scripts.
   - CI publishes Markdown summaries to `$GITHUB_STEP_SUMMARY` and uploads HTML/profile artifacts.
 - Chromium mobile emulation does not replace real-device iOS Safari/Android keyboard and native selection-menu checks.
 

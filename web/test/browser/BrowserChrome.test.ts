@@ -1,5 +1,5 @@
 // Tab title and favicon ownership across running, waiting and reset states.
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test } from "vite-plus/test";
 import {
   resetBrowserChrome,
   setBrowserChrome,

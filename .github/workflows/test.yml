@@ -127,7 +127,7 @@ jobs:
       # needs the embedded archive to typecheck packages that import web.
       - name: Build embedded frontend for Go lint
         if: needs.changes.outputs.go == 'true' && needs.changes.outputs.web != 'true'
-        run: pnpm --dir web exec vite build
+        run: pnpm --dir web exec vp build
       - name: Lint Go
         if: needs.changes.outputs.go == 'true'
         uses: golangci/golangci-lint-action@v9
@@ -157,7 +157,7 @@ jobs:
         with:
           go: "true"
       - name: Build embedded frontend
-        run: pnpm --dir web exec vite build
+        run: pnpm --dir web exec vp build
       - name: Build shared E2E runtime
         run: |
           node .github/scripts/package-e2e-runtime.mjs "$RUNNER_TEMP/webmux-e2e"

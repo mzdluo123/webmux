@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
 import { openSession, shellUi } from "../../src/hooks/shared/shell.svelte";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
@@ -409,7 +409,10 @@ test("the quick command menu inserts at the caret as written, keeps the draft, a
   await expect.poll(() => location.pathname).toBe("/s/chataaaa");
   expect(
     commands().find((c) => c.path === "/api/sessions")?.body,
-  ).toMatchObject({ prompt: "前{{webmux}}后", expandPrompt: true });
+  ).toMatchObject({
+    prompt: "前{{webmux}}后",
+    expandPrompt: true,
+  });
 });
 
 test("a quick command replaces the selection, and managing keeps the draft", async () => {
@@ -817,7 +820,9 @@ test("files attached before the session exist go with the first message", async 
   await expect.element(page.getByRole("alert")).toBeVisible();
   expect(
     commands().findLast((c) => c.path === "/api/sessions")?.body,
-  ).toMatchObject({ attachments: [{ path: "/tmp/staging/spec.md" }] });
+  ).toMatchObject({
+    attachments: [{ path: "/tmp/staging/spec.md" }],
+  });
   await expect.element(chips).toHaveTextContent("spec.md");
 
   // Once the first message failed, the files belong to the new session.

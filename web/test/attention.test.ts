@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { sessionStatusText } from "../src/platform/api";
 import { SessionInfoSchema } from "../src/contracts/schemas";
 

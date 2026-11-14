@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { computeDiff } from "../src/domains/code/code-diff";
 import { xrCodePanel } from "../src/domains/code/xr-code-panel";
 import type { CodeDiff, CodeDocument } from "../src/contracts/schemas";

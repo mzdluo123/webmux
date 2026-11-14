@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 import { checkRevealTarget } from "../src/domains/code/code-reveal";
 import { setClientTransport } from "../src/platform/transport";
 

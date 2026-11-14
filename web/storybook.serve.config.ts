@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 
 // A standalone static server: importing vite.config.ts would inherit its API proxy.
 export default defineConfig({

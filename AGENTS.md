@@ -25,7 +25,7 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 - `make check`: build the frontend, check test types and formatting, run the doc, persistence and architecture guards, Oxlint, `go vet` and `golangci-lint` (v2.15.0).
 - `make format`: apply gofmt and Oxfmt.
 - `pnpm --dir web check:arch`: frontend architecture guard; run it before finishing frontend work.
-- `pnpm --dir web dev`: Vite at `http://127.0.0.1:5173`, proxying `/api` and `/ws` to backend port 7681. Run the backend separately and add `allowed_origins = ["http://127.0.0.1:5173"]` to its TOML or browser writes are rejected.
+- `pnpm --dir web dev`: Vite+ at `http://127.0.0.1:5173`, proxying `/api` and `/ws` to backend port 7681. Run the backend separately and add `allowed_origins = ["http://127.0.0.1:5173"]` to its TOML or browser writes are rejected.
 - `-config`, `-listen`, `-token` override startup settings.
 
 ## Conventions
@@ -46,7 +46,7 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 
 - `make test` is the full gate (Go race plus all frontend suites); `make test-fast` skips Storybook, E2E and performance.
 - Agents MUST run independent local checks concurrently; prefer these parallel Make targets. Preserve build dependencies and isolated performance runs; see [testing](docs/agent-rules/testing.md#agent-local-validation).
-- Scope examples (run independent checks concurrently): Go `go test -race ./internal/session`; Vitest `pnpm --dir web exec vitest run --config vitest.config.ts test/input.test.ts`; E2E `pnpm --dir web exec playwright test test/e2e/terminal.spec.ts`.
+- Scope examples (run independent checks concurrently): Go `go test -race ./internal/session`; Vitest `pnpm --dir web exec vp test run --config vitest.config.ts test/input.test.ts`; E2E `pnpm --dir web exec playwright test test/e2e/terminal.spec.ts`.
 - Preserve coverage for authentication/Origin rejection, argv boundaries, replay continuity, exit ordering, cancellation, terminal input/rendering, and touch interactions.
 - Do not connect tests to an existing developer service. macOS temp paths sit behind `/var -> /private/var`; compare canonical paths.
 - Test runtime, CI layout and diagnostics: [testing](docs/agent-rules/testing.md).

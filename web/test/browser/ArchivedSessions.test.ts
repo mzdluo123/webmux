@@ -1,5 +1,5 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import ArchivedSessions from "../../src/components/sessions/ArchivedSessions.svelte";
 import type { ArchiveActions } from "../../src/domains/sessions/archived";
@@ -286,7 +286,9 @@ test("hides the directory a group already names and pages long lists", async () 
   show(
     [...records, { ...record, id: "hybridsu", cwd: "/repos/project/web" }],
     vi.fn(),
-    { groupPath: "/repos/project" },
+    {
+      groupPath: "/repos/project",
+    },
   );
   await expand();
   expect(
@@ -454,7 +456,9 @@ test("a released record is marked and deleting it removes only the record", asyn
   await expand();
   const badge = group().getByTitle(
     `原路径 /repos/project-wt · 提交 ${"c".repeat(12)}`,
-    { exact: true },
+    {
+      exact: true,
+    },
   );
   await expect.element(badge).toBeVisible();
   expect(badge.element().textContent).toContain("已释放空间");

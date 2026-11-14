@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { osc52CopyText } from "../src/domains/terminal/terminal-clipboard";
 
 function payload(text: string): string {

@@ -1,6 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["scripts/*.{ts,mjs}"],
+  "vitest": {
+    "config": ["vitest.config.ts", "vitest.browser.config.ts"]
+  },
   "project": [
     "src/**/*.{ts,svelte,css}",
     "scripts/**/*.{ts,mjs}",

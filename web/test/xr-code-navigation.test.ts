@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import type { CodeListing } from "../src/contracts/schemas";
 import { xrTreePanel } from "../src/domains/code/xr-code-navigation";
 

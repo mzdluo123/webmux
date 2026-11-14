@@ -124,6 +124,6 @@ OpenCode、omp、Codex CLI、Claude Code、Antigravity CLI、Qoder、QoderCN 与
 
 ## 技术栈
 
-Go（`creack/pty`、`coder/websocket`）· Svelte 5 · TypeScript · Vite · xterm.js · shadcn-svelte · Tailwind CSS · Zod · CodeMirror · @pierre/diffs
+Go（`creack/pty`、`coder/websocket`）· Svelte 5 · TypeScript · Vite+ · xterm.js · shadcn-svelte · Tailwind CSS · Zod · CodeMirror · @pierre/diffs
 
 实现细节见 [架构设计](architecture.md) 与 [API 与协议](protocol.md)。

@@ -1,5 +1,5 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import { resetAttentionToasts } from "../../src/domains/notifications/attention-toast.svelte";
 import PushSettings from "../../src/components/settings/PushSettings.svelte";

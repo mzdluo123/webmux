@@ -1,5 +1,12 @@
-import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
-import { page } from "vitest/browser";
+import {
+  afterEach,
+  beforeEach,
+  expect,
+  test,
+  vi,
+  type Mock,
+} from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Harness from "./XrSessionHarness.svelte";
 import type {

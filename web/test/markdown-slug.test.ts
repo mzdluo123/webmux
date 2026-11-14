@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { createSlugger, headingSlug } from "../src/domains/code/markdown-slug";
 
 test("slugs follow GitHub's rules", () => {

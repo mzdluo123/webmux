@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 import { editDraftKey } from "../../src/domains/terminal/draft-key";
 import {

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { GitOperationSchema } from "../src/contracts/git-api-schemas";
 import type { GitOperation } from "../src/contracts/git-workbench-schemas";
 import {

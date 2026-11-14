@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { GitWorktreeContextSchema } from "../src/contracts/git-workbench-schemas";
 import type { GitConflictFileDetail } from "../src/contracts/schemas";
 import { resolveGitBranchActions } from "../src/domains/workspace/git-branches-model";

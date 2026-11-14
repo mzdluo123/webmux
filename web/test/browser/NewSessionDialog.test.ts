@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import NewSessionDialog from "../../src/components/sessions/NewSessionDialog.svelte";
 import type { LaunchConfigsState } from "../../src/domains/settings/launch-configs";

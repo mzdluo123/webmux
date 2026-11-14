@@ -63,7 +63,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `node node_modules/vite/bin/vite.js preview --config storybook.serve.config.ts --port ${previewPort}`,
+    command: `pnpm exec vp preview --config storybook.serve.config.ts --port ${previewPort}`,
     url: `${baseURL}/index.json`,
     reuseExistingServer: false,
     timeout: 30_000,

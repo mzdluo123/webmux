@@ -10,10 +10,11 @@
 | 首屏 JavaScript 原始体积      | 685,439 B |               481,963 B |
 | 1000 个会话的 1000 次更新计算 | 168.42 ms |                 2.85 ms |
 
-首屏体积从 `vite build --manifest` 的入口开始，递归收集静态 `imports`，对每个唯一 JavaScript 文件 gzip 后求和。保留工作区在首屏，不将异步加载的设置、终端、代码面板或未打开的管理表单计入首屏闭包。可在基线与 PR 分支分别运行以下构建，再按此方法读取 `.vite/manifest.json`：
+首屏体积从构建 manifest 的入口开始，递归收集静态 `imports`，对每个唯一 JavaScript 文件 gzip 后求和。保留工作区在首屏，不将异步加载的设置、终端、代码面板或未打开的管理表单计入首屏闭包。
+复现上述历史测量时，基线与当时的 PR 分支使用原有 `vite build --manifest`；当前分支的对应命令如下，再按同一方法读取 `.vite/manifest.json`：
 
 ```sh
-pnpm --dir web exec vite build --manifest
+pnpm --dir web exec vp build --manifest
 ```
 
 列表基准是 7 次运行的中位数：基线每次先移除旧会话、追加新会话，再按创建时间和 ID 排序；新实现替换已有位置，只在快照和插入时处理顺序。它仅测量列表计算，不包含 Zod、网络、Svelte 和浏览器渲染，不能作为整个页面加速比例。

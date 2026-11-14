@@ -41,7 +41,8 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. Read it when you nee
 - `internal/session/manager.go`, `session.go`, `input_write.go`, `ring.go`: state ownership, PTY lifecycle, cancellable input, and replay.
 - `web/embed.go`: embeds `web/dist`. Rebuild the frontend before compiling Go to avoid missing or stale assets.
 - `Makefile`, `go.mod`, `web/package.json`, `web/pnpm-lock.yaml`, `web/pnpm-workspace.yaml`: build commands, tool/dependency versions, and permitted install scripts.
-- `web/vite.config.ts`, `web/tsconfig.json`, `web/components.json`, `.oxfmtrc.json`, `web/.oxlintrc.json`: proxy/alias, strict typing, UI generation, formatting, and lint configuration.
+- `web/vite.config.ts`: Vite+ build, proxy/alias, formatting, and lint configuration; repository formatting also uses this file.
+- `web/tsconfig.json`, `web/components.json`: strict typing and UI generation.
 - Frontend architecture guard: `web/eslint.config.mjs`, `web/.dependency-cruiser.cjs`, `web/.jscpd.json`, `web/knip.json`, `web/test/architecture.test.ts`, `web/test/dependency-policy.test.ts`.
   - Baselines: `web/eslint-suppressions.json`, `web/.dependency-cruiser-known-violations.json`, `web/.jscpd-baseline.json`.
 - `README.md`, `docs/` (usage, deployment, architecture, protocol), `CONTRIBUTING.md`, `SECURITY.md`: user and contributor documentation at overview level. Confirm implementation details against source.

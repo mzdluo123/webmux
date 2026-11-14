@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ICruiseResult } from "dependency-cruiser";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const cli = resolve(

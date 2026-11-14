@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import {
   emptySettings,
   settingsIntent,
@@ -11,10 +11,14 @@ describe("preference conflict replay", () => {
     const latest = { ...before, preview: { lines: 30, skip: 4 } };
     expect(
       settingsIntent(before, { preview: { lines: 20, skip: 1 } })(latest),
-    ).toEqual({ preview: { lines: 20, skip: 4 } });
+    ).toEqual({
+      preview: { lines: 20, skip: 4 },
+    });
     expect(
       settingsIntent(before, { preview: { lines: 20, skip: 3 } })(latest),
-    ).toEqual({ preview: { lines: 20, skip: 3 } });
+    ).toEqual({
+      preview: { lines: 20, skip: 3 },
+    });
     expect(settingsIntent(before, { preview: null })(latest)).toEqual({
       preview: null,
     });
@@ -22,7 +26,9 @@ describe("preference conflict replay", () => {
       settingsIntent(before, { preview: { lines: 20, skip: 1 } })(
         emptySettings,
       ),
-    ).toEqual({ preview: { lines: 20, skip: 1 } });
+    ).toEqual({
+      preview: { lines: 20, skip: 1 },
+    });
   });
   test("preserves remote commands while applying local edits and deletes by ID", () => {
     const a = { id: "a", name: "", command: "echo a", enter: false };
@@ -54,7 +60,10 @@ describe("preference conflict replay", () => {
     ).toEqual({ repo: ["b", "new", "remote"], other: ["x"] });
     expect(
       settingsIntent(before, { homeWorktrees: {} })(latest).homeWorktrees,
-    ).toEqual({ repo: ["remote"], other: ["x"] });
+    ).toEqual({
+      repo: ["remote"],
+      other: ["x"],
+    });
   });
   test("reorders pins without dropping remote additions or restoring removed pins", () => {
     const before = { ...emptySettings, sessionPins: ["a", "b", "c"] };
