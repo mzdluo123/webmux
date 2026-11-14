@@ -4,6 +4,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { Remote } from "../../contracts/schemas";
   import type {
     GitBranchItem,
@@ -50,7 +51,7 @@
   const desktop = new MediaQuery("(min-width: 1024px)");
   let query = $state("");
   let selectedKey = $state<string | null>(null);
-  let listEl = $state<HTMLDivElement>();
+  let listEl = $state<HTMLElement | null>(null);
 
   const grouped = $derived(
     groupAndSortGitBranches(branches, context.checkedOutBranch, query),
@@ -162,96 +163,104 @@
   {/if}
 {/snippet}
 
-<div
-  class={desktop.current
-    ? "flex h-full min-h-0 min-w-0 flex-row bg-background"
-    : "flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-background"}
-  data-slot="git-branches-pane"
->
-  <section
-    class={desktop.current
-      ? "flex min-h-0 min-w-0 flex-1 flex-col border-r"
-      : "flex shrink-0 min-w-0 flex-col border-b"}
-    aria-label="分支与上游列表"
-  >
+<div class="h-full min-h-0 min-w-0 bg-background" data-slot="git-branches-pane">
+  <ScrollArea class="h-full min-h-0">
     <div
-      class="flex min-w-0 flex-wrap items-center gap-2 border-b bg-background p-2.5"
-    >
-      <div class="min-w-0 flex-1 basis-36">
-        <Input
-          size="sm"
-          value={query}
-          placeholder="搜索本地分支、远程分支或标签…"
-          aria-label="搜索分支或标签"
-          oninput={(e) => (query = e.currentTarget.value)}
-        />
-      </div>
-      {#if onOpenCreateTagFromHead && context.headOid}
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={onOpenCreateTagFromHead}
-          data-testid="git-branches-create-tag-head-btn"
-        >
-          <IconTag aria-hidden="true" />
-          新建标签…
-        </Button>
-      {/if}
-    </div>
-
-    <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child options. -->
-    <!-- svelte-ignore a11y_interactive_supports_focus -->
-    <div
-      bind:this={listEl}
       class={desktop.current
-        ? "min-h-0 flex-1 space-y-3 overflow-y-auto p-2"
-        : "space-y-3 p-2"}
-      role="listbox"
-      aria-label="分支列表"
-      aria-orientation="vertical"
-      onkeydown={handleBranchListKeydown}
+        ? "flex h-full min-h-0 min-w-0 flex-row"
+        : "flex min-h-full min-w-0 flex-col"}
     >
-      {@render branchGroup("current", "当前检出", grouped.current)}
-      {@render branchGroup("favorites", "收藏分支", grouped.favorites)}
-      {@render branchGroup(
-        "local",
-        "本地分支",
-        grouped.local.filter((b) => !b.favorite),
-      )}
-      {@render branchGroup(
-        "remote",
-        "远程跟踪分支",
-        grouped.remote.filter((b) => !b.favorite),
-      )}
-      {@render branchGroup("tags", "标签", grouped.tags)}
+      <section
+        class={desktop.current
+          ? "flex min-h-0 min-w-0 flex-1 flex-col border-r"
+          : "flex shrink-0 min-w-0 flex-col border-b"}
+        aria-label="分支与上游列表"
+      >
+        <div
+          class="flex min-w-0 flex-wrap items-center gap-2 border-b bg-background p-2.5"
+        >
+          <div class="min-w-0 flex-1 basis-36">
+            <Input
+              size="sm"
+              value={query}
+              placeholder="搜索本地分支、远程分支或标签…"
+              aria-label="搜索分支或标签"
+              oninput={(e) => (query = e.currentTarget.value)}
+            />
+          </div>
+          {#if onOpenCreateTagFromHead && context.headOid}
+            <Button
+              size="sm"
+              variant="outline"
+              onclick={onOpenCreateTagFromHead}
+              data-testid="git-branches-create-tag-head-btn"
+            >
+              <IconTag aria-hidden="true" />
+              新建标签…
+            </Button>
+          {/if}
+        </div>
 
-      {#if allVisible.length === 0}
-        <p class="p-3 text-xs text-muted-foreground">没有匹配的分支或标签。</p>
-      {/if}
+        <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child options. -->
+        <ScrollArea
+          bind:viewportRef={listEl}
+          class="min-h-0 flex-1"
+          role="listbox"
+          aria-label="分支列表"
+          aria-orientation="vertical"
+          onkeydown={handleBranchListKeydown}
+        >
+          <div class="space-y-3 p-2">
+            {@render branchGroup("current", "当前检出", grouped.current)}
+            {@render branchGroup("favorites", "收藏分支", grouped.favorites)}
+            {@render branchGroup(
+              "local",
+              "本地分支",
+              grouped.local.filter((b) => !b.favorite),
+            )}
+            {@render branchGroup(
+              "remote",
+              "远程跟踪分支",
+              grouped.remote.filter((b) => !b.favorite),
+            )}
+            {@render branchGroup("tags", "标签", grouped.tags)}
+
+            {#if allVisible.length === 0}
+              <p class="p-3 text-xs text-muted-foreground">
+                没有匹配的分支或标签。
+              </p>
+            {/if}
+          </div>
+        </ScrollArea>
+      </section>
+
+      <section
+        class={desktop.current
+          ? "flex w-96 min-h-0 shrink-0 flex-col bg-background"
+          : "flex shrink-0 flex-col bg-background"}
+        aria-label="选中分支详情与工作树占用"
+      >
+        <ScrollArea class="min-h-0 flex-1">
+          <div class={desktop.current ? "space-y-4 p-4" : "space-y-4 p-3"}>
+            <GitBranchDetailCard
+              {activeBranch}
+              {context}
+              {branchFilter}
+              onRouteOp={routeBranchOp}
+            />
+
+            {#if remotes !== undefined || remotesController}
+              <div class="border-t pt-3">
+                <GitRemotesSection
+                  remotes={remotes ?? []}
+                  controller={remotesController}
+                  compact
+                />
+              </div>
+            {/if}
+          </div>
+        </ScrollArea>
+      </section>
     </div>
-  </section>
-
-  <section
-    class={desktop.current
-      ? "flex w-96 shrink-0 flex-col space-y-4 overflow-y-auto bg-background p-4"
-      : "flex shrink-0 flex-col space-y-4 bg-background p-3"}
-    aria-label="选中分支详情与工作树占用"
-  >
-    <GitBranchDetailCard
-      {activeBranch}
-      {context}
-      {branchFilter}
-      onRouteOp={routeBranchOp}
-    />
-
-    {#if remotes !== undefined || remotesController}
-      <div class="border-t pt-3">
-        <GitRemotesSection
-          remotes={remotes ?? []}
-          controller={remotesController}
-          compact
-        />
-      </div>
-    {/if}
-  </section>
+  </ScrollArea>
 </div>

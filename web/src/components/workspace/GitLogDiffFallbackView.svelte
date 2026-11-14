@@ -2,6 +2,7 @@
   import IconDownload from "~icons/tabler/download";
   import IconRefresh from "~icons/tabler/refresh";
   import { Button } from "$lib/components/ui/button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
@@ -34,34 +35,40 @@
 {/snippet}
 
 {#if sideDoc}
-  <div class="min-h-0 flex-1 overflow-auto p-3">
-    {#if sideDoc.loading}
-      <p class="text-xs text-muted-foreground" role="status">
-        正在读取快照完整文件…
-      </p>
-    {:else if sideDoc.error}
-      <InlineNotice tone="danger">{sideDoc.error}</InlineNotice>
-    {:else if sideDoc.file}
-      <div
-        class="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground"
-      >
-        <span class="font-mono">
-          {sideDoc.side === "before" ? "变更前快照" : "变更后快照"} · {sideDoc
-            .file.document.path}
-        </span>
-        <span>{sideDoc.file.document.lineCount} 行</span>
-      </div>
-      {#if sideDoc.file.document.kind === "text"}
-        <pre
-          class="overflow-x-auto rounded-md border bg-background p-3 font-mono text-xs leading-relaxed text-foreground">{sideDoc
-            .file.document.text}</pre>
-      {:else}
-        <InlineNotice tone="info">
-          {sideDoc.file.document.reason || "该快照不是可直接预览的文本文件。"}
-        </InlineNotice>
+  <ScrollArea class="min-h-0 flex-1">
+    <div class="p-3">
+      {#if sideDoc.loading}
+        <p class="text-xs text-muted-foreground" role="status">
+          正在读取快照完整文件…
+        </p>
+      {:else if sideDoc.error}
+        <InlineNotice tone="danger">{sideDoc.error}</InlineNotice>
+      {:else if sideDoc.file}
+        <div
+          class="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground"
+        >
+          <span class="font-mono">
+            {sideDoc.side === "before" ? "变更前快照" : "变更后快照"} · {sideDoc
+              .file.document.path}
+          </span>
+          <span>{sideDoc.file.document.lineCount} 行</span>
+        </div>
+        {#if sideDoc.file.document.kind === "text"}
+          <div class="rounded-md border bg-background">
+            <ScrollArea orientation="horizontal">
+              <pre
+                class="p-3 font-mono text-xs leading-relaxed text-foreground">{sideDoc
+                  .file.document.text}</pre>
+            </ScrollArea>
+          </div>
+        {:else}
+          <InlineNotice tone="info">
+            {sideDoc.file.document.reason || "该快照不是可直接预览的文本文件。"}
+          </InlineNotice>
+        {/if}
       {/if}
-    {/if}
-  </div>
+    </div>
+  </ScrollArea>
 {:else if phase === "idle"}
   <div
     class="flex flex-1 items-center justify-center p-4 text-xs text-muted-foreground"

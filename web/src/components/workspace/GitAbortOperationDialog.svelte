@@ -2,6 +2,7 @@
   import { ItemGroup } from "$lib/components/ui/item";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { GitAbortOperationPreview } from "../../contracts/schemas";
   import { gitSequencerKindLabel } from "../../domains/workspace/git-divergence-model";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -115,11 +116,13 @@
           <span class="font-semibold text-foreground">
             将被重置或丢弃冲突修改的路径 ({abortPreview.affectedPaths.length})
           </span>
-          <ul class="max-h-44 space-y-1 overflow-y-auto font-mono">
-            {#each abortPreview.affectedPaths as path (path)}
-              <li class="break-all text-muted-foreground">{path}</li>
-            {/each}
-          </ul>
+          <ScrollArea viewportClasses="max-h-44">
+            <ul class="space-y-1 font-mono">
+              {#each abortPreview.affectedPaths as path (path)}
+                <li class="break-all text-muted-foreground">{path}</li>
+              {/each}
+            </ul>
+          </ScrollArea>
         </ItemGroup>
       {/if}
 

@@ -62,6 +62,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { GitChangeGroup } from "../../contracts/git-workbench-schemas";
   import { syncElementScrollTop } from "../../domains/workspace/git-workbench-memory";
   import {
@@ -137,7 +138,7 @@
     onSwitchToTaskReview?: () => void;
   } = $props();
 
-  let listScrollEl = $state<HTMLDivElement>();
+  let listScrollEl = $state<HTMLElement | null>(null);
   let collapsed = $state<Record<string, boolean>>({});
   let batchSelectedIds = $state<string[]>([]);
 
@@ -301,135 +302,140 @@
   {/if}
 
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
-  <!-- svelte-ignore a11y_interactive_supports_focus -->
-  <div
-    bind:this={listScrollEl}
-    class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2"
+  <ScrollArea
+    bind:viewportRef={listScrollEl}
+    class="min-h-0 flex-1"
     role="listbox"
     aria-label="工作树变更条目"
     onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
     onkeydown={handleListKeydown}
   >
-    {#if changes.length === 0 && !readonlyMode && taskReview?.status === "ready" && (taskReview.commitCount > 0 || context.ahead > 0)}
-      <GitTaskDeliverySummary
-        {context}
-        compact
-        commitCount={taskReview.commitCount}
-        uncommittedCount={taskReview.uncommittedCount}
-        netFileCount={taskReview.files.length}
-        {activeSessionCount}
-        {exitedSessionCount}
-        {archivedSessionCount}
-        {onSwitchToTaskReview}
-        {onReturnSession}
-        {onOpenPush}
-        {onArchiveSession}
-        {onRemoveWorktree}
-      />
-    {/if}
+    <div class="space-y-2 p-2">
+      {#if changes.length === 0 && !readonlyMode && taskReview?.status === "ready" && (taskReview.commitCount > 0 || context.ahead > 0)}
+        <GitTaskDeliverySummary
+          {context}
+          compact
+          commitCount={taskReview.commitCount}
+          uncommittedCount={taskReview.uncommittedCount}
+          netFileCount={taskReview.files.length}
+          {activeSessionCount}
+          {exitedSessionCount}
+          {archivedSessionCount}
+          {onSwitchToTaskReview}
+          {onReturnSession}
+          {onOpenPush}
+          {onArchiveSession}
+          {onRemoveWorktree}
+        />
+      {/if}
 
-    {#each sections as sec (sec.key)}
-      {@const list = grouped[sec.key]}
-      {@const isOpen = !collapsed[sec.key]}
-      <div class="space-y-0.5" data-change-section={sec.key}>
-        <div class="flex min-w-0 flex-wrap items-center gap-1">
-          <div class="min-w-0 basis-32 flex-1">
-            <ListButton
-              variant="section-header"
-              aria-expanded={isOpen}
-              onclick={() => toggleGroup(sec.key)}
-            >
-              {#if isOpen}
-                <IconChevronDown class="size-3.5 shrink-0" aria-hidden="true" />
-              {:else}
-                <IconChevronRight
-                  class="size-3.5 shrink-0"
-                  aria-hidden="true"
-                />
-              {/if}
-              <span class="min-w-0 flex-1 truncate">{sec.title}</span>
-              <Badge variant="outline">{list.length}</Badge>
-            </ListButton>
-          </div>
-
-          {#if !readonlyMode && list.length > 0 && onStageGroup}
-            {#if sec.key === "staged"}
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={stagingBusy}
-                onclick={() => onStageGroup("unstage", "staged")}
+      {#each sections as sec (sec.key)}
+        {@const list = grouped[sec.key]}
+        {@const isOpen = !collapsed[sec.key]}
+        <div class="space-y-0.5" data-change-section={sec.key}>
+          <div class="flex min-w-0 flex-wrap items-center gap-1">
+            <div class="min-w-0 basis-32 flex-1">
+              <ListButton
+                variant="section-header"
+                aria-expanded={isOpen}
+                onclick={() => toggleGroup(sec.key)}
               >
-                全部取消暂存
-              </Button>
-            {:else if sec.key === "unstaged" || sec.key === "untracked"}
-              {#if onDiscardChanges}
+                {#if isOpen}
+                  <IconChevronDown
+                    class="size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                {:else}
+                  <IconChevronRight
+                    class="size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                {/if}
+                <span class="min-w-0 flex-1 truncate">{sec.title}</span>
+                <Badge variant="outline">{list.length}</Badge>
+              </ListButton>
+            </div>
+
+            {#if !readonlyMode && list.length > 0 && onStageGroup}
+              {#if sec.key === "staged"}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={stagingBusy}
+                  onclick={() => onStageGroup("unstage", "staged")}
+                >
+                  全部取消暂存
+                </Button>
+              {:else if sec.key === "unstaged" || sec.key === "untracked"}
+                {#if onDiscardChanges}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={stagingBusy}
+                    onclick={() =>
+                      onDiscardChanges(
+                        list.map((i) => i.id),
+                        list.map((i) => i.path),
+                      )}
+                    data-testid={`git-discard-group-${sec.key}`}
+                  >
+                    全部丢弃…
+                  </Button>
+                {/if}
                 <Button
                   size="sm"
                   variant="ghost"
                   disabled={stagingBusy}
                   onclick={() =>
-                    onDiscardChanges(
-                      list.map((i) => i.id),
-                      list.map((i) => i.path),
+                    onStageGroup(
+                      "stage",
+                      sec.key === "unstaged" ? "unstaged" : "untracked",
                     )}
-                  data-testid={`git-discard-group-${sec.key}`}
                 >
-                  全部丢弃…
+                  全部暂存
                 </Button>
               {/if}
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={stagingBusy}
-                onclick={() =>
-                  onStageGroup(
-                    "stage",
-                    sec.key === "unstaged" ? "unstaged" : "untracked",
-                  )}
-              >
-                全部暂存
-              </Button>
+            {/if}
+          </div>
+
+          {#if isOpen}
+            {#if list.length === 0}
+              <p class="px-6 py-1 text-xs text-muted-foreground">暂无条目</p>
+            {:else}
+              <div class="space-y-0.5">
+                {#each list as entry (entry.id)}
+                  <GitWorkingChangeRow
+                    item={entry}
+                    isReviewed={isChangeReviewed(reviewedPaths, entry)}
+                    isReading={activeChange?.id === entry.id}
+                    batchSelectable={Boolean(
+                      onDiscardChanges &&
+                      (entry.group === "unstaged" ||
+                        entry.group === "untracked"),
+                    )}
+                    isSelectedForBatch={batchSelectedIds.includes(entry.id)}
+                    {readonlyMode}
+                    {stagingBusy}
+                    onSelect={() => onSelectChange(entry.id)}
+                    onToggleBatchSelect={toggleBatchSelect}
+                    {onToggleReviewed}
+                    {onStageChange}
+                    {onUnstageChange}
+                    onDiscardChange={onDiscardChanges &&
+                    (entry.group === "unstaged" || entry.group === "untracked")
+                      ? (item) => onDiscardChanges([item.id], [item.path])
+                      : undefined}
+                    {onOpenConflictResolver}
+                    {onInspectFile}
+                  />
+                {/each}
+              </div>
             {/if}
           {/if}
         </div>
-
-        {#if isOpen}
-          {#if list.length === 0}
-            <p class="px-6 py-1 text-xs text-muted-foreground">暂无条目</p>
-          {:else}
-            <div class="space-y-0.5">
-              {#each list as entry (entry.id)}
-                <GitWorkingChangeRow
-                  item={entry}
-                  isReviewed={isChangeReviewed(reviewedPaths, entry)}
-                  isReading={activeChange?.id === entry.id}
-                  batchSelectable={Boolean(
-                    onDiscardChanges &&
-                    (entry.group === "unstaged" || entry.group === "untracked"),
-                  )}
-                  isSelectedForBatch={batchSelectedIds.includes(entry.id)}
-                  {readonlyMode}
-                  {stagingBusy}
-                  onSelect={() => onSelectChange(entry.id)}
-                  onToggleBatchSelect={toggleBatchSelect}
-                  {onToggleReviewed}
-                  {onStageChange}
-                  {onUnstageChange}
-                  onDiscardChange={onDiscardChanges &&
-                  (entry.group === "unstaged" || entry.group === "untracked")
-                    ? (item) => onDiscardChanges([item.id], [item.path])
-                    : undefined}
-                  {onOpenConflictResolver}
-                  {onInspectFile}
-                />
-              {/each}
-            </div>
-          {/if}
-        {/if}
-      </div>
-    {/each}
-  </div>
+      {/each}
+    </div>
+  </ScrollArea>
 
   <GitCommitComposer
     {context}

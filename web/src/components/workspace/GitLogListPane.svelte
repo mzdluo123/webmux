@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { computeGitGraphLayout } from "../../domains/workspace/git-graph-layout";
   import { syncElementScrollTop } from "../../domains/workspace/git-workbench-memory";
   import type {
@@ -69,7 +70,7 @@
       onRevertCommit?: (oid: string) => void;
     } = $props();
 
-  let listScrollEl = $state<HTMLDivElement>();
+  let listScrollEl = $state<HTMLElement | null>(null);
   $effect(() => syncElementScrollTop(listScrollEl, listScrollTop));
 
   const graphLayouts = $derived(computeGitGraphLayout(visibleCommits));
@@ -174,10 +175,9 @@
   {/if}
 
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
-  <!-- svelte-ignore a11y_interactive_supports_focus -->
-  <div
-    bind:this={listScrollEl}
-    class="min-h-0 flex-1 overflow-y-auto p-1.5"
+  <ScrollArea
+    bind:viewportRef={listScrollEl}
+    class="min-h-0 flex-1"
     role="listbox"
     aria-label="提交记录"
     onkeydown={handleListKeydown}
@@ -194,50 +194,52 @@
       }
     }}
   >
-    {#if historyState !== "ready"}
-      <div class="p-2">
-        <InlineNotice
-          tone={historyState === "upstream_gone" ? "warning" : "info"}
-        >
-          <span class="mr-2">{describeHistoryStatus(historyState)}</span>
-          {#if historyState === "no_task_baseline" && onSetTaskBaseline}
-            <Button
-              size="sm"
-              variant="outline"
-              onclick={() => onSetTaskBaseline()}
-            >
-              将当前 HEAD 设为任务起点
-            </Button>
-          {/if}
-        </InlineNotice>
-      </div>
-    {:else if visibleCommits.length === 0}
-      <p class="p-3 text-xs text-muted-foreground">
-        没有匹配筛选条件的提交记录。
-      </p>
-    {:else}
-      {#each visibleCommits as row, idx (row.oid)}
-        <GitLogCommitRow
-          {row}
-          layout={graphLayouts[idx]}
-          selected={selectedCommitOid === row.oid}
-          {selectedCommitOid}
-          compareBaseMarkOid={filterProps.compareBaseMarkOid}
-          taskBaselineOid={taskBaseline && !taskBaseline.unborn
-            ? (taskBaseline.baseOid ?? null)
-            : null}
-          {compareMode}
-          {showAuthorColumn}
-          onSelect={onSelectCommit}
-          {onMarkCompareBase}
-          {onStartCompare}
-          {onSetTaskBaseline}
-          {onCherryPickCommit}
-          {onRevertCommit}
-        />
-      {/each}
-    {/if}
-  </div>
+    <div class="p-1.5">
+      {#if historyState !== "ready"}
+        <div class="p-2">
+          <InlineNotice
+            tone={historyState === "upstream_gone" ? "warning" : "info"}
+          >
+            <span class="mr-2">{describeHistoryStatus(historyState)}</span>
+            {#if historyState === "no_task_baseline" && onSetTaskBaseline}
+              <Button
+                size="sm"
+                variant="outline"
+                onclick={() => onSetTaskBaseline()}
+              >
+                将当前 HEAD 设为任务起点
+              </Button>
+            {/if}
+          </InlineNotice>
+        </div>
+      {:else if visibleCommits.length === 0}
+        <p class="p-3 text-xs text-muted-foreground">
+          没有匹配筛选条件的提交记录。
+        </p>
+      {:else}
+        {#each visibleCommits as row, idx (row.oid)}
+          <GitLogCommitRow
+            {row}
+            layout={graphLayouts[idx]}
+            selected={selectedCommitOid === row.oid}
+            {selectedCommitOid}
+            compareBaseMarkOid={filterProps.compareBaseMarkOid}
+            taskBaselineOid={taskBaseline && !taskBaseline.unborn
+              ? (taskBaseline.baseOid ?? null)
+              : null}
+            {compareMode}
+            {showAuthorColumn}
+            onSelect={onSelectCommit}
+            {onMarkCompareBase}
+            {onStartCompare}
+            {onSetTaskBaseline}
+            {onCherryPickCommit}
+            {onRevertCommit}
+          />
+        {/each}
+      {/if}
+    </div>
+  </ScrollArea>
 
   {#if historyState === "ready" && nextCursor && onLoadMoreHistory}
     <div

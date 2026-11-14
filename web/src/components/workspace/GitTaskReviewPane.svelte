@@ -8,6 +8,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type {
     GitTaskReviewState,
     GitWorktreeContext,
@@ -59,7 +60,7 @@
     onRemoveWorktree?: () => void;
   } = $props();
 
-  let listEl = $state<HTMLDivElement>();
+  let listEl = $state<HTMLElement | null>(null);
 
   const review = $derived(taskReview ?? emptyTaskReviewState());
   const readonlyMode = $derived(
@@ -265,94 +266,97 @@
   {/if}
 
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
-  <!-- svelte-ignore a11y_interactive_supports_focus -->
-  <div
-    bind:this={listEl}
-    class="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2"
+  <ScrollArea
+    bind:viewportRef={listEl}
+    class="min-h-0 flex-1"
     role="listbox"
     aria-label="相对任务起点的净变更文件"
     onkeydown={handleListKeydown}
   >
-    {#if review.status === "loading"}
-      <p class="p-3 text-xs text-muted-foreground" role="status">
-        正在读取相对任务起点的单份净变更…
-      </p>
-    {:else if review.status === "error"}
-      <div class="p-2">
-        <InlineNotice tone="danger">{review.reason}</InlineNotice>
-      </div>
-    {:else if review.status === "ready"}
-      {#if review.files.length === 0}
-        <p class="p-3 text-xs text-muted-foreground">
-          {review.searchQuery.trim()
-            ? "没有匹配路径筛选条件的任务变更文件。"
-            : "相对任务起点尚无净文件变化（若文件修改后又还原，净差异也会归零）。"}
+    <div class="space-y-0.5 p-2">
+      {#if review.status === "loading"}
+        <p class="p-3 text-xs text-muted-foreground" role="status">
+          正在读取相对任务起点的单份净变更…
         </p>
-      {:else}
-        {#each review.files as file (file.newPath || file.oldPath)}
-          {@const path = file.newPath || file.oldPath}
-          {@const isReviewed = isPathReviewed(path)}
-          {@const isSelected =
-            (activeFile?.newPath || activeFile?.oldPath) === path}
-          <div
-            class="flex min-w-0 items-center gap-1 rounded-sm"
-            data-task-file={path}
-            data-reviewed={isReviewed}
-          >
-            {#if onToggleReviewed}
-              <ListButton
-                variant="review-toggle"
-                aria-pressed={isReviewed}
-                aria-label={`标记已审阅 ${path}`}
-                title={isReviewed ? `已审阅 ${path}` : `标记已审阅 ${path}`}
-                onclick={() => onToggleReviewed(path)}
-              >
-                {#if isReviewed}<IconEyeCheck
-                    aria-hidden="true"
-                  />{:else}<IconEye aria-hidden="true" />{/if}
-              </ListButton>
-            {/if}
-            <div class="min-w-0 flex-1">
-              <ListButton
-                variant="compact-row"
-                role="option"
-                data-task-file-row="true"
-                aria-selected={isSelected}
-                onclick={() => onSelectFile?.(path)}
-              >
-                <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                  <GitFileStatusIcon status={file.status} />
-                  <span
-                    class="min-w-[6ch] max-w-full flex-1 truncate font-mono"
-                    title={file.oldPath && file.oldPath !== path
-                      ? `${file.oldPath} → ${path}`
-                      : path}
-                  >
-                    {file.oldPath && file.oldPath !== path
-                      ? `${file.oldPath} → ${path}`
-                      : path}
-                  </span>
-                </div>
-              </ListButton>
-            </div>
-          </div>
-        {/each}
-
-        {#if review.nextCursor && onLoadMore}
-          <div class="pt-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={review.loadingMore}
-              onclick={onLoadMore}
+      {:else if review.status === "error"}
+        <div class="p-2">
+          <InlineNotice tone="danger">{review.reason}</InlineNotice>
+        </div>
+      {:else if review.status === "ready"}
+        {#if review.files.length === 0}
+          <p class="p-3 text-xs text-muted-foreground">
+            {review.searchQuery.trim()
+              ? "没有匹配路径筛选条件的任务变更文件。"
+              : "相对任务起点尚无净文件变化（若文件修改后又还原，净差异也会归零）。"}
+          </p>
+        {:else}
+          {#each review.files as file (file.newPath || file.oldPath)}
+            {@const path = file.newPath || file.oldPath}
+            {@const isReviewed = isPathReviewed(path)}
+            {@const isSelected =
+              (activeFile?.newPath || activeFile?.oldPath) === path}
+            <div
+              class="flex min-w-0 items-center gap-1 rounded-sm"
+              data-task-file={path}
+              data-reviewed={isReviewed}
             >
-              {review.loadingMore ? "正在加载更多…" : "加载更多净变更文件"}
-            </Button>
-          </div>
+              {#if onToggleReviewed}
+                <ListButton
+                  variant="review-toggle"
+                  aria-pressed={isReviewed}
+                  aria-label={`标记已审阅 ${path}`}
+                  title={isReviewed ? `已审阅 ${path}` : `标记已审阅 ${path}`}
+                  onclick={() => onToggleReviewed(path)}
+                >
+                  {#if isReviewed}<IconEyeCheck
+                      aria-hidden="true"
+                    />{:else}<IconEye aria-hidden="true" />{/if}
+                </ListButton>
+              {/if}
+              <div class="min-w-0 flex-1">
+                <ListButton
+                  variant="compact-row"
+                  role="option"
+                  data-task-file-row="true"
+                  aria-selected={isSelected}
+                  onclick={() => onSelectFile?.(path)}
+                >
+                  <div
+                    class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"
+                  >
+                    <GitFileStatusIcon status={file.status} />
+                    <span
+                      class="min-w-[6ch] max-w-full flex-1 truncate font-mono"
+                      title={file.oldPath && file.oldPath !== path
+                        ? `${file.oldPath} → ${path}`
+                        : path}
+                    >
+                      {file.oldPath && file.oldPath !== path
+                        ? `${file.oldPath} → ${path}`
+                        : path}
+                    </span>
+                  </div>
+                </ListButton>
+              </div>
+            </div>
+          {/each}
+
+          {#if review.nextCursor && onLoadMore}
+            <div class="pt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={review.loadingMore}
+                onclick={onLoadMore}
+              >
+                {review.loadingMore ? "正在加载更多…" : "加载更多净变更文件"}
+              </Button>
+            </div>
+          {/if}
         {/if}
       {/if}
-    {/if}
-  </div>
+    </div>
+  </ScrollArea>
 
   {#if !readonlyMode && review.status === "ready"}
     <GitTaskDeliverySummary

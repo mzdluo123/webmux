@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
@@ -45,8 +46,12 @@
         {conflict.localSubject || "（空标题）"}
       </p>
       {#if conflict.localBody.trim()}
-        <pre
-          class="max-h-24 overflow-y-auto rounded-sm bg-background p-1.5 font-mono text-xs whitespace-pre-wrap break-words text-muted-foreground">{conflict.localBody}</pre>
+        <div class="rounded-sm bg-background">
+          <ScrollArea viewportClasses="max-h-24">
+            <pre
+              class="p-1.5 font-mono text-xs whitespace-pre-wrap break-words text-muted-foreground">{conflict.localBody}</pre>
+          </ScrollArea>
+        </div>
       {:else}
         <p class="text-muted-foreground">（无补充正文）</p>
       {/if}
@@ -69,9 +74,13 @@
         {conflict.remoteDraft.subject || "（空标题）"}
       </p>
       {#if conflict.remoteDraft.body.trim()}
-        <pre
-          class="max-h-24 overflow-y-auto rounded-sm bg-background p-1.5 font-mono text-xs whitespace-pre-wrap break-words text-muted-foreground">{conflict
-            .remoteDraft.body}</pre>
+        <div class="rounded-sm bg-background">
+          <ScrollArea viewportClasses="max-h-24">
+            <pre
+              class="p-1.5 font-mono text-xs whitespace-pre-wrap break-words text-muted-foreground">{conflict
+                .remoteDraft.body}</pre>
+          </ScrollArea>
+        </div>
       {:else}
         <p class="text-muted-foreground">（无补充正文）</p>
       {/if}

@@ -4,6 +4,7 @@
   import { cn } from "$lib/utils";
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Drawer from "$lib/components/ui/drawer";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
 
   // A form dialog that is a centered Dialog on desktop and a bottom Drawer on
   // narrow screens. While `busy`, every dismissal path (Escape, outside click,
@@ -55,14 +56,13 @@
 </script>
 
 {#snippet drawerBody()}
-  <div
-    class={[
-      pinDrawerHeader && "min-h-0 flex-1 overflow-y-auto",
-      "px-4 pt-1 pb-safe-4",
-    ]}
-  >
-    {@render children()}
-  </div>
+  {#if pinDrawerHeader}
+    <ScrollArea class="min-h-0 flex-1">
+      <div class="px-4 pt-1 pb-safe-4">{@render children()}</div>
+    </ScrollArea>
+  {:else}
+    <div class="px-4 pt-1 pb-safe-4">{@render children()}</div>
+  {/if}
 {/snippet}
 
 {#snippet drawerTitle()}
@@ -91,7 +91,10 @@
 {#if desktop.current}
   <Dialog.Root bind:open onOpenChange={changed}>
     <Dialog.Content
-      class={cn("max-h-[90dvh] overflow-y-auto sm:max-w-xl", className)}
+      class={cn(
+        "flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-xl",
+        className,
+      )}
       onEscapeKeydown={(event) => {
         if (busy) event.preventDefault();
       }}
@@ -99,21 +102,25 @@
         if (busy) event.preventDefault();
       }}
     >
-      {#if actions}
-        <div class="flex min-w-0 items-start gap-3 pr-8">
-          <Dialog.Header class="min-w-0 flex-1 pr-0">
-            <Dialog.Title>{title}</Dialog.Title>
-            <Dialog.Description>{description}</Dialog.Description>
-          </Dialog.Header>
-          {@render actions()}
+      <ScrollArea class="min-h-0">
+        <div class="grid gap-4 [&>*]:min-w-0">
+          {#if actions}
+            <div class="flex min-w-0 items-start gap-3 pr-8">
+              <Dialog.Header class="min-w-0 flex-1 pr-0">
+                <Dialog.Title>{title}</Dialog.Title>
+                <Dialog.Description>{description}</Dialog.Description>
+              </Dialog.Header>
+              {@render actions()}
+            </div>
+          {:else}
+            <Dialog.Header>
+              <Dialog.Title>{title}</Dialog.Title>
+              <Dialog.Description>{description}</Dialog.Description>
+            </Dialog.Header>
+          {/if}
+          {@render children()}
         </div>
-      {:else}
-        <Dialog.Header>
-          <Dialog.Title>{title}</Dialog.Title>
-          <Dialog.Description>{description}</Dialog.Description>
-        </Dialog.Header>
-      {/if}
-      {@render children()}
+      </ScrollArea>
     </Dialog.Content>
   </Dialog.Root>
 {:else}
@@ -127,10 +134,12 @@
         {@render drawerHeader()}
         {@render drawerBody()}
       {:else}
-        <div class="min-h-0 flex-1 overflow-y-auto">
-          {@render drawerHeader()}
-          {@render drawerBody()}
-        </div>
+        <ScrollArea class="min-h-0 flex-1">
+          <div>
+            {@render drawerHeader()}
+            {@render drawerBody()}
+          </div>
+        </ScrollArea>
       {/if}
     </Drawer.Content>
   </Drawer.Root>

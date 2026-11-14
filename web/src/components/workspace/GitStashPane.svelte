@@ -11,6 +11,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as Empty from "$lib/components/ui/empty";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as Resizable from "$lib/components/ui/resizable";
   import type {
     GitStashDetail,
@@ -170,67 +171,69 @@
       </div>
     {/if}
 
-    <div class="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-      {#if loadingList && entries.length === 0}
-        <p class="p-3 text-xs text-muted-foreground" role="status">
-          正在读取仓库 refs/stash 条目…
-        </p>
-      {:else if entries.length === 0}
-        <div class="p-3">
-          <Empty.Root variant="outline">
-            <Empty.Header>
-              <Empty.Media variant="icon">
-                <IconArchive aria-hidden="true" />
-              </Empty.Media>
-              <Empty.Title>暂无贮藏记录</Empty.Title>
-              <Empty.Description>
-                工作树有未提交改动时，可点击「新建贮藏…」或「提交」视图中的快捷按钮临时封存现场。
-              </Empty.Description>
-            </Empty.Header>
-          </Empty.Root>
-        </div>
-      {:else}
-        {#each entries as item (item.oid)}
-          {@const selected = activeEntry?.oid === item.oid}
-          <ListButton
-            variant="compact-row"
-            aria-selected={selected}
-            data-stash-row={item.stashRef}
-            onclick={() => {
-              onSelectStash(item.oid);
-              if (!desktop.current) {
-                mobileStepOverride = { oid: item.oid, step: "detail" };
-              }
-            }}
-          >
-            <div class="flex min-w-0 flex-1 flex-col gap-1">
-              <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                <Badge variant={selected ? "info" : "outline"}>
-                  <span class="font-mono">{item.stashRef}</span>
-                </Badge>
-                <span class="font-mono text-xs text-muted-foreground">
-                  {item.shortOid}
-                </span>
-                {#if item.branch}
-                  <Badge variant="secondary" class="max-w-full">
-                    <span class="truncate font-mono">{item.branch}</span>
+    <ScrollArea class="min-h-0 flex-1">
+      <div class="space-y-1 p-2">
+        {#if loadingList && entries.length === 0}
+          <p class="p-3 text-xs text-muted-foreground" role="status">
+            正在读取仓库 refs/stash 条目…
+          </p>
+        {:else if entries.length === 0}
+          <div class="p-3">
+            <Empty.Root variant="outline">
+              <Empty.Header>
+                <Empty.Media variant="icon">
+                  <IconArchive aria-hidden="true" />
+                </Empty.Media>
+                <Empty.Title>暂无贮藏记录</Empty.Title>
+                <Empty.Description>
+                  工作树有未提交改动时，可点击「新建贮藏…」或「提交」视图中的快捷按钮临时封存现场。
+                </Empty.Description>
+              </Empty.Header>
+            </Empty.Root>
+          </div>
+        {:else}
+          {#each entries as item (item.oid)}
+            {@const selected = activeEntry?.oid === item.oid}
+            <ListButton
+              variant="compact-row"
+              aria-selected={selected}
+              data-stash-row={item.stashRef}
+              onclick={() => {
+                onSelectStash(item.oid);
+                if (!desktop.current) {
+                  mobileStepOverride = { oid: item.oid, step: "detail" };
+                }
+              }}
+            >
+              <div class="flex min-w-0 flex-1 flex-col gap-1">
+                <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <Badge variant={selected ? "info" : "outline"}>
+                    <span class="font-mono">{item.stashRef}</span>
                   </Badge>
-                {/if}
-                {#if item.hasUntracked}
-                  <Badge variant="warning">含未跟踪 (S^3)</Badge>
-                {/if}
+                  <span class="font-mono text-xs text-muted-foreground">
+                    {item.shortOid}
+                  </span>
+                  {#if item.branch}
+                    <Badge variant="secondary" class="max-w-full">
+                      <span class="truncate font-mono">{item.branch}</span>
+                    </Badge>
+                  {/if}
+                  {#if item.hasUntracked}
+                    <Badge variant="warning">含未跟踪 (S^3)</Badge>
+                  {/if}
+                </div>
+                <p class="truncate text-xs font-medium text-foreground">
+                  {item.summary}
+                </p>
+                <span class="text-xs text-muted-foreground">
+                  {item.createdAt}
+                </span>
               </div>
-              <p class="truncate text-xs font-medium text-foreground">
-                {item.summary}
-              </p>
-              <span class="text-xs text-muted-foreground">
-                {item.createdAt}
-              </span>
-            </div>
-          </ListButton>
-        {/each}
-      {/if}
-    </div>
+            </ListButton>
+          {/each}
+        {/if}
+      </div>
+    </ScrollArea>
   </section>
 {/snippet}
 
@@ -316,71 +319,73 @@
 {/snippet}
 
 {#snippet stashFilesList(isMobile: boolean)}
-  <div class="min-h-0 flex-1 overflow-y-auto p-2">
-    {#if loadingDetail && !activeDetail}
-      <p class="p-2.5 text-xs text-muted-foreground" role="status">
-        正在读取贮藏文件清单（含未跟踪第 3 父节点）…
-      </p>
-    {:else if !activeDetail || activeDetail.files.length === 0}
-      <p class="p-2.5 text-xs text-muted-foreground">
-        此贮藏条目中没有可展示的文件变更。
-      </p>
-    {:else}
-      <div
-        class="mb-1.5 flex flex-wrap items-center gap-2 px-1.5 text-xs text-muted-foreground"
-      >
-        <span>已跟踪变更 {activeDetail.trackedCount} 项</span>
-        {#if activeDetail.untrackedCount > 0}
-          <span>· 未跟踪文件 {activeDetail.untrackedCount} 项</span>
-        {/if}
-      </div>
-      <div class="space-y-0.5">
-        {#each activeDetail.files as file (stashFileKey(file))}
-          {@const path = file.newPath || file.oldPath}
-          {@const labelPath =
-            file.oldPath && file.oldPath !== path
-              ? `${file.oldPath} → ${path}`
-              : path}
-          {@const isSelected =
-            activeFile && stashFileKey(activeFile) === stashFileKey(file)}
-          <ListButton
-            variant="compact-row"
-            aria-selected={Boolean(isSelected)}
-            data-stash-file-row={path}
-            data-untracked={file.untracked}
-            onclick={() => {
-              onSelectFile(file);
-              if (isMobile && activeEntry) {
-                mobileStepOverride = { oid: activeEntry.oid, step: "diff" };
-              }
-            }}
-          >
-            <Badge
-              variant={file.status === "D"
-                ? "destructive"
-                : file.status === "A" || file.untracked
-                  ? "info"
-                  : "outline"}
+  <ScrollArea class="min-h-0 flex-1">
+    <div class="p-2">
+      {#if loadingDetail && !activeDetail}
+        <p class="p-2.5 text-xs text-muted-foreground" role="status">
+          正在读取贮藏文件清单（含未跟踪第 3 父节点）…
+        </p>
+      {:else if !activeDetail || activeDetail.files.length === 0}
+        <p class="p-2.5 text-xs text-muted-foreground">
+          此贮藏条目中没有可展示的文件变更。
+        </p>
+      {:else}
+        <div
+          class="mb-1.5 flex flex-wrap items-center gap-2 px-1.5 text-xs text-muted-foreground"
+        >
+          <span>已跟踪变更 {activeDetail.trackedCount} 项</span>
+          {#if activeDetail.untrackedCount > 0}
+            <span>· 未跟踪文件 {activeDetail.untrackedCount} 项</span>
+          {/if}
+        </div>
+        <div class="space-y-0.5">
+          {#each activeDetail.files as file (stashFileKey(file))}
+            {@const path = file.newPath || file.oldPath}
+            {@const labelPath =
+              file.oldPath && file.oldPath !== path
+                ? `${file.oldPath} → ${path}`
+                : path}
+            {@const isSelected =
+              activeFile && stashFileKey(activeFile) === stashFileKey(file)}
+            <ListButton
+              variant="compact-row"
+              aria-selected={Boolean(isSelected)}
+              data-stash-file-row={path}
+              data-untracked={file.untracked}
+              onclick={() => {
+                onSelectFile(file);
+                if (isMobile && activeEntry) {
+                  mobileStepOverride = { oid: activeEntry.oid, step: "diff" };
+                }
+              }}
             >
-              {file.untracked ? "U" : file.status}
-            </Badge>
-            <span
-              class="min-w-0 flex-1 truncate font-mono text-xs"
-              title={labelPath}
-            >
-              {labelPath}
-            </span>
-            {#if file.untracked}
-              <Badge variant="warning">未跟踪 (S^3)</Badge>
-            {/if}
-            {#if file.binary}
-              <Badge variant="secondary">二进制</Badge>
-            {/if}
-          </ListButton>
-        {/each}
-      </div>
-    {/if}
-  </div>
+              <Badge
+                variant={file.status === "D"
+                  ? "destructive"
+                  : file.status === "A" || file.untracked
+                    ? "info"
+                    : "outline"}
+              >
+                {file.untracked ? "U" : file.status}
+              </Badge>
+              <span
+                class="min-w-0 flex-1 truncate font-mono text-xs"
+                title={labelPath}
+              >
+                {labelPath}
+              </span>
+              {#if file.untracked}
+                <Badge variant="warning">未跟踪 (S^3)</Badge>
+              {/if}
+              {#if file.binary}
+                <Badge variant="secondary">二进制</Badge>
+              {/if}
+            </ListButton>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </ScrollArea>
 {/snippet}
 
 {#snippet stashDiffPanel(entry: GitStashEntry, isMobile: boolean)}

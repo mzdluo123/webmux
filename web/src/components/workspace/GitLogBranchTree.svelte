@@ -5,6 +5,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import {
     GitWorktreeContextSchema,
     type GitBranchItem,
@@ -130,65 +131,70 @@
     />
   </div>
 
-  <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-1.5">
-    <ListButton
-      variant="compact-row"
-      aria-selected={branchFilter === null}
-      onclick={() => onBranchFilterChange(null)}
-    >
-      <IconGitBranch
-        class="size-3.5 shrink-0 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <span class="min-w-0 flex-1 truncate">全部引用</span>
-    </ListButton>
+  <ScrollArea class="min-h-0 flex-1">
+    <div class="space-y-1.5 p-1.5">
+      <ListButton
+        variant="compact-row"
+        aria-selected={branchFilter === null}
+        onclick={() => onBranchFilterChange(null)}
+      >
+        <IconGitBranch
+          class="size-3.5 shrink-0 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <span class="min-w-0 flex-1 truncate">全部引用</span>
+      </ListButton>
 
-    {#if treeSections.length === 0}
-      <p class="px-2 py-2 text-xs text-muted-foreground">
-        {refQuery.trim() ? "没有匹配的分支或标签。" : "暂无分支或标签引用。"}
-      </p>
-    {:else}
-      {#each treeSections as section (section.id)}
-        <div class="space-y-0.5">
-          <ListButton
-            variant="section-header"
-            aria-expanded={!collapsed[section.id]}
-            onclick={() => toggleSection(section.id)}
-          >
-            {#if collapsed[section.id]}
-              <IconChevronRight class="size-3.5 shrink-0" aria-hidden="true" />
-            {:else}
-              <IconChevronDown class="size-3.5 shrink-0" aria-hidden="true" />
+      {#if treeSections.length === 0}
+        <p class="px-2 py-2 text-xs text-muted-foreground">
+          {refQuery.trim() ? "没有匹配的分支或标签。" : "暂无分支或标签引用。"}
+        </p>
+      {:else}
+        {#each treeSections as section (section.id)}
+          <div class="space-y-0.5">
+            <ListButton
+              variant="section-header"
+              aria-expanded={!collapsed[section.id]}
+              onclick={() => toggleSection(section.id)}
+            >
+              {#if collapsed[section.id]}
+                <IconChevronRight
+                  class="size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+              {:else}
+                <IconChevronDown class="size-3.5 shrink-0" aria-hidden="true" />
+              {/if}
+              <span class="min-w-0 flex-1 truncate">{section.label}</span>
+              <span class="shrink-0 font-mono text-xs">
+                {section.items.length}
+              </span>
+            </ListButton>
+
+            {#if !collapsed[section.id]}
+              {#each section.items as branch (`${section.id}:${branch.kind}:${branch.name}`)}
+                <GitBranchListItem
+                  {branch}
+                  context={effectiveContext}
+                  selected={branchFilter === branch.name}
+                  {branchFilter}
+                  sectionId={section.id}
+                  hideFavoriteInSection={section.id === "favorites"}
+                  compareBaseOid={selectedCommitOid ??
+                    effectiveContext.headOid ??
+                    null}
+                  compareTargetLabel={selectedCommitOid
+                    ? "与当前选中提交比较"
+                    : "与当前 HEAD 比较"}
+                  menuLabel={`引用操作 ${branch.name}`}
+                  onSelectRow={() => onBranchFilterChange(branch.name)}
+                  onAction={handleTreeAction}
+                />
+              {/each}
             {/if}
-            <span class="min-w-0 flex-1 truncate">{section.label}</span>
-            <span class="shrink-0 font-mono text-xs">
-              {section.items.length}
-            </span>
-          </ListButton>
-
-          {#if !collapsed[section.id]}
-            {#each section.items as branch (`${section.id}:${branch.kind}:${branch.name}`)}
-              <GitBranchListItem
-                {branch}
-                context={effectiveContext}
-                selected={branchFilter === branch.name}
-                {branchFilter}
-                sectionId={section.id}
-                hideFavoriteInSection={section.id === "favorites"}
-                compareBaseOid={selectedCommitOid ??
-                  effectiveContext.headOid ??
-                  null}
-                compareTargetLabel={selectedCommitOid
-                  ? "与当前选中提交比较"
-                  : "与当前 HEAD 比较"}
-                menuLabel={`引用操作 ${branch.name}`}
-                onSelectRow={() => onBranchFilterChange(branch.name)}
-                onAction={handleTreeAction}
-              />
-            {/each}
-          {/if}
-        </div>
-      {/each}
-    {/if}
-  </div>
+          </div>
+        {/each}
+      {/if}
+    </div>
+  </ScrollArea>
 </aside>

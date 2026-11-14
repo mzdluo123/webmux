@@ -5,6 +5,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { GitBlameCommit, GitBlameResult } from "../../contracts/schemas";
   import type { GitBlameCrumb } from "../../hooks/workspace/git-blame-controller.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -133,7 +134,7 @@
     </div>
   {/if}
 
-  <div class="min-h-0 flex-1 overflow-auto">
+  <ScrollArea orientation="both" class="min-h-0 flex-1">
     {#if loading && !data}
       <p class="p-4 text-xs text-muted-foreground" role="status">
         正在按行溯源计算只读 Blame 注解…
@@ -152,7 +153,7 @@
         </InlineNotice>
       </div>
     {:else}
-      <div class="divide-y divide-border/40 font-mono text-xs">
+      <div class="w-max min-w-full divide-y divide-border/40 font-mono text-xs">
         {#each data.lines as line, idx (line.lineNumber)}
           {@const prevLine = idx > 0 ? data.lines[idx - 1] : null}
           {@const groupStart =
@@ -188,10 +189,10 @@
               {line.lineNumber}
             </span>
             <pre
-              class="min-w-0 flex-1 overflow-x-auto px-2.5 py-0.5 whitespace-pre text-foreground">{line.text}</pre>
+              class="min-w-0 flex-1 px-2.5 py-0.5 whitespace-pre text-foreground">{line.text}</pre>
           </div>
         {/each}
       </div>
     {/if}
-  </div>
+  </ScrollArea>
 </div>
