@@ -93,7 +93,6 @@
     onVoiceError,
     softInput,
     controlNotice,
-    copy,
     paste,
     holdBegin,
     codePane,
@@ -162,7 +161,6 @@
     onVoiceError: (message: string) => void;
     softInput: (input: string) => void;
     controlNotice: () => void;
-    copy: () => Promise<void>;
     paste: () => Promise<void>;
     holdBegin: () => void;
     codePane: Snippet;
@@ -314,7 +312,6 @@
   {quickMenu}
   upload={uploads.uploadFiles}
   {toggleDraft}
-  {copy}
   {paste}
   {showScratch}
   {showFontSize}

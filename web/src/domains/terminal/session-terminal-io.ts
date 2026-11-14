@@ -1,8 +1,4 @@
-import {
-  apiBuffer,
-  agentGuidePrompt,
-  ensureArtifactsFolder,
-} from "../../platform/api";
+import { agentGuidePrompt, ensureArtifactsFolder } from "../../platform/api";
 import {
   clipboardFiles,
   copyText as writeClipboard,
@@ -53,9 +49,6 @@ export function createHeaderTerminalView(
     },
     get restoring() {
       return t.restoring;
-    },
-    get historyTruncated() {
-      return t.historyTruncated;
     },
     get canFind() {
       return t.canFind;
@@ -290,20 +283,6 @@ export async function copySessionText(
     return;
   }
   ctx.openCopyDialog(text);
-}
-
-export async function copySessionBuffer(
-  ctx: SessionClipboardContext,
-): Promise<void> {
-  try {
-    await copySessionText(
-      new TextDecoder().decode(await apiBuffer(ctx.id)),
-      true,
-      ctx,
-    );
-  } catch (err) {
-    ctx.setError(errorMessage(err));
-  }
 }
 
 export async function pasteFromSessionClipboard(

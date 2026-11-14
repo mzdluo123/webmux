@@ -469,7 +469,6 @@
     }}
     {softInput}
     {controlNotice}
-    copy={chrome.copy}
     paste={chrome.paste}
     holdBegin={() => {
       if (draft.enabled) stage?.openComposerKeyboard(chrome.beginHold);

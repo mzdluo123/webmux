@@ -204,3 +204,17 @@
 - 用户批准同步并归档已完成的 `git-workbench-s-foundations`：四份主规范保留12项要求、24个场景，逐份严格验证通过；全部95份主规范普通验证通过。全局严格验证仍有六份既有规范的 Purpose 占位警告，不宣称全局严格通过。
 - 用户单独批准 PR #598 保持 Pullfrog 停用并免除其 approval；没有启用工作流，也没有获得或声称 Pullfrog approval。现有 CI 与 Codex 仍按本 PR 当前提交的实际结果验收。
 - 头显/TV 实机条件未改变；XR 变更不归档，任务2.3、8.3、8.4仍未完成。
+
+## 2026-11-14：移除终端菜单“复制全部缓冲”（US-D04、US-D07、US-E01）
+
+- 移除终端顶栏菜单中的“复制全部缓冲”入口及前端 `copySessionBuffer` / `apiBuffer` 调用链；故事总数保持 252：
+  - 保留服务端 `GET /api/sessions/{id}/buffer` 供 `webmux logs`（US-S10）与诊断使用；
+  - 保留终端查找栏中的历史截断提示。
+- 本地验证全部通过：
+  - 静态与契约门禁：`make docs-check`、`make persistence-check`、`go test ./internal/archtest`、`make go-lint`、`openspec validate --specs`（95 份主规范全部通过）；
+  - 前端类型与架构守卫：`pnpm --dir web check`、`check:test`、`check:storybook`、`lint`、`check:arch`；
+  - 测试套件：单元测试（`transport`、`terminal-clipboard`、`terminal-copy`、`terminal-search` 共 18 项）、浏览器测试（`TerminalReplay`、`TerminalRendering` 共 28 项）、Storybook `acp-chat.spec.ts` 及 E2E `terminal.spec.ts`（桌面与 iPhone SE 手机共 18 项通过）。
+- 视觉与视口核验：
+  - 在隔离实例采集 `1280×900`、`768×800`、`390×844` 亮暗主题前后对照截图；
+  - 额外核验 `375×667`、`320×568`、`667×375` 打开终端菜单时均无横向溢出且浮层完整落在视口内；
+  - 限制：无头 Chromium 未验证物理 `hover`、`any-pointer: coarse` 与 iOS/Android 真机表现。
