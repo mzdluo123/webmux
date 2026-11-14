@@ -85,10 +85,8 @@ const expand = () =>
   group()
     .getByRole("button", { name: /已归档/ })
     .click();
-const removeRecord = async () => {
-  await page.getByRole("button", { name: "更多操作 修复排序" }).click();
-  await page.getByRole("menuitem", { name: "删除记录" }).click();
-};
+const removeRecord = () =>
+  page.getByRole("button", { name: "删除 修复排序", exact: true }).click();
 
 test("is hidden without records and collapsed by default with a count", async () => {
   show([], vi.fn());
@@ -242,9 +240,18 @@ test("a second question keeps the first answer", async () => {
 test("removing needs confirmation and failures stay inline", async () => {
   const { remove } = show([record], vi.fn());
   await expand();
+  expect(
+    page.getByRole("button", { name: "更多操作 修复排序" }).elements(),
+  ).toEqual([]);
+  await expect
+    .element(page.getByRole("button", { name: "删除 修复排序", exact: true }))
+    .toHaveClass("text-destructive");
   await removeRecord();
   const dialog = page.getByRole("alertdialog");
   await expect.element(dialog).toMatchTextContent(/修复排序/);
+  await expect
+    .element(dialog.getByRole("button", { name: "确认" }))
+    .toHaveClass("text-destructive");
   await dialog.getByRole("button", { name: "取消" }).click();
   expect(remove).not.toHaveBeenCalled();
   await removeRecord();
@@ -346,13 +353,16 @@ test("deleting a record and its worktree opens the worktree confirmation", async
   const removeRecordAndWorktree = vi.fn();
   show([record], vi.fn(), { worktree: linked, removeRecordAndWorktree });
   await expand();
+  await expect
+    .element(page.getByRole("button", { name: "删除 修复排序", exact: true }))
+    .toBeVisible();
   await page.getByRole("button", { name: "更多操作 修复排序" }).click();
   expect(
     page
       .getByRole("menuitem")
       .elements()
       .map((item) => item.textContent?.trim()),
-  ).toEqual(["删除记录", "删除记录和工作树"]);
+  ).toEqual(["删除记录和工作树"]);
   await page.getByRole("menuitem", { name: "删除记录和工作树" }).click();
   expect(removeRecordAndWorktree).toHaveBeenCalledWith(record, linked);
 });
@@ -430,19 +440,43 @@ function stubRebuild(preview: Record<string, unknown>) {
 const rebuildCalls = (fetch: ReturnType<typeof stubRebuild>) =>
   fetch.mock.calls.filter(([input]) => String(input).endsWith("/rebuild"));
 
-test("offers releasing a linked worktree's space between resuming and deleting", async () => {
+test("offers releasing a linked worktree's space beside the direct delete button", async () => {
   const release = vi.fn();
-  show([record], vi.fn(), { worktree: feature, release });
+  const removeRecordAndWorktree = vi.fn();
+  show([record], vi.fn(), {
+    worktree: feature,
+    release,
+    removeRecordAndWorktree,
+  });
   await expand();
-  expect(await menuItems()).toEqual(["释放空间", "删除记录"]);
+  const resumeBox = page
+    .getByRole("button", { name: "恢复", exact: true })
+    .element()
+    .getBoundingClientRect();
+  const deleteBox = page
+    .getByRole("button", { name: "删除 修复排序", exact: true })
+    .element()
+    .getBoundingClientRect();
+  const moreBox = page
+    .getByRole("button", { name: "更多操作 修复排序" })
+    .element()
+    .getBoundingClientRect();
+  expect(deleteBox.height).toBe(resumeBox.height);
+  expect(moreBox.height).toBe(resumeBox.height);
+  expect(await menuItems()).toEqual(["释放空间", "删除记录和工作树"]);
   await page.getByRole("menuitem", { name: "释放空间" }).click();
   expect(release).toHaveBeenCalledWith(feature);
 
-  // Outside a releasable worktree only the deletion is offered.
+  // Outside a releasable worktree only the direct delete button is offered.
   await cleanup();
   show([record], vi.fn(), { release });
   await expand();
-  expect(await menuItems()).toEqual(["删除记录"]);
+  await expect
+    .element(page.getByRole("button", { name: "删除 修复排序", exact: true }))
+    .toBeVisible();
+  expect(
+    page.getByRole("button", { name: "更多操作 修复排序" }).elements(),
+  ).toEqual([]);
 });
 
 test("a released record is marked and deleting it removes only the record", async () => {
@@ -462,8 +496,10 @@ test("a released record is marked and deleting it removes only the record", asyn
   );
   await expect.element(badge).toBeVisible();
   expect(badge.element().textContent).toContain("已释放空间");
-  expect(await menuItems()).toEqual(["删除记录"]);
-  await page.getByRole("menuitem", { name: "删除记录" }).click();
+  expect(
+    page.getByRole("button", { name: "更多操作 修复排序" }).elements(),
+  ).toEqual([]);
+  await removeRecord();
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "确认" })
