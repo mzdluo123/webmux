@@ -1,0 +1,67 @@
+{
+  "status": 200,
+  "body": {
+    "blockers": [],
+    "confirmationId": "<confirmationId#14>",
+    "dirtyPaths": [
+      "smart-note.txt"
+    ],
+    "expiresAt": "<time>",
+    "hasActiveAgent": false,
+    "includeUntracked": true,
+    "repositoryId": "<id#1>",
+    "sessions": [],
+    "stagedCount": 0,
+    "target": {
+      "branch": "feat-smart-target",
+      "commit": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+      "createsBranch": false,
+      "kind": "local",
+      "subject": "feat: amend merge commit with author override",
+      "upstream": null
+    },
+    "unstagedCount": 0,
+    "untrackedCount": 1,
+    "warnings": [
+      {
+        "code": "smart_checkout_phases",
+        "message": "Smart Checkout 将按三阶段执行：1. 创建受控贮藏（已暂存 0、未暂存 0、未跟踪 1）→ 2. 切换分支 → 3. 自动恢复修改；若切换失败将自动回滚，若与目标分支冲突将保留贮藏并进入三方冲突解决器"
+      }
+    ],
+    "worktree": {
+      "ahead": null,
+      "available": true,
+      "behind": null,
+      "branch": "main",
+      "changes": {
+        "conflicted": 0,
+        "staged": 0,
+        "unstaged": 0,
+        "untracked": 1
+      },
+      "detached": false,
+      "dirty": false,
+      "error": "",
+      "hasIgnored": false,
+      "hasUntracked": true,
+      "head": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+      "id": "<id#2>",
+      "kind": "main",
+      "lastCommit": {
+        "author": "Ada Lovelace",
+        "committedAt": "2026-01-02T03:04:05Z",
+        "hash": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+        "subject": "feat: amend merge commit with author override"
+      },
+      "lockReason": "",
+      "locked": false,
+      "operation": null,
+      "path": "<repo>",
+      "prunable": false,
+      "repositoryId": "<id#1>",
+      "upstream": null,
+      "upstreamGone": false
+    },
+    "worktreeId": "<id#2>"
+  }
+}

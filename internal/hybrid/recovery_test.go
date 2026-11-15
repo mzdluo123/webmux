@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/agentprofile/omp"
+	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -146,8 +148,9 @@ func TestResumeAfterRestart(t *testing.T) {
 					h.fast()
 					s := h.mustResume(id, ResumeInput{Side: side, Env: in.Env})
 					info := s.Info()
-					if info.Hybrid == nil || info.Hybrid.Side != string(side) || info.Hybrid.State != string(StateActive) || info.Hybrid.AgentSessionID == nil || *info.Hybrid.AgentSessionID != sid {
-						t.Fatalf("resumed hybrid info %+v", info.Hybrid)
+					metadata := h.svc.Metadata(info.ID)
+					if metadata == nil || metadata.Side != string(side) || metadata.State != string(StateActive) || metadata.AgentSessionID == nil || *metadata.AgentSessionID != sid {
+						t.Fatalf("resumed hybrid info %+v", metadata)
 					}
 					rec := h.record(id)
 					if rec.State != StateActive || rec.Side != side || rec.AgentSessionID != sid || rec.InterruptedAt != nil || rec.Activity != "" || rec.PID <= 0 || rec.Process == nil {
@@ -300,8 +303,8 @@ func TestResumeInterruptedTerminal(t *testing.T) {
 		t.Fatalf("manager holds %v, %v", got, err)
 	}
 	waitFor(t, "previous conversation", func() bool { return strings.Contains(string(resumed.Buffer()), "> hello there") })
-	if info := resumed.Info(); info.Status == session.StatusExited || info.Hybrid.State != string(StateActive) || info.Hybrid.Side != string(SideTUI) {
-		t.Fatalf("resumed %+v hybrid %+v", info, info.Hybrid)
+	if info := resumed.Info(); info.Status == session.StatusExited || h.svc.Metadata(info.ID).State != string(StateActive) || h.svc.Metadata(info.ID).Side != string(SideTUI) {
+		t.Fatalf("resumed %+v hybrid %+v", info, h.svc.Metadata(info.ID))
 	}
 	tuiTurn(t, resumed, "still here")
 	noViolations(t, h.store)
@@ -446,12 +449,12 @@ func TestRecordKeepsWorkspace(t *testing.T) {
 	h := newHarness(t, 0)
 	in := h.input(omp.Name, SideTUI)
 	s := h.create(in)
-	id, cwd := s.Info().ID, s.Info().Cwd
+	id := s.Info().ID
 	if h.record(id).Workspace != nil || strings.Contains(h.file(), `"workspace"`) {
 		t.Fatalf("unassociated record has a workspace: %s", h.file())
 	}
 	want := WorkspaceRef{RepositoryID: "repo0001", WorktreeID: "tree0001"}
-	h.manager.SetWorkspace(id, cwd, &session.Workspace{RepositoryID: want.RepositoryID, WorktreeID: want.WorktreeID, WorktreePath: cwd})
+	h.svc.SetWorkspaceSource(func(string) *WorkspaceRef { value := want; return &value })
 
 	h.restart()
 	rec := h.record(id)
@@ -460,22 +463,18 @@ func TestRecordKeepsWorkspace(t *testing.T) {
 	}
 	h.svc.timing.observe = 10 * time.Millisecond
 
-	s = h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
 	if rec := h.record(id); rec.Workspace == nil || *rec.Workspace != want {
 		t.Fatalf("record right after resume: workspace %+v", rec.Workspace)
 	}
 
 	moved := WorkspaceRef{RepositoryID: "repo0002", WorktreeID: "tree0002"}
-	h.manager.SetWorkspace(id, s.Info().Cwd, &session.Workspace{
-		RepositoryID: moved.RepositoryID,
-		WorktreeID:   moved.WorktreeID,
-		WorktreePath: s.Info().Cwd,
-	})
+	h.svc.SetWorkspaceSource(func(string) *WorkspaceRef { value := moved; return &value })
 	waitFor(t, "a resolved association", func() bool {
 		rec := h.record(id)
 		return rec.Workspace != nil && *rec.Workspace == moved
 	})
-	h.manager.SetWorkspace(id, s.Info().Cwd, nil)
+	h.svc.SetWorkspaceSource(func(string) *WorkspaceRef { return nil })
 	h.closeSession(id)
 	if rec := h.record(id); rec.State != StateClosed || rec.Workspace != nil {
 		t.Fatalf("record after the association went away: state %s, workspace %+v", rec.State, rec.Workspace)
@@ -500,5 +499,88 @@ func TestRecoveryUnavailableOnCorruptStore(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(path); string(b) != "{broken" {
 		t.Fatalf("corrupt store rewritten: %q", b)
+	}
+}
+
+func TestResumeUnresolvedHistoricalDispatchNeverOpensReplacementWriter(t *testing.T) {
+	for _, nativeHistory := range []bool{false, true} {
+		t.Run(map[bool]string{false: "prompt", true: "native-history"}[nativeHistory], func(t *testing.T) {
+			ctx := context.Background()
+			h, db := historyHarness(t)
+			in := h.input("omp", SideACP)
+			id := h.create(in).Info().ID
+			oldNative := h.record(id).AgentSessionID
+			h.closeSession(id)
+			b, err := db.Binding(ctx, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, err := db.ReservePreview(ctx, conversation.PreviewReservation{
+				SourceConversationID: b.ConversationID, ClientRequestID: "historical-preview", RequestHash: "preview",
+				Request: conversation.PreviewRequest{ConfigID: in.ConfigID, AgentName: "omp", TargetProviderThreadID: b.ProviderThreadID, UserText: "original"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, err = db.CompletePreview(ctx, p.ID, conversation.PreviewResult{Budget: conversation.PreviewBudget{History: 16000, Used: 100, Source: "estimated"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			e, err := db.BeginExecution(ctx, conversation.ExecutionInput{SourceConversationID: b.ConversationID, HandoffID: p.ID, ClientRequestID: "historical-message", RequestHash: "message", Revision: p.Revision})
+			if err != nil || e.RuntimeID != id {
+				t.Fatal("historical owner", e, err)
+			}
+			packet := "legacy context\nUser message:\noriginal"
+			items := []conversation.InjectionItem{{ID: "history", Role: "user", TextHash: conversation.TextHash("history")}}
+			if nativeHistory {
+				if _, err := db.ReserveInjection(ctx, e.ID, oldNative, items); err != nil {
+					t.Fatal(err)
+				}
+				if err := db.ClaimInjection(ctx, e.DeliveryID); err != nil {
+					t.Fatal(err)
+				}
+				if err := db.FinishInjection(ctx, e.DeliveryID, "unknown"); err != nil {
+					t.Fatal(err)
+				}
+				// The durable operation checkpoints this identity before
+				// opening a native-history writer.
+				e.NativeThreadID = oldNative
+				if err := db.CheckpointExecution(ctx, e); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				e.Phase, e.NativeThreadID, e.PromptHash = "sending", oldNative, conversation.TextHash(packet)
+				if err := db.CheckpointExecution(ctx, e); err != nil {
+					t.Fatal(err)
+				}
+				if err := db.ClaimExecutionText(ctx, e.ID, e.PromptHash, e.PromptHash); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// Model an observed native replacement while the historical
+			// operation still owns admission; neither identity is discarded.
+			h.storeSession("replacement", in.Cwd, "replacement", time.Now())
+			if _, err := h.svc.records.update(id, true, func(r *Record) { r.SetAgentSessionID("replacement") }); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.SyncRuntime(ctx, conversation.RuntimeInput{RuntimeID: id, Cwd: in.Cwd, AgentSessionID: "replacement", Status: "closed"}); err != nil {
+				t.Fatal(err)
+			}
+			prompts := countCalls(t, h.store, acp.MethodSessionPrompt)
+			resumes := countCalls(t, h.store, acp.MethodSessionResume)
+			if _, err := h.resume(id, ResumeInput{Side: SideACP, Env: in.Env}); !errors.Is(err, ErrSwitching) {
+				t.Fatal("historical owner opened replacement native writer", err)
+			}
+			if len(h.manager.List()) != 0 || countCalls(t, h.store, acp.MethodSessionResume) != resumes || countCalls(t, h.store, acp.MethodSessionPrompt) != prompts {
+				t.Fatal("refused resume started a writer or dispatched a prompt")
+			}
+			if nativeHistory {
+				if err := db.ReconcileInjection(ctx, e.DeliveryID, "replacement", items); !errors.Is(err, conversation.ErrConflict) {
+					t.Fatal("replacement reconciled historical native call", err)
+				}
+			} else if _, matched, err := db.NormalizeInlineUser(ctx, b.ProviderThreadID, "replacement", packet); err != nil || matched {
+				t.Fatal("replacement reconciled historical prompt", matched, err)
+			}
+		})
 	}
 }

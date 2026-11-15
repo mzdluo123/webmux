@@ -1,6 +1,11 @@
-import { expect, test } from "vitest";
-import { applySessionEvent, unknownWorkspaces } from "../src/session-list";
-import type { Repository, SessionInfo, Worktree } from "../src/schemas";
+import { expect, test } from "vite-plus/test";
+import { applySessionEvent } from "../src/domains/sessions/session-events";
+import { unknownWorkspaces } from "../src/hooks/sessions/session-list";
+import type {
+  Repository,
+  SessionInfo,
+  Worktree,
+} from "../src/contracts/schemas";
 
 function session(id: string, second = 0): SessionInfo {
   return {
@@ -126,6 +131,7 @@ function repository(id: string, worktreeIds: string[]): Repository {
     availability: "available",
     error: "",
     checkedAt: "2026-10-20T00:00:00Z",
+    lastFetchedAt: null,
     initInstruction: "",
     worktrees: worktreeIds.map(
       (worktreeId) => ({ id: worktreeId }) as Worktree,

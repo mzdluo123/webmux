@@ -1,5 +1,5 @@
-import { afterEach, expect, test } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Harness from "./CodeImageHarness.svelte";
 import {
@@ -7,8 +7,11 @@ import {
   CodeFileSchema,
   type CodeDocument,
   type CodeFile,
-} from "../../src/schemas";
-import { htmlPreviewPolicy, staticHtml } from "../../src/code-html";
+} from "../../src/contracts/schemas";
+import {
+  htmlPreviewPolicy,
+  staticHtml,
+} from "../../src/domains/code/code-html";
 
 const now = "2026-10-24T00:00:00Z";
 

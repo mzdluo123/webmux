@@ -435,6 +435,57 @@ func isRPCCode(err error, code int) bool {
 	return errors.As(err, &rpcErr) && rpcErr.Code == code
 }
 
+// TestFakeAgentDevinUniqueDraftIDs exceeds the old 8-by-8 slug pool before
+// any session is saved. Two independent agents must not alias or fork drafts.
+func TestFakeAgentDevinUniqueDraftIDs(t *testing.T) {
+	e := newFakeEnv(t, "FAKEAGENT_PROFILE=devin")
+	ctx := context.Background()
+	agents := []*acpAgent{e.startACP(t, newRecorder()), e.startACP(t, newRecorder())}
+	for _, a := range agents {
+		a.initialize(t)
+	}
+	seen := map[string]bool{}
+	const drafts = 65 // More than every possible ID in the original fixture.
+	ids := make([]string, 0, drafts)
+	for i := range drafts {
+		owner := i % len(agents)
+		created, err := agents[owner].conn.NewSession(ctx, NewSessionRequest{Cwd: e.cwd})
+		if err != nil {
+			t.Fatalf("new draft %d: %v", i, err)
+		}
+		if id := created.SessionID; id == "" || seen[id] {
+			t.Fatalf("new draft %d returned non-unique session ID %q", i, id)
+		}
+		seen[created.SessionID] = true
+		ids = append(ids, created.SessionID)
+	}
+	listed, err := agents[0].conn.ListSessions(ctx, ListSessionsRequest{Cwd: e.cwd})
+	if err != nil || len(listed.Sessions) != 0 {
+		t.Fatalf("unsaved drafts listed: %+v, %v", listed, err)
+	}
+	for i, id := range ids {
+		response, err := agents[i%len(agents)].conn.Prompt(ctx, PromptRequest{
+			SessionID: id, Prompt: []ContentBlock{TextBlock(fmt.Sprintf("candidate %d", i))},
+		})
+		if err != nil || response.StopReason != StopEndTurn {
+			t.Fatalf("prompt for %q: %+v, %v", id, response, err)
+		}
+	}
+	listed, err = agents[0].conn.ListSessions(ctx, ListSessionsRequest{Cwd: e.cwd})
+	if err != nil || len(listed.Sessions) != len(ids) {
+		t.Fatalf("saved candidates: %+v, %v", listed, err)
+	}
+	for _, candidate := range listed.Sessions {
+		if !seen[candidate.SessionID] {
+			t.Fatalf("listed unexpected or duplicate candidate %q", candidate.SessionID)
+		}
+		delete(seen, candidate.SessionID)
+	}
+	if events := e.events(t); strings.Contains(events, "violation") || strings.Contains(events, "fork") {
+		t.Fatalf("new drafts conflicted:\n%s", events)
+	}
+}
+
 func TestFakeAgentProfiles(t *testing.T) {
 	tests := []struct {
 		profile   string

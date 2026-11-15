@@ -1,0 +1,43 @@
+{
+  "status": 200,
+  "body": {
+    "alreadyUpToDate": false,
+    "blockers": [],
+    "commits": {
+      "items": [
+        {
+          "author": "Wire test",
+          "committedAt": "2026-01-02T03:04:05Z",
+          "hash": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+          "subject": "feat: commit staged a.txt"
+        },
+        {
+          "author": "Wire test",
+          "committedAt": "2026-01-02T03:04:05Z",
+          "hash": "ecc8da449d18daa48261db409c9e0af26550cf64",
+          "subject": "feat: expand b.txt"
+        }
+      ],
+      "total": 2
+    },
+    "confirmationId": "<confirmationId#2>",
+    "currentBranch": "main",
+    "directionSummary": "将工作树 repo 的分支 main（6b503797）上的 2 个提交变基到 feat-conflict（9c24118c）之上",
+    "expiresAt": "<time>",
+    "fastForward": false,
+    "headOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "headSubject": "feat: commit staged a.txt",
+    "kind": "rebase",
+    "mergeBaseOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+    "recoveryHint": "变基会重写本地尚未包含在目标基底中的提交哈希；若发生冲突可逐个提交在三方冲突解决器中解决后 Continue，或执行 Abort 精确回退到起点 6b503797。",
+    "repositoryId": "<id#1>",
+    "sessions": [],
+    "targetKind": "local",
+    "targetOid": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+    "targetRef": "feat-conflict",
+    "targetSubject": "feat: dragonfly in b.txt",
+    "warnings": [],
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

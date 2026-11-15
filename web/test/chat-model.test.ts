@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import {
   applyFrame,
   diffStats,
@@ -6,12 +6,13 @@ import {
   groupTimeline,
   resumePoint,
   type ChatModel,
-} from "../src/chat-model";
+} from "../src/domains/chat/chat-model";
+import { conversationTurns } from "../src/domains/chat/conversation-turns";
 import {
   ChatFrameSchema,
   type ChatEvent,
   type ChatFrame,
-} from "../src/schemas";
+} from "../src/contracts/schemas";
 
 const at = "2026-10-28T00:00:00Z";
 let seq = 0;
@@ -339,6 +340,244 @@ describe("timeline grouping", () => {
         e.type === "work" ? e.steps.map((s) => s.id) : e.id,
       ),
     ).toEqual(["u1", ["t1", "r1", "t2", "e1"], "a1", ["r3"], "u2"]);
+  });
+});
+
+describe("conversation turn navigation", () => {
+  test("groups orphan and prompted replies across thought, tool and system entries until the next user", () => {
+    let m = connect();
+    m = applyFrame(
+      m,
+      events([
+        ev({
+          kind: "message.append",
+          message: { messageId: "a0", role: "agent", text: "Earlier reply" },
+        }),
+        ev({
+          kind: "notice",
+          notice: { level: "info", text: "Restored history" },
+        }),
+        ev({
+          kind: "message.append",
+          message: {
+            messageId: "a0-later",
+            role: "agent",
+            text: "Earlier follow-up",
+          },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "t1", role: "thought", text: "hidden" },
+        }),
+        ev({
+          kind: "tool.upsert",
+          tool: { toolCallId: "r1", kind: "read", title: "hidden" },
+        }),
+        ev({
+          kind: "message.append",
+          message: {
+            messageId: "u1",
+            role: "user",
+            text: " \n ",
+            attachments: [
+              {
+                path: "/tmp/reference.png",
+                name: "reference.png",
+                mimeType: "image/png",
+                size: 100,
+                kind: "image",
+              },
+            ],
+          },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "a1", role: "agent", text: "First reply" },
+        }),
+        ev({
+          kind: "message.append",
+          message: {
+            messageId: "t2",
+            role: "thought",
+            text: "Thinking between replies",
+          },
+        }),
+        ev({
+          kind: "tool.upsert",
+          tool: {
+            toolCallId: "r2",
+            kind: "read",
+            title: "Read between replies",
+          },
+        }),
+        ev({
+          kind: "notice",
+          notice: { level: "info", text: "System entry between replies" },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "a2", role: "agent", text: "Second reply" },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "u2", role: "user", text: " next\n step " },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "u3", role: "user", text: "" },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "a3", role: "agent", text: "New prompt reply" },
+        }),
+      ]),
+    );
+
+    expect(conversationTurns(m.entries)).toEqual([
+      {
+        id: "a0",
+        messageIds: ["a0", "a0-later"],
+        role: "agent",
+        turn: 0,
+        summary: "Earlier reply",
+      },
+      {
+        id: "u1",
+        messageIds: ["u1"],
+        role: "user",
+        turn: 1,
+        summary: "用户附件",
+      },
+      {
+        id: "a1",
+        messageIds: ["a1", "a2"],
+        role: "agent",
+        turn: 1,
+        summary: "First reply",
+      },
+      {
+        id: "u2",
+        messageIds: ["u2"],
+        role: "user",
+        turn: 2,
+        summary: "next step",
+      },
+      {
+        id: "u3",
+        messageIds: ["u3"],
+        role: "user",
+        turn: 3,
+        summary: "空消息",
+      },
+      {
+        id: "a3",
+        messageIds: ["a3"],
+        role: "agent",
+        turn: 3,
+        summary: "New prompt reply",
+      },
+    ]);
+  });
+
+  test("counts only visible replies and keeps the first visible member as streaming content appears", () => {
+    let m = connect();
+    m = applyFrame(
+      m,
+      events([
+        ev({
+          kind: "message.append",
+          message: { messageId: "a1", role: "agent", text: " \n " },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "empty", role: "agent", text: "" },
+        }),
+        ev({
+          kind: "message.append",
+          message: {
+            messageId: "cut",
+            role: "agent",
+            text: "",
+            truncated: true,
+          },
+        }),
+      ]),
+    );
+    expect(conversationTurns(m.entries)).toEqual([
+      {
+        id: "cut",
+        messageIds: ["cut"],
+        role: "agent",
+        turn: 0,
+        summary: "内容已截断",
+      },
+    ]);
+    m = applyFrame(
+      m,
+      events([
+        ev({
+          kind: "message.append",
+          message: { messageId: "a1", role: "agent", text: "回复正文" },
+        }),
+      ]),
+    );
+    expect(conversationTurns(m.entries)).toEqual([
+      {
+        id: "a1",
+        messageIds: ["a1", "cut"],
+        role: "agent",
+        turn: 0,
+        summary: "回复正文",
+      },
+    ]);
+    m = applyFrame(
+      m,
+      events([
+        ev({
+          kind: "message.append",
+          message: {
+            messageId: "cut",
+            role: "agent",
+            text: "Truncated reply continues",
+          },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "a1", role: "agent", text: "继续流式输出" },
+        }),
+      ]),
+    );
+    expect(conversationTurns(m.entries)).toEqual([
+      {
+        id: "a1",
+        messageIds: ["a1", "cut"],
+        role: "agent",
+        turn: 0,
+        summary: "回复正文继续流式输出",
+      },
+    ]);
+  });
+
+  test("bounds summaries as a streaming message grows", () => {
+    let m = connect();
+    m = applyFrame(
+      m,
+      events([
+        ev({
+          kind: "message.append",
+          message: { messageId: "a1", role: "agent", text: "x".repeat(60) },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "a1", role: "agent", text: "y".repeat(60) },
+        }),
+      ]),
+    );
+
+    const [item] = conversationTurns(m.entries);
+    expect(item?.summary).toHaveLength(81);
+    expect(item?.summary).toBe(`${"x".repeat(60)}${"y".repeat(20)}…`);
+    expect(item?.messageIds).toEqual(["a1"]);
   });
 });
 

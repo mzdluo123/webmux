@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   VoiceClientMessageSchema,
   VoiceServerEventSchema,
-} from "../src/schemas";
+} from "../src/contracts/schemas";
 import {
   computeVoiceLevel,
   downsampleFloat32,
   floatTo16BitPCM,
-} from "../src/voice";
+} from "../src/platform/voice";
 
 describe("voice audio helpers", () => {
   it("downsamples 48kHz Float32 audio to 16kHz", () => {

@@ -12,8 +12,9 @@ import (
 
 func newTrust(home string, env map[string]string) *Trust {
 	return &Trust{
-		home:   func() (string, error) { return home, nil },
-		getenv: func(k string) string { return env[k] },
+		home:      func() (string, error) { return home, nil },
+		getenv:    func(k string) string { return env[k] },
+		lookupEnv: func(k string) (string, bool) { v, ok := env[k]; return v, ok },
 	}
 }
 
@@ -579,6 +580,9 @@ func TestPrepareWritesThroughSymlinkedConfig(t *testing.T) {
 	}
 	target := filepath.Join(dotfiles, "claude.json")
 	if err := os.WriteFile(target, []byte("{}"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(target, 0o640); err != nil {
 		t.Fatal(err)
 	}
 	link := filepath.Join(home, ".claude.json")

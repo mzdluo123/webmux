@@ -14,10 +14,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/forward"
-	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/wire"
 )
@@ -98,7 +95,7 @@ var errInvalidMessage = errors.New("invalid session message")
 
 // encode rejects malformed payloads instead of dropping them or choosing one
 // arbitrarily. Raw bytes remain shared; only typed control payloads are encoded.
-func encode(m session.Message) (frame []byte, exit bool, err error) {
+func encode(m session.Message, contributions ...Options) (frame []byte, exit bool, err error) {
 	if !m.Valid() {
 		return nil, false, errInvalidMessage
 	}
@@ -106,7 +103,7 @@ func encode(m session.Message) (frame []byte, exit bool, err error) {
 	case m.Frame != nil:
 		return m.Frame, false, nil
 	case m.Info != nil:
-		frame, err = jsonFrame(contract.FrameState, wire.Session(*m.Info))
+		frame, err = jsonFrame(contract.FrameState, options(contributions).project(*m.Info))
 	case m.Exit != nil:
 		frame, err = jsonFrame(contract.FrameExit, contract.ExitFrame{ExitCode: *m.Exit})
 		exit = true
@@ -120,7 +117,7 @@ func encode(m session.Message) (frame []byte, exit bool, err error) {
 	return frame, exit, err
 }
 
-func write(ctx context.Context, c *websocket.Conn, kind websocket.MessageType, p []byte) error {
+func Write(ctx context.Context, c MessageConn, kind MessageType, p []byte) error {
 	deadline, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return c.Write(deadline, kind, p)
@@ -132,35 +129,34 @@ func movedReason(side string) string {
 	if side == "" {
 		return "session moved"
 	}
-	return "session moved: " + string(wire.View(side))
+	return "session moved: " + side
 }
 
-// sideOf is where a hybrid session is or, during a switch, moves to.
-func sideOf(info session.Info) string {
-	if info.Hybrid == nil {
-		return ""
-	}
-	if info.Hybrid.To != "" {
-		return info.Hybrid.To
-	}
-	return info.Hybrid.Side
-}
-
-// Attach owns the only data writer. Its reader is cancelled and joined on all exits.
-// A hybrid session attaches only on its terminal view: in the chat or
-// during a view change it refuses with 4409, even while a run still exists.
-func Attach(ctx context.Context, s *session.Session, c *websocket.Conn, o session.AttachOptions, deflateReplay bool) {
-	if h := s.Info().Hybrid; h != nil && (h.Side != string(hybrid.SideTUI) || h.To != "") {
-		_ = c.Close(contract.CloseMoved, movedReason(sideOf(s.Info())))
-		return
+// Attach owns the only data writer. Its reader is cancelled and joined on all
+// exits. Optional view policy is prebound by the composition root.
+func Attach(ctx context.Context, s *session.Session, c MessageConn, o session.AttachOptions, deflateReplay bool, contributions ...Options) {
+	contribution := options(contributions)
+	if contribution.Terminal != nil {
+		if allowed, destination := contribution.Terminal(s.Info().ID); !allowed {
+			_ = c.Close(contract.CloseMoved, movedReason(destination))
+			return
+		}
 	}
 	sub, err := s.AttachClient(o)
 	if err != nil {
-		// Only a shell without a terminal run refuses: it is on its other side.
-		_ = c.Close(contract.CloseMoved, movedReason(sideOf(s.Info())))
+		_ = c.Close(contract.CloseMoved, movedReason(""))
 		return
 	}
 	defer s.Detach(sub)
+	// Recheck after registration: a view move may have detached the old
+	// subscribers between the first gate and AttachClient. A later move
+	// includes this subscriber, so these two checks close that window.
+	if contribution.Terminal != nil {
+		if allowed, destination := contribution.Terminal(s.Info().ID); !allowed {
+			_ = c.Close(contract.CloseMoved, movedReason(destination))
+			return
+		}
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	c.SetReadLimit(1024 * 1024)
 	readerDone := make(chan struct{})
@@ -207,7 +203,7 @@ func Attach(ctx context.Context, s *session.Session, c *websocket.Conn, o sessio
 			if err != nil {
 				return
 			}
-			if kind != websocket.MessageBinary || len(p) == 0 {
+			if kind != MessageBinary || len(p) == 0 {
 				continue
 			}
 			switch p[0] {
@@ -267,7 +263,7 @@ func Attach(ctx context.Context, s *session.Session, c *websocket.Conn, o sessio
 		<-readerDone
 		<-inputDone
 	}()
-	writeMessages(ctx, c, sub, deflateReplay)
+	writeMessages(ctx, c, sub, deflateReplay, contribution)
 }
 
 // Output pacing. An idle connection sends output at once, so a keystroke echo
@@ -317,7 +313,7 @@ func deflateFrame(frame []byte) []byte {
 }
 
 // writeMessages is the sole terminal data writer, including aggregation.
-func writeMessages(ctx context.Context, c *websocket.Conn, sub *session.Subscriber, deflateReplay bool) {
+func writeMessages(ctx context.Context, c MessageConn, sub *session.Subscriber, deflateReplay bool, contributions ...Options) {
 	var pending session.Message
 	var hasPending bool
 	var combinedBuffer []byte
@@ -338,7 +334,7 @@ func writeMessages(ctx context.Context, c *websocket.Conn, sub *session.Subscrib
 			case <-ctx.Done():
 				return
 			case <-sub.Slow:
-				_ = c.Close(4408, "slow client")
+				_ = c.Close(StatusSlowClient, "slow client")
 				return
 			case m = <-sub.Out:
 				sub.Release(m)
@@ -348,9 +344,9 @@ func writeMessages(ctx context.Context, c *websocket.Conn, sub *session.Subscrib
 			_ = c.Close(contract.CloseMoved, movedReason(*m.Moved))
 			return
 		}
-		frame, exit, err := encode(m)
+		frame, exit, err := encode(m, options(contributions))
 		if err != nil {
-			_ = c.Close(websocket.StatusInternalError, "invalid session message")
+			_ = c.Close(StatusInternalError, "invalid session message")
 			return
 		}
 		switch {
@@ -378,15 +374,15 @@ func writeMessages(ctx context.Context, c *websocket.Conn, sub *session.Subscrib
 		if replaying && deflateReplay && m.Frame != nil && frame[0] == contract.FrameSnapshot {
 			frame = deflateFrame(frame)
 		}
-		if write(ctx, c, websocket.MessageBinary, frame) != nil {
-			_ = c.Close(4408, "write timeout")
+		if Write(ctx, c, MessageBinary, frame) != nil {
+			_ = c.Close(StatusSlowClient, "write timeout")
 			return
 		}
 		if output && !replaying {
 			lastOutput = time.Now()
 		}
 		if exit {
-			_ = c.Close(4410, "session exited")
+			_ = c.Close(StatusSessionExited, "session exited")
 			return
 		}
 	}
@@ -396,7 +392,7 @@ func writeMessages(ctx context.Context, c *websocket.Conn, sub *session.Subscrib
 // taken; with a deadline it also waits for more until the burst goes quiet.
 // It returns the frame, a message that ended it and must be sent next, and
 // false when the connection is finished.
-func collectOutput(ctx context.Context, c *websocket.Conn, sub *session.Subscriber, combined []byte, deadline time.Time, timer *time.Timer) (frame []byte, next session.Message, hasNext, ok bool) {
+func collectOutput(ctx context.Context, c MessageConn, sub *session.Subscriber, combined []byte, deadline time.Time, timer *time.Timer) (frame []byte, next session.Message, hasNext, ok bool) {
 	for len(combined) < maxOutputFrame {
 		var m session.Message
 		select {
@@ -404,7 +400,7 @@ func collectOutput(ctx context.Context, c *websocket.Conn, sub *session.Subscrib
 		case <-ctx.Done():
 			return nil, next, false, false
 		case <-sub.Slow:
-			_ = c.Close(4408, "slow client")
+			_ = c.Close(StatusSlowClient, "slow client")
 			return nil, next, false, false
 		default:
 			wait := min(outputQuietGap, time.Until(deadline))
@@ -422,7 +418,7 @@ func collectOutput(ctx context.Context, c *websocket.Conn, sub *session.Subscrib
 				return nil, next, false, false
 			case <-sub.Slow:
 				timer.Stop()
-				_ = c.Close(4408, "slow client")
+				_ = c.Close(StatusSlowClient, "slow client")
 				return nil, next, false, false
 			}
 		}
@@ -433,121 +429,4 @@ func collectOutput(ctx context.Context, c *websocket.Conn, sub *session.Subscrib
 		combined = append(combined, m.Frame[1:]...)
 	}
 	return combined, next, false, true
-}
-
-// List streams /ws/sessions: a snapshot of the sessions and forwards, then
-// session events and a forwards event after each forward change. forwards
-// may be nil, which lists none.
-func List(ctx context.Context, m *session.Manager, forwards *forward.Service, c *websocket.Conn) {
-	ctx, cancel := context.WithCancel(ctx)
-	// Subscribing to forwards before reading the list leaves no change
-	// unannounced; a signal already covered by the snapshot only repeats it.
-	var changes <-chan struct{}
-	if forwards != nil {
-		fsub := forwards.Subscribe()
-		defer forwards.Unsubscribe(fsub)
-		changes = fsub.C
-	}
-	sub := m.Subscribe()
-	defer m.Unsubscribe(sub)
-	reader := c.CloseRead(ctx)
-	defer func() {
-		cancel()
-		_ = c.CloseNow()
-	}()
-	send := func(event contract.SessionEvent) bool {
-		data, err := json.Marshal(event)
-		if err != nil || write(ctx, c, websocket.MessageText, data) != nil {
-			_ = c.Close(4408, "write timeout")
-			return false
-		}
-		return true
-	}
-	// Subscribe queued the snapshot first; it must precede forwards events.
-	var view activeView
-	snapshot := wire.SessionEvent(view.filter(<-sub.Out))
-	snapshot.Forwards = forwardList(forwards)
-	if !send(snapshot) {
-		return
-	}
-	for {
-		select {
-		case <-reader.Done():
-			return
-		case <-sub.Slow:
-			_ = c.Close(4408, "slow client")
-			return
-		case event := <-sub.Out:
-			event, ok := view.event(event)
-			if ok && !send(wire.SessionEvent(event)) {
-				return
-			}
-		case <-changes:
-			if !send(contract.SessionEvent{Type: "forwards", Forwards: forwardList(forwards)}) {
-				return
-			}
-		}
-	}
-}
-
-// activeView keeps the session list a connection sees to active sessions:
-// a hybrid shell that was closed or interrupted leaves it with a removed
-// event, and comes back with a created event if it becomes active again.
-type activeView struct {
-	hidden map[string]bool
-}
-
-// filter drops the inactive sessions of a snapshot and remembers them.
-func (v *activeView) filter(e session.Event) session.Event {
-	v.hidden = map[string]bool{}
-	sessions := make([]session.Info, 0, len(e.Sessions))
-	for _, info := range e.Sessions {
-		if wire.Active(info) {
-			sessions = append(sessions, info)
-		} else {
-			v.hidden[info.ID] = true
-		}
-	}
-	e.Sessions = sessions
-	return e
-}
-
-// event translates one list event for the connection; ok is false when it
-// concerns a session the connection does not see.
-func (v *activeView) event(e session.Event) (session.Event, bool) {
-	switch e.Type {
-	case "snapshot":
-		return v.filter(e), true
-	case "removed":
-		if v.hidden[e.ID] {
-			delete(v.hidden, e.ID)
-			return e, false
-		}
-		return e, true
-	}
-	if e.Session == nil {
-		return e, true
-	}
-	id := e.Session.ID
-	switch {
-	case !wire.Active(*e.Session) && v.hidden[id]:
-		return e, false
-	case !wire.Active(*e.Session):
-		v.hidden[id] = true
-		if e.Type == "created" {
-			return e, false
-		}
-		return session.Event{Type: "removed", ID: id}, true
-	case v.hidden[id]:
-		delete(v.hidden, id)
-		e.Type = "created"
-	}
-	return e, true
-}
-
-func forwardList(forwards *forward.Service) []contract.Forward {
-	if forwards == nil {
-		return []contract.Forward{}
-	}
-	return wire.Forwards(forwards.List())
 }

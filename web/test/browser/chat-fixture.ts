@@ -1,7 +1,13 @@
-import { afterEach, beforeEach, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { afterEach, beforeEach, vi } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 import { cleanup } from "vitest-browser-svelte/pure";
-import type { ChatEvent, ChatFrame, ChatState } from "../../src/schemas";
+import type {
+  ChatEvent,
+  ChatFrame,
+  ChatState,
+} from "../../src/contracts/schemas";
+import type { PluginID } from "../../src/contracts/plugin-schemas";
+import { enableHostPlugins, resetHostPlugins } from "./plugin-fixture";
 
 // A hybrid session's streams and commands without a backend: every
 // WebSocket the page opens is a FakeSocket the test drives, and every API
@@ -89,8 +95,8 @@ export function respond(pattern: RegExp, responder: Responder) {
   responders.unshift([pattern, responder]);
 }
 
-export function installChatFixture() {
-  beforeEach(() => {
+export function installChatFixture(plugins?: readonly PluginID[]) {
+  beforeEach(async () => {
     sockets = [];
     requests = [];
     responders = [];
@@ -114,12 +120,14 @@ export function installChatFixture() {
         return Response.json({ error: "not found" }, { status: 404 });
       }),
     );
+    await enableHostPlugins(plugins);
   });
   afterEach(async () => {
     try {
       await cleanup();
       await userEvent.cleanup();
     } finally {
+      resetHostPlugins();
       vi.unstubAllGlobals();
       vi.restoreAllMocks();
     }
@@ -129,10 +137,13 @@ export function installChatFixture() {
 /** The open socket whose path is `path`, once the page created it. */
 export async function socketAt(path: string, nth = 0) {
   let found: FakeSocket | undefined;
-  await vi.waitFor(() => {
-    found = sockets.filter((socket) => socket.path === path)[nth];
-    if (!found) throw new Error(`no socket at ${path} (#${nth})`);
-  });
+  await vi.waitFor(
+    () => {
+      found = sockets.filter((socket) => socket.path === path)[nth];
+      if (!found) throw new Error(`no socket at ${path} (#${nth})`);
+    },
+    { timeout: 5_000 },
+  );
   if (found!.readyState === FakeSocket.CONNECTING) found!.open();
   return found!;
 }

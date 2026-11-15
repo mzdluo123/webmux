@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "body": {
+    "identity": {
+      "leftStage": 2,
+      "operationKind": "merge",
+      "path": "sub/b.txt",
+      "rightStage": 3,
+      "stage1Mode": "100644",
+      "stage1Oid": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+      "stage2Mode": "100644",
+      "stage2Oid": "de4296d3c6d9c4821c0fe09931f8422d01be768c",
+      "stage3Mode": "100644",
+      "stage3Oid": "efa25f5cb11c8d2fb11e015e85b70b7c498367f3",
+      "worktreeMode": "100644",
+      "worktreeSha256": "c933f06461360476612d82bea6f6c77fce6ee1eee012bd5759ab0a3d1b82d4a3"
+    },
+    "path": "sub/b.txt"
+  }
+}

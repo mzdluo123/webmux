@@ -235,6 +235,18 @@ func (e Env) query(ctx context.Context, path string, out any) bool {
 		return false
 	}
 	defer client.Close()
+	var capability string
+	switch path {
+	case "/api/launch-configs":
+		capability = "launch.configs"
+	case "/api/repositories":
+		capability = "workspace.manage"
+	case "/api/forwards":
+		capability = "forward.ports"
+	}
+	if capability != "" && client.RequireCapability(ctx, capability) != nil {
+		return false
+	}
 	return client.Do(ctx, http.MethodGet, path, nil, out) == nil
 }
 

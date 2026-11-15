@@ -1,6 +1,10 @@
+import { availableParallelism } from "node:os";
 import { mergeConfig } from "vite";
-import { defineConfig } from "vitest/config";
-import { defineBrowserCommand, playwright } from "@vitest/browser-playwright";
+import { defineConfig } from "vite-plus";
+import {
+  defineBrowserCommand,
+  playwright,
+} from "vite-plus/test/browser-playwright";
 import viteConfig from "./vite.config";
 import { sharedCoverage } from "./vitest.config";
 
@@ -87,6 +91,9 @@ export default mergeConfig(
       include: ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-webgl"],
     },
     test: {
+      maxWorkers: process.env.CI
+        ? undefined
+        : Math.min(4, availableParallelism()),
       include: ["test/browser/**/*.test.ts"],
       setupFiles: ["./test/browser/setup.ts"],
       browser: {
@@ -102,6 +109,9 @@ export default mergeConfig(
         reportsDirectory: ".vitest/coverage/browser",
         reporter: ["text-summary", "json", "json-summary", "html"],
       },
+      // These tests drive real terminals, gestures and canvases; shared CI
+      // runners need more than the 15 s default for the heaviest cases.
+      testTimeout: 60_000,
       expect: {
         poll: {
           timeout: 15_000,

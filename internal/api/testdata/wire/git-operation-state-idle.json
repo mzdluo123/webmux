@@ -1,0 +1,17 @@
+{
+  "status": 200,
+  "body": {
+    "active": false,
+    "canAbort": false,
+    "canContinue": false,
+    "conflictedCount": 0,
+    "conflictedFiles": [],
+    "continueBlockers": [],
+    "currentBranch": "main",
+    "detached": false,
+    "headOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "headSubject": "feat: commit staged a.txt",
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

@@ -1,7 +1,7 @@
-import { afterEach, expect, test } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import TokenHelp from "../../src/components/TokenHelp.svelte";
+import TokenHelp from "../../src/components/shared/TokenHelp.svelte";
 
 afterEach(cleanup);
 

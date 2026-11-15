@@ -30,6 +30,7 @@
         quiet: `text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 ${active}`,
         // High-contrast virtual key in the soft-key gamepad.
         hud: `border-foreground/30 bg-card/75 text-foreground font-semibold shadow-sm backdrop-blur-md hover:border-foreground/50 hover:bg-card/90 active:bg-accent/90 dark:border-foreground/35 dark:bg-card/75 dark:hover:bg-card/90 ${active}`,
+        // IntelliJ-style primary action inside the Git workbench.
       },
       size: {
         default:
@@ -53,6 +54,11 @@
       raised: {
         true: "border-border bg-background shadow-md dark:bg-background dark:hover:bg-muted",
       },
+      // A long text label that wraps instead of overflowing a narrow row
+      // (large text on a phone); it keeps its height until it has to wrap.
+      wrap: {
+        true: "h-auto min-h-(--control-default) max-w-full py-1.5 text-center whitespace-normal",
+      },
     },
     defaultVariants: {
       variant: "default",
@@ -68,6 +74,7 @@
       variant?: ButtonVariant;
       size?: ButtonSize;
       raised?: boolean;
+      wrap?: boolean;
     };
 </script>
 
@@ -77,6 +84,7 @@
     variant = "default",
     size = "default",
     raised = false,
+    wrap = false,
     ref = $bindable(null),
     href = undefined,
     type = "button",
@@ -90,7 +98,7 @@
   <a
     bind:this={ref}
     data-slot="button"
-    class={cn(buttonVariants({ variant, size, raised }), className)}
+    class={cn(buttonVariants({ variant, size, raised, wrap }), className)}
     href={disabled ? undefined : href}
     aria-disabled={disabled}
     role={disabled ? "link" : undefined}
@@ -103,7 +111,7 @@
   <button
     bind:this={ref}
     data-slot="button"
-    class={cn(buttonVariants({ variant, size, raised }), className)}
+    class={cn(buttonVariants({ variant, size, raised, wrap }), className)}
     {type}
     {disabled}
     {...restProps}

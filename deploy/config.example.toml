@@ -5,8 +5,14 @@ listen = "127.0.0.1:7681"
 # non-loopback or tunnel listeners generate a temporary token on each start.
 token = ""
 scrollback_bytes = 2097152
+# Persist normalized ACP conversation bodies and handoff drafts in state_dir.
+# false disables capture/history/handoff, retaining old data and pending guards.
+history_capture = true
+# Conservative historical context budget; allowed range: 1024-64000.
+handoff_token_cap = 16000
 default_cwd = "~"
-# Optional repository registry only; sessions and terminal buffers are not saved.
+# State includes settings, hybrid recovery metadata and normalized conversations.
+# PTYs and terminal byte buffers are not saved.
 # Default: $XDG_STATE_HOME/webmux, or ~/.local/state/webmux.
 # Use a separate state_dir for each server instance. Git is optional.
 # state_dir = "~/.local/state/webmux"
@@ -15,6 +21,7 @@ prompt_patterns = ['[$#%>❯›?:]\s*$', '(?i)\(y/n\)|\[y/n\]|yes.*no|press ente
 # Exact browser origins, lowercase, no path or trailing slash,
 # e.g. ["http://127.0.0.1:5173"] for the Vite dev server.
 allowed_origins = []
+# Terminal status detection works in core-only mode; notifications controls delivery.
 # Advertise WARP_CLI_AGENT_PROTOCOL_VERSION=1 so agents such as omp report
 # questions, approvals and completion as structured terminal events.
 agent_protocol = true
@@ -23,6 +30,20 @@ bell_attention = true
 # Answer the OSC 7501 program status query and read the status agents such as
 # Claude Code, Codex, OpenCode and omp report with it.
 program_status = true
+
+# Optional Streamable HTTP MCP at /mcp on the existing listener.
+# Requires a configured nonempty root token, even on loopback. This is the
+# instance owner credential: it also authorizes REST and arbitrary command
+# execution, not a scoped MCP account. Use trusted VPN/TLS for remote access.
+# Disabled by default. Set the root token above before enabling; an empty
+# token fails startup before any automatic token generation, even on loopback.
+# To opt in, uncomment the table and set enabled = true, then restart.
+# URL: https://YOUR_TRUSTED_HOST/mcp; Authorization: Bearer <root token>.
+# Preserve Host/Origin at proxies; no OAuth, Unix/P2P endpoint or SSE.
+# Roll back with enabled = false and restart (ordinary PTYs do not survive).
+# Guide: docs/usage/mcp.md
+#[mcp]
+#enabled = false
 
 # Cloudflare Tunnel: `webmux --tunnel` or enabled = true. Without a token a
 # random 256-bit one is generated per start; tunnel mode prints it in links.
@@ -79,12 +100,39 @@ program_status = true
 # cmd = ["node", "/path/to/voice-provider.js"]
 # env = ["DASHSCOPE_API_KEY=your-key"]
 
+# Opportunistic P2P direct upgrade over WebRTC DataChannels (enabled by default).
+# Loopback, private LAN, Tailscale and <15 ms baseline paths skip upgrade
+# automatically; TURN/relay candidates are rejected so P2P stays zero-cost.
+# Web Settings -> Network persists enabled/port_mapping/stun_servers in
+# <state_dir>/p2p-settings.json and overrides these fields immediately.
+# [p2p]
+# enabled = true
+# port_mapping = true  # UPnP IGD / NAT-PMP / PCP external UDP mapping
+# stun_servers = [
+#   "stun:stun.miwifi.com:3478",
+#   "stun:stun.chat.bilibili.com:3478",
+#   "stun:stun.cloudflare.com:3478",
+#   "stun:stun.l.google.com:19302",
+# ]
+
 # Save custom launch configurations in Settings → 启动配置.
 # Their complete argv and optional environment are stored separately in
-# <state_dir>/launch-configs.json. A new installation seeds Shell, nine CLI
-# agents and omp; see docs/cli-agents.md. Edit or delete them freely.
+# <state_dir>/launch-configs.json. When the launch plugin is enabled, its first
+# start seeds the editable presets described in docs/cli-agents.md.
 # Commands run directly, without an implicit shell. To load ~/.bashrc for
 # Open Code, save argv ["bash", "-ic", "exec opencode \"$@\"", "opencode"].
 
 # 主题、字号、阅读偏好、快捷指令与主页工作树由 settings.json 管理并跨设备同步。
 # TOML 保留启动、安全、进程策略与专用公网访问服务的默认值。
+
+# New installations start with the terminal core only. Changes require restart.
+# Omit this table only to retain the legacy full feature set on an existing
+# installation. Explicit [] means no plugins; missing dependencies are errors.
+# Available IDs: launch, workspace, code, files, chat, notifications,
+# quick-commands, voice, forward, cloudflare, tailscale, p2p, mcp, immersive.
+# chat requires launch and files. Plugins do not enable their network services:
+# the existing [tunnel], [tailscale], [mcp], [p2p], etc. switches still apply.
+# Agent pretrust and profile-specific submit delay require launch.
+[plugins]
+enabled = []
+# Example: enabled = ["launch", "files", "chat", "workspace", "code"]

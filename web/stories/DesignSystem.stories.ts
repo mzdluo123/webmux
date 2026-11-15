@@ -15,3 +15,5 @@ export const Feedback: Story = { args: { section: "feedback" } };
 export const Surfaces: Story = { args: { section: "surfaces" } };
 export const Overlays: Story = { args: { section: "overlays" } };
 export const SessionStates: Story = { args: { section: "sessions" } };
+export const TvActions: Story = { args: { section: "actions", tv: true } };
+export const TvOverlays: Story = { args: { section: "overlays", tv: true } };

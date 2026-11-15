@@ -31,11 +31,11 @@ func TestClaudeRoundTrip(t *testing.T) {
 	in := h.claudeInput(SideTUI, "", "--dangerously-skip-permissions", "--model", "sonnet", "--effort", "high", "--bare")
 	s := h.create(in)
 	id := s.Info().ID
-	waitFor(t, "session from process registration", func() bool { return s.Info().Hybrid.AgentSessionID != nil })
+	waitFor(t, "session from process registration", func() bool { return h.svc.Metadata(s.Info().ID).AgentSessionID != nil })
 	h.waitReason(id, ReasonNoSessionID)
 	tuiTurn(t, s, "one")
 	h.waitEligible(id)
-	sid := *s.Info().Hybrid.AgentSessionID
+	sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 
 	result := h.mustSwitch(id, SideACP)
 	if !slices.Equal(result.Unsupported, []string{"--bare"}) {
@@ -60,7 +60,7 @@ func TestClaudeRoundTrip(t *testing.T) {
 	waitFor(t, "resumed transcript", func() bool { return strings.Contains(string(s.Buffer()), "> two") })
 	tuiTurn(t, s, "three")
 	h.waitEligible(id)
-	if got := *s.Info().Hybrid.AgentSessionID; got != sid {
+	if got := *h.svc.Metadata(s.Info().ID).AgentSessionID; got != sid {
 		t.Fatalf("resumed terminal names %s, want %s", got, sid)
 	}
 	h.mustSwitch(id, SideACP)
@@ -89,7 +89,7 @@ func TestClaudeNodeLauncher(t *testing.T) {
 	in.Env["FAKEAGENT_NATIVE"] = native
 	s := h.create(in)
 	id := s.Info().ID
-	waitFor(t, "child process registration", func() bool { return s.Info().Hybrid.AgentSessionID != nil })
+	waitFor(t, "child process registration", func() bool { return h.svc.Metadata(s.Info().ID).AgentSessionID != nil })
 	tuiTurn(t, s, "through node")
 	h.waitEligible(id)
 	if !actorState(h, id, func(a *actor) bool {
@@ -120,13 +120,13 @@ func TestClaudeSessionChangeAndFirstMessage(t *testing.T) {
 	h.fast()
 	s := h.create(h.claudeInput(SideTUI, ""))
 	id := s.Info().ID
-	waitFor(t, "initial registration", func() bool { return s.Info().Hybrid.AgentSessionID != nil })
-	old := *s.Info().Hybrid.AgentSessionID
+	waitFor(t, "initial registration", func() bool { return h.svc.Metadata(s.Info().ID).AgentSessionID != nil })
+	old := *h.svc.Metadata(s.Info().ID).AgentSessionID
 	tuiTurn(t, s, "one")
 	h.waitEligible(id)
 	typeLine(t, s, "/new")
 	waitFor(t, "registration follows /new", func() bool {
-		current := s.Info().Hybrid.AgentSessionID
+		current := h.svc.Metadata(s.Info().ID).AgentSessionID
 		return current != nil && *current != old
 	})
 	h.waitReason(id, ReasonNoSessionID)
@@ -140,10 +140,10 @@ func TestClaudeCandidateFallbackAndChoice(t *testing.T) {
 	in := h.claudeInput(SideTUI, "")
 	s := h.create(in)
 	id := s.Info().ID
-	waitFor(t, "initial registration", func() bool { return s.Info().Hybrid.AgentSessionID != nil })
+	waitFor(t, "initial registration", func() bool { return h.svc.Metadata(s.Info().ID).AgentSessionID != nil })
 	tuiTurn(t, s, "one")
 	h.waitEligible(id)
-	sid := *s.Info().Hybrid.AgentSessionID
+	sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 
 	otherInput := h.claudeInput(SideACP, "")
 	otherInput.Cwd = in.Cwd
@@ -181,10 +181,10 @@ func TestClaudeExternalWriter(t *testing.T) {
 	in := h.claudeInput(SideTUI, "")
 	s := h.create(in)
 	id := s.Info().ID
-	waitFor(t, "initial registration", func() bool { return s.Info().Hybrid.AgentSessionID != nil })
+	waitFor(t, "initial registration", func() bool { return h.svc.Metadata(s.Info().ID).AgentSessionID != nil })
 	tuiTurn(t, s, "one")
 	h.waitEligible(id)
-	sid := *s.Info().Hybrid.AgentSessionID
+	sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 	h.closeSession(id)
 	other, err := h.manager.Create(session.CreateInput{Cwd: in.Cwd, Cmd: []string{in.Cmd[0], "--resume", sid}, Env: in.Env})
 	if err != nil {

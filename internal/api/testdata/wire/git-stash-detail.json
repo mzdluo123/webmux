@@ -1,0 +1,53 @@
+{
+  "status": 200,
+  "body": {
+    "authorEmail": "wire@example.invalid",
+    "authorName": "Wire test",
+    "entry": {
+      "baseOid": "029aad08115e96af87a9df174c887599dc4eae5b",
+      "branch": "main",
+      "createdAt": "<time>",
+      "hasUntracked": true,
+      "index": 0,
+      "indexOid": "2de491136b2a4f02e817bf4323222f9a1ab93d2a",
+      "oid": "716b4010210d57411915de0d4032e1afc5b99a86",
+      "parents": [
+        "029aad08115e96af87a9df174c887599dc4eae5b",
+        "2de491136b2a4f02e817bf4323222f9a1ab93d2a",
+        "ed954172eedaaaa39dd220738b309ba06a6d4734"
+      ],
+      "shortOid": "716b4010",
+      "stashRef": "stash@{0}",
+      "summary": "On main: WIP: stash snapshot",
+      "untrackedOid": "ed954172eedaaaa39dd220738b309ba06a6d4734"
+    },
+    "files": [
+      {
+        "binary": false,
+        "modeChanged": false,
+        "newMode": "100644",
+        "newOid": "950270111a25d080d0bc8d4b6b6f1e96c78a7e3e",
+        "newPath": "sub/b.txt",
+        "oldMode": "100644",
+        "oldOid": "89673477bf2139ca6b5ab42049377d1ab0066e0c",
+        "oldPath": "sub/b.txt",
+        "status": "M",
+        "untracked": false
+      },
+      {
+        "binary": false,
+        "modeChanged": false,
+        "newMode": "100644",
+        "newOid": "18f5855c40c8911cfe434c00fbc49f5dda47b44f",
+        "newPath": "stash-note.txt",
+        "oldMode": "000000",
+        "oldOid": "0000000000000000000000000000000000000000",
+        "oldPath": "stash-note.txt",
+        "status": "A",
+        "untracked": true
+      }
+    ],
+    "trackedCount": 1,
+    "untrackedCount": 1
+  }
+}

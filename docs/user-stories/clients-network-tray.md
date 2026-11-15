@@ -4,15 +4,17 @@
 
 - **US-M01 从本地终端启动**（脚本用法与启动增强见 US-S07）：作为终端使用者，我希望用 `webmux run -- COMMAND ARG...` 创建并附着会话，或引用 Web 端保存的启动配置，以便保留原来的 CLI 工作习惯并随时转到浏览器。
   验收要点：
+  - 显式命令属于核心，先读取实际能力，不为普通 `run` 探测启动配置、工作区或聊天接口；`--launch-config` 需 `launch`，混合配置需 `chat`；
   - `--` 后 argv 原样传递；
   - `--launch-config NAME`（`--config-id` 别名）按 Web 端显示的唯一名称选择已保存配置，以服务端保存的 argv 与环境变量创建，名称不存在时以用法错误退出并列出已有名称，且与命令、`--env` 互斥；
   - 默认当前目录，可指定名称与目录；
-  - `--detach` 只创建并输出 ID 和无 token 本机链接；
-  - 默认附着前向 stderr 公告会话入口，stdout 保留给会话；
+  - `--detach` 只创建并输出会话 ID；需要入口链接时用 `webmux open ID` 取得不含 token 的本机链接；
+  - 默认附着前向 stderr 公告会话 ID 与分离键提示，stdout 保留给会话；
   - 非 TTY 的附着请求在创建前拒绝；
   - 会话进程默认看到 WebMux 的虚拟终端身份（`TERM_PROGRAM=webmux` 及服务版本），不会继承 Kitty 等宿主终端身份，启动配置显式提供的终端变量仍可覆盖默认值。引用勾选了混合模式的配置时创建从终端开始的混合会话（US-Q13）。
 - **US-M02 显式传递运行环境**：作为进阶使用者，我希望指定启动目录和必要环境变量，以便让程序使用正确项目与工具环境。
   验收要点：
+  - argv、cwd 与 env 在核心模式也可用；工作区关联和新 worktree 仅在 `workspace` 可用时使用，不因未启用插件而改变直接目录或参数；
   - `--cwd` 使用服务器目录规则；
   - Linux/macOS 的 `webmux run -- COMMAND` 默认继承调用方 shell 的环境（跳过 `TERM`、宿主终端身份、`WEBMUX_SESSION_ID`、`PWD`/`OLDPWD` 与不合法名称），重复 `--env NAME=VALUE` 在其上覆盖；
   - Windows 客户端与启动配置不继承调用方环境；
@@ -37,6 +39,7 @@
   - 兼容 modifyOtherKeys、kitty 与 Windows 编码按键，退出时关闭临时上报模式。
 - **US-M05 命令行发现与打开会话**：作为使用者，我希望用 `ls` 列出会话并用 `open ID` 获取入口，以便不经过首页就能找到目标。
   验收要点：
+  - 普通活动会话的 `ls`、详情与 `open` 使用核心接口；归档/聊天筛选需 `chat`，仓库筛选需 `workspace`，不为核心列表预取禁用业务数据；
   - `ls` 显示 ID、名称、状态、命令和目录，`--json` 输出原始会话数组；
   - `open` 校验目标并打印不含 token 的本机链接，`--browser` 可打开默认浏览器。`ls` 为混合会话在状态列附加所在视图，`--json` 原样包含 `views`、`view`、`transition` 与 `agent`，不含 `hybrid`（US-Q13）。
   - `ls` 可按标签、父会话与状态筛选，`--state`/`--archived`/`--repo` 列出已归档会话（US-S15），`open` 接受 `self`（US-S01、US-S03）；`run`、`attach`、`ls`、`open` 的 `--help` 写到标准输出并以 0 退出（US-S04）。
@@ -55,9 +58,12 @@
   - 支持超时与 JSON 结果。
 - **US-M08 本机桥接与权限边界**：作为本机使用者，我希望 CLI 和 Windows 桥接无需维护网络 token，以便直接访问当前用户的服务。
   验收要点：
+  - 本机客户端同样读取 `/api/capabilities` v1；未选择的隧道、Tailscale、P2P 不被当作已初始化服务，不探测其接口，托盘只提供实际可用的控制入口；
   - Unix 套接字验证同用户身份，`bridge` 在标准输入输出间传输；
   - 浏览器网络入口仍要求认证；
-  - 会话内进程不能用本机管理 API 读取 token、停止服务或控制隧道，也不能经套接字读取或修改 `/api/tunnel` 及其子路径（403）；
+  - 会话内进程不能用本机管理 API 读取 token、停止服务或控制隧道，也不能经套接字读取或修改 `/api/tunnel`、`/api/p2p` 及其子路径（403）；
+  - 本机状态 `/local/v1/status` 汇总当前隧道、Tailscale 与 P2P 直连运行状态（开关、端口映射与活动直连对端数），不含敏感凭据；
+  - 本机客户端忽略成功响应内容时，仍报告响应读取失败；非成功响应统一保留 HTTP 状态码与最多 64 KiB 错误体，供命令处理结构化错误；
   - 套接字不是不同账号间的共享授权机制。
 
 依据：
@@ -65,6 +71,7 @@
 - [会话命令](../../internal/clicmd/clicmd.go)、[会话环境](../../internal/session/env.go)、[会话管理](../../internal/session/manager.go)
 - [服务启动](../../cmd/webmux/main.go)、[原生附着](../../internal/attach/)、[控制命令](../../cmd/webmux/control.go)
 - [本机 API](../../internal/api/local.go)、[运行时记录](../../internal/runtime/)、[环境与本机请求](../../cmd/webmux/sessions.go)。
+- [本机客户端](../../internal/localclient/client.go)、[响应处理回归](../../internal/localclient/response_test.go)、[能力快照](../../internal/contract/capabilities.go)。
 
 ## N. Cloudflare 公网隧道
 
@@ -86,8 +93,8 @@
   - WebMux 登录 token 与 Cloudflare 隧道 token 不同；
   - 首次启动可生成并持久化 256 位随机登录 token，已有配置缺少登录 token 时生成本次进程的随机值；
   - 运行中启用要求当前登录 token 至少 43 字符，不生成或更换登录 token，条件不足提示修复后重启；
-  - 显式 CLI/TOML 隧道启动仍校验登录 token。传统启动路径可输出含 token 链接与二维码，运行时启动只打印无 token 公网地址；
-  - 持久化 token 重启保留，仅临时 token 重启更换，含 token 链接和二维码本身即授权入口，可能被启动日志保留。
+  - 显式 CLI/TOML 隧道启动仍校验登录 token。所有启动链接与二维码均不含 token，避免凭据进入 journal 或日志文件；通过 `webmux status --json --reveal-token` 查看当前 token；
+  - 持久化 token 重启保留，仅临时 token 重启更换；托盘复制链接仍可当场生成带 token 片段，并按敏感凭据处理剪贴板与浏览历史。
 - **US-N04 获取 cloudflared**：作为部署者，我希望自动定位或下载匹配的 cloudflared，以便不用手工管理隧道依赖。
   验收要点：
   - 按显式路径、PATH、状态缓存定位，不存在时下载固定版本；
@@ -127,11 +134,11 @@
 依据：
 
 - [隧道控制](../../cmd/webmux/tunnelctl.go)、[隧道令牌与启动](../../cmd/webmux/main.go)、[持久设置](../../internal/tunnelsettings/store.go)
-- [设置契约](../../internal/contract/tunnel.go)、[设置 API](../../internal/api/tunnel.go)、[设置 API 用例](../../internal/api/tunnel_test.go)
+- [设置契约](../../internal/contract/tunnel.go)、[设置 API](../../internal/pluginapi/tunnel.go)、[设置 API 用例](../../internal/api/tunnel_test.go)
 - [启动与故障用例](../../cmd/webmux/tunnelsettings_test.go)、[本机权限用例](../../internal/api/local_test.go)
-- [入口与二维码](../../cmd/webmux/access.go)、[隧道进程与下载](../../internal/tunnel/)、[公网来源授权](../../internal/api/public.go)
-- [动态配置](../../internal/api/config.go)、[推送来源](../../internal/api/push.go)、[Web 设置页](../../web/src/pages/TunnelSettingsPage.svelte)
-- [设置状态管理](../../web/src/hooks/tunnel-settings.svelte.ts)、[设置端到端用例](../../web/test/e2e/tunnel-settings.spec.ts)
+- [入口与二维码](../../cmd/webmux/access.go)、[隧道进程与下载](../../internal/tunnel/)、[公网来源授权](../../internal/transport/public.go)
+- [动态配置](../../internal/api/config.go)、[推送来源](../../internal/pluginapi/push.go)、[Web 设置页](../../web/src/pages/TunnelSettingsPage.svelte)
+- [设置状态管理](../../web/src/hooks/settings/tunnel-settings.svelte.ts)、[设置端到端用例](../../web/test/e2e/tunnel-settings.spec.ts)
 - [Named Tunnel 指南](../cloudflare-tunnel.md)、[部署说明](../deployment/remote-access.md#公网访问cloudflare-tunnel)。
 
 ## O. Windows/WSL 托盘管理
@@ -154,10 +161,12 @@
   - 按方式保持 WSL 存活；
   - 托盘托管意外退出后退避重启，10 分钟内最多 5 次；
   - systemd 重启策略交给单元。
-- **US-O03 管理所属实例**：作为 Windows 使用者，我希望托盘区分自己管理的服务和外部实例，以便不误停其他终端启动的工作。
+- **US-O03 管理所属实例**：作为 Windows 使用者，我希望托盘区分自己管理的服务和外部实例，并在重启或停止时准确判断现有会话是否需要确认，以便不误停外部工作，也不会在仅有空闲混合会话时被错误的“不可恢复”警告阻拦。
   验收要点：
   - 可启动、停止、重启所属实例；
-  - 有会话的停止、重启或切换目标先确认；
+  - 托盘通过 `/ws/sessions` 实时区分普通终端会话与混合会话，以及会话是否正在工作（运行中、切换视图中或等待权限/提问答复）；
+  - 重启（含菜单“重启”及切换“允许局域网访问”触发的重启）在无会话或仅有已空闲混合会话时直接执行；仅当存在正在工作的会话、存在普通终端会话或会话明细尚未就绪时先弹窗确认，准确说明普通终端会话不会保存、混合会话会在重启后自动恢复（排队消息不保留）；
+  - 停止、切换发行版或切换启动方式在存在会话时先弹窗确认，准确说明普通终端会话不会保存、混合会话会在下次启动时恢复；
   - 外部或启动方式不符的实例只提供访问操作；
   - 不擅自接管停止权限。
 - **US-O04 登录启动与单实例**：作为 Windows 使用者，我希望登录后出现一个托盘实例，以便随时找到服务入口。
@@ -215,7 +224,7 @@
   - WSL 为较新的开发版而托盘通道为正式版时，提示“WSL 中为开发版 <版本>，托盘使用正式版通道”，安装版托盘不自动检查，改为提供“切换到开发版通道并更新托盘”（见 US-O14）；
   - 契约不兼容仍可启动、停止、重启，以 Windows 侧可达性判断运行并显示“运行中（不兼容，功能受限）”，状态无法解析不判失败、不自动重启；
   - 缺少本机 API 时禁用启动；
-  - 运行实例与已安装文件版本不同时提示重启后生效，只有托盘管理的实例可从菜单重启。
+  - 运行实例与已安装文件版本不同时提示重启后生效（说明普通终端会话会结束、混合会话会自动恢复），只有托盘管理的实例可从菜单重启。
 - **US-O12 用安装程序安装与卸载托盘**：作为 Windows 使用者，我希望用安装程序安装、升级和卸载托盘，以便获得固定位置、开始菜单入口和卸载项，而不必手工放置 exe。
   验收要点：
   - `webmux-setup-windows-<架构>.exe` 按当前用户安装、安装本身不需要管理员，默认目录 `%LOCALAPPDATA%\Programs\WebMux`（可更改，升级沿用上次目录）；
@@ -265,7 +274,7 @@ Windows 原生终端客户端复用 US-M01–US-M06：提供 run、attach、ls�
 
 - [Windows CLI](../../cmd/webmux-windows/main_windows.go)、[WSL 桥接与路径](../../internal/wslclient/)、[托盘服务与安装](../../internal/tray/)
 - [托盘自更新](../../internal/tray/selfupdate.go)、[安装版识别与启动安装程序](../../internal/tray/traysys/install_windows.go)、[自动更新说明](../deployment/updates.md)
-- [兼容判定](../../internal/tray/compat.go)、[托盘菜单](../../internal/tray/winui/menu.go)、[转发](../../internal/tray/forward/)
+- [兼容判定](../../internal/tray/compat.go)、[会话确认](../../internal/tray/sessions.go)、[托盘菜单](../../internal/tray/winui/menu.go)、[转发](../../internal/tray/forward/)
 - [敏感剪贴板](../../internal/tray/winui/clipboard.go)、[退出请求](../../internal/tray/traysys/quit.go)、[单实例与退出事件](../../internal/tray/traysys/instance_windows.go)
 - [安装程序脚本](../../deploy/windows/webmux.nsi)、[安装程序冒烟](../../.github/scripts/windows-installer-smoke.ps1)、[Windows 部署](../deployment/windows-wsl.md)。
 
@@ -342,7 +351,7 @@ Windows 原生终端客户端复用 US-M01–US-M06：提供 run、attach、ls�
 
 - [Tailscale 检测与命令](../../internal/tailscale/)、[状态集合](../../internal/contract/tailscale.go)、[控制器与对账](../../cmd/webmux/tailscalectl.go)
 - [控制器用例](../../cmd/webmux/tailscalectl_test.go)、[网页设置存储](../../internal/tailscalesettings/store.go)、[配置](../../internal/config/config.go)
-- [启动与 Token](../../cmd/webmux/main.go)、[来源注册表](../../internal/api/public.go)
-- [状态与设置 API](../../internal/api/tailscale.go)、[API 用例](../../internal/api/tailscale_test.go)、[设置页](../../web/src/pages/TailscaleSettingsPage.svelte)
-- [设置表单](../../web/src/components/TailscaleConfiguration.svelte)、[设置卡片](../../web/src/components/TailscaleSettings.svelte)、[Tailscale 指南](../tailscale.md)。
+- [启动与 Token](../../cmd/webmux/main.go)、[来源注册表](../../internal/transport/public.go)
+- [状态与设置 API](../../internal/pluginapi/tailscale.go)、[API 用例](../../internal/api/tailscale_test.go)、[设置页](../../web/src/pages/TailscaleSettingsPage.svelte)
+- [设置表单](../../web/src/components/settings/TailscaleConfiguration.svelte)、[设置卡片](../../web/src/components/settings/TailscaleSettings.svelte)、[Tailscale 指南](../tailscale.md)。
 - 托盘一键开启：[托盘菜单视图](../../internal/tray/menuview.go)、[视图用例](../../internal/tray/menuview_test.go)、[托盘操作](../../internal/tray/winui/links.go)、[本机客户端](../../internal/localclient/client.go)、[本机状态](../../cmd/webmux/local.go)。

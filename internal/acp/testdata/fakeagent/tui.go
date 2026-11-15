@@ -29,6 +29,8 @@ type tui struct {
 	codex  bool
 	claude bool
 	agy    bool
+	kimi   bool
+	devin  bool
 
 	outMu sync.Mutex
 	out   io.Writer
@@ -50,7 +52,7 @@ func runTUI(cfg config, st *store, in io.Reader, out io.Writer) error {
 		return err
 	}
 	t := &tui{
-		cfg: cfg, st: st, cwd: cwd, codex: cfg.profile == "codex", claude: cfg.profile == "claudecode", agy: cfg.profile == "agy",
+		cfg: cfg, st: st, cwd: cwd, codex: cfg.profile == "codex", claude: cfg.profile == "claudecode", agy: cfg.profile == "agy", kimi: cfg.profile == "kimi", devin: cfg.profile == "devin",
 		out: out, turnDone: make(chan bool, 1), queryPending: cfg.profile == "claudecode",
 	}
 	defer func() {
@@ -73,6 +75,10 @@ func runTUI(cfg config, st *store, in io.Reader, out io.Writer) error {
 		t.emit7501("?")
 	} else if t.agy {
 		t.emit7501("state=idle:app=antigravity")
+	} else if t.kimi {
+		t.emit7501("state=idle:app=kimi-code")
+	} else if t.devin {
+		t.emit7501("state=idle:app=devin")
 	} else {
 		t.emit7501("state=idle:app=" + cfg.profile)
 	}
@@ -103,7 +109,7 @@ func runTUI(cfg config, st *store, in io.Reader, out io.Writer) error {
 		if err := t.open(ss); err != nil {
 			return err
 		}
-	case cfg.profile == "omp" || t.codex || t.claude:
+	case cfg.profile == "omp" || t.codex || t.claude || t.kimi || t.devin:
 		if err := t.create(); err != nil {
 			return err
 		}
@@ -161,9 +167,9 @@ func (t *tui) printf(format string, args ...any) {
 
 func (t *tui) emit7501(body string) { t.printf("\x1b]7501;%s\x1b\\", body) }
 
-// warp sends a Warp cli-agent event; Codex, Claude and Antigravity send none.
+// warp sends a Warp cli-agent event; Codex, Claude, Antigravity and Kimi send none.
 func (t *tui) warp(event string) {
-	if t.codex || t.claude || t.agy {
+	if t.codex || t.claude || t.agy || t.kimi || t.devin {
 		return
 	}
 	ev := map[string]any{"v": 1, "event": event, "agent": t.cfg.profile, "plugin_version": pluginVersion, "cwd": t.cwd}
@@ -178,6 +184,17 @@ func (t *tui) warp(event string) {
 }
 
 func (t *tui) create() error {
+	if t.devin {
+		ss, err := t.st.fresh(t.cwd)
+		if err != nil {
+			return err
+		}
+		if t.cur != nil {
+			t.st.release(t.cur.ID)
+		}
+		t.cur = ss
+		return nil
+	}
 	return t.open(t.st.draft(t.cwd))
 }
 
@@ -342,6 +359,14 @@ func (t *tui) submit(line string) bool {
 	case t.turn != nil || t.pending != "":
 		t.printf("busy\r\n")
 		return false
+	case line == "/login" && t.cfg.authFile != "":
+		if err := os.WriteFile(t.cfg.authFile, []byte("authenticated\n"), 0o600); err != nil {
+			t.printf("error: %v\r\n", err)
+		} else {
+			t.printf("authenticated\r\n")
+		}
+		t.printf("prompt> ")
+		return false
 	case line == "/new":
 		if err := t.create(); err != nil {
 			t.printf("error: %v\r\n", err)
@@ -398,7 +423,7 @@ func (t *tui) finishTurn(interrupted bool) {
 		t.printf("error: %v\r\n", err)
 	}
 	t.printf("\r\n")
-	if (t.claude || t.agy) && !interrupted {
+	if (t.claude || t.agy || t.devin) && !interrupted {
 		t.status("done")
 	} else {
 		t.status("idle")
@@ -407,9 +432,9 @@ func (t *tui) finishTurn(interrupted bool) {
 	t.printf("prompt> ")
 }
 
-// status reports a turn's state: Codex and Claude in their root records only,
-// Antigravity in its root record plus the child record when the title hook is
-// active, and the others in the root and the session's child record.
+// status reports a turn's state: Codex, Claude and Kimi in their root records
+// only, Antigravity in its root record plus the child record when the title
+// hook is active, and the others in the root and the session's child record.
 func (t *tui) status(state string) {
 	if t.codex {
 		t.emit7501("state=" + state + ":app=codex")
@@ -424,6 +449,14 @@ func (t *tui) status(state string) {
 		if t.cur != nil && t.hasTitleHook() {
 			t.emit7501("state=working:id=" + t.cur.ID)
 		}
+		return
+	}
+	if t.kimi {
+		t.emit7501("state=" + state + ":app=kimi-code")
+		return
+	}
+	if t.devin {
+		t.emit7501("state=" + state + ":app=devin")
 		return
 	}
 	t.emit7501("state=" + state)

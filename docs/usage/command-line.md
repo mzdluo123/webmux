@@ -18,7 +18,7 @@ webmux attach <ID>        # 回来接续
 
 ```sh
 webmux run -- claude --resume          # 在当前目录创建会话并立即附着
-webmux run --detach --name review -- codex   # 只创建，输出 "<ID>\t<本机链接>"
+webmux run --detach --name review -- codex   # 只创建，输出会话 ID
 webmux run --env VIRTUAL_ENV=/w/.venv --env PATH=/w/.venv/bin:/usr/bin -- python app.py
 webmux run --launch-config omp --detach --name review  # 使用 Web UI 保存的启动配置（按名称）
 webmux ls [--json]                     # 列出会话；--json 为服务端原始数组
@@ -27,6 +27,7 @@ webmux open <ID> [--browser]           # 输出（并打开）不含 Token 的�
 ```
 
 - `--` 之后的参数原样作为 argv，不经 shell 展开；`--cwd` 指定启动目录（默认当前目录，`~` 由服务端展开）。
+- 显式命令的 `run`、`attach`、`ls`、`open` 属核心，不探测禁用的启动配置接口。`--launch-config` 需 `launch`，仓库/worktree 参数需 `workspace`，聊天参数需 `chat` 及其依赖；CLI 先读取实例能力，不以本地磁盘配置猜测。
 - 自定义命令的环境变量：
   - 默认继承**调用方 shell 的环境**（如 `PATH`、`VIRTUAL_ENV`、`SSH_AUTH_SOCK`、API key），在服务进程环境之上覆盖同名变量，`--env NAME=VALUE` 再覆盖继承值。
   - `TERM`、`COLORTERM`、宿主终端身份变量、`WEBMUX_SESSION_ID`、`WEBMUX_SOCKET`、`WEBMUX_BIN`、`PWD`/`OLDPWD` 与不合法的变量名不继承，会话仍以 WebMux 终端身份和 `--cwd` 目录启动。
@@ -45,8 +46,10 @@ webmux open <ID> [--browser]           # 输出（并打开）不含 Token 的�
   - 期间的按键（包括终端对焦点、设备、颜色查询的自动应答）一律丢弃，不会抢回控制。
   - 按 Enter 重新接管（该 Enter 不发送给会话），随后按本终端尺寸重绘。程序开启 modifyOtherKeys、kitty 键盘协议或 Windows Terminal 的 win32-input-mode 后，Enter 与 `Ctrl+]` 的编码形式同样识别。
   - 附着结束时关闭这些键盘、鼠标、焦点与粘贴上报模式，避免外层 shell 收到无法解析的按键编码。
-- 默认附着的 `run` 在接管终端前，向标准错误输出 `webmux: session <ID> · <本机链接> · Ctrl+] to detach`，便于把链接带到手机上；标准输出只属于会话。没有终端时（例如 agent 的工具调用或管道）`run` 自动按 `--detach` 处理并在标准错误说明；`--attach` 强制附着，此时没有终端仍以退出码 2 结束且不创建会话。
-- 典型流程：在原生终端 `webmux run -- claude` → `Ctrl+]` 分离 → 手机打开链接、输入即接管 → 回来后 `webmux attach <ID>` 接续，全程是同一个进程。
+- `run --detach --json` 输出 `{session, configWarnings}`，新建 worktree 时另含 `worktree`；不再包含 `link`，需要链接时用 `webmux open <ID>`。
+- 默认附着的 `run` 在接管终端前，向标准错误输出 `webmux: session <ID> · Ctrl+] to detach`；标准输出只属于会话。需要在浏览器打开该会话时，用 `webmux open <ID>` 取得不含 Token 的本机链接。
+- 没有终端时（例如 agent 的工具调用或管道）`run` 自动按 `--detach` 处理并在标准错误说明；`--attach` 强制附着，此时没有终端仍以退出码 2 结束且不创建会话。
+- 典型流程：在原生终端 `webmux run -- claude` → `Ctrl+]` 分离 → 在能访问该主机的浏览器打开会话（本机可用 `webmux open <ID>` 取得链接）→ 输入即接管 → 回来后 `webmux attach <ID>` 接续，全程是同一个进程。
 - 脚本与 agent 的用法（`self`、`WEBMUX_SOCKET`/`WEBMUX_BIN`、`get`、标签、`help --json`）见 [用脚本和 agent 控制 WebMux](shell-control.md)。
 
 ## 在 Windows 终端中使用

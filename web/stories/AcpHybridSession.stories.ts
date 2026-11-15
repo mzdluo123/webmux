@@ -14,6 +14,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Conversation: Story = { args: { scenario: "conversation" } };
+export const LongConversation: Story = {
+  args: { scenario: "long-conversation" },
+};
 export const PermissionRequest: Story = { args: { scenario: "permission" } };
 export const CommandMenu: Story = { args: { scenario: "commands" } };
 export const Uploading: Story = {
@@ -23,6 +26,9 @@ export const CancelledTurn: Story = { args: { scenario: "cancelled" } };
 export const Compaction: Story = { args: { scenario: "compaction" } };
 export const OpenCode: Story = {
   args: { scenario: "conversation", agent: "opencode" },
+};
+export const Devin: Story = {
+  args: { scenario: "conversation", agent: "devin" },
 };
 export const Switching: Story = { args: { scenario: "switching" } };
 export const AwaitingChoice: Story = { args: { scenario: "awaiting-choice" } };

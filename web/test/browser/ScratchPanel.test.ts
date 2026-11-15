@@ -1,8 +1,8 @@
-import { afterEach, expect, test } from "vitest";
-import { page } from "vitest/browser";
+import { afterEach, expect, test } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import ScratchPanelHarness from "./ScratchPanelHarness.svelte";
-import { createTerminalDrafts } from "../../src/terminal-draft.svelte";
+import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 
 afterEach(() => cleanup());
 

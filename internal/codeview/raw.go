@@ -86,64 +86,69 @@ func holdTransfer[T any](s *Service, open func() (T, error), keep func(T, func()
 	return v, nil
 }
 func (s *Service) openRaw(ctx context.Context, id, sid, side string) (*Transfer, error) {
-	return withBinding(ctx, s, id, s.snapshotRoot(id, sid), func(b *binding) (*Transfer, error) {
-		v, e := s.get(id, sid)
-		if e != nil {
-			return nil, e
-		}
-		var d Document
-		if v.file != nil {
-			d = v.file.Document
-		} else if side == "old" {
-			d = v.diff.Old
-		} else if side == "new" {
-			d = v.diff.New
-		} else {
-			return nil, problemf(ErrInvalid, "请选择 old/new 来源")
-		}
-		if d.Source == "empty" {
-			return nil, problemf(ErrNotFound, "此侧内容不存在")
-		}
-		if d.Size > MaxDownloadBytes {
-			return nil, problemf(ErrTooLarge, "超过 100 MiB 下载上限")
-		}
-		if !d.Downloadable {
-			return nil, problemf(ErrNotFound, "此来源不是可下载的常规文件")
-		}
-		t := &Transfer{Name: path.Base(d.rawPath), MediaType: d.MediaType, Size: d.Size, binding: b, path: d.rawPath}
-		if d.Source == "worktree" {
-			if d.identity == nil {
-				return nil, problemf(ErrConflict, "内容已变化，请刷新")
-			}
-			f, e := b.open(d.rawPath)
-			if e != nil {
-				if errors.Is(e, os.ErrNotExist) {
-					return nil, problemf(ErrConflict, "内容已变化，请刷新")
-				}
-				return nil, e
-			}
-			info, e := f.Stat()
-			if e != nil || !info.Mode().IsRegular() || *fileIdentity(info) != *d.identity {
-				_ = f.Close()
-				return nil, problemf(ErrConflict, "内容已变化，请刷新")
-			}
-			t.file, t.identity = f, d.identity
-			return t, nil
-		}
-		if d.Source != "index" && d.Source != "head" {
-			return nil, problemf(ErrInvalid, "无效文件来源")
-		}
-		raw, e := git(ctx, b.Root, "cat-file", "-s", d.OID)
-		if e != nil {
-			return nil, fmt.Errorf("读取对象大小: %w", e)
-		}
-		size, e := strconv.ParseInt(strings.TrimSpace(string(raw)), 10, 64)
-		if e != nil || size != d.Size {
+	key := sessionScope(id, s.snapshotRoot(id, sid))
+	return withScope(ctx, s, key, func(b *binding) (*Transfer, error) {
+		return s.openRawInBinding(ctx, key, b, sid, side)
+	})
+}
+
+func (s *Service) openRawInBinding(ctx context.Context, key scopeKey, b *binding, sid, side string) (*Transfer, error) {
+	v, e := s.get(key, sid)
+	if e != nil {
+		return nil, e
+	}
+	var d Document
+	if v.file != nil {
+		d = v.file.Document
+	} else if side == "old" {
+		d = v.diff.Old
+	} else if side == "new" {
+		d = v.diff.New
+	} else {
+		return nil, problemf(ErrInvalid, "请选择 old/new 来源")
+	}
+	if d.Source == "empty" {
+		return nil, problemf(ErrNotFound, "此侧内容不存在")
+	}
+	if d.Size > MaxDownloadBytes {
+		return nil, problemf(ErrTooLarge, "超过 100 MiB 下载上限")
+	}
+	if !d.Downloadable {
+		return nil, problemf(ErrNotFound, "此来源不是可下载的常规文件")
+	}
+	t := &Transfer{Name: path.Base(d.rawPath), MediaType: d.MediaType, Size: d.Size, binding: b, path: d.rawPath}
+	if d.Source == "worktree" {
+		if !b.Browse || d.identity == nil {
 			return nil, problemf(ErrConflict, "内容已变化，请刷新")
 		}
-		t.oid = d.OID
+		f, e := b.open(d.rawPath)
+		if e != nil {
+			if errors.Is(e, os.ErrNotExist) {
+				return nil, problemf(ErrConflict, "内容已变化，请刷新")
+			}
+			return nil, e
+		}
+		info, e := f.Stat()
+		if e != nil || !info.Mode().IsRegular() || *fileIdentity(info) != *d.identity {
+			_ = f.Close()
+			return nil, problemf(ErrConflict, "内容已变化，请刷新")
+		}
+		t.file, t.identity = f, d.identity
 		return t, nil
-	})
+	}
+	if d.Source != "index" && d.Source != "head" && !isCommitSource(d.Source) {
+		return nil, problemf(ErrInvalid, "无效文件来源")
+	}
+	raw, e := git(ctx, b.gitCwd(), "cat-file", "-s", d.OID)
+	if e != nil {
+		return nil, fmt.Errorf("读取对象大小: %w", e)
+	}
+	size, e := strconv.ParseInt(strings.TrimSpace(string(raw)), 10, 64)
+	if e != nil || size != d.Size {
+		return nil, problemf(ErrConflict, "内容已变化，请刷新")
+	}
+	t.oid = d.OID
+	return t, nil
 }
 
 // Close releases the opened file and the transfer slot; safe to call twice.
@@ -187,7 +192,7 @@ func (c contextReader) Read(p []byte) (int, error) {
 func (t *Transfer) WriteTo(ctx context.Context, w io.Writer) error {
 	if t.file == nil {
 		out := &countingWriter{w: w}
-		if e := workspace.StreamGit(ctx, t.binding.Root, out, "cat-file", "blob", t.oid); e != nil {
+		if e := workspace.StreamGit(ctx, t.binding.gitCwd(), out, "cat-file", "blob", t.oid); e != nil {
 			return e
 		}
 		if out.n != t.Size {

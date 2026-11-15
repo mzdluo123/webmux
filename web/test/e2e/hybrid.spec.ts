@@ -9,17 +9,19 @@ import {
   expect,
   expectTerminalLine,
   nameSession,
+  openSplitPanel,
   openSessionLink,
   toggleCode,
   runCommand,
+  revealSidebar,
   test,
   useDirectory,
 } from "./fixtures";
 import type { E2EServer } from "./server.mjs";
 
 // Hybrid sessions run the fake agent (internal/acp/testdata/fakeagent), which
-// global-setup puts first on every backend's PATH as omp, opencode, codex,
-// codex-acp, claude and claude-agent-acp. Its TUI does not echo typing: a line
+// global-setup puts every supported fake agent and connector first on each
+// backend's PATH. Its TUI does not echo typing: a line
 // later run replays the stored conversation, and replies stream as
 // "< echo: text". Its ACP side answers "echo: text" after a thought and a
 // "Read file" tool call. FAKEAGENT_TURN_DELAY paces every streamed piece
@@ -28,7 +30,14 @@ import type { E2EServer } from "./server.mjs";
 type Side = "terminal" | "chat";
 type Options = {
   name?: string;
-  agent?: "omp" | "opencode" | "codex" | "claude";
+  agent?:
+    | "omp"
+    | "opencode"
+    | "codex"
+    | "claude"
+    | "kimi"
+    | "qoder"
+    | "qodercn";
   env?: Record<string, string>;
 };
 
@@ -111,6 +120,245 @@ async function chatTurn(page: Page, text: string) {
   await expect(working(page)).toHaveCount(0);
 }
 
+test("search opens only the target message in an existing split", async ({
+  page,
+  request,
+  workDir,
+}, testInfo) => {
+  test.skip(!!testInfo.project.use.isMobile, "two visible chat panes");
+  const anchor = await createHybrid(request, workDir, "chat", {
+    name: "Anchor",
+  });
+  const target = await createHybrid(request, workDir, "chat", {
+    name: "Target chat",
+  });
+  await openHybrid(page, target, "chat");
+  await chatTurn(page, "Review the needle change");
+  await openHybrid(page, anchor, "chat");
+  await chatTurn(page, "Unrelated first message");
+  await openSplitPanel(page);
+  await page
+    .getByRole("button", { name: "加入已有会话…", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Target chat/ })
+    .click();
+  const firstPane = page.locator(`[data-session-id="${anchor}"]`);
+  const targetPane = page.locator(`[data-session-id="${target}"]`);
+  await expect(
+    targetPane.getByText("Review the needle change", { exact: false }).first(),
+  ).toBeVisible();
+  await firstPane.getByRole("textbox", { name: "消息" }).click();
+  await firstPane
+    .getByRole("button", { name: "快速切换会话", exact: true })
+    .click();
+  const search = page.getByRole("dialog", {
+    name: "快速切换会话",
+    exact: true,
+  });
+  await search.getByRole("combobox").fill("needle change");
+  const match = search.getByRole("option", {
+    name: /你 · Review the needle change/,
+  });
+  await expect(match).toBeVisible();
+  const pending = Promise.withResolvers<void>();
+  const started = Promise.withResolvers<void>();
+  await page.route(
+    "**/api/chat/search?*",
+    async (route) => {
+      started.resolve();
+      await pending.promise;
+      await route.continue();
+    },
+    { times: 1 },
+  );
+  try {
+    await search.getByRole("combobox").fill("needle changes");
+    await started.promise;
+    // Changing the term must not flicker the existing, server-ranked hits.
+    await expect(match).toBeVisible();
+  } finally {
+    pending.resolve();
+  }
+  await expect(match).toHaveCount(0);
+  await search.getByRole("combobox").fill("needle change");
+  await match.click();
+  await expect(targetPane).toHaveAttribute("data-active", "true");
+  await expect(targetPane.locator("[data-message-highlight]")).toContainText(
+    "Review the needle change",
+  );
+  await expect(firstPane.locator("[data-message-highlight]")).toHaveCount(0);
+  expect(new URL(page.url()).pathname).toBe(`/s/${anchor}`);
+  expect(new URL(page.url()).search).toBe("");
+  await page.getByRole("button", { name: "清除消息定位" }).click();
+  await expect(targetPane.locator("[data-message-highlight]")).toHaveCount(0);
+  // Selecting the root session while the secondary pane is active must
+  // activate the root without resetting the split or jumping the other pane.
+  await targetPane
+    .getByRole("button", { name: "快速切换会话", exact: true })
+    .click();
+  await search.getByRole("combobox").fill("Unrelated first");
+  await search
+    .getByRole("option", { name: /你 · Unrelated first message/ })
+    .click();
+  await expect(firstPane).toHaveAttribute("data-active", "true");
+  await expect(firstPane.locator("[data-message-highlight]")).toContainText(
+    "Unrelated first message",
+  );
+  await expect(targetPane.locator("[data-message-highlight]")).toHaveCount(0);
+  await expect(page.locator(".split-terminal")).toHaveCount(2);
+  expect(new URL(page.url()).search).toBe("");
+  const survivingPane = await targetPane.elementHandle();
+  const documentIdentity = await page.locator("body").elementHandle();
+  await targetPane
+    .getByRole("textbox", { name: "消息" })
+    .fill("Keep neighboring search draft 中文🙂");
+  await openSplitPanel(firstPane);
+  await page
+    .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
+    .click();
+  await expect(firstPane).toHaveCount(0);
+  await expect(page.locator(".split-terminal")).toHaveCount(1);
+  expect(new URL(page.url()).pathname).toBe(`/s/${anchor}`);
+  await targetPane
+    .getByRole("button", { name: "快速切换会话", exact: true })
+    .click();
+  await search.getByRole("combobox").fill("Unrelated first");
+  await search
+    .getByRole("option", { name: /你 · Unrelated first message/ })
+    .click();
+  await expect(firstPane).toHaveAttribute("data-active", "true");
+  await expect(firstPane.locator("[data-message-highlight]")).toContainText(
+    "Unrelated first message",
+  );
+  await expect(targetPane.locator("[data-message-highlight]")).toHaveCount(0);
+  await expect(page.locator(".split-terminal")).toHaveCount(2);
+  await expect(targetPane.getByRole("textbox", { name: "消息" })).toHaveValue(
+    "Keep neighboring search draft 中文🙂",
+  );
+  expect(await survivingPane!.evaluate((element) => element.isConnected)).toBe(
+    true,
+  );
+  expect(
+    await documentIdentity!.evaluate((element) => element.isConnected),
+  ).toBe(true);
+  expect(new URL(page.url()).search).toBe("");
+  await page.reload();
+  await expect(firstPane.getByRole("textbox", { name: "消息" })).toBeEditable();
+  await expect(page.locator("[data-message-highlight]")).toHaveCount(0);
+});
+
+test("message search activates its pane after restoring a saved split", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  const target = await createHybrid(request, workDir, "chat", {
+    name: "Saved target",
+  });
+  const other = await createHybrid(request, workDir, "chat", {
+    name: "Saved active pane",
+  });
+  await openHybrid(page, target, "chat");
+  await chatTurn(page, "Find the restored needle");
+  await openSplitPanel(page);
+  await page
+    .getByRole("button", { name: "加入已有会话…", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Saved active pane/ })
+    .click();
+  await expect(page.locator(`[data-session-id="${other}"]`)).toHaveAttribute(
+    "data-active",
+    "true",
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
+  const search = page.getByRole("dialog", {
+    name: "快速切换会话",
+    exact: true,
+  });
+  await search.getByRole("combobox").fill("restored needle");
+  await page.evaluate(() => {
+    document.documentElement.dataset.searchJumpDocument = "same-document";
+  });
+  await search
+    .getByRole("option", { name: /你 · Find the restored needle/ })
+    .click();
+
+  const targetPane = page.locator(`[data-session-id="${target}"]`);
+  await expect(targetPane).toHaveAttribute("data-active", "true");
+  await expect(targetPane.locator("[data-message-highlight]")).toBeVisible();
+  await expect(targetPane.locator("[data-message-highlight]")).toContainText(
+    "Find the restored needle",
+  );
+  await expect(page.locator(".split-terminal")).toHaveCount(2);
+  await expect(
+    page.locator(`[data-session-id="${other}"] [data-message-highlight]`),
+  ).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`/s/${target}$`));
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-search-jump-document",
+    "same-document",
+  );
+});
+
+test("message search reveals chat before consuming a jump hidden by narrow code", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  const target = await createHybrid(request, workDir, "chat", {
+    name: "Code target",
+  });
+  await createHybrid(request, workDir, "chat", { name: "Code sibling" });
+  await openHybrid(page, target, "chat");
+  await chatTurn(page, "Find the obscured needle");
+  await openSplitPanel(page);
+  await page
+    .getByRole("button", { name: "加入已有会话…", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Code sibling/ })
+    .click();
+  await page
+    .getByRole("button", { name: "切换到窗格 1：Code target", exact: true })
+    .click();
+  const targetPane = page.locator(`[data-session-id="${target}"]`);
+  const mountedPane = await targetPane.elementHandle();
+  await toggleCode(targetPane);
+  await expect(
+    targetPane.getByRole("region", { name: "代码工作区" }),
+  ).toBeVisible();
+  await expect(targetPane.locator("[data-chat-view]")).toBeHidden();
+  await targetPane
+    .getByRole("button", { name: "快速切换会话", exact: true })
+    .click();
+  const search = page.getByRole("dialog", {
+    name: "快速切换会话",
+    exact: true,
+  });
+  await search.getByRole("combobox").fill("obscured needle");
+  await search
+    .getByRole("option", { name: /你 · Find the obscured needle/ })
+    .click();
+
+  await expect(targetPane.locator("[data-chat-view]")).toBeVisible();
+  await expect(targetPane.locator("[data-message-highlight]")).toBeVisible();
+  await expect(targetPane.locator("[data-message-highlight]")).toContainText(
+    "Find the obscured needle",
+  );
+  await expect(
+    targetPane.getByRole("region", { name: "代码工作区" }),
+  ).toBeHidden();
+  expect(await mountedPane!.evaluate((pane) => pane.isConnected)).toBe(true);
+  await expect(page.locator(".split-terminal")).toHaveCount(2);
+  await expect(page).toHaveURL(new RegExp(`/s/${target}$`));
+});
+
 async function tuiTurn(page: Page, text: string) {
   await runCommand(page, text);
   await expectTerminalLine(page, `< echo: ${text}`);
@@ -137,6 +385,343 @@ async function switchTo(page: Page, side: Side, confirm = false) {
 }
 
 test.describe("hybrid sessions with the fake agent", () => {
+  test("turn-end diff uses the tool's captured before and after text", async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    const id = await createHybrid(request, workDir, "chat");
+    await openHybrid(page, id, "chat");
+    await chatTurn(page, "fixture turn diff");
+    await page
+      .getByRole("button", { name: "本轮改动 · 1 个文件", exact: true })
+      .click();
+    const file = page.getByRole("button", { name: /^app\.ts/ });
+    await file.click();
+    await expect(file).toHaveAttribute("aria-pressed", "true");
+    const diff = page.getByRole("region", { name: "回合差异：app.ts" });
+    await expect(diff).toHaveCount(2);
+    await expect(diff.nth(0)).toContainText("export const title = 'Old';");
+    await expect(diff.nth(0)).toContainText("export const title = 'New';");
+    await expect(diff.nth(1)).toContainText("export const footer = 'Before';");
+    await expect(diff.nth(1)).toContainText("export const footer = 'After';");
+    await file.click();
+    await expect(file).toHaveAttribute("aria-pressed", "false");
+    await expect(diff).toHaveCount(0);
+  });
+
+  test("create then edit shows one final new-file diff across the Go wire", async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    const id = await createHybrid(request, workDir, "chat");
+    await openHybrid(page, id, "chat");
+    await chatTurn(page, "fixture create then edit diff");
+    await page
+      .getByRole("button", { name: "本轮改动 · 1 个文件", exact: true })
+      .click();
+    const file = page.getByRole("button", { name: /^app\.ts/ });
+    await expect(file).toContainText("新增 2 行，删除 0 行");
+    await file.click();
+    const diff = page.getByRole("region", { name: "回合差异：app.ts" });
+    await expect(diff).toHaveCount(1);
+    await expect(diff).toContainText("keep");
+    await expect(diff).toContainText("replacement");
+    await expect(diff).not.toContainText("original");
+  });
+
+  for (const [action, stats] of [
+    ["rewrite", "新增 1 行，删除 1 行"],
+    ["restore", "新增 0 行，删除 0 行"],
+  ] as const) {
+    test(`clear then ${action} shows only the net turn diff`, async ({
+      page,
+      request,
+      workDir,
+    }) => {
+      const id = await createHybrid(request, workDir, "chat");
+      await openHybrid(page, id, "chat");
+      await chatTurn(page, `fixture clear then ${action} diff`);
+      await page
+        .getByRole("button", { name: "本轮改动 · 1 个文件", exact: true })
+        .click();
+      const file = page.getByRole("button", { name: /^app\.ts/ });
+      await expect(file).toContainText(stats);
+      await file.click();
+      const diff = page.getByRole("region", { name: "回合差异：app.ts" });
+      await expect(diff).toHaveCount(1);
+      if (action === "rewrite") {
+        await expect(diff).toContainText("original");
+        await expect(diff).toContainText("replacement");
+      }
+    });
+  }
+
+  test("deleted turn-diff files search the captured old content", async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    const id = await createHybrid(request, workDir, "chat");
+    await openHybrid(page, id, "chat");
+    await chatTurn(page, "fixture deleted file diff");
+    await page
+      .getByRole("button", { name: "本轮改动 · 1 个文件", exact: true })
+      .click();
+    await page.getByRole("button", { name: /^removed\.ts/ }).click();
+    const diff = page.getByRole("region", { name: "回合差异：removed.ts" });
+    await expect(diff).toContainText("export const removed = 'Deleted';");
+    await diff.getByRole("button", { name: "文件内查找", exact: true }).click();
+    const search = diff.getByRole("textbox", { name: "查找", exact: true });
+    await search.fill("Deleted");
+    await search.press("Enter");
+    await expect(diff.getByRole("status")).toHaveText("修改前 · 1 / 1");
+  });
+
+  test.describe("macOS find shortcut ownership", () => {
+    test.use({
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    });
+
+    test("Cmd+F searches the focused turn diff, then the terminal after switching", async ({
+      page,
+      request,
+      workDir,
+    }, testInfo) => {
+      test.skip(
+        testInfo.project.use.isMobile,
+        "macOS desktop keyboard shortcut",
+      );
+      await page.addInitScript(() => {
+        Object.defineProperty(navigator, "platform", { get: () => "MacIntel" });
+      });
+      const id = await createHybrid(request, workDir, "chat");
+      await openHybrid(page, id, "chat");
+      await chatTurn(page, "fixture turn diff");
+      await page
+        .getByRole("button", { name: "本轮改动 · 1 个文件", exact: true })
+        .click();
+      await page.getByRole("button", { name: /^app\.ts/ }).click();
+      const diffs = page.getByRole("region", { name: "回合差异：app.ts" });
+      await expect(diffs).toHaveCount(2);
+      const diff = diffs.first();
+      await diff
+        .getByRole("button", { name: "文件内查找", exact: true })
+        .focus();
+      await page.keyboard.press("Meta+f");
+      const search = diff.getByRole("textbox", { name: "查找", exact: true });
+      await expect(search).toBeFocused();
+      await search.fill("New");
+      await search.press("Enter");
+      await expect(diff.getByRole("status")).toContainText(/1\s*\/\s*1/);
+      await diff
+        .locator('[data-line-type="change-deletion"][data-column-number="1"]')
+        .click();
+      await search.fill("Old");
+      await search.press("Enter");
+      await expect(diff.getByRole("status")).toHaveText("修改前 · 1 / 1");
+      await diff
+        .locator('[data-line-type="change-addition"][data-column-number="1"]')
+        .click();
+      await search.fill("New");
+      await search.press("Enter");
+      await expect(diff.getByRole("status")).toHaveText("修改后 · 1 / 1");
+      await expect(
+        page.getByRole("textbox", { name: "查找终端输出" }),
+      ).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await switchTo(page, "terminal");
+      await page.locator(".xterm-helper-textarea").focus();
+      await page.keyboard.press("Meta+f");
+      await expect(
+        page.getByRole("textbox", { name: "查找终端输出", exact: true }),
+      ).toBeFocused();
+    });
+  });
+
+  test("session references enter the active split chat draft", async ({
+    page,
+    request,
+    workDir,
+  }, testInfo) => {
+    test.skip(
+      !!testInfo.project.use.isMobile,
+      "two visible panes and desktop sidebar",
+    );
+    const anchor = await createHybrid(request, workDir, "terminal", {
+      name: "Anchor",
+    });
+    const chat = await createHybrid(request, workDir, "chat", {
+      name: "Focused chat",
+    });
+    const source = await createHybrid(request, workDir, "terminal", {
+      name: "Reference source",
+    });
+    await page.goto(`/s/${anchor}`);
+    await openSplitPanel(page);
+    await page
+      .getByRole("button", { name: "加入已有会话…", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: /Focused chat/ })
+      .click();
+    const pane = page.locator(`[data-session-id="${chat}"]`);
+    const composer = pane.getByRole("textbox", { name: "消息" });
+    await composer.click();
+    await composer.fill("Compare with ");
+    const row = page.getByRole("treeitem", { name: /^Reference source/ });
+    await row.hover();
+    await page
+      .getByRole("tree")
+      .getByRole("button", { name: "会话操作：Reference source", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: "引用到当前聊天" }).click();
+    await expect(composer).toHaveValue(
+      `Compare with [Reference source](/s/${source})`,
+    );
+    await page.getByRole("treeitem", { name: /^Anchor/ }).hover();
+    await page
+      .getByRole("tree")
+      .getByRole("button", { name: "会话操作：Anchor", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: "引用到当前聊天" }).click();
+    await expect(composer).toHaveValue(
+      `Compare with [Reference source](/s/${source}) [Anchor](/s/${anchor})`,
+    );
+    await pane.getByRole("button", { name: "发送", exact: true }).click();
+    const anchorPane = page.locator(`[data-session-id="${anchor}"]`);
+    const mountedAnchor = await anchorPane.elementHandle();
+    const mountedChat = await pane.elementHandle();
+    const anchorReference = pane
+      .getByRole("list", { name: "对话", exact: true })
+      .getByRole("link", { name: "Anchor", exact: true })
+      .first();
+    await anchorReference.click();
+    await expect(anchorPane).toHaveAttribute("data-active", "true");
+    await expect(pane).toHaveAttribute("data-active", "false");
+    await expect(page).toHaveURL(`/s/${anchor}`);
+    await expect(page.locator(".split-terminal")).toHaveCount(2);
+    expect(
+      await mountedAnchor!.evaluate((element) => element.isConnected),
+    ).toBe(true);
+    expect(await mountedChat!.evaluate((element) => element.isConnected)).toBe(
+      true,
+    );
+    await composer.fill("Keep this split draft");
+    await openSplitPanel(anchorPane);
+    await page
+      .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
+      .click();
+    await expect(anchorPane).toHaveCount(0);
+    await expect(page.locator(".split-terminal")).toHaveCount(1);
+    await expect(page).toHaveURL(`/s/${anchor}`);
+    const documentIdentity = await page.locator("body").elementHandle();
+    await anchorReference.click();
+    await expect(anchorPane).toHaveAttribute("data-active", "true");
+    await expect(page.locator(".split-terminal")).toHaveCount(2);
+    await expect(composer).toHaveValue("Keep this split draft");
+    expect(await mountedChat!.evaluate((element) => element.isConnected)).toBe(
+      true,
+    );
+    expect(
+      await documentIdentity!.evaluate((element) => element.isConnected),
+    ).toBe(true);
+    const reference = pane
+      .getByRole("list", { name: "对话", exact: true })
+      .getByRole("link", { name: "Reference source", exact: true })
+      .first();
+    await expect(reference).toHaveAttribute("href", `/s/${source}`);
+    await reference.click();
+    await expect(page).toHaveURL(`/s/${source}`);
+  });
+
+  test("a full layout reports a closed-anchor reference and retries after freeing a pane", async ({
+    page,
+    request,
+    workDir,
+  }, testInfo) => {
+    test.skip(!!testInfo.project.use.isMobile, "desktop split layout controls");
+    const anchor = await createHybrid(request, workDir, "terminal", {
+      name: "Capacity anchor",
+    });
+    const chat = await createHybrid(request, workDir, "chat", {
+      name: "Capacity chat",
+    });
+    const fillers: string[] = [];
+    for (let i = 0; i < 7; i++)
+      fillers.push(
+        await createHybrid(request, workDir, "terminal", {
+          name: `Capacity filler ${i + 1}`,
+        }),
+      );
+    await page.goto(`/s/${anchor}`);
+    await openSplitPanel(page);
+    await page
+      .getByRole("button", { name: "加入已有会话…", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: /Capacity chat/ })
+      .click();
+    const pane = page.locator(`[data-session-id="${chat}"]`);
+    const composer = pane.getByRole("textbox", { name: "消息" });
+    await composer.fill(`[Capacity anchor](/s/${anchor})`);
+    await pane.getByRole("button", { name: "发送", exact: true }).click();
+    const reference = pane
+      .getByRole("list", { name: "对话", exact: true })
+      .getByRole("link", { name: "Capacity anchor", exact: true })
+      .first();
+    await expect(reference).toBeVisible();
+    await composer.fill("keep this full-layout draft 中文🙂");
+    await openSplitPanel(page.locator(`[data-session-id="${anchor}"]`));
+    await page
+      .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
+      .click();
+    for (let i = 0; i < fillers.length; i++) {
+      await openSplitPanel(page.locator('.split-terminal[data-active="true"]'));
+      await page
+        .getByRole("button", { name: "加入已有会话…", exact: true })
+        .click();
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: new RegExp(`Capacity filler ${i + 1}`) })
+        .click();
+    }
+    const tabs = page.getByRole("navigation", { name: "终端窗格" });
+    await tabs.getByRole("button", { name: /Capacity chat/ }).click();
+    await tabs.getByRole("button", { name: "放大窗格", exact: true }).click();
+    const documentIdentity = await page.locator("body").elementHandle();
+    await expect(page.locator(".split-terminal")).toHaveCount(8);
+    await reference.click();
+    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(page.locator(`[data-session-id="${anchor}"]`)).toHaveCount(0);
+    await expect(page.locator(".split-terminal")).toHaveCount(8);
+    await expect(composer).toHaveValue("keep this full-layout draft 中文🙂");
+    expect(
+      await documentIdentity!.evaluate((element) => element.isConnected),
+    ).toBe(true);
+    await tabs.getByRole("button", { name: /Capacity filler 7/ }).click();
+    await openSplitPanel(page.locator(`[data-session-id="${fillers[6]}"]`));
+    await page
+      .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
+      .click();
+    await tabs.getByRole("button", { name: /Capacity chat/ }).click();
+    await reference.click();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(page.locator(".split-terminal")).toHaveCount(8);
+    await expect(page.locator(`[data-session-id="${anchor}"]`)).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    await expect(composer).toHaveValue("keep this full-layout draft 中文🙂");
+    expect(
+      await documentIdentity!.evaluate((element) => element.isConnected),
+    ).toBe(true);
+  });
+
   test("phones switch chat and terminal in tabs and open code from the panel picker", async ({
     page,
     request,
@@ -182,6 +767,21 @@ test.describe("hybrid sessions with the fake agent", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openHybrid(page, id, "chat");
 
+    const terminalPage = page.locator(".terminal-page");
+    await expect(terminalPage).toHaveAttribute("data-document-scroll", "true");
+    await expect(conversation(page).locator("li")).toHaveCount(0);
+    await expect(composer(page)).toBeInViewport();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          Math.round(
+            document.querySelector("[data-chat-dock]")!.getBoundingClientRect()
+              .bottom - window.innerHeight,
+          ),
+        ),
+      )
+      .toBe(0);
+
     for (let i = 0; i < 6; i++) {
       await chatTurn(
         page,
@@ -191,7 +791,6 @@ test.describe("hybrid sessions with the fake agent", () => {
     // sendChat fills the composer (focusing it); blur to return to resting reading mode.
     await composer(page).evaluate((el: HTMLTextAreaElement) => el.blur());
 
-    const terminalPage = page.locator(".terminal-page");
     await expect(terminalPage).toHaveAttribute("data-document-scroll", "true");
     await expect
       .poll(() =>
@@ -313,6 +912,87 @@ test.describe("hybrid sessions with the fake agent", () => {
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
 
+  test("wide document-scroll chat keeps turn ticks beside the app sidebar", async ({
+    page,
+    request,
+    workDir,
+  }, testInfo) => {
+    test.skip(!!testInfo.project.use.isMobile, "A tablet-width desktop pane");
+    const id = await createHybrid(request, workDir, "chat");
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await openHybrid(page, id, "chat");
+    for (let i = 0; i < 8; i++) {
+      await chatTurn(
+        page,
+        `turn-nav-${i} line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8`,
+      );
+    }
+
+    const navigation = page.getByRole("navigation", { name: "对话轮次" });
+    await expect(navigation).toBeVisible();
+    await expect
+      .poll(() =>
+        page
+          .locator("[data-chat-view]")
+          .evaluate((node) => node.getBoundingClientRect().width),
+      )
+      .toBeGreaterThanOrEqual(896);
+    await expect
+      .poll(() =>
+        page
+          .locator("[data-chat-view]")
+          .evaluate((node) => node.getBoundingClientRect().width),
+      )
+      .toBeLessThan(1024);
+    await expect
+      .poll(() =>
+        page.locator("[data-chat-view]").getAttribute("data-document-scroll"),
+      )
+      .toBe("true");
+    const geometry = await page.evaluate(() => ({
+      sidebarRight: document
+        .querySelector(".app-sidebar")!
+        .getBoundingClientRect().right,
+      navigationLeft: document
+        .querySelector('nav[aria-label="对话轮次"]')!
+        .getBoundingClientRect().left,
+    }));
+    expect(geometry.navigationLeft).toBeGreaterThanOrEqual(
+      geometry.sidebarRight,
+    );
+
+    const first = navigation.getByRole("button", {
+      name: /^第 1 轮 · 你：turn-nav-0/,
+    });
+    await first.click();
+    await expect(first).toHaveAttribute("aria-current", "location");
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeLessThan(100);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(1000);
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.locator("[data-chat-view]")).not.toHaveAttribute(
+      "data-document-scroll",
+    );
+    const panel = page.locator(".terminal-header, [data-chat-dock]");
+    const panelOrigin = await panel.evaluateAll((nodes) =>
+      nodes.map((node) => node.getBoundingClientRect().top),
+    );
+    const windowOrigin = await page.evaluate(() => window.scrollY);
+    await first.click();
+    await first.press("End");
+    await expect(navigation.getByRole("button").last()).toBeFocused();
+    expect(
+      await panel.evaluateAll((nodes) =>
+        nodes.map((node) => node.getBoundingClientRect().top),
+      ),
+    ).toEqual(panelOrigin);
+    expect(await page.evaluate(() => window.scrollY)).toBe(windowOrigin);
+  });
+
   test("phones gain the side tabs when the session info arrives", async ({
     page,
     request,
@@ -343,6 +1023,9 @@ test.describe("hybrid sessions with the fake agent", () => {
     { start: "terminal", agent: "opencode" },
     { start: "chat", agent: "claude" },
     { start: "terminal", agent: "claude" },
+    { start: "terminal", agent: "kimi" },
+    { start: "chat", agent: "qoder" },
+    { start: "terminal", agent: "qodercn" },
   ] as const) {
     test(`an ${agent} conversation started on ${start === "chat" ? "chat" : "the terminal"} round-trips with its history on both sides`, async ({
       page,
@@ -905,6 +1588,12 @@ test.describe("hybrid sessions with the fake agent", () => {
       data: { path: root },
     });
     expect(registered.status(), await registered.text()).toBe(201);
+    const discardId = await createHybrid(request, root, "chat", {
+      name: "E2E discard",
+    });
+    expect((await request.delete(`/api/sessions/${discardId}`)).status()).toBe(
+      204,
+    );
     const id = await createHybrid(request, root, "chat", {
       name: "E2E archive",
     });
@@ -927,16 +1616,111 @@ test.describe("hybrid sessions with the fake agent", () => {
     const row = archived
       .locator('[data-slot="item"]')
       .filter({ hasText: "E2E archive" });
+    const discardRow = archived
+      .locator('[data-slot="item"]')
+      .filter({ hasText: "E2E discard" });
     await expect(row).toBeHidden();
     await archived.getByRole("button", { name: /已归档/ }).click();
     await expect(row).toBeVisible();
+    await expect(
+      row.getByRole("button", { name: "更多操作 E2E archive", exact: true }),
+    ).toHaveCount(0);
+    await discardRow
+      .getByRole("button", { name: "删除 E2E discard", exact: true })
+      .click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "确认", exact: true })
+      .click();
+    await expect(discardRow).toHaveCount(0);
 
-    await row.getByRole("button", { name: "恢复到终端", exact: true }).click();
+    await row.getByRole("button", { name: "恢复", exact: true }).click();
     await expect(row).toHaveCount(0);
     const resumed = await openSessionLink(page, "E2E archive");
-    await expectSide(resumed, "terminal");
-    await expectTerminalLine(resumed, "> keep-this");
+    await expectSide(resumed, "chat");
+    await expect(conversation(resumed)).toContainText("echo: keep-this");
   });
+
+  for (const view of ["chat", "terminal"] as const) {
+    for (const mode of ["chat", "workbench"] as const) {
+      test(`archived ${view} resumes its remembered view with the ${mode} sidebar`, async ({
+        page,
+        request,
+        workDir,
+      }) => {
+        for (const args of [
+          ["init", "-b", "main"],
+          [
+            "-c",
+            "user.name=WebMux QA",
+            "-c",
+            "user.email=qa@example.invalid",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "initial",
+          ],
+        ])
+          expect(spawnSync("git", ["-C", workDir, ...args]).status).toBe(0);
+        const registered = await request.post("/api/repositories", {
+          data: { path: workDir },
+        });
+        expect(registered.status(), await registered.text()).toBe(201);
+        const name = `Remember ${view}`;
+        const initial = view === "chat" ? "terminal" : "chat";
+        const id = await createHybrid(request, workDir, initial, { name });
+        await openHybrid(page, id, initial);
+        if (initial === "chat") await chatTurn(page, "remember-me");
+        else await tuiTurn(page, "remember-me");
+        await switchTo(page, view);
+        const archived = await request.delete(`/api/sessions/${id}`);
+        expect(archived.status(), await archived.text()).toBe(204);
+        await page.goto("/");
+        await revealSidebar(page);
+        await page
+          .getByRole("button", {
+            name: mode === "chat" ? "聊天模式" : "工作台模式",
+            exact: true,
+          })
+          .click();
+        if (mode === "chat") {
+          await page
+            .getByRole("button", { name: /已归档/ })
+            .first()
+            .click();
+          await page
+            .getByRole("list", { name: "已归档聊天" })
+            .getByRole("button", { name: `${name}（已结束）`, exact: true })
+            .click();
+        } else {
+          if (test.info().project.use.isMobile)
+            await page.keyboard.press("Escape");
+          const archived = page.getByRole("region", {
+            name: "main 的已归档会话",
+          });
+          await archived.getByRole("button", { name: /已归档/ }).click();
+          await archived
+            .getByRole("button", { name: "恢复", exact: true })
+            .click();
+          await openSessionLink(page, name);
+        }
+        await expect(page).toHaveURL(new RegExp(`/s/${id}$`));
+        await expectSide(page, view);
+        if (view === "chat")
+          await expect(conversation(page)).toContainText("remember-me");
+        else await expectTerminalLine(page, "> remember-me");
+        if (test.info().project.use.isMobile) {
+          await page.getByRole("button", { name: "打开侧栏" }).first().click();
+        }
+        await expect(
+          page.getByRole("button", {
+            name: mode === "chat" ? "聊天模式" : "工作台模式",
+            exact: true,
+          }),
+        ).toHaveAttribute("aria-pressed", "true");
+      });
+    }
+  }
 
   test("stopping the open session from the sidebar leaves its page instead of offering to resume", async ({
     page,
@@ -1034,7 +1818,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     const row = gone.locator(`[data-archived-id="${id}"]`);
     await expect(row.getByText("已释放空间")).toBeVisible();
 
-    await row.getByRole("button", { name: "恢复到聊天", exact: true }).click();
+    await row.getByRole("button", { name: "恢复", exact: true }).click();
     const rebuild = page.getByRole("dialog", { name: "重建工作树后恢复" });
     await expect(rebuild).toContainText("将在原路径检出分支 feature-x");
     await rebuild
@@ -1047,76 +1831,87 @@ test.describe("hybrid sessions with the fake agent", () => {
     await expect(conversation(resumed)).toContainText("echo: before-release");
   });
 
-  test("deleting a worktree keeps its archived chat released, and the sidebar tree resumes it", async ({
-    page,
-    request,
-    workDir,
-  }, testInfo) => {
-    test.skip(!!testInfo.project.use.isMobile, "the desktop sidebar tree");
-    const root = join(workDir, "delete-repo");
-    const tree = join(workDir, "delete-repo-feature");
-    await mkdir(root);
-    await writeFile(join(root, ".gitignore"), "node_modules/\n");
-    const git = (...args: string[]) =>
-      expect(spawnSync("git", ["-C", root, ...args]).status).toBe(0);
-    git("init", "-b", "main");
-    git("add", ".gitignore");
-    git(
-      "-c",
-      "user.name=WebMux QA",
-      "-c",
-      "user.email=qa@example.invalid",
-      "commit",
-      "-m",
-      "initial",
-    );
-    git("worktree", "add", "-b", "feature-y", tree);
-    const registered = await request.post("/api/repositories", {
-      data: { path: root },
-    });
-    expect(registered.status(), await registered.text()).toBe(201);
-    const id = await createHybrid(request, tree, "chat", {
-      name: "E2E delete",
-    });
-    await openHybrid(page, id, "chat");
-    await chatTurn(page, "before-delete");
-    const archived = await request.delete(`/api/sessions/${id}`);
-    expect(archived.status(), await archived.text()).toBe(204);
+  for (const view of ["chat", "terminal"] as const) {
+    test(`deleting a worktree keeps its archived ${view} released, and the sidebar tree resumes it`, async ({
+      page,
+      request,
+      workDir,
+    }, testInfo) => {
+      test.skip(!!testInfo.project.use.isMobile, "the desktop sidebar tree");
+      const root = join(workDir, "delete-repo");
+      const tree = join(workDir, "delete-repo-feature");
+      await mkdir(root);
+      await writeFile(join(root, ".gitignore"), "node_modules/\n");
+      const git = (...args: string[]) =>
+        expect(spawnSync("git", ["-C", root, ...args]).status).toBe(0);
+      git("init", "-b", "main");
+      git("add", ".gitignore");
+      git(
+        "-c",
+        "user.name=WebMux QA",
+        "-c",
+        "user.email=qa@example.invalid",
+        "commit",
+        "-m",
+        "initial",
+      );
+      git("worktree", "add", "-b", "feature-y", tree);
+      const registered = await request.post("/api/repositories", {
+        data: { path: root },
+      });
+      expect(registered.status(), await registered.text()).toBe(201);
+      const id = await createHybrid(request, tree, "chat", {
+        name: "E2E delete",
+      });
+      await openHybrid(page, id, "chat");
+      await chatTurn(page, "before-delete");
+      await switchTo(page, view);
+      const archived = await request.delete(`/api/sessions/${id}`);
+      expect(archived.status(), await archived.text()).toBe(204);
 
-    await page.goto("/");
-    await page
-      .getByRole("button", { name: "工作树菜单 feature-y", exact: true })
-      .click();
-    await page
-      .getByRole("menuitem", { name: "删除 worktree", exact: true })
-      .click();
-    const removal = page.getByRole("dialog", { name: "删除 worktree" });
-    await expect(removal).toContainText("保留的已归档会话（之后可重建并恢复）");
-    await expect(removal).toContainText("E2E delete");
-    await removal.getByRole("button", { name: "确认安全删除" }).click();
-    await expect(removal).toHaveCount(0);
-    await expect(access(tree)).rejects.toThrow();
-    git("rev-parse", "--verify", "refs/heads/feature-y");
+      await page.goto("/");
+      await page
+        .getByRole("button", { name: "工作树菜单 feature-y", exact: true })
+        .click();
+      await page
+        .getByRole("menuitem", { name: "删除 worktree…", exact: true })
+        .click();
+      const removal = page.getByRole("dialog", { name: "删除 worktree" });
+      await expect(removal).toContainText(
+        "保留的已归档会话（之后可重建并恢复）",
+      );
+      await expect(removal).toContainText("E2E delete");
+      await removal.getByRole("button", { name: "确认安全删除" }).click();
+      await expect(removal).toHaveCount(0);
+      await expect(access(tree)).rejects.toThrow();
+      git("rev-parse", "--verify", "refs/heads/feature-y");
 
-    // The record stays, released, under the repository's unavailable
-    // workspaces in the sidebar tree.
-    const sidebarTree = page.getByRole("tree", { name: "仓库与会话" });
-    await sidebarTree
-      .getByRole("button", { name: "展开已不可用工作区", exact: true })
-      .click();
-    const row = sidebarTree.getByRole("treeitem", {
-      name: "E2E delete（已释放空间，已结束）",
+      // The record stays, released, under the repository's unavailable
+      // workspaces in the sidebar tree; neither the repository nor the
+      // unavailable workspace auto-expands when the only session is archived.
+      const sidebarTree = page.getByRole("tree", { name: "仓库与会话" });
+      await sidebarTree
+        .getByRole("button", { name: "展开delete-repo", exact: true })
+        .click();
+      await sidebarTree
+        .getByRole("button", { name: "展开已不可用工作区", exact: true })
+        .click();
+      const row = sidebarTree.getByRole("treeitem", {
+        name: "E2E delete（已释放空间，已结束）",
+      });
+      await row.click();
+      const rebuild = page.getByRole("dialog", { name: "重建工作树后恢复" });
+      await expect(rebuild).toContainText("将在原路径检出分支 feature-y");
+      await rebuild
+        .getByRole("button", { name: "重建并恢复", exact: true })
+        .click();
+      await expectSide(page, view);
+      if (view === "chat")
+        await expect(conversation(page)).toContainText("echo: before-delete");
+      else await expectTerminalLine(page, "> before-delete");
+      await access(join(tree, ".gitignore"));
     });
-    await row.click();
-    const rebuild = page.getByRole("dialog", { name: "重建工作树后恢复" });
-    await expect(rebuild).toContainText("将在原路径检出分支 feature-y");
-    await rebuild
-      .getByRole("button", { name: "重建并恢复", exact: true })
-      .click();
-    await expectSide(page, "chat");
-    await expect(conversation(page)).toContainText("echo: before-delete");
-    await access(join(tree, ".gitignore"));
-  });
+  }
 
   test("after a backend restart both sides resume the recorded conversation", async ({
     page,

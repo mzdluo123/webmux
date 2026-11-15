@@ -14,13 +14,12 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/api"
-	"github.com/rainchan/webmux/internal/codeview"
-	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/files"
+	"github.com/rainchan/webmux/internal/hub"
+	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/localclient"
+	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/session"
-	"github.com/rainchan/webmux/internal/workspace"
 )
 
 // stoppedRunner answers `webmux status --json` like an installed webmux
@@ -51,10 +50,17 @@ func TestWSLServiceStatusAndWatch(t *testing.T) {
 
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	ws := workspace.New(dir, m, nil, dir)
-	defer ws.Close()
-	c := config.Config{DefaultCwd: dir}
-	handler := api.NewLocal(api.Deps{Config: c, Manager: m, Workspace: ws, Code: codeview.New(m, nil), Files: files.New(dir)}, api.Local{Status: func() contract.StatusV1 {
+	const hybridID = "abcdefgh"
+	project := func(info session.Info) contract.SessionInfo {
+		out := (pluginwire.Projection{}).Session(info)
+		if info.ID == hybridID {
+			pluginwire.ProjectChat(&out, &hybrid.Metadata{
+				Side: "acp", State: "active", Agent: "fake", AgentTitle: "Fake",
+			})
+		}
+		return out
+	}
+	handler := api.NewLocal(api.Deps{Manager: m, SessionProjection: hub.Options{Project: project}}, api.Local{Status: func() contract.StatusV1 {
 		return contract.StatusV1{V: 1, State: contract.StateRunning, LocalAPI: true, Record: true}
 	}})
 
@@ -69,32 +75,43 @@ func TestWSLServiceStatusAndWatch(t *testing.T) {
 	if status, err := service.Status(ctx); err != nil || !status.LocalAPI {
 		t.Fatalf("local status %+v %v", status, err)
 	}
-	counts := make(chan int, 16)
+	counts := make(chan SessionCounts, 16)
 	watchCtx, stopWatch := context.WithCancel(ctx)
 	done := make(chan error, 1)
-	go func() { done <- service.Watch(watchCtx, func(n int) { counts <- n }) }()
-	expect := func(want int) {
+	go func() { done <- service.Watch(watchCtx, func(c SessionCounts) { counts <- c }) }()
+	expect := func(want SessionCounts) {
 		t.Helper()
 		for {
 			select {
-			case n := <-counts:
-				if n == want {
+			case c := <-counts:
+				if c == want {
 					return
 				}
 			case <-ctx.Done():
-				t.Fatalf("session count never reached %d", want)
+				t.Fatalf("session counts never reached %+v", want)
 			}
 		}
 	}
-	expect(0)
+	expect(SessionCounts{Known: true})
 	first, err := m.Create(session.CreateInput{Cwd: dir, Cmd: []string{"cat"}, Name: "", Env: nil, ConfigID: ""})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.Create(session.CreateInput{Cwd: dir, Cmd: []string{"cat"}, Name: "", Env: nil, ConfigID: ""}); err != nil {
+	second, err := m.CreateShell(session.ShellInput{
+		CreateInput: session.CreateInput{Cwd: dir, Cmd: []string{"fake"}},
+		ID:          hybridID,
+		Overlay: &session.Overlay{
+			Status: session.StatusRunning,
+		},
+	}, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
-	expect(2)
+	expect(SessionCounts{Total: 2, Known: true, Terminal: 1, Hybrid: 1, Working: 2, HybridWorking: 1})
+	second.SetOverlay(&session.Overlay{
+		Status: session.StatusIdle,
+	})
+	expect(SessionCounts{Total: 2, Known: true, Terminal: 1, Hybrid: 1, Working: 1})
 	if err := m.Close(first.Info().ID); err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +121,7 @@ func TestWSLServiceStatusAndWatch(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	expect(1)
+	expect(SessionCounts{Total: 1, Known: true, Hybrid: 1})
 	stopWatch()
 	<-done
 }

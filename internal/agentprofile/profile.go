@@ -15,8 +15,9 @@ import (
 
 // Agent is one CLI agent that hybrid sessions can move between a terminal
 // UI and an ACP connection. Behaviour that only some agents have is an
-// optional interface (Resumer, ConfigReapplier, Steerer, LockTracker,
-// ForceSwitchNoter); callers type-assert for it.
+// optional interface (Resumer, TUIResumePreparer, ConfigReapplier, Steerer,
+// LockTracker, SessionLocker, ProcessRegistry, ForceSwitchNoter); callers
+// type-assert for it.
 type Agent interface {
 	// Profile is the agent's static description; it is read-only.
 	Profile() *Profile
@@ -35,10 +36,52 @@ type Resumer interface {
 	ResumesSessions() bool
 }
 
+// TUIResumePreparer is an agent whose persisted session state needs an
+// adjustment before a terminal UI resumes it. Changed reports a write.
+type TUIResumePreparer interface {
+	PrepareTUIResume(sessionID string, getenv func(string) string, userHome string) (changed bool, err error)
+}
+
+// PrepareTUIResume applies an agent's terminal-resume compatibility hook.
+func PrepareTUIResume(a Agent, sessionID string, getenv func(string) string, userHome string) (bool, error) {
+	p, ok := a.(TUIResumePreparer)
+	if !ok {
+		return false, nil
+	}
+	return p.PrepareTUIResume(sessionID, getenv, userHome)
+}
+
 // ConfigReapplier is an agent whose session/load does not restore some
 // config options, so their recorded values are set again after a load.
 type ConfigReapplier interface {
 	ReapplyOnLoad() []string
+}
+
+// ConfigErrorHandler reports whether a configuration error means the wanted
+// value is already in effect and therefore needs no further write.
+type ConfigErrorHandler interface {
+	ConfigErrorHandled(err error, configID, value string) bool
+}
+
+// ConfigErrorHandled reports whether err is an idempotent configuration error.
+func ConfigErrorHandled(a Agent, err error, configID, value string) bool {
+	h, ok := a.(ConfigErrorHandler)
+	return ok && h.ConfigErrorHandled(err, configID, value)
+}
+
+// SubmitDelayer is an agent whose TUI needs time between a text submission
+// and its Enter key so the Enter is not consumed as part of a paste burst.
+type SubmitDelayer interface {
+	SubmitDelay() time.Duration
+}
+
+// SubmitDelay reports how long to wait between a text submission and Enter.
+func SubmitDelay(a Agent) time.Duration {
+	d, ok := a.(SubmitDelayer)
+	if !ok {
+		return 0
+	}
+	return d.SubmitDelay()
 }
 
 // Steerer is an agent with a private extension that adds text to the
@@ -72,6 +115,29 @@ type ProcessFacts struct {
 	Cwd        string
 	Start      string
 	Domain     string
+}
+
+// SessionLocker is an agent whose sessions carry per-process writer locks:
+// session/load answers a lock error while another process holds the
+// session. The adapter parses that error and names the lock holder, so the
+// caller can release a stale lock or report the session as held.
+type SessionLocker interface {
+	// LockHeldBy parses err (an RPCError from session/load) into the lock
+	// holder's PID; ok is false for other errors.
+	LockHeldBy(err error) (pid int, ok bool)
+	// ForceCloseMeta is the session/close _meta that releases a lock held
+	// by another process, nil for a plain close.
+	ForceCloseMeta() json.RawMessage
+}
+
+// LockHeldBy reports the PID holding the session a's session/load refused,
+// or false when err is not a lock error or a locks no session.
+func LockHeldBy(a Agent, err error) (int, bool) {
+	l, ok := a.(SessionLocker)
+	if !ok {
+		return 0, false
+	}
+	return l.LockHeldBy(err)
 }
 
 // ProcessRegistry is an agent whose session IDs and external writers can be
@@ -191,6 +257,9 @@ const (
 	PositionalPrompt Positional = iota
 	// PositionalDirectory arguments name a working directory.
 	PositionalDirectory
+	// PositionalDirectoryPrompt arguments before "--" name a working
+	// directory; arguments after it are an initial prompt and are dropped.
+	PositionalDirectoryPrompt
 )
 
 // Profile is an agent's static description: identity, versions, how its
@@ -211,6 +280,9 @@ type Profile struct {
 	// VerifiedVersion is the newest release measured; older versions only
 	// produce a notice.
 	VerifiedVersion string
+	// VersionExecutable: the agent's agentInfo.version is not a release
+	// version; the executable's --version output is checked instead.
+	VersionExecutable bool
 	// Connector provides the ACP side; nil when the agent's own executable
 	// has an acp subcommand.
 	Connector *Connector
@@ -246,6 +318,13 @@ type Profile struct {
 	// full "provider/model" id, for agents whose model display names repeat
 	// across providers.
 	ModelChoiceValues bool
+	// BackgroundStatusPrompt asks the agent to flush and report background
+	// status after watched processes exit. Empty does not start an extra turn.
+	BackgroundStatusPrompt string
+	// DefaultChatMode is used on first chat open when argv does not select a mode.
+	DefaultChatMode string
+	// ChatModeAliases groups equivalent mode IDs across agent versions.
+	ChatModeAliases [][]string
 	// ChatSide derives chat-side config values from the kept options and
 	// lists the kept options the chat side cannot apply.
 	ChatSide func(kept []KeptOption) ([]Seed, []string)

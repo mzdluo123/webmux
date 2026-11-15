@@ -1,8 +1,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
-import * as S from "../src/schemas";
+import * as S from "../src/contracts/schemas";
 
 const directory = fileURLToPath(
   new URL("../../internal/api/testdata/wire/", import.meta.url),
@@ -14,7 +14,31 @@ const TerminalMovedSchema = z.object({
   reason: z.string().startsWith("session moved"),
 });
 const groups: Array<[z.ZodType, string[]]> = [
+  [
+    S.HandoffDraftSchema,
+    ["handoff-draft-empty", "handoff-draft-saved", "handoff-draft-delivery"],
+  ],
+  [
+    S.HandoffPreviewSchema,
+    ["handoff-preview-empty", "handoff-preview-manual", "handoff-preview-get"],
+  ],
+  [S.ErrorSchema, ["handoff-preview-conflict"]],
+  [S.HandoffSelectionSchema, ["handoff-selection-empty"]],
+  [
+    S.HandoffDeliverySchema,
+    [
+      "handoff-delivery-pending",
+      "handoff-delivery-failed",
+      "handoff-delivery-retry",
+    ],
+  ],
+  [
+    S.ConversationActivitiesSchema,
+    ["conversation-activities", "conversation-activities-empty"],
+  ],
+  [S.ConversationActivitySchema, ["conversation-activity"]],
   [S.ChatFrameSchema, ["ws-chat-events", "ws-chat-snapshot", "ws-chat-state"]],
+  [S.ChatMessageMatchesSchema, ["chat-message-search"]],
   [S.LaunchOptionsSchema, ["launch-config-options"]],
   [
     S.SessionInputResultSchema,
@@ -48,7 +72,7 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.ArtifactsFolderSchema, ["artifacts-ensure", "artifacts-ensure-code"]],
   [S.CodeDiffSchema, ["code-diff"]],
   [S.CodeFileSchema, ["code-file", "code-file-pdf", "code-snapshot-file"]],
-  [S.CodeListingSchema, ["code-files", "code-tree"]],
+  [S.CodeListingSchema, ["code-files", "code-tree", "git-files", "git-tree"]],
   [S.CodeLocationSchema, ["code-locate", "code-locate-pdf"]],
   [S.ConfigSchema, ["config"]],
   [S.DirectoriesSchema, ["fs-dirs-default", "fs-dirs-empty", "fs-dirs-prefix"]],
@@ -99,6 +123,18 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.PushSubscriptionResultSchema, ["push-subscribe-gone", "push-subscribe"]],
   [S.PushTestResultSchema, ["push-test"]],
   [S.RepositoriesSchema, ["repositories-empty", "repositories"]],
+  [S.ProjectsSchema, ["projects-empty", "projects"]],
+  [S.GitHubProjectsSchema, ["projects-github", "projects-github-unavailable"]],
+  [S.ProjectSchema, ["project-create", "project-register-again"]],
+  [
+    S.ProjectCloneOperationSchema,
+    [
+      "project-clone-start",
+      "project-clone-completed",
+      "project-clone-repeat",
+      "project-clone-register-repeat",
+    ],
+  ],
   [
     S.CreateSessionResultSchema,
     [
@@ -130,11 +166,15 @@ const groups: Array<[z.ZodType, string[]]> = [
   ],
   [S.BranchesSchema, ["repository-branches"]],
   [S.CommitsSchema, ["repository-commits"]],
+  [S.RemotesSchema, ["repository-remotes", "repository-remotes-empty"]],
+  [S.FetchRemotesResponseSchema, ["repository-fetch"]],
+  [S.SwitchPreviewSchema, ["worktree-switch-preview"]],
   [S.RefreshBranchBaseResponseSchema, ["repository-branch-refresh"]],
   [
     S.RepositorySchema,
     [
       "repository-register-again",
+      "repository-register-git",
       "repository-register-instruction",
       "repository-register",
       "repository-register-release",
@@ -163,6 +203,7 @@ const groups: Array<[z.ZodType, string[]]> = [
       "ws-terminal-state",
     ],
   ],
+  [S.TerminalOutputSchema, ["terminal-output"]],
   [z.array(S.SessionInfoSchema), ["sessions-list-empty", "sessions-list"]],
   [
     S.SettingsSnapshotSchema,
@@ -178,6 +219,8 @@ const groups: Array<[z.ZodType, string[]]> = [
     S.VoiceSettingsSchema,
     ["voice-settings-get", "voice-settings-put", "voice-settings-reset"],
   ],
+  [S.P2PStatusSchema, ["p2p-get", "p2p-settings-put", "p2p-settings-reset"]],
+  [S.P2PSignalResponseSchema, ["p2p-signal-offer"]],
   [
     S.WorktreeSchema,
     [
@@ -193,6 +236,7 @@ const groups: Array<[z.ZodType, string[]]> = [
   [S.ReleasePreviewSchema, ["worktree-release-preview"]],
   [S.WorktreeUsageSchema, ["worktree-usage"]],
   [S.ReleaseResultSchema, ["worktree-release"]],
+  [S.SwitchPreviewSchema, ["worktree-switch-preview"]],
   [S.RebuildPreviewSchema, ["hybrid-rebuild-preview"]],
   [
     S.SessionEventSchema,
@@ -237,6 +281,133 @@ const groups: Array<[z.ZodType, string[]]> = [
       "ws-terminal-submission-missing",
       "ws-terminal-submission-received",
       "ws-terminal-submission-written",
+    ],
+  ],
+  // add-branch-sync-actions
+  [S.FastForwardPreviewSchema, ["branch-fast-forward-preview"]],
+  [S.PushPreviewSchema, ["branch-push-preview"]],
+  [S.PushResultSchema, ["branch-push"]],
+  [S.BranchDeletePreviewSchema, ["branch-delete-preview"]],
+  [S.BranchDeleteResultSchema, ["branch-delete"]],
+  // git-workbench-v1a-api
+  [S.GitContextSchema, ["git-context-repo", "git-context-worktree"]],
+  [S.GitFileSchema, ["git-file", "git-file-commit", "git-snapshot-file"]],
+  [S.GitChangesSchema, ["git-changes"]],
+  [
+    S.GitDiffSchema,
+    ["git-diff", "git-task-diff", "git-stash-diff", "git-revision-diff"],
+  ],
+  [S.GitCompareSchema, ["git-compare"]],
+  [
+    S.GitHistoryPageSchema,
+    ["git-history", "git-history-task", "git-history-no-baseline"],
+  ],
+  [S.GitCommitDetailResponseSchema, ["git-commit-detail"]],
+  [S.GitStagingOverviewSchema, ["git-staging"]],
+  [
+    S.GitStagingFileDiffSchema,
+    [
+      "git-staging-diff",
+      "git-staging-diff-staged",
+      "git-staging-diff-v3",
+      "git-staging-diff-v3-staged",
+    ],
+  ],
+  [
+    S.NoContentSchema,
+    [
+      "git-stage",
+      "git-stage-file",
+      "git-stage-lines",
+      "git-unstage",
+      "git-unstage-lines",
+      "git-task-baseline-delete",
+    ],
+  ],
+  [
+    S.GitTaskBaselineResponseSchema,
+    ["git-task-baseline", "git-task-baseline-empty", "git-task-baseline-put"],
+  ],
+  [
+    S.GitTaskChangesSchema,
+    ["git-task-changes", "git-task-changes-no-baseline"],
+  ],
+  [
+    S.GitCommitPreviewSchema,
+    [
+      "git-commit-preview",
+      "git-commit-preview-blocked",
+      "git-commit-amend-preview",
+    ],
+  ],
+  [S.GitCommitResultSchema, ["git-commit", "git-commit-amend"]],
+  [S.GitOperationSchema, ["git-operation"]],
+  [S.GitOperationsSchema, ["git-operations"]],
+  [S.GitReviewsResponseSchema, ["git-reviews", "git-reviews-put"]],
+  [S.GitCommitDraftSchema, ["git-commit-draft-empty", "git-commit-draft-put"]],
+  [
+    S.GitInProgressOperationSchema,
+    ["git-operation-state", "git-operation-state-idle"],
+  ],
+  [
+    S.GitDivergencePreviewSchema,
+    [
+      "git-merge-preview",
+      "git-rebase-preview",
+      "git-cherry-pick-preview",
+      "git-cherry-pick-preview-2",
+      "git-revert-preview",
+    ],
+  ],
+  [S.GitAbortOperationPreviewSchema, ["git-abort-preview"]],
+  [
+    S.GitDivergenceResultSchema,
+    [
+      "git-merge-conflicted",
+      "git-cherry-pick-conflicted",
+      "git-operation-continue",
+      "git-operation-abort",
+    ],
+  ],
+  [S.GitConflictFileDetailSchema, ["git-conflict-detail"]],
+  [S.GitSaveConflictResponseSchema, ["git-conflict-save"]],
+  [S.GitResolveConflictResponseSchema, ["git-conflict-resolve"]],
+  [S.GitStashListSchema, ["git-stashes"]],
+  [S.GitStashDetailSchema, ["git-stash-detail"]],
+  [S.GitStashCreatePreviewSchema, ["git-stash-create-preview"]],
+  [S.GitStashCreateResultSchema, ["git-stash-create"]],
+  [S.GitStashApplyPreviewSchema, ["git-stash-apply-preview"]],
+  [S.GitStashApplyResultSchema, ["git-stash-apply"]],
+  [S.GitStashDropPreviewSchema, ["git-stash-drop-preview"]],
+  [S.GitStashDropResultSchema, ["git-stash-drop"]],
+  [S.GitBranchRenamePreviewSchema, ["git-branch-rename-preview"]],
+  [
+    S.GitBranchMutationResultSchema,
+    ["git-branch-rename", "git-branch-upstream"],
+  ],
+  [S.GitTagCreateResultSchema, ["git-tag-create"]],
+  [S.GitTagDeleteResultSchema, ["git-tag-delete"]],
+  [
+    S.GitRemoteMutationResultSchema,
+    ["git-remote-add", "git-remote-update", "git-remote-remove"],
+  ],
+  [S.GitFileHistoryPageSchema, ["git-file-history"]],
+  [S.GitBlameResultSchema, ["git-blame"]],
+  [S.GitDiscardPreviewSchema, ["git-discard-preview"]],
+  [S.GitDiscardResultSchema, ["git-discard"]],
+  [S.GitSmartCheckoutPreviewSchema, ["git-smart-checkout-preview"]],
+  [S.GitSmartCheckoutResultSchema, ["git-smart-checkout"]],
+  [
+    S.GitConflictSchema,
+    [
+      "error-409-git-busy",
+      "error-409-git-conflicted",
+      "error-409-git-context-mismatch",
+      "error-409-git-draft-conflict",
+      "error-409-git-idempotency",
+      "error-409-git-no-task-baseline",
+      "error-409-git-readonly",
+      "error-409-git-stale",
     ],
   ],
 ];
@@ -302,6 +473,25 @@ describe("Go wire snapshots", () => {
       expect(schema!.parse(body), file).toEqual(body);
     });
   }
+
+  it("requires searchable message identity, role, excerpt and timestamp", () => {
+    const snapshot = JSON.parse(
+      readFileSync(directory + "chat-message-search.json", "utf8"),
+    ) as {
+      body: unknown[];
+    };
+    const match = S.ChatMessageMatchSchema.parse(normalize(snapshot.body[0]));
+    for (const field of Object.keys(match)) {
+      const incomplete = { ...match } as Record<string, unknown>;
+      delete incomplete[field];
+      expect(S.ChatMessageMatchSchema.safeParse(incomplete).success).toBe(
+        false,
+      );
+    }
+    expect(
+      S.ChatMessageMatchSchema.safeParse({ ...match, role: "thought" }).success,
+    ).toBe(false);
+  });
 
   it("keeps document and change node IDs required, not merely accepted", () => {
     for (const schema of [S.CodeDocumentSchema, S.CodeChangeSchema])

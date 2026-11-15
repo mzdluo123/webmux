@@ -1,13 +1,15 @@
 <script lang="ts">
   import IconFile from "~icons/tabler/file";
   import IconHandStop from "~icons/tabler/hand-stop";
-  import CodeMarkdownPreview from "../CodeMarkdownPreview.svelte";
-  import InlineNotice from "../InlineNotice.svelte";
-  import type { DisplayEntry } from "../../chat-model";
-  import type { ChatCodeLink } from "../../markdown-link";
-  import type { StopReason } from "../../schemas";
+  import CodeMarkdownPreview from "../code/CodeMarkdownPreview.svelte";
+  import InlineNotice from "../shared/InlineNotice.svelte";
+  import type { DisplayEntry } from "../../domains/chat/chat-model";
+  import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
+  import type { StopReason } from "../../contracts/schemas";
+  import { sessionReferenceParts } from "../../domains/sessions/session-reference";
   import ChatAttachmentImage from "./ChatAttachmentImage.svelte";
   import ChatDisclosure from "./ChatDisclosure.svelte";
+  import TurnChanges from "./TurnChanges.svelte";
   import ToolGroup from "./ToolGroup.svelte";
 
   // One transcript entry: the user's turn is a bubble, the agent's reply is
@@ -25,8 +27,8 @@
     preview?: (path: string) => string | undefined;
     /** Tool calls whose permission request waits for an answer. */
     waiting: readonly string[];
-    onreview: (path: string) => void;
-    onopenlocation?: (target: ChatCodeLink) => void;
+    onreview?: (path: string) => void;
+    onopenlocation?: ChatCodeLinkHandler;
   } = $props();
 
   const turnEnds: Partial<
@@ -49,7 +51,7 @@
 {#snippet separator(text: string)}
   <div class="flex items-center gap-3 py-1 text-xs text-muted-foreground">
     <span class="h-px flex-1 bg-border"></span>
-    <span class="min-w-0 text-center break-words">{text}</span>
+    <span class="min-w-0 text-center wrap-anywhere">{text}</span>
     <span class="h-px flex-1 bg-border"></span>
   </div>
 {/snippet}
@@ -57,10 +59,14 @@
 {#if entry.type === "message" && entry.role === "user"}
   <div class="flex justify-end pt-2">
     <div
-      class="max-w-[85%] min-w-0 space-y-1.5 rounded-lg bg-muted px-4 py-2.5 text-sm leading-relaxed break-words"
+      class="max-w-[85%] min-w-0 space-y-1.5 rounded-lg bg-muted px-4 py-2.5 text-sm leading-relaxed wrap-anywhere"
     >
       {#if entry.text}<p class="whitespace-pre-wrap">
-          <span class="sr-only">你：</span>{entry.text}
+          <span class="sr-only">你：</span
+          >{#each sessionReferenceParts(entry.text) as part, i (i)}{#if part.href}<a
+                class="rounded-sm text-primary underline underline-offset-2 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                href={part.href}>{part.text}</a
+              >{:else}{part.text}{/if}{/each}
         </p>{/if}
       {#if entry.attachments?.length}
         <ul class="flex flex-wrap gap-1" aria-label="附件">
@@ -109,7 +115,7 @@
         >
         <span class="h-px flex-1 bg-border"></span>
       {/snippet}
-      <p class="break-words whitespace-pre-wrap">{entry.summary}</p>
+      <p class="wrap-anywhere whitespace-pre-wrap">{entry.summary}</p>
     </ChatDisclosure>
   {:else}
     {@render separator(
@@ -130,6 +136,7 @@
   >
 {:else if entry.type === "turnEnd"}
   {@const end = turnEnds[entry.stopReason]}
+  {#if entry.changes?.length}<TurnChanges changes={entry.changes} />{/if}
   {#if end?.error}
     <InlineNotice tone="danger"
       >{end.text}{entry.error ? `：${entry.error}` : ""}</InlineNotice

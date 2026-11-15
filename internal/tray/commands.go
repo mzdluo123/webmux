@@ -37,7 +37,8 @@ func (s *Supervisor) handle(ctx context.Context, ls *loopState, ev any, boot *bo
 		s.onReach(ls, ev.err)
 	case sessionsEvent:
 		if ev.gen == ls.gen {
-			ls.Sessions = ev.count
+			ls.Sessions = ev.counts.Total
+			ls.SessionCounts = ev.counts
 		}
 	case watchEndEvent:
 		if ev.gen != ls.gen {
@@ -45,6 +46,7 @@ func (s *Supervisor) handle(ctx context.Context, ls *loopState, ev any, boot *bo
 		}
 		ls.watching = false
 		ls.watchStop = nil
+		ls.SessionCounts.Known = false
 		if ls.State == StateRunning || ls.State == StateUnreachable || ls.State == StateExternal || ls.State == StateFailed {
 			s.logf("session subscription ended: %v", ev.err)
 			s.refresh(ctx, ls)
@@ -128,6 +130,8 @@ func (s *Supervisor) command(ctx context.Context, ls *loopState, c command) bool
 			ls.gen++
 			s.stopWatch(ls)
 			ls.watching = false
+			ls.Sessions = 0
+			ls.SessionCounts = SessionCounts{}
 			ls.HasStatus = false
 			ls.Status = contract.StatusV1{}
 			ls.Degraded = false

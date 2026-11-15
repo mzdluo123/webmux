@@ -81,29 +81,30 @@ func (p *fakeProc) exit(code int)         { p.once.Do(func() { p.code = code; cl
 
 // fakeService simulates WebMux inside WSL.
 type fakeService struct {
-	mu          sync.Mutex
-	running     bool
-	launcher    string
-	record      bool
-	sessions    int
-	health      contract.HealthStatus
-	statusErr   error
-	checkErr    error
-	detection   Detection
-	ready       bool // a started server becomes healthy
-	crash       bool // a started server exits at once
-	ignoreStop  bool
-	unitFailed  bool
-	procs       []*fakeProc
-	calls       []string
-	watchers    []chan int
-	stoppedPort contract.HealthStatus
-	version     string // reported by Check; a start runs it
-	contract    int    // reported by Check and Status; 0 means 1
-	runningAs   string // version of the running instance
-	installs    string // version Install puts in place; default 9.9.9
-	installErr  error  // Install fails with it and changes nothing
-	tunnel      *contract.TunnelStatus
+	mu            sync.Mutex
+	running       bool
+	launcher      string
+	record        bool
+	sessions      int
+	sessionCounts *SessionCounts
+	health        contract.HealthStatus
+	statusErr     error
+	checkErr      error
+	detection     Detection
+	ready         bool // a started server becomes healthy
+	crash         bool // a started server exits at once
+	ignoreStop    bool
+	unitFailed    bool
+	procs         []*fakeProc
+	calls         []string
+	watchers      []chan SessionCounts
+	stoppedPort   contract.HealthStatus
+	version       string // reported by Check; a start runs it
+	contract      int    // reported by Check and Status; 0 means 1
+	runningAs     string // version of the running instance
+	installs      string // version Install puts in place; default 9.9.9
+	installErr    error  // Install fails with it and changes nothing
+	tunnel        *contract.TunnelStatus
 }
 
 func (f *fakeService) call(name string) {
@@ -167,35 +168,45 @@ func (f *fakeService) Status(context.Context) (contract.StatusV1, error) {
 	return s, nil
 }
 
-func (f *fakeService) Watch(ctx context.Context, sessions func(int)) error {
+func (f *fakeService) Watch(ctx context.Context, sessions func(SessionCounts)) error {
 	f.mu.Lock()
 	if !f.running {
 		f.mu.Unlock()
 		return errors.New("not running")
 	}
-	ch := make(chan int, 8)
+	ch := make(chan SessionCounts, 8)
 	f.watchers = append(f.watchers, ch)
-	ch <- f.sessions
+	if f.sessionCounts != nil {
+		ch <- *f.sessionCounts
+	} else {
+		ch <- SessionCounts{Total: f.sessions, Known: true, Terminal: f.sessions}
+	}
 	f.mu.Unlock()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case n, ok := <-ch:
+		case c, ok := <-ch:
 			if !ok {
 				return errors.New("disconnected")
 			}
-			sessions(n)
+			sessions(c)
 		}
 	}
 }
 
 func (f *fakeService) setSessions(n int) {
+	f.setSessionCounts(SessionCounts{Total: n, Known: true, Terminal: n})
+}
+
+func (f *fakeService) setSessionCounts(c SessionCounts) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.sessions = n
+	f.sessions = c.Total
+	copyCounts := c
+	f.sessionCounts = &copyCounts
 	for _, ch := range f.watchers {
-		ch <- n
+		ch <- c
 	}
 }
 
@@ -433,7 +444,16 @@ func TestSupervisorAutostartsTrayManaged(t *testing.T) {
 		t.Fatalf("running %+v calls %v", snap, service.calls)
 	}
 	service.setSessions(3)
-	h.wait("session count", func(s Snapshot) bool { return s.Sessions == 3 })
+	h.wait("session count", func(s Snapshot) bool {
+		return s.Sessions == 3 && s.SessionCounts.Known && s.SessionCounts.Terminal == 3
+	})
+	service.setSessionCounts(SessionCounts{Total: 2, Known: true, Hybrid: 2})
+	snap = h.wait("idle hybrid sessions", func(s Snapshot) bool {
+		return s.Sessions == 2 && s.SessionCounts.Hybrid == 2 && s.SessionCounts.Terminal == 0
+	})
+	if _, needed := RestartConfirmPrompt("重启 WebMux ", snap); needed {
+		t.Fatalf("unexpected restart prompt for idle hybrid sessions: %+v", snap.SessionCounts)
+	}
 }
 
 func TestSupervisorAutoSelectsSystemd(t *testing.T) {
@@ -524,7 +544,7 @@ func TestSupervisorUnexpectedExitBacksOffAndGivesUp(t *testing.T) {
 	service.mu.Unlock()
 	service.die(1) // e.g. wsl --shutdown
 	snap := h.state(StateRestarting)
-	if notes := h.notifications(); len(notes) != 1 || !strings.Contains(notes[0], "会话已丢失") {
+	if notes := h.notifications(); len(notes) != 1 || !strings.Contains(notes[0], "普通终端会话已丢失，混合会话可在启动后恢复") {
 		t.Fatalf("notifications %v", notes)
 	}
 	if !strings.Contains(snap.Reason, "2 秒后重试") {
@@ -604,7 +624,7 @@ func TestSupervisorUpgradeRestoresVersionHint(t *testing.T) {
 	}
 	h.sup.Recheck()
 	snap = h.wait("rechecked", func(s Snapshot) bool { return s.Compat == CompatMatched })
-	if snap.Installable() || VersionHint(snap) != "WSL 中已安装 0.3.0，重启 WebMux 后生效，重启会结束所有会话" || !snap.Actions().Restart {
+	if snap.Installable() || VersionHint(snap) != "WSL 中已安装 0.3.0，重启 WebMux 后生效（普通终端会话会结束，混合会话会自动恢复）" || !snap.Actions().Restart {
 		t.Fatalf("after install %q %+v", VersionHint(snap), snap.Actions())
 	}
 	h.sup.Restart()
@@ -659,7 +679,7 @@ func TestSupervisorRunningInstanceDiffersFromInstalled(t *testing.T) {
 	settings.Mode = ModeTray
 	h := newVersionedHarness(t, service, settings, "0.3.0")
 	snap := h.wait("checked", func(s Snapshot) bool { return s.State == StateExternal && s.Compat != "" && s.Running != nil })
-	if snap.Compat != CompatMatched || snap.RunningCompat != CompatServerOlder || snap.Actions().Restart || VersionHint(snap) != "WSL 中已安装 0.3.0，重启 WebMux 后生效，重启会结束所有会话" {
+	if snap.Compat != CompatMatched || snap.RunningCompat != CompatServerOlder || snap.Actions().Restart || VersionHint(snap) != "WSL 中已安装 0.3.0，重启 WebMux 后生效（普通终端会话会结束，混合会话会自动恢复）" {
 		t.Fatalf("systemd instance %+v %q", snap, VersionHint(snap))
 	}
 }

@@ -1,0 +1,27 @@
+{
+  "status": 200,
+  "body": {
+    "affectedPaths": [
+      "stash-note.txt",
+      "sub/b.txt"
+    ],
+    "blockers": [],
+    "confirmationId": "<confirmationId#8>",
+    "currentBranch": "main",
+    "detached": false,
+    "expiresAt": "<time>",
+    "headOid": "029aad08115e96af87a9df174c887599dc4eae5b",
+    "headSubject": "Merge branch 'refs/heads/feat-conflict'",
+    "includeUntracked": true,
+    "keepIndex": false,
+    "message": "WIP: stash snapshot",
+    "repositoryId": "<id#1>",
+    "sessions": [],
+    "stagedCount": 0,
+    "unstagedCount": 1,
+    "untrackedCount": 1,
+    "warnings": [],
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

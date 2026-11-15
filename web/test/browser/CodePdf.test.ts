@@ -1,6 +1,6 @@
 import { tick } from "svelte";
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Harness from "./CodeImageHarness.svelte";
 import ViewHarness from "./CodePdfViewHarness.svelte";
@@ -8,7 +8,7 @@ import {
   CodeFileSchema,
   type CodeDocument,
   type CodeFile,
-} from "../../src/schemas";
+} from "../../src/contracts/schemas";
 import { brokenPdf, pdfFixture } from "../fixtures/pdf";
 
 const now = "2026-10-24T00:00:00Z";

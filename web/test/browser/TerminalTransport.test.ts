@@ -1,10 +1,10 @@
 // Send-queue backpressure, PTY geometry, control, device replies, session
 // frames, submissions and invalid server frames.
-import { expect, test } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { expect, test } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
-import type { SubmissionProgress } from "../../src/schemas";
-import { resetBrowserChrome } from "../../src/browser-chrome";
+import type { SubmissionProgress } from "../../src/contracts/schemas";
+import { resetBrowserChrome } from "../../src/platform/browser-chrome";
 import Harness from "./TerminalHarness.svelte";
 import {
   blurAndTrackFocus,

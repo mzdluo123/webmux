@@ -1,50 +1,117 @@
+<script lang="ts" module>
+  type SessionPageModule = typeof import("./pages/Terminal.svelte");
+  // Kept after the first visit. A resolved import still paints `{#await}`'s
+  // pending branch, so later opens must render the module directly.
+  let sessionPage: SessionPageModule | undefined;
+
+  function cachedSessionPage() {
+    return sessionPage;
+  }
+
+  function loadSessionPage() {
+    const pending = import("./pages/Terminal.svelte");
+    void pending.then((mod) => {
+      sessionPage = mod;
+    });
+    return pending;
+  }
+</script>
+
 <script lang="ts">
-  import Brand from "./components/Brand.svelte";
-  import { startSettings, stopSettings } from "./settings.svelte";
-  import { errorMessage } from "./error";
+  import ConnectionGate from "./components/shell/ConnectionGate.svelte";
+  import {
+    startSettings,
+    stopSettings,
+    settings,
+  } from "./domains/settings/settings.svelte";
+  import { errorMessage } from "./platform/error";
   import { onMount, tick } from "svelte";
-  import { api, consumeTokenFragment, navigate, store, stored } from "./api";
-  import { HealthSchema } from "./schemas";
-  import { sync as syncPush } from "./push";
+  import {
+    api,
+    consumeTokenFragment,
+    navigate,
+    store,
+    stored,
+  } from "./platform/api";
+  import { HealthSchema } from "./contracts/schemas";
   import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
-  import { Label } from "$lib/components/ui/label";
-  import * as Card from "$lib/components/ui/card";
-  import TokenHelp from "./components/TokenHelp.svelte";
-  import LazyPage from "./components/LazyPage.svelte";
-  import AppShell from "./components/AppShell.svelte";
-  import SessionSwitcher from "./components/SessionSwitcher.svelte";
+  import LazyPage from "./components/shared/LazyPage.svelte";
+  import AppShell from "./components/shell/AppShell.svelte";
+  import PluginPage from "./plugins/PluginPage.svelte";
+  import PluginLoadNotices from "./plugins/PluginLoadNotices.svelte";
+  import SessionSwitcher from "./components/shell/SessionSwitcher.svelte";
   import type TerminalPage from "./pages/Terminal.svelte";
   import {
     isSessionSwitcherShortcut,
     provideSessionSwitcher,
-  } from "./session-switcher";
+  } from "./hooks/shared/session-switcher";
   import SessionList from "./pages/SessionList.svelte";
-  import { matchRoute, type Route } from "./route";
-  import { enterHome, openSession } from "./shell.svelte";
-  import { createTerminalDrafts } from "./terminal-draft.svelte";
-  import { browserDraftStorage } from "./draft-storage";
-  import { clearHomeCache } from "./home-cache";
-  import { resetAttentionToasts } from "./attention-toast.svelte";
+  import { matchRoute, routePlugin, type Route } from "./hooks/shared/route";
+  import { enterHome, openSession } from "./hooks/shared/shell.svelte";
+  import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
+  import { browserDraftStorage } from "./domains/terminal/draft-storage";
+  import { clearHomeCache } from "./domains/workspace/home-cache";
+  import { sessionPins } from "./domains/sessions/session-pins.svelte";
+  import {
+    clearSessionListSnapshot,
+    sessionListSnapshot,
+  } from "./hooks/sessions/session-list.svelte";
+  import { CapabilitiesSchema } from "./contracts/plugin-schemas";
+  import {
+    pluginEnabled,
+    pluginAvailable,
+    setPluginCapabilities,
+    resetPluginCapabilities,
+    requestPluginHostRefresh,
+  } from "./platform/plugin-host.svelte";
+  import {
+    loadPluginContributions,
+    disposePluginContributions,
+    pluginContributions,
+  } from "./plugins/registry.svelte";
+  import { watchPluginHostRefresh } from "./plugins/host-refresh";
+  import { onActiveHostChange } from "./platform/storage";
+  import { useDeviceShell } from "./hooks/shared/device-shell.svelte";
+  import { tvInput } from "./hooks/shared/tv-input.svelte";
+  import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
+  import InlineNotice from "./components/shared/InlineNotice.svelte";
+
+  useDeviceShell();
 
   const drafts = createTerminalDrafts({ storage: browserDraftStorage() });
   let uploadNotice = $state("");
 
-  enterHome();
   let path = $state(location.pathname);
+  let search = $state(location.search);
   let ready = $state(false);
+  let rebuildingPlugins = $state(false);
   let checking = $state(true);
   let token = $state(stored("token"));
   let error = $state("");
+  let discoveryError = $state("");
+  let bootstrapEpoch = 0;
+  let bootstrapAbort: AbortController | undefined;
   const route = $derived(matchRoute(path));
+  const contributions = $derived(pluginContributions.entries);
+  const requiredPlugin = $derived(routePlugin(route));
+  const routeUnavailable = $derived(
+    requiredPlugin &&
+      (!pluginEnabled(requiredPlugin) ||
+        pluginContributions.errors[requiredPlugin] ||
+        (route.name === "git" && !pluginAvailable("workspace.git-workbench"))),
+  );
   const sessionId = $derived(route.name === "terminal" ? route.id : "");
   const shellRoute = $derived(
     route.name === "sessions" ||
       route.name === "quick-start" ||
-      route.name === "terminal"
+      route.name === "handoff" ||
+      route.name === "terminal" ||
+      route.name === "git"
       ? (route as Extract<
           Route,
-          { name: "sessions" | "quick-start" | "terminal" }
+          {
+            name: "sessions" | "quick-start" | "terminal" | "handoff" | "git";
+          }
         >)
       : null,
   );
@@ -55,6 +122,7 @@
   let terminal = $state<TerminalPage>();
   let switcherOpen = $state(false);
   let switcherInvoker: HTMLElement | null = null;
+  let pendingSessionOpen = $state("");
 
   function openSwitcher(invoker: HTMLElement | null) {
     switcherInvoker = invoker;
@@ -64,6 +132,7 @@
 
   function switcherShortcut(event: KeyboardEvent) {
     if (
+      xrPresentation.active ||
       !canSwitch ||
       switcherOpen ||
       !isSessionSwitcherShortcut(event) ||
@@ -84,29 +153,94 @@
     switcherInvoker = null;
   }
 
-  function selectSession(id: string) {
+  function selectSession(id: string, messageId?: string) {
     switcherInvoker = null;
-    if (!terminal?.activateSession(id) && id !== sessionId) openSession({ id });
+    if (messageId) {
+      const anchor = terminal?.activateSession(id) ? sessionId : id;
+      const query = new URLSearchParams({
+        message: messageId,
+        messageSession: id,
+      });
+      navigate(`/s/${anchor}?${query}`);
+      return;
+    }
+    if (terminal?.activateSession(id)) return;
+    if (id === sessionId && terminal) {
+      terminal.reopenSession(id);
+      return;
+    }
+    pendingSessionOpen = id;
+    openSession({ id });
   }
 
-  // The frame of a pop-out code window; it only shows the code workspace.
-  const codeId = $derived(route.name === "code" ? route.id : "");
+  // The list already names the side. The loading line must not call a chat
+  // session a terminal while this page's chunk is still arriving.
+  const pageLabel = $derived(
+    sessionListSnapshot()?.find((session) => session.id === sessionId)?.view ===
+      "chat"
+      ? "聊天"
+      : "终端",
+  );
+  // Re-read the cached chunk when the open session changes. Filling the
+  // cache during this visit must not replace the page already on screen.
+  const openedPage = $derived.by(() => {
+    void sessionId;
+    return cachedSessionPage();
+  });
+  // Settings can reconnect while no shell session feed is mounted.
+  let settingsHadConnection = false;
+  let settingsWasConnected = false;
+  $effect(() => {
+    const connected = settings.connected;
+    if (ready && connected && !settingsWasConnected && settingsHadConnection)
+      void requestPluginHostRefresh();
+    if (connected) settingsHadConnection = true;
+    settingsWasConnected = connected;
+  });
 
   async function check() {
     checking = true;
+    bootstrapAbort?.abort();
+    const controller = new AbortController();
+    bootstrapAbort = controller;
+    const epoch = ++bootstrapEpoch;
     try {
-      await api("/health", HealthSchema);
-      ready = true;
+      disposePluginContributions();
+      resetPluginCapabilities();
+      await api("/health", HealthSchema, "GET", undefined, controller.signal);
+      discoveryError = "";
+      try {
+        const capabilities = await api(
+          "/capabilities",
+          CapabilitiesSchema,
+          "GET",
+          undefined,
+          controller.signal,
+        );
+        if (epoch !== bootstrapEpoch) return;
+        setPluginCapabilities(capabilities);
+        enterHome();
+        path = location.pathname;
+        await loadPluginContributions({
+          forwardAuth: route.name === "forward-auth",
+          codePopout: route.name === "code",
+        });
+      } catch (discoveryFailure) {
+        if (epoch !== bootstrapEpoch) return;
+        resetPluginCapabilities();
+        disposePluginContributions();
+        discoveryError = `无法发现可选功能；终端仍可使用。${errorMessage(discoveryFailure)}`;
+        enterHome();
+        path = location.pathname;
+      }
+      if (epoch !== bootstrapEpoch) return;
       startSettings();
+      ready = true;
       error = "";
-      // Re-registers an existing push subscription, e.g. after the server
-      // rebuilt its store; without one it touches nothing.
-      if (route.name !== "code" && route.name !== "forward-auth")
-        void syncPush().catch(() => undefined);
     } catch (err) {
-      error = errorMessage(err);
+      if (epoch === bootstrapEpoch) error = errorMessage(err);
     } finally {
-      checking = false;
+      if (epoch === bootstrapEpoch) checking = false;
     }
   }
 
@@ -128,18 +262,30 @@
       subtree: true,
     });
     const change = () => {
-      if (!shellRoute) enterHome();
-      if (path !== location.pathname) switcherOpen = false;
+      if (ready && !shellRoute) enterHome();
+      const pathChanged = path !== location.pathname;
+      if (pathChanged) switcherOpen = false;
+      pendingSessionOpen = "";
       path = location.pathname;
-      focusRoute = true;
-      void tick().then(focusMain);
+      search = location.search;
+      if (pathChanged) {
+        focusRoute = true;
+        void tick().then(focusMain);
+      }
     };
     const auth = () => {
+      bootstrapEpoch++;
+      bootstrapAbort?.abort();
+      pluginRefresh.cancel();
+      disposePluginContributions();
+      rebuildingPlugins = false;
+      resetPluginCapabilities();
       stopSettings();
       drafts.clearAll();
       clearHomeCache();
-      resetAttentionToasts();
+      clearSessionListSnapshot();
       uploadNotice = "";
+      pendingSessionOpen = "";
       ready = false;
       switcherOpen = false;
       switcherInvoker = null;
@@ -164,9 +310,22 @@
       if (anchor.target && anchor.target !== "_self") return;
       const url = new URL(anchor.href, location.href);
       if (url.origin !== location.origin) return;
-      const appRoute =
-        url.pathname === "/" || matchRoute(url.pathname).name !== "sessions";
+      const targetRoute = matchRoute(url.pathname);
+      const appRoute = url.pathname === "/" || targetRoute.name !== "sessions";
       if (!appRoute) return;
+      // References to an open split pane select it without replacing the
+      // layout, including when its ID is the current route's anchor.
+      if (targetRoute.name === "terminal" && !url.search && !url.hash) {
+        event.preventDefault();
+        if (terminal?.activateSession(targetRoute.id)) return;
+        if (targetRoute.id === sessionId && terminal) {
+          terminal.reopenSession(targetRoute.id);
+          return;
+        }
+        pendingSessionOpen = targetRoute.id;
+        navigate(url.pathname);
+        return;
+      }
       if (url.pathname === location.pathname && url.search === location.search)
         return;
       event.preventDefault();
@@ -177,8 +336,34 @@
     window.addEventListener("keydown", switcherShortcut, true);
     window.addEventListener("webmux:auth", auth);
     if (consumeTokenFragment()) token = stored("token");
+    const disconnectPins = sessionPins.connect();
+    const disconnectHost = onActiveHostChange(() => {
+      auth();
+      token = stored("token");
+      void check();
+    });
+    const pluginRefresh = watchPluginHostRefresh({
+      ready: () => ready,
+      epoch: () => bootstrapEpoch,
+      context: () => ({
+        forwardAuth: route.name === "forward-auth",
+        codePopout: route.name === "code",
+      }),
+      onRebuilding: (value) => {
+        rebuildingPlugins = value;
+        if (value) switcherOpen = false;
+      },
+      onError: (message) => (discoveryError = message),
+    });
     void check();
     return () => {
+      disconnectPins();
+      disconnectHost();
+      pluginRefresh.dispose();
+      bootstrapAbort?.abort();
+      bootstrapEpoch++;
+      disposePluginContributions();
+      resetPluginCapabilities();
       stopSettings();
       routes.disconnect();
       drafts.clearAll();
@@ -190,112 +375,99 @@
   });
 </script>
 
+{#if tvInput.message && !xrPresentation.active}
+  <div
+    class="pointer-events-none fixed inset-x-6 top-6 z-[100] mx-auto w-fit max-w-[calc(100%-3rem)] rounded-lg bg-background shadow-lg"
+  >
+    <InlineNotice>{tvInput.message}</InlineNotice>
+  </div>
+{/if}
+
 {#if !ready}
-  <main class="flex min-h-dvh items-center justify-center p-6">
-    <Card.Root class="w-full max-w-md">
-      <Card.Header>
-        <p class="brand mb-6"><Brand /></p>
-        <Card.Title class="text-2xl">你的终端，始终在线。</Card.Title>
-        <Card.Description>在可信内网中连接这台机器。</Card.Description>
-      </Card.Header>
-      <Card.Content>
-        {#if checking}
-          <p role="status" class="text-muted-foreground">正在连接…</p>
-        {:else}
-          <form
-            class="space-y-5"
-            onsubmit={(event) => {
-              event.preventDefault();
-              store("token", token);
-              void check();
-            }}
-          >
-            <div class="space-y-2">
-              <div class="flex items-center gap-1">
-                <Label for="token">共享 Token</Label>
-                <TokenHelp />
-              </div>
-              <Input
-                id="token"
-                type="password"
-                bind:value={token}
-                autocomplete="current-password"
-              />
-            </div>
-            {#if error}<p role="alert" class="text-destructive">{error}</p>{/if}
-            <Button type="submit" class="w-full">连接 WebMux →</Button>
-          </form>
-        {/if}
-      </Card.Content>
-    </Card.Root>
+  <ConnectionGate
+    {checking}
+    {error}
+    bind:token
+    onconnect={() => {
+      store("token", token);
+      void check();
+    }}
+  />
+{:else if rebuildingPlugins}
+  <main class="mx-auto max-w-xl p-6" aria-busy="true">
+    <InlineNotice>实例功能已更改，正在重新连接…</InlineNotice>
   </main>
-{:else if codeId}
-  <LazyPage
-    load={() => import("./pages/CodePopout.svelte")}
-    label="代码"
-    errorMessage={() => "代码窗口加载失败，请关闭后重新打开。"}
-  >
-    {#snippet children(page)}<page.default id={codeId} />{/snippet}
-  </LazyPage>
-{:else if route.name === "settings-tailscale"}
-  <LazyPage
-    load={() => import("./pages/TailscaleSettingsPage.svelte")}
-    label="Tailscale 设置"
-    loadingText="正在加载 Tailscale 设置…"
-  >
-    {#snippet children(page)}<page.default />{/snippet}
-  </LazyPage>
-{:else if route.name === "settings-tunnel"}
-  <LazyPage
-    load={() => import("./pages/TunnelSettingsPage.svelte")}
-    label="公网访问设置"
-  >
-    {#snippet children(page)}<page.default />{/snippet}
-  </LazyPage>
+{:else if routeUnavailable}
+  <main class="mx-auto max-w-xl space-y-4 p-6">
+    <h1 class="text-2xl font-semibold">功能未启用</h1>
+    <InlineNotice tone="warning"
+      >{requiredPlugin && pluginContributions.errors[requiredPlugin]
+        ? `${requiredPlugin} 加载失败：${pluginContributions.errors[requiredPlugin]}`
+        : route.name === "git" && pluginEnabled("workspace")
+          ? "Git 工作台需要同时启用工作区与代码插件，并确保服务可用。"
+          : `此页面需要 ${requiredPlugin} 插件。请在服务端配置中启用后重启。`}</InlineNotice
+    >
+    <Button href="/">返回会话</Button>
+  </main>
 {:else if route.name === "settings"}
   <LazyPage load={() => import("./pages/Settings.svelte")} label="设置">
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
-{:else if route.name === "forward-auth"}
-  <LazyPage
-    load={() => import("./pages/ForwardAuth.svelte")}
-    label="端口转发"
-    loadingText="正在打开转发…"
-  >
-    {#snippet children(page)}<page.default />{/snippet}
-  </LazyPage>
+{:else if !shellRoute}
+  <PluginPage {route} {search} />
 {:else if shellRoute}
   <AppShell bind:this={shell} route={shellRoute} {drafts}>
     {#if sessionId}
-      <LazyPage
-        load={() => import("./pages/Terminal.svelte")}
-        label="终端"
-        errorMessage={(error) =>
-          error instanceof Error ? error.message : "终端加载失败"}
-      >
-        {#snippet children(page)}
-          {#key sessionId}<page.default
-              bind:this={terminal}
-              id={sessionId}
-              {drafts}
-              onUploadNotice={(message: string) => {
-                if (ready) uploadNotice = message;
-              }}
-            />{/key}
-        {/snippet}
-      </LazyPage>
-    {:else if route.name === "quick-start"}
-      <LazyPage
-        load={() => import("./pages/QuickStart.svelte")}
-        label="快速开始"
-      >
-        {#snippet children(page)}<page.default />{/snippet}
-      </LazyPage>
+      {#if openedPage}
+        {@render session(openedPage)}
+      {:else}
+        <LazyPage
+          load={loadSessionPage}
+          label={pageLabel}
+          errorMessage={(loadError) =>
+            loadError instanceof Error
+              ? loadError.message
+              : `${pageLabel}加载失败`}
+        >
+          {#snippet children(page)}
+            {@render session(page)}
+          {/snippet}
+        </LazyPage>
+      {/if}
+    {:else if route.name !== "sessions" || contributions.workspace}
+      <PluginPage {route} {search} />
     {:else}
       <SessionList />
     {/if}
   </AppShell>
 {/if}
+
+{#if ready && discoveryError}
+  <div class="fixed inset-x-2 bottom-2 z-50">
+    <InlineNotice tone="warning">{discoveryError}</InlineNotice>
+  </div>
+{/if}
+
+{#if ready}
+  <PluginLoadNotices errors={pluginContributions.errors} />
+{/if}
+
+{#snippet session(page: SessionPageModule)}
+  {#key sessionId}
+    <page.default
+      bind:this={terminal}
+      id={sessionId}
+      openTarget={pendingSessionOpen === sessionId ? pendingSessionOpen : ""}
+      onOpenTargetHandled={() => {
+        if (pendingSessionOpen === sessionId) pendingSessionOpen = "";
+      }}
+      {drafts}
+      onUploadNotice={(message: string) => {
+        if (ready) uploadNotice = message;
+      }}
+    />
+  {/key}
+{/snippet}
 
 {#if canSwitch}
   <SessionSwitcher

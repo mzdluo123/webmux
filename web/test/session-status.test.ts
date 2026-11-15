@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import {
   countSessions,
   hasUrgentAttention,
@@ -7,7 +7,7 @@ import {
   sessionStatusTone,
   statusSummary,
   type SessionState,
-} from "../src/session-status";
+} from "../src/domains/sessions/session-status";
 
 const of = (...statuses: SessionState[]) =>
   statuses.map((status) => ({ status }));

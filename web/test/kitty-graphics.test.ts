@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest";
+import { expect, test, vi } from "vite-plus/test";
 import {
   createKittyGraphics,
   createKittyStream,
@@ -6,7 +6,7 @@ import {
   type KittyImage,
   type KittyPlacement,
   type KittyPlacementSpec,
-} from "../src/kitty-graphics";
+} from "../src/domains/terminal/kitty-graphics";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

@@ -17,6 +17,7 @@
 | `state_dir`          | `$XDG_STATE_HOME/webmux` | 服务端状态目录，见 [状态目录](#状态目录)             |
 
 - 配置只在启动时读取；修改后需重启服务。
+- 新生成配置显式只启用 PTY 核心；需要的扩展先在 [内置插件选择](#内置插件选择) 中开启。
 - `webmux status` 的 `drift` 会列出已修改但尚未通过重启生效的 `listen`、`token`。
 
 ## 生成与加载配置
@@ -79,6 +80,42 @@ curl -H 'Authorization: Bearer YOUR_TOKEN' http://127.0.0.1:7681/api/health
 
 JSON 输出契约见 [控制面 JSON 契约](../protocol/control-json.md#控制面-json-契约)。
 
+## 内置插件选择
+
+`[plugins].enabled` 决定启动哪些随二进制发布的全栈内置功能，不下载第三方代码、不提供市场、热加载或进程沙箱。修改后重启服务，现有 PTY 会话随重启结束。
+
+```toml
+[plugins]
+enabled = [] # 生成配置的默认值：仅 PTY 核心
+# 保存启动配置与 ACP 聊天；依赖必须显式列出
+# enabled = ["launch", "files", "chat"]
+# 仓库/worktree 管理与 Git 工作台
+# enabled = ["workspace", "code"]
+```
+
+| ID               | 启用的功能                                                     |
+| ---------------- | -------------------------------------------------------------- |
+| `launch`         | 保存、编辑启动配置与首次预设                                   |
+| `workspace`      | 仓库登记、worktree 管理与位置协调                              |
+| `code`           | 会话代码树、Diff 与根内文件操作                                |
+| `files`          | 目录补全、mkdir、会话/暂存上传与交互产物                       |
+| `chat`           | ACP 混合会话、恢复、历史与交接；必须同时列出 `launch`、`files` |
+| `notifications`  | Web Push；终端状态与注意力识别仍属核心                         |
+| `quick-commands` | 快捷指令与模板展开                                             |
+| `voice`          | 外部语音识别设置与音频流                                       |
+| `forward`        | 监听端口发现与 HTTP 转发网关                                   |
+| `cloudflare`     | Cloudflare Tunnel 控制与网页设置                               |
+| `tailscale`      | Tailscale 检测与 Serve/Funnel 托管                             |
+| `p2p`            | WebRTC DataChannel 直连                                        |
+| `mcp`            | MCP 控制入口；网络 `/mcp` 另需 `[mcp].enabled=true`            |
+| `immersive`      | TV/头显与 XR 界面贡献                                          |
+
+- **旧配置兼容**：省略整个 `[plugins]` 或省略 `enabled`，保留上表固定的 14 项旧版选择；不是“未来新增项也自动启用”。显式 `[]` 才是核心模式。
+- 未知 ID、重复 ID、缺失依赖会在启动前报错，不自动补齐。`workspace` 不依赖 `code`，但 Git 工作台须显式同时选择两者。
+- 核心模式仍可创建自定义 argv/cwd 会话、附着、输入、控制、回放与修改核心偏好；没有启动配置、仓库、上传等插件入口或后台任务。
+- 禁用插件不打开、播种、迁移、清扫或删除所属数据；重新选择并重启后可读取旧数据。inactive 偏好保留但不可通过 API 修改。
+- **选择不等于可用**：外部命令、平台、存储与业务开关仍可能让功能不可用。用 [能力发现](../protocol.md#能力发现) 查询当前实例，不用 health/status 猜测。
+
 ## 配置项
 
 ### 访问与安全
@@ -94,7 +131,7 @@ JSON 输出契约见 [控制面 JSON 契约](../protocol/control-json.md#控制�
 - `listen` 用于局域网或 VPN 直连时可设为 `0.0.0.0:7681`。
 - 已持久化的 `token` 可用 `webmux status --json --reveal-token` 查看。
 - 已有配置监听 loopback 且未启用隧道时，`token` 为空表示不认证。
-- 其他监听地址或启用隧道且 `token` 为空时，每次启动临时生成 token，并打印带 `#token=` 的链接。
+- 其他监听地址或启用隧道且 `token` 为空时，每次启动临时生成 token；启动链接与二维码不携带 token，可用 `webmux status --json --reveal-token` 查看。
 - 隧道模式下显式设置的 token 至少 43 字符。
 - `allowed_origins` 的每一项须全小写，不能带路径、末尾斜杠或默认端口（http 的 `:80`、https 的 `:443`），否则启动失败。
 
@@ -121,17 +158,36 @@ JSON 输出契约见 [控制面 JSON 契约](../protocol/control-json.md#控制�
 | `bell_attention`     | `true`                | 把终端响铃（输入 1 秒后）视为需要介入                                             |
 | `program_status`     | `true`                | 识别 `OSC 7501` 程序状态报告，并由服务端应答 `OSC 7501;?` 探测                    |
 
+这些识别开关属于核心 PTY，在显式零插件配置中仍生效；`notifications` 负责推送等通知投递，不决定核心会话的状态检测。
+
+### 对话历史保存
+
+`history_capture` 默认 `true`。WebMux 将规范化聊天消息、工具事实与交接草稿保存在 `state_dir/conversations.sqlite`；PTY 与进程仍不会跨服务重启存活。
+设置 `history_capture = false` 并重启后，停止写入新的规范化正文，同时关闭历史 REST、handoff 预览/投递和 `thread_read`。
+聊天实时显示与普通终端仍可使用；已有数据库保留，身份、删除与 unknown 投递保护继续使用数据库，不因关闭历史功能而解除。
+重新开启后只保存新的实时内容；有关闭区间的原生线程不自动把随后 load 的旧正文回填，缺口保持可见。
+关闭不会删除旧正文或 agent 自己的 transcript；会话标题、位置和原生恢复身份仍按既有规则保存。删除、备份与存储故障边界见[持久化清单](../persistence.md)。
+
+### 交接历史预算
+
+`handoff_token_cap` 默认 `16000`，允许 `1024`–`64000`。它限制交接历史的保守估算成本：一个 UTF-8 字节按一个 token，包含角色和 JSON 转义。
+实际预算还要扣除目标上下文占用、当前请求、附件与后续工作预留；增大上限不保证能保留更多历史。
+原生用量缺失时明确标为估算；inline 还受 64 KiB prompt 与附件序列化上限约束。用户请求和附件不会自动缩短。
+预览 API、编辑与 stale 语义见[交接预览](../protocol/http-handoff.md)。
+
 ### Agent 启动
 
 | 键               | 默认值 | 作用                                                                      |
 | ---------------- | ------ | ------------------------------------------------------------------------- |
 | `agent_pretrust` | `true` | 启动 agent 前把启动目录写入它自己的“信任此文件夹”记录，避免会话卡在对话框 |
 
-- 适用于 Claude Code、Codex、Copilot CLI、Antigravity CLI、Qoder、QoderCN；见 [文件夹信任预写](../cli-agents.md#文件夹信任预写)。
+信任预写与 agent 专属提交延迟属于 `launch` 启动集成，只在选择该插件时装配。核心仍可用显式 argv 启动 agent，但不会自动预写信任记录；`agent_pretrust = true` 不会隐式启用插件。
+
+- 适用于 Claude Code、Codex、Copilot CLI、Antigravity CLI、Qoder、QoderCN 的持久信任记录，以及 Kimi 的进程级目录信任；见 [文件夹信任预写](../cli-agents.md#文件夹信任预写)。
 
 ### 语音识别（`[voice]`）
 
-配置外部语音识别命令后，浏览器的聊天输入框旁与终端快捷栏会显示麦克风按钮，把采集到的语音识别为文字并插入当前输入位置（不自动回车）。
+先选择 `voice`，再配置外部语音识别命令；浏览器的聊天输入框旁与终端快捷栏会显示麦克风按钮，把采集到的语音识别为文字并插入当前输入位置（不自动回车）。
 
 设置页的“语音输入”区域可以直接编辑识别设置，保存后立即生效，不需要重启：
 
@@ -150,6 +206,33 @@ env = ["DASHSCOPE_API_KEY=sk-xxx"]
 | ----------- | ------ | -------------------------------------------------------------------------------- |
 | `voice.cmd` | `[]`   | 识别程序的完整参数数组（argv），直接执行、不经 shell 展开；为空时禁用语音识别    |
 | `voice.env` | `[]`   | 附加到子进程环境的 `KEY=VALUE` 列表；只保存在服务端，从不通过 `/api/config` 返回 |
+
+### 机会性 P2P 直连（`[p2p]`）
+
+选择 `p2p` 后，经 Cloudflare Tunnel、Tailscale DERP 或反向代理等高延迟入口访问时，浏览器先用 WebSocket 打开会话，后台协商 WebRTC DataChannel 直连（DTLS 1.2+），达到滞回阈值后升级实时流与 `/api/*` 请求（含分块上传）：
+
+- 本机回环、内网、Tailscale MagicDNS 或基线 RTT `< 15 ms` 自动跳过协商；
+- 显式拒绝 `relay`（TURN）候选，不部署中继服务器，保持零中继成本；
+- 设置页“网络”分区可在线开关直连升级、路由器端口映射（UPnP IGD / NAT-PMP / PCP）与自定义 STUN 列表，保存在状态目录的 `p2p-settings.json` 并立即生效，“恢复配置文件默认”删除网页覆盖。
+- 后台直连协商最多等待 30 秒，持续交换晚到的候选；手机切网后重新收集候选，失败继续使用 WebSocket。公网 IPv6、UDP 放行与运营商验收见[移动网络上的 P2P 直连](remote-access.md#移动网络上的-p2p-直连)。
+
+```toml
+[p2p]
+enabled = true
+port_mapping = true
+stun_servers = [
+  "stun:stun.miwifi.com:3478",
+  "stun:stun.chat.bilibili.com:3478",
+  "stun:stun.cloudflare.com:3478",
+  "stun:stun.l.google.com:19302",
+]
+```
+
+| 键                 | 默认值                                         | 作用                                                          |
+| ------------------ | ---------------------------------------------- | ------------------------------------------------------------- |
+| `p2p.enabled`      | `true`                                         | 是否允许浏览器协商 WebRTC DataChannel 直连升级                |
+| `p2p.port_mapping` | `true`                                         | 自动向本地网关申请 UPnP IGD / NAT-PMP / PCP 外部 UDP 端口映射 |
+| `p2p.stun_servers` | 小米、Bilibili、Cloudflare 与 Google 公共 STUN | 仅允许 `stun:` 或 `stuns:` URI，拒绝 `turn:` / `turns:`       |
 
 #### `STDIN / STDOUT` 外部识别协议
 
@@ -171,13 +254,13 @@ env = ["DASHSCOPE_API_KEY=sk-xxx"]
 
 ## 启动配置
 
-所有启动命令都由使用者自定义：在设置页保存“名称 + 完整命令 + 环境变量”，新建会话时选用，或直接填写不保存的临时命令。
+选择 `launch` 后，可在设置页保存“名称 + 完整命令 + 环境变量”，新建会话时选用。无论是否选择 `launch`，都可填写不保存的临时命令与目录。
 
 ### 默认预设
 
-- 新安装首次启动（`launch-configs.json` 不存在）时自动写入共 13 条启动配置：
+- 选择 `launch` 后，首次打开不存在的 `launch-configs.json` 时写入共 14 条启动配置；核心模式不创建该文件：
   - Shell：`$SHELL -l -i`，未设置 `$SHELL` 时为 `/bin/sh`。
-  - 十一款 CLI agent 和 omp；完整列表见 [CLI agent 接入](../cli-agents.md)。
+  - 十二款 CLI agent 和 omp；完整列表见 [CLI agent 接入](../cli-agents.md)。
 - agent 预设按服务端 `$SHELL` 的 basename 选择启动文件包装：
   - Bash：`/usr/bin/env bash -ic 'exec -- "$@"' webmux <程序>`，读取 `~/.bashrc`。
   - Zsh：`zsh -ic 'exec -- "$@"' webmux <程序>`，读取 `~/.zshrc`。
@@ -196,7 +279,7 @@ env = ["DASHSCOPE_API_KEY=sk-xxx"]
 
 ### 混合模式连接器
 
-新安装的 Claude Code、Codex CLI、Antigravity CLI、Open Code、omp、Qoder 与 QoderCN 配置默认勾选混合模式。
+`launch` 首次预设中的 Claude Code、Codex CLI、Antigravity CLI、Open Code、omp、Qoder、QoderCN、Kimi 与 Devin 默认勾选混合模式；实际聊天与恢复还须选择 `chat`（以及其 `launch`、`files` 依赖）。
 
 Codex 与 Claude 的聊天端分别由第三方连接器提供，webmux 不会自动安装 Node 或连接器：
 
@@ -232,7 +315,7 @@ which codex-acp claude-agent-acp  # 必须能在服务的 PATH 或“加载 shel
 | `run/server.json`、`run/server.json.lock`         | 运行时记录及其锁 |
 | `run/webmux.sock`                                 | 本机套接字       |
 
-- 状态目录不保存会话、终端内容或 token。
+- 状态目录不保存 PTY 进程或原始终端缓冲；启用 `chat` 时会保存对话身份、规范化历史与交接草稿。启动配置环境等敏感值的边界见持久化清单。
 - 目录权限 0700、文件 0600，通过原子替换写入。
 
 ### 多实例与故障
@@ -247,7 +330,7 @@ which codex-acp claude-agent-acp  # 必须能在服务的 PATH 或“加载 shel
   - 显式临时命令与已运行会话照常可用。
   - 损坏的文件不会被覆盖或改名，修复或删除后重启服务即可。
 - 启动配置的环境变量以明文保存在该 0600 文件中。
-- 首次启动时写入默认预设并创建 `launch-configs.json`。
+- 仅选择 `launch` 后，首次打开缺失文件时写入默认预设并创建 `launch-configs.json`。
 - 文件已存在（包括删空后的空列表）时不再补写，也不会自动导入旧 TOML 的启动预设。
 - `launch-configs.json` 当前为版本 `2`，每条配置可带可选的 `preview: {lines, skip}`。
   - 本次破坏性升级只接受版本 `2`；版本 `1` 文件保留原样且启动配置功能返回 503，不会自动转换。

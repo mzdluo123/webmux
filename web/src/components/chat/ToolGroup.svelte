@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { ToolEntry, WorkStep } from "../../chat-model";
-  import type { ChatCodeLink } from "../../markdown-link";
+  import type { ToolEntry, WorkStep } from "../../domains/chat/chat-model";
+  import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import ChatDisclosure from "./ChatDisclosure.svelte";
   import ToolDetails from "./ToolDetails.svelte";
   import ToolRow from "./ToolRow.svelte";
@@ -22,9 +22,9 @@
     /** Tool calls whose permission request waits for an answer. */
     waiting: readonly string[];
     /** Opens a changed file in the code panel. */
-    onreview: (path: string) => void;
+    onreview?: (path: string) => void;
     /** Opens a referenced code file or line in the code panel. */
-    onopenlocation?: (target: ChatCodeLink) => void;
+    onopenlocation?: ChatCodeLinkHandler;
   } = $props();
 
   const calls = $derived(

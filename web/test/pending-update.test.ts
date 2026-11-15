@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   dismissUpdate,
   dismissedUpdate,
   homeUpdate,
   restartMethod,
-} from "../src/pending-update";
-import { ConfigSchema } from "../src/schemas";
+} from "../src/platform/pending-update";
+import { ConfigSchema } from "../src/contracts/schemas";
 
 const baseConfig = {
   defaultCwd: "/home/me",

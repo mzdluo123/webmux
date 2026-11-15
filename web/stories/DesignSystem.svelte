@@ -1,5 +1,7 @@
 <script lang="ts">
-  import Brand from "../src/components/Brand.svelte";
+  import IconEye from "~icons/tabler/eye";
+  import IconEyeCheck from "~icons/tabler/eye-check";
+  import Brand from "../src/components/shell/Brand.svelte";
   import {
     IconArrowRight,
     IconPlus,
@@ -22,16 +24,21 @@
   import * as Drawer from "$lib/components/ui/drawer";
   import { ListButton } from "$lib/components/ui/list-button";
   import ChatSelect from "../src/components/chat/ChatSelect.svelte";
-  import InlineNotice from "../src/components/InlineNotice.svelte";
-  import SessionStatus from "../src/components/SessionStatus.svelte";
-  import SessionRow from "../src/components/SessionRow.svelte";
-  import ResponsiveDialog from "../src/components/ResponsiveDialog.svelte";
+  import InlineNotice from "../src/components/shared/InlineNotice.svelte";
+  import SessionStatus from "../src/components/sessions/SessionStatus.svelte";
+  import SessionRow from "../src/components/sessions/SessionRow.svelte";
+  import ResponsiveDialog from "../src/components/shared/ResponsiveDialog.svelte";
   import { session, now } from "./fixtures";
-  import type { SessionInfo } from "../src/schemas";
+  import type { SessionInfo } from "../src/contracts/schemas";
+  import { untrack } from "svelte";
+  import { tvMode } from "../src/hooks/shared/tv-mode.svelte";
+  import { useTvNavigation } from "../src/hooks/shared/tv-navigation.svelte";
 
   let {
     section = "foundations",
+    tv = false,
   }: {
+    tv?: boolean;
     section?:
       | "foundations"
       | "actions"
@@ -41,6 +48,14 @@
       | "overlays"
       | "sessions";
   } = $props();
+  useTvNavigation(() => false);
+  $effect(() => {
+    const previous = untrack(() => tvMode.enabled);
+    tvMode.enabled = tv;
+    return () => {
+      tvMode.enabled = previous;
+    };
+  });
   let notice = $state("");
   let dialogOpen = $state(false);
   let confirmOpen = $state(false);
@@ -49,6 +64,7 @@
   let wrapping = $state(true);
   let name = $state("检查构建");
   let repository = $state("webmux");
+  let model = $state("sonnet");
   const sections = {
     foundations: [
       "设计基础",
@@ -88,6 +104,7 @@
     ["warning", "等待 / 注意"],
     ["destructive", "失败 / 危险"],
     ["info", "提示"],
+    ["default", "Git 主要确认"],
   ];
   const sessions: SessionInfo[] = [
     {
@@ -300,6 +317,7 @@
         <Button variant="link"
           >使用说明<IconArrowRight aria-hidden="true" /></Button
         >
+        <Button variant="default">Git 提交预览</Button>
       </Card.Content>
     </Card.Root>
     <Card.Root>
@@ -314,6 +332,9 @@
         >
         <Button disabled>不可用</Button>
         <Button disabled aria-busy="true">正在保存…</Button>
+        <Button variant="success" wrap
+          >改为在新工作树打开（窄屏大字号时换行）</Button
+        >
       </Card.Content>
     </Card.Root>
     <InlineNotice
@@ -426,6 +447,19 @@
         />
         <ChatSelect
           labeled
+          searchable
+          name="模型"
+          value={model}
+          choices={[
+            { value: "sonnet", name: "Claude Sonnet 4.5" },
+            { value: "opus", name: "Claude Opus 4.1" },
+            { value: "haiku", name: "Claude Haiku 4.5" },
+          ]}
+          disabled={false}
+          onchange={(value) => (model = value)}
+        />
+        <ChatSelect
+          labeled
           name="思考"
           value="high"
           choices={[
@@ -449,6 +483,52 @@
           >修复首页排序</ListButton
         >
         <ListButton variant="navigation">更新文档</ListButton>
+        <div class="flex items-center gap-2">
+          <ListButton
+            variant="review-toggle"
+            aria-pressed={false}
+            aria-label="标记演示文件为已看"
+            title="标记为已看"><IconEye aria-hidden="true" /></ListButton
+          >
+          <ListButton
+            variant="review-toggle"
+            aria-pressed={true}
+            aria-label="取消演示文件已看"
+            title="取消已看"><IconEyeCheck aria-hidden="true" /></ListButton
+          >
+        </div>
+        <Button size="sm" variant="ghost" aria-expanded="false"
+          >提交 · 已完成</Button
+        >
+      </Card.Content>
+    </Card.Root>
+    <Card.Root>
+      <Card.Header
+        ><Card.Title>对话轮次刻度</Card.Title><Card.Description
+          >用户刻度固定 12px；AI 按消息数使用 12 / 16 / 20 /
+          24px，当前刻度提高不透明度。长对话压缩行高，不独立滚动。</Card.Description
+        ></Card.Header
+      >
+      <Card.Content class="flex flex-col items-start">
+        <ListButton
+          variant="turn"
+          data-turn-role="user"
+          data-turn-volume="single"
+          aria-label="第 1 轮 · 你：修复首页排序"
+          title="第 1 轮 · 你：修复首页排序"
+          ><span aria-hidden="true"></span></ListButton
+        >
+        {#each [{ count: 1, volume: "single" }, { count: 2, volume: "few" }, { count: 4, volume: "several" }, { count: 8, volume: "many" }] as item}
+          {@const label = `第 1 轮 · AI${item.count > 1 ? ` · ${item.count} 条消息` : ""}：已修改排序`}
+          <ListButton
+            variant="turn"
+            data-turn-role="agent"
+            data-turn-volume={item.volume}
+            aria-label={label}
+            aria-current={item.count === 4 ? "location" : undefined}
+            title={label}><span aria-hidden="true"></span></ListButton
+          >
+        {/each}
       </Card.Content>
     </Card.Root>
   {:else if section === "feedback"}

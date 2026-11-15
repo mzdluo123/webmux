@@ -2,6 +2,8 @@
 
 所有端点需要认证并通过 Host/Origin 检查。
 
+需要选择 `tailscale`；禁用时所有本页路由返回 404，不检测命令、不打开设置与 ownership 文件。选择与实际平台/存储可用性见 [能力发现](../protocol.md#能力发现)。
+
 | 方法与路径                       | 说明                                                                              |
 | -------------------------------- | --------------------------------------------------------------------------------- |
 | `GET /api/tailscale`             | 检测与运行状态；`?refresh=1` 绕过检测缓存，只影响检测，不触发写命令               |
@@ -71,6 +73,7 @@ interface TailscaleSettingsUpdate {
 
 契约与实现：
 
-- 契约与转换：[线上字段](../../internal/contract/tailscale.go)、[状态转换](../../internal/wire/wire.go)
-- 服务端：[HTTP 处理器](../../internal/api/tailscale.go)、[状态码映射](../../internal/api/errors.go)、[设置存储](../../internal/tailscalesettings/store.go)、[检测服务](../../internal/tailscale/)、[控制器与对账](../../cmd/webmux/tailscalectl.go)
+- 契约与转换：[线上字段](../../internal/contract/tailscale.go)、[状态转换](../../internal/pluginwire/wire.go)
+- 服务端：[HTTP 处理器](../../internal/pluginapi/tailscale.go)、[状态码映射](../../internal/pluginapi/errors.go)、[设置存储](../../internal/tailscalesettings/store.go)
+- 检测与控制：[检测服务](../../internal/tailscale/)、[控制器与对账](../../cmd/webmux/tailscalectl.go)
 - 前端与指南：[设置页](../../web/src/pages/TailscaleSettingsPage.svelte)、[Tailscale 指南](../tailscale.md)。

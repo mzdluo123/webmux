@@ -36,6 +36,9 @@ type session struct {
 	UpdatedAt string            `json:"updatedAt"`
 	Messages  []message         `json:"messages"`
 	Config    map[string]string `json:"config"`
+	// ActualMode is Kimi's underlying mode, which can differ from the
+	// reported default after a cold load/resume.
+	ActualMode string `json:"actualMode,omitempty"`
 }
 
 // store keeps sessions as <dir>/sessions/<id>.json, leases as
@@ -58,16 +61,30 @@ func openStore(dir, mode, profile string) (*store, error) {
 	return &store{dir: dir, mode: mode, profile: profile}, nil
 }
 
+// devinSlugWords compose Devin's adjective-noun session ID prefixes
+// (luminous-acorn, balanced-crepe).
+var devinSlugWords = [2][]string{
+	{"luminous", "balanced", "mangrove", "swift", "quiet", "amber", "hollow", "rapid"},
+	{"acorn", "crepe", "spectrum", "harbor", "falcon", "meadow", "comet", "river"},
+}
+
 func (s *store) newID() string {
 	switch s.profile {
+	case "devin":
+		var b [2]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			panic(err)
+		}
+		return devinSlugWords[0][b[0]%8] + "-" + devinSlugWords[1][b[1]%8]
 	case "opencode":
 		var b [8]byte
 		if _, err := rand.Read(b[:]); err != nil {
 			panic(err)
 		}
 		return "ses_" + hex.EncodeToString(b[:])
-	case "codex", "claudecode", "agy":
-		// Codex thread IDs, Claude session IDs and Antigravity conversation IDs are UUIDs.
+	case "codex", "claudecode", "agy", "kimi":
+		// Codex thread IDs, Claude session IDs, Antigravity conversation IDs
+		// and Kimi's UUID suffix have this shape.
 		var b [16]byte
 		if _, err := rand.Read(b[:]); err != nil {
 			panic(err)
@@ -79,7 +96,11 @@ func (s *store) newID() string {
 		b[6] = 0x70 | b[6]&0x0f
 		b[8] = 0x80 | b[8]&0x3f
 		h := hex.EncodeToString(b[:])
-		return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:]
+		id := h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:]
+		if s.profile == "kimi" {
+			return "session_" + id
+		}
+		return id
 	}
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -98,7 +119,50 @@ func (s *store) create(cwd string) (*session, error) {
 // draft is a session not yet on disk. Like the real TUIs, a session started
 // in the terminal is only saved, and so listed, once it has a message.
 func (s *store) draft(cwd string) *session {
-	return &session{ID: s.newID(), Cwd: cwd, Messages: []message{}, Config: defaultConfig(s.profile)}
+	return &session{ID: s.newID(), Cwd: cwd, Messages: []message{}, Config: defaultConfig(s.profile), ActualMode: "default"}
+}
+
+// fresh claims a new Devin draft's writer lease before exposing its ID.
+// Unlike loading a session, a name collision must allocate another ID, not
+// fork existing data or alias an already open session. Saved sessions keep
+// their IDs even after their writers release the leases.
+func (s *store) fresh(cwd string) (*session, error) {
+	ss := s.draft(cwd)
+	prefix := ss.ID
+	for suffix := 0; ; suffix++ {
+		if suffix > 0 {
+			ss.ID = prefix + strconv.Itoa(suffix)
+		}
+		if err := s.claimLease(ss.ID); err != nil {
+			if errors.Is(err, fs.ErrExist) {
+				continue
+			}
+			return nil, err
+		}
+		// Check after the atomic claim: a previous writer could save and
+		// release the same ID while this process was allocating it.
+		_, err := os.Stat(s.path(ss.ID))
+		if errors.Is(err, fs.ErrNotExist) {
+			return ss, nil
+		}
+		s.release(ss.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+}
+
+// claimLease is the atomic writer claim shared by fresh drafts and loads.
+func (s *store) claimLease(id string) error {
+	p := filepath.Join(s.dir, "leases", id)
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	_, werr := fmt.Fprintf(f, "%d %s\n", os.Getpid(), s.mode)
+	cerr := f.Close()
+	s.event("open", id)
+	return errors.Join(werr, cerr)
 }
 
 func (s *store) load(id string) (*session, error) {
@@ -115,6 +179,9 @@ func (s *store) load(id string) (*session, error) {
 	}
 	if ss.Config == nil {
 		ss.Config = defaultConfig(s.profile)
+	}
+	if s.profile == "kimi" && ss.ActualMode == "" {
+		ss.ActualMode = "default"
 	}
 	return &ss, nil
 }
@@ -163,12 +230,9 @@ func (s *store) list(cwd string) ([]*session, error) {
 func (s *store) lease(ss *session) (*session, error) {
 	for range 3 {
 		p := filepath.Join(s.dir, "leases", ss.ID)
-		f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		err := s.claimLease(ss.ID)
 		if err == nil {
-			_, werr := fmt.Fprintf(f, "%d %s\n", os.Getpid(), s.mode)
-			cerr := f.Close()
-			s.event("open", ss.ID)
-			return ss, errors.Join(werr, cerr)
+			return ss, nil
 		}
 		if !errors.Is(err, fs.ErrExist) {
 			return nil, err
@@ -194,6 +258,32 @@ func (s *store) release(id string) {
 		_ = os.Remove(p)
 		s.event("close", id)
 	}
+}
+
+// forceRelease drops id's lease regardless of its holder, Devin's force
+// session/close.
+func (s *store) forceRelease(id string) {
+	if err := os.Remove(filepath.Join(s.dir, "leases", id)); err == nil {
+		s.event("force-close", id)
+	}
+}
+
+// lockedBy reports the process holding id's lease, or 0 when the lease is
+// free or this process's own. Like Devin's persistent lock records, a dead
+// holder still counts: the caller decides whether to take it over.
+func (s *store) lockedBy(id string) int {
+	holder := leaseHolder(filepath.Join(s.dir, "leases", id))
+	if holder > 0 && holder != os.Getpid() {
+		return holder
+	}
+	return 0
+}
+
+// lockInfo reports id's lease for session/list _meta: the holder's PID when
+// the lease exists.
+func (s *store) lockInfo(id string) (int, bool) {
+	holder := leaseHolder(filepath.Join(s.dir, "leases", id))
+	return holder, holder > 0
 }
 
 // event appends to events.log. Tests read it, so a failed write is reported

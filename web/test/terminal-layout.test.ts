@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   MAX_PANES,
   layoutGeometry,
@@ -8,7 +8,7 @@ import {
   restoreLayout,
   splitPane,
   type PaneLayout,
-} from "../src/terminal-layout";
+} from "../src/domains/terminal/terminal-layout";
 
 const first: PaneLayout = { kind: "pane", sessionId: "aaaaaaaa" };
 const nested = () =>

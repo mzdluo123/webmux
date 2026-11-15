@@ -22,6 +22,8 @@ type Config struct {
 	Listen           string            `toml:"listen"`
 	Token            string            `toml:"token"`
 	ScrollbackBytes  int               `toml:"scrollback_bytes"`
+	HistoryCapture   bool              `toml:"history_capture"`
+	HandoffTokenCap  int               `toml:"handoff_token_cap"`
 	DefaultCwd       string            `toml:"default_cwd"`
 	StateDir         string            `toml:"state_dir"`
 	IdleAfterSeconds int               `toml:"idle_after_seconds"`
@@ -35,6 +37,14 @@ type Config struct {
 	Tailscale        TailscaleConfig   `toml:"tailscale"`
 	Push             PushConfig        `toml:"push"`
 	Voice            VoiceConfig       `toml:"voice"`
+	P2P              P2PConfig         `toml:"p2p"`
+	MCP              MCPConfig         `toml:"mcp"`
+	Plugins          PluginConfig      `toml:"plugins"`
+}
+
+// MCPConfig controls the opt-in, owner-authenticated TCP MCP endpoint.
+type MCPConfig struct {
+	Enabled bool `toml:"enabled"`
 }
 
 // VoiceConfig configures an optional external speech recognition command
@@ -285,6 +295,8 @@ func Load(path string, required bool) (Config, error) {
 	c := Config{
 		Listen:           "127.0.0.1:7681",
 		ScrollbackBytes:  2097152,
+		HistoryCapture:   true,
+		HandoffTokenCap:  16000,
 		DefaultCwd:       "~",
 		IdleAfterSeconds: 30,
 		AgentProtocol:    true,
@@ -303,6 +315,7 @@ func Load(path string, required bool) (Config, error) {
 			IncludeTitle: true,
 		},
 		Tailscale: TailscaleConfig{Mode: TailscaleOff, Provider: "auto"},
+		P2P:       DefaultP2PConfig(),
 	}
 	metadata, err := toml.DecodeFile(path, &c)
 	if err != nil {
@@ -319,6 +332,9 @@ func Load(path string, required bool) (Config, error) {
 	return c, nil
 }
 func (c *Config) Validate() error {
+	if err := c.Plugins.Validate(); err != nil {
+		return err
+	}
 	_, port, err := net.SplitHostPort(c.Listen)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
@@ -330,6 +346,9 @@ func (c *Config) Validate() error {
 		if err = validateOrigin(origin); err != nil {
 			return err
 		}
+	}
+	if c.HandoffTokenCap < 1024 || c.HandoffTokenCap > 64000 {
+		return errors.New("handoff_token_cap must be between 1024 and 64000")
 	}
 	if c.ScrollbackBytes < 1 || c.IdleAfterSeconds < 2 {
 		return errors.New("scrollback_bytes must be positive and idle_after_seconds >= 2")
@@ -358,6 +377,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.Voice.validate(); err != nil {
+		return err
+	}
+	if err := c.P2P.validate(); err != nil {
 		return err
 	}
 	return c.Push.validate()

@@ -1,0 +1,7 @@
+{
+  "status": 409,
+  "body": {
+    "error": "当前上下文没有可用工作树文件目录",
+    "reason": "readonly"
+  }
+}

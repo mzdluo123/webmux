@@ -1,43 +1,48 @@
 <script lang="ts">
-  import { paneEnter } from "../../src/hooks/pane-enter";
+  import { paneEnter } from "../../src/hooks/shared/pane-enter";
   import { onDestroy, untrack } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import ChatView from "../../src/components/chat/ChatView.svelte";
   import SwitchChoiceDialog from "../../src/components/chat/SwitchChoiceDialog.svelte";
   import SwitchProgress from "../../src/components/chat/SwitchProgress.svelte";
-  import CodeChangesList from "../../src/components/CodeChangesList.svelte";
-  import ConfirmDialog from "../../src/components/ConfirmDialog.svelte";
-  import ConnectorInstallHint from "../../src/components/ConnectorInstallHint.svelte";
-  import HybridCandidatePicker from "../../src/components/HybridCandidatePicker.svelte";
-  import QuickCommandMenu from "../../src/components/QuickCommandMenu.svelte";
-  import SoftKeys from "../../src/components/SoftKeys.svelte";
-  import TerminalHeader from "../../src/components/TerminalHeader.svelte";
-  import TerminalSplitPanel from "../../src/components/TerminalSplitPanel.svelte";
-  import SessionSidePanel from "../../src/components/SessionSidePanel.svelte";
-  import TerminalNotices from "../../src/components/TerminalNotices.svelte";
-  import TerminalWorkspace from "../../src/components/TerminalWorkspace.svelte";
-  import type { ChatActions } from "../../src/chat-api";
-  import type { HybridNotice, HybridView } from "../../src/hooks/hybrid.svelte";
+  import CodeChangesList from "../../src/components/code/CodeChangesList.svelte";
+  import ConfirmDialog from "../../src/components/shared/ConfirmDialog.svelte";
+  import ConnectorInstallHint from "../../src/components/sessions/ConnectorInstallHint.svelte";
+  import HybridCandidatePicker from "../../src/components/sessions/HybridCandidatePicker.svelte";
+  import QuickCommandMenu from "../../src/components/settings/QuickCommandMenu.svelte";
+  import SoftKeys from "../../src/components/terminal/SoftKeys.svelte";
+  import TerminalHeader from "../../src/components/terminal/TerminalHeader.svelte";
+  import TerminalSplitPanel from "../../src/components/terminal/TerminalSplitPanel.svelte";
+  import SessionSidePanel from "../../src/components/terminal/SessionSidePanel.svelte";
+  import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
+  import TerminalWorkspace from "../../src/components/terminal/TerminalWorkspace.svelte";
+  import * as chatPlugin from "../../src/plugins/terminal-chat";
+  import * as filesPlugin from "../../src/plugins/terminal-files";
+  import type { ChatActions } from "../../src/platform/chat-api";
+  import type {
+    HybridNotice,
+    HybridView,
+  } from "../../src/hooks/sessions/hybrid.svelte";
   import type {
     ChatUploads,
     UploadProgress,
-  } from "../../src/hooks/upload.svelte";
+  } from "../../src/hooks/shared/upload.svelte";
   import {
     eligibilityText,
     shortId,
     switchSteps,
     switchTarget,
     type SwitchTarget,
-  } from "../../src/hybrid";
-  import type { ChatCodeLink } from "../../src/markdown-link";
+  } from "../../src/domains/sessions/hybrid";
+  import type { ChatCodeLink } from "../../src/domains/code/markdown-link";
   import type {
     ChatAttachment,
     ChatState,
     SessionInfo,
     SessionView,
     TransitionPhase,
-  } from "../../src/schemas";
-  import { createTerminalDrafts } from "../../src/terminal-draft.svelte";
+  } from "../../src/contracts/schemas";
+  import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
   import { session } from "../fixtures";
   import {
     agentMetadata,
@@ -73,6 +78,18 @@
   let connectorDismissed = $state(false);
   let codeShown = $state(false);
   let panelView = $state<"picker" | "code" | "split">("code");
+  let sidePanel = $state<SessionSidePanel>();
+  let header = $state<TerminalHeader>();
+
+  function openPanels() {
+    codeShown = true;
+    sidePanel?.openPicker();
+  }
+
+  function closePanel() {
+    codeShown = false;
+    header?.focusPanels();
+  }
   let openedLocation = $state<ChatCodeLink | null>(null);
   let notice = $state("");
   let dismissed = $state<string[]>([]);
@@ -158,6 +175,7 @@
       attachments = [];
       return taken;
     },
+    commit() {},
     restore(sent) {
       attachments = [...sent, ...attachments];
     },
@@ -399,7 +417,6 @@
     exitCode: null,
     listeningPorts: [],
     restoring: false,
-    historyTruncated: false,
     canFind: true,
     scrollToBottom() {},
     clear() {},
@@ -437,6 +454,8 @@
 
 <main class="terminal-page">
   <TerminalHeader
+    bind:this={header}
+    plugins={{ chat: chatPlugin, files: filesPlugin }}
     {terminal}
     {fullscreen}
     {draft}
@@ -453,7 +472,6 @@
     {quickMenu}
     upload={async () => {}}
     toggleDraft={() => {}}
-    copy={async () => {}}
     paste={async () => {}}
     showScratch={() => {}}
     showFontSize={() => {}}
@@ -461,12 +479,10 @@
     close={() => {}}
     leave={() => {}}
     {hybrid}
-    openPanels={() => {
-      panelView = "picker";
-      codeShown = true;
-    }}
+    {openPanels}
   />
   <TerminalNotices
+    plugins={{ chat: chatPlugin, files: filesPlugin }}
     terminal={noticeTerminal}
     uploads={{ progress: null, cancel() {} }}
     {draft}
@@ -496,7 +512,6 @@
     {codeShown}
     desktop={desktopMedia.current}
     draftOpen={false}
-    onfind={() => {}}
   >
     {#snippet terminalPane()}
       {#if view === "chat"}
@@ -511,10 +526,12 @@
             {actions}
             onreview={(path) => {
               openedLocation = { path };
+              panelView = "code";
               codeShown = true;
             }}
             onopenlocation={(target) => {
               openedLocation = target;
+              panelView = "code";
               codeShown = true;
             }}
             onterminal={() => hybrid.request("terminal")}
@@ -551,9 +568,10 @@
     {#snippet draftPane()}{/snippet}
     {#snippet codePane()}
       <SessionSidePanel
+        bind:this={sidePanel}
         bind:view={panelView}
         shown={codeShown}
-        close={() => (codeShown = false)}
+        close={closePanel}
       >
         {#snippet paneActions(closePanel: () => void)}
           <TerminalSplitPanel
@@ -565,9 +583,18 @@
               closePanel();
               notice = "预览：在真实会话中创建分屏。";
             }}
-            oncreate={() => (notice = "预览：在真实会话中打开新建会话。")}
-            onchoose={() => (notice = "预览：在真实会话中选择已有会话。")}
-            onclose={() => (notice = "预览：在真实会话中关闭当前窗格。")}
+            oncreate={() => {
+              closePanel();
+              notice = "预览：在真实会话中打开新建会话。";
+            }}
+            onchoose={() => {
+              closePanel();
+              notice = "预览：在真实会话中选择已有会话。";
+            }}
+            onclose={() => {
+              closePanel();
+              notice = "预览：在真实会话中关闭当前窗格。";
+            }}
           />
         {/snippet}
         <div class="h-full space-y-2 overflow-y-auto bg-card p-2">

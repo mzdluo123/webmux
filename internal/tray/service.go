@@ -37,9 +37,9 @@ type Service interface {
 	// when the bridge reports that WebMux is not running. A contract the
 	// tray does not speak is a *ContractError on both paths.
 	Status(ctx context.Context) (contract.StatusV1, error)
-	// Watch follows /ws/sessions, reporting the session count, until the
-	// subscription ends.
-	Watch(ctx context.Context, sessions func(int)) error
+	// Watch follows /ws/sessions, reporting the classified session counts,
+	// until the subscription ends.
+	Watch(ctx context.Context, sessions func(SessionCounts)) error
 	StartTray(ctx context.Context) (Process, error)
 	Shutdown(ctx context.Context, force bool) error
 	ForceStop(ctx context.Context) (contract.StopV1, error)
@@ -145,6 +145,9 @@ func (s *WSLService) Status(ctx context.Context) (contract.StatusV1, error) {
 		if errors.Is(err, errNoContract) {
 			return contract.StatusV1{}, fmt.Errorf("local status: %w", err)
 		}
+		if err == nil && status.State == contract.StateRunning {
+			status = s.capabilityStatus(ctx, status)
+		}
 		return status, err
 	}
 	if !errors.Is(err, localclient.ErrNotRunning) {
@@ -161,17 +164,51 @@ func (s *WSLService) Status(ctx context.Context) (contract.StatusV1, error) {
 	if errors.Is(err, errNoContract) {
 		return contract.StatusV1{}, fmt.Errorf("%w: status --json: %s", ErrWebmuxTooOld, strings.TrimSpace(wslclient.DecodeOutput(res.Stderr)))
 	}
+	if err == nil && status.State == contract.StateRunning {
+		status = s.capabilityStatus(ctx, status)
+	}
 	return status, err
 }
 
-func (s *WSLService) Watch(ctx context.Context, sessions func(int)) error {
+// capabilityStatus hides optional controls when discovery fails, without making
+// the PTY instance look unhealthy. Older/invalid snapshots never grant access.
+func (s *WSLService) capabilityStatus(ctx context.Context, status contract.StatusV1) contract.StatusV1 {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	snapshot, err := s.local().Capabilities(ctx)
+	available := func(id string) bool {
+		return err == nil && localclient.CapabilityAvailable(snapshot, id)
+	}
+	if !available("cloudflare.manage") {
+		status.Tunnel = nil
+	}
+	if !available("tailscale.manage") {
+		status.Tailscale = nil
+	}
+	// Push is diagnostic-only: selected providers retain configuration and
+	// storage-recovery hints even when delivery is unavailable. The access
+	// providers above expose mutation controls, so keep their availability gate.
+	if err != nil || !localclient.PluginEnabled(snapshot, "notifications") {
+		status.Push = nil
+	}
+	access := make([]contract.AccessLink, 0, len(status.URLs.Access))
+	for _, item := range status.URLs.Access {
+		if item.Provider == "cloudflare" && available("cloudflare.manage") || item.Provider == "tailscale" && available("tailscale.manage") {
+			access = append(access, item)
+		}
+	}
+	status.URLs.Access = access
+	return status
+}
+
+func (s *WSLService) Watch(ctx context.Context, sessions func(SessionCounts)) error {
 	conn, err := s.local().DialWebSocket(ctx, "/ws/sessions")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = conn.CloseNow() }()
 	conn.SetReadLimit(16 << 20)
-	ids := map[string]bool{}
+	items := map[string]contract.SessionInfo{}
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
@@ -183,21 +220,21 @@ func (s *WSLService) Watch(ctx context.Context, sessions func(int)) error {
 		}
 		switch event.Type {
 		case "snapshot":
-			ids = map[string]bool{}
+			items = make(map[string]contract.SessionInfo, len(event.Sessions))
 			for _, item := range event.Sessions {
-				ids[item.ID] = true
+				items[item.ID] = item
 			}
 		case "created", "updated":
 			if event.Session == nil {
 				continue
 			}
-			ids[event.Session.ID] = true
+			items[event.Session.ID] = *event.Session
 		case "removed":
-			delete(ids, event.ID)
+			delete(items, event.ID)
 		default:
 			continue
 		}
-		sessions(len(ids))
+		sessions(SummarizeSessions(items))
 	}
 }
 

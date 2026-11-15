@@ -1,15 +1,19 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import InstallSettings from "../../src/components/InstallSettings.svelte";
+import InstallSettings from "../../src/components/settings/InstallSettings.svelte";
 import {
   installation,
   promptInstall,
   trackInstallation,
   type InstallPlatform,
-} from "../../src/install.svelte";
+} from "../../src/platform/install.svelte";
+import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
 
-afterEach(() => cleanup());
+afterEach(async () => {
+  await cleanup();
+  resetCreationPlugins();
+});
 
 const secure: InstallPlatform = { secure: true, standalone: false, ios: false };
 const insecureNotice = "当前地址不能提供完整 PWA 能力";
@@ -75,8 +79,12 @@ const cases: {
     platform: { secure: false },
     // Chromium cannot install from here even if it fired a prompt.
     status: { promptable: true, installed: false },
-    shows: [insecureNotice, "查看公网访问配置"],
-    hides: ["浏览器暂未提供安装提示"],
+    shows: [insecureNotice],
+    hides: [
+      "浏览器暂未提供安装提示",
+      "查看公网访问配置",
+      "查看 Tailscale 配置",
+    ],
     button: false,
   },
 ];
@@ -109,6 +117,23 @@ test("the install button shows the kept prompt and reports a dismissal", async (
   await expect.poll(() => document.body.textContent).toContain("已取消安装");
 });
 
+test("a rejected install prompt shows fallback guidance", async () => {
+  const prompt = vi.fn(async () => {
+    throw new Error("prompt rejected");
+  });
+  render(InstallSettings, {
+    platform: secure,
+    status: { promptable: true, installed: false },
+    prompt,
+  });
+  await installButton().click();
+  expect(prompt).toHaveBeenCalledOnce();
+  await expect
+    .poll(() => document.body.textContent)
+    .toContain("浏览器无法打开安装提示，请使用浏览器菜单安装。");
+  await expect.element(installButton()).toBeEnabled();
+});
+
 test("the startup listener keeps one install prompt until the app is installed", async () => {
   const target = new EventTarget();
   trackInstallation(target as Window);
@@ -127,3 +152,21 @@ test("the startup listener keeps one install prompt until the app is installed",
   target.dispatchEvent(new Event("appinstalled"));
   expect(installation.installed).toBe(true);
 });
+
+test.each([
+  ["cloudflare", "查看公网访问配置", "#access"],
+  ["tailscale", "查看 Tailscale 配置", "#tailscale"],
+] as const)(
+  "install guidance links only to enabled %s settings",
+  async (id, label, href) => {
+    await enableCreationPlugins([id]);
+    render(InstallSettings, {
+      platform: { ...secure, secure: false },
+      status: { promptable: false, installed: false },
+      prompt: vi.fn(),
+    });
+    await expect
+      .element(page.getByRole("link", { name: label, exact: true }))
+      .toHaveAttribute("href", href);
+  },
+);

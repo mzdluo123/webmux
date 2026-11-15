@@ -1,0 +1,37 @@
+{
+  "status": 200,
+  "body": {
+    "alreadyUpToDate": false,
+    "blockers": [],
+    "commits": {
+      "items": [
+        {
+          "author": "Wire test",
+          "committedAt": "2026-01-02T03:04:05Z",
+          "hash": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+          "subject": "feat: dragonfly in b.txt"
+        }
+      ],
+      "total": 1
+    },
+    "confirmationId": "<confirmationId#5>",
+    "currentBranch": "main",
+    "directionSummary": "将 feat-conflict（9c24118c）的 1 个提交合入工作树 repo 的分支 main（6b503797）",
+    "expiresAt": "<time>",
+    "fastForward": false,
+    "headOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "headSubject": "feat: commit staged a.txt",
+    "kind": "merge",
+    "mergeBaseOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+    "recoveryHint": "若发生冲突，将进入三方冲突解决器逐步处理；也可随时预览并执行 Abort 恢复到合并前起点 6b503797。",
+    "repositoryId": "<id#1>",
+    "sessions": [],
+    "targetKind": "local",
+    "targetOid": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+    "targetRef": "feat-conflict",
+    "targetSubject": "feat: dragonfly in b.txt",
+    "warnings": [],
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

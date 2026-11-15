@@ -121,6 +121,25 @@ func TestWireNormalizerSchemaPaths(t *testing.T) {
 			input: map[string]any{"controller": map[string]any{"clientId": id, "label": stamp, "since": stamp}},
 			want:  map[string]any{"controller": map[string]any{"clientId": id, "label": stamp, "since": "<time>"}},
 		},
+		{
+			name: "git history normalizes worktree badge IDs while preserving commit subjects", snapshot: "git-history",
+			input: map[string]any{
+				"status": "ready", "scope": "all", "lastFetchedAt": stamp, "nextCursor": "", "refsChanged": false,
+				"rows": []any{map[string]any{
+					"oid":     "ecc8da449d18daa48261db409c9e0af26550cf64",
+					"subject": id + " " + stamp,
+					"refs":    []any{map[string]any{"kind": "head", "name": "HEAD -> main", "worktreeId": "wt-dynamic"}},
+				}},
+			},
+			want: map[string]any{
+				"status": "ready", "scope": "all", "lastFetchedAt": "<time>", "nextCursor": "", "refsChanged": false,
+				"rows": []any{map[string]any{
+					"oid":     "ecc8da449d18daa48261db409c9e0af26550cf64",
+					"subject": id + " " + stamp,
+					"refs":    []any{map[string]any{"kind": "head", "name": "HEAD -> main", "worktreeId": "<worktreeId#1>"}},
+				}},
+			},
+		},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			n := newWireNormalizer()

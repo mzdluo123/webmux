@@ -20,6 +20,8 @@ import (
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/streamproto"
+	"github.com/rainchan/webmux/internal/transport"
 )
 
 // upstreamRequest is what the dev server saw.
@@ -31,7 +33,7 @@ type upstreamRequest struct {
 type gatewayEnv struct {
 	t        *testing.T
 	forwards *forward.Service
-	public   *PublicOrigins
+	public   *transport.PublicOrigins
 	server   *httptest.Server
 	port     int
 
@@ -58,10 +60,10 @@ func newGatewayEnv(t *testing.T, token string, upstream http.HandlerFunc) *gatew
 	env.port = dev.Listener.Addr().(*net.TCPAddr).Port
 	env.forwards = forward.New(forward.Config{ExcludePorts: []int{7681}, ProbeInterval: time.Hour})
 	t.Cleanup(env.forwards.Close)
-	env.public = &PublicOrigins{}
+	env.public = &transport.PublicOrigins{}
 	m := session.NewManager(session.Options{})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
-	handler := New(testDeps(t, Deps{Config: config.Config{Token: token}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Forward: env.forwards, Public: env.public}))
+	handler := New(testDeps(t, testServices{Config: config.Config{Token: token}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Forward: env.forwards, Public: env.public}))
 	env.server = httptest.NewServer(handler)
 	t.Cleanup(env.server.Close)
 	return env
@@ -145,7 +147,7 @@ func (e *gatewayEnv) cookie() *http.Cookie {
 	e.t.Helper()
 	res := e.redeem(e.ticket(), e.path(""), nil)
 	for _, c := range res.Cookies() {
-		if c.Name == forwardCookie {
+		if c.Name == "webmux_forward" {
 			return c
 		}
 	}
@@ -227,7 +229,7 @@ func TestForwardRedeem(t *testing.T) {
 		t.Fatalf("redeem = %d %q", res.StatusCode, res.Header.Get("Location"))
 	}
 	set := res.Header.Get("Set-Cookie")
-	for _, attr := range []string{forwardCookie + "=", "Path=/forward/", "Max-Age=43200", "HttpOnly", "SameSite=Strict"} {
+	for _, attr := range []string{"webmux_forward=", "Path=/forward/", "Max-Age=43200", "HttpOnly", "SameSite=Strict"} {
 		if !strings.Contains(set, attr) {
 			t.Errorf("Set-Cookie %q lacks %q", set, attr)
 		}
@@ -303,7 +305,7 @@ func TestGatewayRouting(t *testing.T) {
 	if got := env.do(http.MethodGet, env.path("api/data"), nil, nil).StatusCode; got != http.StatusUnauthorized {
 		t.Fatalf("subresource without cookie = %d", got)
 	}
-	stale := &http.Cookie{Name: forwardCookie, Value: "stale"}
+	stale := &http.Cookie{Name: "webmux_forward", Value: "stale"}
 	if got := env.do(http.MethodGet, env.path(""), nil, withCookie(stale)).StatusCode; got != http.StatusUnauthorized {
 		t.Fatalf("stale cookie = %d", got)
 	}
@@ -386,6 +388,9 @@ func TestForwardAuthPageConfirmsForeignLoads(t *testing.T) {
 			if res.StatusCode != http.StatusOK {
 				t.Errorf("site %q = %d, want the page", row.site, res.StatusCode)
 			}
+			if !strings.HasPrefix(res.Header.Get("Content-Type"), "text/html") {
+				t.Errorf("site %q did not receive the authentication shell", row.site)
+			}
 			continue
 		}
 		want := "/forward-auth?confirm=1&next=" + url.QueryEscape("/forward/5173/")
@@ -397,6 +402,35 @@ func TestForwardAuthPageConfirmsForeignLoads(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("confirmed foreign load = %d", res.StatusCode)
 	}
+	if !strings.HasPrefix(res.Header.Get("Content-Type"), "text/html") {
+		t.Fatal("confirmed foreign load did not receive the authentication shell")
+	}
+}
+
+func TestForwardPagesStayTCPOnly(t *testing.T) {
+	manager := session.NewManager(session.Options{})
+	t.Cleanup(func() { manager.Shutdown(context.Background()) })
+	forwards := forward.New(forward.Config{ProbeInterval: time.Hour})
+	t.Cleanup(forwards.Close)
+	deps := testDeps(t, testServices{Config: config.Config{Token: "secret", Plugins: config.PluginConfig{Enabled: []string{"forward"}}}, Manager: manager, Forward: forwards})
+	local := NewLocal(deps, Local{})
+	bridge := NewBridge(deps)
+	for _, path := range []string{"/forward", "/forward/5173/", "/forward-auth?next=%2Fforward%2F5173%2F", "/forward-auth?confirm=1&next=%2Fforward%2F5173%2F"} {
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			request := httptest.NewRequest(method, "http://webmux"+path, nil)
+			request.Header.Set("Authorization", "Bearer secret")
+			request.Header.Set("Sec-Fetch-Site", "same-origin")
+			response := httptest.NewRecorder()
+			local.ServeHTTP(response, request)
+			if response.Code != http.StatusNotFound {
+				t.Fatalf("native %s %s exposed forwarding: %d", method, path, response.Code)
+			}
+			direct := bridge.ServeRPC(context.Background(), streamproto.RPCRequest{Method: method, Path: path, Headers: map[string]string{"Authorization": "Bearer secret"}})
+			if direct.Status != http.StatusNotFound {
+				t.Fatalf("P2P %s %s exposed forwarding: %d", method, path, direct.Status)
+			}
+		}
+	}
 }
 
 func TestGatewayHostCheck(t *testing.T) {
@@ -404,7 +438,7 @@ func TestGatewayHostCheck(t *testing.T) {
 	t.Cleanup(forwards.Close)
 	m := session.NewManager(session.Options{})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
-	handler := New(testDeps(t, Deps{Config: config.Config{Listen: "127.0.0.1:7681"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Forward: forwards}))
+	handler := New(testDeps(t, testServices{Config: config.Config{Listen: "127.0.0.1:7681"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Forward: forwards}))
 	r := httptest.NewRequest(http.MethodGet, "http://rebound.example/forward/5173/", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
@@ -646,33 +680,4 @@ func TestGatewayRewrites(t *testing.T) {
 			t.Errorf("off: Set-Cookie %q", got)
 		}
 	})
-}
-
-func TestRewriteLocation(t *testing.T) {
-	for _, row := range []struct {
-		in    string
-		strip bool
-		want  string
-	}{
-		{"http://localhost:5173/login", true, "/forward/5173/login"},
-		{"http://127.0.0.1:5173/forward/5173/x?y=1", false, "/forward/5173/x?y=1"},
-		{"/login", true, "/forward/5173/login"},
-		{"/forward/5173/login", false, "/forward/5173/login"},
-		{"https://example.com/", true, "https://example.com/"},
-		{"http://localhost:5174/", true, "http://localhost:5174/"},
-		{"//example.com/", true, "//example.com/"},
-		{"next", true, "next"},
-	} {
-		if got := rewriteLocation(row.in, 5173, "/forward/5173", row.strip); got != row.want {
-			t.Errorf("rewriteLocation(%q, strip=%v) = %q, want %q", row.in, row.strip, got, row.want)
-		}
-	}
-}
-
-func TestForwardPortParsing(t *testing.T) {
-	for raw, want := range map[string]bool{"1": true, "65535": true, "5173": true, "0": false, "05173": false, "65536": false, "-1": false, "+1": false, "1e3": false, "": false, "123456": false} {
-		if _, ok := forwardPort(raw); ok != want {
-			t.Errorf("forwardPort(%q) ok=%v, want %v", raw, ok, want)
-		}
-	}
 }

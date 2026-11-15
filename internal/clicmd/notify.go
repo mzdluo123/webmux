@@ -22,8 +22,9 @@ var notifyKinds = []string{"notify", "done", "error", "question"}
 var notifyCommand = &Command{
 	Name: "notify", Group: GroupSessions, Args: "[MESSAGE...]",
 	Summary: "Raise attention on a session (badge, toast and push), or clear it with --clear.",
-	Description: "The session shows the attention like any other: a badge in the list, a toast in open browsers and a push " +
-		"notification on subscribed devices. It replaces whatever attention is latched, whatever raised it, and is then " +
+	Description: "The session shows the attention like any other: a badge in the list, a toast in open browsers and, when " +
+		"push delivery is available, a push notification on subscribed devices. Raising and clearing attention do not require " +
+		"the notifications plugin. It replaces whatever attention is latched, whatever raised it, and is then " +
 		"cleared by the usual rules: the user typing or opening it, the program's next status report, or notify --clear.\n\n" +
 		"MESSAGE words are joined with spaces. The message is kept only in memory and is shown as the toast detail and as the " +
 		"push body (unless push.include_title is false, which also hides it). --clear removes the attention whatever raised " +

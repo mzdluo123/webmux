@@ -1,0 +1,18 @@
+{
+  "status": 200,
+  "body": {
+    "available": true,
+    "hasMore": false,
+    "login": "wire-user",
+    "page": 1,
+    "reason": "",
+    "repositories": [
+      {
+        "cloneUrl": "https://github.com/wire-user/private-project.git",
+        "description": "Private demo project",
+        "fullName": "wire-user/private-project",
+        "private": true
+      }
+    ]
+  }
+}

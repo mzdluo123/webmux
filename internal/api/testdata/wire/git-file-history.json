@@ -1,0 +1,49 @@
+{
+  "status": 200,
+  "body": {
+    "commits": [
+      {
+        "authorAt": "2026-01-02T03:04:05Z",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "comparedParentOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "oid": "9c24118c598731b8fb442d64bdd273f66062b9e6",
+        "parents": [
+          "2de8fe1f09b18871f913bbafa26fee479279c2b6"
+        ],
+        "path": "sub/b.txt",
+        "shortOid": "9c24118c",
+        "status": "M",
+        "subject": "feat: dragonfly in b.txt"
+      },
+      {
+        "authorAt": "2026-01-02T03:04:05Z",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "comparedParentOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "oid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+        "parents": [
+          "2de8fe1f09b18871f913bbafa26fee479279c2b6"
+        ],
+        "path": "sub/b.txt",
+        "shortOid": "ecc8da44",
+        "status": "M",
+        "subject": "feat: expand b.txt"
+      },
+      {
+        "authorAt": "2026-01-02T03:04:05Z",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "oid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "parents": [],
+        "path": "sub/b.txt",
+        "shortOid": "2de8fe1f",
+        "status": "A",
+        "subject": "initial"
+      }
+    ],
+    "path": "sub/b.txt",
+    "startOid": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+    "status": "ready"
+  }
+}

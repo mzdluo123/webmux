@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/transport"
 	"github.com/rainchan/webmux/internal/tunnel"
 	"github.com/rainchan/webmux/internal/tunnelsettings"
 )
@@ -25,7 +25,7 @@ type tunnelController struct {
 	web                                 bool
 	enabledSource, defaultEnabledSource string
 	local, token                        string
-	public                              *api.PublicOrigins
+	public                              *transport.PublicOrigins
 	locate                              func(context.Context) (string, error)
 	out                                 io.Writer
 	logger                              *slog.Logger
@@ -44,7 +44,7 @@ type tunnelControllerOptions struct {
 	Store  *tunnelsettings.Service
 	Local  string
 	Token  string
-	Public *api.PublicOrigins
+	Public *transport.PublicOrigins
 	Locate func(context.Context) (string, error)
 	Out    io.Writer
 	Logger *slog.Logger
@@ -176,7 +176,7 @@ func (tc *tunnelController) startLocated(binary string) {
 	}
 	announce := tc.announcePlain
 	if binary != "" {
-		announce = tc.announceWithToken
+		announce = tc.announceWithQR
 	}
 	tc.applyLocked(binary, announce)
 }
@@ -315,11 +315,10 @@ func (tc *tunnelController) announcePlain(origin string) {
 	_, _ = fmt.Fprintln(tc.out, "WebMux public: "+origin)
 }
 
-func (tc *tunnelController) announceWithToken(origin string) {
-	link := contract.AccessURL(origin, tc.token)
-	code, err := renderQR(link)
+func (tc *tunnelController) announceWithQR(origin string) {
+	code, err := renderQR(origin)
 	if err != nil {
 		tc.logger.Error("render QR code", "error", err)
 	}
-	_, _ = fmt.Fprint(tc.out, "WebMux public: "+link+"\n"+code)
+	_, _ = fmt.Fprint(tc.out, "WebMux public: "+origin+"\n"+code)
 }

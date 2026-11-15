@@ -14,6 +14,7 @@ E2E_BINARY ?= $(abspath $(E2E_CACHE)/webmux)
 # E2E finds the fake agent (internal/acp/testdata/fakeagent) next to the
 # backend, named after the agents whose profiles it stands in for.
 E2E_AGENTS = $(dir $(abspath $(E2E_BINARY)))agents
+E2E_FAKE_AGENTS = $(shell cat web/test/e2e/fake-agent-names.txt)
 LDFLAGS = -s -w -X main.version=$(VERSION)
 UPDATE_PKG = github.com/rainchan/webmux/internal/update
 # Only release builds take part in updates (internal/update.IsRelease).
@@ -24,8 +25,7 @@ TRAY_PKG = github.com/rainchan/webmux/internal/tray
 TRAY_LDFLAGS ?=
 MAKENSIS ?= makensis
 # Pinned nfpm, run through the Go toolchain so no separate install is needed.
-# v2.47+ requires a newer Go than go.mod pins for CI (GOTOOLCHAIN=local).
-NFPM ?= $(GO) run github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.46.3
+NFPM ?= $(GO) run github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0
 # A development version (X.Y.Z-dev.N) names its binaries, trays and
 # installers webmux-<version>-<release name without "webmux-">, so a
 # publish to the rolling `dev` Release uploads beside the outgoing build
@@ -41,7 +41,7 @@ RELEASE_FILES = $(addprefix $(ASSET_PREFIX),linux-amd64 linux-arm64 darwin-amd64
 	windows-amd64.exe windows-arm64.exe tray-windows-amd64.exe tray-windows-arm64.exe \
 	setup-windows-amd64.exe setup-windows-arm64.exe) $(LINUX_PACKAGES)
 
-.PHONY: web build tray installer linux-packages release release-build release-sign check docs-check persistence-check go-lint test test-fast test-go test-frontend test-unit test-browser test-e2e test-performance test-browsers-install cover cover-go cover-web frontend e2e-runtime format format-check install baseline test-install
+.PHONY: web build tray installer linux-packages release release-build release-sign check docs-check persistence-check go-lint test test-fast test-go test-frontend test-unit test-browser test-storybook test-e2e test-e2e-built test-performance test-browsers-install cover cover-go cover-web frontend e2e-runtime format format-check install baseline test-install
 web:
 	$(PNPM) --dir web install --frozen-lockfile
 	$(PNPM) --dir web build
@@ -137,22 +137,21 @@ go-lint:
 	$(GOLANGCI_LINT) run ./...
 
 test: e2e-runtime
-	$(MAKE) test-go
-	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test
+	$(MAKE) --output-sync=target -j test-go test-unit test-browser
+	$(MAKE) --output-sync=target -j test-storybook test-e2e-built
+	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test:performance
 
 # Fast iteration: Go race plus Vitest unit/browser, without Storybook, E2E or
 # performance. Builds the embedded frontend once; `test-go` can be run alone
 # against an existing `web/dist` for Go-only changes.
 test-fast: frontend
-	$(MAKE) test-go
-	$(MAKE) test-frontend
+	$(MAKE) --output-sync=target -j test-go test-unit test-browser
 
 test-go:
 	$(GO) test -race -parallel=$(GO_TEST_PARALLEL) ./...
 
 test-frontend:
-	$(PNPM) --dir web test:unit
-	$(PNPM) --dir web test:browser
+	$(MAKE) --output-sync=target -j test-unit test-browser
 
 cover: cover-go cover-web
 
@@ -166,7 +165,7 @@ cover-web:
 
 # Production frontend for Go's embed and the prepared E2E runtime.
 frontend:
-	$(PNPM) --dir web exec vite build
+	$(PNPM) --dir web exec vp build
 
 # One immutable executable for E2E and performance; each worker still owns its
 # backend, ports, HOME, state directory and PTYs. Override E2E_BINARY to change
@@ -176,7 +175,7 @@ e2e-runtime: frontend
 	mkdir -p $(dir $(abspath $(E2E_BINARY))) $(E2E_AGENTS)
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(abspath $(E2E_BINARY)) ./cmd/webmux
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(E2E_AGENTS)/omp ./internal/acp/testdata/fakeagent
-	for name in opencode codex codex-acp claude claude-agent-acp agy; do cp $(E2E_AGENTS)/omp $(E2E_AGENTS)/$$name; done
+	for name in $(filter-out omp,$(E2E_FAKE_AGENTS)); do cp $(E2E_AGENTS)/omp $(E2E_AGENTS)/$$name; done
 
 baseline: web
 	$(GO) run ./cmd/baseline -samples $(BASELINE_SAMPLES) -output $(BASELINE_OUTPUT)
@@ -187,7 +186,13 @@ test-unit:
 test-browser:
 	$(PNPM) --dir web test:browser
 
+test-storybook:
+	$(PNPM) --dir web test:storybook
+
 test-e2e: e2e-runtime
+	$(MAKE) test-e2e-built
+
+test-e2e-built:
 	WEBMUX_E2E_BINARY=$(abspath $(E2E_BINARY)) $(PNPM) --dir web test:e2e
 
 test-performance: e2e-runtime
@@ -206,14 +211,15 @@ test-install:
 	sh -n install.sh
 	sh .github/scripts/test-install.sh
 
+# Vite+ needs web's package context and absolute paths for files outside it.
 format:
 	$(GOFMT) -w cmd internal web/embed.go deploy/embed.go
-	web/node_modules/.bin/oxfmt README.md CONTRIBUTING.md SECURITY.md docs .oxfmtrc.json web
+	$(PNPM) --dir web exec vp fmt --config vite.config.ts "$(CURDIR)/README.md" "$(CURDIR)/CONTRIBUTING.md" "$(CURDIR)/SECURITY.md" "$(CURDIR)/docs" .
 
 format-check:
 	@files="$$($(GOFMT) -l cmd internal web/embed.go deploy/embed.go)"; \
 		if [ -n "$$files" ]; then printf 'Unformatted Go files:\n%s\n' "$$files"; exit 1; fi
-	web/node_modules/.bin/oxfmt --check README.md CONTRIBUTING.md SECURITY.md docs .oxfmtrc.json web
+	$(PNPM) --dir web exec vp fmt --config vite.config.ts --check "$(CURDIR)/README.md" "$(CURDIR)/CONTRIBUTING.md" "$(CURDIR)/SECURITY.md" "$(CURDIR)/docs" .
 
 install: build
 	install -d $(HOME)/.local/bin

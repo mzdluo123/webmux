@@ -1,7 +1,7 @@
 {
   "status": 400,
   "body": {
-    "error": "agentConfig 与 permissionMode 只适用于聊天视图",
+    "error": "invalid session request: agentConfig 与 permissionMode 只适用于聊天视图",
     "step": "precheck"
   }
 }

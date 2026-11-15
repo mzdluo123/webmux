@@ -1,5 +1,8 @@
-import { expect, it } from "vitest";
-import { previewFormat, previewFormatLabel } from "../src/code-preview";
+import { expect, it } from "vite-plus/test";
+import {
+  previewFormat,
+  previewFormatLabel,
+} from "../src/domains/code/code-preview";
 
 it("offers previews by case-insensitive extension only", () => {
   expect(previewFormat("docs/README.md")).toBe("markdown");

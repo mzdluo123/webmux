@@ -7,7 +7,8 @@ WebMux 是运行在单台 Linux / macOS 机器上的单用户 Web 终端。核�
 **非目标**
 
 - 多机网关、多用户或权限体系：以启动服务的系统用户身份运行。
-- 服务重启后的会话存活：普通会话只在内存中，重启即结束。混合会话只持久化 webmux 会话与 agent 会话之间的对应关系（`hybrid-sessions.json`），重启后可从记录恢复，完整历史由 agent 自己保存。
+- 服务重启后的会话存活：普通会话只在内存中，重启即结束。混合会话的运行恢复记录保存在 `hybrid-sessions.json`，稳定 Conversation / ProviderThread 身份和事务基础保存在 `conversations.sqlite`。规范化 ACP Activity 在 UI 截断前分块保存；TUI 缺口显式保留。
+  持久身份与历史不意味着 PTY 或进程跨重启存活。`history_capture=false` 关闭正文捕获和历史/交接入口，身份与未决投递保护仍保留。
 - 进程沙箱：命令以服务用户身份执行，不做隔离。
 - 依赖或兼容 tmux。
 
@@ -38,6 +39,13 @@ flowchart LR
 
 浏览器断线后 Session 继续从 PTY 读取并写入环形缓冲；重连时先发送缓冲快照再续接实时流，因此断线期间的输出不会丢失。
 
+网络控制 MCP 需选择 `mcp` 内置插件、配置非空 owner Token 与 `[mcp] enabled = true`，只在 TCP 精确 `/mcp` 挂载。
+`cmd/webmux` 组合 remote 注册表与 HTTP 生命周期；共享传输先执行 Host / Bearer / Origin 检查，`pluginapi` 再注入已认证 owner 身份。
+工具通过固定的本实例真实 TCP REST/WS 客户端执行，使用配置的 owner 凭据，不借 Unix 对端身份；客户端不使用环境代理或跟随重定向。
+远程上下文固定 `mcp-http` / `remote` / self=null，新会话不推断 parent；stdio 和冻结历史仍保持各自原有身份与 scope。
+MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响应交付结束；断线不取消任务，无响应 replay。
+具体状态、取消与资源限制见 [MCP 控制](usage/mcp.md#网络握手状态与资源上限)；该 owner Token 仍授予完整 REST 与任意 argv 权限，不是工具级 ACL。
+
 ## 模块划分
 
 | 包                                            | 职责                                                                                                       |
@@ -48,25 +56,32 @@ flowchart LR
 | `internal/runtime`                            | 运行时记录、实例锁、进程身份、本机套接字与对端凭据                                                         |
 | `internal/hoststat`                           | 主机负载与内存读取（Linux、macOS），供 `/api/health` 使用                                                  |
 | `internal/contract`                           | 只依赖标准库的线上类型：REST 请求与响应、WebSocket 事件与终端帧、本机控制面与 `/local/v1` 路径             |
-| `internal/wire`                               | Controller 层：Service 类型与 `contract` 线上类型之间的双向转换                                            |
+| `internal/wire`、`internal/pluginwire`        | 核心 DTO 转换；可选业务转换与统一 `Projection` 分别归属两包                                                |
 | `internal/pathutil`, `internal/attentionkind` | 共享的路径展开与注意力种类，供 Service、配置与客户端共用                                                   |
 | `internal/localclient`                        | 经任意拨号器访问 HTTP/WS API 的客户端，可交叉编译到 Windows                                                |
+| `internal/sessionobserve`                     | CLI 与 MCP 共用的聊天/会话订阅、精确回合选择、队列消失、请求与退出事实；不负责输出格式或取消任务           |
+| `internal/mcpprotocol`                        | 传输无关的 MCP 注册表、每连接初始化状态与分派；工具在握手锁外执行，控制和冻结历史工具集保持独立            |
+| `internal/mcpstdio`                           | 64 KiB 有界逐行 MCP framing；不持有工具定义或业务等待逻辑                                                  |
+| `internal/mcphttp`                            | Controller 层：JSON-only TCP MCP framing、内存会话、显式取消与有界并发；复用共享协议注册表                 |
 | `internal/client`                             | CLI 侧的实例定位、链接推导、`status`/`stop` 退回逻辑                                                       |
 | `internal/config`                             | TOML 解析、默认值与校验                                                                                    |
 | `internal/session`                            | PTY 生命周期、环形缓冲、OSC 标题、状态协调、进程组清理                                                     |
 | `internal/vtpreview`                          | 纯无状态 ANSI/VT 终端预览模拟与安全回放快照提取                                                            |
 | `internal/procpeek`                           | 跨平台进程树追溯、进程事实检查与监听端口扫描                                                               |
-| `internal/hub`                                | 终端 WebSocket：快照与订阅、输出合并、JSON 控制帧编码、输入写入与取消                                      |
-| `internal/api`                                | REST 路由、认证、Origin 检查、上传请求解析、错误到状态码的映射、静态资源与 SPA 回退                        |
-| `internal/files`                              | 目录补全、创建目录、上传文件落盘（私有临时目录）                                                           |
-| `internal/forward`                            | 端口转发：内存中的转发登记、上游可达性探测、一次性兑换码与转发凭据（网关在 `internal/api`）                |
-| `internal/workspace`                          | 仓库清单持久化、Git worktree 查询 / 创建 / 删除、启动目录协调                                              |
+| `internal/hub`、`internal/pluginhub`          | 原始终端传输；聊天、语音流分别归属可选控制器                                                               |
+| `internal/api`、`internal/transport`          | 核心路由、认证、Origin、静态资源；共享路由贡献与传输辅助                                                   |
+| `internal/pluginapi`                          | 内置插件 REST 控制器、上传解析、可选业务错误映射，不构造服务                                               |
+| `internal/files`、`internal/forward`          | 目录补全/上传；转发登记、探测与凭据（网关在 `pluginapi`）                                                  |
+| `internal/workspace`                          | 仓库清单持久化、Git worktree 查询 / 创建 / 删除、发散协调恢复与三方冲突解决、启动目录协调                  |
+| `internal/worktreefs`                         | 工作树边界安全原子文件覆盖与删除辅助（`os.OpenRoot` 防符号链接逃逸 + 同目录临时文件原子替换）              |
 | `internal/launch`                             | 启动配置持久化（`launch-configs.json`）、独立文件锁、校验与不可用状态                                      |
 | `internal/agenttrust`                         | 启动 Claude / Codex / Copilot / Antigravity / Qoder / QoderCN 前预写“信任此文件夹”记录（`agent_pretrust`） |
 | `internal/tunnelsettings`                     | 隧道设置持久化、独立文件锁、校验与故障关闭                                                                 |
 | `internal/tailscale`                          | Tailscale CLI 定位、状态/入口解析、Serve/Funnel 精确应用与移除、WSL/Windows provider 检测                  |
 | `internal/tailscalesettings`                  | Tailscale 网页设置持久化、独立文件锁、校验与故障关闭                                                       |
 | `internal/voicesettings`                      | 语音识别网页设置持久化、独立文件锁、校验与故障关闭                                                         |
+| `internal/p2p`                                | WebRTC DataChannel 直连引擎（单端口 UDP 复用、UPnP/NAT-PMP/PCP 端口映射、流分片与 RPC 承载、`nop2p` 裁剪） |
+| `internal/p2psettings`                        | P2P 直连网页设置持久化（`p2p-settings.json`）、独立文件锁、校验与故障关闭                                  |
 | `internal/wsl`                                | 共享的 WSL 判定与 `wslinfo --networking-mode` 探测                                                         |
 | `internal/codeview`                           | 只读文件浏览、Git 修改列表、内容快照与变化检测；根内文件操作与目录 ZIP                                     |
 | `internal/push`                               | Web Push 订阅存储、注意力提醒与出站推送                                                                    |
@@ -79,6 +94,8 @@ flowchart LR
 | `internal/tray/traysys`                       | 托盘系统管理操作：防火墙规则、登录自启动项、单实例与进程管理、安装程序启动                                 |
 | `internal/tray/forward`                       | 托盘转发：同源校验后把请求中转到 WebMux 的 TCP 监听                                                        |
 | `internal/tray/winui`, `cmd/webmux-tray`      | Windows 托盘通知区界面、菜单渲染、通知与剪贴板（`//go:build windows`）                                     |
+| `internal/handoff`                            | 历史预算、整项选择和服务端预览；通过注入服务协调，不创建 PTY                                               |
+| `internal/conversation`                       | 稳定对话与 provider 身份、Run 序号、handoff / delivery / receipt 事务基础                                  |
 | `internal/hybrid`                             | 混合会话：每会话一个 actor、记录持久化、聊天事件规范化、切换与恢复                                         |
 | `internal/artifacts`                          | 会话交互产物目录（系统临时目录下的私有文件夹，含 `uploads/`）的创建与清理                                  |
 | `internal/settingsstore`                      | 隧道与 Tailscale 设置共用的打开、读取、提交与 fail-closed 骨架                                             |
@@ -88,11 +105,14 @@ flowchart LR
 | `internal/service`                            | 当前用户的 systemd --user / launchd 服务渲染与管理                                                         |
 | `web/`                                        | Svelte 5 前端，构建后通过 `go:embed` 嵌入二进制                                                            |
 
-`cmd/webmux` 负责依赖装配：各模块通过构造函数显式依赖，不使用全局状态，HTTP 控制器不直接访问状态文件。
+Kimi 的 `agent_pretrust` 不写信任记录，而是由 `internal/agenttrust` 向会话环境注入进程级目录信任；Devin 则写入 `$XDG_DATA_HOME/devin/cli/trusted_workspaces.json`。
+Agent 信任预写与专属提交延迟仅在选择 `launch` 时装配；核心普通 argv 不要求该插件。PTY 的 `agent_protocol`、`bell_attention`、`program_status` 则是核心识别配置，与聊天、推送插件是否选择无关。
 
-- 先加载配置，用 `cmd/internal/assemble` 把配置转换为 `session.Options` 与 `tailscale.Options`。
-- 再构造 `session.Manager`、启动配置、workspace、codeview、files、push、tunnelsettings、tailscalesettings 与 tailscale 检测服务。
-- 最后以 `api.Deps` 注入 `api.New`。
+`cmd/webmux` 是唯一装配根：先验证固定选择，用 `cmd/internal/assemble` 转换选项，再由 `plugin_{assembly,start,bind,capabilities}.go` 显式构造所选服务。
+`api.New` 只接收核心依赖及 `transport.Contribution` 路由/流/钩子；`pluginapi`、`pluginhub`、`pluginwire` 拥有可选控制器，不反向导入 `api`。
+`sessioncreate` 统一协调 argv/cwd/env，经类型化 `Commands`、`Locations`、`Files`、`Chat`、`Brief` 端口接入贡献，不查找服务或复制创建流程。
+`session.Info` 只含核心事实；`workspace.Association`、`hybrid.Metadata`、`forward.ListeningPorts` 拥有可选数据，`pluginwire.Projection` 为所有 JSON 出口统一投影。
+`session.Manager.Observe` 原子捕获快照并订阅，投影不破坏顺序；`hub` 不依赖可选服务，`streamproto` 提供独立于 P2P 的纯传输类型。
 
 Tailscale 控制器的生命周期：
 
@@ -106,13 +126,13 @@ Tailscale 控制器的生命周期：
 
 后端分为五层，`internal/archtest` 用 `golang.org/x/tools/go/packages` 加载带类型信息的源码检查规则；违规让 `go test ./...` 失败，一次列出全部违规，每条形如 `文件:行 [Rn] 消息 — 修复提示`。规则基于类型解析，导入别名、点导入和函数值都绕不过。
 
-| 层             | 包                                                                                                                                                                         | 职责                                                                               |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| 装配根         | `cmd/...`                                                                                                                                                                  | 唯一构造 Service、把配置转换为 Service 选项并注入 Controller 的位置                |
-| Controller     | `internal/api`、`internal/hub`、`internal/wire`                                                                                                                            | HTTP/WebSocket 传输：解析请求、调用注入的 Service 方法、映射状态码、编解码线上类型 |
-| Service        | `session`、`hybrid`、`workspace`、`settings`、`launch`、`push`、`codeview`、`files`、`artifacts`、`tunnelsettings`、`tailscale`、`tailscalesettings`                       | 业务规则、状态、文件系统与进程                                                     |
-| 共享           | `contract`、`config`、`runtime`、`jsonutil`、`statefile`、`settingsstore`、`fetch`、`pathutil`、`attentionkind`、`procpeek`、`vtpreview`、`wsl`、`acp`、`agentprofile/...` | 线上契约与基础设施，不依赖 Service 或 Controller                                   |
-| 服务器外客户端 | `client`、`localclient`、`attach`、`clicmd`、`tray/...`、`wslclient`、`tunnel`、`service`                                                                                  | 只通过线上协议访问服务器，只依赖共享层和其他客户端                                 |
+| 层             | 包                                                                                                   | 职责                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| 装配根         | `cmd/...`                                                                                            | 唯一构造 Service、把配置转换为 Service 选项并注入 Controller 的位置 |
+| Controller     | `api`、`hub`、`wire`、`transport`、`pluginapi`、`pluginhub`、`pluginwire`、`mcphttp`                 | 路由、认证、状态映射、传输和投影                                    |
+| Service        | `session`、`sessioncreate`、`hybrid`、`conversation`、`workspace`、`launch`、`settings` 等           | 业务规则、状态、文件系统与进程                                      |
+| 共享           | `builtin`、`contract`、`streamproto`、`config`、`runtime`、`statefile`、`acp`、`agentprofile/...` 等 | 契约与基础设施，不依赖 Service 或 Controller                        |
+| 服务器外客户端 | `client`、`localclient`、`attach`、`clicmd`、`tray/...`、`wslclient`、`tunnel`、`service`            | 只通过线上协议访问服务器，只依赖共享层和其他客户端                  |
 
 | 规则 | 检查                                                                                                                                                                                                                                                                                      |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -123,7 +143,7 @@ Tailscale 控制器的生命周期：
 | R4   | Controller 不使用读写、创建或删除文件系统条目的 `os` 函数（`os.Hostname` 等不受限）                                                                                                                                                                                                       |
 | R5   | Controller 的构造、状态和 I/O 操作只调用注入实例的方法；只允许显式登记并附理由的 Service 包级纯函数（目前为 `push.Validate`、`hybrid.FormValue`）；可以引用 Service 的类型、常量与哨兵错误                                                                                                |
 | R6   | Service 不使用服务端 HTTP 符号，不声明以 `*http.Request` 为参数的函数；只有登记为出站的 `push` 可以使用 HTTP 客户端符号                                                                                                                                                                   |
-| R7   | Service 错误不携带整数 `Status`/`StatusCode`/`HTTPStatus`/`HTTPStatusCode` 字段，不提供错误到整数状态的同名方法或函数；显式 HTTP 状态方法或函数始终禁止。允许大小、行号、退出码等业务整数及非错误对象的 `Status() int`；HTTP 状态映射归 `internal/api/errors.go`                          |
+| R7   | Service 错误不携带整数 HTTP 状态字段或映射方法；允许大小、行号、退出码等业务整数及非错误对象的 `Status() int`。状态映射归 Controller 的 `api/errors.go` 与 `pluginapi/errors*.go`                                                                                                         |
 | R8   | Controller 编解码的每个 JSON 值都是 `contract` 中的具名类型（可经指针、切片、映射）；汇点是 `encoding/json` 的编解码函数和登记的包装函数（见 `layers_test.go` 的 `sinks`，如 `api.reply`、`api.serve`）；接口类型的值只能出现在登记的包装函数内；`contract` 类型的字段不引用 Service 类型 |
 | R9   | Service 不声明 `MarshalJSON`；JSON 编码器只能在登记函数体内直接调用（Web Push 载荷与 VAPID 头、代码视图摘要）。检查整个源码，包括包级初始化；禁止保存编码器函数值或方法值，即使位于登记函数中                                                                                             |
 | R10  | `contract` 不导入 Service 或 Controller                                                                                                                                                                                                                                                   |
@@ -136,7 +156,7 @@ Tailscale 控制器的生命周期：
 - 每条规则由 `internal/archtest/testdata/fixture` 中带 `// want Rn` 注释的故意违规验证；修改规则时同步增加违规与合规样例。
 - `AGENTS.md` 有 10 KiB 体积预算，由 `TestAgentsGuideSize`（`internal/archtest/agents_size_test.go`）检查；超限时把最不常用的规则原文迁入 `docs/agent-rules/`，规则索引见 [Agent 规则](agent-rules.md)。
 - Service 以哨兵错误报告错误种类（`workspace.ErrConflict`、`codeview.ErrGone`、`files.ErrTooLarge` 等），Controller 用 `errors.Is` 映射状态码，错误文本不变。
-- 线上类型集中在 `internal/contract`，转换集中在 `internal/wire`，并保持 nil 与空集合的区别（`null` 与 `[]`/`{}` 不同）。持久化类型（`workspace` 的仓库清单、`launch.Config`、`push` 存储）保留自己的 json 标签，但不直接上线。
+- 线上类型集中在 `internal/contract`；核心转换在 `wire`，可选转换在 `pluginwire`，保持 nil 与空集合区别（`null` 与 `[]`/`{}`）。持久化类型保留自己的 json 标签但不直接上线。
 
 **线上快照**
 
@@ -146,7 +166,7 @@ Tailscale 控制器的生命周期：
 - 业务正文、确定性 Git OID、版本摘要和固定输入保留。
 - 九组场景（sessions-terminal、basics-errors-fs-upload、launch、workspace、codeview、push、settings、hybrid、hybrid-records）各自持有夹具、期限和归一化状态，可用 `-run '^TestWireSnapshots$/codeview$'` 等单独运行；隧道另有 `TestWireSnapshotsTunnel`。
 
-线上形状变化会给出 JSON 差异；有意的协议变更同时修改 `web/src/schemas.ts` 并重新录制：
+线上形状变化会给出 JSON 差异；有意的协议变更同时修改 `web/src/contracts/schemas.ts` 并重新录制：
 
 ```sh
 go test ./internal/api -run TestWireSnapshots -update
@@ -171,6 +191,9 @@ flowchart LR
 - **Unix 套接字** `<state_dir>/run/webmux.sock`（0600，目录 0700）是本机边界：接受连接时校验对端有效 UID 与服务端相同，不同即关闭；浏览器无法连接 Unix 套接字，因此不做 Token、Host、Origin 校验。套接字额外提供 `/local/v1/status|shutdown|token|configuration`。
 - **WSL 桥接**：WSL 2 的 Unix 套接字与 Windows 不互通，Windows 客户端启动 `webmux bridge`，把其标准输入输出当作一条连接，上层协议不变。
 - **引导与兜底**保留为子命令：`serve` 启动服务，`config` 不需要服务在运行，`status` 在本机 API 不可用时读取运行时记录并做 TCP 健康检查，`stop` 在服务卡死时按记录发送信号。
+- **共享观察内核**：CLI 与 MCP 控制工具直接使用 `sessionobserve`，CLI 不经 MCP。提交前可 Prime 聊天回放后再发送；提交后按真实 turnId、promptId 或 queueItemId 附加，不以其他回合替代缺失历史。
+  队列项须先被观察到，再消失且没有对应 turn.start，才报告移除；同帧先应用回合事件。请求解决、结束事实、unfinished 与完整性标记由内核统一处理。
+  CLI 保留 changed/stable/any、事件收集与超时退出码；MCP 保留回复字节上限、零超时读取与工具结果外壳。退出只认真实 exit，idle 不算完成。
 - **信任边界**：能连接套接字的进程本来就能读取 0600 配置得到 Token 或向服务发信号，免 Token 不扩大权限。来自 WebMux 会话内部的连接（Linux 带 `WEBMUX_SESSION_ID` 环境变量或位于会话进程树中；macOS 只看进程树）可以创建、列出、附着会话，但 `shutdown` 与 `token` 返回 403。托盘转发只能指向 TCP 监听。
 - **运行时记录** `<state_dir>/run/server.json` 在监听就绪后写入、正常退出时删除，由 `server.json.lock` 保证每个状态目录只有一个实例拥有记录与套接字；第二个实例照常提供 TCP 服务并在日志中警告。记录包含 PID 与进程启动标识，读取方据此识别 PID 复用；不包含 Token 明文。
 
@@ -179,7 +202,7 @@ flowchart LR
 - **会话与连接解耦**：Session 的生命周期只由子进程决定；WebSocket 连接只是观察者，可以有零个或多个。
 - **服务端只传字节**：PTY 原始字节直接进入缓冲并转发给 xterm.js，服务端不做终端仿真；OSC 标题与屏幕预览只是旁路解析。
 - **重连优先增量续接**：输出有绝对字节 offset 与会话运行代际；客户端带着已渲染的位置重连，服务端仍保留后续字节时只补发缺失部分，否则清屏全量回放。服务端仍不做终端仿真。
-- **会话只在内存中**：无数据库；仓库清单、启动配置、偏好设置、推送、隧道与 Tailscale 设置、混合会话记录写入状态目录（清单见 [配置与持久化清单](persistence.md)），Git 自己持有 worktree 与分支状态。
+- **运行时会话只在内存中**：Conversation / ProviderThread 身份使用 SQLite，PTY 和进程不持久化；仓库清单、启动配置、偏好设置、推送、隧道与 Tailscale 设置、混合会话记录写入状态目录（清单见 [配置与持久化清单](persistence.md)），Git 自己持有 worktree 与分支状态。
 - **控制端决定尺寸**：多端同时附着时，只有控制端的 resize 生效；用户输入取得控制，控制端离开后不自动转交。终端自动回复只写入一个连接的回答。
 
 ## 会话生命周期
@@ -194,7 +217,14 @@ flowchart LR
 4. **关闭**：向进程组发送 SIGHUP，5 秒后 SIGKILL。按会话 ID 与进程树查找其他 job-control 进程组；Linux 另按继承的 `WEBMUX_SESSION_ID` 查找，并通过 subreaper 回收孤儿进程。
 5. **移除**：只允许移除已退出的会话。
 
-服务收到 SIGTERM 时关闭所有会话，等待最多 10 秒后退出。
+服务收到 SIGTERM 后先取消并等待创建、启动恢复与 handoff 等生产者，再停止 PTY 与连接（关闭期限 10 秒），最后释放插件存储及核心设置锁。
+
+## 核心与内置插件
+
+核心保留 PTY、创建/列表/输入/控制/回放、认证、设置与运行时控制。14 个内置插件随二进制发布，覆盖后端、前端、存储和生命周期；不是市场、远程脚本、热加载或安全沙箱。
+生成配置显式 `plugins.enabled=[]`，只启用核心；缺省字段保留固定旧版全量选择，不随未来目录增长。未知、重复或缺少依赖启动失败；`chat` 必须显式同时选择 `launch`、`files`。
+`workspace` 单独提供仓库/worktree 管理，Git 工作台需同时选择 `workspace` 与 `code`。选择修改必须重启；禁用不打开、初始化、迁移或清扫所属存储，也不删除历史。
+插件 ID、配置例子见 [内置插件选择](deployment/configuration.md#内置插件选择)；实时可用性而非健康状态见 [能力发现](protocol.md#能力发现)。
 
 ## 混合会话
 
@@ -210,8 +240,8 @@ flowchart LR
 - **协议边界**：`internal/acp` 是只依赖标准库的 ACP v1 客户端（共享层）。ACP 更新在 `hybrid` 中翻译为 webmux 自己的规范化事件（按 `messageId`/`toolCallId` upsert），前端与 `contract` 不接触 ACP 原文。
 - **agent 适配器**：`internal/agentprofile` 是 agent 中立的核心，`hybrid` 只依赖其中的接口。
   - `Agent` 接口提供档案数据（命令写法、参数分类、恢复与 ACP 命令）、身份识别与中断键。
-  - 只有部分 agent 具备的行为是可选小接口，`hybrid` 以类型断言使用：`Resumer`、`ConfigReapplier`、`Steerer`、`LockTracker`、`ForceSwitchNoter`。
-  - 每个 agent 是一个子包（`opencode`、`omp`、`codex`、`claudecode`、`agy`、`qoder`、`qodercn`），`agentprofile/agents` 用显式列表组成不可变注册表；`agentprofile/agenttest` 是每个适配器都运行的契约测试。
+  - 只有部分 agent 具备的行为是可选小接口，`hybrid` 以类型断言使用：`Resumer`、`ConfigReapplier`、`ConfigErrorHandler`、`SubmitDelayer`、`Steerer`、`LockTracker`、`ForceSwitchNoter`。
+  - 每个 agent 是一个子包（`opencode`、`omp`、`codex`、`claudecode`、`agy`、`qoder`、`qodercn`、`kimi`），`agentprofile/agents` 用显式列表组成不可变注册表；`agentprofile/agenttest` 是每个适配器都运行的契约测试。
   - 新增 agent 只需新增子包并在注册表登记（启动预设、图标与文档另行添加）；`internal/archtest` 守住 `acp`、`hybrid`、核心包与 `web/src` 不出现 agent 名称。
 - **生命周期**：从终端或聊天开始，协议见 [混合会话接口](protocol/http-hybrid.md)。
   - 切换失败自动回到原端；TUI 自行退出或回滚失败标记 `interrupted`。
@@ -342,7 +372,7 @@ else                                        → running
 ## 前端
 
 - Svelte 5 + TypeScript + Vite，基础控件使用 shadcn-svelte，样式基于 Tailwind CSS。
-- 所有 HTTP 响应、WebSocket JSON 和本地设置都先经 Zod 校验（`web/src/schemas.ts`），再进入页面状态。
+- 所有 HTTP 响应、WebSocket JSON 和本地设置都先经 Zod 校验（`web/src/contracts/schemas.ts`），再进入页面状态。
 - 终端使用 xterm.js 6 与 WebGL 渲染；WebGL 不可用、上下文丢失或像素尺寸不一致时回退到 DOM 渲染器，不重置终端。
 - DEC 2026 同步输出期间 xterm 保持旧画面，Kitty 图片层随之暂存新增、删除与定位，在 xterm 绘制完成更新的同一帧应用（`terminal-graphics.ts`）。
   - xterm 6.0 的 DOM 渲染器会自行重绘行（滚动触发的选区刷新、resize、焦点、光标）并在缓冲重置时清空各行，绕过同步检查。

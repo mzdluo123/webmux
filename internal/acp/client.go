@@ -19,6 +19,7 @@ const (
 	MethodSessionPrompt          = "session/prompt"
 	MethodSessionCancel          = "session/cancel"
 	MethodSessionSetConfigOption = "session/set_config_option"
+	MethodSessionSetMode         = "session/set_mode"
 	MethodSessionUpdate          = "session/update"
 	MethodRequestPermission      = "session/request_permission"
 	MethodElicitationCreate      = "elicitation/create"
@@ -66,7 +67,7 @@ func (c *Conn) Initialize(ctx context.Context, info Implementation, meta json.Ra
 // NewSession creates an agent session.
 func (c *Conn) NewSession(ctx context.Context, req NewSessionRequest) (NewSessionResponse, error) {
 	if req.MCPServers == nil {
-		req.MCPServers = []json.RawMessage{}
+		req.MCPServers = []MCPServer{}
 	}
 	var resp NewSessionResponse
 	err := c.request(ctx, RequestTimeout, MethodSessionNew, req, &resp)
@@ -77,7 +78,7 @@ func (c *Conn) NewSession(ctx context.Context, req NewSessionRequest) (NewSessio
 // replayed update reaches the Handler before LoadSession returns.
 func (c *Conn) LoadSession(ctx context.Context, req LoadSessionRequest) (LoadSessionResponse, error) {
 	if req.MCPServers == nil {
-		req.MCPServers = []json.RawMessage{}
+		req.MCPServers = []MCPServer{}
 	}
 	var resp LoadSessionResponse
 	err := c.request(ctx, LoadTimeout, MethodSessionLoad, req, &resp)
@@ -87,7 +88,7 @@ func (c *Conn) LoadSession(ctx context.Context, req LoadSessionRequest) (LoadSes
 // ResumeSession opens a session without replaying its history.
 func (c *Conn) ResumeSession(ctx context.Context, req ResumeSessionRequest) (ResumeSessionResponse, error) {
 	if req.MCPServers == nil {
-		req.MCPServers = []json.RawMessage{}
+		req.MCPServers = []MCPServer{}
 	}
 	var resp ResumeSessionResponse
 	err := c.request(ctx, RequestTimeout, MethodSessionResume, req, &resp)
@@ -104,6 +105,12 @@ func (c *Conn) ListSessions(ctx context.Context, req ListSessionsRequest) (ListS
 // CloseSession cancels any turn in the session and releases it.
 func (c *Conn) CloseSession(ctx context.Context, sessionID string) error {
 	return c.request(ctx, RequestTimeout, MethodSessionClose, CloseSessionRequest{SessionID: sessionID}, nil)
+}
+
+// CloseSessionMeta is CloseSession carrying a _meta extension payload, for
+// agents that advertise a close option such as a force flag.
+func (c *Conn) CloseSessionMeta(ctx context.Context, sessionID string, meta json.RawMessage) error {
+	return c.request(ctx, RequestTimeout, MethodSessionClose, CloseSessionRequest{SessionID: sessionID, Meta: meta}, nil)
 }
 
 // Prompt runs one turn. If ctx ends first, Prompt sends session/cancel and

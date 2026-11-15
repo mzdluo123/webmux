@@ -15,21 +15,27 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/api"
+	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/localclient"
+	"github.com/rainchan/webmux/internal/pluginapi"
+	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
+	"github.com/rainchan/webmux/internal/settings"
 	"github.com/rainchan/webmux/internal/workspace"
 )
 
 // realServer serves the local API with a hybrid service on a Unix socket
 // and returns an Env talking to it, the manager and the executable "omp"
 // script standing in for the agent's terminal UI.
-func realServer(t *testing.T) (Env, *bytes.Buffer, *bytes.Buffer, *session.Manager, string) {
+func realServer(t *testing.T) (Env, *bytes.Buffer, *bytes.Buffer, *session.Manager, string, *hybrid.Service) {
 	t.Helper()
 	cwd := t.TempDir()
 	agent := filepath.Join(t.TempDir(), "omp")
@@ -43,10 +49,19 @@ func realServer(t *testing.T) (Env, *bytes.Buffer, *bytes.Buffer, *session.Manag
 	}
 	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: m})
 	ws := workspace.New(t.TempDir(), m, launches, cwd)
-	ws.UseHybrid(hybrids)
 	codes := codeview.New(m, nil)
+	cfg := config.Config{DefaultCwd: cwd, Plugins: config.PluginConfig{Enabled: []string{"launch", "workspace", "code", "files", "chat"}}}
+	preferences := settings.Open(t.TempDir())
+	folders := artifacts.New(artifacts.Options{TempDir: t.TempDir(), StateDir: t.TempDir(), Manager: m})
+	chatCreation := hybrids.Creation()
+	creator := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: cwd, Commands: launches, Locations: ws, Files: folders, Chat: chatCreation})
+	recovery := hybridresume.New(hybrids, launches, hybridresume.Options{DefaultCwd: cwd, Creation: chatCreation, Locations: ws, ResumeLocations: ws})
+	projection := pluginwire.Projection{Workspace: ws, Chat: hybrids}
+	controllers := pluginapi.Bind(pluginapi.Deps{Config: cfg, Manager: m, Settings: preferences, Workspace: ws, Code: codes, Files: files.New(cwd), Artifacts: folders, Launch: launches, Hybrid: hybrids, Resume: recovery, ProjectSession: projection.Session})
 	handler := api.NewLocal(api.Deps{
-		Config: config.Config{DefaultCwd: cwd}, Manager: m, Workspace: ws, Code: codes, Files: files.New(cwd), Launch: launches, Hybrid: hybrids,
+		Config: cfg, Manager: m, Settings: preferences, Create: creator, Sessions: controllers, Contributions: controllers.Contributions(),
+		ProjectSession: projection.Session, EnrichDetails: controllers.EnrichDetails, KeepSessionPin: controllers.KeepSessionPin,
+		EnrichConfig: controllers.EnrichConfig, Renamed: controllers.Renamed,
 	}, api.Local{Status: func() contract.StatusV1 {
 		return contract.StatusV1{V: 1, URLs: contract.URLs{Local: "http://127.0.0.1:7681"}}
 	}})
@@ -59,7 +74,7 @@ func realServer(t *testing.T) (Env, *bytes.Buffer, *bytes.Buffer, *session.Manag
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &http.Server{Handler: handler}
+	srv := &http.Server{Handler: withTestCapabilities(handler, testCapabilities(cfg.Plugins.Enabled...))}
 	go func() { _ = srv.Serve(l) }()
 	t.Cleanup(func() {
 		_ = srv.Close()
@@ -67,6 +82,8 @@ func realServer(t *testing.T) (Env, *bytes.Buffer, *bytes.Buffer, *session.Manag
 		ws.Close()
 		codes.Close()
 		launches.Close()
+		folders.Close()
+		preferences.Close()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		m.Shutdown(ctx)
@@ -79,14 +96,14 @@ func realServer(t *testing.T) (Env, *bytes.Buffer, *bytes.Buffer, *session.Manag
 		Stderr:      &stderr,
 		OpenConsole: func() (Console, error) { return &fakeConsole{}, nil },
 		ResolveCwd:  func(context.Context, string) (string, error) { return cwd, nil },
-	}, &stdout, &stderr, m, agent
+	}, &stdout, &stderr, m, agent, hybrids
 }
 
 // `webmux run --launch-config` with a chat-enabled config creates a session
 // with a chat view, on its terminal view and listed with it; `run -- omp`
 // stays an ordinary session.
 func TestRunLaunchConfigStartsHybridSessionInTerminal(t *testing.T) {
-	e, stdout, stderr, m, agent := realServer(t)
+	e, stdout, stderr, m, agent, hybrids := realServer(t)
 	ctx := context.Background()
 	if code := Run(ctx, e, []string{"--detach", "--launch-config", "omp-hybrid"}); code != contract.ExitOK {
 		t.Fatalf("run exit %d: %s", code, stderr.String())
@@ -96,8 +113,8 @@ func TestRunLaunchConfigStartsHybridSessionInTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info := s.Info(); info.Hybrid == nil || info.Hybrid.Side != string(hybrid.SideTUI) || info.Hybrid.State != string(hybrid.StateActive) || info.Hybrid.Agent != "omp" {
-		t.Fatalf("created %+v hybrid %+v", info, info.Hybrid)
+	if metadata := hybrids.Metadata(s.Info().ID); metadata == nil || metadata.Side != string(hybrid.SideTUI) || metadata.State != string(hybrid.StateActive) || metadata.Agent != "omp" {
+		t.Fatalf("created %+v hybrid %+v", s.Info(), metadata)
 	}
 
 	stdout.Reset()
@@ -127,15 +144,15 @@ func TestRunLaunchConfigStartsHybridSessionInTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info := plain.Info(); info.Hybrid != nil {
-		t.Fatalf("direct command became hybrid: %+v", info.Hybrid)
+	if metadata := hybrids.Metadata(plain.Info().ID); metadata != nil {
+		t.Fatalf("direct command became hybrid: %+v", metadata)
 	}
 }
 
 // An attached `run --launch-config` ends like a detach (exit 0) when the
 // session moves to its chat view.
 func TestAttachedHybridRunDetachesWhenMoved(t *testing.T) {
-	e, _, stderr, m, _ := realServer(t)
+	e, _, stderr, m, _, _ := realServer(t)
 	console := &heldConsole{}
 	e.OpenConsole = func() (Console, error) { return console, nil }
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

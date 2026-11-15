@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, lazyPlugins } from "vite-plus";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import Icons from "unplugin-icons/vite";
@@ -6,9 +6,84 @@ import { FileSystemIconLoader } from "unplugin-icons/loaders";
 import { fileURLToPath, URL } from "node:url";
 import { embedAssets } from "./scripts/embed-assets.ts";
 export default defineConfig({
+  fmt: {
+    printWidth: 80,
+    tabWidth: 2,
+    useTabs: false,
+    semi: true,
+    trailingComma: "all",
+    sortPackageJson: false,
+    svelte: true,
+    associations: [{ files: ["*.webmanifest"], language: "json" }],
+    ignorePatterns: [
+      "**/bin/**",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.vitest/**",
+      "**/.svelte-check/**",
+      "**/test-results/**",
+      "**/playwright-report/**",
+      "**/pnpm-lock.yaml",
+      "**/acceptance.local/**",
+      "**/storybook-static/**",
+    ],
+  },
+  lint: {
+    options: {
+      typeAware: true,
+      // Svelte-aware type checking remains with svelte-check --tsgo.
+      typeCheck: false,
+    },
+    categories: { correctness: "error" },
+    env: { browser: true, node: true },
+    rules: {
+      "typescript/await-thenable": "off",
+      "typescript/no-array-delete": "off",
+      "typescript/no-base-to-string": "off",
+      "typescript/no-floating-promises": "off",
+      "typescript/no-implied-eval": "off",
+      "typescript/no-misused-promises": "off",
+      "typescript/no-misused-spread": "off",
+      "typescript/unbound-method": "off",
+    },
+    overrides: [
+      {
+        files: ["**/*.svelte", "**/*.svelte.ts"],
+        env: { svelte: true },
+      },
+      {
+        files: ["src/**/*.ts", "src/**/*.svelte.ts"],
+        rules: {
+          "typescript/await-thenable": "error",
+          "typescript/no-array-delete": "error",
+          "typescript/no-base-to-string": "error",
+          "typescript/no-floating-promises": "error",
+          "typescript/no-implied-eval": "error",
+          "typescript/no-misused-promises": "error",
+          "typescript/no-misused-spread": "error",
+          "typescript/unbound-method": "error",
+        },
+      },
+      {
+        files: [
+          "src/components/code/code-popout.ts",
+          "src/hooks/terminal/terminal.svelte.ts",
+        ],
+        rules: { "typescript/unbound-method": "off" },
+      },
+    ],
+    ignorePatterns: [
+      "node_modules/",
+      "dist/",
+      ".vitest/",
+      "test-results/",
+      "playwright-report/",
+      "storybook-static/",
+    ],
+  },
   // Iconify icons compile to Svelte components at build time; only imported
   // icons are bundled and nothing is fetched from the Iconify API at runtime.
-  plugins: [
+  plugins: lazyPlugins(() => [
     svelte(),
     tailwindcss(),
     Icons({
@@ -20,7 +95,7 @@ export default defineConfig({
       },
     }),
     embedAssets(),
-  ],
+  ]),
   resolve: {
     alias: { $lib: fileURLToPath(new URL("./src/lib", import.meta.url)) },
   },

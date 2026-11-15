@@ -1,11 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 import {
   connect,
   protocols,
   setWsCompression,
   wsCompression,
   type SocketConnection,
-} from "../src/ws";
+} from "../src/platform/ws";
 
 const sendBudget = 1024 * 1024;
 

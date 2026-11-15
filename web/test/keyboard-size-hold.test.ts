@@ -1,5 +1,12 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { createKeyboardSizeHold } from "../src/hooks/keyboard-size-hold";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from "vite-plus/test";
+import { createKeyboardSizeHold } from "../src/hooks/terminal/keyboard-size-hold";
 
 function setup(canHold = true, keyboardStays?: () => boolean) {
   const events: string[] = [];

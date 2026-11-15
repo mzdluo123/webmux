@@ -80,7 +80,7 @@ func metaEnv(t *testing.T, m *metaServer, session string) (Env, *bytes.Buffer, *
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &http.Server{Handler: m.handler()}
+	srv := &http.Server{Handler: withTestCapabilities(m.handler())}
 	go func() { _ = srv.Serve(l) }()
 	t.Cleanup(func() { _ = srv.Close() })
 	var stdout, stderr bytes.Buffer
@@ -116,6 +116,9 @@ func TestGetDefaultsToSelfAndPrintsFields(t *testing.T) {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("get output lacks %q:\n%s", want, stdout)
 		}
+	}
+	if strings.Contains(stdout.String(), "Link:") || strings.Contains(stdout.String(), "http://") {
+		t.Errorf("get output mentions URL:\n%s", stdout)
 	}
 	stdout.Reset()
 	if code := run(t, e, "get", "--field", "worktree.branch"); code != 0 || stdout.String() != "fix/lint\n" {

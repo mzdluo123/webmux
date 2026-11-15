@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/workspace"
 )
 
@@ -25,6 +27,18 @@ func testWorkspace(t *testing.T, m *session.Manager, cwd string) *workspace.Serv
 	service := workspace.New(t.TempDir(), m, nil, cwd)
 	t.Cleanup(service.Close)
 	return service
+}
+
+// Keep fixture children registered while session managers reap adopted children.
+// Callers can provide Stderr when they need stdout alone.
+func testCommandOutput(cmd *exec.Cmd) (string, error) {
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if cmd.Stderr == nil {
+		cmd.Stderr = &out
+	}
+	err := session.RunCommand(cmd)
+	return out.String(), err
 }
 
 // gitRepository isolates Git from the user's configuration and returns a
@@ -44,7 +58,7 @@ func gitRepository(t *testing.T) string {
 	root := t.TempDir()
 	for _, args := range [][]string{{"init", "-b", "main"}, {"commit", "--allow-empty", "-m", "initial"}} {
 		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
+		if out, err := testCommandOutput(cmd); err != nil {
 			t.Fatalf("Git fixture: %v %s", err, out)
 		}
 	}
@@ -61,7 +75,7 @@ func workspaceAPI(t *testing.T) (http.Handler, *workspace.Service, *session.Mana
 		m.Shutdown(ctx)
 	})
 	service := testWorkspace(t, m, root)
-	return New(testDeps(t, Deps{Config: c, Manager: m, Workspace: service})), service, m, root
+	return New(testDeps(t, testServices{Config: c, Manager: m, Workspace: service})), service, m, root
 }
 func workspaceRequest(t *testing.T, handler http.Handler, method, path string, body any, want int) *httptest.ResponseRecorder {
 	t.Helper()
@@ -79,7 +93,7 @@ func workspaceRequest(t *testing.T, handler http.Handler, method, path string, b
 	return recorder
 }
 func TestWorkspaceAPIRoutesAndErrorBoundaries(t *testing.T) {
-	handler, _, m, root := workspaceAPI(t)
+	handler, service, m, root := workspaceAPI(t)
 	for _, status := range []int{401, 403} {
 		request := httptest.NewRequest("POST", "/api/repositories", strings.NewReader(fmt.Sprintf(`{"path":%q}`, root)))
 		if status == 403 {
@@ -156,7 +170,7 @@ func TestWorkspaceAPIRoutesAndErrorBoundaries(t *testing.T) {
 		t.Fatal("rejected operations stopped PTY")
 	}
 	workspaceRequest(t, handler, "DELETE", base, nil, 204)
-	if item.Info().Workspace != nil || item.Info().Status == session.StatusExited {
+	if service.Association(info.ID) != nil || item.Info().Status == session.StatusExited {
 		t.Fatal("unregister changed PTY lifecycle")
 	}
 	if _, err := os.Stat(tree.Path); err != nil {
@@ -170,8 +184,51 @@ func TestWorkspaceAPIRoutesAndErrorBoundaries(t *testing.T) {
 func gitWorkspaceAPI(t *testing.T, cwd string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", cwd}, args...)...)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out, err := testCommandOutput(cmd); err != nil {
 		t.Fatalf("Git fixture %v: %v %s", args, err, out)
+	}
+}
+
+func TestWorkspaceFetchRemotesAPI(t *testing.T) {
+	handler, _, _, root := workspaceAPI(t)
+	register := workspaceRequest(t, handler, "POST", "/api/repositories", map[string]string{"path": root}, 201)
+	var repository contract.Repository
+	if err := json.Unmarshal(register.Body.Bytes(), &repository); err != nil {
+		t.Fatal(err)
+	}
+	fetchURL := "/api/repositories/" + repository.ID + "/fetch"
+	for _, status := range []int{401, 403} {
+		request := httptest.NewRequest("POST", fetchURL, strings.NewReader(`{}`))
+		if status == 403 {
+			request.Header.Set("Authorization", "Bearer secret")
+			request.Header.Set("Origin", "https://evil.example")
+		}
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != status {
+			t.Fatalf("fetch auth boundary: got %d want %d", recorder.Code, status)
+		}
+	}
+	workspaceRequest(t, handler, "POST", "/api/repositories/missing/fetch", struct{}{}, 404)
+	if none := workspaceRequest(t, handler, "POST", fetchURL, struct{}{}, 409); !strings.Contains(none.Body.String(), "没有配置远程") {
+		t.Fatalf("no remotes: %s", none.Body.String())
+	}
+
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	gitWorkspaceAPI(t, root, "clone", "--bare", root, remote)
+	gitWorkspaceAPI(t, root, "remote", "add", "origin", remote)
+	gitWorkspaceAPI(t, root, "remote", "add", "gone", filepath.Join(t.TempDir(), "missing.git"))
+	fetched := workspaceRequest(t, handler, "POST", fetchURL, struct{}{}, 200)
+	var response contract.FetchRemotesResponse
+	if err := json.Unmarshal(fetched.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Results) != 2 || response.Results[0].Remote != "gone" || response.Results[0].Status != "rejected" || response.Results[0].Message == "" ||
+		response.Results[1] != (contract.FetchResult{Remote: "origin", Status: "ok"}) {
+		t.Fatalf("fetch results: %+v", response.Results)
+	}
+	if response.Repository.ID != repository.ID || response.Repository.Availability != "available" || response.Repository.LastFetchedAt == nil {
+		t.Fatalf("fetched repository: %+v", response.Repository)
 	}
 }
 
@@ -239,6 +296,53 @@ func TestWorkspaceBranchRefreshAPI(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRemotesAPIRedactsCredentials(t *testing.T) {
+	handler, _, _, root := workspaceAPI(t)
+	register := workspaceRequest(t, handler, "POST", "/api/repositories", map[string]string{"path": root}, 201)
+	var repository contract.Repository
+	if err := json.Unmarshal(register.Body.Bytes(), &repository); err != nil {
+		t.Fatal(err)
+	}
+	remotesURL := "/api/repositories/" + repository.ID + "/remotes"
+	for _, status := range []int{401, 403} {
+		request := httptest.NewRequest("GET", remotesURL, nil)
+		if status == 403 {
+			request.Header.Set("Authorization", "Bearer secret")
+			request.Header.Set("Origin", "https://evil.example")
+		}
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != status {
+			t.Fatalf("remotes auth boundary: got %d want %d", recorder.Code, status)
+		}
+	}
+	workspaceRequest(t, handler, "GET", "/api/repositories/missing/remotes", nil, 404)
+	empty := workspaceRequest(t, handler, "GET", remotesURL, nil, 200)
+	if strings.TrimSpace(empty.Body.String()) != `{"remotes":[]}` {
+		t.Fatalf("no remotes: %s", empty.Body.String())
+	}
+
+	gitWorkspaceAPI(t, root, "remote", "add", "origin", "https://user:hunter2@example.invalid/app.git")
+	gitWorkspaceAPI(t, root, "remote", "set-url", "--push", "origin", "https://token123@example.invalid/app.git")
+	gitWorkspaceAPI(t, root, "remote", "add", "backup", "git@example.invalid:team/app.git")
+	listed := workspaceRequest(t, handler, "GET", remotesURL, nil, 200)
+	body := listed.Body.String()
+	if strings.Contains(body, "hunter2") || strings.Contains(body, "token123") {
+		t.Fatalf("remotes leaked credentials: %s", body)
+	}
+	var remotes contract.Remotes
+	if err := json.Unmarshal(listed.Body.Bytes(), &remotes); err != nil {
+		t.Fatal(err)
+	}
+	want := []contract.Remote{
+		{Name: "backup", FetchURL: "git@example.invalid:team/app.git", PushURL: "git@example.invalid:team/app.git"},
+		{Name: "origin", FetchURL: "https://user:***@example.invalid/app.git", PushURL: "https://***@example.invalid/app.git"},
+	}
+	if fmt.Sprint(remotes.Remotes) != fmt.Sprint(want) {
+		t.Fatalf("remotes: %+v", remotes.Remotes)
+	}
+}
+
 func TestWorkspaceAPIConfigDegradationAndTimeout(t *testing.T) {
 	cwd := t.TempDir()
 	t.Setenv("PATH", t.TempDir())
@@ -250,7 +354,7 @@ func TestWorkspaceAPIConfigDegradationAndTimeout(t *testing.T) {
 	}
 	service := workspace.New(state, m, nil, cwd)
 	defer service.Close()
-	handler := New(testDeps(t, Deps{Config: config.Config{DefaultCwd: cwd, Token: "secret"}, Manager: m, Workspace: service}))
+	handler := New(testDeps(t, testServices{Config: config.Config{DefaultCwd: cwd, Token: "secret"}, Manager: m, Workspace: service}))
 	response := workspaceRequest(t, handler, "GET", "/api/config", nil, 200)
 	var settings struct {
 		DefaultCwd string               `json:"defaultCwd"`
@@ -312,11 +416,12 @@ func TestWorkspaceMetadataUsesExistingWebSocketProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := service.Create(context.Background(), workspace.CreateInput{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
-	item := created.Session
+	creation := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: root, Locations: service})
+	created, err := creation.Create(context.Background(), sessioncreate.Input{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	item := created.Session
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -435,4 +540,139 @@ func TestWorkspaceBatchRemovalAPIAndAuthBoundaries(t *testing.T) {
 	workspaceRequest(t, handler, "POST", removeURL, contract.BatchRemoveWorktreesRequest{
 		ConfirmationID: preview.ConfirmationID,
 	}, 409)
+}
+
+func TestWorkspaceSwitchAPI(t *testing.T) {
+	handler, _, _, root := workspaceAPI(t)
+	gitWorkspaceAPI(t, root, "branch", "feat/a")
+	register := workspaceRequest(t, handler, "POST", "/api/repositories", map[string]string{"path": root}, 201)
+	var repository contract.Repository
+	if err := json.Unmarshal(register.Body.Bytes(), &repository); err != nil {
+		t.Fatal(err)
+	}
+	treeURL := "/api/repositories/" + repository.ID + "/worktrees/" + repository.Worktrees[0].ID
+	for _, url := range []string{treeURL + "/switch-preview", treeURL + "/switch"} {
+		for _, status := range []int{401, 403} {
+			request := httptest.NewRequest("POST", url, strings.NewReader(`{}`))
+			if status == 403 {
+				request.Header.Set("Authorization", "Bearer secret")
+				request.Header.Set("Origin", "https://evil.example")
+			}
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != status {
+				t.Fatalf("switch auth boundary %s: got %d want %d", url, recorder.Code, status)
+			}
+		}
+	}
+	workspaceRequest(t, handler, "POST", treeURL+"/switch-preview", contract.SwitchPreviewRequest{Target: contract.SwitchTarget{Kind: "new", Name: "--orphan", StartPoint: "main"}}, 400)
+	preview := func() contract.SwitchPreview {
+		t.Helper()
+		body := workspaceRequest(t, handler, "POST", treeURL+"/switch-preview", contract.SwitchPreviewRequest{Target: contract.SwitchTarget{Kind: "local", Branch: "feat/a"}}, 200)
+		var out contract.SwitchPreview
+		if err := json.Unmarshal(body.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		if out.ConfirmationID == "" || out.ExpiresAt == nil || out.Target.Branch == nil || *out.Target.Branch != "feat/a" || out.Blockers == nil || out.Warnings == nil || out.Sessions == nil {
+			t.Fatalf("switch preview JSON: %s", body.Body.String())
+		}
+		return out
+	}
+	stale := preview()
+	gitWorkspaceAPI(t, root, "commit", "--allow-empty", "-m", "moved on")
+	conflict := workspaceRequest(t, handler, "POST", treeURL+"/switch", contract.SwitchRequest{ConfirmationID: stale.ConfirmationID}, 409)
+	if !strings.Contains(conflict.Body.String(), "请重新预览") {
+		t.Fatalf("stale switch: %s", conflict.Body.String())
+	}
+	switched := workspaceRequest(t, handler, "POST", treeURL+"/switch", contract.SwitchRequest{ConfirmationID: preview().ConfirmationID}, 200)
+	var tree contract.Worktree
+	if err := json.Unmarshal(switched.Body.Bytes(), &tree); err != nil {
+		t.Fatal(err)
+	}
+	if tree.ID != repository.Worktrees[0].ID || tree.Branch == nil || *tree.Branch != "feat/a" {
+		t.Fatalf("switched worktree JSON: %s", switched.Body.String())
+	}
+}
+
+func TestWorkspaceBranchOperationsAPI(t *testing.T) {
+	handler, _, _, root := workspaceAPI(t)
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	gitWorkspaceAPI(t, root, "init", "--bare", "-b", "main", remote)
+	gitWorkspaceAPI(t, root, "remote", "add", "origin", remote)
+	gitWorkspaceAPI(t, root, "push", "-u", "origin", "main")
+	gitWorkspaceAPI(t, root, "branch", "--track", "fix/b", "origin/main")
+	gitWorkspaceAPI(t, root, "commit", "--allow-empty", "-m", "ahead one")
+	register := workspaceRequest(t, handler, "POST", "/api/repositories", map[string]string{"path": root}, 201)
+	var repository contract.Repository
+	if err := json.Unmarshal(register.Body.Bytes(), &repository); err != nil {
+		t.Fatal(err)
+	}
+	base := "/api/repositories/" + repository.ID + "/branches"
+	for _, path := range []string{"/fast-forward-preview", "/fast-forward", "/push-preview", "/push", "/delete-preview", "/delete"} {
+		for _, status := range []int{401, 403} {
+			request := httptest.NewRequest("POST", base+path, strings.NewReader(`{}`))
+			if status == 403 {
+				request.Header.Set("Authorization", "Bearer secret")
+				request.Header.Set("Origin", "https://evil.example")
+			}
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != status {
+				t.Fatalf("%s auth boundary: got %d want %d", path, recorder.Code, status)
+			}
+		}
+	}
+	workspaceRequest(t, handler, "POST", base+"/fast-forward-preview", contract.FastForwardPreviewRequest{Branch: "--x"}, 400)
+	workspaceRequest(t, handler, "POST", base+"/push-preview", contract.PushPreviewRequest{Branch: "main", Remote: "origin"}, 400)
+	workspaceRequest(t, handler, "POST", base+"/delete-preview", contract.BranchDeletePreviewRequest{Branches: []string{}}, 400)
+	decode := func(recorder *httptest.ResponseRecorder, out any) {
+		t.Helper()
+		if err := json.Unmarshal(recorder.Body.Bytes(), out); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Push: a preview that went stale conflicts; a fresh one pushes.
+	var push contract.PushPreview
+	decode(workspaceRequest(t, handler, "POST", base+"/push-preview", contract.PushPreviewRequest{Branch: "main"}, 200), &push)
+	if push.ConfirmationID == "" || push.Publish || push.Remote != "origin" || push.Commits.Total != 1 || push.Blockers == nil || push.Warnings == nil {
+		t.Fatalf("push preview %+v", push)
+	}
+	gitWorkspaceAPI(t, root, "commit", "--allow-empty", "-m", "ahead two")
+	if stale := workspaceRequest(t, handler, "POST", base+"/push", contract.PushRequest{ConfirmationID: push.ConfirmationID}, 409); !strings.Contains(stale.Body.String(), "请重新预览") {
+		t.Fatalf("stale push: %s", stale.Body.String())
+	}
+	decode(workspaceRequest(t, handler, "POST", base+"/push-preview", contract.PushPreviewRequest{Branch: "main"}, 200), &push)
+	var pushed contract.PushResult
+	decode(workspaceRequest(t, handler, "POST", base+"/push", contract.PushRequest{ConfirmationID: push.ConfirmationID}, 200), &pushed)
+	if pushed.Status != "ok" || pushed.Repository.ID != repository.ID {
+		t.Fatalf("push result %+v", pushed)
+	}
+
+	// Fast-forward: a confirmation is for its own operation only.
+	var ff contract.FastForwardPreview
+	decode(workspaceRequest(t, handler, "POST", base+"/fast-forward-preview", contract.FastForwardPreviewRequest{Branch: "fix/b"}, 200), &ff)
+	if ff.ConfirmationID == "" || ff.Worktree != nil || ff.Commits.Total != 2 || ff.Sessions == nil {
+		t.Fatalf("fast-forward preview %+v", ff)
+	}
+	workspaceRequest(t, handler, "POST", base+"/delete", contract.BranchDeleteRequest{ConfirmationID: ff.ConfirmationID, AcknowledgeUnmerged: true}, 409)
+	var forwarded contract.FastForwardResult
+	decode(workspaceRequest(t, handler, "POST", base+"/fast-forward", contract.FastForwardRequest{ConfirmationID: ff.ConfirmationID}, 200), &forwarded)
+	if forwarded.Repository.ID != repository.ID {
+		t.Fatalf("fast-forward result %+v", forwarded)
+	}
+	workspaceRequest(t, handler, "POST", base+"/fast-forward", contract.FastForwardRequest{ConfirmationID: ff.ConfirmationID}, 409)
+
+	// Delete: contained, then gone.
+	var deletion contract.BranchDeletePreview
+	decode(workspaceRequest(t, handler, "POST", base+"/delete-preview", contract.BranchDeletePreviewRequest{Branches: []string{"fix/b"}}, 200), &deletion)
+	if deletion.ConfirmationID == "" || len(deletion.Items) != 1 || deletion.Items[0].Group != "contained" || deletion.Items[0].Blockers == nil {
+		t.Fatalf("delete preview %+v", deletion)
+	}
+	var deleted contract.BranchDeleteResult
+	decode(workspaceRequest(t, handler, "POST", base+"/delete", contract.BranchDeleteRequest{ConfirmationID: deletion.ConfirmationID}, 200), &deleted)
+	if len(deleted.Results) != 1 || deleted.Results[0].Status != "deleted" || !strings.Contains(deleted.Results[0].Message, "git branch fix/b ") {
+		t.Fatalf("delete result %+v", deleted)
+	}
+	workspaceRequest(t, handler, "POST", base+"/delete", contract.BranchDeleteRequest{ConfirmationID: deletion.ConfirmationID}, 409)
 }

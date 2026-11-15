@@ -6,7 +6,7 @@ import {
   it,
   vi,
   type Mock,
-} from "vitest";
+} from "vite-plus/test";
 import {
   advise,
   describeTest,
@@ -15,8 +15,8 @@ import {
   sendTest,
   sync,
   type PushSupport,
-} from "../src/push";
-import { decodeBase64Url } from "../src/base64url";
+} from "../src/platform/push";
+import { decodeBase64Url } from "../src/platform/base64url";
 
 const ready: PushSupport = {
   secure: true,
@@ -148,7 +148,9 @@ function fakeBrowser(permission: NotificationPermission = "granted") {
       const reply = responses[`${init.method} ${path}`] ?? { status: 204 };
       return new Response(
         reply.body === undefined ? null : JSON.stringify(reply.body),
-        { status: reply.status },
+        {
+          status: reply.status,
+        },
       );
     }),
   );

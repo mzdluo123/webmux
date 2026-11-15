@@ -7,7 +7,16 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
+import {
+  chooseSessionDirectory,
+  ensureSessionSetup,
+  sessionLocation,
+} from "./session-project";
 import { startE2EServer, type E2EServer } from "./server.mjs";
+import {
+  CapabilitiesSchema,
+  type PluginID,
+} from "../../src/contracts/plugin-schemas";
 
 type Session = { id: string; status: string; exitCode: number | null };
 
@@ -90,14 +99,59 @@ async function cleanLaunchConfigs(request: APIRequestContext) {
   }
 }
 
+async function cleanP2PSettings(request: APIRequestContext) {
+  const response = await request.delete("/api/p2p/settings");
+  expect([200, 501]).toContain(response.status());
+}
+
+async function cleanPlugins(
+  request: APIRequestContext,
+  enabled: ReadonlySet<PluginID>,
+) {
+  if (enabled.has("chat")) await cleanHybridRecords(request);
+  if (enabled.has("workspace")) await cleanRepositories(request);
+  if (enabled.has("launch")) await cleanLaunchConfigs(request);
+  if (enabled.has("p2p")) await cleanP2PSettings(request);
+}
+
+async function resetSettings(
+  request: APIRequestContext,
+  enabled: ReadonlySet<PluginID>,
+) {
+  const response = await request.get("/api/settings");
+  expect(response.ok()).toBeTruthy();
+  const prefs = await response.json();
+  const changes: Record<string, null> = {
+    theme: null,
+    sessionPins: null,
+    forceSoftKeys: null,
+  };
+  if (enabled.has("code")) {
+    changes.preview = null;
+    changes.codeReader = null;
+  }
+  if (enabled.has("quick-commands")) changes.quickCommands = null;
+  if (enabled.has("workspace")) changes.homeWorktrees = null;
+  if (enabled.has("forward")) changes.ignoreHighPorts = null;
+  expect(
+    (
+      await request.patch("/api/settings", {
+        data: { baseRevision: prefs.revision, changes },
+      })
+    ).ok(),
+  ).toBeTruthy();
+}
+
 export const test = base.extend<
   { workDir: string; _isolation: void },
-  { server: E2EServer }
+  { server: E2EServer; plugins: PluginID[] | undefined }
 >({
+  // Missing preserves legacy defaults; [] is explicitly core-only. Do not
+  // resolve dependencies here: the real backend validates the exact selection.
+  plugins: [undefined, { scope: "worker", option: true }],
   server: [
-    // oxlint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for fixture dependencies.
-    async ({}, use) => {
-      const server = await startE2EServer();
+    async ({ plugins }, use) => {
+      const server = await startE2EServer({ plugins });
       try {
         await use(server);
       } finally {
@@ -119,29 +173,19 @@ export const test = base.extend<
   },
   _isolation: [
     async ({ request, page, server }, use, testInfo) => {
+      const capabilityResponse = await request.get("/api/capabilities");
+      expect(capabilityResponse.ok()).toBeTruthy();
+      const capabilities = CapabilitiesSchema.parse(
+        await capabilityResponse.json(),
+      );
+      const enabled = new Set(
+        capabilities.plugins
+          .filter((plugin) => plugin.enabled)
+          .map((plugin) => plugin.id),
+      );
       await cleanSessions(request);
-      await cleanHybridRecords(request);
-      await cleanRepositories(request);
-      await cleanLaunchConfigs(request);
-      const prefs = await (await request.get("/api/settings")).json();
-      expect(
-        (
-          await request.patch("/api/settings", {
-            data: {
-              baseRevision: prefs.revision,
-              changes: {
-                theme: null,
-                preview: null,
-                codeReader: null,
-                quickCommands: null,
-                homeWorktrees: null,
-                forceSoftKeys: null,
-                ignoreHighPorts: null,
-              },
-            },
-          })
-        ).ok(),
-      ).toBeTruthy();
+      await cleanPlugins(request, enabled);
+      await resetSettings(request, enabled);
       const browserLogs: string[] = [];
       page.on("console", (message) =>
         browserLogs.push(`[${message.type()}] ${message.text()}`),
@@ -181,12 +225,13 @@ export const test = base.extend<
                 contentType: "text/plain",
               });
             }
-            await testInfo.attach("archived-sessions.json", {
-              body: await (
-                await request.get("/api/sessions?state=archived")
-              ).body(),
-              contentType: "application/json",
-            });
+            if (enabled.has("chat"))
+              await testInfo.attach("archived-sessions.json", {
+                body: await (
+                  await request.get("/api/sessions?state=archived")
+                ).body(),
+                contentType: "application/json",
+              });
             const agentEvents = await readFile(
               join(server.env.FAKEAGENT_STORE!, "events.log"),
               "utf8",
@@ -199,28 +244,8 @@ export const test = base.extend<
           }
         } finally {
           await cleanSessions(request);
-          await cleanHybridRecords(request);
-          await cleanRepositories(request);
-          await cleanLaunchConfigs(request);
-          const prefs = await (await request.get("/api/settings")).json();
-          expect(
-            (
-              await request.patch("/api/settings", {
-                data: {
-                  baseRevision: prefs.revision,
-                  changes: {
-                    theme: null,
-                    preview: null,
-                    codeReader: null,
-                    quickCommands: null,
-                    homeWorktrees: null,
-                    forceSoftKeys: null,
-                    ignoreHighPorts: null,
-                  },
-                },
-              })
-            ).ok(),
-          ).toBeTruthy();
+          await cleanPlugins(request, enabled);
+          await resetSettings(request, enabled);
         }
       }
     },
@@ -228,11 +253,19 @@ export const test = base.extend<
   ],
 });
 
+export const coreTest = test.extend<{}, { plugins: PluginID[] | undefined }>({
+  plugins: [[], { scope: "worker", option: true }],
+});
+
 export { expect };
 
 // New-session dialog pickers. Option names start with the item title and
 // continue with its command or path.
-async function pick(page: Page, field: "位置" | "运行", name: string) {
+async function pick(
+  page: Page,
+  field: "位置" | "工作位置" | "运行",
+  name: string,
+) {
   await page.getByRole("button", { name: field, exact: true }).click();
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   await page
@@ -262,35 +295,76 @@ export async function backToList(page: Page) {
  * reachable: phones keep them in the drawer.
  */
 export async function revealSidebar(page: Page): Promise<boolean> {
-  const open = page.getByRole("button", { name: "打开侧栏" }).first();
+  const open = page
+    .getByRole("button", { name: /^(打开|展开)侧栏$/ })
+    .filter({ visible: true })
+    .first();
+  const navigation = page.getByRole("navigation", {
+    name: "导航",
+    exact: true,
+  });
+  // Capability bootstrap and lazy pages may not have mounted the mobile
+  // trigger yet. An immediate isVisible() would mistake that for desktop.
+  await expect
+    .poll(
+      async () => (await open.isVisible()) || (await navigation.isVisible()),
+    )
+    .toBe(true);
   if (!(await open.isVisible())) return false;
+  // A closing drawer is still visible during its exit animation. Prefer
+  // the trigger's open state rather than mistaking that for an open drawer.
+  if ((await open.getAttribute("aria-expanded")) === "true") return false;
   await open.click();
+  await expect(navigation).toBeVisible();
   return true;
 }
 
 export async function chooseLaunch(page: Page, name: string) {
+  await ensureSessionSetup(page);
   await pick(page, "运行", name);
 }
 
 export async function chooseLocation(page: Page, name: string) {
-  await pick(page, "位置", name);
+  await expect(sessionLocation(page)).toBeVisible();
+  await pick(
+    page,
+    (await page
+      .getByRole("button", { name: "工作位置", exact: true })
+      .isVisible())
+      ? "工作位置"
+      : "位置",
+    name,
+  );
 }
 
 export async function useCustomCommand(page: Page, command: string) {
-  await chooseLaunch(page, "自定义命令…");
+  await ensureSessionSetup(page);
+  const launch = page.getByRole("button", { name: "运行", exact: true });
+  const custom = page.getByLabel("自定义启动命令", { exact: true });
+  await expect(launch.or(custom).first()).toBeVisible();
+  if (await launch.isVisible()) await chooseLaunch(page, "自定义命令…");
   await page.getByLabel("自定义启动命令", { exact: true }).fill(command);
 }
 
 export async function useDirectory(page: Page, cwd: string) {
-  await expect(
-    page.getByRole("button", { name: "位置", exact: true }),
-  ).toBeVisible();
   const input = page.getByLabel("工作目录", { exact: true });
-  if (!(await input.isVisible())) await chooseLocation(page, "输入或浏览目录…");
-  await input.fill(cwd);
+  const legacy = page.getByRole("button", { name: "位置", exact: true });
+  await expect(
+    input
+      .or(legacy)
+      .or(page.getByRole("combobox", { name: "搜索项目", exact: true }))
+      .or(page.getByRole("button", { name: "更换项目", exact: true }))
+      .first(),
+  ).toBeVisible();
+  if (await input.isVisible()) await input.fill(cwd);
+  else if (await legacy.isVisible()) {
+    await chooseLocation(page, "输入或浏览目录…");
+    await input.fill(cwd);
+  } else await chooseSessionDirectory(page, cwd);
 }
 
 export async function nameSession(page: Page, name: string) {
+  await ensureSessionSetup(page);
   await page.getByRole("button", { name: "高级：会话名称" }).click();
   await page.getByLabel("会话名称", { exact: false }).fill(name);
 }
@@ -406,7 +480,7 @@ export async function recordInput(
   const path = join(directory, "received-input");
   await runCommand(
     page,
-    `stty raw -echo; printf '\\033[?2004${bracketed ? "h" : "l"}RECORDER_READY\\r\\n'; cat > ${quote(path)}`,
+    `stty raw -echo; : > ${quote(path)}; printf '\\033[?2004${bracketed ? "h" : "l"}RECORDER_READY\\r\\n'; cat >> ${quote(path)}`,
   );
   await expectTerminalLine(page, "RECORDER_READY");
   await expect.poll(() => readFile(path, "utf8")).toBe("");
@@ -415,15 +489,14 @@ export async function recordInput(
 
 // Split actions live in the session's side-panel picker on every viewport.
 export async function openSplitPanel(scope: Locator | Page) {
-  const page = "viewportSize" in scope ? scope : scope.page();
-  await openPanelPicker(scope);
-  await page.getByRole("button", { name: "分屏", exact: true }).click();
+  const picker = await openPanelPicker(scope);
+  await picker.getByRole("button", { name: "分屏", exact: true }).click();
 }
 
 async function openPanelPicker(scope: Locator | Page) {
   const page = "viewportSize" in scope ? scope : scope.page();
   await scope.getByRole("button", { name: "打开面板", exact: true }).click();
-  return page.getByRole("button", { name: "代码", exact: true });
+  return page.getByRole("group", { name: "面板选择", exact: true });
 }
 
 export async function toggleCode(scope: Locator | Page) {
@@ -432,5 +505,10 @@ export async function toggleCode(scope: Locator | Page) {
     await scope
       .getByRole("button", { name: "关闭侧栏面板", exact: true })
       .click();
-  } else await (await openPanelPicker(scope)).click();
+  } else
+    await (
+      await openPanelPicker(scope)
+    )
+      .getByRole("button", { name: "代码", exact: true })
+      .click();
 }

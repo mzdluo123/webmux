@@ -12,7 +12,7 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
-	"github.com/rainchan/webmux/internal/workspace"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 func TestAttentionSignalOptions(t *testing.T) {
@@ -47,7 +47,7 @@ func TestAttentionSignalOptions(t *testing.T) {
 	}
 }
 
-func TestSessionOptionsExcludeListenPort(t *testing.T) {
+func TestForwardOptionsExcludeListenPort(t *testing.T) {
 	for _, row := range []struct {
 		listen string
 		want   []int
@@ -58,7 +58,7 @@ func TestSessionOptionsExcludeListenPort(t *testing.T) {
 		{"127.0.0.1:0", nil},
 		{"no-port", nil},
 	} {
-		if got := SessionOptions(config.Config{Listen: row.listen}).ExcludePorts; !slices.Equal(got, row.want) {
+		if got := ForwardOptions(config.Config{Listen: row.listen}, nil).ExcludePorts; !slices.Equal(got, row.want) {
 			t.Errorf("listen %q: ExcludePorts = %v, want %v", row.listen, got, row.want)
 		}
 	}
@@ -88,8 +88,7 @@ func TestSavedLaunchConfigLoadsBashrcAndForwardsArguments(t *testing.T) {
 	}()
 	launches := launch.Open(t.TempDir())
 	defer launches.Close()
-	service := workspace.New(t.TempDir(), m, launches, home)
-	defer service.Close()
+	service := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: home, Commands: launches})
 	agent := "opencode"
 	script := "#!/bin/sh\nprintf 'agent=%s token=%s\\n' \"" + agent + "\" \"$WEBMUX_TEST_TOKEN\"\nfor arg in \"$@\"; do printf 'arg=<%s>\\n' \"$arg\"; done\n"
 	if err := os.WriteFile(filepath.Join(bin, agent), []byte(script), 0700); err != nil {
@@ -99,7 +98,7 @@ func TestSavedLaunchConfigLoadsBashrcAndForwardsArguments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := service.Create(context.Background(), workspace.CreateInput{Cwd: home, ConfigID: &saved.ID})
+	created, err := service.Create(context.Background(), sessioncreate.Input{Cwd: home, ConfigID: &saved.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,6 +114,24 @@ func TestSavedLaunchConfigLoadsBashrcAndForwardsArguments(t *testing.T) {
 	}
 	if !strings.Contains(out, "arg=<--resume>") || !strings.Contains(out, "arg=<two words>") || !strings.Contains(out, "arg=<>") || !strings.Contains(out, "arg=<$HOME>") {
 		t.Fatalf("saved command arguments missing or split: %q", out)
+	}
+}
+
+func TestSessionOptionsSubmitDelay(t *testing.T) {
+	delay := SessionOptions(config.Config{}).SubmitDelay
+	for _, tc := range []struct {
+		argv []string
+		want time.Duration
+	}{
+		{argv: []string{"kimi"}, want: 200 * time.Millisecond},
+		{argv: []string{"kimi", "--environment", "remote"}, want: 200 * time.Millisecond},
+		{argv: []string{"bash", "-ic", `exec -- "$@"`, "webmux", "kimi", "--auto"}, want: 200 * time.Millisecond},
+		{argv: []string{"opencode"}, want: 0},
+		{argv: []string{"sh", "-c", "kimi"}, want: 0},
+	} {
+		if got := delay(tc.argv); got != tc.want {
+			t.Errorf("SubmitDelay(%q) = %v, want %v", tc.argv, got, tc.want)
+		}
 	}
 }
 

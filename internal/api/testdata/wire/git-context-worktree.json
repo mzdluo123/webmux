@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "body": {
+    "browseAvailable": true,
+    "contextId": "<contextId#2>",
+    "diffAvailable": true,
+    "ignoreAvailable": true,
+    "reason": "",
+    "rootKind": "worktree",
+    "rootPath": "<repo>",
+    "writableAvailable": true
+  }
+}
