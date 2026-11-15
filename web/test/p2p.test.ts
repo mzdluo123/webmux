@@ -5,6 +5,7 @@ import {
   encodeStreamFrames,
   isLocalOrOverlayHost,
   medianSample,
+  hasStrongP2PAdvantage,
   shouldUpgradeToP2P,
   HybridPathPolicy,
   HYBRID_COOLDOWN_MS,
@@ -103,6 +104,24 @@ describe("P2P host locality and hysteresis predicates", () => {
     expect(shouldUpgradeToP2P(80, 65)).toBe(true);
     expect(shouldUpgradeToP2P(40, 28)).toBe(true);
     expect(medianSample([90, 20, 50])).toBe(50);
+  });
+
+  it("accepts strictly greater than 100ms savings even below 15 percent", () => {
+    expect(shouldUpgradeToP2P(1_000, 899)).toBe(true);
+    expect(shouldUpgradeToP2P(1_000, 900)).toBe(false);
+    expect(hasStrongP2PAdvantage(1_000, 899)).toBe(true);
+    expect(hasStrongP2PAdvantage(1_000, 900)).toBe(false);
+    // Exactly 100ms can still satisfy the original seamless upgrade policy.
+    expect(shouldUpgradeToP2P(200, 100)).toBe(true);
+    expect(hasStrongP2PAdvantage(200, 100)).toBe(false);
+    for (const [baseline, candidate] of [
+      [Infinity, 10],
+      [200, NaN],
+      [200, -1],
+      [-1, 0],
+    ]) {
+      expect(hasStrongP2PAdvantage(baseline!, candidate!)).toBe(false);
+    }
   });
 });
 
@@ -342,6 +361,26 @@ describe("P2P interactive streams and baseline isolation", () => {
     expect(policy.sample(100, 1, false, HYBRID_COOLDOWN_MS + 5)).toBe("hold");
     expect(policy.sample(100, 1, false, HYBRID_COOLDOWN_MS + 6)).toBe("hold");
     expect(policy.sample(100, 1, false, HYBRID_COOLDOWN_MS + 7)).toBe("hold");
+  });
+
+  it("requires stable absolute savings and retains cooldown and fallback", () => {
+    const policy = new HybridPathPolicy();
+    expect(policy.sample(1_000, 899, false, 0)).toBe("hold");
+    expect(policy.sample(1_000, 900, false, 1)).toBe("hold");
+    expect(policy.sample(1_000, 899, false, 2)).toBe("hold");
+    expect(policy.sample(1_000, NaN, false, 3)).toBe("hold");
+    expect(policy.sample(1_000, 899, false, 4)).toBe("hold");
+    expect(policy.sample(1_000, 899, false, 5)).toBe("hold");
+    expect(policy.sample(1_000, 899, false, 6)).toBe("upgrade");
+    for (let i = 0; i < HYBRID_STABLE_SAMPLES; i++) {
+      expect(policy.sample(1_000, 999, true, 7 + i)).toBe("hold");
+    }
+    expect(policy.sample(1_000, 999, true, HYBRID_COOLDOWN_MS + 6)).toBe(
+      "fallback",
+    );
+    expect(policy.sample(1_000, 899, false, HYBRID_COOLDOWN_MS + 7)).toBe(
+      "hold",
+    );
   });
 });
 

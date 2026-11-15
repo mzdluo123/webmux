@@ -11,11 +11,8 @@ import {
   type ChatEvent,
   type ChatState,
 } from "../../contracts/schemas";
-import {
-  connect,
-  type Connection,
-  type SocketConnection,
-} from "../../platform/ws";
+import { connect } from "../../platform/ws";
+import type { Connection, SocketConnection } from "../../platform/ws-contracts";
 
 export interface ChatSocket {
   /** The timeline reduced from every applied event. */

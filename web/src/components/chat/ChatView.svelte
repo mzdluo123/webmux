@@ -18,7 +18,7 @@
     TerminalDraft,
     TerminalDrafts,
   } from "../../domains/terminal/terminal-draft.svelte";
-  import type { Connection } from "../../platform/ws";
+  import type { Connection } from "../../platform/ws-contracts";
   import ChatComposer from "./ChatComposer.svelte";
   import ChatLocation from "./ChatLocation.svelte";
   import ChatPlan from "./ChatPlan.svelte";

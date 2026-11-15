@@ -4,7 +4,7 @@ import { sessionPins } from "../../domains/sessions/session-pins.svelte";
 import { applySessionEvent } from "../../domains/sessions/session-events";
 import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
 import { terminalDraftRetained } from "../../domains/terminal/terminal-draft-owners";
-import type { Connection } from "../../platform/ws";
+import type { Connection } from "../../platform/ws-contracts";
 import { connectSessions, type SessionEvent } from "./session-feed";
 
 let cachedSessions: SessionInfo[] | undefined;

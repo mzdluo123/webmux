@@ -5,7 +5,7 @@ import { SvelteMap } from "svelte/reactivity";
 import { uploadFile } from "../../platform/api";
 import { attachFileDrop } from "./file-drop";
 import type { ChatAttachment } from "../../contracts/schemas";
-import type { Connection } from "../../platform/ws";
+import type { Connection } from "../../platform/ws-contracts";
 import { allowAutomaticInputFocus } from "./input-focus";
 import type {
   DraftOperation,

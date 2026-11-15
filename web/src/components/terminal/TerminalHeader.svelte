@@ -22,7 +22,7 @@
   import type { SessionInfo } from "../../contracts/schemas";
   import { sessionStatusTone } from "../../domains/sessions/session-status";
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
-  import type { Connection } from "../../platform/ws";
+  import type { Connection } from "../../platform/ws-contracts";
   import DraftToggle from "./DraftToggle.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";

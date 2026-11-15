@@ -1,5 +1,17 @@
 import { z } from "zod";
-import type { StreamPosition } from "../src/contracts/schemas";
+import {
+  ChatFrameSchema,
+  SessionEventSchema,
+  StreamPositionSchema,
+  type SessionInfo,
+  type StreamPosition,
+} from "../src/contracts/schemas";
+import {
+  applyFrame,
+  emptyChat,
+  resumePoint,
+} from "../src/domains/chat/chat-model";
+import { applySessionEvent } from "../src/domains/sessions/session-events";
 import {
   afterEach,
   beforeEach,
@@ -20,8 +32,10 @@ import {
   type ClientTransport,
   type StreamOptions,
   type TransportSocket,
+  type TransportPath,
 } from "../src/platform/transport";
 import { connect, handoffLiveSockets, resumeTimeout } from "../src/platform/ws";
+import type { HandoffOptions } from "../src/platform/ws-contracts";
 import {
   applyRelayAuth,
   clearRelayAuth,
@@ -42,6 +56,7 @@ class MockSocket implements TransportSocket {
     readonly label: string,
     readonly path: string,
     readonly options: StreamOptions,
+    readonly transportPath: TransportPath,
   ) {}
 
   open() {
@@ -77,13 +92,17 @@ class MockSocket implements TransportSocket {
   }
 }
 
-function makeTransport(name: string, sink: MockSocket[]): ClientTransport {
+function makeTransport(
+  name: string,
+  sink: MockSocket[],
+  transportPath: TransportPath = name === "ws" ? "wss" : "webrtc-direct",
+): ClientTransport {
   return {
     origin: "https://term.example.com",
     fetch: vi.fn(),
     upload: vi.fn(),
     openStream(path, options) {
-      const sock = new MockSocket(name, path, options);
+      const sock = new MockSocket(name, path, options, transportPath);
       sink.push(sock);
       return sock;
     },
@@ -247,7 +266,10 @@ describe("Make-before-break transport handoff", () => {
     ).toEqual([new Uint8Array([0, 65]), new Uint8Array([0, 66])]);
   });
 
-  function terminalHandoff(canHandoff?: (position: StreamPosition) => boolean) {
+  function terminalHandoff(
+    canHandoff?: (position: StreamPosition) => boolean,
+    handoffOptions?: HandoffOptions,
+  ) {
     const baseline: MockSocket[] = [];
     const candidate: MockSocket[] = [];
     const error = vi.fn();
@@ -257,7 +279,7 @@ describe("Make-before-break transport handoff", () => {
     const old = baseline[0]!;
     old.open();
     setClientTransport(makeTransport("p2p", candidate));
-    handoffLiveSockets();
+    handoffLiveSockets(handoffOptions);
     const next = candidate[0]!;
     next.open();
     const ready = () =>
@@ -271,8 +293,391 @@ describe("Make-before-break transport handoff", () => {
           truncated: false,
         }),
       );
-    return { conn, old, next, ready, error };
+    return { conn, old, next, ready, error, candidate };
   }
+
+  describe("Explicit fast-path reconnect recovery", () => {
+    const force: HandoffOptions = {
+      targetPath: "webrtc-direct",
+      allowReconnect: true,
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      window.setTimeout = globalThis.setTimeout;
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("retains the baseline after the default seamless staging deadline", () => {
+      const { old, next, candidate, error } = terminalHandoff();
+      vi.advanceTimersByTime(10_000);
+      expect(old.closed).toBe(false);
+      expect(next.closed).toBe(true);
+      expect(candidate).toHaveLength(1);
+      expect(error).not.toHaveBeenCalled();
+    });
+
+    it("reattaches an unopened interactive stream once through the existing open path", () => {
+      const baseline: MockSocket[] = [];
+      const fast: MockSocket[] = [];
+      setClientTransport(makeTransport("ws", baseline));
+      const conn = connect("/ws/sessions", vi.fn(), vi.fn(), vi.fn());
+      cleanups.push(() => conn.close());
+      setClientTransport(makeTransport("p2p", fast));
+      handoffLiveSockets(force);
+      expect(baseline[0]!.closed).toBe(true);
+      expect(fast).toHaveLength(1);
+      handoffLiveSockets(force);
+      expect(fast).toHaveLength(1);
+      expect(fast[0]!.closed).toBe(false);
+    });
+
+    it.each(["terminal", "chat", "list"] as const)(
+      "recovers the %s consumer through a fresh cursor/snapshot after bounded staging",
+      (kind) => {
+        const baseline: MockSocket[] = [];
+        const fast: MockSocket[] = [];
+        const route =
+          kind === "list"
+            ? "/ws/sessions"
+            : kind === "chat"
+              ? "/ws/s/s1/chat?generation=chat-run&seq="
+              : "/ws/s/s1?generation=0123456789abcdef&offset=";
+        let cursor = 4;
+        const messages: (string | ArrayBuffer)[] = [];
+        const states: string[] = [];
+        let output = "";
+        let chat = emptyChat();
+        let sessions: SessionInfo[] | undefined;
+        const error = vi.fn();
+        setClientTransport(makeTransport("ws", baseline));
+        const conn = connect(
+          () => (kind === "list" ? route : route + cursor),
+          (data) => {
+            messages.push(data);
+            if (kind === "terminal" && typeof data !== "string") {
+              const frame = new Uint8Array(data);
+              const body = new TextDecoder().decode(frame.subarray(1));
+              if (
+                frame[0] === 4 &&
+                StreamPositionSchema.parse(JSON.parse(body)).mode === "reset"
+              )
+                output = "";
+              else if (frame[0] === 1) output += body;
+            } else if (typeof data === "string") {
+              if (kind === "chat")
+                chat = applyFrame(
+                  chat,
+                  ChatFrameSchema.parse(JSON.parse(data)),
+                );
+              else
+                sessions = applySessionEvent(
+                  sessions ?? [],
+                  SessionEventSchema.parse(JSON.parse(data)),
+                );
+            }
+          },
+          (state) => states.push(state),
+          error,
+        );
+        cleanups.push(() => conn.close());
+        const old = baseline[0]!;
+        old.open();
+        const transport = makeTransport("p2p", fast);
+        setClientTransport(transport);
+        handoffLiveSockets(force);
+        expect(fast).toHaveLength(1);
+        // The baseline can advance while a candidate remains stuck opening.
+        cursor = 8;
+        vi.advanceTimersByTime(9_999);
+        expect(old.closed).toBe(false);
+        vi.advanceTimersByTime(1);
+        expect(old.closed).toBe(true);
+        expect(fast[0]!.closed).toBe(true);
+        expect(fast).toHaveLength(2);
+        const recovered = fast[1]!;
+        expect(recovered.path).toBe(kind === "list" ? route : route + "8");
+        expect(recovered.options.token).toBe("token-1");
+        expect(recovered.transportPath).toBe("webrtc-direct");
+        expect(recovered.sent).toEqual([]);
+        recovered.open();
+        if (kind === "terminal") {
+          recovered.deliverFrame(
+            4,
+            JSON.stringify({
+              mode: "reset",
+              generation: "0123456789abcdef",
+              start: 0,
+              end: 9,
+              truncated: false,
+            }),
+          );
+          recovered.deliverFrame(1, "recovered");
+          expect(
+            new TextDecoder().decode(
+              new Uint8Array(messages[1] as ArrayBuffer).subarray(1),
+            ),
+          ).toBe("recovered");
+          expect(output).toBe("recovered");
+        } else {
+          const snapshot =
+            kind === "list"
+              ? { type: "snapshot", sessions: [], forwards: [] }
+              : {
+                  type: "snapshot",
+                  generation: "chat-run",
+                  from: 8,
+                  state: {
+                    outdated: [],
+                    eligibility: { available: true },
+                    turn: { running: false },
+                    requests: [],
+                    config: [],
+                    commands: [],
+                    plan: null,
+                    usage: null,
+                    queue: { paused: false, items: [] },
+                    steering: true,
+                    forceSwitchNote: "recovered",
+                    authRequired: false,
+                    permissionMode: "auto",
+                    unsupported: [],
+                    idChange: null,
+                    recovery: null,
+                  },
+                };
+          recovered.deliverText(JSON.stringify(snapshot));
+          expect(messages).toEqual([JSON.stringify(snapshot)]);
+          if (kind === "list") expect(sessions).toEqual([]);
+          else {
+            expect(resumePoint(chat)).toEqual({
+              generation: "chat-run",
+              seq: 7,
+            });
+            const reply = JSON.stringify({
+              type: "events",
+              generation: "chat-run",
+              items: [
+                {
+                  seq: 8,
+                  at: "2026-11-15T00:00:00Z",
+                  kind: "message.append",
+                  message: {
+                    messageId: "reply",
+                    role: "agent",
+                    text: "recovered",
+                  },
+                },
+              ],
+            });
+            recovered.deliverText(reply);
+            recovered.deliverText(reply);
+            expect(chat.entries).toMatchObject([
+              { type: "message", text: "recovered" },
+            ]);
+            expect(resumePoint(chat)?.seq).toBe(8);
+          }
+        }
+        expect(states).toEqual([
+          "connecting",
+          "connected",
+          "connecting",
+          "connected",
+        ]);
+        expect(error).not.toHaveBeenCalled();
+        // A later policy round must not reopen a stream already on target.
+        handoffLiveSockets(force);
+        expect(fast).toHaveLength(2);
+      },
+    );
+
+    it("coalesces policy rounds and upgrades permission without resetting the staging deadline", () => {
+      const { conn, old, next, candidate, error } = terminalHandoff(undefined, {
+        targetPath: "webrtc-direct",
+      });
+      conn.send(0, new Uint8Array([65]));
+      vi.advanceTimersByTime(5_000);
+      handoffLiveSockets(force);
+      expect(candidate).toHaveLength(1);
+      expect(next.closed).toBe(false);
+      vi.advanceTimersByTime(4_999);
+      expect(old.closed).toBe(false);
+      vi.advanceTimersByTime(1);
+      expect(old.closed).toBe(true);
+      expect(candidate).toHaveLength(2);
+      expect(candidate[1]!.sent).toEqual([]);
+      expect(error).toHaveBeenCalledTimes(1);
+    });
+
+    it("interrupts a stalled input fence, reports uncertainty, and never replays input or submissions", () => {
+      const { conn, old, next, ready, candidate, error } = terminalHandoff(
+        undefined,
+        force,
+      );
+      conn.send(0, new Uint8Array([65]));
+      conn.send(3, new Uint8Array([66]));
+      ready();
+      const lateReceipt = old.onmessage!;
+      const id = queryIds(old)[0]!;
+      vi.advanceTimersByTime(resumeTimeout);
+      expect(old.closed).toBe(true);
+      expect(next.closed).toBe(true);
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(error).toHaveBeenCalledWith(expect.stringContaining("无法确认"));
+      expect(conn.send(0, new Uint8Array([67]))).toBe(false);
+      const recovered = candidate[1]!;
+      recovered.open();
+      lateReceipt({
+        data: new Uint8Array([
+          5,
+          ...new TextEncoder().encode(JSON.stringify({ id, state: "missing" })),
+        ]).buffer,
+      });
+      expect(recovered.sent).toEqual([]);
+      expect(conn.send(0, new Uint8Array([68]))).toBe(true);
+      expect(recovered.sent).toEqual([new Uint8Array([0, 68])]);
+      expect(
+        old.sent.filter((frame) => typeof frame !== "string" && frame[0] !== 4),
+      ).toEqual([new Uint8Array([0, 65]), new Uint8Array([3, 66])]);
+    });
+
+    it.each(["invalid", "incompatible", "closed"] as const)(
+      "recovers a failed %s staging candidate only when explicitly allowed",
+      (failure) => {
+        const { old, next, ready, candidate } = terminalHandoff(
+          () => false,
+          force,
+        );
+        if (failure === "invalid") next.deliverFrame(4, "{}");
+        else if (failure === "closed") next.fail();
+        else {
+          ready();
+          expect(next.sent).toEqual([new Uint8Array([2])]);
+          expect(old.closed).toBe(false);
+          vi.advanceTimersByTime(10_000);
+        }
+        expect(old.closed).toBe(true);
+        expect(next.closed).toBe(true);
+        expect(candidate).toHaveLength(2);
+        expect(candidate[1]!.sent).toEqual([]);
+      },
+    );
+
+    it("keeps an explicitly forced healthy candidate make-before-break with the normal terminal fence", () => {
+      const { conn, old, next, ready, candidate, error } = terminalHandoff(
+        undefined,
+        force,
+      );
+      conn.send(0, new Uint8Array([65]));
+      ready();
+      expect(old.closed).toBe(false);
+      acknowledgeFence(old);
+      expect(old.closed).toBe(true);
+      expect(next.closed).toBe(false);
+      expect(candidate).toHaveLength(1);
+      expect(error).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(10_000);
+      handoffLiveSockets(force);
+      expect(candidate).toHaveLength(1);
+    });
+
+    it.each(["staging", "fence", "snapshot"] as const)(
+      "cancels a stale %s migration when current transport identity changes",
+      (phase) => {
+        const { conn, old, next, ready, candidate, error } = terminalHandoff(
+          undefined,
+          force,
+        );
+        conn.send(0, new Uint8Array([65]));
+        if (phase === "fence") ready();
+        const replacement: MockSocket[] = [];
+        // Even another transport with the same path is a different session.
+        setClientTransport(makeTransport("p2p-replacement", replacement));
+        if (phase === "snapshot") ready();
+        vi.advanceTimersByTime(10_000);
+        expect(old.closed).toBe(false);
+        expect(next.closed).toBe(true);
+        expect(candidate).toHaveLength(1);
+        expect(replacement).toHaveLength(0);
+        expect(conn.send(0, new Uint8Array([66]))).toBe(true);
+        expect(old.sent.at(-1)).toEqual(new Uint8Array([0, 66]));
+        expect(error).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["close", "revoke"] as const)(
+      "cancels forced timers and late callbacks after %s",
+      (action) => {
+        applyRelayAuth(
+          {
+            authenticated: true,
+            csrfToken: "csrf",
+            expiresAt: Math.floor(Date.now() / 1000) + 60,
+          },
+          relayAuthRevision(),
+        );
+        const { conn, old, next, ready, candidate } = terminalHandoff(
+          undefined,
+          force,
+        );
+        ready();
+        const lateFailure = next.onerror!;
+        if (action === "close") conn.close();
+        else clearRelayAuth();
+        lateFailure();
+        vi.advanceTimersByTime(10_000);
+        expect(old.closed).toBe(true);
+        expect(next.closed).toBe(true);
+        expect(candidate).toHaveLength(1);
+        expect(conn.send(0, new Uint8Array([65]))).toBe(false);
+      },
+    );
+
+    it.each([SOCKET_CONNECTING, SOCKET_OPEN, SOCKET_CLOSED])(
+      "skips already-target and bulk streams before reconnecting (state %i)",
+      (readyState) => {
+        const baseline: MockSocket[] = [];
+        const fast: MockSocket[] = [];
+        setClientTransport(makeTransport("ws", baseline));
+        for (const route of [
+          "/ws/s/s1/download",
+          "/ws/s/s1/upload",
+          "/ws/files",
+        ]) {
+          const conn = connect(route, vi.fn(), vi.fn(), vi.fn());
+          cleanups.push(() => conn.close());
+          baseline.at(-1)!.readyState = readyState;
+        }
+        setClientTransport(makeTransport("p2p", fast));
+        const conn = connect("/ws/sessions", vi.fn(), vi.fn(), vi.fn());
+        cleanups.push(() => conn.close());
+        fast[0]!.readyState = readyState;
+        handoffLiveSockets(force);
+        expect(baseline).toHaveLength(3);
+        expect(fast).toHaveLength(1);
+        expect(baseline.every((socket) => !socket.closed)).toBe(true);
+        expect(fast[0]!.closed).toBe(false);
+      },
+    );
+
+    it("never forces onto a transport whose actual path differs from the requested target", () => {
+      const baseline: MockSocket[] = [];
+      const wrong: MockSocket[] = [];
+      setClientTransport(makeTransport("ws", baseline));
+      const conn = connect("/ws/sessions", vi.fn(), vi.fn(), vi.fn());
+      cleanups.push(() => conn.close());
+      baseline[0]!.open();
+      setClientTransport(makeTransport("turn", wrong, "webrtc-turn"));
+      handoffLiveSockets(force);
+      vi.advanceTimersByTime(10_000);
+      expect(baseline[0]!.closed).toBe(false);
+      expect(wrong).toHaveLength(1);
+      expect(wrong[0]!.closed).toBe(true);
+    });
+  });
 
   it.each([0, 3, 6])(
     "coalesces delayed fences behind every newer input-lane send (kind %i)",
