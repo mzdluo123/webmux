@@ -45,6 +45,7 @@
   - Relay 文件上传、下载和全部 `/forward/*` 始终走 WSS 批量角色，不能因交互路径切换或批量角色故障被挤入交互连接；
   - TURN 凭据按当前所有者浏览器会话与 PeerConnection 签发，禁止匿名 Allocate；实际选中 `relay` 才显示 TURN 路径，诊断不公开候选 IP、SDP 或凭据；
   - Relay 路径切换保持单写者及既有 generation/offset 续接；结果未知的输入不能重放，初始化失败、队列等待、超时及输出完整性不能从性能结果中排除；
+  - 终端切换先等待候选位置与快照，再以旧连接的唯一查询回执证明此前 PTY 写入已完成；持续输入仍走旧连接，新输入需要更新屏障，不能被候选路径超越；屏障失败只取消候选，不丢弃健康基线或重放未知输入；
   - UDP 黑洞、TURN 不可达或权限失效时保留或恢复 WSS；会话退出与撤销关闭派生路径，不结束 PTY。
 
 ## 取舍
@@ -62,7 +63,7 @@
 - [实时连接压缩开关](../../web/src/components/settings/NetworkSettings.svelte)
 - [P2P 直连面板与双路径测速](../../web/src/components/settings/P2PSettings.svelte)、[P2P 设置 Hook](../../web/src/hooks/settings/p2p-settings.svelte.ts)
 - [前端路径管理与握手](../../web/src/platform/p2p.svelte.ts)、[Peer 会话](../../web/src/platform/p2p-session.ts)、[DataChannel 传输与 RPC](../../web/src/platform/p2p-transport.ts)、[流分片协议](../../web/src/platform/p2p-framing.ts)
-- [连接与无感切换](../../web/src/platform/ws.ts)、[终端重叠裁剪](../../web/src/domains/terminal/terminal-protocol.ts)、[终端连接切换](../../web/src/hooks/terminal/terminal-socket.svelte.ts)
+- [连接与无感切换](../../web/src/platform/ws.ts)、[候选回放与输入屏障](../../web/src/platform/ws-handoff.ts)、[终端重叠裁剪](../../web/src/domains/terminal/terminal-protocol.ts)、[终端连接切换](../../web/src/hooks/terminal/terminal-socket.svelte.ts)
 - [WebRTC 引擎](../../internal/p2p/service_webrtc.go)、[流连接封装](../../internal/p2p/stream_conn.go)、[路由器端口映射](../../internal/p2p/portmap.go)、[`nop2p` 裁剪构建](../../internal/p2p/service_nop2p.go)
 - [P2P 持久设置](../../internal/p2psettings/store.go)、[P2P 路由贡献](../../internal/pluginapi/p2p.go)、[P2P 控制器](../../cmd/webmux/p2pctl.go)、[纯传输帧](../../internal/streamproto/stream.go)
 - [握手协商](../../internal/api/router.go)、[协商用例](../../internal/api/compression_test.go)、[P2P API 用例](../../internal/api/p2p_test.go)
@@ -73,4 +74,7 @@
 ## 验证范围
 
 Go 用例覆盖握手协商、编码选择、DataChannel 分片背压、端口映射生命周期、真实 Pion 双端打洞、`/api/*` RPC 转发与 `nop2p` 构建；前端与隔离实例 Chromium 用例覆盖开关、先建后拆无缺口续接、真实 WebRTC 直连升级、双路径测速与断连回落。
+隔离 Chromium 手机视口已通过合成 GitHub 授权与真实 PostgreSQL、WSS/smux、原版 coturn 完成登录及终端验证。
+WSS 出站附加 150 ms 延迟、浏览器 ICE 限定 relay 候选时选中 relay/relay；切换期间逐键输入保持顺序，真实 Vim 保存字节一致、Ctrl-C 和回落后新输入通过，注销拒绝访问且保留同代际 PTY。
+该场景不代表真实手机、自然公网 RTT、CLI agent 或长时性能验收。
 未做跨运营商对称 NAT 与移动蜂窝真机测速。

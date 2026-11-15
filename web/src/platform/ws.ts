@@ -1,12 +1,7 @@
 import { store, stored } from "./storage";
 import { authenticationToken, relayOwnerAuthenticated } from "./relay-auth";
-import {
-  ChatFrameSchema,
-  SessionEventSchema,
-  StreamPositionSchema,
-} from "../contracts/schemas";
+import { InputHandoffFence, stageHandoff } from "./ws-handoff";
 import type { StreamPosition } from "../contracts/schemas";
-import { inflateSync } from "fflate";
 import {
   currentTransport,
   protocols,
@@ -141,6 +136,7 @@ export function connect(
   let inputUncertain = false;
   let sentInput = false;
   let candidateTimer: number | undefined;
+  const inputFence = new InputHandoffFence();
   const state = (next: Connection) => {
     streamStatuses.set(id, {
       id,
@@ -162,6 +158,7 @@ export function connect(
     onError("先前输入的执行结果无法确认；未自动重发，请检查会话后继续。");
   }
   function clearCandidate() {
+    inputFence.clear();
     clearTimeout(candidateTimer);
     candidateTimer = undefined;
     if (!candidateSocket) return;
@@ -190,9 +187,11 @@ export function connect(
     try {
       socket.send(frame);
       if (kind === 0 || kind === 3) sentInput = true;
+      if (kind === 0 || kind === 3 || kind === 6) inputFence.sent();
     } catch {
       // A partially accepted send has an unknown result. Never queue/replay it.
       if (kind === 0 || kind === 3) sentInput = true;
+      clearCandidate();
       markUncertain();
       socket.close();
       // A false result means definitely rejected. Keep uncertain submissions
@@ -226,6 +225,7 @@ export function connect(
       if (socket !== next || closed) return;
       clearTimeout(resumeTimer);
       resumeTimer = undefined;
+      if (inputFence.receive(event.data)) return;
       try {
         onMessage(event.data);
       } catch (error) {
@@ -244,6 +244,7 @@ export function connect(
       clearTimeout(resumeTimer);
       resumeTimer = undefined;
       clearControls();
+      clearCandidate();
       markUncertain();
       if (event.code === 4410 || event.code === 4404 || event.code === 4409) {
         finished =
@@ -389,10 +390,6 @@ export function connect(
       compress: wsCompression(),
     });
     candidateSocket = next;
-    const buffered: (string | ArrayBuffer)[] = [];
-    let bytes = 0;
-    let reset = false;
-    let awaitingReset = false;
     next.onopen = null;
     next.onerror = () => {
       if (candidateSocket === next) clearCandidate();
@@ -401,53 +398,14 @@ export function connect(
       if (candidateSocket === next) clearCandidate();
     };
     candidateTimer = window.setTimeout(clearCandidate, 10_000);
-    next.onmessage = (event) => {
+    const commit = () => {
       if (candidateSocket !== next || disposed || finished) return;
-      bytes +=
-        typeof event.data === "string"
-          ? event.data.length * 2
-          : event.data.byteLength;
-      if (bytes > maxBufferedAmount) {
+      if (next.readyState !== SOCKET_OPEN) {
         clearCandidate();
         return;
       }
-      buffered.push(event.data);
-      let ready = false;
-      try {
-        const kind = interactiveStreamKind(target);
-        if (kind === "terminal" && event.data instanceof ArrayBuffer) {
-          let frame = new Uint8Array(event.data);
-          if (frame[0] === 7) frame = inflateSync(frame.subarray(1));
-          if (awaitingReset && frame[0] !== 4) {
-            buffered.pop();
-            return;
-          }
-          if (frame[0] === 4) {
-            const position = StreamPositionSchema.parse(
-              JSON.parse(new TextDecoder().decode(frame.subarray(1))),
-            );
-            reset = position.mode === "reset";
-            if (!reset && options.canHandoff && !options.canHandoff(position)) {
-              buffered.pop();
-              awaitingReset = true;
-              next.send(new Uint8Array([2]));
-              return;
-            }
-            awaitingReset = false;
-            ready = !reset;
-          } else if (frame[0] === 1 && reset) ready = true;
-        } else if (typeof event.data === "string") {
-          const value: unknown = JSON.parse(event.data);
-          ready =
-            kind === "chat"
-              ? ChatFrameSchema.parse(value).type === "snapshot"
-              : SessionEventSchema.parse(value).type === "snapshot";
-        }
-      } catch {
-        clearCandidate();
-        return;
-      }
-      if (!ready) return;
+      const buffered = staged.take();
+      if (!buffered) return;
       clearTimeout(candidateTimer);
       candidateTimer = undefined;
       candidateSocket = undefined;
@@ -465,6 +423,9 @@ export function connect(
         previous.onerror = null;
         previous.close(1000, "transport handoff");
       }
+      // The terminal fence drained prior input; only genuine loss is uncertain.
+      if (interactiveStreamKind(target) === "terminal") sentInput = false;
+      else markUncertain();
       wireActiveSocket(next, () => {});
       // Deliver the candidate's authoritative position/snapshot, not baseline
       // output mixed into a new stream. Consumers own generation/cursor dedupe.
@@ -473,8 +434,30 @@ export function connect(
         next.onmessage?.({ data });
       }
       next.onopen?.();
-      markUncertain();
     };
+    const staged = stageHandoff(
+      next,
+      target,
+      maxBufferedAmount,
+      options.canHandoff,
+      () => {
+        if (candidateSocket !== next || !socket) return;
+        if (interactiveStreamKind(target) !== "terminal") return commit();
+        inputFence.begin(
+          socket,
+          () => {
+            sentInput = false;
+            commit();
+          },
+          clearCandidate,
+          resumeTimeout,
+          maxBufferedAmount,
+        );
+      },
+      () => {
+        if (candidateSocket === next) clearCandidate();
+      },
+    );
   };
   const revoked = () => {
     if (ownerStream) api.close();
