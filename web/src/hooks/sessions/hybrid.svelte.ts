@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { onDestroy, untrack } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { api } from "../../platform/api";
@@ -362,7 +363,7 @@ export function useHybrid(
       ? ""
       : state
         ? eligibilityText(state.eligibility)
-        : "正在连接聊天通道",
+        : m.s3_connecting_chat_channel(),
   );
   const connector = $derived.by(() => {
     if (connectorDismissed) return undefined;
@@ -428,7 +429,7 @@ export function useHybrid(
       if (requesting || view === "switching" || !side || to === side) return;
       notice = "";
       if (to === "chat" && chatUnavailable) {
-        notice = `现在不能切到聊天：${chatUnavailable}`;
+        notice = m.s3_cannot_switch_to_chat_now({ reason: chatUnavailable });
         return;
       }
       const running =

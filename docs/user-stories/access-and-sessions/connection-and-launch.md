@@ -50,11 +50,19 @@
   - 片段不发送到服务器；
   - WebSocket 认证通过子协议携带 token，不放入请求 URL 或 Cookie；
   - 链接仍是敏感入口。
+- **US-A07 切换界面语言**：作为在中文或英文环境下工作的开发者，我希望网页界面默认跟随系统语言，也能随时在登录页或设置页手动切换简体中文与 English，以便用熟悉的语言浏览工作区、终端和设置而不中断当前会话。
+  验收要点：
+  - 网页前端内置简体中文（`zh-CN`）与英语（`en`）消息目录，编译与运行期间不请求外部翻译服务或 CDN；
+  - 语言偏好支持“跟随系统 / Follow system”（默认）、`简体中文`、`English` 三项：显式选择保存在当前浏览器的 `webmux.locale`，选择“跟随系统”移除该键，认证失效清理凭据时保留本机语言偏好，且不写入服务端 `/api/settings`；
+  - “跟随系统”按浏览器 `navigator.languages` 顺序匹配首个 `zh*` 或 `en*` 标签，无中文的非空其他语言标签回退为 `en`，空列表回退为 `zh-CN`；系统触发 `languagechange` 或同源标签页修改 `webmux.locale` 时自动同步；
+  - 未登录门禁页（`ConnectionGate`）与“设置 → 外观与阅读”均提供语言切换，服务端设置尚未就绪时也不阻塞语言切换；
+  - 切换语言后，`<html lang>`、浏览器标签页标题、全部已挂载界面文案、前端契约校验提示及本地化日期数字格式立即无刷新更新，不重新加载页面、不断开现有终端或聊天连接，已输入的表单草稿保留。
 
 依据：
 
 - [统一品牌标识](../../../web/src/components/shell/Brand.svelte)、[品牌图标](../../../web/public/icon.svg)、[浏览器图标入口](../../../web/index.html)
 - [应用入口](../../../web/src/App.svelte)、[Token 说明](../../../web/src/components/shared/TokenHelp.svelte)、[配置命令](../../../cmd/webmux/configcmd.go)
+- [语言控制器](../../../web/src/lib/locale.ts)、[语言切换组件](../../../web/src/components/shared/LocaleChoice.svelte)、[消息目录](../../../web/messages/en.json)
 - [启动与 token 生成](../../../cmd/webmux/main.go)、[API 路由与安全检查](../../../internal/api/router.go)、[Host 校验](../../../internal/api/host.go)
 - [安全说明](../../../SECURITY.md)。
 

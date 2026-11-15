@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type { HybridNotice } from "../../domains/sessions/hybrid";
 import type {
   XrTextLine,
@@ -14,7 +15,7 @@ export function xrNoticePanel(options: {
   const lines: XrTextLine[] = [];
   if (options.awaitingChoice) {
     lines.push({
-      text: "TUI 中断后仍未停止。请返回 2D 选择继续等待、强制切换或取消；不会自动强制切换。",
+      text: m.s4_xr_notice_tui_not_stopped(),
       tone: "muted",
     });
     if (options.forceSwitchNote)
@@ -33,13 +34,13 @@ export function xrNoticePanel(options: {
   return {
     id: "notice",
     kind: "chat",
-    title: "会话提示",
+    title: m.s4_xr_notice_panel_title(),
     lines,
     actions: options.awaitingChoice
       ? [
           {
             id: "switch-choice-2d",
-            label: "返回 2D 处理切换",
+            label: m.s4_xr_notice_handle_switch_2d(),
             run: options.openChoice,
           },
         ]

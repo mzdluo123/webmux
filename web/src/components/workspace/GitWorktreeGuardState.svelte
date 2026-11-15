@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import IconAlertTriangle from "~icons/tabler/alert-triangle";
   import IconFolderPlus from "~icons/tabler/folder-plus";
   import IconGitBranch from "~icons/tabler/git-branch";
@@ -60,7 +61,7 @@
           {worktreeTitle(wt)}
         </span>
         {#if showDirty && wt.dirty}
-          <Badge variant="warning">有改动</Badge>
+          <Badge variant="warning">{m.s7_guard_dirty_badge()}</Badge>
         {/if}
         <span class="max-w-48 truncate font-mono text-xs text-muted-foreground">
           {wt.path}
@@ -82,19 +83,17 @@
               class="size-5 text-muted-foreground"
               aria-hidden="true"
             />
-            <h2>尚未登记任何 Git 仓库</h2>
+            <h2>{m.s7_guard_empty_title()}</h2>
           </div>
           <p class="text-xs leading-relaxed text-muted-foreground">
-            Git
-            工作台无需启动终端会话即可浏览提交历史、管理分支与暂存提交。请先登记一个本地
-            Git 仓库。
+            {m.s7_guard_empty_desc()}
           </p>
         </div>
         {#if canAddRepository}
           <div class="flex flex-wrap gap-2">
             <Button size="sm" variant="default" onclick={onAddRepository}>
               <IconPlus aria-hidden="true" />
-              <span>登记已有仓库…</span>
+              <span>{m.s7_register_existing_repo_btn()}</span>
             </Button>
           </div>
         {/if}
@@ -102,10 +101,10 @@
         <div class="space-y-1.5">
           <div class="flex items-center gap-2 text-sm font-semibold">
             <IconAlertTriangle class="size-5 text-warning" aria-hidden="true" />
-            <h2>未找到目标仓库</h2>
+            <h2>{m.s7_guard_missing_repo_title()}</h2>
           </div>
           <p class="text-xs leading-relaxed text-muted-foreground">
-            链接中的仓库未登记或已移除。请选择一个已登记仓库继续浏览，或登记新仓库。
+            {m.s7_guard_missing_repo_desc()}
           </p>
         </div>
         {#if repositories.length > 0}
@@ -127,7 +126,7 @@
           <div class="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onclick={onAddRepository}>
               <IconPlus aria-hidden="true" />
-              <span>登记已有仓库…</span>
+              <span>{m.s7_register_existing_repo_btn()}</span>
             </Button>
           </div>
         {/if}
@@ -138,31 +137,31 @@
               class="size-5 text-destructive"
               aria-hidden="true"
             />
-            <h2>仓库当前不可用：{repository?.name ?? ""}</h2>
+            <h2>
+              {m.s7_guard_unavail_repo_title({ name: repository?.name ?? "" })}
+            </h2>
           </div>
           <p class="text-xs leading-relaxed text-muted-foreground">
-            {repository?.error ||
-              "仓库路径缺失、权限不足或不再是有效的 Git 仓库，写操作与历史读取已禁用。"}
+            {repository?.error || m.s7_guard_unavail_repo_desc()}
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onclick={onManageWorktrees}>
             <IconSettings aria-hidden="true" />
-            <span>查看仓库详情…</span>
+            <span>{m.s7_guard_view_repo_details_btn()}</span>
           </Button>
         </div>
       {:else if kind === "pick-worktree"}
         <div class="space-y-1.5">
           <div class="flex items-center gap-2 text-sm font-semibold">
             <IconGitBranch class="size-5 text-info" aria-hidden="true" />
-            <h2>请选择要写入的工作树</h2>
+            <h2>{m.s7_guard_pick_wt_title()}</h2>
           </div>
           <p class="text-xs leading-relaxed text-muted-foreground">
             {#if worktree?.kind === "bare"}
-              当前目标为裸仓库（bare），不包含工作区文件，无法直接暂存或提交。请选择一个具体工作树或新建工作树。
+              {m.s7_guard_pick_wt_bare_desc()}
             {:else}
-              当前处于只读仓库视图，为避免误写其他分支目录，WebMux
-              不会自动落到任意工作树。请显式选择一个工作树进入提交视图。
+              {m.s7_guard_pick_wt_readonly_desc()}
             {/if}
           </p>
         </div>
@@ -170,18 +169,18 @@
           {@render writableList(true)}
         {:else}
           <p class="text-xs text-muted-foreground">
-            该仓库当前没有可写工作树，请先新建一个工作树。
+            {m.s7_guard_no_writable_wt_hint()}
           </p>
         {/if}
         <div class="flex flex-wrap gap-2">
           <Button size="sm" variant="default" onclick={onNewWorktree}>
             <IconPlus aria-hidden="true" />
-            <span>新建工作树…</span>
+            <span>{m.s7_new_worktree_btn()}</span>
           </Button>
           {#if onBackToLog}
             <Button size="sm" variant="outline" onclick={onBackToLog}>
               <IconHistory aria-hidden="true" />
-              <span>返回历史 (Log)</span>
+              <span>{m.s7_guard_back_to_log_btn()}</span>
             </Button>
           {/if}
         </div>
@@ -189,15 +188,15 @@
         <div class="space-y-1.5">
           <div class="flex items-center gap-2 text-sm font-semibold">
             <IconAlertTriangle class="size-5 text-warning" aria-hidden="true" />
-            <h2>目标工作树不可用</h2>
+            <h2>{m.s7_guard_broken_wt_title()}</h2>
           </div>
           <p class="text-xs leading-relaxed text-muted-foreground">
             {#if !worktree}
-              工作树记录不存在或已被移除，已禁用暂存与提交写操作。仓库历史仍可只读浏览。
+              {m.s7_guard_broken_wt_missing_desc()}
             {:else if worktree.locked}
-              工作树（{worktree.path}）处于锁定状态，已禁用暂存与提交写操作。您可以管理工作树或切换到其他可用工作树。
+              {m.s7_guard_broken_wt_locked_desc({ path: worktree.path })}
             {:else}
-              工作树目录（{worktree.path}）缺失或待清理（prunable），已禁用写操作。您可以修复/管理工作树或切换到其他可用工作树。
+              {m.s7_guard_broken_wt_prunable_desc({ path: worktree.path })}
             {/if}
           </p>
         </div>
@@ -207,7 +206,7 @@
         <div class="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onclick={onManageWorktrees}>
             <IconSettings aria-hidden="true" />
-            <span>管理或修复工作树…</span>
+            <span>{m.s7_guard_manage_repair_wt_btn()}</span>
           </Button>
           <Button
             size="sm"
@@ -215,7 +214,7 @@
             onclick={() => onSelectWorktree(undefined)}
           >
             <IconHistory aria-hidden="true" />
-            <span>切换到只读仓库视图</span>
+            <span>{m.s7_guard_switch_readonly_btn()}</span>
           </Button>
         </div>
       {/if}

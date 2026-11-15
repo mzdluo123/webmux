@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { untrack, type Snippet } from "svelte";
   import { createChatScrollMode } from "../../hooks/chat/chat-scroll-mode.svelte";
   import IconArrowDown from "~icons/tabler/arrow-down";
@@ -130,11 +131,11 @@
   const blocked = $derived(
     unavailable ||
       (chat?.recovery
-        ? "会话已中断，请先恢复"
+        ? m.s3_blocked_interrupted_resume()
         : connection !== "connected" || !chat
-          ? "正在连接聊天…"
+          ? m.s3_connecting_chat()
           : location?.view === "terminal"
-            ? "会话不在聊天端"
+            ? m.s3_blocked_not_on_chat()
             : ""),
   );
   const uploadBlocked = $derived(blocked || uploadUnavailable);
@@ -314,10 +315,10 @@
   data-chat-view
   data-document-scroll={documentScroll ? "true" : undefined}
   role="region"
-  aria-label="聊天"
+  aria-label={m.s3_view_chat()}
   {uploads}
   blocked={!!uploadBlocked}
-  label="松开以上传文件到聊天"
+  label={m.s3_drop_files_to_chat()}
   onfocusin={scrollMode.focusEditing}
   onfocusout={() => {
     requestAnimationFrame(scrollMode.syncEditing);
@@ -374,7 +375,8 @@
         size="sm"
         raised
         class="absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
-        onclick={latest}><IconArrowDown aria-hidden="true" />回到最新</Button
+        onclick={latest}
+        ><IconArrowDown aria-hidden="true" />{m.s3_back_to_latest()}</Button
       >
     {/if}
   </div>
@@ -392,7 +394,8 @@
           size="sm"
           raised
           class="pointer-events-auto"
-          onclick={latest}><IconArrowDown aria-hidden="true" />回到最新</Button
+          onclick={latest}
+          ><IconArrowDown aria-hidden="true" />{m.s3_back_to_latest()}</Button
         >
       </div>
     {/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { SelectedLineRange } from "@pierre/diffs";
+  import { m } from "$lib/paraglide/messages.js";
   import { calculateDiff } from "../../domains/code/code-diff-client";
   import type { DiffResult } from "../../domains/code/code-diff-model";
   import { errorMessage } from "../../platform/error";
@@ -46,23 +47,31 @@
     );
     return () => controller.abort();
   });
+  function stripFullFilesHint(reason: string): string {
+    return reason
+      .replace(m.s3_diff_full_files_suffix(), "")
+      .replace(
+        /(?:\uff0c\u8bf7\u67e5\u770b\u4e24\u4fa7\u5b8c\u6574\u6587\u4ef6|[;,]?\s*(?:please\s+)?view both full files(?:\s+instead)?)\.?$/i,
+        "",
+      );
+  }
 </script>
 
-{#if patch.truncated}<p class="text-xs">Agent 报告的改动内容已截断。</p>{/if}
+{#if patch.truncated}<p class="text-xs">{m.s3_turn_patch_truncated()}</p>{/if}
 {#if !hasSnapshot}
   {#if patch.text}
     <pre
       class="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs break-all whitespace-pre-wrap">{patch.text}</pre>
   {:else}
     <p class="text-xs text-muted-foreground" role="status">
-      未报告改动前后的文本内容。
+      {m.s3_turn_patch_no_snapshot()}
     </p>
   {/if}
 {:else if result?.kind === "ready"}
   <div
     class="flex h-64 min-w-0 flex-col"
     role="region"
-    aria-label={`回合差异：${patch.path}`}
+    aria-label={m.s3_turn_diff_region_label({ path: String(patch.path ?? "") })}
   >
     <CodeDiffReader
       fileDiff={{
@@ -72,7 +81,7 @@
       {side}
       expired={false}
       draftEnabled={false}
-      emptyMessage="文件内容没有变化"
+      emptyMessage={m.s3_turn_patch_unchanged()}
       onselect={selectDiff}
     />
   </div>
@@ -80,7 +89,7 @@
   <p class="text-xs" role="status">
     {error ||
       (result?.kind === "limited"
-        ? result.reason.replace("，请查看两侧完整文件", "")
-        : "正在计算差异…")}
+        ? stripFullFilesHint(result.reason)
+        : m.s3_turn_patch_computing())}
   </p>
 {/if}

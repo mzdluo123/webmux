@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import IconCopy from "~icons/tabler/copy";
   import IconRefresh from "~icons/tabler/refresh";
   import ConfirmDialog from "../components/shared/ConfirmDialog.svelte";
@@ -27,9 +28,9 @@
   const copyFeedback = useCopied({ duration: 2500, expireFailure: true });
   const copyNotice = $derived(
     copyFeedback.copied
-      ? "已复制"
+      ? m.s1_copied()
       : copyFeedback.failed
-        ? "复制失败，请检查浏览器剪贴板权限后重试"
+        ? m.s1_copy_failed_clipboard()
         : "",
   );
   let confirmOpen = $state(false);
@@ -42,34 +43,34 @@
     }
   });
 
-  const providers = {
+  const providers = $derived({
     linux: "Linux / macOS",
-    "wsl-native": "WSL 内 Tailscale",
-    windows: "Windows 主机",
-    none: "未检测到",
-  };
-  const backend = {
-    running: "运行中",
-    stopped: "已停止",
-    "needs-login": "需要登录",
-    unavailable: "未安装或不可用",
-    unknown: "无法确定",
-  };
-  const funnel = {
-    available: "可用",
-    unavailable: "当前节点未启用",
-    unknown: "未知",
-  };
-  const modeText = {
-    off: "未启用",
-    serve: "Serve（仅 tailnet）",
-    funnel: "Funnel（公网）",
-  };
-  const titles = {
-    funnel: "开启公网 Funnel？",
-    save: "替换当前访问的 Tailscale 入口？",
-    reset: "恢复配置文件设置？",
-  };
+    "wsl-native": m.s1_ts_provider_wsl_native(),
+    windows: m.s1_ts_provider_windows(),
+    none: m.s1_ts_provider_none(),
+  });
+  const backend = $derived({
+    running: m.s1_ts_backend_running(),
+    stopped: m.s1_ts_backend_stopped(),
+    "needs-login": m.s1_ts_backend_needs_login(),
+    unavailable: m.s1_ts_backend_unavailable(),
+    unknown: m.s1_ts_backend_unknown(),
+  });
+  const funnel = $derived({
+    available: m.s1_ts_funnel_available(),
+    unavailable: m.s1_ts_funnel_unavailable(),
+    unknown: m.s1_git_status_unknown(),
+  });
+  const modeText = $derived({
+    off: m.s1_ts_mode_off(),
+    serve: m.s1_ts_mode_serve(),
+    funnel: m.s1_ts_mode_funnel(),
+  });
+  const titles = $derived({
+    funnel: m.s1_ts_confirm_funnel_title(),
+    save: m.s1_ts_confirm_replace_title(),
+    reset: m.s1_ts_confirm_reset_title(),
+  });
   const entryAuthority = (entry: TailscaleStatus["entries"][number]) =>
     entry.port === 443 ? entry.host : `${entry.host}:${entry.port}`;
 
@@ -117,9 +118,7 @@
         Tailscale
       </h1>
       <p class="mt-2 text-sm text-muted-foreground">
-        Serve 仅 tailnet 内设备可访问；Funnel
-        会公开到互联网。网页设置保存后立即生效并覆盖配置文件的
-        [tailscale]，无需重启。
+        {m.s1_ts_intro()}
       </p>
     </div>
 
@@ -128,10 +127,10 @@
         variant="outline"
         disabled={ui.loading || ui.busy}
         onclick={() => tailscale.load(true)}
-        ><IconRefresh aria-hidden="true" />刷新检测</Button
+        ><IconRefresh aria-hidden="true" />{m.s1_ts_refresh_check()}</Button
       >
       {#if ui.loading}<span role="status" class="text-sm text-muted-foreground"
-          >正在读取…</span
+          >{m.s1_ts_loading()}</span
         >{/if}
       {#if ui.notice}<span role="status" class="text-sm text-muted-foreground"
           >{ui.notice}</span
@@ -139,15 +138,16 @@
     </div>
     {#if ui.error}
       <InlineNotice tone="danger"
-        >{ui.error}。Tailscale 操作失败不影响终端与其他设置。</InlineNotice
+        >{m.s1_ts_error_isolated({ error: ui.error })}</InlineNotice
       >
     {/if}
 
     {#if status}
       {#if status.mode === "funnel"}
         <InlineNotice tone="warning">
-          当前为 Funnel：<strong>公网 HTTPS</strong>，任何拿到链接与 Token
-          的人都能访问并执行命令。仅在明确需要时保持开启。
+          {m.s1_ts_funnel_warning_before()}<strong
+            >{m.s1_ts_funnel_warning_strong()}</strong
+          >{m.s1_ts_funnel_warning_after()}
         </InlineNotice>
       {/if}
       {#if status.blockedReason || status.error}
@@ -158,11 +158,8 @@
 
       <Card.Root>
         <Card.Header>
-          <Card.Title>检测</Card.Title>
-          <Card.Description
-            >Tailscale 状态只在此处展示；WebMux 不会自动修改 tailnet
-            设置、认证或已存在的其他入口。</Card.Description
-          >
+          <Card.Title>{m.s1_ts_detection_title()}</Card.Title>
+          <Card.Description>{m.s1_ts_detection_desc()}</Card.Description>
         </Card.Header>
         <Card.Content class="space-y-4">
           <div class="flex flex-wrap items-center gap-2" role="status">
@@ -175,26 +172,29 @@
           </div>
           <dl class="grid gap-3 text-sm sm:grid-cols-2">
             <div>
-              <dt class="text-muted-foreground">后端状态</dt>
+              <dt class="text-muted-foreground">{m.s1_ts_backend_state()}</dt>
               <dd>{backend[status.backendState]}</dd>
             </div>
             <div>
-              <dt class="text-muted-foreground">HTTPS 证书</dt>
-              <dd>{status.httpsReady ? "已就绪" : "未就绪"}</dd>
+              <dt class="text-muted-foreground">{m.s1_ts_https_cert()}</dt>
+              <dd>
+                {status.httpsReady ? m.s1_ts_ready() : m.s1_ts_not_ready()}
+              </dd>
             </div>
             <div>
-              <dt class="text-muted-foreground">Funnel 节点属性</dt>
+              <dt class="text-muted-foreground">{m.s1_ts_funnel_attr()}</dt>
               <dd>{funnel[status.funnelAvailable]}</dd>
             </div>
             <div>
-              <dt class="text-muted-foreground">配置 provider</dt>
+              <dt class="text-muted-foreground">
+                {m.s1_ts_configured_provider()}
+              </dt>
               <dd>{status.configuredProvider}</dd>
             </div>
           </dl>
           {#if !status.httpsReady}
             <p class="text-sm text-muted-foreground">
-              在 Tailscale 管理台为节点启用 HTTPS
-              后点击“刷新检测”再保存；证书未就绪时不会执行 Serve/Funnel。
+              {m.s1_ts_enable_https_hint()}
             </p>
           {/if}
         </Card.Content>
@@ -202,22 +202,18 @@
 
       <Card.Root>
         <Card.Header>
-          <Card.Title>托管入口</Card.Title>
-          <Card.Description
-            >WebMux
-            只操作自己记录的精确端口，切换或关闭时先移除这个目标再应用新设置；不会调用
-            reset。</Card.Description
-          >
+          <Card.Title>{m.s1_ts_managed_entry_title()}</Card.Title>
+          <Card.Description>{m.s1_ts_managed_entry_desc()}</Card.Description>
         </Card.Header>
         <Card.Content class="space-y-4">
           <dl class="grid gap-3 text-sm sm:grid-cols-2">
             <div>
-              <dt class="text-muted-foreground">模式</dt>
+              <dt class="text-muted-foreground">{m.s1_mode()}</dt>
               <dd>{modeText[status.mode]}</dd>
             </div>
             <div>
-              <dt class="text-muted-foreground">端口</dt>
-              <dd>{status.port === 0 ? "自动" : status.port}</dd>
+              <dt class="text-muted-foreground">{m.s1_port()}</dt>
+              <dd>{status.port === 0 ? m.s1_auto() : status.port}</dd>
             </div>
           </dl>
           {#if status.publicUrl}
@@ -227,14 +223,16 @@
                 <Button
                   variant="outline"
                   onclick={() => copyURL()}
-                  aria-label="复制 Tailscale 地址"
-                  ><IconCopy aria-hidden="true" />复制地址</Button
+                  aria-label={m.s1_ts_copy_url_aria()}
+                  ><IconCopy aria-hidden="true" />{m.s1_ts_copy_url()}</Button
                 >
                 <Button
                   variant="outline"
                   onclick={() => copyTokenLink()}
-                  aria-label="复制带 Token 的 Tailscale 链接"
-                  ><IconCopy aria-hidden="true" />复制带 Token 链接</Button
+                  aria-label={m.s1_ts_copy_token_link_aria()}
+                  ><IconCopy
+                    aria-hidden="true"
+                  />{m.s1_ts_copy_token_link()}</Button
                 >
               </div>
               {#if copyNotice}<span
@@ -244,23 +242,27 @@
             </div>
           {:else}
             <p class="text-sm text-muted-foreground">
-              当前没有已就绪的地址。{status.mode === "off"
-                ? "选择 Serve 或 Funnel 并保存即可创建入口。"
-                : "修复上方原因后重新保存即可再次应用。"}
+              {status.mode === "off"
+                ? m.s1_ts_no_ready_url_off()
+                : m.s1_ts_no_ready_url_fix()}
             </p>
           {/if}
           <p class="text-sm text-muted-foreground">
-            来源：{status.source === "web"
-              ? "网页设置（覆盖配置文件）"
-              : "配置文件"}。网页保存后持久化，重启后继续生效。
+            {status.source === "web"
+              ? m.s1_ts_source_web()
+              : m.s1_ts_source_config()}
           </p>
           {#if !status.storageAvailable}
             <InlineNotice tone="danger"
-              >网页设置不可用：{status.storageError}</InlineNotice
+              >{m.s1_ts_web_storage_unavailable({
+                error: status.storageError ?? "",
+              })}</InlineNotice
             >
           {:else if !status.canEnable}
             <InlineNotice tone="warning"
-              >无法开启 Serve/Funnel：{status.enableBlockedReason}</InlineNotice
+              >{m.s1_ts_cannot_enable({
+                reason: status.enableBlockedReason ?? "",
+              })}</InlineNotice
             >
           {/if}
           {#key ui.editVersion}
@@ -273,7 +275,8 @@
           <Button
             variant="outline"
             disabled={!canReset}
-            onclick={() => confirm("reset")}>恢复配置文件设置</Button
+            onclick={() => confirm("reset")}
+            >{m.s1_ts_restore_config_settings()}</Button
           >
         </Card.Content>
       </Card.Root>
@@ -281,45 +284,36 @@
       {#if status.wsl}
         <Card.Root>
           <Card.Header>
-            <Card.Title>WSL 环境</Card.Title>
-            <Card.Description
-              >WSL 中通常只在 Windows 主机运行 Tailscale。Windows provider
-              必须显式选择，并要求 mirrored 网络。</Card.Description
-            >
+            <Card.Title>{m.s1_ts_wsl_title()}</Card.Title>
+            <Card.Description>{m.s1_ts_wsl_desc()}</Card.Description>
           </Card.Header>
           <Card.Content class="space-y-3">
             <p>
-              网络模式：<strong>{status.wsl.networkingMode}</strong>；Windows
-              Tailscale：{status.wsl.windowsDetected
-                ? status.wsl.windowsRunning
-                  ? "检测到且运行中"
-                  : "检测到但未运行"
-                : "未检测到"}
-              {#if status.wsl.windowsDnsName}
-                （{status.wsl.windowsDnsName}）
-              {/if}
+              {m.s1_ts_wsl_net_mode()}<strong
+                >{status.wsl.networkingMode}</strong
+              >{m.s1_ts_wsl_win_tailscale({
+                state: status.wsl.windowsDetected
+                  ? status.wsl.windowsRunning
+                    ? m.s1_ts_wsl_win_running()
+                    : m.s1_ts_wsl_win_stopped()
+                  : m.s1_ts_wsl_win_missing(),
+              })}{#if status.wsl.windowsDnsName}{m.s1_ts_wsl_dns_suffix({
+                  dns: status.wsl.windowsDnsName,
+                })}{/if}
             </p>
             {#if status.configuredProvider === "windows" && status.mode !== "off" && status.wsl.networkingMode !== "mirrored"}
               <InlineNotice tone="warning">
-                托管 Windows Tailscale 需要 mirrored 网络。可选方案：把
-                %USERPROFILE%\.wslconfig 的 [wsl2] 设为 networkingMode=mirrored
-                后执行 wsl --shutdown（会结束所有 WSL 会话）；或在 WSL 内安装
-                Tailscale 并把 provider 设为 linux；或继续使用 Windows 托盘的
-                Tailscale 转发并手工配置 Serve。WebMux 不会自动修改 .wslconfig
-                或防火墙。
+                {m.s1_ts_wsl_mirrored_warning()}
               </InlineNotice>
             {/if}
             {#if status.configuredProvider !== "windows" && status.wsl.windowsDetected}
               <p class="text-muted-foreground">
-                要托管 Windows 节点，请在上方把 Provider 选为“Windows
-                主机”；自动只检测，不会修改 Windows 全局配置。
+                {m.s1_ts_wsl_select_windows_hint()}
               </p>
             {/if}
             {#if status.configuredProvider === "windows"}
               <p class="text-muted-foreground">
-                权限不足时，请在 Windows 管理员终端执行一次 tailscale set
-                --operator=&lt;Windows 用户&gt;；WebMux 不会使用 sudo
-                或自动提权。
+                {m.s1_ts_wsl_operator_hint()}
               </p>
             {/if}
           </Card.Content>
@@ -328,17 +322,19 @@
 
       <Card.Root>
         <Card.Header>
-          <Card.Title>现有 Serve / Funnel 入口</Card.Title>
-          <Card.Description
-            >只显示 host、port 与是否公开；不显示其他应用的目标路径。WebMux
-            不会覆盖或删除这些入口。</Card.Description
-          >
+          <Card.Title>{m.s1_ts_existing_entries_title()}</Card.Title>
+          <Card.Description>{m.s1_ts_existing_entries_desc()}</Card.Description>
         </Card.Header>
         <Card.Content>
           {#if status.entries.length === 0}
-            <p class="text-sm text-muted-foreground">没有现有入口。</p>
+            <p class="text-sm text-muted-foreground">
+              {m.s1_ts_no_existing_entries()}
+            </p>
           {:else}
-            <ul class="space-y-2 text-sm" aria-label="现有 Tailscale 入口">
+            <ul
+              class="space-y-2 text-sm"
+              aria-label={m.s1_ts_existing_entries_aria()}
+            >
               {#each status.entries as entry (entryAuthority(entry))}
                 <li
                   class="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2"
@@ -348,8 +344,8 @@
                   >
                   <span class="text-muted-foreground"
                     >{entry.public
-                      ? "公网（Funnel）"
-                      : "仅 tailnet（Serve）"}</span
+                      ? m.s1_ts_entry_public()
+                      : m.s1_ts_entry_tailnet()}</span
                   >
                 </li>
               {/each}
@@ -363,17 +359,14 @@
 
 <ConfirmDialog
   bind:open={confirmOpen}
-  title={action ? titles[action] : "确认操作"}
+  title={action ? titles[action] : m.s1_confirm_action()}
   onconfirm={apply}
 >
   {#if action === "funnel"}
-    Funnel 会把 WebMux 公开到互联网：任何获得地址和 WebMux Token
-    的人都能以服务用户身份执行命令。设置会保存，服务重启后仍保持公开。
+    {m.s1_ts_confirm_funnel_body()}
   {:else if action === "reset"}
-    删除网页设置并关闭当前 Tailscale 入口；下次启动按 config.toml 的 [tailscale]
-    决定是否创建入口。
+    {m.s1_ts_confirm_reset_body()}
   {:else}
-    你正在通过这个 Tailscale 地址访问
-    WebMux。应用新设置会先移除该入口，当前页面可能断开，需改用新地址或本地地址访问。
+    {m.s1_ts_confirm_replace_body()}
   {/if}
 </ConfirmDialog>

@@ -9,8 +9,12 @@
     "scripts/**/*.{ts,mjs}",
     "test/**/*.ts"
   ],
-  "ignore": ["src/lib/components/ui/**"],
-  "ignoreDependencies": ["@typescript/native", "shadcn-svelte"],
+  "ignore": ["src/lib/components/ui/**", "src/lib/paraglide/**"],
+  "ignoreDependencies": [
+    "@inlang/plugin-message-format",
+    "@typescript/native",
+    "shadcn-svelte"
+  ],
   "rules": {
     "files": "error",
     "duplicates": "error",

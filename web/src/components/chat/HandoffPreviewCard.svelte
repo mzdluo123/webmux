@@ -3,6 +3,8 @@
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { locale } from "$lib/locale";
+  import { m } from "$lib/paraglide/messages.js";
   import HandoffHistoryReader from "./HandoffHistoryReader.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import type { HandoffEditor } from "../../hooks/sessions/handoff.svelte";
@@ -19,28 +21,43 @@
             ? "delivered"
             : (e.preview?.state ?? "ready"),
   );
-  const labels: Record<string, string> = {
-    ready: "可发送",
-    stale: "来源已变化",
-    over_budget: "超出预算",
-    delivering: "正在投递",
-    delivered: "已投递",
-    unknown: "结果待对账",
-    failed: "投递失败",
-    preparing: "正在准备",
-    superseded: "已有新版本",
-  };
+  function stateLabel(value: string): string {
+    switch (value) {
+      case "ready":
+        return m.s3_preview_state_ready();
+      case "stale":
+        return m.s3_preview_state_stale();
+      case "over_budget":
+        return m.s3_preview_state_over_budget();
+      case "delivering":
+        return m.s3_preview_state_delivering();
+      case "delivered":
+        return m.s3_preview_state_delivered();
+      case "unknown":
+        return m.s3_preview_state_unknown();
+      case "failed":
+        return m.s3_preview_state_failed();
+      case "preparing":
+        return m.s3_preview_state_preparing();
+      case "superseded":
+        return m.s3_preview_state_superseded();
+      default:
+        return value;
+    }
+  }
 </script>
 
 {#if e.preview}
   {@const p = e.preview}
   <section
     class="min-w-0 space-y-3 rounded-lg border p-4"
-    aria-label="交接历史"
+    aria-label={m.s3_preview_handoff_history()}
   >
     <div class="flex flex-wrap items-center gap-2">
       <h2 class="text-base font-medium">
-        {e.sealed ? "上次交接" : "交接历史"}
+        {e.sealed
+          ? m.s3_preview_last_handoff()
+          : m.s3_preview_handoff_history()}
       </h2>
       <Badge
         variant={state === "delivered"
@@ -49,50 +66,57 @@
             ? "destructive"
             : ["unknown", "stale"].includes(state)
               ? "warning"
-              : "outline"}>{labels[state] ?? state}</Badge
+              : "outline"}>{stateLabel(state)}</Badge
       >
       <Badge variant="outline"
         >{p.manual
-          ? "手工上下文 · inline"
+          ? m.s3_preview_strategy_manual()
           : p.strategy === "delta_since_target_last_seen"
-            ? "增量历史"
-            : "完整来源选择"}</Badge
+            ? m.s3_preview_strategy_delta()
+            : m.s3_preview_strategy_full()}</Badge
       >
     </div>
     <dl
       class="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs"
     >
-      <dt class="text-muted-foreground">目标线程</dt>
+      <dt class="text-muted-foreground">{m.s3_preview_target_thread()}</dt>
       <dd class="break-all">{p.targetProviderThreadId}</dd>
-      <dt class="text-muted-foreground">冻结位置</dt>
+      <dt class="text-muted-foreground">{m.s3_preview_frozen_point()}</dt>
       <dd>{p.sourcePosition} · revision {p.revision}</dd>
-      <dt class="text-muted-foreground">历史预算</dt>
+      <dt class="text-muted-foreground">{m.s3_preview_history_budget()}</dt>
       <dd>
-        {p.budget.used.toLocaleString()} / {p.budget.history.toLocaleString()} · {p
-          .budget.source === "provider"
-          ? "provider 用量"
-          : "保守估算"}
+        {p.budget.used.toLocaleString(locale.current)} / {p.budget.history.toLocaleString(
+          locale.current,
+        )} · {p.budget.source === "provider"
+          ? m.s3_preview_budget_provider()
+          : m.s3_preview_budget_estimate()}
       </dd>
-      <dt class="text-muted-foreground">上下文窗口</dt>
+      <dt class="text-muted-foreground">{m.s3_context_window()}</dt>
       <dd>
-        {p.budget.window.toLocaleString()} · 已占用 {p.budget.nativeUsed.toLocaleString()}
-        · 工作预留 {p.budget.reserve.toLocaleString()}
+        {m.s3_preview_window_detail({
+          window: p.budget.window.toLocaleString(locale.current),
+          used: p.budget.nativeUsed.toLocaleString(locale.current),
+          reserve: p.budget.reserve.toLocaleString(locale.current),
+        })}
       </dd>
-      <dt class="text-muted-foreground">覆盖</dt>
+      <dt class="text-muted-foreground">{m.s3_preview_coverage()}</dt>
       <dd>
-        {p.selectedCount} 项已选择 · {p.omittedCount} 项省略
+        {m.s3_preview_coverage_detail({
+          selected: String(p.selectedCount),
+          omitted: String(p.omittedCount),
+        })}
       </dd>
-      <dt class="text-muted-foreground">恢复工具</dt>
+      <dt class="text-muted-foreground">{m.s3_preview_recovery_tool()}</dt>
       <dd>
         {p.historyToolAvailable
-          ? "thread_read 可用"
-          : "thread_read 不可用，可从历史 API 读取"}
+          ? m.s3_preview_tool_available()
+          : m.s3_preview_tool_fallback()}
       </dd>
-      <dt class="text-muted-foreground">传输</dt>
+      <dt class="text-muted-foreground">{m.s3_preview_transport()}</dt>
       <dd>
         {p.nativeAvailable
-          ? "原生历史；用户请求单独发送"
-          : "inline；用户请求独立保存"}
+          ? m.s3_preview_transport_native()
+          : m.s3_preview_transport_inline()}
       </dd>
     </dl>
     {#if p.omittedCount}{#key `${p.id}:${p.revision}`}<HandoffHistoryReader
@@ -104,21 +128,19 @@
         />{/key}{/if}
     {#if p.reconcileRequired || p.historyOrigin !== "complete"}
       <InlineNotice tone="warning"
-        >来源有历史缺口，请检查重要约束；未从 provider transcript 猜测补齐。</InlineNotice
+        >{m.s3_preview_history_gap_notice()}</InlineNotice
       >
     {/if}
     {#if p.stale && !e.sealed && !e.locked}
-      <InlineNotice tone="warning"
-        >来源或目标配置已变化，编辑仍保留。请重新预览后发送。</InlineNotice
-      >
+      <InlineNotice tone="warning">{m.s3_preview_stale_notice()}</InlineNotice>
     {/if}
     {#if p.budget.overBudget}
       <InlineNotice tone="danger"
-        >超过上下文或单次请求预算。历史与用户任务均已保留，请调整后重新预览；不会截短发送。</InlineNotice
+        >{m.s3_preview_over_budget_notice()}</InlineNotice
       >
     {/if}
     <div class="space-y-2">
-      <Label for="handoff-history">历史正文</Label>
+      <Label for="handoff-history">{m.s3_preview_history_body_label()}</Label>
       <Textarea
         id="handoff-history"
         class="max-h-72 min-h-32"
@@ -131,53 +153,65 @@
           (e.unpreviewed && e.conflict)}
       />
       <p class="text-xs text-muted-foreground">
-        历史是参考材料。手工修改正文会使用 inline；用户当前任务在下面单独编辑。{e.unpreviewed &&
-        e.conflict
-          ? "这是另一设备的预览，请先选择读取服务端版本或保留编辑重新预览。"
-          : e.saving
-            ? "正在保存…"
-            : e.dirty
-              ? "编辑尚未保存"
-              : "已保存到服务端"}
+        {m.s3_preview_history_body_hint({
+          status:
+            e.unpreviewed && e.conflict
+              ? m.s3_preview_status_other_device()
+              : e.saving
+                ? m.s3_preview_status_saving()
+                : e.dirty
+                  ? m.s3_preview_status_unsaved()
+                  : m.s3_preview_status_saved(),
+        })}
       </p>
     </div>
     {#if e.delivery}
       {@const d = e.delivery}
       {#if d.status === "unknown"}
         <InlineNotice tone="warning"
-          >历史：{d.historyStatus}；用户请求：{d.promptStatus}。结果不明，不能盲目重试。请打开目标聊天核对；确认后刷新状态。</InlineNotice
+          >{m.s3_preview_delivery_unknown({
+            history: d.historyStatus,
+            prompt: d.promptStatus,
+          })}</InlineNotice
         >
       {:else if d.status === "failed"}
         <InlineNotice tone="danger"
-          >在 {d.step} 阶段失败：{d.errorClass}。历史：{d.historyStatus}；用户请求：{d.promptStatus}。草稿仍保留。</InlineNotice
+          >{m.s3_preview_delivery_failed({
+            step: d.step,
+            errorClass: d.errorClass,
+            history: d.historyStatus,
+            prompt: d.promptStatus,
+          })}</InlineNotice
         >
       {:else if d.status === "pending"}
         <InlineNotice
-          >正在{d.step === "worktree"
-            ? "准备工作树"
+          >{d.step === "worktree"
+            ? m.s3_preview_delivery_pending_worktree()
             : d.step === "prompt"
-              ? "发送用户请求"
-              : "准备目标会话"}。刷新或重启后可沿用原命令继续准备。</InlineNotice
+              ? m.s3_preview_delivery_pending_prompt()
+              : m.s3_preview_delivery_pending_session()}</InlineNotice
         >
       {:else}
         <InlineNotice tone="success"
-          >交接已完成。历史与用户请求分别记账。</InlineNotice
+          >{m.s3_preview_delivery_done()}</InlineNotice
         >
       {/if}
       <div class="flex flex-wrap gap-2">
         {#if d.sessionId}<Button
             variant="outline"
             onclick={() => openSession({ id: d.sessionId })}
-            >打开目标聊天</Button
+            >{m.s3_preview_open_target_chat()}</Button
           >{/if}
         {#if d.replacementHandoffId}<Button
             variant="outline"
             disabled={e.busy}
-            onclick={() => void e.replacement()}>检查新的原生聊天预览</Button
+            onclick={() => void e.replacement()}
+            >{m.s3_preview_check_replacement()}</Button
           >{/if}
         {#if d.status === "unknown"}<Button
             variant="outline"
-            onclick={() => void e.refresh()}>刷新对账状态</Button
+            onclick={() => void e.refresh()}
+            >{m.s3_preview_refresh_reconcile()}</Button
           >{/if}
       </div>
     {/if}

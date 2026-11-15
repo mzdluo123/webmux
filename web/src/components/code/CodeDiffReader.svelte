@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
+  import { m } from "$lib/paraglide/messages.js";
+  import { locale } from "$lib/locale";
   import {
     CodeView,
     type CodeViewOptions,
@@ -34,9 +36,10 @@
   import {
     diffExpansionLines,
     enhanceDiffControls,
-    findDiffExpandTarget,
     findUnexpandedDiffRegion,
     getDiffInstance,
+    guardDiffExpandEvent,
+    handleDiffExpandKey,
     measureDiffTopLine,
     parseDiffGotoLine,
   } from "../../domains/code/code-diff-dom";
@@ -57,7 +60,7 @@
     restore,
     preferredDiffStyle,
     hint = $bindable(""),
-    emptyMessage = "文件内容没有变化；可通过“完整文件”查看内容",
+    emptyMessage,
   }: {
     fileDiff: FileDiffMetadata;
     side: "old" | "new";
@@ -323,36 +326,11 @@
     viewer.setup(host);
     viewer.setItems([{ id, type: "diff", fileDiff }]);
     mounted = true;
-    const guardExpansion = (event: Event) => {
-      if (expired && findDiffExpandTarget(event)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
-    };
+    const guardExpansion = (event: Event) =>
+      guardDiffExpandEvent(event, expired);
     const keydown = (event: KeyboardEvent) => {
-      const button = findDiffExpandTarget(event);
-      if (button && (event.key === "Enter" || event.key === " ")) {
-        event.preventDefault();
-        if (!expired) {
-          const separator = button.closest<HTMLElement>("[data-expand-index]");
-          const index = Number(separator?.dataset.expandIndex);
-          const instance = diffInstance();
-          if (instance && Number.isInteger(index)) {
-            const all =
-              button.hasAttribute("data-expand-all-button") ||
-              button.hasAttribute("data-expand-both");
-            instance.expandHunk(
-              index,
-              all
-                ? "both"
-                : button.hasAttribute("data-expand-up")
-                  ? "up"
-                  : "down",
-              all ? Number.POSITIVE_INFINITY : diffExpansionLines,
-            );
-          }
-        }
-      } else readerKeydown(event, find.actions.keyHandlers);
+      if (!handleDiffExpandKey(event, expired, diffInstance))
+        readerKeydown(event, find.actions.keyHandlers);
     };
     const selectionChanged = () => {
       if (!coarse) return;
@@ -384,14 +362,17 @@
   });
   $effect(() => {
     void expired;
+    void locale.current;
     if (mounted) enhanceControls();
   });
   $effect(() => {
     hint = !hasChanges
-      ? "当前可引用整个文件"
+      ? m.s5_diff_hint_whole_file()
       : coarse
-        ? `点击代码行，再发送到${draftEnabled ? "草稿" : "终端"}`
-        : "点击行号选择；Shift 点击选择范围";
+        ? m.s5_diff_hint_coarse({
+            target: draftEnabled ? m.s5_target_draft() : m.s5_target_terminal(),
+          })
+        : m.s5_diff_hint_desktop();
     return () => {
       hint = "";
     };
@@ -409,7 +390,10 @@
     <span
       class="mr-auto flex gap-2 font-mono text-xs tabular-nums"
       role="img"
-      aria-label={`新增 ${totals.additions} 行，删除 ${totals.deletions} 行`}
+      aria-label={m.s5_diff_totals_aria({
+        additions: String(totals.additions),
+        deletions: String(totals.deletions),
+      })}
       ><span class="text-success">+{totals.additions}</span><span
         class="text-destructive">−{totals.deletions}</span
       ></span
@@ -417,10 +401,10 @@
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label="文件内查找"
+      aria-label={m.s5_find_in_file()}
       aria-expanded={find.panel === "search"}
       aria-keyshortcuts="Control+f Meta+f"
-      title="文件内查找（Ctrl / ⌘ F）"
+      title={m.s5_find_in_file_shortcut()}
       disabled={!hasChanges}
       onclick={() => void find.actions.openPanel("search")}
       ><IconSearch aria-hidden="true" /></Button
@@ -428,8 +412,8 @@
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label="自动换行"
-      title="自动换行"
+      aria-label={m.s5_word_wrap()}
+      title={m.s5_word_wrap()}
       aria-pressed={overflow === "wrap"}
       onclick={() => {
         changeSettings({
@@ -443,8 +427,8 @@
     <Button
       variant="ghost"
       size="icon-sm"
-      title="缩放"
-      aria-label="缩放"
+      title={m.s5_zoom()}
+      aria-label={m.s5_zoom()}
       aria-expanded={find.panel === "zoom"}
       onclick={() => void find.actions.openPanel("zoom")}
       ><IconZoomIn aria-hidden="true" /></Button
@@ -454,7 +438,7 @@
     panel={find.panel}
     query={find.search}
     line={selected?.start ?? 1}
-    status={`${side === "old" ? "修改前" : "修改后"} · ${find.status}`}
+    status={`${side === "old" ? m.s5_before() : m.s5_after()} · ${find.status}`}
     {...find.panelProps}
     ongoto={goto}
   />
@@ -462,8 +446,8 @@
     <div
       class="grid shrink-0 grid-cols-2 border-b bg-muted/40 font-mono text-xs text-muted-foreground"
     >
-      <span class="truncate border-r px-3 py-1">修改前</span><span
-        class="truncate px-3 py-1">修改后</span
+      <span class="truncate border-r px-3 py-1">{m.s5_before()}</span><span
+        class="truncate px-3 py-1">{m.s5_after()}</span
       >
     </div>
   {/if}
@@ -474,14 +458,14 @@
       style:--diffs-font-size={`${codeFont.size}px`}
       style:--diffs-line-height={`${codeFont.lineHeight}px`}
       tabindex="-1"
-      aria-label="只读代码"
+      aria-label={m.s5_readonly_code()}
     ></div>
     {#if !hasChanges}
       <p
         class="absolute inset-x-0 top-8 text-center text-sm text-muted-foreground"
         role="status"
       >
-        {emptyMessage}
+        {emptyMessage ?? m.s5_diff_empty_message()}
       </p>
     {/if}
   </div>

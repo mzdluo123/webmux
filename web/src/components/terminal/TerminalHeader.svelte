@@ -16,6 +16,7 @@
     type ButtonVariant,
   } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import { m } from "$lib/paraglide/messages.js";
   import type { Fullscreen } from "../../hooks/shared/fullscreen.svelte";
   import type { HybridView } from "../../hooks/sessions/hybrid.svelte";
   import type { SwitchTarget } from "../../domains/sessions/hybrid";
@@ -118,7 +119,7 @@
     shell?.sessions.sessions.find((session) => session.id === t.info?.id)
       ?.title ||
       t.info?.title ||
-      "终端",
+      m.s4_tab_terminal(),
   );
   let fileInput = $state<{ open(): void }>();
   let panelTrigger = $state<HTMLButtonElement | null>(null);
@@ -136,12 +137,12 @@
   );
   const connectionText = $derived(
     t.connection === "connected"
-      ? "已连接"
+      ? m.s4_conn_connected()
       : t.connection === "exited"
-        ? "已退出"
+        ? m.s4_conn_exited()
         : t.connection === "missing"
-          ? "不存在"
-          : "重连中",
+          ? m.s4_conn_missing()
+          : m.s4_conn_reconnecting(),
   );
   const uploadDisabled = $derived(
     uploading ||
@@ -166,8 +167,12 @@
     class="max-sm:hidden"
     variant="ghost"
     size="icon-sm"
-    aria-label={shellUi.mode === "chat" ? "返回新聊天" : "返回会话列表"}
-    title={shellUi.mode === "chat" ? "返回新聊天" : "返回会话列表"}
+    aria-label={shellUi.mode === "chat"
+      ? m.s4_back_to_new_chat()
+      : m.s4_back_to_session_list()}
+    title={shellUi.mode === "chat"
+      ? m.s4_back_to_new_chat()
+      : m.s4_back_to_session_list()}
     onclick={leave}
   >
     <IconArrowLeft class="size-4" aria-hidden="true" />
@@ -204,8 +209,8 @@
     {#if plugins.chat && chatAgent}<span
         class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground sm:order-2"
         role="img"
-        aria-label={`Agent：${chatAgent.title}`}
-        title={`Agent：${chatAgent.title}`}
+        aria-label={m.s4_agent_label({ title: chatAgent.title })}
+        title={m.s4_agent_label({ title: chatAgent.title })}
         data-slot="chat-agent"
         >{#if plugins.chat.hasLaunchIcon(chatAgent.icon)}<plugins.chat.LaunchIcon
             icon={chatAgent.icon}
@@ -240,8 +245,8 @@
         variant="ghost"
         size="icon-sm"
         class="max-sm:hidden"
-        aria-label="上传文件"
-        title="上传文件"
+        aria-label={m.s4_upload_files()}
+        title={m.s4_upload_files()}
         disabled={uploadDisabled}
         onclick={() => fileInput?.open()}
         ><IconUpload class="size-4" aria-hidden="true" /></Button
@@ -251,8 +256,8 @@
       variant="ghost"
       size="icon-sm"
       class="max-sm:hidden"
-      aria-label="滚动到最新位置"
-      title="滚动到最新位置"
+      aria-label={m.s4_scroll_to_latest()}
+      title={m.s4_scroll_to_latest()}
       disabled={t.restoring}
       onclick={scrollToLatest}
       ><IconArrowDown class="size-4" aria-hidden="true" /></Button
@@ -279,8 +284,8 @@
     bind:ref={panelTrigger}
     variant="ghost"
     size="icon-touch-sm"
-    aria-label="打开面板"
-    title="打开面板"
+    aria-label={m.s4_open_panel()}
+    title={m.s4_open_panel()}
     aria-expanded={codeShown}
     onclick={openPanels}><IconPlus class="size-4" aria-hidden="true" /></Button
   >
@@ -288,8 +293,12 @@
       variant="ghost"
       size="icon-sm"
       class="max-sm:hidden"
-      aria-label={fullscreen.active ? "退出全屏" : "全屏"}
-      title={fullscreen.active ? "退出全屏" : "全屏"}
+      aria-label={fullscreen.active
+        ? m.s4_exit_fullscreen()
+        : m.s4_enter_fullscreen()}
+      title={fullscreen.active
+        ? m.s4_exit_fullscreen()
+        : m.s4_enter_fullscreen()}
       aria-pressed={fullscreen.active}
       aria-busy={fullscreen.busy}
       disabled={fullscreen.busy || xr?.busy || xr?.active}
@@ -311,8 +320,11 @@
           {...props}
           variant="ghost"
           size="icon-touch-sm"
-          aria-label={terminalShown ? "终端菜单" : "会话菜单"}
-          title={terminalShown ? "终端菜单" : "会话菜单"}>⋯</Button
+          aria-label={terminalShown
+            ? m.s4_terminal_menu()
+            : m.s4_session_menu()}
+          title={terminalShown ? m.s4_terminal_menu() : m.s4_session_menu()}
+          >⋯</Button
         >{/snippet}
     </DropdownMenu.Trigger>
     <DropdownMenu.Content
@@ -338,36 +350,44 @@
           disabled={fullscreen.busy || xr?.busy || xr?.active}
           onSelect={() => {
             void fullscreen.toggle();
-          }}>{fullscreen.active ? "退出全屏" : "全屏"}</DropdownMenu.Item
+          }}
+          >{fullscreen.active
+            ? m.s4_exit_fullscreen()
+            : m.s4_enter_fullscreen()}</DropdownMenu.Item
         >{#if terminalShown}<DropdownMenu.Separator
             class="sm:hidden"
           />{/if}{/if}
       {#if chatActions}<DropdownMenu.Group
-          ><DropdownMenu.GroupHeading>聊天交接</DropdownMenu.GroupHeading
+          ><DropdownMenu.GroupHeading
+            >{m.s4_menu_group_handoff()}</DropdownMenu.GroupHeading
           >{@render chatActions()}</DropdownMenu.Group
         ><DropdownMenu.Separator />{/if}
       {#if terminalShown}
         <DropdownMenu.Group>
-          <DropdownMenu.GroupHeading>会话</DropdownMenu.GroupHeading>
+          <DropdownMenu.GroupHeading
+            >{m.s4_menu_group_session()}</DropdownMenu.GroupHeading
+          >
           <DropdownMenu.CheckboxItem
             class={tvMode.enabled ? undefined : "sm:hidden"}
             closeOnSelect
             checked={draft.enabled}
             disabled={t.connection === "missing"}
             onCheckedChange={toggleDraft}
-            >草稿模式{draft.scratch.length
-              ? `（${draft.scratch.length} 条暂存）`
-              : ""}</DropdownMenu.CheckboxItem
+            >{draft.scratch.length
+              ? m.s4_menu_draft_with_scratch({
+                  count: String(draft.scratch.length),
+                })
+              : m.s4_draft_mode()}</DropdownMenu.CheckboxItem
           >
           <DropdownMenu.Item
             disabled={!t.canFind}
             onSelect={() => {
               openingFind = true;
               showFind();
-            }}><IconSearch aria-hidden="true" />查找</DropdownMenu.Item
+            }}><IconSearch aria-hidden="true" />{m.s4_find()}</DropdownMenu.Item
           >
           <DropdownMenu.Item onSelect={showScratch}
-            >暂存{draft.scratch.length
+            >{m.s4_scratch_title()}{draft.scratch.length
               ? ` (${draft.scratch.length})`
               : ""}</DropdownMenu.Item
           >
@@ -375,46 +395,56 @@
             <DropdownMenu.Item
               class={tvMode.enabled ? undefined : "sm:hidden"}
               disabled={uploadDisabled}
-              onSelect={() => fileInput?.open()}>上传文件</DropdownMenu.Item
+              onSelect={() => fileInput?.open()}
+              >{m.s4_upload_files()}</DropdownMenu.Item
             >
           {/if}
         </DropdownMenu.Group>
         <DropdownMenu.Separator />
         <DropdownMenu.Group>
-          <DropdownMenu.GroupHeading>剪贴板</DropdownMenu.GroupHeading>
+          <DropdownMenu.GroupHeading
+            >{m.s4_menu_group_clipboard()}</DropdownMenu.GroupHeading
+          >
           <DropdownMenu.Item
             onSelect={() => {
               void paste();
-            }}>粘贴</DropdownMenu.Item
+            }}>{m.s4_paste()}</DropdownMenu.Item
           >
         </DropdownMenu.Group>
         <DropdownMenu.Separator />
         <DropdownMenu.Group>
-          <DropdownMenu.GroupHeading>终端</DropdownMenu.GroupHeading>
-          <DropdownMenu.Item onSelect={() => t.clear()}>清屏</DropdownMenu.Item>
+          <DropdownMenu.GroupHeading
+            >{m.s4_tab_terminal()}</DropdownMenu.GroupHeading
+          >
+          <DropdownMenu.Item onSelect={() => t.clear()}
+            >{m.s4_clear_screen()}</DropdownMenu.Item
+          >
           <DropdownMenu.Item onSelect={() => t.resync()}
-            >重新同步</DropdownMenu.Item
+            >{m.s4_resync()}</DropdownMenu.Item
           >
-          <DropdownMenu.Item onSelect={showFontSize}>字体大小</DropdownMenu.Item
+          <DropdownMenu.Item onSelect={showFontSize}
+            >{m.s4_font_size()}</DropdownMenu.Item
           >
         </DropdownMenu.Group>
         <DropdownMenu.Separator />
         <DropdownMenu.Group>
-          <DropdownMenu.GroupHeading>显示</DropdownMenu.GroupHeading>
+          <DropdownMenu.GroupHeading
+            >{m.s4_menu_group_display()}</DropdownMenu.GroupHeading
+          >
           <DropdownMenu.CheckboxItem
             checked={sizeLocked}
             onCheckedChange={(value) => setSizeLocked(value === true)}
           >
-            锁定尺寸
+            {m.s4_lock_size()}
           </DropdownMenu.CheckboxItem>
           <DropdownMenu.CheckboxItem
             checked={keyboardSizeHold}
             onCheckedChange={(value) => setKeyboardSizeHold(value === true)}
           >
-            键盘弹出时保持尺寸
+            {m.s4_hold_size_on_keyboard()}
           </DropdownMenu.CheckboxItem>
           <DropdownMenu.CheckboxItem bind:checked={forceSoftKeys}>
-            强制显示底部工具栏
+            {m.s4_force_soft_keys()}
           </DropdownMenu.CheckboxItem>
         </DropdownMenu.Group>
       {/if}
@@ -428,10 +458,10 @@
         disabled={!t.info}
         onSelect={close}
         >{t.exitCode !== null
-          ? "移除会话"
+          ? m.s4_remove_session()
           : archivable
-            ? "停止会话并归档"
-            : "关闭会话"}</DropdownMenu.Item
+            ? m.s4_stop_and_archive_session()
+            : m.s4_close_session()}</DropdownMenu.Item
       >
     </DropdownMenu.Content>
   </DropdownMenu.Root>

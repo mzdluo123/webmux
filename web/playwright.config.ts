@@ -39,6 +39,7 @@ export default defineConfig({
     ["html", { outputFolder: "playwright-report/e2e", open: "never" }],
   ],
   use: {
+    locale: "zh-CN",
     headless: true,
     screenshot: "only-on-failure",
     // Recording every test costs ~14% of suite time. CI retries once, so it

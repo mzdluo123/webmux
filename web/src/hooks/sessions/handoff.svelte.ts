@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import {
   generateHandoffPreview,
   recoverHandoffPreview,
@@ -168,8 +169,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
         context = draft.preview.renderedText;
         if (unpreviewed && hasConflictingHandoffWork(choice, draft)) {
           conflict = true;
-          error =
-            "服务端已有其他版本，已保留本设备尚未预览的任务与选项。请选择读取服务端版本或保留编辑重新预览。";
+          error = m.s3_handoff_conflict_unpreviewed();
         } else adopt(draft.preview);
       } else if (!choice) {
         location = sourceLocation(draft.source);
@@ -190,9 +190,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
           (task !== draft.preview.userText ||
             context !== draft.preview.renderedText);
         recoveryBase = conflict ? recovery : null;
-        if (conflict)
-          error =
-            "服务端已有其他版本，已保留本地编辑。请选择读取服务端版本或保留编辑重新预览。";
+        if (conflict) error = m.s3_handoff_conflict_local_kept();
       } else if (sealed && !conflict) nextTask();
     } catch (cause) {
       if (disposed) return;
@@ -216,8 +214,8 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       }
       error = orphan
         ? source
-          ? "原交接记录暂时无法恢复，本设备的未发送内容已保留，可重新生成预览。"
-          : "暂时无法读取来源，本设备的未发送内容已保留。请刷新后重试。"
+          ? m.s3_handoff_orphan_with_source()
+          : m.s3_handoff_orphan_no_source()
         : errorMessage(cause);
     } finally {
       if (!disposed) loading = false;
@@ -248,7 +246,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       } catch (cause) {
         if (cause instanceof APIError && cause.status === 409) conflict = true;
         error = conflict
-          ? "另一个设备已修改草稿。你的编辑已保留，请读取服务端版本或保留编辑重新预览。"
+          ? m.s3_handoff_conflict_other_device()
           : errorMessage(cause);
         return false;
       } finally {
@@ -279,7 +277,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
         ) {
           conflict = true;
           remember();
-          error = "服务端已有其他版本，你的编辑已保留。";
+          error = m.s3_handoff_conflict_short();
         } else if (!dirty && !choiceChanged) adopt(updated);
         else preview = updated;
       }

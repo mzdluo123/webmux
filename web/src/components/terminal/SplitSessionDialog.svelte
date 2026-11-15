@@ -7,6 +7,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { m } from "$lib/paraglide/messages.js";
   import SplitDirectionChoice from "./SplitDirectionChoice.svelte";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
   import { errorMessage } from "../../platform/error";
@@ -57,22 +58,22 @@
 </script>
 
 <ResponsiveDialog
-  title="分屏加入已有会话"
-  description="选择会话放入新窗格；当前已显示的会话不会重复加入。"
+  title={m.s4_split_join_title()}
+  description={m.s4_split_join_desc()}
   {onclose}
 >
   <div class="space-y-4">
     <SplitDirectionChoice bind:direction />
     <Input
-      aria-label="搜索已有会话"
-      placeholder="搜索名称或目录"
+      aria-label={m.s4_split_search_aria()}
+      placeholder={m.s4_split_search_placeholder()}
       bind:value={query}
     />
     <div class="max-h-[50dvh] space-y-1 overflow-auto">
-      {#if loading}<p role="status">正在加载会话…</p>
+      {#if loading}<p role="status">{m.s4_loading_sessions()}</p>
       {:else if error}<p role="alert" class="text-destructive">{error}</p>
       {:else if choices.length === 0}<p class="text-sm text-muted-foreground">
-          没有可加入的会话。可从「打开面板」→「分屏」新建 Shell。
+          {m.s4_split_no_sessions()}
         </p>
       {:else}{#each choices as session (session.id)}
           <ListButton
@@ -83,7 +84,7 @@
             <span class="min-w-0"
               ><span class="block truncate"
                 >{session.title}{session.status === "exited"
-                  ? "（已退出）"
+                  ? m.s4_session_exited_suffix()
                   : ""}</span
               ><span class="block truncate text-xs text-muted-foreground"
                 >{session.cwd}</span
@@ -93,7 +94,7 @@
         {/each}{/if}
     </div>
     <div class="flex justify-end">
-      <Button variant="outline" onclick={onclose}>取消</Button>
+      <Button variant="outline" onclick={onclose}>{m.s4_cancel()}</Button>
     </div>
   </div>
 </ResponsiveDialog>

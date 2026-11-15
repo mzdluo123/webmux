@@ -8,6 +8,7 @@
     type ProjectSelection,
   } from "../../domains/sessions/project-selection";
   import { errorMessage } from "../../platform/error";
+  import { m } from "$lib/paraglide/messages.js";
   import { untrack } from "svelte";
   import { navigate, recentDirs, stored } from "../../platform/api";
   import {
@@ -389,12 +390,12 @@
 </script>
 
 <ResponsiveDialog
-  title={treeOnly ? "新建工作树" : "新建会话"}
+  title={treeOnly ? m.s3_new_worktree_title() : m.s3_new_session_title()}
   description={treeOnly
-    ? "创建独立的代码副本，可选择同时启动会话。"
+    ? m.s3_new_worktree_desc()
     : projectEnabled
-      ? "先选择项目，再设置运行方式。"
-      : "浏览器断开后，会话仍会继续。"}
+      ? m.s3_new_session_project_desc()
+      : m.s3_new_session_default_desc()}
   class="p-5 sm:max-w-3xl"
   pinDrawerHeader
   {busy}

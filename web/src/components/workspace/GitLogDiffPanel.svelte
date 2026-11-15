@@ -8,6 +8,7 @@
   import IconMinimize from "~icons/tabler/minimize";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import GitDiffStyleSwitch from "./GitDiffStyleSwitch.svelte";
   import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import type { GitCommitFile } from "../../contracts/git-workbench-schemas";
@@ -29,7 +30,7 @@
     fallbackFile = null,
     fallbackLeftLabel = "",
     fallbackRightLabel = "",
-    backLabel = "返回提交详情",
+    backLabel: rawBackLabel,
     presentation = "docked",
     collapsed = false,
     diffMode = "unified",
@@ -61,6 +62,8 @@
     onBack?: () => void;
   } = $props();
 
+  const backLabel = $derived(rawBackLabel ?? m.s6_back_to_commit_detail());
+
   let readerRef = $state<ReturnType<typeof CodeDiffReader>>();
   let selectionSlot = $state.raw<{
     key: string;
@@ -78,8 +81,8 @@
       disabled: Boolean(logDiff),
       hasTarget: Boolean(file),
       binary: Boolean(file?.binary),
-      binaryReason: "二进制文件不直接展开文本行级差异。",
-      emptyReason: "此文件仅包含模式或重命名变更，无文本差异。",
+      binaryReason: m.s6_binary_no_text_diff(),
+      emptyReason: m.s6_log_diff_mode_rename_only(),
       snapshotKey: `fixture:${fallbackLeftLabel}:${fallbackRightLabel}:${file?.newPath ?? ""}`,
       path: file?.newPath ?? "",
       oldPath: file?.oldPath ?? "",
@@ -161,7 +164,7 @@
       variant="outline"
       onclick={() => logDiff.closeSnapshotSide()}
     >
-      返回差异对比
+      {m.s6_log_diff_back_to_diff()}
     </Button>
   {:else if logDiff && rawDiff && !collapsed}
     {#if rawDiff.old.source !== "empty" && rawDiff.old.kind === "text"}
@@ -171,7 +174,7 @@
         onclick={() => void logDiff.openSnapshotSide("before")}
       >
         <IconFileText aria-hidden="true" />
-        变更前全文
+        {m.s6_log_diff_full_before()}
       </Button>
     {/if}
     {#if rawDiff.new.source !== "empty" && rawDiff.new.kind === "text"}
@@ -181,7 +184,7 @@
         onclick={() => void logDiff.openSnapshotSide("after")}
       >
         <IconFileText aria-hidden="true" />
-        变更后全文
+        {m.s6_log_diff_full_after()}
       </Button>
     {/if}
   {/if}
@@ -190,7 +193,9 @@
 {#snippet fileIdentitySummary()}
   {#if leftEndpoint || rightEndpoint}
     <Badge variant="outline" class="shrink-0">
-      <span class="font-mono">{leftEndpoint || "空树"} → {rightEndpoint}</span>
+      <span class="font-mono"
+        >{leftEndpoint || m.s6_empty_tree()} → {rightEndpoint}</span
+      >
     </Badge>
   {/if}
   {#if fileStatus}
@@ -207,14 +212,14 @@
         ? `${oldFilePath} → ${filePath}`
         : filePath}
     {:else}
-      文件差异预览
+      {m.s6_log_diff_preview_placeholder()}
     {/if}
   </span>
 {/snippet}
 
 <section
   class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-  aria-label="历史文件差异视图"
+  aria-label={m.s6_log_diff_section_aria()}
   data-testid="git-log-diff-panel"
   data-diff-presentation={presentation}
 >
@@ -245,7 +250,7 @@
         {#if presentation === "maximized" && onBack}
           <Button size="sm" variant="ghost" class="shrink-0" onclick={onBack}>
             <IconArrowLeft aria-hidden="true" />
-            返回日志列表
+            {m.s6_log_diff_back_to_log()}
           </Button>
         {/if}
         {@render fileIdentitySummary()}
@@ -257,7 +262,7 @@
         {#if !collapsed && phase === "ready"}
           <GitDiffStyleSwitch
             value={diffMode}
-            ariaLabel="历史差异布局模式"
+            ariaLabel={m.s6_log_diff_layout_aria()}
             onChange={(mode) => onDiffModeChange?.(mode)}
           />
         {/if}
@@ -268,11 +273,11 @@
             variant="ghost"
             aria-pressed={presentation === "maximized"}
             aria-label={presentation === "maximized"
-              ? "退出放大差异"
-              : "放大差异到主工作区"}
+              ? m.s6_log_diff_exit_maximize_aria()
+              : m.s6_log_diff_maximize_aria()}
             title={presentation === "maximized"
-              ? "退出放大差异 (Esc)"
-              : "放大差异到主工作区 (Enter / 双击文件)"}
+              ? m.s6_log_diff_exit_maximize_tooltip()
+              : m.s6_log_diff_maximize_tooltip()}
             onclick={onToggleMaximized}
           >
             {#if presentation === "maximized"}
@@ -288,8 +293,12 @@
             size="icon-sm"
             variant="ghost"
             aria-expanded={!collapsed}
-            aria-label={collapsed ? "展开底部差异面板" : "折叠底部差异面板"}
-            title={collapsed ? "展开底部差异面板" : "折叠底部差异面板"}
+            aria-label={collapsed
+              ? m.s6_log_diff_expand_dock()
+              : m.s6_log_diff_collapse_dock()}
+            title={collapsed
+              ? m.s6_log_diff_expand_dock()
+              : m.s6_log_diff_collapse_dock()}
             onclick={onToggleCollapsed}
           >
             {#if collapsed}

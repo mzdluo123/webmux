@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import type {
     GitBranchItem,
     GitWorktreeContext,
@@ -34,7 +35,7 @@
           context,
           branchFilter,
           compareBaseOid: context.headOid ?? null,
-          compareTargetLabel: "与当前 HEAD 比较",
+          compareTargetLabel: m.s6_compare_with_head(),
         })
       : [],
   );
@@ -42,7 +43,7 @@
 
 {#if !activeBranch}
   <p class="text-xs text-muted-foreground">
-    选择任意分支或标签查看详情、上游关联、工作树占用与可执行操作。
+    {m.s6_branch_detail_empty()}
   </p>
 {:else}
   {@const isCurrent =
@@ -63,35 +64,40 @@
         </h3>
         <Badge variant="outline">
           {#if activeBranch.kind === "tag"}
-            {activeBranch.tagKind === "annotated" ? "附注标签" : "轻量标签"}
+            {activeBranch.tagKind === "annotated"
+              ? m.s6_tag_annotated()
+              : m.s6_tag_lightweight()}
           {:else if activeBranch.kind === "local"}
-            本地分支
+            {m.s6_branch_kind_local()}
           {:else}
-            远程引用
+            {m.s6_branch_kind_remote_ref()}
           {/if}
         </Badge>
         {#if activeBranch.kind === "tag" && activeBranch.tagSigned}
-          <Badge variant="info">已签名</Badge>
+          <Badge variant="info">{m.s6_tag_signed()}</Badge>
         {/if}
       </div>
       <p class="mt-1 text-xs wrap-anywhere text-muted-foreground">
-        指向提交：{activeBranch.shortHead} · {activeBranch.subject}
+        {m.s6_branch_points_to_commit({
+          shortHead: activeBranch.shortHead,
+          subject: activeBranch.subject,
+        })}
       </p>
     </div>
 
     {#if activeBranch.kind === "tag"}
       <div class="space-y-1.5 rounded-md border bg-background p-2.5 text-xs">
         <p class="font-mono break-all text-muted-foreground">
-          目标提交 OID：{activeBranch.head}
+          {m.s6_tag_target_commit_oid({ oid: activeBranch.head })}
         </p>
         {#if activeBranch.tagOid}
           <p class="font-mono break-all text-muted-foreground">
-            标签对象 OID：{activeBranch.tagOid}
+            {m.s6_tag_object_oid({ oid: activeBranch.tagOid })}
           </p>
         {/if}
         {#if activeBranch.taggerName}
           <p class="wrap-anywhere text-muted-foreground">
-            标签者：{activeBranch.taggerName}
+            {m.s6_tag_tagger_label({ name: activeBranch.taggerName })}
             {#if activeBranch.taggerEmail}
               &lt;{activeBranch.taggerEmail}&gt;
             {/if}
@@ -114,11 +120,13 @@
 
     {#if activeBranch.occupiedBy}
       <InlineNotice tone="warning">
-        该分支已在另一工作树
+        {m.s6_branch_occupied_notice_before()}
         <span class="font-mono break-all"
           >{activeBranch.occupiedBy.worktreePath}</span
         >
-        检出（当前活跃会话：{activeBranch.occupiedBy.activeSessions} 个）。Git 不允许两个工作树同时检出同一本地分支，请直接前往该工作树或从该提交新建工作树分支。
+        {m.s6_branch_occupied_notice_after({
+          count: activeBranch.occupiedBy.activeSessions,
+        })}
       </InlineNotice>
     {/if}
 
@@ -128,7 +136,7 @@
         variant="outline"
         onclick={() => onRouteOp("filter-log", activeBranch)}
       >
-        在历史中查看提交
+        {m.s6_branch_view_in_log()}
       </Button>
 
       {#if activeBranch.occupiedBy}
@@ -137,14 +145,14 @@
           variant="outline"
           onclick={() => onRouteOp("open-occupied-worktree", activeBranch)}
         >
-          打开所在工作树
+          {m.s6_branch_open_occupied_worktree()}
         </Button>
         <Button
           size="sm"
           variant="outline"
           onclick={() => onRouteOp("open-new-worktree", activeBranch)}
         >
-          从该提交新建分支工作树…
+          {m.s6_branch_new_worktree_from_commit()}
         </Button>
       {:else if isCurrent && pushAct}
         <Button
@@ -162,7 +170,9 @@
           variant="outline"
           onclick={() => onRouteOp("checkout", activeBranch)}
         >
-          {activeBranch.kind === "remote" ? "检出并跟踪…" : "检出到当前工作树…"}
+          {activeBranch.kind === "remote"
+            ? m.s6_branch_checkout_and_track()
+            : m.s6_branch_checkout_current_worktree()}
         </Button>
       {/if}
 
@@ -172,14 +182,14 @@
           variant="outline"
           onclick={() => onRouteOp("create-branch-from", activeBranch)}
         >
-          从此分支新建分支…
+          {m.s6_branch_create_from_here()}
         </Button>
         <Button
           size="sm"
           variant="outline"
           onclick={() => onRouteOp("open-new-worktree", activeBranch)}
         >
-          在新工作树打开…
+          {m.s6_branch_open_in_new_worktree()}
         </Button>
       {/if}
 
@@ -193,7 +203,7 @@
             onclick={() => onRouteOp("rename-branch", activeBranch)}
             data-testid="git-branch-detail-rename-btn"
           >
-            重命名…
+            {m.s6_branch_rename_action()}
           </Button>
         {/if}
         {#if upstreamAct}
@@ -203,7 +213,7 @@
             onclick={() => onRouteOp("set-upstream", activeBranch)}
             data-testid="git-branch-detail-upstream-btn"
           >
-            设置上游…
+            {m.s6_branch_set_upstream_action()}
           </Button>
         {/if}
         {#if ffAct}
@@ -226,7 +236,7 @@
           onclick={() => onRouteOp("create-tag", activeBranch)}
           data-testid="git-branch-detail-create-tag-btn"
         >
-          新建标签…
+          {m.s6_create_tag_ellipsis()}
         </Button>
       {/if}
 
@@ -237,7 +247,7 @@
           onclick={() => onRouteOp("delete-tag", activeBranch)}
           data-testid="git-branch-detail-delete-tag-btn"
         >
-          删除本地标签…
+          {m.s6_branch_delete_local_tag()}
         </Button>
       {/if}
 

@@ -9,6 +9,7 @@
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import { m } from "$lib/paraglide/messages.js";
   import { resolveCommitParentFiles } from "../../domains/workspace/git-workbench-state";
   import type {
     GitCommitDetail,
@@ -72,13 +73,15 @@
 
 <section
   class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-  aria-label="提交详情元数据"
+  aria-label={m.s6_log_detail_aria()}
 >
   <div
     class="flex items-center justify-between gap-2 border-b bg-background px-2.5 py-1.5"
   >
     <span class="text-xs font-semibold text-foreground">
-      {compareMode ? "两版本比较详情" : "提交详情"}
+      {compareMode
+        ? m.s6_log_detail_compare_heading()
+        : m.s6_log_detail_commit_heading()}
     </span>
     {#if detail && !compareMode}
       <div class="flex items-center gap-1">
@@ -88,8 +91,8 @@
         <Button
           size="icon-sm"
           variant="ghost"
-          aria-label="复制完整提交 OID"
-          title={`复制完整 OID：${detail.oid}`}
+          aria-label={m.s6_log_detail_copy_full_oid_aria()}
+          title={m.s6_log_detail_copy_full_oid_tooltip({ oid: detail.oid })}
           onclick={() => copyOid(detail.oid)}
         >
           {#if copiedOid === detail.oid}
@@ -108,12 +111,14 @@
         <div class="space-y-2">
           <div class="rounded-md border bg-background p-2.5">
             <div class="flex items-center justify-between gap-2">
-              <Badge variant="outline">比较起点 (Base)</Badge>
+              <Badge variant="outline"
+                >{m.s6_log_detail_compare_base_badge()}</Badge
+              >
               <Button
                 size="icon-sm"
                 variant="ghost"
-                aria-label="复制起点 OID"
-                title="复制起点完整 OID"
+                aria-label={m.s6_log_detail_copy_base_oid_aria()}
+                title={m.s6_log_detail_copy_base_oid_tooltip()}
                 onclick={() => copyOid(compareMode.baseOid)}
               >
                 {#if copiedOid === compareMode.baseOid}
@@ -135,12 +140,14 @@
 
           <div class="rounded-md border bg-background p-2.5">
             <div class="flex items-center justify-between gap-2">
-              <Badge variant="info">比较终点 (Target)</Badge>
+              <Badge variant="info"
+                >{m.s6_log_detail_compare_target_badge()}</Badge
+              >
               <Button
                 size="icon-sm"
                 variant="ghost"
-                aria-label="复制终点 OID"
-                title="复制终点完整 OID"
+                aria-label={m.s6_log_detail_copy_target_oid_aria()}
+                title={m.s6_log_detail_copy_target_oid_tooltip()}
                 onclick={() => copyOid(compareMode.targetOid)}
               >
                 {#if copiedOid === compareMode.targetOid}
@@ -161,20 +168,22 @@
           </div>
 
           <p class="leading-relaxed text-muted-foreground">
-            只读对比：直接按完整提交 OID
-            读取冻结历史对象树，不执行检出，也不修改工作树或暂存索引。
+            {m.s6_log_detail_compare_readonly_note()}
           </p>
         </div>
       {:else if loading && !detail}
-        <p class="text-muted-foreground" role="status">正在加载提交详情…</p>
+        <p class="text-muted-foreground" role="status">
+          {m.s6_log_detail_loading()}
+        </p>
       {:else if !detail}
         <p class="text-muted-foreground">
-          选择一条提交记录以查看完整说明、作者、父节点与引用信息。
+          {m.s6_log_detail_empty()}
         </p>
       {:else}
         {#if detail.parents.length > 1}
           <div class="space-y-1 rounded-md border bg-background p-2">
-            <span class="font-medium text-foreground">合并提交对比父节点：</span
+            <span class="font-medium text-foreground"
+              >{m.s6_log_detail_merge_parent_label()}</span
             >
             <SegmentedControl.Root
               wrap
@@ -182,18 +191,23 @@
               onValueChange={(val) => {
                 if (val) onSelectParent(detail.oid, val);
               }}
-              aria-label="合并提交父节点切换"
+              aria-label={m.s6_log_detail_merge_parent_aria()}
             >
               {#each detail.parents as parent, pIdx (parent.oid)}
                 <SegmentedControl.Item value={parent.oid}>
-                  父节点 #{pIdx + 1} ({parent.shortOid})
+                  {m.s6_log_detail_parent_item({
+                    index: String(pIdx + 1),
+                    shortOid: parent.shortOid,
+                  })}
                 </SegmentedControl.Item>
               {/each}
             </SegmentedControl.Root>
           </div>
         {:else if detail.parents.length === 0}
           <div>
-            <Badge variant="outline">根提交（对比空树）</Badge>
+            <Badge variant="outline"
+              >{m.s6_log_detail_root_commit_badge()}</Badge
+            >
           </div>
         {/if}
 
@@ -238,7 +252,7 @@
                   data-testid="git-log-detail-cherry-pick-btn"
                 >
                   <IconGitCherryPick aria-hidden="true" />
-                  遴选此提交… (Cherry-pick)
+                  {m.s6_log_detail_cherry_pick_btn()}
                 </Button>
               {/if}
               {#if onRevertCommit}
@@ -250,7 +264,7 @@
                   data-testid="git-log-detail-revert-btn"
                 >
                   <IconRotate2 aria-hidden="true" />
-                  还原此提交… (Revert)
+                  {m.s6_log_detail_revert_btn()}
                 </Button>
               {/if}
               {#if onCreateTagCommit}
@@ -262,7 +276,7 @@
                   data-testid="git-log-detail-create-tag-btn"
                 >
                   <IconTag aria-hidden="true" />
-                  新建标签…
+                  {m.s6_create_tag_ellipsis()}
                 </Button>
               {/if}
             </div>
@@ -273,26 +287,31 @@
           class="space-y-1 rounded-md border bg-background p-2.5 text-muted-foreground"
         >
           <p class="wrap-anywhere">
-            <span class="font-medium text-foreground">作者：</span
+            <span class="font-medium text-foreground"
+              >{m.s6_log_detail_author_label()}</span
             >{detail.authorName}
             &lt;{detail.authorEmail}&gt; · {detail.authorAt}
           </p>
           {#if detail.distinctCommitter}
             <p class="wrap-anywhere">
-              <span class="font-medium text-foreground">提交者：</span
+              <span class="font-medium text-foreground"
+                >{m.s6_log_detail_committer_label()}</span
               >{detail.committerName}
               &lt;{detail.committerEmail}&gt; · {detail.committerAt}
             </p>
           {/if}
           <p class="font-mono break-all">
-            <span class="font-sans font-medium text-foreground">OID：</span
+            <span class="font-sans font-medium text-foreground"
+              >{m.s6_log_detail_oid_label()}</span
             >{detail.oid}
           </p>
 
           {#if detail.parents.length > 0}
             <div class="space-y-1 pt-1">
               <span class="font-medium text-foreground">
-                父提交 ({detail.parents.length})：
+                {m.s6_log_detail_parents_label({
+                  count: String(detail.parents.length),
+                })}
               </span>
               <div class="flex flex-wrap gap-1.5">
                 {#each detail.parents as parent (parent.oid)}

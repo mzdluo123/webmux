@@ -12,8 +12,14 @@
   import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
-  import { applyOfflineLineMutation } from "../../domains/workspace/git-line-selection";
   import {
+    applyShellAbortPreviewBanner,
+    applyShellCheckoutBanner,
+    applyShellContinueInProgress,
+    applyShellOccupiedWorktreeBanner,
+    applyShellReloadVerify,
+    applyShellStageLines,
+    applyShellStashBanner,
     buildShellDiscardPreview,
     type PendingShellDiscard,
   } from "../../domains/workspace/git-shell-v3-actions";
@@ -86,18 +92,9 @@
   );
   const stageLinesInShell = (
     id: string,
-    sel: Parameters<typeof applyOfflineLineMutation>[2],
+    sel: Parameters<typeof applyShellStageLines>[2],
     op: "stage" | "unstage",
-  ) =>
-    (view = {
-      ...view,
-      workingChanges: applyOfflineLineMutation(
-        view.workingChanges,
-        id,
-        sel,
-        op,
-      ),
-    });
+  ) => (view = applyShellStageLines(view, id, sel, op));
 
   function setMode(next: string) {
     if (["log", "commit", "branches", "stash"].includes(next)) {
@@ -107,17 +104,14 @@
   const handleBranchFilter = (branch: string | null) =>
     (view = selectLogBranchFilter(view, branch));
   const handleRequestCheckout = (branch: string) =>
-    (view = {
-      ...view,
-      statusBanner: `已打开分支检出预览：${branch}（不会静默覆盖未提交改动）`,
-    });
-  function handleOpenOccupiedWorktree(worktreeId: string, path: string) {
-    onOpenWorktree?.(worktreeId, path);
-    view = {
-      ...view,
-      statusBanner: `已定位到占用该分支的工作树：${path} (${worktreeId})`,
-    };
-  }
+    (view = applyShellCheckoutBanner(view, branch));
+  const handleOpenOccupiedWorktree = (worktreeId: string, path: string) =>
+    (view = applyShellOccupiedWorktreeBanner(
+      view,
+      worktreeId,
+      path,
+      onOpenWorktree,
+    ));
   const openCommitPreview = (followUpPush: boolean) =>
     (view = {
       ...view,
@@ -154,12 +148,7 @@
       selectedCommitOid: oid,
       selectedCommitFilePath: null,
     });
-  const reloadVerifyOutcome = () =>
-    (view = {
-      ...view,
-      lastCommitOutcome: null,
-      statusBanner: "已刷新历史与暂存区核实状态",
-    });
+  const reloadVerifyOutcome = () => (view = applyShellReloadVerify(view));
   function resolveDraft(
     strategy: "keep-local" | "adopt-remote" | "merge-both",
   ) {
@@ -241,15 +230,8 @@
       conflictResolverOpen={Boolean(view.conflictOpen)}
       hasActiveWorktreeSession={simulatedActiveSessions.length > 0}
       onOpenConflictResolver={() => (view = { ...view, conflictOpen: true })}
-      onContinue={() =>
-        (view = {
-          ...view,
-          inProgress: null,
-          conflictOpen: false,
-          statusBanner: "已完成冲突解决并继续完成操作",
-        })}
-      onOpenAbortPreview={() =>
-        (view = { ...view, statusBanner: "已打开中止回退确认预览" })}
+      onContinue={() => (view = applyShellContinueInProgress(view))}
+      onOpenAbortPreview={() => (view = applyShellAbortPreviewBanner(view))}
     />
   {/if}
 
@@ -257,13 +239,7 @@
     <GitConflictView
       inProgress={view.inProgress ?? null}
       fixtureDetail={view.conflictDetail ?? null}
-      onContinueOperation={() =>
-        (view = {
-          ...view,
-          inProgress: null,
-          conflictOpen: false,
-          statusBanner: "已完成冲突解决并继续完成操作",
-        })}
+      onContinueOperation={() => (view = applyShellContinueInProgress(view))}
       onClose={() => (view = { ...view, conflictOpen: false })}
     />
   {:else}
@@ -398,7 +374,7 @@
           onToggleCommitSignoff={(commitSignoff) =>
             (view = { ...view, commitSignoff })}
           onOpenStashCreate={() =>
-            (view = { ...view, statusBanner: "已打开新建贮藏对话框" })}
+            (view = applyShellStashBanner(view, "create"))}
           onInspectFile={() => (view = { ...view, fileInspectorOpen: true })}
           onSelectTaskFile={(selectedPath) =>
             view.taskReview &&
@@ -456,20 +432,14 @@
             (view = { ...view, selectedStashOid })}
           onSelectFile={(f) => (selectedStashFileKey = stashFileKey(f))}
           onOpenCreate={!readonlyMode
-            ? () => (view = { ...view, statusBanner: "已打开新建贮藏对话框" })
+            ? () => (view = applyShellStashBanner(view, "create"))
             : undefined}
           onOpenApply={!readonlyMode
             ? (entry, mode) =>
-                (view = {
-                  ...view,
-                  statusBanner: `已打开贮藏${mode === "pop" ? "安全弹出" : "应用"}确认：${entry.stashRef}`,
-                })
+                (view = applyShellStashBanner(view, mode, entry.stashRef))
             : undefined}
           onOpenDrop={(entry) =>
-            (view = {
-              ...view,
-              statusBanner: `已打开丢弃贮藏确认：${entry.stashRef}`,
-            })}
+            (view = applyShellStashBanner(view, "drop", entry.stashRef))}
         />
       </Tabs.Content>
     </Tabs.Root>

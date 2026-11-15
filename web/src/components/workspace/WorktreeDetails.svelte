@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import IconCopy from "~icons/tabler/copy";
+  import { m } from "$lib/paraglide/messages.js";
+  import { locale } from "$lib/locale";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import {
@@ -46,10 +48,10 @@
   const counts = $derived(countSessions(sessions));
   const kindLabel = $derived(
     worktree?.kind === "main"
-      ? "主工作区"
+      ? m.s8_kind_main_worktree()
       : worktree?.kind === "bare"
-        ? "bare 仓库"
-        : "关联工作树",
+        ? m.s8_kind_bare_repo()
+        : m.s8_kind_linked_worktree(),
   );
   const offered = $derived(worktree ? branchActions(worktree) : null);
 
@@ -76,57 +78,69 @@
 <div class="space-y-4">
   <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
     {#if path}
-      <dt class="text-muted-foreground">路径</dt>
+      <dt class="text-muted-foreground">{m.s8_label_path()}</dt>
       <dd class="flex min-w-0 items-start gap-1">
         <span class="min-w-0 flex-1 font-mono break-all">{path}</span>
         <Button
           size="icon-xs"
           variant="ghost"
-          aria-label="复制路径"
-          title="复制路径"
+          aria-label={m.s8_copy_path()}
+          title={m.s8_copy_path()}
           onclick={() => void copyText(path)}
           ><IconCopy aria-hidden="true" /></Button
         >
       </dd>
     {/if}
     {#if worktree}
-      <dt class="text-muted-foreground">类型</dt>
+      <dt class="text-muted-foreground">{m.s8_label_type()}</dt>
       <dd class="flex flex-wrap gap-1.5">
         <Badge variant="secondary">{kindLabel}</Badge>
         {#if worktree.available && worktree.dirty === false}<Badge
-            variant="secondary">已跟踪文件干净</Badge
+            variant="secondary">{m.s8_tracked_files_clean()}</Badge
           >{/if}
       </dd>
     {/if}
-    <dt class="text-muted-foreground">会话</dt>
+    <dt class="text-muted-foreground">{m.s8_label_sessions()}</dt>
     <dd class="flex flex-wrap gap-x-3 gap-y-1">
-      <span>共 {sessions.length} 个会话</span>
       <span
-        >运行 <span class="inline-block w-[3ch] text-right tabular-nums"
+        >{m.s8_details_total_sessions({ count: String(sessions.length) })}</span
+      >
+      <span
+        >{m.s8_details_running()}
+        <span class="inline-block w-[3ch] text-right tabular-nums"
           >{counts.active}</span
         ></span
       >
       <span
-        >等待 <span class="inline-block w-[3ch] text-right tabular-nums"
+        >{m.s8_details_waiting()}
+        <span class="inline-block w-[3ch] text-right tabular-nums"
           >{counts.waiting}</span
         ></span
       >
       <span
-        >退出 <span class="inline-block w-[3ch] text-right tabular-nums"
+        >{m.s8_details_exited()}
+        <span class="inline-block w-[3ch] text-right tabular-nums"
           >{counts.exited}</span
         ></span
       >
     </dd>
     {#if worktree}
-      <dt class="text-muted-foreground">容量</dt>
+      <dt class="text-muted-foreground">{m.s8_label_disk_usage()}</dt>
       <dd class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         {#if measuring}
-          <span role="status">正在计算…</span>
+          <span role="status">{m.s8_calculating()}</span>
         {:else if usage}
+          {@const entriesStr = usage.entries.toLocaleString(locale.current)}
           <span role="status" class="tabular-nums"
-            >{formatBytes(usage.bytes)} · {usage.entries.toLocaleString()} 个条目{usage.complete
-              ? ""
-              : "（未统计完整，实际更大）"}</span
+            >{usage.complete
+              ? m.s8_details_usage({
+                  bytes: formatBytes(usage.bytes),
+                  entries: entriesStr,
+                })
+              : m.s8_details_usage_incomplete({
+                  bytes: formatBytes(usage.bytes),
+                  entries: entriesStr,
+                })}</span
           >
         {/if}
         <Button
@@ -134,14 +148,14 @@
           variant="outline"
           disabled={measuring || !worktree.available}
           onclick={() => void measure(worktree)}
-          >{usage ? "重新计算" : "计算容量"}</Button
+          >{usage ? m.s8_recalculate() : m.s8_calculate_usage()}</Button
         >
       </dd>
     {/if}
   </dl>
   {#if worktree && !worktree.available}
     <p class="text-xs text-muted-foreground">
-      工作树目录缺失或不可验证，无法计算容量。
+      {m.s8_details_cannot_measure_missing()}
     </p>
   {/if}
   {#if usageError}<InlineNotice tone="danger">{usageError}</InlineNotice>{/if}
@@ -157,7 +171,7 @@
   {#if offered?.branch && onoperation}
     {@const branch = offered.branch}
     {#if offered.diverged}
-      <p class="text-xs text-muted-foreground">{divergedText}。</p>
+      <p class="text-xs text-muted-foreground">{divergedText()}</p>
     {/if}
     {#if offered.actions.length}
       <div class="flex flex-wrap gap-2">

@@ -1,4 +1,5 @@
 import { SvelteMap } from "svelte/reactivity";
+import { m } from "$lib/paraglide/messages.js";
 import { xrPresentation } from "./xr-presentation.svelte";
 import {
   spatialCandidate,
@@ -55,6 +56,17 @@ export function useTvNavigation(back: () => boolean) {
     let redirecting = false;
     let editing: HTMLElement | null = null;
     let tabbing = false;
+    let promptKind = $state<"" | "idle" | "input" | "multiline">("");
+    $effect(() => {
+      tvInput.message =
+        promptKind === "idle"
+          ? m.s1_tv_text_enter_to_edit()
+          : promptKind === "input"
+            ? m.s1_tv_editing_done()
+            : promptKind === "multiline"
+              ? m.s1_tv_editing_done_multiline()
+              : "";
+    });
     function textField(target: EventTarget | null) {
       if (!(target instanceof Element) || target.closest(".xterm, .cm-editor"))
         return null;
@@ -64,13 +76,13 @@ export function useTvNavigation(back: () => boolean) {
     function setTextTarget(target: HTMLElement | null, edit = false) {
       if (editing !== target) editing = null;
       if (edit) editing = target;
-      tvInput.message = !target
+      promptKind = !target
         ? ""
         : editing !== target
-          ? "文本输入 · 确认开始编辑"
+          ? "idle"
           : target instanceof HTMLInputElement
-            ? "正在编辑 · 确认完成"
-            : "正在编辑 · 确认完成，Shift+Enter 换行";
+            ? "input"
+            : "multiline";
     }
     function beginText(event: Event) {
       const target = textField(event.target);

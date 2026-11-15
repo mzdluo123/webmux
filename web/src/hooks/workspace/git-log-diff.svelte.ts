@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { gitCompare } from "../../platform/git-api";
 import type {
   GitCommitDetail,
@@ -44,7 +45,7 @@ export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
       leftLabel: options.leftLabel,
       rightLabel: options.rightLabel,
       file: options.file,
-      missingReason: "未找到该路径对应的历史对象快照。",
+      missingReason: m.s7_snapshot_missing_reason(),
       fetchDiff: async (cid, signal) => {
         const res = await gitCompare(
           deps.getRepoId(),
@@ -94,7 +95,7 @@ export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
     void loadPairFileDiff({
       baseOid: parentKey,
       targetOid: detail.oid,
-      leftLabel: parentKey ? parentKey.slice(0, 7) : "空树",
+      leftLabel: parentKey ? parentKey.slice(0, 7) : m.s7_empty_tree(),
       rightLabel: detail.shortOid || detail.oid.slice(0, 7),
       file: chosen,
     });

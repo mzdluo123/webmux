@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Worktree } from "../../contracts/schemas";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
+  import { m } from "$lib/paraglide/messages.js";
   import LazyDialog from "../shared/LazyDialog.svelte";
   let {
     workspaceEnabled,
@@ -31,7 +32,7 @@
   {@const target = removing}
   <LazyDialog
     load={() => import("../workspace/RemoveWorktreeDialog.svelte")}
-    label="删除确认"
+    label={m.s3_delete_confirmation_label()}
     onclose={onremovalclose}
   >
     {#snippet children(page)}<page.default
@@ -46,14 +47,15 @@
 {#if filesEnabled && mkdirMounted}<AlertDialog.Root bind:open={mkdirOpen}>
     <AlertDialog.Content>
       <AlertDialog.Header
-        ><AlertDialog.Title>目录不存在，是否创建？</AlertDialog.Title
+        ><AlertDialog.Title>{m.s3_mkdir_confirm_title()}</AlertDialog.Title
         ><AlertDialog.Description class="break-all"
-          >将在 {cwd} 创建目录，然后启动会话。</AlertDialog.Description
+          >{m.s3_mkdir_confirm_desc({ cwd })}</AlertDialog.Description
         ></AlertDialog.Header
       >
       <AlertDialog.Footer>
-        <AlertDialog.Cancel>取消</AlertDialog.Cancel>
-        <AlertDialog.Action onclick={onmkdir}>创建目录并启动</AlertDialog.Action
+        <AlertDialog.Cancel>{m.s3_cancel()}</AlertDialog.Cancel>
+        <AlertDialog.Action onclick={onmkdir}
+          >{m.s3_mkdir_and_start()}</AlertDialog.Action
         >
       </AlertDialog.Footer>
     </AlertDialog.Content>

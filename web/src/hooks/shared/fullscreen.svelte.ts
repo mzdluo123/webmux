@@ -1,4 +1,5 @@
 import { onMount } from "svelte";
+import { m } from "$lib/paraglide/messages.js";
 import {
   fullscreenOffered,
   fullscreenSupported,
@@ -40,7 +41,7 @@ export function useFullscreen(setError: (message: string) => void): Fullscreen {
       if (owned && document.fullscreenElement === document.documentElement) {
         owned = false;
         void document.exitFullscreen().catch((err) => {
-          console.error("离开终端时退出全屏失败", err);
+          console.error(m.s1_fullscreen_exit_on_leave_failed(), err);
         });
       }
     };
@@ -50,9 +51,7 @@ export function useFullscreen(setError: (message: string) => void): Fullscreen {
     if (busy) return;
     setError("");
     if (!document.fullscreenElement && !fullscreenSupported()) {
-      setError(
-        "当前浏览器环境未开放网页全屏；可尝试“添加到主屏幕”以独立模式打开，减少浏览器底栏。",
-      );
+      setError(m.s1_fullscreen_unsupported());
       return;
     }
     busy = true;
@@ -78,9 +77,11 @@ export function useFullscreen(setError: (message: string) => void): Fullscreen {
       if (!document.fullscreenElement) owned = false;
       if (mounted)
         setError(
-          "切换全屏失败：" + (err instanceof Error ? err.message : String(err)),
+          m.s1_fullscreen_toggle_failed_reason({
+            error: err instanceof Error ? err.message : String(err),
+          }),
         );
-      else console.error("切换全屏失败", err);
+      else console.error(m.s1_fullscreen_toggle_failed(), err);
     } finally {
       if (mounted) busy = false;
     }

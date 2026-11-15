@@ -14,6 +14,7 @@ import {
   disposePluginContributions,
   loadPluginContributions,
 } from "../../src/plugins/registry.svelte";
+import { loadTerminalPlugins } from "../../src/plugins/terminal";
 
 const primaryCapabilities: Record<PluginID, string> = {
   launch: "launch.configs",
@@ -86,6 +87,7 @@ export async function enableHostPlugins(
   disposePluginContributions();
   await enableCreationPlugins(enabled);
   await loadPluginContributions({ forwardAuth: true, codePopout: true });
+  await loadTerminalPlugins();
 }
 
 export function resetHostPlugins(): void {

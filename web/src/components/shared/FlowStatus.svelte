@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import type { PreviewFlow } from "../../hooks/workspace/preview-flow.svelte";
   import InlineNotice from "./InlineNotice.svelte";
 
@@ -14,21 +15,25 @@
 
 {#if flow.stale}
   <InlineNotice tone="warning"
-    >{flow.stale}。已重新预览，请核对后再次确认。</InlineNotice
+    >{m.s1_flow_stale_repreviewed({ stale: flow.stale })}</InlineNotice
   >
 {:else if flow.failure}
   <InlineNotice tone="danger"
-    >操作失败：{flow.failure}。已按当前状态重新预览。</InlineNotice
+    >{m.s1_flow_failed_repreviewed({ failure: flow.failure })}</InlineNotice
   >
 {/if}
 {#if flow.error}
-  <InlineNotice tone="danger">无法读取预览：{flow.error}</InlineNotice>
+  <InlineNotice tone="danger"
+    >{m.s1_flow_preview_error({ error: flow.error })}</InlineNotice
+  >
   <Button
     size="sm"
     variant="outline"
     disabled={flow.loading}
-    onclick={() => void flow.refresh()}>重新预览</Button
+    onclick={() => void flow.refresh()}>{m.s1_flow_refresh_preview()}</Button
   >
 {:else if flow.loading && !flow.preview}
-  <p role="status" class="text-xs text-muted-foreground">正在读取预览…</p>
+  <p role="status" class="text-xs text-muted-foreground">
+    {m.s1_flow_loading_preview()}
+  </p>
 {/if}

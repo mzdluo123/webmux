@@ -4,6 +4,7 @@
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconChevronRight from "~icons/tabler/chevron-right";
   import IconSwitchHorizontal from "~icons/tabler/switch-horizontal";
+  import { m } from "$lib/paraglide/messages.js";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
@@ -47,7 +48,7 @@
 {/if}
 {#if smart.conflictMessage}
   <InlineNotice tone="warning">
-    {smart.conflictMessage}；已重新刷新切换预览。
+    {m.s8_smart_conflict_refreshed({ error: smart.conflictMessage })}
   </InlineNotice>
 {/if}
 
@@ -55,7 +56,7 @@
   <InlineNotice tone="warning">
     <div class="space-y-1" data-testid="smart-checkout-rolled-back-notice">
       <p class="font-medium text-foreground">
-        分支切换失败，已自动回滚并恢复未提交修改
+        {m.s8_smart_rolled_back_title()}
       </p>
       <p class="text-xs text-muted-foreground">{smart.lastResult.summary}</p>
     </div>
@@ -63,24 +64,24 @@
 {:else if smart.lastResult?.outcome === "conflict_needs_resolution"}
   {@const res = smart.lastResult}
   <section
-    aria-label="Smart Checkout 冲突恢复指引"
+    aria-label={m.s8_smart_conflict_guide_aria()}
     class="space-y-3 rounded-lg border border-border bg-background p-3 text-xs"
     data-testid="smart-checkout-conflict-card"
   >
     <div class="flex flex-wrap items-center gap-2">
-      <Badge variant="warning">自动恢复遇到冲突</Badge>
+      <Badge variant="warning">{m.s8_smart_restore_conflict_badge()}</Badge>
       {#if res.stashPreserved && res.stashOid}
         <Badge variant="outline">
           <IconArchive aria-hidden="true" />
-          受控贮藏已保留 · {short(res.stashOid)}
+          {m.s8_smart_stash_preserved({ oid: short(res.stashOid) })}
         </Badge>
       {/if}
     </div>
     <p class="leading-relaxed text-foreground">{res.summary}</p>
     {#if res.recoveryCommand}
       <GitRecoveryCommandBox
-        label="受控贮藏手动恢复命令（备份保留）"
-        copyLabel="复制受控贮藏恢复命令"
+        label={m.s8_smart_recovery_cmd_label()}
+        copyLabel={m.s8_smart_copy_recovery_cmd()}
         command={res.recoveryCommand}
         testId="smart-checkout-recovery-cmd"
       />
@@ -99,7 +100,9 @@
           data-testid="smart-checkout-open-conflict-btn"
         >
           <IconArrowsSplit2 aria-hidden="true" />
-          打开三方冲突解决器 ({res.inProgress.conflictedCount})
+          {m.s8_smart_open_conflict_resolver({
+            count: String(res.inProgress.conflictedCount),
+          })}
         </Button>
       </div>
     {/if}
@@ -108,26 +111,27 @@
 
 {#if smart.visible && smart.lastResult?.outcome !== "conflict_needs_resolution"}
   <section
-    aria-label="Smart Checkout 携带修改切换"
+    aria-label={m.s8_smart_section_aria()}
     class="space-y-3 rounded-lg border bg-muted/20 p-3 text-sm"
     data-testid="smart-checkout-section"
   >
     {#if smart.previewing && !smart.preview}
       <p role="status" class="text-xs text-muted-foreground">
-        正在评估受控贮藏 Smart Checkout…
+        {m.s8_smart_evaluating()}
       </p>
     {:else if smart.previewError}
       <p role="alert" class="text-xs break-all text-destructive">
-        无法评估 Smart Checkout：{smart.previewError}
+        {m.s8_smart_eval_failed({ error: smart.previewError })}
       </p>
     {:else if smart.preview}
       {@const sp = smart.preview}
       {#if smart.hasActiveSessions}
         <div class="space-y-2.5">
           <p class="text-xs leading-relaxed text-muted-foreground">
-            当前工作树有运行中的会话，推荐优先点击下方绿色按钮
-            <strong class="text-foreground">「改为在新工作树打开」</strong
-            >，避免干扰正在工作的终端或 Agent。
+            {m.s8_smart_active_sessions_lead()}
+            <strong class="text-foreground"
+              >{m.s8_smart_active_sessions_cta()}</strong
+            >{m.s8_smart_active_sessions_tail()}
           </p>
           <Button
             type="button"
@@ -144,7 +148,7 @@
             {:else}
               <IconChevronRight aria-hidden="true" />
             {/if}
-            仍在当前工作树原地携带修改切换（Smart Checkout）
+            {m.s8_smart_in_place_disclosure()}
           </Button>
         </div>
       {/if}
@@ -157,25 +161,30 @@
                 class="size-4 shrink-0 text-muted-foreground"
                 aria-hidden="true"
               />
-              Smart Checkout（三阶段受控贮藏切换）
+              {m.s8_smart_heading()}
             </span>
             <div class="flex flex-wrap items-center gap-1.5">
-              <Badge variant="outline">已暂存 {sp.stagedCount}</Badge>
-              <Badge variant="outline">未暂存 {sp.unstagedCount}</Badge>
+              <Badge variant="outline"
+                >{m.s8_changes_staged()} {sp.stagedCount}</Badge
+              >
+              <Badge variant="outline"
+                >{m.s8_changes_unstaged()} {sp.unstagedCount}</Badge
+              >
               {#if sp.untrackedCount > 0}
-                <Badge variant="outline">未跟踪 {sp.untrackedCount}</Badge>
+                <Badge variant="outline"
+                  >{m.s8_changes_untracked()} {sp.untrackedCount}</Badge
+                >
               {/if}
             </div>
           </div>
 
           <p class="text-xs leading-relaxed text-muted-foreground">
-            1. 创建可追踪贮藏 → 2. 切换目标分支（若失败自动回滚） → 3.
-            自动恢复修改（若冲突将保留受控贮藏并进入三方冲突解决器）。
+            {m.s8_smart_steps_desc()}
           </p>
 
           {#if sp.blockers.length > 0}
             <BlockerList
-              title="无法执行 Smart Checkout"
+              title={m.s8_smart_cannot_exec_title()}
               blockers={sp.blockers.map((b) => b.message)}
             />
           {/if}
@@ -198,7 +207,7 @@
                 data-testid="smart-checkout-include-untracked"
               />
               <span class="text-xs leading-snug">
-                包含未跟踪文件（连同新建文件一并贮藏并在目标分支恢复）
+                {m.s8_smart_include_untracked_label()}
               </span>
             </Label>
           {/if}
@@ -212,8 +221,7 @@
                 data-testid="smart-checkout-ack-sessions"
               />
               <span class="text-xs leading-snug">
-                我已了解：Smart Checkout 会在原地暂存并恢复文件，运行中的终端或
-                Agent 会话会直接看到分支切换与恢复过程。
+                {m.s8_smart_ack_sessions_label()}
               </span>
             </Label>
           {/if}
@@ -230,10 +238,10 @@
             >
               <IconSwitchHorizontal aria-hidden="true" />
               {busy
-                ? "正在携带修改切换…"
+                ? m.s8_smart_executing()
                 : smart.hasActiveSessions
-                  ? "确认原地 Smart Checkout"
-                  : "Smart Checkout（携带修改切换）"}
+                  ? m.s8_smart_confirm_in_place()
+                  : m.s8_smart_submit_btn()}
             </Button>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type { GitWorkbenchViewState } from "../../contracts/git-workbench-schemas";
 import type { GitCommitDraft } from "../../contracts/schemas";
 import {
@@ -138,8 +139,7 @@ export function createGitCommitDraftController(
           localSubject: localParts.subject,
           localBody: localParts.body,
           remoteDraft: remote,
-          message:
-            "检测到另一设备或标签页已保存新的提交说明草稿，请选择保留本机内容、采用远端版本或合并两份内容。",
+          message: m.s7_draft_conflict_detected(),
         };
       } else if (remoteMsg === localMsg) {
         baseRevision = remote.revision;
@@ -223,7 +223,7 @@ export function createGitCommitDraftController(
     } catch (err) {
       if (req.reportable()) {
         bindings.patchView({
-          statusBanner: `保存提交说明草稿失败：${errorMessage(err)}`,
+          statusBanner: m.s7_draft_save_failed({ error: errorMessage(err) }),
         });
       }
       return false;
@@ -287,7 +287,7 @@ export function createGitCommitDraftController(
     if (!repoId || !wtId) return;
     applyCleanDraft(repoId, wtId, conflict.remoteDraft);
     bindings.patchView({
-      statusBanner: "已采用另一设备保存的提交说明草稿。",
+      statusBanner: m.s7_draft_adopted_remote_banner(),
     });
   }
 
@@ -310,7 +310,7 @@ export function createGitCommitDraftController(
     const ok = await flushSave(targetRev);
     if (ok) {
       bindings.patchView({
-        statusBanner: "已合并两台设备的提交说明草稿并同步保存。",
+        statusBanner: m.s7_draft_merged_both_banner(),
       });
     }
   }

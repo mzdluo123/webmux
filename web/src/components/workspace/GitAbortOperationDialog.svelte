@@ -3,6 +3,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitAbortOperationPreview } from "../../contracts/schemas";
   import { gitSequencerKindLabel } from "../../domains/workspace/git-divergence-model";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -44,12 +45,14 @@
 
 <ResponsiveDialog
   title={abortPreview
-    ? `中止 ${gitSequencerKindLabel(abortPreview.kind)} 并回退工作树`
-    : "中止进行中的 Git 操作"}
+    ? m.s6_abort_dialog_title_kind({
+        kind: gitSequencerKindLabel(abortPreview.kind),
+      })
+    : m.s6_abort_dialog_title_generic()}
   description={abortPreview
     ? abortPreview.directionSummary
-    : "正在读取回退目标与受影响文件列表…"}
-  drawerDescription="确认回退目标 OID 与将被丢弃的冲突改动"
+    : m.s6_abort_dialog_loading_desc()}
+  drawerDescription={m.s6_abort_dialog_drawer_desc()}
   drawerFullScreen
   truncateDrawerTitle
   {busy}
@@ -63,7 +66,7 @@
 
     {#if fetching && !abortPreview}
       <p class="py-4 text-xs text-muted-foreground" role="status">
-        正在读取操作前锚点（ORIG_HEAD）与未提交冲突文件…
+        {m.s6_abort_loading_orig_head()}
       </p>
     {:else if abortPreview}
       <section
@@ -72,7 +75,9 @@
         <div class="mb-2 flex min-w-0 flex-wrap items-center gap-1.5">
           <Badge variant="destructive" class="max-w-full">
             <span class="truncate">
-              中止 {gitSequencerKindLabel(abortPreview.kind)}
+              {m.s6_abort_badge_kind({
+                kind: gitSequencerKindLabel(abortPreview.kind),
+              })}
             </span>
           </Badge>
           {#if abortPreview.currentBranch}
@@ -87,11 +92,11 @@
           {abortPreview.directionSummary}
         </p>
         <p class="font-mono text-xs break-all text-muted-foreground">
-          工作树：{abortPreview.worktreePath}
+          {m.s6_worktree_path_line({ path: abortPreview.worktreePath })}
         </p>
         {#if abortPreview.restoreOid}
           <p class="mt-1 text-xs wrap-anywhere text-foreground">
-            回退锚点：<span class="font-mono"
+            {m.s6_abort_restore_anchor_label()}<span class="font-mono"
               >{abortPreview.restoreOid.slice(0, 7)}</span
             >
             <span class="font-mono text-muted-foreground"
@@ -114,7 +119,9 @@
       {#if abortPreview.affectedPaths.length > 0}
         <ItemGroup variant="panel" class="space-y-1.5">
           <span class="font-semibold text-foreground">
-            将被重置或丢弃冲突修改的路径 ({abortPreview.affectedPaths.length})
+            {m.s6_abort_affected_paths_heading({
+              count: abortPreview.affectedPaths.length,
+            })}
           </span>
           <ScrollArea viewportClasses="max-h-44">
             <ul class="space-y-1 font-mono">
@@ -130,14 +137,17 @@
         sessions={runningSessions}
         acknowledgeSessions={acknowledged}
         disabled={busy}
-        acknowledgementLabel={`我已知晓：中止操作将使以上 ${runningSessions.length} 个会话的工作目录回退至操作前状态。`}
+        acknowledgementLabel={m.s6_abort_session_ack({
+          count: runningSessions.length,
+        })}
         onAcknowledgeSessionsChange={onAcknowledgeChange}
       />
     {/if}
 
     <footer class="flex flex-wrap justify-end gap-2 pt-1">
-      <Button variant="outline" disabled={busy} onclick={onDismiss}>取消</Button
-      >
+      <Button variant="outline" disabled={busy} onclick={onDismiss}>
+        {m.s6_cancel()}
+      </Button>
       <Button
         variant="destructive"
         wrap
@@ -145,7 +155,7 @@
         onclick={onConfirmAbort}
         data-testid="git-abort-confirm-btn"
       >
-        {busy ? "正在中止并回退…" : "确认中止并回退"}
+        {busy ? m.s6_abort_confirm_submitting() : m.s6_abort_confirm_action()}
       </Button>
     </footer>
   </div>

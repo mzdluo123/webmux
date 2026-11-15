@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { ChatMessageMatchesSchema } from "../../contracts/schemas";
 
@@ -24,4 +25,12 @@ export const pages = {
   "quick-start": () => import("../../pages/QuickStart.svelte"),
   handoff: () => import("../../pages/Handoff.svelte"),
 };
-export const navigation = [{ id: "chat.new", label: "新聊天", href: "/new" }];
+export const navigation = [
+  {
+    id: "chat.new",
+    get label() {
+      return m.s1_new_chat();
+    },
+    href: "/new",
+  },
+];

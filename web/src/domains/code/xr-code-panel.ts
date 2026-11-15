@@ -1,4 +1,5 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
+import { m } from "$lib/paraglide/messages.js";
 import type { CodeDiff, CodeDocument } from "../../contracts/schemas";
 import type { XrTextLine, XrTextPanel } from "../terminal/xr-workspace";
 
@@ -12,7 +13,8 @@ export function xrCodePanel(
 ): XrTextPanel {
   const lines: XrTextLine[] = [];
   const id = `${contextId}:${document?.nodeId ?? ""}:${diff ? diff.change.group : document?.source}`;
-  const title = document?.path || diff?.new.path || diff?.old.path || "代码";
+  const title =
+    document?.path || diff?.new.path || diff?.old.path || m.s5_code_title();
   if (diff && metadata) {
     for (const hunk of metadata.hunks) {
       lines.push({
@@ -46,15 +48,15 @@ export function xrCodePanel(
       }
     }
     if (!metadata.hunks.length)
-      lines.push({ text: "没有文本差异。", tone: "muted" });
+      lines.push({ text: m.s5_xr_no_text_diff(), tone: "muted" });
   } else if (diff) {
     lines.push({
-      text: reason || diff.reason || "正在计算差异…",
+      text: reason || diff.reason || m.s5_calculating_diff(),
       tone: "muted",
     });
     if (diff.kind !== "text")
       lines.push({
-        text: "此类内容请退出 VR 后在 2D 代码工作区查看。",
+        text: m.s5_xr_exit_vr_for_kind(),
         tone: "muted",
       });
   } else if (document?.kind === "text") {
@@ -62,7 +64,7 @@ export function xrCodePanel(
       lines.push({ text: `${index + 1} ${text}` });
   } else {
     lines.push({
-      text: document?.reason || "此内容请退出 VR 后在 2D 代码工作区查看。",
+      text: document?.reason || m.s5_xr_exit_vr_for_content(),
       tone: "muted",
     });
   }

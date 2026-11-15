@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import * as Resizable from "$lib/components/ui/resizable";
+  import { m } from "$lib/paraglide/messages.js";
   import { terminalFindShortcut } from "../../hooks/terminal/terminal-find-shortcut";
   import { codePanelState } from "../../hooks/code/code-panel-state";
 
@@ -59,7 +60,7 @@
             <Resizable.Handle
               withHandle
               class="draft-divider"
-              aria-label="调整草稿面板高度"
+              aria-label={m.s4_resize_draft_height()}
             />
             <Resizable.Pane
               order={1}
@@ -80,7 +81,7 @@
     <Resizable.Handle
       withHandle
       class="code-divider"
-      aria-label="调整终端与代码宽度"
+      aria-label={m.s4_resize_terminal_code_width()}
     />
     <Resizable.Pane
       defaultSize={codeSize}

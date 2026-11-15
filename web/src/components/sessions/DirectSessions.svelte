@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import type { ArchivedSession, SessionInfo } from "../../contracts/schemas";
   import type { ArchiveActions } from "../../domains/sessions/archived";
   import WorkspaceGroup from "../workspace/WorkspaceGroup.svelte";
@@ -54,12 +55,14 @@
 
 <section
   class="min-w-0 space-y-8"
-  aria-label="直接会话"
+  aria-label={m.s3_scope_direct_sessions()}
   hidden={!visible.length && !shownArchive.length}
 >
-  <h2 class={focused ? "sr-only" : "font-semibold"}>直接会话</h2>
+  <h2 class={focused ? "sr-only" : "font-semibold"}>
+    {m.s3_scope_direct_sessions()}
+  </h2>
   {#if reported}<p class="text-xs text-muted-foreground">
-      按启动目录分组；Shell 报告目录仅作导航线索，不改变归属
+      {m.s3_direct_sessions_cwd_hint()}
     </p>{/if}
   {#each paths as path (path)}
     {@const pathArchive = shownArchive.filter((record) => record.cwd === path)}

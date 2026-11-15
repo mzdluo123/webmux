@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import type { CodeChange } from "../../contracts/schemas";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -40,11 +41,11 @@
   );
   const rowHeight = 32,
     overscan = 6;
-  const groups = [
-    ["unstaged", "未暂存"],
-    ["staged", "已暂存"],
-    ["untracked", "未跟踪"],
-  ];
+  const groups = $derived([
+    ["unstaged", m.s5_unstaged()],
+    ["staged", m.s5_staged()],
+    ["untracked", m.s5_untracked()],
+  ] as const);
   // Git raw status letters (R/C carry a similarity score); untracked files are
   // reported as "A" by the backend but shown as "U" like most editors do.
   const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1);
@@ -141,7 +142,7 @@
   bind:this={host}
   onscroll={scroll}
   role="list"
-  aria-label="修改列表"
+  aria-label={m.s5_changes_list()}
 >
   <div
     class="relative h-(--list-height)"
@@ -186,8 +187,8 @@
             <ListButton
               variant="file-tree-action"
               aria-pressed={seen}
-              aria-label={`标记为已看：${path}`}
-              title={seen ? "取消已看" : "标记为已看"}
+              aria-label={m.s5_mark_reviewed_path({ path })}
+              title={seen ? m.s5_unmark_reviewed() : m.s5_mark_reviewed()}
               onclick={() => diffReview.toggle(reviewScope!, change)}
             >
               {#if seen}<IconEyeCheck aria-hidden="true" />{:else}<IconEye
@@ -201,15 +202,24 @@
   </div>
 </div>
 <div class="shrink-0 border-t p-2 text-xs">
-  <p>已加载 {entries.length} / {total} 项</p>
+  <p>
+    {m.s5_loaded_items_count({
+      loaded: String(entries.length),
+      total: String(total),
+    })}
+  </p>
   {#if reviewScope && entries.length}<p role="status">
-      已看 {reviewed} / {entries.length} 个已加载修改
+      {m.s5_reviewed_loaded_changes({
+        reviewed: String(reviewed),
+        loaded: String(entries.length),
+      })}
     </p>{/if}
   {#if nextCursor}<Button
       variant="outline"
       size="sm"
       disabled={pending || !enabled}
-      onclick={onmore}>{pending ? "加载中…" : "加载更多修改"}</Button
+      onclick={onmore}
+      >{pending ? m.s5_loading() : m.s5_load_more_changes()}</Button
     >
-  {:else if !pending && total === 0}<p>没有匹配的修改</p>{/if}
+  {:else if !pending && total === 0}<p>{m.s5_no_matching_changes()}</p>{/if}
 </div>

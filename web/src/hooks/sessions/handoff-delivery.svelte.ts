@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type { HandoffDelivery, HandoffPreview } from "../../contracts/schemas";
 import {
   isHandoffComplete,
@@ -66,15 +67,14 @@ export function createHandoffDelivery(
     try {
       if (!(await editor.save())) return;
       if (editor.dirty || editor.choiceChanged || editor.conflict) {
-        editor.error = "草稿仍有更改，尚未发送。请检查保存后的预览。";
+        editor.error = m.s3_handoff_dirty_not_sent();
         return;
       }
       const reviewed = editor.preview;
       const p = await threadAPI.get(reviewed.id);
       if (p.revision !== reviewed.revision) {
         editor.conflict = true;
-        editor.error =
-          "服务端已有其他版本，尚未发送。请读取服务端版本或保留编辑重新预览。";
+        editor.error = m.s3_handoff_conflict_not_sent();
         editor.remember();
         return;
       }

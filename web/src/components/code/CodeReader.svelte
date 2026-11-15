@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import { CodeView, type CodeViewOptions } from "@pierre/diffs";
   import { captureCursor, restoreCursor } from "../../domains/code/code-search";
   import { createCodeFind } from "../../domains/code/code-find.svelte";
@@ -394,10 +395,12 @@
   });
   $effect(() => {
     hint = coarse
-      ? `点击代码行，再点右侧 ＋ 发送位置到${draftEnabled ? "草稿" : "终端"}`
+      ? m.s5_reader_hint_coarse({
+          target: draftEnabled ? m.s5_target_draft() : m.s5_target_terminal(),
+        })
       : showGutter
-        ? "点击行号；Shift 点击选择终点"
-        : "显示行号后可点击行号选择";
+        ? m.s5_reader_hint_gutter_shown()
+        : m.s5_reader_hint_gutter_hidden();
     return () => {
       hint = "";
     };
@@ -412,37 +415,37 @@
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label="文件内查找"
+      aria-label={m.s5_find_in_file()}
       aria-expanded={find.panel === "search"}
       aria-keyshortcuts="Control+f Meta+f"
-      title="文件内查找（Ctrl / ⌘ F）"
+      title={m.s5_find_in_file_shortcut()}
       onclick={() => void find.actions.openPanel("search")}
       ><IconSearch aria-hidden="true" /></Button
     >
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label="跳转行"
+      aria-label={m.s5_goto_line_btn()}
       aria-expanded={find.panel === "goto"}
       aria-keyshortcuts="Control+Alt+g Meta+Alt+g"
-      title="跳转行（Ctrl / ⌘ + Alt + G）"
+      title={m.s5_goto_line_shortcut()}
       onclick={() => void find.actions.openPanel("goto")}
       ><IconListNumbers aria-hidden="true" /></Button
     >
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label="缩放"
+      aria-label={m.s5_zoom()}
       aria-expanded={find.panel === "zoom"}
-      title="缩放"
+      title={m.s5_zoom()}
       onclick={() => void find.actions.openPanel("zoom")}
       ><IconZoomIn aria-hidden="true" /></Button
     >
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label="显示行号"
-      title={showGutter ? "隐藏行号" : "显示行号"}
+      aria-label={m.s5_show_line_numbers()}
+      title={showGutter ? m.s5_hide_line_numbers() : m.s5_show_line_numbers()}
       aria-pressed={showGutter}
       onclick={toggleGutter}><IconNumber aria-hidden="true" /></Button
     >
@@ -460,7 +463,7 @@
       bind:this={host}
       data-code-reader
       tabindex="-1"
-      aria-label="只读代码"
+      aria-label={m.s5_readonly_code()}
       style:--diffs-font-size={`${codeFont.size}px`}
       style:--diffs-line-height={`${codeFont.lineHeight}px`}
       class="code-reader h-full overflow-x-hidden overflow-y-auto overscroll-contain outline-none contain-strict [overflow-anchor:none]"

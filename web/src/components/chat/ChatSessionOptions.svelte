@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import IconLoader2 from "~icons/tabler/loader-2";
   import IconSelector from "~icons/tabler/selector";
   import IconSettings from "~icons/tabler/settings";
@@ -79,8 +80,9 @@
         {...props}
         variant="ghost"
         size="icon"
-        aria-label="会话选项"
-        title="会话选项"><IconSettings aria-hidden="true" /></Button
+        aria-label={m.s3_session_options()}
+        title={m.s3_session_options()}
+        ><IconSettings aria-hidden="true" /></Button
       >
     {/snippet}
   </Drawer.Trigger>
@@ -96,15 +98,15 @@
     }}
   >
     <div class="flex shrink-0 items-center justify-between gap-2 px-4 py-2">
-      <Drawer.Title>会话选项</Drawer.Title>
+      <Drawer.Title>{m.s3_session_options()}</Drawer.Title>
       <Drawer.Close>
         {#snippet child({ props })}
           <Button
             {...props}
             variant="ghost"
             size="icon"
-            aria-label="关闭选项"
-            title="关闭选项"
+            aria-label={m.s3_close_options()}
+            title={m.s3_close_options()}
           >
             <IconX aria-hidden="true" />
           </Button>
@@ -112,7 +114,7 @@
       </Drawer.Close>
     </div>
     <Drawer.Description class="sr-only"
-      >查看和更改权限与 agent 配置。</Drawer.Description
+      >{m.s3_session_options_desc()}</Drawer.Description
     >
     {#if error}
       <div class="max-h-[30dvh] shrink-0 overflow-y-auto px-4 pb-3">
@@ -130,12 +132,12 @@
           <IconLoader2
             class="size-3.5 animate-spin motion-reduce:animate-none"
             aria-hidden="true"
-          />正在读取配置…
+          />{m.s3_loading_config()}
         </p>
       {/if}
       {@render selectRow({
         id: "webmux-permission",
-        name: "权限",
+        name: m.s3_permission_name(),
         value: mode,
         choices: permissionChoices,
         disabled: modeDisabled,

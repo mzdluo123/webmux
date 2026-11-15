@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import IconShield from "~icons/tabler/shield";
   import IconShieldCheck from "~icons/tabler/shield-check";
   import {
@@ -22,14 +23,14 @@
 </script>
 
 <ChatSelect
-  name="权限"
+  name={m.s3_permission_name()}
   value={mode}
   choices={permissionChoices}
   {disabled}
   labeled
   title={mode === "auto"
-    ? "权限：全部接受 Agent 的工具调用请求（表单仍需回答）"
-    : "权限：每次工具调用都询问"}
+    ? m.s3_permission_auto_title()
+    : m.s3_permission_ask_title()}
   onchange={(value) => {
     const changed = changedPermissionMode(value, mode);
     if (changed) onchange(changed);

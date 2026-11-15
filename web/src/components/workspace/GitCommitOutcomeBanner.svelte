@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitCommitOutcome } from "../../contracts/git-workbench-schemas";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
@@ -26,7 +27,9 @@
         <span class="font-semibold">[{outcome.status}]</span>
         {outcome.summary}
         {#if outcome.reasons.length > 0}
-          （{outcome.reasons.join("；")}）
+          {m.s6_outcome_reasons_wrap({
+            reasons: outcome.reasons.join(m.s6_list_semicolon_sep()),
+          })}
         {/if}
       </div>
       <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
@@ -38,16 +41,16 @@
             onclick={() =>
               outcome.commitOid && onInspectCommit(outcome.commitOid)}
           >
-            在历史 (Log) 中查看提交
+            {m.s6_outcome_inspect_in_log()}
           </Button>
         {/if}
         {#if outcome.status === "uncertain"}
           <Button size="sm" variant="outline" wrap onclick={onReloadVerify}>
-            刷新历史与暂存区核实
+            {m.s6_reload_verify_btn()}
           </Button>
         {/if}
         <Button size="sm" variant="ghost" wrap onclick={onDismiss}>
-          关闭提示
+          {m.s6_dismiss_notice()}
         </Button>
       </div>
     </div>

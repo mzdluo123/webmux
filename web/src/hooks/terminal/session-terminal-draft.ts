@@ -10,6 +10,7 @@ import type {
   TextInsertion,
 } from "../../domains/terminal/terminal-draft.svelte";
 import type { TerminalController } from "../../domains/terminal/terminal-search";
+import { m } from "$lib/paraglide/messages.js";
 
 interface SessionTerminalDraftOptions {
   draft: TerminalDraft;
@@ -46,9 +47,7 @@ export function createSessionTerminalDraft(
   }
 
   function controlNotice() {
-    options.setError(
-      "终端控制需先退出草稿模式；草稿框内可正常复制、选择和编辑。",
-    );
+    options.setError(m.s4_draft_control_notice());
   }
 
   function softInput(input: string) {
@@ -93,12 +92,12 @@ export function createSessionTerminalDraft(
 
   return {
     get draftSaved() {
-      return savedStorageLabel(draft.persisted, "草稿过大，仅保存在当前页面");
+      return savedStorageLabel(draft.persisted, m.s4_draft_oversized_local());
     },
     get scratchSaved() {
       return savedStorageLabel(
         draft.scratchPersisted,
-        "暂存超出本机保存限制，仅当前页面",
+        m.s4_scratch_oversized_local(),
       );
     },
     beginInput,

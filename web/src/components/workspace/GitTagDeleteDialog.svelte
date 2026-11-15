@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { ItemGroup } from "$lib/components/ui/item";
   import { Badge } from "$lib/components/ui/badge";
   import type { GitBranchItem } from "../../contracts/git-workbench-schemas";
@@ -24,9 +25,9 @@
 </script>
 
 <ResponsiveDialog
-  title={`确认删除本地标签 · ${target.name}`}
-  description="仅删除本仓库 refs/tags 下的本地标签，不会自动删除远端同名标签。"
-  drawerDescription="核对标签指向提交与恢复命令后确认删除。"
+  title={m.s7_tag_delete_title({ name: target.name })}
+  description={m.s7_tag_delete_desc()}
+  drawerDescription={m.s7_tag_delete_drawer_desc()}
   busy={submitting}
   class="sm:max-w-lg"
   onclose={onClose}
@@ -38,11 +39,13 @@
           <span class="font-mono">{target.name}</span>
         </Badge>
         <Badge variant="outline">
-          {target.tagKind === "annotated" ? "附注标签" : "轻量标签"}
+          {target.tagKind === "annotated"
+            ? m.s7_tag_annotated_badge()
+            : m.s7_tag_lightweight_badge()}
         </Badge>
       </div>
       <p class="font-mono break-all text-muted-foreground">
-        目标提交 OID：{target.head}
+        {m.s7_tag_target_oid_line({ oid: target.head })}
       </p>
       {#if target.tagMessage}
         <p class="whitespace-pre-wrap wrap-anywhere text-foreground">
@@ -52,8 +55,8 @@
     </ItemGroup>
 
     <GitRecoveryCommandBox
-      label="删除后重建命令："
-      copyLabel="复制标签恢复命令"
+      label={m.s7_tag_delete_recovery_label()}
+      copyLabel={m.s7_tag_delete_copy_recovery()}
       command={recoveryCommand}
       testId="git-tag-delete-recovery-cmd"
     />
@@ -61,8 +64,8 @@
     <GitDialogFooter
       {dialogError}
       {submitting}
-      confirmLabel="确认删除本地标签"
-      submittingLabel="正在删除…"
+      confirmLabel={m.s7_tag_delete_confirm()}
+      submittingLabel={m.s7_tag_delete_submitting()}
       confirmVariant="destructive"
       confirmTestId="git-tag-delete-confirm-btn"
       {onConfirm}

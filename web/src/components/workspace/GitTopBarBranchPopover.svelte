@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import IconArrowsSplit2 from "~icons/tabler/arrows-split-2";
   import IconGitBranch from "~icons/tabler/git-branch";
   import { Button } from "$lib/components/ui/button";
@@ -21,7 +22,7 @@
     context,
     branchFilter,
     compareBaseOid = null,
-    compareTargetLabel = "与当前 HEAD 比较",
+    compareTargetLabel,
     onSelectAll,
     onBranchAction,
   }: {
@@ -40,15 +41,32 @@
   let open = $state(false);
   let query = $state("");
 
+  const effectiveCompareTargetLabel = $derived(
+    compareTargetLabel === undefined
+      ? m.s7_compare_with_head()
+      : compareTargetLabel,
+  );
   const grouped = $derived(
     groupAndSortGitBranches(branches, context.checkedOutBranch, query),
   );
   const popoverGroups = $derived(
     [
-      { key: "current", title: "当前检出", rows: grouped.current },
-      { key: "favorites", title: "常用收藏", rows: grouped.favorites },
-      { key: "local", title: "本地分支", rows: grouped.local },
-      { key: "remote", title: "远程分支", rows: grouped.remote },
+      {
+        key: "current",
+        title: m.s7_branch_group_current(),
+        rows: grouped.current,
+      },
+      {
+        key: "favorites",
+        title: m.s7_branch_group_favorites(),
+        rows: grouped.favorites,
+      },
+      { key: "local", title: m.s7_branch_group_local(), rows: grouped.local },
+      {
+        key: "remote",
+        title: m.s7_branch_group_remote(),
+        rows: grouped.remote,
+      },
     ].filter((g) => g.rows.length > 0),
   );
 
@@ -68,12 +86,12 @@
         {...props}
         size="sm"
         variant="outline"
-        aria-label="分支快选"
-        title="分支快选"
+        aria-label={m.s7_topbar_branch_quick_select()}
+        title={m.s7_topbar_branch_quick_select()}
         data-testid="git-topbar-branch-popover-trigger"
       >
         <IconArrowsSplit2 aria-hidden="true" />
-        <span class="max-sm:hidden">分支快选</span>
+        <span class="max-sm:hidden">{m.s7_topbar_branch_quick_select()}</span>
       </Button>
     {/snippet}
   </Popover.Trigger>
@@ -82,8 +100,8 @@
       <Input
         size="sm"
         value={query}
-        placeholder="搜索本地或远程分支…"
-        aria-label="顶栏搜索分支"
+        placeholder={m.s7_topbar_branch_search_placeholder()}
+        aria-label={m.s7_topbar_branch_search_aria()}
         oninput={(e) => (query = e.currentTarget.value)}
       />
 
@@ -101,12 +119,16 @@
               class="size-3.5 shrink-0 text-muted-foreground"
               aria-hidden="true"
             />
-            <span class="min-w-0 flex-1 truncate">全部可达引用</span>
+            <span class="min-w-0 flex-1 truncate"
+              >{m.s7_topbar_all_reachable()}</span
+            >
           </ListButton>
 
           {#if popoverGroups.length === 0}
             <p class="px-2 py-2 text-xs text-muted-foreground">
-              {query.trim() ? "没有匹配的分支。" : "暂无分支引用。"}
+              {query.trim()
+                ? m.s7_topbar_no_matching_branch()
+                : m.s7_topbar_no_branches()}
             </p>
           {:else}
             {#each popoverGroups as grp (grp.key)}
@@ -125,8 +147,10 @@
                     {branchFilter}
                     sectionId={grp.key}
                     {compareBaseOid}
-                    {compareTargetLabel}
-                    menuLabel={`顶栏分支操作 ${branch.name}`}
+                    compareTargetLabel={effectiveCompareTargetLabel}
+                    menuLabel={m.s7_topbar_branch_menu_aria({
+                      name: branch.name,
+                    })}
                     onSelectRow={() => triggerAction("filter-log", branch)}
                     onAction={triggerAction}
                   />

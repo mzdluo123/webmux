@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { gitCommitPreview } from "../../platform/git-api";
 import type {
   GitCommitOutcome,
@@ -105,7 +106,9 @@ export async function runOpenCommitPreview(options: {
     });
   } catch (err) {
     options.patchView({
-      statusBanner: `提交预览读取失败：${errorMessage(err)}`,
+      statusBanner: m.s7_commit_preview_load_failed({
+        error: errorMessage(err),
+      }),
     });
   }
 }
@@ -134,9 +137,12 @@ export async function runConfirmCommitFlow(options: {
   if (!preview) return;
 
   const clientRequestId = generateGitClientRequestId("commit");
-  options.operations?.setPhase("running", "commit", "正在执行提交并校验快照…", {
-    clientRequestId,
-  });
+  options.operations?.setPhase(
+    "running",
+    "commit",
+    m.s7_commit_running_phase(),
+    { clientRequestId },
+  );
 
   async function finalizeCommitOutcome(outcome: GitCommitOutcome) {
     const shouldClearDraft =
@@ -214,10 +220,10 @@ export async function runConfirmCommitFlow(options: {
         }
         if (recovered.status === "failed") {
           const failMsg =
-            recovered.summary || "提交未完成，请检查钩子输出或仓库状态";
+            recovered.summary || m.s7_commit_failed_default_reason();
           options.patchView({
             commitPreview: { ...preview, dialogError: failMsg },
-            statusBanner: `提交失败：${failMsg}`,
+            statusBanner: m.s7_commit_failed_banner({ error: failMsg }),
           });
           return;
         }
@@ -231,11 +237,9 @@ export async function runConfirmCommitFlow(options: {
         commitPreview: {
           ...preview,
           stale: true,
-          dialogError:
-            out.banner ||
-            "暂存区或 HEAD 在预览后已被修改，请点击「重新生成提交预览」确认最新内容（草稿已保留）。",
+          dialogError: out.banner || m.s7_commit_stale_dialog_error(),
         },
-        statusBanner: out.banner || "提交预览已过期，请刷新预览后重试",
+        statusBanner: out.banner || m.s7_commit_stale_banner(),
       });
       return;
     }
@@ -244,7 +248,10 @@ export async function runConfirmCommitFlow(options: {
       options.patchView({
         commitPreview: {
           ...preview,
-          dialogError: `${out.busyOutcome.summary}（${out.busyOutcome.reasons.join("；")}）`,
+          dialogError: m.s7_busy_outcome_with_reasons({
+            summary: out.busyOutcome.summary,
+            reasons: out.busyOutcome.reasons.join(m.s7_reason_sep()),
+          }),
         },
         lastCommitOutcome: out.busyOutcome,
         statusBanner: out.busyOutcome.summary,
@@ -252,13 +259,13 @@ export async function runConfirmCommitFlow(options: {
       return;
     }
 
-    const errMsg = out.banner || "提交未完成，请检查钩子输出或仓库状态";
+    const errMsg = out.banner || m.s7_commit_failed_default_reason();
     options.patchView({
       commitPreview: {
         ...preview,
         dialogError: errMsg,
       },
-      statusBanner: `提交失败：${errMsg}`,
+      statusBanner: m.s7_commit_failed_banner({ error: errMsg }),
     });
   } finally {
     options.operations?.clearActive();

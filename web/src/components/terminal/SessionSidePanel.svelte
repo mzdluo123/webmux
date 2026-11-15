@@ -6,6 +6,7 @@
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     view = $bindable("code"),
@@ -44,7 +45,9 @@
         target?.focus();
       } else {
         panel
-          ?.querySelector<HTMLButtonElement>('[aria-label="返回面板选择"]')
+          ?.querySelector<HTMLButtonElement>(
+            `[aria-label="${m.s4_back_to_panel_picker()}"]`,
+          )
           ?.focus();
       }
     });
@@ -65,7 +68,7 @@
 <section
   bind:this={panel}
   class="flex h-full min-h-0 min-w-0 flex-col bg-card outline-none"
-  aria-label="侧栏面板"
+  aria-label={m.s4_side_panel()}
   tabindex="-1"
 >
   {#if view !== "code"}
@@ -74,17 +77,17 @@
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="返回面板选择"
-          title="返回面板选择"
+          aria-label={m.s4_back_to_panel_picker()}
+          title={m.s4_back_to_panel_picker()}
           onclick={openPicker}><IconArrowLeft aria-hidden="true" /></Button
         >
-        <h2 class="min-w-0 flex-1 text-sm font-medium">分屏</h2>
+        <h2 class="min-w-0 flex-1 text-sm font-medium">{m.s4_split_pane()}</h2>
       {:else}<span class="flex-1"></span>{/if}
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label="关闭侧栏面板"
-        title="关闭侧栏面板"
+        aria-label={m.s4_close_side_panel()}
+        title={m.s4_close_side_panel()}
         onclick={close}><IconX aria-hidden="true" /></Button
       >
     </header>
@@ -95,9 +98,11 @@
         bind:this={chooser}
         class="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-8 sm:px-6"
         role="group"
-        aria-label="面板选择"
+        aria-label={m.s4_panel_picker()}
       >
-        <h2 class="mb-6 text-center text-base font-medium">打开面板</h2>
+        <h2 class="mb-6 text-center text-base font-medium">
+          {m.s4_open_panel()}
+        </h2>
         {#if codeAvailable}
           <ListButton
             variant="action-sheet"
@@ -105,7 +110,9 @@
             onclick={() => choose("code")}
             onkeydown={shortcut}
           >
-            <IconCode aria-hidden="true" /><span class="flex-1">代码</span>
+            <IconCode aria-hidden="true" /><span class="flex-1"
+              >{m.s4_code()}</span
+            >
             <kbd
               class="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted font-mono text-sm text-muted-foreground"
               aria-hidden="true">C</kbd
@@ -120,7 +127,7 @@
             onkeydown={shortcut}
           >
             <IconLayoutColumns aria-hidden="true" /><span class="flex-1"
-              >分屏</span
+              >{m.s4_split_pane()}</span
             >
             <kbd
               class="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted font-mono text-sm text-muted-foreground"

@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { errorMessage } from "../../platform/error";
 import { gitChanges, gitDiff } from "../../platform/git-api";
@@ -50,25 +51,25 @@ export function formatStagingComparisonEndpoints(change: GitWorkingChange): {
 } {
   if (change.group === "staged") {
     return {
-      left: change.status === "A" ? "文件不存在 (HEAD)" : "HEAD",
-      right: change.status === "D" ? "文件不存在 (index)" : "index",
+      left: change.status === "A" ? m.s7_staging_ep_absent_head() : "HEAD",
+      right: change.status === "D" ? m.s7_staging_ep_absent_index() : "index",
     };
   }
   if (change.group === "untracked") {
     return {
-      left: "文件不存在",
+      left: m.s7_staging_ep_absent(),
       right: "working tree",
     };
   }
   if (change.group === "conflicted") {
     return {
-      left: "冲突基准 (ours/theirs)",
+      left: m.s7_staging_ep_conflict_base(),
       right: "working tree",
     };
   }
   return {
-    left: change.status === "A" ? "文件不存在 (index)" : "index",
-    right: change.status === "D" ? "文件不存在 (working tree)" : "working tree",
+    left: change.status === "A" ? m.s7_staging_ep_absent_index() : "index",
+    right: change.status === "D" ? m.s7_staging_ep_absent_wt() : "working tree",
   };
 }
 
@@ -115,8 +116,7 @@ export function createGitStagingDiffController(deps: {
         rightEndpoint: endpoints.right,
         fileDiff: null,
         rawDiff: null,
-        reason:
-          "该条目存在未解决的合并或变基冲突，不能直接暂存或伪装为可提交文件；请前往工作树终端解决冲突。",
+        reason: m.s7_staging_conflicted_reason(),
       };
       return;
     }
@@ -132,9 +132,7 @@ export function createGitStagingDiffController(deps: {
         rightEndpoint: endpoints.right,
         fileDiff: null,
         rawDiff: null,
-        reason:
-          change.degradeReason ||
-          "二进制文件不展开文本行级差异，仅支持整文件暂存或取消暂存。",
+        reason: change.degradeReason || m.s7_staging_binary_reason(),
       };
       return;
     }
@@ -206,7 +204,7 @@ export function createGitStagingDiffController(deps: {
               reason:
                 rawDiff.reason ||
                 change.degradeReason ||
-                "二进制文件不展开文本行级差异，仅支持整文件暂存或取消暂存。",
+                m.s7_staging_binary_reason(),
             };
             return;
           }
@@ -219,7 +217,7 @@ export function createGitStagingDiffController(deps: {
               reason:
                 rawDiff.reason ||
                 change.degradeReason ||
-                "文件超过内联差异上限或仅包含模式变更，仅支持整文件暂存。",
+                m.s7_staging_limited_reason(),
             };
             return;
           }
@@ -272,9 +270,7 @@ export function createGitStagingDiffController(deps: {
       state = {
         ...state,
         phase: "limited",
-        reason:
-          change.degradeReason ||
-          "当前条目仅包含重命名、模式变更或空内容变化，支持整文件暂存。",
+        reason: change.degradeReason || m.s7_staging_meta_only_reason(),
       };
     } catch (err) {
       if (!req.reportable()) return;

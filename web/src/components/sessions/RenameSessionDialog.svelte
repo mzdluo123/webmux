@@ -6,6 +6,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
+  import { m } from "$lib/paraglide/messages.js";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
 
   // Sets the user-chosen title. It outranks titles the terminal or agent
@@ -40,8 +41,8 @@
 </script>
 
 <ResponsiveDialog
-  title="修改标题"
-  description="手动设置的标题优先于终端或 agent 自动给出的标题；留空则恢复自动标题。"
+  title={m.s3_rename_title()}
+  description={m.s3_rename_session_desc()}
   {onclose}
   {busy}
 >
@@ -53,7 +54,7 @@
     }}
   >
     <div class="space-y-2">
-      <Label for="session-title">标题</Label>
+      <Label for="session-title">{m.s3_title_label()}</Label>
       <Input
         id="session-title"
         bind:value={name}
@@ -67,10 +68,10 @@
       </p>{/if}
     <div class="flex justify-end gap-2">
       <Button type="button" variant="outline" disabled={busy} onclick={onclose}
-        >取消</Button
+        >{m.s3_cancel()}</Button
       >
       <Button type="submit" class="min-w-24" disabled={busy}
-        >{busy ? "正在保存…" : "保存"}</Button
+        >{busy ? m.s3_preview_status_saving() : m.s3_save()}</Button
       >
     </div>
   </form>

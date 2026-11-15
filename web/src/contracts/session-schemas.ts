@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { m } from "$lib/paraglide/messages.js";
 import {
   ChatAttachmentSchema,
   HybridReleaseSchema,
@@ -255,7 +256,7 @@ export const StoredScratchSchema = z
     (scratch) =>
       new Set(scratch.entries.map((entry) => entry.id)).size ===
       scratch.entries.length,
-    "暂存 ID 不能重复",
+    { error: () => m.s1_schema_duplicate_scratch_id() },
   );
 export type StoredScratch = z.infer<typeof StoredScratchSchema>;
 export const HealthSchema = z.object({

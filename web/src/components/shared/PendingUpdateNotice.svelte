@@ -3,6 +3,7 @@
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
   import * as Item from "$lib/components/ui/item";
+  import { m } from "$lib/paraglide/messages.js";
   import { restartMethod } from "../../platform/pending-update";
   import type { PendingUpdate } from "../../contracts/schemas";
 
@@ -22,17 +23,20 @@
 <Item.Root
   variant="outline"
   role="status"
-  aria-label="WebMux 待生效更新"
+  aria-label={m.s1_pending_update_aria()}
   class={className}
 >
   <Item.Media variant="icon"><IconRefresh aria-hidden="true" /></Item.Media>
   <Item.Content>
     <Item.Title
-      >已安装 WebMux {update.installedVersion}，重启 WebMux 后生效</Item.Title
+      >{m.s1_pending_update_title({
+        version: update.installedVersion,
+      })}</Item.Title
     >
-    <Item.Description>重启会结束所有会话。</Item.Description>
+    <Item.Description>{m.s1_pending_update_ends_sessions()}</Item.Description>
     <Item.Description>
-      重启方式：{#if "command" in method}<code>{method.command}</code
+      {m.s1_pending_update_restart_how()}{#if "command" in method}<code
+          >{method.command}</code
         >{:else}{method.text}{/if}
     </Item.Description>
   </Item.Content>
@@ -41,8 +45,8 @@
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label="关闭更新提示"
-        title="关闭"
+        aria-label={m.s1_dismiss_update_notice()}
+        title={m.s1_close()}
         onclick={ondismiss}><IconX aria-hidden="true" /></Button
       >
     </Item.Actions>

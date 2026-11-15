@@ -1,5 +1,6 @@
 import DOMPurify, { type Config } from "dompurify";
 import { marked, type Token, type TokensList } from "marked";
+import { m } from "$lib/paraglide/messages.js";
 import { highlightInto } from "./code-highlight";
 import { loadFenceLanguage } from "./code-language";
 import type { CodeMarkdownState } from "../../contracts/schemas";
@@ -164,7 +165,9 @@ const escapeHtml = (value: string) =>
       })[char]!,
   );
 const imageText = (label: string, address: string) =>
-  `图片：${label || address}${label && address ? `（${address}）` : ""}`;
+  label && address
+    ? m.s5_markdown_image_labeled({ label, address })
+    : m.s5_markdown_image_plain({ target: label || address });
 
 const messageRenderer = new marked.Renderer();
 // Chat messages never load images: keep the reference as text.
@@ -248,7 +251,13 @@ export function renderMarkdownDocument(
     if (relative === null) continue;
     const reference = resolveMarkdownReference(base, relative);
     if (reference.kind !== "path") {
-      span.textContent = `${reference.kind === "outside" ? "图片不在工作区内" : "图片地址无效"}（${address}）`;
+      span.textContent = m.s5_markdown_image_error_with_address({
+        reason:
+          reference.kind === "outside"
+            ? m.s5_markdown_image_outside()
+            : m.s5_markdown_image_invalid(),
+        address,
+      });
       continue;
     }
     found.push({
@@ -312,7 +321,10 @@ export function observeMarkdownPictures(
     }
   };
   const fail = (picture: MarkdownPicture, reason: string) => {
-    picture.element.textContent = `${reason}（${picture.address}）`;
+    picture.element.textContent = m.s5_markdown_image_error_with_address({
+      reason,
+      address: picture.address,
+    });
   };
   const load = async (picture: MarkdownPicture) => {
     picture.element.setAttribute("aria-busy", "true");
@@ -320,7 +332,7 @@ export function observeMarkdownPictures(
     try {
       result = await source.image(picture.path, controller.signal);
     } catch (error) {
-      result = { ok: false, reason: targetFailure("图片", error) };
+      result = { ok: false, reason: targetFailure("image", error) };
     }
     if (controller.signal.aborted) return;
     picture.element.removeAttribute("aria-busy");
@@ -343,7 +355,7 @@ export function observeMarkdownPictures(
     picture.element.dataset.mdOpen = result.path;
     picture.element.setAttribute("role", "link");
     picture.element.setAttribute("tabindex", "0");
-    picture.element.title = `在代码面板中打开 ${result.path}`;
+    picture.element.title = m.s5_open_in_code_panel({ path: result.path });
   };
   const observer = new IntersectionObserver(
     (entries) => {
@@ -359,7 +371,7 @@ export function observeMarkdownPictures(
   );
   list.forEach((picture, index) => {
     if (index < maxImages) observer.observe(picture.element);
-    else fail(picture, "图片过多，未加载");
+    else fail(picture, m.s5_too_many_images_skipped());
   });
   return {
     retry: () => {

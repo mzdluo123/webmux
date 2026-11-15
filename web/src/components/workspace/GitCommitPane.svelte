@@ -8,6 +8,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as Resizable from "$lib/components/ui/resizable";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitReviewScope } from "../../contracts/git-workbench-schemas";
   import type { GitHunkAndLineMutationProps } from "../../domains/workspace/git-line-selection";
   import type { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
@@ -139,9 +140,9 @@
   );
   const taskBaselineLabel = $derived(
     !taskReview?.baseline
-      ? "未设起点"
+      ? m.s6_task_baseline_unset()
       : taskReview.baseline.unborn || !taskReview.baseline.baseOid
-        ? "空仓起点"
+        ? m.s6_task_baseline_unborn()
         : taskReview.baseline.baseOid.slice(0, 7),
   );
   const readonlyMode = $derived(
@@ -283,8 +284,8 @@
       logDiff={taskDiffReader}
       fallbackFile={activeTaskFile}
       fallbackLeftLabel={taskBaselineLabel}
-      fallbackRightLabel="当前工作区"
-      backLabel="返回任务变更列表"
+      fallbackRightLabel={m.s6_current_workspace()}
+      backLabel={m.s6_back_to_task_changes()}
       presentation={mobile ? "mobile" : "docked"}
       isTaskScope={true}
       liveWorktreeIdentity={activeTaskPath
@@ -298,7 +299,7 @@
   {:else}
     <section
       class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-      aria-label="工作树文件差异与代码块暂存"
+      aria-label={m.s6_staging_diff_section_aria()}
     >
       {#if mobile}
         <div
@@ -311,7 +312,7 @@
             onclick={() => (mobileStep = "changes")}
           >
             <IconArrowLeft aria-hidden="true" />
-            返回变更列表
+            {m.s6_back_to_changes()}
           </Button>
           {#if activeProgress.remaining > 0}
             <Button
@@ -322,7 +323,9 @@
               data-testid="git-mobile-next-unreviewed"
             >
               <IconPlayerTrackNext aria-hidden="true" />
-              下一处未审阅 ({activeProgress.remaining})
+              {m.s6_next_unreviewed_with_count({
+                count: activeProgress.remaining,
+              })}
             </Button>
           {/if}
         </div>
@@ -331,7 +334,7 @@
       <div class="min-h-0 flex-1">
         {#if !activeChange}
           <p class="p-4 text-xs text-muted-foreground">
-            选择左侧任意变更项查看差异或逐块暂存。
+            {m.s6_select_change_prompt()}
           </p>
         {:else}
           <GitStagingDiffPanel
@@ -380,20 +383,20 @@
       onValueChange={(val) => {
         if (val === "uncommitted" || val === "task") setReviewScope(val);
       }}
-      aria-label="审阅范围"
+      aria-label={m.s6_review_scope_aria()}
     >
       <SegmentedControl.Item value="uncommitted">
-        未提交改动 ({changes.length})
+        {m.s6_uncommitted_changes_tab({ count: changes.length })}
       </SegmentedControl.Item>
       <SegmentedControl.Item
         value="task"
         aria-label={taskReview?.status === "ready"
-          ? `相对任务起点的变化 (${taskReview.files.length})`
-          : "相对任务起点的变化"}
-        title="相对任务起点的变化"
+          ? m.s6_task_changes_with_count({ count: taskReview.files.length })
+          : m.s6_task_changes_label()}
+        title={m.s6_task_changes_label()}
       >
-        <span class="sm:hidden">任务变化</span>
-        <span class="max-sm:hidden">相对任务起点的变化</span>
+        <span class="sm:hidden">{m.s6_task_changes_short()}</span>
+        <span class="max-sm:hidden">{m.s6_task_changes_label()}</span>
         {#if taskReview?.status === "ready"}
           <span>({taskReview.files.length})</span>
         {/if}
@@ -406,20 +409,23 @@
           variant={activeProgress.remaining === 0 ? "secondary" : "outline"}
           data-testid="git-review-progress-badge"
         >
-          已审阅 {activeProgress.reviewed}/{activeProgress.total}
+          {m.s6_reviewed_progress_badge({
+            reviewed: activeProgress.reviewed,
+            total: activeProgress.total,
+          })}
         </Badge>
         <Button
           size="sm"
           variant="outline"
           disabled={activeProgress.remaining === 0}
           onclick={handleNextUnreviewed}
-          aria-label="下一处未审阅"
-          title="定位并打开下一处未审阅文件"
+          aria-label={m.s6_next_unreviewed_label()}
+          title={m.s6_next_unreviewed_tooltip()}
           data-testid="git-next-unreviewed"
         >
           <IconPlayerTrackNext aria-hidden="true" />
-          <span class="sm:hidden">下一处</span>
-          <span class="max-sm:hidden">下一处未审阅</span>
+          <span class="sm:hidden">{m.s6_next_unreviewed_short()}</span>
+          <span class="max-sm:hidden">{m.s6_next_unreviewed_label()}</span>
         </Button>
       {/if}
 
@@ -427,8 +433,8 @@
         <Button
           size="icon-sm"
           variant="ghost"
-          aria-label="重置提交分栏比例"
-          title="重置提交分栏比例"
+          aria-label={m.s6_reset_commit_pane_layout()}
+          title={m.s6_reset_commit_pane_layout()}
           onclick={() => {
             onResetLayout?.();
             paneResetKey++;

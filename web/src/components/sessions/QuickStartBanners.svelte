@@ -1,6 +1,7 @@
 <script lang="ts">
   import IconAlertCircle from "~icons/tabler/alert-circle";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import ConnectorInstallHint from "./ConnectorInstallHint.svelte";
   import {
     failedStep,
@@ -37,23 +38,26 @@
     <IconAlertCircle class="text-warning" aria-hidden="true" />
     <span class="mr-auto">
       {missing === "agent"
-        ? "还没有勾选混合模式的启动配置，无法以聊天方式启动 agent。"
-        : "还没有可用的仓库。"}
+        ? m.s3_qs_missing_hybrid_config()
+        : m.s3_qs_missing_repository()}
     </span>
     {#if missing === "agent"}
       <Button variant="outline" size="sm-touch" href="/settings#launch-configs"
-        >新建启动配置</Button
+        >{m.s3_qs_new_launch_config()}</Button
       >
     {:else}
       <Button variant="outline" size="sm-touch" onclick={shell.addRepository}
-        >添加仓库</Button
+        >{m.s3_qs_add_repository()}</Button
       >
     {/if}
   </div>
 {/if}
 {#if targetMode === "new" && branchError}
   <p role="alert" class="px-1 text-sm text-destructive">
-    读取 {repository?.name} 的分支失败：{branchError}
+    {m.s3_qs_read_branches_failed({
+      name: repository?.name ?? "",
+      error: branchError,
+    })}
   </p>
 {/if}
 {#if failure}
@@ -68,9 +72,10 @@
         aria-hidden="true"
       />
       <span class="min-w-0 break-words">
-        <span class="font-medium">{failedStep[failed.step]}：</span
+        <span class="font-medium"
+          >{m.s3_qs_failed_step_prefix({ step: failedStep[failed.step] })}</span
         >{failed.error}
-        {failed.sessionId ? "" : "消息未发送，已保留在输入框中。"}
+        {failed.sessionId ? "" : m.s3_qs_msg_not_sent_kept()}
       </span>
     </p>
     {#if failed.connector}
@@ -82,7 +87,8 @@
           {@const tree = failed.worktree}
           <span
             class="min-w-0 truncate font-mono text-xs text-muted-foreground"
-            title={tree.path}>已创建 worktree：{tree.path}</span
+            title={tree.path}
+            >{m.s3_qs_created_worktree({ path: tree.path })}</span
           >
           {#if !failed.sessionId}
             <Button
@@ -93,7 +99,7 @@
                   kind: "worktree",
                   repositoryId: tree.repositoryId,
                   worktreeId: tree.id,
-                })}>在此 worktree 新建会话</Button
+                })}>{m.s3_qs_new_session_in_worktree()}</Button
             >
           {/if}
         {/if}
@@ -102,7 +108,8 @@
           <Button
             variant="outline"
             size="sm-touch"
-            onclick={() => openSession({ id })}>进入会话</Button
+            onclick={() => openSession({ id })}
+            >{m.s3_qs_enter_session()}</Button
           >
         {/if}
       </p>

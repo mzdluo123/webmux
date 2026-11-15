@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -41,11 +42,11 @@
     {#if source === "new"}
       <ProjectDirectoryField
         id="project-parent"
-        label="存放位置"
+        label={m.s8_proj_form_parent_label()}
         bind:value={parent}
       />
       <div class="space-y-2">
-        <Label for="project-name">项目名称</Label><Input
+        <Label for="project-name">{m.s8_proj_form_name_label()}</Label><Input
           id="project-name"
           bind:value={name}
           required
@@ -53,49 +54,51 @@
         />
       </div>
       {#if name}<p class="break-all font-mono text-xs text-muted-foreground">
-          将创建：{parent.replace(/\/+$/, "")}/{name}
+          {m.s8_proj_form_will_create({
+            path: `${parent.replace(/\/+$/, "")}/${name}`,
+          })}
         </p>{/if}
       <Label
         ><Checkbox
           bind:checked={initializeGit}
           disabled={!pluginAvailable("workspace.manage")}
-        />初始化 Git 仓库</Label
+        />{m.s8_proj_form_init_git()}</Label
       >
       {#if !pluginAvailable("workspace.manage")}<p
           class="text-sm text-muted-foreground"
         >
-          Git 暂不可用，仍可创建普通项目文件夹。
+          {m.s8_proj_form_git_unavailable_hint()}
         </p>{/if}
     {:else if source === "local"}
       <ProjectDirectoryField
         id="project-local"
-        label="已有文件夹"
+        label={m.s8_proj_form_existing_folder()}
         bind:value={path}
       />
       <p class="text-sm text-muted-foreground">
-        选择运行 WebMux 的服务端文件夹。
+        {m.s8_proj_form_server_folder_hint()}
       </p>
     {:else}
       <div class="space-y-2">
-        <Label for="project-url">Git 仓库地址</Label><Input
+        <Label for="project-url">{m.s8_proj_form_git_url_label()}</Label><Input
           id="project-url"
           bind:value={url}
           onblur={() => {
             if (!path.trim()) path = suggestProjectClonePath(cloneParent, url);
           }}
           required
-          placeholder="https://… 或 git@host:owner/repo.git"
+          placeholder={m.s8_proj_form_git_url_placeholder()}
           autocapitalize="off"
           spellcheck={false}
         />
       </div>
       <ProjectDirectoryField
         id="project-clone-path"
-        label="克隆到新目录"
+        label={m.s8_proj_form_clone_path_label()}
         bind:value={path}
       />
       <p class="text-sm text-muted-foreground">
-        目标目录必须尚不存在；使用服务端的 Git 凭据。
+        {m.s8_proj_form_clone_hint()}
       </p>
     {/if}
     <Button
@@ -103,12 +106,12 @@
       disabled={disabled ||
         (source === "git" && !pluginAvailable("workspace.clone"))}
       >{controller.busy
-        ? "处理中…"
+        ? m.s8_proj_form_busy()
         : source === "new"
-          ? "创建项目并继续"
+          ? m.s8_proj_form_submit_create()
           : source === "local"
-            ? "打开文件夹并继续"
-            : "克隆并继续"}</Button
+            ? m.s8_proj_form_submit_open()
+            : m.s8_proj_form_submit_clone()}</Button
     >
   </fieldset>
 </form>

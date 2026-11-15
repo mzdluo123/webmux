@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import {
@@ -145,7 +146,7 @@ export function createGitDivergenceController(
     const wtId = deps.getWorktreeId();
     if (!repoId || !wtId) {
       deps.patchView({
-        statusBanner: "请先选择可写工作树再执行合并、变基、遴选或还原。",
+        statusBanner: m.s7_div_select_writable_wt(),
       });
       return;
     }
@@ -233,7 +234,7 @@ export function createGitDivergenceController(
     if (!cur?.confirmationId) return;
     const ctx = beginConfirmedAction(
       cur.kind,
-      `正在执行${gitOperationKindLabel(cur.kind)}…`,
+      m.s7_op_running_kind({ kind: gitOperationKindLabel(cur.kind) }),
     );
     if (!ctx) return;
     const { repoId, wtId, clientRequestId } = ctx;
@@ -260,7 +261,7 @@ export function createGitDivergenceController(
           preview = null;
           deps.patchView({
             statusBanner:
-              recovered?.summary || "已恢复进行中的 Git 操作状态，请核对工作区",
+              recovered?.summary || m.s7_div_recovered_in_progress(),
           });
           await deps.onAfterMutation();
           if (latestState && latestState.conflictedCount > 0) {
@@ -279,7 +280,7 @@ export function createGitDivergenceController(
   async function continueOperation() {
     const cur = inProgress;
     if (!cur?.active || !cur.kind) return;
-    const ctx = beginConfirmedAction("continue", "正在继续完成 Git 操作…");
+    const ctx = beginConfirmedAction("continue", m.s7_div_continuing_phase());
     if (!ctx) return;
     const { repoId, wtId, clientRequestId } = ctx;
     try {
@@ -290,7 +291,9 @@ export function createGitDivergenceController(
       await applyDivergenceResult(res);
     } catch (err) {
       const info = extractConflictReason(err);
-      deps.patchView({ statusBanner: `继续操作未完成：${info.message}` });
+      deps.patchView({
+        statusBanner: m.s7_div_continue_failed({ error: info.message }),
+      });
       await refreshState(repoId, wtId);
       await deps.operations.refreshOperations(repoId, wtId);
     } finally {
@@ -334,7 +337,7 @@ export function createGitDivergenceController(
   async function confirmAbort() {
     const cur = abortPreview;
     if (!cur?.confirmationId) return;
-    const ctx = beginConfirmedAction("abort", "正在中止操作并回退工作树…");
+    const ctx = beginConfirmedAction("abort", m.s7_div_aborting_phase());
     if (!ctx) return;
     const { repoId, wtId, clientRequestId } = ctx;
     try {

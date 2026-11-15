@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
@@ -75,7 +76,7 @@ export function createGitPushDiffController(deps: {
     }
 
     const filePath = file.newPath || file.oldPath;
-    const leftLabel = parentOid ? parentOid.slice(0, 7) : "空树";
+    const leftLabel = parentOid ? parentOid.slice(0, 7) : m.s7_empty_tree();
     const rightLabel = commitOid.slice(0, 7);
 
     if (file.binary) {
@@ -88,7 +89,7 @@ export function createGitPushDiffController(deps: {
         leftLabel,
         rightLabel,
         fileDiff: null,
-        reason: "二进制文件不直接展开文本行级差异。",
+        reason: m.s7_diff_binary_reason(),
       };
       return;
     }
@@ -142,7 +143,7 @@ export function createGitPushDiffController(deps: {
         state = {
           ...state,
           phase: "limited",
-          reason: "未找到该路径对应的历史对象快照。",
+          reason: m.s7_snapshot_missing_reason(),
         };
         return;
       }
@@ -154,7 +155,7 @@ export function createGitPushDiffController(deps: {
         state = {
           ...state,
           phase: "binary",
-          reason: diff.reason || "二进制文件不直接展开文本行级差异。",
+          reason: diff.reason || m.s7_diff_binary_reason(),
         };
         return;
       }
@@ -162,7 +163,7 @@ export function createGitPushDiffController(deps: {
         state = {
           ...state,
           phase: "limited",
-          reason: diff.reason || "文件超过内联差异上限或仅包含模式变更。",
+          reason: diff.reason || m.s7_diff_limited_reason(),
         };
         return;
       }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import type { BatchRemoveResult } from "../../contracts/schemas";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
@@ -15,12 +16,19 @@
 
 <div class="rounded-lg border bg-muted/40 p-3 text-sm">
   <p class="font-medium">
-    已删除 {removed} 个
-    {#if skipped > 0}，已跳过 {skipped} 个{/if}
-    ，失败 {failed.length} 个
+    {skipped > 0
+      ? m.s8_batch_res_summary_with_skipped({
+          removed: String(removed),
+          skipped: String(skipped),
+          failed: String(failed.length),
+        })
+      : m.s8_batch_res_summary({
+          removed: String(removed),
+          failed: String(failed.length),
+        })}
   </p>
   <p class="mt-1 text-xs text-muted-foreground">
-    失败项的文件与未授权会话均未删除，已保留勾选以便重新读取最新状态后重试。
+    {m.s8_batch_res_hint()}
   </p>
 </div>
 
@@ -30,9 +38,12 @@
       <li class="break-all">
         <span class="font-medium">{item.branch || item.path}</span>
         {#if item.branch}
-          <span class="font-mono text-xs">（{item.path}）</span>
-        {/if}
-        ：{item.error || "删除未完成"}
+          <span class="font-mono text-xs"
+            >{m.s8_parens_value({ value: item.path })}</span
+          >
+        {/if}{m.s8_colon_error({
+          error: item.error || m.s8_batch_res_incomplete(),
+        })}
       </li>
     {/each}
   </ul>

@@ -8,6 +8,7 @@
   import IconTrash from "~icons/tabler/trash";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
   import { formatStagingComparisonEndpoints } from "../../hooks/workspace/git-staging-diff.svelte";
   import GitDiffStyleSwitch from "./GitDiffStyleSwitch.svelte";
@@ -81,8 +82,8 @@
           size="icon-sm"
           variant="ghost"
           disabled={hunkIndex <= 0}
-          aria-label="上一变更块"
-          title="上一变更块"
+          aria-label={m.s6_staging_prev_hunk()}
+          title={m.s6_staging_prev_hunk()}
           onclick={() => onJumpToHunk(hunkIndex - 1)}
         >
           <IconArrowUp aria-hidden="true" />
@@ -94,8 +95,8 @@
           size="icon-sm"
           variant="ghost"
           disabled={hunkIndex >= change.hunks.length - 1}
-          aria-label="下一变更块"
-          title="下一变更块"
+          aria-label={m.s6_staging_next_hunk()}
+          title={m.s6_staging_next_hunk()}
           onclick={() => onJumpToHunk(hunkIndex + 1)}
         >
           <IconArrowDown aria-hidden="true" />
@@ -112,7 +113,7 @@
         data-testid="git-toggle-line-selector"
       >
         <IconListCheck aria-hidden="true" />
-        逐行选择
+        {m.s6_staging_line_picker_btn()}
       </Button>
     {/if}
 
@@ -129,7 +130,7 @@
         data-testid="git-diff-discard-file-btn"
       >
         <IconTrash aria-hidden="true" />
-        丢弃更改…
+        {m.s6_staging_discard_file_btn()}
       </Button>
     {/if}
 
@@ -141,7 +142,7 @@
         onclick={() => onStageChange(change.id)}
       >
         <IconPlus aria-hidden="true" />
-        暂存整文件
+        {m.s6_staging_stage_file_btn()}
       </Button>
     {:else if stageMode === "unstage"}
       <Button
@@ -151,7 +152,7 @@
         onclick={() => onUnstageChange(change.id)}
       >
         <IconMinus aria-hidden="true" />
-        取消暂存整文件
+        {m.s6_staging_unstage_file_btn()}
       </Button>
     {/if}
   </div>
