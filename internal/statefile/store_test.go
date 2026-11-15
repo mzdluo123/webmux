@@ -119,10 +119,10 @@ func TestRelayVersionMigrationGate(t *testing.T) {
 				t.Fatalf("unsupported snapshot version accepted: %v", err)
 			}
 			blocked, _, err := Open[testDocument](dir, Relay, nil)
-			defer blocked.Close()
 			if !IsKind(err, UnsupportedVersion) {
 				t.Fatalf("unsupported open version accepted: %v", err)
 			}
+			defer blocked.Close()
 			if err := blocked.Commit(testDocument{2, "replacement"}); err == nil {
 				t.Fatal("unsupported identity could be overwritten")
 			}
