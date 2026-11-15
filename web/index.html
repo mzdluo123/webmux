@@ -16,19 +16,56 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <script>
-      // Apply the saved theme before the application module and its CSS load.
+      // Apply the saved theme and language before the application module loads.
       (() => {
         let saved = null;
+        let savedLocale = null;
         try {
           saved = localStorage.getItem("webmux.theme");
+          savedLocale = localStorage.getItem("webmux.locale");
         } catch {
-          // Storage can be unavailable in private browsing; system theme remains usable.
+          // Storage can be unavailable in private browsing; system defaults remain usable.
         }
         const dark =
           saved === "dark" ||
           (saved !== "light" &&
             !matchMedia("(prefers-color-scheme: light)").matches);
         document.documentElement.classList.toggle("dark", dark);
+        let lang = "zh-CN";
+        if (savedLocale === "zh-CN" || savedLocale === "en") {
+          lang = savedLocale;
+        } else {
+          const list = navigator.languages?.length
+            ? navigator.languages
+            : navigator.language
+              ? [navigator.language]
+              : [];
+          let resolved = null;
+          let seen = false;
+          for (const item of list) {
+            const tag = String(item).trim().toLowerCase();
+            if (!tag) continue;
+            seen = true;
+            if (
+              tag === "zh" ||
+              tag.startsWith("zh-") ||
+              tag.startsWith("zh_")
+            ) {
+              resolved = "zh-CN";
+              break;
+            }
+            if (
+              tag === "en" ||
+              tag.startsWith("en-") ||
+              tag.startsWith("en_")
+            ) {
+              resolved = "en";
+              break;
+            }
+          }
+          lang = resolved ?? (seen ? "en" : "zh-CN");
+        }
+        document.documentElement.lang = lang;
       })();
     </script>
     <!-- font-preload:start -->

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
   import {
@@ -76,40 +77,44 @@
 <div class="min-w-0 space-y-3">
   {#if done}
     <InlineNotice tone="success"
-      >已把 <span class="font-mono break-all">{done.branch}</span> 快进到
-      <span class="font-mono break-all">{done.upstream}</span>（{short(
-        done.to,
-      )}）。</InlineNotice
+      >{m.s8_ff_done_before()}<span class="font-mono break-all"
+        >{done.branch}</span
+      >{m.s8_ff_done_mid()}<span class="font-mono break-all"
+        >{done.upstream}</span
+      >{m.s8_ff_done_after({ commit: short(done.to) })}</InlineNotice
     >
   {:else}
     <FlowStatus {flow} />
     {#if preview}
       <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
-        <dt class="text-muted-foreground">分支</dt>
+        <dt class="text-muted-foreground">{m.s8_label_branch()}</dt>
         <dd class="font-mono break-all">{preview.branch}</dd>
         {#if preview.upstream}
-          <dt class="text-muted-foreground">上游</dt>
+          <dt class="text-muted-foreground">{m.s8_label_upstream()}</dt>
           <dd class="font-mono break-all">{preview.upstream}</dd>
         {/if}
         {#if preview.to}
-          <dt class="text-muted-foreground">提交</dt>
+          <dt class="text-muted-foreground">{m.s8_label_commit()}</dt>
           <dd class="font-mono">{short(preview.from)} → {short(preview.to)}</dd>
         {/if}
-        <dt class="text-muted-foreground">工作树</dt>
+        <dt class="text-muted-foreground">{m.s8_label_worktree()}</dt>
         <dd class="break-all">
           {#if preview.worktree}<span class="font-mono"
               >{preview.worktree.path}</span
-            >{:else}未被检出：只移动分支引用，任何工作树的文件都不变{/if}
+            >{:else}{m.s8_ff_not_checked_out()}{/if}
         </dd>
       </dl>
       <PreviewIssues blockers={preview.blockers} warnings={preview.warnings} />
       {#if preview.commits.total > 0}
-        <BranchCommitList title="将前进的提交" commits={preview.commits} />
+        <BranchCommitList
+          title={m.s8_ff_commits_title()}
+          commits={preview.commits}
+        />
       {/if}
       {#if sessions.length}
         <div class="space-y-2 rounded-lg border p-3">
           <WorktreeSessionList
-            title="运行中的会话（不会关闭或重启）"
+            title={m.s8_ff_running_sessions_title()}
             {sessions}
           />
           <Label class="items-start">
@@ -121,7 +126,7 @@
               class="mt-0.5"
             />
             <span class="text-sm leading-snug"
-              >我已知晓：以上 {sessions.length} 个会话会看到快进后的文件。</span
+              >{m.s8_ff_ack_sessions({ count: String(sessions.length) })}</span
             >
           </Label>
         </div>
@@ -132,7 +137,7 @@
     done={!!done}
     {busy}
     {ready}
-    label={busy ? "正在快进…" : "快进到上游"}
+    label={busy ? m.s8_ff_busy() : m.s8_branch_action_fast_forward()}
     onconfirm={() => void confirm()}
     {onclose}
   />

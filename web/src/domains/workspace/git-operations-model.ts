@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { APIError } from "../../platform/api";
 import type {
   GitCommitOutcome,
@@ -39,51 +40,51 @@ export function isTerminalGitOperationStatus(
 export function gitOperationKindLabel(kind: GitOperationKind): string {
   switch (kind) {
     case "commit":
-      return "提交";
+      return m.s7_op_kind_commit();
     case "push":
-      return "推送";
+      return m.s7_op_kind_push();
     case "fetch":
-      return "获取远程";
+      return m.s7_op_kind_fetch();
     case "fast_forward":
-      return "快进更新";
+      return m.s7_op_kind_fast_forward();
     case "switch":
-      return "切换分支";
+      return m.s7_op_kind_switch();
     case "merge":
-      return "合并分支";
+      return m.s7_op_kind_merge();
     case "rebase":
-      return "变基分支";
+      return m.s7_op_kind_rebase();
     case "cherry_pick":
-      return "遴选提交";
+      return m.s7_op_kind_cherry_pick();
     case "revert":
-      return "还原提交";
+      return m.s7_op_kind_revert();
     case "continue":
-      return "继续操作";
+      return m.s7_op_kind_continue();
     case "abort":
-      return "中止操作";
+      return m.s7_op_kind_abort();
     case "stash_push":
-      return "新建贮藏";
+      return m.s7_op_kind_stash_push();
     case "stash_apply":
-      return "应用贮藏";
+      return m.s7_op_kind_stash_apply();
     case "stash_pop":
-      return "弹出贮藏";
+      return m.s7_op_kind_stash_pop();
     case "stash_drop":
-      return "丢弃贮藏";
+      return m.s7_op_kind_stash_drop();
     case "branch_rename":
-      return "重命名分支";
+      return m.s7_op_kind_branch_rename();
     case "branch_upstream":
-      return "设置上游跟踪";
+      return m.s7_op_kind_branch_upstream();
     case "tag_create":
-      return "新建标签";
+      return m.s7_op_kind_tag_create();
     case "tag_delete":
-      return "删除标签";
+      return m.s7_op_kind_tag_delete();
     case "remote_add":
-      return "添加远程仓库";
+      return m.s7_op_kind_remote_add();
     case "remote_update":
-      return "编辑远程仓库";
+      return m.s7_op_kind_remote_update();
     case "remote_remove":
-      return "移除远程仓库";
+      return m.s7_op_kind_remote_remove();
     case "discard":
-      return "丢弃更改";
+      return m.s7_op_kind_discard();
     case "smart_checkout":
       return "Smart Checkout";
   }
@@ -92,17 +93,17 @@ export function gitOperationKindLabel(kind: GitOperationKind): string {
 export function gitOperationStatusLabel(status: GitOperationStatus): string {
   switch (status) {
     case "pending":
-      return "等待校验";
+      return m.s7_op_status_pending();
     case "running":
-      return "执行中";
+      return m.s7_op_status_running();
     case "succeeded":
-      return "已完成";
+      return m.s7_op_status_succeeded();
     case "needs_review":
-      return "需复核";
+      return m.s7_op_status_needs_review();
     case "failed":
-      return "已失败";
+      return m.s7_op_status_failed();
     case "uncertain":
-      return "结果待核实";
+      return m.s7_op_status_uncertain();
   }
 }
 
@@ -120,6 +121,7 @@ export function mapGitOperationToCommitOutcome(
 ): GitCommitOutcome | null {
   if (op.status === "succeeded") {
     if (op.kind !== "commit") return null;
+    const oid = op.actualOid?.slice(0, 7) ?? "";
     return {
       operationId: op.id,
       status: "matched",
@@ -128,7 +130,9 @@ export function mapGitOperationToCommitOutcome(
       actualTreeOid: op.actualTreeOid,
       summary:
         op.summary ||
-        `已提交 ${op.actualOid?.slice(0, 7) ?? ""}${op.subject ? `：${op.subject}` : ""}`,
+        (op.subject
+          ? m.s7_op_committed_with_subject({ oid, subject: op.subject })
+          : m.s7_op_committed({ oid })),
       reasons: op.reviewReasons,
     };
   }
@@ -140,8 +144,7 @@ export function mapGitOperationToCommitOutcome(
       commitOid: op.actualOid,
       expectedTreeOid: op.preview.expectedTreeOid,
       actualTreeOid: op.actualTreeOid,
-      summary:
-        op.summary || "操作已完成，但检测到钩子改写或树差异，请复核详情。",
+      summary: op.summary || m.s7_op_needs_review_summary(),
       reasons: op.reviewReasons,
     };
   }
@@ -154,7 +157,7 @@ export function mapGitOperationToCommitOutcome(
       actualTreeOid: op.actualTreeOid,
       summary:
         op.summary ||
-        `${gitOperationKindLabel(op.kind)}结果未能唯一确认，请先刷新并检查历史与暂存区。`,
+        m.s7_op_uncertain_summary({ kind: gitOperationKindLabel(op.kind) }),
       reasons: op.reviewReasons,
     };
   }

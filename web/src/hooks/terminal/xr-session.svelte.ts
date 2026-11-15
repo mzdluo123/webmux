@@ -1,5 +1,6 @@
 import { getContext, onDestroy, onMount, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
+import { m } from "$lib/paraglide/messages.js";
 import { xrPresentation } from "../shared/xr-presentation.svelte";
 import type {
   XrHeaderControl,
@@ -35,11 +36,9 @@ export function createXrSessionWorkspace(
   let serial = 0;
 
   function unavailable() {
-    if (!window.isSecureContext)
-      return "沉浸式 VR 需要 HTTPS 安全上下文。请使用 Tailscale Serve 或受信任的 HTTPS 入口。";
-    if (!navigator.xr)
-      return "当前浏览器不提供 WebXR；仍可使用完整的 2D 工作台。";
-    return "当前设备或浏览器不支持沉浸式 VR。";
+    if (!window.isSecureContext) return m.s4_xr_unavail_https();
+    if (!navigator.xr) return m.s4_xr_unavail_no_webxr();
+    return m.s4_xr_unavail_unsupported();
   }
 
   function restore() {
@@ -71,7 +70,7 @@ export function createXrSessionWorkspace(
     if (!session) return;
     busy = true;
     return session.end().catch((error: unknown) => {
-      options.error(`退出 VR 失败：${errorMessage(error)}`);
+      options.error(m.s4_xr_exit_failed({ error: errorMessage(error) }));
       restore();
     });
   }
@@ -125,7 +124,7 @@ export function createXrSessionWorkspace(
         const session = owner;
         restore();
         if (session) void session.end().catch(() => undefined);
-        options.error(`无法进入 VR：${errorMessage(error)}。2D 会话保持运行。`);
+        options.error(m.s4_xr_enter_failed({ error: errorMessage(error) }));
       });
   }
 
@@ -172,7 +171,9 @@ export function createXrSessionWorkspace(
         await endSession();
         return true;
       } catch (error) {
-        options.error(`无法返回会话：${errorMessage(error)}`);
+        options.error(
+          m.s4_xr_return_session_failed({ error: errorMessage(error) }),
+        );
         return false;
       }
     },

@@ -16,6 +16,7 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as Tabs from "$lib/components/ui/tabs";
   import {
@@ -128,19 +129,18 @@
   );
   // Bumped after an operation so the branches section reads them again.
   let branchesVersion = $state(0);
-  const tabs: { id: RepositoryTab; label: string }[] = [
-    { id: "overview", label: "概览" },
-    { id: "worktrees", label: "工作树" },
-    { id: "branches", label: "分支" },
-    { id: "remotes", label: "远程" },
-  ];
-  const descriptions: Record<RepositoryTab, string> = {
-    overview: "仓库路径、默认分支、远程与 Git 状态。",
-    worktrees:
-      "该仓库的全部工作树（含未添加到主页的项），可查看详情或批量清理。删除工作树不会删除本地分支。",
-    branches: "本地分支与远程跟踪分支，按本机记录读取，不访问网络。",
-    remotes: "远程名称与地址；地址中的密码与令牌已隐藏。",
-  };
+  const tabs = $derived<{ id: RepositoryTab; label: string }[]>([
+    { id: "overview", label: m.s8_repo_tab_overview() },
+    { id: "worktrees", label: m.s8_repo_tab_worktrees() },
+    { id: "branches", label: m.s8_repo_tab_branches() },
+    { id: "remotes", label: m.s8_repo_tab_remotes() },
+  ]);
+  const descriptions = $derived<Record<RepositoryTab, string>>({
+    overview: m.s8_repo_desc_overview(),
+    worktrees: m.s8_repo_desc_worktrees(),
+    branches: m.s8_repo_desc_branches(),
+    remotes: m.s8_repo_desc_remotes(),
+  });
 
   // Remotes are read once when the panel opens: the overview shows their
   // count and "获取远程" needs at least one.
@@ -174,9 +174,9 @@
   let branchesRead = $state(0);
   const fetchBlocked = $derived(
     remotes === undefined && !remotesError
-      ? "正在读取远程…"
+      ? m.s8_repo_reading_remotes()
       : remotes?.length === 0
-        ? "这个仓库没有配置远程，无法获取"
+        ? m.s8_repo_no_remotes_to_fetch()
         : "",
   );
   const failedFetches = $derived(
@@ -268,7 +268,7 @@
       class="-ml-2"
       disabled={busy}
       onclick={() => void back()}
-      ><IconArrowLeft aria-hidden="true" />返回</Button
+      ><IconArrowLeft aria-hidden="true" />{m.s8_back()}</Button
     >
     <h3 class="min-w-0 text-sm font-medium break-all">{heading}</h3>
   </div>
@@ -288,7 +288,7 @@
   title={repository.name}
   description={available ? descriptions[tab] : descriptions.overview}
   class="sm:max-w-2xl"
-  drawerDescription="概览、工作树、分支与远程"
+  drawerDescription={m.s8_repo_drawer_desc()}
   pinDrawerHeader
   truncateDrawerTitle
   actions={available ? fetchAction : undefined}
@@ -318,7 +318,7 @@
           <Tabs.List
             variant="line"
             class="max-w-full flex-wrap group-data-horizontal/tabs:h-auto"
-            aria-label="仓库面板分区"
+            aria-label={m.s8_repo_panel_sections_aria()}
           >
             {#each tabs as item (item.id)}
               <Tabs.Trigger value={item.id} disabled={busy && tab !== item.id}
@@ -406,17 +406,19 @@
         {/key}
       </section>
     {:else if top}
-      {@const title = topTree ? worktreeTitle(topTree) : "工作树"}
+      {@const title = topTree
+        ? worktreeTitle(topTree)
+        : m.s8_repo_tab_worktrees()}
       <section
         class="min-w-0 space-y-3"
         aria-label={top.kind === "switch"
-          ? `切换分支：${title}`
+          ? m.s8_switch_branch_heading({ title })
           : topTree
-            ? `工作树详情：${title}`
-            : "工作树详情"}
+            ? m.s8_worktree_details_heading({ title })
+            : m.s8_worktree_details_plain()}
       >
         {@render subviewHeader(
-          top.kind === "switch" ? `切换分支：${title}` : title,
+          top.kind === "switch" ? m.s8_switch_branch_heading({ title }) : title,
         )}
         {#if top.kind === "detail" && topTree && switchableWorktree(topTree)}
           {@const id = topTree.id}
@@ -424,12 +426,13 @@
             variant="outline"
             size="sm"
             disabled={busy}
-            onclick={() => void push({ kind: "switch", id })}>切换分支…</Button
+            onclick={() => void push({ kind: "switch", id })}
+            >{m.s8_menu_switch_branch()}</Button
           >
         {/if}
         {#if !topTree}
           <p class="text-xs text-muted-foreground">
-            这个工作树已不在仓库中，可能已被删除。
+            {m.s8_worktree_no_longer_exists()}
           </p>
         {:else if top.kind === "switch"}
           {@const id = topTree.id}

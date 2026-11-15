@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { FileDiffMetadata, SelectedLineRange } from "@pierre/diffs";
+  import { m } from "$lib/paraglide/messages.js";
   import type {
     CodeDiff,
     CodeDocumentViewState,
@@ -142,11 +143,11 @@
 
 {#if shownDiff?.kind === "text" && !diffReady}
   <p class="p-2 text-sm" role="status">
-    {calculation === "pending" ? "正在计算差异…" : calculationReason}
+    {calculation === "pending" ? m.s5_calculating_diff() : calculationReason}
   </p>
   {#if calculation === "error" || calculation === "limited"}
     <Button variant="outline" size="sm" onclick={() => (modelSnapshot = "")}
-      >重试差异计算</Button
+      >{m.s5_retry_diff_calculation()}</Button
     >
   {/if}
 {/if}
@@ -225,21 +226,21 @@
 {:else if imageDocument && doc}
   <div class="space-y-1 p-2 text-sm">
     {#if doc.source === "empty"}<p role="status">
-        {side === "old" ? "旧侧" : "新侧"}不存在
+        {side === "old" ? m.s5_old_side_missing() : m.s5_new_side_missing()}
       </p>
-    {:else}<p aria-label="图片信息">
+    {:else}<p aria-label={m.s5_image_info()}>
         {imageFormat(doc.mediaType)} · {formatBytes(doc.size)}
       </p>
       {#if doc.downloadable}<p class="text-muted-foreground">
-          不加载预览，可下载原始文件查看。
+          {m.s5_no_preview_download_raw()}
         </p>{/if}
     {/if}
   </div>
 {:else if pdfFile && doc}
   <div class="space-y-1 p-2 text-sm">
-    <p aria-label="PDF 信息">PDF · {formatBytes(doc.size)}</p>
+    <p aria-label={m.s5_pdf_info()}>PDF · {formatBytes(doc.size)}</p>
     {#if doc.downloadable}<p class="text-muted-foreground">
-        不加载预览，可下载原始文件查看。
+        {m.s5_no_preview_download_raw()}
       </p>{/if}
   </div>
 {/if}

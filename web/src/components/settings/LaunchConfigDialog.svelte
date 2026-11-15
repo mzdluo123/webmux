@@ -1,6 +1,7 @@
 <script lang="ts">
   import { errorMessage } from "../../platform/error";
   import { untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import EnvRowsEditor from "./EnvRowsEditor.svelte";
   import LaunchConfigBehaviorFields from "./LaunchConfigBehaviorFields.svelte";
   import { Button } from "$lib/components/ui/button";
@@ -74,14 +75,19 @@
       attention,
     ),
   );
-  const iconOptions = [
-    { value: "auto", label: "自动匹配" },
-    ...LAUNCH_ICON_OPTIONS,
-  ];
-  const startupShellOptions: { value: StartupShell; label: string }[] = [
-    { value: "bash", label: "Bash（~/.bashrc）" },
-    { value: "zsh", label: "Zsh（~/.zshrc）" },
-  ];
+  const iconOptions = $derived([
+    { value: "auto", label: m.s2_icon_auto() },
+    ...LAUNCH_ICON_OPTIONS.map((option) => ({
+      value: option.value,
+      label: option.label,
+    })),
+  ]);
+  const startupShellOptions = $derived<
+    { value: StartupShell; label: string }[]
+  >([
+    { value: "bash", label: m.s2_startup_shell_bash() },
+    { value: "zsh", label: m.s2_startup_shell_zsh() },
+  ]);
   const autoIcon = $derived(
     draft.ok ? launchConfigIcon(draft.value) : "terminal",
   );
@@ -136,7 +142,7 @@
           })
           .catch((err: unknown) => {
             if (!controller.signal.aborted)
-              loadError = `无法读取启动配置：${errorMessage(err)}`;
+              loadError = m.s2_launch_err_load({ error: errorMessage(err) });
           })
           .finally(() => {
             if (!controller.signal.aborted) loading = false;
@@ -176,7 +182,7 @@
     } catch (err) {
       error =
         err instanceof APIError && err.status === 409
-          ? `已有同名启动配置“${draft.value.name}”，请换一个名称。`
+          ? m.s2_launch_err_conflict({ name: draft.value.name })
           : errorMessage(err);
     } finally {
       busy = false;
@@ -192,11 +198,11 @@
       <div class="shrink-0 border-b px-5 py-4 pr-12">
         <Dialog.Header>
           <Dialog.Title
-            >{configId ? "编辑启动配置" : "新建启动配置"}</Dialog.Title
+            >{configId
+              ? m.s2_launch_edit_title()
+              : m.s2_launch_new_title()}</Dialog.Title
           >
-          <Dialog.Description
-            >保存在服务端，所有设备的新建会话页都能选用。</Dialog.Description
-          >
+          <Dialog.Description>{m.s2_launch_dialog_desc()}</Dialog.Description>
         </Dialog.Header>
       </div>
       <div
@@ -205,18 +211,18 @@
       >
         {#if loading}
           <p role="status" class="text-sm text-muted-foreground">
-            正在读取启动配置…
+            {m.s2_launch_loading()}
           </p>
         {:else if loadError}
           <InlineNotice tone="danger">{loadError}</InlineNotice>
         {:else}
           <fieldset disabled={busy} class="grid min-w-0 gap-4">
             <div class="grid gap-2">
-              <Label for="launch-config-name">名称</Label>
+              <Label for="launch-config-name">{m.s2_name()}</Label>
               <Input
                 id="launch-config-name"
                 bind:value={name}
-                placeholder="例如：Claude 恢复"
+                placeholder={m.s2_launch_name_placeholder()}
                 autocomplete="off"
                 aria-invalid={!!name && !!draft.errors.name}
                 aria-describedby={name && draft.errors.name
@@ -231,15 +237,18 @@
                 </p>{/if}
             </div>
             <div class="grid gap-2">
-              <Label for="launch-config-icon">图标</Label>
+              <Label for="launch-config-icon">{m.s2_launch_icon()}</Label>
               <Select.Root type="single" bind:value={icon} items={iconOptions}>
-                <Select.Trigger id="launch-config-icon" aria-label="图标">
+                <Select.Trigger
+                  id="launch-config-icon"
+                  aria-label={m.s2_launch_icon()}
+                >
                   <span class="flex items-center gap-2">
                     <LaunchConfigIcon
                       icon={icon === "auto" ? autoIcon : icon}
                     />
                     {iconOptions.find((option) => option.value === icon)
-                      ?.label ?? "终端"}
+                      ?.label ?? m.s2_icon_terminal()}
                   </span>
                 </Select.Trigger>
                 <Select.Content>
@@ -254,16 +263,16 @@
                 </Select.Content>
               </Select.Root>
               <p class="text-xs text-muted-foreground">
-                自动匹配启动程序，也可指定图标。品牌图标来自 LobeHub。
+                {m.s2_launch_icon_help()}
               </p>
             </div>
             <div class="grid gap-2">
-              <Label for="launch-config-command">启动命令</Label>
+              <Label for="launch-config-command">{m.s2_launch_cmd()}</Label>
               <Textarea
                 id="launch-config-command"
                 bind:value={command}
                 rows={3}
-                placeholder="claude --resume 或 bash -lc 'npm run dev'"
+                placeholder={m.s2_launch_cmd_placeholder()}
                 mono
                 class="max-h-[30dvh]"
                 autocapitalize="off"
@@ -281,8 +290,7 @@
                 id="launch-config-command-help"
                 class="text-xs text-muted-foreground"
               >
-                支持引号和转义；直接执行程序，不展开 shell 变量或管道。需要
-                shell 语法时，请显式使用 bash -lc '命令'。
+                {m.s2_launch_cmd_help()}
               </p>
               <div class="flex items-center gap-2">
                 <Checkbox
@@ -290,11 +298,15 @@
                   bind:checked={loadStartup}
                   aria-describedby="launch-config-startup-help"
                 />
-                <Label for="launch-config-startup">加载 shell 启动文件</Label>
+                <Label for="launch-config-startup"
+                  >{m.s2_launch_load_startup()}</Label
+                >
               </div>
               {#if loadStartup}
                 <div class="grid gap-2">
-                  <Label for="launch-config-startup-shell">启动文件</Label>
+                  <Label for="launch-config-startup-shell"
+                    >{m.s2_launch_startup_file()}</Label
+                  >
                   <Select.Root
                     type="single"
                     value={startupShell}
@@ -306,7 +318,7 @@
                   >
                     <Select.Trigger
                       id="launch-config-startup-shell"
-                      aria-label="启动文件 shell"
+                      aria-label={m.s2_launch_startup_shell_aria()}
                     >
                       {startupShellOptions.find(
                         (option) => option.value === startupShell,
@@ -326,8 +338,7 @@
                 id="launch-config-startup-help"
                 class="text-xs text-muted-foreground"
               >
-                使用交互式 Bash（~/.bashrc）或 Zsh（~/.zshrc）读取 PATH
-                和环境变量；只需填写普通命令，参数仍原样传递，不展开变量或管道。
+                {m.s2_launch_startup_help()}
               </p>
               {#if providers.LaunchChatFields}
                 <providers.LaunchChatFields
@@ -345,7 +356,7 @@
               max={LAUNCH_ENV_MAX}
               makeRow={row}
             >
-              {#snippet help()}变量值保存在服务端状态文件中，默认遮挡；列表与新建会话页只显示变量个数，不显示值。{/snippet}
+              {#snippet help()}{m.s2_launch_env_help()}{/snippet}
             </EnvRowsEditor>
             <LaunchConfigBehaviorFields
               config={loadedConfig}
@@ -365,12 +376,12 @@
             variant="outline"
             onclick={() => {
               open = false;
-            }}>取消</Button
+            }}>{m.s2_cancel()}</Button
           >
           {#if !loadError}<Button
               type="submit"
               disabled={loading || busy || !draft.ok}
-              >{busy ? "正在保存…" : "保存"}</Button
+              >{busy ? m.s2_saving() : m.s2_save()}</Button
             >{/if}
         </Dialog.Footer>
       </div>

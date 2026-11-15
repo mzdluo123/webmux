@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { SvelteSet } from "svelte/reactivity";
 import { fetchRepositoryRemotes } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
@@ -131,7 +132,9 @@ export function createGitOperationsController(
           clientRequestId: inFlight.clientRequestId,
           summary:
             inFlight.summary ||
-            `正在执行${gitOperationKindLabel(inFlight.kind)}…`,
+            m.s7_op_running_kind({
+              kind: gitOperationKindLabel(inFlight.kind),
+            }),
         };
       }
       const attention = findRestorableAttentionOperation(
@@ -181,7 +184,7 @@ export function createGitOperationsController(
     setPhase(
       "reconciling",
       options.kind,
-      `连接中断，正在核对${gitOperationKindLabel(options.kind)}执行状态…`,
+      m.s7_op_reconciling({ kind: gitOperationKindLabel(options.kind) }),
       {
         operationId: options.operationId,
         clientRequestId: options.clientRequestId,
@@ -225,7 +228,9 @@ export function createGitOperationsController(
             "running",
             options.kind,
             matched.summary ||
-              `服务端正在完成${gitOperationKindLabel(options.kind)}…`,
+              m.s7_op_server_completing({
+                kind: gitOperationKindLabel(options.kind),
+              }),
             {
               operationId: matched.id,
               clientRequestId: options.clientRequestId,
@@ -250,7 +255,7 @@ export function createGitOperationsController(
     if (!repoId || fetching) return;
     fetching = true;
     const clientRequestId = generateGitClientRequestId("fetch");
-    setPhase("running", "fetch", "正在获取远程引用…", { clientRequestId });
+    setPhase("running", "fetch", m.s7_op_fetching_phase(), { clientRequestId });
     try {
       const res = await fetchRepositoryRemotes(repoId, {
         clientRequestId,
@@ -261,8 +266,8 @@ export function createGitOperationsController(
       const failCount = res.results.length - okCount;
       const banner =
         failCount === 0
-          ? `已获取全部远程（${okCount} 个）`
-          : `远程获取完成：成功 ${okCount} 个，失败 ${failCount} 个`;
+          ? m.s7_op_fetched_all({ count: okCount })
+          : m.s7_op_fetched_partial({ ok: okCount, fail: failCount });
       deps.onStatusBanner(banner);
       const nextTree = wt?.id
         ? res.repository.worktrees.find((w) => w.id === wt.id)
@@ -278,12 +283,12 @@ export function createGitOperationsController(
           clientRequestId,
         });
         if (recovered && recovered.status === "succeeded") {
-          deps.onStatusBanner(recovered.summary || "已恢复远程获取结果");
+          deps.onStatusBanner(recovered.summary || m.s7_op_fetch_recovered());
           await deps.onReloadTarget?.(undefined, wt, sessions);
           return;
         }
       }
-      deps.onStatusBanner(`获取远程失败：${errorMessage(err)}`);
+      deps.onStatusBanner(m.s7_op_fetch_failed({ error: errorMessage(err) }));
       await refreshOperations(repoId, wtId);
     } finally {
       clearActive();

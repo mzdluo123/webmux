@@ -1,5 +1,6 @@
 import { tick, untrack } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { m } from "$lib/paraglide/messages.js";
 import type { SessionInfo } from "../../contracts/schemas";
 import type { XrAvailableSession } from "../../domains/terminal/xr-workspace";
 
@@ -53,7 +54,7 @@ export function createXrSessionMembership(options: {
     },
     async observe(id: string) {
       if (options.ready() && !available.some((session) => session.id === id))
-        throw new Error("此会话已删除或移出可观察列表。");
+        throw new Error(m.s4_xr_session_removed_from_observable());
       if (!observed.includes(id)) observed = [...observed, id];
       await tick();
     },

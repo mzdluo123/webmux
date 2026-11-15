@@ -7,6 +7,7 @@
   import IconX from "~icons/tabler/x";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitInProgressOperation } from "../../contracts/schemas";
   import {
     formatInProgressHeadline,
@@ -40,7 +41,7 @@
 {#if operation.active}
   <section
     class="border-b bg-background px-3 py-2 text-xs"
-    aria-label="进行中的 Git 操作协调恢复横幅"
+    aria-label={m.s6_in_progress_banner_aria()}
     data-testid="git-in-progress-banner"
   >
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
@@ -52,22 +53,29 @@
           {#if operation.conflictedCount > 0}
             <IconAlertTriangle aria-hidden="true" />
             <span class="truncate">
-              {gitSequencerKindLabel(operation.kind)} · {operation.conflictedCount}
-              个冲突
+              {m.s6_in_progress_conflict_count({
+                kind: gitSequencerKindLabel(operation.kind),
+                count: String(operation.conflictedCount),
+              })}
             </span>
           {:else}
             <IconCheck aria-hidden="true" />
-            <span class="truncate"
-              >{gitSequencerKindLabel(operation.kind)} · 冲突已清零</span
-            >
+            <span class="truncate">
+              {m.s6_in_progress_conflicts_cleared({
+                kind: gitSequencerKindLabel(operation.kind),
+              })}
+            </span>
           {/if}
         </Badge>
 
         {#if operation.stepTotal && operation.stepTotal > 0 && operation.stepCurrent}
           <Badge variant="info" class="max-w-full min-w-0">
-            <span class="truncate"
-              >步骤 {operation.stepCurrent}/{operation.stepTotal}</span
-            >
+            <span class="truncate">
+              {m.s6_in_progress_step({
+                current: String(operation.stepCurrent),
+                total: String(operation.stepTotal),
+              })}
+            </span>
           </Badge>
         {/if}
 
@@ -85,7 +93,9 @@
               ? "font-mono text-muted-foreground max-xl:hidden"
               : "font-mono text-muted-foreground"}
           >
-            暂停于 {shortOid(operation.stoppedCommitOid)}
+            {m.s6_in_progress_stopped_at({
+              oid: shortOid(operation.stoppedCommitOid),
+            })}
             {#if operation.stoppedSubject}
               · {operation.stoppedSubject}
             {/if}
@@ -96,7 +106,9 @@
               ? "font-mono text-muted-foreground max-xl:hidden"
               : "font-mono text-muted-foreground"}
           >
-            回退锚点 ORIG_HEAD {shortOid(operation.origHeadOid)}
+            {m.s6_in_progress_orig_head({
+              oid: shortOid(operation.origHeadOid),
+            })}
           </span>
         {/if}
       </div>
@@ -113,7 +125,9 @@
             data-testid="git-open-conflict-resolver-btn"
           >
             <IconArrowsSplit2 aria-hidden="true" />
-            打开三方冲突解决器 ({operation.conflictedCount})
+            {m.s6_in_progress_open_resolver({
+              count: String(operation.conflictedCount),
+            })}
           </Button>
         {/if}
 
@@ -124,13 +138,13 @@
             wrap
             disabled={!operation.canContinue || busy}
             title={!operation.canContinue
-              ? primaryBlocker || "请先将所有冲突文件标记已解决后再继续操作"
-              : "所有冲突已解决，继续完成当前 Git 操作"}
+              ? primaryBlocker || m.s6_conflict_continue_blocked_tooltip()
+              : m.s6_in_progress_continue_ready_tooltip()}
             onclick={onContinue}
             data-testid="git-continue-operation-btn"
           >
             <IconPlayerPlay aria-hidden="true" />
-            {busy ? "正在继续…" : "继续操作 (Continue)"}
+            {busy ? m.s6_continuing_ellipsis() : m.s6_continue_operation_btn()}
           </Button>
         {/if}
 
@@ -144,7 +158,7 @@
             data-testid="git-abort-operation-btn"
           >
             <IconX aria-hidden="true" />
-            中止操作… (Abort)
+            {m.s6_in_progress_abort_btn()}
           </Button>
         {/if}
 
@@ -156,7 +170,7 @@
             onclick={onOpenWorktreeTerminal}
           >
             <IconTerminal2 aria-hidden="true" />
-            终端
+            {m.s6_terminal_short()}
           </Button>
         {/if}
       </div>
@@ -164,7 +178,7 @@
 
     {#if operation.conflictedCount === 0 && !operation.canContinue && primaryBlocker}
       <p class="mt-1 wrap-anywhere text-muted-foreground">
-        暂不可继续：{primaryBlocker}
+        {m.s6_in_progress_cannot_continue({ reason: primaryBlocker })}
       </p>
     {/if}
   </section>

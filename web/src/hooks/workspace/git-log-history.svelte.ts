@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { SvelteSet } from "svelte/reactivity";
 import { errorMessage } from "../../platform/error";
 import type {
@@ -106,7 +107,9 @@ export function createGitLogHistoryController(
     } catch (err) {
       if (req.reportable()) {
         deps.patchView({
-          statusBanner: `提交详情加载失败：${errorMessage(err)}`,
+          statusBanner: m.s7_log_detail_load_failed({
+            error: errorMessage(err),
+          }),
         });
       }
     } finally {
@@ -178,11 +181,12 @@ export function createGitLogHistoryController(
 
       let selectionNotice: GitSelectionNotice | null = null;
       if (hadPreviousSelection && prevSelected && !retained) {
+        const oid = prevSelected.slice(0, 7);
         selectionNotice = {
           message:
             reason === "filter"
-              ? `原选中提交 ${prevSelected.slice(0, 7)} 不在当前筛选结果中。`
-              : `原选中提交 ${prevSelected.slice(0, 7)} 已不在最新引用历史首屏（可能因历史改写或筛选变化）。`,
+              ? m.s7_log_sel_not_in_filter({ oid })
+              : m.s7_log_sel_not_in_head({ oid }),
           canJumpHead: Boolean(latest.context.headOid),
         };
       }
@@ -208,7 +212,9 @@ export function createGitLogHistoryController(
     } catch (err) {
       if (!req.reportable()) return;
       deps.patchView({
-        statusBanner: `提交历史加载失败：${errorMessage(err)}`,
+        statusBanner: m.s7_log_history_load_failed({
+          error: errorMessage(err),
+        }),
       });
     }
   }
@@ -256,7 +262,7 @@ export function createGitLogHistoryController(
       if (!req.reportable()) return;
       deps.patchView({
         historyLoadingMore: false,
-        statusBanner: `加载更多提交失败：${errorMessage(err)}`,
+        statusBanner: m.s7_log_more_load_failed({ error: errorMessage(err) }),
       });
     }
   }

@@ -142,3 +142,12 @@
   - 新增混合会话标题回归连续 5 轮 `-race` 通过：`TestAgyTUITitleContinuityAndRename`、`TestStaleTerminalTitleClearedOnAgentSessionChange`、`TestCandidateAgentPreservesLiveOSCTitleOnSwitch` 与 `TestSessionListTitleFallbackWithoutOSC`；
   - `go vet`、`golangci-lint`、生产与测试类型检查、Oxlint、前端架构守卫（46 项）、格式与持久化守卫通过。
 - 局限：回归使用受控 `fakeagent` 与隔离临时目录，未在自动化测试中连接真实 Google 账号驱动在线 `agy` 对话；未重新验收其他故事能力。
+
+## 网页前端中英文国际化（US-A07）
+
+- 范围：新增 US-A07，故事总数由 259 增至 260；采用 `@inlang/paraglide-js` 完成网页前端 4231 个词条的中英双语本地化，默认跟随系统语言（`zh*` 解析为简体中文，非中文显式标签解析为英语，空列表回退简体中文），显式偏好仅存于本机 `webmux.locale`，不同步至服务端设置。
+- 入口与即时切换：设置页“外观与阅读”和未登录连接门禁复用 `SegmentedControl` 语言选择器，切换后不刷新页面、不断开实时连接即同步界面文案、前端 Zod 校验错误、预设配置标签、Diff Worker 文案与 `<html lang>`，并保留输入草稿；窄屏设置页头返回按钮自动收合为等高图标按钮。
+- 静态与规格门禁：`make check`（前端构建、源码/测试/Storybook 类型检查、格式、Oxlint、`check:arch` 46 项架构断言且 0 克隆 0 未使用导出、`docs-check`、`persistence-check`、`go vet`、`golangci-lint` v2.15.0 0 告警）与 `openspec validate --specs`（99/99）通过。
+- 测试门禁：Go race 全量包通过；单元测试 91 文件 1168 项通过（含词条键集、复数变体与占位符一致性及源码硬编码中文词法扫描）；浏览器测试 118 文件 908 项通过；Storybook 131 项通过；端到端 602 项通过、56 项按设备跳过；4 倍 CPU 性能回归 18 项通过、2 项按设备跳过。
+- 视觉与证据：隔离演示后端检查 1280×900、1280×720、768×800、390×844、375×667、320×568、667×375 明暗主题英语视图，无页面横向溢出且弹窗位于视口内；PR 附桌面 1280×900、平板 768×800、手机 390×844 明暗前后对比图与正常速度语言切换 GIF。
+- 局限：仅在 Linux 无头 Chromium 下验证，`hover` 与 `any-pointer: coarse` 均为 false，真实鼠标悬停和触屏常驻状态未验证；未在手机、平板、macOS 或 Windows 真机验证；未重新验收其他既有故事。

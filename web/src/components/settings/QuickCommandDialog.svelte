@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import { untrack } from "svelte";
   import IconBolt from "~icons/tabler/bolt";
@@ -97,21 +98,23 @@
   >
     <form class="grid gap-4" onsubmit={submit}>
       <Dialog.Header>
-        <Dialog.Title>{initial ? "编辑快捷指令" : "添加快捷指令"}</Dialog.Title>
+        <Dialog.Title
+          >{initial ? m.s2_qc_edit_title() : m.s2_qc_add_title()}</Dialog.Title
+        >
         <Dialog.Description
-          >在终端点击 <IconBolt
+          >{m.s2_qc_dialog_desc_1()}<IconBolt
             class="inline size-3.5 align-[-2px]"
-            aria-label="闪电"
-          /> 按钮即可发送这条指令。</Dialog.Description
+            aria-label={m.s2_bolt_icon_aria()}
+          />{m.s2_qc_dialog_desc_2()}</Dialog.Description
         >
       </Dialog.Header>
       <div class="grid gap-2">
-        <Label for="quick-command-name">名称</Label>
+        <Label for="quick-command-name">{m.s2_name()}</Label>
         <Input
           id="quick-command-name"
           bind:value={name}
           maxlength={QUICK_COMMAND_NAME_MAX}
-          placeholder="例如：查看状态"
+          placeholder={m.s2_qc_name_placeholder()}
           autocomplete="off"
           aria-invalid={showNameError}
           aria-describedby="quick-command-name-help"
@@ -125,18 +128,18 @@
         >
           {showNameError
             ? nameError
-            : "名称唯一；仓库初始化指令用 {{名称}} 引用这条指令。"}
+            : m.s2_qc_name_help({ token: `{{${m.s2_qc_name_token()}}}` })}
         </p>
       </div>
       <div class="grid gap-2">
-        <Label for="quick-command-body">指令</Label>
+        <Label for="quick-command-body">{m.s2_qc_body_label()}</Label>
         <Textarea
           id="quick-command-body"
           bind:ref={commandInput}
           bind:value={command}
           rows={4}
           maxlength={4096}
-          placeholder="例如：git status"
+          placeholder={m.s2_qc_body_placeholder()}
           mono
           class="max-h-[40dvh]"
           autocapitalize="off"
@@ -151,12 +154,12 @@
           aria-describedby="quick-command-enter-help"
         />
         <div class="grid gap-1">
-          <Label for="quick-command-enter">发送后自动回车</Label>
+          <Label for="quick-command-enter">{m.s2_qc_auto_enter()}</Label>
           <p
             id="quick-command-enter-help"
             class="text-xs text-muted-foreground"
           >
-            开启后点击即执行；关闭时只填入，由你确认后再回车。
+            {m.s2_qc_auto_enter_help()}
           </p>
         </div>
       </div>
@@ -169,12 +172,12 @@
           variant="outline"
           onclick={() => {
             open = false;
-          }}>取消</Button
+          }}>{m.s2_cancel()}</Button
         >
         <Button
           type="submit"
           disabled={!draft.success || !!nameError || saving || disabled}
-          >保存</Button
+          >{m.s2_save()}</Button
         >
       </Dialog.Footer>
     </form>

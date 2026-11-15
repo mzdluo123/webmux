@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { m } from "$lib/paraglide/messages.js";
 import {
   AgentGuidePromptSchema,
   ArtifactsFolderSchema,
@@ -175,7 +176,8 @@ export async function uploadForm<T extends z.ZodType>(
   progress: (percent: number) => void,
   signal: AbortSignal,
 ): Promise<z.output<T>> {
-  if (signal.aborted) throw new DOMException("上传已取消", "AbortError");
+  if (signal.aborted)
+    throw new DOMException(m.s1_upload_cancelled(), "AbortError");
   const form = new FormData();
   form.append("file", file);
   let result;
@@ -317,27 +319,36 @@ export function replacePath(path: string) {
   history.replaceState(history.state, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
-const statusText = {
-  running: "运行中",
-  waiting: "可能在等你",
-  idle: "空闲",
-  exited: "已退出",
-};
-const attentionText = {
-  question: "需要回答",
-  permission: "等待授权",
-  done: "本轮完成",
-  error: "出错停止",
-  notify: "有通知",
-  bell: "响铃提醒",
-};
 // An agent-reported signal is more specific than the heuristic status label.
 export function sessionStatusText(
   session: Pick<SessionInfo, "status" | "attention">,
-) {
-  return session.attention
-    ? attentionText[session.attention.kind]
-    : statusText[session.status];
+): string {
+  if (session.attention) {
+    switch (session.attention.kind) {
+      case "question":
+        return m.s1_attention_question();
+      case "permission":
+        return m.s1_attention_permission();
+      case "done":
+        return m.s1_attention_done();
+      case "error":
+        return m.s1_attention_error();
+      case "notify":
+        return m.s1_attention_notify();
+      case "bell":
+        return m.s1_attention_bell();
+    }
+  }
+  switch (session.status) {
+    case "running":
+      return m.s1_status_running();
+    case "waiting":
+      return m.s1_status_waiting();
+    case "idle":
+      return m.s1_status_idle();
+    case "exited":
+      return m.s1_group_exited();
+  }
 }
 export function recentDirs(): string[] {
   try {
@@ -378,7 +389,7 @@ export function parseArgs(input: string): string[] {
       started = true;
     }
   }
-  if (escaped || quote) throw new Error("参数引号或反斜杠未闭合");
+  if (escaped || quote) throw new Error(m.s1_unclosed_arg_quote());
   if (started) result.push(token);
   return result;
 }

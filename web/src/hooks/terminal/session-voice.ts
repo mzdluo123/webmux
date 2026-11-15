@@ -6,6 +6,8 @@ import type {
 } from "../../domains/terminal/terminal-draft.svelte";
 import type { TerminalController } from "../../domains/terminal/terminal-search";
 import type { SessionHybridView } from "../../domains/terminal/session-terminal-io";
+import { m } from "$lib/paraglide/messages.js";
+
 export function applySessionVoiceResult(
   text: string,
   ctx: {
@@ -26,8 +28,8 @@ export function applySessionVoiceResult(
   if (result === "failed") {
     ctx.setError(
       chat || ctx.drafts.destination(ctx.draft, operation) === "draft"
-        ? "草稿正在提交到终端，语音识别内容未插入；请确认结果后重试。"
-        : "终端未就绪，语音识别内容未发送；请恢复连接后重试。",
+        ? m.s4_voice_draft_submitting()
+        : m.s4_voice_terminal_not_ready(),
     );
   } else {
     ctx.setError("");

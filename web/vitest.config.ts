@@ -1,3 +1,4 @@
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { defineConfig } from "vite-plus";
 
 export const sharedCoverage = {
@@ -9,13 +10,24 @@ export const sharedCoverage = {
     "src/main.ts",
     "src/icons/**",
     "src/lib/components/ui/**",
+    "src/lib/paraglide/**",
   ],
 };
 
 export default defineConfig({
+  plugins: [
+    paraglideVitePlugin({
+      project: "./project.inlang",
+      outputStructure: "virtual-modules",
+    }),
+  ],
+  resolve: {
+    alias: { $lib: new URL("./src/lib", import.meta.url).pathname },
+  },
   test: {
     environment: "node",
     include: ["test/*.test.ts"],
+    setupFiles: ["./test/setup-unit.ts"],
     coverage: {
       ...sharedCoverage,
       include: ["src/**/*.ts"],

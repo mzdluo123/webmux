@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as RadioGroup from "$lib/components/ui/radio-group";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ChatSupport, SessionView } from "../../contracts/schemas";
   import { connectorNoticeText } from "../../domains/sessions/hybrid";
 
@@ -21,24 +22,24 @@
       if (next === "terminal" || next === "chat") startSide = next;
     }
   }
-  aria-label="起始端"
+  aria-label={m.s3_start_side_label()}
   {disabled}
 >
   <RadioGroup.Item
     value="terminal"
-    aria-label="从终端开始"
-    title="从终端开始"
-    description="先在终端里运行，随时可切到聊天"
+    aria-label={m.s3_start_from_terminal()}
+    title={m.s3_start_from_terminal()}
+    description={m.s3_start_from_terminal_desc()}
   />
   <RadioGroup.Item
     value="chat"
-    aria-label="从聊天开始"
-    title="从聊天开始"
-    description="直接打开聊天界面，随时可切到终端"
+    aria-label={m.s3_start_from_chat()}
+    title={m.s3_start_from_chat()}
+    description={m.s3_start_from_chat_desc()}
   />
 </RadioGroup.Root>
 {#if support.connector}
   <p class="text-xs text-muted-foreground">
-    {connectorNoticeText(support.connector)}。
+    {m.s3_sentence_end({ text: connectorNoticeText(support.connector) })}
   </p>
 {/if}

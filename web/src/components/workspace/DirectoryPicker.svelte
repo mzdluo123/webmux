@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import { tick } from "svelte";
   import IconFolder from "~icons/tabler/folder";
@@ -96,7 +97,9 @@
 <Popover.Root bind:open onOpenChange={startBrowse}>
   <Popover.Trigger>
     {#snippet child({ props })}
-      <Button {...props} variant="outline" aria-label="浏览目录">浏览</Button>
+      <Button {...props} variant="outline" aria-label={m.s8_dir_browse_aria()}
+        >{m.s8_dir_browse()}</Button
+      >
     {/snippet}
   </Popover.Trigger>
   {#if browsed}<Popover.Content
@@ -114,8 +117,8 @@
             type="button"
             variant="ghost"
             size="icon"
-            aria-label="上一级目录"
-            title="上一级目录（Alt+↑）"
+            aria-label={m.s8_dir_parent_aria()}
+            title={m.s8_dir_parent_title()}
             disabled={current === "/"}
             onclick={parent}
             ><IconArrowUp class="size-4" aria-hidden="true" /></Button
@@ -124,8 +127,8 @@
             type="button"
             variant="ghost"
             size="icon"
-            aria-label="用户主目录"
-            title="用户主目录"
+            aria-label={m.s8_dir_home()}
+            title={m.s8_dir_home()}
             onclick={() => enter("~")}
             ><IconHome class="size-4" aria-hidden="true" /></Button
           >
@@ -139,14 +142,16 @@
             size="sm"
             aria-pressed={showHidden}
             onclick={() => (showHidden = !showHidden)}
-            >{showHidden ? "隐藏点目录" : "显示隐藏目录"}</Button
+            >{showHidden
+              ? m.s8_dir_hide_dotfiles()
+              : m.s8_dir_show_hidden()}</Button
           >
         </div>
         <Command.Input
           bind:value={query}
           bind:ref={input}
-          placeholder="输入路径，或筛选目录…"
-          aria-label="目录路径"
+          placeholder={m.s8_dir_input_placeholder()}
+          aria-label={m.s8_dir_input_aria()}
           autocapitalize="off"
           autocorrect="off"
           spellcheck={false}
@@ -170,10 +175,10 @@
           <Command.List class="max-h-none overflow-visible pr-3">
             <Command.Empty>
               {loading
-                ? "正在读取目录…"
+                ? m.s8_dir_loading()
                 : error
-                  ? "无法读取目录"
-                  : "没有匹配的子目录"}
+                  ? m.s8_dir_failed()
+                  : m.s8_dir_empty()}
             </Command.Empty>
             {#each visible as dir (dir)}
               <Command.Item value={dir} onSelect={() => enter(dir)}>
@@ -196,14 +201,12 @@
       <div
         class="flex shrink-0 items-center justify-between gap-2 border-t p-2"
       >
-        <span class="text-xs text-muted-foreground"
-          >↑↓ 选择 · Enter / Tab 进入</span
-        >
+        <span class="text-xs text-muted-foreground">{m.s8_dir_kbd_hint()}</span>
         <Button
           type="button"
           size="sm"
           disabled={loading || !!error}
-          onclick={choose}>选择当前目录</Button
+          onclick={choose}>{m.s8_dir_choose_current()}</Button
         >
       </div>
     </Popover.Content>{/if}

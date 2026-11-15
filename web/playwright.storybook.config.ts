@@ -43,6 +43,7 @@ export default defineConfig({
   ],
   use: {
     baseURL,
+    locale: "zh-CN",
     browserName: "chromium",
     headless: true,
     reducedMotion: "reduce",

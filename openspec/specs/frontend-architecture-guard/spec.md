@@ -117,7 +117,7 @@
 
 `arch:deps` SHALL 同时检查 `web/src` 的运行时与 type-only 导入：
 
-- `contracts/` 只依赖契约与第三方包。
+- `contracts/` 只依赖契约、生成的纯函数国际化消息模块（`src/lib/paraglide/`）与第三方包。
 - `platform/` 只依赖基础设施、契约与 `lib` 工具，MUST NOT 导入渲染组件。
 - `lib/components/ui/` 只依赖 `src/lib/` 与第三方包；其他 `src/lib/` 模块 MUST NOT 依赖业务代码。
 - `domains/<主题>/` MUST NOT 依赖 `hooks/`、`components/`、`pages/`、应用编排或 `.svelte` 渲染组件。

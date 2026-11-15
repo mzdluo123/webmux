@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { SvelteURLSearchParams } from "svelte/reactivity";
 import {
   applyFrame,
@@ -62,7 +63,7 @@ export function createChatSocket(
       },
       (data) => {
         if (typeof data !== "string")
-          throw new Error("聊天通道的帧必须是 JSON 文本");
+          throw new Error(m.s3_chat_frame_must_be_json());
         const frame = ChatFrameSchema.parse(JSON.parse(data));
         model = applyFrame(model, frame);
         if (frame.type === "events") {

@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type {
   GitConflictFileDetail,
   GitConflictKind,
@@ -351,16 +352,15 @@ export function summarizeConflictDraftProgress(
 
   let markResolvedBlockedReason = "";
   if (!detail.textMergeable) {
-    markResolvedBlockedReason =
-      "非文本冲突请使用保留左侧、保留右侧或删除文件按钮解决";
+    markResolvedBlockedReason = m.s7_conflict_blocked_non_text();
   } else if (hasConflictMarkers) {
-    markResolvedBlockedReason =
-      "结果文本中仍包含冲突标记（<<<<<<< / ======= / >>>>>>>），请先清除";
+    markResolvedBlockedReason = m.s7_conflict_blocked_markers();
   } else if (unresolvedConflicts > 0) {
-    markResolvedBlockedReason = `仍有 ${unresolvedConflicts} 处冲突块未决策（接受一侧或确认手动合并）`;
+    markResolvedBlockedReason = m.s7_conflict_blocked_unresolved({
+      count: String(unresolvedConflicts),
+    });
   } else if (!hasSavedToDisk) {
-    markResolvedBlockedReason =
-      "请先点击「保存结果」将合并文本写入工作树，再标记已解决";
+    markResolvedBlockedReason = m.s7_conflict_blocked_unsaved();
   }
 
   return {
@@ -380,22 +380,22 @@ export function summarizeConflictDraftProgress(
 export function gitConflictKindLabel(kind: GitConflictKind): string {
   switch (kind) {
     case "text":
-      return "文本三方冲突";
+      return m.s7_conflict_kind_text();
     case "binary":
-      return "二进制冲突";
+      return m.s7_conflict_kind_binary();
     case "delete_modify":
-      return "增删修改冲突";
+      return m.s7_conflict_kind_delete_modify();
     case "submodule":
-      return "子模块冲突";
+      return m.s7_conflict_kind_submodule();
     case "symlink":
-      return "符号链接冲突";
+      return m.s7_conflict_kind_symlink();
     case "too_large":
-      return "超大文件冲突";
+      return m.s7_conflict_kind_too_large();
   }
 }
 
 export function formatConflictSideMeta(side: GitConflictSide): string {
-  if (!side.present) return "此侧不存在（已删除或未创建）";
+  if (!side.present) return m.s7_conflict_side_absent();
   const parts: string[] = [];
   if (side.mode) parts.push(`mode ${side.mode}`);
   if (side.blobOid) parts.push(side.blobOid.slice(0, 8));

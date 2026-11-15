@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { errorMessage } from "../../platform/error";
 import { gitSnapshotFile, gitSnapshotRaw } from "../../platform/git-api";
@@ -169,7 +170,7 @@ export function createGitSnapshotDiffReader(deps: {
           phase: "binary",
           snapshotId: diff.snapshotId,
           rawDiff: diff,
-          reason: diff.reason || "二进制文件不直接展开文本行级差异。",
+          reason: diff.reason || m.s7_diff_binary_reason(),
         };
         return;
       }
@@ -180,9 +181,7 @@ export function createGitSnapshotDiffReader(deps: {
           phase: "limited",
           snapshotId: diff.snapshotId,
           rawDiff: diff,
-          reason:
-            diff.reason ||
-            "该文件过大或仅包含元数据变更，可查看两侧完整文件或下载原始对象。",
+          reason: diff.reason || m.s7_snapshot_large_or_meta_reason(),
         };
         return;
       }
@@ -294,7 +293,9 @@ export function createGitSnapshotDiffReader(deps: {
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
-      deps.onStatusBanner(`快照下载失败：${errorMessage(err)}`);
+      deps.onStatusBanner(
+        m.s7_snapshot_download_failed({ error: errorMessage(err) }),
+      );
     } finally {
       if (state.snapshotId === snapshotId) {
         state = { ...state, downloadingSide: null };

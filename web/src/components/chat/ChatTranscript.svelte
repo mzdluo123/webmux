@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { tick } from "svelte";
   import { Button } from "$lib/components/ui/button";
   import type { DisplayEntry } from "../../domains/chat/chat-model";
@@ -69,7 +70,7 @@
   }}
 />
 
-<ol class="flex flex-col gap-2.5" aria-label="对话">
+<ol class="flex flex-col gap-2.5" aria-label={m.s3_transcript_label()}>
   {#each entries as entry (`${entry.type}:${entry.id}`)}
     <li
       class={documentScroll ? "min-w-0 scroll-mt-16" : "min-w-0 scroll-mt-4"}
@@ -99,7 +100,8 @@
         <Button
           variant="ghost"
           size="xs"
-          onclick={() => (selectedMessage = null)}>清除消息定位</Button
+          onclick={() => (selectedMessage = null)}
+          >{m.s3_clear_message_highlight()}</Button
         >
       {/if}
     </li>

@@ -9,6 +9,7 @@
   import IconFolder from "~icons/tabler/folder";
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconPlus from "~icons/tabler/plus";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as Item from "$lib/components/ui/item";
   import WorktreeBadges from "./WorktreeBadges.svelte";
@@ -95,7 +96,7 @@
   {#if worktree?.lockReason}<p
       class="w-full text-xs break-all whitespace-pre-wrap text-muted-foreground"
     >
-      锁定原因：{worktree.lockReason}
+      {m.s8_lock_reason_prefix({ reason: worktree.lockReason })}
     </p>{/if}
   {#if worktree?.error}<InlineNotice tone="danger" class="w-full">
       {worktree.error}
@@ -142,11 +143,11 @@
             class="min-h-9 sm:min-h-8"
             disabled={worktree &&
               (!worktree.available || worktree.kind === "bare")}
-            aria-label="新建会话"
-            title="新建会话"
+            aria-label={m.s8_new_session()}
+            title={m.s8_new_session()}
             onclick={onstart}
             ><IconPlus class="size-4" aria-hidden="true" /><span
-              class="hidden sm:inline">新建会话</span
+              class="hidden sm:inline">{m.s8_new_session()}</span
             ></Button
           >{/if}
         <WorktreeControls
@@ -173,7 +174,7 @@
     <Item.Group
       variant={compact ? "panel" : "default"}
       class={compact ? undefined : "gap-3"}
-      aria-label={`${title} 的会话`}
+      aria-label={m.s8_group_sessions_aria({ title })}
     >
       {#each sessions as session (session.id)}
         <SessionRow
@@ -188,7 +189,7 @@
     </Item.Group>
   {:else if !archived.length}
     <p class={["py-4 text-xs text-muted-foreground", !focused && "border-t"]}>
-      暂无会话。工作树独立保留，可以随时启动。
+      {m.s8_group_empty_sessions()}
     </p>
   {/if}
   {#if archive && archived.length}<ArchivedSessions
@@ -207,7 +208,7 @@
 {#if panelOpen && !hidden}
   <LazyDialog
     load={() => import("./WorktreeDetailsDialog.svelte")}
-    label="详情"
+    label={m.s8_details_short()}
     onclose={() => setDetails(false)}
   >
     {#snippet children(page)}<page.default

@@ -2,6 +2,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { m } from "$lib/paraglide/messages.js";
   import { computeGitGraphLayout } from "../../domains/workspace/git-graph-layout";
   import { syncElementScrollTop } from "../../domains/workspace/git-workbench-memory";
   import type {
@@ -112,30 +113,36 @@
     }
   }
 
+  const listboxViewportProps = $derived({
+    role: "listbox" as const,
+    "aria-label": m.s6_log_list_listbox_aria(),
+    onkeydown: handleListKeydown,
+  });
+
   function describeHistoryStatus(status: GitHistoryStatus): string {
     if (historyReason) return historyReason;
     switch (status) {
       case "no_worktree":
-        return "当前未绑定可用工作树，无法解析「当前分支 / 当前任务 / 待推送 / 远端新增」范围；请切换至「所有历史」或在顶部选择工作树。";
+        return m.s6_history_status_no_worktree();
       case "no_task_baseline":
-        return "当前工作树尚未设置任务起点基线；可将当前 HEAD 设为任务起点，或在「所有历史」中任选历史提交菜单设为任务基线。";
+        return m.s6_history_status_no_task_baseline();
       case "detached_no_branch":
-        return "当前工作树处于游离 HEAD 状态，无关联本地分支，无法计算分支专属范围。";
+        return m.s6_history_status_detached();
       case "no_upstream":
-        return "当前分支尚未关联远程上游分支（Upstream），无法计算待推送或远端新增提交。";
+        return m.s6_history_status_no_upstream();
       case "upstream_gone":
-        return "当前分支关联的远程上游分支已不存在（gone）。";
+        return m.s6_history_status_upstream_gone();
       case "unborn":
-        return "当前分支尚未产生首个提交（unborn HEAD）。";
+        return m.s6_history_status_unborn();
       default:
-        return "当前范围暂无提交记录。";
+        return m.s6_history_status_empty();
     }
   }
 </script>
 
 <section
   class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-  aria-label="提交历史列表"
+  aria-label={m.s6_log_list_section_aria()}
 >
   <GitLogFilterBar
     {desktop}
@@ -154,21 +161,23 @@
       class="flex min-w-0 flex-wrap items-center justify-between gap-1.5 border-b bg-background px-2.5 py-1.5 text-xs"
     >
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-        <span class="text-muted-foreground">任务起点：</span>
+        <span class="text-muted-foreground"
+          >{m.s6_log_list_task_baseline_label()}</span
+        >
         <Badge variant="info">
           <span class="font-mono">
             {taskBaseline.unborn || !taskBaseline.baseOid
-              ? "空仓起点"
+              ? m.s6_task_baseline_unborn()
               : taskBaseline.baseOid.slice(0, 7)}
           </span>
         </Badge>
         <Badge variant="outline">
           {taskBaseline.source === "worktree_create"
-            ? "新建工作树自动记录"
-            : "手动指定起点"}
+            ? m.s6_log_list_baseline_auto()
+            : m.s6_log_list_baseline_manual()}
         </Badge>
         {#if !taskBaseline.cleanAtStart}
-          <Badge variant="warning">含设定前已存在修改</Badge>
+          <Badge variant="warning">{m.s6_log_list_baseline_dirty()}</Badge>
         {/if}
       </div>
     </div>
@@ -178,11 +187,7 @@
   <ScrollArea
     bind:viewportRef={listScrollEl}
     class="min-h-8 flex-1"
-    viewportProps={{
-      role: "listbox",
-      "aria-label": "提交记录",
-      onkeydown: handleListKeydown,
-    }}
+    viewportProps={listboxViewportProps}
     onscroll={(e) => {
       const el = e.currentTarget;
       onListScrollChange?.(el.scrollTop);
@@ -209,14 +214,14 @@
                 variant="outline"
                 onclick={() => onSetTaskBaseline()}
               >
-                将当前 HEAD 设为任务起点
+                {m.s6_log_list_set_head_baseline()}
               </Button>
             {/if}
           </InlineNotice>
         </div>
       {:else if visibleCommits.length === 0}
         <p class="p-3 text-xs text-muted-foreground">
-          没有匹配筛选条件的提交记录。
+          {m.s6_log_list_no_filter_matches()}
         </p>
       {:else}
         {#each visibleCommits as row, idx (row.oid)}
@@ -248,7 +253,7 @@
       class="flex shrink-0 items-center justify-between gap-2 border-t bg-background px-2.5 py-1.5"
     >
       <span class="text-xs text-muted-foreground">
-        已加载 {visibleCommits.length} 条提交
+        {m.s6_log_list_loaded_count({ count: String(visibleCommits.length) })}
       </span>
       <Button
         size="sm"
@@ -256,7 +261,9 @@
         disabled={historyLoadingMore}
         onclick={onLoadMoreHistory}
       >
-        {historyLoadingMore ? "正在加载更多历史…" : "加载更多历史"}
+        {historyLoadingMore
+          ? m.s6_log_list_loading_more()
+          : m.s6_log_list_load_more()}
       </Button>
     </div>
   {/if}

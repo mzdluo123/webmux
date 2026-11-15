@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import IconPlugConnected from "~icons/tabler/plug-connected";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -8,7 +9,9 @@
   // server's forwards.
   let { onclick }: { onclick: () => void } = $props();
   const count = $derived(forwards.list.length);
-  const label = $derived(count ? `端口转发（${count} 个）` : "端口转发");
+  const label = $derived(
+    count ? m.s8_fwd_btn_count({ count: String(count) }) : m.s8_fwd_title(),
+  );
 </script>
 
 <Button

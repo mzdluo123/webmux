@@ -6,6 +6,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as NativeSelect from "$lib/components/ui/native-select";
+  import { m } from "$lib/paraglide/messages.js";
   import type { RequestAnswer } from "../../platform/chat-api";
   import type { ChatFormField, ChatRequest } from "../../contracts/schemas";
 
@@ -77,7 +78,7 @@
 
 <form
   class="space-y-3 rounded-lg border border-destructive/40 bg-card p-3 shadow-sm"
-  aria-label="Agent 的表单"
+  aria-label={m.s3_form_prompt_label()}
   onsubmit={(event) => {
     event.preventDefault();
     if (form.supported && !missing)
@@ -86,7 +87,7 @@
 >
   <p class="flex items-center gap-1.5 text-sm font-medium">
     <IconForms class="size-4 shrink-0 text-destructive" aria-hidden="true" />
-    {request.title || "Agent 需要更多信息"}
+    {request.title || m.s3_form_prompt_default_title()}
   </p>
   {#if form.message}<p class="text-sm break-words whitespace-pre-wrap">
       {form.message}
@@ -158,24 +159,26 @@
       </div>
     {/each}
   {:else}
-    <p class="text-sm text-muted-foreground">该表单需要在终端中完成</p>
+    <p class="text-sm text-muted-foreground">
+      {m.s3_form_complete_in_terminal()}
+    </p>
   {/if}
   <div class="flex flex-wrap justify-end gap-2">
     <Button
       variant="ghost"
       size="sm"
       {disabled}
-      onclick={() => onanswer({ outcome: "cancel" })}>取消</Button
+      onclick={() => onanswer({ outcome: "cancel" })}>{m.s3_cancel()}</Button
     >
     <Button
       variant="outline"
       size="sm"
       {disabled}
-      onclick={() => onanswer({ outcome: "decline" })}>拒绝</Button
+      onclick={() => onanswer({ outcome: "decline" })}>{m.s3_decline()}</Button
     >
     {#if form.supported}
       <Button type="submit" size="sm" disabled={disabled || missing}
-        >提交</Button
+        >{m.s3_submit()}</Button
       >
     {/if}
   </div>

@@ -18,6 +18,8 @@
   import { Button } from "$lib/components/ui/button";
   import * as Item from "$lib/components/ui/item";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import { locale } from "$lib/locale";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     session,
@@ -39,10 +41,10 @@
   );
   const relative = $derived(
     seconds < 60
-      ? "刚刚"
+      ? m.s3_rel_just_now()
       : seconds < 3600
-        ? `${Math.floor(seconds / 60)} 分钟前`
-        : `${Math.floor(seconds / 3600)} 小时前`,
+        ? m.s3_rel_minutes_ago({ count: String(Math.floor(seconds / 60)) })
+        : m.s3_rel_hours_ago({ count: String(Math.floor(seconds / 3600)) }),
   );
   const settings = $derived(previewFor(session.configId));
   const preview = $derived(selectPreview(session.preview, settings));
@@ -51,12 +53,15 @@
   const hints = $derived(locationHints(session, groupPath));
   const copyTarget = $derived(
     session.reportedCwd
-      ? { label: "复制 Shell 报告目录", value: session.reportedCwd.path }
-      : { label: "复制启动目录", value: session.cwd },
+      ? {
+          label: m.s3_copy_reported_cwd(),
+          value: session.reportedCwd.path,
+        }
+      : { label: m.s3_copy_launch_cwd(), value: session.cwd },
   );
   const reportedSince = $derived(
     session.reportedCwd
-      ? new Date(session.reportedCwd.since).toLocaleString()
+      ? new Date(session.reportedCwd.since).toLocaleString(locale.current)
       : "",
   );
   // Defer floating-layer setup until this row is actually used. Keep it
@@ -70,9 +75,9 @@
   const copyFeedback = useCopied({ expireFailure: true });
   const copyNotice = $derived(
     copyFeedback.copied
-      ? "已复制"
+      ? m.s3_copied()
       : copyFeedback.failed
-        ? "复制失败，请手动选择路径"
+        ? m.s3_copy_failed_select_path()
         : "",
   );
 </script>
@@ -138,7 +143,9 @@
             >{sessionViewLabel(session)}</span
           ><span aria-hidden="true">·</span>{/if}
         <span
-          >{session.clients ? `${session.clients} 个设备已连接` : "后台会话"} ·
+          >{session.clients
+            ? m.s3_clients_connected({ count: String(session.clients) })
+            : m.s3_background_session()} ·
           {relative}</span
         >
         {#if copyNotice}<span role="status" class="ml-1.5 text-success"
@@ -149,7 +156,7 @@
         <!-- What the agent is doing right now: the running turn's tool
              call or plan step, one line. -->
         <p
-          aria-label="当前工作"
+          aria-label={m.s3_current_work_label()}
           title={session.agent.work}
           class="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-foreground/80"
         >
@@ -164,7 +171,7 @@
         <div class="mt-2 space-y-1 text-xs text-muted-foreground">
           {#if hints.launch}
             <p class="flex min-w-0 items-baseline gap-1.5">
-              <span class="shrink-0">启动目录</span>
+              <span class="shrink-0">{m.s3_launch_cwd_label()}</span>
               <span class="min-w-0 font-mono break-all" title={hints.launch}
                 >{hints.launch}</span
               >
@@ -173,14 +180,16 @@
           {#if hints.reported}
             <p
               class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1"
-              title={`Shell 通过 OSC 7 于 ${reportedSince} 报告；仅作导航线索，不改变会话归属`}
+              title={m.s3_reported_cwd_title({ since: reportedSince })}
             >
-              <span class="shrink-0">Shell 报告目录</span>
+              <span class="shrink-0">{m.s3_reported_cwd_label()}</span>
               <span class="min-w-0 font-mono break-all"
                 >{hints.reported.path}</span
               >
               {#if hints.reported.remote}<Badge variant="outline"
-                  >远端 {hints.reported.host}</Badge
+                  >{m.s3_remote_host_badge({
+                    host: hints.reported.host,
+                  })}</Badge
                 >{/if}
             </p>
           {/if}
@@ -191,7 +200,7 @@
       {#if chat}
         {#if session.preview}
           <p
-            aria-label="最新消息预览"
+            aria-label={m.s3_latest_msg_preview_label()}
             class="mt-3 line-clamp-3 min-w-0 px-4 text-sm leading-6 break-words whitespace-pre-line text-foreground/85"
           >
             {session.preview}
@@ -200,13 +209,13 @@
       {:else}
         <pre
           data-slot="terminal-preview"
-          aria-label="终端输出预览"
+          aria-label={m.s3_terminal_output_preview_label()}
           style:--preview-lines={settings.lines}
           class:preview-empty={!preview}
           class="h-preview mt-4 min-w-0 overflow-hidden px-4 pb-4 font-mono text-xs leading-5 whitespace-pre text-foreground/85">{preview ||
             (session.preview
-              ? "末尾行已隐藏，暂无可显示内容"
-              : "等待终端输出…")}</pre>
+              ? m.s3_preview_trailing_hidden()
+              : m.s3_waiting_terminal_output())}</pre>
       {/if}
     {/if}
   </a>
@@ -224,8 +233,8 @@
             variant="ghost"
             size="icon-sm"
             class="size-9 sm:size-11"
-            aria-label={`会话菜单 ${session.title}`}
-            title={`会话菜单 ${session.title}`}
+            aria-label={m.s3_session_menu_named({ title: session.title })}
+            title={m.s3_session_menu_named({ title: session.title })}
             ><IconDots class="size-4" aria-hidden="true" /></Button
           >
         {/snippet}
@@ -236,7 +245,7 @@
             >{copyTarget.label}</DropdownMenu.Item
           >
           <DropdownMenu.Item onSelect={() => (renaming = true)}
-            >修改标题</DropdownMenu.Item
+            >{m.s3_rename_title()}</DropdownMenu.Item
           >
           <DropdownMenu.Separator />
           {@const archivable =
@@ -248,10 +257,10 @@
             onSelect={() => onclose(session)}
           >
             {session.status === "exited"
-              ? "移除会话"
+              ? m.s3_menu_remove_session()
               : archivable
-                ? "停止会话并归档"
-                : "关闭会话"}
+                ? m.s3_menu_stop_and_archive_session()
+                : m.s3_menu_close_session()}
           </DropdownMenu.Item>
         </DropdownMenu.Content>{/if}
     </DropdownMenu.Root>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import * as NavigationMenu from "$lib/components/ui/navigation-menu";
   import { observeStickyHeaderOffset } from "../../hooks/shared/sticky-header";
 
@@ -99,7 +100,7 @@
   <p
     class="mb-3 hidden px-3 text-xs font-medium text-muted-foreground lg:block"
   >
-    设置分区
+    {m.s2_settings_sections()}
   </p>
   <div
     bind:this={links}
@@ -109,7 +110,7 @@
     onscroll={edges}
   >
     <NavigationMenu.Root
-      aria-label="设置分区"
+      aria-label={m.s2_settings_sections()}
       layout="sections"
       viewport={false}
       orientation={vertical ? "vertical" : "horizontal"}

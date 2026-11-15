@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import IconCopy from "~icons/tabler/copy";
+  import { m } from "$lib/paraglide/messages.js";
+  import { locale } from "$lib/locale";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { copyText } from "../../platform/clipboard";
@@ -77,81 +79,85 @@
     {/if}
     {#if commit}
       <span class="min-w-0 break-all" title={commit.hash}
-        >{commit.subject || "无标题提交"} · {relativeTime(
+        >{commit.subject || m.s8_untitled_commit()} · {relativeTime(
           commit.committedAt,
         )}</span
       >
-    {:else if empty}<span>尚无提交</span>{/if}
+    {:else if empty}<span>{m.s8_no_commits_yet()}</span>{/if}
   </div>
 {:else}
   <div class="space-y-4">
     {#if operation}
       <InlineNotice tone="warning"
-        >{operation}：Git 操作尚未完成，完成或中止后状态才会稳定。</InlineNotice
+        >{m.s8_sync_op_in_progress_notice({ operation })}</InlineNotice
       >
     {/if}
-    <section class="space-y-2" aria-label="分支与上游">
-      <h3 class="text-sm font-medium">分支与上游</h3>
+    <section class="space-y-2" aria-label={m.s8_sync_branch_and_upstream()}>
+      <h3 class="text-sm font-medium">{m.s8_sync_branch_and_upstream()}</h3>
       <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
-        <dt class="text-muted-foreground">分支</dt>
+        <dt class="text-muted-foreground">{m.s8_repo_tab_branches()}</dt>
         <dd class="font-mono break-all">
-          {worktree.branch ?? "（分离 HEAD）"}{worktree.head
+          {worktree.branch ?? m.s8_detached_head_plain()}{worktree.head
             ? ` · ${worktree.head.slice(0, 8)}`
             : ""}
         </dd>
         {#if upstream}
-          <dt class="text-muted-foreground">上游</dt>
+          <dt class="text-muted-foreground">{m.s8_label_upstream()}</dt>
           <dd class="flex min-w-0 flex-wrap items-center gap-1.5">
             <UpstreamStatus state={upstream} />
           </dd>
           {#if lastFetchedAt !== undefined && upstream.kind !== "none" && upstream.kind !== "unknown"}
-            <dt class="text-muted-foreground">上次获取</dt>
+            <dt class="text-muted-foreground">{m.s8_label_last_fetched()}</dt>
             <dd
               title={lastFetchedAt
-                ? new Date(lastFetchedAt).toLocaleString()
+                ? new Date(lastFetchedAt).toLocaleString(locale.current)
                 : undefined}
             >
-              {fetchedText(lastFetchedAt)}（近似，领先/落后以此为准）
+              {m.s8_sync_fetched_approx_note({
+                text: fetchedText(lastFetchedAt),
+              })}
             </dd>
           {/if}
         {/if}
       </dl>
       {@render actions?.()}
     </section>
-    <section class="space-y-2" aria-label="最近提交">
-      <h3 class="text-sm font-medium">最近提交</h3>
+    <section class="space-y-2" aria-label={m.s8_sync_recent_commit()}>
+      <h3 class="text-sm font-medium">{m.s8_sync_recent_commit()}</h3>
       {#if commit}
         <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
-          <dt class="text-muted-foreground">标题</dt>
-          <dd class="break-all">{commit.subject || "无标题提交"}</dd>
-          <dt class="text-muted-foreground">提交</dt>
+          <dt class="text-muted-foreground">{m.s8_label_subject()}</dt>
+          <dd class="break-all">{commit.subject || m.s8_untitled_commit()}</dd>
+          <dt class="text-muted-foreground">{m.s8_label_commit()}</dt>
           <dd class="flex min-w-0 items-start gap-1">
             <span class="min-w-0 flex-1 font-mono break-all">{commit.hash}</span
             >
             <Button
               size="icon-xs"
               variant="ghost"
-              aria-label="复制提交哈希"
-              title="复制提交哈希"
+              aria-label={m.s8_copy_commit_hash()}
+              title={m.s8_copy_commit_hash()}
               onclick={() => void copyText(commit.hash)}
               ><IconCopy aria-hidden="true" /></Button
             >
           </dd>
-          <dt class="text-muted-foreground">作者</dt>
+          <dt class="text-muted-foreground">{m.s8_label_author()}</dt>
           <dd class="break-all">{commit.author}</dd>
-          <dt class="text-muted-foreground">时间</dt>
-          <dd title={new Date(commit.committedAt).toLocaleString()}>
+          <dt class="text-muted-foreground">{m.s8_label_time()}</dt>
+          <dd
+            title={new Date(commit.committedAt).toLocaleString(locale.current)}
+          >
             {relativeTime(commit.committedAt)}
           </dd>
         </dl>
       {:else}
         <p class="text-xs text-muted-foreground">
-          {empty ? "尚无提交" : "未知"}
+          {empty ? m.s8_no_commits_yet() : m.s8_unknown()}
         </p>
       {/if}
     </section>
-    <section class="space-y-2" aria-label="修改统计">
-      <h3 class="text-sm font-medium">修改统计</h3>
+    <section class="space-y-2" aria-label={m.s8_sync_change_stats()}>
+      <h3 class="text-sm font-medium">{m.s8_sync_change_stats()}</h3>
       {#if worktree.changes}
         <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
           {#each changeCounts(worktree.changes) as item (item.label)}
@@ -160,7 +166,7 @@
           {/each}
         </dl>
       {:else}
-        <p class="text-xs text-muted-foreground">未知</p>
+        <p class="text-xs text-muted-foreground">{m.s8_unknown()}</p>
       {/if}
     </section>
   </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import IconArrowsSplit2 from "~icons/tabler/arrows-split-2";
   import IconEye from "~icons/tabler/eye";
@@ -63,7 +64,7 @@
       <Checkbox
         checked={isSelectedForBatch}
         disabled={stagingBusy}
-        aria-label={`选择未暂存条目 ${item.path}`}
+        aria-label={m.s7_row_select_unstaged_aria({ path: item.path })}
         onCheckedChange={() => onToggleBatchSelect(item)}
         class="shrink-0"
       />
@@ -72,8 +73,10 @@
     <ListButton
       variant="review-toggle"
       aria-pressed={isReviewed}
-      aria-label={`标记已审阅 ${item.path}`}
-      title={isReviewed ? `已审阅 ${item.path}` : `标记已审阅 ${item.path}`}
+      aria-label={m.s7_mark_reviewed_path({ path: item.path })}
+      title={isReviewed
+        ? m.s7_reviewed_path({ path: item.path })
+        : m.s7_mark_reviewed_path({ path: item.path })}
       onclick={() => onToggleReviewed(item)}
     >
       {#if isReviewed}<IconEyeCheck aria-hidden="true" />{:else}<IconEye
@@ -103,7 +106,7 @@
           </span>
           {#if item.preStagedFromCli}
             <Badge variant="warning" class="max-w-full">
-              <span class="truncate">CLI 预暂存</span>
+              <span class="truncate">{m.s7_row_cli_prestaged_badge()}</span>
             </Badge>
           {/if}
         </div>
@@ -118,8 +121,8 @@
           size="icon-sm"
           variant="ghost"
           disabled={stagingBusy}
-          aria-label={`取消暂存文件 ${item.path}`}
-          title={`取消暂存文件 ${item.path}`}
+          aria-label={m.s7_row_unstage_file_aria({ path: item.path })}
+          title={m.s7_row_unstage_file_aria({ path: item.path })}
           onclick={() => onUnstageChange(item.id)}
         >
           <IconMinus aria-hidden="true" />
@@ -129,8 +132,8 @@
           size="icon-sm"
           variant="ghost"
           disabled={stagingBusy}
-          aria-label={`暂存文件 ${item.path}`}
-          title={`暂存文件 ${item.path}`}
+          aria-label={m.s7_row_stage_file_aria({ path: item.path })}
+          title={m.s7_row_stage_file_aria({ path: item.path })}
           onclick={() => onStageChange(item.id)}
         >
           <IconPlus aria-hidden="true" />
@@ -139,15 +142,17 @@
     {/if}
   </div>
 
-  <GitRowActionMenu label={`文件操作 ${item.path}`}>
+  <GitRowActionMenu label={m.s7_row_file_actions_aria({ path: item.path })}>
     {#if item.group !== "untracked" && onInspectFile}
       <DropdownMenu.Item onclick={() => onInspectFile(item.path, "history")}>
-        <IconHistory aria-hidden="true" />文件历史与 Blame
+        <IconHistory aria-hidden="true" />{m.s7_row_file_history_blame()}
       </DropdownMenu.Item>
     {/if}
     {#if !readonlyMode && item.group === "conflicted" && onOpenConflictResolver}
       <DropdownMenu.Item onclick={() => onOpenConflictResolver(item.path)}>
-        <IconArrowsSplit2 aria-hidden="true" />打开三方冲突解决器
+        <IconArrowsSplit2
+          aria-hidden="true"
+        />{m.s7_row_open_conflict_resolver()}
       </DropdownMenu.Item>
     {/if}
     {#if !readonlyMode && (item.group === "unstaged" || item.group === "untracked") && onDiscardChange}
@@ -155,7 +160,7 @@
         disabled={stagingBusy}
         onclick={() => onDiscardChange(item)}
       >
-        <IconTrash aria-hidden="true" />丢弃更改
+        <IconTrash aria-hidden="true" />{m.s7_op_kind_discard()}
       </DropdownMenu.Item>
     {/if}
   </GitRowActionMenu>

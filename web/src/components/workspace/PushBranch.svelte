@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as NativeSelect from "$lib/components/ui/native-select";
@@ -123,23 +124,25 @@
 <div class="min-w-0 space-y-3">
   {#if done}
     <InlineNotice tone="success"
-      >已{done.publish ? "发布" : "推送"}到
-      <span class="font-mono break-all">{destination(done)}</span>{done.publish
-        ? "，并设为本地分支的上游"
-        : ""}。</InlineNotice
+      >{#if done.publish}{m.s8_push_published_before()}<span
+          class="font-mono break-all">{destination(done)}</span
+        >{m.s8_push_published_after()}{:else}{m.s8_push_pushed_before()}<span
+          class="font-mono break-all">{destination(done)}</span
+        >{m.s8_push_pushed_after()}{/if}</InlineNotice
     >
   {:else}
     {#if rejected}
       <InlineNotice tone="danger"
-        >推送未完成：{rejected.message ||
-          "远端拒绝了推送"}。本地分支与上游配置未改变。</InlineNotice
+        >{m.s8_push_rejected_notice({
+          reason: rejected.message || m.s8_push_remote_refused(),
+        })}</InlineNotice
       >
     {/if}
     <FlowStatus {flow} />
     {#if publishing}
       <div class="grid gap-3 sm:grid-cols-2">
         <div class="min-w-0 space-y-1.5">
-          <Label for="push-remote">远程</Label>
+          <Label for="push-remote">{m.s8_label_remote()}</Label>
           <NativeSelect.Root
             id="push-remote"
             class="w-full"
@@ -151,7 +154,7 @@
             }}
           >
             {#if !remote}<NativeSelect.Option value="" disabled
-                >选择远程</NativeSelect.Option
+                >{m.s8_push_select_remote()}</NativeSelect.Option
               >{/if}
             {#each remotes as item (item.name)}
               <NativeSelect.Option value={item.name}
@@ -161,7 +164,7 @@
           </NativeSelect.Root>
         </div>
         <div class="min-w-0 space-y-1.5">
-          <Label for="push-target">远端分支名</Label>
+          <Label for="push-target">{m.s8_push_remote_branch_label()}</Label>
           <Input
             id="push-target"
             mono
@@ -174,34 +177,41 @@
         </div>
       </div>
       {#if remotesError}
-        <p class="text-xs text-destructive">无法读取远程：{remotesError}</p>
+        <p class="text-xs text-destructive">
+          {m.s8_push_remotes_load_err({ error: remotesError })}
+        </p>
       {:else if !targetName}
-        <p class="text-xs text-destructive">请输入远端分支名。</p>
+        <p class="text-xs text-destructive">
+          {m.s8_push_enter_remote_branch()}
+        </p>
       {/if}
       <p class="text-xs text-muted-foreground">
-        发布成功后，本地分支会把它设为上游。
+        {m.s8_push_publish_upstream_hint()}
       </p>
     {/if}
     {#if preview}
       <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
-        <dt class="text-muted-foreground">分支</dt>
+        <dt class="text-muted-foreground">{m.s8_label_branch()}</dt>
         <dd class="font-mono break-all">
           {preview.branch}{preview.commit
             ? ` · ${preview.commit.slice(0, 8)}`
             : ""}
         </dd>
         {#if preview.remote}
-          <dt class="text-muted-foreground">目标</dt>
+          <dt class="text-muted-foreground">{m.s8_push_target_label()}</dt>
           <dd class="font-mono break-all">{destination(preview)}</dd>
         {/if}
         {#if preview.pushUrl}
-          <dt class="text-muted-foreground">推送地址</dt>
+          <dt class="text-muted-foreground">{m.s8_push_url_label()}</dt>
           <dd class="font-mono break-all">{preview.pushUrl}</dd>
         {/if}
       </dl>
       <PreviewIssues blockers={preview.blockers} warnings={preview.warnings} />
       {#if preview.commits.total > 0}
-        <BranchCommitList title="待推送的提交" commits={preview.commits} />
+        <BranchCommitList
+          title={m.s8_push_commits_title()}
+          commits={preview.commits}
+        />
       {/if}
     {/if}
   {/if}
@@ -211,11 +221,11 @@
     {ready}
     label={busy
       ? publishing
-        ? "正在发布…"
-        : "正在推送…"
+        ? m.s8_push_publishing_ellipsis()
+        : m.s8_push_pushing_ellipsis()
       : publishing
-        ? "发布"
-        : "推送"}
+        ? m.s8_push_publish_btn()
+        : m.s8_push_push_btn()}
     onconfirm={() => void confirm()}
     {onclose}
   />

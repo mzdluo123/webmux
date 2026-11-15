@@ -30,6 +30,7 @@
   import { pluginContributions } from "../../plugins/registry.svelte";
   import { pluginAvailable } from "../../platform/plugin-host.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
+  import { m } from "$lib/paraglide/messages.js";
   const workspace = pluginContributions.entries.workspace;
   const chat = pluginContributions.entries.chat;
   const notifications = pluginContributions.entries.notifications;
@@ -83,7 +84,8 @@
   let resuming = $state("");
   // The last failed sidebar action (resume or record deletion), shown above
   // the list.
-  let resumeError = $state("");
+  let resumeErrorFn = $state<(() => string) | null>(null);
+  const resumeError = $derived(resumeErrorFn?.() ?? "");
   let removing = $state<ArchivedSession | null>(null);
   let removeOpen = $state(false);
   function askRemove(record: ArchivedSession) {
@@ -108,13 +110,18 @@
   // The worktree is already gone when this runs; a failed record deletion
   // leaves a released record behind, which the user can delete again.
   async function forgetAfterWorktree(record: ArchivedSession) {
-    resumeError = "";
+    resumeErrorFn = null;
     try {
       await removeRecord(record.id);
       sessionPins.refreshEnded(record.id);
       shell.drafts.remove(record.id);
     } catch (err) {
-      resumeError = `工作树已删除，但无法删除“${recordTitle(record)}”的记录：${errorMessage(err)}`;
+      const cause = errorMessage(err);
+      resumeErrorFn = () =>
+        m.s1_worktree_removed_record_delete_failed({
+          title: recordTitle(record),
+          error: cause,
+        });
     } finally {
       await shell.archived?.refresh();
     }
@@ -123,14 +130,19 @@
     const record = removing;
     removeOpen = false;
     if (!record) return;
-    resumeError = "";
+    resumeErrorFn = null;
     try {
       await removeRecord(record.id);
       sessionPins.refreshEnded(record.id);
       shell.drafts.remove(record.id);
       await shell.archived?.refresh();
     } catch (err) {
-      resumeError = `无法删除“${recordTitle(record)}”的记录：${errorMessage(err)}`;
+      const cause = errorMessage(err);
+      resumeErrorFn = () =>
+        m.s1_record_delete_failed({
+          title: recordTitle(record),
+          error: cause,
+        });
     }
   }
   // Resume on the recorded view, independent of the sidebar's mode. Choices
@@ -142,7 +154,7 @@
   } | null>(null);
   function open(record: ArchivedSession) {
     if (record.released && !workspace)
-      resumeError = "此归档需要工作区插件重建工作树；请启用工作区功能后恢复。";
+      resumeErrorFn = () => m.s1_archive_requires_workspace_plugin();
     else if (record.released)
       rebuilding = { record, released: record.released };
     else void resume(record);
@@ -158,17 +170,23 @@
   }
   async function resume(record: ArchivedSession) {
     resuming = record.id;
-    resumeError = "";
+    resumeErrorFn = null;
     try {
       const outcome = await resumeSession(record.id, record.view);
       if (outcome.status === "resumed") {
         void shell.archived?.refresh();
         openSession(outcome.session);
-      } else if (outcome.status === "connector_missing")
-        resumeError = `${outcome.message}。${connectorMissingText(outcome.connector)}`;
-      else openPage(`/s/${record.id}`);
+      } else if (outcome.status === "connector_missing") {
+        resumeErrorFn = () =>
+          m.s1_connector_missing_combined({
+            message: outcome.message,
+            detail: connectorMissingText(outcome.connector),
+          });
+      } else openPage(`/s/${record.id}`);
     } catch (err) {
-      resumeError = `无法恢复“${record.title}”：${errorMessage(err)}`;
+      const cause = errorMessage(err);
+      resumeErrorFn = () =>
+        m.s1_resume_session_failed({ title: record.title, error: cause });
     } finally {
       resuming = "";
     }
@@ -180,15 +198,15 @@
   }
 </script>
 
-<nav class="flex h-full min-h-0 flex-col" aria-label="导航">
+<nav class="flex h-full min-h-0 flex-col" aria-label={m.s1_navigation()}>
   <div class="flex items-center gap-1 px-2 pt-2 pb-1">
     {#if collapsible}
       <Button
         class="shrink-0"
         variant="ghost"
         size="icon-touch"
-        aria-label="收起侧栏"
-        title="收起侧栏"
+        aria-label={m.s1_collapse_sidebar()}
+        title={m.s1_collapse_sidebar()}
         onclick={() => shellUi.setCollapsed(true)}
         ><IconLayoutSidebarLeftCollapse aria-hidden="true" /></Button
       >
@@ -211,7 +229,9 @@
     >
       {#if shellUi.mode === "chat"}<IconMessagePlus
           aria-hidden="true"
-        />新聊天{:else}<IconPlus aria-hidden="true" />新建会话{/if}
+        />{m.s1_new_chat()}{:else}<IconPlus
+          aria-hidden="true"
+        />{m.s1_new_session()}{/if}
     </Button>
   </div>
   {#if !workspace}
@@ -221,7 +241,7 @@
         size="sm-touch"
         class="w-full"
         aria-current={route.name === "sessions" ? "page" : undefined}
-        onclick={() => openPage("/")}>会话</Button
+        onclick={() => openPage("/")}>{m.s1_sessions()}</Button
       >
     </div>
   {/if}
@@ -229,9 +249,9 @@
   {#if pinned.length}
     <section
       class="max-h-36 shrink-0 overflow-y-auto px-2 pt-2"
-      aria-label="已置顶会话"
+      aria-label={m.s1_pinned_sessions()}
     >
-      <h2 class="px-3 pb-1 text-xs text-muted-foreground">置顶</h2>
+      <h2 class="px-3 pb-1 text-xs text-muted-foreground">{m.s1_pinned()}</h2>
       <ul class="space-y-0.5">
         {#each pinned as session (session.id)}
           <SidebarLiveSessionRow
@@ -355,16 +375,18 @@
 
 <ConfirmDialog
   bind:open={removeOpen}
-  title={`删除“${removing ? recordTitle(removing) : ""}”的记录？`}
+  title={m.s1_delete_record_confirm_title({
+    title: removing ? recordTitle(removing) : "",
+  })}
   onconfirm={() => void confirmRemove()}
 >
-  只删除 WebMux 的记录与本机草稿；工作树与 agent 自己保存的会话不受影响。
+  {m.s1_delete_record_confirm_body()}
 </ConfirmDialog>
 {#if rebuilding && workspace && chat}
   {@const { record, released } = rebuilding}
   <LazyDialog
     load={chat.rebuild}
-    label="恢复工作树"
+    label={m.s1_rebuild_worktree()}
     onclose={() => (rebuilding = null)}
   >
     {#snippet children(page)}

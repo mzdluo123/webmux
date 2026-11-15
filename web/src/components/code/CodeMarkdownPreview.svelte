@@ -4,6 +4,8 @@
 
 <script lang="ts">
   import { untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
+  import { locale } from "$lib/locale";
   import type { CodeMarkdownState } from "../../contracts/schemas";
   import IconCheck from "~icons/tabler/check";
   import IconCopy from "~icons/tabler/copy";
@@ -75,6 +77,7 @@
   $effect(() => {
     const element = content;
     if (variant !== "document" || !element) return;
+    void locale.current;
     const source = text;
     const base = path;
     const generation = ++rendering;
@@ -178,7 +181,7 @@
       `#${CSS.escape(headingIdPrefix + slug)}`,
     );
     if (!heading) {
-      notice = `未找到标题“${slug}”`;
+      notice = m.s5_heading_not_found({ slug });
       return false;
     }
     notice = "";
@@ -198,13 +201,13 @@
       path,
       element.getAttribute("data-md-href") ?? "",
     );
-    if (reference.kind === "outside") notice = "链接目标不在工作区内";
-    else if (reference.kind === "invalid") notice = "链接地址无效";
+    if (reference.kind === "outside") notice = m.s5_link_outside_workspace();
+    else if (reference.kind === "invalid") notice = m.s5_link_invalid_address();
     else if (reference.kind === "anchor") scrollToHeading(reference.fragment);
     else if (reference.path === path) {
       if (reference.fragment) scrollToHeading(reference.fragment);
       else region?.scrollTo({ top: 0 });
-    } else if (!workspace) notice = "无法在此打开链接";
+    } else if (!workspace) notice = m.s5_cannot_open_link_here();
     else {
       notice = "";
       notice = await workspace.open(reference.path, reference.fragment);
@@ -272,8 +275,8 @@
             variant="ghost"
             size="icon-xs"
             class="absolute top-1 right-1"
-            aria-label={copied === i ? "已复制代码" : "复制代码"}
-            title={copied === i ? "已复制" : "复制代码"}
+            aria-label={copied === i ? m.s5_copied_code() : m.s5_copy_code()}
+            title={copied === i ? m.s5_copied() : m.s5_copy_code()}
             onclick={() => copy(i, part.code)}
             >{#if copied === i}<IconCheck aria-hidden="true" />{:else}<IconCopy
                 aria-hidden="true"
@@ -295,7 +298,7 @@
         {#if retryable}<Button
             variant="outline"
             size="sm"
-            onclick={() => retry?.()}>重试加载图片</Button
+            onclick={() => retry?.()}>{m.s5_retry_load_images()}</Button
           >{/if}
       </div>
     {/if}
@@ -306,7 +309,7 @@
       class="markdown-preview min-h-0 flex-1 overflow-auto p-4 text-sm"
       role="region"
       tabindex="0"
-      aria-label="Markdown 预览"
+      aria-label={m.s5_markdown_preview()}
     >
       <div bind:this={content}></div>
     </div>

@@ -1,3 +1,5 @@
+import { locale } from "$lib/locale";
+import { m } from "$lib/paraglide/messages.js";
 import type { XrPanelLayout } from "../../domains/terminal/xr-layout";
 import type {
   XrAction,
@@ -8,7 +10,11 @@ import { XrSurface, type XrRegion } from "./xr-surface";
 import { XrTerminalMesh } from "./xr-terminal-mesh";
 import { xrGraphemes } from "../../domains/terminal/xr-text";
 import { xrGridControls } from "./xr-grid-controls";
-import { drawXrPanelContent, drawUnavailableXrPanel } from "./xr-panel-content";
+import {
+  confirmXrPanelRegions,
+  drawUnavailableXrPanel,
+  drawXrPanelContent,
+} from "./xr-panel-content";
 
 export class XrPanel {
   readonly surface = new XrSurface();
@@ -18,7 +24,7 @@ export class XrPanel {
   private offset = 0;
   private signature = "";
   private grid: [number, number] | undefined;
-  private notice = "";
+  private noticeKind: "" | "submitted" | "denied" = "";
   private actionPage = 0;
   private pending: XrAction | undefined;
   private column = 0;
@@ -74,7 +80,8 @@ export class XrPanel {
     if (this.layout.kind === "terminal")
       this.terminalView.sync(source.terminal, this.layout.size);
     const actions = this.bindingActions(text);
-    const title = `${source.title}${text ? ` · ${text.title}` : ""} · 视图 ${this.layout.id.slice(-8)}`;
+    const view = m.s4_xr_panel_view_suffix({ view: this.layout.id.slice(-8) });
+    const title = `${source.title}${text ? ` · ${text.title}` : ""} · ${view}`;
     if (this.pending)
       this.pending = actions.find(
         (action) => action.id === this.pending?.id && !action.disabled,
@@ -85,7 +92,14 @@ export class XrPanel {
     if (text)
       this.offset = Math.min(this.offset, Math.max(0, text.lines.length - 18));
     const lines = text?.lines.slice(this.offset, this.offset + 18) ?? [];
+    const notice =
+      this.noticeKind === "submitted"
+        ? m.s4_xr_panel_grid_submitted()
+        : this.noticeKind === "denied"
+          ? m.s4_xr_panel_grid_observer_denied()
+          : "";
     const signature = JSON.stringify([
+      locale.current,
       source.title,
       source.status,
       source.terminal?.cols,
@@ -102,7 +116,7 @@ export class XrPanel {
         action.confirm,
       ]),
       this.grid,
-      this.notice,
+      notice,
       this.actionPage,
       this.pending?.id,
       this.column,
@@ -110,6 +124,8 @@ export class XrPanel {
     ]);
     if (signature === this.signature) return;
     this.signature = signature;
+    const drag = m.s4_xr_panel_drag_suffix();
+    const moveLabel = `${selected ? "● " : ""}${title} · ${source.status} · ${drag}`;
     const regions: XrRegion[] = [
       {
         id: "body",
@@ -122,7 +138,7 @@ export class XrPanel {
       },
       {
         id: "move",
-        label: `${selected ? "● " : ""}${title} · ${source.status} · 拖动`,
+        label: moveLabel,
         x: 8,
         y: 4,
         width: 800,
@@ -134,7 +150,7 @@ export class XrPanel {
       this.closeRegion(),
       {
         id: "up",
-        label: "↑ 历史",
+        label: m.s4_xr_panel_scroll_history(),
         x: 8,
         y: 64,
         width: 155,
@@ -152,7 +168,7 @@ export class XrPanel {
       },
       {
         id: "latest",
-        label: "最新",
+        label: m.s4_xr_panel_latest(),
         x: 247,
         y: 64,
         width: 130,
@@ -166,7 +182,7 @@ export class XrPanel {
       },
       {
         id: "focus",
-        label: "实体键盘",
+        label: m.s4_xr_panel_physical_keyboard(),
         x: 379,
         y: 64,
         width: 190,
@@ -176,7 +192,7 @@ export class XrPanel {
       },
       {
         id: "resize",
-        label: "↘ 缩放",
+        label: m.s4_xr_panel_resize(),
         x: 882,
         y: 712,
         width: 134,
@@ -185,11 +201,11 @@ export class XrPanel {
       },
     ];
     if (this.layout.kind === "terminal") {
+      const cols = String(this.grid?.[0] ?? source.terminal?.cols ?? "—");
+      const rows = String(this.grid?.[1] ?? source.terminal?.rows ?? "—");
       regions.push({
         id: "grid",
-        label: this.grid
-          ? `网格 ${this.grid[0]}×${this.grid[1]}`
-          : `网格 ${source.terminal?.cols ?? "—"}×${source.terminal?.rows ?? "—"}`,
+        label: m.s4_xr_panel_grid({ cols, rows }),
         x: 572,
         y: 64,
         width: 310,
@@ -217,7 +233,7 @@ export class XrPanel {
       regions.push(
         {
           id: "text-left",
-          label: "← 内容",
+          label: m.s4_xr_panel_content_left(),
           x: 572,
           y: 64,
           width: 150,
@@ -230,7 +246,7 @@ export class XrPanel {
         },
         {
           id: "text-right",
-          label: "内容 →",
+          label: m.s4_xr_panel_content_right(),
           x: 724,
           y: 64,
           width: 158,
@@ -284,7 +300,7 @@ export class XrPanel {
     if (source.graphicsUnsupported)
       regions.push({
         id: "graphics",
-        label: "图形内容不支持 VR · 返回 2D 查看",
+        label: m.s4_xr_panel_graphics_unsupported(),
         x: 8,
         y: 712,
         width: 870,
@@ -296,68 +312,26 @@ export class XrPanel {
       });
     if (this.pending) {
       const pending = this.pending;
-      const maxOffset = Math.max(
-        0,
-        Math.ceil(xrGraphemes(pending.confirm ?? pending.label).length / 36) -
-          6,
-      );
       regions.length = 0;
       regions.push(
-        {
-          id: "confirm-action",
-          label: "确认执行",
-          x: 100,
-          y: 420,
-          width: 380,
-          height: 90,
-          run: () => {
+        ...confirmXrPanelRegions(
+          pending,
+          this.confirmationOffset,
+          (next) => {
+            this.confirmationOffset = next;
+            this.signature = "";
+          },
+          () => {
             const current = this.currentAction(pending.id);
             this.pending = undefined;
             this.signature = "";
             if (current && !current.disabled) this.run(current.id);
           },
-        },
-        {
-          id: "cancel-action",
-          label: "取消",
-          x: 540,
-          y: 420,
-          width: 380,
-          height: 90,
-          run: () => {
+          () => {
             this.pending = undefined;
             this.signature = "";
           },
-        },
-        {
-          id: "confirm-up",
-          label: "↑ 说明",
-          x: 100,
-          y: 550,
-          width: 380,
-          height: 70,
-          disabled: this.confirmationOffset === 0,
-          run: () => {
-            this.confirmationOffset = Math.max(0, this.confirmationOffset - 6);
-            this.signature = "";
-          },
-        },
-        {
-          id: "confirm-down",
-          label: "↓ 说明",
-          x: 540,
-          y: 550,
-          width: 380,
-          height: 70,
-          disabled: this.confirmationOffset >= maxOffset,
-          run: () => {
-            this.confirmationOffset = Math.min(
-              maxOffset,
-              this.confirmationOffset + 6,
-            );
-            this.signature = "";
-          },
-        },
+        ),
       );
     }
     if (
@@ -368,7 +342,7 @@ export class XrPanel {
     )
       regions.push({
         id: "split",
-        label: "拆分视图",
+        label: m.s4_xr_panel_split_view(),
         x: 572,
         y: 712,
         width: 306,
@@ -382,7 +356,7 @@ export class XrPanel {
         confirmationOffset: this.confirmationOffset,
         lines,
         column: this.column,
-        notice: this.notice,
+        notice,
       }),
     );
   }
@@ -430,9 +404,9 @@ export class XrPanel {
         this.grid,
         (grid) => {
           if (grid)
-            this.notice = this.source?.resize(...grid)
-              ? "网格已提交"
-              : "观察端无法修改网格；请先取得控制权";
+            this.noticeKind = this.source?.resize(...grid)
+              ? "submitted"
+              : "denied";
           this.grid = undefined;
           this.signature = "";
         },
@@ -448,7 +422,7 @@ export class XrPanel {
   private closeRegion(): XrRegion {
     return {
       id: "close",
-      label: "关闭",
+      label: m.s4_close(),
       x: 812,
       y: 4,
       width: 204,
@@ -463,7 +437,8 @@ export class XrPanel {
   }
 
   detach() {
-    if (this.signature === "unavailable") {
+    const unavailSig = `unavailable:${locale.current}`;
+    if (this.signature === unavailSig) {
       this.applyLayout();
       return;
     }
@@ -472,7 +447,7 @@ export class XrPanel {
     this.text = undefined;
     this.pending = undefined;
     this.grid = undefined;
-    this.signature = "unavailable";
+    this.signature = unavailSig;
     this.applyLayout();
     drawUnavailableXrPanel(this.surface, this.layout, this.closeRegion());
   }

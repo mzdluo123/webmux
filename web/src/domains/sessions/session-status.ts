@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type { SessionInfo } from "../../contracts/schemas";
 
 export type SessionState = SessionInfo["status"];
@@ -74,7 +75,7 @@ export function statusSummary(
   sessions: readonly Pick<SessionInfo, "status">[],
 ) {
   const { active, waiting, exited } = countSessions(sessions);
-  return `运行 ${active} · 等待 ${waiting} · 退出 ${exited}`;
+  return m.s3_status_summary({ active, waiting, exited });
 }
 
 // The five states a sidebar row shows (chat history and the workbench tree):
@@ -83,11 +84,21 @@ export function statusSummary(
 // freed). Rows always pair the colour or shape with the label.
 export type RowStatus = "working" | "waiting" | "idle" | "ended" | "released";
 export const rowStatusLabels: Record<RowStatus, string> = {
-  working: "工作中",
-  waiting: "等待",
-  idle: "空闲",
-  ended: "已结束",
-  released: "已释放空间，已结束",
+  get working() {
+    return m.s3_row_status_working();
+  },
+  get waiting() {
+    return m.s3_row_status_waiting();
+  },
+  get idle() {
+    return m.s3_row_status_idle();
+  },
+  get ended() {
+    return m.s3_row_status_ended();
+  },
+  get released() {
+    return m.s3_row_status_released();
+  },
 };
 export function rowStatus(
   session: Pick<SessionInfo, "status" | "attention" | "agent">,
@@ -106,9 +117,16 @@ export function rowStatus(
 
 /** The accessible name of a live session's sidebar button. */
 export function sessionRowLabel(session: SessionInfo): string {
-  return `${session.title}（${rowStatusLabels[rowStatus(session)]}）`;
+  return m.s3_session_row_label({
+    title: session.title,
+    status: rowStatusLabels[rowStatus(session)],
+  });
 }
 /** The tooltip of a live session's sidebar button. */
 export function sessionRowTitle(session: SessionInfo): string {
-  return `${session.title}（${session.agent?.title ?? ""} · ${rowStatusLabels[rowStatus(session)]}）`;
+  return m.s3_session_row_title({
+    title: session.title,
+    agent: session.agent?.title ?? "",
+    status: rowStatusLabels[rowStatus(session)],
+  });
 }

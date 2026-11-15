@@ -1,6 +1,7 @@
 <script lang="ts">
   import InlineNotice from "../shared/InlineNotice.svelte";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     pluginErrors,
@@ -18,9 +19,13 @@
 {#if pluginErrors?.length}
   <InlineNotice tone="warning">
     <div class="flex items-center justify-between gap-2">
-      <span>部分插件未能加载；终端仍可使用。{pluginErrors.join("；")}</span>
+      <span
+        >{m.s4_plugin_load_partial_warning({
+          errors: pluginErrors.join(m.s4_list_semicolon_sep()),
+        })}</span
+      >
       <Button variant="outline" size="sm" onclick={reloadPage}
-        >重新加载页面</Button
+        >{m.s4_reload_page()}</Button
       >
     </div>
   </InlineNotice>
@@ -29,7 +34,9 @@
   <InlineNotice tone="danger">
     <div class="flex items-center justify-between gap-2">
       <span>{error}</span>
-      <Button variant="ghost" size="sm" onclick={dismissError}>关闭</Button>
+      <Button variant="ghost" size="sm" onclick={dismissError}
+        >{m.s4_close()}</Button
+      >
     </div>
   </InlineNotice>
 {/if}

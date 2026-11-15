@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ListButton } from "$lib/components/ui/list-button";
   import { Separator } from "$lib/components/ui/separator";
+  import { m } from "$lib/paraglide/messages.js";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
 
   let {
@@ -26,49 +27,52 @@
   } = $props();
 </script>
 
-<div class="space-y-1" role="group" aria-label="窗格">
+<div class="space-y-1" role="group" aria-label={m.s4_panes_group_aria()}>
   <ListButton
     variant="action-sheet"
     disabled={busy || limit || !ready}
-    onclick={oncreate}>新建会话…</ListButton
+    onclick={oncreate}>{m.s4_new_session_ellipsis()}</ListButton
   >
   <ListButton variant="action-sheet" disabled={busy || limit} onclick={onchoose}
-    >加入已有会话…</ListButton
+    >{m.s4_join_existing_session_ellipsis()}</ListButton
   >
   <Separator class="my-3" />
-  <h3 class="px-3 py-2 text-xs text-muted-foreground">快速新建 Shell</h3>
+  <h3 class="px-3 py-2 text-xs text-muted-foreground">
+    {m.s4_quick_new_shell()}
+  </h3>
   <ListButton
     variant="action-sheet"
-    aria-label="左右分屏 · 新建 Shell"
+    aria-label={m.s4_split_horizontal_new_shell()}
     disabled={busy || limit || !ready}
     onclick={() => onsplit("horizontal")}
   >
-    <span class="min-w-0 flex-1">左右分屏 · 新建 Shell</span><span
+    <span class="min-w-0 flex-1">{m.s4_split_horizontal_new_shell()}</span><span
       class="text-xs text-muted-foreground max-sm:hidden"
       aria-hidden="true">Ctrl+B %</span
     >
   </ListButton>
   <ListButton
     variant="action-sheet"
-    aria-label="上下分屏 · 新建 Shell"
+    aria-label={m.s4_split_vertical_new_shell()}
     disabled={busy || limit || !ready}
     onclick={() => onsplit("vertical")}
   >
-    <span class="min-w-0 flex-1">上下分屏 · 新建 Shell</span><span
+    <span class="min-w-0 flex-1">{m.s4_split_vertical_new_shell()}</span><span
       class="text-xs text-muted-foreground max-sm:hidden"
       aria-hidden="true">Ctrl+B "</span
     >
   </ListButton>
   {#if limit}<p class="px-3 py-2 text-xs text-muted-foreground">
-      已达到 8 个窗格上限
+      {m.s4_pane_limit_reached()}
     </p>{/if}
   {#if onzoom}
     <Separator class="my-3" />
     <ListButton
       variant="action-sheet"
-      aria-label={zoomed ? "恢复分屏" : "放大窗格"}
+      aria-label={zoomed ? m.s4_restore_split() : m.s4_zoom_pane()}
       onclick={onzoom}
-      ><span class="min-w-0 flex-1">{zoomed ? "恢复分屏" : "放大窗格"}</span
+      ><span class="min-w-0 flex-1"
+        >{zoomed ? m.s4_restore_split() : m.s4_zoom_pane()}</span
       ><span
         class="text-xs text-muted-foreground max-sm:hidden"
         aria-hidden="true">Ctrl+B z</span
@@ -79,9 +83,9 @@
   <ListButton
     variant="action-sheet"
     disabled={busy}
-    aria-label="关闭窗格（保留会话）"
+    aria-label={m.s4_close_pane_keep_session()}
     onclick={onclose}
-    ><span class="min-w-0 flex-1">关闭窗格（保留会话）</span><span
+    ><span class="min-w-0 flex-1">{m.s4_close_pane_keep_session()}</span><span
       class="text-xs text-muted-foreground max-sm:hidden"
       aria-hidden="true">Ctrl+B x</span
     ></ListButton

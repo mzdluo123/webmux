@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import IconDots from "~icons/tabler/dots";
   import IconRefresh from "~icons/tabler/refresh";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import SessionViewControls from "../terminal/SessionViewControls.svelte";
   import GitWorkbenchButton from "./GitWorkbenchButton.svelte";
@@ -35,8 +36,8 @@
   variant="ghost"
   size="icon-sm"
   class="min-h-9 min-w-9 sm:min-h-8 sm:min-w-8"
-  aria-label="刷新 Git 状态"
-  title={refreshing ? "正在刷新 Git 状态…" : "刷新 Git 状态"}
+  aria-label={m.s8_refresh_git_status()}
+  title={refreshing ? m.s8_refreshing_git_status() : m.s8_refresh_git_status()}
   aria-busy={refreshing}
   onclick={() => onrefresh()}
   ><IconRefresh
@@ -51,8 +52,8 @@
     variant="ghost"
     size="icon-sm"
     class="min-h-9 min-w-9 sm:min-h-8 sm:min-w-8"
-    aria-label="仓库菜单"
-    title="仓库菜单"
+    aria-label={m.s8_repo_menu()}
+    title={m.s8_repo_menu()}
     disabled><IconDots aria-hidden="true" /></Button
   >
 {/if}

@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { SvelteSet } from "svelte/reactivity";
 import { repositoryBranches, repositoryRemotes } from "../../platform/api";
 import {
@@ -212,7 +213,7 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
     const oldBranch = renameOldName;
     await runRefMutation(
       "branch_rename",
-      "正在重命名本地分支…",
+      m.s7_refs_renaming_phase(),
       (repoId, clientRequestId) =>
         gitBranchRename(repoId, {
           confirmationId: cur.confirmationId,
@@ -229,7 +230,10 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
             : curView.context;
         deps.patchView({
           context: checkedOutUpdated,
-          statusBanner: `已将本地分支 ${oldBranch} 重命名为 ${res.branch}`,
+          statusBanner: m.s7_refs_renamed_banner({
+            oldName: oldBranch,
+            newName: res.branch,
+          }),
         });
       },
     );
@@ -254,12 +258,12 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
     if (!upstreamBranch) return;
     const targetUpstream = unset ? "" : upstreamSelection.trim();
     if (!unset && !targetUpstream) {
-      dialogError = "请选择或输入远程跟踪引用（例如 origin/main）";
+      dialogError = m.s7_refs_upstream_empty_error();
       return;
     }
     await runRefMutation(
       "branch_upstream",
-      "正在更新分支上游跟踪…",
+      m.s7_refs_upstream_updating_phase(),
       (repoId, clientRequestId) =>
         gitBranchSetUpstream(repoId, {
           branch: upstreamBranch,
@@ -270,8 +274,11 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
         upstreamOpen = false;
         deps.patchView({
           statusBanner: res.upstream
-            ? `已将分支 ${res.branch} 上游设置为 ${res.upstream}`
-            : `已取消分支 ${res.branch} 的上游跟踪`,
+            ? m.s7_refs_upstream_set_banner({
+                branch: res.branch,
+                upstream: res.upstream,
+              })
+            : m.s7_refs_upstream_unset_banner({ branch: res.branch }),
         });
       },
     );
@@ -291,12 +298,12 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
     const cleanName = tagName.trim();
     if (!cleanName || !tagTargetOid) return;
     if (tagKind === "annotated" && !tagMessage.trim()) {
-      dialogError = "附注标签 (Annotated Tag) 必须填写标签说明";
+      dialogError = m.s7_refs_tag_annotated_msg_req();
       return;
     }
     await runRefMutation(
       "tag_create",
-      "正在创建本地标签…",
+      m.s7_refs_tag_creating_phase(),
       (repoId, clientRequestId) =>
         gitTagCreate(repoId, {
           name: cleanName,
@@ -307,8 +314,12 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
         }),
       (res) => {
         tagCreateOpen = false;
+        const oid = res.tag.head.slice(0, 7);
         deps.patchView({
-          statusBanner: `已创建${res.tag.kind === "annotated" ? "附注" : "轻量"}标签 ${res.tag.name} (${res.tag.head.slice(0, 7)})`,
+          statusBanner:
+            res.tag.kind === "annotated"
+              ? m.s7_refs_tag_created_annotated({ name: res.tag.name, oid })
+              : m.s7_refs_tag_created_lightweight({ name: res.tag.name, oid }),
         });
       },
     );
@@ -325,7 +336,7 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
     if (!target) return;
     await runRefMutation(
       "tag_delete",
-      "正在删除本地标签…",
+      m.s7_refs_tag_deleting_phase(),
       (repoId, clientRequestId) =>
         gitTagDelete(repoId, {
           name: target.name,
@@ -336,7 +347,10 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
         tagDeleteOpen = false;
         tagDeleteTarget = null;
         deps.patchView({
-          statusBanner: `已删除本地标签 ${res.name}（恢复命令：${res.recoveryCommand}）`,
+          statusBanner: m.s7_refs_tag_deleted_banner({
+            name: res.name,
+            cmd: res.recoveryCommand,
+          }),
         });
       },
     );

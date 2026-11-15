@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import IconX from "~icons/tabler/x";
   import type { HybridNotice } from "../../hooks/sessions/hybrid.svelte";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
@@ -82,18 +83,23 @@
 
 {#if !draft.enabled && !draft.scratchUpdatedWhileHidden && (draft.text || draft.updatedWhileHidden || draft.scratch.length)}
   <p class="sr-only" role="status">
-    {#if draft.updatedWhileHidden}隐藏草稿已更新{:else if draft.text}有保留的隐藏草稿{/if}
+    {#if draft.updatedWhileHidden}{m.s4_notice_hidden_draft_updated()}{:else if draft.text}{m.s4_notice_hidden_draft_kept()}{/if}
     {#if draft.scratch.length}
-      · 共 {draft.scratch.length} 条暂存{/if}
-    · 开启草稿模式查看；{draftSaved}
+      {m.s4_notice_scratch_count_part({
+        count: String(draft.scratch.length),
+      })}{/if}
+    {m.s4_notice_enable_draft_part({ saved: draftSaved })}
   </p>
 {/if}
 {#if !draft.enabled && draft.scratchUpdatedWhileHidden}
   <StripNotice ondismiss={dismissScratch}>
-    {#if draft.updatedWhileHidden}隐藏草稿已更新 ·
-    {/if}暂存已更新 · 共 {draft.scratch.length} 条，不会自动发送
+    {#if draft.updatedWhileHidden}{m.s4_notice_hidden_draft_updated()} ·
+    {/if}{m.s4_notice_scratch_updated_strip({
+      count: String(draft.scratch.length),
+    })}
     {#snippet actions()}
-      <Button variant="outline" size="sm" onclick={showScratch}>查看暂存</Button
+      <Button variant="outline" size="sm" onclick={showScratch}
+        >{m.s4_view_scratch()}</Button
       >
     {/snippet}
   </StripNotice>
@@ -103,13 +109,15 @@
     cancel={() => uploads?.cancel()}
   />{/if}
 {#if pendingCopy}
-  <StripNotice label="待处理的复制请求">
-    此窗格有待复制的文字，仅保留最新请求。
+  <StripNotice label={m.s4_pending_copy_label()}>
+    {m.s4_pending_copy_desc()}
     {#snippet actions()}
       <Button variant="outline" size="sm" onclick={copyPending}
-        >复制待处理文字</Button
+        >{m.s4_copy_pending_text()}</Button
       >
-      <Button variant="ghost" size="sm" onclick={dismissCopy}>忽略</Button>
+      <Button variant="ghost" size="sm" onclick={dismissCopy}
+        >{m.s4_ignore()}</Button
+      >
     {/snippet}
   </StripNotice>
 {/if}
@@ -126,13 +134,20 @@
     onshowall={showForwards}
   />{/if}
 {#if t.control && !t.controlling && t.connection === "connected" && t.exitCode === null}
-  <StripNotice label="终端控制">
+  <StripNotice label={m.s4_terminal_control_label()}>
     {t.control.controller
-      ? `观察中 · ${t.control.controller.label || "另一设备"}控制输入与尺寸`
-      : "观察中 · 当前没有控制端"}（{t.control.cols}×{t.control.rows}）
+      ? m.s4_control_observing_controller({
+          device: t.control.controller.label || m.s4_other_device(),
+          cols: String(t.control.cols),
+          rows: String(t.control.rows),
+        })
+      : m.s4_control_observing_none({
+          cols: String(t.control.cols),
+          rows: String(t.control.rows),
+        })}
     {#snippet actions()}
       <Button variant="outline" size="sm" onclick={() => t.claim()}
-        >接管控制</Button
+        >{m.s4_claim_control()}</Button
       >
     {/snippet}
   </StripNotice>
@@ -143,8 +158,8 @@
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label="关闭提示"
-        title="关闭提示"
+        aria-label={m.s4_dismiss_notice()}
+        title={m.s4_dismiss_notice()}
         onclick={() => (dismissedError = alertText)}
         ><IconX aria-hidden="true" /></Button
       >
@@ -153,20 +168,22 @@
 {#if recovery}{@render recovery()}{:else if t.connection === "missing"}<StripNotice
     tone="warning"
   >
-    会话不存在或已被移除。
+    {m.s4_session_missing_strip()}
     {#snippet actions()}
-      <Button variant="outline" size="sm" onclick={leave}>返回列表</Button>
+      <Button variant="outline" size="sm" onclick={leave}
+        >{m.s4_back_to_list()}</Button
+      >
     {/snippet}
   </StripNotice>{/if}
 {#if t.exitCode !== null && !recovery}
   <StripNotice>
-    进程已退出（code {t.exitCode}）
+    {m.s4_process_exited_strip({ code: String(t.exitCode) })}
     {#snippet actions()}
       <Button variant="outline" size="sm" class="shrink-0" onclick={leave}
-        >返回列表</Button
+        >{m.s4_back_to_list()}</Button
       >
       <Button variant="outline" size="sm" class="shrink-0" onclick={remove}
-        >移除会话</Button
+        >{m.s4_remove_session()}</Button
       >
     {/snippet}
   </StripNotice>

@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import {
   P2P_CHUNK_BYTES,
   StreamFrameReassembler,
@@ -306,7 +307,7 @@ export function createP2PTransport(
 
     async upload(req: UploadRequest): Promise<UploadResult> {
       if (req.signal.aborted) {
-        throw new DOMException("上传已取消", "AbortError");
+        throw new DOMException(m.s1_upload_cancelled(), "AbortError");
       }
       const headers: Record<string, string> = {
         Authorization: "Bearer " + req.token,
@@ -346,7 +347,7 @@ export function createP2PTransport(
         };
       } catch (err) {
         if (req.signal.aborted) {
-          throw new DOMException("上传已取消", "AbortError");
+          throw new DOMException(m.s1_upload_cancelled(), "AbortError");
         }
         if (timedOut) {
           throw new TransportUploadError("timeout");

@@ -11,7 +11,7 @@ import {
   countWorktreeBatchCategories,
   filterWorktreeBatchEntries,
   groupBatchPreviewItems,
-  LOCKED_STALE_REASON,
+  lockedStaleReason,
   staleRegistrations,
 } from "../src/domains/workspace/worktree-batch";
 
@@ -233,7 +233,7 @@ describe("worktreeBatch", () => {
       "gone-reg",
     ]);
     expect(entries.find((e) => e.tree.id === "locked-gone")?.reason).toBe(
-      LOCKED_STALE_REASON,
+      lockedStaleReason(),
     );
   });
 });

@@ -2,6 +2,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitBranchRenamePreview } from "../../contracts/schemas";
   import { canExecutePreviewedMutation } from "../../domains/workspace/git-v2-adapter";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
@@ -50,16 +51,18 @@
 </script>
 
 <ResponsiveDialog
-  title={`重命名本地分支 · ${oldName}`}
-  description="两步预览并执行 git branch -m，自动迁移该分支关联的工作树 HEAD 与本地上游跟踪配置。"
-  drawerDescription="核对新分支名称与受影响工作树后确认重命名。"
+  title={m.s6_branch_rename_title({ name: oldName })}
+  description={m.s6_branch_rename_desc()}
+  drawerDescription={m.s6_branch_rename_drawer_desc()}
   busy={submitting}
   class="sm:max-w-lg"
   onclose={onClose}
 >
   <div class="space-y-3" data-testid="git-branch-rename-dialog">
     <div class="space-y-1.5">
-      <Label for="git-branch-rename-input">新本地分支名称</Label>
+      <Label for="git-branch-rename-input">
+        {m.s6_branch_rename_input_label()}
+      </Label>
       <Input
         id="git-branch-rename-input"
         mono
@@ -73,12 +76,14 @@
 
     {#if loading && !preview}
       <p class="text-xs text-muted-foreground" role="status">
-        正在校验分支引用格式与工作树影响范围…
+        {m.s6_branch_rename_validating()}
       </p>
     {:else if preview}
       <div class="space-y-1.5 rounded-lg border bg-background p-3 text-xs">
         <p class="wrap-anywhere">
-          <span class="text-muted-foreground">重命名变更：</span>
+          <span class="text-muted-foreground">
+            {m.s6_branch_rename_change_label()}
+          </span>
           <span class="font-mono text-foreground">{preview.oldName}</span>
           →
           <span class="font-mono font-semibold text-foreground">
@@ -86,7 +91,9 @@
           </span>
         </p>
         <p class="wrap-anywhere">
-          <span class="text-muted-foreground">指向提交：</span>
+          <span class="text-muted-foreground">
+            {m.s6_branch_points_to_label()}
+          </span>
           <span class="font-mono text-foreground">
             {preview.headOid.slice(0, 7)}
           </span>
@@ -94,15 +101,19 @@
         </p>
         {#if preview.upstream}
           <p class="wrap-anywhere">
-            <span class="text-muted-foreground">上游跟踪配置：</span>
-            将保留对
+            <span class="text-muted-foreground">
+              {m.s6_branch_rename_upstream_label()}
+            </span>
+            {m.s6_branch_rename_upstream_before()}
             <span class="font-mono text-foreground">{preview.upstream}</span>
-            的跟踪（远端分支本身不会在远端重命名）
+            {m.s6_branch_rename_upstream_after()}
           </p>
         {/if}
         {#if preview.affectedWorktrees.length > 0}
           <div class="pt-1">
-            <span class="text-muted-foreground">同步更新检出工作树：</span>
+            <span class="text-muted-foreground">
+              {m.s6_branch_rename_worktrees_label()}
+            </span>
             <div class="mt-1 flex flex-wrap gap-1">
               {#each preview.affectedWorktrees as wt (wt.id)}
                 <Badge variant="info">
@@ -120,7 +131,7 @@
         sessions={preview.sessions}
         {acknowledgeSessions}
         disabled={submitting}
-        acknowledgementLabel="我已知晓当前工作树有活跃会话，分支重命名将同步更新其检出分支名"
+        acknowledgementLabel={m.s6_branch_rename_session_ack()}
         {onAcknowledgeSessionsChange}
       />
     {/if}
@@ -129,8 +140,8 @@
       {dialogError}
       {submitting}
       {canConfirm}
-      confirmLabel="确认重命名分支"
-      submittingLabel="正在重命名…"
+      confirmLabel={m.s6_branch_rename_confirm()}
+      submittingLabel={m.s6_branch_rename_submitting()}
       confirmTestId="git-branch-rename-confirm-btn"
       {onConfirm}
       {onClose}

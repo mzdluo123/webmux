@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type {
   Branches,
   GitChange,
@@ -62,7 +63,8 @@ export function deriveGitWorktreeContext(options: {
   operationInProgress?: string | null;
 }): GitWorktreeContext {
   const { repository, repositoryId, worktree, gitCtx } = options;
-  const repositoryName = repository?.name ?? (repositoryId || "Git 工作台");
+  const repositoryName =
+    repository?.name ?? (repositoryId || m.s7_git_workbench());
 
   const writableWorktree =
     worktree &&
@@ -418,7 +420,9 @@ export function mapGitCommitPreviewResponse(
   ) {
     warnings.unshift({
       code: "cli_prestaged",
-      message: `完整 index 预览已包含终端或外部工具预先暂存的 ${cliPreStagedCount} 个文件，请核对差异后再提交`,
+      message: m.s7_adapter_warn_cli_prestaged({
+        count: String(cliPreStagedCount),
+      }),
     });
   }
 

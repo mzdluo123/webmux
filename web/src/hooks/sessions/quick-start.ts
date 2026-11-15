@@ -1,5 +1,5 @@
+import { m } from "$lib/paraglide/messages.js";
 import { z } from "zod";
-import { api, APIError } from "../../platform/api";
 import {
   remoteBranchBases,
   suggestWorktreeBranch,
@@ -11,20 +11,16 @@ import {
   stored,
 } from "../../platform/storage";
 import type { ConfigValue } from "../../platform/chat-api";
-import { newRequestId } from "../../platform/ids";
 import { selectableWorktree } from "../../domains/sessions/new-session-defaults";
+import { configValues, sendQuickStart } from "./quick-start-request";
 import {
   BranchesSchema,
   ChatAttachmentSchema,
   ChatPermissionModeSchema,
-  CreateSessionFailureSchema,
-  CreateSessionRequestSchema,
-  CreateSessionResultSchema,
   type ChatAttachment,
   type ChatConfig,
   type ChatPermissionMode,
   type CreateSessionFailure,
-  type CreateSessionRequest,
   type Repository,
   type SessionView,
   type Worktree,
@@ -177,69 +173,22 @@ export function pickDefault<T extends { id: string }>(
   return kept && usable(kept) ? kept : items.find(usable);
 }
 
-/** The values the page shows for each option, as the request sends them. */
-function configValues(options: readonly ChatConfig[]) {
-  return Object.fromEntries(
-    options.flatMap((option) =>
-      option.type === "boolean"
-        ? option.enabled === undefined
-          ? []
-          : [[option.id, String(option.enabled)]]
-        : option.value === undefined
-          ? []
-          : [[option.id, option.value]],
-    ),
-  );
-}
-
-type QuickStartOutcome =
-  | { ok: true; sessionId: string }
-  | { ok: false; failure: CreateSessionFailure };
-
-/**
- * Sends one quick start: a session created in a new worktree with its first
- * message. A dropped connection is retried once with the same request ID,
- * which the server answers with the first run's result.
- */
-async function sendQuickStart(
-  request: Omit<CreateSessionRequest, "clientRequestId">,
-  clientRequestId = newRequestId(),
-): Promise<QuickStartOutcome> {
-  const body = { ...request, clientRequestId };
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const result = await api(
-        "/sessions",
-        CreateSessionResultSchema,
-        "POST",
-        body,
-        undefined,
-        CreateSessionRequestSchema,
-      );
-      return { ok: true, sessionId: result.session.id };
-    } catch (err) {
-      if (err instanceof TypeError && attempt === 0) continue;
-      const failure =
-        err instanceof APIError
-          ? CreateSessionFailureSchema.safeParse(err.body).data
-          : undefined;
-      return {
-        ok: false,
-        failure: failure ?? {
-          error: err instanceof Error ? err.message : String(err),
-          step: "precheck",
-        },
-      };
-    }
-  }
-}
-
 export const failedStep: Record<CreateSessionFailure["step"], string> = {
-  precheck: "无法开始",
-  worktree: "创建 worktree 失败",
-  session: "启动 agent 失败",
-  config: "应用配置失败",
-  prompt: "发送首条消息失败",
+  get precheck() {
+    return m.s3_qs_fail_precheck();
+  },
+  get worktree() {
+    return m.s3_qs_fail_worktree();
+  },
+  get session() {
+    return m.s3_qs_fail_session();
+  },
+  get config() {
+    return m.s3_qs_fail_config();
+  },
+  get prompt() {
+    return m.s3_qs_fail_prompt();
+  },
 };
 
 export type QuickStartBranches = z.infer<typeof BranchesSchema>;

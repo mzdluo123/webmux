@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type {
   GitPrecedingCommit,
@@ -225,8 +226,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
 
     if (becameStale) {
       activeDiffStale = true;
-      activeDiffStaleReason =
-        "检测到外部终端或 Agent 修改了当前文件或暂存区，当前阅读快照已过期；请点击「刷新快照」后再执行暂存操作。";
+      activeDiffStaleReason = m.s7_staging_external_stale_reading();
     } else {
       activeDiffStale = false;
       activeDiffStaleReason = "";
@@ -293,8 +293,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
       } else if (out.reason === "stale") {
         activeDiffStale = true;
         activeDiffStaleReason =
-          out.banner ||
-          "文件或暂存区已被外部修改，当前差异快照已过期；请先刷新快照后再暂存。";
+          out.banner || m.s7_staging_external_stale_stage();
         bindings.patchView({ statusBanner: activeDiffStaleReason });
       } else if (out.busyOutcome) {
         bindings.patchView({ lastCommitOutcome: out.busyOutcome });
@@ -340,7 +339,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
           bindings.patchView({ lastCommitOutcome: out.busyOutcome });
           return;
         }
-        failureBanner = out.banner || "部分条目因外部并发变更未能批量更新";
+        failureBanner = out.banner || m.s7_staging_batch_partial_fail();
         break;
       }
       diffCache.clear();

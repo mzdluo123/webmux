@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { z } from "zod";
+  import { m } from "$lib/paraglide/messages.js";
   import CodeExplorerToolbar from "./CodeExplorerToolbar.svelte";
   import CodeFileTree from "./CodeFileTree.svelte";
   import CodeFileActions, { type FileTarget } from "./CodeFileActions.svelte";
@@ -22,7 +23,7 @@
   import * as NativeSelect from "$lib/components/ui/native-select";
   import * as Tabs from "$lib/components/ui/tabs";
   import IconPhoto from "~icons/tabler/photo";
-  import type { XrTextPanel } from "../../domains/terminal/xr-workspace";
+  import { xrNavigatorPanel } from "../../domains/code/xr-code-navigation";
 
   let {
     id,
@@ -131,53 +132,24 @@
       clipboard: actions ? actions.capture() : restored?.clipboard,
     };
   }
-  const xrNavigation = $derived.by((): XrTextPanel => {
-    const panel: XrTextPanel =
-      nav === "files"
-        ? (tree?.xrPanel() ?? {
-            id: "code-navigation",
-            kind: "code",
-            title: "文件导航",
-            lines: [
-              { text: pending ? "正在读取目录…" : navStatus || "目录不可用" },
-            ],
-          })
-        : {
-            id: "code-navigation",
-            kind: "code",
-            title: "Git 修改",
-            lines: changesError ? [{ text: changesError, tone: "error" }] : [],
-            actions: changes?.entries.map((change) => ({
-              id: change.changeId,
-              label: `${change.status} ${change.newPath || change.oldPath}`,
-              run: () => openDiff(change),
-            })),
-          };
-    return {
-      ...panel,
-      actions: [
-        {
-          id: "navigation-mode",
-          label: nav === "files" ? "查看 Git 修改" : "浏览文件",
-          disabled: nav === "files" && !changesEnabled,
-          run: async () => {
-            nav = nav === "files" ? "changes" : "files";
-            await load();
-          },
-        },
-        ...(panel.actions ?? []),
-        ...(nav === "changes" && changes?.nextCursor
-          ? [
-              {
-                id: "more-changes",
-                label: "加载更多修改",
-                run: () => load(true),
-              },
-            ]
-          : []),
-      ],
-    };
-  });
+  const xrNavigation = $derived(
+    xrNavigatorPanel({
+      nav,
+      treePanel: tree?.xrPanel(),
+      pending,
+      navStatus,
+      changesError,
+      changesEntries: changes?.entries,
+      changesNextCursor: changes?.nextCursor,
+      changesEnabled,
+      openDiff,
+      switchMode: async () => {
+        nav = nav === "files" ? "changes" : "files";
+        await load();
+      },
+      loadMoreChanges: () => load(true),
+    }),
+  );
   export function xrPanel() {
     return xrNavigation;
   }
@@ -186,14 +158,14 @@
   // row under the pointer, or the root anywhere else.
   let drag = $state<{ target: FileTarget; refusal: string }>();
   const dragHint = (target: FileTarget, refusal: string) =>
-    refusal || `松开以上传到 ${target.path || target.name}`;
+    refusal || m.s5_drop_to_upload({ target: target.path || target.name });
   function dropTarget(event: DragEvent): FileTarget {
     const element = event.target instanceof Element ? event.target : null;
     return (
       tree?.dropTarget(element) ?? {
         nodeId: "",
         path: "",
-        name: "根目录",
+        name: m.s5_root_directory(),
         kind: "directory",
       }
     );
@@ -216,7 +188,7 @@
     if (!actions) return;
     const refusal =
       folder && context?.writableAvailable
-        ? "不支持上传文件夹"
+        ? m.s5_folder_upload_unsupported()
         : actions.uploadRefusal();
     if (refusal) {
       actions.refuse(refusal);
@@ -253,24 +225,26 @@
 
 <nav
   class="code-navigation flex min-h-0 shrink-0 flex-col overflow-hidden border-r"
-  aria-label="文件与修改导航"
+  aria-label={m.s5_files_and_changes_nav()}
 >
   <Tabs.Root
     value={root}
     onValueChange={(v) =>
       switchRoot(v === "artifacts" ? "artifacts" : "workspace")}
   >
-    <Tabs.List variant="line" class="w-full" aria-label="代码根"
-      ><Tabs.Trigger value="workspace">工作区</Tabs.Trigger><Tabs.Trigger
-        value="artifacts">临时文件夹</Tabs.Trigger
+    <Tabs.List variant="line" class="w-full" aria-label={m.s5_code_root()}
+      ><Tabs.Trigger value="workspace">{m.s5_workspace()}</Tabs.Trigger
+      ><Tabs.Trigger value="artifacts">{m.s5_artifacts_folder()}</Tabs.Trigger
       ></Tabs.List
     >
   </Tabs.Root>
   {#if rootError}<div class="flex shrink-0 items-center gap-1 px-2 pt-1">
       <p role="alert" class="min-w-0 flex-1 text-xs break-all text-destructive">
-        临时文件夹不可用：{rootError}
+        {m.s5_artifacts_unavailable({ error: rootError })}
       </p>
-      <Button variant="outline" size="sm" onclick={retryRoot}>重试</Button>
+      <Button variant="outline" size="sm" onclick={retryRoot}
+        >{m.s5_retry()}</Button
+      >
     </div>
   {/if}
   {#if context?.rootPath}<p
@@ -286,7 +260,9 @@
       >
         {navStatus}
       </p>
-      <Button variant="outline" size="sm" onclick={reload}>刷新导航</Button>
+      <Button variant="outline" size="sm" onclick={reload}
+        >{m.s5_refresh_nav()}</Button
+      >
     </div>
   {/if}
   <Tabs.Root
@@ -297,9 +273,9 @@
     }}
   >
     <Tabs.List variant="line" class="w-full"
-      ><Tabs.Trigger value="files">文件</Tabs.Trigger
+      ><Tabs.Trigger value="files">{m.s5_files_tab()}</Tabs.Trigger
       >{#if root !== "artifacts"}<Tabs.Trigger value="changes"
-          >修改</Tabs.Trigger
+          >{m.s5_changes_tab()}</Tabs.Trigger
         >{/if}</Tabs.List
     >
   </Tabs.Root>
@@ -397,47 +373,54 @@
               >{node.kind === "directory"
                 ? "▸ "
                 : node.kind === "boundary"
-                  ? "边界 "
+                  ? `${m.s5_node_boundary()} `
                   : ""}{query ? node.path : node.name}</span
             >
-            {node.gitStatus}{node.ignored ? " · 忽略" : ""}{node.linkTarget
-              ? ` → ${node.linkTarget}`
-              : ""}
+            {node.gitStatus}{node.ignored
+              ? ` · ${m.s5_ignored_badge()}`
+              : ""}{node.linkTarget ? ` → ${node.linkTarget}` : ""}
           </ListButton>
         {/each}
         {#if listing?.nextCursor}<Button
             size="sm"
             variant="outline"
-            onclick={() => load(true)}>下一页</Button
+            onclick={() => load(true)}>{m.s5_next_page()}</Button
           >{/if}
         {#if listing?.limited || listing?.complete === false}<p
             role="status"
             class="p-2 text-xs"
           >
-            结果受限，请收窄路径；未列出全部文件。
+            {m.s5_results_limited_narrow_path()}
           </p>{/if}
         {#if listing?.children.length === 0 && !pending}<p class="p-2 text-xs">
-            没有匹配项
+            {m.s5_no_matches_found()}
           </p>{/if}
       </div>
     {/if}
   </div>
   {#if nav === "changes"}
-    {#if !context?.diffAvailable}<p class="p-2 text-xs">Git 差异不可用</p>
+    {#if !context?.diffAvailable}<p class="p-2 text-xs">
+        {m.s5_git_diff_unavailable()}
+      </p>
     {:else}
       <Label size="sm" class="mx-2 mt-2"
-        >来源
+        >{m.s5_change_source_label()}
         <NativeSelect.Root
           size="sm"
-          aria-label="修改来源"
+          aria-label={m.s5_change_source_aria()}
           class="min-w-0 flex-1"
           bind:value={changeGroup}
           onchange={() => void load()}
         >
-          <NativeSelect.Option value="">全部来源</NativeSelect.Option
-          ><NativeSelect.Option value="unstaged">未暂存</NativeSelect.Option
-          ><NativeSelect.Option value="staged">已暂存</NativeSelect.Option
-          ><NativeSelect.Option value="untracked">未跟踪</NativeSelect.Option>
+          <NativeSelect.Option value=""
+            >{m.s5_all_sources()}</NativeSelect.Option
+          ><NativeSelect.Option value="unstaged"
+            >{m.s5_unstaged()}</NativeSelect.Option
+          ><NativeSelect.Option value="staged"
+            >{m.s5_staged()}</NativeSelect.Option
+          ><NativeSelect.Option value="untracked"
+            >{m.s5_untracked()}</NativeSelect.Option
+          >
         </NativeSelect.Root>
       </Label>
       <form
@@ -450,17 +433,19 @@
       >
         <Input
           size="sm"
-          aria-label="筛选修改路径"
+          aria-label={m.s5_filter_changed_paths()}
           class="flex-1"
           bind:value={changeSearch}
-          placeholder="筛选修改路径"
+          placeholder={m.s5_filter_changed_paths()}
         />
-        <Button type="submit" variant="outline" size="sm">筛选修改</Button>
+        <Button type="submit" variant="outline" size="sm"
+          >{m.s5_filter_changes_btn()}</Button
+        >
       </form>
       {#if changesError}<Button
           variant="outline"
           size="sm"
-          onclick={() => load()}>刷新修改列表</Button
+          onclick={() => load()}>{m.s5_refresh_changes_list()}</Button
         >{/if}
       <CodeChangesList
         bind:this={changesList}

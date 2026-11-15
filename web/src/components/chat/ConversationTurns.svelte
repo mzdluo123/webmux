@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { ListButton } from "$lib/components/ui/list-button";
   import type { ConversationTurnItem } from "../../domains/chat/conversation-turns";
 
@@ -17,13 +18,18 @@
   let list = $state<HTMLDivElement | null>(null);
 
   const label = (item: ConversationTurnItem) =>
-    `${item.turn ? `第 ${item.turn} 轮` : "此前"} · ${
-      item.role === "user"
-        ? "你"
-        : item.messageIds.length > 1
-          ? `AI · ${item.messageIds.length} 条消息`
-          : "AI"
-    }：${item.summary}`;
+    m.s3_turn_item_label({
+      prefix: item.turn
+        ? m.s3_turn_number({ turn: item.turn })
+        : m.s3_turn_earlier(),
+      speaker:
+        item.role === "user"
+          ? m.s3_turn_role_you()
+          : item.messageIds.length > 1
+            ? m.s3_turn_role_ai_many({ count: item.messageIds.length })
+            : "AI",
+      summary: item.summary,
+    });
 
   const selectedId = $derived(
     items.find((item) => item.messageIds.includes(activeId))?.id ?? "",
@@ -68,7 +74,7 @@
 </script>
 
 <nav
-  aria-label="对话轮次"
+  aria-label={m.s3_conversation_turns_nav()}
   class={documentScroll
     ? "pointer-events-none fixed top-16 bottom-40 left-[calc(var(--app-sidebar-width,0px)+0.5rem)] z-10 hidden flex-col justify-center @[56rem]:flex"
     : "pointer-events-none absolute top-16 bottom-40 left-2 z-10 hidden flex-col justify-center @[56rem]:flex"}

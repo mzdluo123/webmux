@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { placeArchived } from "../sessions/archived";
 import { homeLayout, worktreeTitle } from "./home-worktrees";
 import type {
@@ -13,7 +14,7 @@ type WorktreeBatchCategory = "safe" | "blocked" | "protected";
 export type WorktreeBatchFilter = "all" | WorktreeBatchCategory;
 
 /** Why a locked registration whose directory is gone is left alone. */
-export const LOCKED_STALE_REASON = "已锁定，需在终端解锁后清理";
+export const lockedStaleReason = () => m.s8_batch_locked_stale_reason();
 
 export interface WorktreeBatchEntry {
   tree: Worktree;
@@ -51,46 +52,55 @@ function classifyWorktree(
   activeSessionCount: number,
 ): { category: WorktreeBatchCategory; reason: string } {
   if (tree.kind === "main") {
-    return { category: "protected", reason: "主工作区受保护" };
+    return { category: "protected", reason: m.s8_batch_main_protected() };
   }
   if (tree.kind !== "linked") {
-    return { category: "protected", reason: "Bare 仓库不能在页面删除" };
+    return { category: "protected", reason: m.s8_batch_bare_protected() };
   }
   if (tree.locked) {
     return {
       category: "protected",
       reason:
         tree.prunable && !tree.available
-          ? LOCKED_STALE_REASON
+          ? lockedStaleReason()
           : tree.lockReason
-            ? `已锁定：${tree.lockReason}`
-            : "工作树已锁定，请先在终端解锁",
+            ? m.s8_batch_locked_with_reason({ reason: tree.lockReason })
+            : m.s8_batch_locked_unlock_first(),
     };
   }
   const missingPrunable = tree.prunable && !tree.available;
   if (!missingPrunable) {
     if (!tree.available || tree.prunable) {
-      return { category: "protected", reason: "目录缺失或不可验证" };
+      return {
+        category: "protected",
+        reason: m.s8_batch_dir_missing_unverifiable(),
+      };
     }
     if (tree.dirty === null || tree.error !== "") {
       return {
         category: "protected",
-        reason: tree.error ? `状态未知：${tree.error}` : "工作树状态未知",
+        reason: tree.error
+          ? m.s8_batch_status_unknown_with_err({ error: tree.error })
+          : m.s8_batch_status_unknown(),
       };
     }
   }
   const blockers: string[] = [];
-  if (tree.dirty === true) blockers.push("未提交修改");
-  if (tree.hasUntracked) blockers.push("未跟踪文件");
+  if (tree.dirty === true) blockers.push(m.s8_batch_uncommitted_changes());
+  if (tree.hasUntracked) blockers.push(m.s8_batch_untracked_files());
   if (activeSessionCount > 0) {
-    blockers.push(`${activeSessionCount} 个运行中会话`);
+    blockers.push(
+      m.s8_batch_running_sessions({ count: String(activeSessionCount) }),
+    );
   }
   if (blockers.length > 0) {
-    return { category: "blocked", reason: blockers.join("、") };
+    return { category: "blocked", reason: blockers.join(m.s8_list_sep()) };
   }
   return {
     category: "safe",
-    reason: missingPrunable ? "目录已缺失，可清理登记" : "干净空闲",
+    reason: missingPrunable
+      ? m.s8_batch_stale_reg_cleanable()
+      : m.s8_batch_clean_idle(),
   };
 }
 

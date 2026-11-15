@@ -2,6 +2,7 @@
 // worktree menus, the worktree details and the repository panel's branches.
 // Counts are local: they compare with the remote-tracking refs of the last
 // fetch, and the preview recomputes them exactly.
+import { m } from "$lib/paraglide/messages.js";
 import {
   MAX_BRANCH_DELETE,
   type Branch,
@@ -91,13 +92,21 @@ export function branchActions(target: Branch | Worktree): BranchActions {
 }
 
 export const branchActionLabels: Record<BranchAction, string> = {
-  "fast-forward": "快进到上游",
-  push: "推送…",
-  publish: "发布分支…",
-  delete: "删除分支…",
+  get "fast-forward"() {
+    return m.s8_branch_action_fast_forward();
+  },
+  get push() {
+    return m.s8_branch_action_push();
+  },
+  get publish() {
+    return m.s8_branch_action_publish();
+  },
+  get delete() {
+    return m.s8_branch_action_delete();
+  },
 };
 
-export const divergedText = "已分叉，需要在终端合并或变基";
+export const divergedText = () => m.s8_diverged_text();
 
 /** The flow an action of a branch opens. */
 export function branchOperation(
@@ -119,11 +128,13 @@ export function branchOperation(
 export function operationTitle(operation: BranchOperation): string {
   switch (operation.kind) {
     case "fast-forward":
-      return "快进到上游";
+      return m.s8_branch_action_fast_forward();
     case "push":
-      return operation.publish ? "发布分支" : "推送分支";
+      return operation.publish ? m.s8_op_title_publish() : m.s8_op_title_push();
     case "delete":
-      return operation.cleanup ? "清理分支" : "删除分支";
+      return operation.cleanup
+        ? m.s8_op_title_cleanup()
+        : m.s8_op_title_delete();
   }
 }
 

@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "./api";
 import {
   isLocalOrOverlayHost,
@@ -477,7 +478,7 @@ export async function runP2PEchoABTest(stunServers: string[]): Promise<void> {
     p2pState.abTest.ipFamily = session.ipFamily;
   } catch (err) {
     p2pState.abTest.error =
-      err instanceof Error ? err.message : "双路径测速失败";
+      err instanceof Error ? err.message : m.s1_p2p_ab_test_failed();
   } finally {
     controller.signal.removeEventListener("abort", onAbort);
     abTestController = null;

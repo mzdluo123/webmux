@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import type { SearchSpec } from "../../domains/code/code-search";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -35,14 +36,19 @@
     spec[key] = !spec[key];
     commit();
   }
+  const options = $derived([
+    { key: "caseSensitive", label: m.s5_match_case(), text: "Aa" },
+    { key: "wholeWord", label: m.s5_match_whole_word(), text: "W" },
+    { key: "regexp", label: m.s5_use_regex(), text: ".*" },
+  ] as const);
 </script>
 
 <div data-code-search class="flex flex-wrap items-center gap-1 p-1">
   <Input
     bind:value={spec.search}
     {...{ "main-field": "true" }}
-    aria-label="查找"
-    placeholder="查找"
+    aria-label={m.s5_search_find()}
+    placeholder={m.s5_search_find()}
     class="h-7 min-w-32 flex-1"
     oninput={commit}
     onkeydown={(e) => {
@@ -53,7 +59,7 @@
     }}
   />
   <div class="flex items-center gap-1">
-    {#each [{ key: "caseSensitive", label: "区分大小写", text: "Aa" }, { key: "wholeWord", label: "全词匹配", text: "W" }, { key: "regexp", label: "正则表达式", text: ".*" }] as const as option (option.key)}
+    {#each options as option (option.key)}
       <Button
         variant="ghost"
         size="icon-sm"
@@ -67,29 +73,29 @@
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label="上一个匹配"
-      title="上一个匹配（Shift+Enter）"
+      aria-label={m.s5_previous_match()}
+      title={m.s5_previous_match_shortcut()}
       onclick={onprevious}><IconArrowUp aria-hidden="true" /></Button
     >
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label="下一个匹配"
-      title="下一个匹配（Enter）"
+      aria-label={m.s5_next_match()}
+      title={m.s5_next_match_shortcut()}
       onclick={onnext}><IconArrowDown aria-hidden="true" /></Button
     >
     {#if onall}<Button
         variant="ghost"
         size="icon-sm"
-        aria-label="选中全部匹配"
-        title="选中全部匹配"
+        aria-label={m.s5_select_all_matches()}
+        title={m.s5_select_all_matches()}
         onclick={onall}><IconSelectAll aria-hidden="true" /></Button
       >{/if}
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label="关闭查找"
-      title="关闭查找（Esc）"
+      aria-label={m.s5_close_search()}
+      title={m.s5_close_search_esc()}
       onclick={onclose}><IconX aria-hidden="true" /></Button
     >
   </div>

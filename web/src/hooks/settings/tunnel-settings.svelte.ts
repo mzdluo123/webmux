@@ -1,5 +1,6 @@
 import { errorMessage } from "../../platform/error";
 import { onMount } from "svelte";
+import { m } from "$lib/paraglide/messages.js";
 import { api, APIError } from "../../platform/api";
 import { LatestRequest } from "../shared/remote-request.svelte";
 import {
@@ -72,8 +73,8 @@ export function useTunnelSettings() {
       editVersion++;
       notice =
         current.state === "starting"
-          ? "已保存，正在应用隧道设置。"
-          : "操作已完成。";
+          ? m.s2_tunnel_notice_applying()
+          : m.s2_tunnel_notice_done();
       return true;
     } catch (cause) {
       if (requests.disposed) return false;

@@ -4,6 +4,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as Select from "$lib/components/ui/select";
+  import { m } from "$lib/paraglide/messages.js";
   import { uploadQuickStartFile } from "../../platform/api";
   import { emptyLocation } from "../../domains/sessions/handoff-draft";
   import type { HandoffEditor } from "../../hooks/sessions/handoff.svelte";
@@ -82,16 +83,16 @@
   );
   const actionLabel = $derived(
     e.delivery?.status === "unknown"
-      ? "等待对账"
+      ? m.s3_handoff_wait_reconcile()
       : e.delivery?.status === "pending"
-        ? "继续准备交接"
+        ? m.s3_handoff_continue_prep()
         : regenerate
           ? e.preview
-            ? "重新预览"
-            : "生成预览"
+            ? m.s3_handoff_repreview()
+            : m.s3_handoff_generate_preview()
           : e.delivery?.status === "failed"
-            ? "明确重试交接"
-            : "发送交接",
+            ? m.s3_handoff_retry()
+            : m.s3_handoff_send(),
   );
   $effect(() => {
     if (e.sealed && e.preview) uploads.commit(e.preview.attachments);
@@ -132,7 +133,8 @@
       <Button
         variant="outline"
         disabled={e.busy}
-        onclick={() => void e.serverVersion()}>读取服务端版本</Button
+        onclick={() => void e.serverVersion()}
+        >{m.s3_handoff_load_server_version()}</Button
       >
       <Button
         variant="outline"
@@ -141,14 +143,15 @@
           e.locked ||
           !e.configId ||
           unsupportedLocation}
-        onclick={() => void e.generate()}>保留编辑重新预览</Button
+        onclick={() => void e.generate()}
+        >{m.s3_handoff_keep_edits_repreview()}</Button
       >
     </div>
   {/if}
   <fieldset class="min-w-0 space-y-3" disabled={e.busy || e.locked}>
     <div class="grid min-w-0 gap-3 sm:grid-cols-2">
       <div class="min-w-0 space-y-2">
-        <Label for="handoff-agent">目标 Agent</Label>
+        <Label for="handoff-agent">{m.s3_handoff_target_agent()}</Label>
         <Select.Root
           type="single"
           value={e.configId}
@@ -157,8 +160,10 @@
             e.model = "";
           }}
         >
-          <Select.Trigger id="handoff-agent" aria-label="目标 Agent"
-            >{agent?.name ?? "选择目标 Agent"}</Select.Trigger
+          <Select.Trigger
+            id="handoff-agent"
+            aria-label={m.s3_handoff_target_agent()}
+            >{agent?.name ?? m.s3_handoff_select_target_agent()}</Select.Trigger
           >
           <Select.Content
             >{#each agents as item (item.id)}<Select.Item
@@ -169,24 +174,27 @@
         </Select.Root>
       </div>
       <div class="min-w-0 space-y-2">
-        <Label for="handoff-model">模型（可选）</Label>
+        <Label for="handoff-model">{m.s3_handoff_model_optional()}</Label>
         <Input
           id="handoff-model"
           value={e.model}
           oninput={(event) => (e.model = event.currentTarget.value)}
-          placeholder="使用目标已保存的模型"
+          placeholder={m.s3_handoff_model_placeholder()}
           autocomplete="off"
         />
       </div>
     </div>
     {#if !agents.length}<p class="text-sm text-muted-foreground">
-        请先添加支持聊天的启动配置。
+        {m.s3_handoff_no_chat_configs()}
       </p>{/if}
     {#if fork}
       <p class="break-all text-xs text-muted-foreground">
-        历史来源位置：{e.preview
-          ? e.preview.sourceLocation.cwd || "未记录，请重新预览"
-          : (e.source?.cwd ?? "")}（仅供参考）
+        {m.s3_handoff_source_location_hint({
+          cwd: e.preview
+            ? e.preview.sourceLocation.cwd ||
+              m.s3_handoff_source_cwd_unrecorded()
+            : (e.source?.cwd ?? ""),
+        })}
       </p>
       {#if workspaceAvailable && LocationPicker}
         <LocationPicker
@@ -195,7 +203,7 @@
           preferredRepositoryId={e.source?.repositoryId ?? ""}
           createdTree={null}
           newWorktreeSummary={e.location.newWorktreeBranch ||
-            "发送时创建新工作树"}
+            m.s3_handoff_create_worktree_on_send()}
           bind:kind={() => e.locationKind, kind}
           bind:cwd={
             () => e.location.cwd,
@@ -208,7 +216,7 @@
         />
       {:else}
         <div class="min-w-0 space-y-2">
-          <Label for="handoff-cwd">工作目录</Label>
+          <Label for="handoff-cwd">{m.s3_working_directory()}</Label>
           <Input
             id="handoff-cwd"
             value={e.location.cwd}
@@ -219,7 +227,7 @@
               };
               e.locationKind = "directory";
             }}
-            placeholder="输入已有目录的绝对路径"
+            placeholder={m.s3_enter_abs_dir_placeholder()}
             autocomplete="off"
             disabled={e.busy || e.locked}
           />
@@ -256,18 +264,18 @@
             disabled={e.busy || e.locked}
           />{/key}
         <p class="text-xs text-muted-foreground">
-          预览不创建工作树；首次发送时由服务端分配目录并创建新分支。
+          {m.s3_handoff_worktree_deferred_hint()}
         </p>
       {/if}
     {:else}
       <div class="min-w-0 space-y-1 text-sm">
-        <Label>工作位置（保持不变）</Label>
+        <Label>{m.s3_handoff_location_unchanged()}</Label>
         <p class="break-all text-muted-foreground">{e.source?.cwd ?? ""}</p>
       </div>
     {/if}
     {#if unsupportedLocation}
       <InlineNotice tone="warning">
-        工作区插件不可用，保留的位置选择不能提交。
+        {m.s3_handoff_workspace_unavailable()}
         <Button
           variant="outline"
           size="sm"
@@ -275,20 +283,20 @@
           onclick={() => {
             e.location = { ...emptyLocation(), cwd: e.location.cwd };
             e.locationKind = "directory";
-          }}>改用现有目录</Button
+          }}>{m.s3_handoff_use_existing_dir()}</Button
         >
       </InlineNotice>
     {/if}
   </fieldset>
   {#if e.choiceChanged && !e.sealed}<InlineNotice tone="warning"
-      >目标或位置已修改，请重新预览。当前历史与用户任务仍保留。</InlineNotice
+      >{m.s3_handoff_choice_changed_notice()}</InlineNotice
     >{/if}
   <HandoffPreviewCard editor={e} />
   <ComposerCard
     value={e.task}
     oninput={(event) => (e.task = event.currentTarget.value)}
-    label="交接后的用户任务"
-    placeholder="写给目标 Agent 的新任务，与历史分别发送…"
+    label={m.s3_handoff_task_label()}
+    placeholder={m.s3_handoff_task_placeholder()}
     {uploads}
     disabled={e.busy || e.locked}
     uploadsDisabled={e.busy || e.locked}
@@ -311,12 +319,12 @@
       />{/snippet}
     {#snippet hints()}<p class="px-1 text-xs text-muted-foreground">
         {e.locked
-          ? "投递状态尚未确定，暂不能修改或重复发送。"
+          ? m.s3_handoff_hint_locked()
           : e.saving
-            ? "正在保存任务…"
+            ? m.s3_handoff_hint_saving_task()
             : e.preview && !e.dirty && !e.sealed
-              ? "用户任务已独立保存。"
-              : "生成预览后，历史与任务分别保存到服务端。"}
+              ? m.s3_handoff_hint_task_saved()
+              : m.s3_handoff_hint_separate_save()}
       </p>{/snippet}
   </ComposerCard>
   {#if e.preview && !e.locked}
@@ -329,9 +337,9 @@
           !agent ||
           !locationReady}
         onclick={() => void e.generate()}
-        >重新预览{e.preview.manual || e.context !== e.preview.renderedText
-          ? "（保留编辑）"
-          : ""}</Button
+        >{e.preview.manual || e.context !== e.preview.renderedText
+          ? m.s3_handoff_repreview_keep_edits()
+          : m.s3_handoff_repreview()}</Button
       >
     </div>
   {/if}

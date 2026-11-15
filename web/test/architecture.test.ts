@@ -7,6 +7,7 @@ import { describe, expect, test } from "vite-plus/test";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const UI_DIR = "src/lib/components/ui/";
+const PARAGLIDE_DIR = "src/lib/paraglide/";
 
 const files = globSync("src/**/*.svelte", { cwd: root })
   .map((file) => file.replaceAll("\\", "/"))
@@ -269,7 +270,9 @@ const PASCAL_FILE = /^[A-Z][A-Za-z0-9]*(\.[a-z0-9]+)*\.(svelte|ts)$/;
 describe("file naming", () => {
   const sources = globSync("src/**/*.ts", { cwd: root })
     .map((file) => file.replaceAll("\\", "/"))
-    .filter((file) => !file.startsWith(UI_DIR));
+    .filter(
+      (file) => !file.startsWith(UI_DIR) && !file.startsWith(PARAGLIDE_DIR),
+    );
   const unitTests = globSync("test/*.ts", { cwd: root });
   const components = globSync("src/**/*.svelte", { cwd: root }).filter(
     (file) => !file.replaceAll("\\", "/").startsWith(UI_DIR),

@@ -10,6 +10,7 @@
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import type { TerminalPlugins } from "../../plugins/terminal";
   import ScratchPanel from "./ScratchPanel.svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import TerminalCopyDialog from "./TerminalCopyDialog.svelte";
   import TerminalFontDialog from "./TerminalFontDialog.svelte";
   import TerminalPasteDialog from "./TerminalPasteDialog.svelte";
@@ -116,12 +117,12 @@
         if (!open) hybrid.cancelPick();
       }
     }
-    title="选择要切到聊天的会话"
+    title={m.s4_pick_chat_session_title()}
     onconfirm={() => hybrid.pick(ambiguousPick)}
     >{hybrid.ambiguous?.message}<plugins.chat.CandidatePicker
       candidates={hybrid.ambiguous?.candidates ?? []}
       bind:picked={ambiguousPick}
-      label="选择要打开的会话"
+      label={m.s4_pick_session_to_open()}
     /></ConfirmDialog
   >
   <plugins.chat.SwitchChoice

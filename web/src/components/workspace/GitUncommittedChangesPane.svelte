@@ -55,6 +55,7 @@
 </script>
 
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import IconArchive from "~icons/tabler/archive";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconChevronRight from "~icons/tabler/chevron-right";
@@ -158,12 +159,12 @@
       ? batchSelectedIds.filter((id) => id !== item.id)
       : [...batchSelectedIds, item.id];
   }
-  const sections: { key: GitChangeGroup; title: string }[] = [
-    { key: "conflicted", title: "冲突" },
-    { key: "staged", title: "已暂存" },
-    { key: "unstaged", title: "未暂存" },
-    { key: "untracked", title: "未跟踪" },
-  ];
+  const sections = $derived<{ key: GitChangeGroup; title: string }[]>([
+    { key: "conflicted", title: m.s7_group_conflicted() },
+    { key: "staged", title: m.s7_group_staged() },
+    { key: "unstaged", title: m.s7_group_unstaged() },
+    { key: "untracked", title: m.s7_group_untracked() },
+  ]);
 
   const visibleEntries = $derived.by(() => {
     const out: GitWorkingChange[] = [];
@@ -220,11 +221,11 @@
 
 <section
   class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-  aria-label="工作树变更与提交"
+  aria-label={m.s7_uncommitted_pane_aria()}
 >
   <GitPanelToolbar>
     <span class="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
-      变更树（阅读高亮 / 已审阅 / 真实暂存三态独立）
+      {m.s7_uncommitted_toolbar_title()}
     </span>
     <div class="flex shrink-0 items-center gap-1">
       {#if !readonlyMode && onOpenStashCreate}
@@ -235,23 +236,23 @@
             changes.length === 0 ||
             grouped.conflicted.length > 0}
           title={changes.length === 0
-            ? "当前无未提交改动可贮藏"
+            ? m.s7_uncommitted_stash_empty_title()
             : grouped.conflicted.length > 0
-              ? "存在未解决冲突时无法创建贮藏"
-              : "将当前工作树改动打包保存为贮藏 (Stash)"}
+              ? m.s7_uncommitted_stash_conflict_title()
+              : m.s7_uncommitted_stash_ready_title()}
           onclick={() => onOpenStashCreate(grouped.untracked.length > 0)}
           data-testid="git-commit-stash-changes-btn"
         >
           <IconArchive aria-hidden="true" />
-          贮藏更改…
+          {m.s7_uncommitted_stash_btn()}
         </Button>
       {/if}
       {#if onRefreshSnapshot}
         <Button
           size="icon-sm"
           variant="ghost"
-          aria-label="刷新暂存区快照"
-          title="刷新暂存区快照"
+          aria-label={m.s7_uncommitted_refresh_aria()}
+          title={m.s7_uncommitted_refresh_aria()}
           onclick={onRefreshSnapshot}
         >
           <IconRefresh aria-hidden="true" />
@@ -263,18 +264,21 @@
   {#if readonlyMode}
     <div class="p-3">
       <InlineNotice tone="info">
-        当前处于无工作树只读仓库上下文，无法暂存或创建提交。请切换到具体工作树。
+        {m.s7_uncommitted_readonly_notice()}
       </InlineNotice>
     </div>
   {/if}
 
   {#if grouped.conflicted.length > 0 || context.operationInProgress}
     <GitConflictTerminalNotice
-      message={`${
-        context.operationInProgress
-          ? `正在进行 Git 操作：${context.operationInProgress}（冲突 ${grouped.conflicted.length} 项）`
-          : `存在 ${grouped.conflicted.length} 个未解决冲突`
-      }。请打开三方冲突解决器处理，或在工作树终端解决。`}
+      message={context.operationInProgress
+        ? m.s7_uncommitted_op_conflict_notice({
+            op: context.operationInProgress,
+            count: grouped.conflicted.length,
+          })
+        : m.s7_uncommitted_conflict_notice({
+            count: grouped.conflicted.length,
+          })}
       {hasActiveWorktreeSession}
       onOpenConflictResolver={grouped.conflicted.length > 0 &&
       onOpenConflictResolver
@@ -307,7 +311,7 @@
     class="min-h-8 flex-1"
     viewportProps={{
       role: "listbox",
-      "aria-label": "工作树变更条目",
+      "aria-label": m.s7_uncommitted_listbox_aria(),
       onkeydown: handleListKeydown,
     }}
     onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
@@ -366,7 +370,7 @@
                   disabled={stagingBusy}
                   onclick={() => onStageGroup("unstage", "staged")}
                 >
-                  全部取消暂存
+                  {m.s7_uncommitted_unstage_all()}
                 </Button>
               {:else if sec.key === "unstaged" || sec.key === "untracked"}
                 {#if onDiscardChanges}
@@ -381,7 +385,7 @@
                       )}
                     data-testid={`git-discard-group-${sec.key}`}
                   >
-                    全部丢弃…
+                    {m.s7_uncommitted_discard_all()}
                   </Button>
                 {/if}
                 <Button
@@ -394,7 +398,7 @@
                       sec.key === "unstaged" ? "unstaged" : "untracked",
                     )}
                 >
-                  全部暂存
+                  {m.s7_uncommitted_stage_all()}
                 </Button>
               {/if}
             {/if}
@@ -402,7 +406,9 @@
 
           {#if isOpen}
             {#if list.length === 0}
-              <p class="px-6 py-1 text-xs text-muted-foreground">暂无条目</p>
+              <p class="px-6 py-1 text-xs text-muted-foreground">
+                {m.s7_uncommitted_empty_section()}
+              </p>
             {:else}
               <div class="space-y-0.5">
                 {#each list as entry (entry.id)}

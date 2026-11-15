@@ -12,6 +12,7 @@
   import LazyDialog from "../shared/LazyDialog.svelte";
   import RenameSessionDialog from "../sessions/RenameSessionDialog.svelte";
   import CloseSessionDialog from "../sessions/CloseSessionDialog.svelte";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     shell,
@@ -41,14 +42,14 @@
   {@const target = creating}
   <LazyDialog
     load={() => import("../sessions/NewSessionDialog.svelte")}
-    label="创建表单"
+    label={m.s1_new_session_form()}
     onclose={() => (creating = null)}
   >
     {#snippet children(page)}
       <page.default
         launchConfigs={launchConfigs?.state ?? {
           status: "unavailable",
-          error: "启动配置界面暂不可用",
+          error: m.s1_launch_configs_unavailable(),
         }}
         repositories={[...(repositories?.list ?? [])]}
         defaultCwd={shell.setup.value.cwd}
@@ -59,7 +60,8 @@
         onchange={onrefreshworktrees}
         onworktreecreated={(tree) => {
           const workspace = pluginContributions.entries.workspace;
-          if (!workspace || !repositories) throw new Error("工作区功能未启用");
+          if (!workspace || !repositories)
+            throw new Error(m.s1_workspace_not_enabled());
           workspace.pinCreatedWorktree(repositories.list, tree);
         }}
         onclose={() => (creating = null)}
@@ -70,7 +72,7 @@
 {#if forwarding && forward}
   <LazyDialog
     load={forward.dialog}
-    label="端口转发"
+    label={m.s1_port_forwarding()}
     onclose={() => (forwarding = false)}
   >
     {#snippet children(page)}<page.default

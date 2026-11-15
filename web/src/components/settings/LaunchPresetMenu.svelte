@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { Badge } from "$lib/components/ui/badge";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { joinArgs } from "../../platform/api";
@@ -49,17 +50,21 @@
       class="min-h-9 any-pointer-coarse:min-h-11"
       disabled={busy || exists || full}
       aria-label={exists
-        ? `${preset.name}（已存在）`
-        : `添加预设 ${preset.name}`}
+        ? m.s2_preset_exists_aria({ name: preset.name })
+        : m.s2_preset_add_aria({ name: preset.name })}
       onSelect={() => onrestore(preset.name)}
     >
       <LaunchConfigIcon icon={launchConfigIcon(preset)} />
       <span class="flex min-w-0 flex-1 flex-col gap-0.5">
         <span class="flex min-w-0 items-center gap-1.5">
           <span class="truncate font-medium">{preset.name}</span>
-          {#if preset.chat}<Badge variant="secondary">混合</Badge>{/if}
+          {#if preset.chat}<Badge variant="secondary"
+              >{m.s2_preset_hybrid_badge()}</Badge
+            >{/if}
           {#if preset.envNames.length}<Badge variant="secondary"
-              >{preset.envNames.length} 个环境变量</Badge
+              >{m.s2_launch_env_count({
+                count: String(preset.envNames.length),
+              })}</Badge
             >{/if}
         </span>
         <span class="truncate font-mono text-xs text-muted-foreground"
@@ -67,7 +72,7 @@
         >
       </span>
       {#if exists}
-        <Badge variant="outline">已存在</Badge>
+        <Badge variant="outline">{m.s2_preset_exists_badge()}</Badge>
       {/if}
     </DropdownMenu.Item>
   {/each}

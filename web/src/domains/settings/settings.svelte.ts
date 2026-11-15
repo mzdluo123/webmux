@@ -1,4 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
+import { m } from "$lib/paraglide/messages.js";
 import { api, APIError } from "../../platform/api";
 import { onActiveHostChange, store, stored } from "../../platform/storage";
 import { connect, type SocketConnection } from "../../platform/ws";
@@ -137,14 +138,14 @@ export function startSettings() {
 export function saveSettings(changes: Partial<SettingsValues>): Promise<void> {
   if (!settings.ready)
     return Promise.reject(
-      new Error(settings.error || "设置尚未连接，请重新读取"),
+      new Error(settings.error || m.s2_settings_err_not_connected()),
     );
   const epoch = generation;
   const operation = settingsIntent($state.snapshot(settings.values), changes);
   pending.push(operation);
   render();
   const task = serial.then(async () => {
-    if (epoch !== generation) throw new Error("连接已改变，请重新保存");
+    if (epoch !== generation) throw new Error(m.s2_settings_err_conn_changed());
     try {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
@@ -157,7 +158,8 @@ export function saveSettings(changes: Partial<SettingsValues>): Promise<void> {
               changes: operation(confirmed.values),
             },
           );
-          if (epoch !== generation) throw new Error("连接已改变，请重新保存");
+          if (epoch !== generation)
+            throw new Error(m.s2_settings_err_conn_changed());
           adopt(snapshot);
           settings.error = "";
           return;
@@ -165,7 +167,8 @@ export function saveSettings(changes: Partial<SettingsValues>): Promise<void> {
           if (!(err instanceof APIError) || err.status !== 409 || attempt)
             throw err;
           const latest = await api("/settings", SettingsSnapshotSchema);
-          if (epoch !== generation) throw new Error("连接已改变，请重新保存");
+          if (epoch !== generation)
+            throw new Error(m.s2_settings_err_conn_changed());
           adopt(latest, true);
         }
       }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -44,7 +45,7 @@
         parsedServePort >= 0 &&
         parsedServePort <= 65535
       )
-      ? "端口必须是 1–65535 的整数，留空表示自动。"
+      ? m.s2_ts_err_port()
       : "",
   );
   const port = $derived(
@@ -59,30 +60,30 @@
   }
 </script>
 
-<form onsubmit={submit} class="space-y-4" aria-label="Tailscale 配置">
+<form onsubmit={submit} class="space-y-4" aria-label={m.s2_ts_form_aria()}>
   <fieldset {disabled} class="min-w-0 space-y-4">
     <Tabs.Root bind:value={mode}>
-      <Tabs.List variant="line" size="form" aria-label="Tailscale 模式">
-        <Tabs.Trigger value="off">关闭</Tabs.Trigger>
+      <Tabs.List variant="line" size="form" aria-label={m.s2_ts_mode_aria()}>
+        <Tabs.Trigger value="off">{m.s2_launch_attn_mode_off()}</Tabs.Trigger>
         <Tabs.Trigger value="serve">Serve</Tabs.Trigger>
         <Tabs.Trigger value="funnel">Funnel</Tabs.Trigger>
       </Tabs.List>
       <Tabs.Content value="off" class="pt-3">
         <p class="text-sm text-muted-foreground">
-          不创建入口；保存后会移除 WebMux 自己记录的入口，其他入口保持不变。
+          {m.s2_ts_off_desc()}
         </p>
       </Tabs.Content>
       <Tabs.Content value="serve" class="space-y-4 pt-3">
         <p class="text-sm text-muted-foreground">
-          仅 tailnet 内已登录的设备可访问，证书由 Tailscale 自动签发。
+          {m.s2_ts_serve_desc()}
         </p>
         <div class="grid gap-2">
-          <Label for="tailscale-serve-port">Serve HTTPS 端口</Label>
+          <Label for="tailscale-serve-port">{m.s2_ts_serve_port()}</Label>
           <Input
             id="tailscale-serve-port"
             inputmode="numeric"
             bind:value={servePort}
-            placeholder="自动（443 / 8443 / 10000）"
+            placeholder={m.s2_ts_serve_port_placeholder()}
             autocomplete="off"
             aria-invalid={attempted && !!portError}
             aria-describedby="tailscale-serve-port-help"
@@ -91,21 +92,18 @@
             id="tailscale-serve-port-help"
             class="text-xs text-muted-foreground"
           >
-            {attempted && portError
-              ? portError
-              : "留空自动选择第一个没有其他入口的端口；显式端口被占用时不会覆盖。"}
+            {attempted && portError ? portError : m.s2_ts_serve_port_help()}
           </p>
         </div>
       </Tabs.Content>
       <Tabs.Content value="funnel" class="space-y-4 pt-3">
         <p class="text-sm text-warning">
-          Funnel 会把 WebMux 公开到互联网：任何拿到链接与 Token
-          的人都能以服务用户身份执行命令。保存前需要再次确认。
+          {m.s2_ts_funnel_warn()}
         </p>
         <div class="grid gap-2">
-          <Label for="tailscale-funnel-port">Funnel HTTPS 端口</Label>
+          <Label for="tailscale-funnel-port">{m.s2_ts_funnel_port()}</Label>
           <NativeSelect.Root id="tailscale-funnel-port" bind:value={funnelPort}>
-            <NativeSelect.Option value="0">自动</NativeSelect.Option>
+            <NativeSelect.Option value="0">{m.s2_auto()}</NativeSelect.Option>
             {#each TailscaleFunnelPorts as option (option)}
               <NativeSelect.Option value={String(option)}
                 >{option}</NativeSelect.Option
@@ -122,21 +120,20 @@
         bind:value={provider}
         aria-describedby="tailscale-provider-help"
       >
-        <NativeSelect.Option value="auto">自动</NativeSelect.Option>
+        <NativeSelect.Option value="auto">{m.s2_auto()}</NativeSelect.Option>
         <NativeSelect.Option value="linux"
-          >Linux / macOS / WSL 内</NativeSelect.Option
+          >{m.s2_ts_provider_linux()}</NativeSelect.Option
         >
         {#if current.wsl}
           <NativeSelect.Option value="windows"
-            >Windows 主机（需 mirrored 网络）</NativeSelect.Option
+            >{m.s2_ts_provider_windows()}</NativeSelect.Option
           >
         {/if}
       </NativeSelect.Root>
       <p id="tailscale-provider-help" class="text-xs text-muted-foreground">
-        自动永不代管 Windows 节点。CLI 路径只能在配置文件的 [tailscale] command
-        中设置。
+        {m.s2_ts_provider_help()}
       </p>
     </div>
-    <Button type="submit">保存并应用</Button>
+    <Button type="submit">{m.s2_save_and_apply()}</Button>
   </fieldset>
 </form>

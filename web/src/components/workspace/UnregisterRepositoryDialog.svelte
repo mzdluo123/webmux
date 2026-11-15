@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import { api } from "../../platform/api";
   import { NoContentSchema, type Repository } from "../../contracts/schemas";
@@ -24,13 +25,12 @@
 
 <ConfirmDialog
   bind:open
-  title="从列表移除仓库？"
-  confirmLabel="确认移除登记"
-  busyLabel="正在移除…"
+  title={m.s8_unregister_repo_title()}
+  confirmLabel={m.s8_unregister_repo_confirm()}
+  busyLabel={m.s8_unregister_repo_busy()}
   onconfirm={unregister}
 >
   <span class="break-all whitespace-pre-wrap"
-    >{repository?.anchorPath}<br
-    />只移除持久登记，不删除任何目录或分支，不关闭会话。原会话仍可在「直接会话」中访问。</span
+    >{repository?.anchorPath}<br />{m.s8_unregister_repo_body()}</span
   >
 </ConfirmDialog>
