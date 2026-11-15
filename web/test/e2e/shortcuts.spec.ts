@@ -2,116 +2,72 @@ import { readFile } from "node:fs/promises";
 import { test, expect, createShell, recordInput } from "./fixtures";
 
 for (const theme of ["light", "dark"] as const) {
-  test(`shortcut help stays accessible and scrolls in ${theme} theme`, async ({
+  test(`settings shortcut reference supports navigation in ${theme} theme`, async ({
     page,
-    workDir,
-  }, testInfo) => {
-    // Phones below 640px hide the shortcut button; test the narrowest size
-    // that shows it.
-    if (testInfo.project.use.isMobile)
-      await page.setViewportSize({ width: 640, height: 740 });
+  }) => {
     await page.emulateMedia({ colorScheme: theme });
-    await createShell(page, "Shortcut reference", workDir);
-    const trigger = page.getByRole("button", { name: "快捷键", exact: true });
-    await expect(trigger).toBeInViewport({ ratio: 1 });
-    const bounds = (await trigger.boundingBox())!;
-    expect(bounds.x + bounds.width).toBeGreaterThan(
-      page.viewportSize()!.width - 24,
-    );
-    await testInfo.attach(`terminal-${theme}.png`, {
-      body: await page.screenshot({ animations: "disabled" }),
-      contentType: "image/png",
-    });
-    await expect(page.locator("html")).toHaveClass(
-      theme === "dark" ? /dark/ : /^(?!.*dark)/,
-    );
-    await trigger.click();
-    const dialog = page.getByRole("dialog", { name: "快捷键", exact: true });
-    const shortcuts = dialog.getByRole("region", { name: "所有快捷键" });
-    await expect(dialog).toBeVisible();
-    await expect(dialog).toBeInViewport({ ratio: 1 });
+    await page.goto("/settings");
+    const link = page.getByRole("link", { name: "快捷键", exact: true });
+    await link.click();
+    await expect(page).toHaveURL(/\/settings#shortcuts$/);
+    const reference = page.locator("#shortcuts");
+    await expect(reference).toBeFocused();
     await expect(
-      dialog.getByRole("heading", { name: "窗格管理" }),
-    ).toBeVisible();
-    await expect(
-      dialog.getByText("向终端发送 Ctrl + B", { exact: true }),
-    ).toBeVisible();
-    await testInfo.attach(`shortcuts-${theme}.png`, {
-      body: await page.screenshot({ animations: "disabled" }),
-      contentType: "image/png",
-    });
-    await shortcuts.focus();
-    await page.keyboard.press("End");
-    await expect(
-      dialog.getByRole("heading", { name: "列表与弹窗" }),
+      reference.getByRole("heading", { name: "窗格管理" }),
     ).toBeInViewport();
+    await reference
+      .getByRole("heading", { name: "列表与弹窗" })
+      .scrollIntoViewIfNeeded();
+    await expect(
+      reference.getByText("⌘ + K / Ctrl + Alt + K", { exact: true }),
+    ).toBeVisible();
     expect(
-      await dialog.evaluate(
-        (element) => element.scrollWidth <= element.clientWidth,
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
-    await page.setViewportSize({ width: 740, height: 320 });
-    await expect(dialog).toBeInViewport({ ratio: 1 });
+
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.reload();
+    await expect(reference).toBeFocused();
     await expect(
-      dialog.getByRole("button", { name: "关闭", exact: true }),
-    ).toBeInViewport({ ratio: 1 });
-    await dialog.getByRole("button", { name: "关闭", exact: true }).click();
-    await expect(dialog).toBeHidden();
-    await expect(trigger).toBeFocused();
+      reference.getByRole("heading", { name: "窗格管理" }),
+    ).toBeInViewport();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
   });
 }
 
-test("help traps keyboard input, preserves drafts and returns focus on Escape", async ({
+test("reading shortcuts leaves the terminal input and draft untouched", async ({
   page,
   workDir,
-}, testInfo) => {
-  test.skip(
-    testInfo.project.use.isMobile,
-    "Phones below 640px hide the shortcut help: no physical keyboard",
-  );
-  await createShell(page, "Help input isolation", workDir);
+}) => {
+  const id = await createShell(page, "Shortcut reference return", workDir);
   const path = await recordInput(page, workDir);
-  const trigger = page.getByRole("button", { name: "快捷键", exact: true });
-  await trigger.click();
-  const dialog = page.getByRole("dialog", { name: "快捷键", exact: true });
-  await dialog.getByRole("region", { name: "所有快捷键" }).focus();
-  await page.keyboard.press("Control+b");
-  await page.keyboard.press("Shift+5");
-  await page.keyboard.type("help-only");
-  await expect(page.locator(".split-terminal")).toHaveCount(1);
-  await expect(dialog).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
-  await expect(trigger).toBeFocused();
-  expect(await readFile(path, "utf8")).toBe("");
-
-  await page.getByRole("button", { name: "草稿模式" }).click();
-  const draft = page.locator(".terminal-composer textarea");
-  await draft.fill("Keep this unsent draft");
-  await trigger.click();
-  await expect(dialog).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
-  await expect(trigger).toBeFocused();
-  await expect(draft).toHaveValue("Keep this unsent draft");
-  expect(await readFile(path, "utf8")).toBe("");
-});
-
-test("phones open the shortcut help from the terminal menu", async ({
-  page,
-  workDir,
-}, testInfo) => {
-  test.skip(!testInfo.project.use.isMobile, "Desktop keeps the header button");
-  await page.setViewportSize({ width: 320, height: 740 });
-  await createShell(page, "Phone shortcut help", workDir);
   await expect(
     page.getByRole("button", { name: "快捷键", exact: true }),
-  ).toBeHidden();
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "终端菜单", exact: true }).click();
-  await page.getByRole("menuitem", { name: "快捷键", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "快捷键", exact: true });
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toBeInViewport({ ratio: 1 });
+  await expect(
+    page.getByRole("menuitem", { name: "快捷键", exact: true }),
+  ).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
+
+  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  const draft = page.locator(".terminal-composer textarea");
+  await draft.fill("Keep this unsent draft");
+  await page.goto(`/settings?session=${id}#shortcuts`);
+  await expect(page.locator("#shortcuts")).toBeFocused();
+  await page.keyboard.press("Control+b");
+  await page.keyboard.press("Shift+5");
+  await page.keyboard.type("reference-only");
+  expect(await readFile(path, "utf8")).toBe("");
+
+  await page.getByRole("button", { name: "返回终端", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/s/${id}$`));
+  await expect(draft).toHaveValue("Keep this unsent draft");
+  expect(await readFile(path, "utf8")).toBe("");
 });

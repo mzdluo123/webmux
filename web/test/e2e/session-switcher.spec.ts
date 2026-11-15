@@ -6,7 +6,6 @@ import {
   createShell,
   expect,
   expectConnected,
-  headerAction,
   openPaneMenu,
   recordInput,
   test,
@@ -163,11 +162,11 @@ test("shortcut preserves Shell input and restores focus when dismissed", async (
   await expect(terminal).toBeFocused();
   expect(await readFile(recording, "utf8")).toBe("\x0b");
 
-  await (await headerAction(page, "快捷键")).click();
+  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
   await page.keyboard.press(keys!);
   await expect(dialog).toBeHidden();
   await expect(
-    page.getByRole("dialog", { name: "快捷键", exact: true }),
+    page.getByRole("menuitem", { name: "清屏", exact: true }),
   ).toBeVisible();
 });
 
