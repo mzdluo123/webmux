@@ -177,6 +177,11 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 证书、pin、主机身份与协议错误 MUST NOT 通过重试绕过。网络重连 SHALL 使用有界退避，报告实际传输、角色就绪数与脱敏 reconnectReason；MUST NOT 自动重放非幂等业务请求。
 
+#### Scenario: 续接后恢复可操作
+
+- **WHEN** 网络恢复且原持久 PTY 仍存活，浏览器按 generation/offset 重新附加
+- **THEN** SHALL 维持输出连续性且不重复提交已确认输入，以恢复后新输入的真实回显证明可操作；验收记录检测、建链、续接及回显耗时，不把手动重启夹具当作自动恢复
+
 #### Scenario: UDP 黑洞不延迟 WSS 建连
 
 - **WHEN** UDP 不可达而目标 TCP 443 可达

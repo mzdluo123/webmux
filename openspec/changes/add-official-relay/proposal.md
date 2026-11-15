@@ -22,7 +22,7 @@
 - 官方 Relay 默认关闭，独立于 Cloudflare Tunnel 和 Tailscale。现有 P2P 配置、直连候选限制与无损切换协议不变，Relay 仅成为新的基线路径。
 - MVP 仅支持单节点、单进程、每账号一台主机和邀请制运营；不包含多区域、高可用、自定义域名、匿名配额、TURN、端到端加密或独立稳定域名壳。
 
-实测依据见 [issue #604 验证报告](../../../docs/relay-validation-604.md)。本次冻结 MVP 工程选择，未实现生产数据面；QUIC、KCP/FEC、Hysteria 与完整产品保留为后续研究。
+实测依据见 [issue #604 验证报告](../../../docs/relay-validation-604.md)。同时参考[终端优先补测](../../../docs/relay-terminal-validation-604.md)，以按键回显、输出完整性和恢复优先判断，不把 WSS 说成所有场景延迟最低。未实现生产数据面；QUIC、KCP/FEC、Hysteria 与完整产品保留为后续研究。
 
 ## Capabilities
 
