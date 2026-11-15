@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Frame, FrameLocator, Locator, Page } from "@playwright/test";
-import { test, expect, createShell, viewSwitch } from "./fixtures";
+import { test, expect, createShell, toggleCode } from "./fixtures";
 
 function git(root: string, ...args: string[]) {
   execFileSync("git", ["-C", root, ...args], {
@@ -24,8 +24,10 @@ function frameOf(win: Page) {
   return win.frameLocator('iframe[title="代码工作区"]');
 }
 type Scope = Page | FrameLocator;
-function showCode(page: Page) {
-  return viewSwitch(page.locator(".terminal-header"), "代码").click();
+async function showCode(page: Page) {
+  const code = page.getByRole("region", { name: "代码工作区" });
+  if (!(await code.isVisible())) await toggleCode(page);
+  await expect(code).toBeVisible();
 }
 function popOutButton(page: Page) {
   return page.getByRole("button", {
@@ -254,10 +256,7 @@ test("closing the opener's code view keeps the popped-out panel live", async ({
   );
   await writeFile(join(workDir, "live.txt"), "before\n");
   await createShell(page, "Popout live", workDir);
-  const toggle = page
-    .locator(".terminal-header")
-    .getByRole("button", { name: /^(代码|折叠代码)$/ });
-  await toggle.click();
+  await toggleCode(page);
   const opened = page.context().waitForEvent("page");
   await popOutButton(page).click();
   const frame = frameOf(await opened);
@@ -267,7 +266,7 @@ test("closing the opener's code view keeps the popped-out panel live", async ({
   ).toContainText("before");
   // Hiding the code pane in the opener must not pause the popped-out panel's
   // update checks.
-  await toggle.click();
+  await toggleCode(page);
   await writeFile(join(workDir, "live.txt"), "after\n");
   await expect(
     frame.getByRole("tab", { name: /^live\.txt · worktree ●$/ }),
@@ -503,7 +502,7 @@ test("mobile browsers without Picture-in-Picture offer no pop-out", async ({
   await withoutPictureInPicture(page);
   await writeFile(join(workDir, "mobile.txt"), "mobile document\n");
   await createShell(page, "Mobile code", workDir);
-  await viewSwitch(page, "代码").click();
+  await toggleCode(page);
   await expect(
     page.getByRole("button", { name: "mobile.txt", exact: true }),
   ).toBeVisible();

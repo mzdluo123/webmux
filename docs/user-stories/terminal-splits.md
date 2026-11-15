@@ -6,6 +6,7 @@
 - **US-D13 分屏操作多个终端**：作为同时处理多个任务的使用者，我希望像 tmux 一样左右或上下拆分终端，以便同时观察和操作多个 Shell 或 agent。
   验收要点：
   - 支持嵌套拆分，最多 8 窗格；
+  - 桌面与手机均点击“打开面板”展开右侧栏选择页，选择“分屏”后以原有全部分屏选项替换选择页；头部返回箭头回到选择页，关闭按钮关闭侧栏；不再提供独立顶栏分屏按钮或终端菜单中的分屏组；
   - 可用统一表单新建、快速启动 `/bin/sh -i` 或加入已有会话，同一布局不重复附着；
   - 每窗格独立保留终端、聊天、草稿与代码状态；
   - Ctrl+B 后接 %/双引号拆分、方向键/o 切换、z 放大、x 关闭窗格，连续两次 Ctrl+B 传递原键；
@@ -28,7 +29,7 @@
 
 - [终端页面](../../web/src/pages/Terminal.svelte)
 - [统一新建会话](../../web/src/components/NewSessionDialog.svelte)
-- [分屏菜单](../../web/src/components/TerminalSplitMenu.svelte)
+- [分屏面板](../../web/src/components/TerminalSplitPanel.svelte)
 - [已有会话选择](../../web/src/components/SplitSessionDialog.svelte)
 - [布局恢复](../../web/src/terminal-layout.ts)
 - [分屏验收](../../web/test/e2e/splits.spec.ts)

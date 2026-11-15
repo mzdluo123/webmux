@@ -7,7 +7,7 @@ import {
   chooseLaunch,
   chooseLocation,
   expect,
-  openPaneMenu,
+  openSplitPanel,
   test,
   useCustomCommand,
 } from "./fixtures";
@@ -148,10 +148,8 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
     .locator(".xterm")
     .evaluate((element) => element.setAttribute("data-retained", "yes"));
   const open = async () => {
-    await openPaneMenu(pane);
-    await page
-      .getByRole("menuitem", { name: "新建会话…", exact: true })
-      .click();
+    await openSplitPanel(pane);
+    await page.getByRole("button", { name: "新建会话…", exact: true }).click();
     await expect(page.getByLabel("工作目录", { exact: true })).toHaveValue(cwd);
   };
   await open();
@@ -174,8 +172,10 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
     configId: config.id,
     workspace: { repositoryId: repo.id },
   });
-  await openPaneMenu(page.locator(".split-terminal").last());
-  await page.getByRole("menuitem", { name: "左右分屏 · 新建 Shell" }).click();
+  await openSplitPanel(page.locator(".split-terminal").last());
+  await page
+    .getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true })
+    .click();
   await expect(page.locator(".split-terminal")).toHaveCount(3);
   const all = await (await request.get("/api/sessions")).json();
   expect(all.every((item: { cwd: string }) => item.cwd === cwd)).toBe(true);
@@ -193,8 +193,8 @@ test("split creation retains a new worktree across repository changes after comm
   });
   const original = (await response.json()).session;
   await page.goto(`/s/${original.id}`);
-  await openPaneMenu(page);
-  await page.getByRole("menuitem", { name: "新建会话…", exact: true }).click();
+  await openSplitPanel(page);
+  await page.getByRole("button", { name: "新建会话…", exact: true }).click();
   // The pane's repository is listed first, so its "new worktree" comes first.
   await chooseLocation(page, "新建工作树…");
   const location = page.getByRole("button", { name: "位置", exact: true });

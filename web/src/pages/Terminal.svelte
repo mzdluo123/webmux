@@ -14,7 +14,7 @@
   import { isIOS } from "../touch-input";
   import { chatDocumentScroll, isStandalone } from "../capabilities";
   import { setBrowserChrome, resetBrowserChrome } from "../browser-chrome";
-  import TerminalSplitMenu from "../components/TerminalSplitMenu.svelte";
+  import TerminalSplitPanel from "../components/TerminalSplitPanel.svelte";
   import InlineNotice from "../components/InlineNotice.svelte";
   import { hasTouchInput } from "../touch-input";
   import { useViewport } from "../hooks/viewport.svelte";
@@ -501,22 +501,34 @@
               connections[value.id] = connection;
             }}
           >
-            {#snippet paneActions(inline: boolean)}
-              <TerminalSplitMenu
-                {inline}
+            {#snippet paneActions(closePanel: () => void)}
+              <TerminalSplitPanel
                 busy={splitBusy}
                 limit={ids.length >= MAX_PANES}
                 ready={!!info[pane.sessionId]}
                 onsplit={(direction) => {
+                  closePanel();
                   void split(direction, pane.sessionId);
                 }}
-                oncreate={() => createSession(pane.sessionId)}
+                oncreate={() => {
+                  closePanel();
+                  createSession(pane.sessionId);
+                }}
                 onchoose={() => {
+                  closePanel();
                   active = pane.sessionId;
                   choosing = true;
                 }}
-                onclose={() => close(pane.sessionId)}
-                onzoom={ids.length > 1 ? () => zoom(pane.sessionId) : undefined}
+                onclose={() => {
+                  closePanel();
+                  close(pane.sessionId);
+                }}
+                onzoom={ids.length > 1
+                  ? () => {
+                      closePanel();
+                      zoom(pane.sessionId);
+                    }
+                  : undefined}
                 {zoomed}
               />
             {/snippet}

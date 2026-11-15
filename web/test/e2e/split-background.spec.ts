@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Locator, Page } from "@playwright/test";
-import { test, expect, createShell, openPaneMenu } from "./fixtures";
+import { test, expect, createShell, openSplitPanel } from "./fixtures";
 
 async function command(page: Page, pane: Locator, value: string) {
   await pane.locator(".xterm-helper-textarea").focus();
@@ -36,8 +36,10 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
     }, clipboard);
     const id = await createShell(page, "Foreground shell", workDir);
     const foreground = page.locator(`[data-session-id="${id}"]`);
-    await openPaneMenu(foreground);
-    await page.getByRole("menuitem", { name: "左右分屏 · 新建 Shell" }).click();
+    await openSplitPanel(foreground);
+    await page
+      .getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true })
+      .click();
     const background = page.locator(".split-terminal").nth(1);
     await expect(
       background.locator(".terminal-header .status-dot"),
@@ -170,8 +172,10 @@ test("background hybrid choice waits for pane activation", async ({
       };
     });
   });
-  await openPaneMenu(foreground);
-  await page.getByRole("menuitem", { name: "加入已有会话…" }).click();
+  await openSplitPanel(foreground);
+  await page
+    .getByRole("button", { name: "加入已有会话…", exact: true })
+    .click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: /Pending agent/ })

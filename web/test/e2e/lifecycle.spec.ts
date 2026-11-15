@@ -9,7 +9,7 @@ import {
   expectTerminalLine,
   headerAction,
   expectConnected,
-  viewSwitch,
+  toggleCode,
   backToList,
 } from "./fixtures";
 
@@ -290,7 +290,7 @@ test("replay and the header action return to latest output without typing", asyn
 
   await scrollBack();
   if (info.project.use.isMobile) {
-    await viewSwitch(page.locator(".terminal-header"), "代码").click();
+    await toggleCode(page);
     await expect(
       page.getByRole("region", { name: "代码工作区" }),
     ).toBeVisible();
@@ -325,8 +325,7 @@ test("replay and the header action return to latest output without typing", asyn
   expect(sockets.at(-1)).toBe(live);
   expect(live.isClosed()).toBe(false);
   await latestEnabled();
-  if (info.project.use.isMobile)
-    await viewSwitch(page.locator(".terminal-header"), "终端").click();
+  if (info.project.use.isMobile) await toggleCode(page);
   // Nothing was missed, so the reading position stays until the header
   // action (the floating button on phones) returns to the latest output.
   if (narrow) await floating.click();
@@ -335,9 +334,9 @@ test("replay and the header action return to latest output without typing", asyn
 
   if (info.project.use.isMobile) {
     await scrollBack();
-    await viewSwitch(page.locator(".terminal-header"), "代码").click();
+    await toggleCode(page);
     // From the narrow code view, the view switch returns to the terminal.
-    await viewSwitch(page.locator(".terminal-header"), "终端").click();
+    await toggleCode(page);
     await expect(page.locator(".terminal-host")).toBeVisible();
     await floating.click();
     await expectTerminalLine(page, marker);

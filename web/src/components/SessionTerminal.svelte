@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SessionSidePanel from "./SessionSidePanel.svelte";
   import { paneEnter } from "../hooks/pane-enter";
   import { settings, changeSettings } from "../settings.svelte";
   import { errorMessage } from "../error";
@@ -96,7 +97,7 @@
     reopen: () => void;
     visible: boolean;
     active: boolean;
-    paneActions: Snippet<[boolean]>;
+    paneActions: Snippet<[() => void]>;
     keyboardDismissed: () => boolean;
     keyboardVisibility: () => KeyboardVisibility;
     viewportHeight: () => number;
@@ -147,7 +148,25 @@
   const forceSoftKeys = $derived(settings.values.forceSoftKeys ?? false);
   let mounted = false;
   let codeShown = $state(codePanelState.shown());
-  $effect(() => codePanelState.setShown(codeShown));
+  let panelView = $state<"picker" | "code" | "split">("code");
+  let sidePanel = $state<SessionSidePanel>();
+  let sessionElement: HTMLDivElement;
+  function openPanels() {
+    panelView = "picker";
+    codeShown = true;
+    void tick().then(() => sidePanel?.focusPicker());
+  }
+  function closePanel() {
+    codeShown = false;
+    void tick().then(() => {
+      sessionElement
+        ?.querySelector<HTMLButtonElement>(
+          '.terminal-header [aria-label="打开面板"]',
+        )
+        ?.focus();
+    });
+  }
+  $effect(() => codePanelState.setShown(codeShown && panelView === "code"));
   let codePanel = $state<CodePanelComponent>();
   // A code location the code panel should open (from chat links or tool diffs).
   let codeTarget = $state<CodeReveal>();
@@ -196,7 +215,7 @@
   const terminalVisible = () =>
     visible && (desktop || !codeShown) && terminalShown();
   $effect(() => {
-    if (codeShown && !CodePanel && !loadingCode) {
+    if (codeShown && panelView === "code" && !CodePanel && !loadingCode) {
       loadingCode = true;
       void import("../components/CodePanel.svelte")
         .then((m) => {
@@ -536,10 +555,12 @@
     resync: () => t.resync(),
   };
   function review(path: string) {
+    panelView = "code";
     if (!codePanel?.isPoppedOut()) codeShown = true;
     codeTarget = { path, mode: "diff", key: (codeTarget?.key ?? 0) + 1 };
   }
   function openCodeLocation(target: ChatCodeLink) {
+    panelView = "code";
     if (!codePanel?.isPoppedOut()) codeShown = true;
     codeTarget = { ...target, mode: "file", key: (codeTarget?.key ?? 0) + 1 };
   }
@@ -790,6 +811,7 @@
 {/snippet}
 
 <div
+  bind:this={sessionElement}
   class="session-terminal flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
   class:force-soft-keys={forceSoftKeys}
   class:ios={isIOS()}
@@ -797,7 +819,7 @@
   data-terminal-compact={!desktop}
 >
   <TerminalHeader
-    {paneActions}
+    {openPanels}
     terminal={headerTerminal}
     {fullscreen}
     {draft}
@@ -983,19 +1005,27 @@
       />
     {/snippet}
     {#snippet codePane()}
-      {#if CodePanel}<CodePanel
-          bind:this={codePanel}
-          {id}
-          visible={visible && codeShown}
-          connection={hybrid.view === "chat"
-            ? hybrid.chat.connection
-            : t.connection}
-          paste={insertReference}
-          draftEnabled={draft.enabled || hybrid.view === "chat"}
-          reveal={codeTarget}
-          sessionCwd={hybrid.info?.cwd ?? ""}
-          reportedCwd={hybrid.info?.reportedCwd ?? null}
-        />{/if}
+      <SessionSidePanel
+        bind:this={sidePanel}
+        bind:view={panelView}
+        shown={visible && codeShown}
+        close={closePanel}
+        {paneActions}
+      >
+        {#if CodePanel}<CodePanel
+            bind:this={codePanel}
+            {id}
+            visible={visible && codeShown && panelView === "code"}
+            connection={hybrid.view === "chat"
+              ? hybrid.chat.connection
+              : t.connection}
+            paste={insertReference}
+            draftEnabled={draft.enabled || hybrid.view === "chat"}
+            reveal={codeTarget}
+            sessionCwd={hybrid.info?.cwd ?? ""}
+            reportedCwd={hybrid.info?.reportedCwd ?? null}
+          />{/if}
+      </SessionSidePanel>
     {/snippet}
   </TerminalWorkspace>
 </div>

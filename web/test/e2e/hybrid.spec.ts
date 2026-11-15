@@ -10,6 +10,7 @@ import {
   expectTerminalLine,
   nameSession,
   openSessionLink,
+  toggleCode,
   runCommand,
   test,
   useDirectory,
@@ -136,7 +137,7 @@ async function switchTo(page: Page, side: Side, confirm = false) {
 }
 
 test.describe("hybrid sessions with the fake agent", () => {
-  test("phones switch chat and terminal in tabs and open code with the header button", async ({
+  test("phones switch chat and terminal in tabs and open code from the panel picker", async ({
     page,
     request,
     workDir,
@@ -145,13 +146,8 @@ test.describe("hybrid sessions with the fake agent", () => {
     const id = await createHybrid(request, workDir, "chat");
     await page.setViewportSize({ width: 393, height: 851 });
     await openHybrid(page, id, "chat");
-    const header = page.locator(".terminal-header");
-    const views = page.getByRole("tablist", { name: "会话视图", exact: true });
-    await expect(views.getByRole("tab")).toHaveText(["聊天", "终端"]);
-    // Code replaces the pane without moving the session, like the desktop
-    // button: it turns pressed and no side stays selected.
-    const code = header.getByRole("button", { name: "代码", exact: true });
-    await code.click();
+    // Code replaces the pane without moving the session; no side stays selected.
+    await toggleCode(page);
     await expect(
       page.getByRole("region", { name: "代码工作区" }),
     ).toBeVisible();
@@ -159,6 +155,14 @@ test.describe("hybrid sessions with the fake agent", () => {
       "aria-selected",
       "false",
     );
+    await expect(sideTab(page, "terminal")).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    await toggleCode(page);
+    await expectSide(page, "chat");
+    await expect(page.getByRole("region", { name: "代码工作区" })).toBeHidden();
+    await toggleCode(page);
     // Choosing the side the session is already on only leaves the code view.
     await sideTab(page, "chat").click();
     await expectSide(page, "chat");
@@ -292,10 +296,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     await expect(terminalPage).toHaveAttribute("data-document-scroll", "true");
 
     // Opening the code panel on mobile uses the fixed shell.
-    const code = page
-      .locator(".terminal-header")
-      .getByRole("button", { name: "代码", exact: true });
-    await code.click();
+    await toggleCode(page);
     await expect(terminalPage).not.toHaveAttribute(
       "data-document-scroll",
       "true",
@@ -329,17 +330,12 @@ test.describe("hybrid sessions with the fake agent", () => {
     });
     await page.goto(`/s/${id}`);
     const views = page.getByRole("tablist", { name: "会话视图", exact: true });
-    const code = page
-      .locator(".terminal-header")
-      .getByRole("button", { name: "代码", exact: true });
-    await expect(code).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "打开面板", exact: true }),
+    ).toBeVisible();
     await expect(views).toHaveCount(0);
-    const button = await code.elementHandle();
     gate.resolve();
     await expectSide(page, "terminal");
-    await expect(views.getByRole("tab")).toHaveText(["聊天", "终端"]);
-    // The code button stays the same element.
-    expect(await button!.evaluate((node) => node.isConnected)).toBe(true);
   });
 
   for (const { start, agent } of [

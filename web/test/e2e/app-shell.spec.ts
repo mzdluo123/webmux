@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { expect, expectConnected, test } from "./fixtures";
+import { expect, expectConnected, test, toggleCode } from "./fixtures";
 
 // The app shell around the home page, quick start and session pages: the
 // sidebar beside a session, its workbench tree, rename, and the phone
@@ -214,19 +214,32 @@ test.describe("desktop sidebar", () => {
       expect(response.status(), await response.text()).toBe(201);
     }
     const code = page.getByRole("region", { name: "代码工作区" });
-    const toggle = page
-      .locator(".terminal-header")
-      .getByRole("button", { name: /^(代码|折叠代码)$/ });
     const width = async () =>
       Math.round((await page.locator(".code-pane").boundingBox())!.width);
 
     await page.goto(`/s/${first}`);
     await expectConnected(page);
-    await toggle.click();
+    await toggleCode(page);
     await expect(code).toBeVisible();
     await code.getByRole("button", { name: "note.txt", exact: true }).click();
     const note = code.getByRole("tab", { name: /^note\.txt · / });
     await expect(note).toBeVisible();
+    // The picker and split controls replace the code content in the same
+    // sidebar without discarding its open documents.
+    await page.getByRole("button", { name: "打开面板", exact: true }).click();
+    await expect(page.getByRole("group", { name: "面板选择" })).toBeVisible();
+    await expect(code).toBeHidden();
+    await page.getByRole("button", { name: "分屏", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("group", { name: "面板选择" })).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "返回面板选择", exact: true })
+      .click();
+    await page.getByRole("button", { name: "代码", exact: true }).click();
+    await expect(note).toBeVisible();
+    await expect(note).toHaveAttribute("aria-selected", "true");
     const before = await width();
     await page.getByRole("separator", { name: "调整终端与代码宽度" }).focus();
     for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowLeft");
@@ -250,7 +263,7 @@ test.describe("desktop sidebar", () => {
     await expect(page.locator(".terminal-header")).toContainText("面板甲");
     await expect(code).toBeVisible();
     await expect.poll(width).toBe(wide);
-    await toggle.click();
+    await toggleCode(page);
     await expect(code).toBeHidden();
     await chats.getByRole("button", { name: /^面板乙（/ }).click();
     await expect(page.locator(".terminal-header")).toContainText("面板乙");
@@ -262,7 +275,7 @@ test.describe("desktop sidebar", () => {
       .getByRole("treeitem", { name: /^panel one（/ })
       .click();
     await expect(page).toHaveURL(new RegExp(`/s/${first}$`));
-    await toggle.click();
+    await toggleCode(page);
     await expect(note).toHaveAttribute("aria-selected", "true");
     await expect(code.locator("[data-code-reader]:visible")).toContainText(
       "kept open",

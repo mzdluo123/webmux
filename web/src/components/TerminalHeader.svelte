@@ -3,7 +3,7 @@
   import { findShell, shellUi } from "../shell.svelte";
   import type { Snippet } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
-  import IconCode from "~icons/tabler/code";
+  import IconPlus from "~icons/tabler/plus";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconMaximize from "~icons/tabler/maximize";
   import IconMinimize from "~icons/tabler/minimize";
@@ -75,7 +75,7 @@
     leave,
     showFind,
     hybrid,
-    paneActions,
+    openPanels,
   }: {
     terminal: HeaderTerminal;
     fullscreen: Fullscreen;
@@ -102,7 +102,7 @@
     leave: () => void;
     showFind: () => void;
     hybrid?: HeaderHybrid;
-    paneActions?: Snippet<[boolean]>;
+    openPanels: () => void;
   } = $props();
   // A rename reaches the session list first; the list title wins here so
   // the header follows it on either side.
@@ -119,15 +119,6 @@
   // Off the terminal view there is no PTY: terminal-only actions are hidden;
   // fullscreen, the code panel and closing the session stay.
   const terminalShown = $derived(!hybrid || hybrid.view === "terminal");
-  const codeLabel = $derived(
-    codeShown
-      ? desktop
-        ? "折叠代码"
-        : terminalShown
-          ? "终端"
-          : "聊天"
-      : "代码",
-  );
   // The chat view names the agent it talks to beside the session title.
   const chatAgent = $derived(
     hybrid?.view === "chat" ? (t.info?.agent ?? undefined) : undefined,
@@ -267,16 +258,13 @@
       toggle={toggleDraft}
     />
   {/if}
-  <!-- Green while the code panel is open; otherwise a plain icon button
-       like its neighbours. The name tells where the toggle goes next. -->
   <Button
-    variant={codeShown ? "success" : "ghost"}
-    size="icon-sm"
-    aria-label={codeLabel}
-    title={codeLabel}
-    aria-pressed={codeShown}
-    onclick={() => (codeShown = !codeShown)}
-    ><IconCode class="size-4" aria-hidden="true" /></Button
+    variant="ghost"
+    size="icon-touch-sm"
+    aria-label="打开面板"
+    title="打开面板"
+    aria-expanded={codeShown}
+    onclick={openPanels}><IconPlus class="size-4" aria-hidden="true" /></Button
   >
   {#if fullscreen.offered}<Button
       variant="ghost"
@@ -294,9 +282,6 @@
       {#if fullscreen.active}<IconMinimize class="size-4" aria-hidden="true" />
       {:else}<IconMaximize class="size-4" aria-hidden="true" />{/if}
     </Button>{/if}
-  {#if paneActions}<div class="max-sm:hidden">
-      {@render paneActions(false)}
-    </div>{/if}
   <DropdownMenu.Root>
     <DropdownMenu.Trigger>
       {#snippet child({ props })}<Button
@@ -410,10 +395,6 @@
           </DropdownMenu.CheckboxItem>
         </DropdownMenu.Group>
       {/if}
-      {#if paneActions}<div role="presentation" class="hidden max-sm:contents">
-          <DropdownMenu.Separator />
-          {@render paneActions(true)}
-        </div>{/if}
       <DropdownMenu.Separator />
       {@const archivable =
         t.exitCode === null &&
