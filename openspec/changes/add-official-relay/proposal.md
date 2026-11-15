@@ -16,12 +16,14 @@
 - 宿主通过 TCP 443 出站 WSS + smux v2 接入 Relay，以一个逻辑连接器内的两条物理连接隔离控制/交互与批量流量，Relay 在多路 stream 上转发 REST、上传下载、WebSocket Upgrade 与端口转发流量。TLS 在 Relay 终止，本版本不宣称端到端加密。
 - WebMux 新增官方 Relay 设置、配对、启停、重连、删除绑定和状态展示；启用仍要求至少 43 字符登录 Token 与公网风险确认。
 - 新增适配手机的官方后台 GitHub 登录、所有者主机列表和免 Token 跳转；仅展示 WebMux，其他应用仍从 WebMux 内端口转发入口使用，不提供公开分享。宿主显式信任已配对 Relay 的所有者授权，独立直连入口继续使用 Token。
-- MVP 为单控制实例与单数据节点，可同机或分机部署。数据节点需要独立公网 IP、HTTPS 泛域名和证书，用户直连；不引入 CDN、Spectrum 或 Cloudflare Tunnel 依赖。
+- MVP 为单控制实例，可登记不同能力的数据节点：wss、turn 或两者。至少一个就绪 wss 节点提供基线，可另选 TURN-only 节点优化交互；按管理员配置分配，不引入多区域智能调度、HA 或节点间 WSS 转发。
 - Relay 就绪后复用 `PublicOrigins` 登记公共 Host/Origin，断开或关闭立即撤权；固定 HTTPS 入口纳入现有访问链接、状态输出与 Web Push 来源。
-- 开源客户端内置官方 HTTPS/WSS 地址与官方服务身份公钥，用户无需填写端点或配置 GitHub OAuth 应用；官方私钥、OAuth Client Secret 和用户授权凭据仅由服务端保密管理。
-- 官方 Relay 默认关闭，独立于 Cloudflare Tunnel 和 Tailscale。数据面 Docker 镜像同时包含 `webmux-relay` 和 coturn `turnserver` 两个独立进程，WSS 不依赖 TURN 即可工作；控制面向已授权浏览器和宿主下发短期 ICE/TURN 配置。
+- 开源宿主只需内置或显式配置可信控制面地址及初始信任；配对后由控制面下发 WSS 分配、公开地址与节点服务信任，浏览器另取授权 ICE。用户无需手填数据面端点或配置 GitHub OAuth 应用，不接受任意浏览器或节点自报地址。
+- 官方 Relay 默认关闭，独立于 Cloudflare Tunnel 和 Tailscale。统一数据面镜像包含 `webmux-relay` 与 coturn，按能力启动：wss-only 不启动 coturn；TURN-only 运行管理 agent 与 coturn，不开放 WebMux/WSS 入口；双能力运行两种服务。
 - 首屏与登录不等待 WebRTC；后台比较应用层延迟和健康状态，仅在候选路径稳定更优时升级，失败回 WSS，并防止频繁切换。终端、聊天、列表等交互业务可升级，文件上传下载与全部 `/forward/*` 保持 WSS。
-- MVP 仅支持单控制实例、单数据节点、每账号一台主机和邀请制运营。控制面容器、双进程数据面容器和 PostgreSQL 分开管理，不包含多区域调度、高可用、自定义域名、匿名配额、公开分享、端到端加密或独立稳定域名壳。
+- 每账号一台主机、邀请制与单控制实例保持；控制面容器、按能力运行的数据面容器和 PostgreSQL 分开管理。不包含自定义域名、匿名配额、公开分享、端到端加密或独立稳定域名壳。
+- 管理员 CLI/API 经控制面校验写入 PostgreSQL，不直接改表、不新增运营管理网页。非秘密节点参数集中管理，以单调递增版本完整下发并回执；重启性变更暂存为 pending-restart，CLI 显式批准精确版本后应用，配置回滚不恢复撤销授权。
+- 控制面将节点秘密加密存入 PostgreSQL，解密主密钥从部署环境提供；节点经独立双向 TLS 秘密接口领取，只存受限运行时文件。冷启动须连通控制面并取得有效配置、秘密及授权同步，禁止用离线缓存恢复服务。
 
 实测依据见 [issue #604 验证报告](../../../docs/relay-validation-604.md)。同时参考[终端优先补测](../../../docs/relay-terminal-validation-604.md)，以按键回显、输出完整性和恢复优先判断，不把 WSS 说成所有场景延迟最低。未实现生产数据面；QUIC、KCP/FEC、Hysteria 与完整产品保留为后续研究。
 
@@ -31,12 +33,13 @@
 
 ### New Capabilities
 
-- `official-relay-service`: 官方单节点 Relay 的账号配对、网页后台、所有者跳转、主机注册、密钥认证、公共主机名路由、内置 WSS 转发、短期 TURN 凭据服务、配额、撤销与运行恢复。
+- `official-relay-service`: 官方 Relay 的账号配对、网页后台、所有者跳转、主机身份、WSS 转发、短期 TURN 凭据、账号配额、撤销与应用恢复。
+- `official-relay-node-management`: 管理员 CLI/API、节点能力与地址登记、配置版本/应用批准、加密秘密交付、服务发现、冷启动及进程监督。
 - `official-relay-client`: WebMux 宿主的中继密钥与配对、短期登录会话与撤销、受控持久化、WSS 基线、WebRTC 直连/TURN 交互升级、公网来源授权、设置界面、访问链接与推送集成。
 
 ### Modified Capabilities
 
-- `effective-configuration`: 将 Relay 开关、服务端点、配对状态与运行状态纳入 configured/effective 诊断，并保证私钥和配对材料脱敏。
+- `effective-configuration`: 将控制面引导地址、已分配 WSS 节点/端点、TURN 来源及可达性分别纳入 configured/effective，保证宿主诊断与节点运营配置状态不混淆，秘密材料脱敏。
 - `server-local-api`: 禁止 WebMux 会话内进程通过本机 API 修改 Relay 设置、发起配对或控制公网暴露，并在本机状态中提供脱敏的 Relay 状态。
 
 ## Impact

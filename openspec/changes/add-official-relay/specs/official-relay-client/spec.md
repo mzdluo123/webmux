@@ -42,11 +42,13 @@ WebMux SHALL 在本机生成并保存独立的 Ed25519 中继密钥对。配对�
 
 ### Requirement: 受控持久化与安全降级
 
-Relay 的启用意图、服务端点、主机标识、公共地址和私钥 SHALL 通过登记的受控状态文件持久化，目录权限为 0700、文件权限为 0600，并使用原子写入和独立锁。
+Relay 的启用意图、配置的 `controlEndpoint` 与引导信任、主机标识、公共地址和私钥 SHALL 通过登记的受控状态文件持久化，目录权限为 0700、文件权限为 0600，并使用原子写入和独立锁。
+已认证控制面下发的数据面分配及版本/来源元数据 SHALL 与本机配置区分，不得作为用户手工配置的第二端点或未经重新认证即可沿用的信任依据。
 
 状态文件损坏、不可读或锁冲突时，系统 SHALL 保留原文件、报告存储不可用并禁止启动新的 Relay 公网连接，不得回退到 TOML 意外开启。关闭操作即使落盘失败也 SHALL 立即撤销当前公网授权并停止连接，同时返回未持久化错误。
 
-重启后 SHALL 按持久化启用意图恢复连接；TOML 只提供默认开关与运维端点，网页绑定与私钥不得写入 `config.toml`。
+重启后 SHALL 按持久化启用意图恢复连接；TOML 只提供默认开关、`controlEndpoint` 与引导信任覆盖，网页绑定与私钥不得写入 `config.toml`。
+数据面地址 SHALL 从已认证控制面重新同步，不要求用户维护第二个端点。
 
 #### Scenario: 损坏设置阻止自动暴露
 
@@ -132,7 +134,9 @@ WebMux SHALL 在公网访问设置中提供开始配对、启停、刷新状态�
 
 ### Requirement: GitHub 跳转与宿主浏览器会话
 
-宿主 SHALL 显式信任已配对 Relay 的所有者认证，并保存所有者 GitHub 数字 ID 与绑定代际。独立直连、Cloudflare 与 Tailscale 入口 SHALL 保持既有 Token 认证；Relay 会话 MUST NOT 在其他 Origin 使用。
+宿主 SHALL 显式信任已配对控制面的所有者认证，并保存所有者 GitHub 数字 ID 与绑定代际。
+该认证所派生的宿主登录会话 SHALL 是绑定浏览器及 Relay Origin 的所有者浏览器会话，不是宿主设备身份或连接器 control 会话。
+独立直连、Cloudflare 与 Tailscale 入口 SHALL 保持既有 Token 认证；Relay 浏览器会话 MUST NOT 在其他 Origin 使用。
 
 宿主 SHALL 为后台跳转创建绑定浏览器的单次 state 和 PKCE S256 事务，有效期不超过 5 分钟；回调必须校验事务，并通过宿主密钥认证的控制通道携 verifier 兑换 code。账号、host ID、受众或绑定代际不符 SHALL 拒绝登录，MUST NOT 仅相信浏览器携带的身份声明。
 
@@ -171,7 +175,8 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 ### Requirement: WSS 连接隔离与重连诊断
 
-宿主连接器 SHALL 使用运维配置的 HTTPS endpoint 与 WSS + smux v2，基线传输固定 wss，不提供 auto/quic 或 UDP connector endpoint，不接受浏览器指定拨号地址；授权的 ICE/TURN 配置 SHALL 按下述独立流程获取。
+宿主连接器 SHALL 使用已认证控制面分配的 `connectorUrl` 与 WSS + smux v2，基线传输固定 wss，不提供 auto/quic 或 UDP connector endpoint。
+宿主 MUST NOT 接受浏览器指定或节点自行宣告的拨号地址；授权的 ICE/TURN 配置 SHALL 按下述独立流程获取。
 
 宿主 SHALL 在同一逻辑代际内认证 control/bulk 两条物理连接，角色纳入签名并共用配额。control 断开 SHALL 撤销来源及派生会话并关闭 bulk；仅 bulk 断开 SHALL 保留交互、显示降级和 bulkReady=false，有界重连 bulk，新批量请求返回不可用，不挤占 control。
 
@@ -192,11 +197,41 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 - **WHEN** WSS 服务证书或 pin 校验失败
 - **THEN** 连接失败并报告安全错误，不切换信任配置或其他传输
 
+### Requirement: 控制面发现与数据面分配
+
+宿主 SHALL 只需配置 `controlEndpoint` 与引导信任即可配对和发现数据面，不要求用户手工填写 `connectorUrl` 或第二个服务地址。
+独立 `webmux-control` SHALL 是唯一发现来源，通过已认证控制通道提供绑定当前主机、受众、分配版本与来源元数据的 `nodeId`、能力、`connectorUrl`、数据面 origin、固定公共 HTTPS 地址及对应服务 TLS 信任。
+
+发现结果 SHALL 来自管理员经控制服务校验并登记的用途化端点，不接受任意浏览器输入、节点自报或未认证下载扩展信任。
+宿主 SHALL 校验分配的主机/绑定代际、受众、版本及端点与服务身份的一致性，拒绝错误归属、重放或过期分配。
+只有具备 `wss` 能力且就绪的节点可作为连接器目标；`turn`-only 节点只提供 TURN，不暴露 WebMux HTTPS/WSS 入口，MUST NOT 被当作连接器目标。
+
+已配对控制面的数据面端点调整 SHALL 经认证、版本化分配完成，重新校验 TLS 与 pin 后切换，并使旧代际事件不能恢复旧入口授权；不得自动学习未知公钥或把数据面分配当作控制面信任变更。
+浏览器 SHALL 始终使用固定宿主 HTTPS 来源及获授权的 ICE 配置，不自行选择 WSS 节点。获授权 TURN 可来自与 WSS 不同的 `turn`-only 节点，不要求两者同机。
+
+#### Scenario: 控制面与数据面分离部署
+
+- **WHEN** 宿主只配置控制面地址和引导信任，配对后控制面为其分配另一 origin 的就绪 WSS 节点
+- **THEN** 宿主经认证发现 `connectorUrl`、受众和对应 TLS 信任，完成标准 TLS 与 pin 校验后建连，用户无需填写第二个端点
+
+#### Scenario: TURN-only 节点不是 WSS 目标
+
+- **WHEN** 控制面为浏览器授权独立 TURN-only 节点，同时为宿主分配 WSS 节点
+- **THEN** 连接器仅拨号 WSS 节点，ICE 可使用独立 TURN 节点；若连接器分配指向不具备 wss 能力的节点则拒绝该分配，不尝试其管理通道
+
+#### Scenario: 分配身份或信任不匹配
+
+- **WHEN** 分配归属/受众/版本不符，或数据面返回与已认证分配不匹配的证书或 pin
+- **THEN** 宿主拒绝分配或连接，不向该端点发送宿主凭据，不接受浏览器或节点自报的替代地址/公钥，也不扩大信任后重试
+
 ### Requirement: 内置官方端点与公开服务身份
 
-开源客户端 SHALL 内置官方 HTTPS/WSS 地址、Relay 受众和官方 ECDSA P-256 TLS 服务身份公钥或对应 SHA-256 SPKI pin 集合。用户 SHALL 无需填写官方地址、公钥或 OAuth 应用配置即可发起 GitHub 配对；内置默认 MUST NOT 自动启用 Relay 或替代公网确认。
+开源客户端 SHALL 内置官方控制面 HTTPS `controlEndpoint`、控制面受众和官方 ECDSA P-256 TLS 服务身份公钥或对应 SHA-256 SPKI pin 集合。
+用户 SHALL 无需填写官方地址、公钥或 OAuth 应用配置即可发起 GitHub 配对；数据面地址、受众及服务 TLS 信任由已认证控制面分配，而不是要求用户配置第二个内置/自建端点。
+内置默认 MUST NOT 自动启用 Relay 或替代公网确认。
 
-所有到 Relay 的 HTTPS/WSS 连接 SHALL 同时通过正常 TLS 证书链、有效期、主机名及公钥 pin 校验；MUST NOT 跳过 TLS 校验、自动学习未知公钥或在校验失败时降级绕过。公钥仅用于认证服务身份，宿主私钥 SHALL 继续逐机生成并用于主机认证。
+所有到控制面及分配数据面的 HTTPS/WSS 连接 SHALL 同时通过正常 TLS 证书链、有效期、主机名及对应公钥 pin 校验；MUST NOT 跳过 TLS 校验、自动学习未知公钥或在校验失败时降级绕过。
+数据面信任只能来自已认证且有效的控制面分配，任意 URL 本身不能扩展信任。公钥仅用于认证服务身份，宿主私钥 SHALL 继续逐机生成并用于主机认证。
 
 官方私钥、OAuth Client Secret 和用户 GitHub access token MUST NOT 进入开源仓库、客户端二进制或公开 API。OAuth Client ID SHALL 视为公开标识，不作为客户端认证秘密。
 
@@ -207,14 +242,18 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 #### Scenario: 证书有效但官方公钥不匹配
 
-- **WHEN** 官方连接返回有效证书但其公钥不在内置信任集合
+- **WHEN** 控制面连接返回有效证书但其公钥不在宿主内置或显式配置的控制面引导信任集合
 - **THEN** 客户端拒绝连接，不提交配对材料或宿主身份凭据，不通过重连绕过错误
 
 ### Requirement: 公钥轮换与自建信任隔离
 
-官方公钥轮换 SHALL 支持当前与下一公钥的重叠信任集合，先发布客户端再换服务端公钥；未知公钥 SHALL 拒绝。公钥泄露后的恢复 SHALL 允许要求客户端升级，MUST NOT 声称未经更新的客户端能够立即撤销旧公钥。
+官方控制面公钥轮换 SHALL 支持当前与下一公钥的重叠信任集合，先发布客户端再换服务端公钥；未知公钥 SHALL 拒绝。
+数据面公钥轮换 SHALL 通过已信任控制面的有效版本化分配明确授权，不得从目标证书自动学习。
+公钥泄露后的恢复 SHALL 允许要求客户端升级，MUST NOT 声称未经更新的客户端能够立即撤销旧公钥。
 
-自建端点覆盖 SHALL 显式配置独立服务受众与公钥集合，并保留标准 TLS 校验。变更信任配置 SHALL 先撤销旧连接、公共来源和会话，确认后重新配对；旧绑定、宿主凭据及未完成授权材料 MUST NOT 发送到新服务。
+自建控制面 `controlEndpoint` 覆盖 SHALL 显式配置独立服务受众与引导公钥集合，并保留标准 TLS 校验。
+变更控制面或其引导信任 SHALL 先撤销旧连接、公共来源和会话，确认后重新配对；旧绑定、宿主凭据及未完成授权材料 MUST NOT 发送到新服务。
+已信任控制面内的数据面版本化调整 SHALL 遵循分配校验，不要求用户手工维护数据面信任，也不得借此替换控制面引导信任。
 
 #### Scenario: 官方公钥正常轮换
 
@@ -228,9 +267,11 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 ### Requirement: 短期 ICE 配置与数据通道授权
 
-浏览器 SHALL 经已认证的同源宿主接口获取 ICE 配置，宿主 SHALL 经密钥认证 control 通道申请两端独立的短期 TURN 凭据。配置 SHALL 绑定当前账号、host ID、绑定/连接器代际及浏览器会话，包含明确到期时间，仅留内存且响应禁缓存。
+浏览器 SHALL 经已认证的同源宿主接口获取 ICE 配置，宿主 SHALL 经密钥认证 control 通道申请两端独立的短期 TURN 凭据。
+配置 SHALL 绑定当前账号、host ID、绑定/连接器代际及浏览器会话，包含明确到期时间，仅留内存且响应禁缓存；TURN 节点及端点仅来自控制面授权，可以独立于宿主所连 WSS 节点。
 
-两端凭据申请 SHALL 以当前有效 GitHub 登录所派生的所有者宿主会话为前提；仅有宿主密钥不得领取中继凭据。客户端 SHALL 使用标准 TURN 认证，不依赖匿名 allocation；短期凭据只用于该会话协商的路径，不提供可复制的通用代理配置。
+两端凭据申请 SHALL 以当前有效 GitHub 所有者登录所派生的浏览器会话为前提；仅有宿主密钥、设备身份、在线连接器 control 会话或非会话本机客户端权限均不得领取中继凭据。
+客户端 SHALL 使用标准 TURN 认证，不依赖匿名 allocation；短期凭据只用于该浏览器会话协商的路径，不提供可复制的通用代理配置。
 
 宿主 SHALL 将 PeerConnection、协商的 SDP/DTLS 指纹与单次建链授权绑定到该浏览器会话，验证后才放行业务。TURN 凭据 MUST NOT 替代宿主认证，MUST NOT 允许仅持有 ICE 配置的客户端访问终端或任意回源。
 
@@ -238,7 +279,7 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 #### Scenario: 未授权浏览器索取 TURN 配置
 
-- **WHEN** 浏览器无有效宿主会话，或请求其他账号/代际的 ICE 配置
+- **WHEN** 浏览器无由有效 GitHub 所有者登录派生的浏览器会话，或请求其他账号/代际的 ICE 配置
 - **THEN** 请求被拒绝，不签发凭据，不改变现有连接
 
 #### Scenario: 配对后尚无用户登录
