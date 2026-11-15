@@ -259,9 +259,13 @@ func TestDirectoryRetainsHomeAndSymlinkResolution(t *testing.T) {
 	if err := os.Symlink(target, alias); err != nil {
 		t.Fatal(err)
 	}
+	want, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, input := range []string{"~/project", alias} {
 		got, err := Directory(input)
-		if err != nil || got != target {
+		if err != nil || got != want {
 			t.Fatalf("directory %q: %q %v", input, got, err)
 		}
 	}

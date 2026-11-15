@@ -3,12 +3,12 @@ package handoff
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
-	"path/filepath"
 
-	omphistory "github.com/rainchan/webmux/internal/agentprofile/omp/history"
+	omphistory "github.com/rainchan/webmux/internal/agent/omp/history"
 	"github.com/rainchan/webmux/internal/historyimport"
 	"github.com/rainchan/webmux/internal/historyprojection"
 	"github.com/rainchan/webmux/internal/historysource"
@@ -20,12 +20,12 @@ import (
 )
 
 type previewHarness struct {
-	service *Service
-	store   *conversation.Service
-	launch  *launch.Service
-	source  conversation.Binding
-	config  launch.Config
-	dir     string
+	service    *Service
+	store      *conversation.Service
+	launch     *launch.Service
+	source     conversation.Binding
+	config     launch.Config
+	dir        string
 	nativePath string
 }
 

@@ -137,7 +137,7 @@
   - 终端未上报自身 `OSC 0/2` 标题时，`session/list` 探测与切换前核对采用非空会话标题；候选探测型 agent（如 `kimi`）切换至聊天侧时保留实时 `OSC 0/2` 窗口标题；
   - 同一运行内按标题序号仅清除上一会话遗留标题（保留同名 `/fork` 新标题），未命名会话切换或清空标题时重置可恢复记录标题。
 - 本地验证：
-  - `internal/agentprofile/agy` 对真实 `/bin/sh` 执行注入钩子，覆盖空值、JSON/HTML 转义、CJK/Emoji 与紧凑/带空格 JSON；
+  - `internal/agent/agy` 对真实 `/bin/sh` 执行注入钩子，覆盖空值、JSON/HTML 转义、CJK/Emoji 与紧凑/带空格 JSON；
   - `internal/session`、`internal/acp`、`internal/hybrid`、`internal/archtest`、`internal/docguard` 及全仓 Go race 测试通过；
   - 新增混合会话标题回归连续 5 轮 `-race` 通过：`TestAgyTUITitleContinuityAndRename`、`TestStaleTerminalTitleClearedOnAgentSessionChange`、`TestCandidateAgentPreservesLiveOSCTitleOnSwitch` 与 `TestSessionListTitleFallbackWithoutOSC`；
   - `go vet`、`golangci-lint`、生产与测试类型检查、Oxlint、前端架构守卫（46 项）、格式与持久化守卫通过。
@@ -232,7 +232,7 @@
 
 ## 原生直读切换与真实运行边界（2026-11-16，US-Q19、US-Q20）
 
-- 范围：九个 reader、metadata-only import、冻结 scope、统一机械投影和 schema 14 正文镜像退役；故事 ID 与总数不变。本节不代表完整交接、浏览器或主线 CI 已完成。
+- 范围：九个 reader、metadata-only import、冻结 scope、统一机械投影和 schema 14 正文镜像退役；故事 ID 与总数不变。局部运行证据不等于所有 Agent 在线兼容，也不代表主线 CI 已完成。
 - 集成回归已通过：九个 reader 的真实脱敏夹具 race 测试，以及 historyimport/historyprojection 切换 race 测试；夹具通过不是九种 Agent 在线模型调用成功的证据。
 - `import` 恢复为历史身份与冻结引用登记，不启动 Agent、不持续复制正文；引用与 retained 导出、分支/Generation/hash 以及当前任务独立保存的契约见[原生历史](../codex-native.md)。
 - schema 14 先私有迁移旧可导出正文与引用为不可变 exports，再 DROP 旧 Activity/native_source/history_snapshot 链路；v10/v11 owner 修复及原 native ID 的 unknown 门禁继续保留。
@@ -241,5 +241,7 @@
 - 真实 omp 的原分支、fork 用户祖先截断和 compaction 保留范围已由 reader 与实际 historyprojection 验证；父/fork 冻结游标互换返回 ErrChanged，私有加密状态未出现在导出正文。
 - Claude Code 2.1.245 在隔离 bare 环境未登录，未进行 resume/fork/compaction；OpenCode 1.18.23 免费额度拒绝，仅读取其真实失败请求数据库并验证合成用户消息，不宣称模型调用成功。
 - Codex 0.165.0 沿用此前 token_revoked 失败事实，没有重复模型请求；Kimi、agy、Devin、QoderCN 等 CLI 不在 PATH。Qoder 的预期实测对象是 QoderCN，两者均未做在线运行验证。
-- 本次证据仅含原生文本，不重跑图片或成本对比。完整交接、UI 与 CI 尚在独立验证，不能据此宣称 #640/#651/#652 或全部 Agent 已验收。
+- 交接回归：conversation、handoff、threadread race 通过；真实 stdio MCP 读取省略原文、长项续读、来源隔离和 provider new/load/resume 通过；保留快照在追加、遗忘及删除来源后仍独立读取完整正文，附件按目标自己的路径回放。
+- 前端验证：源码与测试类型检查、Oxlint、46 项架构断言、374 项相关契约与消费者单元测试、2 项历史读取浏览器测试通过；隔离 Chromium desktop 的草稿关闭/刷新/重启及 A→B→A 两项端到端通过，查看了 1440×900 交接弹窗截图。
+- 本轮 UI 未验证手机、平板、深色或真机；主线全量 CI 尚待集成结果。本节真实 CLI 运行证据仅含原生文本，图片传输实验的独立边界见[真实 ACP 图片实测](../native-image-transport.md)。
 - 原始 session、compact 输出可能含 encrypted/private provider state、签名及凭据标识，未复制入库；仅允许使用脱敏合成内容与安全结果摘要。

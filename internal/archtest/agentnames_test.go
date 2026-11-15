@@ -17,8 +17,8 @@ import (
 
 // agentNeutralGo are the production Go directories that must name no
 // registered agent: per-agent behaviour belongs to an adapter under
-// internal/agentprofile/<agent>. Subdirectories other than testdata are
-// covered too, except the adapters and their registry.
+// internal/agent/<agent>. Subdirectories other than testdata are
+// covered too, except the explicit adapter registry.
 var agentNeutralGo = []string{"internal/acp", "internal/hybrid", "internal/agentprofile"}
 
 // agentNeutralWebExempt are frontend files allowed to name agents: the
@@ -64,7 +64,7 @@ func TestGenericCodeNamesNoAgent(t *testing.T) {
 			rel, _ := filepath.Rel(root, path)
 			rel = filepath.ToSlash(rel)
 			if d.IsDir() {
-				if d.Name() == "testdata" || (strings.HasPrefix(rel, "internal/agentprofile/") && rel != "internal/agentprofile") {
+				if d.Name() == "testdata" || rel == "internal/agentprofile/agents" {
 					return filepath.SkipDir
 				}
 				return nil
@@ -81,7 +81,7 @@ func TestGenericCodeNamesNoAgent(t *testing.T) {
 	}
 	bad = append(bad, webAgentLiterals(t, root, words)...)
 	if len(bad) > 0 {
-		t.Fatalf("agent names in agent-neutral code (move the behaviour into an adapter in internal/agentprofile/<agent>, or send it from the backend):\n%s", strings.Join(bad, "\n"))
+		t.Fatalf("agent names in agent-neutral code (move the behaviour into an adapter in internal/agent/<agent>, or send it from the backend):\n%s", strings.Join(bad, "\n"))
 	}
 }
 

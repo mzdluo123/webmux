@@ -10,7 +10,7 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. Read it when you nee
   - `internal/vtpreview/`: stateless VT emulation for terminal preview and replay snapshots.
   - `internal/procpeek/`: cross-platform process tree traversal and listening port inspection (`_linux.go` reads `/proc`, `_darwin.go` uses sysctl/`proc_pidinfo`, shared logic in `_unix.go`).
 - `internal/hybrid/`: hybrid (TUI ↔ ACP chat) sessions, one actor per session, records in `hybrid-sessions.json`.
-  - `internal/acp/`: stdlib-only ACP v1 client. `internal/agentprofile/` (adapters `opencode`, `omp`, `codex`, `claudecode`, `agy`, `qoder`, `qodercn`; list in `agentprofile/agents`): agent-neutral profiles and registry.
+  - `internal/acp/`: stdlib-only ACP v1 client. `internal/agentprofile/`: agent-neutral profiles, trust plans and explicit `agents` registry; `internal/agent/<name>/`: concrete adapters, history readers, roots, trust policies and metadata. `internal/agent/agenttest/` runs shared adapter contracts.
 - `internal/api/`, `internal/hub/`, `internal/wire/`: controllers.
   - HTTP/security boundaries, status mapping (`api/errors.go`), streaming transport, and service↔wire conversion.
   - No direct filesystem, process, or service package-level calls.

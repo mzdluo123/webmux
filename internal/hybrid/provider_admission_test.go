@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
 )
 
 type heldProviderRegistry struct{ agentprofile.Agent }

@@ -41,6 +41,7 @@
     - 默认折叠并显示数量，当前打开或正在恢复已归档记录时自动展开；
     - 折叠时不在页面中挂载归档行；展开后先挂载最近 20 条，其余经“显示更多（还有 N 条）”按 20 条一批追加，收起后重新从首批开始，历史很长时也不会一次渲染全部行；
     - 按最近更新从新到旧排列，更新时间相同按 ID 排序；该时间只在归档、中断或编辑记录时变化；
+    - 归档体积只统计 WebMux 为该会话保留的不可变快照正文，同一导出只计一次；不含附件、投递元数据或 Agent 自己的原生文件，未保留正文时为 0；
   - 纯终端会话不列出，同一会话只出现一次，随会话事件实时更新；
   - 每行显示 agent 图标、标题和状态标记（彩色圆点：工作中、等待、空闲，空心圆点：已结束；已释放空间的已归档记录改为空心三角形，侧栏行不另显“已释放空间”文字徽章，原路径与提交在悬停提示中，文字在可访问名与悬停提示中），运行中与已归档的行标记在行尾右对齐，当前会话标 `aria-current`；
   - 点运行中的行在当前标签页进入该会话；点已归档记录按归档前最后使用的聊天或终端模式直接恢复并进入，不受聊天/工作台侧栏模式影响，也不改变侧栏模式；
@@ -104,8 +105,8 @@
 - [输入卡片变形动画](../../../web/src/hooks/shared/composer-morph.svelte.ts)、[抽屉入口动画](../../../web/src/lib/components/ui/drawer/drawer-content.svelte)。
 
 - [混合会话服务](../../../internal/hybrid/)、[连接器检查](../../../internal/hybrid/connector.go)、[agent 适配器核心](../../../internal/agentprofile/)、[ACP 客户端](../../../internal/acp/)
-- [agent 注册表](../../../internal/agentprofile/agents/agents.go)、[Codex 适配器](../../../internal/agentprofile/codex/codex.go)、[适配器契约测试](../../../internal/agentprofile/agenttest/agenttest.go)
-- [Claude Code 适配器](../../../internal/agentprofile/claudecode/claudecode.go)、[Claude 注册记录](../../../internal/agentprofile/claudecode/registry.go)、[Antigravity CLI 适配器](../../../internal/agentprofile/agy/agy.go)
+- [agent 注册表](../../../internal/agentprofile/agents/agents.go)、[Codex 适配器](../../../internal/agent/codex/codex.go)、[适配器契约测试](../../../internal/agent/agenttest/agenttest.go)
+- [Claude Code 适配器](../../../internal/agent/claudecode/claudecode.go)、[Claude 注册记录](../../../internal/agent/claudecode/registry.go)、[Antigravity CLI 适配器](../../../internal/agent/agy/agy.go)
 - [会话外壳与伴随进程](../../../internal/session/lifecycle.go)、[进程事实](../../../internal/session/process_facts.go)、[聊天接口](../../../internal/featureapi/chat.go)、[聊天通道](../../../internal/featurehub/chat.go)
 - [启动配置](../../../internal/launch/types.go)、[聊天视图](../../../web/src/components/chat/)、[代码链接解析](../../../web/src/domains/code/markdown-link.ts)。
 - [代码工作区](../../../web/src/components/code/CodeWorkspace.svelte)、[会话页](../../../web/src/pages/Terminal.svelte)。

@@ -3,8 +3,8 @@
 package qodercn
 
 import (
+	"github.com/rainchan/webmux/internal/agent/qoder"
 	ap "github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/qoder"
 )
 
 // Name identifies QoderCN on the wire and in hybrid session records.

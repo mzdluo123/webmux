@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rainchan/webmux/internal/agentprofile/codex"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
+	"github.com/rainchan/webmux/internal/agent/codex"
+	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/featureapi"

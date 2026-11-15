@@ -438,6 +438,7 @@ function normalize(value: unknown): unknown {
   }
   if (/^<generation#\d+>$/.test(value)) return "0123456789abcdef";
   if (value === "<time>") return "2026-01-02T03:04:05Z";
+  if (value === "<zero-time>") return "0001-01-01T00:00:00Z";
   return value.replaceAll("<tmp>", "/tmp");
 }
 

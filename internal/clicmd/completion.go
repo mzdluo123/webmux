@@ -48,8 +48,8 @@ var completionCommand = &Command{
 var completionScripts = map[string]string{
 	"bash": `# bash completion for webmux
 _webmux() {
-	local IFS=$'\n'
 	local words=("${COMP_WORDS[@]:1:COMP_CWORD}")
+	local IFS=$'\n'
 	COMPREPLY=($(webmux __complete "${words[@]}" 2>/dev/null | cut -f1))
 }
 complete -o default -F _webmux webmux

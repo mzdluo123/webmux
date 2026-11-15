@@ -165,7 +165,7 @@ func TestFastForwardPreviewCountsWhenTheSnapshotDoesNot(t *testing.T) {
 	gitTest(t, root, "fetch", "origin")
 	// The snapshot's status reports ahead/behind as not computed.
 	wrapper := filepath.Join(t.TempDir(), "git")
-	putFile(t, wrapper, fmt.Sprintf("#!/bin/sh\nif [ \"$3\" = status ]; then %q \"$@\" | sed -z 's/^# branch\\.ab .*/# branch.ab +? -?/'; exit 0; fi\nexec %q \"$@\"\n", s.gitPath, s.gitPath))
+	putFile(t, wrapper, fmt.Sprintf("#!/bin/sh\nif [ \"$3\" = status ]; then exec %q \"$@\" --no-ahead-behind; fi\nexec %q \"$@\"\n", s.gitPath, s.gitPath))
 	if err := os.Chmod(wrapper, 0o700); err != nil {
 		t.Fatal(err)
 	}

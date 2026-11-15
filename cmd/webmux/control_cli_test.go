@@ -288,7 +288,7 @@ func TestCompletionScriptsRun(t *testing.T) {
 	}
 	path := bin + string(os.PathListSeparator) + os.Getenv("PATH")
 	for _, tc := range []struct{ shell, script string }{
-		{"bash", `source <(webmux completion bash); COMP_WORDS=(webmux chat a); COMP_CWORD=2; _webmux; printf '%s\n' "${COMPREPLY[@]}"`},
+		{"bash", `webmux completion bash > "$HOME/completion.bash"; source "$HOME/completion.bash"; COMP_WORDS=(webmux chat a); COMP_CWORD=2; _webmux; printf '%s\n' "${COMPREPLY[@]}"`},
 		{"fish", `webmux completion fish | source; complete -C 'webmux chat a'`},
 	} {
 		if _, err := exec.LookPath(tc.shell); err != nil {
@@ -296,7 +296,7 @@ func TestCompletionScriptsRun(t *testing.T) {
 			continue
 		}
 		cmd := exec.Command(tc.shell, "-c", tc.script)
-		cmd.Env = append(os.Environ(), "PATH="+path, "WEBMUX_SOCKET=/nonexistent/webmux.sock")
+		cmd.Env = []string{"PATH=" + path, "HOME=" + bin, "WEBMUX_SOCKET=/nonexistent/webmux.sock"}
 		out, err := cmd.CombinedOutput()
 		if err != nil || !strings.Contains(string(out), "answer") {
 			t.Errorf("%s completion: %v %q", tc.shell, err, out)

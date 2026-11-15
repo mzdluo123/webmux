@@ -249,7 +249,6 @@ func TestProcessCrashAfterClaimBeforeConsumptionCommitStaysUnknown(t *testing.T)
 	}
 }
 
-
 func TestForgottenSourceDispatchMigration(t *testing.T) {
 	for _, version := range []int{10, 11} {
 		for _, replaced := range []bool{false, true} {
@@ -360,7 +359,6 @@ UPDATE runtime_binding SET provider_thread_id='replacement' WHERE runtime_id='ru
 		}
 	}
 }
-
 
 func TestCaptureOptOutFollowsReplacementNativeIdentityAtomically(t *testing.T) {
 	ctx := context.Background()

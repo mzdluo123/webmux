@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	claudehistory "github.com/rainchan/webmux/internal/agentprofile/claudecode/history"
-	codexhistory "github.com/rainchan/webmux/internal/agentprofile/codex/history"
-	omphistory "github.com/rainchan/webmux/internal/agentprofile/omp/history"
+	claudehistory "github.com/rainchan/webmux/internal/agent/claudecode/history"
+	codexhistory "github.com/rainchan/webmux/internal/agent/codex/history"
+	omphistory "github.com/rainchan/webmux/internal/agent/omp/history"
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/historyimport"
 	"github.com/rainchan/webmux/internal/historyprojection"

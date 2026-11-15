@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/rainchan/webmux/internal/agentprofile/codex"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
-	"github.com/rainchan/webmux/internal/agentprofile/opencode"
+	"github.com/rainchan/webmux/internal/agent/codex"
+	"github.com/rainchan/webmux/internal/agent/omp"
+	"github.com/rainchan/webmux/internal/agent/opencode"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"

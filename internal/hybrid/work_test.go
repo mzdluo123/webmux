@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/rainchan/webmux/internal/acp"
-	"github.com/rainchan/webmux/internal/agentprofile/agy"
-	"github.com/rainchan/webmux/internal/agentprofile/kimi"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
+	"github.com/rainchan/webmux/internal/agent/agy"
+	"github.com/rainchan/webmux/internal/agent/kimi"
+	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/attentionkind"
 )
 

@@ -11,6 +11,8 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+
+	"github.com/rainchan/webmux/internal/historysource"
 )
 
 func openTest(t *testing.T, dir string) *Service {
@@ -210,32 +212,35 @@ func TestMetadataSyncAndOrphanPruning(t *testing.T) {
 	}
 }
 
-func TestStoredBytesCountsTextAndHeadings(t *testing.T) {
+func TestStoredBytesCountsRetainedTextOnce(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t, t.TempDir())
 	a, b := bindTest(t, s, "a"), bindTest(t, s, "b")
 	if got, err := s.StoredBytes(ctx, a.ConversationID); err != nil || got != 0 {
 		t.Fatalf("empty conversation: %d %v", got, err)
 	}
-	r := runTest(t, s, a, "prompt")
 	text := "hello 世界"
-	activityTest(t, s, a, r.ID, "message", "provider-id", text)
-	heading := "run tests"
-	if _, err := s.WriteActivity(ctx, ActivityInput{ProviderThreadID: a.ProviderThreadID, RunID: r.ID, LocalKey: "tool", ProviderItemID: "tool", Kind: "tool", Role: "agent", Status: "completed", Source: "live", Text: "ok", Heading: &heading}); err != nil {
-		t.Fatal(err)
+	export := &historysource.Export{
+		Records:     []historysource.Record{{ID: "message", Kind: "message", Text: text}, {ID: "tool", Kind: "tool", Text: "run tests\nok"}},
+		Attachments: map[string][]byte{"file": []byte("not chat text")},
 	}
-	if got, err := s.StoredBytes(ctx, a.ConversationID); err != nil || got != int64(len(text)+len("ok")+len(heading)) {
-		t.Fatalf("stored bytes %d, want %d: %v", got, len(text)+len("ok")+len(heading), err)
+	for _, id := range []string{"first", "same-export"} {
+		snapshot := historysource.Snapshot{ID: id, ContentHash: "content", Retained: true, ExportHash: "shared"}
+		if _, err := s.SaveFrozen(ctx, historysource.SnapshotData{Snapshot: snapshot, Export: export}, a.ConversationID); err != nil {
+			t.Fatal(err)
+		}
 	}
-	replaced := "hello 世界!"
-	if _, err := s.WriteActivity(ctx, ActivityInput{ProviderThreadID: a.ProviderThreadID, RunID: r.ID, LocalKey: "message", ProviderItemID: "provider-id", Kind: "message", Role: "agent", Status: "in_progress", Source: "live", Text: replaced, Replace: true}); err != nil {
-		t.Fatal(err)
-	}
-	if got, err := s.StoredBytes(ctx, a.ConversationID); err != nil || got != int64(len(replaced)+len("ok")+len(heading)) {
-		t.Fatalf("replaced stored bytes %d, want %d: %v", got, len(replaced)+len("ok")+len(heading), err)
+	if got, err := s.StoredBytes(ctx, a.ConversationID); err != nil || got != int64(len(text)+len("run tests\nok")) {
+		t.Fatalf("retained text counted incorrectly: %d %v", got, err)
 	}
 	if got, err := s.StoredBytes(ctx, b.ConversationID); err != nil || got != 0 {
-		t.Fatalf("other conversation %d %v", got, err)
+		t.Fatalf("other conversation: %d %v", got, err)
+	}
+	if err := s.ReleaseFrozen(ctx, "first", a.ConversationID); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.StoredBytes(ctx, a.ConversationID); err != nil || got != int64(len(text)+len("run tests\nok")) {
+		t.Fatalf("shared export lost with one reference: %d %v", got, err)
 	}
 }
 

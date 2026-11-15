@@ -163,7 +163,11 @@ func TestUPnPIGDMappingAndFallback(t *testing.T) {
 			}
 		}
 	})
-	pm.gatewayOverride = net.IPv4(127, 0, 0, 1) // no PCP/NAT-PMP on 127.0.0.1:5351 -> falls back to UPnP
+	defer pm.Close()
+	// PCP and NAT-PMP use udp4, so an IPv6-only gateway fails immediately.
+	// An unowned localhost:5351 can instead silently consume the shared probe
+	// deadline, preventing the real UPnP HTTP exchange from running.
+	pm.gatewayOverride = net.IPv6loopback
 	pm.upnpOverride = igd.URL + "/rootDesc.xml"
 	pm.SetEnabled(true)
 

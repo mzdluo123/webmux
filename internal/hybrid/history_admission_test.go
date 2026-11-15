@@ -78,7 +78,8 @@ func historyCancellationTest(t *testing.T) (*harness, *actor, conversation.Execu
 	}
 	p, err := db.ReservePreview(ctx, conversation.PreviewReservation{
 		SourceConversationID: b.ConversationID, ClientRequestID: "history-preview", RequestHash: "preview-hash",
-		Request: conversation.PreviewRequest{ConfigID: in.ConfigID, AgentName: "codex", TargetProviderThreadID: b.ProviderThreadID, UserText: "unsent request"},
+		Request:   conversation.PreviewRequest{ConfigID: in.ConfigID, AgentName: "codex", TargetProviderThreadID: b.ProviderThreadID, UserText: "unsent request"},
+		Snapshots: emptyHistorySnapshots(t, db, b.ConversationID),
 	})
 	if err != nil {
 		t.Fatal(err)

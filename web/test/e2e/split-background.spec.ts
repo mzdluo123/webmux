@@ -1,6 +1,12 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { test, expect, createShell, openSplitPanel, runCommand } from "./fixtures";
+import {
+  test,
+  expect,
+  createShell,
+  openSplitPanel,
+  runCommand,
+} from "./fixtures";
 
 for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
   test(`background OSC 52 waits for explicit copy with clipboard ${clipboard}`, async ({

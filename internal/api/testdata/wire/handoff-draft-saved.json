@@ -13,7 +13,7 @@
         "overBudget": false,
         "reserve": 32000,
         "source": "estimated",
-        "used": 1130,
+        "used": 1179,
         "window": 128000
       },
       "configId": "<configId#1>",

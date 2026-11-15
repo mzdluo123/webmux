@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/rainchan/webmux/internal/agentprofile/agy"
+	"github.com/rainchan/webmux/internal/agent/agy"
 	"github.com/rainchan/webmux/internal/attentionkind"
 )
 
-func TestActivityRecordsBackgroundStatusRefresh(t *testing.T) {
+func TestBackgroundRefreshCommitsControlState(t *testing.T) {
 	h, db := historyHarness(t)
 	h.fast()
 	shell := h.create(h.input(agy.Name, SideACP))
@@ -22,27 +22,15 @@ func TestActivityRecordsBackgroundStatusRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	page, err := db.Activities(context.Background(), binding.ConversationID, 0, 0, 0)
+	state, err := db.Conversation(context.Background(), binding.ConversationID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	user, agent := false, false
-	for _, item := range page.Items {
-		a := item.Activity
-		if a.RunOrdinal != 2 || a.Kind != "message" {
-			continue
-		}
-		if a.RunID == "" || a.Status != "completed" {
-			t.Fatalf("uncommitted refresh: %+v", a)
-		}
-		if a.Role == "user" && a.Text == agy.BackgroundStatusPrompt {
-			user = true
-		}
-		if a.Role == "agent" && a.Text != "" {
-			agent = true
-		}
+	thread, err := db.ProviderThread(context.Background(), binding.ProviderThreadID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !user || !agent {
-		t.Fatalf("refresh history lost: user=%v agent=%v", user, agent)
+	if state.NextRunOrdinal != 3 || thread.LastDeliveredRunOrdinal != 2 {
+		t.Fatalf("background refresh not committed: conversation=%+v thread=%+v", state, thread)
 	}
 }

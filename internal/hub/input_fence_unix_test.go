@@ -71,7 +71,13 @@ func TestFrameQueryFencesPTYWrites(t *testing.T) {
 		{name: "submission", frame: contract.FrameSubmit},
 	} {
 		t.Run(kind.name, func(t *testing.T) {
-			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: filepath.Join(t.TempDir(), "control.sock"), Net: "unix"})
+			// Unix socket paths have a small platform-specific length limit.
+			socketDir, err := os.MkdirTemp("/tmp", "hub-fence-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
+			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: filepath.Join(socketDir, "control.sock"), Net: "unix"})
 			if err != nil {
 				t.Fatal(err)
 			}

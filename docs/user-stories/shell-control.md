@@ -103,6 +103,7 @@
 - **US-S12 shell 补全**：作为命令行使用者，我希望按 Tab 补全命令、选项与会话 ID，以便少记少打。
   - `webmux completion bash|zsh|fish` 输出补全脚本；隐藏的 `__complete` 给出命令、子命令、选项、枚举值，并向服务查询会话 ID（附标题；`resume` 与 `rm --forget` 补全 `GET /api/sessions?state=archived` 中的已归档会话）、启动配置、仓库、worktree 与手册主题；
   - 查询超过 1 秒或服务未运行时只给静态候选，不输出错误，也不输出 Token 或环境变量值；Windows 客户端不提供补全。
+  - bash 3.2 与新版 Bash 均保持子命令和当前参数的独立单词边界，不将 `chat a` 合成一个参数而丢失静态候选。
 - **US-S13 从脚本提醒用户**：作为在会话里跑长任务的脚本或 agent，我希望任务结束或需要决定时直接提醒用户，以便用户不必盯着终端。
   - `webmux notify [--kind notify|done|error|question] [MESSAGE]` 默认作用于当前会话，会话外需 `--session`；消息最多 200 个字符、不含控制字符，超出时 CLI 以 2 拒绝；
   - 提醒来源为 `cli`，覆盖当前锁存的提醒而不受来源分层限制；会话徽章、页面内弹窗与后台推送照常出现，消息作为弹窗说明行与推送正文，只保存在内存中；

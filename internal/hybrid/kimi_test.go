@@ -11,17 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rainchan/webmux/internal/agentprofile/kimi"
-	"github.com/rainchan/webmux/internal/agenttrust"
+	"github.com/rainchan/webmux/internal/agent/kimi"
 	"github.com/rainchan/webmux/internal/session"
 )
 
 func TestKimiRoundTripAndConfigReapply(t *testing.T) {
-	h := newHarness(t, 0, func(options *session.Options) {
-		options.PreLaunch = agenttrust.New().Prepare
-	})
+	h := newHarness(t, 0)
 	h.fast()
-	in := h.input(kimi.Name, SideTUI)
+	// Production cmd assembly applies the trust plan before calling hybrid.
+	in := h.input(kimi.Name, SideTUI, "KIMI_CODE_TRUST_WORKSPACE=1")
 	in.Cmd = append(in.Cmd, "--model", "kimi-code-plan-cn/kimi-for-coding", "--auto")
 	s := h.create(in)
 	id := s.Info().ID

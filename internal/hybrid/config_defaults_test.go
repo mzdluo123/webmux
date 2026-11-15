@@ -3,13 +3,13 @@ package hybrid
 import (
 	"testing"
 
+	"github.com/rainchan/webmux/internal/agent/claudecode"
+	"github.com/rainchan/webmux/internal/agent/codex"
+	"github.com/rainchan/webmux/internal/agent/devin"
+	"github.com/rainchan/webmux/internal/agent/kimi"
+	"github.com/rainchan/webmux/internal/agent/qoder"
+	"github.com/rainchan/webmux/internal/agent/qodercn"
 	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/claudecode"
-	"github.com/rainchan/webmux/internal/agentprofile/codex"
-	"github.com/rainchan/webmux/internal/agentprofile/devin"
-	"github.com/rainchan/webmux/internal/agentprofile/kimi"
-	"github.com/rainchan/webmux/internal/agentprofile/qoder"
-	"github.com/rainchan/webmux/internal/agentprofile/qodercn"
 )
 
 func TestDefaultChatPermissionSeeds(t *testing.T) {

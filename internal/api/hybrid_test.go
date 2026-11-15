@@ -16,8 +16,8 @@ import (
 
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
 
+	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"

@@ -10,7 +10,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
 
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
+	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/hybrid"
 )
 

@@ -37,12 +37,12 @@ go run ./cmd/native-image-transport \
 连接器初始化声明 `promptCapabilities.image=true`；新 session 的 model config 为 `openai-codex/gpt-6.1-sol`，thinking 为 off。
 复用 `/tmp/webmux-image-final.V7fZ8K` 的同一组合成样本、原始 PNG 和固定七字段任务，没有重新渲染或更换评分任务。
 
-| 表示 | 输入 token | 输出 token | 总 token | 估价 USD | 耗时秒 | 正确字段 |
-| --- | --- | --- | --- | --- | --- | --- |
-| raw | 5487 | 77 | 5564 | 0.011744 | 5.128 | 7/7 |
-| projected | 2700 | 76 | 2776 | 0.006160 | 5.122 | 7/7 |
-| image（三图） | 4602 | 153 | 4755 | 0.010734 | 16.306 | 7/7 |
-| hybrid（两图与修正文） | 4207 | 128 | 4335 | 0.009694 | 11.403 | 6/7 |
+| 表示                   | 输入 token | 输出 token | 总 token | 估价 USD | 耗时秒 | 正确字段 |
+| ---------------------- | ---------- | ---------- | -------- | -------- | ------ | -------- |
+| raw                    | 5487       | 77         | 5564     | 0.011744 | 5.128  | 7/7      |
+| projected              | 2700       | 76         | 2776     | 0.006160 | 5.122  | 7/7      |
+| image（三图）          | 4602       | 153        | 4755     | 0.010734 | 16.306 | 7/7      |
+| hybrid（两图与修正文） | 4207       | 128        | 4335     | 0.009694 | 11.403 | 6/7      |
 
 输入/输出/总 token 来自实际 `session/prompt` JSON-RPC result 的 `usage` 扩展，而非 PNG 大小、本地 tokenizer 或初始零 usage。
 WebMux 标准 `PromptResponse` 当前不暴露该扩展，因此实验另从原始 stdout 提取；`usage_update.cost` 是连接器估价，不是账单。

@@ -3,15 +3,24 @@
   "body": {
     "gaps": [
       {
-        "createdAt": "<time>",
-        "id": "<id#1>",
-        "providerThreadId": "<providerThreadId#1>",
-        "reason": "tui"
+        "createdAt": "<zero-time>",
+        "id": "",
+        "providerThreadId": "",
+        "reason": "unknown_timestamp"
+      },
+      {
+        "createdAt": "<zero-time>",
+        "id": "",
+        "providerThreadId": "",
+        "reason": "unknown_timestamp"
       }
     ],
-    "historyOrigin": "unknown",
+    "historyOrigin": "complete",
     "items": [],
     "nextPosition": "1",
-    "reconcileRequired": true
+    "reconcileRequired": true,
+    "snapshotIds": [
+      "<*#1>"
+    ]
   }
 }

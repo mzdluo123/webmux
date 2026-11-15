@@ -59,7 +59,8 @@ func readerRefreshCancellationTest(t *testing.T) (*harness, *actor, conversation
 	}
 	preview, err := db.ReservePreview(ctx, conversation.PreviewReservation{
 		SourceConversationID: binding.ConversationID, ClientRequestID: "reader-preview", RequestHash: "preview-hash",
-		Request: conversation.PreviewRequest{ConfigID: in.ConfigID, AgentName: "codex", TargetProviderThreadID: binding.ProviderThreadID, UserText: "unsent reader request"},
+		Request:   conversation.PreviewRequest{ConfigID: in.ConfigID, AgentName: "codex", TargetProviderThreadID: binding.ProviderThreadID, UserText: "unsent reader request"},
+		Snapshots: emptyHistorySnapshots(t, db, binding.ConversationID),
 	})
 	if err != nil {
 		t.Fatal(err)

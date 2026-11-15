@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
+	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/session"
 )
@@ -517,7 +517,8 @@ func TestResumeUnresolvedHistoricalDispatchNeverOpensReplacementWriter(t *testin
 			}
 			p, err := db.ReservePreview(ctx, conversation.PreviewReservation{
 				SourceConversationID: b.ConversationID, ClientRequestID: "historical-preview", RequestHash: "preview",
-				Request: conversation.PreviewRequest{ConfigID: in.ConfigID, AgentName: "omp", TargetProviderThreadID: b.ProviderThreadID, UserText: "original"},
+				Request:   conversation.PreviewRequest{ConfigID: in.ConfigID, AgentName: "omp", TargetProviderThreadID: b.ProviderThreadID, UserText: "original"},
+				Snapshots: emptyHistorySnapshots(t, db, b.ConversationID),
 			})
 			if err != nil {
 				t.Fatal(err)

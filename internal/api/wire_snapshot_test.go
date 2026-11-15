@@ -29,9 +29,9 @@ import (
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
 
 	"github.com/coder/websocket"
+	"github.com/rainchan/webmux/internal/agent/codex"
+	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/codex"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
@@ -124,14 +124,16 @@ func wireSchema(name string) wireRules {
 		}
 	case "native-freeze", "native-read":
 		add("", "id", "snapshotId", "contentHash")
+		add("/records/*", "id", "id", "hash", "parentId", "callId")
 	case "conversation-activities", "conversation-activities-empty":
-		add("/items/*", "id", "activityId", "conversationId", "providerThreadId", "runId")
+		add("", "id", "snapshotIds/*")
+		add("/items/*", "id", "activityId", "conversationId", "providerThreadId", "runId", "sourceHash", "parentId", "callId")
 		add("/items/*", "time", "createdAt")
 		add("/items/*/attachments/*", "path", "reference")
 		add("/gaps/*", "id", "id", "providerThreadId")
 		add("/gaps/*", "time", "createdAt")
 	case "conversation-activity":
-		add("", "id", "activityId", "conversationId", "providerThreadId", "runId")
+		add("", "id", "activityId", "conversationId", "providerThreadId", "runId", "sourceHash", "parentId", "callId", "snapshotIds/*")
 		add("", "time", "createdAt")
 		add("/attachments/*", "path", "reference")
 	case "settings-patch", "settings-reset", "ws-settings-update":

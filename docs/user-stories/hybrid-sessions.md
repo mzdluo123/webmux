@@ -16,8 +16,8 @@ Q 组以选择 `chat` 及其 `launch`、`files` 依赖为前提。工作树操�
 - [输入卡片变形动画](../../web/src/hooks/shared/composer-morph.svelte.ts)、[抽屉入口动画](../../web/src/lib/components/ui/drawer/drawer-content.svelte)。
 
 - [混合会话服务](../../internal/hybrid/)、[连接器检查](../../internal/hybrid/connector.go)、[agent 适配器核心](../../internal/agentprofile/)、[ACP 客户端](../../internal/acp/)
-- [agent 注册表](../../internal/agentprofile/agents/agents.go)、[Codex 适配器](../../internal/agentprofile/codex/codex.go)、[适配器契约测试](../../internal/agentprofile/agenttest/agenttest.go)
-- [Claude Code 适配器](../../internal/agentprofile/claudecode/claudecode.go)、[Claude 注册记录](../../internal/agentprofile/claudecode/registry.go)、[Antigravity CLI 适配器](../../internal/agentprofile/agy/agy.go)
+- [agent 注册表](../../internal/agentprofile/agents/agents.go)、[Codex 适配器](../../internal/agent/codex/codex.go)、[适配器契约测试](../../internal/agent/agenttest/agenttest.go)
+- [Claude Code 适配器](../../internal/agent/claudecode/claudecode.go)、[Claude 注册记录](../../internal/agent/claudecode/registry.go)、[Antigravity CLI 适配器](../../internal/agent/agy/agy.go)
 - [会话外壳与伴随进程](../../internal/session/lifecycle.go)、[进程事实](../../internal/session/process_facts.go)、[聊天接口](../../internal/featureapi/chat.go)、[聊天通道](../../internal/featurehub/chat.go)
 - [启动配置](../../internal/launch/types.go)、[聊天视图](../../web/src/components/chat/)、[代码链接解析](../../web/src/domains/code/markdown-link.ts)、[代码工作区](../../web/src/components/code/CodeWorkspace.svelte)、[会话页](../../web/src/pages/Terminal.svelte)
 - [会话引用](../../web/src/domains/sessions/session-reference.ts)、[侧栏会话菜单](../../web/src/components/shell/SidebarSessionMenu.svelte)、[引用解析用例](../../web/test/session-reference.test.ts)。

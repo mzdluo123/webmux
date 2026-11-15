@@ -81,7 +81,6 @@ type HandoffInput struct {
 	ClientRequestID, RequestHash                                       string
 }
 
-
 type ActivityAttachment struct {
 	Name, MimeType, Reference string
 	Size                      int64

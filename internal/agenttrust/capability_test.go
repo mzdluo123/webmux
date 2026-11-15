@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/rainchan/webmux/internal/agentprofile/copilot"
+	"github.com/rainchan/webmux/internal/agent/copilot"
 	"github.com/rainchan/webmux/internal/agentprofile/trustconfig"
 )
 

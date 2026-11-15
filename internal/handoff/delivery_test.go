@@ -36,7 +36,7 @@ type deliveryHarness struct {
 	folders                        *artifacts.Service
 	source                         conversation.Binding
 	config                         launch.Config
-	completed []string
+	completed                      []string
 }
 
 func deliveryTest(t *testing.T, env map[string]string) *deliveryHarness {

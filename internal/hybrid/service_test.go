@@ -18,12 +18,12 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
+	"github.com/rainchan/webmux/internal/agent/agy"
+	"github.com/rainchan/webmux/internal/agent/codex"
+	"github.com/rainchan/webmux/internal/agent/omp"
+	"github.com/rainchan/webmux/internal/agent/opencode"
 	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
-	"github.com/rainchan/webmux/internal/agentprofile/agy"
-	"github.com/rainchan/webmux/internal/agentprofile/codex"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
-	"github.com/rainchan/webmux/internal/agentprofile/opencode"
 	"github.com/rainchan/webmux/internal/session"
 )
 

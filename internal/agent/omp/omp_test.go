@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/rainchan/webmux/internal/agent/agenttest"
 	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/agenttest"
 )
 
 func TestContract(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
+	"github.com/rainchan/webmux/internal/agent/agenttest"
 	ap "github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/agenttest"
 )
 
 func TestContract(t *testing.T) {

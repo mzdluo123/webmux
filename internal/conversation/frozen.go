@@ -86,17 +86,21 @@ func (s *Service) SaveFrozen(ctx context.Context, data historysource.SnapshotDat
 		return out, err
 	}
 	var export []byte
+	var textBytes int64
 	if data.Export != nil {
 		export, err = encodeFrozen(data.Export)
 		if err != nil {
 			return out, err
+		}
+		for _, record := range data.Export.Records {
+			textBytes += int64(len(record.Text))
 		}
 	}
 	err = s.transact(ctx, func(tx *sql.Tx) error {
 		var exportHash any
 		if out.Retained {
 			exportHash = out.ExportHash
-			if _, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO frozen_export(hash,body) VALUES(?,?)", out.ExportHash, export); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT OR IGNORE INTO frozen_export(hash,body,text_bytes) VALUES(?,?,?)", out.ExportHash, export, textBytes); err != nil {
 				return storageError(ctx, err)
 			}
 		}

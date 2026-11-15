@@ -5,7 +5,7 @@ package history
 
 import (
 	"context"
-	cn "github.com/rainchan/webmux/internal/agentprofile/qodercn/history"
+	cn "github.com/rainchan/webmux/internal/agent/qodercn/history"
 	"github.com/rainchan/webmux/internal/historysource"
 )
 

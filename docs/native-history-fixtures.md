@@ -5,7 +5,7 @@
 
 ## 从夹具开始开发
 
-1. 打开 [夹具目录](../internal/agentprofile/testdata/native-history/)，先读目标 Agent 的 `manifest.json`。
+1. 打开 [夹具目录](../internal/agent/testdata/native-history/)，先读目标 Agent 的 `manifest.json`。
 2. 按 `sourceLayout` 理解原生目录与身份关系，按 `files` 选择 JSON、JSONL 或 SQLite SQL 样本。
 3. 在临时目录重建原生布局，针对实际字段、类型和引用开发只读适配器，不启动 Agent 或连接真实服务。
 4. 使用 `coverage` 和 `limitations` 区分已观察行为、被脱敏信息及尚缺场景；不要由一份样本推断所有版本兼容。

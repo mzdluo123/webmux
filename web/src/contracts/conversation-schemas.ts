@@ -319,6 +319,8 @@ export const NativeResultSchema = z.object({
   recordCount: z.number().int().nonnegative(),
   files: z.array(nativeFileSchema),
   snapshotId: z.string(),
+  conversationId: z.string().optional(),
+  providerThreadId: z.string().optional(),
   parser: z.string(),
   pending: z.boolean(),
   gaps: z.array(z.string()),

@@ -20,7 +20,13 @@
 需要把外部会话登记为可浏览历史时使用同一来源字段：
 
 ```json
-{"action":"import","agent":"codex","path":"/example/codex-home/sessions/rollout.jsonl","nativeId":"准确原生 session ID","retain":false}
+{
+  "action": "import",
+  "agent": "codex",
+  "path": "/example/codex-home/sessions/rollout.jsonl",
+  "nativeId": "准确原生 session ID",
+  "retain": false
+}
 ```
 
 - `freeze` 直接解析原生来源并保存 manifest，不先把正文导入 Activity。
@@ -35,17 +41,17 @@
 以下叶读取器已实现并通过脱敏原生夹具验证；这不等于全部 CLI/连接器版本、TUI/ACP 交接组合已完成实测。
 来源、缺失场景及脱敏方式见[真实夹具说明](native-history-fixtures.md)。
 
-| Agent | 原生存储证据 | 版本边界 |
-| --- | --- | --- |
-| Codex | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.162.1 |
-| Claude Code | projects JSONL、parent 图及 compact_boundary | 真实样本 2.1.316 |
-| omp | session JSONL、父链与 compaction 保留范围 | 文件格式 3；一份 runtime 18.12.2 |
-| OpenCode | 两代 SQLite 原生表、消息及 part | 会话版本 1.18.3 / 2.1.4 |
-| Kimi | state.json 与 wire.jsonl | wire 1.4；应用版本未知 |
-| agy | SQLite BLOB、已恢复 descriptor 的 protobuf 字段 | 应用版本未知，仅六步实录证据 |
-| Devin | SQLite committed 主链，排除 inference siblings | SQLite 写入版本未知；不与独立 ATIF 混合 |
-| QoderCN | projects JSONL，按活动祖先链恢复 | 实录 1.1.84；样本无工具调用 |
-| Qoder | 暂复用 QoderCN 读取器和 fixtureSource | 国际版路径/格式尚未经实录确认 |
+| Agent       | 原生存储证据                                                 | 版本边界                                |
+| ----------- | ------------------------------------------------------------ | --------------------------------------- |
+| Codex       | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.162.1                |
+| Claude Code | projects JSONL、parent 图及 compact_boundary                 | 真实样本 2.1.316                        |
+| omp         | session JSONL、父链与 compaction 保留范围                    | 文件格式 3；一份 runtime 18.12.2        |
+| OpenCode    | 两代 SQLite 原生表、消息及 part                              | 会话版本 1.18.3 / 2.1.4                 |
+| Kimi        | state.json 与 wire.jsonl                                     | wire 1.4；应用版本未知                  |
+| agy         | SQLite BLOB、已恢复 descriptor 的 protobuf 字段              | 应用版本未知，仅六步实录证据            |
+| Devin       | SQLite committed 主链，排除 inference siblings               | SQLite 写入版本未知；不与独立 ATIF 混合 |
+| QoderCN     | projects JSONL，按活动祖先链恢复                             | 实录 1.1.84；样本无工具调用             |
+| Qoder       | 暂复用 QoderCN 读取器和 fixtureSource                        | 国际版路径/格式尚未经实录确认           |
 
 原生格式、CLI、连接器和历史注入协议是独立版本维度，不能互相替代。
 未知格式、引用式 lineage、无法证明的分支或原生身份返回明确错误，不猜测会话归属。
@@ -81,7 +87,13 @@ HOME、CODEX_HOME、CLAUDE_CONFIG_DIR、KIMI_CODE_HOME 和适用的 XDG_DATA_HOM
 发现结果不唯一或原生身份缺失时拒绝自动配对，不使用 cwd、标题或相同正文推断身份。
 
 ```json
-{"action":"bind","agent":"codex","providerThreadId":"ProviderThread ID","nativeId":"准确原生 ID","path":"/example/rollout.jsonl"}
+{
+  "action": "bind",
+  "agent": "codex",
+  "providerThreadId": "ProviderThread ID",
+  "nativeId": "准确原生 ID",
+  "path": "/example/rollout.jsonl"
+}
 ```
 
 ## 资源、隐私与 Codex 格式细节

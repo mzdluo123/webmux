@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	codexhistory "github.com/rainchan/webmux/internal/agent/codex/history"
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
-	codexhistory "github.com/rainchan/webmux/internal/agentprofile/codex/history"
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/historyimport"
 	"github.com/rainchan/webmux/internal/historyprojection"

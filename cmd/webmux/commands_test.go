@@ -214,7 +214,11 @@ func firstLine(s string) string {
 var _ = clicmd.GroupHelp
 
 func TestConnectLocalPrefersSocketThenConfigThenEnvironment(t *testing.T) {
-	dir := t.TempDir()
+	dir, err := os.MkdirTemp("/tmp", "wmx-cli-socket-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	envSocket := dir + "/env.sock"
 	getenv := func(name string) string {
 		if name == contract.SocketEnv {

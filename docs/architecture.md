@@ -98,14 +98,15 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `internal/tray/winui`, `cmd/webmux-tray`      | Windows 托盘通知区界面、菜单渲染、通知与剪贴板（`//go:build windows`）                                     |
 | `internal/handoff`                            | 历史预算、整项选择和服务端预览；通过注入服务协调，不创建 PTY                                               |
 | `internal/conversation`                       | 稳定对话与 provider 身份、Run 序号、handoff / delivery / receipt 事务基础                                  |
-| `internal/historysource`                      | 原生来源、规范记录、冻结边界与诊断值；有界只读文件证据                                                  |
-| `internal/historyimport`                      | 显式 reader 选择、来源中立直读、引用快照校验及按需保留；不维护活历史正文镜像                            |
-| `internal/historyprojection`                  | 仅从冻结导出映射到独立 snapcompact-go 核心；文本/图片预算独立于格式解析                                 |
+| `internal/historysource`                      | 原生来源、规范记录、冻结边界与诊断值；有界只读文件证据                                                     |
+| `internal/historyimport`                      | 显式 reader 选择、来源中立直读、引用快照校验及按需保留；不维护活历史正文镜像                               |
+| `internal/historyprojection`                  | 仅从冻结导出映射到独立 snapcompact-go 核心；文本/图片预算独立于格式解析                                    |
 | `internal/hybrid`                             | 混合会话：每会话一个 actor、记录持久化、聊天事件规范化、切换与恢复                                         |
 | `internal/artifacts`                          | 会话交互产物目录（系统临时目录下的私有文件夹，含 `uploads/`）的创建与清理                                  |
 | `internal/settingsstore`                      | 隧道与 Tailscale 设置共用的打开、读取、提交与 fail-closed 骨架                                             |
 | `internal/acp`                                | 只依赖标准库的 ACP v1 客户端与协议边界                                                                     |
-| `internal/agentprofile`                       | agent 中立的档案核心与各 agent 适配器（`agents` 注册表）                                                   |
+| `internal/agentprofile`                       | agent 中立的命令、档案、注册表接口与 steering 核心；`agents` 显式汇总注册表                                |
+| `internal/agent/<name>`                       | 具体 agent 的适配器、历史读取、根目录、信任政策与元数据；`agent/agenttest` 提供契约测试                    |
 | `internal/tunnel`                             | Cloudflare 隧道：cloudflared 定位、下载与子进程管理                                                        |
 | `internal/service`                            | 当前用户的 systemd --user / launchd 服务渲染与管理                                                         |
 | `web/`                                        | Svelte 5 前端，构建后通过 `go:embed` 嵌入二进制                                                            |
@@ -199,14 +200,15 @@ flowchart LR
 - **agent 适配器**：`internal/agentprofile` 是 agent 中立的核心，`hybrid` 只依赖其中的接口。
   - `Agent` 接口提供档案数据（命令写法、参数分类、恢复与 ACP 命令）、身份识别与中断键。
   - 只有部分 agent 具备的行为是可选小接口，`hybrid` 以类型断言使用：`Resumer`、`ConfigReapplier`、`ConfigErrorHandler`、`SubmitDelayer`、`Steerer`、`LockTracker`、`ForceSwitchNoter`。
-  - 每个 agent 是一个子包（`opencode`、`omp`、`codex`、`claudecode`、`agy`、`qoder`、`qodercn`、`kimi`、`devin`），`agentprofile/agents` 用显式列表组成不可变注册表；`agentprofile/agenttest` 是每个适配器都运行的契约测试。
+  - 每个 agent 位于 `internal/agent/<name>`（`opencode`、`omp`、`codex`、`claudecode`、`agy`、`qoder`、`qodercn`、`kimi`、`devin`）；`copilot` 仅提供信任政策。
+  - `agentprofile/agents` 用显式列表组成不可变注册表；`agent/agenttest` 是每个适配器都运行的契约测试。
   - `cmd` 启动时选择一次运行注册表，同一实例注入 session 提交延迟、launch 保存校验与能力投影、hybrid 运行；API 通过已注入的 launch 服务查询。
   - 服务与控制器不导入内置聚合包；Config/DTO 只携带服务计算的能力值，不查全局。nil 与空注册表都表示没有 agent，不回退内置集合；Identify 与 supportedAgents 保持注册顺序。
   - 新增 agent 只需新增子包并在注册表登记（启动预设、图标与文档另行添加）；`internal/archtest` 守住 `acp`、`hybrid`、核心包与 `web/src` 不出现 agent 名称。
   - 静态 runtime ID、可执行别名、图标与验证版本由具体适配器的 `Profile` 拥有；connector executable 与 connector 验证版本单列，不等同于 agent ID 或 provider/model ID。
   - `agents.LaunchTemplates` 描述 CLI 启动建议，保留仅 TUI 工具；`cmd/internal/assemble.LaunchPresets` 加入登录 shell、包装 startup argv 并转换为 launch 输入。`launch` 只存储、校验和恢复注入的预设，不内置厂商列表。
   - 预设保持既有顺序、名称、权限参数、env、hybrid 默认值和图标 ID；恢复不覆盖同名用户配置。前端静态图标目录与旧 icon 推断仅是展示兼容表，不代表运行能力，不另建生成链。
-  - #650 B 评估：保留 `agentprofile/<agent>` 路径。能力接口与 cmd 装配已隔离所有权；迁往 `agent/<name>` 不减少实际依赖，反而改动导入路径、架构清单与测试，并可能为跨包 helper 扩大导出面。后续只有真实跨能力协作收益才能支持迁移，不以目录统一替代边界。
+  - 具体 agent 的外部格式、路径与工具知识物理隔离在 `internal/agent/<name>`；中立接口、命令解析和 steering 留在 `agentprofile`，通用信任计划留在 `agentprofile/trustconfig`。旧适配器路径不保留兼容别名。
 - **生命周期**：从终端或聊天开始，协议见 [混合会话接口](protocol/http-hybrid.md)。
   - 切换失败自动回到原端；TUI 自行退出或回滚失败标记 `interrupted`。
   - ACP 意外退出自动重连一次；聊天端会话保持 ACP 进程运行，仅在切换、显式归档（关闭）或服务停止时结束。

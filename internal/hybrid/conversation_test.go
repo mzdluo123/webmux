@@ -2,6 +2,7 @@ package hybrid
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
 
 	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -113,15 +115,26 @@ func TestEvictionAlsoForgetsConversation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err := db.WriteActivity(ctx, conversation.ActivityInput{ProviderThreadID: old.ProviderThreadID, LocalKey: "retained-body", Kind: "message", Role: "user", Source: "local", Status: "completed", Text: "old normalized history"})
+	item := conversation.TextHash("retained-body")
+	record := historysource.Record{ID: item, Kind: "message", Role: "user", Text: "old normalized history"}
+	recordJSON, err := json.Marshal(record)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := db.ReservePreview(ctx, conversation.PreviewReservation{SourceConversationID: old.ConversationID, ClientRequestID: "eviction-preview", RequestHash: "preview", Request: conversation.PreviewRequest{Fork: true, ConfigID: "target", AgentName: "omp", UserText: "old unsent task"}})
+	export := &historysource.Export{Records: []historysource.Record{record}, Attachments: map[string][]byte{}}
+	exportJSON, err := json.Marshal(export)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.CompletePreview(ctx, p.ID, conversation.PreviewResult{SelectedItemIDs: []string{item}, Budget: conversation.PreviewBudget{History: 16000, Used: 100}}); err != nil {
+	snapshot, err := db.SaveFrozen(ctx, historysource.SnapshotData{Snapshot: historysource.Snapshot{ID: conversation.TextHash(t.Name()), ContentHash: conversation.TextHash("old history"), Source: historysource.Source{Agent: "metadata-test"}, Retained: true, ExportHash: conversation.TextHash(string(exportJSON)), RecordCount: 1, Records: []historysource.RecordRef{{ID: item, Hash: conversation.TextHash(string(recordJSON)), Kind: "message", Position: 1}}}, Export: export}, old.ConversationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := db.ReservePreview(ctx, conversation.PreviewReservation{SourceConversationID: old.ConversationID, ClientRequestID: "eviction-preview", RequestHash: "preview", Request: conversation.PreviewRequest{Fork: true, ConfigID: "target", AgentName: "omp", UserText: "old unsent task"}, Snapshots: []historysource.Snapshot{snapshot}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CompletePreview(ctx, p.ID, conversation.PreviewResult{SelectedItemIDs: []string{item}, ProjectionPolicy: "mechanical-text/test", RepresentationHashes: map[string]string{item: conversation.TextHash(record.Text)}, Budget: conversation.PreviewBudget{History: 16000, Used: 100}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.svc.Create(ctx, h.input("omp", SideTUI)); err != nil {
@@ -130,8 +143,8 @@ func TestEvictionAlsoForgetsConversation(t *testing.T) {
 	if _, err := db.Conversation(ctx, old.ConversationID); !errors.Is(err, conversation.ErrNotFound) {
 		t.Fatalf("eviction retained conversation: %v", err)
 	}
-	if _, err := db.Activity(ctx, old.ConversationID, item, 0, 4000); !errors.Is(err, conversation.ErrNotFound) {
-		t.Fatal("eviction kept activity", err)
+	if _, err := db.Frozen(ctx, snapshot.ID); !errors.Is(err, conversation.ErrNotFound) {
+		t.Fatal("eviction kept unowned snapshot", err)
 	}
 	if _, err := db.Preview(ctx, p.ID); !errors.Is(err, conversation.ErrNotFound) {
 		t.Fatal("eviction kept handoff", err)

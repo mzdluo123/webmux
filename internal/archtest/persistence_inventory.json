@@ -359,11 +359,11 @@
       "count": 1,
       "owner": "tailscale-ownership"
     },
-    "internal/agentprofile/claudecode/registry.go|path|.json": {
+    "internal/agent/claudecode/registry.go|path|.json": {
       "count": 2,
       "owner": "agent-state"
     },
-    "internal/agentprofile/codex/codex.go|path|.lock": {
+    "internal/agent/codex/codex.go|path|.lock": {
       "count": 1,
       "owner": "agent-state"
     },
@@ -759,47 +759,47 @@
       "count": 1,
       "owner": "tray-local"
     },
-    "internal/agentprofile/kimi/resume.go|backupWire|os.CreateTemp": {
+    "internal/agent/kimi/resume.go|backupWire|os.CreateTemp": {
       "count": 1,
       "owner": "kimi-resume"
     },
-    "internal/agentprofile/kimi/resume.go|backupWire|os.Link": {
+    "internal/agent/kimi/resume.go|backupWire|os.Link": {
       "count": 1,
       "owner": "kimi-resume"
     },
-    "internal/agentprofile/kimi/resume.go|backupWire|os.Remove": {
+    "internal/agent/kimi/resume.go|backupWire|os.Remove": {
       "count": 1,
       "owner": "kimi-resume"
     },
-    "internal/agentprofile/kimi/resume.go|localizeBinding|os.CreateTemp": {
+    "internal/agent/kimi/resume.go|localizeBinding|os.CreateTemp": {
       "count": 1,
       "owner": "kimi-resume"
     },
-    "internal/agentprofile/kimi/resume.go|localizeBinding|os.Remove": {
+    "internal/agent/kimi/resume.go|localizeBinding|os.Remove": {
       "count": 1,
       "owner": "kimi-resume"
     },
-    "internal/agentprofile/kimi/resume.go|localizeBinding|os.Rename": {
+    "internal/agent/kimi/resume.go|localizeBinding|os.Rename": {
       "count": 1,
       "owner": "kimi-resume"
     },
-    "internal/agentprofile/agy/trust.go|path|settings.json": {
+    "internal/agent/agy/trust.go|path|settings.json": {
       "count": 1,
       "owner": "agent-trust"
     },
-    "internal/agentprofile/claudecode/trust.go|path|.claude.json": {
+    "internal/agent/claudecode/trust.go|path|.claude.json": {
       "count": 1,
       "owner": "agent-trust"
     },
-    "internal/agentprofile/copilot/trust.go|path|config.json": {
+    "internal/agent/copilot/trust.go|path|config.json": {
       "count": 1,
       "owner": "agent-trust"
     },
-    "internal/agentprofile/devin/trust.go|path|trusted_workspaces.json": {
+    "internal/agent/devin/trust.go|path|trusted_workspaces.json": {
       "count": 1,
       "owner": "agent-trust"
     },
-    "internal/agentprofile/qoder/trust.go|path|settings.json": {
+    "internal/agent/qoder/trust.go|path|settings.json": {
       "count": 1,
       "owner": "agent-trust"
     },
@@ -931,19 +931,19 @@
       "count": 1,
       "owner": "user-files"
     },
-    "internal/agentprofile/kimi/history/reader.go|path|state.json": {
+    "internal/agent/kimi/history/reader.go|path|state.json": {
       "count": 1,
       "owner": "agent-state"
     },
-    "internal/agentprofile/opencode/history/history.go|open|database/sql.Open": {
+    "internal/agent/opencode/history/history.go|open|database/sql.Open": {
       "count": 1,
       "owner": "read-only-native-history"
     },
-    "internal/agentprofile/agy/history/history.go|open|database/sql.Open": {
+    "internal/agent/agy/history/history.go|open|database/sql.Open": {
       "count": 1,
       "owner": "read-only-native-history"
     },
-    "internal/agentprofile/devin/history/history.go|open|database/sql.Open": {
+    "internal/agent/devin/history/history.go|open|database/sql.Open": {
       "count": 1,
       "owner": "read-only-native-history"
     },

@@ -6,13 +6,13 @@
 
 后端分为五层，`internal/archtest` 用 `golang.org/x/tools/go/packages` 加载带类型信息的源码检查规则；违规让 `go test ./...` 失败，一次列出全部违规，每条形如 `文件:行 [Rn] 消息 — 修复提示`。规则基于类型解析，导入别名、点导入和函数值都绕不过。
 
-| 层             | 包                                                                                                         | 职责                                                                |
-| -------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| 装配根         | `cmd/...`                                                                                                  | 唯一构造 Service、把配置转换为 Service 选项并注入 Controller 的位置 |
-| Controller     | `api`、`hub`、`wire`、`transport`、`featureapi`、`featurehub`、`featurewire`、`mcphttp`                    | 路由、认证、状态映射、传输和投影                                    |
-| Service        | `session`、`sessioncreate`、`hybrid`、`conversation`、`workspace`、`launch`、`settings`、`relaysetting` 等 | 业务规则、状态、文件系统与进程                                      |
-| 共享           | `builtin`、`contract`、`streamproto`、`config`、`runtime`、`statefile`、`acp`、`agentprofile/...` 等       | 契约与基础设施，不依赖 Service 或 Controller                        |
-| 服务器外客户端 | `client`、`localclient`、`attach`、`clicmd`、`tray/...`、`wslclient`、`tunnel`、`relay`、`service`         | 只通过线上协议访问服务器，只依赖共享层和其他客户端                  |
+| 层             | 包                                                                                                                   | 职责                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| 装配根         | `cmd/...`                                                                                                            | 唯一构造 Service、把配置转换为 Service 选项并注入 Controller 的位置 |
+| Controller     | `api`、`hub`、`wire`、`transport`、`featureapi`、`featurehub`、`featurewire`、`mcphttp`                              | 路由、认证、状态映射、传输和投影                                    |
+| Service        | `session`、`sessioncreate`、`hybrid`、`conversation`、`workspace`、`launch`、`settings`、`relaysetting` 等           | 业务规则、状态、文件系统与进程                                      |
+| 共享           | `builtin`、`contract`、`streamproto`、`config`、`runtime`、`statefile`、`acp`、`agentprofile/...`、`agent/<name>` 等 | 契约与基础设施，不依赖 Service 或 Controller                        |
+| 服务器外客户端 | `client`、`localclient`、`attach`、`clicmd`、`tray/...`、`wslclient`、`tunnel`、`relay`、`service`                   | 只通过线上协议访问服务器，只依赖共享层和其他客户端                  |
 
 | 规则 | 检查                                                                                                                                                                                                                                                                                      |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

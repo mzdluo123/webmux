@@ -106,7 +106,7 @@
   - `agent_pretrust` 为首次启动注入 `KIMI_CODE_TRUST_WORKSPACE=1`，不写持久信任配置，恢复 TUI 与 ACP 继承同一环境；显式空值、falsy 值和禁用开关优先；
   - 真实兼容性处理：浏览器草稿和 API 向混合或普通 Kimi TUI 提交文本与 Enter 时都在同一回执内分隔 200ms，空正文不等待，延迟期间保持输入锁；Kimi 的 `Already in <mode> mode` 在目标一致时按幂等成功处理，覆盖冷恢复与手动设置，其他错误不吞掉。
 - 自动化依据：
-  - `internal/agentprofile/kimi` 契约与参数用例、agents 注册/argv 测试、`internal/agenttrust` 直接/包装/显式环境/过宽目录用例通过；
+  - `internal/agent/kimi` 契约与参数用例、agents 注册/argv 测试、`internal/agenttrust` 直接/包装/显式环境/过宽目录用例通过；
   - `internal/session` 真实启动环境、浏览器草稿与 API 提交延迟、空 Enter 和重试用例通过；`internal/hybrid` 完整 race 套件通过，含普通 TerminalInput 延迟、Kimi 双向往返、候选歧义、崩溃 resume、手动幂等及 PreLaunch 注入到 ACP 的 trust 环境；
   - API/wire 快照重录并通过；Playwright 的 Kimi 预置与 fakeagent 双向往返在桌面和 iPhone SE 通过；
   - `make check`、`make docs-check` 与 `openspec validate add-kimi-hybrid-profile --strict` 通过。

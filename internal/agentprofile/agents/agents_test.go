@@ -9,17 +9,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agent/agy"
+	"github.com/rainchan/webmux/internal/agent/claudecode"
+	"github.com/rainchan/webmux/internal/agent/codex"
+	"github.com/rainchan/webmux/internal/agent/devin"
+	"github.com/rainchan/webmux/internal/agent/kimi"
+	"github.com/rainchan/webmux/internal/agent/omp"
+	"github.com/rainchan/webmux/internal/agent/opencode"
+	"github.com/rainchan/webmux/internal/agent/qoder"
+	"github.com/rainchan/webmux/internal/agent/qodercn"
 	. "github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
-	"github.com/rainchan/webmux/internal/agentprofile/agy"
-	"github.com/rainchan/webmux/internal/agentprofile/claudecode"
-	"github.com/rainchan/webmux/internal/agentprofile/codex"
-	"github.com/rainchan/webmux/internal/agentprofile/devin"
-	"github.com/rainchan/webmux/internal/agentprofile/kimi"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
-	"github.com/rainchan/webmux/internal/agentprofile/opencode"
-	"github.com/rainchan/webmux/internal/agentprofile/qoder"
-	"github.com/rainchan/webmux/internal/agentprofile/qodercn"
 )
 
 var registry = agents.Default()

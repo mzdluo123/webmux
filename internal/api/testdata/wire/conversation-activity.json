@@ -2,29 +2,27 @@
   "status": 200,
   "body": {
     "activityId": "<activityId#1>",
-    "attachments": [
-      {
-        "mimeType": "text/plain",
-        "name": "a.txt",
-        "reference": "<repo>/a.txt",
-        "size": 12
-      }
-    ],
+    "attachments": [],
     "byteLength": "28",
     "conversationId": "<conversationId#1>",
-    "createdAt": "<time>",
+    "createdAt": "<zero-time>",
     "exclusionReason": "",
     "exportable": true,
     "kind": "message",
+    "nativeId": "wire-user",
     "nextTextOffset": "10",
     "position": "1",
-    "providerItemId": "native-user",
-    "providerThreadId": "<providerThreadId#1>",
+    "providerItemId": "wire-user",
+    "providerThreadId": "",
     "role": "user",
-    "runId": "<runId#1>",
-    "runOrdinal": "1",
-    "source": "local",
-    "status": "completed",
+    "runId": "",
+    "runOrdinal": "0",
+    "snapshotIds": [
+      "<*#1>"
+    ],
+    "source": "native",
+    "sourceHash": "<sourceHash#1>",
+    "status": "unknown",
     "text": "🙂",
     "truncated": true
   }

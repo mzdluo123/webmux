@@ -121,4 +121,3 @@ func TestPresetsFollowDefaultShell(t *testing.T) {
 		})
 	}
 }
-

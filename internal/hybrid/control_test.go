@@ -26,6 +26,20 @@ func historyHarness(t *testing.T) (*harness, *conversation.Service) {
 	return h, db
 }
 
+// emptyHistorySnapshots gives admission-only tests an explicit frozen scope
+// without inventing historical message bodies.
+func emptyHistorySnapshots(t *testing.T, db *conversation.Service, conversationID string) []historysource.Snapshot {
+	t.Helper()
+	snapshot, err := db.SaveFrozen(context.Background(), historysource.SnapshotData{Snapshot: historysource.Snapshot{
+		ID: conversation.TextHash(t.Name()), ContentHash: conversation.TextHash(""),
+		Source: historysource.Source{Agent: "metadata-test"}, Records: []historysource.RecordRef{},
+	}}, conversationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return []historysource.Snapshot{snapshot}
+}
+
 func TestNoIDReplayKeepsLaterLegitimateCopyOfHistoricalPacket(t *testing.T) {
 	ctx := context.Background()
 	h, db := historyHarness(t)

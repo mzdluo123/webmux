@@ -3,6 +3,9 @@ package conversation
 // The v13 migration freezes existing committed bodies before this clean cutover.
 // Only explicit immutable exports remain; live native files are never mirrored.
 const nativeCutoverSchema = `
+ALTER TABLE frozen_export ADD COLUMN text_bytes INTEGER NOT NULL DEFAULT 0;
+UPDATE frozen_export SET text_bytes=(SELECT COALESCE(sum(length(CAST(json_extract(r.value,'$.Text') AS BLOB))),0)
+ FROM json_each(frozen_export.body,'$.Records') r);
 DROP TABLE history_snapshot_reference;
 DROP TABLE history_snapshot_gap;
 DROP TABLE history_snapshot_item;

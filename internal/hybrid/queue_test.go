@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
-	"github.com/rainchan/webmux/internal/agentprofile/opencode"
+	"github.com/rainchan/webmux/internal/agent/omp"
+	"github.com/rainchan/webmux/internal/agent/opencode"
 	"github.com/rainchan/webmux/internal/attentionkind"
 	"github.com/rainchan/webmux/internal/session"
 )

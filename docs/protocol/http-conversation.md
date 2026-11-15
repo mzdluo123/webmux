@@ -51,7 +51,7 @@ GET /api/conversations/{id}/activities/{activityId}?textOffset=0&maxBytes=4000
 | 400       | ID、游标、字节边界或分页上限无效                                  |
 | 401 / 403 | 缺少认证或 Origin 被拒绝，沿用统一 API 边界                       |
 | 404       | Conversation / Activity 不存在，或 Activity 不属于该 Conversation |
-| 409       | 冻结内容、来源身份或 scope 已变化                                |
+| 409       | 冻结内容、来源身份或 scope 已变化                                 |
 | 503       | 对话数据库未启用或不可用                                          |
 
 读取限时 10 秒，响应使用 `Cache-Control: no-store`，正文不写访问日志。删除记录或淘汰会清理关联数据，释放/重建 worktree 不隐式删除；备份与存储边界见[配置与持久化清单](../persistence.md)。

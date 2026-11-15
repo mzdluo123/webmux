@@ -12,7 +12,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	codexhistory "github.com/rainchan/webmux/internal/agentprofile/codex/history"
+	codexhistory "github.com/rainchan/webmux/internal/agent/codex/history"
 	"github.com/rainchan/webmux/internal/historyimport"
 	"github.com/rainchan/webmux/internal/historysource"
 )

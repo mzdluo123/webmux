@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	codexhistory "github.com/rainchan/webmux/internal/agentprofile/codex/history"
+	codexhistory "github.com/rainchan/webmux/internal/agent/codex/history"
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/historyimport"
 	"github.com/rainchan/webmux/internal/historysource"
@@ -29,7 +29,7 @@ func importFixture(t *testing.T) (*conversation.Service, *sql.DB, historysource.
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	body, err := os.ReadFile("../agentprofile/testdata/native-history/codex/session.jsonl")
+	body, err := os.ReadFile("../agent/testdata/native-history/codex/session.jsonl")
 	if err != nil {
 		t.Fatal(err)
 	}

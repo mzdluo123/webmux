@@ -306,10 +306,9 @@ func (s *Service) Binding(ctx context.Context, runtimeID string) (Binding, error
 	return b, storageError(ctx, err)
 }
 
-// StoredBytes is how much chat text the conversation keeps on disk: the bytes
-// of every activity's message or tool output plus its heading. Indexes,
-// attachments and counts kept for delivery are not bytes the user wrote or
-// read, so they are excluded.
+// StoredBytes counts text in immutable exports retained by this conversation.
+// Shared exports count once. Native agent files, attachments, indexes and
+// delivery metadata are not WebMux-retained conversation text.
 func (s *Service) StoredBytes(ctx context.Context, conversationID string) (int64, error) {
 	if s == nil {
 		return 0, ErrUnavailable
@@ -318,7 +317,10 @@ func (s *Service) StoredBytes(ctx context.Context, conversationID string) (int64
 		return 0, s.broken
 	}
 	var total int64
-	err := s.db.QueryRowContext(ctx, "SELECT COALESCE(sum(byte_length+heading_length),0) FROM activity WHERE conversation_id=?", conversationID).Scan(&total)
+	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(sum(e.text_bytes),0)
+FROM frozen_export e
+WHERE e.hash IN (SELECT s.export_hash FROM frozen_snapshot s
+JOIN frozen_reference f ON f.snapshot_id=s.id WHERE f.owner=?)`, conversationID).Scan(&total)
 	return total, storageError(ctx, err)
 }
 
