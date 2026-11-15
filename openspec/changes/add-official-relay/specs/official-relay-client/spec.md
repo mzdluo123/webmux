@@ -42,13 +42,14 @@ WebMux SHALL 在本机生成并保存独立的 Ed25519 中继密钥对。配对�
 
 ### Requirement: 受控持久化与安全降级
 
-Relay 的启用意图、配置的 `controlEndpoint` 与引导信任、主机标识、公共地址和私钥 SHALL 通过登记的受控状态文件持久化，目录权限为 0700、文件权限为 0600，并使用原子写入和独立锁。
+Relay 的启用意图、配置的 `controlEndpoint`、主机标识、完整固定公共 HTTPS Origin 和私钥 SHALL 通过登记的受控状态文件持久化，目录权限为 0700、文件权限为 0600，并使用原子写入和独立锁；新格式 v2 MUST NOT 保存公开控制 `controltrust`。
 已认证控制面下发的数据面分配及版本/来源元数据 SHALL 与本机配置区分，不得作为用户手工配置的第二端点或未经重新认证即可沿用的信任依据。
 
 状态文件损坏、不可读或锁冲突时，系统 SHALL 保留原文件、报告存储不可用并禁止启动新的 Relay 公网连接，不得回退到 TOML 意外开启。关闭操作即使落盘失败也 SHALL 立即撤销当前公网授权并停止连接，同时返回未持久化错误。
 
-重启后 SHALL 按持久化启用意图恢复连接；TOML 只提供默认开关、`controlEndpoint` 与引导信任覆盖，网页绑定与私钥不得写入 `config.toml`。
+重启后 SHALL 按持久化启用意图恢复连接；TOML 只提供默认开关、`controlEndpoint` 与独立受众等引导配置，不提供公开控制 InitialTrust/SPKI pin 或旧配置别名；网页绑定与私钥不得写入 `config.toml`。
 数据面地址 SHALL 从已认证控制面重新同步，不要求用户维护第二个端点。
+宿主 SHALL 严格读取并校验 v1 状态后在内存迁移，保留启用意图、私钥、所有者、主机标识、绑定代际及完整固定 Origin，仅消费并移除旧 `controltrust`。读取 MUST NOT 改写磁盘，正常保存 SHALL 只写 v2；非法旧状态 MUST NOT 被宽松忽略或重新配对覆盖。
 
 #### Scenario: 损坏设置阻止自动暴露
 
@@ -59,6 +60,11 @@ Relay 的启用意图、配置的 `controlEndpoint` 与引导信任、主机标�
 
 - **WHEN** 用户关闭 Relay 但状态文件无法写入
 - **THEN** 当前连接和公共来源授权立即撤销，响应指出关闭状态未持久化，修复后需重新保存
+
+#### Scenario: 读取旧状态不改盘或丢绑定
+
+- **WHEN** 宿主加载有效 v1 状态，随后用户正常保存设置
+- **THEN** 加载仅在内存迁移且保留密钥、绑定和完整 Origin，保存才原子写入无 `controltrust` 的 v2；未知/非法旧字段仍被拒绝，数据面 pin 不变
 
 ### Requirement: 连接状态机与公网来源撤权
 
@@ -199,7 +205,7 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 ### Requirement: 控制面发现与数据面分配
 
-宿主 SHALL 只需配置 `controlEndpoint` 与引导信任即可配对和发现数据面，不要求用户手工填写 `connectorUrl` 或第二个服务地址。
+宿主 SHALL 只需配置 `controlEndpoint` 与独立受众，按公开控制 CA-only 策略配对和发现数据面，不要求用户手工填写 `connectorUrl`、公开控制 pin 或第二个服务地址。
 独立 `webmux-control` SHALL 是唯一发现来源，通过已认证控制通道提供绑定当前主机、受众、分配版本与来源元数据的 `nodeId`、能力、`connectorUrl`、数据面 origin、固定公共 HTTPS 地址及对应服务 TLS 信任。
 
 发现结果 SHALL 来自管理员经控制服务校验并登记的用途化端点，不接受任意浏览器输入、节点自报或未认证下载扩展信任。
@@ -211,7 +217,7 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 #### Scenario: 控制面与数据面分离部署
 
-- **WHEN** 宿主只配置控制面地址和引导信任，配对后控制面为其分配另一 origin 的就绪 WSS 节点
+- **WHEN** 宿主只配置控制面地址和独立受众，按 CA-only 策略配对后，控制面为其分配另一 origin 的就绪 WSS 节点
 - **THEN** 宿主经认证发现 `connectorUrl`、受众和对应 TLS 信任，完成标准 TLS 与 pin 校验后建连，用户无需填写第二个端点
 
 #### Scenario: TURN-only 节点不是 WSS 目标
@@ -226,44 +232,48 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 ### Requirement: 内置官方端点与公开服务身份
 
-开源客户端 SHALL 内置官方控制面 HTTPS `controlEndpoint`、控制面受众和官方 ECDSA P-256 TLS 服务身份公钥或对应 SHA-256 SPKI pin 集合。
+开源客户端 SHALL 内置官方控制面 HTTPS `controlEndpoint` 与控制面受众；宿主公开控制连接 SHALL 使用 Go 系统 CA（可追加 RootCA）、域名、有效期和 TLS 1.3 校验，MUST NOT 额外要求控制 SPKI pin 或固定 CDN 边缘证书曲线。
 用户 SHALL 无需填写官方地址、公钥或 OAuth 应用配置即可发起 GitHub 配对；数据面地址、受众及服务 TLS 信任由已认证控制面分配，而不是要求用户配置第二个内置/自建端点。
 内置默认 MUST NOT 自动启用 Relay 或替代公网确认。
 
-所有到控制面及分配数据面的 HTTPS/WSS 连接 SHALL 同时通过正常 TLS 证书链、有效期、主机名及对应公钥 pin 校验；MUST NOT 跳过 TLS 校验、自动学习未知公钥或在校验失败时降级绕过。
-数据面信任只能来自已认证且有效的控制面分配，任意 URL 本身不能扩展信任。公钥仅用于认证服务身份，宿主私钥 SHALL 继续逐机生成并用于主机认证。
+公开控制 HTTPS SHALL 允许 Cloudflare CDN 终止 TLS；CDN SHALL 被明确列为控制内容的可信处理方，不宣称宿主到源站端到端 TLS。分配 WSS/TURN SHALL 保持 DNS-only 直连，节点 mTLS、节点 SPKI 与分配服务身份验证 MUST NOT 放宽。
+宿主 WSS SHALL 同时通过 TLS 1.3、证书链、有效期、主机名及分配 ECDSA P-256 SPKI pin 校验，缺失/错误 pin MUST 拒绝；MUST NOT 跳过校验、自动学习未知公钥或失败降级。数据面信任仅来自已认证有效控制分配，宿主私钥仍逐机生成并用于主机认证。
 
 官方私钥、OAuth Client Secret 和用户 GitHub access token MUST NOT 进入开源仓库、客户端二进制或公开 API。OAuth Client ID SHALL 视为公开标识，不作为客户端认证秘密。
 
 #### Scenario: 使用官方默认配置配对
 
-- **WHEN** 用户安装带有有效官方信任配置的开源客户端并选择官方 Relay
-- **THEN** 客户端使用内置地址与公钥校验服务，用户无需填写地址或 OAuth 凭据，仍须完成 GitHub 配对与启用确认
+- **WHEN** 用户安装带有有效官方控制地址的开源客户端并选择官方 Relay
+- **THEN** 客户端使用内置地址与标准 CA/TLS 校验控制服务，用户无需填写控制 pin 或 OAuth 凭据，仍须完成 GitHub 配对与启用确认
 
-#### Scenario: 证书有效但官方公钥不匹配
+#### Scenario: 控制 CDN 正常换钥
 
-- **WHEN** 控制面连接返回有效证书但其公钥不在宿主内置或显式配置的控制面引导信任集合
-- **THEN** 客户端拒绝连接，不提交配对材料或宿主身份凭据，不通过重连绕过错误
+- **WHEN** 控制 CDN 更换边缘证书或公钥，新证书仍通过 CA、域名、有效期及 TLS 1.3 校验
+- **THEN** 宿主继续访问公开控制 endpoint，不要求发布控制 pin 更新；数据面与节点 pin 策略不变
 
-### Requirement: 公钥轮换与自建信任隔离
+#### Scenario: 公开控制 TLS 校验失败
 
-官方控制面公钥轮换 SHALL 支持当前与下一公钥的重叠信任集合，先发布客户端再换服务端公钥；未知公钥 SHALL 拒绝。
-数据面公钥轮换 SHALL 通过已信任控制面的有效版本化分配明确授权，不得从目标证书自动学习。
-公钥泄露后的恢复 SHALL 允许要求客户端升级，MUST NOT 声称未经更新的客户端能够立即撤销旧公钥。
+- **WHEN** 控制证书不受信、过期、域名不匹配，或无法使用 TLS 1.3
+- **THEN** 客户端拒绝连接，不提交配对材料或宿主凭据，不跳过校验或通过重连绕过错误
 
-自建控制面 `controlEndpoint` 覆盖 SHALL 显式配置独立服务受众与引导公钥集合，并保留标准 TLS 校验。
-变更控制面或其引导信任 SHALL 先撤销旧连接、公共来源和会话，确认后重新配对；旧绑定、宿主凭据及未完成授权材料 MUST NOT 发送到新服务。
-已信任控制面内的数据面版本化调整 SHALL 遵循分配校验，不要求用户手工维护数据面信任，也不得借此替换控制面引导信任。
+### Requirement: 数据面公钥轮换与自建控制隔离
 
-#### Scenario: 官方公钥正常轮换
+数据面公钥轮换 SHALL 通过已信任控制面的有效版本化分配明确授权，正常维护采用当前与下一公钥的重叠窗口，不得从目标证书自动学习；节点身份换钥 SHALL 保持先登记新 pin/代际再切换。
+数据面或节点公钥泄露后的恢复 SHALL 更新相应信任；若需要客户端升级，MUST 明确提示，MUST NOT 声称离线客户端立即撤销旧公钥。公开控制证书续期/换钥 SHALL 使用标准 CA/TLS 策略，不保留控制 pin 轮换流程。
 
-- **WHEN** 客户端已安装包含当前与下一公钥的版本，官方服务器切换到下一公钥
-- **THEN** 客户端继续连接；只有旧公钥的客户端明确报告升级要求，不自动接受新公钥
+自建控制面 `controlEndpoint` 覆盖 SHALL 显式配置独立服务受众和适用 CA 环境，仍只使用公开控制 CA-only 校验，不接受旧 InitialTrust 配置别名。
+变更控制面或受众 SHALL 先撤销旧连接、公共来源和会话，确认后重新配对；旧绑定、宿主凭据及未完成授权材料 MUST NOT 发送到新服务。
+已信任控制面内的数据面版本化调整 SHALL 遵循严格分配与 pin 校验，不要求用户手工维护数据面信任，也不得借此替换控制面引导配置。
+
+#### Scenario: 已分配数据面公钥正常轮换
+
+- **WHEN** 有效版本化分配授权当前与下一数据面公钥，节点切换到下一公钥
+- **THEN** 宿主按分配继续连接；未获分配授权的新公钥仍拒绝，不从证书自动学习
 
 #### Scenario: 从官方切换到自建服务
 
-- **WHEN** 用户将官方默认配置覆盖为自建地址和公钥
-- **THEN** 旧连接和会话失效，新服务要求独立配对，不能取得旧服务的绑定凭据或使用官方信任身份
+- **WHEN** 用户将官方默认配置覆盖为自建控制地址和独立受众
+- **THEN** 旧连接和会话失效，新服务通过 CA-only 校验后仍要求独立配对，不能取得旧服务的绑定凭据
 
 ### Requirement: 短期 ICE 配置与数据通道授权
 

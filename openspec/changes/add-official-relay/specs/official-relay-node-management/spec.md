@@ -45,8 +45,8 @@
 
 控制面 SHALL 仅采用管理员登记并校验的 nodeId、capabilities 和用途字段，不接受浏览器任意地址或节点自报地址扩展信任。`wss` 能力 SHALL 登记 connectorUrl 与 publicHostSuffix；`turn` 能力 SHALL 登记 turnUrls 与 advertisedPublicIp。
 需要 NAT 时 SHALL 显式登记公网映射；无对应能力的字段 MUST 被拒绝。TURN 选择 SHALL 独立于 WSS 分配，仅选就绪且秘密版本已激活的授权节点。
-宿主 SHALL 仅预配置 controlEndpoint 与引导信任，经已认证控制面取得 connectorUrl、数据面 origin、受众及对应服务 TLS 信任；数据面仍 SHALL 验证标准 TLS 与 pin，不得因任意 URL 自动学习未知密钥。
-控制信任变更 SHALL 撤销旧会话并要求重新配对；数据端点变更 SHALL 由现有受信控制分配版本化处理，MUST NOT 静默扩大信任。诊断 SHALL 区分配置的控制 origin、已分配数据端点和各自可达性。
+宿主 SHALL 仅预配置 controlEndpoint 与独立受众，以系统 CA（可追加 RootCA）、域名、有效期和 TLS 1.3 校验公开控制 HTTPS，不额外固定控制 pin；经已认证控制面取得 connectorUrl、数据面 origin、受众及服务 TLS 信任。分配 WSS 仍 SHALL 验证标准 TLS 与强制 pin，不得因任意 URL 自动学习未知密钥。
+控制端点/受众变更 SHALL 撤销旧会话并要求重新配对；数据端点变更 SHALL 由现有受信控制分配版本化处理，MUST NOT 静默扩大信任。诊断 SHALL 区分配置的控制 origin、已分配数据端点和各自可达性。
 浏览器 SHALL 继续访问固定宿主 HTTPS，仅使用经登录授权的 ICE 配置；文件及全部 `/forward/*` SHALL 保持 WSS，交互优化 SHALL 以 WSS 为基线并依据实测决定。
 
 宿主绑定 SHALL 保存完整固定公共 HTTPS Origin；数据节点重分配、publicHostSuffix 或公开地址配置变更 MUST NOT 静默改变它。首版 SHALL 拒绝会改变既有绑定 Origin 的分配/后缀变更，不提供自动 Origin 迁移；允许保持原 Origin 的连接器/IP 变更并重新验证信任，不能仅凭 host ID 不变声称地址未变。
@@ -73,7 +73,8 @@
 
 ### Requirement: 按能力部署的独立服务器与 WSS 数据面
 
-MVP SHALL 使用单控制实例与至少一个就绪的 `wss` 节点，可显式配置附加 `turn` 节点，不承诺 HA 或多区域调度。控制面提供 HTTPS 用户控制台；`wss` 节点提供泛域名 HTTPS/WebSocket 与 WSS 连接器，不依赖 CDN。
+MVP SHALL 使用单控制实例与至少一个就绪的 `wss` 节点，可显式配置附加 `turn` 节点，不承诺 HA 或多区域调度。控制面 HTTPS 用户控制台 SHALL 允许经 Cloudflare CDN；`wss` 节点的泛域名 HTTPS/WebSocket、连接器及 TURN SHALL 使用 DNS-only 直连。
+宿主公开控制 CA-only 政策 MUST NOT 用于节点管理或秘密通道；节点 SHALL 保持独立 mTLS、节点 CA 与管理员登记 SPKI pin，MUST NOT 经终止 TLS 的公共 CDN 替代节点身份认证。
 节点能力 SHALL 为 `wss`、`turn` 或两者。`wss`-only MUST NOT 启动 coturn；双能力节点 SHALL 启动两进程；`turn`-only SHALL 运行 `webmux-relay` 管理代理与 coturn，仅 coturn 对公网服务。
 `turn`-only 的管理代理 SHALL 负责控制同步、配置/秘密应用与报告，MUST NOT 建立 WebMux 公共 HTTPS/WSS 监听。TURN 可独立部署于国内等明确选定节点，选择 SHALL 不依赖当前 WSS 节点。
 WSS SHALL 不依赖 coturn 就绪或开放 UDP；任一 TURN 故障 MUST NOT 使健康 WSS 或控制面被判为不可用。

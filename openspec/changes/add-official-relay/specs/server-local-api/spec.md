@@ -5,7 +5,7 @@
 ### Requirement: 会话内进程不得控制官方 Relay
 
 来自 WebMux 会话内进程的本机请求 SHALL 被禁止访问 `/api/relay` 及其子路径，包括读取配对材料、开始或轮询配对、修改设置、启停、重新绑定、删除绑定及申请/刷新 ICE/TURN 凭据，统一返回 403。
-同等的控制面发现、数据面分配获取、端点/引导信任修改和凭据操作即使通过其他路由、别名或本机 API 提供，SHALL 使用相同限制；无论 ICE 配置接口放在 Relay 还是 P2P 路由，都不能绕过现有会话识别边界。
+同等的控制面发现、数据面分配获取、端点/受众修改和凭据操作即使通过其他路由或本机 API 提供，SHALL 使用相同限制；不提供旧公开控制 pin 配置别名，无论 ICE 接口放在 Relay 还是 P2P 路由，都不能绕过现有会话识别边界。
 
 同一用户的非会话本机客户端和经过 Token 或有效 Relay 浏览器会话认证并通过 Host、Origin 与适用 CSRF 校验的浏览器 SHALL 按各自权限使用 Relay 接口；会话内进程的其他非敏感本机能力保持不变。
 申请或刷新两端 TURN 凭据 SHALL 另要求由当前有效 GitHub 所有者登录派生的浏览器会话；本机客户端权限、WebMux Token、宿主设备身份或连接器 control 会话均不能单独满足该前提。
@@ -25,6 +25,7 @@ WebMux 宿主本地配置和 API MUST NOT 充当节点管理代理；节点配�
 
 `/local/v1/status` 与 `webmux status --json` SHALL 在运行中的实例支持官方 Relay 时包含可选 `relay` 对象，字段至少包括期望 `enabled`、`paired`、连接 `state`、当前 `transport`、`bulkReady`、角色就绪数及脱敏 `reconnectReason`、就绪时的 `publicUrl` 和失败时的脱敏 `error`。
 对象 SHALL 区分配置的 `controlEndpoint`/控制面 origin 与获认证分配的 `connectorUrl`/数据面 origin，显示各自真实来源、分配版本及独立可达性/信任状态；未探测或尚无分配时明确显示 unknown 或 unassigned，不要求用户配置第二个端点。
+公开控制信任状态 SHALL 表示 CA-only/TLS 1.3 校验，MUST NOT 包含 `controlTrustPins` 或旧控制 pin 字段；分配 WSS 的 TLS/pin 与节点 mTLS/SPKI 策略不变。宿主受控文件的 v1→v2 迁移 MUST NOT 改变本机状态 API 契约 v1。
 仅在与当前连接或获授权 ICE 有关时 SHALL 展示公开 nodeId、capabilities 和配置/分配版本，并区分 WSS 节点与可能独立的 TURN-only 节点；这些字段不是可编辑的节点管理状态。
 
 仅 bulk 失败 SHALL 显示降级且保持交互；control 失败 SHALL 显示离线并撤销公共地址授权。
@@ -57,7 +58,7 @@ WebMux 宿主本地配置和 API MUST NOT 充当节点管理代理；节点配�
 
 #### Scenario: 会话进程尝试通过别名修改发现信任
 
-- **WHEN** agent 从会话内通过 Relay 之外的等效路由修改控制面端点/引导信任或获取数据面分配
+- **WHEN** agent 从会话内通过 Relay 之外的等效路由修改控制面端点/受众或获取数据面分配
 - **THEN** 返回 403，不改变配置、分配或已配对信任，不因路由不同绕过限制
 
 #### Scenario: 本机身份不能代替浏览器所有者授权

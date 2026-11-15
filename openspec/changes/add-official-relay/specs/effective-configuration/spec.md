@@ -5,12 +5,13 @@
 ### Requirement: Relay 配置与运行诊断
 
 configured/effective 诊断 SHALL 包含官方 Relay 分组，区分默认开关、网页启用覆盖、配对状态和固定公共地址。
-configured SHALL 标明 `controlEndpoint`、引导信任的公开 key ID 及官方内置或自建覆盖来源；effective SHALL 单独标明已认证控制面分配的 `connectorUrl`、数据面 origin、受众公开标识及分配版本/来源，不把它们当成手工第二端点。
+configured SHALL 标明 `controlEndpoint`、控制受众、CA-only/TLS 1.3 策略及官方内置或自建覆盖来源，不输出控制 SPKI pin/key ID 或 `controlTrustPins`；effective SHALL 单独标明已认证控制面分配的 `connectorUrl`、数据面 origin、受众公开标识及分配版本/来源，不把它们当成手工第二端点。
 
 运行诊断 SHALL 区分固定 wss 基线与每浏览器会话的实际交互路径（wss、webrtc-direct 或 webrtc-turn），包含当前连接状态、control/bulk 就绪数、bulkReady、可观测的实际 TCP 算法与脱敏重连原因；无法读取算法时 SHALL 明示 unknown。
 配置来源 SHALL 按真实解析元数据标记 default、toml、web 或安全降级；有效数据面分配 SHALL 另标记 authenticated-control 来源，包含关联配置版本，不伪装成本机 TOML 或网页设置。
 
 诊断 SHALL 分别显示配置的控制面 origin 与有效数据面端点的可达性、认证/信任状态及脱敏错误；未探测或没有有效分配时显示 unknown 或 unassigned，MUST NOT 以一个端点可达推断另一个可达。
+公开控制 HTTPS 的信任状态 SHALL 表示系统 CA（可追加 RootCA）、域名、有效期与 TLS 1.3 校验，不表示额外控制 pin；分配 WSS 的状态 SHALL 仍包含严格 TLS 与分配 pin 校验，节点 mTLS/SPKI 策略 MUST NOT 因控制 CDN 而放宽。
 诊断 SHALL 显示优化是否启用、TURN 配置是否可用及来自已配对控制面的来源、相关公开 nodeId/节点标签与 capabilities、探测/未升级/回落原因；WSS 节点和获授权 TURN 节点可以不同，MUST NOT 将 TURN-only 节点标为 WSS 目标。
 多浏览器路径不同 SHALL 按会话区分，不能把一个会话的 TURN 路径描述成全宿主传输；默认不输出候选 IP 或凭据化 URL。
 

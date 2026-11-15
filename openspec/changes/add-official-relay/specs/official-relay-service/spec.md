@@ -130,6 +130,11 @@ GitHub 访问凭据 SHALL 只用于授权时读取账号数字身份，MVP MUST 
 ### Requirement: 敏感数据与信任边界
 
 Relay SHALL 在公网入口终止浏览器 TLS，并在宿主出站连接上使用 TLS。运营文档与界面 SHALL 明确 Relay 能访问经其转发的 Bearer Token、WebSocket 子协议、Cookie 和终端内容，本版本 MUST NOT 宣称端到端加密。
+公开控制 HTTPS 与数据面 SHALL 保持不同信任边界：
+
+- 公开控制 HTTPS SHALL 允许 Cloudflare CDN 终止 TLS，CDN 属于配对、后台会话与授权控制内容的可信处理边界。
+- 宿主 SHALL 使用 Go 系统 CA（可追加 RootCA）、域名、有效期及 TLS 1.3 验证该 endpoint，不附加控制 SPKI pin。
+- 此政策 MUST NOT 放宽节点 mTLS/SPKI、分配 WSS pin 或 TURN 服务身份验证；WSS/TURN 保持 DNS-only 直连。
 
 Relay MUST NOT 记录 WebMux Token、GitHub Token、配对码、签名原文、Authorization、Cookie、请求或响应正文、WebSocket 帧及终端内容。运行日志 SHALL 只包含必要的主机标识、状态、字节计数、错误类别和时间等脱敏元数据。
 
@@ -240,12 +245,12 @@ Relay 服务端 SHALL 位于独立仓库，独立构建、测试、发布和部�
 
 ### Requirement: 椭圆曲线服务身份与宿主签名
 
-官方 TLS 身份 SHALL 使用 ECDSA P-256，宿主质询签名 SHALL 使用 Ed25519；实现 MUST 复用 Go 标准库，不自研曲线、签名或加密算法。两类私钥 SHALL 分别生成、保管和轮换，不得复用或转换；协议 v1 MUST 拒绝未知算法、错误曲线及畸形密钥。
-传输内容 SHALL 由 TLS 1.3 加密，MUST NOT 将身份签名密钥直接作为内容加密密钥；官方私钥仅在受控加密存储和授权运行环境使用，公开客户端只分发服务身份公钥与地址。
+受控源站与节点 TLS 身份 SHALL 使用 ECDSA P-256，宿主质询签名 SHALL 使用 Ed25519；实现 MUST 复用 Go 标准库，不自研曲线、签名或加密算法。两类私钥 SHALL 分别生成、保管和轮换，不得复用或转换；协议 v1 MUST 拒绝未知算法、错误曲线及畸形密钥，此约束不用于固定公开控制 CDN 边缘证书曲线。
+传输内容 SHALL 由 TLS 1.3 加密，MUST NOT 将身份签名密钥直接作为内容加密密钥；官方私钥仅在受控加密存储和授权运行环境使用，公开客户端只持有地址和适用的公开服务信任，不分发控制 SPKI pin。本次控制 HTTPS 政策不改变公开 `protocol/relay` 版本。
 
 #### Scenario: 错误算法或曲线被拒绝
 
-- **WHEN** 宿主提交非 Ed25519 身份，或官方 TLS 身份使用非约定曲线的密钥
+- **WHEN** 宿主提交非 Ed25519 身份，或受控节点 TLS 身份使用非约定曲线的密钥
 - **THEN** 对应验证拒绝该身份，不静默降级到其他算法或共享密钥
 
 ### Requirement: 受控 TURN 节点与短期凭据下发

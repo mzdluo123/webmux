@@ -11,14 +11,16 @@
 ## What Changes
 
 - 新增独立控制面 `webmux-control`，提供 GitHub 配对、网页后台、主机注册与授权，使用 PostgreSQL 持久化；数据面 `webmux-relay` 提供公共 HTTPS/WSS、宿主连接器和 HTTP/WebSocket 转发，不直接访问业务数据库。
-- 宿主身份使用 Ed25519，官方 TLS 服务身份使用 ECDSA P-256；分别生成、保管和轮换，复用 Go 标准密码库。
+- 宿主身份使用 Ed25519，受控源站与节点 TLS 服务身份使用 ECDSA P-256；分别生成、保管和轮换，复用 Go 标准密码库。公开控制 CDN 边缘证书不受节点算法或 pin 约束。
 - 每个账号在 MVP 中绑定一台 WebMux 主机。宿主使用本地生成的独立 Ed25519 密钥配对，获得固定随机公共主机名；配对和跳转不提交或分发 WebMux 长期登录 Token。
 - 宿主通过 TCP 443 出站 WSS + smux v2 接入 Relay，以一个逻辑连接器内的两条物理连接隔离控制/交互与批量流量，Relay 在多路 stream 上转发 REST、上传下载、WebSocket Upgrade 与端口转发流量。TLS 在 Relay 终止，本版本不宣称端到端加密。
 - WebMux 新增官方 Relay 设置、配对、启停、重连、删除绑定和状态展示；启用仍要求至少 43 字符登录 Token 与公网风险确认。
 - 新增适配手机的官方后台 GitHub 登录、所有者主机列表和免 Token 跳转；仅展示 WebMux，其他应用仍从 WebMux 内端口转发入口使用，不提供公开分享。宿主显式信任已配对 Relay 的所有者授权，独立直连入口继续使用 Token。
 - MVP 为单控制实例，可登记不同能力的数据节点：wss、turn 或两者。至少一个就绪 wss 节点提供基线，可另选 TURN-only 节点优化交互；按管理员配置分配，不引入多区域智能调度、HA 或节点间 WSS 转发。
 - Relay 就绪后复用 `PublicOrigins` 登记公共 Host/Origin，断开或关闭立即撤权；固定 HTTPS 入口纳入现有访问链接、状态输出与 Web Push 来源。
-- 开源宿主只需内置或显式配置可信控制面地址及初始信任；配对后由控制面下发 WSS 分配、公开地址与节点服务信任，浏览器另取授权 ICE。用户无需手填数据面端点或配置 GitHub OAuth 应用，不接受任意浏览器或节点自报地址。
+- 开源宿主只需内置或显式配置可信控制面地址及受众；公开控制 HTTPS 使用 Go 系统 CA（可追加 RootCA）、域名、有效期与 TLS 1.3 校验，不附加 SPKI pin。配对后控制面下发 WSS 分配、公开地址与节点服务信任，WSS 仍直连并强制校验分配 pin，浏览器另取授权 ICE。
+- 公开控制域名使用 Cloudflare CDN，CDN 是控制 HTTPS 的受信 TLS 终止方；WSS/TURN 域名保持 DNS-only 直连。节点 mTLS、节点 SPKI 与分配服务身份验证不变，用户无需手填数据端点或 OAuth 应用。
+- 宿主状态从严格 v1 读取迁移到不含 `controltrust` 的 v2；读取不改磁盘，保存只写 v2，不丢失密钥、绑定或固定 Origin，也不保留旧控制 pin 配置别名。
 - 官方 Relay 默认关闭，独立于 Cloudflare Tunnel 和 Tailscale。统一数据面镜像包含 `webmux-relay` 与 coturn，按能力启动：wss-only 不启动 coturn；TURN-only 运行管理 agent 与 coturn，不开放 WebMux/WSS 入口；双能力运行两种服务。
 - 首屏与登录不等待 WebRTC；后台比较应用层延迟和健康状态，仅在候选路径稳定更优时升级，失败回 WSS，并防止频繁切换。终端、聊天、列表等交互业务可升级，文件上传下载与全部 `/forward/*` 保持 WSS。
 - 每账号一台主机、邀请制与单控制实例保持；控制面容器、按能力运行的数据面容器和 PostgreSQL 分开管理。不包含自定义域名、匿名配额、公开分享、端到端加密或独立稳定域名壳。
