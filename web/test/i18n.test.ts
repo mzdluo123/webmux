@@ -258,20 +258,47 @@ describe("i18n locale resolution, dynamic reactivity, and catalog parity", () =>
     ).toEqual([]);
   });
 
-  test("production source files import named { m } so Vite rewrites virtual message imports", () => {
+  test("production source files import named { m } without shadowing so Vite rewrites virtual message imports", () => {
     const prodFiles = globSync("src/**/*.{ts,svelte}", { cwd: root })
       .map((file) => file.replaceAll("\\", "/"))
       .filter((file) => !file.startsWith("src/lib/paraglide/"))
       .sort();
 
-    const namespaceImports = prodFiles.filter((file) =>
-      /import\s+\*\s+as\s+\w+\s+from\s+["'][^"']*paraglide\/messages/.test(
-        readFileSync(`${root}/${file}`, "utf8"),
-      ),
-    );
+    const violations: string[] = [];
+    for (const file of prodFiles) {
+      const raw = readFileSync(`${root}/${file}`, "utf8");
+      if (
+        /import\s+\*\s+as\s+\w+\s+from\s+["'][^"']*paraglide\/messages/.test(
+          raw,
+        )
+      ) {
+        violations.push(
+          `${file}: namespace import prevents virtual message rewriting`,
+        );
+        continue;
+      }
+      if (!raw.includes("$lib/paraglide/messages.js")) continue;
+      // Paraglide's AST rewriter is lexical-scope agnostic: any local variable
+      // or parameter named `m` marks `m` unsafe and pulls in all 4,231 messages.
+      const stripped = stripComments(raw).replace(
+        /import\s+\{\s*m\s*\}\s+from\s+"\$lib\/paraglide\/messages\.js";/g,
+        "",
+      );
+      for (const match of stripped.matchAll(/(?<![.\w$-])m(?![\w$])/g)) {
+        const idx = match.index ?? 0;
+        const after = stripped.slice(idx, idx + 80);
+        if (/^m\.[a-z][a-z0-9_]*\s*\(/.test(after)) continue;
+        // Allow HTML/Tailwind attributes like `m-0` or template literals `m:${...}`.
+        if (/^m[-:]/.test(after)) continue;
+        const line = raw.slice(0, idx).split("\n").length;
+        violations.push(
+          `${file}:${line}: non-message identifier \`m\` blocks tree-shaking`,
+        );
+      }
+    }
     expect(
-      namespaceImports,
-      'Use `import { m } from "$lib/paraglide/messages.js"` so Paraglide only loads referenced messages.',
+      violations,
+      'Use `import { m } from "$lib/paraglide/messages.js"` and do not shadow `m` in the same file.',
     ).toEqual([]);
   });
 });

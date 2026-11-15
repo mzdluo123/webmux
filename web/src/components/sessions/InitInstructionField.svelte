@@ -5,6 +5,7 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { m } from "$lib/paraglide/messages.js";
   import {
+    commandLabel,
     DIR_REFERENCE_NAME,
     initInstructionReferences,
     USER_REFERENCE_NAME,
@@ -35,16 +36,22 @@
   const label = $derived(labelProp ?? m.s3_init_instruction_label());
   let field = $state<HTMLTextAreaElement | null>(null);
   const over = $derived(value.length > INIT_INSTRUCTION_MAX);
-  const names = $derived([
-    ...new Set(commands.map((cmd) => cmd.name.trim()).filter(Boolean)),
-  ]);
+  const items = $derived(
+    commands.reduce<{ name: string; label: string }[]>((acc, cmd) => {
+      const name = cmd.name.trim();
+      if (name && !acc.some((item) => item.name === name)) {
+        acc.push({ name, label: commandLabel(cmd) });
+      }
+      return acc;
+    }, []),
+  );
   const unknown = $derived(
     initInstructionReferences(value).filter(
       (name) =>
         name !== USER_REFERENCE_NAME &&
         name !== DIR_REFERENCE_NAME &&
         name !== WEBMUX_REFERENCE_NAME &&
-        !names.includes(name),
+        !items.some((item) => item.name === name),
     ),
   );
 
@@ -113,14 +120,14 @@
         onclick={() => void insert(WEBMUX_REFERENCE_NAME)}
         >{m.s3_init_webmux_btn()}</Button
       >
-      {#each names as name (name)}
+      {#each items as item (item.name)}
         <Button
           type="button"
           variant="outline"
           size="xs"
-          title={m.s3_init_insert_token({ token: `{{${name}}}` })}
-          aria-label={m.s3_init_insert_named({ name })}
-          onclick={() => void insert(name)}>{name}</Button
+          title={m.s3_init_insert_token({ token: `{{${item.name}}}` })}
+          aria-label={m.s3_init_insert_named({ name: item.label })}
+          onclick={() => void insert(item.name)}>{item.label}</Button
         >
       {/each}
     </div>
@@ -128,7 +135,7 @@
       <p class="text-xs text-muted-foreground">
         {m.s3_init_commands_unavailable()}
       </p>
-    {:else if !names.length}
+    {:else if !items.length}
       <p class="text-xs text-muted-foreground">
         {m.s3_init_no_named_commands()}
       </p>

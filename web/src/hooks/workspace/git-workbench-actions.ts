@@ -284,8 +284,8 @@ export async function fetchGitStagingState(options: {
     options.webmuxStagedPaths,
   );
   return {
-    entryById: new Map(mapped.map((m) => [m.change.id, m.entry])),
-    changes: mapped.map((m) => m.change),
+    entryById: new Map(mapped.map((item) => [item.change.id, item.entry])),
+    changes: mapped.map((item) => item.change),
   };
 }
 

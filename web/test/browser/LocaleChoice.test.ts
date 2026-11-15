@@ -2,8 +2,10 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import ConnectionGate from "../../src/components/shell/ConnectionGate.svelte";
+import InitInstructionField from "../../src/components/sessions/InitInstructionField.svelte";
 import Settings from "../../src/pages/Settings.svelte";
 import { PluginIDSchema } from "../../src/contracts/plugin-schemas";
+import { QUICK_COMMAND_PRESETS } from "../../src/domains/settings/quick-commands";
 import { emptySettings } from "../../src/domains/settings/settings-intent";
 import {
   reloadSettings,
@@ -152,4 +154,25 @@ test("Settings switches language live even when server settings are unavailable"
   await reloadSettings();
   await page.getByRole("radio", { name: "English", exact: true }).click();
   expect(patchCalls).toEqual([]);
+});
+
+test("InitInstructionField renders English preset labels while inserting canonical reference tokens", async () => {
+  locale.setPreference("en");
+  render(InitInstructionField, {
+    id: "repo-init",
+    value: "",
+    commands: QUICK_COMMAND_PRESETS.map((preset) => ({ ...preset })),
+  });
+
+  const chip = page.getByRole("button", {
+    name: "Insert WebMux tools",
+    exact: true,
+  });
+  await expect.element(chip).toBeVisible();
+  await expect.element(chip).toHaveTextContent("WebMux tools");
+  await expect.element(chip).toHaveAttribute("title", "Insert {{WebMux 工具}}");
+  await chip.click();
+  await expect
+    .element(page.getByRole("textbox", { name: "Init instruction" }))
+    .toHaveValue("{{WebMux 工具}}");
 });

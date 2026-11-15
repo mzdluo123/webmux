@@ -68,13 +68,13 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
   const historyReader = createGitSnapshotDiffReader({
     getRepoId: deps.getRepoId,
     getWorktreeId: deps.getWorktreeId,
-    onStatusBanner: (m) => deps.onStatusBanner?.(m),
+    onStatusBanner: (message) => deps.onStatusBanner?.(message),
   });
 
   const compareReader = createGitSnapshotDiffReader({
     getRepoId: deps.getRepoId,
     getWorktreeId: deps.getWorktreeId,
-    onStatusBanner: (m) => deps.onStatusBanner?.(m),
+    onStatusBanner: (message) => deps.onStatusBanner?.(message),
   });
 
   const availableRefs = $derived.by(() => {
