@@ -28,7 +28,8 @@ const baseURL = `http://127.0.0.1:${previewPort}`;
 
 export default defineConfig({
   testDir: "./test/storybook",
-  workers: process.env.CI ? 6 : Math.min(6, availableParallelism()),
+  // Keep CPU headroom for long-conversation layout and scroll checks on CI.
+  workers: process.env.CI ? 2 : Math.min(6, availableParallelism()),
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,

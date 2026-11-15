@@ -60,7 +60,7 @@ Use `--config vitest.browser.config.ts` for the Chromium component suite. Storyb
   - Performance runs alone afterward to avoid CPU contention.
   - `make test-fast` runs Go and both Vitest suites in parallel while skipping Storybook, E2E and performance.
 - Workers share only the immutable executables. Each has an independent backend, HOME/config/workdirs, fake-agent session stores (the agents come first on each backend's `PATH`) and dynamic ports.
-  - Vitest browser scales to four workers locally, E2E to eight, and Storybook to six. CI keeps its existing worker counts. `WEBMUX_E2E_WORKERS` overrides E2E everywhere.
+  - Vitest browser scales to four workers locally, E2E to eight, and Storybook to six. Storybook and E2E use two workers in CI to leave CPU headroom for long-conversation layouts and scroll checks; other CI worker limits stay unchanged. `WEBMUX_E2E_WORKERS` overrides E2E everywhere.
   - Session, process and hybrid-record cleanup is automatic.
 - Do not connect tests to an existing developer service.
 - Tests may run inside a WebMux session: command tests clear the inherited session marker. The few integration tests that need a genuinely external parent process skip explicitly in that environment instead of misattributing the outer session to their test server.
