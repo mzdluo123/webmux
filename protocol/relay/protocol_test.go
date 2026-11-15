@@ -192,6 +192,12 @@ func TestConfigReplayAndActivation(t *testing.T) {
 	if err := approval.Validate(s); err != nil {
 		t.Fatal(err)
 	}
+	// A both-to-WSS change must approve stopping the removed coturn component.
+	// The runtime checks the exact component set against the old actual config.
+	approval.Components = []Component{ComponentCoturn}
+	if err := approval.Validate(s); err != nil {
+		t.Fatalf("cannot approve removing coturn: %v", err)
+	}
 	approval.Revision++
 	requireCode(t, approval.Validate(s), Conflict)
 	p.Config.Capabilities = Capabilities{CapabilityTURN}
@@ -330,4 +336,27 @@ func TestStockCoturnAccountGrouping(t *testing.T) {
 	}
 	config.Host.Servers[0].Username = one
 	requireCode(t, config.Validate(vectorNow), Invalid)
+}
+
+func TestNodeHelloUsesAuthenticatedIdentity(t *testing.T) {
+	message := NodeMessage{
+		Version: V1, Type: NodeHelloType, RequestID: vectorToken,
+		NodeID: "node-a", Audience: "webmux-control", NodeEpoch: vectorToken,
+		Sequence: 1, ExpiresAt: vectorNow.Add(RequestTimeout).Unix(),
+		Hello: &NodeHello{},
+	}
+	data, err := json.Marshal(message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded NodeMessage
+	if err := Decode(data, &decoded, MaxSnapshotBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err := decoded.Validate("node-a", "webmux-control", "", vectorToken, vectorNow); err != nil {
+		t.Fatalf("first handshake requires undeployed identity metadata: %v", err)
+	}
+	requireCode(t, decoded.Validate("node-b", "webmux-control", "", vectorToken, vectorNow), Forbidden)
+	decoded.Hello = nil
+	requireCode(t, decoded.Validate("node-a", "webmux-control", "", vectorToken, vectorNow), Invalid)
 }

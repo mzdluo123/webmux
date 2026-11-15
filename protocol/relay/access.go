@@ -84,6 +84,8 @@ func (b Binding) Validate() error {
 type EnrollmentResult struct {
 	Version Version `json:"version"`
 	Binding Binding `json:"binding"`
+	// Display metadata only; numeric Binding.OwnerID is the authorization identity.
+	OwnerLogin string `json:"ownerLogin"`
 }
 
 type Assignment struct {

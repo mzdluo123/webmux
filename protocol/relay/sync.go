@@ -22,9 +22,9 @@ type SyncAck struct {
 	AccessReconciled bool    `json:"accessReconciled"`
 }
 
-type NodeHello struct {
-	IdentityRevision Counter `json:"identityRevision"`
-}
+// NodeHello carries no self-asserted identity revision. The control service
+// resolves the registered identity from the verified mTLS certificate.
+type NodeHello struct{}
 
 type ConnectorAuthorization struct {
 	Scope Scope `json:"scope"`
@@ -136,7 +136,7 @@ func (m NodeMessage) Validate(node NodeID, controlAudience string, controlEpoch,
 	}
 	switch m.Type {
 	case NodeHelloType:
-		if m.Hello != nil && m.Hello.IdentityRevision != 0 {
+		if m.Hello != nil {
 			return nil
 		}
 	case NodeConfigType:

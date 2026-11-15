@@ -50,7 +50,7 @@ func (r RestartApproval) Validate(s ConfigSnapshot) error {
 	}
 	var prior Component
 	for _, c := range r.Components {
-		if c <= prior || c != ComponentRelay && c != ComponentCoturn || c == ComponentCoturn && s.Payload.Config.TURN == nil {
+		if c <= prior || c != ComponentRelay && c != ComponentCoturn {
 			return Error{Code: InvalidConfig}
 		}
 		prior = c
