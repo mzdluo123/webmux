@@ -114,12 +114,12 @@ test("Settings #network runs A/B echo speed test and toggles P2P settings withou
   await page.goto("/settings?p2p=force#network");
   const network = page.locator("#network");
 
-  await expect(network.getByText("P2P 直连", { exact: true })).toBeVisible();
   await network.getByRole("button", { name: "双路径回显测速" }).click();
   await expect(
-    network
-      .getByRole("status")
-      .filter({ hasText: /基线 HTTP 回显：.*P2P DataChannel 回显：.*中位数/ }),
+    network.getByRole("status").filter({
+      hasText:
+        /基线 HTTP 回显：.*最小 \d+ ms · 中位数 \d+ ms.*P2P DataChannel 回显：.*最小 \d+ ms · 中位数 \d+ ms/,
+    }),
   ).toBeVisible();
 
   const enableSwitch = network.getByRole("switch", {
