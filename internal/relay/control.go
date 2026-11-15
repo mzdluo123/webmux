@@ -131,6 +131,10 @@ func (r *controlRPC) readLoop() {
 				r.session.stop(protocol.Error{Code: protocol.Invalid})
 				return
 			}
+		case protocol.ControlGrow:
+			// Validate above checks the exact scope, expiry and bounded target.
+			// Capacity demand is not heartbeat evidence and needs no response.
+			r.session.grow(*message.Grow)
 		case protocol.ControlRevoke:
 			if err := r.revoke(message); err != nil {
 				r.session.stop(err)

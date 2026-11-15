@@ -37,7 +37,10 @@ func (s *connection) accept(p *physical, role protocol.Role) error {
 }
 
 func (s *connection) serveStream(p *physical, role protocol.Role, stream *smux.Stream) {
-	defer s.closeStream(p, stream)
+	defer func() {
+		s.closeStream(p, stream)
+		s.unregisterHTTP(stream)
+	}()
 	if err := stream.SetDeadline(time.Now().Add(protocol.StreamOpenTimeout)); err != nil {
 		return
 	}
@@ -51,7 +54,7 @@ func (s *connection) serveStream(p *physical, role protocol.Role, stream *smux.S
 	}
 	if header.Kind == protocol.StreamControl {
 		s.mu.Lock()
-		if s.controlClaimed || s.denied || s.ctx.Err() != nil {
+		if p != s.control || s.controlClaimed || s.denied || s.ctx.Err() != nil {
 			s.mu.Unlock()
 			_ = streamResult(stream, header.RequestID, protocol.Conflict)
 			return
@@ -74,11 +77,10 @@ func (s *connection) serveStream(p *physical, role protocol.Role, stream *smux.S
 		<-s.ctx.Done()
 		return
 	}
-	if !s.registerHTTP(stream) {
+	if !s.registerHTTP(p, role, stream) {
 		_ = streamResult(stream, header.RequestID, protocol.Unavailable)
 		return
 	}
-	defer s.unregisterHTTP(stream)
 	// mTLS identifies this otherwise ordinary loopback request at the
 	// dedicated WebMux listener. No header can manufacture that provenance.
 	dialer := tls.Dialer{NetDialer: &net.Dialer{Timeout: protocol.StreamOpenTimeout}, Config: s.client.config.LoopbackTLSConfig}
@@ -91,11 +93,12 @@ func (s *connection) serveStream(p *physical, role protocol.Role, stream *smux.S
 	}
 	defer func() { _ = conn.Close() }()
 	s.mu.Lock()
-	if s.denied || s.ctx.Err() != nil {
+	_, attached := s.pool(role).physicals[p]
+	if !attached || s.denied || s.ctx.Err() != nil {
 		s.mu.Unlock()
 		return
 	}
-	s.httpStreams[stream] = conn
+	s.httpStreams[stream] = httpStream{physical: p, conn: conn}
 	s.mu.Unlock()
 	stop := context.AfterFunc(s.ctx, func() {
 		// Interrupt reads/writes without enqueueing a potentially blocked FIN.
@@ -114,43 +117,48 @@ func (s *connection) serveStream(p *physical, role protocol.Role, stream *smux.S
 	copyDuplex(stream, conn)
 }
 
-func (s *connection) registerHTTP(stream *smux.Stream) bool {
+func (s *connection) registerHTTP(p *physical, role protocol.Role, stream *smux.Stream) bool {
 	// Publication is checked under the same lock as access denial and the map.
 	s.client.mu.Lock()
 	active := s.client.active == s
 	s.client.mu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !active || s.denied || s.ctx.Err() != nil || len(s.httpStreams) >= maxHTTPStreams {
+	_, attached := s.pool(role).physicals[p]
+	if !active || !attached || s.denied || s.ctx.Err() != nil || len(s.httpStreams) >= maxHTTPStreams || p.ordinary >= protocol.HTTPStreamsPerConnection {
 		return false
 	}
-	s.httpStreams[stream] = nil
+	p.ordinary++
+	s.httpStreams[stream] = httpStream{physical: p}
 	return true
 }
 
 func (s *connection) unregisterHTTP(stream *smux.Stream) {
 	s.mu.Lock()
-	delete(s.httpStreams, stream)
+	if access, ok := s.httpStreams[stream]; ok {
+		access.physical.ordinary--
+		delete(s.httpStreams, stream)
+	}
 	s.mu.Unlock()
 }
 
 func (s *connection) closeHTTP() {
 	s.mu.Lock()
 	s.denied = true
-	type pair struct {
+	type access struct {
 		stream *smux.Stream
 		conn   net.Conn
 	}
-	streams := make([]pair, 0, len(s.httpStreams))
-	for stream, conn := range s.httpStreams {
-		streams = append(streams, pair{stream, conn})
+	streams := make([]access, 0, len(s.httpStreams))
+	for stream, state := range s.httpStreams {
+		streams = append(streams, access{stream: stream, conn: state.conn})
 	}
 	s.mu.Unlock()
-	for _, p := range streams {
-		if p.conn != nil {
-			abortConn(p.conn)
+	for _, access := range streams {
+		if access.conn != nil {
+			abortConn(access.conn)
 		}
-		_ = p.stream.SetDeadline(time.Now())
+		_ = access.stream.SetDeadline(time.Now())
 	}
 }
 
