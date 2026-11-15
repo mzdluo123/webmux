@@ -11,6 +11,7 @@
 ### Requirement: 管理员配置与版本化应用
 
 节点非秘密配置 SHALL 由受限管理员通过 CLI/API 提交控制面校验并事务性存入 PostgreSQL，MUST NOT 以直接 SQL 或普通用户权限管理。节点引导配置 SHALL 仅含控制地址、稳定 nodeId、预置身份私钥与初始信任。
+控制面 SHALL 使用部署配置的受信节点 CA 验证客户端证书链，并匹配管理员预登记到该 nodeId 的身份 SPKI pin；身份验证材料及轮换代际 SHALL 持久化，不得从首次连接、请求中的 nodeId 或未认证通道学习身份。
 其余监听、公网地址、中继端口、能力和策略 SHALL 由控制面集中管理。控制面 SHALL 通过 mTLS 按节点推送单调版本的完整快照；节点 SHALL 校验 nodeId、内容摘要、版本、能力和字段，再应用或拒绝，重连 SHALL 全量同步。
 低版本、错节点或同版本不同摘要 SHALL 被拒绝；同版本同摘要 SHALL 允许幂等重同步和确认，MUST NOT 重复重启。节点 SHALL 分别报告 desired/applied 版本、实际状态及失败原因，不以送达确认冒充应用。
 热变更 SHALL 在校验成功后应用；影响运行服务的破坏性变更 SHALL 保留当前有效配置并报告 pending-restart，只有管理员通过 CLI 显式批准精确版本及重启对象后才执行。新版本 MUST NOT 继承旧批准。
@@ -32,6 +33,11 @@
 - **WHEN** 节点重连取得与已应用版本及摘要相同的完整快照
 - **THEN** 节点校验后确认当前 applied，不重复执行重启，也不接受摘要不同的同版本配置
 
+#### Scenario: 节点证书不属于登记身份
+
+- **WHEN** 证书链有效，但客户端 SPKI 与请求 nodeId 的管理员登记材料不匹配
+- **THEN** 控制面拒绝节点接入、配置与秘密交付，不自动登记该证书或授权其他节点身份
+
 ### Requirement: 控制面唯一发现源与用途隔离
 
 控制面 SHALL 仅采用管理员登记并校验的 nodeId、capabilities 和用途字段，不接受浏览器任意地址或节点自报地址扩展信任。`wss` 能力 SHALL 登记 connectorUrl 与 publicHostSuffix；`turn` 能力 SHALL 登记 turnUrls 与 advertisedPublicIp。
@@ -39,6 +45,13 @@
 宿主 SHALL 仅预配置 controlEndpoint 与引导信任，经已认证控制面取得 connectorUrl、数据面 origin、受众及对应服务 TLS 信任；数据面仍 SHALL 验证标准 TLS 与 pin，不得因任意 URL 自动学习未知密钥。
 控制信任变更 SHALL 撤销旧会话并要求重新配对；数据端点变更 SHALL 由现有受信控制分配版本化处理，MUST NOT 静默扩大信任。诊断 SHALL 区分配置的控制 origin、已分配数据端点和各自可达性。
 浏览器 SHALL 继续访问固定宿主 HTTPS，仅使用经登录授权的 ICE 配置；文件及全部 `/forward/*` SHALL 保持 WSS，交互优化 SHALL 以 WSS 为基线并依据实测决定。
+
+宿主绑定 SHALL 保存完整固定公共 HTTPS Origin；数据节点重分配、publicHostSuffix 或公开地址配置变更 MUST NOT 静默改变它。首版 SHALL 拒绝会改变既有绑定 Origin 的分配/后缀变更，不提供自动 Origin 迁移；允许保持原 Origin 的连接器/IP 变更并重新验证信任，不能仅凭 host ID 不变声称地址未变。
+
+#### Scenario: 节点重分配改变固定来源
+
+- **WHEN** 管理员提交的新 WSS 节点或后缀会改变现有宿主的公共 Origin
+- **THEN** 控制面拒绝该变更并保留原绑定、来源、Origin 限定会话及推送关联，不静默切换后声称旧订阅仍有效
 
 #### Scenario: 能力不匹配的发现字段
 
