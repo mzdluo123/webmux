@@ -43,11 +43,18 @@
   $effect(() => {
     const node = rail;
     if (!node) return;
+    let frame = 0;
     const observer = new ResizeObserver(() => {
-      capacity = Math.max(1, Math.floor((node.clientHeight - 8) / 12));
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        capacity = Math.max(1, Math.floor((node.clientHeight - 8) / 12));
+      });
     });
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
   });
   const groups = $derived(conversationTurnGroups(items, capacity));
   const messages = $derived(
