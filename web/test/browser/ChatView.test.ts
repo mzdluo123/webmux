@@ -1258,6 +1258,9 @@ test("a hundred progress messages use a bounded directory without hiding the tra
     });
     const nav = page.getByRole("navigation", { name: "对话轮次" });
     await expect.poll(() => nav.getByRole("button").elements().length).toBe(2);
+    expect(
+      nav.getByRole("button").first().element().hasAttribute("aria-haspopup"),
+    ).toBe(false);
     await nav.getByRole("button").last().click();
     const dialog = page.getByRole("dialog");
     await expect.element(dialog).toBeVisible();

@@ -149,6 +149,8 @@
               data-turn-role={group.length === 1 ? item.role : "group"}
               data-turn-volume={volume(ids.length)}
               aria-label={groupLabel(group)}
+              aria-haspopup={grouped ? "dialog" : undefined}
+              aria-expanded={grouped ? openId === item.id : undefined}
               aria-current={index === currentGroup ? "location" : undefined}
               tabindex={index === currentGroup ||
               (currentGroup < 0 && index === 0)
