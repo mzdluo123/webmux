@@ -152,7 +152,7 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 			}
 			for i, item := range r.Items {
 				created := int64(0)
-				if timestamp, e := time.Parse(time.RFC3339Nano, r.Timestamp); e == nil {
+				if timestamp, e := time.Parse(time.RFC3339Nano, r.Timestamp); e == nil && time.Unix(0, timestamp.UnixNano()).Equal(timestamp) {
 					created = timestamp.UnixNano()
 				}
 				id := digest([]byte(out.SourceID + ":" + r.Hash + ":" + strconv.FormatInt(r.Offset, 10) + ":" + strconv.Itoa(i)))

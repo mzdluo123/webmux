@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -125,5 +126,18 @@ func TestStructuredOutputImagesAndLargeText(t *testing.T) {
 	_, err = Read(bytes.NewReader(append(append(append([]byte{}, b...), raw...), '\n')), func(r Record) error { last = r; return nil })
 	if err != nil || last.Items[0].Text != large {
 		t.Fatal("large message changed", err)
+	}
+}
+
+func TestTotalInputLimitIncludesPartialTail(t *testing.T) {
+	b := fixture(t)
+	line := `{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"` + strings.Repeat("x", 3<<20) + `"}]}}` + "\n"
+	readers := []io.Reader{bytes.NewReader(b)}
+	for range 22 {
+		readers = append(readers, strings.NewReader(line))
+	}
+	_, err := Read(io.MultiReader(readers...), nil)
+	if !errors.Is(err, ErrLimit) {
+		t.Fatal(err)
 	}
 }

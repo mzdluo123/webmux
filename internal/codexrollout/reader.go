@@ -10,6 +10,8 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -91,6 +93,9 @@ func Read(r io.Reader, visit func(Record) error) (Result, error) {
 				return out, ErrLimit
 			}
 			line = append(line, part...)
+			if out.Consumed+int64(len(line)) > MaxInput {
+				return out, ErrLimit
+			}
 			if err == bufio.ErrBufferFull {
 				continue
 			}
@@ -118,6 +123,10 @@ func Read(r io.Reader, visit func(Record) error) (Result, error) {
 			return out, &ParseError{Offset: out.Consumed, Cause: ErrFormat}
 		}
 		rec.Timestamp = e.Timestamp
+		timestamp, timeErr := time.Parse(time.RFC3339Nano, e.Timestamp)
+		if timeErr != nil || !time.Unix(0, timestamp.UnixNano()).Equal(timestamp) {
+			rec.Diagnostics = append(rec.Diagnostics, Diagnostic{rec.Offset, "unknown_timestamp"})
+		}
 		if out.Consumed == 0 && e.Type != "session_meta" {
 			return out, &ParseError{Offset: out.Consumed, Cause: ErrFormat}
 		}
@@ -151,6 +160,9 @@ func decode(e envelope, out *Result, rec *Record) error {
 		if json.Unmarshal(e.Payload, &m) != nil || m.ID == "" || m.Cwd == "" {
 			return ErrFormat
 		}
+		if len(m.ID) > 128 || len(m.Cwd) > 8192 || len(m.Timestamp) > 128 || len(m.ModelProvider) > 256 {
+			return ErrLimit
+		}
 		if m.CLIVersion != "0.77.0" {
 			return ErrVersion
 		}
@@ -165,6 +177,9 @@ func decode(e envelope, out *Result, rec *Record) error {
 		}
 		if json.Unmarshal(e.Payload, &v) != nil {
 			return ErrFormat
+		}
+		if len(v.Model) > 256 {
+			return ErrLimit
 		}
 		out.Model = v.Model
 		rec.Items = append(rec.Items, Item{Kind: "turn_start", Status: "unknown"})
@@ -218,6 +233,9 @@ func response(raw json.RawMessage, rec *Record) error {
 	}
 	if json.Unmarshal(raw, &v) != nil {
 		return ErrFormat
+	}
+	if len(v.ID) > 4096 || len(v.CallID) > 4096 || len(v.Name) > 1024 || len(v.Status) > 128 {
+		return ErrLimit
 	}
 	item := Item{NativeID: v.ID, CallID: v.CallID, ToolName: v.Name, Status: v.Status}
 	if item.Status == "" {
@@ -274,10 +292,15 @@ func response(raw json.RawMessage, rec *Record) error {
 // Images remain opaque references; inline payloads and credential-bearing URLs
 // are never copied into conversation storage or fetched by this parser.
 func appendContent(item *Item, parts []contentPart, diag func(string)) error {
+	if len(parts) > 4096 {
+		return ErrLimit
+	}
+	var text strings.Builder
+	text.WriteString(item.Text)
 	for _, part := range parts {
 		switch part.Type {
 		case "input_text", "output_text":
-			item.Text += part.Text
+			text.WriteString(part.Text)
 		case "input_image":
 			sum := sha256.Sum256([]byte(part.ImageURL))
 			item.Attachments = append(item.Attachments, Attachment{Reference: "native-image:sha256:" + hex.EncodeToString(sum[:]), MimeType: "application/octet-stream"})
@@ -289,5 +312,6 @@ func appendContent(item *Item, parts []contentPart, diag func(string)) error {
 			diag("unknown_content")
 		}
 	}
+	item.Text = text.String()
 	return nil
 }

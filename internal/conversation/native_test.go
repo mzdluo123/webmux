@@ -362,3 +362,61 @@ func TestNativeConcurrentAppendDoesNotCreateGeneration(t *testing.T) {
 		t.Fatal(latest, err)
 	}
 }
+
+func TestSnapshotRenderReportsSourceCoverageAndMissingGlyphs(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	path := filepath.Join(t.TempDir(), "rollout.jsonl")
+	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	imported, err := s.ImportCodex(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frozen, err := s.FreezeNative(ctx, imported.SourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := s.SnapshotInput(ctx, frozen.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := snapcompact.Project(ctx, input, snapcompact.DefaultPreprocessConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, r := range input.History {
+		ids[r.ID] = true
+	}
+	renderer, err := snapcompact.NewRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := snapcompact.DefaultRenderConfig()
+	cfg.Width = 256
+	cfg.Height = 128
+	cfg.MaxPages = 1
+	partial, err := renderer.Render(ctx, p, cfg)
+	if err == nil || len(partial.Uncovered) == 0 {
+		t.Fatal("expected explicit resource coverage error")
+	}
+	for _, r := range partial.Uncovered {
+		if !ids[r.SourceID] || r.Field != "projection" {
+			t.Fatal(r)
+		}
+	}
+	p.Segments[0].Text += "\U0010FFFF"
+	missing, err := renderer.Render(ctx, p, snapcompact.DefaultRenderConfig())
+	if !errors.Is(err, snapcompact.ErrMissingGlyph) || len(missing.Missing) == 0 || len(missing.Uncovered) == 0 {
+		t.Fatal(missing, err)
+	}
+	if missing.Missing[0].SourceID != input.History[0].ID {
+		t.Fatal("missing glyph lost source mapping")
+	}
+}
