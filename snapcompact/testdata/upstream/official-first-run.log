@@ -1,0 +1,47 @@
+bun test v1.4.4 (38afee6c8)
+
+packages/snapcompact/test/snapcompact.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+1039 | 				`Supported platforms: ${SUPPORTED_PLATFORMS.join(", ")}\n` +
+1040 | 				"If you need support for this platform, please open an issue.",
+1041 | 		);
+1042 | 	}
+1043 | 	const details = errors.map(error => `- ${error}`).join("\n");
+1044 | 	throw new Error(
+                  ^
+error: Failed to load pi_natives native addon for linux-x64 (modern).
+
+Tried:
+- /workspace/upstream-reference/packages/natives/native/pi_natives.linux-x64-modern.node: Cannot find module '/workspace/upstream-reference/packages/natives/native/pi_natives.linux-x64-modern.node'
+Require stack:
+- /workspace/upstream-reference/packages/natives/native/loader-state.js
+- /workspace/dev-bun/node_modules/bun/bin/pi_natives.linux-x64-modern.node: Cannot find module '/workspace/dev-bun/node_modules/bun/bin/pi_natives.linux-x64-modern.node'
+Require stack:
+- /workspace/upstream-reference/packages/natives/native/loader-state.js
+- /workspace/upstream-reference/packages/natives/native/pi_natives.linux-x64-baseline.node: Cannot find module '/workspace/upstream-reference/packages/natives/native/pi_natives.linux-x64-baseline.node'
+Require stack:
+- /workspace/upstream-reference/packages/natives/native/loader-state.js
+- /workspace/dev-bun/node_modules/bun/bin/pi_natives.linux-x64-baseline.node: Cannot find module '/workspace/dev-bun/node_modules/bun/bin/pi_natives.linux-x64-baseline.node'
+Require stack:
+- /workspace/upstream-reference/packages/natives/native/loader-state.js
+- /workspace/upstream-reference/packages/natives/native/pi_natives.linux-x64.node: Cannot find module '/workspace/upstream-reference/packages/natives/native/pi_natives.linux-x64.node'
+Require stack:
+- /workspace/upstream-reference/packages/natives/native/loader-state.js
+- /workspace/dev-bun/node_modules/bun/bin/pi_natives.linux-x64.node: Cannot find module '/workspace/dev-bun/node_modules/bun/bin/pi_natives.linux-x64.node'
+Require stack:
+- /workspace/upstream-reference/packages/natives/native/loader-state.js
+
+If installed via npm/bun, try reinstalling: bun install @oh-my-pi/pi-natives
+If developing locally, build with: bun --cwd=packages/natives run build
+Explicit targets: bun scripts/bazel-natives.ts <target> --dest packages/natives/native
+      at loadNative (/workspace/upstream-reference/packages/natives/native/loader-state.js:1044:12)
+      at /workspace/upstream-reference/packages/natives/native/index.js:23:24
+-------------------------------
+
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [1202.00ms]
