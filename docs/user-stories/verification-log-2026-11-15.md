@@ -207,3 +207,25 @@
   - 视觉与证据：隔离演示应用在 1280×900、1280×720、768×800、390×844、375×667、320×568、667×375 明暗主题共 28 个前后组合下核对无页面横向溢出；
   - 公开取证：采集三组尺寸明暗前后对比截图、服务端 `503` 不可用降级前后对比图及 1280×900 正常速度交互 GIF（8.3 秒），全部 15 个公开直链均经 HTTP 200 校验。
 - 局限：仅在 Linux 无头 Chromium 下验证，未在手机、平板、macOS 或 Windows 真机验证真实鼠标悬停与触屏硬件行为；未重新验收其他既有故事。
+
+## 终端图片滚出屏幕后拖回仍完整显示（2026-11-16，US-D12）
+
+- 范围（故事 ID 与总数 263 不变）：
+  - `attachTerminalGraphics` 修正光标与活动屏边界：
+    - `moveCursor` 将非滚屏的 `CSI Ps B`（`CUD`）改为底边距自动滚屏的 `ESC D`（`IND`），使底行多行 `C=0` 图片完整分配历史缓冲行而不与后续输出重叠；
+    - `cursor` 将待折行（pending wrap，`cursorX === cols`）钳制在右边界内；
+    - `viewport` 改为返回活动屏幕 `{ top: baseY, bottom: baseY + rows }`，不再误用历史滚动视口 `viewportY`，并在 `onRender` 视口或缓冲区切换时同帧刷新图形位置；
+  - `removeKittyPlacements`：将 `a=d` 屏幕级删除（`d=a`/`c`/`p`/`q`/`x`/`y`/`z`）限定在当前活动缓冲区的活动屏幕内，避免查看历史时被底部 TUI 刷新或 `CSI 2 J` 误删回滚区图片及图像数据，保留 `d=i`/`n`/`r` 全局按标识删除语义；
+  - `graphicsAnchor` 修正行锚点生命周期与回流跟踪：
+    - 为 xterm `CircularList.get` 增加 `[0, lines.length)` 边界检查；
+    - 按放置总行数跟踪顶部裁剪后的存活行，直到整幅图片全部离开缓冲才释放，兼容备用屏超高 `C=0` 放置与跨屏幕顶部的 `CSI 3 J` 清理；
+    - 在终端变宽回流解包续行（`onDelete`）时将锚点合并至前一行，而非误判为 VT 行删除；
+    - 在 `RIS` 缓冲区替换与尺寸重排后同步清理越界放置；
+  - `.xterm-graphics-layer`：设置 `z-index: 3`，确保在 WebGL 与动态降级的 DOM 渲染层及选区层（`1`）之上稳定绘制，同时低于辅助输入（`5`）、装饰（`6`–`8`）与滚动条（`11`）。
+- 本地验证：
+  - 静态与文档门禁：`make check`（前端构建、源码/测试/Storybook `svelte-check --tsgo --fail-on-warnings`、格式、`docs-check`、`persistence-check`、Oxlint、`check:arch` 46 项断言且 0 克隆 0 未使用导出、`go vet`、`golangci-lint` v2.15.0 0 告警）通过；
+  - 单元测试：`pnpm --dir web test:unit` 92 文件 1,216 项通过（含新增 `kitty-graphics.test.ts` 屏幕级删除与历史保留断言；无关的 `test/base64url.test.ts` 1 项因本机 Node `v24.20.0` 缺少 `.nvmrc` Node `26.13.0` 的 `Uint8Array.prototype.toBase64` 在本地失败，由远端 Node 26 CI 验证）；
+  - 浏览器回归：`pnpm --dir web test:browser` 122 文件 947 项全量通过，含 `TerminalGraphics.test.ts` 18 项与新增 `TerminalGraphicsScrollback.test.ts` 5 项（覆盖滚动条拖动、底行 `C=0` 多行分配、待折行钳制、活动屏清理、跨顶边部分截断及宽度回流/渲染器切换）；
+  - 端到端回归：Playwright `test/e2e/terminal.spec.ts` 18 项通过、4 项按设备项目条件跳过、0 失败；
+  - 视觉与证据：隔离演示服务在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 明暗主题下核对无页面横向溢出，采集桌面、平板、手机明暗六组前后对比截图与 `1280×900` 正常速度交互 GIF。
+- 局限：仅在 Linux 无头 Chromium 下验证，未在手机、平板、macOS 或 Windows 真机验证真实鼠标悬停与 `any-pointer: coarse` 触屏硬件行为；未重新验收其他既有故事。

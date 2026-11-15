@@ -101,17 +101,16 @@ export function removeKittyPlacements(
       kind !== "i" &&
       kind !== "n" &&
       kind !== "r" &&
-      kind !== "z" &&
       item.handle.active?.() === false
     )
       continue;
     const bounds = item.handle.bounds();
+    const onScreen =
+      bounds.line + bounds.rows > viewport.top && bounds.line < viewport.bottom;
     let match = false;
     switch (kind) {
       case "a":
-        match =
-          bounds.line + bounds.rows > viewport.top &&
-          bounds.line < viewport.bottom;
+        match = onScreen;
         break;
       case "i":
         match =
@@ -126,18 +125,22 @@ export function removeKittyPlacements(
           (placement === undefined || item.placementId === placement);
         break;
       case "c":
-        match = intersects(item, cursor.column, cursor.line);
+        match = onScreen && intersects(item, cursor.column, cursor.line);
         break;
       case "p":
         match =
+          onScreen &&
           targetCellColumn !== undefined &&
           targetCellLine !== undefined &&
+          targetCellLine < viewport.bottom &&
           intersects(item, targetCellColumn, targetCellLine);
         break;
       case "q":
         match =
+          onScreen &&
           targetCellColumn !== undefined &&
           targetCellLine !== undefined &&
+          targetCellLine < viewport.bottom &&
           intersects(item, targetCellColumn, targetCellLine) &&
           (z === undefined || item.z === z);
         break;
@@ -150,18 +153,21 @@ export function removeKittyPlacements(
         break;
       case "x":
         match =
+          onScreen &&
           targetCellColumn !== undefined &&
           targetCellColumn >= bounds.column &&
           targetCellColumn < bounds.column + bounds.columns;
         break;
       case "y":
         match =
+          onScreen &&
           targetCellLine !== undefined &&
+          targetCellLine < viewport.bottom &&
           targetCellLine >= bounds.line &&
           targetCellLine < bounds.line + bounds.rows;
         break;
       case "z":
-        match = z !== undefined && item.z === z;
+        match = onScreen && z !== undefined && item.z === z;
         break;
       default:
         throw new KittyCommandError("EINVAL", "unknown delete operation");

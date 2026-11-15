@@ -87,8 +87,8 @@
   - 支持直接传输的 PNG、RGB、RGBA、分块传输、图片与放置 ID、图像编号、源矩形裁剪、按单元格缩放与偏移、`C=1` 光标策略及各类删除；
   - 查询由控制端浏览器在后续文本前答复，回放历史不回发旧响应；
   - 普通/备用屏幕的图片隔离；
-  - `CSI 2J` 清屏删除对应放置，局部文本擦除不删除图片；
-  - 图片随输出滚动并可随历史视口重新显示，历史截断释放对应放置；
+  - `CSI 2J` 清屏与 `a=d` 屏幕级删除（`d=a`/`c`/`p`/`q`/`x`/`y`/`z`）只作用于当前活动屏幕，查看历史时不会误删回滚区图片或仍在回滚区引用的图像数据；局部文本擦除不删除图片；
+  - 默认光标策略（`C=0`）在屏幕底部放置多行图片时按行滚屏分配缓冲行，待折行（pending wrap）光标钳制在右边界内；图片随输出滚动、终端宽度重排回流或渲染器切换后仍可随历史视口完整显示，历史截断释放对应放置；
   - omp 顶部裁剪及只重绘文字时保留正确图片，不依赖会被文本擦除删除的 xterm marker；
   - 解码、图像数量、放置及画布资源有界，超限请求被拒绝，后续尺寸变化超限时释放放置；
   - 图片只绘制在浏览器终端，不进入会话列表文本预览；
@@ -126,7 +126,7 @@
 - [协议单元用例](../../web/test/kitty-graphics.test.ts)
 - [图形浏览器用例](../../web/test/browser/TerminalGraphics.test.ts)、[终端渲染与等宽字体回归](../../web/test/browser/TerminalRenderer.test.ts)。
 
-图形滚动补充依据：[图像行锚点](../../web/src/hooks/terminal/terminal-graphics-anchor.ts)、[共享重绘字节](../../web/test/fixtures/kitty-scroll.ts)、[交互式 PTY 复现程序](../../web/test/fixtures/kitty-scroll-demo.mjs)。
+图形滚动补充依据：[图像行锚点](../../web/src/hooks/terminal/terminal-graphics-anchor.ts)、[图形历史与回流回归](../../web/test/browser/TerminalGraphicsScrollback.test.ts)、[共享重绘字节](../../web/test/fixtures/kitty-scroll.ts)、[交互式 PTY 复现程序](../../web/test/fixtures/kitty-scroll-demo.mjs)。
 
 ## E. 剪贴板与文件上传
 
