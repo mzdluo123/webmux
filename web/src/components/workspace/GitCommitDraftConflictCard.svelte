@@ -2,6 +2,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
@@ -26,8 +27,7 @@
   data-testid="git-commit-draft-conflict"
 >
   <InlineNotice tone="warning">
-    {conflict.message ||
-      "检测到另一设备或标签页已更新提交说明草稿，系统不会静默覆盖；请并排核对两份内容后选择保留、采用远端或合并。"}
+    {conflict.message || m.s6_draft_conflict_fallback_msg()}
   </InlineNotice>
 
   <div class="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
@@ -36,14 +36,16 @@
       data-testid="git-draft-conflict-local"
     >
       <div class="flex min-w-0 items-center justify-between gap-1.5">
-        <span class="truncate font-semibold text-foreground">本机当前输入</span>
-        <Badge variant="outline">未同步</Badge>
+        <span class="truncate font-semibold text-foreground">
+          {m.s6_draft_conflict_local_heading()}
+        </span>
+        <Badge variant="outline">{m.s6_draft_conflict_unsynced()}</Badge>
       </div>
       <p
         class="truncate font-mono font-medium text-foreground"
-        title={conflict.localSubject || "（空标题）"}
+        title={conflict.localSubject || m.s6_draft_conflict_empty_subject()}
       >
-        {conflict.localSubject || "（空标题）"}
+        {conflict.localSubject || m.s6_draft_conflict_empty_subject()}
       </p>
       {#if conflict.localBody.trim()}
         <div class="rounded-sm bg-background">
@@ -53,7 +55,7 @@
           </ScrollArea>
         </div>
       {:else}
-        <p class="text-muted-foreground">（无补充正文）</p>
+        <p class="text-muted-foreground">{m.s6_draft_conflict_empty_body()}</p>
       {/if}
     </div>
 
@@ -63,15 +65,16 @@
     >
       <div class="flex min-w-0 items-center justify-between gap-1.5">
         <span class="truncate font-semibold text-foreground">
-          另一设备已保存版本
+          {m.s6_draft_conflict_remote_heading()}
         </span>
         <Badge variant="info">rev #{conflict.remoteDraft.revision}</Badge>
       </div>
       <p
         class="truncate font-mono font-medium text-foreground"
-        title={conflict.remoteDraft.subject || "（空标题）"}
+        title={conflict.remoteDraft.subject ||
+          m.s6_draft_conflict_empty_subject()}
       >
-        {conflict.remoteDraft.subject || "（空标题）"}
+        {conflict.remoteDraft.subject || m.s6_draft_conflict_empty_subject()}
       </p>
       {#if conflict.remoteDraft.body.trim()}
         <div class="rounded-sm bg-background">
@@ -82,7 +85,7 @@
           </ScrollArea>
         </div>
       {:else}
-        <p class="text-muted-foreground">（无补充正文）</p>
+        <p class="text-muted-foreground">{m.s6_draft_conflict_empty_body()}</p>
       {/if}
     </div>
   </div>
@@ -95,7 +98,7 @@
       onclick={onAdoptRemote}
       data-testid="git-draft-adopt-remote"
     >
-      采用远端版本
+      {m.s6_draft_conflict_adopt_remote()}
     </Button>
     <Button
       size="sm"
@@ -104,7 +107,7 @@
       onclick={onKeepLocal}
       data-testid="git-draft-keep-local"
     >
-      保留本机覆盖保存
+      {m.s6_draft_conflict_keep_local()}
     </Button>
     <Button
       size="sm"
@@ -113,7 +116,7 @@
       onclick={onMergeBoth}
       data-testid="git-draft-merge-both"
     >
-      合并两份内容
+      {m.s6_draft_conflict_merge_both()}
     </Button>
   </div>
 </div>

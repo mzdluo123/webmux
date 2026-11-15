@@ -46,8 +46,7 @@ import type {
   TerminalSocketAttachment,
   TerminalSocketView,
 } from "./terminal-socket-view";
-
-const inputSendError = "终端输入未发送：连接不可用或发送队列已满，请重试。";
+import * as m from "$lib/paraglide/messages.js";
 
 // Terminal stream of one session (`/ws/s/{id}`, docs/protocol/websocket.md).
 export function createTerminalSocket(id: string, manageChrome = true) {
@@ -56,6 +55,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   let restoring = $state(true);
   let exitCode = $state<number | null>(null);
   let error = $state("");
+  let lastInputSendError = "";
   let historyTruncated = $state(false);
   let control = $state<ControlState>();
   // The run whose output this page has drawn: a hybrid switch to the
@@ -422,9 +422,14 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     // Sends user input. A rejected send is reported, never queued.
     sendInput(input: string) {
       const sent = socket?.send(0, encoder.encode(input)) ?? false;
-      if (!sent) error = inputSendError;
-      else {
-        if (error === inputSendError) error = "";
+      if (!sent) {
+        lastInputSendError = m.s4_terminal_input_send_error();
+        error = lastInputSendError;
+      } else {
+        if (lastInputSendError && error === lastInputSendError) {
+          lastInputSendError = "";
+          error = "";
+        }
         socket?.probe();
       }
       return sent;

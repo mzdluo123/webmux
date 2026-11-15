@@ -1,4 +1,5 @@
 import { onDestroy, onMount, tick } from "svelte";
+import * as m from "$lib/paraglide/messages.js";
 import type { HybridSession } from "../sessions/hybrid-types";
 import type { TerminalController } from "../../domains/terminal/terminal-search";
 import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
@@ -120,14 +121,16 @@ export function useXrSessionSource(options: {
     if (hybrid.view === "chat") return panel;
     return {
       ...panel,
-      title: recovering ? "恢复会话 · 只读" : "聊天历史 · 只读",
+      title: recovering
+        ? m.s4_xr_recover_session_readonly()
+        : m.s4_xr_chat_history_readonly(),
       lines: [
         {
           text: recovering
-            ? "返回 2D 恢复会话后才能继续输入。"
+            ? m.s4_xr_return_2d_to_recover_hint()
             : hybrid.chat.model.entries.length
-              ? "当前在终端端运行；此处仅显示已有聊天历史，不能输入。"
-              : "当前在终端端运行，暂无可用聊天历史。",
+              ? m.s4_xr_in_terminal_chat_readonly_hint()
+              : m.s4_xr_in_terminal_no_chat_hint(),
           tone: "muted" as const,
         },
         ...(recovering && !hybrid.chat.model.entries.length ? [] : panel.lines),
@@ -135,7 +138,9 @@ export function useXrSessionSource(options: {
       actions: [
         {
           id: "chat-2d",
-          label: recovering ? "返回 2D 恢复会话" : "返回 2D 切换到聊天",
+          label: recovering
+            ? m.s4_xr_return_2d_recover_btn()
+            : m.s4_xr_return_2d_switch_chat_btn(),
           run: () =>
             returnTo2D(recovering ? undefined : () => hybrid.request("chat")),
         },
@@ -160,7 +165,7 @@ export function useXrSessionSource(options: {
           {
             id: "draft",
             kind: "chat" as const,
-            title: "终端草稿",
+            title: m.s4_xr_terminal_draft_title(),
             lines: draft.text.split("\n").map((text) => ({ text })),
           },
         ]
@@ -172,13 +177,21 @@ export function useXrSessionSource(options: {
     const inChat = hybrid.view === "chat";
     return [
       ...(options.codeAvailable()
-        ? [{ id: "code", label: "打开代码工作区", run: options.showCode }]
+        ? [
+            {
+              id: "code",
+              label: m.s4_xr_open_code_workspace(),
+              run: options.showCode,
+            },
+          ]
         : []),
       ...(!inChat
         ? [
             {
               id: "draft",
-              label: draft.enabled ? "退出草稿模式" : "开启草稿模式",
+              label: draft.enabled
+                ? m.s4_exit_draft_mode()
+                : m.s4_enable_draft_mode(),
               run: options.toggleDraft,
             },
           ]
@@ -187,7 +200,7 @@ export function useXrSessionSource(options: {
         ? [
             {
               id: "send-draft",
-              label: "发送草稿",
+              label: m.s4_xr_send_draft(),
               disabled:
                 !!draft.submission ||
                 (!draft.text.trim() && (!inChat || !draft.attachments.length)),
@@ -196,18 +209,24 @@ export function useXrSessionSource(options: {
           ]
         : []),
       ...(!t.controlling && !inChat
-        ? [{ id: "claim", label: "取得终端控制", run: () => t.claim() }]
+        ? [
+            {
+              id: "claim",
+              label: m.s4_xr_claim_terminal_control(),
+              run: () => t.claim(),
+            },
+          ]
         : []),
       ...options.quickCommands().map((command) => ({
         id: `quick:${command.id}`,
-        label: `快捷指令：${command.name}`,
+        label: m.s4_xr_quick_command_label({ name: command.name }),
         run: () => options.runQuick(command),
       })),
       ...(hybrid.known
         ? [
             {
               id: "switch",
-              label: inChat ? "切换到终端" : "切换到聊天",
+              label: inChat ? m.s4_switch_to_terminal() : m.s4_switch_to_chat(),
               run: () =>
                 returnTo2D(() => hybrid.request(inChat ? "terminal" : "chat")),
             },
@@ -217,13 +236,13 @@ export function useXrSessionSource(options: {
         ? [
             {
               id: "confirm-switch",
-              label: "确认切换视图",
-              confirm: "切换会中断当前任务。确认继续？",
+              label: m.s4_xr_confirm_switch_view(),
+              confirm: m.s4_xr_confirm_switch_interrupt(),
               run: () => hybrid.confirm(),
             },
             {
               id: "cancel-switch",
-              label: "取消切换",
+              label: m.s4_xr_cancel_switch(),
               run: () => hybrid.cancelConfirm(),
             },
           ]
@@ -237,8 +256,13 @@ export function useXrSessionSource(options: {
       return hybrid.info?.title || t.info?.title || options.id;
     },
     get status() {
-      if (hybrid.view === "recovery") return "待恢复 · 只读";
-      return `${hybrid.view === "chat" ? "聊天" : "终端"} · ${hybrid.view === "chat" ? hybrid.chat.connection : t.connection}${t.controlling ? " · 控制端" : ""}`;
+      if (hybrid.view === "recovery") return m.s4_xr_status_recovery_readonly();
+      const viewLabel =
+        hybrid.view === "chat" ? m.s4_tab_chat() : m.s4_tab_terminal();
+      const conn =
+        hybrid.view === "chat" ? hybrid.chat.connection : t.connection;
+      const ctrl = t.controlling ? ` · ${m.s4_xr_status_controller()}` : "";
+      return `${viewLabel} · ${conn}${ctrl}`;
     },
     get primaryKind() {
       const info = hybrid.info ?? t.info;

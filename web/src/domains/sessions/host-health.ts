@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import type { Health } from "../../contracts/schemas";
 
 /** A health round trip slower than this marks the host as strained. */
@@ -7,9 +8,11 @@ export const BUSY_LOAD_RATIO = 0.5;
 
 /** Why the host looks strained, or "" when it does not. */
 export function hostStrain(latency: number | null, health: Health | null) {
-  if (latency !== null && latency > SLOW_LATENCY_MS) return "网络延时偏高";
+  if (latency !== null && latency > SLOW_LATENCY_MS)
+    return m.s3_host_high_latency();
   const load = health?.load;
-  if (load && load.one > load.cpus * BUSY_LOAD_RATIO) return "系统负载偏高";
+  if (load && load.one > load.cpus * BUSY_LOAD_RATIO)
+    return m.s3_host_high_load();
   return "";
 }
 

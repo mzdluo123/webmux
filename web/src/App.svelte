@@ -75,6 +75,8 @@
   import { tvInput } from "./hooks/shared/tv-input.svelte";
   import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
   import InlineNotice from "./components/shared/InlineNotice.svelte";
+  import { createAppLinkHandler } from "./app/app-link-navigation";
+  import * as m from "$lib/paraglide/messages.js";
 
   useDeviceShell();
 
@@ -88,7 +90,9 @@
   let checking = $state(true);
   let token = $state(stored("token"));
   let error = $state("");
+  let authFailed = $state(false);
   let discoveryError = $state("");
+  let discoveryFailureCause = $state("");
   let bootstrapEpoch = 0;
   let bootstrapAbort: AbortController | undefined;
   const route = $derived(matchRoute(path));
@@ -178,8 +182,8 @@
   const pageLabel = $derived(
     sessionListSnapshot()?.find((session) => session.id === sessionId)?.view ===
       "chat"
-      ? "聊天"
-      : "终端",
+      ? m.s1_page_chat()
+      : m.s1_page_terminal(),
   );
   // Re-read the cached chunk when the open session changes. Filling the
   // cache during this visit must not replace the page already on screen.
@@ -209,6 +213,7 @@
       resetPluginCapabilities();
       await api("/health", HealthSchema, "GET", undefined, controller.signal);
       discoveryError = "";
+      discoveryFailureCause = "";
       try {
         const capabilities = await api(
           "/capabilities",
@@ -229,16 +234,20 @@
         if (epoch !== bootstrapEpoch) return;
         resetPluginCapabilities();
         disposePluginContributions();
-        discoveryError = `无法发现可选功能；终端仍可使用。${errorMessage(discoveryFailure)}`;
+        discoveryFailureCause = errorMessage(discoveryFailure);
         enterHome();
         path = location.pathname;
       }
       if (epoch !== bootstrapEpoch) return;
       startSettings();
       ready = true;
+      authFailed = false;
       error = "";
     } catch (err) {
-      if (epoch === bootstrapEpoch) error = errorMessage(err);
+      if (epoch === bootstrapEpoch) {
+        authFailed = false;
+        error = errorMessage(err);
+      }
     } finally {
       if (epoch === bootstrapEpoch) checking = false;
     }
@@ -290,47 +299,19 @@
       switcherOpen = false;
       switcherInvoker = null;
       checking = false;
-      error = "Token 无效或已更改";
+      authFailed = true;
+      error = "";
     };
-    // Plain anchors to app routes would reload the whole document, which
-    // blanks an iOS standalone PWA; route them through history instead.
-    const link = (event: MouseEvent) => {
-      if (
-        event.defaultPrevented ||
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey
-      )
-        return;
-      const anchor =
-        event.target instanceof Element ? event.target.closest("a") : null;
-      if (!anchor || anchor.hasAttribute("download")) return;
-      if (anchor.target && anchor.target !== "_self") return;
-      const url = new URL(anchor.href, location.href);
-      if (url.origin !== location.origin) return;
-      const targetRoute = matchRoute(url.pathname);
-      const appRoute = url.pathname === "/" || targetRoute.name !== "sessions";
-      if (!appRoute) return;
-      // References to an open split pane select it without replacing the
-      // layout, including when its ID is the current route's anchor.
-      if (targetRoute.name === "terminal" && !url.search && !url.hash) {
-        event.preventDefault();
-        if (terminal?.activateSession(targetRoute.id)) return;
-        if (targetRoute.id === sessionId && terminal) {
-          terminal.reopenSession(targetRoute.id);
-          return;
-        }
-        pendingSessionOpen = targetRoute.id;
-        navigate(url.pathname);
-        return;
-      }
-      if (url.pathname === location.pathname && url.search === location.search)
-        return;
-      event.preventDefault();
-      navigate(url.pathname + url.search + url.hash);
-    };
+    const link = createAppLinkHandler({
+      sessionId: () => sessionId,
+      activateSession: (id) => Boolean(terminal?.activateSession(id)),
+      reopenSession: (id) => {
+        if (!terminal) return false;
+        terminal.reopenSession(id);
+        return true;
+      },
+      setPendingSessionOpen: (id) => (pendingSessionOpen = id),
+    });
     document.addEventListener("click", link);
     window.addEventListener("popstate", change);
     window.addEventListener("keydown", switcherShortcut, true);
@@ -386,7 +367,7 @@
 {#if !ready}
   <ConnectionGate
     {checking}
-    {error}
+    error={authFailed ? m.s1_token_invalid() : error}
     bind:token
     onconnect={() => {
       store("token", token);
@@ -395,22 +376,30 @@
   />
 {:else if rebuildingPlugins}
   <main class="mx-auto max-w-xl p-6" aria-busy="true">
-    <InlineNotice>实例功能已更改，正在重新连接…</InlineNotice>
+    <InlineNotice>{m.s1_reconnecting_capabilities()}</InlineNotice>
   </main>
 {:else if routeUnavailable}
   <main class="mx-auto max-w-xl space-y-4 p-6">
-    <h1 class="text-2xl font-semibold">功能未启用</h1>
+    <h1 class="text-2xl font-semibold">{m.s1_feature_disabled()}</h1>
     <InlineNotice tone="warning"
       >{requiredPlugin && pluginContributions.errors[requiredPlugin]
-        ? `${requiredPlugin} 加载失败：${pluginContributions.errors[requiredPlugin]}`
+        ? m.s1_plugin_load_failed({
+            plugin: requiredPlugin,
+            error: pluginContributions.errors[requiredPlugin],
+          })
         : route.name === "git" && pluginEnabled("workspace")
-          ? "Git 工作台需要同时启用工作区与代码插件，并确保服务可用。"
-          : `此页面需要 ${requiredPlugin} 插件。请在服务端配置中启用后重启。`}</InlineNotice
+          ? m.s1_git_workbench_requires_plugins()
+          : m.s1_page_requires_plugin({
+              plugin: String(requiredPlugin ?? ""),
+            })}</InlineNotice
     >
-    <Button href="/">返回会话</Button>
+    <Button href="/">{m.s1_back_to_sessions()}</Button>
   </main>
 {:else if route.name === "settings"}
-  <LazyPage load={() => import("./pages/Settings.svelte")} label="设置">
+  <LazyPage
+    load={() => import("./pages/Settings.svelte")}
+    label={m.s1_settings()}
+  >
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
 {:else if !shellRoute}
@@ -427,7 +416,7 @@
           errorMessage={(loadError) =>
             loadError instanceof Error
               ? loadError.message
-              : `${pageLabel}加载失败`}
+              : m.s1_page_load_failed({ label: pageLabel })}
         >
           {#snippet children(page)}
             {@render session(page)}
@@ -442,9 +431,12 @@
   </AppShell>
 {/if}
 
-{#if ready && discoveryError}
+{#if ready && (discoveryError || discoveryFailureCause)}
   <div class="fixed inset-x-2 bottom-2 z-50">
-    <InlineNotice tone="warning">{discoveryError}</InlineNotice>
+    <InlineNotice tone="warning"
+      >{discoveryError ||
+        m.s1_discovery_failed({ error: discoveryFailureCause })}</InlineNotice
+    >
   </div>
 {/if}
 
@@ -485,7 +477,7 @@
   >
     <p class="min-w-0 flex-1 break-all">{uploadNotice}</p>
     <Button variant="outline" size="sm" onclick={() => (uploadNotice = "")}
-      >关闭</Button
+      >{m.s1_close()}</Button
     >
   </div>
 {/if}

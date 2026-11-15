@@ -1,5 +1,6 @@
 import type { Snippet } from "svelte";
 import type { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { nodeId } from "./code-reference";
 import {
@@ -66,7 +67,7 @@ export function upsertWorkspaceTab(
     return { key, added: false };
   }
   if (tabs.length >= 20)
-    return { key, added: false, error: "最多打开 20 个标签，请先关闭一个" };
+    return { key, added: false, error: m.s5_max_tabs_reached() };
   tabs.push({
     key,
     contextId: origin.contextId,
@@ -121,7 +122,7 @@ export async function fetchRefreshedTabContent(
         c.group === tab.diff!.change.group &&
         c.newPath === tab.diff!.change.newPath,
     );
-    if (!c) throw new Error("此差异已不存在，请从文件导航打开完整文件");
+    if (!c) throw new Error(m.s5_diff_gone_open_full_file());
     return {
       diff: await api(
         `${base}/diff?${params({ contextId, changeId: c.changeId })}`,
@@ -132,7 +133,7 @@ export async function fetchRefreshedTabContent(
       ),
     };
   }
-  if (!tab.file) throw new Error("文件不可用");
+  if (!tab.file) throw new Error(m.s5_file_unavailable());
   return {
     file: await api(
       `${base}/file?${params({ contextId, nodeId: tab.file.document.nodeId, source: tab.file.document.source })}`,
@@ -323,12 +324,12 @@ export function applyWorkspaceStalenessResult(options: {
           options.branchVersions[key] === options.directoryVersions[key]),
     )
   )
-    status = "目录已更新或检测失败";
+    status = m.s5_dir_updated_or_check_failed();
   if (
     options.changesVersion !== undefined &&
     options.changesVersion === options.activeChangesVersion &&
     r.changes !== "unchanged"
   )
-    status = "修改列表已更新或检测失败";
+    status = m.s5_changes_updated_or_check_failed();
   return status;
 }

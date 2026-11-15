@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import IconArchive from "~icons/tabler/archive";
   import IconArrowBackUp from "~icons/tabler/arrow-back-up";
   import IconArrowUp from "~icons/tabler/arrow-up";
@@ -59,37 +60,50 @@
 >
   <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
     <span class="font-semibold text-foreground">
-      {compact ? "当前工作区无未提交改动 · 任务交付概览" : "任务交付与收尾摘要"}
+      {compact ? m.s7_delivery_title_compact() : m.s7_delivery_title_full()}
     </span>
     <div class="flex min-w-0 flex-wrap items-center gap-1">
-      <Badge variant="outline">净变更 {netFileCount} 项</Badge>
+      <Badge variant="outline"
+        >{m.s7_delivery_net_changes({ count: netFileCount })}</Badge
+      >
       <Badge variant={commitCount > 0 ? "info" : "outline"}>
-        任务提交 {commitCount} 笔
+        {m.s7_delivery_task_commits({ count: commitCount })}
       </Badge>
       {#if uncommittedCount > 0}
-        <Badge variant="warning">未提交 {uncommittedCount} 项</Badge>
+        <Badge variant="warning"
+          >{m.s7_delivery_uncommitted({ count: uncommittedCount })}</Badge
+        >
       {:else}
-        <Badge variant="secondary">工作区干净</Badge>
+        <Badge variant="secondary">{m.s7_delivery_clean()}</Badge>
       {/if}
       {#if context.ahead > 0}
-        <Badge variant="info">待推送 {context.ahead} 笔</Badge>
+        <Badge variant="info"
+          >{m.s7_delivery_ahead({ count: context.ahead })}</Badge
+        >
       {/if}
       {#if activeSessionCount > 0}
-        <Badge variant="outline">运行会话 {activeSessionCount}</Badge>
+        <Badge variant="outline"
+          >{m.s7_delivery_active_sessions({ count: activeSessionCount })}</Badge
+        >
       {/if}
       {#if exitedSessionCount > 0}
-        <Badge variant="outline">已结束会话 {exitedSessionCount}</Badge>
+        <Badge variant="outline"
+          >{m.s7_delivery_exited_sessions({ count: exitedSessionCount })}</Badge
+        >
       {/if}
       {#if archivedSessionCount > 0}
-        <Badge variant="outline">已归档 {archivedSessionCount}</Badge>
+        <Badge variant="outline"
+          >{m.s7_delivery_archived_sessions({
+            count: archivedSessionCount,
+          })}</Badge
+        >
       {/if}
     </div>
   </div>
 
   {#if uncommittedCount === 0 && (commitCount > 0 || context.ahead > 0)}
     <p class="leading-relaxed text-muted-foreground">
-      Agent
-      或命令行提交已准备就绪；推送不会自动移除工作树，可按需返回会话、推送分支或手动安全清理。
+      {m.s7_delivery_ready_hint()}
     </p>
   {/if}
 
@@ -97,7 +111,7 @@
     {#if compact && onSwitchToTaskReview}
       <Button size="sm" variant="outline" onclick={onSwitchToTaskReview}>
         <IconGitCompare aria-hidden="true" />
-        审阅相对任务起点的变化 ({netFileCount})
+        {m.s7_delivery_review_task_btn({ count: netFileCount })}
       </Button>
     {/if}
 
@@ -107,33 +121,33 @@
         variant={emphasizePush ? "default" : "outline"}
         disabled={!canPush}
         title={context.checkedOutBranch
-          ? `打开 ${context.checkedOutBranch} 推送预览`
-          : "游离或未诞生 HEAD 请先创建分支后再推送"}
+          ? m.s7_delivery_open_push_title({ branch: context.checkedOutBranch })
+          : m.s7_delivery_push_detached_title()}
         onclick={onOpenPush}
       >
         <IconArrowUp aria-hidden="true" />
-        推送提交…
+        {m.s7_delivery_push_btn()}
       </Button>
     {/if}
 
     {#if onReturnSession}
       <Button size="sm" variant="outline" onclick={onReturnSession}>
         <IconArrowBackUp aria-hidden="true" />
-        返回会话
+        {m.s7_delivery_return_session()}
       </Button>
     {/if}
 
     {#if onArchiveSession && exitedSessionCount > 0}
       <Button size="sm" variant="outline" onclick={onArchiveSession}>
         <IconArchive aria-hidden="true" />
-        归档已完成会话
+        {m.s7_delivery_archive_session()}
       </Button>
     {/if}
 
     {#if onRemoveWorktree && context.worktreeKind === "linked"}
       <Button size="sm" variant="outline" onclick={onRemoveWorktree}>
         <IconTrash aria-hidden="true" />
-        移除工作树…
+        {m.s7_delivery_remove_worktree()}
       </Button>
     {/if}
   </div>

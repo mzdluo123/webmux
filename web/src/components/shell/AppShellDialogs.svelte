@@ -20,6 +20,7 @@
   import LazyDialog from "../shared/LazyDialog.svelte";
   import { pluginAvailable } from "../../platform/plugin-host.svelte";
   import UnregisterRepositoryDialog from "../workspace/UnregisterRepositoryDialog.svelte";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     shell,
@@ -92,7 +93,7 @@
   {@const target = configuring}
   <LazyDialog
     load={() => import("../workspace/RepositorySettingsDialog.svelte")}
-    label="仓库设置"
+    label={m.s1_repository_settings()}
     onclose={() => (configuring = null)}
   >
     {#snippet children(page)}<page.default
@@ -105,7 +106,7 @@
 {#if adding}
   <LazyDialog
     load={() => import("../workspace/AddRepositoryDialog.svelte")}
-    label="仓库表单"
+    label={m.s1_repository_form()}
     onclose={() => (adding = false)}
   >
     {#snippet children(page)}<page.default
@@ -119,7 +120,7 @@
   {@const target = removingWorktree}
   <LazyDialog
     load={() => import("../workspace/RemoveWorktreeDialog.svelte")}
-    label="删除确认"
+    label={m.s1_remove_confirmation()}
     onclose={() => (removingWorktree = null)}
   >
     {#snippet children(page)}<page.default
@@ -138,7 +139,7 @@
     shell.repositories?.list.find((r) => r.id === target.id) ?? target}
   <LazyDialog
     load={() => import("../workspace/HomeWorktreeDialog.svelte")}
-    label="主页显示"
+    label={m.s1_home_worktrees()}
     onclose={() => (choosingHome = null)}
   >
     {#snippet children(page)}<page.default
@@ -165,7 +166,7 @@
     target.repository}
   <LazyDialog
     load={() => import("../workspace/RepositoryPanel.svelte")}
-    label="仓库详情"
+    label={m.s1_repository_details()}
     onclose={() => (viewingRepository = null)}
   >
     {#snippet children(page)}<page.default
@@ -175,7 +176,7 @@
         records={shell.archived?.records ?? []}
         home={homeWorktrees.value}
         refreshing={shell.repositories?.refreshing ?? false}
-        refreshError={shell.repositories?.error ?? "工作区暂不可用"}
+        refreshError={shell.repositories?.error ?? m.s1_workspace_unavailable()}
         registryReady={shell.setup.value.registryReady}
         onunregister={() => {
           unregistering = currentRepo;
@@ -217,7 +218,7 @@
   {@const { repo, current } = resolveWorktreeDialogTarget(viewingWorktree)}
   <LazyDialog
     load={() => import("../workspace/WorktreeDetailsDialog.svelte")}
-    label="工作树详情"
+    label={m.s1_worktree_details()}
     onclose={() => (viewingWorktree = null)}
   >
     {#snippet children(page)}<page.default
@@ -240,7 +241,7 @@
   {#if repo}
     <LazyDialog
       load={() => import("../workspace/SwitchBranchDialog.svelte")}
-      label="切换分支"
+      label={m.s1_switch_branch()}
       onclose={() => (switchingBranch = null)}
     >
       {#snippet children(page)}<page.default
@@ -284,7 +285,7 @@
   {@const target = releasingWorktree}
   <LazyDialog
     load={() => import("../workspace/ReleaseWorktreeDialog.svelte")}
-    label="释放空间预览"
+    label={m.s1_release_worktree_preview()}
     onclose={() => (releasingWorktree = null)}
   >
     {#snippet children(page)}<page.default
@@ -298,7 +299,7 @@
   {@const target = operating}
   <LazyDialog
     load={() => import("../workspace/BranchOperationDialog.svelte")}
-    label="分支操作"
+    label={m.s1_branch_operation()}
     onclose={() => (operating = null)}
   >
     {#snippet children(page)}<page.default

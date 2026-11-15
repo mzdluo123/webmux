@@ -1,4 +1,5 @@
 import { tick } from "svelte";
+import * as m from "$lib/paraglide/messages.js";
 import { CapabilitiesSchema } from "../contracts/plugin-schemas";
 import { observeSettings, settings } from "../domains/settings/settings.svelte";
 import { clearHomeCache } from "../domains/workspace/home-cache";
@@ -78,7 +79,9 @@ export function watchPluginHostRefresh(options: HostRefreshOptions): {
         } catch (failure) {
           if (stale()) return;
           options.onRebuilding(false);
-          options.onError(`功能状态刷新失败：${errorMessage(failure)}`);
+          options.onError(
+            m.s1_capability_refresh_failed({ error: errorMessage(failure) }),
+          );
         }
       } while (refreshAgain);
     })().finally(() => {

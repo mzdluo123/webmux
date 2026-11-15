@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import IconAlertTriangle from "~icons/tabler/alert-triangle";
 import IconSquareLetterA from "~icons/tabler/square-letter-a";
 import IconSquareLetterC from "~icons/tabler/square-letter-c";
@@ -7,22 +8,69 @@ import IconSquareLetterR from "~icons/tabler/square-letter-r";
 import IconSquareLetterT from "~icons/tabler/square-letter-t";
 import IconSquareLetterU from "~icons/tabler/square-letter-u";
 import IconSquareLetterX from "~icons/tabler/square-letter-x";
+
 const statuses = {
-  A: { icon: IconSquareLetterA, label: "新增", color: "text-success" },
-  M: { icon: IconSquareLetterM, label: "修改", color: "text-warning" },
-  D: { icon: IconSquareLetterD, label: "删除", color: "text-destructive" },
-  R: { icon: IconSquareLetterR, label: "重命名", color: "text-info" },
-  C: { icon: IconSquareLetterC, label: "复制", color: "text-info" },
-  T: { icon: IconSquareLetterT, label: "类型变更", color: "text-info" },
-  U: { icon: IconAlertTriangle, label: "冲突", color: "text-destructive" },
+  A: {
+    icon: IconSquareLetterA,
+    get label() {
+      return m.s1_git_status_added();
+    },
+    color: "text-success",
+  },
+  M: {
+    icon: IconSquareLetterM,
+    get label() {
+      return m.s1_git_status_modified();
+    },
+    color: "text-warning",
+  },
+  D: {
+    icon: IconSquareLetterD,
+    get label() {
+      return m.s1_git_status_deleted();
+    },
+    color: "text-destructive",
+  },
+  R: {
+    icon: IconSquareLetterR,
+    get label() {
+      return m.s1_git_status_renamed();
+    },
+    color: "text-info",
+  },
+  C: {
+    icon: IconSquareLetterC,
+    get label() {
+      return m.s1_git_status_copied();
+    },
+    color: "text-info",
+  },
+  T: {
+    icon: IconSquareLetterT,
+    get label() {
+      return m.s1_git_status_type_changed();
+    },
+    color: "text-info",
+  },
+  U: {
+    icon: IconAlertTriangle,
+    get label() {
+      return m.s1_git_status_conflicted();
+    },
+    color: "text-destructive",
+  },
   untracked: {
     icon: IconSquareLetterU,
-    label: "未跟踪",
+    get label() {
+      return m.s1_git_status_untracked();
+    },
     color: "text-success",
   },
   unknown: {
     icon: IconSquareLetterX,
-    label: "未知",
+    get label() {
+      return m.s1_git_status_unknown();
+    },
     color: "text-muted-foreground",
   },
 };

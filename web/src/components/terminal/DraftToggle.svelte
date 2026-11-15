@@ -1,6 +1,7 @@
 <script lang="ts">
   import IconNotes from "~icons/tabler/notes";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import { cn } from "$lib/utils.js";
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
 
@@ -29,21 +30,24 @@
   size="icon-sm"
   class={cn("relative", className)}
   aria-label={draft.scratch.length
-    ? `草稿模式，${draft.scratch.length} 条暂存`
-    : "草稿模式"}
+    ? m.s4_draft_mode_with_scratch({ count: String(draft.scratch.length) })
+    : m.s4_draft_mode()}
   aria-pressed={draft.enabled}
   {disabled}
   title={draft.enabled
-    ? "关闭只隐藏草稿，不发送或清空"
+    ? m.s4_draft_hide_only_hint()
     : draft.scratchUpdatedWhileHidden
-      ? `暂存已更新，开启查看；${scratchSaved}`
+      ? m.s4_draft_scratch_updated_hint({ saved: scratchSaved })
       : draft.scratch.length
-        ? `开启查看草稿与 ${draft.scratch.length} 条暂存；${scratchSaved}`
+        ? m.s4_draft_view_with_scratch_hint({
+            count: String(draft.scratch.length),
+            saved: scratchSaved,
+          })
         : draft.updatedWhileHidden
-          ? `隐藏草稿已更新，开启查看；${draftSaved}`
+          ? m.s4_draft_hidden_updated_hint({ saved: draftSaved })
           : draft.text
-            ? `开启查看保留的草稿；${draftSaved}`
-            : "开启草稿模式"}
+            ? m.s4_draft_view_kept_hint({ saved: draftSaved })
+            : m.s4_enable_draft_mode()}
   onclick={toggle}
   ><IconNotes
     class="size-4"

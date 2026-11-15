@@ -9,6 +9,8 @@
   import { ListButton } from "$lib/components/ui/list-button";
   import * as Popover from "$lib/components/ui/popover";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { locale } from "$lib/locale";
+  import * as m from "$lib/paraglide/messages.js";
   import type {
     GitActiveOperationState,
     GitOperation,
@@ -69,7 +71,7 @@
     if (!iso) return "";
     const parsed = new Date(iso);
     if (Number.isNaN(parsed.getTime())) return "";
-    return parsed.toLocaleTimeString("zh-CN", {
+    return parsed.toLocaleTimeString(locale.current, {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
@@ -81,11 +83,11 @@
     if (!activeOperation || activeOperation.phase === "idle") return "";
     switch (activeOperation.phase) {
       case "validating":
-        return "等待校验";
+        return m.s6_ops_phase_validating();
       case "running":
-        return "执行中";
+        return m.s6_ops_phase_running();
       case "reconciling":
-        return "重连核对中";
+        return m.s6_ops_phase_reconciling();
     }
   });
 
@@ -100,7 +102,7 @@
         `${gitOperationKindLabel(latestOp.kind)} · ${gitOperationStatusLabel(latestOp.status)}`
       );
     }
-    return "就绪";
+    return m.s6_ops_ready();
   });
   const hasActivePhase = $derived(
     Boolean(activeOperation && activeOperation.phase !== "idle"),
@@ -122,7 +124,7 @@
           variant="outline"
           size={isIconOnly ? "icon-sm" : "sm"}
           class="max-w-full min-w-0 shrink"
-          aria-label="展开 Git 操作记录与状态详情"
+          aria-label={m.s6_ops_trigger_aria()}
           title={barSummary}
           data-testid="git-operations-popover-trigger"
         >
@@ -181,12 +183,14 @@
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
               <p class="text-xs font-semibold text-foreground">
-                最近 Git 写操作记录
+                {m.s6_ops_recent_heading()}
               </p>
               <p class="truncate font-mono text-xs text-muted-foreground">
-                {worktreePath ?? "仓库全局"}
+                {worktreePath ?? m.s6_ops_repo_global()}
                 {#if lastFetchedAt}
-                  · 最近获取 {formatShortTime(lastFetchedAt)}
+                  {m.s6_ops_last_fetched({
+                    time: formatShortTime(lastFetchedAt),
+                  })}
                 {/if}
               </p>
             </div>
@@ -194,8 +198,8 @@
               <Button
                 size="icon-sm"
                 variant="ghost"
-                aria-label="刷新操作记录"
-                title="刷新操作记录"
+                aria-label={m.s6_ops_refresh_aria()}
+                title={m.s6_ops_refresh_aria()}
                 onclick={onRefreshOperations}
               >
                 <IconRefresh aria-hidden="true" />
@@ -214,7 +218,10 @@
               />
               <div class="min-w-0 flex-1">
                 <p class="font-medium text-foreground">
-                  {activePhaseLabel}：{activeOperation.summary}
+                  {m.s6_ops_active_summary({
+                    phase: activePhaseLabel,
+                    summary: activeOperation.summary,
+                  })}
                 </p>
                 {#if activeOperation.operationId || activeOperation.clientRequestId}
                   <p class="truncate font-mono text-muted-foreground">
@@ -229,13 +236,13 @@
 
           {#if operations.length === 0}
             <p class="py-3 text-center text-xs text-muted-foreground">
-              当前工作树暂无已记录的 Git 写操作。
+              {m.s6_ops_empty()}
             </p>
           {:else}
             <div
               class="rounded-md border bg-background"
               role="region"
-              aria-label="最近 Git 操作列表"
+              aria-label={m.s6_ops_list_region_aria()}
             >
               <ScrollArea viewportClasses="max-h-44">
                 <div class="space-y-0.5 p-1">
@@ -287,30 +294,30 @@
                   </div>
                   <span
                     class="font-mono text-muted-foreground"
-                    title={`操作 ID：${inspectedOp.id}`}
+                    title={m.s6_ops_id_tooltip({ id: inspectedOp.id })}
                   >
                     op:{inspectedOp.id.slice(0, 10)}
                   </span>
                 </div>
 
                 <p class="wrap-anywhere text-foreground">
-                  {inspectedOp.summary || "无摘要"}
+                  {inspectedOp.summary || m.s6_ops_no_summary()}
                 </p>
 
                 {#if inspectedOp.recoveryOid || inspectedOp.stashOid}
                   <p class="font-mono break-all text-muted-foreground">
                     {#if inspectedOp.recoveryOid}
-                      恢复对象 OID：{inspectedOp.recoveryOid}
+                      {m.s6_ops_recovery_oid({ oid: inspectedOp.recoveryOid })}
                     {:else if inspectedOp.stashOid}
-                      受控贮藏 OID：{inspectedOp.stashOid}
+                      {m.s6_ops_stash_oid({ oid: inspectedOp.stashOid })}
                     {/if}
                   </p>
                 {/if}
 
                 {#if inspectedOp.recoveryCommand}
                   <GitRecoveryCommandBox
-                    label="紧急恢复命令："
-                    copyLabel="复制紧急恢复命令"
+                    label={m.s6_ops_recovery_cmd_label()}
+                    copyLabel={m.s6_ops_copy_recovery_cmd()}
                     command={inspectedOp.recoveryCommand}
                     testId="git-operation-recovery-cmd"
                   />
@@ -346,7 +353,7 @@
                         }
                       }}
                     >
-                      在历史中定位提交
+                      {m.s6_ops_locate_commit_in_log()}
                     </Button>
                   {/if}
                   {#if inspectedOp.status === "uncertain" && onReloadVerify}
@@ -358,7 +365,7 @@
                         onReloadVerify();
                       }}
                     >
-                      刷新历史与暂存区核实
+                      {m.s6_reload_verify_btn()}
                     </Button>
                   {/if}
                 </div>

@@ -8,6 +8,7 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
   import type { GitLineSelection } from "../../contracts/schemas";
   import {
@@ -121,7 +122,7 @@
 
 <section
   class="flex min-h-44 min-w-0 flex-1 flex-col overflow-hidden bg-background"
-  aria-label="代码块逐行精细暂存"
+  aria-label={m.s6_line_selector_aria()}
   data-testid="git-staging-line-selector"
 >
   <div
@@ -130,10 +131,10 @@
   >
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       <Badge variant={selectedCount > 0 ? "info" : "outline"}>
-        已选 {selectedCount} 行
+        {m.s6_line_selector_selected_count({ count: String(selectedCount) })}
       </Badge>
       <span class="text-muted-foreground">
-        点击增删行勾选；按住 Shift 点击可连续多选范围
+        {m.s6_line_selector_hint()}
       </span>
     </div>
 
@@ -147,7 +148,7 @@
           data-testid="git-line-clear-btn"
         >
           <IconX aria-hidden="true" />
-          清空已选
+          {m.s6_line_selector_clear()}
         </Button>
       {/if}
 
@@ -161,7 +162,7 @@
           data-testid="git-line-discard-btn"
         >
           <IconTrash aria-hidden="true" />
-          丢弃所选行… ({selectedCount})
+          {m.s6_discard_selected_lines({ count: String(selectedCount) })}
         </Button>
       {/if}
 
@@ -175,7 +176,7 @@
           data-testid="git-line-stage-btn"
         >
           <IconPlus aria-hidden="true" />
-          暂存所选行 ({selectedCount})
+          {m.s6_stage_selected_lines({ count: String(selectedCount) })}
         </Button>
       {:else if stageMode === "unstage"}
         <Button
@@ -187,7 +188,7 @@
           data-testid="git-line-unstage-btn"
         >
           <IconMinus aria-hidden="true" />
-          取消暂存所选行 ({selectedCount})
+          {m.s6_unstage_selected_lines({ count: String(selectedCount) })}
         </Button>
       {/if}
     </div>
@@ -219,7 +220,9 @@
                 <Badge variant="outline">CRLF</Badge>
               {/if}
               {#if hunk.lines.some((l) => l.lineEnding === "none")}
-                <Badge variant="outline">无末尾换行</Badge>
+                <Badge variant="outline">
+                  {m.s6_line_selector_no_eof_newline()}
+                </Badge>
               {/if}
             </div>
             {#if changedAll.length > 0}
@@ -231,8 +234,10 @@
                 data-testid={`git-line-select-hunk-${hIdx}`}
               >
                 {hunkSelected.length === changedAll.length
-                  ? "取消全选此块"
-                  : `全选此块 (${changedAll.length})`}
+                  ? m.s6_line_selector_deselect_hunk()
+                  : m.s6_line_selector_select_hunk({
+                      count: String(changedAll.length),
+                    })}
               </Button>
             {/if}
           </div>
@@ -245,10 +250,16 @@
               {@const isChecked = hunkSelected.includes(lIdx)}
               {@const lineLabel =
                 line.kind === "delete"
-                  ? `第 ${line.oldLine ?? "-"} 行删除`
+                  ? m.s6_line_kind_delete({
+                      line: String(line.oldLine ?? "-"),
+                    })
                   : line.kind === "add"
-                    ? `第 ${line.newLine ?? "+"} 行新增`
-                    : `上下文行 ${line.newLine ?? line.oldLine ?? ""}`}
+                    ? m.s6_line_kind_add({
+                        line: String(line.newLine ?? "+"),
+                      })
+                    : m.s6_line_kind_context({
+                        line: String(line.newLine ?? line.oldLine ?? ""),
+                      })}
               {#if selectable}
                 <div
                   class="flex min-w-0 items-start gap-2 px-2 py-1 hover:bg-muted/40"
@@ -259,7 +270,10 @@
                   <Checkbox
                     checked={isChecked}
                     disabled={busy || stale}
-                    aria-label={`选择变更块 #${hIdx + 1} ${lineLabel}`}
+                    aria-label={m.s6_line_checkbox_aria({
+                      hunk: String(hIdx + 1),
+                      lineLabel,
+                    })}
                     onclick={(e: MouseEvent) => {
                       e.preventDefault();
                       handleLineToggle(hunk, lIdx, e.shiftKey);

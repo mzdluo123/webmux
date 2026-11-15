@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import type { ChatActions } from "../../platform/chat-api";
 import type {
   HybridAmbiguous,
@@ -81,5 +82,5 @@ export function returnQueuedDraft(
     drafts.edit(draft, merged, merged.length);
   }
   drafts.setEnabled(draft, true);
-  return "排队的消息已退回到本机草稿，不会自动发送。";
+  return m.s3_queued_returned_to_draft();
 }

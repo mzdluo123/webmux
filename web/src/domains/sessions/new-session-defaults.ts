@@ -1,6 +1,12 @@
+import * as m from "$lib/paraglide/messages.js";
 import { api, APIError, parseArgs, store } from "../../platform/api";
 import type { LaunchConfigsState } from "../settings/launch-configs";
 import type { WorktreePreset } from "./worktree-preset";
+import {
+  buildCreateSessionRequest,
+  type ChosenLaunchConfig,
+  type SessionBuildFields,
+} from "./new-session-request";
 import {
   CreateSessionFailureSchema,
   CreateSessionRequestSchema,
@@ -8,16 +14,11 @@ import {
   CreateWorktreeRequestSchema,
   NoContentSchema,
   WorktreeSchema,
-  type CreateSessionRequest,
-  type LaunchConfig,
-  type LaunchConfigSummary,
   type Repository,
   type SessionInfo,
   type SessionView,
   type Worktree,
 } from "../../contracts/schemas";
-
-type ChosenLaunchConfig = LaunchConfig | LaunchConfigSummary;
 
 /** The contextual entry the new-session dialog was opened from, if any. */
 export type LaunchEntry =
@@ -46,7 +47,9 @@ export function selectableWorktree(tree: Worktree) {
 }
 
 export function worktreeLabel(tree: Worktree) {
-  return `${tree.kind === "main" ? "主工作区 · " : ""}${tree.branch || tree.head?.slice(0, 12) || "无提交"}`;
+  const ref =
+    tree.branch || tree.head?.slice(0, 12) || m.s3_worktree_no_commits();
+  return tree.kind === "main" ? m.s3_worktree_main_label({ ref }) : ref;
 }
 
 /**
@@ -202,91 +205,22 @@ export function buildNewSessionSummary(input: {
   chosenConfig: ChosenLaunchConfig | undefined;
   command: string;
 }): string {
-  if (input.treeTargetMissing)
-    return "请将位置选为新建工作树，或勾选创建后启动会话";
+  if (input.treeTargetMissing) return m.s3_summary_tree_target_missing();
   if (!input.targetReady)
-    return input.kind === "new-worktree" ? "请填写新工作树信息" : "请选择位置";
-  if (input.treeOnly) return `将创建 ${input.locationText}`;
+    return input.kind === "new-worktree"
+      ? m.s3_summary_fill_new_worktree()
+      : m.s3_summary_select_location();
+  if (input.treeOnly)
+    return m.s3_summary_will_create({ location: input.locationText });
   if (!input.commandReady)
     return input.source === "custom"
-      ? "请输入可执行程序及参数"
-      : "请选择启动方式";
+      ? m.s3_summary_enter_executable()
+      : m.s3_summary_select_launch();
   const launch =
     input.source === "config"
       ? (input.chosenConfig?.name ?? "")
       : input.command.trim();
-  return `将在 ${input.locationText} 运行 ${launch}`;
-}
-
-type SessionBuildFields = {
-  kind: TargetKind;
-  repositoryId: string;
-  worktreeId: string;
-  branchMode: "new" | "existing";
-  branch: string;
-  base: string;
-  newPath: string;
-  cwd: string;
-  entryDirectory: { cwd: string; workspace: SessionInfo["workspace"] } | null;
-  prompt: string;
-  hasInstruction: boolean;
-  useInstruction: boolean;
-  chosenConfig: ChosenLaunchConfig | undefined;
-  name: string;
-  startSide: SessionView;
-};
-
-function buildCreateSessionRequest(
-  input: SessionBuildFields & { cmd: string[] | undefined },
-): CreateSessionRequest {
-  const workspace =
-    input.entryDirectory?.workspace && input.cwd === input.entryDirectory.cwd
-      ? input.entryDirectory.workspace
-      : null;
-  const target =
-    input.kind === "new-worktree"
-      ? {
-          newWorktree: {
-            repositoryId: input.repositoryId,
-            mode: input.branchMode,
-            branch: input.branch,
-            ...(input.branchMode === "new" ? { base: input.base } : {}),
-            ...(input.newPath ? { path: input.newPath } : {}),
-          },
-        }
-      : input.kind === "directory"
-        ? {
-            cwd: input.cwd,
-            ...(workspace
-              ? {
-                  workspace: {
-                    repositoryId: workspace.repositoryId,
-                    worktreeId: workspace.worktreeId,
-                  },
-                }
-              : {}),
-          }
-        : {
-            workspace: {
-              repositoryId: input.repositoryId,
-              worktreeId: input.worktreeId,
-            },
-          };
-  const first = {
-    ...(input.prompt.trim() ? { prompt: input.prompt.trim() } : {}),
-    ...(input.hasInstruction && input.useInstruction
-      ? { useInitInstruction: true }
-      : {}),
-  };
-  return input.chosenConfig
-    ? {
-        ...target,
-        configId: input.chosenConfig.id,
-        name: input.name,
-        ...(input.chosenConfig.chat ? { view: input.startSide } : {}),
-        ...first,
-      }
-    : { ...target, cmd: input.cmd, name: input.name, ...first };
+  return m.s3_summary_will_run({ location: input.locationText, launch });
 }
 
 export async function submitNewSessionRequest(
@@ -307,7 +241,7 @@ export async function submitNewSessionRequest(
   const custom = input.source === "custom";
   const cmd = custom && !input.onlyTree ? parseArgs(input.command) : undefined;
   if (custom && !input.onlyTree && (!cmd?.length || !cmd[0]))
-    throw new Error("请输入可执行程序及参数");
+    throw new Error(m.s3_summary_enter_executable());
   // Only a worktree: create it on its own. With a session, the create
   // request makes the worktree first.
   if (input.kind === "new-worktree" && input.onlyTree) {
@@ -417,7 +351,10 @@ export function formatLocationSummaryText(
     return worktree
       ? `${repository?.name ?? ""} · ${worktreeLabel(worktree)}`
       : "";
-  return `${repository?.name ?? ""} 的新工作树 ${branch}`;
+  return m.s3_location_new_worktree({
+    repo: repository?.name ?? "",
+    branch,
+  });
 }
 
 export function resolveInstructionRepository(
@@ -440,10 +377,8 @@ export function validateNewSessionSubmit(
   kind: TargetKind,
   commandReady: boolean,
 ): string | null {
-  if (onlyTree && kind !== "new-worktree")
-    return "请将位置选为新建工作树，或勾选创建后启动会话。";
-  if (!onlyTree && !commandReady)
-    return "请选择有效启动配置，或输入可执行程序及参数。";
+  if (onlyTree && kind !== "new-worktree") return m.s3_validate_tree_target();
+  if (!onlyTree && !commandReady) return m.s3_validate_launch_command();
   return null;
 }
 
@@ -466,9 +401,9 @@ export function formatSubmitButtonLabel(
   treeOnly: boolean,
   split: boolean,
 ): string {
-  if (busy) return treeOnly ? "正在创建…" : "正在启动…";
-  if (treeOnly) return "创建工作树";
-  return split ? "创建并加入分屏 →" : "创建并进入 →";
+  if (busy) return treeOnly ? m.s3_submit_creating() : m.s3_submit_starting();
+  if (treeOnly) return m.s3_submit_create_worktree();
+  return split ? m.s3_submit_create_and_split() : m.s3_submit_create_and_open();
 }
 
 export function resolvePreferredStartBranch(

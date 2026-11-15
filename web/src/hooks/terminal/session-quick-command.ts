@@ -14,12 +14,15 @@ import type {
   TextInsertion,
 } from "../../domains/terminal/terminal-draft.svelte";
 import { newSubmissionId } from "../../domains/terminal/terminal-protocol";
-const quickMessages: Partial<Record<SubmissionProgress, string>> = {
-  failed: "快捷指令未写入终端；请检查终端后重试。",
-  missing: "快捷指令未送达服务端；请检查终端后重试。",
-  partial: "快捷指令正文已写入，但回车未写入；请检查终端后手动提交。",
-  unknown: "连接中断，快捷指令结果未知；重连后自动查询。",
-};
+import * as m from "$lib/paraglide/messages.js";
+
+function quickMessage(state: SubmissionProgress): string | undefined {
+  if (state === "failed") return m.s4_quick_msg_failed();
+  if (state === "missing") return m.s4_quick_msg_missing();
+  if (state === "partial") return m.s4_quick_msg_partial();
+  if (state === "unknown") return m.s4_quick_msg_unknown();
+  return undefined;
+}
 
 export interface SessionQuickCommandContext {
   id: string;
@@ -59,7 +62,9 @@ export async function executeSessionQuickCommand(
       dir = await ensureArtifactsFolder(ctx.id);
     } catch (err) {
       if (ctx.isMounted())
-        ctx.setError(`临时文件夹不可用：${errorMessage(err)}`);
+        ctx.setError(
+          m.s4_artifacts_dir_unavailable({ error: errorMessage(err) }),
+        );
       return;
     }
     if (!ctx.isMounted()) return;
@@ -72,7 +77,9 @@ export async function executeSessionQuickCommand(
       brief = await agentGuidePrompt(ctx.id);
     } catch (err) {
       if (ctx.isMounted())
-        ctx.setError(`WebMux 工具说明不可用：${errorMessage(err)}`);
+        ctx.setError(
+          m.s4_webmux_brief_unavailable({ error: errorMessage(err) }),
+        );
       return;
     }
     if (!ctx.isMounted()) return;
@@ -80,13 +87,22 @@ export async function executeSessionQuickCommand(
   }
   if (!chat && cmd.enter && ctx.drafts.destination(ctx.draft) === "terminal") {
     // Text and Enter form one acknowledged submission.
+    let unknownMessage = "";
     const sent = ctx.submitTerminal(newSubmissionId(), text, true, (state) => {
       if (!ctx.isMounted()) return;
-      if (quickMessages[state]) ctx.setError(quickMessages[state]);
-      else if (state === "written" && ctx.getError() === quickMessages.unknown)
+      const msg = quickMessage(state);
+      if (msg) {
+        if (state === "unknown") unknownMessage = msg;
+        ctx.setError(msg);
+      } else if (
+        state === "written" &&
+        (ctx.getError() === m.s4_quick_msg_unknown() ||
+          (unknownMessage && ctx.getError() === unknownMessage))
+      ) {
         ctx.setError("");
+      }
     });
-    ctx.setError(sent ? "" : "终端未就绪，快捷指令未发送；请恢复连接后重试。");
+    ctx.setError(sent ? "" : m.s4_quick_terminal_not_ready());
     return;
   }
   // The chat side only inserts: sending stays with the message box.
@@ -94,8 +110,8 @@ export async function executeSessionQuickCommand(
   if (result === "failed")
     ctx.setError(
       chat || ctx.drafts.destination(ctx.draft, operation) === "draft"
-        ? "草稿正在提交到终端，快捷指令未插入；请确认结果后重试。"
-        : "终端未就绪，快捷指令未发送；请恢复连接后重试。",
+        ? m.s4_quick_draft_submitting()
+        : m.s4_quick_terminal_not_ready(),
     );
   else ctx.setError("");
 }

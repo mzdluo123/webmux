@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import type { PushCheck } from "../../contracts/schemas";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
@@ -7,18 +8,23 @@
   // commit warns without blocking, and a missing remote or a failed check
   // stays silent.
   let { push }: { push: PushCheck } = $props();
-  const branches = $derived(
-    push.branches.join("、") +
-      (push.more ? ` 等 ${push.more + push.branches.length} 个` : ""),
-  );
+  const branches = $derived.by(() => {
+    const joined = push.branches.join(m.s2_list_sep());
+    return push.more
+      ? m.s2_push_check_branches_more({
+          branches: joined,
+          total: String(push.more + push.branches.length),
+        })
+      : joined;
+  });
 </script>
 
 {#if push.state === "unpushed"}
   <InlineNotice tone="warning">
-    该提交尚未推送到任何远程；仓库本地丢失或被清理后将无法重建，请先推送。以本地远程跟踪引用为准，未联网核对。
+    {m.s2_push_check_unpushed()}
   </InlineNotice>
 {:else if push.state === "pushed"}
   <p class="text-xs text-muted-foreground">
-    该提交已包含在远程分支：{branches}（以本地远程跟踪引用为准，未联网核对）。
+    {m.s2_push_check_pushed({ branches })}
   </p>
 {/if}

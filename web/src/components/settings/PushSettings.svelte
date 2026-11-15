@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
@@ -81,7 +82,7 @@
     notice = error = "";
     try {
       if (checked) {
-        if (!status?.publicKey) throw new Error("服务端未提供推送公钥");
+        if (!status?.publicKey) throw new Error(m.s2_push_err_no_pubkey());
         if (Notification.permission === "default") {
           awaitingPermission = true;
           try {
@@ -121,7 +122,7 @@
     void (async () => {
       if (support.secure && support.serviceWorker) {
         const result = await sync().catch(() => "none" as const);
-        if (result === "key-changed") error = "推送密钥已变更，请重新开启";
+        if (result === "key-changed") error = m.s2_push_err_key_changed();
       }
       await refresh();
     })();
@@ -130,15 +131,13 @@
 
 <Card.Root flat id="push" class="scroll-mt-4">
   <Card.Header>
-    <Card.Title>通知推送</Card.Title>
-    <Card.Description
-      >会话提问、等待授权、本轮完成、出错或发出终端通知时提醒本设备；打开网页时默认在右上角弹出提醒，页面关闭或手机锁屏后还可通过后台推送收到，点击通知回到对应会话。只对当前设备生效。</Card.Description
-    >
+    <Card.Title>{m.s2_push_title()}</Card.Title>
+    <Card.Description>{m.s2_push_desc()}</Card.Description>
   </Card.Header>
   <Card.Content class="space-y-4">
     <div class="space-y-1.5">
       <div class="flex items-center justify-between gap-4">
-        <Label for="toast-enabled">页面内右上角弹窗提醒</Label>
+        <Label for="toast-enabled">{m.s2_push_toast_label()}</Label>
         <Switch
           id="toast-enabled"
           aria-describedby="toast-enabled-help"
@@ -147,31 +146,34 @@
         />
       </div>
       <p id="toast-enabled-help" class="text-xs text-muted-foreground">
-        默认开启；使用网站时在右上角即时弹出需要关注的会话提醒，无需浏览器通知授权或
-        HTTPS。
+        {m.s2_push_toast_help()}
       </p>
     </div>
 
     {#if loadError}
-      <InlineNotice tone="danger">无法读取推送状态：{loadError}</InlineNotice>
+      <InlineNotice tone="danger"
+        >{m.s2_push_err_load({ error: loadError })}</InlineNotice
+      >
     {:else if status}
       <div class="flex flex-wrap items-center gap-2 text-sm" role="status">
         {#if subscribed}
-          <Badge>本设备已开启</Badge>
+          <Badge>{m.s2_push_badge_on()}</Badge>
         {:else if advice === "ready"}
-          <Badge variant="secondary">本设备未开启</Badge>
+          <Badge variant="secondary">{m.s2_push_badge_off()}</Badge>
         {:else}
-          <Badge variant="outline">不可用</Badge>
+          <Badge variant="outline">{m.s2_push_badge_unavailable()}</Badge>
         {/if}
         <span class="text-muted-foreground"
-          >服务端共有 {status.subscriptions} 台设备开启</span
+          >{m.s2_push_server_subs({
+            count: String(status.subscriptions),
+          })}</span
         >
       </div>
     {/if}
 
     {#if advice === "ready"}
       <div class="flex items-center justify-between gap-4">
-        <Label for="push-enabled">在本设备开启推送</Label>
+        <Label for="push-enabled">{m.s2_push_enable_label()}</Label>
         <Switch
           id="push-enabled"
           bind:checked={
@@ -183,83 +185,62 @@
       {#if awaitingPermission}
         <InlineNotice>
           <div class="space-y-1">
-            <p class="font-medium">等待浏览器通知授权</p>
-            <p>
-              请在地址栏右侧的弹窗中选择“允许”。如果只看到铃铛图标或“通知已屏蔽”提示，请点击该图标并选择“允许”。
-            </p>
+            <p class="font-medium">{m.s2_push_await_perm_title()}</p>
+            <p>{m.s2_push_await_perm_desc()}</p>
           </div>
         </InlineNotice>
       {/if}
     {:else if advice}
       <InlineNotice tone="warning">
         {#if advice === "insecure"}
-          <p class="font-medium">推送需要 HTTPS 安全上下文</p>
-          <p>
-            当前地址既不是 HTTPS
-            也不是本机回环地址，浏览器不提供推送功能。请改用 HTTPS 入口打开
-            WebMux，例如 Tailscale Serve/Funnel 或 Cloudflare Named Tunnel。
-          </p>
+          <p class="font-medium">{m.s2_push_insecure_title()}</p>
+          <p>{m.s2_push_insecure_desc()}</p>
           <a class="underline underline-offset-2" href="#access"
-            >查看公网访问配置</a
+            >{m.s2_view_public_access_config()}</a
           >
         {:else if advice === "ios-home-screen"}
-          <p class="font-medium">iOS 需要从主屏幕打开</p>
-          <p>需要 iOS / iPadOS 16.4 或更高版本。</p>
+          <p class="font-medium">{m.s2_push_ios_title()}</p>
+          <p>{m.s2_push_ios_req()}</p>
           <ol class="mt-1 list-decimal pl-5">
-            <li>在 Safari 中点“分享 → 添加到主屏幕”；</li>
-            <li>
-              从主屏幕图标打开 WebMux，并重新输入 Token（主屏幕应用不共享 Safari
-              的登录）；
-            </li>
-            <li>进入 设置 → 通知推送 开启。</li>
+            <li>{m.s2_ios_step_share()}</li>
+            <li>{m.s2_push_ios_step_open()}</li>
+            <li>{m.s2_push_ios_step_enable()}</li>
           </ol>
         {:else if advice === "unsupported"}
-          <p class="font-medium">当前浏览器不支持推送</p>
-          <p>
-            浏览器缺少 Service Worker、Push API 或通知功能。请改用最新版的
-            Chrome、Edge、Firefox 或 Safari。
-          </p>
+          <p class="font-medium">{m.s2_push_unsupported_title()}</p>
+          <p>{m.s2_push_unsupported_desc()}</p>
         {:else if advice === "quick_tunnel"}
-          <p class="font-medium">Quick Tunnel 无法持续接收推送</p>
-          <p>Quick Tunnel 每次启动都会更换地址，旧订阅点开即失效。</p>
-          <p>
-            请改用 Cloudflare Named Tunnel，或通过 Tailscale Serve/Funnel 等
-            HTTPS 入口打开 WebMux。Named Tunnel 可在 Cloudflare
-            控制台创建并设置公共主机名，再到“设置 → 公网访问”选择 Named
-            Tunnel，填写凭据与
-            hostname，保存并启用，无需重启。用新的公网链接打开 WebMux
-            后重新开启推送。
-          </p>
+          <p class="font-medium">{m.s2_push_quick_tunnel_title()}</p>
+          <p>{m.s2_push_quick_tunnel_p1()}</p>
+          <p>{m.s2_push_quick_tunnel_p2()}</p>
           <a class="underline underline-offset-2" href="/settings/tunnel"
-            >查看公网访问配置</a
+            >{m.s2_view_public_access_config()}</a
           >
         {:else if advice === "unsupported_origin"}
-          <p class="font-medium">当前地址不支持推送</p>
-          <p>
-            推送只支持 HTTPS 入口与本机回环地址（127.0.0.1、localhost）。请通过
-            Tailscale Serve/Funnel、Cloudflare Named Tunnel 等 HTTPS 入口打开
-            WebMux 后再开启。
-          </p>
+          <p class="font-medium">{m.s2_push_origin_title()}</p>
+          <p>{m.s2_push_origin_desc()}</p>
           <a class="underline underline-offset-2" href="/settings/tunnel"
-            >查看公网访问配置</a
+            >{m.s2_view_public_access_config()}</a
           >
         {:else if advice === "disabled"}
-          <p class="font-medium">推送已在配置中停用</p>
+          <p class="font-medium">{m.s2_push_disabled_title()}</p>
           <p>
-            服务端配置了 <code>[push] enabled = false</code>。如需推送，改为
-            <code>true</code> 并重启 WebMux。
+            {m.s2_push_disabled_1()}<code>[push] enabled = false</code
+            >{m.s2_push_disabled_2()}<code>true</code>{m.s2_push_disabled_3()}
           </p>
         {:else if advice === "storage"}
-          <p class="font-medium">服务端推送存储不可用</p>
-          <p>无法读写状态目录中的 <code>push.json</code>，请查看服务日志。</p>
+          <p class="font-medium">{m.s2_push_storage_title()}</p>
+          <p>
+            {m.s2_push_storage_1()}<code>push.json</code>{m.s2_push_storage_2()}
+          </p>
         {:else if advice === "denied"}
-          <p class="font-medium">通知权限已被拒绝</p>
-          <p>请在浏览器或系统设置中允许本站通知，然后刷新页面。</p>
+          <p class="font-medium">{m.s2_push_denied_title()}</p>
+          <p>{m.s2_push_denied_desc()}</p>
         {/if}
       </InlineNotice>
       {#if subscribed}
         <Button variant="outline" disabled={busy} onclick={() => toggle(false)}
-          >关闭本设备推送</Button
+          >{m.s2_push_disable_device()}</Button
         >
       {/if}
     {/if}
@@ -268,7 +249,7 @@
          phones even when it has not turned push on itself. -->
     {#if status && status.subscriptions > 0}
       <Button variant="outline" disabled={busy} onclick={test}
-        >向全部 {status.subscriptions} 台设备发送测试通知</Button
+        >{m.s2_push_send_test({ count: String(status.subscriptions) })}</Button
       >
     {/if}
 
@@ -279,12 +260,12 @@
     {/if}
 
     <div class="space-y-1 text-xs text-muted-foreground">
-      <p class="font-medium">推送是尽力送达</p>
+      <p class="font-medium">{m.s2_push_best_effort_title()}</p>
       <ul class="list-disc space-y-1 pl-5">
-        <li>锁屏、省电、勿扰或设备离线超过有效期时，可能延迟或丢失。</li>
-        <li>无 Google Play 服务的 Android 设备不支持。</li>
-        <li>桌面 Chrome、Edge 与 Firefox 需要浏览器进程在运行。</li>
-        <li>会话列表中的状态仍是唯一准确来源。</li>
+        <li>{m.s2_push_note_1()}</li>
+        <li>{m.s2_push_note_2()}</li>
+        <li>{m.s2_push_note_3()}</li>
+        <li>{m.s2_push_note_4()}</li>
       </ul>
     </div>
   </Card.Content>

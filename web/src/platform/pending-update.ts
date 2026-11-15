@@ -1,4 +1,5 @@
 import { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import { store, stored } from "./api";
 import type { PendingUpdate } from "../contracts/schemas";
 
@@ -15,9 +16,9 @@ export function restartMethod(
     case "launchd":
       return { command: "webmux service restart" };
     case "windows-tray":
-      return { text: "在托盘菜单中重启" };
+      return { text: m.s1_restart_via_tray() };
     case "manual":
-      return { text: "停止后重新运行 webmux" };
+      return { text: m.s1_restart_manual() };
   }
 }
 

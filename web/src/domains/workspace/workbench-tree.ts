@@ -1,4 +1,5 @@
 import { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import { placeArchived, recordTitle } from "../sessions/archived";
 import { homeLayout, worktreeTitle } from "./home-worktrees";
 import type {
@@ -115,7 +116,13 @@ export function workbenchTree(
   );
   const nodes: TreeNode[] = [
     counted(
-      { key: "all", level: 1, kind: "all", label: "全部仓库", children: [] },
+      {
+        key: "all",
+        level: 1,
+        kind: "all",
+        label: m.s8_tree_all_repos(),
+        children: [],
+      },
       sessions,
     ),
   ];
@@ -123,7 +130,9 @@ export function workbenchTree(
     const key = `r:${repo.id}`;
     const own = sessions.filter((s) => s.workspace?.repositoryId === repo.id);
     const reason =
-      repo.availability === "available" ? "" : repo.error || "仓库当前不可用";
+      repo.availability === "available"
+        ? ""
+        : repo.error || m.s8_repo_currently_unavailable();
     const children: TreeNode[] = [];
     if (!reason) {
       for (const { tree } of homeLayout(home, repo, own).shown) {
@@ -160,7 +169,7 @@ export function workbenchTree(
               level: 2,
               parent: key,
               kind: "missing",
-              label: "已不可用工作区",
+              label: m.s8_unavailable_workspaces(),
               repositoryId: repo.id,
               children: [
                 ...sessionNodes(missing, `m:${repo.id}`, 3),
@@ -198,7 +207,7 @@ export function workbenchTree(
         key: "direct",
         level: 1,
         kind: "direct",
-        label: "直接会话",
+        label: m.s8_tree_direct_sessions(),
         children: sessionNodes(direct, "direct", 2),
       },
       direct,

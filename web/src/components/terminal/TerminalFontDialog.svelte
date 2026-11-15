@@ -2,6 +2,7 @@
   import { Label } from "$lib/components/ui/label";
   import { Slider } from "$lib/components/ui/slider";
   import * as Dialog from "$lib/components/ui/dialog";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     open = $bindable(),
@@ -19,8 +20,8 @@
 <Dialog.Root bind:open>
   <Dialog.Content {onCloseAutoFocus}>
     <Dialog.Header
-      ><Dialog.Title>字体大小</Dialog.Title><Dialog.Description
-        >字号只保存在当前浏览器。</Dialog.Description
+      ><Dialog.Title>{m.s4_font_size()}</Dialog.Title><Dialog.Description
+        >{m.s4_font_size_desc()}</Dialog.Description
       ></Dialog.Header
     >
     <Label for="terminal-font">{fontSize}px</Label>
@@ -32,7 +33,7 @@
       step={1}
       value={fontSize}
       onValueChange={setFontSize}
-      aria-label="字体大小"
+      aria-label={m.s4_font_size()}
     />
   </Dialog.Content>
 </Dialog.Root>

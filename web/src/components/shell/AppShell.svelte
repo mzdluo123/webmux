@@ -40,6 +40,7 @@
   import AppSidebar from "./AppSidebar.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarRailSessions from "./SidebarRailSessions.svelte";
+  import * as m from "$lib/paraglide/messages.js";
 
   // The layout around the home page, quick start and session pages: the
   // sidebar (a rail when collapsed on desktop, a left drawer on phones) and
@@ -333,12 +334,12 @@
   data-mode={shellUi.mode}
   style:--app-sidebar-full-width={`${shellUi.width}px`}
 >
-  <nav class="app-sidebar app-sidebar-rail" aria-label="窄栏导航">
+  <nav class="app-sidebar app-sidebar-rail" aria-label={m.s1_rail_navigation()}>
     <Button
       variant="ghost"
       size="icon-touch"
-      aria-label="展开侧栏"
-      title="展开侧栏"
+      aria-label={m.s1_expand_sidebar()}
+      title={m.s1_expand_sidebar()}
       onclick={() => {
         // Tablets keep the rail and show the full sidebar as a drawer.
         if (matchMedia("(max-width: 1023px)").matches)
@@ -349,8 +350,10 @@
     <Button
       variant="ghost"
       size="icon-touch"
-      aria-label={shellUi.mode === "chat" ? "新聊天" : "新建会话"}
-      title={shellUi.mode === "chat" ? "新聊天" : "新建会话"}
+      aria-label={shellUi.mode === "chat"
+        ? m.s1_new_chat()
+        : m.s1_new_session()}
+      title={shellUi.mode === "chat" ? m.s1_new_chat() : m.s1_new_session()}
       onclick={primary}
       >{#if shellUi.mode === "chat"}<IconMessagePlus
           aria-hidden="true"
@@ -373,7 +376,7 @@
       />
     </div>
   </nav>
-  <aside class="app-sidebar app-sidebar-full" aria-label="侧栏">
+  <aside class="app-sidebar app-sidebar-full" aria-label={m.s1_sidebar()}>
     <AppSidebar {route} collapsible onmode={changeMode} onprimary={primary} />
     <!-- A focusable separator with aria-valuenow is an interactive widget (WAI-ARIA window splitter). -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
@@ -381,8 +384,8 @@
       class="app-sidebar-divider"
       role="separator"
       aria-orientation="vertical"
-      aria-label="调整侧栏宽度"
-      title="拖动调整侧栏宽度"
+      aria-label={m.s1_resize_sidebar()}
+      title={m.s1_drag_to_resize_sidebar()}
       aria-valuemin={sidebarWidthMin}
       aria-valuemax={sidebarWidthMax}
       aria-valuenow={shellUi.width}
@@ -400,7 +403,7 @@
 <!-- noBodyStyles: the page under it keeps its scroll position and layout. -->
 <Drawer.Root direction="left" noBodyStyles bind:open={shellUi.drawerOpen}>
   <Drawer.Content class="w-80 max-w-[85vw] lg:hidden">
-    <Drawer.Title class="sr-only">导航</Drawer.Title>
+    <Drawer.Title class="sr-only">{m.s1_navigation()}</Drawer.Title>
     <AppSidebar {route} onmode={changeMode} onprimary={primary} />
   </Drawer.Content>
 </Drawer.Root>

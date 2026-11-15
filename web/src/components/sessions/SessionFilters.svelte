@@ -4,6 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as InputGroup from "$lib/components/ui/input-group";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import * as m from "$lib/paraglide/messages.js";
   import type { SessionInfo } from "../../contracts/schemas";
   import {
     countSessions,
@@ -45,11 +46,15 @@
   const filters = $derived.by(() => {
     const counts = countSessions(sessions);
     return [
-      { id: "all", label: "全部", count: sessions.length },
-      { id: "active", label: "运行中", count: counts.active },
-      { id: "waiting", label: "等待中", count: counts.waiting },
-      { id: "exited", label: "已退出", count: counts.exited },
-      { id: "archived", label: "已归档", count: archivedCount },
+      { id: "all", label: m.s3_filter_all(), count: sessions.length },
+      { id: "active", label: m.s3_filter_active(), count: counts.active },
+      {
+        id: "waiting",
+        label: m.s3_tool_status_pending(),
+        count: counts.waiting,
+      },
+      { id: "exited", label: m.s3_filter_exited(), count: counts.exited },
+      { id: "archived", label: m.s3_archived(), count: archivedCount },
     ] as const;
   });
 
@@ -85,10 +90,12 @@
     </InputGroup.Addon>
     <InputGroup.Input
       type="search"
-      aria-label="搜索会话"
+      aria-label={m.s3_search_sessions_label()}
       aria-keyshortcuts="/"
-      title="按 / 搜索，Esc 清除筛选"
-      placeholder={wide.current ? "搜索会话、仓库、目录或分支" : "搜索会话"}
+      title={m.s3_search_sessions_shortcut_title()}
+      placeholder={wide.current
+        ? m.s3_search_sessions_wide_placeholder()
+        : m.s3_search_sessions_label()}
       bind:ref={searchInput}
       bind:value={query}
       onkeydown={(event) => {
@@ -110,7 +117,7 @@
       if (next) statusFilter = next.id;
     }}
     size="form"
-    aria-label="按会话状态筛选"
+    aria-label={m.s3_filter_by_status_label()}
     class="no-scrollbar w-full justify-start overflow-x-auto overflow-y-hidden md:w-fit md:overflow-visible"
   >
     {#each filters as filter (filter.id)}
@@ -126,12 +133,12 @@
 </div>
 {#if filtered}
   <div class="flex items-center gap-2 text-xs text-muted-foreground">
-    <span>已筛选会话</span>
+    <span>{m.s3_sessions_filtered()}</span>
     <Button
       variant="link"
       size="sm"
       class="min-h-9 sm:min-h-8"
-      onclick={onclear}>清除筛选</Button
+      onclick={onclear}>{m.s3_clear_filters()}</Button
     >
   </div>
 {/if}

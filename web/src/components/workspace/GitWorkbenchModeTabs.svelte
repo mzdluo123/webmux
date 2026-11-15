@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import IconArchive from "~icons/tabler/archive";
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconGitCommit from "~icons/tabler/git-commit";
@@ -14,23 +15,23 @@
     variant="line"
     animated
     class="h-auto min-h-8 max-w-full flex-wrap group-data-horizontal/tabs:h-auto"
-    aria-label="Git 工作台视图"
+    aria-label={m.s7_mode_tabs_aria()}
   >
     <Tabs.Trigger value="log">
       <IconHistory aria-hidden="true" />
-      <span>历史</span>
+      <span>{m.s7_mode_tab_log()}</span>
     </Tabs.Trigger>
     <Tabs.Trigger value="commit">
       <IconGitCommit aria-hidden="true" />
-      <span>提交</span>
+      <span>{m.s7_mode_tab_commit()}</span>
     </Tabs.Trigger>
     <Tabs.Trigger value="branches">
       <IconGitBranch aria-hidden="true" />
-      <span>分支</span>
+      <span>{m.s7_mode_tab_branches()}</span>
     </Tabs.Trigger>
     <Tabs.Trigger value="stash" data-testid="git-mode-tab-stash">
       <IconArchive aria-hidden="true" />
-      <span>贮藏</span>
+      <span>{m.s7_mode_tab_stash()}</span>
       {#if stashCount > 0}
         <Badge variant="outline">{stashCount}</Badge>
       {/if}

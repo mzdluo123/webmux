@@ -3,6 +3,7 @@
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import { Button } from "$lib/components/ui/button";
   import * as Empty from "$lib/components/ui/empty";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     filtered,
@@ -23,13 +24,12 @@
     <Empty.Header>
       <Empty.Media variant="icon"><IconSearch aria-hidden="true" /></Empty.Media
       >
-      <Empty.Title>没有匹配的会话</Empty.Title>
-      <Empty.Description
-        >试试其他名称、目录或分支，或清除筛选查看全部会话。</Empty.Description
-      >
+      <Empty.Title>{m.s3_empty_filtered_title()}</Empty.Title>
+      <Empty.Description>{m.s3_empty_filtered_desc()}</Empty.Description>
     </Empty.Header>
     <Empty.Content>
-      <Button variant="outline" onclick={onclear}>清除筛选</Button>
+      <Button variant="outline" onclick={onclear}>{m.s3_clear_filters()}</Button
+      >
     </Empty.Content>
   </Empty.Root>
 {:else}
@@ -38,14 +38,14 @@
       <Empty.Media variant="icon"
         ><IconTerminal2 aria-hidden="true" /></Empty.Media
       >
-      <Empty.Title>还没有会话</Empty.Title>
+      <Empty.Title>{m.s3_empty_no_sessions_title()}</Empty.Title>
       <Empty.Description>
-        直接启动 Shell 或 agent；也可添加已有仓库，按 worktree
-        组织多个独立终端。
+        {m.s3_empty_no_sessions_desc()}
       </Empty.Description>
     </Empty.Header>
     <Empty.Content>
-      <Button disabled={!canStart} onclick={() => onstart()}>＋ 新建会话</Button
+      <Button disabled={!canStart} onclick={() => onstart()}
+        >{m.s3_plus_new_session()}</Button
       >
     </Empty.Content>
   </Empty.Root>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import { ReportedCwdSchema } from "./session-schemas";
 
 const CodeSourceSchema = z.enum(["worktree", "index", "head", "empty"]);
@@ -45,12 +46,22 @@ export const CodeUsageSchema = z.object({
 export const CodeNameSchema = z
   .string()
   .min(1)
-  .refine((name) => new TextEncoder().encode(name).length <= 255, "名称过长")
-  .refine((name) => name !== "." && name !== "..", "名称无效")
-  .refine((name) => name.toLowerCase() !== ".git", ".git 为保留名称")
-  .refine((name) => !/[/\\]/.test(name), "名称不能包含 / 或 \\")
+  .refine((name) => new TextEncoder().encode(name).length <= 255, {
+    error: () => m.s1_schema_name_too_long(),
+  })
+  .refine((name) => name !== "." && name !== "..", {
+    error: () => m.s1_schema_name_invalid(),
+  })
+  .refine((name) => name.toLowerCase() !== ".git", {
+    error: () => m.s1_schema_name_reserved_git(),
+  })
+  .refine((name) => !/[/\\]/.test(name), {
+    error: () => m.s1_schema_name_no_slashes(),
+  })
   // \p{Cc} is the control set the server's unicode.IsControl refuses.
-  .refine((name) => !/\p{Cc}/u.test(name), "名称不能包含控制字符");
+  .refine((name) => !/\p{Cc}/u.test(name), {
+    error: () => m.s1_schema_name_no_control_chars(),
+  });
 export const CodeRenameRequestSchema = z.strictObject({
   contextId: z.string().min(1),
   nodeId: z.string().min(1),

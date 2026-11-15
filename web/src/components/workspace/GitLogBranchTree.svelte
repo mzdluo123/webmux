@@ -6,6 +6,7 @@
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import {
     GitWorktreeContextSchema,
     type GitBranchItem,
@@ -70,11 +71,31 @@
   );
   const treeSections = $derived(
     [
-      { id: "current", label: "当前分支", items: grouped.current },
-      { id: "favorites", label: "收藏分支", items: grouped.favorites },
-      { id: "local", label: "本地分支", items: grouped.local },
-      { id: "remote", label: "远端跟踪分支", items: grouped.remote },
-      { id: "tags", label: "标签", items: grouped.tags },
+      {
+        id: "current",
+        label: m.s6_log_tree_current_branch(),
+        items: grouped.current,
+      },
+      {
+        id: "favorites",
+        label: m.s6_branches_group_favorites(),
+        items: grouped.favorites,
+      },
+      {
+        id: "local",
+        label: m.s6_branches_group_local(),
+        items: grouped.local,
+      },
+      {
+        id: "remote",
+        label: m.s6_log_tree_remote_branches(),
+        items: grouped.remote,
+      },
+      {
+        id: "tags",
+        label: m.s6_branches_group_tags(),
+        items: grouped.tags,
+      },
     ].filter((sec) => sec.items.length > 0),
   );
 
@@ -107,26 +128,28 @@
 
 <aside
   class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-  aria-label="历史引用筛选树"
+  aria-label={m.s6_log_tree_aria()}
 >
   <div class="space-y-1.5 border-b px-2.5 py-2">
     <div class="flex items-center justify-between gap-2">
-      <span class="text-xs font-semibold text-foreground">引用筛选</span>
+      <span class="text-xs font-semibold text-foreground"
+        >{m.s6_log_tree_heading()}</span
+      >
       {#if branchFilter}
         <Button
           size="sm"
           variant="ghost"
           onclick={() => onBranchFilterChange(null)}
         >
-          清除筛选
+          {m.s6_log_tree_clear_filter()}
         </Button>
       {/if}
     </div>
     <Input
       size="sm"
       value={refQuery}
-      placeholder="搜索分支或标签…"
-      aria-label="筛选分支或标签"
+      placeholder={m.s6_log_tree_search_placeholder()}
+      aria-label={m.s6_log_tree_search_aria()}
       oninput={(e) => (refQuery = e.currentTarget.value)}
     />
   </div>
@@ -142,12 +165,14 @@
           class="size-3.5 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
-        <span class="min-w-0 flex-1 truncate">全部引用</span>
+        <span class="min-w-0 flex-1 truncate">{m.s6_log_tree_all_refs()}</span>
       </ListButton>
 
       {#if treeSections.length === 0}
         <p class="px-2 py-2 text-xs text-muted-foreground">
-          {refQuery.trim() ? "没有匹配的分支或标签。" : "暂无分支或标签引用。"}
+          {refQuery.trim()
+            ? m.s6_branches_no_matches()
+            : m.s6_log_tree_empty_refs()}
         </p>
       {:else}
         {#each treeSections as section (section.id)}
@@ -184,9 +209,11 @@
                     effectiveContext.headOid ??
                     null}
                   compareTargetLabel={selectedCommitOid
-                    ? "与当前选中提交比较"
-                    : "与当前 HEAD 比较"}
-                  menuLabel={`引用操作 ${branch.name}`}
+                    ? m.s6_compare_with_selected_commit()
+                    : m.s6_compare_with_head()}
+                  menuLabel={m.s6_log_tree_ref_actions_label({
+                    name: branch.name,
+                  })}
                   onSelectRow={() => onBranchFilterChange(branch.name)}
                   onAction={handleTreeAction}
                 />

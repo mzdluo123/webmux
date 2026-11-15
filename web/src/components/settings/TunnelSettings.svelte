@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import AccessSummaryCard from "./AccessSummaryCard.svelte";
   import { useMountedRead } from "../../hooks/shared/remote-request.svelte";
   import { ConfigSchema } from "../../contracts/schemas";
@@ -9,14 +10,14 @@
 
 <AccessSummaryCard
   id="access"
-  title="公网访问（Cloudflare Tunnel）"
-  description="通过 HTTPS 入口从其他网络访问 WebMux。配置和启停立即生效，无需重启；公网入口仍要求 WebMux Token。"
-  statusLabel="隧道状态"
+  title={m.s2_tunnel_card_title()}
+  description={m.s2_tunnel_card_desc()}
+  statusLabel={m.s2_tunnel_status_label()}
   state={tunnel?.state}
   error={read.error}
-  loadingText="正在读取隧道状态…"
+  loadingText={m.s2_tunnel_loading()}
   href="/settings/tunnel"
-  manageLabel="管理公网访问"
+  manageLabel={m.s2_tunnel_manage()}
 >
   {#snippet summary()}
     <span class="text-sm"

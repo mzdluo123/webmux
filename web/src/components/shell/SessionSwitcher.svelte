@@ -18,6 +18,7 @@
   } from "../../contracts/schemas";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
   import SessionStatus from "../sessions/SessionStatus.svelte";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     open = $bindable(false),
@@ -198,10 +199,8 @@
     }}
   >
     <Dialog.Header class="shrink-0 pr-8 text-left">
-      <Dialog.Title>快速切换会话</Dialog.Title>
-      <Dialog.Description
-        >查找所有仓库和直接会话，回到手头的工作。</Dialog.Description
-      >
+      <Dialog.Title>{m.s1_quick_switch_session()}</Dialog.Title>
+      <Dialog.Description>{m.s1_switcher_description()}</Dialog.Description>
     </Dialog.Header>
     <Dialog.Close>
       {#snippet child({ props })}
@@ -210,54 +209,61 @@
           variant="ghost"
           size="icon-sm"
           class="absolute top-2 right-2"
-          aria-label="关闭会话切换"
-          title="关闭会话切换"
+          aria-label={m.s1_close_session_switcher()}
+          title={m.s1_close_session_switcher()}
         >
           <IconX class="size-4" aria-hidden="true" />
         </Button>
       {/snippet}
     </Dialog.Close>
-    <Command.Root label="搜索所有会话" class="min-h-0" filter={scoreItem}>
+    <Command.Root
+      label={m.s1_search_all_sessions()}
+      class="min-h-0"
+      filter={scoreItem}
+    >
       <Command.Input
         bind:ref={input}
         bind:value={query}
-        placeholder="搜索会话、目录、仓库或分支"
+        placeholder={m.s1_switcher_placeholder()}
         autocomplete="off"
         autocapitalize="off"
         spellcheck={false}
       />
       <Command.List
-        aria-label="匹配的会话"
+        aria-label={m.s1_matching_sessions()}
         class="max-h-[min(25rem,50dvh)] min-h-0 overscroll-contain"
       >
         {#if sessions?.length}
           {#if !chatMatches.length}
             <Command.Empty>
               {searching
-                ? "正在搜索聊天消息…"
+                ? m.s1_searching_chat_messages()
                 : searchFailed
-                  ? "无法搜索聊天消息。可以继续按会话名搜索。"
+                  ? m.s1_search_chat_failed()
                   : loadingMetadata
-                    ? "正在读取仓库和分支…"
-                    : "找不到匹配的会话。试试名称或目录的一部分。"}
+                    ? m.s1_loading_repos_and_branches()
+                    : m.s1_no_matching_sessions()}
             </Command.Empty>
           {/if}
           {#if pinned.length}
-            <Command.Group heading="已置顶" value="pinned">
+            <Command.Group heading={m.s1_group_pinned()} value="pinned">
               {#each pinned as session (session.id)}
                 {@render sessionOption(session, "pinned")}
               {/each}
             </Command.Group>
           {/if}
           {#if resumable.length}
-            <Command.Group heading="可续接" value="resumable">
+            <Command.Group heading={m.s1_group_resumable()} value="resumable">
               {#each resumable as session (session.id)}
                 {@render sessionOption(session, "resumable")}
               {/each}
             </Command.Group>
           {/if}
           {#if chatMatches.length}
-            <Command.Group heading="消息中找到" value="messages">
+            <Command.Group
+              heading={m.s1_group_found_in_messages()}
+              value="messages"
+            >
               {#each chatMatches as { match, session } (`${session.id}:${match.role}:${match.messageId}`)}
                 <Command.Item
                   value={`message:${session.id}:${match.role}:${match.messageId}`}
@@ -274,7 +280,9 @@
                       class="block truncate text-muted-foreground"
                       title={match.excerpt}
                     >
-                      {match.role === "user" ? "你" : "Agent"} · {match.excerpt}
+                      {match.role === "user"
+                        ? m.s1_role_you()
+                        : m.s1_role_agent()} · {match.excerpt}
                     </span>
                   </span>
                 </Command.Item>
@@ -282,7 +290,7 @@
             </Command.Group>
           {/if}
           {#if exited.length}
-            <Command.Group heading="已退出" value="exited">
+            <Command.Group heading={m.s1_group_exited()} value="exited">
               {#each exited as session (session.id)}
                 {@render sessionOption(session, "exited")}
               {/each}
@@ -292,24 +300,24 @@
       </Command.List>
       {#if loadError && !sessions?.length}
         <p role="alert" class="py-3 text-sm text-destructive">
-          读取会话失败：{loadError}
+          {m.s1_load_sessions_failed({ error: loadError })}
         </p>
       {:else if loading}
         <p role="status" class="py-3 text-sm text-muted-foreground">
-          正在读取会话…
+          {m.s1_loading_sessions()}
         </p>
       {:else if !sessions?.length}
         <p role="status" class="py-3 text-sm text-muted-foreground">
-          暂无会话。可在工作区新建会话。
+          {m.s1_no_sessions_yet()}
         </p>
       {/if}
     </Command.Root>
     <div
       class="hidden shrink-0 items-center gap-4 text-xs text-muted-foreground sm:flex"
     >
-      <span><kbd>↑ ↓</kbd> 选择</span>
-      <span><kbd>Enter</kbd> 打开</span>
-      <span class="ml-auto"><kbd>Esc</kbd> 关闭</span>
+      <span><kbd>↑ ↓</kbd> {m.s1_kbd_select()}</span>
+      <span><kbd>Enter</kbd> {m.s1_kbd_open()}</span>
+      <span class="ml-auto"><kbd>Esc</kbd> {m.s1_close()}</span>
     </div>
   </Dialog.Content>
 </Dialog.Root>

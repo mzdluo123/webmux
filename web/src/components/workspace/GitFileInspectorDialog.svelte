@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as Tabs from "$lib/components/ui/tabs";
+  import * as m from "$lib/paraglide/messages.js";
   import type {
     GitBlameResult,
     GitFileHistoryRow,
@@ -60,9 +61,9 @@
 </script>
 
 <ResponsiveDialog
-  title={`单文件溯源检视 · ${activePath}`}
-  description="只读检视文件重命名追踪历史 (--follow)、逐行 Blame 溯源，或与任意分支/标签/提交对比。"
-  drawerDescription="文件历史、Blame 溯源与版本比较。"
+  title={m.s6_inspector_title({ path: activePath })}
+  description={m.s6_inspector_desc()}
+  drawerDescription={m.s6_inspector_drawer_desc()}
   truncateDrawerTitle
   class="sm:max-w-5xl"
   onclose={handleClose}
@@ -80,16 +81,16 @@
         <Tabs.List
           variant="line"
           class="max-w-full flex-wrap group-data-horizontal/tabs:h-auto"
-          aria-label="单文件溯源模式"
+          aria-label={m.s6_inspector_tabs_aria()}
         >
           <Tabs.Trigger value="history" data-testid="git-inspector-tab-history">
-            文件历史 (--follow)
+            {m.s6_inspector_tab_history()}
           </Tabs.Trigger>
           <Tabs.Trigger value="blame" data-testid="git-inspector-tab-blame">
-            逐行溯源 (Blame)
+            {m.s6_inspector_tab_blame()}
           </Tabs.Trigger>
           <Tabs.Trigger value="compare" data-testid="git-inspector-tab-compare">
-            与版本比较
+            {m.s6_inspector_tab_compare()}
           </Tabs.Trigger>
         </Tabs.List>
       </div>

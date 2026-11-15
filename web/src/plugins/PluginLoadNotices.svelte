@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import InlineNotice from "../components/shared/InlineNotice.svelte";
   import type { PluginID } from "../contracts/plugin-schemas";
@@ -20,20 +21,20 @@
       <InlineNotice tone="warning">
         <div class="min-w-0 space-y-2">
           <p class="break-words">
-            {id} 加载失败：{message}。其他功能仍可使用。
+            {m.s1_plugin_load_notice({ id, message: message ?? "" })}
           </p>
           <div class="flex flex-wrap justify-end gap-2">
             <Button
               variant="ghost"
               size="sm"
-              aria-label={`关闭 ${id} 加载提示`}
+              aria-label={m.s1_dismiss_plugin_notice_aria({ id })}
               onclick={() => (dismissed = { ...dismissed, [id]: message })}
-              >关闭提示</Button
+              >{m.s1_dismiss_notice()}</Button
             >
             <Button
               variant="outline"
               size="sm"
-              onclick={() => location.reload()}>重新加载页面</Button
+              onclick={() => location.reload()}>{m.s1_reload_page()}</Button
             >
           </div>
         </div>

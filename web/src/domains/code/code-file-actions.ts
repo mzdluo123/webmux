@@ -1,4 +1,5 @@
 import type { Component } from "svelte";
+import * as m from "$lib/paraglide/messages.js";
 import { api, apiBlob, uploadForm } from "../../platform/api";
 import { saveBlob } from "../../platform/download";
 import { formatBytes, rawError } from "./code-image";
@@ -33,7 +34,7 @@ export function makeRootFileTarget(rootPath: string | undefined): FileTarget {
   return {
     nodeId: "",
     path: "",
-    name: rootPath?.split("/").filter(Boolean).at(-1) ?? "根目录",
+    name: rootPath?.split("/").filter(Boolean).at(-1) ?? m.s5_root_directory(),
     kind: "directory",
   };
 }
@@ -68,7 +69,12 @@ export function buildCodeFileActions(input: {
   if (!node) return [];
   if (node.kind === "boundary" || node.kind === "special")
     return [
-      { label: "此类条目不支持文件操作", disabled: true, group: 0, run() {} },
+      {
+        label: m.s5_actions_unsupported_entry(),
+        disabled: true,
+        group: 0,
+        run() {},
+      },
     ];
   const folder = node.kind === "directory";
   const editable = node.path !== "" && (node.kind === "file" || folder);
@@ -83,13 +89,13 @@ export function buildCodeFileActions(input: {
   if (node.kind === "file")
     list.push(
       {
-        label: "打开",
+        label: m.s5_open(),
         icon: icons.eye,
         group: 0,
         run: () => input.openFile(node.path, node.nodeId),
       },
       {
-        label: "下载",
+        label: m.s5_action_download(),
         icon: icons.download,
         group: 0,
         run: () => input.save(node, false),
@@ -98,20 +104,20 @@ export function buildCodeFileActions(input: {
   if (folder)
     list.push(
       {
-        label: "下载为 ZIP",
+        label: m.s5_download_as_zip(),
         icon: icons.fileZip,
         group: 0,
         run: () => input.save(node, true),
       },
       {
-        label: "上传到此目录",
+        label: m.s5_upload_to_dir(),
         icon: icons.upload,
         group: 1,
         disabled: !writable,
         run: () => input.openUploadPicker(node),
       },
       {
-        label: "新建文件夹",
+        label: m.s5_new_folder(),
         icon: icons.folderPlus,
         group: 1,
         disabled: !writable,
@@ -121,15 +127,15 @@ export function buildCodeFileActions(input: {
   if (editable)
     list.push(
       {
-        label: "重命名",
+        label: m.s5_rename(),
         icon: icons.pencil,
         group: 2,
         disabled: !writable,
         run: () => input.startNaming("rename", node),
       },
-      { label: "复制", icon: icons.copy, group: 2, run: hold("copy") },
+      { label: m.s5_copy(), icon: icons.copy, group: 2, run: hold("copy") },
       {
-        label: "剪切",
+        label: m.s5_cut(),
         icon: icons.scissors,
         group: 2,
         disabled: !writable,
@@ -138,7 +144,12 @@ export function buildCodeFileActions(input: {
     );
   if (folder)
     list.push({
-      label: `粘贴${pasteReady && clipboard ? `（${clipboard.mode === "move" ? "移动" : "复制"} ${clipboard.nodes[0]?.name ?? ""}）` : ""}`,
+      label:
+        pasteReady && clipboard
+          ? clipboard.mode === "move"
+            ? m.s5_paste_move_item({ name: clipboard.nodes[0]?.name ?? "" })
+            : m.s5_paste_copy_item({ name: clipboard.nodes[0]?.name ?? "" })
+          : m.s5_paste(),
       icon: icons.clipboard,
       group: 2,
       disabled: !writable || !pasteReady,
@@ -146,7 +157,7 @@ export function buildCodeFileActions(input: {
     });
   if (node.path !== "")
     list.push({
-      label: "删除…",
+      label: m.s5_delete_ellipsis(),
       icon: icons.trash,
       group: 3,
       destructive: true,
@@ -185,7 +196,7 @@ export async function runNamingMutation(
 ): Promise<{ notice?: string; error?: string }> {
   const checked = CodeNameSchema.safeParse(name);
   if (!checked.success) {
-    return { error: checked.error.issues[0]?.message ?? "名称无效" };
+    return { error: checked.error.issues[0]?.message ?? m.s5_invalid_name() };
   }
   const result =
     kind === "rename"
@@ -211,7 +222,7 @@ export async function runNamingMutation(
     changed([node.path]);
   } else changed([]);
   return {
-    notice: placed === name ? "" : `名称已被占用，已改为 ${placed}`,
+    notice: placed === name ? "" : m.s5_name_taken_renamed({ name: placed }),
   };
 }
 
@@ -247,9 +258,15 @@ export async function requestCodePaste(
   const renamed = result.nodes.filter(
     (n, i) => n.name !== current.nodes[i]?.name,
   );
-  return renamed.length
-    ? `同名条目已存在，已粘贴为 ${renamed.map((n) => n.name).join("、")}`
-    : `已${current.mode === "move" ? "移动" : "复制"} ${result.nodes.length} 项`;
+  if (renamed.length) {
+    return m.s5_pasted_with_renames({
+      names: renamed.map((n) => n.name).join(m.s5_list_separator()),
+    });
+  }
+  const count = String(result.nodes.length);
+  return current.mode === "move"
+    ? m.s5_moved_items_count({ count })
+    : m.s5_copied_items_count({ count });
 }
 
 export async function describeCodeRemoveDetail(
@@ -258,12 +275,18 @@ export async function describeCodeRemoveDetail(
   node: FileTarget,
 ): Promise<string> {
   if (node.kind !== "directory")
-    return `将删除${node.kind === "symlink" ? "符号链接（不影响其目标）" : "文件"} ${node.path}。此操作不能撤销。`;
+    return node.kind === "symlink"
+      ? m.s5_confirm_delete_symlink({ path: node.path })
+      : m.s5_confirm_delete_file({ path: node.path });
   const usage = await api(
     `${base}/usage?${buildCodeNodeQuery(contextId, node)}`,
     CodeUsageSchema,
   );
-  return `将递归删除文件夹 ${node.path} 及其中 ${usage.entries - 1}${usage.limited ? "+" : ""} 个条目（${formatBytes(usage.bytes)}）。此操作不能撤销。`;
+  return m.s5_confirm_delete_folder({
+    path: node.path,
+    count: `${usage.entries - 1}${usage.limited ? "+" : ""}`,
+    size: formatBytes(usage.bytes),
+  });
 }
 
 export async function requestCodeRemove(
@@ -280,7 +303,7 @@ export async function requestCodeRemove(
   );
   forget([node.path]);
   changed([node.path]);
-  return `已删除 ${node.name}`;
+  return m.s5_deleted_node({ name: node.name });
 }
 
 export async function downloadCodeNode(input: {
@@ -291,22 +314,27 @@ export async function downloadCodeNode(input: {
   includeIgnored: boolean;
   signal: AbortSignal;
   ownerDocument: Document;
-  filename: string;
+  onStart: (filename: string) => void;
   onProgress: (bytes: number) => void;
+  onError: (message: string) => void;
+  onDone: () => void;
 }) {
-  const blob = await apiBlob(
-    input.archive
-      ? `${input.base}/archive?${buildCodeNodeQuery(input.contextId, input.node, { includeIgnored: String(input.includeIgnored) })}`
-      : `${input.base}/node?${buildCodeNodeQuery(input.contextId, input.node)}`,
-    input.signal,
-    input.onProgress,
-  );
-  if (!input.signal.aborted)
-    saveBlob(input.ownerDocument, blob, input.filename);
-}
-
-export function rawDownloadError(e: unknown) {
-  return rawError(e, "下载");
+  const filename = input.archive ? `${input.node.name}.zip` : input.node.name;
+  input.onStart(filename);
+  try {
+    const blob = await apiBlob(
+      input.archive
+        ? `${input.base}/archive?${buildCodeNodeQuery(input.contextId, input.node, { includeIgnored: String(input.includeIgnored) })}`
+        : `${input.base}/node?${buildCodeNodeQuery(input.contextId, input.node)}`,
+      input.signal,
+      input.onProgress,
+    );
+    if (!input.signal.aborted) saveBlob(input.ownerDocument, blob, filename);
+  } catch (e) {
+    if (!input.signal.aborted) input.onError(rawError(e, "download"));
+  } finally {
+    input.onDone();
+  }
 }
 
 export async function uploadCodeFilesBatch(input: {
@@ -344,10 +372,35 @@ export async function uploadCodeFilesBatch(input: {
       );
       stored.push(...result.nodes.map((n) => n.name));
     }
-    return `已上传 ${stored.join("、")}`;
+    return m.s5_uploaded_files({
+      names: stored.join(m.s5_list_separator()),
+    });
   } finally {
     input.onCleanup(stored.length);
   }
+}
+
+export function formatDownloadProgress(name: string, bytes: number) {
+  const size = formatBytes(bytes);
+  return name.endsWith(".zip")
+    ? m.s5_archiving_and_downloading({ name, size })
+    : m.s5_downloading_progress({ name, size });
+}
+
+export function formatClipboardSummary(clipboard: CodeFileClipboard) {
+  const items = clipboard.nodes.map((n) => n.name).join(m.s5_list_separator());
+  return clipboard.mode === "move"
+    ? m.s5_clipboard_cut_items({ items })
+    : m.s5_clipboard_copied_items({ items });
+}
+
+export function namingDialogDescription(
+  kind: "rename" | "mkdir",
+  node: FileTarget,
+) {
+  return kind === "rename"
+    ? m.s5_rename_dialog_desc({ path: node.path })
+    : m.s5_mkdir_dialog_desc({ path: node.path || m.s5_root_directory() });
 }
 
 export function selectFileStem(

@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import type { GitCommitDraft } from "../../contracts/schemas";
 
 export interface GitCommitDraftConflictState {
@@ -44,7 +45,7 @@ export function mergeCommitMessageDrafts(
   if (!lb) body = remote.body;
   else if (!rb || lb === rb) body = local.body;
   else {
-    body = `--- 本机当前输入 ---\n${local.body}\n\n--- 另一设备已保存版本 ---\n${remote.body}`;
+    body = `${m.s7_draft_local_divider()}\n${local.body}\n\n${m.s7_draft_remote_divider()}\n${remote.body}`;
   }
   return { subject, body };
 }

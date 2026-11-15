@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
@@ -43,16 +44,17 @@
 </script>
 
 <ResponsiveDialog
-  title="创建本地标签 (Create Tag)"
-  description="在选定提交上创建附注标签（含标签者与说明对象）或轻量标签。不允许同名强制覆盖（-f）。"
-  drawerDescription="填写标签名称与类型后创建本地标签。"
+  title={m.s7_tag_create_title()}
+  description={m.s7_tag_create_desc()}
+  drawerDescription={m.s7_tag_create_drawer_desc()}
   busy={submitting}
   class="sm:max-w-lg"
   onclose={onClose}
 >
   <div class="space-y-3" data-testid="git-tag-create-dialog">
     <div class="rounded-lg border bg-background p-3 text-xs">
-      <span class="text-muted-foreground">目标提交：</span>
+      <span class="text-muted-foreground">{m.s7_tag_target_commit_label()}</span
+      >
       <span class="font-mono text-foreground">{targetOid.slice(0, 12)}</span>
       {#if targetLabel}
         <span class="text-muted-foreground"> · {targetLabel}</span>
@@ -65,18 +67,18 @@
       onValueChange={(val) => {
         if (val === "lightweight" || val === "annotated") onTagKindChange(val);
       }}
-      aria-label="标签类型"
+      aria-label={m.s7_tag_kind_aria()}
     >
       <SegmentedControl.Item value="annotated">
-        附注标签 (Annotated)
+        {m.s7_tag_kind_annotated_tab()}
       </SegmentedControl.Item>
       <SegmentedControl.Item value="lightweight">
-        轻量标签 (Lightweight)
+        {m.s7_tag_kind_lightweight_tab()}
       </SegmentedControl.Item>
     </SegmentedControl.Root>
 
     <div class="space-y-1.5">
-      <Label for="git-tag-name-input">标签名称</Label>
+      <Label for="git-tag-name-input">{m.s7_tag_name_label()}</Label>
       <Input
         id="git-tag-name-input"
         mono
@@ -90,7 +92,7 @@
 
     {#if tagKind === "annotated"}
       <div class="space-y-1.5">
-        <Label for="git-tag-message-input">附注标签说明（必填）</Label>
+        <Label for="git-tag-message-input">{m.s7_tag_msg_label()}</Label>
         <Textarea
           id="git-tag-message-input"
           rows={3}
@@ -107,8 +109,8 @@
       {dialogError}
       {submitting}
       {canConfirm}
-      confirmLabel="创建本地标签"
-      submittingLabel="正在创建标签…"
+      confirmLabel={m.s7_tag_create_confirm()}
+      submittingLabel={m.s7_tag_create_submitting()}
       confirmTestId="git-tag-create-confirm-btn"
       {onConfirm}
       {onClose}

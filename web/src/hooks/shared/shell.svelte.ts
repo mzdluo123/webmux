@@ -1,5 +1,6 @@
 import { getContext, setContext } from "svelte";
 import { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import { navigate, store, stored } from "../../platform/api";
 import { buildGitRouteHref, type GitRouteTarget } from "./route";
 import { pluginEnabled } from "../../platform/plugin-host.svelte";
@@ -195,7 +196,7 @@ export function findShell(): Shell | undefined {
 }
 export function getShell(): Shell {
   const shell = getContext<Shell | undefined>(key);
-  if (!shell) throw new Error("页面必须位于应用外壳中");
+  if (!shell) throw new Error(m.s1_page_requires_app_shell());
   return shell;
 }
 

@@ -1,5 +1,7 @@
 <script lang="ts">
   import IconCopy from "~icons/tabler/copy";
+  import * as m from "$lib/paraglide/messages.js";
+  import { locale } from "$lib/locale";
   import { Button } from "$lib/components/ui/button";
   import { copyText } from "../../platform/clipboard";
   import { placeArchived } from "../../domains/sessions/archived";
@@ -55,8 +57,13 @@
   const defaultBranch = $derived(
     main
       ? (main.branch ??
-          (main.head ? `（分离 HEAD）${main.head.slice(0, 8)}` : "尚无提交"))
+          (main.head
+            ? m.s8_detached_head_hash({ hash: main.head.slice(0, 8) })
+            : m.s8_no_commits_yet()))
       : "—",
+  );
+  const checkedTime = $derived(
+    new Date(repository.checkedAt).toLocaleString(locale.current),
   );
 </script>
 
@@ -77,40 +84,52 @@
 <div class="space-y-3">
   {#if !available}
     <InlineNotice tone="danger"
-      >仓库不可用：{repository.error ||
-        "路径缺失或无法读取"}。工作树、分支与远程暂不可用，可以从列表移除这个仓库。</InlineNotice
+      >{m.s8_repo_unavailable_notice({
+        error: repository.error || m.s8_repo_path_missing_or_unreadable(),
+      })}</InlineNotice
     >
   {/if}
   <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
-    <dt class="text-muted-foreground">路径</dt>
-    {@render copyable(repository.anchorPath, "复制仓库路径")}
+    <dt class="text-muted-foreground">{m.s8_label_path()}</dt>
+    {@render copyable(repository.anchorPath, m.s8_copy_repo_path())}
     {#if repository.commonDir}
-      <dt class="text-muted-foreground">公共目录</dt>
-      {@render copyable(repository.commonDir, "复制 Git 公共目录")}
+      <dt class="text-muted-foreground">{m.s8_label_common_dir()}</dt>
+      {@render copyable(repository.commonDir, m.s8_copy_git_common_dir())}
     {/if}
     {#if available}
-      <dt class="text-muted-foreground">默认分支</dt>
+      <dt class="text-muted-foreground">{m.s8_label_default_branch()}</dt>
       <dd class="font-mono break-all">{defaultBranch}</dd>
-      <dt class="text-muted-foreground">工作区</dt>
-      <dd>主页 {shown} / 共 {repository.worktrees.length}</dd>
-      <dt class="text-muted-foreground">远程</dt>
-      <dd>{remoteCount === undefined ? "—" : `${remoteCount} 个`}</dd>
-      <dt class="text-muted-foreground">上次获取</dt>
+      <dt class="text-muted-foreground">{m.s8_workspace_title()}</dt>
+      <dd>
+        {m.s8_overview_workspaces_shown({
+          shown: String(shown),
+          total: String(repository.worktrees.length),
+        })}
+      </dd>
+      <dt class="text-muted-foreground">{m.s8_repo_tab_remotes()}</dt>
+      <dd>
+        {remoteCount === undefined
+          ? "—"
+          : m.s8_overview_remote_count({ count: String(remoteCount) })}
+      </dd>
+      <dt class="text-muted-foreground">{m.s8_label_last_fetched()}</dt>
       <dd
         title={repository.lastFetchedAt
-          ? new Date(repository.lastFetchedAt).toLocaleString()
+          ? new Date(repository.lastFetchedAt).toLocaleString(locale.current)
           : undefined}
       >
-        {fetchedText(repository.lastFetchedAt)}（近似）
+        {m.s8_overview_fetched_approx({
+          text: fetchedText(repository.lastFetchedAt),
+        })}
       </dd>
     {/if}
-    <dt class="text-muted-foreground">会话</dt>
+    <dt class="text-muted-foreground">{m.s8_label_sessions()}</dt>
     <dd>{statusSummary(own)}</dd>
     <dt class="text-muted-foreground">Git</dt>
     <dd>
-      读取于 {new Date(repository.checkedAt).toLocaleString()}{available
-        ? ""
-        : " · 不可用，状态未知"}
+      {available
+        ? m.s8_overview_git_checked_at({ time: checkedTime })
+        : m.s8_overview_git_checked_unavailable({ time: checkedTime })}
     </dd>
   </dl>
   <div class="border-t pt-3">
@@ -118,7 +137,7 @@
       size="sm"
       variant="destructive"
       disabled={!registryReady}
-      onclick={onunregister}>从列表移除仓库…</Button
+      onclick={onunregister}>{m.s8_unregister_repo_btn()}</Button
     >
   </div>
 </div>

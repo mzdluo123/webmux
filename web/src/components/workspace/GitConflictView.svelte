@@ -15,6 +15,7 @@
   import * as Popover from "$lib/components/ui/popover";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import * as m from "$lib/paraglide/messages.js";
   import type {
     GitConflictFileDetail,
     GitInProgressOperation,
@@ -168,7 +169,7 @@
 
 <section
   class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
-  aria-label="三方冲突解决器"
+  aria-label={m.s6_conflict_view_aria()}
   data-testid="git-conflict-view"
 >
   <!-- Top Action & File Navigation Toolbar -->
@@ -183,13 +184,13 @@
         data-testid="git-conflict-back-btn"
       >
         <IconArrowLeft aria-hidden="true" />
-        返回工作台
+        {m.s6_conflict_back_workbench()}
       </Button>
 
       {#if conflictedFiles.length > 1 && conflict}
         <NativeSelect.Root
           size="sm"
-          aria-label="切换冲突文件"
+          aria-label={m.s6_conflict_switch_file_aria()}
           value={conflict.activePath ?? detail?.path ?? ""}
           onchange={(e) => void conflict.selectFile(e.currentTarget.value)}
         >
@@ -217,14 +218,16 @@
               else localBaseMode = val;
             }
           }}
-          aria-label="共同祖先 Base 对照模式"
+          aria-label={m.s6_conflict_base_mode_aria()}
         >
-          <SegmentedControl.Item value="off">隐藏 Base</SegmentedControl.Item>
+          <SegmentedControl.Item value="off">
+            {m.s6_conflict_hide_base()}
+          </SegmentedControl.Item>
           <SegmentedControl.Item value="left_base">
-            左侧对照 Base
+            {m.s6_conflict_left_vs_base()}
           </SegmentedControl.Item>
           <SegmentedControl.Item value="right_base">
-            右侧对照 Base
+            {m.s6_conflict_right_vs_base()}
           </SegmentedControl.Item>
         </SegmentedControl.Root>
 
@@ -233,7 +236,7 @@
             {#snippet child({ props })}
               <Button {...props} size="sm" variant="ghost">
                 <IconEye aria-hidden="true" />
-                查看完整 Base
+                {m.s6_conflict_view_full_base()}
               </Button>
             {/snippet}
           </Popover.Trigger>
@@ -247,8 +250,8 @@
                   <pre
                     class="p-2 font-mono text-xs whitespace-pre-wrap break-all">{detail
                       .base.present
-                      ? detail.base.text || "(空文件)"
-                      : "(共同祖先中无此文件)"}</pre>
+                      ? detail.base.text || m.s6_conflict_empty_file()
+                      : m.s6_conflict_absent_in_base()}</pre>
                 </ScrollArea>
               </div>
             </div>
@@ -263,8 +266,8 @@
           <Button
             size="icon-sm"
             variant="outline"
-            aria-label="上一处冲突块"
-            title="上一处冲突块"
+            aria-label={m.s6_conflict_prev_chunk()}
+            title={m.s6_conflict_prev_chunk()}
             onclick={() => handleNavigate(-1)}
           >
             <IconArrowUp aria-hidden="true" />
@@ -272,8 +275,8 @@
           <Button
             size="icon-sm"
             variant="outline"
-            aria-label="下一处冲突块"
-            title="下一处冲突块"
+            aria-label={m.s6_conflict_next_chunk()}
+            title={m.s6_conflict_next_chunk()}
             onclick={() => handleNavigate(1)}
           >
             <IconArrowDown aria-hidden="true" />
@@ -289,7 +292,9 @@
           data-testid="git-conflict-apply-nonconflicting-btn"
         >
           <IconSparkles aria-hidden="true" />
-          应用全部无冲突改动 ({progress.pendingNonConflicting})
+          {m.s6_conflict_apply_nonconflicting_count({
+            count: String(progress.pendingNonConflicting),
+          })}
         </Button>
 
         <Button
@@ -303,7 +308,9 @@
           data-testid="git-conflict-save-btn"
         >
           <IconDeviceFloppy aria-hidden="true" />
-          {conflict?.saving ? "正在保存…" : "保存结果 (Save Result)"}
+          {conflict?.saving
+            ? m.s6_saving_ellipsis()
+            : m.s6_conflict_save_result_btn()}
         </Button>
 
         <Button
@@ -314,12 +321,14 @@
             conflict?.saving ||
             conflict?.resolving}
           title={progress.markResolvedBlockedReason ||
-            "验证工作树快照并写入 Git 暂存区 stage 0"}
+            m.s6_conflict_resolve_tooltip()}
           onclick={handleMarkResolved}
           data-testid="git-conflict-resolve-btn"
         >
           <IconCheck aria-hidden="true" />
-          {conflict?.resolving ? "正在标记…" : "标记已解决 (Mark as Resolved)"}
+          {conflict?.resolving
+            ? m.s6_conflict_marking_ellipsis()
+            : m.s6_conflict_mark_resolved_btn()}
         </Button>
       {/if}
 
@@ -330,13 +339,15 @@
           wrap
           disabled={!effectiveCanContinue || divergenceBusy}
           title={!effectiveCanContinue
-            ? "请先将所有冲突文件标记已解决后再继续操作"
-            : "继续完成当前 Git 操作"}
+            ? m.s6_conflict_continue_blocked_tooltip()
+            : m.s6_conflict_continue_tooltip()}
           onclick={onContinueOperation}
           data-testid="git-conflict-continue-btn"
         >
           <IconPlayerPlay aria-hidden="true" />
-          {divergenceBusy ? "正在继续…" : "继续操作 (Continue)"}
+          {divergenceBusy
+            ? m.s6_continuing_ellipsis()
+            : m.s6_continue_operation_btn()}
         </Button>
       {/if}
     </div>
@@ -354,7 +365,7 @@
               onclick={() => void conflict.reloadCurrent()}
             >
               <IconRefresh aria-hidden="true" />
-              重新加载三方冲突快照
+              {m.s6_conflict_reload_snapshot()}
             </Button>
           {/if}
         </div>
@@ -367,22 +378,19 @@
       class="flex flex-1 items-center justify-center p-6 text-xs text-muted-foreground"
       role="status"
     >
-      正在加载三方冲突快照（Base / 左侧 / 右侧 / 工作树状态）…
+      {m.s6_conflict_loading_snapshot()}
     </div>
   {:else if !detail}
     <div
       class="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-xs"
       data-testid="git-conflict-all-resolved"
     >
-      <Badge variant="success">全部冲突文件已解决</Badge>
+      <Badge variant="success">{m.s6_conflict_all_resolved_badge()}</Badge>
       <p class="max-w-md leading-relaxed text-muted-foreground">
         {#if inProgress?.kind === "unstash"}
-          当前工作树已无未合并索引条目（stage 1..3
-          已全部清零），且原贮藏条目仍安全保留在 Stash
-          列表中。现在可返回「提交」视图核对暂存改动或前往「贮藏」视图手动清理。
+          {m.s6_conflict_all_resolved_unstash()}
         {:else}
-          当前工作树已无未合并索引条目（stage 1..3
-          已全部清零）。现在可点击「继续操作」完成此次合并、变基、遴选或还原。
+          {m.s6_conflict_all_resolved_sequencer()}
         {/if}
       </p>
       <div class="flex flex-wrap items-center justify-center gap-2">
@@ -394,11 +402,11 @@
             onclick={onContinueOperation}
           >
             <IconPlayerPlay aria-hidden="true" />
-            继续操作 (Continue)
+            {m.s6_continue_operation_btn()}
           </Button>
         {/if}
         <Button size="sm" variant="outline" onclick={onClose}>
-          返回工作台
+          {m.s6_conflict_back_workbench()}
         </Button>
       </div>
     </div>

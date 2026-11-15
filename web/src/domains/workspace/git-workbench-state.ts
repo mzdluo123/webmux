@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import type {
   GitCommitDetail,
   GitCommitFile,
@@ -58,8 +59,11 @@ export function selectLogBranchFilter(
     branchFilter: branchName,
     selectedCommitOid: nextSelected,
     statusBanner: branchName
-      ? `按引用 ${branchName} 过滤历史（当前工作树检出仍为 ${state.context.checkedOutBranch ?? "只读上下文"}）`
-      : "显示全部可达历史引用",
+      ? m.s7_state_log_filtered_by_ref({
+          ref: branchName,
+          checkedOut: state.context.checkedOutBranch ?? m.s7_readonly_context(),
+        })
+      : m.s7_state_log_all_reachable(),
   };
 }
 
@@ -318,25 +322,27 @@ export function buildCommitPreviewModel(
   if (grouped.conflicted.length > 0) {
     blockers.push({
       code: "conflicted",
-      message: "存在未解决的合并冲突，请先处理冲突后再提交",
+      message: m.s7_preview_blocker_conflicted(),
     });
   }
   if (state.context.operationInProgress) {
     blockers.push({
       code: "operation_in_progress",
-      message: `工作树正在进行 ${state.context.operationInProgress} 操作，请先通过顶部恢复横幅继续或中止`,
+      message: m.s7_preview_blocker_op_in_progress({
+        op: state.context.operationInProgress,
+      }),
     });
   }
   if (state.context.headState === "detached") {
     blockers.push({
       code: "detached_head",
-      message: "当前处于游离 HEAD 状态，请先创建或切换到分支后再提交",
+      message: m.s7_preview_blocker_detached_head(),
     });
   }
   if (state.context.headState === "readonly" || !state.context.worktreePath) {
     blockers.push({
       code: "no_worktree",
-      message: "当前为无工作树只读仓库视图，请选择具体工作树后再提交",
+      message: m.s7_preview_blocker_no_worktree(),
     });
   }
   if (
@@ -346,13 +352,13 @@ export function buildCommitPreviewModel(
   ) {
     blockers.push({
       code: "empty_index",
-      message: "真实 Git index 暂存区为空，请先暂存至少一项修改",
+      message: m.s7_preview_blocker_empty_index(),
     });
   }
   if (state.commitAmend && state.context.headState === "unborn") {
     blockers.push({
       code: "unborn_head",
-      message: "当前分支尚无历史提交（unborn HEAD），无法执行修正提交 (Amend)",
+      message: m.s7_preview_blocker_unborn_amend(),
     });
   }
   if (
@@ -361,13 +367,13 @@ export function buildCommitPreviewModel(
   ) {
     blockers.push({
       code: "missing_identity",
-      message: "缺少 Git user.name 或 user.email 配置，请先配置作者身份",
+      message: m.s7_preview_blocker_missing_identity(),
     });
   }
   if (state.commitAmend && state.commitAmendPushed) {
     warnings.push({
       code: "amend_pushed",
-      message: "该提交已推送至远端，修正将改写提交历史并导致分支与上游分叉",
+      message: m.s7_preview_warn_amend_pushed(),
     });
   }
 
@@ -377,19 +383,26 @@ export function buildCommitPreviewModel(
   if (cliPreStagedCount > 0) {
     warnings.push({
       code: "cli_prestaged",
-      message: `完整 index 预览已包含终端预先暂存的 ${cliPreStagedCount} 个文件，请确认无误`,
+      message: m.s7_preview_warn_cli_prestaged({
+        count: String(cliPreStagedCount),
+      }),
     });
   }
   if (grouped.unstaged.length > 0 || grouped.untracked.length > 0) {
     warnings.push({
       code: "remaining_unstaged",
-      message: `其余 ${grouped.unstaged.length} 项未暂存修改与 ${grouped.untracked.length} 个未跟踪文件不会进入本次提交`,
+      message: m.s7_preview_warn_remaining_unstaged({
+        unstaged: String(grouped.unstaged.length),
+        untracked: String(grouped.untracked.length),
+      }),
     });
   }
   if (state.context.executableHooks.length > 0) {
     warnings.push({
       code: "hooks_active",
-      message: `提交将执行仓库钩子：${state.context.executableHooks.join(", ")}`,
+      message: m.s7_preview_warn_hooks_active({
+        hooks: state.context.executableHooks.join(", "),
+      }),
     });
   }
 
@@ -406,7 +419,7 @@ export function buildCommitPreviewModel(
 
   return {
     repositoryName: state.context.repositoryName,
-    worktreePath: state.context.worktreePath ?? "(无工作树)",
+    worktreePath: state.context.worktreePath ?? m.s7_no_worktree_paren(),
     headState,
     branch: state.context.checkedOutBranch ?? "(detached)",
     headOid: state.context.headOid ?? "",

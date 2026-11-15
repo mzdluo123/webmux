@@ -1,6 +1,7 @@
 // How a worktree or branch stands against its upstream, and the words the
 // UI uses for it. Every count is local: ahead and behind compare with the
 // remote-tracking refs from the last fetch.
+import * as m from "$lib/paraglide/messages.js";
 import {
   remoteBranchBases,
   remoteLocalName,
@@ -106,42 +107,54 @@ export function upstreamText(
 ): string {
   switch (state.kind) {
     case "none":
-      return "无上游";
+      return m.s8_upstream_none();
     case "gone":
-      return "上游已删除";
+      return m.s8_upstream_gone();
     case "uncounted":
-      return "未计算";
+      return m.s8_upstream_uncounted();
     case "unknown":
-      return "未知";
+      return m.s8_unknown();
     case "tracked":
-      return state.ahead || state.behind ? "" : "已同步";
+      return state.ahead || state.behind ? "" : m.s8_upstream_synced();
   }
 }
 
-export const aheadLabel = (count: number) => `领先上游 ${count} 个提交`;
-export const behindLabel = (count: number) => `落后上游 ${count} 个提交`;
+export const aheadLabel = (count: number) =>
+  m.s8_ahead_commits({ count: String(count) });
+export const behindLabel = (count: number) =>
+  m.s8_behind_commits({ count: String(count) });
 
 export const operationLabels: Record<WorktreeOperation, string> = {
-  merge: "正在合并",
-  rebase: "正在变基",
-  "cherry-pick": "正在拣选提交",
-  revert: "正在还原提交",
-  bisect: "正在二分查找",
+  get merge() {
+    return m.s8_op_merge();
+  },
+  get rebase() {
+    return m.s8_op_rebase();
+  },
+  get "cherry-pick"() {
+    return m.s8_op_cherry_pick();
+  },
+  get revert() {
+    return m.s8_op_revert();
+  },
+  get bisect() {
+    return m.s8_op_bisect();
+  },
 };
 
 /** Change counts in display order. */
 export function changeCounts(changes: WorktreeChanges) {
   return [
-    { label: "已暂存", count: changes.staged },
-    { label: "未暂存", count: changes.unstaged },
-    { label: "未跟踪", count: changes.untracked },
-    { label: "冲突", count: changes.conflicted },
+    { label: m.s8_changes_staged(), count: changes.staged },
+    { label: m.s8_changes_unstaged(), count: changes.unstaged },
+    { label: m.s8_changes_untracked(), count: changes.untracked },
+    { label: m.s8_changes_conflicted(), count: changes.conflicted },
   ];
 }
 
 /** The last fetch's age (labels mark it approximate), or 未知 if never. */
 export function fetchedText(lastFetchedAt: string | null, now = Date.now()) {
-  return lastFetchedAt ? relativeTime(lastFetchedAt, now) : "未知";
+  return lastFetchedAt ? relativeTime(lastFetchedAt, now) : m.s8_unknown();
 }
 
 export function deriveSwitchBranchItems(
@@ -157,9 +170,9 @@ export function deriveSwitchBranchItems(
       name: item.name,
       reason:
         item.name === worktreeBranch
-          ? "当前分支"
+          ? m.s8_switch_current_branch()
           : elsewhere
-            ? `已在 ${elsewhere} 检出`
+            ? m.s8_switch_checked_out_at({ path: elsewhere })
             : undefined,
     };
   });
@@ -168,7 +181,7 @@ export function deriveSwitchBranchItems(
     return {
       name: item.name,
       reason: localNames.has(local)
-        ? `本地已有 ${local}，请直接切换到该分支`
+        ? m.s8_switch_local_exists({ branch: local })
         : undefined,
     };
   });

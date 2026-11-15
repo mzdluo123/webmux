@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { maxTableRows, parseDelimited } from "../../domains/code/code-csv";
   import { Button } from "$lib/components/ui/button";
   import * as Table from "$lib/components/ui/table";
@@ -18,20 +19,27 @@
   {#if !table.ok}
     <div class="space-y-2 p-2 text-sm">
       <p class="text-destructive" role="alert">
-        表格无法解析：{table.message}
+        {m.s5_table_parse_failed({ message: table.message })}
       </p>
-      <Button variant="outline" size="sm" onclick={onsource}>返回源码</Button>
+      <Button variant="outline" size="sm" onclick={onsource}
+        >{m.s5_back_to_source()}</Button
+      >
     </div>
   {:else if table.columns === 0}
-    <p class="p-2 text-sm text-muted-foreground" role="status">文件为空</p>
+    <p class="p-2 text-sm text-muted-foreground" role="status">
+      {m.s5_empty_file()}
+    </p>
   {:else}
     {#if table.total > table.rows.length}<p
         class="shrink-0 border-b px-2 py-1 text-xs text-muted-foreground"
         role="status"
       >
-        仅显示前 {maxTableRows} 行，共 {table.total} 行
+        {m.s5_table_truncated_rows({
+          max: String(maxTableRows),
+          total: String(table.total),
+        })}
       </p>{/if}
-    <Table.Root variant="sheet" aria-label="表格预览">
+    <Table.Root variant="sheet" aria-label={m.s5_table_preview()}>
       <Table.Header>
         <Table.Row>
           {#each table.header as cell, index (index)}

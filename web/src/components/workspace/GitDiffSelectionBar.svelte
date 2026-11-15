@@ -7,6 +7,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitLineSelection } from "../../contracts/schemas";
   import { countSelectedLines } from "../../domains/workspace/git-line-selection";
   import {
@@ -65,7 +66,7 @@
   <div
     class="flex min-w-0 flex-col gap-1.5 border-b bg-background px-2.5 py-2 text-xs"
     role="region"
-    aria-label="选中代码行加入审阅意见"
+    aria-label={m.s6_diff_selection_region_aria()}
     data-testid="git-diff-selection-bar"
   >
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
@@ -84,13 +85,15 @@
           </Badge>
           {#if selection.sourceKind !== "worktree"}
             <span class="text-muted-foreground">
-              （将明确标注版本身份，不伪装为实时工作区行号）
+              {m.s6_diff_selection_non_worktree_hint()}
             </span>
           {/if}
         {/if}
         {#if hasLineMutation}
           <Badge variant="outline" class="shrink-0">
-            含 {changedCount} 行可操作改动
+            {m.s6_diff_selection_changed_count({
+              count: String(changedCount),
+            })}
           </Badge>
         {/if}
       </div>
@@ -98,8 +101,8 @@
       <Button
         size="icon-sm"
         variant="ghost"
-        aria-label="取消行选择"
-        title="取消行选择"
+        aria-label={m.s6_diff_selection_clear_aria()}
+        title={m.s6_diff_selection_clear_aria()}
         onclick={() => {
           note = "";
           onClear();
@@ -124,7 +127,7 @@
             data-testid="git-selection-stage-lines"
           >
             <IconPlus aria-hidden="true" />
-            暂存所选行 ({changedCount})
+            {m.s6_stage_selected_lines({ count: String(changedCount) })}
           </Button>
         {/if}
         {#if stageMode === "unstage" && onUnstageSelectedLines}
@@ -140,7 +143,7 @@
             data-testid="git-selection-unstage-lines"
           >
             <IconMinus aria-hidden="true" />
-            取消暂存所选行 ({changedCount})
+            {m.s6_unstage_selected_lines({ count: String(changedCount) })}
           </Button>
         {/if}
         {#if stageMode === "stage" && onDiscardSelectedLines}
@@ -156,7 +159,7 @@
             data-testid="git-selection-discard-lines"
           >
             <IconTrash aria-hidden="true" />
-            丢弃所选行… ({changedCount})
+            {m.s6_discard_selected_lines({ count: String(changedCount) })}
           </Button>
         {/if}
       </div>
@@ -168,8 +171,8 @@
           <Input
             size="sm"
             value={note}
-            placeholder="输入针对所选代码行的修改意见（可留空后续在草稿箱补充）…"
-            aria-label="审阅修改意见备注"
+            placeholder={m.s6_diff_selection_note_placeholder()}
+            aria-label={m.s6_diff_selection_note_aria()}
             oninput={(e) => (note = e.currentTarget.value)}
             onkeydown={(e) => {
               if (e.key === "Enter" && !e.isComposing) {
@@ -185,7 +188,7 @@
           onclick={() => submitAdd(true)}
           data-testid="git-selection-add-open"
         >
-          加入并查看草稿箱
+          {m.s6_diff_selection_add_and_open()}
         </Button>
         <Button
           size="sm"
@@ -194,7 +197,7 @@
           data-testid="git-selection-add-rework"
         >
           <IconMessagePlus aria-hidden="true" />
-          加入审阅意见
+          {m.s6_diff_selection_add_rework()}
         </Button>
       </div>
     {/if}

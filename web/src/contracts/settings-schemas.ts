@@ -1,4 +1,5 @@
 import { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import {
   PreviewSettingsSchema,
   SessionIdSchema,
@@ -89,7 +90,7 @@ export const TailscaleSettingsUpdateSchema = z
       draft.mode !== "funnel" ||
       draft.port === 0 ||
       (TailscaleFunnelPorts as readonly number[]).includes(draft.port),
-    { message: "Funnel 只支持自动、443、8443 或 10000 端口" },
+    { error: () => m.s1_schema_funnel_ports() },
   );
 export type TailscaleSettingsUpdate = z.infer<
   typeof TailscaleSettingsUpdateSchema
@@ -167,7 +168,9 @@ export const QuickCommandSchema = z.object({
   command: z
     .string()
     .max(4096)
-    .refine((value) => value.trim() !== "", "指令不能为空"),
+    .refine((value) => value.trim() !== "", {
+      error: () => m.s1_schema_command_required(),
+    }),
   enter: z.boolean(),
 });
 export type QuickCommand = z.infer<typeof QuickCommandSchema>;
@@ -177,7 +180,7 @@ export const QuickCommandsSchema = z
   .refine(
     (commands) =>
       new Set(commands.map((cmd) => cmd.id)).size === commands.length,
-    "快捷指令 ID 不能重复",
+    { error: () => m.s1_schema_duplicate_quick_command_id() },
   );
 export const NoContentSchema = z.undefined();
 export const PushReasonSchema = z.enum([

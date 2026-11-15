@@ -3,6 +3,7 @@
   import IconCircleCheck from "~icons/tabler/circle-check";
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import type { SwitchStep, SwitchTarget } from "../../domains/sessions/hybrid";
 
   // A switch between the chat and the terminal: the side being left must
@@ -33,10 +34,10 @@
   />
   <h2 class="text-center text-base font-medium">
     {target === "terminal"
-      ? "正在切换到终端…"
+      ? m.s3_switching_to_terminal()
       : target === "chat"
-        ? "正在切换到聊天…"
-        : "正在切换…"}
+        ? m.s3_switching_to_chat()
+        : m.s3_switching_generic()}
   </h2>
   <ol class="w-full max-w-xs space-y-2 text-sm">
     {#each steps as step (step.label)}
@@ -48,15 +49,18 @@
         {#if step.state === "done"}
           <IconCircleCheck
             class="size-4 shrink-0 text-success"
-            aria-label="完成"
+            aria-label={m.s3_status_completed()}
           />
         {:else if step.state === "current"}
           <IconLoader2
             class="size-4 shrink-0 animate-spin text-info"
-            aria-label="进行中"
+            aria-label={m.s3_status_in_progress()}
           />
         {:else}
-          <IconCircle class="size-4 shrink-0" aria-label="等待" />
+          <IconCircle
+            class="size-4 shrink-0"
+            aria-label={m.s3_row_status_waiting()}
+          />
         {/if}
         <span class="min-w-0 break-words">{step.label}</span>
       </li>
@@ -64,11 +68,13 @@
   </ol>
   {#if awaitingChoice}
     <p class="max-w-xs text-center text-sm text-warning">
-      TUI 仍未停下，需要你决定如何继续。
+      {m.s3_switch_tui_not_stopped()}
     </p>
-    <Button variant="outline" size="sm" onclick={onchoose}>选择…</Button>
+    <Button variant="outline" size="sm" onclick={onchoose}
+      >{m.s3_choose_ellipsis()}</Button
+    >
   {/if}
   <p class="max-w-xs text-center text-xs text-muted-foreground">
-    切换期间暂停输入；失败时停留在原来的一端并显示原因。
+    {m.s3_switch_input_paused_hint()}
   </p>
 </div>

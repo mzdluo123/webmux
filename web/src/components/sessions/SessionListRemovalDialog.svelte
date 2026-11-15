@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import type { ArchivedSession, Worktree } from "../../contracts/schemas";
   import LazyDialog from "../shared/LazyDialog.svelte";
 
@@ -19,7 +20,7 @@
 
 <LazyDialog
   load={() => import("../workspace/RemoveWorktreeDialog.svelte")}
-  label="删除确认"
+  label={m.s3_delete_confirmation_label()}
   {onclose}
 >
   {#snippet children(page)}<page.default

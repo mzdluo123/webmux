@@ -1,4 +1,5 @@
 import { errorMessage } from "../../platform/error";
+import * as m from "$lib/paraglide/messages.js";
 import { onMount } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { uploadFile } from "../../platform/api";
@@ -86,8 +87,14 @@ async function runUploads(run: UploadRun) {
       (percent) => run.report({ ...current, percent }),
       run.signal,
     );
-    if (run.signal.aborted)
-      throw new Error(`文件已上传至 ${path}，但路径未插入：操作已取消`);
+    if (run.signal.aborted) {
+      throw new Error(
+        m.s1_uploaded_but_not_inserted({
+          path,
+          error: m.s1_operation_cancelled(),
+        }),
+      );
+    }
     run.report({ ...current, percent: 100, waiting: run.waiting });
     await run.insert(path, file);
   }
@@ -137,7 +144,7 @@ export function useUpload(
       terminal.connection === "missing"
     ) {
       waiter = null;
-      current.reject(new Error("终端会话已退出或不存在"));
+      current.reject(new Error(m.s1_terminal_exited_or_missing()));
     } else if (
       target === "draft" ||
       (foreground && terminal.connection === "connected" && !terminal.restoring)
@@ -151,11 +158,14 @@ export function useUpload(
     signal: AbortSignal,
     operation: DraftOperation,
   ) {
-    if (signal.aborted) throw new DOMException("操作已取消", "AbortError");
+    if (signal.aborted) {
+      throw new DOMException(m.s1_operation_cancelled(), "AbortError");
+    }
     const { promise, resolve, reject } = Promise.withResolvers<void>();
-    const abort = () => reject(new DOMException("操作已取消", "AbortError"));
+    const abort = () =>
+      reject(new DOMException(m.s1_operation_cancelled(), "AbortError"));
     const timeout = window.setTimeout(
-      () => reject(new Error("等待终端恢复超时")),
+      () => reject(new Error(m.s1_wait_terminal_timeout())),
       30_000,
     );
     signal.addEventListener("abort", abort, { once: true });
@@ -172,12 +182,12 @@ export function useUpload(
   async function uploadFiles(files: File[], operation = input.begin()) {
     if (!files.length) return;
     if (!available()) {
-      setError("文件上传暂不可用");
+      setError(m.s1_upload_unavailable());
       return;
     }
     if (!mounted || input.destination(operation) === "failed") return;
     if (progress) {
-      setError("正在上传，请等待当前上传完成。");
+      setError(m.s1_upload_in_progress_wait());
       return;
     }
     if (
@@ -185,7 +195,7 @@ export function useUpload(
       terminal.connection === "exited" ||
       terminal.connection === "missing"
     ) {
-      setError("终端会话已退出或不存在，无法上传文件。");
+      setError(m.s1_upload_terminal_exited_or_missing());
       return;
     }
     setError("");
@@ -204,19 +214,25 @@ export function useUpload(
           pendingPath = path;
           try {
             await waitForDestination(current.signal, operation);
-            if (!mounted || current.signal.aborted)
-              throw new DOMException("操作已取消", "AbortError");
+            if (!mounted || current.signal.aborted) {
+              throw new DOMException(m.s1_operation_cancelled(), "AbortError");
+            }
             // Quote arbitrary filenames safely. Uploading never runs a command.
             const target: TextInsertion = input.insert(
               "'" + path.replaceAll("'", "'\\''") + "' ",
               operation,
             );
-            if (target === "failed") throw new Error("输入目标未就绪");
+            if (target === "failed") {
+              throw new Error(m.s1_input_destination_not_ready());
+            }
             inserted.terminal = target === "terminal";
             pendingPath = "";
           } catch (err) {
             throw new Error(
-              `文件已上传至 ${path}，但路径未插入：${errorMessage(err)}`,
+              m.s1_uploaded_but_not_inserted({
+                path,
+                error: errorMessage(err),
+              }),
             );
           }
         },
@@ -340,23 +356,31 @@ export function useChatUpload(
 
   function refusal(files: File[]) {
     const attachments = currentAttachments();
-    if (attachments.length + files.length > maxAttachments)
-      return `每条消息最多 ${maxAttachments} 个附件。`;
+    if (attachments.length + files.length > maxAttachments) {
+      return m.s1_max_attachments_per_message({ max: maxAttachments });
+    }
     const oversized = files.find((file) => file.size > maxAttachmentBytes);
-    if (oversized)
-      return `${oversized.name} 超过 ${maxAttachmentBytes >> 20} MiB。`;
+    if (oversized) {
+      return m.s1_attachment_exceeds_limit({
+        name: oversized.name,
+        mib: maxAttachmentBytes >> 20,
+      });
+    }
     const total =
       attachments.reduce((sum, item) => sum + (item.size ?? 0), 0) +
       files.reduce((sum, file) => sum + file.size, 0);
-    if (total > maxAttachmentTotalBytes)
-      return `附件合计超过 ${maxAttachmentTotalBytes >> 20} MiB。`;
+    if (total > maxAttachmentTotalBytes) {
+      return m.s1_attachments_total_exceeds_limit({
+        mib: maxAttachmentTotalBytes >> 20,
+      });
+    }
     return "";
   }
 
   async function uploadFiles(files: File[]) {
     if (!files.length) return;
     if (progress) {
-      setError("正在上传，请等待当前上传完成。");
+      setError(m.s1_upload_in_progress_wait());
       return;
     }
     const refused = refusal(files);

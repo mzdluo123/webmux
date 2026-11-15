@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
 
   // A cancel/confirm alert. `onconfirm` may be async: the dialog then stays
@@ -10,8 +11,8 @@
   let {
     open = $bindable(false),
     title,
-    confirmLabel = "确认",
-    busyLabel = "正在处理…",
+    confirmLabel,
+    busyLabel,
     destructive = false,
     onconfirm,
     children,
@@ -27,6 +28,8 @@
 
   let busy = $state(false);
   let error = $state("");
+  const resolvedConfirmLabel = $derived(confirmLabel ?? m.s1_confirm());
+  const resolvedBusyLabel = $derived(busyLabel ?? m.s1_processing());
 
   $effect(() => {
     if (open) error = "";
@@ -62,11 +65,12 @@
         {error}
       </p>{/if}
     <AlertDialog.Footer>
-      <AlertDialog.Cancel disabled={busy}>取消</AlertDialog.Cancel>
+      <AlertDialog.Cancel disabled={busy}>{m.s1_cancel()}</AlertDialog.Cancel>
       <Button
         variant={destructive ? "destructive" : "default"}
         disabled={busy}
-        onclick={confirm}>{busy ? busyLabel : confirmLabel}</Button
+        onclick={confirm}
+        >{busy ? resolvedBusyLabel : resolvedConfirmLabel}</Button
       >
     </AlertDialog.Footer>
   </AlertDialog.Content>

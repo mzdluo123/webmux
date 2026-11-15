@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import {
   boundXrPanel,
   defaultXrPanel,
@@ -146,7 +147,7 @@ export function createXrViewState(
       reservations.add(hidden.id);
       return hidden.id;
     }
-    report("VR 最多显示 16 个面板；请关闭一个面板后再打开内容。");
+    report(m.s4_xr_err_panel_limit());
     return undefined;
   }
   function commit(layout: XrPanelLayout, slot: string | object) {
@@ -227,7 +228,7 @@ export function createXrViewState(
       .catch((cause: unknown) => {
         observed.delete(id);
         options.unobserve(id);
-        report(`无法观察会话：${String(cause)}`);
+        report(m.s4_xr_err_observe_failed({ error: String(cause) }));
       })
       .finally(() => {
         if (slot) reservations.delete(slot);
@@ -251,7 +252,7 @@ export function createXrViewState(
   function toggle(layout: XrPanelLayout) {
     if (!layouts.includes(layout)) return;
     if (!layout.visible && reservations.has(layout.id)) {
-      report("该隐藏槽位正在用于加入观察；请等待完成。");
+      report(m.s4_xr_err_slot_reserved());
       return;
     }
     layout.visible = !layout.visible;
@@ -350,11 +351,11 @@ export function createXrViewState(
   }
   function reset() {
     if (pending.size) {
-      report("正在加入观察会话；完成后可恢复默认布局。");
+      report(m.s4_xr_err_reset_joining());
       return;
     }
     if ([...observed].some((id) => source(id)?.primaryKind === undefined)) {
-      report("观察会话内容类型尚未就绪；请等待后再恢复默认布局。");
+      report(m.s4_xr_err_reset_not_ready());
       return;
     }
     layouts = [...observed].map((id, index) => {

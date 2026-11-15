@@ -6,6 +6,7 @@
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitBlameCommit, GitBlameResult } from "../../contracts/schemas";
   import type { GitBlameCrumb } from "../../hooks/workspace/git-blame-controller.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -58,7 +59,7 @@
       class="flex flex-wrap items-center gap-1.5 border-b bg-background px-3 py-1.5 text-xs"
       data-testid="git-blame-breadcrumb"
     >
-      <span class="text-muted-foreground">溯源轨迹：</span>
+      <span class="text-muted-foreground">{m.s6_blame_trail_label()}</span>
       {#each trail as crumb, idx (`${idx}:${crumb.rev}:${crumb.path}`)}
         <Button size="sm" variant="ghost" onclick={() => onStepBack(idx)}>
           <span class="font-mono">{crumb.label}</span>
@@ -106,7 +107,7 @@
             data-testid="git-blame-parent-btn"
           >
             <IconArrowBackUp aria-hidden="true" />
-            在父版本继续 Blame
+            {m.s6_blame_parent_btn()}
           </Button>
         {/if}
         {#if onInspectCommitInHistory}
@@ -116,7 +117,7 @@
             onclick={() => onInspectCommitInHistory(selectedCommit.oid)}
           >
             <IconHistory aria-hidden="true" />
-            查看该提交改动
+            {m.s6_blame_inspect_commit()}
           </Button>
         {/if}
         {#if onJumpToCommit}
@@ -127,7 +128,7 @@
             data-testid="git-blame-jump-log-btn"
           >
             <IconGitCommit aria-hidden="true" />
-            在历史图中定位
+            {m.s6_jump_to_commit_in_graph()}
           </Button>
         {/if}
       </div>
@@ -137,19 +138,18 @@
   <ScrollArea orientation="both" class="min-h-8 flex-1">
     {#if loading && !data}
       <p class="p-4 text-xs text-muted-foreground" role="status">
-        正在按行溯源计算只读 Blame 注解…
+        {m.s6_blame_loading()}
       </p>
     {:else if error}
       <div class="p-3">
         <InlineNotice tone="danger">{error}</InlineNotice>
       </div>
     {:else if !data}
-      <p class="p-4 text-xs text-muted-foreground">尚未加载 Blame 数据。</p>
+      <p class="p-4 text-xs text-muted-foreground">{m.s6_blame_empty()}</p>
     {:else if data.kind !== "text"}
       <div class="p-3">
         <InlineNotice tone="info">
-          {data.degradeReason ||
-            "该文件为二进制或体积过大，不直接展开逐行文本 Blame。"}
+          {data.degradeReason || m.s6_blame_degrade_fallback()}
         </InlineNotice>
       </div>
     {:else}

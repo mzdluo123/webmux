@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import type { GitWorkbenchViewState } from "../../contracts/git-workbench-schemas";
 import type {
   GitDiscardPreview,
@@ -6,6 +7,7 @@ import type {
 } from "../../contracts/schemas";
 import {
   applyOfflineDiscardChanges,
+  applyOfflineLineMutation,
   countSelectedLines,
 } from "./git-line-selection";
 
@@ -63,10 +65,13 @@ export function buildShellDiscardPreview(
     : 0;
   const summary =
     pending.scope === "lines"
-      ? `将从 ${trackedOverwritePaths[0] ?? ""} 丢弃 ${lineCount} 行未暂存更改`
+      ? m.s7_discard_summary_lines({
+          path: trackedOverwritePaths[0] ?? "",
+          count: String(lineCount),
+        })
       : pending.scope === "hunks"
-        ? `将从 ${trackedOverwritePaths[0] ?? ""} 丢弃 1 个变更块`
-        : `将丢弃 ${items.length} 个未暂存路径更改`;
+        ? m.s7_discard_summary_hunk({ path: trackedOverwritePaths[0] ?? "" })
+        : m.s7_discard_summary_files({ count: String(items.length) });
 
   return {
     confirmationId: "shell-discard-confirm",
@@ -88,7 +93,9 @@ export function buildShellDiscardPreview(
         ? [
             {
               code: "untracked_delete",
-              message: `其中 ${untrackedDeletePaths.length} 个未跟踪文件将从磁盘移除（执行前将备份至恢复快照）。`,
+              message: m.s7_discard_warn_untracked({
+                count: String(untrackedDeletePaths.length),
+              }),
             },
           ]
         : [],
@@ -142,6 +149,95 @@ export function applyShellDiscardConfirm(
       },
       ...(view.operations ?? []),
     ],
-    statusBanner: `${preview.summary}（已生成安全恢复快照 ${recoveryOid.slice(0, 7)}）`,
+    statusBanner: m.s7_discard_confirmed_banner({
+      summary: preview.summary,
+      oid: recoveryOid.slice(0, 7),
+    }),
   };
+}
+
+export function applyShellStageLines(
+  view: GitWorkbenchViewState,
+  changeId: string,
+  sel: Parameters<typeof applyOfflineLineMutation>[2],
+  op: "stage" | "unstage",
+): GitWorkbenchViewState {
+  return {
+    ...view,
+    workingChanges: applyOfflineLineMutation(
+      view.workingChanges,
+      changeId,
+      sel,
+      op,
+    ),
+  };
+}
+
+export function applyShellCheckoutBanner(
+  view: GitWorkbenchViewState,
+  branch: string,
+): GitWorkbenchViewState {
+  return {
+    ...view,
+    statusBanner: m.s7_shell_checkout_preview_opened({ branch }),
+  };
+}
+
+export function applyShellOccupiedWorktreeBanner(
+  view: GitWorkbenchViewState,
+  worktreeId: string,
+  path: string,
+  onOpenWorktree?: (worktreeId: string, path: string) => void,
+): GitWorkbenchViewState {
+  onOpenWorktree?.(worktreeId, path);
+  return {
+    ...view,
+    statusBanner: m.s7_shell_located_occupied_wt({ path, worktreeId }),
+  };
+}
+
+export function applyShellReloadVerify(
+  view: GitWorkbenchViewState,
+): GitWorkbenchViewState {
+  return {
+    ...view,
+    lastCommitOutcome: null,
+    statusBanner: m.s7_shell_reloaded_verify(),
+  };
+}
+
+export function applyShellContinueInProgress(
+  view: GitWorkbenchViewState,
+): GitWorkbenchViewState {
+  return {
+    ...view,
+    inProgress: null,
+    conflictOpen: false,
+    statusBanner: m.s7_shell_continued_operation(),
+  };
+}
+
+export function applyShellAbortPreviewBanner(
+  view: GitWorkbenchViewState,
+): GitWorkbenchViewState {
+  return {
+    ...view,
+    statusBanner: m.s7_shell_abort_preview_opened(),
+  };
+}
+
+export function applyShellStashBanner(
+  view: GitWorkbenchViewState,
+  action: "create" | "pop" | "apply" | "drop",
+  ref = "",
+): GitWorkbenchViewState {
+  const statusBanner =
+    action === "create"
+      ? m.s7_shell_stash_create_opened()
+      : action === "pop"
+        ? m.s7_shell_stash_pop_opened({ ref })
+        : action === "apply"
+          ? m.s7_shell_stash_apply_opened({ ref })
+          : m.s7_shell_stash_drop_opened({ ref });
+  return { ...view, statusBanner };
 }

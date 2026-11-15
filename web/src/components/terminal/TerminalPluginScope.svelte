@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import type { TerminalPlugins } from "../../plugins/terminal";
   import type { SessionInfo } from "../../contracts/schemas";
 
@@ -39,7 +40,7 @@
     available: () => membership!.available,
     ready: () => ready(),
     observe: async (id) => {
-      if (!xr?.active) throw new Error("VR 工作台已退出。");
+      if (!xr?.active) throw new Error(m.s4_vr_workspace_exited());
       await membership!.observe(id);
     },
     unobserve: (id) => membership!.unobserve(id),

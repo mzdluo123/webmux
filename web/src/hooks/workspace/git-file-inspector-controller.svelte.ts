@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import { repositoryBranches } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import { gitCompare } from "../../platform/git-api";
@@ -137,11 +138,13 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
       baseOid: row.comparedParentOid ?? "",
       targetOid: row.oid,
       leftLabel: row.comparedParentOid
-        ? `父提交 (${row.comparedParentOid.slice(0, 7)})`
-        : "空白根提交",
+        ? m.s7_inspector_parent_commit({
+            oid: row.comparedParentOid.slice(0, 7),
+          })
+        : m.s7_inspector_root_commit(),
       rightLabel: `${row.shortOid} · ${row.path}`,
       file: historyRowToCommitFile(row),
-      missingReason: "未能读取该提交下的文件差异。",
+      missingReason: m.s7_inspector_history_diff_missing(),
       fetchDiff: async (contextId, signal) => {
         const res = await gitCompare(
           repoId,
@@ -240,12 +243,12 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
     await compareReader.loadFetchedDiff({
       baseOid: cleanBase,
       targetOid: useWorktree ? "WORKTREE" : targetRev,
-      leftLabel: `基准：${labelBase}`,
+      leftLabel: m.s7_inspector_base_label({ base: labelBase }),
       rightLabel: useWorktree
-        ? `当前工作区文件 (${filePath})`
-        : `目标：${targetRev.slice(0, 12)}`,
+        ? m.s7_inspector_worktree_file_label({ path: filePath })
+        : m.s7_inspector_target_label({ target: targetRev.slice(0, 12) }),
       file: dummyFile,
-      missingReason: "未能读取所选修订版本的文件差异。",
+      missingReason: m.s7_inspector_rev_diff_missing(),
       fetchDiff: async (contextId, signal) => {
         if (useWorktree && wtId) {
           return gitRevisionDiff(

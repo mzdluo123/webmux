@@ -3,6 +3,7 @@
   import { untrack, type Snippet } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import { copyText } from "../../platform/clipboard";
   import { errorMessage } from "../../platform/error";
   import {
@@ -99,7 +100,7 @@
       }
     } catch (err) {
       tab?.close();
-      failed[entry.port] = `转发失败：${errorMessage(err)}`;
+      failed[entry.port] = m.s4_forward_failed({ error: errorMessage(err) });
     } finally {
       busy.delete(entry.port);
     }
@@ -121,14 +122,14 @@
       rel="noopener"
       variant="outline"
       size="sm"
-      class="any-pointer-coarse:min-h-11">打开</Button
+      class="any-pointer-coarse:min-h-11">{m.s4_open()}</Button
     >
     <Button
       variant="ghost"
       size="sm"
       class="any-pointer-coarse:min-h-11"
       onclick={() => void copy(item.port, item.path)}
-      >{copied === item.port ? "已复制" : "复制链接"}</Button
+      >{copied === item.port ? m.s4_copied() : m.s4_copy_link()}</Button
     >
     <Button
       variant="ghost"
@@ -136,10 +137,13 @@
       class="any-pointer-coarse:min-h-11"
       onclick={() =>
         (announced = announced.filter((entry) => entry.port !== item.port))}
-      >知道了</Button
+      >{m.s4_got_it()}</Button
     >
   {/snippet}
-  {@render strip(`端口 ${item.port} 已转发到 ${item.path}`, done)}
+  {@render strip(
+    m.s4_port_forwarded_to({ port: String(item.port), path: item.path }),
+    done,
+  )}
 {/each}
 
 {#each prompts.slice(0, 2) as entry (entry.port)}
@@ -149,26 +153,29 @@
       size="sm"
       class="any-pointer-coarse:min-h-11"
       disabled={busy.has(entry.port)}
-      onclick={() => forward(entry, true)}>转发并打开</Button
+      onclick={() => forward(entry, true)}>{m.s4_forward_and_open()}</Button
     >
     <Button
       variant="ghost"
       size="sm"
       class="any-pointer-coarse:min-h-11"
       disabled={busy.has(entry.port)}
-      onclick={() => forward(entry, false)}>转发</Button
+      onclick={() => forward(entry, false)}>{m.s4_forward()}</Button
     >
     <Button
       variant="ghost"
       size="sm"
       class="any-pointer-coarse:min-h-11"
-      onclick={() => ignorePort(session, entry.port)}>忽略</Button
+      onclick={() => ignorePort(session, entry.port)}>{m.s4_ignore()}</Button
     >
   {/snippet}
   {@render strip(
     entry.process
-      ? `检测到端口 ${entry.port}（${entry.process}）正在监听`
-      : `检测到端口 ${entry.port} 正在监听`,
+      ? m.s4_port_listening_with_proc({
+          port: String(entry.port),
+          process: entry.process,
+        })
+      : m.s4_port_listening({ port: String(entry.port) }),
     choose,
     failed[entry.port] ?? "",
   )}
@@ -180,8 +187,8 @@
         variant="ghost"
         size="sm"
         class="any-pointer-coarse:min-h-11"
-        onclick={() => onshowall()}>查看全部</Button
+        onclick={() => onshowall()}>{m.s4_view_all()}</Button
       >{/if}
   {/snippet}
-  {@render strip(`另有 ${prompts.length - 2} 个端口`, more)}
+  {@render strip(m.s4_more_ports({ count: String(prompts.length - 2) }), more)}
 {/if}

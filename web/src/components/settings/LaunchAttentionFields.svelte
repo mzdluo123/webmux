@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -115,7 +116,8 @@
 
 <fieldset id="launch-config-attention-fieldset" class="grid min-w-0 gap-2">
   <legend class="mb-2 text-sm font-medium">
-    完成与介入提醒 <span class="font-normal text-muted-foreground">可选</span>
+    {m.s2_launch_attn_legend()}
+    <span class="font-normal text-muted-foreground">{m.s2_optional()}</span>
   </legend>
   <div class="flex items-center gap-2">
     <Checkbox
@@ -136,21 +138,24 @@
       aria-describedby="launch-config-attention-help"
     />
     <Label for="launch-config-attention-default"
-      >跟随全局默认<span class="sr-only">（完成与介入提醒）</span></Label
+      >{m.s2_follow_global_default()}<span class="sr-only"
+        >{m.s2_launch_attn_default_sr()}</span
+      ></Label
     >
   </div>
   {#if defaultAttention}
     <p id="launch-config-attention-help" class="text-xs text-muted-foreground">
-      使用服务端全局提醒配置；新建会话按「状态协议 (OSC 7501) &gt; Agent 事件
-      &gt; 桌面通知 &gt; 终端响铃」优先级触发完成与介入提醒。
+      {m.s2_launch_attn_default_help()}
     </p>
   {:else}
     <div class="grid min-w-0 gap-3 pt-1">
       <div class="grid gap-1.5">
-        <Label for="launch-config-attention-mode">提醒范围</Label>
+        <Label for="launch-config-attention-mode"
+          >{m.s2_launch_attn_scope()}</Label
+        >
         <SegmentedControl.Root
           id="launch-config-attention-mode"
-          aria-label="提醒范围"
+          aria-label={m.s2_launch_attn_scope()}
           size="form"
           wrap
           bind:value={attentionMode}
@@ -167,7 +172,9 @@
       </div>
       {#if attentionMode !== "off"}
         <div class="grid gap-2">
-          <span class="text-xs font-medium text-foreground">信号来源</span>
+          <span class="text-xs font-medium text-foreground"
+            >{m.s2_launch_attn_sources()}</span
+          >
           <div class="grid gap-2 sm:grid-cols-2">
             <div class="flex items-center gap-2">
               <Checkbox
@@ -175,7 +182,7 @@
                 bind:checked={attentionProgramStatus}
               />
               <Label for="launch-config-attention-program-status"
-                >状态协议 (OSC 7501)</Label
+                >{m.s2_launch_attn_osc7501()}</Label
               >
             </div>
             <div class="flex items-center gap-2">
@@ -184,7 +191,7 @@
                 bind:checked={attentionAgentProtocol}
               />
               <Label for="launch-config-attention-agent-protocol"
-                >Agent 事件 (Warp 协议)</Label
+                >{m.s2_launch_attn_warp()}</Label
               >
             </div>
             <div class="flex items-center gap-2">
@@ -193,7 +200,7 @@
                 bind:checked={attentionNotify}
               />
               <Label for="launch-config-attention-notify"
-                >桌面通知 (OSC 9 / 777)</Label
+                >{m.s2_launch_attn_osc_notify()}</Label
               >
             </div>
             <div class="flex items-center gap-2">
@@ -201,16 +208,16 @@
                 id="launch-config-attention-bell"
                 bind:checked={attentionBell}
               />
-              <Label for="launch-config-attention-bell">终端响铃 (BEL)</Label>
+              <Label for="launch-config-attention-bell"
+                >{m.s2_launch_attn_bell()}</Label
+              >
             </div>
           </div>
           <p
             id="launch-config-attention-help"
             class="text-xs text-muted-foreground"
           >
-            优先级：状态协议 (OSC 7501) &gt; Agent 事件 &gt; 桌面通知 &gt;
-            终端响铃。高优先级信号生效时自动忽略低优先级信号；若某工具的 OSC
-            7501 存在子任务误报，可关闭该项以回退到 Agent 事件。
+            {m.s2_launch_attn_priority_help()}
           </p>
         </div>
       {/if}
@@ -218,7 +225,7 @@
         <div class="grid min-w-0 gap-4 sm:grid-cols-2">
           <div class="grid gap-2">
             <Label for="launch-config-attention-min-turn"
-              >最短回合耗时（秒）</Label
+              >{m.s2_launch_attn_min_turn()}</Label
             >
             <Input
               id="launch-config-attention-min-turn"
@@ -235,7 +242,7 @@
           </div>
           <div class="grid gap-2">
             <Label for="launch-config-attention-done-delay"
-              >完成确认延迟（秒）</Label
+              >{m.s2_launch_attn_done_delay()}</Label
             >
             <Input
               id="launch-config-attention-done-delay"
@@ -262,7 +269,7 @@
           id="launch-config-attention-threshold-help"
           class="text-xs text-muted-foreground"
         >
-          忽略过短的回合，或在完成状态保持稳定后再提醒，减少子任务与后台命令造成的抢跑误报。
+          {m.s2_launch_attn_threshold_help()}
         </p>
       {/if}
     </div>

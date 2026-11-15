@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import IconExternalLink from "~icons/tabler/external-link";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -10,8 +11,7 @@
   import InlineNotice from "../shared/InlineNotice.svelte";
   import VoiceConfiguration from "./VoiceConfiguration.svelte";
 
-  const protocolDoc =
-    "https://github.com/mzdluo123/webmux/blob/main/docs/deployment/configuration.md#stdin--stdout-外部识别协议";
+  const protocolDoc = $derived(m.s2_voice_protocol_doc_url());
 
   const voice = useVoiceSettings();
   const view = $derived(voice.state.view);
@@ -19,27 +19,27 @@
 
 <Card.Root flat id="voice" class="scroll-mt-4">
   <Card.Header>
-    <Card.Title>语音输入</Card.Title>
-    <Card.Description
-      >聊天输入框旁与终端快捷栏的麦克风按钮，把语音交给服务端的外部识别程序，识别出的文字插入当前输入位置，不会自动回车。识别命令与环境变量保存在服务端并立即生效；下方开关只对当前浏览器生效。</Card.Description
-    >
+    <Card.Title>{m.s2_voice_title()}</Card.Title>
+    <Card.Description>{m.s2_voice_desc()}</Card.Description>
   </Card.Header>
   <Card.Content class="space-y-4">
     <div class="flex flex-wrap items-center gap-2 text-sm" role="status">
-      <span class="text-muted-foreground">识别程序</span>
+      <span class="text-muted-foreground">{m.s2_voice_recognizer_label()}</span>
       {#if !view}
-        <Badge variant="outline">读取中</Badge>
+        <Badge variant="outline">{m.s2_voice_badge_loading()}</Badge>
       {:else if view.enabled}
-        <Badge variant="success">已配置</Badge>
+        <Badge variant="success">{m.s2_voice_badge_configured()}</Badge>
       {:else}
-        <Badge variant="outline">未配置</Badge>
+        <Badge variant="outline">{m.s2_voice_badge_unconfigured()}</Badge>
       {/if}
       {#if view}<span class="text-xs text-muted-foreground"
-          >{view.source === "web" ? "来自网页设置" : "来自配置文件"}</span
+          >{view.source === "web"
+            ? m.s2_voice_from_web()
+            : m.s2_voice_from_config()}</span
         >{/if}
     </div>
     <div class="flex items-center justify-between gap-4">
-      <Label for="voice-enabled">在本设备启用语音输入</Label>
+      <Label for="voice-enabled">{m.s2_voice_enable_device()}</Label>
       <Switch
         id="voice-enabled"
         checked={voicePreference.enabled}
@@ -52,7 +52,9 @@
     {/if}
     {#if view && !view.storageAvailable}
       <InlineNotice tone="warning"
-        >网页设置的存储不可用，暂时不能保存：{view.storageError}</InlineNotice
+        >{m.s2_voice_storage_warn({
+          error: view.storageError ?? "",
+        })}</InlineNotice
       >
     {/if}
     {#if view}
@@ -73,7 +75,9 @@
       href={protocolDoc}
       target="_blank"
       rel="noreferrer"
-      >语音识别协议文档<IconExternalLink aria-hidden="true" /></Button
+      >{m.s2_voice_protocol_doc()}<IconExternalLink
+        aria-hidden="true"
+      /></Button
     >
   </Card.Content>
 </Card.Root>

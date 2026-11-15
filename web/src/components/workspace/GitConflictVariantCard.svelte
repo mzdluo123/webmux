@@ -4,6 +4,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitConflictFileDetail } from "../../contracts/schemas";
   import {
     formatConflictSideMeta,
@@ -35,8 +36,7 @@
           <span class="font-mono break-all font-medium">{detail.path}</span>
         </div>
         <p class="leading-relaxed">
-          {detail.degradeReason ||
-            "此文件冲突无法执行文本三方合并，请显式选择要保留的版本或删除此文件。"}
+          {detail.degradeReason || m.s6_conflict_variant_fallback_reason()}
         </p>
       </div>
     </InlineNotice>
@@ -47,7 +47,7 @@
       >
         <div class="space-y-1.5">
           <div class="flex flex-wrap items-center gap-1.5">
-            <Badge variant="info">左侧来源</Badge>
+            <Badge variant="info">{m.s6_conflict_left_source()}</Badge>
             <span class="font-semibold wrap-anywhere text-foreground">
               {detail.left.label}
             </span>
@@ -77,7 +77,7 @@
             data-testid="git-conflict-choose-left-btn"
           >
             <IconCheck aria-hidden="true" />
-            保留左侧版本并标记已解决
+            {m.s6_conflict_keep_left_resolve()}
           </Button>
         </div>
       </div>
@@ -87,7 +87,7 @@
       >
         <div class="space-y-1.5">
           <div class="flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline">右侧来源</Badge>
+            <Badge variant="outline">{m.s6_conflict_right_source()}</Badge>
             <span class="font-semibold wrap-anywhere text-foreground">
               {detail.right.label}
             </span>
@@ -117,7 +117,7 @@
             data-testid="git-conflict-choose-right-btn"
           >
             <IconCheck aria-hidden="true" />
-            保留右侧版本并标记已解决
+            {m.s6_conflict_keep_right_resolve()}
           </Button>
         </div>
       </div>
@@ -128,10 +128,12 @@
     >
       <div class="min-w-0 space-y-0.5">
         <p class="font-medium text-foreground">
-          共同祖先 Base (stage 1)：{formatConflictSideMeta(detail.base)}
+          {m.s6_conflict_base_stage1_meta({
+            meta: formatConflictSideMeta(detail.base),
+          })}
         </p>
         <p class="text-muted-foreground">
-          若需要将此文件从工作树与暂存索引中移除，可确认删除文件并清除未合并阶段。
+          {m.s6_conflict_delete_file_help()}
         </p>
       </div>
       <Button
@@ -143,7 +145,7 @@
         data-testid="git-conflict-delete-file-btn"
       >
         <IconTrash aria-hidden="true" />
-        删除文件并标记已解决
+        {m.s6_conflict_delete_resolve()}
       </Button>
     </div>
   </div>

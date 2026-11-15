@@ -8,6 +8,7 @@
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import {
     gitChanges,
@@ -95,9 +96,7 @@
       inspectState = {
         phase: "limited",
         fileDiff: null,
-        reason:
-          file.degradeReason ||
-          "二进制文件不展开文本行级差异（本次提交将写入该文件的暂存快照）。",
+        reason: file.degradeReason || m.s6_commit_preview_binary_reason(),
       };
       return;
     }
@@ -204,8 +203,7 @@
             phase: "limited",
             fileDiff: null,
             reason:
-              file.degradeReason ||
-              "该暂存条目仅包含模式、重命名或空内容变更。",
+              file.degradeReason || m.s6_commit_preview_empty_diff_reason(),
           };
         }
       } catch (err) {
@@ -247,14 +245,14 @@
 
 <ResponsiveDialog
   title={model.followUpPush
-    ? `确认提交并进入推送预览 · ${model.repositoryName}`
+    ? m.s6_commit_preview_title_push({ repo: model.repositoryName })
     : model.amend
-      ? `确认修正上一次提交 (Amend) · ${model.repositoryName}`
-      : `确认本地提交 · ${model.repositoryName}`}
+      ? m.s6_commit_preview_title_amend({ repo: model.repositoryName })
+      : m.s6_commit_preview_title_local({ repo: model.repositoryName })}
   description={model.amend
-    ? "以下为修正提交（HEAD^ → index）的完整清单，将替换当前 HEAD 提交。"
-    : "以下为真实 Git index（HEAD → index）的完整提交清单，包含工作台与终端预先暂存的全部条目。"}
-  drawerDescription="核对完整 Git index 暂存清单后确认提交。"
+    ? m.s6_commit_preview_desc_amend()
+    : m.s6_commit_preview_desc_local()}
+  drawerDescription={m.s6_commit_preview_drawer_desc()}
   truncateDrawerTitle
   busy={submitting}
   class="sm:max-w-3xl"
@@ -272,7 +270,7 @@
       <InlineNotice tone="warning">
         <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
           <span class="min-w-0">
-            当前工作树处于游离 HEAD；建议先从当前 HEAD 新建并切换分支后再提交。
+            {m.s6_commit_preview_detached_notice()}
           </span>
           {#if onCreateBranchFromHead}
             <Button
@@ -285,7 +283,7 @@
               }}
             >
               <IconGitBranch aria-hidden="true" />
-              从当前 HEAD 新建并切换分支…
+              {m.s6_commit_preview_create_branch_btn()}
             </Button>
           {/if}
         </div>
@@ -296,8 +294,7 @@
       <InlineNotice tone="warning">
         <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
           <span class="min-w-0">
-            {model.dialogError ||
-              "暂存区或 HEAD 在预览打开期间已变化，当前确认令牌已失效；提交说明已保留。"}
+            {model.dialogError || m.s6_commit_preview_stale_fallback()}
           </span>
           {#if onRefreshPreview}
             <Button
@@ -308,7 +305,7 @@
               onclick={onRefreshPreview}
             >
               <IconRefresh aria-hidden="true" />
-              重新生成提交预览
+              {m.s6_commit_preview_regenerate_btn()}
             </Button>
           {/if}
         </div>
@@ -319,7 +316,7 @@
 
     {#if model.followUpPush}
       <InlineNotice tone="info">
-        两阶段独立提交流程：第一步先执行本地提交并核对树对象；仅当结果完全匹配预期（matched）时才会进入第二步推送确认。若钩子改写了暂存区（needs_review）或状态待核实（uncertain），将自动中止推送。
+        {m.s6_commit_preview_two_step_notice()}
       </InlineNotice>
     {/if}
 
@@ -329,11 +326,18 @@
       <div class="flex flex-wrap items-center justify-between gap-1">
         <span class="text-xs font-semibold text-foreground">
           {model.amend
-            ? `即将写入修正提交的完整 HEAD^ → index 条目 (${model.stagedFiles.length})`
-            : `即将写入本次提交的完整 HEAD → index 条目 (${model.stagedFiles.length})`}
+            ? m.s6_commit_preview_entries_amend({
+                count: model.stagedFiles.length,
+              })
+            : m.s6_commit_preview_entries_local({
+                count: model.stagedFiles.length,
+              })}
         </span>
         <span class="text-xs text-muted-foreground">
-          未暂存排除：{model.unstagedCount} · 未跟踪排除：{model.untrackedCount}
+          {m.s6_commit_preview_excluded_counts({
+            unstaged: model.unstagedCount,
+            untracked: model.untrackedCount,
+          })}
         </span>
       </div>
 
@@ -342,7 +346,7 @@
           <div class="space-y-0.5 p-1.5">
             {#if model.stagedFiles.length === 0}
               <p class="px-2 py-2 text-xs text-muted-foreground">
-                当前 Git index 中没有已暂存条目。
+                {m.s6_commit_preview_no_staged()}
               </p>
             {:else}
               {#each model.stagedFiles as file (file.id)}
@@ -376,7 +380,9 @@
                   </span>
                   {#if file.preStagedFromCli}
                     <Badge variant="warning" class="max-w-full min-w-0 shrink">
-                      <span class="truncate">终端预暂存</span>
+                      <span class="truncate">
+                        {m.s6_commit_preview_cli_prestaged()}
+                      </span>
                     </Badge>
                   {/if}
                 </ListButton>
@@ -393,7 +399,7 @@
         >
           {#if inspectState.phase === "loading"}
             <p class="p-3 text-xs text-muted-foreground">
-              正在加载 HEAD → index 差异（{expandedFile.path}）…
+              {m.s6_commit_preview_loading_diff({ path: expandedFile.path })}
             </p>
           {:else if inspectState.phase === "ready" && inspectState.fileDiff}
             <CodeDiffReader
@@ -418,8 +424,9 @@
     </div>
 
     <div class="rounded-lg border bg-background p-2.5">
-      <span class="text-xs font-semibold text-muted-foreground">提交说明：</span
-      >
+      <span class="text-xs font-semibold text-muted-foreground">
+        {m.s6_commit_preview_message_label()}
+      </span>
       <ScrollArea viewportClasses="mt-1 max-h-24">
         <p
           class="font-mono text-xs whitespace-pre-wrap wrap-anywhere text-foreground"
@@ -435,11 +442,11 @@
       canConfirm={canExecute}
       wrap
       confirmLabel={model.followUpPush
-        ? "确认提交并继续预览推送"
+        ? m.s6_commit_preview_confirm_push()
         : model.amend
-          ? "确认修正本地提交 (Amend)"
-          : "确认本地提交"}
-      submittingLabel="正在提交…"
+          ? m.s6_commit_preview_confirm_amend()
+          : m.s6_commit_preview_confirm_local()}
+      submittingLabel={m.s6_commit_preview_submitting()}
       confirmTestId="git-commit-preview-confirm-btn"
       {onConfirm}
       {onClose}

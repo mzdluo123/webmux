@@ -1,5 +1,6 @@
 import type { FileDiffMetadata, SelectedLineRange } from "@pierre/diffs";
 import { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import type {
   GitChangeGroup,
   GitWorkingChange,
@@ -156,7 +157,7 @@ export function extractDiffRangeSnippet(
     .join("\n");
   const snippet =
     rawSnippet.length > MAX_SNIPPET_CHARS
-      ? `${rawSnippet.slice(0, MAX_SNIPPET_CHARS)}\n…（已截断）`
+      ? `${rawSnippet.slice(0, MAX_SNIPPET_CHARS)}\n${m.s7_rework_truncated()}`
       : rawSnippet;
   return { side, startLine, endLine, snippet };
 }
@@ -176,23 +177,25 @@ export function resolveStagingVersionDescriptor(options: {
     if (options.side === "old") {
       return {
         sourceKind: "head",
-        versionLabel: shortHead ? `HEAD (${shortHead}) 删除侧` : "HEAD 删除侧",
+        versionLabel: shortHead
+          ? m.s7_rework_ver_head_short_del({ oid: shortHead })
+          : m.s7_rework_ver_head_del(),
       };
     }
     return {
       sourceKind: "index",
-      versionLabel: "暂存区 (index)",
+      versionLabel: m.s7_rework_ver_index(),
     };
   }
   if (options.side === "old") {
     return {
       sourceKind: "index",
-      versionLabel: "暂存区 (index) 删除侧",
+      versionLabel: m.s7_rework_ver_index_del(),
     };
   }
   return {
     sourceKind: "worktree",
-    versionLabel: "当前工作区",
+    versionLabel: m.s7_current_working_tree(),
     ...(options.liveWorktreeIdentity
       ? { capturedWorktreeIdentity: options.liveWorktreeIdentity }
       : {}),
@@ -216,15 +219,17 @@ export function resolveSnapshotVersionDescriptor(options: {
     if (options.side === "old") {
       const baseText =
         options.leftLabel ||
-        (options.baseOid ? options.baseOid.slice(0, 7) : "空仓起点");
+        (options.baseOid
+          ? options.baseOid.slice(0, 7)
+          : m.s7_unborn_baseline());
       return {
         sourceKind: "task-base",
-        versionLabel: `任务起点 (${baseText}) 旧侧`,
+        versionLabel: m.s7_rework_ver_task_base_old({ base: baseText }),
       };
     }
     return {
       sourceKind: "worktree",
-      versionLabel: "当前工作区",
+      versionLabel: m.s7_current_working_tree(),
       ...(options.liveWorktreeIdentity
         ? { capturedWorktreeIdentity: options.liveWorktreeIdentity }
         : {}),
@@ -234,18 +239,18 @@ export function resolveSnapshotVersionDescriptor(options: {
   if (options.side === "old") {
     const baseShort =
       options.leftLabel ||
-      (options.baseOid ? options.baseOid.slice(0, 7) : "空树");
+      (options.baseOid ? options.baseOid.slice(0, 7) : m.s7_empty_tree());
     return {
       sourceKind: "commit",
-      versionLabel: `历史提交 ${baseShort} 旧侧`,
+      versionLabel: m.s7_rework_ver_commit_old({ oid: baseShort }),
     };
   }
   const targetShort =
     options.rightLabel ||
-    (options.targetOid ? options.targetOid.slice(0, 7) : "提交");
+    (options.targetOid ? options.targetOid.slice(0, 7) : m.s7_op_kind_commit());
   return {
     sourceKind: "commit",
-    versionLabel: `历史提交 ${targetShort}`,
+    versionLabel: m.s7_rework_ver_commit({ oid: targetShort }),
   };
 }
 
@@ -330,23 +335,28 @@ export function formatReworkFeedbackMarkdown(
     context.checkedOutBranch ??
     (context.headOid ? `detached@${context.headOid.slice(0, 7)}` : "unborn");
   const headerLines = [
-    `请根据以下 Git 工作台审阅意见修改当前工作树（${context.repositoryName} · ${branchText}）：`,
+    m.s7_rework_md_intro({
+      repo: context.repositoryName,
+      branch: branchText,
+    }),
   ];
   if (context.worktreePath) {
-    headerLines.push(`工作树路径：\`${context.worktreePath}\``);
+    headerLines.push(
+      m.s7_rework_md_worktree_path({ path: context.worktreePath }),
+    );
   }
 
   const sections = items.map((item, idx) => {
     const range = formatLineRangeLabel(item.startLine, item.endLine);
     const renameSuffix =
       item.oldPath && item.oldPath !== item.path
-        ? `（重命名自 \`${item.oldPath}\`）`
+        ? m.s7_rework_md_renamed_from({ oldPath: item.oldPath })
         : "";
     const nonWorktreeNotice =
       item.sourceKind !== "worktree"
-        ? `（注意：此行号对应「${item.versionLabel}」，并非当前工作区实时行号，请结合代码片段定位）`
+        ? m.s7_rework_md_non_worktree_notice({ version: item.versionLabel })
         : stalePaths.has(item.path)
-          ? "（注意：当前工作区该文件自摘录后已有新改动，请结合代码片段核对最新行号）"
+          ? m.s7_rework_md_stale_notice()
           : "";
     const fence = item.codeSnippet.includes("```") ? "````" : "```";
     const lines = [
@@ -356,9 +366,9 @@ export function formatReworkFeedbackMarkdown(
       lines.push(`${fence}\n${item.codeSnippet}\n${fence}`);
     }
     if (item.userNote.trim()) {
-      lines.push(`修改要求：${item.userNote.trim()}`);
+      lines.push(m.s7_rework_md_req_note({ note: item.userNote.trim() }));
     } else {
-      lines.push("修改要求：请检查并修复上述位置的问题。");
+      lines.push(m.s7_rework_md_req_default());
     }
     return lines.join("\n");
   });
@@ -370,7 +380,7 @@ export function formatCommitDraftAssistPrompt(
   context: GitWorktreeContext,
   stagedChanges: readonly GitWorkingChange[],
 ): string {
-  const branchText = context.checkedOutBranch ?? "当前工作树";
+  const branchText = context.checkedOutBranch ?? m.s7_current_worktree();
   const fileList = stagedChanges
     .slice(0, 30)
     .map(
@@ -380,12 +390,15 @@ export function formatCommitDraftAssistPrompt(
     .join("\n");
   const extra =
     stagedChanges.length > 30
-      ? `\n- …以及其余 ${stagedChanges.length - 30} 个已暂存文件`
+      ? `\n${m.s7_commit_assist_more_files({ count: String(stagedChanges.length - 30) })}`
       : "";
   return [
-    `请查看当前工作树（${context.repositoryName} · ${branchText}）真实 Git index 中已暂存的变更（可执行 \`git diff --cached\` 查看详情），协助起草一份简洁准确的 Conventional Commits 提交说明（含 Subject 与必要的 Body 要点，直接给出文本即可，不要代我执行 \`git commit\`）：`,
+    m.s7_commit_assist_intro({
+      repo: context.repositoryName,
+      branch: branchText,
+    }),
     "",
-    "已暂存文件：",
+    m.s7_commit_assist_staged_header(),
     `${fileList}${extra}`,
   ].join("\n");
 }

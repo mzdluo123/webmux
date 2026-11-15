@@ -37,6 +37,7 @@
   import GitWorkbenchTopBar from "../components/workspace/GitWorkbenchTopBar.svelte";
   import GitWorkbenchWorkspace from "../components/workspace/GitWorkbenchWorkspace.svelte";
   import GitWorktreeGuardState from "../components/workspace/GitWorktreeGuardState.svelte";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     repositoryId,
@@ -123,8 +124,8 @@
 
   $effect(() => {
     const title = repository?.name
-      ? `${repository.name} · Git 工作台 · WebMux`
-      : "Git 工作台 · WebMux";
+      ? m.s1_chrome_repo_git_workbench({ name: repository.name })
+      : m.s1_chrome_git_workbench();
     const running = shell.sessions.sessions.some((s) => s.status === "running");
     setBrowserChrome(title, running);
   });
@@ -381,7 +382,7 @@
       class="flex flex-1 items-center justify-center p-6 text-xs text-muted-foreground"
       role="status"
     >
-      正在加载仓库工作台…
+      {m.s1_loading_git_workbench()}
     </div>
   {:else}
     {#if controller.error}
@@ -393,14 +394,14 @@
     {#if worktreeId && commitGuard === "broken-worktree" && controller.view.mode !== "commit"}
       <div class="border-b border-border bg-background px-3 py-2">
         <InlineNotice tone="warning">
-          目标工作树不可用或已锁定，写操作已禁用；仓库历史仍可只读浏览。
+          {m.s1_broken_worktree_readonly_notice()}
           <Button
             size="sm"
             variant="outline"
             class="ml-2"
             onclick={openManageWorktrees}
           >
-            管理工作树…
+            {m.s1_manage_worktrees_ellipsis()}
           </Button>
         </InlineNotice>
       </div>

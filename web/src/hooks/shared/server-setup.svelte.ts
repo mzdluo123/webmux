@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { homeCache, type HomeSetup } from "../../domains/workspace/home-cache";
 import { ConfigSchema } from "../../contracts/schemas";
@@ -30,7 +31,7 @@ export function createServerSetup(): ServerSetup {
   let value = $state.raw<HomeSetup>(cached ?? EMPTY);
   let settled = $state(!!cached);
   let busy = $state(false);
-  let error = $state("");
+  let loadFailed = $state(false);
   return {
     get value() {
       return value;
@@ -42,7 +43,7 @@ export function createServerSetup(): ServerSetup {
       return busy;
     },
     get error() {
-      return error;
+      return loadFailed ? m.s1_server_setup_load_failed() : "";
     },
     async load(signal) {
       if (busy) return;
@@ -71,9 +72,9 @@ export function createServerSetup(): ServerSetup {
           voice: config.voice,
         };
         homeCache.rememberSetup(value);
-        error = "";
+        loadFailed = false;
       } catch {
-        error = "服务端设置加载失败，可重试；仍可使用临时命令创建会话。";
+        loadFailed = true;
       } finally {
         busy = false;
         settled = true;

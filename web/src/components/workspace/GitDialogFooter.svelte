@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
   let {
@@ -8,7 +9,7 @@
     canConfirm = true,
     wrap = false,
     confirmLabel,
-    submittingLabel = "正在处理…",
+    submittingLabel: rawSubmittingLabel,
     confirmVariant = "default",
     confirmTestId,
     onConfirm,
@@ -25,6 +26,10 @@
     onConfirm: () => void;
     onClose: () => void;
   } = $props();
+
+  const submittingLabel = $derived(
+    rawSubmittingLabel ?? m.s6_processing_ellipsis(),
+  );
 </script>
 
 {#if dialogError}
@@ -35,7 +40,7 @@
   class="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2 pt-1"
 >
   <Button variant="outline" {wrap} disabled={submitting} onclick={onClose}>
-    取消
+    {m.s6_cancel()}
   </Button>
   <Button
     variant={confirmVariant}

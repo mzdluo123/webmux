@@ -9,6 +9,7 @@
   } from "../../domains/sessions/session-status";
   import LaunchConfigIcon from "../settings/LaunchConfigIcon.svelte";
   import RowStatus from "../shared/RowStatus.svelte";
+  import * as m from "$lib/paraglide/messages.js";
 
   // The running sessions on the collapsed sidebar rail: one icon each for
   // quick switching, with the same status dot as a full sidebar row.
@@ -29,7 +30,10 @@
     type="hover"
     class="min-h-0 w-full flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block"
   >
-    <ul class="flex flex-col items-center gap-1 py-1" aria-label="运行中的会话">
+    <ul
+      class="flex flex-col items-center gap-1 py-1"
+      aria-label={m.s1_running_sessions()}
+    >
       {#each sessions as session (session.id)}
         {@const status = rowStatus(session)}
         <li class="relative">

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { ItemGroup } from "$lib/components/ui/item";
   import { Badge } from "$lib/components/ui/badge";
   import type {
@@ -44,9 +45,9 @@
 </script>
 
 <ResponsiveDialog
-  title="确认丢弃单条贮藏 (Drop Stash)"
-  description="将从 refs/stash 引用日志中移除此条贮藏记录。为防误删，系统不提供一键清空全部贮藏。"
-  drawerDescription="核对贮藏对象 OID 与恢复命令后确认丢弃。"
+  title={m.s7_stash_drop_title()}
+  description={m.s7_stash_drop_desc()}
+  drawerDescription={m.s7_stash_drop_drawer_desc()}
   busy={submitting}
   class="sm:max-w-lg"
   onclose={onClose}
@@ -59,20 +60,22 @@
             <span class="font-mono">{entry.stashRef}</span>
           </Badge>
           {#if preview}
-            <Badge variant="outline">{preview.fileCount} 个文件</Badge>
+            <Badge variant="outline">
+              {m.s7_file_count_badge({ count: preview.fileCount })}
+            </Badge>
           {/if}
         </div>
         <p class="font-medium wrap-anywhere text-foreground">{entry.summary}</p>
         <p class="font-mono break-all text-muted-foreground">
-          对象 OID：{entry.oid}
+          {m.s7_stash_drop_oid_label({ oid: entry.oid })}
         </p>
       </ItemGroup>
     {/if}
 
     {#if recoveryCmd}
       <GitRecoveryCommandBox
-        label="Git GC 回收前紧急恢复命令："
-        copyLabel="复制贮藏恢复命令"
+        label={m.s7_stash_drop_recovery_label()}
+        copyLabel={m.s7_stash_drop_copy_recovery()}
         command={recoveryCmd}
         testId="git-stash-drop-recovery-cmd"
       />
@@ -80,7 +83,7 @@
 
     {#if loading && !preview}
       <p class="text-xs text-muted-foreground" role="status">
-        正在核验贮藏引用与对象快照…
+        {m.s7_stash_drop_loading()}
       </p>
     {:else if preview}
       <GitIssueList blockers={preview.blockers} warnings={preview.warnings} />
@@ -90,8 +93,8 @@
       {dialogError}
       {submitting}
       {canConfirm}
-      confirmLabel="确认丢弃此贮藏"
-      submittingLabel="正在丢弃…"
+      confirmLabel={m.s7_stash_drop_confirm()}
+      submittingLabel={m.s7_stash_drop_submitting()}
       confirmVariant="destructive"
       confirmTestId="git-stash-drop-confirm-btn"
       {onConfirm}

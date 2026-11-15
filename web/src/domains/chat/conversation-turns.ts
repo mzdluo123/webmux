@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import type { TimelineEntry } from "./chat-model";
 
 export type ConversationTurnItem = {
@@ -42,10 +43,10 @@ export function conversationTurns(
       summary:
         summary ||
         (entry.role === "user" && entry.attachments?.length
-          ? "用户附件"
+          ? m.s3_turn_user_attachment()
           : entry.role === "user"
-            ? "空消息"
-            : "内容已截断"),
+            ? m.s3_turn_empty_message()
+            : m.s3_turn_content_truncated()),
     });
   }
   return items;

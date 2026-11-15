@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import {
     previewRelease,
@@ -64,7 +64,7 @@
       await releaseWorktree(worktree, preview.confirmationId);
       onclose();
     } catch (err) {
-      error = `${errorMessage(err)}。工作树与记录保持原样，请重新读取预览后再确认。`;
+      error = m.s8_release_failed_retry({ error: errorMessage(err) });
       preview = null;
     } finally {
       busy = false;
@@ -74,21 +74,36 @@
 </script>
 
 <ResponsiveDialog
-  title="释放空间"
-  description="删除工作树目录与 Git 登记以回收磁盘。分支与已归档记录保留，之后恢复聊天时可在原路径重建工作树。"
-  drawerDescription="删除工作树目录以回收磁盘；分支与已归档记录保留，可在恢复时重建。"
+  title={m.s8_release_title()}
+  description={m.s8_release_desc()}
+  drawerDescription={m.s8_release_drawer_desc()}
   {onclose}
   {busy}
 >
-  <PreviewForm {busy} {error} onsubmit={() => void release()} {onclose}>
+  <PreviewForm
+    {busy}
+    {error}
+    onsubmit={() => void release()}
+    {onclose}
+    confirm={{
+      ready: preview !== null,
+      disabled: (preview?.blockers.length ?? 0) > 0,
+      label: m.s8_release_title(),
+      variant: "destructive",
+      onreload: load,
+    }}
+  >
     {#snippet summary()}
       <KeyValueSummary
         rows={[
-          { label: "路径", value: worktree.path, mono: true },
-          { label: "分支", value: worktree.branch || "detached（无分支）" },
+          { label: m.s8_label_path(), value: worktree.path, mono: true },
           {
-            label: "保存提交",
-            value: commit || "无法解析",
+            label: m.s8_label_branch(),
+            value: worktree.branch || m.s8_release_detached_no_branch(),
+          },
+          {
+            label: m.s8_label_saved_commit(),
+            value: commit || m.s8_release_unresolvable(),
             mono: true,
             wrap: false,
           },
@@ -97,11 +112,14 @@
     {/snippet}
     {#if preview}
       {#if preview.blockers.length}
-        <BlockerList title="无法释放空间" blockers={preview.blockers} />
+        <BlockerList
+          title={m.s8_release_cannot_title()}
+          blockers={preview.blockers}
+        />
       {/if}
       {#if preview.archived.length}
         <div class="space-y-2 text-sm">
-          <p class="font-medium">保留的已归档会话（之后可重建并恢复）</p>
+          <p class="font-medium">{m.s8_retained_archived_sessions_heading()}</p>
           <ul class="space-y-1">
             {#each preview.archived as record (record.id)}<li class="break-all">
                 {record.title} · {record.cwd}
@@ -114,21 +132,12 @@
         />{/if}
       {#if hasIgnored}
         <InlineNotice tone="warning">
-          忽略文件（例如依赖、构建产物、.env）会随目录永久删除，重建工作树也无法找回，需要重新生成。
+          {m.s8_release_ignored_files_warning()}
         </InlineNotice>
       {/if}
       <p class="text-xs text-muted-foreground">
-        确认 5 分钟内有效；目标或会话变化后必须重新预览。
+        {m.s8_release_confirmation_ttl_hint()}
       </p>
     {/if}
-    {#snippet actions()}
-      {#if preview}<Button
-          type="submit"
-          variant="destructive"
-          disabled={busy || preview.blockers.length > 0}>释放空间</Button
-        >{:else}<Button type="button" disabled={busy} onclick={load}
-          >重新读取预览</Button
-        >{/if}
-    {/snippet}
   </PreviewForm>
 </ResponsiveDialog>

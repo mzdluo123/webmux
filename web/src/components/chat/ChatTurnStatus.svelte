@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import IconCircleCheck from "~icons/tabler/circle-check";
   import IconHandStop from "~icons/tabler/hand-stop";
   import IconLoader2 from "~icons/tabler/loader-2";
@@ -49,11 +50,16 @@
     const totalMinutes = Math.floor(totalSeconds / 60);
     const minutes = totalMinutes % 60;
     const hours = Math.floor(totalMinutes / 60);
+    const padSec = String(seconds).padStart(2, "0");
     if (hours)
-      return `${hours} 小时 ${String(minutes).padStart(2, "0")} 分 ${String(seconds).padStart(2, "0")} 秒`;
+      return m.s3_duration_hms({
+        hours,
+        minutes: String(minutes).padStart(2, "0"),
+        seconds: padSec,
+      });
     if (totalMinutes)
-      return `${totalMinutes} 分 ${String(seconds).padStart(2, "0")} 秒`;
-    return `${seconds} 秒`;
+      return m.s3_duration_ms({ minutes: totalMinutes, seconds: padSec });
+    return m.s3_duration_s({ seconds });
   }
 
   // Some agents (agy) end the turn while a backgrounded command still runs and
@@ -72,11 +78,11 @@
   const turnCompletionLabel = $derived(
     chat?.turn.stopReason === "end_turn"
       ? turnHasOpenTools
-        ? "本轮已结束，仍有任务未完成"
-        : "已完成"
+        ? m.s3_turn_ended_open_tools()
+        : m.s3_turn_completed()
       : chat?.turn.stopReason === "cancelled"
-        ? "已中断"
-        : "已结束",
+        ? m.s3_turn_cancelled()
+        : m.s3_row_status_ended(),
   );
   const turnFailed = $derived(
     chat?.turn.stopReason === "error" ||
@@ -91,7 +97,10 @@
       turnEndedAt === undefined
     )
       return "";
-    return `${turnCompletionLabel} · 用时 ${formatDuration(turnElapsed)}`;
+    return m.s3_turn_completion_elapsed({
+      label: turnCompletionLabel,
+      duration: formatDuration(turnElapsed),
+    });
   });
 
   // Server timestamps keep the duration correct across reconnects and devices.
@@ -107,14 +116,16 @@
 
 {#if mode === "notices"}
   {#if truncated}
-    <InlineNotice>更早的历史未缓存，可切到终端查看</InlineNotice>
+    <InlineNotice>{m.s3_older_history_uncached_terminal()}</InlineNotice>
   {/if}
   {#each chat?.outdated ?? [] as item (item.name)}
     <InlineNotice tone="warning">{outdatedText(item)}</InlineNotice>
   {/each}
   {#if chat?.unsupported.length}
     <InlineNotice tone="warning"
-      >聊天视图不支持该参数：{chat.unsupported.join(" ")}</InlineNotice
+      >{m.s3_chat_unsupported_args({
+        args: chat.unsupported.join(" "),
+      })}</InlineNotice
     >
   {/if}
 {:else if mode === "dock"}
@@ -125,18 +136,18 @@
           size="sm"
           variant="outline"
           disabled={!!unavailable}
-          onclick={onterminal}>切到终端</Button
+          onclick={onterminal}>{m.s3_switch_to_terminal_btn()}</Button
         >{/snippet}
     </ConnectorInstallHint>
   {/if}
   {#if chat?.authRequired}
     <InlineNotice tone="danger">
       <span class="flex flex-wrap items-center gap-2"
-        >Agent 需要登录，请在终端中完成登录。<Button
+        >{m.s3_agent_login_required()}<Button
           size="sm"
           variant="outline"
           disabled={!!unavailable}
-          onclick={onterminal}>切到终端登录</Button
+          onclick={onterminal}>{m.s3_switch_to_terminal_login()}</Button
         ></span
       >
     </InlineNotice>
@@ -151,7 +162,7 @@
       role="status"
     >
       <IconLoader2 class="size-3.5 animate-spin" aria-hidden="true" />
-      正在连接聊天…
+      {m.s3_connecting_chat()}
     </p>
   {:else if chat.turn.running && !request}
     <p
@@ -159,7 +170,7 @@
       role="status"
     >
       <IconLoader2 class="size-3.5 animate-spin" aria-hidden="true" />
-      正在工作…
+      {m.s3_working()}
       {#if turnElapsed !== undefined}
         <span class="tabular-nums" aria-hidden="true"
           >· {formatDuration(turnElapsed)}</span
@@ -184,7 +195,11 @@
         <IconCircleCheck class="size-3.5" aria-hidden="true" />
       {/if}
       {turnCompletionLabel}
-      <span class="tabular-nums">· 用时 {formatDuration(turnElapsed)}</span>
+      <span class="tabular-nums"
+        >{m.s3_turn_elapsed_suffix({
+          duration: formatDuration(turnElapsed),
+        })}</span
+      >
     </p>
   {/if}
 {/if}

@@ -15,7 +15,9 @@
   import { Switch } from "$lib/components/ui/switch";
   import * as Card from "$lib/components/ui/card";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import * as m from "$lib/paraglide/messages.js";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import LocaleChoice from "../shared/LocaleChoice.svelte";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import { headsetMode } from "../../hooks/shared/headset-mode.svelte";
   let fontDraft = $state<number | undefined>(undefined);
@@ -29,53 +31,59 @@
 
 <Card.Root flat id="appearance" class="scroll-mt-4">
   <Card.Header>
-    <Card.Title>外观与阅读</Card.Title>
-    <Card.Description
-      >主题与阅读偏好保存到当前服务端，在已连接的设备间即时同步；终端字号只保存在此浏览器。恢复默认后使用设备的系统主题与默认字号。</Card.Description
-    >
+    <Card.Title>{m.s2_appearance_title()}</Card.Title>
+    <Card.Description>{m.s2_appearance_desc()}</Card.Description>
   </Card.Header>
   <Card.Content class="space-y-6">
-    <div class="flex items-center justify-between gap-4">
-      <div class="space-y-1">
-        <Label for="tv-mode">TV 模式</Label>
-        <p class="text-sm text-muted-foreground">
-          仅此浏览器：放大界面，使用方向键、确认与返回导航。
-        </p>
-      </div>
-      <Switch id="tv-mode" bind:checked={tvMode.enabled} aria-label="TV 模式" />
+    <div class="space-y-2">
+      <p class="text-sm font-medium">{m.locale_label()}</p>
+      <LocaleChoice />
     </div>
     <div class="flex items-center justify-between gap-4">
       <div class="space-y-1">
-        <Label for="headset-mode">头显浏览器模式</Label>
+        <Label for="tv-mode">{m.s2_tv_mode()}</Label>
         <p class="text-sm text-muted-foreground">
-          仅此浏览器：大窗口隐藏触屏软键，使用键盘入口主动唤起系统键盘。
+          {m.s2_tv_mode_desc()}
+        </p>
+      </div>
+      <Switch
+        id="tv-mode"
+        bind:checked={tvMode.enabled}
+        aria-label={m.s2_tv_mode()}
+      />
+    </div>
+    <div class="flex items-center justify-between gap-4">
+      <div class="space-y-1">
+        <Label for="headset-mode">{m.s2_headset_mode()}</Label>
+        <p class="text-sm text-muted-foreground">
+          {m.s2_headset_mode_desc()}
         </p>
       </div>
       <Switch
         id="headset-mode"
         bind:checked={headsetMode.enabled}
-        aria-label="头显浏览器模式"
+        aria-label={m.s2_headset_mode()}
       />
     </div>
     <div class="flex flex-wrap items-center justify-between gap-3">
       <p role="status" class="text-sm text-muted-foreground">
         {settings.saving
-          ? "正在保存…"
+          ? m.s2_saving()
           : !settings.ready
-            ? "设置不可用"
+            ? m.s2_settings_unavailable()
             : settings.connected
-              ? "已连接 · 设置已同步"
-              : "正在重连 · 显示最后确认的设置"}
+              ? m.s2_settings_synced()
+              : m.s2_settings_reconnecting()}
       </p>
       <Button variant="outline" size="sm" onclick={() => void reloadSettings()}
-        >重新读取</Button
+        >{m.s2_reload()}</Button
       >
     </div>
     {#if settings.error}<InlineNotice tone="danger"
         >{settings.error}</InlineNotice
       >{/if}
     <div class="space-y-2">
-      <Label for="settings-font">终端字号</Label>
+      <Label for="settings-font">{m.s2_terminal_font_size()}</Label>
       <Input
         id="settings-font"
         type="number"
@@ -91,7 +99,10 @@
         aria-invalid={!validFont}
       />
       {#if !validFont}<p role="alert" class="text-sm text-destructive">
-          请输入 {minFontSize}–{maxFontSize} 之间的整数。
+          {m.s2_terminal_font_range_err({
+            min: String(minFontSize),
+            max: String(maxFontSize),
+          })}
         </p>{/if}
       <Button
         variant="outline"
@@ -99,12 +110,12 @@
         onclick={() => {
           fontDraft = undefined;
           terminalFont.reset();
-        }}>恢复默认字号</Button
+        }}>{m.s2_reset_default_font()}</Button
       >
     </div>
     <fieldset disabled={!settings.ready} class="space-y-6">
       <div class="space-y-2">
-        <p class="text-sm font-medium">主题</p>
+        <p class="text-sm font-medium">{m.s2_theme()}</p>
         <SegmentedControl.Root
           value={settings.values.theme ?? "system"}
           onValueChange={(value) =>
@@ -112,15 +123,21 @@
               theme: value === "light" || value === "dark" ? value : null,
             })}
           disabled={!settings.ready}
-          aria-label="主题"
+          aria-label={m.s2_theme()}
         >
-          <SegmentedControl.Item value="system">跟随系统</SegmentedControl.Item>
-          <SegmentedControl.Item value="light">浅色</SegmentedControl.Item>
-          <SegmentedControl.Item value="dark">深色</SegmentedControl.Item>
+          <SegmentedControl.Item value="system"
+            >{m.s2_theme_system()}</SegmentedControl.Item
+          >
+          <SegmentedControl.Item value="light"
+            >{m.s2_theme_light()}</SegmentedControl.Item
+          >
+          <SegmentedControl.Item value="dark"
+            >{m.s2_theme_dark()}</SegmentedControl.Item
+          >
         </SegmentedControl.Root>
       </div>
       <div class="flex items-center justify-between gap-3">
-        <Label for="settings-softkeys">始终显示底部工具栏</Label>
+        <Label for="settings-softkeys">{m.s2_force_softkeys()}</Label>
         <Switch
           id="settings-softkeys"
           checked={settings.values.forceSoftKeys ?? false}
@@ -131,7 +148,7 @@
         variant="outline"
         size="sm"
         onclick={() => changeSettings({ forceSoftKeys: null })}
-        >恢复默认工具栏</Button
+        >{m.s2_reset_default_toolbar()}</Button
       >
     </fieldset>
   </Card.Content>

@@ -16,6 +16,7 @@
   } from "../../platform/plugin-host.svelte";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
   import SplitSessionDialog from "./SplitSessionDialog.svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import LazyDialog from "../shared/LazyDialog.svelte";
 
   let {
@@ -108,7 +109,7 @@
   {@const target = creating}
   <LazyDialog
     load={() => import("../sessions/NewSessionDialog.svelte")}
-    label="创建表单"
+    label={m.s4_create_session_form()}
     onclose={closeCreation}
   >
     {#snippet children(page)}<page.default
@@ -174,7 +175,7 @@
 {#if plugins.forward && forwarding}
   <LazyDialog
     onclose={() => (forwarding = false)}
-    label="端口转发"
+    label={m.s4_port_forwarding()}
     load={() => import("../workspace/ForwardDialog.svelte")}
   >
     {#snippet children(Dialog)}<Dialog.default

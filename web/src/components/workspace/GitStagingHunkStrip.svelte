@@ -6,6 +6,7 @@
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
 
   type GitChangeHunk = GitWorkingChange["hunks"][number];
@@ -41,16 +42,18 @@
 
 <div
   class="border-b bg-background px-2.5 py-1.5"
-  aria-label="代码块逐块暂存栏"
+  aria-label={m.s6_hunk_strip_aria()}
   data-testid="git-hunk-action-strip"
 >
   <div
     class="mb-1 flex min-w-0 flex-wrap items-center justify-between gap-1 text-xs"
   >
     <span class="font-semibold text-muted-foreground">
-      代码块逐块操作（常驻可见 · 支持桌面与触屏）
+      {m.s6_hunk_strip_heading()}
     </span>
-    <span class="font-mono text-muted-foreground">共 {hunks.length} 块</span>
+    <span class="font-mono text-muted-foreground">
+      {m.s6_hunk_strip_total({ count: String(hunks.length) })}
+    </span>
   </div>
   <ScrollArea viewportClasses="max-h-28">
     <div class="space-y-1">
@@ -85,7 +88,7 @@
                 data-testid="git-hunk-add-rework"
               >
                 <IconMessagePlus aria-hidden="true" />
-                加入意见
+                {m.s6_hunk_add_comment()}
               </Button>
             {/if}
             {#if stageMode === "stage"}
@@ -98,7 +101,7 @@
                   data-testid="git-hunk-discard-btn"
                 >
                   <IconTrash aria-hidden="true" />
-                  丢弃此块…
+                  {m.s6_hunk_discard_btn()}
                 </Button>
               {/if}
               <Button
@@ -108,7 +111,7 @@
                 onclick={() => onStageHunk(changeId, hunk.id)}
               >
                 <IconPlus aria-hidden="true" />
-                暂存此块
+                {m.s6_hunk_stage_btn()}
               </Button>
             {:else}
               <Button
@@ -118,7 +121,7 @@
                 onclick={() => onUnstageHunk(changeId, hunk.id)}
               >
                 <IconMinus aria-hidden="true" />
-                取消暂存此块
+                {m.s6_hunk_unstage_btn()}
               </Button>
             {/if}
           </div>

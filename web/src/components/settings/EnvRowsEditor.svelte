@@ -4,6 +4,7 @@
   import IconEyeOff from "~icons/tabler/eye-off";
   import IconPlus from "~icons/tabler/plus";
   import IconTrash from "~icons/tabler/trash";
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import type { EnvRow } from "../../domains/settings/launch-configs";
@@ -37,16 +38,18 @@
 
 <fieldset class="grid min-w-0 gap-2" {disabled}>
   <legend class="mb-2 text-sm font-medium">
-    环境变量 <span class="font-normal text-muted-foreground">可选</span>
+    {m.s2_env_vars()}
+    <span class="font-normal text-muted-foreground">{m.s2_optional()}</span>
   </legend>
   {#each rows as envRow, index (envRow.key)}
     {@const rowErrors = errors[envRow.key]}
+    {@const rowIndex = String(index + 1)}
     <div class="grid min-w-0 gap-1">
       <div class="flex min-w-0 flex-wrap items-center gap-2">
         <Input
           mono
           class="min-w-0 flex-1 basis-32"
-          aria-label={`变量名 ${index + 1}`}
+          aria-label={m.s2_env_name_aria({ index: rowIndex })}
           bind:value={envRow.name}
           placeholder="NAME"
           autocomplete="off"
@@ -60,9 +63,9 @@
             mono
             class="min-w-0 flex-1"
             type={revealed[envRow.key] ? "text" : "password"}
-            aria-label={`变量值 ${index + 1}`}
+            aria-label={m.s2_env_value_aria({ index: rowIndex })}
             bind:value={envRow.value}
-            placeholder="值"
+            placeholder={m.s2_env_value_placeholder()}
             autocomplete="off"
             autocapitalize="off"
             autocorrect="off"
@@ -73,9 +76,11 @@
             type="button"
             variant="ghost"
             size="icon"
-            aria-label={`显示变量值 ${index + 1}`}
+            aria-label={m.s2_env_reveal_aria({ index: rowIndex })}
             aria-pressed={!!revealed[envRow.key]}
-            title={revealed[envRow.key] ? "隐藏变量值" : "显示变量值"}
+            title={revealed[envRow.key]
+              ? m.s2_env_hide_title()
+              : m.s2_env_reveal_title()}
             onclick={() => {
               revealed[envRow.key] = !revealed[envRow.key];
             }}
@@ -87,8 +92,8 @@
             type="button"
             variant="ghost"
             size="icon"
-            aria-label={`删除变量 ${index + 1}`}
-            title="删除变量"
+            aria-label={m.s2_env_remove_aria({ index: rowIndex })}
+            title={m.s2_env_remove_title()}
             onclick={() => {
               rows = rows.filter((item) => item.key !== envRow.key);
             }}><IconTrash aria-hidden="true" /></Button
@@ -96,7 +101,9 @@
         </div>
       </div>
       {#if rowErrors}<p class="text-xs text-destructive">
-          {[rowErrors.name, rowErrors.value].filter(Boolean).join("；")}
+          {[rowErrors.name, rowErrors.value]
+            .filter(Boolean)
+            .join(m.s2_env_error_sep())}
         </p>{/if}
     </div>
   {/each}
@@ -109,7 +116,7 @@
       disabled={rows.length >= max}
       onclick={() => {
         rows = [...rows, makeRow()];
-      }}><IconPlus aria-hidden="true" />添加环境变量</Button
+      }}><IconPlus aria-hidden="true" />{m.s2_env_add()}</Button
     >
   </div>
   {#if help}

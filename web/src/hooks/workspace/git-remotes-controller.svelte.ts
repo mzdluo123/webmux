@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import { APIError, repositoryRemotes } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import {
@@ -161,20 +162,20 @@ export function createGitRemotesController(deps: GitRemotesControllerDeps) {
     const cleanFetch = fetchUrl.trim();
     const cleanPush = pushUrl.trim();
     if (!repoId || !cleanName || !cleanFetch || submitting) {
-      dialogError = "请完整填写远程名称与拉取地址 (Fetch URL)";
+      dialogError = m.s7_remote_req_name_url();
       return;
     }
     if (
       containsRedactedRemoteMask(cleanFetch) ||
       containsRedactedRemoteMask(cleanPush)
     ) {
-      dialogError = "远程地址不能包含脱敏掩码 ***，请输入完整有效 URL";
+      dialogError = m.s7_remote_no_redacted_mask();
       return;
     }
     const isAdd = editMode === "add";
     await runRemoteMutation(
       isAdd ? "remote_add" : "remote_update",
-      "正在保存远程仓库配置…",
+      m.s7_remote_saving_phase(),
       (clientRequestId) =>
         isAdd
           ? gitRemoteAdd(repoId, {
@@ -193,8 +194,8 @@ export function createGitRemotesController(deps: GitRemotesControllerDeps) {
         deps.onRemotesUpdated(
           nextRemotes,
           isAdd
-            ? `已添加远程仓库 ${cleanName}`
-            : `已更新远程仓库 ${cleanName} 配置`,
+            ? m.s7_remote_added_banner({ name: cleanName })
+            : m.s7_remote_updated_banner({ name: cleanName }),
         );
       },
     );
@@ -211,12 +212,15 @@ export function createGitRemotesController(deps: GitRemotesControllerDeps) {
     if (!repoId || !target) return;
     await runRemoteMutation(
       "remote_remove",
-      "正在移除远程仓库…",
+      m.s7_remote_removing_phase(),
       (clientRequestId) =>
         gitRemoteRemove(repoId, target.name, { clientRequestId }),
       (nextRemotes) => {
         removeTarget = null;
-        deps.onRemotesUpdated(nextRemotes, `已移除远程仓库 ${target.name}`);
+        deps.onRemotesUpdated(
+          nextRemotes,
+          m.s7_remote_removed_banner({ name: target.name }),
+        );
       },
     );
   }

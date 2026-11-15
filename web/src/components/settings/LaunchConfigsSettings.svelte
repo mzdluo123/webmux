@@ -1,13 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import { settings } from "../../domains/settings/settings.svelte";
   import { errorMessage } from "../../platform/error";
   import IconPlus from "~icons/tabler/plus";
   import IconRocket from "~icons/tabler/rocket";
-  import IconTrash from "~icons/tabler/trash";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
-  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import InfoHint from "../shared/InfoHint.svelte";
   import SettingsRowMenu from "./SettingsRowMenu.svelte";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
@@ -127,7 +126,7 @@
   disabled: boolean,
 )}
   <Button {variant} {disabled} onclick={() => editLaunchConfig()}
-    ><IconPlus aria-hidden="true" />新建启动配置</Button
+    ><IconPlus aria-hidden="true" />{m.s2_launch_new_title()}</Button
   >
   <LaunchPresetMenu
     presets={launchPresets}
@@ -135,6 +134,22 @@
     busy={disabled || launchPresetBusy}
     onrestore={restoreLaunchPresets}
   />
+{/snippet}
+
+{#snippet launchEmptyCard(busy: boolean, title: string)}
+  <Empty.Root variant="outline" aria-busy={busy ? "true" : undefined}>
+    <Empty.Header>
+      <Empty.Media variant="icon"><IconRocket aria-hidden="true" /></Empty.Media
+      >
+      <Empty.Title role={busy ? "status" : undefined}>{title}</Empty.Title>
+      <Empty.Description>{m.s2_launch_empty_desc()}</Empty.Description>
+    </Empty.Header>
+    <Empty.Content>
+      <div class="flex flex-wrap items-center justify-center gap-2">
+        {@render launchCreateActions("default", busy)}
+      </div>
+    </Empty.Content>
+  </Empty.Root>
 {/snippet}
 
 <Card.Root
@@ -145,12 +160,11 @@
   aria-labelledby="launch-configs-title"
 >
   <Card.Header>
-    <Card.Title id="launch-configs-title">启动配置</Card.Title>
+    <Card.Title id="launch-configs-title">{m.s2_launch_title()}</Card.Title>
     <Card.Description
       ><span class="flex items-center gap-1"
-        >新建会话时选用的命令与环境变量。<InfoHint label="启动配置"
-          >保存“名称 + 完整命令 +
-          环境变量”，在新建会话时选用；自定义启动配置保存在服务端，所有设备共享。也可以在新建会话时输入不保存的临时命令。</InfoHint
+        >{m.s2_launch_desc()}<InfoHint label={m.s2_launch_title()}
+          >{m.s2_launch_hint()}</InfoHint
         ></span
       ></Card.Description
     >
@@ -159,25 +173,10 @@
     {#if launchState === "loading"}
       <!-- Same shape as the empty state, the usual first result, so the
          cards below do not shift when the list arrives. -->
-      <Empty.Root variant="outline" aria-busy="true">
-        <Empty.Header>
-          <Empty.Media variant="icon"
-            ><IconRocket aria-hidden="true" /></Empty.Media
-          >
-          <Empty.Title role="status">正在读取启动配置…</Empty.Title>
-          <Empty.Description
-            >把常用命令、参数和环境变量存起来，在新建会话时一键选用。</Empty.Description
-          >
-        </Empty.Header>
-        <Empty.Content>
-          <div class="flex flex-wrap items-center justify-center gap-2">
-            {@render launchCreateActions("default", true)}
-          </div>
-        </Empty.Content>
-      </Empty.Root>
+      {@render launchEmptyCard(true, m.s2_launch_loading())}
     {:else if launchState === "unavailable"}
       <InlineNotice tone="danger">
-        <p>启动配置暂不可用，新建、编辑与删除已停用：</p>
+        <p>{m.s2_launch_unavailable()}</p>
         <p class="mt-1 font-mono text-xs">{launchError}</p>
       </InlineNotice>
       <Button
@@ -185,33 +184,18 @@
         onclick={() => {
           void loadLaunchConfigs();
           void loadLaunchPresets();
-        }}>重新读取</Button
+        }}>{m.s2_reload()}</Button
       >
     {:else if launchConfigs.length === 0}
-      <Empty.Root variant="outline">
-        <Empty.Header>
-          <Empty.Media variant="icon"
-            ><IconRocket aria-hidden="true" /></Empty.Media
-          >
-          <Empty.Title>还没有启动配置</Empty.Title>
-          <Empty.Description
-            >把常用命令、参数和环境变量存起来，在新建会话时一键选用。</Empty.Description
-          >
-        </Empty.Header>
-        <Empty.Content>
-          <div class="flex flex-wrap items-center justify-center gap-2">
-            {@render launchCreateActions("default", false)}
-          </div>
-        </Empty.Content>
-      </Empty.Root>
+      {@render launchEmptyCard(false, m.s2_launch_empty_title())}
     {:else}
-      <Item.Group variant="divided" aria-label="启动配置列表">
+      <Item.Group variant="divided" aria-label={m.s2_launch_list_aria()}>
         {#each launchConfigs as config (config.id)}
           <Item.Root variant="divided" size="flush" class="min-h-14">
             <ListButton
               variant="content"
               class="flex min-w-0 flex-1 items-center"
-              aria-label={`编辑 ${config.name}`}
+              aria-label={m.s2_edit_item({ name: config.name })}
               onclick={() => editLaunchConfig(config.id)}
             >
               <span class="flex min-w-0 flex-1 items-center gap-3">
@@ -228,24 +212,24 @@
                 </span>
               </span>
             </ListButton>
-            <SettingsRowMenu label={config.name} disabled={!settings.ready}>
-              <DropdownMenu.Item
-                variant="destructive"
-                aria-label={`删除 ${config.name}`}
-                onSelect={() => {
-                  launchDeleting = config;
-                  launchDeleteError = "";
-                  launchDeleteOpen = true;
-                }}><IconTrash aria-hidden="true" />删除</DropdownMenu.Item
-              >
-            </SettingsRowMenu>
+            <SettingsRowMenu
+              label={config.name}
+              disabled={!settings.ready}
+              ondelete={() => {
+                launchDeleting = config;
+                launchDeleteError = "";
+                launchDeleteOpen = true;
+              }}
+            />
           </Item.Root>
         {/each}
       </Item.Group>
       <div class="flex flex-wrap items-center gap-3">
         {@render launchCreateActions("outline", launchFull)}
         {#if launchFull}<span class="text-xs text-muted-foreground"
-            >最多 {LAUNCH_CONFIGS_LIMIT} 条，请先删除一条</span
+            >{m.s2_launch_limit_hint({
+              limit: String(LAUNCH_CONFIGS_LIMIT),
+            })}</span
           >{/if}
       </div>
     {/if}
@@ -253,15 +237,16 @@
       <InlineNotice tone="danger">
         <p>
           {launchPresets.length === 0
-            ? "系统预设暂不可用，恢复菜单已停用："
-            : "补回预设失败："}{launchPresetError}
+            ? m.s2_launch_presets_unavailable({ error: launchPresetError })
+            : m.s2_launch_presets_restore_err({ error: launchPresetError })}
         </p>
         {#if launchPresets.length === 0}
           <Button
             variant="outline"
             size="sm"
             class="mt-2"
-            onclick={() => void loadLaunchPresets()}>重新读取系统预设</Button
+            onclick={() => void loadLaunchPresets()}
+            >{m.s2_launch_presets_reload()}</Button
           >
         {/if}
       </InlineNotice>
@@ -278,9 +263,11 @@
 <AlertDialog.Root bind:open={launchDeleteOpen}>
   <AlertDialog.Content>
     <AlertDialog.Header>
-      <AlertDialog.Title>删除启动配置？</AlertDialog.Title>
+      <AlertDialog.Title>{m.s2_launch_delete_title()}</AlertDialog.Title>
       <AlertDialog.Description
-        >将删除“{launchDeleting?.name}”，此操作不能撤销；已运行的会话不受影响。</AlertDialog.Description
+        >{m.s2_launch_delete_desc({
+          name: launchDeleting?.name ?? "",
+        })}</AlertDialog.Description
       >
     </AlertDialog.Header>
     {#if launchDeleting}<p
@@ -292,11 +279,13 @@
         >{launchDeleteError}</InlineNotice
       >{/if}
     <AlertDialog.Footer>
-      <AlertDialog.Cancel disabled={launchDeleteBusy}>取消</AlertDialog.Cancel>
+      <AlertDialog.Cancel disabled={launchDeleteBusy}
+        >{m.s2_cancel()}</AlertDialog.Cancel
+      >
       <Button
         variant="destructive"
         disabled={launchDeleteBusy}
-        onclick={deleteLaunchConfig}>删除</Button
+        onclick={deleteLaunchConfig}>{m.s2_delete()}</Button
       >
     </AlertDialog.Footer>
   </AlertDialog.Content>

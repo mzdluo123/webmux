@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import IconPaperclip from "~icons/tabler/paperclip";
   import { Button } from "$lib/components/ui/button";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
@@ -23,8 +24,8 @@
 <Button
   variant="ghost"
   size="icon"
-  aria-label="上传文件"
-  title={unavailable || "上传文件"}
+  aria-label={m.s3_upload_file()}
+  title={unavailable || m.s3_upload_file()}
   disabled={disabled || uploads.progress !== null || !!unavailable}
   onclick={() => fileInput?.open()}><IconPaperclip aria-hidden="true" /></Button
 >

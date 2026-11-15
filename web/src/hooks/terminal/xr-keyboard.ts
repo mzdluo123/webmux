@@ -4,6 +4,8 @@ import {
   terminalLeadingKeys,
   terminalModifierKeys,
 } from "../../domains/terminal/terminal-keys";
+import { locale } from "$lib/locale";
+import * as m from "$lib/paraglide/messages.js";
 import type { XrViewSelection } from "./xr-view-state";
 import { XrSurface, type XrRegion } from "./xr-surface";
 
@@ -38,6 +40,7 @@ export function createXrKeyboard(target: () => XrViewSelection | undefined) {
         binding?.layout.id,
         enabled,
         symbols,
+        locale.current,
       ]);
       if (signature === next) return;
       signature = next;
@@ -63,7 +66,7 @@ export function createXrKeyboard(target: () => XrViewSelection | undefined) {
       [
         ...terminalLeadingKeys,
         ["⌫", "\x7f"] as const,
-        ["空格", terminalKeys.space] as const,
+        [m.s4_key_space(), terminalKeys.space] as const,
         ["Ctrl+C", terminalKeys.interrupt] as const,
         ...terminalArrowKeys,
       ].forEach(([label, value], index) =>
@@ -104,7 +107,7 @@ export function createXrKeyboard(target: () => XrViewSelection | undefined) {
       regions.push(
         {
           id: "caps",
-          label: "锁定 Shift",
+          label: m.s4_xr_kb_lock_shift(),
           selected: current?.shiftLocked,
           x: 488,
           y: 448,
@@ -125,7 +128,7 @@ export function createXrKeyboard(target: () => XrViewSelection | undefined) {
         },
         {
           id: "reset",
-          label: "清除修饰",
+          label: m.s4_xr_kb_clear_modifiers(),
           x: 684,
           y: 448,
           width: 180,
@@ -145,7 +148,7 @@ export function createXrKeyboard(target: () => XrViewSelection | undefined) {
         },
         {
           id: "symbols",
-          label: symbols ? "ABC" : "符号",
+          label: symbols ? "ABC" : m.s4_xr_kb_symbols(),
           x: 870,
           y: 448,
           width: 150,
@@ -157,7 +160,7 @@ export function createXrKeyboard(target: () => XrViewSelection | undefined) {
         },
         {
           id: "hide",
-          label: "收起",
+          label: m.s4_xr_kb_hide(),
           x: 1026,
           y: 448,
           width: 166,
@@ -170,7 +173,7 @@ export function createXrKeyboard(target: () => XrViewSelection | undefined) {
       surface.regions = regions;
       surface.draw(() =>
         surface.text(
-          `${current?.title ?? "请选择输入视图"} · ${binding?.layout.id.slice(-8) ?? "无目标"} · ${enabled ? "共享输入 / 草稿" : "只读，当前内容不可输入"}`,
+          `${current?.title ?? m.s4_xr_kb_select_view()} · ${binding?.layout.id.slice(-8) ?? m.s4_xr_kb_no_target()} · ${enabled ? m.s4_xr_kb_shared_input() : m.s4_xr_kb_readonly()}`,
           16,
           12,
           "#edf4ef",

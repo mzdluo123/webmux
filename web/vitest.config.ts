@@ -9,13 +9,18 @@ export const sharedCoverage = {
     "src/main.ts",
     "src/icons/**",
     "src/lib/components/ui/**",
+    "src/lib/paraglide/**",
   ],
 };
 
 export default defineConfig({
+  resolve: {
+    alias: { $lib: new URL("./src/lib", import.meta.url).pathname },
+  },
   test: {
     environment: "node",
     include: ["test/*.test.ts"],
+    setupFiles: ["./test/setup-unit.ts"],
     coverage: {
       ...sharedCoverage,
       include: ["src/**/*.ts"],

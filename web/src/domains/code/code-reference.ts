@@ -1,9 +1,10 @@
+import * as m from "$lib/paraglide/messages.js";
 import { encodeBase64Url } from "../../platform/base64url";
 import type { CodeDocument } from "../../contracts/schemas";
 
 export function codeReference(doc: CodeDocument, start?: number, end?: number) {
   if (!doc.referenceable || doc.source === "empty")
-    throw new Error("此路径无法无损引用");
+    throw new Error(m.s5_path_not_referenceable());
   if (
     start !== undefined &&
     (!Number.isInteger(start) ||
@@ -14,7 +15,7 @@ export function codeReference(doc: CodeDocument, start?: number, end?: number) {
       (end ?? start) > doc.lineCount ||
       doc.kind !== "text")
   )
-    throw new Error("无效行范围");
+    throw new Error(m.s5_invalid_line_range());
   // Keep control characters in the existing reversible display notation. Its
   // double quotes still need to suppress shell substitutions.
   // oxlint-disable-next-line no-control-regex -- Escape control bytes before sending paths to a terminal.
@@ -35,9 +36,9 @@ export function codeReference(doc: CodeDocument, start?: number, end?: number) {
       : `:${start}${end !== undefined && end !== start ? `-${end}` : ""}`;
   const source =
     doc.source === "index"
-      ? "（索引版本）"
+      ? m.s5_ref_suffix_index()
       : doc.source === "head"
-        ? "（HEAD 旧版本）"
+        ? m.s5_ref_suffix_head()
         : "";
   return `${path}${range}${source} `;
 }

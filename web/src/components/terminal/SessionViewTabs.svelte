@@ -2,6 +2,7 @@
   import IconMessageCircle from "~icons/tabler/message-circle";
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import * as Tabs from "$lib/components/ui/tabs";
+  import * as m from "$lib/paraglide/messages.js";
   import { MediaQuery } from "svelte/reactivity";
   import type { SwitchTarget } from "../../domains/sessions/hybrid";
 
@@ -46,27 +47,31 @@
       }
     }
   >
-    <Tabs.List variant="line" animated aria-label="会话视图">
+    <Tabs.List variant="line" animated aria-label={m.s4_session_view_tabs()}>
       <Tabs.Trigger
         value="chat"
         disabled={switching}
         aria-disabled={unavailable && !switching ? "true" : undefined}
-        aria-label={unavailable ? `聊天（${unavailable}）` : "聊天"}
-        title={unavailable ? `现在不能切到聊天：${unavailable}` : "聊天"}
+        aria-label={unavailable
+          ? m.s4_tab_chat_unavailable_aria({ reason: unavailable })
+          : m.s4_tab_chat()}
+        title={unavailable
+          ? m.s4_tab_chat_unavailable_title({ reason: unavailable })
+          : m.s4_tab_chat()}
         ><IconMessageCircle
           class={phone.current ? "hidden" : ""}
           aria-hidden="true"
-        /><span>聊天</span></Tabs.Trigger
+        /><span>{m.s4_tab_chat()}</span></Tabs.Trigger
       >
       <Tabs.Trigger
         value="terminal"
         disabled={switching}
-        aria-label="终端"
-        title="终端"
+        aria-label={m.s4_tab_terminal()}
+        title={m.s4_tab_terminal()}
         ><IconTerminal2
           class={phone.current ? "hidden" : ""}
           aria-hidden="true"
-        /><span>终端</span></Tabs.Trigger
+        /><span>{m.s4_tab_terminal()}</span></Tabs.Trigger
       >
     </Tabs.List>
   </Tabs.Root>

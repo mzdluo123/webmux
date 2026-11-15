@@ -4,6 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Textarea } from "$lib/components/ui/textarea";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitConflictFileDetail } from "../../contracts/schemas";
   import type {
     GitBaseCompareMode,
@@ -54,13 +55,13 @@
   <!-- Column 2: Center Editable Result (NEVER replaced by Base) -->
   <section
     class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-    aria-label="中间可编辑合并结果 Result"
+    aria-label={m.s6_conflict_center_result_aria()}
     data-testid="git-conflict-center-result"
   >
     <div class="space-y-1 border-b bg-background px-2.5 py-2 text-xs">
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         <div class="flex min-w-0 items-center gap-1.5">
-          <Badge variant="success">合并结果 Result</Badge>
+          <Badge variant="success">{m.s6_conflict_result_badge()}</Badge>
           <span class="min-w-0 truncate font-mono" title={detail.path}>
             {detail.path}
           </span>
@@ -68,24 +69,30 @@
 
         <div class="flex flex-wrap items-center gap-1">
           {#if progress.hasConflictMarkers}
-            <Badge variant="destructive">含冲突标记</Badge>
+            <Badge variant="destructive">
+              {m.s6_conflict_has_markers_badge()}
+            </Badge>
           {:else if progress.hasSavedToDisk}
-            <Badge variant="success">已保存至工作树</Badge>
+            <Badge variant="success">{m.s6_conflict_saved_to_worktree()}</Badge>
           {:else}
-            <Badge variant="warning">草稿未保存</Badge>
+            <Badge variant="warning">{m.s6_conflict_unsaved_draft()}</Badge>
           {/if}
           <Badge
             variant={progress.unresolvedConflicts === 0
               ? "secondary"
               : "outline"}
           >
-            已决 {progress.totalConflicts -
-              progress.unresolvedConflicts}/{progress.totalConflicts}
+            {m.s6_conflict_resolved_progress({
+              resolved: String(
+                progress.totalConflicts - progress.unresolvedConflicts,
+              ),
+              total: String(progress.totalConflicts),
+            })}
           </Badge>
         </div>
       </div>
       <p class="text-xs text-muted-foreground">
-        可直接编辑合并文本；按序执行「保存结果」写入工作树后，再点击「标记已解决」写入暂存索引。
+        {m.s6_conflict_editor_help()}
       </p>
     </div>
 
@@ -94,8 +101,9 @@
         class="flex flex-wrap items-center justify-between gap-2 border-b bg-background px-2.5 py-1.5 text-xs"
       >
         <span class="text-muted-foreground">
-          检测到你已直接编辑结果文本（剩余 {progress.unresolvedConflicts}
-          处冲突块待确认）
+          {m.s6_conflict_manual_edit_detected({
+            count: String(progress.unresolvedConflicts),
+          })}
         </span>
         <Button
           size="sm"
@@ -104,7 +112,7 @@
           data-testid="git-conflict-confirm-manual-btn"
         >
           <IconCheck aria-hidden="true" />
-          确认手动编辑已解决冲突
+          {m.s6_conflict_confirm_manual_btn()}
         </Button>
       </div>
     {/if}
@@ -117,7 +125,7 @@
           <Textarea
             variant="bare"
             code
-            aria-label="合并结果文本编辑器"
+            aria-label={m.s6_conflict_result_editor_aria()}
             value={draft.resultText}
             oninput={(e) => onChangeResultText(e.currentTarget.value)}
             class="min-h-full flex-1"

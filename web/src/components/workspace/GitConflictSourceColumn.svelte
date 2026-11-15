@@ -6,6 +6,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type {
     GitConflictSegment,
     GitConflictSide,
@@ -48,7 +49,9 @@
 
 <section
   class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-  aria-label={isLeft ? "左侧只读来源版本" : "右侧只读来源版本"}
+  aria-label={isLeft
+    ? m.s6_conflict_left_col_aria()
+    : m.s6_conflict_right_col_aria()}
   data-testid={isLeft
     ? "git-conflict-left-column"
     : "git-conflict-right-column"}
@@ -56,7 +59,7 @@
   <div class="space-y-1 border-b bg-background px-2.5 py-2 text-xs">
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       <Badge variant={isLeft ? "info" : "outline"}>
-        {isLeft ? "左侧来源" : "右侧来源"}
+        {isLeft ? m.s6_conflict_left_source() : m.s6_conflict_right_source()}
       </Badge>
       <span class="min-w-0 truncate font-semibold" title={info.label}>
         {info.label}
@@ -106,7 +109,9 @@
                 <Badge
                   variant={choice === "unresolved" ? "destructive" : "info"}
                 >
-                  冲突块 · 左侧 ({lines.length} 行)
+                  {m.s6_conflict_left_lines_badge({
+                    count: String(lines.length),
+                  })}
                 </Badge>
               {/if}
               <div class="flex flex-wrap items-center gap-1">
@@ -118,7 +123,9 @@
                   data-testid={`conflict-accept-${side}-${seg.id}`}
                 >
                   {#if !isLeft}<IconArrowLeft aria-hidden="true" />{/if}
-                  {isLeft ? "接受左侧" : "接受右侧"}
+                  {isLeft
+                    ? m.s6_conflict_accept_left()
+                    : m.s6_conflict_accept_right()}
                   {#if isLeft}<IconArrowRight aria-hidden="true" />{/if}
                 </Button>
                 <Button
@@ -126,12 +133,12 @@
                   variant="ghost"
                   aria-pressed={choice === bothChoice}
                   title={isLeft
-                    ? "先放入左侧行，再紧接放入右侧行"
-                    : "先放入右侧行，再紧接放入左侧行"}
+                    ? m.s6_conflict_both_lr_tooltip()
+                    : m.s6_conflict_both_rl_tooltip()}
                   onclick={() => onChooseChunk(seg.id, bothChoice)}
                 >
                   {#if !isLeft}<IconChevronsLeft aria-hidden="true" />{/if}
-                  {isLeft ? "先左后右" : "先右后左"}
+                  {isLeft ? m.s6_conflict_both_lr() : m.s6_conflict_both_rl()}
                   {#if isLeft}<IconChevronsRight aria-hidden="true" />{/if}
                 </Button>
               </div>
@@ -139,7 +146,9 @@
                 <Badge
                   variant={choice === "unresolved" ? "destructive" : "info"}
                 >
-                  冲突块 · 右侧 ({lines.length} 行)
+                  {m.s6_conflict_right_lines_badge({
+                    count: String(lines.length),
+                  })}
                 </Badge>
               {/if}
             </div>
@@ -149,10 +158,12 @@
                 class="rounded-sm border bg-background p-1.5 font-mono text-muted-foreground"
               >
                 <div class="mb-0.5 font-sans text-xs font-medium">
-                  共同祖先 Base ({seg.baseLines.length} 行)：
+                  {m.s6_conflict_base_lines_heading({
+                    count: String(seg.baseLines.length),
+                  })}
                 </div>
                 {#if seg.baseLines.length === 0}
-                  <div class="italic">(Base 中无行)</div>
+                  <div class="italic">{m.s6_conflict_base_empty()}</div>
                 {:else}
                   {#each seg.baseLines as bLine, bIdx (`${seg.id}:${side}b:${bIdx}`)}
                     <div class="whitespace-pre-wrap break-all">
@@ -166,7 +177,9 @@
             <div class="font-mono text-foreground">
               {#if lines.length === 0}
                 <div class="italic text-muted-foreground">
-                  ({isLeft ? "左侧" : "右侧"}删除此段)
+                  {isLeft
+                    ? m.s6_conflict_left_deleted_section()
+                    : m.s6_conflict_right_deleted_section()}
                 </div>
               {:else}
                 {#each lines as line, idx (`${seg.id}:${side}c:${idx}`)}
@@ -190,8 +203,8 @@
               {#if isLeft}
                 <Badge variant="info">
                   {seg.kind === "change_both_same"
-                    ? "两侧相同改动"
-                    : "左侧非冲突改动"}
+                    ? m.s6_conflict_same_change_both()
+                    : m.s6_conflict_left_nonconflict()}
                 </Badge>
               {/if}
               <Button
@@ -201,20 +214,24 @@
                 onclick={() => onToggleNonConflicting(seg.id)}
               >
                 {#if !isLeft}<IconArrowLeft aria-hidden="true" />{/if}
-                {applied ? "已应用到结果" : "应用此改动"}
+                {applied
+                  ? m.s6_conflict_applied_to_result()
+                  : m.s6_conflict_apply_change()}
                 {#if isLeft}<IconArrowRight aria-hidden="true" />{/if}
               </Button>
               {#if !isLeft}
                 <Badge variant="info">
                   {seg.kind === "change_both_same"
-                    ? "两侧相同改动"
-                    : "右侧非冲突改动"}
+                    ? m.s6_conflict_same_change_both()
+                    : m.s6_conflict_right_nonconflict()}
                 </Badge>
               {/if}
             </div>
             <div class="font-mono text-foreground">
               {#if lines.length === 0}
-                <div class="italic text-muted-foreground">(删除 Base 行)</div>
+                <div class="italic text-muted-foreground">
+                  {m.s6_conflict_deleted_base_lines()}
+                </div>
               {:else}
                 {#each lines as line, idx (`${seg.id}:${side}n:${idx}`)}
                   <div class="whitespace-pre-wrap break-all">{line || " "}</div>

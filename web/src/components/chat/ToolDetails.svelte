@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
+  import * as m from "$lib/paraglide/messages.js";
   import { diffStats, type ToolEntry } from "../../domains/chat/chat-model";
   import {
     isExternalLink,
@@ -52,7 +53,7 @@
       {#if block.path && onreview}
         {@const path = block.path}
         <Button variant="outline" size="xs" onclick={() => onreview?.(path)}
-          >在代码面板中查看</Button
+          >{m.s3_view_in_code_panel()}</Button
         >
       {/if}
     </div>
@@ -80,12 +81,20 @@
       <p class="font-mono text-xs break-all">{label}</p>
     {/if}
   {:else}
-    <p>不支持的内容：{block.unsupported || "未知类型"}</p>
+    <p>
+      {m.s3_unsupported_content({
+        type: block.unsupported || m.s3_unknown_type(),
+      })}
+    </p>
   {/if}
-  {#if block.truncated}<p class="text-xs">（内容过长，已截断）</p>{/if}
+  {#if block.truncated}<p class="text-xs">
+      {m.s3_content_too_long_truncated()}
+    </p>{/if}
 {:else}
   <p>
-    {tool.partial ? "这次调用开始得更早，详情已不在缓存中。" : "没有输出。"}
+    {tool.partial
+      ? m.s3_tool_started_earlier_uncached()
+      : m.s3_tool_no_output()}
   </p>
 {/each}
 {#each tool.locations as location, i (i)}

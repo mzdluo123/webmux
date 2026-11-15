@@ -1,5 +1,6 @@
 <script lang="ts">
   import IconGitBranch from "~icons/tabler/git-branch";
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -93,7 +94,7 @@
     <span class="min-w-0 flex-1 truncate" title={value}>{value}</span>
   {:else}
     <span class="text-sm text-muted-foreground">
-      {data || loadError ? placeholder : "正在读取分支…"}
+      {data || loadError ? placeholder : m.s8_reading_branches()}
     </span>
   {/if}
 {/snippet}
@@ -104,22 +105,28 @@
   value={mode}
   onValueChange={handleModeChange}
   disabled={busy}
-  aria-label="切换目标"
+  aria-label={m.s8_switch_target_aria()}
 >
-  <SegmentedControl.Item value="existing">已有分支</SegmentedControl.Item>
-  <SegmentedControl.Item value="new">新建分支</SegmentedControl.Item>
-  <SegmentedControl.Item value="detach">分离到提交</SegmentedControl.Item>
+  <SegmentedControl.Item value="existing"
+    >{m.s8_switch_mode_existing()}</SegmentedControl.Item
+  >
+  <SegmentedControl.Item value="new"
+    >{m.s8_switch_mode_new()}</SegmentedControl.Item
+  >
+  <SegmentedControl.Item value="detach"
+    >{m.s8_switch_mode_detach()}</SegmentedControl.Item
+  >
 </SegmentedControl.Root>
 
 {#if loadError}
   <p role="alert" class="text-sm break-all text-destructive">
-    无法读取分支：{loadError}
+    {m.s8_err_load_branches({ error: loadError })}
   </p>
 {/if}
 
 {#if mode === "existing"}
   <div class="space-y-2">
-    <Label for="switch-branch">目标分支</Label>
+    <Label for="switch-branch">{m.s8_target_branch_label()}</Label>
     <PickerField
       id="switch-branch"
       bind:open={() => branchOpen, setBranchOpen}
@@ -127,10 +134,10 @@
     >
       {#snippet trigger()}{@render pickerFace(
           chosenName,
-          "选择本地或远程分支",
+          m.s8_select_local_or_remote_branch(),
         )}{/snippet}
       <BranchCommandList
-        label="目标分支"
+        label={m.s8_target_branch_label()}
         branches={[...localItems]}
         remoteBranches={[...remoteItems]}
         selected={chosenName}
@@ -145,20 +152,20 @@
       />
     </PickerField>
     <p class="text-xs text-muted-foreground">
-      远程分支会新建同名本地分支并设为其上游。
+      {m.s8_remote_branch_creates_local_help()}
     </p>
   </div>
 {:else if mode === "new"}
   <div class="space-y-3">
     <div class="space-y-2">
       <div class="flex items-center justify-between gap-2">
-        <Label for="switch-new-branch">新分支名称</Label>
+        <Label for="switch-new-branch">{m.s8_new_branch_name_label()}</Label>
         <Button
           type="button"
           variant="outline"
           size="sm"
           disabled={busy || !data}
-          onclick={onSuggestName}>换一个</Button
+          onclick={onSuggestName}>{m.s8_suggest_another()}</Button
         >
       </div>
       <Input
@@ -173,12 +180,12 @@
       />
       {#if nameTaken}
         <p role="alert" class="text-xs text-destructive">
-          已有同名本地分支；请换一个名称，或在“已有分支”中选择它。
+          {m.s8_err_local_branch_name_taken()}
         </p>
       {/if}
     </div>
     <div class="space-y-2">
-      <Label for="switch-start-point">起点</Label>
+      <Label for="switch-start-point">{m.s8_start_point_label()}</Label>
       <PickerField
         id="switch-start-point"
         bind:open={() => startOpen, setStartOpen}
@@ -187,11 +194,11 @@
         {#snippet trigger()}{@render pickerFace(
             startIsBranch || !startPoint
               ? startPoint
-              : `当前提交 ${short(startPoint)}`,
-            "选择起点",
+              : m.s8_current_commit_hash({ hash: short(startPoint) }),
+            m.s8_select_start_point(),
           )}{/snippet}
         <BranchCommandList
-          label="起点"
+          label={m.s8_start_point_label()}
           branches={[...localBranchList]}
           remoteBranches={[...remoteBranchList]}
           selected={startPoint}
@@ -202,7 +209,9 @@
           onselect={(name) => ((startPoint = name), setStartOpen(false))}
         />
       </PickerField>
-      <p class="text-xs text-muted-foreground">新分支不设置上游。</p>
+      <p class="text-xs text-muted-foreground">
+        {m.s8_new_branch_no_upstream_help()}
+      </p>
     </div>
   </div>
 {:else}

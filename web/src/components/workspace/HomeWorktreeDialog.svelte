@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as Command from "$lib/components/ui/command";
@@ -59,12 +60,12 @@
 </script>
 
 <ResponsiveDialog
-  title={`主页显示 · ${repository.name}`}
-  description="勾选的工作树显示在主页；有会话的工作树始终显示。"
+  title={m.s8_home_wt_title({ name: repository.name })}
+  description={m.s8_home_wt_desc()}
   {onclose}
 >
   <Command.Root
-    label="主页工作树"
+    label={m.s8_home_wt_command_label()}
     class="h-auto min-h-0 min-w-0 flex-1"
     filter={(value, term, keywords) =>
       [value, ...(keywords ?? [])].some((text) =>
@@ -76,18 +77,18 @@
   >
     <Command.Input
       bind:value={search}
-      placeholder="按分支或路径搜索…"
+      placeholder={m.s8_home_wt_search_placeholder()}
       autocomplete="off"
       autocapitalize="off"
       autocorrect="off"
       spellcheck={false}
     />
     <Command.List
-      aria-label="工作树列表"
+      aria-label={m.s8_home_wt_list_label()}
       aria-multiselectable="true"
       class="max-h-72 min-h-0 flex-1"
     >
-      <Command.Empty>没有匹配的 worktree</Command.Empty>
+      <Command.Empty>{m.s8_home_wt_empty()}</Command.Empty>
       {#each worktrees as tree (tree.id)}
         <Command.Item
           value={tree.id}
@@ -100,12 +101,13 @@
             <span class="flex flex-wrap items-center gap-1.5">
               <span class="font-medium break-all">{worktreeTitle(tree)}</span>
               {#if tree.kind === "main"}<Badge variant="secondary"
-                  >主工作区</Badge
+                  >{m.s8_badge_main_worktree()}</Badge
                 >{/if}
               {#if active.has(tree.id) && !pinned.has(tree.id)}<Badge
-                  variant="outline">有会话，始终显示</Badge
+                  variant="outline">{m.s8_badge_active_always_shown()}</Badge
                 >{/if}
-              {#if !tree.available}<Badge variant="destructive">不可用</Badge
+              {#if !tree.available}<Badge variant="destructive"
+                  >{m.s8_badge_unavailable()}</Badge
                 >{/if}
             </span>
             <span
@@ -120,7 +122,7 @@
   <div
     class="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2 text-xs text-muted-foreground"
   >
-    <span>取消勾选只把它移出主页，不会删除 worktree。</span>
+    <span>{m.s8_home_wt_uncheck_hint()}</span>
     {#if onmanage}
       <Button
         size="xs"
@@ -128,7 +130,7 @@
         onclick={() => {
           onclose();
           onmanage();
-        }}>批量管理…</Button
+        }}>{m.s8_home_wt_batch_manage()}</Button
       >
     {/if}
   </div>

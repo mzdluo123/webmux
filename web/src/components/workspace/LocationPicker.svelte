@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import IconCirclePlus from "~icons/tabler/circle-plus";
   import IconFolder from "~icons/tabler/folder";
   import IconGitBranch from "~icons/tabler/git-branch";
@@ -106,7 +107,7 @@
 
 {#snippet treeGroup(repo: Repository)}
   <Command.Group
-    heading={projectScoped ? "项目工作区" : repo.name}
+    heading={projectScoped ? m.s8_loc_project_workspaces() : repo.name}
     value="repo:{repo.id}"
   >
     {#each scopedTrees(repo) as tree (tree.id)}
@@ -128,8 +129,10 @@
             variant="quiet"
             size="icon-sm"
             class="pointer-events-auto"
-            title={`删除工作树 ${worktreeLabel(tree)}`}
-            aria-label={`删除工作树 ${worktreeLabel(tree)}`}
+            title={m.s8_loc_delete_worktree({ label: worktreeLabel(tree) })}
+            aria-label={m.s8_loc_delete_worktree({
+              label: worktreeLabel(tree),
+            })}
             onkeydown={(event) => {
               // The command root rewrites Enter into selecting the row.
               if (event.key === "Enter") event.stopPropagation();
@@ -145,21 +148,27 @@
     {/each}
     <Command.Item
       value="new:{repo.id}"
-      keywords={[repo.name, "新建工作树", "worktree"]}
+      keywords={[repo.name, m.s8_loc_new_worktree(), "worktree"]}
       disabled={repo.availability !== "available"}
       data-checked={kind === "new-worktree" && repositoryId === repo.id}
       onSelect={() => chooseNewWorktree(repo)}
     >
       <IconCirclePlus class="text-muted-foreground" aria-hidden="true" />
       <span class="text-sm"
-        >{scope?.worktreeId ? "从当前工作树分支新建…" : "新建工作树…"}</span
+        >{scope?.worktreeId
+          ? m.s8_loc_new_from_current_wt()
+          : m.s8_menu_new_worktree()}</span
       >
     </Command.Item>
   </Command.Group>
 {/snippet}
 
 <div class="space-y-2">
-  <Label for="session-location">{projectScoped ? "工作位置" : "位置"}</Label>
+  <Label for="session-location"
+    >{projectScoped
+      ? m.s8_loc_work_location_label()
+      : m.s8_loc_location_label()}</Label
+  >
   <PickerField id="session-location" bind:open={() => open, setOpen} {disabled}>
     {#snippet trigger()}
       {#if kind === "directory"}
@@ -168,7 +177,7 @@
           aria-hidden="true"
         />
         <ChoiceDetails
-          primary="直接目录"
+          primary={m.s8_loc_direct_dir()}
           secondary={projectScoped ? cwd : ""}
         />
       {:else if kind === "new-worktree"}
@@ -178,8 +187,8 @@
         />
         <ChoiceDetails
           primary={repository && !projectScoped
-            ? `新建工作树 · ${repository.name}`
-            : "新建工作树"}
+            ? m.s8_loc_new_worktree_in_repo({ name: repository.name })
+            : m.s8_loc_new_worktree()}
           secondary={newWorktreeSummary}
         />
       {:else}
@@ -194,31 +203,38 @@
           />
         {:else}
           <span class="grid min-w-0 flex-1 gap-0.5">
-            <span class="text-sm text-muted-foreground">选择工作树</span>
+            <span class="text-sm text-muted-foreground"
+              >{m.s8_loc_select_worktree()}</span
+            >
             {#if repository}<span class="truncate text-xs text-muted-foreground"
-                >{repository.name} 没有可用的工作树</span
+                >{m.s8_loc_no_available_worktrees({
+                  name: repository.name,
+                })}</span
               >{/if}
           </span>
         {/if}
       {/if}
     {/snippet}
-    <Command.Root label="位置" class="h-auto min-w-0">
+    <Command.Root label={m.s8_loc_location_label()} class="h-auto min-w-0">
       <Command.Input
         bind:value={search}
-        placeholder="搜索目录或工作树…"
-        aria-label="搜索位置"
+        placeholder={m.s8_loc_search_placeholder()}
+        aria-label={m.s8_loc_search_aria()}
         autocomplete="off"
         autocapitalize="off"
         autocorrect="off"
         spellcheck={false}
       />
-      <Command.List aria-label="位置列表" class="max-h-[min(20rem,50dvh)] p-1">
-        <Command.Empty>没有匹配的位置</Command.Empty>
+      <Command.List
+        aria-label={m.s8_loc_list_aria()}
+        class="max-h-[min(20rem,50dvh)] p-1"
+      >
+        <Command.Empty>{m.s8_loc_empty()}</Command.Empty>
         {#if ordered[0]?.id === preferredRepositoryId}
           {@render treeGroup(ordered[0])}
         {/if}
         {#if recent.length && !scope && !projectScoped}
-          <Command.Group heading="最近目录" value="recent">
+          <Command.Group heading={m.s8_loc_recent_dirs()} value="recent">
             {#each recent as dir (dir)}
               <Command.Item
                 value="dir:{dir}"
@@ -236,14 +252,14 @@
           {@render treeGroup(repo)}
         {/each}
         {#if !scope && !projectScoped}
-          <Command.Group heading="其他" value="other">
+          <Command.Group heading={m.s8_loc_other()} value="other">
             <Command.Item
               value="action:directory"
-              keywords={["目录", "directory"]}
+              keywords={[m.s8_loc_dir_keyword(), "directory"]}
               onSelect={typeDirectory}
             >
               <IconPencil class="text-muted-foreground" aria-hidden="true" />
-              <span class="text-sm">输入或浏览目录…</span>
+              <span class="text-sm">{m.s8_loc_enter_or_browse_dir()}</span>
             </Command.Item>
           </Command.Group>
         {/if}

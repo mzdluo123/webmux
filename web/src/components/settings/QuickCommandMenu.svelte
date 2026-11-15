@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import IconBolt from "~icons/tabler/bolt";
   import IconCornerDownLeft from "~icons/tabler/corner-down-left";
   import IconPlus from "~icons/tabler/plus";
@@ -41,7 +42,11 @@
   } = $props();
   const blocked = $derived(target === "terminal" && !!unavailable);
   const title = $derived(
-    { terminal: "发送到终端", draft: "插入草稿", chat: "插入消息" }[target],
+    target === "terminal"
+      ? m.s2_qc_menu_send_terminal()
+      : target === "draft"
+        ? m.s2_qc_menu_insert_draft()
+        : m.s2_qc_menu_insert_chat(),
   );
 </script>
 
@@ -58,8 +63,8 @@
     <DropdownMenu.Item
       class="min-h-9 any-pointer-coarse:min-h-11"
       disabled={blocked}
-      aria-label={[cmd.name, preview].filter(Boolean).join("：") +
-        (enter ? "（并回车）" : "")}
+      aria-label={[cmd.name, preview].filter(Boolean).join(m.s2_qc_item_sep()) +
+        (enter ? m.s2_qc_item_enter_suffix() : "")}
       onSelect={() => run(cmd)}
     >
       <span class="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -75,25 +80,31 @@
     </DropdownMenu.Item>
   {:else}
     <div class="px-2 py-2 text-xs">
-      <p class="font-medium">还没有快捷指令</p>
+      <p class="font-medium">{m.s2_qc_empty_title()}</p>
       <p class="mt-1 text-muted-foreground">
-        把常用命令或提示词存起来，在这里一键发送。
+        {m.s2_qc_menu_empty_desc()}
       </p>
     </div>
     <DropdownMenu.Item class="any-pointer-coarse:min-h-11" onSelect={manage}
-      ><IconPlus aria-hidden="true" />添加快捷指令…</DropdownMenu.Item
+      ><IconPlus aria-hidden="true" />{m.s2_qc_menu_add()}</DropdownMenu.Item
     >
   {/each}
   <DropdownMenu.Separator />
   <DropdownMenu.Item class="any-pointer-coarse:min-h-11" onSelect={manage}
-    ><IconSettings aria-hidden="true" />管理快捷指令…</DropdownMenu.Item
+    ><IconSettings
+      aria-hidden="true"
+    />{m.s2_qc_menu_manage()}</DropdownMenu.Item
   >
 {/snippet}
 
 {#if submenu}
   <DropdownMenu.Sub>
-    <DropdownMenu.SubTrigger aria-label="快捷指令" title="快捷指令" {disabled}>
-      <IconBolt aria-hidden="true" />快捷指令
+    <DropdownMenu.SubTrigger
+      aria-label={m.s2_qc_title()}
+      title={m.s2_qc_title()}
+      {disabled}
+    >
+      <IconBolt aria-hidden="true" />{m.s2_qc_title()}
     </DropdownMenu.SubTrigger>
     <DropdownMenu.SubContent
       class="max-h-[min(60dvh,24rem)] w-72 max-w-[calc(100vw-1rem)]"
@@ -108,8 +119,8 @@
           {...props}
           {variant}
           {size}
-          aria-label="快捷指令"
-          title="快捷指令"
+          aria-label={m.s2_qc_title()}
+          title={m.s2_qc_title()}
           ><IconBolt class="size-4" aria-hidden="true" /></Button
         >{/snippet}
     </DropdownMenu.Trigger>

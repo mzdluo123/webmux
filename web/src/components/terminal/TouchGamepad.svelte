@@ -7,6 +7,7 @@
   import IconCornerDownLeft from "~icons/tabler/corner-down-left";
   import IconSpace from "~icons/tabler/space";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import {
     terminalKeys,
     createTerminalKeyRepeat,
@@ -120,7 +121,7 @@
 <div
   class="flex w-full items-end justify-between gap-2 pb-1.5"
   role="toolbar"
-  aria-label="终端摇杆"
+  aria-label={m.s4_touch_gamepad_aria()}
 >
   <div class="grid grid-cols-2 gap-1.5">
     <Button
@@ -163,8 +164,8 @@
       variant="hud"
       size="sm"
       data-gamepad-key="enter"
-      aria-label="回车"
-      title="回车"
+      aria-label={m.s4_key_enter()}
+      title={m.s4_key_enter()}
       onmousedown={keepFocus}
       onclick={(event) => {
         event.stopPropagation();
@@ -183,8 +184,8 @@
         size="icon-sm"
         class="w-full"
         data-gamepad-key="space"
-        aria-label="空格"
-        title="空格（切换选择）"
+        aria-label={m.s4_key_space()}
+        title={m.s4_key_space_title()}
         onmousedown={keepFocus}
         onclick={(event) => {
           event.stopPropagation();
@@ -200,8 +201,8 @@
         size="icon-sm"
         class="w-full"
         data-gamepad-key="up"
-        aria-label="向上方向键"
-        title="向上方向键（可按住滑动切换方向）"
+        aria-label={m.s4_key_up_aria()}
+        title={m.s4_key_up_title()}
         aria-pressed={activeDirection === "up"}
         onmousedown={keepFocus}
         onpointerdown={(event) => startDirection("up", event)}
@@ -220,8 +221,8 @@
         size="icon-sm"
         class="w-full"
         data-gamepad-key="left"
-        aria-label="向左方向键"
-        title="向左方向键（可按住滑动切换方向）"
+        aria-label={m.s4_key_left_aria()}
+        title={m.s4_key_left_title()}
         aria-pressed={activeDirection === "left"}
         onmousedown={keepFocus}
         onpointerdown={(event) => startDirection("left", event)}
@@ -240,8 +241,8 @@
         size="icon-sm"
         class="w-full"
         data-gamepad-key="down"
-        aria-label="向下方向键"
-        title="向下方向键（可按住滑动切换方向）"
+        aria-label={m.s4_key_down_aria()}
+        title={m.s4_key_down_title()}
         aria-pressed={activeDirection === "down"}
         onmousedown={keepFocus}
         onpointerdown={(event) => startDirection("down", event)}
@@ -260,8 +261,8 @@
         size="icon-sm"
         class="w-full"
         data-gamepad-key="right"
-        aria-label="向右方向键"
-        title="向右方向键（可按住滑动切换方向）"
+        aria-label={m.s4_key_right_aria()}
+        title={m.s4_key_right_title()}
         aria-pressed={activeDirection === "right"}
         onmousedown={keepFocus}
         onpointerdown={(event) => startDirection("right", event)}

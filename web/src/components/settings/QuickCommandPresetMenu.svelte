@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import {
     QUICK_COMMANDS_LIMIT,
@@ -42,7 +43,7 @@
     <DropdownMenu.Item
       class="min-h-9 any-pointer-coarse:min-h-11"
       disabled={busy || full}
-      aria-label={`添加预设 ${preset.name}`}
+      aria-label={m.s2_preset_add_aria({ name: preset.name })}
       onSelect={() => onadd([{ ...preset }])}
     >
       <span class="flex min-w-0 flex-1 flex-col gap-0.5">

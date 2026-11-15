@@ -1,6 +1,7 @@
 import { untrack } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import { api, ensureArtifactsFolder } from "../../platform/api";
 import { nodeId } from "../../domains/code/code-reference";
 import {
@@ -344,7 +345,8 @@ export function useCodeWorkspaceState(options: {
     } catch (e) {
       if (!aborted(e) && mounted) {
         for (const tab of s.tabs) tab.status = "unknown";
-        if (current === s.context) s.navStatus = "检测失败，状态未知";
+        if (current === s.context)
+          s.navStatus = m.s5_check_failed_status_unknown();
       }
     } finally {
       checking = false;

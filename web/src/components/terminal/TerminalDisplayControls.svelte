@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import * as m from "$lib/paraglide/messages.js";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import { headsetMode } from "../../hooks/shared/headset-mode.svelte";
   import type { Fullscreen } from "../../hooks/shared/fullscreen.svelte";
@@ -24,13 +25,13 @@
     checked={tvMode.enabled}
     onCheckedChange={(value) => (tvMode.enabled = value === true)}
   >
-    TV 模式
+    {m.s4_tv_mode()}
   </DropdownMenu.CheckboxItem>
   <DropdownMenu.CheckboxItem
     checked={headsetMode.enabled}
     onCheckedChange={(value) => (headsetMode.enabled = value === true)}
   >
-    头显浏览器模式
+    {m.s4_headset_browser_mode()}
   </DropdownMenu.CheckboxItem>
   {#if xr}
     <DropdownMenu.Item
@@ -40,7 +41,7 @@
       disabled={xr.busy || fullscreen.busy}
       onSelect={() => (xr?.active ? xr.exit() : xr?.enter())}
     >
-      {xr.active ? "退出 VR" : "进入 VR"}
+      {xr.active ? m.s4_exit_vr() : m.s4_enter_vr()}
     </DropdownMenu.Item>
   {/if}
 {:else}
@@ -49,16 +50,18 @@
       variant="outline"
       size="sm"
       class="max-sm:hidden"
-      aria-label={xr.active ? "退出 VR" : "进入 VR"}
-      title={xr.active ? "退出沉浸式 VR" : "进入沉浸式 VR 工作台"}
+      aria-label={xr.active ? m.s4_exit_vr() : m.s4_enter_vr()}
+      title={xr.active ? m.s4_exit_vr_title() : m.s4_enter_vr_title()}
       aria-pressed={xr.active}
       disabled={xr.busy || fullscreen.busy}
       onclick={() => (xr?.active ? xr.exit() : xr?.enter())}
     >
-      {xr.active ? "退出 VR" : "进入 VR"}
+      {xr.active ? m.s4_exit_vr() : m.s4_enter_vr()}
     </Button>
   {/if}
   {#if headsetMode.enabled && keyboard}
-    <Button variant="outline" size="sm" onclick={keyboard}>键盘</Button>
+    <Button variant="outline" size="sm" onclick={keyboard}
+      >{m.s4_keyboard_short()}</Button
+    >
   {/if}
 {/if}

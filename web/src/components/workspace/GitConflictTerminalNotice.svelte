@@ -2,13 +2,14 @@
   import IconArrowsSplit2 from "~icons/tabler/arrows-split-2";
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
   let {
     message,
     hasActiveWorktreeSession = false,
-    openLabel = "跳转工作树终端",
-    newLabel = "新建工作树终端",
+    openLabel: rawOpenLabel,
+    newLabel: rawNewLabel,
     onOpenConflictResolver,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
@@ -21,6 +22,13 @@
     onOpenWorktreeTerminal?: () => void;
     onNewWorktreeTerminal?: () => void;
   } = $props();
+
+  const openLabel = $derived(
+    rawOpenLabel ?? m.s6_conflict_open_worktree_terminal(),
+  );
+  const newLabel = $derived(
+    rawNewLabel ?? m.s6_conflict_new_worktree_terminal(),
+  );
 </script>
 
 <div class="border-b bg-background px-3 py-2">
@@ -37,7 +45,7 @@
             data-testid="git-notice-open-conflict-resolver-btn"
           >
             <IconArrowsSplit2 aria-hidden="true" />
-            打开三方冲突解决器
+            {m.s6_open_conflict_resolver()}
           </Button>
         {/if}
         {#if hasActiveWorktreeSession && onOpenWorktreeTerminal}

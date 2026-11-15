@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
+  import * as m from "$lib/paraglide/messages.js";
   import type { SessionInfo } from "../../contracts/schemas";
   import WorktreeSessionList from "./WorktreeSessionList.svelte";
 
@@ -21,10 +22,7 @@
 
 {#if sessions.length > 0}
   <div class="space-y-2 rounded-lg border p-3">
-    <WorktreeSessionList
-      title="当前工作树运行中的会话（不会关闭或重启）"
-      {sessions}
-    />
+    <WorktreeSessionList title={m.s6_session_ack_list_title()} {sessions} />
     <Label class="items-start">
       <Checkbox
         checked={acknowledgeSessions}

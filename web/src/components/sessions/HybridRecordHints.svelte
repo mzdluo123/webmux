@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import type { ArchivedSession } from "../../contracts/schemas";
 
   // What an interruption may have cost a closed or interrupted hybrid
@@ -9,12 +10,14 @@
 {#if record.state === "interrupted" && (record.archive.activity === "turn" || record.archive.activity === "switching")}
   <p class="text-xs text-warning">
     {record.archive.activity === "turn"
-      ? "中断时有回合在运行，上一轮可能未完成。"
-      : "中断时正在切换，上一轮可能未完成。"}
+      ? m.s3_record_interrupted_in_turn()
+      : m.s3_record_interrupted_switching()}
   </p>
 {/if}
 {#if record.archive.queuedCount}
   <p class="text-xs text-muted-foreground">
-    中断时有 {record.archive.queuedCount} 条排队消息，未发送的内容已丢失。
+    {m.s3_record_interrupted_queue_lost({
+      count: String(record.archive.queuedCount),
+    })}
   </p>
 {/if}

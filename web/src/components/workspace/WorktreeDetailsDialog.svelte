@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import type { SessionInfo, Worktree } from "../../contracts/schemas";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
@@ -29,8 +30,8 @@
 <ResponsiveDialog
   {title}
   description={worktree
-    ? "工作树路径、Git 同步状态与占用空间。"
-    : "目录与会话。"}
+    ? m.s8_details_dialog_wt_desc()
+    : m.s8_details_dialog_dir_desc()}
   {onclose}
 >
   <WorktreeDetails

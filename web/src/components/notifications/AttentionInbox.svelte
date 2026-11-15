@@ -1,5 +1,6 @@
 <script lang="ts">
   import IconBell from "~icons/tabler/bell";
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import * as Popover from "$lib/components/ui/popover";
@@ -53,7 +54,7 @@
             size="sm-touch"
             class="w-full justify-start"
           >
-            <IconBell aria-hidden="true" />待我处理
+            <IconBell aria-hidden="true" />{m.s2_inbox_title()}
             {#if pending}<Badge variant="warning" class="ml-auto"
                 >{pending}</Badge
               >{/if}
@@ -64,14 +65,12 @@
         side="bottom"
         align="start"
         role="dialog"
-        aria-label="待我处理"
+        aria-label={m.s2_inbox_title()}
         class="flex max-h-(--bits-popover-content-available-height) w-[min(21rem,calc(100vw-1.5rem))] flex-col overflow-hidden"
       >
         <Popover.Header>
-          <Popover.Title>待我处理</Popover.Title>
-          <Popover.Description
-            >来自各仓库的授权、提问与错误。</Popover.Description
-          >
+          <Popover.Title>{m.s2_inbox_title()}</Popover.Title>
+          <Popover.Description>{m.s2_inbox_desc()}</Popover.Description>
         </Popover.Header>
         {#if alerts.length}
           <ul
@@ -92,22 +91,24 @@
                   <span class="truncate">{alert.title}</span>
                 </Button>
                 <Badge variant="secondary"
-                  >{deferred ? "已暂缓" : alert.label}</Badge
+                  >{deferred ? m.s2_inbox_deferred() : alert.label}</Badge
                 >
                 <Button
                   variant="outline"
                   size="sm"
                   onclick={() =>
                     deferred ? wakeAttention(session) : deferAttention(session)}
-                  aria-label={`${deferred ? "立即提醒" : "稍后（15 分钟后提醒）"}：${alert.title}`}
+                  aria-label={deferred
+                    ? m.s2_inbox_wake_aria({ title: alert.title })
+                    : m.s2_inbox_defer_aria({ title: alert.title })}
                 >
-                  {deferred ? "立即提醒" : "稍后"}
+                  {deferred ? m.s2_inbox_wake() : m.s2_inbox_defer()}
                 </Button>
               </li>
             {/each}
           </ul>
         {:else}
-          <p class="text-sm text-muted-foreground">当前没有等待处理的会话。</p>
+          <p class="text-sm text-muted-foreground">{m.s2_inbox_empty()}</p>
         {/if}
       </Popover.Content>
     </Popover.Root>

@@ -60,6 +60,7 @@
 
 <script lang="ts">
   import { onDestroy, untrack } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { APIError } from "../../platform/api";
   import { commitChoices } from "../../domains/workspace/commit-choices";
@@ -193,7 +194,9 @@
   }
   const commitRows = $derived(
     commitChoices(commits, {
-      tips: worktree.head ? [{ hash: worktree.head, tag: "当前" }] : [],
+      tips: worktree.head
+        ? [{ hash: worktree.head, tag: m.s8_tag_current() }]
+        : [],
       base: "",
       baseSubject: "",
     }),
@@ -394,11 +397,11 @@
         wrap
         disabled={busy}
         title={occupant}
-        onclick={() => ongoto(occupant)}>转到该工作树</Button
+        onclick={() => ongoto(occupant)}>{m.s8_go_to_worktree()}</Button
       >
     {/if}
     <Button type="submit" disabled={!canSwitch}
-      >{busy ? "正在切换…" : "切换"}</Button
+      >{busy ? m.s8_switching() : m.s8_switch_btn()}</Button
     >
     {#if newWorktreePreset}
       <Button
@@ -406,9 +409,9 @@
         variant="success"
         wrap
         disabled={busy}
-        title="不改动当前工作树与其中的会话，在新工作树中打开所选分支"
+        title={m.s8_open_in_new_worktree_instead_title()}
         onclick={() => onnewworktree(newWorktreePreset)}
-        >改为在新工作树打开</Button
+        >{m.s8_open_in_new_worktree_instead()}</Button
       >
     {/if}
   {/snippet}

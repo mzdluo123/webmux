@@ -4,6 +4,7 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
   import { validateAuthorOverrideInput } from "../../domains/workspace/git-v2-adapter";
   import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";
@@ -50,7 +51,7 @@
         ? `Signed-off-by: ${context.committerName} <${context.committerEmail}>`
         : context.authorName && context.authorEmail
           ? `Signed-off-by: ${context.authorName} <${context.authorEmail}>`
-          : "Signed-off-by: (未配置提交者身份)"),
+          : m.s6_signoff_unconfigured_trailer()),
   );
   const summary = $derived.by(() => {
     const parts: string[] = [];
@@ -71,7 +72,7 @@
   class="rounded-md border bg-background px-1.5 py-0.5"
   data-testid="git-commit-advanced-options"
 >
-  <AdvancedSection title="高级提交选项" {summary} bind:open>
+  <AdvancedSection title={m.s6_commit_advanced_title()} {summary} bind:open>
     <div class="space-y-2.5 pb-1 text-xs">
       {#if onToggleAmend}
         <Label class="items-start">
@@ -83,10 +84,14 @@
             data-testid="git-commit-amend-checkbox"
           />
           <span class="leading-snug">
-            修正上一次提交 (<span class="font-mono">--amend</span>，以
-            <span class="font-mono">HEAD^ → index</span> 重写当前 HEAD)
+            {m.s6_commit_amend_before()}<span class="font-mono">--amend</span
+            >{m.s6_commit_amend_mid()}<span class="font-mono"
+              >HEAD^ → index</span
+            >{m.s6_commit_amend_after()}
             {#if unbornHead}
-              <Badge variant="outline" class="ml-1">空仓无 HEAD 可修正</Badge>
+              <Badge variant="outline" class="ml-1">
+                {m.s6_commit_amend_unborn_badge()}
+              </Badge>
             {/if}
           </span>
         </Label>
@@ -98,10 +103,10 @@
           data-testid="git-amend-draft-prompt"
         >
           <p class="font-medium text-foreground">
-            检测到当前已有未提交说明草稿，请选择如何与上一条 HEAD 提交说明合并：
+            {m.s6_amend_draft_prompt_title()}
           </p>
           <p class="line-clamp-2 font-mono text-muted-foreground">
-            HEAD 说明：{draftPrompt.headMessage}
+            {m.s6_amend_draft_head_msg({ message: draftPrompt.headMessage })}
           </p>
           <div class="flex flex-wrap items-center gap-1.5">
             <Button
@@ -109,21 +114,21 @@
               variant="default"
               onclick={() => onResolveAmendDraft("replace")}
             >
-              替换为 HEAD 说明
+              {m.s6_amend_draft_replace()}
             </Button>
             <Button
               size="sm"
               variant="outline"
               onclick={() => onResolveAmendDraft("merge")}
             >
-              合并两份说明
+              {m.s6_amend_draft_merge()}
             </Button>
             <Button
               size="sm"
               variant="ghost"
               onclick={() => onResolveAmendDraft("keep")}
             >
-              保留当前草稿
+              {m.s6_amend_draft_keep()}
             </Button>
           </div>
         </div>
@@ -132,7 +137,7 @@
       {#if amend && amendPushed}
         <InlineNotice tone="danger">
           <span data-testid="git-amend-pushed-warning">
-            该提交已推送至远端，修正将改写提交历史并导致分支与上游分叉（不提供一键强推）。
+            {m.s6_amend_pushed_warning()}
           </span>
         </InlineNotice>
       {/if}
@@ -148,7 +153,9 @@
               data-testid="git-commit-signoff-checkbox"
             />
             <span class="leading-snug">
-              添加开发者签名尾注 (<span class="font-mono">-s / --signoff</span>)
+              {m.s6_commit_signoff_before()}<span class="font-mono"
+                >-s / --signoff</span
+              >)
             </span>
           </Label>
           {#if signoff}
@@ -165,7 +172,9 @@
       {#if onAuthorOverrideChange}
         <div class="space-y-1">
           <Label for="git-commit-author-override">
-            覆盖本次提交作者 (<span class="font-mono">--author</span>，选填)
+            {m.s6_commit_author_override_before()}<span class="font-mono"
+              >--author</span
+            >{m.s6_commit_author_override_after()}
           </Label>
           <Input
             id="git-commit-author-override"

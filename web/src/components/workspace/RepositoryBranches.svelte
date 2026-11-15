@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, untrack } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconDots from "~icons/tabler/dots";
   import { Badge } from "$lib/components/ui/badge";
@@ -115,28 +116,37 @@
   // A search shows the matching remote branches without another click.
   const remoteExpanded = $derived(remoteOpen || !!term);
   const countText = (shown: number, total: number) =>
-    term ? `匹配 ${shown} / ${total}` : String(total);
+    term
+      ? m.s8_repo_branches_matched_count({
+          shown: String(shown),
+          total: String(total),
+        })
+      : String(total);
 </script>
 
 <div class="space-y-3">
   <ListSearchInput
     bind:value={query}
-    label="搜索分支"
-    placeholder="按分支名称搜索…"
+    label={m.s8_search_branches_label()}
+    placeholder={m.s8_repo_branches_search_placeholder()}
   />
 
   {#if error}
-    <InlineNotice tone="danger">无法读取分支：{error}</InlineNotice>
+    <InlineNotice tone="danger"
+      >{m.s8_err_load_branches({ error })}</InlineNotice
+    >
     <Button size="sm" variant="outline" onclick={() => void read()}
-      >重新读取</Button
+      >{m.s8_reload_btn()}</Button
     >
   {:else if !data}
-    <p role="status" class="text-xs text-muted-foreground">正在读取分支…</p>
+    <p role="status" class="text-xs text-muted-foreground">
+      {m.s8_loading_branches()}
+    </p>
   {:else}
-    <section class="space-y-2" aria-label="本地分支">
+    <section class="space-y-2" aria-label={m.s8_local_branches()}>
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="flex items-center gap-2 text-sm font-medium">
-          本地分支
+          {m.s8_local_branches()}
           <Badge variant="secondary"
             >{countText(localShown.length, local.length)}</Badge
           >
@@ -145,15 +155,19 @@
           <Button
             size="sm"
             variant="outline"
-            title="删除未被检出、且上游已删除或已合入默认分支的本地分支"
+            title={m.s8_repo_branches_cleanup_title()}
             onclick={() => onoperation(cleanupOperation(candidates))}
-            >清理分支（{candidates.length}）</Button
+            >{m.s8_repo_branches_cleanup_btn({
+              count: String(candidates.length),
+            })}</Button
           >
         {/if}
       </div>
       {#if localShown.length === 0}
         <p class="text-xs text-muted-foreground">
-          {local.length ? "没有匹配的本地分支。" : "没有本地分支。"}
+          {local.length
+            ? m.s8_repo_branches_no_local_match()
+            : m.s8_repo_branches_no_local()}
         </p>
       {:else}
         <ul class="space-y-2">
@@ -169,21 +183,23 @@
                     >{branch.head.slice(0, 8)}</span
                   >
                   {#if branch.name === data.defaultBranch}<Badge
-                      variant="secondary">默认</Badge
+                      variant="secondary">{m.s8_badge_default_branch()}</Badge
                     >{:else if branch.mergedIntoDefault}<Badge variant="outline"
-                      >已合入默认分支</Badge
+                      >{m.s8_badge_merged_default()}</Badge
                     >{/if}
                   {#if !branch.worktreePaths.length}<Button
                       size="xs"
                       variant="outline"
                       class="ml-auto"
                       aria-haspopup="dialog"
-                      title={`在新工作树中检出 ${branch.name}`}
+                      title={m.s8_repo_branches_open_local_in_wt_title({
+                        branch: branch.name,
+                      })}
                       onclick={() =>
                         onnewworktree({
                           mode: "existing",
                           branch: branch.name,
-                        })}>在新工作树打开…</Button
+                        })}>{m.s8_open_in_new_worktree()}</Button
                     >{/if}
                 </div>
                 {#if onoperation && offered.actions.length}
@@ -195,9 +211,12 @@
                           variant="ghost"
                           size="icon-sm"
                           class="-my-1"
-                          aria-label={`分支操作：${branch.name}`}
-                          title={`分支操作：${branch.name}`}
-                          ><IconDots aria-hidden="true" /></Button
+                          aria-label={m.s8_branch_actions_for({
+                            branch: branch.name,
+                          })}
+                          title={m.s8_branch_actions_for({
+                            branch: branch.name,
+                          })}><IconDots aria-hidden="true" /></Button
                         >
                       {/snippet}
                     </DropdownMenu.Trigger>
@@ -208,7 +227,7 @@
                 {/if}
               </div>
               <p class="break-all text-muted-foreground">
-                {branch.subject || "无标题提交"}{branch.committedAt
+                {branch.subject || m.s8_untitled_commit()}{branch.committedAt
                   ? ` · ${relativeTime(branch.committedAt)}`
                   : ""}
               </p>
@@ -216,16 +235,18 @@
                 <UpstreamStatus state={upstreamState(branch)} />
               </div>
               {#if offered.diverged}
-                <p class="text-muted-foreground">{divergedText}。</p>
+                <p class="text-muted-foreground">{divergedText()}</p>
               {/if}
               {#each branch.worktreePaths as path (path)}
                 <p class="flex min-w-0 flex-wrap items-baseline gap-1">
-                  <span class="text-muted-foreground">检出于</span>
+                  <span class="text-muted-foreground"
+                    >{m.s8_checked_out_at_prefix()}</span
+                  >
                   {#if worktreePaths.has(path)}
                     <ListButton
                       variant="code-link"
                       aria-haspopup="dialog"
-                      title={`打开工作树详情：${path}`}
+                      title={m.s8_open_worktree_details_for({ path })}
                       onclick={() => onopen(path)}>{path}</ListButton
                     >
                   {:else}<span class="font-mono break-all">{path}</span>{/if}
@@ -241,7 +262,7 @@
       open={remoteExpanded}
       onOpenChange={(value) => (remoteOpen = value)}
     >
-      <section class="space-y-2" aria-label="远程分支">
+      <section class="space-y-2" aria-label={m.s8_remote_branches()}>
         <Collapsible.Trigger disabled={!!term}>
           {#snippet child({ props })}
             <Button {...props} variant="ghost" size="sm" class="-ml-2">
@@ -249,7 +270,7 @@
                 aria-hidden="true"
                 class={remoteExpanded ? "" : "-rotate-90"}
               />
-              <span class="font-medium">远程分支</span>
+              <span class="font-medium">{m.s8_remote_branches()}</span>
               <Badge variant="secondary"
                 >{countText(remoteShown.length, remote.length)}</Badge
               >
@@ -259,7 +280,9 @@
         <Collapsible.Content forceMount hidden={!remoteExpanded}>
           {#if remoteShown.length === 0}
             <p class="text-xs text-muted-foreground">
-              {remote.length ? "没有匹配的远程分支。" : "没有远程跟踪分支。"}
+              {remote.length
+                ? m.s8_repo_branches_no_remote_match()
+                : m.s8_repo_branches_no_remote()}
             </p>
           {:else}
             <ul class="space-y-1">
@@ -272,20 +295,22 @@
                     >{branch.head.slice(0, 8)}</span
                   >
                   <span class="min-w-0 break-all text-muted-foreground"
-                    >{branch.subject || "无标题提交"}</span
+                    >{branch.subject || m.s8_untitled_commit()}</span
                   >
                   {#if !branch.label.endsWith("/HEAD")}<Button
                       size="xs"
                       variant="outline"
                       class="ml-auto"
                       aria-haspopup="dialog"
-                      title={`从 ${branch.label} 新建分支并在新工作树中打开`}
+                      title={m.s8_repo_branches_open_remote_in_wt_title({
+                        branch: branch.label,
+                      })}
                       onclick={() =>
                         onnewworktree({
                           mode: "new",
                           startBranch: branch.label,
                           name: remoteLocalName(branch.label),
-                        })}>在新工作树打开…</Button
+                        })}>{m.s8_open_in_new_worktree()}</Button
                     >{/if}
                 </li>
               {/each}

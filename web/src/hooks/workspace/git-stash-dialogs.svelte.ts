@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import {
   gitStashApply,
   gitStashApplyPreview,
@@ -81,7 +82,7 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
     if (!repoId || !wtId) {
-      dialogError = "当前处于只读仓库视图，请先选择工作树再创建贮藏。";
+      dialogError = m.s7_stash_readonly_create_error();
       return;
     }
     loadingPreview = true;
@@ -126,9 +127,14 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
     submitting = true;
     dialogError = "";
     const clientRequestId = generateGitClientRequestId("stash_push");
-    deps.operations?.setPhase("running", "stash_push", "正在保存贮藏…", {
-      clientRequestId,
-    });
+    deps.operations?.setPhase(
+      "running",
+      "stash_push",
+      m.s7_stash_saving_phase(),
+      {
+        clientRequestId,
+      },
+    );
     try {
       const res = await gitStashCreate(repoId, wtId, {
         confirmationId: cur.confirmationId,
@@ -138,7 +144,11 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
       createOpen = false;
       createPreview = null;
       deps.patchView({
-        statusBanner: `已保存贮藏 ${res.entry.stashRef} (${res.entry.shortOid})：${res.entry.summary}`,
+        statusBanner: m.s7_stash_saved_banner({
+          ref: res.entry.stashRef,
+          oid: res.entry.shortOid,
+          summary: res.entry.summary,
+        }),
       });
       await Promise.all([
         deps.onRefreshList(res.entry.oid),
@@ -158,7 +168,7 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
     const wtId = deps.getWorktreeId();
     const target = applyTarget;
     if (!repoId || !wtId || !target) {
-      dialogError = "请先选择可写工作树再应用或弹出贮藏。";
+      dialogError = m.s7_stash_select_writable_apply();
       return;
     }
     loadingPreview = true;
@@ -208,7 +218,9 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
     deps.operations?.setPhase(
       "running",
       opKind,
-      applyMode === "pop" ? "正在安全弹出贮藏…" : "正在应用贮藏…",
+      applyMode === "pop"
+        ? m.s7_stash_popping_phase()
+        : m.s7_stash_applying_phase(),
       { clientRequestId },
     );
     try {
@@ -266,9 +278,14 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
     submitting = true;
     dialogError = "";
     const clientRequestId = generateGitClientRequestId("stash_drop");
-    deps.operations?.setPhase("running", "stash_drop", "正在丢弃贮藏条目…", {
-      clientRequestId,
-    });
+    deps.operations?.setPhase(
+      "running",
+      "stash_drop",
+      m.s7_stash_dropping_phase(),
+      {
+        clientRequestId,
+      },
+    );
     try {
       const res = await gitStashDrop(repoId, {
         confirmationId: cur.confirmationId,
@@ -278,7 +295,10 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
       dropPreview = null;
       deps.patchView({
         stashes: res.stashes,
-        statusBanner: `已丢弃贮藏 ${res.stashRef}（恢复命令：${res.recoveryCommand}）`,
+        statusBanner: m.s7_stash_dropped_banner({
+          ref: res.stashRef,
+          cmd: res.recoveryCommand,
+        }),
       });
       await deps.onRefreshList();
       await deps.operations?.refreshOperations(repoId, deps.getWorktreeId());

@@ -1,31 +1,41 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import AccessSummaryCard from "./AccessSummaryCard.svelte";
   import { useMountedRead } from "../../hooks/shared/remote-request.svelte";
-  import { TailscaleStatusSchema } from "../../contracts/schemas";
+  import {
+    TailscaleStatusSchema,
+    type TailscaleStatus,
+  } from "../../contracts/schemas";
 
   const read = useMountedRead("/tailscale", TailscaleStatusSchema);
   const status = $derived(read.value);
-  const modeText = {
-    off: "未启用",
-    serve: "Serve（仅 tailnet）",
-    funnel: "Funnel（公网）",
-  };
+
+  function modeText(mode: TailscaleStatus["mode"]): string {
+    switch (mode) {
+      case "off":
+        return m.s2_state_off();
+      case "serve":
+        return m.s2_ts_mode_serve();
+      case "funnel":
+        return m.s2_ts_mode_funnel();
+    }
+  }
 </script>
 
 <AccessSummaryCard
   id="tailscale"
-  title="Tailscale（Serve / Funnel）"
-  description="使用 Tailscale 自动签发的 HTTPS 证书。Serve 仅 tailnet 内设备可访问；Funnel 会公开到互联网。可在网页修改，保存后立即生效。"
-  statusLabel="Tailscale 状态"
+  title={m.s2_ts_card_title()}
+  description={m.s2_ts_card_desc()}
+  statusLabel={m.s2_ts_status_label()}
   state={status?.state}
   error={read.error}
-  loadingText="正在读取 Tailscale 状态…"
+  loadingText={m.s2_ts_loading()}
   href="/settings/tailscale"
-  manageLabel="管理 Tailscale"
+  manageLabel={m.s2_ts_manage()}
 >
   {#snippet summary()}
     {#if status}
-      <span class="text-sm">{modeText[status.mode]}</span>
+      <span class="text-sm">{modeText(status.mode)}</span>
       {#if status.dnsName}
         <span class="text-sm text-muted-foreground">{status.dnsName}</span>
       {/if}
@@ -40,7 +50,7 @@
       </p>
     {:else}
       <p class="text-sm text-muted-foreground">
-        尚未启用；进入 Tailscale 设置选择 Serve 或 Funnel。
+        {m.s2_ts_detail_off()}
       </p>
     {/if}
   {/snippet}

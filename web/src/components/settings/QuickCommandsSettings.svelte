@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import type { QuickCommand } from "../../contracts/schemas";
   import {
     QUICK_COMMANDS_LIMIT,
@@ -22,7 +23,6 @@
   import IconBolt from "~icons/tabler/bolt";
   import IconPencil from "~icons/tabler/pencil";
   import IconPlus from "~icons/tabler/plus";
-  import IconTrash from "~icons/tabler/trash";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -53,7 +53,7 @@
     const list = quickCommands.list;
     const exists = list.some((item) => item.id === cmd.id);
     if (!exists && list.length >= QUICK_COMMANDS_LIMIT)
-      return `最多保存 ${QUICK_COMMANDS_LIMIT} 条快捷指令，请先删除一条后再保存。`;
+      return m.s2_qc_err_limit({ limit: String(QUICK_COMMANDS_LIMIT) });
     await saveQuickCommands(
       exists
         ? list.map((item) => (item.id === cmd.id ? cmd : item))
@@ -95,14 +95,14 @@
 
 <Card.Root flat id="quick-commands" class="scroll-mt-4">
   <Card.Header>
-    <Card.Title>快捷指令</Card.Title>
+    <Card.Title>{m.s2_qc_title()}</Card.Title>
     <Card.Description
       ><span class="flex items-center gap-1"
-        >常用命令一键发送，同步到所有设备。<InfoHint label="快捷指令"
-          >点击终端底部工具栏或顶栏的 <IconBolt
+        >{m.s2_qc_desc()}<InfoHint label={m.s2_qc_title()}
+          >{m.s2_qc_hint_1()}<IconBolt
             class="inline size-3.5 align-[-2px]"
-            aria-label="闪电"
-          /> 按钮即可发送；保存到服务端并同步至所有设备。</InfoHint
+            aria-label={m.s2_bolt_icon_aria()}
+          />{m.s2_qc_hint_2()}</InfoHint
         ></span
       ></Card.Description
     >
@@ -114,36 +114,34 @@
           <Empty.Media variant="icon"
             ><IconBolt aria-hidden="true" /></Empty.Media
           >
-          <Empty.Title>还没有快捷指令</Empty.Title>
-          <Empty.Description
-            >把常用命令或提示词存起来，在终端一键发送。</Empty.Description
-          >
+          <Empty.Title>{m.s2_qc_empty_title()}</Empty.Title>
+          <Empty.Description>{m.s2_qc_empty_desc()}</Empty.Description>
         </Empty.Header>
         <Empty.Content>
           <div class="flex flex-wrap items-center justify-center gap-2">
             <Button disabled={!settings.ready} onclick={() => edit()}
-              ><IconPlus aria-hidden="true" />添加快捷指令</Button
+              ><IconPlus aria-hidden="true" />{m.s2_qc_add_title()}</Button
             >
             {@render presetMenu()}
           </div>
         </Empty.Content>
       </Empty.Root>
     {:else}
-      <Item.Group variant="divided" aria-label="快捷指令列表">
+      <Item.Group variant="divided" aria-label={m.s2_qc_list_aria()}>
         {#each quickCommands.list as cmd, index (cmd.id)}
           {@const label = commandLabel(cmd)}
           <Item.Root variant="divided" size="flush" class="min-h-14">
             <ListButton
               variant="content"
               class="flex min-w-0 flex-1 items-center"
-              aria-label={`编辑 ${label}`}
+              aria-label={m.s2_edit_item({ name: label })}
               onclick={() => edit(cmd)}
             >
               <span class="flex min-w-0 flex-1 items-center gap-2">
                 <span class="min-w-0 truncate text-sm font-medium">{label}</span
                 >
                 {#if cmd.enter}<Badge variant="secondary" class="shrink-0"
-                    >回车</Badge
+                    >{m.s2_qc_enter_badge()}</Badge
                   >{/if}
                 {#if cmd.name}<span
                     class="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
@@ -151,31 +149,36 @@
                   >{/if}
               </span>
             </ListButton>
-            <SettingsRowMenu {label} disabled={!settings.ready}>
+            <SettingsRowMenu
+              {label}
+              disabled={!settings.ready}
+              ondelete={() => {
+                deleting = cmd;
+                deleteOpen = true;
+              }}
+            >
               <DropdownMenu.Item
-                aria-label={`编辑 ${label}`}
+                aria-label={m.s2_edit_item({ name: label })}
                 onSelect={() => edit(cmd)}
-                ><IconPencil aria-hidden="true" />编辑</DropdownMenu.Item
+                ><IconPencil
+                  aria-hidden="true"
+                />{m.s2_edit()}</DropdownMenu.Item
               >
               <DropdownMenu.Item
-                aria-label={`上移 ${label}`}
+                aria-label={m.s2_move_up_item({ name: label })}
                 disabled={index === 0}
                 onSelect={() => move(index, -1)}
-                ><IconArrowUp aria-hidden="true" />上移</DropdownMenu.Item
+                ><IconArrowUp
+                  aria-hidden="true"
+                />{m.s2_move_up()}</DropdownMenu.Item
               >
               <DropdownMenu.Item
-                aria-label={`下移 ${label}`}
+                aria-label={m.s2_move_down_item({ name: label })}
                 disabled={index === quickCommands.list.length - 1}
                 onSelect={() => move(index, 1)}
-                ><IconArrowDown aria-hidden="true" />下移</DropdownMenu.Item
-              >
-              <DropdownMenu.Item
-                variant="destructive"
-                aria-label={`删除 ${label}`}
-                onSelect={() => {
-                  deleting = cmd;
-                  deleteOpen = true;
-                }}><IconTrash aria-hidden="true" />删除</DropdownMenu.Item
+                ><IconArrowDown
+                  aria-hidden="true"
+                />{m.s2_move_down()}</DropdownMenu.Item
               >
             </SettingsRowMenu>
           </Item.Root>
@@ -186,17 +189,19 @@
           variant="outline"
           disabled={!settings.ready || full}
           onclick={() => edit()}
-          ><IconPlus aria-hidden="true" />添加快捷指令</Button
+          ><IconPlus aria-hidden="true" />{m.s2_qc_add_title()}</Button
         >
         {@render presetMenu()}
         {#if full}<span class="text-xs text-muted-foreground"
-            >最多 {QUICK_COMMANDS_LIMIT} 条</span
+            >{m.s2_qc_limit_short({
+              limit: String(QUICK_COMMANDS_LIMIT),
+            })}</span
           >{/if}
       </div>
     {/if}
     {#if presetError}
       <InlineNotice tone="danger">
-        <p>添加系统预设失败：{presetError}</p>
+        <p>{m.s2_qc_preset_err({ error: presetError })}</p>
       </InlineNotice>
     {/if}
     <div class="flex flex-wrap gap-2">
@@ -205,7 +210,7 @@
         size="sm"
         disabled={!settings.ready}
         onclick={() => changeSettings({ quickCommands: null })}
-        >恢复预置指令</Button
+        >{m.s2_qc_restore_presets()}</Button
       >
       <Button
         variant="destructive-outline"
@@ -213,7 +218,7 @@
         disabled={!settings.ready || quickCommands.list.length === 0}
         onclick={() => {
           clearQuickOpen = true;
-        }}>删除全部快捷指令</Button
+        }}>{m.s2_qc_clear_all_btn()}</Button
       >
     </div>
   </Card.Content>
@@ -228,15 +233,15 @@
 <AlertDialog.Root bind:open={deleteOpen}>
   <AlertDialog.Content>
     <AlertDialog.Header>
-      <AlertDialog.Title>删除快捷指令？</AlertDialog.Title>
+      <AlertDialog.Title>{m.s2_qc_delete_title()}</AlertDialog.Title>
       <AlertDialog.Description
-        >将删除“{deleting
-          ? commandLabel(deleting)
-          : ""}”，此操作不能撤销。</AlertDialog.Description
+        >{m.s2_qc_delete_desc({
+          label: deleting ? commandLabel(deleting) : "",
+        })}</AlertDialog.Description
       >
     </AlertDialog.Header>
     <AlertDialog.Footer>
-      <AlertDialog.Cancel>取消</AlertDialog.Cancel>
+      <AlertDialog.Cancel>{m.s2_cancel()}</AlertDialog.Cancel>
       <Button
         variant="destructive"
         onclick={async () => {
@@ -248,7 +253,7 @@
           } catch {
             /* shared settings status retains error */
           }
-        }}>删除</Button
+        }}>{m.s2_delete()}</Button
       >
     </AlertDialog.Footer>
   </AlertDialog.Content>
@@ -256,13 +261,11 @@
 <AlertDialog.Root bind:open={clearQuickOpen}>
   <AlertDialog.Content>
     <AlertDialog.Header>
-      <AlertDialog.Title>删除全部快捷指令？</AlertDialog.Title>
-      <AlertDialog.Description
-        >所有设备上的快捷指令列表都会清空。恢复预置指令可重新显示默认列表。</AlertDialog.Description
-      >
+      <AlertDialog.Title>{m.s2_qc_clear_title()}</AlertDialog.Title>
+      <AlertDialog.Description>{m.s2_qc_clear_desc()}</AlertDialog.Description>
     </AlertDialog.Header>
     <AlertDialog.Footer>
-      <AlertDialog.Cancel>取消</AlertDialog.Cancel>
+      <AlertDialog.Cancel>{m.s2_cancel()}</AlertDialog.Cancel>
       <Button
         variant="destructive"
         disabled={!settings.ready || settings.saving}
@@ -273,7 +276,7 @@
           } catch {
             /* shared status */
           }
-        }}>删除全部</Button
+        }}>{m.s2_delete_all()}</Button
       >
     </AlertDialog.Footer>
   </AlertDialog.Content>

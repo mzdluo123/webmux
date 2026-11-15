@@ -3,6 +3,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { ListButton } from "$lib/components/ui/list-button";
+  import * as m from "$lib/paraglide/messages.js";
   import {
     laneFillClass,
     laneStrokeClass,
@@ -171,24 +172,25 @@
         <Badge
           variant="warning"
           class="max-w-full"
-          title="筛选条件省略了中间提交，虚线表示间接祖先关系"
+          title={m.s6_commit_row_missing_parents_tooltip()}
         >
-          <span class="truncate">筛选省略中间节点</span>
+          <span class="truncate">{m.s6_commit_row_missing_parents_badge()}</span
+          >
         </Badge>
       {/if}
 
       {#if taskBaselineOid === row.oid}
-        <Badge variant="info">任务起点</Badge>
+        <Badge variant="info">{m.s6_commit_row_task_baseline_badge()}</Badge>
       {/if}
 
       {#if compareBaseMarkOid === row.oid}
-        <Badge variant="info">比较起点</Badge>
+        <Badge variant="info">{m.s6_commit_row_compare_mark_badge()}</Badge>
       {/if}
 
       {#if compareMode?.baseOid === row.oid}
-        <Badge variant="info">对比起点</Badge>
+        <Badge variant="info">{m.s6_commit_row_compare_start_badge()}</Badge>
       {:else if compareMode?.targetOid === row.oid}
-        <Badge variant="info">对比终点</Badge>
+        <Badge variant="info">{m.s6_commit_row_compare_end_badge()}</Badge>
       {/if}
 
       <span
@@ -222,28 +224,31 @@
     </div>
   </ListButton>
 
-  <GitRowActionMenu label={`提交操作 ${row.shortOid}`} bind:open={menuOpen}>
+  <GitRowActionMenu
+    label={m.s6_commit_row_menu_label({ shortOid: row.shortOid })}
+    bind:open={menuOpen}
+  >
     <DropdownMenu.Item onclick={() => onSelect(row.oid)}>
-      查看提交详情
+      {m.s6_commit_row_view_details()}
     </DropdownMenu.Item>
     <DropdownMenu.Item onclick={() => copyOid(row.oid)}>
-      复制提交 OID ({row.shortOid})
+      {m.s6_commit_row_copy_oid({ shortOid: row.shortOid })}
     </DropdownMenu.Item>
     {#if onSetTaskBaseline && taskBaselineOid !== row.oid}
       <DropdownMenu.Item onclick={() => onSetTaskBaseline(row.oid)}>
-        设为当前工作树任务基线 ({row.shortOid})
+        {m.s6_commit_row_set_task_baseline({ shortOid: row.shortOid })}
       </DropdownMenu.Item>
     {/if}
     {#if onCherryPickCommit || onRevertCommit}
       <DropdownMenu.Separator />
       {#if onCherryPickCommit}
         <DropdownMenu.Item onclick={() => onCherryPickCommit(row.oid)}>
-          遴选此提交到当前分支… (Cherry-pick)
+          {m.s6_commit_row_cherry_pick()}
         </DropdownMenu.Item>
       {/if}
       {#if onRevertCommit}
         <DropdownMenu.Item onclick={() => onRevertCommit(row.oid)}>
-          还原此提交… (Revert)
+          {m.s6_commit_row_revert()}
         </DropdownMenu.Item>
       {/if}
     {/if}
@@ -252,11 +257,11 @@
       {#if onMarkCompareBase}
         {#if compareBaseMarkOid === row.oid}
           <DropdownMenu.Item onclick={() => onMarkCompareBase(null)}>
-            取消比较起点标记
+            {m.s6_commit_row_clear_compare_mark()}
           </DropdownMenu.Item>
         {:else}
           <DropdownMenu.Item onclick={() => onMarkCompareBase(row.oid)}>
-            设为比较起点 ({row.shortOid})
+            {m.s6_commit_row_mark_compare_base({ shortOid: row.shortOid })}
           </DropdownMenu.Item>
         {/if}
       {/if}
@@ -264,14 +269,18 @@
         <DropdownMenu.Item
           onclick={() => onStartCompare(compareBaseMarkOid, row.oid)}
         >
-          与起点 ({compareBaseMarkOid.slice(0, 7)}) 比较
+          {m.s6_commit_row_compare_with_marked({
+            shortOid: compareBaseMarkOid.slice(0, 7),
+          })}
         </DropdownMenu.Item>
       {/if}
       {#if onStartCompare && selectedCommitOid && selectedCommitOid !== row.oid}
         <DropdownMenu.Item
           onclick={() => onStartCompare(row.oid, selectedCommitOid)}
         >
-          与当前选中 ({selectedCommitOid.slice(0, 7)}) 比较
+          {m.s6_commit_row_compare_with_selected({
+            shortOid: selectedCommitOid.slice(0, 7),
+          })}
         </DropdownMenu.Item>
       {/if}
     {/if}

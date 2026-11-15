@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import type { SessionInfo } from "../../contracts/schemas";
 import { hasUrgentAttention } from "../sessions/session-status";
 
@@ -15,23 +16,39 @@ export interface AttentionToast {
   readonly urgent: boolean;
 }
 
-const labels: Record<AttentionKind, string> = {
-  question: "需要回答",
-  permission: "等待授权",
-  error: "出错停止",
-  done: "本轮完成",
-  notify: "有通知",
-  bell: "响铃提醒",
-};
+function attentionLabel(kind: AttentionKind): string {
+  switch (kind) {
+    case "question":
+      return m.s2_attn_label_question();
+    case "permission":
+      return m.s2_attn_label_permission();
+    case "error":
+      return m.s2_attn_label_error();
+    case "done":
+      return m.s2_attn_label_done();
+    case "notify":
+      return m.s2_attn_label_notify();
+    case "bell":
+      return m.s2_attn_label_bell();
+  }
+}
 
-const details: Record<AttentionKind, string> = {
-  question: "Agent 正在等待你的输入",
-  permission: "Agent 请求执行工具操作",
-  error: "点击查看错误原因",
-  done: "等待你的下一步",
-  notify: "程序发来了提醒",
-  bell: "点击查看终端",
-};
+function attentionDetail(kind: AttentionKind): string {
+  switch (kind) {
+    case "question":
+      return m.s2_attn_detail_question();
+    case "permission":
+      return m.s2_attn_detail_permission();
+    case "error":
+      return m.s2_attn_detail_error();
+    case "done":
+      return m.s2_attn_detail_done();
+    case "notify":
+      return m.s2_attn_detail_notify();
+    case "bell":
+      return m.s2_attn_detail_bell();
+  }
+}
 
 export const maxVisibleToasts = 3;
 export const defaultToastDurationMs = 8_000;
@@ -67,8 +84,9 @@ export function buildAttentionToast(
     kind: attention.kind,
     source: attention.source,
     since: attention.since,
-    label: labels[attention.kind],
-    detail: stripControls(attention.message ?? "") || details[attention.kind],
+    label: attentionLabel(attention.kind),
+    detail:
+      stripControls(attention.message ?? "") || attentionDetail(attention.kind),
     urgent: hasUrgentAttention({ attention }),
   };
 }

@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import { SvelteMap } from "svelte/reactivity";
 import type {
   GitCommitFile,
@@ -6,11 +7,17 @@ import type {
   GitWorkingChange,
 } from "../../contracts/git-workbench-schemas";
 import type {
-  GitReviewArea,
   GitReviewFileState,
   GitReviewMarkIdentity,
   GitReviewsResponse,
 } from "../../contracts/schemas";
+import {
+  buildTaskReviewMarkIdentity,
+  buildUncommittedReviewMarkIdentity,
+  matchesServerUncommittedReview,
+  reviewSlotKey,
+  workingChangeReviewArea,
+} from "../../domains/workspace/git-review-mark-identity";
 import { toggleReviewedChange } from "../../domains/workspace/git-workbench-state";
 import { errorMessage } from "../../platform/error";
 import { gitPutReviews, gitReviews } from "../../platform/git-collab-api";
@@ -20,47 +27,6 @@ export interface GitReviewProgressSummary {
   total: number;
   reviewed: number;
   remaining: number;
-}
-
-function slotKey(area: string, path: string): string {
-  return `${area}\x00${path}`;
-}
-
-function workingChangeArea(change: GitWorkingChange): GitReviewArea {
-  return change.group === "staged" ? "staged" : "unstaged";
-}
-
-function parseStageIdentityKey(identityKey: string): {
-  oldPath?: string;
-  baseMode?: string;
-  baseIdentity?: string;
-  targetMode?: string;
-  targetIdentity?: string;
-} {
-  if (!identityKey) return {};
-  const parts = identityKey.split("|");
-  if (parts.length < 10) return {};
-  const [
-    ,
-    oldPath,
-    ,
-    ,
-    ,
-    baseOid,
-    baseMode,
-    targetOid,
-    targetSha256,
-    targetMode,
-  ] = parts;
-  return {
-    ...(oldPath ? { oldPath } : {}),
-    ...(baseMode ? { baseMode } : {}),
-    ...(baseOid ? { baseIdentity: baseOid } : {}),
-    ...(targetMode ? { targetMode } : {}),
-    ...(targetOid || targetSha256
-      ? { targetIdentity: targetOid || targetSha256 }
-      : {}),
-  };
 }
 
 export function findNextUnreviewedWorkingChange(
@@ -173,7 +139,7 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
     if (res.scope === "uncommitted") {
       uncommittedBySlot.clear();
       for (const file of res.files) {
-        uncommittedBySlot.set(slotKey(file.area, file.path), file);
+        uncommittedBySlot.set(reviewSlotKey(file.area, file.path), file);
       }
       serverReadyUncommitted = true;
     } else {
@@ -245,25 +211,9 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
     if (change.group === "conflicted") return false;
     if (serverReadyUncommitted) {
       const item = uncommittedBySlot.get(
-        slotKey(workingChangeArea(change), change.path),
+        reviewSlotKey(workingChangeReviewArea(change), change.path),
       );
-      if (!item || !item.reviewed) return false;
-      const parsed = parseStageIdentityKey(change.identityKey);
-      if (
-        parsed.targetIdentity &&
-        item.targetIdentity &&
-        parsed.targetIdentity !== item.targetIdentity
-      ) {
-        return false;
-      }
-      if (
-        parsed.baseIdentity &&
-        item.baseIdentity &&
-        parsed.baseIdentity !== item.baseIdentity
-      ) {
-        return false;
-      }
-      return true;
+      return matchesServerUncommittedReview(change, item);
     }
     const paths = bindings.getView().reviewedPaths;
     const ver = change.identityKey?.trim();
@@ -280,7 +230,7 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
   }
 
   function liveWorktreeIdentityForPath(path: string): string | undefined {
-    const uncom = uncommittedBySlot.get(slotKey("unstaged", path));
+    const uncom = uncommittedBySlot.get(reviewSlotKey("unstaged", path));
     if (uncom?.targetIdentity) return uncom.targetIdentity;
     const task = taskByPath.get(path);
     if (task?.targetIdentity) return task.targetIdentity;
@@ -301,30 +251,10 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
       return;
     }
 
-    const area = workingChangeArea(change);
-    const live = uncommittedBySlot.get(slotKey(area, change.path));
-    const parsed = parseStageIdentityKey(change.identityKey);
+    const area = workingChangeReviewArea(change);
+    const live = uncommittedBySlot.get(reviewSlotKey(area, change.path));
     const currentlyReviewed = isUncommittedReviewed(change);
-    const item: GitReviewMarkIdentity = {
-      scope: "uncommitted",
-      area,
-      path: change.path,
-      ...(change.oldPath || parsed.oldPath || live?.oldPath
-        ? { oldPath: change.oldPath || parsed.oldPath || live?.oldPath }
-        : {}),
-      ...((parsed.baseMode ?? live?.baseMode)
-        ? { baseMode: parsed.baseMode ?? live?.baseMode }
-        : {}),
-      ...((parsed.baseIdentity ?? live?.baseIdentity)
-        ? { baseIdentity: parsed.baseIdentity ?? live?.baseIdentity }
-        : {}),
-      ...((parsed.targetMode ?? live?.targetMode)
-        ? { targetMode: parsed.targetMode ?? live?.targetMode }
-        : {}),
-      ...((parsed.targetIdentity ?? live?.targetIdentity)
-        ? { targetIdentity: parsed.targetIdentity ?? live?.targetIdentity }
-        : {}),
-    };
+    const item = buildUncommittedReviewMarkIdentity(change, live);
 
     await executeReviewMutation(
       repoId,
@@ -332,7 +262,7 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
       "uncommitted",
       currentlyReviewed,
       item,
-      "更新审阅进度失败",
+      (error) => m.s7_review_update_failed({ error }),
     );
   }
 
@@ -342,7 +272,7 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
     scope: GitReviewScope,
     currentlyReviewed: boolean,
     item: GitReviewMarkIdentity,
-    errorPrefix: string,
+    formatError: (error: string) => string,
   ) {
     const req = mutateReq.begin();
     mutating = true;
@@ -361,16 +291,14 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
       applyServerResponse(res);
       if (res.staleRejected) {
         bindings.patchView({
-          statusBanner:
-            res.rejectedReason ||
-            "文件内容已在服务端更新，过期审阅标记未覆盖新版本，已同步最新状态。",
+          statusBanner: res.rejectedReason || m.s7_review_stale_rejected(),
         });
         bindings.onStaleRejectedRefresh?.();
       }
     } catch (err) {
       if (req.reportable()) {
         bindings.patchView({
-          statusBanner: `${errorPrefix}：${errorMessage(err)}`,
+          statusBanner: formatError(errorMessage(err)),
         });
       }
     } finally {
@@ -399,22 +327,13 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
     }
     if (!live) {
       bindings.patchView({
-        statusBanner: "当前任务变更列表已变化，请刷新后再标记已审阅。",
+        statusBanner: m.s7_review_task_list_changed(),
       });
       return;
     }
 
     const currentlyReviewed = isTaskFileReviewed(path);
-    const item: GitReviewMarkIdentity = {
-      scope: "task",
-      area: "task",
-      path: live.path,
-      ...(live.oldPath ? { oldPath: live.oldPath } : {}),
-      ...(live.baseMode ? { baseMode: live.baseMode } : {}),
-      ...(live.baseIdentity ? { baseIdentity: live.baseIdentity } : {}),
-      ...(live.targetMode ? { targetMode: live.targetMode } : {}),
-      ...(live.targetIdentity ? { targetIdentity: live.targetIdentity } : {}),
-    };
+    const item = buildTaskReviewMarkIdentity(live);
 
     await executeReviewMutation(
       repoId,
@@ -422,7 +341,7 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
       "task",
       currentlyReviewed,
       item,
-      "更新任务审阅进度失败",
+      (error) => m.s7_review_task_update_failed({ error }),
     );
   }
 

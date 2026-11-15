@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import type {
   GitDivergenceKind,
   GitInProgressOperation,
@@ -9,33 +10,33 @@ export function gitSequencerKindLabel(
 ): string {
   switch (kind) {
     case "merge":
-      return "合并 (Merge)";
+      return m.s7_seq_kind_merge();
     case "rebase":
-      return "变基 (Rebase)";
+      return m.s7_seq_kind_rebase();
     case "cherry-pick":
     case "cherry_pick":
-      return "遴选 (Cherry-pick)";
+      return m.s7_seq_kind_cherry_pick();
     case "revert":
-      return "还原 (Revert)";
+      return m.s7_seq_kind_revert();
     case "bisect":
-      return "二分排错 (Bisect)";
+      return m.s7_seq_kind_bisect();
     case "unstash":
-      return "贮藏弹出 (Stash Pop)";
+      return m.s7_seq_kind_unstash();
     default:
-      return kind ? `操作 (${kind})` : "操作";
+      return kind ? m.s7_seq_kind_named({ kind }) : m.s7_seq_kind_generic();
   }
 }
 
 export function gitDivergenceTitleLabel(kind: GitDivergenceKind): string {
   switch (kind) {
     case "merge":
-      return "合并分支预览 · Merge";
+      return m.s7_div_title_merge();
     case "rebase":
-      return "变基分支预览 · Rebase";
+      return m.s7_div_title_rebase();
     case "cherry_pick":
-      return "遴选提交预览 · Cherry-pick";
+      return m.s7_div_title_cherry_pick();
     case "revert":
-      return "还原提交预览 · Revert";
+      return m.s7_div_title_revert();
   }
 }
 
@@ -45,13 +46,15 @@ export function gitDivergenceConfirmLabel(
 ): string {
   switch (kind) {
     case "merge":
-      return fastForward ? "快进合入当前分支" : "确认执行合并";
+      return fastForward
+        ? m.s7_div_confirm_merge_ff()
+        : m.s7_div_confirm_merge();
     case "rebase":
-      return "确认执行变基";
+      return m.s7_div_confirm_rebase();
     case "cherry_pick":
-      return "确认遴选提交";
+      return m.s7_div_confirm_cherry_pick();
     case "revert":
-      return "确认生成还原提交";
+      return m.s7_div_confirm_revert();
   }
 }
 
@@ -59,31 +62,50 @@ export function formatInProgressHeadline(op: GitInProgressOperation): string {
   const kindText = gitSequencerKindLabel(op.kind);
   const stepText =
     op.stepTotal && op.stepTotal > 0 && op.stepCurrent
-      ? ` · 步骤 ${op.stepCurrent}/${op.stepTotal}`
+      ? m.s7_in_progress_step({
+          current: String(op.stepCurrent),
+          total: String(op.stepTotal),
+        })
       : "";
   if (op.kind === "rebase") {
-    const src = op.sourceLabel || op.currentBranch || "当前分支";
-    const dst = op.targetLabel || "目标基底";
-    return `正在进行 ${kindText}${stepText}：将 ${src} 变基到 ${dst} 之上`;
+    const src = op.sourceLabel || op.currentBranch || m.s7_current_branch();
+    const dst = op.targetLabel || m.s7_target_base();
+    return m.s7_in_progress_rebase({
+      kind: kindText,
+      step: stepText,
+      src,
+      dst,
+    });
   }
   if (op.kind === "merge") {
-    const src = op.sourceLabel || "来源分支";
-    const dst = op.targetLabel || op.currentBranch || "当前分支";
-    return `正在进行 ${kindText}：将 ${src} 合入 ${dst}`;
+    const src = op.sourceLabel || m.s7_source_branch();
+    const dst = op.targetLabel || op.currentBranch || m.s7_current_branch();
+    return m.s7_in_progress_merge({ kind: kindText, src, dst });
   }
   if (op.kind === "cherry-pick" || op.kind === "cherry_pick") {
-    const src = op.sourceLabel || op.sourceOid?.slice(0, 7) || "目标提交";
-    return `正在进行 ${kindText}${stepText}：应用提交 ${src}`;
+    const src =
+      op.sourceLabel || op.sourceOid?.slice(0, 7) || m.s7_target_commit();
+    return m.s7_in_progress_cherry_pick({
+      kind: kindText,
+      step: stepText,
+      src,
+    });
   }
   if (op.kind === "revert") {
-    const src = op.sourceLabel || op.sourceOid?.slice(0, 7) || "目标提交";
-    return `正在进行 ${kindText}${stepText}：还原提交 ${src}`;
+    const src =
+      op.sourceLabel || op.sourceOid?.slice(0, 7) || m.s7_target_commit();
+    return m.s7_in_progress_revert({
+      kind: kindText,
+      step: stepText,
+      src,
+    });
   }
   if (op.kind === "unstash") {
-    const src = op.sourceLabel || op.sourceOid?.slice(0, 7) || "贮藏条目";
-    return `${kindText}存在未解决冲突（来源 ${src}，原贮藏条目已安全保留）：请逐个解决冲突文件`;
+    const src =
+      op.sourceLabel || op.sourceOid?.slice(0, 7) || m.s7_stash_entry();
+    return m.s7_in_progress_unstash({ kind: kindText, src });
   }
-  return `正在进行 ${kindText}${stepText}`;
+  return m.s7_in_progress_generic({ kind: kindText, step: stepText });
 }
 
 export function formatPushRemoteTrackingRef(

@@ -3,6 +3,7 @@
   import { navigate } from "../../platform/api";
   import AgentHandoff from "./AgentHandoff.svelte";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import * as m from "$lib/paraglide/messages.js";
   import IconArrowsExchange from "~icons/tabler/arrows-exchange";
   import IconGitFork from "~icons/tabler/git-fork";
   let {
@@ -21,12 +22,17 @@
 
 {#snippet menu()}
   <DropdownMenu.Item onSelect={() => (open = true)}
-    ><IconArrowsExchange aria-hidden="true" />更换 Agent…</DropdownMenu.Item
+    ><IconArrowsExchange
+      aria-hidden="true"
+    />{m.s3_menu_switch_agent()}</DropdownMenu.Item
   >
   <DropdownMenu.Item
     onSelect={() => {
       if (sourceId) navigate(`/handoff/${sourceId}`);
-    }}><IconGitFork aria-hidden="true" />交接到新聊天…</DropdownMenu.Item
+    }}
+    ><IconGitFork
+      aria-hidden="true"
+    />{m.s3_menu_handoff_new_chat()}</DropdownMenu.Item
   >
 {/snippet}
 
@@ -38,7 +44,7 @@
         void tick().then(() =>
           root
             ?.querySelector<HTMLButtonElement>(
-              '[aria-label="会话菜单"], [aria-label="终端菜单"]',
+              `[aria-label="${m.s3_session_menu()}"], [aria-label="${m.s3_terminal_menu()}"], [aria-label="Session menu" i], [aria-label="Terminal menu" i]`,
             )
             ?.focus(),
         );

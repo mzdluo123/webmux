@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { Label } from "$lib/components/ui/label";
   import * as Select from "$lib/components/ui/select";
   import {
@@ -24,7 +25,7 @@
 </script>
 
 <div class="space-y-2">
-  <Label for="switch-commit">提交</Label>
+  <Label for="switch-commit">{m.s8_label_commit()}</Label>
   <Select.Root
     type="single"
     bind:value={commit}
@@ -37,7 +38,7 @@
         >
       {:else}
         <span class="text-muted-foreground">
-          {commitsRead ? "选择提交" : "正在读取最近提交…"}
+          {commitsRead ? m.s8_select_commit() : m.s8_reading_recent_commits()}
         </span>
       {/if}
     </Select.Trigger>
@@ -55,13 +56,13 @@
     </Select.Content>
   </Select.Root>
   {#if commitsError}<p role="alert" class="text-xs text-destructive">
-      无法读取最近提交：{commitsError}
+      {m.s8_err_load_recent_commits({ error: commitsError })}
     </p>{:else if commitsRead && !commitRows.length}<p
       class="text-xs text-muted-foreground"
     >
-      该工作树还没有提交。
+      {m.s8_worktree_has_no_commits()}
     </p>{/if}
   <p class="text-xs text-muted-foreground">
-    分离后工作树不在任何分支上，新提交需要另建分支保留。
+    {m.s8_detach_commit_help()}
   </p>
 </div>

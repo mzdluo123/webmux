@@ -44,6 +44,7 @@
 </script>
 
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Badge } from "$lib/components/ui/badge";
@@ -123,10 +124,12 @@
   const archivedRemaining = $derived(archived.length - archivedShown.length);
 </script>
 
-<h2 class="px-3 pt-1 pb-1 text-xs text-muted-foreground">最近</h2>
+<h2 class="px-3 pt-1 pb-1 text-xs text-muted-foreground">
+  {m.s3_history_recent()}
+</h2>
 {#if live.length || archived.length}
   {#if live.length}
-    <ul class="space-y-0.5" aria-label="聊天历史">
+    <ul class="space-y-0.5" aria-label={m.s3_history_list_label()}>
       {#each live as session (session.id)}
         <SidebarLiveSessionRow
           {session}
@@ -160,31 +163,52 @@
               aria-hidden="true"
               class={archivedOpen ? "" : "-rotate-90"}
             />
-            <span class="font-medium text-muted-foreground">已归档</span>
+            <span class="font-medium text-muted-foreground"
+              >{m.s3_archived()}</span
+            >
             <Badge variant="secondary" class="ml-auto">{archived.length}</Badge>
           </Button>
         {/snippet}
       </Collapsible.Trigger>
       <Collapsible.Content forceMount hidden={!archivedOpen} class="mt-0.5">
         {#if archivedOpen}
-          <ul class="space-y-0.5" aria-label="已归档聊天">
+          <ul
+            class="space-y-0.5"
+            aria-label={m.s3_history_archived_list_label()}
+          >
             {#each archivedShown as record (record.id)}
               {@const title = record.title || record.agent.name}
               {@const releasable = releasableRecordWorktree(
                 record,
                 repositories,
               )}
-              {@const state = record.released ? "已释放空间，已结束" : "已结束"}
+              {@const state = record.released
+                ? m.s3_row_status_released()
+                : m.s3_row_status_ended()}
               <li class="group/row relative">
                 <!-- The same end padding as live rows keeps every status in
                      one column. -->
                 <ListButton
                   variant="navigation-action"
                   aria-current={record.id === current ? "page" : undefined}
-                  aria-label={`${title}（${resuming === record.id ? "正在恢复" : state}）`}
+                  aria-label={m.s3_session_row_label({
+                    title,
+                    status:
+                      resuming === record.id
+                        ? m.s3_history_resuming_status()
+                        : state,
+                  })}
                   title={record.released
-                    ? `${title}（${record.agent.name} · 已释放空间：${record.released.path} · ${record.released.commit.slice(0, 12)}，点击重建并恢复）`
-                    : `${title}（${record.agent.name} · 已结束，点击恢复）`}
+                    ? m.s3_history_released_title({
+                        title,
+                        agent: record.agent.name,
+                        path: record.released.path,
+                        commit: record.released.commit.slice(0, 12),
+                      })
+                    : m.s3_history_ended_title({
+                        title,
+                        agent: record.agent.name,
+                      })}
                   aria-busy={resuming === record.id}
                   disabled={!!resuming}
                   onclick={() => onresume(record)}
@@ -203,7 +227,7 @@
                       ><IconLoader2
                         class="size-3.5 animate-spin motion-reduce:animate-none"
                         aria-hidden="true"
-                      />恢复中…</span
+                      />{m.s3_history_resuming_badge()}</span
                     >{:else}<RowStatus
                       status={record.released ? "released" : "ended"}
                     />{/if}
@@ -234,7 +258,7 @@
               class="w-full justify-start"
               onclick={() => (archivedLimit += PAGE)}
             >
-              显示更多（还有 {archivedRemaining} 条）
+              {m.s3_history_show_more({ count: archivedRemaining })}
             </Button>
           {/if}
         {/if}
@@ -243,6 +267,6 @@
   {/if}
 {:else}
   <p class="px-3 py-2 text-sm text-muted-foreground">
-    还没有聊天。写下任务，发送后就会出现在这里。
+    {m.s3_history_empty()}
   </p>
 {/if}

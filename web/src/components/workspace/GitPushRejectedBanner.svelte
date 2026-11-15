@@ -4,6 +4,7 @@
   import IconGitMerge from "~icons/tabler/git-merge";
   import IconRefresh from "~icons/tabler/refresh";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitPrecedingCommit } from "../../contracts/git-workbench-schemas";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
@@ -37,16 +38,20 @@
   <div class="space-y-1.5">
     <p class={precedingCommit ? "font-medium" : ""}>
       {#if precedingCommit}
-        本地已提交（{precedingCommit.shortOid} · {precedingCommit.subject}），推送未完成：{reason}。本地提交已完整保留。
+        {m.s6_push_rejected_with_commit({
+          shortOid: precedingCommit.shortOid,
+          subject: precedingCommit.subject,
+          reason,
+        })}
       {:else}
-        推送未完成：{reason}
+        {m.s6_push_rejected_plain({ reason })}
       {/if}
     </p>
     <div class="flex flex-wrap items-center gap-2">
       {#if onFetchRemote}
         <Button size="sm" variant="outline" wrap onclick={onFetchRemote}>
           <IconRefresh aria-hidden="true" />
-          获取远程 (Fetch)
+          {m.s6_push_fetch_btn()}
         </Button>
       {/if}
       {#if onFastForwardBranch}
@@ -61,7 +66,7 @@
           }}
         >
           <IconArrowDown aria-hidden="true" />
-          快进更新… (Update)
+          {m.s6_push_ff_update_btn()}
         </Button>
       {/if}
       {#if onMergeRemoteBranch && remoteTrackingRef}
@@ -77,7 +82,7 @@
           data-testid="git-push-rejected-merge-btn"
         >
           <IconGitMerge aria-hidden="true" />
-          合并远端分支… (Merge)
+          {m.s6_push_merge_remote_btn()}
         </Button>
       {/if}
       {#if onRebaseOntoRemoteBranch && remoteTrackingRef}
@@ -93,7 +98,7 @@
           data-testid="git-push-rejected-rebase-btn"
         >
           <IconGitBranch aria-hidden="true" />
-          变基到远端分支… (Rebase)
+          {m.s6_push_rebase_remote_btn()}
         </Button>
       {/if}
     </div>

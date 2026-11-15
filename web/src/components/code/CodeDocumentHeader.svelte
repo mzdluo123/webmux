@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, type Snippet } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
   import * as NativeSelect from "$lib/components/ui/native-select";
@@ -75,10 +76,10 @@
     shownDiff?.kind !== "image"
       ? ""
       : shownDiff.old.source === "empty"
-        ? "图片已新增"
+        ? m.s5_image_added()
         : shownDiff.new.source === "empty"
-          ? "图片已删除"
-          : "图片已修改",
+          ? m.s5_image_deleted()
+          : m.s5_image_modified(),
   );
   const renamed = $derived(
     !!shownDiff && shownDiff.change.oldPath !== shownDiff.change.newPath,
@@ -93,7 +94,7 @@
     !!imageChange || status !== "unchanged" || unreadable || !!svgNotice,
   );
   const sideSize = (value: CodeDiff["old"]) =>
-    value.source === "empty" ? "不存在" : formatBytes(value.size);
+    value.source === "empty" ? m.s5_source_missing() : formatBytes(value.size);
 
   onMount(() => {
     menu = documentMenu;
@@ -125,20 +126,20 @@
     <DropdownMenu.Item
       disabled={busy}
       onSelect={() => (shownDiff ? (mode = "file") : oncompare())}
-      >{shownDiff ? "返回文件" : "查看 Diff"}</DropdownMenu.Item
+      >{shownDiff ? m.s5_back_to_file() : m.s5_view_diff()}</DropdownMenu.Item
     >
   {/if}
   {#if formatFile}
     <DropdownMenu.Item
       onSelect={() => onshowformat(formatPreview ? "source" : "preview")}
       >{formatPreview
-        ? "返回源码"
+        ? m.s5_back_to_source()
         : previewFormatLabel(formatFile)}</DropdownMenu.Item
     >
   {/if}
   {#if outline}
     <DropdownMenu.Sub>
-      <DropdownMenu.SubTrigger>目录</DropdownMenu.SubTrigger>
+      <DropdownMenu.SubTrigger>{m.s5_outline()}</DropdownMenu.SubTrigger>
       <DropdownMenu.SubContent class="max-h-[60svh] overflow-y-auto">
         {@render outlineItems()}
       </DropdownMenu.SubContent>
@@ -150,13 +151,15 @@
       value={svgView}
       onValueChange={(value) => onshowsvg(value as "preview" | "source")}
     >
-      <DropdownMenu.GroupHeading>SVG 显示方式</DropdownMenu.GroupHeading>
+      <DropdownMenu.GroupHeading
+        >{m.s5_svg_display_mode()}</DropdownMenu.GroupHeading
+      >
       <!-- The view changes underneath; close like the other entries. -->
       <DropdownMenu.RadioItem value="preview" closeOnSelect
-        >预览</DropdownMenu.RadioItem
+        >{m.s5_preview()}</DropdownMenu.RadioItem
       >
       <DropdownMenu.RadioItem value="source" closeOnSelect
-        >源码</DropdownMenu.RadioItem
+        >{m.s5_source()}</DropdownMenu.RadioItem
       >
     </DropdownMenu.RadioGroup>
   {/if}
@@ -170,13 +173,15 @@
           onclearselection();
         }}
       >
-        <DropdownMenu.GroupHeading>预览来源</DropdownMenu.GroupHeading>
+        <DropdownMenu.GroupHeading
+          >{m.s5_preview_source_side()}</DropdownMenu.GroupHeading
+        >
         {#each diffSides as which (which)}
           <DropdownMenu.RadioItem
             value={which}
             closeOnSelect
             disabled={shownDiff[which].source === "empty"}
-            >{which === "old" ? "修改前" : "修改后"}<span
+            >{which === "old" ? m.s5_before() : m.s5_after()}<span
               class="ml-auto text-xs text-muted-foreground"
               >{sourceLabel(shownDiff[which].source)}</span
             ></DropdownMenu.RadioItem
@@ -186,12 +191,14 @@
     {/if}
     <DropdownMenu.Separator />
     <DropdownMenu.Group>
-      <DropdownMenu.GroupHeading>完整文件</DropdownMenu.GroupHeading>
+      <DropdownMenu.GroupHeading>{m.s5_full_file()}</DropdownMenu.GroupHeading>
       {@render fullItems()}
     </DropdownMenu.Group>
   {/if}
   <DropdownMenu.Separator />
-  <DropdownMenu.Item onSelect={onrefresh}>刷新文档</DropdownMenu.Item>
+  <DropdownMenu.Item onSelect={onrefresh}
+    >{m.s5_refresh_document()}</DropdownMenu.Item
+  >
 {/snippet}
 
 {#snippet fullItems()}
@@ -199,7 +206,7 @@
     {#each diffSides as which (which)}
       {#if shownDiff[which].source !== "empty"}
         <DropdownMenu.Item onSelect={() => onfull(which)}>
-          {which === "old" ? "修改前的文件" : "修改后的文件"}
+          {which === "old" ? m.s5_file_before() : m.s5_file_after()}
           <span class="ml-auto text-xs text-muted-foreground"
             >{sourceLabel(shownDiff[which].source)}</span
           >
@@ -227,20 +234,20 @@
         size="sm"
         disabled={busy}
         onclick={() => (shownDiff ? (mode = "file") : oncompare())}
-        >{shownDiff ? "返回文件" : "查看 Diff"}</Button
+        >{shownDiff ? m.s5_back_to_file() : m.s5_view_diff()}</Button
       >{/if}
     {#if formatFile}<Button
         variant="ghost"
         size="sm"
         aria-pressed={formatPreview}
         onclick={() => onshowformat(formatPreview ? "source" : "preview")}
-        >{formatPreview ? "返回源码" : "预览"}</Button
+        >{formatPreview ? m.s5_back_to_source() : m.s5_preview()}</Button
       >{/if}
     {#if outline}<DropdownMenu.Root>
         <DropdownMenu.Trigger>
           {#snippet child({ props })}
             <Button {...props} variant="ghost" size="sm">
-              目录<IconChevronDown aria-hidden="true" />
+              {m.s5_outline()}<IconChevronDown aria-hidden="true" />
             </Button>
           {/snippet}
         </DropdownMenu.Trigger>
@@ -252,28 +259,32 @@
         value={svgView}
         onValueChange={(view) =>
           onshowsvg(view === "source" ? "source" : "preview")}
-        aria-label="SVG 显示方式"
+        aria-label={m.s5_svg_display_mode()}
         class="shrink-0"
       >
-        <SegmentedControl.Item value="preview">预览</SegmentedControl.Item>
-        <SegmentedControl.Item value="source">源码</SegmentedControl.Item>
+        <SegmentedControl.Item value="preview"
+          >{m.s5_preview()}</SegmentedControl.Item
+        >
+        <SegmentedControl.Item value="source"
+          >{m.s5_source()}</SegmentedControl.Item
+        >
       </SegmentedControl.Root>{/if}
     {#if shownDiff}
       {#if imageChange}<Label size="sm" class="shrink-0"
-          >预览来源
+          >{m.s5_preview_source_side()}
           <NativeSelect.Root
             size="sm"
-            aria-label="预览来源"
+            aria-label={m.s5_preview_source_side()}
             bind:value={side}
             onchange={onclearselection}
             ><NativeSelect.Option value="new"
-              >修改后（{sourceLabel(
-                shownDiff.new.source,
-              )}）</NativeSelect.Option
+              >{m.s5_after_with_source({
+                source: sourceLabel(shownDiff.new.source),
+              })}</NativeSelect.Option
             ><NativeSelect.Option value="old"
-              >修改前（{sourceLabel(
-                shownDiff.old.source,
-              )}）</NativeSelect.Option
+              >{m.s5_before_with_source({
+                source: sourceLabel(shownDiff.old.source),
+              })}</NativeSelect.Option
             ></NativeSelect.Root
           ></Label
         >{/if}
@@ -281,7 +292,7 @@
         <DropdownMenu.Trigger>
           {#snippet child({ props })}
             <Button {...props} variant="ghost" size="sm">
-              完整文件<IconChevronDown aria-hidden="true" />
+              {m.s5_full_file()}<IconChevronDown aria-hidden="true" />
             </Button>
           {/snippet}
         </DropdownMenu.Trigger>
@@ -296,21 +307,22 @@
     </p>{/if}
   {#if imageChange && shownDiff}<p>
       <span class="font-medium">{imageChange}</span> ·
-      <span aria-label="大小变化"
+      <span aria-label={m.s5_size_change()}
         >{sideSize(shownDiff.old)} → {sideSize(shownDiff.new)}</span
       >
     </p>{/if}
   {#if status !== "unchanged"}<p role="status">
-      {status === "updated"
-        ? "内容已更新"
-        : status === "missing"
-          ? "文件已不存在"
-          : status === "expired"
-            ? "快照已过期"
-            : "检测失败，状态未知"}，保留旧内容。<Button
-        variant="outline"
-        size="sm"
-        onclick={onrefresh}>刷新文档</Button
+      {m.s5_stale_keep_old_content({
+        reason:
+          status === "updated"
+            ? m.s5_status_updated()
+            : status === "missing"
+              ? m.s5_status_missing()
+              : status === "expired"
+                ? m.s5_status_expired()
+                : m.s5_check_failed_status_unknown(),
+      })}<Button variant="outline" size="sm" onclick={onrefresh}
+        >{m.s5_refresh_document()}</Button
       >
     </p>{/if}
   {#if unreadable}<p>

@@ -1,4 +1,5 @@
 import type { IBufferCell, ITheme, Terminal } from "@xterm/xterm";
+import * as m from "$lib/paraglide/messages.js";
 import { observeTerminalCursor } from "./terminal-cursor";
 
 const paletteNames = [
@@ -49,7 +50,7 @@ export interface XrTerminalCanvas {
 export function createXrTerminalCanvas(terminal: Terminal): XrTerminalCanvas {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
-  if (!context) throw new Error("VR 终端画布不可用");
+  if (!context) throw new Error(m.s4_xr_err_terminal_canvas());
   const ctx = context;
   let disposed = false;
   let dirty = true;

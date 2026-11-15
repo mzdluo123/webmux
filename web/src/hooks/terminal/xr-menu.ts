@@ -1,3 +1,5 @@
+import { locale } from "$lib/locale";
+import * as m from "$lib/paraglide/messages.js";
 import type {
   XrTextPanel,
   XrWorkspaceOptions,
@@ -29,7 +31,11 @@ export function createXrMenu(
         (panel) => panel.sessionId === sessionId,
       );
       const contents = [
-        { kind: "terminal" as const, id: "terminal", title: "终端" },
+        {
+          kind: "terminal" as const,
+          id: "terminal",
+          title: m.s4_tab_terminal(),
+        },
         ...(texts.get(sessionId) ?? []),
       ].filter(
         (text) =>
@@ -40,13 +46,26 @@ export function createXrMenu(
       const entries = [
         ...bindings.map((panel) => ({
           id: `panel:${panel.id}`,
-          label: `${panel.visible ? "● 显示" : "○ 隐藏"} ${panel.kind} · ${panel.sourceId} · 视图 ${panel.id.slice(-8)}`,
+          label: panel.visible
+            ? m.s4_xr_menu_panel_visible({
+                kind: panel.kind,
+                source: panel.sourceId,
+                view: panel.id.slice(-8),
+              })
+            : m.s4_xr_menu_panel_hidden({
+                kind: panel.kind,
+                source: panel.sourceId,
+                view: panel.id.slice(-8),
+              }),
           selected: panel.id === views.selectedViewId,
           run: () => views.toggle(panel),
         })),
         ...contents.map((text) => ({
           id: `content:${text.kind}:${text.id}`,
-          label: `＋ ${text.title} · ${text.id === "notice" ? "通知 / 不可用原因" : text.kind}`,
+          label: m.s4_xr_menu_open_content({
+            title: text.title,
+            kind: text.id === "notice" ? m.s4_xr_menu_notice_kind() : text.kind,
+          }),
           selected: false,
           run: () => views.openContent(contentSessionId, text.kind, text.id),
         })),
@@ -56,6 +75,7 @@ export function createXrMenu(
       page = Math.min(page, maxPage - 1);
       panelPage = Math.min(panelPage, maxPanelPage - 1);
       const next = JSON.stringify([
+        locale.current,
         sessions.map((item) => [
           item.id,
           item.title,
@@ -82,7 +102,7 @@ export function createXrMenu(
         regions.push(
           {
             id: `session:${item.id}`,
-            label: `${pending ? "加入中" : observed ? "● 观察" : "＋ 加入"} ${item.title}${status ? ` · ${status}` : ""}`,
+            label: `${pending ? m.s4_xr_menu_joining() : observed ? m.s4_xr_menu_observing() : m.s4_xr_menu_join()} ${item.title}${status ? ` · ${status}` : ""}`,
             selected: sessionId === item.id,
             disabled: pending,
             x: 12,
@@ -98,7 +118,7 @@ export function createXrMenu(
           },
           {
             id: `unobserve:${item.id}`,
-            label: "移出观察",
+            label: m.s4_xr_menu_unobserve(),
             disabled: !observed && !pending,
             x: 594,
             y: 62 + index * 64,
@@ -111,7 +131,7 @@ export function createXrMenu(
       regions.push(
         {
           id: "sessions-prev",
-          label: "‹ 会话",
+          label: m.s4_xr_menu_sessions_prev(),
           x: 12,
           y: 452,
           width: 250,
@@ -124,7 +144,7 @@ export function createXrMenu(
         },
         {
           id: "sessions-next",
-          label: "会话 ›",
+          label: m.s4_xr_menu_sessions_next(),
           x: 538,
           y: 452,
           width: 250,
@@ -148,7 +168,10 @@ export function createXrMenu(
       if (maxPanelPage > 1)
         regions.push({
           id: "panels-next",
-          label: `内容 ${panelPage + 1}/${maxPanelPage} ›`,
+          label: m.s4_xr_menu_panels_next({
+            page: String(panelPage + 1),
+            total: String(maxPanelPage),
+          }),
           x: 12,
           y: 834,
           width: 776,
@@ -161,7 +184,7 @@ export function createXrMenu(
       regions.push(
         {
           id: "keyboard",
-          label: "VR 键盘 / 收起键盘",
+          label: m.s4_xr_menu_toggle_keyboard(),
           x: 12,
           y: 904,
           width: 776,
@@ -170,7 +193,7 @@ export function createXrMenu(
         },
         {
           id: "reset",
-          label: "恢复默认布局",
+          label: m.s4_xr_menu_reset_layout(),
           x: 12,
           y: 984,
           width: 776,
@@ -179,7 +202,7 @@ export function createXrMenu(
         },
         {
           id: "exit",
-          label: "退出 VR · 返回原 2D",
+          label: m.s4_xr_menu_exit_vr(),
           x: 12,
           y: 1064,
           width: 776,
@@ -190,7 +213,7 @@ export function createXrMenu(
       if (notice())
         regions.push({
           id: "dismiss-notice",
-          label: "关闭提示",
+          label: m.s4_dismiss_notice(),
           x: 12,
           y: 1368,
           width: 776,
@@ -200,7 +223,7 @@ export function createXrMenu(
       surface.regions = regions;
       surface.draw(() => {
         surface.text(
-          "工作台 · 观察集合（独立于 2D）",
+          m.s4_xr_menu_header(),
           20,
           16,
           "#edf4ef",
@@ -214,7 +237,7 @@ export function createXrMenu(
           "24px system-ui",
         );
         surface.text(
-          "面板 / 附加内容 / 通知",
+          m.s4_xr_menu_panels_header(),
           20,
           534,
           "#edf4ef",
@@ -223,7 +246,12 @@ export function createXrMenu(
         const target = views.selection();
         const message = xrGraphemes(
           notice() ||
-            `输入：${target ? `${target.source.title} · 视图 ${target.layout.id.slice(-8)}` : "未选择视图"}。滚动和拖动不改变输入目标。`,
+            (target
+              ? m.s4_xr_menu_input_target({
+                  title: target.source.title,
+                  view: target.layout.id.slice(-8),
+                })
+              : m.s4_xr_menu_input_none()),
         );
         for (let row = 0; row < 5; row++)
           surface.text(
@@ -235,7 +263,7 @@ export function createXrMenu(
           );
         if (message.length > 170)
           surface.text(
-            "退出 VR 后可查看完整错误。",
+            m.s4_xr_menu_full_error_in_2d(),
             20,
             1340,
             "#f0a0a0",

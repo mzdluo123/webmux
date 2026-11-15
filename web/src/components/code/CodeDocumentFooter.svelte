@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import CodeDownloadButton from "./CodeDownloadButton.svelte";
   import { basename, codeRawPath } from "../../domains/code/code-image";
@@ -46,6 +47,13 @@
     onsend: () => void;
     ondownloaderror: (message: string, code: number) => void;
   } = $props();
+  const sendLabel = $derived.by(() => {
+    const target = draftEnabled ? m.s5_target_draft() : m.s5_target_terminal();
+    if (start === undefined) return m.s5_send_location_to({ target });
+    return end !== undefined && end !== start
+      ? m.s5_send_location_lines({ target, range: `${start}-${end}` })
+      : m.s5_send_location_line({ target, line: String(start) });
+  });
 </script>
 
 <div class="mt-auto shrink-0 space-y-1 border-t p-2">
@@ -53,7 +61,7 @@
   <div class="flex flex-wrap items-center gap-2">
     <!-- Zero basis: the text truncates instead of wrapping the buttons. -->
     <p class="min-w-0 flex-1 basis-0 truncate text-xs text-muted-foreground">
-      {#if shownDiff}{side === "old" ? "修改前" : "修改后"} · {sourceLabel(
+      {#if shownDiff}{side === "old" ? m.s5_before() : m.s5_after()} · {sourceLabel(
           doc?.source ?? "",
         )}{/if}{#if hint}<span class="max-sm:hidden"
           >{shownDiff ? " · " : ""}<span>{hint}</span></span
@@ -62,18 +70,12 @@
     {#if start !== undefined || invalidSelection}<Button
         variant="outline"
         size="sm"
-        onclick={onresetselection}>引用整个文件</Button
+        onclick={onresetselection}>{m.s5_reference_whole_file()}</Button
       >{/if}
     <Button
       size="sm"
       disabled={!preview || status !== "unchanged"}
-      onclick={onsend}
-      >发送位置到{draftEnabled
-        ? "草稿"
-        : "终端"}{#if start !== undefined}（{start}{end !== undefined &&
-        end !== start
-          ? `-${end}`
-          : ""} 行）{/if}</Button
+      onclick={onsend}>{sendLabel}</Button
     >
     {#if doc && ((imageDocument && doc.source !== "empty") || (pdfFile && doc.kind !== "pdf"))}<CodeDownloadButton
         path={codeRawPath(id, snapshotId, rawSide)}
@@ -83,7 +85,7 @@
       />{#if !doc.downloadable}<p
           class="self-center text-xs text-muted-foreground"
         >
-          超过 100 MiB 下载上限，不可下载
+          {m.s5_exceeds_download_limit()}
         </p>{/if}{/if}
   </div>
 </div>

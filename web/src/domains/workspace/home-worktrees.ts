@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import {
   HomeWorktreesSchema,
   type HomeWorktrees,
@@ -31,8 +32,8 @@ export function worktreeTitle(tree: Worktree) {
     (tree.detached
       ? `detached · ${tree.head?.slice(0, 12)}`
       : tree.kind === "bare"
-        ? "Bare 仓库"
-        : "尚无提交")
+        ? m.s8_bare_repo()
+        : m.s8_no_commits_yet())
   );
 }
 

@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import type {
   GitBranchItem,
   GitWorktreeContext,
@@ -33,29 +34,33 @@ export function resolveGitBranchUpstream(
   if (!item.upstream) {
     return {
       kind: "none",
-      badgeText: "无上游",
-      detailText: "尚未配置远程上游分支，推送时将执行首次发布（Publish）",
+      badgeText: m.s7_upstream_none_badge(),
+      detailText: m.s7_upstream_none_detail(),
     };
   }
   if (item.upstreamGone) {
     return {
       kind: "gone",
-      badgeText: "上游已删",
-      detailText: `上游 ${item.upstream} 已从远端移除，再次推送将重新发布`,
+      badgeText: m.s7_upstream_gone_badge(),
+      detailText: m.s7_upstream_gone_detail({ upstream: item.upstream }),
     };
   }
   if (item.ahead === undefined || item.behind === undefined) {
     return {
       kind: "uncounted",
-      badgeText: "待统计",
-      detailText: `跟踪 ${item.upstream}（领先/落后计数待预览计算）`,
+      badgeText: m.s7_upstream_uncounted_badge(),
+      detailText: m.s7_upstream_uncounted_detail({ upstream: item.upstream }),
     };
   }
   if (item.ahead > 0 && item.behind > 0) {
     return {
       kind: "diverged",
       badgeText: `↑${item.ahead} ↓${item.behind}`,
-      detailText: `跟踪 ${item.upstream} · 已分叉（领先 ${item.ahead} · 落后 ${item.behind}）`,
+      detailText: m.s7_upstream_diverged_detail({
+        upstream: item.upstream,
+        ahead: String(item.ahead),
+        behind: String(item.behind),
+      }),
       ahead: item.ahead,
       behind: item.behind,
     };
@@ -64,7 +69,10 @@ export function resolveGitBranchUpstream(
     return {
       kind: "ahead",
       badgeText: `↑${item.ahead}`,
-      detailText: `跟踪 ${item.upstream} · 领先 ${item.ahead} 个提交`,
+      detailText: m.s7_upstream_ahead_detail({
+        upstream: item.upstream,
+        ahead: String(item.ahead),
+      }),
       ahead: item.ahead,
       behind: 0,
     };
@@ -73,15 +81,18 @@ export function resolveGitBranchUpstream(
     return {
       kind: "behind",
       badgeText: `↓${item.behind}`,
-      detailText: `跟踪 ${item.upstream} · 落后 ${item.behind} 个提交`,
+      detailText: m.s7_upstream_behind_detail({
+        upstream: item.upstream,
+        behind: String(item.behind),
+      }),
       ahead: 0,
       behind: item.behind,
     };
   }
   return {
     kind: "synced",
-    badgeText: "已同步",
-    detailText: `跟踪 ${item.upstream} · 与上游完全同步`,
+    badgeText: m.s7_upstream_synced_badge(),
+    detailText: m.s7_upstream_synced_detail({ upstream: item.upstream }),
     ahead: 0,
     behind: 0,
   };
@@ -189,29 +200,31 @@ export function resolveGitBranchActions(options: {
       kind: "filter-log",
       label:
         item.kind === "tag"
-          ? "在历史 (Log) 中筛选此标签"
-          : "在历史 (Log) 中筛选此分支",
+          ? m.s7_branch_action_filter_tag()
+          : m.s7_branch_action_filter_branch(),
     },
   ];
 
   if (branchFilter === item.name) {
     actions.push({
       kind: "clear-filter",
-      label: "清除历史引用筛选",
+      label: m.s7_branch_action_clear_filter(),
     });
   }
 
   if (item.kind !== "tag") {
     actions.push({
       kind: "toggle-favorite",
-      label: item.favorite ? "取消收藏分支" : "收藏分支",
+      label: item.favorite
+        ? m.s7_branch_action_unfavorite()
+        : m.s7_branch_action_favorite(),
     });
   }
 
   if (compareBaseOid && compareBaseOid !== item.head) {
     actions.push({
       kind: "compare",
-      label: compareTargetLabel || "与当前基准比较",
+      label: compareTargetLabel || m.s7_compare_with_base(),
     });
   }
 
@@ -222,36 +235,41 @@ export function resolveGitBranchActions(options: {
         kind: "open-occupied-worktree",
         label:
           item.occupiedBy.activeSessions > 0
-            ? `打开所在工作树（${item.occupiedBy.activeSessions} 个活跃会话）`
-            : "打开所在工作树",
+            ? m.s7_branch_action_open_occupied_sessions({
+                count: String(item.occupiedBy.activeSessions),
+              })
+            : m.s7_branch_action_open_occupied(),
         separatorBefore: true,
       },
       {
         kind: "open-new-worktree",
-        label: "从该提交新建分支工作树…",
+        label: m.s7_branch_action_new_wt_from_commit(),
       },
     );
   } else if (item.kind !== "tag") {
     if (isCurrent) {
       actions.push({
         kind: "checkout",
-        label: "检出分支…",
+        label: m.s7_branch_action_checkout(),
         disabled: true,
-        disabledReason: "当前工作树已检出此分支",
+        disabledReason: m.s7_branch_disabled_already_checked_out(),
         separatorBefore: true,
       });
     } else if (!hasWritableWorktree) {
       actions.push({
         kind: "checkout",
-        label: "检出分支…",
+        label: m.s7_branch_action_checkout(),
         disabled: true,
-        disabledReason: "当前为只读仓库视图，请先选择工作树或在新工作树打开",
+        disabledReason: m.s7_branch_disabled_readonly_checkout(),
         separatorBefore: true,
       });
     } else {
       actions.push({
         kind: "checkout",
-        label: item.kind === "remote" ? "检出并跟踪远程分支…" : "检出分支…",
+        label:
+          item.kind === "remote"
+            ? m.s7_branch_action_checkout_remote()
+            : m.s7_branch_action_checkout(),
         separatorBefore: true,
       });
     }
@@ -260,12 +278,12 @@ export function resolveGitBranchActions(options: {
       {
         kind: "create-branch-from",
         label: hasWritableWorktree
-          ? "从此分支新建分支…"
-          : "从此分支新建工作树分支…",
+          ? m.s7_branch_action_create_from()
+          : m.s7_branch_action_create_wt_from(),
       },
       {
         kind: "open-new-worktree",
-        label: "在新工作树打开…",
+        label: m.s7_branch_action_open_new_wt(),
       },
     );
   }
@@ -278,11 +296,13 @@ export function resolveGitBranchActions(options: {
       Boolean(context.checkedOutBranch) &&
       !context.operationInProgress;
     const divergeDisabledReason = !hasWritableWorktree
-      ? "当前为只读仓库视图，请先选择工作树"
+      ? m.s7_branch_disabled_readonly_wt()
       : context.operationInProgress
-        ? `工作树正在进行 ${context.operationInProgress} 操作，请先继续或中止`
+        ? m.s7_branch_disabled_op_in_progress({
+            op: context.operationInProgress,
+          })
         : context.headState !== "branch" || !context.checkedOutBranch
-          ? "当前工作树未检出命名分支，请先检出分支"
+          ? m.s7_branch_disabled_not_named_branch()
           : undefined;
 
     if (!isCurrent) {
@@ -290,8 +310,10 @@ export function resolveGitBranchActions(options: {
         {
           kind: "merge-into-current",
           label: context.checkedOutBranch
-            ? `合入当前分支 (${context.checkedOutBranch})…`
-            : "将此分支合入当前分支…",
+            ? m.s7_branch_action_merge_into_named({
+                branch: context.checkedOutBranch,
+              })
+            : m.s7_branch_action_merge_into_current(),
           disabled: !canDivergeOnBranch,
           disabledReason: divergeDisabledReason,
           separatorBefore: true,
@@ -299,8 +321,10 @@ export function resolveGitBranchActions(options: {
         {
           kind: "rebase-onto",
           label: context.checkedOutBranch
-            ? `将 ${context.checkedOutBranch} 变基到此分支…`
-            : "将当前分支变基到此分支…",
+            ? m.s7_branch_action_rebase_named_onto({
+                branch: context.checkedOutBranch,
+              })
+            : m.s7_branch_action_rebase_current_onto(),
           disabled: !canDivergeOnBranch,
           disabledReason: divergeDisabledReason,
         },
@@ -309,14 +333,16 @@ export function resolveGitBranchActions(options: {
       actions.push(
         {
           kind: "merge-into-current",
-          label: `合并上游 (${item.upstream})…`,
+          label: m.s7_branch_action_merge_upstream({ upstream: item.upstream }),
           disabled: !canDivergeOnBranch,
           disabledReason: divergeDisabledReason,
           separatorBefore: true,
         },
         {
           kind: "rebase-onto",
-          label: `变基到上游 (${item.upstream})…`,
+          label: m.s7_branch_action_rebase_upstream({
+            upstream: item.upstream,
+          }),
           disabled: !canDivergeOnBranch,
           disabledReason: divergeDisabledReason,
         },
@@ -328,39 +354,39 @@ export function resolveGitBranchActions(options: {
   if (item.kind === "local") {
     actions.push({
       kind: "fetch",
-      label: "获取远程 (Fetch)",
+      label: m.s7_branch_action_fetch(),
       separatorBefore: true,
     });
 
     const ffDisabledReason =
       upstream.kind === "none"
-        ? "尚未配置远程上游分支"
+        ? m.s7_branch_disabled_ff_no_upstream()
         : upstream.kind === "gone"
-          ? "远程上游分支已删除"
+          ? m.s7_branch_disabled_ff_gone()
           : upstream.kind === "diverged"
-            ? "本地与上游已分叉，请使用合并或变基上游分支"
+            ? m.s7_branch_disabled_ff_diverged()
             : upstream.kind === "synced" || upstream.kind === "ahead"
-              ? "上游没有领先本地的新提交"
+              ? m.s7_branch_disabled_ff_no_incoming()
               : undefined;
 
     actions.push({
       kind: "fast-forward",
-      label: "快进更新… (Update)",
+      label: m.s7_branch_action_fast_forward(),
       disabled: Boolean(ffDisabledReason),
       disabledReason: ffDisabledReason,
     });
 
     const pushLabel =
       upstream.kind === "none" || upstream.kind === "gone"
-        ? "发布分支… (Publish)"
-        : "推送… (Push)";
+        ? m.s7_branch_action_publish()
+        : m.s7_branch_action_push();
     const pushDisabledReason =
       upstream.kind === "diverged"
-        ? "本地与上游已分叉，请先合并或变基上游分支后再推送"
+        ? m.s7_branch_disabled_push_diverged()
         : upstream.kind === "behind"
-          ? "分支落后于上游，请先快进更新"
+          ? m.s7_branch_disabled_push_behind()
           : upstream.kind === "synced"
-            ? "已与上游同步，没有待推送提交"
+            ? m.s7_branch_disabled_push_synced()
             : undefined;
 
     actions.push({
@@ -373,28 +399,30 @@ export function resolveGitBranchActions(options: {
     actions.push(
       {
         kind: "rename-branch",
-        label: "重命名本地分支…",
+        label: m.s7_branch_action_rename(),
         separatorBefore: true,
       },
       {
         kind: "set-upstream",
-        label: item.upstream ? "修改/取消上游跟踪…" : "设置上游跟踪分支…",
+        label: item.upstream
+          ? m.s7_branch_action_edit_upstream()
+          : m.s7_branch_action_set_upstream(),
       },
       {
         kind: "create-tag",
-        label: "在此提交新建标签…",
+        label: m.s7_branch_action_create_tag(),
       },
     );
 
     const deleteDisabledReason = isCurrent
-      ? "当前工作树已检出此分支，无法直接删除"
+      ? m.s7_branch_disabled_delete_current()
       : item.occupiedBy
-        ? "已在另一工作树检出，无法直接删除"
+        ? m.s7_branch_disabled_delete_occupied()
         : undefined;
 
     actions.push({
       kind: "delete",
-      label: "删除分支…",
+      label: m.s7_branch_action_delete(),
       destructive: true,
       disabled: Boolean(deleteDisabledReason),
       disabledReason: deleteDisabledReason,
@@ -403,19 +431,19 @@ export function resolveGitBranchActions(options: {
   } else if (item.kind === "remote") {
     actions.push({
       kind: "create-tag",
-      label: "在此提交新建标签…",
+      label: m.s7_branch_action_create_tag(),
       separatorBefore: true,
     });
   } else if (item.kind === "tag") {
     actions.push(
       {
         kind: "create-tag",
-        label: "在此提交新建另一标签…",
+        label: m.s7_branch_action_create_another_tag(),
         separatorBefore: true,
       },
       {
         kind: "delete-tag",
-        label: "删除本地标签…",
+        label: m.s7_branch_action_delete_tag(),
         destructive: true,
         separatorBefore: true,
       },

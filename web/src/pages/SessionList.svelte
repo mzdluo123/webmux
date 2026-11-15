@@ -13,6 +13,7 @@
     resetBrowserChrome,
     setBrowserChrome,
   } from "../platform/browser-chrome";
+  import * as m from "$lib/paraglide/messages.js";
 
   const shell = getShell();
   let query = $state("");
@@ -27,7 +28,7 @@
   );
   $effect(() =>
     setBrowserChrome(
-      "WebMux · 会话",
+      m.s1_chrome_sessions(),
       sessions.some((session) => session.status === "running"),
     ),
   );
@@ -45,27 +46,31 @@
 <main class="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6">
   <header class="flex items-center gap-2">
     <SidebarButton />
-    <h1 class="mr-auto text-2xl font-semibold">会话</h1>
+    <h1 class="mr-auto text-2xl font-semibold">{m.s1_sessions()}</h1>
     <SessionSwitcherTrigger size="icon-touch" />
-    <Button onclick={() => shell.start()}>新建会话</Button>
+    <Button onclick={() => shell.start()}>{m.s1_new_session()}</Button>
   </header>
   <HomeUpdateNotice update={shell.setup.value.pendingUpdate} />
   <Input
-    aria-label="搜索会话"
-    placeholder="搜索会话或目录"
+    aria-label={m.s1_search_sessions()}
+    placeholder={m.s1_search_sessions_or_dirs()}
     bind:value={query}
   />
   {#if shell.sessions.error}<InlineNotice tone="danger"
       >{shell.sessions.error}</InlineNotice
     >{/if}
   {#if shell.sessions.loading}
-    <p role="status" class="text-sm text-muted-foreground">正在加载会话…</p>
+    <p role="status" class="text-sm text-muted-foreground">
+      {m.s1_loading_sessions_list()}
+    </p>
   {:else if !sessions.length}
-    <p class="text-sm text-muted-foreground">暂无会话。新建会话以启动终端。</p>
+    <p class="text-sm text-muted-foreground">{m.s1_empty_sessions_core()}</p>
   {:else if !visible.length}
-    <p class="text-sm text-muted-foreground">没有匹配的会话。</p>
+    <p class="text-sm text-muted-foreground">
+      {m.s1_no_matching_sessions_short()}
+    </p>
   {:else}
-    <div role="list" aria-label="会话列表" class="space-y-3">
+    <div role="list" aria-label={m.s1_session_list_aria()} class="space-y-3">
       {#each visible as session (session.id)}
         <SessionRow {session} {now} onclose={shell.close} />
       {/each}

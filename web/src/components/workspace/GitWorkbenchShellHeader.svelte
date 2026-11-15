@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import type { Snippet } from "svelte";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconFolder from "~icons/tabler/folder";
@@ -61,21 +62,29 @@
         <span
           class="truncate"
           title={readonlyMode
-            ? "只读仓库（无工作树）"
+            ? m.s7_readonly_repo_no_wt()
             : context.headState === "detached"
-              ? "游离 HEAD"
+              ? m.s7_detached_head()
               : context.headState === "unborn"
-                ? `未诞生 HEAD (${context.checkedOutBranch ?? "main"})`
-                : `当前检出：${context.checkedOutBranch ?? "HEAD"}`}
+                ? m.s7_unborn_head_branch({
+                    branch: context.checkedOutBranch ?? "main",
+                  })
+                : m.s7_shell_header_checked_out({
+                    branch: context.checkedOutBranch ?? "HEAD",
+                  })}
         >
           {#if readonlyMode}
-            只读仓库（无工作树）
+            {m.s7_readonly_repo_no_wt()}
           {:else if context.headState === "detached"}
-            游离 HEAD
+            {m.s7_detached_head()}
           {:else if context.headState === "unborn"}
-            未诞生 HEAD ({context.checkedOutBranch ?? "main"})
+            {m.s7_unborn_head_branch({
+              branch: context.checkedOutBranch ?? "main",
+            })}
           {:else}
-            当前检出：{context.checkedOutBranch ?? "HEAD"}
+            {m.s7_shell_header_checked_out({
+              branch: context.checkedOutBranch ?? "HEAD",
+            })}
           {/if}
         </span>
       </Badge>
@@ -83,8 +92,11 @@
 
     {#if branchFilter}
       <Badge variant="outline" class="max-w-full">
-        <span class="truncate" title={`浏览筛选：${branchFilter}`}>
-          浏览筛选：{branchFilter}
+        <span
+          class="truncate"
+          title={m.s7_shell_header_browse_filter({ branch: branchFilter })}
+        >
+          {m.s7_shell_header_browse_filter({ branch: branchFilter })}
         </span>
       </Badge>
     {/if}
@@ -94,7 +106,7 @@
       {context}
       {branchFilter}
       {compareBaseOid}
-      compareTargetLabel="与当前 HEAD 比较"
+      compareTargetLabel={m.s7_compare_with_head()}
       onSelectAll={onSelectAllBranches}
       {onBranchAction}
     />
@@ -110,7 +122,7 @@
         data-testid="git-shell-open-rework-button"
       >
         <IconMessageForward aria-hidden="true" />
-        返工意见 ({reworkCount})
+        {m.s7_shell_header_rework_btn({ count: reworkCount })}
       </Button>
     {/if}
     <Button
@@ -120,7 +132,7 @@
       onclick={onOpenPush}
     >
       <IconArrowUp aria-hidden="true" />
-      推送…
+      {m.s7_push_ellipsis_btn()}
     </Button>
   </div>
 </header>

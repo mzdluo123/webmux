@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import type { Snippet } from "svelte";
   import IconArrowBackUp from "~icons/tabler/arrow-back-up";
   import IconArrowDown from "~icons/tabler/arrow-down";
@@ -105,18 +106,18 @@
   );
   const pushLabel = $derived(
     canSyncBranch && (!context.upstream || context.upstreamGone)
-      ? "发布…"
-      : "推送…",
+      ? m.s7_publish_ellipsis_btn()
+      : m.s7_push_ellipsis_btn(),
   );
   const syncDisabledReason = $derived(
     !repoAvailable
-      ? "仓库不可用"
+      ? m.s7_topbar_repo_unavailable()
       : !worktreeId
-        ? "请先选择具体工作树后再执行分支更新或推送"
+        ? m.s7_topbar_sync_select_wt()
         : !worktreeUsable
-          ? "当前工作树不可用、已锁定或为裸仓库"
+          ? m.s7_topbar_sync_wt_unusable()
           : context.headState !== "branch" || !context.checkedOutBranch
-            ? "游离或未诞生 HEAD 无法直接同步分支"
+            ? m.s7_topbar_sync_detached_unborn()
             : undefined,
   );
 
@@ -124,13 +125,13 @@
     if (!returnSessionId) return "";
     if (returnSession) {
       return returnSession.status === "exited"
-        ? "原会话已退出，仍可返回查看输出"
+        ? m.s7_topbar_session_exited_notice()
         : "";
     }
     if (!sessionsReady) return "";
     return returnSessionArchived
-      ? "原会话已归档，Git 工作台继续独立可用"
-      : "原会话已关闭或删除，Git 工作台继续独立可用";
+      ? m.s7_topbar_session_archived_notice()
+      : m.s7_topbar_session_closed_notice();
   });
 </script>
 
@@ -159,21 +160,27 @@
 
       {#if repository}
         {#if !repoAvailable}
-          <Badge variant="destructive">仓库不可用</Badge>
+          <Badge variant="destructive">{m.s7_topbar_repo_unavailable()}</Badge>
         {:else if !worktreeId}
-          <Badge variant="warning" class="max-sm:hidden">只读仓库</Badge>
+          <Badge variant="warning" class="max-sm:hidden"
+            >{m.s7_topbar_readonly_repo_badge()}</Badge
+          >
         {:else if !worktree || !worktree.available || worktree.prunable}
-          <Badge variant="destructive">工作树不可用</Badge>
+          <Badge variant="destructive"
+            >{m.s7_topbar_wt_unavailable_badge()}</Badge
+          >
         {:else if worktree.locked}
-          <Badge variant="warning">工作树已锁定</Badge>
+          <Badge variant="warning">{m.s7_topbar_wt_locked_badge()}</Badge>
         {:else if worktree.kind === "bare"}
-          <Badge variant="warning">裸仓库</Badge>
+          <Badge variant="warning">{m.s7_wt_bare_badge()}</Badge>
         {:else if context.headState === "detached"}
-          <Badge variant="warning">游离 HEAD</Badge>
+          <Badge variant="warning">{m.s7_detached_head()}</Badge>
         {:else if context.headState === "unborn"}
           <Badge variant="info" class="max-w-full">
             <span class="truncate">
-              未诞生 HEAD ({context.checkedOutBranch ?? "main"})
+              {m.s7_unborn_head_branch({
+                branch: context.checkedOutBranch ?? "main",
+              })}
             </span>
           </Badge>
         {/if}
@@ -184,7 +191,7 @@
             {context}
             {branchFilter}
             compareBaseOid={context.headOid ?? null}
-            compareTargetLabel="与当前 HEAD 比较"
+            compareTargetLabel={m.s7_compare_with_head()}
             onSelectAll={() => onBranchFilterChange(null)}
             {onBranchAction}
           />
@@ -196,8 +203,11 @@
             class="max-w-28 sm:max-w-44"
             data-testid="git-filter-branch-badge"
           >
-            <span class="truncate" title={`历史筛选：${branchFilter}`}>
-              历史筛选：{branchFilter}
+            <span
+              class="truncate"
+              title={m.s7_topbar_history_filter_badge({ branch: branchFilter })}
+            >
+              {m.s7_topbar_history_filter_badge({ branch: branchFilter })}
             </span>
           </Badge>
         {/if}
@@ -214,13 +224,13 @@
           variant="outline"
           onclick={onOpenRework}
           aria-label={reworkCount > 0
-            ? `返工意见草稿箱 (${reworkCount})`
-            : "返工意见草稿箱"}
-          title="打开返工意见草稿箱并交回指定会话"
+            ? m.s7_topbar_rework_count_aria({ count: reworkCount })
+            : m.s7_topbar_rework_aria()}
+          title={m.s7_topbar_rework_title()}
           data-testid="git-open-rework-btn"
         >
           <IconMessageForward aria-hidden="true" />
-          <span class="max-sm:hidden">返工意见</span>
+          <span class="max-sm:hidden">{m.s7_topbar_rework_btn()}</span>
           {#if reworkCount > 0}
             <Badge variant="info">{reworkCount}</Badge>
           {/if}
@@ -232,11 +242,13 @@
           size="sm"
           variant="outline"
           onclick={() => onReturnSession(returnSession.id)}
-          aria-label="返回会话"
-          title={`返回会话：${returnSession.title || returnSession.id}`}
+          aria-label={m.s7_delivery_return_session()}
+          title={m.s7_topbar_return_session_title({
+            title: returnSession.title || returnSession.id,
+          })}
         >
           <IconArrowBackUp aria-hidden="true" />
-          <span class="max-sm:hidden">返回会话</span>
+          <span class="max-sm:hidden">{m.s7_delivery_return_session()}</span>
         </Button>
       {/if}
 
@@ -251,7 +263,7 @@
             class={fetching ? "motion-safe:animate-spin" : ""}
             aria-hidden="true"
           />
-          <span>获取远程</span>
+          <span>{m.s7_op_kind_fetch()}</span>
         </Button>
         <Button
           size="sm"
@@ -261,7 +273,7 @@
           onclick={onUpdate}
         >
           <IconArrowDown aria-hidden="true" />
-          <span>快进更新</span>
+          <span>{m.s7_op_kind_fast_forward()}</span>
         </Button>
         <Button
           size="sm"
@@ -283,8 +295,8 @@
                 {...props}
                 size="icon-sm"
                 variant="outline"
-                aria-label="更多同步操作"
-                title="更多同步操作"
+                aria-label={m.s7_topbar_more_sync_aria()}
+                title={m.s7_topbar_more_sync_aria()}
               >
                 <IconDots aria-hidden="true" />
               </Button>
@@ -295,10 +307,10 @@
               disabled={!repoAvailable || fetching}
               onSelect={onFetch}
             >
-              获取远程
+              {m.s7_op_kind_fetch()}
             </DropdownMenu.Item>
             <DropdownMenu.Item disabled={!canSyncBranch} onSelect={onUpdate}>
-              快进更新
+              {m.s7_op_kind_fast_forward()}
             </DropdownMenu.Item>
             <DropdownMenu.Item disabled={!canSyncBranch} onSelect={onPush}>
               {pushLabel}

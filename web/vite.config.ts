@@ -1,4 +1,5 @@
 import { defineConfig, lazyPlugins } from "vite-plus";
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import Icons from "unplugin-icons/vite";
@@ -21,6 +22,8 @@ export default defineConfig({
       "**/dist/**",
       "**/.vitest/**",
       "**/.svelte-check/**",
+      "**/src/lib/paraglide/**",
+      "**/project.inlang/cache/**",
       "**/test-results/**",
       "**/playwright-report/**",
       "**/pnpm-lock.yaml",
@@ -76,6 +79,8 @@ export default defineConfig({
       "node_modules/",
       "dist/",
       ".vitest/",
+      "src/lib/paraglide/",
+      "project.inlang/cache/",
       "test-results/",
       "playwright-report/",
       "storybook-static/",
@@ -84,6 +89,7 @@ export default defineConfig({
   // Iconify icons compile to Svelte components at build time; only imported
   // icons are bundled and nothing is fetched from the Iconify API at runtime.
   plugins: lazyPlugins(() => [
+    paraglideVitePlugin({ project: "./project.inlang" }),
     svelte(),
     tailwindcss(),
     Icons({

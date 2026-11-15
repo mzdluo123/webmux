@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as NativeSelect from "$lib/components/ui/native-select";
+  import * as m from "$lib/paraglide/messages.js";
   import type { AgentCandidate } from "../../contracts/schemas";
 
   // The agent sessions a hybrid request may continue with, when the server
@@ -24,5 +25,5 @@
     {/each}
   </NativeSelect.Root>
 {:else}
-  同一目录下没有其他可恢复的会话。
+  {m.s3_no_other_resumable_sessions()}
 {/if}

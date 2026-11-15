@@ -8,6 +8,7 @@
     type ButtonVariant,
   } from "$lib/components/ui/button";
   import SoftKeys from "./SoftKeys.svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import {
     terminalKeys,
     type Modifiers,
@@ -89,7 +90,9 @@
       visible,
   );
   const gamepadActive = $derived(touchGamepad && gamepadAvailable);
-  const gamepadToggleLabel = $derived(gamepadActive ? "收起摇杆" : "展开摇杆");
+  const gamepadToggleLabel = $derived(
+    gamepadActive ? m.s4_collapse_gamepad() : m.s4_expand_gamepad(),
+  );
 
   // Keep the hint off touch screens, including hybrids whose secondary pointer
   // is coarse, and mirror the platform's actual copy shortcut.
@@ -169,16 +172,18 @@
     <div
       class="flex shrink-0 flex-wrap items-center gap-2 border-b px-2 py-1"
       role="toolbar"
-      aria-label="TV 终端输入"
+      aria-label={m.s4_tv_terminal_input_aria()}
     >
       <Button
         bind:ref={inputButton}
         variant="outline"
         aria-pressed={captured}
-        onclick={capture}>终端输入</Button
+        onclick={capture}>{m.s4_terminal_input_btn()}</Button
       >
       <span class="text-sm text-muted-foreground"
-        >{captured ? "输入中 · 返回退出输入" : "导航中 · 确认进入输入"}</span
+        >{captured
+          ? m.s4_tv_input_active_hint()
+          : m.s4_tv_nav_active_hint()}</span
       >
       <Button variant="outline" onclick={() => terminalKey(terminalKeys.escape)}
         >Esc</Button
@@ -188,8 +193,12 @@
         onclick={() => terminalKey(terminalKeys.interrupt)}>Ctrl+C</Button
       >
       {#if scroll}
-        <Button variant="ghost" onclick={() => scroll?.(-12)}>向上滚动</Button>
-        <Button variant="ghost" onclick={() => scroll?.(12)}>向下滚动</Button>
+        <Button variant="ghost" onclick={() => scroll?.(-12)}
+          >{m.s4_scroll_up()}</Button
+        >
+        <Button variant="ghost" onclick={() => scroll?.(12)}
+          >{m.s4_scroll_down()}</Button
+        >
       {/if}
     </div>
   {/if}
@@ -207,7 +216,7 @@
         role="status"
       >
         <p class="text-sm">
-          {uploads.progress ? "请等待当前上传完成" : "松开以上传文件到临时目录"}
+          {uploads.progress ? m.s4_drop_wait_upload() : m.s4_drop_to_upload()}
         </p>
       </div>
     {/if}
@@ -215,18 +224,18 @@
       <div
         class="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-md border bg-popover p-1 shadow-md"
         role="toolbar"
-        aria-label="终端文字选择"
+        aria-label={m.s4_terminal_selection_aria()}
       >
         <Button
           size="sm"
           aria-keyshortcuts={mac ? "Meta+C" : "Control+C"}
-          onclick={() => t.copySelection()}>复制选中</Button
+          onclick={() => t.copySelection()}>{m.s4_copy_selection()}</Button
         >
         {#if shortcutHint}<kbd class="border px-1" aria-hidden="true"
             >{mac ? "⌘C" : "Ctrl+C"}</kbd
           >{/if}
         <Button variant="ghost" size="sm" onclick={() => t.clearSelection()}
-          >取消选择</Button
+          >{m.s4_clear_selection()}</Button
         >
       </div>
     {/if}
@@ -234,12 +243,14 @@
         class="restore-overlay"
         role="status"
       >
-        {t.connection === "connecting" ? "正在连接…" : "正在恢复…"}
+        {t.connection === "connecting"
+          ? m.s4_connecting_ellipsis()
+          : m.s4_restoring_ellipsis()}
       </div>{:else if t.connection === "connecting" || t.connection === "reconnecting"}<div
         class="pointer-events-none absolute top-2 right-2 z-20"
       >
         <span class="text-xs text-muted-foreground" role="status"
-          >正在恢复…</span
+          >{m.s4_restoring_ellipsis()}</span
         >
       </div>{/if}
     {#if !t.atBottom && !t.restoring && visible}<Button
@@ -247,10 +258,10 @@
         size="sm"
         raised
         class="absolute right-3 bottom-3 z-10 sm:hidden"
-        aria-label="回到最新"
+        aria-label={m.s4_jump_to_latest()}
         onmousedown={(event) => event.preventDefault()}
         onclick={() => t.scrollToBottom()}
-        ><IconArrowDown aria-hidden="true" />回到最新</Button
+        ><IconArrowDown aria-hidden="true" />{m.s4_jump_to_latest()}</Button
       >{/if}
   </div>
   <SoftKeys

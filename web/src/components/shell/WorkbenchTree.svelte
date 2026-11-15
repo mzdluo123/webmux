@@ -7,17 +7,14 @@
 
 <script lang="ts">
   import { tick } from "svelte";
-  import { recordTitle } from "../../domains/sessions/archived";
+  import * as m from "$lib/paraglide/messages.js";
   import type {
     ArchivedSession,
     HomeWorktrees,
     Repository,
     SessionInfo,
   } from "../../contracts/schemas";
-  import {
-    rowStatus,
-    rowStatusLabels,
-  } from "../../domains/sessions/session-status";
+  import { rowStatus } from "../../domains/sessions/session-status";
   import {
     defaultNodeOpen,
     readFolderMemory,
@@ -41,14 +38,17 @@
   import LaunchConfigIcon from "../settings/LaunchConfigIcon.svelte";
   import RowStatus from "../shared/RowStatus.svelte";
   import { underRowAction } from "../../hooks/shared/sidebar-row";
-  import {
-    switchableWorktree,
-    worktreeUpstream,
-  } from "../../domains/workspace/worktree-sync";
+  import { switchableWorktree } from "../../domains/workspace/worktree-sync";
   import UpstreamStatus from "../workspace/UpstreamStatus.svelte";
   import SidebarRepositoryMenu from "./SidebarRepositoryMenu.svelte";
   import SidebarRowMenu from "./SidebarRowMenu.svelte";
   import SidebarSessionMenu from "./SidebarSessionMenu.svelte";
+  import {
+    notableUpstream,
+    treeNodeAriaLabel,
+    treeNodeStateText,
+    treeNodeTitle,
+  } from "./workbench-tree-labels";
   import WorktreeMenuItems from "../workspace/WorktreeMenuItems.svelte";
 
   // The workbench-mode sidebar: repositories → worktrees → live sessions.
@@ -261,19 +261,6 @@
       ""
     );
   }
-  // A worktree's ahead/behind counts or deleted upstream; nothing when synced.
-  function notableUpstream(node: TreeNode) {
-    const upstream = node.worktree && worktreeUpstream(node.worktree);
-    return upstream?.kind === "gone" ||
-      (upstream?.kind === "tracked" && (upstream.ahead || upstream.behind))
-      ? upstream
-      : undefined;
-  }
-  function recordTitleText(record: ArchivedSession) {
-    return record.released
-      ? `${recordTitle(record)}（${record.agent.name} · 已释放空间：${record.released.path} · ${record.released.commit.slice(0, 12)}，点击重建并恢复）`
-      : `${recordTitle(record)}（${record.agent.name} · 已结束，点击恢复）`;
-  }
 </script>
 
 {#snippet counts(node: TreeNode, actioned: boolean, reserve: boolean)}
@@ -282,7 +269,8 @@
        empty so the menu never covers the marks before it. -->
   {#if node.waiting}<span
       class={`w-12 shrink-0 truncate text-right text-xs text-warning ${actioned ? underRowAction : ""}`}
-      title={`${node.waiting} 个会话在等待`}>{node.waiting} 等待</span
+      title={m.s1_waiting_sessions_title({ count: node.waiting })}
+      >{m.s1_waiting_count({ count: node.waiting })}</span
     >{:else if node.count}<span
       class={`w-12 shrink-0 text-right text-xs text-muted-foreground tabular-nums ${actioned ? underRowAction : ""}`}
       >{node.count}</span
@@ -294,7 +282,9 @@
 
 {#snippet chevron(node: TreeNode)}
   {#if node.children.length && !node.reason}
-    {@const label = `${isOpen(node) ? "收起" : "展开"}${node.label}`}
+    {@const label = isOpen(node)
+      ? m.s1_collapse_node({ label: node.label })
+      : m.s1_expand_node({ label: node.label })}
     <!-- Keyboard users fold with the arrow keys, so this is not a tab stop. -->
     <Button
       variant="quiet"
@@ -319,15 +309,7 @@
     : node.record
       ? "ended"
       : undefined}
-  {@const stateText = node.record
-    ? resuming === node.record.id
-      ? "正在恢复"
-      : node.record.released
-        ? "已释放空间，已结束"
-        : "已结束"
-    : status
-      ? rowStatusLabels[status]
-      : undefined}
+  {@const stateText = treeNodeStateText(node, resuming, status)}
   {@const open = isOpen(node)}
   {@const upstream = notableUpstream(node)}
   <li
@@ -345,22 +327,8 @@
         aria-expanded={node.children.length && !node.reason ? open : undefined}
         aria-selected={isCurrent(node)}
         aria-current={isCurrent(node) ? "page" : undefined}
-        aria-label={stateText
-          ? `${node.label}（${stateText}）`
-          : node.reason
-            ? `${node.label}（不可用）`
-            : node.waiting
-              ? `${node.label}，${node.count} 个会话，${node.waiting} 个等待`
-              : node.count
-                ? `${node.label}，${node.count} 个会话`
-                : node.label}
-        title={node.reason
-          ? `${node.label}：${node.reason}`
-          : node.record
-            ? recordTitleText(node.record)
-            : status
-              ? `${node.label}（${rowStatusLabels[status]}）`
-              : (node.path ?? node.label)}
+        aria-label={treeNodeAriaLabel(node, stateText)}
+        title={treeNodeTitle(node, status)}
         tabindex={tabStop === node.key ? 0 : -1}
         data-tree-key={node.key}
         onfocus={() => (focusKey = node.key)}
@@ -405,7 +373,7 @@
             ><IconLoader2
               class="size-3.5 animate-spin motion-reduce:animate-none"
               aria-hidden="true"
-            />恢复中…</span
+            />{m.s1_resuming_ellipsis()}</span
           >
         {:else if status}<RowStatus {status} />
         {:else}{@render counts(
@@ -430,7 +398,7 @@
         {@const repositoryId = node.repositoryId}
         {@const worktreeId = node.worktreeId}
         <SidebarRowMenu
-          ariaLabel={`工作树操作：${node.label}`}
+          ariaLabel={m.s1_worktree_actions({ label: node.label })}
           tabindex={tabStop === node.key ? 0 : -1}
         >
           <WorktreeMenuItems
@@ -482,7 +450,7 @@
 <ul
   bind:this={root}
   role="tree"
-  aria-label="仓库与会话"
+  aria-label={m.s1_repositories_and_sessions()}
   class="space-y-0.5 text-sm"
 >
   {#each nodes as node (node.key)}{@render row(node)}{/each}

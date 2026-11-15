@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
+  import * as m from "$lib/paraglide/messages.js";
   import { apiBlob } from "../../platform/api";
   import type { CodeDocument, CodePdfState } from "../../contracts/schemas";
   import {
@@ -10,12 +11,16 @@
     rawError,
   } from "../../domains/code/code-image";
   import type { PDFDocumentProxy, PdfLink } from "../../domains/code/code-pdf";
+  import {
+    scrollPdfToPage,
+    scrollRestoredPdfPage,
+    syncKeptPdfPages,
+  } from "../../domains/code/code-pdf-scroll";
   import CodeDownloadButton from "./CodeDownloadButton.svelte";
+  import CodeZoomStepButtons from "./CodeZoomStepButtons.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import IconArrowAutofitWidth from "~icons/tabler/arrow-autofit-width";
-  import IconZoomIn from "~icons/tabler/zoom-in";
-  import IconZoomOut from "~icons/tabler/zoom-out";
   let {
     id,
     snapshotId,
@@ -95,7 +100,7 @@
         module = loaded;
         data = await blob.arrayBuffer();
       } catch (error) {
-        if (!signal.aborted) fail(rawError(error, "预览"));
+        if (!signal.aborted) fail(rawError(error, "preview"));
         return;
       }
       if (signal.aborted) return;
@@ -104,7 +109,7 @@
       } catch {
         // pdf.js throws synchronously when the browser lacks a built-in it
         // needs; the bytes may be fine, so the reader is sent to download.
-        fail("当前浏览器无法预览 PDF，请下载后查看");
+        fail(m.s5_pdf_preview_unsupported());
         return;
       }
       try {
@@ -179,12 +184,7 @@
     applying = false;
     if (pending !== state || phase !== "ready") return;
     pending = undefined;
-    const target = element.querySelector<HTMLElement>(
-      `[data-pdf-page="${Math.min(state.page, sizes.length)}"]`,
-    );
-    if (target)
-      element.scrollTop =
-        target.offsetTop - padding + state.offset * target.offsetHeight;
+    scrollRestoredPdfPage(element, state, sizes.length, padding);
     known = reading();
   }
   // Zooms keeping the content point under (x, y) of the scroller fixed.
@@ -197,16 +197,11 @@
   // reach the top stays current until the reader scrolls away from it.
   let jumped: { page: number; top: number } | undefined;
   function jump(number: number) {
-    if (!scroller || !Number.isInteger(number)) return;
-    const target = Math.min(sizes.length, Math.max(1, number));
-    const element = scroller.querySelector<HTMLElement>(
-      `[data-pdf-page="${target}"]`,
-    );
-    if (!element) return;
-    scroller.scrollTop = element.offsetTop - padding;
-    jumped = { page: target, top: scroller.scrollTop };
-    current = target;
-    pageInput = String(target);
+    const result = scrollPdfToPage(scroller, sizes.length, number, padding);
+    if (!result) return;
+    jumped = result;
+    current = result.page;
+    pageInput = String(result.page);
   }
   function submitPage() {
     editing = false;
@@ -233,18 +228,8 @@
   }
   $effect(() => {
     if (!visible.size) return;
-    const first = Math.min(...visible),
-      last = Math.max(...visible);
     untrack(() => {
-      for (
-        let number = Math.max(1, first - renderAhead);
-        number <= Math.min(sizes.length, last + renderAhead);
-        number++
-      )
-        kept.add(number);
-      for (const number of kept)
-        if (number < first - releaseBeyond || number > last + releaseBeyond)
-          kept.delete(number);
+      syncKeptPdfPages(visible, kept, sizes.length, renderAhead, releaseBeyond);
       track();
     });
   });
@@ -294,8 +279,8 @@
       size="sm"
       class="w-12"
       inputmode="numeric"
-      aria-label="页码"
-      title="页码，输入后按回车跳转"
+      aria-label={m.s5_page_number()}
+      title={m.s5_page_number_jump_hint()}
       disabled={phase !== "ready"}
       bind:value={pageInput}
       onfocus={() => (editing = true)}
@@ -312,38 +297,26 @@
       PDF · {formatBytes(doc.size)}
     </p>
     <span class="flex-1 sm:hidden"></span>
-    <output class="min-w-10 text-right tabular-nums" aria-label="缩放比例"
+    <output
+      class="min-w-10 text-right tabular-nums"
+      aria-label={m.s5_zoom_ratio()}
       >{phase === "ready" ? `${Math.round(zoom * 100)}%` : ""}</output
     >
     <Button
       variant="outline"
       size="icon-sm"
-      aria-label="适应宽度"
-      title="适应宽度"
+      aria-label={m.s5_fit_to_width()}
+      title={m.s5_fit_to_width()}
       aria-pressed={phase === "ready" && fitted}
       disabled={phase !== "ready"}
       onclick={fit}><IconArrowAutofitWidth aria-hidden="true" /></Button
     >
-    <Button
-      variant="outline"
-      size="icon-sm"
-      class="max-sm:any-pointer-coarse:hidden"
-      aria-label="缩小"
-      title="缩小"
-      disabled={phase !== "ready" || zoom <= minZoom}
-      onclick={() => zoomTo(zoom / step)}
-      ><IconZoomOut aria-hidden="true" /></Button
-    >
-    <Button
-      variant="outline"
-      size="icon-sm"
-      class="max-sm:any-pointer-coarse:hidden"
-      aria-label="放大"
-      title="放大"
-      disabled={phase !== "ready" || zoom >= maxZoom}
-      onclick={() => zoomTo(zoom * step)}
-      ><IconZoomIn aria-hidden="true" /></Button
-    >
+    <CodeZoomStepButtons
+      canZoomOut={phase === "ready" && zoom > minZoom}
+      canZoomIn={phase === "ready" && zoom < maxZoom}
+      onzoomout={() => zoomTo(zoom / step)}
+      onzoomin={() => zoomTo(zoom * step)}
+    />
     <CodeDownloadButton
       {path}
       filename={basename(doc.path)}
@@ -361,7 +334,7 @@
     bind:this={scroller}
     class="code-pdf-scroller relative min-h-0 flex-1 overflow-auto bg-muted/40"
     role="group"
-    aria-label="PDF 预览"
+    aria-label={m.s5_pdf_preview()}
     onscroll={() => {
       track();
       if (!pending) known = reading();
@@ -371,7 +344,7 @@
         class="absolute inset-0 grid place-items-center text-sm text-muted-foreground"
         role="status"
       >
-        正在加载 PDF…
+        {m.s5_loading_pdf()}
       </p>{:else if phase === "failed"}<p
         class="absolute inset-0 grid place-items-center p-4 text-center text-sm text-destructive"
         role="alert"
@@ -392,7 +365,7 @@
             style:--page-height={`${size.height * zoom}px`}
             style:--total-scale-factor={zoom * pdf.cssUnits}
             role="region"
-            aria-label={`第 ${number} 页`}
+            aria-label={m.s5_pdf_page_aria({ page: String(number) })}
           >
             {#if kept.has(number)}
               <canvas
@@ -405,8 +378,8 @@
             {#each links.get(number) ?? [] as link, linkIndex (linkIndex)}
               {@const label =
                 "url" in link
-                  ? `打开链接 ${link.url}`
-                  : `跳到第 ${link.page} 页`}
+                  ? m.s5_pdf_open_link({ url: link.url })
+                  : m.s5_pdf_jump_to_page({ page: String(link.page) })}
               <a
                 class="code-pdf-link absolute top-(--link-top) left-(--link-left) h-(--link-height) w-(--link-width)"
                 style:--link-left={`${link.left}%`}

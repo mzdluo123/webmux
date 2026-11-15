@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
 
   // A one-line status strip above the terminal or chat: a message, optional
-  // action buttons and an optional "知道了" dismiss.
+  // action buttons and an optional dismiss button.
   let {
     tone = "info",
     label,
@@ -38,6 +39,8 @@
   </div>
   {@render actions?.()}
   {#if ondismiss}
-    <Button variant="ghost" size="sm" onclick={ondismiss}>知道了</Button>
+    <Button variant="ghost" size="sm" onclick={ondismiss}
+      >{m.s1_got_it()}</Button
+    >
   {/if}
 </div>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import SidebarButton from "../shell/SidebarButton.svelte";
 
   let {
@@ -21,7 +22,7 @@
   <h1 class="min-w-0 truncate text-sm font-medium">{title}</h1>
   {#if reconnecting}
     <span role="status" class="shrink-0 text-xs text-warning"
-      >连接已断开，重连中…</span
+      >{m.s8_reconnecting_banner()}</span
     >
   {/if}
   <div class="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">

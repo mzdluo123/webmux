@@ -5,6 +5,7 @@
   import IconExternalLink from "~icons/tabler/external-link";
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import { useCopied } from "../../hooks/shared/copied.svelte";
   import { connectorMissingText } from "../../domains/sessions/hybrid";
@@ -38,10 +39,10 @@
   const copy = () => install.copy(connector.installCommand);
   const copyLabel = $derived(
     install.copied
-      ? "已复制安装命令"
+      ? m.s3_copied_install_cmd()
       : install.failed
-        ? "复制失败，请手动复制"
-        : "复制安装命令",
+        ? m.s3_copy_failed_manual()
+        : m.s3_copy_install_cmd(),
   );
 </script>
 
@@ -52,8 +53,8 @@
         variant="ghost"
         size="icon-sm"
         class="-my-1 shrink-0"
-        aria-label="关闭安装提示"
-        title="关闭安装提示"
+        aria-label={m.s3_dismiss_install_hint()}
+        title={m.s3_dismiss_install_hint()}
         onclick={ondismiss}><IconX aria-hidden="true" /></Button
       >{/if}
   </div>
@@ -81,7 +82,10 @@
       href={connector.docsUrl}
       target="_blank"
       rel="noreferrer noopener"
-      >安装说明<IconExternalLink class="size-3.5" aria-hidden="true" /></a
+      >{m.s3_install_docs()}<IconExternalLink
+        class="size-3.5"
+        aria-hidden="true"
+      /></a
     >
     {@render actions?.()}
   </div>

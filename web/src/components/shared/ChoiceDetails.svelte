@@ -1,4 +1,6 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
+
   // A picker row or trigger: a title over a monospace command or path, and
   // an optional environment variable count.
   let {
@@ -15,6 +17,6 @@
       title={secondary}>{secondary}</span
     >{/if}
   {#if envCount}<span class="text-xs text-muted-foreground"
-      >{envCount} 个环境变量</span
+      >{m.s1_env_var_count({ count: envCount })}</span
     >{/if}
 </span>

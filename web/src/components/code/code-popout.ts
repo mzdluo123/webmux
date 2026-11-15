@@ -5,6 +5,7 @@
 // Picture-in-Picture window; other desktop browsers (Safari, Firefox,
 // plain-HTTP origins) get an ordinary same-origin popup.
 
+import * as m from "$lib/paraglide/messages.js";
 import { isStandalone, popoutOffered } from "../../platform/capabilities";
 import {
   CodePopoutHandshakeSchema,
@@ -45,7 +46,7 @@ async function openWindow(width: number, height: number) {
     "_blank",
     `popup,width=${width},height=${height}`,
   );
-  if (!popup) throw new Error("弹出窗口被浏览器拦截，请允许本站弹出窗口");
+  if (!popup) throw new Error(m.s5_popup_blocked());
   return popup;
 }
 
@@ -90,7 +91,7 @@ export async function popOut(options: {
   style.textContent = `html,body{height:100%;margin:0;background:${background};color-scheme:${getComputedStyle(document.documentElement).colorScheme || "normal"}}iframe{display:block;width:100%;height:100%;border:0}`;
   shell.head.append(style);
   const frame = shell.createElement("iframe");
-  frame.title = "代码工作区";
+  frame.title = m.s5_code_workspace();
   frame.src = `/code/${options.id}`;
   shell.body.append(frame);
 
@@ -176,7 +177,7 @@ export async function popOut(options: {
   win.addEventListener(
     "pagehide",
     () => {
-      ready.reject(new Error("独立窗口已关闭"));
+      ready.reject(new Error(m.s5_popout_closed()));
       if (finished) return;
       // The frame reports its final state from its own pagehide; that
       // message may arrive just after this one.
@@ -215,7 +216,7 @@ export async function popOut(options: {
   };
 
   const timer = window.setTimeout(
-    () => ready.reject(new Error("独立窗口加载超时")),
+    () => ready.reject(new Error(m.s5_popout_load_timeout())),
     readyTimeout,
   );
   try {

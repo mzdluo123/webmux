@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import { SvelteMap } from "svelte/reactivity";
 import { errorMessage } from "../../platform/error";
 import { gitCommitDetail } from "../../platform/git-api";
@@ -247,7 +248,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     resetDialogState();
     if (hadPreceding) {
       deps.onStatusBanner(
-        `本地已提交（${hadPreceding.shortOid}），已取消推送；本地提交已保留，可随时通过「推送…」继续推送。`,
+        m.s7_push_cancelled_after_commit({ oid: hadPreceding.shortOid }),
       );
     }
   }
@@ -285,10 +286,11 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     conflictError = "";
     const wtId = deps.getWorktreeId();
     const clientRequestId = generateGitClientRequestId("push");
+    const dest = `${cur.remote}/${cur.target}`;
     deps.operations?.setPhase(
       "running",
       "push",
-      `正在推送到 ${cur.remote}/${cur.target}…`,
+      m.s7_push_running_phase({ dest }),
       { clientRequestId },
     );
     try {
@@ -301,22 +303,33 @@ export function createGitPushController(deps: GitPushControllerDeps) {
       await deps.operations?.refreshOperations(repoId, wtId);
 
       if (result.status === "ok") {
-        const dest = `${cur.remote}/${cur.target}`;
-        const prefix = precedingCommit
-          ? `本地已提交（${precedingCommit.shortOid}）并`
-          : "已";
-        const verb = cur.publish ? "发布" : "推送";
+        const banner = precedingCommit
+          ? cur.publish
+            ? m.s7_push_committed_and_published({
+                oid: precedingCommit.shortOid,
+                dest,
+              })
+            : m.s7_push_committed_and_pushed({
+                oid: precedingCommit.shortOid,
+                dest,
+              })
+          : cur.publish
+            ? m.s7_push_published_to({ dest })
+            : m.s7_push_pushed_to({ dest });
         resetDialogState();
-        deps.onStatusBanner(`${prefix}${verb}到 ${dest}`);
+        deps.onStatusBanner(banner);
         return;
       }
 
       rejected = result;
-      const failMsg = result.message || "远端拒绝了本次推送";
+      const failMsg = result.message || m.s7_push_remote_rejected();
       deps.onStatusBanner(
         precedingCommit
-          ? `本地已提交（${precedingCommit.shortOid}），推送未完成：${failMsg}`
-          : `推送未完成：${failMsg}`,
+          ? m.s7_push_failed_after_commit({
+              oid: precedingCommit.shortOid,
+              error: failMsg,
+            })
+          : m.s7_push_failed({ error: failMsg }),
       );
       await refreshPreview();
     } catch (err) {
@@ -329,9 +342,10 @@ export function createGitPushController(deps: GitPushControllerDeps) {
         });
         if (recovered && recovered.status === "succeeded") {
           deps.onRefreshAfterPush?.();
-          const dest = `${cur.remote}/${cur.target}`;
           resetDialogState();
-          deps.onStatusBanner(recovered.summary || `已推送到 ${dest}`);
+          deps.onStatusBanner(
+            recovered.summary || m.s7_push_pushed_to({ dest }),
+          );
           return;
         }
       }
@@ -340,8 +354,11 @@ export function createGitPushController(deps: GitPushControllerDeps) {
       conflictError = msg;
       deps.onStatusBanner(
         precedingCommit
-          ? `本地已提交（${precedingCommit.shortOid}），推送未完成：${msg}`
-          : `推送未完成：${msg}`,
+          ? m.s7_push_failed_after_commit({
+              oid: precedingCommit.shortOid,
+              error: msg,
+            })
+          : m.s7_push_failed({ error: msg }),
       );
       await refreshPreview();
     } finally {

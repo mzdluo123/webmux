@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { relativeTime } from "../../domains/workspace/commit-choices";
   import type { CommitList } from "../../contracts/schemas";
 
@@ -17,7 +18,7 @@
 <section class="min-w-0 space-y-1.5" aria-label={title}>
   <h4 class="text-xs font-medium">
     {title}<span class="ml-1 text-muted-foreground tabular-nums"
-      >（{commits.total}）</span
+      >{m.s8_commit_count_parens({ count: String(commits.total) })}</span
     >
   </h4>
   {#if commits.items.length}
@@ -31,7 +32,7 @@
             >{commit.hash.slice(0, 8)}</span
           >
           <span class="min-w-0 break-all"
-            >{commit.subject || "无标题提交"}<span
+            >{commit.subject || m.s8_untitled_commit()}<span
               class="text-muted-foreground"
             >
               · {commit.author} · {relativeTime(commit.committedAt)}</span
@@ -42,6 +43,8 @@
     </ul>
   {/if}
   {#if more > 0}
-    <p class="text-xs text-muted-foreground">另有 {more} 个提交未列出。</p>
+    <p class="text-xs text-muted-foreground">
+      {m.s8_more_commits_unlisted({ count: String(more) })}
+    </p>
   {/if}
 </section>

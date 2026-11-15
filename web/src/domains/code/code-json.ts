@@ -1,5 +1,6 @@
 // Recursive-descent JSON parsing for the read-only tree preview. Numbers keep
 // their source text so large integers and trailing zeros are shown verbatim.
+import * as m from "$lib/paraglide/messages.js";
 
 export type JsonNode = { line: number } & (
   | { kind: "object"; entries: { key: string; value: JsonNode }[] }
@@ -56,8 +57,8 @@ export function parseJson(text: string): JsonResult {
       } else if (char !== " " && char !== "\t" && char !== "\r") return;
     }
   };
-  const expect = (char: string, detail: string) => {
-    if (source[index] !== char) fail(detail);
+  const expect = (char: string, detail: () => string) => {
+    if (source[index] !== char) fail(detail());
     index++;
   };
   const string = () => {
@@ -65,12 +66,12 @@ export function parseJson(text: string): JsonResult {
     let value = "";
     for (;;) {
       const char = source[index];
-      if (char === undefined) return fail("字符串未闭合");
+      if (char === undefined) return fail(m.s5_json_unclosed_string());
       if (char === '"') {
         index++;
         return value;
       }
-      if (char < " ") fail("字符串中含未转义的控制字符");
+      if (char < " ") fail(m.s5_json_unescaped_control());
       if (char !== "\\") {
         value += char;
         index++;
@@ -79,13 +80,13 @@ export function parseJson(text: string): JsonResult {
       const escape = source[index + 1];
       if (escape === "u") {
         const hex = source.slice(index + 2, index + 6);
-        if (!hexPattern.test(hex)) fail("无效的 Unicode 转义");
+        if (!hexPattern.test(hex)) fail(m.s5_json_invalid_unicode_escape());
         value += String.fromCharCode(Number.parseInt(hex, 16));
         index += 6;
       } else if (escape !== undefined && escape in escapes) {
         value += escapes[escape];
         index += 2;
-      } else fail("无效的转义字符");
+      } else fail(m.s5_json_invalid_escape());
     }
   };
   // `depth` counts the containers around the value being parsed.
@@ -94,7 +95,7 @@ export function parseJson(text: string): JsonResult {
     const at = line;
     const char = source[index];
     if ((char === "{" || char === "[") && depth >= maxJsonDepth)
-      fail(`嵌套超过 ${maxJsonDepth} 层`);
+      fail(m.s5_json_max_depth_exceeded({ depth: String(maxJsonDepth) }));
     if (char === "{") {
       index++;
       const entries: { key: string; value: JsonNode }[] = [];
@@ -105,17 +106,17 @@ export function parseJson(text: string): JsonResult {
       }
       for (;;) {
         space();
-        if (source[index] !== '"') fail("缺少属性名");
+        if (source[index] !== '"') fail(m.s5_json_missing_property_name());
         const key = string();
         space();
-        expect(":", "缺少冒号");
+        expect(":", () => m.s5_json_missing_colon());
         entries.push({ key, value: node(depth + 1) });
         space();
         if (source[index] === "}") {
           index++;
           return { line: at, kind: "object", entries };
         }
-        expect(",", "缺少逗号或右花括号");
+        expect(",", () => m.s5_json_missing_comma_or_brace());
       }
     }
     if (char === "[") {
@@ -133,7 +134,7 @@ export function parseJson(text: string): JsonResult {
           index++;
           return { line: at, kind: "array", items };
         }
-        expect(",", "缺少逗号或右方括号");
+        expect(",", () => m.s5_json_missing_comma_or_bracket());
       }
     }
     if (char === '"') return { line: at, kind: "string", value: string() };
@@ -154,12 +155,16 @@ export function parseJson(text: string): JsonResult {
       index += number[0].length;
       return { line: at, kind: "number", raw: number[0] };
     }
-    return fail(char === undefined ? "内容意外结束" : "无法识别的值");
+    return fail(
+      char === undefined
+        ? m.s5_json_unexpected_eof()
+        : m.s5_json_unexpected_value(),
+    );
   };
   try {
     const value = node(0);
     space();
-    if (index < source.length) fail("值之后有多余内容");
+    if (index < source.length) fail(m.s5_json_trailing_content());
     return { ok: true, value };
   } catch (error) {
     if (!(error instanceof JsonSyntaxError)) throw error;

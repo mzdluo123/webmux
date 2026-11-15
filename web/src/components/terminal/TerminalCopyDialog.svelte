@@ -2,6 +2,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Textarea } from "$lib/components/ui/textarea";
   import * as Dialog from "$lib/components/ui/dialog";
+  import * as m from "$lib/paraglide/messages.js";
 
   // Manual copy when the clipboard cannot be written directly.
   let {
@@ -18,12 +19,12 @@
 <Dialog.Root bind:open>
   <Dialog.Content class="sm:max-w-lg" {onCloseAutoFocus}>
     <Dialog.Header
-      ><Dialog.Title>复制终端文字</Dialog.Title><Dialog.Description
-        >当前环境不支持剪贴板访问，请长按或全选复制。</Dialog.Description
+      ><Dialog.Title>{m.s4_copy_dialog_title()}</Dialog.Title
+      ><Dialog.Description>{m.s4_copy_dialog_desc()}</Dialog.Description
       ></Dialog.Header
     >
     <Textarea
-      aria-label="复制内容"
+      aria-label={m.s4_copy_content_aria()}
       readonly
       value={text}
       mono
@@ -33,7 +34,7 @@
       ><Button
         onclick={() => {
           open = false;
-        }}>关闭</Button
+        }}>{m.s4_close()}</Button
       ></Dialog.Footer
     >
   </Dialog.Content>

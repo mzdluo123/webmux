@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { SessionInfo } from "../../contracts/schemas";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     ids,
@@ -22,12 +23,15 @@
 </script>
 
 {#if ids.length > 1}
-  <nav class="pane-tabs" aria-label="终端窗格">
+  <nav class="pane-tabs" aria-label={m.s4_terminal_panes_aria()}>
     {#each ids as sessionId, index (sessionId)}
       <Button
         variant="ghost"
         size="sm"
-        aria-label={`切换到窗格 ${index + 1}：${info[sessionId]?.title || sessionId}`}
+        aria-label={m.s4_switch_to_pane_aria({
+          index: String(index + 1),
+          title: info[sessionId]?.title || sessionId,
+        })}
         aria-current={active === sessionId ? "true" : undefined}
         onclick={() => onfocus(sessionId)}
       >
@@ -37,14 +41,13 @@
       </Button>
     {/each}
     <Button variant="ghost" size="sm" aria-pressed={zoomed} onclick={onzoom}
-      >{zoomed ? "恢复分屏" : "放大窗格"}</Button
+      >{zoomed ? m.s4_restore_split() : m.s4_zoom_pane()}</Button
     >
   </nav>
 {/if}
 {#if prefix}
   <p class="prefix-notice" role="status">
-    Ctrl+B · % 左右分屏 · " 上下分屏 · 方向键 / o 切换 · z 放大 · x 关闭窗格 ·
-    Esc 取消
+    {m.s4_prefix_shortcut_bar()}
   </p>
 {/if}
 

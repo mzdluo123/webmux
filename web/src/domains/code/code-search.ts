@@ -1,5 +1,6 @@
 import { SearchQuery } from "@codemirror/search";
 import { Text } from "@codemirror/state";
+import * as m from "$lib/paraglide/messages.js";
 
 export type SearchSpec = {
   search: string;
@@ -84,7 +85,7 @@ export function matchStatus(
   cursor: MatchCursor | undefined,
   matches: readonly number[],
 ): string {
-  if (!matches.length) return "无匹配";
+  if (!matches.length) return m.s5_no_search_matches();
   const capped = matches.length === MATCH_LIMIT ? "+" : "";
   return `${matchIndex(cursor, matches) + 1} / ${matches.length}${capped}`;
 }

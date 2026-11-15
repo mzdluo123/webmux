@@ -5,6 +5,7 @@
   import { ListButton } from "$lib/components/ui/list-button";
   import * as NativeSelect from "$lib/components/ui/native-select";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type {
     GitCommitDetail,
     GitIssue,
@@ -167,11 +168,21 @@
 </script>
 
 <ResponsiveDialog
-  title={`推送确认 · ${sourceBranch} → ${remoteName}/${targetBranch || sourceBranch}`}
+  title={m.s6_push_dialog_title({
+    source: sourceBranch,
+    remote: remoteName,
+    target: targetBranch || sourceBranch,
+  })}
   description={pushUrl
-    ? `仓库 ${repositoryName} · 目标远端 ${pushUrl} · 共 ${totalCommits} 个待推提交`
-    : `仓库 ${repositoryName} · 核对待推提交与文件差异后确认推送`}
-  drawerDescription={`共 ${totalCommits} 个待推提交 · 核对差异后确认推送`}
+    ? m.s6_push_dialog_desc_with_url({
+        repo: repositoryName,
+        url: pushUrl,
+        count: String(totalCommits),
+      })
+    : m.s6_push_dialog_desc_no_url({ repo: repositoryName })}
+  drawerDescription={m.s6_push_dialog_drawer_desc({
+    count: String(totalCommits),
+  })}
   drawerFullScreen
   truncateDrawerTitle
   busy={push?.running ?? false}
@@ -193,22 +204,22 @@
       />
     {:else if precedingCommit}
       <InlineNotice tone="success">
-        第一步已完成：本地提交 <span class="font-mono"
+        {m.s6_push_step1_done_before()}<span class="font-mono"
           >{precedingCommit.shortOid}</span
-        >（{precedingCommit.subject}）已创建。请核对本分支全部待推提交后确认推送。
+        >{m.s6_push_step1_done_after({ subject: precedingCommit.subject })}
       </InlineNotice>
     {/if}
 
     {#if push?.loadError}
       <InlineNotice tone="danger">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>加载推送预览失败：{push.loadError}</span>
+          <span>{m.s6_push_load_error({ error: push.loadError })}</span>
           <Button
             size="sm"
             variant="outline"
             onclick={() => void push.refreshPreview()}
           >
-            重试加载
+            {m.s6_push_retry_btn()}
           </Button>
         </div>
       </InlineNotice>
@@ -234,7 +245,7 @@
           </Badge>
           {#if publishMode}
             <Badge variant="warning" class="max-w-full">
-              <span class="truncate">首次发布上游 (Publish)</span>
+              <span class="truncate">{m.s6_push_publish_badge()}</span>
             </Badge>
           {/if}
         </div>
@@ -249,13 +260,15 @@
       {#if push && publishMode}
         <div class="grid min-w-0 grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
           <div class="space-y-1">
-            <span class="text-xs text-muted-foreground">发布远端 (Remote)</span>
+            <span class="text-xs text-muted-foreground">
+              {m.s6_push_publish_remote_label()}
+            </span>
             {#if push.remotes.length > 0}
               <NativeSelect.Root
                 size="sm"
                 class="w-full"
                 value={push.remote}
-                aria-label="选择发布远端"
+                aria-label={m.s6_push_select_remote_aria()}
                 onchange={(e) => push.setPublishRemote(e.currentTarget.value)}
               >
                 {#each push.remotes as r (r.name)}
@@ -269,7 +282,7 @@
                 size="sm"
                 mono
                 value={push.remote}
-                aria-label="远端名称"
+                aria-label={m.s6_push_remote_name_aria()}
                 oninput={(e) => push.setPublishRemote(e.currentTarget.value)}
               />
             {/if}
@@ -277,14 +290,14 @@
 
           <div class="space-y-1">
             <span class="text-xs text-muted-foreground">
-              远端分支名 (Target Branch)
+              {m.s6_push_target_branch_label()}
             </span>
             <Input
               size="sm"
               mono
               value={push.target}
               placeholder={sourceBranch}
-              aria-label="远端目标分支名"
+              aria-label={m.s6_push_target_branch_aria()}
               oninput={(e) => push.setPublishTarget(e.currentTarget.value)}
             />
           </div>
@@ -303,23 +316,25 @@
       >
         <div class="flex items-center justify-between px-1">
           <span class="text-xs font-semibold text-foreground">
-            待推送提交 ({totalCommits})
+            {m.s6_push_commits_heading({ count: String(totalCommits) })}
           </span>
           {#if push?.loading}
-            <span class="text-xs text-muted-foreground">正在计算…</span>
+            <span class="text-xs text-muted-foreground">
+              {m.s6_push_calculating()}
+            </span>
           {/if}
         </div>
 
         {#if push?.loading && commitRows.length === 0}
           <p class="px-2 py-3 text-xs text-muted-foreground">
-            正在读取待推送提交列表…
+            {m.s6_push_loading_commits()}
           </p>
         {:else if commitRows.length === 0}
           <p class="px-2 py-3 text-xs text-muted-foreground">
             {#if publishMode}
-              当前分支与远端共享提交基底，首次发布将在远端创建分支引用并配置上游跟踪。
+              {m.s6_push_publish_shared_base()}
             {:else}
-              当前分支没有领先远端上游的待推提交。
+              {m.s6_push_nothing_ahead()}
             {/if}
           </p>
         {:else}
@@ -382,8 +397,10 @@
     <GitDialogFooter
       submitting={push?.running ?? false}
       {canConfirm}
-      confirmLabel={publishMode ? "发布并推送" : "确认推送"}
-      submittingLabel="正在推送…"
+      confirmLabel={publishMode
+        ? m.s6_push_confirm_publish()
+        : m.s6_push_confirm_push()}
+      submittingLabel={m.s6_push_submitting()}
       onConfirm={handleConfirm}
       onClose={handleClose}
     />

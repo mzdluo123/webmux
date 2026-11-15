@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SvelteMap } from "svelte/reactivity";
   import { untrack } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import { apiBlob } from "../../platform/api";
   import type { CodeDocument, CodeImageState } from "../../contracts/schemas";
   import {
@@ -12,8 +13,7 @@
   } from "../../domains/code/code-image";
   import { Button } from "$lib/components/ui/button";
   import IconAspectRatio from "~icons/tabler/aspect-ratio";
-  import IconZoomIn from "~icons/tabler/zoom-in";
-  import IconZoomOut from "~icons/tabler/zoom-out";
+  import CodeZoomStepButtons from "./CodeZoomStepButtons.svelte";
   let {
     id,
     snapshotId,
@@ -112,7 +112,7 @@
         src = url;
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) fail(rawError(error, "预览"));
+        if (!controller.signal.aborted) fail(rawError(error, "preview"));
       });
     return () => {
       controller.abort();
@@ -301,25 +301,27 @@
   <div class="flex shrink-0 items-center gap-2 border-b px-2 py-1 text-xs">
     <p
       class="min-w-0 flex-1 truncate text-muted-foreground"
-      aria-label="图片信息"
+      aria-label={m.s5_image_info()}
     >
       {imageFormat(doc.mediaType)} · {phase === "ready"
         ? intrinsic
           ? `${natural.width} × ${natural.height}`
-          : "无固有尺寸"
+          : m.s5_no_intrinsic_size()
         : phase === "loading"
-          ? "读取尺寸…"
-          : "尺寸未知"} · {formatBytes(doc.size)}
+          ? m.s5_reading_dimensions()
+          : m.s5_unknown_dimensions()} · {formatBytes(doc.size)}
     </p>
     <div class="flex shrink-0 items-center gap-1">
-      <output class="min-w-10 text-right tabular-nums" aria-label="缩放比例"
+      <output
+        class="min-w-10 text-right tabular-nums"
+        aria-label={m.s5_zoom_ratio()}
         >{phase === "ready" ? `${Math.round(scale * 100)}%` : ""}</output
       >
       <Button
         variant="outline"
         size="icon-sm"
-        aria-label="适应窗口"
-        title="适应窗口"
+        aria-label={m.s5_fit_to_window()}
+        title={m.s5_fit_to_window()}
         aria-pressed={phase === "ready" && fitted}
         disabled={phase !== "ready"}
         onclick={fit}><IconAspectRatio aria-hidden="true" /></Button
@@ -327,32 +329,17 @@
       <Button
         variant="outline"
         size="sm"
-        aria-label="原始尺寸 1:1"
-        title="原始尺寸 1:1"
+        aria-label={m.s5_actual_size_1_1()}
+        title={m.s5_actual_size_1_1()}
         disabled={phase !== "ready"}
         onclick={() => zoomAt(1)}>1:1</Button
       >
-      <!-- Narrow touch screens zoom by pinching; keep the row to one line. -->
-      <Button
-        variant="outline"
-        size="icon-sm"
-        class="max-sm:any-pointer-coarse:hidden"
-        aria-label="缩小"
-        title="缩小"
-        disabled={phase !== "ready" || scale <= minScale}
-        onclick={() => zoomAt(scale / step)}
-        ><IconZoomOut aria-hidden="true" /></Button
-      >
-      <Button
-        variant="outline"
-        size="icon-sm"
-        class="max-sm:any-pointer-coarse:hidden"
-        aria-label="放大"
-        title="放大"
-        disabled={phase !== "ready" || scale >= maxScale}
-        onclick={() => zoomAt(scale * step)}
-        ><IconZoomIn aria-hidden="true" /></Button
-      >
+      <CodeZoomStepButtons
+        canZoomOut={phase === "ready" && scale > minScale}
+        canZoomIn={phase === "ready" && scale < maxScale}
+        onzoomout={() => zoomAt(scale / step)}
+        onzoomin={() => zoomAt(scale * step)}
+      />
     </div>
   </div>
   <div
@@ -360,7 +347,7 @@
     class="code-image-viewport relative min-h-0 flex-1 overflow-hidden bg-muted/40 select-none"
     class:cursor-grab={phase === "ready" && !fitted}
     role="group"
-    aria-label="图片预览"
+    aria-label={m.s5_image_preview()}
   >
     {#if src && phase !== "failed"}<img
         {src}
@@ -372,14 +359,13 @@
         style:--image-height={`${base.height}px`}
         style:--image-transform={`translate(${x}px, ${y}px) scale(${scale})`}
         onload={loaded}
-        onerror={() =>
-          fail("图片无法解码：文件可能已损坏，或当前浏览器不支持该格式")}
+        onerror={() => fail(m.s5_image_decode_failed())}
       />{/if}
     {#if phase === "loading"}<p
         class="absolute inset-0 grid place-items-center text-sm text-muted-foreground"
         role="status"
       >
-        正在加载图片…
+        {m.s5_loading_image()}
       </p>{:else if phase === "failed"}<p
         class="absolute inset-0 grid place-items-center p-4 text-center text-sm text-destructive"
         role="alert"

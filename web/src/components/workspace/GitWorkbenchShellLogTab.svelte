@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitWorkbenchViewState } from "../../contracts/git-workbench-schemas";
   import {
     applyShellClearFilters,
@@ -110,17 +111,20 @@
   onCherryPickCommit={(oid) =>
     (view = {
       ...view,
-      statusBanner: `已打开遴选预览：${oid.slice(0, 7)}`,
+      statusBanner: m.s7_shell_cherry_pick_opened({ oid: oid.slice(0, 7) }),
     })}
   onRevertCommit={(oid) =>
     (view = {
       ...view,
-      statusBanner: `已打开还原预览：${oid.slice(0, 7)}`,
+      statusBanner: m.s7_shell_revert_opened({ oid: oid.slice(0, 7) }),
     })}
   onCreateTagCommit={(oid, subject) =>
     (view = {
       ...view,
-      statusBanner: `已打开新建标签对话框：${oid.slice(0, 7)} · ${subject}`,
+      statusBanner: m.s7_shell_tag_commit_opened({
+        oid: oid.slice(0, 7),
+        subject,
+      }),
     })}
   onInspectCommitFile={() => (view = { ...view, fileInspectorOpen: true })}
   {onRequestCheckout}

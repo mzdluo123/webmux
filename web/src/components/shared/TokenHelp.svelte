@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as Popover from "$lib/components/ui/popover";
+  import * as m from "$lib/paraglide/messages.js";
 </script>
 
 <Popover.Root>
@@ -8,7 +9,7 @@
     openDelay={100}
     closeDelay={150}
     type="button"
-    aria-label="关于共享 Token"
+    aria-label={m.s1_token_help_trigger_aria()}
     class="inline-flex size-7 shrink-0 cursor-help items-center justify-center rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
   >
     <span
@@ -19,7 +20,7 @@
   </Popover.Trigger>
   <Popover.Content
     role="dialog"
-    aria-label="共享 Token 说明"
+    aria-label={m.s1_token_help_dialog_aria()}
     align="start"
     collisionPadding={16}
     class="w-[min(20rem,calc(100vw-2rem))] space-y-2"
@@ -28,19 +29,22 @@
     onCloseAutoFocus={(event) => event.preventDefault()}
   >
     <p class="leading-relaxed">
-      Token 是这台 WebMux 的访问凭证，相当于共享密码。
+      {m.s1_token_help_intro()}
     </p>
     <p class="leading-relaxed">
-      通过 <code>webmux config init</code>
-      初始化配置时会自动生成，默认保存在服务所在机器的：
+      {m.s1_token_help_p2_before_init()}<code>webmux config init</code>
+      {m.s1_token_help_p2_after_init()}
       <code class="block max-w-full break-all"
         >~/.config/webmux/config.toml</code
       >
-      重启后继续使用。请查看其中的 <code>token</code> 值并填入输入框。
+      {m.s1_token_help_p2_before_token()}<code>token</code
+      >{m.s1_token_help_p2_after_token()}
     </p>
     <p class="leading-relaxed">
-      用 <code>webmux config path</code> 查看默认路径；若启动时指定了
-      <code>--config</code> 或 <code>--token</code>，以实际启动配置为准。
+      {m.s1_token_help_p3_before_path()}<code>webmux config path</code
+      >{m.s1_token_help_p3_after_path()}<code>--config</code
+      >{m.s1_token_help_p3_or()}<code>--token</code
+      >{m.s1_token_help_p3_after_flags()}
     </p>
   </Popover.Content>
 </Popover.Root>

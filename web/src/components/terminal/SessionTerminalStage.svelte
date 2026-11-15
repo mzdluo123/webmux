@@ -8,6 +8,7 @@
     ChatUploads,
     useUpload,
   } from "../../hooks/shared/upload.svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
   import type {
@@ -393,7 +394,7 @@
           >
             <plugins.chat.ConnectorHint
               connector={hybrid.connector}
-              detail="安装后会自动重新检测"
+              detail={m.s4_connector_recheck_hint()}
               ondismiss={() => hybrid.dismissConnector()}
             />
           </div>{/if}

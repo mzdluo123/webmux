@@ -7,6 +7,7 @@ import {
   PlaneGeometry,
   SRGBColorSpace,
 } from "three";
+import * as m from "$lib/paraglide/messages.js";
 
 /** Shared color/filter contract for UI and public-buffer terminal canvases. */
 export function createXrTexture(canvas: HTMLCanvasElement): CanvasTexture {
@@ -54,7 +55,7 @@ export class XrSurface {
     this.canvas.width = width;
     this.canvas.height = height;
     const context = this.canvas.getContext("2d");
-    if (!context) throw new Error("VR 面板无法创建 Canvas 2D 上下文");
+    if (!context) throw new Error(m.s4_xr_err_canvas_2d());
     this.context = context;
     this.texture = createXrTexture(this.canvas);
     this.mesh = new Mesh(

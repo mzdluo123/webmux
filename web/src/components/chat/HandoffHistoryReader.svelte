@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
   import { Textarea } from "$lib/components/ui/textarea";
+  import * as m from "$lib/paraglide/messages.js";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import { threadAPI } from "../../platform/thread-api";
   import { errorMessage } from "../../platform/error";
@@ -52,12 +53,12 @@
           page.sourcePosition !== point ||
           page.revision !== revision
         )
-          throw new Error("预览已变化，请刷新预览后重试");
+          throw new Error(m.s3_reader_err_preview_changed());
         if (
           !page.done &&
           BigInt(page.nextPosition) <= BigInt(selectionPosition)
         )
-          throw new Error("历史分页游标没有前进");
+          throw new Error(m.s3_reader_err_cursor_stalled());
         for (const entry of page.items) {
           if (!entry.selected) itemIds.push(entry.activityId);
         }
@@ -65,7 +66,7 @@
         selectionDone = page.done;
       }
       const id = itemIds[next];
-      if (!id) throw new Error("省略历史与预览不一致，请重新打开");
+      if (!id) throw new Error(m.s3_reader_err_omitted_mismatch());
       const result = await threadAPI.activity(
         sourceId,
         id,
@@ -76,7 +77,7 @@
         result.conversationId !== sourceId ||
         BigInt(result.position) > BigInt(point)
       )
-        throw new Error("项目不属于冻结来源");
+        throw new Error(m.s3_reader_err_outside_frozen_source());
       if (!disposed && request === active) {
         item = result;
         offset = start;
@@ -102,60 +103,74 @@
     onclick={() => {
       open = !open;
       if (open && !item) void load(0);
-    }}>查看省略历史</Button
+    }}>{m.s3_reader_view_omitted()}</Button
   >
   {#if open}
-    <div class="min-w-0 space-y-2" aria-label="省略历史读取">
+    <div class="min-w-0 space-y-2" aria-label={m.s3_reader_region_label()}>
       <p class="text-xs text-muted-foreground">
-        历史仅供参考，不会自动拼接到当前任务；不读取附件正文或私有推理。
+        {m.s3_reader_reference_hint()}
       </p>
       {#if error}<InlineNotice tone="danger">{error}</InlineNotice>{/if}
-      {#if loading}<p role="status" class="text-sm">正在读取已保存历史…</p>{/if}
+      {#if loading}<p role="status" class="text-sm">
+          {m.s3_reader_loading()}
+        </p>{/if}
       {#if item}
         <p class="break-all text-xs text-muted-foreground">
-          第 {index + 1} / {omittedCount} 项 · {item.role} · Run {item.runOrdinal}
-          · position {item.position} · 字节 offset {offset}<br
-          />{item.activityId}
+          {m.s3_reader_item_meta({
+            current: String(index + 1),
+            total: String(omittedCount),
+            role: item.role,
+            run: String(item.runOrdinal),
+            position: item.position,
+            offset,
+          })}<br />{item.activityId}
         </p>
         {#if item.exportable}<Textarea
             readonly
             value={item.text}
             rows={5}
             class="max-h-64"
-            aria-label="省略历史片段"
+            aria-label={m.s3_reader_snippet_label()}
           />{:else}<InlineNotice
-            >这项内容不能导出：{item.exclusionReason}</InlineNotice
+            >{m.s3_reader_not_exportable({
+              reason: String(item.exclusionReason ?? ""),
+            })}</InlineNotice
           >{/if}
         {#if item.attachments.length}<p class="text-xs text-muted-foreground">
-            附件引用：{item.attachments
-              .map((attachment) => attachment.name)
-              .join("、")}
+            {m.s3_reader_attachment_refs({
+              names: item.attachments
+                .map((attachment) => attachment.name)
+                .join(m.s3_list_separator()),
+            })}
           </p>{/if}
         <div class="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
             disabled={loading || index === 0}
-            onclick={() => void load(index - 1)}>上一项</Button
+            onclick={() => void load(index - 1)}
+            >{m.s3_reader_prev_item()}</Button
           >
           <Button
             variant="outline"
             size="sm"
             disabled={loading || index >= omittedCount - 1}
-            onclick={() => void load(index + 1)}>下一项</Button
+            onclick={() => void load(index + 1)}
+            >{m.s3_reader_next_item()}</Button
           >
           {#if item.truncated}<Button
               variant="outline"
               size="sm"
               disabled={loading}
               onclick={() => void load(index, item?.nextTextOffset)}
-              >下一片段</Button
+              >{m.s3_reader_next_chunk()}</Button
             >{/if}
           {#if offset !== "0"}<Button
               variant="outline"
               size="sm"
               disabled={loading}
-              onclick={() => void load(index)}>从头读取</Button
+              onclick={() => void load(index)}
+              >{m.s3_reader_read_from_start()}</Button
             >{/if}
         </div>
       {/if}

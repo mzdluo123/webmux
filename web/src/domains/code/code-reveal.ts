@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import { api, apiBlob, APIError } from "../../platform/api";
 import { codeRawPath, isImageType } from "./code-image";
 import {
@@ -29,7 +30,7 @@ async function resolveWorkspaceTarget(
   path: string,
   signal?: AbortSignal,
 ) {
-  if (!context) throw new Error("代码工作区尚未就绪");
+  if (!context) throw new Error(m.s5_code_workspace_not_ready());
   const root = context.rootPath.replace(/\/+$/, "");
   const target = await api(
     `${base}/locate?${params({ path: path ? `${root}/${path}` : root || "/" })}`,
@@ -62,10 +63,10 @@ export function createMarkdownWorkspace(options: {
           path,
         );
       } catch (e) {
-        return targetFailure("链接目标", e);
+        return targetFailure("link", e);
       }
       const failure = await options.show(target);
-      if (failure) return `链接目标不可读：${failure}`;
+      if (failure) return m.s5_link_target_unreadable({ failure });
       const context = options.getContext();
       const tab = options
         .getTabs()
@@ -86,7 +87,7 @@ export function createMarkdownWorkspace(options: {
           signal,
         );
         if (target.kind !== "file")
-          return { ok: false, reason: "不是可预览的图片" };
+          return { ok: false, reason: m.s5_not_previewable_image() };
         const { snapshotId, document: doc } = await api(
           `${options.base()}/file?${options.params({ nodeId: target.nodeId })}`,
           CodeFileSchema,
@@ -95,12 +96,12 @@ export function createMarkdownWorkspace(options: {
           signal,
         );
         if (doc.kind === "too-large" && isImageType(doc.mediaType))
-          return { ok: false, reason: "超过 20 MiB 预览上限" };
+          return { ok: false, reason: m.s5_exceeds_20mib_preview_limit() };
         if (
           doc.kind !== "image" &&
           !(doc.kind === "text" && doc.mediaType === "image/svg+xml")
         )
-          return { ok: false, reason: "不是可预览的图片" };
+          return { ok: false, reason: m.s5_not_previewable_image() };
         const blob = await apiBlob(
           codeRawPath(options.id(), snapshotId),
           signal,
@@ -118,7 +119,7 @@ export function createMarkdownWorkspace(options: {
         if (aborted(e)) throw e;
         return {
           ok: false,
-          reason: targetFailure("图片", e),
+          reason: targetFailure("image", e),
           retry: e instanceof APIError && e.status === 429,
         };
       }
@@ -247,6 +248,6 @@ export async function checkRevealTarget(
     });
     return "";
   } catch (e) {
-    return targetFailure("链接目标", e);
+    return targetFailure("link", e);
   }
 }

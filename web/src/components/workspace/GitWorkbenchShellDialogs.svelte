@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import type {
     GitCommitOutcome,
     GitPrecedingCommit,
@@ -74,7 +75,11 @@
       view = {
         ...view,
         pushPreview: null,
-        statusBanner: `已完成推送确认：${push.sourceBranch} → ${push.remote}/${push.targetBranch}`,
+        statusBanner: m.s7_shell_push_confirmed({
+          src: push.sourceBranch,
+          remote: push.remote,
+          dst: push.targetBranch,
+        }),
       };
     }}
     onClose={() => {
@@ -83,7 +88,9 @@
         ...view,
         pushPreview: null,
         statusBanner: hadPreceding
-          ? `本地已提交（${hadPreceding.shortOid}），已取消推送；本地提交已保留。`
+          ? m.s7_shell_push_cancelled_after_commit({
+              oid: hadPreceding.shortOid,
+            })
           : view.statusBanner,
       };
     }}
@@ -91,13 +98,13 @@
       (view = {
         ...view,
         pushPreview: null,
-        statusBanner: `已打开合并远端分支预览：${remoteRef}`,
+        statusBanner: m.s7_shell_merge_remote_opened({ remoteRef }),
       })}
     onRebaseOntoRemoteBranch={(remoteRef) =>
       (view = {
         ...view,
         pushPreview: null,
-        statusBanner: `已打开变基到远端分支预览：${remoteRef}`,
+        statusBanner: m.s7_shell_rebase_remote_opened({ remoteRef }),
       })}
   />
 {/if}
@@ -112,7 +119,7 @@
       (view = {
         ...view,
         divergencePreview: null,
-        statusBanner: "已确认执行发散合并/变基/遴选/还原操作",
+        statusBanner: m.s7_shell_divergence_confirmed(),
       })}
     onClose={() => (view = { ...view, divergencePreview: null })}
   />
@@ -129,7 +136,7 @@
         abortPreview: null,
         inProgress: null,
         conflictOpen: false,
-        statusBanner: "已中止进行中的操作并回退到操作前提交",
+        statusBanner: m.s7_shell_abort_confirmed(),
       })}
     onDismiss={() => (view = { ...view, abortPreview: null })}
   />
@@ -151,21 +158,23 @@
       (reworkItems = reworkItems.filter((it) => it.id !== id))}
     onClearAll={() => (reworkItems = [])}
     onCopyMarkdown={() =>
-      (view = { ...view, statusBanner: "已复制结构化审阅意见 Markdown" })}
+      (view = { ...view, statusBanner: m.s7_shell_rework_copied_md() })}
     onConfirmStale={() => {}}
     onDeliverToSession={(session) => {
       reworkOpen = false;
       if (handoffMode === "rework") reworkItems = [];
       view = {
         ...view,
-        statusBanner: `已将意见放入会话「${session.title || session.id}」输入草稿（未自动执行）`,
+        statusBanner: m.s7_shell_rework_delivered_session({
+          session: session.title || session.id,
+        }),
       };
     }}
     onStartNewSessionWithDraft={() => {
       reworkOpen = false;
       view = {
         ...view,
-        statusBanner: "已打开带预填草稿的新建工作树会话面板",
+        statusBanner: m.s7_shell_rework_new_session_opened(),
       };
     }}
     onClose={() => (reworkOpen = false)}
@@ -187,7 +196,7 @@
       (view = {
         ...view,
         stashCreatePreview: null,
-        statusBanner: "已确认保存贮藏",
+        statusBanner: m.s7_shell_stash_create_confirmed(),
       })}
     onClose={() => (view = { ...view, stashCreatePreview: null })}
   />
@@ -217,7 +226,7 @@
       (view = {
         ...view,
         stashApplyPreview: null,
-        statusBanner: "已确认执行贮藏恢复",
+        statusBanner: m.s7_shell_stash_apply_confirmed(),
       })}
     onClose={() => (view = { ...view, stashApplyPreview: null })}
   />
@@ -231,7 +240,7 @@
       (view = {
         ...view,
         stashDropPreview: null,
-        statusBanner: "已确认丢弃单条贮藏",
+        statusBanner: m.s7_shell_stash_drop_confirmed(),
       })}
     onClose={() => (view = { ...view, stashDropPreview: null })}
   />

@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount, tick, untrack } from "svelte";
+  import { onMount, tick } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import IconLoader2 from "~icons/tabler/loader-2";
-  import { api, stored, uploadQuickStartFile } from "../platform/api";
+  import { stored, uploadQuickStartFile } from "../platform/api";
   import {
     setBrowserChrome,
     resetBrowserChrome,
@@ -32,16 +33,14 @@
     usesWebmuxBrief,
   } from "../domains/settings/quick-commands";
   import { insertAtSelection } from "../lib/text-insertion";
-  import {
-    LaunchOptionsRequestSchema,
-    LaunchOptionsSchema,
-    type ChatAttachment,
-    type ChatConfig as ChatOption,
-    type ChatPermissionMode as PermissionMode,
-    type CreateSessionFailure,
-    type Repository,
-    type SessionView,
-    type Worktree,
+  import { useQuickStartAgentOptions } from "../hooks/sessions/quick-start-agent-options.svelte";
+  import type {
+    ChatAttachment,
+    ChatPermissionMode as PermissionMode,
+    CreateSessionFailure,
+    Repository,
+    SessionView,
+    Worktree,
   } from "../contracts/schemas";
   import { getShell, openSession } from "../hooks/shared/shell.svelte";
   import { enterSendIntent } from "../hooks/shared/enter-send";
@@ -124,46 +123,13 @@
     persistDraft();
   });
 
-  type Probe = { agentId: string; options?: ChatOption[]; done: boolean };
-  let probe = $state<Probe>();
-  const agentId = $derived(agent?.id);
-  const repositoryKnown = $derived(!!repository);
-  $effect(() => {
-    const id = agentId;
-    if (!id || !repositoryKnown) return;
-    const repo = untrack(() => repository?.id) ?? "";
-    probe = { agentId: id, done: false };
-    const controller = new AbortController();
-    api(
-      `/launch-configs/${id}/options`,
-      LaunchOptionsSchema,
-      "POST",
-      { repositoryId: repo },
-      controller.signal,
-      LaunchOptionsRequestSchema,
-    )
-      .then((options) => (probe = { agentId: id, options, done: true }))
-      .catch(() => {
-        if (!controller.signal.aborted) probe = { agentId: id, done: true };
-      });
-    return () => controller.abort();
-  });
-  const probing = $derived(
-    !!agent && probe?.agentId === agent.id && !probe.done,
+  const agentOptions = useQuickStartAgentOptions(
+    () => agent,
+    () => repository,
+    () => edits,
   );
-
-  // The page's option values: the agent's catalog plus edits.
-  const catalog = $derived(
-    probe?.agentId === agent?.id && probe?.options
-      ? probe.options
-      : (agent?.chatOptions ?? []),
-  );
-  const options = $derived<ChatOption[]>(
-    catalog.map((option) => {
-      const edit = agent ? edits[agent.id]?.[option.id] : undefined;
-      return edit ? { ...option, ...edit } : option;
-    }),
-  );
+  const probing = $derived(agentOptions.probing);
+  const options = $derived(agentOptions.options);
   function setOption(id: string, value: ConfigValue) {
     if (!agent) return;
     edits = { ...edits, [agent.id]: { ...edits[agent.id], [id]: value } };
@@ -217,8 +183,10 @@
 
   let input = $state<HTMLTextAreaElement | null>(null);
   const viewport = useViewport();
+  $effect(() => {
+    setBrowserChrome(m.s1_chrome_new_chat(), false);
+  });
   onMount(() => {
-    setBrowserChrome("新聊天 · WebMux", false);
     if (allowAutomaticInputFocus() && window.innerWidth >= 640) input?.focus();
     return resetBrowserChrome;
   });
@@ -323,7 +291,7 @@
     class="app-header flex min-h-(--app-header-height) shrink-0 items-center gap-1 border-b bg-card px-1 sm:px-4"
   >
     <SidebarButton class="sm:hidden" />
-    <h1 class="flex-1 text-sm font-medium">新聊天</h1>
+    <h1 class="flex-1 text-sm font-medium">{m.s1_new_chat()}</h1>
     <SessionSwitcherTrigger size="icon-sm" />
   </header>
 
@@ -332,18 +300,20 @@
     class="relative flex min-h-0 flex-1 flex-col"
     {uploads}
     blocked={sending}
-    label="松开以附加到这条消息"
+    label={m.s1_drop_to_attach_message()}
   >
     <div
       class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden px-4 text-center"
     >
-      <h2 class="text-2xl font-medium">要让 agent 做什么？</h2>
+      <h2 class="text-2xl font-medium">{m.s1_quick_start_heading()}</h2>
       <p class="max-w-md text-sm text-muted-foreground">
-        发送后会在{targetMode === "existing"
-          ? "所选工作树中"
-          : "所选仓库新建 worktree，"}{chat
-          ? "以聊天方式启动 agent 并发出这条消息"
-          : "在终端中启动 agent，待它就绪后输入这条消息并回车"}。
+        {targetMode === "existing"
+          ? chat
+            ? m.s1_quick_start_sub_existing_chat()
+            : m.s1_quick_start_sub_existing_terminal()
+          : chat
+            ? m.s1_quick_start_sub_new_chat()
+            : m.s1_quick_start_sub_new_terminal()}
       </p>
     </div>
 
@@ -371,9 +341,9 @@
           persistDraft();
         }}
         placeholder={targetMode === "existing"
-          ? "描述任务，发送后在所选工作树中开始"
-          : "描述任务，发送后在新 worktree 中开始"}
-        label="任务描述"
+          ? m.s1_quick_start_placeholder_existing()
+          : m.s1_quick_start_placeholder_new()}
+        label={m.s1_task_description()}
         disabled={sending}
         {uploads}
         uploadsDisabled={sending}
@@ -382,7 +352,7 @@
         )}
         action={{
           kind: "send",
-          label: "发送",
+          label: m.s1_send(),
           disabled: !canSend,
           onclick: () => void send(),
         }}
@@ -448,12 +418,12 @@
         {#snippet hints()}
           {#if usesArtifactDir(text)}
             <p class="px-1 pt-1 text-xs text-muted-foreground">
-              {"{{dir}}"} 会在会话创建后替换为它的临时文件夹路径。
+              {m.s1_hint_artifact_dir({ token: "{{dir}}" })}
             </p>
           {/if}
           {#if usesWebmuxBrief(text)}
             <p class="px-1 pt-1 text-xs text-muted-foreground">
-              {"{{webmux}}"} 会在会话创建后替换为 WebMux 工具说明。
+              {m.s1_hint_webmux_brief({ token: "{{webmux}}" })}
             </p>
           {/if}
         {/snippet}
@@ -468,8 +438,10 @@
                 class="size-3.5 animate-spin motion-reduce:animate-none"
                 aria-hidden="true"
               />{targetMode === "existing"
-                ? `正在启动 ${agent?.name}…`
-                : `正在创建 worktree 并启动 ${agent?.name}…`}
+                ? m.s1_starting_agent({ name: agent?.name ?? "" })
+                : m.s1_creating_worktree_starting_agent({
+                    name: agent?.name ?? "",
+                  })}
             </span>
           {:else}
             {@render agentToolbar(true)}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
+  import * as m from "$lib/paraglide/messages.js";
   import IconCheck from "~icons/tabler/check";
   import IconCopy from "~icons/tabler/copy";
   import { Badge } from "$lib/components/ui/badge";
@@ -113,7 +114,7 @@
               item.group === expected.group
             );
           });
-        if (!same) throw new APIError(409, "所选分支已变化");
+        if (!same) throw new APIError(409, m.s8_del_branches_changed());
         confirmationId = own.confirmationId;
       }
       return source.deleteBranches(repositoryId, confirmationId, withUnmerged);
@@ -126,11 +127,11 @@
   async function copyRestore(branch: string, commit: string) {
     if (await copyText(restoreCommand(branch, commit))) copied = branch;
   }
-  const statusLabels = {
-    deleted: { text: "已删除", variant: "success" },
-    skipped: { text: "已跳过", variant: "warning" },
-    failed: { text: "失败", variant: "destructive" },
-  } as const;
+  const statusLabels = $derived({
+    deleted: { text: m.s8_status_deleted(), variant: "success" },
+    skipped: { text: m.s8_status_skipped(), variant: "warning" },
+    failed: { text: m.s8_status_failed(), variant: "destructive" },
+  } as const);
 </script>
 
 {#snippet row(item: BranchDeleteItem, label: string)}
@@ -153,7 +154,7 @@
 
 <div class="min-w-0 space-y-3">
   {#if result}
-    <ul class="space-y-2" aria-label="删除结果">
+    <ul class="space-y-2" aria-label={m.s8_del_results_label()}>
       {#each result.results as entry (entry.branch)}
         {@const status = statusLabels[entry.status]}
         <li class="min-w-0 space-y-1 rounded-lg border p-3 text-xs">
@@ -171,8 +172,10 @@
               <Button
                 size="icon-xs"
                 variant="ghost"
-                aria-label={`复制恢复命令：${entry.branch}`}
-                title={copied === entry.branch ? "已复制" : "复制恢复命令"}
+                aria-label={m.s8_copy_restore_cmd_for({ branch: entry.branch })}
+                title={copied === entry.branch
+                  ? m.s8_copied()
+                  : m.s8_copy_restore_cmd()}
                 onclick={() => void copyRestore(entry.branch, entry.commit)}
                 >{#if copied === entry.branch}<IconCheck
                     aria-hidden="true"
@@ -186,54 +189,66 @@
       {/each}
     </ul>
     <p class="text-xs text-muted-foreground">
-      没有其他引用的提交会保留到 Git
-      垃圾回收清除它们为止（默认约两周），在此之前可用恢复命令找回分支。
+      {m.s8_del_gc_recovery_hint()}
     </p>
   {:else}
     <FlowStatus {flow} />
     {#if left > 0}
       <InlineNotice
-        >单次最多删除 {MAX_BRANCH_DELETE} 个分支；其余 {left} 个请在本次完成后再次清理。</InlineNotice
+        >{m.s8_del_batch_limit_notice({
+          max: String(MAX_BRANCH_DELETE),
+          left: String(left),
+        })}</InlineNotice
       >
     {/if}
     {#if contained.length}
-      <section class="space-y-2" aria-label="已包含">
-        <h3 class="text-sm font-medium">已包含（{contained.length}）</h3>
+      <section class="space-y-2" aria-label={m.s8_del_contained_label()}>
+        <h3 class="text-sm font-medium">
+          {m.s8_del_contained_heading({ count: String(contained.length) })}
+        </h3>
         <p class="text-xs text-muted-foreground">
-          这些分支的提交都能从其他分支、远程跟踪分支、标签或工作树到达，删除不会丢失提交。
+          {m.s8_del_contained_desc()}
         </p>
         <ul class="space-y-2">
           {#each contained as item (item.branch)}
             <li class="rounded-lg border p-3">
-              {@render row(item, `删除 ${item.branch}`)}
+              {@render row(item, m.s8_del_branch_aria({ branch: item.branch }))}
             </li>
           {/each}
         </ul>
       </section>
     {/if}
     {#if unmerged.length}
-      <section class="space-y-2" aria-label="有独有提交">
-        <h3 class="text-sm font-medium">有独有提交（{unmerged.length}）</h3>
+      <section class="space-y-2" aria-label={m.s8_del_unmerged_label()}>
+        <h3 class="text-sm font-medium">
+          {m.s8_del_unmerged_heading({ count: String(unmerged.length) })}
+        </h3>
         <p class="text-xs text-muted-foreground">
-          删除后这些提交将不再被任何分支引用。默认不删除，需要逐个勾选确认。
+          {m.s8_del_unmerged_desc()}
         </p>
         <ul class="space-y-2">
           {#each unmerged as item (item.branch)}
             <li class="space-y-2 rounded-lg border border-destructive/30 p-3">
               {@render row(
                 item,
-                `删除 ${item.branch} 及其 ${item.unmerged.total} 个独有提交`,
+                m.s8_del_unmerged_branch_aria({
+                  branch: item.branch,
+                  count: String(item.unmerged.total),
+                }),
               )}
-              <BranchCommitList title="独有提交" commits={item.unmerged} />
+              <BranchCommitList
+                title={m.s8_unique_commits_title()}
+                commits={item.unmerged}
+              />
             </li>
           {/each}
         </ul>
       </section>
     {/if}
     {#if blocked.length}
-      <section class="space-y-2" aria-label="不能删除">
+      <section class="space-y-2" aria-label={m.s8_del_blocked_label()}>
         <h3 class="text-sm font-medium text-muted-foreground">
-          不能删除（{blocked.length}）
+          {m.s8_del_blocked_heading({ count: String(blocked.length) })}
         </h3>
         <ul class="space-y-2">
           {#each blocked as item (item.branch)}
@@ -244,7 +259,7 @@
               {#each item.blockers as blocker (blocker.code + blocker.message)}
                 <p class="break-all text-destructive">
                   {blocker.message}{#if blocker.path}<span class="font-mono">
-                      （{blocker.path}）</span
+                      {m.s8_parens_value({ value: blocker.path })}</span
                     >{/if}
                 </p>
               {/each}
@@ -258,7 +273,9 @@
     done={!!result}
     {busy}
     {ready}
-    label={busy ? "正在删除…" : `删除 ${picked.length} 个分支`}
+    label={busy
+      ? m.s8_deleting_ellipsis()
+      : m.s8_del_n_branches({ count: String(picked.length) })}
     destructive
     onconfirm={() => void confirm()}
     {onclose}

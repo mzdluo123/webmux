@@ -10,6 +10,7 @@
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type {
     GitCommitFile,
     GitCompareViewState,
@@ -129,13 +130,13 @@
 
 <section
   class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-  aria-label="变更文件列表"
+  aria-label={m.s6_log_files_section_aria()}
 >
   <div class="space-y-1.5 border-b bg-background px-2.5 py-2">
     {#if compareMode}
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         <div class="flex min-w-0 items-center gap-1.5">
-          <Badge variant="info">两版本比较</Badge>
+          <Badge variant="info">{m.s6_log_files_compare_badge()}</Badge>
           <span class="truncate font-mono text-xs text-foreground">
             {compareMode.baseOid.slice(0, 7)} → {compareMode.targetOid.slice(
               0,
@@ -148,22 +149,22 @@
             <Button
               size="sm"
               variant="outline"
-              aria-label="交换比较方向"
+              aria-label={m.s6_log_files_swap_aria()}
               onclick={onSwapCompareDirection}
             >
               <IconArrowsExchange aria-hidden="true" />
-              交换方向
+              {m.s6_log_files_swap_btn()}
             </Button>
           {/if}
           {#if onExitCompare}
             <Button
               size="sm"
               variant="ghost"
-              aria-label="退出两版本比较"
+              aria-label={m.s6_log_files_exit_compare_aria()}
               onclick={onExitCompare}
             >
               <IconX aria-hidden="true" />
-              退出比较
+              {m.s6_log_files_exit_compare_btn()}
             </Button>
           {/if}
         </div>
@@ -172,10 +173,10 @@
 
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
       <span class="min-w-0 truncate text-xs font-semibold text-foreground">
-        变更文件 ({sourceFiles.length})
+        {m.s6_log_files_heading_count({ count: String(sourceFiles.length) })}
         {#if !compareMode && rightEndpoint}
           <span class="ml-1 font-mono font-normal text-muted-foreground">
-            {leftEndpoint || "空树"} → {rightEndpoint}
+            {leftEndpoint || m.s6_empty_tree()} → {rightEndpoint}
           </span>
         {/if}
       </span>
@@ -188,7 +189,7 @@
             data-testid="git-log-file-history-btn"
           >
             <IconHistory aria-hidden="true" />
-            历史
+            {m.s6_log_files_history_btn()}
           </Button>
           <Button
             size="sm"
@@ -204,8 +205,8 @@
           <Button
             size="icon-sm"
             variant="ghost"
-            aria-label="放大查看当前文件差异"
-            title="放大查看当前文件差异 (Enter / 双击)"
+            aria-label={m.s6_log_files_maximize_aria()}
+            title={m.s6_log_files_maximize_tooltip()}
             onclick={() => activePath && onExpandFile(activePath)}
           >
             <IconMaximize aria-hidden="true" />
@@ -219,8 +220,8 @@
         size="sm"
         mono
         value={fileQuery}
-        placeholder="按路径过滤变更文件…"
-        aria-label="筛选变更文件"
+        placeholder={m.s6_log_files_filter_placeholder()}
+        aria-label={m.s6_log_files_filter_aria()}
         oninput={(e) => (fileQuery = e.currentTarget.value)}
       />
     {/if}
@@ -232,14 +233,14 @@
     class="min-h-8 flex-1"
     viewportProps={{
       role: "listbox",
-      "aria-label": "提交变更文件",
+      "aria-label": m.s6_log_files_listbox_aria(),
       onkeydown: handleListKeydown,
     }}
   >
     <div class="p-1.5">
       {#if compareMode?.loading || loading}
         <p class="p-2.5 text-xs text-muted-foreground" role="status">
-          正在加载变更文件列表…
+          {m.s6_log_files_loading()}
         </p>
       {:else if compareMode?.error}
         <div class="p-2">
@@ -248,10 +249,10 @@
       {:else if visibleFiles.length === 0}
         <p class="p-2.5 text-xs text-muted-foreground">
           {normalizedQuery
-            ? "没有匹配过滤路径的变更文件。"
+            ? m.s6_log_files_no_filter_matches()
             : compareMode
-              ? "这两个提交版本之间没有文件差异。"
-              : "当前提交在此父节点对比下没有文件变更。"}
+              ? m.s6_log_files_no_compare_diff()
+              : m.s6_log_files_no_commit_changes()}
         </p>
       {:else}
         {#each visibleFiles as file (`${file.status}:${file.oldPath}:${fileKey(file)}`)}
@@ -283,7 +284,7 @@
             </span>
 
             {#if file.binary}
-              <Badge variant="secondary">二进制</Badge>
+              <Badge variant="secondary">{m.s6_log_files_binary_badge()}</Badge>
             {/if}
 
             {#if file.additions > 0 || file.deletions > 0}
@@ -305,7 +306,9 @@
               disabled={compareMode.loadingMore}
               onclick={onLoadMoreCompareFiles}
             >
-              {compareMode.loadingMore ? "加载中…" : "加载更多变更文件"}
+              {compareMode.loadingMore
+                ? m.s6_loading_ellipsis()
+                : m.s6_log_files_load_more()}
             </Button>
           </div>
         {/if}

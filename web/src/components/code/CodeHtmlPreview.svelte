@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { staticHtml } from "../../domains/code/code-html";
   let { text }: { text: string } = $props();
   const srcdoc = $derived(staticHtml(text));
@@ -6,11 +7,11 @@
 
 <div class="flex min-h-0 flex-1 flex-col">
   <p class="shrink-0 border-b px-2 py-1 text-xs text-muted-foreground">
-    静态预览，脚本与外部资源已禁用
+    {m.s5_html_static_preview_notice()}
   </p>
   <!-- An empty sandbox: opaque origin, no scripts, forms or navigation. -->
   <iframe
-    title="HTML 静态预览"
+    title={m.s5_html_static_preview_title()}
     sandbox=""
     referrerpolicy="no-referrer"
     {srcdoc}

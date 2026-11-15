@@ -9,6 +9,7 @@
   import LaunchConfigIcon from "../settings/LaunchConfigIcon.svelte";
   import RowStatus from "../shared/RowStatus.svelte";
   import SidebarSessionMenu from "./SidebarSessionMenu.svelte";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     session,
@@ -34,7 +35,7 @@
     variant="navigation-action"
     aria-current={session.id === current ? "page" : undefined}
     aria-label={pinned
-      ? `置顶 · ${sessionRowLabel(session)}`
+      ? m.s1_pinned_prefix({ label: sessionRowLabel(session) })
       : sessionRowLabel(session)}
     title={sessionRowTitle(session)}
     onclick={() => onopen(session)}
@@ -44,7 +45,9 @@
     <RowStatus status={rowStatus(session)} />
   </ListButton>
   <SidebarSessionMenu
-    label={pinned ? `置顶 · ${session.title}` : session.title}
+    label={pinned
+      ? m.s1_pinned_prefix({ label: session.title })
+      : session.title}
     target={{ kind: "live", session, onrename, onclose }}
   />
 </li>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
   import { onMount, untrack } from "svelte";
@@ -250,7 +251,7 @@
       {...props}
       bind:this={section}
       class="code-panel relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
-      aria-label="代码工作区"
+      aria-label={m.s5_code_workspace()}
     >
       <CodeWorkspaceHeader
         bind:navOpen={ws.s.navOpen}
@@ -323,7 +324,7 @@
             class="code-nav-divider"
             role="separator"
             aria-orientation="vertical"
-            aria-label="调整导航宽度"
+            aria-label={m.s5_resize_nav_width()}
             aria-valuemin={navMin}
             aria-valuemax={navMax}
             aria-valuenow={ws.s.navWidth}
@@ -379,7 +380,7 @@
             </Tabs.Content>
           {/each}
           {#if !ws.s.tabs.length}<p class="p-4 text-sm text-muted-foreground">
-              选择文件阅读完整内容，或从修改列表打开 Diff。
+              {m.s5_workspace_empty_prompt()}
             </p>{/if}
         </div>
       </div>

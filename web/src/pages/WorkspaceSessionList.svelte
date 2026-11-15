@@ -1,10 +1,8 @@
 <script lang="ts">
   import SessionListRemovalDialog from "../components/sessions/SessionListRemovalDialog.svelte";
-  import IconFolderPlus from "~icons/tabler/folder-plus";
-  import { Button } from "$lib/components/ui/button";
   import { onMount } from "svelte";
-  import SessionSwitcherTrigger from "../components/shell/SessionSwitcherTrigger.svelte";
-  import WorkspaceActions from "../components/workspace/WorkspaceActions.svelte";
+  import * as m from "$lib/paraglide/messages.js";
+  import WorkspaceHeaderActions from "../components/workspace/WorkspaceHeaderActions.svelte";
   import WorkspaceToolbar from "../components/workspace/WorkspaceToolbar.svelte";
   import { store, stored } from "../platform/api";
   import type { ArchivedSession, Worktree } from "../contracts/schemas";
@@ -17,7 +15,6 @@
   import DirectSessions from "../components/sessions/DirectSessions.svelte";
   import WorkspaceMobileHeader from "../components/workspace/WorkspaceMobileHeader.svelte";
   import WorktreeBadges from "../components/workspace/WorktreeBadges.svelte";
-  import SessionListScopeMenu from "../components/workspace/SessionListScopeMenu.svelte";
   import { removeRecord, resumeSession } from "../plugins/history";
   import {
     placeArchived,
@@ -65,7 +62,7 @@
   const repositoriesSettled = $derived(shell.repositories?.settled ?? false);
   const refreshing = $derived(shell.repositories?.refreshing ?? false);
   const repositoryError = $derived(
-    shell.repositories?.error ?? "工作区暂不可用",
+    shell.repositories?.error ?? m.s1_workspace_unavailable(),
   );
   const setup = $derived(shell.setup.value);
   const capabilityError = $derived(setup.capabilityError);
@@ -185,7 +182,7 @@
   const running = $derived(
     sessions.some((session) => session.status === "running"),
   );
-  $effect(() => setBrowserChrome("WebMux · 工作区", running));
+  $effect(() => setBrowserChrome(m.s1_chrome_workspace(), running));
   $effect(() => {
     void query;
     void statusFilter;
@@ -258,53 +255,16 @@
   );
 </script>
 
-{#snippet menu()}
-  {@const repo = shell.settingsRepository}
-  {#if repo}
-    <SessionListScopeMenu
-      {repo}
-      tree={selectedWorktree}
-      pinned={selectedPinned}
-      onnewworktree={() =>
-        shell.start({ kind: "new-worktree", repositoryId: repo.id })}
-      onhome={() => shell.chooseHomeWorktrees(repo)}
-      onmanage={() => shell.repositoryDetails(repo, "worktrees")}
-      onsettings={shell.openRepositorySettings}
-      ondetails={() => shell.repositoryDetails(repo)}
-      ongit={pluginAvailable("workspace.git-workbench")
-        ? (worktreeId, view) =>
-            openGitWorkbench({ repositoryId: repo.id, worktreeId, view })
-        : undefined}
-      onworktreedetails={() => (worktreeDetailsOpen = true)}
-      onswitch={(tree) => shell.switchBranch(tree)}
-      ontogglepin={() => {
-        if (selectedWorktree)
-          pin(repo.id, [selectedWorktree.id], !selectedPinned);
-      }}
-      onremove={(tree) => (removing = tree)}
-      onoperation={(operation) => shell.branchOperation(repo.id, operation)}
-    />
-  {/if}
-{/snippet}
-
 {#snippet actions()}
-  <Button
-    variant="outline"
-    size="sm"
-    class="max-sm:size-(--control-default)"
-    aria-label="添加仓库"
-    title="添加仓库"
-    disabled={!setup.gitReady || !setup.registryReady}
-    onclick={() => shell.addRepository()}
-    ><IconFolderPlus aria-hidden="true" /><span class="hidden sm:inline"
-      >添加仓库</span
-    ></Button
-  >
-  <SessionSwitcherTrigger size="icon-sm" />
-  <WorkspaceActions
+  <WorkspaceHeaderActions
+    canAddRepository={setup.gitReady && setup.registryReady}
     {compact}
     {refreshing}
-    onchange={setCompact}
+    repo={shell.settingsRepository}
+    {selectedWorktree}
+    {selectedPinned}
+    onaddrepository={() => shell.addRepository()}
+    oncompactchange={setCompact}
     onrefresh={() => void shell.repositories?.refresh(true)}
     ongit={pluginAvailable("workspace.git-workbench")
       ? () =>
@@ -315,13 +275,30 @@
               : undefined,
           })
       : undefined}
-    menu={shell.settingsRepository ? menu : undefined}
+    onnewworktree={(repo) =>
+      shell.start({ kind: "new-worktree", repositoryId: repo.id })}
+    onhome={(repo) => shell.chooseHomeWorktrees(repo)}
+    onmanage={(repo) => shell.repositoryDetails(repo, "worktrees")}
+    onsettings={shell.openRepositorySettings}
+    ondetails={(repo) => shell.repositoryDetails(repo)}
+    onscopegit={pluginAvailable("workspace.git-workbench")
+      ? (repo, worktreeId, view) =>
+          openGitWorkbench({ repositoryId: repo.id, worktreeId, view })
+      : undefined}
+    onworktreedetails={() => (worktreeDetailsOpen = true)}
+    onswitch={(tree) => shell.switchBranch(tree)}
+    ontogglepin={(repo) => {
+      if (selectedWorktree)
+        pin(repo.id, [selectedWorktree.id], !selectedPinned);
+    }}
+    onremove={(tree) => (removing = tree)}
+    onoperation={(repo, operation) => shell.branchOperation(repo.id, operation)}
   />
 {/snippet}
 
 <div class="workspace-page safe-area-page min-h-dvh">
   <WorkspaceMobileHeader
-    title={selectedRepository === "all" ? "全部仓库" : scopeLabel}
+    title={selectedRepository === "all" ? m.s1_all_repositories() : scopeLabel}
     reconnecting={shell.sessions.connection === "reconnecting"}
     {actions}
   />
@@ -329,7 +306,7 @@
   {#if loading || initializing}
     <div
       class="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-8 sm:py-6"
-      aria-label="正在加载会话"
+      aria-label={m.s1_loading_sessions_aria()}
     >
       {#each [0, 1, 2] as item (item)}<Skeleton class="h-40 w-full" />{/each}
     </div>
@@ -386,7 +363,7 @@
           {rebuildFailure}
           recordError={recordError ||
             (pluginEnabled("chat") && !shell.archived
-              ? "聊天记录暂不可用；仍可使用实时会话。请重新加载页面以恢复聊天功能。"
+              ? m.s1_chat_records_unavailable_notice()
               : "")}
           {capabilityError}
           {repositoryError}

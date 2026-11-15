@@ -2,6 +2,7 @@
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Button } from "$lib/components/ui/button";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
+  import * as m from "$lib/paraglide/messages.js";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import ConnectorInstallHint from "./ConnectorInstallHint.svelte";
   import HybridCandidatePicker from "./HybridCandidatePicker.svelte";
@@ -92,7 +93,10 @@
       picked = pending.candidates[0]?.agentSessionId ?? "";
       pendingOpen = true;
     } catch (err) {
-      const message = `无法恢复“${record.title}”：${errorMessage(err)}`;
+      const message = m.s3_resume_failed({
+        title: record.title,
+        error: errorMessage(err),
+      });
       if (rebuild) rebuild.failure = message;
       else onerror(message);
     } finally {
@@ -168,7 +172,7 @@
   >{#if resumingView}<IconLoader2
       class="animate-spin motion-reduce:animate-none"
       aria-hidden="true"
-    />{/if}恢复</Button
+    />{/if}{m.s3_resume()}</Button
 >
 
 {#if rebuildView && record.released}<RebuildWorktreeDialog
@@ -188,8 +192,8 @@
     }
   }
   title={pending?.kind === "candidates"
-    ? "找不到原来的 agent 会话"
-    : "启动配置已删除"}
+    ? m.s3_resume_missing_agent_session_title()
+    : m.s3_resume_launch_config_deleted_title()}
   onconfirm={confirmPending}
 >
   {pending?.message}
@@ -197,10 +201,10 @@
     <HybridCandidatePicker
       candidates={pending.candidates}
       bind:picked
-      label="选择要恢复的会话"
+      label={m.s3_select_session_to_resume()}
     />
   {:else}
-    恢复后将使用原命令，但不再带有该配置保存的环境变量。
+    {m.s3_resume_without_saved_env()}
   {/if}
 </ConfirmDialog>
 
@@ -215,16 +219,16 @@
 >
   <AlertDialog.Content>
     <AlertDialog.Header>
-      <AlertDialog.Title>聊天端无法启动</AlertDialog.Title>
+      <AlertDialog.Title>{m.s3_chat_side_cannot_start()}</AlertDialog.Title>
       <AlertDialog.Description
-        >可以先安装后再恢复到聊天，或者恢复到终端。</AlertDialog.Description
+        >{m.s3_chat_side_install_or_terminal_desc()}</AlertDialog.Description
       >
     </AlertDialog.Header>
     {#if missing}<ConnectorInstallHint connector={missing.connector} />{/if}
     <AlertDialog.Footer>
-      <AlertDialog.Cancel>取消</AlertDialog.Cancel>
+      <AlertDialog.Cancel>{m.s3_cancel()}</AlertDialog.Cancel>
       <AlertDialog.Action onclick={resumeTerminal}
-        >恢复到终端</AlertDialog.Action
+        >{m.s3_resume_to_terminal()}</AlertDialog.Action
       >
     </AlertDialog.Footer>
   </AlertDialog.Content>

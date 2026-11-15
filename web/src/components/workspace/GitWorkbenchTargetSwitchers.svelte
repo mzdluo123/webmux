@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconFolder from "~icons/tabler/folder";
   import IconGitBranch from "~icons/tabler/git-branch";
@@ -38,14 +39,17 @@
 
   const repoAvailable = $derived(repository?.availability === "available");
   const repositoryButtonLabel = $derived(
-    repository?.name ?? (repositories.length === 0 ? "未登记仓库" : "选择仓库"),
+    repository?.name ??
+      (repositories.length === 0
+        ? m.s7_switcher_no_repo()
+        : m.s7_switcher_select_repo()),
   );
   const worktreeButtonLabel = $derived(
     !worktreeId
-      ? "只读仓库（无工作树）"
+      ? m.s7_readonly_repo_no_wt()
       : worktree
         ? worktreeTitle(worktree)
-        : "工作树缺失",
+        : m.s7_switcher_wt_missing_label(),
   );
 </script>
 
@@ -56,8 +60,8 @@
         {...props}
         size="sm"
         variant="outline"
-        aria-label="切换仓库"
-        title={repository?.anchorPath ?? "切换仓库"}
+        aria-label={m.s7_switcher_switch_repo_aria()}
+        title={repository?.anchorPath ?? m.s7_switcher_switch_repo_aria()}
       >
         <IconFolder aria-hidden="true" />
         <span class="max-w-28 truncate sm:max-w-44">
@@ -72,9 +76,11 @@
     class="w-64"
     data-testid="git-repository-switcher-popover"
   >
-    <DropdownMenu.Label>已登记仓库</DropdownMenu.Label>
+    <DropdownMenu.Label>{m.s7_switcher_registered_repos()}</DropdownMenu.Label>
     {#if repositories.length === 0}
-      <DropdownMenu.Item disabled>暂无已登记仓库</DropdownMenu.Item>
+      <DropdownMenu.Item disabled
+        >{m.s7_switcher_no_registered_repos()}</DropdownMenu.Item
+      >
     {:else}
       <DropdownMenu.RadioGroup
         value={repository?.id ?? ""}
@@ -86,7 +92,7 @@
           <DropdownMenu.RadioItem value={repo.id} closeOnSelect>
             <span class="min-w-0 flex-1 truncate">{repo.name}</span>
             {#if repo.availability !== "available"}
-              <Badge variant="destructive">不可用</Badge>
+              <Badge variant="destructive">{m.s7_unavailable_badge()}</Badge>
             {/if}
           </DropdownMenu.RadioItem>
         {/each}
@@ -96,7 +102,7 @@
       <DropdownMenu.Separator />
       <DropdownMenu.Item onSelect={onAddRepository}>
         <IconPlus aria-hidden="true" />
-        <span>登记已有仓库…</span>
+        <span>{m.s7_register_existing_repo_btn()}</span>
       </DropdownMenu.Item>
     {/if}
   </DropdownMenu.Content>
@@ -110,8 +116,8 @@
           {...props}
           size="sm"
           variant="outline"
-          aria-label="切换操作目标工作树"
-          title={worktree?.path ?? "切换操作目标工作树"}
+          aria-label={m.s7_switcher_switch_wt_aria()}
+          title={worktree?.path ?? m.s7_switcher_switch_wt_aria()}
         >
           <IconGitBranch aria-hidden="true" />
           <span class="max-w-28 truncate sm:max-w-44">
@@ -126,27 +132,31 @@
       class="w-72"
       data-testid="git-worktree-switcher-popover"
     >
-      <DropdownMenu.Label>操作目标工作树</DropdownMenu.Label>
+      <DropdownMenu.Label
+        >{m.s7_switcher_target_wt_heading()}</DropdownMenu.Label
+      >
       <DropdownMenu.RadioGroup
         value={worktreeId ?? READONLY_WORKTREE}
         onValueChange={(value) =>
           onSelectWorktree(value === READONLY_WORKTREE ? undefined : value)}
       >
         <DropdownMenu.RadioItem value={READONLY_WORKTREE} closeOnSelect>
-          <span class="min-w-0 flex-1 truncate">只读仓库视图（无工作树）</span>
-          <Badge variant="outline">只读</Badge>
+          <span class="min-w-0 flex-1 truncate"
+            >{m.s7_switcher_readonly_view_item()}</span
+          >
+          <Badge variant="outline">{m.s7_readonly_badge()}</Badge>
         </DropdownMenu.RadioItem>
         {#each repository.worktrees as wt (wt.id)}
           <DropdownMenu.RadioItem value={wt.id} closeOnSelect>
             <span class="min-w-0 flex-1 truncate">{worktreeTitle(wt)}</span>
             {#if !wt.available || wt.prunable}
-              <Badge variant="destructive">缺失</Badge>
+              <Badge variant="destructive">{m.s7_wt_missing_badge()}</Badge>
             {:else if wt.kind === "bare"}
-              <Badge variant="warning">裸仓库</Badge>
+              <Badge variant="warning">{m.s7_wt_bare_badge()}</Badge>
             {:else if wt.locked}
-              <Badge variant="warning">锁定</Badge>
+              <Badge variant="warning">{m.s7_wt_locked_badge()}</Badge>
             {:else if wt.kind === "main"}
-              <Badge variant="outline">主</Badge>
+              <Badge variant="outline">{m.s7_wt_main_badge()}</Badge>
             {/if}
           </DropdownMenu.RadioItem>
         {/each}
@@ -155,12 +165,12 @@
       {#if repoAvailable}
         <DropdownMenu.Item onSelect={onNewWorktree}>
           <IconPlus aria-hidden="true" />
-          <span>新建工作树…</span>
+          <span>{m.s7_new_worktree_btn()}</span>
         </DropdownMenu.Item>
       {/if}
       <DropdownMenu.Item onSelect={onManageWorktrees}>
         <IconSettings aria-hidden="true" />
-        <span>管理工作树…</span>
+        <span>{m.s7_manage_worktrees_btn()}</span>
       </DropdownMenu.Item>
     </DropdownMenu.Content>
   </DropdownMenu.Root>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Component } from "svelte";
   import { Input } from "$lib/components/ui/input";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     value = $bindable(""),
@@ -18,7 +19,7 @@
 <div class="flex gap-2">
   <Input
     id="cwd"
-    aria-label="工作目录"
+    aria-label={m.s1_working_directory()}
     bind:ref
     bind:value
     {placeholder}

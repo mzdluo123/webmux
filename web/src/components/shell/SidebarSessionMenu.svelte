@@ -6,6 +6,7 @@
   import { insertAtSelection } from "../../lib/text-insertion";
   import { sessionReference } from "../../domains/sessions/session-reference";
   import SidebarRowMenu from "./SidebarRowMenu.svelte";
+  import * as m from "$lib/paraglide/messages.js";
 
   // The "⋯" button over the end of a sidebar session row and its menu: the
   // row's actions, the same in the chat history and the workbench tree.
@@ -63,23 +64,33 @@
   }
 
   const live = $derived(shell?.sessions.sessions ?? []);
+  const isArchiveClose = $derived(
+    target.kind === "live" &&
+      target.session.status !== "exited" &&
+      target.session.views.includes("chat") &&
+      target.session.state === "active",
+  );
   const closeLabel = $derived.by(() => {
     if (target.kind !== "live") return "";
-    const { session } = target;
-    if (session.status === "exited") return "移除会话";
-    return session.views.includes("chat") && session.state === "active"
-      ? "停止会话并归档"
-      : "关闭会话";
+    if (target.session.status === "exited") return m.s1_remove_session();
+    return isArchiveClose
+      ? m.s1_stop_and_archive_session()
+      : m.s1_close_session();
   });
 </script>
 
-<SidebarRowMenu ariaLabel={`会话操作：${label}`} {tabindex} {disabled}>
+<SidebarRowMenu
+  ariaLabel={m.s1_session_actions({ label })}
+  {tabindex}
+  {disabled}
+>
   {#if target.kind === "live"}
     {@const { session, onrename, onclose } = target}
     {#if shell?.activeChat && shell.activeChat.id !== session.id && session.status !== "exited"}
       <DropdownMenu.Item
         disabled={!!shell.drafts.get(shell.activeChat.id).submission}
-        onSelect={() => reference(session)}>引用到当前聊天</DropdownMenu.Item
+        onSelect={() => reference(session)}
+        >{m.s1_reference_in_chat()}</DropdownMenu.Item
       >
     {/if}
     {#if session.status !== "exited"}
@@ -88,43 +99,46 @@
         disabled={!sessionPins.ready || (!pinned && sessionPins.full)}
         onSelect={() => sessionPins.toggle(session.id)}
       >
-        {pinned ? "取消置顶" : "置顶会话"}
+        {pinned ? m.s1_unpin_session() : m.s1_pin_session()}
       </DropdownMenu.Item>
       {#if pinned}
         <DropdownMenu.Item
           disabled={!sessionPins.ready ||
             !sessionPins.canMove(session.id, -1, live)}
           onSelect={() => sessionPins.move(session.id, -1, live)}
-          >上移置顶</DropdownMenu.Item
+          >{m.s1_move_pin_up()}</DropdownMenu.Item
         >
         <DropdownMenu.Item
           disabled={!sessionPins.ready ||
             !sessionPins.canMove(session.id, 1, live)}
           onSelect={() => sessionPins.move(session.id, 1, live)}
-          >下移置顶</DropdownMenu.Item
+          >{m.s1_move_pin_down()}</DropdownMenu.Item
         >
       {/if}
     {/if}
     <DropdownMenu.Item onSelect={() => onrename(session)}
-      >修改标题</DropdownMenu.Item
+      >{m.s1_edit_title()}</DropdownMenu.Item
     >
     <DropdownMenu.Separator />
     <DropdownMenu.Item
-      variant={closeLabel === "停止会话并归档" ? "default" : "destructive"}
+      variant={isArchiveClose ? "default" : "destructive"}
       onSelect={() => onclose(session)}>{closeLabel}</DropdownMenu.Item
     >
   {:else}
-    <DropdownMenu.Item onSelect={target.onresume}>恢复会话</DropdownMenu.Item>
+    <DropdownMenu.Item onSelect={target.onresume}
+      >{m.s1_resume_session()}</DropdownMenu.Item
+    >
     {#if target.onrelease}<DropdownMenu.Item onSelect={target.onrelease}
-        >释放空间</DropdownMenu.Item
+        >{m.s1_release_space()}</DropdownMenu.Item
       >{/if}
     <DropdownMenu.Separator />
     <DropdownMenu.Item variant="destructive" onSelect={target.onremove}
-      >删除记录</DropdownMenu.Item
+      >{m.s1_delete_record()}</DropdownMenu.Item
     >
     {#if target.onremoveworktree}<DropdownMenu.Item
         variant="destructive"
-        onSelect={target.onremoveworktree}>删除记录和工作树</DropdownMenu.Item
+        onSelect={target.onremoveworktree}
+        >{m.s1_delete_record_and_worktree()}</DropdownMenu.Item
       >{/if}
   {/if}
 </SidebarRowMenu>

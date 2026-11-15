@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
@@ -119,7 +120,7 @@
   data-repository-id={repo.id}
   hidden={hidden || (filtering && !visible.length && !archivedVisible)}
   role="region"
-  aria-label={`仓库 ${repo.name}`}
+  aria-label={m.s8_repo_group_aria({ name: repo.name })}
   {open}
   onOpenChange={onopenchange}
 >
@@ -192,7 +193,7 @@
       {/each}
       {@const missingArchive = shownArchive(archived.missing)}
       {#if missing.length || archived.missing.length}<WorkspaceGroup
-          title="已不可用工作区"
+          title={m.s8_unavailable_workspaces()}
           sessions={missing}
           {visibleIds}
           {compact}
@@ -213,15 +214,14 @@
       {#if !layout.shown.length && layout.unpinned.length}<p
           class="text-sm text-muted-foreground"
         >
-          主页还没有
-          worktree。在侧栏仓库行“⋯”菜单的“主页显示…”中选择，或用“新建工作树…”创建。
+          {m.s8_repo_group_no_pinned_hint()}
         </p>{/if}
       {#if !repo.worktrees.length && !missing.length && !archived.missing.length}<p
           class="text-sm text-muted-foreground"
         >
           {repo.error
-            ? "无法读取工作树，请检查路径与 Git 权限，或从列表移除。"
-            : "暂无可用工作树。"}
+            ? m.s8_repo_group_load_wt_error()
+            : m.s8_repo_group_no_worktrees()}
         </p>{/if}
     </Collapsible.Content>{/if}
 </Collapsible.Root>

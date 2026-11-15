@@ -1,6 +1,7 @@
 <script lang="ts">
   import IconDots from "~icons/tabler/dots";
   import IconInfoCircle from "~icons/tabler/info-circle";
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import {
@@ -31,7 +32,12 @@
     ondetails: () => void;
     hidden?: boolean;
   } = $props();
-  const label = $derived(kind === "worktree" ? "工作树" : "目录");
+  const detailsLabel = $derived(
+    kind === "worktree"
+      ? m.s8_worktree_details_for({ title })
+      : m.s8_dir_details_for({ title }),
+  );
+  const menuLabel = $derived(m.s8_worktree_menu_for({ title }));
   const syncable = $derived(
     !!worktree && !!onoperation && branchActions(worktree).actions.length > 0,
   );
@@ -47,8 +53,8 @@
 <Button
   size="icon-sm"
   variant="ghost"
-  aria-label={`${label}详情 ${title}`}
-  title={`${label}详情 ${title}`}
+  aria-label={detailsLabel}
+  title={detailsLabel}
   aria-haspopup="dialog"
   onclick={ondetails}><IconInfoCircle aria-hidden="true" /></Button
 >
@@ -60,8 +66,8 @@
           {...props}
           size="icon-sm"
           variant="ghost"
-          title={`工作树菜单 ${title}`}
-          aria-label={`工作树菜单 ${title}`}
+          title={menuLabel}
+          aria-label={menuLabel}
           ><IconDots class="size-4" aria-hidden="true" /></Button
         >
       {/snippet}

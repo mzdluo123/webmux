@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ComponentProps } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import type { PaneRect } from "../../domains/terminal/terminal-layout";
   import SessionTerminal from "./SessionTerminal.svelte";
 
@@ -37,7 +38,9 @@
   class="session-owner"
   class:split-terminal={!!pane}
   class:active={!!pane && multiple && session.active}
-  aria-label={pane ? `终端窗格 ${paneIndex + 1}` : `VR 观察会话 ${session.id}`}
+  aria-label={pane
+    ? m.s4_terminal_pane_index({ index: String(paneIndex + 1) })
+    : m.s4_vr_observed_session({ id: session.id })}
   data-session-id={session.id}
   data-active={!!pane && session.active}
   data-visible={session.visible}

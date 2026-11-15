@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import { untrack, onMount, tick, type Snippet } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
@@ -11,6 +12,7 @@
     fetchFileComparisonDiff,
     fetchSnapshotSideFile,
     resolveCalculatedDiff,
+    resolveDiffSelectionRange,
     defaultDiffSide,
   } from "../../domains/code/code-diff-client";
   import type { FileDiffMetadata, SelectedLineRange } from "@pierre/diffs";
@@ -20,7 +22,10 @@
   import { codeReference } from "../../domains/code/code-reference";
   import type { MarkdownHeading } from "./CodeMarkdownPreview.svelte";
   import type { MarkdownWorkspace } from "../../domains/code/markdown-link";
-  import { isImageType } from "../../domains/code/code-image";
+  import {
+    canPreviewDocumentImage,
+    isDocumentImage,
+  } from "../../domains/code/code-image";
   import { pdfMediaType, previewFormat } from "../../domains/code/code-preview";
   import type { TextInsertion } from "../../domains/terminal/terminal-draft.svelte";
   import { xrCodePanel } from "../../domains/code/xr-code-panel";
@@ -169,19 +174,10 @@
     !shownDiff && !!doc && doc.mediaType === pdfMediaType,
   );
   const imagePreview = $derived(
-    !!doc &&
-      doc.source !== "empty" &&
-      (shownDiff
-        ? shownDiff.kind === "image" &&
-          (doc.kind === "image" ||
-            (doc.kind === "text" && doc.mediaType === "image/svg+xml"))
-        : doc.kind === "image" || (svgFile && svgView === "preview")),
+    canPreviewDocumentImage(doc, shownDiff, svgFile, svgView),
   );
   // Image documents, over-limit images and either side of an image Diff.
-  const imageDocument = $derived(
-    !!doc &&
-      (shownDiff ? shownDiff.kind === "image" : isImageType(doc.mediaType)),
-  );
+  const imageDocument = $derived(isDocumentImage(doc, shownDiff));
   let preview = $derived.by(() => {
     if (
       invalidSelection ||
@@ -330,29 +326,18 @@
     end = z;
   }
   function selectDiff(range: SelectedLineRange | null) {
-    error = "";
-    start = undefined;
-    end = undefined;
-    invalidSelection = false;
-    if (!range) {
-      side = defaultSide;
-      return;
-    }
-    if (range.endSide && range.endSide !== range.side) {
-      invalidSelection = true;
-      error = "请选择同一来源的连续行";
-      return;
-    }
-    side = range.side === "deletions" ? "old" : "new";
-    start = Math.min(range.start, range.end);
-    end = Math.max(range.start, range.end);
+    const next = resolveDiffSelectionRange(range, defaultSide);
+    if (!next.invalid) side = next.side;
+    start = next.start;
+    end = next.end;
+    invalidSelection = next.invalid;
+    error = next.error;
   }
   async function send(reference = preview) {
     if (!reference || status !== "unchanged") return;
     error = "";
     const result = await paste(reference);
-    if (mounted && result === "failed")
-      error = "输入目标未就绪，位置未插入；请重试";
+    if (mounted && result === "failed") error = m.s5_input_not_ready_retry();
   }
   function clearSelection() {
     start = undefined;
@@ -376,7 +361,7 @@
     if (!svgFile || svgView !== "preview") return;
     clearSelection();
     svgView = "source";
-    svgNotice = `SVG 预览不可用，已切换到源码：${message}`;
+    svgNotice = m.s5_svg_preview_fallback({ message });
   }
   function downloadFailed(message: string, code: number) {
     error = message;

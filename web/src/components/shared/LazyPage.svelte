@@ -1,5 +1,6 @@
 <script lang="ts" generics="T">
   import { untrack, type Snippet } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     load,
@@ -19,12 +20,12 @@
 
 {#await pending}
   <p role="status" class="p-6 text-muted-foreground">
-    {loadingText ?? `正在加载${label}…`}
+    {loadingText ?? m.s1_loading_target({ label })}
   </p>
 {:then page}
   {@render children(page)}
 {:catch error}
   <p role="alert" class="p-6 text-destructive">
-    {errorMessage?.(error) ?? `${label}加载失败，请刷新页面后重试。`}
+    {errorMessage?.(error) ?? m.s1_load_target_failed_retry({ label })}
   </p>
 {/await}

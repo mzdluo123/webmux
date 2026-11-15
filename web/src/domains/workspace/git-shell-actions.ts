@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import type {
   GitBranchItem,
   GitCommitOutcome,
@@ -84,7 +85,7 @@ export function applyShellDraftResolution(
       nextRevision: conflict.remoteDraft.revision + 1,
       nextView: {
         ...view,
-        statusBanner: "已保留本机输入并覆盖保存提交草稿",
+        statusBanner: m.s7_shell_draft_kept_local(),
       },
     };
   }
@@ -97,7 +98,7 @@ export function applyShellDraftResolution(
           conflict.remoteDraft.subject,
           conflict.remoteDraft.body,
         ),
-        statusBanner: "已采用另一设备保存的提交草稿版本",
+        statusBanner: m.s7_shell_draft_adopted_remote(),
       },
     };
   }
@@ -113,7 +114,7 @@ export function applyShellDraftResolution(
     nextView: {
       ...view,
       commitMessage: joinCommitMessageDraft(merged.subject, merged.body),
-      statusBanner: "已合并两份提交草稿并保存",
+      statusBanner: m.s7_shell_draft_merged(),
     },
   };
 }
@@ -139,7 +140,7 @@ export function buildShellPushPreview(
       ? [
           {
             code: "no_worktree",
-            message: "无工作树只读模式下无法执行分支推送。",
+            message: m.s7_shell_push_blocker_readonly(),
           },
         ]
       : [],
@@ -162,7 +163,9 @@ export function applyShellCommitConfirm(
     commitOid: "f00dbabe1234567890abcdef1234567890abcdef",
     expectedTreeOid: preview.expectedTreeOid,
     actualTreeOid: preview.expectedTreeOid,
-    summary: `已从真实 Git index 创建提交（${preview.stagedFiles.length} 个文件）`,
+    summary: m.s7_shell_committed_from_index({
+      count: String(preview.stagedFiles.length),
+    }),
     reasons: [],
   };
   const remainingChanges =
@@ -171,7 +174,9 @@ export function applyShellCommitConfirm(
       : view.workingChanges;
   const shouldFollowUpPush =
     preview.followUpPush && outcome.status === "matched";
-  const subject = view.commitMessage.trim().split(/\r?\n/, 1)[0] || "本地提交";
+  const subject =
+    view.commitMessage.trim().split(/\r?\n/, 1)[0] ||
+    m.s7_shell_local_commit_subject();
   const commitOid =
     outcome.commitOid || "f00dbabe1234567890abcdef1234567890abcdef";
 
@@ -248,62 +253,88 @@ export function applyShellBranchAction(options: {
       );
       return {
         ...view,
-        statusBanner: `已定位到占用该分支的工作树：${branch.occupiedBy.worktreePath} (${branch.occupiedBy.worktreeId})`,
+        statusBanner: m.s7_shell_located_occupied_wt({
+          path: branch.occupiedBy.worktreePath,
+          worktreeId: branch.occupiedBy.worktreeId,
+        }),
       };
     case "checkout":
       return {
         ...view,
-        statusBanner: `已打开分支检出预览：${branch.name}（不会静默覆盖未提交改动）`,
+        statusBanner: m.s7_shell_checkout_preview_opened({
+          branch: branch.name,
+        }),
       };
     case "create-branch-from":
       return {
         ...view,
-        statusBanner: `已请求从 ${branch.name} 新建分支…`,
+        statusBanner: m.s7_shell_create_branch_from({ branch: branch.name }),
       };
     case "open-new-worktree":
       return {
         ...view,
-        statusBanner: `已请求在新工作树打开 ${branch.name}…`,
+        statusBanner: m.s7_shell_open_new_wt({ branch: branch.name }),
       };
-    case "merge-into-current":
+    case "merge-into-current": {
+      const src =
+        branch.name === view.context.checkedOutBranch && branch.upstream
+          ? branch.upstream
+          : branch.name;
+      const dst = view.context.checkedOutBranch ?? m.s7_current_branch();
       return {
         ...view,
-        statusBanner: `已打开合并预览：将 ${branch.name === view.context.checkedOutBranch && branch.upstream ? branch.upstream : branch.name} 合入 ${view.context.checkedOutBranch ?? "当前分支"}`,
+        statusBanner: m.s7_shell_merge_preview_opened({ src, dst }),
       };
-    case "rebase-onto":
+    }
+    case "rebase-onto": {
+      const src = view.context.checkedOutBranch ?? m.s7_current_branch();
+      const dst =
+        branch.name === view.context.checkedOutBranch && branch.upstream
+          ? branch.upstream
+          : branch.name;
       return {
         ...view,
-        statusBanner: `已打开变基预览：将 ${view.context.checkedOutBranch ?? "当前分支"} 变基到 ${branch.name === view.context.checkedOutBranch && branch.upstream ? branch.upstream : branch.name} 之上`,
+        statusBanner: m.s7_shell_rebase_preview_opened({ src, dst }),
       };
+    }
     case "fetch":
-      return { ...view, statusBanner: "已触发远程获取 (Fetch)" };
+      return { ...view, statusBanner: m.s7_shell_fetch_triggered() };
     case "fast-forward":
-      return { ...view, statusBanner: `已打开快进更新预览：${branch.name}` };
+      return {
+        ...view,
+        statusBanner: m.s7_shell_ff_preview_opened({ branch: branch.name }),
+      };
     case "push":
       onOpenPush(branch.name);
       return null;
     case "rename-branch":
       return {
         ...view,
-        statusBanner: `已打开本地分支重命名预览：${branch.name}`,
+        statusBanner: m.s7_shell_rename_preview_opened({ branch: branch.name }),
       };
     case "set-upstream":
       return {
         ...view,
-        statusBanner: `已打开上游跟踪设置：${branch.name}`,
+        statusBanner: m.s7_shell_upstream_opened({ branch: branch.name }),
       };
     case "create-tag":
       return {
         ...view,
-        statusBanner: `已打开新建标签对话框：目标 ${branch.shortHead} (${branch.name})`,
+        statusBanner: m.s7_shell_create_tag_opened({
+          oid: branch.shortHead,
+          branch: branch.name,
+        }),
       };
     case "delete-tag":
       return {
         ...view,
-        statusBanner: `已打开删除本地标签确认：${branch.name}`,
+        statusBanner: m.s7_shell_delete_tag_opened({ branch: branch.name }),
       };
     case "delete":
-      return { ...view, statusBanner: `已打开删除分支确认：${branch.name}` };
+      return {
+        ...view,
+        statusBanner: m.s7_shell_delete_branch_opened({ branch: branch.name }),
+      };
   }
 }
 
@@ -334,7 +365,7 @@ export function applyShellSetTaskBaseline(
         .length,
     },
   };
-  const label = unborn ? "空仓起点" : baseOid.slice(0, 7);
+  const label = unborn ? m.s7_unborn_baseline() : baseOid.slice(0, 7);
   return {
     ...view,
     taskBaseline: baseline,
@@ -357,7 +388,7 @@ export function applyShellSetTaskBaseline(
       loadingMore: false,
       mutating: false,
     },
-    statusBanner: `已将 ${label} 设为当前工作树任务起点`,
+    statusBanner: m.s7_task_baseline_set({ label }),
   };
 }
 
@@ -437,6 +468,6 @@ export function applyShellClearTaskBaseline(
       loadingMore: false,
       mutating: false,
     },
-    statusBanner: "已清除当前工作树任务起点基线",
+    statusBanner: m.s7_task_baseline_cleared(),
   };
 }

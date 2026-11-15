@@ -15,6 +15,7 @@ import type { SessionInfo } from "../../contracts/schemas";
 import type { TerminalController } from "./terminal-search";
 import { newSubmissionId } from "./terminal-protocol";
 import { hasTouchInput } from "../../platform/touch-input";
+import * as m from "$lib/paraglide/messages.js";
 import type { Connection } from "../../platform/ws";
 
 export interface SessionHybridView {
@@ -53,28 +54,35 @@ export function createHeaderTerminalView(
 
 export function deriveSendUnavailable(t: TerminalController): string {
   return t.connection === "missing"
-    ? "会话不存在，无法发送"
+    ? m.s4_send_unavail_missing()
     : t.exitCode !== null || t.connection === "exited"
-      ? "会话已退出，可编辑或复制草稿"
+      ? m.s4_send_unavail_exited()
       : !t.ready
-        ? "终端未就绪，草稿不会自动发送"
+        ? m.s4_send_unavail_not_ready()
         : "";
 }
 
 export function deriveQuickUnavailable(t: TerminalController): string {
   return t.exitCode !== null || t.connection === "exited"
-    ? "会话已退出，无法发送"
+    ? m.s4_quick_unavail_exited()
     : !t.ready
-      ? "终端未就绪，暂不能发送"
+      ? m.s4_quick_unavail_not_ready()
       : "";
 }
 
 export function deriveChatUploadUnavailable(hybrid: SessionHybridView): string {
   return hybrid.missing
-    ? "会话不存在，无法上传文件"
+    ? m.s4_upload_unavail_missing()
     : hybrid.info?.status === "exited"
-      ? "会话已退出，无法上传文件"
+      ? m.s4_upload_unavail_exited()
       : "";
+}
+
+function draftSubmissionMessage(state: SubmissionProgress): string | undefined {
+  if (state === "failed") return m.s4_draft_msg_failed();
+  if (state === "missing") return m.s4_draft_msg_missing();
+  if (state === "partial") return m.s4_draft_msg_partial();
+  return undefined;
 }
 
 export function createDraftReporter(
@@ -89,8 +97,11 @@ export function createDraftReporter(
     if (!isMounted()) return;
     if (state === "written") {
       setError("");
-      if (announce) setNotice("上次提交的草稿已写入终端。");
-    } else if (draftMessages[state]) setError(draftMessages[state]);
+      if (announce) setNotice(m.s4_draft_previous_written());
+    } else {
+      const msg = draftSubmissionMessage(state);
+      if (msg) setError(msg);
+    }
   };
 }
 
@@ -115,7 +126,7 @@ export function submitSessionDraft(
   if (t.submit(id, draft.text, true, report(id, false))) setError("");
   else {
     if (!pending) drafts.releaseSubmission(draft);
-    setError("终端未就绪，草稿未发送；请恢复连接后手动重试。");
+    setError(m.s4_draft_send_not_ready());
   }
 }
 
@@ -126,18 +137,11 @@ export function savedStorageLabel(
   oversized: string,
 ): string {
   return persisted && draftStorage.enabled
-    ? "已保存在本机"
+    ? m.s4_saved_locally()
     : draftStorage.enabled
       ? oversized
-      : "仅当前页面，刷新后丢失";
+      : m.s4_saved_memory_only();
 }
-
-const draftMessages: Partial<Record<SubmissionProgress, string>> = {
-  failed: "草稿未写入终端，可修改后重新发送。",
-  missing:
-    "服务端没有这次提交的记录：可能未送达，或记录已过期。请检查终端后决定是否重新发送。",
-  partial: "草稿只有部分写入终端，提交键未写入；请检查终端后再处理草稿。",
-};
 
 export interface SessionClipboardContext {
   id: string;
@@ -221,8 +225,8 @@ export async function pasteFromSessionClipboard(
       if (ctx.drafts.destination(ctx.draft, operation) === "draft") {
         ctx.setError(
           ctx.draft.enabled
-            ? "无法读取剪贴板，请在现有草稿框内手动粘贴。"
-            : "无法读取剪贴板，请重新开启草稿模式后在草稿框内手动粘贴。",
+            ? m.s4_clipboard_read_err_draft_open()
+            : m.s4_clipboard_read_err_draft_closed(),
         );
         if (ctx.draft.enabled && ctx.isActiveAndVisible() && !hasTouchInput())
           ctx.focusComposer();

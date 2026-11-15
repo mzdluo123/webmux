@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
   import { Textarea } from "$lib/components/ui/textarea";
@@ -53,12 +54,12 @@
       const name = row.name.trim();
       if (!envName.test(name))
         found[row.key] = {
-          name: "变量名只能包含字母、数字与下划线，且不以数字开头",
+          name: m.s2_voice_err_env_invalid(),
         };
       else if (
         filled.findIndex((other) => other.name.trim() === name) !== index
       )
-        found[row.key] = { name: "变量名重复" };
+        found[row.key] = { name: m.s2_env_err_duplicate() };
     }
     return found;
   });
@@ -79,9 +80,9 @@
   }
 </script>
 
-<form onsubmit={submit} class="space-y-4" aria-label="语音识别配置">
+<form onsubmit={submit} class="space-y-4" aria-label={m.s2_voice_form_aria()}>
   <div class="space-y-1.5">
-    <Label for="voice-command">命令与参数</Label>
+    <Label for="voice-command">{m.s2_voice_cmd_label()}</Label>
     <Textarea
       id="voice-command"
       code
@@ -92,19 +93,17 @@
       aria-describedby="voice-command-help"
     />
     <p id="voice-command-help" class="text-xs text-muted-foreground">
-      每行一个参数，第一行是可执行文件，直接执行、不经 shell 展开；识别程序按
-      STDIN / STDOUT 协议工作，见下方协议文档。留空会关闭语音识别。
+      {m.s2_voice_cmd_help()}
     </p>
   </div>
   <EnvRowsEditor bind:rows {errors} {disabled} {makeRow}>
-    {#snippet help()}例如识别服务的 API Key。只保存在服务端，读取需要登录
-      Token。{/snippet}
+    {#snippet help()}{m.s2_voice_env_help()}{/snippet}
   </EnvRowsEditor>
   <div class="flex flex-wrap gap-2">
-    <Button type="submit" {disabled}>保存</Button>
+    <Button type="submit" {disabled}>{m.s2_save()}</Button>
     {#if current.source === "web"}
       <Button type="button" variant="outline" {disabled} onclick={onreset}
-        >恢复为配置文件设置</Button
+        >{m.s2_voice_reset_config()}</Button
       >
     {/if}
   </div>

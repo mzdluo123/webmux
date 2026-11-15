@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
   import type {
     GitDivergenceKind,
     GitDivergencePreview,
@@ -55,12 +56,12 @@
   const short = (oid: string | undefined) => (oid ? oid.slice(0, 7) : "");
   const commitListTitle = $derived(
     effectiveKind === "rebase"
-      ? "将按序重放的当前分支提交"
+      ? m.s6_divergence_commits_rebase()
       : effectiveKind === "merge"
-        ? "将合入当前分支的提交"
+        ? m.s6_divergence_commits_merge()
         : effectiveKind === "cherry_pick"
-          ? "将遴选应用的提交"
-          : "将生成反向还原的提交",
+          ? m.s6_divergence_commits_cherry_pick()
+          : m.s6_divergence_commits_revert(),
   );
 </script>
 
@@ -68,8 +69,8 @@
   title={gitDivergenceTitleLabel(effectiveKind)}
   description={preview
     ? preview.directionSummary
-    : "正在读取工作树状态与提交影响范围…"}
-  drawerDescription="核对方向、工作树路径与影响提交后确认执行"
+    : m.s6_divergence_loading_desc()}
+  drawerDescription={m.s6_divergence_drawer_desc()}
   drawerFullScreen
   truncateDrawerTitle
   busy={submitting}
@@ -83,7 +84,7 @@
 
     {#if loading && !preview}
       <p class="py-4 text-xs text-muted-foreground" role="status">
-        正在计算操作方向、共同祖先与潜在阻塞项…
+        {m.s6_divergence_loading_body()}
       </p>
     {:else if preview}
       <div
@@ -92,12 +93,14 @@
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           {#if preview.fastForward}
             <Badge variant="success" class="max-w-full">
-              <span class="truncate">可无冲突快进 (Fast-Forward)</span>
+              <span class="truncate"
+                >{m.s6_divergence_fast_forward_badge()}</span
+              >
             </Badge>
           {/if}
           {#if preview.alreadyUpToDate}
             <Badge variant="secondary" class="max-w-full">
-              <span class="truncate">已包含目标提交，无需执行</span>
+              <span class="truncate">{m.s6_divergence_up_to_date_badge()}</span>
             </Badge>
           {/if}
           {#if preview.currentBranch}
@@ -120,14 +123,18 @@
 
         <div class="space-y-1 pt-1 text-xs">
           <div>
-            <span class="text-muted-foreground">目标工作树：</span>
+            <span class="text-muted-foreground"
+              >{m.s6_divergence_target_worktree()}</span
+            >
             <span class="font-mono break-all text-foreground"
               >{preview.worktreePath}</span
             >
           </div>
           {#if preview.headOid}
             <div class="wrap-anywhere">
-              <span class="text-muted-foreground">当前 HEAD：</span>
+              <span class="text-muted-foreground"
+                >{m.s6_divergence_current_head()}</span
+              >
               <span class="font-mono text-foreground"
                 >{short(preview.headOid)}</span
               >
@@ -140,7 +147,9 @@
           {/if}
           {#if preview.targetOid}
             <div class="wrap-anywhere">
-              <span class="text-muted-foreground">目标对象：</span>
+              <span class="text-muted-foreground"
+                >{m.s6_divergence_target_ref()}</span
+              >
               <span class="font-mono text-foreground">{preview.targetRef}</span>
               <span class="font-mono text-muted-foreground">
                 ({short(preview.targetOid)})
@@ -154,7 +163,9 @@
           {/if}
           {#if preview.mergeBaseOid}
             <div>
-              <span class="text-muted-foreground">共同祖先：</span>
+              <span class="text-muted-foreground"
+                >{m.s6_divergence_merge_base()}</span
+              >
               <span class="font-mono text-muted-foreground"
                 >{short(preview.mergeBaseOid)}</span
               >
@@ -177,14 +188,16 @@
         {sessions}
         {acknowledgeSessions}
         disabled={submitting}
-        acknowledgementLabel={`我已知晓：以上 ${sessions.length} 个会话将立即观察到工作树文件与索引变化。`}
+        acknowledgementLabel={m.s6_divergence_session_ack({
+          count: String(sessions.length),
+        })}
         {onAcknowledgeSessionsChange}
       />
     {/if}
 
     <div class="flex flex-wrap justify-end gap-2 pt-1">
       <Button variant="outline" disabled={submitting} onclick={onClose}>
-        取消
+        {m.s6_cancel()}
       </Button>
       <Button
         variant="default"
@@ -194,7 +207,7 @@
         data-testid="git-divergence-confirm-btn"
       >
         {#if submitting}
-          正在执行…
+          {m.s6_executing_ellipsis()}
         {:else}
           {gitDivergenceConfirmLabel(effectiveKind, preview?.fastForward)}
         {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import type { Route } from "../hooks/shared/route";
   import LazyPage from "../components/shared/LazyPage.svelte";
   import { pluginContributions } from "./registry.svelte";
@@ -9,8 +10,8 @@
 {#if route.name === "code" && entries.code}
   <LazyPage
     load={entries.code.pages.popout}
-    label="代码"
-    errorMessage={() => "代码窗口加载失败，请关闭后重新打开。"}
+    label={m.s1_plugin_page_code()}
+    errorMessage={() => m.s1_code_popout_load_failed()}
   >
     {#snippet children(page)}<page.default
         id={route.name === "code" ? route.id : ""}
@@ -19,25 +20,31 @@
 {:else if route.name === "settings-tailscale" && entries.tailscale}
   <LazyPage
     load={entries.tailscale.pages.settings}
-    label="Tailscale 设置"
-    loadingText="正在加载 Tailscale 设置…"
+    label={m.s1_plugin_page_tailscale()}
+    loadingText={m.s1_loading_tailscale_settings()}
   >
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
 {:else if route.name === "settings-tunnel" && entries.cloudflare}
-  <LazyPage load={entries.cloudflare.pages.settings} label="公网访问设置">
+  <LazyPage
+    load={entries.cloudflare.pages.settings}
+    label={m.s1_plugin_page_public_access()}
+  >
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
 {:else if route.name === "forward-auth" && entries.forward}
   <LazyPage
     load={entries.forward.pages.auth}
-    label="端口转发"
-    loadingText="正在打开转发…"
+    label={m.s1_port_forwarding()}
+    loadingText={m.s1_opening_forward()}
   >
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
 {:else if route.name === "handoff" && entries.chat}
-  <LazyPage load={entries.chat.pages.handoff} label="交接到新聊天">
+  <LazyPage
+    load={entries.chat.pages.handoff}
+    label={m.s1_handoff_to_new_chat()}
+  >
     {#snippet children(page)}
       {#key route.name === "handoff" ? route.sourceId : ""}<page.default
           sourceId={route.name === "handoff" ? route.sourceId : ""}
@@ -45,7 +52,10 @@
     {/snippet}
   </LazyPage>
 {:else if route.name === "git" && entries.workspace}
-  <LazyPage load={entries.workspace.pages.git} label="Git 工作台">
+  <LazyPage
+    load={entries.workspace.pages.git}
+    label={m.s1_plugin_page_git_workbench()}
+  >
     {#snippet children(page)}<page.default
         repositoryId={route.name === "git" ? route.repositoryId : ""}
         worktreeId={route.name === "git" ? route.worktreeId : undefined}
@@ -53,11 +63,11 @@
       />{/snippet}
   </LazyPage>
 {:else if route.name === "quick-start" && entries.chat}
-  <LazyPage load={entries.chat.pages["quick-start"]} label="快速开始">
+  <LazyPage load={entries.chat.pages["quick-start"]} label={m.s1_quick_start()}>
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
 {:else if route.name === "sessions" && entries.workspace}
-  <LazyPage load={entries.workspace.pages.sessions} label="工作区">
+  <LazyPage load={entries.workspace.pages.sessions} label={m.s1_workspace()}>
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
 {/if}

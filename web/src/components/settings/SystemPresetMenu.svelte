@@ -1,11 +1,12 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 
-  // The "添加系统预设" dropdown shared by launch configs and quick commands:
+  // The system presets dropdown shared by launch configs and quick commands:
   // an add-all row followed by one row per preset (the `children`).
   let {
     disabled,
@@ -29,7 +30,7 @@
   <DropdownMenu.Trigger {disabled}>
     {#snippet child({ props })}
       <Button {...props} variant="outline" {disabled}>
-        添加系统预设
+        {m.s2_sys_preset_btn()}
         <IconChevronDown aria-hidden="true" />
       </Button>
     {/snippet}
@@ -40,13 +41,17 @@
       disabled={busy || !canAddAll}
       onSelect={onaddall}
     >
-      <span class="min-w-0 flex-1 truncate">补回全部缺失预设</span>
+      <span class="min-w-0 flex-1 truncate"
+        >{m.s2_sys_preset_restore_all()}</span
+      >
       {#if missingCount === 0}
-        <Badge variant="outline">已齐全</Badge>
+        <Badge variant="outline">{m.s2_sys_preset_all_present()}</Badge>
       {:else if !canAddAll}
-        <Badge variant="outline">超出上限</Badge>
+        <Badge variant="outline">{m.s2_sys_preset_over_limit()}</Badge>
       {:else}
-        <Badge variant="secondary">{missingCount} 项</Badge>
+        <Badge variant="secondary"
+          >{m.s2_sys_preset_count({ count: String(missingCount) })}</Badge
+        >
       {/if}
     </DropdownMenu.Item>
     <DropdownMenu.Separator />

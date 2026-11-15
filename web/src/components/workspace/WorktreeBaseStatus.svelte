@@ -1,4 +1,7 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
+  import { locale } from "$lib/locale";
+
   let {
     refreshing,
     baseSource,
@@ -21,32 +24,35 @@
 {#if refreshing}
   <p
     role="status"
-    aria-label="上游刷新状态"
+    aria-label={m.s8_upstream_refresh_status_aria()}
     class="text-xs text-muted-foreground"
   >
-    正在获取 {startBranch} 对应的上游最新提交；可继续编辑或创建。
+    {m.s8_fetching_upstream_commits_status({ branch: startBranch })}
   </p>
 {:else if baseSource === "remote" && upstream}
   <p
     role="status"
-    aria-label="上游刷新状态"
+    aria-label={m.s8_upstream_refresh_status_aria()}
     class="break-all text-xs text-muted-foreground"
   >
-    远程最新 · {upstream} · {baseSubject || "无标题提交"}{#if lastRefreshedAt}
-      · 最近刷新 {lastRefreshedAt.toLocaleTimeString()}{/if}
+    {m.s8_tip_remote_latest()} · {upstream} · {baseSubject ||
+      m.s8_untitled_commit()}{#if lastRefreshedAt}
+      · {m.s8_last_refreshed_at({
+        time: lastRefreshedAt.toLocaleTimeString(locale.current),
+      })}{/if}
   </p>
 {:else if baseSource === "local" && startBranch}
   <p
     role="status"
-    aria-label="上游刷新状态"
+    aria-label={m.s8_upstream_refresh_status_aria()}
     class="break-all text-xs text-muted-foreground"
   >
-    本地：{startBranch}
+    {m.s8_local_branch_prefix({ branch: startBranch })}
   </p>
 {/if}
 {#if refreshWarning}<p
     role="status"
-    aria-label="上游刷新警告"
+    aria-label={m.s8_upstream_refresh_warning_aria()}
     class="text-xs text-warning"
   >
     {refreshWarning}

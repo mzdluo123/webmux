@@ -1,15 +1,18 @@
 <script lang="ts">
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     value = "unified",
-    ariaLabel = "差异视图模式",
+    ariaLabel: rawAriaLabel,
     onChange,
   }: {
     value?: "unified" | "split";
     ariaLabel?: string;
     onChange?: (mode: "unified" | "split") => void;
   } = $props();
+
+  const ariaLabel = $derived(rawAriaLabel ?? m.s6_diff_view_mode_aria());
 </script>
 
 <SegmentedControl.Root
@@ -21,6 +24,10 @@
   }}
   aria-label={ariaLabel}
 >
-  <SegmentedControl.Item value="unified">统一</SegmentedControl.Item>
-  <SegmentedControl.Item value="split">双栏</SegmentedControl.Item>
+  <SegmentedControl.Item value="unified">
+    {m.s6_diff_mode_unified()}
+  </SegmentedControl.Item>
+  <SegmentedControl.Item value="split">
+    {m.s6_diff_mode_split()}
+  </SegmentedControl.Item>
 </SegmentedControl.Root>

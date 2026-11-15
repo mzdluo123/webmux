@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { getPluginContributions } from "../../plugins/context";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
@@ -71,7 +72,8 @@
 
 <fieldset class="grid min-w-0 gap-2">
   <legend class="mb-2 text-sm font-medium">
-    输出预览 <span class="font-normal text-muted-foreground">可选</span>
+    {m.s2_launch_preview_legend()}
+    <span class="font-normal text-muted-foreground">{m.s2_optional()}</span>
   </legend>
   <div class="flex items-center gap-2">
     <Checkbox
@@ -80,17 +82,21 @@
       aria-describedby="launch-config-preview-help"
     />
     <Label for="launch-config-preview-default"
-      >跟随全局默认<span class="sr-only">（输出预览）</span></Label
+      >{m.s2_follow_global_default()}<span class="sr-only"
+        >{m.s2_launch_preview_default_sr()}</span
+      ></Label
     >
   </div>
   {#if defaultPreview}
     <p id="launch-config-preview-help" class="text-xs text-muted-foreground">
-      使用设置页「会话输出预览」中的行数与跳过末尾行数。
+      {m.s2_launch_preview_default_help()}
     </p>
   {:else}
     <div class="grid min-w-0 gap-4 sm:grid-cols-2">
       <div class="grid gap-2">
-        <Label for="launch-config-preview-lines">显示行数</Label>
+        <Label for="launch-config-preview-lines"
+          >{m.s2_launch_preview_lines()}</Label
+        >
         <Input
           id="launch-config-preview-lines"
           type="number"
@@ -105,7 +111,9 @@
         />
       </div>
       <div class="grid gap-2">
-        <Label for="launch-config-preview-skip">跳过末尾行数</Label>
+        <Label for="launch-config-preview-skip"
+          >{m.s2_launch_preview_skip()}</Label
+        >
         <Input
           id="launch-config-preview-skip"
           type="number"
@@ -128,8 +136,7 @@
         {previewError}
       </p>{/if}
     <p id="launch-config-preview-help" class="text-xs text-muted-foreground">
-      不同 agent
-      的底部状态栏高度不同；按此配置启动的会话在首页使用这些值。修改配置后回到首页生效。
+      {m.s2_launch_preview_custom_help()}
     </p>
   {/if}
 </fieldset>

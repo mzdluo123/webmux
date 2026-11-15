@@ -25,6 +25,7 @@ import { keyboardSizeHold } from "./keyboard-size-hold-preference.svelte";
 import type { KeyboardVisibility } from "../shared/viewport.svelte";
 import { headsetMode } from "../shared/headset-mode.svelte";
 import { allowAutomaticInputFocus } from "../shared/input-focus";
+import * as m from "$lib/paraglide/messages.js";
 
 export function useSessionTerminalChrome(options: {
   id: () => string;
@@ -145,7 +146,7 @@ export function useSessionTerminalChrome(options: {
   }
 
   const openCodeLocation: ChatCodeLinkHandler = async (target) => {
-    if (!options.code) return "代码插件未启用";
+    if (!options.code) return m.s4_code_plugin_disabled();
     const failure = await options.code.checkRevealTarget(
       `/sessions/${options.id()}/code`,
       target,
@@ -316,5 +317,72 @@ export function useSessionTerminalChrome(options: {
     copyPending,
     paste: () => pasteFromSessionClipboard(clipboardCtx),
     syncSessionEffects,
+  };
+}
+
+export function createSessionUploadHandlers(options: {
+  id: string;
+  draft: TerminalDraft;
+  drafts: TerminalDrafts;
+  isMounted: () => boolean;
+  isFilesAvailable: () => boolean;
+  insertText: (text: string, operation?: DraftOperation) => TextInsertion;
+  setError: (message: string) => void;
+  onUploadNotice: (message: string) => void;
+}) {
+  return {
+    uploadClipboardFiles(
+      getUploads: () =>
+        | {
+            uploadFiles: (
+              files: File[],
+              operation?: DraftOperation,
+            ) => Promise<void>;
+          }
+        | undefined,
+    ) {
+      return async (files: FileList | File[], operation?: DraftOperation) => {
+        const uploads = getUploads();
+        if (!uploads || !options.isFilesAvailable())
+          throw new Error(m.s4_file_upload_unavailable());
+        await uploads.uploadFiles(Array.from(files), operation);
+      };
+    },
+    sendChatFile<R>(
+      uploadFile: (
+        id: string,
+        file: File,
+        progress: (fraction: number) => void,
+        signal: AbortSignal,
+      ) => Promise<R>,
+    ) {
+      return (
+        file: File,
+        progress: (fraction: number) => void,
+        signal: AbortSignal,
+      ) => {
+        if (!options.isFilesAvailable())
+          return Promise.reject(new Error(m.s4_file_upload_unavailable()));
+        return uploadFile(options.id, file, progress, signal);
+      };
+    },
+    attachments: {
+      get: () => options.draft.attachments,
+      set: (next: TerminalDraft["attachments"]) =>
+        options.drafts.setAttachments(options.draft, next),
+    },
+    notifyUploadError(message: string) {
+      if (options.isMounted()) options.setError(message);
+      else if (message)
+        options.onUploadNotice(
+          m.s4_session_upload_notice({ id: options.id, message }),
+        );
+    },
+    draftBridge: {
+      begin: () => options.drafts.begin(options.draft),
+      destination: (operation?: DraftOperation) =>
+        options.drafts.destination(options.draft, operation),
+      insert: options.insertText,
+    },
   };
 }

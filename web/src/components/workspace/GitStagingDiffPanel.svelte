@@ -8,6 +8,7 @@
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type { CodeDiffReaderState } from "../../contracts/schemas";
   import {
     mapDiffRangeToLineSelections,
@@ -115,8 +116,7 @@
       offline.set({
         phase: "limited",
         fileDiff: null,
-        reason:
-          "该条目存在未解决的合并或变基冲突，不能直接暂存或伪装为可提交文件；请前往工作树终端解决冲突。",
+        reason: m.s6_staging_conflicted_offline_reason(),
       });
       return;
     }
@@ -125,11 +125,8 @@
       hasTarget: true,
       binary: change.binary,
       binaryReason:
-        change.degradeReason ||
-        "二进制文件不展开文本行级差异，仅支持整文件暂存或取消暂存。",
-      emptyReason:
-        change.degradeReason ||
-        "当前条目仅包含重命名、模式变更或空内容变化，支持整文件暂存。",
+        change.degradeReason || m.s6_staging_binary_offline_reason(),
+      emptyReason: change.degradeReason || m.s6_staging_empty_offline_reason(),
       snapshotKey: `offline-stage:${change.id}:${change.hunks.length}`,
       path: change.path,
       oldPath: change.oldPath ?? "",
@@ -259,13 +256,12 @@
         <InlineNotice tone="warning">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <span>
-              {staleReason ||
-                "文件或暂存区已在外部变更，当前阅读快照已过期；暂存按钮已停用，请刷新后再操作。"}
+              {staleReason || m.s6_staging_stale_fallback()}
             </span>
             {#if onRefreshSnapshot}
               <Button size="sm" variant="outline" onclick={onRefreshSnapshot}>
                 <IconRefresh aria-hidden="true" />
-                刷新快照
+                {m.s6_staging_refresh_snapshot()}
               </Button>
             {/if}
           </div>
@@ -275,13 +271,13 @@
 
     {#if change.group === "conflicted"}
       <GitConflictTerminalNotice
-        message={`存在未解决冲突${
-          context.operationInProgress
-            ? `（正在进行：${context.operationInProgress}）`
-            : ""
-        }。冲突文件不可伪装为普通可提交文件，请打开三方冲突解决器或在终端处理。`}
+        message={context.operationInProgress
+          ? m.s6_staging_conflict_msg_in_progress({
+              op: context.operationInProgress,
+            })
+          : m.s6_staging_conflict_msg_plain()}
         {hasActiveWorktreeSession}
-        newLabel="在此工作树新建终端"
+        newLabel={m.s6_staging_new_terminal_here()}
         onOpenConflictResolver={onOpenConflictResolver
           ? () => onOpenConflictResolver(change.path)
           : undefined}
@@ -291,7 +287,7 @@
     {:else if !change.hunkStageAvailable && change.degradeReason}
       <div class="border-b bg-background px-3 py-1.5">
         <InlineNotice tone="warning">
-          逐块暂存已降级：{change.degradeReason}（仍可使用右上角或文件行的整文件暂存/取消暂存）。
+          {m.s6_staging_hunk_degraded({ reason: change.degradeReason })}
         </InlineNotice>
       </div>
     {/if}
@@ -352,7 +348,7 @@
       >
         {#if phase === "loading"}
           <p class="p-4 text-xs text-muted-foreground" role="status">
-            正在加载语法高亮差异快照…
+            {m.s6_staging_loading_diff()}
           </p>
         {:else if phase === "ready" && fileDiff}
           {#key `${change.id}:${jumpSeq}`}
@@ -384,7 +380,7 @@
         {:else}
           <div class="p-4">
             <InlineNotice tone={phase === "error" ? "danger" : "info"}>
-              {reason || "当前条目无文本行级差异预览。"}
+              {reason || m.s6_staging_no_text_diff()}
             </InlineNotice>
           </div>
         {/if}

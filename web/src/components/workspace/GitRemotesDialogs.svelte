@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
+  import * as m from "$lib/paraglide/messages.js";
   import { containsRedactedRemoteMask } from "../../domains/workspace/git-v2-adapter";
   import type { GitRemotesController } from "../../hooks/workspace/git-remotes-controller.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -24,17 +25,17 @@
 {#if remotes.editOpen}
   <ResponsiveDialog
     title={remotes.editMode === "add"
-      ? "添加远程仓库 (Add Remote)"
-      : `编辑远程仓库 · ${remotes.name}`}
-    description="保存后回读的远程地址将自动脱敏隐藏密码与访问令牌（显示为 ***）。"
-    drawerDescription="填写远程名称与拉取/推送地址。"
+      ? m.s6_remote_add_title()
+      : m.s6_remote_edit_title({ name: remotes.name })}
+    description={m.s6_remote_edit_desc()}
+    drawerDescription={m.s6_remote_edit_drawer_desc()}
     busy={remotes.submitting}
     class="sm:max-w-lg"
     onclose={() => remotes.closeDialogs()}
   >
     <div class="space-y-3" data-testid="git-remote-edit-dialog">
       <div class="space-y-1.5">
-        <Label for="git-remote-name-input">远程名称</Label>
+        <Label for="git-remote-name-input">{m.s6_remote_name_label()}</Label>
         <Input
           id="git-remote-name-input"
           mono
@@ -47,12 +48,14 @@
       </div>
 
       <div class="space-y-1.5">
-        <Label for="git-remote-fetch-input">获取地址 (Fetch URL，必填)</Label>
+        <Label for="git-remote-fetch-input"
+          >{m.s6_remote_fetch_url_label()}</Label
+        >
         <Input
           id="git-remote-fetch-input"
           mono
           value={remotes.fetchUrl}
-          placeholder="https://github.com/org/repo.git 或 git@github.com:org/repo.git"
+          placeholder={m.s6_remote_fetch_url_placeholder()}
           disabled={remotes.submitting}
           oninput={(e) => remotes.setFetchUrl(e.currentTarget.value)}
           data-testid="git-remote-fetch-input"
@@ -61,13 +64,13 @@
 
       <div class="space-y-1.5">
         <Label for="git-remote-push-input">
-          独立推送地址 (Push URL，选填，留空则与获取地址一致)
+          {m.s6_remote_push_url_label()}
         </Label>
         <Input
           id="git-remote-push-input"
           mono
           value={remotes.pushUrl}
-          placeholder="留空则默认复用获取地址"
+          placeholder={m.s6_remote_push_url_placeholder()}
           disabled={remotes.submitting}
           oninput={(e) => remotes.setPushUrl(e.currentTarget.value)}
           data-testid="git-remote-push-input"
@@ -76,8 +79,8 @@
 
       {#if hasMask}
         <InlineNotice tone="warning">
-          检测到脱敏占位符 <span class="font-mono">***</span
-          >，请填写完整的真实远程地址后再保存。
+          {m.s6_remote_mask_before()}<span class="font-mono">***</span
+          >{m.s6_remote_mask_after()}
         </InlineNotice>
       {/if}
 
@@ -85,8 +88,8 @@
         dialogError={remotes.dialogError}
         submitting={remotes.submitting}
         canConfirm={canSave}
-        confirmLabel="保存远程配置"
-        submittingLabel="正在保存…"
+        confirmLabel={m.s6_remote_save_btn()}
+        submittingLabel={m.s6_saving_ellipsis()}
         confirmTestId="git-remote-save-btn"
         onConfirm={() => void remotes.confirmSave()}
         onClose={() => remotes.closeDialogs()}
@@ -97,9 +100,9 @@
 
 {#if remotes.removeTarget}
   <ResponsiveDialog
-    title={`确认移除远程 · ${remotes.removeTarget.name}`}
-    description="移除远程仓库配置会同步清理本地关联的远程跟踪分支引用（refs/remotes/<name>/*）。"
-    drawerDescription="确认移除此远程仓库配置。"
+    title={m.s6_remote_remove_title({ name: remotes.removeTarget.name })}
+    description={m.s6_remote_remove_desc()}
+    drawerDescription={m.s6_remote_remove_drawer_desc()}
     busy={remotes.submitting}
     class="sm:max-w-md"
     onclose={() => remotes.closeDialogs()}
@@ -117,8 +120,8 @@
       <GitDialogFooter
         dialogError={remotes.dialogError}
         submitting={remotes.submitting}
-        confirmLabel="确认移除远程"
-        submittingLabel="正在移除…"
+        confirmLabel={m.s6_remote_remove_confirm()}
+        submittingLabel={m.s6_remote_remove_submitting()}
         confirmVariant="destructive"
         confirmTestId="git-remote-remove-confirm-btn"
         onConfirm={() => void remotes.confirmRemove()}

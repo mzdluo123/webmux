@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import { APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import {
@@ -211,9 +212,7 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
       });
       detail = { ...detail, identity: res.identity };
       draft = { ...draft, savedResultText: textToSave };
-      deps.onStatusBanner(
-        `已保存合并结果到工作树文件 ${res.path}（尚未写入暂存区，核对无误后请点击「标记已解决」）`,
-      );
+      deps.onStatusBanner(m.s7_conflict_saved_to_wt({ path: res.path }));
       void deps.onRefreshStaging();
     } catch (err) {
       const parsed = parseConflictFailure(err);
@@ -235,7 +234,10 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
       const nextTarget =
         remaining.find((f) => f.path !== resolvedPath) ?? remaining[0]!;
       deps.onStatusBanner(
-        `已标记 ${resolvedPath} 解决，剩余 ${remaining.length} 个冲突文件`,
+        m.s7_conflict_resolved_remaining({
+          path: resolvedPath,
+          count: String(remaining.length),
+        }),
       );
       await selectFile(nextTarget.path);
     } else {
@@ -243,7 +245,7 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
       draft = null;
       activePath = null;
       deps.onStatusBanner(
-        `已标记 ${resolvedPath} 解决；全部冲突已清零，可点击「继续操作」完成流程`,
+        m.s7_conflict_resolved_all_clear({ path: resolvedPath }),
       );
     }
   }

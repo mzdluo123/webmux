@@ -3,19 +3,20 @@
 </script>
 
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import { untrack } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import type { z } from "zod";
-  import { formatBytes } from "../../domains/code/code-image";
   import {
     buildCodeFileActions,
     cloneClipboard,
     describeCodeRemoveDetail,
     downloadCodeNode,
     dropClipboardPaths,
+    formatClipboardSummary,
+    formatDownloadProgress,
     makeRootFileTarget,
-    rawDownloadError,
     requestCodePaste,
     requestCodeRemove,
     runNamingMutation,
@@ -28,15 +29,13 @@
   import { CodeContextSchema } from "../../contracts/schemas";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
   import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
-  import { Label } from "$lib/components/ui/label";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import * as Drawer from "$lib/components/ui/drawer";
   import { ListButton } from "$lib/components/ui/list-button";
   import { Separator } from "$lib/components/ui/separator";
+  import CodeFileNameDialog from "./CodeFileNameDialog.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import FileUploadProgress from "../shared/FileUploadProgress.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
   import UploadFileInput from "../shared/UploadFileInput.svelte";
   import IconClipboard from "~icons/tabler/clipboard";
   import IconCopy from "~icons/tabler/copy";
@@ -146,8 +145,8 @@
   }
 
   export function uploadRefusal(): string {
-    if (!writable) return "当前目录只读，无法上传";
-    return uploadController ? "请等待当前上传完成" : "";
+    if (!writable) return m.s5_readonly_dir_no_upload();
+    return uploadController ? m.s5_wait_current_upload() : "";
   }
 
   export function refuse(message: string) {
@@ -271,32 +270,28 @@
     downloadController?.abort();
     const controller = new AbortController();
     downloadController = controller;
-    const filename = archive ? `${node.name}.zip` : node.name;
-    download = { name: filename, bytes: 0 };
     error = "";
     notice = "";
-    try {
-      await downloadCodeNode({
-        base,
-        contextId: context?.contextId ?? "",
-        node,
-        archive,
-        includeIgnored,
-        signal: controller.signal,
-        ownerDocument: returnFocus?.ownerDocument ?? document,
-        filename,
-        onProgress: (bytes) => {
-          if (download) download.bytes = bytes;
-        },
-      });
-    } catch (e) {
-      if (!controller.signal.aborted) error = rawDownloadError(e);
-    } finally {
-      if (downloadController === controller) {
-        downloadController = undefined;
-        download = undefined;
-      }
-    }
+    await downloadCodeNode({
+      base,
+      contextId: context?.contextId ?? "",
+      node,
+      archive,
+      includeIgnored,
+      signal: controller.signal,
+      ownerDocument: returnFocus?.ownerDocument ?? document,
+      onStart: (name) => (download = { name, bytes: 0 }),
+      onProgress: (bytes) => {
+        if (download) download.bytes = bytes;
+      },
+      onError: (msg) => (error = msg),
+      onDone: () => {
+        if (downloadController === controller) {
+          downloadController = undefined;
+          download = undefined;
+        }
+      },
+    });
   }
 
   $effect(() => () => {
@@ -310,7 +305,7 @@
   upload={async (files) => {
     if (pickerTarget) await upload(files, pickerTarget);
   }}
-  label="选择上传到此目录的文件"
+  label={m.s5_select_files_to_upload()}
 />
 
 {#if progress}<FileUploadProgress
@@ -323,13 +318,12 @@
     role="status"
   >
     <span class="min-w-0 flex-1 truncate"
-      >正在{download.name.endsWith(".zip") ? "压缩并" : ""}下载 {download.name}
-      · {formatBytes(download.bytes)}</span
+      >{formatDownloadProgress(download.name, download.bytes)}</span
     >
     <Button
       variant="ghost"
       size="xs"
-      onclick={() => downloadController?.abort()}>取消</Button
+      onclick={() => downloadController?.abort()}>{m.s5_cancel()}</Button
     >
   </div>{/if}
 {#if error}<p
@@ -347,20 +341,21 @@
 {#if pasteReady && clipboard}<div
     class="flex shrink-0 items-center gap-1 border-y bg-muted/50 px-2 py-1 text-xs"
     role="status"
-    aria-label="剪贴板"
+    aria-label={m.s5_clipboard()}
   >
-    <span class="min-w-0 flex-1 truncate" title="在目标文件夹的菜单中选择“粘贴”"
-      >{clipboard.mode === "move" ? "已剪切" : "已复制"}
-      {clipboard.nodes.map((n) => n.name).join("、")}</span
+    <span
+      class="min-w-0 flex-1 truncate"
+      title={m.s5_paste_in_folder_menu_hint()}
+      >{formatClipboardSummary(clipboard)}</span
     >
     <Button
       variant="ghost"
       size="xs"
       disabled={!writable}
-      onclick={() => void paste(rootTarget)}>粘贴到根目录</Button
+      onclick={() => void paste(rootTarget)}>{m.s5_paste_to_root()}</Button
     >
     <Button variant="ghost" size="xs" onclick={() => (clipboard = undefined)}
-      >清除</Button
+      >{m.s5_clear()}</Button
     >
   </div>{/if}
 
@@ -370,7 +365,9 @@
       customAnchor={anchor}
       align="start"
       class="w-56"
-      aria-label={target ? `文件操作 ${target.name}` : "文件操作"}
+      aria-label={target
+        ? m.s5_file_actions_for({ name: target.name })
+        : m.s5_file_actions()}
       onCloseAutoFocus={(event) => {
         event.preventDefault();
         returnFocus?.focus();
@@ -393,7 +390,9 @@
 {:else}
   <Drawer.Root bind:open={menuOpen}>
     <Drawer.Content
-      aria-label={target ? `文件操作 ${target.name}` : "文件操作"}
+      aria-label={target
+        ? m.s5_file_actions_for({ name: target.name })
+        : m.s5_file_actions()}
     >
       <Drawer.Header>
         <Drawer.Title>{target?.name ?? ""}</Drawer.Title>
@@ -426,7 +425,7 @@
         <Button
           variant="outline"
           class="mt-2 w-full"
-          onclick={() => (menuOpen = false)}>取消</Button
+          onclick={() => (menuOpen = false)}>{m.s5_cancel()}</Button
         >
       </div>
     </Drawer.Content>
@@ -434,59 +433,21 @@
 {/if}
 
 {#if naming}
-  {@const { kind, node } = naming}
-  <ResponsiveDialog
-    title={kind === "rename" ? "重命名" : "新建文件夹"}
-    description={kind === "rename"
-      ? `在原目录中重命名 ${node.path}；名称已被占用时自动追加 (n)。`
-      : `在 ${node.path || "根目录"} 中新建文件夹；名称已被占用时自动追加 (n)。`}
-    onclose={() => (naming = undefined)}
+  <CodeFileNameDialog
+    kind={naming.kind}
+    node={naming.node}
+    bind:name
+    bind:nameInput
     {busy}
-  >
-    <form
-      class="space-y-4"
-      onsubmit={(event) => {
-        event.preventDefault();
-        void submitName();
-      }}
-    >
-      <div class="space-y-2">
-        <Label for="code-file-name">名称</Label>
-        <Input
-          id="code-file-name"
-          bind:ref={nameInput}
-          bind:value={name}
-          required
-          autocomplete="off"
-          autocapitalize="off"
-          autocorrect="off"
-          spellcheck={false}
-        />
-      </div>
-      {#if dialogError}<p
-          role="alert"
-          class="text-sm break-all text-destructive"
-        >
-          {dialogError}
-        </p>{/if}
-      <div class="flex justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy}
-          onclick={() => (naming = undefined)}>取消</Button
-        >
-        <Button type="submit" disabled={busy || !name}
-          >{kind === "rename" ? "重命名" : "新建"}</Button
-        >
-      </div>
-    </form>
-  </ResponsiveDialog>
+    {dialogError}
+    onsubmit={() => void submitName()}
+    onclose={() => (naming = undefined)}
+  />
 {/if}
 
 <ConfirmDialog
   bind:open={confirmOpen}
-  title={`删除 ${removing?.node.name ?? ""}`}
+  title={m.s5_delete_target_title({ name: removing?.node.name ?? "" })}
   onconfirm={() => void remove()}
 >
   {removing?.detail ?? ""}

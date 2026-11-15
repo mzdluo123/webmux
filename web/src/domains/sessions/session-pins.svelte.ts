@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { stored, store } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
@@ -17,7 +18,7 @@ let error = $state("");
 function savePins(pins: string[]) {
   error = "";
   void saveSettings({ sessionPins: pins }).catch((err: unknown) => {
-    error = `无法保存置顶顺序：${errorMessage(err)}`;
+    error = m.s3_pins_save_failed({ error: errorMessage(err) });
   });
 }
 

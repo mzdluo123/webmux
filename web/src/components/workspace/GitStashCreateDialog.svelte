@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -43,20 +44,20 @@
 </script>
 
 <ResponsiveDialog
-  title="新建贮藏 (Create Stash)"
-  description="将当前工作树的改动打包保存到仓库 refs/stash，清理工作树以便切换任务。"
-  drawerDescription="保存当前改动到 refs/stash。"
+  title={m.s7_stash_create_title()}
+  description={m.s7_stash_create_desc()}
+  drawerDescription={m.s7_stash_create_drawer_desc()}
   busy={submitting}
   class="sm:max-w-lg"
   onclose={onClose}
 >
   <div class="space-y-3" data-testid="git-stash-create-dialog">
     <div class="space-y-1.5">
-      <Label for="git-stash-message">贮藏备注说明（选填）</Label>
+      <Label for="git-stash-message">{m.s7_stash_create_msg_label()}</Label>
       <Input
         id="git-stash-message"
         value={message}
-        placeholder="例如：WIP 登录鉴权重构中…"
+        placeholder={m.s7_stash_create_msg_placeholder()}
         disabled={submitting}
         oninput={(e) => onMessageChange(e.currentTarget.value)}
       />
@@ -72,8 +73,10 @@
           data-testid="git-stash-include-untracked-checkbox"
         />
         <span class="text-xs leading-snug">
-          包含未跟踪文件 (<span class="font-mono">--include-untracked</span
-          >，写入第 3 父节点 <span class="font-mono">S^3</span>)
+          {m.s7_stash_include_untracked_pre()}<span class="font-mono"
+            >--include-untracked</span
+          >{m.s7_stash_include_untracked_mid()}<span class="font-mono">S^3</span
+          >)
         </span>
       </Label>
 
@@ -86,38 +89,49 @@
           data-testid="git-stash-keep-index-checkbox"
         />
         <span class="text-xs leading-snug">
-          保留当前暂存区内容 (<span class="font-mono">--keep-index</span
-          >，仅清理未暂存工作树修改)
+          {m.s7_stash_keep_index_pre()}<span class="font-mono"
+            >--keep-index</span
+          >{m.s7_stash_keep_index_post()}
         </span>
       </Label>
     </div>
 
     {#if loading && !preview}
       <p class="text-xs text-muted-foreground" role="status">
-        正在计算将要贮藏的文件范围…
+        {m.s7_stash_create_loading()}
       </p>
     {:else if preview}
       <div
         class="grid grid-cols-1 gap-1.5 rounded-lg border bg-background p-3 text-xs sm:grid-cols-2"
       >
         <p class="wrap-anywhere">
-          <span class="text-muted-foreground">当前分支：</span>
+          <span class="text-muted-foreground"
+            >{m.s7_stash_create_branch_label()}</span
+          >
           <span class="font-mono text-foreground">
             {preview.detached
-              ? "游离 HEAD"
-              : preview.currentBranch || "未命名分支"}
+              ? m.s7_detached_head()
+              : preview.currentBranch || m.s7_unnamed_branch()}
           </span>
         </p>
         <p class="wrap-anywhere">
-          <span class="text-muted-foreground">变更统计：</span>
+          <span class="text-muted-foreground"
+            >{m.s7_stash_create_counts_label()}</span
+          >
           <span class="text-foreground">
-            暂存 {preview.stagedCount} · 未暂存 {preview.unstagedCount} · 未跟踪 {preview.untrackedCount}
+            {m.s7_stash_create_counts_value({
+              staged: preview.stagedCount,
+              unstaged: preview.unstagedCount,
+              untracked: preview.untrackedCount,
+            })}
           </span>
         </p>
         <p class="wrap-anywhere sm:col-span-2">
-          <span class="text-muted-foreground">预计纳入文件：</span>
+          <span class="text-muted-foreground"
+            >{m.s7_stash_create_files_label()}</span
+          >
           <span class="font-medium text-foreground">
-            {preview.affectedPaths.length} 个文件
+            {m.s7_file_count_badge({ count: preview.affectedPaths.length })}
           </span>
         </p>
       </div>
@@ -128,7 +142,7 @@
         sessions={preview.sessions}
         {acknowledgeSessions}
         disabled={submitting}
-        acknowledgementLabel="我已知晓当前工作树有活跃会话，保存贮藏会重置工作树文件状态"
+        acknowledgementLabel={m.s7_stash_create_session_ack()}
         {onAcknowledgeSessionsChange}
       />
     {/if}
@@ -137,8 +151,8 @@
       {dialogError}
       {submitting}
       {canConfirm}
-      confirmLabel="确认保存贮藏"
-      submittingLabel="正在保存贮藏…"
+      confirmLabel={m.s7_stash_create_confirm()}
+      submittingLabel={m.s7_stash_saving_phase()}
       confirmTestId="git-stash-create-confirm-btn"
       {onConfirm}
       {onClose}

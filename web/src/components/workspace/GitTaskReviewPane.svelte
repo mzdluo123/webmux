@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import IconEye from "~icons/tabler/eye";
   import IconEyeCheck from "~icons/tabler/eye-check";
@@ -69,9 +70,9 @@
   const baseline = $derived(review.baseline);
   const baselineLabel = $derived(
     !baseline
-      ? "未设起点"
+      ? m.s7_task_no_baseline_badge()
       : baseline.unborn || !baseline.baseOid
-        ? "空仓起点"
+        ? m.s7_unborn_baseline()
         : baseline.baseOid.slice(0, 7),
   );
   const activeFile = $derived(
@@ -139,7 +140,7 @@
 
 <section
   class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-  aria-label="相对任务起点的净变更"
+  aria-label={m.s7_task_pane_aria()}
   data-testid="git-task-review-pane"
 >
   <GitPanelToolbar>
@@ -148,18 +149,20 @@
         class="size-3.5 shrink-0 text-muted-foreground"
         aria-hidden="true"
       />
-      <span class="text-xs font-semibold text-foreground">任务起点基线</span>
+      <span class="text-xs font-semibold text-foreground"
+        >{m.s7_task_baseline_heading()}</span
+      >
       {#if baseline}
         <Badge variant="info">
           <span class="font-mono">{baselineLabel}</span>
         </Badge>
         <Badge variant="outline">
           {baseline.source === "worktree_create"
-            ? "新建工作树自动记录"
-            : "手动指定起点"}
+            ? m.s7_task_source_auto()
+            : m.s7_task_source_manual()}
         </Badge>
       {:else if review.status === "no_task_baseline"}
-        <Badge variant="warning">未设置</Badge>
+        <Badge variant="warning">{m.s7_task_not_set_badge()}</Badge>
       {/if}
     </div>
 
@@ -167,8 +170,8 @@
       <Button
         size="icon-sm"
         variant="ghost"
-        aria-label="刷新相对任务起点的变化"
-        title="刷新相对任务起点的变化"
+        aria-label={m.s7_task_refresh_aria()}
+        title={m.s7_task_refresh_aria()}
         onclick={onRefresh}
       >
         <IconRefresh aria-hidden="true" />
@@ -179,14 +182,13 @@
   {#if readonlyMode}
     <div class="p-3">
       <InlineNotice tone="info">
-        当前处于无工作树只读仓库上下文，无法绑定任务审阅基线。请切换到具体工作树。
+        {m.s7_task_readonly_notice()}
       </InlineNotice>
     </div>
   {:else if review.status === "no_task_baseline"}
     <div class="space-y-2 border-b bg-background p-3 text-xs">
       <InlineNotice tone="info">
-        当前工作树尚未记录任务起点基线。新建任务工作树会自动捕获起点；存量工作树可将当前
-        HEAD 或日志中的历史提交手动指定为任务起点。
+        {m.s7_task_no_baseline_notice()}
       </InlineNotice>
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         {#if onSetBaseline}
@@ -196,12 +198,12 @@
             disabled={review.mutating}
             onclick={() => onSetBaseline()}
           >
-            将当前 HEAD 设为任务起点
+            {m.s7_task_set_head_btn()}
           </Button>
         {/if}
         {#if onOpenLogToPickBaseline}
           <Button size="sm" variant="outline" onclick={onOpenLogToPickBaseline}>
-            前往日志选择历史提交起点
+            {m.s7_task_pick_in_log_btn()}
           </Button>
         {/if}
       </div>
@@ -210,8 +212,11 @@
     <div class="space-y-2 border-b bg-background px-3 py-2 text-xs">
       <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
         <span class="min-w-0 text-muted-foreground">
-          任务提交 {review.commitCount} 笔 · 当前未提交 {review.uncommittedCount}
-          项 · 单份净变更 {review.files.length} 个文件
+          {m.s7_task_stats_summary({
+            commits: review.commitCount,
+            uncommitted: review.uncommittedCount,
+            files: review.files.length,
+          })}
         </span>
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           {#if !baseline.unborn && baseline.baseOid && onInspectCommit}
@@ -220,7 +225,7 @@
               variant="ghost"
               onclick={() => onInspectCommit(baseline.baseOid!)}
             >
-              定位起点提交
+              {m.s7_task_locate_baseline_btn()}
             </Button>
           {/if}
           {#if onSetBaseline}
@@ -230,7 +235,7 @@
               disabled={review.mutating}
               onclick={() => onSetBaseline()}
             >
-              重置为当前 HEAD
+              {m.s7_task_reset_head_btn()}
             </Button>
           {/if}
           {#if onClearBaseline}
@@ -240,7 +245,7 @@
               disabled={review.mutating}
               onclick={onClearBaseline}
             >
-              清除基线
+              {m.s7_task_clear_baseline_btn()}
             </Button>
           {/if}
         </div>
@@ -248,7 +253,7 @@
 
       {#if !baseline.cleanAtStart}
         <InlineNotice tone="warning">
-          相对所选提交的全部变化（含设定前已存在修改）
+          {m.s7_task_dirty_start_warning()}
         </InlineNotice>
       {/if}
 
@@ -257,8 +262,8 @@
           size="sm"
           mono
           value={review.searchQuery}
-          placeholder="按路径筛选任务净变更…"
-          aria-label="按路径筛选任务净变更"
+          placeholder={m.s7_task_search_placeholder()}
+          aria-label={m.s7_task_search_aria()}
           oninput={(e) => onSearchChange(e.currentTarget.value)}
         />
       {/if}
@@ -271,14 +276,14 @@
     class="min-h-8 flex-1"
     viewportProps={{
       role: "listbox",
-      "aria-label": "相对任务起点的净变更文件",
+      "aria-label": m.s7_task_listbox_aria(),
       onkeydown: handleListKeydown,
     }}
   >
     <div class="space-y-0.5 p-2">
       {#if review.status === "loading"}
         <p class="p-3 text-xs text-muted-foreground" role="status">
-          正在读取相对任务起点的单份净变更…
+          {m.s7_task_loading()}
         </p>
       {:else if review.status === "error"}
         <div class="p-2">
@@ -288,8 +293,8 @@
         {#if review.files.length === 0}
           <p class="p-3 text-xs text-muted-foreground">
             {review.searchQuery.trim()
-              ? "没有匹配路径筛选条件的任务变更文件。"
-              : "相对任务起点尚无净文件变化（若文件修改后又还原，净差异也会归零）。"}
+              ? m.s7_task_empty_filtered()
+              : m.s7_task_empty_clean()}
           </p>
         {:else}
           {#each review.files as file (file.newPath || file.oldPath)}
@@ -306,8 +311,10 @@
                 <ListButton
                   variant="review-toggle"
                   aria-pressed={isReviewed}
-                  aria-label={`标记已审阅 ${path}`}
-                  title={isReviewed ? `已审阅 ${path}` : `标记已审阅 ${path}`}
+                  aria-label={m.s7_mark_reviewed_path({ path })}
+                  title={isReviewed
+                    ? m.s7_reviewed_path({ path })
+                    : m.s7_mark_reviewed_path({ path })}
                   onclick={() => onToggleReviewed(path)}
                 >
                   {#if isReviewed}<IconEyeCheck
@@ -351,7 +358,9 @@
                 disabled={review.loadingMore}
                 onclick={onLoadMore}
               >
-                {review.loadingMore ? "正在加载更多…" : "加载更多净变更文件"}
+                {review.loadingMore
+                  ? m.s7_loading_more()
+                  : m.s7_task_load_more_btn()}
               </Button>
             </div>
           {/if}

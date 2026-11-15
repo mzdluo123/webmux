@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import { gitConflictReason } from "../../platform/git-api";
 import { gitDiscard, gitDiscardPreview } from "../../platform/git-v3-api";
 import type {
@@ -66,7 +67,7 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
     if (!repoId || !wtId) {
-      dialog.dialogError = "当前处于只读仓库视图，请先选择工作树再丢弃更改。";
+      dialog.dialogError = m.s7_discard_readonly_error();
       return;
     }
     dialog.lastRequest = request;
@@ -124,8 +125,7 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
     const identity = deps.getEntryIdentity(changeId);
     if (!identity || identity.area !== "unstaged") {
       deps.patchView({
-        statusBanner:
-          "仅未暂存的已跟踪文件支持丢弃此变更块（已暂存区请使用取消暂存）。",
+        statusBanner: m.s7_discard_hunk_unstaged_only(),
       });
       return;
     }
@@ -178,8 +178,7 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
       : undefined;
     if (!freshIdentity || freshIdentity.area !== "unstaged") {
       dialog.staleRejected = false;
-      dialog.dialogError =
-        "目标文件已无可丢弃的未暂存更改，请关闭弹窗核对最新工作区状态。";
+      dialog.dialogError = m.s7_discard_no_unstaged_left();
       return;
     }
     await loadPreview({ ...prev, identity: freshIdentity });
@@ -197,7 +196,7 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
     deps.operations?.setPhase(
       "running",
       "discard",
-      "正在丢弃所选更改并保存恢复快照…",
+      m.s7_discard_running_phase(),
       { clientRequestId },
     );
     try {
@@ -210,7 +209,10 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
       dialog.preview = null;
       dialog.lastRequest = null;
       const recoverySuffix = res.recoveryOid
-        ? `（恢复快照 ${res.recoveryOid.slice(0, 7)}：${res.recoveryCommand ?? ""}）`
+        ? m.s7_discard_recovery_suffix({
+            oid: res.recoveryOid.slice(0, 7),
+            cmd: res.recoveryCommand ?? "",
+          })
         : "";
       deps.patchView({
         statusBanner: `${res.summary}${recoverySuffix}`,

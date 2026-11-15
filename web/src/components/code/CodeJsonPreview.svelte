@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
+  import * as m from "$lib/paraglide/messages.js";
   import { parseJson, type JsonNode } from "../../domains/code/code-json";
   import type { CodeJsonState } from "../../contracts/schemas";
   import { Button } from "$lib/components/ui/button";
@@ -51,7 +52,9 @@
           >{/if}
         <span
           >{node.kind === "object" ? "{}" : "[]"}
-          <span class="text-muted-foreground">{all.length} 项</span></span
+          <span class="text-muted-foreground"
+            >{m.s5_json_items_count({ count: String(all.length) })}</span
+          ></span
         >
       </Collapsible.Trigger>
       <Collapsible.Content class="pl-4">
@@ -69,7 +72,7 @@
               variant="ghost"
               size="sm"
               onclick={() => shown.set(key, limit + batch)}
-              >再显示 {batch} 项</Button
+              >{m.s5_json_show_more_items({ count: String(batch) })}</Button
             >{/if}
         {/if}
       </Collapsible.Content>
@@ -90,16 +93,21 @@
 
 <div class="min-h-0 flex-1 overflow-auto p-2 font-mono text-xs">
   {#if result.ok}
-    <section aria-label="JSON 预览">
+    <section aria-label={m.s5_json_preview()}>
       {@render tree(result.value, "", 0)}
     </section>
   {:else}
     <div class="space-y-2 font-sans text-sm">
       <p class="text-destructive" role="alert">
-        第 {result.line} 行第 {result.column} 列：JSON 语法错误
+        {m.s5_json_syntax_error_at({
+          line: String(result.line),
+          column: String(result.column),
+        })}
       </p>
       <p class="text-muted-foreground">{result.detail}</p>
-      <Button variant="outline" size="sm" onclick={onsource}>返回源码</Button>
+      <Button variant="outline" size="sm" onclick={onsource}
+        >{m.s5_back_to_source()}</Button
+      >
     </div>
   {/if}
 </div>

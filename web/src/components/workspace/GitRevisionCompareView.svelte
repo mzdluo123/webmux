@@ -3,6 +3,7 @@
   import { Label } from "$lib/components/ui/label";
   import * as NativeSelect from "$lib/components/ui/native-select";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitBranchItem } from "../../contracts/git-workbench-schemas";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
   import GitLogDiffPanel from "./GitLogDiffPanel.svelte";
@@ -38,7 +39,8 @@
     class="grid grid-cols-1 gap-2.5 border-b bg-background p-3 text-xs sm:grid-cols-2"
   >
     <div class="space-y-1.5">
-      <Label for="git-rev-compare-select">选择基准分支 / 标签 / 提交</Label>
+      <Label for="git-rev-compare-select">{m.s6_rev_compare_base_label()}</Label
+      >
       <div class="flex min-w-0 items-center gap-1.5">
         {#if refs.length > 0}
           <NativeSelect.Root
@@ -51,15 +53,15 @@
             }}
           >
             <NativeSelect.Option value=""
-              >-- 快速选择引用 --</NativeSelect.Option
+              >{m.s6_rev_compare_quick_select()}</NativeSelect.Option
             >
             {#each refs as item (`${item.kind}:${item.name}`)}
               <NativeSelect.Option value={item.head}>
                 [{item.kind === "tag"
-                  ? "标签"
+                  ? m.s6_rev_compare_kind_tag()
                   : item.kind === "remote"
-                    ? "远程"
-                    : "分支"}] {item.name} ({item.shortHead})
+                    ? m.s6_rev_compare_kind_remote()
+                    : m.s6_rev_compare_kind_branch()}] {item.name} ({item.shortHead})
               </NativeSelect.Option>
             {/each}
           </NativeSelect.Root>
@@ -68,8 +70,8 @@
           size="sm"
           mono
           value={baseOid}
-          placeholder="基准提交 OID…"
-          aria-label="基准提交 OID"
+          placeholder={m.s6_rev_compare_base_placeholder()}
+          aria-label={m.s6_rev_compare_base_aria()}
           oninput={(e) => onSelectBase(e.currentTarget.value)}
           data-testid="git-rev-compare-base-input"
         />
@@ -77,7 +79,7 @@
     </div>
 
     <div class="space-y-1.5">
-      <Label>对比右侧目标</Label>
+      <Label>{m.s6_rev_compare_target_label()}</Label>
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         {#if hasWorktree}
           <SegmentedControl.Root
@@ -85,12 +87,14 @@
             onValueChange={(val) => {
               if (val === "worktree" || val === "rev") onTargetKindChange(val);
             }}
-            aria-label="对比右侧目标类型"
+            aria-label={m.s6_rev_compare_target_type_aria()}
           >
             <SegmentedControl.Item value="worktree">
-              当前工作区文件
+              {m.s6_rev_compare_target_worktree()}
             </SegmentedControl.Item>
-            <SegmentedControl.Item value="rev">指定提交</SegmentedControl.Item>
+            <SegmentedControl.Item value="rev">
+              {m.s6_rev_compare_target_rev()}
+            </SegmentedControl.Item>
           </SegmentedControl.Root>
         {/if}
         {#if !hasWorktree || targetKind === "rev"}
@@ -98,8 +102,8 @@
             size="sm"
             mono
             value={targetOid}
-            placeholder="目标提交 OID…"
-            aria-label="目标提交 OID"
+            placeholder={m.s6_rev_compare_target_placeholder()}
+            aria-label={m.s6_rev_compare_target_aria()}
             oninput={(e) => onTargetOidChange(e.currentTarget.value)}
             data-testid="git-rev-compare-target-input"
           />

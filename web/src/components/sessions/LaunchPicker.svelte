@@ -13,6 +13,7 @@
   import type { LaunchSource } from "../../domains/sessions/new-session-defaults";
   import type { SessionView } from "../../contracts/schemas";
   import * as Command from "$lib/components/ui/command";
+  import * as m from "$lib/paraglide/messages.js";
   import CustomCommandField from "./CustomCommandField.svelte";
   import { Label } from "$lib/components/ui/label";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
@@ -69,7 +70,7 @@
 </script>
 
 <div class="space-y-2">
-  <Label for="session-launch">运行</Label>
+  <Label for="session-launch">{m.s3_launch_run_label()}</Label>
   <PickerField id="session-launch" bind:open={() => open, setOpen} {disabled}>
     {#snippet trigger()}
       {#if chosen}
@@ -84,42 +85,49 @@
           class="size-4 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
-        <ChoiceDetails primary="自定义命令" />
+        <ChoiceDetails primary={m.s3_custom_command()} />
       {:else if launchConfigs.status === "loading"}
-        <span class="text-sm text-muted-foreground">正在读取启动配置…</span>
+        <span class="text-sm text-muted-foreground"
+          >{m.s3_loading_launch_configs()}</span
+        >
       {:else}
-        <span class="text-sm text-muted-foreground">选择启动方式</span>
+        <span class="text-sm text-muted-foreground"
+          >{m.s3_select_launch_method()}</span
+        >
       {/if}
     {/snippet}
-    <Command.Root label="启动方式" class="h-auto min-w-0">
+    <Command.Root label={m.s3_launch_method_label()} class="h-auto min-w-0">
       <Command.Input
         bind:value={search}
-        placeholder="搜索启动配置…"
-        aria-label="搜索启动方式"
+        placeholder={m.s3_search_launch_configs_placeholder()}
+        aria-label={m.s3_search_launch_method_label()}
         autocomplete="off"
         autocapitalize="off"
         autocorrect="off"
         spellcheck={false}
       />
       <Command.List
-        aria-label="启动方式列表"
+        aria-label={m.s3_launch_method_list_label()}
         class="max-h-[min(20rem,50dvh)] p-1"
       >
-        <Command.Empty>没有匹配的启动配置</Command.Empty>
-        <Command.Group heading="启动配置" value="configs">
+        <Command.Empty>{m.s3_no_matching_launch_configs()}</Command.Empty>
+        <Command.Group heading={m.s3_launch_configs_heading()} value="configs">
           {#if launchConfigs.status === "loading"}
             <p role="status" class="px-2 py-1.5 text-xs text-muted-foreground">
-              正在读取启动配置…
+              {m.s3_loading_launch_configs()}
             </p>
           {:else if launchConfigs.status === "unavailable"}
             <p class="px-2 py-1.5 text-xs text-destructive wrap-anywhere">
-              启动配置暂不可用：{launchConfigs.error}
+              {m.s3_launch_configs_unavailable({
+                error: launchConfigs.error,
+              })}
             </p>
           {:else if !configs.length}
             <p class="px-2 py-1.5 text-xs text-muted-foreground">
-              还没有启动配置。<a
+              {m.s3_no_launch_configs_yet()}<a
                 class="text-foreground underline underline-offset-2"
-                href="/settings#launch-configs">前往设置创建启动配置</a
+                href="/settings#launch-configs"
+                >{m.s3_go_settings_create_launch()}</a
               >
             </p>
           {/if}
@@ -140,22 +148,22 @@
               {#if config.chat && !chatEnabled}
                 <span class="text-xs text-muted-foreground"
                   >{pluginEnabled("chat")
-                    ? "聊天功能暂不可用"
-                    : "聊天插件未启用"}</span
+                    ? m.s3_chat_temporarily_unavailable()
+                    : m.s3_chat_plugin_disabled()}</span
                 >
               {/if}
             </Command.Item>
           {/each}
         </Command.Group>
-        <Command.Group heading="其他" value="other">
+        <Command.Group heading={m.s3_other_heading()} value="other">
           <Command.Item
             value="custom"
-            keywords={["自定义命令", "custom"]}
+            keywords={[m.s3_custom_command(), "custom"]}
             data-checked={source === "custom"}
             onSelect={() => choose("custom")}
           >
             <IconTerminal2 class="text-muted-foreground" aria-hidden="true" />
-            <span class="text-sm">自定义命令…</span>
+            <span class="text-sm">{m.s3_custom_command_ellipsis()}</span>
           </Command.Item>
         </Command.Group>
       </Command.List>
@@ -163,11 +171,11 @@
   </PickerField>
   {#if source === "unset" && launchConfigs.status === "unavailable"}
     <p role="alert" class="text-sm text-destructive">
-      启动配置存储暂不可用：{launchConfigs.error}。可重新选择自定义命令。
+      {m.s3_launch_store_unavailable({ error: launchConfigs.error })}
     </p>
   {:else if source === "unset" && launchConfigs.status === "ready"}
     <p role="status" class="text-sm text-muted-foreground">
-      原启动配置已删除或当前不可用。请重新选择启动方式，不会推测旧配置的命令或环境变量。
+      {m.s3_launch_config_deleted_reselect()}
     </p>
   {/if}
   {#if source === "custom"}

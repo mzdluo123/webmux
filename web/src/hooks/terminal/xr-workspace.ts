@@ -1,5 +1,6 @@
 import { Color, PerspectiveCamera, Scene, WebGLRenderer } from "three";
 import { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import {
   decodeXrLayout,
   encodeXrLayout,
@@ -38,7 +39,7 @@ function releaseResources(
     try {
       release();
     } catch (cause) {
-      options.error(`VR 资源清理失败：${String(cause)}`);
+      options.error(m.s4_xr_err_cleanup_failed({ error: String(cause) }));
     }
   }
 }
@@ -145,7 +146,7 @@ async function createWorkspace(
   }
   function contextLost(event: Event) {
     event.preventDefault();
-    report("VR 图形上下文已丢失；已返回 2D，会话仍在运行。请重新进入 VR。");
+    report(m.s4_xr_err_context_lost());
     options.exit();
     dispose();
   }
@@ -207,9 +208,9 @@ async function createWorkspace(
 
   try {
     await renderer.xr.setSession(session);
-    if (disposed) throw new Error("VR 会话已结束");
+    if (disposed) throw new Error(m.s4_xr_err_session_ended());
     const reference = renderer.xr.getReferenceSpace();
-    if (!reference) throw new Error("VR local 参考空间不可用");
+    if (!reference) throw new Error(m.s4_xr_err_ref_space());
     pointers = createXrPointers(
       session,
       scene,
@@ -236,7 +237,7 @@ async function createWorkspace(
         pointers?.update(frame, now);
         renderer.render(scene, camera);
       } catch (cause) {
-        report(`VR 呈现失败：${String(cause)}`);
+        report(m.s4_xr_err_render_failed({ error: String(cause) }));
         options.exit();
         dispose();
       }

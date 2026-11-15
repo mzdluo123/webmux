@@ -2,6 +2,7 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
   import { Textarea } from "$lib/components/ui/textarea";
+  import * as m from "$lib/paraglide/messages.js";
 
   // The "first message" rows of the new-session dialog: the repository's
   // initialization instruction (when the location has one) and the user's
@@ -36,14 +37,14 @@
         {disabled}
       />
       <div class="grid gap-0.5">
-        <Label for="use-init-instruction">使用初始化指令</Label>
+        <Label for="use-init-instruction">{m.s3_use_init_instruction()}</Label>
         <p class="text-xs text-muted-foreground">
           {#if chat}
-            创建后先发送{repositoryName
-              ? `“${repositoryName}”`
-              : "仓库"}的初始化指令，可在仓库设置中修改。
+            {repositoryName
+              ? m.s3_first_msg_init_chat_named({ name: repositoryName })
+              : m.s3_first_msg_init_chat_generic()}
           {:else}
-            初始化指令通常是自然语言，从终端开始时默认不勾选；勾选后会随首条消息一起发送。可在仓库设置中修改。
+            {m.s3_first_msg_init_terminal()}
           {/if}
         </p>
       </div>
@@ -51,7 +52,8 @@
   {/if}
   <div class="space-y-2">
     <Label for="session-prompt"
-      >用户指令 <span class="text-muted-foreground">可选</span></Label
+      >{m.s3_user_instruction()}
+      <span class="text-muted-foreground">{m.s3_optional_tag()}</span></Label
     >
     <Textarea
       id="session-prompt"
@@ -59,12 +61,10 @@
       bind:value={prompt}
       {disabled}
       aria-describedby="session-prompt-help"
-      placeholder="创建后自动发送，例如：修复首页排序"
+      placeholder={m.s3_user_instruction_placeholder()}
     />
     <p id="session-prompt-help" class="text-xs text-muted-foreground">
-      {chat
-        ? "作为聊天的第一条消息发送。"
-        : "程序启动并安静下来后输入到终端，并自动回车。"}留空则不发送。
+      {chat ? m.s3_first_msg_help_chat() : m.s3_first_msg_help_terminal()}
     </p>
   </div>
 </div>

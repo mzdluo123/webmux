@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import {
   QuickCommandsSchema,
   type QuickCommand,
@@ -16,11 +17,27 @@ const WEBMUX_PLACEHOLDER = `{{${WEBMUX_REFERENCE_NAME}}}`;
 
 /** System-provided quick commands; the defaults while no list is saved. */
 export const QUICK_COMMAND_PRESETS: readonly QuickCommand[] = [
-  { id: "preset-resume", name: "恢复会话", command: "/resume", enter: true },
-  { id: "preset-new", name: "新会话", command: "/new", enter: true },
+  {
+    id: "preset-resume",
+    get name() {
+      return m.s2_qc_preset_resume();
+    },
+    command: "/resume",
+    enter: true,
+  },
+  {
+    id: "preset-new",
+    get name() {
+      return m.s2_qc_preset_new();
+    },
+    command: "/new",
+    enter: true,
+  },
   {
     id: "preset-webmux",
-    name: "WebMux 工具",
+    get name() {
+      return m.s2_qc_preset_webmux();
+    },
     command: WEBMUX_PLACEHOLDER,
     enter: false,
   },
@@ -55,18 +72,19 @@ export const USER_REFERENCE_NAME = "user";
  */
 export function quickCommandNameError(name: string, others: readonly string[]) {
   const trimmed = name.trim();
-  if (!trimmed) return "请填写名称";
+  if (!trimmed) return m.s2_qc_err_name_empty();
   if (trimmed.length > QUICK_COMMAND_NAME_MAX)
-    return `名称不能超过 ${QUICK_COMMAND_NAME_MAX} 个字符`;
-  if (/[{}\r\n]/.test(trimmed)) return "名称不能包含 { }或换行";
+    return m.s2_qc_err_name_max({ max: String(QUICK_COMMAND_NAME_MAX) });
+  if (/[{}\r\n]/.test(trimmed))
+    return m.s2_qc_err_name_braces({ braces: "{ }" });
   if (
     trimmed === USER_REFERENCE_NAME ||
     trimmed === DIR_REFERENCE_NAME ||
     trimmed === WEBMUX_REFERENCE_NAME
   )
-    return `“${trimmed}”是初始化指令的保留变量，请换一个名称`;
+    return m.s2_qc_err_name_reserved({ name: trimmed });
   if (others.some((other) => other.trim() === trimmed))
-    return "已有同名快捷指令";
+    return m.s2_qc_err_name_duplicate();
   return "";
 }
 
@@ -77,7 +95,8 @@ export function quickCommandsNameError(list: readonly QuickCommand[]) {
       cmd.name,
       list.filter((_, i) => i !== index).map((other) => other.name),
     );
-    if (problem) return `快捷指令“${commandLabel(cmd)}”：${problem}`;
+    if (problem)
+      return m.s2_qc_err_list_item({ label: commandLabel(cmd), problem });
   }
   return "";
 }

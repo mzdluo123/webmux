@@ -1,6 +1,7 @@
 <script lang="ts">
   import InlineNotice from "../shared/InlineNotice.svelte";
   import { Button } from "$lib/components/ui/button";
+  import * as m from "$lib/paraglide/messages.js";
 
   let {
     setupError,
@@ -35,7 +36,7 @@
         disabled={setupBusy}
         onclick={onretrysetup}
       >
-        {setupBusy ? "正在重试…" : "重试"}
+        {setupBusy ? m.s3_retrying() : m.s3_retry()}
       </Button>
     </div>
   </InlineNotice>{/if}
@@ -49,10 +50,10 @@
     {recordError}
   </InlineNotice>{/if}
 {#if capabilityError}<InlineNotice tone="warning" class="mb-4">
-    仓库管理部分不可用：{capabilityError}。仍可直接启动会话。
+    {m.s3_repo_mgmt_partially_unavailable({ error: capabilityError })}
   </InlineNotice>{/if}
 {#if repositoryError}<InlineNotice tone="danger" class="mb-4">
     {hasRepositories
-      ? `Git 状态刷新失败：${repositoryError}。保留上次快照与全部会话。`
-      : `Git 状态读取失败：${repositoryError}。会话仍可正常使用。`}
+      ? m.s3_git_refresh_failed_keep_snapshot({ error: repositoryError })
+      : m.s3_git_read_failed_sessions_ok({ error: repositoryError })}
   </InlineNotice>{/if}

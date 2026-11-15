@@ -25,6 +25,7 @@
     CreationLocationProps,
   } from "../../plugins/context";
   import IconFolder from "~icons/tabler/folder";
+  import * as m from "$lib/paraglide/messages.js";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
@@ -143,8 +144,10 @@
   const treeTargetMissing = $derived(treeOnly && kind !== "new-worktree");
   const newWorktreeSummary = $derived(
     branchMode === "new"
-      ? `${branch || "新分支"} ← ${startBranch || "…"}`
-      : `已有分支 ${branch || "未选择"}`,
+      ? `${branch || m.s3_new_branch_fallback()} ← ${startBranch || "…"}`
+      : m.s3_existing_branch_summary({
+          branch: branch || m.s3_unselected_fallback(),
+        }),
   );
   const locationText = $derived(
     formatLocationSummaryText(kind, cwd, repository, worktree, branch),
@@ -171,12 +174,12 @@
   <fieldset disabled={busy} class="min-w-0 space-y-4">
     {#if project}
       <div class="space-y-2">
-        <Label>项目</Label>
+        <Label>{m.s3_project_label()}</Label>
         {#if onprojectchange}<Button
             variant="outline"
             wrap
             class="w-full justify-start"
-            aria-label="更换项目"
+            aria-label={m.s3_change_project_label()}
             onclick={onprojectchange}
             ><IconFolder aria-hidden="true" /><ChoiceDetails
               primary={project.name}
@@ -215,11 +218,11 @@
       />
     {:else if project?.repositoryId}
       <p role="status" class="text-sm text-muted-foreground">
-        当前项目的 Git 工作位置暂不可用，请检查服务端 Git 与仓库状态。
+        {m.s3_project_git_location_unavailable()}
       </p>
     {:else if !project}
       <div class="space-y-2">
-        <Label for="cwd">工作目录</Label>
+        <Label for="cwd">{m.s3_working_directory()}</Label>
         <DirectoryInput
           bind:value={cwd}
           Picker={pluginAvailable("files.upload")
@@ -230,12 +233,12 @@
     {/if}
     {#if pluginEnabled("files") && (!pluginAvailable("files.upload") || !providers.DirectoryPicker)}
       <p role="status" class="text-sm text-muted-foreground">
-        文件功能暂不可用；仍可填写已有目录，但不能浏览或创建目录。
+        {m.s3_files_temporarily_unavailable_hint()}
       </p>
     {/if}
     {#if pluginEnabled("chat") && (!pluginAvailable("chat.acp") || !providers.LaunchStartSideFields)}
       <p role="status" class="text-sm text-muted-foreground">
-        聊天功能暂不可用；请选择终端启动配置或自定义命令。
+        {m.s3_chat_temporarily_unavailable_hint()}
       </p>
     {/if}
     {#if workspaceEnabled && fieldsRepository && providers.WorktreeCreateFields}
@@ -263,13 +266,15 @@
     {/if}
     {#if createdTree && kind === "worktree" && worktreeId === createdTree.id}
       <p role="status" class="text-sm text-primary">
-        工作树已创建。再次提交只启动会话，不会重复创建分支或目录。
+        {m.s3_worktree_already_created_hint()}
       </p>
     {/if}
     {#if workspaceEnabled && intent === "worktree"}
       <div class="flex items-center gap-2">
         <Checkbox id="worktree-with-session" bind:checked={withSession} />
-        <Label for="worktree-with-session">创建后启动会话</Label>
+        <Label for="worktree-with-session"
+          >{m.s3_start_session_after_create()}</Label
+        >
       </div>
     {/if}
     {#if !treeOnly}
@@ -297,8 +302,8 @@
           {#if lastLaunch.startsWith("config:") && source === "unset"}
             <p role="status" class="text-sm text-muted-foreground">
               {pluginEnabled("launch")
-                ? "启动配置界面暂不可用"
-                : "启动配置插件未启用"}。请重新选择命令；不会从旧配置推测命令或环境变量。
+                ? m.s3_launch_ui_unavailable_reselect()
+                : m.s3_launch_plugin_disabled_reselect()}
             </p>
             <Button
               type="button"
@@ -308,7 +313,7 @@
                 onlaunchchoose();
               }}
             >
-              使用自定义命令
+              {m.s3_use_custom_command()}
             </Button>
           {/if}
         </div>
@@ -322,14 +327,19 @@
         disabled={busy}
       />
       {#if split}<SplitDirectionChoice bind:direction />{/if}
-      <AdvancedSection title="高级：会话名称" summary={name}>
+      <AdvancedSection
+        title={m.s3_advanced_session_name_title()}
+        summary={name}
+      >
         <div class="space-y-2">
           <Label for="session-name"
-            >会话名称 <span class="text-muted-foreground">可选</span></Label
+            >{m.s3_session_name_label()}
+            <span class="text-muted-foreground">{m.s3_optional_tag()}</span
+            ></Label
           ><Input
             id="session-name"
             bind:value={name}
-            placeholder="留空则用首条提示，没有则跟随终端标题"
+            placeholder={m.s3_session_name_placeholder()}
           />
         </div>
       </AdvancedSection>
@@ -344,7 +354,8 @@
             size="sm"
             variant="outline"
             disabled={busy}
-            onclick={onterminalcreate}>改为从终端开始</Button
+            onclick={onterminalcreate}
+            >{m.s3_start_in_terminal_instead()}</Button
           >{/snippet}
       </providers.ConnectorInstallHint>
     {/if}
@@ -360,7 +371,7 @@
           type="button"
           variant="outline"
           disabled={busy}
-          onclick={onclose}>取消</Button
+          onclick={onclose}>{m.s3_cancel()}</Button
         >
         <Button
           type="submit"

@@ -15,6 +15,8 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Dialog from "$lib/components/ui/dialog";
+  import { locale } from "$lib/locale";
+  import * as m from "$lib/paraglide/messages.js";
   import {
     scratchEntriesLimit,
     scratchEntryLimit,
@@ -56,22 +58,25 @@
 
   function failure(result: ScratchAddResult | ScratchTakeResult) {
     if (result === "full")
-      return `最多保留 ${scratchEntriesLimit} 条暂存，请先删除一条。`;
+      return m.s4_scratch_err_full({ limit: String(scratchEntriesLimit) });
     if (result === "too-long")
-      return `单条暂存最多 ${scratchEntryLimit.toLocaleString()} 个字符。`;
+      return m.s4_scratch_err_too_long({
+        limit: scratchEntryLimit.toLocaleString(locale.current),
+      });
     if (result === "over-total")
-      return `每会话暂存合计最多 ${scratchStorageLimit.toLocaleString()} 个字符。`;
-    if (result === "locked")
-      return "提交结果确认前，当前草稿不能转入或取用暂存。";
-    if (result === "empty") return "暂存正文不能为空。";
-    return "暂存操作失败。";
+      return m.s4_scratch_err_over_total({
+        limit: scratchStorageLimit.toLocaleString(locale.current),
+      });
+    if (result === "locked") return m.s4_scratch_err_locked();
+    if (result === "empty") return m.s4_scratch_err_empty();
+    return m.s4_scratch_err_failed();
   }
   function add() {
     const result = drafts.addScratch(draft, newText);
     if (result === "added") {
       newText = "";
       if (!draft.scratchPersisted) {
-        notice = "暂存已添加，但未能保存到本机，刷新后可能丢失。";
+        notice = m.s4_scratch_added_unpersisted();
         noticeTone = "danger";
       } else notice = "";
     } else {
@@ -83,10 +88,10 @@
     const result = drafts.stash(draft);
     if (result === "added") {
       if (!draft.scratchPersisted) {
-        notice = "当前草稿已存入暂存，但暂存未能保存到本机，刷新后可能丢失。";
+        notice = m.s4_scratch_stashed_unpersisted();
         noticeTone = "danger";
       } else {
-        notice = "当前草稿已存入暂存。";
+        notice = m.s4_scratch_stashed();
         noticeTone = "success";
       }
     } else {
@@ -97,7 +102,7 @@
   function take(id: string) {
     const item = draft.scratch.find((candidate) => candidate.id === id);
     if (!item?.text) {
-      notice = "这条暂存没有正文。";
+      notice = m.s4_scratch_item_empty();
       noticeTone = "danger";
       return;
     }
@@ -117,8 +122,7 @@
     conflictId = null;
     if (result === "taken") {
       if (!draft.scratchPersisted || !draft.persisted) {
-        notice =
-          "已取用到当前草稿，但部分内容未能保存到本机，刷新后可能丢失；请保留当前页面内容。";
+        notice = m.s4_scratch_taken_unpersisted();
         noticeTone = "danger";
       } else {
         notice = "";
@@ -132,14 +136,17 @@
   function edit(id: string, value: string, element: HTMLTextAreaElement) {
     if (drafts.editScratch(draft, id, value)) {
       if (!draft.scratchPersisted) {
-        notice = "暂存未能保存到本机，刷新后可能丢失。";
+        notice = m.s4_scratch_unpersisted();
         noticeTone = "danger";
       } else if (notice) notice = "";
       return;
     }
     element.value =
       draft.scratch.find((candidate) => candidate.id === id)?.text ?? "";
-    notice = `单条暂存最多 ${scratchEntryLimit.toLocaleString()} 个字符，且每会话合计最多 ${scratchStorageLimit.toLocaleString()} 个字符。`;
+    notice = m.s4_scratch_edit_limits({
+      entryLimit: scratchEntryLimit.toLocaleString(locale.current),
+      totalLimit: scratchStorageLimit.toLocaleString(locale.current),
+    });
     noticeTone = "danger";
   }
 </script>
@@ -161,8 +168,8 @@
         aria-hidden="true"><IconInbox class="size-5" /></span
       >
       <Dialog.Header class="min-w-0 flex-1 gap-1 pr-0 text-left">
-        <Dialog.Title>暂存</Dialog.Title>
-        <Dialog.Description>先记下来，准备好后取用到草稿。</Dialog.Description>
+        <Dialog.Title>{m.s4_scratch_title()}</Dialog.Title>
+        <Dialog.Description>{m.s4_scratch_description()}</Dialog.Description>
       </Dialog.Header>
       <Dialog.Close>
         {#snippet child({ props })}
@@ -172,8 +179,9 @@
             variant="ghost"
             size="icon"
             class="size-11 -mr-2 -mt-1"
-            title="关闭暂存"
-            aria-label="关闭暂存"><IconX aria-hidden="true" /></Button
+            title={m.s4_scratch_close()}
+            aria-label={m.s4_scratch_close()}
+            ><IconX aria-hidden="true" /></Button
           >
         {/snippet}
       </Dialog.Close>
@@ -186,18 +194,19 @@
       <div class="grid min-w-0 gap-3 [&>*]:min-w-0">
         {#if stale}
           <InlineNotice tone="warning"
-            >这些暂存来自较早的会话实例。取用不会自动发送，请检查内容后再使用。</InlineNotice
+            >{m.s4_scratch_stale_notice()}</InlineNotice
           >
         {/if}
         {#if locked}
-          <InlineNotice tone="info"
-            >当前草稿有待确认的提交，转存和取用暂不可用；暂存仍可查看、编辑和删除。</InlineNotice
+          <InlineNotice tone="info">{m.s4_scratch_locked_notice()}</InlineNotice
           >
         {/if}
         {#if draft.text}
           <div class="flex items-center gap-3 rounded-lg bg-muted/60 p-3">
             <div class="min-w-0 flex-1">
-              <p class="text-xs font-medium text-muted-foreground">当前草稿</p>
+              <p class="text-xs font-medium text-muted-foreground">
+                {m.s4_scratch_current_draft()}
+              </p>
               <p class="mt-1 truncate text-sm" title={draft.text}>
                 {draft.text}
               </p>
@@ -206,8 +215,8 @@
               variant="outline"
               size="icon-touch"
               disabled={locked || full}
-              title="将当前草稿存入暂存"
-              aria-label="将当前草稿存入暂存"
+              title={m.s4_scratch_stash_current()}
+              aria-label={m.s4_scratch_stash_current()}
               onclick={stash}
             >
               <IconInbox aria-hidden="true" />
@@ -216,7 +225,8 @@
         {/if}
         <div class="flex min-h-11 items-center justify-between gap-2">
           <h3 class="flex items-center gap-2 text-sm font-medium">
-            已暂存 <span
+            {m.s4_scratch_saved_heading()}
+            <span
               class="rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground"
               >{draft.scratch.length} / {scratchEntriesLimit}</span
             >
@@ -225,8 +235,8 @@
             variant="quiet"
             size="icon-touch"
             disabled={!draft.scratch.length}
-            title="清空暂存"
-            aria-label="清空暂存"
+            title={m.s4_scratch_clear()}
+            aria-label={m.s4_scratch_clear()}
             onclick={() => (clearOpen = true)}
             ><IconTrash aria-hidden="true" /></Button
           >
@@ -235,7 +245,7 @@
           <div
             class="grid min-w-0 gap-3 [&>*]:min-w-0"
             role="list"
-            aria-label="暂存列表"
+            aria-label={m.s4_scratch_list_label()}
           >
             {#each draft.scratch as item, index (item.id)}
               <div
@@ -245,11 +255,15 @@
                 <div class="mb-2 flex flex-wrap items-center gap-2">
                   <span
                     class="text-xs font-medium tabular-nums text-muted-foreground"
-                    >暂存 {String(index + 1).padStart(2, "0")}</span
+                    >{m.s4_scratch_item_badge({
+                      num: String(index + 1).padStart(2, "0"),
+                    })}</span
                   >
                   <span
                     class="ml-auto text-xs tabular-nums text-muted-foreground"
-                    >{item.text.length.toLocaleString()} 字符</span
+                    >{m.s4_scratch_char_count({
+                      count: item.text.length.toLocaleString(locale.current),
+                    })}</span
                   >
                   <DropdownMenu.Root>
                     <DropdownMenu.Trigger>
@@ -258,9 +272,10 @@
                           {...props}
                           variant="ghost"
                           size="icon-touch"
-                          title="更多操作"
-                          aria-label={`暂存第 ${index + 1} 条的更多操作`}
-                          ><IconDots aria-hidden="true" /></Button
+                          title={m.s4_more_actions()}
+                          aria-label={m.s4_scratch_item_more_actions({
+                            index: String(index + 1),
+                          })}><IconDots aria-hidden="true" /></Button
                         >
                       {/snippet}
                     </DropdownMenu.Trigger>
@@ -268,28 +283,36 @@
                       <DropdownMenu.Item
                         class="min-h-11 sm:min-h-9"
                         disabled={index === 0}
-                        aria-label={`上移暂存第 ${index + 1} 条`}
+                        aria-label={m.s4_scratch_move_up_aria({
+                          index: String(index + 1),
+                        })}
                         onSelect={() => drafts.moveScratch(draft, item.id, -1)}
                         ><IconArrowUp
                           aria-hidden="true"
-                        />上移</DropdownMenu.Item
+                        />{m.s4_move_up()}</DropdownMenu.Item
                       >
                       <DropdownMenu.Item
                         class="min-h-11 sm:min-h-9"
                         disabled={index === draft.scratch.length - 1}
-                        aria-label={`下移暂存第 ${index + 1} 条`}
+                        aria-label={m.s4_scratch_move_down_aria({
+                          index: String(index + 1),
+                        })}
                         onSelect={() => drafts.moveScratch(draft, item.id, 1)}
                         ><IconArrowDown
                           aria-hidden="true"
-                        />下移</DropdownMenu.Item
+                        />{m.s4_move_down()}</DropdownMenu.Item
                       >
                       <DropdownMenu.Separator />
                       <DropdownMenu.Item
                         class="min-h-11 sm:min-h-9"
                         variant="destructive"
-                        aria-label={`删除暂存第 ${index + 1} 条`}
+                        aria-label={m.s4_scratch_delete_aria({
+                          index: String(index + 1),
+                        })}
                         onSelect={() => drafts.removeScratch(draft, item.id)}
-                        ><IconTrash aria-hidden="true" />删除</DropdownMenu.Item
+                        ><IconTrash
+                          aria-hidden="true"
+                        />{m.s4_delete()}</DropdownMenu.Item
                       >
                     </DropdownMenu.Content>
                   </DropdownMenu.Root>
@@ -297,8 +320,10 @@
                     variant="outline"
                     size="icon-touch"
                     disabled={!item.text || locked}
-                    title="取用到草稿"
-                    aria-label={`取用暂存第 ${index + 1} 条`}
+                    title={m.s4_scratch_use_in_draft()}
+                    aria-label={m.s4_scratch_use_aria({
+                      index: String(index + 1),
+                    })}
                     onclick={() => take(item.id)}
                     ><IconArrowUpRight
                       class="text-primary"
@@ -308,7 +333,9 @@
                 </div>
                 <Textarea
                   value={item.text}
-                  aria-label={`暂存第 ${index + 1} 条`}
+                  aria-label={m.s4_scratch_item_aria({
+                    index: String(index + 1),
+                  })}
                   rows={3}
                   maxlength={scratchEntryLimit}
                   variant="ghost"
@@ -325,12 +352,19 @@
                   <time
                     class="text-xs text-muted-foreground"
                     datetime={new Date(item.updatedAt).toISOString()}
-                    title={new Date(item.updatedAt).toLocaleString()}
+                    title={new Date(item.updatedAt).toLocaleString(
+                      locale.current,
+                    )}
                   >
-                    更新于 {new Date(item.updatedAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
+                    {m.s4_scratch_updated_at({
+                      time: new Date(item.updatedAt).toLocaleTimeString(
+                        locale.current,
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        },
+                      ),
                     })}
                   </time>
                 </div>
@@ -345,9 +379,9 @@
               class="mb-1 size-7 text-muted-foreground"
               aria-hidden="true"
             />
-            <p class="text-sm font-medium">还没有暂存</p>
+            <p class="text-sm font-medium">{m.s4_scratch_empty_title()}</p>
             <p class="max-w-64 text-sm text-muted-foreground">
-              在下方记下后续任务，或存入当前草稿，稍后再逐条取用。
+              {m.s4_scratch_empty_desc()}
             </p>
           </div>
         {/if}
@@ -361,7 +395,7 @@
         <InlineNotice tone={noticeTone}>{notice}</InlineNotice>
       {/if}
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <Label for="scratch-new">新建暂存</Label>
+        <Label for="scratch-new">{m.s4_scratch_new_label()}</Label>
         <span class="text-xs text-muted-foreground" role="status">{saved}</span>
       </div>
       <Textarea
@@ -369,28 +403,32 @@
         bind:value={newText}
         rows={2}
         maxlength={scratchEntryLimit}
-        placeholder="记下稍后要做的事…"
+        placeholder={m.s4_scratch_new_placeholder()}
         code
         class="h-20 min-h-20 resize-none field-sizing-fixed"
         aria-describedby="scratch-new-limits"
       />
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="min-w-0 text-xs text-muted-foreground">
-          <p>取用到草稿后，仍需手动发送</p>
+          <p>{m.s4_scratch_manual_send_hint()}</p>
           <p id="scratch-new-limits" class="mt-1 tabular-nums">
-            {newText.length.toLocaleString()} / {scratchEntryLimit.toLocaleString()}
-            字符<span class="sr-only"
-              >；最多 {scratchEntriesLimit} 条，每会话合计 {scratchStorageLimit.toLocaleString()}
-              字符</span
+            {m.s4_scratch_char_ratio({
+              current: newText.length.toLocaleString(locale.current),
+              limit: scratchEntryLimit.toLocaleString(locale.current),
+            })}<span class="sr-only"
+              >{m.s4_scratch_limits_sr({
+                entries: String(scratchEntriesLimit),
+                total: scratchStorageLimit.toLocaleString(locale.current),
+              })}</span
             >
           </p>
         </div>
         <Button size="sm-touch" disabled={!newText || full} onclick={add}
-          ><IconPlus aria-hidden="true" />添加暂存</Button
+          ><IconPlus aria-hidden="true" />{m.s4_scratch_add_button()}</Button
         >
       </div>
       {#if full}<p class="text-xs text-warning" role="status">
-          已达 {scratchEntriesLimit} 条上限，取用或删除一条后可继续添加。
+          {m.s4_scratch_limit_reached({ limit: String(scratchEntriesLimit) })}
         </p>{/if}
     </div>
   </Dialog.Content>
@@ -404,20 +442,20 @@
 >
   <AlertDialog.Content>
     <AlertDialog.Header>
-      <AlertDialog.Title>当前草稿不为空</AlertDialog.Title>
+      <AlertDialog.Title>{m.s4_scratch_conflict_title()}</AlertDialog.Title>
       <AlertDialog.Description
-        >可以将暂存追加到当前正文之后，或替换当前正文；替换前会把当前正文保存为一条新的暂存。</AlertDialog.Description
+        >{m.s4_scratch_conflict_desc()}</AlertDialog.Description
       >
     </AlertDialog.Header>
     <AlertDialog.Footer>
-      <AlertDialog.Cancel>取消</AlertDialog.Cancel>
+      <AlertDialog.Cancel>{m.s4_cancel()}</AlertDialog.Cancel>
       <Button
         variant="outline"
         onclick={() => conflictId && takeNow(conflictId, "append")}
-        >追加到当前草稿</Button
+        >{m.s4_scratch_append_draft()}</Button
       >
       <Button onclick={() => conflictId && takeNow(conflictId, "replace")}
-        >替换当前草稿</Button
+        >{m.s4_scratch_replace_draft()}</Button
       >
     </AlertDialog.Footer>
   </AlertDialog.Content>
@@ -425,9 +463,9 @@
 
 <ConfirmDialog
   bind:open={clearOpen}
-  title="清空全部暂存？"
-  confirmLabel="确认清空"
+  title={m.s4_scratch_clear_title()}
+  confirmLabel={m.s4_confirm_clear()}
   destructive
   onconfirm={() => drafts.clearScratch(draft)}
-  >删除这个会话的全部暂存，不影响当前草稿、终端或已上传文件。此操作无法撤销。</ConfirmDialog
+  >{m.s4_scratch_clear_desc()}</ConfirmDialog
 >

@@ -8,6 +8,7 @@
 </script>
 
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import { onDestroy, tick, untrack } from "svelte";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
@@ -30,6 +31,8 @@
   import type { FileTarget } from "./CodeFileActions.svelte";
 
   import { longPress } from "../../hooks/shared/long-press";
+  import { makeRootFileTarget } from "../../domains/code/code-file-actions";
+  import { navigateFileTreeKey } from "../../domains/code/file-tree-keyboard";
   import { xrTreePanel } from "../../domains/code/xr-code-navigation";
   import { openFileTreeMenu } from "../../domains/code/file-tree-menu";
 
@@ -73,12 +76,7 @@
     /** The folder highlighted as the target of a file drag; "" is the root. */
     dropPath?: string | null;
   } = $props();
-  const rootNode = $derived<FileTarget>({
-    nodeId: "",
-    path: "",
-    name: rootPath.split("/").filter(Boolean).at(-1) ?? "根目录",
-    kind: "directory",
-  });
+  const rootNode = $derived(makeRootFileTarget(rootPath));
   function contextMenu(event: MouseEvent, node: FileTarget) {
     openFileTreeMenu(event, node, menu);
   }
@@ -248,48 +246,15 @@
     if (revealed) revealed = false;
     else untrack(() => void reveal(path));
   });
-  function keyboard(event: KeyboardEvent) {
-    const target = (event.target as HTMLElement).closest<HTMLButtonElement>(
-      "button[data-file-entry]",
-    );
-    if (!target) return;
-    const rows = [
-      ...(event.currentTarget as HTMLElement)
-        .closest("[data-file-tree]")!
-        .querySelectorAll<HTMLButtonElement>("button[data-file-entry]"),
-    ].filter((row) => !row.disabled && row.getClientRects().length > 0);
-    const index = rows.indexOf(target);
-    let next: HTMLButtonElement | undefined;
-    if (event.key === "ArrowDown")
-      next = rows[Math.min(index + 1, rows.length - 1)];
-    else if (event.key === "ArrowUp") next = rows[Math.max(index - 1, 0)];
-    else if (event.key === "Home") next = rows[0];
-    else if (event.key === "End") next = rows.at(-1);
-    else if (event.key === "ArrowRight") {
-      if (target.getAttribute("aria-expanded") === "false") target.click();
-      else if (target.getAttribute("aria-expanded") === "true")
-        next = rows[index + 1];
-    } else if (event.key === "ArrowLeft") {
-      if (target.getAttribute("aria-expanded") === "true") target.click();
-      else
-        next =
-          target
-            .closest("li")
-            ?.parentElement?.closest("li")
-            ?.querySelector<HTMLButtonElement>("button[data-file-entry]") ??
-          rows[0];
-    } else return;
-    event.preventDefault();
-    next?.focus();
-  }
+  const keyboard = navigateFileTreeKey;
 </script>
 
 {#snippet actions(node: FileTarget)}
   {#if menu}<ListButton
       variant="file-tree-action"
       tabindex={-1}
-      aria-label={`文件操作 ${node.name}`}
-      title="更多操作"
+      aria-label={m.s5_file_actions_for({ name: node.name })}
+      title={m.s5_more_actions()}
       onclick={(event) => {
         const button = event.currentTarget;
         const row =
@@ -386,7 +351,7 @@
               aria-label={node.name}
               aria-current={activePath === node.path ? "page" : undefined}
               {disabled}
-              title={`${node.path}${node.linkTarget ? ` → ${node.linkTarget}` : ""}${disabled ? " · 不支持打开此路径" : ""}`}
+              title={`${node.path}${node.linkTarget ? ` → ${node.linkTarget}` : ""}${disabled ? ` · ${m.s5_unsupported_open_path()}` : ""}`}
               onclick={() => openFile(node.path, node.nodeId)}
             >
               <span class="size-3.5 shrink-0"></span>
@@ -397,18 +362,19 @@
               <span class="truncate">{node.name}</span>
               {#if node.gitStatus}<span
                   class="ml-auto shrink-0 text-warning"
-                  aria-label={`Git 状态 ${node.gitStatus}`}
+                  aria-label={m.s5_git_status_aria({ status: node.gitStatus })}
                   >{node.gitStatus}</span
                 >{/if}
               {#if node.ignored}<span
-                  class="ml-auto shrink-0 text-muted-foreground">忽略</span
+                  class="ml-auto shrink-0 text-muted-foreground"
+                  >{m.s5_ignored_badge()}</span
                 >{/if}
               {#if disabled}<span class="ml-auto shrink-0 text-muted-foreground"
                   >{node.kind === "boundary"
-                    ? "边界"
+                    ? m.s5_node_boundary()
                     : node.kind === "symlink"
-                      ? "链接"
-                      : "特殊"}</span
+                      ? m.s5_node_symlink()
+                      : m.s5_node_special()}</span
                 >{/if}
             </ListButton>
             {@render actions(node)}
@@ -422,29 +388,29 @@
       {errors.get(path)}
     </p>
     <Button variant="ghost" size="xs" onclick={() => void loadBranch(path)}
-      >重试加载目录</Button
+      >{m.s5_retry_load_dir()}</Button
     >
   {:else if loading.has(path) || (!path && pending)}
     <p role="status" class="px-2 py-1 text-xs text-muted-foreground">
-      读取目录…
+      {m.s5_reading_dir()}
     </p>
   {:else if value?.children.length === 0}<p
       class="px-2 py-1 text-xs text-muted-foreground"
     >
-      空目录
+      {m.s5_empty_dir()}
     </p>{/if}
   {#if value?.nextCursor}<Button
       variant="ghost"
       size="xs"
       disabled={path ? loading.has(path) : pending}
       onclick={() => (path ? void loadBranch(path, true) : loadMore())}
-      >下一页</Button
+      >{m.s5_next_page()}</Button
     >{/if}
   {#if value?.limited || value?.complete === false}<p
       role="status"
       class="px-2 py-1 text-xs text-muted-foreground"
     >
-      结果受限，请收窄路径；未列出全部文件。
+      {m.s5_results_limited_narrow_path()}
     </p>{/if}
 {/snippet}
 
@@ -452,7 +418,7 @@
   <div
     class="p-1"
     role="group"
-    aria-label="文件树"
+    aria-label={m.s5_file_tree()}
     data-file-tree
     {@attach hold}
   >

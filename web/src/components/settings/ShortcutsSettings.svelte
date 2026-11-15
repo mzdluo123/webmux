@@ -1,123 +1,124 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import * as Card from "$lib/components/ui/card";
 
-  const groups = [
+  const groups = $derived([
     {
-      title: "窗格管理",
-      scope:
-        "终端获得焦点时，先按 Ctrl + B，松开后再按下一个键；字母键无需 Shift。",
+      title: m.s2_sc_g_panes(),
+      scope: m.s2_sc_g_panes_scope(),
       shortcuts: [
-        { action: "左右分屏 · 新建 Shell", keys: ["Ctrl + B", "%"] },
-        { action: "上下分屏 · 新建 Shell", keys: ["Ctrl + B", '"'] },
-        { action: "切换到相邻窗格", keys: ["Ctrl + B", "↑ ↓ ← →"] },
-        { action: "切换到下一个窗格", keys: ["Ctrl + B", "O"] },
-        { action: "放大或恢复当前窗格", keys: ["Ctrl + B", "Z"] },
-        { action: "关闭窗格，保留会话", keys: ["Ctrl + B", "X"] },
-        { action: "向终端发送 Ctrl + B", keys: ["Ctrl + B", "Ctrl + B"] },
+        { action: m.s2_sc_split_h(), keys: ["Ctrl + B", "%"] },
+        { action: m.s2_sc_split_v(), keys: ["Ctrl + B", '"'] },
+        { action: m.s2_sc_pane_adj(), keys: ["Ctrl + B", "↑ ↓ ← →"] },
+        { action: m.s2_sc_pane_next(), keys: ["Ctrl + B", "O"] },
+        { action: m.s2_sc_pane_zoom(), keys: ["Ctrl + B", "Z"] },
+        { action: m.s2_sc_pane_close(), keys: ["Ctrl + B", "X"] },
+        { action: m.s2_sc_send_ctrl_b(), keys: ["Ctrl + B", "Ctrl + B"] },
       ],
     },
     {
-      title: "终端输入",
-      scope:
-        "在终端中使用。⌘ 是 macOS 的 Command，Alt 对应 Option；macOS 的 Ctrl+C 始终中断程序。",
+      title: m.s2_sc_g_term(),
+      scope: m.s2_sc_g_term_scope(),
       shortcuts: [
-        { action: "复制选中文字（Windows / Linux）", keys: ["Ctrl + C"] },
-        { action: "复制选中文字（macOS）", keys: ["⌘ + C"] },
-        { action: "粘贴文字或文件", keys: ["Ctrl / ⌘ + V"] },
-        { action: "通过剪贴板入口粘贴", keys: ["Ctrl / ⌘ + Shift + V"] },
-        { action: "向前或向后移动一个单词", keys: ["Alt + ← / →"] },
+        { action: m.s2_sc_copy_win(), keys: ["Ctrl + C"] },
+        { action: m.s2_sc_copy_mac(), keys: ["⌘ + C"] },
+        { action: m.s2_sc_paste(), keys: ["Ctrl / ⌘ + V"] },
+        { action: m.s2_sc_paste_entry(), keys: ["Ctrl / ⌘ + Shift + V"] },
+        { action: m.s2_sc_move_word(), keys: ["Alt + ← / →"] },
         {
-          action: "向上或向下翻页查看输出",
+          action: m.s2_sc_scroll_page(),
           keys: ["Shift + PageUp / PageDown"],
         },
       ],
     },
     {
-      title: "查找终端输出",
-      scope: "在终端或草稿区域打开查找；Enter 和 Esc 在查找栏内生效。",
+      title: m.s2_sc_g_find(),
+      scope: m.s2_sc_g_find_scope(),
       shortcuts: [
-        { action: "打开查找", keys: ["Ctrl + Shift + F 或 ⌘ + F"] },
-        { action: "下一个 / 上一个匹配项", keys: ["Enter / Shift + Enter"] },
-        { action: "关闭查找栏", keys: ["Esc"] },
+        { action: m.s2_sc_find_open(), keys: [m.s2_sc_key_find_open()] },
+        { action: m.s2_sc_find_nav(), keys: ["Enter / Shift + Enter"] },
+        { action: m.s2_sc_find_close(), keys: ["Esc"] },
       ],
     },
     {
-      title: "代码阅读",
-      scope: "仅在代码阅读区或其查找框获得焦点时生效。",
+      title: m.s2_code_reader_title(),
+      scope: m.s2_sc_g_code_scope(),
       shortcuts: [
-        { action: "在文件内查找", keys: ["Ctrl / ⌘ + F"] },
-        { action: "下一个匹配项", keys: ["Ctrl / ⌘ + G 或 F3"] },
+        { action: m.s2_sc_code_find(), keys: ["Ctrl / ⌘ + F"] },
+        { action: m.s2_sc_code_next(), keys: [m.s2_sc_key_code_next()] },
         {
-          action: "上一个匹配项",
-          keys: ["Ctrl / ⌘ + Shift + G 或 Shift + F3"],
+          action: m.s2_sc_code_prev(),
+          keys: [m.s2_sc_key_code_prev()],
         },
         {
-          action: "查找框内的下一个 / 上一个",
+          action: m.s2_sc_code_box_nav(),
           keys: ["Enter / Shift + Enter"],
         },
-        { action: "跳转到行", keys: ["Ctrl / ⌘ + Alt + G"] },
-        { action: "选中下一个相同文本", keys: ["Ctrl / ⌘ + D"] },
-        { action: "选中所有相同文本", keys: ["Ctrl / ⌘ + Shift + L"] },
-        { action: "关闭查找或跳转面板", keys: ["Esc"] },
-        { action: "文件标签：上一个 / 下一个", keys: ["← / →"] },
-        { action: "文件标签：第一个 / 最后一个", keys: ["Home / End"] },
+        { action: m.s2_sc_code_goto(), keys: ["Ctrl / ⌘ + Alt + G"] },
+        { action: m.s2_sc_code_sel_next(), keys: ["Ctrl / ⌘ + D"] },
+        { action: m.s2_sc_code_sel_all(), keys: ["Ctrl / ⌘ + Shift + L"] },
+        { action: m.s2_sc_code_close(), keys: ["Esc"] },
+        { action: m.s2_sc_code_tab_nav(), keys: ["← / →"] },
+        { action: m.s2_sc_code_tab_ends(), keys: ["Home / End"] },
         {
-          action: "文件树 / 修改列表：移动焦点",
-          keys: ["↑ / ↓ 或 Home / End"],
+          action: m.s2_sc_code_tree_move(),
+          keys: [m.s2_sc_key_up_down_ends()],
         },
-        { action: "文件树：展开 / 折叠或定位父目录", keys: ["→ / ←"] },
+        { action: m.s2_sc_code_tree_fold(), keys: ["→ / ←"] },
       ],
     },
     {
-      title: "调整布局",
-      scope: "先用 Tab 聚焦对应的分隔条，再按以下键。",
+      title: m.s2_sc_g_layout(),
+      scope: m.s2_sc_g_layout_scope(),
       shortcuts: [
-        { action: "窗格分隔条：调整比例 5%", keys: ["← → 或 ↑ ↓"] },
-        { action: "窗格分隔条：最小 / 最大比例", keys: ["Home / End"] },
-        { action: "窗格分隔条：恢复等分", keys: ["Enter"] },
-        { action: "草稿 / 代码面板：调整比例 10%", keys: ["← → 或 ↑ ↓"] },
+        { action: m.s2_sc_pane_resize_5(), keys: [m.s2_sc_key_arrows()] },
+        { action: m.s2_sc_pane_minmax(), keys: ["Home / End"] },
+        { action: m.s2_sc_pane_equal(), keys: ["Enter"] },
+        { action: m.s2_sc_panel_resize_10(), keys: [m.s2_sc_key_arrows()] },
         {
-          action: "草稿 / 代码面板：最小 / 最大比例",
-          keys: ["Home / End 或 Shift + 方向键"],
+          action: m.s2_sc_panel_minmax(),
+          keys: [m.s2_sc_key_ends_shift_arrows()],
         },
-        { action: "草稿 / 代码面板：切换分隔条", keys: ["F6 / Shift + F6"] },
-        { action: "代码导航栏：调整宽度 16px", keys: ["← / →"] },
-        { action: "代码导航栏：调整宽度 64px", keys: ["Shift + ← / →"] },
-        { action: "代码导航栏：最窄 / 最宽", keys: ["Home / End"] },
+        { action: m.s2_sc_panel_cycle(), keys: ["F6 / Shift + F6"] },
+        { action: m.s2_sc_nav_resize_16(), keys: ["← / →"] },
+        { action: m.s2_sc_nav_resize_64(), keys: ["Shift + ← / →"] },
+        { action: m.s2_sc_nav_minmax(), keys: ["Home / End"] },
       ],
     },
     {
-      title: "聊天输入",
-      scope:
-        "混合会话的聊天输入框；斜杠菜单打开时，Enter 仍然发送，Tab 填入指令。",
+      title: m.s2_sc_g_chat(),
+      scope: m.s2_sc_g_chat_scope(),
       shortcuts: [
-        { action: "发送消息（桌面）", keys: ["Enter"] },
-        { action: "换行（触屏上 Enter 也换行）", keys: ["Shift + Enter"] },
-        { action: "发送；运行中支持时插入提示", keys: ["Ctrl / ⌘ + Enter"] },
-        { action: "斜杠菜单：选择指令", keys: ["↑ / ↓"] },
-        { action: "斜杠菜单：填入 / 关闭", keys: ["Tab / Esc"] },
+        { action: m.s2_sc_chat_send(), keys: ["Enter"] },
+        { action: m.s2_sc_chat_newline(), keys: ["Shift + Enter"] },
+        { action: m.s2_sc_chat_steer(), keys: ["Ctrl / ⌘ + Enter"] },
+        { action: m.s2_sc_slash_nav(), keys: ["↑ / ↓"] },
+        { action: m.s2_sc_slash_fill(), keys: ["Tab / Esc"] },
       ],
     },
     {
-      title: "列表与弹窗",
-      scope: "在工作区、聊天、终端或设置中可以快速切换会话。",
+      title: m.s2_sc_g_dialogs(),
+      scope: m.s2_sc_g_dialogs_scope(),
       shortcuts: [
-        { action: "快速切换会话", keys: ["⌘ + K / Ctrl + Alt + K"] },
-        { action: "会话列表：聚焦搜索框", keys: ["/"] },
-        { action: "搜索框：清除筛选", keys: ["Esc"] },
-        { action: "关闭弹窗或菜单", keys: ["Esc"] },
-        { action: "目录选择：返回上级目录", keys: ["Alt + ↑"] },
-        { action: "目录选择：填入补全建议", keys: ["Tab"] },
-        { action: "聊天授权：输入框外选择对应选项", keys: ["1–9"] },
+        {
+          action: m.s2_sc_switch_session(),
+          keys: ["⌘ + K / Ctrl + Alt + K"],
+        },
+        { action: m.s2_sc_focus_search(), keys: ["/"] },
+        { action: m.s2_sc_clear_search(), keys: ["Esc"] },
+        { action: m.s2_sc_close_modal(), keys: ["Esc"] },
+        { action: m.s2_sc_dir_up(), keys: ["Alt + ↑"] },
+        { action: m.s2_sc_dir_complete(), keys: ["Tab"] },
+        { action: m.s2_sc_perm_digit(), keys: ["1–9"] },
       ],
     },
-  ];
+  ]);
 </script>
 
 <Card.Root flat id="shortcuts" class="scroll-mt-4">
   <Card.Header>
-    <Card.Title>快捷键</Card.Title>
-    <Card.Description>WebMux 的键盘操作，按使用场景查阅。</Card.Description>
+    <Card.Title>{m.s2_shortcuts_title()}</Card.Title>
+    <Card.Description>{m.s2_shortcuts_desc()}</Card.Description>
   </Card.Header>
   <Card.Content>
     <div>
@@ -139,7 +140,7 @@
                 >
                   {#each shortcut.keys as key, index (index)}
                     {#if index > 0}<span class="text-xs text-muted-foreground"
-                        >再按</span
+                        >{m.s2_sc_then()}</span
                       >{/if}
                     <kbd
                       class="rounded-sm border bg-muted px-1.5 py-0.5 font-mono text-xs"
@@ -154,7 +155,7 @@
       {/each}
     </div>
     <p class="mt-4 text-xs text-muted-foreground">
-      Shell 和 CLI 的其他键位由当前程序决定；草稿需点击发送。
+      {m.s2_sc_footer()}
     </p>
   </Card.Content>
 </Card.Root>

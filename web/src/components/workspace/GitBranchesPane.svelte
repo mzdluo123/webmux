@@ -5,6 +5,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type { Remote } from "../../contracts/schemas";
   import type {
     GitBranchItem,
@@ -149,11 +150,11 @@
               activeBranch?.name === item.name}
             {branchFilter}
             {sectionId}
-            currentLabel="当前工作树"
+            currentLabel={m.s6_current_worktree_badge()}
             occupiedLabelStyle="verbose"
             compareBaseOid={context.headOid ?? null}
-            compareTargetLabel="与当前 HEAD 比较"
-            menuLabel={`分支操作 ${item.name}`}
+            compareTargetLabel={m.s6_compare_with_head()}
+            menuLabel={m.s6_branch_actions_menu_label({ name: item.name })}
             onSelectRow={() => (selectedKey = `${item.kind}:${item.name}`)}
             onAction={routeBranchOp}
           />
@@ -174,7 +175,7 @@
         class={desktop.current
           ? "flex min-h-0 min-w-0 flex-1 flex-col border-r"
           : "flex shrink-0 min-w-0 flex-col border-b"}
-        aria-label="分支与上游列表"
+        aria-label={m.s6_branches_list_section_aria()}
       >
         <div
           class="flex min-w-0 flex-wrap items-center gap-2 border-b bg-background p-2.5"
@@ -183,8 +184,8 @@
             <Input
               size="sm"
               value={query}
-              placeholder="搜索本地分支、远程分支或标签…"
-              aria-label="搜索分支或标签"
+              placeholder={m.s6_branches_search_placeholder()}
+              aria-label={m.s6_branches_search_aria()}
               oninput={(e) => (query = e.currentTarget.value)}
             />
           </div>
@@ -196,7 +197,7 @@
               data-testid="git-branches-create-tag-head-btn"
             >
               <IconTag aria-hidden="true" />
-              新建标签…
+              {m.s6_create_tag_ellipsis()}
             </Button>
           {/if}
         </div>
@@ -207,29 +208,41 @@
           class="min-h-8 flex-1"
           viewportProps={{
             role: "listbox",
-            "aria-label": "分支列表",
+            "aria-label": m.s6_branches_listbox_aria(),
             "aria-orientation": "vertical",
             onkeydown: handleBranchListKeydown,
           }}
         >
           <div class="space-y-3 p-2">
-            {@render branchGroup("current", "当前检出", grouped.current)}
-            {@render branchGroup("favorites", "收藏分支", grouped.favorites)}
+            {@render branchGroup(
+              "current",
+              m.s6_branches_group_current(),
+              grouped.current,
+            )}
+            {@render branchGroup(
+              "favorites",
+              m.s6_branches_group_favorites(),
+              grouped.favorites,
+            )}
             {@render branchGroup(
               "local",
-              "本地分支",
+              m.s6_branches_group_local(),
               grouped.local.filter((b) => !b.favorite),
             )}
             {@render branchGroup(
               "remote",
-              "远程跟踪分支",
+              m.s6_branches_group_remote(),
               grouped.remote.filter((b) => !b.favorite),
             )}
-            {@render branchGroup("tags", "标签", grouped.tags)}
+            {@render branchGroup(
+              "tags",
+              m.s6_branches_group_tags(),
+              grouped.tags,
+            )}
 
             {#if allVisible.length === 0}
               <p class="p-3 text-xs text-muted-foreground">
-                没有匹配的分支或标签。
+                {m.s6_branches_no_matches()}
               </p>
             {/if}
           </div>
@@ -240,7 +253,7 @@
         class={desktop.current
           ? "flex w-96 min-h-0 shrink-0 flex-col bg-background"
           : "flex shrink-0 flex-col bg-background"}
-        aria-label="选中分支详情与工作树占用"
+        aria-label={m.s6_branches_detail_section_aria()}
       >
         <ScrollArea class="min-h-8 flex-1">
           <div class={desktop.current ? "space-y-4 p-4" : "space-y-4 p-3"}>

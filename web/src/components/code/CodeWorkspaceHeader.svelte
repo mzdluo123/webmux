@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -68,13 +69,13 @@
       variant="ghost"
       size="icon-sm"
       class="relative"
-      aria-label={navOpen ? "收起导航" : "文件导航"}
+      aria-label={navOpen ? m.s5_collapse_nav() : m.s5_file_navigation()}
       aria-expanded={navOpen}
       title={navOpen
-        ? "收起导航"
+        ? m.s5_collapse_nav()
         : navStatus
-          ? `文件导航（${navStatus}）`
-          : "文件导航"}
+          ? m.s5_file_navigation_with_status({ status: navStatus })
+          : m.s5_file_navigation()}
       onclick={() => (navOpen = !navOpen)}
       >{#if navOpen}<IconLayoutSidebarLeftCollapse
           aria-hidden="true"
@@ -86,7 +87,7 @@
         ></span>{/if}</Button
     >
   </div>
-  <Tabs.List variant="line" aria-label="文件标签">
+  <Tabs.List variant="line" aria-label={m.s5_file_tabs()}>
     {#snippet child({ props })}
       <div
         {...props}
@@ -94,7 +95,7 @@
       >
         {#each tabs as tab (tab.key)}
           {@const path = tab.file?.document.path ?? tab.diff?.new.path ?? ""}
-          {@const meta = `${tab.rootKind === "artifacts" ? "临时文件夹" : tab.diff ? tab.diff.change.group : tab.file?.document.source}${tab.status !== "unchanged" ? " ●" : ""}`}
+          {@const meta = `${tab.rootKind === "artifacts" ? m.s5_artifacts_folder() : tab.diff ? tab.diff.change.group : tab.file?.document.source}${tab.status !== "unchanged" ? " ●" : ""}`}
           {@const image = [
             tab.file?.document.mediaType,
             tab.diff?.new.mediaType,
@@ -105,7 +106,7 @@
               value={tab.key}
               aria-label={`${path} · ${meta}`}
               title={tab.rootKind === "artifacts"
-                ? `临时文件夹 · ${path}`
+                ? m.s5_artifacts_tab_title({ path })
                 : path}
               onclick={beginOpen}
               onkeydown={supersedeOpenOnTabKey}
@@ -121,8 +122,8 @@
             </Tabs.Trigger>
             <ListButton
               variant="tab-close"
-              aria-label={`关闭 ${path}`}
-              title={`关闭 ${path}`}
+              aria-label={m.s5_close_tab({ path })}
+              title={m.s5_close_tab({ path })}
               onclick={() => close(tab.key)}
               ><IconX aria-hidden="true" /></ListButton
             >
@@ -137,8 +138,8 @@
               {...props}
               variant="ghost"
               size="icon-sm"
-              aria-label="文件 Git 历史与 Blame"
-              title={`文件历史 / Blame / 比较（${inspectablePath}）`}
+              aria-label={m.s5_file_git_history_and_blame()}
+              title={m.s5_file_inspector_title({ path: inspectablePath })}
               data-testid="code-git-file-inspector-trigger"
               ><IconHistory aria-hidden="true" /></Button
             >{/snippet}
@@ -151,32 +152,34 @@
           <DropdownMenu.Item
             onclick={() => onInspectGitFile(inspectablePath, "history")}
           >
-            文件历史 (--follow)
+            {m.s5_file_history_follow()}
           </DropdownMenu.Item>
           <DropdownMenu.Item
             onclick={() => onInspectGitFile(inspectablePath, "blame")}
           >
-            逐行溯源 (Blame)
+            {m.s5_line_blame()}
           </DropdownMenu.Item>
           <DropdownMenu.Item
             onclick={() => onInspectGitFile(inspectablePath, "compare")}
           >
-            与分支/提交比较
+            {m.s5_compare_with_ref()}
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Root>{/if}
     {#if onOpenGit}<Button
         variant="ghost"
         size="icon-sm"
-        aria-label="在 Git 中查看"
-        title="在 Git 中查看"
+        aria-label={m.s5_view_in_git()}
+        title={m.s5_view_in_git()}
         onclick={onOpenGit}><IconGitBranch aria-hidden="true" /></Button
       >{/if}
     <Button
       variant="ghost"
       size="icon-sm"
-      aria-label="刷新全部"
-      title={context?.rootPath ? `刷新全部（${context.rootPath}）` : "刷新全部"}
+      aria-label={m.s5_refresh_all()}
+      title={context?.rootPath
+        ? m.s5_refresh_all_root({ path: context.rootPath })
+        : m.s5_refresh_all()}
       disabled={pending}
       onclick={refreshAll}><IconRefresh aria-hidden="true" /></Button
     >
@@ -184,9 +187,13 @@
         variant="ghost"
         size="icon-sm"
         class="max-sm:hidden"
-        aria-label={popout.popped ? "收回代码窗口" : "在独立窗口中显示代码"}
+        aria-label={popout.popped
+          ? m.s5_dock_code_window()
+          : m.s5_open_code_in_popout()}
         aria-pressed={popout.popped}
-        title={popout.popped ? "收回代码窗口" : "在独立窗口中显示代码"}
+        title={popout.popped
+          ? m.s5_dock_code_window()
+          : m.s5_open_code_in_popout()}
         onclick={() => popout?.toggle()}
         >{#if popout.popped}<IconPictureInPictureOff
             aria-hidden="true"
@@ -199,8 +206,8 @@
               variant="ghost"
               size="icon-sm"
               class="sm:hidden"
-              aria-label="代码菜单"
-              title="代码菜单"><IconDots aria-hidden="true" /></Button
+              aria-label={m.s5_code_menu()}
+              title={m.s5_code_menu()}><IconDots aria-hidden="true" /></Button
             >{/snippet}
         </DropdownMenu.Trigger>
         <DropdownMenu.Content

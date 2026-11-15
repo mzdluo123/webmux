@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import * as m from "$lib/paraglide/messages.js";
   import IconDots from "~icons/tabler/dots";
+  import IconTrash from "~icons/tabler/trash";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 
@@ -9,12 +11,16 @@
   let {
     label,
     disabled = false,
+    deleteAriaLabel,
+    ondelete,
     children,
   }: {
-    /** The row's name; it completes the accessible name "操作 <label>". */
+    /** The row's name; it completes the accessible name. */
     label: string;
     disabled?: boolean;
-    children: Snippet;
+    deleteAriaLabel?: string;
+    ondelete?: () => void;
+    children?: Snippet;
   } = $props();
 </script>
 
@@ -25,12 +31,20 @@
         {...props}
         variant="ghost"
         size="icon"
-        aria-label={`操作 ${label}`}
-        title="操作"><IconDots aria-hidden="true" /></Button
+        aria-label={m.s2_row_actions_aria({ label })}
+        title={m.s2_row_actions_title()}><IconDots aria-hidden="true" /></Button
       >
     {/snippet}
   </DropdownMenu.Trigger>
   <DropdownMenu.Content align="end" class="min-w-40">
-    {@render children()}
+    {@render children?.()}
+    {#if ondelete}
+      <DropdownMenu.Item
+        variant="destructive"
+        aria-label={deleteAriaLabel ?? m.s2_delete_item({ name: label })}
+        onSelect={ondelete}
+        ><IconTrash aria-hidden="true" />{m.s2_delete()}</DropdownMenu.Item
+      >
+    {/if}
   </DropdownMenu.Content>
 </DropdownMenu.Root>

@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import { repositoryBranches, repositoryRemotes } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import {
@@ -365,7 +366,7 @@ export async function performStageMutation(options: {
         reason,
         busyOutcome: {
           status: "busy_locked",
-          summary: "检测到外部 Git index.lock，暂存操作已安全中止。",
+          summary: m.s7_stage_busy_lock_summary(),
           reasons: [errorMessage(err)],
         },
       };
@@ -469,7 +470,7 @@ export async function performGitCommitExecution(options: {
         reason,
         busyOutcome: {
           status: "busy_locked",
-          summary: "检测到外部 Git index.lock，提交未执行。",
+          summary: m.s7_commit_busy_lock_summary(),
           reasons: [errorMessage(err)],
         },
       };

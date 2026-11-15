@@ -1,4 +1,5 @@
 import { onMount } from "svelte";
+import * as m from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import { requestPluginHostRefresh } from "../../platform/plugin-host.svelte";
@@ -88,7 +89,9 @@ export function useP2PSettings() {
       if (requests.disposed) return false;
       schedulePortMapPoll(next);
       ui.feedback =
-        method === "DELETE" ? "已恢复配置文件默认。" : "P2P 设置已保存。";
+        method === "DELETE"
+          ? m.s2_p2p_feedback_reset()
+          : m.s2_p2p_feedback_saved();
       return true;
     } catch (cause) {
       if (!requests.disposed) ui.failure = errorMessage(cause);

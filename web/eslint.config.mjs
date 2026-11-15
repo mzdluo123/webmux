@@ -67,6 +67,7 @@ export default defineConfig([
       "test-results/**",
       ".vitest/**",
       "reports/**",
+      "src/lib/paraglide/**",
       // shadcn-svelte helper; its disable comments name typescript-eslint rules.
       "src/lib/utils.ts",
     ],

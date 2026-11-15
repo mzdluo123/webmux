@@ -3,6 +3,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
   import { Textarea } from "$lib/components/ui/textarea";
+  import * as m from "$lib/paraglide/messages.js";
   import {
     DIR_REFERENCE_NAME,
     initInstructionReferences,
@@ -23,7 +24,7 @@
     id,
     commands,
     commandsAvailable = true,
-    label = "初始化指令",
+    label: labelProp,
   }: {
     value: string;
     id: string;
@@ -31,6 +32,7 @@
     commandsAvailable?: boolean;
     label?: string;
   } = $props();
+  const label = $derived(labelProp ?? m.s3_init_instruction_label());
   let field = $state<HTMLTextAreaElement | null>(null);
   const over = $derived(value.length > INIT_INSTRUCTION_MAX);
   const names = $derived([
@@ -62,13 +64,15 @@
 <div class="space-y-2">
   <Label for={id}>{label}</Label>
   <p id={`${id}-help`} class="text-xs text-muted-foreground">
-    这是一段模板：
-    {#if commandsAvailable}写 {"{{快捷指令名称}}"} 会插入该快捷指令的文本（只展开一层，不递归）；{/if}
-    写 <code>{"{{dir}}"}</code>
-    会换成新会话的临时文件夹路径，写 <code>{"{{webmux}}"}</code>
-    会换成 WebMux 工具说明（手册地址、命令路径与临时文件夹），写
+    {m.s3_init_help_intro()}
+    {#if commandsAvailable}{m.s3_init_help_cmd_ref({
+        token: `{{${m.s3_init_help_cmd_token_name()}}}`,
+      })}{/if}
+    {m.s3_init_help_write_dir()} <code>{"{{dir}}"}</code>
+    {m.s3_init_help_dir_to_webmux()} <code>{"{{webmux}}"}</code>
+    {m.s3_init_help_webmux_to_user()}
     <code>{"{{user}}"}</code>
-    可指定你的第一条消息放在哪里，不写则接在指令后面空一行。启动会话时勾选“使用初始化指令”才会随首条消息发送；从聊天开始时默认勾选，从终端开始时默认不勾选。留空保存即清除。
+    {m.s3_init_help_outro()}
   </p>
   <Textarea
     {id}
@@ -77,7 +81,7 @@
     bind:value
     aria-invalid={over}
     aria-describedby={`${id}-help ${id}-count`}
-    placeholder="例如：先阅读 AGENTS.md，改完运行 make check"
+    placeholder={m.s3_init_instruction_placeholder()}
   />
   <p id={`${id}-count`} class="flex justify-end text-xs text-muted-foreground">
     <span class={`tabular-nums ${over ? "text-destructive" : ""}`}
@@ -85,51 +89,59 @@
     >
   </p>
   <div class="space-y-1">
-    <p class="text-xs text-muted-foreground">可插入</p>
-    <div class="flex flex-wrap gap-1" role="group" aria-label="快捷指令">
+    <p class="text-xs text-muted-foreground">{m.s3_init_insertable()}</p>
+    <div
+      class="flex flex-wrap gap-1"
+      role="group"
+      aria-label={m.s3_quick_commands_label()}
+    >
       <Button
         type="button"
         variant="outline"
         size="xs"
-        title={"插入 {{user}}：你的第一条消息"}
-        aria-label="插入用户输入"
-        onclick={() => void insert(USER_REFERENCE_NAME)}>用户输入</Button
+        title={m.s3_init_insert_user_title({ token: "{{user}}" })}
+        aria-label={m.s3_init_insert_user_label()}
+        onclick={() => void insert(USER_REFERENCE_NAME)}
+        >{m.s3_init_user_btn()}</Button
       >
       <Button
         type="button"
         variant="outline"
         size="xs"
-        title={"插入 {{webmux}}：WebMux 工具说明"}
-        aria-label="插入 WebMux 工具说明"
-        onclick={() => void insert(WEBMUX_REFERENCE_NAME)}>WebMux 说明</Button
+        title={m.s3_init_insert_webmux_title({ token: "{{webmux}}" })}
+        aria-label={m.s3_init_insert_webmux_label()}
+        onclick={() => void insert(WEBMUX_REFERENCE_NAME)}
+        >{m.s3_init_webmux_btn()}</Button
       >
       {#each names as name (name)}
         <Button
           type="button"
           variant="outline"
           size="xs"
-          title={`插入 {{${name}}}`}
-          aria-label={`插入 ${name}`}
+          title={m.s3_init_insert_token({ token: `{{${name}}}` })}
+          aria-label={m.s3_init_insert_named({ name })}
           onclick={() => void insert(name)}>{name}</Button
         >
       {/each}
     </div>
     {#if !commandsAvailable}
       <p class="text-xs text-muted-foreground">
-        快捷指令功能未启用或暂不可用；已有引用会保留，但不能展开。
+        {m.s3_init_commands_unavailable()}
       </p>
     {:else if !names.length}
       <p class="text-xs text-muted-foreground">
-        还没有带名称的快捷指令，请先在设置中添加。
+        {m.s3_init_no_named_commands()}
       </p>
     {/if}
   </div>
   {#if unknown.length}
     <InlineNotice tone="warning">
       <p>
-        找不到这些快捷指令：{unknown
-          .map((name) => `{{${name}}}`)
-          .join("、")}。仍可保存，但快速开始勾选使用时会被拒绝。
+        {m.s3_init_unknown_commands_warning({
+          names: unknown
+            .map((name) => `{{${name}}}`)
+            .join(m.s3_list_separator()),
+        })}
       </p>
     </InlineNotice>
   {/if}

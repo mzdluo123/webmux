@@ -3,6 +3,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import * as m from "$lib/paraglide/messages.js";
   import type { GitDiscardPreview } from "../../contracts/schemas";
   import { canConfirmPreviewModel } from "../../domains/workspace/git-v2-adapter";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -38,11 +39,13 @@
   const scopeLabel = $derived.by(() => {
     switch (preview?.scope) {
       case "lines":
-        return `所选代码行（${preview.lineCount} 行）`;
+        return m.s6_discard_scope_lines({ count: String(preview.lineCount) });
       case "hunks":
-        return `所选变更块（${preview.hunkCount} 块）`;
+        return m.s6_discard_scope_hunks({ count: String(preview.hunkCount) });
       default:
-        return `文件级更改（${preview?.items.length ?? 0} 个路径）`;
+        return m.s6_discard_scope_files({
+          count: String(preview?.items.length ?? 0),
+        });
     }
   });
 
@@ -53,29 +56,24 @@
 </script>
 
 <ResponsiveDialog
-  title="确认丢弃未暂存更改 (Discard Changes)"
-  description="此操作将直接改写工作区文件或删除未跟踪文件（绝不触碰已暂存的 Git index），执行前会自动保存一份安全恢复快照。"
-  drawerDescription="核对将覆盖或删除的工作区路径后确认丢弃。"
+  title={m.s6_discard_dialog_title()}
+  description={m.s6_discard_dialog_desc()}
+  drawerDescription={m.s6_discard_dialog_drawer_desc()}
   busy={submitting}
   class="sm:max-w-lg"
   onclose={onClose}
 >
   <div class="space-y-3" data-testid="git-discard-preview-dialog">
     <InlineNotice tone="warning">
-      丢弃更改与「取消暂存
-      (Unstage)」严格分离：此处仅还原工作区未暂存改动或移除未跟踪文件，已暂存区内容保持不变。服务端在写入磁盘前将再次校验文件哈希（409
-      防误覆盖保护），并在
+      {m.s6_discard_notice_before()}
       <span class="font-mono">refs/webmux/discard-recovery/</span>
-      保留最多 20 份紧急恢复快照。
+      {m.s6_discard_notice_after()}
     </InlineNotice>
 
     {#if staleRejected}
       <InlineNotice tone="warning">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>
-            自打开预览以来，外部终端或 Agent
-            修改了目标文件，已拒绝覆盖并中止写入。
-          </span>
+          <span>{m.s6_discard_stale_rejected()}</span>
           {#if onRefreshAfterStale}
             <Button
               size="sm"
@@ -85,7 +83,7 @@
               data-testid="git-discard-refresh-stale-btn"
             >
               <IconRefresh aria-hidden="true" />
-              刷新最新快照再预览
+              {m.s6_discard_refresh_stale_btn()}
             </Button>
           {/if}
         </div>
@@ -94,13 +92,13 @@
 
     {#if loading && !preview}
       <p class="text-xs text-muted-foreground" role="status">
-        正在核验工作区文件哈希与影响范围…
+        {m.s6_discard_loading_hashes()}
       </p>
     {:else if preview}
       <div class="space-y-2 rounded-lg border bg-background p-3 text-xs">
         <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           <Badge variant="destructive" class="max-w-full">
-            <span class="truncate">破坏性写操作</span>
+            <span class="truncate">{m.s6_discard_destructive_badge()}</span>
           </Badge>
           <Badge variant="outline" class="max-w-full">
             <span class="truncate">{scopeLabel}</span>
@@ -113,7 +111,9 @@
         {#if preview.trackedOverwritePaths.length > 0}
           <div class="space-y-1">
             <p class="font-semibold text-foreground">
-              将还原覆盖的已跟踪文件 ({preview.trackedOverwritePaths.length})：
+              {m.s6_discard_tracked_heading({
+                count: String(preview.trackedOverwritePaths.length),
+              })}
             </p>
             <div
               class="rounded-sm border bg-background"
@@ -133,7 +133,9 @@
         {#if preview.untrackedDeletePaths.length > 0}
           <div class="space-y-1">
             <p class="font-semibold text-destructive">
-              将从磁盘删除的未跟踪文件 ({preview.untrackedDeletePaths.length})：
+              {m.s6_discard_untracked_heading({
+                count: String(preview.untrackedDeletePaths.length),
+              })}
             </p>
             <div
               class="rounded-sm border bg-background"
@@ -156,8 +158,7 @@
       {/if}
 
       <p class="text-muted-foreground" data-testid="git-discard-recovery-note">
-        执行前将自动保存有界恢复快照（最多保留最近 20
-        次），执行后可在底部操作栏复制恢复命令。
+        {m.s6_discard_recovery_note()}
       </p>
 
       {#if preview.sessions.length > 0}
@@ -165,7 +166,7 @@
           sessions={preview.sessions}
           {acknowledgeSessions}
           disabled={submitting}
-          acknowledgementLabel="我已知晓当前工作树有活跃会话，丢弃更改将直接改写或删除上述工作树文件"
+          acknowledgementLabel={m.s6_discard_session_ack()}
           {onAcknowledgeSessionsChange}
         />
       {/if}
@@ -176,8 +177,8 @@
       {submitting}
       {canConfirm}
       wrap
-      confirmLabel="确认丢弃更改"
-      submittingLabel="正在安全备份并丢弃…"
+      confirmLabel={m.s6_discard_confirm_btn()}
+      submittingLabel={m.s6_discard_submitting_btn()}
       confirmVariant="destructive"
       confirmTestId="git-discard-confirm-btn"
       {onConfirm}

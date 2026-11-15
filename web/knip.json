@@ -10,7 +10,11 @@
     "test/**/*.ts"
   ],
   "ignore": ["src/lib/components/ui/**"],
-  "ignoreDependencies": ["@typescript/native", "shadcn-svelte"],
+  "ignoreDependencies": [
+    "@inlang/plugin-message-format",
+    "@typescript/native",
+    "shadcn-svelte"
+  ],
   "rules": {
     "files": "error",
     "duplicates": "error",

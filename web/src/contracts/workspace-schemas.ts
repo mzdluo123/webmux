@@ -1,4 +1,5 @@
 import { z } from "zod";
+import * as m from "$lib/paraglide/messages.js";
 import {
   ChatAttachmentSchema,
   ChatConfigSchema,
@@ -456,19 +457,19 @@ export const CreateSessionRequestSchema = z
     (body) =>
       !body.configId ||
       (!body.cmd?.length && Object.keys(body.env ?? {}).length === 0),
-    { message: "configId 不能与 cmd 或 env 同时提供" },
+    { error: () => m.s1_schema_config_id_conflicts_cmd_env() },
   )
   .refine(
     (body) =>
       !body.useInitInstruction || !!body.workspace || !!body.newWorktree,
-    { message: "useInitInstruction 需要 workspace 或 newWorktree" },
+    { error: () => m.s1_schema_init_instruction_requires_workspace() },
   )
   .refine((body) => !body.view || !!body.configId, {
-    message: "view 只能与带聊天视图的 configId 一起提供",
+    error: () => m.s1_schema_view_requires_chat_config(),
   })
   .refine(
     (body) =>
       body.view === "chat" || (!body.agentConfig && !body.permissionMode),
-    { message: "agentConfig 与 permissionMode 只用于聊天视图" },
+    { error: () => m.s1_schema_agent_config_chat_only() },
   );
 export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>;

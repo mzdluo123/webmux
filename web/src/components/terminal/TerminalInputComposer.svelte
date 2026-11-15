@@ -5,6 +5,8 @@
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { locale } from "$lib/locale";
+  import * as m from "$lib/paraglide/messages.js";
   import { useTextareaDraft } from "../../hooks/terminal/textarea-draft.svelte";
   import { editDraftKey } from "../../domains/terminal/draft-key";
   import type {
@@ -45,13 +47,14 @@
     // The microphone, beside the draft's other actions.
     voice?: Snippet;
   } = $props();
-  const submissionText = {
-    saved: "已保存在本机，正在发送…",
-    sending: "已发出，等待服务端确认…",
-    received: "服务端已收到，正在写入终端…",
-    unknown: "连接中断，结果未知；恢复连接后自动查询，也可按原提交重发",
-    partial: "只有部分内容写入终端，提交键未写入；请检查终端",
-  } as Record<string, string>;
+  function submissionText(state: string): string {
+    if (state === "saved") return m.s4_draft_sub_saved();
+    if (state === "sending") return m.s4_draft_sub_sending();
+    if (state === "received") return m.s4_draft_sub_received();
+    if (state === "unknown") return m.s4_draft_sub_unknown();
+    if (state === "partial") return m.s4_draft_sub_partial();
+    return "";
+  }
   const locked = $derived(!!draft.submission);
   let textarea = $state<HTMLTextAreaElement | null>(null);
   let clearOpen = $state(false);
@@ -116,18 +119,20 @@
   }
 </script>
 
-<section class="terminal-composer" aria-label="终端输入草稿">
+<section class="terminal-composer" aria-label={m.s4_composer_aria()}>
   {#if draft.restoredAt}
     <p class="shrink-0 truncate text-xs text-muted-foreground" role="status">
-      已恢复本机草稿（{new Date(draft.restoredAt).toLocaleString()}）· 目标：{target}
-      · 点击发送才会提交
+      {m.s4_draft_restored_banner({
+        time: new Date(draft.restoredAt).toLocaleString(locale.current),
+        target,
+      })}
     </p>
   {/if}
   <Textarea
     bind:ref={textarea}
     value={draft.text}
     readonly={locked}
-    aria-label="草稿内容"
+    aria-label={m.s4_draft_content_aria()}
     code
     class="min-h-0 flex-1 resize-none overflow-y-auto field-sizing-fixed"
     oninput={(event) =>
@@ -151,9 +156,9 @@
     {#if draft.submission || unavailable}<span
         class="min-w-0 flex-[1_1_100%] wrap-anywhere sm:flex-[1_1_12rem] text-xs text-muted-foreground"
         role="status"
-        aria-label="草稿提交状态"
+        aria-label={m.s4_draft_submission_status_aria()}
         >{draft.submission
-          ? submissionText[draft.submission.state]
+          ? submissionText(draft.submission.state)
           : unavailable}</span
       >{/if}
     <div
@@ -164,29 +169,32 @@
           variant="outline"
           size="sm"
           disabled={!!unavailable}
-          title="服务端若已收到原提交，不会重复写入"
-          onclick={resend}>按原提交重发</Button
+          title={m.s4_resend_original_title()}
+          onclick={resend}>{m.s4_resend_original()}</Button
         >
       {/if}
       {#if draft.submission?.state === "unknown" || draft.submission?.state === "partial"}
         <Button
           variant="outline"
           size="sm"
-          title="停止跟踪这次提交，把正文作为普通草稿继续编辑"
-          onclick={release}>转为草稿</Button
+          title={m.s4_release_to_draft_title()}
+          onclick={release}>{m.s4_release_to_draft()}</Button
         >
       {/if}
       {#if voice}{@render voice()}{/if}
       <Button
         variant="ghost"
         size="sm"
-        title="打开暂存"
+        title={m.s4_open_scratch()}
         disabled={selection.composing}
         aria-label={draft.scratch.length
-          ? `打开暂存，共 ${draft.scratch.length} 条`
-          : "打开暂存"}
+          ? m.s4_open_scratch_with_count({
+              count: String(draft.scratch.length),
+            })
+          : m.s4_open_scratch()}
         onclick={openScratch}
-        ><IconInbox aria-hidden="true" /><span class="sr-only">暂存</span
+        ><IconInbox aria-hidden="true" /><span class="sr-only"
+          >{m.s4_scratch_title()}</span
         >{#if draft.scratch.length}<span
             class="rounded-sm bg-muted px-1.5 text-xs tabular-nums"
             aria-hidden="true">{draft.scratch.length}</span
@@ -195,8 +203,8 @@
       <Button
         variant="ghost"
         size="icon-sm"
-        title="清空草稿"
-        aria-label="清空草稿"
+        title={m.s4_clear_draft()}
+        aria-label={m.s4_clear_draft()}
         disabled={!draft.text || selection.composing}
         onclick={() => (clearOpen = true)}
         ><IconTrash aria-hidden="true" /></Button
@@ -207,7 +215,7 @@
           disabled={!draft.text || !!unavailable || selection.composing}
           onclick={() => {
             if (!selection.composing) send();
-          }}>发送</Button
+          }}>{m.s4_send()}</Button
         >
       {/if}
     </div>
@@ -216,9 +224,8 @@
 
 <ConfirmDialog
   bind:open={clearOpen}
-  title="清空草稿？"
-  confirmLabel="确认清空"
+  title={m.s4_clear_draft_title()}
+  confirmLabel={m.s4_confirm_clear()}
   destructive
-  onconfirm={() => drafts.clear(draft)}
-  >清空当前草稿及其本机保存，不影响终端或已上传文件。此操作无法撤销。</ConfirmDialog
+  onconfirm={() => drafts.clear(draft)}>{m.s4_clear_draft_desc()}</ConfirmDialog
 >

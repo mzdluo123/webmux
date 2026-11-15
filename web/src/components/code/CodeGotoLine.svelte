@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import IconX from "~icons/tabler/x";
@@ -26,8 +27,8 @@
 >
   <Input
     bind:value
-    aria-label="跳转到行"
-    placeholder="行号，可用 +N、-N、N%、行:列"
+    aria-label={m.s5_goto_line_aria()}
+    placeholder={m.s5_goto_line_placeholder()}
     inputmode="numeric"
     class="h-7 flex-1"
     onkeydown={(e) => {
@@ -36,13 +37,13 @@
       onclose();
     }}
   />
-  <Button type="submit" size="sm">跳转</Button>
+  <Button type="submit" size="sm">{m.s5_go()}</Button>
   <Button
     type="button"
     variant="ghost"
     size="icon-sm"
-    aria-label="关闭跳转行"
-    title="关闭跳转行（Esc）"
+    aria-label={m.s5_close_goto_line()}
+    title={m.s5_close_goto_line_esc()}
     onclick={onclose}><IconX aria-hidden="true" /></Button
   >
 </form>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from "$lib/paraglide/messages.js";
   import * as Command from "$lib/components/ui/command";
 
   // The searchable list of a repository's local and optional remote-tracking
@@ -57,30 +58,37 @@
 >
   <Command.Input
     bind:value={search}
-    placeholder={remoteBranches.length ? "搜索分支…" : "搜索本地分支…"}
-    aria-label={remoteBranches.length ? "搜索分支" : "搜索本地分支"}
+    placeholder={remoteBranches.length
+      ? m.s8_search_branches_placeholder()
+      : m.s8_search_local_branches_placeholder()}
+    aria-label={remoteBranches.length
+      ? m.s8_search_branches_label()
+      : m.s8_search_local_branches_label()}
     autocomplete="off"
     autocapitalize="off"
     autocorrect="off"
     spellcheck={false}
   />
-  <Command.List aria-label="本地分支列表" class="max-h-[min(14rem,50dvh)] p-1">
+  <Command.List
+    aria-label={m.s8_local_branch_list_label()}
+    class="max-h-[min(14rem,50dvh)] p-1"
+  >
     <Command.Empty>
       {loading
-        ? "正在读取本地分支…"
+        ? m.s8_loading_local_branches()
         : failed
-          ? "无法读取本地分支"
-          : "没有匹配的本地分支"}
+          ? m.s8_failed_local_branches()
+          : m.s8_no_matching_local_branches()}
     </Command.Empty>
     {#if remoteBranches.length}
       {#if branches.length}
-        <Command.Group heading="本地分支">
+        <Command.Group heading={m.s8_local_branches()}>
           {#each branches as item (item.name)}
             {@render branchOption(item)}
           {/each}
         </Command.Group>
       {/if}
-      <Command.Group heading="远程分支">
+      <Command.Group heading={m.s8_remote_branches()}>
         {#each remoteBranches as item (item.name)}
           {@render branchOption(item)}
         {/each}

@@ -1,3 +1,4 @@
+import * as m from "$lib/paraglide/messages.js";
 import { SvelteSet } from "svelte/reactivity";
 import { errorMessage } from "../../platform/error";
 import {
@@ -54,7 +55,9 @@ function mergeTaskFiles(
 }
 
 function formatBaselineEndpoint(baseline: GitTaskBaseline | null): string {
-  if (!baseline || baseline.unborn || !baseline.baseOid) return "空仓起点";
+  if (!baseline || baseline.unborn || !baseline.baseOid) {
+    return m.s7_unborn_baseline();
+  }
   return baseline.baseOid.slice(0, 7);
 }
 
@@ -138,9 +141,9 @@ export function createGitTaskReviewController(
       baseOid: baseline.baseOid ?? "",
       targetOid: "WORKTREE",
       leftLabel: formatBaselineEndpoint(baseline),
-      rightLabel: "当前工作区",
+      rightLabel: m.s7_current_working_tree(),
       file,
-      missingReason: "未找到该路径相对任务起点的差异内容。",
+      missingReason: m.s7_task_diff_missing_reason(),
       fetchDiff: (_cid, signal) =>
         gitTaskDiff(repoId, wtId, { path: filePath }, signal),
     });
@@ -280,13 +283,13 @@ export function createGitTaskReviewController(
       if (!req.reportable()) return;
       patchReview({ loadingMore: false });
       deps.patchView({
-        statusBanner: `加载更多任务变更失败：${errorMessage(err)}`,
+        statusBanner: m.s7_task_more_load_failed({ error: errorMessage(err) }),
       });
     }
   }
 
   async function runBaselineMutation(
-    errorPrefix: string,
+    formatError: (error: string) => string,
     execute: (
       repoId: string,
       wtId: string,
@@ -308,14 +311,14 @@ export function createGitTaskReviewController(
       if (!req.reportable()) return;
       patchReview({ mutating: false });
       deps.patchView({
-        statusBanner: `${errorPrefix}：${errorMessage(err)}`,
+        statusBanner: formatError(errorMessage(err)),
       });
     }
   }
 
   function setBaseline(baseOid?: string) {
     return runBaselineMutation(
-      "设置任务起点失败",
+      (error) => m.s7_task_set_baseline_failed({ error }),
       async (repoId, wtId, signal) => {
         const res = await gitPutTaskBaseline(
           repoId,
@@ -325,13 +328,12 @@ export function createGitTaskReviewController(
         );
         const baseline = res.baseline ?? null;
         const label = formatBaselineEndpoint(baseline);
-        const dirtySuffix =
-          baseline && !baseline.cleanAtStart
-            ? "（设定前工作树已有改动，审阅将展示相对所选提交的全部变化）"
-            : "";
         deps.patchView({
           taskBaseline: baseline,
-          statusBanner: `已将 ${label} 设为当前工作树任务起点${dirtySuffix}`,
+          statusBanner:
+            baseline && !baseline.cleanAtStart
+              ? m.s7_task_baseline_set_dirty({ label })
+              : m.s7_task_baseline_set({ label }),
         });
       },
     );
@@ -339,13 +341,13 @@ export function createGitTaskReviewController(
 
   function clearBaseline() {
     return runBaselineMutation(
-      "清除任务起点失败",
+      (error) => m.s7_task_clear_baseline_failed({ error }),
       async (repoId, wtId, signal) => {
         await gitDeleteTaskBaseline(repoId, wtId, signal);
         reader.clearDiff();
         deps.patchView({
           taskBaseline: null,
-          statusBanner: "已清除当前工作树任务起点基线",
+          statusBanner: m.s7_task_baseline_cleared(),
         });
       },
     );
