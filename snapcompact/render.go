@@ -207,7 +207,10 @@ func (r *pngRenderer) Render(ctx context.Context, p Projection, c RenderConfig) 
 			}
 			drawer.Dot = fixed.P(c.Padding, c.Padding+i*c.LineHeight+(c.LineHeight-face.Metrics().Descent.Ceil()))
 			drawer.DrawString(line.text)
-			if !line.header {
+			if line.header {
+				// A header-only page still identifies its source, without claiming text coverage.
+				page.Ranges = appendRenderRange(page.Ranges, Range{SourceID: line.source, Field: "projection"})
+			} else {
 				page.Ranges = appendRenderRange(page.Ranges, Range{SourceID: line.source, Field: "projection", Start: line.start, End: line.end})
 			}
 		}

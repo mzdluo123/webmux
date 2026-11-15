@@ -48,6 +48,7 @@ func DefaultPreprocessConfig() PreprocessConfig {
 }
 
 // Page ranges refer to projection segments, never to raw source offsets.
+// Zero-length ranges identify source headers without claiming body coverage.
 type Page struct {
 	PNG                  []byte
 	Width, Height, Index int

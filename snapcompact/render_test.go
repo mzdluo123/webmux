@@ -206,3 +206,24 @@ func TestRenderLastPageMinimumAndNoClipping(t *testing.T) {
 		t.Fatal("accepted line spacing that clips font metrics")
 	}
 }
+
+func TestRenderHeaderOnlyPagesRetainSource(t *testing.T) {
+	c := DefaultRenderConfig()
+	c.Width, c.Height, c.MinHeight = 160, 60, 60
+	p := renderProjection("body")
+	got, err := testRenderer(t).Render(context.Background(), p, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Pages) < 2 {
+		t.Fatal("expected header pagination")
+	}
+	for _, page := range got.Pages {
+		if len(page.Ranges) == 0 || page.Ranges[0].SourceID != "source-1" {
+			t.Fatalf("page %d lost source", page.Index)
+		}
+	}
+	if !completePageCoverage(p, got.Pages) {
+		t.Fatal("header references changed body coverage")
+	}
+}
