@@ -59,6 +59,27 @@ func TestFeatureSelectionMissingAndExplicitEmpty(t *testing.T) {
 	}
 }
 
+func TestPluginsTableIsRejected(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		give string
+	}{
+		{name: "table", give: "[plugins]\nenabled = []\n"},
+		{name: "dotted key", give: "plugins.enabled = []\n"},
+		{name: "old and new tables", give: "[plugins]\nenabled = []\n[features]\nenabled = ['code']\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if err := os.WriteFile(path, []byte(tt.give), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Load(path, true); err == nil || !strings.Contains(err.Error(), "[features]") {
+				t.Fatalf("Load() = %v, want a [features] migration error", err)
+			}
+		})
+	}
+}
+
 func TestFeatureSelectionValidationFailsBeforeOtherConfiguration(t *testing.T) {
 	tests := []struct {
 		name string
