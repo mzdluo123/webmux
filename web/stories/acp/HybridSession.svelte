@@ -416,9 +416,7 @@
     connection: "connected" as const,
     exitCode: null,
     listeningPorts: [],
-    restoring: false,
     canFind: true,
-    scrollToBottom() {},
     clear() {},
     resync() {},
   };
@@ -462,7 +460,6 @@
     draftSaved="已保存在本机"
     scratchSaved="已保存在本机"
     uploading={false}
-    desktop={desktopMedia.current}
     sizeLocked={false}
     setSizeLocked={() => {}}
     keyboardSizeHold={true}

@@ -199,10 +199,13 @@ test("wide headers keep every action and the code workspace stays on single rows
   await modifiedRepository(workDir);
   await page.setViewportSize({ width: 1440, height: 900 });
   await createShell(page, "Wide layout", workDir);
-  for (const name of ["全屏", "上传文件", "滚动到最新位置", "打开面板"])
+  for (const name of ["全屏", "上传文件", "打开面板"])
     await expect(
       header(page).getByRole("button", { name, exact: true }),
     ).toBeVisible();
+  await expect(
+    header(page).getByRole("button", { name: "滚动到最新位置", exact: true }),
+  ).toHaveCount(0);
   await expect(
     header(page).getByRole("button", { name: /^草稿模式/ }),
   ).toBeVisible();
