@@ -22,7 +22,7 @@ Commands (run only in isolated development environment):
   PATH=/workspace/dev-bun/node_modules/.bin:$PATH bun install --ignore-scripts --filter '@oh-my-pi/snapcompact'
   PATH=/workspace/dev-bun/node_modules/.bin:$PATH bun test packages/snapcompact/test/snapcompact.test.ts
 First attempt: exit 1, module-load error: Failed to load pi_natives native addon for linux-x64 (modern).
-Log: /workspace/research/official-first-run.txt
+Log: official-first-run.log (committed beside this file)
 
   npm pack @oh-my-pi/pi-natives-linux-x64@18.20.2 --pack-destination /workspace/research
   tar -xzf /workspace/research/oh-my-pi-pi-natives-linux-x64-18.20.2.tgz -C packages/natives/native --strip-components=1 --wildcards 'package/*.node'
@@ -32,7 +32,7 @@ Second attempt: exit 0.
   0 fail
   3947 expect() calls
   Ran 121 tests across 1 file. [4.69s]
-Full log: /workspace/research/official-native-run.txt
+Full log: official-suite.log (committed beside this file)
 
 This validates official upstream behavior in its own runtime. It does NOT mean
 the Go implementation passes the TS tests, is pixel-identical, or has measured
@@ -40,3 +40,5 @@ model/OCR/token savings. No paid model or network inference was invoked.
 The suite contains catalog/provider policy and archive lifecycle tests beyond
 WebMux's independent Go-core scope; these were nevertheless exercised upstream.
 WebMux production dependencies do not include Bun, Node, or Rust executables.
+
+Verbatim upstream LICENSE SHA256: 16c45f9d667442781f03fa198914cc39abcaa48ec5ed8f644643e554ca2fbf63

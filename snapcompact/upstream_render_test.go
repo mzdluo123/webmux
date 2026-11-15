@@ -1,5 +1,6 @@
 // Renderer test cases adapted from oh-my-pi, crates/pi-natives/src/snapcompact.rs
 // at 7c49c11aa5bbaf3f418406583096168ad5b8c6dc (tests module).
+// Copyright (c) 2025 Mario Zechner
 // Copyright (c) 2025-2026 Can Bölük
 // Copyright (c) 2026 Stencil Labs, Inc.
 // SPDX-License-Identifier: MIT

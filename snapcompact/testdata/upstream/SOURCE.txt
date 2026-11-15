@@ -4,6 +4,7 @@ Snapshot checked against origin main on 2026-11-15: same commit.
 
 snapcompact.test.ts is the unmodified complete packages/snapcompact/test/snapcompact.test.ts.
 snapcompact_render_tests.rs is the extracted #[cfg(test)] module from crates/pi-natives/src/snapcompact.rs.
+Copyright (c) 2025 Mario Zechner
 Copyright (c) 2025-2026 Can Bölük
 Copyright (c) 2026 Stencil Labs, Inc.
 License: MIT, see LICENSE.

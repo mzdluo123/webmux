@@ -2,7 +2,9 @@ package snapcompact
 
 // Adapted test cases from oh-my-pi packages/snapcompact/test/snapcompact.test.ts
 // at 7c49c11aa5bbaf3f418406583096168ad5b8c6dc.
-// Copyright (c) 2025-2026 Can Bölük; (c) 2026 Stencil Labs, Inc.
+// Copyright (c) 2025 Mario Zechner
+// Copyright (c) 2025-2026 Can Bölük
+// Copyright (c) 2026 Stencil Labs, Inc.
 // MIT license and unmodified test source: testdata/upstream/.
 // These test common mechanical invariants through the neutral Go DTO. They do
 // not assert identical serialization, image geometry, fonts, or provider rates.

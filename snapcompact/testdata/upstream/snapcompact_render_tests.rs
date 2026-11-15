@@ -1,5 +1,6 @@
 // Unmodified test module excerpt from crates/pi-natives/src/snapcompact.rs
 // Source: can1357/oh-my-pi@7c49c11aa5bbaf3f418406583096168ad5b8c6dc
+// Copyright (c) 2025 Mario Zechner
 // Copyright (c) 2025-2026 Can Bölük
 // Copyright (c) 2026 Stencil Labs, Inc.
 // SPDX-License-Identifier: MIT. Full license in adjacent LICENSE.
