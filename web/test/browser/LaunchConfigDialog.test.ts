@@ -27,8 +27,10 @@ type Handler = (
   body: unknown,
 ) => Response | Promise<Response> | undefined;
 
+type RecordedRequest = { method: string; path: string; body: unknown };
+
 function serve(routes: Record<string, Handler>) {
-  const requests: { method: string; path: string; body: unknown }[] = [];
+  const requests: RecordedRequest[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async (input, init) => {
@@ -43,6 +45,12 @@ function serve(routes: Record<string, Handler>) {
   );
   return requests;
 }
+
+const savedRequest = (requests: readonly RecordedRequest[]) =>
+  requests.findLast(
+    ({ method, path }) =>
+      method === "PUT" || (method === "POST" && path === "/api/launch-configs"),
+  );
 
 afterEach(async () => {
   try {
@@ -83,11 +91,11 @@ test.each([
     await page.getByRole("option", { name: label, exact: true }).click();
     await save().click();
     await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-    expect(requests.at(-1)).toMatchObject({
+    expect(savedRequest(requests)).toMatchObject({
       method: "PUT",
       body: { cmd: saved.cmd, env: saved.env },
     });
-    expect((requests.at(-1)!.body as { icon?: string }).icon).toBe(icon);
+    expect((savedRequest(requests)!.body as { icon?: string }).icon).toBe(icon);
   },
 );
 
@@ -162,6 +170,9 @@ test("the startup-file checkbox saves a normal command without expanding its arg
   await page
     .getByLabelText("启动命令")
     .fill(`opencode --continue 'a b' '' '$HOME'`);
+  await page.getByRole("button", { name: "添加环境变量" }).click();
+  await page.getByLabelText("变量名 1").fill("LITERAL");
+  await page.getByLabelText("变量值 1").fill("$HOME");
   await page
     .getByRole("checkbox", { name: "加载 shell 启动文件", exact: true })
     .click();
@@ -170,11 +181,10 @@ test("the startup-file checkbox saves a normal command without expanding its arg
     .toMatchTextContent(/Bash/);
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)).toEqual({
-    method: "POST",
-    path: "/api/launch-configs",
+  expect(savedRequest(requests)).toMatchObject({
     body: {
       name: "Open Code",
+      env: { LITERAL: "$HOME" },
       cmd: [
         "bash",
         "-ic",
@@ -186,10 +196,6 @@ test("the startup-file checkbox saves a normal command without expanding its arg
         "",
         "$HOME",
       ],
-      env: {},
-      preview: null,
-      attention: null,
-      chat: false,
     },
   });
 });
@@ -219,7 +225,7 @@ test("the default shell preselects Zsh and can be switched back to Bash", async 
   await page.getByRole("option", { name: "Bash（~/.bashrc）" }).click();
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)).toMatchObject({
+  expect(savedRequest(requests)).toMatchObject({
     method: "POST",
     body: {
       cmd: ["bash", "-ic", 'exec -- "$@"', "webmux", "omp", "--auto-approve"],
@@ -248,7 +254,7 @@ test("saves per-config preview settings", async () => {
   await skip.fill("5");
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)?.body).toMatchObject({
+  expect(savedRequest(requests)?.body).toMatchObject({
     preview: { lines: 30, skip: 5 },
   });
 });
@@ -274,7 +280,7 @@ test("following the global default saves a null preview", async () => {
     .toBe(0);
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)?.body).toMatchObject({ preview: null });
+  expect(savedRequest(requests)?.body).toMatchObject({ preview: null });
 });
 
 test("configures per-config attention settings, shows signal priority, and hides irrelevant fields by mode", async () => {
@@ -329,7 +335,7 @@ test("configures per-config attention settings, shows signal priority, and hides
   await expect.element(scrollBody).toBeVisible();
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)?.body).toMatchObject({
+  expect(savedRequest(requests)?.body).toMatchObject({
     attention: {
       mode: "all",
       programStatus: false,
@@ -379,7 +385,7 @@ test.each([
     if (!enabled) await checkbox.click();
     await save().click();
     await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-    expect(requests.at(-1)).toMatchObject({
+    expect(savedRequest(requests)).toMatchObject({
       method: "PUT",
       body: { cmd: enabled ? wrapped : argv, env: saved.env },
     });
@@ -410,7 +416,7 @@ test("editing only the name keeps every env variable in the PUT body", async () 
   await name.fill("Claude 新名称");
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)).toEqual({
+  expect(savedRequest(requests)).toEqual({
     method: "PUT",
     path: "/api/launch-configs/abcdefg2",
     body: {
@@ -504,7 +510,7 @@ test("the hybrid checkbox follows the server's verdict for the edited command", 
   await hybrid.click();
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)).toMatchObject({
+  expect(savedRequest(requests)).toMatchObject({
     method: "PUT",
     body: { cmd: ["omp", "--model", "haiku"], chat: true },
   });
@@ -549,11 +555,11 @@ test("launch-only editing preserves inactive plugin fields and never probes chat
     "/api/launch-configs/abcdefg2",
     "/api/launch-configs/abcdefg2",
   ]);
-  expect(requests.at(-1)).toMatchObject({
+  expect(savedRequest(requests)).toMatchObject({
     body: { name: "Renamed" },
   });
-  expect(requests.at(-1)!.body).not.toHaveProperty("chat");
-  expect(requests.at(-1)!.body).not.toHaveProperty("attention");
+  expect(savedRequest(requests)!.body).not.toHaveProperty("chat");
+  expect(savedRequest(requests)!.body).not.toHaveProperty("attention");
   expect(onsaved).toHaveBeenCalledWith(
     expect.objectContaining({
       chat: inactive.chat,

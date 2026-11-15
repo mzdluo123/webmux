@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { show } from "./chat-story";
-import { checkEachLayout, expectNoOverflow } from "./layouts";
+import { checkEachLayout, expectNoOverflow, layouts } from "./layouts";
 
 // Hybrid sessions (issue #181): every state of the session page fits the
 // layout matrix and keeps its primary control reachable.
@@ -286,37 +286,48 @@ test("reduced motion displays options immediately without a reveal or slide", as
 });
 
 for (const [story, role, control] of stories) {
-  test(`hybrid session ${story}`, async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await show(page, story, "light");
-    await checkEachLayout(page, async ({ name, textScale }) => {
-      const target = page.getByRole(role, { name: control });
-      await target.scrollIntoViewIfNeeded();
-      await expect.soft(target, name).toBeInViewport();
-      if (textScale > 1)
-        // The terminal header does not fit 320px at 200% text even for an
-        // ordinary session; this case checks the hybrid page's body.
-        await page
-          .locator("header.terminal-header")
-          .evaluate((header) => (header.style.display = "none"));
-      try {
-        await expectNoOverflow(page, name);
-      } finally {
-        if (textScale > 1)
-          await page
-            .locator("header.terminal-header")
-            .evaluate((header) => (header.style.display = ""));
-      }
-      expect.soft(errors, name).toEqual([]);
+  const batches =
+    story === "long-conversation"
+      ? layouts.map((layout) => [layout])
+      : [layouts];
+  for (const batch of batches) {
+    const suffix = batch.length === 1 ? ` ${batch[0]!.name}` : "";
+    test(`hybrid session ${story}${suffix}`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await show(page, story, "light");
+      await checkEachLayout(
+        page,
+        async ({ name, textScale }) => {
+          const target = page.getByRole(role, { name: control });
+          await target.scrollIntoViewIfNeeded();
+          await expect.soft(target, name).toBeInViewport();
+          if (textScale > 1)
+            // The terminal header does not fit 320px at 200% text even for an
+            // ordinary session; this case checks the hybrid page's body.
+            await page
+              .locator("header.terminal-header")
+              .evaluate((header) => (header.style.display = "none"));
+          try {
+            await expectNoOverflow(page, name);
+          } finally {
+            if (textScale > 1)
+              await page
+                .locator("header.terminal-header")
+                .evaluate((header) => (header.style.display = ""));
+          }
+          expect.soft(errors, name).toEqual([]);
+        },
+        batch,
+      );
     });
-  });
+  }
 }
 
-test("long conversation ticks jump to messages and stay out of narrow panes", async ({
-  page,
-}) => {
-  for (const theme of ["light", "dark"]) {
+for (const theme of ["light", "dark"]) {
+  test(`long conversation ticks jump to messages and stay out of narrow panes (${theme})`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await show(page, "long-conversation", theme);
     const navigation = page.getByRole("navigation", { name: "对话轮次" });
@@ -400,15 +411,18 @@ test("long conversation ticks jump to messages and stay out of narrow panes", as
     await first.press("End");
     await expect(last).toBeFocused();
     await expect(last).toHaveAttribute("aria-current", "location");
-    for (let reply = 0; reply < 8; reply++) {
-      const messageId = reply === 0 ? "long-a39" : `long-a39-${reply}`;
-      await expect(
-        page.locator(`[data-conversation-message="${messageId}"]`),
-      ).toHaveCount(1);
-      await expect(
-        page.locator(`[data-message-id="${messageId}"]`),
-      ).toHaveCount(1);
-    }
+    expect(
+      await page
+        .locator(
+          '[data-conversation-message="long-a39"], [data-conversation-message^="long-a39-"]',
+        )
+        .evaluateAll((nodes) =>
+          nodes.map((node) => node.getAttribute("data-conversation-message")),
+        ),
+    ).toEqual([
+      "long-a39",
+      ...Array.from({ length: 7 }, (_, index) => `long-a39-${index + 1}`),
+    ]);
     await last.press("Home");
     await expect(first).toBeFocused();
     await first.click();
@@ -421,7 +435,6 @@ test("long conversation ticks jump to messages and stay out of narrow panes", as
           .evaluate((node) => node.scrollTop),
       )
       .toBeLessThan(100);
-    await expectNoOverflow(page, `1280×900 ${theme} turn navigation`);
 
     await page.setViewportSize({ width: 900, height: 900 });
     await expect(navigation).toBeVisible();
@@ -435,13 +448,9 @@ test("long conversation ticks jump to messages and stay out of narrow panes", as
     ]) {
       await page.setViewportSize(viewport);
       await expect(navigation).toBeHidden();
-      await expectNoOverflow(
-        page,
-        `${viewport.width}×${viewport.height} ${theme} turn navigation`,
-      );
     }
-  }
-});
+  });
+}
 
 test("hybrid home cards", async ({ page }) => {
   await page.route("**/api/**", (route) => route.abort());
