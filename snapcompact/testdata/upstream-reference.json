@@ -1,0 +1,18 @@
+{
+  "commit": "7c49c11aa5bbaf3f418406583096168ad5b8c6dc",
+  "scope": "isolated truncateForSummary helper executed with Node; not full upstream rendering",
+  "cases": [
+    {
+      "text": "abcdefghijklmnopqrst",
+      "limit": 10,
+      "headPercent": 60,
+      "upstream": "abcdef […10ch elided…] qrst"
+    },
+    {
+      "text": "中文测试边界安全截断",
+      "limit": 6,
+      "headPercent": 60,
+      "upstream": "中文测试 […4ch elided…] 截断"
+    }
+  ]
+}

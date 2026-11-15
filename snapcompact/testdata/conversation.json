@@ -1,0 +1,9 @@
+{
+  "History": [
+    {"ID":"fixture-user-1","Role":"user","Kind":"prose","Text":"请保留中文边界和 é 组合字符。"},
+    {"ID":"fixture-call-1","Role":"assistant","ToolName":"shell","CallID":"call-1","Status":"completed","Kind":"code","Arguments":{"command":"go test ./...","directory":"/example"},"CallBody":"go test ./..."},
+    {"ID":"fixture-result-1","Role":"tool","ToolName":"shell","CallID":"call-1","Status":"success","Kind":"structured","Text":"\u001b[32mPASS\u001b[0m\r\n\tpackage example\r\n\r\n\r\nall checks passed"},
+    {"ID":"fixture-code-1","Role":"assistant","Kind":"code","Text":"func main() {\r\n\tprintln(\"中文\")\r\n}\r\n"}
+  ],
+  "CurrentTask":"  当前独立任务\t不可折叠\r\n\r\n"
+}

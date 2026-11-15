@@ -43,7 +43,7 @@
 | I    | 代码工作区、Diff、引用与文件操作           | US-I01–US-I19 |
 | J    | 仓库登记与 worktree 管理                   | US-J01–US-J28 |
 | K    | 配置、运行、插件选择与服务管理             | US-K01–US-K21 |
-| L    | 开发、验证与发布支持                       | US-L01–US-L15 |
+| L    | 开发、验证与发布支持                       | US-L01–US-L16 |
 | M    | 原生终端、CLI 与本机控制面                 | US-M01–US-M08 |
 | N    | Cloudflare 公网隧道                        | US-N01–US-N08 |
 | O    | Windows/WSL 托盘管理                       | US-O01–US-O14 |
@@ -52,7 +52,7 @@
 | R    | 端口转发预览                               | US-R01–US-R04 |
 | S    | 脚本与 agent 控制                          | US-S01–US-S25 |
 
-目录共 259 条故事；K 组为 21 条，S 组为 25 条。编号范围包含已保留的历史/退役条目，不表示本次重新验收全部能力。
+目录共 260 条故事；K 组为 21 条，S 组为 25 条。编号范围包含已保留的历史/退役条目，不表示本次重新验收全部能力。
 
 ## 分组文档
 
@@ -66,7 +66,8 @@
 | [草稿编写、保存与发送确认](user-stories/terminal/drafts.md)                       | F                  |
 | [代码工作区与工作树](user-stories/code-and-worktrees.md)                          | I                  |
 | [仓库登记与 worktree 管理](user-stories/code-and-worktrees/worktrees.md)          | J                  |
-| [配置、运行与贡献者工具](user-stories/operations-and-tooling.md)                  | K–L                |
+| [配置、运行与贡献者工具](user-stories/operations-and-tooling.md)                  | K                  |
+| [开发、验证与发布支持](user-stories/operations-and-tooling/contributor.md)        | L                  |
 | [原生客户端、隧道与托盘](user-stories/clients-network-tray.md)                    | M–P                |
 | [终端分屏用户故事](user-stories/terminal-splits.md)                               | D13–D14            |
 | [网络压缩与 P2P 直连用户故事](user-stories/terminal-network.md)                   | H10–H12            |

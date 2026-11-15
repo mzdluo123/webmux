@@ -46,6 +46,9 @@ var webmux = manifest{
 		"internal/p2p":               service,
 		"internal/p2psettings":       service,
 
+		// Public, provider-neutral history encoding core.
+		"snapcompact": shared,
+
 		// Wire contracts and infrastructure every layer may use.
 		"internal/acp":         shared,
 		"internal/builtin":     shared,

@@ -1,0 +1,9 @@
+Noto Sans CJK SC Regular, unmodified OpenType font.
+Copyright (c) 2014-2021 Adobe (http://www.adobe.com/).
+Source: https://github.com/notofonts/noto-cjk/blob/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf
+License: SIL Open Font License 1.1; full notice and copyright in LICENSE.
+Font layout here uses Go's OpenType rasterizer and grapheme segmentation, not
+HarfBuzz shaping. Chinese/ASCII and scalar glyph coverage are supported;
+complex-script shaping, emoji sequences, bidirectional layout, and precise
+combining-mark anchor positioning are not claimed. Missing scalar glyphs cause
+an explicit error with source IDs and codepoints rather than silent substitution.
