@@ -31,9 +31,10 @@ type Driver interface {
 	RunExited(code int)
 }
 
-// Overlay reports generic process-host state while a shell has no PTY run.
-// Destination is an opaque view-routing hint used when detaching clients.
-// Status, Attention, Preview and Title apply only without a run.
+// Overlay reports generic process-host state for a shell. Destination is an
+// opaque view-routing hint used when detaching clients. Status, Attention and
+// Preview apply only without a run; Title applies to an unnamed shell without
+// a run, or while a run still has its placeholder title.
 type Overlay struct {
 	Destination string
 	Status      Status
@@ -52,9 +53,13 @@ func (o *Overlay) clone() *Overlay {
 }
 
 // applyTo writes the overlay into an Info copy that owns no shared pointers.
-// Title applies only to an unnamed shell, so a creation name always wins.
+// Title applies only to an unnamed shell, and while a run exists only until
+// the run reports its own OSC 0/2 title.
 func (o *Overlay) applyTo(i *Info, noRun, unnamed bool) {
 	if !noRun {
+		if o.Title != "" && unnamed && i.PlaceholderTitle {
+			i.Title, i.PlaceholderTitle = o.Title, false
+		}
 		return
 	}
 	if o.Status != "" {
@@ -334,6 +339,23 @@ func (s *Session) SetOverlay(o *Overlay) {
 		s.cliAttention = nil
 	}
 	s.overlay = o.clone()
+}
+
+// ClearTerminalTitleIf drops the current run's OSC 0/2 title when it still
+// matches stale and seq, returning an unnamed session to its placeholder
+// title until the run or overlay supplies a new one. It returns the run's
+// remaining title and sequence number.
+func (s *Session) ClearTerminalTitleIf(stale string, seq uint64) (string, uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stale != "" && s.identity.Title == stale && s.identity.TitleSeq == seq {
+		s.identity.Title = ""
+		if s.userTitle == "" {
+			s.info.Title = filepath.Base(s.info.Cwd)
+			s.info.PlaceholderTitle = true
+		}
+	}
+	return s.identity.Title, s.identity.TitleSeq
 }
 
 // retire ends a shell for good, so it starts no more processes and Done

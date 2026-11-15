@@ -31,16 +31,16 @@
     - 档案需要的第三方连接器已安装；
     - 是 PTY 根进程（Codex 与 Claude Code 也接受 npm 的 `node` 启动器及其唯一直接原生 agent 子进程）；
     - 已有 agent 会话 ID：
-      - Codex 取自写锁；Antigravity CLI 由注入的会话级 `--settings` `title` 钩子经 `OSC 7501` 子记录上报 36 字符 UUID；
+      - Codex 取自写锁；Antigravity CLI 由注入的会话级 `--settings` `title` 钩子向控制终端上报 `OSC 7501` 子记录 36 字符 UUID 与 `conversation_title` 对应的 `OSC 2` 终端标题；
       - Claude 取自 `<CLAUDE_CONFIG_DIR>/sessions/<pid>.json`，采用前核对 PID、UUID、规范化 cwd、进程启动标识与 PID domain，失效时退回 cwd + 启动时间的 `session/list` 候选，多个候选时让用户选择；
       - Kimi 不把 OSC 7501 子记录当作会话 ID，使用 cwd + 启动时间的 `session/list` 候选，`session_` 前缀 ID 原样保留，多个候选时让用户选择；
       - 首条消息前即使已有注册 UUID，list 不含可加载会话仍不可切换；
-    - 会话列表能查到；
+    - 会话列表能查到（终端未上报自身 `OSC 0/2` 标题且 `session/list` 返回非空会话标题时，同步采用为当前 agent 会话标题）；
     - 未被其他会话占用；
   - “聊天 | 终端”的下划线平滑移向当前选择，切换中仍显示真实进度；目标内容准备好后短暂淡入，减少动态效果时直接显示，不以动画结束代替连接就绪；
   - TUI 在回合中时先发中断键并等待空闲（Claude Code、Antigravity CLI 与 Kimi 为一次 Esc；Codex 启动阶段的“工作中”不算回合，Claude 无启动静默期），10 秒后可选继续等待、强制切换或取消（强制切换的损失说明取自服务端 `forceSwitchNote`，由各 agent 适配器提供）；
   - 进入目标端前确认 TUI 进程组已退出；
-  - 聊天视图回放完整历史，模型等配置与切换前一致：
+  - 聊天视图回放完整历史，保留终端端已上报或列表查到的当前会话标题，模型等配置与切换前一致：
     - 按档案补齐 omp 的 mode、Antigravity CLI 的 model 与 thought_level，以及 Codex 的模式、模型、推理强度；Antigravity CLI 与 Codex 首次切换按启动参数推导配置；
     - Claude 首次从 argv 推导 model/effort/mode，冷 load 与 resume 后重应用 model/effort，mode 保留连接器从 transcript 恢复的实际值，回退显示实际配置与通知；
     - Kimi 首次从 argv 推导 model/mode，冷 load 与 resume 后只重应用 mode，model 与 thinking 由 Kimi 保留；
@@ -51,7 +51,7 @@
   验收要点：
   - 回合进行中先确认，再取消回合并把挂起的请求答复为取消；
   - 排队中未发送的消息合并后退回发起设备的草稿，其他设备只收到提示，不自动发给 TUI；
-  - agent 支持时 `session/close` 后结束 ACP 进程并等待退出，再以恢复命令在同一会话 ID 下启动新运行代际（Claude 为 `--resume <id>`，Antigravity CLI 为 `--conversation <id>`，Kimi 为 `kimi --session <id>`）；
+  - agent 支持时 `session/close` 后结束 ACP 进程并等待退出，再以恢复命令在同一会话 ID 下启动新运行代际（Claude 为 `--resume <id>`，Antigravity CLI 为 `--conversation <id>`，Kimi 为 `kimi --session <id>`）；未手动命名时，新运行在自身发出 OSC 0/2 标题前沿用当前 agent 会话标题，发出后以终端标题为准；
   - Kimi 2.5.2 启动 TUI 前只将当前会话的 `acp:<会话ID>` 环境绑定改为 `local`，其他事件保持不变，首次修改保留备份并原子替换；补丁失败回到聊天端且仍可继续对话；
   - Claude 的 cancel 只中断当前回合，后台 Bash 或子任务可能存活，切换须终止连接器并等待受管后代退出，不保证任意自行 daemonize 的进程已清理；
   - 切换期间显示“中断、退出、启动、连接终端”进度，直到新运行在本页输出首屏（最多 10 秒）才淡入终端，不显示空白终端；

@@ -38,6 +38,9 @@ func (a *actor) emit(events ...Event) {
 			}
 			a.title = *e.Info.Title
 			a.promptTitle = false
+			if a.title == "" {
+				a.resetRecordTitle()
+			}
 		case EventMessage:
 			if e.Message.Role != RoleAgent || !a.preview.add(e.Message) {
 				continue

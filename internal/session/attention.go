@@ -358,6 +358,8 @@ func (s *Session) signalHandler() *SignalHandler {
 	hostname, _ := os.Hostname()
 	h := &SignalHandler{
 		Title: func(title string) {
+			s.identity.Title = title
+			s.identity.TitleSeq++
 			if s.userTitle == "" {
 				s.info.PlaceholderTitle = title == ""
 				if title == "" {
