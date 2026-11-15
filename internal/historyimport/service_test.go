@@ -109,6 +109,20 @@ func TestFrozenSourceAndRetainedLifetime(t *testing.T) {
 	if err != nil || len(kept.Records) != 2 || kept.Records[0].Text != before.Records[0].Text {
 		t.Fatalf("retained history after restart/source removal: %+v %v", kept, err)
 	}
+	// Composition must preserve the verified hashes used by bounded history
+	// pages without reopening the retained snapshot for its manifest.
+	composed, err := svc.Documents(ctx, []string{retained.ID, retained.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(composed.Records) != len(kept.Records) || len(composed.RecordRefs) != len(retained.Records) {
+		t.Fatal("composition lost records/references or duplicated an identical segment")
+	}
+	for index, ref := range composed.RecordRefs {
+		if ref != retained.Records[index] || ref.ID != composed.Records[index].ID || ref.Position != index+1 {
+			t.Fatal("composition changed a verified frozen reference")
+		}
+	}
 	if err := svc.Release(ctx, retained.ID, "child-b"); err != nil {
 		t.Fatal(err)
 	}

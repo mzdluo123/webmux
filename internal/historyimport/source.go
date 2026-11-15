@@ -120,15 +120,22 @@ func (s *Service) FreezeConversation(ctx context.Context, conversation, owner st
 // Only identical source IDs/versions deduplicate; equal text is not evidence.
 func (s *Service) Documents(ctx context.Context, ids []string) (historysource.Document, error) {
 	out := historysource.Document{Source: historysource.Source{Agent: "composition"}, ParserVersion: "composition/v1", FormatVersion: "composition/v1"}
-	seen := make(map[string]string)
+	var seen map[string]string
 	total := 0
-	for _, id := range ids {
+	for segment, id := range ids {
 		doc, err := s.Document(ctx, id)
 		if err != nil {
 			return out, err
 		}
 		if len(doc.RecordRefs) != len(doc.Records) {
 			return out, historysource.ErrUnavailable
+		}
+		if segment == 0 {
+			// Most histories have one frozen segment. Size its composition once
+			// instead of repeatedly copying the complete native record structs.
+			out.Records = make([]historysource.Record, 0, len(doc.Records))
+			out.RecordRefs = make([]historysource.RecordRef, 0, len(doc.RecordRefs))
+			seen = make(map[string]string, len(doc.Records))
 		}
 		out.References = append(out.References, doc.References...)
 		out.Gaps = append(out.Gaps, doc.Gaps...)

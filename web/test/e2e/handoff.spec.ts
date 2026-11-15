@@ -1,7 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { APIRequestContext, Page } from "@playwright/test";
+import type {
+  HandoffDelivery,
+  HandoffPreview,
+} from "../../src/contracts/conversation-schemas";
 import { test, expect, useDirectory, chooseLocation } from "./fixtures";
 
 async function config(
@@ -91,6 +96,89 @@ const history = (page: Page) =>
   page.getByRole("textbox", { name: "历史正文", exact: true });
 const task = (page: Page) =>
   page.getByRole("textbox", { name: "交接后的用户任务", exact: true });
+
+// Activities expose provider-native history, including the frozen source prefix
+// and the raw inline request. Identify the new request by native identity, not
+// by its position or by treating historical user messages as new tasks.
+async function inlineDelivery(
+  request: APIRequestContext,
+  store: string,
+  sent: { preview: HandoffPreview; delivery: HandoffDelivery },
+  expectedTask: string,
+) {
+  expect(sent.delivery.status).toBe("inline");
+  expect(sent.preview.userText).toBe(expectedTask);
+  const frozenResponse = await request.get(
+    `/api/conversations/${sent.preview.sourceConversationId}/activities?handoffId=${sent.preview.id}`,
+  );
+  expect(frozenResponse.ok(), await frozenResponse.text()).toBeTruthy();
+  const frozen = await frozenResponse.json();
+  const destinationResponse = await request.get(
+    `/api/conversations/${sent.delivery.targetConversationId}/activities`,
+  );
+  expect(
+    destinationResponse.ok(),
+    await destinationResponse.text(),
+  ).toBeTruthy();
+  const destination = await destinationResponse.json();
+  type NativeUser = {
+    role: string;
+    kind: string;
+    nativeId: string;
+    text: string;
+    truncated: boolean;
+    attachments: { name: string; reference: string }[];
+  };
+  const historical: NativeUser[] = frozen.items.filter(
+    (item: NativeUser) => item.role === "user" && item.kind === "message",
+  );
+  expect(historical.length).toBeGreaterThan(0);
+  const sourceIds = new Set(historical.map((item) => item.nativeId));
+  const users: NativeUser[] = destination.items.filter(
+    (item: NativeUser) => item.role === "user" && item.kind === "message",
+  );
+  for (const item of historical) {
+    expect(users).toContainEqual(
+      expect.objectContaining({ nativeId: item.nativeId, text: item.text }),
+    );
+  }
+  const current = users.filter((item) => !sourceIds.has(item.nativeId));
+  expect(current).toHaveLength(1);
+  const delivered = current[0];
+  expect(delivered.truncated).toBe(false);
+  // Check the reviewed history and task independently, without pinning the
+  // provider envelope's explanatory prose or normalizing native text.
+  expect(delivered.text).toContain(sent.preview.renderedText.trimEnd());
+  if (expectedTask) {
+    expect(delivered.text).toContain(expectedTask);
+    expect(delivered.text.lastIndexOf(expectedTask)).toBeGreaterThan(
+      delivered.text.indexOf(sent.preview.renderedText.trimEnd()) +
+        sent.preview.renderedText.trimEnd().length,
+    );
+  }
+  const records = await Promise.all(
+    (await readdir(join(store, "sessions")))
+      .filter((name) => name.endsWith(".json"))
+      .map(async (name) =>
+        JSON.parse(await readFile(join(store, "sessions", name), "utf8")),
+      ),
+  );
+  const targetRecords = records.filter((record) =>
+    record.messages.some(
+      (item: { id: string }) => item.id === delivered.nativeId,
+    ),
+  );
+  expect(targetRecords).toHaveLength(1);
+  const providerUsers = targetRecords[0].messages.filter(
+    (item: { role: string }) => item.role === "user",
+  );
+  expect(providerUsers).toHaveLength(1);
+  expect(providerUsers[0]).toMatchObject({
+    id: delivered.nativeId,
+    text: delivered.text,
+  });
+  return { delivered, providerUser: providerUsers[0] };
+}
 
 test("server draft survives close, refresh and restart without reading ChatModel", async ({
   page,
@@ -419,32 +507,39 @@ for (const image of [false, true]) {
     expect((await latest(request, a.conversationId)).preview.userText).toBe("");
     expect(await providerUsers()).toHaveLength(1);
     expect((await latest(request, a.conversationId)).delivery).toBeNull();
+    const submission = page.waitForRequest(
+      (request) =>
+        request.method() === "POST" &&
+        request
+          .url()
+          .endsWith(`/api/conversations/${a.conversationId}/messages`),
+    );
     await send.click();
+    expect((await submission).postDataJSON()).toMatchObject({
+      text: "",
+      attachments: (await latest(request, a.conversationId)).preview
+        .attachments,
+    });
     await expect(page.getByText("已投递", { exact: true })).toBeVisible();
     await expect.poll(async () => (await providerUsers()).length).toBe(2);
     const sent = await latest(request, a.conversationId);
-    const activities = await (
-      await request.get(
-        `/api/conversations/${sent.delivery.targetConversationId}/activities`,
-      )
-    ).json();
-    const delivered = activities.items
-      .filter(
-        (item: { role: string; kind: string }) =>
-          item.role === "user" && item.kind === "message",
-      )
-      .at(-1);
-    expect(delivered.text).toBe("");
-    expect(delivered.attachments).toHaveLength(1);
-    expect(await readFile(delivered.attachments[0].reference)).toEqual(bytes);
-    const users = await providerUsers();
-    const received = users
-      .flatMap((user) => user.blocks ?? [])
-      .find(
-        (block: { type: string }) =>
-          block.type === (image ? "image" : "resource"),
-      );
+    expect(sent.preview.userText).toBe("");
+    const { providerUser } = await inlineDelivery(
+      request,
+      server.env.FAKEAGENT_STORE!,
+      sent,
+      "",
+    );
+    const received = (providerUser.blocks ?? []).find(
+      (block: { type: string }) =>
+        block.type === (image ? "image" : "resource"),
+    );
     expect(received).toBeTruthy();
+    const copiedPath = fileURLToPath(
+      image ? received.uri : received.resource.uri,
+    );
+    expect(copiedPath).not.toBe(sent.preview.attachments[0].reference);
+    expect(await readFile(copiedPath)).toEqual(bytes);
     expect(
       image
         ? Buffer.from(received.data, "base64")
@@ -525,21 +620,11 @@ test("a completed POST clears the next task without losing delivered task or att
     expect(sent.preview.renderedText).toBe(preview.renderedText);
     expect(sent.preview.userText).toBe(deliveredTask);
     expect(sent.preview.attachments).toEqual(preview.attachments);
-    const activities = await (
-      await request.get(
-        `/api/conversations/${sent.delivery.targetConversationId}/activities`,
-      )
-    ).json();
-    const delivered = activities.items.filter(
-      (item: { role: string; kind: string; text: string }) =>
-        item.role === "user" &&
-        item.kind === "message" &&
-        item.text === deliveredTask,
-    );
-    expect(delivered).toHaveLength(1);
-    expect(delivered[0].attachments).toHaveLength(1);
-    expect(await readFile(delivered[0].attachments[0].reference)).toEqual(
-      bytes,
+    const { providerUser } = await inlineDelivery(
+      request,
+      server.env.FAKEAGENT_STORE!,
+      sent,
+      deliveredTask,
     );
     const records = await Promise.all(
       (await readdir(join(server.env.FAKEAGENT_STORE!, "sessions")))
@@ -561,10 +646,13 @@ test("a completed POST clears the next task without losing delivered task or att
         ),
       );
     expect(users).toHaveLength(2);
-    const attachment = users
-      .flatMap((user) => user.blocks ?? [])
-      .find((block: { type: string }) => block.type === "resource");
+    const attachment = (providerUser.blocks ?? []).find(
+      (block: { type: string }) => block.type === "resource",
+    );
     expect(attachment).toBeTruthy();
+    const copiedPath = fileURLToPath(attachment.resource.uri);
+    expect(copiedPath).not.toBe(sent.preview.attachments[0].reference);
+    expect(await readFile(copiedPath)).toEqual(bytes);
     expect(Buffer.from(attachment.resource.text)).toEqual(bytes);
     expect(submissions).toBe(1);
     await dialog
@@ -664,6 +752,7 @@ for (const mode of ["directory", "existing", "new"] as const) {
     page,
     request,
     workDir,
+    server,
   }) => {
     const root = join(workDir, "handoff-app");
     const repository = await registerRepository(request, root);
@@ -782,16 +871,15 @@ for (const mode of ["directory", "existing", "new"] as const) {
       ).toBe(draft.preview.location.newWorktreeBase);
     }
     expect(info.cwd).toBe(expected);
-    const activities = await (
-      await request.get(
-        `/api/conversations/${delivered.delivery.targetConversationId}/activities`,
-      )
-    ).json();
-    expect(
-      activities.items
-        .filter((item: { role: string }) => item.role === "user")
-        .map((item: { text: string }) => item.text),
-    ).toEqual([`fork task ${mode}`]);
+    expect(delivered.preview.userText).toBe(draft.preview.userText);
+    expect(delivered.preview.renderedText).toBe(draft.preview.renderedText);
+    const { delivered: current } = await inlineDelivery(
+      request,
+      server.env.FAKEAGENT_STORE!,
+      delivered,
+      `fork task ${mode}`,
+    );
+    expect(current.attachments).toHaveLength(0);
   });
 }
 
@@ -944,17 +1032,24 @@ for (const resolution of ["server", "keep"] as const) {
           .click();
         await expect(page.getByText("已投递", { exact: true })).toBeVisible();
         const sent = await latest(request, a.conversationId, true);
-        const destination = await (
-          await request.get(
-            `/api/conversations/${sent.delivery.targetConversationId}/activities`,
-          )
-        ).json();
-        const delivered = destination.items.find(
-          (item: { role: string; kind: string }) =>
-            item.role === "user" && item.kind === "message",
-        ).attachments[0];
-        expect(delivered.name).toBe(localFilename);
-        expect(await readFile(delivered.reference, "utf8")).toBe(
+        expect(sent.preview.userText).toBe(saved.choice.task);
+        expect(sent.preview.configId).toBe(localConfig);
+        expect(sent.preview.agentConfig.model).toBe("smart");
+        expect(sent.preview.location.cwd).toBe(localDirectory);
+        expect(sent.preview.attachments).toEqual(regenerated.attachments);
+        const { providerUser } = await inlineDelivery(
+          request,
+          server.env.FAKEAGENT_STORE!,
+          sent,
+          saved.choice.task,
+        );
+        expect(sent.preview.attachments).toHaveLength(1);
+        expect(sent.preview.attachments[0].name).toBe(localFilename);
+        // A target without embedded-context support receives the copied file
+        // path after the task, not an invented native attachment reference.
+        const copiedPath = providerUser.text.split("\n").at(-1);
+        expect(copiedPath).not.toBe(sent.preview.attachments[0].reference);
+        expect(await readFile(copiedPath, "utf8")).toBe(
           "actual uploaded device A attachment",
         );
       }

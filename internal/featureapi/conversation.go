@@ -225,15 +225,12 @@ func (s *Server) conversationHistory(ctx context.Context, id string, q url.Value
 	if point >= 0 && int64(len(doc.Records)) != point {
 		return empty, nil, nil, historysource.ErrChanged
 	}
-	hashes := make(map[string]string, len(doc.Records))
-	for _, id := range ids {
-		snapshot, err := s.NativeHistory.Snapshot(ctx, id)
-		if err != nil {
-			return empty, nil, nil, err
-		}
-		for _, record := range snapshot.Records {
-			hashes[record.ID] = record.Hash
-		}
+	// Documents already carries the verified frozen references. Loading each
+	// snapshot again would decode every retained export a second time just to
+	// retrieve these hashes, making a bounded page depend on duplicate full reads.
+	hashes := make(map[string]string, len(doc.RecordRefs))
+	for _, record := range doc.RecordRefs {
+		hashes[record.ID] = record.Hash
 	}
 	return doc, ids, hashes, nil
 }
