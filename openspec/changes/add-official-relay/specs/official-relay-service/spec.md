@@ -153,6 +153,8 @@ Relay SHALL 提供 GitHub OAuth Authorization Code 登录，使用 PKCE S256、�
 
 后台 SHALL 使用服务端不透明会话，其摘要存入 SQLite；Cookie MUST 为 host-only、Secure、HttpOnly、SameSite=Lax、Path=/ 的 `__Host-` Cookie，有效期不超过 12 小时，不无限续期。登录成功 SHALL 轮换会话 ID；登录与跳转材料 MUST NOT 写入浏览器持久化或日志。
 
+后台 SHALL 提供适配手机的网页入口：宿主完成 GitHub 配对后，手机使用同一数字 ID 登录即可查看并打开在线 WebMux，无需复制长期 Token 或填写 TURN 配置。后台仅展示 WebMux；其他 Web 应用仍从 WebMux 内端口转发使用，MVP 不提供独立应用发布、公开分享或远程启动离线宿主。
+
 #### Scenario: 登录后看到自己的主机
 
 - **WHEN** 已邀请账号完成有效 GitHub 浏览器授权
@@ -162,6 +164,11 @@ Relay SHALL 提供 GitHub OAuth Authorization Code 登录，使用 PKCE S256、�
 
 - **WHEN** OAuth 回调缺少对应浏览器事务，state 无效或 PKCE 校验失败
 - **THEN** Relay 拒绝登录且不建立后台会话
+
+#### Scenario: 手机打开已配对 WebMux
+
+- **WHEN** 宿主已绑定 GitHub 账号，手机在控制面网页登录同一账号并点击在线主机
+- **THEN** 经一次性授权打开 WebMux，不要求输入或下发长期 Token；离线主机只显示不可用
 
 ### Requirement: 单次主机跳转授权
 
@@ -193,9 +200,14 @@ Relay 重启 SHALL 使重启前的后台会话及跳转 code 失效，保留账�
 
 ### Requirement: 独立服务器与 WSS 数据面
 
-MVP SHALL 部署在有独立公网 IP 的单台服务器，配置泛域名 DNS、有效证书与 TCP 443，浏览器直接使用 HTTPS/WebSocket；不依赖 CDN，不要求开放 UDP。
+MVP 控制面 SHALL 部署在有独立公网 IP 的单台服务器，配置泛域名 DNS、有效证书与 TCP 443，浏览器直接使用 HTTPS/WebSocket；不依赖 CDN。该进程 SHALL 内置完整 WSS 基础转发，不要求开放 UDP 或依赖 TURN 才可用；可选 TURN 节点 SHALL 独立部署并按其传输开放端口。
 
-宿主 SHALL 使用 TLS 1.3 WSS + smux v2，嵌入库而非受管 sidecar；MVP MUST NOT 探测 QUIC、配置 FEC 或自研可靠 UDP。服务器 TCP SHALL 使用 BBR；部署 SHALL 核实实际接口队列，不能仅凭 default_qdisc 宣称使用 fq。客户端 SHALL 如实记录操作系统算法，不假定 Windows 支持 BBR。
+宿主连接器 SHALL 使用 TLS 1.3 WSS + smux v2，嵌入库而非受管 sidecar；连接器 MUST NOT 探测 QUIC、配置 FEC 或自研可靠 UDP，此限制不禁止独立 WebRTC/TURN 交互优化。
+
+TCP 运维 SHALL 区分服务端与客户端：
+
+- 服务器 TCP SHALL 使用 BBR，部署 SHALL 核实实际接口队列，不能仅凭 default_qdisc 宣称使用 fq。
+- 客户端 SHALL 如实记录操作系统算法，不假定 Windows 支持 BBR。
 
 批量流量 SHALL 使用 bulk，交互与控制 SHALL 使用 control。两条物理连接 SHALL 共用账号总配额和资源预算。control 断开 SHALL 撤销来源及派生会话并关闭 bulk；仅 bulk 断开 SHALL 保留交互、报告降级并拒绝新批量请求，不得转入 control。
 
@@ -253,3 +265,39 @@ Relay 服务端 SHALL 位于独立仓库，独立构建、测试、发布和部�
 
 - **WHEN** 宿主提交非 Ed25519 身份，或官方 TLS 身份使用非约定曲线的密钥
 - **THEN** 对应验证拒绝该身份，不静默降级到其他算法或共享密钥
+
+### Requirement: 受控 TURN 节点与短期凭据下发
+
+Relay SHALL 配置受信 TURN 节点、区域标签、允许的标准 ICE URL/传输及独立签发密钥，复用成熟 TURN 服务与短期凭据机制，不自研 TURN。长期共享密钥 SHALL 仅在控制面与 TURN 运行环境保管，MUST NOT 进入仓库、客户端或公开 API。
+
+浏览器 SHALL 通过已认证的同源宿主接口申请配置；宿主 SHALL 在密钥认证 control 通道中申请。Relay SHALL 校验账号、host ID、绑定/连接器代际、当前浏览器会话与邀请状态，为两端分别签发带明确到期时间的短期凭据。响应 SHALL 禁缓存，刷新 SHALL 重验授权，不得公开匿名 ICE 凭据接口。
+
+TURN 凭据 SHALL 仅授权受限网络资源，MUST NOT 作为 WebMux 登录凭据。节点 SHALL 对 allocation 生命周期、并发、带宽和账号/节点总预算实施限制，禁止向回环、私网、链路本地及云元数据地址滥用转发；部署验收 SHALL 验证 ACL 和双端连通性。
+
+撤销后 SHALL 停止签发及刷新并通知宿主关闭关联业务连接；MUST NOT 把凭据到期说成已立即终止现有 allocation。短期凭据及认证材料 MUST NOT 进入日志、诊断或浏览器持久化。
+
+#### Scenario: 两端获得受限 ICE 配置
+
+- **WHEN** 有效所有者会话请求与当前在线宿主建立交互连接
+- **THEN** Relay 校验绑定及代际，为浏览器和宿主分别提供短期配置，不暴露长期密钥或其他账号凭据
+
+#### Scenario: 已注销会话继续申请凭据
+
+- **WHEN** 已注销、过期或被撤销的会话请求签发或刷新 TURN 凭据
+- **THEN** 请求被拒绝，现有应用访问由宿主关闭，不等待 allocation 自然过期
+
+#### Scenario: 没有可用 TURN 节点
+
+- **WHEN** TURN 未配置、全部失效或超出配额
+- **THEN** 控制面网页、所有者跳转和内置 WSS 仍可工作，返回明确的优化不可用状态，不将整个 Relay 标为不可用
+
+### Requirement: TURN 部署与性能声明边界
+
+部署文档 SHALL 区分控制面 HTTPS 入口、WSS 连接器和独立 TURN 节点；网页、登录与初始信令仍依赖 HTTPS 可达。国内 TURN 的性能 SHALL 以实际线路和应用层采样判断，MUST NOT 承诺消除跨境 RTT 或默认快于 WSS。
+
+部署前 SHALL 向接入商及属地主管部门确认适用手续；MUST NOT 以 TURN 或非 HTTP 协议作为免备案、免许可的保证。历史 #604 报告及证据包 SHALL 保留原样，不得冒充混合路径生产验收。
+
+#### Scenario: 宣布混合数据面可用
+
+- **WHEN** 准备发布包含 TURN 优化的版本
+- **THEN** SHALL 附真实浏览器、节点故障/过期、权限撤销、抖动防切换及长时验证结果，并注明线路与未覆盖边界；不以历史原型或节点所在地代替证据

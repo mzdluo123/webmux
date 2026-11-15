@@ -80,14 +80,14 @@ control 断开、绑定撤销、关闭或服务退出时，客户端 SHALL 立�
 
 Relay 就绪后，浏览器 SHALL 能通过公共地址使用现有登录、会话管理、终端回放与续接、聊天、语音、设置、上传下载和 `/forward/*` 端口转发。Relay 传输 MUST NOT 绕过 WebMux 的认证、Host、Origin 或会话内进程限制；认证可使用既有 Token 或下述绑定 Relay Origin 的有效登录会话。
 
-现有 P2P SHALL 把 Relay 视为新的 HTTP/WebSocket 基线：首屏不等待 P2P，仍按既有候选与 RTT 策略机会性升级和回落。MVP MUST NOT 为 Relay 放宽直连候选限制、引入 TURN 或修改 P2P 帧协议。
+浏览器 SHALL 把 Relay 视为 HTTP/WebSocket 基线，首屏、登录和信令不等待 WebRTC。宿主与浏览器 SHALL 在授权范围内支持直连及 TURN 候选；保留既有直连校验，不得把 TURN 配置应用到其他独立公网入口。
 
-关闭 Relay SHALL 撤销 Relay 基线入口，但不得暗中修改独立的 P2P 配置；P2P 活动连接的既有处理保持与 Cloudflare 基线断开时一致。
+关闭 Relay SHALL 撤销 Relay 基线入口及派生的直连/TURN 会话，但 MUST NOT 暗中修改独立 P2P 配置或终止持久 PTY。
 
 #### Scenario: Relay 上完成 P2P 升级与回落
 
-- **WHEN** 浏览器经 Relay 打开 WebMux，后台 P2P 直连满足现有升级条件，随后 P2P 断开
-- **THEN** 首屏先经 Relay 可用，升级和回落沿用原有无缺口续接，回落目标为同一 Relay 地址
+- **WHEN** 浏览器经 Relay 打开 WebMux，后台直连或 TURN 路径通过健康与延迟收益检查，随后该路径断开
+- **THEN** 首屏先经 WSS 可用，交互升级后可回落到同一 Relay 地址，恢复输出且不双发输入
 
 #### Scenario: Relay 不绕过认证
 
@@ -171,7 +171,7 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 ### Requirement: WSS 连接隔离与重连诊断
 
-宿主 SHALL 使用运维配置的 HTTPS endpoint 与 WSS + smux v2，MVP 传输固定 wss，不提供 auto/quic 或 UDP endpoint，不接受浏览器指定拨号地址。
+宿主连接器 SHALL 使用运维配置的 HTTPS endpoint 与 WSS + smux v2，基线传输固定 wss，不提供 auto/quic 或 UDP connector endpoint，不接受浏览器指定拨号地址；授权的 ICE/TURN 配置 SHALL 按下述独立流程获取。
 
 宿主 SHALL 在同一逻辑代际内认证 control/bulk 两条物理连接，角色纳入签名并共用配额。control 断开 SHALL 撤销来源及派生会话并关闭 bulk；仅 bulk 断开 SHALL 保留交互、显示降级和 bulkReady=false，有界重连 bulk，新批量请求返回不可用，不挤占 control。
 
@@ -225,3 +225,67 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 - **WHEN** 用户将官方默认配置覆盖为自建地址和公钥
 - **THEN** 旧连接和会话失效，新服务要求独立配对，不能取得旧服务的绑定凭据或使用官方信任身份
+
+### Requirement: 短期 ICE 配置与数据通道授权
+
+浏览器 SHALL 经已认证的同源宿主接口获取 ICE 配置，宿主 SHALL 经密钥认证 control 通道申请两端独立的短期 TURN 凭据。配置 SHALL 绑定当前账号、host ID、绑定/连接器代际及浏览器会话，包含明确到期时间，仅留内存且响应禁缓存。
+
+宿主 SHALL 将 PeerConnection、协商的 SDP/DTLS 指纹与单次建链授权绑定到该浏览器会话，验证后才放行业务。TURN 凭据 MUST NOT 替代宿主认证，MUST NOT 允许仅持有 ICE 配置的客户端访问终端或任意回源。
+
+凭据刷新 SHALL 重新验证授权；过期或失败时不得继续建立或续期 allocation。长期共享密钥 MUST NOT 下发两端；短期凭据 MUST NOT 进入日志、诊断、URL、浏览器持久化或公开状态。
+
+#### Scenario: 未授权浏览器索取 TURN 配置
+
+- **WHEN** 浏览器无有效宿主会话，或请求其他账号/代际的 ICE 配置
+- **THEN** 请求被拒绝，不签发凭据，不改变现有连接
+
+#### Scenario: TURN 凭据过期或刷新失败
+
+- **WHEN** 两端短期凭据到期或刷新无法完成
+- **THEN** 停止新建与续期 allocation，受影响交互回落 WSS，不阻塞基线访问或绕过认证
+
+### Requirement: 按测量升级的交互路由
+
+浏览器 SHALL 在 WSS 已可用后，以有界频率比较 WSS 与候选直连/TURN 的应用层往返及健康状态。只有连续采样满足收益与健康门槛才升级；ICE 成功或候选类型本身 MUST NOT 作为升级依据。
+
+活动路径 SHALL 持续检测健康，失败立即回落 WSS，性能退化按滞回策略回落；实现 SHALL 固定并验证收益阈值、采样窗口、冷却期与探测资源预算，防止频繁切换。
+
+仅显式允许的终端、聊天、列表交互业务 SHALL 使用升级路径。文件上传下载、全部 `/forward/*`、登录、设置、语音与其他未分类业务 SHALL 保持 WSS；批量流量 MUST NOT 绕入交互通道。
+
+#### Scenario: TURN 建链成功但不比 WSS 快
+
+- **WHEN** TURN ICE 检查成功，但应用层采样未满足稳定收益或健康门槛
+- **THEN** 业务保持 WSS，后台探测仍受预算约束，不因 TURN 可达强制升级
+
+#### Scenario: TURN 全部不可用
+
+- **WHEN** 节点不可达、UDP 黑洞、协议不支持或配置为空
+- **THEN** 用户仍可经 WSS 登录和使用全部基础功能，首屏不等待 ICE 超时；诊断显示未升级原因
+
+#### Scenario: 交互升级时下载或端口转发
+
+- **WHEN** 终端已通过直连或 TURN 工作，用户下载文件或访问 `/forward/*`
+- **THEN** 这些请求继续走 WSS bulk，不占用交互数据通道
+
+### Requirement: 混合路径续接与即时业务撤权
+
+切换 SHALL 先验证身份与恢复位置，保持每条业务流单一输入写入方。终端 SHALL 使用 generation/offset 续接并去除重叠输出；聊天/列表 SHALL 按业务游标或权威快照恢复，MUST NOT 使用终端 offset 冒充其他业务恢复协议。
+
+两条路径 MUST NOT 同时发送同一输入；执行结果未知的输入、聊天提交与非幂等请求 MUST NOT 自动重放。无法判定执行结果时 SHALL 向用户明确展示不确定状态。
+
+会话过期、注销、解绑、换钥、邀请撤销或 control 断开 SHALL 立即关闭关联直连/TURN 业务连接，停止凭据刷新并释放可释放的 allocation；MUST NOT 仅等待 TURN 密码过期撤销应用访问。持久 PTY SHALL 保留。
+
+#### Scenario: 输入执行结果未知时掉线
+
+- **WHEN** 已发送的终端输入或聊天提交尚未得到确认，活动 WebRTC 路径断开
+- **THEN** 按业务协议恢复可确认的状态，不在 WSS 自动重发该输入，向用户提示无法确认的结果
+
+#### Scenario: TURN 仍可达但 control 断开
+
+- **WHEN** TURN 数据通道正常而权威 WSS control 断开或超时
+- **THEN** 宿主立即撤销派生会话并关闭该数据通道，不允许绕过撤权继续访问，PTY 不退出
+
+#### Scenario: 手机真实交互发布验收
+
+- **WHEN** 验收混合数据面的生产实现
+- **THEN** SHALL 在真实手机及桌面浏览器完成同 GitHub 账户免 Token 打开、Vim/CLI agent、重输出、Ctrl-C、切换续接、权限撤销和长时稳定性验证，记录失败及未覆盖边界，不引用旧实验充当 TURN 验证
