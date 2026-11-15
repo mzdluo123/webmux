@@ -281,6 +281,48 @@ func TestControlMessageExpiry(t *testing.T) {
 	}
 }
 
+func TestConnectionDemandAuthority(t *testing.T) {
+	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
+	m := ControlMessage{Version: V1, Type: ControlGrow, RequestID: vectorToken, Scope: scope, ExpiresAt: vectorNow.Add(ControlMessageTTL).Unix(), Grow: &ConnectionDemand{Role: RoleBulk, Connections: MaxRoleConnections}}
+	if err := m.Validate(scope, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	m.Grow.Role = RoleControl
+	if err := m.Validate(scope, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	m.Grow.Connections++
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Grow.Connections = 0
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Grow.Connections = 2
+	m.Grow.Role = "untrusted"
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Grow.Role = RoleBulk
+	m.Error = &Error{Code: Unavailable}
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Error = nil
+	stale := scope
+	stale.ConnectorGeneration++
+	requireCode(t, m.Validate(stale, vectorNow), StaleGeneration)
+	requireCode(t, m.Validate(scope, vectorNow.Add(ControlMessageTTL)), Expired)
+}
+
+func TestAuxiliaryConnectorHello(t *testing.T) {
+	for _, role := range []Role{RoleControl, RoleBulk} {
+		hello := ConnectorHello{Version: V1, HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, Role: role}
+		if err := hello.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		hello.ConnectorGeneration = 0
+		if role == RoleBulk {
+			requireCode(t, hello.Validate(), Invalid)
+		} else if err := hello.Validate(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestIndependentSignatureVector(t *testing.T) {
 	key, _ := vectorKey(t)
 	p, err := SignConnector(key, vectorChallenge(), vectorNow)
