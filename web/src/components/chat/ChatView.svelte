@@ -320,6 +320,7 @@
 >
   <div class="relative flex min-h-0 flex-1 flex-col">
     <ScrollArea
+      data-chat-transcript-scroll
       bind:viewportRef={scroller}
       type="hover"
       class="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block"

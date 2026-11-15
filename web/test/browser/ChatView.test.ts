@@ -564,7 +564,7 @@ test("long drafts scroll with shadcn while the caret and send stay accessible", 
   )!;
   await expect.poll(() => viewport.clientHeight).toBeLessThanOrEqual(192);
   await expect.poll(() => viewport.scrollHeight).toBeGreaterThan(192);
-  expect(getComputedStyle(textarea).overflowY).toBe("hidden");
+  expect(getComputedStyle(textarea).overflowY).toBe("auto");
   await input.click();
   await userEvent.keyboard("{Control>}{End}{/Control}");
   await expect.poll(() => viewport.scrollTop).toBeGreaterThan(0);
@@ -575,6 +575,46 @@ test("long drafts scroll with shadcn while the caret and send stay accessible", 
     .toBeVisible();
   await input.fill("短消息");
   await expect.poll(() => viewport.scrollHeight).toBeLessThan(192);
+});
+
+test("restored and blurred long drafts keep their own scroll in document mode", async () => {
+  const socket = await open(undefined, true);
+  socket.frame(snapshot(chatState()));
+  const input = page.getByRole("textbox", { name: "消息" });
+  await input.fill("长草稿 中文🙂\n".repeat(80));
+  const textarea = input.element() as HTMLTextAreaElement;
+  textarea.blur();
+  const root = document.querySelector<HTMLElement>("[data-chat-view]")!;
+  await expect.poll(() => root.dataset.documentScroll).toBe("true");
+  const viewport = textarea.closest<HTMLElement>(
+    '[data-slot="scroll-area-viewport"]',
+  )!;
+  await expect.poll(() => getComputedStyle(viewport).overflowY).toBe("scroll");
+  expect(viewport.clientHeight).toBeLessThanOrEqual(192);
+  expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight);
+  const offset = window.scrollY;
+  viewport.scrollTop = 800;
+  expect(viewport.scrollTop).toBeGreaterThan(0);
+  expect(window.scrollY).toBe(offset);
+  expect(
+    document.querySelector(
+      '[data-chat-transcript-scroll] [data-slot="scroll-area-viewport"]',
+    ),
+  ).not.toBe(viewport);
+});
+
+test("a draft remains scrollable when content field sizing is unavailable", async () => {
+  const socket = await open();
+  socket.frame(snapshot(chatState()));
+  const input = page.getByRole("textbox", { name: "消息" });
+  await input.fill("兼容浏览器的长草稿\n".repeat(80));
+  const textarea = input.element() as HTMLTextAreaElement;
+  // Simulate an engine retaining fixed textarea sizing instead of growing it.
+  textarea.style.setProperty("field-sizing", "fixed");
+  expect(getComputedStyle(textarea).overflowY).toBe("auto");
+  expect(textarea.scrollHeight).toBeGreaterThan(textarea.clientHeight);
+  textarea.scrollTop = 800;
+  expect(textarea.scrollTop).toBeGreaterThan(0);
 });
 
 test("a paused queue shows its prompts and continues or clears", async () => {

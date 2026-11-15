@@ -309,14 +309,16 @@
   display: flex;
   flex-direction: column;
 }
-[data-chat-view][data-document-scroll="true"] [data-slot="scroll-area"],
+[data-chat-view][data-document-scroll="true"] [data-chat-transcript-scroll],
 [data-chat-view][data-document-scroll="true"]
-  [data-slot="scroll-area-viewport"] {
+  [data-chat-transcript-scroll]
+  > [data-slot="scroll-area-viewport"] {
   height: auto !important;
   overflow: visible !important;
 }
 [data-chat-view][data-document-scroll="true"]
-  [data-slot="scroll-area-scrollbar"] {
+  [data-chat-transcript-scroll]
+  > [data-slot="scroll-area-scrollbar"] {
   display: none !important;
 }
 [data-chat-view][data-document-scroll="true"] [data-chat-dock] {
