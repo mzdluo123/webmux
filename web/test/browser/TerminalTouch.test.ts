@@ -122,6 +122,9 @@ test("native alternate-buffer wheel fallback honors cursor-key mode and normal-b
   observeGlyphPixels(true);
   const { socket } = await openTerminal();
   const bottom = await populateHistory(socket);
+  // Native gestures can outlast the socket's liveness deadline on a busy
+  // runner. This is a healthy application, not a silent-transport test.
+  socket.answerMissingQueries = true;
   const { focused } = blurAndTrackFocus();
   socket.receive(0, "\x1b[?1049h\x1b[?1lalt-normal");
   await expectDomText("alt-normal");

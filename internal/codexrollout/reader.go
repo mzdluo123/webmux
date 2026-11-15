@@ -1,5 +1,5 @@
-// Package codexrollout reads the pinned Codex 0.77 rollout format without
-// executing commands, resolving attachments, or retaining reasoning payloads.
+// Package codexrollout reads verified Codex rollout formats without executing
+// commands, resolving attachments, or retaining reasoning payloads.
 package codexrollout
 
 import (
@@ -15,7 +15,7 @@ import (
 	"unicode/utf8"
 )
 
-const Version = "codex-0.77/v1"
+const Version = "codex-rollout/v2"
 const MaxRecord = 4 << 20
 const MaxInput = 64 << 20
 const MaxRecords = 100000
@@ -60,6 +60,7 @@ type Item struct {
 }
 type Record struct {
 	Offset, End int64
+	ReplacesHistory bool
 	Hash        string
 	Timestamp   string
 	Items       []Item
@@ -163,7 +164,9 @@ func decode(e envelope, out *Result, rec *Record) error {
 		if len(m.ID) > 128 || len(m.Cwd) > 8192 || len(m.Timestamp) > 128 || len(m.ModelProvider) > 256 {
 			return ErrLimit
 		}
-		if m.CLIVersion != "0.77.0" {
+		switch m.CLIVersion {
+		case "0.77.0", "0.157.1", "0.162.1":
+		default:
 			return ErrVersion
 		}
 		if out.Metadata.ID == "" {
@@ -186,11 +189,18 @@ func decode(e envelope, out *Result, rec *Record) error {
 	case "compacted":
 		var v struct {
 			Message string `json:"message"`
+			ReplacementHistory []json.RawMessage `json:"replacement_history"`
 		}
 		if json.Unmarshal(e.Payload, &v) != nil {
 			return ErrFormat
 		}
 		rec.Items = append(rec.Items, Item{Kind: "compaction", Role: "agent", Text: v.Message, Status: "completed"})
+		rec.ReplacesHistory = v.ReplacementHistory != nil
+		for _, raw := range v.ReplacementHistory {
+			if err := response(raw, rec); err != nil {
+				return err
+			}
+		}
 		diag("compaction_boundary")
 	case "event_msg":
 		var v struct {

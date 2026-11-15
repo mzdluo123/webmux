@@ -149,7 +149,7 @@ test-fast: frontend
 	$(MAKE) --output-sync=target -j test-go test-unit test-browser
 
 test-go:
-	$(GO) test -race -parallel=$(GO_TEST_PARALLEL) ./...
+	$(GO) test -race -parallel=$(GO_TEST_PARALLEL) ./... ./internal/acp/testdata/fakeagent
 	cd protocol/relay && $(GO) test -race -parallel=$(GO_TEST_PARALLEL) ./...
 
 test-frontend:

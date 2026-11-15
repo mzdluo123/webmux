@@ -15,8 +15,6 @@
 package agenttrust
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -25,41 +23,14 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/rainchan/webmux/internal/agentprofile/trustconfig"
 )
-
-// agent is a CLI whose trust record or scoped override WebMux knows.
-type agent struct {
-	// executable is the canonical agent name and default executable base name.
-	executable string
-	// match reports whether a basename in argv invokes this agent; when nil,
-	// recognise compares base == executable.
-	match func(base string) bool
-	// write records dir as trusted or adds its scoped trust override.
-	write func(t *Trust, dir string, env map[string]string) error
-}
-
-var agents = []agent{
-	{executable: "claude", write: (*Trust).trustClaude},
-	{executable: "codex", write: (*Trust).trustCodex},
-	{executable: "copilot", write: (*Trust).trustCopilot},
-	{executable: "agy", write: (*Trust).trustAgy},
-	{executable: "kimi", write: (*Trust).trustKimi},
-	{executable: "devin", write: (*Trust).trustDevin},
-	{
-		executable: "qodercn",
-		match:      func(base string) bool { return matchesQoder([]string{"qodercn", "qoderclicn", "qoder-cn"}, base) },
-		write:      (*Trust).trustQoderCN,
-	},
-	{
-		executable: "qoder",
-		match:      func(base string) bool { return matchesQoder([]string{"qoder", "qodercli"}, base) },
-		write:      (*Trust).trustQoder,
-	},
-}
 
 // Trust writes trust records for agents launched in a directory.
 type Trust struct {
-	mu sync.Mutex
+	mu       sync.Mutex
+	policies []trustconfig.Policy
 	// home returns the user's home directory; tests replace it.
 	home func() (string, error)
 	// getenv reads the server's environment; tests replace it.
@@ -68,9 +39,10 @@ type Trust struct {
 	lookupEnv func(string) (string, bool)
 }
 
-// New returns a Trust that uses the process home directory and environment.
-func New() *Trust {
-	return &Trust{home: os.UserHomeDir, getenv: os.Getenv, lookupEnv: os.LookupEnv}
+// New selects only the explicitly assembled trust capabilities. An empty set
+// performs no trust effects, independently of the runtime agent registry.
+func New(policies ...trustconfig.Policy) *Trust {
+	return &Trust{home: os.UserHomeDir, getenv: os.Getenv, lookupEnv: os.LookupEnv, policies: policies}
 }
 
 // Prepare is the session pre-launch hook. It recognises a supported agent in
@@ -79,7 +51,7 @@ func New() *Trust {
 // The returned environment is used for the launch and may contain a scoped
 // trust override for agents that support one.
 func (t *Trust) Prepare(cwd string, argv []string, env map[string]string) map[string]string {
-	a, ok := recognise(argv)
+	a, ok := t.recognise(argv)
 	if !ok {
 		return env
 	}
@@ -89,12 +61,25 @@ func (t *Trust) Prepare(cwd string, argv []string, env map[string]string) map[st
 	dir, err := t.trustable(cwd)
 	if err == nil {
 		t.mu.Lock()
-		err = a.write(t, dir, env)
+		var plan trustconfig.Plan
+		plan, err = a.Plan(trustconfig.Context{
+			Home: t.home,
+			Env:  func(key string) string { return t.env(env, key) },
+			LookupEnv: func(key string) (string, bool) {
+				if value, ok := env[key]; ok {
+					return value, true
+				}
+				return t.lookupEnv(key)
+			},
+		}, dir)
+		if err == nil {
+			err = execute(plan, env)
+		}
 		t.mu.Unlock()
 	}
 	if err != nil {
 		// Paths are not secrets; terminal data never reaches this log.
-		slog.Warn("agent folder trust not prepared", "agent", a.executable, "dir", cwd, "error", err)
+		slog.Warn("agent folder trust not prepared", "agent", a.Name, "dir", cwd, "error", err)
 	}
 	return env
 }
@@ -103,25 +88,18 @@ func (t *Trust) Prepare(cwd string, argv []string, env map[string]string) map[st
 // the program of a startup-file shell such as bash -ic 'exec -- "$@"' webmux
 // claude. It over-matches harmlessly: the directory is one the user is
 // launching a command in anyway.
-func recognise(argv []string) (agent, bool) {
+func (t *Trust) recognise(argv []string) (trustconfig.Policy, bool) {
 	for _, token := range argv {
 		for _, word := range strings.Fields(token) {
 			base := filepath.Base(word)
-			for _, a := range agents {
-				if a.matches(base) {
+			for _, a := range t.policies {
+				if a.Match(base) {
 					return a, true
 				}
 			}
 		}
 	}
-	return agent{}, false
-}
-
-func (a agent) matches(base string) bool {
-	if a.match != nil {
-		return a.match(base)
-	}
-	return base == a.executable
+	return trustconfig.Policy{}, false
 }
 
 // env returns a variable from the session's environment, falling back to the
@@ -131,22 +109,6 @@ func (t *Trust) env(env map[string]string, key string) string {
 		return v
 	}
 	return t.getenv(key)
-}
-
-// configPath is dir/name, where dir is the agent's override variable or, when
-// it is unset, a dot directory under the user's home.
-func (t *Trust) configPath(env map[string]string, variable, dotDir, name string) (string, error) {
-	if dir := t.env(env, variable); dir != "" {
-		return filepath.Join(dir, name), nil
-	}
-	home, err := t.home()
-	if err != nil {
-		return "", fmt.Errorf("home directory: %w", err)
-	}
-	if dotDir == "" {
-		return filepath.Join(home, name), nil
-	}
-	return filepath.Join(home, dotDir, name), nil
 }
 
 // trustable returns the canonical form of cwd, or an error when trusting it
@@ -168,6 +130,30 @@ func (t *Trust) trustable(cwd string) (string, error) {
 		return "", fmt.Errorf("refusing to trust %s: it contains the home directory", dir)
 	}
 	return dir, nil
+}
+
+// execute owns every trust effect; adapters only describe pure edits.
+func execute(plan trustconfig.Plan, env map[string]string) error {
+	if plan.Path != "" {
+		parent := filepath.Dir(plan.Path)
+		if plan.RequireParent {
+			if info, err := os.Stat(parent); err != nil || !info.IsDir() {
+				return nil
+			}
+		}
+		if plan.CreateParents {
+			if err := os.MkdirAll(parent, 0o700); err != nil {
+				return err
+			}
+		}
+		if err := editFile(plan.Path, plan.Create, plan.Edit); err != nil {
+			return err
+		}
+	}
+	for key, value := range plan.Environment {
+		env[key] = value
+	}
+	return nil
 }
 
 // editFile applies edit to the file at path through a temporary file and a
@@ -226,36 +212,4 @@ func editFile(path string, create bool, edit func(data []byte) ([]byte, bool, er
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
-}
-
-// encodeJSON is the only JSON encoder of this package.
-func encodeJSON(v any) (json.RawMessage, error) { return json.Marshal(v) }
-
-// objectOf decodes a JSON object into its raw members; empty input and null
-// are an empty object and any other JSON type is an error.
-func objectOf(raw []byte) (map[string]json.RawMessage, error) {
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
-		return map[string]json.RawMessage{}, nil
-	}
-	var object map[string]json.RawMessage
-	if err := json.Unmarshal(trimmed, &object); err != nil {
-		return nil, fmt.Errorf("not a JSON object: %w", err)
-	}
-	return object, nil
-}
-
-// indentJSON renders root the way the agents do: two spaces and a final
-// newline. Members other than the edited ones keep their original bytes.
-func indentJSON(root map[string]json.RawMessage) ([]byte, error) {
-	encoded, err := encodeJSON(root)
-	if err != nil {
-		return nil, err
-	}
-	var out bytes.Buffer
-	if err = json.Indent(&out, encoded, "", "  "); err != nil {
-		return nil, err
-	}
-	out.WriteByte('\n')
-	return out.Bytes(), nil
 }

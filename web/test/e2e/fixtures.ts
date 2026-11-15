@@ -461,7 +461,7 @@ export async function headerAction(page: Page, name: string) {
   return page.getByRole("menuitem", { name, exact: true });
 }
 
-export async function runCommand(page: Page, command: string) {
+export async function runCommand(page: Page | Locator, command: string) {
   const input = page.locator(".xterm-helper-textarea");
   await expect(page.locator(".restore-overlay")).toBeHidden();
   await expect(input).toBeEditable();

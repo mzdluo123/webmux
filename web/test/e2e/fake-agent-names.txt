@@ -6,6 +6,9 @@ claude
 claude-agent-acp
 agy
 qoder
+qodercli
 qodercn
+qoderclicn
+qoder-cn
 kimi
 devin

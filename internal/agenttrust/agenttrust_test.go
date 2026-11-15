@@ -1,17 +1,27 @@
 package agenttrust
 
 import (
-	"strings"
-
 	"encoding/json"
-	"github.com/BurntSushi/toml"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/BurntSushi/toml"
+	"github.com/rainchan/webmux/internal/agentprofile/agy"
+	"github.com/rainchan/webmux/internal/agentprofile/claudecode"
+	"github.com/rainchan/webmux/internal/agentprofile/codex"
+	"github.com/rainchan/webmux/internal/agentprofile/copilot"
+	"github.com/rainchan/webmux/internal/agentprofile/devin"
+	"github.com/rainchan/webmux/internal/agentprofile/kimi"
+	"github.com/rainchan/webmux/internal/agentprofile/qoder"
+	"github.com/rainchan/webmux/internal/agentprofile/qodercn"
+	"github.com/rainchan/webmux/internal/agentprofile/trustconfig"
 )
 
 func newTrust(home string, env map[string]string) *Trust {
 	return &Trust{
+		policies:  []trustconfig.Policy{claudecode.Trust, codex.Trust, copilot.Trust, agy.Trust, kimi.Trust, devin.Trust, qodercn.Trust, qoder.Trust},
 		home:      func() (string, error) { return home, nil },
 		getenv:    func(k string) string { return env[k] },
 		lookupEnv: func(k string) (string, bool) { v, ok := env[k]; return v, ok },

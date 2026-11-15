@@ -77,7 +77,7 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `internal/workspace`                          | 仓库清单持久化、Git worktree 查询 / 创建 / 删除、发散协调恢复与三方冲突解决、启动目录协调                  |
 | `internal/worktreefs`                         | 工作树边界安全原子文件覆盖与删除辅助（`os.OpenRoot` 防符号链接逃逸 + 同目录临时文件原子替换）              |
 | `internal/launch`                             | 启动配置持久化（`launch-configs.json`）、独立文件锁、校验与不可用状态                                      |
-| `internal/agenttrust`                         | 启动 Claude / Codex / Copilot / Antigravity / Qoder / QoderCN 前预写“信任此文件夹”记录（`agent_pretrust`） |
+| `internal/agenttrust`                         | 启动前的 cwd 信任范围政策、单锁协调与安全原子文件编辑；cmd 显式注入各 agent 的信任能力（`agent_pretrust`） |
 | `internal/tunnelsettings`                     | 隧道设置持久化、独立文件锁、校验与故障关闭                                                                 |
 | `internal/tailscale`                          | Tailscale CLI 定位、状态/入口解析、Serve/Funnel 精确应用与移除、WSL/Windows provider 检测                  |
 | `internal/tailscalesettings`                  | Tailscale 网页设置持久化、独立文件锁、校验与故障关闭                                                       |
@@ -98,6 +98,9 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `internal/tray/winui`, `cmd/webmux-tray`      | Windows 托盘通知区界面、菜单渲染、通知与剪贴板（`//go:build windows`）                                     |
 | `internal/handoff`                            | 历史预算、整项选择和服务端预览；通过注入服务协调，不创建 PTY                                               |
 | `internal/conversation`                       | 稳定对话与 provider 身份、Run 序号、handoff / delivery / receipt 事务基础                                  |
+| `internal/historysource`                      | 原生来源、规范记录、冻结边界与诊断值；有界只读文件证据                                                  |
+| `internal/historyimport`                      | 显式 reader 选择、来源中立直读、引用快照校验及按需保留；不维护活历史正文镜像                            |
+| `internal/historyprojection`                  | 仅从冻结导出映射到独立 snapcompact-go 核心；文本/图片预算独立于格式解析                                 |
 | `internal/hybrid`                             | 混合会话：每会话一个 actor、记录持久化、聊天事件规范化、切换与恢复                                         |
 | `internal/artifacts`                          | 会话交互产物目录（系统临时目录下的私有文件夹，含 `uploads/`）的创建与清理                                  |
 | `internal/settingsstore`                      | 隧道与 Tailscale 设置共用的打开、读取、提交与 fail-closed 骨架                                             |
@@ -109,6 +112,9 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 
 Kimi 的 `agent_pretrust` 不写信任记录，而是由 `internal/agenttrust` 向会话环境注入进程级目录信任；Devin 则写入 `$XDG_DATA_HOME/devin/cli/trusted_workspaces.json`。
 Agent 信任预写与专属提交延迟仅在选择 `launch` 时装配；核心普通 argv 不要求该功能。PTY 的 `agent_protocol`、`bell_attention`、`program_status` 则是核心识别配置，与聊天、推送功能是否选择无关。
+具体 agent 的 `trust.go` 拥有配置目录、命令别名与纯格式变换；`agentprofile/trustconfig` 只承载中立计划和纯 JSON 操作，不执行 I/O。
+`cmd/internal/assemble` 独立列出八种信任政策，因此 Copilot 等仅信任能力不必实现 ACP；信任扫描仍宽松匹配 argv 中的词，不复用混合命令校验。
+`agenttrust` 是信任副作用的唯一执行器：保留会话环境优先级、显式空值约定、home/ancestor/root 拒绝、符号链接及权限保护；只读历史能力不取得该执行器。
 
 `cmd/webmux` 是唯一装配根：先验证固定选择，用 `cmd/internal/assemble` 转换选项，再由 `feature_{assembly,start,bind,capabilities}.go` 显式构造所选服务。
 `api.New` 只接收核心依赖及 `transport.Contribution` 路由/流/钩子；`featureapi`、`featurehub`、`featurewire` 拥有可选控制器，不反向导入 `api`。
@@ -193,10 +199,14 @@ flowchart LR
 - **agent 适配器**：`internal/agentprofile` 是 agent 中立的核心，`hybrid` 只依赖其中的接口。
   - `Agent` 接口提供档案数据（命令写法、参数分类、恢复与 ACP 命令）、身份识别与中断键。
   - 只有部分 agent 具备的行为是可选小接口，`hybrid` 以类型断言使用：`Resumer`、`ConfigReapplier`、`ConfigErrorHandler`、`SubmitDelayer`、`Steerer`、`LockTracker`、`ForceSwitchNoter`。
-  - 每个 agent 是一个子包（`opencode`、`omp`、`codex`、`claudecode`、`agy`、`qoder`、`qodercn`、`kimi`），`agentprofile/agents` 用显式列表组成不可变注册表；`agentprofile/agenttest` 是每个适配器都运行的契约测试。
+  - 每个 agent 是一个子包（`opencode`、`omp`、`codex`、`claudecode`、`agy`、`qoder`、`qodercn`、`kimi`、`devin`），`agentprofile/agents` 用显式列表组成不可变注册表；`agentprofile/agenttest` 是每个适配器都运行的契约测试。
   - `cmd` 启动时选择一次运行注册表，同一实例注入 session 提交延迟、launch 保存校验与能力投影、hybrid 运行；API 通过已注入的 launch 服务查询。
   - 服务与控制器不导入内置聚合包；Config/DTO 只携带服务计算的能力值，不查全局。nil 与空注册表都表示没有 agent，不回退内置集合；Identify 与 supportedAgents 保持注册顺序。
   - 新增 agent 只需新增子包并在注册表登记（启动预设、图标与文档另行添加）；`internal/archtest` 守住 `acp`、`hybrid`、核心包与 `web/src` 不出现 agent 名称。
+  - 静态 runtime ID、可执行别名、图标与验证版本由具体适配器的 `Profile` 拥有；connector executable 与 connector 验证版本单列，不等同于 agent ID 或 provider/model ID。
+  - `agents.LaunchTemplates` 描述 CLI 启动建议，保留仅 TUI 工具；`cmd/internal/assemble.LaunchPresets` 加入登录 shell、包装 startup argv 并转换为 launch 输入。`launch` 只存储、校验和恢复注入的预设，不内置厂商列表。
+  - 预设保持既有顺序、名称、权限参数、env、hybrid 默认值和图标 ID；恢复不覆盖同名用户配置。前端静态图标目录与旧 icon 推断仅是展示兼容表，不代表运行能力，不另建生成链。
+  - #650 B 评估：保留 `agentprofile/<agent>` 路径。能力接口与 cmd 装配已隔离所有权；迁往 `agent/<name>` 不减少实际依赖，反而改动导入路径、架构清单与测试，并可能为跨包 helper 扩大导出面。后续只有真实跨能力协作收益才能支持迁移，不以目录统一替代边界。
 - **生命周期**：从终端或聊天开始，协议见 [混合会话接口](protocol/http-hybrid.md)。
   - 切换失败自动回到原端；TUI 自行退出或回滚失败标记 `interrupted`。
   - ACP 意外退出自动重连一次；聊天端会话保持 ACP 进程运行，仅在切换、显式归档（关闭）或服务停止时结束。

@@ -47,7 +47,7 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 		p.launch = launch.Open(c.StateDir, p.agents)
 		if err := p.launch.Unavailable(); err != nil {
 			slog.Warn("launch configs unavailable", "error", err)
-		} else if err := p.launch.Seed(launch.Presets(os.Getenv("SHELL"))); err != nil {
+		} else if err := p.launch.Seed(assemble.LaunchPresets(os.Getenv("SHELL"))); err != nil {
 			slog.Warn("seed default launch configs", "error", err)
 		}
 	}

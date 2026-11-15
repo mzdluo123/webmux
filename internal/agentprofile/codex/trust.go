@@ -1,30 +1,24 @@
-package agenttrust
+package codex
 
 import (
 	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/rainchan/webmux/internal/agentprofile/trustconfig"
 )
 
-// trustCodex records trust_level = "trusted" under [projects."<dir>"] in
-// Codex's config.toml, ~/.codex/config.toml or $CODEX_HOME/config.toml. Codex
-// works without a config file, so it is created when the Codex directory
-// exists, which shows the user has run Codex.
-func (t *Trust) trustCodex(dir string, env map[string]string) error {
-	path, err := t.configPath(env, "CODEX_HOME", ".codex", "config.toml")
-	if err != nil {
-		return err
-	}
-	if info, statErr := os.Stat(filepath.Dir(path)); statErr != nil || !info.IsDir() {
-		return nil
-	}
-	return editFile(path, true, func(data []byte) ([]byte, bool, error) {
-		return codexTrusted(data, dir)
-	})
+// Trust describes folder trust without requiring runtime/ACP support.
+var Trust = trustconfig.Policy{
+	Name:  "codex",
+	Match: func(base string) bool { return base == "codex" },
+	Plan:  planTrust,
+}
+
+func planTrust(c trustconfig.Context, dir string) (trustconfig.Plan, error) {
+	path, err := c.ConfigPath("CODEX_HOME", ".codex", "config.toml")
+	return trustconfig.Plan{Path: path, Create: true, RequireParent: true, Edit: func(data []byte) ([]byte, bool, error) { return codexTrusted(data, dir) }}, err
 }
 
 // codexTrusted appends a project table instead of re-encoding the file, which

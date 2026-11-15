@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+const kimiTrustWorkspaceEnv = "KIMI_CODE_TRUST_WORKSPACE"
+
 func TestPrepareKimiTrustsOnlyCurrentWorkspace(t *testing.T) {
 	for _, argv := range [][]string{
 		{"kimi", "--auto"},

@@ -198,7 +198,8 @@
     "editor-scratch": "`webmux repo settings --edit` 在系统临时目录创建交给编辑器的临时文件，编辑器退出后读取并删除；不属于服务端状态目录。",
     "entry-settings": "internal/settingsstore 是 tunnel、tailscale-settings、voice-settings、p2p-settings 与 relay 共用的 fail-closed 打开、读取与提交骨架；文件路径、所有者与失败策略仍由各存储各自登记。",
     "agent-trust": "internal/agenttrust 在启动 Claude Code、Codex、Copilot CLI、Antigravity CLI、Qoder、QoderCN 或 Devin 前，以临时文件加改名的方式在它们自己的配置文件（.claude.json、config.toml、config.json、settings.json）里追加目标目录的信任记录；这些是外部 agent 的状态而非 WebMux 存储，已有文件保留其他内容与权限，缺失的 Claude/Copilot/Antigravity/Qoder/QoderCN 配置不创建；Devin 的 trusted_workspaces.json 缺失时连同目录创建为最小 JSON。启动 Kimi 时只在会话环境补充进程级 KIMI_CODE_TRUST_WORKSPACE，不写持久记录；均由 agent_pretrust 开关控制。",
-    "read-only-codex-rollout": "固定 Codex 原生文件只读打开，O_RDONLY|O_NONBLOCK 避免 FIFO 阻塞；不创建、不写入，导入数据沿用 conversation SQLite。"
+    "read-only-codex-rollout": "固定 Codex 原生文件只读打开，O_RDONLY|O_NONBLOCK 避免 FIFO 阻塞；不创建、不写入，导入数据沿用 conversation SQLite。",
+    "read-only-native-history": "原生历史 SQLite 以 mode=ro 和 query_only 读取一致性事务；不创建、迁移或写入 Agent 数据库。"
   },
   "references": {
     "internal/statefile/catalog.go|path|relay-settings.json": {
@@ -749,7 +750,23 @@
       "count": 1,
       "owner": "kimi-resume"
     },
-    "internal/agenttrust/agy.go|path|settings.json": {
+    "internal/agentprofile/agy/trust.go|path|settings.json": {
+      "count": 1,
+      "owner": "agent-trust"
+    },
+    "internal/agentprofile/claudecode/trust.go|path|.claude.json": {
+      "count": 1,
+      "owner": "agent-trust"
+    },
+    "internal/agentprofile/copilot/trust.go|path|config.json": {
+      "count": 1,
+      "owner": "agent-trust"
+    },
+    "internal/agentprofile/devin/trust.go|path|trusted_workspaces.json": {
+      "count": 1,
+      "owner": "agent-trust"
+    },
+    "internal/agentprofile/qoder/trust.go|path|settings.json": {
       "count": 1,
       "owner": "agent-trust"
     },
@@ -762,22 +779,6 @@
       "owner": "agent-trust"
     },
     "internal/agenttrust/agenttrust.go|editFile|os.Rename": {
-      "count": 1,
-      "owner": "agent-trust"
-    },
-    "internal/agenttrust/claude.go|path|.claude.json": {
-      "count": 1,
-      "owner": "agent-trust"
-    },
-    "internal/agenttrust/copilot.go|path|config.json": {
-      "count": 1,
-      "owner": "agent-trust"
-    },
-    "internal/agenttrust/devin.go|path|trusted_workspaces.json": {
-      "count": 1,
-      "owner": "agent-trust"
-    },
-    "internal/agenttrust/qoder.go|path|settings.json": {
       "count": 1,
       "owner": "agent-trust"
     },
@@ -896,6 +897,22 @@
     "internal/pathutil/temporary.go|*TemporaryDirectory.Remove|os.RemoveAll": {
       "count": 1,
       "owner": "user-files"
+    },
+    "internal/agentprofile/kimi/history/reader.go|path|state.json": {
+      "count": 1,
+      "owner": "agent-state"
+    },
+    "internal/agentprofile/opencode/history/history.go|open|database/sql.Open": {
+      "count": 1,
+      "owner": "read-only-native-history"
+    },
+    "internal/agentprofile/agy/history/history.go|open|database/sql.Open": {
+      "count": 1,
+      "owner": "read-only-native-history"
+    },
+    "internal/agentprofile/devin/history/history.go|open|database/sql.Open": {
+      "count": 1,
+      "owner": "read-only-native-history"
     },
     "internal/codexrollout/file_unix.go|OpenFile|os.OpenFile": {
       "count": 1,

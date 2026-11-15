@@ -1,13 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Locator, Page } from "@playwright/test";
-import { test, expect, createShell, openSplitPanel } from "./fixtures";
-
-async function command(page: Page, pane: Locator, value: string) {
-  await pane.locator(".xterm-helper-textarea").focus();
-  await page.keyboard.type(value);
-  await page.keyboard.press("Enter");
-}
+import { test, expect, createShell, openSplitPanel, runCommand } from "./fixtures";
 
 for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
   test(`background OSC 52 waits for explicit copy with clipboard ${clipboard}`, async ({
@@ -47,8 +40,7 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
     const gate = join(workDir, "copy-ready");
     const text = `pending-${clipboard}`;
     const payload = Buffer.from(text).toString("base64");
-    await command(
-      page,
+    await runCommand(
       background,
       `while [ ! -f '${gate}' ]; do sleep 0.05; done; printf '\\033]52;c;${payload}\\a'; printf 'copy-emitted\\n'`,
     );
@@ -70,7 +62,7 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
     expect(
       await page.evaluate(() => Reflect.get(window, "clipboardWrites")),
     ).toEqual([]);
-    await command(page, foreground, "printf 'foreground-still-typing\\n'");
+    await runCommand(foreground, "printf 'foreground-still-typing\\n'");
     await expect(foreground.locator(".xterm-rows")).toContainText(
       "foreground-still-typing",
     );

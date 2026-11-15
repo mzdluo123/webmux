@@ -7,6 +7,14 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/agentprofile"
+	"github.com/rainchan/webmux/internal/agentprofile/agy"
+	"github.com/rainchan/webmux/internal/agentprofile/claudecode"
+	"github.com/rainchan/webmux/internal/agentprofile/codex"
+	"github.com/rainchan/webmux/internal/agentprofile/copilot"
+	"github.com/rainchan/webmux/internal/agentprofile/devin"
+	"github.com/rainchan/webmux/internal/agentprofile/kimi"
+	"github.com/rainchan/webmux/internal/agentprofile/qoder"
+	"github.com/rainchan/webmux/internal/agentprofile/qodercn"
 	"github.com/rainchan/webmux/internal/agenttrust"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/forward"
@@ -31,7 +39,10 @@ func SessionOptions(c config.Config, registry *agentprofile.Registry) session.Op
 	}
 	if c.Features.Has("launch") {
 		if c.AgentPretrust {
-			options.PreLaunch = agenttrust.New().Prepare
+			options.PreLaunch = agenttrust.New(
+				claudecode.Trust, codex.Trust, copilot.Trust, agy.Trust,
+				kimi.Trust, devin.Trust, qodercn.Trust, qoder.Trust,
+			).Prepare
 		}
 		options.SubmitDelay = registry.SubmitDelay
 	}

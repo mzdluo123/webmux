@@ -178,7 +178,10 @@ func TestLaunchConfigCRUD(t *testing.T) {
 
 func TestLaunchConfigPresets(t *testing.T) {
 	store := openLaunchStore(t)
-	if err := store.Seed(launch.Presets("/bin/zsh")); err != nil {
+	if err := store.Seed([]launch.Input{
+		{Name: "Shell", Icon: "terminal", Cmd: []string{"/bin/zsh", "-l", "-i"}},
+		{Name: "omp", Icon: "pi", Cmd: []string{"omp", "--auto-approve"}, Env: map[string]string{"PI_FORCE_IMAGE_PROTOCOL": "kitty"}, Hybrid: true},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	h := newLaunchHarness(t, store)
@@ -186,7 +189,7 @@ func TestLaunchConfigPresets(t *testing.T) {
 	if err := json.Unmarshal(h.expect("GET", "/api/launch-configs/presets", "", 200), &presets); err != nil {
 		t.Fatal(err)
 	}
-	if len(presets) != 14 || presets[0].Name != "Shell" || !reflect.DeepEqual(presets[0].Cmd, []string{"/bin/zsh", "-l", "-i"}) {
+	if len(presets) != 2 || presets[0].Name != "Shell" || !reflect.DeepEqual(presets[0].Cmd, []string{"/bin/zsh", "-l", "-i"}) {
 		t.Fatalf("presets = %+v", presets)
 	}
 	var current []contract.LaunchConfigSummary
@@ -214,7 +217,7 @@ func TestLaunchConfigPresets(t *testing.T) {
 	if err := json.Unmarshal(h.expect("POST", "/api/launch-configs/presets", `{}`, 200), &afterAll); err != nil {
 		t.Fatal(err)
 	}
-	if len(afterAll) != 14 || afterAll[0].ID != current[0].ID {
+	if len(afterAll) != 2 || afterAll[0].ID != current[0].ID {
 		t.Fatalf("after restore all = %+v", afterAll)
 	}
 }
