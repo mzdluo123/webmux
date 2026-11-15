@@ -505,21 +505,26 @@ export function chatFixture(scenario: Scenario, agent: Agent) {
         agentText(`long-a${index}`, `第 ${round} 轮回复：已保留排序和测试。`),
       );
       for (let reply = 1; reply < replyCount; reply++) {
-        events.push(
-          {
-            kind: "message.append",
-            message: {
-              messageId: `long-t${index}-${reply}`,
-              role: "thought",
-              text: "检查已有实现。",
+        // Keep interleaved work at the start and end; repeating the same
+        // disclosures in every middle round only slows the layout matrix.
+        if (index < 4 || index >= 38)
+          events.push(
+            {
+              kind: "message.append",
+              message: {
+                messageId: `long-t${index}-${reply}`,
+                role: "thought",
+                text: "检查已有实现。",
+              },
             },
-          },
-          tool(
-            `long-r${index}-${reply}`,
-            "read",
-            `检查第 ${round} 轮改动`,
-            "completed",
-          ),
+            tool(
+              `long-r${index}-${reply}`,
+              "read",
+              `检查第 ${round} 轮改动`,
+              "completed",
+            ),
+          );
+        events.push(
           agentText(
             `long-a${index}-${reply}`,
             `补充 ${reply}：回归用例已保留。`,
