@@ -1340,6 +1340,65 @@ test("a hundred progress messages use a bounded directory without hiding the tra
   }
 });
 
+test("aggregated cached history labels a missing prompt as earlier", async () => {
+  await page.viewport(1280, 900);
+  try {
+    const socket = await open();
+    socket.frame(snapshot(chatState()));
+    socket.frame({
+      type: "events",
+      generation: "g1",
+      items: events(
+        {
+          kind: "message.append",
+          message: {
+            messageId: "orphan",
+            role: "agent",
+            text: "缓存中的早期回复",
+          },
+        },
+        ...Array.from({ length: 60 }, (_, i) => [
+          {
+            kind: "message.append" as const,
+            message: {
+              messageId: `cached-u${i}`,
+              role: "user" as const,
+              text: `请求 ${i}`,
+            },
+          },
+          {
+            kind: "message.append" as const,
+            message: {
+              messageId: `cached-a${i}`,
+              role: "agent" as const,
+              text: `回复 ${i}`,
+            },
+          },
+        ]).flat(),
+      ),
+    });
+    const first = page
+      .getByRole("navigation", { name: "对话轮次" })
+      .getByRole("button")
+      .first();
+    await expect.element(first).toBeVisible();
+    await expect
+      .poll(() => first.element().getAttribute("aria-label"))
+      .toMatch(/^此前–第 [1-9]/);
+    expect(first.element().getAttribute("aria-label")).not.toContain("第 0");
+    await first.click();
+    await expect
+      .element(
+        page
+          .getByRole("dialog")
+          .getByRole("button", { name: "此前 · AI：缓存中的早期回复" }),
+      )
+      .toBeVisible();
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
 test("a merged tick stays active when its later reply ends a compact transcript", async () => {
   await page.viewport(1280, 900);
   try {

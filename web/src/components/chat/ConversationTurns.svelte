@@ -71,6 +71,11 @@
   );
   function groupLabel(group: ConversationTurnItem[]) {
     if (group.length === 1) return label(group[0]!);
+    if (group[0]!.turn === 0)
+      return m.s3_turn_group_earlier({
+        last: group.at(-1)!.turn,
+        count: groupIds(group).length,
+      });
     return m.s3_turn_group_label({
       first: group[0]!.turn,
       last: group.at(-1)!.turn,
