@@ -68,6 +68,7 @@ Linux/macOS 同时验证 device/inode；读取后重读捕获前缀，并核对�
 历史 Activity、来源映射和游标同事务提交；失败重试不会提前确认消费。
 
 快照绑定不可变 Activity 集合、截止偏移、前缀校验、解析器版本和当时的 gap 集合。
+冻结通过引用已提交且不能改写的 Activity 实现，不复制正文；当前没有逐项淘汰。未来增加正文清理时，必须保留快照引用的正文或拒绝该清理。
 源文件追加、删除不影响已存快照；压缩配置与快照身份分开，同一快照可反复生成投影。
 使用独立模块 `github.com/mzdluo123/snapcompact-go v0.1.0`；未复制 #641 的渲染实现。
 快照跟随所属 Conversation 删除，不改变现有 forget 的级联删除语义。
@@ -85,3 +86,10 @@ Linux/macOS 同时验证 device/inode；读取后重读捕获前缀，并核对�
 ACP 历史保留独立身份并标记 `native_acp_unreconciled`，没有文本去重或自动合并。
 预算规划仍由 snapcompact 核心提供，本入口不自动选择模型或执行 Plan。
 以上边界应在扩大支持版本或接入真实交接之前继续验证，不代表 #640 整体路线完成。
+
+## 发行体积与许可
+
+默认使用 Go 核心的完整 CJK 字库，保持离线、单文件中文 PNG 支持；关闭 chat 不会减少静态链接体积。
+实测本次接入增加约 16.7 MiB，可执行文件预算和测量方法见[二进制体积](binary-size.md#原生历史-png-的字体预算)。
+OFL、版权及依赖声明内嵌于 `/fonts/licenses/OFL-NotoSansCJK.txt` 和 `/fonts/licenses/Snapcompact-Go-NOTICES.txt`。
+Linux deb/rpm 另安装到 `/usr/share/licenses/webmux/`；没有新增字体运行时下载或模型网络请求。
