@@ -3,7 +3,7 @@
   import IconLoader2 from "~icons/tabler/loader-2";
   import IconMessage from "~icons/tabler/message";
   import IconTerminal2 from "~icons/tabler/terminal-2";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ConfigValue } from "../../platform/chat-api";
   import ChatConfig from "../chat/ChatConfig.svelte";
   import ChatPermissionMode from "../chat/ChatPermissionMode.svelte";

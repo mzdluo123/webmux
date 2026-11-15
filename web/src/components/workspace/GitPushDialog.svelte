@@ -5,7 +5,7 @@
   import { ListButton } from "$lib/components/ui/list-button";
   import * as NativeSelect from "$lib/components/ui/native-select";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type {
     GitCommitDetail,
     GitIssue,

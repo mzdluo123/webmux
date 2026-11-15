@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import { api } from "../../platform/api";
   import { NoContentSchema, type Repository } from "../../contracts/schemas";

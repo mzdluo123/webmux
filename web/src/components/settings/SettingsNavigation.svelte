@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import * as NavigationMenu from "$lib/components/ui/navigation-menu";
   import { observeStickyHeaderOffset } from "../../hooks/shared/sticky-header";
 

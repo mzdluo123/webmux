@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { homeCache, type HomeSetup } from "../../domains/workspace/home-cache";
 import { ConfigSchema } from "../../contracts/schemas";

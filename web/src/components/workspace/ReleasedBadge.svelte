@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconFolderOff from "~icons/tabler/folder-off";
   import { Badge } from "$lib/components/ui/badge";
   import type { HybridRelease } from "../../contracts/schemas";

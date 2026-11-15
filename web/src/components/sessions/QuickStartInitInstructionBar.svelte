@@ -4,7 +4,7 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
   import * as Popover from "$lib/components/ui/popover";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import {
     expandInitInstruction,
     usesArtifactDir,

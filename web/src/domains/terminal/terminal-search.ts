@@ -7,7 +7,7 @@ import type { Connection } from "../../platform/ws";
 import type { Modifiers } from "./terminal-keys";
 import type { Terminal } from "@xterm/xterm";
 import type { SearchAddon } from "@xterm/addon-search";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 
 export interface TerminalFindOptions {
   caseSensitive: boolean;

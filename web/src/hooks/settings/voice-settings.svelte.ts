@@ -1,5 +1,5 @@
 import { onMount } from "svelte";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import { requestPluginHostRefresh } from "../../platform/plugin-host.svelte";

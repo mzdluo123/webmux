@@ -25,7 +25,7 @@ import { keyboardSizeHold } from "./keyboard-size-hold-preference.svelte";
 import type { KeyboardVisibility } from "../shared/viewport.svelte";
 import { headsetMode } from "../shared/headset-mode.svelte";
 import { allowAutomaticInputFocus } from "../shared/input-focus";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 
 export function useSessionTerminalChrome(options: {
   id: () => string;

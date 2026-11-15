@@ -1,5 +1,5 @@
 import type { IBufferCell, ITheme, Terminal } from "@xterm/xterm";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { observeTerminalCursor } from "./terminal-cursor";
 
 const paletteNames = [

@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { gitCommitPreview } from "../../platform/git-api";
 import type {
   GitCommitOutcome,

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { Worktree } from "../../contracts/schemas";
   import { Badge } from "$lib/components/ui/badge";
   import { syncNotable } from "../../domains/workspace/worktree-sync";

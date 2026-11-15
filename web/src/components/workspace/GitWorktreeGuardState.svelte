@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconAlertTriangle from "~icons/tabler/alert-triangle";
   import IconFolderPlus from "~icons/tabler/folder-plus";
   import IconGitBranch from "~icons/tabler/git-branch";

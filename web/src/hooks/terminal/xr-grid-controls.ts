@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { XrRegion } from "./xr-surface";
 
 /** Grid editing is an explicit confirmation, never a panel resize effect. */

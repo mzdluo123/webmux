@@ -6,7 +6,7 @@
   import { insertAtSelection } from "../../lib/text-insertion";
   import { sessionReference } from "../../domains/sessions/session-reference";
   import SidebarRowMenu from "./SidebarRowMenu.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   // The "⋯" button over the end of a sidebar session row and its menu: the
   // row's actions, the same in the chat history and the workbench tree.

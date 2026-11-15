@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { FileDiffMetadata, SelectedLineRange } from "@pierre/diffs";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type {
     CodeDiff,
     CodeDocumentViewState,

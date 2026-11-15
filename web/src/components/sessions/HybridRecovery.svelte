@@ -1,7 +1,7 @@
 <script lang="ts">
   import { findShell } from "../../hooks/shared/shell.svelte";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { resumeSession } from "../../domains/sessions/recoverable";
   import type { ArchivedSession } from "../../contracts/schemas";
   import HybridRecordHints from "./HybridRecordHints.svelte";

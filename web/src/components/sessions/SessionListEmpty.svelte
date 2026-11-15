@@ -3,7 +3,7 @@
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import { Button } from "$lib/components/ui/button";
   import * as Empty from "$lib/components/ui/empty";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     filtered,

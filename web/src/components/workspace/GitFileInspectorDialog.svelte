@@ -1,6 +1,6 @@
 <script lang="ts">
   import * as Tabs from "$lib/components/ui/tabs";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type {
     GitBlameResult,
     GitFileHistoryRow,

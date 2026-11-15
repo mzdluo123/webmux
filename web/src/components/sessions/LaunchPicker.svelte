@@ -13,7 +13,7 @@
   import type { LaunchSource } from "../../domains/sessions/new-session-defaults";
   import type { SessionView } from "../../contracts/schemas";
   import * as Command from "$lib/components/ui/command";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import CustomCommandField from "./CustomCommandField.svelte";
   import { Label } from "$lib/components/ui/label";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";

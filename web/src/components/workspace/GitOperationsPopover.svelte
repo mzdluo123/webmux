@@ -10,7 +10,7 @@
   import * as Popover from "$lib/components/ui/popover";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { locale } from "$lib/locale";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type {
     GitActiveOperationState,
     GitOperation,

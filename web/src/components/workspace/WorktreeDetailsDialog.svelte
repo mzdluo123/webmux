@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import type { SessionInfo, Worktree } from "../../contracts/schemas";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";

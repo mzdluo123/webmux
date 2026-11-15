@@ -1,6 +1,6 @@
 import type { FileDiffMetadata, SelectedLineRange } from "@pierre/diffs";
 import { locale } from "$lib/locale";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api, APIError } from "../../platform/api";
 import { DiffReplySchema, type DiffResult } from "./code-diff-model";
 import { nodeId } from "./code-reference";

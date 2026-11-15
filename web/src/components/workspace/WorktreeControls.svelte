@@ -1,7 +1,7 @@
 <script lang="ts">
   import IconDots from "~icons/tabler/dots";
   import IconInfoCircle from "~icons/tabler/info-circle";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import {

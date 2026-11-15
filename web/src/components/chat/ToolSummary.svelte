@@ -15,7 +15,7 @@
   import IconTrash from "~icons/tabler/trash";
   import IconWorld from "~icons/tabler/world";
   import IconX from "~icons/tabler/x";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { diffStats, type ToolEntry } from "../../domains/chat/chat-model";
   import DiffCount from "./DiffCount.svelte";
 

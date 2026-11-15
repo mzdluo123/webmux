@@ -1,6 +1,6 @@
 import { getContext, setContext } from "svelte";
 import { z } from "zod";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { navigate, store, stored } from "../../platform/api";
 import { buildGitRouteHref, type GitRouteTarget } from "./route";
 import { pluginEnabled } from "../../platform/plugin-host.svelte";

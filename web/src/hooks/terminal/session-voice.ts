@@ -6,7 +6,7 @@ import type {
 } from "../../domains/terminal/terminal-draft.svelte";
 import type { TerminalController } from "../../domains/terminal/terminal-search";
 import type { SessionHybridView } from "../../domains/terminal/session-terminal-io";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 
 export function applySessionVoiceResult(
   text: string,

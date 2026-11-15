@@ -1,7 +1,7 @@
 <script lang="ts">
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconRefresh from "~icons/tabler/refresh";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";

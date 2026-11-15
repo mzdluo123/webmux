@@ -15,7 +15,7 @@ import type { SessionInfo } from "../../contracts/schemas";
 import type { TerminalController } from "./terminal-search";
 import { newSubmissionId } from "./terminal-protocol";
 import { hasTouchInput } from "../../platform/touch-input";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { Connection } from "../../platform/ws";
 
 export interface SessionHybridView {

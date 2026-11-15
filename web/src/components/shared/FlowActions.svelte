@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   // The buttons ending a branch flow: cancel and confirm, then "Done" once
   // the operation ran.

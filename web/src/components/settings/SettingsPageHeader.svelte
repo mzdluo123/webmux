@@ -1,6 +1,6 @@
 <script lang="ts">
   import IconArrowLeft from "~icons/tabler/arrow-left";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import Brand from "../shell/Brand.svelte";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
   import { Button } from "$lib/components/ui/button";

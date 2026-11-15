@@ -5,7 +5,7 @@
   import * as Drawer from "$lib/components/ui/drawer";
   import * as Resizable from "$lib/components/ui/resizable";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import {
     filterLogCommits,
     resolveCommitParentFiles,

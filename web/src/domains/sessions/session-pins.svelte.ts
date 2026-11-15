@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { stored, store } from "../../platform/api";
 import { errorMessage } from "../../platform/error";

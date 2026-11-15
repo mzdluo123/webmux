@@ -2,7 +2,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { computeGitGraphLayout } from "../../domains/workspace/git-graph-layout";
   import { syncElementScrollTop } from "../../domains/workspace/git-workbench-memory";
   import type {

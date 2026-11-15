@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import * as Card from "$lib/components/ui/card";
   import { Label } from "$lib/components/ui/label";
   import { Separator } from "$lib/components/ui/separator";

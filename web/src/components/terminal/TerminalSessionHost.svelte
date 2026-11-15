@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ComponentProps } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { PaneRect } from "../../domains/terminal/terminal-layout";
   import SessionTerminal from "./SessionTerminal.svelte";
 

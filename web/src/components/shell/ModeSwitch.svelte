@@ -2,7 +2,7 @@
   import IconLayoutDashboard from "~icons/tabler/layout-dashboard";
   import IconMessageCircle from "~icons/tabler/message-circle";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ShellMode } from "../../hooks/shared/shell.svelte";
 
   // The two mode buttons at the top of the sidebar. Each keeps its variant

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import CodeDownloadButton from "./CodeDownloadButton.svelte";
   import { basename, codeRawPath } from "../../domains/code/code-image";

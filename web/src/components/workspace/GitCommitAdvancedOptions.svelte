@@ -4,7 +4,7 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
   import { validateAuthorOverrideInput } from "../../domains/workspace/git-v2-adapter";
   import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";

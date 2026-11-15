@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { placeArchived } from "../sessions/archived";
 import { homeLayout, worktreeTitle } from "./home-worktrees";
 import type {

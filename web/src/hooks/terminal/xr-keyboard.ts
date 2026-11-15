@@ -5,7 +5,7 @@ import {
   terminalModifierKeys,
 } from "../../domains/terminal/terminal-keys";
 import { locale } from "$lib/locale";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { XrViewSelection } from "./xr-view-state";
 import { XrSurface, type XrRegion } from "./xr-surface";
 

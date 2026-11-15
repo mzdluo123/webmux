@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { z } from "zod";
 import { SessionEventSchema } from "../../contracts/schemas";
 import { connect, type Connection } from "../../platform/ws";

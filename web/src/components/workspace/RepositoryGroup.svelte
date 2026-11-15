@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";

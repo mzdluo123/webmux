@@ -1,7 +1,7 @@
 <script lang="ts">
   import IconShieldQuestion from "~icons/tabler/shield-question";
   import { ListButton } from "$lib/components/ui/list-button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { RequestAnswer } from "../../platform/chat-api";
   import type { ToolEntry } from "../../domains/chat/chat-model";
   import type { ChatRequest } from "../../contracts/schemas";

@@ -5,7 +5,7 @@
   import IconTag from "~icons/tabler/tag";
   import { Badge } from "$lib/components/ui/badge";
   import { ListButton } from "$lib/components/ui/list-button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type {
     GitBranchItem,
     GitWorktreeContext,

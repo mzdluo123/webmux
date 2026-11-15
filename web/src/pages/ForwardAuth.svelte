@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { forwardTicket } from "../platform/api";
   import { errorMessage } from "../platform/error";
   import { forwardAuthNext } from "../hooks/shared/route";

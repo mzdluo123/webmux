@@ -2,7 +2,7 @@
   import IconArrowsSplit2 from "~icons/tabler/arrows-split-2";
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
   let {

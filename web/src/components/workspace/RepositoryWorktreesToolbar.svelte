@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { WorktreeBatchFilter } from "../../domains/workspace/worktree-batch";
   import { Button } from "$lib/components/ui/button";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";

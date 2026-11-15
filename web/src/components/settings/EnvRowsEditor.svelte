@@ -4,7 +4,7 @@
   import IconEyeOff from "~icons/tabler/eye-off";
   import IconPlus from "~icons/tabler/plus";
   import IconTrash from "~icons/tabler/trash";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import type { EnvRow } from "../../domains/settings/launch-configs";

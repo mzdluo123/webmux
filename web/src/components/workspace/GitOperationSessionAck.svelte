@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { SessionInfo } from "../../contracts/schemas";
   import WorktreeSessionList from "./WorktreeSessionList.svelte";
 

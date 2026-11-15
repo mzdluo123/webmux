@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { ListButton } from "$lib/components/ui/list-button";
   import type { ConversationTurnItem } from "../../domains/chat/conversation-turns";
 

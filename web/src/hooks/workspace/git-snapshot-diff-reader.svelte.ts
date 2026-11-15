@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { errorMessage } from "../../platform/error";
 import { gitSnapshotFile, gitSnapshotRaw } from "../../platform/git-api";

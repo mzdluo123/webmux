@@ -47,10 +47,14 @@ module.exports = {
       severity: "error",
       comment: "Moved modules must resolve; update every consumer, not a shim.",
       from: {},
-      // Vite resolves virtual icons and this package worker resource query.
+      // Vite resolves virtual icons, Paraglide virtual messages, and this package worker resource query.
       to: {
         couldNotResolve: true,
-        pathNot: ["^~icons/", "^@pierre/diffs/worker/worker\\.js\\?worker$"],
+        pathNot: [
+          "^~icons/",
+          "^virtual:paraglide/",
+          "^@pierre/diffs/worker/worker\\.js\\?worker$",
+        ],
       },
     },
     {

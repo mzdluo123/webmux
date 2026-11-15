@@ -7,7 +7,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import SplitDirectionChoice from "./SplitDirectionChoice.svelte";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
   import { errorMessage } from "../../platform/error";

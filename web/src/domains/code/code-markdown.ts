@@ -1,6 +1,6 @@
 import DOMPurify, { type Config } from "dompurify";
 import { marked, type Token, type TokensList } from "marked";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { highlightInto } from "./code-highlight";
 import { loadFenceLanguage } from "./code-language";
 import type { CodeMarkdownState } from "../../contracts/schemas";

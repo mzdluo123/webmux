@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconDots from "~icons/tabler/dots";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import { MAX_BATCH_WORKTREES } from "../../contracts/schemas";

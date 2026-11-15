@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ArchivedSession, SessionInfo } from "../../contracts/schemas";
   import type { ArchiveActions } from "../../domains/sessions/archived";
   import WorkspaceGroup from "../workspace/WorkspaceGroup.svelte";

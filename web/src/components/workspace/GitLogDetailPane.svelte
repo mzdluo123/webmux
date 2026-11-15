@@ -9,7 +9,7 @@
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { resolveCommitParentFiles } from "../../domains/workspace/git-workbench-state";
   import type {
     GitCommitDetail,

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { SelectedLineRange } from "@pierre/diffs";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { calculateDiff } from "../../domains/code/code-diff-client";
   import type { DiffResult } from "../../domains/code/code-diff-model";
   import { errorMessage } from "../../platform/error";

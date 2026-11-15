@@ -2,7 +2,7 @@
 // worktree menus, the worktree details and the repository panel's branches.
 // Counts are local: they compare with the remote-tracking refs of the last
 // fetch, and the preview recomputes them exactly.
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import {
   MAX_BRANCH_DELETE,
   type Branch,

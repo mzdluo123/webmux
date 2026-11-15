@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ListButton } from "$lib/components/ui/list-button";
   import { Separator } from "$lib/components/ui/separator";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
 
   let {

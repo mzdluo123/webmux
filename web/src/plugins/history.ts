@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { pluginEnabled } from "../platform/plugin-host.svelte";
 import type { SessionView } from "../contracts/schemas";
 

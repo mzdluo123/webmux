@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ArchivedSession } from "../../contracts/schemas";
 
   // What an interruption may have cost a closed or interrupted hybrid

@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { SessionInfo } from "../../contracts/schemas";
 import { hasUrgentAttention } from "../sessions/session-status";
 

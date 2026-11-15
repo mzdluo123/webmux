@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import { api } from "../../platform/api";
   import { settings } from "../../domains/settings/settings.svelte";

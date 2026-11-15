@@ -18,7 +18,7 @@
   } from "../../contracts/schemas";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
   import SessionStatus from "../sessions/SessionStatus.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     open = $bindable(false),

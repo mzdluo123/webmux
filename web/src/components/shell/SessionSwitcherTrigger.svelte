@@ -1,7 +1,7 @@
 <script lang="ts">
   import IconSearch from "~icons/tabler/search";
   import { Button, type ButtonSize } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import {
     findSessionSwitcher,
     sessionSwitcherKeyLabel,

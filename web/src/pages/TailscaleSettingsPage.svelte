@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconCopy from "~icons/tabler/copy";
   import IconRefresh from "~icons/tabler/refresh";
   import ConfirmDialog from "../components/shared/ConfirmDialog.svelte";

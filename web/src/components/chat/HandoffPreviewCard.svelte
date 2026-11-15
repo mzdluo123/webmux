@@ -4,7 +4,7 @@
   import { Label } from "$lib/components/ui/label";
   import { Textarea } from "$lib/components/ui/textarea";
   import { locale } from "$lib/locale";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import HandoffHistoryReader from "./HandoffHistoryReader.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import type { HandoffEditor } from "../../hooks/sessions/handoff.svelte";

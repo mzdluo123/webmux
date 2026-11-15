@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { encodeBase64Url } from "../../platform/base64url";
 import type { CodeDocument } from "../../contracts/schemas";
 

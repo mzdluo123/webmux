@@ -40,7 +40,7 @@
   import AppSidebar from "./AppSidebar.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarRailSessions from "./SidebarRailSessions.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   // The layout around the home page, quick start and session pages: the
   // sidebar (a rail when collapsed on desktop, a left drawer on phones) and

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { settings } from "../../domains/settings/settings.svelte";
   import { errorMessage } from "../../platform/error";
   import IconPlus from "~icons/tabler/plus";

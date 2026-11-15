@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Label } from "$lib/components/ui/label";
   import * as Select from "$lib/components/ui/select";
   import {

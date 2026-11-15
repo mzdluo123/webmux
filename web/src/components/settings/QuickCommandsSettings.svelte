@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { QuickCommand } from "../../contracts/schemas";
   import {
     QUICK_COMMANDS_LIMIT,

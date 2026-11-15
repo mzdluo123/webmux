@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   // A picker row or trigger: a title over a monospace command or path, and
   // an optional environment variable count.

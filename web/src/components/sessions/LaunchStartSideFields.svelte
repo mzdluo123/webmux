@@ -1,6 +1,6 @@
 <script lang="ts">
   import * as RadioGroup from "$lib/components/ui/radio-group";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ChatSupport, SessionView } from "../../contracts/schemas";
   import { connectorNoticeText } from "../../domains/sessions/hybrid";
 

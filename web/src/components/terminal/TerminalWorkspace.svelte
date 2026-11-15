@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import * as Resizable from "$lib/components/ui/resizable";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { terminalFindShortcut } from "../../hooks/terminal/terminal-find-shortcut";
   import { codePanelState } from "../../hooks/code/code-panel-state";
 

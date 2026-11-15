@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import RepositoryMenuItems from "../workspace/RepositoryMenuItems.svelte";
   import SidebarRowMenu from "./SidebarRowMenu.svelte";
 

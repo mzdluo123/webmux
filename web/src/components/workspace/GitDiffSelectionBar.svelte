@@ -7,7 +7,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitLineSelection } from "../../contracts/schemas";
   import { countSelectedLines } from "../../domains/workspace/git-line-selection";
   import {

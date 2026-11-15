@@ -20,7 +20,7 @@
   import LazyDialog from "../shared/LazyDialog.svelte";
   import { pluginAvailable } from "../../platform/plugin-host.svelte";
   import UnregisterRepositoryDialog from "../workspace/UnregisterRepositoryDialog.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     shell,

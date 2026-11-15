@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import IconEye from "~icons/tabler/eye";
   import IconEyeCheck from "~icons/tabler/eye-check";

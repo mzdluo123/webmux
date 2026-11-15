@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api, apiBlob, APIError } from "../../platform/api";
 import { codeRawPath, isImageType } from "./code-image";
 import {

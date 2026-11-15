@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { ArchivedSession } from "../../contracts/schemas";
 import { recordTitle } from "../../domains/sessions/archived";
 import {

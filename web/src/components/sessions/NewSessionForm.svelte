@@ -25,7 +25,7 @@
     CreationLocationProps,
   } from "../../plugins/context";
   import IconFolder from "~icons/tabler/folder";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { Snippet } from "svelte";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconFolder from "~icons/tabler/folder";

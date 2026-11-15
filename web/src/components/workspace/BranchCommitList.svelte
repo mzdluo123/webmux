@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { relativeTime } from "../../domains/workspace/commit-choices";
   import type { CommitList } from "../../contracts/schemas";
 

@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { encodeBase64Url } from "./base64url";
 
 export const SOCKET_CONNECTING = 0;

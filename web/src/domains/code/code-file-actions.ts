@@ -1,5 +1,5 @@
 import type { Component } from "svelte";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api, apiBlob, uploadForm } from "../../platform/api";
 import { saveBlob } from "../../platform/download";
 import { formatBytes, rawError } from "./code-image";

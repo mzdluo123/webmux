@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { TerminalPlugins } from "../../plugins/terminal";
   import type { SessionInfo } from "../../contracts/schemas";
 

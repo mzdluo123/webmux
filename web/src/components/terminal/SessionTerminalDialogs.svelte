@@ -10,7 +10,7 @@
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import type { TerminalPlugins } from "../../plugins/terminal";
   import ScratchPanel from "./ScratchPanel.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import TerminalCopyDialog from "./TerminalCopyDialog.svelte";
   import TerminalFontDialog from "./TerminalFontDialog.svelte";
   import TerminalPasteDialog from "./TerminalPasteDialog.svelte";

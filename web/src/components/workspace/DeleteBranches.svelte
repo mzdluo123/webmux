@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconCheck from "~icons/tabler/check";
   import IconCopy from "~icons/tabler/copy";
   import { Badge } from "$lib/components/ui/badge";

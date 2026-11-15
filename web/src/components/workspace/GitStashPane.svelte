@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { MediaQuery } from "svelte/reactivity";
   import IconArchive from "~icons/tabler/archive";
   import IconArrowLeft from "~icons/tabler/arrow-left";

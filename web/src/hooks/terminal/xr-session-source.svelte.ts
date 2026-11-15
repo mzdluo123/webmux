@@ -1,5 +1,5 @@
 import { onDestroy, onMount, tick } from "svelte";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { HybridSession } from "../sessions/hybrid-types";
 import type { TerminalController } from "../../domains/terminal/terminal-search";
 import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";

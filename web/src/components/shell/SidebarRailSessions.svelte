@@ -9,7 +9,7 @@
   } from "../../domains/sessions/session-status";
   import LaunchConfigIcon from "../settings/LaunchConfigIcon.svelte";
   import RowStatus from "../shared/RowStatus.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   // The running sessions on the collapsed sidebar rail: one icon each for
   // quick switching, with the same status dot as a full sidebar row.

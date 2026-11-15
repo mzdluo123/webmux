@@ -1,5 +1,5 @@
 import { SvelteMap } from "svelte/reactivity";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { xrPresentation } from "./xr-presentation.svelte";
 import {
   spatialCandidate,

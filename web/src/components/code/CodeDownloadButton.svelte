@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { apiBlob, APIError } from "../../platform/api";
   import { saveBlob } from "../../platform/download";
   import { rawError } from "../../domains/code/code-image";

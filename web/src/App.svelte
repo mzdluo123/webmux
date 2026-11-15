@@ -76,7 +76,7 @@
   import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
   import InlineNotice from "./components/shared/InlineNotice.svelte";
   import { createAppLinkHandler } from "./app/app-link-navigation";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   useDeviceShell();
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { placeArchived, recordTitle } from "../sessions/archived";
 import { homeLayout, worktreeTitle } from "./home-worktrees";
 import type {

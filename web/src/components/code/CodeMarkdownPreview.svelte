@@ -4,7 +4,7 @@
 
 <script lang="ts">
   import { untrack } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { locale } from "$lib/locale";
   import type { CodeMarkdownState } from "../../contracts/schemas";
   import IconCheck from "~icons/tabler/check";

@@ -2,7 +2,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import InlineNotice from "../shared/InlineNotice.svelte";
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
   import { api } from "../../platform/api";

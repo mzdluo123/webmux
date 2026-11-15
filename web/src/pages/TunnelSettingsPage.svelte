@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import SettingsPageHeader from "../components/settings/SettingsPageHeader.svelte";
   import TunnelManager from "../components/settings/TunnelManager.svelte";
   import { setBrowserChrome } from "../platform/browser-chrome";

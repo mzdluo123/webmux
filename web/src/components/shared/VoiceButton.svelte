@@ -8,7 +8,7 @@
     type ButtonVariant,
   } from "$lib/components/ui/button";
   import { createVoiceRecorder } from "../../hooks/shared/voice.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     size = "icon-sm",

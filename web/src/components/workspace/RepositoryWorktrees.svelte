@@ -1,6 +1,6 @@
 <script lang="ts">
   import { SvelteSet } from "svelte/reactivity";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { api } from "../../platform/api";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import { errorMessage } from "../../platform/error";

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 
   // The repository-level entries shared by the sidebar row's "⋯" menu and the

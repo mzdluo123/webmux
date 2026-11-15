@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { CodeDiff, CodeDocument } from "../../contracts/schemas";
 import { APIError } from "../../platform/api";
 

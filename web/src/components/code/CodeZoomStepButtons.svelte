@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import IconZoomIn from "~icons/tabler/zoom-in";
   import IconZoomOut from "~icons/tabler/zoom-out";

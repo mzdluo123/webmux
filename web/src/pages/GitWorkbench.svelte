@@ -37,7 +37,7 @@
   import GitWorkbenchTopBar from "../components/workspace/GitWorkbenchTopBar.svelte";
   import GitWorkbenchWorkspace from "../components/workspace/GitWorkbenchWorkspace.svelte";
   import GitWorktreeGuardState from "../components/workspace/GitWorktreeGuardState.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     repositoryId,

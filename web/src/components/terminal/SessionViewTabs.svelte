@@ -2,7 +2,7 @@
   import IconMessageCircle from "~icons/tabler/message-circle";
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import * as Tabs from "$lib/components/ui/tabs";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { MediaQuery } from "svelte/reactivity";
   import type { SwitchTarget } from "../../domains/sessions/hybrid";
 

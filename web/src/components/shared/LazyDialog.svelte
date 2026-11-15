@@ -1,7 +1,7 @@
 <script lang="ts" generics="T">
   import { untrack, type Snippet } from "svelte";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import InlineNotice from "./InlineNotice.svelte";
 
   let {

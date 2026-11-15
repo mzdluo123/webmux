@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import IconCopy from "~icons/tabler/copy";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { locale } from "$lib/locale";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";

@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { RepositoriesSchema } from "../../contracts/schemas";
 import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";

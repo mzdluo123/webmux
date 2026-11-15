@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   // Added and removed line counts of a change.
   let { added, removed }: { added: number; removed: number } = $props();

@@ -44,7 +44,7 @@
 </script>
 
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Badge } from "$lib/components/ui/badge";

@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import IconAlertTriangle from "~icons/tabler/alert-triangle";
 import IconSquareLetterA from "~icons/tabler/square-letter-a";
 import IconSquareLetterC from "~icons/tabler/square-letter-c";

@@ -6,7 +6,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
 
   // Sets the user-chosen title. It outranks titles the terminal or agent

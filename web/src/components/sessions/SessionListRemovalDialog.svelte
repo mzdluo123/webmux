@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ArchivedSession, Worktree } from "../../contracts/schemas";
   import LazyDialog from "../shared/LazyDialog.svelte";
 

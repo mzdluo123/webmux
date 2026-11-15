@@ -1,5 +1,5 @@
 // Pure helpers for the terminal WebSocket contract in docs/protocol/websocket.md.
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { randomHex } from "../../platform/ids";
 
 const encoder = new TextEncoder();

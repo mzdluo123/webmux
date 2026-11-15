@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { containsRedactedRemoteMask } from "../../domains/workspace/git-v2-adapter";
   import type { GitRemotesController } from "../../hooks/workspace/git-remotes-controller.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";

@@ -16,7 +16,7 @@
   } from "../../platform/plugin-host.svelte";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
   import SplitSessionDialog from "./SplitSessionDialog.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import LazyDialog from "../shared/LazyDialog.svelte";
 
   let {

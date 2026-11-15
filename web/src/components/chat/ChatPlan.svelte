@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconCircle from "~icons/tabler/circle";

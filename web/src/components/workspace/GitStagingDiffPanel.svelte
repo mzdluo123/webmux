@@ -8,7 +8,7 @@
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { CodeDiffReaderState } from "../../contracts/schemas";
   import {
     mapDiffRangeToLineSelections,

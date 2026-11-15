@@ -3,7 +3,7 @@
   import { navigate } from "../../platform/api";
   import AgentHandoff from "./AgentHandoff.svelte";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconArrowsExchange from "~icons/tabler/arrows-exchange";
   import IconGitFork from "~icons/tabler/git-fork";
   let {

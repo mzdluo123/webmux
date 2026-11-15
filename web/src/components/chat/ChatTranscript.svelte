@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { tick } from "svelte";
   import { Button } from "$lib/components/ui/button";
   import type { DisplayEntry } from "../../domains/chat/chat-model";

@@ -5,7 +5,7 @@
   import IconLock from "~icons/tabler/lock";
   import { Button } from "$lib/components/ui/button";
   import { Separator } from "$lib/components/ui/separator";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { createLongPress } from "../../hooks/shared/long-press";
   import {
     type Modifiers,

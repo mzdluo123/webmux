@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api, store, stored } from "./api";
 import { decodeBase64Url } from "./base64url";
 import {

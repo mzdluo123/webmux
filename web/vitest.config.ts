@@ -1,3 +1,4 @@
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { defineConfig } from "vite-plus";
 
 export const sharedCoverage = {
@@ -14,6 +15,12 @@ export const sharedCoverage = {
 };
 
 export default defineConfig({
+  plugins: [
+    paraglideVitePlugin({
+      project: "./project.inlang",
+      outputStructure: "virtual-modules",
+    }),
+  ],
   resolve: {
     alias: { $lib: new URL("./src/lib", import.meta.url).pathname },
   },

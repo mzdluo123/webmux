@@ -4,7 +4,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as Select from "$lib/components/ui/select";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { uploadQuickStartFile } from "../../platform/api";
   import { emptyLocation } from "../../domains/sessions/handoff-draft";
   import type { HandoffEditor } from "../../hooks/sessions/handoff.svelte";

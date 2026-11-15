@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { CodeView, type CodeViewOptions } from "@pierre/diffs";
   import { captureCursor, restoreCursor } from "../../domains/code/code-search";
   import { createCodeFind } from "../../domains/code/code-find.svelte";

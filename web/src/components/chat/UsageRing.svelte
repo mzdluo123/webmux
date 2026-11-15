@@ -3,7 +3,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as Popover from "$lib/components/ui/popover";
   import { locale } from "$lib/locale";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ChatUsage } from "../../contracts/schemas";
 
   // Context-window use from the agent's usage updates, with its cost; a

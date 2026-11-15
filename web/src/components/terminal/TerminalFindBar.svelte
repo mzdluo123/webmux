@@ -2,7 +2,7 @@
   import { tick } from "svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconCopy from "~icons/tabler/copy";

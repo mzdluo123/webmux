@@ -1,6 +1,6 @@
 import { tick, untrack } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { SessionInfo } from "../../contracts/schemas";
 import type { XrAvailableSession } from "../../domains/terminal/xr-workspace";
 

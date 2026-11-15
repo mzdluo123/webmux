@@ -8,7 +8,7 @@
     type ProjectSelection,
   } from "../../domains/sessions/project-selection";
   import { errorMessage } from "../../platform/error";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { untrack } from "svelte";
   import { navigate, recentDirs, stored } from "../../platform/api";
   import {

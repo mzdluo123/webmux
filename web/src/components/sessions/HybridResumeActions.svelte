@@ -2,7 +2,7 @@
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Button } from "$lib/components/ui/button";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import ConnectorInstallHint from "./ConnectorInstallHint.svelte";
   import HybridCandidatePicker from "./HybridCandidatePicker.svelte";

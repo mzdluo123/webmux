@@ -1,6 +1,6 @@
 import { errorMessage } from "../../platform/error";
 import { onMount } from "svelte";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api, APIError } from "../../platform/api";
 import { LatestRequest } from "../shared/remote-request.svelte";
 import {

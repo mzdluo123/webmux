@@ -1,7 +1,7 @@
 <script lang="ts">
   import IconCloudDownload from "~icons/tabler/cloud-download";
   import IconLoader2 from "~icons/tabler/loader-2";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { locale } from "$lib/locale";
   import { Button } from "$lib/components/ui/button";
   import type { FetchResult } from "../../contracts/schemas";

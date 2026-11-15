@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { gitConflictReason } from "../../platform/git-api";
 import { gitDiscard, gitDiscardPreview } from "../../platform/git-v3-api";
 import type {

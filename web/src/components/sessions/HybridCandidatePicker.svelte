@@ -1,6 +1,6 @@
 <script lang="ts">
   import * as NativeSelect from "$lib/components/ui/native-select";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { AgentCandidate } from "../../contracts/schemas";
 
   // The agent sessions a hybrid request may continue with, when the server

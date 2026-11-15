@@ -16,7 +16,7 @@
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Dialog from "$lib/components/ui/dialog";
   import { locale } from "$lib/locale";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import {
     scratchEntriesLimit,
     scratchEntryLimit,

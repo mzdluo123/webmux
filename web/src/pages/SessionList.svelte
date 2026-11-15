@@ -13,7 +13,7 @@
     resetBrowserChrome,
     setBrowserChrome,
   } from "../platform/browser-chrome";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   const shell = getShell();
   let query = $state("");

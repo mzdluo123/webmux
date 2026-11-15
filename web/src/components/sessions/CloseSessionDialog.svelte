@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { api, APIError } from "../../platform/api";
   import { NoContentSchema, type SessionInfo } from "../../contracts/schemas";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";

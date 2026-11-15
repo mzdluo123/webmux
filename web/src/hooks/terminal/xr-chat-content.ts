@@ -1,5 +1,5 @@
 import { marked, type Tokens } from "marked";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { ChatModel } from "../../domains/chat/chat-model";
 import type { ChatState } from "../../contracts/schemas";
 import type {

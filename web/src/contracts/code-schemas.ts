@@ -1,5 +1,5 @@
 import { z } from "zod";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { ReportedCwdSchema } from "./session-schemas";
 
 const CodeSourceSchema = z.enum(["worktree", "index", "head", "empty"]);

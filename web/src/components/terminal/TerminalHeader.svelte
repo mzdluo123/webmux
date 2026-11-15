@@ -16,7 +16,7 @@
     type ButtonVariant,
   } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { Fullscreen } from "../../hooks/shared/fullscreen.svelte";
   import type { HybridView } from "../../hooks/sessions/hybrid.svelte";
   import type { SwitchTarget } from "../../domains/sessions/hybrid";

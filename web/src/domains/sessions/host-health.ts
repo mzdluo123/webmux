@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { Health } from "../../contracts/schemas";
 
 /** A health round trip slower than this marks the host as strained. */

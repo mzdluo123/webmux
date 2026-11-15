@@ -2,7 +2,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitCommitPreviewModel } from "../../contracts/git-workbench-schemas";
   import InlineNotice from "../shared/InlineNotice.svelte";
 

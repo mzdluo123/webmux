@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { parseJson, type JsonNode } from "../../domains/code/code-json";
   import type { CodeJsonState } from "../../contracts/schemas";
   import { Button } from "$lib/components/ui/button";

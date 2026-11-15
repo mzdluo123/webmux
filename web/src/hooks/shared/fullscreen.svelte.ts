@@ -1,5 +1,5 @@
 import { onMount } from "svelte";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import {
   fullscreenOffered,
   fullscreenSupported,

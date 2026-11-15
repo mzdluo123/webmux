@@ -14,7 +14,7 @@ import type {
   TextInsertion,
 } from "../../domains/terminal/terminal-draft.svelte";
 import { newSubmissionId } from "../../domains/terminal/terminal-protocol";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 
 function quickMessage(state: SubmissionProgress): string | undefined {
   if (state === "failed") return m.s4_quick_msg_failed();

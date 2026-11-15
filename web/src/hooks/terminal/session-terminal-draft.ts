@@ -10,7 +10,7 @@ import type {
   TextInsertion,
 } from "../../domains/terminal/terminal-draft.svelte";
 import type { TerminalController } from "../../domains/terminal/terminal-search";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 
 interface SessionTerminalDraftOptions {
   draft: TerminalDraft;

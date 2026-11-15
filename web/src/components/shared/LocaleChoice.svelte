@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import { locale } from "$lib/locale";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     size = "default",

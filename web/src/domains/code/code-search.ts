@@ -1,6 +1,6 @@
 import { SearchQuery } from "@codemirror/search";
 import { Text } from "@codemirror/state";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 
 export type SearchSpec = {
   search: string;

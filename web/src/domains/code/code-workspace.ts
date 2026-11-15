@@ -1,6 +1,6 @@
 import type { Snippet } from "svelte";
 import type { z } from "zod";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { nodeId } from "./code-reference";
 import {

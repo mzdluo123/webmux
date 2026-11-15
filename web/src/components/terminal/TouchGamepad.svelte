@@ -7,7 +7,7 @@
   import IconCornerDownLeft from "~icons/tabler/corner-down-left";
   import IconSpace from "~icons/tabler/space";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import {
     terminalKeys,
     createTerminalKeyRepeat,

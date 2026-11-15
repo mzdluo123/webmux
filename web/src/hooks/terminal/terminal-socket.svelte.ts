@@ -46,7 +46,7 @@ import type {
   TerminalSocketAttachment,
   TerminalSocketView,
 } from "./terminal-socket-view";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 
 // Terminal stream of one session (`/ws/s/{id}`, docs/protocol/websocket.md).
 export function createTerminalSocket(id: string, manageChrome = true) {

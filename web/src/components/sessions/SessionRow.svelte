@@ -19,7 +19,7 @@
   import * as Item from "$lib/components/ui/item";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { locale } from "$lib/locale";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     session,

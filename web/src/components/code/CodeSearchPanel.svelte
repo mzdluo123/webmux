@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { SearchSpec } from "../../domains/code/code-search";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";

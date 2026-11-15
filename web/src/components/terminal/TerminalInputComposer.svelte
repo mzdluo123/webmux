@@ -6,7 +6,7 @@
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import { Textarea } from "$lib/components/ui/textarea";
   import { locale } from "$lib/locale";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { useTextareaDraft } from "../../hooks/terminal/textarea-draft.svelte";
   import { editDraftKey } from "../../domains/terminal/draft-key";
   import type {

@@ -30,7 +30,7 @@
   import { pluginContributions } from "../../plugins/registry.svelte";
   import { pluginAvailable } from "../../platform/plugin-host.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   const workspace = pluginContributions.entries.workspace;
   const chat = pluginContributions.entries.chat;
   const notifications = pluginContributions.entries.notifications;

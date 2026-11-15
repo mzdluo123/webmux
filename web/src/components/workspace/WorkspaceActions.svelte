@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import IconDots from "~icons/tabler/dots";
   import IconRefresh from "~icons/tabler/refresh";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import SessionViewControls from "../terminal/SessionViewControls.svelte";
   import GitWorkbenchButton from "./GitWorkbenchButton.svelte";

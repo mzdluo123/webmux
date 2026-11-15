@@ -8,7 +8,7 @@
     ChatUploads,
     useUpload,
   } from "../../hooks/shared/upload.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
   import type {

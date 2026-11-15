@@ -35,7 +35,7 @@
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
   import { createSessionTerminalInput } from "../../hooks/terminal/session-terminal-input.svelte";
   import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { pluginAvailable } from "../../platform/plugin-host.svelte";
 
   let {

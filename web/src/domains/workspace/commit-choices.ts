@@ -2,7 +2,7 @@
 // its short hash, tip tags and age second, so users recognise a commit by what
 // it did and how recent it is instead of typing a hash.
 import { locale } from "$lib/locale";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import type { WorktreePreset } from "../sessions/worktree-preset";

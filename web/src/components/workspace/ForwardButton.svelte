@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconPlugConnected from "~icons/tabler/plug-connected";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";

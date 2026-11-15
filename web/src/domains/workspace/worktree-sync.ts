@@ -1,7 +1,7 @@
 // How a worktree or branch stands against its upstream, and the words the
 // UI uses for it. Every count is local: ahead and behind compare with the
 // remote-tracking refs from the last fetch.
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import {
   remoteBranchBases,
   remoteLocalName,

@@ -8,7 +8,7 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
   import type { GitLineSelection } from "../../contracts/schemas";
   import {

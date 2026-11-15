@@ -1,6 +1,6 @@
 import { createTwoFilesPatch } from "diff";
 import { processFile } from "@pierre/diffs";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { FileDiffSchema, type DiffResult } from "./code-diff-model";
 
 const DIFF_BUDGET_MS = 250;

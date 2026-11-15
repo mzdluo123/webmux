@@ -3,7 +3,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitAbortOperationPreview } from "../../contracts/schemas";
   import { gitSequencerKindLabel } from "../../domains/workspace/git-divergence-model";
   import InlineNotice from "../shared/InlineNotice.svelte";

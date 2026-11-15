@@ -1,5 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api, APIError } from "../../platform/api";
 import { onActiveHostChange, store, stored } from "../../platform/storage";
 import { connect, type SocketConnection } from "../../platform/ws";

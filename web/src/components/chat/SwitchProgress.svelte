@@ -3,7 +3,7 @@
   import IconCircleCheck from "~icons/tabler/circle-check";
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { SwitchStep, SwitchTarget } from "../../domains/sessions/hybrid";
 
   // A switch between the chat and the terminal: the side being left must

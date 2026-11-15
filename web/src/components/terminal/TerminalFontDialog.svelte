@@ -2,7 +2,7 @@
   import { Label } from "$lib/components/ui/label";
   import { Slider } from "$lib/components/ui/slider";
   import * as Dialog from "$lib/components/ui/dialog";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     open = $bindable(),

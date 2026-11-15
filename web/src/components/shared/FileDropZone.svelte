@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { HTMLAttributes } from "svelte/elements";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { attachFileDrop } from "../../hooks/shared/file-drop";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
 

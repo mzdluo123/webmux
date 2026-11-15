@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { Component } from "svelte";
   import IconAdjustments from "~icons/tabler/adjustments";
   import IconAdjustmentsHorizontal from "~icons/tabler/adjustments-horizontal";

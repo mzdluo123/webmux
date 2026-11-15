@@ -1,6 +1,6 @@
 <script lang="ts">
   import IconFolderPlus from "~icons/tabler/folder-plus";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import type { Repository, Worktree } from "../../contracts/schemas";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";

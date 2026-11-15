@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { SvelteSet } from "svelte/reactivity";
 import { repositoryBranches, repositoryRemotes } from "../../platform/api";
 import {

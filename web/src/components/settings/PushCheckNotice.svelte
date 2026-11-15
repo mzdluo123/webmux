@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { PushCheck } from "../../contracts/schemas";
   import InlineNotice from "../shared/InlineNotice.svelte";
 

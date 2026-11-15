@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { createHandoffEditor } from "../hooks/sessions/handoff.svelte";
   import { navigate } from "../platform/api";
   import HandoffForm from "../components/chat/HandoffForm.svelte";

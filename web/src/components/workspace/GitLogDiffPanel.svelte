@@ -8,7 +8,7 @@
   import IconMinimize from "~icons/tabler/minimize";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import GitDiffStyleSwitch from "./GitDiffStyleSwitch.svelte";
   import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import type { GitCommitFile } from "../../contracts/git-workbench-schemas";

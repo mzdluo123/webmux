@@ -5,7 +5,7 @@
 // Picture-in-Picture window; other desktop browsers (Safari, Firefox,
 // plain-HTTP origins) get an ordinary same-origin popup.
 
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { isStandalone, popoutOffered } from "../../platform/capabilities";
 import {
   CodePopoutHandshakeSchema,

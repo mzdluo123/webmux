@@ -8,7 +8,7 @@
   import IconTrash from "~icons/tabler/trash";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
   import { formatStagingComparisonEndpoints } from "../../hooks/workspace/git-staging-diff.svelte";
   import GitDiffStyleSwitch from "./GitDiffStyleSwitch.svelte";

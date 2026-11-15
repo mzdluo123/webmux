@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconCirclePlus from "~icons/tabler/circle-plus";
   import IconFolder from "~icons/tabler/folder";
   import IconGitBranch from "~icons/tabler/git-branch";

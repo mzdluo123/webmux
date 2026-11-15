@@ -3,7 +3,7 @@
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
   import * as Item from "$lib/components/ui/item";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { restartMethod } from "../../platform/pending-update";
   import type { PendingUpdate } from "../../contracts/schemas";
 

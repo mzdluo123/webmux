@@ -7,7 +7,7 @@
   import IconX from "~icons/tabler/x";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitInProgressOperation } from "../../contracts/schemas";
   import {
     formatInProgressHeadline,

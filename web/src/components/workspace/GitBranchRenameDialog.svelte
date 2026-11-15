@@ -2,7 +2,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitBranchRenamePreview } from "../../contracts/schemas";
   import { canExecutePreviewedMutation } from "../../domains/workspace/git-v2-adapter";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";

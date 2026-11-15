@@ -1,6 +1,6 @@
 <script lang="ts" generics="T">
   import { untrack, type Snippet } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     load,

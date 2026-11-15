@@ -9,7 +9,7 @@
   import IconFolder from "~icons/tabler/folder";
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconPlus from "~icons/tabler/plus";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as Item from "$lib/components/ui/item";
   import WorktreeBadges from "./WorktreeBadges.svelte";

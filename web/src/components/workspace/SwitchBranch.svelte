@@ -60,7 +60,7 @@
 
 <script lang="ts">
   import { onDestroy, untrack } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { APIError } from "../../platform/api";
   import { commitChoices } from "../../domains/workspace/commit-choices";

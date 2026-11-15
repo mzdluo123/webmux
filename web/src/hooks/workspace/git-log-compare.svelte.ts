@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { errorMessage } from "../../platform/error";
 import { gitCompare } from "../../platform/git-api";
 import type { GitWorkbenchViewState } from "../../contracts/git-workbench-schemas";

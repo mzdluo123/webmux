@@ -1,7 +1,7 @@
 <script lang="ts">
   import { SvelteMap } from "svelte/reactivity";
   import { ListButton } from "$lib/components/ui/list-button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ChatContent } from "../../contracts/schemas";
   import { diffStats } from "../../domains/chat/chat-model";
   import DiffCount from "./DiffCount.svelte";

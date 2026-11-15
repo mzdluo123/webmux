@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import AccessSummaryCard from "./AccessSummaryCard.svelte";
   import { useMountedRead } from "../../hooks/shared/remote-request.svelte";
   import { ConfigSchema } from "../../contracts/schemas";

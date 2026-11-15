@@ -1,5 +1,5 @@
 import { errorMessage } from "../../platform/error";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { onMount } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { uploadFile } from "../../platform/api";

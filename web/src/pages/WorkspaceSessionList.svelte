@@ -1,7 +1,7 @@
 <script lang="ts">
   import SessionListRemovalDialog from "../components/sessions/SessionListRemovalDialog.svelte";
   import { onMount } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import WorkspaceHeaderActions from "../components/workspace/WorkspaceHeaderActions.svelte";
   import WorkspaceToolbar from "../components/workspace/WorkspaceToolbar.svelte";
   import { store, stored } from "../platform/api";

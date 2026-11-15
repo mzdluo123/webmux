@@ -1,6 +1,6 @@
 import { Color, PerspectiveCamera, Scene, WebGLRenderer } from "three";
 import { z } from "zod";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import {
   decodeXrLayout,
   encodeXrLayout,

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
 
   // The upload strip shown by both editors while a batch is running.

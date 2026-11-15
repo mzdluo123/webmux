@@ -9,7 +9,7 @@
     "scripts/**/*.{ts,mjs}",
     "test/**/*.ts"
   ],
-  "ignore": ["src/lib/components/ui/**"],
+  "ignore": ["src/lib/components/ui/**", "src/lib/paraglide/**"],
   "ignoreDependencies": [
     "@inlang/plugin-message-format",
     "@typescript/native",

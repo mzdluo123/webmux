@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconPaperclip from "~icons/tabler/paperclip";
   import { Button } from "$lib/components/ui/button";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";

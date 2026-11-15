@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconEye from "~icons/tabler/eye";
   import IconEyeOff from "~icons/tabler/eye-off";
   import { Button } from "$lib/components/ui/button";

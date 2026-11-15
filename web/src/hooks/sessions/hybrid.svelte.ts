@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { onDestroy, untrack } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { api } from "../../platform/api";

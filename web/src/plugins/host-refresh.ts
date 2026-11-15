@@ -1,5 +1,5 @@
 import { tick } from "svelte";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { CapabilitiesSchema } from "../contracts/plugin-schemas";
 import { observeSettings, settings } from "../domains/settings/settings.svelte";
 import { clearHomeCache } from "../domains/workspace/home-cache";

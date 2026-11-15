@@ -1,5 +1,5 @@
 import { z } from "zod";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api, store, stored, APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack, tick, onMount } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as Command from "$lib/components/ui/command";
   import IconArrowLeft from "~icons/tabler/arrow-left";

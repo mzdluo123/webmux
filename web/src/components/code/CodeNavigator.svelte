@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { z } from "zod";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import CodeExplorerToolbar from "./CodeExplorerToolbar.svelte";
   import CodeFileTree from "./CodeFileTree.svelte";
   import CodeFileActions, { type FileTarget } from "./CodeFileActions.svelte";

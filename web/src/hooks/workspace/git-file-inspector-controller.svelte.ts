@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { repositoryBranches } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import { gitCompare } from "../../platform/git-api";

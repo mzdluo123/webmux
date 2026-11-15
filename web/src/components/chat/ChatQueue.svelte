@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import { MediaQuery } from "svelte/reactivity";
   import IconArrowBarUp from "~icons/tabler/arrow-bar-up";

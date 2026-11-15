@@ -6,7 +6,7 @@
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     view = $bindable("code"),

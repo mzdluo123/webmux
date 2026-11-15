@@ -8,7 +8,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import type {
     GitLogFilterCallbacks,

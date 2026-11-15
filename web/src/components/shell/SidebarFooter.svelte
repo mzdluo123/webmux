@@ -16,7 +16,7 @@
   import { HealthSchema, type Health } from "../../contracts/schemas";
   import { toggleTheme } from "../../hooks/settings/theme";
   import type { Connection } from "../../platform/ws";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   const p2pState = $derived(
     pluginContributions.entries.p2p?.p2pState ?? {
       mode: "ws",

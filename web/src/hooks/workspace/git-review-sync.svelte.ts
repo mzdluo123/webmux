@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { SvelteMap } from "svelte/reactivity";
 import type {
   GitCommitFile,

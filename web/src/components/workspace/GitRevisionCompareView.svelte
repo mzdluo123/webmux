@@ -3,7 +3,7 @@
   import { Label } from "$lib/components/ui/label";
   import * as NativeSelect from "$lib/components/ui/native-select";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitBranchItem } from "../../contracts/git-workbench-schemas";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
   import GitLogDiffPanel from "./GitLogDiffPanel.svelte";

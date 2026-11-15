@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { api, APIError, parseArgs, store } from "../../platform/api";
 import type { LaunchConfigsState } from "../settings/launch-configs";
 import type { WorktreePreset } from "./worktree-preset";

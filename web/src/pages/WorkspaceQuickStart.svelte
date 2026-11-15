@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconLoader2 from "~icons/tabler/loader-2";
   import { stored, uploadQuickStartFile } from "../platform/api";
   import {

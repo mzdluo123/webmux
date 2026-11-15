@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { onMount, tick } from "svelte";
   import { animate } from "motion/mini";
   import IconFile from "~icons/tabler/file";

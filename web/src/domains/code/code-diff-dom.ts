@@ -1,5 +1,5 @@
 import type { CodeView, FileDiffMetadata } from "@pierre/diffs";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { CodeDiffReaderState } from "../../contracts/schemas";
 
 export const diffExpansionLines = 30;

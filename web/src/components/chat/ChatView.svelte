@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { untrack, type Snippet } from "svelte";
   import { createChatScrollMode } from "../../hooks/chat/chat-scroll-mode.svelte";
   import IconArrowDown from "~icons/tabler/arrow-down";

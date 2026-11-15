@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconDots from "~icons/tabler/dots";
   import IconTrash from "~icons/tabler/trash";
   import { Button } from "$lib/components/ui/button";

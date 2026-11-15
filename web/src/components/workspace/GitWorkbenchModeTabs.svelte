@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconArchive from "~icons/tabler/archive";
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconGitCommit from "~icons/tabler/git-commit";

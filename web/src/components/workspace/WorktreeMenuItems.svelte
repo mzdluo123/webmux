@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import type { WorktreeMenuActionProps } from "../../domains/workspace/branch-actions";
   import { canCommitWorktree } from "../../domains/workspace/worktree-sync";

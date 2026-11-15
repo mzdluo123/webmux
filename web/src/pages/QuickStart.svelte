@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { getShell } from "../hooks/shared/shell.svelte";
   import { pluginAvailable } from "../platform/plugin-host.svelte";
   import { navigate } from "../platform/api";

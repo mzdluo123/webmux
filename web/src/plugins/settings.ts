@@ -1,4 +1,4 @@
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { PluginID } from "../contracts/plugin-schemas";
 import { pluginEnabled } from "../platform/plugin-host.svelte";
 import type { SettingsContribution } from "./context";

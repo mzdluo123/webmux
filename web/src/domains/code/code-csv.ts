@@ -1,5 +1,5 @@
 // RFC 4180 delimited-text parsing for the read-only table preview.
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 
 export const maxTableRows = 2000;
 

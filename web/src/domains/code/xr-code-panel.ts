@@ -1,5 +1,5 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import type { CodeDiff, CodeDocument } from "../../contracts/schemas";
 import type { XrTextLine, XrTextPanel } from "../terminal/xr-workspace";
 

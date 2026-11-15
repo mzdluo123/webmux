@@ -12,7 +12,7 @@
   import LazyDialog from "../shared/LazyDialog.svelte";
   import RenameSessionDialog from "../sessions/RenameSessionDialog.svelte";
   import CloseSessionDialog from "../sessions/CloseSessionDialog.svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     shell,

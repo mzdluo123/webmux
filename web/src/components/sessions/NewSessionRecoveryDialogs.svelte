@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Worktree } from "../../contracts/schemas";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import LazyDialog from "../shared/LazyDialog.svelte";
   let {
     workspaceEnabled,

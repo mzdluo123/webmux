@@ -1,6 +1,6 @@
 <script lang="ts">
   import * as Popover from "$lib/components/ui/popover";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 </script>
 
 <Popover.Root>

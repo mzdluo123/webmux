@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import * as Command from "$lib/components/ui/command";
 
   // The searchable list of a repository's local and optional remote-tracking

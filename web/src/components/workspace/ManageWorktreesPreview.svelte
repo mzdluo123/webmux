@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { worktreeTitle } from "../../domains/workspace/home-worktrees";
   import type { RemovalPreviewItem } from "../../contracts/schemas";
   import type { BatchPreviewGroups } from "../../domains/workspace/worktree-batch";

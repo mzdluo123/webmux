@@ -15,7 +15,7 @@
   import { Switch } from "$lib/components/ui/switch";
   import * as Card from "$lib/components/ui/card";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import LocaleChoice from "../shared/LocaleChoice.svelte";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";

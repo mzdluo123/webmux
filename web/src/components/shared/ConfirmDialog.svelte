@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
 
   // A cancel/confirm alert. `onconfirm` may be async: the dialog then stays

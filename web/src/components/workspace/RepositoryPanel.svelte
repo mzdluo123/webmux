@@ -16,7 +16,7 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as Tabs from "$lib/components/ui/tabs";
   import {

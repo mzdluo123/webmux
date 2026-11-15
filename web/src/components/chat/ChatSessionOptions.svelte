@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconLoader2 from "~icons/tabler/loader-2";
   import IconSelector from "~icons/tabler/selector";
   import IconSettings from "~icons/tabler/settings";

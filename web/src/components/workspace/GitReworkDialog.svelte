@@ -9,7 +9,7 @@
   import * as RadioGroup from "$lib/components/ui/radio-group";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Textarea } from "$lib/components/ui/textarea";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
   import type { GitReworkItem, SessionInfo } from "../../contracts/schemas";
   import { formatLineRangeLabel } from "../../domains/workspace/git-rework-model";

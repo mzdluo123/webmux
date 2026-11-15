@@ -1,6 +1,6 @@
 <script lang="ts">
   import { SvelteSet } from "svelte/reactivity";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import IconAdjustments from "~icons/tabler/adjustments";
   import IconCopy from "~icons/tabler/copy";
   import IconExternalLink from "~icons/tabler/external-link";

@@ -135,4 +135,21 @@ describe("i18n locale resolution, dynamic reactivity, and catalog parity", () =>
       "Extract UI strings into web/messages/{zh-CN,en}.json via $lib/paraglide/messages.js.",
     ).toEqual([]);
   });
+
+  test("production source files import named { m } so Vite rewrites virtual message imports", () => {
+    const prodFiles = globSync("src/**/*.{ts,svelte}", { cwd: root })
+      .map((file) => file.replaceAll("\\", "/"))
+      .filter((file) => !file.startsWith("src/lib/paraglide/"))
+      .sort();
+
+    const namespaceImports = prodFiles.filter((file) =>
+      /import\s+\*\s+as\s+\w+\s+from\s+["'][^"']*paraglide\/messages/.test(
+        readFileSync(`${root}/${file}`, "utf8"),
+      ),
+    );
+    expect(
+      namespaceImports,
+      'Use `import { m } from "$lib/paraglide/messages.js"` so Paraglide only loads referenced messages.',
+    ).toEqual([]);
+  });
 });

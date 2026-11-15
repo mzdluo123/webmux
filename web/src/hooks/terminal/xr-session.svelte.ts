@@ -1,6 +1,6 @@
 import { getContext, onDestroy, onMount, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 import { xrPresentation } from "../shared/xr-presentation.svelte";
 import type {
   XrHeaderControl,

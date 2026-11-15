@@ -8,7 +8,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as Resizable from "$lib/components/ui/resizable";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitReviewScope } from "../../contracts/git-workbench-schemas";
   import type { GitHunkAndLineMutationProps } from "../../domains/workspace/git-line-selection";
   import type { createReworkDraftItem } from "../../domains/workspace/git-rework-model";

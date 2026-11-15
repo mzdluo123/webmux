@@ -1,5 +1,5 @@
 <script lang="ts">
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ToolEntry, WorkStep } from "../../domains/chat/chat-model";
   import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import ChatDisclosure from "./ChatDisclosure.svelte";

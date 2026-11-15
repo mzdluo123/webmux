@@ -1,6 +1,6 @@
 // Recursive-descent JSON parsing for the read-only tree preview. Numbers keep
 // their source text so large integers and trailing zeros are shown verbatim.
-import * as m from "$lib/paraglide/messages.js";
+import { m } from "$lib/paraglide/messages.js";
 
 export type JsonNode = { line: number } & (
   | { kind: "object"; entries: { key: string; value: JsonNode }[] }

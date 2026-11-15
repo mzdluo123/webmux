@@ -1,7 +1,7 @@
 <script lang="ts">
   import IconFile from "~icons/tabler/file";
   import IconHandStop from "~icons/tabler/hand-stop";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import CodeMarkdownPreview from "../code/CodeMarkdownPreview.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import type { DisplayEntry } from "../../domains/chat/chat-model";

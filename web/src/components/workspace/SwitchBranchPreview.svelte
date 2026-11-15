@@ -1,6 +1,6 @@
 <script lang="ts">
   import IconArrowRight from "~icons/tabler/arrow-right";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
   import type { SwitchPreview, Worktree } from "../../contracts/schemas";

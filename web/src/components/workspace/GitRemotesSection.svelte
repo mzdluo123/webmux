@@ -6,7 +6,7 @@
   import IconWorldOff from "~icons/tabler/world-off";
   import { Button } from "$lib/components/ui/button";
   import * as Empty from "$lib/components/ui/empty";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { copyText } from "../../platform/clipboard";
   import type { Remote } from "../../contracts/schemas";
   import type { GitRemotesController } from "../../hooks/workspace/git-remotes-controller.svelte";

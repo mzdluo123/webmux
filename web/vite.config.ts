@@ -89,7 +89,10 @@ export default defineConfig({
   // Iconify icons compile to Svelte components at build time; only imported
   // icons are bundled and nothing is fetched from the Iconify API at runtime.
   plugins: lazyPlugins(() => [
-    paraglideVitePlugin({ project: "./project.inlang" }),
+    paraglideVitePlugin({
+      project: "./project.inlang",
+      outputStructure: "virtual-modules",
+    }),
     svelte(),
     tailwindcss(),
     Icons({

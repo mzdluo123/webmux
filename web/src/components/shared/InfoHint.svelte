@@ -3,7 +3,7 @@
   import IconInfoCircle from "~icons/tabler/info-circle";
   import { Button } from "$lib/components/ui/button";
   import * as Popover from "$lib/components/ui/popover";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
 
   // "ⓘ" beside a one-line summary: the longer explanation opens on demand
   // instead of taking the first screen of a small phone.

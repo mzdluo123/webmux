@@ -1,7 +1,7 @@
 <script lang="ts">
   import IconNotes from "~icons/tabler/notes";
   import { Button } from "$lib/components/ui/button";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import { cn } from "$lib/utils.js";
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
 

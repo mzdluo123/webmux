@@ -1,7 +1,7 @@
 <script lang="ts">
   import { errorMessage } from "../../platform/error";
   import { untrack } from "svelte";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import EnvRowsEditor from "./EnvRowsEditor.svelte";
   import LaunchConfigBehaviorFields from "./LaunchConfigBehaviorFields.svelte";
   import { Button } from "$lib/components/ui/button";

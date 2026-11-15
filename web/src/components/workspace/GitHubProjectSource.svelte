@@ -4,7 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import * as Command from "$lib/components/ui/command";
-  import * as m from "$lib/paraglide/messages.js";
+  import { m } from "$lib/paraglide/messages.js";
   import {
     pluginAvailable,
     requestPluginHostRefresh,
