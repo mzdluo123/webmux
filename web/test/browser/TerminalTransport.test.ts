@@ -719,3 +719,23 @@ test("an invalid server frame is reported and the terminal reattaches on a fresh
   expect(first.closeCount).toBe(2);
   first.closeCount = 1;
 });
+
+test("mounted terminal stays non-editable until replay is ready and never replays premature keys", async () => {
+  observeGlyphPixels(true);
+  await render(Harness);
+  await expect.poll(() => sockets.length).toBe(1);
+  const socket = sockets[0];
+  const textarea = host().querySelector<HTMLTextAreaElement>(
+    ".xterm-helper-textarea",
+  )!;
+  await expect.poll(() => textarea.readOnly).toBe(true);
+  await page.getByRole("button", { name: "Focus terminal input" }).click();
+  await userEvent.keyboard("p");
+  expect(inputText(socket)).toBe("");
+  socket.open();
+  await expect.poll(() => textarea.readOnly).toBe(true);
+  socket.receive(1, snapshot);
+  await expect.poll(() => textarea.readOnly).toBe(false);
+  await userEvent.keyboard("printf");
+  expect(inputText(socket)).toBe("printf");
+});

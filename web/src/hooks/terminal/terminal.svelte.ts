@@ -30,6 +30,7 @@ import {
   type TerminalUserInput,
 } from "./terminal-input";
 import { createTerminalSocket } from "./terminal-socket.svelte";
+import { useTerminalReadiness } from "./terminal-readiness.svelte";
 export type { TerminalController } from "../../domains/terminal/terminal-search";
 import type { TerminalController } from "../../domains/terminal/terminal-search";
 
@@ -59,6 +60,10 @@ export function useTerminal(
   let follow = true;
   const gridFixed = () => isSizeLocked() || isHeightHeld();
   const stream = createTerminalSocket(id, manageChrome);
+  useTerminalReadiness(
+    () => terminal,
+    () => stream.accepting || !!userInput?.draftEnabled(),
+  );
   const fontSize = $derived(terminalFont.size);
   const setFontSize = terminalFont.set;
   let modifiers = $state<Modifiers>({

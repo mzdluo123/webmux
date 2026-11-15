@@ -11,6 +11,7 @@ import {
   relayDiagnostic,
   relayEndpoint,
 } from "../src/domains/settings/relay-diagnostics";
+import { prepareHostAuthentication } from "../src/hooks/shared/host-authentication";
 
 const ownerSession = () => ({
   authenticated: true,
@@ -84,4 +85,60 @@ test("absolute owner expiry revokes optimization and returns to the existing log
   vi.advanceTimersByTime(1000);
   expect(authenticationHeaders()).not.toHaveProperty("X-WebMux-CSRF");
   expect(events).toEqual(["revoked", "auth"]);
+});
+
+test.each([false, true])(
+  "HTTPS owner restoration preserves explicit Token preference (%s)",
+  async (preferToken) => {
+    vi.stubGlobal("location", { protocol: "https:" });
+    vi.stubGlobal("localStorage", { getItem: () => "recovery-token" });
+    const requests: { path: string; headers: Headers }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input, init) => {
+        const path = String(input);
+        requests.push({ path, headers: new Headers(init?.headers) });
+        return Response.json(
+          path.endsWith("/relay/auth/session")
+            ? ownerSession()
+            : { ok: true, sessions: 0 },
+        );
+      }),
+    );
+    await prepareHostAuthentication(
+      preferToken,
+      new AbortController().signal,
+      () => true,
+    );
+    const health = requests.find((request) =>
+      request.path.endsWith("/health"),
+    )!;
+    expect(health.headers.get("Authorization")).toBe(
+      preferToken ? "Bearer recovery-token" : null,
+    );
+    expect(health.headers.get("X-WebMux-CSRF")).toBe(
+      preferToken ? null : "owner-csrf",
+    );
+    expect(
+      requests.some((request) => request.path.endsWith("/relay/auth/session")),
+    ).toBe(!preferToken);
+  },
+);
+
+test("obsolete HTTPS bootstrap cannot restore owner auth or advance to health", async () => {
+  vi.stubGlobal("location", { protocol: "https:" });
+  const response = Promise.withResolvers<Response>();
+  const fetcher = vi.fn<typeof fetch>(() => response.promise);
+  vi.stubGlobal("fetch", fetcher);
+  let current = true;
+  const pending = prepareHostAuthentication(
+    false,
+    new AbortController().signal,
+    () => current,
+  );
+  current = false;
+  response.resolve(Response.json(ownerSession()));
+  expect(await pending).toBe(false);
+  expect(authenticationHeaders()).not.toHaveProperty("X-WebMux-CSRF");
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });
