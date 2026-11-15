@@ -204,9 +204,9 @@ async function reconnect(feed: FakeSocket, index: number) {
 test("same-origin reconnect replaces captured shell projections only when selection changes", async () => {
   enabled = ["workspace"];
   const first = await mount();
-  await expect
-    .element(page.getByRole("button", { name: "添加仓库", exact: true }))
-    .toBeVisible();
+  expect(
+    page.getByRole("button", { name: "会话", exact: true }).elements(),
+  ).toEqual([]);
   expect(
     page.getByRole("button", { name: "Git 工作台", exact: true }).elements(),
   ).toEqual([]);
@@ -216,9 +216,9 @@ test("same-origin reconnect replaces captured shell projections only when select
     .element(page.getByRole("textbox", { name: "搜索会话", exact: true }))
     .toBeVisible();
   expect(reconnecting.readyState).toBe(FakeSocket.CLOSED);
-  expect(
-    page.getByRole("button", { name: "添加仓库", exact: true }).elements(),
-  ).toEqual([]);
+  await expect
+    .element(page.getByRole("button", { name: "会话", exact: true }))
+    .toBeVisible();
   const core = await socketAt("/ws/sessions", 2);
   core.frame({ type: "snapshot", sessions: [], forwards: [] } as never);
   await page
@@ -237,8 +237,12 @@ test("same-origin reconnect replaces captured shell projections only when select
     4,
   );
   await expect
-    .element(page.getByRole("button", { name: "添加仓库", exact: true }))
-    .toBeVisible();
+    .poll(
+      () =>
+        page.getByRole("button", { name: "会话", exact: true }).elements()
+          .length,
+    )
+    .toBe(0);
   await socketAt("/ws/sessions", 5);
 });
 

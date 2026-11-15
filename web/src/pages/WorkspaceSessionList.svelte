@@ -1,5 +1,7 @@
 <script lang="ts">
   import SessionListRemovalDialog from "../components/sessions/SessionListRemovalDialog.svelte";
+  import IconFolderPlus from "~icons/tabler/folder-plus";
+  import { Button } from "$lib/components/ui/button";
   import { onMount } from "svelte";
   import SessionSwitcherTrigger from "../components/shell/SessionSwitcherTrigger.svelte";
   import WorkspaceActions from "../components/workspace/WorkspaceActions.svelte";
@@ -286,6 +288,18 @@
 {/snippet}
 
 {#snippet actions()}
+  <Button
+    variant="ghost"
+    size="sm"
+    class="min-h-9 sm:min-h-8"
+    aria-label="添加仓库"
+    title="添加仓库"
+    disabled={!setup.gitReady || !setup.registryReady}
+    onclick={() => shell.addRepository()}
+    ><IconFolderPlus aria-hidden="true" /><span class="hidden sm:inline"
+      >添加仓库</span
+    ></Button
+  >
   <SessionSwitcherTrigger size="icon-sm" />
   <WorkspaceActions
     {compact}
