@@ -43,8 +43,6 @@ afterEach(async () => {
   setActiveHostId(null);
   localStorage.clear();
   themePreference.refresh();
-  localStorage.clear();
-  themePreference.refresh();
   await page.viewport(1024, 900);
 });
 
@@ -346,7 +344,6 @@ test("theme stays device-local, works offline, and syncs across same-browser win
   expect(document.documentElement.classList.contains("dark")).toBe(true);
 
   await cleanup();
-  initializeTheme();
   render(Settings);
   await expect
     .element(
