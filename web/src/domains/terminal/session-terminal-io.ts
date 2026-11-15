@@ -16,7 +16,7 @@ import type { TerminalController } from "./terminal-search";
 import { newSubmissionId } from "./terminal-protocol";
 import { hasTouchInput } from "../../platform/touch-input";
 import { m } from "$lib/paraglide/messages.js";
-import type { Connection } from "../../platform/ws";
+import type { Connection } from "../../platform/ws-contracts";
 
 export interface SessionHybridView {
   readonly view: HybridView;

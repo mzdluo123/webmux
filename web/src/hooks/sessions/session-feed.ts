@@ -1,7 +1,8 @@
 import { m } from "$lib/paraglide/messages.js";
 import type { z } from "zod";
 import { SessionEventSchema } from "../../contracts/schemas";
-import { connect, type Connection } from "../../platform/ws";
+import { connect } from "../../platform/ws";
+import type { Connection } from "../../platform/ws-contracts";
 
 export type SessionEvent = z.infer<typeof SessionEventSchema>;
 

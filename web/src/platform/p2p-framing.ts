@@ -200,14 +200,28 @@ export function medianSample(samples: readonly number[]): number | null {
     : Math.round((sorted[mid - 1]! + sorted[mid]!) / 2);
 }
 
+export function hasStrongP2PAdvantage(
+  baselineRttMs: number,
+  p2pRttMs: number,
+): boolean {
+  return (
+    Number.isFinite(baselineRttMs) &&
+    Number.isFinite(p2pRttMs) &&
+    baselineRttMs >= 0 &&
+    p2pRttMs >= 0 &&
+    baselineRttMs - p2pRttMs > 100
+  );
+}
+
 export function shouldUpgradeToP2P(
   baselineRttMs: number,
   p2pRttMs: number,
 ): boolean {
   return (
-    baselineRttMs >= 15 &&
-    p2pRttMs <= baselineRttMs - 10 &&
-    p2pRttMs <= baselineRttMs * 0.85
+    (baselineRttMs >= 15 &&
+      p2pRttMs <= baselineRttMs - 10 &&
+      p2pRttMs <= baselineRttMs * 0.85) ||
+    hasStrongP2PAdvantage(baselineRttMs, p2pRttMs)
   );
 }
 

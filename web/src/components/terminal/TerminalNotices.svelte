@@ -9,7 +9,7 @@
   import StripNotice from "../shared/StripNotice.svelte";
   import type { ControlState, ListeningPort } from "../../contracts/schemas";
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
-  import type { Connection } from "../../platform/ws";
+  import type { Connection } from "../../platform/ws-contracts";
 
   interface NoticeTerminal {
     readonly control: ControlState | undefined;

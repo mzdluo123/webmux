@@ -2,6 +2,7 @@ import { m } from "$lib/paraglide/messages.js";
 import { api } from "./api";
 import {
   isLocalOrOverlayHost,
+  hasStrongP2PAdvantage,
   medianSample,
   HybridPathPolicy,
   HYBRID_SAMPLE_INTERVAL_MS,
@@ -176,6 +177,7 @@ async function probeDirectPeer(epoch: number, signal: AbortSignal) {
   }
   teardownActiveSession(true);
   activeSession = session;
+  const sessionPath = session.path;
   const health = new AbortController();
   healthController = health;
   retryIndex = 0;
@@ -195,8 +197,15 @@ async function probeDirectPeer(epoch: number, signal: AbortSignal) {
   session.control.onclose = session.onFailure;
   session.control.onerror = session.onFailure;
   let sampling = false;
+  let strongAdvantageSamples = 0;
   const sample = async () => {
-    if (sampling || activeSession !== session || epoch !== activeEpoch) return;
+    if (
+      sampling ||
+      activeSession !== session ||
+      epoch !== activeEpoch ||
+      health.signal.aborted
+    )
+      return;
     sampling = true;
     try {
       // Both application requests start in the same round, never sequential A/B.
@@ -209,7 +218,8 @@ async function probeDirectPeer(epoch: number, signal: AbortSignal) {
       if (activeSession !== session || epoch !== activeEpoch) return;
       if (
         pair.path === "unknown" ||
-        pair.path !== session.path ||
+        pair.path !== sessionPath ||
+        session.path !== sessionPath ||
         (session.expiresAt !== null && session.expiresAt * 1000 <= Date.now())
       ) {
         fallbackToBaseline("fallback", true);
@@ -219,6 +229,9 @@ async function probeDirectPeer(epoch: number, signal: AbortSignal) {
       if (base === null) throw new Error("Missing baseline application sample");
       p2pState.baselineRttMs = base;
       p2pState.p2pRttMs = candidate;
+      strongAdvantageSamples = hasStrongP2PAdvantage(base, candidate)
+        ? Math.min(strongAdvantageSamples + 1, HYBRID_STABLE_SAMPLES)
+        : 0;
       const decision = pathPolicy.sample(
         base,
         candidate,
@@ -265,7 +278,16 @@ async function probeDirectPeer(epoch: number, signal: AbortSignal) {
           Math.round(performance.now() - upgradeStart),
         );
         p2pState.switchCount++;
-        handoffLiveSockets();
+        handoffLiveSockets({
+          targetPath: sessionPath,
+          allowReconnect: strongAdvantageSamples >= HYBRID_STABLE_SAMPLES,
+        });
+      } else if (
+        p2pState.mode === "p2p" &&
+        strongAdvantageSamples >= HYBRID_STABLE_SAMPLES
+      ) {
+        // Retry remaining baseline streams without replacing the active peer.
+        handoffLiveSockets({ targetPath: sessionPath, allowReconnect: true });
       } else if (p2pState.mode !== "p2p") {
         p2pState.phase = "standby_hysteresis";
         p2pState.reason = "sampling_advantage";

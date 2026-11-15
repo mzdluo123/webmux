@@ -2,14 +2,19 @@ import { m } from "$lib/paraglide/messages.js";
 import { store, stored } from "./storage";
 import { authenticationToken, relayOwnerAuthenticated } from "./relay-auth";
 import { InputHandoffFence, stageHandoff } from "./ws-handoff";
-import type { StreamPosition } from "../contracts/schemas";
+import type {
+  Connection,
+  ConnectOptions,
+  HandoffOptions,
+  ManagedStreamStatus,
+  SocketConnection,
+} from "./ws-contracts";
 import {
   currentTransport,
   protocols,
   SOCKET_OPEN,
   interactiveStreamKind,
-  type InteractiveStreamKind,
-  type TransportPath,
+  type ClientTransport,
   type TransportSocket,
 } from "./transport";
 
@@ -19,15 +24,8 @@ const maxBufferedAmount = 1024 * 1024;
 const compressionKey = "wsCompression";
 // Every live connection, so a compression change can reattach them at once.
 const live = new Set<() => void>();
-const handoffs = new Set<() => void>();
+const handoffs = new Set<(options: HandoffOptions) => void>();
 
-export interface ManagedStreamStatus {
-  id: number;
-  kind: InteractiveStreamKind | "other";
-  path: TransportPath;
-  state: Connection;
-  inputUncertain: boolean;
-}
 let streamCounter = 0;
 const streamStatuses = new Map<number, ManagedStreamStatus>();
 const streamObservers = new Set<(streams: ManagedStreamStatus[]) => void>();
@@ -65,10 +63,11 @@ export function setWsCompression(enabled: boolean) {
 /**
  * Seamlessly hands off all active managed connections onto `currentTransport()`
  * using make-before-break: the candidate stream opens before the previous
- * socket is closed, avoiding any disconnect state flicker or output gap.
+ * socket is closed. Explicitly allowed reconnects recover via the normal
+ * snapshot/cursor path if the bounded seamless attempt cannot complete.
  */
-export function handoffLiveSockets() {
-  for (const handoff of handoffs) handoff();
+export function handoffLiveSockets(options: HandoffOptions = {}) {
+  for (const handoff of handoffs) handoff(options);
 }
 
 // Opens an authenticated one-shot stream without reconnects (for example a
@@ -80,39 +79,9 @@ export function openSocket(path: string, compress = true): TransportSocket {
   });
 }
 
-export type Connection =
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "exited"
-  | "missing"
-  // 4409: a hybrid session moved to its other side. Terminal: the page
-  // switches view and reconnects explicitly once the terminal is back.
-  | "moved";
-export interface SocketConnection {
-  // False is definitely rejected. True includes an uncertain send outcome,
-  // reported via onError, which callers must never replay. Only controls coalesce.
-  send(kind: number, payload: Uint8Array): boolean;
-  close(): void;
-  // Explicit recovery may reopen an exited or moved session, not a missing one.
-  reconnect(): void;
-  // Probes an OPEN socket via `resume` when none is in flight, replacing a
-  // silent mobile connection after resumeTimeout.
-  probe(): void;
-}
 // How long a foregrounded OPEN socket may stay silent after `resume` before
 // it is treated as a dead mobile connection and replaced.
 export const resumeTimeout = 3000;
-export interface ConnectOptions {
-  // Asks the server for a reply on a socket that still claims OPEN when the
-  // page returns to the foreground, and returns true once it sent one. Any
-  // message within resumeTimeout proves the connection healthy; silence
-  // replaces it. Returning false, or omitting it, reattaches immediately and
-  // takes the server snapshot as the source of truth.
-  resume?: (send: SocketConnection["send"]) => boolean;
-  // Terminal consumers validate against their current rendered recovery point.
-  canHandoff?: (position: StreamPosition) => boolean;
-}
 export function connect(
   // Evaluated on every attempt, so a reconnect can carry fresh query state.
   path: string | (() => string),
@@ -137,6 +106,8 @@ export function connect(
   let inputUncertain = false;
   let sentInput = false;
   let candidateTimer: number | undefined;
+  let candidateTransport: ClientTransport | undefined;
+  let candidateAllowReconnect = false;
   const inputFence = new InputHandoffFence();
   const state = (next: Connection) => {
     streamStatuses.set(id, {
@@ -162,6 +133,8 @@ export function connect(
     inputFence.clear();
     clearTimeout(candidateTimer);
     candidateTimer = undefined;
+    candidateTransport = undefined;
+    candidateAllowReconnect = false;
     if (!candidateSocket) return;
     const prev = candidateSocket;
     candidateSocket = undefined;
@@ -381,32 +354,70 @@ export function connect(
   const reopen = () => {
     if (!disposed && !finished) open();
   };
-  const handoff = () => {
+  const handoff = (handoffOptions: HandoffOptions) => {
     if (disposed || finished) return;
+    const target = typeof path === "string" ? path : path();
+    if (!interactiveStreamKind(target)) return;
+    if (
+      handoffOptions.targetPath &&
+      socket?.transportPath === handoffOptions.targetPath
+    )
+      return;
+    const transport = currentTransport();
+    if (
+      candidateSocket &&
+      handoffOptions.targetPath &&
+      candidateSocket.transportPath === handoffOptions.targetPath &&
+      candidateTransport === transport
+    ) {
+      candidateAllowReconnect ||= handoffOptions.allowReconnect === true;
+      return;
+    }
     if (socket?.readyState !== SOCKET_OPEN) {
       open();
       return;
     }
     clearCandidate();
-    const target = typeof path === "string" ? path : path();
-    if (!interactiveStreamKind(target)) return;
-    const next = currentTransport().openStream(target, {
+    const previous = socket;
+    const next = transport.openStream(target, {
       token: authenticationToken(),
       compress: wsCompression(),
     });
     candidateSocket = next;
+    candidateTransport = transport;
+    candidateAllowReconnect = handoffOptions.allowReconnect === true;
+    const currentCandidate = () =>
+      candidateSocket === next &&
+      !disposed &&
+      !finished &&
+      socket === previous &&
+      currentTransport() === transport;
+    const failed = () => {
+      if (candidateSocket !== next) return;
+      const reconnect = candidateAllowReconnect && currentCandidate();
+      clearCandidate();
+      // open() drops unsent controls, marks uncertain input without replaying
+      // it, and lets consumers restore their authoritative snapshot/cursor.
+      if (reconnect) open();
+    };
+    if (
+      handoffOptions.targetPath &&
+      next.transportPath !== handoffOptions.targetPath
+    ) {
+      clearCandidate();
+      return;
+    }
     next.onopen = null;
-    next.onerror = () => {
-      if (candidateSocket === next) clearCandidate();
-    };
-    next.onclose = () => {
-      if (candidateSocket === next) clearCandidate();
-    };
-    candidateTimer = window.setTimeout(clearCandidate, 10_000);
+    next.onerror = failed;
+    next.onclose = failed;
+    candidateTimer = window.setTimeout(failed, 10_000);
     const commit = () => {
-      if (candidateSocket !== next || disposed || finished) return;
+      if (!currentCandidate()) {
+        if (candidateSocket === next) clearCandidate();
+        return;
+      }
       if (next.readyState !== SOCKET_OPEN) {
-        clearCandidate();
+        failed();
         return;
       }
       const buffered = staged.take();
@@ -414,6 +425,8 @@ export function connect(
       clearTimeout(candidateTimer);
       candidateTimer = undefined;
       candidateSocket = undefined;
+      candidateTransport = undefined;
+      candidateAllowReconnect = false;
       clearTimeout(timer);
       clearTimeout(stableTimer);
       clearTimeout(resumeTimer);
@@ -446,22 +459,27 @@ export function connect(
       maxBufferedAmount,
       options.canHandoff,
       () => {
-        if (candidateSocket !== next || !socket) return;
+        if (!currentCandidate()) {
+          if (candidateSocket === next) clearCandidate();
+          return;
+        }
         if (interactiveStreamKind(target) !== "terminal") return commit();
         inputFence.begin(
-          socket,
+          previous,
           () => {
+            if (!currentCandidate()) {
+              if (candidateSocket === next) clearCandidate();
+              return;
+            }
             sentInput = false;
             commit();
           },
-          clearCandidate,
+          failed,
           resumeTimeout,
           maxBufferedAmount,
         );
       },
-      () => {
-        if (candidateSocket === next) clearCandidate();
-      },
+      failed,
     );
   };
   const revoked = () => {

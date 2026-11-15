@@ -1,4 +1,4 @@
-import type { ManagedStreamStatus } from "./ws";
+import type { ManagedStreamStatus } from "./ws-contracts";
 
 export type P2PPhase =
   | "idle"

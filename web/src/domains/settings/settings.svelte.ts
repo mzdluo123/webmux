@@ -2,7 +2,8 @@ import { SvelteSet } from "svelte/reactivity";
 import { m } from "$lib/paraglide/messages.js";
 import { api, APIError } from "../../platform/api";
 import { onActiveHostChange, store, stored } from "../../platform/storage";
-import { connect, type SocketConnection } from "../../platform/ws";
+import { connect } from "../../platform/ws";
+import type { SocketConnection } from "../../platform/ws-contracts";
 import {
   SettingsSnapshotSchema,
   SettingsEventSchema,

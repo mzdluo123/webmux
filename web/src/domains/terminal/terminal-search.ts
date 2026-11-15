@@ -3,7 +3,7 @@ import type {
   SessionInfo,
   SubmissionProgress,
 } from "../../contracts/schemas";
-import type { Connection } from "../../platform/ws";
+import type { Connection } from "../../platform/ws-contracts";
 import type { Modifiers } from "./terminal-keys";
 import type { Terminal } from "@xterm/xterm";
 import type { SearchAddon } from "@xterm/addon-search";

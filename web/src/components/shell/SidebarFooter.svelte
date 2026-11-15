@@ -15,7 +15,7 @@
   import { featureContributions } from "../../features/registry.svelte";
   import { HealthSchema, type Health } from "../../contracts/schemas";
   import { toggleTheme } from "../../hooks/settings/theme";
-  import type { Connection } from "../../platform/ws";
+  import type { Connection } from "../../platform/ws-contracts";
   import { relayAuth } from "../../platform/relay-auth.svelte";
   import { m } from "$lib/paraglide/messages.js";
   const p2pState = $derived(

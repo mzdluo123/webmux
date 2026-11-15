@@ -11,8 +11,8 @@ import {
   protocols,
   setWsCompression,
   wsCompression,
-  type SocketConnection,
 } from "../src/platform/ws";
+import type { SocketConnection } from "../src/platform/ws-contracts";
 
 const sendBudget = 1024 * 1024;
 

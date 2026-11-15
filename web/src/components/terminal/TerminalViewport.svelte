@@ -14,7 +14,7 @@
     type Modifiers,
   } from "../../domains/terminal/terminal-keys";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
-  import type { Connection } from "../../platform/ws";
+  import type { Connection } from "../../platform/ws-contracts";
   import { xrPresentation } from "../../hooks/shared/xr-presentation.svelte";
   import { hasTouchInput } from "../../platform/touch-input";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";

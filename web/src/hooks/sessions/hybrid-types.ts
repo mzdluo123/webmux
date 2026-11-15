@@ -17,7 +17,7 @@ import type {
   TerminalDraft,
   TerminalDrafts,
 } from "../../domains/terminal/terminal-draft.svelte";
-import type { Connection } from "../../platform/ws";
+import type { Connection } from "../../platform/ws-contracts";
 import type { ChatSocket } from "../chat/chat-socket.svelte";
 
 /** What the hybrid page needs from the session's terminal stream. */
