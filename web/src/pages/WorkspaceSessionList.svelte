@@ -289,9 +289,9 @@
 
 {#snippet actions()}
   <Button
-    variant="ghost"
+    variant="outline"
     size="sm"
-    class="min-h-9 sm:min-h-8"
+    class="max-sm:size-(--control-default)"
     aria-label="添加仓库"
     title="添加仓库"
     disabled={!setup.gitReady || !setup.registryReady}
