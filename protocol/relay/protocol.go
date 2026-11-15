@@ -32,6 +32,7 @@ const (
 	AuthTimeout                   = 10 * time.Second
 	NonceTTL                      = 30 * time.Second
 	RequestTimeout                = 10 * time.Second
+	ControlMessageTTL             = 60 * time.Second
 	StreamOpenTimeout             = 10 * time.Second
 	KeepAliveInterval             = 10 * time.Second
 	ControlLease                  = 30 * time.Second
