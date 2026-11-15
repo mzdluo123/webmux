@@ -11,7 +11,10 @@
   } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import type { QuickCommand } from "../../contracts/schemas";
-  import { commandPreview } from "../../domains/settings/quick-commands";
+  import {
+    commandLabel,
+    commandPreview,
+  } from "../../domains/settings/quick-commands";
 
   let {
     commands,
@@ -58,19 +61,19 @@
     </p>
   {/if}
   {#each commands as cmd (cmd.id)}
+    {@const label = cmd.name ? commandLabel(cmd) : ""}
     {@const preview = commandPreview(cmd)}
     {@const enter = target === "terminal" && cmd.enter}
     <DropdownMenu.Item
       class="min-h-9 any-pointer-coarse:min-h-11"
       disabled={blocked}
-      aria-label={[cmd.name, preview].filter(Boolean).join(m.s2_qc_item_sep()) +
+      aria-label={[label, preview].filter(Boolean).join(m.s2_qc_item_sep()) +
         (enter ? m.s2_qc_item_enter_suffix() : "")}
       onSelect={() => run(cmd)}
     >
       <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-        {#if cmd.name}<span class="truncate">{cmd.name}</span>{/if}
-        <span
-          class={["truncate font-mono", cmd.name && "text-muted-foreground"]}
+        {#if label}<span class="truncate">{label}</span>{/if}
+        <span class={["truncate font-mono", label && "text-muted-foreground"]}
           >{preview}</span
         >
       </span>

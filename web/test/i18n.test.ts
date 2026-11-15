@@ -4,6 +4,8 @@ import { afterEach, describe, expect, test } from "vite-plus/test";
 import { CodeNameSchema } from "../src/contracts/code-schemas";
 import {
   QUICK_COMMAND_PRESETS,
+  commandLabel,
+  expandInitInstruction,
   quickCommandNameError,
 } from "../src/domains/settings/quick-commands";
 import { LAUNCH_ATTENTION_MODE_OPTIONS } from "../src/domains/settings/launch-configs";
@@ -29,10 +31,93 @@ function readCatalog(name: SupportedLocale): Record<string, unknown> {
 }
 
 function stripComments(source: string): string {
-  return source
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|\s)\/\/.*$/gm, "$1");
+  let out = "";
+  let i = 0;
+  const n = source.length;
+  let state: "code" | "line" | "block" | "html" | '"' | "'" | "`" = "code";
+  while (i < n) {
+    const ch = source[i]!;
+    const next = source[i + 1];
+    if (state === "code") {
+      if (ch === "/" && next === "/") {
+        out += "  ";
+        i += 2;
+        state = "line";
+      } else if (ch === "/" && next === "*") {
+        out += "  ";
+        i += 2;
+        state = "block";
+      } else if (source.startsWith("<!--", i)) {
+        out += "    ";
+        i += 4;
+        state = "html";
+      } else if (ch === '"' || ch === "'" || ch === "`") {
+        out += ch;
+        i++;
+        state = ch;
+      } else {
+        out += ch;
+        i++;
+      }
+    } else if (state === "line") {
+      if (ch === "\n") {
+        out += "\n";
+        i++;
+        state = "code";
+      } else {
+        out += " ";
+        i++;
+      }
+    } else if (state === "block") {
+      if (ch === "*" && next === "/") {
+        out += "  ";
+        i += 2;
+        state = "code";
+      } else {
+        out += ch === "\n" ? "\n" : " ";
+        i++;
+      }
+    } else if (state === "html") {
+      if (source.startsWith("-->", i)) {
+        out += "   ";
+        i += 3;
+        state = "code";
+      } else {
+        out += ch === "\n" ? "\n" : " ";
+        i++;
+      }
+    } else if (ch === "\\") {
+      out += ch + (next ?? "");
+      i += 2;
+    } else if (ch === state) {
+      out += ch;
+      i++;
+      state = "code";
+    } else {
+      out += ch;
+      i++;
+    }
+  }
+  return out;
+}
+
+function catalogPatterns(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => {
+      if (
+        entry &&
+        typeof entry === "object" &&
+        "match" in entry &&
+        entry.match &&
+        typeof entry.match === "object"
+      ) {
+        return Object.values(entry.match as Record<string, string>);
+      }
+      return [];
+    });
+  }
+  return [];
 }
 
 afterEach(() => {
@@ -66,6 +151,7 @@ describe("i18n locale resolution, dynamic reactivity, and catalog parity", () =>
       "名称不能包含 { }或换行",
     );
     expect(QUICK_COMMAND_PRESETS[0]?.name).toBe("恢复会话");
+    expect(commandLabel(QUICK_COMMAND_PRESETS[0]!)).toBe("恢复会话");
     expect(LAUNCH_ATTENTION_MODE_OPTIONS[0]?.label).toBe("全部提醒");
 
     locale.setPreference("en");
@@ -79,8 +165,28 @@ describe("i18n locale resolution, dynamic reactivity, and catalog parity", () =>
     const enCmdErr = quickCommandNameError("bad{name}", []);
     expect(enCmdErr).toContain("{ }");
     expect(CJK.test(enCmdErr)).toBe(false);
-    expect(CJK.test(QUICK_COMMAND_PRESETS[0]?.name ?? "")).toBe(false);
+    // Stored reference key stays locale-independent while display label localizes.
+    expect(QUICK_COMMAND_PRESETS[0]?.name).toBe("恢复会话");
+    expect(commandLabel(QUICK_COMMAND_PRESETS[0]!)).toBe("Resume session");
+    const clonedInEn = QUICK_COMMAND_PRESETS.map((preset) => ({ ...preset }));
+    expect(
+      expandInitInstruction("{{WebMux 工具}}", clonedInEn).missing,
+    ).toEqual([]);
     expect(CJK.test(LAUNCH_ATTENTION_MODE_OPTIONS[0]?.label ?? "")).toBe(false);
+
+    // English pluralization variants handle singular and plural counts naturally.
+    expect(m.s8_details_total_sessions({ count: 1 })).toBe("1 session");
+    expect(m.s8_details_total_sessions({ count: 2 })).toBe("2 sessions");
+    expect(m.s7_file_count_badge({ count: "1" })).toBe("1 file");
+    expect(m.s7_file_count_badge({ count: "3" })).toBe("3 files");
+    expect(m.s2_sys_preset_count({ count: 1 })).toBe("1 item");
+    expect(m.s2_sys_preset_count({ count: 4 })).toBe("4 items");
+    expect(m.s1_node_sessions_count({ label: "webmux", count: 1 })).toBe(
+      "webmux, 1 session",
+    );
+    expect(m.s1_node_sessions_count({ label: "webmux", count: 2 })).toBe(
+      "webmux, 2 sessions",
+    );
   });
 
   test("zh-CN and en catalogs define identical keys and matching placeholders", () => {
@@ -92,15 +198,26 @@ describe("i18n locale resolution, dynamic reactivity, and catalog parity", () =>
     const mismatches: string[] = [];
     for (const [key, zhVal] of Object.entries(zh)) {
       const enVal = en[key];
-      if (typeof zhVal === "string" && typeof enVal === "string") {
-        expect(zhVal.trim().length, `zh-CN.${key} is empty`).toBeGreaterThan(0);
-        expect(enVal.trim().length, `en.${key} is empty`).toBeGreaterThan(0);
-        const zhParams = [...zhVal.matchAll(PLACEHOLDER)]
-          .map((item) => item[1])
-          .sort();
-        const enParams = [...enVal.matchAll(PLACEHOLDER)]
-          .map((item) => item[1])
-          .sort();
+      const zhPatterns = catalogPatterns(zhVal);
+      const enPatterns = catalogPatterns(enVal);
+      expect(zhPatterns.length, `zh-CN.${key} has no patterns`).toBeGreaterThan(
+        0,
+      );
+      expect(enPatterns.length, `en.${key} has no patterns`).toBeGreaterThan(0);
+
+      for (const pattern of zhPatterns) {
+        expect(pattern.trim().length, `zh-CN.${key} is empty`).toBeGreaterThan(
+          0,
+        );
+      }
+      const zhParams = [
+        ...new Set([...zhPatterns[0]!.matchAll(PLACEHOLDER)].map((i) => i[1])),
+      ].sort();
+      for (const pattern of enPatterns) {
+        expect(pattern.trim().length, `en.${key} is empty`).toBeGreaterThan(0);
+        const enParams = [
+          ...new Set([...pattern.matchAll(PLACEHOLDER)].map((i) => i[1])),
+        ].sort();
         if (zhParams.join(",") !== enParams.join(",")) {
           mismatches.push(
             `${key}: zh=[${zhParams.join(",")}] vs en=[${enParams.join(",")}]`,
@@ -123,7 +240,12 @@ describe("i18n locale resolution, dynamic reactivity, and catalog parity", () =>
 
     const violations: string[] = [];
     for (const file of prodFiles) {
-      const stripped = stripComments(readFileSync(`${root}/${file}`, "utf8"));
+      const raw = readFileSync(`${root}/${file}`, "utf8");
+      const stripped = stripComments(raw);
+      expect(
+        stripped.split("\n").length,
+        `${file} line count changed during comment stripping`,
+      ).toBe(raw.split("\n").length);
       for (const [idx, line] of stripped.split("\n").entries()) {
         if (CJK.test(line)) {
           violations.push(`${file}:${idx + 1}: ${line.trim()}`);

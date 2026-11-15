@@ -17,6 +17,7 @@ import {
 import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
 export type { PDFDocumentProxy };
+import { m } from "$lib/paraglide/messages.js";
 import type { CodePdfState } from "../../contracts/schemas";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
@@ -44,9 +45,9 @@ class BundledDataFactory {
   async fetch({ kind, filename }: { kind: string; filename: string }) {
     const url =
       bundled[`/node_modules/pdfjs-dist/${folders[kind]}/${filename}`];
-    if (!url) throw new Error(`PDF 资源不存在：${filename}`);
+    if (!url) throw new Error(m.s5_pdf_asset_missing({ filename }));
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`PDF 资源读取失败：${filename}`);
+    if (!response.ok) throw new Error(m.s5_pdf_asset_read_failed({ filename }));
     return new Uint8Array(await response.arrayBuffer());
   }
 }
@@ -77,8 +78,8 @@ export function openPdf(data: ArrayBuffer, signal: AbortSignal) {
 // Reader-facing explanation of a failed load.
 export function pdfLoadError(error: unknown) {
   return error instanceof Error && error.name === "PasswordException"
-    ? "PDF 受密码保护，请下载后查看"
-    : "PDF 无法解析";
+    ? m.s5_pdf_password_protected()
+    : m.s5_pdf_parse_failed();
 }
 
 export const pageViewport = (page: PDFPageProxy, zoom: number) =>
@@ -250,7 +251,7 @@ export function attachPdfCanvas(
             error.name === "RenderingCancelledException"
           )
         )
-          onFailure(`PDF 渲染失败：第 ${number} 页无法显示`);
+          onFailure(m.s5_pdf_page_render_failed({ page: String(number) }));
       });
     return () => {
       stopped = true;

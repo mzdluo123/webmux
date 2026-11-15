@@ -1,7 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "locale_label": "Language",
   "locale_follow_system": "Follow system",
+  "locale_label": "Language",
   "s1_add_repository": "Add repository",
   "s1_all_repositories": "All repositories",
   "s1_archive_requires_workspace_plugin": "This archived session requires the workspace plugin to rebuild its worktree; enable workspace support to resume.",
@@ -76,7 +76,16 @@
   "s1_drop_to_attach_message": "Drop to attach to this message",
   "s1_edit_title": "Edit title",
   "s1_empty_sessions_core": "No sessions yet. Start a new session to open a terminal.",
-  "s1_env_var_count": "{count} env vars",
+  "s1_env_var_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} env var",
+        "countPlural=*": "{count} env vars"
+      }
+    }
+  ],
   "s1_expand_node": "Expand {label}",
   "s1_expand_sidebar": "Expand sidebar",
   "s1_feature_disabled": "Feature not enabled",
@@ -169,8 +178,35 @@
   "s1_no_matching_sessions_short": "No matching sessions.",
   "s1_no_sessions_yet": "No sessions yet. Start one from the workspace.",
   "s1_node_reason_title": "{label}: {reason}",
-  "s1_node_sessions_count": "{label}, {count} sessions",
-  "s1_node_sessions_waiting": "{label}, {count} sessions, {waiting} waiting",
+  "s1_node_sessions_count": [
+    {
+      "declarations": [
+        "input count",
+        "input label",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{label}, {count} session",
+        "countPlural=*": "{label}, {count} sessions"
+      }
+    }
+  ],
+  "s1_node_sessions_waiting": [
+    {
+      "declarations": [
+        "input count",
+        "input label",
+        "input waiting",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{label}, {count} session, {waiting} waiting",
+        "countPlural=*": "{label}, {count} sessions, {waiting} waiting"
+      }
+    }
+  ],
   "s1_node_unavailable": "{label} (unavailable)",
   "s1_node_with_state": "{label} ({state})",
   "s1_not_available": "N/A",
@@ -221,7 +257,16 @@
   "s1_public_access_desc": "Configure Cloudflare Tunnel with settings saved across devices, without restarting the terminal service.",
   "s1_push_permission_not_granted": "Notification permission was not granted: click the bell icon in the address bar or allow notifications for this site in browser settings, then try again",
   "s1_push_test_all_accepted": "Submitted to push services for all {devices} devices; if nothing arrives within a few seconds, check system notification settings on each device",
-  "s1_push_test_expired_removed": "{count} expired subscriptions removed",
+  "s1_push_test_expired_removed": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} expired subscription removed",
+        "countPlural=*": "{count} expired subscriptions removed"
+      }
+    }
+  ],
   "s1_push_test_no_devices": "No devices have push notifications enabled",
   "s1_push_test_partial_submitted": "Submitted to push services for {accepted}/{devices} devices",
   "s1_push_test_reenable_this_device": "Re-enable push notifications on this device",
@@ -437,7 +482,16 @@
   "s1_voice_timeout": "Speech recognition timed out",
   "s1_wait_terminal_timeout": "Timed out waiting for terminal to recover",
   "s1_waiting_count": "{count} wait",
-  "s1_waiting_sessions_title": "{count} waiting sessions",
+  "s1_waiting_sessions_title": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} waiting session",
+        "countPlural=*": "{count} waiting sessions"
+      }
+    }
+  ],
   "s1_workbench_mode": "Workbench mode",
   "s1_workbench_mode_title": "Workbench mode: repositories, worktrees, and all sessions",
   "s1_working_directory": "Working directory",
@@ -557,7 +611,16 @@
   "s2_launch_edit_title": "Edit launch config",
   "s2_launch_empty_desc": "Save common commands, arguments, and environment variables to launch sessions in one click.",
   "s2_launch_empty_title": "No launch configs yet",
-  "s2_launch_env_count": "{count} env vars",
+  "s2_launch_env_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} env var",
+        "countPlural=*": "{count} env vars"
+      }
+    }
+  ],
   "s2_launch_env_help": "Values are stored in the server state file and masked by default; lists and the new-session sheet show only the variable count, never values.",
   "s2_launch_err_arg_bytes": "Each argument cannot exceed {max} bytes",
   "s2_launch_err_attn_done_delay": "Completion delay must be an integer from {min} to {max} seconds",
@@ -705,8 +768,26 @@
   "s2_push_quick_tunnel_p1": "Quick Tunnel changes its URL on every restart, invalidating previous subscriptions.",
   "s2_push_quick_tunnel_p2": "Switch to a Cloudflare Named Tunnel or an HTTPS endpoint such as Tailscale Serve/Funnel. Create a Named Tunnel and public hostname in Cloudflare, configure its token and hostname under Settings → Public access, then reopen WebMux at the new URL and enable push.",
   "s2_push_quick_tunnel_title": "Quick Tunnel cannot sustain push notifications",
-  "s2_push_send_test": "Send test notification to all {count} devices",
-  "s2_push_server_subs": "{count} devices subscribed on server",
+  "s2_push_send_test": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Send test notification to {count} device",
+        "countPlural=*": "Send test notification to all {count} devices"
+      }
+    }
+  ],
+  "s2_push_server_subs": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} device subscribed on server",
+        "countPlural=*": "{count} devices subscribed on server"
+      }
+    }
+  ],
   "s2_push_storage_1": "Cannot read or write ",
   "s2_push_storage_2": " in the state directory; check server logs.",
   "s2_push_storage_title": "Server push storage unavailable",
@@ -856,7 +937,16 @@
   "s2_state_starting": "Starting",
   "s2_sys_preset_all_present": "Complete",
   "s2_sys_preset_btn": "Add system presets",
-  "s2_sys_preset_count": "{count} items",
+  "s2_sys_preset_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} item",
+        "countPlural=*": "{count} items"
+      }
+    }
+  ],
   "s2_sys_preset_over_limit": "Over limit",
   "s2_sys_preset_restore_all": "Add all missing presets",
   "s2_tailscale_notice_applied": "Settings applied.",
@@ -1355,7 +1445,16 @@
   "s3_reader_snippet_label": "Omitted history excerpt",
   "s3_reader_view_omitted": "View omitted history",
   "s3_record_interrupted_in_turn": "A turn was running when interrupted; the last turn may be incomplete.",
-  "s3_record_interrupted_queue_lost": "{count} queued messages were lost when interrupted.",
+  "s3_record_interrupted_queue_lost": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} queued message was lost when interrupted.",
+        "countPlural=*": "{count} queued messages were lost when interrupted."
+      }
+    }
+  ],
   "s3_record_interrupted_switching": "A view switch was in progress when interrupted; the last turn may be incomplete.",
   "s3_rel_days_ago": "{count}d ago",
   "s3_rel_hours_ago": "{count}h ago",
@@ -1469,7 +1568,16 @@
   "s3_title_label": "Title",
   "s3_tool_call": "Tool call",
   "s3_tool_earlier_call": "Earlier tool call",
-  "s3_tool_group_steps": "{count} steps",
+  "s3_tool_group_steps": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} step",
+        "countPlural=*": "{count} steps"
+      }
+    }
+  ],
   "s3_tool_no_output": "No output.",
   "s3_tool_started_earlier_uncached": "This call started earlier; details are no longer cached.",
   "s3_tool_status_cancelled": "Cancelled",
@@ -1480,7 +1588,16 @@
   "s3_transcript_label": "Conversation",
   "s3_turn_cancelled": "Interrupted",
   "s3_turn_changes_desc": "Based on tool edits reported by the agent in this turn.",
-  "s3_turn_changes_summary": "Turn changes · {count} files",
+  "s3_turn_changes_summary": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Turn changes · {count} file",
+        "countPlural=*": "Turn changes · {count} files"
+      }
+    }
+  ],
   "s3_turn_completed": "Completed",
   "s3_turn_completion_elapsed": "{label} · {duration}",
   "s3_turn_content_truncated": "Content truncated",
@@ -1503,7 +1620,16 @@
   "s3_turn_patch_no_snapshot": "Before/after text was not reported.",
   "s3_turn_patch_truncated": "Changes reported by the agent were truncated.",
   "s3_turn_patch_unchanged": "File content unchanged",
-  "s3_turn_role_ai_many": "AI · {count} messages",
+  "s3_turn_role_ai_many": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "AI · {count} message",
+        "countPlural=*": "AI · {count} messages"
+      }
+    }
+  ],
   "s3_turn_role_you": "You",
   "s3_turn_user_attachment": "User attachment",
   "s3_unknown_type": "unknown type",
@@ -1594,7 +1720,16 @@
   "s4_draft_hidden_updated_hint": "Hidden draft updated, turn on to view; {saved}",
   "s4_draft_hide_only_hint": "Turn off to hide draft without sending or clearing",
   "s4_draft_mode": "Draft mode",
-  "s4_draft_mode_with_scratch": "Draft mode, {count} scratch notes",
+  "s4_draft_mode_with_scratch": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Draft mode, {count} scratch note",
+        "countPlural=*": "Draft mode, {count} scratch notes"
+      }
+    }
+  ],
   "s4_draft_msg_failed": "Draft was not written to terminal. Edit and resend.",
   "s4_draft_msg_missing": "Server has no record of this submission: it may not have arrived or expired. Check the terminal before resending.",
   "s4_draft_msg_partial": "Only part of the draft reached the terminal and Enter was not written; check the terminal before proceeding.",
@@ -1610,7 +1745,20 @@
   "s4_draft_sub_unknown": "Disconnected, outcome unknown; will check on reconnect, or resend original submission",
   "s4_draft_submission_status_aria": "Draft submission status",
   "s4_draft_view_kept_hint": "Turn on to view saved draft; {saved}",
-  "s4_draft_view_with_scratch_hint": "Turn on to view draft and {count} scratch notes; {saved}",
+  "s4_draft_view_with_scratch_hint": [
+    {
+      "declarations": [
+        "input count",
+        "input saved",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Turn on to view draft and {count} scratch note; {saved}",
+        "countPlural=*": "Turn on to view draft and {count} scratch notes; {saved}"
+      }
+    }
+  ],
   "s4_drop_to_upload": "Drop to upload files to temp folder",
   "s4_drop_wait_upload": "Wait for current upload to finish",
   "s4_enable_draft_mode": "Enable draft mode",
@@ -1626,7 +1774,16 @@
   "s4_find": "Find",
   "s4_find_case_sensitive": "Match case",
   "s4_find_invalid_regex": "Invalid regular expression",
-  "s4_find_match_count": "{count} matches",
+  "s4_find_match_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} match",
+        "countPlural=*": "{count} matches"
+      }
+    }
+  ],
   "s4_find_match_with_shortcut": "{label} ({shortcut})",
   "s4_find_next_match": "Next match",
   "s4_find_no_matches": "No matches",
@@ -1668,25 +1825,70 @@
   "s4_list_semicolon_sep": "; ",
   "s4_loading_sessions": "Loading sessions…",
   "s4_lock_size": "Lock terminal size",
-  "s4_menu_draft_with_scratch": "Draft mode ({count} notes)",
+  "s4_menu_draft_with_scratch": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Draft mode ({count} note)",
+        "countPlural=*": "Draft mode ({count} notes)"
+      }
+    }
+  ],
   "s4_menu_group_clipboard": "Clipboard",
   "s4_menu_group_display": "Display",
   "s4_menu_group_handoff": "Chat Handoff",
   "s4_menu_group_session": "Session",
   "s4_more_actions": "More actions",
-  "s4_more_ports": "{count} more ports",
+  "s4_more_ports": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} more port",
+        "countPlural=*": "{count} more ports"
+      }
+    }
+  ],
   "s4_move_down": "Move down",
   "s4_move_up": "Move up",
   "s4_new_session_ellipsis": "New session…",
   "s4_notice_enable_draft_part": "· Enable draft mode to view; {saved}",
   "s4_notice_hidden_draft_kept": "Hidden draft saved",
   "s4_notice_hidden_draft_updated": "Hidden draft updated",
-  "s4_notice_scratch_count_part": "· {count} scratch notes",
-  "s4_notice_scratch_updated_strip": "Scratch updated · {count} notes, will not send automatically",
+  "s4_notice_scratch_count_part": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "· {count} scratch note",
+        "countPlural=*": "· {count} scratch notes"
+      }
+    }
+  ],
+  "s4_notice_scratch_updated_strip": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Scratch updated · {count} note, will not send automatically",
+        "countPlural=*": "Scratch updated · {count} notes, will not send automatically"
+      }
+    }
+  ],
   "s4_open": "Open",
   "s4_open_panel": "Open panel",
   "s4_open_scratch": "Open scratch",
-  "s4_open_scratch_with_count": "Open scratch, {count} notes",
+  "s4_open_scratch_with_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Open scratch, {count} note",
+        "countPlural=*": "Open scratch, {count} notes"
+      }
+    }
+  ],
   "s4_other_device": "Another device",
   "s4_output_preview": "Output preview",
   "s4_pane_limit_reached": "Maximum of 8 panes reached",
@@ -1736,7 +1938,16 @@
   "s4_scratch_add_button": "Add note",
   "s4_scratch_added_unpersisted": "Scratch note added, but could not be saved locally and may be lost on reload.",
   "s4_scratch_append_draft": "Append to draft",
-  "s4_scratch_char_count": "{count} chars",
+  "s4_scratch_char_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} char",
+        "countPlural=*": "{count} chars"
+      }
+    }
+  ],
   "s4_scratch_char_ratio": "{current} / {limit} chars",
   "s4_scratch_clear": "Clear scratch",
   "s4_scratch_clear_desc": "Deletes all scratch notes for this session without affecting the current draft, terminal, or uploaded files. This cannot be undone.",
@@ -1999,11 +2210,34 @@
   "s5_collapse_nav": "Collapse navigation",
   "s5_compare_with_ref": "Compare with branch or commit",
   "s5_confirm_delete_file": "Delete file {path}. This cannot be undone.",
-  "s5_confirm_delete_folder": "Recursively delete folder {path} and {count} items inside ({size}). This cannot be undone.",
+  "s5_confirm_delete_folder": [
+    {
+      "declarations": [
+        "input count",
+        "input path",
+        "input size",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Recursively delete folder {path} and {count} item inside ({size}). This cannot be undone.",
+        "countPlural=*": "Recursively delete folder {path} and {count} items inside ({size}). This cannot be undone."
+      }
+    }
+  ],
   "s5_confirm_delete_symlink": "Delete symbolic link {path} (target is unaffected). This cannot be undone.",
   "s5_copied": "Copied",
   "s5_copied_code": "Copied code",
-  "s5_copied_items_count": "Copied {count} items",
+  "s5_copied_items_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Copied {count} item",
+        "countPlural=*": "Copied {count} items"
+      }
+    }
+  ],
   "s5_copy": "Copy",
   "s5_copy_code": "Copy code",
   "s5_create": "Create",
@@ -2018,8 +2252,26 @@
   "s5_diff_exceeds_time_budget": "Diff calculation exceeded time budget, view both full files instead",
   "s5_diff_expand_all": "Expand all",
   "s5_diff_expand_all_context": "Expand all context",
-  "s5_diff_expand_down": "Expand {count} lines down",
-  "s5_diff_expand_up": "Expand {count} lines up",
+  "s5_diff_expand_down": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Expand {count} line down",
+        "countPlural=*": "Expand {count} lines down"
+      }
+    }
+  ],
+  "s5_diff_expand_up": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Expand {count} line up",
+        "countPlural=*": "Expand {count} lines up"
+      }
+    }
+  ],
   "s5_diff_failed_short": "Diff calculation failed",
   "s5_diff_failed_view_full": "Diff calculation failed, view both full files instead",
   "s5_diff_gone_open_full_file": "Diff no longer exists; open the full file from navigation",
@@ -2031,7 +2283,16 @@
   "s5_diff_timed_out": "Diff calculation timed out, view both full files instead",
   "s5_diff_totals_aria": "{additions} additions, {deletions} deletions",
   "s5_diff_unable_to_start": "Unable to start diff calculation, view both full files instead",
-  "s5_diff_unmodified_lines": "{count} unmodified lines",
+  "s5_diff_unmodified_lines": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} unmodified line",
+        "countPlural=*": "{count} unmodified lines"
+      }
+    }
+  ],
   "s5_diff_unreadable_result": "Unable to read diff result, please retry",
   "s5_dir_unavailable": "Directory unavailable",
   "s5_dir_updated_or_check_failed": "Directory updated or check failed",
@@ -2096,7 +2357,16 @@
   "s5_invalid_name": "Invalid name",
   "s5_json_invalid_escape": "Invalid escape character",
   "s5_json_invalid_unicode_escape": "Invalid Unicode escape",
-  "s5_json_items_count": "{count} items",
+  "s5_json_items_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} item",
+        "countPlural=*": "{count} items"
+      }
+    }
+  ],
   "s5_json_max_depth_exceeded": "Nesting exceeds {depth} levels",
   "s5_json_missing_colon": "Expected colon",
   "s5_json_missing_comma_or_brace": "Expected comma or closing brace",
@@ -2136,7 +2406,16 @@
   "s5_max_tabs_reached": "Maximum of 20 tabs open; close one first",
   "s5_mkdir_dialog_desc": "Create a folder in {path}; appends (n) if the name is already taken.",
   "s5_more_actions": "More actions",
-  "s5_moved_items_count": "Moved {count} items",
+  "s5_moved_items_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Moved {count} item",
+        "countPlural=*": "Moved {count} items"
+      }
+    }
+  ],
   "s5_name_label": "Name",
   "s5_name_taken_renamed": "Name already exists; saved as {name}",
   "s5_new_folder": "New folder",
@@ -2169,10 +2448,15 @@
   "s5_paste_to_root": "Paste to root",
   "s5_pasted_with_renames": "Name conflict; pasted as {names}",
   "s5_path_not_referenceable": "Path cannot be referenced losslessly",
+  "s5_pdf_asset_missing": "PDF asset not found: {filename}",
+  "s5_pdf_asset_read_failed": "Failed to read PDF asset: {filename}",
   "s5_pdf_info": "PDF info",
   "s5_pdf_jump_to_page": "Jump to page {page}",
   "s5_pdf_open_link": "Open link {url}",
   "s5_pdf_page_aria": "Page {page}",
+  "s5_pdf_page_render_failed": "PDF render failed: page {page} cannot be displayed",
+  "s5_pdf_parse_failed": "Unable to parse PDF",
+  "s5_pdf_password_protected": "PDF is password-protected; download to view",
   "s5_pdf_preview": "PDF preview",
   "s5_pdf_preview_unsupported": "PDF preview is unavailable in this browser; download to view",
   "s5_popout_closed": "Pop-out window was closed",
@@ -2300,7 +2584,16 @@
   "s6_abort_dialog_title_kind": "Abort {kind} and Reset Worktree",
   "s6_abort_loading_orig_head": "Loading pre-operation anchor (ORIG_HEAD) and conflicted files…",
   "s6_abort_restore_anchor_label": "Reset anchor:",
-  "s6_abort_session_ack": "I understand that aborting will reset the working directory of the {count} session(s) above to its pre-operation state.",
+  "s6_abort_session_ack": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "I understand that aborting will reset the working directory of the {count} session above to its pre-operation state.",
+        "countPlural=*": "I understand that aborting will reset the working directory of the {count} sessions above to its pre-operation state."
+      }
+    }
+  ],
   "s6_amend_draft_head_msg": "HEAD message: {message}",
   "s6_amend_draft_keep": "Keep Current Draft",
   "s6_amend_draft_merge": "Merge Both",
@@ -2333,7 +2626,16 @@
   "s6_branch_occupied_notice_before": "Checked out in another worktree",
   "s6_branch_occupied_tooltip": "Checked out in another worktree: {path}",
   "s6_branch_occupied_verbose": "In other worktree",
-  "s6_branch_occupied_verbose_sessions": "In other worktree · {count} sessions",
+  "s6_branch_occupied_verbose_sessions": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "In other worktree · {count} session",
+        "countPlural=*": "In other worktree · {count} sessions"
+      }
+    }
+  ],
   "s6_branch_open_in_new_worktree": "Open in New Worktree…",
   "s6_branch_open_occupied_worktree": "Open Worktree",
   "s6_branch_points_to_commit": "Commit: {shortHead} · {subject}",
@@ -2459,7 +2761,16 @@
   "s6_conflict_apply_nonconflicting_count": "Apply Non-Conflicting ({count})",
   "s6_conflict_back_workbench": "Back to Workbench",
   "s6_conflict_base_empty": "(no lines in Base)",
-  "s6_conflict_base_lines_heading": "Common Ancestor Base ({count} lines):",
+  "s6_conflict_base_lines_heading": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Common Ancestor Base ({count} line):",
+        "countPlural=*": "Common Ancestor Base ({count} lines):"
+      }
+    }
+  ],
   "s6_conflict_base_mode_aria": "Base comparison mode",
   "s6_conflict_base_source": "Base",
   "s6_conflict_base_stage1_meta": "Common ancestor Base (stage 1): {meta}",
@@ -2486,13 +2797,31 @@
   "s6_conflict_keep_right_resolve": "Keep Right & Mark Resolved",
   "s6_conflict_left_col_aria": "Left read-only source",
   "s6_conflict_left_deleted_section": "(deleted on left)",
-  "s6_conflict_left_lines_badge": "Conflict · Left ({count} lines)",
+  "s6_conflict_left_lines_badge": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Conflict · Left ({count} line)",
+        "countPlural=*": "Conflict · Left ({count} lines)"
+      }
+    }
+  ],
   "s6_conflict_left_nonconflict": "Left non-conflicting change",
   "s6_conflict_left_ref_heading": "Left ({ref}):",
   "s6_conflict_left_source": "Left Source",
   "s6_conflict_left_vs_base": "Left vs Base",
   "s6_conflict_loading_snapshot": "Loading 3-way conflict snapshot (Base / Left / Right / Worktree)…",
-  "s6_conflict_manual_edit_detected": "Result edited manually ({count} conflict block(s) awaiting confirmation)",
+  "s6_conflict_manual_edit_detected": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Result edited manually ({count} conflict block awaiting confirmation)",
+        "countPlural=*": "Result edited manually ({count} conflict blocks awaiting confirmation)"
+      }
+    }
+  ],
   "s6_conflict_manual_edited_label": "Result text edited manually:",
   "s6_conflict_mark_resolved_btn": "Mark as Resolved",
   "s6_conflict_marking_ellipsis": "Marking…",
@@ -2500,7 +2829,16 @@
   "s6_conflict_mobile_result_aria": "Merge result preview and editor",
   "s6_conflict_new_worktree_terminal": "New Worktree Terminal",
   "s6_conflict_next_chunk": "Next conflict",
-  "s6_conflict_nonconflicting_detected": "{count} non-conflicting change(s) can be applied automatically",
+  "s6_conflict_nonconflicting_detected": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} non-conflicting change can be applied automatically",
+        "countPlural=*": "{count} non-conflicting changes can be applied automatically"
+      }
+    }
+  ],
   "s6_conflict_open_worktree_terminal": "Open Worktree Terminal",
   "s6_conflict_prev_chunk": "Previous conflict",
   "s6_conflict_reload_snapshot": "Reload 3-Way Snapshot",
@@ -2510,7 +2848,16 @@
   "s6_conflict_result_editor_aria": "Merge result editor",
   "s6_conflict_right_col_aria": "Right read-only source",
   "s6_conflict_right_deleted_section": "(deleted on right)",
-  "s6_conflict_right_lines_badge": "Conflict · Right ({count} lines)",
+  "s6_conflict_right_lines_badge": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Conflict · Right ({count} line)",
+        "countPlural=*": "Conflict · Right ({count} lines)"
+      }
+    }
+  ],
   "s6_conflict_right_nonconflict": "Right non-conflicting change",
   "s6_conflict_right_ref_heading": "Right ({ref}):",
   "s6_conflict_right_source": "Right Source",
@@ -2543,7 +2890,16 @@
   "s6_diff_fallback_error": "Failed to load diff: {reason}",
   "s6_diff_fallback_idle_hint": "Click a file in Changed Files to preview its diff here; double-click or press Enter to maximize.",
   "s6_diff_fallback_limited_reason": "File exceeds inline diff budget or only has metadata changes.",
-  "s6_diff_fallback_line_count": "{count} lines",
+  "s6_diff_fallback_line_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} line",
+        "countPlural=*": "{count} lines"
+      }
+    }
+  ],
   "s6_diff_fallback_loading_diff": "Loading and computing revision diff…",
   "s6_diff_fallback_loading_full_doc": "Loading full snapshot file…",
   "s6_diff_fallback_non_text_doc": "This snapshot cannot be previewed as plain text.",
@@ -2552,7 +2908,16 @@
   "s6_diff_mode_unified": "Unified",
   "s6_diff_selection_add_and_open": "Add & Open Drafts",
   "s6_diff_selection_add_rework": "Add Comment",
-  "s6_diff_selection_changed_count": "{count} actionable changed line(s)",
+  "s6_diff_selection_changed_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} actionable changed line",
+        "countPlural=*": "{count} actionable changed lines"
+      }
+    }
+  ],
   "s6_diff_selection_clear_aria": "Clear line selection",
   "s6_diff_selection_non_worktree_hint": "(Tagged with revision identity rather than live worktree line numbers)",
   "s6_diff_selection_note_aria": "Review note",
@@ -2574,7 +2939,16 @@
   "s6_discard_notice_before": "Discard is strictly separate from Unstage: only unstaged working tree edits or untracked files are reverted, leaving the staged index intact. File hashes are re-verified before writing (409 guard), keeping up to 20 recovery snapshots under",
   "s6_discard_recovery_note": "A bounded recovery snapshot (up to 20 recent) is saved before execution; copy the recovery command from the operations popover afterward.",
   "s6_discard_refresh_stale_btn": "Refresh & Re-preview",
-  "s6_discard_scope_files": "Files ({count} paths)",
+  "s6_discard_scope_files": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Files ({count} path)",
+        "countPlural=*": "Files ({count} paths)"
+      }
+    }
+  ],
   "s6_discard_scope_hunks": "Selected hunks ({count})",
   "s6_discard_scope_lines": "Selected lines ({count})",
   "s6_discard_selected_lines": "Discard Lines… ({count})",
@@ -2594,7 +2968,16 @@
   "s6_divergence_loading_body": "Computing direction, merge-base, and potential blockers…",
   "s6_divergence_loading_desc": "Loading worktree status and affected commits…",
   "s6_divergence_merge_base": "Merge base:",
-  "s6_divergence_session_ack": "I understand the {count} session(s) above will immediately observe worktree and index changes.",
+  "s6_divergence_session_ack": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "I understand the {count} session above will immediately observe worktree and index changes.",
+        "countPlural=*": "I understand the {count} sessions above will immediately observe worktree and index changes."
+      }
+    }
+  ],
   "s6_divergence_target_ref": "Target:",
   "s6_divergence_target_worktree": "Target worktree:",
   "s6_divergence_up_to_date_badge": "Already up to date",
@@ -2668,12 +3051,34 @@
   "s6_hunk_stage_btn": "Stage Hunk",
   "s6_hunk_strip_aria": "Hunk staging strip",
   "s6_hunk_strip_heading": "Hunk Actions (desktop & touch)",
-  "s6_hunk_strip_total": "{count} hunks",
+  "s6_hunk_strip_total": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} hunk",
+        "countPlural=*": "{count} hunks"
+      }
+    }
+  ],
   "s6_hunk_unstage_btn": "Unstage Hunk",
   "s6_in_progress_abort_btn": "Abort…",
   "s6_in_progress_banner_aria": "In-progress Git operation banner",
   "s6_in_progress_cannot_continue": "Cannot continue yet: {reason}",
-  "s6_in_progress_conflict_count": "{kind} · {count} conflict(s)",
+  "s6_in_progress_conflict_count": [
+    {
+      "declarations": [
+        "input count",
+        "input kind",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{kind} · {count} conflict",
+        "countPlural=*": "{kind} · {count} conflicts"
+      }
+    }
+  ],
   "s6_in_progress_conflicts_cleared": "{kind} · Conflicts resolved",
   "s6_in_progress_continue_ready_tooltip": "All conflicts resolved; continue current Git operation",
   "s6_in_progress_open_resolver": "Open 3-Way Resolver ({count})",
@@ -2698,7 +3103,16 @@
   "s6_line_selector_hint": "Click +/- lines to toggle; Shift-click to select a range",
   "s6_line_selector_no_eof_newline": "No EOF newline",
   "s6_line_selector_select_hunk": "Select Hunk ({count})",
-  "s6_line_selector_selected_count": "{count} line(s) selected",
+  "s6_line_selector_selected_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} line selected",
+        "countPlural=*": "{count} lines selected"
+      }
+    }
+  ],
   "s6_list_comma_sep": ", ",
   "s6_list_semicolon_sep": "; ",
   "s6_loading_ellipsis": "Loading…",
@@ -2764,7 +3178,16 @@
   "s6_log_list_baseline_manual": "Manually set",
   "s6_log_list_listbox_aria": "Commits",
   "s6_log_list_load_more": "Load More",
-  "s6_log_list_loaded_count": "{count} commits loaded",
+  "s6_log_list_loaded_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} commit loaded",
+        "countPlural=*": "{count} commits loaded"
+      }
+    }
+  ],
   "s6_log_list_loading_more": "Loading more…",
   "s6_log_list_no_filter_matches": "No commits match the active filters.",
   "s6_log_list_section_aria": "Commit history list",
@@ -2835,8 +3258,31 @@
   "s6_push_confirm_publish": "Publish & Push",
   "s6_push_confirm_push": "Push",
   "s6_push_dialog_desc_no_url": "Repository {repo} · Review commits and file diffs before pushing",
-  "s6_push_dialog_desc_with_url": "Repository {repo} · Remote {url} · {count} commit(s) to push",
-  "s6_push_dialog_drawer_desc": "{count} commit(s) to push · Review diffs and confirm",
+  "s6_push_dialog_desc_with_url": [
+    {
+      "declarations": [
+        "input count",
+        "input repo",
+        "input url",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Repository {repo} · Remote {url} · {count} commit to push",
+        "countPlural=*": "Repository {repo} · Remote {url} · {count} commits to push"
+      }
+    }
+  ],
+  "s6_push_dialog_drawer_desc": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} commit to push · Review diffs and confirm",
+        "countPlural=*": "{count} commits to push · Review diffs and confirm"
+      }
+    }
+  ],
   "s6_push_dialog_title": "Confirm Push · {source} → {remote}/{target}",
   "s6_push_fetch_btn": "Fetch",
   "s6_push_ff_update_btn": "Fast-Forward…",
@@ -2931,7 +3377,16 @@
   "s6_rework_drawer_desc_drafts": "Insert diff excerpts into target session draft.",
   "s6_rework_empty_drafts": "No review comments yet. Select line ranges in Commit, Task Diff, or Log diffs, or click \"Add Comment\" on a hunk.",
   "s6_rework_items_heading": "Review Items ({count})",
-  "s6_rework_multi_session_prompt": "{count} active sessions in this worktree; choose which session receives the draft:",
+  "s6_rework_multi_session_prompt": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} active session in this worktree; choose which session receives the draft:",
+        "countPlural=*": "{count} active sessions in this worktree; choose which session receives the draft:"
+      }
+    }
+  ],
   "s6_rework_must_pick_session": "Select a session",
   "s6_rework_new_session_full": "New Session in Worktree with Draft",
   "s6_rework_new_session_short": "New Session",
@@ -2989,7 +3444,20 @@
   "s6_stash_loading_preview": "Checking overlapping paths and worktree safety…",
   "s6_stash_mode_apply": "Apply & Keep",
   "s6_stash_mode_pop": "Safe Pop",
-  "s6_stash_overlapping_paths": "{count} modified path(s) in this worktree overlap with the stash: {paths}",
+  "s6_stash_overlapping_paths": [
+    {
+      "declarations": [
+        "input count",
+        "input paths",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} modified path in this worktree overlaps with the stash: {paths}",
+        "countPlural=*": "{count} modified paths in this worktree overlap with the stash: {paths}"
+      }
+    }
+  ],
   "s6_stash_reinstate_index_before": "Restore staged index state (",
   "s6_stash_safe_pop_after": " first, dropping the stash only if exit code is 0 with no unmerged index entries; on conflict, the stash is preserved and opens in the 3-way resolver.",
   "s6_stash_safe_pop_before": "Two-step safety: runs ",
@@ -3023,7 +3491,16 @@
   "s6_upstream_select_placeholder": "-- Select remote branch --",
   "s6_upstream_unset_btn": "Unset Upstream",
   "s6_worktree_path_line": "Worktree: {path}",
-  "s7_adapter_warn_cli_prestaged": "Full index preview includes {count} files pre-staged from CLI or external tools; verify diffs before committing",
+  "s7_adapter_warn_cli_prestaged": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Full index preview includes {count} file pre-staged from CLI or external tools; verify diffs before committing",
+        "countPlural=*": "Full index preview includes {count} files pre-staged from CLI or external tools; verify diffs before committing"
+      }
+    }
+  ],
   "s7_author_override_empty_fields": "Author name and email are both required",
   "s7_author_override_invalid_format": "Enter author in Name <email@example.com> format",
   "s7_author_override_leading_hyphen": "Author name and email cannot start with a hyphen (-)",
@@ -3049,7 +3526,16 @@
   "s7_branch_action_new_wt_from_commit": "New branch worktree from commit…",
   "s7_branch_action_open_new_wt": "Open in new worktree…",
   "s7_branch_action_open_occupied": "Open occupying worktree",
-  "s7_branch_action_open_occupied_sessions": "Open occupying worktree ({count} active sessions)",
+  "s7_branch_action_open_occupied_sessions": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Open occupying worktree ({count} active session)",
+        "countPlural=*": "Open occupying worktree ({count} active sessions)"
+      }
+    }
+  ],
   "s7_branch_action_publish": "Publish branch…",
   "s7_branch_action_push": "Push…",
   "s7_branch_action_rebase_current_onto": "Rebase current branch onto this branch…",
@@ -3078,7 +3564,16 @@
   "s7_branch_group_remote": "Remote branches",
   "s7_busy_outcome_with_reasons": "{summary} ({reasons})",
   "s7_commit_assist_intro": "Please inspect the staged changes in the Git index of the current worktree ({repo} · {branch}) (you may run `git diff --cached` for details) and draft a concise, accurate Conventional Commits message (with Subject and key Body bullets; output the text only and do not run `git commit` for me):",
-  "s7_commit_assist_more_files": "- …and {count} more staged files",
+  "s7_commit_assist_more_files": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "- …and {count} more staged file",
+        "countPlural=*": "- …and {count} more staged files"
+      }
+    }
+  ],
   "s7_commit_assist_staged_header": "Staged files:",
   "s7_commit_busy_lock_summary": "External Git index.lock detected; commit was not executed.",
   "s7_commit_failed_banner": "Commit failed: {error}",
@@ -3091,7 +3586,16 @@
   "s7_compare_with_head": "Compare with current HEAD",
   "s7_conflict_blocked_markers": "Result text still contains conflict markers (<<<<<<< / ======= / >>>>>>>); remove them first",
   "s7_conflict_blocked_non_text": "Resolve non-text conflicts using Keep Left, Keep Right, or Delete File",
-  "s7_conflict_blocked_unresolved": "{count} conflict chunks remain undecided (accept a side or confirm manual merge)",
+  "s7_conflict_blocked_unresolved": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} conflict chunk remains undecided (accept a side or confirm manual merge)",
+        "countPlural=*": "{count} conflict chunks remain undecided (accept a side or confirm manual merge)"
+      }
+    }
+  ],
   "s7_conflict_blocked_unsaved": "Click \"Save Result\" to write merged text to the worktree before marking resolved",
   "s7_conflict_kind_binary": "Binary conflict",
   "s7_conflict_kind_delete_modify": "Delete/modify conflict",
@@ -3100,7 +3604,20 @@
   "s7_conflict_kind_text": "3-way text conflict",
   "s7_conflict_kind_too_large": "Oversized file conflict",
   "s7_conflict_resolved_all_clear": "Marked {path} resolved; all conflicts cleared—click \"Continue\" to finish",
-  "s7_conflict_resolved_remaining": "Marked {path} resolved; {count} conflicted files remaining",
+  "s7_conflict_resolved_remaining": [
+    {
+      "declarations": [
+        "input count",
+        "input path",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Marked {path} resolved; {count} conflicted file remaining",
+        "countPlural=*": "Marked {path} resolved; {count} conflicted files remaining"
+      }
+    }
+  ],
   "s7_conflict_saved_to_wt": "Saved merged result to worktree file {path} (not staged yet; click \"Mark Resolved\" once verified)",
   "s7_conflict_side_absent": "Not present on this side (deleted or not created)",
   "s7_current_branch": "current branch",
@@ -3120,7 +3637,16 @@
   "s7_delivery_remove_worktree": "Remove Worktree…",
   "s7_delivery_return_session": "Return to Session",
   "s7_delivery_review_task_btn": "Review changes since task baseline ({count})",
-  "s7_delivery_task_commits": "{count} commits",
+  "s7_delivery_task_commits": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} commit",
+        "countPlural=*": "{count} commits"
+      }
+    }
+  ],
   "s7_delivery_title_compact": "Working tree clean · Task delivery summary",
   "s7_delivery_title_full": "Task Delivery Summary",
   "s7_delivery_uncommitted": "{count} uncommitted",
@@ -3133,10 +3659,41 @@
   "s7_discard_readonly_error": "Read-only repository view; select a worktree before discarding changes.",
   "s7_discard_recovery_suffix": " (recovery snapshot {oid}: {cmd})",
   "s7_discard_running_phase": "Discarding selected changes and saving recovery snapshot…",
-  "s7_discard_summary_files": "Will discard changes across {count} unstaged paths",
+  "s7_discard_summary_files": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Will discard changes across {count} unstaged path",
+        "countPlural=*": "Will discard changes across {count} unstaged paths"
+      }
+    }
+  ],
   "s7_discard_summary_hunk": "Will discard 1 hunk from {path}",
-  "s7_discard_summary_lines": "Will discard {count} unstaged lines from {path}",
-  "s7_discard_warn_untracked": "{count} untracked files will be removed from disk (backed up to a recovery snapshot before execution).",
+  "s7_discard_summary_lines": [
+    {
+      "declarations": [
+        "input count",
+        "input path",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Will discard {count} unstaged line from {path}",
+        "countPlural=*": "Will discard {count} unstaged lines from {path}"
+      }
+    }
+  ],
+  "s7_discard_warn_untracked": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} untracked file will be removed from disk (backed up to a recovery snapshot before execution).",
+        "countPlural=*": "{count} untracked files will be removed from disk (backed up to a recovery snapshot before execution)."
+      }
+    }
+  ],
   "s7_div_aborting_phase": "Aborting operation and rolling back worktree…",
   "s7_div_confirm_cherry_pick": "Confirm Cherry-pick",
   "s7_div_confirm_merge": "Confirm Merge",
@@ -3158,7 +3715,16 @@
   "s7_draft_remote_divider": "--- Version saved on another device ---",
   "s7_draft_save_failed": "Failed to save commit message draft: {error}",
   "s7_empty_tree": "Empty tree",
-  "s7_file_count_badge": "{count} files",
+  "s7_file_count_badge": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} file",
+        "countPlural=*": "{count} files"
+      }
+    }
+  ],
   "s7_git_workbench": "Git Workbench",
   "s7_group_conflicted": "Conflicted",
   "s7_group_staged": "Staged",
@@ -3262,7 +3828,16 @@
   "s7_preview_blocker_op_in_progress": "Worktree has {op} in progress; continue or abort via the top recovery banner first",
   "s7_preview_blocker_unborn_amend": "Current branch has no commits yet (unborn HEAD); cannot amend",
   "s7_preview_warn_amend_pushed": "This commit was already pushed; amending rewrites history and diverges from upstream",
-  "s7_preview_warn_cli_prestaged": "Full index preview includes {count} files pre-staged in terminal; please verify",
+  "s7_preview_warn_cli_prestaged": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Full index preview includes {count} file pre-staged in terminal; please verify",
+        "countPlural=*": "Full index preview includes {count} files pre-staged in terminal; please verify"
+      }
+    }
+  ],
   "s7_preview_warn_hooks_active": "Commit will run repository hooks: {hooks}",
   "s7_preview_warn_remaining_unstaged": "{unstaged} unstaged changes and {untracked} untracked files will not be included in this commit",
   "s7_publish_ellipsis_btn": "Publish…",
@@ -3342,7 +3917,16 @@
   "s7_shell_abort_preview_opened": "Opened abort & rollback confirmation preview",
   "s7_shell_checkout_preview_opened": "Opened branch checkout preview: {branch} (uncommitted changes will not be overwritten silently)",
   "s7_shell_cherry_pick_opened": "Opened cherry-pick preview: {oid}",
-  "s7_shell_committed_from_index": "Created commit from Git index ({count} files)",
+  "s7_shell_committed_from_index": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Created commit from Git index ({count} file)",
+        "countPlural=*": "Created commit from Git index ({count} files)"
+      }
+    }
+  ],
   "s7_shell_continued_operation": "Resolved conflicts and continued operation",
   "s7_shell_create_branch_from": "Requested new branch from {branch}…",
   "s7_shell_create_tag_opened": "Opened create tag dialog: target {oid} ({branch})",
@@ -3557,11 +4141,33 @@
   "s7_unavailable_badge": "Unavailable",
   "s7_unborn_baseline": "Unborn root",
   "s7_unborn_head_branch": "Unborn HEAD ({branch})",
-  "s7_uncommitted_conflict_notice": "{count} unresolved conflicts. Open the 3-way conflict resolver or resolve in the worktree terminal.",
+  "s7_uncommitted_conflict_notice": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} unresolved conflict. Open the 3-way conflict resolver or resolve in the worktree terminal.",
+        "countPlural=*": "{count} unresolved conflicts. Open the 3-way conflict resolver or resolve in the worktree terminal."
+      }
+    }
+  ],
   "s7_uncommitted_discard_all": "Discard All…",
   "s7_uncommitted_empty_section": "No items",
   "s7_uncommitted_listbox_aria": "Working tree changes",
-  "s7_uncommitted_op_conflict_notice": "Git operation in progress: {op} ({count} conflicts). Open the 3-way conflict resolver or resolve in the worktree terminal.",
+  "s7_uncommitted_op_conflict_notice": [
+    {
+      "declarations": [
+        "input count",
+        "input op",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Git operation in progress: {op} ({count} conflict). Open the 3-way conflict resolver or resolve in the worktree terminal.",
+        "countPlural=*": "Git operation in progress: {op} ({count} conflicts). Open the 3-way conflict resolver or resolve in the worktree terminal."
+      }
+    }
+  ],
   "s7_uncommitted_pane_aria": "Worktree changes and commit",
   "s7_uncommitted_readonly_notice": "Read-only repository context without a worktree; cannot stage or commit. Switch to a worktree.",
   "s7_uncommitted_refresh_aria": "Refresh staging snapshot",
@@ -3599,14 +4205,32 @@
   "s8_add_repo_title": "Add repository",
   "s8_adding_ellipsis": "Adding…",
   "s8_adv_no_commits_help": "No commits available yet. Create an initial commit in the terminal first; you can still start sessions in the main worktree.",
-  "s8_adv_recent_commits_help": "Recent {count} commits on the selected branch; \"Refresh upstream\" includes the latest remote commits.",
+  "s8_adv_recent_commits_help": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Recent {count} commit on the selected branch; \"Refresh upstream\" includes the latest remote commits.",
+        "countPlural=*": "Recent {count} commits on the selected branch; \"Refresh upstream\" includes the latest remote commits."
+      }
+    }
+  ],
   "s8_adv_title_commit_and_dir": "Advanced: start commit & directory",
   "s8_adv_title_dir": "Advanced: directory",
   "s8_adv_title_start_commit": "Advanced: start commit",
   "s8_ahead_commits": "{count} ahead of upstream",
   "s8_back": "Back",
   "s8_badge_active_always_shown": "Has sessions, always shown",
-  "s8_badge_archived_chats": "{count} archived chats",
+  "s8_badge_archived_chats": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} archived chat",
+        "countPlural=*": "{count} archived chats"
+      }
+    }
+  ],
   "s8_badge_bare_no_start": "bare · cannot start",
   "s8_badge_default_branch": "default",
   "s8_badge_dirty": "Modified",
@@ -3623,8 +4247,26 @@
   "s8_badge_unavailable": "Unavailable",
   "s8_badge_unpinned_home": "Hidden on Home",
   "s8_bare_repo": "Bare repository",
-  "s8_batch_archived_kept_as_is": "{count} archived chats kept as-is",
-  "s8_batch_archived_retained_released": "Keep {count} archived chats (mark space released)",
+  "s8_batch_archived_kept_as_is": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} archived chat kept as-is",
+        "countPlural=*": "{count} archived chats kept as-is"
+      }
+    }
+  ],
+  "s8_batch_archived_retained_released": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Keep {count} archived chat (mark space released)",
+        "countPlural=*": "Keep {count} archived chats (mark space released)"
+      }
+    }
+  ],
   "s8_batch_bare_protected": "Bare repositories cannot be removed here",
   "s8_batch_clean_idle": "Clean and idle",
   "s8_batch_desc_force": "Destructive action: closes active sessions in blocked worktrees and permanently discards uncommitted changes, untracked files, and ignored files; archived chats are kept.",
@@ -3632,7 +4274,16 @@
   "s8_batch_desc_safe": "Removes only unblocked worktrees and skips blocked ones by default; local branches and archived hybrid chats are preserved.",
   "s8_batch_detached_unprotected_warn": "Detached commits may not be reachable from any branch; make sure needed commits are saved.",
   "s8_batch_dir_missing_unverifiable": "Directory missing or unverifiable",
-  "s8_batch_done_removed": "Removed {count} worktrees.",
+  "s8_batch_done_removed": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Removed {count} worktree.",
+        "countPlural=*": "Removed {count} worktrees."
+      }
+    }
+  ],
   "s8_batch_err_capped_safe": "Selected the first {max} safe-to-clean worktrees (batch limit reached).",
   "s8_batch_err_max_select": "Select at most {max} worktrees per batch.",
   "s8_batch_err_reload_preview": "{error}. Reload the preview and confirm again.",
@@ -3650,7 +4301,16 @@
   "s8_batch_prev_blocked_aria": "Blocked worktrees",
   "s8_batch_prev_blocked_count": "Blocked {count}",
   "s8_batch_prev_blocked_heading": "Blocked worktrees ({count})",
-  "s8_batch_prev_force_ack": "Also force-remove the {count} blocked worktrees above: close all listed active sessions and permanently discard uncommitted changes, untracked files, and ignored files in those directories.",
+  "s8_batch_prev_force_ack": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Also force-remove the {count} blocked worktree above: close all listed active sessions and permanently discard uncommitted changes, untracked files, and ignored files in that directory.",
+        "countPlural=*": "Also force-remove the {count} blocked worktrees above: close all listed active sessions and permanently discard uncommitted changes, untracked files, and ignored files in those directories."
+      }
+    }
+  ],
   "s8_batch_prev_force_checked": "Force removal enabled",
   "s8_batch_prev_safe_aria": "Safe to clean",
   "s8_batch_prev_safe_count": "Safe to clean {count}",
@@ -3665,7 +4325,16 @@
   "s8_batch_res_incomplete": "Removal incomplete",
   "s8_batch_res_summary": "Removed {removed}, failed {failed}",
   "s8_batch_res_summary_with_skipped": "Removed {removed}, skipped {skipped}, failed {failed}",
-  "s8_batch_running_sessions": "{count} running sessions",
+  "s8_batch_running_sessions": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} running session",
+        "countPlural=*": "{count} running sessions"
+      }
+    }
+  ],
   "s8_batch_stale_reg_cleanable": "Directory missing; registration can be pruned",
   "s8_batch_status_unknown": "Worktree status unknown",
   "s8_batch_status_unknown_with_err": "Status unknown: {error}",
@@ -3714,9 +4383,31 @@
   "s8_del_contained_heading": "Contained ({count})",
   "s8_del_contained_label": "Contained",
   "s8_del_gc_recovery_hint": "Unreferenced commits remain until Git garbage collection prunes them (about two weeks by default); use the restore command before then to recover a branch.",
-  "s8_del_n_branches": "Delete {count} branches",
+  "s8_del_n_branches": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Delete {count} branch",
+        "countPlural=*": "Delete {count} branches"
+      }
+    }
+  ],
   "s8_del_results_label": "Deletion results",
-  "s8_del_unmerged_branch_aria": "Delete {branch} and its {count} unique commits",
+  "s8_del_unmerged_branch_aria": [
+    {
+      "declarations": [
+        "input branch",
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Delete {branch} and its {count} unique commit",
+        "countPlural=*": "Delete {branch} and its {count} unique commits"
+      }
+    }
+  ],
   "s8_del_unmerged_desc": "Deleting these branches leaves their unique commits unreferenced by any branch. Unchecked by default — select each one to confirm.",
   "s8_del_unmerged_heading": "Has unique commits ({count})",
   "s8_del_unmerged_label": "Has unique commits",
@@ -3731,7 +4422,16 @@
   "s8_details_exited": "Exited",
   "s8_details_running": "Running",
   "s8_details_short": "Details",
-  "s8_details_total_sessions": "{count} sessions",
+  "s8_details_total_sessions": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} session",
+        "countPlural=*": "{count} sessions"
+      }
+    }
+  ],
   "s8_details_usage": "{bytes} · {entries} entries",
   "s8_details_usage_incomplete": "{bytes} · {entries} entries (incomplete, actual size is larger)",
   "s8_details_waiting": "Waiting",
@@ -3764,7 +4464,16 @@
   "s8_fetching_remotes_aria": "Fetching remotes",
   "s8_fetching_short": "Fetching…",
   "s8_fetching_upstream_commits_status": "Fetching latest upstream commits for {branch}; you can continue editing or create now.",
-  "s8_ff_ack_sessions": "I understand: the {count} sessions above will see the fast-forwarded files.",
+  "s8_ff_ack_sessions": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "I understand: the {count} session above will see the fast-forwarded files.",
+        "countPlural=*": "I understand: the {count} sessions above will see the fast-forwarded files."
+      }
+    }
+  ],
   "s8_ff_busy": "Fast-forwarding…",
   "s8_ff_commits_title": "Commits to fast-forward",
   "s8_ff_done_after": " ({commit}).",
@@ -3896,7 +4605,16 @@
   "s8_menu_repo_settings": "Repository settings…",
   "s8_menu_switch_branch": "Switch branch…",
   "s8_menu_worktree_details": "Worktree details…",
-  "s8_more_commits_unlisted": "{count} more commits not listed.",
+  "s8_more_commits_unlisted": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} more commit not listed.",
+        "countPlural=*": "{count} more commits not listed."
+      }
+    }
+  ],
   "s8_new_branch_name_label": "New branch name",
   "s8_new_branch_no_upstream_help": "No upstream is set for the new branch.",
   "s8_new_session": "New session",
@@ -4225,5 +4943,14 @@
   "s8_wt_search_placeholder": "Search by branch, commit hash, or path…",
   "s8_wt_select_all_safe": "Select all safe ({count})",
   "s8_wt_selected_count": "{selected} selected ({total} worktrees total)",
-  "s8_wt_total_count": "{count} worktrees"
+  "s8_wt_total_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} worktree",
+        "countPlural=*": "{count} worktrees"
+      }
+    }
+  ]
 }

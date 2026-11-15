@@ -15,29 +15,54 @@ const DIR_PLACEHOLDER = `{{${DIR_REFERENCE_NAME}}}`;
 export const WEBMUX_REFERENCE_NAME = "webmux";
 const WEBMUX_PLACEHOLDER = `{{${WEBMUX_REFERENCE_NAME}}}`;
 
+/**
+ * Canonical `{{name}}` reference keys for built-in presets. Stored `name`
+ * stays locale-independent so repository init instructions keep resolving on
+ * the server regardless of which UI language saved `/api/settings`; visible UI
+ * labels go through `commandLabel`.
+ */
+const PRESET_REFERENCE_NAMES = {
+  "preset-resume": m.s2_qc_preset_resume({}, { locale: "zh-CN" }),
+  "preset-new": m.s2_qc_preset_new({}, { locale: "zh-CN" }),
+  "preset-webmux": m.s2_qc_preset_webmux({}, { locale: "zh-CN" }),
+} as const;
+
+function presetDisplayLabel(cmd: QuickCommand): string | undefined {
+  switch (cmd.id) {
+    case "preset-resume":
+      return cmd.name === PRESET_REFERENCE_NAMES["preset-resume"]
+        ? m.s2_qc_preset_resume()
+        : undefined;
+    case "preset-new":
+      return cmd.name === PRESET_REFERENCE_NAMES["preset-new"]
+        ? m.s2_qc_preset_new()
+        : undefined;
+    case "preset-webmux":
+      return cmd.name === PRESET_REFERENCE_NAMES["preset-webmux"]
+        ? m.s2_qc_preset_webmux()
+        : undefined;
+    default:
+      return undefined;
+  }
+}
+
 /** System-provided quick commands; the defaults while no list is saved. */
 export const QUICK_COMMAND_PRESETS: readonly QuickCommand[] = [
   {
     id: "preset-resume",
-    get name() {
-      return m.s2_qc_preset_resume();
-    },
+    name: PRESET_REFERENCE_NAMES["preset-resume"],
     command: "/resume",
     enter: true,
   },
   {
     id: "preset-new",
-    get name() {
-      return m.s2_qc_preset_new();
-    },
+    name: PRESET_REFERENCE_NAMES["preset-new"],
     command: "/new",
     enter: true,
   },
   {
     id: "preset-webmux",
-    get name() {
-      return m.s2_qc_preset_webmux();
-    },
+    name: PRESET_REFERENCE_NAMES["preset-webmux"],
     command: WEBMUX_PLACEHOLDER,
     enter: false,
   },
@@ -176,6 +201,7 @@ export function commandPreview(cmd: QuickCommand) {
 
 export function commandLabel(cmd: QuickCommand) {
   return (
+    presetDisplayLabel(cmd) ||
     cmd.name ||
     (cmd.command
       .split("\n")

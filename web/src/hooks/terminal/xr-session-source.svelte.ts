@@ -4,6 +4,7 @@ import type { HybridSession } from "../sessions/hybrid-types";
 import type { TerminalController } from "../../domains/terminal/terminal-search";
 import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
 import type { QuickCommand } from "../../contracts/schemas";
+import { commandLabel } from "../../domains/settings/quick-commands";
 import type {
   XrAction,
   XrSessionSource,
@@ -219,7 +220,7 @@ export function useXrSessionSource(options: {
         : []),
       ...options.quickCommands().map((command) => ({
         id: `quick:${command.id}`,
-        label: m.s4_xr_quick_command_label({ name: command.name }),
+        label: m.s4_xr_quick_command_label({ name: commandLabel(command) }),
         run: () => options.runQuick(command),
       })),
       ...(hybrid.known
