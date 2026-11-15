@@ -58,6 +58,8 @@
 
 - [参与贡献](../CONTRIBUTING.md)：开发环境、常用命令、测试、PR 与 OpenSpec 工作流。
 - [架构设计](architecture.md)：会话模型、缓冲与回放、状态探测、分层规则 R0–R11。
+- [架构分层与线上契约](architecture/layers.md)：R0–R11、Relay 公开协议子模块边界与 wire 快照维护。
+- [原生 Agent 历史夹具](native-history-fixtures.md)：真实会话脱敏样本、离线读取器开发与缺失覆盖说明。
 - [API 与协议](protocol.md)：REST、WebSocket 帧与错误码（按主题分页）。
   - [交接操作](hybrid-sessions/handoff.md)：换 Agent、新聊天位置、草稿与恢复。
   - [交接预览](protocol/http-handoff.md)：整项历史选择、预算、revision 与 stale。
@@ -71,6 +73,8 @@
 
 ## 性能与质量
 
+- [Relay 真实公网验证](relay-validation-604.md)：issue #604 的传输筛选、BBR、业务与证据边界。
+- [Relay 终端优先补测](relay-terminal-validation-604.md)：CLI/TUI 网络负载下的按键、输出完整性与恢复。
 - [交接故障矩阵与性能验收](protocol/handoff-validation.md)：迁移清理、unknown、全局关闭、SQLite 与 selector 实测。
 - [布局稳定性与 4× CPU 回归](performance.md)：性能测试的测量方式与阈值。
 - [页面性能与连接稳定性验证](page-performance.md)：页面加载与重连的实测记录。

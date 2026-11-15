@@ -28,6 +28,7 @@ import {
   type SwitchTarget,
   type Worktree,
 } from "../contracts/schemas";
+import { authenticationHeaders, authenticationToken } from "./relay-auth";
 import { store, stored } from "./storage";
 import { currentTransport, TransportUploadError } from "./transport";
 
@@ -91,7 +92,7 @@ async function request(
     method,
     signal,
     headers: {
-      Authorization: "Bearer " + stored("token"),
+      ...authenticationHeaders(),
       "Content-Type": "application/json",
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -185,7 +186,8 @@ export async function uploadForm<T extends z.ZodType>(
     result = await currentTransport().upload({
       path,
       form,
-      token: stored("token"),
+      token: authenticationToken(),
+      csrfToken: authenticationHeaders()["X-WebMux-CSRF"],
       timeoutMs: 5 * 60 * 1000,
       signal,
       onProgress: progress,

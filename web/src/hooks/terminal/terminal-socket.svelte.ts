@@ -46,7 +46,7 @@ import type {
   TerminalSocketAttachment,
   TerminalSocketView,
 } from "./terminal-socket-view";
-import { m } from "$lib/paraglide/messages.js";
+import { createTerminalInputError } from "./terminal-input-error";
 
 // Terminal stream of one session (`/ws/s/{id}`, docs/protocol/websocket.md).
 export function createTerminalSocket(id: string, manageChrome = true) {
@@ -54,8 +54,8 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   let connection = $state<Connection>("connecting");
   let restoring = $state(true);
   let exitCode = $state<number | null>(null);
-  let error = $state("");
-  let lastInputSendError = "";
+  const inputError = createTerminalInputError();
+  let error = $state(inputError.capture(""));
   let historyTruncated = $state(false);
   let control = $state<ControlState>();
   // The run whose output this page has drawn: a hybrid switch to the
@@ -67,9 +67,9 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const identity = clientIdentity();
-  let generation: string | undefined;
+  let generation = $state<string>();
   let offset = 0;
-  let synced = false;
+  let synced = $state(false);
   const controlling = () =>
     !!control && control.controller?.clientId === identity.id;
   // Unconfirmed submissions, re-queried after every reconnect.
@@ -78,7 +78,10 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     (state: SubmissionProgress) => void
   >();
   const accepting = () =>
-    connection === "connected" && !restoring && exitCode === null;
+    connection === "connected" &&
+    !restoring &&
+    exitCode === null &&
+    (generation === undefined || synced);
   const submission = () => {
     const run = generation ?? info?.generation;
     if (!terminal || !socket || !run || !accepting()) return undefined;
@@ -228,6 +231,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
               if (!appending && !view.preserveViewport()) view.scrollToBottom();
             } else {
               synced = false;
+              restoring = true;
               ws.send(2, new Uint8Array());
             }
           }
@@ -306,11 +310,17 @@ export function createTerminalSocket(id: string, manageChrome = true) {
         if (state === "missing") restoring = false;
       },
       (message) => {
-        error = message;
+        error = inputError.capture(message);
       },
       {
         resume(send) {
           return !stale && send(4, encodeIdsQuery([newSubmissionId()]));
+        },
+        canHandoff(position) {
+          return (
+            position.mode === "reset" ||
+            resolveAppendOverlap(synced, generation, offset, position).accept
+          );
         },
       },
     );
@@ -393,7 +403,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       return exitCode;
     },
     get error() {
-      return error;
+      return inputError.render(error);
     },
     get historyTruncated() {
       return historyTruncated;
@@ -421,17 +431,10 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     attach,
     // Sends user input. A rejected send is reported, never queued.
     sendInput(input: string) {
-      const sent = socket?.send(0, encoder.encode(input)) ?? false;
-      if (!sent) {
-        lastInputSendError = m.s4_terminal_input_send_error();
-        error = lastInputSendError;
-      } else {
-        if (lastInputSendError && error === lastInputSendError) {
-          lastInputSendError = "";
-          error = "";
-        }
-        socket?.probe();
-      }
+      const sent =
+        accepting() && (socket?.send(0, encoder.encode(input)) ?? false);
+      error = inputError.sent(sent, error);
+      if (sent) socket?.probe();
       return sent;
     },
     // Sends one of xterm's automatic replies to a device query.

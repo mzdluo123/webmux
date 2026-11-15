@@ -1,10 +1,9 @@
 # 服务端偏好协议
 
-`GET /api/settings` 返回 `{revision, updatedAt, values}`。`values` 始终包含 theme、preview、codeReader、quickCommands、homeWorktrees、sessionPins、forceSoftKeys、ignoreHighPorts 八个键。
+`GET /api/settings` 返回 `{revision, updatedAt, values}`。`values` 始终包含 preview、codeReader、quickCommands、homeWorktrees、sessionPins、forceSoftKeys、ignoreHighPorts 七个键。
 
 ## 值与默认
 
-- theme：light / dark / null；null 跟随系统。
 - preview：`{lines: 1..50, skip: 0..50}` 或 null（10/1）。
 - codeReader：`{lineNumbers: "show"|"hide", diffOverflow: "scroll"|"wrap"}` 或 null（show/scroll）。
 - quickCommands：最多 50 个 `{id, name, command, enter}`，唯一 ID；null 显示系统预设（“恢复会话” `/resume`、“新会话” `/new` 与“WebMux 工具” `{{webmux}}`；旧版本保存的“临时文件夹”原样保留），空数组表示明确清空。
@@ -37,4 +36,4 @@
 
 会话置顶在首次连接时从旧浏览器导入。其他旧浏览器键不迁移。
 
-旧 `settings.json` 中遗留的历史键（`fontSize`、`chatIdleSleepMinutes`、`artifactPrompt`）读取时忽略，下次写入时移除。`webmux.settingsCache` 只缓存最后确认的快照；不能用作离线写入队列。Token、Web Push 身份、草稿、最近目录和临时命令不属于此协议。
+旧 `settings.json` 中遗留的历史键（`theme`、`fontSize`、`chatIdleSleepMinutes`、`artifactPrompt`）读取时忽略，下次写入时移除。`webmux.settingsCache` 只缓存最后确认的快照；不能用作离线写入队列。Token、Web Push 身份、草稿、最近目录和临时命令不属于此协议。

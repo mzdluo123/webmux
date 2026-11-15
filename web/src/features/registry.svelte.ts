@@ -4,6 +4,7 @@ import {
   featureEnabled,
 } from "../platform/feature-host.svelte";
 import { errorMessage } from "../platform/error";
+import { relayAuth } from "../platform/relay-auth.svelte";
 import {
   loadCreateSettingsContributions,
   resetCreateSettingsContributions,
@@ -58,7 +59,12 @@ export function refreshFeatureRuntimes(context: HostContext): void {
   ] as const) {
     const entry = loaded[id];
     if (!entry) continue;
-    const available = featureAvailable(capability);
+    const available =
+      featureAvailable(capability) ||
+      (id === "p2p" &&
+        featureEnabled("p2p") &&
+        relayAuth.authenticated &&
+        featureAvailable("relay.hybrid"));
     const previous = runtimes[id];
     if (previous?.available === available) continue;
     previous?.dispose?.();

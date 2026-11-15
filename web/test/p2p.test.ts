@@ -6,10 +6,16 @@ import {
   isLocalOrOverlayHost,
   medianSample,
   shouldUpgradeToP2P,
+  HybridPathPolicy,
+  HYBRID_COOLDOWN_MS,
+  HYBRID_STABLE_SAMPLES,
 } from "../src/platform/p2p-framing";
 import { inspectSelectedCandidatePair } from "../src/platform/p2p-session";
 import { createP2PTransport } from "../src/platform/p2p-transport";
-import type { ClientTransport } from "../src/platform/transport";
+import {
+  interactiveStreamKind,
+  type ClientTransport,
+} from "../src/platform/transport";
 
 class MockDataChannel extends EventTarget {
   readyState: RTCDataChannelState = "connecting";
@@ -127,7 +133,7 @@ describe("P2P stream framing & close codes", () => {
     });
   });
 
-  it("rejects relay ICE candidates via RTCStatsReport inspection", async () => {
+  it("classifies actual TURN selection without treating it as direct", async () => {
     const fakeStats = new Map<string, Record<string, unknown>>([
       ["t1", { type: "transport", selectedCandidatePairId: "pair1" }],
       [
@@ -154,7 +160,7 @@ describe("P2P stream framing & close codes", () => {
   });
 });
 
-describe("P2P ClientTransport streams, RPC fetch, and multipart upload", () => {
+describe("P2P interactive streams and baseline isolation", () => {
   it("strips compress=1 and adds zreplay=1 on terminal streams", () => {
     const mockPC = new MockPeerConnection();
     const fallback: ClientTransport = {
@@ -165,6 +171,8 @@ describe("P2P ClientTransport streams, RPC fetch, and multipart upload", () => {
     };
     const transport = createP2PTransport({
       pc: mockPC as unknown as RTCPeerConnection,
+      path: "webrtc-direct",
+      interactiveOnly: true,
       fallback,
     });
 
@@ -197,29 +205,162 @@ describe("P2P ClientTransport streams, RPC fetch, and multipart upload", () => {
     expect(closed).toHaveBeenCalledWith({ code: 4404, reason: "not found" });
   });
 
-  it("carries /api/* JSON requests and FormData uploads over rpc:<id> DataChannels", async () => {
-    const mockPC = new MockPeerConnection();
-    const fallbackFetch = vi.fn(
-      async () => new Response('{"seq":1,"serverTs":100}'),
-    );
+  it("keeps every REST request, uploads and unclassified stream on baseline without replay", async () => {
+    const pc = new MockPeerConnection();
+    const failed = new Error("unknown mutation result");
     const fallback: ClientTransport = {
       origin: "https://term.example.com",
-      fetch: fallbackFetch,
+      fetch: vi.fn().mockRejectedValue(failed),
+      upload: vi.fn().mockRejectedValue(failed),
+      openStream: vi.fn(),
+    };
+    const transport = createP2PTransport({
+      pc: pc as unknown as RTCPeerConnection,
+      fallback,
+      path: "webrtc-turn",
+      interactiveOnly: true,
+    });
+    for (const path of [
+      "/sessions",
+      "/sessions/s1/input",
+      "/files/download",
+      "/relay/ice",
+      "/p2p/ping",
+      "/settings",
+      "/unknown",
+    ]) {
+      await expect(
+        transport.fetch(path, { method: "POST", body: "input" }),
+      ).rejects.toBe(failed);
+    }
+    const request = {
+      path: "/uploads",
+      form: new FormData(),
+      token: "",
+      csrfToken: "csrf",
+      timeoutMs: 5000,
+      signal: new AbortController().signal,
+      onProgress: vi.fn(),
+    };
+    await expect(transport.upload(request)).rejects.toBe(failed);
+    expect(fallback.upload).toHaveBeenCalledExactlyOnceWith(request);
+    expect(fallback.fetch).toHaveBeenCalledTimes(7);
+    for (const path of [
+      "/ws/voice",
+      "/forward/3000/ws",
+      "/ws/s/a/voice",
+      "/ws/s/a/download",
+      "/ws/settings",
+      "/ws/s/a%2Fchat",
+    ]) {
+      transport.openStream(path, { token: "", compress: true });
+    }
+    expect(fallback.openStream).toHaveBeenCalledTimes(6);
+    expect(pc.channels).toHaveLength(0);
+  });
+
+  it("allows only explicit terminal, chat and list streams", () => {
+    expect(interactiveStreamKind("/ws/sessions?observe=1")).toBe("list");
+    expect(interactiveStreamKind("/ws/s/abc")).toBe("terminal");
+    expect(interactiveStreamKind("/ws/s/abc/chat?seq=3")).toBe("chat");
+    expect(interactiveStreamKind("/ws/s/abc/chat/extra")).toBeNull();
+    const pc = new MockPeerConnection();
+    const transport = createP2PTransport({
+      pc: pc as unknown as RTCPeerConnection,
+      path: "webrtc-turn",
+      interactiveOnly: true,
+      fallback: {
+        origin: "",
+        fetch: vi.fn(),
+        upload: vi.fn(),
+        openStream: vi.fn(),
+      },
+    });
+    const stream = transport.openStream("/ws/sessions", {
+      token: "",
+      compress: false,
+    });
+    expect(stream.transportPath).toBe("webrtc-turn");
+    pc.channels[0]!.open();
+    pc.channels[0]!.bufferedAmount = 1024 * 1024;
+    expect(() => stream.send(new Uint8Array([0, 65]))).toThrow("backpressure");
+    expect(pc.channels[0]!.sent).toHaveLength(0);
+  });
+
+  it("never guesses a direct path from missing, incomplete or ambiguous stats", async () => {
+    for (const stats of [
+      new Map(),
+      new Map([["local", { candidateType: "host" }]]),
+      new Map([
+        [
+          "one",
+          {
+            type: "candidate-pair",
+            nominated: true,
+            state: "succeeded",
+            localCandidateId: "a",
+            remoteCandidateId: "b",
+          },
+        ],
+        [
+          "two",
+          {
+            type: "candidate-pair",
+            nominated: true,
+            state: "succeeded",
+            localCandidateId: "a",
+            remoteCandidateId: "b",
+          },
+        ],
+        ["a", { candidateType: "host" }],
+        ["b", { candidateType: "srflx" }],
+      ]),
+    ]) {
+      const pc = {
+        getStats: async () => stats,
+      } as unknown as RTCPeerConnection;
+      expect((await inspectSelectedCandidatePair(pc)).path).toBe("unknown");
+    }
+    expect(
+      (await inspectSelectedCandidatePair({} as RTCPeerConnection)).path,
+    ).toBe("unknown");
+  });
+
+  it("requires consecutive advantage, applies hysteresis and cooldown without hiding failure", () => {
+    const policy = new HybridPathPolicy();
+    expect(policy.sample(100, 20, false, 0)).toBe("hold");
+    expect(policy.sample(100, 95, false, 1)).toBe("hold");
+    expect(policy.sample(100, 20, false, 2)).toBe("hold");
+    expect(policy.sample(100, 20, false, 3)).toBe("hold");
+    expect(policy.sample(100, 20, false, 4)).toBe("upgrade");
+    for (let i = 0; i < HYBRID_STABLE_SAMPLES; i++) {
+      expect(policy.sample(100, 120, true, 5 + i)).toBe("hold");
+    }
+    expect(policy.sample(100, 120, true, HYBRID_COOLDOWN_MS + 4)).toBe(
+      "fallback",
+    );
+    expect(policy.sample(100, 1, false, HYBRID_COOLDOWN_MS + 5)).toBe("hold");
+    expect(policy.sample(100, 1, false, HYBRID_COOLDOWN_MS + 6)).toBe("hold");
+    expect(policy.sample(100, 1, false, HYBRID_COOLDOWN_MS + 7)).toBe("hold");
+  });
+});
+
+describe("existing Token/local P2P RPC consumers", () => {
+  it("keeps JSON mutations and multipart uploads on the legacy RPC protocol", async () => {
+    const pc = new MockPeerConnection();
+    const baseline = {
+      origin: "https://term.example.com",
+      fetch: vi.fn(),
       upload: vi.fn(),
       openStream: vi.fn(),
     };
     const transport = createP2PTransport({
-      pc: mockPC as unknown as RTCPeerConnection,
-      fallback,
+      pc: pc as unknown as RTCPeerConnection,
+      fallback: baseline,
+      path: "webrtc-direct",
+      interactiveOnly: false,
     });
-
-    // /p2p/* bypasses DataChannel and uses baseline HTTP
-    await transport.fetch("/p2p/ping?seq=1", { method: "GET" });
-    expect(fallbackFetch).toHaveBeenCalledOnce();
-    expect(mockPC.channels).toHaveLength(0);
-
-    // /sessions goes over rpc:1 DataChannel
-    const fetchPromise = transport.fetch("/sessions", {
+    const pending = transport.fetch("/sessions", {
       method: "POST",
       headers: {
         Authorization: "Bearer tok",
@@ -227,71 +368,68 @@ describe("P2P ClientTransport streams, RPC fetch, and multipart upload", () => {
       },
       body: JSON.stringify({ name: "dev" }),
     });
-
-    await vi.waitFor(() => expect(mockPC.channels).toHaveLength(1));
-    const rpcCh = mockPC.channels[0]!;
-    expect(rpcCh.label).toBe("rpc:1");
-    rpcCh.open();
-
-    await vi.waitFor(() => expect(rpcCh.sent.length).toBeGreaterThanOrEqual(3));
-    const reqHdr = JSON.parse(rpcCh.sent[0] as string);
-    expect(reqHdr.method).toBe("POST");
-    expect(reqHdr.path).toBe("/api/sessions");
-    expect(reqHdr.headers.authorization).toBe("Bearer tok");
-
-    rpcCh.receive(
+    await vi.waitFor(() => expect(pc.channels).toHaveLength(1));
+    const rpc = pc.channels[0]!;
+    expect(rpc.label).toBe("rpc:1");
+    rpc.open();
+    await vi.waitFor(() => expect(rpc.sent.length).toBeGreaterThanOrEqual(3));
+    expect(JSON.parse(rpc.sent[0] as string)).toMatchObject({
+      method: "POST",
+      path: "/api/sessions",
+      headers: { authorization: "Bearer tok" },
+    });
+    rpc.receive(
       JSON.stringify({
         status: 201,
         statusText: "Created",
         headers: { "content-type": "application/json" },
       }),
     );
-    rpcCh.receive(new TextEncoder().encode('{"id":"s1"}'));
-    rpcCh.receive(new Uint8Array(0));
+    rpc.receive(new TextEncoder().encode('{"id":"s1"}'));
+    rpc.receive(new Uint8Array(0));
+    const response = await pending;
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ id: "s1" });
 
-    const resp = await fetchPromise;
-    expect(resp.status).toBe(201);
-    expect(await resp.json()).toEqual({ id: "s1" });
-
-    // Upload with progress
     const form = new FormData();
     form.append(
       "file",
       new Blob(["hello upload"], { type: "text/plain" }),
       "note.txt",
     );
-    const progresses: number[] = [];
-    const uploadPromise = transport.upload({
+    const progress = vi.fn();
+    const upload = transport.upload({
       path: "/uploads",
       form,
       token: "tok",
       timeoutMs: 5000,
       signal: new AbortController().signal,
-      onProgress: (p) => progresses.push(p),
+      onProgress: progress,
     });
-
-    await vi.waitFor(() => expect(mockPC.channels).toHaveLength(2));
-    const upCh = mockPC.channels[1]!;
-    upCh.open();
-    await vi.waitFor(() => expect(upCh.sent.length).toBeGreaterThanOrEqual(3));
-    const upHdr = JSON.parse(upCh.sent[0] as string);
-    expect(upHdr.headers["Content-Type"]).toContain(
+    await vi.waitFor(() => expect(pc.channels).toHaveLength(2));
+    const bulk = pc.channels[1]!;
+    bulk.open();
+    await vi.waitFor(() => expect(bulk.sent.length).toBeGreaterThanOrEqual(3));
+    const header = JSON.parse(bulk.sent[0] as string);
+    expect(header.path).toBe("/api/uploads");
+    expect(header.headers["Content-Type"]).toContain(
       "multipart/form-data; boundary=",
     );
-
-    upCh.receive(
+    bulk.receive(
       JSON.stringify({
         status: 200,
         statusText: "OK",
         headers: { "content-type": "application/json" },
       }),
     );
-    upCh.receive(new TextEncoder().encode('{"path":"/tmp/note.txt"}'));
-    upCh.receive(new Uint8Array(0));
-
-    const upResult = await uploadPromise;
-    expect(upResult.status).toBe(200);
-    expect(upResult.body).toEqual({ path: "/tmp/note.txt" });
-    expect(progresses).toContain(100);
+    bulk.receive(new TextEncoder().encode('{"path":"/tmp/note.txt"}'));
+    bulk.receive(new Uint8Array(0));
+    expect(await upload).toMatchObject({
+      status: 200,
+      body: { path: "/tmp/note.txt" },
+    });
+    expect(progress).toHaveBeenCalledWith(100);
+    expect(baseline.fetch).not.toHaveBeenCalled();
+    expect(baseline.upload).not.toHaveBeenCalled();
   });
 });

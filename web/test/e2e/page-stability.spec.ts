@@ -54,12 +54,10 @@ test("workspace defers settings and management forms until requested", async ({
 for (const theme of ["light", "dark"] as const) {
   test(`${theme}: cancelling a delayed form prevents it from opening after its download`, async ({
     page,
-    request,
   }, testInfo) => {
-    const prefs = await (await request.get("/api/settings")).json();
-    await request.patch("/api/settings", {
-      data: { baseRevision: prefs.revision, changes: { theme } },
-    });
+    await page.addInitScript((savedTheme) => {
+      localStorage.setItem("webmux.theme", savedTheme);
+    }, theme);
     const requested = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
     await page.route("**/assets/NewSessionDialog-*.js", async (route) => {
@@ -97,12 +95,10 @@ for (const theme of ["light", "dark"] as const) {
 
   test(`${theme}: a failed form download leaves the workspace usable`, async ({
     page,
-    request,
   }, testInfo) => {
-    const prefs = await (await request.get("/api/settings")).json();
-    await request.patch("/api/settings", {
-      data: { baseRevision: prefs.revision, changes: { theme } },
-    });
+    await page.addInitScript((savedTheme) => {
+      localStorage.setItem("webmux.theme", savedTheme);
+    }, theme);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/assets/NewSessionDialog-*.js", (route) =>

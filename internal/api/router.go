@@ -41,6 +41,7 @@ type Deps struct {
 	DefaultShell      string
 	Public            *transport.PublicOrigins
 	Tunnel            func() contract.TunnelStatus
+	Relay             *Relay
 	InstalledVersion  func() string
 	Guide             *agentguide.Instance
 	LocalURL          string
@@ -78,8 +79,8 @@ func (s *Server) coreRoutes(registrar transport.Registrar) {
 	// both satisfy that concrete boundary.
 	mux := registrar.(*http.ServeMux)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
-		load, memory := hoststat.Read()
-		reply(w, http.StatusOK, wire.Health(len(s.Manager.List()), load, memory))
+		load, memory, swap := hoststat.Read()
+		reply(w, http.StatusOK, wire.Health(len(s.Manager.List()), load, memory, swap))
 	})
 	mux.HandleFunc("GET /api/capabilities", func(w http.ResponseWriter, r *http.Request) {
 		reply(w, http.StatusOK, s.capabilitySnapshot())
@@ -107,6 +108,7 @@ func (s *Server) coreRoutes(registrar transport.Registrar) {
 	s.sessionMetaRoutes(mux)
 	s.guideRoutes(mux)
 	s.settingsRoutes(mux)
+	s.relayRoutes(mux)
 	// The same core stream descriptions are also used by the P2P bridge.
 	for _, stream := range s.streams {
 		mux.Handle(stream.Pattern, transport.StreamHTTP(stream))
@@ -159,6 +161,12 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 	hostAllowed := hostCheck(s.Config)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer baseHeaders(w)()
+		if r.URL.Path == "/api/relay" || strings.HasPrefix(r.URL.Path, "/api/relay/") {
+			relayAuthHeaders(w)
+		}
+		if _, owner := relayPrincipal(r); !owner && s.withRelayBrowser(w, r, s.middleware(next)) {
+			return
+		}
 		if !hostAllowed(r.Host) && !s.Public.HostAllowed(r.Host) {
 			failure(w, http.StatusForbidden, errors.New("host not allowed"))
 			return
@@ -171,7 +179,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			return
 		}
 		if mcpPath || strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
-			if !s.authorized(r) {
+			if r.URL.Path != "/api/relay/auth/session" && !s.authorized(r) {
 				if mcpPath {
 					w.Header().Set("WWW-Authenticate", `Bearer realm="webmux"`)
 				}
@@ -187,6 +195,9 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 	})
 }
 func (s *Server) authorized(r *http.Request) bool {
+	if _, ok := relayPrincipal(r); ok {
+		return true
+	}
 	if s.Config.Token == "" {
 		return true
 	}

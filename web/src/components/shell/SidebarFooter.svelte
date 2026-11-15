@@ -16,6 +16,7 @@
   import { HealthSchema, type Health } from "../../contracts/schemas";
   import { toggleTheme } from "../../hooks/settings/theme";
   import type { Connection } from "../../platform/ws";
+  import { relayAuth } from "../../platform/relay-auth.svelte";
   import { m } from "$lib/paraglide/messages.js";
   const p2pState = $derived(
     featureContributions.entries.p2p?.p2pState ?? {
@@ -23,6 +24,7 @@
       p2pRttMs: null,
       candidateType: "",
       ipFamily: "",
+      streams: [],
     },
   );
   const forward = $derived(featureContributions.entries.forward);
@@ -186,7 +188,21 @@
         </dd>
         <dt class="text-muted-foreground">{m.s1_transport_path()}</dt>
         <dd class={p2pState.mode === "p2p" ? "text-success" : ""}>
-          {#if p2pState.mode === "p2p"}{p2pDetail
+          {#if relayAuth.authenticated}
+            {m.relay_mixed_streams({
+              count: String(
+                p2pState.streams.reduce(
+                  (count, stream) =>
+                    count +
+                    Number(
+                      stream.path === "webrtc-direct" ||
+                        stream.path === "webrtc-turn",
+                    ),
+                  0,
+                ),
+              ),
+            })}
+          {:else if p2pState.mode === "p2p"}{p2pDetail
               ? m.s1_transport_p2p_detail({ detail: p2pDetail })
               : m.s1_transport_p2p()}{:else}WebSocket{/if}
         </dd>
@@ -221,6 +237,15 @@
             {m.s1_memory_value({
               available: formatBytes(health.memory.available),
               total: formatBytes(health.memory.total),
+            })}
+          </dd>
+        {/if}
+        {#if health?.swap}
+          <dt class="text-muted-foreground">{m.s1_swap()}</dt>
+          <dd>
+            {m.s1_swap_value({
+              used: formatBytes(health.swap.used),
+              total: formatBytes(health.swap.total),
             })}
           </dd>
         {/if}

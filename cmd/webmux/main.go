@@ -139,12 +139,27 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	if err := features.open(ctx, c, m, preferences, public, listener.Addr(), guide, localAPI.Load, &bridge, out); err != nil {
 		return err
 	}
+	relayListener, relayTLS, err := relayLoopback(ctx)
+	if err != nil {
+		return fmt.Errorf("relay loopback: %w", err)
+	}
+	defer func() { _ = relayListener.Close() }()
+	relayControl, err := newRelayController(ctx, c.Config, public, relayListener.Addr().String(), relayTLS)
+	if err != nil {
+		return fmt.Errorf("relay settings: %w", err)
+	}
+	defer relayControl.Close()
+	relayControl.p2p = features.p2p
+	if features.p2pControl != nil {
+		features.p2pControl.relayAuth = relayControl.auth
+	}
 	deps := features.bind(c.Config, m, preferences, public, guide, localOrigin(listener.Addr()))
 	deps.DefaultShell = agentprofile.DefaultShell(os.Getenv("SHELL"))
 	deps.InstalledVersion = update.NewInstalledVersion(version).Pending
 	deps.LocalURL = localOrigin(listener.Addr())
 	deps.Guide = guide
 	deps.Launcher = runtime.Launcher(os.Getenv)
+	deps.Relay = &api.Relay{Control: relayControl, Auth: relayControl.auth}
 	if c.Features.Has("mcp") && c.MCP.Enabled {
 		handler, closeMCP, err := networkMCP(ctx, c.Config, listener.Addr(), deps.Capabilities)
 		if err != nil {
@@ -155,6 +170,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	}
 	bridge = api.NewBridge(deps)
 	providers := features.accessProviders()
+	providers = append(providers, relayControl)
 	rt = startRuntime(ctx, c, listener.Addr(), deps, cancel, features, providers)
 	localAPI.Store(rt)
 	server = &http.Server{
@@ -167,6 +183,19 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	ended := make(chan error, 1)
 	go func() { ended <- server.Serve(listener) }()
 	rt.serve()
+	relayServer := relayHTTPServer(ctx, bridge.HTTPHandler)
+	relayEnded := make(chan struct{})
+	go func() {
+		defer close(relayEnded)
+		if err := relayServer.Serve(relayListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("relay loopback stopped")
+		}
+	}()
+	defer func() {
+		_ = relayServer.Close()
+		<-relayEnded
+	}()
+	relayControl.Start()
 	slog.Info("webmux listening", "address", listener.Addr(), "version", version)
 	if features.chat != nil {
 		done := make(chan struct{})

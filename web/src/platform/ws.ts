@@ -1,9 +1,15 @@
 import { m } from "$lib/paraglide/messages.js";
 import { store, stored } from "./storage";
+import { authenticationToken, relayOwnerAuthenticated } from "./relay-auth";
+import { InputHandoffFence, stageHandoff } from "./ws-handoff";
+import type { StreamPosition } from "../contracts/schemas";
 import {
   currentTransport,
   protocols,
   SOCKET_OPEN,
+  interactiveStreamKind,
+  type InteractiveStreamKind,
+  type TransportPath,
   type TransportSocket,
 } from "./transport";
 
@@ -14,6 +20,30 @@ const compressionKey = "wsCompression";
 // Every live connection, so a compression change can reattach them at once.
 const live = new Set<() => void>();
 const handoffs = new Set<() => void>();
+
+export interface ManagedStreamStatus {
+  id: number;
+  kind: InteractiveStreamKind | "other";
+  path: TransportPath;
+  state: Connection;
+  inputUncertain: boolean;
+}
+let streamCounter = 0;
+const streamStatuses = new Map<number, ManagedStreamStatus>();
+const streamObservers = new Set<(streams: ManagedStreamStatus[]) => void>();
+function publishStreams() {
+  for (const observer of streamObservers)
+    observer([...streamStatuses.values()]);
+}
+export function observeManagedStreams(
+  observer: (streams: ManagedStreamStatus[]) => void,
+) {
+  streamObservers.add(observer);
+  observer([...streamStatuses.values()]);
+  return () => {
+    streamObservers.delete(observer);
+  };
+}
 
 // Per-device permessage-deflate preference. Browsers always offer the
 // extension, so the server negotiates it only when the URL asks. Until the
@@ -45,7 +75,7 @@ export function handoffLiveSockets() {
 // single speech-recognition session).
 export function openSocket(path: string, compress = true): TransportSocket {
   return currentTransport().openStream(path, {
-    token: stored("token"),
+    token: authenticationToken(),
     compress: compress && wsCompression(),
   });
 }
@@ -60,7 +90,8 @@ export type Connection =
   // switches view and reconnects explicitly once the terminal is back.
   | "moved";
 export interface SocketConnection {
-  // True means sent or coalesced for delivery on this socket (controls only).
+  // False is definitely rejected. True includes an uncertain send outcome,
+  // reported via onError, which callers must never replay. Only controls coalesce.
   send(kind: number, payload: Uint8Array): boolean;
   close(): void;
   // Explicit recovery may reopen an exited or moved session, not a missing one.
@@ -79,6 +110,8 @@ export interface ConnectOptions {
   // replaces it. Returning false, or omitting it, reattaches immediately and
   // takes the server snapshot as the source of truth.
   resume?: (send: SocketConnection["send"]) => boolean;
+  // Terminal consumers validate against their current rendered recovery point.
+  canHandoff?: (position: StreamPosition) => boolean;
 }
 export function connect(
   // Evaluated on every attempt, so a reconnect can carry fresh query state.
@@ -98,7 +131,37 @@ export function connect(
     disposed = false,
     finished: "exited" | "missing" | "moved" | undefined;
   const controls = new Map<number, Uint8Array>();
+  const id = ++streamCounter;
+  let targetPath = typeof path === "string" ? path : path();
+  const ownerStream = relayOwnerAuthenticated();
+  let inputUncertain = false;
+  let sentInput = false;
+  let candidateTimer: number | undefined;
+  const inputFence = new InputHandoffFence();
+  const state = (next: Connection) => {
+    streamStatuses.set(id, {
+      id,
+      kind: interactiveStreamKind(targetPath) ?? "other",
+      path: socket?.transportPath ?? "wss",
+      state: next,
+      inputUncertain,
+    });
+    publishStreams();
+    onState(next);
+  };
+  function markUncertain() {
+    if (!sentInput) return;
+    sentInput = false;
+    inputUncertain = true;
+    const current = streamStatuses.get(id);
+    if (current) streamStatuses.set(id, { ...current, inputUncertain });
+    publishStreams();
+    onError(m.relay_sent_input_uncertain());
+  }
   function clearCandidate() {
+    inputFence.clear();
+    clearTimeout(candidateTimer);
+    candidateTimer = undefined;
     if (!candidateSocket) return;
     const prev = candidateSocket;
     candidateSocket = undefined;
@@ -122,7 +185,20 @@ export function connect(
     const frame = new Uint8Array(payload.length + 1);
     frame[0] = kind;
     frame.set(payload, 1);
-    socket.send(frame);
+    try {
+      socket.send(frame);
+      if (kind === 0 || kind === 3) sentInput = true;
+      if (kind === 0 || kind === 3 || kind === 6) inputFence.sent();
+    } catch {
+      // A partially accepted send has an unknown result. Never queue/replay it.
+      if (kind === 0 || kind === 3) sentInput = true;
+      clearCandidate();
+      markUncertain();
+      socket.close();
+      // A false result means definitely rejected. Keep uncertain submissions
+      // eligible for status queries rather than invite duplicate user input.
+      return kind === 0 || kind === 3;
+    }
     return true;
   }
   function flushControls() {
@@ -144,12 +220,13 @@ export function connect(
         if (socket === next) attempt = 0;
       }, 10000);
       flushControls();
-      onState("connected");
+      state("connected");
     };
     next.onmessage = (event) => {
       if (socket !== next || closed) return;
       clearTimeout(resumeTimer);
       resumeTimer = undefined;
+      if (inputFence.receive(event.data)) return;
       try {
         onMessage(event.data);
       } catch (error) {
@@ -163,7 +240,7 @@ export function connect(
     };
     next.onclose = (event) => {
       if (candidateSocket === next) {
-        candidateSocket = undefined;
+        clearCandidate();
         return;
       }
       if (socket !== next || disposed || closed) return;
@@ -172,6 +249,8 @@ export function connect(
       clearTimeout(resumeTimer);
       resumeTimer = undefined;
       clearControls();
+      clearCandidate();
+      markUncertain();
       if (event.code === 4410 || event.code === 4404 || event.code === 4409) {
         finished =
           event.code === 4410
@@ -179,10 +258,10 @@ export function connect(
             : event.code === 4404
               ? "missing"
               : "moved";
-        onState(finished);
+        state(finished);
         return;
       }
-      onState("reconnecting");
+      state("reconnecting");
       const ceiling = Math.min(8000, 500 * 2 ** Math.min(attempt++, 4));
       const delay = ceiling * (0.5 + Math.random() * 0.5);
       timer = window.setTimeout(open, delay);
@@ -197,13 +276,15 @@ export function connect(
     resumeTimer = undefined;
     clearControls();
     clearCandidate();
+    markUncertain();
     const previous = socket;
     socket = undefined;
     previous?.close();
-    onState(attempt ? "reconnecting" : "connecting");
+    state(attempt ? "reconnecting" : "connecting");
     const target = typeof path === "string" ? path : path();
+    targetPath = target;
     const next = currentTransport().openStream(target, {
-      token: stored("token"),
+      token: authenticationToken(),
       compress: wsCompression(),
     });
     socket = next;
@@ -257,6 +338,8 @@ export function connect(
     },
     close() {
       disposed = true;
+      streamStatuses.delete(id);
+      publishStreams();
       live.delete(reopen);
       handoffs.delete(handoff);
       clearTimeout(timer);
@@ -271,6 +354,7 @@ export function connect(
       document.removeEventListener("visibilitychange", visible);
       window.removeEventListener("online", online);
       window.removeEventListener("pageshow", restored);
+      window.removeEventListener("webmux:relay-revoked", revoked);
     },
     reconnect() {
       if (disposed || finished === "missing") return;
@@ -305,13 +389,30 @@ export function connect(
     }
     clearCandidate();
     const target = typeof path === "string" ? path : path();
+    if (!interactiveStreamKind(target)) return;
     const next = currentTransport().openStream(target, {
-      token: stored("token"),
+      token: authenticationToken(),
       compress: wsCompression(),
     });
     candidateSocket = next;
-    wireActiveSocket(next, () => {
+    next.onopen = null;
+    next.onerror = () => {
+      if (candidateSocket === next) clearCandidate();
+    };
+    next.onclose = () => {
+      if (candidateSocket === next) clearCandidate();
+    };
+    candidateTimer = window.setTimeout(clearCandidate, 10_000);
+    const commit = () => {
       if (candidateSocket !== next || disposed || finished) return;
+      if (next.readyState !== SOCKET_OPEN) {
+        clearCandidate();
+        return;
+      }
+      const buffered = staged.take();
+      if (!buffered) return;
+      clearTimeout(candidateTimer);
+      candidateTimer = undefined;
       candidateSocket = undefined;
       clearTimeout(timer);
       clearTimeout(stableTimer);
@@ -319,6 +420,7 @@ export function connect(
       resumeTimer = undefined;
       const previous = socket;
       socket = next;
+      targetPath = target;
       if (previous) {
         previous.onopen = null;
         previous.onmessage = null;
@@ -326,8 +428,46 @@ export function connect(
         previous.onerror = null;
         previous.close(1000, "transport handoff");
       }
-    });
+      // The terminal fence drained prior input; only genuine loss is uncertain.
+      if (interactiveStreamKind(target) === "terminal") sentInput = false;
+      else markUncertain();
+      wireActiveSocket(next, () => {});
+      // Deliver the candidate's authoritative position/snapshot, not baseline
+      // output mixed into a new stream. Consumers own generation/cursor dedupe.
+      for (const data of buffered) {
+        if (socket !== next || next.readyState !== SOCKET_OPEN) return;
+        next.onmessage?.({ data });
+      }
+      next.onopen?.();
+    };
+    const staged = stageHandoff(
+      next,
+      target,
+      maxBufferedAmount,
+      options.canHandoff,
+      () => {
+        if (candidateSocket !== next || !socket) return;
+        if (interactiveStreamKind(target) !== "terminal") return commit();
+        inputFence.begin(
+          socket,
+          () => {
+            sentInput = false;
+            commit();
+          },
+          clearCandidate,
+          resumeTimeout,
+          maxBufferedAmount,
+        );
+      },
+      () => {
+        if (candidateSocket === next) clearCandidate();
+      },
+    );
   };
+  const revoked = () => {
+    if (ownerStream) api.close();
+  };
+  window.addEventListener("webmux:relay-revoked", revoked);
   live.add(reopen);
   handoffs.add(handoff);
   open();

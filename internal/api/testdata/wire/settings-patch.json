@@ -5,13 +5,12 @@
     "updatedAt": "<time>",
     "values": {
       "codeReader": null,
-      "forceSoftKeys": null,
+      "forceSoftKeys": true,
       "homeWorktrees": null,
       "ignoreHighPorts": null,
       "preview": null,
       "quickCommands": [],
-      "sessionPins": [],
-      "theme": "dark"
+      "sessionPins": []
     }
   }
 }

@@ -55,6 +55,7 @@
     { id: "shortcuts", label: m.s1_settings_nav_shortcuts() },
     { id: "network", label: m.s1_settings_nav_network() },
     ...accessSections,
+    { id: "relay", label: m.relay_title() },
     { id: "install", label: m.s1_settings_nav_install() },
     ...notificationSections,
     { id: "preview", label: m.s1_settings_nav_preview() },
@@ -207,6 +208,19 @@
       {#each accessSections as section (section.id)}
         <section.Component />
       {/each}
+      <Card.Root flat id="relay" class="scroll-mt-4">
+        <Card.Header>
+          <Card.Title>{m.relay_title()}</Card.Title>
+          <Card.Description>
+            {m.relay_settings_summary()}
+          </Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <Button href="/settings/relay" variant="outline"
+            >{m.relay_manage()}</Button
+          >
+        </Card.Content>
+      </Card.Root>
       <InstallSettings />
       {#each notificationSections as section (section.id)}
         <section.Component />

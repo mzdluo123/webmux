@@ -4,3 +4,4 @@ package hoststat
 
 func readLoad() *Load     { return nil }
 func readMemory() *Memory { return nil }
+func readSwap() *Swap     { return nil }

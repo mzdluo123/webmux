@@ -35,6 +35,8 @@ export class FixtureSocket extends EventTarget {
   bufferedAmount = 0;
   sent: Uint8Array[] = [];
   closeCount = 0;
+  // Healthy peers answer unknown receipt IDs; zombie/recovery tests stay silent.
+  answerMissingQueries = false;
 
   constructor(url: string | URL) {
     super();
@@ -60,6 +62,18 @@ export class FixtureSocket extends EventTarget {
       throw new Error("Fixture socket is not open");
     }
     this.sent.push(new Uint8Array(data));
+    if (this.answerMissingQueries && data[0] === 4) {
+      const query = JSON.parse(new TextDecoder().decode(data.subarray(1))) as {
+        ids: string[];
+      };
+      for (const id of query.ids) {
+        // A network reply follows send(), after the caller arms its probe.
+        queueMicrotask(() => {
+          if (this.readyState === FixtureSocket.OPEN)
+            this.receive(5, JSON.stringify({ id, state: "missing" }));
+        });
+      }
+    }
   }
 
   // The real server gives control to the first client of a session.

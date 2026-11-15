@@ -195,6 +195,11 @@ jobs:
         run: tar -xzf "$RUNNER_TEMP/webmux-e2e.tar.gz" -C "$GITHUB_WORKSPACE" web/dist
       - name: Vet Go
         run: go vet -printf.funcs=problemf,invalidf,usagef,checkf ./...
+      - name: Verify public relay protocol module
+        working-directory: protocol/relay
+        run: |
+          go vet ./...
+          go test -race -count=1 ./...
       # No macOS runner: vet its build tags here so the *_darwin.go files
       # are still checked.
       - name: Vet the macOS build

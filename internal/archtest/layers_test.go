@@ -45,6 +45,7 @@ var webmux = manifest{
 		"internal/voicesettings":     service,
 		"internal/p2p":               service,
 		"internal/p2psettings":       service,
+		"internal/relaysetting":      service,
 
 		// Wire contracts and infrastructure every layer may use.
 		"internal/codexrollout": shared,
@@ -98,20 +99,25 @@ var webmux = manifest{
 		"internal/wslclient":      client,
 		"internal/tunnel":         client,
 		"internal/service":        client,
+		"internal/relay":          client,
 
 		"internal/archtest":               testOnly,
 		"internal/agentprofile/agenttest": testOnly,
 		"internal/docguard":               testOnly,
 	},
 	outbound: map[string]string{
-		"internal/push": "delivers Web Push messages to browser push services",
-		"internal/p2p":  "queries local UPnP IGD router XML and SOAP port-mapping control endpoints",
+		"internal/push":  "delivers Web Push messages to browser push services",
+		"internal/p2p":   "queries local UPnP IGD router XML and SOAP port-mapping control endpoints",
+		"internal/relay": "authenticates to trusted Relay control HTTPS and assigned WSS connectors; serves streams only to the startup-fixed loopback listener",
 	},
 	pure: map[string]string{
 		"internal/push.Validate":    "validates subscription strings without service state or I/O, before the controller checks Origin",
 		"internal/hybrid.FormValue": "decodes one form answer value of a chat request body without service state or I/O",
 	},
-	contract:  "internal/contract",
+	contract: "internal/contract",
+	contractAliases: map[string]string{
+		"github.com/mzdluo123/webmux/protocol/relay": "published standard-library-only child module; only types explicitly aliased by internal/contract cross the host JSON boundary",
+	},
 	wireScope: []string{"internal/api", "internal/wire", "internal/hub", "internal/transport", "internal/featureapi", "internal/featurehub", "internal/featurewire"},
 	// The controller's JSON boundary: their values are checked where they
 	// are called.

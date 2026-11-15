@@ -1,0 +1,16 @@
+{
+  "createdAt": "2023-11-14T22:13:20.000Z",
+  "updatedAt": "2023-11-14T22:13:21.000Z",
+  "title": "[redacted]",
+  "isCustomTitle": false,
+  "agents": {
+    "main": {
+      "homedir": "/fixture/home/.kimi-code/sessions/wd_fixture_0001/session_00000000-0000-4000-8000-000000000001/agents/main",
+      "type": "main",
+      "parentAgentId": null
+    }
+  },
+  "custom": {},
+  "workDir": "/fixture/workspace",
+  "lastPrompt": "[redacted]"
+}

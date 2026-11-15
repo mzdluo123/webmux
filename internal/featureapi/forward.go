@@ -198,6 +198,9 @@ func forwardAuthPage(w http.ResponseWriter, r *http.Request) bool {
 // forwardAuthorized accepts a live forwarding credential cookie; with the
 // main token unset the gateway, like /api/, needs none.
 func (s *Server) forwardAuthorized(r *http.Request) bool {
+	if transport.IsRelayOwner(r.Context()) {
+		return true
+	}
 	if s.Config.Token == "" {
 		return true
 	}
@@ -326,6 +329,7 @@ func rewriteForward(pr *httputil.ProxyRequest) {
 		pr.Out.Host = "localhost:" + port
 	}
 	stripForwardCookie(pr.Out.Header)
+	pr.Out.Header.Del("X-WebMux-CSRF")
 	// Rewrite already drops the inbound Forwarded and X-Forwarded-For/Host/
 	// Proto; the prefix header is the gateway's alone too.
 	pr.Out.Header.Del("X-Forwarded-Prefix")
@@ -368,7 +372,7 @@ func stripForwardCookie(h http.Header) {
 	for _, line := range values {
 		for part := range strings.SplitSeq(line, ";") {
 			name, _, _ := strings.Cut(strings.TrimSpace(part), "=")
-			if strings.TrimSpace(part) == "" || name == forwardCookie {
+			if strings.TrimSpace(part) == "" || name == forwardCookie || name == "__Host-webmux-relay" || name == "__Host-webmux-relay-tx" {
 				continue
 			}
 			kept = append(kept, strings.TrimSpace(part))

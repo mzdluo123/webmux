@@ -97,6 +97,9 @@ test("native Chrome swipes keep scrolling visibly through row redraws without ke
 test("native fullscreen gestures report row-scaled SGR wheel input at stable starting cells", async () => {
   observeGlyphPixels(true);
   const { socket } = await openTerminal();
+  // This gesture measures wheel input, not the intentionally silent-socket
+  // recovery path. Answer the actual receipt probes like a healthy server.
+  socket.answerMissingQueries = true;
   socket.receive(0, "\x1b[?1049h\x1b[?1000h\x1b[?1006hmouse-ready");
   await expectDomText("mouse-ready");
   const { textarea, focused } = blurAndTrackFocus();

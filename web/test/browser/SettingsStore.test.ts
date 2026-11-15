@@ -55,19 +55,19 @@ test("409 rebases only the local preview field and caches confirmed data", async
 });
 
 test("a failed optimistic save rolls back without caching or replaying it", async () => {
-  await seedSettings({ theme: "light" });
+  await seedSettings({ forceSoftKeys: false });
   const cache = localStorage.getItem("webmux.settingsCache");
   const response = Promise.withResolvers<Response>();
   const fetch = vi.fn<typeof window.fetch>(() => response.promise);
   vi.stubGlobal("fetch", fetch);
-  const task = saveSettings({ theme: "dark" });
-  expect(settings.values.theme).toBe("dark");
+  const task = saveSettings({ forceSoftKeys: true });
+  expect(settings.values.forceSoftKeys).toBe(true);
   expect(localStorage.getItem("webmux.settingsCache")).toBe(cache);
   response.resolve(
     Response.json({ error: "storage /state/settings.json" }, { status: 503 }),
   );
   await expect(task).rejects.toThrow("settings.json");
-  expect(settings.values.theme).toBe("light");
+  expect(settings.values.forceSoftKeys).toBe(false);
   expect(settings.ready).toBe(false);
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(localStorage.getItem("webmux.settingsCache")).toBe(cache);
@@ -81,18 +81,20 @@ test("a second conflict stops automatic retries and preserves the latest snapsho
       : Response.json({
           revision: 1,
           updatedAt: "2026-10-26T00:00:00Z",
-          values: { ...emptySettings, theme: "light" },
+          values: { ...emptySettings, forceSoftKeys: false },
         }),
   );
   vi.stubGlobal("fetch", fetch);
-  await expect(saveSettings({ theme: "dark" })).rejects.toThrow("conflict");
+  await expect(saveSettings({ forceSoftKeys: true })).rejects.toThrow(
+    "conflict",
+  );
   expect(fetch).toHaveBeenCalledTimes(3);
-  expect(settings.values.theme).toBe("light");
+  expect(settings.values.forceSoftKeys).toBe(false);
 });
 
 test("a reconnected snapshot replaces stale revisions after a server reset", async () => {
   await seedSettings();
-  await saveSettings({ theme: "dark" });
+  await saveSettings({ forceSoftKeys: true });
   const sockets: FakeSocket[] = [];
   class FakeSocket {
     static OPEN = 1;
@@ -117,7 +119,7 @@ test("a reconnected snapshot replaces stale revisions after a server reset", asy
     }),
   });
   expect(settings.revision).toBe(0);
-  expect(settings.values.theme).toBeNull();
+  expect(settings.values.forceSoftKeys).toBeNull();
   expect(
     JSON.parse(localStorage.getItem("webmux.settingsCache")!).revision,
   ).toBe(0);
@@ -130,7 +132,7 @@ test("isolates settingsCache and diffReview storage events per hostId", async ()
     JSON.stringify({
       revision: 3,
       updatedAt: "2026-10-26T00:00:00Z",
-      values: { ...emptySettings, theme: "dark" },
+      values: { ...emptySettings, forceSoftKeys: true },
     }),
   );
 
@@ -140,7 +142,7 @@ test("isolates settingsCache and diffReview storage events per hostId", async ()
 
   setActiveHostId("host-b");
   expect(settings.revision).toBe(3);
-  expect(settings.values.theme).toBe("dark");
+  expect(settings.values.forceSoftKeys).toBe(true);
 
   const change: CodeChange = {
     path: "a.ts",
