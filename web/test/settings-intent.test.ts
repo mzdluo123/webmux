@@ -114,7 +114,13 @@ describe("preference conflict replay", () => {
     expect(
       SettingsSnapshotSchema.safeParse({
         ...snapshot,
-        values: { ...emptySettings, theme: "blue" },
+        values: { ...emptySettings, theme: "dark" },
+      }).success,
+    ).toBe(false);
+    expect(
+      SettingsSnapshotSchema.safeParse({
+        ...snapshot,
+        values: { ...emptySettings, forceSoftKeys: "yes" },
       }).success,
     ).toBe(false);
   });

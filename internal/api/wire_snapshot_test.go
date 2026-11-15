@@ -1582,10 +1582,10 @@ func wireSettings(f *wireFixture) {
 	c := f.dial("/ws/settings")
 	f.event(c, "ws-settings-snapshot", func(e map[string]any) bool { return e["type"] == "settings" })
 	f.call("settings-get", "GET", "/api/settings", nil, 200)
-	f.call("settings-patch", "PATCH", "/api/settings", map[string]any{"baseRevision": 0, "changes": map[string]any{"theme": "dark", "quickCommands": []any{}, "sessionPins": []any{}}}, 200)
+	f.call("settings-patch", "PATCH", "/api/settings", map[string]any{"baseRevision": 0, "changes": map[string]any{"forceSoftKeys": true, "quickCommands": []any{}, "sessionPins": []any{}}}, 200)
 	f.event(c, "ws-settings-update", func(e map[string]any) bool { return e["type"] == "settings.update" })
-	f.call("settings-conflict", "PATCH", "/api/settings", map[string]any{"baseRevision": 0, "changes": map[string]any{"theme": nil}}, 409)
-	f.call("settings-reset", "PATCH", "/api/settings", map[string]any{"baseRevision": 1, "changes": map[string]any{"theme": nil}}, 200)
+	f.call("settings-conflict", "PATCH", "/api/settings", map[string]any{"baseRevision": 0, "changes": map[string]any{"forceSoftKeys": nil}}, 409)
+	f.call("settings-reset", "PATCH", "/api/settings", map[string]any{"baseRevision": 1, "changes": map[string]any{"forceSoftKeys": nil}}, 200)
 }
 
 // wireDriver is a hybrid shell driver that does nothing.

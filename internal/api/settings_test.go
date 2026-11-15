@@ -34,15 +34,16 @@ func TestSettingsHTTPContract(t *testing.T) {
 		method, body, token, origin string
 		status                      int
 	}{
-		{"GET", "", "", "", 401}, {"PATCH", `{"baseRevision":0,"changes":{"theme":"dark"}}`, "login-secret", "https://foreign.example", 403},
+		{"GET", "", "", "", 401}, {"PATCH", `{"baseRevision":0,"changes":{"forceSoftKeys":true}}`, "login-secret", "https://foreign.example", 403},
 		{"GET", "", "login-secret", "", 200},
-		{"PATCH", `{"baseRevision":0,"changes":{"theme":"dark"}}`, "login-secret", "", 200},
-		{"PATCH", `{"baseRevision":0,"changes":{"theme":"light"}}`, "login-secret", "", 409},
-		{"PATCH", `{"baseRevision":1,"changes":{"theme":null,"quickCommands":[]}}`, "login-secret", "", 200},
+		{"PATCH", `{"baseRevision":0,"changes":{"forceSoftKeys":true}}`, "login-secret", "", 200},
+		{"PATCH", `{"baseRevision":0,"changes":{"forceSoftKeys":false}}`, "login-secret", "", 409},
+		{"PATCH", `{"baseRevision":1,"changes":{"forceSoftKeys":null,"quickCommands":[]}}`, "login-secret", "", 200},
 		{"PATCH", `{"baseRevision":2,"changes":{"unknown":true}}`, "login-secret", "", 400},
-		{"PATCH", `{"baseRevision":2,"changes":{"theme":"dark","theme":"light"}}`, "login-secret", "", 400},
-		{"PATCH", `{"baseRevision":2,"changes":{"Theme":"dark"}}`, "login-secret", "", 400},
-		{"PATCH", `{"changes":{"theme":"dark"}}`, "login-secret", "", 400},
+		{"PATCH", `{"baseRevision":2,"changes":{"forceSoftKeys":true,"forceSoftKeys":false}}`, "login-secret", "", 400},
+		{"PATCH", `{"baseRevision":2,"changes":{"ForceSoftKeys":true}}`, "login-secret", "", 400},
+		{"PATCH", `{"changes":{"forceSoftKeys":true}}`, "login-secret", "", 400},
+		{"PATCH", `{"baseRevision":2,"changes":{"theme":"dark"}}`, "login-secret", "", 400},
 		{"PATCH", `{"baseRevision":2,"changes":{"fontSize":"14"}}`, "login-secret", "", 400},
 		{"PATCH", `{"baseRevision":2,"changes":{"quickCommands":[{"id":"a","name":"a","command":"pwd"}]}}`, "login-secret", "", 400},
 		{"PATCH", `{"baseRevision":2,"changes":{"quickCommands":[{"id":"a","name":"a","command":"pwd","enter":null}]}}`, "login-secret", "", 400},
@@ -61,7 +62,7 @@ func TestSettingsHTTPContract(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &v); err != nil {
 		t.Fatal(err)
 	}
-	if v.Revision != 2 || v.Values.Theme != nil || v.Values.QuickCommands == nil || len(*v.Values.QuickCommands) != 0 {
+	if v.Revision != 2 || v.Values.ForceSoftKeys != nil || v.Values.QuickCommands == nil || len(*v.Values.QuickCommands) != 0 {
 		t.Fatalf("snapshot: %+v", v)
 	}
 }
@@ -87,7 +88,7 @@ func TestSettingsWebSocketSnapshotThenUpdates(t *testing.T) {
 	if first.Type != "settings" || first.Settings == nil || first.Settings.Revision != 0 {
 		t.Fatalf("first: %s", data)
 	}
-	w := tunnelAPIRequest(h, "PATCH", "/api/settings", `{"baseRevision":0,"changes":{"theme":"dark"}}`, "login-secret", "")
+	w := tunnelAPIRequest(h, "PATCH", "/api/settings", `{"baseRevision":0,"changes":{"forceSoftKeys":true}}`, "login-secret", "")
 	if w.Code != 200 {
 		t.Fatal(w.Body.String())
 	}
@@ -99,7 +100,7 @@ func TestSettingsWebSocketSnapshotThenUpdates(t *testing.T) {
 	if err = json.Unmarshal(data, &update); err != nil {
 		t.Fatal(err)
 	}
-	if update.Type != "settings.update" || update.Revision != 1 || update.Changes["theme"] != "dark" || len(update.Changes) != 1 {
+	if update.Type != "settings.update" || update.Revision != 1 || update.Changes["forceSoftKeys"] != true || len(update.Changes) != 1 {
 		t.Fatalf("update: %s", data)
 	}
 }

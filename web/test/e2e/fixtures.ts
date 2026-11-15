@@ -122,7 +122,6 @@ async function resetSettings(
   expect(response.ok()).toBeTruthy();
   const prefs = await response.json();
   const changes: Record<string, null> = {
-    theme: null,
     sessionPins: null,
     forceSoftKeys: null,
   };

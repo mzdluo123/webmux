@@ -104,6 +104,8 @@ describe("host-scoped browser storage", () => {
       "webmux.host.host-a.diffReview",
     );
     expect(resolveStorageKey("fontSize", "host-a")).toBe("webmux.fontSize");
+    expect(resolveStorageKey("theme", "host-a")).toBe("webmux.theme");
+    expect(deviceScopedKeys.has("theme")).toBe(true);
     expect(deviceScopedKeys.has("wsCompression")).toBe(true);
     expect(deviceScopedKeys.has("token")).toBe(false);
 

@@ -1,47 +1,116 @@
-import {
-  settings,
-  changeSettings,
-  observeSettings,
-} from "../../domains/settings/settings.svelte";
-import { type Theme } from "../../contracts/schemas";
+import { createSubscriber } from "svelte/reactivity";
+import { ThemeSchema, type Theme } from "../../contracts/schemas";
+import { resolveStorageKey, store, stored } from "../../platform/storage";
 
-const system = matchMedia("(prefers-color-scheme: light)");
-const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
-let choice: Theme | undefined;
+type ThemePreference = "system" | Theme;
+
+const STORAGE_KEY = resolveStorageKey("theme");
+
+function readStoredTheme(): Theme | undefined {
+  if (typeof window === "undefined") return undefined;
+  const raw = stored("theme");
+  return raw ? ThemeSchema.safeParse(raw).data : undefined;
+}
+
+function systemPrefersLight(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: light)").matches
+  );
+}
+
+function reducedMotionPreferred(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+const themeSubscribers = new Set<() => void>();
+const trackTheme = createSubscriber((update) => {
+  themeSubscribers.add(update);
+  return () => {
+    themeSubscribers.delete(update);
+  };
+});
+
+let choice: Theme | undefined = readStoredTheme();
 let transition: ViewTransition | undefined;
 let pendingTheme: Theme | undefined;
+let initialized = false;
 
-function applyTheme() {
-  const dark = choice ? choice === "dark" : !system.matches;
+function applyTheme(): void {
+  if (typeof document === "undefined") return;
+  const dark = choice ? choice === "dark" : !systemPrefersLight();
   const root = document.documentElement;
   root.classList.toggle("dark", dark);
   const meta = document.querySelector<HTMLMetaElement>(
     'meta[name="theme-color"]',
   );
-  if (meta)
+  if (meta) {
     meta.content = getComputedStyle(root)
       .getPropertyValue("--background")
       .trim();
+  }
 }
 
-export function initializeTheme() {
-  observeSettings(() => {
-    choice = settings.values.theme ?? undefined;
-    applyTheme();
-  });
-  system.addEventListener("change", () => {
-    if (!choice) applyTheme();
+function refreshTheme(): void {
+  const next = readStoredTheme();
+  const changed = next !== choice;
+  choice = next;
+  applyTheme();
+  if (changed) {
+    for (const notify of themeSubscribers) notify();
+  }
+}
+
+function setThemePreference(next: ThemePreference): void {
+  const nextChoice = next === "system" ? undefined : next;
+  store("theme", nextChoice ?? null);
+  const changed = nextChoice !== choice;
+  choice = nextChoice;
+  applyTheme();
+  if (changed) {
+    for (const notify of themeSubscribers) notify();
+  }
+}
+
+export const themePreference = {
+  get value(): ThemePreference {
+    trackTheme();
+    return choice ?? "system";
+  },
+  set: setThemePreference,
+  refresh: refreshTheme,
+};
+
+export function initializeTheme(): void {
+  if (initialized || typeof window === "undefined") return;
+  initialized = true;
+  refreshTheme();
+  if (typeof window.matchMedia === "function") {
+    const system = window.matchMedia("(prefers-color-scheme: light)");
+    system.addEventListener("change", () => {
+      if (!choice) applyTheme();
+    });
+  }
+  window.addEventListener("storage", (event) => {
+    if (event.key === null || event.key === STORAGE_KEY) {
+      refreshTheme();
+    }
   });
 }
 
-function commitTheme() {
+function commitTheme(): void {
   if (!pendingTheme) return;
   const theme = pendingTheme;
   pendingTheme = undefined;
-  changeSettings({ theme });
+  setThemePreference(theme);
 }
 
-export function toggleTheme(event: MouseEvent) {
+export function toggleTheme(event: MouseEvent): void {
   const root = document.documentElement;
   // Another click can arrive before the browser runs the first update.
   const dark = pendingTheme
@@ -53,7 +122,7 @@ export function toggleTheme(event: MouseEvent) {
   if (
     transition ||
     !document.startViewTransition ||
-    reducedMotion.matches ||
+    reducedMotionPreferred() ||
     !(button instanceof HTMLElement)
   ) {
     transition?.skipTransition();
