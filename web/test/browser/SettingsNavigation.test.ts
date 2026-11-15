@@ -9,7 +9,10 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Settings from "../../src/pages/Settings.svelte";
 import { FeatureIDSchema } from "../../src/contracts/feature-schemas";
-import { themePreference } from "../../src/hooks/settings/theme";
+import {
+  initializeTheme,
+  themePreference,
+} from "../../src/hooks/settings/theme";
 import {
   clearHostStorage,
   setActiveHostId,
@@ -21,7 +24,12 @@ import {
   resetCreationFeatures,
 } from "./feature-fixture";
 
-beforeEach(() => enableCreationFeatures(FeatureIDSchema.options));
+beforeEach(() => {
+  localStorage.clear();
+  initializeTheme();
+  themePreference.refresh();
+  return enableCreationFeatures(FeatureIDSchema.options);
+});
 
 const originalURL = location.href;
 
@@ -33,6 +41,8 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   history.replaceState(null, "", originalURL);
   setActiveHostId(null);
+  localStorage.clear();
+  themePreference.refresh();
   localStorage.clear();
   themePreference.refresh();
   await page.viewport(1024, 900);
@@ -326,4 +336,24 @@ test("theme stays device-local, works offline, and syncs across same-browser win
   await group.getByRole("radio", { name: "跟随系统", exact: true }).click();
   expect(localStorage.getItem("webmux.theme")).toBeNull();
   expect(themePreference.value).toBe("system");
+
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new DOMException("quota exceeded", "QuotaExceededError");
+  });
+  await group.getByRole("radio", { name: "深色", exact: true }).click();
+  expect(localStorage.getItem("webmux.theme")).toBeNull();
+  expect(themePreference.value).toBe("dark");
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
+
+  await cleanup();
+  initializeTheme();
+  render(Settings);
+  await expect
+    .element(
+      page
+        .getByRole("radiogroup", { name: "主题", exact: true })
+        .getByRole("radio", { name: "深色", exact: true }),
+    )
+    .toHaveAttribute("aria-checked", "true");
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
 });

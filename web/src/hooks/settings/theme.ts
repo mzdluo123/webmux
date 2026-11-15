@@ -87,9 +87,9 @@ export const themePreference = {
 };
 
 export function initializeTheme(): void {
-  refreshTheme();
   if (initialized || typeof window === "undefined") return;
   initialized = true;
+  refreshTheme();
   if (typeof window.matchMedia === "function") {
     const system = window.matchMedia("(prefers-color-scheme: light)");
     system.addEventListener("change", () => {

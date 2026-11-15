@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import {
     settings,
     changeSettings,
@@ -10,7 +9,7 @@
     minFontSize,
     maxFontSize,
   } from "../../hooks/terminal/terminal-font-preference.svelte";
-  import { initializeTheme, themePreference } from "../../hooks/settings/theme";
+  import { themePreference } from "../../hooks/settings/theme";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -30,10 +29,6 @@
       fontInput >= minFontSize &&
       fontInput <= maxFontSize,
   );
-
-  onMount(() => {
-    initializeTheme();
-  });
 </script>
 
 <Card.Root flat id="appearance" class="scroll-mt-4">
