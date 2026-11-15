@@ -235,12 +235,13 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 							return hs.Document{}, hs.ErrFormat
 						}
 						for _, n := range nested {
-							if n.Type == "text" {
+							switch n.Type {
+							case "text":
 								if result.Text != "" {
 									result.Text += "\n"
 								}
 								result.Text += n.Text
-							} else if n.Type == "image" || n.Type == "document" {
+							case "image", "document":
 								result.Attachments = append(result.Attachments, hs.Attachment{MimeType: n.Source.Mime})
 								gaps = append(gaps, hs.Gap{RecordID: e.ID, Category: "attachment_body_omitted", Offset: e.offset})
 							}

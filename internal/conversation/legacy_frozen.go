@@ -115,7 +115,7 @@ func legacyFrozenStrings(ctx context.Context, tx *sql.Tx, query string, args ...
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []string
 	for rows.Next() {
 		var id string
@@ -212,7 +212,7 @@ func legacyFreezeRange(ctx context.Context, tx *sql.Tx, owner, oldID string, bou
 			doc.Gaps = append(doc.Gaps, historysource.Gap{RecordID: id, Category: "legacy_attachment_body_unavailable", Offset: a.Position})
 		}
 		rowErr := rows.Err()
-		rows.Close()
+		_ = rows.Close()
 		if err != nil {
 			return "", err
 		}
@@ -251,7 +251,7 @@ func legacyFreezeRange(ctx context.Context, tx *sql.Tx, owner, oldID string, bou
 		doc.Gaps = append(doc.Gaps, gap)
 	}
 	rowErr := rows.Err()
-	rows.Close()
+	_ = rows.Close()
 	if err != nil {
 		return "", err
 	}
@@ -364,7 +364,7 @@ func legacyFrozenReadChunks(ctx context.Context, tx *sql.Tx, table, id string, l
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var next int64
 	for rows.Next() {
 		var offset, declared, actual int64

@@ -66,12 +66,12 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 	if e != nil {
 		return out, safe(ctx, e)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	tx, e := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if e != nil {
 		return out, safe(ctx, e)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	legacy, v2 := false, false
 	if e = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='session')").Scan(&legacy); e != nil {
 		return out, safe(ctx, e)
@@ -146,16 +146,16 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 	var messages []message
 	total := 0
 	hash := sha256.New()
-	fmt.Fprintf(hash, "%q %q %q %q", generation, sessionParent.String, fork.String, revert.String)
+	_, _ = fmt.Fprintf(hash, "%q %q %q %q", generation, sessionParent.String, fork.String, revert.String)
 	for rows.Next() {
 		var m message
 		if e = rows.Scan(&m.id, &m.position, &m.role, &m.data); e != nil {
-			rows.Close()
+			_ = rows.Close()
 			return out, safe(ctx, e)
 		}
 		total += len(m.data)
 		if len(messages) >= historysource.MaxRecords || len(m.data) > historysource.MaxRecordBytes || total > historysource.MaxBytes {
-			rows.Close()
+			_ = rows.Close()
 			return out, historysource.ErrLimit
 		}
 		var info struct {
@@ -163,18 +163,18 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 			Parent string `json:"parentID"`
 		}
 		if json.Unmarshal([]byte(m.data), &info) != nil {
-			rows.Close()
+			_ = rows.Close()
 			return out, historysource.ErrFormat
 		}
 		if generation == "legacy" {
 			m.role = info.Role
 		}
 		m.parent = info.Parent
-		fmt.Fprintf(hash, "%q %d %q %q", m.id, m.position, m.role, m.data)
+		_, _ = fmt.Fprintf(hash, "%q %d %q %q", m.id, m.position, m.role, m.data)
 		messages = append(messages, m)
 	}
 	e = rows.Err()
-	rows.Close()
+	_ = rows.Close()
 	if e != nil {
 		return out, safe(ctx, e)
 	}
@@ -188,20 +188,20 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 		for rows.Next() {
 			var p part
 			if e = rows.Scan(&p.id, &p.message, &p.position, &p.data); e != nil {
-				rows.Close()
+				_ = rows.Close()
 				return out, safe(ctx, e)
 			}
 			count++
 			total += len(p.data)
 			if count > historysource.MaxRecords || len(p.data) > historysource.MaxRecordBytes || total > historysource.MaxBytes {
-				rows.Close()
+				_ = rows.Close()
 				return out, historysource.ErrLimit
 			}
-			fmt.Fprintf(hash, "%q %q %d %q", p.id, p.message, p.position, p.data)
+			_, _ = fmt.Fprintf(hash, "%q %q %d %q", p.id, p.message, p.position, p.data)
 			parts[p.message] = append(parts[p.message], p)
 		}
 		e = rows.Err()
-		rows.Close()
+		_ = rows.Close()
 		if e != nil {
 			return out, safe(ctx, e)
 		}
@@ -382,7 +382,7 @@ func open(ctx context.Context, path string) (*sql.DB, error) {
 	}
 	db.SetMaxOpenConns(1)
 	if e = db.PingContext(ctx); e != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, e
 	}
 	return db, nil
@@ -424,7 +424,7 @@ func Discover(ctx context.Context, root string) ([]historysource.Source, error) 
 		if e != nil {
 			return safe(ctx, e)
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 		for _, table := range []string{"session", "session_v2"} {
 			var exists bool
 			if e = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?)", table).Scan(&exists); e != nil {
@@ -440,17 +440,17 @@ func Discover(ctx context.Context, root string) ([]historysource.Source, error) 
 			for rows.Next() {
 				var id string
 				if e = rows.Scan(&id); e != nil {
-					rows.Close()
+					_ = rows.Close()
 					return safe(ctx, e)
 				}
 				if len(out) >= historysource.MaxRecords {
-					rows.Close()
+					_ = rows.Close()
 					return historysource.ErrLimit
 				}
 				out = append(out, historysource.Source{Agent: "opencode", Path: path, NativeID: id})
 			}
 			e = rows.Err()
-			rows.Close()
+			_ = rows.Close()
 			if e != nil {
 				return safe(ctx, e)
 			}

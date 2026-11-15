@@ -87,7 +87,7 @@ func main() {
 		func() {
 			temp, err := os.MkdirTemp("", "webmux-image-acp-")
 			must(err)
-			defer os.RemoveAll(temp)
+			defer func() { must(os.RemoveAll(temp)) }()
 			cwd := filepath.Join(temp, "cwd")
 			must(os.Mkdir(cwd, 0700))
 			config := filepath.Join(temp, "config.yml")
@@ -103,11 +103,11 @@ func main() {
 			must(err)
 			stderr, err := os.OpenFile(filepath.Join(*output, mode+"-stderr.txt"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 			must(err)
-			defer stderr.Close()
+			defer func() { must(stderr.Close()) }()
 			cmd.Stderr = stderr
 			wire, err := os.OpenFile(filepath.Join(*output, mode+"-stdout.jsonl"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 			must(err)
-			defer wire.Close()
+			defer func() { must(wire.Close()) }()
 			start := time.Now()
 			must(cmd.Start())
 			o := &observer{}

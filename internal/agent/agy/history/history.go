@@ -69,7 +69,7 @@ func identity(ctx context.Context, tx *sql.Tx) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var id string
 	if !rows.Next() {
 		return "", historysource.ErrFormat
@@ -99,12 +99,12 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 		return fail(err)
 	}
 	out.Generation = historysource.FileIdentity(before)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return fail(err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	id, err := identity(ctx, tx)
 	if err != nil {
 		return fail(err)
@@ -139,9 +139,9 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	}
 	hash := sha256.New()
 	if st, ok := before.Sys().(*syscall.Stat_t); ok {
-		fmt.Fprintf(hash, "%d:%d:", st.Dev, st.Ino)
+		_, _ = fmt.Fprintf(hash, "%d:%d:", st.Dev, st.Ino)
 	}
-	fmt.Fprintf(hash, "%d:%s:%d:", len(id), id, boundary)
+	_, _ = fmt.Fprintf(hash, "%d:%s:%d:", len(id), id, boundary)
 	rows, err := tx.QueryContext(ctx, `SELECT idx,step_type,status,has_subtrajectory,step_format,coalesce(metadata,x''),coalesce(step_payload,x'') FROM steps WHERE idx<=? ORDER BY idx LIMIT ?`, boundary, historysource.MaxRecords+1)
 	if err != nil {
 		return fail(err)
@@ -150,22 +150,22 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	var parent string
 	for rows.Next() {
 		if err = ctx.Err(); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return fail(err)
 		}
 		var idx, typ, status, sub, format int64
 		var meta, payload []byte
 		if err = rows.Scan(&idx, &typ, &status, &sub, &format, &meta, &payload); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return fail(err)
 		}
 		if idx < 0 || idx <= previous || format != 0 {
-			rows.Close()
+			_ = rows.Close()
 			return fail(historysource.ErrFormat)
 		}
-		fmt.Fprintf(hash, "%d:%d:%d:%d:%d:%d:", idx, typ, status, sub, format, len(meta))
+		_, _ = fmt.Fprintf(hash, "%d:%d:%d:%d:%d:%d:", idx, typ, status, sub, format, len(meta))
 		hash.Write(meta)
-		fmt.Fprintf(hash, ":%d:", len(payload))
+		_, _ = fmt.Fprintf(hash, ":%d:", len(payload))
 		hash.Write(payload)
 		r := historysource.Record{ID: id + "/step/" + decimal(idx), NativeID: decimal(idx), ParentID: parent, Status: stepStatus(status), Offset: idx, End: idx + 1}
 		if idx != previous+1 {
@@ -179,19 +179,19 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 		}
 		records, gaps, e := project(payload, typ, status, r)
 		if e != nil {
-			rows.Close()
+			_ = rows.Close()
 			return fail(e)
 		}
 		out.Records = append(out.Records, records...)
 		out.Gaps = append(out.Gaps, gaps...)
 		if len(out.Records) > historysource.MaxRecords {
-			rows.Close()
+			_ = rows.Close()
 			return fail(historysource.ErrLimit)
 		}
 		parent, previous = r.ID, idx
 	}
 	err = rows.Err()
-	rows.Close()
+	_ = rows.Close()
 	if err != nil {
 		return fail(err)
 	}
@@ -255,7 +255,7 @@ func Discover(ctx context.Context, root string) ([]historysource.Source, error) 
 		if err != nil {
 			return historysource.ErrUnavailable
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		for {
 			children, readErr := f.ReadDir(64)
 			if readErr != nil && readErr != io.EOF {
@@ -287,12 +287,12 @@ func Discover(ctx context.Context, root string) ([]historysource.Source, error) 
 				}
 				tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 				if err != nil {
-					db.Close()
+					_ = db.Close()
 					return safeError(ctx, err)
 				}
 				id, err := identity(ctx, tx)
-				tx.Rollback()
-				db.Close()
+				_ = tx.Rollback()
+				_ = db.Close()
 				if err != nil {
 					return safeError(ctx, err)
 				}

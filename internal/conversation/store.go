@@ -29,9 +29,7 @@ type Service struct {
 	captureDisabled bool
 	// beforeCommit injects a crash/failure into tests, before SQLite publication.
 	beforeCommit func() error
-	// beforeNativeVerify is a deterministic source-race injection for tests.
-	beforeNativeVerify func()
-	id                 func() (string, error)
+	id           func() (string, error)
 }
 
 // Open fails closed for conversations only. Callers may continue serving

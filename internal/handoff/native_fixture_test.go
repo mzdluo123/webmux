@@ -37,9 +37,10 @@ func writeNativeFixture(t *testing.T, path, agent, id string, messages []nativeF
 		body = append(body, b...)
 		body = append(body, '\n')
 	}
-	if agent == "codex" {
+	switch agent {
+	case "codex":
 		add(map[string]any{"type": "session_meta", "payload": map[string]any{"id": id, "cli_version": "0.77.0", "cwd": "/example/project"}})
-	} else if agent == "omp" {
+	case "omp":
 		add(map[string]any{"type": "session", "version": 3, "id": id})
 	}
 	parent := ""
@@ -51,15 +52,16 @@ func writeNativeFixture(t *testing.T, path, agent, id string, messages []nativeF
 		if role == "agent" {
 			role = "assistant"
 		}
-		if agent == "codex" {
+		switch agent {
+		case "codex":
 			kind := "output_text"
 			if role == "user" {
 				kind = "input_text"
 			}
 			add(map[string]any{"type": "response_item", "payload": map[string]any{"type": "message", "id": m.ID, "role": role, "content": []map[string]string{{"type": kind, "text": m.Text}}}})
-		} else if agent == "claudecode" {
+		case "claudecode":
 			add(map[string]any{"type": role, "uuid": m.ID, "parentUuid": parent, "sessionId": id, "message": map[string]any{"role": role, "content": []map[string]string{{"type": "text", "text": m.Text}}}})
-		} else {
+		default:
 			add(map[string]any{"type": "message", "id": m.ID, "parentId": parent, "message": map[string]any{"role": role, "content": []map[string]string{{"type": "text", "text": m.Text}}}})
 		}
 		parent = m.ID

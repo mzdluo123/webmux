@@ -69,12 +69,12 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 	if e != nil {
 		return out, safe(ctx, e)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	tx, e := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if e != nil {
 		return out, safe(ctx, e)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var head sql.NullInt64
 	e = tx.QueryRowContext(ctx, "SELECT main_chain_id FROM sessions WHERE id=?", req.Source.NativeID).Scan(&head)
 	if errors.Is(e, sql.ErrNoRows) {
@@ -143,13 +143,13 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 		}
 	}
 	hash := sha256.New()
-	fmt.Fprintf(hash, "%q %d %t", req.Source.NativeID, b.Head, b.Empty)
+	_, _ = fmt.Fprintf(hash, "%q %d %t", req.Source.NativeID, b.Head, b.Empty)
 	for i := len(nodes) - 1; i >= 0; i-- {
 		if ctx.Err() != nil {
 			return out, ctx.Err()
 		}
 		n := nodes[i]
-		fmt.Fprintf(hash, "%d %v %q %q", n.id, n.parent, n.body, n.metadata)
+		_, _ = fmt.Fprintf(hash, "%d %v %q %q", n.id, n.parent, n.body, n.metadata)
 		var msg struct {
 			Role       string                      `json:"role"`
 			Content    json.RawMessage             `json:"content"`
@@ -205,7 +205,7 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 				if total > historysource.MaxBytes || len(initial.String) > historysource.MaxRecordBytes || len(update.String) > historysource.MaxRecordBytes || len(sources.String) > historysource.MaxRecordBytes {
 					return out, historysource.ErrLimit
 				}
-				fmt.Fprintf(hash, "%q %q %q %q", c.ID, initial.String, update.String, sources.String)
+				_, _ = fmt.Fprintf(hash, "%q %q %q %q", c.ID, initial.String, update.String, sources.String)
 				var state struct {
 					Status string `json:"status"`
 				}
@@ -274,7 +274,7 @@ func open(ctx context.Context, path string) (*sql.DB, error) {
 	}
 	db.SetMaxOpenConns(1)
 	if e = db.PingContext(ctx); e != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, e
 	}
 	return db, nil
@@ -315,12 +315,12 @@ func Discover(ctx context.Context, root string) ([]historysource.Source, error) 
 		if e != nil {
 			return safe(ctx, e)
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 		rows, e := db.QueryContext(ctx, "SELECT id FROM sessions ORDER BY id LIMIT 100001")
 		if e != nil {
 			return safe(ctx, e)
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		for rows.Next() {
 			var id string
 			if e = rows.Scan(&id); e != nil {
