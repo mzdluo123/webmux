@@ -163,3 +163,13 @@
   - 定向端到端回归（`compact-chrome`、`lifecycle`、`i18n` 与混合聊天文档滚动）与全仓 Go `-race`、`make check`、`openspec validate --specs` 通过；
   - 隔离演示应用在 1280×900、1280×720、768×800、390×844、375×667、320×568、667×375 明暗主题共 28 个终端/聊天组合下核对无横向溢出、按钮居中未裁切且支持键盘聚焦触发；采集三组尺寸明暗前后对比截图与 1280×800 正常速度交互 GIF（46 帧，约 10.4 秒）。
 - 局限：无手机或平板真机验证；无头 Chromium 未验证真实鼠标悬停与 `any-pointer: coarse` 触屏硬件行为；未重新验收其他故事能力。
+
+## 主机状态新增交换空间指标（US-A04）
+
+- 范围（故事总数 260 不变）：
+  - `GET /api/health` 新增可选 `swap`（total/used），Linux 解析 `/proc/meminfo` 的 `SwapTotal`/`SwapFree`，macOS 读 `vm.swapusage`，其他平台与未配置交换空间的主机不上报；
+  - 侧栏主机状态弹层新增“交换空间”行（`s1_swap`/`s1_swap_value` 中英词条）；
+  - 协议参考、`docs/architecture.md` 的 `internal/hoststat` 行与包注释同步说明 `swap`。
+- 验证：`internal/hoststat` 新增解析用例、`TestWireSnapshots` 重录、`go vet`、gofmt 通过；darwin/windows 交叉编译通过；真实服务端到端返回 `swap` 字段且弹层渲染“已用 444.0 KB / 共 6.0 GB”；`pnpm --dir web check`、`lint`、`check:arch`、`make format-check` 通过。
+- PR 证据：桌面 1280×900、平板 768×800、手机 390×844 明暗主题六组前后对比截图（before 为移除新增行复现基线），手机截图为打开的导航抽屉内弹层。
+- 局限：macOS `vm.swapusage` 仅交叉编译未实机运行；无头浏览器未验证真实悬停与触屏常驻状态；未重新验收其他既有故事。
