@@ -549,6 +549,34 @@ test("the composer posts the prompt with a request ID and mode auto", async () =
   await expect.element(input).toHaveValue("");
 });
 
+test("long drafts scroll with shadcn while the caret and send stay accessible", async () => {
+  const socket = await open();
+  socket.frame(snapshot(chatState()));
+  const input = page.getByRole("textbox", { name: "消息" });
+  await input.fill(
+    Array.from({ length: 80 }, (_, i) => `第 ${i} 行 中文🙂`).join("\n"),
+  );
+  const textarea = document.querySelector<HTMLTextAreaElement>(
+    "[data-composer-card] textarea",
+  )!;
+  const viewport = textarea.closest<HTMLElement>(
+    '[data-slot="scroll-area-viewport"]',
+  )!;
+  await expect.poll(() => viewport.clientHeight).toBeLessThanOrEqual(192);
+  await expect.poll(() => viewport.scrollHeight).toBeGreaterThan(192);
+  expect(getComputedStyle(textarea).overflowY).toBe("hidden");
+  await input.click();
+  await userEvent.keyboard("{Control>}{End}{/Control}");
+  await expect.poll(() => viewport.scrollTop).toBeGreaterThan(0);
+  await userEvent.keyboard("{Control>}{Home}{/Control}");
+  await expect.poll(() => viewport.scrollTop).toBeLessThan(24);
+  await expect
+    .element(page.getByRole("button", { name: "发送", exact: true }))
+    .toBeVisible();
+  await input.fill("短消息");
+  await expect.poll(() => viewport.scrollHeight).toBeLessThan(192);
+});
+
 test("a paused queue shows its prompts and continues or clears", async () => {
   const socket = await open();
   socket.frame(snapshot(chatState()));
