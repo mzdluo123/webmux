@@ -278,9 +278,10 @@ func normalize(ctx context.Context, text string, structured bool) (string, error
 		}
 		preserve := structured || fence != "" || marker != ""
 		if marker != "" {
-			if fence == "" {
+			switch fence {
+			case "":
 				fence = marker
-			} else if fence == marker {
+			case marker:
 				fence = ""
 			}
 		}
