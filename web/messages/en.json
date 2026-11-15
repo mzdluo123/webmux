@@ -1619,6 +1619,9 @@
   "s3_turn_patch_no_snapshot": "Before/after text was not reported.",
   "s3_turn_patch_truncated": "Changes reported by the agent were truncated.",
   "s3_turn_patch_unchanged": "File content unchanged",
+  "s3_turn_directory_title": "Messages · {count}",
+  "s3_turn_group_earlier": "Earlier–turn {last} · {count} messages",
+  "s3_turn_group_label": "Turns {first}–{last} · {count} messages",
   "s3_turn_role_ai_many": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],

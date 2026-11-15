@@ -51,3 +51,15 @@ export function conversationTurns(
   }
   return items;
 }
+
+/** Bound the rail's density without discarding any message anchors. */
+export function conversationTurnGroups(
+  items: readonly ConversationTurnItem[],
+  capacity: number,
+): ConversationTurnItem[][] {
+  const size = Math.max(1, Math.ceil(items.length / Math.max(1, capacity)));
+  const groups: ConversationTurnItem[][] = [];
+  for (let index = 0; index < items.length; index += size)
+    groups.push(items.slice(index, index + size));
+  return groups;
+}

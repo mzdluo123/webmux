@@ -506,7 +506,7 @@
       <Card.Header
         ><Card.Title>对话轮次刻度</Card.Title><Card.Description
           >用户刻度固定 12px；AI 按消息数使用 12 / 16 / 20 /
-          24px，当前刻度提高不透明度。长对话压缩行高，不独立滚动。</Card.Description
+          24px，当前刻度提高不透明度。长对话聚合相邻轮次，保持行高且不独立滚动。</Card.Description
         ></Card.Header
       >
       <Card.Content class="flex flex-col items-start">
@@ -529,6 +529,14 @@
             title={label}><span aria-hidden="true"></span></ListButton
           >
         {/each}
+        <ListButton
+          variant="turn"
+          data-turn-role="group"
+          data-turn-volume="many"
+          aria-label="第 2–8 轮 · 14 条消息"
+          title="第 2–8 轮 · 14 条消息"
+          ><span aria-hidden="true"></span></ListButton
+        >
       </Card.Content>
     </Card.Root>
   {:else if section === "feedback"}
