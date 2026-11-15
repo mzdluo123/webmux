@@ -173,3 +173,18 @@
 - 验证：`internal/hoststat` 新增解析用例、`TestWireSnapshots` 重录、`go vet`、gofmt 通过；darwin/windows 交叉编译通过；真实服务端到端返回 `swap` 字段且弹层渲染“已用 444.0 KB / 共 6.0 GB”；`pnpm --dir web check`、`lint`、`check:arch`、`make format-check` 通过。
 - PR 证据：桌面 1280×900、平板 768×800、手机 390×844 明暗主题六组前后对比截图（before 为移除新增行复现基线），手机截图为打开的导航抽屉内弹层。
 - 局限：macOS `vm.swapusage` 仅交叉编译未实机运行；无头浏览器未验证真实悬停与触屏常驻状态；未重新验收其他既有故事。
+
+## 明暗主题改为当前浏览器本地偏好（US-C09）
+
+- 范围（故事 ID 与总数 260 不变）：
+  - 将明暗主题（`system` / `light` / `dark`）从服务端同步设置（`/api/settings`、`/ws/settings`）迁回浏览器本机 `deviceScopedKeys`（`webmux.theme`，与 `index.html` 首屏内联防闪烁脚本对齐）；切换或清理远端宿主凭据时保留本机主题偏好；
+  - `internal/settings` 保留旧 `settings.json` 中遗留 `theme` 键的兼容读取并在下次写入时自动移除；`PATCH /api/settings` 提交 `theme` 返回 `400`；同步更新 Go wire 快照与前端严格契约；
+  - 设置页“外观与阅读”将主题选择器移出服务端同步 `<fieldset>` 并与语言、终端字号等本机偏好统一归组，服务端设置返回 `503` 不可用时仍可即时切换主题；同一浏览器的多标签页与独立代码窗口通过 `storage` 事件实时同步。
+- 本地验证：
+  - 静态与规格门禁：`make check`（前端构建、源码/测试/Storybook 类型检查、格式、Oxlint、`check:arch` 46 项架构断言且 0 克隆 0 未使用导出、`docs-check`、`persistence-check`、`go vet`、`golangci-lint` v2.15.0 0 告警）与 `openspec validate --specs`（99/99）通过；
+  - 后端与组件门禁：全仓 Go `-race` 测试通过；浏览器测试 118 文件 912 项通过；Storybook 完整套件 131 项通过；
+  - 单元测试：90 文件 1166 项通过；与本改动无关的 `test/base64url.test.ts` 1 项因本机 Node `v24.20.0` 尚未提供 `.nvmrc` Node `26.13.0` 原生 `Uint8Array.prototype.toBase64` 在本地失败，由远端 Node 26 CI 验证；
+  - 定向端到端回归：`theme`、`settings-sync`、`code-popout`、`page-stability`、`terminal`、`frontend-quality`、`i18n` 共 68 项通过、12 项按设备条件跳过、0 失败；
+  - 视觉与证据：隔离演示应用在 1280×900、1280×720、768×800、390×844、375×667、320×568、667×375 明暗主题共 28 个前后组合下核对无页面横向溢出；
+  - 公开取证：采集三组尺寸明暗前后对比截图、服务端 `503` 不可用降级前后对比图及 1280×900 正常速度交互 GIF（8.3 秒），全部 15 个公开直链均经 HTTP 200 校验。
+- 局限：仅在 Linux 无头 Chromium 下验证，未在手机、平板、macOS 或 Windows 真机验证真实鼠标悬停与触屏硬件行为；未重新验收其他既有故事。

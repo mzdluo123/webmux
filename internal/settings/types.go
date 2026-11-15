@@ -34,7 +34,6 @@ type Command struct {
 	Enter   bool   `json:"enter"`
 }
 type Values struct {
-	Theme         *string             `json:"theme"`
 	Preview       *Preview            `json:"preview"`
 	CodeReader    *CodeReader         `json:"codeReader"`
 	QuickCommands *[]Command          `json:"quickCommands"`
@@ -45,9 +44,11 @@ type Values struct {
 	// detected-port rows for ports 30000 and above when nil or true;
 	// omitempty keeps files written before this setting loadable.
 	IgnoreHighPorts *bool `json:"ignoreHighPorts,omitempty"`
-	// LegacyFontSize, LegacyChatIdleSleepMinutes and LegacyArtifactPrompt
-	// only let files written before those settings were removed load under
-	// strict decoding. Open discards them and they are never written back.
+	// LegacyTheme, LegacyFontSize, LegacyChatIdleSleepMinutes and
+	// LegacyArtifactPrompt only let files written before those settings were
+	// removed load under strict decoding. Open discards them and they are never
+	// written back.
+	LegacyTheme                json.RawMessage `json:"theme,omitempty"`
 	LegacyFontSize             json.RawMessage `json:"fontSize,omitempty"`
 	LegacyChatIdleSleepMinutes json.RawMessage `json:"chatIdleSleepMinutes,omitempty"`
 	LegacyArtifactPrompt       json.RawMessage `json:"artifactPrompt,omitempty"`
@@ -114,9 +115,6 @@ func validateValues(v Values) error {
 		}
 		pins[id] = true
 	}
-	if v.Theme != nil && *v.Theme != "light" && *v.Theme != "dark" {
-		return ErrInvalid
-	}
 	if v.Preview != nil && (v.Preview.Lines < 1 || v.Preview.Lines > 50 || v.Preview.Skip < 0 || v.Preview.Skip > 50) {
 		return ErrInvalid
 	}
@@ -182,7 +180,6 @@ func clonePtr[T any](p *T) *T {
 }
 func cloneValues(v Values) Values {
 	v.SessionPins = slices.Clone(v.SessionPins)
-	v.Theme = clonePtr(v.Theme)
 	v.Preview = clonePtr(v.Preview)
 	v.CodeReader = clonePtr(v.CodeReader)
 	v.ForceSoftKeys = clonePtr(v.ForceSoftKeys)
@@ -207,8 +204,6 @@ func apply(v Values, c Changes) (Values, error) {
 	}
 	for key := range c.Fields {
 		switch key {
-		case "theme":
-			v.Theme = c.Values.Theme
 		case "preview":
 			v.Preview = c.Values.Preview
 		case "codeReader":

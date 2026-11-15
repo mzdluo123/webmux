@@ -81,13 +81,11 @@ async function longPress(page: Page, start: Point, end?: Point) {
 
 test("dark theme corrects explicit black ANSI input and survives reload", async ({
   page,
-  request,
   workDir,
 }) => {
-  const prefs = await (await request.get("/api/settings")).json();
-  await request.patch("/api/settings", {
-    data: { baseRevision: prefs.revision, changes: { theme: "dark" } },
-  });
+  await page.goto("/settings");
+  await page.getByRole("radio", { name: "深色", exact: true }).click();
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/);
   await createShell(page, "Dark contrast", workDir);
   await runCommand(
     page,

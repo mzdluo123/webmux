@@ -159,7 +159,7 @@ export const RecentDirsSchema = z
   .transform((dirs) => dirs.slice(0, 10));
 export const FontSizeSchema = z.coerce.number().int().min(8).max(20);
 export const CodeFontSizeSchema = z.coerce.number().int().min(10).max(24);
-const ThemeSchema = z.enum(["light", "dark"]);
+export const ThemeSchema = z.enum(["light", "dark"]);
 export type Theme = z.infer<typeof ThemeSchema>;
 export const TextSettingSchema = z.string();
 export const QuickCommandSchema = z.object({
@@ -223,7 +223,6 @@ export const SessionPinsSchema = z
 
 // User preferences shared by every authenticated client of this server.
 export const SettingsValuesSchema = z.strictObject({
-  theme: ThemeSchema.nullable(),
   preview: PreviewSettingsSchema.nullable(),
   codeReader: z
     .strictObject({

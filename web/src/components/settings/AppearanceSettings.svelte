@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import {
     settings,
     changeSettings,
@@ -9,6 +10,7 @@
     minFontSize,
     maxFontSize,
   } from "../../hooks/terminal/terminal-font-preference.svelte";
+  import { initializeTheme, themePreference } from "../../hooks/settings/theme";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -20,6 +22,7 @@
   import LocaleChoice from "../shared/LocaleChoice.svelte";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import { headsetMode } from "../../hooks/shared/headset-mode.svelte";
+
   let fontDraft = $state<number | undefined>(undefined);
   const fontInput = $derived(fontDraft ?? terminalFont.size);
   const validFont = $derived(
@@ -27,6 +30,10 @@
       fontInput >= minFontSize &&
       fontInput <= maxFontSize,
   );
+
+  onMount(() => {
+    initializeTheme();
+  });
 </script>
 
 <Card.Root flat id="appearance" class="scroll-mt-4">
@@ -38,6 +45,60 @@
     <div class="space-y-2">
       <p class="text-sm font-medium">{m.locale_label()}</p>
       <LocaleChoice />
+    </div>
+    <div class="space-y-2">
+      <p class="text-sm font-medium">{m.s2_theme()}</p>
+      <SegmentedControl.Root
+        value={themePreference.value}
+        onValueChange={(value) => {
+          if (value === "system" || value === "light" || value === "dark") {
+            themePreference.set(value);
+          }
+        }}
+        aria-label={m.s2_theme()}
+        wrap
+      >
+        <SegmentedControl.Item value="system"
+          >{m.s2_theme_system()}</SegmentedControl.Item
+        >
+        <SegmentedControl.Item value="light"
+          >{m.s2_theme_light()}</SegmentedControl.Item
+        >
+        <SegmentedControl.Item value="dark"
+          >{m.s2_theme_dark()}</SegmentedControl.Item
+        >
+      </SegmentedControl.Root>
+    </div>
+    <div class="space-y-2">
+      <Label for="settings-font">{m.s2_terminal_font_size()}</Label>
+      <Input
+        id="settings-font"
+        type="number"
+        min={minFontSize}
+        max={maxFontSize}
+        step={1}
+        value={fontInput}
+        oninput={(event) => {
+          fontDraft = event.currentTarget.valueAsNumber;
+          if (validFont) terminalFont.set(fontDraft);
+        }}
+        onblur={() => (fontDraft = undefined)}
+        aria-invalid={!validFont}
+      />
+      {#if !validFont}<p role="alert" class="text-sm text-destructive">
+          {m.s2_terminal_font_range_err({
+            min: String(minFontSize),
+            max: String(maxFontSize),
+          })}
+        </p>{/if}
+      <Button
+        variant="outline"
+        size="sm"
+        onclick={() => {
+          fontDraft = undefined;
+          terminalFont.reset();
+        }}>{m.s2_reset_default_font()}</Button
+      >
     </div>
     <div class="flex items-center justify-between gap-4">
       <div class="space-y-1">
@@ -82,60 +143,7 @@
     {#if settings.error}<InlineNotice tone="danger"
         >{settings.error}</InlineNotice
       >{/if}
-    <div class="space-y-2">
-      <Label for="settings-font">{m.s2_terminal_font_size()}</Label>
-      <Input
-        id="settings-font"
-        type="number"
-        min={minFontSize}
-        max={maxFontSize}
-        step={1}
-        value={fontInput}
-        oninput={(event) => {
-          fontDraft = event.currentTarget.valueAsNumber;
-          if (validFont) terminalFont.set(fontDraft);
-        }}
-        onblur={() => (fontDraft = undefined)}
-        aria-invalid={!validFont}
-      />
-      {#if !validFont}<p role="alert" class="text-sm text-destructive">
-          {m.s2_terminal_font_range_err({
-            min: String(minFontSize),
-            max: String(maxFontSize),
-          })}
-        </p>{/if}
-      <Button
-        variant="outline"
-        size="sm"
-        onclick={() => {
-          fontDraft = undefined;
-          terminalFont.reset();
-        }}>{m.s2_reset_default_font()}</Button
-      >
-    </div>
     <fieldset disabled={!settings.ready} class="space-y-6">
-      <div class="space-y-2">
-        <p class="text-sm font-medium">{m.s2_theme()}</p>
-        <SegmentedControl.Root
-          value={settings.values.theme ?? "system"}
-          onValueChange={(value) =>
-            changeSettings({
-              theme: value === "light" || value === "dark" ? value : null,
-            })}
-          disabled={!settings.ready}
-          aria-label={m.s2_theme()}
-        >
-          <SegmentedControl.Item value="system"
-            >{m.s2_theme_system()}</SegmentedControl.Item
-          >
-          <SegmentedControl.Item value="light"
-            >{m.s2_theme_light()}</SegmentedControl.Item
-          >
-          <SegmentedControl.Item value="dark"
-            >{m.s2_theme_dark()}</SegmentedControl.Item
-          >
-        </SegmentedControl.Root>
-      </div>
       <div class="flex items-center justify-between gap-3">
         <Label for="settings-softkeys">{m.s2_force_softkeys()}</Label>
         <Switch

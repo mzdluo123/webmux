@@ -9,6 +9,13 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Settings from "../../src/pages/Settings.svelte";
 import { FeatureIDSchema } from "../../src/contracts/feature-schemas";
+import { themePreference } from "../../src/hooks/settings/theme";
+import {
+  clearHostStorage,
+  setActiveHostId,
+  store,
+  stored,
+} from "../../src/platform/storage";
 import {
   enableCreationFeatures,
   resetCreationFeatures,
@@ -25,7 +32,9 @@ afterEach(async () => {
   resetCreationFeatures();
   vi.unstubAllGlobals();
   history.replaceState(null, "", originalURL);
+  setActiveHostId(null);
   localStorage.clear();
+  themePreference.refresh();
   await page.viewport(1024, 900);
 });
 
@@ -228,7 +237,7 @@ test("core settings navigation and sections exclude every disabled provider", as
     .toBeVisible();
 });
 
-test("core theme saves do not submit or erase inactive feature preferences", async () => {
+test("core preference saves do not submit or erase inactive feature preferences", async () => {
   await enableCreationFeatures([]);
   const values = {
     ...emptySettings,
@@ -261,11 +270,60 @@ test("core theme saves do not submit or erase inactive feature preferences", asy
   await reloadSettings();
   render(Settings);
   await page.getByRole("radio", { name: "深色", exact: true }).click();
+  expect(localStorage.getItem("webmux.theme")).toBe("dark");
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
+  expect(patches).toEqual([]);
+
+  await page.getByRole("switch", { name: "始终显示底部工具栏" }).click();
   await vi.waitFor(() => expect(patches).toHaveLength(1));
-  expect(patches).toEqual([{ baseRevision: 0, changes: { theme: "dark" } }]);
+  expect(patches).toEqual([
+    { baseRevision: 0, changes: { forceSoftKeys: true } },
+  ]);
   expect(settings.values.codeReader).toEqual(values.codeReader);
   expect(settings.values.ignoreHighPorts).toBe(false);
   expect(
     page.getByRole("switch", { name: "代码行号" }).elements(),
   ).toHaveLength(0);
+});
+
+test("theme stays device-local, works offline, and syncs across same-browser windows", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({ error: "unavailable" }, { status: 503 }),
+    ),
+  );
+  stopSettings();
+  await reloadSettings();
+  render(Settings);
+
+  const group = page.getByRole("radiogroup", { name: "主题", exact: true });
+  await expect.element(group).toBeVisible();
+  await group.getByRole("radio", { name: "深色", exact: true }).click();
+  expect(localStorage.getItem("webmux.theme")).toBe("dark");
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
+
+  setActiveHostId("remote-a");
+  store("token", "ephemeral");
+  clearHostStorage("remote-a");
+  expect(stored("token")).toBe("");
+  expect(stored("theme")).toBe("dark");
+  setActiveHostId(null);
+
+  localStorage.setItem("webmux.theme", "light");
+  window.dispatchEvent(
+    new StorageEvent("storage", {
+      key: "webmux.theme",
+      newValue: "light",
+      storageArea: localStorage,
+    }),
+  );
+  expect(document.documentElement.classList.contains("dark")).toBe(false);
+  await expect
+    .element(group.getByRole("radio", { name: "浅色", exact: true }))
+    .toHaveAttribute("aria-checked", "true");
+
+  await group.getByRole("radio", { name: "跟随系统", exact: true }).click();
+  expect(localStorage.getItem("webmux.theme")).toBeNull();
+  expect(themePreference.value).toBe("system");
 });

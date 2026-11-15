@@ -28,13 +28,19 @@ test("isolated desktop and phone synchronize preferences in both directions", as
     await expect(a.getByText("已连接 · 设置已同步")).toBeVisible();
     await expect(b.getByText("已连接 · 设置已同步")).toBeVisible();
     await a.getByRole("radio", { name: "深色", exact: true }).click();
-    await expect(b.locator("html")).toHaveClass(/dark/);
+    await expect(a.locator("html")).toHaveClass(/dark/);
+    await expect(b.locator("html")).not.toHaveClass(/dark/);
     await a.getByLabel("终端字号", { exact: true }).fill("18");
     await a.getByLabel("终端字号", { exact: true }).press("Tab");
     await expect(a.getByLabel("终端字号", { exact: true })).toHaveValue("18");
     await expect(b.getByLabel("终端字号", { exact: true })).toHaveValue("15");
     await b.getByRole("radio", { name: "浅色", exact: true }).click();
-    await expect(a.locator("html")).not.toHaveClass(/dark/);
+    await expect(b.locator("html")).not.toHaveClass(/dark/);
+    await expect(a.locator("html")).toHaveClass(/dark/);
+    await a.getByRole("switch", { name: "始终显示底部工具栏" }).click();
+    await expect(
+      b.getByRole("switch", { name: "始终显示底部工具栏" }),
+    ).toBeChecked();
     await b.getByRole("switch", { name: "Diff 自动换行" }).click();
     await expect(
       a.getByRole("switch", { name: "Diff 自动换行" }),
@@ -51,12 +57,15 @@ test("isolated desktop and phone synchronize preferences in both directions", as
     await expect(
       b.getByRole("button", { name: "编辑 共享回显" }),
     ).toBeVisible();
-    expect(
-      (await (await request.get("/api/settings")).json()).values,
-    ).not.toHaveProperty("fontSize");
+    const serverValues = (await (await request.get("/api/settings")).json())
+      .values;
+    expect(serverValues).not.toHaveProperty("theme");
+    expect(serverValues).not.toHaveProperty("fontSize");
     await server.restart();
     await a.reload();
     await b.reload();
+    await expect(a.locator("html")).toHaveClass(/dark/);
+    await expect(b.locator("html")).not.toHaveClass(/dark/);
     await expect(a.getByLabel("终端字号", { exact: true })).toHaveValue("18");
     await expect(b.getByLabel("终端字号", { exact: true })).toHaveValue("15");
     await expect(
@@ -84,8 +93,9 @@ test("legacy browser keys never overwrite server preferences", async ({
   });
   await page.goto("/settings");
   await expect(page.getByText("已连接 · 设置已同步")).toBeVisible();
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/);
   const snapshot = await (await request.get("/api/settings")).json();
-  expect(snapshot.values.theme).toBeNull();
+  expect(snapshot.values).not.toHaveProperty("theme");
   expect(snapshot.values.quickCommands).toBeNull();
   await expect(
     page.getByRole("button", { name: "编辑 恢复会话" }),
@@ -107,8 +117,13 @@ test("corrupt settings preserve bytes while terminal APIs remain available", asy
       "settings.json",
     );
     await expect(
-      page.getByRole("radio", { name: "深色", exact: true }),
+      page.getByRole("switch", { name: "始终显示底部工具栏" }),
     ).toBeDisabled();
+    await expect(
+      page.getByRole("radio", { name: "深色", exact: true }),
+    ).toBeEnabled();
+    await page.getByRole("radio", { name: "深色", exact: true }).click();
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
     expect((await request.get("/api/settings")).status()).toBe(503);
     expect((await request.get("/api/health")).status()).toBe(200);
     expect(await readFile(path, "utf8")).toBe("{corrupt-private-body");

@@ -7,7 +7,6 @@ export const defaultCodeReader = {
   diffOverflow: "scroll",
 } as const;
 export const emptySettings: SettingsValues = {
-  theme: null,
   preview: null,
   codeReader: null,
   quickCommands: null,

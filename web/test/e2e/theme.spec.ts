@@ -3,9 +3,6 @@ import { test, expect, revealSidebar } from "./fixtures";
 
 async function openThemeControl(page: Page) {
   await page.goto("/");
-  await page.waitForFunction(() =>
-    localStorage.getItem("webmux.settingsCache"),
-  );
   await revealSidebar(page);
   return page.getByRole("button", { name: /^切换为[黑白]色主题$/ });
 }
@@ -52,12 +49,12 @@ test("both themes reveal from the button center and keep keyboard focus", async 
     );
     await expect(button).toBeFocused();
     await expect(root).not.toHaveAttribute("data-theme-transition");
-    await expect
-      .poll(async () => {
-        const response = await request.get("/api/settings");
-        return (await response.json()).values.theme;
-      })
-      .toBe(theme);
+    expect(
+      await page.evaluate(() => localStorage.getItem("webmux.theme")),
+    ).toBe(theme);
+    expect(
+      (await (await request.get("/api/settings")).json()).values,
+    ).not.toHaveProperty("theme");
   }
 
   await button.evaluate((button: HTMLButtonElement) => {

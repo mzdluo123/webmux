@@ -8,6 +8,7 @@ const hostIdPattern = /^[A-Za-z0-9_-]{1,64}$/;
  */
 export const deviceScopedKeys: ReadonlySet<string> = new Set([
   "locale",
+  "theme",
   "shellMode",
   "sidebarCollapsed",
   "sidebarWidth",

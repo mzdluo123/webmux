@@ -10,14 +10,14 @@ import (
 	"testing"
 )
 
-func themeChange(value string) Changes {
-	return Changes{Fields: map[string]bool{"theme": true}, Values: Values{Theme: &value}}
+func softKeysChange(value bool) Changes {
+	return Changes{Fields: map[string]bool{"forceSoftKeys": true}, Values: Values{ForceSoftKeys: &value}}
 }
 func TestDurableRevisionsAndSubscriptions(t *testing.T) {
 	dir := t.TempDir()
 	s := Open(dir)
 	initial, err := s.Snapshot()
-	if err != nil || initial.Revision != 0 || initial.Values.Theme != nil {
+	if err != nil || initial.Revision != 0 || initial.Values.ForceSoftKeys != nil {
 		t.Fatalf("initial: %+v %v", initial, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "settings.json")); !os.IsNotExist(err) {
@@ -36,22 +36,22 @@ func TestDurableRevisionsAndSubscriptions(t *testing.T) {
 	if first := <-sub.Events; first.Snapshot == nil || first.Snapshot.Revision != 0 {
 		t.Fatalf("first: %+v", first)
 	}
-	next, err := s.Patch(0, themeChange("dark"))
+	next, err := s.Patch(0, softKeysChange(true))
 	if err != nil || next.Revision != 1 {
 		t.Fatalf("patch: %+v %v", next, err)
 	}
-	if e := <-sub.Events; e.Revision != 1 || !e.Changes.Fields["theme"] {
+	if e := <-sub.Events; e.Revision != 1 || !e.Changes.Fields["forceSoftKeys"] {
 		t.Fatalf("event: %+v", e)
 	}
-	*next.Values.Theme = "light"
-	if _, err := s.Patch(0, themeChange("light")); !errors.Is(err, ErrConflict) {
+	*next.Values.ForceSoftKeys = false
+	if _, err := s.Patch(0, softKeysChange(false)); !errors.Is(err, ErrConflict) {
 		t.Fatal(err)
 	}
 	s.Close()
 	reopened := Open(dir)
 	defer reopened.Close()
 	got, err := reopened.Snapshot()
-	if err != nil || got.Revision != 1 || *got.Values.Theme != "dark" {
+	if err != nil || got.Revision != 1 || got.Values.ForceSoftKeys == nil || !*got.Values.ForceSoftKeys {
 		t.Fatalf("reopen: %+v %v", got, err)
 	}
 }
@@ -60,8 +60,8 @@ func TestAtomicConcurrentPatch(t *testing.T) {
 	defer s.Close()
 	var wg sync.WaitGroup
 	results := make(chan error, 2)
-	for _, theme := range []string{"dark", "light"} {
-		wg.Go(func() { _, err := s.Patch(0, themeChange(theme)); results <- err })
+	for _, value := range []bool{true, false} {
+		wg.Go(func() { _, err := s.Patch(0, softKeysChange(value)); results <- err })
 	}
 	wg.Wait()
 	close(results)
@@ -89,7 +89,7 @@ func TestCorruptionPreserved(t *testing.T) {
 			}
 			s := Open(dir)
 			defer s.Close()
-			if _, err := s.Patch(0, themeChange("dark")); !errors.Is(err, ErrUnavailable) {
+			if _, err := s.Patch(0, softKeysChange(true)); !errors.Is(err, ErrUnavailable) {
 				t.Fatal(err)
 			}
 			got, err := os.ReadFile(path)
@@ -100,7 +100,7 @@ func TestCorruptionPreserved(t *testing.T) {
 	}
 }
 
-// Files written with legacy fontSize or chatIdleSleepMinutes keys load
+// Files written with legacy theme, fontSize or chatIdleSleepMinutes keys load
 // cleanly and drop those keys on the next write.
 func TestLoadsFileWithLegacySettingsKeys(t *testing.T) {
 	dir := t.TempDir()
@@ -111,7 +111,7 @@ func TestLoadsFileWithLegacySettingsKeys(t *testing.T) {
 	s := Open(dir)
 	defer s.Close()
 	v, err := s.Snapshot()
-	if err != nil || v.Revision != 11 || v.Values.Theme == nil || *v.Values.Theme != "dark" || v.Values.ForceSoftKeys == nil || !*v.Values.ForceSoftKeys {
+	if err != nil || v.Revision != 11 || v.Values.ForceSoftKeys == nil || !*v.Values.ForceSoftKeys {
 		t.Fatalf("snapshot: %+v %v", v, err)
 	}
 	softKeys := false
@@ -119,7 +119,7 @@ func TestLoadsFileWithLegacySettingsKeys(t *testing.T) {
 		t.Fatalf("patch: %+v %v", v, err)
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, "settings.json"))
-	if err != nil || strings.Contains(string(raw), "fontSize") || strings.Contains(string(raw), "chatIdleSleepMinutes") {
+	if err != nil || strings.Contains(string(raw), "theme") || strings.Contains(string(raw), "fontSize") || strings.Contains(string(raw), "chatIdleSleepMinutes") {
 		t.Fatalf("legacy keys rewritten: %s %v", raw, err)
 	}
 }
@@ -132,7 +132,7 @@ func TestFailedCommitDoesNotPublish(t *testing.T) {
 	}
 	<-sub.Events
 	s.commit = func(storedFile) error { return errors.New("injected disk failure") }
-	if _, err := s.Patch(0, themeChange("dark")); !errors.Is(err, ErrUnavailable) {
+	if _, err := s.Patch(0, softKeysChange(true)); !errors.Is(err, ErrUnavailable) {
 		t.Fatal(err)
 	}
 	if s.current.Revision != 0 {
@@ -141,7 +141,7 @@ func TestFailedCommitDoesNotPublish(t *testing.T) {
 	if _, ok := <-sub.Events; ok {
 		t.Fatal("uncommitted event")
 	}
-	if _, err := s.Patch(0, themeChange("light")); !errors.Is(err, ErrUnavailable) {
+	if _, err := s.Patch(0, softKeysChange(false)); !errors.Is(err, ErrUnavailable) {
 		t.Fatal("writes not frozen")
 	}
 }
@@ -166,7 +166,7 @@ func TestSlowSubscriberDoesNotBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := range int64(40) {
-		if _, err := s.Patch(i, themeChange("dark")); err != nil {
+		if _, err := s.Patch(i, softKeysChange(true)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -194,7 +194,7 @@ func TestSubscribeConcurrentCommitHasNoGap(t *testing.T) {
 			}
 			subscribed <- sub
 		}()
-		go func() { <-start; _, err := s.Patch(0, themeChange("dark")); committed <- err }()
+		go func() { <-start; _, err := s.Patch(0, softKeysChange(true)); committed <- err }()
 		close(start)
 		sub := <-subscribed
 		if sub == nil {
@@ -293,11 +293,11 @@ func TestQuickCommandNames(t *testing.T) {
 	if got := (*snap.Values.QuickCommands)[3].Command; got != "放 {{dir}} 与 {{dir}}" {
 		t.Fatalf("legacy placeholder %q", got)
 	}
-	theme := "light"
-	if _, err := s.Patch(3, Changes{Fields: map[string]bool{"theme": true}, Values: Values{Theme: &theme}}); err != nil {
+	softKeys := true
+	if _, err := s.Patch(3, Changes{Fields: map[string]bool{"forceSoftKeys": true}, Values: Values{ForceSoftKeys: &softKeys}}); err != nil {
 		t.Fatalf("unrelated patch with a legacy unnamed command: %v", err)
 	}
-	if stored, _ := os.ReadFile(filepath.Join(dir, "settings.json")); strings.Contains(string(stored), "artifactPrompt") {
+	if stored, _ := os.ReadFile(filepath.Join(dir, "settings.json")); strings.Contains(string(stored), "artifactPrompt") || strings.Contains(string(stored), "theme") {
 		t.Fatalf("retired key written back: %s", stored)
 	}
 }

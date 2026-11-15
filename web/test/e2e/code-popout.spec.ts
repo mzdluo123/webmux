@@ -2,7 +2,13 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Frame, FrameLocator, Locator, Page } from "@playwright/test";
-import { test, expect, createShell, toggleCode } from "./fixtures";
+import {
+  test,
+  expect,
+  createShell,
+  revealSidebar,
+  toggleCode,
+} from "./fixtures";
 
 function git(root: string, ...args: string[]) {
   execFileSync("git", ["-C", root, ...args], {
@@ -194,16 +200,35 @@ test("the code panel pops out into a framed window and both ways keeps its readi
     .poll(async () => Math.abs((await topLine(frame)) - top))
     .toBeLessThanOrEqual(1);
 
-  // Server settings, such as the theme, reach the window.
+  // Browser-local theme changes and server code-reader settings reach the window.
+  await revealSidebar(page);
+  await page
+    .getByRole("button", { name: "切换为黑色主题", exact: true })
+    .click();
+  await expect(frame.locator("html")).toHaveClass(/\bdark\b/);
+  await page
+    .getByRole("button", { name: "切换为白色主题", exact: true })
+    .click();
+  await expect(frame.locator("html")).not.toHaveClass(/\bdark\b/);
   const settings = await (await request.get("/api/settings")).json();
   await request.patch("/api/settings", {
-    data: { baseRevision: settings.revision, changes: { theme: "dark" } },
+    data: {
+      baseRevision: settings.revision,
+      changes: {
+        codeReader: { lineNumbers: "hide", diffOverflow: "scroll" },
+      },
+    },
   });
-  await expect(frame.locator("html")).toHaveClass(/\bdark\b/);
+  await expect(
+    frame.getByRole("button", { name: "显示行号", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
   const latest = await (await request.get("/api/settings")).json();
   await request.patch("/api/settings", {
-    data: { baseRevision: latest.revision, changes: { theme: null } },
+    data: { baseRevision: latest.revision, changes: { codeReader: null } },
   });
+  await expect(
+    frame.getByRole("button", { name: "显示行号", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 
   // Menus and dialogs open inside the window, at the pointer.
   await frame.getByRole("tab", { name: "文件", exact: true }).click();
