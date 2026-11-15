@@ -369,11 +369,20 @@ for (const theme of ["light", "dark"]) {
       await first.click();
       const directory = page.getByRole("dialog");
       await expect(directory).toBeVisible();
-      const box = await directory.boundingBox();
-      expect(box!.x).toBeGreaterThanOrEqual(0);
-      expect(box!.y).toBeGreaterThanOrEqual(0);
-      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
-      expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+      // Visibility precedes floating-position calculation and the opening
+      // transform. Assert the settled bounds rather than the first frame.
+      await expect
+        .poll(async () => {
+          const box = await directory.boundingBox();
+          return (
+            !!box &&
+            box.x >= 0 &&
+            box.y >= 0 &&
+            box.x + box.width <= viewport.width &&
+            box.y + box.height <= viewport.height
+          );
+        })
+        .toBe(true);
       await directory
         .getByRole("button", { name: /^第 1 轮 · 你：修复首页搜索/ })
         .click();
