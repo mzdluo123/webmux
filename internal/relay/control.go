@@ -47,7 +47,7 @@ func (r *controlRPC) start() {
 }
 
 func (r *controlRPC) message(kind protocol.ControlType, id protocol.Token) protocol.ControlMessage {
-	return protocol.ControlMessage{Version: protocol.V1, Type: kind, RequestID: id, Scope: r.session.scope, ExpiresAt: time.Now().Add(protocol.RequestTimeout).Unix()}
+	return protocol.ControlMessage{Version: protocol.V1, Type: kind, RequestID: id, Scope: r.session.scope, ExpiresAt: time.Now().Add(protocol.ControlMessageTTL).Unix()}
 }
 
 func (r *controlRPC) send(ctx context.Context, message protocol.ControlMessage) error {

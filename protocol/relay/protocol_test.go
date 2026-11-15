@@ -266,6 +266,21 @@ func TestControlUnionAndBrowserAuthority(t *testing.T) {
 	}
 }
 
+func TestControlMessageExpiry(t *testing.T) {
+	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
+	for _, kind := range []ControlType{ControlPing, ControlPong} {
+		m := ControlMessage{Version: V1, Type: kind, RequestID: vectorToken, Scope: scope, ExpiresAt: vectorNow.Add(time.Minute).Unix()}
+		for _, delay := range []time.Duration{0, 15 * time.Second, 59 * time.Second} {
+			if err := m.Validate(scope, vectorNow.Add(delay)); err != nil {
+				t.Fatalf("%s delayed by %s: %v", kind, delay, err)
+			}
+		}
+		requireCode(t, m.Validate(scope, vectorNow.Add(time.Minute)), Expired)
+		m.ExpiresAt++
+		requireCode(t, m.Validate(scope, vectorNow), Expired)
+	}
+}
+
 func TestIndependentSignatureVector(t *testing.T) {
 	key, _ := vectorKey(t)
 	p, err := SignConnector(key, vectorChallenge(), vectorNow)

@@ -189,7 +189,7 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 	if m.Scope != expected {
 		return Error{Code: StaleGeneration}
 	}
-	if !validUntil(now, m.ExpiresAt, RequestTimeout) {
+	if !validUntil(now, m.ExpiresAt, ControlMessageTTL) {
 		return Error{Code: Expired}
 	}
 	count := 0
