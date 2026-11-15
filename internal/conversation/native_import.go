@@ -90,7 +90,13 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 	out.Pending = parsed.Pending
 	out.Consumed = parsed.Consumed
 	for _, r := range records {
-		out.Diagnostics = append(out.Diagnostics, r.Diagnostics...)
+		for _, d := range r.Diagnostics {
+			if len(out.Diagnostics) < 256 {
+				out.Diagnostics = append(out.Diagnostics, d)
+			} else if len(out.Diagnostics) == 256 {
+				out.Diagnostics = append(out.Diagnostics, codexrollout.Diagnostic{Offset: d.Offset, Category: "diagnostics_limited"})
+			}
+		}
 	}
 	err = s.transact(ctx, func(tx *sql.Tx) error {
 		var private bool
@@ -185,6 +191,13 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 				return err
 			}
 		}
+		gapSeen := map[string]bool{}
+		if len(out.Diagnostics) > 256 {
+			if err = s.addGap(ctx, tx, out.Binding.ProviderThreadID, "diagnostics_limited"); err != nil {
+				return err
+			}
+			gapSeen["diagnostics_limited"] = true
+		}
 		for _, r := range records {
 			if r.End <= oldOffset {
 				continue
@@ -231,6 +244,10 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 				}
 			}
 			for _, d := range r.Diagnostics {
+				if gapSeen[d.Category] {
+					continue
+				}
+				gapSeen[d.Category] = true
 				if err = s.addGap(ctx, tx, out.Binding.ProviderThreadID, d.Category); err != nil {
 					return err
 				}

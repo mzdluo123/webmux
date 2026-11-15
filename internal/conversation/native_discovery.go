@@ -1,10 +1,13 @@
 package conversation
 
-import "github.com/rainchan/webmux/internal/codexrollout"
+import (
+	"context"
+	"github.com/rainchan/webmux/internal/codexrollout"
+)
 
-func (s *Service) DiscoverCodex(root string) ([]codexrollout.File, error) {
+func (s *Service) DiscoverCodex(ctx context.Context, root string) (codexrollout.Discovery, error) {
 	if !s.HistoryEnabled() {
-		return nil, ErrUnavailable
+		return codexrollout.Discovery{}, ErrUnavailable
 	}
-	return codexrollout.Discover(root)
+	return codexrollout.Discover(ctx, root)
 }

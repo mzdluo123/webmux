@@ -15,6 +15,7 @@ import (
 )
 
 var conversationID = regexp.MustCompile(`^[a-f0-9]{32}$`)
+var activityID = regexp.MustCompile(`^[a-f0-9]{32}([a-f0-9]{32})?$`)
 var conversationCursor = regexp.MustCompile(`^(0|[1-9][0-9]{0,18})$`)
 
 func (s *Server) conversationRoutes(mux transport.Registrar) {
@@ -102,7 +103,7 @@ func (s *Server) conversationActivity(r *http.Request) (contract.ConversationAct
 		return out, conversation.ErrUnavailable
 	}
 	id, item := r.PathValue("id"), r.PathValue("activityId")
-	if !conversationID.MatchString(id) || !conversationID.MatchString(item) {
+	if !conversationID.MatchString(id) || !activityID.MatchString(item) {
 		return out, conversation.ErrInvalid
 	}
 	q, err := readConversationQuery(r, "textOffset", "maxBytes")

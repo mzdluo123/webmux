@@ -25,6 +25,12 @@ CREATE TABLE history_snapshot (
  parser TEXT NOT NULL, consumed INTEGER NOT NULL, checksum TEXT NOT NULL,
  diagnostics BLOB NOT NULL, model TEXT NOT NULL
 );
+CREATE UNIQUE INDEX native_record_without_item ON native_record(source_id,offset) WHERE activity_id IS NULL;
+CREATE TABLE history_snapshot_gap (
+ snapshot_id TEXT NOT NULL REFERENCES history_snapshot(id) ON DELETE CASCADE,
+ position INTEGER NOT NULL, id TEXT NOT NULL, provider_thread_id TEXT NOT NULL,
+ reason TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(snapshot_id,position)
+);
 CREATE TABLE history_snapshot_item (
  snapshot_id TEXT NOT NULL REFERENCES history_snapshot(id) ON DELETE CASCADE,
  activity_id TEXT NOT NULL REFERENCES activity(id) ON DELETE CASCADE,

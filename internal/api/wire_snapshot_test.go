@@ -123,6 +123,8 @@ func wireSchema(name string) wireRules {
 		add("", "id", "sourceId", "conversationId", "snapshotId")
 		add("/activities/items/*", "id", "activityId", "conversationId", "providerThreadId", "runId")
 		add("/provenance/*", "id", "activityId", "sourceId")
+		add("/activities/gaps/*", "id", "id", "providerThreadId")
+		add("/activities/gaps/*", "time", "createdAt")
 	case "conversation-activities", "conversation-activities-empty":
 		add("/items/*", "id", "activityId", "conversationId", "providerThreadId", "runId")
 		add("/items/*", "time", "createdAt")

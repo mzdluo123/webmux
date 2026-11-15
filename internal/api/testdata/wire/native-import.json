@@ -12,7 +12,9 @@
     "conversationId": "<conversationId#2>",
     "files": [],
     "gaps": [
+      "257:mirror_pairing_unverified",
       "1088:nonexportable_reasoning",
+      "1251:mirror_pairing_unverified",
       "1530:compaction_boundary"
     ],
     "model": "",
@@ -21,6 +23,7 @@
     "pending": false,
     "provenance": [],
     "snapshotId": "",
-    "sourceId": "<sourceId#1>"
+    "sourceId": "<sourceId#1>",
+    "truncated": false
   }
 }

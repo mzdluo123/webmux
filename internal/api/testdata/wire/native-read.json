@@ -2,7 +2,32 @@
   "status": 200,
   "body": {
     "activities": {
-      "gaps": [],
+      "gaps": [
+        {
+          "createdAt": "<time>",
+          "id": "<id#2>",
+          "providerThreadId": "<providerThreadId#2>",
+          "reason": "compaction_boundary"
+        },
+        {
+          "createdAt": "<time>",
+          "id": "<id#3>",
+          "providerThreadId": "<providerThreadId#2>",
+          "reason": "mirror_pairing_unverified"
+        },
+        {
+          "createdAt": "<time>",
+          "id": "<id#4>",
+          "providerThreadId": "<providerThreadId#2>",
+          "reason": "native_acp_unreconciled"
+        },
+        {
+          "createdAt": "<time>",
+          "id": "<id#5>",
+          "providerThreadId": "<providerThreadId#2>",
+          "reason": "nonexportable_reasoning"
+        }
+      ],
       "historyOrigin": "bounded_import",
       "items": [
         {
@@ -133,13 +158,14 @@
         }
       ],
       "nextPosition": "6",
-      "reconcileRequired": false
+      "reconcileRequired": true
     },
     "consumed": "1659",
     "conversationId": "",
     "files": [],
     "gaps": [
       "compaction_boundary",
+      "mirror_pairing_unverified",
       "native_acp_unreconciled",
       "nonexportable_reasoning"
     ],
@@ -155,6 +181,7 @@
         "end": "557",
         "kind": "message",
         "offset": "385",
+        "position": "1",
         "sourceId": "<sourceId#1>",
         "toolName": ""
       },
@@ -165,6 +192,7 @@
         "end": "760",
         "kind": "turn_start",
         "offset": "557",
+        "position": "2",
         "sourceId": "<sourceId#1>",
         "toolName": ""
       },
@@ -175,6 +203,7 @@
         "end": "937",
         "kind": "tool_arguments",
         "offset": "760",
+        "position": "3",
         "sourceId": "<sourceId#1>",
         "toolName": "exec_command"
       },
@@ -185,6 +214,7 @@
         "end": "1088",
         "kind": "tool_result",
         "offset": "937",
+        "position": "4",
         "sourceId": "<sourceId#1>",
         "toolName": ""
       },
@@ -195,6 +225,7 @@
         "end": "1530",
         "kind": "message",
         "offset": "1366",
+        "position": "5",
         "sourceId": "<sourceId#1>",
         "toolName": ""
       },
@@ -205,11 +236,13 @@
         "end": "1659",
         "kind": "compaction",
         "offset": "1530",
+        "position": "6",
         "sourceId": "<sourceId#1>",
         "toolName": ""
       }
     ],
     "snapshotId": "<snapshotId#1>",
-    "sourceId": "<sourceId#1>"
+    "sourceId": "<sourceId#1>",
+    "truncated": false
   }
 }

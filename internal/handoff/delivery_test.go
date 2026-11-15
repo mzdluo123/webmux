@@ -480,7 +480,7 @@ func TestV10ForgottenSourceForkStillResumesAfterUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.Exec(`DROP TABLE history_snapshot_reference; DROP TABLE history_snapshot_item;
+	_, err = db.Exec(`DROP TABLE history_snapshot_gap; DROP TABLE history_snapshot_reference; DROP TABLE history_snapshot_item;
  DROP TABLE history_snapshot; DROP TABLE native_record; DROP TABLE native_location; DROP TABLE native_source;
  DROP TRIGGER dispatch_receipt_insert; DROP TRIGGER dispatch_receipt_update;
  DROP TRIGGER dispatch_receipt_delete; DROP TRIGGER dispatch_receipt_history; DROP TABLE dispatch_receipt;

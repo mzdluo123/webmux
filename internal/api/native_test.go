@@ -37,6 +37,9 @@ func TestNativeAuthenticatedWorkflow(t *testing.T) {
 	if response := call(`{"action":"render","snapshotId":"missing"}`, "secret", ""); response.Code != 404 {
 		t.Fatal(response.Code, response.Body.String())
 	}
+	if response := call(`{"action":"project","snapshotId":"missing","outputRunes":-1}`, "secret", ""); response.Code != 400 {
+		t.Fatal(response.Code, response.Body.String())
+	}
 	body, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +67,16 @@ func TestNativeAuthenticatedWorkflow(t *testing.T) {
 	var frozen contract.NativeResult
 	if err = json.Unmarshal(response.Body.Bytes(), &frozen); err != nil {
 		t.Fatal(err)
+	}
+	response = call(`{"action":"read","snapshotId":"`+frozen.SnapshotID+`"}`, "secret", "")
+	var page contract.NativeResult
+	if err = json.Unmarshal(response.Body.Bytes(), &page); err != nil || len(page.Activities.Items) == 0 {
+		t.Fatal(err, response.Body.String())
+	}
+	activity := page.Activities.Items[0]
+	exact := historyRequest(handler, "/api/conversations/"+activity.ConversationID+"/activities/"+activity.ActivityID+"?maxBytes=4", "secret", "")
+	if exact.Code != 200 {
+		t.Fatal("native activity cannot be read by original history API", exact.Code, exact.Body.String())
 	}
 	response = call(`{"action":"project","snapshotId":"`+frozen.SnapshotID+`","currentTask":"任务"}`, "secret", "")
 	var preview contract.NativePreview

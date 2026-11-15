@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	snapcompact "github.com/mzdluo123/snapcompact-go"
+	"github.com/rainchan/webmux/internal/codexrollout"
 )
 
 type SnapshotPreview struct {
@@ -43,4 +44,12 @@ func (s *Service) PreviewNative(ctx context.Context, id, task string, cfg snapco
 		return out, err
 	}
 	return out, nil
+}
+
+// NativePreprocessConfig permits the same bounded source size as import.
+// Rendering keeps its independent image/layout limits and reports uncovered data.
+func (s *Service) NativePreprocessConfig() snapcompact.PreprocessConfig {
+	cfg := snapcompact.DefaultPreprocessConfig()
+	cfg.MaxInputBytes = codexrollout.MaxInput
+	return cfg
 }

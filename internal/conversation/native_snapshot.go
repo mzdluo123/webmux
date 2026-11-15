@@ -75,6 +75,9 @@ func (s *Service) FreezeNative(ctx context.Context, source string) (NativeSnapsh
 		if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO history_snapshot VALUES(?,?,?,?,?,?,?)`, out.ID, out.SourceID, out.Parser, out.Consumed, out.Checksum, encoded, out.Model); err != nil {
 			return storageError(ctx, err)
 		}
+		if err = freezeNativeGaps(ctx, tx, out); err != nil {
+			return err
+		}
 		_, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO history_snapshot_item SELECT ?,a.id,a.position FROM activity a JOIN native_record r ON r.activity_id=a.id WHERE r.source_id=? AND r.end_offset<=?`, out.ID, source, out.Consumed)
 		return storageError(ctx, err)
 	})
@@ -114,6 +117,11 @@ func (s *Service) SnapshotActivities(ctx context.Context, id string, after int64
 		if err := tx.QueryRowContext(ctx, `SELECT id FROM history_snapshot WHERE id=?`, id).Scan(&exists); err != nil {
 			return storageError(ctx, err)
 		}
+		out.Gaps, err = readNativeGaps(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		out.ReconcileRequired = len(out.Gaps) > 0
 		rows, err := tx.QueryContext(ctx, `SELECT a.id,a.conversation_id FROM history_snapshot_item i JOIN activity a ON a.id=i.activity_id WHERE i.snapshot_id=? AND i.position>? ORDER BY i.position LIMIT ?`, id, after, limit)
 		if err != nil {
 			return storageError(ctx, err)
@@ -251,22 +259,25 @@ func (s *Service) DeleteNativeSource(ctx context.Context, source string) error {
 
 type NativeProvenance struct {
 	ActivityID, SourceID, Checksum, CallID, ToolName, Kind string
-	Offset, End                                            int64
+	Offset, End, Position                                  int64
 }
 
-func (s *Service) SnapshotProvenance(ctx context.Context, id string, after int64) ([]NativeProvenance, error) {
+func (s *Service) SnapshotProvenance(ctx context.Context, id string, after int64, limit int) ([]NativeProvenance, error) {
 	out := []NativeProvenance{}
+	if after < 0 || limit < 1 || limit > 100 {
+		return out, ErrInvalid
+	}
 	if _, err := s.NativeSnapshot(ctx, id); err != nil {
 		return out, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT r.activity_id,r.source_id,r.checksum,r.call_id,r.tool_name,r.record_kind,r.offset,r.end_offset FROM history_snapshot_item i JOIN native_record r ON r.activity_id=i.activity_id WHERE i.snapshot_id=? AND i.position>? ORDER BY i.position LIMIT 20`, id, after)
+	rows, err := s.db.QueryContext(ctx, `SELECT r.activity_id,r.source_id,r.checksum,r.call_id,r.tool_name,r.record_kind,r.offset,r.end_offset,i.position FROM history_snapshot_item i JOIN native_record r ON r.activity_id=i.activity_id WHERE i.snapshot_id=? AND i.position>? ORDER BY i.position LIMIT ?`, id, after, limit)
 	if err != nil {
 		return out, storageError(ctx, err)
 	}
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var p NativeProvenance
-		if err = rows.Scan(&p.ActivityID, &p.SourceID, &p.Checksum, &p.CallID, &p.ToolName, &p.Kind, &p.Offset, &p.End); err != nil {
+		if err = rows.Scan(&p.ActivityID, &p.SourceID, &p.Checksum, &p.CallID, &p.ToolName, &p.Kind, &p.Offset, &p.End, &p.Position); err != nil {
 			return out, storageError(ctx, err)
 		}
 		out = append(out, p)

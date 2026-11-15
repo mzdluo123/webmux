@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -139,5 +140,39 @@ func TestTotalInputLimitIncludesPartialTail(t *testing.T) {
 	_, err := Read(io.MultiReader(readers...), nil)
 	if !errors.Is(err, ErrLimit) {
 		t.Fatal(err)
+	}
+}
+
+func TestRepeatedUnknownPartsProduceOneRecordDiagnostic(t *testing.T) {
+	parts := make([]map[string]string, 4096)
+	for i := range parts {
+		parts[i] = map[string]string{"type": "future_part"}
+	}
+	raw, err := json.Marshal(map[string]any{"timestamp": "2025-12-01T00:00:10Z", "type": "response_item", "payload": map[string]any{"type": "message", "role": "user", "content": parts}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var last Record
+	_, err = Read(bytes.NewReader(append(append(append([]byte{}, fixture(t)...), raw...), '\n')), func(r Record) error { last = r; return nil })
+	if err != nil || len(last.Diagnostics) != 1 || last.Diagnostics[0].Category != "unknown_content" {
+		t.Fatal(last.Diagnostics, err)
+	}
+}
+
+func TestUnverifiedMirrorsAndReasoningAreExplicit(t *testing.T) {
+	header := bytes.SplitN(fixture(t), []byte{'\n'}, 2)[0]
+	source := string(header) + "\n" + `{"timestamp":"2025-12-01T00:00:10Z","type":"event_msg","payload":{"type":"user_message","message":"canonical copy never arrived"}}` + "\n" + `{"timestamp":"2025-12-01T00:00:11Z","type":"event_msg","payload":{"type":"agent_reasoning","text":"SYNTHETIC_PRIVATE_SENTINEL"}}` + "\n"
+	var categories []string
+	_, err := Read(strings.NewReader(source), func(r Record) error {
+		if len(r.Items) > 0 {
+			t.Fatal("mirror or reasoning became portable text")
+		}
+		for _, d := range r.Diagnostics {
+			categories = append(categories, d.Category)
+		}
+		return nil
+	})
+	if err != nil || !slices.Contains(categories, "mirror_pairing_unverified") || !slices.Contains(categories, "nonexportable_reasoning") {
+		t.Fatal(categories, err)
 	}
 }

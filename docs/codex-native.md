@@ -16,7 +16,8 @@
 
 - 首条 `session_meta` 提供原生 ID、cwd、时间、CLI 版本和 model provider。
 - 模型来自 `turn_context.model`；turn context 是上下文边界，不能证明一次执行已经完成。
-- `response_item.message` 提供 user/assistant 正文；`event_msg` 的消息是镜像，不重复导入。
+- `response_item.message` 提供 user/assistant 正文；`event_msg` 的消息按镜像处理，不重复导入。
+  此版本不校验两份记录的一一配对，明确标记 `mirror_pairing_unverified`；只有镜像而没有正文副本时不会伪造文本或宣称完整。
 - 消息 `id` 可缺省；工具 `call_id` 关联调用和结果，不代表所有记录都有 entry ID。
 - 内部身份绑定来源 generation、字节位置、完整行 SHA256 及子项位置，相同正文的不同执行不会合并。
 - `compacted` 保存压缩边界；`replacement_history` 是模型上下文替换，不能再当成新增聊天导入。
@@ -26,7 +27,7 @@
 ## 验证入口
 
 `POST /api/conversations/native` 使用现有 Bearer 认证和 Origin 校验，JSON 请求上限 64 KiB。
-下列请求依次发送；返回 ID 填入下一步。服务必须启用 `history_capture`。
+下列请求依次发送；返回 ID 填入下一步。服务必须启用 `chat` 内置插件及 `history_capture`；插件启用列表修改后需重启。
 
 ```json
 {"action":"list","root":"/example/codex-home"}
@@ -38,17 +39,24 @@
 ```
 
 `list` 按显式 root、`CODEX_HOME`、`~/.codex` 的顺序确定数据根，扫描 sessions 和 archived_sessions。
-每个文件仅读取首条元信息，上限 10000 个文件；不会为了列表读取全部正文。
-`read` 每页最多 20 项，每项首段 4000 字节；后续正文沿用 conversation Activity 精确读取入口。
+每个文件仅读取首条元信息，单个元信息记录最多 64 KiB、一次列表累计读取最多 16 MiB、遍历最多 20000 项。
+列表最多返回 10000 项；达到资源上限时保留已取得的文件并返回 `truncated=true`，单个不可读目录或文件有明确 problem 标记。
+列表及元信息读取传递请求取消上下文，不会为了列表读取全部正文。
+`read` 每页最多 20 项，每项首段 4000 字节；缺口和 reconcileRequired 来自冻结记录，不读取来源对话当前状态。
+来源查询按相同页大小返回，每项同时携带 Activity ID 和 position，可按键关联而非依赖数组下标。
+后续正文沿用 conversation Activity 精确读取入口。
 `project` 返回来源范围和省略范围；`render` 返回 base64 PNG、投影范围、缺字数量、未覆盖范围和问题标记。
 `problem` 非空、缺字或未覆盖范围不为空时，不能把结果当成完整可读历史。
 预览同时返回快照 gaps；图片只覆盖可导出投影，无法补回缺口或未导入的图片正文。
 函数参数由 Project 编码为 canonical JSON，arguments 范围指向该字段；原始参数字符串仍可从 Activity 精确读取。
+默认 Project 输入上限与来源一致为 64 MiB；工具输出截断后才进入 Render。
+Render 另有 8 MiB 投影输入、页数和内存限制，超限返回 problem 与可用的未覆盖信息，原始快照保持可读。
 PNG 成功不证明模型可读、传输支持或节省 token；本入口不执行付费模型测试。
 
 ## 存储与边界
 
 解析每条记录上限 4 MiB，单次来源上限 64 MiB、100000 条记录；只消费带换行的完整记录。
+同一记录的诊断按类别去重；一次导入最多返回 256 项诊断和一个 `diagnostics_limited` 标记，写入缺口按类别合并，不丢弃原生记录映射。
 每个消息或结构化输出最多 4096 个内容片段、64 个图片引用；元信息和工具身份字段也有独立长度上限。
 半行末尾留待续写；中间完整行损坏则整次导入失败，游标不推进。
 来源有独立 generation、已确认字节偏移、前缀 SHA256、文件身份、原生时间、模型与解析器版本。

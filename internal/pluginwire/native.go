@@ -61,6 +61,6 @@ func nativeRange(v snapcompact.Range) contract.NativeRange {
 
 func NativeProvenance(in []conversation.NativeProvenance) []contract.NativeProvenance {
 	return each(in, func(p conversation.NativeProvenance) contract.NativeProvenance {
-		return contract.NativeProvenance{ActivityID: p.ActivityID, SourceID: p.SourceID, Checksum: p.Checksum, CallID: p.CallID, ToolName: p.ToolName, Kind: p.Kind, Offset: strconv.FormatInt(p.Offset, 10), End: strconv.FormatInt(p.End, 10)}
+		return contract.NativeProvenance{Position: strconv.FormatInt(p.Position, 10), ActivityID: p.ActivityID, SourceID: p.SourceID, Checksum: p.Checksum, CallID: p.CallID, ToolName: p.ToolName, Kind: p.Kind, Offset: strconv.FormatInt(p.Offset, 10), End: strconv.FormatInt(p.End, 10)}
 	})
 }

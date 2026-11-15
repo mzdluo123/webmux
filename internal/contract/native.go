@@ -19,6 +19,7 @@ type NativeFile struct {
 	Problem   string `json:"problem"`
 }
 type NativeResult struct {
+	Truncated      bool                   `json:"truncated"`
 	NativeID       string                 `json:"nativeId"`
 	Model          string                 `json:"model"`
 	Provenance     []NativeProvenance     `json:"provenance"`
@@ -71,6 +72,7 @@ type NativePreview struct {
 }
 
 type NativeProvenance struct {
+	Position   string `json:"position"`
 	ActivityID string `json:"activityId"`
 	SourceID   string `json:"sourceId"`
 	Checksum   string `json:"checksum"`

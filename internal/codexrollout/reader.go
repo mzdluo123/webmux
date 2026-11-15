@@ -125,7 +125,7 @@ func Read(r io.Reader, visit func(Record) error) (Result, error) {
 		rec.Timestamp = e.Timestamp
 		timestamp, timeErr := time.Parse(time.RFC3339Nano, e.Timestamp)
 		if timeErr != nil || !time.Unix(0, timestamp.UnixNano()).Equal(timestamp) {
-			rec.Diagnostics = append(rec.Diagnostics, Diagnostic{rec.Offset, "unknown_timestamp"})
+			rec.diagnose("unknown_timestamp")
 		}
 		if out.Consumed == 0 && e.Type != "session_meta" {
 			return out, &ParseError{Offset: out.Consumed, Cause: ErrFormat}
@@ -143,7 +143,7 @@ func Read(r io.Reader, visit func(Record) error) (Result, error) {
 }
 
 func decode(e envelope, out *Result, rec *Record) error {
-	diag := func(category string) { rec.Diagnostics = append(rec.Diagnostics, Diagnostic{rec.Offset, category}) }
+	diag := rec.diagnose
 	switch e.Type {
 	case "session_meta":
 		var fields map[string]json.RawMessage
@@ -201,7 +201,11 @@ func decode(e envelope, out *Result, rec *Record) error {
 		}
 		// Message events mirror response_item and are deliberately not imported.
 		switch v.Type {
-		case "user_message", "agent_message", "agent_reasoning", "agent_reasoning_raw_content", "token_count", "context_compacted":
+		case "user_message", "agent_message":
+			diag("mirror_pairing_unverified")
+		case "agent_reasoning", "agent_reasoning_raw_content":
+			diag("nonexportable_reasoning")
+		case "token_count", "context_compacted":
 		case "turn_aborted":
 			rec.Items = append(rec.Items, Item{Kind: "interrupt", Status: "cancelled"})
 		case "entered_review_mode", "exited_review_mode", "undo_completed":
@@ -241,7 +245,7 @@ func response(raw json.RawMessage, rec *Record) error {
 	if item.Status == "" {
 		item.Status = "unknown"
 	}
-	diag := func(c string) { rec.Diagnostics = append(rec.Diagnostics, Diagnostic{rec.Offset, c}) }
+	diag := rec.diagnose
 	switch v.Type {
 	case "message":
 		if v.Role != "user" && v.Role != "assistant" {
@@ -314,4 +318,19 @@ func appendContent(item *Item, parts []contentPart, diag func(string)) error {
 	}
 	item.Text = text.String()
 	return nil
+}
+
+// Diagnostics describe record-level categories, not every unsupported part.
+// Bound allocation even when a record contains thousands of repeated parts.
+func (r *Record) diagnose(category string) {
+	for _, d := range r.Diagnostics {
+		if d.Category == category {
+			return
+		}
+	}
+	if len(r.Diagnostics) >= 16 {
+		r.Diagnostics[15].Category = "diagnostics_limited"
+		return
+	}
+	r.Diagnostics = append(r.Diagnostics, Diagnostic{r.Offset, category})
 }

@@ -2,7 +2,6 @@ package pluginapi
 
 import (
 	"errors"
-	snapcompact "github.com/mzdluo123/snapcompact-go"
 	"net/http"
 	"strconv"
 
@@ -26,9 +25,13 @@ func (s *Server) nativeRoutes(mux transport.Registrar) {
 		}
 
 		if request.Action == "project" || request.Action == "render" {
-			cfg := snapcompact.DefaultPreprocessConfig()
+			cfg := s.Conversations.NativePreprocessConfig()
 			if request.OutputRunes != 0 {
 				cfg.OutputRunes = request.OutputRunes
+			}
+			if cfg.OutputRunes < 1 || cfg.OutputRunes > cfg.MaxInputBytes {
+				conversationFailure(w, conversation.ErrInvalid)
+				return
 			}
 			preview, err := s.Conversations.PreviewNative(r.Context(), request.SnapshotID, request.CurrentTask, cfg, request.Action == "render")
 			if errors.Is(err, conversation.ErrNotFound) || errors.Is(err, conversation.ErrUnavailable) || cancelled(err) {
@@ -46,9 +49,10 @@ func (s *Server) nativeRoutes(mux transport.Registrar) {
 		var err error
 		switch request.Action {
 		case "list":
-			files, e := s.Conversations.DiscoverCodex(request.Root)
+			discovery, e := s.Conversations.DiscoverCodex(r.Context(), request.Root)
 			err = e
-			out.Files = wire.NativeFiles(files)
+			out.Files = wire.NativeFiles(discovery.Files)
+			out.Truncated = discovery.Truncated
 		case "import":
 			imported, e := s.Conversations.ImportCodex(r.Context(), request.Path)
 			err = e
@@ -75,7 +79,7 @@ func (s *Server) nativeRoutes(mux transport.Registrar) {
 					err = e
 					out.Activities = wire.ConversationActivities(page)
 					if err == nil {
-						provenance, e := s.Conversations.SnapshotProvenance(r.Context(), request.SnapshotID, after)
+						provenance, e := s.Conversations.SnapshotProvenance(r.Context(), request.SnapshotID, after, 20)
 						err = e
 						out.Provenance = wire.NativeProvenance(provenance)
 					}

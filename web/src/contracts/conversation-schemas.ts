@@ -291,10 +291,12 @@ export const NativePreviewSchema = z.object({
 });
 
 export const NativeResultSchema = z.object({
+  truncated: z.boolean(),
   nativeId: z.string(),
   model: z.string(),
   provenance: z.array(
     z.object({
+      position: ConversationCursorSchema,
       activityId: z.string(),
       sourceId: z.string(),
       checksum: z.string(),

@@ -2,54 +2,104 @@ package codexrollout
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 )
 
-// Discover lists metadata with at most one bounded record read per file. root
-// is CODEX_HOME, not its sessions directory. Archived rollouts are included.
-func Discover(root string) ([]File, error) {
+const MaxMetadata = 64 << 10
+const MaxDiscoveryBytes = 16 << 20
+const MaxDiscoveryFiles = 10000
+
+type Discovery struct {
+	Files     []File
+	Truncated bool
+}
+type discoveryLimits struct{ files, bytes, visits int }
+
+// Discover reads only bounded metadata, retaining partial results at a limit.
+// root is CODEX_HOME, not its sessions directory. No symlinks are traversed.
+func Discover(ctx context.Context, root string) (Discovery, error) {
+	return discover(ctx, root, discoveryLimits{MaxDiscoveryFiles, MaxDiscoveryBytes, 20000})
+}
+
+func discover(ctx context.Context, root string, limits discoveryLimits) (Discovery, error) {
+	out := Discovery{Files: []File{}}
 	if root == "" {
 		root = os.Getenv("CODEX_HOME")
 	}
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return nil, err
+			return out, err
 		}
 		root = filepath.Join(home, ".codex")
 	}
-	out := []File{}
+	remaining, visits := limits.bytes, 0
+	stop := false
 	for _, dir := range []string{"sessions", "archived_sessions"} {
-		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d os.DirEntry, err error) error {
-			if os.IsNotExist(err) {
-				return nil
-			}
-			if err != nil {
+		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d os.DirEntry, walkErr error) error {
+			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if len(out) >= 10000 {
-				return ErrLimit
+			visits++
+			if visits > limits.visits {
+				out.Truncated = true
+				stop = true
+				return filepath.SkipAll
+			}
+			if os.IsNotExist(walkErr) {
+				return nil
+			}
+			if walkErr != nil {
+				out.Truncated = true
+				if len(out.Files) < limits.files {
+					out.Files = append(out.Files, File{Path: path, Problem: "unreadable_directory"})
+				}
+				if d != nil && d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 			if d.IsDir() || d.Type()&os.ModeType != 0 || filepath.Ext(path) != ".jsonl" {
 				return nil
 			}
-			m, err := Inspect(path)
-			if err != nil {
-				out = append(out, File{Path: path, Problem: "unreadable_or_unsupported"})
-				return nil
+			if len(out.Files) >= limits.files || remaining <= 0 {
+				out.Truncated = true
+				stop = true
+				return filepath.SkipAll
 			}
-			out = append(out, File{Path: path, Metadata: m})
+			m, err := inspect(ctx, path, &remaining)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			problem := ""
+			if err != nil {
+				problem = "unreadable_or_unsupported"
+				if errors.Is(err, ErrLimit) {
+					problem = "metadata_limit"
+				}
+			}
+			out.Files = append(out.Files, File{Path: path, Metadata: m, Problem: problem})
+			if remaining <= 0 {
+				out.Truncated = true
+				stop = true
+				return filepath.SkipAll
+			}
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return out, err
+		}
+		if stop {
+			break
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	sort.Slice(out.Files, func(i, j int) bool { return out.Files[i].Path < out.Files[j].Path })
 	return out, nil
 }
 
@@ -59,8 +109,35 @@ type File struct {
 	Problem  string
 }
 
-func Inspect(path string) (Metadata, error) {
+func Inspect(ctx context.Context, path string) (Metadata, error) {
+	remaining := MaxMetadata + 1
+	return inspect(ctx, path, &remaining)
+}
+
+type metadataReader struct {
+	ctx       context.Context
+	source    io.Reader
+	remaining *int
+}
+
+func (r *metadataReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if *r.remaining <= 0 {
+		return 0, ErrLimit
+	}
+	p = p[:min(len(p), *r.remaining)]
+	n, err := r.source.Read(p)
+	*r.remaining -= n
+	return n, err
+}
+
+func inspect(ctx context.Context, path string, remaining *int) (Metadata, error) {
 	var m Metadata
+	if err := ctx.Err(); err != nil {
+		return m, err
+	}
 	f, err := OpenFile(path)
 	if err != nil {
 		return m, err
@@ -73,19 +150,23 @@ func Inspect(path string) (Metadata, error) {
 	if !info.Mode().IsRegular() {
 		return m, ErrFormat
 	}
-	b := bufio.NewReader(io.LimitReader(f, MaxRecord+1))
+	reader := metadataReader{ctx: ctx, source: io.LimitReader(f, MaxMetadata+1), remaining: remaining}
+	b := bufio.NewReader(&reader)
 	var line []byte
 	for {
-		p, e := b.ReadSlice('\n')
-		line = append(line, p...)
-		if len(line) > MaxRecord {
+		part, e := b.ReadSlice('\n')
+		line = append(line, part...)
+		if len(line) > MaxMetadata {
 			return m, ErrLimit
 		}
 		if e == bufio.ErrBufferFull {
 			continue
 		}
 		if e != nil {
-			return m, ErrFormat
+			if e == io.EOF {
+				return m, ErrFormat
+			}
+			return m, e
 		}
 		break
 	}

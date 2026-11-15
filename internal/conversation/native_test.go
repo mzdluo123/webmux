@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -455,5 +456,127 @@ func TestNativeRenameKeepsEvidenceBackedIdentity(t *testing.T) {
 	moved, err = s.ImportCodex(ctx, archived)
 	if err != nil || moved.SourceID != first.SourceID {
 		t.Fatal(moved, err)
+	}
+}
+
+func TestSnapshotPagesUseFrozenGapsAndMatchingProvenanceLimits(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	path := filepath.Join(t.TempDir(), "rollout.jsonl")
+	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	source, err := s.ImportCodex(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frozen, err := s.FreezeNative(ctx, source.SourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := s.SnapshotActivities(ctx, frozen.ID, 0, 2, 4000)
+	if err != nil || !page.ReconcileRequired || len(page.Gaps) != len(frozen.Gaps) {
+		t.Fatal(page, err)
+	}
+	refs, err := s.SnapshotProvenance(ctx, frozen.ID, 0, 2)
+	if err != nil || len(refs) != len(page.Items) {
+		t.Fatal(refs, err)
+	}
+	for i, p := range refs {
+		if p.ActivityID != page.Items[i].Activity.ID || p.Position != page.Items[i].Activity.Position {
+			t.Fatal(p)
+		}
+	}
+	if err = s.AddGap(ctx, source.Binding.ProviderThreadID, "tui"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := s.SnapshotActivities(ctx, frozen.ID, 0, 2, 4000)
+	if err != nil || !reflect.DeepEqual(again.Gaps, page.Gaps) {
+		t.Fatal(again.Gaps, page.Gaps, err)
+	}
+}
+
+func TestNativeDiagnosticResponseIsBoundedWithoutDroppingRecords(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	path := filepath.Join(t.TempDir(), "rollout.jsonl")
+	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = append(data, []byte(strings.Repeat("{\"timestamp\":\"2025-12-01T00:00:10Z\",\"type\":\"future_record\",\"payload\":{}}\n", 1000))...)
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := s.ImportCodex(ctx, path)
+	if err != nil || len(out.Diagnostics) > 257 || out.Consumed != int64(len(data)) {
+		t.Fatal(out, err)
+	}
+	if out.Diagnostics[len(out.Diagnostics)-1].Category != "diagnostics_limited" {
+		t.Fatal(out.Diagnostics)
+	}
+	var count int
+	if err = s.db.QueryRow("SELECT count(*) FROM native_record WHERE source_id=?", out.SourceID).Scan(&count); err != nil || count < 1000 {
+		t.Fatal(count, err)
+	}
+	frozen, err := s.FreezeNative(ctx, out.SourceID)
+	if err != nil || !slices.Contains(frozen.Gaps, "diagnostics_limited") {
+		t.Fatal(frozen, err)
+	}
+}
+
+func TestNativeLargeToolHistoryProjectsWithinSourceBudget(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	path := filepath.Join(t.TempDir(), "rollout.jsonl")
+	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var source bytes.Buffer
+	source.Write(data)
+	for range 3 {
+		source.WriteString(`{"timestamp":"2025-12-01T00:00:10Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call-1","output":"`)
+		source.WriteString(strings.Repeat("x", 3<<20))
+		source.WriteString("\"}}\n")
+	}
+	if err = os.WriteFile(path, source.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	imported, err := s.ImportCodex(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frozen, err := s.FreezeNative(ctx, imported.SourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview, err := s.PreviewNative(ctx, frozen.ID, "task", s.NativePreprocessConfig(), true)
+	if err != nil || len(preview.Projection.Omissions) < 3 || len(preview.Render.Pages) == 0 || len(preview.Render.Uncovered) != 0 {
+		t.Fatal("large raw history failed bounded projection", err)
+	}
+}
+
+func TestNativeItemlessRecordIdentityIsEnforcedInStorage(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	path := filepath.Join(t.TempDir(), "rollout.jsonl")
+	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	source, err := s.ImportCodex(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.db.Exec(`INSERT INTO native_record SELECT * FROM native_record WHERE source_id=? AND offset=0 AND activity_id IS NULL`, source.SourceID); err == nil {
+		t.Fatal("duplicate itemless native record was accepted")
 	}
 }
