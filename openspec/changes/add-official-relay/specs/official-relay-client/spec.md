@@ -238,6 +238,7 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 公开控制 HTTPS SHALL 允许 Cloudflare CDN 终止 TLS；CDN SHALL 被明确列为控制内容的可信处理方，不宣称宿主到源站端到端 TLS。分配 WSS/TURN SHALL 保持 DNS-only 直连，节点 mTLS、节点 SPKI 与分配服务身份验证 MUST NOT 放宽。
 宿主 WSS SHALL 同时通过 TLS 1.3、证书链、有效期、主机名及分配 ECDSA P-256 SPKI pin 校验，缺失/错误 pin MUST 拒绝；MUST NOT 跳过校验、自动学习未知公钥或失败降级。数据面信任仅来自已认证有效控制分配，宿主私钥仍逐机生成并用于主机认证。
+控制面及其 CDN TLS 终止方 SHALL 被视为首次分配 connectorUrl、公共来源及 pin 的可信授权方；分配 pin MUST NOT 被描述为可防御该控制信任边界内的分配篡改。
 
 官方私钥、OAuth Client Secret 和用户 GitHub access token MUST NOT 进入开源仓库、客户端二进制或公开 API。OAuth Client ID SHALL 视为公开标识，不作为客户端认证秘密。
 
