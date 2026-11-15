@@ -54,8 +54,25 @@ const phone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 640;
 // The sidebar: always shown on desktop, a drawer opened from the top bar on
 // phones. The drawer stays open when only the mode changes.
 async function sidebar(page: Page) {
-  if (phone(page))
+  if (phone(page)) {
     await page.getByRole("button", { name: "打开侧栏" }).first().click();
+    const drawer = page.getByRole("dialog", { name: "导航", exact: true });
+    await expect(drawer).toBeVisible();
+    // Mounting makes the navigation reachable before its slide-in finishes.
+    // Wait for the drawer, not an incidental stable frame of a child button.
+    await expect
+      .poll(() =>
+        drawer.evaluate((node) =>
+          node
+            .getAnimations()
+            .some(
+              (animation) =>
+                animation.pending || animation.playState === "running",
+            ),
+        ),
+      )
+      .toBe(false);
+  }
   return page.getByRole("navigation", { name: "导航" }).last();
 }
 
