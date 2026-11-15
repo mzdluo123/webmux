@@ -8,17 +8,17 @@ Relay 同时引入一个新的公网服务端和 WebMux 出站客户端，必须
 
 - WebMux 宿主 JSON DTO 仍集中在 `internal/contract`，宿主控制器归入 `internal/api`，服务错误只在 `internal/api/errors.go` 映射为 HTTP 状态；跨仓库协议 DTO 通过公开子模块定义，宿主 contract 使用别名衔接；
 - WebMux 只有 `cmd/` 组装服务，新增宿主 `internal/` 包必须登记架构分层与出站网络用途；Relay 独立仓库建立自己的显式装配、服务和 HTTP 错误映射边界；
-- 构建保持 `CGO_ENABLED=0`，可复用 `coder/websocket` 和 `modernc.org/sqlite`；
+- Go 程序构建保持 `CGO_ENABLED=0`；控制面使用纯 Go PostgreSQL 驱动，coturn 作为独立 C 程序及其运行库随数据面镜像发布，不将其链接进 Go；
 - Relay 不直接接触 PTY，必须保留现有认证、回放续接、慢客户端和会话退出语义。
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- 用一个单节点 Go 二进制完成邀请制配对、注册、认证、反向代理和恢复。
-- 在独立公网服务器部署，浏览器直连 HTTPS；宿主使用 TCP 443 WSS 与两条有界物理连接。
+- 用独立 `webmux-control` 完成邀请制配对、账号与授权，使用 PostgreSQL；`webmux-relay` 只执行数据面认证、转发及配额。
+- MVP 为单控制实例与单数据节点，可同机或分机部署；宿主使用 TCP 443 WSS 与两条有界物理连接。
 - GitHub 登录官方后台后可进入自己的 WebMux，无需跨设备复制长期 Token。
-- 控制面内置不依赖 TURN 的 WSS 基础数据面，独立 TURN 节点仅为已授权交互提供可选路径。
+- 同一数据面镜像运行 `webmux-relay` 与 coturn 两个进程，WSS 保底，TURN 仅为已授权交互提供可选路径。
 - 宿主只主动连接配置的 Relay，只把 stream 接到本机 WebMux 回环地址。
 - 密钥、绑定和启停状态可恢复，所有公网授权都能同步撤销。
 
@@ -32,15 +32,16 @@ Relay 同时引入一个新的公网服务端和 WebMux 出站客户端，必须
 
 ### 1. 独立仓库与明确的协议边界
 
-Relay 在独立仓库开发和发布，一个 Go 二进制监听公共 HTTPS/WSS（TCP 443），复用同一端口接入宿主连接器。WebMux 不增加 `cmd/webmux-relay`，不链接或构造服务端注册库、GitHub OAuth 服务和官方后台。
+Relay 服务端在独立仓库开发和发布，包含 `cmd/webmux-control` 与 `cmd/webmux-relay`。控制面负责 GitHub、网页后台、绑定、授权和 PostgreSQL；数据面负责公共 HTTPS/WSS、宿主连接器与转发，并与 coturn 打包为双进程镜像。WebMux 不增加这两个服务端命令，不构造注册库、GitHub OAuth 或后台。
 
 两端职责如下：
 
 - WebMux `internal/relay`（client）：WSS/smux 宿主连接器、认证、流适配、回环拨号和重连；
 - WebMux `internal/relaysettings`（service）：受控设置、宿主私钥、配对身份与内存登录会话；
 - WebMux `internal/api/relay*.go`（controller）：宿主 `/api/relay*` 与受限登录入口，沿用统一错误映射；`cmd/webmux` 负责装配；
-- Relay 仓库 `cmd/webmux-relay`：服务端装配和启动；`internal/relaycontrol`：GitHub OAuth、账号绑定、SQLite、后台会话与跳转授权；
-- Relay 仓库 `internal/connector`：连接器认证、WSS/smux 服务端、活动连接与流配额；`internal/httpapi`：控制面、官方后台和公共反向代理，统一映射本仓库服务错误。
+- Relay 仓库 `cmd/webmux-control`：控制面装配；`internal/relaycontrol`：GitHub OAuth、账号绑定、后台会话与授权；`internal/store`：PostgreSQL 查询与 migration；
+- Relay 仓库 `cmd/webmux-relay`：数据面装配；`internal/connector`：宿主认证、WSS/smux、活动连接和配额；HTTP 层按控制/数据面分开装配，数据面仅接收受信控制授权，不直接查询 PostgreSQL；
+- coturn `turnserver`：标准 TURN 认证、allocation 与转发，进程管理器负责启动、回收和信号；不由 Go 重新实现 TURN。
 
 共享内容在 WebMux 仓库 `protocol/relay/` 形成独立公开 Go 子模块，仅包含协议版本、wire DTO、签名 transcript、算法标识、错误码与一致性向量，依赖限于标准库。宿主 `internal/contract` 使用类型别名衔接 wire DTO，服务类型继续由 `internal/wire` 转换；WebMux 的既有契约与快照流程保持生效。
 
@@ -99,7 +100,7 @@ MVP 保持 WSS 宿主连接器，不因单出口短时成绩引入 QUIC/KCP 双�
 1. WebMux 原子保存新生成的私钥，向 Relay 提交公钥。
 2. Relay 创建 GitHub Device Flow 和本地配对记录，宿主展示 GitHub 验证地址与用户码。
 3. Relay 轮询 GitHub，授权后只用访问凭据读取账号数字 ID 和登录名快照，随即丢弃访问凭据。
-4. 邀请名单通过后，在一个 SQLite 事务内创建绑定；重新绑定必须带显式标志并替换旧公钥。
+4. 邀请名单通过后，控制面在一个 PostgreSQL 事务内创建绑定；重新绑定必须带显式标志并替换旧公钥。
 5. 宿主轮询自己的配对句柄取得 host ID 与固定公共地址。
 
 每条物理连接先通过 WSS 认证消息完成握手，再开始 smux 会话。宿主声明协议版本和 host ID，Relay 为 control 分配候选连接器代际并返回单次随机 nonce；bulk 只加入当前代际。宿主签名以下 transcript：
@@ -116,17 +117,19 @@ nonce 只在单节点内存中短期保存并单次消费。新 control 连接�
 
 参考：[Go Ed25519](https://pkg.go.dev/crypto/ed25519)、[Go ECDSA](https://pkg.go.dev/crypto/ecdsa)。
 
-### 5. 固定标识与 SQLite 数据模型
+### 5. 固定标识与 PostgreSQL 数据模型
 
 host ID 使用 128 位加密随机数的 32 字符小写十六进制形式，公共标签采用 `h-<host-id>`。公共地址由 Relay 配置的公共泛域名生成，数据库不保存 WebMux Token。
 
-SQLite 至少包含：
+控制面 PostgreSQL 至少包含：
 
 - `accounts`：GitHub 数字 ID 主键、登录名快照、唯一 host ID；
 - `hosts`：host ID、唯一公共主机名、公钥、创建时间、撤销时间；
 - `enrollments`：配对句柄摘要、公钥、临时 device code、用户码摘要、到期时间、重新绑定标志和消费状态。
 
-唯一索引与事务保证每账号一台主机。device code 只在配对有效期内保存，完成、过期和取消时清除；GitHub access token 不落盘。单节点使用 WAL、有界 busy timeout 和版本化 migration，数据库故障使控制面和连接器 readiness 失败。
+唯一索引与事务保证每账号一台主机。device code 只在配对有效期内保存，完成、过期和取消时清除；GitHub access token 不落盘。使用版本化 migration、有界连接池和查询/事务超时，不提供 SQLite 回退。数据库故障使控制面未就绪并拒绝新增绑定与授权，数据面不得用过期缓存绕过。
+
+只有控制面访问业务数据库；节点注册、主机路由、TURN 签发关联和配额策略归控制面持久化，在线连接、stream、PTY 内容及逐包转发不入库。数据面与 coturn 不持有业务数据库凭据，宿主受控状态文件不改为 PostgreSQL。
 
 **备选方案**：宿主设置式 JSON 保存全部账号。否决原因是多请求并发、唯一约束和重新绑定需要事务，不能靠整文件锁提供可靠语义。
 
@@ -179,7 +182,7 @@ GitHub OAuth 使用固定后台 HTTPS 回调地址；Client ID 与密钥通过�
 
 主机 Device Flow 与浏览器登录分开。浏览器使用 GitHub OAuth Authorization Code + PKCE S256 和单次 state，复用 `golang.org/x/oauth2`；服务端交换 code 并查询 GitHub 数字 ID，完成后丢弃 GitHub access token。GitHub 登录名仅作展示，不作为授权键，不请求仓库权限。
 
-Relay 后台采用服务端不透明会话，Cookie 为 `__Host-` 前缀、Secure、HttpOnly、SameSite=Lax、Path=/，不设置 Domain；会话摘要入 SQLite，绝对有效期 12 小时，不无限续期。
+控制面后台采用服务端不透明会话，Cookie 为 `__Host-` 前缀、Secure、HttpOnly、SameSite=Lax、Path=/，不设置 Domain；会话摘要入 PostgreSQL，绝对有效期 12 小时，不无限续期。
 
 认证边界按阶段校验：回调 URI 固定 allowlist，校验 state 与浏览器绑定，登录后轮换会话 ID；登录、签发跳转和兑换时均检查邀请名单，页面只展示该数字 ID 的绑定主机。
 
@@ -204,22 +207,22 @@ Relay 后台采用服务端不透明会话，Cookie 为 `__Host-` 前缀、Secur
 
 Relay 关闭、断线、换钥、解绑或绑定代际变化均使宿主对应会话失效。后台注销通过活动控制通道撤销该后台会话派生的宿主会话；事件送达前后台不得报告全局撤销成功，通道中断时宿主立即失效。移出邀请名单同样撤销。宿主注销只撤销当前宿主会话；界面区分两种注销。GitHub 网站注销本身不等于 WebMux 注销。
 
-撤销或过期时拒绝后续 HTTP，并关闭该身份建立的 WebSocket、P2P 和转发连接；只断开访问，不结束持久 PTY。Relay 重启使后台会话全部失效，宿主重启使内存会话失效；重新登录不需重新配对。
+撤销或过期时拒绝后续 HTTP，并关闭该身份建立的 WebSocket、P2P 和转发连接；只断开访问，不结束持久 PTY。控制面重启使后台会话及跳转 code 失效；数据面重启清空活动连接，宿主重启清空内存会话，重新登录不需重新配对。
 
 ### 12. 数据、接口与组件复用补充
 
-`accounts/hosts` 保存所有者数字 ID 和绑定代际；宿主配对结果及受控状态同步保存这两个字段。SQLite 增加：
+`accounts/hosts` 保存所有者数字 ID 和绑定代际；宿主配对结果及受控状态同步保存这两个字段。PostgreSQL 增加：
 
 - `browser_sessions`：摘要、账号、有效期、撤销状态；
 - `login_grants`：code 摘要、S256 challenge、账号、主机、代际、后台会话、回调、过期时间、消费状态。
 
 短期 state/verifier 仅存服务端内存，Cookie 只放不透明句柄；过期记录定期清理且总量受限。
 
-Relay 接口分为 `/v1/auth/github/*` 登录与固定回调、`/v1/console/*` 所有者主机列表/打开入口/后台注销，以及仅在宿主密钥认证控制通道中可兑换的 `/v1/login-grants/*`。
+控制面接口包括 `/v1/auth/github/*`、`/v1/console/*` 和 `/v1/login-grants/*`；数据面连接器入口独立部署。宿主兑换及 ICE 申请经已认证 WSS control 转交控制面，保留宿主身份、会话、受众与代际校验，不能信任普通公网代理头声明。
 
 宿主 `/auth/relay/start`、`/auth/relay/callback` 是受限认证入口，注销与会话状态归入 `/api/relay/auth/*`。无认证入口仅处理有界认证事务，不能读取业务数据或更改 Relay 开关；DTO、错误映射、Zod 与 wire 快照同步更新。
 
-依赖固定经过兼容性和许可审查的版本：传输用 coder/websocket 与 smux v2，OAuth 用 x/oauth2，反向代理用 Go 标准库，SQLite 与 WebSocket 沿用已有库。优先使用库的 deadline、限流和密码学原语，不自研拥塞控制、可靠 UDP、证书校验或 OAuth token 解析。
+依赖固定经过兼容性和许可审查的版本：WSS 用 coder/websocket 与 smux v2，OAuth 用 x/oauth2，反向代理用 Go 标准库，PostgreSQL 用纯 Go 驱动，TURN 用独立 coturn。优先复用成熟库和进程，不自研拥塞控制、可靠 UDP、证书校验或 OAuth token 解析。
 
 参考：[GitHub PKCE 支持](https://github.blog/changelog/2025-07-14-pkce-support-for-oauth-and-github-app-authentication/)、[x/oauth2](https://pkg.go.dev/golang.org/x/oauth2)、[smux](https://github.com/xtaci/smux)。
 
@@ -250,17 +253,19 @@ Relay 接口分为 `/v1/auth/github/*` 登录与固定回调、`/v1/console/*` �
 
 ### 14. 混合交互数据面与 TURN
 
-控制面所在 Go 进程内置完整 WSS 转发，即使没有 TURN 配置或 TURN 全部失效也能完成登录、打开 WebMux 和全部基础业务。TURN 使用独立部署的成熟服务（优先 coturn），不是 WSS 的代理或加速层，不嵌入控制面自行实现 TURN。
+`webmux-relay` 提供完整 WSS 转发，即使 coturn 未就绪或 TURN 全失效也能经控制面登录并使用全部基础业务。coturn 与它构建到同一个 Docker 镜像但保持独立进程，不是 WSS 加速代理，不嵌入控制面或链接进 Go。
 
 控制面配置受信 TURN 节点、区域标签、允许的 `turn:`/`turns:` URL、传输和签发密钥。长期共享密钥仅在控制面与 TURN 部署环境保管，不进入宿主、浏览器、仓库、诊断或日志。协议只下发标准 ICE 配置、短期用户名/凭据与明确到期时间。
 
-浏览器通过已认证同源宿主接口请求 ICE 配置，宿主通过密钥认证 control 通道向控制面申请；控制面校验账号、host ID、绑定/连接器代际、浏览器会话及邀请状态，为两端分别签发有界短期凭据。响应禁缓存，只留内存；刷新重验授权，过期或刷新失败不得继续创建/续期 allocation。
+浏览器经已认证同源宿主接口请求 ICE 配置，宿主通过密钥认证 WSS control、数据面与控制面的受信通道申请；控制面校验账号、host ID、代际、浏览器会话及邀请状态，为两端分别签发短期凭据。响应禁缓存、只留内存；刷新重验授权，失败不得签发新凭据。
 
 节点必须关闭匿名/免认证 TURN，直接到节点的 Allocate 也验证标准短期凭据；公开 STUN Binding 可单独允许，但不授予转发权限。凭据签发/刷新必须具有有效 GitHub 登录派生的所有者宿主会话，不能仅凭宿主密钥领取通用代理凭据。
 
 每份凭据在服务端关联稳定账号、浏览器会话、host ID、代际和角色。签发限频及节点资源预算按账号跨用户名/角色聚合，由节点或受信配额组件强制执行；coturn 的逐用户名限制不能被当作账号总配额，部署实现须证明重复签发无法绕过。
 
-标准短期凭据是持有者凭证，不自带持续 GitHub 在线验证；泄露后的剩余有效期风险由短 TTL、allocation 生命周期与强制配额控制。用户已接受应用即时撤权与 TURN 资源有界到期的区别，不要求本版实现节点主动即时踢除所有 allocation。
+标准短期凭据是持有者凭证，不自带持续 GitHub 在线验证。到期限制新认证，但 coturn 已认证会话可能继续刷新 allocation，TTL 或单次 allocation lifetime 不等于会话绝对上限；泄露风险还须由节点限额及经过验证的资源控制约束，不保证密码到期自动清空资源。
+
+行为依据见 [coturn TURN REST API 与会话认证说明](https://github.com/coturn/coturn/blob/master/README.turnserver)；实现时固定 coturn 版本并对照其文档及实测，不把当前上游说明当作未经验证的目标版本保证。
 
 TURN 凭据不是 WebMux 登录凭据。信令将 PeerConnection、SDP/DTLS 指纹和一次性建链授权绑定到当前宿主会话及代际，宿主验证后才放行业务；不把浏览器不能在 DataChannel 自动附带 Cookie 当作免鉴权理由。复用现有 P2P 帧与业务 handler，确需扩展时版本化并拒绝未协商特性，不另建通用代理协议。
 
@@ -282,11 +287,31 @@ TURN 节点限制 allocation 生命周期、并发、带宽和账号/节点总�
 
 发布必须以真实手机浏览器及桌面浏览器验证同账号打开 WebMux、Vim/CLI agent、同 PTY 高输出、Ctrl-C、输入无重复、各业务恢复、UDP 黑洞、TURN 不可达/过期、权限撤销及 8–24 小时稳定性。历史报告未测这些混合路径，必须独立记录版本、样本、失败与未覆盖边界。
 
+### 15. 数据面双进程镜像与控制通道
+
+控制面镜像仅运行 `webmux-control`，数据面镜像包含 `webmux-relay`、固定版本的 coturn 和进程管理器；PostgreSQL 独立服务。Go 构建无 CGo 不代表整个数据面镜像无 C 运行库，镜像须包含 coturn 依赖并承担相应安全更新。
+
+进程管理器作为 PID 1，转发 SIGTERM、回收子进程并有界关闭两者；分别监督失败和重启，禁止裸后台启动无人回收。coturn 故障只将 TURN 标为降级，不能由聚合健康检查反复重启仍正常的 WSS；整个容器重启会中断两种转发，应如实说明。
+
+分别提供 WSS/TURN readiness 与 liveness，按进程限制连接、缓冲和资源预算；仍存在容器级 CPU/内存及 OOM 共享故障域，不声称进程分离等于资源完全隔离。两者随同镜像版本发布和回滚，后续可以拆分部署但不增加首版多节点调度。
+
+显式配置公共控制域名、数据面泛域名、WSS 监听、TURN UDP/TCP/TLS 监听及中继端口范围；同机端口不得冲突，同一镜像不表示共享 TCP 443。Docker 映射必须覆盖实际中继端口并正确公布公网 IP，验证 NAT 后双向流量及 TLS/SNI。
+
+GitHub Secret、PostgreSQL 凭据仅注入控制面；节点身份、TLS 私钥和 TURN 共享密钥通过运行时受限 secret 注入相应进程，不写入镜像层或日志。coturn 使用 `use-auth-secret`，控制面按节点共享密钥签发标准短期凭据，无需 coturn 查询业务 PostgreSQL。
+
+数据面节点通过双向 TLS 认证连接控制面，接收精确 Host/主机绑定、公钥与代际、授权、限额和撤销；节点身份预配置，禁止匿名注册。协议绑定节点受众、版本及代际，完整同步并确认后才接入新宿主；数据面不能自行发放 GitHub 用户权限。
+
+控制面决定授权，数据面执行校验、转发、限流及聚合计量；WSS control 角色名不等于 `webmux-control` 进程。授权信息使用有界有效期且需健康控制通道；失联停止新授权/凭据，并在检测超时后关闭相关宿主连接和派生访问，禁止无限使用旧权限。
+
+数据库不可用时拒绝需要数据库确认的配对、登录、兑换与新增连接授权；已有连接仅在仍有效且可监督的授权范围内运行，不能因拆分架构取消原有撤权要求。控制面、数据库和数据面分别做断连、重启与恢复验收，避免声称控制面升级绝不中断流量。
+
+账号总配额仍需节点强制执行验证，不能以打包 coturn 或 PostgreSQL 签发记录代替。发布前验证凭据过期后存量会话持续刷新行为，并证明资源限制生效；若仅配置 TTL 和逐用户名配额，防滥用门禁不能通过。
+
 ## Risks / Trade-offs
 
 - **[Risk] Relay 是宿主登录信任方** → 配对确认明示其可授权远程 Shell，控制通道断线即撤销派生会话，保留本机 Token 恢复路径。
 - **[Risk] Relay 能看到所有转发内容** → 配对和部署文档明确信任模型，默认关闭敏感日志；不把本版本描述为 E2EE。
-- **[Risk] 单节点故障使全部入口离线** → MVP 明确无 SLA，宿主保留本机会话并自动重连；生产前备份 SQLite 和配置，后续再引入分片。
+- **[Risk] 单节点故障影响入口** → MVP 无 SLA，宿主保留 PTY 并重连；生产前备份 PostgreSQL、配置及秘密，控制面与数据面分别监测。
 - **[Risk] smux over WebSocket 叠加缓冲导致队头阻塞** → 每请求独立 stream、限制窗口和缓冲，使用大上传并发终端的真实集成测试验证；不在同一 stream 混合不同请求。
 - **[Risk] 公共泛域名成为开放代理或扫描目标** → 精确 Host 映射、独立密钥认证、账号配额、固定回环目标和邀请名单；随机 ID 不作为认证替代。
 - **[Risk] WebSocket/升级路径被普通 HTTP 超时误杀** → 分离超时策略，长期覆盖终端、聊天和语音连接。
@@ -298,9 +323,9 @@ TURN 节点限制 allocation 生命周期、并发、带宽和账号/节点总�
 
 ## Migration Plan
 
-1. 先在随机回环端口部署测试 Relay，用真实 WebMux 和浏览器完成配对、全协议与故障矩阵，不接触开发者现有服务。
+1. 先在隔离环境部署测试控制面、PostgreSQL 和双进程数据面容器，用真实 WebMux 与浏览器完成配对、全协议及故障矩阵，不接触开发者现有服务。
 2. 以默认关闭发布宿主能力；未配对或无 `[relay]` 配置的实例行为完全不变。
-3. 邀请制部署单节点，逐批加入账号并观察 RTT、重连、内存和聚合流量。
+3. 邀请制部署单控制实例和单数据节点，逐批加入账号并观察 RTT、重连、内存和聚合流量。
 4. 回滚宿主时先关闭 Relay 并撤销 PublicOrigins，再停止发布；旧版本不认识 Relay 设置，必须保留状态文件供恢复，不能删除后意外重绑新地址。
 5. 回滚 Relay 服务时保留数据库、公共 DNS 和证书；恢复同一版本或兼容 migration 后，宿主自动重连。多节点迁移不在本 MVP 内。
 

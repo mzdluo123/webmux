@@ -10,18 +10,18 @@
 
 ## What Changes
 
-- 新增官方 Relay 单节点服务：同一 Go 进程提供 GitHub 配对、主机注册、公共 HTTPS 入口、宿主出站连接和 HTTP/WebSocket 反向代理；账号与主机绑定使用 SQLite 持久化。
+- 新增独立控制面 `webmux-control`，提供 GitHub 配对、网页后台、主机注册与授权，使用 PostgreSQL 持久化；数据面 `webmux-relay` 提供公共 HTTPS/WSS、宿主连接器和 HTTP/WebSocket 转发，不直接访问业务数据库。
 - 宿主身份使用 Ed25519，官方 TLS 服务身份使用 ECDSA P-256；分别生成、保管和轮换，复用 Go 标准密码库。
 - 每个账号在 MVP 中绑定一台 WebMux 主机。宿主使用本地生成的独立 Ed25519 密钥配对，获得固定随机公共主机名；配对和跳转不提交或分发 WebMux 长期登录 Token。
 - 宿主通过 TCP 443 出站 WSS + smux v2 接入 Relay，以一个逻辑连接器内的两条物理连接隔离控制/交互与批量流量，Relay 在多路 stream 上转发 REST、上传下载、WebSocket Upgrade 与端口转发流量。TLS 在 Relay 终止，本版本不宣称端到端加密。
 - WebMux 新增官方 Relay 设置、配对、启停、重连、删除绑定和状态展示；启用仍要求至少 43 字符登录 Token 与公网风险确认。
 - 新增适配手机的官方后台 GitHub 登录、所有者主机列表和免 Token 跳转；仅展示 WebMux，其他应用仍从 WebMux 内端口转发入口使用，不提供公开分享。宿主显式信任已配对 Relay 的所有者授权，独立直连入口继续使用 Token。
-- MVP 部署在有独立公网 IP 的单台服务器，用户直连；提供 HTTPS 域名与证书，不引入 CDN、Spectrum 或 Cloudflare Tunnel 依赖。
+- MVP 为单控制实例与单数据节点，可同机或分机部署。数据节点需要独立公网 IP、HTTPS 泛域名和证书，用户直连；不引入 CDN、Spectrum 或 Cloudflare Tunnel 依赖。
 - Relay 就绪后复用 `PublicOrigins` 登记公共 Host/Origin，断开或关闭立即撤权；固定 HTTPS 入口纳入现有访问链接、状态输出与 Web Push 来源。
 - 开源客户端内置官方 HTTPS/WSS 地址与官方服务身份公钥，用户无需填写端点或配置 GitHub OAuth 应用；官方私钥、OAuth Client Secret 和用户授权凭据仅由服务端保密管理。
-- 官方 Relay 默认关闭，独立于 Cloudflare Tunnel 和 Tailscale。同进程内置 WSS 基础数据面，不依赖 TURN 即可工作；另由控制面向已授权浏览器和宿主下发短期 ICE/TURN 配置，支持 WebRTC 直连或 TURN 优化。
+- 官方 Relay 默认关闭，独立于 Cloudflare Tunnel 和 Tailscale。数据面 Docker 镜像同时包含 `webmux-relay` 和 coturn `turnserver` 两个独立进程，WSS 不依赖 TURN 即可工作；控制面向已授权浏览器和宿主下发短期 ICE/TURN 配置。
 - 首屏与登录不等待 WebRTC；后台比较应用层延迟和健康状态，仅在候选路径稳定更优时升级，失败回 WSS，并防止频繁切换。终端、聊天、列表等交互业务可升级，文件上传下载与全部 `/forward/*` 保持 WSS。
-- MVP 仅支持单控制节点、单进程、每账号一台主机和邀请制运营；TURN 节点独立部署，不等于多区域控制面。不包含高可用、自定义域名、匿名配额、公开分享、端到端加密或独立稳定域名壳。
+- MVP 仅支持单控制实例、单数据节点、每账号一台主机和邀请制运营。控制面容器、双进程数据面容器和 PostgreSQL 分开管理，不包含多区域调度、高可用、自定义域名、匿名配额、公开分享、端到端加密或独立稳定域名壳。
 
 实测依据见 [issue #604 验证报告](../../../docs/relay-validation-604.md)。同时参考[终端优先补测](../../../docs/relay-terminal-validation-604.md)，以按键回显、输出完整性和恢复优先判断，不把 WSS 说成所有场景延迟最低。未实现生产数据面；QUIC、KCP/FEC、Hysteria 与完整产品保留为后续研究。
 
@@ -41,10 +41,10 @@
 
 ## Impact
 
-- Relay 服务端置于独立仓库，拥有自己的二进制、数据库、后台与发布流水线；WebMux 只增加宿主连接器、设置和会话认证。
+- Relay 服务端置于独立仓库，发布 `webmux-control` 与 `webmux-relay` 两个 Go 程序及包含 coturn 的数据面镜像；WebMux 仅持有宿主连接器、设置和会话认证。coturn 作为独立进程复用，不嵌入或链接到 Go。
 - 在 WebMux 仓库维护小型公开 Go 协议子模块供两端固定版本复用；更新宿主架构分层、持久化清单和跨仓库兼容性验证，不跨仓库导入 `internal/`。
 - 新增 `/api/relay*` 宿主控制接口与 Relay 控制面/连接器协议，更新 `internal/contract`、`internal/wire`、`web/src/contracts/schemas.ts` 和 wire 快照。
 - 更新 `cmd/webmux` 组装、`internal/api`、`internal/statefile`、本机状态、访问 URL 和 Web Push 来源登记。
 - 前端新增 Relay 设置组件、配对流程和状态展示；扩展现有 P2P 的 TURN 候选、会话认证、交互路由与状态，替换“永不使用 TURN”的界面和规则，复用现有传输、存储和设计系统。
-- 复用 `coder/websocket`、`modernc.org/sqlite`、`net/http/httputil`；使用 `xtaci/smux` v1.5.58 和 `golang.org/x/oauth2`，不自研传输、加密或 OAuth 客户端。
+- 复用 `coder/websocket`、`net/http/httputil`、`xtaci/smux` v1.5.58 和 `golang.org/x/oauth2`；控制面使用经过版本及许可审查的纯 Go PostgreSQL 驱动，不提供服务端 SQLite 回退。coturn 固定版本，不自研传输、加密、TURN 或 OAuth。
 - 新增 Relay 服务端部署与运维说明、远程访问用户故事，以及单元、集成、浏览器和端到端测试。

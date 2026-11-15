@@ -234,7 +234,7 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 宿主 SHALL 将 PeerConnection、协商的 SDP/DTLS 指纹与单次建链授权绑定到该浏览器会话，验证后才放行业务。TURN 凭据 MUST NOT 替代宿主认证，MUST NOT 允许仅持有 ICE 配置的客户端访问终端或任意回源。
 
-凭据刷新 SHALL 重新验证授权；过期或失败时不得继续建立或续期 allocation。长期共享密钥 MUST NOT 下发两端；短期凭据 MUST NOT 进入日志、诊断、URL、浏览器持久化或公开状态。
+凭据刷新 SHALL 重新验证授权，失败不得领取新凭据。coturn 存量会话可能使用原认证继续刷新 allocation；客户端 SHALL 在凭据到期或刷新失败时主动关闭受影响连接并回落 WSS，MUST NOT 假定服务端因密码到期已关闭资源。长期共享密钥及短期凭据 MUST NOT 进入日志、诊断、URL、浏览器持久化或公开状态。
 
 #### Scenario: 未授权浏览器索取 TURN 配置
 
@@ -249,7 +249,7 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 #### Scenario: TURN 凭据过期或刷新失败
 
 - **WHEN** 两端短期凭据到期或刷新无法完成
-- **THEN** 停止新建与续期 allocation，受影响交互回落 WSS，不阻塞基线访问或绕过认证
+- **THEN** 客户端停止使用受影响配置并主动关闭相关连接，交互回落 WSS；不阻塞基线或绕过认证，不将客户端关闭等同于已证明所有节点资源释放
 
 ### Requirement: 按测量升级的交互路由
 

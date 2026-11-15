@@ -4,6 +4,8 @@
 
 官方单节点 Relay 为经过账号配对的 WebMux 主机分配固定 HTTPS 入口，并通过宿主主动建立的出站连接转发公网 HTTP 与 WebSocket 流量，使用户无需公网 IP、域名或第三方 Tunnel 即可远程访问自己的终端。
 
+本规范的“Relay 服务”包含独立控制面 `webmux-control` 与数据面 `webmux-relay`；数据面 Docker 镜像内同时运行 coturn `turnserver`，不表示三个程序合为同一进程。
+
 ## ADDED Requirements
 
 ### Requirement: 账号配对与单主机绑定
@@ -113,9 +115,9 @@ Relay SHALL 提供可配置的配对速率、每主机活动 stream 数、每连
 
 ### Requirement: 注册数据持久化与单节点恢复
 
-Relay SHALL 将账号绑定、主机公钥、公共标识和撤销状态持久化到单节点 SQLite 数据库，并使用事务保证账号唯一绑定和重新绑定原子性。
+控制面 SHALL 将账号绑定、主机公钥、公共标识和撤销状态持久化到 PostgreSQL，并使用事务和唯一约束保证账号唯一绑定、重新绑定原子性及授权单次消费；MUST NOT 使用 SQLite 回退。
 
-Relay 重启后 SHALL 恢复注册数据；活动连接器不假装自动恢复，宿主必须重新完成认证。数据库不可用或迁移失败时，Relay SHALL 拒绝新的配对与连接并报告未就绪，MUST NOT 使用不完整状态分配重复主机名。
+控制面重启后 SHALL 恢复注册数据；数据面活动连接器不假装自动恢复，宿主必须重新认证。数据库不可用或迁移失败时 SHALL 报告控制面未就绪并拒绝新配对、登录、授权兑换和连接授权，MUST NOT 用不完整状态分配主机名或旧缓存绕过撤销。
 
 GitHub 访问凭据 SHALL 只用于授权时读取账号数字身份，MVP MUST NOT 长期保存该凭据。
 
@@ -151,7 +153,7 @@ Relay SHALL 提供 GitHub OAuth Authorization Code 登录，使用 PKCE S256、�
 
 账号授权 SHALL 以 GitHub 数字 ID 为键并检查邀请名单；后台 SHALL 只列出该账号绑定的主机与在线状态。GitHub access token SHALL 仅用于读取身份，随后丢弃，不申请仓库权限。
 
-后台 SHALL 使用服务端不透明会话，其摘要存入 SQLite；Cookie MUST 为 host-only、Secure、HttpOnly、SameSite=Lax、Path=/ 的 `__Host-` Cookie，有效期不超过 12 小时，不无限续期。登录成功 SHALL 轮换会话 ID；登录与跳转材料 MUST NOT 写入浏览器持久化或日志。
+后台 SHALL 使用服务端不透明会话，其摘要存入 PostgreSQL；Cookie MUST 为 host-only、Secure、HttpOnly、SameSite=Lax、Path=/ 的 `__Host-` Cookie，有效期不超过 12 小时，不无限续期。登录成功 SHALL 轮换会话 ID；登录与跳转材料 MUST NOT 写入浏览器持久化或日志。
 
 后台 SHALL 提供适配手机的网页入口：宿主完成 GitHub 配对后，手机使用同一数字 ID 登录即可查看并打开在线 WebMux，无需复制长期 Token 或填写 TURN 配置。后台仅展示 WebMux；其他 Web 应用仍从 WebMux 内端口转发使用，MVP 不提供独立应用发布、公开分享或远程启动离线宿主。
 
@@ -191,7 +193,7 @@ Relay MUST NOT 接受任意回调或开放重定向，MUST NOT 为非所有者�
 
 后台注销 SHALL 撤销当前后台会话、未消费 code 和派生宿主会话；换钥、解绑或移出邀请名单 SHALL 撤销相关全部授权。Relay SHALL 通过已认证控制通道传播撤销，事件送达前 MUST NOT 声称在线宿主已完成全局撤销；通道断开 SHALL 触发宿主本地会话失效。
 
-Relay 重启 SHALL 使重启前的后台会话及跳转 code 失效，保留账号和主机绑定。GitHub 网站注销 SHALL 不被描述为自动注销 WebMux。
+控制面重启 SHALL 使重启前的后台会话及跳转 code 失效，保留账号和主机绑定；数据面重启 SHALL 清空活动连接。GitHub 网站注销 SHALL 不被描述为自动注销 WebMux。
 
 #### Scenario: 后台注销在线主机访问
 
@@ -200,7 +202,7 @@ Relay 重启 SHALL 使重启前的后台会话及跳转 code 失效，保留账�
 
 ### Requirement: 独立服务器与 WSS 数据面
 
-MVP 控制面 SHALL 部署在有独立公网 IP 的单台服务器，配置泛域名 DNS、有效证书与 TCP 443，浏览器直接使用 HTTPS/WebSocket；不依赖 CDN。该进程 SHALL 内置完整 WSS 基础转发，不要求开放 UDP 或依赖 TURN 才可用；可选 TURN 节点 SHALL 独立部署并按其传输开放端口。
+MVP SHALL 部署单控制实例和单数据节点，可同机或分机。控制面提供 HTTPS 后台，数据面提供泛域名 HTTPS/WebSocket 与 WSS 连接器，不依赖 CDN。数据面 WSS SHALL 不依赖 coturn 就绪或开放 UDP；coturn SHALL 与 `webmux-relay` 打包在同一镜像内并独立运行。
 
 宿主连接器 SHALL 使用 TLS 1.3 WSS + smux v2，嵌入库而非受管 sidecar；连接器 MUST NOT 探测 QUIC、配置 FEC 或自研可靠 UDP，此限制不禁止独立 WebRTC/TURN 交互优化。
 
@@ -278,7 +280,7 @@ TURN 节点 SHALL 强制标准 TURN 身份认证并关闭匿名/免认证中继�
 
 签发限频及 allocation/流量配额 SHALL 按稳定账号聚合，覆盖同账号的所有短期用户名和两端角色；MUST NOT 只按短期用户名计数而允许重复领取绕过总额。节点侧或受信配额组件 SHALL 强制资源限制，不能仅靠前端或停止签发约束已有凭据。
 
-短期凭据 SHALL 被视为持有者凭证，泄露后在剩余有效期内可能被盗用；部署 SHALL 通过短 TTL、allocation 生命周期及强制总配额限制风险，MUST NOT 声称 GitHub 注销会即时清除所有 TURN 资源。
+短期凭据 SHALL 被视为持有者凭证。到期限制新认证，但 coturn 已认证会话可能继续刷新 allocation；TTL 或单次 allocation lifetime MUST NOT 被当作会话绝对上限。发布 SHALL 验证节点实际资源限制，MUST NOT 声称 GitHub 注销或密码到期会自动清除已有 TURN 资源。
 
 TURN 凭据 SHALL 仅授权受限网络资源，MUST NOT 作为 WebMux 登录凭据。节点 SHALL 对 allocation 生命周期、并发、带宽和账号/节点总预算实施限制，禁止向回环、私网、链路本地及云元数据地址滥用转发；部署验收 SHALL 验证 ACL 和双端连通性。
 
@@ -324,3 +326,41 @@ TURN 凭据 SHALL 仅授权受限网络资源，MUST NOT 作为 WebMux 登录凭
 
 - **WHEN** 准备发布包含 TURN 优化的版本
 - **THEN** SHALL 附真实浏览器、节点故障/过期、权限撤销、抖动防切换及长时验证结果，并注明线路与未覆盖边界；不以历史原型或节点所在地代替证据
+
+### Requirement: 控制面 PostgreSQL 与数据面隔离
+
+`webmux-control` SHALL 负责 GitHub、网页后台、主机绑定、授权与 TURN 凭据签发；`webmux-relay` SHALL 负责宿主身份校验、精确 Host 路由、WSS 转发、节点配额与聚合计量，MUST NOT 自行授予 GitHub 用户权限。
+
+只有控制面 SHALL 访问业务 PostgreSQL，使用版本化 migration、有界连接池及查询/事务超时。数据面和 coturn MUST NOT 持有业务数据库凭据或逐包查询数据库；宿主 SHALL 继续使用本地受控状态文件，不要求安装 PostgreSQL。
+
+数据面 SHALL 经双向 TLS 认证控制通道取得绑定、公钥、节点受众、代际、限额及撤销，完整同步确认后才接入新宿主。授权 SHALL 有界有效且受健康通道监督；失联 SHALL 停止新授权及凭据，检测超时后关闭关联宿主和派生访问，MUST NOT 无限使用过期权限。
+
+#### Scenario: 数据面伪造或重放控制授权
+
+- **WHEN** 节点未认证，或控制消息的受众、版本、代际或有效期不匹配
+- **THEN** 拒绝授权/路由变更，不影响合法当前绑定，不通过普通公网代理头信任身份
+
+#### Scenario: 数据库或控制通道故障
+
+- **WHEN** PostgreSQL 不可用，或数据面丢失受信控制通道
+- **THEN** 拒绝需要重新验证的授权操作，存量访问仅在有效监督范围内运行；失联超时撤权，不绕过数据库或要求宿主改用数据库
+
+### Requirement: WSS 与 coturn 同镜像双进程部署
+
+数据面 Docker 镜像 SHALL 包含 `webmux-relay`、固定版本 coturn `turnserver` 和 PID 1 进程管理器，分别监督两进程、回收子进程、传递终止信号并有界退出。coturn SHALL 作为独立程序复用，MUST NOT 通过 CGo 链接进 Go 或自研替代协议。
+
+WSS 与 TURN SHALL 分别报告 readiness/liveness 并有独立资源预算；TURN 失败 SHALL 显示降级并保留正常 WSS，MUST NOT 用聚合健康失败反复重启正常基线。整个容器重启会中断两者，部署 SHALL 如实说明共享 CPU/内存/OOM 故障域及同版本发布/回滚。
+
+部署 SHALL 显式配置控制/数据域名、无冲突的 WSS 与 TURN UDP/TCP/TLS 监听、中继端口范围、Docker 映射及公网地址；同镜像 MUST NOT 被解释为共用 TCP 443。验收 SHALL 验证实际 NAT 后双向中继及 TLS/SNI。
+
+Go 程序 SHALL 保持 `CGO_ENABLED=0`；镜像 SHALL 包含 coturn 的运行库并纳入版本固定、安全更新及许可审查。节点密钥、TLS 私钥、TURN 共享密钥 SHALL 通过运行时受限 secret 注入，MUST NOT 写入镜像层或日志；GitHub Secret 和 PostgreSQL 凭据仅注入控制面。
+
+#### Scenario: coturn 崩溃但 WSS 正常
+
+- **WHEN** 同一数据面容器的 coturn 子进程退出而 `webmux-relay` 健康
+- **THEN** 监督器回收并按策略重启 coturn，TURN 状态降级，WSS 继续服务，不因单一 TURN 探针失败重启整个容器
+
+#### Scenario: 数据面容器停止与重新部署
+
+- **WHEN** 容器收到终止信号或升级到另一固定版本镜像
+- **THEN** 两进程均有界退出且不留孤儿，重启后重新认证与恢复连接，镜像中无运行时秘密，不宣称存量连接未中断
