@@ -1,15 +1,18 @@
 {
   "agent": "qoder",
-  "status": "missing-local-source",
-  "sourceLayout": "unknown: no international-edition native transcript located",
-  "provenance": "No fixture is supplied. Read-only inventory of the available Linux home, Windows user home, mounted drive roots and temporary workspace roots located QoderCN history but no international Qoder history.",
-  "versionEvidence": "unknown",
+  "status": "provisional-shared-fixture",
+  "fixtureSource": "../qodercn/manifest.json",
+  "sourceLayout": "Use the QoderCN source layout provisionally; the international-edition layout has not been observed.",
+  "provenance": "The maintainer explicitly approved developing Qoder against the real sanitized QoderCN fixtures for now. Follow fixtureSource for the authoritative files, hashes, sanitization and coverage; no records are copied or relabelled as international-edition captures.",
+  "versionEvidence": "QoderCN fixtures contain version 1.1.84; the international Qoder writer version remains unknown.",
   "sanitization": [],
-  "coverage": [],
+  "coverage": [
+    "Provisionally reuse both QoderCN JSONL files for shared reader development under the maintainer's explicit compatibility assumption."
+  ],
   "limitations": [
-    "This is a coverage gap, not an unsupported implementation and not a completed checklist item for issue #652.",
-    "The QoderCN fixtures must not be relabelled as international Qoder captures merely because the runtime adapters share code.",
-    "An existing real international-edition transcript with its in-record version evidence is still required; no agent was installed or started to manufacture one."
+    "This is a temporary implementation baseline, not evidence of international Qoder runtime or file-format compatibility and not a completed checklist item for issue #652.",
+    "All QoderCN fixture limitations still apply, including missing tool-call and compaction examples.",
+    "A real international-edition capture must eventually confirm or correct the shared-format and source-layout assumptions."
   ],
   "files": []
 }
