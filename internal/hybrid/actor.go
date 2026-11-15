@@ -345,9 +345,9 @@ func (a *actor) flush() {
 	if a.state != StateActive {
 		a.chat.Recovery = &RecoveryTip{State: a.state}
 	}
-	a.log.setState(a.chat)
 	a.publishMetadata()
 	a.shell.SetOverlay(a.overlay())
+	a.log.setState(a.chat)
 	a.svc.manager.Notify(a.id)
 	a.saveShellInfo(a.shell.Info())
 }
