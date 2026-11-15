@@ -26,17 +26,21 @@ type pendingCall struct {
 }
 
 type controlRPC struct {
-	session  *connection
-	stream   *smux.Stream
-	writes   chan outbound
-	mu       sync.Mutex
-	pending  map[protocol.Token]pendingCall
-	pings    map[protocol.Token]time.Time
-	lastPong time.Time
+	session         *connection
+	stream          *smux.Stream
+	writes          chan outbound
+	heartbeatCtx    context.Context
+	heartbeatCancel context.CancelFunc
+	heartbeatDone   chan struct{}
+	mu              sync.Mutex
+	pending         map[protocol.Token]pendingCall
+	pings           map[protocol.Token]time.Time
+	lastPong        time.Time
 }
 
 func newControlRPC(s *connection, stream *smux.Stream) *controlRPC {
-	return &controlRPC{session: s, stream: stream, writes: make(chan outbound, controlQueueSize), pending: make(map[protocol.Token]pendingCall), pings: make(map[protocol.Token]time.Time), lastPong: time.Now()}
+	ctx, cancel := context.WithCancel(s.ctx)
+	return &controlRPC{session: s, stream: stream, writes: make(chan outbound, controlQueueSize), heartbeatCtx: ctx, heartbeatCancel: cancel, heartbeatDone: make(chan struct{}), pending: make(map[protocol.Token]pendingCall), pings: make(map[protocol.Token]time.Time), lastPong: time.Now()}
 }
 
 func (r *controlRPC) start() {
@@ -181,11 +185,13 @@ func (r *controlRPC) validateReply(m protocol.ControlMessage, pending pendingCal
 }
 
 func (r *controlRPC) heartbeat() {
+	defer close(r.heartbeatDone)
+	defer r.heartbeatCancel()
 	ticker := time.NewTicker(protocol.KeepAliveInterval)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-r.session.ctx.Done():
+		case <-r.heartbeatCtx.Done():
 			return
 		case now := <-ticker.C:
 			r.mu.Lock()
@@ -208,7 +214,10 @@ func (r *controlRPC) heartbeat() {
 			r.mu.Lock()
 			r.pings[id] = now
 			r.mu.Unlock()
-			if err := r.send(r.session.ctx, r.message(protocol.ControlPing, id)); err != nil {
+			if err := r.send(r.heartbeatCtx, r.message(protocol.ControlPing, id)); err != nil {
+				if r.heartbeatCtx.Err() != nil {
+					return
+				}
 				r.session.stop(err)
 				return
 			}
@@ -225,6 +234,10 @@ func (r *controlRPC) revoke(m protocol.ControlMessage) error {
 	if whole {
 		// Deny new streams before closing access or invoking consumer callbacks.
 		r.session.closeHTTP()
+		// Once access is denied, stop and join heartbeat writes before the
+		// final ACK/FIN. No ping may write to the half-closed management stream.
+		r.heartbeatCancel()
+		<-r.heartbeatDone
 	}
 	ctx, cancel := context.WithDeadline(r.session.ctx, time.Unix(m.ExpiresAt, 0))
 	defer cancel()
@@ -240,6 +253,31 @@ func (r *controlRPC) revoke(m protocol.ControlMessage) error {
 		return err
 	}
 	if whole {
+		// A completed smux write only proves transport delivery, not that the
+		// peer consumed the ACK. Half-close and let its reader drain before
+		// closing the primary socket; access stays denied throughout.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			if err := r.stream.CloseWrite(); err != nil {
+				return
+			}
+			var buffer [1024]byte
+			for {
+				if _, err := r.stream.Read(buffer[:]); err != nil {
+					return
+				}
+			}
+		}()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			// Publish the terminal revocation before closing sockets: their
+			// accept loops must not turn deadline expiry into a reconnectable
+			// transport failure. Socket closure interrupts FIN and read.
+			r.session.stop(protocol.Error{Code: protocol.Forbidden})
+			<-done
+		}
 		return protocol.Error{Code: protocol.Forbidden}
 	}
 	return nil

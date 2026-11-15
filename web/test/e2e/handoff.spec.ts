@@ -194,16 +194,21 @@ test("server draft survives close, refresh and restart without reading ChatModel
     "sessions",
     "fake-project",
   );
-  const nativeFiles = await readdir(nativeRoot);
-  expect(nativeFiles).toHaveLength(1);
-  const nativePath = join(nativeRoot, nativeFiles[0]);
+  const sessionResponse = await request.get(`/api/sessions/${a.id}`);
+  expect(sessionResponse.ok(), await sessionResponse.text()).toBeTruthy();
+  const nativeId = (await sessionResponse.json()).agent.sessionId;
+  const nativePath = join(nativeRoot, `${nativeId}.jsonl`);
   const nativePrefix = await readFile(nativePath, "utf8");
   const nativeIdentity = await stat(nativePath);
   const nativeEntries = nativePrefix
     .trim()
     .split("\n")
     .map((line) => JSON.parse(line));
-  expect(nativeEntries[0]).toMatchObject({ type: "session", version: 3 });
+  expect(nativeEntries[0]).toMatchObject({
+    type: "session",
+    version: 3,
+    id: nativeId,
+  });
   expect(nativeEntries.slice(1)).toEqual(
     expect.arrayContaining([
       expect.objectContaining({

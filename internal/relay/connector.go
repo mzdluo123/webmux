@@ -212,6 +212,13 @@ func (s *connection) stop(err error) {
 		return
 	}
 	s.stopped = true
+	s.mu.Lock()
+	if s.denied {
+		// Whole-scope revocation has already removed access. A concurrent
+		// transport failure or cancellation must not make it reconnectable.
+		err = protocol.Error{Code: protocol.Forbidden}
+	}
+	s.mu.Unlock()
 	s.err = err
 	s.client.mu.Lock()
 	if s.client.active == s {

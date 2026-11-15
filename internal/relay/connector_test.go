@@ -901,33 +901,73 @@ func TestGrowthBudgetExpiresAndLaterDemandCanRetry(t *testing.T) {
 }
 
 func TestConnectorRevocationClosesEveryPooledPhysical(t *testing.T) {
-	id := newTestIdentity(t)
-	local := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.(http.Flusher).Flush()
-		<-r.Context().Done()
-	}), true)
-	h := startPoolConnector(t, id, local.Listener.Addr().String(), nil)
-	h.demand(t, protocol.RoleControl, 2)
-	h.demand(t, protocol.RoleBulk, 2)
-	control := awaitRole(t, h.controls)
-	bulk := awaitRole(t, h.bulks)
-	holdPoolHTTP(t, control)
-	holdPoolHTTP(t, bulk)
-	revocation := protocol.Revocation{ID: testToken(t), Scope: "connector", HostID: h.primary.scope.HostID, BindingGeneration: h.primary.scope.BindingGeneration, ConnectorGeneration: h.primary.scope.ConnectorGeneration, Reason: "logout"}
-	message := protocol.ControlMessage{Version: protocol.V1, Type: protocol.ControlRevoke, RequestID: testToken(t), Scope: h.primary.scope, ExpiresAt: time.Now().Add(protocol.ControlMessageTTL).Unix(), Revocation: &revocation}
-	if err := protocol.WriteFrame(h.management, message, protocol.MaxControlBytes); err != nil {
-		t.Fatal(err)
+	for _, finish := range []string{"peer-fin", "cancel", "deadline"} {
+		t.Run(finish, func(t *testing.T) {
+			id := newTestIdentity(t)
+			local := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.(http.Flusher).Flush()
+				<-r.Context().Done()
+			}), true)
+			h := startPoolConnector(t, id, local.Listener.Addr().String(), nil)
+			h.demand(t, protocol.RoleControl, 2)
+			h.demand(t, protocol.RoleBulk, 2)
+			control := awaitRole(t, h.controls)
+			bulk := awaitRole(t, h.bulks)
+			holdPoolHTTP(t, control)
+			holdPoolHTTP(t, bulk)
+			revocation := protocol.Revocation{ID: testToken(t), Scope: "connector", HostID: h.primary.scope.HostID, BindingGeneration: h.primary.scope.BindingGeneration, ConnectorGeneration: h.primary.scope.ConnectorGeneration, Reason: "logout"}
+			expires := time.Now().Add(protocol.ControlMessageTTL)
+			if finish == "deadline" {
+				expires = time.Now().Add(2 * time.Second)
+			}
+			message := protocol.ControlMessage{Version: protocol.V1, Type: protocol.ControlRevoke, RequestID: testToken(t), Scope: h.primary.scope, ExpiresAt: expires.Unix(), Revocation: &revocation}
+			if err := protocol.WriteFrame(h.management, message, protocol.MaxControlBytes); err != nil {
+				t.Fatal(err)
+			}
+			var ack protocol.ControlMessage
+			if err := protocol.ReadFrame(h.management, &ack, protocol.MaxControlBytes); err != nil {
+				t.Fatal(err)
+			}
+			if err := ack.Validate(h.primary.scope, time.Now()); err != nil {
+				t.Fatal(err)
+			}
+			if ack.Type != protocol.ControlRevokeAck || ack.RequestID != message.RequestID || ack.RevocationAck.ID != revocation.ID || !ack.RevocationAck.AccessClosed {
+				t.Fatal("whole connector revocation was not acknowledged after closing access")
+			}
+			var trailing [1]byte
+			if n, err := h.management.Read(trailing[:]); n != 0 || err != io.EOF {
+				t.Fatalf("revocation ACK was not followed by management FIN: n=%d err=%v", n, err)
+			}
+			select {
+			case <-h.done:
+				t.Fatal("connector closed before its peer finished draining the ACK")
+			default:
+			}
+			h.client.mu.Lock()
+			active := h.client.active
+			h.client.mu.Unlock()
+			if active == nil {
+				t.Fatal("connector stopped before management drain")
+			}
+			active.mu.Lock()
+			denied := active.denied
+			active.mu.Unlock()
+			if !denied {
+				t.Fatal("management drain reopened revoked access")
+			}
+			switch finish {
+			case "peer-fin":
+				if err := h.management.CloseWrite(); err != nil {
+					t.Fatal(err)
+				}
+			case "cancel":
+				h.cancel()
+			}
+			awaitPoolClosed(t, h, h.primary, h.bulk, control, bulk)
+			if protocolCode(h.err) != protocol.Forbidden {
+				t.Fatalf("revocation ended as a reconnectable failure: %v", h.err)
+			}
+		})
 	}
-	var ack protocol.ControlMessage
-	if err := protocol.ReadFrame(h.management, &ack, protocol.MaxControlBytes); err != nil {
-		t.Fatal(err)
-	}
-	if err := ack.Validate(h.primary.scope, time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	if ack.Type != protocol.ControlRevokeAck || ack.RequestID != message.RequestID || !ack.RevocationAck.AccessClosed {
-		t.Fatal("whole connector revocation was not acknowledged after closing access")
-	}
-	awaitPoolClosed(t, h, h.primary, h.bulk, control, bulk)
 }

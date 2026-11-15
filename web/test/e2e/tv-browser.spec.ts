@@ -22,23 +22,54 @@ async function remoteTo(page: Page, target: Locator) {
   await expect(target).toBeVisible();
   const tried = new Map<string, Set<string>>();
   for (let step = 0; step < 120; step++) {
-    if (await target.evaluate((element) => document.activeElement === element))
-      return;
-    const destination = await target.boundingBox();
-    if (!destination) throw new Error("TV destination has no rectangle");
-    const active = await page.evaluate(() => {
+    const active = await target.evaluate(async (destinationElement) => {
+      // Let Svelte commit menu/draft changes and the TV/overlay RAF autofocus
+      // finish before observing focus or spending a direction from this state.
+      const frame = Promise.withResolvers<void>();
+      requestAnimationFrame(() => requestAnimationFrame(() => frame.resolve()));
+      await frame.promise;
+      const destination = destinationElement.getBoundingClientRect();
+      if (!destination.width || !destination.height)
+        throw new Error("TV destination has no rectangle");
       const element = document.activeElement;
       const rect = element?.getBoundingClientRect();
       const state = window as typeof window & {
         __tvRemoteNodes?: WeakMap<Element, string>;
       };
       const nodes = (state.__tvRemoteNodes ??= new WeakMap<Element, string>());
-      const key = element
-        ? (nodes.get(element) ?? crypto.randomUUID())
-        : "body";
-      if (element) nodes.set(element, key);
+      function nodeKey(node: Element | null) {
+        if (!node) return "body";
+        const key = nodes.get(node) ?? crypto.randomUUID();
+        nodes.set(node, key);
+        return key;
+      }
+      const overlays = Array.from(
+        document.querySelectorAll(
+          '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"][data-state="open"], [data-slot="popover-content"]',
+        ),
+      )
+        .filter(
+          (overlay) =>
+            overlay.getClientRects().length > 0 &&
+            !overlay.closest('[inert], [hidden], [aria-hidden="true"]') &&
+            getComputedStyle(overlay).visibility !== "hidden",
+        )
+        .map((overlay) => [
+          nodeKey(overlay),
+          overlay.getAttribute("data-state"),
+          overlay.getBoundingClientRect().toJSON(),
+        ]);
       return {
-        key,
+        reached: element === destinationElement,
+        destination: destination.toJSON(),
+        // A surviving button can have different neighbors after layout changes
+        // or a different navigation boundary while an overlay opens/closes.
+        key: JSON.stringify([
+          nodeKey(element),
+          rect?.toJSON(),
+          destination.toJSON(),
+          overlays,
+        ]),
         name:
           element?.getAttribute("aria-label") ||
           (element?.matches("button, a, [role=menuitem], [role=radio]")
@@ -54,6 +85,8 @@ async function remoteTo(page: Page, target: Locator) {
         menu: !!element?.closest('[role="menu"], [role="listbox"]'),
       };
     });
+    if (active.reached) return;
+    const { destination } = active;
     const dx = destination.x + destination.width / 2 - active.x;
     const dy = destination.y + destination.height / 2 - active.y;
     const distanceX = Math.max(
