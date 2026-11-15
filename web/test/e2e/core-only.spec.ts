@@ -7,14 +7,14 @@ import {
   quote,
   runCommand,
 } from "./fixtures";
-import { CapabilitiesSchema } from "../../src/contracts/plugin-schemas";
+import { CapabilitiesSchema } from "../../src/contracts/feature-schemas";
 
 // These are production lazy-entry asset names, not source-content assertions.
 // Observe actual browser requests, including preload fetches and WebSockets.
-const pluginChunk =
+const featureChunk =
   /\/(?:terminal-(?:chat|files|code|forward|immersive|quick-commands|voice|workspace|git)|chat|code|workspace|launch|forward|notifications|p2p|cloudflare|tailscale|LaunchPicker|LocationPicker|WorktreeCreateFields|DirectoryPicker|ConnectorInstallHint|P2PSettings|QuickCommandsSettings|VoiceSettings|LaunchConfigsSettings|TunnelSettings|TailscaleSettings|PushSettings|GitWorkbench|CodePopout|Handoff|QuickStart)-[^/]+\.js$/;
 
-test("core-only ignores stale plugin preferences and creates, types into, and replays a real PTY", async ({
+test("core-only ignores stale feature preferences and creates, types into, and replays a real PTY", async ({
   page,
   request,
   workDir,
@@ -23,8 +23,8 @@ test("core-only ignores stale plugin preferences and creates, types into, and re
     await (await request.get("/api/capabilities")).json(),
   );
   expect(
-    capabilities.plugins.every(
-      (plugin) => !plugin.enabled && plugin.status === "disabled",
+    capabilities.features.every(
+      (feature) => !feature.enabled && feature.status === "disabled",
     ),
   ).toBe(true);
   expect(capabilities.capabilities).toContainEqual({
@@ -45,7 +45,7 @@ test("core-only ignores stale plugin preferences and creates, types into, and re
         (!coreAPI || url.searchParams.get("state") === "archived")) ||
       (path.startsWith("/ws/") &&
         !/^\/ws\/(?:settings|sessions|s\/[a-z0-9]+)$/.test(path)) ||
-      pluginChunk.test(path)
+      featureChunk.test(path)
     )
       disabledRequests.push(path);
   };
@@ -57,7 +57,7 @@ test("core-only ignores stale plugin preferences and creates, types into, and re
   });
   await page.addInitScript(() => {
     localStorage.setItem("webmux.shellMode", "chat");
-    localStorage.setItem("webmux.lastLaunch", "config:deleted-plugin-launch");
+    localStorage.setItem("webmux.lastLaunch", "config:deleted-feature-launch");
     localStorage.setItem("webmux.hybridStartSide", "chat");
     localStorage.setItem("webmux.codePanelShown", "1");
   });
@@ -113,7 +113,7 @@ test("core-only ignores stale plugin preferences and creates, types into, and re
   expect(terminalSockets.length).toBeGreaterThanOrEqual(2);
 
   // Settings is a separate core consumer and must not initialize disabled
-  // plugin providers merely because old browser preferences still exist.
+  // feature providers merely because old browser preferences still exist.
   await page.goto("/settings");
   await expect(
     page.getByRole("heading", { name: "设置", exact: true }),

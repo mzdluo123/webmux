@@ -4,8 +4,8 @@
 外部 MCP 客户端也可以连接同一组工具。
 交接自动注入的 `webmux-history` 仍然独立，只读取冻结的来源历史。
 
-先按 [内置插件选择](../deployment/configuration.md#内置插件选择) 启用 `mcp` 并重启；只选 `mcp` 也可控制核心 PTY，不强制开启 launch/chat。
-工具根据已认证的 `/api/capabilities` 裁剪参数、视图与发现内容，不调用禁用插件接口。聊天自动注入另需 `chat` 及依赖；冻结历史仍遵循来源与历史保存边界。
+先按 [内置功能选择](../deployment/configuration.md#内置功能选择) 启用 `mcp` 并重启；只选 `mcp` 也可控制核心 PTY，不强制开启 launch/chat。
+工具根据已认证的 `/api/capabilities` 裁剪参数、视图与发现内容，不调用禁用功能接口。聊天自动注入另需 `chat` 及依赖；冻结历史仍遵循来源与历史保存边界。
 
 ## ACP 默认接入
 
@@ -46,7 +46,7 @@
    ```toml
    token = "REPLACE_WITH_CONFIGURED_OWNER_TOKEN"
    
-   [plugins]
+   [features]
    enabled = ["mcp"] # 若还需其他功能，在同一列表显式加入
    
    [mcp]

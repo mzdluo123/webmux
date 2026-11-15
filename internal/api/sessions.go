@@ -18,7 +18,7 @@ import (
 var requestID = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
 
 // SessionExtensions binds optional lifecycle and projection behavior at the
-// composition root. Plain sessions never need a plugin receiver.
+// composition root. Plain sessions never need a feature receiver.
 type SessionExtensions interface {
 	ListArchived(context.Context, []contract.SessionState) ([]contract.SessionInfo, error)
 	Info(context.Context, string) (contract.SessionInfo, error)

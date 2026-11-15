@@ -13,7 +13,7 @@ interface TerminalPageFeedOptions {
   error: (message: string) => void;
 }
 
-/** Core membership and removal observation also runs without any plugins. */
+/** Core membership and removal observation also runs without any features. */
 export function useTerminalPageFeed(options: TerminalPageFeedOptions) {
   let standaloneSessions = $state.raw<SessionInfo[]>([]);
   let standaloneReady = $state(false);

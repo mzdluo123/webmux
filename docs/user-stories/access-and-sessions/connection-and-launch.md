@@ -70,7 +70,7 @@
 
 - **US-B01 启动 Shell 或 agent**：作为使用者，我希望通过自定义启动配置或显式命令运行 Shell、Open Code、Claude Code、Codex、omp 等程序，以便快速开始终端工作或遥控 agent。
   验收要点：
-  - 显式 argv、cwd 与环境变量属于核心能力；保存的配置与预设需 `launch`，仓库位置需 `workspace`，混合模式需 `chat`，附件及临时文件引用需 `files`。关闭这些插件不妨碍创建普通 PTY（US-K19）；
+  - 显式 argv、cwd 与环境变量属于核心能力；保存的配置与预设需 `launch`，仓库位置需 `workspace`，混合模式需 `chat`，附件及临时文件引用需 `files`。关闭这些功能不妨碍创建普通 PTY（US-K19）；
   - 启用 workspace.projects 时，全局新建会话先进入可搜索的项目列表，选定后显示项目与运行设置；明确仓库、工作树和分屏上下文直接进入设置，缺少项目能力时保留“位置”与“运行”的直接创建方式；
   - 选定项目后，键盘与遥控器焦点进入可见的工作位置、运行或命令控件，不停留在隐藏的项目搜索框；
   - 启用 `launch` 时提供保存的启动配置与末尾的“自定义命令…”，首次启用且存储缺失时才写入常见 agent 预设，没有不可修改的内置预设；
@@ -149,7 +149,7 @@
   验收要点：
   - 本故事的存储、预设与设置入口仅在选择 `launch` 时存在；未选择时不打开、锁定、初始化或补写配置文件。混合开关需 `chat`，不因禁用聊天而清除已有混合字段；
   - 已选择的聊天或通知编辑器加载失败时，修改名称等其他字段仍保留已读取的混合模式与提醒策略，不把缺少编辑器当成用户清空选项；
-  - CLI 在只选择 `launch` 时可新增并实际运行普通配置，也可修改名称、环境和预览；省略未启用插件拥有的写入字段，保留已存混合与提醒选项。显式聊天开关不因省略而伪装成功；
+  - CLI 在只选择 `launch` 时可新增并实际运行普通配置，也可修改名称、环境和预览；省略未启用功能拥有的写入字段，保留已存混合与提醒选项。显式聊天开关不因省略而伪装成功；
   - 设置页的启动配置以不带边框的行列表呈现（行高不低于 44px）：图标、名称、一行摘要（终端或混合会话、环境变量数、预览行数；完整命令只在编辑对话框中显示），整行点击编辑，行尾“⋯”菜单提供编辑与删除；
   - 设置页可新建、编辑、删除自定义启动配置，并选择自动匹配、通用终端或 LobeHub 品牌图标；配置最多 100 条且文件总大小不超过 4 MiB，超出时保存被拒绝并提示精简（400），其余配置与功能不受影响；
   - 图标随配置持久保存并在设置列表、新建会话选择器中显示，缺少图标的旧配置按可识别的直接命令或标准 Bash/Zsh 包装自动匹配，不改写原配置；
@@ -222,15 +222,15 @@
 - [启动图标](../../../web/src/components/settings/LaunchConfigIcon.svelte)、[LobeHub 图标来源与许可](../../../web/src/icons/lobehub/README.md)
 - [新建会话](../../../web/src/components/sessions/NewSessionDialog.svelte)、[位置选择](../../../web/src/components/workspace/LocationPicker.svelte)、[命令选择](../../../web/src/components/sessions/LaunchPicker.svelte)、[默认值解析](../../../web/src/domains/sessions/new-session-defaults.ts)
 - [启动配置编辑](../../../web/src/components/settings/LaunchConfigDialog.svelte)、[系统预设菜单](../../../web/src/components/settings/LaunchPresetMenu.svelte)、[启动配置存储](../../../internal/launch/store.go)、[首次启动预设](../../../internal/launch/presets.go)
-- [启动配置接口](../../../internal/pluginapi/launch.go)、[CLI agent 接入](../../cli-agents.md)
+- [启动配置接口](../../../internal/featureapi/launch.go)、[CLI agent 接入](../../cli-agents.md)
 - [信任预写](../../../internal/agenttrust/agenttrust.go)、[会话钩子](../../../internal/session/manager.go)
 - [会话标题来源](../../../internal/hybrid/actor.go)、[核心生命周期](../../../internal/session/lifecycle.go)、[聊天页头](../../../web/src/hooks/sessions/hybrid.svelte.ts)
 - [目录选择](../../../web/src/components/workspace/DirectoryPicker.svelte)、[命令解析](../../../internal/session/run_command.go)、[核心创建编排](../../../internal/sessioncreate/service.go)。
-- [可选创建端口](../../../internal/sessioncreate/types.go)、[工作区位置贡献](../../../internal/workspace/create_location.go)、[插件创建入口](../../../web/src/plugins/create.ts)。
+- [可选创建端口](../../../internal/sessioncreate/types.go)、[工作区位置贡献](../../../internal/workspace/create_location.go)、[功能创建入口](../../../web/src/features/create.ts)。
 
 来源补充：[统一创建回归](../../../web/test/e2e/session-creation.spec.ts)。
 
-项目来源：[项目 API](../../protocol/http-projects.md)、[本地项目服务](../../../internal/workspace/project_local.go)、[项目接口](../../../internal/pluginapi/project.go)、[项目 wire 回归](../../../internal/api/project_test.go)。
+项目来源：[项目 API](../../protocol/http-projects.md)、[本地项目服务](../../../internal/workspace/project_local.go)、[项目接口](../../../internal/featureapi/project.go)、[项目 wire 回归](../../../internal/api/project_test.go)。
 
 远程克隆来源：[克隆服务](../../../internal/workspace/project_clone.go)、[克隆执行](../../../internal/workspace/project_clone_worker.go)、[克隆回归](../../../internal/workspace/project_clone_test.go)。
 

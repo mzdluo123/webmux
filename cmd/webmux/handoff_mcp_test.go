@@ -25,6 +25,8 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/featureapi"
+	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/handoff"
 	"github.com/rainchan/webmux/internal/hub"
@@ -32,8 +34,6 @@ import (
 	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/localclient"
-	"github.com/rainchan/webmux/internal/pluginapi"
-	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/threadread"
@@ -92,7 +92,7 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 	resumeOptions := hybridresume.Options{Creation: hybrids.Creation(), DefaultCwd: root}
 	handoffOptions := handoff.Options{Conversations: store, Launch: launches, Hybrid: hybrids, Creation: hybrids.Creation(), Artifacts: folders, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes}
 	createOptions := sessioncreate.Options{DefaultCwd: root, Commands: launches, Files: folders, Chat: hybrids.Creation()}
-	c := config.Config{DefaultCwd: root, Plugins: config.PluginConfig{Enabled: []string{"launch", "code", "files", "chat", "mcp"}}}
+	c := config.Config{DefaultCwd: root, Features: config.FeatureConfig{Enabled: []string{"launch", "code", "files", "chat", "mcp"}}}
 	var workspaces *workspace.Service
 	if withWorkspace {
 		workspaces = workspace.New(state, manager, launches, root)
@@ -104,7 +104,7 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 		resumeOptions.ResumeLocations = workspaces
 		handoffOptions.Locations = workspaces
 		createOptions.Locations = workspaces
-		c.Plugins.Enabled = append(c.Plugins.Enabled, "workspace")
+		c.Features.Enabled = append(c.Features.Enabled, "workspace")
 	}
 	recovery := hybridresume.New(hybrids, launches, resumeOptions)
 	handoffOptions.Recovery = recovery
@@ -114,9 +114,9 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 	defer code.Close()
 	directories := files.New(root)
 	creation := sessioncreate.New(manager, createOptions)
-	plugins := pluginServices{launch: launches, workspace: workspaces, code: code, files: directories, artifacts: folders, conversations: store, chat: hybrids}
-	projection := pluginwire.Projection{Workspace: workspaces, Chat: hybrids}
-	controllers := pluginapi.Bind(pluginapi.Deps{
+	features := featureServices{launch: launches, workspace: workspaces, code: code, files: directories, artifacts: folders, conversations: store, chat: hybrids}
+	projection := featurewire.Projection{Workspace: workspaces, Chat: hybrids}
+	controllers := featureapi.Bind(featureapi.Deps{
 		Config: c, Manager: manager, Workspace: workspaces, Code: code, Files: directories, Artifacts: folders,
 		Conversations: store, Handoffs: service, Launch: launches, Hybrid: hybrids, Resume: recovery,
 		ProjectSession: projection.Session,
@@ -124,7 +124,7 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 	handler := api.New(api.Deps{
 		Config: c, Manager: manager, Create: creation,
 		Contributions: controllers.Contributions(), Sessions: controllers,
-		Capabilities:      func() contract.Capabilities { return plugins.capabilities(c) },
+		Capabilities:      func() contract.Capabilities { return features.capabilities(c) },
 		ProjectSession:    projection.Session,
 		SessionProjection: hub.Options{Project: projection.Session, Terminal: projection.Terminal, SubscribeForwards: projection.SubscribeForwards, Forwards: projection.Forwards},
 		EnrichDetails:     controllers.EnrichDetails, KeepSessionPin: controllers.KeepSessionPin,

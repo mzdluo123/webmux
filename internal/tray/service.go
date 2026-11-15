@@ -188,7 +188,7 @@ func (s *WSLService) capabilityStatus(ctx context.Context, status contract.Statu
 	// Push is diagnostic-only: selected providers retain configuration and
 	// storage-recovery hints even when delivery is unavailable. The access
 	// providers above expose mutation controls, so keep their availability gate.
-	if err != nil || !localclient.PluginEnabled(snapshot, "notifications") {
+	if err != nil || !localclient.FeatureEnabled(snapshot, "notifications") {
 		status.Push = nil
 	}
 	access := make([]contract.AccessLink, 0, len(status.URLs.Access))

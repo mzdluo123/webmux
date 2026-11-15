@@ -47,7 +47,7 @@ func newBackend(t *testing.T) *backend {
 		t.Fatal(err)
 	}
 	c.Listen, c.Token, c.StateDir, c.DefaultCwd = l.Addr().String(), token, t.TempDir(), t.TempDir()
-	c.Plugins.Enabled = []string{}
+	c.Features.Enabled = []string{}
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)
 	}

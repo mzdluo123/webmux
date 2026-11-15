@@ -121,7 +121,7 @@ func renderHelp(w io.Writer, r Registry, c *Command, opts []Option) {
 		}
 	}
 	if required := RequiredCapabilities(c.Name); len(required) > 0 {
-		b.WriteString("\n" + wrap("Requires instance capabilities: "+strings.Join(required, ", ")+". Disabled plugins cannot execute this command.", "", helpWidth))
+		b.WriteString("\n" + wrap("Requires instance capabilities: "+strings.Join(required, ", ")+". Disabled features cannot execute this command.", "", helpWidth))
 	}
 	if c.Name == "run" {
 		b.WriteString("\n" + wrap("Plain argv requires only terminal.pty. --launch-config requires launch.configs; worktree and --init options require workspace.manage; chat options require chat.acp; attachments require files.upload.", "", helpWidth))

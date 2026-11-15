@@ -16,7 +16,7 @@
   import { popoutAvailable, popOut, type CodePopout } from "./code-popout";
   import { codePanelState } from "../../hooks/code/code-panel-state";
   import { findShell, openGitWorkbench } from "../../hooks/shared/shell.svelte";
-  import type { TerminalPlugins } from "../../plugins/terminal";
+  import type { TerminalFeatures } from "../../features/terminal";
 
   let {
     id,
@@ -28,7 +28,7 @@
     reportedCwd,
     reveal,
     workspaceRef,
-    gitPlugin: initialGitPlugin,
+    gitFeature: initialGitFeature,
   }: {
     id: string;
     visible: boolean;
@@ -40,13 +40,13 @@
     /** A code location another view asks to show, such as from chat output. */
     reveal?: CodeReveal;
     workspaceRef?: { repositoryId: string; worktreeId?: string } | null;
-    gitPlugin?: TerminalPlugins["git"];
+    gitFeature?: TerminalFeatures["git"];
   } = $props();
-  const gitPlugin = untrack(() => initialGitPlugin);
+  const gitFeature = untrack(() => initialGitFeature);
 
   const shell = findShell();
   const gitWorkspace = $derived.by(() => {
-    if (!gitPlugin) return null;
+    if (!gitFeature) return null;
     const ref =
       workspaceRef !== undefined
         ? workspaceRef
@@ -61,7 +61,7 @@
     }
     return ref;
   });
-  const fileInspector = gitPlugin?.createGitFileInspectorController({
+  const fileInspector = gitFeature?.createGitFileInspectorController({
     getRepoId: () => gitWorkspace?.repositoryId ?? "",
     getWorktreeId: () => gitWorkspace?.worktreeId || undefined,
   });
@@ -232,8 +232,8 @@
           : undefined}
       />{/key}
   {/if}
-  {#if gitPlugin && fileInspector?.open && gitWorkspace}
-    <gitPlugin.InspectorDialog
+  {#if gitFeature && fileInspector?.open && gitWorkspace}
+    <gitFeature.InspectorDialog
       inspector={fileInspector}
       hasWorktree={Boolean(gitWorkspace.worktreeId)}
       onJumpToCommit={(oid) => {

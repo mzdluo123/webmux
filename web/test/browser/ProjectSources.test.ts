@@ -7,9 +7,9 @@ import {
 } from "../../src/hooks/workspace/project-sources.svelte";
 import ProjectPicker from "../../src/components/workspace/ProjectPicker.svelte";
 import {
-  setPluginCapabilities,
-  resetPluginCapabilities,
-} from "../../src/platform/plugin-host.svelte";
+  setFeatureCapabilities,
+  resetFeatureCapabilities,
+} from "../../src/platform/feature-host.svelte";
 import type { Project } from "../../src/contracts/schemas";
 
 const project: Project = {
@@ -54,9 +54,9 @@ function controller() {
   return result;
 }
 function capability(clone: boolean) {
-  setPluginCapabilities({
-    version: 1,
-    plugins: [{ id: "workspace", enabled: true, status: "ready" }],
+  setFeatureCapabilities({
+    version: 2,
+    features: [{ id: "workspace", enabled: true, status: "ready" }],
     capabilities: [
       { id: "workspace.projects", available: true },
       {
@@ -95,7 +95,7 @@ afterEach(async () => {
   await cleanup();
   for (const source of controllers) source.dispose();
   vi.unstubAllGlobals();
-  resetPluginCapabilities();
+  resetFeatureCapabilities();
   localStorage.clear();
 });
 

@@ -1,7 +1,7 @@
 # CLI agent 接入
 
 选择 `launch` 后，首次创建缺失的 `launch-configs.json` 时，WebMux 写入以下十二款 CLI、Shell 和 omp 的普通配置，共 14 项，可编辑或删除，不会自动安装或认证 CLI。
-新生成配置只有 PTY 核心，不自动创建启动配置；可直接填写临时命令，或先 [选择插件](deployment/configuration.md#内置插件选择) 并重启。混合聊天需 `chat` + `launch` + `files`，目录/worktree 管理另需 `workspace`。
+新生成配置只有 PTY 核心，不自动创建启动配置；可直接填写临时命令，或先 [选择功能](deployment/configuration.md#内置功能选择) 并重启。混合聊天需 `chat` + `launch` + `files`，目录/worktree 管理另需 `workspace`。
 
 旧版安装的 `launch-configs.json` 仍可能保留 Gemini CLI（`gemini --yolo`），但自 2026-06-18 起已停止为免费个人账号及 Google AI Pro/Ultra 处理请求，个人 Google 登录不可用。
 新安装默认预置已替换为 Antigravity CLI（`agy --dangerously-skip-permissions`，混合模式）。
@@ -49,7 +49,7 @@ CLI 使用服务用户的权限、账号、环境和配置。WebMux 不代管模
 Claude Code、Codex、GitHub Copilot CLI、Antigravity CLI、Qoder、QoderCN、Kimi 和 Devin 首次在某个目录启动时会询问“是否信任此文件夹”，`--dangerously-skip-permissions` 或 `--auto` 一类参数不会跳过这个问题；无人看着的会话会一直停在对话框上。
 选择 `launch` 启动集成时，`agent_pretrust` 默认开启，让 WebMux 在新建会话、命令被识别为这八款 CLI 时，先预处理启动目录的信任记录或环境，前六款的做法与 [Orca](https://www.onorca.dev/docs/agents/supported) 一致：
 
-未选择 `launch` 时，核心仍可直接运行这些 CLI，但不装配信任预写或 agent 专属提交延迟；配置开关为 `true` 不会隐式启用插件。
+未选择 `launch` 时，核心仍可直接运行这些 CLI，但不装配信任预写或 agent 专属提交延迟；配置开关为 `true` 不会隐式启用功能。
 
 | CLI             | 写入位置（环境变量可改）                            | 写入内容                                           |
 | --------------- | --------------------------------------------------- | -------------------------------------------------- |

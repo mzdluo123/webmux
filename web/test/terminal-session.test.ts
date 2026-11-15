@@ -19,6 +19,6 @@ test("PTY-only projection follows the stream and never creates a chat/archive fa
   expect(session.missing).toBe(true);
   expect(session.view).toBe("terminal");
   expect(session.recoverable).toBeUndefined();
-  expect(() => session.chat).toThrow("聊天插件未启用");
+  expect(() => session.chat).toThrow("聊天功能未启用");
   expect(stream.reconnect).not.toHaveBeenCalled();
 });

@@ -37,7 +37,7 @@ func waitOutput(t *testing.T, item *session.Session, text string) {
 	}
 }
 
-func TestRawCreateIsCompleteAndIdempotentWithoutPlugins(t *testing.T) {
+func TestRawCreateIsCompleteAndIdempotentWithoutFeatures(t *testing.T) {
 	manager, dir := coreManager(t)
 	creator := coreCreator(t, manager, Options{DefaultCwd: dir})
 	in := Input{ClientRequestID: "raw-create-001", Cwd: dir, Cmd: []string{"/bin/sh", "-c", `printf '%s|%s\n' "$PWD" "$RAW_VALUE" >> starts; printf READY; exec cat`}, Env: map[string]string{"RAW_VALUE": "explicit environment"}, Cols: 97, Rows: 31}

@@ -12,9 +12,9 @@ import (
 
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featureapi"
 	"github.com/rainchan/webmux/internal/p2p"
 	"github.com/rainchan/webmux/internal/p2psettings"
-	"github.com/rainchan/webmux/internal/pluginapi"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/streamproto"
 	"github.com/rainchan/webmux/internal/transport"
@@ -105,7 +105,7 @@ func (f *p2pControlFixture) Signal(_ context.Context, req contract.P2PSignalRequ
 	}, nil
 }
 
-func p2pAPIHandler(t *testing.T, control pluginapi.P2PControl) transport.Bridge {
+func p2pAPIHandler(t *testing.T, control featureapi.P2PControl) transport.Bridge {
 	t.Helper()
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })

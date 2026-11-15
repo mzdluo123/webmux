@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
+import { locale } from "../../src/lib/locale";
 import Harness from "./TerminalViewportHarness.svelte";
 
 afterEach(cleanup);
@@ -184,4 +185,90 @@ test("restoration keeps its blocking overlay labels", async () => {
 
   await view.rerender({ connection: "connected", restoring: false });
   expect(document.querySelector(".restore-overlay")).toBeNull();
+});
+
+test("floating jump-to-latest button centers near the bottom across desktop and narrow viewports without stealing focus", async () => {
+  const scrollToBottom = vi.fn();
+  try {
+    await page.viewport(1280, 720);
+    const view = await render(Harness, {
+      connection: "connected",
+      restoring: false,
+      atBottom: true,
+      width: 720,
+      touchGamepad: true,
+      scrollToBottom,
+    });
+
+    const jump = page.getByRole("button", { name: "回到最新" });
+    await expect.element(jump).not.toBeInTheDocument();
+
+    // Restoring or hidden panes never show the floating button even off bottom.
+    await view.rerender({
+      connection: "connected",
+      restoring: true,
+      atBottom: false,
+      width: 720,
+      scrollToBottom,
+    });
+    await expect.element(jump).not.toBeInTheDocument();
+    await view.rerender({
+      connection: "connected",
+      restoring: false,
+      atBottom: false,
+      visible: false,
+      width: 720,
+      scrollToBottom,
+    });
+    await expect.element(jump).not.toBeInTheDocument();
+
+    for (const [viewportWidth, viewportHeight, hostWidth] of [
+      [1280, 720, 720],
+      [390, 844, 360],
+    ] as const) {
+      await page.viewport(viewportWidth, viewportHeight);
+      await view.rerender({
+        connection: "connected",
+        restoring: false,
+        atBottom: false,
+        visible: true,
+        width: hostWidth,
+        touchGamepad: true,
+        scrollToBottom,
+      });
+      await expect.element(jump).toBeVisible();
+      const area = document
+        .querySelector(".terminal-area")!
+        .getBoundingClientRect();
+      const softKeys = document
+        .querySelector(".soft-keys")!
+        .getBoundingClientRect();
+      const button = jump.element().getBoundingClientRect();
+      expect(
+        Math.abs(button.left + button.width / 2 - (area.left + area.width / 2)),
+      ).toBeLessThanOrEqual(2);
+      expect(button.bottom).toBeLessThanOrEqual(area.bottom);
+      expect(area.bottom - button.bottom).toBeLessThanOrEqual(20);
+      expect(button.bottom).toBeLessThanOrEqual(softKeys.top);
+    }
+
+    const mouseDown = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+    });
+    jump.element().dispatchEvent(mouseDown);
+    expect(mouseDown.defaultPrevented).toBe(true);
+
+    await jump.click();
+    expect(scrollToBottom).toHaveBeenCalledTimes(1);
+
+    locale.setPreference("en");
+    const englishJump = page.getByRole("button", { name: "Jump to bottom" });
+    await expect.element(englishJump).toBeVisible();
+    locale.setPreference("zh-CN");
+    await expect.element(jump).toBeVisible();
+  } finally {
+    locale.setPreference("system");
+    await page.viewport(1024, 768);
+  }
 });

@@ -4,9 +4,9 @@
   import ResponsiveDialog from "../src/components/shared/ResponsiveDialog.svelte";
   import { Button } from "../src/lib/components/ui/button";
   import {
-    setPluginCapabilities,
-    resetPluginCapabilities,
-  } from "../src/platform/plugin-host.svelte";
+    setFeatureCapabilities,
+    resetFeatureCapabilities,
+  } from "../src/platform/feature-host.svelte";
   import type { ProjectSources } from "../src/hooks/workspace/project-sources.svelte";
   import type { ProjectSelection } from "../src/domains/sessions/project-selection";
   import type {
@@ -140,9 +140,9 @@
         ? "github"
         : initial;
   onMount(() => {
-    setPluginCapabilities({
+    setFeatureCapabilities({
       version: 1,
-      plugins: [{ id: "workspace", enabled: true, status: "ready" }],
+      features: [{ id: "workspace", enabled: true, status: "ready" }],
       capabilities: [
         { id: "workspace.projects", available: true },
         { id: "workspace.manage", available: true },
@@ -151,7 +151,7 @@
       ],
     });
     ready = true;
-    return () => resetPluginCapabilities();
+    return () => resetFeatureCapabilities();
   });
 </script>
 

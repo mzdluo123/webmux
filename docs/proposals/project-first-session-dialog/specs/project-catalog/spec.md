@@ -80,14 +80,14 @@ GitHub 来源 SHALL 使用服务端已配置的 GitHub 身份展示有权访问�
 - **WHEN** 用户移除项目记录
 - **THEN** 目录和运行会话保持不变
 
-### Requirement: 项目能力服从插件选择
+### Requirement: 项目能力服从功能选择
 
-项目目录能力 SHALL 属于 workspace 可选插件，不新增核心必选依赖。未选择 workspace 时 SHALL NOT 加载项目模块、请求项目接口、打开项目存储或探测 Git/gh。默认纯核心及固定 legacy 插件选择语义 SHALL 保持不变。
+项目目录能力 SHALL 属于 workspace 可选功能，不新增核心必选依赖。未选择 workspace 时 SHALL NOT 加载项目模块、请求项目接口、打开项目存储或探测 Git/gh。默认纯核心及固定 legacy 功能选择语义 SHALL 保持不变。
 本地项目能力 SHALL 独立于 Git 可用性；克隆与 GitHub 发现 SHALL 分别报告可用性。workspace SHALL NOT 新增对 files、launch 或 chat 的硬依赖。
 
 #### Scenario: 纯核心启动
 
-- **WHEN** plugins.enabled 为显式空列表
+- **WHEN** features.enabled 为显式空列表
 - **THEN** 用户仍能以目录和完整命令启动终端，不要求先添加项目，也不打开项目存储
 
 #### Scenario: 只有 workspace

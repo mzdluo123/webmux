@@ -10,7 +10,10 @@ import type {
   Worktree,
 } from "../../src/contracts/schemas";
 import { base, branch } from "./shell-fixture";
-import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
 
 // HTTP assertions can finish before response decoding and preference writes.
 // Join the real creation helpers before resetting this suite's local settings.
@@ -153,7 +156,7 @@ const origin = location.pathname + location.search;
 
 beforeEach(async () => {
   localStorage.clear();
-  await enableCreationPlugins();
+  await enableCreationFeatures();
   created = [];
   worktrees = [];
   removed = [];
@@ -258,7 +261,7 @@ afterEach(async () => {
   } finally {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-    resetCreationPlugins();
+    resetCreationFeatures();
     localStorage.clear();
     history.replaceState(null, "", origin);
   }
@@ -1219,7 +1222,7 @@ test("an unticked instruction is not sent", async () => {
 });
 
 test("core creates cwd and custom argv without waiting for disabled launch resources", async () => {
-  await enableCreationPlugins([]);
+  await enableCreationFeatures([]);
   open({ status: "loading" });
   expect(launchField().elements()).toHaveLength(0);
   expect(locationField().elements()).toHaveLength(0);
@@ -1243,7 +1246,7 @@ test("core creates cwd and custom argv without waiting for disabled launch resou
 });
 
 test("core split drops workspace ownership even when the entry remembers it", async () => {
-  await enableCreationPlugins([]);
+  await enableCreationFeatures([]);
   const oncreated = vi.fn();
   open(
     { status: "loading" },
@@ -1275,10 +1278,10 @@ test("core split drops workspace ownership even when the entry remembers it", as
 });
 
 test("disabled remembered config asks for a new command instead of inferring argv", async () => {
-  await enableCreationPlugins([]);
+  await enableCreationFeatures([]);
   localStorage.setItem("webmux.lastLaunch", "config:abcdefg2");
   open({ status: "loading" });
-  await expect.element(page.getByText(/启动配置插件未启用/)).toBeVisible();
+  await expect.element(page.getByText(/启动配置功能未启用/)).toBeVisible();
   await expect.element(submit()).toBeDisabled();
   expect(created).toEqual([]);
   await command().fill("bash");
@@ -1288,7 +1291,7 @@ test("disabled remembered config asks for a new command instead of inferring arg
 });
 
 test("core reports a missing directory without offering or requesting mkdir", async () => {
-  await enableCreationPlugins([]);
+  await enableCreationFeatures([]);
   open({ status: "loading" });
   vi.mocked(fetch).mockResolvedValueOnce(
     Response.json(
@@ -1309,7 +1312,7 @@ test("core reports a missing directory without offering or requesting mkdir", as
 });
 
 test("launch-only keeps saved launches with direct cwd and no workspace provider", async () => {
-  await enableCreationPlugins(["launch"]);
+  await enableCreationFeatures(["launch"]);
   open({ status: "ready", configs: [config] });
   expect(locationField().elements()).toHaveLength(0);
   await expect.element(launchField()).toMatchTextContent(/Claude 恢复/);
@@ -1325,7 +1328,7 @@ test("launch-only keeps saved launches with direct cwd and no workspace provider
 });
 
 test("workspace-only creates a custom command in its worktree without launch or files", async () => {
-  await enableCreationPlugins(["workspace"]);
+  await enableCreationFeatures(["workspace"]);
   open(
     { status: "loading" },
     {
@@ -1351,7 +1354,7 @@ test("workspace-only creates a custom command in its worktree without launch or 
 });
 
 test("files-only offers directory browsing without consulting workspace or launch", async () => {
-  await enableCreationPlugins(["files"]);
+  await enableCreationFeatures(["files"]);
   open({ status: "loading" });
   await expect
     .element(page.getByRole("button", { name: "浏览目录", exact: true }))

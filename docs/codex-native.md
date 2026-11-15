@@ -27,7 +27,7 @@
 ## 验证入口
 
 `POST /api/conversations/native` 使用现有 Bearer 认证和 Origin 校验，JSON 请求上限 64 KiB。
-下列请求依次发送；返回 ID 填入下一步。服务必须启用 `chat` 内置插件及 `history_capture`；插件启用列表修改后需重启。
+下列请求依次发送；返回 ID 填入下一步。服务必须启用 `chat` 内置功能及 `history_capture`；功能启用列表修改后需重启。
 
 ```json
 {"action":"list","root":"/example/codex-home"}

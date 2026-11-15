@@ -479,7 +479,7 @@ func (s *Service) historyToolAvailable(ctx context.Context, p conversation.Previ
 }
 
 // Reject unavailable Git selection before reservations, provider quiescence, or
-// any other side effect. Direct cwd chat does not require the workspace plugin.
+// any other side effect. Direct cwd chat does not require the workspace feature.
 func (s *Service) checkLocation(location conversation.PreviewLocation) error {
 	if s.options.Locations == nil && (location.RepositoryID != "" || location.WorktreeID != "" || location.NewWorktreeBranch != "" || location.NewWorktreeBase != "") {
 		return conversation.ErrUnavailable

@@ -1,6 +1,6 @@
 # HTTP API：公网隧道设置
 
-需要选择 `cloudflare`；禁用时路由返回 404，不打开隧道设置或定位/下载 cloudflared。`[tunnel].enabled` 和网页开关不改变插件选择，见 [能力发现](../protocol.md#能力发现)。
+需要选择 `cloudflare`；禁用时路由返回 404，不打开隧道设置或定位/下载 cloudflared。`[tunnel].enabled` 和网页开关不改变功能选择，见 [能力发现](../protocol.md#能力发现)。
 
 ## 公网隧道设置
 
@@ -61,6 +61,6 @@ interface TunnelSettings {
 
 契约与实现：
 
-- [线上字段](../../internal/contract/tunnel.go)、[HTTP 处理器](../../internal/pluginapi/tunnel.go)
+- [线上字段](../../internal/contract/tunnel.go)、[HTTP 处理器](../../internal/featureapi/tunnel.go)
 - [持久化服务](../../internal/tunnelsettings/store.go)、[运行时控制](../../cmd/webmux/tunnelctl.go)
-- [端点与动态来源测试用例](../../internal/pluginapi/tunnel_test.go)。
+- [端点与动态来源测试用例](../../internal/featureapi/tunnel_test.go)。

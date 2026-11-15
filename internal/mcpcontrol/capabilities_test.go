@@ -12,15 +12,15 @@ import (
 )
 
 func testCapabilities(enabled []string) contract.Capabilities {
-	snapshot := contract.Capabilities{Version: 1, Plugins: []contract.PluginStatus{}, Capabilities: []contract.Capability{{ID: "terminal.pty", Available: true}}}
+	snapshot := contract.Capabilities{Version: contract.CapabilitiesVersion, Features: []contract.FeatureStatus{}, Capabilities: []contract.Capability{{ID: "terminal.pty", Available: true}}}
 	owners := map[string]string{"launch": "launch.configs", "workspace": "workspace.manage", "chat": "chat.acp", "files": "files.upload", "code": "code.browse", "notifications": "notifications.push", "quick-commands": "quick-commands.send", "voice": "voice.recognize", "forward": "forward.ports", "cloudflare": "cloudflare.manage", "tailscale": "tailscale.manage", "p2p": "p2p.direct", "mcp": "mcp.control", "immersive": "immersive.xr"}
 	for _, p := range builtin.Catalog() {
 		on := builtin.Has(enabled, p.ID)
-		status, reason := contract.PluginStatusDisabled, contract.CapabilityReasonPluginDisabled
+		status, reason := contract.FeatureStatusDisabled, contract.CapabilityReasonFeatureDisabled
 		if on {
-			status, reason = contract.PluginStatusReady, ""
+			status, reason = contract.FeatureStatusReady, ""
 		}
-		snapshot.Plugins = append(snapshot.Plugins, contract.PluginStatus{ID: p.ID, Enabled: on, Status: status, Reason: reason})
+		snapshot.Features = append(snapshot.Features, contract.FeatureStatus{ID: p.ID, Enabled: on, Status: status, Reason: reason})
 		snapshot.Capabilities = append(snapshot.Capabilities, contract.Capability{ID: owners[p.ID], Available: on, Reason: reason})
 	}
 	return snapshot
@@ -63,7 +63,7 @@ func TestCoreMCPDiscoveryWithoutLaunchOrChat(t *testing.T) {
 			}
 		}
 	}
-	if _, err := c.read(context.Background(), json.RawMessage(`{"sessionId":"core","view":"activity"}`)); err == nil || !strings.Contains(err.Error(), "plugin_disabled") {
+	if _, err := c.read(context.Background(), json.RawMessage(`{"sessionId":"core","view":"activity"}`)); err == nil || !strings.Contains(err.Error(), "feature_disabled") {
 		t.Fatalf("disabled activity read: %v", err)
 	}
 }
@@ -83,7 +83,7 @@ func TestToolInputsAreDescribed(t *testing.T) {
 			properties := tool.Definition["inputSchema"].(map[string]any)["properties"].(map[string]any)
 			for field, raw := range properties {
 				if d, _ := raw.(map[string]any)["description"].(string); d == "" {
-					t.Errorf("%s.%s has no description (plugins %v)", name, field, enabled)
+					t.Errorf("%s.%s has no description (features %v)", name, field, enabled)
 				}
 			}
 		}
@@ -96,7 +96,7 @@ func TestRegistryRejectsInvalidCapabilities(t *testing.T) {
 		t.Fatal("accepted unsupported capability version")
 	}
 	c.Capabilities = func() contract.Capabilities { return testCapabilities([]string{}) }
-	if _, err := c.Registry(); err == nil || !strings.Contains(err.Error(), "plugin_disabled") {
+	if _, err := c.Registry(); err == nil || !strings.Contains(err.Error(), "feature_disabled") {
 		t.Fatalf("MCP-disabled registry: %v", err)
 	}
 }

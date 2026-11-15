@@ -12,7 +12,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/pluginapi"
+	"github.com/rainchan/webmux/internal/featureapi"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/tunnelsettings"
 )
@@ -83,7 +83,7 @@ func (c *tunnelControlFixture) SetEnabled(enabled bool) (contract.TunnelStatus, 
 	return contract.TunnelStatus{State: c.view.State, Enabled: &enabled, SettingsAvailable: true}, nil
 }
 
-func tunnelAPIHandler(t *testing.T, control pluginapi.TunnelSettingsControl) http.Handler {
+func tunnelAPIHandler(t *testing.T, control featureapi.TunnelSettingsControl) http.Handler {
 	t.Helper()
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })

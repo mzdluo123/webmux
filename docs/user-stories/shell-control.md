@@ -147,7 +147,7 @@
     `edit` 只改给出的字段，未提及的变量值保持不变；名称不存在时以 2 结束并列出已保存的名称；变量值不出现在输出或诊断中；
   - 聊天视图（混合模式）开关：`add --chat` 先经 `POST /api/launch-configs/chat-support` 做支持检查，不支持时以 1 结束；`edit` 用 `--chat`/`--no-chat` 开关；`ls` 显示是否开启聊天视图；
     旧选项 `--hybrid`/`--no-hybrid` 按未知选项以 2 结束；
-  - 仅选择 `launch` 时可新增和编辑普通终端配置；`edit` 未修改的聊天开关与完整提醒策略保持不变，即使其所属插件当前关闭；显式切换聊天模式仍要求选择 `chat`。
+  - 仅选择 `launch` 时可新增和编辑普通终端配置；`edit` 未修改的聊天开关与完整提醒策略保持不变，即使其所属功能当前关闭；显式切换聊天模式仍要求选择 `chat`。
   - `forward ls|add|rm`：`add` 输出转发端口，`--session self` 关联当前会话，`--no-compat` 关闭兼容改写；转发关闭、端口非法或重复时给出原因并以 1 结束。
 - **US-S19 从脚本调整终端尺寸**：作为脚本或 agent，我希望在没有浏览器控制终端时改变会话的 PTY 尺寸，以便让程序按我需要的宽高排版并用 `screen` 读到完整画面。
   - `POST /api/sessions/{id}/resize {cols, rows, take?}` 与其他会话接口一样要求认证并检查 Origin（本机套接字上的会话内调用同样可用），成功时 200 返回 `SessionInfo`，PTY、会话信息与预览同时变为新尺寸并向观察端广播控制帧；
@@ -208,7 +208,7 @@
   - 本机新增 `GET /local/v1/p2p` 窄只读能力；原有会话内 P2P 控制仍 403，TCP 认证与 Origin 保持；UI、连接策略、持久配置不变，不实现 TURN 或交换 offer 方向。
 
 - **US-S25 通过 URL 连接网络 MCP**：作为外部 MCP 客户端使用者，我希望只配置实例 URL 与 owner Bearer 就能控制 WebMux，以便不在客户端安装 WebMux 或连接服务端 socket。
-  - 网络入口默认关闭；先选择 `mcp`，再配置非空根 token 和 `[mcp] enabled=true` 并重启，才开放 TCP 精确 `/mcp`；空 token 在自动生成前启动失败，取消插件选择或关闭网络开关后重启均撤销入口。
+  - 网络入口默认关闭；先选择 `mcp`，再配置非空根 token 和 `[mcp] enabled=true` 并重启，才开放 TCP 精确 `/mcp`；空 token 在自动生成前启动失败，取消功能选择或关闭网络开关后重启均撤销入口。
   - 同一 owner 凭据授予完整 REST 与任意 argv 权限，精选工具不是 ACL 或沙箱；Host / Origin 校验仍执行，代理保留边界，远程部署使用可信 VPN / TLS。
   - 使用 initialize-era JSON-only Streamable HTTP，基线 2025-11-25，兼容 2025-03-26 / 2025-06-18；支持 URL 和 Authorization 的 legacy 客户端无需 command/socket。
   - 成功 initialize 返回会话头，后续携带 Bearer、会话头和匹配版本；initialized 后使用工具。POST 请求 200、通知 202、有效 GET 405、DELETE 清理并等待在途调用后 204。
@@ -229,7 +229,7 @@
 - [会话控制命令](../../internal/clicmd/control.go)、[补全](../../internal/clicmd/completion.go)
 - [notify 命令](../../internal/clicmd/notify.go)、[脚本提醒](../../internal/session/manager_attention.go)、[推送正文](../../internal/push/alert.go)
 - [worktree 与主页显示命令](../../internal/clicmd/worktree.go)、[仓库命令](../../internal/clicmd/repo.go)、[启动配置命令](../../internal/clicmd/launchconfig.go)、[转发命令](../../internal/clicmd/forward.go)
-- [聊天命令](../../internal/clicmd/chat.go)、[聊天历史、设置与队列命令](../../internal/clicmd/chat_config_queue.go)、[聊天接口](../../internal/pluginapi/chat.go)
+- [聊天命令](../../internal/clicmd/chat.go)、[聊天历史、设置与队列命令](../../internal/clicmd/chat_config_queue.go)、[聊天接口](../../internal/featureapi/chat.go)
 - [启动命令](../../internal/clicmd/launch.go)、[会话列表订阅、跟随与回合跟踪](../../internal/clicmd/streams.go)、[仓库与主页显示](../../internal/clicmd/workspace.go)
 - [核心创建与初始化指令展开](../../internal/sessioncreate/service.go)、[会话接口](../../internal/api/sessions.go)、[快捷指令运行](../../web/src/components/terminal/SessionTerminal.svelte)、[预设与内置变量](../../web/src/domains/settings/quick-commands.ts)
 - [脚本调整尺寸](../../internal/session/session.go)、[尺寸校验与创建尺寸](../../internal/session/manager.go)、[尺寸请求类型](../../internal/contract/sessions.go)、[resize 命令与 screen 滚动历史](../../internal/clicmd/control.go)

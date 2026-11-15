@@ -5,7 +5,7 @@
 先从下面的常见任务找到对应命令；单个命令的全部选项、默认值、输出与示例写在 `webmux <命令> --help` 中，本页不重复。`webmux help --json` 输出机器可读的命令树。
 
 CLI 用当前实例的 `/api/capabilities` 判断可选操作，不靠 health/status 或本地配置猜测。自定义命令、附着、输出与提醒属核心；启动配置需 `launch`，仓库/worktree 需 `workspace`，聊天需 `chat` 及依赖，临时文件夹需 `files`。
-下表示例按对应功能已启用书写；先按 [内置插件选择](../deployment/configuration.md#内置插件选择) 配置并重启，禁用接口不会被探测或自动开启。
+下表示例按对应功能已启用书写；先按 [内置功能选择](../deployment/configuration.md#内置功能选择) 配置并重启，禁用接口不会被探测或自动开启。
 
 ## 常见任务
 
@@ -167,8 +167,8 @@ webmux rm <ID> --forget --yes                    # 删除归档记录与临时�
 - 从开启了聊天视图的启动配置创建的会话有终端与聊天两个视图，`webmux ls` 在状态列显示它当前的视图（终端、聊天、切换中）。
   - `ls --json` 原样包含 `views`、`view`、`transition` 与 `agent`，不再含 `hybrid` 对象。
 - 启动配置用 `webmux launch-config add` 或 `webmux launch-config edit` 的 `--chat` / `--no-chat` 开启或关闭聊天视图（混合模式）；旧选项 `--hybrid` 已删除。
-  - 只选择 `launch` 时仍可新增和编辑普通终端配置。修改已有配置的名称、环境或预览，不会清除未启用聊天/通知插件拥有的已存选项；显式修改聊天开关需选择 `chat`。
-  - 未修改的提醒策略始终保留，包括通知插件已选择但推送投递尚未启用的情况。
+  - 只选择 `launch` 时仍可新增和编辑普通终端配置。修改已有配置的名称、环境或预览，不会清除未启用聊天/通知功能拥有的已存选项；显式修改聊天开关需选择 `chat`。
+  - 未修改的提醒策略始终保留，包括通知功能已选择但推送投递尚未启用的情况。
 - `run --launch-config <名称>` 引用这类配置时创建混合会话，默认从终端开始；本地终端可以照常输入，附着中的终端不提供切换按键。
   - `--view chat` 从聊天开始（隐含 `--detach`）；
   - `--set ID=VALUE`、`--permission ask|auto`、`--attach-file PATH` 只在 `--view chat` 时可用。

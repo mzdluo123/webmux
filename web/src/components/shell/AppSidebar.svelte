@@ -27,13 +27,13 @@
   import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
   import ModeSwitch from "./ModeSwitch.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
-  import { pluginContributions } from "../../plugins/registry.svelte";
-  import { pluginAvailable } from "../../platform/plugin-host.svelte";
+  import { featureContributions } from "../../features/registry.svelte";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
   import { m } from "$lib/paraglide/messages.js";
-  const workspace = pluginContributions.entries.workspace;
-  const chat = pluginContributions.entries.chat;
-  const notifications = pluginContributions.entries.notifications;
+  const workspace = featureContributions.entries.workspace;
+  const chat = featureContributions.entries.chat;
+  const notifications = featureContributions.entries.notifications;
   const recordTitle = (record: ArchivedSession) =>
     chat?.recordTitle(record) ?? record.title;
   const connectorMissingText = (connector: AgentConnector) =>
@@ -71,7 +71,7 @@
     live.filter((session) => !pinnedIDs.has(session.id)),
   );
   const configs = $derived(
-    pluginContributions.entries.launch &&
+    featureContributions.entries.launch &&
       shell.launchConfigs?.state.status === "ready"
       ? shell.launchConfigs.state.configs
       : [],
@@ -154,7 +154,7 @@
   } | null>(null);
   function open(record: ArchivedSession) {
     if (record.released && !workspace)
-      resumeErrorFn = () => m.s1_archive_requires_workspace_plugin();
+      resumeErrorFn = () => m.s1_archive_requires_workspace_feature();
     else if (record.released)
       rebuilding = { record, released: record.released };
     else void resume(record);
@@ -336,7 +336,7 @@
           onremoveworktree={withTree((tree) => shell.removeWorktree(tree))}
           onswitchbranch={withTree((tree) => shell.switchBranch(tree))}
           onbranchoperation={shell.branchOperation}
-          onopengit={pluginAvailable("workspace.git-workbench")
+          onopengit={featureAvailable("workspace.git-workbench")
             ? (repositoryId, worktreeId, view) =>
                 openGitWorkbench({ repositoryId, worktreeId, view })
             : undefined}

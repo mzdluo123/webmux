@@ -2,14 +2,10 @@
   import { m } from "$lib/paraglide/messages.js";
   import { untrack, type Snippet } from "svelte";
   import { createChatScrollMode } from "../../hooks/chat/chat-scroll-mode.svelte";
-  import IconArrowDown from "~icons/tabler/arrow-down";
-  import {
-    Button,
-    type ButtonSize,
-    type ButtonVariant,
-  } from "$lib/components/ui/button";
+  import type { ButtonSize, ButtonVariant } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import FileDropZone from "../shared/FileDropZone.svelte";
+  import JumpToLatestButton from "../shared/JumpToLatestButton.svelte";
   import type { ChatActions, RequestAnswer } from "../../platform/chat-api";
   import { groupTimeline, type ChatModel } from "../../domains/chat/chat-model";
   import { conversationTurns } from "../../domains/chat/conversation-turns";
@@ -263,10 +259,8 @@
     cancelAnimationFrame(turnJumpFrame);
     turnJumpFrame = 0;
     jumpingToTurn = false;
-    const target = scrollRoot();
-    if (documentScroll) window.scrollTo({ top: target?.scrollHeight ?? 0 });
-    else target?.scrollTo({ top: target.scrollHeight });
     stick = true;
+    scrollToBottom();
   }
   // New output keeps the newest entry in view unless the reader scrolled up.
   $effect(() => {
@@ -370,33 +364,26 @@
     {/if}
     {#if !stick && !documentScroll}
       <!-- Anchored to the message area, so a taller composer never covers it. -->
-      <Button
-        variant="outline"
-        size="sm"
-        raised
+      <JumpToLatestButton
         class="absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
         onclick={latest}
-        ><IconArrowDown aria-hidden="true" />{m.s3_back_to_latest()}</Button
-      >
+      />
     {/if}
   </div>
   <div
     bind:this={dock}
     data-chat-dock
-    class="relative mx-auto w-full max-w-3xl space-y-2 px-3 pb-safe-2 sm:px-4 [@media(height<480px)]:max-h-full [@media(height<480px)]:overflow-y-auto"
+    class={[
+      "relative mx-auto w-full max-w-3xl space-y-2 px-3 pb-safe-2 sm:px-4",
+      !documentScroll &&
+        "[@media(height<480px)]:max-h-full [@media(height<480px)]:overflow-y-auto",
+    ]}
   >
     {#if !stick && documentScroll}
       <div
         class="pointer-events-none absolute inset-x-0 bottom-full pb-3 text-center"
       >
-        <Button
-          variant="outline"
-          size="sm"
-          raised
-          class="pointer-events-auto"
-          onclick={latest}
-          ><IconArrowDown aria-hidden="true" />{m.s3_back_to_latest()}</Button
-        >
+        <JumpToLatestButton class="pointer-events-auto" onclick={latest} />
       </div>
     {/if}
     <ChatTurnStatus mode="dock" {error} {unavailable} {onterminal} {chat} />

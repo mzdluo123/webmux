@@ -2,7 +2,7 @@
 
 服务端在 `<state_dir>/run/webmux.sock`（路径超过平台 `sun_path` 上限时改用 `$XDG_RUNTIME_DIR/webmux/<摘要>.sock`，实际路径写入运行时记录）上提供与 TCP 完全相同的 `/api/*`、`/ws/*`，认证方式改为对端进程的有效 UID，不检查 Token、Host 与 Origin。示例：
 
-内置插件选择与 TCP 相同：`GET /api/capabilities` 走同 UID 认证，禁用插件 API/WS 返回 404，不因本机身份重新启用。`/mcp` 是 TCP owner 专属路径，在本机套接字不提供。
+内置功能选择与 TCP 相同：`GET /api/capabilities` 走同 UID 认证，禁用功能 API/WS 返回 404，不因本机身份重新启用。`/mcp` 是 TCP owner 专属路径，在本机套接字不提供。
 
 ```sh
 curl --unix-socket ~/.local/state/webmux/run/webmux.sock http://webmux/api/sessions

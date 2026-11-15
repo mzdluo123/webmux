@@ -5,7 +5,7 @@
   import IconX from "~icons/tabler/x";
   import type { HybridNotice } from "../../hooks/sessions/hybrid.svelte";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
-  import type { TerminalPlugins } from "../../plugins/terminal";
+  import type { TerminalFeatures } from "../../features/terminal";
   import StripNotice from "../shared/StripNotice.svelte";
   import type { ControlState, ListeningPort } from "../../contracts/schemas";
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
@@ -27,7 +27,7 @@
   // Status strips between the header and the terminal, in display order.
   let {
     terminal: t,
-    plugins = {},
+    features = {},
     uploads,
     draft,
     draftSaved,
@@ -48,7 +48,7 @@
     leave,
   }: {
     terminal: NoticeTerminal;
-    plugins?: TerminalPlugins;
+    features?: TerminalFeatures;
     uploads?: NoticeUploads;
     draft: TerminalDraft;
     draftSaved: string;
@@ -104,7 +104,7 @@
     {/snippet}
   </StripNotice>
 {/if}
-{#if plugins.files && uploads?.progress}<plugins.files.Progress
+{#if features.files && uploads?.progress}<features.files.Progress
     progress={uploads.progress}
     cancel={() => uploads?.cancel()}
   />{/if}
@@ -128,7 +128,7 @@
     >{item.text}</StripNotice
   >
 {/each}
-{#if plugins.forward && session}<plugins.forward.PortPrompts
+{#if features.forward && session}<features.forward.PortPrompts
     {session}
     {listening}
     onshowall={showForwards}

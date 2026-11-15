@@ -704,7 +704,7 @@ test("direct launch still offers explicit directory creation without registering
   workDir,
 }) => {
   const path = join(workDir, "new direct directory");
-  const isolated = await startE2EServer({ plugins: ["files", "launch"] });
+  const isolated = await startE2EServer({ features: ["files", "launch"] });
   try {
     await page.goto(isolated.baseURL);
     await page

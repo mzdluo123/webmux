@@ -4,10 +4,10 @@ import { cleanup, render } from "vitest-browser-svelte/pure";
 import ProjectPicker from "../../src/components/workspace/ProjectPicker.svelte";
 import type { Project } from "../../src/contracts/schemas";
 
-vi.mock("../../src/platform/plugin-host.svelte", () => ({
-  pluginAvailable: () => true,
-  pluginCapabilityRevision: () => 0,
-  requestPluginHostRefresh: async () => {},
+vi.mock("../../src/platform/feature-host.svelte", () => ({
+  featureAvailable: () => true,
+  featureCapabilityRevision: () => 0,
+  requestFeatureHostRefresh: async () => {},
 }));
 const project: Project = {
   id: "directory:demo",

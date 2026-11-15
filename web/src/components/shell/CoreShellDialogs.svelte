@@ -8,7 +8,7 @@
   import type { Repositories } from "../../hooks/workspace/repositories.svelte";
   import type { LaunchConfigs } from "../../hooks/settings/launch-configs.svelte";
   import type { Archived } from "../../hooks/sessions/archived.svelte";
-  import { pluginContributions } from "../../plugins/registry.svelte";
+  import { featureContributions } from "../../features/registry.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
   import RenameSessionDialog from "../sessions/RenameSessionDialog.svelte";
   import CloseSessionDialog from "../sessions/CloseSessionDialog.svelte";
@@ -35,7 +35,7 @@
     archived?: Archived;
     onrefreshworktrees: () => void;
   } = $props();
-  const forward = pluginContributions.entries.forward;
+  const forward = featureContributions.entries.forward;
 </script>
 
 {#if creating}
@@ -59,7 +59,7 @@
         intent={target.entry?.kind === "new-worktree" ? "worktree" : "session"}
         onchange={onrefreshworktrees}
         onworktreecreated={(tree) => {
-          const workspace = pluginContributions.entries.workspace;
+          const workspace = featureContributions.entries.workspace;
           if (!workspace || !repositories)
             throw new Error(m.s1_workspace_not_enabled());
           workspace.pinCreatedWorktree(repositories.list, tree);

@@ -12,20 +12,20 @@
     hostStrain,
     SLOW_LATENCY_MS,
   } from "../../domains/sessions/host-health";
-  import { pluginContributions } from "../../plugins/registry.svelte";
+  import { featureContributions } from "../../features/registry.svelte";
   import { HealthSchema, type Health } from "../../contracts/schemas";
   import { toggleTheme } from "../../hooks/settings/theme";
   import type { Connection } from "../../platform/ws";
   import { m } from "$lib/paraglide/messages.js";
   const p2pState = $derived(
-    pluginContributions.entries.p2p?.p2pState ?? {
+    featureContributions.entries.p2p?.p2pState ?? {
       mode: "ws",
       p2pRttMs: null,
       candidateType: "",
       ipFamily: "",
     },
   );
-  const forward = $derived(pluginContributions.entries.forward);
+  const forward = $derived(featureContributions.entries.forward);
 
   // The sidebar's global footer, shared by both modes: the connection and
   // host, port forwarding, settings and the theme. A healthy connection is

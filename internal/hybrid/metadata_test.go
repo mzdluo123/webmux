@@ -13,7 +13,7 @@ func TestMetadataSnapshotOwnsProviderIdentity(t *testing.T) {
 	first.Work = "caller mutation"
 	second := service.Metadata("runtime")
 	if *second.AgentSessionID != "provider-session" || second.Work != "Read file" {
-		t.Fatalf("snapshot aliases plugin state: %+v", second)
+		t.Fatalf("snapshot aliases feature state: %+v", second)
 	}
 	service.clearMetadata("runtime")
 	if service.Metadata("runtime") != nil || service.Metadata("ordinary") != nil {

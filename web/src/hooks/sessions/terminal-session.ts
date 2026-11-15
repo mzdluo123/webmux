@@ -2,7 +2,7 @@ import { m } from "$lib/paraglide/messages.js";
 import type { HybridSession, HybridTerminal } from "./hybrid-types";
 
 function unavailable(): never {
-  throw new Error(m.s3_chat_plugin_disabled());
+  throw new Error(m.s3_chat_feature_disabled());
 }
 
 /** PTY-only projection: no archive lookup, chat provider, or switch lifecycle. */
@@ -26,7 +26,7 @@ export function terminalSession(terminal: HybridTerminal): HybridSession {
     target: null,
     steps: [],
     get chatUnavailable() {
-      return m.s3_chat_plugin_disabled();
+      return m.s3_chat_feature_disabled();
     },
     confirming: null,
     awaitingChoice: false,

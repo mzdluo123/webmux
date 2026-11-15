@@ -12,9 +12,9 @@
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
   import DirectoryInput from "../shared/DirectoryInput.svelte";
   import {
-    getPluginContributions,
+    getFeatureContributions,
     type CreationLocationProps,
-  } from "../../plugins/context";
+  } from "../../features/context";
   import PickerField from "../shared/PickerField.svelte";
   import {
     directoryName,
@@ -22,7 +22,7 @@
     worktreeLabel,
   } from "../../domains/sessions/new-session-defaults";
   import type { Repository, Worktree } from "../../contracts/schemas";
-  import { pluginAvailable } from "../../platform/plugin-host.svelte";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
 
   // The "where" row of the new-session dialog: recent directories, worktrees
   // of every repository, a typed or browsed directory, and "new worktree".
@@ -41,7 +41,7 @@
     disabled = false,
     projectScoped = false,
   }: CreationLocationProps = $props();
-  const providers = getPluginContributions().creation;
+  const providers = getFeatureContributions().creation;
   let open = $state(false);
   let search = $state("");
   // The desktop list stays mounted while closed; each opening starts unfiltered.
@@ -271,7 +271,7 @@
       bind:ref={cwdInput}
       bind:value={cwd}
       placeholder="~/projects"
-      Picker={pluginAvailable("files.upload")
+      Picker={featureAvailable("files.upload")
         ? providers.DirectoryPicker
         : undefined}
     />
