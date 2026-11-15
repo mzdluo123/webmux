@@ -246,7 +246,7 @@ async function probeDirectPeer(epoch: number, signal: AbortSignal) {
           rttMs: candidate,
         }),
       );
-      if (decision === "fallback") {
+      if (decision === "fallback" && !forced) {
         fallbackToBaseline("standby_hysteresis", true);
       } else if (
         decision === "upgrade" ||
