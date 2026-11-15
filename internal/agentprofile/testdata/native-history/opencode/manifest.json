@@ -1,0 +1,52 @@
+{
+  "agent": "opencode",
+  "sourceLayout": "~/.local/share/opencode/opencode.db; legacy project/session/message/part and v2 project/session_v2/session_message tables",
+  "provenance": "Sanitized excerpts of real local OpenCode history opened with SQLite mode=ro. Conversation rows are selected from actual records, not invented events. Relevant table and index DDL is copied verbatim from the observed live schema; no database file, credentials, account tables, configuration, or instruction blobs are copied.",
+  "versionEvidence": {
+    "legacySessionVersion": "1.18.3",
+    "v2SessionVersion": "2.1.4",
+    "evidence": "Native session.version and session_v2.version fields in the selected records. Both table generations coexist in the inspected database.",
+    "sqliteReaderVersion": "3.46.1",
+    "sqliteWriterVersion": "unknown; a database does not record the originating SQLite runtime version",
+    "sqliteUserVersion": 0,
+    "sqliteSchemaVersion": 76,
+    "nativeMigrationRows": 50
+  },
+  "sanitization": [
+    "All message text, reasoning, prompts, tool arguments/results/titles, model/provider identities, agent names, and other non-structural strings are replaced with fixed placeholders. Native JSON object/array envelopes, enum values, roles, tool names, nulls, booleans, and numeric usage fields remain.",
+    "Native row IDs, parent message IDs, call IDs, snapshot hashes, and filesystem paths are consistently remapped within each independently importable fixture. Epoch timestamps are shifted to a fixed synthetic origin while preserving ordering.",
+    "Source files were only read. Export excludes configuration, authentication, account, credential, instruction, and unrelated tables."
+  ],
+  "coverage": [
+    "legacy.sql: one project, one root session, three messages (user, assistant tool invocation, assistant final response), and nine native parts, including completed bash input/output, reasoning, text, and step markers.",
+    "v2.sql: one project, one root session, three session_message rows (user, assistant with reasoning and completed bash call/result, assistant final response). Native seq values and embedded tool state are retained.",
+    "Both exports preserve their observed foreign keys and native indexes; message parent and tool-call relationships are remapped consistently."
+  ],
+  "limitations": [
+    "These are conversation slices, not complete database backups. Other turns, projects, summary history, migrations, control records, instruction stores, and unrelated tables are intentionally absent.",
+    "The legacy schema was extracted from a database that has since accumulated newer migrations; session.version describes the producing session, not an older pristine installation schema.",
+    "No agent binary was launched or installed. Native SQLite writer runtime version is unknown."
+  ],
+  "reconstruction": {
+    "method": "Import each SQL file separately into a fresh empty temporary SQLite database; each includes PRAGMA foreign_keys=ON, native CREATE TABLE/INDEX statements, and a transaction containing only sanitized INSERT rows.",
+    "examples": [
+      "sqlite3 /tmp/opencode-legacy.db < legacy.sql",
+      "sqlite3 /tmp/opencode-v2.db < v2.sql"
+    ],
+    "recordsDefinition": "Number of INSERT rows across all included tables; DDL and indexes are not counted."
+  },
+  "files": [
+    {
+      "path": "legacy.sql",
+      "format": "sqlite-sql",
+      "records": 14,
+      "sha256": "d02c809170db9bdef89359c7f18db7bc45952ea1dceb53f8ce2b45350d68f406"
+    },
+    {
+      "path": "v2.sql",
+      "format": "sqlite-sql",
+      "records": 5,
+      "sha256": "cca7b6a02577851cb4f8dd4bd1cd39d898907522203deb02ee4382293a962e49"
+    }
+  ]
+}

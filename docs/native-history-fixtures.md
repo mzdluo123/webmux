@@ -1,0 +1,69 @@
+# 原生 Agent 历史夹具
+
+这些夹具供 [#652](https://github.com/mzdluo123/webmux/issues/652) 的读取器、快照与交接开发使用，无需安装或登录对应 Agent。
+它们来自维护者电脑上已有的真实会话，只保留脱敏后的原生存储结构；不是 Agent 支持已经实现的证明。
+
+## 从夹具开始开发
+
+1. 打开 [夹具目录](../internal/agentprofile/testdata/native-history/)，先读目标 Agent 的 `manifest.json`。
+2. 按 `sourceLayout` 理解原生目录与身份关系，按 `files` 选择 JSON、JSONL 或 SQLite SQL 样本。
+3. 在临时目录重建原生布局，针对实际字段、类型和引用开发只读适配器，不启动 Agent 或连接真实服务。
+4. 使用 `coverage` 和 `limitations` 区分已观察行为、被脱敏信息及尚缺场景；不要由一份样本推断所有版本兼容。
+
+每份 manifest 记录来源形态、版本证据、脱敏方式、实际覆盖、限制以及发布文件的 SHA-256。
+文件哈希只校验脱敏产物，不是私人源文件哈希，也不能当作 Agent 原生内容校验。
+
+## 原生格式与覆盖
+
+本次采集覆盖 Linux 用户目录与可访问的 Windows 用户目录，没有安装或启动 Agent 制造新会话。
+国际版 Qoder 未找到本地真实历史，其 manifest 明确记录缺口，不提供伪造样本。
+QoderCN 的两份真实记录不能作为国际版 Qoder 格式或版本兼容证据。
+
+| Agent       | 原生样本                                      | 已观察范围与限制                                                                                  |
+| ----------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Codex       | JSONL；CLI 0.162.1、0.157.1                   | 消息、函数/自定义工具闭环、compacted replacement history；未覆盖 fork。                           |
+| Claude Code | JSONL；2.1.316                                | Bash 调用/拒绝/结果、compact_boundary 与保留消息；节选外祖先不补造。                              |
+| omp         | JSONL；文件格式 3                             | 工具与复合调用 ID、错误/恢复、compaction；一份 runtime 明示 18.12.2，另一份未知。                 |
+| OpenCode    | 两代 SQLite SQL；会话版本 1.18.3、2.1.4       | project/session/message/part 与 session_v2/session_message；同库新 schema 不冒充旧版原始 schema。 |
+| Kimi        | state.json + agents/main/wire.jsonl；协议 1.4 | 一轮对话、7 组工具调用/结果、end_turn；应用版本未知，无独立 context 文件。                        |
+| agy         | 原生 SQLite                                   | 解码方式与可用记录范围见该 Agent 的 manifest；不复制不透明私密 blob。                             |
+| Devin       | SQLite SQL + ATIF-v1.7 JSON                   | 主消息链、工具状态、独立 transcript 前缀；transcript 明示 3000.12.57，SQLite 写入版本未知。       |
+| QoderCN     | JSONL；1.1.84                                 | 两份真实文件、用户/助手与元数据；源样本无工具调用或 compaction。                                  |
+| Qoder       | 无                                            | 国际版真实来源缺失；不以 QoderCN 文件替代。                                                       |
+
+各 Agent 的实际文件清单和记录覆盖以各自 manifest 为准。
+版本证据必须区分记录自带版本与当前安装版本；当前安装版本不能证明旧会话由该版本生成。
+SQLite 样本保留真实 DDL 与经过脱敏的最小记录集合，而不是复制用户的整个数据库、WAL 或搜索索引。
+
+## 离线重建 SQLite
+
+对 manifest 中 `format` 为 `sqlite-sql` 的文件，在临时目录执行：
+
+```sh
+workdir="$(mktemp -d)"
+sqlite3 "$workdir/history.db" < path/to/fixture.sql
+sqlite3 "$workdir/history.db" 'PRAGMA integrity_check; PRAGMA foreign_key_check;'
+```
+
+也可以用 Python 标准库 `sqlite3.Connection.executescript` 或项目已有的纯 Go SQLite 驱动重建。
+SQL 只用于测试隔离数据库，不应导入真实 Agent 数据库；测试期间原生文件必须只读。
+读取器测试应采用原生表与消息图，不能把 SQL 转成另一套自定义历史格式后宣称原生读取通过。
+
+## 脱敏边界
+
+- 会话与消息 ID 一致重映射，保留原生父子关系、工具关联、角色、事件类型、字段嵌套和记录顺序。
+- 正文、工具参数与结果、标题、系统提示、思考、凭证、URL、账号和私人路径移除或替换；保留的工具名、类型与状态只用于格式识别。
+- 时间、模型、工作目录、分支及内容摘要可能被固定化；不能据此测试真实耗时、token 计费、原始偏移或内容签名。
+- 不提交认证文件、配置、环境变量、私人原文件路径、原始源文件哈希、完整数据库或不透明私密二进制块。
+- JSON 字符串内嵌 JSON、SQL 中的 JSON 和工具载荷也属于脱敏范围，不只扫描最外层字段。
+
+脱敏替换文本不是原用户的任务或真实工具执行结果。测试可断言这些公开值的解析，但不能把它们描述为原会话语义。
+
+## 后续适配与补样
+
+本次只交付开发数据，不实现 reader、自动交接或生产历史迁移，也不关闭 #652 的 Agent 验收清单。
+每个 reader 仍需覆盖其来源适用的追加、半条记录、替换、分支、压缩、附件和取消等边界。
+缺失场景可以另加明确标为合成的回归样本，不能将派生样本标记为本次电脑实录。
+真实运行与模型效果须另行验收；离线 fixture 通过不证明 ACP/TUI 身份绑定、实际注入或图片成本。
+
+这是测试数据准备，不改变产品行为或新增已实现能力，用户故事无行为影响。

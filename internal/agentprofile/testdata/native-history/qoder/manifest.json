@@ -1,0 +1,15 @@
+{
+  "agent": "qoder",
+  "status": "missing-local-source",
+  "sourceLayout": "unknown: no international-edition native transcript located",
+  "provenance": "No fixture is supplied. Read-only inventory of the available Linux home, Windows user home, mounted drive roots and temporary workspace roots located QoderCN history but no international Qoder history.",
+  "versionEvidence": "unknown",
+  "sanitization": [],
+  "coverage": [],
+  "limitations": [
+    "This is a coverage gap, not an unsupported implementation and not a completed checklist item for issue #652.",
+    "The QoderCN fixtures must not be relabelled as international Qoder captures merely because the runtime adapters share code.",
+    "An existing real international-edition transcript with its in-record version evidence is still required; no agent was installed or started to manufacture one."
+  ],
+  "files": []
+}

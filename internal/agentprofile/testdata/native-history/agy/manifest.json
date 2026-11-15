@@ -1,0 +1,99 @@
+{
+  "agent": "agy",
+  "sourceLayout": [
+    "~/.gemini/antigravity-cli/conversations/<conversation-id>.db",
+    "~/.gemini/antigravity-cli/history.jsonl",
+    "~/.gemini/antigravity-cli/brain/<conversation-id>/"
+  ],
+  "provenance": {
+    "kind": "real-session-excerpt",
+    "selection": "All six steps from a smallest nonempty local conversation (95 database files inspected; 32 contain steps). No agent was launched. SQLite sources were opened with mode=ro.",
+    "nativeStorage": "SQLite tables with protobuf BLOB columns, not JSON. Native seven-table DDL is preserved. Only trajectory_meta and the selected real steps have INSERTs.",
+    "schemaEvidence": "Native .gemini_coder.Step and its retained nested messages were decoded using protobuf descriptors extracted from the installed stripped ELF. protobuf-schema.json includes only fields and enum values actually retained in this sample, not source code or a complete descriptor collection. conversation.decoded.json is an explicitly non-native decoded companion, not invented transcript records.",
+    "historyIndex": "No matching prompt-history index entry retained.",
+    "brainSearch": "Immediate brain children contained an implementation-plan artifact and its metadata, not a native assistant transcript. Deeper files include tool artifacts and project files; they were not treated as transcripts."
+  },
+  "versionEvidence": {
+    "version": "unknown",
+    "reason": "Installed executable is a stripped ELF with no adjacent package manifest/version file. Its embedded release notes mention 1.5.8, but that alone does not establish the executable or source-session version. No agent/version command was executed.",
+    "descriptorSource": "Installed executable protobuf descriptors; no source path, executable hash, or private source hash retained."
+  },
+  "sanitization": {
+    "freeText": "All prompt, response, reasoning, system, tool output, environment, account, path and URL string values are replaced. No original free-text body is retained.",
+    "identifiers": "Global deterministic replacement map shared by trajectory/cascade/execution/message/tool-call IDs and sender/recipient values; UUID-shaped inputs receive fixture UUIDs. No original ID or source-derived hash is retained.",
+    "tools": "The real built-in run_command name and known argument keys are retained. JSON argument values are recursively replaced while retaining JSON scalar/container types. Generic argument strings and tool-result strings are redacted too.",
+    "binary": "Known protobuf messages are rebuilt after recursive schema-guided sanitation. All opaque bytes/signatures and unknown fields/messages are omitted, never copied. SQL hex values are decoded protobuf wire records with accompanying field/type evidence, not unexplained opaque source blobs.",
+    "timestamps": "Timestamp messages are remapped to a fixed synthetic epoch in source ordering, nanos to zero. Prompt-history timestamps are normalized.",
+    "omittedFields": {
+      "opaque_or_signature_field": 7
+    }
+  },
+  "coverage": {
+    "nativeHistory": true,
+    "schemaOnly": false,
+    "sqliteTables": 7,
+    "stepRecords": 6,
+    "stepTypes": [
+      {
+        "value": 14,
+        "name": "CORTEX_STEP_TYPE_USER_INPUT",
+        "records": 1
+      },
+      {
+        "value": 15,
+        "name": "CORTEX_STEP_TYPE_PLANNER_RESPONSE",
+        "records": 3
+      },
+      {
+        "value": 132,
+        "name": "CORTEX_STEP_TYPE_GENERIC",
+        "records": 1
+      },
+      {
+        "value": 101,
+        "name": "CORTEX_STEP_TYPE_SYSTEM_MESSAGE",
+        "records": 1
+      }
+    ],
+    "toolNames": [
+      "run_command"
+    ],
+    "toolLoop": "Planner tool_calls -> generic step metadata.tool_call -> generic.result -> later assistant response; the same call ID also appears in the subsequent system agent_message source metadata.",
+    "promptHistoryRecords": 0,
+    "decodedRootMessage": ".gemini_coder.Step"
+  },
+  "offlineDecoding": [
+    "Use Python sqlite3.connect(':memory:').executescript(Path('conversation.sql').read_text()) to rebuild only a temporary fixture database. Select steps ORDER BY idx and compare scalar columns with conversation.decoded.json.",
+    "For each non-NULL BLOB use protobuf-schema.json.blobColumns to select its message type. Read protobuf varint keys: field_number = key >> 3; wire_type = key & 7. Wire 0 is varint, wire 1 is eight little-endian bytes, wire 2 is varint length followed by that many bytes, and wire 5 is four little-endian bytes.",
+    "messages[type][field_number] supplies the original protobuf FieldDescriptorProto type number, field name, referenced typeName and label. Type 9 is UTF-8 string, type 11 recursively decoded message, type 14 numeric enum; the other retained types use their standard protobuf scalar encoding. label 3 appends an array item. A referenced message without a retained field definition is valid only for an empty payload and decodes as {}.",
+    "The decoded companion preserves only fields actually present on the wire, uses raw integer values for enums and booleans, and exposes repeated map entries as arrays rather than converting them into objects. Decode all protobuf columns, including duplicated metadata, and compare these objects to the corresponding steps[].<column> values. This requires no installed agy, executable, network service or model."
+  ],
+  "limitations": [
+    "This is a six-step excerpt from one real local session, not broad agy version compatibility.",
+    "No subagent, fork, image, attachment, encrypted payload, crash recovery, cancellation or large-output coverage is claimed.",
+    "Opaque bytes, signatures and fields without a recovered descriptor are intentionally absent; their content is not reconstructed.",
+    "The other native SQLite tables retain their DDL only; generator/executor/trajectory metadata and parent/battle records are outside this excerpt.",
+    "The decoded JSON companion and field-schema evidence are inspection aids, not a claim that agy writes JSON transcripts.",
+    "Application-level acceptance of re-encoded sanitized protobuf has not been tested, and no checks or agent execution were run."
+  ],
+  "files": [
+    {
+      "path": "conversation.sql",
+      "format": "sqlite-sql",
+      "records": 7,
+      "sha256": "4d01329e4dbb615cb3cbe21ce1f655b27f2244cce13c29e3942f3f32ad8a290f"
+    },
+    {
+      "path": "conversation.decoded.json",
+      "format": "json",
+      "records": 6,
+      "sha256": "f642b6b547e5c5436038eec672dc0b5c763182c226f8d0b072a9abee50416919"
+    },
+    {
+      "path": "protobuf-schema.json",
+      "format": "json",
+      "records": 49,
+      "sha256": "d96b700b23f4a37bc81fa4aead9381c0a18889c037d46d21f6f1536f2fe38463"
+    }
+  ]
+}

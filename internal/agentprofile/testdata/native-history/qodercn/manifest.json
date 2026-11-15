@@ -1,0 +1,59 @@
+{
+  "agent": "qodercn",
+  "sourceLayout": "~/.qoder-cn/projects/<encoded-workspace>/<session-id>.jsonl",
+  "provenance": "Two complete existing local QoderCN transcript files, read without starting the agent; record envelopes, ordering, scalar types and reference equality retained.",
+  "versionEvidence": "Both selected transcripts contain version=1.1.84; installed version.txt also reports 1.1.84.",
+  "sanitization": [
+    "All free-form strings, prompts, outputs, titles, skills, agent names, paths and model identities replaced with fixed placeholders.",
+    "Session/message/prompt/request IDs mapped consistently to deterministic fixture IDs by encounter order, not hashes of private IDs.",
+    "Timestamps normalized to a fixed instant, git branch replaced, request/response token anchors zeroed.",
+    "Thinking and signature strings emptied; no original reasoning, credentials, configuration or workspace state copied."
+  ],
+  "coverage": [
+    {
+      "file": "session-1.jsonl",
+      "recordTypes": {
+        "workspace-directories": 2,
+        "active-leaf": 7,
+        "worktree-state": 2,
+        "system": 1,
+        "user": 7
+      }
+    },
+    {
+      "file": "session-2.jsonl",
+      "recordTypes": {
+        "workspace-directories": 2,
+        "runtime-config": 2,
+        "active-leaf": 10,
+        "worktree-state": 1,
+        "system": 2,
+        "user": 1,
+        "attachment": 4,
+        "ai-title": 2,
+        "assistant": 2,
+        "last-prompt": 1
+      }
+    }
+  ],
+  "limitations": [
+    "No tool_use/tool_result records occurred in these actual local QoderCN samples; no tool, fork, compaction or attachment-binary coverage is claimed.",
+    "The first file has metadata and user records but no assistant reply; the second has user and assistant text, empty redacted thinking and native metadata/attachment envelopes.",
+    "Dates, payload lengths, token anchors, titles, model values and hashes are not native integrity evidence after redaction.",
+    "These are Chinese-edition records only, not evidence for the international qoder adapter."
+  ],
+  "files": [
+    {
+      "path": "session-1.jsonl",
+      "format": "jsonl",
+      "records": 19,
+      "sha256": "8eeec6c1978c4cb4313f8e96898683598ef8a430252b0e3cf88a92de5376ba3e"
+    },
+    {
+      "path": "session-2.jsonl",
+      "format": "jsonl",
+      "records": 27,
+      "sha256": "ceb41ffedd7eef996d1a8bbeffe2ebfff95dc60459809d981db9ed05dde10452"
+    }
+  ]
+}
