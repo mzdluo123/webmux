@@ -291,8 +291,8 @@ export async function backToList(page: Page) {
 }
 
 /**
- * Makes the sidebar's global entries (settings, theme, port forwarding)
- * reachable: phones keep them in the drawer.
+ * Makes global sidebar entries reachable, waiting for mobile drawer entry
+ * before consumers interact with its contents.
  */
 export async function revealSidebar(page: Page): Promise<boolean> {
   const open = page
@@ -310,13 +310,32 @@ export async function revealSidebar(page: Page): Promise<boolean> {
       async () => (await open.isVisible()) || (await navigation.isVisible()),
     )
     .toBe(true);
-  if (!(await open.isVisible())) return false;
+  let opened = false;
   // A closing drawer is still visible during its exit animation. Prefer
   // the trigger's open state rather than mistaking that for an open drawer.
-  if ((await open.getAttribute("aria-expanded")) === "true") return false;
-  await open.click();
+  if (
+    (await open.isVisible()) &&
+    (await open.getAttribute("aria-expanded")) !== "true"
+  ) {
+    await open.click();
+    opened = true;
+  }
   await expect(navigation).toBeVisible();
-  return true;
+  const drawer = page.getByRole("dialog", { name: "导航", exact: true });
+  if (await drawer.isVisible())
+    await expect
+      .poll(() =>
+        drawer.evaluate((node) =>
+          node
+            .getAnimations()
+            .some(
+              (animation) =>
+                animation.pending || animation.playState === "running",
+            ),
+        ),
+      )
+      .toBe(false);
+  return opened;
 }
 
 export async function chooseLaunch(page: Page, name: string) {

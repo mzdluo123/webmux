@@ -2,11 +2,14 @@ import { spawnSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { expect, expectTerminalLine, test } from "./fixtures";
+import { expect, expectTerminalLine, revealSidebar, test } from "./fixtures";
 
 // Quick start over the fake agent (internal/acp/testdata/fakeagent), which
 // global-setup puts on PATH as claude and claude-agent-acp: its chat side
 // answers "echo: text". Each test registers its own temporary repository.
+
+// Keep the original failed attempt, not only its retry, for actionability hangs.
+test.use({ trace: "retain-on-failure" });
 
 async function repository(
   request: APIRequestContext,
@@ -54,8 +57,7 @@ const phone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 640;
 // The sidebar: always shown on desktop, a drawer opened from the top bar on
 // phones. The drawer stays open when only the mode changes.
 async function sidebar(page: Page) {
-  if (phone(page))
-    await page.getByRole("button", { name: "打开侧栏" }).first().click();
+  await revealSidebar(page);
   return page.getByRole("navigation", { name: "导航" }).last();
 }
 
@@ -236,8 +238,7 @@ test("phone drawer: the chat history switches sessions and closes", async ({
     ids.push((await response.json()).session.id);
   }
   await page.goto(`/s/${ids[0]}`);
-  const open = page.getByRole("button", { name: "打开侧栏" });
-  await open.click();
+  await revealSidebar(page);
   const drawer = page.getByRole("dialog", { name: "导航" });
   await expect(drawer).toBeVisible();
   await drawer.getByRole("button", { name: "聊天模式" }).click();

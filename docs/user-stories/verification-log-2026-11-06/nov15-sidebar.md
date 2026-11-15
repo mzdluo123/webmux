@@ -29,3 +29,15 @@
 - CI 暴露两处过期断言：插件恢复用例改为在选择页验证代码入口恢复、关闭侧栏后验证语音/上传及原草稿；设置用例移除固定核心分区列表，改为逐项验证禁用插件的导航链接与分区均不存在。完整浏览器组件套件复测 117 个文件、906 项通过。
 - 交互 GIF 使用七张逐步实拍帧生成，每步 1.1 秒，覆盖关闭、选择页、原版代码页、分屏操作页、返回与关闭。
 - 本节为合并后定向验证，不替代前述原分支范围；未验证移动真机、触控硬件或所有 Go 测试，完整 CI 仍由 PR 检查跟进。
+
+## 合并后的 CI 稳定性补充
+
+PR #630 合并时，主干已通过 #631、#633 接管 Storybook 布局隔离、CI 并发与设置导航断言；本次沿用主干实现，不重复引入另一套布局 helper。
+
+- 原 CI 的移动端 quick-start 在归档操作点击中等待约 127 秒，成功重试则在抽屉入场阶段等待子按钮稳定；原失败未保留 trace，未确认 Chromium 内部长时间 actionability 等待的机制。
+- 本补充只让测试侧栏 helper 等待具名导航对话框可见，且其自身无 pending/running 入场动画，再操作内部按钮；保留真实动画、点击与全部生命周期断言，不增加超时、不强制点击、不修改产品界面。
+- 在包含 #630 的主干 `b3694f22` 上运行 `CI=true pnpm --dir web exec playwright test test/e2e/quick-start.spec.ts --project=chromium-desktop --project=chromium-mobile`，7 项通过、1 项跳过。纯测试同步，不新增或改变用户故事。
+- 复查后将入场等待统一到现有 `revealSidebar`，quick-start 的两个入口复用它，已有调用者也共享同一条件；保留“本次是否展开侧栏”的返回语义。
+- quick-start 单独使用 `trace: "retain-on-failure"`，下一次若失败会保留原始失败尝试，而非只记录重试；仍不把等待条件视为历史挂起内部根因已获证实。
+- 定向复测 quick-start、theme、frontend-quality、git-workbench-route、page-stability、port-forwarding、p2p、hybrid 八个消费者文件：135 项通过、11 项跳过。跳过项不计为已验证。
+- 移动端原失败用例在保留首次失败 trace 的配置下串行重复 5 次，全部通过；这不能证明历史挂起根因已确认，也不保证未来不会再次出现。
