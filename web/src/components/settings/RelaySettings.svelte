@@ -253,9 +253,9 @@
           <dd class="wrap-anywhere">
             {relayEndpoint(status.controlEndpoint)} · {status.controlSource}
           </dd>
-          <dt class="text-muted-foreground">{m.relay_bootstrap_trust()}</dt>
+          <dt class="text-muted-foreground">{m.relay_control_trust()}</dt>
           <dd>
-            {m.relay_pins({ count: String(status.controlTrustPins.length) })}
+            {m.relay_control_ca_trust()}
           </dd>
           <dt class="text-muted-foreground">
             {m.relay_control_reachability()}

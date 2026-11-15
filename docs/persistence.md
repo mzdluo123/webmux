@@ -106,6 +106,7 @@ ACP 聊天的规范化消息与工具内容在 UI 截断前保存为完整 Activ
 - `fail_closed` 表示覆盖文件异常时关闭对应入口，不能从 TOML 回退为启用；紧急关闭仍可停止当前入口，但写盘失败必须报告未持久化。
 - `tunnel-settings.json`、`tailscale-settings.json`、`voice-settings.json` 与 `p2p-settings.json` 共用 `internal/settingsstore` 的打开、读取、提交与 fail-closed 骨架；文件结构、校验与关闭方式由各自包注入，盘点中登记为 `entry-settings` 例外。
 - `tailscale-settings.json` 保存用户希望的 mode/port/provider；`tailscale-ownership.json` 保存本实例实际创建的外部入口（精确目标、端口、pending/active），供撤销和重启对账。它们的职责、权限和失败策略不同。
+- `relay-settings.json` 当前写入 v2，只读兼容严格校验的 v1；首次正常保存时迁移为 v2，去掉旧 `controltrust`，保留宿主身份、绑定、待配对身份与启用意图。读取不会改盘，v1 不允许再次提交，未知版本仍 fail-closed；其他状态文件不因此放宽版本门禁。
 - 旧 `tailscale.json` 即使损坏或与新文件并存，也在监听前阻止启动。先停止旧版本并核实/撤销其精确外部入口，再整理旧文件；不执行全局 reset。旧 `tunnel.json` 使 Cloudflare 保持关闭。新版不自动迁移文件或旧浏览器偏好。
 - `run/server.json.lock` 仅保护运行时记录和本机控制面；锁冲突退化为 TCP 服务，不能与 Tailscale 安全阻止启动混淆。
 - 升级前停止全部旧进程并备份；新旧版本不得共用状态目录并发运行，改名后的锁无法与旧锁互斥。

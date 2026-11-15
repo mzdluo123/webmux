@@ -131,7 +131,7 @@ func configuredView(path string, c config.Config) contract.Configuration {
 	view := configuration(path, c, "configured", exists(path))
 	webSources(&view, tunnelWeb, tailscaleWeb, p2pWeb)
 	if relayWeb {
-		for _, key := range []string{"relay.enabled", "relay.control_endpoint", "relay.control_audience", "relay.initial_trust.algorithm", "relay.initial_trust.pins", "relay.transport"} {
+		for _, key := range []string{"relay.enabled", "relay.control_endpoint", "relay.control_audience", "relay.transport"} {
 			field := view.Fields[key]
 			field.Source = "web"
 			view.Fields[key] = field
@@ -253,7 +253,7 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, plugins *p
 	}
 	if deps.Relay != nil {
 		state := deps.Relay.Control.Status()
-		for _, key := range []string{"relay.control_endpoint", "relay.control_audience", "relay.initial_trust.algorithm", "relay.initial_trust.pins", "relay.transport"} {
+		for _, key := range []string{"relay.control_endpoint", "relay.control_audience", "relay.transport"} {
 			field := view.Fields[key]
 			field.Source = state.ControlSource
 			view.Fields[key] = field

@@ -9,6 +9,8 @@ MCP 本机连接、能力发现、会话列表与详情：US-S20；创建、发�
 URL+owner Bearer 网络控制、握手/生命周期/取消与重连：US-S25；默认关闭及配置和安全边界：US-A02–US-A03、US-K09。
 
 官方 Relay 配对、显式启用、角色隔离与来源诊断：US-A10；GitHub 所有者后台、一次性跳转、Cookie/CSRF 与逐 Scope 撤权：US-A08；节点集中配置、秘密交付、能力隔离、Docker 初始化及 stock coturn 配额边界：US-A09。交互 WebRTC 与批量 WSS 分流：US-H12。
+Dokku 隔离、HTTPS 上游、离线节点 CA、同 key 续签与公开上线状态：US-A09。
+控制 CDN/宿主 CA-only、WSS pin 与严格状态迁移：US-A10，见[官方 Relay 部署记录](../deployment/official-relay.md)。
 
 交接历史选择、动态预算、持久预览、并发编辑、fork 位置选择、服务端草稿恢复、独立任务编辑、inline 投递和跨重启幂等：US-Q20；长引用换行：US-Q05；部署预算上限与历史保存开关：US-K04；关闭区间、删除及投递保护：US-Q12。
 插件选择、固定旧配置语义与重启边界：US-K18；核心 PTY 与遗留偏好降级：US-K19；认证能力发现、动态入口及禁用路由：US-K20；禁用数据保留与有序关闭：US-K21。

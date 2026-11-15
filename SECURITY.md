@@ -37,7 +37,8 @@ WebMux 以启动服务的系统用户身份执行任意命令，**等同于把�
 官方 Relay 默认关闭；配对、启用和重新绑定须显式操作，并保留至少 43 字符的本机恢复 Token。GitHub 后台免输长期 Token，不把 WebMux 变为多用户服务。
 
 - Relay 会终止公网 TLS，运营者可接触 Cookie、转发凭据与终端内容；这不是端到端加密。只信任明确配置的服务及其运营者。
-- 宿主校验标准 TLS、控制面引导 SPKI 和已认证分配的数据服务信任；节点另经预登记 CA 客户端身份与 SPKI 认证。不能从首次连接、自报地址或普通代理头学习身份。
+- 宿主访问公开控制 HTTPS 时校验 Go 系统 CA（可追加 RootCA）、域名、有效期与 TLS 1.3，允许 CDN，不额外固定控制 SPKI；已认证分配的 WSS 仍强制校验 pin，TURN 服务身份校验不变。
+- 节点管理链路仍经预登记 CA 客户端身份、mTLS 与 SPKI 认证，不绕经 CDN。不能从首次连接、自报地址或普通代理头学习身份。
 - GitHub 以稳定数字 ID 绑定所有者，显示名不是权限。固定回调、浏览器绑定 state、PKCE 和一次性短期 code 共同保护跳转；短期 access token 使用后丢弃。
 - 宿主仅为固定公共 Origin 签发 Secure、HttpOnly、SameSite=Lax Cookie，期限最多 12 小时且不滑动续期。Cookie 写请求验证精确 Origin 与 CSRF，WebSocket 验证 Origin；传统 Token 和网络 MCP 的权限规则保持独立。
 - 连接器访问宿主使用独立短命 mTLS 回环入口，不把身份代理头当作认证。转发到其他应用前移除 Relay 认证 Cookie 和 CSRF 头。

@@ -44,6 +44,42 @@ async function startPairing() {
     .toHaveTextContent(enrollment.userCode);
 }
 
+test.each(["zh-CN", "en"] as const)(
+  "public control trust explains CA verification without changing data endpoint diagnostics (%s)",
+  async (language) => {
+    locale.setPreference(language);
+    const status = {
+      ...relayStatus,
+      connectorUrl: "wss://data.example.test/v1/connector",
+      dataOrigin: "https://data.example.test",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async () => Response.json(status)),
+    );
+    render(RelayManager);
+
+    await page
+      .getByText(m.relay_effective_diagnostics(), { exact: true })
+      .click();
+    await expect
+      .element(page.getByText(m.relay_control_trust(), { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(page.getByText(m.relay_control_ca_trust(), { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(page.getByText(relayStatus.controlEndpoint, { exact: false }))
+      .toBeVisible();
+    await expect
+      .element(page.getByText(status.connectorUrl, { exact: false }))
+      .toBeVisible();
+    await expect
+      .element(page.getByText(status.dataOrigin, { exact: false }))
+      .toBeVisible();
+  },
+);
+
 test("cancelling in-flight pairing discards late successful owner state and keeps pairing material out of storage", async () => {
   const pending = Promise.withResolvers<Response>();
   let polling = false;

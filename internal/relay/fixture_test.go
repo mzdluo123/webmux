@@ -113,17 +113,17 @@ func testAssignment(t *testing.T, id testIdentity) protocol.Assignment {
 
 func newTestClient(t *testing.T, id testIdentity, target, loopback string) *Client {
 	t.Helper()
-	c, err := New(Config{ControlEndpoint: "https://relay.example", ControlAudience: "control.example", LoopbackAddress: loopback, InitialTrust: id.trust, TLSConfig: &tls.Config{RootCAs: id.roots}, LoopbackTLSConfig: id.localTLS()})
+	c, err := New(Config{ControlEndpoint: "https://relay.example", ControlAudience: "control.example", LoopbackAddress: loopback, TLSConfig: &tls.Config{RootCAs: id.roots}, LoopbackTLSConfig: id.localTLS()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Only tests redirect network dialing to isolated ephemeral listeners.
-	// Production URLs, TLS hostname, chain and SPKI verification remain real.
+	// Production URLs, TLS hostname, chain and assigned WSS pins remain real.
 	c.dialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, network, target)
 	}
 	c.http.CloseIdleConnections()
-	c.http = c.httpClient(c.config.InitialTrust)
+	c.http = c.httpClient(nil)
 	t.Cleanup(c.http.CloseIdleConnections)
 	return c
 }

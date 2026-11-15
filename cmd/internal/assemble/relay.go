@@ -8,5 +8,5 @@ import (
 )
 
 func RelayOptions(c config.RelayConfig, loopbackAddress string, loopbackTLS *tls.Config) relay.Config {
-	return relay.Config{ControlEndpoint: c.ControlEndpoint, ControlAudience: c.ControlAudience, InitialTrust: c.InitialTrust, LoopbackAddress: loopbackAddress, LoopbackTLSConfig: loopbackTLS}
+	return relay.Config{ControlEndpoint: c.ControlEndpoint, ControlAudience: c.ControlAudience, LoopbackAddress: loopbackAddress, LoopbackTLSConfig: loopbackTLS}
 }

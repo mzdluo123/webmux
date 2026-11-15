@@ -3,6 +3,7 @@ package relaysetting
 import (
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 
 	protocol "github.com/mzdluo123/webmux/protocol/relay"
@@ -28,6 +29,20 @@ type Settings struct {
 }
 
 type storedFile struct {
+	V               int               `json:"v"`
+	Enabled         *bool             `json:"enabled"`
+	Confirmed       *bool             `json:"confirmed"`
+	ControlEndpoint string            `json:"controlEndpoint"`
+	ControlAudience string            `json:"controlAudience"`
+	Seed            string            `json:"seed"`
+	PendingSeed     string            `json:"pendingSeed"`
+	Binding         *protocol.Binding `json:"binding"`
+	OwnerLogin      string            `json:"ownerLogin"`
+}
+
+// storedFileV1 is read only: control pins no longer define the public authority.
+// Keep its strict schema and validation so corrupt legacy state still fails closed.
+type storedFileV1 struct {
 	V               int                   `json:"v"`
 	Enabled         *bool                 `json:"enabled"`
 	Confirmed       *bool                 `json:"confirmed"`
@@ -40,6 +55,41 @@ type storedFile struct {
 	OwnerLogin      string                `json:"ownerLogin"`
 }
 
+func (f *storedFile) UnmarshalJSON(data []byte) error {
+	var version struct {
+		V int `json:"v"`
+	}
+	if err := json.Unmarshal(data, &version); err != nil {
+		return err
+	}
+	switch version.V {
+	case 1:
+		var legacy storedFileV1
+		if err := statefile.Decode(data, &legacy); err != nil {
+			return err
+		}
+		if legacy.ControlEndpoint != "" || legacy.ControlAudience != "" {
+			if err := legacy.InitialTrust.Validate(); err != nil {
+				return ErrInvalid
+			}
+		} else if legacy.InitialTrust.Algorithm != "" || len(legacy.InitialTrust.Pins) != 0 {
+			return ErrInvalid
+		}
+		*f = storedFile{V: 2, Enabled: legacy.Enabled, Confirmed: legacy.Confirmed, ControlEndpoint: legacy.ControlEndpoint, ControlAudience: legacy.ControlAudience, Seed: legacy.Seed, PendingSeed: legacy.PendingSeed, Binding: legacy.Binding, OwnerLogin: legacy.OwnerLogin}
+		return nil
+	case 2:
+		type currentFile storedFile
+		var current currentFile
+		if err := statefile.Decode(data, &current); err != nil {
+			return err
+		}
+		*f = storedFile(current)
+		return nil
+	default:
+		return ErrInvalid
+	}
+}
+
 func (storedFile) UnavailableErr() error { return ErrUnavailable }
 
 type Service = settingsstore.Store[Settings, storedFile]
@@ -47,15 +97,15 @@ type Service = settingsstore.Store[Settings, storedFile]
 var storeSpec = settingsstore.Spec[Settings, storedFile]{
 	ID: statefile.Relay,
 	Decode: func(f storedFile, defaults Settings) (Settings, error) {
-		if f.V != 1 || f.Enabled == nil || f.Confirmed == nil {
+		if f.V != 2 || f.Enabled == nil || f.Confirmed == nil {
 			return Settings{}, ErrInvalid
 		}
-		c := config.RelayConfig{Enabled: *f.Enabled, Transport: "wss", ControlEndpoint: f.ControlEndpoint, ControlAudience: f.ControlAudience, InitialTrust: f.InitialTrust}
+		c := config.RelayConfig{Enabled: *f.Enabled, Transport: "wss", ControlEndpoint: f.ControlEndpoint, ControlAudience: f.ControlAudience}
 		return validateBootstrap(defaults, Settings{Config: c, Seed: f.Seed, PendingSeed: f.PendingSeed, Binding: f.Binding, OwnerLogin: f.OwnerLogin, Confirmed: *f.Confirmed})
 	},
 	Normalize: validateBootstrap,
 	Encode: func(s Settings) storedFile {
-		return storedFile{V: 1, Enabled: &s.Config.Enabled, Confirmed: &s.Confirmed, ControlEndpoint: s.Config.ControlEndpoint, ControlAudience: s.Config.ControlAudience, InitialTrust: s.Config.InitialTrust, Seed: s.Seed, PendingSeed: s.PendingSeed, Binding: s.Binding, OwnerLogin: s.OwnerLogin}
+		return storedFile{V: 2, Enabled: &s.Config.Enabled, Confirmed: &s.Confirmed, ControlEndpoint: s.Config.ControlEndpoint, ControlAudience: s.Config.ControlAudience, Seed: s.Seed, PendingSeed: s.PendingSeed, Binding: s.Binding, OwnerLogin: s.OwnerLogin}
 	},
 	FailClosed: func(s *Settings) { s.Config.Enabled = false },
 	Closed:     "relay settings service is closed",
@@ -64,22 +114,10 @@ var storeSpec = settingsstore.Spec[Settings, storedFile]{
 func validateBootstrap(defaults, next Settings) (Settings, error) {
 	// Never send persisted or pending identity material to a different authority.
 	a, b := defaults.Config, next.Config
-	if a.ControlEndpoint != "" && (a.ControlEndpoint != b.ControlEndpoint || a.ControlAudience != b.ControlAudience || !sameTrust(a.InitialTrust, b.InitialTrust)) {
+	if a.ControlEndpoint != "" && (a.ControlEndpoint != b.ControlEndpoint || a.ControlAudience != b.ControlAudience) {
 		return Settings{}, ErrInvalid
 	}
 	return validateSettings(next)
-}
-
-func sameTrust(a, b protocol.ServiceTrust) bool {
-	if a.Algorithm != b.Algorithm || len(a.Pins) != len(b.Pins) {
-		return false
-	}
-	for i := range a.Pins {
-		if a.Pins[i] != b.Pins[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func validateSettings(s Settings) (Settings, error) {
@@ -108,7 +146,6 @@ func validateSettings(s Settings) (Settings, error) {
 	if s.Config.Enabled && (!s.Confirmed || s.Binding == nil) {
 		return Settings{}, ErrEnableBlocked
 	}
-	s.Config.InitialTrust.Pins = append([]string(nil), s.Config.InitialTrust.Pins...)
 	return s, nil
 }
 

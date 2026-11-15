@@ -19,6 +19,39 @@ import (
 	"github.com/xtaci/smux"
 )
 
+func TestConnectorRequiresAssignedPinEvenForBulkReconnect(t *testing.T) {
+	id := newTestIdentity(t)
+	var requests atomic.Int32
+	remote := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusForbidden)
+	}), false)
+	c := newTestClient(t, id, remote.Listener.Addr().String(), "127.0.0.1:12345")
+	key := testKey(t)
+	a := testAssignment(t, id)
+	scope := protocol.Scope{HostID: a.Binding.HostID, BindingGeneration: a.Binding.BindingGeneration, ConnectorGeneration: 1, ControlEpoch: a.ControlEpoch, NodeEpoch: testToken(t)}
+	for _, tc := range []struct {
+		name  string
+		trust protocol.ServiceTrust
+	}{
+		{"wrong pin", protocol.ServiceTrust{Algorithm: protocol.ServiceAlgorithm, Pins: []string{string(testToken(t))}}},
+		{"empty trust", protocol.ServiceTrust{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assignment := a
+			assignment.Trust = tc.trust
+			p, err := c.dial(t.Context(), key, assignment, protocol.RoleBulk, scope)
+			if p != nil {
+				p.close()
+				t.Fatal("connector returned a connection without assigned trust")
+			}
+			if err == nil || requests.Load() != 0 {
+				t.Fatalf("connector passed TLS without its assigned pin: requests=%d err=%v", requests.Load(), err)
+			}
+		})
+	}
+}
+
 type nodeRole struct {
 	ws    *websocket.Conn
 	mux   *smux.Session

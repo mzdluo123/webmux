@@ -134,7 +134,7 @@ func TestTLSAndRedirectNeverExposeEnrollment(t *testing.T) {
 		name   string
 		change func(*Client)
 	}{
-		{name: "pin", change: func(c *Client) { c.config.InitialTrust.Pins = []string{string(testToken(t))} }},
+		{name: "hostname", change: func(c *Client) { c.config.ControlEndpoint = "https://wrong.example" }},
 		{name: "chain", change: func(c *Client) { c.config.TLSConfig.RootCAs = x509.NewCertPool() }},
 	}
 	for _, tt := range tests {
@@ -142,7 +142,7 @@ func TestTLSAndRedirectNeverExposeEnrollment(t *testing.T) {
 			c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
 			tt.change(c)
 			c.http.CloseIdleConnections()
-			c.http = c.httpClient(c.config.InitialTrust)
+			c.http = c.httpClient(nil)
 			defer c.http.CloseIdleConnections()
 			_, err := c.Enroll(context.Background(), key, false)
 			var failure protocol.Error

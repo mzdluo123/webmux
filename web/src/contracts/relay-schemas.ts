@@ -48,7 +48,6 @@ export const RelayStatusSchema = z.object({
   readyConnections: z.number().int().min(0).max(2),
   publicUrl: PublicURLSchema,
   boundPublicUrl: PublicURLSchema,
-  controlTrustPins: z.array(z.string().regex(/^[A-Za-z0-9_-]{43}$/)).max(4),
   hybridSupported: z.boolean(),
   hybridUnavailableReason: z.enum([
     "",

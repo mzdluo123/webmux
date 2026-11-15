@@ -9,14 +9,13 @@ import (
 	protocol "github.com/mzdluo123/webmux/protocol/relay"
 )
 
-// RelayConfig contains only initial control trust. Data endpoints are assigned
-// by authenticated control and are never manually configured here.
+// RelayConfig selects the public control authority. Data endpoints and their
+// pinned trust are assigned by authenticated control, never configured here.
 type RelayConfig struct {
-	Enabled         bool                  `toml:"enabled"`
-	ControlEndpoint string                `toml:"control_endpoint"`
-	ControlAudience string                `toml:"control_audience"`
-	InitialTrust    protocol.ServiceTrust `toml:"initial_trust"`
-	Transport       string                `toml:"transport"`
+	Enabled         bool   `toml:"enabled"`
+	ControlEndpoint string `toml:"control_endpoint"`
+	ControlAudience string `toml:"control_audience"`
+	Transport       string `toml:"transport"`
 }
 
 func (c RelayConfig) Validated() (RelayConfig, error) {
@@ -26,7 +25,7 @@ func (c RelayConfig) Validated() (RelayConfig, error) {
 	if c.Transport != "wss" {
 		return RelayConfig{}, errors.New("relay.transport must be wss")
 	}
-	if c.ControlEndpoint == "" && c.ControlAudience == "" && c.InitialTrust.Algorithm == "" && len(c.InitialTrust.Pins) == 0 && !c.Enabled {
+	if c.ControlEndpoint == "" && c.ControlAudience == "" && !c.Enabled {
 		return c, nil
 	}
 	u, err := url.Parse(c.ControlEndpoint)
@@ -54,9 +53,6 @@ func (c RelayConfig) Validated() (RelayConfig, error) {
 		if r < 0x21 || r > 0x7e {
 			return RelayConfig{}, errors.New("relay.control_audience must contain 1 to 255 printable ASCII characters")
 		}
-	}
-	if err := c.InitialTrust.Validate(); err != nil {
-		return RelayConfig{}, errors.New("relay.initial_trust is invalid")
 	}
 	return c, nil
 }

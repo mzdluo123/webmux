@@ -19,7 +19,6 @@ type RelayStatus struct {
 	ReadyConnections        int                      `json:"readyConnections"`
 	PublicURL               string                   `json:"publicUrl"`
 	BoundPublicURL          string                   `json:"boundPublicUrl"`
-	ControlTrustPins        []string                 `json:"controlTrustPins"`
 	HybridSupported         bool                     `json:"hybridSupported"`
 	HybridUnavailableReason string                   `json:"hybridUnavailableReason"`
 	Error                   string                   `json:"error"`

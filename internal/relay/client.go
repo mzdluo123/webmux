@@ -23,13 +23,12 @@ import (
 	protocol "github.com/mzdluo123/webmux/protocol/relay"
 )
 
-// Config contains only bootstrap trust and the startup-fixed WebMux listener.
-// TLSConfig is optional and may supply test RootCAs, never a verification bypass.
+// Config contains the control authority and startup-fixed WebMux listener.
+// TLSConfig may supply additional RootCAs, never a verification bypass.
 type Config struct {
 	ControlEndpoint   string
 	ControlAudience   string
 	LoopbackAddress   string
-	InitialTrust      protocol.ServiceTrust
 	TLSConfig         *tls.Config
 	LoopbackTLSConfig *tls.Config
 }
@@ -47,9 +46,6 @@ type Client struct {
 
 func New(cfg Config) (*Client, error) {
 	if !validOrigin(cfg.ControlEndpoint) || !validAudience(cfg.ControlAudience) {
-		return nil, protocol.Error{Code: protocol.InvalidConfig}
-	}
-	if err := cfg.InitialTrust.Validate(); err != nil {
 		return nil, protocol.Error{Code: protocol.InvalidConfig}
 	}
 	host, port, err := net.SplitHostPort(cfg.LoopbackAddress)
@@ -79,9 +75,8 @@ func New(cfg Config) (*Client, error) {
 	cfg.LoopbackTLSConfig = local.Clone()
 	cfg.LoopbackTLSConfig.RootCAs = local.RootCAs.Clone()
 	cfg.LoopbackTLSConfig.MinVersion = tls.VersionTLS13
-	cfg.InitialTrust.Pins = slices.Clone(cfg.InitialTrust.Pins)
 	c := &Client{config: cfg, dialContext: (&net.Dialer{Timeout: protocol.AuthTimeout, KeepAlive: protocol.KeepAliveInterval}).DialContext}
-	c.http = c.httpClient(cfg.InitialTrust)
+	c.http = c.httpClient(nil)
 	return c, nil
 }
 
@@ -122,16 +117,20 @@ func validOrigin(s string) bool {
 	return true
 }
 
-func (c *Client) httpClient(trust protocol.ServiceTrust) *http.Client {
+// A nil trust selects normal CA verification for control requests only.
+// WSS callers must pass their assigned trust, even when it is invalid or empty.
+func (c *Client) httpClient(trust *protocol.ServiceTrust) *http.Client {
 	t := &tls.Config{MinVersion: tls.VersionTLS13}
 	if c.config.TLSConfig != nil {
 		t.RootCAs = c.config.TLSConfig.RootCAs
 	}
-	t.VerifyConnection = func(state tls.ConnectionState) error {
-		if state.Version < tls.VersionTLS13 || len(state.VerifiedChains) == 0 || len(state.PeerCertificates) == 0 {
-			return protocol.Error{Code: protocol.Unauthenticated}
+	if trust != nil {
+		t.VerifyConnection = func(state tls.ConnectionState) error {
+			if state.Version < tls.VersionTLS13 || len(state.VerifiedChains) == 0 || len(state.PeerCertificates) == 0 {
+				return protocol.Error{Code: protocol.Unauthenticated}
+			}
+			return protocol.VerifyCertificatePin(state.PeerCertificates[0], *trust)
 		}
-		return protocol.VerifyCertificatePin(state.PeerCertificates[0], trust)
 	}
 	return &http.Client{
 		Transport: &http.Transport{

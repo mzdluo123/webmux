@@ -26,8 +26,7 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	}
 	defer listener.Close()
 	dir := filepath.Join(t.TempDir(), "state")
-	pin := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
-	cfg := config.Config{StateDir: dir, Token: strings.Repeat("x", 43), Relay: config.RelayConfig{Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "control.example.com", InitialTrust: protocol.ServiceTrust{Algorithm: protocol.ServiceAlgorithm, Pins: []string{pin}}}}
+	cfg := config.Config{StateDir: dir, Token: strings.Repeat("x", 43), Relay: config.RelayConfig{Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "control.example.com"}}
 	public := &transport.PublicOrigins{}
 	rc, err := newRelayController(ctx, cfg, public, listener.Addr().String(), localTLS)
 	if err != nil {

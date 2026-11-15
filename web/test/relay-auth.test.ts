@@ -15,6 +15,7 @@ import { prepareHostAuthentication } from "../src/hooks/shared/host-authenticati
 import { locale } from "../src/lib/locale";
 import { RelayStatusSchema } from "../src/contracts/relay-schemas";
 import { m } from "$lib/paraglide/messages.js";
+import { relayStatus } from "./fixtures/relay";
 
 beforeEach(() => locale.setPreference("zh-CN"));
 
@@ -171,4 +172,21 @@ test("Relay endpoint validation and safe diagnostics follow the current locale",
   expect(relayDiagnostic("token=do-not-display")).not.toContain(
     "do-not-display",
   );
+});
+
+test("Relay status without public control pins preserves authenticated WSS assignment", () => {
+  const status = {
+    ...relayStatus,
+    controlEndpoint: "https://webmux-relay.rainbit.net",
+    controlReady: true,
+    controlReachability: "reachable",
+    connectorUrl: "wss://node.us1.webmux-relay.rainbit.net/v1/connector",
+    dataOrigin: "https://node.us1.webmux-relay.rainbit.net",
+    assignmentSource: "authenticated-control",
+    assignmentRevision: "2",
+    nodeId: "us1",
+    capabilities: ["wss", "turn"],
+  };
+
+  expect(RelayStatusSchema.parse(status)).toEqual(status);
 });

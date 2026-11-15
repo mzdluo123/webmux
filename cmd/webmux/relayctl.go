@@ -103,7 +103,6 @@ func (rc *relayController) Status() contract.RelayStatus {
 	}
 	s.Capabilities = append([]string{}, s.Capabilities...)
 	s.Sessions = append([]contract.RelaySessionDiagnostic{}, s.Sessions...)
-	s.ControlTrustPins = append([]string{}, rc.settings.Config.InitialTrust.Pins...)
 	if rc.p2p != nil {
 		s.HybridSupported = rc.p2p.Supported()
 		if s.HybridSupported {

@@ -24,7 +24,7 @@ func storageTestSettings() Settings {
 	pending := make([]byte, ed25519.SeedSize)
 	pending[0] = 1
 	return Settings{
-		Config:      config.RelayConfig{Enabled: true, Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "webmux-control", InitialTrust: protocol.ServiceTrust{Algorithm: protocol.ServiceAlgorithm, Pins: []string{base64.RawURLEncoding.EncodeToString(seed)}}},
+		Config:      config.RelayConfig{Enabled: true, Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "webmux-control"},
 		Seed:        base64.RawURLEncoding.EncodeToString(seed),
 		PendingSeed: base64.RawURLEncoding.EncodeToString(pending),
 		Binding:     &protocol.Binding{HostID: "0123456789abcdef0123456789abcdef", OwnerID: "12345", BindingGeneration: 7, PublicURL: "https://h-0123456789abcdef0123456789abcdef.hosts.example.com"},
@@ -40,6 +40,78 @@ func storageTestDocument(t *testing.T, settings Settings) []byte {
 		t.Fatal(err)
 	}
 	return data
+}
+
+func legacyStorageTestDocument(t *testing.T, settings Settings) []byte {
+	t.Helper()
+	f := storedFileV1{V: 1, Enabled: &settings.Config.Enabled, Confirmed: &settings.Confirmed, ControlEndpoint: settings.Config.ControlEndpoint, ControlAudience: settings.Config.ControlAudience, Seed: settings.Seed, PendingSeed: settings.PendingSeed, Binding: settings.Binding, OwnerLogin: settings.OwnerLogin}
+	if f.ControlEndpoint != "" {
+		f.InitialTrust = protocol.ServiceTrust{Algorithm: protocol.ServiceAlgorithm, Pins: []string{storageTestSettings().Seed}}
+	}
+	data, err := json.Marshal(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func TestRelayV1MigrationPreservesBindingAndPairingState(t *testing.T) {
+	for _, state := range []string{"enabled", "disabled", "pending", "unconfigured"} {
+		t.Run(state, func(t *testing.T) {
+			want := storageTestSettings()
+			switch state {
+			case "disabled":
+				want.Config.Enabled = false
+			case "pending":
+				want.Config.Enabled = false
+				want.Seed, want.Binding, want.OwnerLogin, want.Confirmed = "", nil, "", false
+			case "unconfigured":
+				want = Settings{Config: config.RelayConfig{Transport: "wss"}}
+			}
+			dir := t.TempDir()
+			path := filepath.Join(dir, "relay-settings.json")
+			legacy := legacyStorageTestDocument(t, want)
+			if err := os.WriteFile(path, legacy, 0600); err != nil {
+				t.Fatal(err)
+			}
+			got, web, err := Inspect(dir, want.Config)
+			if err != nil || !web || !reflect.DeepEqual(got, want) {
+				t.Fatalf("legacy inspection lost pairing state: web=%v err=%v", web, err)
+			}
+			s := Open(dir, want.Config)
+			t.Cleanup(s.Close)
+			if err := s.Unavailable(); err != nil {
+				t.Fatal(err)
+			}
+			got, web = s.Effective()
+			if !web || !reflect.DeepEqual(got, want) {
+				t.Fatal("legacy load lost identity, consent, Origin or enabled intent")
+			}
+			if err := s.Save(got); err != nil {
+				t.Fatal(err)
+			}
+			s.Close()
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var document map[string]json.RawMessage
+			if err := json.Unmarshal(data, &document); err != nil {
+				t.Fatal(err)
+			}
+			if string(document["v"]) != "2" || document["initialTrust"] != nil {
+				t.Fatal("migrated save retained the legacy control trust schema")
+			}
+			reopened := Open(dir, want.Config)
+			defer reopened.Close()
+			if err := reopened.Unavailable(); err != nil {
+				t.Fatal(err)
+			}
+			if got, web := reopened.Effective(); !web || !reflect.DeepEqual(got, want) {
+				t.Fatal("migration did not preserve state after restart")
+			}
+		})
+	}
 }
 
 func TestRelayRestoresIdentityAndEnabledIntent(t *testing.T) {
@@ -104,8 +176,13 @@ func TestRelayDamagedStorageFailsClosedWithoutChangingEvidence(t *testing.T) {
 		"unknown field":   append([]byte(`{"unexpected":true,`), good[1:]...),
 		"duplicate field": append([]byte(`{"enabled":false,`), good[1:]...),
 	}
+	legacy := legacyStorageTestDocument(t, valid)
+	cases["legacy unknown field"] = append([]byte(`{"unexpected":true,`), legacy[1:]...)
+	cases["legacy duplicate field"] = append([]byte(`{"enabled":false,`), legacy[1:]...)
+	cases["legacy invalid pin"] = bytes.Replace(legacy, []byte(valid.Seed), []byte("bad-pin"), 1)
+	cases["v2 legacy trust field"] = append([]byte(`{"initialTrust":{},`), good[1:]...)
 	for name, mutate := range map[string]func(*storedFile){
-		"wrong version":         func(f *storedFile) { f.V = 2 },
+		"wrong version":         func(f *storedFile) { f.V = 3 },
 		"missing enabled":       func(f *storedFile) { f.Enabled = nil },
 		"missing consent":       func(f *storedFile) { f.Confirmed = nil },
 		"malformed key":         func(f *storedFile) { f.Seed = "bad-seed" },
@@ -118,7 +195,6 @@ func TestRelayDamagedStorageFailsClosedWithoutChangingEvidence(t *testing.T) {
 		"missing bootstrap": func(f *storedFile) {
 			f.ControlEndpoint = ""
 			f.ControlAudience = ""
-			f.InitialTrust = protocol.ServiceTrust{}
 			f.Enabled = new(bool)
 		},
 	} {
@@ -186,7 +262,6 @@ func TestRelayRejectsInvalidUpdatesWithoutReplacingIdentity(t *testing.T) {
 		{"unbound key without authority", func(s *Settings) { s.Config = config.RelayConfig{}; s.Binding = nil }, ErrInvalid},
 		{"changed endpoint", func(s *Settings) { s.Config.ControlEndpoint = "https://other.example.com" }, ErrInvalid},
 		{"changed audience", func(s *Settings) { s.Config.ControlAudience = "other-control" }, ErrInvalid},
-		{"changed trust", func(s *Settings) { s.Config.InitialTrust.Pins = []string{s.PendingSeed} }, ErrInvalid},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			next := storageTestSettings()
@@ -219,27 +294,28 @@ func TestRelayBootstrapChangesDoNotRestoreOldCredentials(t *testing.T) {
 	}{
 		{"endpoint", func(c *config.RelayConfig) { c.ControlEndpoint = "https://other.example.com" }},
 		{"audience", func(c *config.RelayConfig) { c.ControlAudience = "other-control" }},
-		{"trust", func(c *config.RelayConfig) { c.InitialTrust.Pins = []string{valid.PendingSeed} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
-			s := Open(dir, valid.Config)
-			if err := s.Save(valid); err != nil {
-				t.Fatal(err)
-			}
-			s.Close()
-			defaults := storageTestSettings().Config
-			tc.mutate(&defaults)
-			s = Open(dir, defaults)
-			defer s.Close()
-			if got, _ := s.Effective(); got.Config.Enabled || got.Seed != "" || got.PendingSeed != "" || got.Binding != nil {
-				t.Fatal("bootstrap change restored credentials for another authority")
-			}
-			if !errors.Is(s.Unavailable(), ErrUnavailable) {
-				t.Fatal("bootstrap change did not fail closed")
-			}
-			if _, _, err := Inspect(dir, defaults); err == nil {
-				t.Fatal("inspection restored credentials across bootstrap change")
+			for version, document := range map[string][]byte{"v1": legacyStorageTestDocument(t, valid), "v2": storageTestDocument(t, valid)} {
+				t.Run(version, func(t *testing.T) {
+					dir := t.TempDir()
+					if err := os.WriteFile(filepath.Join(dir, "relay-settings.json"), document, 0600); err != nil {
+						t.Fatal(err)
+					}
+					defaults := storageTestSettings().Config
+					tc.mutate(&defaults)
+					s := Open(dir, defaults)
+					defer s.Close()
+					if got, _ := s.Effective(); got.Config.Enabled || got.Seed != "" || got.PendingSeed != "" || got.Binding != nil {
+						t.Fatal("bootstrap change restored credentials for another authority")
+					}
+					if !errors.Is(s.Unavailable(), ErrUnavailable) {
+						t.Fatal("bootstrap change did not fail closed")
+					}
+					if _, _, err := Inspect(dir, defaults); err == nil {
+						t.Fatal("inspection restored credentials across bootstrap change")
+					}
+				})
 			}
 		})
 	}
@@ -314,7 +390,7 @@ func TestRelayDisableRetainsIdentityForReconnectionAndDeletion(t *testing.T) {
 	}
 }
 
-func TestRelayUnpairedIdentityRequiresBootstrapTrust(t *testing.T) {
+func TestRelayUnpairedIdentityRequiresControlAuthority(t *testing.T) {
 	for _, pending := range []bool{false, true} {
 		s := Open(t.TempDir(), config.RelayConfig{})
 		next := Settings{}
@@ -335,7 +411,7 @@ func TestRelayUnpairedIdentityRequiresBootstrapTrust(t *testing.T) {
 	}
 }
 
-func TestRelaySaveCopiesMutableIdentityAndTrust(t *testing.T) {
+func TestRelaySaveCopiesMutableIdentity(t *testing.T) {
 	want := storageTestSettings()
 	s := Open(t.TempDir(), want.Config)
 	defer s.Close()
@@ -344,7 +420,6 @@ func TestRelaySaveCopiesMutableIdentityAndTrust(t *testing.T) {
 		t.Fatal(err)
 	}
 	next.Binding.OwnerID = "54321"
-	next.Config.InitialTrust.Pins[0] = next.PendingSeed
 	if got, _ := s.Effective(); !reflect.DeepEqual(got, want) {
 		t.Fatal("caller mutation changed the accepted identity or authority")
 	}

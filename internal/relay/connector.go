@@ -284,7 +284,7 @@ func (c *Client) dial(ctx context.Context, key ed25519.PrivateKey, a protocol.As
 	}
 	authCtx, cancel := context.WithTimeout(ctx, protocol.AuthTimeout)
 	defer cancel()
-	httpClient := c.httpClient(a.Trust)
+	httpClient := c.httpClient(&a.Trust)
 	defer httpClient.CloseIdleConnections()
 	ws, response, err := websocket.Dial(authCtx, a.ConnectorURL, &websocket.DialOptions{HTTPClient: httpClient, Subprotocols: []string{protocol.ConnectorSubprotocol}, CompressionMode: websocket.CompressionDisabled})
 	if err != nil {

@@ -11,7 +11,6 @@ export const relayStatus: RelayStatus = {
   readyConnections: 0,
   publicUrl: "",
   boundPublicUrl: "",
-  controlTrustPins: ["A".repeat(43)],
   hybridSupported: false,
   hybridUnavailableReason: "p2p-plugin-unavailable",
   ownerId: "",
