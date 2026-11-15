@@ -1,7 +1,5 @@
 <script lang="ts">
-  import IconKeyboard from "~icons/tabler/keyboard";
-  import { Button } from "$lib/components/ui/button";
-  import * as Dialog from "$lib/components/ui/dialog";
+  import * as Card from "$lib/components/ui/card";
 
   const groups = [
     {
@@ -114,47 +112,15 @@
       ],
     },
   ];
-
-  // The trigger stays beside the header actions; phones hide it and open the
-  // dialog from the terminal menu instead.
-  let {
-    open = $bindable(false),
-    class: className,
-  }: { open?: boolean; class?: string } = $props();
 </script>
 
-<Dialog.Root bind:open>
-  <div class={["shrink-0", className]}>
-    <Dialog.Trigger>
-      {#snippet child({ props })}
-        <Button
-          {...props}
-          variant="ghost"
-          size="icon-sm"
-          aria-label="快捷键"
-          title="查看所有快捷键"
-        >
-          <IconKeyboard class="size-4" aria-hidden="true" />
-        </Button>
-      {/snippet}
-    </Dialog.Trigger>
-  </div>
-  <Dialog.Content class="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-    <div class="shrink-0 border-b p-5 pr-12">
-      <Dialog.Header>
-        <Dialog.Title>快捷键</Dialog.Title>
-        <Dialog.Description
-          >WebMux 的键盘操作，按使用场景查阅。</Dialog.Description
-        >
-      </Dialog.Header>
-    </div>
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex (Scrollable help must be reachable for keyboard scrolling.) -->
-    <div
-      class="min-h-0 max-h-[60dvh] overflow-y-auto overscroll-contain px-5"
-      tabindex="0"
-      role="region"
-      aria-label="所有快捷键"
-    >
+<Card.Root flat id="shortcuts" class="scroll-mt-4">
+  <Card.Header>
+    <Card.Title>快捷键</Card.Title>
+    <Card.Description>WebMux 的键盘操作，按使用场景查阅。</Card.Description>
+  </Card.Header>
+  <Card.Content>
+    <div>
       {#each groups as group (group.title)}
         <section
           class="space-y-3 border-b py-5 last:border-0"
@@ -187,17 +153,8 @@
         </section>
       {/each}
     </div>
-    <div
-      class="flex shrink-0 flex-col-reverse items-center gap-2 border-t bg-muted/30 px-5 py-3 sm:flex-row sm:justify-between"
-    >
-      <p class="text-xs text-muted-foreground">
-        Shell 和 CLI 的其他键位由当前程序决定；草稿需点击发送。
-      </p>
-      <Dialog.Close>
-        {#snippet child({ props })}
-          <Button {...props} variant="outline" size="sm">关闭</Button>
-        {/snippet}
-      </Dialog.Close>
-    </div>
-  </Dialog.Content>
-</Dialog.Root>
+    <p class="mt-4 text-xs text-muted-foreground">
+      Shell 和 CLI 的其他键位由当前程序决定；草稿需点击发送。
+    </p>
+  </Card.Content>
+</Card.Root>

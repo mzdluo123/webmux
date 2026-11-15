@@ -1,6 +1,7 @@
 <script lang="ts">
   import Brand from "../components/shell/Brand.svelte";
   import AppearanceSettings from "../components/settings/AppearanceSettings.svelte";
+  import ShortcutsSettings from "../components/settings/ShortcutsSettings.svelte";
   import {
     settings,
     changeSettings,
@@ -51,6 +52,7 @@
     { id: "appearance", label: "外观与阅读" },
     ...launchSections,
     { id: "drafts", label: "草稿与暂存" },
+    { id: "shortcuts", label: "快捷键" },
     { id: "network", label: "网络" },
     ...accessSections,
     { id: "install", label: "安装应用" },
@@ -202,6 +204,7 @@
           </div>
         </Card.Content>
       </Card.Root>
+      <ShortcutsSettings />
       <NetworkSettings />
       {#each accessSections as section (section.id)}
         <section.Component />

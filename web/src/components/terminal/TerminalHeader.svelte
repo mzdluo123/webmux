@@ -26,7 +26,6 @@
   import DraftToggle from "./DraftToggle.svelte";
   import type { TerminalPlugins } from "../../plugins/terminal";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
-  import TerminalShortcuts from "./TerminalShortcuts.svelte";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import TerminalDisplayControls from "./TerminalDisplayControls.svelte";
   import type { XrHeaderControl } from "../../domains/terminal/xr-workspace";
@@ -128,7 +127,6 @@
     panelTrigger?.focus();
   }
   let openingFind = false;
-  let shortcutsOpen = $state(false);
   // Off the terminal view there is no PTY: terminal-only actions are hidden;
   // fullscreen, the code panel and closing the session stay.
   const terminalShown = $derived(!hybrid || hybrid.view === "terminal");
@@ -399,10 +397,6 @@
           >
           <DropdownMenu.Item onSelect={showFontSize}>字体大小</DropdownMenu.Item
           >
-          <DropdownMenu.Item
-            class={tvMode.enabled ? undefined : "sm:hidden"}
-            onSelect={() => (shortcutsOpen = true)}>快捷键</DropdownMenu.Item
-          >
         </DropdownMenu.Group>
         <DropdownMenu.Separator />
         <DropdownMenu.Group>
@@ -441,8 +435,4 @@
       >
     </DropdownMenu.Content>
   </DropdownMenu.Root>
-  {#if terminalShown}<TerminalShortcuts
-      bind:open={shortcutsOpen}
-      class={tvMode.enabled ? "hidden" : "max-sm:hidden"}
-    />{/if}
 </header>
