@@ -38,3 +38,12 @@ func (s *Service) Status() Status {
 func (s *Service) Signal(_ context.Context, _ SignalInput) (SignalOutput, error) {
 	return SignalOutput{}, ErrUnsupported
 }
+
+// OfferFingerprint cannot authorize a peer when Pion is compiled out.
+func OfferFingerprint(_ string) (string, error) {
+	return "", ErrUnsupported
+}
+
+func (s *Service) OwnerPeerFingerprint(_, _, _ string) (string, error) {
+	return "", ErrUnsupported
+}

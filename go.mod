@@ -10,8 +10,10 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
+	github.com/mzdluo123/webmux/protocol/relay v0.0.0-20261115054529-a927311e469e
 	github.com/pion/ice/v4 v4.4.8
 	github.com/pion/webrtc/v4 v4.2.26
+	github.com/xtaci/smux v1.5.58
 	golang.org/x/sys v0.50.0
 	golang.org/x/term v0.48.0
 	golang.org/x/tools v0.52.0

@@ -68,6 +68,8 @@ type P2PPeerInfo struct {
 	State         string `json:"state"`
 	CandidateType string `json:"candidateType,omitempty"`
 	IPFamily      string `json:"ipFamily,omitempty"`
+	Transport     string `json:"transport,omitempty"`
+	Path          string `json:"path,omitempty"`
 	RTTMs         *int   `json:"rttMs,omitempty"`
 	Channels      int    `json:"channels"`
 	CreatedAt     string `json:"createdAt"`
@@ -83,10 +85,11 @@ type P2PSettingsUpdate struct {
 // P2PSignalRequest is the body of POST /api/p2p/signal.
 // Action is "offer", "candidate", or "close".
 type P2PSignalRequest struct {
-	Action     string            `json:"action"`
-	PeerID     string            `json:"peerId,omitempty"`
-	SDP        string            `json:"sdp,omitempty"`
-	Candidates []P2PICECandidate `json:"candidates,omitempty"`
+	Action           string            `json:"action"`
+	PeerID           string            `json:"peerId,omitempty"`
+	PeerConnectionID string            `json:"peerConnectionId,omitempty"`
+	SDP              string            `json:"sdp,omitempty"`
+	Candidates       []P2PICECandidate `json:"candidates,omitempty"`
 }
 
 // P2PICECandidate carries one trickle or bundled ICE candidate.

@@ -35,8 +35,8 @@ type manifest struct {
 	module string
 	// layers holds every package under internal/.
 	layers map[string]layer
-	// outbound lists service packages that send HTTP requests, with the
-	// reason. They may use net/http client symbols only.
+	// outbound lists service and client packages that send HTTP requests,
+	// with the reason. Services may use net/http client symbols only.
 	outbound map[string]string
 	// pure lists stateless service package functions controllers may call,
 	// with a reviewable reason. Constructors and stateful functions remain
@@ -44,6 +44,9 @@ type manifest struct {
 	pure map[string]string
 	// contract is the wire type package.
 	contract string
+	// contractAliases registers external wire packages, with their reason.
+	// Only named types explicitly aliased by contract are accepted.
+	contractAliases map[string]string
 	// wireScope are the packages whose JSON values must be contract types.
 	wireScope []string
 	// sinks are the scope's own JSON wrappers: "pkg.func" to the index of
@@ -249,8 +252,8 @@ func (p *program) checkManifest() {
 		}
 	}
 	for rel := range p.m.outbound {
-		if p.m.layers[rel] != service {
-			p.reportPackage(rel, "R0", "only service packages register outbound HTTP", "outbound registration %s is not a service package", rel)
+		if p.m.layers[rel] != service && p.m.layers[rel] != client {
+			p.reportPackage(rel, "R0", "only service or client packages register outbound HTTP", "outbound registration %s is not a service or client package", rel)
 		}
 	}
 }
@@ -603,7 +606,24 @@ func (p *program) wireType(t types.Type) (ok, deferred bool) {
 				return false, true
 			}
 			obj := u.Obj()
-			return obj.Pkg() != nil && obj.Pkg().Path() == p.m.module+"/"+p.m.contract, false
+			if obj.Pkg() == nil {
+				return false, false
+			}
+			if obj.Pkg().Path() == p.m.module+"/"+p.m.contract {
+				return true, false
+			}
+			if strings.TrimSpace(p.m.contractAliases[obj.Pkg().Path()]) != "" {
+				if contract := p.pkgs[p.m.contract]; contract != nil {
+					scope := contract.Types.Scope()
+					for _, name := range scope.Names() {
+						alias, ok := scope.Lookup(name).(*types.TypeName)
+						if ok && alias.Exported() && alias.IsAlias() && types.Identical(alias.Type(), u) {
+							return true, false
+						}
+					}
+				}
+			}
+			return false, false
 		case *types.Interface:
 			return false, true
 		}

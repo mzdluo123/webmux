@@ -236,7 +236,16 @@ test("replay and the floating button return to latest output without typing", as
         const cdp = await page.context().newCDPSession(page);
         try {
           const x = bounds.x + bounds.width / 2;
-          const y = bounds.y + bounds.height / 4;
+          // Notices overlay the top of the terminal after exit. Start on the
+          // exposed scrolling surface, not on the exit strip's action buttons.
+          const y = bounds.y + bounds.height / 2;
+          expect(
+            await page.evaluate(
+              ({ x, y }) =>
+                !!document.elementFromPoint(x, y)?.closest(".terminal-host"),
+              { x, y },
+            ),
+          ).toBe(true);
           await cdp.send("Input.dispatchTouchEvent", {
             type: "touchStart",
             touchPoints: [{ x, y, id: 1 }],

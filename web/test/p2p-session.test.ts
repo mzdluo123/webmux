@@ -6,11 +6,14 @@ import {
   it,
   vi,
 } from "vite-plus/test";
-import {
-  measureBaselineHttpRtt,
-  negotiateDirectPeer,
-} from "../src/platform/p2p-session";
+import { negotiateDirectPeer } from "../src/platform/p2p-session";
+import { measureBaselineHttpRtt } from "../src/platform/p2p-signaling";
 import type { P2PICECandidate } from "../src/contracts/schemas";
+import {
+  applyRelayAuth,
+  clearRelayAuth,
+  relayAuthRevision,
+} from "../src/platform/relay-auth";
 
 const { http } = vi.hoisted(() => ({ http: vi.fn<typeof fetch>() }));
 vi.mock("../src/platform/transport", () => ({
@@ -22,6 +25,7 @@ interface SignalRequest {
   action: "offer" | "candidate" | "close";
   peerId?: string;
   candidates?: P2PICECandidate[];
+  peerConnectionId?: string;
   signal: AbortSignal;
   at: number;
 }
@@ -81,7 +85,23 @@ class MockPeer {
   addIceCandidate = vi
     .fn<(item: P2PICECandidate) => Promise<void>>()
     .mockResolvedValue(undefined);
-  getStats = vi.fn(async () => new Map<string, Record<string, unknown>>());
+  getStats = vi.fn(
+    async () =>
+      new Map<string, Record<string, unknown>>([
+        ["transport", { type: "transport", selectedCandidatePairId: "pair" }],
+        [
+          "pair",
+          {
+            type: "candidate-pair",
+            localCandidateId: "local",
+            remoteCandidateId: "remote",
+          },
+        ],
+        ["local", { candidateType: "host" }],
+        ["remote", { candidateType: "srflx" }],
+      ]),
+  );
+  setConfiguration = vi.fn();
   close = vi.fn(() => {
     this.connectionState = "closed";
     this.onconnectionstatechange?.();
@@ -108,6 +128,7 @@ describe("P2P session negotiation", () => {
     vi.useFakeTimers({
       toFake: ["Date", "setTimeout", "clearTimeout", "performance"],
     });
+    clearRelayAuth();
     MockPeer.instances = [];
     MockPeer.initialCandidates = [];
     vi.stubGlobal("RTCPeerConnection", MockPeer);
@@ -127,6 +148,7 @@ describe("P2P session negotiation", () => {
   });
 
   afterEach(() => {
+    clearRelayAuth();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
@@ -457,5 +479,112 @@ describe("P2P session negotiation", () => {
     expect(requestSignals[0]!.aborted).toBe(true);
     expect(http).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("binds owner ICE and every signal to one peer, uses Cookie CSRF and expires the link", async () => {
+    applyRelayAuth(
+      {
+        authenticated: true,
+        csrfToken: "owner-csrf",
+        expiresAt: Math.floor(Date.now() / 1000) + 300,
+      },
+      relayAuthRevision(),
+    );
+    const original = http.getMockImplementation()!;
+    const ice = {
+      role: "browser",
+      expiresAt: Math.floor(Date.now() / 1000) + 10,
+      servers: [
+        {
+          urls: ["turns:turn.example.test:5349"],
+          username: "100:opaque",
+          credential: "short-lived",
+        },
+      ],
+    };
+    let peerConnectionId = "";
+    http.mockImplementation(async (path, init) => {
+      expect(new Headers(init?.headers).get("Authorization")).toBeNull();
+      expect(new Headers(init?.headers).get("X-WebMux-CSRF")).toBe(
+        "owner-csrf",
+      );
+      if (path === "/relay/ice") {
+        peerConnectionId = JSON.parse(String(init?.body)).peerConnectionId;
+        expect(peerConnectionId).toMatch(/^[A-Za-z0-9_-]{43}$/);
+        expect(init?.credentials).toBe("same-origin");
+        expect(init?.cache).toBe("no-store");
+        return Response.json(ice);
+      }
+      expect(JSON.parse(String(init?.body)).peerConnectionId).toBe(
+        peerConnectionId,
+      );
+      return original(path, init);
+    });
+    const pending = negotiateDirectPeer([]);
+    await vi.advanceTimersByTimeAsync(0);
+    const pc = MockPeer.instances[0]!;
+    pc.getStats.mockResolvedValue(
+      new Map<string, Record<string, unknown>>([
+        ["transport", { type: "transport", selectedCandidatePairId: "pair" }],
+        ["pair", { localCandidateId: "local", remoteCandidateId: "remote" }],
+        ["local", { candidateType: "relay" }],
+        ["remote", { candidateType: "host" }],
+      ]),
+    );
+    pc.control.hello();
+    const linked = await pending;
+    expect(linked.path).toBe("webrtc-turn");
+    const failure = vi.fn();
+    linked.onFailure = failure;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(pc.close).toHaveBeenCalledOnce();
+    expect(pc.setConfiguration).toHaveBeenCalledWith({ iceServers: [] });
+    expect(failure).toHaveBeenCalledOnce();
+  });
+
+  it("does not publish a direct link when stats are absent, despite a successful hello", async () => {
+    const pending = negotiateDirectPeer([]);
+    const rejected = expect(pending).rejects.toThrow(
+      "Selected ICE pair unavailable",
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    const pc = MockPeer.instances[0]!;
+    pc.getStats.mockResolvedValue(new Map());
+    pc.control.hello();
+    await rejected;
+    expect(pc.close).toHaveBeenCalledOnce();
+  });
+  it("discards a late owner ICE grant after logout without creating a peer", async () => {
+    applyRelayAuth(
+      {
+        authenticated: true,
+        csrfToken: "csrf",
+        expiresAt: Math.floor(Date.now() / 1000) + 60,
+      },
+      relayAuthRevision(),
+    );
+    const grant = Promise.withResolvers<Response>();
+    http.mockReturnValueOnce(grant.promise);
+    const pending = negotiateDirectPeer([]);
+    const rejected = expect(pending).rejects.toThrow(
+      "ICE authorization expired",
+    );
+    clearRelayAuth();
+    grant.resolve(
+      Response.json({
+        role: "browser",
+        expiresAt: Math.floor(Date.now() / 1000) + 30,
+        servers: [
+          {
+            urls: ["turn:turn.example.test:3478"],
+            username: "100:opaque",
+            credential: "short-lived",
+          },
+        ],
+      }),
+    );
+    await rejected;
+    expect(http).toHaveBeenCalledOnce();
+    expect(MockPeer.instances).toHaveLength(0);
   });
 });

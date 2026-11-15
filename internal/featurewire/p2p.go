@@ -35,6 +35,8 @@ func P2PStatus(cfg config.P2PConfig, source string, storageErr error, st p2p.Sta
 				State:         p.State,
 				CandidateType: p.CandidateType,
 				IPFamily:      p.IPFamily,
+				Transport:     p.Transport,
+				Path:          p.Path,
 				RTTMs:         p.RTTMs,
 				Channels:      p.Channels,
 				CreatedAt:     p.CreatedAt,

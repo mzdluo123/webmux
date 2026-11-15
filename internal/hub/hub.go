@@ -79,6 +79,7 @@ type input struct {
 	data   []byte
 	reply  bool
 	submit *submission
+	query  []string
 }
 
 // jsonFrame encodes a JSON control frame. Its value is a contract type,
@@ -170,7 +171,11 @@ func Attach(ctx context.Context, s *session.Session, c MessageConn, o session.At
 			case <-ctx.Done():
 				return
 			case item := <-inputs:
-				if item.submit != nil {
+				if item.query != nil {
+					// A correlated missing status fences earlier PTY writes on
+					// this input lane without claiming terminal control.
+					s.QuerySubmissions(sub, item.query)
+				} else if item.submit != nil {
 					// A received submission finishes even if this connection
 					// drops: its status stays queryable, and the PTY write
 					// remains bounded by the write deadline and session exit.
@@ -251,7 +256,9 @@ func Attach(ctx context.Context, s *session.Session, c MessageConn, o session.At
 						ids = append(ids, id)
 					}
 				}
-				s.QuerySubmissions(sub, ids)
+				if len(ids) > 0 && !enqueue(input{query: ids}) {
+					return
+				}
 			case contract.FrameClaim:
 				s.Claim(sub)
 			}

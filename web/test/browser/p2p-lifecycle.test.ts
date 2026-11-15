@@ -2,13 +2,20 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import P2PSettings from "../../src/components/settings/P2PSettings.svelte";
 import {
-  p2pState,
   startP2P,
   stopP2P,
   refreshP2PAfterSettingsChange,
   runP2PEchoABTest,
 } from "../../src/platform/p2p.svelte";
+import { p2pState } from "../../src/platform/p2p-state.svelte";
 import type { NegotiatedSession } from "../../src/platform/p2p-session";
+import { inspectSelectedCandidatePair } from "../../src/platform/p2p-session";
+import {
+  applyRelayAuth,
+  clearRelayAuth,
+  relayAuthRevision,
+} from "../../src/platform/relay-auth";
+import { handoffLiveSockets } from "../../src/platform/ws";
 import type { P2PStatus } from "../../src/contracts/schemas";
 import type * as P2PFraming from "../../src/platform/p2p-framing";
 
@@ -19,14 +26,25 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("../../src/platform/api", () => ({ api: mocks.status }));
 vi.mock("../../src/platform/p2p-session", () => ({
-  measureBaselineHttpRtt: mocks.baseline,
   negotiateDirectPeer: mocks.negotiate,
+  inspectSelectedCandidatePair: vi.fn(async () => ({
+    path: "webrtc-direct",
+    isRelay: false,
+    candidateType: "host/srflx",
+    ipFamily: "ipv6",
+  })),
+}));
+vi.mock("../../src/platform/p2p-signaling", () => ({
+  measureBaselineHttpRtt: mocks.baseline,
 }));
 vi.mock("../../src/platform/p2p-framing", async (original) => ({
   ...(await original<typeof P2PFraming>()),
   isLocalOrOverlayHost: () => false,
 }));
-vi.mock("../../src/platform/ws", () => ({ handoffLiveSockets: vi.fn() }));
+vi.mock("../../src/platform/ws", () => ({
+  handoffLiveSockets: vi.fn(),
+  observeManagedStreams: () => () => {},
+}));
 
 const status: P2PStatus = {
   supported: true,
@@ -60,6 +78,9 @@ function session(rtt = 10): NegotiatedSession {
     control,
     candidateType: "host/srflx",
     ipFamily: "ipv6",
+    path: "webrtc-direct",
+    expiresAt: null,
+    onFailure: null,
     sendPing: vi.fn().mockResolvedValue(rtt),
     close: vi.fn(() => {
       pc.onconnectionstatechange = null;
@@ -71,6 +92,13 @@ function session(rtt = 10): NegotiatedSession {
 beforeEach(() => {
   vi.useFakeTimers({
     toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+  });
+  clearRelayAuth();
+  vi.mocked(inspectSelectedCandidatePair).mockResolvedValue({
+    path: "webrtc-direct",
+    isRelay: false,
+    candidateType: "host/srflx",
+    ipFamily: "ipv6",
   });
   connection = new EventTarget();
   const originalNavigator = navigator;
@@ -90,6 +118,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   stopP2P();
+  clearRelayAuth();
   await cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -170,15 +199,26 @@ test("disabling P2P cancels a pending peer and prevents stale errors scheduling 
   expect(mocks.negotiate).toHaveBeenCalledTimes(1);
 });
 
-test("returning to the foreground reevaluates a previously unprofitable direct path", async () => {
-  mocks.negotiate.mockResolvedValueOnce(session(95));
+test("continues sampling an unprofitable peer when returning to foreground", async () => {
+  const direct = session(95);
+  applyRelayAuth(
+    {
+      authenticated: true,
+      csrfToken: "csrf",
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    },
+    relayAuthRevision(),
+  );
+  mocks.negotiate.mockResolvedValueOnce(direct);
   startP2P();
-  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(2_000);
   expect(p2pState.phase).toBe("standby_hysteresis");
+  vi.mocked(direct.sendPing).mockResolvedValue(10);
   document.dispatchEvent(new Event("visibilitychange"));
-  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(15_000);
   expect(p2pState.phase).toBe("connected");
   expect(p2pState.mode).toBe("p2p");
+  expect(mocks.negotiate).toHaveBeenCalledOnce();
 });
 
 test("stopping during an A/B negotiation closes a late peer without reporting success", async () => {
@@ -266,4 +306,108 @@ test("port mapping polls preserve an in-flight A/B measurement", async () => {
   expect(p2pState.abTest.p2pMedianMs).toBe(10);
   expect(p2pState.abTest.running).toBe(false);
   expect(direct.close).toHaveBeenCalled();
+});
+
+test("owner auto optimization ignores the independent local P2P toggle and revokes immediately", async () => {
+  const peer = session();
+  mocks.status.mockResolvedValue({ ...status, enabled: false });
+  mocks.negotiate.mockResolvedValueOnce(peer);
+  applyRelayAuth(
+    {
+      authenticated: true,
+      csrfToken: "csrf",
+      expiresAt: Math.floor(Date.now() / 1000) + 60,
+    },
+    relayAuthRevision(),
+  );
+  startP2P();
+  await vi.advanceTimersByTimeAsync(2_000);
+  expect(p2pState.mode).toBe("p2p");
+  const handoffs = vi.mocked(handoffLiveSockets).mock.calls.length;
+  clearRelayAuth();
+  expect(p2pState.mode).toBe("ws");
+  expect(peer.close).toHaveBeenCalledOnce();
+  expect(handoffLiveSockets).toHaveBeenCalledTimes(handoffs);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(mocks.negotiate).toHaveBeenCalledOnce();
+});
+
+test("healthy TURN never bypasses loss of the authoritative baseline", async () => {
+  applyRelayAuth(
+    {
+      authenticated: true,
+      csrfToken: "csrf",
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    },
+    relayAuthRevision(),
+  );
+  const peer = { ...session(), path: "webrtc-turn" as const };
+  vi.mocked(inspectSelectedCandidatePair).mockResolvedValue({
+    path: "webrtc-turn",
+    isRelay: true,
+    candidateType: "relay/host",
+    ipFamily: "ipv4",
+  });
+  mocks.negotiate.mockResolvedValueOnce(peer);
+  startP2P();
+  await vi.advanceTimersByTimeAsync(2_000);
+  expect(p2pState.mode).toBe("p2p");
+  mocks.baseline.mockRejectedValueOnce(new Error("control unavailable"));
+  await vi.advanceTimersByTimeAsync(5_000);
+  expect(p2pState.mode).toBe("ws");
+  expect(peer.close).toHaveBeenCalledOnce();
+  expect(peer.control.readyState).toBe("open");
+});
+
+test("interrupted advantage does not upgrade until three consecutive paired rounds", async () => {
+  applyRelayAuth(
+    {
+      authenticated: true,
+      csrfToken: "csrf",
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    },
+    relayAuthRevision(),
+  );
+  const peer = session();
+  vi.mocked(peer.sendPing)
+    .mockResolvedValueOnce(10)
+    .mockResolvedValueOnce(95)
+    .mockResolvedValueOnce(10);
+  mocks.negotiate.mockResolvedValueOnce(peer);
+  startP2P();
+  await vi.advanceTimersByTimeAsync(2_000);
+  expect(p2pState.mode).toBe("ws");
+  await vi.advanceTimersByTimeAsync(5_000);
+  expect(p2pState.mode).toBe("ws");
+  await vi.advanceTimersByTimeAsync(5_000);
+  expect(p2pState.mode).toBe("p2p");
+});
+
+test("bounds parallel health rounds and ignores a late sample after owner revocation", async () => {
+  applyRelayAuth(
+    {
+      authenticated: true,
+      csrfToken: "csrf",
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    },
+    relayAuthRevision(),
+  );
+  const peer = session();
+  mocks.negotiate.mockResolvedValueOnce(peer);
+  startP2P();
+  await vi.advanceTimersByTimeAsync(2_000);
+  const pending = Promise.withResolvers<number[]>();
+  mocks.baseline.mockReturnValueOnce(pending.promise);
+  await vi.advanceTimersByTimeAsync(5_000);
+  const calls = mocks.baseline.mock.calls.length;
+  const signal = mocks.baseline.mock.lastCall![1] as AbortSignal;
+  await vi.advanceTimersByTimeAsync(15_000);
+  expect(mocks.baseline).toHaveBeenCalledTimes(calls);
+  clearRelayAuth();
+  expect(signal.aborted).toBe(true);
+  expect(peer.close).toHaveBeenCalledOnce();
+  pending.resolve([100]);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(p2pState.mode).toBe("ws");
+  expect(mocks.negotiate).toHaveBeenCalledOnce();
 });

@@ -2,11 +2,11 @@
 
 ## 安全模型
 
-WebMux 以启动服务的系统用户身份执行任意命令，**等同于把一个 shell 暴露到网络上**。它不是进程沙箱，也不提供多用户隔离。安全依赖于网络隔离：
+WebMux 以启动服务的系统用户身份执行任意命令，**等同于把一个 shell 暴露到网络上**。它不是进程沙箱，也不提供多用户隔离。安全依赖入口认证、来源校验和受控部署；本机与传统直连仍应使用网络隔离。
 
 - 默认仅监听本机回环 `127.0.0.1:7681`；需要局域网或 Tailscale / WireGuard 等可信网络直连时可设为 `0.0.0.0:7681`（或在 Windows 托盘中勾选“允许局域网访问”），并用防火墙限制可访问的接口。
 - 设置随机的共享 `token`。未显式指定 `--config` 且默认配置不存在时，首次启动会生成 0600 配置文件和持久化的 256 位 Token；未启用隧道时不会在启动输出中打印该 Token，可用 `webmux status --json --reveal-token` 查看。启用隧道时仍会输出带 Token 的链接和二维码，详见下文；日志中的持久化 Token 不会因重启失效。若现有配置的 token 为空且监听地址不是 loopback（例如 `0.0.0.0:7681`），则每次启动临时生成 256 位随机 Token，终端打印带 `#token=` 的本地链接；以 systemd / launchd 运行时该链接会写入 journal 或日志文件，且重启后更换。只有仅监听 loopback 且未启用隧道时，空 token 才表示不认证。
-- **不要把 WebMux 直接暴露到公网。** 确需公网访问时，只使用受控 Cloudflare Tunnel 入口，并接受下面的风险模型。
+- **不要把 WebMux 的普通 HTTP 监听直接暴露到公网。** 确需公网访问时，使用受控 Cloudflare Tunnel、Tailscale Funnel 或官方 Relay，并接受对应的风险模型。
 
 ### Cloudflare Tunnel
 
@@ -32,9 +32,25 @@ WebMux 以启动服务的系统用户身份执行任意命令，**等同于把�
 - WSL 中的 Windows provider 必须显式选择且要求 mirrored 网络；WebMux 不会自动修改 `.wslconfig`、Windows 防火墙、tailnet ACL 或自动提权。
 - 配置、端口与故障排查见 [Tailscale Serve / Funnel 入口](docs/tailscale.md)。
 
+### 官方 Relay
+
+官方 Relay 默认关闭；配对、启用和重新绑定须显式操作，并保留至少 43 字符的本机恢复 Token。GitHub 后台免输长期 Token，不把 WebMux 变为多用户服务。
+
+- Relay 会终止公网 TLS，运营者可接触 Cookie、转发凭据与终端内容；这不是端到端加密。只信任明确配置的服务及其运营者。
+- 宿主访问公开控制 HTTPS 时校验 Go 系统 CA（可追加 RootCA）、域名、有效期与 TLS 1.3，允许 CDN，不额外固定控制 SPKI；已认证分配的 WSS 仍强制校验 pin，TURN 服务身份校验不变。
+- 节点管理链路仍经预登记 CA 客户端身份、mTLS 与 SPKI 认证，不绕经 CDN。不能从首次连接、自报地址或普通代理头学习身份。
+- GitHub 以稳定数字 ID 绑定所有者，显示名不是权限。固定回调、浏览器绑定 state、PKCE 和一次性短期 code 共同保护跳转；短期 access token 使用后丢弃。
+- 宿主仅为固定公共 Origin 签发 Secure、HttpOnly、SameSite=Lax Cookie，期限最多 12 小时且不滑动续期。Cookie 写请求验证精确 Origin 与 CSRF，WebSocket 验证 Origin；传统 Token 和网络 MCP 的权限规则保持独立。
+- 连接器访问宿主使用独立短命 mTLS 回环入口，不把身份代理头当作认证。转发到其他应用前移除 Relay 认证 Cookie 和 CSRF 头。
+- TURN 仅向当前所有者浏览器会话及绑定的 PeerConnection 签发短期凭据；设备密钥、普通本机 Token、会话内进程或公开 STUN Binding 不能单独获得中继授权。
+- TURN 凭据是持有者凭证；到期限制新认证，不保证既有 allocation 立即消失。原版 coturn 的账号 allocation 数、每会话带宽及节点容量不等于共享账号带宽桶或累计流量额度。
+- 退出、撤销、重新绑定和失去控制监督会关闭派生访问，但不终止 PTY。全局完成须取得每个相关完整 Scope 的真实宿主关闭 ACK；失联、超时和其他代际的 ACK 不能替代证据。
+- 节点冷启动必须在线取得配置、秘密及完整授权；禁止持久秘密缓存恢复离线权限。控制面业务 PostgreSQL 与数据面分离，服务私钥和 TURN 密钥按节点加密交付，不进入客户端、镜像或普通诊断。
+- 宿主关闭立即停用公网，即使设置保存失败仍保持关闭；存储损坏或锁冲突不能回退为自动重开。操作与上线前提见[官方 Relay](docs/deployment/remote-access.md#官方-relay)。
+
 内置的防护措施：
 
-- 所有 API 与 WebSocket 都需要认证（启用 token 时），token 以常量时间比较。
+- 所有 API 与 WebSocket 都需要对应入口认证；传统 Token 使用常量时间比较，Relay Cookie 另受上述会话与来源约束。
 - 监听 loopback 时校验请求 `Host`（仅允许 loopback、`localhost`、`allowed_origins` 与已登记公网来源），防止无 token 模式下发生 DNS 重绑定；监听非回环地址时强制要求 token 并接受任意合法 `Host`（如局域网主机名或 Tailscale MagicDNS）。
 - 带 Origin 的请求必须同源或位于 `allowed_origins` 中，防止其他网站通过浏览器发起连接。
 - 终端输入输出不会写入日志；配置接口不返回 token。
@@ -42,7 +58,7 @@ WebMux 以启动服务的系统用户身份执行任意命令，**等同于把�
 
 其他注意事项：
 
-- WebMux 不内置 TLS；需要 HTTPS 时请使用 `tailscale serve` 或反向代理。
+- 宿主普通 HTTP 监听不提供公网 TLS 终止；需要 HTTPS 时使用官方 Relay、`tailscale serve` 或受控反向代理。
 - token 保存在浏览器 localStorage 中，只在可信设备上登录。
 - 登记的 Git 仓库必须可信：Git 会执行仓库配置中的 hooks 与 filters。
 - 关闭会话会清理其进程树，但完全脱离终端会话的自守护进程可能不受控制。

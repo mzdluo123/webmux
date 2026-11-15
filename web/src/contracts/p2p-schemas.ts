@@ -11,6 +11,8 @@ const P2PPeerInfoSchema = z.object({
   state: z.string(),
   candidateType: z.string().optional(),
   ipFamily: z.string().optional(),
+  transport: z.string().optional(),
+  path: z.enum(["webrtc-direct", "webrtc-turn"]).optional(),
   rttMs: z.number().int().min(0).optional(),
   channels: z.number().int().min(0),
   createdAt: z.string(),
@@ -79,6 +81,7 @@ export const P2PControlMessageSchema = z.discriminatedUnion("type", [
     peerId: z.string().optional(),
     candidateType: z.string().optional(),
     ipFamily: z.string().optional(),
+    transport: z.string().optional(),
     portMapped: z.boolean().optional(),
   }),
   z.object({
@@ -111,3 +114,25 @@ export const P2PRPCResponseHeaderSchema = z.object({
   statusText: z.string(),
   headers: z.record(z.string(), z.string()),
 });
+
+// The owner endpoint returns only the browser half of the control-plane grant.
+export const BrowserICEEndpointSchema = z
+  .object({
+    role: z.literal("browser"),
+    expiresAt: z.number().int().positive(),
+    servers: z
+      .array(
+        z
+          .object({
+            urls: z
+              .array(z.string().regex(/^turns?:[^\s]+$/))
+              .min(1)
+              .max(8),
+            username: z.string().min(1),
+            credential: z.string().min(1),
+          })
+          .strict(),
+      )
+      .length(1),
+  })
+  .strict();
