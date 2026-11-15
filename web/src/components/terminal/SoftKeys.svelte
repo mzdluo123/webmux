@@ -5,6 +5,7 @@
   import IconLock from "~icons/tabler/lock";
   import { Button } from "$lib/components/ui/button";
   import { Separator } from "$lib/components/ui/separator";
+  import { m } from "$lib/paraglide/messages.js";
   import { createLongPress } from "../../hooks/shared/long-press";
   import {
     type Modifiers,
@@ -46,7 +47,7 @@
       : combinations,
   );
   const shiftTitle = $derived(
-    locked ? "已锁定，点按解除" : "点按一次性，长按锁定",
+    locked ? m.s4_shift_locked_hint() : m.s4_shift_unlocked_hint(),
   );
   const shiftHold = createLongPress();
   // A long press locks Shift; the click that follows the release must not
@@ -78,23 +79,26 @@
     onclick={() => send(input)}>{label}</Button
   >{/snippet}
 
-<aside class="soft-keys shrink-0 border-t bg-card" aria-label="终端软键">
+<aside
+  class="soft-keys shrink-0 border-t bg-card"
+  aria-label={m.s4_soft_keys_aria()}
+>
   {#if gamepad}<TouchGamepad {send} />{/if}
   <div class="soft-keys-main">
     <div class="soft-row">
       <Button
         variant="ghost"
         size="sm"
-        aria-label="唤起或收起键盘"
-        title="唤起或收起键盘"
+        aria-label={m.s4_toggle_keyboard()}
+        title={m.s4_toggle_keyboard()}
         onmousedown={keepFocus}
         onclick={keyboard}><IconKeyboard aria-hidden="true" /></Button
       >
       <Button
         variant="ghost"
         size="sm"
-        aria-label="粘贴"
-        title="粘贴"
+        aria-label={m.s4_paste()}
+        title={m.s4_paste()}
         onmousedown={keepFocus}
         onclick={paste}><IconClipboard aria-hidden="true" /></Button
       >

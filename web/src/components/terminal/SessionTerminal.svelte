@@ -4,7 +4,10 @@
   import { useTerminal } from "../../hooks/terminal/terminal.svelte";
   import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
   import { touchGamepad } from "../../hooks/terminal/touch-gamepad-preference.svelte";
-  import { useSessionTerminalChrome } from "../../hooks/terminal/session-terminal-chrome.svelte";
+  import {
+    createSessionUploadHandlers,
+    useSessionTerminalChrome,
+  } from "../../hooks/terminal/session-terminal-chrome.svelte";
   import type { KeyboardVisibility } from "../../hooks/shared/viewport.svelte";
   import { terminalSession } from "../../hooks/sessions/terminal-session";
   import {
@@ -32,6 +35,7 @@
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
   import { createSessionTerminalInput } from "../../hooks/terminal/session-terminal-input.svelte";
   import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
+  import { m } from "$lib/paraglide/messages.js";
   import { pluginAvailable } from "../../platform/plugin-host.svelte";
 
   let {
@@ -63,7 +67,7 @@
     reopen: () => void;
     visible: boolean;
     active: boolean;
-    paneActions: Snippet<[boolean]>;
+    paneActions: Snippet<[() => void]>;
     keyboardDismissed: () => boolean;
     keyboardVisibility: () => KeyboardVisibility;
     viewportHeight: () => number;
@@ -121,6 +125,17 @@
     error: (message) => (error = message),
     notice: (message) => (notice = message),
   });
+  const sessionId = untrack(() => id);
+  const uploadHandlers = createSessionUploadHandlers({
+    id: sessionId,
+    draft,
+    drafts: untrack(() => drafts),
+    isMounted: () => mounted,
+    isFilesAvailable: () => !!availablePlugins.files,
+    insertText: input.insertText,
+    setError: (message) => (error = message),
+    onUploadNotice: untrack(() => onUploadNotice),
+  });
   const terminalShown = () =>
     hybrid.view === "terminal" || hybrid.view === "recovery";
   const terminalVisible = () =>
@@ -146,18 +161,15 @@
     releaseChatEditing: () => stage?.releaseChatEditing(),
     isCodePanelPoppedOut: () => !!codePanel?.isPoppedOut(),
     insertText: input.insertText,
-    uploadFiles: async (files, operation) => {
-      if (!uploads || !availablePlugins.files)
-        throw new Error("文件上传暂不可用");
-      await uploads.uploadFiles(Array.from(files), operation);
-    },
+    uploadFiles: uploadHandlers.uploadClipboardFiles(() => uploads),
     setError: (msg) => (error = msg),
     oninfo: (info, conn) => oninfo(info, conn),
     onscrollstate: (state) => onscrollstate?.(state),
   });
   $effect(() => {
-    if (!availablePlugins.code) chrome.codeShown = false;
-    else if (chrome.codeShown) codeLoaded = true;
+    if (!availablePlugins.code && chrome.panelView === "code")
+      chrome.codeShown = false;
+    else if (chrome.codeShown && chrome.panelView === "code") codeLoaded = true;
     if (terminalVisible()) {
       if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
       void tick().then(() => t.fit());
@@ -174,7 +186,8 @@
     t.send(input);
   }
   async function runQuickCommand(cmd: QuickCommand) {
-    if (!availablePlugins.quickCommands) throw new Error("快捷指令暂不可用");
+    if (!availablePlugins.quickCommands)
+      throw new Error(m.s4_quick_commands_unavailable());
     return availablePlugins.quickCommands.executeSessionQuickCommand(cmd, {
       id,
       isMounted: () => mounted,
@@ -205,9 +218,7 @@
         if (input.active()) stage?.focusComposer();
       },
       key: (event) => stage?.handleTerminalKey(event),
-      insertText: (text) => {
-        input.insertText(text);
-      },
+      insertText: (text) => input.insertText(text),
     },
     () => keyboardDismissed(),
     () => chrome.sizeLocked,
@@ -233,21 +244,13 @@
     () => t.connection,
     () => t.info?.generation,
   );
-  const sessionId = untrack(() => id);
   const files = plugins.files;
   const chatUploads =
     plugins.chat && files
       ? files.useChatUpload(
-          (file, progress, signal) => {
-            if (!availablePlugins.files)
-              return Promise.reject(new Error("文件上传暂不可用"));
-            return files.uploadFile(sessionId, file, progress, signal);
-          },
+          uploadHandlers.sendChatFile(files.uploadFile),
           (message) => (error = message),
-          {
-            get: () => draft.attachments,
-            set: (next) => drafts.setAttachments(draft, next),
-          },
+          uploadHandlers.attachments,
         )
       : undefined;
   const chatUploadUnavailable = $derived(deriveChatUploadUnavailable(hybrid));
@@ -258,22 +261,15 @@
   }
   const uploads = files?.useUpload(
     () => container!,
-    untrack(() => id),
+    sessionId,
     t,
-    (message) => {
-      if (mounted) error = message;
-      else if (message) onUploadNotice(`会话 ${id}：${message}`);
-    },
-    {
-      begin: () => drafts.begin(draft),
-      destination: (operation) => drafts.destination(draft, operation),
-      insert: input.insertText,
-    },
+    uploadHandlers.notifyUploadError,
+    uploadHandlers.draftBridge,
     () => !!availablePlugins.files,
   );
   const fullscreen = useFullscreen((message) => (error = message));
   const xr = plugins.immersive?.useXrSessionSource({
-    id: untrack(() => id),
+    id: sessionId,
     terminal: t,
     chatPanel: plugins.chat?.xrChatPanel,
     quickCommands: () =>
@@ -291,19 +287,17 @@
     sendDraft: input.sendDraft,
     sendChat: () => stage?.sendChatDraft(),
     toggleDraft: input.toggleDraft,
-    showCode: () => (chrome.codeShown = true),
+    showCode: chrome.showCode,
     showChat: revealChat,
     showSwitchChoice: () => (chrome.choiceClosed = false),
     runQuick: runQuickCommand,
     error: (message) => (error = message),
-    notice: () =>
-      [
-        error,
-        t.error,
-        plugins.chat && (stage?.getChatError() || hybrid.chat.error),
-      ]
-        .filter(Boolean)
-        .join(" "),
+    notice: () => {
+      const chatErr = plugins.chat
+        ? stage?.getChatError() || hybrid.chat.error
+        : "";
+      return [error, t.error, chatErr].filter(Boolean).join(" ");
+    },
   });
   $effect(() => {
     const record = hybrid.recoverable;
@@ -316,9 +310,7 @@
   onMount(() => {
     mounted = true;
     input.resumeDraftSubmission();
-    return () => {
-      mounted = false;
-    };
+    return () => (mounted = false);
   });
 
   function insertVoiceResult(text: string) {
@@ -397,6 +389,9 @@
     bind:notice
     bind:codeShown={
       () => chrome.codeShown, (value) => (chrome.codeShown = value)
+    }
+    bind:panelView={
+      () => chrome.panelView, (value) => (chrome.panelView = value)
     }
     {chatActions}
     bind:forceSoftKeys={
@@ -478,7 +473,7 @@
           bind:this={codePanel}
           {id}
           gitPlugin={availablePlugins.git}
-          visible={visible && chrome.codeShown}
+          visible={visible && chrome.codeShown && chrome.panelView === "code"}
           connection={hybrid.view === "chat"
             ? hybrid.chat.connection
             : t.connection}

@@ -2,6 +2,7 @@
   import IconLayoutDashboard from "~icons/tabler/layout-dashboard";
   import IconMessageCircle from "~icons/tabler/message-circle";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ShellMode } from "../../hooks/shared/shell.svelte";
 
   // The two mode buttons at the top of the sidebar. Each keeps its variant
@@ -17,24 +18,24 @@
   } = $props();
 </script>
 
-<div class="flex shrink-0 items-center" role="group" aria-label="模式">
+<div class="flex shrink-0 items-center" role="group" aria-label={m.s1_mode()}>
   <Button
     variant="ghost"
     size="icon-touch"
-    aria-label="聊天模式"
+    aria-label={m.s1_chat_mode()}
     aria-pressed={mode === "chat"}
-    title="聊天模式：快速开始与聊天历史"
+    title={m.s1_chat_mode_title()}
     onclick={() => onchange("chat")}
     ><IconMessageCircle aria-hidden="true" /></Button
   >
   <Button
     variant="ghost"
     size="icon-touch"
-    aria-label={workspaces ? "工作台模式" : "会话模式"}
+    aria-label={workspaces ? m.s1_workbench_mode() : m.s1_sessions_mode()}
     aria-pressed={mode === "workbench"}
     title={workspaces
-      ? "工作台模式：仓库、worktree 与全部会话"
-      : "会话模式：全部终端与聊天会话"}
+      ? m.s1_workbench_mode_title()
+      : m.s1_sessions_mode_title()}
     onclick={() => onchange("workbench")}
     ><IconLayoutDashboard aria-hidden="true" /></Button
   >

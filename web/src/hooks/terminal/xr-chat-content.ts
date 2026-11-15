@@ -1,4 +1,5 @@
 import { marked, type Tokens } from "marked";
+import { m } from "$lib/paraglide/messages.js";
 import type { ChatModel } from "../../domains/chat/chat-model";
 import type { ChatState } from "../../contracts/schemas";
 import type {
@@ -27,26 +28,28 @@ export function xrChatPanel(options: {
   const lines: XrTextLine[] = [];
   const actions: XrAction[] = [];
   if (options.model.truncated)
-    lines.push({ text: "更早的聊天内容已超出服务端保留范围。", tone: "muted" });
+    lines.push({ text: m.s4_xr_chat_history_truncated(), tone: "muted" });
   for (const entry of options.model.entries) {
     if (entry.type === "message") {
       lines.push({
         text:
           entry.role === "user"
-            ? "你"
+            ? m.s4_xr_role_you()
             : entry.role === "thought"
-              ? "思考"
+              ? m.s4_xr_role_thought()
               : "Agent",
         tone: "muted",
       });
       for (const text of prose(entry.text)) lines.push({ text });
       for (const attachment of entry.attachments ?? [])
         lines.push({
-          text: `附件：${attachment.name || attachment.path}`,
+          text: m.s4_xr_chat_attachment({
+            name: attachment.name || attachment.path,
+          }),
           tone: "muted",
         });
       if (entry.truncated)
-        lines.push({ text: "此条消息已截断。", tone: "muted" });
+        lines.push({ text: m.s4_xr_chat_msg_truncated(), tone: "muted" });
     } else if (entry.type === "tool") {
       lines.push({
         text: `${entry.title || entry.kind} · ${entry.status}`,
@@ -70,7 +73,7 @@ export function xrChatPanel(options: {
               content.name ||
               content.uri ||
               content.unsupported ||
-              "请在 2D 查看此内容。",
+              m.s4_xr_view_in_2d(),
             tone: "muted",
           });
       }
@@ -81,7 +84,10 @@ export function xrChatPanel(options: {
       });
     } else if (entry.type === "compaction") {
       lines.push({
-        text: `上下文整理 · ${entry.status} ${entry.summary}`,
+        text: m.s4_xr_chat_compaction({
+          status: entry.status,
+          summary: entry.summary,
+        }),
         tone: "muted",
       });
     } else if (entry.type === "turnEnd" && entry.error) {
@@ -90,7 +96,12 @@ export function xrChatPanel(options: {
   }
   for (const request of options.state?.requests ?? []) {
     lines.push({
-      text: `等待处理：${request.title || request.form?.message || "Agent 请求"}`,
+      text: m.s4_xr_pending_request({
+        title:
+          request.title ||
+          request.form?.message ||
+          m.s4_xr_agent_request_fallback(),
+      }),
       tone: "muted",
     });
     if (request.kind === "permission") {
@@ -100,7 +111,10 @@ export function xrChatPanel(options: {
           label: option.name,
           disabled: options.answering,
           confirm: option.kind.startsWith("allow")
-            ? `确认授权：${request.title || "Agent 操作"} — ${option.name}`
+            ? m.s4_xr_confirm_permission({
+                title: request.title || m.s4_xr_agent_action_fallback(),
+                option: option.name,
+              })
             : undefined,
           run: () => options.answer(request.requestId, option.optionId),
         });
@@ -108,17 +122,19 @@ export function xrChatPanel(options: {
     } else {
       actions.push({
         id: `form:${request.requestId}`,
-        label: "返回 2D 填写表单",
+        label: m.s4_xr_return_2d_form(),
         run: options.openForm,
       });
     }
   }
-  lines.push({ text: "草稿", tone: "muted" });
+  lines.push({ text: m.s4_xr_draft_heading(), tone: "muted" });
   for (const text of options.draft.split("\n")) lines.push({ text });
   return {
     id: "chat",
     kind: "chat",
-    title: options.state?.turn.running ? "Agent 聊天 · 运行中" : "Agent 聊天",
+    title: options.state?.turn.running
+      ? m.s4_xr_agent_chat_running()
+      : m.s4_xr_agent_chat(),
     lines,
     actions,
   };

@@ -1,10 +1,17 @@
-import { afterEach, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import RelayManager from "../../src/components/settings/RelayManager.svelte";
 import { relayStatus } from "../fixtures/relay";
 import { clearRelayAuth } from "../../src/platform/relay-auth";
 import { resetHostPlugins } from "./plugin-fixture";
+import { initializeLocale, locale } from "../../src/lib/locale";
+import { m } from "$lib/paraglide/messages.js";
+
+beforeEach(() => {
+  initializeLocale();
+  locale.setPreference("zh-CN");
+});
 
 const enrollment = {
   version: 1,
@@ -22,6 +29,7 @@ afterEach(async () => {
   resetHostPlugins();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  locale.setPreference("zh-CN");
 });
 
 const dialog = () => page.getByRole("alertdialog");
@@ -175,4 +183,175 @@ test("WSS enable remains usable without P2P and off-state bound address is not a
     .element(page.getByRole("switch", { name: "允许 Relay 公网访问" }))
     .toBeChecked();
   expect(paths.every((path) => path === "/api/relay")).toBe(true);
+});
+
+test("mounted locale changes preserve the enable confirmation and require explicit public consent", async () => {
+  let status = {
+    ...relayStatus,
+    paired: true,
+    ownerId: "1234567",
+    ownerLogin: "locale-owner",
+  };
+  const mutations: { path: string; body: unknown }[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input, init) => {
+      const path = new URL(String(input), location.href).pathname;
+      if (init?.method === "PUT") {
+        mutations.push({ path, body: JSON.parse(String(init.body)) });
+        status = { ...status, enabled: true, state: "ready" };
+      }
+      return Response.json(status);
+    }),
+  );
+  render(RelayManager);
+  await page.getByRole("switch", { name: m.relay_allow_public() }).click();
+  await expect
+    .element(dialog().getByText(m.relay_consent(), { exact: true }))
+    .toBeVisible();
+  const confirmation = document.querySelector('[role="alertdialog"]');
+  locale.setPreference("en");
+  await expect
+    .element(dialog().getByText(m.relay_confirm_enable(), { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(dialog().getByText(m.relay_consent(), { exact: true }))
+    .toBeVisible();
+  expect(document.querySelector('[role="alertdialog"]')).toBe(confirmation);
+  expect(mutations).toEqual([]);
+  expect(
+    document.getElementById("relay-enabled")?.getAttribute("aria-checked"),
+  ).toBe("false");
+  locale.setPreference("zh-CN");
+  await expect
+    .element(dialog().getByText(m.relay_confirm_enable(), { exact: true }))
+    .toBeVisible();
+  expect(mutations).toEqual([]);
+  await dialog()
+    .getByRole("button", { name: m.relay_confirm_enable_action(), exact: true })
+    .click();
+  await expect
+    .element(page.getByRole("switch", { name: m.relay_allow_public() }))
+    .toBeChecked();
+  await expect
+    .element(
+      page.getByText(m.relay_owner({ login: "locale-owner", id: "1234567" }), {
+        exact: true,
+      }),
+    )
+    .toBeVisible();
+  await expect
+    .element(page.getByText(m.relay_notice_completed(), { exact: true }))
+    .toBeVisible();
+  locale.setPreference("en");
+  await expect
+    .element(page.getByText(m.relay_notice_completed(), { exact: true }))
+    .toBeVisible();
+  expect(mutations).toEqual([
+    { path: "/api/relay", body: { enabled: true, confirmPublic: true } },
+  ]);
+});
+
+test("mounted locale changes keep device pairing state without restarting enrollment or enabling access", async () => {
+  const mutations: { path: string; body: unknown }[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input, init) => {
+      const path = new URL(String(input), location.href).pathname;
+      if (
+        init?.method === "POST" ||
+        init?.method === "DELETE" ||
+        init?.method === "PUT"
+      ) {
+        mutations.push({ path, body: JSON.parse(String(init.body)) });
+      }
+      if (init?.method === "DELETE") return new Response(null, { status: 204 });
+      if (path.endsWith("/enrollments/poll"))
+        return Response.json({ error: "pending" });
+      if (path.endsWith("/enrollments"))
+        return Response.json({ ...enrollment, pollIntervalSeconds: 60 });
+      return Response.json(relayStatus);
+    }),
+  );
+  render(RelayManager);
+  await startPairing();
+  locale.setPreference("en");
+  await expect
+    .element(page.getByLabelText(m.relay_pairing_code()))
+    .toHaveTextContent(enrollment.userCode);
+  await expect
+    .element(
+      page.getByRole("button", { name: m.relay_cancel_pairing(), exact: true }),
+    )
+    .toBeVisible();
+  await expect
+    .element(page.getByRole("switch", { name: m.relay_allow_public() }))
+    .not.toBeChecked();
+  locale.setPreference("zh-CN");
+  await expect
+    .element(page.getByLabelText(m.relay_pairing_code()))
+    .toHaveTextContent(enrollment.userCode);
+  expect(
+    mutations.filter((entry) => entry.path === "/api/relay/enrollments"),
+  ).toEqual([
+    {
+      path: "/api/relay/enrollments",
+      body: { rebind: false, confirmPublic: true },
+    },
+  ]);
+  expect(mutations.some((entry) => entry.path === "/api/relay")).toBe(false);
+  await page
+    .getByRole("button", { name: m.relay_cancel_pairing(), exact: true })
+    .click();
+  await expect
+    .element(page.getByText(m.relay_notice_cancelled(), { exact: true }))
+    .toBeVisible();
+  expect(mutations.at(-1)).toEqual({
+    path: "/api/relay/enrollments",
+    body: { handle: enrollment.handle },
+  });
+});
+
+test("mounted locale changes translate retained authorization errors and diagnostic reasons", async () => {
+  const enroll = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input, init) => {
+      const path = new URL(String(input), location.href).pathname;
+      if (path.endsWith("/enrollments") && init?.method === "POST") {
+        enroll();
+        return Response.json({ error: "denied" }, { status: 403 });
+      }
+      return Response.json({ ...relayStatus, error: "turn-unavailable" });
+    }),
+  );
+  render(RelayManager);
+  await expect
+    .element(page.getByText(m.relay_diag_turn(), { exact: true }))
+    .toBeVisible();
+  await page
+    .getByRole("button", { name: m.relay_start_pairing(), exact: true })
+    .click();
+  await dialog()
+    .getByRole("button", { name: m.relay_confirm_action(), exact: true })
+    .click();
+  await expect
+    .element(page.getByText(m.relay_error_denied(), { exact: true }))
+    .toBeVisible();
+  locale.setPreference("en");
+  await expect
+    .element(page.getByText(m.relay_error_denied(), { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(page.getByText(m.relay_diag_turn(), { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(
+      page.getByRole("button", { name: m.relay_start_pairing(), exact: true }),
+    )
+    .toBeVisible();
+  await expect
+    .element(page.getByRole("switch", { name: m.relay_allow_public() }))
+    .not.toBeChecked();
+  expect(enroll).toHaveBeenCalledTimes(1);
 });

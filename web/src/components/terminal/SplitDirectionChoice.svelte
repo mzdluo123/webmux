@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import { m } from "$lib/paraglide/messages.js";
 
   let { direction = $bindable() }: { direction: SplitDirection } = $props();
 </script>
@@ -12,10 +13,14 @@
       if (next === "horizontal" || next === "vertical") direction = next;
     }
   }
-  aria-label="分屏方向"
+  aria-label={m.s4_split_direction()}
   size="form"
   class="w-full"
 >
-  <SegmentedControl.Item value="horizontal">左右分屏</SegmentedControl.Item>
-  <SegmentedControl.Item value="vertical">上下分屏</SegmentedControl.Item>
+  <SegmentedControl.Item value="horizontal"
+    >{m.s4_split_horizontal()}</SegmentedControl.Item
+  >
+  <SegmentedControl.Item value="vertical"
+    >{m.s4_split_vertical()}</SegmentedControl.Item
+  >
 </SegmentedControl.Root>

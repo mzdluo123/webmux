@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { encodeBase64Url } from "./base64url";
 
 export const SOCKET_CONNECTING = 0;
@@ -49,7 +50,9 @@ export interface UploadResult {
 
 export class TransportUploadError extends Error {
   constructor(public readonly kind: "network" | "timeout") {
-    super(kind === "timeout" ? "上传超时" : "上传失败：网络连接异常");
+    super(
+      kind === "timeout" ? m.s1_upload_timeout() : m.s1_upload_network_error(),
+    );
   }
 }
 
@@ -133,7 +136,7 @@ export function createHttpTransport(
       const { promise, resolve, reject } =
         Promise.withResolvers<UploadResult>();
       if (req.signal.aborted) {
-        reject(new DOMException("上传已取消", "AbortError"));
+        reject(new DOMException(m.s1_upload_cancelled(), "AbortError"));
         return promise;
       }
       const xhr = new XMLHttpRequest();
@@ -167,7 +170,7 @@ export function createHttpTransport(
       };
       xhr.onabort = () => {
         cleanup();
-        reject(new DOMException("上传已取消", "AbortError"));
+        reject(new DOMException(m.s1_upload_cancelled(), "AbortError"));
       };
       req.signal.addEventListener("abort", abort, { once: true });
       xhr.send(req.form);

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
+  import { locale } from "$lib/locale";
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
   import { Switch } from "$lib/components/ui/switch";
@@ -35,31 +37,31 @@
   >(null);
   const status = $derived(view.status);
   const blocked = $derived(view.busy || !!view.enrollment);
-  const stateLabel = {
-    off: "已关闭",
-    connecting: "连接中",
-    ready: "已就绪",
-    degraded: "批量通道降级",
-    failed: "连接失败",
-  };
-  const reachability = {
-    unknown: "尚未确认",
-    reachable: "可达",
-    unavailable: "不可用",
-    unassigned: "未分配",
-  };
+  const stateLabel = $derived({
+    off: m.relay_state_off(),
+    connecting: m.s1_connecting_short(),
+    ready: m.relay_state_ready(),
+    degraded: m.relay_state_degraded(),
+    failed: m.relay_state_failed(),
+  });
+  const reachability = $derived({
+    unknown: m.relay_reach_unknown(),
+    reachable: m.relay_reach_reachable(),
+    unavailable: m.relay_reach_unavailable(),
+    unassigned: m.relay_unassigned(),
+  });
   const confirmTitle = $derived(
     confirmation === "pair"
-      ? "配对 GitHub 主机？"
+      ? m.relay_confirm_pair()
       : confirmation === "rebind"
-        ? "重新绑定主机？"
+        ? m.relay_confirm_rebind()
         : confirmation === "enable"
-          ? "启用公网 Shell 访问？"
+          ? m.relay_confirm_enable()
           : confirmation === "delete"
-            ? "删除 Relay 绑定？"
+            ? m.relay_confirm_delete()
             : confirmation === "reconnect"
-              ? "重新连接 Relay？"
-              : "断开 Relay？",
+              ? m.relay_confirm_reconnect()
+              : m.relay_confirm_disconnect(),
   );
 
   function confirm() {
@@ -75,75 +77,75 @@
 
 <Card.Root flat>
   <Card.Header>
-    <Card.Title>主机配对与访问</Card.Title>
-    <Card.Description
-      >主机配对与公网访问独立控制。默认关闭，不影响本机及其他公网入口。</Card.Description
-    >
+    <Card.Title>{m.relay_settings_title()}</Card.Title>
+    <Card.Description>{m.relay_settings_description()}</Card.Description>
   </Card.Header>
   <Card.Content class="space-y-5">
     {#if view.loading}
-      <p role="status" aria-busy="true">正在读取 Relay 设置…</p>
+      <p role="status" aria-busy="true">{m.relay_loading()}</p>
     {:else if !status}
-      <InlineNotice tone="warning">当前宿主未提供可用 Relay 状态。</InlineNotice
-      >
+      <InlineNotice tone="warning">{m.relay_status_unavailable()}</InlineNotice>
     {:else}
       <div class="flex items-center justify-between gap-4">
-        <Label for="relay-enabled">允许 Relay 公网访问</Label>
+        <Label for="relay-enabled">{m.relay_allow_public()}</Label>
         <Switch
           id="relay-enabled"
-          checked={status.enabled}
+          bind:checked={
+            () => status?.enabled === true,
+            (enabled) => {
+              confirmation = enabled ? "enable" : "disconnect";
+            }
+          }
           disabled={blocked ||
             (!status.enabled &&
               (!status.paired ||
                 !status.tokenStrong ||
                 !status.storageAvailable))}
-          onCheckedChange={(enabled) => {
-            confirmation = enabled ? "enable" : "disconnect";
-          }}
         />
       </div>
       <p role="status" class="text-sm">
         {stateLabel[status.state]} · {status.paired
-          ? "已配对"
+          ? m.relay_paired()
           : status.pairing
-            ? "配对中"
-            : "未配对"} · WSS 基线 {status.readyConnections}/2
+            ? m.relay_pairing()
+            : m.relay_unpaired()} · {m.relay_baseline_count({
+          count: String(status.readyConnections),
+        })}
       </p>
       {#if !status.hybridSupported}
         <InlineNotice tone="warning"
-          >{status.hybridUnavailableReason === "p2p-build-unavailable"
-            ? "当前构建不包含 P2P 实现"
-            : "当前未选择 p2p 插件"}；配对与 WSS 基础访问仍可使用，直连/TURN
-          交互优化不可用。不会加载禁用实现或发起 P2P 请求。本机 P2P
-          开关不影响已授权所有者的自动优化。</InlineNotice
+          >{m.relay_hybrid_disabled({
+            reason:
+              status.hybridUnavailableReason === "p2p-build-unavailable"
+                ? m.relay_build_unavailable()
+                : m.relay_plugin_unselected(),
+          })}</InlineNotice
         >
       {/if}
       {#if !status.controlEndpoint}
         <InlineNotice tone="warning"
-          >可信控制面尚未配置，当前不可配对或启用。由宿主部署配置端点与初始信任；此页面不接受任意节点或
-          IP。</InlineNotice
+          >{m.relay_control_unconfigured()}</InlineNotice
         >
       {/if}
       {#if !status.tokenStrong}
-        <InlineNotice tone="warning"
-          >启用要求宿主恢复 Token 至少 43 个字符。请在宿主配置中更换；不要把
-          Token 交给控制面。</InlineNotice
+        <InlineNotice tone="warning">{m.relay_token_requirement()}</InlineNotice
         >
       {/if}
       {#if !status.storageAvailable}
-        <InlineNotice tone="danger"
-          >受控存储不可用；禁止新建公网连接。关闭操作仍会立即停止访问。</InlineNotice
-        >
+        <InlineNotice tone="danger">{m.relay_storage_warning()}</InlineNotice>
       {/if}
       {#if status.ownerId}
         <p class="text-sm wrap-anywhere">
-          GitHub 所有者：{status.ownerLogin || "账号"} · {status.ownerId}
+          {m.relay_owner({
+            login: status.ownerLogin || m.relay_account(),
+            id: status.ownerId,
+          })}
         </p>
       {/if}
       {#if status.boundPublicUrl}
         <div class="space-y-2">
           <p class="text-sm text-muted-foreground">
-            固定公共 HTTPS 地址（不含 Token；地址存在不代表入口已授权）
+            {m.relay_bound_address()}
           </p>
           <p class="text-sm wrap-anywhere">
             {relayEndpoint(status.boundPublicUrl)}
@@ -151,15 +153,13 @@
           {#if status.controlReady && status.publicUrl}
             <Button
               href={new URL("/auth/relay/start", status.publicUrl).href}
-              variant="outline">通过所有者账号打开 WebMux</Button
+              variant="outline">{m.relay_open_owner()}</Button
             >
           {/if}
         </div>
       {/if}
       {#if status.state === "degraded" || (status.controlReady && !status.bulkReady)}
-        <InlineNotice tone="warning"
-          >交互仍可用；上传、下载与转发的新请求不可用，不会挤入交互通道。</InlineNotice
-        >
+        <InlineNotice tone="warning">{m.relay_bulk_warning()}</InlineNotice>
       {/if}
       {#if status.error || status.readinessError}
         <InlineNotice tone="danger"
@@ -174,24 +174,26 @@
         >
       {/if}
       {#if view.enrollment}
-        <section class="space-y-3" aria-label="GitHub 设备授权">
-          <p class="text-sm">在 GitHub 输入一次性配对码：</p>
-          <p class="font-mono text-2xl" aria-label="GitHub 配对码">
+        <section class="space-y-3" aria-label={m.relay_device_authorization()}>
+          <p class="text-sm">{m.relay_enter_code()}</p>
+          <p class="font-mono text-2xl" aria-label={m.relay_pairing_code()}>
             {view.enrollment.userCode}
           </p>
           <p class="text-xs text-muted-foreground">
-            有效期至 {new Date(
-              view.enrollment.expiresAt * 1000,
-            ).toLocaleTimeString()}。等待授权，按 GitHub 要求间隔轮询。
+            {m.relay_pairing_expiry({
+              time: new Date(
+                view.enrollment.expiresAt * 1000,
+              ).toLocaleTimeString(locale.current),
+            })}
           </p>
           <div class="flex flex-wrap gap-3">
             <Button
               href={view.enrollment.verificationUrl}
               target="_blank"
-              rel="noopener noreferrer">前往 GitHub 验证</Button
+              rel="noopener noreferrer">{m.relay_verify_github()}</Button
             >
             <Button variant="outline" onclick={oncancel} disabled={view.busy}
-              >取消配对</Button
+              >{m.relay_cancel_pairing()}</Button
             >
           </div>
         </section>
@@ -205,7 +207,7 @@
               confirmation = status.paired ? "rebind" : "pair";
             }}
           >
-            {status.paired ? "重新绑定 GitHub" : "开始 GitHub 配对"}
+            {status.paired ? m.relay_rebind() : m.relay_start_pairing()}
           </Button>
           {#if status.paired}
             <Button
@@ -213,84 +215,92 @@
               disabled={blocked || !status.enabled}
               onclick={() => {
                 confirmation = "reconnect";
-              }}>重新连接</Button
+              }}>{m.relay_reconnect()}</Button
             >
             <Button
               variant="destructive-outline"
               disabled={blocked}
               onclick={() => {
                 confirmation = "delete";
-              }}>删除绑定</Button
+              }}>{m.relay_delete_binding()}</Button
             >
           {/if}
         </div>
       {/if}
       {#if status.sessions.length}
-        <section class="space-y-2" aria-label="宿主观测的候选连接">
-          <h3 class="text-sm font-medium">宿主观测的候选连接</h3>
+        <section class="space-y-2" aria-label={m.relay_host_candidates()}>
+          <h3 class="text-sm font-medium">{m.relay_host_candidates()}</h3>
           {#each status.sessions as session (session.id)}
             <p class="text-sm wrap-anywhere">
-              会话 {session.id.slice(0, 8)}… · {session.path} · {relayDiagnostic(
-                session.reason,
-              ) || "无额外原因"}
+              {m.relay_session_path({
+                id: session.id.slice(0, 8),
+                path: session.path,
+                reason: relayDiagnostic(session.reason) || m.relay_no_reason(),
+              })}
             </p>
           {/each}
           <p class="text-xs text-muted-foreground">
-            这里只表示已选 ICE
-            对的连接类型，不证明业务已切换。实际选择以当前浏览器的逐流状态为准。
+            {m.relay_candidate_disclaimer()}
           </p>
         </section>
       {/if}
       <details class="space-y-3">
-        <summary class="cursor-pointer text-sm">有效配置与脱敏诊断</summary>
+        <summary class="cursor-pointer text-sm"
+          >{m.relay_effective_diagnostics()}</summary
+        >
         <dl class="grid min-w-0 grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-          <dt class="text-muted-foreground">配置的控制面</dt>
+          <dt class="text-muted-foreground">{m.relay_configured_control()}</dt>
           <dd class="wrap-anywhere">
             {relayEndpoint(status.controlEndpoint)} · {status.controlSource}
           </dd>
-          <dt class="text-muted-foreground">控制面引导信任</dt>
+          <dt class="text-muted-foreground">{m.relay_bootstrap_trust()}</dt>
           <dd>
-            {status.controlTrustPins.length} 个已配置 SPKI pin；不会从 URL 或证书自动学习
+            {m.relay_pins({ count: String(status.controlTrustPins.length) })}
           </dd>
-          <dt class="text-muted-foreground">控制面可达性</dt>
+          <dt class="text-muted-foreground">
+            {m.relay_control_reachability()}
+          </dt>
           <dd>{reachability[status.controlReachability]}</dd>
-          <dt class="text-muted-foreground">分配来源</dt>
+          <dt class="text-muted-foreground">{m.relay_assignment_source()}</dt>
           <dd>
             {status.assignmentSource === "authenticated-control"
-              ? "已认证控制面"
-              : "未分配"} · 版本 {status.assignmentRevision}
+              ? m.relay_authenticated_control()
+              : m.relay_unassigned()} · {m.relay_revision({
+              revision: status.assignmentRevision,
+            })}
           </dd>
-          <dt class="text-muted-foreground">连接器 / 数据来源</dt>
+          <dt class="text-muted-foreground">{m.relay_connector_source()}</dt>
           <dd class="wrap-anywhere">
             {relayEndpoint(status.connectorUrl)} / {relayEndpoint(
               status.dataOrigin,
             )}
           </dd>
-          <dt class="text-muted-foreground">数据面可达性</dt>
+          <dt class="text-muted-foreground">{m.relay_data_reachability()}</dt>
           <dd>{reachability[status.dataReachability]}</dd>
-          <dt class="text-muted-foreground">节点 / 能力</dt>
+          <dt class="text-muted-foreground">{m.relay_node_capabilities()}</dt>
           <dd class="wrap-anywhere">
-            {status.nodeId || "未分配"} · {status.capabilities.join(" / ") ||
-              "无"}
+            {status.nodeId || m.relay_unassigned()} · {status.capabilities.join(
+              " / ",
+            ) || m.relay_none()}
           </dd>
-          <dt class="text-muted-foreground">分配配置 / 实际应用版本</dt>
+          <dt class="text-muted-foreground">{m.relay_applied_revision()}</dt>
           <dd>
             {status.configRevision} / {status.appliedRevision === "0"
-              ? "未知"
+              ? m.relay_unknown()
               : status.appliedRevision}
           </dd>
-          <dt class="text-muted-foreground">TCP 算法</dt>
-          <dd>{relayDiagnostic(status.tcpAlgorithm) || "unknown"}</dd>
+          <dt class="text-muted-foreground">{m.relay_tcp_algorithm()}</dt>
+          <dd>{relayDiagnostic(status.tcpAlgorithm) || m.relay_unknown()}</dd>
         </dl>
         <p class="text-xs text-muted-foreground">
-          仅展示当前分配，不授予节点管理权限。每条流可能使用不同路径，单个会话状态不代表整个宿主。
+          {m.relay_assignment_disclaimer()}
         </p>
       </details>
     {/if}
     {#if view.error}<InlineNotice tone="danger">{view.error}</InlineNotice>{/if}
     {#if view.notice}<InlineNotice>{view.notice}</InlineNotice>{/if}
     <Button variant="outline" onclick={onrefresh} disabled={blocked}
-      >刷新 Relay 状态</Button
+      >{m.relay_refresh()}</Button
     >
   </Card.Content>
 </Card.Root>
@@ -306,24 +316,23 @@
       <AlertDialog.Title>{confirmTitle}</AlertDialog.Title>
       <AlertDialog.Description>
         {#if confirmation === "pair" || confirmation === "rebind" || confirmation === "enable"}
-          Relay 终止 TLS，能够读取转发内容，并作为登录信任方授权远程
-          Shell。这不是端到端加密。仅信任已配置的控制服务，不向其提交恢复
-          Token。
-          {#if confirmation === "rebind"}重新绑定将撤销旧密钥和登录访问，保留固定公共地址。{/if}
+          {m.relay_consent()}
+          {#if confirmation === "rebind"}{m.relay_rebind_consent()}{/if}
         {:else if confirmation === "delete"}
-          先停止访问，远端确认撤销后才删除本地绑定。无法确认时会保留绑定供显式重试。
+          {m.relay_delete_consent()}
         {:else}
-          此操作会断开当前 Relay
-          入口及其派生登录与优化连接；持久终端进程不会退出。当前公网页面可能失去连接。
+          {m.relay_disconnect_consent()}
         {/if}
       </AlertDialog.Description>
     </AlertDialog.Header>
     <AlertDialog.Footer>
-      <AlertDialog.Cancel>取消</AlertDialog.Cancel>
+      <AlertDialog.Cancel>{m.s1_cancel()}</AlertDialog.Cancel>
       <Button
         variant={confirmation === "delete" ? "destructive" : "default"}
         onclick={confirm}
-        >确认{confirmation === "enable" ? "启用" : "操作"}</Button
+        >{confirmation === "enable"
+          ? m.relay_confirm_enable_action()
+          : m.relay_confirm_action()}</Button
       >
     </AlertDialog.Footer>
   </AlertDialog.Content>

@@ -39,38 +39,64 @@ func (c Client) actionTools() []mcpprotocol.Tool {
 		delete(create, "useInitInstruction")
 	}
 	if !c.hasCapability("chat.acp") {
-		create["view"] = enumeration("terminal")
+		create["view"] = desc(enumeration("terminal"), "Initial view; only terminal is available on this instance.")
 		delete(create, "agentConfig")
 		delete(create, "permissionMode")
 	}
 	if !c.hasCapability("files.upload") {
 		delete(create, "attachments")
 	}
-	input := map[string]any{"clientRequestId": text(), "text": text(), "submit": boolean(), "keys": stringsArray()}
+	input := map[string]any{
+		"clientRequestId": requestIDSchema(),
+		"text":            desc(text(), "Terminal view: characters typed as one submission; add submit to include Enter. Chat view: the prompt text."),
+		"submit":          desc(boolean(), "Terminal view only (the CLI's --enter): append the Enter key to text in the same submission. Text without submit stays on the input line without running. Ignored on the chat view."),
+		"keys":            desc(stringsArray(), "Terminal view only (the CLI's --key): named keys sent after the text — backspace, ctrl-c, ctrl-d, down, enter, esc, left, right, tab, up. Rejected with wrong_view on the chat view."),
+	}
 	if c.hasCapability("chat.acp") {
-		input["mode"] = enumeration("auto", "steer", "refuse", "now")
+		input["mode"] = desc(enumeration("auto", "steer", "refuse", "now"), "Chat view only (the CLI's --mode): auto (send now or queue, the default), steer (inject into the running turn), refuse (fail busy instead of queueing) or now (cancel the running turn and send next).")
 	}
 	if c.hasCapability("files.upload") {
-		input["attachments"] = attachmentSchema()
+		input["attachments"] = desc(attachmentSchema(), "Chat view only (the CLI's --attach-file): uploaded file references ({path}) sent with the prompt.")
 	}
 	return []mcpprotocol.Tool{
 		tool("session_launch", "Create a session, optionally using the instance's enabled launch/workspace/chat capabilities. Requires a stable clientRequestId; retry the identical request after a lost response. Creation is deduplicated by the server for ten minutes, in memory only. Partial failures retain created resources.", false, create, []string{"clientRequestId"}, c.launch),
-		tool("session_send", "Send input through the current session view. Reuse clientRequestId on retries. Chat returns turnId or queued itemId; terminal acceptance does not prove execution or completion. Read state before sending.", false, map[string]any{
-			"sessionId": text(), "request": object(input, "clientRequestId", "text"),
+		tool("session_send", "Send input through the current session view: typed text on the terminal view, a prompt on the chat view. Reuse clientRequestId on retries. Chat returns turnId or queued itemId; terminal acceptance does not prove execution or completion. Read state before sending.", false, map[string]any{
+			"sessionId": sessionIDSchema(), "request": desc(object(input, "clientRequestId", "text"), "Same shape as the body of POST /api/sessions/{id}/input."),
 		}, []string{"sessionId", "request"}, c.send),
-		tool("session_interrupt", "Interrupt the current chat turn or send the terminal interrupt key. Does not delete the session or its history. Reuse clientRequestId on retries.", false, map[string]any{"sessionId": text(), "clientRequestId": text()}, []string{"sessionId", "clientRequestId"}, c.interrupt),
+		tool("session_interrupt", "Interrupt the current chat turn or send the terminal interrupt key. Does not delete the session or its history. Reuse clientRequestId on retries.", false, map[string]any{
+			"sessionId": sessionIDSchema(), "clientRequestId": requestIDSchema(),
+		}, []string{"sessionId", "clientRequestId"}, c.interrupt),
 	}
+}
+func sessionIDSchema() map[string]any {
+	return desc(text(), "Session id, for example from session_list or session_launch.")
+}
+func requestIDSchema() map[string]any {
+	return desc(text(), "Stable request id, 8-64 letters, digits, - or _. Reuse it verbatim when retrying a lost response; generate a new one for a new operation.")
 }
 func attachmentSchema() map[string]any {
 	return map[string]any{"type": "array", "items": object(map[string]any{"path": text(), "name": text(), "mimeType": text(), "kind": text(), "size": integer(0, 1<<30)}, "path")}
 }
 func createProperties() map[string]any {
 	return map[string]any{
-		"clientRequestId": text(), "configId": text(), "cmd": stringsArray(), "env": stringMap(), "cwd": text(), "name": text(),
-		"workspace":   object(map[string]any{"repositoryId": text(), "worktreeId": text()}, "repositoryId", "worktreeId"),
-		"newWorktree": object(map[string]any{"repositoryId": text(), "mode": enumeration("new", "existing"), "branch": text(), "base": text(), "path": text()}, "repositoryId", "mode"),
-		"labels":      stringMap(), "view": enumeration("terminal", "chat"), "prompt": text(), "useInitInstruction": boolean(), "expandPrompt": boolean(),
-		"attachments": attachmentSchema(), "agentConfig": stringMap(), "permissionMode": enumeration("ask", "auto"), "cols": integer(1, 1000), "rows": integer(1, 1000),
+		"clientRequestId":    requestIDSchema(),
+		"configId":           desc(text(), "Saved launch configuration id from capabilities launchConfigs; mutually exclusive with cmd."),
+		"cmd":                desc(stringsArray(), "Full argv for the process; mutually exclusive with configId."),
+		"env":                desc(stringMap(), "Extra environment variables."),
+		"cwd":                desc(text(), "Working directory."),
+		"name":               desc(text(), "Display name."),
+		"workspace":          desc(object(map[string]any{"repositoryId": text(), "worktreeId": text()}, "repositoryId", "worktreeId"), "Run in an existing worktree."),
+		"newWorktree":        desc(object(map[string]any{"repositoryId": text(), "mode": enumeration("new", "existing"), "branch": text(), "base": text(), "path": text()}, "repositoryId", "mode"), "Create or reuse a worktree: repositoryId, mode new or existing, plus optional branch, base and path."),
+		"labels":             desc(stringMap(), "Session labels."),
+		"view":               desc(enumeration("terminal", "chat"), "Initial view; chat requires a chat-capable launch."),
+		"prompt":             desc(text(), "Initial input after launch: a prompt on the chat view or a submitted line on the terminal view."),
+		"useInitInstruction": desc(boolean(), "Send the repository's init instruction as the initial prompt."),
+		"expandPrompt":       desc(boolean(), "Expand placeholders such as {{webmux}} in prompt."),
+		"attachments":        desc(attachmentSchema(), "Uploaded file references ({path}) sent with the initial prompt; on the terminal view they are appended to the typed line as path text."),
+		"agentConfig":        desc(stringMap(), "Per-agent option overrides, chosen from the agent's declared settings."),
+		"permissionMode":     desc(enumeration("ask", "auto"), "How the agent's permission requests are handled."),
+		"cols":               desc(integer(1, 1000), "Initial terminal width."),
+		"rows":               desc(integer(1, 1000), "Initial terminal height."),
 	}
 }
 

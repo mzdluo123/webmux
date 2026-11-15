@@ -4,6 +4,7 @@ import {
   expectConnected,
   expectTerminalLine,
   runCommand,
+  toggleCode,
 } from "./fixtures";
 
 test.use({ plugins: ["code"] });
@@ -34,8 +35,9 @@ test("a failed code chunk leaves the PTY usable and a page reload restores the p
   await reload.click();
   await expectConnected(page);
   await expect(reload).not.toBeVisible();
+  await toggleCode(page);
   await expect(
-    page.getByRole("button", { name: "代码", exact: true }),
+    page.getByRole("region", { name: "代码工作区", exact: true }),
   ).toBeVisible();
   await expectTerminalLine(page, "CHUNK_FAILURE_CORE_OK");
   await expect(page).toHaveURL(new RegExp(`/s/${session.id}$`));

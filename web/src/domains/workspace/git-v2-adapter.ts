@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type {
   GitCommitPreview,
   GitCommitResult,
@@ -69,16 +70,23 @@ export function mapCommitPreviewAdvancedFields(
 }
 
 function formatCommitOutcomeSummary(result: GitCommitResult): string {
-  const actionLabel = result.amended ? "已修正提交 (Amend)" : "已提交";
+  const oid = result.commitOid?.slice(0, 7) ?? "";
   if (result.outcome === "matched") {
-    return `${actionLabel} ${result.commitOid?.slice(0, 7) ?? ""}${result.subject ? `：${result.subject}` : ""}`;
+    if (result.amended) {
+      return result.subject
+        ? m.s7_v2_amended_with_subject({ oid, subject: result.subject })
+        : m.s7_v2_amended({ oid });
+    }
+    return result.subject
+      ? m.s7_op_committed_with_subject({ oid, subject: result.subject })
+      : m.s7_op_committed({ oid });
   }
   if (result.outcome === "needs_review") {
     return result.amended
-      ? "修正提交已完成，但钩子改写了最终树或身份，请复核提交详情。"
-      : "提交已完成，但钩子改写了最终树，请复核提交详情。";
+      ? m.s7_v2_amend_needs_review()
+      : m.s7_v2_commit_needs_review();
   }
-  return "提交结果未能在预期时间内确认，请刷新历史与暂存区核实。";
+  return m.s7_v2_commit_uncertain();
 }
 
 export function mapV2CommitResultResponse(
@@ -107,7 +115,7 @@ export function validateAuthorOverrideInput(raw: string): {
   if (!match) {
     return {
       valid: false,
-      error: "请使用 Name <email@example.com> 格式填写作者身份",
+      error: m.s7_author_override_invalid_format(),
     };
   }
   const name = (match[1] ?? "").trim();
@@ -115,13 +123,13 @@ export function validateAuthorOverrideInput(raw: string): {
   if (!name || !email) {
     return {
       valid: false,
-      error: "作者姓名与邮箱均不能为空",
+      error: m.s7_author_override_empty_fields(),
     };
   }
   if (name.startsWith("-") || email.startsWith("-")) {
     return {
       valid: false,
-      error: "作者姓名或邮箱不能以连字符 (-) 开头",
+      error: m.s7_author_override_leading_hyphen(),
     };
   }
   return { valid: true, error: "" };

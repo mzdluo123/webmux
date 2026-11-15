@@ -35,6 +35,7 @@
 ## 应用外壳与导航
 
 - [app-shell](../openspec/specs/app-shell/spec.md)：首页、快速开始页与会话页共用的侧栏布局与模式切换
+- [web-i18n](../openspec/specs/web-i18n/spec.md)：网页前端中英文国际化、本机语言偏好与无刷新即时切换
 - [chat-sidebar](../openspec/specs/chat-sidebar/spec.md)：聊天模式侧栏中的聊天历史
 - [workbench-navigation](../openspec/specs/workbench-navigation/spec.md)：工作台侧栏的“仓库 → worktree → 会话”导航树
 - [quick-start-chat](../openspec/specs/quick-start-chat/spec.md)：一次发送即在新 worktree 中启动聊天会话

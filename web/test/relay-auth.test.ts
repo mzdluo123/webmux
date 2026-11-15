@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { api } from "../src/platform/api";
 import { NoContentSchema } from "../src/contracts/schemas";
 import {
@@ -12,6 +12,11 @@ import {
   relayEndpoint,
 } from "../src/domains/settings/relay-diagnostics";
 import { prepareHostAuthentication } from "../src/hooks/shared/host-authentication";
+import { locale } from "../src/lib/locale";
+import { RelayStatusSchema } from "../src/contracts/relay-schemas";
+import { m } from "$lib/paraglide/messages.js";
+
+beforeEach(() => locale.setPreference("zh-CN"));
 
 const ownerSession = () => ({
   authenticated: true,
@@ -22,6 +27,7 @@ afterEach(() => {
   clearRelayAuth();
   vi.unstubAllGlobals();
   vi.useRealTimers();
+  locale.setPreference("zh-CN");
 });
 
 test("late session discovery cannot restore a revoked owner grant", () => {
@@ -141,4 +147,28 @@ test("obsolete HTTPS bootstrap cannot restore owner auth or advance to health", 
   expect(await pending).toBe(false);
   expect(authenticationHeaders()).not.toHaveProperty("X-WebMux-CSRF");
   expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+test("Relay endpoint validation and safe diagnostics follow the current locale", () => {
+  const invalid = "https://192.0.2.1";
+  locale.setPreference("zh-CN");
+  const chineseIssue =
+    RelayStatusSchema.shape.publicUrl.safeParse(invalid).error?.issues[0]
+      ?.message;
+  const chineseReason = relayDiagnostic("authorization-revoked");
+  const chineseEndpoint = relayEndpoint(invalid);
+  locale.setPreference("en");
+  const englishIssue =
+    RelayStatusSchema.shape.publicUrl.safeParse(invalid).error?.issues[0]
+      ?.message;
+  expect(englishIssue).toBe(m.relay_invalid_public_origin());
+  expect(englishIssue).not.toBe(chineseIssue);
+  expect(relayDiagnostic("authorization-revoked")).toBe(m.relay_diag_revoked());
+  expect(relayDiagnostic("authorization-revoked")).not.toBe(chineseReason);
+  expect(relayEndpoint(invalid)).toBe(m.relay_endpoint_hidden());
+  expect(relayEndpoint(invalid)).not.toBe(chineseEndpoint);
+  expect(relayDiagnostic("token=do-not-display")).toBe(m.relay_diag_hidden());
+  expect(relayDiagnostic("token=do-not-display")).not.toContain(
+    "do-not-display",
+  );
 });

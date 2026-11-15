@@ -6,8 +6,7 @@ import {
   createShell,
   expect,
   expectConnected,
-  headerAction,
-  openPaneMenu,
+  openSplitPanel,
   recordInput,
   test,
 } from "./fixtures";
@@ -163,11 +162,11 @@ test("shortcut preserves Shell input and restores focus when dismissed", async (
   await expect(terminal).toBeFocused();
   expect(await readFile(recording, "utf8")).toBe("\x0b");
 
-  await (await headerAction(page, "快捷键")).click();
+  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
   await page.keyboard.press(keys!);
   await expect(dialog).toBeHidden();
   await expect(
-    page.getByRole("dialog", { name: "快捷键", exact: true }),
+    page.getByRole("menuitem", { name: "清屏", exact: true }),
   ).toBeVisible();
 });
 
@@ -178,8 +177,10 @@ test("a session already in a split activates its pane in place", async ({
 }) => {
   const original = await createShell(page, "Original pane", workDir);
   const target = await shell(request, { name: "Other pane", cwd: workDir });
-  await openPaneMenu(page);
-  await page.getByRole("menuitem", { name: "加入已有会话…" }).click();
+  await openSplitPanel(page);
+  await page
+    .getByRole("button", { name: "加入已有会话…", exact: true })
+    .click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: /Other pane/ })

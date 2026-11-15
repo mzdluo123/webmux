@@ -1,6 +1,8 @@
 <script lang="ts">
   import IconCloudDownload from "~icons/tabler/cloud-download";
   import IconLoader2 from "~icons/tabler/loader-2";
+  import { m } from "$lib/paraglide/messages.js";
+  import { locale } from "$lib/locale";
   import { Button } from "$lib/components/ui/button";
   import type { FetchResult } from "../../contracts/schemas";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -33,7 +35,9 @@
   } = $props();
 
   const fetchReasonId = $props.id();
-  const fetchLabel = $derived(fetching ? "正在获取远程" : "获取远程");
+  const fetchLabel = $derived(
+    fetching ? m.s8_fetching_remotes_aria() : m.s8_fetch_remotes(),
+  );
 </script>
 
 {#if mode === "actions"}
@@ -60,7 +64,7 @@
           <IconCloudDownload aria-hidden="true" />
         {/if}
         <span class="hidden sm:inline">
-          {fetching ? "正在获取…" : "获取远程"}
+          {fetching ? m.s8_fetching_short() : m.s8_fetch_remotes()}
         </span>
       </Button>
       {#if fetchBlocked}
@@ -71,17 +75,20 @@
 {:else}
   {#if refreshing}
     <p role="status" class="text-xs text-muted-foreground">
-      正在重新读取状态…（先显示上次读取的结果）
+      {m.s8_rereading_status_notice()}
     </p>
   {:else if refreshError}
     <InlineNotice tone="danger">
-      重新读取失败：{refreshError}。以下为 {new Date(
-        checkedAt,
-      ).toLocaleString()} 读取的状态，可能已过时。
+      {m.s8_reread_failed_notice({
+        error: refreshError,
+        time: new Date(checkedAt).toLocaleString(locale.current),
+      })}
     </InlineNotice>
   {/if}
   {#if fetchError}
-    <InlineNotice tone="danger">获取远程失败：{fetchError}</InlineNotice>
+    <InlineNotice tone="danger"
+      >{m.s8_fetch_remotes_failed({ error: fetchError })}</InlineNotice
+    >
   {:else if fetchResults}
     {@const tone =
       failedFetches === 0
@@ -90,13 +97,13 @@
           ? "danger"
           : "warning"}
     <InlineNotice {tone}>
-      <ul class="space-y-1" aria-label="获取结果">
+      <ul class="space-y-1" aria-label={m.s8_fetch_results_aria()}>
         {#each fetchResults as result (result.remote)}
           <li class="wrap-anywhere">
-            <span class="font-medium">{result.remote}</span>：{result.status ===
-            "ok"
-              ? "已获取"
-              : result.message || "获取失败"}
+            <span class="font-medium">{result.remote}</span
+            >{m.s8_colon_sep()}{result.status === "ok"
+              ? m.s8_fetch_status_ok()
+              : result.message || m.s8_fetch_status_failed()}
           </li>
         {/each}
       </ul>

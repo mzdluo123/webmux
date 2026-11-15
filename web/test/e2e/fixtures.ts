@@ -291,8 +291,8 @@ export async function backToList(page: Page) {
 }
 
 /**
- * Makes the sidebar's global entries (settings, theme, port forwarding)
- * reachable: phones keep them in the drawer.
+ * Makes global sidebar entries reachable, waiting for mobile drawer entry
+ * before consumers interact with its contents.
  */
 export async function revealSidebar(page: Page): Promise<boolean> {
   const open = page
@@ -310,13 +310,32 @@ export async function revealSidebar(page: Page): Promise<boolean> {
       async () => (await open.isVisible()) || (await navigation.isVisible()),
     )
     .toBe(true);
-  if (!(await open.isVisible())) return false;
+  let opened = false;
   // A closing drawer is still visible during its exit animation. Prefer
   // the trigger's open state rather than mistaking that for an open drawer.
-  if ((await open.getAttribute("aria-expanded")) === "true") return false;
-  await open.click();
+  if (
+    (await open.isVisible()) &&
+    (await open.getAttribute("aria-expanded")) !== "true"
+  ) {
+    await open.click();
+    opened = true;
+  }
   await expect(navigation).toBeVisible();
-  return true;
+  const drawer = page.getByRole("dialog", { name: "导航", exact: true });
+  if (await drawer.isVisible())
+    await expect
+      .poll(() =>
+        drawer.evaluate((node) =>
+          node
+            .getAnimations()
+            .some(
+              (animation) =>
+                animation.pending || animation.playState === "running",
+            ),
+        ),
+      )
+      .toBe(false);
+  return opened;
 }
 
 export async function chooseLaunch(page: Page, name: string) {
@@ -488,17 +507,28 @@ export async function recordInput(
   return path;
 }
 
-// The split button sits in the header from 640px up; on phones the same
-// actions are the terminal menu's "窗格" group. Opens whichever applies.
-export async function openPaneMenu(scope: Locator | Page) {
-  const page = "viewportSize" in scope ? scope : scope.page();
-  if ((page.viewportSize()?.width ?? 1280) >= 640)
-    return scope.getByRole("button", { name: "分屏", exact: true }).click();
-  await scope.getByRole("button", { name: /^(终端|会话)菜单$/ }).click();
+// Split actions live in the session's side-panel picker on every viewport.
+export async function openSplitPanel(scope: Locator | Page) {
+  const picker = await openPanelPicker(scope);
+  await picker.getByRole("button", { name: "分屏", exact: true }).click();
 }
 
-// The header's code button: "代码" while the panel is closed, and "终端" while
-// it fills a narrow pane or a phone's screen (the name says where it goes).
-export function viewSwitch(scope: Locator | Page, name: "终端" | "代码") {
-  return scope.getByRole("button", { name, exact: true });
+async function openPanelPicker(scope: Locator | Page) {
+  const page = "viewportSize" in scope ? scope : scope.page();
+  await scope.getByRole("button", { name: "打开面板", exact: true }).click();
+  return page.getByRole("group", { name: "面板选择", exact: true });
+}
+
+export async function toggleCode(scope: Locator | Page) {
+  if (await scope.locator(".code-pane").isVisible()) {
+    await openPanelPicker(scope);
+    await scope
+      .getByRole("button", { name: "关闭侧栏面板", exact: true })
+      .click();
+  } else
+    await (
+      await openPanelPicker(scope)
+    )
+      .getByRole("button", { name: "代码", exact: true })
+      .click();
 }

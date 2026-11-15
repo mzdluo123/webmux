@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type {
   GitWorkbenchViewState,
@@ -88,8 +89,13 @@ export function createGitReworkController(bindings: GitReworkBindings) {
       mode = "rework";
       sheetOpen = true;
     } else {
+      const lines = `L${created.startLine}${created.endLine !== created.startLine ? `-L${created.endLine}` : ""}`;
       bindings.patchView({
-        statusBanner: `已加入审阅意见草稿箱：${created.path} (${created.versionLabel} L${created.startLine}${created.endLine !== created.startLine ? `-L${created.endLine}` : ""})`,
+        statusBanner: m.s7_rework_added_to_drafts({
+          path: created.path,
+          version: created.versionLabel,
+          lines,
+        }),
       });
     }
     return created;
@@ -220,8 +226,8 @@ export function createGitReworkController(bindings: GitReworkBindings) {
     bindings.patchView({
       statusBanner:
         mode === "commit-assist"
-          ? "已复制暂存摘要起草提示词。"
-          : "已复制结构化审阅意见 Markdown。",
+          ? m.s7_rework_copied_commit_assist()
+          : m.s7_rework_copied_markdown(),
     });
   }
 

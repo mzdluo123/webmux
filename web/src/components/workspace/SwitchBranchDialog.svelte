@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { worktreeTitle } from "../../domains/workspace/home-worktrees";
   import type { WorktreePreset } from "../../domains/sessions/worktree-preset";
   import type { Repository, Worktree } from "../../contracts/schemas";
@@ -42,9 +43,9 @@
 </script>
 
 <ResponsiveDialog
-  title={`切换分支：${worktreeTitle(worktree)}`}
-  description="在原位切换这个工作树的分支；有未提交修改时可通过受控贮藏 Smart Checkout 携带切换，运行中的会话不会被关闭。"
-  drawerDescription="原位切换分支；会话不会被关闭。"
+  title={m.s8_switch_branch_heading({ title: worktreeTitle(worktree) })}
+  description={m.s8_switch_dialog_desc()}
+  drawerDescription={m.s8_switch_dialog_drawer_desc()}
   truncateDrawerTitle
   {busy}
   {onclose}

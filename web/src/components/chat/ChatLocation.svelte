@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { onMount } from "svelte";
   import IconBook2 from "~icons/tabler/book-2";
   import IconFolder from "~icons/tabler/folder";
@@ -33,7 +34,9 @@
   );
   const branch = $derived(
     worktree?.branch ??
-      (worktree?.head ? `${worktree.head.slice(0, 7)}（分离）` : ""),
+      (worktree?.head
+        ? m.s3_location_detached_head({ head: worktree.head.slice(0, 7) })
+        : ""),
   );
   function baseName(path: string) {
     return path.split("/").filter(Boolean).at(-1) ?? path;
@@ -46,29 +49,33 @@
     className,
   ]}
   role="group"
-  aria-label="会话位置"
+  aria-label={m.s3_session_location_label()}
 >
   {#if workspace}
     <span
       class="flex h-6 min-w-0 items-center gap-1 px-2"
-      title={`仓库：${repositoryName}（创建后不可更改）`}
-      ><IconBook2 aria-hidden="true" /><span class="sr-only">仓库：</span><span
-        class="truncate">{repositoryName}</span
-      ></span
+      title={m.s3_location_repo_fixed_title({ name: repositoryName })}
+      ><IconBook2 aria-hidden="true" /><span class="sr-only"
+        >{m.s3_location_repo_sr()}</span
+      ><span class="truncate">{repositoryName}</span></span
     >
     {#if branch}<span
         class="flex h-6 min-w-0 items-center gap-1 px-2"
-        title={`分支：${branch}（${workspace.worktreePath}）`}
-        ><IconGitBranch aria-hidden="true" /><span class="sr-only">分支：</span
+        title={m.s3_location_branch_title({
+          branch,
+          path: workspace.worktreePath,
+        })}
+        ><IconGitBranch aria-hidden="true" /><span class="sr-only"
+          >{m.s3_location_branch_sr()}</span
         ><span class="truncate">{branch}</span></span
       >{/if}
   {:else}
     <span
       class="flex h-6 min-w-0 items-center gap-1 px-2"
-      title={`目录：${cwd}（创建后不可更改）`}
-      ><IconFolder aria-hidden="true" /><span class="sr-only">目录：</span><span
-        class="truncate">{baseName(cwd)}</span
-      ></span
+      title={m.s3_location_dir_fixed_title({ cwd })}
+      ><IconFolder aria-hidden="true" /><span class="sr-only"
+        >{m.s3_location_dir_sr()}</span
+      ><span class="truncate">{baseName(cwd)}</span></span
     >
   {/if}
 </div>

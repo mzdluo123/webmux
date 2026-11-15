@@ -1,5 +1,6 @@
 import { errorMessage } from "../../platform/error";
 import { onMount } from "svelte";
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { LatestRequest } from "../shared/remote-request.svelte";
 import {
@@ -12,7 +13,6 @@ import {
 // Applying a Tailscale entry runs several CLI calls on the server; poll only
 // while the controller reports "starting" so an idle page spawns no probes.
 const STARTING_POLL_MS = 1500;
-const APPLYING = "已保存，正在应用 Tailscale 设置。";
 
 /** Reactive view of the Tailscale settings page; mutate only via the hook. */
 export interface TailscaleSettingsState {
@@ -36,6 +36,7 @@ export function useTailscaleSettings() {
   });
   const requests = new LatestRequest();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let applyingNotice = false;
 
   // Every response supersedes older ones.
   async function exchange(
@@ -65,7 +66,10 @@ export function useTailscaleSettings() {
         state.loading = false;
         if (state.view?.state === "starting")
           timer = setTimeout(() => void load(), STARTING_POLL_MS);
-        else if (state.notice === APPLYING) state.notice = "设置已应用。";
+        else if (applyingNotice) {
+          applyingNotice = false;
+          state.notice = m.s2_tailscale_notice_applied();
+        }
       }
     }
   }
@@ -83,12 +87,16 @@ export function useTailscaleSettings() {
   async function mutate(method: "PUT" | "DELETE", body?: unknown) {
     if (state.busy || requests.disposed) return false;
     state.busy = true;
+    applyingNotice = false;
     state.notice = "";
     try {
       const next = await exchange("/tailscale/settings", method, body);
       if (!next) return false;
       state.editVersion++;
-      state.notice = next.state === "starting" ? APPLYING : "设置已保存。";
+      applyingNotice = next.state === "starting";
+      state.notice = applyingNotice
+        ? m.s2_tailscale_notice_applying()
+        : m.s2_tailscale_notice_saved();
       return true;
     } catch {
       return false;

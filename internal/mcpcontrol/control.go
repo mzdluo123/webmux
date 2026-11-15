@@ -57,10 +57,16 @@ func (c Client) tools() []mcpprotocol.Tool {
 	return append(append(append(append(c.actionTools(), c.readTools()...), c.waitTools()...), c.guideTools()...), []mcpprotocol.Tool{
 		tool("capabilities", "List this instance's supported views, available launch configurations and control tools. Does not start an agent or probe authentication.", true, map[string]any{}, nil, c.capabilities),
 		tool("session_list", "List sessions with bounded pagination; optionally filter by state, parent, repository or status.", true, map[string]any{
-			"state": enumeration("active", "closed", "interrupted", "archived", "all"), "parentId": text(), "repositoryId": text(), "status": enumeration("running", "waiting", "idle", "exited"),
-			"offset": integer(0, 100000), "limit": integer(1, 100),
+			"state":        desc(enumeration("active", "closed", "interrupted", "archived", "all"), "Lifecycle filter (default active)."),
+			"parentId":     desc(text(), "Only sessions created by this session id."),
+			"repositoryId": desc(text(), "Only sessions attached to a worktree of this repository."),
+			"status":       desc(enumeration("running", "waiting", "idle", "exited"), "Run-state filter."),
+			"offset":       desc(integer(0, 100000), "Start index into the filtered list (default 0)."),
+			"limit":        desc(integer(1, 100), "Page size (default 20)."),
 		}, nil, c.list),
-		tool("session_get", "Read session metadata and its browser link, including parent, children and worktree. Does not read output or environment values.", true, map[string]any{"sessionId": text()}, []string{"sessionId"}, c.get),
+		tool("session_get", "Read session metadata and its browser link, including parent, children and worktree. Does not read output or environment values.", true, map[string]any{
+			"sessionId": desc(text(), "Session id, for example from session_list or session_launch."),
+		}, []string{"sessionId"}, c.get),
 	}...)
 }
 
@@ -75,6 +81,14 @@ func tool(name, description string, readOnly bool, properties map[string]any, re
 	}, Call: call}
 }
 func text() map[string]any { return map[string]any{"type": "string"} }
+
+// desc adds a field description to a property schema so callers do not
+// have to guess a parameter's meaning from its name.
+func desc(schema map[string]any, description string) map[string]any {
+	schema["description"] = description
+	return schema
+}
+
 func enumeration(values ...string) map[string]any {
 	return map[string]any{"type": "string", "enum": values}
 }

@@ -501,9 +501,15 @@ test("API-created 2D owner can enter XR before its delayed create event or recon
   await attach(a);
   await page
     .getByRole("region", { name: "终端窗格 1", exact: true })
+    .getByRole("button", { name: "打开面板", exact: true })
+    .click();
+  await page
+    .getByRole("group", { name: "面板选择", exact: true })
     .getByRole("button", { name: "分屏", exact: true })
     .click();
-  await page.getByRole("menuitem", { name: /左右分屏 · 新建 Shell/ }).click();
+  await page
+    .getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true })
+    .click();
   const terminal = await socketAt(`/ws/s/${created.id}`);
   terminal.binary(2, created);
   await expect

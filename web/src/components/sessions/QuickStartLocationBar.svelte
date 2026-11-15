@@ -6,6 +6,7 @@
   import * as Command from "$lib/components/ui/command";
   import * as Popover from "$lib/components/ui/popover";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import { m } from "$lib/paraglide/messages.js";
   import { api } from "../../platform/api";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
   import ChatSelect from "../chat/ChatSelect.svelte";
@@ -149,18 +150,18 @@
     compact && "composer-mobile:hidden",
   ]}
   role="toolbar"
-  aria-label="仓库与分支"
+  aria-label={m.s3_qs_repo_and_branch_label()}
 >
   <ChatSelect
     labeled
-    name="仓库"
+    name={m.s3_repository_label()}
     value={repository?.id ?? ""}
     choices={repositories.map((repo) => ({
       value: repo.id,
       name: repo.name,
       reason: usableRepository(repo)
         ? undefined
-        : repo.error || "仓库当前不可用",
+        : repo.error || m.s3_repo_currently_unavailable(),
     }))}
     disabled={sending}
     onchange={onrepositorychange}
@@ -178,15 +179,18 @@
         <QuietTrigger
           {props}
           label={targetMode === "existing"
-            ? `工作树：${treeLabel}`
-            : `基准分支：${baseName}`}
+            ? m.s3_qs_worktree_value({ label: treeLabel })
+            : m.s3_qs_base_branch_value({ branch: baseName })}
           title={targetMode === "existing"
             ? selectedWorktree
-              ? `工作树：${treeLabel}（${selectedWorktree.path}）`
-              : "工作树"
+              ? m.s3_qs_worktree_title_full({
+                  label: treeLabel,
+                  path: selectedWorktree.path,
+                })
+              : m.s3_worktree_label()
             : baseName
-              ? `基准分支：${baseName}（发送后新建 worktree）`
-              : "基准分支"}
+              ? m.s3_qs_base_branch_title_full({ branch: baseName })
+              : m.s3_base_branch_label()}
           text={targetMode === "existing" ? treeLabel : baseName}
         >
           {#snippet icon()}{#if targetMode === "existing"}<IconGitBranch
@@ -204,22 +208,22 @@
             else if (next === "existing" && defaultWorktree)
               ontargetmodechange("existing");
           }}
-          aria-label="工作树方式"
+          aria-label={m.s3_qs_worktree_mode_label()}
           class="w-full"
         >
           <SegmentedControl.Item value="new" disabled={sending}
-            >新建 worktree</SegmentedControl.Item
+            >{m.s3_qs_new_worktree_tab()}</SegmentedControl.Item
           >
           <SegmentedControl.Item
             value="existing"
             disabled={sending || !defaultWorktree}
-            >已有工作树</SegmentedControl.Item
+            >{m.s3_qs_existing_worktree_tab()}</SegmentedControl.Item
           >
         </SegmentedControl.Root>
       </div>
       {#if targetMode === "existing"}
         <Command.Root
-          label="工作树"
+          label={m.s3_worktree_label()}
           class="h-auto min-w-0"
           filter={(value, query, keywords) =>
             [value, ...(keywords ?? [])].some((item) =>
@@ -231,18 +235,18 @@
         >
           <Command.Input
             bind:value={worktreeSearch}
-            placeholder="搜索工作树…"
-            aria-label="搜索工作树"
+            placeholder={m.s3_search_worktrees_placeholder()}
+            aria-label={m.s3_search_worktrees_label()}
             autocomplete="off"
             autocapitalize="off"
             autocorrect="off"
             spellcheck={false}
           />
           <Command.List
-            aria-label="工作树列表"
+            aria-label={m.s3_worktree_list_label()}
             class="max-h-[min(14rem,50dvh)] p-1"
           >
-            <Command.Empty>没有匹配的工作树</Command.Empty>
+            <Command.Empty>{m.s3_no_matching_worktrees()}</Command.Empty>
             {#each worktrees as tree (tree.id)}
               {@const label = worktreeLabel(tree)}
               {@const usable = selectableWorktree(tree)}
@@ -262,7 +266,9 @@
                 />
                 <ChoiceDetails
                   primary={label}
-                  secondary={usable ? tree.path : tree.error || "工作树不可用"}
+                  secondary={usable
+                    ? tree.path
+                    : tree.error || m.s3_worktree_unavailable()}
                 />
               </Command.Item>
             {/each}
@@ -270,7 +276,7 @@
         </Command.Root>
       {:else}
         <BranchCommandList
-          label="基准分支"
+          label={m.s3_base_branch_label()}
           branches={localBranches}
           {remoteBranches}
           selected={baseName}

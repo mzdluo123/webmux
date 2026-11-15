@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { RepositoriesSchema } from "../../contracts/schemas";
 import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
@@ -29,5 +30,11 @@ export const pages = {
   sessions: () => import("../../pages/WorkspaceSessionList.svelte"),
 };
 export const navigation = [
-  { id: "workspace.home", label: "工作区", href: "/" },
+  {
+    id: "workspace.home",
+    get label() {
+      return m.s1_workspace();
+    },
+    href: "/",
+  },
 ];

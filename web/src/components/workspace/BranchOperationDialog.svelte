@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import {
     operationTitle,
     type BranchOperation,
@@ -24,11 +25,11 @@
     onclose: () => void;
   } = $props();
   let busy = $state(false);
-  const descriptions: Record<BranchOperation["kind"], string> = {
-    "fast-forward": "按本机的远程跟踪分支快进，不访问网络，不产生合并提交。",
-    push: "推送预览中的提交，不强制推送，不推送标签。",
-    delete: "只删除本地分支，不删除远端分支。",
-  };
+  const descriptions: Record<BranchOperation["kind"], string> = $derived({
+    "fast-forward": m.s8_op_desc_fast_forward(),
+    push: m.s8_op_desc_push(),
+    delete: m.s8_op_desc_delete(),
+  });
 </script>
 
 <ResponsiveDialog

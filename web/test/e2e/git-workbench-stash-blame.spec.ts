@@ -8,7 +8,7 @@ import {
   expectTerminalLine,
   runCommand,
   test,
-  viewSwitch,
+  toggleCode,
 } from "./fixtures";
 
 function git(
@@ -571,7 +571,7 @@ test("inspects --follow file history across rename, line-level Blame with parent
   await createShell(page, "Blame shell", mainPath);
   await runCommand(page, "printf 'blame-shell-ready\\n'");
   await expectTerminalLine(page, "blame-shell-ready");
-  await viewSwitch(page.locator(".terminal-header"), "代码").click();
+  await toggleCode(page);
   await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
   await page.getByRole("button", { name: /^core-service\.ts(?: |$)/ }).click();
   await expect(

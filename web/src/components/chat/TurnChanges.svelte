@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SvelteMap } from "svelte/reactivity";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ChatContent } from "../../contracts/schemas";
   import { diffStats } from "../../domains/chat/chat-model";
   import DiffCount from "./DiffCount.svelte";
@@ -41,8 +42,10 @@
 </script>
 
 <ChatDisclosure>
-  {#snippet summary()}本轮改动 · {byFile.size} 个文件{/snippet}
-  <p class="text-xs">根据 Agent 在本轮报告的工具改动。</p>
+  {#snippet summary()}{m.s3_turn_changes_summary({
+      count: String(byFile.size),
+    })}{/snippet}
+  <p class="text-xs">{m.s3_turn_changes_desc()}</p>
   <ul>
     {#each files as { path, patches, hasLineStats, stats } (path)}
       <li>
@@ -61,7 +64,10 @@
         {#if selectedPath === path}
           {#each patches as patch, i (i)}
             {#if patches.length > 1}<p class="text-xs text-muted-foreground">
-                片段 {i + 1} / {patches.length}
+                {m.s3_turn_patch_index({
+                  current: String(i + 1),
+                  total: String(patches.length),
+                })}
               </p>{/if}
             <TurnPatch {patch} />
           {/each}

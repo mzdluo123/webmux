@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     command = $bindable(""),
@@ -16,22 +17,23 @@
 </script>
 
 <div class="space-y-2">
-  {#if showLabel}<Label for="custom-command">自定义启动命令</Label>{/if}
+  {#if showLabel}<Label for="custom-command">{m.s3_custom_launch_cmd()}</Label
+    >{/if}
   <Input
     id="custom-command"
-    aria-label="自定义启动命令"
+    aria-label={m.s3_custom_launch_cmd()}
     aria-describedby="custom-command-help"
     bind:value={command}
     {disabled}
     {oninput}
     mono
-    placeholder="agent --resume 或 bash -lc 'npm run dev'"
+    placeholder={m.s3_custom_cmd_placeholder()}
     autocomplete="off"
     autocapitalize="off"
     autocorrect="off"
     spellcheck={false}
   />
   <p id="custom-command-help" class="text-xs text-muted-foreground">
-    直接执行，不展开变量或管道；需要 shell 语法请用 bash -lc '命令'。
+    {m.s3_custom_cmd_help()}
   </p>
 </div>

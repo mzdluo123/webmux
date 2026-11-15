@@ -10,7 +10,7 @@ import {
   openSessionLink,
   expectTerminalLine,
   expectConnected,
-  viewSwitch,
+  toggleCode,
   backToList,
   revealSidebar,
 } from "../e2e/fixtures";
@@ -361,7 +361,7 @@ test("4x CPU: settings and a large code file stay usable and stable", async ({
     ).join("\n"),
   );
   await createShell(page, "Code CPU 4x", workDir);
-  await viewSwitch(page.locator(".terminal-header"), "代码").click();
+  await toggleCode(page);
   await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
   await page.getByRole("button", { name: "large.ts", exact: true }).click();
   await expect(

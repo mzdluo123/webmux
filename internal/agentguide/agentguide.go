@@ -121,7 +121,7 @@ func (g Guide) Page(name string) (string, bool) {
 		var text strings.Builder
 		capacity := len(data) + len(rule) + len("\n## 共用操作语义\n\n\n")
 		if name == "sessions" {
-			capacity += len(operationRules) + 2
+			capacity += len(inputRules) + len(operationRules) + 4
 		}
 		text.Grow(capacity)
 		text.Write(data)
@@ -130,6 +130,8 @@ func (g Guide) Page(name string) (string, bool) {
 		text.WriteByte('\n')
 		if name == "sessions" {
 			text.WriteByte('\n')
+			text.WriteString(inputRules)
+			text.WriteString("\n\n")
 			text.WriteString(operationRules)
 			text.WriteByte('\n')
 		}

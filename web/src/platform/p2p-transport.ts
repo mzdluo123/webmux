@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import {
   P2P_CHUNK_BYTES,
   StreamFrameReassembler,
@@ -265,10 +266,16 @@ export function createP2PTransport(
     },
     async upload(request): Promise<UploadResult> {
       if (options.interactiveOnly) return fallback.upload(request);
-      request.signal.throwIfAborted();
-      const headers = { Authorization: "Bearer " + request.token };
+      if (request.signal.aborted) {
+        throw new DOMException(m.s1_upload_cancelled(), "AbortError");
+      }
+      const headers: Record<string, string> = {
+        Authorization: "Bearer " + request.token,
+      };
       const body = await serializeBody(request.form, headers);
-      request.signal.throwIfAborted();
+      if (request.signal.aborted) {
+        throw new DOMException(m.s1_upload_cancelled(), "AbortError");
+      }
       const controller = new AbortController();
       let timedOut = false;
       const timer = setTimeout(() => {
@@ -301,9 +308,13 @@ export function createP2PTransport(
           body: parsed,
         };
       } catch {
-        if (request.signal.aborted)
-          throw new DOMException("上传已取消", "AbortError");
-        throw new TransportUploadError(timedOut ? "timeout" : "network");
+        if (request.signal.aborted) {
+          throw new DOMException(m.s1_upload_cancelled(), "AbortError");
+        }
+        if (timedOut) {
+          throw new TransportUploadError("timeout");
+        }
+        throw new TransportUploadError("network");
       } finally {
         clearTimeout(timer);
         request.signal.removeEventListener("abort", aborted);

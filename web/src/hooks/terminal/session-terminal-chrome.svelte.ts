@@ -25,6 +25,7 @@ import { keyboardSizeHold } from "./keyboard-size-hold-preference.svelte";
 import type { KeyboardVisibility } from "../shared/viewport.svelte";
 import { headsetMode } from "../shared/headset-mode.svelte";
 import { allowAutomaticInputFocus } from "../shared/input-focus";
+import { m } from "$lib/paraglide/messages.js";
 
 export function useSessionTerminalChrome(options: {
   id: () => string;
@@ -68,7 +69,10 @@ export function useSessionTerminalChrome(options: {
   let copyOpen = $state(false);
   let copyText = $state("");
   let pendingCopy = $state<string | null>(null);
+  // codeShown retains the workspace's sidebar visibility and persisted size
+  // contract; choosing another panel does not collapse that sidebar.
   let codeShown = $state(options.code?.codePanelState.shown() ?? false);
+  let panelView = $state<"picker" | "code" | "split">("code");
   $effect(() => options.code?.codePanelState.setShown(codeShown));
   let codeTarget = $state<CodeReveal>();
   let chatEditing = $state(false);
@@ -129,19 +133,26 @@ export function useSessionTerminalChrome(options: {
     void tick().then(() => options.fitTerminal());
   }
 
+  function showCode() {
+    panelView = "code";
+    codeShown = true;
+  }
+
   function review(path: string) {
     if (!options.code) return;
+    panelView = "code";
     if (!options.isCodePanelPoppedOut()) codeShown = true;
     codeTarget = { path, mode: "diff", key: (codeTarget?.key ?? 0) + 1 };
   }
 
   const openCodeLocation: ChatCodeLinkHandler = async (target) => {
-    if (!options.code) return "代码插件未启用";
+    if (!options.code) return m.s4_code_plugin_disabled();
     const failure = await options.code.checkRevealTarget(
       `/sessions/${options.id()}/code`,
       target,
     );
     if (failure) return failure;
+    panelView = "code";
     if (!options.isCodePanelPoppedOut()) codeShown = true;
     codeTarget = { ...target, mode: "file", key: (codeTarget?.key ?? 0) + 1 };
   };
@@ -273,6 +284,12 @@ export function useSessionTerminalChrome(options: {
     set codeShown(value: boolean) {
       codeShown = value;
     },
+    get panelView() {
+      return panelView;
+    },
+    set panelView(value: "picker" | "code" | "split") {
+      panelView = value;
+    },
     get codeTarget() {
       return codeTarget;
     },
@@ -293,11 +310,79 @@ export function useSessionTerminalChrome(options: {
     closeFind,
     restoreInputFocus,
     setSizeLocked,
+    showCode,
     review,
     openCodeLocation,
     copyToClipboard,
     copyPending,
     paste: () => pasteFromSessionClipboard(clipboardCtx),
     syncSessionEffects,
+  };
+}
+
+export function createSessionUploadHandlers(options: {
+  id: string;
+  draft: TerminalDraft;
+  drafts: TerminalDrafts;
+  isMounted: () => boolean;
+  isFilesAvailable: () => boolean;
+  insertText: (text: string, operation?: DraftOperation) => TextInsertion;
+  setError: (message: string) => void;
+  onUploadNotice: (message: string) => void;
+}) {
+  return {
+    uploadClipboardFiles(
+      getUploads: () =>
+        | {
+            uploadFiles: (
+              files: File[],
+              operation?: DraftOperation,
+            ) => Promise<void>;
+          }
+        | undefined,
+    ) {
+      return async (files: FileList | File[], operation?: DraftOperation) => {
+        const uploads = getUploads();
+        if (!uploads || !options.isFilesAvailable())
+          throw new Error(m.s4_file_upload_unavailable());
+        await uploads.uploadFiles(Array.from(files), operation);
+      };
+    },
+    sendChatFile<R>(
+      uploadFile: (
+        id: string,
+        file: File,
+        progress: (fraction: number) => void,
+        signal: AbortSignal,
+      ) => Promise<R>,
+    ) {
+      return (
+        file: File,
+        progress: (fraction: number) => void,
+        signal: AbortSignal,
+      ) => {
+        if (!options.isFilesAvailable())
+          return Promise.reject(new Error(m.s4_file_upload_unavailable()));
+        return uploadFile(options.id, file, progress, signal);
+      };
+    },
+    attachments: {
+      get: () => options.draft.attachments,
+      set: (next: TerminalDraft["attachments"]) =>
+        options.drafts.setAttachments(options.draft, next),
+    },
+    notifyUploadError(message: string) {
+      if (options.isMounted()) options.setError(message);
+      else if (message)
+        options.onUploadNotice(
+          m.s4_session_upload_notice({ id: options.id, message }),
+        );
+    },
+    draftBridge: {
+      begin: () => options.drafts.begin(options.draft),
+      destination: (operation?: DraftOperation) =>
+        options.drafts.destination(options.draft, operation),
+      insert: options.insertText,
+    },
   };
 }

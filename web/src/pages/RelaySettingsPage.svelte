@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import SettingsPageHeader from "../components/settings/SettingsPageHeader.svelte";
   import RelayManager from "../components/settings/RelayManager.svelte";
   import { setBrowserChrome } from "../platform/browser-chrome";
@@ -11,25 +11,25 @@
   import InlineNotice from "../components/shared/InlineNotice.svelte";
   import RelayPathStatus from "../components/settings/RelayPathStatus.svelte";
 
-  let logoutError = $state("");
+  let logoutFailed = $state(false);
   let loggingOut = $state(false);
   async function logout() {
     if (loggingOut) return;
     loggingOut = true;
-    logoutError = "";
+    logoutFailed = false;
     window.dispatchEvent(new Event("webmux:relay-revoked"));
     try {
       await api("/relay/auth/logout", NoContentSchema, "POST");
       clearRelayAuth();
       window.dispatchEvent(new Event("webmux:auth"));
     } catch {
-      logoutError = "无法确认注销，请重试；不要将本机退出视为控制台全局注销。";
+      logoutFailed = true;
     } finally {
       loggingOut = false;
     }
   }
-  onMount(() => {
-    setBrowserChrome("WebMux · 官方 Relay", false);
+  $effect(() => {
+    setBrowserChrome(m.relay_chrome_title(), false);
   });
 </script>
 
@@ -38,28 +38,27 @@
   <main class="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-8 sm:py-10">
     <div>
       <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
-        官方 Relay
+        {m.relay_title()}
       </h1>
       <p class="mt-2 text-sm text-muted-foreground">
-        GitHub 配对后，在其他设备登录同一账号的所有者控制台，即可打开在线
-        WebMux，无需复制 Token。
+        {m.relay_page_description()}
       </p>
     </div>
     <RelayManager />
     <RelayPathStatus />
     {#if relayAuth.authenticated}
-      <section class="space-y-3" aria-label="当前 Relay 登录">
-        <h2 class="text-base font-semibold">当前浏览器的 Relay 登录</h2>
+      <section class="space-y-3" aria-label={m.relay_login_aria()}>
+        <h2 class="text-base font-semibold">{m.relay_login_title()}</h2>
         <p class="text-sm text-muted-foreground">
-          注销只关闭当前宿主访问，不结束持久终端。控制台全局注销请在所有者控制台操作；GitHub
-          网站注销不等于 WebMux 注销。
+          {m.relay_logout_description()}
         </p>
         <Button
           variant="outline"
           disabled={loggingOut}
-          onclick={() => void logout()}>注销当前宿主登录</Button
+          onclick={() => void logout()}>{m.relay_logout()}</Button
         >
-        {#if logoutError}<InlineNotice tone="danger">{logoutError}</InlineNotice
+        {#if logoutFailed}<InlineNotice tone="danger"
+            >{m.relay_logout_error()}</InlineNotice
           >{/if}
       </section>
     {/if}

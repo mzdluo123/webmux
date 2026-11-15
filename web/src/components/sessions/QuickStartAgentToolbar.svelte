@@ -3,6 +3,7 @@
   import IconLoader2 from "~icons/tabler/loader-2";
   import IconMessage from "~icons/tabler/message";
   import IconTerminal2 from "~icons/tabler/terminal-2";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ConfigValue } from "../../platform/chat-api";
   import ChatConfig from "../chat/ChatConfig.svelte";
   import ChatPermissionMode from "../chat/ChatPermissionMode.svelte";
@@ -70,11 +71,11 @@
   <ChatSelect
     labeled
     {labelClass}
-    name="启动方式"
+    name={m.s3_launch_method_label()}
     value={startSide}
     choices={[
-      { value: "chat", name: "聊天" },
-      { value: "terminal", name: "终端" },
+      { value: "chat", name: m.s3_view_chat() },
+      { value: "terminal", name: m.s3_view_terminal() },
     ]}
     disabled={sending}
     onchange={(value) => {
@@ -108,7 +109,7 @@
     class="-my-1 flex min-w-0 items-center overflow-x-auto px-1 py-1 [scrollbar-width:none] composer-mobile:hidden"
     use:horizontalWheel
     role="toolbar"
-    aria-label="启动选项"
+    aria-label={m.s3_qs_launch_options_label()}
   >
     <div class="ms-auto flex shrink-0 items-center gap-0.5">
       {@render agentPicker()}
@@ -133,7 +134,7 @@
             ><IconLoader2
               class="size-3.5 animate-spin motion-reduce:animate-none"
               aria-hidden="true"
-            />正在读取配置…</span
+            />{m.s3_loading_config()}</span
           >
         {/if}
       {/if}

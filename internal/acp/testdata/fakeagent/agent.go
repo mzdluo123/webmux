@@ -697,6 +697,17 @@ func (a *agent) session(id string) *liveSession {
 	return a.live[id]
 }
 
+func (a *agent) saveTitle(id, title string) {
+	ls := a.session(id)
+	if ls == nil {
+		return
+	}
+	a.mu.Lock()
+	ls.data.Title = title
+	_ = a.st.save(ls.data)
+	a.mu.Unlock()
+}
+
 func (a *agent) list(p acp.ListSessionsRequest) (any, error) {
 	all, err := a.st.list(p.Cwd)
 	if err != nil {
@@ -857,10 +868,24 @@ func (a *agent) turn(ctx context.Context, sid, text, id string) (reply, stop str
 	}
 	if strings.Contains(text, "/title") {
 		title := "fake title"
+		a.saveTitle(sid, title)
 		a.update(sid, &acp.SessionInfoUpdate{Title: acp.StringPatch{Set: true, Value: &title}})
 	}
 	if strings.Contains(text, "/untitle") {
+		a.saveTitle(sid, "")
 		a.update(sid, &acp.SessionInfoUpdate{Title: acp.StringPatch{Set: true}})
+	}
+	if a.cfg.profile == "agy" && !strings.Contains(text, "/title") && !strings.Contains(text, "/untitle") {
+		if ls := a.session(sid); ls != nil {
+			a.mu.Lock()
+			untitled := ls.data.Title == ""
+			a.mu.Unlock()
+			if first := strings.TrimSpace(strings.Split(text, "\n")[0]); untitled && first != "" {
+				auto := "agy: " + first
+				a.saveTitle(sid, auto)
+				a.update(sid, &acp.SessionInfoUpdate{Title: acp.StringPatch{Set: true, Value: &auto}})
+			}
+		}
 	}
 	if strings.Contains(text, "/unknown") {
 		a.update(sid, &acp.UnknownUpdate{Kind: "future_kind", Raw: json.RawMessage(`{"sessionUpdate":"future_kind","x":1}`)})

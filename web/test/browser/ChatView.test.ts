@@ -597,6 +597,45 @@ test("a paused queue shows its prompts and continues or clears", async () => {
   await expect.element(queue).not.toBeInTheDocument();
 });
 
+test("a queue of long prompts scrolls inside a bounded list", async () => {
+  const socket = await open();
+  socket.frame(snapshot(chatState({ turn: { running: true } })));
+  const longPrompt = Array.from(
+    { length: 12 },
+    (_, line) => `第 ${line + 1} 段：详细说明排队消息里要做的改动。`,
+  ).join("\n\n");
+  socket.frame({
+    type: "state",
+    state: chatState({
+      turn: { running: true },
+      queue: {
+        paused: false,
+        items: [0, 1, 2, 3].map((i) => ({
+          id: `q${i}`,
+          text: `${i + 1}. ${longPrompt}`,
+          createdAt: `2026-10-28T00:00:0${i}Z`,
+        })),
+      },
+    }),
+  });
+  const queue = page.getByRole("region", { name: "排队的消息" });
+  const field = queue.getByRole("textbox", { name: "编辑排队消息 1" });
+  await expect.element(field).toBeVisible();
+  // Each prompt keeps editing but caps its own height; the list scrolls.
+  await expect
+    .poll(() => {
+      const box = field.element();
+      return box.scrollHeight > box.clientHeight;
+    })
+    .toBe(true);
+  const list = queue.locator("ol").element();
+  await expect.poll(() => list.scrollHeight > list.clientHeight).toBe(true);
+  expect(list.clientHeight).toBeLessThanOrEqual(256);
+  expect(queue.element().getBoundingClientRect().height).toBeLessThanOrEqual(
+    320,
+  );
+});
+
 const permission: ChatRequest = {
   requestId: "perm-1",
   kind: "permission",

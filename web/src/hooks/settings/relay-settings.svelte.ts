@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { onMount } from "svelte";
 import { api, APIError } from "../../platform/api";
 import { NoContentSchema } from "../../contracts/schemas";
@@ -24,35 +25,53 @@ export interface RelaySettingsView {
 }
 
 function failureMessage(cause: unknown) {
-  if (!(cause instanceof APIError)) return "无法连接宿主；请刷新重试。";
-  if (cause.notPersisted)
-    return "访问已停止，但关闭状态未持久化；修复存储后重新保存。";
+  if (cause === "expired") return m.relay_error_expired();
+  if (cause === "auth") return m.relay_error_auth();
+  if (!(cause instanceof APIError)) return m.relay_error_host();
+  if (cause.notPersisted) return m.relay_error_persist();
   switch (cause.status) {
     case 401:
-      return "登录已失效，请重新登录。";
+      return m.relay_error_auth();
     case 403:
-      return "授权被拒绝；请检查账号邀请、所有者身份与当前入口权限。";
+      return m.relay_error_denied();
     case 409:
-      return "绑定或操作状态已变化；请刷新后显式重新操作。";
+      return m.relay_error_conflict();
     case 410:
-      return "配对已过期，请重新开始。";
+      return m.relay_error_expired();
     case 429:
-      return "操作过于频繁，请稍后重新操作。";
+      return m.relay_error_rate();
     case 503:
-      return "控制服务或已分配节点暂不可用；WSS 就绪前不会开放入口。";
+      return m.relay_error_unavailable();
     default:
-      return "操作未完成；请刷新确认实际状态，不要重复未知结果的操作。";
+      return m.relay_error_unknown();
   }
 }
 
 export function useRelaySettings() {
+  let failure = $state<unknown>();
+  let notice = $state<"paired" | "cancelled" | "completed" | "pending">();
   const ui = $state<RelaySettingsView>({
     status: undefined,
     enrollment: undefined,
     loading: true,
     busy: false,
-    error: "",
-    notice: "",
+    get error() {
+      return failure === undefined ? "" : failureMessage(failure);
+    },
+    get notice() {
+      switch (notice) {
+        case "paired":
+          return m.relay_notice_paired();
+        case "cancelled":
+          return m.relay_notice_cancelled();
+        case "completed":
+          return m.relay_notice_completed();
+        case "pending":
+          return m.relay_notice_pending();
+        default:
+          return "";
+      }
+    },
   });
   const requests = new LatestRequest();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -85,7 +104,7 @@ export function useRelaySettings() {
       );
       if (ticket.current()) accept(status);
     } catch (cause) {
-      if (ticket.reportable()) ui.error = failureMessage(cause);
+      if (ticket.reportable()) failure = cause;
     } finally {
       if (ticket.current()) ui.loading = false;
     }
@@ -101,7 +120,7 @@ export function useRelaySettings() {
     if (!mounted || revision !== pairingRevision) return;
     if (Date.now() >= enrollment.expiresAt * 1000) {
       clearPairing();
-      ui.error = "配对已过期，请重新开始。";
+      failure = "expired";
       return;
     }
     const ticket = requests.begin();
@@ -118,7 +137,7 @@ export function useRelaySettings() {
       if ("enabled" in result) {
         clearPairing();
         accept(result);
-        ui.notice = "GitHub 主机配对已完成；公网访问仍需单独启用。";
+        notice = "paired";
         return;
       }
       pairingTimer = setTimeout(
@@ -128,15 +147,15 @@ export function useRelaySettings() {
     } catch (cause) {
       if (!ticket.reportable() || revision !== pairingRevision) return;
       clearPairing();
-      ui.error = failureMessage(cause);
+      failure = cause;
     }
   }
 
   async function pair(rebind: boolean) {
     if (ui.busy || ui.enrollment || requests.disposed) return;
     ui.busy = true;
-    ui.error = "";
-    ui.notice = "";
+    failure = undefined;
+    notice = undefined;
     const revision = ++pairingRevision;
     const ticket = requests.begin();
     try {
@@ -156,7 +175,7 @@ export function useRelaySettings() {
         enrollment.pollIntervalSeconds * 1000,
       );
     } catch (cause) {
-      if (ticket.reportable()) ui.error = failureMessage(cause);
+      if (ticket.reportable()) failure = cause;
     } finally {
       if (ticket.current()) ui.busy = false;
     }
@@ -178,9 +197,9 @@ export function useRelaySettings() {
         ticket.signal,
         RelayPollRequestSchema,
       );
-      if (ticket.current()) ui.notice = "配对已取消。";
+      if (ticket.current()) notice = "cancelled";
     } catch (cause) {
-      if (ticket.reportable()) ui.error = failureMessage(cause);
+      if (ticket.reportable()) failure = cause;
     } finally {
       if (ticket.current()) ui.busy = false;
     }
@@ -190,8 +209,8 @@ export function useRelaySettings() {
     if (ui.busy || requests.disposed) return;
     clearPairing();
     ui.busy = true;
-    ui.error = "";
-    ui.notice = "";
+    failure = undefined;
+    notice = undefined;
     window.dispatchEvent(new Event("webmux:relay-revoked"));
     const ticket = requests.begin();
     try {
@@ -205,13 +224,12 @@ export function useRelaySettings() {
       if (!ticket.current()) return;
       if ("enabled" in result) {
         accept(result);
-        ui.notice = "操作已完成；运行状态以当前就绪信息为准。";
+        notice = "completed";
       } else {
-        ui.notice =
-          "远端撤销尚未确认；本地绑定保留，请稍后刷新并显式重试删除。";
+        notice = "pending";
       }
     } catch (cause) {
-      if (ticket.reportable()) ui.error = failureMessage(cause);
+      if (ticket.reportable()) failure = cause;
     } finally {
       if (ticket.current()) {
         ui.busy = false;
@@ -227,7 +245,7 @@ export function useRelaySettings() {
       requests.cancel();
       ui.busy = false;
       ui.status = undefined;
-      ui.error = "登录已失效，请重新登录。";
+      failure = "auth";
     };
     window.addEventListener("webmux:auth", invalidate);
     async function poll() {

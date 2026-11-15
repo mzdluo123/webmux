@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack, tick, onMount } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as Command from "$lib/components/ui/command";
   import IconArrowLeft from "~icons/tabler/arrow-left";
@@ -58,12 +59,12 @@
   );
   const title = $derived(
     {
-      projects: "选择项目",
-      sources: "添加项目",
-      new: "新建项目",
-      local: "本地文件夹",
+      projects: m.s8_proj_step_projects(),
+      sources: m.s8_proj_step_sources(),
+      new: m.s8_proj_step_new(),
+      local: m.s8_proj_step_local(),
       git: "Git URL",
-      github: "GitHub 仓库",
+      github: m.s8_proj_step_github(),
     }[step],
   );
   const cloneActive = $derived(
@@ -104,8 +105,8 @@
     {#if step !== "projects"}<Button
         variant="ghost"
         size="icon-touch"
-        aria-label="返回上一层"
-        title="返回上一层（Esc）"
+        aria-label={m.s8_proj_back_aria()}
+        title={m.s8_proj_back_title()}
         onclick={back}><IconArrowLeft aria-hidden="true" /></Button
       >{/if}
     <h3 class="text-base font-medium">{title}</h3>
@@ -121,16 +122,16 @@
       size="sm"
       disabled={source.busy}
       onclick={() => (source.pending ? source.resume() : source.load())}
-      >重试</Button
+      >{m.s8_retry()}</Button
     >{/if}
   {#if source.pending}
     <div role="status" class="space-y-2">
       <p class="text-sm">
         {cloneActive
-          ? "正在克隆或登记项目…"
+          ? m.s8_proj_cloning_or_registering()
           : source.operation?.state === "succeeded"
-            ? "克隆已完成"
-            : source.operation?.error || "正在恢复克隆操作…"}
+            ? m.s8_proj_clone_succeeded()
+            : source.operation?.error || m.s8_proj_clone_resuming()}
       </p>
       <p class="break-all font-mono text-xs text-muted-foreground">
         {source.pending.path}
@@ -138,15 +139,17 @@
       {#if source.operation?.state === "registration_failed"}<Button
           variant="outline"
           disabled={source.busy}
-          onclick={() => source.retryRegistration()}>重试项目登记</Button
+          onclick={() => source.retryRegistration()}
+          >{m.s8_proj_retry_registration()}</Button
         >{/if}
       {#if source.pending}<Button
           variant="ghost"
           disabled={source.busy}
-          onclick={() => source.clearClone()}>暂不跟踪此克隆</Button
+          onclick={() => source.clearClone()}
+          >{m.s8_proj_stop_tracking()}</Button
         >{/if}
       <p class="text-xs text-muted-foreground">
-        停止跟踪不会取消服务端克隆，也不会删除已有文件。
+        {m.s8_proj_stop_tracking_hint()}
       </p>
     </div>
   {/if}
@@ -162,20 +165,22 @@
         }
         bind:ref={searchInput}
         placeholder={step === "projects"
-          ? "搜索项目名称或路径…"
-          : "选择项目来源…"}
-        aria-label={step === "projects" ? "搜索项目" : "搜索项目来源"}
+          ? m.s8_proj_search_placeholder()
+          : m.s8_proj_source_placeholder()}
+        aria-label={step === "projects"
+          ? m.s8_proj_search_aria()
+          : m.s8_proj_source_aria()}
       />
       <Command.List>
-        <Command.Empty>没有匹配项，请更换关键词或添加项目。</Command.Empty>
+        <Command.Empty>{m.s8_proj_empty()}</Command.Empty>
         {#if step === "projects"}
           {#if source.loading}<p
               role="status"
               class="p-3 text-sm text-muted-foreground"
             >
-              正在读取项目…
+              {m.s8_proj_loading()}
             </p>{/if}
-          <Command.Group heading="项目">
+          <Command.Group heading={m.s8_proj_group_projects()}>
             {#each source.projects as project (project.id)}
               <Command.Item
                 value={project.id}
@@ -198,7 +203,9 @@
               </Command.Item>
             {/each}
           </Command.Group>
-          {#if recentCandidates.length}<Command.Group heading="最近文件夹">
+          {#if recentCandidates.length}<Command.Group
+              heading={m.s8_proj_group_recent_folders()}
+            >
               {#each recentCandidates as dir (dir)}<Command.Item
                   value={dir}
                   keywords={[dir]}
@@ -215,47 +222,47 @@
             </Command.Group>{/if}
         {/if}
         {#if step === "sources" || (!source.loading && source.projects.length === 0)}
-          <Command.Group heading="项目来源">
+          <Command.Group heading={m.s8_proj_group_sources()}>
             <Command.Item
               value="new"
-              keywords={["新建项目 创建文件夹"]}
+              keywords={[m.s8_proj_source_new_keywords()]}
               onSelect={() => go("new")}
               ><IconFolderPlus aria-hidden="true" /><ChoiceDetails
-                primary="新建项目"
-                secondary="创建文件夹，可选初始化 Git"
+                primary={m.s8_proj_step_new()}
+                secondary={m.s8_proj_source_new_desc()}
               /></Command.Item
             >
             <Command.Item
               value="local"
-              keywords={["本地文件夹 打开文件夹"]}
+              keywords={[m.s8_proj_source_local_keywords()]}
               onSelect={() => go("local")}
               ><IconFolder aria-hidden="true" /><ChoiceDetails
-                primary="本地文件夹"
-                secondary="打开服务端已有项目"
+                primary={m.s8_proj_step_local()}
+                secondary={m.s8_proj_source_local_desc()}
               /></Command.Item
             >
             <Command.Item
               value="git"
-              keywords={["Git URL 克隆 仓库地址"]}
+              keywords={[m.s8_proj_source_git_keywords()]}
               disabled={!pluginAvailable("workspace.clone")}
               onSelect={() => go("git")}
               ><IconGitBranch aria-hidden="true" /><ChoiceDetails
                 primary="Git URL"
                 secondary={pluginAvailable("workspace.clone")
-                  ? "克隆 HTTPS 或 SSH 仓库"
-                  : "服务端 Git 或克隆存储暂不可用"}
+                  ? m.s8_proj_source_git_desc()
+                  : m.s8_proj_source_git_unavailable()}
               /></Command.Item
             >
             <Command.Item
               value="github"
-              keywords={["GitHub 仓库 账号"]}
+              keywords={[m.s8_proj_source_github_keywords()]}
               disabled={source.busy}
               onSelect={() => go("github")}
               ><IconBrandGithub aria-hidden="true" /><ChoiceDetails
-                primary="GitHub 仓库"
+                primary={m.s8_proj_step_github()}
                 secondary={pluginAvailable("workspace.github")
-                  ? "浏览已登录账号有权访问的仓库"
-                  : "服务端需要可用的 gh、Git 与克隆存储"}
+                  ? m.s8_proj_source_github_desc()
+                  : m.s8_proj_source_github_unavailable()}
               /></Command.Item
             >
           </Command.Group>
@@ -268,7 +275,7 @@
         disabled={source.busy}
         onclick={() => {
           void go("sources");
-        }}><IconPlus aria-hidden="true" />添加项目…</Button
+        }}><IconPlus aria-hidden="true" />{m.s8_proj_add_btn()}</Button
       >
     {/if}
   {:else if step === "github"}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
   import { api } from "../../platform/api";
@@ -71,12 +72,14 @@
       disabled={disabled || (!hybrid && !support?.supported)}
       aria-describedby="launch-config-hybrid-help"
     />
-    <Label for="launch-config-hybrid">混合模式（聊天 ↔ 终端）</Label>
+    <Label for="launch-config-hybrid">{m.s2_hybrid_mode_label()}</Label>
   </div>
   <p id="launch-config-hybrid-help" class="text-xs text-muted-foreground">
-    {#if reason}{reason}{:else}从这个配置启动的会话可以在网页聊天视图与终端之间切换{support
-        ? `，适用于 ${support.supportedAgents.join("、")}`
-        : ""}。{/if}
+    {#if reason}{reason}{:else}{support
+        ? m.s2_hybrid_help_supported({
+            agents: support.supportedAgents.join(m.s2_list_sep()),
+          })
+        : m.s2_hybrid_help()}{/if}
   </p>
   {#if support?.supported && support.connector}
     <ConnectorInstallHint

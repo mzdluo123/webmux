@@ -86,10 +86,11 @@ const (
 	probeNotListed
 )
 
-// probeAnswer is a finished probe: whether the target is listed, and for
-// an empty sid the candidate sessions.
+// probeAnswer is a finished probe: whether the target is listed, its
+// listed title when sid is set, and for an empty sid the candidate sessions.
 type probeAnswer struct {
 	listed     bool
+	title      string
 	candidates []Candidate
 	err        error
 }
@@ -132,7 +133,11 @@ func (a *actor) observe() {
 	}
 	id, ident, known := a.identify()
 	if known && ident.Agent == a.cmd.Profile.Name && ident.AgentSessionID != "" && ident.AgentSessionID != a.agentSessionID {
-		a.agentSessionChanged(ident.AgentSessionID)
+		id.Title, id.TitleSeq = a.agentSessionChanged(ident.AgentSessionID, id.Title, id.TitleSeq)
+	}
+	a.observeTerminalTitle(id.Title, id.TitleSeq)
+	if a.dirty {
+		a.shell.SetOverlay(a.overlay())
 	}
 	info := a.shell.Info()
 	a.saveShellInfo(info)
@@ -192,15 +197,33 @@ func (a *actor) identify() (session.Identity, agentprofile.Identity, bool) {
 // agentSessionChanged follows the terminal to another agent session
 // (/new, /resume, /fork): the record keeps the previous ID and every
 // device is told. The first ID a terminal reports is no change.
-func (a *actor) agentSessionChanged(sid string) {
+func (a *actor) agentSessionChanged(sid, title string, seq uint64) (string, uint64) {
 	old := a.agentSessionID
 	a.agentSessionID = sid
 	if old != "" {
+		if a.shell != nil {
+			title, seq = a.shell.ClearTerminalTitleIf(a.termTitle, a.termTitleSeq)
+		}
+		a.termTitle, a.termTitleSeq = "", 0
+		if a.titleSession == old {
+			a.title, a.titleSession = "", ""
+		}
 		a.chat.IDChange = &IDChange{From: old, To: sid}
 		a.svc.log.Info("hybrid agent session changed", "id", a.id)
 	}
-	a.record(false, func(r *Record) { r.SetAgentSessionID(sid) })
+	var resetTitle string
+	a.record(false, func(r *Record) {
+		r.SetAgentSessionID(sid)
+		if old != "" && r.Name == "" {
+			r.Title = filepath.Base(r.Cwd)
+			resetTitle = r.Title
+		}
+	})
+	if resetTitle != "" {
+		a.recordTitle = resetTitle
+	}
 	a.dirty = true
+	return title, seq
 }
 
 // assess checks conditions 1 to 4: a known agent of this session's
@@ -309,6 +332,7 @@ func (a *actor) probed(key target, ans probeAnswer) {
 		a.probe.result = probeNotListed
 		if ans.listed {
 			a.probe.result = probeListed
+			a.adoptProbeTitle(key.sid, ans)
 		}
 	}
 	if a.probe.again {
@@ -338,7 +362,11 @@ func (a *actor) listed(ctx context.Context, t target, since time.Time) probeAnsw
 		return probeAnswer{err: err}
 	}
 	if t.sid != "" {
-		return probeAnswer{listed: slices.ContainsFunc(sessions, func(s acp.SessionInfo) bool { return s.SessionID == t.sid })}
+		i := slices.IndexFunc(sessions, func(s acp.SessionInfo) bool { return s.SessionID == t.sid })
+		if i < 0 {
+			return probeAnswer{}
+		}
+		return probeAnswer{listed: true, title: sessionTitle(sessions[i].Title)}
 	}
 	var recent []Candidate
 	for _, c := range candidates(sessions) {

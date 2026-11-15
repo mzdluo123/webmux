@@ -8,6 +8,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import { m } from "$lib/paraglide/messages.js";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import type {
     GitLogFilterCallbacks,
@@ -72,12 +73,12 @@
         <Button
           size="sm"
           variant="outline"
-          aria-label="打开引用筛选抽屉"
+          aria-label={m.s6_filter_open_ref_drawer_aria()}
           onclick={onOpenRefDrawer}
         >
           <IconGitBranch aria-hidden="true" />
           <span class="max-w-28 truncate">
-            {branchFilter ?? "引用"}
+            {branchFilter ?? m.s6_filter_ref_short()}
           </span>
         </Button>
       {/if}
@@ -96,13 +97,23 @@
             onScopeChange(val);
           }
         }}
-        aria-label="提交范围"
+        aria-label={m.s6_filter_scope_aria()}
       >
-        <SegmentedControl.Item value="all">所有历史</SegmentedControl.Item>
-        <SegmentedControl.Item value="branch">当前分支</SegmentedControl.Item>
-        <SegmentedControl.Item value="task">当前任务</SegmentedControl.Item>
-        <SegmentedControl.Item value="to-push">待推送</SegmentedControl.Item>
-        <SegmentedControl.Item value="incoming">远端新增</SegmentedControl.Item>
+        <SegmentedControl.Item value="all">
+          {m.s6_filter_scope_all()}
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="branch">
+          {m.s6_log_tree_current_branch()}
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="task">
+          {m.s6_filter_scope_task()}
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="to-push">
+          {m.s6_filter_scope_to_push()}
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="incoming">
+          {m.s6_filter_scope_incoming()}
+        </SegmentedControl.Item>
       </SegmentedControl.Root>
     </div>
 
@@ -111,8 +122,8 @@
         size="icon-sm"
         variant="ghost"
         aria-pressed={showAdvanced}
-        aria-label="作者与日期筛选"
-        title="作者与日期筛选"
+        aria-label={m.s6_filter_author_date_label()}
+        title={m.s6_filter_author_date_label()}
         onclick={() => (manualAdvancedOpen = !showAdvanced)}
       >
         <IconFilter aria-hidden="true" />
@@ -122,8 +133,8 @@
         <Button
           size="icon-sm"
           variant="ghost"
-          aria-label="刷新提交历史"
-          title="刷新提交历史"
+          aria-label={m.s6_filter_refresh_history()}
+          title={m.s6_filter_refresh_history()}
           onclick={onRefreshHistory}
         >
           <IconRefresh aria-hidden="true" />
@@ -135,8 +146,8 @@
           size="icon-sm"
           variant="ghost"
           aria-pressed={showBranchesPanel}
-          aria-label="切换引用筛选栏"
-          title="切换引用筛选栏"
+          aria-label={m.s6_filter_toggle_ref_sidebar()}
+          title={m.s6_filter_toggle_ref_sidebar()}
           onclick={onToggleBranchesPanel}
         >
           <IconLayoutSidebar aria-hidden="true" />
@@ -147,8 +158,8 @@
         <Button
           size="icon-sm"
           variant="ghost"
-          aria-label="重置分栏比例"
-          title="重置分栏比例"
+          aria-label={m.s6_filter_reset_layout()}
+          title={m.s6_filter_reset_layout()}
           onclick={onResetLayout}
         >
           <IconRestore aria-hidden="true" />
@@ -161,16 +172,16 @@
     <Input
       size="sm"
       value={searchQuery}
-      placeholder="搜索提交信息或关键字…"
-      aria-label="搜索提交关键字"
+      placeholder={m.s6_filter_search_placeholder()}
+      aria-label={m.s6_filter_search_aria()}
       oninput={(e) => onSearchChange(e.currentTarget.value)}
     />
     <Input
       size="sm"
       mono
       value={pathFilter}
-      placeholder="按字面路径筛选，例如 internal/workspace"
-      aria-label="按路径筛选提交"
+      placeholder={m.s6_filter_path_placeholder()}
+      aria-label={m.s6_filter_path_aria()}
       oninput={(e) => onPathFilterChange(e.currentTarget.value)}
     />
   </div>
@@ -180,24 +191,24 @@
       <Input
         size="sm"
         value={authorFilter}
-        placeholder="按作者姓名或邮箱筛选…"
-        aria-label="按作者筛选提交"
+        placeholder={m.s6_filter_author_placeholder()}
+        aria-label={m.s6_filter_author_aria()}
         oninput={(e) => onAuthorChange?.(e.currentTarget.value)}
       />
       <Input
         size="sm"
         type="date"
         value={sinceFilter}
-        aria-label="起始日期"
-        title="起始日期 (Since)"
+        aria-label={m.s6_filter_since_aria()}
+        title={m.s6_filter_since_tooltip()}
         oninput={(e) => onSinceChange?.(e.currentTarget.value)}
       />
       <Input
         size="sm"
         type="date"
         value={untilFilter}
-        aria-label="截止日期"
-        title="截止日期 (Until)"
+        aria-label={m.s6_filter_until_aria()}
+        title={m.s6_filter_until_tooltip()}
         oninput={(e) => onUntilChange?.(e.currentTarget.value)}
       />
     </div>
@@ -206,20 +217,22 @@
   {#if hasAnyActiveFilter && onClearFilters}
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
       <span class="min-w-0 truncate text-xs text-muted-foreground">
-        已启用筛选{#if branchFilter}（引用：{branchFilter}）{/if}
+        {branchFilter
+          ? m.s6_filter_active_with_ref({ ref: branchFilter })
+          : m.s6_filter_active_plain()}
       </span>
       <Button size="sm" variant="ghost" onclick={onClearFilters}>
         <IconX aria-hidden="true" />
-        重置全部筛选
+        {m.s6_filter_reset_all()}
       </Button>
     </div>
   {/if}
 
   {#if refsChanged && onRefreshHistory}
     <InlineNotice tone="info">
-      <span class="mr-2">分支引用已更新，可刷新获取最新提交图。</span>
+      <span class="mr-2">{m.s6_filter_refs_changed_notice()}</span>
       <Button size="sm" variant="outline" onclick={onRefreshHistory}>
-        刷新历史
+        {m.s6_filter_refresh_btn()}
       </Button>
     </InlineNotice>
   {/if}
@@ -229,12 +242,12 @@
       <span class="mr-2">{selectionNotice.message}</span>
       {#if selectionNotice.canJumpHead && onJumpToHead}
         <Button size="sm" variant="outline" onclick={onJumpToHead}>
-          定位当前 HEAD
+          {m.s6_filter_jump_to_head()}
         </Button>
       {/if}
       {#if onDismissSelectionNotice}
         <Button size="sm" variant="ghost" onclick={onDismissSelectionNotice}>
-          关闭
+          {m.s6_close()}
         </Button>
       {/if}
     </InlineNotice>
@@ -243,13 +256,13 @@
   {#if compareBaseMarkOid}
     <InlineNotice tone="info">
       <span class="mr-2">
-        已设比较起点 <code class="font-mono"
+        {m.s6_filter_compare_mark_before()}<code class="font-mono"
           >{compareBaseMarkOid.slice(0, 7)}</code
-        >，请在目标提交菜单点击「与起点比较」。
+        >{m.s6_filter_compare_mark_after()}
       </span>
       {#if onCancelCompareMark}
         <Button size="sm" variant="ghost" onclick={onCancelCompareMark}>
-          取消
+          {m.s6_cancel()}
         </Button>
       {/if}
     </InlineNotice>

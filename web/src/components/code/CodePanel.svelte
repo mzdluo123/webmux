@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import { onMount, untrack } from "svelte";
   import { Button } from "$lib/components/ui/button";
@@ -125,7 +126,9 @@
     try {
       const opened = await popOut({
         id,
-        title: `代码 · ${current.context?.rootPath ?? id}`,
+        title: m.s5_code_window_title({
+          target: current.context?.rootPath ?? id,
+        }),
         width: rect.width,
         height: rect.height,
         snapshot: current,
@@ -143,7 +146,8 @@
       if (mounted) popout = opened;
       else opened.dispose();
     } catch (e) {
-      if (mounted) notice = `独立窗口打开失败：${errorMessage(e)}`;
+      if (mounted)
+        notice = m.s5_popout_open_failed({ message: errorMessage(e) });
     } finally {
       popping = false;
     }
@@ -196,9 +200,11 @@
   {#if popout}<div
       class="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-sm text-muted-foreground"
     >
-      <p>代码已在独立窗口中显示</p>
+      <p>{m.s5_code_shown_in_popout()}</p>
       <Button variant="outline" size="sm" onclick={() => popout?.close()}
-        ><IconPictureInPictureOff aria-hidden="true" />收回到此处</Button
+        ><IconPictureInPictureOff
+          aria-hidden="true"
+        />{m.s5_dock_back_here()}</Button
       >
     </div>
   {:else}

@@ -46,8 +46,7 @@ import type {
   TerminalSocketAttachment,
   TerminalSocketView,
 } from "./terminal-socket-view";
-
-const inputSendError = "终端输入未发送：连接不可用或发送队列已满，请重试。";
+import { createTerminalInputError } from "./terminal-input-error";
 
 // Terminal stream of one session (`/ws/s/{id}`, docs/protocol/websocket.md).
 export function createTerminalSocket(id: string, manageChrome = true) {
@@ -55,7 +54,8 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   let connection = $state<Connection>("connecting");
   let restoring = $state(true);
   let exitCode = $state<number | null>(null);
-  let error = $state("");
+  const inputError = createTerminalInputError();
+  let error = $state(inputError.capture(""));
   let historyTruncated = $state(false);
   let control = $state<ControlState>();
   // The run whose output this page has drawn: a hybrid switch to the
@@ -310,7 +310,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
         if (state === "missing") restoring = false;
       },
       (message) => {
-        error = message;
+        error = inputError.capture(message);
       },
       {
         resume(send) {
@@ -403,7 +403,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       return exitCode;
     },
     get error() {
-      return error;
+      return inputError.render(error);
     },
     get historyTruncated() {
       return historyTruncated;
@@ -433,11 +433,8 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     sendInput(input: string) {
       const sent =
         accepting() && (socket?.send(0, encoder.encode(input)) ?? false);
-      if (!sent) error = inputSendError;
-      else {
-        if (error === inputSendError) error = "";
-        socket?.probe();
-      }
+      error = inputError.sent(sent, error);
+      if (sent) socket?.probe();
       return sent;
     },
     // Sends one of xterm's automatic replies to a device query.

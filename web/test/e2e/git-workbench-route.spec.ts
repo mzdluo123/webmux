@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { expect, revealSidebar, test, viewSwitch } from "./fixtures";
+import { expect, revealSidebar, test, toggleCode } from "./fixtures";
 import {
   repositoryMenu,
   unfoldRepository,
@@ -235,7 +235,7 @@ test("worktree menu '提交改动…' deep-link and session Code Workspace round
   await composer.fill("unsent-draft-before-git-jump");
 
   // Open Code panel, open README.md tab, and scroll the reader.
-  await viewSwitch(page.locator(".terminal-header"), "代码").click();
+  await toggleCode(page);
   const codeRegion = page.getByRole("region", { name: "代码工作区" });
   await expect(codeRegion).toBeVisible();
   const navBtn = page.getByRole("button", { name: "文件导航", exact: true });
@@ -276,13 +276,8 @@ test("worktree menu '提交改动…' deep-link and session Code Workspace round
     )
     .toBeGreaterThan(80);
 
-  // On narrow phone screens, collapse code overlay (button label becomes "聊天" in chat sessions) to verify chat composer draft is still untouched.
-  if (page.viewportSize()!.width < 1024) {
-    await page
-      .locator(".terminal-header")
-      .getByRole("button", { name: /^(聊天|终端)$/ })
-      .click();
-  }
+  // Close the code sidebar to verify the chat composer draft is still untouched.
+  await toggleCode(page);
   await expect(composer).toHaveValue("unsent-draft-before-git-jump");
 
   // Close (archive) the hybrid session, then open /git with returnSession -> honest notice, Git workbench stays usable.

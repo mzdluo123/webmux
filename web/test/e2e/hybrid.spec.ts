@@ -9,8 +9,9 @@ import {
   expect,
   expectTerminalLine,
   nameSession,
-  openPaneMenu,
+  openSplitPanel,
   openSessionLink,
+  toggleCode,
   runCommand,
   revealSidebar,
   test,
@@ -135,8 +136,10 @@ test("search opens only the target message in an existing split", async ({
   await chatTurn(page, "Review the needle change");
   await openHybrid(page, anchor, "chat");
   await chatTurn(page, "Unrelated first message");
-  await openPaneMenu(page);
-  await page.getByRole("menuitem", { name: "加入已有会话…" }).click();
+  await openSplitPanel(page);
+  await page
+    .getByRole("button", { name: "加入已有会话…", exact: true })
+    .click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: /Target chat/ })
@@ -211,8 +214,10 @@ test("search opens only the target message in an existing split", async ({
   await targetPane
     .getByRole("textbox", { name: "消息" })
     .fill("Keep neighboring search draft 中文🙂");
-  await openPaneMenu(firstPane);
-  await page.getByRole("menuitem", { name: /^关闭窗格（保留会话）/ }).click();
+  await openSplitPanel(firstPane);
+  await page
+    .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
+    .click();
   await expect(firstPane).toHaveCount(0);
   await expect(page.locator(".split-terminal")).toHaveCount(1);
   expect(new URL(page.url()).pathname).toBe(`/s/${anchor}`);
@@ -257,8 +262,10 @@ test("message search activates its pane after restoring a saved split", async ({
   });
   await openHybrid(page, target, "chat");
   await chatTurn(page, "Find the restored needle");
-  await openPaneMenu(page);
-  await page.getByRole("menuitem", { name: "加入已有会话…" }).click();
+  await openSplitPanel(page);
+  await page
+    .getByRole("button", { name: "加入已有会话…", exact: true })
+    .click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: /Saved active pane/ })
@@ -309,8 +316,10 @@ test("message search reveals chat before consuming a jump hidden by narrow code"
   await createHybrid(request, workDir, "chat", { name: "Code sibling" });
   await openHybrid(page, target, "chat");
   await chatTurn(page, "Find the obscured needle");
-  await openPaneMenu(page);
-  await page.getByRole("menuitem", { name: "加入已有会话…" }).click();
+  await openSplitPanel(page);
+  await page
+    .getByRole("button", { name: "加入已有会话…", exact: true })
+    .click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: /Code sibling/ })
@@ -320,7 +329,7 @@ test("message search reveals chat before consuming a jump hidden by narrow code"
     .click();
   const targetPane = page.locator(`[data-session-id="${target}"]`);
   const mountedPane = await targetPane.elementHandle();
-  await targetPane.getByRole("button", { name: "代码", exact: true }).click();
+  await toggleCode(targetPane);
   await expect(
     targetPane.getByRole("region", { name: "代码工作区" }),
   ).toBeVisible();
@@ -551,8 +560,10 @@ test.describe("hybrid sessions with the fake agent", () => {
       name: "Reference source",
     });
     await page.goto(`/s/${anchor}`);
-    await openPaneMenu(page);
-    await page.getByRole("menuitem", { name: "加入已有会话…" }).click();
+    await openSplitPanel(page);
+    await page
+      .getByRole("button", { name: "加入已有会话…", exact: true })
+      .click();
     await page
       .getByRole("dialog")
       .getByRole("button", { name: /Focused chat/ })
@@ -600,8 +611,10 @@ test.describe("hybrid sessions with the fake agent", () => {
       true,
     );
     await composer.fill("Keep this split draft");
-    await openPaneMenu(anchorPane);
-    await page.getByRole("menuitem", { name: /^关闭窗格（保留会话）/ }).click();
+    await openSplitPanel(anchorPane);
+    await page
+      .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
+      .click();
     await expect(anchorPane).toHaveCount(0);
     await expect(page.locator(".split-terminal")).toHaveCount(1);
     await expect(page).toHaveURL(`/s/${anchor}`);
@@ -645,8 +658,10 @@ test.describe("hybrid sessions with the fake agent", () => {
         }),
       );
     await page.goto(`/s/${anchor}`);
-    await openPaneMenu(page);
-    await page.getByRole("menuitem", { name: "加入已有会话…" }).click();
+    await openSplitPanel(page);
+    await page
+      .getByRole("button", { name: "加入已有会话…", exact: true })
+      .click();
     await page
       .getByRole("dialog")
       .getByRole("button", { name: /Capacity chat/ })
@@ -661,11 +676,15 @@ test.describe("hybrid sessions with the fake agent", () => {
       .first();
     await expect(reference).toBeVisible();
     await composer.fill("keep this full-layout draft 中文🙂");
-    await openPaneMenu(page.locator(`[data-session-id="${anchor}"]`));
-    await page.getByRole("menuitem", { name: /^关闭窗格（保留会话）/ }).click();
+    await openSplitPanel(page.locator(`[data-session-id="${anchor}"]`));
+    await page
+      .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
+      .click();
     for (let i = 0; i < fillers.length; i++) {
-      await openPaneMenu(page.locator('.split-terminal[data-active="true"]'));
-      await page.getByRole("menuitem", { name: "加入已有会话…" }).click();
+      await openSplitPanel(page.locator('.split-terminal[data-active="true"]'));
+      await page
+        .getByRole("button", { name: "加入已有会话…", exact: true })
+        .click();
       await page
         .getByRole("dialog")
         .getByRole("button", { name: new RegExp(`Capacity filler ${i + 1}`) })
@@ -685,8 +704,10 @@ test.describe("hybrid sessions with the fake agent", () => {
       await documentIdentity!.evaluate((element) => element.isConnected),
     ).toBe(true);
     await tabs.getByRole("button", { name: /Capacity filler 7/ }).click();
-    await openPaneMenu(page.locator(`[data-session-id="${fillers[6]}"]`));
-    await page.getByRole("menuitem", { name: /^关闭窗格（保留会话）/ }).click();
+    await openSplitPanel(page.locator(`[data-session-id="${fillers[6]}"]`));
+    await page
+      .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
+      .click();
     await tabs.getByRole("button", { name: /Capacity chat/ }).click();
     await reference.click();
     await expect(page.getByRole("alert")).toHaveCount(0);
@@ -701,7 +722,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     ).toBe(true);
   });
 
-  test("phones switch chat and terminal in tabs and open code with the header button", async ({
+  test("phones switch chat and terminal in tabs and open code from the panel picker", async ({
     page,
     request,
     workDir,
@@ -710,13 +731,8 @@ test.describe("hybrid sessions with the fake agent", () => {
     const id = await createHybrid(request, workDir, "chat");
     await page.setViewportSize({ width: 393, height: 851 });
     await openHybrid(page, id, "chat");
-    const header = page.locator(".terminal-header");
-    const views = page.getByRole("tablist", { name: "会话视图", exact: true });
-    await expect(views.getByRole("tab")).toHaveText(["聊天", "终端"]);
-    // Code replaces the pane without moving the session, like the desktop
-    // button: it turns pressed and no side stays selected.
-    const code = header.getByRole("button", { name: "代码", exact: true });
-    await code.click();
+    // Code replaces the pane without moving the session; no side stays selected.
+    await toggleCode(page);
     await expect(
       page.getByRole("region", { name: "代码工作区" }),
     ).toBeVisible();
@@ -724,6 +740,14 @@ test.describe("hybrid sessions with the fake agent", () => {
       "aria-selected",
       "false",
     );
+    await expect(sideTab(page, "terminal")).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    await toggleCode(page);
+    await expectSide(page, "chat");
+    await expect(page.getByRole("region", { name: "代码工作区" })).toBeHidden();
+    await toggleCode(page);
     // Choosing the side the session is already on only leaves the code view.
     await sideTab(page, "chat").click();
     await expectSide(page, "chat");
@@ -871,10 +895,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     await expect(terminalPage).toHaveAttribute("data-document-scroll", "true");
 
     // Opening the code panel on mobile uses the fixed shell.
-    const code = page
-      .locator(".terminal-header")
-      .getByRole("button", { name: "代码", exact: true });
-    await code.click();
+    await toggleCode(page);
     await expect(terminalPage).not.toHaveAttribute(
       "data-document-scroll",
       "true",
@@ -989,17 +1010,12 @@ test.describe("hybrid sessions with the fake agent", () => {
     });
     await page.goto(`/s/${id}`);
     const views = page.getByRole("tablist", { name: "会话视图", exact: true });
-    const code = page
-      .locator(".terminal-header")
-      .getByRole("button", { name: "代码", exact: true });
-    await expect(code).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "打开面板", exact: true }),
+    ).toBeVisible();
     await expect(views).toHaveCount(0);
-    const button = await code.elementHandle();
     gate.resolve();
     await expectSide(page, "terminal");
-    await expect(views.getByRole("tab")).toHaveText(["聊天", "终端"]);
-    // The code button stays the same element.
-    expect(await button!.evaluate((node) => node.isConnected)).toBe(true);
   });
 
   for (const { start, agent } of [

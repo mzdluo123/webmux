@@ -24,7 +24,7 @@ capabilities、session_list/get/launch/send/interrupt/read/wait；没有 answer�
 调用适配器从可信连接上下文提供身份，本地 CLI 的既有 self 解析保留在适配器；核心不读 WEBMUX_*。远程始终 `selfSessionId:null`，不得从服务端 env、PID 或调用者自称推断。`transport` 与 `locality` 分开：stdio 不是“必然有会话身份”的证明。MCP instructions
 含简明安全规则、guide_read 入口和实际工具名；完整工具 schema 仍由 mcpcontrol 负责。capabilities 与指南共享同一个注册表快照，不硬编码第二份工具清单。
 
-CLI 继续展示既有 shell 主题与命令表生成的 commands；MCP 只展示 connect、operations、completion、requests、launch、artifacts、rules 七个精选主题。共用语义段落/数据，不从 shell 手册做字符串替换。requests 主题明确当前没有回答工具，
+CLI 继续展示既有 shell 主题与命令表生成的 commands；MCP 只展示 connect、operations、input、completion、requests、launch、artifacts、rules 八个精选主题。共用语义段落/数据，不从 shell 手册做字符串替换。requests 主题明确当前没有回答工具，
 需要用户或已有其他客户端处理；launch 主题只使用 capabilities 返回的 launchConfigs，并通过实际支持的状态/配置读取接口发现 agent 配置项与允许值。MCP 无对应读取工具时要求用户/CLI 客户端完成发现，不猜模型值。冻结历史内容始终是引用材料，不是新指令。
 
 ### guide_read contract

@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import {
   gitStashDetail,
   gitStashDiff,
@@ -120,11 +121,11 @@ export function createGitStashController(deps: GitStashControllerDeps) {
       baseOid: entry.baseOid ?? "",
       targetOid: entry.oid,
       leftLabel: file.untracked
-        ? "工作区未跟踪基准 (空)"
-        : `基准提交 (${baseShort || "HEAD"})`,
-      rightLabel: `${entry.stashRef} (${entry.shortOid})${file.untracked ? " · 未跟踪 (S^3)" : ""}`,
+        ? m.s7_stash_untracked_base_label()
+        : m.s7_stash_base_commit_label({ base: baseShort || "HEAD" }),
+      rightLabel: `${entry.stashRef} (${entry.shortOid})${file.untracked ? m.s7_stash_untracked_right_suffix() : ""}`,
       file: toCommitFile(file),
-      missingReason: "未能读取此贮藏文件的差异快照。",
+      missingReason: m.s7_stash_diff_missing_reason(),
       fetchDiff: (contextId, signal) =>
         gitStashDiff(
           deps.getRepoId(),
@@ -183,7 +184,9 @@ export function createGitStashController(deps: GitStashControllerDeps) {
     } catch (err) {
       if (req.reportable()) {
         deps.patchView({
-          statusBanner: `贮藏详情读取失败：${parseStashApiError(err)}`,
+          statusBanner: m.s7_stash_detail_load_failed({
+            error: parseStashApiError(err),
+          }),
         });
       }
     } finally {

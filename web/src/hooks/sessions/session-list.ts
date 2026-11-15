@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import {
   matchesArchivedQuery,
   placeArchived,
@@ -208,8 +209,8 @@ export function resolveScopeLabel(
   if (selectedWorktree) {
     return `${repoName} · ${worktreeTitle(selectedWorktree)}`;
   }
-  if (selectedRepository === "direct") return "直接会话";
-  return repoName ?? "工作区";
+  if (selectedRepository === "direct") return m.s3_scope_direct_sessions();
+  return repoName ?? m.s3_scope_workspace();
 }
 
 export function hasVisibleArchivedInRepository(
@@ -326,7 +327,10 @@ export async function removeRecordAfterWorktree(
     removeDraft(record.id);
   } catch (err) {
     setRecordError(
-      `工作树已删除，但无法删除“${record.title}”的记录：${formatError(err)}`,
+      m.s3_worktree_removed_record_failed({
+        title: record.title,
+        error: formatError(err),
+      }),
     );
   } finally {
     clearRemovingRecord();

@@ -99,7 +99,7 @@ export default mergeConfig(
       browser: {
         enabled: true,
         headless: true,
-        provider: playwright(),
+        provider: playwright({ contextOptions: { locale: "zh-CN" } }),
         instances: [{ browser: "chromium" }],
         viewport: { width: 1024, height: 900 },
         commands: { nativeTouchGesture },

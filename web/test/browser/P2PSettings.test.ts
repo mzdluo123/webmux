@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import P2PSettings from "../../src/components/settings/P2PSettings.svelte";
@@ -7,6 +7,9 @@ import { stopP2P } from "../../src/platform/p2p.svelte";
 import { p2pState } from "../../src/platform/p2p-state.svelte";
 import type { P2PStatus } from "../../src/contracts/schemas";
 import { enableHostPlugins, resetHostPlugins } from "./plugin-fixture";
+import { locale } from "../../src/lib/locale";
+
+beforeEach(() => locale.setPreference("zh-CN"));
 
 const baseStatus: P2PStatus = {
   supported: true,
@@ -88,6 +91,7 @@ afterEach(async () => {
   await userEvent.cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  locale.setPreference("zh-CN");
 });
 
 test("renders P2P status, port mapping badge, STUN validation, save, and reset", async () => {

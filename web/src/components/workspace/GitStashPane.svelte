@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { MediaQuery } from "svelte/reactivity";
   import IconArchive from "~icons/tabler/archive";
   import IconArrowLeft from "~icons/tabler/arrow-left";
@@ -123,13 +124,13 @@
 {#snippet stashListSection()}
   <section
     class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-    aria-label="仓库贮藏列表"
+    aria-label={m.s7_stash_list_aria()}
     data-testid="git-stash-list-pane"
   >
     <GitPanelToolbar>
       <div class="flex min-w-0 flex-1 items-center gap-1.5">
         <span class="truncate text-xs font-semibold text-foreground">
-          贮藏列表 ({entries.length})
+          {m.s7_stash_list_heading({ count: entries.length })}
         </span>
       </div>
       <div class="flex shrink-0 items-center gap-1">
@@ -139,21 +140,21 @@
             variant="default"
             disabled={readonlyMode}
             title={readonlyMode
-              ? "无工作树只读模式下无法创建贮藏，请先选择工作树"
-              : "将当前工作树改动打包保存为新贮藏"}
+              ? m.s7_stash_new_disabled_readonly()
+              : m.s7_stash_new_tooltip()}
             onclick={onOpenCreate}
             data-testid="git-stash-open-create-btn"
           >
             <IconPlus aria-hidden="true" />
-            新建贮藏…
+            {m.s7_stash_new_btn()}
           </Button>
         {/if}
         {#if onRefresh}
           <Button
             size="icon-sm"
             variant="ghost"
-            aria-label="刷新贮藏列表"
-            title="刷新贮藏列表"
+            aria-label={m.s7_stash_refresh_aria()}
+            title={m.s7_stash_refresh_aria()}
             disabled={loadingList}
             onclick={onRefresh}
           >
@@ -166,7 +167,7 @@
     {#if readonlyMode}
       <div class="border-b bg-background p-2.5">
         <InlineNotice tone="info">
-          当前处于无工作树只读模式，可检视所有贮藏详情与差异或丢弃旧条目；如需新建、应用或弹出贮藏，请切换到具体工作树。
+          {m.s7_stash_readonly_notice()}
         </InlineNotice>
       </div>
     {/if}
@@ -175,7 +176,7 @@
       <div class="space-y-1 p-2">
         {#if loadingList && entries.length === 0}
           <p class="p-3 text-xs text-muted-foreground" role="status">
-            正在读取仓库 refs/stash 条目…
+            {m.s7_stash_loading_list()}
           </p>
         {:else if entries.length === 0}
           <div class="p-3">
@@ -184,9 +185,9 @@
                 <Empty.Media variant="icon">
                   <IconArchive aria-hidden="true" />
                 </Empty.Media>
-                <Empty.Title>暂无贮藏记录</Empty.Title>
+                <Empty.Title>{m.s7_stash_empty_title()}</Empty.Title>
                 <Empty.Description>
-                  工作树有未提交改动时，可点击「新建贮藏…」或「提交」视图中的快捷按钮临时封存现场。
+                  {m.s7_stash_empty_desc()}
                 </Empty.Description>
               </Empty.Header>
             </Empty.Root>
@@ -219,7 +220,9 @@
                     </Badge>
                   {/if}
                   {#if item.hasUntracked}
-                    <Badge variant="warning">含未跟踪 (S^3)</Badge>
+                    <Badge variant="warning"
+                      >{m.s7_stash_has_untracked_badge()}</Badge
+                    >
                   {/if}
                 </div>
                 <p class="truncate text-xs font-medium text-foreground">
@@ -247,7 +250,7 @@
           onclick={() => (mobileStepOverride = null)}
         >
           <IconArrowLeft aria-hidden="true" />
-          返回贮藏列表
+          {m.s7_stash_back_to_list()}
         </Button>
       </div>
     {/if}
@@ -261,7 +264,7 @@
           <span class="font-mono text-muted-foreground">{entry.shortOid}</span>
           {#if entry.baseOid}
             <span class="font-mono text-muted-foreground">
-              基准 {entry.baseOid.slice(0, 7)}
+              {m.s7_stash_base_short({ oid: entry.baseOid.slice(0, 7) })}
             </span>
           {/if}
         </div>
@@ -278,13 +281,13 @@
             wrap
             disabled={readonlyMode}
             title={readonlyMode
-              ? "请先切换到目标工作树后再弹出贮藏"
-              : "安全两步弹出：无冲突应用成功后才自动清理此贮藏"}
+              ? m.s7_stash_pop_disabled_readonly()
+              : m.s7_stash_pop_tooltip()}
             onclick={() => onOpenApply(entry, "pop")}
             data-testid="git-stash-pop-btn"
           >
             <IconPlayerPlay aria-hidden="true" />
-            安全弹出… (Pop)
+            {m.s7_stash_pop_btn()}
           </Button>
           <Button
             size="sm"
@@ -292,13 +295,13 @@
             wrap
             disabled={readonlyMode}
             title={readonlyMode
-              ? "请先切换到目标工作树后再应用贮藏"
-              : "应用改动到当前工作树并保留原贮藏条目"}
+              ? m.s7_stash_apply_disabled_readonly()
+              : m.s7_stash_apply_tooltip()}
             onclick={() => onOpenApply(entry, "apply")}
             data-testid="git-stash-apply-btn"
           >
             <IconDownload aria-hidden="true" />
-            仅应用… (Apply)
+            {m.s7_stash_apply_btn()}
           </Button>
         {/if}
         {#if onOpenDrop}
@@ -310,7 +313,7 @@
             data-testid="git-stash-drop-btn"
           >
             <IconTrash aria-hidden="true" />
-            丢弃… (Drop)
+            {m.s7_stash_drop_btn()}
           </Button>
         {/if}
       </div>
@@ -323,19 +326,27 @@
     <div class="p-2">
       {#if loadingDetail && !activeDetail}
         <p class="p-2.5 text-xs text-muted-foreground" role="status">
-          正在读取贮藏文件清单（含未跟踪第 3 父节点）…
+          {m.s7_stash_loading_detail()}
         </p>
       {:else if !activeDetail || activeDetail.files.length === 0}
         <p class="p-2.5 text-xs text-muted-foreground">
-          此贮藏条目中没有可展示的文件变更。
+          {m.s7_stash_no_files()}
         </p>
       {:else}
         <div
           class="mb-1.5 flex flex-wrap items-center gap-2 px-1.5 text-xs text-muted-foreground"
         >
-          <span>已跟踪变更 {activeDetail.trackedCount} 项</span>
+          <span
+            >{m.s7_stash_tracked_count({
+              count: activeDetail.trackedCount,
+            })}</span
+          >
           {#if activeDetail.untrackedCount > 0}
-            <span>· 未跟踪文件 {activeDetail.untrackedCount} 项</span>
+            <span
+              >{m.s7_stash_untracked_count({
+                count: activeDetail.untrackedCount,
+              })}</span
+            >
           {/if}
         </div>
         <div class="space-y-0.5">
@@ -375,10 +386,10 @@
                 {labelPath}
               </span>
               {#if file.untracked}
-                <Badge variant="warning">未跟踪 (S^3)</Badge>
+                <Badge variant="warning">{m.s7_stash_untracked_badge()}</Badge>
               {/if}
               {#if file.binary}
-                <Badge variant="secondary">二进制</Badge>
+                <Badge variant="secondary">{m.s7_binary_badge()}</Badge>
               {/if}
             </ListButton>
           {/each}
@@ -393,10 +404,12 @@
     logDiff={diffReader}
     fallbackFile={activeFallbackFile}
     fallbackLeftLabel={activeFile?.untracked
-      ? "工作区未跟踪基准 (空)"
-      : `基准 (${entry.baseOid?.slice(0, 7) ?? "HEAD"})`}
+      ? m.s7_stash_untracked_base_label()
+      : m.s7_stash_fallback_base_label({
+          base: entry.baseOid?.slice(0, 7) ?? "HEAD",
+        })}
     fallbackRightLabel={`${entry.stashRef} (${entry.shortOid})`}
-    backLabel={isMobile ? "返回贮藏文件列表" : undefined}
+    backLabel={isMobile ? m.s7_stash_back_to_files() : undefined}
     presentation={isMobile ? "mobile" : "docked"}
     diffMode={isMobile ? "unified" : diffMode}
     onDiffModeChange={isMobile ? undefined : onDiffModeChange}
@@ -424,7 +437,7 @@
           <div
             class="flex h-full items-center justify-center px-6 py-8 text-center text-xs text-muted-foreground"
           >
-            选择左侧贮藏条目以检视完整已跟踪与未跟踪文件差异，或执行安全弹出。
+            {m.s7_stash_select_prompt()}
           </div>
         {:else}
           <div class="flex h-full min-h-0 min-w-0 flex-col">

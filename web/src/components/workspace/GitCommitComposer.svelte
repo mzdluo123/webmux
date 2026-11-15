@@ -26,6 +26,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import { validateAuthorOverrideInput } from "../../domains/workspace/git-v2-adapter";
@@ -139,20 +140,15 @@
   );
 
   const disabledHint = $derived.by(() => {
-    if (readonlyMode) return "只读仓库模式无法创建提交。";
-    if (draftConflict)
-      return "存在跨设备提交草稿版本冲突：请先在上方冲突卡片选择保留、采用远端或合并后再预览提交。";
-    if (uncertainBlocked)
-      return "上次操作结果待核实（uncertain）：请先点击顶部提示中的「刷新历史与暂存区核实」，避免重复执行。";
-    if (conflictedCount > 0)
-      return "存在未解决冲突，请先在工作树终端解决全部冲突。";
+    if (readonlyMode) return m.s6_commit_hint_readonly();
+    if (draftConflict) return m.s6_commit_hint_draft_conflict();
+    if (uncertainBlocked) return m.s6_commit_hint_uncertain();
+    if (conflictedCount > 0) return m.s6_commit_hint_conflicted();
     if (!authorValidation.valid) return authorValidation.error;
-    if (commitAmend && unbornHead)
-      return "当前工作树尚无提交（unborn HEAD），无法执行修正提交 (--amend)。";
+    if (commitAmend && unbornHead) return m.s6_commit_hint_unborn_amend();
     if (stagedCount === 0 && !commitAmend)
-      return "暂存区为空：请先将变更加入“已暂存 (Staged)”后再提交，或开启修正上一次提交 (--amend)。";
-    if (!parsed.subject.trim())
-      return "请输入提交标题（Subject）后再预览提交。";
+      return m.s6_commit_hint_empty_staged();
+    if (!parsed.subject.trim()) return m.s6_commit_hint_missing_subject();
     return "";
   });
 
@@ -176,34 +172,41 @@
   >
     <span class="min-w-0 truncate">
       {#if context.authorName && context.authorEmail}
-        作者：{context.authorName} &lt;{context.authorEmail}&gt;
+        {m.s6_commit_author_display({
+          name: context.authorName,
+          email: context.authorEmail,
+        })}
       {:else}
-        作者身份：未配置（user.name / user.email）
+        {m.s6_commit_author_unconfigured()}
       {/if}
     </span>
 
     <div class="flex flex-wrap items-center gap-1">
       {#if draftSaving}
-        <Badge variant="outline">正在同步草稿…</Badge>
+        <Badge variant="outline">{m.s6_commit_draft_syncing()}</Badge>
       {:else if draftRevision > 0 && commitMessage.trim()}
         <Badge variant="outline" data-testid="git-commit-draft-synced">
           <IconCheck class="size-3" aria-hidden="true" />
-          草稿已同步 #{draftRevision}
+          {m.s6_commit_draft_synced({ revision: draftRevision })}
         </Badge>
       {/if}
       {#if context.signEnabled}
         <Badge variant="info">
           {context.signFormat
-            ? `${context.signFormat.toUpperCase()} 签名`
-            : "提交签名开启"}
+            ? m.s6_commit_sign_format_badge({
+                format: context.signFormat.toUpperCase(),
+              })
+            : m.s6_commit_sign_enabled_badge()}
         </Badge>
       {/if}
       {#if context.executableHooks && context.executableHooks.length > 0}
         <Badge
           variant="outline"
-          title={`可执行钩子：${context.executableHooks.join(", ")}`}
+          title={m.s6_commit_hooks_tooltip({
+            hooks: context.executableHooks.join(", "),
+          })}
         >
-          钩子 {context.executableHooks.length}
+          {m.s6_commit_hooks_badge({ count: context.executableHooks.length })}
         </Badge>
       {/if}
     </div>
@@ -222,27 +225,25 @@
   {#if detachedHead}
     <InlineNotice tone="warning">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <span
-          >当前处于游离 HEAD，建议先从当前 HEAD 新建并切换分支后再提交。</span
-        >
+        <span>{m.s6_commit_detached_notice()}</span>
         {#if onCreateBranchFromHead}
           <Button size="sm" variant="outline" onclick={onCreateBranchFromHead}>
             <IconGitBranch aria-hidden="true" />
-            从当前 HEAD 新建分支…
+            {m.s6_commit_new_branch_from_head()}
           </Button>
         {/if}
       </div>
     </InlineNotice>
   {:else if identityMissing}
     <InlineNotice tone="warning">
-      未检测到有效 Git 作者身份（user.name / user.email），提交前需在终端配置。
+      {m.s6_commit_identity_missing_notice()}
     </InlineNotice>
   {/if}
 
   <Input
     value={parsed.subject}
-    placeholder="提交标题（Subject，必填 · Ctrl/Cmd+Enter 打开提交预览）"
-    aria-label="提交说明标题"
+    placeholder={m.s6_commit_subject_placeholder()}
+    aria-label={m.s6_commit_subject_aria()}
     disabled={readonlyMode}
     oninput={(e) => updateSubject(e.currentTarget.value)}
     onkeydown={handleKeydown}
@@ -251,8 +252,8 @@
   <Textarea
     rows={2}
     value={parsed.body}
-    placeholder="补充提交正文说明（选填）…"
-    aria-label="补充正文描述"
+    placeholder={m.s6_commit_body_placeholder()}
+    aria-label={m.s6_commit_body_aria()}
     disabled={readonlyMode}
     oninput={(e) => updateBody(e.currentTarget.value)}
     onkeydown={handleKeydown}
@@ -288,13 +289,13 @@
           size="default"
           variant="outline"
           onclick={onRequestCommitAssist}
-          aria-label="让会话协助起草说明"
-          title="将已暂存文件摘要发送到会话草稿框协助起草提交说明"
+          aria-label={m.s6_commit_assist_aria()}
+          title={m.s6_commit_assist_tooltip()}
           data-testid="git-commit-assist-btn"
         >
           <IconSparkles aria-hidden="true" />
-          <span class="sm:hidden">会话起草</span>
-          <span class="max-sm:hidden">让会话协助起草说明</span>
+          <span class="sm:hidden">{m.s6_commit_assist_short()}</span>
+          <span class="max-sm:hidden">{m.s6_commit_assist_aria()}</span>
         </Button>
       {/if}
     </div>
@@ -303,7 +304,7 @@
       {#if canDirectPush && onOpenPush}
         <Button variant="outline" onclick={onOpenPush}>
           <IconArrowUp aria-hidden="true" />
-          推送待推提交…
+          {m.s6_commit_push_ahead_btn()}
         </Button>
       {/if}
       <Button
@@ -312,14 +313,14 @@
           detachedHead ||
           (commitAmend && commitAmendPushed)}
         title={detachedHead
-          ? "游离 HEAD 无法直接推送分支，请先新建分支"
+          ? m.s6_commit_and_push_detached_tooltip()
           : commitAmend && commitAmendPushed
-            ? "已推送提交修正后将导致分支与上游分叉，不支持一键普通推送（不提供强推）"
+            ? m.s6_commit_and_push_amend_pushed_tooltip()
             : disabledHint || undefined}
         onclick={() => onOpenCommitPreview(true)}
         data-testid="git-commit-and-push-btn"
       >
-        提交并推送…
+        {m.s6_commit_and_push_btn()}
       </Button>
       <Button
         variant="default"
@@ -327,7 +328,7 @@
         title={disabledHint || undefined}
         onclick={() => onOpenCommitPreview(false)}
       >
-        提交预览…
+        {m.s6_commit_preview_btn()}
       </Button>
     </div>
   </div>

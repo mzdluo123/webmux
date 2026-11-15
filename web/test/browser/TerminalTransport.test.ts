@@ -6,6 +6,8 @@ import { render } from "vitest-browser-svelte/pure";
 import type { SubmissionProgress } from "../../src/contracts/schemas";
 import { resetBrowserChrome } from "../../src/platform/browser-chrome";
 import Harness from "./TerminalHarness.svelte";
+import { initializeLocale, locale } from "../../src/lib/locale";
+import { m } from "$lib/paraglide/messages.js";
 import {
   blurAndTrackFocus,
   expectDomText,
@@ -41,6 +43,50 @@ test("saturated input reports rejection and clears it after a successful send", 
   await expect
     .element(page.getByRole("status", { name: "Terminal error" }))
     .toHaveTextContent("");
+});
+
+test("visible input uncertainty follows locale changes without replay or clearing on new input", async () => {
+  const previousLocale = locale.preference;
+  initializeLocale();
+  locale.setPreference("zh-CN");
+  try {
+    observeGlyphPixels(true);
+    const { socket: first } = await openTerminal();
+    await page.getByRole("button", { name: "Focus terminal input" }).click();
+    await userEvent.keyboard("x");
+    await expect.poll(() => inputText(first)).toBe("x");
+    first.drop();
+    const banner = page.getByRole("status", { name: "Terminal error" });
+    await expect
+      .element(banner)
+      .toHaveTextContent(m.relay_sent_input_uncertain());
+
+    locale.setPreference("en");
+    await expect
+      .element(banner)
+      .toHaveTextContent(m.relay_sent_input_uncertain());
+    const second = await reconnected(2);
+    second.open();
+    second.receive(1, snapshot);
+    second.grantControl();
+    await expect
+      .element(page.getByRole("status", { name: "Terminal restoration" }))
+      .toHaveTextContent("ready");
+    await page.getByRole("button", { name: "Focus terminal input" }).click();
+    await userEvent.keyboard("y");
+    expect(inputText(first)).toBe("x");
+    expect(inputText(second)).toBe("y");
+    await expect
+      .element(banner)
+      .toHaveTextContent(m.relay_sent_input_uncertain());
+
+    locale.setPreference("zh-CN");
+    await expect
+      .element(banner)
+      .toHaveTextContent(m.relay_sent_input_uncertain());
+  } finally {
+    locale.setPreference(previousLocale);
+  }
 });
 
 test("initial terminal geometry is delivered after the send queue drains", async () => {
@@ -718,6 +764,29 @@ test("an invalid server frame is reported and the terminal reattaches on a fresh
   // WebSocket ignores the second call.
   expect(first.closeCount).toBe(2);
   first.closeCount = 1;
+  const rawError = document.querySelector(
+    '[aria-label="Terminal error"]',
+  )?.textContent;
+  const previousLocale = locale.preference;
+  initializeLocale();
+  try {
+    locale.setPreference("en");
+    await expect
+      .poll(
+        () =>
+          document.querySelector('[aria-label="Terminal error"]')?.textContent,
+      )
+      .toBe(rawError);
+    locale.setPreference("zh-CN");
+    await expect
+      .poll(
+        () =>
+          document.querySelector('[aria-label="Terminal error"]')?.textContent,
+      )
+      .toBe(rawError);
+  } finally {
+    locale.setPreference(previousLocale);
+  }
 });
 
 test("mounted terminal stays non-editable until replay is ready and never replays premature keys", async () => {

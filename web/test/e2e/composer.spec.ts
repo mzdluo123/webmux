@@ -10,7 +10,7 @@ import {
   holdTerminalReattach,
   quote,
   recordInput,
-  viewSwitch,
+  toggleCode,
   backToList,
 } from "./fixtures";
 
@@ -156,7 +156,7 @@ test("code references and uploaded paths join the same draft without PTY input",
   await mode(page).click();
   await draft(page).fill("Please inspect ");
   await draft(page).press("End");
-  await viewSwitch(page.locator(".terminal-header"), "代码").click();
+  await toggleCode(page);
   await page
     .getByRole("button", { name: "reference.txt", exact: true })
     .click();
@@ -189,14 +189,13 @@ test("code references and uploaded paths join the same draft without PTY input",
   expect(await readFile(received, "utf8")).toBe("");
   if (info.project.use.isMobile) {
     await expect(draft(page)).toBeHidden();
-    await viewSwitch(page.locator(".terminal-header"), "终端").click();
+    await toggleCode(page);
   }
   await send(page).click();
   await expect
     .poll(() => readFile(received, "utf8"))
     .toBe(`\x1b[200~${expected}\x1b[201~\r`);
-  if (info.project.use.isMobile)
-    await viewSwitch(page.locator(".terminal-header"), "代码").click();
+  if (info.project.use.isMobile) await toggleCode(page);
   await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
   await expect(draft(page)).toBeHidden();
   // The phone header has no draft button while the soft keys are hidden.
@@ -211,7 +210,7 @@ test("code references and uploaded paths join the same draft without PTY input",
   expect((await request.get(`/api/sessions/${id}`)).ok()).toBeTruthy();
 });
 
-test("draft splits the terminal column while code stays full height", async ({
+test("draft splits the terminal column while the side panel stays full height", async ({
   page,
   workDir,
 }, info) => {
@@ -246,9 +245,9 @@ test("draft splits the terminal column while code stays full height", async ({
     ),
   ).toBe(true);
   await expect(draft(page)).toHaveValue("Keep this draft");
-  await viewSwitch(page.locator(".terminal-header"), "代码").click();
+  await toggleCode(page);
   await page.getByRole("button", { name: "panel.txt", exact: true }).click();
-  const code = page.getByRole("region", { name: "代码工作区" });
+  const code = page.getByRole("region", { name: "侧栏面板", exact: true });
   const codeBounds = (await code.boundingBox())!;
   if (info.project.use.isMobile) {
     await expect(panel).toBeHidden();
@@ -272,8 +271,7 @@ test("draft splits the terminal column while code stays full height", async ({
   expect(await code.boundingBox()).toEqual(codeBounds);
   await toggleMode(page);
   expect(await code.boundingBox()).toEqual(codeBounds);
-  if (info.project.use.isMobile)
-    await viewSwitch(page.locator(".terminal-header"), "终端").click();
+  if (info.project.use.isMobile) await toggleCode(page);
   await expect(draft(page)).toHaveValue("Keep this draft");
   await expect(panel).toBeVisible();
 });

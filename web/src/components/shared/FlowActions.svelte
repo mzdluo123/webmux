@@ -1,7 +1,8 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
 
-  // The buttons ending a branch flow: cancel and confirm, then "完成" once
+  // The buttons ending a branch flow: cancel and confirm, then "Done" once
   // the operation ran.
   let {
     done,
@@ -26,9 +27,11 @@
 
 <div class="flex flex-wrap justify-end gap-2">
   {#if done}
-    <Button onclick={onclose}>完成</Button>
+    <Button onclick={onclose}>{m.s1_done()}</Button>
   {:else}
-    <Button variant="outline" disabled={busy} onclick={onclose}>取消</Button>
+    <Button variant="outline" disabled={busy} onclick={onclose}
+      >{m.s1_cancel()}</Button
+    >
     <Button
       variant={destructive ? "destructive" : "default"}
       disabled={!ready}

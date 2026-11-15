@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { m } from "$lib/paraglide/messages.js";
 import { api, store, stored, APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import {
@@ -127,7 +128,7 @@ export function createProjectSources(
         remember(null);
         await select(project);
       } else {
-        error ||= "克隆已完成，但项目暂未载入，请刷新项目列表";
+        error ||= m.s8_clone_done_reload();
       }
     } else if (op.state === "running" || op.state === "registering") {
       if (pollTimer) clearTimeout(pollTimer);
@@ -264,7 +265,10 @@ export function createProjectSources(
               ? ProjectCreationFailureSchema.safeParse(err.body)
               : null;
           error = retained?.success
-            ? `${errorMessage(err)}；目录已保留：${retained.data.path}。可返回本地文件夹来源重新登记。`
+            ? m.s8_create_retained_dir({
+                error: errorMessage(err),
+                path: retained.data.path,
+              })
             : errorMessage(err);
         }
       } finally {

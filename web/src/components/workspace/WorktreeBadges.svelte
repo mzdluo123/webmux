@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import type { Worktree } from "../../contracts/schemas";
   import { Badge } from "$lib/components/ui/badge";
   import { syncNotable } from "../../domains/workspace/worktree-sync";
@@ -20,17 +21,30 @@
 
 {#if shown}
   <div class="flex max-w-full flex-wrap items-center gap-1.5">
-    {#if pinned === false}<Badge variant="outline">未添加到主页</Badge>{/if}
-    {#if worktree.kind === "bare"}<Badge variant="secondary"
-        >bare · 不可启动</Badge
+    {#if pinned === false}<Badge variant="outline"
+        >{m.s8_badge_not_on_home()}</Badge
       >{/if}
-    {#if worktree.locked}<Badge variant="outline">已锁定</Badge>{/if}
-    {#if worktree.prunable}<Badge variant="outline">Git 登记待清理</Badge>{/if}
-    {#if !worktree.available}<Badge variant="destructive">不可用</Badge>
-    {:else if worktree.dirty === null}<Badge variant="outline">状态未知</Badge>
-    {:else if worktree.dirty}<Badge variant="warning">有修改</Badge>
+    {#if worktree.kind === "bare"}<Badge variant="secondary"
+        >{m.s8_badge_bare_no_start()}</Badge
+      >{/if}
+    {#if worktree.locked}<Badge variant="outline">{m.s8_badge_locked()}</Badge
+      >{/if}
+    {#if worktree.prunable}<Badge variant="outline"
+        >{m.s8_badge_prunable()}</Badge
+      >{/if}
+    {#if !worktree.available}<Badge variant="destructive"
+        >{m.s8_badge_unavailable()}</Badge
+      >
+    {:else if worktree.dirty === null}<Badge variant="outline"
+        >{m.s8_badge_status_unknown()}</Badge
+      >
+    {:else if worktree.dirty}<Badge variant="warning"
+        >{m.s8_badge_modified()}</Badge
+      >
     {/if}
-    {#if worktree.hasUntracked}<Badge variant="outline">未跟踪文件</Badge>{/if}
+    {#if worktree.hasUntracked}<Badge variant="outline"
+        >{m.s8_batch_untracked_files()}</Badge
+      >{/if}
     <WorktreeSyncSummary {worktree} variant="indicator" />
   </div>
 {/if}

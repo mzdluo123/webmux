@@ -5,6 +5,7 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitConflictFileDetail } from "../../contracts/schemas";
   import type {
     GitConflictChunkChoice,
@@ -59,12 +60,17 @@
             sourceSide = val;
           }
         }}
-        aria-label="来源版本对照切换"
+        aria-label={m.s6_conflict_source_switch_aria()}
       >
-        <SegmentedControl.Item value="left">左侧来源</SegmentedControl.Item>
-        <SegmentedControl.Item value="right">右侧来源</SegmentedControl.Item>
-        <SegmentedControl.Item value="base">共同祖先 Base</SegmentedControl.Item
-        >
+        <SegmentedControl.Item value="left">
+          {m.s6_conflict_left_source()}
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="right">
+          {m.s6_conflict_right_source()}
+        </SegmentedControl.Item>
+        <SegmentedControl.Item value="base">
+          {m.s6_conflict_base_source()}
+        </SegmentedControl.Item>
       </SegmentedControl.Root>
 
       <div class="space-y-1">
@@ -78,8 +84,8 @@
         <ScrollArea viewportClasses="max-h-36">
           <pre
             class="p-2 font-mono text-xs whitespace-pre-wrap break-all text-foreground">{activeSide.present
-              ? activeSide.text || "(空文件)"
-              : "(此侧不存在该文件)"}</pre>
+              ? activeSide.text || m.s6_conflict_empty_file()
+              : m.s6_conflict_missing_on_side()}</pre>
         </ScrollArea>
       </div>
     </div>
@@ -90,7 +96,9 @@
         class="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background p-2.5"
       >
         <span class="min-w-0 flex-1 wrap-anywhere text-foreground">
-          检测到 {progress.pendingNonConflicting} 处无冲突单侧改动可自动合入结果
+          {m.s6_conflict_nonconflicting_detected({
+            count: progress.pendingNonConflicting,
+          })}
         </span>
         <Button
           size="sm"
@@ -98,7 +106,7 @@
           wrap
           onclick={onApplyAllNonConflicting}
         >
-          应用全部无冲突改动
+          {m.s6_conflict_apply_all_nonconflicting()}
         </Button>
       </div>
     {/if}
@@ -113,36 +121,48 @@
           >
             <div class="flex flex-wrap items-center justify-between gap-1.5">
               <span class="font-semibold text-foreground">
-                冲突块 #{idx + 1} / {conflictSegs.length}
+                {m.s6_conflict_block_index({
+                  current: idx + 1,
+                  total: conflictSegs.length,
+                })}
               </span>
               <Badge
                 variant={choice === "unresolved" ? "destructive" : "success"}
               >
-                {choice === "unresolved" ? "待决策" : "已选择"}
+                {choice === "unresolved"
+                  ? m.s6_conflict_status_unresolved()
+                  : m.s6_conflict_status_chosen()}
               </Badge>
             </div>
 
             <div class="space-y-1.5">
               <div class="rounded-md border bg-background p-2">
                 <div class="mb-1 font-medium text-muted-foreground">
-                  左侧 ({detail.left.refName || "当前分支"})：
+                  {m.s6_conflict_left_ref_heading({
+                    ref:
+                      detail.left.refName ||
+                      m.s6_conflict_default_current_branch(),
+                  })}
                 </div>
                 <pre
                   class="font-mono text-xs whitespace-pre-wrap break-all text-foreground">{seg
                     .leftLines.length > 0
                     ? seg.leftLines.join("\n")
-                    : "(删除此段)"}</pre>
+                    : m.s6_conflict_deleted_section()}</pre>
               </div>
 
               <div class="rounded-md border bg-background p-2">
                 <div class="mb-1 font-medium text-muted-foreground">
-                  右侧 ({detail.right.refName || "合入来源"})：
+                  {m.s6_conflict_right_ref_heading({
+                    ref:
+                      detail.right.refName || m.s6_conflict_default_incoming(),
+                  })}
                 </div>
                 <pre
                   class="font-mono text-xs whitespace-pre-wrap break-all text-foreground">{seg
                     .rightLines.length > 0
                     ? seg.rightLines.join("\n")
-                    : "(删除此段)"}</pre>
+                    : m.s6_conflict_deleted_section()}</pre>
               </div>
             </div>
 
@@ -154,7 +174,7 @@
                 aria-pressed={choice === "left"}
                 onclick={() => onChooseChunk(seg.id, "left")}
               >
-                接受左侧
+                {m.s6_conflict_accept_left()}
               </Button>
               <Button
                 size="sm"
@@ -163,7 +183,7 @@
                 aria-pressed={choice === "right"}
                 onclick={() => onChooseChunk(seg.id, "right")}
               >
-                接受右侧
+                {m.s6_conflict_accept_right()}
               </Button>
               <Button
                 size="sm"
@@ -172,7 +192,7 @@
                 aria-pressed={choice === "both_lr"}
                 onclick={() => onChooseChunk(seg.id, "both_lr")}
               >
-                先左后右
+                {m.s6_conflict_both_lr()}
               </Button>
               <Button
                 size="sm"
@@ -181,7 +201,7 @@
                 aria-pressed={choice === "both_rl"}
                 onclick={() => onChooseChunk(seg.id, "both_rl")}
               >
-                先右后左
+                {m.s6_conflict_both_rl()}
               </Button>
             </div>
           </div>
@@ -192,24 +212,26 @@
     <!-- 3. Continuously visible Editable Result area (never hidden behind tabs) -->
     <section
       class="space-y-2 rounded-lg border bg-background p-2.5"
-      aria-label="移动端常驻合并结果预览与编辑"
+      aria-label={m.s6_conflict_mobile_result_aria()}
       data-testid="git-conflict-mobile-result"
     >
       <div class="flex flex-wrap items-center justify-between gap-1.5">
         <div class="flex flex-wrap items-center gap-1.5">
-          <Badge variant="success">合并结果 Result</Badge>
+          <Badge variant="success">{m.s6_conflict_result_badge()}</Badge>
           <span class="font-mono break-all text-foreground">{detail.path}</span>
         </div>
         {#if progress.hasSavedToDisk}
-          <Badge variant="success">已保存至工作树</Badge>
+          <Badge variant="success">{m.s6_conflict_saved_to_worktree()}</Badge>
         {:else}
-          <Badge variant="warning">草稿未保存</Badge>
+          <Badge variant="warning">{m.s6_conflict_unsaved_draft()}</Badge>
         {/if}
       </div>
 
       {#if draft.manualEdited && progress.unresolvedConflicts > 0 && !progress.hasConflictMarkers}
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <span class="text-muted-foreground">已直接修改结果文本：</span>
+          <span class="text-muted-foreground">
+            {m.s6_conflict_manual_edited_label()}
+          </span>
           <Button
             size="sm"
             variant="outline"
@@ -217,7 +239,7 @@
             onclick={onConfirmManualEdits}
           >
             <IconCheck aria-hidden="true" />
-            确认手动编辑已解决冲突
+            {m.s6_conflict_confirm_manual_btn()}
           </Button>
         </div>
       {/if}
@@ -228,7 +250,7 @@
         <Textarea
           variant="bare"
           code
-          aria-label="合并结果文本编辑器"
+          aria-label={m.s6_conflict_result_editor_aria()}
           value={draft.resultText}
           oninput={(e) => onChangeResultText(e.currentTarget.value)}
           class="min-h-40"

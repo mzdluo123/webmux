@@ -1,4 +1,6 @@
-import type { FileDiffMetadata } from "@pierre/diffs";
+import type { FileDiffMetadata, SelectedLineRange } from "@pierre/diffs";
+import { locale } from "$lib/locale";
+import { m } from "$lib/paraglide/messages.js";
 import { api, APIError } from "../../platform/api";
 import { DiffReplySchema, type DiffResult } from "./code-diff-model";
 import { nodeId } from "./code-reference";
@@ -31,7 +33,7 @@ export function calculateDiff(
         type: "module",
       });
     } catch {
-      reject(new Error("无法启动差异计算，请查看两侧完整文件"));
+      reject(new Error(m.s5_diff_unable_to_start()));
       return;
     }
     let settled = false;
@@ -51,26 +53,34 @@ export function calculateDiff(
       finish(undefined, new DOMException("Diff cancelled", "AbortError"));
     const timer = setTimeout(
       () =>
-        finish({ kind: "limited", reason: "差异计算超时，请查看两侧完整文件" }),
+        finish({
+          kind: "limited",
+          reason: m.s5_diff_timed_out(),
+        }),
       10000,
     );
     signal.addEventListener("abort", abort, { once: true });
     worker.onmessage = (event: MessageEvent<unknown>) => {
       const reply = DiffReplySchema.safeParse(event.data);
       if (!reply.success || reply.data.snapshotId !== snapshotId) {
-        finish(undefined, new Error("差异结果与当前快照不匹配，请重试"));
+        finish(undefined, new Error(m.s5_diff_snapshot_mismatch()));
         return;
       }
       finish(reply.data.result);
     };
     worker.onerror = (event) => {
       event.preventDefault();
-      finish(undefined, new Error("差异计算失败，请查看两侧完整文件"));
+      finish(undefined, new Error(m.s5_diff_failed_view_full()));
     };
     worker.onmessageerror = () =>
-      finish(undefined, new Error("无法读取差异结果，请重试"));
+      finish(undefined, new Error(m.s5_diff_unreadable_result()));
     try {
-      worker.postMessage({ snapshotId, old, new: next });
+      worker.postMessage({
+        snapshotId,
+        old,
+        new: next,
+        locale: locale.current,
+      });
     } catch (error) {
       finish(undefined, error);
     }
@@ -122,7 +132,7 @@ export async function fetchFileComparisonDiff(
   const change = list.entries.find(
     (c) => c.group === group || c.group === "untracked",
   );
-  if (!change) throw new Error("此文件没有可用的未提交差异，保留完整阅读");
+  if (!change) throw new Error(m.s5_no_uncommitted_diff());
   const value = await api(
     `/sessions/${id}/code/diff?${new URLSearchParams({ contextId, changeId: change.changeId })}`,
     CodeDiffSchema,
@@ -134,21 +144,48 @@ export async function fetchFileComparisonDiff(
   const candidate = file.document.source === "head" ? value.old : value.new;
   if (candidate.contentVersion !== file.document.contentVersion) {
     onState("updated");
-    throw new Error("比较来源已更新，请刷新完整文件后再切换 Diff");
+    throw new Error(m.s5_diff_source_updated_refresh());
   }
   return value;
 }
 
 export function sourceLabel(source: string) {
   return source === "worktree"
-    ? "工作区"
+    ? m.s5_workspace()
     : source === "index"
-      ? "索引版本"
+      ? m.s5_source_index()
       : source === "head"
-        ? "HEAD 版本"
+        ? m.s5_source_head()
         : source === "empty"
-          ? "不存在"
+          ? m.s5_source_missing()
           : "";
+}
+
+export function resolveDiffSelectionRange(
+  range: SelectedLineRange | null,
+  defaultSide: "old" | "new",
+): {
+  side: "old" | "new";
+  start?: number;
+  end?: number;
+  invalid: boolean;
+  error: string;
+} {
+  if (!range) return { side: defaultSide, invalid: false, error: "" };
+  if (range.endSide && range.endSide !== range.side) {
+    return {
+      side: defaultSide,
+      invalid: true,
+      error: m.s5_select_contiguous_same_side(),
+    };
+  }
+  return {
+    side: range.side === "deletions" ? "old" : "new",
+    start: Math.min(range.start, range.end),
+    end: Math.max(range.start, range.end),
+    invalid: false,
+    error: "",
+  };
 }
 
 /** A missing new side and a HEAD file both initially show the old source. */
@@ -219,9 +256,7 @@ export async function resolveCalculatedDiff(
       modelSnapshot: current.snapshotId,
       calculation: "error",
       calculationReason:
-        error instanceof Error
-          ? error.message
-          : "差异计算失败，请查看两侧完整文件",
+        error instanceof Error ? error.message : m.s5_diff_failed_view_full(),
     };
   }
 }
@@ -280,7 +315,7 @@ export async function resolveHunksCalculatedDiff(
       modelSnapshot: snapshotId,
       calculation: "error",
       calculationReason:
-        error instanceof Error ? error.message : "差异计算失败",
+        error instanceof Error ? error.message : m.s5_diff_failed_short(),
     };
   }
 }

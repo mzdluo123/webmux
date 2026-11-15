@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import IconDots from "~icons/tabler/dots";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import { MAX_BATCH_WORKTREES } from "../../contracts/schemas";
   import {
-    LOCKED_STALE_REASON,
+    lockedStaleReason,
     type WorktreeBatchEntry,
   } from "../../domains/workspace/worktree-batch";
   import { switchableWorktree } from "../../domains/workspace/worktree-sync";
@@ -52,45 +53,53 @@
       >
     {/if}
     {#if entry.tree.kind === "main"}
-      <Badge variant="secondary">主工作区</Badge>
+      <Badge variant="secondary">{m.s8_badge_main_worktree()}</Badge>
     {:else if entry.tree.kind === "bare"}
       <Badge variant="secondary">bare</Badge>
     {/if}
     {#if !entry.pinned && entry.tree.kind === "linked"}
-      <Badge variant="outline">未添加到主页</Badge>
+      <Badge variant="outline">{m.s8_badge_unpinned_home()}</Badge>
     {/if}
     {#if entry.tree.locked}
-      <Badge variant="outline">已锁定</Badge>
+      <Badge variant="outline">{m.s8_badge_locked()}</Badge>
     {/if}
     {#if entry.tree.prunable && !entry.tree.available}
-      <Badge variant="outline">Git 登记待清理</Badge>
+      <Badge variant="outline">{m.s8_badge_git_prunable()}</Badge>
     {:else if !entry.tree.available}
-      <Badge variant="destructive">不可用</Badge>
+      <Badge variant="destructive">{m.s8_badge_unavailable()}</Badge>
     {:else if entry.category === "safe"}
-      <Badge variant="secondary">可安全清理</Badge>
+      <Badge variant="secondary">{m.s8_badge_safe_clean()}</Badge>
     {/if}
     {#if entry.tree.dirty === true}
-      <Badge variant="warning">有修改</Badge>
+      <Badge variant="warning">{m.s8_badge_dirty()}</Badge>
     {/if}
     {#if entry.tree.hasUntracked}
-      <Badge variant="outline">未跟踪文件</Badge>
+      <Badge variant="outline">{m.s8_batch_untracked_files()}</Badge>
     {/if}
     {#if entry.tree.hasIgnored}
-      <Badge variant="outline">含忽略文件</Badge>
+      <Badge variant="outline">{m.s8_badge_has_ignored()}</Badge>
     {/if}
     {#if entry.activeSessionCount > 0}
-      <Badge variant="warning">{entry.activeSessionCount} 个运行中会话</Badge>
+      <Badge variant="warning"
+        >{m.s8_batch_running_sessions({
+          count: String(entry.activeSessionCount),
+        })}</Badge
+      >
     {/if}
     {#if entry.archivedCount > 0}
-      <Badge variant="secondary">{entry.archivedCount} 条归档聊天</Badge>
+      <Badge variant="secondary"
+        >{m.s8_badge_archived_chats({
+          count: String(entry.archivedCount),
+        })}</Badge
+      >
     {/if}
   </div>
   <p class="font-mono text-xs break-all text-muted-foreground">
     {entry.tree.path}
   </p>
   <WorktreeSyncSummary worktree={entry.tree} />
-  {#if entry.reason === LOCKED_STALE_REASON}
-    <p class="text-xs text-muted-foreground">{LOCKED_STALE_REASON}</p>
+  {#if entry.reason === lockedStaleReason()}
+    <p class="text-xs text-muted-foreground">{lockedStaleReason()}</p>
   {/if}
 {/snippet}
 
@@ -99,11 +108,11 @@
     class="rounded-lg border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground"
   >
     {entries.length === 0
-      ? "该仓库暂无工作树。"
-      : "没有匹配当前筛选条件的工作树。"}
+      ? m.s8_batch_list_empty_repo()
+      : m.s8_batch_list_empty_filtered()}
   </p>
 {:else}
-  <ul class="space-y-2" aria-label="仓库工作树列表">
+  <ul class="space-y-2" aria-label={m.s8_batch_list_aria()}>
     {#each filteredEntries as entry (entry.tree.id)}
       {@const isProtected = entry.category === "protected"}
       {@const isChecked = !isProtected && selectedSet.has(entry.tree.id)}
@@ -127,7 +136,7 @@
             />
             <div class="min-w-0 flex-1 space-y-1">
               {@render badges(entry)}
-              {#if isProtected && entry.reason !== LOCKED_STALE_REASON}
+              {#if isProtected && entry.reason !== lockedStaleReason()}
                 <p class="text-xs break-all text-muted-foreground">
                   {entry.reason}
                 </p>
@@ -152,8 +161,8 @@
                   {...props}
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={`工作树操作：${entry.title}`}
-                  title={`工作树操作：${entry.title}`}
+                  aria-label={m.s8_batch_wt_actions_for({ title: entry.title })}
+                  title={m.s8_batch_wt_actions_for({ title: entry.title })}
                   ><IconDots aria-hidden="true" /></Button
                 >
               {/snippet}

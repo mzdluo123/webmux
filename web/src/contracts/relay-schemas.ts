@@ -1,27 +1,31 @@
 import { z } from "zod";
+import { m } from "$lib/paraglide/messages.js";
 
 const CounterSchema = z
   .string()
   .max(20)
   .regex(/^(0|[1-9][0-9]*)$/);
-const PublicURLSchema = z.string().refine((value) => {
-  if (!value) return true;
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === "https:" &&
-      !url.username &&
-      !url.password &&
-      !url.search &&
-      !url.hash &&
-      url.pathname === "/" &&
-      !url.hostname.includes(":") &&
-      !/^\d+(\.\d+){3}$/.test(url.hostname)
-    );
-  } catch {
-    return false;
-  }
-}, "无效的公共 HTTPS 来源");
+const PublicURLSchema = z.string().refine(
+  (value) => {
+    if (!value) return true;
+    try {
+      const url = new URL(value);
+      return (
+        url.protocol === "https:" &&
+        !url.username &&
+        !url.password &&
+        !url.search &&
+        !url.hash &&
+        url.pathname === "/" &&
+        !url.hostname.includes(":") &&
+        !/^\d+(\.\d+){3}$/.test(url.hostname)
+      );
+    } catch {
+      return false;
+    }
+  },
+  { error: () => m.relay_invalid_public_origin() },
+);
 
 export const RelayStatusSchema = z.object({
   enabled: z.boolean(),

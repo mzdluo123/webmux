@@ -21,10 +21,10 @@ func TestMCPGuideContextAndTopics(t *testing.T) {
 			if (r.SelfSessionID != nil) != (locality == "local") {
 				t.Fatalf("identity boundary: %+v", r)
 			}
-			if r.Kind != "index" || r.Topic != nil || len(r.Topics) != 7 {
+			if r.Kind != "index" || r.Topic != nil || len(r.Topics) != 8 {
 				t.Fatalf("index: %+v", r)
 			}
-			want := []string{"connect", "operations", "completion", "requests", "launch", "artifacts", "rules"}
+			want := []string{"connect", "operations", "input", "completion", "requests", "launch", "artifacts", "rules"}
 			for i, topic := range r.Topics {
 				if topic.ID != want[i] {
 					t.Fatalf("topic %d: %+v", i, topic)

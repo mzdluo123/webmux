@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { errorMessage } from "../../platform/error";
 import { gitCompare } from "../../platform/git-api";
 import type { GitWorkbenchViewState } from "../../contracts/git-workbench-schemas";
@@ -39,7 +40,7 @@ export function createGitLogCompareController(
     if (!repoId || !baseOid || !targetOid) return;
     if (baseOid === targetOid) {
       deps.patchView({
-        statusBanner: "请选择两个不同的提交版本进行比较。",
+        statusBanner: m.s7_log_compare_same_commit(),
       });
       return;
     }

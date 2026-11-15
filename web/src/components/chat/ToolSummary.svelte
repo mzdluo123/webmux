@@ -15,6 +15,7 @@
   import IconTrash from "~icons/tabler/trash";
   import IconWorld from "~icons/tabler/world";
   import IconX from "~icons/tabler/x";
+  import { m } from "$lib/paraglide/messages.js";
   import { diffStats, type ToolEntry } from "../../domains/chat/chat-model";
   import DiffCount from "./DiffCount.svelte";
 
@@ -52,20 +53,28 @@
     tool.permission?.outcome === "cancelled" ||
       !!tool.permission?.kind?.startsWith("reject"),
   );
+  const isCompleted = $derived(
+    !waiting &&
+      tool.permission?.outcome !== "cancelled" &&
+      !rejected &&
+      tool.status !== "in_progress" &&
+      tool.status !== "pending" &&
+      tool.status !== "failed",
+  );
   const status = $derived(
     waiting
-      ? "等待授权"
+      ? m.s3_waiting_permission()
       : tool.permission?.outcome === "cancelled"
-        ? "已取消"
+        ? m.s3_tool_status_cancelled()
         : rejected
-          ? "已拒绝"
+          ? m.s3_tool_status_rejected()
           : tool.status === "in_progress"
-            ? "进行中"
+            ? m.s3_status_in_progress()
             : tool.status === "pending"
-              ? "等待中"
+              ? m.s3_tool_status_pending()
               : tool.status === "failed"
-                ? "失败"
-                : "完成",
+                ? m.s3_tool_status_failed()
+                : m.s3_status_completed(),
   );
 </script>
 
@@ -74,7 +83,8 @@
   class={tool.kind === "execute"
     ? "min-w-0 truncate font-mono text-xs text-foreground"
     : "min-w-0 truncate text-foreground"}
-  >{tool.title || (tool.partial ? "早前的工具调用" : "工具调用")}</span
+  >{tool.title ||
+    (tool.partial ? m.s3_tool_earlier_call() : m.s3_tool_call())}</span
 >
 {#if added || removed}<DiffCount {added} {removed} />{/if}
 <span
@@ -99,7 +109,5 @@
     />{:else}<IconCheck
       class="size-3.5 text-success"
       aria-hidden="true"
-    />{/if}<span class={status === "完成" ? "sr-only" : undefined}
-    >{status}</span
-  >
+    />{/if}<span class={isCompleted ? "sr-only" : undefined}>{status}</span>
 </span>

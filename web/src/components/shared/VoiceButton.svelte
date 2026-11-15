@@ -8,6 +8,7 @@
     type ButtonVariant,
   } from "$lib/components/ui/button";
   import { createVoiceRecorder } from "../../hooks/shared/voice.svelte";
+  import { m } from "$lib/paraglide/messages.js";
 
   let {
     size = "icon-sm",
@@ -38,12 +39,12 @@
 
   const label = $derived(
     recorder.state === "connecting"
-      ? "正在连接语音识别…"
+      ? m.s1_voice_connecting()
       : recorder.state === "recording"
-        ? "停止录音并识别"
+        ? m.s1_voice_stop_and_transcribe()
         : recorder.state === "finishing"
-          ? "正在完成语音识别…"
-          : "语音输入",
+          ? m.s1_voice_finishing()
+          : m.s1_voice_input(),
   );
   const busy = $derived(
     recorder.state === "connecting" || recorder.state === "finishing",

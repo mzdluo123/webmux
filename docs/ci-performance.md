@@ -24,7 +24,7 @@ E2E 的 worker 数从 2 调到 4，Storybook 从 2 调到 6，使用同一台机
 
 - 本地 Vitest 浏览器、E2E、Storybook 分别使用 `min(4, CPU 并行度)`、`min(8, CPU 并行度)`、`min(6, CPU 并行度)` 个 worker。
 - `WEBMUX_E2E_WORKERS` 在所有环境覆盖 E2E worker 数；`WEBMUX_E2E_WORKERS=1` 可回退串行排查 flaky。
-- CI 的 E2E 使用 2 个 worker，Storybook 使用 6 个（macOS runner 已移除，见文末）。
+- CI 的 E2E 与 Storybook 均使用 2 个 worker（macOS runner 已移除，见文末）。
 - Go 测试默认 `-parallel=4`，多核本机可提高 `GO_TEST_PARALLEL`（例如 `make test GO_TEST_PARALLEL=8`）。
 
 ## 改动

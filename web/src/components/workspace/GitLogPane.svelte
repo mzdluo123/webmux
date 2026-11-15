@@ -5,6 +5,7 @@
   import * as Drawer from "$lib/components/ui/drawer";
   import * as Resizable from "$lib/components/ui/resizable";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { m } from "$lib/paraglide/messages.js";
   import {
     filterLogCommits,
     resolveCommitParentFiles,
@@ -237,7 +238,7 @@
     selectedFilePath={props.selectedCommitFilePath}
     leftEndpoint={resolvedParent.selectedParent
       ? resolvedParent.selectedParent.slice(0, 7)
-      : "空树"}
+      : m.s6_empty_tree()}
     rightEndpoint={selectedDetail?.shortOid ?? ""}
     loading={props.detailLoading}
     compareMode={props.compareMode}
@@ -331,8 +332,8 @@
               class="code-nav-divider"
               role="separator"
               aria-orientation="vertical"
-              aria-label="调整引用筛选栏宽度"
-              title="拖动调整引用筛选栏宽度（双击恢复默认宽度）"
+              aria-label={m.s6_log_pane_resize_tree_aria()}
+              title={m.s6_log_pane_resize_tree_tooltip()}
               aria-valuemin={TREE_BOUNDS.min}
               aria-valuemax={TREE_BOUNDS.max}
               aria-valuenow={effectiveTreeWidth}
@@ -401,8 +402,8 @@
             class="code-row-divider"
             role="separator"
             aria-orientation="horizontal"
-            aria-label="调整底部差异面板高度"
-            title="拖动调整底部差异面板高度（双击恢复默认高度）"
+            aria-label={m.s6_log_pane_resize_diff_aria()}
+            title={m.s6_log_pane_resize_diff_tooltip()}
             aria-valuemin={DIFF_BOUNDS.min}
             aria-valuemax={DIFF_BOUNDS.max}
             aria-valuenow={effectiveDiffHeight}
@@ -456,7 +457,7 @@
       <div class="border-b bg-background px-2.5 py-1.5">
         <Button size="sm" variant="ghost" onclick={closeLayer}>
           <IconArrowLeft aria-hidden="true" />
-          返回提交列表
+          {m.s6_back_to_commit_list()}
         </Button>
       </div>
       <ScrollArea class="min-h-8 flex-1">
@@ -485,7 +486,7 @@
 
 <Drawer.Root direction="left" noBodyStyles bind:open={refDrawerOpen}>
   <Drawer.Content class="w-80 max-w-[85vw] xl:hidden">
-    <Drawer.Title class="sr-only">引用与分支筛选</Drawer.Title>
+    <Drawer.Title class="sr-only">{m.s6_log_pane_drawer_title()}</Drawer.Title>
     {@render branchTreeContent(true)}
   </Drawer.Content>
 </Drawer.Root>

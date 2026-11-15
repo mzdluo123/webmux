@@ -96,12 +96,12 @@
   - 不支持文件/共享内存介质、动画、Unicode 占位符和相对父放置，不支持的相对放置返回 `ENOTSUP`；
   - 负 z-index 图片仍显示在文字上方。
 
-- **US-D15 查阅快捷键**：作为使用者，我希望从终端右上角查看全部 WebMux 快捷键，以便发现操作方式并确认生效范围。
+- **US-D15 查阅快捷键**：作为使用者，我希望从设置页查看全部 WebMux 快捷键，以便发现操作方式并确认生效范围。
   验收要点：
-  - 右上角键盘按钮在 640px 及以上可见；窄于 640px（手机无实体键盘）时收入终端菜单“快捷键”，弹窗在 320px 内完整可见；
-  - 弹窗分组展示键位，说明平台修饰键、Ctrl+B 前缀、焦点范围及快速切换会话（US-C18）。
-  - 明暗主题与低高度横屏中可滚动查阅，标题和关闭按钮保持可见；
-  - 按钮或 Esc 关闭后焦点返回入口；
+  - 设置页提供“快捷键”分区和分区导航，支持 `/settings#shortcuts` 直接定位；终端顶栏和菜单不再提供旧入口；
+  - 页面分组展示键位，说明平台修饰键、Ctrl+B 前缀、焦点范围及快速切换会话（US-C18）；
+  - 明暗主题与 320px 窄屏中可随页面滚动查阅，无页面横向溢出；
+  - 分区导航定位后聚焦教程，带会话来源进入设置时仍可返回终端；
   - 查阅不触发分屏、不向终端输入、不改变未发送草稿；
   - Shell 与 CLI 自有键位由目标程序决定。
 
@@ -109,10 +109,10 @@
 
 依据：
 
-- [快捷键帮助](../../web/src/components/terminal/TerminalShortcuts.svelte)、[帮助入口](../../web/src/components/terminal/TerminalHeader.svelte)、[帮助验收](../../web/test/e2e/shortcuts.spec.ts)
+- [快捷键帮助](../../web/src/components/settings/ShortcutsSettings.svelte)、[帮助入口](../../web/src/pages/Settings.svelte)、[帮助验收](../../web/test/e2e/shortcuts.spec.ts)
   分屏创建补充（US-D13）：完整表单支持保存配置、临时命令、命名及方向选择；取消不创建，成功保留原终端与路由。完整创建和快速 Shell 均保留源启动子目录与工作树校验。
 
-- [分屏布局](../../web/src/domains/terminal/terminal-layout.ts)、[终端窗格](../../web/src/components/terminal/SessionTerminal.svelte)、[分屏菜单](../../web/src/components/terminal/TerminalSplitMenu.svelte)
+- [分屏布局](../../web/src/domains/terminal/terminal-layout.ts)、[终端窗格](../../web/src/components/terminal/SessionTerminal.svelte)、[分屏面板](../../web/src/components/terminal/TerminalSplitPanel.svelte)
 - [会话选择](../../web/src/components/terminal/SplitSessionDialog.svelte)、[分屏验收](../../web/test/e2e/splits.spec.ts)、[后台交互验收](../../web/test/e2e/split-background.spec.ts)
 - [终端页面](../../web/src/pages/Terminal.svelte)、[终端连接](../../web/src/hooks/terminal/terminal.svelte.ts)、[终端回放](../../web/src/hooks/terminal/terminal-socket.svelte.ts)、[终端视口](../../web/src/components/terminal/TerminalViewport.svelte)
 - [回放浏览器回归](../../web/test/browser/TerminalReplay.test.ts)、[安全快照与重绘](../../internal/session/session.go)、[模式初始化](../../internal/vtpreview/preview.go)
@@ -287,15 +287,17 @@
   - 手机的代码视图不提供快捷指令入口；回到终端视图后由软键栏进入。
 - **US-H08 窄屏紧凑顶栏**：作为在手机或主屏幕 Web App 中查看 agent 的使用者，我希望顶栏只保留身份和视图切换，其余操作按用途归类，以便看清会话名称、把高度留给终端，并一眼知道自己在哪个视图。
   验收要点：
-  - 窄于 640px 时顶栏单行且不横向滚动，只常驻返回、状态点加标题、“会话视图”切换（普通会话“终端 | 代码”，混合会话“聊天 | 终端 | 代码”，带文字，不再另设代码按钮）和终端菜单；分屏在手机上不常用，收入终端菜单“窗格”组（新建/加入会话、分屏、放大、关闭窗格）；
-  - 普通会话与混合会话的“会话视图”是同一个标签页控件（`tablist`），文案固定，选中项表示当前视图（`aria-selected`）；页面加载、会话信息到达和切换进行中不改换控件，混合会话确认后在前面加上“聊天”，切换目标未知时各项原位保留且不选中；
+  - 窄于 640px 时顶栏单行且不横向滚动，保留返回、状态点加标题、聊天与终端的“会话视图”切换、“打开面板”和终端菜单；
+  - “打开面板”在手机与桌面均展开右侧栏，先显示标题为“打开面板”的选择页，提供“分屏”按钮，启用 `code` 后另有“代码”按钮；选择后以代码工作区或原有全部分屏选项替换选择页，不使用下拉菜单或子菜单；
+  - 选择页提供“关闭侧栏面板”，分屏页头部提供“返回面板选择”和“关闭侧栏面板”；代码页保持原有布局，不新增头部，点击会话页右上角“打开面板”回到选择页后关闭侧栏；终端菜单不再重复分屏组；
+  - 仅“面板选择”区域获得焦点时，C/S 分别选择代码与分屏（代码需启用 `code`）；快捷键提示不计入按钮名称，终端、聊天与代码内容不响应这两个选择键；
   - 状态点在标题之前；连接异常时点脉动（尊重减少动效设置），“重连中”等文字显示在标题下方小字，不挤掉标题；
   - 草稿开关在触屏软键栏快捷指令旁，软键栏隐藏（代码视图或非触屏窄屏）时在终端菜单首组；
-  - 终端菜单按“会话 / 剪贴板 / 终端 / 显示”分组，窄屏另含全屏、上传文件、快捷键，名称与禁用条件不变；滚动到最新位置由终端内“回到最新”浮动按钮承担；
+  - 终端菜单按“会话 / 剪贴板 / 终端 / 显示”分组，窄屏另含全屏、上传文件，名称与禁用条件不变；快捷键教程统一在设置页查阅，滚动到最新位置由终端内“回到最新”浮动按钮承担；
   - 返回与菜单为触控尺寸，其余顶栏控件为紧凑触控尺寸；
   - 320px 下无横向溢出，393px 下完整显示较短标题；
-  - 宽屏保留既有按钮（含草稿、快捷键）并增加分屏菜单；
-  - 宽屏状态点紧随标题，右侧按“聊天 | 终端”、图标操作（上传、滚动到最新）、快捷指令、草稿、代码、全屏、分屏、菜单排列；
+  - 宽屏保留草稿等常用按钮，原代码按钮改为“打开面板”，独立分屏按钮移入侧栏选择页；
+  - 宽屏状态点紧随标题，右侧按“聊天 | 终端”、图标操作（上传、滚动到最新）、快捷指令、草稿、打开面板、全屏、菜单排列；
   - 返回按钮始终可用。
 - **US-H09 安装为应用**：作为在手机或桌面常用 WebMux 的使用者，我希望知道当前地址能否安装并一键安装，以便像本地应用一样打开且不被地址栏占用空间。
   验收要点：
@@ -322,6 +324,7 @@ US-H09 图标验收：应用图标与页头标志一致。maskable 版本为系�
 - [触摸检测](../../web/src/platform/touch-input.ts)、[视口与键盘可见性](../../web/src/hooks/shared/viewport.svelte.ts)、[终端输入与键盘切换](../../web/src/hooks/terminal/terminal.svelte.ts)
 - [键盘按钮暂时保持尺寸](../../web/src/hooks/terminal/keyboard-size-hold.ts)、[保持状态机用例](../../web/test/keyboard-size-hold.test.ts)
 - [草稿输入框](../../web/src/components/terminal/TerminalInputComposer.svelte)、[终端页面](../../web/src/pages/Terminal.svelte)、[Web 应用清单](../../web/public/manifest.webmanifest)。
+- [面板选择](../../web/src/components/terminal/SessionSidePanel.svelte)、[分屏面板](../../web/src/components/terminal/TerminalSplitPanel.svelte)。
 
 偏好同步依据：[服务](../../internal/settings/service.go)、[统一前端入口](../../web/src/domains/settings/settings.svelte.ts)、[操作重放](../../web/src/domains/settings/settings-intent.ts)、[双客户端验收](../../web/test/e2e/settings-sync.spec.ts)。
 

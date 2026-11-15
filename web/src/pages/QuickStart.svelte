@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { getShell } from "../hooks/shared/shell.svelte";
   import { pluginAvailable } from "../platform/plugin-host.svelte";
   import { navigate } from "../platform/api";
@@ -12,31 +13,31 @@
 {#if workspaceAvailable}
   <LazyPage
     load={() => import("./WorkspaceQuickStart.svelte")}
-    label="快速开始"
+    label={m.s1_quick_start()}
   >
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
 {:else}
   <main class="mx-auto max-w-3xl space-y-4 p-6">
-    <h1 class="text-2xl font-semibold">新聊天</h1>
+    <h1 class="text-2xl font-semibold">{m.s1_new_chat()}</h1>
     <p class="text-sm text-muted-foreground">
-      在已有目录中选择聊天启动配置，无需登记仓库或创建工作树。
+      {m.s1_quick_start_no_workspace_desc()}
     </p>
     <LazyPage
       load={() => import("../components/sessions/NewSessionDialog.svelte")}
-      label="创建聊天"
+      label={m.s1_create_chat()}
     >
       {#snippet children(page)}
         <page.default
           launchConfigs={shell.launchConfigs?.state ?? {
             status: "unavailable",
-            error: "启动配置界面暂不可用",
+            error: m.s1_launch_configs_unavailable(),
           }}
           defaultCwd={shell.setup.value.cwd}
           repositories={[]}
           onchange={() => void shell.launchConfigs?.load()}
           onworktreecreated={() => {
-            throw new Error("工作区功能暂不可用");
+            throw new Error(m.s1_workspace_feature_unavailable());
           }}
           onclose={() => navigate("/")}
         />

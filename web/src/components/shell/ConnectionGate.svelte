@@ -1,10 +1,12 @@
 <script lang="ts">
   import Brand from "./Brand.svelte";
+  import LocaleChoice from "../shared/LocaleChoice.svelte";
   import TokenHelp from "../shared/TokenHelp.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as Card from "$lib/components/ui/card";
+  import { m } from "$lib/paraglide/messages.js";
   let {
     checking,
     token = $bindable(""),
@@ -18,16 +20,18 @@
   } = $props();
 </script>
 
-<main class="flex min-h-dvh items-center justify-center p-6">
+<main class="flex min-h-dvh flex-col items-center justify-center gap-4 p-6">
   <Card.Root class="w-full max-w-md">
     <Card.Header>
       <p class="brand mb-6"><Brand /></p>
-      <Card.Title class="text-2xl">你的终端，始终在线。</Card.Title>
-      <Card.Description>在可信内网中连接这台机器。</Card.Description>
+      <Card.Title class="text-2xl">{m.s1_gate_headline()}</Card.Title>
+      <Card.Description>{m.s1_gate_subtitle()}</Card.Description>
     </Card.Header>
     <Card.Content>
       {#if checking}
-        <p role="status" class="text-muted-foreground">正在连接…</p>
+        <p role="status" class="text-muted-foreground">
+          {m.s1_connecting_ellipsis()}
+        </p>
       {:else}
         <form
           class="space-y-5"
@@ -38,7 +42,7 @@
         >
           <div class="space-y-2">
             <div class="flex items-center gap-1">
-              <Label for="token">共享 Token</Label>
+              <Label for="token">{m.s1_shared_token()}</Label>
               <TokenHelp />
             </div>
             <Input
@@ -49,9 +53,10 @@
             />
           </div>
           {#if error}<p role="alert" class="text-destructive">{error}</p>{/if}
-          <Button type="submit" class="w-full">连接 WebMux →</Button>
+          <Button type="submit" class="w-full">{m.s1_connect_webmux()}</Button>
         </form>
       {/if}
     </Card.Content>
   </Card.Root>
+  <LocaleChoice />
 </main>

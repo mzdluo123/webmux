@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import {
   VoiceClientMessageSchema,
   VoiceServerEventSchema,
@@ -41,25 +42,25 @@ const FINISH_TIMEOUT_MS = 15000;
 
 function microphoneErrorMessage(err: unknown): string {
   if (typeof window !== "undefined" && !window.isSecureContext) {
-    return "浏览器需要 HTTPS 或 localhost 安全上下文才能访问麦克风";
+    return m.s1_mic_requires_secure_context();
   }
   if (err instanceof DOMException) {
     if (
       err.name === "NotAllowedError" ||
       err.name === "PermissionDeniedError"
     ) {
-      return "麦克风权限被拒绝，请在浏览器地址栏允许访问麦克风";
+      return m.s1_mic_permission_denied();
     }
     if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-      return "未检测到可用的麦克风设备";
+      return m.s1_mic_not_found();
     }
     if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-      return "麦克风正被其他应用占用或无法读取";
+      return m.s1_mic_not_readable();
     }
   }
   return err instanceof Error && err.message
-    ? `无法启动麦克风：${err.message}`
-    : "无法启动麦克风";
+    ? m.s1_mic_start_failed_reason({ error: err.message })
+    : m.s1_mic_start_failed();
 }
 
 export function createVoiceRecorder(
@@ -213,7 +214,7 @@ export function createVoiceRecorder(
       return;
     }
     if (event.type === "error") {
-      fail(event.error || "语音识别失败");
+      fail(event.error || m.s1_voice_recognition_failed());
     }
   }
 
@@ -223,7 +224,7 @@ export function createVoiceRecorder(
       typeof navigator === "undefined" ||
       !navigator.mediaDevices?.getUserMedia
     ) {
-      fail(microphoneErrorMessage(new Error("当前环境不支持麦克风采集")));
+      fail(microphoneErrorMessage(new Error(m.s1_mic_unsupported_env())));
       return;
     }
     const token = ++sessionToken;
@@ -301,7 +302,7 @@ export function createVoiceRecorder(
       try {
         parsed = VoiceServerEventSchema.parse(JSON.parse(msgEvent.data));
       } catch {
-        fail("无效的语音识别响应");
+        fail(m.s1_voice_invalid_response());
         return;
       }
       handleServerEvent(parsed);
@@ -309,7 +310,7 @@ export function createVoiceRecorder(
 
     ws.onerror = () => {
       if (token !== sessionToken || socket !== ws) return;
-      fail("语音识别连接异常");
+      fail(m.s1_voice_connection_error());
     };
 
     ws.onclose = (closeEvent) => {
@@ -324,8 +325,8 @@ export function createVoiceRecorder(
         const reason =
           closeEvent.reason ||
           (closeEvent.code === 1006
-            ? "语音识别服务未配置或连接已断开"
-            : "语音识别连接已关闭");
+            ? m.s1_voice_not_configured_or_disconnected()
+            : m.s1_voice_connection_closed());
         fail(reason);
       }
     };
@@ -337,7 +338,7 @@ export function createVoiceRecorder(
       state = "finishing";
       stopAudioCapture();
       finishTimer = setTimeout(() => {
-        if (state === "finishing") fail("语音识别超时");
+        if (state === "finishing") fail(m.s1_voice_timeout());
       }, FINISH_TIMEOUT_MS);
       return;
     }
@@ -346,7 +347,7 @@ export function createVoiceRecorder(
     stopAudioCapture();
     sendStopFrame();
     finishTimer = setTimeout(() => {
-      if (state === "finishing") fail("语音识别超时");
+      if (state === "finishing") fail(m.s1_voice_timeout());
     }, FINISH_TIMEOUT_MS);
   }
 

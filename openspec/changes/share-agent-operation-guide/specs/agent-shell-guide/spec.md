@@ -91,7 +91,7 @@ TCP llms 路径 SHALL 保持无实例事实的静态文档；本机原有信息�
 ### Requirement: MCP 指南输入与主题
 
 control MCP SHALL 提供只读 guide_read，输入为禁止额外字段的 object，仅可选 topic：1 至 64 字符并匹配 `^[a-z][a-z0-9-]*$`。
-缺省返回索引；MCP 仅列 connect、operations、completion、requests、launch、artifacts、rules 精选主题，不复制完整 shell 手册。
+缺省返回索引；MCP 仅列 connect、operations、input、completion、requests、launch、artifacts、rules 精选主题，不复制完整 shell 手册。
 工具 SHALL NOT 接受 URL、路径或任意命令。
 
 #### Scenario: 按需读取

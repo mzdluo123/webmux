@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { Label } from "$lib/components/ui/label";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import { Switch } from "$lib/components/ui/switch";
@@ -18,50 +19,60 @@
     options: ForwardOptions;
   } = $props();
   const base = $derived(port ? `/forward/${port}/` : "/forward/{port}/");
-  const switches = [
+  const portToken = $derived(port ? String(port) : "{port}");
+  const switches = $derived([
     {
       key: "rewriteHost",
-      label: "改写 Host",
-      help: "上游收到 localhost:{port}，通过 Vite 的 allowedHosts 检查。",
+      label: m.s8_fwd_opt_rewrite_host(),
+      help: m.s8_fwd_opt_rewrite_host_help({ port: portToken }),
     },
     {
       key: "rewriteOrigin",
-      label: "改写 Origin 和 Referer",
-      help: "同源部分改写为 http://localhost:{port}，HMR WebSocket 可以连上。",
+      label: m.s8_fwd_opt_rewrite_origin(),
+      help: m.s8_fwd_opt_rewrite_origin_help({ port: portToken }),
     },
     {
       key: "forwardedHeaders",
-      label: "添加 X-Forwarded-*",
-      help: "告诉上游原始主机、协议和路径前缀。",
+      label: m.s8_fwd_opt_forwarded_headers(),
+      help: m.s8_fwd_opt_forwarded_headers_help(),
     },
     {
       key: "rewriteResponse",
-      label: "改写重定向和 Cookie",
-      help: "Location、CORS 来源和 Set-Cookie 的 Path 指回转发地址。",
+      label: m.s8_fwd_opt_rewrite_response(),
+      help: m.s8_fwd_opt_rewrite_response_help(),
     },
-  ] as const;
+  ] as const);
 </script>
 
 <div class="space-y-4">
   <div class="space-y-2">
-    <p class="text-sm font-medium" id={`${id}-prefix-label`}>路径前缀</p>
+    <p class="text-sm font-medium" id={`${id}-prefix-label`}>
+      {m.s8_fwd_prefix_label()}
+    </p>
     <SegmentedControl.Root
       size="form"
       bind:value={options.prefix}
       aria-labelledby={`${id}-prefix-label`}
       aria-describedby={`${id}-prefix-help`}
     >
-      <SegmentedControl.Item value="keep">保留前缀</SegmentedControl.Item>
-      <SegmentedControl.Item value="strip">去除前缀</SegmentedControl.Item>
+      <SegmentedControl.Item value="keep"
+        >{m.s8_fwd_prefix_keep()}</SegmentedControl.Item
+      >
+      <SegmentedControl.Item value="strip"
+        >{m.s8_fwd_prefix_strip()}</SegmentedControl.Item
+      >
     </SegmentedControl.Root>
     <p id={`${id}-prefix-help`} class="text-xs text-muted-foreground">
       {#if options.prefix === "keep"}
-        原样转发 <code class="font-mono">{base}…</code>。Vite 需以
-        <code class="font-mono">--base {base}</code> 启动，Next.js 设置
-        <code class="font-mono">basePath</code>。
+        {m.s8_fwd_prefix_keep_before()}<code class="font-mono">{base}…</code
+        >{m.s8_fwd_prefix_keep_mid1()}<code class="font-mono"
+          >--base {base}</code
+        >{m.s8_fwd_prefix_keep_mid2()}<code class="font-mono">basePath</code
+        >{m.s8_fwd_prefix_keep_after()}
       {:else}
-        去掉 <code class="font-mono">{base.slice(0, -1)}</code>
-        后转发，适合只使用相对路径的服务。
+        {m.s8_fwd_prefix_strip_before()}<code class="font-mono"
+          >{base.slice(0, -1)}</code
+        >{m.s8_fwd_prefix_strip_after()}
       {/if}
     </p>
   </div>
@@ -73,7 +84,7 @@
           id={`${id}-${item.key}-help`}
           class="text-xs text-muted-foreground wrap-anywhere"
         >
-          {item.help.replaceAll("{port}", String(port ?? "{port}"))}
+          {item.help}
         </p>
       </div>
       <Switch

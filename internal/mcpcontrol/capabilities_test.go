@@ -68,6 +68,28 @@ func TestCoreMCPDiscoveryWithoutLaunchOrChat(t *testing.T) {
 	}
 }
 
+// TestToolInputsAreDescribed pins the self-describing schema invariant on
+// both the trimmed and the full capability set, so a field added later
+// cannot ship without a description the caller can act on.
+func TestToolInputsAreDescribed(t *testing.T) {
+	for _, enabled := range [][]string{
+		{"mcp"},
+		{"mcp", "launch", "workspace", "chat", "files"},
+	} {
+		snapshot := testCapabilities(enabled)
+		c := Client{snapshot: &snapshot}
+		for _, tool := range c.tools() {
+			name := tool.Definition["name"].(string)
+			properties := tool.Definition["inputSchema"].(map[string]any)["properties"].(map[string]any)
+			for field, raw := range properties {
+				if d, _ := raw.(map[string]any)["description"].(string); d == "" {
+					t.Errorf("%s.%s has no description (plugins %v)", name, field, enabled)
+				}
+			}
+		}
+	}
+}
+
 func TestRegistryRejectsInvalidCapabilities(t *testing.T) {
 	c := Client{Capabilities: func() contract.Capabilities { s := testCapabilities([]string{"mcp"}); s.Version = 99; return s }}
 	if _, err := c.Registry(); err == nil {

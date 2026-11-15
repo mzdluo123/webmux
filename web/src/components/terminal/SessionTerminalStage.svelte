@@ -8,6 +8,7 @@
     ChatUploads,
     useUpload,
   } from "../../hooks/shared/upload.svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
   import type {
@@ -27,6 +28,7 @@
   import { useTvTerminalBack } from "../../hooks/terminal/tv-terminal-back.svelte";
   import type { TerminalPlugins } from "../../plugins/terminal";
   import type ChatViewComponent from "../chat/ChatView.svelte";
+  import SessionSidePanel from "./SessionSidePanel.svelte";
 
   let {
     id,
@@ -36,6 +38,7 @@
     headerTerminal,
     fullscreen,
     codeShown = $bindable(),
+    panelView = $bindable("code"),
     forceSoftKeys = $bindable(),
     desktop,
     documentScroll,
@@ -90,7 +93,7 @@
     controlNotice,
     paste,
     holdBegin,
-    codePane,
+    codePane: codeContent,
     review,
     openCodeLocation,
     onChatEditChange,
@@ -100,11 +103,12 @@
   }: {
     id: string;
     plugins: TerminalPlugins;
-    paneActions: Snippet<[boolean]>;
+    paneActions: Snippet<[() => void]>;
     chatActions?: Snippet;
     headerTerminal: ReturnType<typeof createHeaderTerminalView>;
     fullscreen: ReturnType<typeof useFullscreen>;
     codeShown: boolean;
+    panelView: "picker" | "code" | "split";
     forceSoftKeys: boolean;
     desktop: boolean;
     documentScroll: boolean;
@@ -171,13 +175,23 @@
   let findPanel = $state<TerminalFindBar>();
   let chatView = $state<ChatViewComponent>();
   let composer = $state<TerminalInputComposer>();
+  let sidePanel = $state<SessionSidePanel>();
+  let header = $state<TerminalHeader>();
+
+  function openPanels() {
+    codeShown = true;
+    sidePanel?.openPicker();
+  }
+
+  function closePanel() {
+    codeShown = false;
+    header?.focusPanels();
+  }
 
   useTvTerminalBack({
     host: () => container,
     codeShown: () => codeShown,
-    closeCode: () => {
-      codeShown = false;
-    },
+    closeCode: closePanel,
     leave: () => leave(),
   });
 
@@ -288,11 +302,12 @@
 {/snippet}
 
 <TerminalHeader
+  bind:this={header}
   {plugins}
   {chatActions}
   {xr}
   keyboard={holdBegin}
-  {paneActions}
+  {openPanels}
   terminal={headerTerminal}
   {fullscreen}
   {draft}
@@ -316,7 +331,6 @@
   close={closeSession}
   {leave}
   hybrid={hybrid.known ? hybrid : undefined}
-  codeAvailable={!!plugins.code}
 />
 <TerminalWorkspace
   {codeShown}
@@ -324,8 +338,19 @@
   immersive={xr?.active ?? false}
   draftOpen={draft.enabled && hybrid.view === "terminal"}
   onfind={hybrid.view === "terminal" ? showFind : undefined}
-  {codePane}
 >
+  {#snippet codePane()}
+    <SessionSidePanel
+      bind:this={sidePanel}
+      bind:view={panelView}
+      shown={codeShown}
+      codeAvailable={!!plugins.code}
+      close={closePanel}
+      {paneActions}
+    >
+      {@render codeContent()}
+    </SessionSidePanel>
+  {/snippet}
   {#snippet terminalPane()}
     <div
       class={[
@@ -369,7 +394,7 @@
           >
             <plugins.chat.ConnectorHint
               connector={hybrid.connector}
-              detail="安装后会自动重新检测"
+              detail={m.s4_connector_recheck_hint()}
               ondismiss={() => hybrid.dismissConnector()}
             />
           </div>{/if}

@@ -5,6 +5,7 @@
   import IconTag from "~icons/tabler/tag";
   import { Badge } from "$lib/components/ui/badge";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { m } from "$lib/paraglide/messages.js";
   import type {
     GitBranchItem,
     GitWorktreeContext,
@@ -27,7 +28,7 @@
     currentLabel = "HEAD",
     occupiedLabelStyle = "compact",
     compareBaseOid = null,
-    compareTargetLabel = "与当前 HEAD 比较",
+    compareTargetLabel: rawCompareTargetLabel,
     menuLabel,
     onSelectRow,
     onAction,
@@ -48,6 +49,11 @@
     onAction: (kind: GitSharedBranchActionKind, branch: GitBranchItem) => void;
   } = $props();
 
+  const compareTargetLabel = $derived(
+    rawCompareTargetLabel === undefined
+      ? m.s6_compare_with_head()
+      : rawCompareTargetLabel,
+  );
   const isCurrent = $derived(
     branch.kind === "local" && branch.name === context.checkedOutBranch,
   );
@@ -111,11 +117,13 @@
       {#if branch.kind === "tag"}
         {#if branch.tagKind}
           <Badge variant="outline">
-            {branch.tagKind === "annotated" ? "附注" : "轻量"}
+            {branch.tagKind === "annotated"
+              ? m.s6_tag_annotated_short()
+              : m.s6_tag_lightweight_short()}
           </Badge>
         {/if}
         {#if branch.tagSigned}
-          <Badge variant="info">已签名</Badge>
+          <Badge variant="info">{m.s6_tag_signed()}</Badge>
         {/if}
       {:else if isCurrent}
         <Badge variant="info" class="max-w-full">
@@ -125,17 +133,23 @@
         <Badge
           variant="warning"
           class="max-w-full"
-          title={`已在另一工作树检出：${branch.occupiedBy.worktreePath}`}
+          title={m.s6_branch_occupied_tooltip({
+            path: branch.occupiedBy.worktreePath,
+          })}
         >
           <span class="truncate">
             {#if occupiedLabelStyle === "verbose"}
-              其他工作树已检出{branch.occupiedBy.activeSessions > 0
-                ? ` · ${branch.occupiedBy.activeSessions} 会话`
-                : ""}
+              {branch.occupiedBy.activeSessions > 0
+                ? m.s6_branch_occupied_verbose_sessions({
+                    count: branch.occupiedBy.activeSessions,
+                  })
+                : m.s6_branch_occupied_verbose()}
             {:else}
-              已占用{branch.occupiedBy.activeSessions > 0
-                ? `·${branch.occupiedBy.activeSessions}`
-                : ""}
+              {branch.occupiedBy.activeSessions > 0
+                ? m.s6_branch_occupied_compact_sessions({
+                    count: branch.occupiedBy.activeSessions,
+                  })
+                : m.s6_branch_occupied_compact()}
             {/if}
           </span>
         </Badge>

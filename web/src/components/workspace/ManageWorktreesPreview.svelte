@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { worktreeTitle } from "../../domains/workspace/home-worktrees";
   import type { RemovalPreviewItem } from "../../contracts/schemas";
   import type { BatchPreviewGroups } from "../../domains/workspace/worktree-batch";
@@ -29,27 +30,38 @@
 <div class="space-y-4">
   <div class="rounded-lg border bg-muted/40 p-3 text-sm">
     <div class="flex flex-wrap items-center gap-2 font-medium">
-      <span>可安全清理 {groups.safe.length} 个</span>
+      <span
+        >{m.s8_batch_prev_safe_count({
+          count: String(groups.safe.length),
+        })}</span
+      >
       {#if groups.blocked.length > 0}
         <span class="text-muted-foreground">·</span>
-        <span>有阻塞 {groups.blocked.length} 个</span>
+        <span
+          >{m.s8_batch_prev_blocked_count({
+            count: String(groups.blocked.length),
+          })}</span
+        >
       {/if}
       {#if groups.unsupported.length > 0}
         <span class="text-muted-foreground">·</span>
-        <span>不可删除（将跳过） {groups.unsupported.length} 个</span>
+        <span
+          >{m.s8_batch_prev_unsupported_count({
+            count: String(groups.unsupported.length),
+          })}</span
+        >
       {/if}
     </div>
     <p class="mt-1.5 text-xs text-muted-foreground">
-      本地分支始终保留；可解析提交的已归档混合会话记录将转为“已释放空间”保留。确认
-      5 分钟内有效，期间目标或会话变化将单列失败而不会波及其余工作树。
+      {m.s8_batch_prev_summary_hint()}
     </p>
   </div>
 
   <div class="max-h-[48dvh] space-y-4 overflow-y-auto pr-1">
     {#if groups.safe.length > 0}
-      <section class="space-y-2" aria-label="可安全清理项">
+      <section class="space-y-2" aria-label={m.s8_batch_prev_safe_aria()}>
         <h3 class="text-sm font-medium">
-          可安全清理（{groups.safe.length}）
+          {m.s8_batch_prev_safe_heading({ count: String(groups.safe.length) })}
         </h3>
         <ul class="space-y-2">
           {#each groups.safe as item (item.worktree.id)}
@@ -60,13 +72,19 @@
                   >{worktreeTitle(item.worktree)}</span
                 >
                 {#if item.worktree.prunable && !item.worktree.available}
-                  <Badge variant="outline">清理失效登记</Badge>
+                  <Badge variant="outline"
+                    >{m.s8_batch_prune_stale_badge()}</Badge
+                  >
                 {/if}
                 {#if item.archived.length > 0}
                   <Badge variant="secondary"
                     >{retained
-                      ? `保留 ${item.archived.length} 条归档聊天（转为已释放空间）`
-                      : `${item.archived.length} 条归档聊天原样保留`}</Badge
+                      ? m.s8_batch_archived_retained_released({
+                          count: String(item.archived.length),
+                        })
+                      : m.s8_batch_archived_kept_as_is({
+                          count: String(item.archived.length),
+                        })}</Badge
                   >
                 {/if}
               </div>
@@ -75,7 +93,7 @@
               </p>
               {#if item.worktree.detached && !retained}
                 <p class="text-xs text-destructive">
-                  detached 提交可能没有分支保护，请确认需要的提交已保留。
+                  {m.s8_batch_detached_unprotected_warn()}
                 </p>
               {/if}
               {#if item.warnings.length > 0}
@@ -97,13 +115,17 @@
     {/if}
 
     {#if groups.blocked.length > 0}
-      <section class="space-y-2.5" aria-label="受阻工作树">
+      <section class="space-y-2.5" aria-label={m.s8_batch_prev_blocked_aria()}>
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <h3 class="text-sm font-medium">
-            有阻塞的工作树（{groups.blocked.length}）
+            {m.s8_batch_prev_blocked_heading({
+              count: String(groups.blocked.length),
+            })}
           </h3>
           <span class="text-xs text-muted-foreground">
-            {includeForce ? "已勾选一并强制删除" : "默认跳过，不改动文件与会话"}
+            {includeForce
+              ? m.s8_batch_prev_force_checked()
+              : m.s8_batch_prev_skip_default()}
           </span>
         </div>
         <ul class="space-y-2">
@@ -127,13 +149,13 @@
               </p>
               {#if activeSessions.length > 0}
                 <WorktreeSessionList
-                  title="活动会话（强制删除时将先停止）"
+                  title={m.s8_batch_prev_active_sessions_title()}
                   sessions={activeSessions}
                 />
               {/if}
               {#if item.warnings.length > 0}
                 <p class="text-xs text-muted-foreground">
-                  {item.warnings.join("；")}
+                  {item.warnings.join(m.s8_semicolon_sep())}
                 </p>
               {/if}
               {#if includeForce && keepsRecords(item, true)}
@@ -150,7 +172,9 @@
               class="mt-0.5"
             />
             <span class="text-sm leading-snug">
-              同时强制删除以上 {groups.blocked.length} 个受阻工作树：关闭列出的全部活动会话，并永久丢弃这些目录中的未提交修改、未跟踪文件与忽略文件。
+              {m.s8_batch_prev_force_ack({
+                count: String(groups.blocked.length),
+              })}
             </span>
           </Label>
         </div>
@@ -158,9 +182,14 @@
     {/if}
 
     {#if groups.unsupported.length > 0}
-      <section class="space-y-2" aria-label="不可删除项">
+      <section
+        class="space-y-2"
+        aria-label={m.s8_batch_prev_unsupported_aria()}
+      >
         <h3 class="text-sm font-medium text-muted-foreground">
-          不可删除，将自动跳过（{groups.unsupported.length}）
+          {m.s8_batch_prev_unsupported_heading({
+            count: String(groups.unsupported.length),
+          })}
         </h3>
         <ul class="space-y-2">
           {#each groups.unsupported as item (item.worktree.id)}
@@ -172,7 +201,7 @@
                 {item.worktree.path}
               </p>
               <p class="text-xs break-all text-destructive">
-                {item.blockers.join("；")}
+                {item.blockers.join(m.s8_semicolon_sep())}
               </p>
             </li>
           {/each}

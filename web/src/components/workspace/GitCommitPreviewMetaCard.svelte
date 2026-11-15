@@ -2,6 +2,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitCommitPreviewModel } from "../../contracts/git-workbench-schemas";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
@@ -31,48 +32,53 @@
     class="grid min-w-0 grid-cols-1 gap-1.5 rounded-lg border bg-background p-3 text-xs sm:grid-cols-2"
   >
     <p class="wrap-anywhere">
-      <span class="text-muted-foreground">目标分支：</span>
+      <span class="text-muted-foreground">{m.s6_meta_target_branch()}</span>
       <span class="font-medium text-foreground">{model.branch}</span>
       {#if model.amend}
-        <Badge variant="warning" class="ml-1">修正提交 (--amend)</Badge>
+        <Badge variant="warning" class="ml-1">{m.s6_meta_amend_badge()}</Badge>
       {/if}
     </p>
     <p class="wrap-anywhere">
-      <span class="text-muted-foreground">工作树：</span>
+      <span class="text-muted-foreground">{m.s6_meta_worktree()}</span>
       <span class="font-mono text-foreground">{model.worktreePath}</span>
     </p>
     <p class="wrap-anywhere">
       <span class="text-muted-foreground">
-        {model.authorOverride ? "作者身份（覆盖）：" : "作者身份："}
+        {model.authorOverride
+          ? m.s6_meta_author_override()
+          : m.s6_meta_author()}
       </span>
       <span class="text-foreground">
-        {model.authorName || "(未配置)"} &lt;{model.authorEmail || "未配置"}&gt;
+        {model.authorName || m.s6_meta_unconfigured_parens()} &lt;{model.authorEmail ||
+          m.s6_meta_unconfigured()}&gt;
       </span>
     </p>
     {#if distinctCommitter || model.authorOverride}
       <p class="wrap-anywhere">
-        <span class="text-muted-foreground">提交者身份 (Committer)：</span>
+        <span class="text-muted-foreground">{m.s6_meta_committer()}</span>
         <span class="text-foreground">
-          {model.committerName || "(未配置)"} &lt;{model.committerEmail ||
-            "未配置"}&gt;
+          {model.committerName || m.s6_meta_unconfigured_parens()} &lt;{model.committerEmail ||
+            m.s6_meta_unconfigured()}&gt;
         </span>
       </p>
     {/if}
     <p class="wrap-anywhere">
-      <span class="text-muted-foreground">签名与钩子：</span>
+      <span class="text-muted-foreground">{m.s6_meta_signing_and_hooks()}</span>
       <span class="text-foreground">
         {model.signEnabled
           ? model.signFormat
-            ? `已启用 ${model.signFormat.toUpperCase()} 签名`
-            : "已启用签名"
-          : "未启用签名"}
+            ? m.s6_meta_sign_format_enabled({
+                format: model.signFormat.toUpperCase(),
+              })
+            : m.s6_meta_sign_enabled()
+          : m.s6_meta_sign_disabled()}
         {#if model.signoff}
-          · 含 Sign-off 尾注
+          {m.s6_meta_with_signoff()}
         {/if}
         ·
         {model.executableHooks.length > 0
           ? model.executableHooks.join(", ")
-          : "无可执行钩子"}
+          : m.s6_meta_no_hooks()}
       </span>
     </p>
   </div>
@@ -83,8 +89,7 @@
       data-testid="git-preview-pushed-amend-guard"
     >
       <InlineNotice tone="danger">
-        该提交已推送至远端，修正将改写提交历史并导致分支与上游分叉。WebMux
-        不会自动执行强制推送（--force）。
+        {m.s6_meta_pushed_amend_notice()}
       </InlineNotice>
       <Label class="items-start">
         <Checkbox
@@ -96,7 +101,7 @@
           data-testid="git-preview-ack-pushed-amend-checkbox"
         />
         <span class="leading-snug text-foreground">
-          我已知晓该提交已推送至远端，确认在本地改写该提交历史并承担与远端分叉的影响
+          {m.s6_meta_pushed_amend_ack()}
         </span>
       </Label>
     </div>

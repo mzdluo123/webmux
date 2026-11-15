@@ -4,6 +4,7 @@
   import IconX from "~icons/tabler/x";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
   import GitPanelToolbar from "./GitPanelToolbar.svelte";
 
@@ -26,12 +27,16 @@
   <div
     class="shrink-0 text-xs"
     role="region"
-    aria-label="已选未暂存条目批量操作"
+    aria-label={m.s6_discard_batch_region_aria()}
     data-testid="git-discard-batch-bar"
   >
     <GitPanelToolbar>
       <div class="flex min-w-0 items-center gap-1.5">
-        <Badge variant="info">已选 {selectedItems.length} 项</Badge>
+        <Badge variant="info">
+          {m.s6_discard_batch_selected_count({
+            count: String(selectedItems.length),
+          })}
+        </Badge>
         <Button
           size="sm"
           variant="ghost"
@@ -39,7 +44,7 @@
           onclick={onClearSelection}
         >
           <IconX aria-hidden="true" />
-          取消选择
+          {m.s6_discard_batch_clear()}
         </Button>
       </div>
 
@@ -55,7 +60,7 @@
           data-testid="git-batch-stage-btn"
         >
           <IconPlus aria-hidden="true" />
-          暂存已选 ({selectedItems.length})
+          {m.s6_discard_batch_stage({ count: String(selectedItems.length) })}
         </Button>
         <Button
           size="sm"
@@ -68,7 +73,7 @@
           data-testid="git-batch-discard-btn"
         >
           <IconTrash aria-hidden="true" />
-          丢弃已选… ({selectedItems.length})
+          {m.s6_discard_batch_discard({ count: String(selectedItems.length) })}
         </Button>
       </div>
     </GitPanelToolbar>

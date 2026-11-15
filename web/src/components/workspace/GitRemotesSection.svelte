@@ -6,6 +6,7 @@
   import IconWorldOff from "~icons/tabler/world-off";
   import { Button } from "$lib/components/ui/button";
   import * as Empty from "$lib/components/ui/empty";
+  import { m } from "$lib/paraglide/messages.js";
   import { copyText } from "../../platform/clipboard";
   import type { Remote } from "../../contracts/schemas";
   import type { GitRemotesController } from "../../hooks/workspace/git-remotes-controller.svelte";
@@ -26,15 +27,15 @@
   } = $props();
 </script>
 
-{#snippet urlRow(label: string, name: string, value: string)}
+{#snippet urlRow(label: string, copyLabel: string, value: string)}
   <dt class="text-muted-foreground">{label}</dt>
   <dd class="flex min-w-0 items-start gap-1">
     <span class="min-w-0 flex-1 font-mono break-all">{value}</span>
     <Button
       size="icon-sm"
       variant="ghost"
-      aria-label={`复制 ${name} 的${label}地址`}
-      title={`复制 ${name} 的${label}地址`}
+      aria-label={copyLabel}
+      title={copyLabel}
       onclick={() => void copyText(value)}
     >
       <IconCopy aria-hidden="true" />
@@ -46,7 +47,7 @@
   {#if controller}
     <div class="flex flex-wrap items-center justify-between gap-2">
       <span class="text-xs font-semibold text-muted-foreground">
-        远程仓库 ({remotes?.length ?? 0})
+        {m.s6_remotes_heading_count({ count: String(remotes?.length ?? 0) })}
       </span>
       <Button
         size="sm"
@@ -55,24 +56,30 @@
         data-testid="git-remote-add-btn"
       >
         <IconPlus aria-hidden="true" />
-        添加远程…
+        {m.s6_remotes_add_btn()}
       </Button>
     </div>
   {/if}
 
   {#if error}
     <div class="space-y-2">
-      <InlineNotice tone="danger">无法读取远程：{error}</InlineNotice>
+      <InlineNotice tone="danger"
+        >{m.s6_remotes_read_error({ error })}</InlineNotice
+      >
       {#if onretry}
-        <Button size="sm" variant="outline" onclick={onretry}>重新读取</Button>
+        <Button size="sm" variant="outline" onclick={onretry}
+          >{m.s6_remotes_retry()}</Button
+        >
       {/if}
     </div>
   {:else if !remotes}
-    <p role="status" class="text-xs text-muted-foreground">正在读取远程…</p>
+    <p role="status" class="text-xs text-muted-foreground">
+      {m.s6_remotes_loading()}
+    </p>
   {:else if remotes.length === 0}
     {#if compact}
       <p class="px-1.5 py-1 text-xs text-muted-foreground">
-        尚未配置远程仓库。
+        {m.s6_remotes_empty_compact()}
       </p>
     {:else}
       <Empty.Root variant="outline">
@@ -80,16 +87,15 @@
           <Empty.Media variant="icon">
             <IconWorldOff aria-hidden="true" />
           </Empty.Media>
-          <Empty.Title>没有远程</Empty.Title>
+          <Empty.Title>{m.s6_remotes_empty_title()}</Empty.Title>
           <Empty.Description>
-            这个仓库还没有配置远程；可点击上方「添加远程…」或在终端用 git remote
-            add 添加。
+            {m.s6_remotes_empty_desc()}
           </Empty.Description>
         </Empty.Header>
       </Empty.Root>
     {/if}
   {:else}
-    <ul class="space-y-2" aria-label="远程列表">
+    <ul class="space-y-2" aria-label={m.s6_remotes_list_aria()}>
       {#each remotes as remote (remote.name)}
         <li
           class="space-y-2 rounded-lg border bg-background p-2.5"
@@ -104,8 +110,8 @@
                 <Button
                   size="icon-sm"
                   variant="ghost"
-                  aria-label={`编辑远程 ${remote.name}`}
-                  title={`编辑远程 ${remote.name}`}
+                  aria-label={m.s6_remotes_edit_aria({ name: remote.name })}
+                  title={m.s6_remotes_edit_aria({ name: remote.name })}
                   onclick={() => controller.openEditDialog(remote)}
                 >
                   <IconEdit aria-hidden="true" />
@@ -113,8 +119,8 @@
                 <Button
                   size="icon-sm"
                   variant="ghost"
-                  aria-label={`移除远程 ${remote.name}`}
-                  title={`移除远程 ${remote.name}`}
+                  aria-label={m.s6_remotes_remove_aria({ name: remote.name })}
+                  title={m.s6_remotes_remove_aria({ name: remote.name })}
                   onclick={() => controller.openRemoveDialog(remote)}
                 >
                   <IconTrash aria-hidden="true" />
@@ -126,10 +132,22 @@
             class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs"
           >
             {#if remote.fetchUrl === remote.pushUrl}
-              {@render urlRow("获取与推送", remote.name, remote.fetchUrl)}
+              {@render urlRow(
+                m.s6_remote_url_fetch_push(),
+                m.s6_remote_copy_fetch_push_url({ name: remote.name }),
+                remote.fetchUrl,
+              )}
             {:else}
-              {@render urlRow("获取", remote.name, remote.fetchUrl)}
-              {@render urlRow("推送", remote.name, remote.pushUrl)}
+              {@render urlRow(
+                m.s6_remote_url_fetch(),
+                m.s6_remote_copy_fetch_url({ name: remote.name }),
+                remote.fetchUrl,
+              )}
+              {@render urlRow(
+                m.s6_remote_url_push(),
+                m.s6_remote_copy_push_url({ name: remote.name }),
+                remote.pushUrl,
+              )}
             {/if}
           </dl>
         </li>

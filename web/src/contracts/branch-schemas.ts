@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { m } from "$lib/paraglide/messages.js";
 import { AgentConnectorSchema, ChatConfigSchema } from "./chat-schemas";
 import {
   AttentionSettingsSchema,
@@ -305,7 +306,7 @@ export const LaunchConfigsSchema = z
   .refine(
     (configs) =>
       new Set(configs.map((config) => config.id)).size === configs.length,
-    "启动配置 ID 不能重复",
+    { error: () => m.s1_schema_duplicate_launch_config_id() },
   );
 const LaunchPresetSchema = z.object({
   name: launchConfigFields.name,

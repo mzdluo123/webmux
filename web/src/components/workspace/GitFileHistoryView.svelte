@@ -7,6 +7,7 @@
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { m } from "$lib/paraglide/messages.js";
   import type { GitFileHistoryRow } from "../../contracts/schemas";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
@@ -55,7 +56,7 @@
       <div class="space-y-1 p-2">
         {#if loading && rows.length === 0}
           <p class="p-3 text-xs text-muted-foreground" role="status">
-            正在读取单文件重命名追踪历史 (--follow)…
+            {m.s6_file_history_loading()}
           </p>
         {:else if error}
           <div class="p-2">
@@ -63,7 +64,7 @@
           </div>
         {:else if rows.length === 0}
           <p class="p-3 text-xs text-muted-foreground">
-            未找到该文件在当前修订下的提交历史。
+            {m.s6_file_history_empty()}
           </p>
         {:else}
           {#each rows as row (`${row.oid}:${row.path}`)}
@@ -120,7 +121,9 @@
                 disabled={loadingMore}
                 onclick={onLoadMore}
               >
-                {loadingMore ? "加载中…" : "加载更早提交"}
+                {loadingMore
+                  ? m.s6_loading_ellipsis()
+                  : m.s6_file_history_load_older()}
               </Button>
             </div>
           {/if}
@@ -144,7 +147,7 @@
               onclick={() => (mobileShowDiff = false)}
             >
               <IconArrowLeft aria-hidden="true" />
-              返回提交列表
+              {m.s6_back_to_commit_list()}
             </Button>
           {/if}
           <span class="font-mono text-muted-foreground">
@@ -164,7 +167,7 @@
               data-testid="git-file-history-blame-btn"
             >
               <IconFileSearch aria-hidden="true" />
-              此版本 Blame
+              {m.s6_file_history_blame_at_rev()}
             </Button>
           {/if}
           {#if onJumpToCommit}
@@ -175,7 +178,7 @@
               data-testid="git-file-history-jump-log-btn"
             >
               <IconGitCommit aria-hidden="true" />
-              在历史图中定位
+              {m.s6_jump_to_commit_in_graph()}
             </Button>
           {/if}
         </div>
@@ -185,7 +188,8 @@
     <div class="min-h-8 min-w-0 flex-1">
       <GitLogDiffPanel
         logDiff={diffReader}
-        fallbackLeftLabel={activeRow?.comparedParentOid?.slice(0, 7) ?? "空树"}
+        fallbackLeftLabel={activeRow?.comparedParentOid?.slice(0, 7) ??
+          m.s6_empty_tree()}
         fallbackRightLabel={activeRow?.shortOid ?? ""}
         presentation="docked"
       />

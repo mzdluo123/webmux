@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { HTMLAttributes } from "svelte/elements";
+  import { m } from "$lib/paraglide/messages.js";
   import { attachFileDrop } from "../../hooks/shared/file-drop";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
 
@@ -52,7 +53,7 @@
       class="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-lg border-2 border-dashed border-ring bg-background/85 text-sm"
       role="status"
     >
-      {uploads.progress ? "请等待当前上传完成" : label}
+      {uploads.progress ? m.s1_upload_wait_current() : label}
     </div>
   {/if}
   {@render children()}

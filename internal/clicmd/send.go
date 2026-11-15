@@ -68,7 +68,7 @@ var sendCommand = &Command{
 	},
 	Bind: func(fs *flag.FlagSet) Action {
 		var o sendOptions
-		fs.BoolVar(&o.enter, "enter", false, "terminal view: press Enter after the text, in the same submission")
+		fs.BoolVar(&o.enter, "enter", false, "terminal view: press Enter after the text, in the same submission (the input API's `submit` field)")
 		fs.Var(&o.keys, "key", "terminal view: send the named `KEY` after the text: "+keyNames())
 		fs.Var(&o.attachments, "attach-file", "chat view: upload the file at `PATH` and send it with the prompt")
 		fs.StringVar(&o.mode, "mode", "", "chat view: `MODE` auto (send now or queue, the default), steer (inject into the running turn), refuse (fail instead of queueing) or now (cancel the turn and send next)")

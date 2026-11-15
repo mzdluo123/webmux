@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { store, stored } from "./storage";
 import { authenticationToken, relayOwnerAuthenticated } from "./relay-auth";
 import { InputHandoffFence, stageHandoff } from "./ws-handoff";
@@ -155,7 +156,7 @@ export function connect(
     const current = streamStatuses.get(id);
     if (current) streamStatuses.set(id, { ...current, inputUncertain });
     publishStreams();
-    onError("先前输入的执行结果无法确认；未自动重发，请检查会话后继续。");
+    onError(m.relay_sent_input_uncertain());
   }
   function clearCandidate() {
     inputFence.clear();
@@ -229,7 +230,11 @@ export function connect(
       try {
         onMessage(event.data);
       } catch (error) {
-        onError(error instanceof Error ? error.message : "无效的服务器消息");
+        onError(
+          error instanceof Error
+            ? error.message
+            : m.s1_ws_invalid_server_message(),
+        );
         next.close(1002, "Invalid server message");
       }
     };

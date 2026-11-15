@@ -1,6 +1,7 @@
 <script lang="ts">
   import { findShell, shellUi } from "../hooks/shared/shell.svelte";
   import { onMount, onDestroy, tick, untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import { navigate, store, stored } from "../platform/api";
   import type { SessionInfo } from "../contracts/schemas";
   import { errorMessage } from "../platform/error";
@@ -11,7 +12,7 @@
     setBrowserChrome,
     resetBrowserChrome,
   } from "../platform/browser-chrome";
-  import TerminalSplitMenu from "../components/terminal/TerminalSplitMenu.svelte";
+  import TerminalSplitPanel from "../components/terminal/TerminalSplitPanel.svelte";
   import TerminalPaneDivider from "../components/terminal/TerminalPaneDivider.svelte";
   import TerminalPaneTabs from "../components/terminal/TerminalPaneTabs.svelte";
   import TerminalPageDialogs from "../components/terminal/TerminalPageDialogs.svelte";
@@ -191,13 +192,11 @@
   async function openExistingPane(sessionId: string) {
     if (activateSession(sessionId)) return;
     if (ids.length >= MAX_PANES)
-      throw new Error(
-        `最多同时打开 ${MAX_PANES} 个窗格；请先关闭一个再打开此会话。`,
-      );
+      throw new Error(m.s1_max_panes_reopen({ max: String(MAX_PANES) }));
     error = "";
     await add(sessionId, "horizontal");
     if (!ids.includes(sessionId))
-      throw new Error(error || "无法打开此会话，服务端会话未被修改。");
+      throw new Error(error || m.s1_open_session_failed_unmodified());
   }
 
   async function revealMessage() {
@@ -206,7 +205,7 @@
     if (!query.get("message") || !target) return;
     if (!ids.includes(target)) {
       if (ids.length >= MAX_PANES) {
-        error = `最多同时打开 ${MAX_PANES} 个窗格。请先关闭一个窗格，再打开目标消息。`;
+        error = m.s1_max_panes_reveal_message({ max: String(MAX_PANES) });
         return;
       }
       await add(target, "horizontal");
@@ -274,7 +273,7 @@
         await add(session.id, direction, target);
       }
     } catch (err) {
-      if (mounted) error = `分屏失败：${errorMessage(err)}`;
+      if (mounted) error = m.s1_split_pane_failed({ error: errorMessage(err) });
     } finally {
       if (mounted) busy = false;
     }
@@ -403,24 +402,34 @@
                   connections[value.id] = connection;
                 }}
               >
-                {#snippet paneActions(inline: boolean)}
+                {#snippet paneActions(closePanel: () => void)}
                   {#if pane}
-                    <TerminalSplitMenu
-                      {inline}
+                    <TerminalSplitPanel
                       busy={splitBusy}
                       limit={ids.length >= MAX_PANES}
                       ready={!!info[sessionId]}
                       onsplit={(direction) => {
+                        closePanel();
                         void split(direction, sessionId);
                       }}
-                      oncreate={() => createSession(sessionId)}
+                      oncreate={() => {
+                        closePanel();
+                        createSession(sessionId);
+                      }}
                       onchoose={() => {
+                        closePanel();
                         active = sessionId;
                         choosing = true;
                       }}
-                      onclose={() => close(sessionId)}
+                      onclose={() => {
+                        closePanel();
+                        close(sessionId);
+                      }}
                       onzoom={ids.length > 1
-                        ? () => zoom(sessionId)
+                        ? () => {
+                            closePanel();
+                            zoom(sessionId);
+                          }
                         : undefined}
                       {zoomed}
                     />
