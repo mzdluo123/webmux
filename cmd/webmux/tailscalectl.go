@@ -13,7 +13,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/pluginwire"
+	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/statefile"
 	"github.com/rainchan/webmux/internal/tailscale"
 	"github.com/rainchan/webmux/internal/tailscalesettings"
@@ -369,7 +369,7 @@ func (tc *tailscaleController) Status() contract.TailscaleStatus {
 	status := tc.svc.Detect(ctx)
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	out := pluginwire.TailscaleStatus(status)
+	out := featurewire.TailscaleStatus(status)
 	out.ConfiguredProvider = tc.cfg.Provider
 	out.Mode = tc.cfg.Mode
 	out.Port = tc.cfg.Port

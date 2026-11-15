@@ -4,11 +4,11 @@
   import LocationPicker from "../src/components/workspace/LocationPicker.svelte";
   import ProjectPicker from "../src/components/workspace/ProjectPicker.svelte";
   import LaunchPicker from "../src/components/sessions/LaunchPicker.svelte";
-  import { setPluginContributions } from "../src/plugins/context";
+  import { setFeatureContributions } from "../src/features/context";
   import {
-    setPluginCapabilities,
-    resetPluginCapabilities,
-  } from "../src/platform/plugin-host.svelte";
+    setFeatureCapabilities,
+    resetFeatureCapabilities,
+  } from "../src/platform/feature-host.svelte";
   import type { Repository } from "../src/contracts/schemas";
   import { worktree, longPath, longError } from "./fixtures";
   let {
@@ -44,9 +44,9 @@
   };
   const git = initial === "git" || initial === "unavailable";
   onMount(() => {
-    setPluginCapabilities({
+    setFeatureCapabilities({
       version: 1,
-      plugins: [
+      features: [
         { id: "workspace", enabled: true, status: "ready" },
         { id: "launch", enabled: true, status: "ready" },
       ],
@@ -56,15 +56,15 @@
         { id: "launch.configs", available: true },
       ],
     });
-    setPluginContributions({
+    setFeatureContributions({
       creation: { ProjectPicker, LocationPicker, LaunchPicker },
       settings: [],
       network: {},
     });
     ready = true;
     return () => {
-      setPluginContributions({ creation: {}, settings: [], network: {} });
-      resetPluginCapabilities();
+      setFeatureContributions({ creation: {}, settings: [], network: {} });
+      resetFeatureCapabilities();
     };
   });
 </script>

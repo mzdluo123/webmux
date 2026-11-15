@@ -13,10 +13,10 @@ import (
 	"github.com/rainchan/webmux/internal/contract"
 )
 
-func TestDisabledPluginCommandStopsBeforeBusinessEndpoint(t *testing.T) {
+func TestDisabledFeatureCommandStopsBeforeBusinessEndpoint(t *testing.T) {
 	calls := 0
 	e, _, stderr := serveUnix(t, make(chan struct{}), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; http.NotFound(w, r) }), testCapabilities())
-	if code := e.Run(context.Background(), launchConfigListCommand, nil); code != contract.ExitError || !strings.Contains(stderr.String(), "plugin_disabled") || strings.Contains(stderr.String(), "too old") || calls != 0 {
+	if code := e.Run(context.Background(), launchConfigListCommand, nil); code != contract.ExitError || !strings.Contains(stderr.String(), "feature_disabled") || strings.Contains(stderr.String(), "too old") || calls != 0 {
 		t.Fatalf("code=%d stderr=%q business calls=%d", code, stderr, calls)
 	}
 }
@@ -45,7 +45,7 @@ func TestCoreRunDoesNotDiscoverOptionalResources(t *testing.T) {
 	}
 }
 
-func TestCoreListAndOpenDoNotReadPluginResources(t *testing.T) {
+func TestCoreListAndOpenDoNotReadFeatureResources(t *testing.T) {
 	for _, command := range []string{"ls", "open"} {
 		t.Run(command, func(t *testing.T) {
 			var paths []string
@@ -76,11 +76,11 @@ func TestCoreListAndOpenDoNotReadPluginResources(t *testing.T) {
 	}
 }
 
-func unavailableTestCapability(snapshot contract.Capabilities, plugin, capability, reason string) contract.Capabilities {
-	for i := range snapshot.Plugins {
-		if snapshot.Plugins[i].ID == plugin && reason != contract.CapabilityReasonConfigurationOff {
-			snapshot.Plugins[i].Status = contract.PluginStatusUnavailable
-			snapshot.Plugins[i].Reason = reason
+func unavailableTestCapability(snapshot contract.Capabilities, feature, capability, reason string) contract.Capabilities {
+	for i := range snapshot.Features {
+		if snapshot.Features[i].ID == feature && reason != contract.CapabilityReasonConfigurationOff {
+			snapshot.Features[i].Status = contract.FeatureStatusUnavailable
+			snapshot.Features[i].Reason = reason
 		}
 	}
 	for i := range snapshot.Capabilities {
@@ -93,11 +93,11 @@ func unavailableTestCapability(snapshot contract.Capabilities, plugin, capabilit
 }
 
 func TestNotifyUsesCoreAttentionWithoutPush(t *testing.T) {
-	for _, reason := range []string{contract.CapabilityReasonPluginDisabled, contract.CapabilityReasonConfigurationOff, contract.CapabilityReasonStorageUnavailable} {
+	for _, reason := range []string{contract.CapabilityReasonFeatureDisabled, contract.CapabilityReasonConfigurationOff, contract.CapabilityReasonStorageUnavailable} {
 		for _, clear := range []bool{false, true} {
 			t.Run(reason+fmt.Sprint(clear), func(t *testing.T) {
 				snapshot := testCapabilities()
-				if reason != contract.CapabilityReasonPluginDisabled {
+				if reason != contract.CapabilityReasonFeatureDisabled {
 					snapshot = unavailableTestCapability(testCapabilities("notifications"), "notifications", "notifications.push", reason)
 				}
 				calls := 0
@@ -138,11 +138,11 @@ func TestNotifyUsesCoreAttentionWithoutPush(t *testing.T) {
 }
 
 func TestP2PDiagnosticsRequireSelectionNotConnectivity(t *testing.T) {
-	for _, reason := range []string{contract.CapabilityReasonPluginDisabled, contract.CapabilityReasonConfigurationOff, contract.CapabilityReasonUnsupported, contract.CapabilityReasonStorageUnavailable} {
+	for _, reason := range []string{contract.CapabilityReasonFeatureDisabled, contract.CapabilityReasonConfigurationOff, contract.CapabilityReasonUnsupported, contract.CapabilityReasonStorageUnavailable} {
 		for _, command := range []*Command{p2pStatusCommand, p2pPeersCommand, p2pProbeCommand} {
 			t.Run(reason+"/"+command.Name, func(t *testing.T) {
 				snapshot := testCapabilities()
-				if reason != contract.CapabilityReasonPluginDisabled {
+				if reason != contract.CapabilityReasonFeatureDisabled {
 					snapshot = unavailableTestCapability(testCapabilities("p2p"), "p2p", "p2p.direct", reason)
 				}
 				calls := 0
@@ -161,8 +161,8 @@ func TestP2PDiagnosticsRequireSelectionNotConnectivity(t *testing.T) {
 					})
 				}), snapshot)
 				code := e.Run(context.Background(), command, []string{"--json"})
-				if reason == contract.CapabilityReasonPluginDisabled {
-					if code != contract.ExitError || calls != 0 || !strings.Contains(stderr.String(), "plugin_disabled") {
+				if reason == contract.CapabilityReasonFeatureDisabled {
+					if code != contract.ExitError || calls != 0 || !strings.Contains(stderr.String(), "feature_disabled") {
 						t.Fatalf("disabled code=%d calls=%d stderr=%q", code, calls, stderr)
 					}
 					return
@@ -185,10 +185,10 @@ func TestP2PDiagnosticsRequireSelectionNotConnectivity(t *testing.T) {
 }
 
 func TestForwardRemoveCompletionRequiresCapability(t *testing.T) {
-	for _, reason := range []string{"", contract.CapabilityReasonPluginDisabled, contract.CapabilityReasonStorageUnavailable} {
+	for _, reason := range []string{"", contract.CapabilityReasonFeatureDisabled, contract.CapabilityReasonStorageUnavailable} {
 		t.Run(reason, func(t *testing.T) {
 			snapshot := testCapabilities("forward")
-			if reason == contract.CapabilityReasonPluginDisabled {
+			if reason == contract.CapabilityReasonFeatureDisabled {
 				snapshot = testCapabilities()
 			} else if reason != "" {
 				snapshot = unavailableTestCapability(snapshot, "forward", "forward.ports", reason)

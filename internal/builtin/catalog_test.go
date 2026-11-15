@@ -19,7 +19,7 @@ func TestResolveSelectionBoundaries(t *testing.T) {
 	}{
 		{name: "legacy", give: nil, want: legacy},
 		{name: "core", give: []string{}, want: []string{}},
-		{name: "single plugin", give: []string{"code"}, want: []string{"code"}},
+		{name: "single feature", give: []string{"code"}, want: []string{"code"}},
 		{name: "dependencies", give: []string{"chat", "files", "launch"}, want: []string{"launch", "files", "chat"}},
 		{name: "input order independent", give: []string{"files", "launch", "chat"}, want: []string{"launch", "files", "chat"}},
 	}

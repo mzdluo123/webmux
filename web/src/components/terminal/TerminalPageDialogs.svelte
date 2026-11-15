@@ -9,11 +9,11 @@
   } from "../../contracts/schemas";
   import { errorMessage } from "../../platform/error";
   import type { LaunchConfigsState } from "../../domains/settings/launch-configs";
-  import type { TerminalPlugins } from "../../plugins/terminal";
+  import type { TerminalFeatures } from "../../features/terminal";
   import {
-    pluginAvailable,
-    pluginEnabled,
-  } from "../../platform/plugin-host.svelte";
+    featureAvailable,
+    featureEnabled,
+  } from "../../platform/feature-host.svelte";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
   import SplitSessionDialog from "./SplitSessionDialog.svelte";
   import { m } from "$lib/paraglide/messages.js";
@@ -21,7 +21,7 @@
 
   let {
     choosing = $bindable(false),
-    plugins,
+    features,
     creating = $bindable<SessionInfo | null>(null),
     forwarding = $bindable(false),
     excluded,
@@ -30,7 +30,7 @@
     oncreated,
   }: {
     choosing: boolean;
-    plugins: TerminalPlugins;
+    features: TerminalFeatures;
     creating: SessionInfo | null;
     forwarding: boolean;
     excluded: string[];
@@ -60,7 +60,7 @@
     repositories = [];
     const controller = new AbortController();
     creationController = controller;
-    if (pluginEnabled("launch") && pluginAvailable("launch.configs")) {
+    if (featureEnabled("launch") && featureAvailable("launch.configs")) {
       void api(
         "/launch-configs",
         LaunchConfigsSchema,
@@ -77,7 +77,7 @@
             launchConfigs = { status: "unavailable", error: errorMessage(err) };
         });
     } else launchConfigs = { status: "ready", configs: [] };
-    if (plugins.workspace) {
+    if (features.workspace) {
       void api(
         "/repositories",
         RepositoriesSchema,
@@ -141,9 +141,9 @@
             (item) => item.id === tree.repositoryId,
           );
           if (repo)
-            plugins.workspace?.homeWorktrees.save(
-              plugins.workspace.setPinned(
-                plugins.workspace.homeWorktrees.value,
+            features.workspace?.homeWorktrees.save(
+              features.workspace.setPinned(
+                features.workspace.homeWorktrees.value,
                 repo,
                 [tree.id],
                 true,
@@ -172,7 +172,7 @@
   </LazyDialog>
 {/if}
 <!-- Opened from a port prompt, so this server detects listening ports. -->
-{#if plugins.forward && forwarding}
+{#if features.forward && forwarding}
   <LazyDialog
     onclose={() => (forwarding = false)}
     label={m.s4_port_forwarding()}

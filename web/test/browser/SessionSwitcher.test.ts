@@ -8,24 +8,24 @@ import type {
 } from "../../src/contracts/schemas";
 import {
   CapabilitiesSchema,
-  PluginIDSchema,
-} from "../../src/contracts/plugin-schemas";
+  FeatureIDSchema,
+} from "../../src/contracts/feature-schemas";
 import {
-  setPluginCapabilities,
-  resetPluginCapabilities,
-} from "../../src/platform/plugin-host.svelte";
+  setFeatureCapabilities,
+  resetFeatureCapabilities,
+} from "../../src/platform/feature-host.svelte";
 import {
-  loadPluginContributions,
-  disposePluginContributions,
-} from "../../src/plugins/registry.svelte";
+  loadFeatureContributions,
+  disposeFeatureContributions,
+} from "../../src/features/registry.svelte";
 
 afterEach(async () => {
   try {
     await cleanup();
     await userEvent.cleanup();
   } finally {
-    disposePluginContributions();
-    resetPluginCapabilities();
+    disposeFeatureContributions();
+    resetFeatureCapabilities();
     vi.unstubAllGlobals();
   }
 });
@@ -106,10 +106,10 @@ test("session title matches stay above message matches and preserve backend mess
     launch: true,
     files: true,
   };
-  setPluginCapabilities(
+  setFeatureCapabilities(
     CapabilitiesSchema.parse({
-      version: 1,
-      plugins: PluginIDSchema.options.map((id) => ({
+      version: 2,
+      features: FeatureIDSchema.options.map((id) => ({
         id,
         enabled: !!enabled[id],
         status: enabled[id] ? "ready" : "disabled",
@@ -122,7 +122,7 @@ test("session title matches stay above message matches and preserve backend mess
       ],
     }),
   );
-  await loadPluginContributions({ forwardAuth: true, codePopout: true });
+  await loadFeatureContributions({ forwardAuth: true, codePopout: true });
 
   const onselect = vi.fn();
   render(SessionSwitcher, {

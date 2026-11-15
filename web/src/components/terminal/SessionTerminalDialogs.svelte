@@ -8,7 +8,7 @@
   } from "../../domains/terminal/terminal-draft.svelte";
   import CloseSessionDialog from "../sessions/CloseSessionDialog.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
-  import type { TerminalPlugins } from "../../plugins/terminal";
+  import type { TerminalFeatures } from "../../features/terminal";
   import ScratchPanel from "./ScratchPanel.svelte";
   import { m } from "$lib/paraglide/messages.js";
   import TerminalCopyDialog from "./TerminalCopyDialog.svelte";
@@ -17,7 +17,7 @@
 
   let {
     id,
-    plugins,
+    features,
     draft,
     drafts,
     hybrid,
@@ -40,7 +40,7 @@
     scratchOpen = $bindable(),
   }: {
     id: string;
-    plugins: TerminalPlugins;
+    features: TerminalFeatures;
     draft: TerminalDraft;
     drafts: TerminalDrafts;
     hybrid: HybridSession;
@@ -99,7 +99,7 @@
     }}
     {onarchived}
   />{/if}
-{#if plugins.chat}
+{#if features.chat}
   <ConfirmDialog
     bind:open={
       () => !!hybrid.confirming,
@@ -119,13 +119,13 @@
     }
     title={m.s4_pick_chat_session_title()}
     onconfirm={() => hybrid.pick(ambiguousPick)}
-    >{hybrid.ambiguous?.message}<plugins.chat.CandidatePicker
+    >{hybrid.ambiguous?.message}<features.chat.CandidatePicker
       candidates={hybrid.ambiguous?.candidates ?? []}
       bind:picked={ambiguousPick}
       label={m.s4_pick_session_to_open()}
     /></ConfirmDialog
   >
-  <plugins.chat.SwitchChoice
+  <features.chat.SwitchChoice
     bind:open={
       () => hybrid.awaitingChoice && !choiceClosed,
       (open) => (choiceClosed = !open)

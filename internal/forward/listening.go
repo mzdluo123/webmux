@@ -19,7 +19,7 @@ func (s *Service) ListeningPorts(id string) []ListeningPort {
 	return slices.Clone(s.listening[id])
 }
 
-// scanPorts runs only while the forward plugin is constructed. Process and
+// scanPorts runs only while the forward feature is constructed. Process and
 // descriptor I/O never holds the manager, session or forward lock.
 func (s *Service) scanPorts(scanner *procpeek.PortScanner) {
 	if s.manager == nil {

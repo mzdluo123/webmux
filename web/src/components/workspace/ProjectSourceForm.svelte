@@ -4,7 +4,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import { Checkbox } from "$lib/components/ui/checkbox";
-  import { pluginAvailable } from "../../platform/plugin-host.svelte";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import type { ProjectSources } from "../../hooks/workspace/project-sources.svelte";
   import { suggestProjectClonePath } from "../../domains/workspace/project-clone-path";
   import ProjectDirectoryField from "./ProjectDirectoryField.svelte";
@@ -61,10 +61,10 @@
       <Label
         ><Checkbox
           bind:checked={initializeGit}
-          disabled={!pluginAvailable("workspace.manage")}
+          disabled={!featureAvailable("workspace.manage")}
         />{m.s8_proj_form_init_git()}</Label
       >
-      {#if !pluginAvailable("workspace.manage")}<p
+      {#if !featureAvailable("workspace.manage")}<p
           class="text-sm text-muted-foreground"
         >
           {m.s8_proj_form_git_unavailable_hint()}
@@ -104,7 +104,7 @@
     <Button
       type="submit"
       disabled={disabled ||
-        (source === "git" && !pluginAvailable("workspace.clone"))}
+        (source === "git" && !featureAvailable("workspace.clone"))}
       >{controller.busy
         ? m.s8_proj_form_busy()
         : source === "new"

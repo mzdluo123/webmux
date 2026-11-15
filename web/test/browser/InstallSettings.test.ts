@@ -8,11 +8,14 @@ import {
   trackInstallation,
   type InstallPlatform,
 } from "../../src/platform/install.svelte";
-import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
 
 afterEach(async () => {
   await cleanup();
-  resetCreationPlugins();
+  resetCreationFeatures();
 });
 
 const secure: InstallPlatform = { secure: true, standalone: false, ios: false };
@@ -159,7 +162,7 @@ test.each([
 ] as const)(
   "install guidance links only to enabled %s settings",
   async (id, label, href) => {
-    await enableCreationPlugins([id]);
+    await enableCreationFeatures([id]);
     render(InstallSettings, {
       platform: { ...secure, secure: false },
       status: { promptable: false, installed: false },

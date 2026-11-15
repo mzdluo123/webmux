@@ -17,13 +17,13 @@
   } from "../../domains/sessions/new-session-defaults";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
   import {
-    pluginAvailable,
-    pluginEnabled,
-  } from "../../platform/plugin-host.svelte";
+    featureAvailable,
+    featureEnabled,
+  } from "../../platform/feature-host.svelte";
   import type {
     CreationContributions,
     CreationLocationProps,
-  } from "../../plugins/context";
+  } from "../../features/context";
   import IconFolder from "~icons/tabler/folder";
   import { m } from "$lib/paraglide/messages.js";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
@@ -225,18 +225,18 @@
         <Label for="cwd">{m.s3_working_directory()}</Label>
         <DirectoryInput
           bind:value={cwd}
-          Picker={pluginAvailable("files.upload")
+          Picker={featureAvailable("files.upload")
             ? providers.DirectoryPicker
             : undefined}
         />
       </div>
     {/if}
-    {#if pluginEnabled("files") && (!pluginAvailable("files.upload") || !providers.DirectoryPicker)}
+    {#if featureEnabled("files") && (!featureAvailable("files.upload") || !providers.DirectoryPicker)}
       <p role="status" class="text-sm text-muted-foreground">
         {m.s3_files_temporarily_unavailable_hint()}
       </p>
     {/if}
-    {#if pluginEnabled("chat") && (!pluginAvailable("chat.acp") || !providers.LaunchStartSideFields)}
+    {#if featureEnabled("chat") && (!featureAvailable("chat.acp") || !providers.LaunchStartSideFields)}
       <p role="status" class="text-sm text-muted-foreground">
         {m.s3_chat_temporarily_unavailable_hint()}
       </p>
@@ -301,9 +301,9 @@
           />
           {#if lastLaunch.startsWith("config:") && source === "unset"}
             <p role="status" class="text-sm text-muted-foreground">
-              {pluginEnabled("launch")
+              {featureEnabled("launch")
                 ? m.s3_launch_ui_unavailable_reselect()
-                : m.s3_launch_plugin_disabled_reselect()}
+                : m.s3_launch_feature_disabled_reselect()}
             </p>
             <Button
               type="button"

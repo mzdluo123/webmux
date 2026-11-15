@@ -4,7 +4,7 @@ import { cleanup, render } from "vitest-browser-svelte/pure";
 import ConnectionGate from "../../src/components/shell/ConnectionGate.svelte";
 import InitInstructionField from "../../src/components/sessions/InitInstructionField.svelte";
 import Settings from "../../src/pages/Settings.svelte";
-import { PluginIDSchema } from "../../src/contracts/plugin-schemas";
+import { FeatureIDSchema } from "../../src/contracts/feature-schemas";
 import { QUICK_COMMAND_PRESETS } from "../../src/domains/settings/quick-commands";
 import { emptySettings } from "../../src/domains/settings/settings-intent";
 import {
@@ -18,12 +18,15 @@ import {
   stored,
 } from "../../src/platform/storage";
 import { initializeLocale, locale } from "../../src/lib/locale";
-import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
 
 const originalURL = location.href;
 
 beforeEach(async () => {
-  await enableCreationPlugins(PluginIDSchema.options);
+  await enableCreationFeatures(FeatureIDSchema.options);
   localStorage.clear();
   initializeLocale();
   locale.setPreference("zh-CN");
@@ -33,7 +36,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   await cleanup();
   await userEvent.cleanup();
-  resetCreationPlugins();
+  resetCreationFeatures();
   vi.unstubAllGlobals();
   history.replaceState(null, "", originalURL);
   setActiveHostId(null);

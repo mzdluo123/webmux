@@ -146,7 +146,7 @@ export function useSessionTerminalChrome(options: {
   }
 
   const openCodeLocation: ChatCodeLinkHandler = async (target) => {
-    if (!options.code) return m.s4_code_plugin_disabled();
+    if (!options.code) return m.s4_code_feature_disabled();
     const failure = await options.code.checkRevealTarget(
       `/sessions/${options.id()}/code`,
       target,

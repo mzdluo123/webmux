@@ -15,9 +15,9 @@ import (
 	"github.com/rainchan/webmux/internal/agentprofile/omp"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featureapi"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
-	"github.com/rainchan/webmux/internal/pluginapi"
 	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
@@ -321,7 +321,7 @@ func TestCreateAPIArtifactFailurePreservesCreatedSession(t *testing.T) {
 				creation := sessioncreate.New(deps.Manager, sessioncreate.Options{DefaultCwd: deps.Config.DefaultCwd, Files: files})
 				t.Cleanup(creation.Close)
 				deps.Create = creation
-				deps.Sessions = pluginapi.Bind(pluginapi.Deps{Manager: deps.Manager})
+				deps.Sessions = featureapi.Bind(featureapi.Deps{Manager: deps.Manager})
 				handler := NewBridge(deps).HTTPHandler
 				req := contract.CreateSessionRequest{
 					ClientRequestID: "artifact-failure-001",

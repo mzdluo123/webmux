@@ -35,8 +35,8 @@
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
   import CoreShellDialogs from "./CoreShellDialogs.svelte";
-  import { pluginContributions } from "../../plugins/registry.svelte";
-  import { createShellSessionResources } from "../../plugins/shell-resources";
+  import { featureContributions } from "../../features/registry.svelte";
+  import { createShellSessionResources } from "../../features/shell-resources";
   import AppSidebar from "./AppSidebar.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarRailSessions from "./SidebarRailSessions.svelte";
@@ -63,7 +63,7 @@
 
   // The drafts store lives as long as the app; the shell never swaps it.
   const ownDrafts = untrack(() => drafts);
-  const contributions = pluginContributions.entries;
+  const contributions = featureContributions.entries;
   const workspace = contributions.workspace;
   const resources = createShellSessionResources(ownDrafts, () =>
     route.name === "terminal" ? route.id : undefined,

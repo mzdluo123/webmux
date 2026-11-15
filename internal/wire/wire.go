@@ -9,7 +9,7 @@ import (
 	"github.com/rainchan/webmux/internal/session"
 )
 
-// Session projects process and terminal facts only. Optional plugin projections
+// Session projects process and terminal facts only. Optional feature projections
 // extend this result at the composition boundary.
 func Session(i session.Info) contract.SessionInfo {
 	cmd := i.Cmd

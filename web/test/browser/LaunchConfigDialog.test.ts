@@ -3,9 +3,12 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import LaunchConfigDialog from "../../src/components/settings/LaunchConfigDialog.svelte";
 import type { LaunchConfig } from "../../src/contracts/schemas";
-import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
 
-beforeEach(() => enableCreationPlugins());
+beforeEach(() => enableCreationFeatures());
 
 const saved: LaunchConfig = {
   id: "abcdefg2",
@@ -59,7 +62,7 @@ afterEach(async () => {
   } finally {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-    resetCreationPlugins();
+    resetCreationFeatures();
   }
 });
 
@@ -516,8 +519,8 @@ test("the hybrid checkbox follows the server's verdict for the edited command", 
   });
 });
 
-test("launch-only editing preserves inactive plugin fields and never probes chat support", async () => {
-  await enableCreationPlugins(["launch"]);
+test("launch-only editing preserves inactive feature fields and never probes chat support", async () => {
+  await enableCreationFeatures(["launch"]);
   const inactive: LaunchConfig = {
     ...saved,
     chat: true,

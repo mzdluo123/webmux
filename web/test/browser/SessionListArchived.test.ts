@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import ShellHarness from "./ShellHarness.svelte";
-import { enableHostPlugins, resetHostPlugins } from "./plugin-fixture";
+import { enableHostFeatures, resetHostFeatures } from "./feature-fixture";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 import type {
   ArchivedSession,
@@ -170,7 +170,7 @@ beforeEach(async () => {
       return Response.json({ error: "not found" }, { status: 404 });
     }),
   );
-  await enableHostPlugins();
+  await enableHostFeatures();
 });
 
 afterEach(async () => {
@@ -178,7 +178,7 @@ afterEach(async () => {
     await cleanup();
     await userEvent.cleanup();
   } finally {
-    resetHostPlugins();
+    resetHostFeatures();
     vi.unstubAllGlobals();
     history.replaceState(null, "", "/");
     vi.restoreAllMocks();

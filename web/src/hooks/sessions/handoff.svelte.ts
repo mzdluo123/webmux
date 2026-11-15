@@ -23,7 +23,7 @@ import type {
 } from "../../contracts/schemas";
 import type { TargetKind } from "../../domains/sessions/new-session-defaults";
 import { threadAPI } from "../../platform/thread-api";
-import { pluginAvailable } from "../../platform/plugin-host.svelte";
+import { featureAvailable } from "../../platform/feature-host.svelte";
 import { createHandoffDelivery } from "./handoff-delivery.svelte";
 
 // One controller per source/mode; mounted outside ChatView. Persistent preview
@@ -37,7 +37,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   let orphan = false;
   let unpreviewed = !recovery;
   function sourceLocation(value: HandoffDraft["source"]): HandoffLocation {
-    return pluginAvailable("workspace.manage")
+    return featureAvailable("workspace.manage")
       ? handoffSourceLocation(value)
       : { ...emptyLocation(), cwd: value.cwd };
   }

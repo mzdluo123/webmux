@@ -15,7 +15,7 @@
   import DirectSessions from "../components/sessions/DirectSessions.svelte";
   import WorkspaceMobileHeader from "../components/workspace/WorkspaceMobileHeader.svelte";
   import WorktreeBadges from "../components/workspace/WorktreeBadges.svelte";
-  import { removeRecord, resumeSession } from "../plugins/history";
+  import { removeRecord, resumeSession } from "../features/history";
   import {
     placeArchived,
     type ArchiveActions,
@@ -48,9 +48,9 @@
   import { getShell, openGitWorkbench } from "../hooks/shared/shell.svelte";
   import { z } from "zod";
   import {
-    pluginEnabled,
-    pluginAvailable,
-  } from "../platform/plugin-host.svelte";
+    featureEnabled,
+    featureAvailable,
+  } from "../platform/feature-host.svelte";
 
   // The workbench home: every live session grouped by repository and
   // worktree, beside the shell's tree. The shell owns the shared data.
@@ -266,7 +266,7 @@
     onaddrepository={() => shell.addRepository()}
     oncompactchange={setCompact}
     onrefresh={() => void shell.repositories?.refresh(true)}
-    ongit={pluginAvailable("workspace.git-workbench")
+    ongit={featureAvailable("workspace.git-workbench")
       ? () =>
           openGitWorkbench({
             repositoryId: shell.settingsRepository?.id ?? "",
@@ -281,7 +281,7 @@
     onmanage={(repo) => shell.repositoryDetails(repo, "worktrees")}
     onsettings={shell.openRepositorySettings}
     ondetails={(repo) => shell.repositoryDetails(repo)}
-    onscopegit={pluginAvailable("workspace.git-workbench")
+    onscopegit={featureAvailable("workspace.git-workbench")
       ? (repo, worktreeId, view) =>
           openGitWorkbench({ repositoryId: repo.id, worktreeId, view })
       : undefined}
@@ -362,7 +362,7 @@
           {error}
           {rebuildFailure}
           recordError={recordError ||
-            (pluginEnabled("chat") && !shell.archived
+            (featureEnabled("chat") && !shell.archived
               ? m.s1_chat_records_unavailable_notice()
               : "")}
           {capabilityError}
@@ -425,7 +425,7 @@
               ondetailschange={(open) => (worktreeDetailsOpen = open)}
               onoperation={(operation) =>
                 shell.branchOperation(repo.id, operation)}
-              ongit={pluginAvailable("workspace.git-workbench")
+              ongit={featureAvailable("workspace.git-workbench")
                 ? (tree, view) =>
                     openGitWorkbench({
                       repositoryId: repo.id,

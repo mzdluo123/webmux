@@ -19,13 +19,13 @@ import (
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featureapi"
+	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/localclient"
-	"github.com/rainchan/webmux/internal/pluginapi"
-	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/settings"
@@ -50,14 +50,14 @@ func realServer(t *testing.T) (Env, *bytes.Buffer, *bytes.Buffer, *session.Manag
 	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: m})
 	ws := workspace.New(t.TempDir(), m, launches, cwd)
 	codes := codeview.New(m, nil)
-	cfg := config.Config{DefaultCwd: cwd, Plugins: config.PluginConfig{Enabled: []string{"launch", "workspace", "code", "files", "chat"}}}
+	cfg := config.Config{DefaultCwd: cwd, Features: config.FeatureConfig{Enabled: []string{"launch", "workspace", "code", "files", "chat"}}}
 	preferences := settings.Open(t.TempDir())
 	folders := artifacts.New(artifacts.Options{TempDir: t.TempDir(), StateDir: t.TempDir(), Manager: m})
 	chatCreation := hybrids.Creation()
 	creator := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: cwd, Commands: launches, Locations: ws, Files: folders, Chat: chatCreation})
 	recovery := hybridresume.New(hybrids, launches, hybridresume.Options{DefaultCwd: cwd, Creation: chatCreation, Locations: ws, ResumeLocations: ws})
-	projection := pluginwire.Projection{Workspace: ws, Chat: hybrids}
-	controllers := pluginapi.Bind(pluginapi.Deps{Config: cfg, Manager: m, Settings: preferences, Workspace: ws, Code: codes, Files: files.New(cwd), Artifacts: folders, Launch: launches, Hybrid: hybrids, Resume: recovery, ProjectSession: projection.Session})
+	projection := featurewire.Projection{Workspace: ws, Chat: hybrids}
+	controllers := featureapi.Bind(featureapi.Deps{Config: cfg, Manager: m, Settings: preferences, Workspace: ws, Code: codes, Files: files.New(cwd), Artifacts: folders, Launch: launches, Hybrid: hybrids, Resume: recovery, ProjectSession: projection.Session})
 	handler := api.NewLocal(api.Deps{
 		Config: cfg, Manager: m, Settings: preferences, Create: creator, Sessions: controllers, Contributions: controllers.Contributions(),
 		ProjectSession: projection.Session, EnrichDetails: controllers.EnrichDetails, KeepSessionPin: controllers.KeepSessionPin,
@@ -74,7 +74,7 @@ func realServer(t *testing.T) (Env, *bytes.Buffer, *bytes.Buffer, *session.Manag
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &http.Server{Handler: withTestCapabilities(handler, testCapabilities(cfg.Plugins.Enabled...))}
+	srv := &http.Server{Handler: withTestCapabilities(handler, testCapabilities(cfg.Features.Enabled...))}
 	go func() { _ = srv.Serve(l) }()
 	t.Cleanup(func() {
 		_ = srv.Close()

@@ -153,7 +153,7 @@ func startTunnelServe(t *testing.T) *tunnelRun {
 // startServe runs serve in-process with the fake cloudflared configured.
 // With startupTunnel it takes the --tunnel path and waits for the public URL.
 // The state directory sits under /tmp so the local API socket fits sun_path.
-func startServe(t *testing.T, startupTunnel bool, token string, plugins ...[]string) *tunnelRun {
+func startServe(t *testing.T, startupTunnel bool, token string, features ...[]string) *tunnelRun {
 	t.Helper()
 	if os.Getenv("WEBMUX_TEST_OUTER_SESSION") != "" {
 		t.Skip("the test process tree belongs to the outer WebMux session")
@@ -175,8 +175,8 @@ func startServe(t *testing.T, startupTunnel bool, token string, plugins ...[]str
 		t.Fatal(err)
 	}
 	c.Listen, c.Token, c.StateDir = "127.0.0.1:0", token, state
-	if len(plugins) != 0 {
-		c.Plugins.Enabled = plugins[0]
+	if len(features) != 0 {
+		c.Features.Enabled = features[0]
 	}
 	c.Tunnel = config.TunnelConfig{Enabled: startupTunnel, Cloudflared: bin}
 	if err := c.Validate(); err != nil {

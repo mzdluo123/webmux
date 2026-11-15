@@ -34,7 +34,7 @@ func (s *projectedList) Observe(event session.Event) {
 	}
 }
 
-// List registers every contribution before capturing the core snapshot. Plugin
+// List registers every contribution before capturing the core snapshot. Feature
 // caches commit before Notify, so a concurrent change is either in this
 // snapshot or in the bounded, ordered core subscription (possibly both).
 func List(ctx context.Context, m *session.Manager, c MessageConn, contribution Options) {
@@ -90,7 +90,7 @@ func List(ctx context.Context, m *session.Manager, c MessageConn, contribution O
 	}
 }
 
-// activeView filters the host's typed projection, not any plugin's model.
+// activeView filters the host's typed projection, not any feature's model.
 type activeView struct{ hidden map[string]bool }
 
 func active(info contract.SessionInfo) bool {

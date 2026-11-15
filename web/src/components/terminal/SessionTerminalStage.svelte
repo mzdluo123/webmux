@@ -26,13 +26,13 @@
   import type { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
   import type { XrHeaderControl } from "../../domains/terminal/xr-workspace";
   import { useTvTerminalBack } from "../../hooks/terminal/tv-terminal-back.svelte";
-  import type { TerminalPlugins } from "../../plugins/terminal";
+  import type { TerminalFeatures } from "../../features/terminal";
   import type ChatViewComponent from "../chat/ChatView.svelte";
   import SessionSidePanel from "./SessionSidePanel.svelte";
 
   let {
     id,
-    plugins,
+    features,
     paneActions,
     chatActions,
     headerTerminal,
@@ -102,7 +102,7 @@
     xr,
   }: {
     id: string;
-    plugins: TerminalPlugins;
+    features: TerminalFeatures;
     paneActions: Snippet<[() => void]>;
     chatActions?: Snippet;
     headerTerminal: ReturnType<typeof createHeaderTerminalView>;
@@ -239,10 +239,10 @@
   size?: ButtonSize,
   variant?: ButtonVariant,
 )}
-  {#if plugins.voice}<plugins.voice.Button
+  {#if features.voice}<features.voice.Button
       {size}
       {variant}
-      disabled={plugins.voice.isVoiceDisabled(hybrid, terminal, draft)}
+      disabled={features.voice.isVoiceDisabled(hybrid, terminal, draft)}
       onmousedown={(event) => {
         if (side === "top" && hybrid.view !== "chat") event.preventDefault();
       }}
@@ -263,8 +263,8 @@
   {#if voiceEnabled && hybrid.view === "chat" && !submenu}
     {@render voiceButton(side, size, variant)}
   {/if}
-  {#if plugins.quickCommands}<plugins.quickCommands.Menu
-      commands={plugins.quickCommands.availableCommands(!!plugins.files)}
+  {#if features.quickCommands}<features.quickCommands.Menu
+      commands={features.quickCommands.availableCommands(!!features.files)}
       target={hybrid.view === "chat"
         ? "chat"
         : draft.enabled
@@ -294,7 +294,7 @@
   />
 {/snippet}
 {#snippet recovery()}
-  {#if plugins.chat && hybrid.recoverable}<plugins.chat.Recovery
+  {#if features.chat && hybrid.recoverable}<features.chat.Recovery
       record={hybrid.recoverable}
       onresumed={reopen}
       {leave}
@@ -303,7 +303,7 @@
 
 <TerminalHeader
   bind:this={header}
-  {plugins}
+  {features}
   {chatActions}
   {xr}
   keyboard={holdBegin}
@@ -343,7 +343,7 @@
       bind:this={sidePanel}
       bind:view={panelView}
       shown={codeShown}
-      codeAvailable={!!plugins.code}
+      codeAvailable={!!features.code}
       close={closePanel}
       {paneActions}
     >
@@ -366,7 +366,7 @@
           {leave}
           {terminal}
           {uploads}
-          {plugins}
+          {features}
           {draft}
           {draftSaved}
           {error}
@@ -388,10 +388,10 @@
               : undefined}
           {showForwards}
         />
-        {#if plugins.chat && hybrid.connector && hybrid.view === "terminal"}<div
+        {#if features.chat && hybrid.connector && hybrid.view === "terminal"}<div
             class="shrink-0 border-b px-4 py-2"
           >
-            <plugins.chat.ConnectorHint
+            <features.chat.ConnectorHint
               connector={hybrid.connector}
               detail={m.s4_connector_recheck_hint()}
               ondismiss={() => hybrid.dismissConnector()}
@@ -439,7 +439,7 @@
           {/snippet}
         </TerminalViewport>
       </div>
-      {#if plugins.chat && chatUploads && hybrid.view === "chat"}
+      {#if features.chat && chatUploads && hybrid.view === "chat"}
         <div
           class={[
             "flex min-h-0 flex-1 flex-col",
@@ -447,7 +447,7 @@
           ]}
           use:paneEnter={true}
         >
-          <plugins.chat.ChatView
+          <features.chat.ChatView
             bind:this={chatView}
             sessionId={id}
             visible={chatVisible}
@@ -460,16 +460,16 @@
             uploadUnavailable={chatUploadUnavailable}
             location={hybrid.info}
             actions={hybrid.actions}
-            onreview={plugins.code ? review : undefined}
-            onopenlocation={plugins.code ? openCodeLocation : undefined}
+            onreview={features.code ? review : undefined}
+            onopenlocation={features.code ? openCodeLocation : undefined}
             onterminal={() => hybrid.request("terminal")}
             {quickMenu}
             {documentScroll}
             oneditchange={onChatEditChange}
           />
         </div>
-      {:else if plugins.chat && hybrid.view === "switching"}
-        <plugins.chat.SwitchProgress
+      {:else if features.chat && hybrid.view === "switching"}
+        <features.chat.SwitchProgress
           target={hybrid.target}
           steps={hybrid.steps}
           awaitingChoice={hybrid.awaitingChoice}

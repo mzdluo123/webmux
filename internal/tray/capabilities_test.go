@@ -40,29 +40,29 @@ func TestTrayUsesDiscoveredCapabilitiesIndependently(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			enabled := map[string]bool{"cloudflare": tc.cloudflare, "tailscale": tc.tailscale, "notifications": tc.push}
-			snapshot := contract.Capabilities{Version: 1, Plugins: []contract.PluginStatus{}, Capabilities: []contract.Capability{{ID: "terminal.pty", Available: true}}}
-			for plugin, capability := range map[string]string{"cloudflare": "cloudflare.manage", "tailscale": "tailscale.manage", "notifications": "notifications.push"} {
-				value := contract.Capability{ID: capability, Available: enabled[plugin]}
+			snapshot := contract.Capabilities{Version: contract.CapabilitiesVersion, Features: []contract.FeatureStatus{}, Capabilities: []contract.Capability{{ID: "terminal.pty", Available: true}}}
+			for feature, capability := range map[string]string{"cloudflare": "cloudflare.manage", "tailscale": "tailscale.manage", "notifications": "notifications.push"} {
+				value := contract.Capability{ID: capability, Available: enabled[feature]}
 				if !value.Available {
-					value.Reason = contract.CapabilityReasonPluginDisabled
-				} else if plugin == "notifications" && tc.pushReason != "" {
+					value.Reason = contract.CapabilityReasonFeatureDisabled
+				} else if feature == "notifications" && tc.pushReason != "" {
 					value.Available = false
 					value.Reason = tc.pushReason
 				}
 				snapshot.Capabilities = append(snapshot.Capabilities, value)
 			}
 			for _, p := range builtin.Catalog() {
-				status := contract.PluginStatus{ID: p.ID, Status: contract.PluginStatusDisabled, Reason: contract.CapabilityReasonPluginDisabled}
+				status := contract.FeatureStatus{ID: p.ID, Status: contract.FeatureStatusDisabled, Reason: contract.CapabilityReasonFeatureDisabled}
 				if enabled[p.ID] {
 					status.Enabled = true
-					status.Status = contract.PluginStatusReady
+					status.Status = contract.FeatureStatusReady
 					status.Reason = ""
 					if p.ID == "notifications" && tc.pushReason != "" && tc.pushReason != contract.CapabilityReasonConfigurationOff {
-						status.Status = contract.PluginStatusUnavailable
+						status.Status = contract.FeatureStatusUnavailable
 						status.Reason = tc.pushReason
 					}
 				}
-				snapshot.Plugins = append(snapshot.Plugins, status)
+				snapshot.Features = append(snapshot.Features, status)
 			}
 			if tc.invalid {
 				snapshot.Version = 99

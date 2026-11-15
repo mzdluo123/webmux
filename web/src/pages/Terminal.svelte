@@ -37,11 +37,11 @@
   import { useTerminalPageFeed } from "../hooks/terminal/terminal-page-feed.svelte";
   import { retainTerminalDrafts } from "../domains/terminal/terminal-draft-owners";
   import {
-    loadTerminalPlugins,
-    availableTerminalPlugins,
-    type TerminalPlugins,
-  } from "../plugins/terminal";
-  import TerminalPluginScope from "../components/terminal/TerminalPluginScope.svelte";
+    loadTerminalFeatures,
+    availableTerminalFeatures,
+    type TerminalFeatures,
+  } from "../features/terminal";
+  import TerminalFeatureScope from "../components/terminal/TerminalFeatureScope.svelte";
   import { allowAutomaticInputFocus } from "../hooks/shared/input-focus";
 
   let {
@@ -80,18 +80,18 @@
   let prefix = $state(false);
   let busy = $state(false);
   let error = $state("");
-  let plugins = $state<TerminalPlugins>();
-  const availablePlugins = $derived(
-    plugins ? availableTerminalPlugins(plugins) : undefined,
+  let features = $state<TerminalFeatures>();
+  const availableFeatures = $derived(
+    features ? availableTerminalFeatures(features) : undefined,
   );
-  let pluginScope = $state<TerminalPluginScope>();
+  let featureScope = $state<TerminalFeatureScope>();
   let observed = $state<string[]>([]);
   let immersive = $state(false);
   onMount(() => {
     let disposed = false;
-    void loadTerminalPlugins()
+    void loadTerminalFeatures()
       .then((value) => {
-        if (!disposed) plugins = value;
+        if (!disposed) features = value;
       })
       .catch((cause) => {
         if (!disposed) error = errorMessage(cause);
@@ -153,7 +153,7 @@
   const feed = useTerminalPageFeed({
     ids: () => owners,
     source: shell?.sessions,
-    forward: () => availablePlugins?.forward,
+    forward: () => availableFeatures?.forward,
     error: (message) => (error = message),
   });
   onMount(() => {
@@ -233,7 +233,7 @@
     if (paneIds(next).length === 1) zoomed = false;
   }
   function removeSession(sessionId: string) {
-    pluginScope?.unobserve(sessionId);
+    featureScope?.unobserve(sessionId);
     close(sessionId);
     delete info[sessionId];
     delete connections[sessionId];
@@ -311,11 +311,11 @@
 
 <svelte:window onpopstate={revealMessage} />
 
-{#if plugins && availablePlugins}
-  {#key plugins}
-    <TerminalPluginScope
-      {plugins}
-      bind:this={pluginScope}
+{#if features && availableFeatures}
+  {#key features}
+    <TerminalFeatureScope
+      {features}
+      bind:this={featureScope}
       bind:observed
       bind:immersive
       available={() => feed.sessions}
@@ -347,7 +347,7 @@
           onzoom={() => zoom(active)}
         />
         <TerminalPageNotices
-          pluginErrors={plugins.errors}
+          featureErrors={features.errors}
           {error}
           reloadPage={() => location.reload()}
           dismissError={() => (error = "")}
@@ -364,7 +364,7 @@
             {#key `${sessionId}:${revisions[sessionId] ?? 0}`}
               <TerminalSessionHost
                 bind:this={terminals[sessionId]}
-                {plugins}
+                {features}
                 id={sessionId}
                 {pane}
                 paneIndex={ids.indexOf(sessionId)}
@@ -452,7 +452,7 @@
         </div>
       </main>
       <TerminalPageDialogs
-        plugins={availablePlugins}
+        features={availableFeatures}
         bind:choosing
         bind:creating
         bind:forwarding
@@ -466,7 +466,7 @@
           void add(session.id, direction, targetId);
         }}
       />
-    </TerminalPluginScope>
+    </TerminalFeatureScope>
   {/key}
 {/if}
 

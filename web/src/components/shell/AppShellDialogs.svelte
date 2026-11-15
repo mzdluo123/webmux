@@ -18,7 +18,7 @@
     type Shell,
   } from "../../hooks/shared/shell.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
-  import { pluginAvailable } from "../../platform/plugin-host.svelte";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import UnregisterRepositoryDialog from "../workspace/UnregisterRepositoryDialog.svelte";
   import { m } from "$lib/paraglide/messages.js";
 
@@ -200,7 +200,7 @@
           viewingRepository = null;
         }}
         onrepository={(repo) => shell.repositories?.replace(repo)}
-        ongit={pluginAvailable("workspace.git-workbench")
+        ongit={featureAvailable("workspace.git-workbench")
           ? (worktreeId, view) => {
               viewingRepository = null;
               openGitWorkbench({

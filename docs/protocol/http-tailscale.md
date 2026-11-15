@@ -73,7 +73,7 @@ interface TailscaleSettingsUpdate {
 
 契约与实现：
 
-- 契约与转换：[线上字段](../../internal/contract/tailscale.go)、[状态转换](../../internal/pluginwire/wire.go)
-- 服务端：[HTTP 处理器](../../internal/pluginapi/tailscale.go)、[状态码映射](../../internal/pluginapi/errors.go)、[设置存储](../../internal/tailscalesettings/store.go)
+- 契约与转换：[线上字段](../../internal/contract/tailscale.go)、[状态转换](../../internal/featurewire/wire.go)
+- 服务端：[HTTP 处理器](../../internal/featureapi/tailscale.go)、[状态码映射](../../internal/featureapi/errors.go)、[设置存储](../../internal/tailscalesettings/store.go)
 - 检测与控制：[检测服务](../../internal/tailscale/)、[控制器与对账](../../cmd/webmux/tailscalectl.go)
 - 前端与指南：[设置页](../../web/src/pages/TailscaleSettingsPage.svelte)、[Tailscale 指南](../tailscale.md)。

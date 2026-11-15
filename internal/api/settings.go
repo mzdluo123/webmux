@@ -26,7 +26,7 @@ func (s *Server) settingsRoutes(mux *http.ServeMux) {
 		}
 		for field := range req.Changes {
 			owner := settingsOwner(field)
-			if owner != "" && !s.Config.Plugins.Has(owner) {
+			if owner != "" && !s.Config.Features.Has(owner) {
 				failure(w, http.StatusBadRequest, settings.ErrInvalid)
 				return
 			}

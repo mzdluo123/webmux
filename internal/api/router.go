@@ -163,7 +163,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			failure(w, http.StatusForbidden, errors.New("host not allowed"))
 			return
 		}
-		mcp := r.URL.Path == "/mcp" && s.Config.Plugins.Has("mcp") && s.Config.MCP.Enabled && s.hasMCP()
+		mcp := r.URL.Path == "/mcp" && s.Config.Features.Has("mcp") && s.Config.MCP.Enabled && s.hasMCP()
 		mcpPath := r.URL.Path == "/mcp" || strings.HasPrefix(r.URL.Path, "/mcp/")
 		if mcp && (s.Config.Token == "" || len(r.Header.Values("Authorization")) != 1) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="webmux"`)

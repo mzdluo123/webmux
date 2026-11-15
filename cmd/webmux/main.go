@@ -80,10 +80,10 @@ func run(args []string) error {
 // vets the token. Access URLs go to out, never to slog, so tokens stay out of
 // structured logs.
 func serve(ctx context.Context, c serverRun, out io.Writer) error {
-	if err := c.Plugins.Validate(); err != nil {
+	if err := c.Features.Validate(); err != nil {
 		return err
 	}
-	if c.Plugins.Has("mcp") && c.MCP.Enabled && c.Token == "" {
+	if c.Features.Has("mcp") && c.MCP.Enabled && c.Token == "" {
 		return errMCPOwnerToken
 	}
 	ctx, cancel := context.WithCancel(ctx)
@@ -102,18 +102,18 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	sessionOptions.Executable = serverExecutable()
 	m := session.NewManager(sessionOptions)
 	preferences := settings.Open(c.StateDir)
-	plugins := &pluginServices{}
+	features := &featureServices{}
 	var server *http.Server
 	var rt *localRuntime
 	var resumed <-chan struct{}
 	defer func() {
 		// Stop all writers and their processes before releasing any backing
-		// store. This path also releases a partially constructed plugin graph.
+		// store. This path also releases a partially constructed feature graph.
 		cancel()
 		if resumed != nil {
 			<-resumed
 		}
-		plugins.stop()
+		features.stop()
 		shutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelShutdown()
 		m.Shutdown(shutdown)
@@ -126,7 +126,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 		if rt != nil {
 			rt.close(shutdown)
 		}
-		plugins.release()
+		features.release()
 		preferences.Close()
 	}()
 	public := &transport.PublicOrigins{}
@@ -136,16 +136,16 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	}
 	var localAPI atomic.Pointer[localRuntime]
 	var bridge transport.Bridge
-	if err := plugins.open(ctx, c, m, preferences, public, listener.Addr(), guide, localAPI.Load, &bridge, out); err != nil {
+	if err := features.open(ctx, c, m, preferences, public, listener.Addr(), guide, localAPI.Load, &bridge, out); err != nil {
 		return err
 	}
-	deps := plugins.bind(c.Config, m, preferences, public, guide, localOrigin(listener.Addr()))
+	deps := features.bind(c.Config, m, preferences, public, guide, localOrigin(listener.Addr()))
 	deps.DefaultShell = agentprofile.DefaultShell(os.Getenv("SHELL"))
 	deps.InstalledVersion = update.NewInstalledVersion(version).Pending
 	deps.LocalURL = localOrigin(listener.Addr())
 	deps.Guide = guide
 	deps.Launcher = runtime.Launcher(os.Getenv)
-	if c.Plugins.Has("mcp") && c.MCP.Enabled {
+	if c.Features.Has("mcp") && c.MCP.Enabled {
 		handler, closeMCP, err := networkMCP(ctx, c.Config, listener.Addr(), deps.Capabilities)
 		if err != nil {
 			return fmt.Errorf("configure network MCP: %w", err)
@@ -154,8 +154,8 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 		defer closeMCP()
 	}
 	bridge = api.NewBridge(deps)
-	providers := plugins.accessProviders()
-	rt = startRuntime(ctx, c, listener.Addr(), deps, cancel, plugins, providers)
+	providers := features.accessProviders()
+	rt = startRuntime(ctx, c, listener.Addr(), deps, cancel, features, providers)
 	localAPI.Store(rt)
 	server = &http.Server{
 		Handler:           bridge.HTTPHandler,
@@ -168,22 +168,22 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	go func() { ended <- server.Serve(listener) }()
 	rt.serve()
 	slog.Info("webmux listening", "address", listener.Addr(), "version", version)
-	if plugins.chat != nil {
+	if features.chat != nil {
 		done := make(chan struct{})
 		resumed = done
 		go func() {
 			defer close(done)
-			resumeRestarted(ctx, plugins.recovery, plugins.chat.Restarted())
+			resumeRestarted(ctx, features.recovery, features.chat.Restarted())
 		}()
 	}
 	printConfigNotice(out, c)
 	local := localOrigin(listener.Addr())
 	_, _ = fmt.Fprintln(out, "WebMux local:  "+local)
-	if plugins.tunnel != nil && plugins.tunnel.Settings().Enabled {
-		plugins.tunnel.startLocated(plugins.tunnelPath)
+	if features.tunnel != nil && features.tunnel.Settings().Enabled {
+		features.tunnel.startLocated(features.tunnelPath)
 	}
-	if plugins.tailscale != nil {
-		plugins.tailscale.Start(ctx, local)
+	if features.tailscale != nil {
+		features.tailscale.Start(ctx, local)
 	}
 	select {
 	case <-ctx.Done():

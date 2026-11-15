@@ -84,7 +84,7 @@
   - 启动配置可单独覆盖行数与跳过值并选择跟随全局默认，未配置或配置不可用时使用全局值。
 - **US-C08 刷新外部 Git 变化**：作为使用者，我希望终端外发生的工作树变化也能出现在首页，以便总览反映磁盘现状。
   验收要点：
-  - 仅在选择 `workspace` 时执行这些 Git 刷新；仅选该插件也保留仓库/worktree 管理，Git 工作台另需 `code`；
+  - 仅在选择 `workspace` 时执行这些 Git 刷新；仅选该功能也保留仓库/worktree 管理，Git 工作台另需 `code`；
   - 打开首页、回到前台、重连、手动刷新和相关操作后重新读取 Git；
   - 读取时间收在仓库详情浮层，错误始终可见；
   - 较旧的请求结果不能覆盖新结果。
@@ -211,8 +211,8 @@
 - [显示方式](../../../web/src/components/terminal/SessionViewControls.svelte)、[范围端到端用例](../../../web/test/e2e/repository-scope.spec.ts)
 - [会话首页](../../../web/src/pages/SessionList.svelte)、[会话卡片](../../../web/src/components/sessions/SessionRow.svelte)、[启动配置预览解析](../../../web/src/domains/settings/launch-previews.svelte.ts)
 - [仓库分组](../../../web/src/components/workspace/RepositoryGroup.svelte)、[工作区分组](../../../web/src/components/workspace/WorkspaceGroup.svelte)、[列表事件更新](../../../web/src/hooks/sessions/session-list.ts)
-- [原子快照与订阅](../../../internal/session/manager.go)、[规范会话投影](../../../internal/pluginwire/session.go)、[工作区关联](../../../internal/workspace/sessions.go)。
-- [能力宿主](../../../web/src/platform/plugin-host.svelte.ts)、[本地插件入口](../../../web/src/plugins/registry.svelte.ts)、[侧栏可选资源](../../../web/src/plugins/shell-resources.ts)。
+- [原子快照与订阅](../../../internal/session/manager.go)、[规范会话投影](../../../internal/featurewire/session.go)、[工作区关联](../../../internal/workspace/sessions.go)。
+- [能力宿主](../../../web/src/platform/feature-host.svelte.ts)、[本地功能入口](../../../web/src/features/registry.svelte.ts)、[侧栏可选资源](../../../web/src/features/shell-resources.ts)。
 - [表单按需加载](../../../web/src/components/shared/LazyDialog.svelte)
 - [目录线索与搜索](../../../web/src/domains/sessions/session-location.ts)、[OSC 7 解析](../../../internal/session/osc.go)、[状态检测](../../../internal/session/status.go)
 - [介入提醒](../../../internal/session/attention.go)、[程序状态探测应答](../../../internal/session/input_write.go)、[附着探测过滤](../../../internal/attach/probe.go)

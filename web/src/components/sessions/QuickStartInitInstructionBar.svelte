@@ -11,7 +11,7 @@
     parseQuickCommands,
   } from "../../domains/settings/quick-commands";
   import { settings } from "../../domains/settings/settings.svelte";
-  import { pluginAvailable } from "../../platform/plugin-host.svelte";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import type { Repository } from "../../contracts/schemas";
 
   let {
@@ -31,7 +31,7 @@
   const instructionPreview = $derived(
     expandInitInstruction(
       repository.initInstruction ?? "",
-      pluginAvailable("quick-commands.send")
+      featureAvailable("quick-commands.send")
         ? (settings.values.quickCommands ?? parseQuickCommands(""))
         : [],
     ),

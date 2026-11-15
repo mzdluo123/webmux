@@ -10,7 +10,7 @@ import (
 )
 
 func TestDirectoryHandoffRecoversDurableReservationWithoutWorkspace(t *testing.T) {
-	h := deliveryTestWithPlugins(t, nil, nil, true)
+	h := deliveryTestWithFeatures(t, nil, nil, true)
 	ctx := context.Background()
 	if h.workspace != nil || h.service.options.Locations != nil {
 		t.Fatal("directory chat constructed workspace")
@@ -51,7 +51,7 @@ func TestDirectoryHandoffRecoversDurableReservationWithoutWorkspace(t *testing.T
 }
 
 func TestDisabledWorkspaceRejectsGitSelectionBeforeReceipt(t *testing.T) {
-	h := deliveryTestWithPlugins(t, nil, nil, true)
+	h := deliveryTestWithFeatures(t, nil, nil, true)
 	ctx := context.Background()
 	for _, location := range []conversation.PreviewLocation{
 		{RepositoryID: "repo", WorktreeID: "tree"},

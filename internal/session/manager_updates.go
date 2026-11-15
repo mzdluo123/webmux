@@ -159,8 +159,8 @@ func (m *Manager) Shutdown(ctx context.Context) {
 	<-m.updatesDone
 }
 
-// Notify publishes a plugin's already-committed metadata change through the
-// same bounded, ordered source as process updates. It performs no plugin I/O.
+// Notify publishes a feature's already-committed metadata change through the
+// same bounded, ordered source as process updates. It performs no feature I/O.
 func (m *Manager) Notify(id string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

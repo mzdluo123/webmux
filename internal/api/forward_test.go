@@ -412,7 +412,7 @@ func TestForwardPagesStayTCPOnly(t *testing.T) {
 	t.Cleanup(func() { manager.Shutdown(context.Background()) })
 	forwards := forward.New(forward.Config{ProbeInterval: time.Hour})
 	t.Cleanup(forwards.Close)
-	deps := testDeps(t, testServices{Config: config.Config{Token: "secret", Plugins: config.PluginConfig{Enabled: []string{"forward"}}}, Manager: manager, Forward: forwards})
+	deps := testDeps(t, testServices{Config: config.Config{Token: "secret", Features: config.FeatureConfig{Enabled: []string{"forward"}}}, Manager: manager, Forward: forwards})
 	local := NewLocal(deps, Local{})
 	bridge := NewBridge(deps)
 	for _, path := range []string{"/forward", "/forward/5173/", "/forward-auth?next=%2Fforward%2F5173%2F", "/forward-auth?confirm=1&next=%2Fforward%2F5173%2F"} {

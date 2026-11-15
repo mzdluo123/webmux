@@ -75,8 +75,8 @@ type LaunchConfigSummary struct {
 	UpdatedAt   time.Time          `json:"updatedAt"`
 }
 
-// LaunchConfigWrite is the create/update body. Omitted plugin-owned fields
-// let editors preserve stored choices while their owning plugin is disabled.
+// LaunchConfigWrite is the create/update body. Omitted feature-owned fields
+// let editors preserve stored choices while their owning feature is disabled.
 type LaunchConfigWrite struct {
 	Name      string             `json:"name"`
 	Icon      string             `json:"icon,omitempty"`

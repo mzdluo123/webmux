@@ -14,8 +14,8 @@
   import InlineNotice from "../shared/InlineNotice.svelte";
   import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
   import { api, APIError } from "../../platform/api";
-  import { pluginEnabled } from "../../platform/plugin-host.svelte";
-  import { getPluginContributions } from "../../plugins/context";
+  import { featureEnabled } from "../../platform/feature-host.svelte";
+  import { getFeatureContributions } from "../../features/context";
   import {
     LaunchConfigSchema,
     type AttentionSettings,
@@ -45,10 +45,10 @@
     defaultShell?: "" | StartupShell;
     onsaved: (config: LaunchConfig) => void;
   } = $props();
-  const providers = getPluginContributions().creation;
-  const chatEnabled = pluginEnabled("chat") && !!providers.LaunchChatFields;
+  const providers = getFeatureContributions().creation;
+  const chatEnabled = featureEnabled("chat") && !!providers.LaunchChatFields;
   const notificationsEnabled =
-    pluginEnabled("notifications") && !!providers.LaunchAttentionFields;
+    featureEnabled("notifications") && !!providers.LaunchAttentionFields;
 
   let loadedConfig = $state<LaunchConfig | null>(null);
   let name = $state("");
@@ -164,10 +164,10 @@
         configId ? "PUT" : "POST",
         {
           ...launch,
-          ...(pluginEnabled("chat")
+          ...(featureEnabled("chat")
             ? { chat: chatEnabled ? hybrid : (loadedConfig?.chat ?? false) }
             : {}),
-          ...(pluginEnabled("notifications")
+          ...(featureEnabled("notifications")
             ? {
                 attention: notificationsEnabled
                   ? draftAttention

@@ -29,7 +29,7 @@ func SessionOptions(c config.Config) session.Options {
 		DisableBellAttention: !c.BellAttention,
 		DisableProgramStatus: !c.ProgramStatus,
 	}
-	if c.Plugins.Has("launch") {
+	if c.Features.Has("launch") {
 		if c.AgentPretrust {
 			options.PreLaunch = agenttrust.New().Prepare
 		}

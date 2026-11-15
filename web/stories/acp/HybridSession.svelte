@@ -16,8 +16,8 @@
   import SessionSidePanel from "../../src/components/terminal/SessionSidePanel.svelte";
   import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
   import TerminalWorkspace from "../../src/components/terminal/TerminalWorkspace.svelte";
-  import * as chatPlugin from "../../src/plugins/terminal-chat";
-  import * as filesPlugin from "../../src/plugins/terminal-files";
+  import * as chatFeature from "../../src/features/terminal-chat";
+  import * as filesFeature from "../../src/features/terminal-files";
   import type { ChatActions } from "../../src/platform/chat-api";
   import type {
     HybridNotice,
@@ -453,7 +453,7 @@
 <main class="terminal-page">
   <TerminalHeader
     bind:this={header}
-    plugins={{ chat: chatPlugin, files: filesPlugin }}
+    features={{ chat: chatFeature, files: filesFeature }}
     {terminal}
     {fullscreen}
     {draft}
@@ -479,7 +479,7 @@
     {openPanels}
   />
   <TerminalNotices
-    plugins={{ chat: chatPlugin, files: filesPlugin }}
+    features={{ chat: chatFeature, files: filesFeature }}
     terminal={noticeTerminal}
     uploads={{ progress: null, cancel() {} }}
     {draft}

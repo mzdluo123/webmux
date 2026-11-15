@@ -30,7 +30,7 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 | Hooks          | `src/hooks/<主题>/`      | 领域逻辑、基础设施、契约、工具；不依赖渲染层                 |
 | 业务组件       | `src/components/<主题>/` | 以上各层；不依赖页面与应用编排                               |
 | 页面           | `src/pages/`             | 以上各层；由 `App.svelte` 组合                               |
-| 应用贡献       | `src/plugins/`           | 显式动态入口、页面/组件及以上各层；底层不反向依赖它          |
+| 应用贡献       | `src/features/`          | 显式动态入口、页面/组件及以上各层；底层不反向依赖它          |
 
 主题包括 `sessions`、`terminal`、`chat`、`code`、`workspace`、`settings` 与 `notifications`。领域目录把相同业务概念的纯算法与响应式状态放在一起；资源生命周期与跨主题流程放在 hooks，而不是让底层领域反向依赖控制器。
 
@@ -52,17 +52,17 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 迁移文件时必须同时更新测试 mock、Storybook、worker URL、工具配置与文档链接；旧路径不保留垫片。
 
-### 内置插件启动与贡献
+### 内置功能启动与贡献
 
 `App.svelte` 依次完成 health → 经 Zod 校验的 `/api/capabilities` → 本地动态贡献 → 首页；发现失败或版本不符时 fail-closed，不猜测旧版全量功能。
-`platform/plugin-host.svelte.ts` 只保存能力状态，提供 `pluginEnabled` / `pluginAvailable`，不导入业务组件或执行网络 I/O。
-`plugins/registry.svelte.ts` 与创建、设置、终端贡献入口拥有静态可审计的动态 import；只加载已选择的插件。
-终端可以预载已选择但暂不可用的本地贡献；控件和业务 I/O 必须按当前 `pluginAvailable` 派生，能力恢复时复用原有 PTY、owner 与草稿，不以临时不可用作为永久缺少实现的快照。
-禁用插件不仅隐藏入口：不得加载实现 chunk、调用其 REST/WS、启动计时器、后台探测或 provider。单个可选 chunk 失败留在该功能内，不使 PTY 终端整体失败。
+`platform/feature-host.svelte.ts` 只保存能力状态，提供 `featureEnabled` / `featureAvailable`，不导入业务组件或执行网络 I/O。
+`features/registry.svelte.ts` 与创建、设置、终端贡献入口拥有静态可审计的动态 import；只加载已选择的功能。
+终端可以预载已选择但暂不可用的本地贡献；控件和业务 I/O 必须按当前 `featureAvailable` 派生，能力恢复时复用原有 PTY、owner 与草稿，不以临时不可用作为永久缺少实现的快照。
+禁用功能不仅隐藏入口：不得加载实现 chunk、调用其 REST/WS、启动计时器、后台探测或 provider。单个可选 chunk 失败留在该功能内，不使 PTY 终端整体失败。
 加载错误提示可收起且不会遮断其他设置；收起提示不清除错误事实或伪造模块恢复。可选编辑器缺失时，启动配置的其他字段保存不得丢掉已读取的混合或提醒选项。
 打开聊天连接的 effect 只跟踪流需求与可用性，连接内部读取模型时使用 `untrack`，避免每个聊天帧都触发关闭和重连。草稿对账保留当前路由及 `terminal-draft-owners.ts` 登记的二维/VR 所有者；列表暂缺不等于规范删除，已释放资源的旧回调不得回收新宿主的草稿。
 核心新建对话框可直接填写 argv 与 cwd，无需 launch/workspace/files；缺少 launch 时，旧浏览器记住的 `configId` 不能猜成命令，必须重新显式填写。
-选择与组合规则见 [配置](deployment/configuration.md#内置插件选择)，后端事实与插件状态不是同一个布尔值，见 [能力发现](protocol.md#能力发现)。
+选择与组合规则见 [配置](deployment/configuration.md#内置功能选择)，后端事实与功能状态不是同一个布尔值，见 [能力发现](protocol.md#能力发现)。
 
 ### XR 与设备模式边界
 
@@ -95,7 +95,7 @@ Vite+ 的 Oxlint（`pnpm --dir web lint`，即 `vp lint`）负责通用 lint。�
 
 `test/dependency-policy.test.ts` 在临时目录生成独立的 TypeScript/Svelte 模块，调用实际 dependency-cruiser 配置并核对允许与拒绝结果；不以匹配配置文本替代依赖分析。`test/architecture.test.ts` 直接扫描生产树，阻止业务文件重新堆入根目录或无主题的组件、hooks 目录。
 
-导入解析只豁免 Vite 的 `~icons/` 虚拟模块和 `@pierre/diffs/worker/worker.js?worker` 资源查询；这些由 Vite 插件解析，生产构建仍验证其存在。普通本地模块与本地 worker 的失效路径不豁免。
+导入解析只豁免 Vite 的 `~icons/` 虚拟模块和 `@pierre/diffs/worker/worker.js?worker` 资源查询；这些由 Vite 功能解析，生产构建仍验证其存在。普通本地模块与本地 worker 的失效路径不豁免。
 
 `no-restyle` 只允许使用处调整布局（外边距、宽度、高度、栅格与 flex 位置等）。例外由 `web/eslint.config.mjs` 中的组件契约声明，新增契约需要在 PR 中说明设计理由：
 
