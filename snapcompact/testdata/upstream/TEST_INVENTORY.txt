@@ -1,0 +1,124 @@
+Unmodified source: packages/snapcompact/test/snapcompact.test.ts
+Commit: 7c49c11aa5bbaf3f418406583096168ad5b8c6dc
+SHA256: 812155901f9219bc99e9f143c8c7912b8884764e38186d2990ba78ca1dfd8249
+119 static it() declarations; Bun runtime may expand parameterized cases.
+
+92: scanRenderability / considers pure ASCII text safe
+98: scanRenderability / considers Latin-1 text safe
+104: scanRenderability / uses the embedded Silver fallback for CJK text
+110: scanRenderability / detects high unrenderable rates when neither bitmap fonts nor Silver cover the text
+116: scanRenderability / ignores whitespace, ANSI, and zero-width markers in ratio calculations
+126: computeFileLists / drops scheme:// URLs from legacy fileOps before rendering <files>
+141: upsertFileOperations / renders one grouped <files> tree with Read/Write/RW markers
+153: upsertFileOperations / marks modified files Write when no read set is provided
+160: isUrlSchemePath / flags internal URIs and web URLs
+171: isUrlSchemePath / leaves real filesystem paths untouched
+273: normalize / collapses horizontal whitespace and folds non-Latin-1 to ASCII
+280: normalize / folds newline runs to one full-block glyph, trimming the edges
+288: normalize / skips characters it cannot render instead of printing ?
+299: normalize / preserves Silver-supported kana and Hangul for bitmap font fallback
+305: normalize / folds semantic emoji and drops decorative emoji
+310: normalize / folds compatibility characters to their ASCII skeleton via NFKD
+325: shape resolution / maps provider APIs to their eval-winning shapes
+337: shape resolution / detects the ideal shape from the model id across gateways
+427: shape resolution / forces a named variant and re-prices it for the provider's billing
+453: shape resolution / renders frames no wider than the host's image edge, priced at that size
+482: shape resolution / prices frames by the reading model's lineage, not the wire API
+531: shape resolution / plans archives at a billing-verified frame price and at least the ceiling otherwise
+575: shape resolution / every catalog variant resolves to a complete, renderable shape
+585: shape resolution / recognizes complete shape overrides and rejects malformed ones
+592: shape resolution / keeps bitmap shapes render-safe via Silver fallback while CJK-heavy auto archives use Silver
+603: shape resolution / keeps ASCII-heavy auto archives on the provider/model shape
+616: shape resolution / respects explicit non-auto variants even for CJK-heavy text
+625: shape resolution / reports unsupported CJK ideographs unsafe even with the Silver shape selected
+633: shape resolution / images forwards the per-frame detail hint
+649: render / produces an indexed PNG of the declared geometry with sentence-cycled ink (legacy 5x8)
+675: render / pads a short final page without altering the printed rows
+688: render / leaves the repeated-row highlight out of padding
+697: render / renders the repeated grid with doubled lines, black ink, and highlight bands
+711: render / renders the anthropic default (tracked 8x13) in plain black, no dim or bands
+728: render / still dims stopwords on the selectable 6x12-dim variant
+739: render / renders a stretched shape as truecolor RGB
+747: render / pads stretched RGB frames as well as indexed frames
+755: render / renders Silver TrueType Unicode text as truecolor RGB
+766: render / renders a Silver fallback glyph across two cells in a bitmap frame
+782: render / caps printed characters at frame capacity
+788: render / fills a full pitch-black cell for the newline glyph
+807: renderMany / returns no frames for empty or whitespace-only input
+817: renderMany / pages text into image blocks matching the predicted frame count
+832: renderMany / counts wide CJK as two grid cells in bitmap shapes and one in Silver
+846: renderMany / honors maxFrames and propagates the shape's detail hint
+866: serializeConversation / truncates oversized tool results keeping head and tail
+876: serializeConversation / honors configured budgets; Infinity disables a cap
+889: serializeConversation / caps oversized tool-call argument values without touching small ones
+900: serializeConversation / caps the whole serialized argument list per call
+912: serializeConversation / renders roles with compact inline headings
+920: serializeConversation / merges a tool call with its paired result into one block, intent as a // comment
+938: serializeConversation / prefers the harness-derived intent over the raw intent arg and squashes newlines
+955: serializeConversation / folds thinking into separate sections above the text
+965: serializeConversation / drops ¶think reasoning sections when includeThinking is false but keeps the reply
+980: serializeConversation / gives a thinking-only turn its own heading before the tool calls
+990: serializeConversation / renders an orphan tool result (call outside the window) standalone
+995: serializeConversation / preserves content order: text before and after a tool call stay split around it
+1010: serializeConversation / does not split assistant prose around a useless tool call
+1023: serializeConversation / drops blank text/thinking blocks instead of emitting an empty assistant heading
+1039: serializeConversation / wraps tool-result bodies in dim toggles by default and strips stray toggles from content
+1049: serializeConversation / skips tool call/result pairs flagged useless
+1064: serializeConversation / merges consecutive blocks of the same role
+1074: serializeConversation / merges consecutive tool calls under a single prefix
+1086: compact / stores small archives as plain text with no frames
+1108: compact / omits the ¶think: legend from the preamble when thinking is excluded
+1121: compact / keeps the ¶think: legend in the preamble when thinking is included
+1129: compact / carries dim tool-output spans from text into the first image frame
+1143: compact / keeps image frames free of dim ink when dimToolResults is false
+1156: compact / keeps plain text at both edges and images in the middle
+1175: compact / uses three HQ image frames on each edge when the budget allows
+1191: compact / keeps foveated Silver archives on the Silver font
+1202: compact / re-renders later compactions from the kept source text
+1223: compact / re-compacting with a smaller maxFrames than the previous archive shrinks the frame count
+1251: compact / keeps the original text head across later compactions
+1274: compact / keeps continuity for legacy frame-only archives by falling back to the prior summary, counting the frames as dropped
+1304: compact / strips the OpenAI remote payload and preserves unrelated preserveData
+1324: compact / scrubs every paragraph of ¶think: sections from the prior archive when thinking is excluded
+1356: compact / scrubs multi-paragraph ¶think: sections from legacy archive text with real newlines
+1372: compact / keeps a ¶think: line printed inside archived tool output
+1398: compact / keeps legacy ¶think: sections when thinking stays included
+1426: frame data budget / gives the default 1568px shapes more of the same byte budget
+1443: frame data budget / gives frames half the deployment's inline-image budget, and the default elsewhere
+1510: archive helpers / getPreservedArchive rejects malformed payloads
+1522: archive helpers / getPreservedArchive carries a valid no-reasoning variant and drops a malformed one
+1548: archive helpers / reads the stored variant, or the original when its summary declares no reasoning
+1559: archive helpers / fails closed to text edges without frames, reasoning or its legend
+1585: archive helpers / leaves out a tail's opening lines when the archive kept no whole source to scope them
+1622: archive helpers / fails closed when the summary declares no reasoning scope but the archive's text keeps a thought
+1674: archive helpers / reads the archive's whole kept source as text in place of its frames, with its file list
+1695: archive helpers / keeps both ends of the text past maxChars and counts the cut middle as dropped
+1712: archive helpers / drops reasoning for a reader without it when the summary declares no reasoning scope
+1732: archive helpers / skips a legacy archive's unscoped tail lines for a reader without reasoning whatever its summary declares
+1753: archive helpers / textWithoutThinking drops reasoning sections and the reasoning scope from either legend wording
+1771: archive helpers / re-renders an archive without the reasoning legend of a summary archived inside it
+1793: archive helpers / stripPreservedArchive drops the frame archive and collapses to undefined when empty
+1812: archive helpers / historyBlocks orders text head, imaged middle, then text tail
+1828: archive helpers / caps images at the deployment's budget and unknown hosts at the safe floor
+1847: dimStopwords / wraps maximal alphabetic stopword runs in zero-width dim toggles
+1857: dimStopwords / passes through spans that are already dim
+1864: dimStopwords / changes only zero-width markers, never visible glyphs
+1873: wrap / greedily packs words at the column width
+1881: wrap / hard-splits only words wider than the line
+1892: doc layout / computes two-column geometry with the 3-cell gutter
+1899: doc layout / frames() counts pages of wrapped lines, two columns per page
+1918: new shape variants / registers the six research winners as priceable variants
+1928: new shape variants / isShape validates the new optional fields
+1948: data URL elision / prevents archived Markdown tool-result images from reaching providers as sliced undecodable data URLs
+1957: data URL elision / prevents archived bare tool-result data URLs from reaching providers as sliced undecodable payloads
+1963: data URL elision / prevents character-cap head/tail cuts from leaving a recognizable data URL in archived tool results
+1975: data URL elision / prevents archived tool-call arguments from reaching providers as sliced undecodable data URLs
+1990: data URL elision / prevents a canonical 1x1 GIF data URL from surviving in archived tool results as image input
+1999: data URL elision / prevents prose mentions like data:image/png;base64,abc from being rewritten into placeholders
+2006: data URL elision / prevents a ;charset=utf-8 data URL from surviving in archived tool results as image input
+2013: data URL elision / prevents uppercase DATA:/BASE64 data URLs from surviving in archived tool results as image input
+2020: data URL elision / prevents user-message data URLs from surviving as sliced undecodable image refs in the compacted archive
+2035: data URL elision / prevents re-compaction of a pre-guard archive from replaying undecodable data-URL fragments
+2063: data URL elision / prevents historyBlocks from replaying poisoned archive prefixes as invalid image input
+2111: data URL elision / prevents archive migration text from replaying invalid image input to summarizers/providers
+2123: data URL elision / prevents unmatched Markdown brackets from stalling tool-result compaction

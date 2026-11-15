@@ -133,7 +133,9 @@ func Project(ctx context.Context, input Input, cfg PreprocessConfig) (Projection
 			runes := []rune(f.text)
 			head, tail := len(runes), len(runes)
 			if len(runes) > f.limit {
-				head = int(int64(f.limit) * int64(cfg.HeadPercent) / 100)
+				// Match the upstream nonnegative Math.round split while keeping
+				// Unicode scalar offsets and widening unsafe cut boundaries.
+				head = int((int64(f.limit)*int64(cfg.HeadPercent) + 50) / 100)
 				tail = len(runes) - (f.limit - head)
 				head, tail = avoidEscapeCuts(runes, head, tail)
 				for head > 0 && !clusterBoundary(runes, head) {

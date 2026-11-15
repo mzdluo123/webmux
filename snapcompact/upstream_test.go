@@ -38,7 +38,7 @@ func TestPinnedUpstreamTruncationReference(t *testing.T) {
 			t.Fatal(err)
 		}
 		chars := []rune(c.Text)
-		head := c.Limit * c.HeadPercent / 100
+		head := (c.Limit*c.HeadPercent + 50) / 100
 		tail := len(chars) - (c.Limit - head)
 		if len(p.Omissions) != 1 || p.Omissions[0].Range != (Range{SourceID: "reference", Field: "text", Start: head, End: tail}) {
 			t.Fatalf("incorrect reference coverage: %+v", p.Omissions)
@@ -46,8 +46,7 @@ func TestPinnedUpstreamTruncationReference(t *testing.T) {
 		if !utf8.ValidString(p.Segments[0].Text) || !strings.Contains(p.Segments[0].Text, string(chars[:head])) || !strings.Contains(p.Segments[0].Text, string(chars[tail:])) {
 			t.Fatal("Go head/tail coverage differs")
 		}
-		// Upstream rounds the head count; Go floors it. Both preserve the same
-		// total budget. BMP input avoids conflating this with UTF-16 differences.
+		// BMP input avoids conflating scalar budgeting with UTF-16 differences.
 		upstreamHead := (c.Limit*c.HeadPercent + 50) / 100
 		upstreamTail := len(chars) - (c.Limit - upstreamHead)
 		if !strings.HasPrefix(c.Upstream, string(chars[:upstreamHead])) || !strings.HasSuffix(c.Upstream, string(chars[upstreamTail:])) {

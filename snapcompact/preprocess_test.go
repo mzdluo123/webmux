@@ -221,3 +221,24 @@ func TestProjectHardLimits(t *testing.T) {
 		t.Fatal("record count accepted")
 	}
 }
+
+func TestProjectRoundedHeadRatio(t *testing.T) {
+	cfg := DefaultPreprocessConfig()
+	cfg.OutputRunes = 3
+	p, err := Project(context.Background(), Input{History: []Record{{ID: "r", Role: "tool", Text: "abcdefghi"}}}, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Omissions) != 1 || p.Omissions[0].Range.Start != 2 || p.Omissions[0].Range.End != 8 {
+		t.Fatalf("expected upstream Math.round(3*.6)=2 head split: %+v", p.Omissions)
+	}
+	cfg.HeadPercent = 50
+	cfg.OutputRunes = 1
+	p, err = Project(context.Background(), Input{History: []Record{{ID: "r", Role: "tool", Text: "abc"}}}, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Omissions[0].Range.Start != 1 || p.Omissions[0].Range.End != 3 {
+		t.Fatal(p.Omissions)
+	}
+}

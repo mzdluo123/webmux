@@ -1,0 +1,42 @@
+Official upstream test run evidence
+Date: 2026-11-15 UTC
+Source commit: can1357/oh-my-pi@7c49c11aa5bbaf3f418406583096168ad5b8c6dc
+Source archive: https://api.github.com/repos/can1357/oh-my-pi/tarball/7c49c11aa5bbaf3f418406583096168ad5b8c6dc
+Source archive SHA256: a7f9bfd0fd013651f25e3d83c9123bdd6e34c4d2f3c0e9305f588ee385992bb3
+Official test file SHA256: 812155901f9219bc99e9f143c8c7912b8884764e38186d2990ba78ca1dfd8249
+Copied WebMux fixture test file SHA256 is identical.
+
+Isolated directory: /workspace/upstream-reference
+Development-only Bun: 1.4.4 (38afee6c8)
+Native binary: official npm @oh-my-pi/pi-natives-linux-x64@18.20.2
+Native tarball SHA256: db25d6c80fa0b492c8d935dfed5fecec217f18733d50baf1c721d0685224842f
+Native tarball npm SHA1: a803650b82355a326716c892c5533a32b4d23af2
+Native package is same release version as source packages/natives/package.json;
+this is a published binary, not a native build proven from that exact Git commit.
+No mock native module was installed or used. Upstream TS source/test unchanged.
+
+Commands (run only in isolated development environment):
+  curl -L -o source.tar.gz https://api.github.com/repos/can1357/oh-my-pi/tarball/7c49c11aa5bbaf3f418406583096168ad5b8c6dc
+  tar -xzf source.tar.gz --strip-components=1
+  npm install --prefix /workspace/dev-bun bun@1.4.4
+  PATH=/workspace/dev-bun/node_modules/.bin:$PATH bun install --ignore-scripts --filter '@oh-my-pi/snapcompact'
+  PATH=/workspace/dev-bun/node_modules/.bin:$PATH bun test packages/snapcompact/test/snapcompact.test.ts
+First attempt: exit 1, module-load error: Failed to load pi_natives native addon for linux-x64 (modern).
+Log: /workspace/research/official-first-run.txt
+
+  npm pack @oh-my-pi/pi-natives-linux-x64@18.20.2 --pack-destination /workspace/research
+  tar -xzf /workspace/research/oh-my-pi-pi-natives-linux-x64-18.20.2.tgz -C packages/natives/native --strip-components=1 --wildcards 'package/*.node'
+  PATH=/workspace/dev-bun/node_modules/.bin:$PATH bun test packages/snapcompact/test/snapcompact.test.ts
+Second attempt: exit 0.
+  121 pass
+  0 fail
+  3947 expect() calls
+  Ran 121 tests across 1 file. [4.69s]
+Full log: /workspace/research/official-native-run.txt
+
+This validates official upstream behavior in its own runtime. It does NOT mean
+the Go implementation passes the TS tests, is pixel-identical, or has measured
+model/OCR/token savings. No paid model or network inference was invoked.
+The suite contains catalog/provider policy and archive lifecycle tests beyond
+WebMux's independent Go-core scope; these were nevertheless exercised upstream.
+WebMux production dependencies do not include Bun, Node, or Rust executables.

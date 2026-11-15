@@ -55,6 +55,7 @@
 ## 开发与架构
 
 - [Snapcompact Go 核心](snapcompact.md)：API、边界、验证入口与预算规划。
+- [Snapcompact 官方兼容性](snapcompact-compatibility.md)：官方测试移植与行为对照。
 - [Snapcompact 参考与许可证](snapcompact-reference.md)：固定版本、复用审计与上游差异。
 
 - [参与贡献](../CONTRIBUTING.md)：开发环境、常用命令、测试、PR 与 OpenSpec 工作流。

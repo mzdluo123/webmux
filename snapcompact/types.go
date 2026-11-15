@@ -44,7 +44,7 @@ type PreprocessConfig struct {
 }
 
 func DefaultPreprocessConfig() PreprocessConfig {
-	return PreprocessConfig{2000, 2000, 2000, 60, 8 << 20}
+	return PreprocessConfig{2000, 500, 2000, 60, 8 << 20}
 }
 
 // Page ranges refer to projection segments, never to raw source offsets.
