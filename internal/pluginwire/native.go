@@ -36,7 +36,7 @@ func NativeSnapshot(in conversation.NativeSnapshot) contract.NativeResult {
 	return out
 }
 func EmptyNativeResult() contract.NativeResult {
-	return contract.NativeResult{Provenance: []contract.NativeProvenance{}, Files: []contract.NativeFile{}, Gaps: []string{}, Activities: ConversationActivities(conversation.ActivityPage{HistoryOrigin: "unknown", Items: []conversation.ActivityPart{}, Gaps: []conversation.HistoryGap{}})}
+	return contract.NativeResult{Consumed: "0", Provenance: []contract.NativeProvenance{}, Files: []contract.NativeFile{}, Gaps: []string{}, Activities: ConversationActivities(conversation.ActivityPage{HistoryOrigin: "unknown", Items: []conversation.ActivityPart{}, Gaps: []conversation.HistoryGap{}})}
 }
 
 func NativePreview(in conversation.SnapshotPreview, problem string) contract.NativePreview {

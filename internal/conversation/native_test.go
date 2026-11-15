@@ -420,3 +420,40 @@ func TestSnapshotRenderReportsSourceCoverageAndMissingGlyphs(t *testing.T) {
 		t.Fatal("missing glyph lost source mapping")
 	}
 }
+
+func TestNativeRenameKeepsEvidenceBackedIdentity(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	root := t.TempDir()
+	path := filepath.Join(root, "rollout.jsonl")
+	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.ImportCodex(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archived := filepath.Join(root, "archived.jsonl")
+	if err = os.Rename(path, archived); err != nil {
+		t.Fatal(err)
+	}
+	moved, err := s.ImportCodex(ctx, archived)
+	if err != nil || moved.SourceID != first.SourceID || moved.Binding != first.Binding {
+		t.Fatal(moved, err)
+	}
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	replacement, err := s.ImportCodex(ctx, path)
+	if err != nil || replacement.SourceID == first.SourceID {
+		t.Fatal(replacement, err)
+	}
+	moved, err = s.ImportCodex(ctx, archived)
+	if err != nil || moved.SourceID != first.SourceID {
+		t.Fatal(moved, err)
+	}
+}

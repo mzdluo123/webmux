@@ -9,6 +9,10 @@ CREATE TABLE native_source (
  checksum TEXT NOT NULL, file_identity TEXT NOT NULL,
  native_time TEXT NOT NULL, model TEXT NOT NULL, model_provider TEXT NOT NULL, cli_version TEXT NOT NULL, pending INTEGER NOT NULL, UNIQUE(path,generation)
 );
+CREATE INDEX native_source_identity ON native_source(file_identity,native_id,parser);
+CREATE TABLE native_location (
+ path TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES native_source(id) ON DELETE CASCADE
+);
 CREATE TABLE native_record (
  source_id TEXT NOT NULL REFERENCES native_source(id) ON DELETE CASCADE,
  offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, checksum TEXT NOT NULL,

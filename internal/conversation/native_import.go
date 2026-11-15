@@ -41,7 +41,7 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 	}
 	var priorID, priorHash string
 	var priorOffset int64
-	priorErr := s.db.QueryRowContext(ctx, "SELECT id,consumed,checksum FROM native_source WHERE path=? ORDER BY generation DESC LIMIT 1", path).Scan(&priorID, &priorOffset, &priorHash)
+	priorErr := s.db.QueryRowContext(ctx, "SELECT s.id,s.consumed,s.checksum FROM native_source s JOIN native_location l ON l.source_id=s.id WHERE l.path=?", path).Scan(&priorID, &priorOffset, &priorHash)
 	if priorErr != nil && !errors.Is(priorErr, sql.ErrNoRows) {
 		return out, storageError(ctx, priorErr)
 	}
@@ -100,10 +100,45 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 		}
 		var oldOffset int64
 		var oldHash, parser, native, identity string
-		err := tx.QueryRowContext(ctx, `SELECT id,generation,conversation_id,provider_thread_id,consumed,checksum,parser,native_id,file_identity FROM native_source WHERE path=? ORDER BY generation DESC LIMIT 1`, path).Scan(&out.SourceID, &out.Generation, &out.Binding.ConversationID, &out.Binding.ProviderThreadID, &oldOffset, &oldHash, &parser, &native, &identity)
+		err := tx.QueryRowContext(ctx, `SELECT s.id,s.generation,s.conversation_id,s.provider_thread_id,s.consumed,s.checksum,s.parser,s.native_id,s.file_identity FROM native_source s JOIN native_location l ON l.source_id=s.id WHERE l.path=?`, path).Scan(&out.SourceID, &out.Generation, &out.Binding.ConversationID, &out.Binding.ProviderThreadID, &oldOffset, &oldHash, &parser, &native, &identity)
 		fresh := errors.Is(err, sql.ErrNoRows)
 		if err != nil && !fresh {
 			return storageError(ctx, err)
+		}
+
+		if nativeFileIdentity(before) != "unknown" && (fresh || identity != nativeFileIdentity(before)) {
+			// A rename/archive or hard link is the same observed source only
+			// with native identity, platform identity and confirmed content.
+			rows, e := tx.QueryContext(ctx, `SELECT id,generation,conversation_id,provider_thread_id,consumed,checksum,parser,native_id,file_identity FROM native_source WHERE file_identity=? AND native_id=? AND parser=? ORDER BY rowid DESC LIMIT 1`, nativeFileIdentity(before), parsed.Metadata.ID, codexrollout.Version)
+			if e != nil {
+				return storageError(ctx, e)
+			}
+			for rows.Next() {
+				var candidate NativeImport
+				var offset int64
+				var checksum, p, n, i string
+				if e = rows.Scan(&candidate.SourceID, &candidate.Generation, &candidate.Binding.ConversationID, &candidate.Binding.ProviderThreadID, &offset, &checksum, &p, &n, &i); e != nil {
+					_ = rows.Close()
+					return storageError(ctx, e)
+				}
+				if offset <= int64(len(data)) && digest(data[:offset]) == checksum {
+					out.SourceID = candidate.SourceID
+					out.Generation = candidate.Generation
+					out.Binding = candidate.Binding
+					oldOffset = offset
+					oldHash = checksum
+					parser = p
+					native = n
+					identity = i
+					fresh = false
+					break
+				}
+			}
+			e = rows.Err()
+			_ = rows.Close()
+			if e != nil {
+				return storageError(ctx, e)
+			}
 		}
 		// An importer with an older captured view must not turn a concurrent
 		// append (or replacement already imported by another caller) into a
@@ -117,7 +152,9 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 			fresh = true
 		}
 		if fresh {
-			out.Generation++
+			if err = tx.QueryRowContext(ctx, "SELECT COALESCE(MAX(generation),0)+1 FROM native_source WHERE path=?", path).Scan(&out.Generation); err != nil {
+				return storageError(ctx, err)
+			}
 			oldOffset = 0
 			out.SourceID, err = newID()
 			if err != nil {
@@ -196,6 +233,9 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 					return err
 				}
 			}
+		}
+		if _, err = tx.ExecContext(ctx, "INSERT INTO native_location VALUES(?,?) ON CONFLICT(path) DO UPDATE SET source_id=excluded.source_id", path, out.SourceID); err != nil {
+			return storageError(ctx, err)
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE native_source SET consumed=?,checksum=?,pending=?,model=? WHERE id=?`, parsed.Consumed, digest(data[:parsed.Consumed]), parsed.Pending, parsed.Model, out.SourceID)
 		return storageError(ctx, err)

@@ -337,7 +337,7 @@ func TestForgottenSourceDispatchMigration(t *testing.T) {
 					}
 					// Recreate the actual v10 layout and its source cascade deletion.
 					if _, err := s.db.Exec(`DROP TRIGGER dispatch_receipt_insert; DROP TRIGGER dispatch_receipt_update;
- DROP TABLE history_snapshot_reference; DROP TABLE history_snapshot_item; DROP TABLE history_snapshot; DROP TABLE native_record; DROP TABLE native_source;
+ DROP TABLE history_snapshot_reference; DROP TABLE history_snapshot_item; DROP TABLE history_snapshot; DROP TABLE native_record; DROP TABLE native_location; DROP TABLE native_source;
  DROP TRIGGER dispatch_receipt_delete; DROP TRIGGER dispatch_receipt_history; DROP TABLE dispatch_receipt;
  DROP INDEX delivery_target; ALTER TABLE runtime_binding DROP COLUMN published; PRAGMA user_version=10;`); err != nil {
 						t.Fatal(err)
