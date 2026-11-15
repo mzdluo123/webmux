@@ -17,7 +17,7 @@
     children,
   }: {
     title?: string;
-    /** Icon controls; phones show them in the top bar instead. */
+    /** Home actions; phones show them in the top bar instead. */
     actions: Snippet;
     loading: boolean;
     filtering: boolean;
