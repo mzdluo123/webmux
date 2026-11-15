@@ -10,11 +10,8 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import FileDropZone from "../shared/FileDropZone.svelte";
   import type { ChatActions, RequestAnswer } from "../../platform/chat-api";
-  import {
-    conversationTurns,
-    groupTimeline,
-    type ChatModel,
-  } from "../../domains/chat/chat-model";
+  import { groupTimeline, type ChatModel } from "../../domains/chat/chat-model";
+  import { conversationTurns } from "../../domains/chat/conversation-turns";
   import { errorMessage } from "../../platform/error";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
   import { observeTranscriptResize } from "../../hooks/chat/transcript-resize";
@@ -116,7 +113,7 @@
   }
   const entries = $derived(groupTimeline(model.entries));
   const turns = $derived(conversationTurns(model.entries));
-  const turnIds = $derived(new Set(turns.map((item) => item.id)));
+  const turnIds = $derived(new Set(turns.flatMap((item) => item.messageIds)));
   const request = $derived(chat?.requests[0]);
   const requestTool = $derived.by(() => {
     const at = request?.toolCallId
