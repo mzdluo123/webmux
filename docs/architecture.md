@@ -39,8 +39,8 @@ flowchart LR
 
 浏览器断线后 Session 继续从 PTY 读取并写入环形缓冲；重连时先发送缓冲快照再续接实时流，因此断线期间的输出不会丢失。
 
-网络控制 MCP 需选择 `mcp` 内置插件、配置非空 owner Token 与 `[mcp] enabled = true`，只在 TCP 精确 `/mcp` 挂载。
-`cmd/webmux` 组合 remote 注册表与 HTTP 生命周期；共享传输先执行 Host / Bearer / Origin 检查，`pluginapi` 再注入已认证 owner 身份。
+网络控制 MCP 需选择 `mcp` 内置功能、配置非空 owner Token 与 `[mcp] enabled = true`，只在 TCP 精确 `/mcp` 挂载。
+`cmd/webmux` 组合 remote 注册表与 HTTP 生命周期；共享传输先执行 Host / Bearer / Origin 检查，`featureapi` 再注入已认证 owner 身份。
 工具通过固定的本实例真实 TCP REST/WS 客户端执行，使用配置的 owner 凭据，不借 Unix 对端身份；客户端不使用环境代理或跟随重定向。
 远程上下文固定 `mcp-http` / `remote` / self=null，新会话不推断 parent；stdio 和冻结历史仍保持各自原有身份与 scope。
 MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响应交付结束；断线不取消任务，无响应 replay。
@@ -56,7 +56,7 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `internal/runtime`                            | 运行时记录、实例锁、进程身份、本机套接字与对端凭据                                                         |
 | `internal/hoststat`                           | 主机负载与内存读取（Linux、macOS），供 `/api/health` 使用                                                  |
 | `internal/contract`                           | 线上 REST/WS/本机类型；仅显式审查的 Relay DTO 别名依赖公开协议子模块，其余依赖保持共享层边界               |
-| `internal/wire`、`internal/pluginwire`        | 核心 DTO 转换；可选业务转换与统一 `Projection` 分别归属两包                                                |
+| `internal/wire`、`internal/featurewire`       | 核心 DTO 转换；可选业务转换与统一 `Projection` 分别归属两包                                                |
 | `internal/pathutil`, `internal/attentionkind` | 共享的路径展开与注意力种类，供 Service、配置与客户端共用                                                   |
 | `internal/localclient`                        | 经任意拨号器访问 HTTP/WS API 的客户端，可交叉编译到 Windows                                                |
 | `internal/sessionobserve`                     | CLI 与 MCP 共用的聊天/会话订阅、精确回合选择、队列消失、请求与退出事实；不负责输出格式或取消任务           |
@@ -70,10 +70,10 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `internal/session`                            | PTY 生命周期、环形缓冲、OSC 标题、状态协调、进程组清理                                                     |
 | `internal/vtpreview`                          | 纯无状态 ANSI/VT 终端预览模拟与安全回放快照提取                                                            |
 | `internal/procpeek`                           | 跨平台进程树追溯、进程事实检查与监听端口扫描                                                               |
-| `internal/hub`、`internal/pluginhub`          | 原始终端传输；聊天、语音流分别归属可选控制器                                                               |
+| `internal/hub`、`internal/featurehub`         | 原始终端传输；聊天、语音流分别归属可选控制器                                                               |
 | `internal/api`、`internal/transport`          | 核心路由、认证、Origin、静态资源；共享路由贡献与传输辅助                                                   |
-| `internal/pluginapi`                          | 内置插件 REST 控制器、上传解析、可选业务错误映射，不构造服务                                               |
-| `internal/files`、`internal/forward`          | 目录补全/上传；转发登记、探测与凭据（网关在 `pluginapi`）                                                  |
+| `internal/featureapi`                         | 内置功能 REST 控制器、上传解析、可选业务错误映射，不构造服务                                               |
+| `internal/files`、`internal/forward`          | 目录补全/上传；转发登记、探测与凭据（网关在 `featureapi`）                                                 |
 | `internal/workspace`                          | 仓库清单持久化、Git worktree 查询 / 创建 / 删除、发散协调恢复与三方冲突解决、启动目录协调                  |
 | `internal/worktreefs`                         | 工作树边界安全原子文件覆盖与删除辅助（`os.OpenRoot` 防符号链接逃逸 + 同目录临时文件原子替换）              |
 | `internal/launch`                             | 启动配置持久化（`launch-configs.json`）、独立文件锁、校验与不可用状态                                      |
@@ -108,12 +108,12 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `web/`                                        | Svelte 5 前端，构建后通过 `go:embed` 嵌入二进制                                                            |
 
 Kimi 的 `agent_pretrust` 不写信任记录，而是由 `internal/agenttrust` 向会话环境注入进程级目录信任；Devin 则写入 `$XDG_DATA_HOME/devin/cli/trusted_workspaces.json`。
-Agent 信任预写与专属提交延迟仅在选择 `launch` 时装配；核心普通 argv 不要求该插件。PTY 的 `agent_protocol`、`bell_attention`、`program_status` 则是核心识别配置，与聊天、推送插件是否选择无关。
+Agent 信任预写与专属提交延迟仅在选择 `launch` 时装配；核心普通 argv 不要求该功能。PTY 的 `agent_protocol`、`bell_attention`、`program_status` 则是核心识别配置，与聊天、推送功能是否选择无关。
 
-`cmd/webmux` 是唯一装配根：先验证固定选择，用 `cmd/internal/assemble` 转换选项，再由 `plugin_{assembly,start,bind,capabilities}.go` 显式构造所选服务。
-`api.New` 只接收核心依赖及 `transport.Contribution` 路由/流/钩子；`pluginapi`、`pluginhub`、`pluginwire` 拥有可选控制器，不反向导入 `api`。
+`cmd/webmux` 是唯一装配根：先验证固定选择，用 `cmd/internal/assemble` 转换选项，再由 `feature_{assembly,start,bind,capabilities}.go` 显式构造所选服务。
+`api.New` 只接收核心依赖及 `transport.Contribution` 路由/流/钩子；`featureapi`、`featurehub`、`featurewire` 拥有可选控制器，不反向导入 `api`。
 `sessioncreate` 统一协调 argv/cwd/env，经类型化 `Commands`、`Locations`、`Files`、`Chat`、`Brief` 端口接入贡献，不查找服务或复制创建流程。
-`session.Info` 只含核心事实；`workspace.Association`、`hybrid.Metadata`、`forward.ListeningPorts` 拥有可选数据，`pluginwire.Projection` 为所有 JSON 出口统一投影。
+`session.Info` 只含核心事实；`workspace.Association`、`hybrid.Metadata`、`forward.ListeningPorts` 拥有可选数据，`featurewire.Projection` 为所有 JSON 出口统一投影。
 `session.Manager.Observe` 原子捕获快照并订阅，投影不破坏顺序；`hub` 不依赖可选服务，`streamproto` 提供独立于 P2P 的纯传输类型。
 
 Tailscale 控制器的生命周期：
@@ -169,14 +169,14 @@ flowchart LR
 4. **关闭**：向进程组发送 SIGHUP，5 秒后 SIGKILL。按会话 ID 与进程树查找其他 job-control 进程组；Linux 另按继承的 `WEBMUX_SESSION_ID` 查找，并通过 subreaper 回收孤儿进程。
 5. **移除**：只允许移除已退出的会话。
 
-服务收到 SIGTERM 后先取消并等待创建、启动恢复与 handoff 等生产者，再停止 PTY 与连接（关闭期限 10 秒），最后释放插件存储及核心设置锁。
+服务收到 SIGTERM 后先取消并等待创建、启动恢复与 handoff 等生产者，再停止 PTY 与连接（关闭期限 10 秒），最后释放功能存储及核心设置锁。
 
-## 核心与内置插件
+## 核心与内置功能
 
-核心保留 PTY、创建/列表/输入/控制/回放、认证、设置与运行时控制。14 个内置插件随二进制发布，覆盖后端、前端、存储和生命周期；不是市场、远程脚本、热加载或安全沙箱。
-生成配置显式 `plugins.enabled=[]`，只启用核心；缺省字段保留固定旧版全量选择，不随未来目录增长。未知、重复或缺少依赖启动失败；`chat` 必须显式同时选择 `launch`、`files`。
+核心保留 PTY、创建/列表/输入/控制/回放、认证、设置与运行时控制。14 个内置功能随二进制发布，覆盖后端、前端、存储和生命周期；不是市场、远程脚本、热加载或安全沙箱。
+生成配置显式 `features.enabled=[]`，只启用核心；缺省字段保留固定旧版全量选择，不随未来目录增长。未知、重复或缺少依赖启动失败；`chat` 必须显式同时选择 `launch`、`files`。
 `workspace` 单独提供仓库/worktree 管理，Git 工作台需同时选择 `workspace` 与 `code`。选择修改必须重启；禁用不打开、初始化、迁移或清扫所属存储，也不删除历史。
-插件 ID、配置例子见 [内置插件选择](deployment/configuration.md#内置插件选择)；实时可用性而非健康状态见 [能力发现](protocol.md#能力发现)。
+功能 ID、配置例子见 [内置功能选择](deployment/configuration.md#内置功能选择)；实时可用性而非健康状态见 [能力发现](protocol.md#能力发现)。
 
 ## 混合会话
 

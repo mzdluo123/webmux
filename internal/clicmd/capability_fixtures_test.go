@@ -13,15 +13,15 @@ func testCapabilities(enabled ...string) contract.Capabilities {
 	if enabled == nil {
 		enabled = []string{}
 	}
-	snapshot := contract.Capabilities{Version: 1, Plugins: []contract.PluginStatus{}, Capabilities: []contract.Capability{{ID: "terminal.pty", Available: true}}}
+	snapshot := contract.Capabilities{Version: contract.CapabilitiesVersion, Features: []contract.FeatureStatus{}, Capabilities: []contract.Capability{{ID: "terminal.pty", Available: true}}}
 	owners := map[string]string{"launch": "launch.configs", "workspace": "workspace.manage", "chat": "chat.acp", "files": "files.upload", "code": "code.browse", "notifications": "notifications.push", "quick-commands": "quick-commands.send", "voice": "voice.recognize", "forward": "forward.ports", "cloudflare": "cloudflare.manage", "tailscale": "tailscale.manage", "p2p": "p2p.direct", "mcp": "mcp.control", "immersive": "immersive.xr"}
 	for _, p := range builtin.Catalog() {
 		on := builtin.Has(enabled, p.ID)
-		status, reason := contract.PluginStatusDisabled, contract.CapabilityReasonPluginDisabled
+		status, reason := contract.FeatureStatusDisabled, contract.CapabilityReasonFeatureDisabled
 		if on {
-			status, reason = contract.PluginStatusReady, ""
+			status, reason = contract.FeatureStatusReady, ""
 		}
-		snapshot.Plugins = append(snapshot.Plugins, contract.PluginStatus{ID: p.ID, Enabled: on, Status: status, Reason: reason})
+		snapshot.Features = append(snapshot.Features, contract.FeatureStatus{ID: p.ID, Enabled: on, Status: status, Reason: reason})
 		snapshot.Capabilities = append(snapshot.Capabilities, contract.Capability{ID: owners[p.ID], Available: on, Reason: reason})
 	}
 	return snapshot

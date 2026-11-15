@@ -27,10 +27,10 @@ func (c Config) Source(key string) string {
 func Fields(c Config) map[string]Field {
 	// Only nil uses the fixed legacy selection. Preserve explicit declarations
 	// here; Validate reports invalid IDs rather than diagnostics hiding them.
-	enabled := append([]string{}, c.Plugins.Enabled...)
-	if c.Plugins.Enabled == nil {
+	enabled := append([]string{}, c.Features.Enabled...)
+	if c.Features.Enabled == nil {
 		for _, definition := range builtin.Catalog() {
-			if c.Plugins.Has(definition.ID) {
+			if c.Features.Has(definition.ID) {
 				enabled = append(enabled, definition.ID)
 			}
 		}
@@ -44,8 +44,8 @@ func Fields(c Config) map[string]Field {
 		"voice.cmd": append([]string{}, c.Voice.Cmd...), "voice.env": len(c.Voice.Env) > 0,
 		"p2p.enabled": c.P2P.Enabled, "p2p.port_mapping": c.P2P.PortMapping, "p2p.stun_servers": append([]string{}, c.P2P.STUNServers...),
 		"relay.enabled": c.Relay.Enabled, "relay.control_endpoint": c.Relay.ControlEndpoint, "relay.control_audience": c.Relay.ControlAudience, "relay.transport": c.Relay.Transport,
-		"mcp.enabled":     c.MCP.Enabled,
-		"plugins.enabled": enabled,
+		"mcp.enabled":      c.MCP.Enabled,
+		"features.enabled": enabled,
 	}
 	out := map[string]Field{}
 	for key, value := range values {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/pluginapi"
+	"github.com/rainchan/webmux/internal/featureapi"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/voicesettings"
 )
@@ -60,7 +60,7 @@ func (c *voiceControlFixture) Reset() (contract.VoiceSettings, error) {
 	return c.view, nil
 }
 
-func voiceAPIHandler(t *testing.T, control pluginapi.VoiceControl) http.Handler {
+func voiceAPIHandler(t *testing.T, control featureapi.VoiceControl) http.Handler {
 	t.Helper()
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })

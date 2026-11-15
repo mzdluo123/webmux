@@ -10,7 +10,7 @@ import (
 	"github.com/rainchan/webmux/internal/pathutil"
 )
 
-// ProjectDirectories belongs to workspace and does not require the files plugin.
+// ProjectDirectories belongs to workspace and does not require the files feature.
 func (s *Service) ProjectDirectories(prefix string) ([]string, error) {
 	out, err := pathutil.CompleteDirectories(prefix, s.defaultCwd)
 	if err != nil {

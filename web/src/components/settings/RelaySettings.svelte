@@ -118,7 +118,7 @@
             reason:
               status.hybridUnavailableReason === "p2p-build-unavailable"
                 ? m.relay_build_unavailable()
-                : m.relay_plugin_unselected(),
+                : m.relay_feature_unselected(),
           })}</InlineNotice
         >
       {/if}

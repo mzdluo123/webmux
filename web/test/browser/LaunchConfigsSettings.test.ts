@@ -7,10 +7,13 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Settings from "../../src/pages/Settings.svelte";
-import { PluginIDSchema } from "../../src/contracts/plugin-schemas";
-import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
+import { FeatureIDSchema } from "../../src/contracts/feature-schemas";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
 
-beforeEach(() => enableCreationPlugins(PluginIDSchema.options));
+beforeEach(() => enableCreationFeatures(FeatureIDSchema.options));
 
 const config = {
   id: "abcdefg2",
@@ -61,7 +64,7 @@ afterEach(async () => {
   } finally {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-    resetCreationPlugins();
+    resetCreationFeatures();
     localStorage.clear();
   }
 });

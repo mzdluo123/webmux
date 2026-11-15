@@ -63,7 +63,7 @@ func TestAssociationCommitAndSourceCaptureHaveNoLockInversion(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("manager publication inverted a plugin cache lock")
+		t.Fatal("manager publication inverted a feature cache lock")
 	}
 	seen := make(map[string]bool)
 	for len(observer.seen) > 0 {

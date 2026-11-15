@@ -46,16 +46,16 @@
   import { enterSendIntent } from "../hooks/shared/enter-send";
   import { allowAutomaticInputFocus } from "../hooks/shared/input-focus";
   import {
-    loadQuickStartPlugins,
-    type QuickStartPlugins,
-  } from "../plugins/quick-start";
+    loadQuickStartFeatures,
+    type QuickStartFeatures,
+  } from "../features/quick-start";
   import InlineNotice from "../components/shared/InlineNotice.svelte";
   import QuickStartAccessories from "../components/sessions/QuickStartAccessories.svelte";
   import {
-    pluginAvailable,
-    pluginCapabilityRevision,
-  } from "../platform/plugin-host.svelte";
-  let plugins = $state.raw<QuickStartPlugins>({ errors: [] });
+    featureAvailable,
+    featureCapabilityRevision,
+  } from "../platform/feature-host.svelte";
+  let features = $state.raw<QuickStartFeatures>({ errors: [] });
   const shell = getShell();
 
   const repositories = $derived(shell.repositories?.list ?? []);
@@ -191,10 +191,10 @@
     return resetBrowserChrome;
   });
   $effect(() => {
-    pluginCapabilityRevision();
+    featureCapabilityRevision();
     let disposed = false;
-    void loadQuickStartPlugins().then((loaded) => {
-      if (!disposed) plugins = loaded;
+    void loadQuickStartFeatures().then((loaded) => {
+      if (!disposed) features = loaded;
     });
     return () => {
       disposed = true;
@@ -329,7 +329,7 @@
         {failure}
         {shell}
       />
-      {#each plugins.errors as message (message)}<InlineNotice tone="warning"
+      {#each features.errors as message (message)}<InlineNotice tone="warning"
           >{message}</InlineNotice
         >{/each}
 
@@ -449,8 +449,8 @@
         {/snippet}
         {#snippet accessories({ size, variant })}
           <QuickStartAccessories
-            {plugins}
-            voice={pluginAvailable("voice.recognize") &&
+            {features}
+            voice={featureAvailable("voice.recognize") &&
               voicePreference.enabled}
             {sending}
             {size}

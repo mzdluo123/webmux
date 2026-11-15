@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick, untrack, type Snippet } from "svelte";
-  import type { CreationContributions } from "../../plugins/context";
+  import type { CreationContributions } from "../../features/context";
   import type { ProjectSelection } from "../../domains/sessions/project-selection";
 
   let {

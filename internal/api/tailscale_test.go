@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/pluginapi"
+	"github.com/rainchan/webmux/internal/featureapi"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/tailscalesettings"
 )
@@ -50,7 +50,7 @@ func (c *tailscaleControlFixture) ResetSettings() (contract.TailscaleStatus, err
 	return c.view, c.err
 }
 
-func tailscaleAPIHandler(t *testing.T, control pluginapi.TailscaleControl) *Server {
+func tailscaleAPIHandler(t *testing.T, control featureapi.TailscaleControl) *Server {
 	t.Helper()
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })

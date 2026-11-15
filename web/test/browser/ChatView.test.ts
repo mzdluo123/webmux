@@ -1953,8 +1953,17 @@ test("the jump-to-latest button stays above a tall composer area", async () => {
     .getByRole("region", { name: "排队的消息" })
     .element()
     .getBoundingClientRect();
+  expect(
+    Math.abs(button.left + button.width / 2 - (area.left + area.width / 2)),
+  ).toBeLessThanOrEqual(2);
   expect(button.bottom).toBeLessThanOrEqual(area.bottom);
   expect(button.bottom).toBeLessThanOrEqual(queue.top);
+  const mouseDown = new MouseEvent("mousedown", {
+    bubbles: true,
+    cancelable: true,
+  });
+  jump.element().dispatchEvent(mouseDown);
+  expect(mouseDown.defaultPrevented).toBe(true);
 });
 
 test("a form request highlights the prompt in destructive red", async () => {
@@ -2179,9 +2188,26 @@ test.each([false, true])(
       await expect.element(jump).toBeVisible();
       const dock = document.querySelector("[data-chat-dock]")!;
       expect(getComputedStyle(dock).position).toBe("sticky");
-      expect(jump.element().getBoundingClientRect().bottom).toBeLessThanOrEqual(
-        dock.getBoundingClientRect().top,
-      );
+      const jumpBounds = jump.element().getBoundingClientRect();
+      const dockBounds = dock.getBoundingClientRect();
+      expect(
+        Math.abs(
+          jumpBounds.left +
+            jumpBounds.width / 2 -
+            (dockBounds.left + dockBounds.width / 2),
+        ),
+      ).toBeLessThanOrEqual(2);
+      expect(jumpBounds.bottom).toBeLessThanOrEqual(dockBounds.top);
+
+      // Short landscape viewports (< 480px height) must not clip the button above the sticky dock.
+      await page.viewport(667, 375);
+      window.scrollTo(0, 120);
+      window.dispatchEvent(new Event("scroll"));
+      await expect.element(jump).toBeVisible();
+      expect(getComputedStyle(dock).overflowY).not.toBe("auto");
+      await page.viewport(390, 844);
+      window.scrollTo(0, 120);
+      window.dispatchEvent(new Event("scroll"));
 
       // Focusing the message box falls back to container scroll and preserves the reading offset.
       const input = page.getByRole("textbox", { name: "消息" });

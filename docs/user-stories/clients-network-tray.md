@@ -14,7 +14,7 @@
   - 会话进程默认看到 WebMux 的虚拟终端身份（`TERM_PROGRAM=webmux` 及服务版本），不会继承 Kitty 等宿主终端身份，启动配置显式提供的终端变量仍可覆盖默认值。引用勾选了混合模式的配置时创建从终端开始的混合会话（US-Q13）。
 - **US-M02 显式传递运行环境**：作为进阶使用者，我希望指定启动目录和必要环境变量，以便让程序使用正确项目与工具环境。
   验收要点：
-  - argv、cwd 与 env 在核心模式也可用；工作区关联和新 worktree 仅在 `workspace` 可用时使用，不因未启用插件而改变直接目录或参数；
+  - argv、cwd 与 env 在核心模式也可用；工作区关联和新 worktree 仅在 `workspace` 可用时使用，不因未启用功能而改变直接目录或参数；
   - `--cwd` 使用服务器目录规则；
   - Linux/macOS 的 `webmux run -- COMMAND` 默认继承调用方 shell 的环境（跳过 `TERM`、宿主终端身份、`WEBMUX_SESSION_ID`、`PWD`/`OLDPWD` 与不合法名称），重复 `--env NAME=VALUE` 在其上覆盖；
   - Windows 客户端与启动配置不继承调用方环境；
@@ -134,10 +134,10 @@
 依据：
 
 - [隧道控制](../../cmd/webmux/tunnelctl.go)、[隧道令牌与启动](../../cmd/webmux/main.go)、[持久设置](../../internal/tunnelsettings/store.go)
-- [设置契约](../../internal/contract/tunnel.go)、[设置 API](../../internal/pluginapi/tunnel.go)、[设置 API 用例](../../internal/api/tunnel_test.go)
+- [设置契约](../../internal/contract/tunnel.go)、[设置 API](../../internal/featureapi/tunnel.go)、[设置 API 用例](../../internal/api/tunnel_test.go)
 - [启动与故障用例](../../cmd/webmux/tunnelsettings_test.go)、[本机权限用例](../../internal/api/local_test.go)
 - [入口与二维码](../../cmd/webmux/access.go)、[隧道进程与下载](../../internal/tunnel/)、[公网来源授权](../../internal/transport/public.go)
-- [动态配置](../../internal/api/config.go)、[推送来源](../../internal/pluginapi/push.go)、[Web 设置页](../../web/src/pages/TunnelSettingsPage.svelte)
+- [动态配置](../../internal/api/config.go)、[推送来源](../../internal/featureapi/push.go)、[Web 设置页](../../web/src/pages/TunnelSettingsPage.svelte)
 - [设置状态管理](../../web/src/hooks/settings/tunnel-settings.svelte.ts)、[设置端到端用例](../../web/test/e2e/tunnel-settings.spec.ts)
 - [Named Tunnel 指南](../cloudflare-tunnel.md)、[部署说明](../deployment/remote-access.md#公网访问cloudflare-tunnel)。
 
@@ -352,6 +352,6 @@ Windows 原生终端客户端复用 US-M01–US-M06：提供 run、attach、ls�
 - [Tailscale 检测与命令](../../internal/tailscale/)、[状态集合](../../internal/contract/tailscale.go)、[控制器与对账](../../cmd/webmux/tailscalectl.go)
 - [控制器用例](../../cmd/webmux/tailscalectl_test.go)、[网页设置存储](../../internal/tailscalesettings/store.go)、[配置](../../internal/config/config.go)
 - [启动与 Token](../../cmd/webmux/main.go)、[来源注册表](../../internal/transport/public.go)
-- [状态与设置 API](../../internal/pluginapi/tailscale.go)、[API 用例](../../internal/api/tailscale_test.go)、[设置页](../../web/src/pages/TailscaleSettingsPage.svelte)
+- [状态与设置 API](../../internal/featureapi/tailscale.go)、[API 用例](../../internal/api/tailscale_test.go)、[设置页](../../web/src/pages/TailscaleSettingsPage.svelte)
 - [设置表单](../../web/src/components/settings/TailscaleConfiguration.svelte)、[设置卡片](../../web/src/components/settings/TailscaleSettings.svelte)、[Tailscale 指南](../tailscale.md)。
 - 托盘一键开启：[托盘菜单视图](../../internal/tray/menuview.go)、[视图用例](../../internal/tray/menuview_test.go)、[托盘操作](../../internal/tray/winui/links.go)、[本机客户端](../../internal/localclient/client.go)、[本机状态](../../cmd/webmux/local.go)。

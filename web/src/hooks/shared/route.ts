@@ -4,10 +4,10 @@ import type {
   GitHistoryScope,
   GitWorkbenchMode,
 } from "../../contracts/git-workbench-schemas";
-import type { PluginID } from "../../contracts/plugin-schemas";
+import type { FeatureID } from "../../contracts/feature-schemas";
 
 /** Only built-in route ownership; the server never supplies script locations. */
-export function routePlugin(route: Route): PluginID | undefined {
+export function routeFeature(route: Route): FeatureID | undefined {
   switch (route.name) {
     case "code":
       return "code";

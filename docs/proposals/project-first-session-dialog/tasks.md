@@ -1,6 +1,6 @@
 ## 1. 项目目录与兼容
 
-- [x] 1.1 在 workspace 插件范围内增加持久项目记录与规范路径去重，关联已有仓库而不复制状态；验证符号链接去重、普通目录重启恢复、写失败不报告成功。
+- [x] 1.1 在 workspace 功能范围内增加持久项目记录与规范路径去重，关联已有仓库而不复制状态；验证符号链接去重、普通目录重启恢复、写失败不报告成功。
 - [x] 1.2 从已有仓库清单建立稳定项目关联并保留仓库 ID；用旧状态文件验证升级及旧版本回滚不损坏清单。
 - [x] 1.3 实现显式创建目录、可选 Git 初始化和本地目录登记；验证非 Git、已有目录冲突、权限失败和重复登记。
 
@@ -11,12 +11,12 @@
 - [x] 2.1 实现受期限约束的 argv Git 克隆与独占临时目录发布；验证选项注入、凭据 URL 拒绝、目标不覆盖以及失败只清理自有资源。
 - [x] 2.2 增加项目操作 ID、幂等提交和状态查询；验证断线重连不重复克隆、登记失败保留目录并可重试登记。
 - [x] 2.3 接入服务端 gh 仓库搜索和分页；用受控假进程验证未安装、未登录、无权限、私有仓库和超时，不连接个人开发环境账号。
-- [x] 2.4 通过 cmd/webmux/plugin_* 装配 workspace 项目服务，由 pluginapi 注册 transport contribution，pluginwire 转换数据，核心 sessioncreate 仅消费 typed ports；运行插件边界与分层测试。
-- [x] 2.5 增加 contract、pluginwire 和 contracts/schemas.ts 的 Zod 项目接口；验证认证/Origin 拒绝与凭据不外泄，更新 wire 快照并通过契约测试。
+- [x] 2.4 通过 cmd/webmux/feature_* 装配 workspace 项目服务，由 featureapi 注册 transport contribution，featurewire 转换数据，核心 sessioncreate 仅消费 typed ports；运行功能边界与分层测试。
+- [x] 2.5 增加 contract、featurewire 和 contracts/schemas.ts 的 Zod 项目接口；验证认证/Origin 拒绝与凭据不外泄，更新 wire 快照并通过契约测试。
 
 ## 3. 弹窗交互
 
-- [x] 3.1 通过 plugins/context.ts 的创建贡献接入，复用 ResponsiveDialog 与 Command 实现项目列表、来源列表与导航栈；浏览器组件测试覆盖搜索、无结果、空项目、不可用原因和逐层返回焦点。
+- [x] 3.1 通过 features/context.ts 的创建贡献接入，复用 ResponsiveDialog 与 Command 实现项目列表、来源列表与导航栈；浏览器组件测试覆盖搜索、无结果、空项目、不可用原因和逐层返回焦点。
 - [x] 3.2 实现四种来源详情及操作反馈；验证草稿保留、克隆进度、重复提交禁用、GitHub 配置说明和成功后进入会话设置。
 - [x] 3.3 将 LocationPicker 收窄为项目内工作位置，保留已有工作树、创建字段与恢复；验证不会展示其他项目工作树、普通项目隐藏 Git 控件。
 - [x] 3.4 接入已有运行配置、首条消息与高级字段；验证换项目保留通用草稿但重置项目字段，首条消息 Enter 换行。
@@ -31,18 +31,18 @@
 - [x] 4.5 为现有弹窗生成桌面、平板、手机前后截图及交互 GIF；在 PR 嵌入可访问证据并检查图片和 GIF 实际可打开。
 - [x] 4.6 从专用分支交付 PR，运行完整必要门禁并跟进 CI 和 bot 审查至通过；无明确合并授权时保持 PR 开放待维护者审核。
 
-## 5. 插件组合验收
+## 5. 功能组合验收
 
-- [x] 5.1 在 cmd 的能力报告增加 workspace.projects、workspace.clone、workspace.github，保留 workspace.manage 原语义；测试缺少 Git/gh 不阻断本地项目，禁用插件不执行外部探测。
+- [x] 5.1 在 cmd 的能力报告增加 workspace.projects、workspace.clone、workspace.github，保留 workspace.manage 原语义；测试缺少 Git/gh 不阻断本地项目，禁用功能不执行外部探测。
 - [x] 5.2 覆盖纯核心、仅 workspace、仅 launch、workspace+launch、workspace+files 及 chat 合法依赖组合；验证目录＋命令始终可用、模块加载/接口请求只发生在启用能力范围。
-- [x] 5.3 测试 workspace 禁用时不打开或迁移项目存储，存储失败只局部降级，固定 legacy 14 插件选择保持不变；通过 plugin_boundary 与相关 assembly 测试。
+- [x] 5.3 测试 workspace 禁用时不打开或迁移项目存储，存储失败只局部降级，固定 legacy 14 功能选择保持不变；通过 feature_boundary 与相关 assembly 测试。
 
 ## 6. Stacked PR 实施顺序
 
 | 层  | 内容                                                   | 依赖 |
 | --- | ------------------------------------------------------ | ---- |
 | 1   | workspace 内部项目目录持久化与旧仓库映射；尚无外部接口 | main |
-| 2   | 本地项目创建、目录浏览、契约及插件接口                 | 1    |
+| 2   | 本地项目创建、目录浏览、契约及功能接口                 | 1    |
 | 3a  | 克隆账本、URL 校验与原子无覆盖目录发布基础             | 2    |
 | 3b  | Git URL 克隆 worker、操作 API 与失败恢复               | 3a   |
 | 4   | GitHub 仓库发现与来源状态                              | 3b   |

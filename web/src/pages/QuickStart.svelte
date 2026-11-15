@@ -1,12 +1,12 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import { getShell } from "../hooks/shared/shell.svelte";
-  import { pluginAvailable } from "../platform/plugin-host.svelte";
+  import { featureAvailable } from "../platform/feature-host.svelte";
   import { navigate } from "../platform/api";
   import LazyPage from "../components/shared/LazyPage.svelte";
   const shell = getShell();
   const workspaceAvailable = $derived(
-    pluginAvailable("workspace.manage") && !!shell.repositories,
+    featureAvailable("workspace.manage") && !!shell.repositories,
   );
 </script>
 

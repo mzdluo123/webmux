@@ -168,7 +168,7 @@
 
 弹窗 SHALL 根据能力报告及创建贡献显示项目、保存配置、浏览与聊天起始端。缺少 workspace SHALL 直接使用核心目录输入；缺少 launch SHALL 使用完整自定义命令；缺少 chat SHALL 仅提供终端。缺少 files SHALL NOT 阻止 workspace 的普通项目目录选择。
 
-#### Scenario: 不选择任何插件
+#### Scenario: 不选择任何功能
 
 - **WHEN** 用户使用纯核心配置打开新建会话
 - **THEN** 可输入目录及命令并创建终端，不显示项目、保存配置或聊天控件，不请求相关可选接口

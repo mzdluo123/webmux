@@ -25,10 +25,10 @@ import (
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featureapi"
+	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/hub"
-	"github.com/rainchan/webmux/internal/pluginapi"
-	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/settings"
@@ -64,7 +64,7 @@ func newFixture() *fixture {
 	c.StateDir = filepath.Join(root, "state")
 	c.Token = token
 	c.ScrollbackBytes = capacity
-	c.Plugins.Enabled = []string{"workspace", "code", "files"}
+	c.Features.Enabled = []string{"workspace", "code", "files"}
 
 	must(c.Validate())
 	f.manager = session.NewManager(assemble.SessionOptions(c))
@@ -74,8 +74,8 @@ func newFixture() *fixture {
 	f.code = codeview.New(f.manager, f.folders)
 	f.code.UseWorkspace(f.workspace)
 	f.preferences = settings.Open(c.StateDir)
-	projection := pluginwire.Projection{Workspace: f.workspace}
-	controllers := pluginapi.Bind(pluginapi.Deps{
+	projection := featurewire.Projection{Workspace: f.workspace}
+	controllers := featureapi.Bind(featureapi.Deps{
 		Config: c, Manager: f.manager, Settings: f.preferences,
 		Workspace: f.workspace, Code: f.code, Files: files.New(c.DefaultCwd), Artifacts: f.folders,
 		ProjectSession: projection.Session,

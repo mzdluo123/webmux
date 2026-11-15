@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 test.each([false, true])(
-  "zero-plugin raw owner retains its terminal and draft through list removal (shell=%s)",
+  "zero-feature raw owner retains its terminal and draft through list removal (shell=%s)",
   async (withShell) => {
     const drafts = createTerminalDrafts();
     drafts.edit(drafts.get(info.id), "keep the original draft");
@@ -78,7 +78,7 @@ test.each([false, true])(
   },
 );
 
-test("zero-plugin home consumes core snapshot, update and removal observations", async () => {
+test("zero-feature home consumes core snapshot, update and removal observations", async () => {
   history.replaceState(null, "", "/");
   await render(ShellHarness, { drafts: createTerminalDrafts() });
   const feed = await socketAt("/ws/sessions");

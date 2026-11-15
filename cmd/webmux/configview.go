@@ -57,7 +57,7 @@ func storeHealth(dir string, id statefile.ID, err error, live bool) contract.Sto
 
 // Store ownership is separate from business settings. Disabled owners are never
 // inspected, including by offline diagnostics, and never look initialized.
-func storePlugin(id statefile.ID) string {
+func storeFeature(id statefile.ID) string {
 	switch id {
 	case statefile.Launch:
 		return "launch"
@@ -81,8 +81,8 @@ func storePlugin(id statefile.ID) string {
 }
 
 func disabledStore(c config.Config, id statefile.ID) (contract.StoreHealth, bool) {
-	owner := storePlugin(id)
-	if owner == "" || c.Plugins.Has(owner) {
+	owner := storeFeature(id)
+	if owner == "" || c.Features.Has(owner) {
 		return contract.StoreHealth{}, false
 	}
 	health := storeHealth(c.StateDir, id, nil, false)
@@ -110,19 +110,19 @@ func configuredView(path string, c config.Config) contract.Configuration {
 	var tunnelError, tailscaleError, p2pError error
 	relaySettings, relayWeb, relayError := relaysetting.Inspect(c.StateDir, c.Relay)
 	c.Relay = relaySettings.Config
-	if c.Plugins.Has("cloudflare") {
+	if c.Features.Has("cloudflare") {
 		c.Tunnel, tunnelWeb, tunnelError = tunnelsettings.Inspect(c.StateDir, c.Tunnel)
 		if tunnelError != nil && !statefile.IsKind(tunnelError, statefile.Missing) {
 			c.Tunnel.Enabled = false
 		}
 	}
-	if c.Plugins.Has("tailscale") {
+	if c.Features.Has("tailscale") {
 		c.Tailscale, tailscaleWeb, tailscaleError = tailscalesettings.Inspect(c.StateDir, c.Tailscale)
 		if tailscaleError != nil && !statefile.IsKind(tailscaleError, statefile.Missing) {
 			c.Tailscale.Mode = config.TailscaleOff
 		}
 	}
-	if c.Plugins.Has("p2p") {
+	if c.Features.Has("p2p") {
 		c.P2P, p2pWeb, p2pError = p2psettings.Inspect(c.StateDir, c.P2P)
 		if p2pError != nil && !statefile.IsKind(p2pError, statefile.Missing) {
 			c.P2P.Enabled, c.P2P.PortMapping = false, false
@@ -217,25 +217,25 @@ func liveConfiguration(path string, explicit bool) (contract.Configuration, erro
 	return view, nil
 }
 
-func effectiveView(c serverRun, record runtime.Record, deps api.Deps, plugins *pluginServices) contract.Configuration {
+func effectiveView(c serverRun, record runtime.Record, deps api.Deps, features *featureServices) contract.Configuration {
 	// Only adopted memory is observed: never reopen stores or read TOML here.
 	var tunnelWeb, tailscaleWeb, p2pWeb bool
 	tunnelEnabledSource := ""
-	if plugins.tunnel != nil {
-		plugins.tunnel.mu.Lock()
-		c.Tunnel, tunnelWeb = plugins.tunnel.cfg, plugins.tunnel.web
-		tunnelEnabledSource = plugins.tunnel.enabledSource
-		plugins.tunnel.mu.Unlock()
+	if features.tunnel != nil {
+		features.tunnel.mu.Lock()
+		c.Tunnel, tunnelWeb = features.tunnel.cfg, features.tunnel.web
+		tunnelEnabledSource = features.tunnel.enabledSource
+		features.tunnel.mu.Unlock()
 	}
-	if plugins.tailscale != nil {
-		plugins.tailscale.mu.Lock()
-		c.Tailscale, tailscaleWeb = plugins.tailscale.cfg, plugins.tailscale.web
-		plugins.tailscale.mu.Unlock()
+	if features.tailscale != nil {
+		features.tailscale.mu.Lock()
+		c.Tailscale, tailscaleWeb = features.tailscale.cfg, features.tailscale.web
+		features.tailscale.mu.Unlock()
 	}
-	if plugins.p2pControl != nil {
-		plugins.p2pControl.mu.Lock()
-		c.P2P, p2pWeb = plugins.p2pControl.cfg, plugins.p2pControl.web
-		plugins.p2pControl.mu.Unlock()
+	if features.p2pControl != nil {
+		features.p2pControl.mu.Lock()
+		c.P2P, p2pWeb = features.p2pControl.cfg, features.p2pControl.web
+		features.p2pControl.mu.Unlock()
 	}
 	if deps.Relay != nil {
 		if controller, ok := deps.Relay.Control.(*relayController); ok {
@@ -277,62 +277,62 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, plugins *p
 		var err error
 		switch description.ID {
 		case statefile.Launch:
-			err = plugins.launch.Unavailable()
+			err = features.launch.Unavailable()
 		case statefile.ProjectClones:
-			err = plugins.workspace.ProjectCloneStorageError()
+			err = features.workspace.ProjectCloneStorageError()
 		case statefile.Projects:
-			err = plugins.workspace.ProjectStorageError()
+			err = features.workspace.ProjectStorageError()
 		case statefile.Repositories:
-			err = plugins.workspace.StorageError()
+			err = features.workspace.StorageError()
 		case statefile.GitOperations:
-			err = plugins.workspace.OperationsStorageError()
+			err = features.workspace.OperationsStorageError()
 		case statefile.GitTaskBaselines:
-			err = plugins.workspace.TaskBaselinesStorageError()
+			err = features.workspace.TaskBaselinesStorageError()
 		case statefile.GitWorkbenchState:
-			err = plugins.workspace.WorkbenchStateStorageError()
+			err = features.workspace.WorkbenchStateStorageError()
 		case statefile.Push:
-			if plugins.push != nil {
-				err = plugins.push.Unavailable()
+			if features.push != nil {
+				err = features.push.Unavailable()
 			}
 		case statefile.Tunnel:
-			err = plugins.tunnelStore.Unavailable()
+			err = features.tunnelStore.Unavailable()
 		case statefile.TailscaleSettings:
-			err = plugins.tailscaleStore.Unavailable()
+			err = features.tailscaleStore.Unavailable()
 		case statefile.P2PSettings:
-			err = plugins.p2pStore.Unavailable()
+			err = features.p2pStore.Unavailable()
 		case statefile.Relay:
 			if deps.Relay != nil && !deps.Relay.Control.Status().StorageAvailable {
 				err = relaysetting.ErrUnavailable
 			}
 		case statefile.VoiceSettings:
-			err = plugins.voiceStore.Unavailable()
+			err = features.voiceStore.Unavailable()
 		case statefile.Hybrid, statefile.AgentOptions:
-			err = plugins.chat.Unavailable()
+			err = features.chat.Unavailable()
 		case statefile.Conversation:
-			err = plugins.conversations.Unavailable()
+			err = features.conversations.Unavailable()
 		case statefile.Settings:
 			_, err = deps.Settings.Snapshot()
 		case statefile.TailscaleOwnership:
-			plugins.tailscale.mu.Lock()
-			err = plugins.tailscale.storageErr
-			if err == nil && plugins.tailscale.ownership != nil {
-				err = plugins.tailscale.ownership.Err()
+			features.tailscale.mu.Lock()
+			err = features.tailscale.storageErr
+			if err == nil && features.tailscale.ownership != nil {
+				err = features.tailscale.ownership.Err()
 			}
-			plugins.tailscale.mu.Unlock()
+			features.tailscale.mu.Unlock()
 		}
 		health := storeHealth(c.StateDir, description.ID, err, true)
-		if description.ID == statefile.Push && plugins.push == nil {
+		if description.ID == statefile.Push && features.push == nil {
 			health.Status, health.Lock = "disabled", "not_opened"
 		}
 		if description.ID == statefile.TailscaleOwnership {
-			plugins.tailscale.mu.Lock()
-			if plugins.tailscale.ownership == nil {
+			features.tailscale.mu.Lock()
+			if features.tailscale.ownership == nil {
 				if err == nil {
 					health.Status = "not_opened"
 				}
 				health.Lock = "not_opened"
 			}
-			plugins.tailscale.mu.Unlock()
+			features.tailscale.mu.Unlock()
 		}
 		view.Stores = append(view.Stores, health)
 	}

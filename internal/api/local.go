@@ -97,7 +97,7 @@ func NewLocal(d Deps, local Local) http.Handler {
 		}
 		reply(w, http.StatusOK, contract.TokenResponse{Token: c.Token})
 	})
-	if local.Tunnel != nil && c.Plugins.Has("cloudflare") {
+	if local.Tunnel != nil && c.Features.Has("cloudflare") {
 		mux.HandleFunc("POST "+contract.PathTunnel, func(w http.ResponseWriter, r *http.Request) {
 			if local.fromSession(r) {
 				failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot control the tunnel"))
@@ -138,15 +138,15 @@ func NewLocal(d Deps, local Local) http.Handler {
 			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot control Relay"))
 			return
 		}
-		if c.Plugins.Has("cloudflare") && (r.URL.Path == "/api/tunnel" || strings.HasPrefix(r.URL.Path, "/api/tunnel/")) && local.fromSession(r) {
+		if c.Features.Has("cloudflare") && (r.URL.Path == "/api/tunnel" || strings.HasPrefix(r.URL.Path, "/api/tunnel/")) && local.fromSession(r) {
 			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot control the tunnel"))
 			return
 		}
-		if c.Plugins.Has("tailscale") && strings.HasPrefix(r.URL.Path, "/api/tailscale/") && local.fromSession(r) {
+		if c.Features.Has("tailscale") && strings.HasPrefix(r.URL.Path, "/api/tailscale/") && local.fromSession(r) {
 			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot change Tailscale settings"))
 			return
 		}
-		if c.Plugins.Has("p2p") && (r.URL.Path == "/api/p2p" || strings.HasPrefix(r.URL.Path, "/api/p2p/")) && local.fromSession(r) {
+		if c.Features.Has("p2p") && (r.URL.Path == "/api/p2p" || strings.HasPrefix(r.URL.Path, "/api/p2p/")) && local.fromSession(r) {
 			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot control P2P"))
 			return
 		}

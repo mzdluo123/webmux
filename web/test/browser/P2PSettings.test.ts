@@ -6,7 +6,7 @@ import SidebarFooter from "../../src/components/shell/SidebarFooter.svelte";
 import { stopP2P } from "../../src/platform/p2p.svelte";
 import { p2pState } from "../../src/platform/p2p-state.svelte";
 import type { P2PStatus } from "../../src/contracts/schemas";
-import { enableHostPlugins, resetHostPlugins } from "./plugin-fixture";
+import { enableHostFeatures, resetHostFeatures } from "./feature-fixture";
 import { locale } from "../../src/lib/locale";
 
 beforeEach(() => locale.setPreference("zh-CN"));
@@ -77,7 +77,7 @@ function serveP2P(initial: P2PStatus = baseStatus) {
 }
 
 afterEach(async () => {
-  resetHostPlugins();
+  resetHostFeatures();
   stopP2P();
   p2pState.candidateType = "";
   p2pState.ipFamily = "";
@@ -171,7 +171,7 @@ test("renders P2P status, port mapping badge, STUN validation, save, and reset",
 });
 
 test("SidebarFooter host status popover reflects P2P direct mode and RTT", async () => {
-  await enableHostPlugins(["p2p"]);
+  await enableHostFeatures(["p2p"]);
   serveP2P();
   p2pState.mode = "p2p";
   p2pState.phase = "connected";

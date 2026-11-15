@@ -9,7 +9,7 @@
 | 层             | 包                                                                                                         | 职责                                                                |
 | -------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | 装配根         | `cmd/...`                                                                                                  | 唯一构造 Service、把配置转换为 Service 选项并注入 Controller 的位置 |
-| Controller     | `api`、`hub`、`wire`、`transport`、`pluginapi`、`pluginhub`、`pluginwire`、`mcphttp`                       | 路由、认证、状态映射、传输和投影                                    |
+| Controller     | `api`、`hub`、`wire`、`transport`、`featureapi`、`featurehub`、`featurewire`、`mcphttp`                    | 路由、认证、状态映射、传输和投影                                    |
 | Service        | `session`、`sessioncreate`、`hybrid`、`conversation`、`workspace`、`launch`、`settings`、`relaysetting` 等 | 业务规则、状态、文件系统与进程                                      |
 | 共享           | `builtin`、`contract`、`streamproto`、`config`、`runtime`、`statefile`、`acp`、`agentprofile/...` 等       | 契约与基础设施，不依赖 Service 或 Controller                        |
 | 服务器外客户端 | `client`、`localclient`、`attach`、`clicmd`、`tray/...`、`wslclient`、`tunnel`、`relay`、`service`         | 只通过线上协议访问服务器，只依赖共享层和其他客户端                  |
@@ -23,7 +23,7 @@
 | R4   | Controller 不使用读写、创建或删除文件系统条目的 `os` 函数（`os.Hostname` 等不受限）                                                                                                                                                                                                       |
 | R5   | Controller 的构造、状态和 I/O 操作只调用注入实例的方法；只允许显式登记并附理由的 Service 包级纯函数（目前为 `push.Validate`、`hybrid.FormValue`）；可以引用 Service 的类型、常量与哨兵错误                                                                                                |
 | R6   | Service 不使用服务端 HTTP 符号，不声明以 `*http.Request` 为参数的函数；只有登记为出站的 `push` 可以使用 HTTP 客户端符号                                                                                                                                                                   |
-| R7   | Service 错误不携带整数 HTTP 状态字段或映射方法；允许大小、行号、退出码等业务整数及非错误对象的 `Status() int`。状态映射归 Controller 的 `api/errors.go` 与 `pluginapi/errors*.go`                                                                                                         |
+| R7   | Service 错误不携带整数 HTTP 状态字段或映射方法；允许大小、行号、退出码等业务整数及非错误对象的 `Status() int`。状态映射归 Controller 的 `api/errors.go` 与 `featureapi/errors*.go`                                                                                                        |
 | R8   | Controller 编解码的每个 JSON 值都是 `contract` 中的具名类型（可经指针、切片、映射）；汇点是 `encoding/json` 的编解码函数和登记的包装函数（见 `layers_test.go` 的 `sinks`，如 `api.reply`、`api.serve`）；接口类型的值只能出现在登记的包装函数内；`contract` 类型的字段不引用 Service 类型 |
 | R9   | Service 不声明 `MarshalJSON`；JSON 编码器只能在登记函数体内直接调用（Web Push 载荷与 VAPID 头、代码视图摘要）。检查整个源码，包括包级初始化；禁止保存编码器函数值或方法值，即使位于登记函数中                                                                                             |
 | R10  | `contract` 不导入 Service 或 Controller                                                                                                                                                                                                                                                   |
@@ -36,7 +36,7 @@
 - 每条规则由 `internal/archtest/testdata/fixture` 中带 `// want Rn` 注释的故意违规验证；修改规则时同步增加违规与合规样例。
 - `AGENTS.md` 有 10 KiB 体积预算，由 `TestAgentsGuideSize`（`internal/archtest/agents_size_test.go`）检查；超限时把最不常用的规则原文迁入 `docs/agent-rules/`，规则索引见 [Agent 规则](../agent-rules.md)。
 - Service 以哨兵错误报告错误种类（`workspace.ErrConflict`、`codeview.ErrGone`、`files.ErrTooLarge` 等），Controller 用 `errors.Is` 映射状态码，错误文本不变。
-- 线上类型集中在 `internal/contract`；核心转换在 `wire`，可选转换在 `pluginwire`，保持 nil 与空集合区别（`null` 与 `[]`/`{}`）。持久化类型保留自己的 json 标签但不直接上线。
+- 线上类型集中在 `internal/contract`；核心转换在 `wire`，可选转换在 `featurewire`，保持 nil 与空集合区别（`null` 与 `[]`/`{}`）。持久化类型保留自己的 json 标签但不直接上线。
 
 **线上快照**
 

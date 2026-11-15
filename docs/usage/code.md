@@ -2,7 +2,7 @@
 
 代码工作区让你在终端旁直接浏览文件、审阅 Git Diff，并把行号引用一键发给 agent。点击会话页右上角的“打开面板”，在展开的右侧栏选择“代码”；终端保持同一个 PTY，继续接收输出。
 
-先选择 `code` 并重启；会话代码浏览不要求 `workspace`。独立 Git 工作台需要同时选择 `workspace` 与 `code`，会话临时文件夹另需 `files`，见 [配置](../deployment/configuration.md#内置插件选择)。
+先选择 `code` 并重启；会话代码浏览不要求 `workspace`。独立 Git 工作台需要同时选择 `workspace` 与 `code`，会话临时文件夹另需 `files`，见 [配置](../deployment/configuration.md#内置功能选择)。
 
 常用操作：
 

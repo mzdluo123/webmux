@@ -262,10 +262,10 @@ var launchConfigEditCommand = &Command{
 				return e.Fail(err)
 			}
 			input := contract.LaunchConfigWrite{Name: config.Name, Icon: config.Icon, Cmd: config.Cmd, Env: config.Env, Preview: config.Preview}
-			if localclient.PluginEnabled(snapshot, "chat") {
+			if localclient.FeatureEnabled(snapshot, "chat") {
 				input.Chat = &config.Chat
 			}
-			if localclient.PluginEnabled(snapshot, "notifications") {
+			if localclient.FeatureEnabled(snapshot, "notifications") {
 				input.Attention = config.Attention
 			}
 			if input.Env == nil {

@@ -9,9 +9,9 @@ import (
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/p2p"
 	"github.com/rainchan/webmux/internal/p2psettings"
-	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/relaysetting"
 )
 
@@ -49,7 +49,7 @@ func (c *p2pController) Status() contract.P2PStatus {
 	if web {
 		source = "web"
 	}
-	return pluginwire.P2PStatus(cfg, source, c.store.Unavailable(), c.svc.Status())
+	return featurewire.P2PStatus(cfg, source, c.store.Unavailable(), c.svc.Status())
 }
 
 func (c *p2pController) UpdateSettings(in contract.P2PSettingsUpdate) (contract.P2PStatus, error) {
@@ -76,7 +76,7 @@ func (c *p2pController) UpdateSettings(in contract.P2PSettingsUpdate) (contract.
 	if c.web {
 		source = "web"
 	}
-	return pluginwire.P2PStatus(c.cfg, source, c.store.Unavailable(), c.svc.Status()), nil
+	return featurewire.P2PStatus(c.cfg, source, c.store.Unavailable(), c.svc.Status()), nil
 }
 
 func (c *p2pController) ResetSettings() (contract.P2PStatus, error) {
@@ -92,14 +92,14 @@ func (c *p2pController) ResetSettings() (contract.P2PStatus, error) {
 		PortMapping: defaults.PortMapping,
 		STUNServers: defaults.STUNServers,
 	})
-	return pluginwire.P2PStatus(c.cfg, "config", c.store.Unavailable(), c.svc.Status()), nil
+	return featurewire.P2PStatus(c.cfg, "config", c.store.Unavailable(), c.svc.Status()), nil
 }
 
 func (c *p2pController) Signal(ctx context.Context, req contract.P2PSignalRequest) (contract.P2PSignalResponse, error) {
 	if c.svc == nil {
 		return contract.P2PSignalResponse{}, p2p.ErrUnsupported
 	}
-	input := pluginwire.P2PSignalInput(req)
+	input := featurewire.P2PSignalInput(req)
 	if principal, owner := api.RelayPrincipalContext(ctx); owner {
 		if c.relayAuth == nil {
 			return contract.P2PSignalResponse{}, protocol.Error{Code: protocol.Unauthenticated}
@@ -152,5 +152,5 @@ func (c *p2pController) Signal(ctx context.Context, req contract.P2PSignalReques
 	if err != nil {
 		return contract.P2PSignalResponse{}, err
 	}
-	return pluginwire.P2PSignalResponse(out), nil
+	return featurewire.P2PSignalResponse(out), nil
 }

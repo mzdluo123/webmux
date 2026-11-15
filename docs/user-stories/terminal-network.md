@@ -41,7 +41,7 @@
   - 设置页诊断区分“未能建立直连”和“直连成功，延迟收益不足”，后者保留候选类型、IP 族与实测 RTT，不计作穿透失败；
   - 支持 `-tags nop2p` 编译裁剪 WebRTC 依赖，裁剪构建下 `/api/p2p` 返回 `supported: false`、信令返回 `501`，其余 HTTP/WebSocket 功能照常运行。
   - 官方 Relay 所有者 Cookie 连接先使用 WSS，再依据应用层往返测量在 WSS、WebRTC 直连和授权 TURN 之间选择交互路径；TCP/TLS、SDP/DTLS 与授权生命周期仍需分别成立，TURN 不替代 WSS 登录；
-  - 仅插件已选择且构建提供 P2P 时可自动优化，不要求改变本机 P2P 开关；插件未选择或裁剪时不导入 Pion、不探测，保留可用 WSS 并说明优化不可用；
+  - 仅 `p2p` 功能已选择且构建提供 P2P 时可自动优化，不要求改变本机 P2P 开关；功能未选择或裁剪时不导入 Pion、不探测，保留可用 WSS 并说明优化不可用；
   - Relay 文件上传、下载和全部 `/forward/*` 始终走 WSS 批量角色，不能因交互路径切换或批量角色故障被挤入交互连接；
   - TURN 凭据按当前所有者浏览器会话与 PeerConnection 签发，禁止匿名 Allocate；实际选中 `relay` 才显示 TURN 路径，诊断不公开候选 IP、SDP 或凭据；
   - Relay 路径切换保持单写者及既有 generation/offset 续接；结果未知的输入不能重放，初始化失败、队列等待、超时及输出完整性不能从性能结果中排除；
@@ -65,7 +65,7 @@
 - [前端路径管理与握手](../../web/src/platform/p2p.svelte.ts)、[Peer 会话](../../web/src/platform/p2p-session.ts)、[DataChannel 传输与 RPC](../../web/src/platform/p2p-transport.ts)、[流分片协议](../../web/src/platform/p2p-framing.ts)
 - [连接与无感切换](../../web/src/platform/ws.ts)、[候选回放与输入屏障](../../web/src/platform/ws-handoff.ts)、[终端重叠裁剪](../../web/src/domains/terminal/terminal-protocol.ts)、[终端连接切换](../../web/src/hooks/terminal/terminal-socket.svelte.ts)
 - [WebRTC 引擎](../../internal/p2p/service_webrtc.go)、[流连接封装](../../internal/p2p/stream_conn.go)、[路由器端口映射](../../internal/p2p/portmap.go)、[`nop2p` 裁剪构建](../../internal/p2p/service_nop2p.go)
-- [P2P 持久设置](../../internal/p2psettings/store.go)、[P2P 路由贡献](../../internal/pluginapi/p2p.go)、[P2P 控制器](../../cmd/webmux/p2pctl.go)、[纯传输帧](../../internal/streamproto/stream.go)
+- [P2P 持久设置](../../internal/p2psettings/store.go)、[P2P 路由贡献](../../internal/featureapi/p2p.go)、[P2P 控制器](../../cmd/webmux/p2pctl.go)、[纯传输帧](../../internal/streamproto/stream.go)
 - [握手协商](../../internal/api/router.go)、[协商用例](../../internal/api/compression_test.go)、[P2P API 用例](../../internal/api/p2p_test.go)
 - [构建期预压缩](../../web/scripts/embed-assets.ts)、[静态资源协商](../../internal/api/static.go)、[静态资源用例](../../internal/api/static_test.go)
 - [协议说明](../protocol/websocket.md#压缩)

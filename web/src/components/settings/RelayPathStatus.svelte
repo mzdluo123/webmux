@@ -1,11 +1,11 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
-  import { pluginContributions } from "../../plugins/registry.svelte";
+  import { featureContributions } from "../../features/registry.svelte";
   import { relayAuth } from "../../platform/relay-auth.svelte";
   import { relayDiagnostic } from "../../domains/settings/relay-diagnostics";
   import InlineNotice from "../shared/InlineNotice.svelte";
 
-  const optimizer = $derived(pluginContributions.entries.p2p?.p2pState);
+  const optimizer = $derived(featureContributions.entries.p2p?.p2pState);
   const labels = $derived({
     terminal: m.s1_page_terminal(),
     chat: m.s1_page_chat(),

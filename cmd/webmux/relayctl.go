@@ -56,7 +56,7 @@ func newRelayController(ctx context.Context, c config.Config, public *transport.
 	}
 	rc := &relayController{ctx: ctx, store: store, settings: settings, public: public, tokenStrong: len(c.Token) >= 43}
 	rc.status = contract.RelayStatus{State: "off", Transport: "wss", TCPAlgorithm: "unknown", ControlSource: source, ControlReachability: "unknown", DataReachability: "unassigned", AssignmentRevision: "0", ConfigRevision: "0", AppliedRevision: "0", AssignmentSource: "unassigned", Capabilities: []string{}, Sessions: []contract.RelaySessionDiagnostic{}}
-	rc.status.HybridUnavailableReason = "p2p-plugin-unavailable"
+	rc.status.HybridUnavailableReason = "p2p-feature-unavailable"
 	client, err := relay.New(assemble.RelayOptions(settings.Config, address, localTLS))
 	if err != nil {
 		rc.status.Error = "control bootstrap unavailable"

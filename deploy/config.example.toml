@@ -127,7 +127,7 @@ program_status = true
 
 # Save custom launch configurations in Settings → 启动配置.
 # Their complete argv and optional environment are stored separately in
-# <state_dir>/launch-configs.json. When the launch plugin is enabled, its first
+# <state_dir>/launch-configs.json. When the launch feature is enabled, its first
 # start seeds the editable presets described in docs/cli-agents.md.
 # Commands run directly, without an implicit shell. To load ~/.bashrc for
 # Open Code, save argv ["bash", "-ic", "exec opencode \"$@\"", "opencode"].
@@ -137,12 +137,14 @@ program_status = true
 
 # New installations start with the terminal core only. Changes require restart.
 # Omit this table only to retain the legacy full feature set on an existing
-# installation. Explicit [] means no plugins; missing dependencies are errors.
+# installation. Explicit [] means no features; missing dependencies are errors.
 # Available IDs: launch, workspace, code, files, chat, notifications,
 # quick-commands, voice, forward, cloudflare, tailscale, p2p, mcp, immersive.
-# chat requires launch and files. Plugins do not enable their network services:
+# chat requires launch and files. Features do not enable their network services:
 # the existing [tunnel], [tailscale], [mcp], [p2p], etc. switches still apply.
 # Agent pretrust and profile-specific submit delay require launch.
-[plugins]
+# The former [plugins] table was renamed; files still using it fail at startup
+# with a pointer to features.enabled.
+[features]
 enabled = []
 # Example: enabled = ["launch", "files", "chat", "workspace", "code"]

@@ -83,7 +83,7 @@ func server(t *testing.T) (*session.Manager, *localclient.Client) {
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	m := session.NewManager(session.Options{})
 	create := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: dir})
-	handler := api.NewLocal(api.Deps{Config: config.Config{DefaultCwd: dir, Plugins: config.PluginConfig{Enabled: []string{}}}, Manager: m, Create: create}, api.Local{Status: func() contract.StatusV1 { return contract.StatusV1{} }})
+	handler := api.NewLocal(api.Deps{Config: config.Config{DefaultCwd: dir, Features: config.FeatureConfig{Enabled: []string{}}}, Manager: m, Create: create}, api.Local{Status: func() contract.StatusV1 { return contract.StatusV1{} }})
 	socket := filepath.Join(dir, "s.sock")
 	l, err := net.Listen("unix", socket)
 	if err != nil {

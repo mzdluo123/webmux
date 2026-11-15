@@ -12,7 +12,7 @@ export const relayStatus: RelayStatus = {
   publicUrl: "",
   boundPublicUrl: "",
   hybridSupported: false,
-  hybridUnavailableReason: "p2p-plugin-unavailable",
+  hybridUnavailableReason: "p2p-feature-unavailable",
   ownerId: "",
   ownerLogin: "",
   appliedRevision: "0",

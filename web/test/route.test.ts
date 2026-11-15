@@ -4,19 +4,19 @@ import {
   forwardAuthNext,
   matchRoute,
   parseGitRouteQuery,
-  routePlugin,
+  routeFeature,
 } from "../src/hooks/shared/route";
 
 describe("route matching", () => {
   test("keeps terminal routes core and assigns optional deep links locally", () => {
-    expect(routePlugin(matchRoute("/"))).toBeUndefined();
-    expect(routePlugin(matchRoute("/s/abcdefgh"))).toBeUndefined();
-    expect(routePlugin(matchRoute("/new"))).toBe("chat");
-    expect(routePlugin(matchRoute("/git"))).toBe("workspace");
-    expect(routePlugin(matchRoute("/code/abcdefgh"))).toBe("code");
-    expect(routePlugin(matchRoute("/settings/tailscale"))).toBe("tailscale");
-    expect(routePlugin(matchRoute("/settings/tunnel"))).toBe("cloudflare");
-    expect(routePlugin(matchRoute("/forward-auth"))).toBe("forward");
+    expect(routeFeature(matchRoute("/"))).toBeUndefined();
+    expect(routeFeature(matchRoute("/s/abcdefgh"))).toBeUndefined();
+    expect(routeFeature(matchRoute("/new"))).toBe("chat");
+    expect(routeFeature(matchRoute("/git"))).toBe("workspace");
+    expect(routeFeature(matchRoute("/code/abcdefgh"))).toBe("code");
+    expect(routeFeature(matchRoute("/settings/tailscale"))).toBe("tailscale");
+    expect(routeFeature(matchRoute("/settings/tunnel"))).toBe("cloudflare");
+    expect(routeFeature(matchRoute("/forward-auth"))).toBe("forward");
   });
   test("matches a valid session id", () => {
     expect(matchRoute("/s/abcdefgh")).toEqual({

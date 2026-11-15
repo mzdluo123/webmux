@@ -39,14 +39,14 @@
 项目克隆操作使用独立账本；提供幂等克隆提交、状态查询及登记失败后的恢复接口。
 重启把未完成克隆标为 interrupted，把已发布但未登记的操作标为 registration_failed；保留目录，不自动重试或清理。
 
-### 插件选择与数据保留
+### 功能选择与数据保留
 
-这份清单列出二进制支持的全部存储，不表示每次启动都打开。生成配置只选择核心；未选择的插件不构造服务、不取得锁、不写默认值、不迁移或启动清扫。
-`launch` 拥有启动配置；`workspace` 拥有仓库登记及独立项目目录清单（可经项目 API 登记，尚无网页入口），Git 工作台存储需 `workspace` + `code`；`chat` 拥有 hybrid、agent-options 与 conversation；其余专属设置随对应插件打开。
+这份清单列出二进制支持的全部存储，不表示每次启动都打开。生成配置只选择核心；未选择的功能不构造服务、不取得锁、不写默认值、不迁移或启动清扫。
+`launch` 拥有启动配置；`workspace` 拥有仓库登记及独立项目目录清单（可经项目 API 登记，尚无网页入口），Git 工作台存储需 `workspace` + `code`；`chat` 拥有 hybrid、agent-options 与 conversation；其余专属设置随对应功能打开。
 禁用不删除既有数据，重新选择并重启后仍按原来的版本、锁与故障规则读取。只有启用 `launch` 且文件不存在时才写预设，已存在空列表也不补写。
-核心 `settings.json` 继续保存 inactive 字段；API 拒绝写入禁用插件拥有的字段，不把它们重置为空。字段所有权见 [偏好协议](protocol/settings.md#原子更新)。
+核心 `settings.json` 继续保存 inactive 字段；API 拒绝写入禁用功能拥有的字段，不把它们重置为空。字段所有权见 [偏好协议](protocol/settings.md#原子更新)。
 `files` 开启而 `chat` 关闭时，无法确认归属的旧会话产物保守保留，不通过读取禁用的聊天数据库推断清理资格。
-停服先取消并等待创建、恢复和 handoff 等生产者，再停止 PTY/连接，最后释放存储锁。选择配置见 [内置插件选择](deployment/configuration.md#内置插件选择)。
+停服先取消并等待创建、恢复和 handoff 等生产者，再停止 PTY/连接，最后释放存储锁。选择配置见 [内置功能选择](deployment/configuration.md#内置功能选择)。
 
 ## 对话事务存储
 

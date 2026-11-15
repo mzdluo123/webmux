@@ -12,10 +12,10 @@
   import { untrack } from "svelte";
   import { navigate, recentDirs, stored } from "../../platform/api";
   import {
-    pluginAvailable,
-    pluginEnabled,
-  } from "../../platform/plugin-host.svelte";
-  import { getPluginContributions } from "../../plugins/context";
+    featureAvailable,
+    featureEnabled,
+  } from "../../platform/feature-host.svelte";
+  import { getFeatureContributions } from "../../features/context";
   import type { LaunchConfigsState } from "../../domains/settings/launch-configs";
   import {
     isCommandReady,
@@ -83,13 +83,13 @@
     onworktreeremoved,
     onclose,
   }: Props = $props();
-  const providers = getPluginContributions().creation;
+  const providers = getFeatureContributions().creation;
   let projectSelection = $state.raw<ProjectSelection | null>(null);
   const repositories = $derived(
     projectRepositories(hostRepositories, projectSelection),
   );
   const projectEnabled = $derived(
-    pluginAvailable("workspace.projects") && !!providers.ProjectPicker,
+    featureAvailable("workspace.projects") && !!providers.ProjectPicker,
   );
   const projectRestricted = $derived(!!scope || intent === "worktree");
   let choosingProject = $state(
@@ -107,14 +107,14 @@
   }>();
 
   const workspaceEnabled = $derived(
-    pluginAvailable("workspace.manage") && !!providers.LocationPicker,
+    featureAvailable("workspace.manage") && !!providers.LocationPicker,
   );
-  const launchEnabled = pluginEnabled("launch") && !!providers.LaunchPicker;
+  const launchEnabled = featureEnabled("launch") && !!providers.LaunchPicker;
   const chatEnabled = $derived(
-    pluginAvailable("chat.acp") && !!providers.LaunchStartSideFields,
+    featureAvailable("chat.acp") && !!providers.LaunchStartSideFields,
   );
   const filesEnabled = $derived(
-    pluginAvailable("files.upload") && !!providers.DirectoryPicker,
+    featureAvailable("files.upload") && !!providers.DirectoryPicker,
   );
   const recent = recentDirs();
   const initial = untrack(() =>

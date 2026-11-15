@@ -4,11 +4,11 @@
   import { Label } from "$lib/components/ui/label";
   import { Separator } from "$lib/components/ui/separator";
   import { Switch } from "$lib/components/ui/switch";
-  import { getPluginContributions } from "../../plugins/context";
+  import { getFeatureContributions } from "../../features/context";
   import { setWsCompression, wsCompression } from "../../platform/ws";
 
   let compression = $state(wsCompression());
-  const providers = getPluginContributions().network;
+  const providers = getFeatureContributions().network;
 </script>
 
 <Card.Root flat id="network" class="scroll-mt-4">

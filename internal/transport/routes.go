@@ -164,14 +164,14 @@ func validatePattern(pattern, owner string) error {
 	}
 	// Optional routes may not shadow the core shell or discovery/security routes.
 	if path == "/" || path == "/api/" || path == "/ws/" || path == "/api/health" || path == "/api/config" || path == "/api/capabilities" || path == "/api/settings" || path == "/ws/settings" || path == "/api/sessions" || path == "/api/sessions/{id}" || path == "/api/sessions/{id}/input" || path == "/api/sessions/{id}/interrupt" || path == "/api/sessions/{id}/resize" || strings.HasPrefix(path, "/local/") {
-		return fmt.Errorf("plugin %s uses reserved route %s", owner, pattern)
+		return fmt.Errorf("feature %s uses reserved route %s", owner, pattern)
 	}
 	switch {
 	case strings.HasPrefix(path, "/api/"), strings.HasPrefix(path, "/ws/"):
 	case owner == "mcp" && path == "/mcp":
 	case owner == "forward" && (path == "/forward" || strings.HasPrefix(path, "/forward/") || path == "/forward-auth"):
 	default:
-		return fmt.Errorf("plugin %s uses invalid route %s", owner, pattern)
+		return fmt.Errorf("feature %s uses invalid route %s", owner, pattern)
 	}
 	// A more general wildcard may legally coexist in ServeMux but still capture
 	// core operations. Probe concrete reserved paths before accepting it.
@@ -179,7 +179,7 @@ func validatePattern(pattern, owner string) error {
 	probe.Handle(pattern, http.NotFoundHandler())
 	for _, reserved := range []string{"/api/health", "/api/config", "/api/capabilities", "/api/settings", "/api/sessions", "/api/sessions/reserved-session", "/api/sessions/reserved-session/input", "/api/sessions/reserved-session/interrupt", "/api/sessions/reserved-session/resize", "/api/sessions/reserved-session/buffer", "/api/sessions/reserved-session/output", "/api/sessions/reserved-session/details", "/api/sessions/reserved-session/labels", "/api/sessions/reserved-session/attention", "/ws/settings", "/ws/sessions", "/ws/s/reserved-session"} {
 		if _, matched := probe.Handler(&http.Request{Method: method, URL: &url.URL{Path: reserved}}); matched != "" {
-			return fmt.Errorf("plugin %s overlaps reserved route %s", owner, pattern)
+			return fmt.Errorf("feature %s overlaps reserved route %s", owner, pattern)
 		}
 	}
 	return nil

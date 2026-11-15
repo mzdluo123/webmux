@@ -11,8 +11,8 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/forward"
-	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -24,7 +24,7 @@ func TestListCarriesForwards(t *testing.T) {
 	if _, err := forwards.Add(t.Context(), forward.Input{Port: 3000}); err != nil {
 		t.Fatal(err)
 	}
-	projection := pluginwire.Projection{Forward: forwards}
+	projection := featurewire.Projection{Forward: forwards}
 	contribution := Options{SubscribeForwards: projection.SubscribeForwards, Forwards: projection.Forwards}
 	ended := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

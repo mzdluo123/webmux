@@ -174,14 +174,14 @@ export const WssOnly: Story = {
       status: {
         ...ready,
         hybridSupported: false,
-        hybridUnavailableReason: "p2p-plugin-unavailable",
+        hybridUnavailableReason: "p2p-feature-unavailable",
         sessions: [
           {
             id: "browser-a",
             path: "wss",
             candidateType: "",
             transport: "wss",
-            reason: "p2p-plugin-unavailable",
+            reason: "p2p-feature-unavailable",
           },
         ],
       },

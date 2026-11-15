@@ -2,7 +2,7 @@ import { onMount } from "svelte";
 import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
-import { requestPluginHostRefresh } from "../../platform/plugin-host.svelte";
+import { requestFeatureHostRefresh } from "../../platform/feature-host.svelte";
 import {
   VoiceSettingsSchema,
   VoiceSettingsUpdateSchema,
@@ -57,7 +57,7 @@ export function useVoiceSettings() {
   async function mutate(method: "PUT" | "DELETE", body?: unknown) {
     if (state.busy) return;
     if (await run(method, body)) {
-      await requestPluginHostRefresh();
+      await requestFeatureHostRefresh();
       if (!mounted) return;
       state.notice =
         method === "PUT"

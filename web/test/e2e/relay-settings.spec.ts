@@ -2,7 +2,7 @@ import { test, expect } from "./fixtures";
 import { relayStatus } from "../fixtures/relay";
 import type { RelayStatus } from "../../src/contracts/relay-schemas";
 
-test.use({ plugins: [] });
+test.use({ features: [] });
 
 test("pair, enable, reconnect, rebind and delete through the Relay settings page", async ({
   page,

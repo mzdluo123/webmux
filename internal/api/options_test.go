@@ -11,6 +11,8 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/featureapi"
+	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/handoff"
@@ -18,8 +20,6 @@ import (
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
-	"github.com/rainchan/webmux/internal/pluginapi"
-	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
@@ -45,11 +45,11 @@ type testServices struct {
 	Hybrid           *hybrid.Service
 	Forward          *forward.Service
 	Voice            *voice.Service
-	VoiceSettings    pluginapi.VoiceControl
+	VoiceSettings    featureapi.VoiceControl
 	Tunnel           func() contract.TunnelStatus
-	TunnelSettings   pluginapi.TunnelSettingsControl
-	Tailscale        pluginapi.TailscaleControl
-	P2P              pluginapi.P2PControl
+	TunnelSettings   featureapi.TunnelSettingsControl
+	Tailscale        featureapi.TailscaleControl
+	P2P              featureapi.P2PControl
 	MCP              http.Handler
 	Public           *transport.PublicOrigins
 	Guide            *agentguide.Instance
@@ -63,7 +63,7 @@ func testSessionOptions(c config.Config) session.Options {
 	return session.Options{ScrollbackBytes: c.ScrollbackBytes, DefaultCwd: c.DefaultCwd, IdleAfter: time.Duration(c.IdleAfterSeconds) * time.Second, PromptPatterns: c.PromptPatterns, DisableAgentProtocol: !c.AgentProtocol, DisableBellAttention: !c.BellAttention, DisableProgramStatus: !c.ProgramStatus}
 }
 
-// Existing all-feature HTTP regressions assemble the same explicit plugin
+// Existing all-feature HTTP regressions assemble the same explicit feature
 // boundary as cmd. Core-only regressions use api.Deps directly.
 func testDeps(t testing.TB, d testServices) Deps {
 	t.Helper()
@@ -96,11 +96,11 @@ func testDeps(t testing.TB, d testServices) Deps {
 	if d.Guide != nil {
 		options.Brief = func(id, dir string) string { return d.Guide.Brief(agentguide.BriefInput{SessionID: id, Dir: dir}) }
 	}
-	projection := pluginwire.Projection{Workspace: d.Workspace, Chat: d.Hybrid, Forward: d.Forward}
-	controllers := pluginapi.Bind(pluginapi.Deps{Config: d.Config, Manager: d.Manager, Settings: d.Settings, Workspace: d.Workspace, Code: d.Code, Files: d.Files, Artifacts: d.Artifacts, Handoffs: d.Handoffs, Conversations: d.Conversations, Push: d.Push, Launch: d.Launch, Hybrid: d.Hybrid, Resume: recovery, Forward: d.Forward, Voice: d.Voice, VoiceSettings: d.VoiceSettings, Tunnel: d.Tunnel, TunnelSettings: d.TunnelSettings, Tailscale: d.Tailscale, P2P: d.P2P, MCP: d.MCP, Guide: d.Guide, Public: d.Public, LocalURL: d.LocalURL, ProjectSession: projection.Session})
+	projection := featurewire.Projection{Workspace: d.Workspace, Chat: d.Hybrid, Forward: d.Forward}
+	controllers := featureapi.Bind(featureapi.Deps{Config: d.Config, Manager: d.Manager, Settings: d.Settings, Workspace: d.Workspace, Code: d.Code, Files: d.Files, Artifacts: d.Artifacts, Handoffs: d.Handoffs, Conversations: d.Conversations, Push: d.Push, Launch: d.Launch, Hybrid: d.Hybrid, Resume: recovery, Forward: d.Forward, Voice: d.Voice, VoiceSettings: d.VoiceSettings, Tunnel: d.Tunnel, TunnelSettings: d.TunnelSettings, Tailscale: d.Tailscale, P2P: d.P2P, MCP: d.MCP, Guide: d.Guide, Public: d.Public, LocalURL: d.LocalURL, ProjectSession: projection.Session})
 	return Deps{Config: d.Config, Manager: d.Manager, Settings: d.Settings, Create: sessioncreate.New(d.Manager, options), Sessions: controllers, Contributions: controllers.Contributions(), ProjectSession: projection.Session, SessionProjection: hub.Options{Project: projection.Session, Terminal: projection.Terminal, SubscribeForwards: projection.SubscribeForwards, Forwards: projection.Forwards}, EnrichDetails: controllers.EnrichDetails, KeepSessionPin: controllers.KeepSessionPin, EnrichConfig: controllers.EnrichConfig, Renamed: controllers.Renamed, DefaultShell: d.DefaultShell, Public: d.Public, Tunnel: d.Tunnel, InstalledVersion: d.InstalledVersion, Guide: d.Guide, LocalURL: d.LocalURL, Launcher: d.Launcher}
 }
 
-func pluginCommandFailure(w http.ResponseWriter, err error) {
-	pluginapi.Bind(pluginapi.Deps{}).CommandFailure(w, err)
+func featureCommandFailure(w http.ResponseWriter, err error) {
+	featureapi.Bind(featureapi.Deps{}).CommandFailure(w, err)
 }

@@ -6,7 +6,7 @@ const reasons: Record<string, () => string> = {
   "storage-unavailable": () => m.relay_diag_storage(),
   "bulk-unavailable": () => m.relay_diag_bulk(),
   "turn-unavailable": () => m.relay_diag_turn(),
-  "p2p-plugin-unavailable": () => m.relay_diag_plugin(),
+  "p2p-feature-unavailable": () => m.relay_diag_feature(),
   "p2p-build-unavailable": () => m.relay_diag_build(),
   "stable-latency-advantage": () => m.relay_diag_advantage(),
 };

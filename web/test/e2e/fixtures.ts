@@ -15,8 +15,8 @@ import {
 import { startE2EServer, type E2EServer } from "./server.mjs";
 import {
   CapabilitiesSchema,
-  type PluginID,
-} from "../../src/contracts/plugin-schemas";
+  type FeatureID,
+} from "../../src/contracts/feature-schemas";
 
 type Session = { id: string; status: string; exitCode: number | null };
 
@@ -104,9 +104,9 @@ async function cleanP2PSettings(request: APIRequestContext) {
   expect([200, 501]).toContain(response.status());
 }
 
-async function cleanPlugins(
+async function cleanFeatures(
   request: APIRequestContext,
-  enabled: ReadonlySet<PluginID>,
+  enabled: ReadonlySet<FeatureID>,
 ) {
   if (enabled.has("chat")) await cleanHybridRecords(request);
   if (enabled.has("workspace")) await cleanRepositories(request);
@@ -116,7 +116,7 @@ async function cleanPlugins(
 
 async function resetSettings(
   request: APIRequestContext,
-  enabled: ReadonlySet<PluginID>,
+  enabled: ReadonlySet<FeatureID>,
 ) {
   const response = await request.get("/api/settings");
   expect(response.ok()).toBeTruthy();
@@ -144,14 +144,14 @@ async function resetSettings(
 
 export const test = base.extend<
   { workDir: string; _isolation: void },
-  { server: E2EServer; plugins: PluginID[] | undefined }
+  { server: E2EServer; features: FeatureID[] | undefined }
 >({
   // Missing preserves legacy defaults; [] is explicitly core-only. Do not
   // resolve dependencies here: the real backend validates the exact selection.
-  plugins: [undefined, { scope: "worker", option: true }],
+  features: [undefined, { scope: "worker", option: true }],
   server: [
-    async ({ plugins }, use) => {
-      const server = await startE2EServer({ plugins });
+    async ({ features }, use) => {
+      const server = await startE2EServer({ features });
       try {
         await use(server);
       } finally {
@@ -179,12 +179,12 @@ export const test = base.extend<
         await capabilityResponse.json(),
       );
       const enabled = new Set(
-        capabilities.plugins
-          .filter((plugin) => plugin.enabled)
-          .map((plugin) => plugin.id),
+        capabilities.features
+          .filter((feature) => feature.enabled)
+          .map((feature) => feature.id),
       );
       await cleanSessions(request);
-      await cleanPlugins(request, enabled);
+      await cleanFeatures(request, enabled);
       await resetSettings(request, enabled);
       const browserLogs: string[] = [];
       page.on("console", (message) =>
@@ -244,7 +244,7 @@ export const test = base.extend<
           }
         } finally {
           await cleanSessions(request);
-          await cleanPlugins(request, enabled);
+          await cleanFeatures(request, enabled);
           await resetSettings(request, enabled);
         }
       }
@@ -253,8 +253,8 @@ export const test = base.extend<
   ],
 });
 
-export const coreTest = test.extend<{}, { plugins: PluginID[] | undefined }>({
-  plugins: [[], { scope: "worker", option: true }],
+export const coreTest = test.extend<{}, { features: FeatureID[] | undefined }>({
+  features: [[], { scope: "worker", option: true }],
 });
 
 export { expect };

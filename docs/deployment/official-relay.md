@@ -25,7 +25,7 @@ WSS/TURN 业务与 TURN 双向 relay 仍待验证；不使用 `443/UDP`。
 
 1. 等待运营者完成真实登录、宿主配对及业务验收，并发布经过实际校验的接入材料。
 2. 从受信发行配置或运营者取得 `[relay]` 的 `control_endpoint` 与 `control_audience`；不再提供 `initial_trust` 或控制 SPKI。
-3. 按[接入步骤](remote-access.md#官方-relay)选择插件、配对并显式启用；宿主数据端点由已认证控制面分配，不手填 connector 或 TURN。
+3. 按[接入步骤](remote-access.md#官方-relay)配对并显式启用；需要交互优化时选择 `p2p` 功能。宿主数据端点由已认证控制面分配，不手填 connector 或 TURN。
 4. 以后用同一 GitHub 账号登录控制台，检查自己的主机是否在线；控制台可打开不等于宿主、WSS 或 TURN 已可用。
 
 控制域名已启用 Cloudflare CDN；WSS/TURN 泛域记录为 DNS-only，直连上述 IPv4。

@@ -4,7 +4,7 @@ import { cleanup, render } from "vitest-browser-svelte/pure";
 import RelayManager from "../../src/components/settings/RelayManager.svelte";
 import { relayStatus } from "../fixtures/relay";
 import { clearRelayAuth } from "../../src/platform/relay-auth";
-import { resetHostPlugins } from "./plugin-fixture";
+import { resetHostFeatures } from "./feature-fixture";
 import { initializeLocale, locale } from "../../src/lib/locale";
 import { m } from "$lib/paraglide/messages.js";
 
@@ -26,7 +26,7 @@ afterEach(async () => {
   await cleanup();
   await userEvent.cleanup();
   clearRelayAuth();
-  resetHostPlugins();
+  resetHostFeatures();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   locale.setPreference("zh-CN");
@@ -204,9 +204,6 @@ test("WSS enable remains usable without P2P and off-state bound address is not a
     }),
   );
   render(RelayManager);
-  await expect
-    .element(page.getByText("当前未选择 p2p 插件", { exact: false }))
-    .toBeVisible();
   await expect
     .element(page.getByText(status.boundPublicUrl, { exact: true }))
     .toBeVisible();

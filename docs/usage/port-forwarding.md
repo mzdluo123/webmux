@@ -2,7 +2,7 @@
 
 在 WebMux 里开发 Web 应用时，开发服务器（例如 `pnpm dev` 启动的 Vite）通常只监听服务器本机的 `127.0.0.1:5173`。端口转发把它经 WebMux 现有的地址转发到你的浏览器：不新开端口，本机、局域网、Tailscale 与 Cloudflare Tunnel 下都能用。
 
-先选择 `forward` 并重启，才会出现监听端口探测、提示与转发入口；禁用时不后台扫描端口，管理与网关路径返回 404。见 [插件选择](../deployment/configuration.md#内置插件选择)。
+先选择 `forward` 并重启，才会出现监听端口探测、提示与转发入口；禁用时不后台扫描端口，管理与网关路径返回 404。见 [功能选择](../deployment/configuration.md#内置功能选择)。
 
 ## 添加转发
 

@@ -51,7 +51,7 @@ export const RelayStatusSchema = z.object({
   hybridSupported: z.boolean(),
   hybridUnavailableReason: z.enum([
     "",
-    "p2p-plugin-unavailable",
+    "p2p-feature-unavailable",
     "p2p-build-unavailable",
   ]),
   error: z.string(),

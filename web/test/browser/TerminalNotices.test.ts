@@ -7,8 +7,8 @@ import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.
 import { body, forward, seedForwards, stubFetch } from "./forward-fixture";
 import { seedSettings } from "./settings-fixture";
 import { stopSettings } from "../../src/domains/settings/settings.svelte";
-import * as forwardPlugin from "../../src/plugins/terminal-forward";
-import * as filesPlugin from "../../src/plugins/terminal-files";
+import * as forwardFeature from "../../src/features/terminal-forward";
+import * as filesFeature from "../../src/features/terminal-files";
 
 afterEach(async () => {
   try {
@@ -33,7 +33,7 @@ const terminal = {
 function notices(fields: Record<string, unknown> = {}) {
   return render(TerminalNotices, {
     terminal,
-    plugins: { forward: forwardPlugin, files: filesPlugin },
+    features: { forward: forwardFeature, files: filesFeature },
     uploads: { progress: null, cancel: vi.fn() },
     draft: createTerminalDrafts().get("notice-test"),
     draftSaved: "",
@@ -237,7 +237,7 @@ test("ports from 30000 up are ignored by default and prompted when the setting i
 test("disabled forwarding contributes no prompt or request for listening ports", async () => {
   seedForwards([]);
   const fetch = stubFetch(() => Response.json({}));
-  await notices({ plugins: {}, session: "core-only", listening: ports(5173) });
+  await notices({ features: {}, session: "core-only", listening: ports(5173) });
   await expect.element(prompt(5173)).not.toBeInTheDocument();
   expect(fetch).not.toHaveBeenCalled();
 });

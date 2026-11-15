@@ -36,8 +36,8 @@
   import { Button } from "$lib/components/ui/button";
   import LazyPage from "./components/shared/LazyPage.svelte";
   import AppShell from "./components/shell/AppShell.svelte";
-  import PluginPage from "./plugins/PluginPage.svelte";
-  import PluginLoadNotices from "./plugins/PluginLoadNotices.svelte";
+  import FeaturePage from "./features/FeaturePage.svelte";
+  import FeatureLoadNotices from "./features/FeatureLoadNotices.svelte";
   import SessionSwitcher from "./components/shell/SessionSwitcher.svelte";
   import type TerminalPage from "./pages/Terminal.svelte";
   import {
@@ -45,7 +45,7 @@
     provideSessionSwitcher,
   } from "./hooks/shared/session-switcher";
   import SessionList from "./pages/SessionList.svelte";
-  import { matchRoute, routePlugin, type Route } from "./hooks/shared/route";
+  import { matchRoute, routeFeature, type Route } from "./hooks/shared/route";
   import { enterHome, openSession } from "./hooks/shared/shell.svelte";
   import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
   import { browserDraftStorage } from "./domains/terminal/draft-storage";
@@ -55,20 +55,20 @@
     clearSessionListSnapshot,
     sessionListSnapshot,
   } from "./hooks/sessions/session-list.svelte";
-  import { CapabilitiesSchema } from "./contracts/plugin-schemas";
+  import { CapabilitiesSchema } from "./contracts/feature-schemas";
   import {
-    pluginEnabled,
-    pluginAvailable,
-    setPluginCapabilities,
-    resetPluginCapabilities,
-    requestPluginHostRefresh,
-  } from "./platform/plugin-host.svelte";
+    featureEnabled,
+    featureAvailable,
+    setFeatureCapabilities,
+    resetFeatureCapabilities,
+    requestFeatureHostRefresh,
+  } from "./platform/feature-host.svelte";
   import {
-    loadPluginContributions,
-    disposePluginContributions,
-    pluginContributions,
-  } from "./plugins/registry.svelte";
-  import { watchPluginHostRefresh } from "./plugins/host-refresh";
+    loadFeatureContributions,
+    disposeFeatureContributions,
+    featureContributions,
+  } from "./features/registry.svelte";
+  import { watchFeatureHostRefresh } from "./features/host-refresh";
   import { onActiveHostChange } from "./platform/storage";
   import { useDeviceShell } from "./hooks/shared/device-shell.svelte";
   import { tvInput } from "./hooks/shared/tv-input.svelte";
@@ -89,7 +89,7 @@
   let path = $state(location.pathname);
   let search = $state(location.search);
   let ready = $state(false);
-  let rebuildingPlugins = $state(false);
+  let rebuildingFeatures = $state(false);
   let checking = $state(true);
   let token = $state(stored("token"));
   let error = $state("");
@@ -99,13 +99,13 @@
   let bootstrapEpoch = 0;
   let bootstrapAbort: AbortController | undefined;
   const route = $derived(matchRoute(path));
-  const contributions = $derived(pluginContributions.entries);
-  const requiredPlugin = $derived(routePlugin(route));
+  const contributions = $derived(featureContributions.entries);
+  const requiredFeature = $derived(routeFeature(route));
   const routeUnavailable = $derived(
-    requiredPlugin &&
-      (!pluginEnabled(requiredPlugin) ||
-        pluginContributions.errors[requiredPlugin] ||
-        (route.name === "git" && !pluginAvailable("workspace.git-workbench"))),
+    requiredFeature &&
+      (!featureEnabled(requiredFeature) ||
+        featureContributions.errors[requiredFeature] ||
+        (route.name === "git" && !featureAvailable("workspace.git-workbench"))),
   );
   const sessionId = $derived(route.name === "terminal" ? route.id : "");
   const shellRoute = $derived(
@@ -200,7 +200,7 @@
   $effect(() => {
     const connected = settings.connected;
     if (ready && connected && !settingsWasConnected && settingsHadConnection)
-      void requestPluginHostRefresh();
+      void requestFeatureHostRefresh();
     if (connected) settingsHadConnection = true;
     settingsWasConnected = connected;
   });
@@ -212,8 +212,8 @@
     bootstrapAbort = controller;
     const epoch = ++bootstrapEpoch;
     try {
-      disposePluginContributions();
-      resetPluginCapabilities();
+      disposeFeatureContributions();
+      resetFeatureCapabilities();
       if (
         !(await prepareHostAuthentication(
           preferToken,
@@ -233,17 +233,17 @@
           controller.signal,
         );
         if (epoch !== bootstrapEpoch) return;
-        setPluginCapabilities(capabilities);
+        setFeatureCapabilities(capabilities);
         enterHome();
         path = location.pathname;
-        await loadPluginContributions({
+        await loadFeatureContributions({
           forwardAuth: route.name === "forward-auth",
           codePopout: route.name === "code",
         });
       } catch (discoveryFailure) {
         if (epoch !== bootstrapEpoch) return;
-        resetPluginCapabilities();
-        disposePluginContributions();
+        resetFeatureCapabilities();
+        disposeFeatureContributions();
         discoveryFailureCause = errorMessage(discoveryFailure);
         enterHome();
         path = location.pathname;
@@ -277,10 +277,10 @@
       clearRelayAuth();
       bootstrapEpoch++;
       bootstrapAbort?.abort();
-      pluginRefresh.cancel();
-      disposePluginContributions();
-      rebuildingPlugins = false;
-      resetPluginCapabilities();
+      featureRefresh.cancel();
+      disposeFeatureContributions();
+      rebuildingFeatures = false;
+      resetFeatureCapabilities();
       stopSettings();
       drafts.clearAll();
       clearHomeCache();
@@ -316,7 +316,7 @@
       token = stored("token");
       void check();
     });
-    const pluginRefresh = watchPluginHostRefresh({
+    const featureRefresh = watchFeatureHostRefresh({
       ready: () => ready,
       epoch: () => bootstrapEpoch,
       context: () => ({
@@ -324,7 +324,7 @@
         codePopout: route.name === "code",
       }),
       onRebuilding: (value) => {
-        rebuildingPlugins = value;
+        rebuildingFeatures = value;
         if (value) switcherOpen = false;
       },
       onError: (message) => (discoveryError = message),
@@ -333,11 +333,11 @@
     return () => {
       disconnectPins();
       disconnectHost();
-      pluginRefresh.dispose();
+      featureRefresh.dispose();
       bootstrapAbort?.abort();
       bootstrapEpoch++;
-      disposePluginContributions();
-      resetPluginCapabilities();
+      disposeFeatureContributions();
+      resetFeatureCapabilities();
       stopSettings();
       drafts.clearAll();
       document.removeEventListener("click", link);
@@ -366,7 +366,7 @@
       void check(true);
     }}
   />
-{:else if rebuildingPlugins}
+{:else if rebuildingFeatures}
   <main class="mx-auto max-w-xl p-6" aria-busy="true">
     <InlineNotice>{m.s1_reconnecting_capabilities()}</InlineNotice>
   </main>
@@ -374,15 +374,15 @@
   <main class="mx-auto max-w-xl space-y-4 p-6">
     <h1 class="text-2xl font-semibold">{m.s1_feature_disabled()}</h1>
     <InlineNotice tone="warning"
-      >{requiredPlugin && pluginContributions.errors[requiredPlugin]
-        ? m.s1_plugin_load_failed({
-            plugin: requiredPlugin,
-            error: pluginContributions.errors[requiredPlugin],
+      >{requiredFeature && featureContributions.errors[requiredFeature]
+        ? m.s1_feature_load_failed({
+            feature: requiredFeature,
+            error: featureContributions.errors[requiredFeature],
           })
-        : route.name === "git" && pluginEnabled("workspace")
-          ? m.s1_git_workbench_requires_plugins()
-          : m.s1_page_requires_plugin({
-              plugin: String(requiredPlugin ?? ""),
+        : route.name === "git" && featureEnabled("workspace")
+          ? m.s1_git_workbench_requires_features()
+          : m.s1_page_requires_feature({
+              feature: String(requiredFeature ?? ""),
             })}</InlineNotice
     >
     <Button href="/">{m.s1_back_to_sessions()}</Button>
@@ -402,7 +402,7 @@
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
 {:else if !shellRoute}
-  <PluginPage {route} {search} />
+  <FeaturePage {route} {search} />
 {:else if shellRoute}
   <AppShell bind:this={shell} route={shellRoute} {drafts}>
     {#if sessionId}
@@ -423,7 +423,7 @@
         </LazyPage>
       {/if}
     {:else if route.name !== "sessions" || contributions.workspace}
-      <PluginPage {route} {search} />
+      <FeaturePage {route} {search} />
     {:else}
       <SessionList />
     {/if}
@@ -440,7 +440,7 @@
 {/if}
 
 {#if ready}
-  <PluginLoadNotices errors={pluginContributions.errors} />
+  <FeatureLoadNotices errors={featureContributions.errors} />
 {/if}
 
 {#snippet session(page: SessionPageModule)}

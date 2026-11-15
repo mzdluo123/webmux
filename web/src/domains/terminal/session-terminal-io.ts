@@ -40,13 +40,9 @@ export function createHeaderTerminalView(
     get exitCode() {
       return terminalShown() ? t.exitCode : null;
     },
-    get restoring() {
-      return t.restoring;
-    },
     get canFind() {
       return t.canFind;
     },
-    scrollToBottom: () => t.scrollToBottom(),
     clear: () => t.clear(),
     resync: () => t.resync(),
   };

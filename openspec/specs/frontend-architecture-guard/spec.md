@@ -126,7 +126,7 @@
 
 领域主题 SHALL 显式登记跨主题依赖：`sessions` → `settings`；`workspace`、`terminal` → `settings`、`sessions`；`notifications` → `sessions`；`code` → `terminal`；`settings`、`chat` 不依赖其他主题。未登记的领域边 MUST 被拒绝，跨领域流程 SHALL 放在 hooks 中协调。
 
-模块之间 MUST NOT 形成循环依赖（`ui/` 内生成的 barrel 自引用除外）。无法解析的导入 MUST 被拒绝，Vite 的 `~icons/` 虚拟模块和 `@pierre/diffs/worker/worker.js?worker` 资源查询除外；生产构建 SHALL 验证这两类插件解析入口。
+模块之间 MUST NOT 形成循环依赖（`ui/` 内生成的 barrel 自引用除外）。无法解析的导入 MUST 被拒绝，Vite 的 `~icons/` 虚拟模块和 `@pierre/diffs/worker/worker.js?worker` 资源查询除外；生产构建 SHALL 验证这两类功能解析入口。
 迁移 MUST 更新所有调用者，不保留旧路径兼容导出。
 
 #### Scenario: 领域模块渲染组件
