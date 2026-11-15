@@ -269,6 +269,7 @@ export function gitCompare(
   );
 }
 
+/** US-J19 REST wrapper for `GET .../git/snapshots/{snapshotId}/file`; UI uses `gitSnapshotRaw`. */
 export function gitSnapshotFile(
   repositoryId: string,
   snapshotId: string,

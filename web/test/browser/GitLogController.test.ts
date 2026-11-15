@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   gitHistory: vi.fn(),
   gitCommitDetail: vi.fn(),
   gitCompare: vi.fn(),
-  gitSnapshotFile: vi.fn(),
   gitSnapshotRaw: vi.fn(),
   gitStaging: vi.fn(),
   repositoryBranches: vi.fn(),
@@ -39,7 +38,6 @@ vi.mock("../../src/platform/git-api", async (importOriginal) => {
     gitHistory: mocks.gitHistory,
     gitCommitDetail: mocks.gitCommitDetail,
     gitCompare: mocks.gitCompare,
-    gitSnapshotFile: mocks.gitSnapshotFile,
     gitSnapshotRaw: mocks.gitSnapshotRaw,
     gitStaging: mocks.gitStaging,
   };
