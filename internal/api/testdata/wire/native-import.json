@@ -8,14 +8,15 @@
       "nextPosition": "0",
       "reconcileRequired": false
     },
-    "consumed": "1523",
+    "consumed": "1659",
     "conversationId": "<conversationId#2>",
     "files": [],
     "gaps": [
-      "974:nonexportable_reasoning",
-      "1394:compaction_boundary"
+      "1088:nonexportable_reasoning",
+      "1530:compaction_boundary"
     ],
     "model": "",
+    "nativeId": "00000000-0000-4000-8000-000000000001",
     "parser": "",
     "pending": false,
     "provenance": [],

@@ -19,6 +19,7 @@ type NativeFile struct {
 	Problem   string `json:"problem"`
 }
 type NativeResult struct {
+	NativeID       string                 `json:"nativeId"`
 	Model          string                 `json:"model"`
 	Provenance     []NativeProvenance     `json:"provenance"`
 	Files          []NativeFile           `json:"files"`

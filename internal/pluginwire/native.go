@@ -17,6 +17,7 @@ func NativeFiles(files []codexrollout.File) []contract.NativeFile {
 func NativeImported(in conversation.NativeImport) contract.NativeResult {
 	out := EmptyNativeResult()
 	out.SourceID = in.SourceID
+	out.NativeID = in.NativeID
 	out.ConversationID = in.Binding.ConversationID
 	out.Consumed = strconv.FormatInt(in.Consumed, 10)
 	out.Pending = in.Pending
@@ -28,6 +29,7 @@ func NativeImported(in conversation.NativeImport) contract.NativeResult {
 func NativeSnapshot(in conversation.NativeSnapshot) contract.NativeResult {
 	out := EmptyNativeResult()
 	out.SourceID = in.SourceID
+	out.NativeID = in.NativeID
 	out.SnapshotID = in.ID
 	out.Parser = in.Parser
 	out.Model = in.Model

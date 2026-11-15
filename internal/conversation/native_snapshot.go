@@ -12,6 +12,7 @@ import (
 )
 
 type NativeSnapshot struct {
+	NativeID                       string
 	ID, SourceID, Parser, Checksum string
 	Model                          string
 	Consumed                       int64
@@ -27,7 +28,7 @@ func (s *Service) FreezeNative(ctx context.Context, source string) (NativeSnapsh
 	}
 	err := s.transact(ctx, func(tx *sql.Tx) error {
 		var conversation string
-		if err := tx.QueryRowContext(ctx, `SELECT id,parser,consumed,checksum,conversation_id,model FROM native_source WHERE id=?`, source).Scan(&out.SourceID, &out.Parser, &out.Consumed, &out.Checksum, &conversation, &out.Model); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT id,parser,consumed,checksum,conversation_id,model,native_id FROM native_source WHERE id=?`, source).Scan(&out.SourceID, &out.Parser, &out.Consumed, &out.Checksum, &conversation, &out.Model, &out.NativeID); err != nil {
 			return storageError(ctx, err)
 		}
 		out.Gaps = []string{}
@@ -86,7 +87,7 @@ func (s *Service) NativeSnapshot(ctx context.Context, id string) (NativeSnapshot
 		return out, ErrUnavailable
 	}
 	var gaps []byte
-	err := s.db.QueryRowContext(ctx, `SELECT id,source_id,parser,consumed,checksum,diagnostics,model FROM history_snapshot WHERE id=?`, id).Scan(&out.ID, &out.SourceID, &out.Parser, &out.Consumed, &out.Checksum, &gaps, &out.Model)
+	err := s.db.QueryRowContext(ctx, `SELECT s.id,s.source_id,s.parser,s.consumed,s.checksum,s.diagnostics,s.model,n.native_id FROM history_snapshot s JOIN native_source n ON n.id=s.source_id WHERE s.id=?`, id).Scan(&out.ID, &out.SourceID, &out.Parser, &out.Consumed, &out.Checksum, &gaps, &out.Model, &out.NativeID)
 	if err != nil {
 		return out, storageError(ctx, err)
 	}

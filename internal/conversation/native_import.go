@@ -18,6 +18,7 @@ import (
 
 type NativeImport struct {
 	SourceID             string
+	NativeID             string
 	Binding              Binding
 	Generation, Consumed int64
 	Pending              bool
@@ -85,6 +86,7 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 	if err != nil || !os.SameFile(before, after) {
 		return out, ErrConflict
 	}
+	out.NativeID = parsed.Metadata.ID
 	out.Pending = parsed.Pending
 	out.Consumed = parsed.Consumed
 	for _, r := range records {

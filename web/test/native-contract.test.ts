@@ -7,6 +7,7 @@ import {
 describe("native history boundary", () => {
   it("keeps snapshot cursors as decimal strings", () => {
     const value = {
+      nativeId: "",
       model: "",
       provenance: [],
       files: [],

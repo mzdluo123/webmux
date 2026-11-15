@@ -291,6 +291,7 @@ export const NativePreviewSchema = z.object({
 });
 
 export const NativeResultSchema = z.object({
+  nativeId: z.string(),
   model: z.string(),
   provenance: z.array(
     z.object({

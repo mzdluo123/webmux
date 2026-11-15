@@ -135,7 +135,7 @@
       "nextPosition": "6",
       "reconcileRequired": false
     },
-    "consumed": "1523",
+    "consumed": "1659",
     "conversationId": "",
     "files": [],
     "gaps": [
@@ -144,6 +144,7 @@
       "nonexportable_reasoning"
     ],
     "model": "synthetic-model",
+    "nativeId": "00000000-0000-4000-8000-000000000001",
     "parser": "codex-0.77/v1",
     "pending": false,
     "provenance": [
@@ -151,19 +152,19 @@
         "activityId": "<activityId#2>",
         "callId": "",
         "checksum": "08c7265b2bacf4d3bc38677bbebbafa5851731e40f9e790bf5e052ab8de47f48",
-        "end": "524",
+        "end": "557",
         "kind": "message",
-        "offset": "352",
+        "offset": "385",
         "sourceId": "<sourceId#1>",
         "toolName": ""
       },
       {
         "activityId": "<activityId#3>",
         "callId": "",
-        "checksum": "d9370e1cc796ea2acc221fc17bd7f627211520572d528ab9bb4f3d330a01e2e0",
-        "end": "646",
+        "checksum": "9765e787ed6bb6893d6cf6dfd7cca6b78db050f010ece5dbc1bb91abf6c2868c",
+        "end": "760",
         "kind": "turn_start",
-        "offset": "524",
+        "offset": "557",
         "sourceId": "<sourceId#1>",
         "toolName": ""
       },
@@ -171,9 +172,9 @@
         "activityId": "<activityId#4>",
         "callId": "call-1",
         "checksum": "a948f7ec9a3295bdf1414e4ea292f1c4e2fdf96edd976012ce513cfe96392072",
-        "end": "823",
+        "end": "937",
         "kind": "tool_arguments",
-        "offset": "646",
+        "offset": "760",
         "sourceId": "<sourceId#1>",
         "toolName": "exec_command"
       },
@@ -181,9 +182,9 @@
         "activityId": "<activityId#5>",
         "callId": "call-1",
         "checksum": "69157acb474435c704e8e86685ad22eda3149b7cb522b275383676054e0a073e",
-        "end": "974",
+        "end": "1088",
         "kind": "tool_result",
-        "offset": "823",
+        "offset": "937",
         "sourceId": "<sourceId#1>",
         "toolName": ""
       },
@@ -191,9 +192,9 @@
         "activityId": "<activityId#6>",
         "callId": "",
         "checksum": "1edd5f5e8a882390b93442788003671c27c2c23074f282b92c521d59a0dd308b",
-        "end": "1394",
+        "end": "1530",
         "kind": "message",
-        "offset": "1230",
+        "offset": "1366",
         "sourceId": "<sourceId#1>",
         "toolName": ""
       },
@@ -201,9 +202,9 @@
         "activityId": "<activityId#7>",
         "callId": "",
         "checksum": "a1880ee94d1005d89da15e3e793feec11ea55233ec05459ac76a8b092f94c7aa",
-        "end": "1523",
+        "end": "1659",
         "kind": "compaction",
-        "offset": "1394",
+        "offset": "1530",
         "sourceId": "<sourceId#1>",
         "toolName": ""
       }
