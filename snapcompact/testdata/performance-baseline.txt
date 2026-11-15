@@ -1,0 +1,25 @@
+Local isolated baseline, 2026-11-15; Go 1.27.4; 4 vCPU cgroup quota.
+Command: go test -c -o /workspace/snapcompact-bench.test ./snapcompact
+Then precompiled test binary: -test.run ^$ -test.bench Benchmark(Project|Render)$ -test.benchmem -test.benchtime=1s -test.count=3
+Source SHA256:
+bea86241c350970522f9448202cf80a3c6f80e3c3b0d87a8c5bc86a120d18dc0  preprocess.go
+5b1f5eae811600c93d97dac92a7de52f627b4e82e607e6baf9d9f4b7a62502b8  render.go
+13f312cfbc9bae5ef07d1466f41b8738385368d0c1a1c50375b87e1f57b58ee8  budget.go
+edf054de9ffba08da5c36d95dab65f72d5024a652a1d748608e87e6171bc23c1  types.go
+744b3b2ff51bd3e9145effc980561c67e90d40993da90ff13d5423c6d72e9cdc  benchmark_test.go
+
+goos: linux
+goarch: amd64
+pkg: github.com/rainchan/webmux/snapcompact
+cpu: INTEL(R) XEON(R) PLATINUM 8573C
+BenchmarkProject-4   	    6181	    194576 ns/op	  104017 B/op	     135 allocs/op
+BenchmarkProject-4   	    6559	    192005 ns/op	  104010 B/op	     135 allocs/op
+BenchmarkProject-4   	    7044	    213913 ns/op	  104011 B/op	     135 allocs/op
+BenchmarkRender-4    	      10	 108357522 ns/op	         3.000 pages/op	    476795 png-bytes/op	13931756 B/op	     532 allocs/op
+BenchmarkRender-4    	      12	 105160374 ns/op	         3.000 pages/op	    476795 png-bytes/op	13928566 B/op	     506 allocs/op
+BenchmarkRender-4    	       9	 113058959 ns/op	         3.000 pages/op	    476795 png-bytes/op	13928512 B/op	     506 allocs/op
+PASS
+
+Process RSS (compiler excluded; Linux KiB):
+{"max_rss_KiB": 39928, "user_cpu_seconds": 7.333788, "system_cpu_seconds": 0.9898199999999999, "platform": "Linux-6.18.57-x86_64-with-glibc2.41", "cpu_count": 5}
+No model inference, OCR measurement or token savings claim.

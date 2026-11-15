@@ -19,6 +19,16 @@ const (
 	Reference Representation = "reference"
 )
 
+// PlanStatus describes whether a complete candidate fits the known target constraints.
+type PlanStatus string
+
+const (
+	PlanReady        PlanStatus = "ready"
+	PlanInsufficient PlanStatus = "insufficient"
+	PlanUnknown      PlanStatus = "unknown"
+	PlanUnavailable  PlanStatus = "unavailable"
+)
+
 // Quantity is unknown unless Known is true. Basis describes the caller's estimator,
 // measured capability, or encoder; estimates are never presented as measurements.
 type Quantity struct {
@@ -61,7 +71,7 @@ type PlanInput struct {
 	ReferenceRanges []Range
 }
 type PlanResult struct {
-	Status    string // ready, insufficient, unknown, or unavailable
+	Status    PlanStatus
 	Candidate Delivery
 	Usage     BudgetUsage
 	Uncovered []Range
@@ -71,7 +81,7 @@ type PlanResult struct {
 // Plan evaluates complete coverage. It never silently chooses a prefix, substitutes
 // references for content, or claims that an estimate proves model readability.
 func Plan(ctx context.Context, in PlanInput, caps Capabilities, limits BudgetLimits) (PlanResult, error) {
-	result := PlanResult{Status: "ready", Reasons: []string{}, Uncovered: []Range{}}
+	result := PlanResult{Status: PlanReady, Reasons: []string{}, Uncovered: []Range{}}
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
@@ -93,18 +103,18 @@ func Plan(ctx context.Context, in PlanInput, caps Capabilities, limits BudgetLim
 	case Image:
 		d.Pages = append([]Page{}, in.Rendered.Pages...)
 		if !caps.VisionKnown {
-			result.Status = "unknown"
+			result.Status = PlanUnknown
 			result.Reasons = append(result.Reasons, "vision capability unknown")
 		} else if !caps.VisionSupported {
-			result.Status = "unavailable"
+			result.Status = PlanUnavailable
 			result.Reasons = append(result.Reasons, "vision unsupported")
 		}
 		if len(in.Rendered.Missing) > 0 || len(in.Rendered.Uncovered) > 0 || !completePageCoverage(in.Projection, d.Pages) {
-			result.Status = "unavailable"
+			result.Status = PlanUnavailable
 			result.Reasons = append(result.Reasons, "rendering incomplete or missing glyphs")
 		}
 		if len(d.Ranges) > 0 && len(d.Pages) == 0 {
-			result.Status = "unavailable"
+			result.Status = PlanUnavailable
 			result.Reasons = append(result.Reasons, "no rendered pages")
 		}
 	case Reference:
@@ -191,18 +201,18 @@ func Plan(ctx context.Context, in PlanInput, caps Capabilities, limits BudgetLim
 			return result, err
 		}
 		if !check.used.Known || !check.limit.Known {
-			if result.Status == "ready" {
-				result.Status = "unknown"
+			if result.Status == PlanReady {
+				result.Status = PlanUnknown
 			}
 			result.Reasons = append(result.Reasons, check.name+" unknown")
 		} else if check.used.Value > check.limit.Value {
-			if result.Status != "unavailable" {
-				result.Status = "insufficient"
+			if result.Status != PlanUnavailable {
+				result.Status = PlanInsufficient
 			}
 			result.Reasons = append(result.Reasons, check.name+" exceeds budget")
 		}
 	}
-	if result.Status != "ready" {
+	if result.Status != PlanReady {
 		result.Uncovered = append(result.Uncovered, d.Ranges...)
 	}
 	if err := ctx.Err(); err != nil {

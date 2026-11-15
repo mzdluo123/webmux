@@ -51,7 +51,7 @@ func TestPlanSeparateBudgets(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.Status != "insufficient" || len(got.Uncovered) != 1 || !strings.Contains(strings.Join(got.Reasons, ";"), tt.reason) {
+			if got.Status != PlanInsufficient || len(got.Uncovered) != 1 || !strings.Contains(strings.Join(got.Reasons, ";"), tt.reason) {
 				t.Fatalf("unexpected plan: %+v", got)
 			}
 			if got.Candidate.CurrentTask != in.Projection.CurrentTask {
@@ -66,19 +66,19 @@ func TestPlanUnknownAndIncomplete(t *testing.T) {
 	tests := []struct {
 		name   string
 		modify func(*PlanInput, *Capabilities, *BudgetLimits)
-		want   string
+		want   PlanStatus
 	}{
-		{"unknown vision", func(_ *PlanInput, c *Capabilities, _ *BudgetLimits) { c.VisionKnown = false }, "unknown"},
-		{"unsupported", func(_ *PlanInput, c *Capabilities, _ *BudgetLimits) { c.VisionSupported = false }, "unavailable"},
-		{"unknown image rate", func(_ *PlanInput, c *Capabilities, _ *BudgetLimits) { c.ImageTokens = nil }, "unknown"},
-		{"unknown encoder", func(_ *PlanInput, c *Capabilities, _ *BudgetLimits) { c.RequestBytes = nil }, "unknown"},
-		{"unknown context", func(_ *PlanInput, _ *Capabilities, l *BudgetLimits) { l.ContextTokens.Known = false }, "unknown"},
+		{"unknown vision", func(_ *PlanInput, c *Capabilities, _ *BudgetLimits) { c.VisionKnown = false }, PlanUnknown},
+		{"unsupported", func(_ *PlanInput, c *Capabilities, _ *BudgetLimits) { c.VisionSupported = false }, PlanUnavailable},
+		{"unknown image rate", func(_ *PlanInput, c *Capabilities, _ *BudgetLimits) { c.ImageTokens = nil }, PlanUnknown},
+		{"unknown encoder", func(_ *PlanInput, c *Capabilities, _ *BudgetLimits) { c.RequestBytes = nil }, PlanUnknown},
+		{"unknown context", func(_ *PlanInput, _ *Capabilities, l *BudgetLimits) { l.ContextTokens.Known = false }, PlanUnknown},
 		{"missing glyph", func(i *PlanInput, _ *Capabilities, _ *BudgetLimits) {
 			i.Rendered.Missing = []MissingGlyph{{Rune: '😀'}}
-		}, "unavailable"},
+		}, PlanUnavailable},
 		{"partial", func(i *PlanInput, _ *Capabilities, _ *BudgetLimits) {
 			i.Rendered.Uncovered = []Range{{SourceID: "s", End: 2}}
-		}, "unavailable"},
+		}, PlanUnavailable},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestPlanRepresentations(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Status != "ready" || got.Candidate.Representation != kind || len(got.Uncovered) != 0 {
+		if got.Status != PlanReady || got.Candidate.Representation != kind || len(got.Uncovered) != 0 {
 			t.Fatalf("unexpected %+v", got)
 		}
 		if kind == Image && got.Usage.ImageTokens.Value != 100 {
@@ -160,7 +160,7 @@ func TestPlanRejectsGapsAndOverlaps(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.Status != "unavailable" || len(got.Uncovered) != 1 {
+			if got.Status != PlanUnavailable || len(got.Uncovered) != 1 {
 				t.Fatalf("accepted bad coverage: %+v", got)
 			}
 		})

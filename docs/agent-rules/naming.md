@@ -21,7 +21,7 @@ A reader should be able to predict a file's name from what it owns. Names state 
 - Hooks that own resources or coordinate domains live in `src/hooks/<topic>/`; page-level composition lives in `src/pages/`.
   Pure algorithms and domain state live together in `src/domains/<topic>/`; wire schemas live in `src/contracts/` and generic browser I/O in `src/platform/`. See [frontend architecture](../frontend-architecture.md).
 
-## Go (`internal/`, `cmd/`)
+## Go (`internal/`, `cmd/`, `snapcompact/`)
 
 | Kind        | Rule                                                                                                                                   | Example                                           |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |

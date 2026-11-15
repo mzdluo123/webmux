@@ -3,7 +3,7 @@
 ## 适用范围与优先级
 
 本仓库采纳 [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
-作为 Go 代码的规范基线，适用于 `cmd/`、`internal/`、`web/embed.go` 和
+作为 Go 代码的规范基线，适用于 `cmd/`、`internal/`、`snapcompact/`、`web/embed.go` 和
 `deploy/embed.go`，包含测试代码。新代码 MUST 遵守，存量代码按 issue #148 的分期计划收敛。
 
 发生冲突时，`AGENTS.md` 与 [分层架构](architecture.md) 优先；本文件集中登记

@@ -17,7 +17,7 @@ const maxSourceLines = 499
 // responsibilities stay focused and navigable.
 func TestSourceFileSize(t *testing.T) {
 	root := filepath.Join("..", "..")
-	for _, dir := range []string{"internal", "cmd"} {
+	for _, dir := range []string{"internal", "cmd", "snapcompact"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err

@@ -146,7 +146,7 @@
   验收要点：
   - [文件命名](../../agent-rules/naming.md)规定前端非组件 TypeScript 用 kebab-case、组件与组件测试用 PascalCase、Go 文件用 snake_case 并按“名词/职责”命名；
   - `TestGoFileNames` 在 `go test ./...` 中拒绝非 snake_case 的 Go 文件名，以及含 `util`、`helper`、`misc`、`more`、`common` 等空泛词的名字；
-  - `TestSourceFileSize` 在 `go test ./...` 中要求 `cmd/` 与 `internal/` 下的非测试生产 `.go` 文件少于 500 行（`<= 499` 行），超限时报错指示按职责拆分为同家族 `<family>_<part>.go` 文件并禁止删注释或改用空泛文件名；
+  - `TestSourceFileSize` 在 `go test ./...` 中要求 `cmd/`、`internal/` 与 `snapcompact/` 下的非测试生产 `.go` 文件少于 500 行（`<= 499` 行），超限时报错指示按职责拆分为同家族 `<family>_<part>.go` 文件并禁止删注释或改用空泛文件名；
   - `web/test/architecture.test.ts` 的 `file naming` 拒绝 camelCase 的 TypeScript 文件、非 PascalCase 的 Svelte 组件，以及 500 行及以上的生产 `.ts`/`.svelte` 文件（排除生成的 `src/lib/components/ui/`、测试与 stories），超限时提示按领域模块、子组件或架构分层拆分；
   - 规则页登记在 [Agent 规则](../../agent-rules.md)，`AGENTS.md` 只保留一行指针。
 

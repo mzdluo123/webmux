@@ -13,6 +13,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/rivo/uniseg"
@@ -167,36 +168,9 @@ func (r *pngRenderer) Render(ctx context.Context, p Projection, c RenderConfig) 
 			text   string
 			header bool
 		}{{header, true}, {s.Text, false}} {
-			gs := uniseg.NewGraphemes(part.text)
-			offset, start := 0, 0
-			var line string
-			for gs.Next() {
-				if err = ctx.Err(); err != nil {
-					return result, err
-				}
-				cluster := gs.Str()
-				size := utf8.RuneCountInString(cluster)
-				if cluster == "\n" || cluster == "\r\n" {
-					lines = append(lines, renderLine{line, s.SourceID, start, offset + size, part.header})
-					offset += size
-					start = offset
-					line = ""
-					continue
-				}
-				if font.MeasureString(face, cluster) > width {
-					return result, fmt.Errorf("%w: grapheme wider than page", ErrRenderInput)
-				}
-				if line != "" && font.MeasureString(face, line+cluster) > width {
-					lines = append(lines, renderLine{line, s.SourceID, start, offset, part.header})
-					start = offset
-					line = ""
-				}
-				line += cluster
-				offset += size
-			}
-			// A trailing newline is already covered by the preceding line.
-			if line != "" || offset == 0 {
-				lines = append(lines, renderLine{line, s.SourceID, start, offset, part.header})
+			lines, err = appendWrappedRenderLines(ctx, lines, face, width, part.text, s.SourceID, part.header)
+			if err != nil {
+				return result, err
 			}
 		}
 	}
@@ -287,4 +261,56 @@ func (w contextPNGWriter) Write(p []byte) (int, error) {
 		return 0, err
 	}
 	return w.out.Write(p)
+}
+
+// appendWrappedRenderLines measures each grapheme once. The boundary kern is
+// essential: summing isolated grapheme advances would disagree with DrawString
+// for pairs such as AV and To. Builder avoids copying an expanding line per rune.
+func appendWrappedRenderLines(ctx context.Context, lines []renderLine, face font.Face, width fixed.Int26_6, text, source string, header bool) ([]renderLine, error) {
+	gs := uniseg.NewGraphemes(text)
+	offset, start := 0, 0
+	var line strings.Builder
+	var advance fixed.Int26_6
+	previous := rune(-1)
+	flush := func(end int) {
+		lines = append(lines, renderLine{line.String(), source, start, end, header})
+		line.Reset()
+		advance = 0
+		previous = -1
+	}
+	for gs.Next() {
+		if err := ctx.Err(); err != nil {
+			return lines, err
+		}
+		cluster := gs.Str()
+		size := utf8.RuneCountInString(cluster)
+		if cluster == "\n" || cluster == "\r\n" {
+			flush(offset + size)
+			offset += size
+			start = offset
+			continue
+		}
+		clusterAdvance := font.MeasureString(face, cluster)
+		if clusterAdvance > width {
+			return lines, fmt.Errorf("%w: grapheme wider than page", ErrRenderInput)
+		}
+		first, _ := utf8.DecodeRuneInString(cluster)
+		kern := fixed.Int26_6(0)
+		if previous >= 0 {
+			kern = face.Kern(previous, first)
+		}
+		if line.Len() != 0 && advance+kern+clusterAdvance > width {
+			flush(offset)
+			start = offset
+			kern = 0
+		}
+		line.WriteString(cluster)
+		advance += kern + clusterAdvance
+		previous, _ = utf8.DecodeLastRuneInString(cluster)
+		offset += size
+	}
+	if line.Len() != 0 || offset == 0 {
+		flush(offset)
+	}
+	return lines, nil
 }

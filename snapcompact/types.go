@@ -73,7 +73,9 @@ type RenderResult struct {
 	CacheKey  string
 }
 
-// Renderer implementations must return uncovered ranges on bounded partial results.
+// Renderer implementations return uncovered ranges on partial results after input
+// validation. Hard input size/count rejections return no pages or ranges, avoiding
+// allocations proportional to rejected input; the caller retains the entire input.
 type Renderer interface {
 	Render(context.Context, Projection, RenderConfig) (RenderResult, error)
 }

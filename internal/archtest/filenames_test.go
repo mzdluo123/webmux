@@ -24,7 +24,7 @@ var vagueFileWords = map[string]bool{
 // catch-all words. Platform suffixes (_linux, _unix, _other) are ordinary words.
 func TestGoFileNames(t *testing.T) {
 	root := filepath.Join("..", "..")
-	for _, dir := range []string{"internal", "cmd"} {
+	for _, dir := range []string{"internal", "cmd", "snapcompact"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
