@@ -257,7 +257,11 @@ TURN 节点 SHALL 强制标准 TURN 身份认证并关闭匿名/免认证中继�
 凭据签发与刷新 SHALL 要求有效 GitHub 登录所派生的所有者浏览器登录会话；仅有已配对宿主密钥、设备身份、裸宿主会话或公开节点地址 MUST NOT 领取通用中继凭据。
 每份凭据 SHALL 在服务端关联账号、浏览器会话、host ID、代际与端点角色，不将账号身份原值暴露在公开诊断中。
 
-签发限频及 allocation/流量配额 SHALL 按稳定账号聚合，覆盖同账号的所有短期用户名和两端角色；MUST NOT 只按短期用户名计数而允许重复领取绕过总额。节点侧或受信配额组件 SHALL 强制资源限制，不能仅靠前端或停止签发约束已有凭据。
+首版 SHALL 使用原版 coturn 的账号 allocation 数限制、每会话带宽限制及节点总容量限制；MUST NOT 宣称提供跨会话共享账号带宽桶或累计流量额度。签发限频不能替代节点执行，带宽方向/单位及组合上界 SHALL 如实配置并实测。
+
+账号 allocation SHALL 使用稳定不透明 quota key 聚合两端角色及不同短期凭据；用户名 SHALL 为 `<expiry>:<accountQuotaKey>`，不得附加角色/会话/随机后缀。角色与会话仅存签发关联，两端凭据 SHALL 在 TTL 上限内保留不同 expiry 秒，耗尽时拒绝，不延长有效期规避限额。
+
+同账号 SHALL 固定在一个存活 TURN 配额域内，跨域分配前必须确认旧域中继停止或取得明确不超总额的预算；MUST NOT 声称多个 stock coturn 节点自动共享全局账号计数。节点失效时可回 WSS，不通过悄悄换域绕过 allocation 限额。
 
 短期凭据 SHALL 被视为持有者凭证。到期限制新认证，但 coturn 已认证会话可能继续刷新 allocation；TTL 或单次 allocation lifetime MUST NOT 被当作会话绝对上限。发布 SHALL 验证节点实际资源限制，MUST NOT 声称 GitHub 注销或密码到期会自动清除已有 TURN 资源。
 
