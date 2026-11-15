@@ -219,14 +219,18 @@
     - 隔离演示仓库下采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 12 张前后对比截图及顶栏菜单交互 GIF。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证物理 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核验；未重新核对 `US-J20`、`US-J23` 以外的其余故事。
 
-## 2026-11-16：Git 工作台差异工具栏收敛为双栏显示并移除快照全文与放大模式（US-J20、US-J21、US-J22、US-J24）
+## 2026-11-16：Git 工作台差异工具栏收敛为双栏显示并移除快照全文与放大模式（US-H14、US-J20、US-J21、US-J22、US-J24）
 
 - 范围：
   - 移除 `GitDiffStyleSwitch.svelte` 以及各面板的 `diffMode` 切换入口与 `GitDeviceLayoutSchema` 中的持久化字段：
     - 桌面与平板视口固定以双栏（`Split`）展示差异，`CodeDiffReader` 在 `< 480px` 窄容器及 `< 640px` 手机步进视图下自动回退为单列 `Unified`；
     - 保留旧版 `localStorage` 布局记录兼容读取（自动忽略遗留 `diffMode` 键而不丢弃分栏比例）；
-  - 移除 `GitLogDiffPanel.svelte` 与 `GitLogDiffFallbackView.svelte` 中的“变更前全文 / 变更后全文”内联快照预览及 `git-snapshot-diff-reader.svelte.ts` 的 `openSnapshotSide` / `closeSnapshotSide` 状态，保留二进制与超预算快照的原始字节下载；
-  - 移除 `GitLogFilesPane.svelte`、`GitLogPane.svelte` 与 `GitLogDiffPanel.svelte` 中的两处“放大查看文件差异”按钮及 `maximized` 全工作区放大层，历史差异固定在底部可折叠/拖拽高度停靠栏（或手机单列步进页）阅读；
+  - 移除内联快照全文预览并保留二进制/超预算快照原始下载：
+    - 清理 `GitLogDiffPanel.svelte`、`GitLogDiffFallbackView.svelte` 及 `git-snapshot-diff-reader.svelte.ts` 的 `openSnapshotSide` / `closeSnapshotSide` 状态；
+    - `gitSnapshotFile` 作为 US-J19 仓库与工作树 REST 完整类型封装保留在 `git-api.ts`；
+  - 移除两处“放大查看文件差异”按钮与 `maximized` 全工作区放大层：
+    - 调整 `GitLogFilesPane.svelte`、`GitLogPane.svelte` 与 `GitLogDiffPanel.svelte`，历史差异固定在底部可折叠/拖拽高度停靠栏（或手机单列步进页）阅读；
+    - 同步更新 `US-H14` 与 `coverage.md` 的分层返回说明；
   - 修复 `GitStagingDiffPanel.svelte` 外层 `ScrollArea` 包裹 `contain-strict` `CodeDiffReader` 导致暂存差异区高度坍缩的问题，改为定高弹性列容器。
 - 依据：
   - 静态与治理门禁：`make format-check`、`make docs-check`、`make persistence-check`、`openspec validate --specs`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`go vet` 与 `golangci-lint` 通过；
