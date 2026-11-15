@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -52,5 +53,30 @@ func TestDiscoveryDoesNotReadConversationBody(t *testing.T) {
 	}
 	if _, err := Inspect(context.Background(), path); !errors.Is(err, ErrLimit) {
 		t.Fatal(err)
+	}
+}
+
+func TestDiscoverySmallHeadersDoNotConsumeBodySizedBudget(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "sessions")
+	if err := os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	header := bytes.SplitN(fixture(t), []byte{'\n'}, 2)[0]
+	data := append(append(append([]byte{}, header...), '\n'), []byte(strings.Repeat("x", 8<<10))...)
+	for i := range 200 {
+		path := filepath.Join(dir, strconv.Itoa(i)+".jsonl")
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, err := discover(context.Background(), root, discoveryLimits{MaxDiscoveryFiles, 128 << 10, 1000})
+	if err != nil || result.Truncated || len(result.Files) != 200 {
+		t.Fatal(len(result.Files), result.Truncated, err)
+	}
+	for _, file := range result.Files {
+		if file.Problem != "" || file.Metadata.ID == "" {
+			t.Fatal(file)
+		}
 	}
 }

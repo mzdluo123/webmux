@@ -3,6 +3,7 @@ package conversation
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"image/png"
 	"os"
@@ -516,7 +517,14 @@ func TestNativeDiagnosticResponseIsBoundedWithoutDroppingRecords(t *testing.T) {
 	if err != nil || len(out.Diagnostics) > 257 || out.Consumed != int64(len(data)) {
 		t.Fatal(out, err)
 	}
-	if out.Diagnostics[len(out.Diagnostics)-1].Category != "diagnostics_limited" {
+	seen := map[string]bool{}
+	for _, d := range out.Diagnostics {
+		if seen[d.Category] || d.Category == "diagnostics_limited" {
+			t.Fatal(out.Diagnostics)
+		}
+		seen[d.Category] = true
+	}
+	if !seen["unknown_record"] {
 		t.Fatal(out.Diagnostics)
 	}
 	var count int
@@ -524,7 +532,7 @@ func TestNativeDiagnosticResponseIsBoundedWithoutDroppingRecords(t *testing.T) {
 		t.Fatal(count, err)
 	}
 	frozen, err := s.FreezeNative(ctx, out.SourceID)
-	if err != nil || !slices.Contains(frozen.Gaps, "diagnostics_limited") {
+	if err != nil || slices.Contains(frozen.Gaps, "diagnostics_limited") {
 		t.Fatal(frozen, err)
 	}
 }
@@ -578,5 +586,49 @@ func TestNativeItemlessRecordIdentityIsEnforcedInStorage(t *testing.T) {
 	}
 	if _, err = s.db.Exec(`INSERT INTO native_record SELECT * FROM native_record WHERE source_id=? AND offset=0 AND activity_id IS NULL`, source.SourceID); err == nil {
 		t.Fatal("duplicate itemless native record was accepted")
+	}
+}
+
+func TestReparsedDiagnosticAccountingDoesNotRewriteFrozenGaps(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	path := filepath.Join(t.TempDir(), "rollout.jsonl")
+	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	source, err := s.ImportCodex(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.transact(ctx, func(tx *sql.Tx) error {
+		return s.addGap(ctx, tx, source.Binding.ProviderThreadID, "diagnostics_limited")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	old, err := s.FreezeNative(ctx, source.SourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.ImportCodex(ctx, path); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := s.FreezeNative(ctx, source.SourceID)
+	if err != nil || slices.Contains(fresh.Gaps, "diagnostics_limited") {
+		t.Fatal(fresh, err)
+	}
+	oldPage, err := s.SnapshotActivities(ctx, old.ID, 0, 20, 4000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, gap := range oldPage.Gaps {
+		found = found || gap.Reason == "diagnostics_limited"
+	}
+	if !found {
+		t.Fatal("reconciliation changed frozen completeness")
 	}
 }

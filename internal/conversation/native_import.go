@@ -89,15 +89,32 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 	out.NativeID = parsed.Metadata.ID
 	out.Pending = parsed.Pending
 	out.Consumed = parsed.Consumed
+	categories := map[string]bool{}
+	reported := map[string]bool{}
+	omitted := false
+	var omittedOffset int64
 	for _, r := range records {
 		for _, d := range r.Diagnostics {
+			if categories[d.Category] {
+				continue
+			}
+			categories[d.Category] = true
 			if len(out.Diagnostics) < 256 {
 				out.Diagnostics = append(out.Diagnostics, d)
-			} else if len(out.Diagnostics) == 256 {
-				out.Diagnostics = append(out.Diagnostics, codexrollout.Diagnostic{Offset: d.Offset, Category: "diagnostics_limited"})
+				reported[d.Category] = true
+			} else {
+				if !omitted {
+					omittedOffset = d.Offset
+				}
+				omitted = true
 			}
 		}
 	}
+	diagnosticsLimited := omitted || categories["diagnostics_limited"]
+	if omitted && !reported["diagnostics_limited"] {
+		out.Diagnostics = append(out.Diagnostics, codexrollout.Diagnostic{Offset: omittedOffset, Category: "diagnostics_limited"})
+	}
+
 	err = s.transact(ctx, func(tx *sql.Tx) error {
 		var private bool
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM provider_thread p JOIN history_gap g ON g.provider_thread_id=p.id WHERE p.agent_name='codex' AND p.agent_session_id=? AND g.reason='capture_disabled')`, parsed.Metadata.ID).Scan(&private); err != nil {
@@ -192,11 +209,18 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 			}
 		}
 		gapSeen := map[string]bool{}
-		if len(out.Diagnostics) > 256 {
+		if diagnosticsLimited {
 			if err = s.addGap(ctx, tx, out.Binding.ProviderThreadID, "diagnostics_limited"); err != nil {
 				return err
 			}
 			gapSeen["diagnostics_limited"] = true
+		}
+		if !diagnosticsLimited {
+			// Re-parsing the full source provides evidence to resolve an old
+			// response-accounting limit, without altering any frozen gap copy.
+			if _, err = tx.ExecContext(ctx, "UPDATE history_gap SET resolved=1 WHERE provider_thread_id=? AND reason='diagnostics_limited' AND resolved=0", out.Binding.ProviderThreadID); err != nil {
+				return storageError(ctx, err)
+			}
 		}
 		for _, r := range records {
 			if r.End <= oldOffset {

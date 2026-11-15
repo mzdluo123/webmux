@@ -151,7 +151,7 @@ func inspect(ctx context.Context, path string, remaining *int) (Metadata, error)
 		return m, ErrFormat
 	}
 	reader := metadataReader{ctx: ctx, source: io.LimitReader(f, MaxMetadata+1), remaining: remaining}
-	b := bufio.NewReader(&reader)
+	b := bufio.NewReaderSize(&reader, 512)
 	var line []byte
 	for {
 		part, e := b.ReadSlice('\n')
