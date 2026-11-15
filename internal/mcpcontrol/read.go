@@ -31,12 +31,18 @@ func (c Client) readTools() []mcpprotocol.Tool {
 		description = "Read committed exportable chat activity, or a bounded raw terminal replay page encoded as base64. Cursors are decimal strings. Reports truncation, resets and missing history; never acquires terminal control."
 	}
 	properties := map[string]any{
-		"sessionId": text(), "view": enumeration(views...),
-		"generation": text(), "offset": text(), "maxBytes": integer(1, 65536),
+		"sessionId":  sessionIDSchema(),
+		"view":       desc(enumeration(views...), "terminal: raw PTY replay bytes; activity (when available): committed chat items."),
+		"generation": desc(text(), "terminal view: replay generation from a previous page; supply generation and offset together."),
+		"offset":     desc(text(), "terminal view: decimal cursor, pass back the previous page's nextOffset."),
+		"maxBytes":   desc(integer(1, 65536), "terminal view: bytes per page (default 65536)."),
 	}
 	if c.hasCapability("chat.acp") {
-		properties["afterPosition"], properties["itemId"], properties["textOffset"] = text(), text(), text()
-		properties["limit"], properties["maxBytesPerItem"] = integer(1, 100), integer(4, 65536)
+		properties["afterPosition"] = desc(text(), "activity view: return items after this position (decimal string; \"0\" reads from the start).")
+		properties["itemId"] = desc(text(), "activity view: read a single item by id, to continue a truncated item.")
+		properties["textOffset"] = desc(text(), "activity view: UTF-8 byte offset inside itemId (decimal string).")
+		properties["limit"] = desc(integer(1, 100), "activity view: items per page (default 20).")
+		properties["maxBytesPerItem"] = desc(integer(4, 65536), "activity view: per-item byte cap (default 4000).")
 	}
 	return []mcpprotocol.Tool{tool("session_read", description, true, properties, []string{"sessionId"}, c.read)}
 }

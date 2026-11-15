@@ -48,7 +48,7 @@
 `POST /api/sessions/{id}/input` 的请求体为 `{clientRequestId, text, submit?, keys?, attachments?, mode?}`，按会话当前视图分派：
 
 - 终端视图：`text` 与 `submit` 作为一次带回执的提交写入 PTY，随后按顺序写入 `keys`。
-  - `submit` 缺省 `false`，为 `true` 时追加档案或终端的提交键。
+  - `submit` 缺省 `false`，为 `true` 时追加档案或终端的提交键（回车；对应 CLI 的 `--enter`）。只发 `text` 正文留在输入行不执行。
   - `keys` 取 `backspace`、`ctrl-c`、`ctrl-d`、`down`、`enter`、`esc`、`left`、`right`、`tab`、`up`，未知名称 400。
   - 回执为 `written` 时 200 `{view: "terminal"}`；`partial`、`failed` 或 `missing` 时 409 `input_failed`，`submission` 带回执状态。
   - 输入像浏览器输入一样取得终端控制，控制者标签为 `script`；从会话内经本机套接字调用时为 `script · <来源会话 ID>`。

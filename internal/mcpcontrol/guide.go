@@ -21,7 +21,9 @@ const guideResultLimit = 64 << 10
 var guideTopicPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 func (c Client) guideTools() []mcpprotocol.Tool {
-	return []mcpprotocol.Tool{tool("guide_read", "Read the transport-aware WebMux operation guide index or a curated topic.", true, map[string]any{"topic": map[string]any{"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z][a-z0-9-]*$"}}, nil, c.guideRead)}
+	return []mcpprotocol.Tool{tool("guide_read", "Read the transport-aware WebMux operation guide index or a curated topic.", true, map[string]any{
+		"topic": map[string]any{"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z][a-z0-9-]*$", "description": "A topic id from the index, such as operations; omit for the index itself."},
+	}, nil, c.guideRead)}
 }
 
 func (c Client) guideRead(_ context.Context, raw json.RawMessage) (any, error) {
