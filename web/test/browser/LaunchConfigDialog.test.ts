@@ -170,6 +170,9 @@ test("the startup-file checkbox saves a normal command without expanding its arg
   await page
     .getByLabelText("启动命令")
     .fill(`opencode --continue 'a b' '' '$HOME'`);
+  await page.getByRole("button", { name: "添加环境变量" }).click();
+  await page.getByLabelText("变量名 1").fill("LITERAL");
+  await page.getByLabelText("变量值 1").fill("$HOME");
   await page
     .getByRole("checkbox", { name: "加载 shell 启动文件", exact: true })
     .click();
@@ -180,6 +183,8 @@ test("the startup-file checkbox saves a normal command without expanding its arg
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
   expect(savedRequest(requests)).toMatchObject({
     body: {
+      name: "Open Code",
+      env: { LITERAL: "$HOME" },
       cmd: [
         "bash",
         "-ic",

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { show } from "./chat-story";
-import { checkEachLayout, expectNoOverflow } from "./layouts";
+import { checkEachLayout, expectNoOverflow, layouts } from "./layouts";
 
 // Hybrid sessions (issue #181): every state of the session page fits the
 // layout matrix and keeps its primary control reachable.
@@ -286,31 +286,42 @@ test("reduced motion displays options immediately without a reveal or slide", as
 });
 
 for (const [story, role, control] of stories) {
-  test(`hybrid session ${story}`, async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await show(page, story, "light");
-    await checkEachLayout(page, async ({ name, textScale }) => {
-      const target = page.getByRole(role, { name: control });
-      await target.scrollIntoViewIfNeeded();
-      await expect.soft(target, name).toBeInViewport();
-      if (textScale > 1)
-        // The terminal header does not fit 320px at 200% text even for an
-        // ordinary session; this case checks the hybrid page's body.
-        await page
-          .locator("header.terminal-header")
-          .evaluate((header) => (header.style.display = "none"));
-      try {
-        await expectNoOverflow(page, name);
-      } finally {
-        if (textScale > 1)
-          await page
-            .locator("header.terminal-header")
-            .evaluate((header) => (header.style.display = ""));
-      }
-      expect.soft(errors, name).toEqual([]);
+  const batches =
+    story === "long-conversation"
+      ? layouts.map((layout) => [layout])
+      : [layouts];
+  for (const batch of batches) {
+    const suffix = batch.length === 1 ? ` ${batch[0]!.name}` : "";
+    test(`hybrid session ${story}${suffix}`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await show(page, story, "light");
+      await checkEachLayout(
+        page,
+        async ({ name, textScale }) => {
+          const target = page.getByRole(role, { name: control });
+          await target.scrollIntoViewIfNeeded();
+          await expect.soft(target, name).toBeInViewport();
+          if (textScale > 1)
+            // The terminal header does not fit 320px at 200% text even for an
+            // ordinary session; this case checks the hybrid page's body.
+            await page
+              .locator("header.terminal-header")
+              .evaluate((header) => (header.style.display = "none"));
+          try {
+            await expectNoOverflow(page, name);
+          } finally {
+            if (textScale > 1)
+              await page
+                .locator("header.terminal-header")
+                .evaluate((header) => (header.style.display = ""));
+          }
+          expect.soft(errors, name).toEqual([]);
+        },
+        batch,
+      );
     });
-  });
+  }
 }
 
 test("long conversation ticks jump to messages and stay out of narrow panes", async ({
