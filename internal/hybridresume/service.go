@@ -24,7 +24,7 @@ type Input struct {
 }
 
 // Locations protects startup against concurrent worktree removal. It is absent
-// when the workspace plugin is disabled; ordinary directory recovery still works.
+// when the workspace feature is disabled; ordinary directory recovery still works.
 type Locations interface {
 	PrepareResume(context.Context, string) (func(*session.Session), func(), error)
 }

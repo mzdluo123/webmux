@@ -2,7 +2,7 @@
 
 用开启了聊天视图（界面称“混合模式”）的启动配置创建的会话有两个视图：原生 TUI（终端视图 `terminal`）与 ACP 聊天视图（`chat`）。同一段 agent 对话在两个视图之间切换，webmux 会话 ID 始终不变。
 
-本页可选路由与聊天 WebSocket 需要 `chat`（启动选择必须包含 `launch`、`files`）；禁用时在升级/SPA 回退前返回 404，普通终端端点保持可用。会话 JSON 的聊天字段由 `pluginwire.Projection` 叠加，不属于核心 `session.Info`。
+本页可选路由与聊天 WebSocket 需要 `chat`（启动选择必须包含 `launch`、`files`）；禁用时在升级/SPA 回退前返回 404，普通终端端点保持可用。会话 JSON 的聊天字段由 `featurewire.Projection` 叠加，不属于核心 `session.Info`。
 
 - 线上类型：[`internal/contract/views.go`](../../internal/contract/views.go)、[`sessions.go`](../../internal/contract/sessions.go) 与 [`chat.go`](../../internal/contract/chat.go)。
 - 前端镜像：[`web/src/contracts/schemas.ts`](../../web/src/contracts/schemas.ts) 与 [`web/src/contracts/chat-schemas.ts`](../../web/src/contracts/chat-schemas.ts)。

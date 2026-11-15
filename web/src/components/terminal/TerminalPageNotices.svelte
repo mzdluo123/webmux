@@ -4,24 +4,24 @@
   import { m } from "$lib/paraglide/messages.js";
 
   let {
-    pluginErrors,
+    featureErrors,
     error,
     reloadPage,
     dismissError,
   }: {
-    pluginErrors?: string[];
+    featureErrors?: string[];
     error: string;
     reloadPage: () => void;
     dismissError: () => void;
   } = $props();
 </script>
 
-{#if pluginErrors?.length}
+{#if featureErrors?.length}
   <InlineNotice tone="warning">
     <div class="flex items-center justify-between gap-2">
       <span
-        >{m.s4_plugin_load_partial_warning({
-          errors: pluginErrors.join(m.s4_list_semicolon_sep()),
+        >{m.s4_feature_load_partial_warning({
+          errors: featureErrors.join(m.s4_list_semicolon_sep()),
         })}</span
       >
       <Button variant="outline" size="sm" onclick={reloadPage}

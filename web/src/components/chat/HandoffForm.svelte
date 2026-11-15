@@ -15,14 +15,14 @@
   import ChatUploadButton from "./ChatUploadButton.svelte";
   import HandoffPreviewCard from "./HandoffPreviewCard.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
-  import { getPluginContributions } from "../../plugins/context";
-  import { pluginAvailable } from "../../platform/plugin-host.svelte";
+  import { getFeatureContributions } from "../../features/context";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
 
   let { editor: e, fork }: { editor: HandoffEditor; fork: boolean } = $props();
   const shell = getShell();
   const { LocationPicker, WorktreeCreateFields } =
-    getPluginContributions().creation;
-  const workspaceAvailable = pluginAvailable("workspace.manage");
+    getFeatureContributions().creation;
+  const workspaceAvailable = featureAvailable("workspace.manage");
   const agents = $derived(
     shell.launchConfigs?.state.status === "ready"
       ? shell.launchConfigs.state.configs.filter((item) => item.chat)

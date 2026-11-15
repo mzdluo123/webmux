@@ -5,7 +5,7 @@
   import { api } from "../../platform/api";
   import { settings } from "../../domains/settings/settings.svelte";
   import { parseQuickCommands } from "../../domains/settings/quick-commands";
-  import { pluginAvailable } from "../../platform/plugin-host.svelte";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import {
     INIT_INSTRUCTION_MAX,
     RepositorySchema,
@@ -31,7 +31,7 @@
   let busy = $state(false);
   let error = $state("");
   const commands = $derived(
-    pluginAvailable("quick-commands.send")
+    featureAvailable("quick-commands.send")
       ? (settings.values.quickCommands ?? parseQuickCommands(""))
       : [],
   );
@@ -73,7 +73,7 @@
     <InitInstructionField
       id="repository-instruction-edit"
       {commands}
-      commandsAvailable={pluginAvailable("quick-commands.send")}
+      commandsAvailable={featureAvailable("quick-commands.send")}
       bind:value={instruction}
     />
     {#if error}<p role="alert" class="break-all text-sm text-destructive">

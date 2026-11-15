@@ -4,8 +4,11 @@ import { cleanup, render } from "vitest-browser-svelte/pure";
 import type { ComponentProps } from "svelte";
 import NewSessionDialog from "../../src/components/sessions/NewSessionDialog.svelte";
 import type { Project } from "../../src/contracts/schemas";
-import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
-import { setPluginCapabilities } from "../../src/platform/plugin-host.svelte";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
+import { setFeatureCapabilities } from "../../src/platform/feature-host.svelte";
 import { repository, worktree, session, branch, base } from "./shell-fixture";
 
 const plain: Project = {
@@ -49,7 +52,7 @@ const onclose = vi.fn();
 
 beforeEach(async () => {
   localStorage.clear();
-  await enableCreationPlugins(["workspace"], true);
+  await enableCreationFeatures(["workspace"], true);
   calls = [];
   oncreated.mockReset();
   onclose.mockReset();
@@ -106,7 +109,7 @@ afterEach(async () => {
   await cleanup();
   await userEvent.cleanup();
   vi.unstubAllGlobals();
-  resetCreationPlugins();
+  resetCreationFeatures();
   localStorage.clear();
 });
 function open(extra: Partial<ComponentProps<typeof NewSessionDialog>> = {}) {
@@ -320,9 +323,9 @@ test("an unavailable contextual project explains its state and cannot start", as
 });
 
 test("GitHub setup remains reachable without requesting an unavailable source", async () => {
-  setPluginCapabilities({
-    version: 1,
-    plugins: [{ id: "workspace", enabled: true, status: "ready" }],
+  setFeatureCapabilities({
+    version: 2,
+    features: [{ id: "workspace", enabled: true, status: "ready" }],
     capabilities: [
       { id: "workspace.projects", available: true },
       { id: "workspace.manage", available: true },

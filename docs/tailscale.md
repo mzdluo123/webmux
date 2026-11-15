@@ -7,7 +7,7 @@ Tailscale 状态，并按网页设置或 `[tailscale]` 配置托管一个精确�
 
 ## 启用前
 
-先 [选择 `tailscale` 插件](deployment/configuration.md#内置插件选择) 并重启，才提供检测、网页设置和托管控制；单纯经已存在的 VPN 直连核心不需要该插件。
+先 [选择 `tailscale` 功能](deployment/configuration.md#内置功能选择) 并重启，才提供检测、网页设置和托管控制；单纯经已存在的 VPN 直连核心不需要该功能。
 
 1. 安装并登录 Tailscale；确认 `tailscale status --json` 的 `BackendState` 为
    `Running`。

@@ -6,9 +6,9 @@
   import * as Command from "$lib/components/ui/command";
   import { m } from "$lib/paraglide/messages.js";
   import {
-    pluginAvailable,
-    requestPluginHostRefresh,
-  } from "../../platform/plugin-host.svelte";
+    featureAvailable,
+    requestFeatureHostRefresh,
+  } from "../../platform/feature-host.svelte";
   import { errorMessage } from "../../platform/error";
   import type { ProjectSources } from "../../hooks/workspace/project-sources.svelte";
   import { suggestProjectClonePath } from "../../domains/workspace/project-clone-path";
@@ -27,13 +27,13 @@
     url: string;
     path: string;
   } = $props();
-  const available = $derived(pluginAvailable("workspace.github"));
+  const available = $derived(featureAvailable("workspace.github"));
   let refreshError = $state("");
   async function retry() {
     refreshError = "";
     try {
       if (available) await controller.searchGitHub(query);
-      else await requestPluginHostRefresh();
+      else await requestFeatureHostRefresh();
     } catch (error) {
       refreshError = errorMessage(error);
     }

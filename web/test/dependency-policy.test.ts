@@ -150,19 +150,19 @@ describe("dependency boundary policy", () => {
       "only-app-composes-pages",
     ],
     [
-      "src/platform/plugin-host.svelte.ts",
-      "src/plugins/entries/chat.ts",
-      "plugins-are-composition-only",
+      "src/platform/feature-host.svelte.ts",
+      "src/features/entries/chat.ts",
+      "features-are-composition-only",
     ],
     [
       "src/hooks/sessions/controller.ts",
-      "src/plugins/terminal.ts",
-      "plugins-are-composition-only",
+      "src/features/terminal.ts",
+      "features-are-composition-only",
     ],
     [
       "src/components/shell/AppShell.svelte",
       "src/components/chat/ChatHistory.svelte",
-      "core-does-not-load-plugin-implementations",
+      "core-does-not-load-feature-implementations",
     ],
   ])("rejects %s → %s (%s)", (from, to, rule) => {
     expect(violations(from, to)).toContain(rule);
@@ -192,8 +192,8 @@ describe("dependency boundary policy", () => {
     ],
     ["src/components/shared/widget.ts", "src/hooks/shared/viewport.svelte.ts"],
     ["src/App.svelte", "src/pages/Settings.svelte"],
-    ["src/plugins/entries/code.ts", "src/pages/CodePopout.svelte"],
-    ["src/components/shell/AppShell.svelte", "src/plugins/registry.svelte.ts"],
+    ["src/features/entries/code.ts", "src/pages/CodePopout.svelte"],
+    ["src/components/shell/AppShell.svelte", "src/features/registry.svelte.ts"],
   ])("allows downward composition %s → %s", (from, to) => {
     expect(violations(from, to)).toEqual([]);
   });

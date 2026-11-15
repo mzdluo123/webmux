@@ -69,7 +69,7 @@ func (s *Service) unreserve(path string) {
 	s.notifyLocked()
 }
 
-// Association belongs to the workspace plugin, not the terminal host.
+// Association belongs to the workspace feature, not the terminal host.
 type Association struct {
 	RepositoryID string
 	WorktreeID   string

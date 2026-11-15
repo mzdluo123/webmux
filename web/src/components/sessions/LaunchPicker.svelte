@@ -2,10 +2,10 @@
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import { joinArgs } from "../../platform/api";
   import {
-    pluginAvailable,
-    pluginEnabled,
-  } from "../../platform/plugin-host.svelte";
-  import { getPluginContributions } from "../../plugins/context";
+    featureAvailable,
+    featureEnabled,
+  } from "../../platform/feature-host.svelte";
+  import { getFeatureContributions } from "../../features/context";
   import {
     launchConfigIcon,
     type LaunchConfigsState,
@@ -42,9 +42,9 @@
     onchoose: () => void;
   } = $props();
   let open = $state(false);
-  const providers = getPluginContributions().creation;
+  const providers = getFeatureContributions().creation;
   const chatEnabled = $derived(
-    pluginAvailable("chat.acp") && !!providers.LaunchStartSideFields,
+    featureAvailable("chat.acp") && !!providers.LaunchStartSideFields,
   );
   let search = $state("");
   // The desktop list stays mounted while closed; each opening starts unfiltered.
@@ -147,9 +147,9 @@
               />
               {#if config.chat && !chatEnabled}
                 <span class="text-xs text-muted-foreground"
-                  >{pluginEnabled("chat")
+                  >{featureEnabled("chat")
                     ? m.s3_chat_temporarily_unavailable()
-                    : m.s3_chat_plugin_disabled()}</span
+                    : m.s3_chat_feature_disabled()}</span
                 >
               {/if}
             </Command.Item>

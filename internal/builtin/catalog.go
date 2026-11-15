@@ -1,4 +1,4 @@
-// Package builtin defines the fixed, constructor-free built-in plugin catalog.
+// Package builtin defines the fixed, constructor-free built-in feature catalog.
 package builtin
 
 import (
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Definition declares a plugin's stable ID and hard dependencies.
+// Definition declares a feature's stable ID and hard dependencies.
 type Definition struct {
 	ID       string
 	Requires []string
@@ -31,7 +31,7 @@ var definitions = []Definition{
 }
 
 // Keep this upgrade default fixed: future catalog additions must not silently
-// enable new business behavior for configurations that omit plugins.enabled.
+// enable new business behavior for configurations that omit features.enabled.
 var legacyIDs = []string{
 	"launch", "workspace", "code", "files", "chat", "notifications",
 	"quick-commands", "voice", "forward", "cloudflare", "tailscale",
@@ -76,17 +76,17 @@ func resolve(catalog []Definition, enabled []string) ([]string, error) {
 	byID := make(map[string]Definition, len(catalog))
 	for _, definition := range catalog {
 		if _, exists := byID[definition.ID]; exists {
-			return nil, fmt.Errorf("duplicate plugin definition %q", definition.ID)
+			return nil, fmt.Errorf("duplicate feature definition %q", definition.ID)
 		}
 		byID[definition.ID] = definition
 	}
 	selected := make(map[string]bool, len(enabled))
 	for _, id := range enabled {
 		if _, exists := byID[id]; !exists {
-			return nil, fmt.Errorf("unknown plugin %q", id)
+			return nil, fmt.Errorf("unknown feature %q", id)
 		}
 		if selected[id] {
-			return nil, fmt.Errorf("duplicate plugin %q", id)
+			return nil, fmt.Errorf("duplicate feature %q", id)
 		}
 		selected[id] = true
 	}
@@ -106,13 +106,13 @@ func resolve(catalog []Definition, enabled []string) ([]string, error) {
 			return nil
 		}
 		if state[id] == visiting {
-			return fmt.Errorf("plugin dependency cycle: %s", strings.Join(append(path, id), " -> "))
+			return fmt.Errorf("feature dependency cycle: %s", strings.Join(append(path, id), " -> "))
 		}
 		state[id] = visiting
 		path = append(path, id)
 		for _, required := range byID[id].Requires {
 			if !selected[required] {
-				return fmt.Errorf("missing plugin dependency: %s", strings.Join(append(path, required), " -> "))
+				return fmt.Errorf("missing feature dependency: %s", strings.Join(append(path, required), " -> "))
 			}
 			if err := visit(required); err != nil {
 				return err

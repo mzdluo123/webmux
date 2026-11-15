@@ -15,9 +15,9 @@ func TestProjectCapabilityWithoutGitOrFiles(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	service := workspace.New(t.TempDir(), nil, nil, t.TempDir())
 	defer service.Close()
-	plugins := pluginServices{workspace: service}
-	c := config.Config{Plugins: config.PluginConfig{Enabled: []string{"workspace"}}}
-	snapshot := plugins.capabilities(c)
+	features := featureServices{workspace: service}
+	c := config.Config{Features: config.FeatureConfig{Enabled: []string{"workspace"}}}
+	snapshot := features.capabilities(c)
 	if err := localclient.ValidateCapabilities(snapshot); err != nil {
 		t.Fatalf("real snapshot invalid: %v", err)
 	}
@@ -36,12 +36,12 @@ func TestProjectCapabilityWithoutGitOrFiles(t *testing.T) {
 	if !found {
 		t.Fatal("missing project capability")
 	}
-	snapshot = plugins.capabilities(config.Config{Plugins: config.PluginConfig{Enabled: []string{}}})
+	snapshot = features.capabilities(config.Config{Features: config.FeatureConfig{Enabled: []string{}}})
 	if err := localclient.ValidateCapabilities(snapshot); err != nil {
 		t.Fatalf("disabled snapshot invalid: %v", err)
 	}
 	for _, capability := range snapshot.Capabilities {
-		if (capability.ID == "workspace.projects" || capability.ID == "workspace.clone" || capability.ID == "workspace.github") && (capability.Available || capability.Reason != contract.CapabilityReasonPluginDisabled) {
+		if (capability.ID == "workspace.projects" || capability.ID == "workspace.clone" || capability.ID == "workspace.github") && (capability.Available || capability.Reason != contract.CapabilityReasonFeatureDisabled) {
 			t.Fatalf("disabled: %+v", capability)
 		}
 	}
@@ -49,9 +49,9 @@ func TestProjectCapabilityWithoutGitOrFiles(t *testing.T) {
 
 func TestProjectCapabilityFailureSnapshotsValidate(t *testing.T) {
 	t.Parallel()
-	c := config.Config{Plugins: config.PluginConfig{Enabled: []string{"workspace"}}}
-	plugins := pluginServices{}
-	if err := localclient.ValidateCapabilities(plugins.capabilities(c)); err != nil {
+	c := config.Config{Features: config.FeatureConfig{Enabled: []string{"workspace"}}}
+	features := featureServices{}
+	if err := localclient.ValidateCapabilities(features.capabilities(c)); err != nil {
 		t.Fatalf("unassembled: %v", err)
 	}
 	state := t.TempDir()
@@ -60,8 +60,8 @@ func TestProjectCapabilityFailureSnapshotsValidate(t *testing.T) {
 	}
 	service := workspace.New(state, nil, nil, t.TempDir())
 	defer service.Close()
-	plugins.workspace = service
-	if err := localclient.ValidateCapabilities(plugins.capabilities(c)); err != nil {
+	features.workspace = service
+	if err := localclient.ValidateCapabilities(features.capabilities(c)); err != nil {
 		t.Fatalf("project storage failure: %v", err)
 	}
 }
@@ -74,8 +74,8 @@ func TestProjectCapabilitySurvivesCorruptGitRegistry(t *testing.T) {
 	}
 	service := workspace.New(state, nil, nil, t.TempDir())
 	defer service.Close()
-	plugins := pluginServices{workspace: service}
-	snapshot := plugins.capabilities(config.Config{Plugins: config.PluginConfig{Enabled: []string{"workspace"}}})
+	features := featureServices{workspace: service}
+	snapshot := features.capabilities(config.Config{Features: config.FeatureConfig{Enabled: []string{"workspace"}}})
 	if err := localclient.ValidateCapabilities(snapshot); err != nil {
 		t.Fatalf("partial workspace invalid: %v", err)
 	}
@@ -97,8 +97,8 @@ func TestProjectCloneCapabilityWithCorruptLedger(t *testing.T) {
 	}
 	service := workspace.New(state, nil, nil, t.TempDir())
 	defer service.Close()
-	plugins := pluginServices{workspace: service}
-	snapshot := plugins.capabilities(config.Config{Plugins: config.PluginConfig{Enabled: []string{"workspace"}}})
+	features := featureServices{workspace: service}
+	snapshot := features.capabilities(config.Config{Features: config.FeatureConfig{Enabled: []string{"workspace"}}})
 	if err := localclient.ValidateCapabilities(snapshot); err != nil {
 		t.Fatal(err)
 	}
@@ -124,8 +124,8 @@ func TestGitHubCapabilityDiscoveryDoesNotRunCLI(t *testing.T) {
 	t.Setenv("PATH", root)
 	service := workspace.New(t.TempDir(), nil, nil, root)
 	defer service.Close()
-	plugins := pluginServices{workspace: service}
-	snapshot := plugins.capabilities(config.Config{Plugins: config.PluginConfig{Enabled: []string{"workspace"}}})
+	features := featureServices{workspace: service}
+	snapshot := features.capabilities(config.Config{Features: config.FeatureConfig{Enabled: []string{"workspace"}}})
 	if err := localclient.ValidateCapabilities(snapshot); err != nil {
 		t.Fatal(err)
 	}

@@ -7,7 +7,7 @@
   import * as Dialog from "$lib/components/ui/dialog";
   import { api } from "../../platform/api";
   import { errorMessage } from "../../platform/error";
-  import { pluginContributions } from "../../plugins/registry.svelte";
+  import { featureContributions } from "../../features/registry.svelte";
   import type { Repositories } from "../../hooks/workspace/repositories.svelte";
   import type { SessionList } from "../../hooks/sessions/session-list.svelte";
   import {
@@ -46,7 +46,7 @@
   $effect(() => {
     searching = false;
     searchFailed = false;
-    const chat = pluginContributions.entries.chat;
+    const chat = featureContributions.entries.chat;
     if (!chat || !open || [...term].length < 2 || [...term].length > 120) {
       matches = [];
       return;
@@ -126,7 +126,7 @@
       .then((result) => {
         if (signal.aborted) return;
         snapshot = result;
-        const workspace = pluginContributions.entries.workspace;
+        const workspace = featureContributions.entries.workspace;
         if (workspace && result.some((session) => session.workspace)) {
           // A slow or unavailable Git registry should not block session access.
           loadingRepositories = true;

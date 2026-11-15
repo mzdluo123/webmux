@@ -2,7 +2,7 @@ package hybrid
 
 import "github.com/rainchan/webmux/internal/contract"
 
-// Metadata is the chat plugin's immutable session-list projection. The plugin
+// Metadata is the chat feature's immutable session-list projection. The feature
 // owns provider identity and view transitions; the process host sees neither.
 type Metadata struct {
 	ConversationID, ProviderThreadID string
@@ -60,7 +60,7 @@ func (a *actor) publishMetadata() {
 	a.svc.metadataMu.Unlock()
 }
 
-// SetWorkspaceSource installs the optional cross-plugin association port before
+// SetWorkspaceSource installs the optional cross-feature association port before
 // requests are accepted. Nil retains record associations without workspace I/O.
 func (s *Service) SetWorkspaceSource(source func(string) *WorkspaceRef) {
 	s.metadataMu.Lock()

@@ -15,10 +15,10 @@ import (
 
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/localclient"
-	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -52,9 +52,9 @@ func TestWSLServiceStatusAndWatch(t *testing.T) {
 	defer m.Shutdown(context.Background())
 	const hybridID = "abcdefgh"
 	project := func(info session.Info) contract.SessionInfo {
-		out := (pluginwire.Projection{}).Session(info)
+		out := (featurewire.Projection{}).Session(info)
 		if info.ID == hybridID {
-			pluginwire.ProjectChat(&out, &hybrid.Metadata{
+			featurewire.ProjectChat(&out, &hybrid.Metadata{
 				Side: "acp", State: "active", Agent: "fake", AgentTitle: "Fake",
 			})
 		}

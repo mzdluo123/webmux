@@ -2,7 +2,7 @@ import { onMount } from "svelte";
 import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
-import { requestPluginHostRefresh } from "../../platform/plugin-host.svelte";
+import { requestFeatureHostRefresh } from "../../platform/feature-host.svelte";
 import {
   refreshP2PAfterSettingsChange,
   refreshP2PStatus,
@@ -85,7 +85,7 @@ export function useP2PSettings() {
       ui.status = next;
       ui.revision++;
       refreshP2PAfterSettingsChange(next);
-      await requestPluginHostRefresh();
+      await requestFeatureHostRefresh();
       if (requests.disposed) return false;
       schedulePortMapPoll(next);
       ui.feedback =

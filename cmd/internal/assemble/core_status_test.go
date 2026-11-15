@@ -20,7 +20,7 @@ func TestCoreOnlySessionHonorsTerminalStatusSettings(t *testing.T) {
 		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "config.toml")
-			body := fmt.Sprintf("agent_protocol = %t\nbell_attention = %t\nprogram_status = %t\n[plugins]\nenabled = []\n", enabled, enabled, enabled)
+			body := fmt.Sprintf("agent_protocol = %t\nbell_attention = %t\nprogram_status = %t\n[features]\nenabled = []\n", enabled, enabled, enabled)
 			if err := os.WriteFile(path, []byte(body), 0600); err != nil {
 				t.Fatal(err)
 			}

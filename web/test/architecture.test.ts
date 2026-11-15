@@ -129,7 +129,7 @@ describe("frontend architecture", () => {
     };
     const layers: Record<string, true> = {
       app: true,
-      plugins: true,
+      features: true,
       contracts: true,
       platform: true,
       domains: true,

@@ -100,7 +100,7 @@
 - [混合会话服务](../../../internal/hybrid/)、[连接器检查](../../../internal/hybrid/connector.go)、[agent 适配器核心](../../../internal/agentprofile/)、[ACP 客户端](../../../internal/acp/)
 - [agent 注册表](../../../internal/agentprofile/agents/agents.go)、[Codex 适配器](../../../internal/agentprofile/codex/codex.go)、[适配器契约测试](../../../internal/agentprofile/agenttest/agenttest.go)
 - [Claude Code 适配器](../../../internal/agentprofile/claudecode/claudecode.go)、[Claude 注册记录](../../../internal/agentprofile/claudecode/registry.go)、[Antigravity CLI 适配器](../../../internal/agentprofile/agy/agy.go)
-- [会话外壳与伴随进程](../../../internal/session/lifecycle.go)、[进程事实](../../../internal/session/process_facts.go)、[聊天接口](../../../internal/pluginapi/chat.go)、[聊天通道](../../../internal/pluginhub/chat.go)
+- [会话外壳与伴随进程](../../../internal/session/lifecycle.go)、[进程事实](../../../internal/session/process_facts.go)、[聊天接口](../../../internal/featureapi/chat.go)、[聊天通道](../../../internal/featurehub/chat.go)
 - [启动配置](../../../internal/launch/types.go)、[聊天视图](../../../web/src/components/chat/)、[代码链接解析](../../../web/src/domains/code/markdown-link.ts)。
 - [代码工作区](../../../web/src/components/code/CodeWorkspace.svelte)、[会话页](../../../web/src/pages/Terminal.svelte)。
 - [已归档记录](../../../web/src/components/sessions/ArchivedSessions.svelte)、[归位规则](../../../web/src/domains/sessions/archived.ts)、[安装提示](../../../web/src/components/sessions/ConnectorInstallHint.svelte)、[原生附着](../../../internal/attach/attach.go)
@@ -115,6 +115,6 @@
 
 - [对话事务存储](../../../internal/conversation/)、[私有数据库生命周期](../../../internal/statefile/database.go)。
 
-- [持久历史接口](../../protocol/http-conversation.md)、[历史路由](../../../internal/pluginapi/conversation.go)、[portable projection](../../../internal/conversation/projection.go)。
+- [持久历史接口](../../protocol/http-conversation.md)、[历史路由](../../../internal/featureapi/conversation.go)、[portable projection](../../../internal/conversation/projection.go)。
 
-- [交接预览](../../protocol/http-handoff.md)、[预算与选择](../../../internal/handoff/)、[预览接口](../../../internal/pluginapi/handoff.go)。
+- [交接预览](../../protocol/http-handoff.md)、[预算与选择](../../../internal/handoff/)、[预览接口](../../../internal/featureapi/handoff.go)。

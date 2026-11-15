@@ -44,10 +44,10 @@ func deliveryTest(t *testing.T, env map[string]string) *deliveryHarness {
 
 func deliveryTestWithSourceEnv(t *testing.T, env, sourceEnv map[string]string) *deliveryHarness {
 	t.Helper()
-	return deliveryTestWithPlugins(t, env, sourceEnv, false)
+	return deliveryTestWithFeatures(t, env, sourceEnv, false)
 }
 
-func deliveryTestWithPlugins(t *testing.T, env, sourceEnv map[string]string, withoutWorkspace bool) *deliveryHarness {
+func deliveryTestWithFeatures(t *testing.T, env, sourceEnv map[string]string, withoutWorkspace bool) *deliveryHarness {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("runs isolated fake agent")

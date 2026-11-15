@@ -3,7 +3,7 @@ import { z } from "zod";
 import { m } from "$lib/paraglide/messages.js";
 import { navigate, store, stored } from "../../platform/api";
 import { buildGitRouteHref, type GitRouteTarget } from "./route";
-import { pluginEnabled } from "../../platform/plugin-host.svelte";
+import { featureEnabled } from "../../platform/feature-host.svelte";
 import type { ArchiveSignal } from "../../domains/sessions/archive-signal";
 import type { BranchOperation } from "../../domains/workspace/branch-actions";
 import type { Archived } from "../sessions/archived.svelte";
@@ -65,7 +65,7 @@ export const shellUi = {
   },
   /** Remembers the mode; the sidebar follows, the page stays. */
   setMode(next: ShellMode) {
-    mode = next === "chat" && !pluginEnabled("chat") ? "workbench" : next;
+    mode = next === "chat" && !featureEnabled("chat") ? "workbench" : next;
     store("shellMode", mode);
   },
   get collapsed() {
@@ -101,7 +101,7 @@ export const shellUi = {
  * so going back never lands on the workbench home first.
  */
 export function enterHome() {
-  if (mode === "chat" && !pluginEnabled("chat")) {
+  if (mode === "chat" && !featureEnabled("chat")) {
     mode = "workbench";
     store("shellMode", mode);
   }

@@ -35,6 +35,8 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/featureapi"
+	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/handoff"
@@ -42,8 +44,6 @@ import (
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
-	"github.com/rainchan/webmux/internal/pluginapi"
-	"github.com/rainchan/webmux/internal/pluginwire"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
@@ -723,19 +723,19 @@ type wireFixture struct {
 	conversations *conversation.Service
 	handoffs      *handoff.Service
 	root          string
-	projection    pluginwire.Projection
+	projection    featurewire.Projection
 	metadataMu    sync.RWMutex
 	metadataID    string
 	metadata      *hybrid.Metadata
 }
 
 // The synthetic shell below pins transient states independently of provider
-// scheduling, while using the same plugin-owned metadata and converter as live
+// scheduling, while using the same feature-owned metadata and converter as live
 // chat sessions. All other sessions use the real service projection.
 func (f *wireFixture) project(info session.Info) contract.SessionInfo {
 	out := f.projection.Session(info)
 	if metadata := f.chatMetadata(info.ID); metadata != nil {
-		pluginwire.ProjectChat(&out, metadata)
+		featurewire.ProjectChat(&out, metadata)
 	}
 	return out
 }
@@ -752,9 +752,9 @@ func (f *wireFixture) chatMetadata(id string) *hybrid.Metadata {
 func (f *wireFixture) terminal(id string) (bool, string) {
 	if metadata := f.chatMetadata(id); metadata != nil {
 		if metadata.To != "" {
-			return false, string(pluginwire.View(metadata.To))
+			return false, string(featurewire.View(metadata.To))
 		}
-		return metadata.Side == string(hybrid.SideTUI), string(pluginwire.View(metadata.Side))
+		return metadata.Side == string(hybrid.SideTUI), string(featurewire.View(metadata.Side))
 	}
 	return f.projection.Terminal(id)
 }
@@ -873,8 +873,8 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	recovery := hybridresume.New(hybrids, launches, hybridresume.Options{DefaultCwd: root, Creation: hybrids.Creation(), Locations: workspaces, ResumeLocations: workspaces})
 	handoffs := handoff.New(handoff.Options{Creation: hybrids.Creation(), Recovery: recovery, Locations: workspaces, Conversations: conversations, Launch: launches, Hybrid: hybrids, Artifacts: folders, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
 	t.Cleanup(handoffs.Close)
-	f := &wireFixture{wireRecorder: rec, manager: m, hybrids: hybrids, launches: launches, conversations: conversations, handoffs: handoffs, root: root, projection: pluginwire.Projection{Workspace: workspaces, Chat: hybrids, Forward: forwards}}
-	controllers := pluginapi.Bind(pluginapi.Deps{Config: c, Manager: m, Settings: prefs, Workspace: workspaces, Code: codes, Files: files.New(root), Artifacts: folders, Handoffs: handoffs, Conversations: conversations, Push: pushes, Launch: launches, Hybrid: hybrids, Resume: recovery, Forward: forwards, Guide: guide, Public: public, ProjectSession: f.project})
+	f := &wireFixture{wireRecorder: rec, manager: m, hybrids: hybrids, launches: launches, conversations: conversations, handoffs: handoffs, root: root, projection: featurewire.Projection{Workspace: workspaces, Chat: hybrids, Forward: forwards}}
+	controllers := featureapi.Bind(featureapi.Deps{Config: c, Manager: m, Settings: prefs, Workspace: workspaces, Code: codes, Files: files.New(root), Artifacts: folders, Handoffs: handoffs, Conversations: conversations, Push: pushes, Launch: launches, Hybrid: hybrids, Resume: recovery, Forward: forwards, Guide: guide, Public: public, ProjectSession: f.project})
 	creation := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: root, Commands: launches, Locations: workspaces, Files: folders, Chat: hybrids.Creation(), Brief: func(id, dir string) string {
 		return guide.Brief(agentguide.BriefInput{SessionID: id, Dir: dir})
 	}})
@@ -1715,7 +1715,7 @@ func wireHybridRecords(f *wireFixture) {
 		f.t.Fatal(err)
 	}
 	id, sid := item.Info().ID, *f.hybrids.Metadata(item.Info().ID).AgentSessionID
-	// The record captures its association through the workspace plugin port.
+	// The record captures its association through the workspace feature port.
 	f.hybrids.SetWorkspaceSource(func(current string) *hybrid.WorkspaceRef {
 		if current != id {
 			return nil

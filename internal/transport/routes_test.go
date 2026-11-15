@@ -18,9 +18,9 @@ func TestContributionsRejectConflictsAndReservedOverlaps(t *testing.T) {
 		name   string
 		routes []Route
 	}{
-		{"exact duplicate", []Route{{Pattern: "GET /api/plugin", Handler: handler, Exposure: All}, {Pattern: "GET /api/plugin", Handler: handler, Exposure: All}}},
-		{"wildcard equivalent", []Route{{Pattern: "GET /api/plugin/{id}", Handler: handler, Exposure: TCP}, {Pattern: "GET /api/plugin/{name}", Handler: handler, Exposure: Local}}},
-		{"ambiguous overlap", []Route{{Pattern: "GET /api/plugin/{id}/x", Handler: handler, Exposure: All}, {Pattern: "GET /api/plugin/fixed/{name}", Handler: handler, Exposure: All}}},
+		{"exact duplicate", []Route{{Pattern: "GET /api/feature", Handler: handler, Exposure: All}, {Pattern: "GET /api/feature", Handler: handler, Exposure: All}}},
+		{"wildcard equivalent", []Route{{Pattern: "GET /api/feature/{id}", Handler: handler, Exposure: TCP}, {Pattern: "GET /api/feature/{name}", Handler: handler, Exposure: Local}}},
+		{"ambiguous overlap", []Route{{Pattern: "GET /api/feature/{id}/x", Handler: handler, Exposure: All}, {Pattern: "GET /api/feature/fixed/{name}", Handler: handler, Exposure: All}}},
 		{"reserved exact", []Route{{Pattern: "GET /api/health", Handler: handler, Exposure: All}}},
 		{"reserved wildcard", []Route{{Pattern: "GET /api/{rest...}", Handler: handler, Exposure: All}}},
 		{"reserved operation wildcard", []Route{{Pattern: "POST /api/sessions/{id}/{operation}", Handler: handler, Exposure: All}}},
@@ -38,19 +38,19 @@ func TestContributionsRejectConflictsAndReservedOverlaps(t *testing.T) {
 func TestContributionExposureUsesSameBoundHandler(t *testing.T) {
 	calls := 0
 	bound := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; w.WriteHeader(http.StatusNoContent) })
-	contributions := []Contribution{{Owner: "code", Routes: []Route{{Pattern: "GET /api/plugin", Handler: bound, Exposure: All}, {Pattern: "POST /api/plugin/tcp", Handler: bound, Exposure: TCP}}}}
+	contributions := []Contribution{{Owner: "code", Routes: []Route{{Pattern: "GET /api/feature", Handler: bound, Exposure: All}, {Pattern: "POST /api/feature/tcp", Handler: bound, Exposure: TCP}}}}
 	for _, exposure := range []Exposure{TCP, Local, P2P} {
 		mux, err := Mount(testCoreRoutes, contributions, exposure, http.NotFoundHandler())
 		if err != nil {
 			t.Fatal(err)
 		}
 		response := httptest.NewRecorder()
-		mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/plugin", nil))
+		mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/feature", nil))
 		if response.Code != http.StatusNoContent {
 			t.Fatalf("shared route: %d", response.Code)
 		}
 		response = httptest.NewRecorder()
-		mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/plugin/tcp", nil))
+		mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/feature/tcp", nil))
 		want := http.StatusNotFound
 		if exposure == TCP {
 			want = http.StatusNoContent

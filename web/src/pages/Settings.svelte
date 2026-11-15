@@ -34,18 +34,18 @@
   import NetworkSettings from "../components/settings/NetworkSettings.svelte";
   import { Switch } from "$lib/components/ui/switch";
   import { browserDraftStorage } from "../domains/terminal/draft-storage";
-  import { getPluginContributions } from "../plugins/context";
+  import { getFeatureContributions } from "../features/context";
 
-  const pluginSections = getPluginContributions().settings;
-  const launchSections = pluginSections.filter((section) =>
+  const featureSections = getFeatureContributions().settings;
+  const launchSections = featureSections.filter((section) =>
     ["code-reader", "quick-commands", "voice", "launch-configs"].includes(
       section.id,
     ),
   );
-  const accessSections = pluginSections.filter((section) =>
+  const accessSections = featureSections.filter((section) =>
     ["access", "tailscale"].includes(section.id),
   );
-  const notificationSections = pluginSections.filter(
+  const notificationSections = featureSections.filter(
     (section) => section.id === "push",
   );
   const sections = $derived([

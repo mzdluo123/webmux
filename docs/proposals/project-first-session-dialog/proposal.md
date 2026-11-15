@@ -25,10 +25,10 @@
 
 ## Impact
 
-- 前端：components/sessions 下的 NewSessionDialog、NewSessionForm 和 LaunchPicker；components/workspace 下的位置组件，以及 plugins 的创建贡献和相关测试。
-- 服务端：项目清单与接入操作归属 workspace 插件；由 cmd 的 plugin 装配构造，pluginapi 注册 transport contributions，pluginwire 转换可选数据。核心 sessioncreate 只消费 typed ports。
-- 契约：新增项目接口时同步 internal/contract、internal/pluginwire、web/src/contracts/schemas.ts 和 wire 快照，不改变现有 sessions 创建字段互斥规则。
-- 保持 plugins.enabled=[] 的纯核心目录＋命令创建，不引入 workspace/files/launch/chat 必选依赖；新增 workspace.projects 等细粒度能力，避免把无 Git 等同于无项目目录能力。
+- 前端：components/sessions 下的 NewSessionDialog、NewSessionForm 和 LaunchPicker；components/workspace 下的位置组件，以及 features 的创建贡献和相关测试。
+- 服务端：项目清单与接入操作归属 workspace 功能；由 cmd 的 feature 装配构造，featureapi 注册 transport contributions，featurewire 转换可选数据。核心 sessioncreate 只消费 typed ports。
+- 契约：新增项目接口时同步 internal/contract、internal/featurewire、web/src/contracts/schemas.ts 和 wire 快照，不改变现有 sessions 创建字段互斥规则。
+- 保持 features.enabled=[] 的纯核心目录＋命令创建，不引入 workspace/files/launch/chat 必选依赖；新增 workspace.projects 等细粒度能力，避免把无 Git 等同于无项目目录能力。
 - 不重做整个侧栏，不迁移 QuickStart 页面；此次统一范围为新建会话弹窗及其上下文入口。
 - 本次交付为设计与实施计划，尚未改变产品行为；用户故事在实施时更新。
 

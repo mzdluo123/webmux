@@ -24,7 +24,7 @@
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
   import type { Connection } from "../../platform/ws";
   import DraftToggle from "./DraftToggle.svelte";
-  import type { TerminalPlugins } from "../../plugins/terminal";
+  import type { TerminalFeatures } from "../../features/terminal";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import TerminalDisplayControls from "./TerminalDisplayControls.svelte";
@@ -49,7 +49,7 @@
 
   let {
     terminal: t,
-    plugins = {},
+    features = {},
     fullscreen,
     draft,
     draftSaved,
@@ -76,7 +76,7 @@
     xr,
     keyboard,
   }: {
-    plugins?: TerminalPlugins;
+    features?: TerminalFeatures;
     terminal: HeaderTerminal;
     fullscreen: Fullscreen;
     draft: TerminalDraft;
@@ -197,13 +197,13 @@
           role="status">{connectionText}</span
         >{/if}
     </div>
-    {#if plugins.chat && chatAgent}<span
+    {#if features.chat && chatAgent}<span
         class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground sm:order-2"
         role="img"
         aria-label={m.s4_agent_label({ title: chatAgent.title })}
         title={m.s4_agent_label({ title: chatAgent.title })}
         data-slot="chat-agent"
-        >{#if plugins.chat.hasLaunchIcon(chatAgent.icon)}<plugins.chat.LaunchIcon
+        >{#if features.chat.hasLaunchIcon(chatAgent.icon)}<features.chat.LaunchIcon
             icon={chatAgent.icon}
             size="sm"
           /><span class="max-sm:hidden">{chatAgent.title}</span>{:else}<span
@@ -218,7 +218,7 @@
   <!-- Actions, left to right: where the session runs, terminal actions
        (icons), the quick commands and the panes it opens (outlined), then
        the window and the menu. -->
-  {#if plugins.chat}<plugins.chat.ViewTabs
+  {#if features.chat}<features.chat.ViewTabs
       hybrid={hybrid && hybrid.view !== "recovery"
         ? {
             side: hybrid.side,
@@ -242,7 +242,7 @@
       ><IconUpload class="size-4" aria-hidden="true" /></Button
     >
   {/if}
-  {#if plugins.files && upload}<plugins.files.Input
+  {#if features.files && upload}<features.files.Input
       bind:this={fileInput}
       {upload}
     />{/if}

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
-  import { getPluginContributions } from "../../plugins/context";
+  import { getFeatureContributions } from "../../features/context";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -33,7 +33,7 @@
     previewError?: string;
     attentionError?: string;
   } = $props();
-  const providers = getPluginContributions().creation;
+  const providers = getFeatureContributions().creation;
 
   let defaultPreview = $state(true);
   let previewLines = $state<number | undefined>(defaultPreviewSettings.lines);

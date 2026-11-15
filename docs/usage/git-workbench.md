@@ -2,7 +2,7 @@
 
 Git 工作台是独立于终端与混合会话的完整 Git 审阅与交付界面：即使没有任何运行中的会话，也可以直接在桌面或手机浏览器中查看多分支历史图、比较任意提交、按文件或代码块（Hunk）操作真实 Git `index`、固定审阅整个任务的净改动、核对推送预览，或把代码审阅意见安全交回指定会话继续返工。
 
-前提：必须显式同时选择 `workspace`、`code` 并重启，且系统 Git 可用；只有 `workspace` 时仍可登记仓库和管理 worktree，但不提供 Git 工作台。见 [内置插件选择](../deployment/configuration.md#内置插件选择)。
+前提：必须显式同时选择 `workspace`、`code` 并重启，且系统 Git 可用；只有 `workspace` 时仍可登记仓库和管理 worktree，但不提供 Git 工作台。见 [内置功能选择](../deployment/configuration.md#内置功能选择)。
 
 最快路径：
 

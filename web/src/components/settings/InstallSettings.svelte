@@ -5,7 +5,7 @@
   import * as Card from "$lib/components/ui/card";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import { detectSupport } from "../../platform/push";
-  import { pluginEnabled } from "../../platform/plugin-host.svelte";
+  import { featureEnabled } from "../../platform/feature-host.svelte";
   import {
     adviseInstall,
     installation,
@@ -70,11 +70,11 @@
       <InlineNotice tone="warning">
         <p class="font-medium">{m.s2_install_insecure_title()}</p>
         <p>{m.s2_install_insecure_desc()}</p>
-        {#if pluginEnabled("cloudflare")}
+        {#if featureEnabled("cloudflare")}
           <a class="underline underline-offset-2" href="#access"
             >{m.s2_view_public_access_config()}</a
           >
-        {:else if pluginEnabled("tailscale")}
+        {:else if featureEnabled("tailscale")}
           <a class="underline underline-offset-2" href="#tailscale"
             >{m.s2_view_tailscale_config()}</a
           >

@@ -8,10 +8,13 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Settings from "../../src/pages/Settings.svelte";
-import { PluginIDSchema } from "../../src/contracts/plugin-schemas";
-import { enableCreationPlugins, resetCreationPlugins } from "./plugin-fixture";
+import { FeatureIDSchema } from "../../src/contracts/feature-schemas";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
 
-beforeEach(() => enableCreationPlugins(PluginIDSchema.options));
+beforeEach(() => enableCreationFeatures(FeatureIDSchema.options));
 
 const originalURL = location.href;
 
@@ -19,7 +22,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   await cleanup();
   await userEvent.cleanup();
-  resetCreationPlugins();
+  resetCreationFeatures();
   vi.unstubAllGlobals();
   history.replaceState(null, "", originalURL);
   localStorage.clear();
@@ -188,7 +191,7 @@ test("network switch toggles ignoreHighPorts between false and default null", as
 });
 
 test("core settings navigation and sections exclude every disabled provider", async () => {
-  await enableCreationPlugins([]);
+  await enableCreationFeatures([]);
   await openSettings();
   const nav = page.getByRole("navigation", { name: "设置分区" });
   for (const id of [
@@ -225,8 +228,8 @@ test("core settings navigation and sections exclude every disabled provider", as
     .toBeVisible();
 });
 
-test("core theme saves do not submit or erase inactive plugin preferences", async () => {
-  await enableCreationPlugins([]);
+test("core theme saves do not submit or erase inactive feature preferences", async () => {
+  await enableCreationFeatures([]);
   const values = {
     ...emptySettings,
     ignoreHighPorts: false,

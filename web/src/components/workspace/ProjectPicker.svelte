@@ -10,9 +10,9 @@
   import IconBrandGithub from "~icons/tabler/brand-github";
   import IconPlus from "~icons/tabler/plus";
   import {
-    pluginAvailable,
-    pluginCapabilityRevision,
-  } from "../../platform/plugin-host.svelte";
+    featureAvailable,
+    featureCapabilityRevision,
+  } from "../../platform/feature-host.svelte";
   import {
     createProjectSources,
     type ProjectSources,
@@ -79,9 +79,9 @@
     };
   });
   $effect(() => {
-    pluginCapabilityRevision();
+    featureCapabilityRevision();
     untrack(() => {
-      if (source.pending && pluginAvailable("workspace.clone"))
+      if (source.pending && featureAvailable("workspace.clone"))
         void source.resume();
     });
   });
@@ -244,11 +244,11 @@
             <Command.Item
               value="git"
               keywords={[m.s8_proj_source_git_keywords()]}
-              disabled={!pluginAvailable("workspace.clone")}
+              disabled={!featureAvailable("workspace.clone")}
               onSelect={() => go("git")}
               ><IconGitBranch aria-hidden="true" /><ChoiceDetails
                 primary="Git URL"
-                secondary={pluginAvailable("workspace.clone")
+                secondary={featureAvailable("workspace.clone")
                   ? m.s8_proj_source_git_desc()
                   : m.s8_proj_source_git_unavailable()}
               /></Command.Item
@@ -260,7 +260,7 @@
               onSelect={() => go("github")}
               ><IconBrandGithub aria-hidden="true" /><ChoiceDetails
                 primary={m.s8_proj_step_github()}
-                secondary={pluginAvailable("workspace.github")
+                secondary={featureAvailable("workspace.github")
                   ? m.s8_proj_source_github_desc()
                   : m.s8_proj_source_github_unavailable()}
               /></Command.Item

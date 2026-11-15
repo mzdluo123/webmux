@@ -11,9 +11,9 @@
   import type { KeyboardVisibility } from "../../hooks/shared/viewport.svelte";
   import { terminalSession } from "../../hooks/sessions/terminal-session";
   import {
-    availableTerminalPlugins,
-    type TerminalPlugins,
-  } from "../../plugins/terminal";
+    availableTerminalFeatures,
+    type TerminalFeatures,
+  } from "../../features/terminal";
   import { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
   import { isIOS } from "../../platform/touch-input";
   import type { ChatScrollState } from "../../platform/capabilities";
@@ -36,11 +36,11 @@
   import { createSessionTerminalInput } from "../../hooks/terminal/session-terminal-input.svelte";
   import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
   import { m } from "$lib/paraglide/messages.js";
-  import { pluginAvailable } from "../../platform/plugin-host.svelte";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
 
   let {
     id,
-    plugins: initialPlugins,
+    features: initialFeatures,
     drafts,
     onUploadNotice,
     reopen,
@@ -61,7 +61,7 @@
     onscrollstate,
   }: {
     id: string;
-    plugins: TerminalPlugins;
+    features: TerminalFeatures;
     drafts: TerminalDrafts;
     onUploadNotice: (message: string) => void;
     reopen: () => void;
@@ -82,15 +82,15 @@
     onscrollstate?: (state: ChatScrollState) => void;
   } = $props();
   // The page keys the contribution snapshot, including explicit load retries.
-  const plugins = untrack(() => initialPlugins);
-  const availablePlugins = $derived(availableTerminalPlugins(plugins));
-  const chatAvailable = $derived(!!availablePlugins.chat);
+  const features = untrack(() => initialFeatures);
+  const availableFeatures = $derived(availableTerminalFeatures(features));
+  const chatAvailable = $derived(!!availableFeatures.chat);
   const draft = untrack(() => drafts.get(id));
   const leave = () => (onleave ? onleave() : navigate(shellUi.home));
   const voiceEnabled = $derived(
-    !!plugins.voice &&
-      pluginAvailable("voice.recognize") &&
-      plugins.voice.voicePreference.enabled,
+    !!features.voice &&
+      featureAvailable("voice.recognize") &&
+      features.voice.voicePreference.enabled,
   );
   let stage = $state<SessionTerminalStage>();
   let container = $state<HTMLDivElement>();
@@ -131,7 +131,7 @@
     draft,
     drafts: untrack(() => drafts),
     isMounted: () => mounted,
-    isFilesAvailable: () => !!availablePlugins.files,
+    isFilesAvailable: () => !!availableFeatures.files,
     insertText: input.insertText,
     setError: (message) => (error = message),
     onUploadNotice: untrack(() => onUploadNotice),
@@ -142,7 +142,7 @@
     visible && (desktop || !chrome.codeShown) && terminalShown();
   const chrome = useSessionTerminalChrome({
     id: () => id,
-    code: plugins.code,
+    code: features.code,
     draft,
     drafts: untrack(() => drafts),
     isMounted: () => mounted,
@@ -167,7 +167,7 @@
     onscrollstate: (state) => onscrollstate?.(state),
   });
   $effect(() => {
-    if (!availablePlugins.code && chrome.panelView === "code")
+    if (!availableFeatures.code && chrome.panelView === "code")
       chrome.codeShown = false;
     else if (chrome.codeShown && chrome.panelView === "code") codeLoaded = true;
     if (terminalVisible()) {
@@ -186,9 +186,9 @@
     t.send(input);
   }
   async function runQuickCommand(cmd: QuickCommand) {
-    if (!availablePlugins.quickCommands)
+    if (!availableFeatures.quickCommands)
       throw new Error(m.s4_quick_commands_unavailable());
-    return availablePlugins.quickCommands.executeSessionQuickCommand(cmd, {
+    return availableFeatures.quickCommands.executeSessionQuickCommand(cmd, {
       id,
       isMounted: () => mounted,
       isChatView: () => hybrid.view === "chat",
@@ -228,8 +228,8 @@
   );
   const sendUnavailable = $derived(deriveSendUnavailable(t));
   const quickUnavailable = $derived(deriveQuickUnavailable(t));
-  const hybrid = plugins.chat
-    ? plugins.chat.useHybrid(
+  const hybrid = features.chat
+    ? features.chat.useHybrid(
         untrack(() => id),
         t,
         untrack(() => drafts),
@@ -244,9 +244,9 @@
     () => t.connection,
     () => t.info?.generation,
   );
-  const files = plugins.files;
+  const files = features.files;
   const chatUploads =
-    plugins.chat && files
+    features.chat && files
       ? files.useChatUpload(
           uploadHandlers.sendChatFile(files.uploadFile),
           (message) => (error = message),
@@ -265,18 +265,18 @@
     t,
     uploadHandlers.notifyUploadError,
     uploadHandlers.draftBridge,
-    () => !!availablePlugins.files,
+    () => !!availableFeatures.files,
   );
   const fullscreen = useFullscreen((message) => (error = message));
-  const xr = plugins.immersive?.useXrSessionSource({
+  const xr = features.immersive?.useXrSessionSource({
     id: sessionId,
     terminal: t,
-    chatPanel: plugins.chat?.xrChatPanel,
+    chatPanel: features.chat?.xrChatPanel,
     quickCommands: () =>
-      availablePlugins.quickCommands?.availableCommands(
-        !!availablePlugins.files,
+      availableFeatures.quickCommands?.availableCommands(
+        !!availableFeatures.files,
       ) ?? [],
-    codeAvailable: () => !!availablePlugins.code,
+    codeAvailable: () => !!availableFeatures.code,
     hybrid,
     draft,
     codePanels: () => codePanel?.xrPanels() ?? [],
@@ -293,7 +293,7 @@
     runQuick: runQuickCommand,
     error: (message) => (error = message),
     notice: () => {
-      const chatErr = plugins.chat
+      const chatErr = features.chat
         ? stage?.getChatError() || hybrid.chat.error
         : "";
       return [error, t.error, chatErr].filter(Boolean).join(" ");
@@ -314,7 +314,7 @@
   });
 
   function insertVoiceResult(text: string) {
-    plugins.voice?.applySessionVoiceResult(text, {
+    features.voice?.applySessionVoiceResult(text, {
       isMounted: () => mounted,
       isChatView: () => hybrid.view === "chat",
       draft,
@@ -339,9 +339,9 @@
   onbeforeinputcapture={input.guardXrInput}
   onpastecapture={input.guardXrInput}
 >
-  {#if plugins.chat}
-    <plugins.chat.Handoff
-      sourceId={availablePlugins.chat
+  {#if features.chat}
+    <features.chat.Handoff
+      sourceId={availableFeatures.chat
         ? (hybrid.info?.conversationId ?? hybrid.recoverable?.conversationId)
         : undefined}
       root={terminalRoot}
@@ -355,7 +355,7 @@
 {#if active && visible}
   <SessionTerminalDialogs
     {id}
-    plugins={availablePlugins}
+    features={availableFeatures}
     {draft}
     {drafts}
     {hybrid}
@@ -383,7 +383,7 @@
 
 {#snippet terminalStage(chatActions: Snippet | undefined)}
   <SessionTerminalStage
-    plugins={availablePlugins}
+    features={availableFeatures}
     bind:this={stage}
     bind:container
     bind:notice
@@ -401,15 +401,15 @@
     {paneActions}
     {headerTerminal}
     {fullscreen}
-    xr={availablePlugins.immersive ? xr : undefined}
+    xr={availableFeatures.immersive ? xr : undefined}
     {desktop}
     {documentScroll}
     chatVisible={((active && visible) || (input.xrFocused && !!xr?.active)) &&
       (desktop || !chrome.codeShown || !!xr?.active)}
     {hybrid}
     terminal={t}
-    uploads={availablePlugins.files ? uploads : undefined}
-    chatUploads={availablePlugins.chat ? chatUploads : undefined}
+    uploads={availableFeatures.files ? uploads : undefined}
+    chatUploads={availableFeatures.chat ? chatUploads : undefined}
     {chatUploadUnavailable}
     {sendUnavailable}
     {quickUnavailable}
@@ -469,10 +469,10 @@
     onChooseSwitch={() => (chrome.choiceClosed = false)}
   >
     {#snippet codePane()}
-      {#if availablePlugins.code && codeLoaded}<availablePlugins.code.Panel
+      {#if availableFeatures.code && codeLoaded}<availableFeatures.code.Panel
           bind:this={codePanel}
           {id}
-          gitPlugin={availablePlugins.git}
+          gitFeature={availableFeatures.git}
           visible={visible && chrome.codeShown && chrome.panelView === "code"}
           connection={hybrid.view === "chat"
             ? hybrid.chat.connection

@@ -53,7 +53,7 @@ type Location struct {
 	Detail                         LocationDetail
 }
 
-// LocationDetail permits controllers to recover their plugin-owned snapshot.
+// LocationDetail permits controllers to recover their feature-owned snapshot.
 // The marker prevents arbitrary values from entering creation outcomes.
 type LocationDetail interface{ CreatedLocation() }
 type Result struct {

@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures";
 
-test.use({ plugins: ["workspace", "chat", "files", "launch"] });
+test.use({ features: ["workspace", "chat", "files", "launch"] });
 
 test("a failed chat entry leaves workspace home live sessions and terminal navigation usable", async ({
   page,

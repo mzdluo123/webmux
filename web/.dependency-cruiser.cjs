@@ -1,8 +1,8 @@
 // Frontend architecture guard: import direction between layers.
 // Run with `pnpm arch:deps`. See docs/frontend-architecture.md.
 //
-// Layers: App -> plugins (composition) -> pages/components -> hooks -> domains
-// -> platform/contracts. Plugin entries may compose existing views, never the reverse.
+// Layers: App -> features (composition) -> pages/components -> hooks -> domains
+// -> platform/contracts. Feature entries may compose existing views, never the reverse.
 // Type-only dependencies obey the same boundaries as runtime imports.
 
 const PRIMITIVES = "node_modules/(bits-ui|vaul-svelte|paneforge)/";
@@ -100,8 +100,8 @@ module.exports = {
       name: "only-app-composes-pages",
       severity: "error",
       comment:
-        "Pages are composed by App or built-in plugin entries; share state below composition.",
-      from: { pathNot: "^src/(App\\.svelte|pages/|plugins/)" },
+        "Pages are composed by App or built-in feature entries; share state below composition.",
+      from: { pathNot: "^src/(App\\.svelte|pages/|features/)" },
       to: { path: "^src/pages/" },
     },
     {
@@ -133,7 +133,7 @@ module.exports = {
       comment:
         "Resource controllers cannot depend on app or visual composition.",
       from: { path: "^src/hooks/" },
-      to: { path: "^src/(app|plugins|components|pages)/" },
+      to: { path: "^src/(app|features|components|pages)/" },
     },
     {
       name: "domain-does-not-render",
@@ -141,18 +141,18 @@ module.exports = {
       comment:
         "Domain algorithms and state must not depend on application composition.",
       from: { path: "^src/domains/" },
-      to: { path: "(^src/(app|plugins|hooks|components|pages)/|\\.svelte$)" },
+      to: { path: "(^src/(app|features|hooks|components|pages)/|\\.svelte$)" },
     },
     {
-      name: "plugins-are-composition-only",
+      name: "features-are-composition-only",
       severity: "error",
       comment:
-        "Built-in plugin UI is composed by the app and visual hosts, not infrastructure or domain code.",
+        "Built-in feature UI is composed by the app and visual hosts, not infrastructure or domain code.",
       from: { path: "^src/(platform|contracts|domains|hooks|lib)/" },
-      to: { path: "^src/plugins/" },
+      to: { path: "^src/features/" },
     },
     {
-      name: "core-does-not-load-plugin-implementations",
+      name: "core-does-not-load-feature-implementations",
       severity: "error",
       comment:
         "Core visual hosts consume typed lazy contributions; optional implementations must remain behind the local import map.",
