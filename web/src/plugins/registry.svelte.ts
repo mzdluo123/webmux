@@ -1,6 +1,7 @@
 import type { PluginID } from "../contracts/plugin-schemas";
 import { pluginAvailable, pluginEnabled } from "../platform/plugin-host.svelte";
 import { errorMessage } from "../platform/error";
+import { relayAuth } from "../platform/relay-auth.svelte";
 import {
   loadCreateSettingsContributions,
   resetCreateSettingsContributions,
@@ -55,7 +56,12 @@ export function refreshPluginRuntimes(context: HostContext): void {
   ] as const) {
     const entry = loaded[id];
     if (!entry) continue;
-    const available = pluginAvailable(capability);
+    const available =
+      pluginAvailable(capability) ||
+      (id === "p2p" &&
+        pluginEnabled("p2p") &&
+        relayAuth.authenticated &&
+        pluginAvailable("relay.hybrid"));
     const previous = runtimes[id];
     if (previous?.available === available) continue;
     previous?.dispose?.();

@@ -224,7 +224,7 @@ describe("ClientTransport & host base URL abstraction", () => {
       }),
     );
 
-    openSocket("/ws/voice", false);
+    expect(openSocket("/ws/voice", false).transportPath).toBe("ws");
     expect(MockWebSocket.instances[0]?.url).toBe(
       "ws://127.0.0.1:7681/ws/voice",
     );
@@ -257,7 +257,7 @@ describe("ClientTransport & host base URL abstraction", () => {
     xhr.onload?.();
     await expect(uploadPromise).resolves.toEqual({ path: "/tmp/a.txt" });
 
-    openSocket("/ws/sessions", false);
+    expect(openSocket("/ws/sessions", false).transportPath).toBe("wss");
     expect(MockWebSocket.instances[1]?.url).toBe(
       "wss://host-a.example.ts.net/ws/sessions",
     );
@@ -272,6 +272,28 @@ describe("ClientTransport & host base URL abstraction", () => {
     expect(MockWebSocket.instances[2]?.url).toBe(
       "ws://100.64.0.2:7681/sub/ws/sessions?compress=1",
     );
+  });
+
+  it("uses owner CSRF rather than an empty Bearer token for baseline uploads", async () => {
+    vi.stubGlobal("XMLHttpRequest", MockXHR);
+    const pending = createHttpTransport().upload({
+      path: "/uploads",
+      form: new FormData(),
+      token: "",
+      csrfToken: "owner-csrf",
+      timeoutMs: 5000,
+      signal: new AbortController().signal,
+      onProgress: vi.fn(),
+    });
+    const xhr = MockXHR.instances[0]!;
+    expect(xhr.headers.get("X-WebMux-CSRF")).toBe("owner-csrf");
+    expect(xhr.headers.has("Authorization")).toBe(false);
+    xhr.response = { path: "/tmp/upload" };
+    xhr.onload?.();
+    await expect(pending).resolves.toMatchObject({
+      status: 200,
+      body: { path: "/tmp/upload" },
+    });
   });
 
   it("rejects invalid host base URLs", () => {

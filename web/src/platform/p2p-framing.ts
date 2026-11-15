@@ -210,3 +210,50 @@ export function shouldUpgradeToP2P(
     p2pRttMs <= baselineRttMs * 0.85
   );
 }
+
+// One peer, one paired application sample per round. No overlapping rounds.
+export const HYBRID_SAMPLE_INTERVAL_MS = 5_000;
+export const HYBRID_INITIAL_SAMPLE_INTERVAL_MS = 1_000;
+export const HYBRID_COOLDOWN_MS = 30_000;
+export const HYBRID_STABLE_SAMPLES = 3;
+
+export class HybridPathPolicy {
+  private advantage = 0;
+  private degradation = 0;
+  private cooldownUntil = 0;
+
+  reset(now: number) {
+    this.advantage = 0;
+    this.degradation = 0;
+    this.cooldownUntil = now + HYBRID_COOLDOWN_MS;
+  }
+
+  sample(
+    baselineMs: number,
+    candidateMs: number,
+    active: boolean,
+    now: number,
+  ) {
+    const healthy =
+      Number.isFinite(baselineMs) &&
+      Number.isFinite(candidateMs) &&
+      baselineMs >= 0 &&
+      candidateMs >= 0;
+    this.advantage =
+      healthy && shouldUpgradeToP2P(baselineMs, candidateMs)
+        ? this.advantage + 1
+        : 0;
+    this.degradation =
+      healthy && candidateMs >= baselineMs - 5 ? this.degradation + 1 : 0;
+    if (now < this.cooldownUntil) return "hold";
+    if (!active && this.advantage >= HYBRID_STABLE_SAMPLES) {
+      this.reset(now);
+      return "upgrade";
+    }
+    if (active && this.degradation >= HYBRID_STABLE_SAMPLES) {
+      this.reset(now);
+      return "fallback";
+    }
+    return "hold";
+  }
+}

@@ -134,6 +134,10 @@ func NewLocal(d Deps, local Local) http.Handler {
 			mux.ServeHTTP(w, r)
 			return
 		}
+		if (r.URL.Path == "/api/relay" || strings.HasPrefix(r.URL.Path, "/api/relay/")) && local.fromSession(r) {
+			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot control Relay"))
+			return
+		}
 		if c.Plugins.Has("cloudflare") && (r.URL.Path == "/api/tunnel" || strings.HasPrefix(r.URL.Path, "/api/tunnel/")) && local.fromSession(r) {
 			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot control the tunnel"))
 			return

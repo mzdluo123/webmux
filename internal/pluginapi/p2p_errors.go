@@ -3,6 +3,7 @@ package pluginapi
 import (
 	"errors"
 
+	protocol "github.com/mzdluo123/webmux/protocol/relay"
 	"github.com/rainchan/webmux/internal/p2p"
 	"github.com/rainchan/webmux/internal/p2psettings"
 )
@@ -19,6 +20,10 @@ func p2pSettingsStatus(err error) int {
 }
 
 func p2pSignalStatus(err error) int {
+	var remote protocol.Error
+	if errors.As(err, &remote) {
+		return protocol.HTTPStatus(remote.Code)
+	}
 	switch {
 	case errors.Is(err, p2p.ErrInvalid):
 		return 400

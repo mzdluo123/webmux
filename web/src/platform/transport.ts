@@ -4,9 +4,25 @@ export const SOCKET_CONNECTING = 0;
 export const SOCKET_OPEN = 1;
 export const SOCKET_CLOSED = 3;
 
+export type PeerTransportPath = "webrtc-direct" | "webrtc-turn";
+export type TransportPath = "ws" | "wss" | PeerTransportPath;
+export type InteractiveStreamKind = "terminal" | "chat" | "list";
+
+// Unknown routes, encoded separators and bulk-like suffixes never optimize.
+export function interactiveStreamKind(
+  path: string,
+): InteractiveStreamKind | null {
+  const pathname = path.split("?")[0];
+  if (pathname === "/ws/sessions") return "list";
+  if (/^\/ws\/s\/[A-Za-z0-9_-]+\/chat$/.test(pathname ?? "")) return "chat";
+  if (/^\/ws\/s\/[A-Za-z0-9_-]+$/.test(pathname ?? "")) return "terminal";
+  return null;
+}
+
 export interface TransportSocket {
   readonly readyState: number;
   readonly bufferedAmount: number;
+  readonly transportPath?: TransportPath;
   send(data: string | Uint8Array<ArrayBuffer>): void;
   close(code?: number, reason?: string): void;
   onopen: (() => void) | null;
@@ -19,6 +35,7 @@ export interface UploadRequest {
   path: string;
   form: FormData;
   token: string;
+  csrfToken?: string;
   timeoutMs: number;
   signal: AbortSignal;
   onProgress: (percent: number) => void;
@@ -123,7 +140,9 @@ export function createHttpTransport(
       const abort = () => xhr.abort();
       const cleanup = () => req.signal.removeEventListener("abort", abort);
       xhr.open("POST", apiUrl(req.path));
-      xhr.setRequestHeader("Authorization", "Bearer " + req.token);
+      if (req.csrfToken) xhr.setRequestHeader("X-WebMux-CSRF", req.csrfToken);
+      else if (req.token)
+        xhr.setRequestHeader("Authorization", "Bearer " + req.token);
       xhr.responseType = "json";
       xhr.timeout = req.timeoutMs;
       xhr.upload.onprogress = (event) => {
@@ -156,14 +175,18 @@ export function createHttpTransport(
     },
     openStream(path, options) {
       const target = withCompressionQuery(path, options.compress);
-      const socket = new WebSocket(streamUrl(target), protocols(options.token));
+      const url = streamUrl(target);
+      const socket = new WebSocket(url, protocols(options.token));
       socket.binaryType = "arraybuffer";
-      return adaptWebSocket(socket);
+      return adaptWebSocket(socket, url.startsWith("wss:") ? "wss" : "ws");
     },
   };
 }
 
-function adaptWebSocket(socket: WebSocket): TransportSocket {
+function adaptWebSocket(
+  socket: WebSocket,
+  transportPath: "ws" | "wss",
+): TransportSocket {
   let onopen: TransportSocket["onopen"] = null;
   let onmessage: TransportSocket["onmessage"] = null;
   let onclose: TransportSocket["onclose"] = null;
@@ -177,6 +200,7 @@ function adaptWebSocket(socket: WebSocket): TransportSocket {
     onclose?.({ code: event.code, reason: event.reason });
   socket.onerror = () => onerror?.();
   return {
+    transportPath,
     get readyState() {
       return socket.readyState;
     },

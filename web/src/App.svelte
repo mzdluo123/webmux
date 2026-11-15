@@ -25,7 +25,7 @@
     settings,
   } from "./domains/settings/settings.svelte";
   import { errorMessage } from "./platform/error";
-  import { onMount, tick } from "svelte";
+  import { onMount } from "svelte";
   import {
     api,
     consumeTokenFragment,
@@ -33,7 +33,6 @@
     store,
     stored,
   } from "./platform/api";
-  import { HealthSchema } from "./contracts/schemas";
   import { Button } from "$lib/components/ui/button";
   import LazyPage from "./components/shared/LazyPage.svelte";
   import AppShell from "./components/shell/AppShell.svelte";
@@ -75,8 +74,12 @@
   import { tvInput } from "./hooks/shared/tv-input.svelte";
   import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
   import InlineNotice from "./components/shared/InlineNotice.svelte";
+  import { clearRelayAuth } from "./platform/relay-auth";
+  import { prepareHostAuthentication } from "./hooks/shared/host-authentication";
+  import { useRouteFocus } from "./hooks/shared/route-focus";
 
   useDeviceShell();
+  const focusRoute = useRouteFocus();
 
   const drafts = createTerminalDrafts({ storage: browserDraftStorage() });
   let uploadNotice = $state("");
@@ -198,7 +201,7 @@
     settingsWasConnected = connected;
   });
 
-  async function check() {
+  async function check(preferToken = false) {
     checking = true;
     bootstrapAbort?.abort();
     const controller = new AbortController();
@@ -207,7 +210,14 @@
     try {
       disposePluginContributions();
       resetPluginCapabilities();
-      await api("/health", HealthSchema, "GET", undefined, controller.signal);
+      if (
+        !(await prepareHostAuthentication(
+          preferToken,
+          controller.signal,
+          () => epoch === bootstrapEpoch,
+        ))
+      )
+        return;
       discoveryError = "";
       try {
         const capabilities = await api(
@@ -245,22 +255,6 @@
   }
 
   onMount(() => {
-    let focusRoute = false;
-    const focusMain = () => {
-      if (!focusRoute) return;
-      const main = document.querySelector("main");
-      if (!main) return;
-      focusRoute = false;
-      // A page that already placed focus (quick start's input) keeps it.
-      if (main.contains(document.activeElement)) return;
-      main.tabIndex = -1;
-      main.focus({ preventScroll: true });
-    };
-    const routes = new MutationObserver(focusMain);
-    routes.observe(document.getElementById("app")!, {
-      childList: true,
-      subtree: true,
-    });
     const change = () => {
       if (ready && !shellRoute) enterHome();
       const pathChanged = path !== location.pathname;
@@ -268,12 +262,10 @@
       pendingSessionOpen = "";
       path = location.pathname;
       search = location.search;
-      if (pathChanged) {
-        focusRoute = true;
-        void tick().then(focusMain);
-      }
+      if (pathChanged) focusRoute();
     };
     const auth = () => {
+      clearRelayAuth();
       bootstrapEpoch++;
       bootstrapAbort?.abort();
       pluginRefresh.cancel();
@@ -290,7 +282,7 @@
       switcherOpen = false;
       switcherInvoker = null;
       checking = false;
-      error = "Token 无效或已更改";
+      error = "登录已失效，请重新登录或使用本机恢复 Token";
     };
     // Plain anchors to app routes would reload the whole document, which
     // blanks an iOS standalone PWA; route them through history instead.
@@ -335,7 +327,8 @@
     window.addEventListener("popstate", change);
     window.addEventListener("keydown", switcherShortcut, true);
     window.addEventListener("webmux:auth", auth);
-    if (consumeTokenFragment()) token = stored("token");
+    const tokenFromFragment = consumeTokenFragment();
+    if (tokenFromFragment) token = stored("token");
     const disconnectPins = sessionPins.connect();
     const disconnectHost = onActiveHostChange(() => {
       auth();
@@ -355,7 +348,7 @@
       },
       onError: (message) => (discoveryError = message),
     });
-    void check();
+    void check(tokenFromFragment);
     return () => {
       disconnectPins();
       disconnectHost();
@@ -365,7 +358,6 @@
       disposePluginContributions();
       resetPluginCapabilities();
       stopSettings();
-      routes.disconnect();
       drafts.clearAll();
       document.removeEventListener("click", link);
       window.removeEventListener("popstate", change);
@@ -390,7 +382,7 @@
     bind:token
     onconnect={() => {
       store("token", token);
-      void check();
+      void check(true);
     }}
   />
 {:else if rebuildingPlugins}
@@ -411,6 +403,13 @@
   </main>
 {:else if route.name === "settings"}
   <LazyPage load={() => import("./pages/Settings.svelte")} label="设置">
+    {#snippet children(page)}<page.default />{/snippet}
+  </LazyPage>
+{:else if route.name === "settings-relay"}
+  <LazyPage
+    load={() => import("./pages/RelaySettingsPage.svelte")}
+    label="官方 Relay"
+  >
     {#snippet children(page)}<page.default />{/snippet}
   </LazyPage>
 {:else if !shellRoute}

@@ -115,6 +115,7 @@ type StatusV1 struct {
 	// Tunnel is present when the running server can start and stop its
 	// Cloudflare Tunnel at runtime; older servers omit it.
 	Tunnel *TunnelStatus `json:"tunnel,omitempty"`
+	Relay  *RelayStatus  `json:"relay,omitempty"`
 	// Push is present when the running server supports attention push;
 	// older servers omit it.
 	Push *PushStatus `json:"push,omitempty"`

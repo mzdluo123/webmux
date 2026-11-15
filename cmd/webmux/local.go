@@ -119,6 +119,10 @@ func localStatus(record runtime.Record, c serverRun, deps api.Deps, plugins *plu
 		tunnel := plugins.tunnel.Status()
 		s.Tunnel = &tunnel
 	}
+	if deps.Relay != nil {
+		state := deps.Relay.Control.Status()
+		s.Relay = &state
+	}
 	if plugins.tailscale != nil {
 		ts := plugins.tailscale.Summary()
 		s.Tailscale = &ts

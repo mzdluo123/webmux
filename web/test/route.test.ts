@@ -42,6 +42,7 @@ describe("route matching", () => {
       name: "settings-tailscale",
     });
     expect(matchRoute("/settings/tunnel")).toEqual({ name: "settings-tunnel" });
+    expect(matchRoute("/settings/relay")).toEqual({ name: "settings-relay" });
   });
 
   test("matches the forward authentication page", () => {

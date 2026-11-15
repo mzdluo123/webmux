@@ -53,6 +53,7 @@
     { id: "drafts", label: "草稿与暂存" },
     { id: "network", label: "网络" },
     ...accessSections,
+    { id: "relay", label: "官方 Relay" },
     { id: "install", label: "安装应用" },
     ...notificationSections,
     { id: "preview", label: "输出预览" },
@@ -206,6 +207,20 @@
       {#each accessSections as section (section.id)}
         <section.Component />
       {/each}
+      <Card.Root flat id="relay" class="scroll-mt-4">
+        <Card.Header>
+          <Card.Title>官方 Relay</Card.Title>
+          <Card.Description>
+            默认关闭。通过 GitHub 配对主机，在其他设备登录同一账号后打开
+            WebMux，无需复制恢复 Token。
+          </Card.Description>
+        </Card.Header>
+        <Card.Content>
+          <Button href="/settings/relay" variant="outline"
+            >管理官方 Relay</Button
+          >
+        </Card.Content>
+      </Card.Root>
       <InstallSettings />
       {#each notificationSections as section (section.id)}
         <section.Component />

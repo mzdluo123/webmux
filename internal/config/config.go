@@ -38,6 +38,7 @@ type Config struct {
 	Push             PushConfig        `toml:"push"`
 	Voice            VoiceConfig       `toml:"voice"`
 	P2P              P2PConfig         `toml:"p2p"`
+	Relay            RelayConfig       `toml:"relay"`
 	MCP              MCPConfig         `toml:"mcp"`
 	Plugins          PluginConfig      `toml:"plugins"`
 }
@@ -382,6 +383,11 @@ func (c *Config) Validate() error {
 	if err := c.P2P.validate(); err != nil {
 		return err
 	}
+	relayConfig, err := c.Relay.Validated()
+	if err != nil {
+		return err
+	}
+	c.Relay = relayConfig
 	return c.Push.validate()
 }
 

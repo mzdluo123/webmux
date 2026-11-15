@@ -1,16 +1,18 @@
 import {
   P2PControlMessageSchema,
-  P2PPingResponseSchema,
-  P2PSignalResponseSchema,
   type P2PICECandidate,
 } from "../contracts/schemas";
-import { stored } from "./storage";
-import { defaultBrowserTransport } from "./transport";
+import { relayOwnerAuthenticated, relayAuthRevision } from "./relay-auth";
+import {
+  requestOwnerICE,
+  sendSignalHttp,
+  nextP2PPingSequence,
+  PING_TIMEOUT_MS,
+  NEGOTIATION_TIMEOUT_MS,
+} from "./p2p-signaling";
 
 const P2P_PROTO_VERSION = 1;
 const CONTROL_LABEL = "webmux:control";
-const PING_TIMEOUT_MS = 4_000;
-const NEGOTIATION_TIMEOUT_MS = 30_000;
 const CANDIDATE_INTERVAL_MS = 1_000;
 
 export interface NegotiatedSession {
@@ -19,11 +21,12 @@ export interface NegotiatedSession {
   control: RTCDataChannel;
   candidateType: string;
   ipFamily: string;
+  path: "webrtc-direct" | "webrtc-turn";
+  expiresAt: number | null;
+  onFailure: (() => void) | null;
   sendPing: () => Promise<number>;
   close: (notifyServer?: boolean) => void;
 }
-
-let pingSeq = 0;
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {
   signal.throwIfAborted();
@@ -40,86 +43,6 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-async function withRequestTimeout<T>(
-  signal: AbortSignal | undefined,
-  timeoutMs: number,
-  request: (signal: AbortSignal) => Promise<T>,
-): Promise<T> {
-  const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(new Error("P2P request timeout")),
-    timeoutMs,
-  );
-  const abort = () => {
-    clearTimeout(timer);
-    controller.abort(signal?.reason);
-  };
-  if (signal?.aborted) abort();
-  else signal?.addEventListener("abort", abort, { once: true });
-  try {
-    controller.signal.throwIfAborted();
-    return await request(controller.signal);
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener("abort", abort);
-  }
-}
-
-async function sendSignalHttp(
-  payload: {
-    action: "offer" | "candidate" | "close";
-    peerId?: string;
-    sdp?: string;
-    candidates?: P2PICECandidate[];
-  },
-  signal?: AbortSignal,
-) {
-  return withRequestTimeout(
-    signal,
-    payload.action === "close" ? PING_TIMEOUT_MS : NEGOTIATION_TIMEOUT_MS,
-    async (requestSignal) => {
-      const res = await defaultBrowserTransport().fetch("/p2p/signal", {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + stored("token"),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: requestSignal,
-      });
-      if (!res.ok) {
-        throw new Error(`P2P signal failed (${res.status})`);
-      }
-      return P2PSignalResponseSchema.parse(await res.json());
-    },
-  );
-}
-
-export async function measureBaselineHttpRtt(
-  count = 3,
-  signal?: AbortSignal,
-): Promise<number[]> {
-  const samples: number[] = [];
-  for (let i = 0; i < count; i++) {
-    const started = performance.now();
-    await withRequestTimeout(signal, PING_TIMEOUT_MS, async (requestSignal) => {
-      const res = await defaultBrowserTransport().fetch(
-        `/p2p/ping?seq=${++pingSeq}`,
-        {
-          method: "GET",
-          headers: { Authorization: "Bearer " + stored("token") },
-          signal: requestSignal,
-        },
-      );
-      if (!res.ok) throw new Error(`HTTP ping failed (${res.status})`);
-      P2PPingResponseSchema.parse(await res.json());
-      requestSignal.throwIfAborted();
-    });
-    samples.push(Math.max(0, Math.round(performance.now() - started)));
-  }
-  return samples;
-}
-
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -128,13 +51,29 @@ export async function inspectSelectedCandidatePair(
   pc: RTCPeerConnection,
 ): Promise<{
   isRelay: boolean;
+  path: "unknown" | "webrtc-direct" | "webrtc-turn";
   candidateType: string;
   ipFamily: string;
 }> {
   if (typeof pc.getStats !== "function") {
-    return { isRelay: false, candidateType: "direct", ipFamily: "" };
+    return {
+      isRelay: false,
+      path: "unknown",
+      candidateType: "unknown",
+      ipFamily: "",
+    };
   }
-  const stats = await pc.getStats();
+  const { promise, reject } = Promise.withResolvers<never>();
+  const timer = setTimeout(
+    () => reject(new Error("ICE statistics timeout")),
+    PING_TIMEOUT_MS,
+  );
+  let stats: RTCStatsReport;
+  try {
+    stats = await Promise.race([pc.getStats(), promise]);
+  } finally {
+    clearTimeout(timer);
+  }
   let selectedLocalId = "";
   let selectedRemoteId = "";
 
@@ -154,6 +93,7 @@ export async function inspectSelectedCandidatePair(
   });
 
   if (!selectedLocalId) {
+    let nominated = 0;
     stats.forEach((report: Record<string, unknown>) => {
       if (
         report.type === "candidate-pair" &&
@@ -161,9 +101,14 @@ export async function inspectSelectedCandidatePair(
         report.state === "succeeded"
       ) {
         selectedLocalId = asString(report.localCandidateId);
+        nominated++;
         selectedRemoteId = asString(report.remoteCandidateId);
       }
     });
+    if (nominated !== 1) {
+      selectedLocalId = "";
+      selectedRemoteId = "";
+    }
   }
 
   const localCand = selectedLocalId
@@ -184,9 +129,20 @@ export async function inspectSelectedCandidatePair(
   const candidateType =
     localType && remoteType
       ? `${localType}/${remoteType}`
-      : localType || remoteType || "direct";
+      : localType || remoteType || "unknown";
 
-  return { isRelay, candidateType, ipFamily };
+  const knownTypes: Record<string, true> = {
+    host: true,
+    srflx: true,
+    prflx: true,
+    relay: true,
+  };
+  const path = isRelay
+    ? "webrtc-turn"
+    : knownTypes[localType] && knownTypes[remoteType]
+      ? "webrtc-direct"
+      : "unknown";
+  return { isRelay, path, candidateType, ipFamily };
 }
 
 export async function negotiateDirectPeer(
@@ -197,8 +153,26 @@ export async function negotiateDirectPeer(
   if (typeof RTCPeerConnection === "undefined") {
     throw new Error("RTCPeerConnection unavailable");
   }
-  const iceServers: RTCIceServer[] =
+  const owner = relayOwnerAuthenticated();
+  const authorizationRevision = relayAuthRevision();
+  const peerConnectionId = owner
+    ? btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
+        .replaceAll("+", "-")
+        .replaceAll("/", "_")
+        .replace(/=+$/, "")
+    : undefined;
+  let iceServers: RTCIceServer[] =
     stunServers.length > 0 ? [{ urls: stunServers }] : [];
+  let expiresAt: number | null = null;
+  if (peerConnectionId !== undefined) {
+    const endpoint = await requestOwnerICE(
+      peerConnectionId,
+      authorizationRevision,
+      signal,
+    );
+    iceServers = endpoint.servers;
+    expiresAt = endpoint.expiresAt;
+  }
   const pc = new RTCPeerConnection({ iceServers });
   let control: RTCDataChannel;
   try {
@@ -212,6 +186,8 @@ export async function negotiateDirectPeer(
   let peerId = "";
   let closed = false;
   let negotiating = true;
+  let negotiatedSession: NegotiatedSession | null = null;
+  let expiryTimer: ReturnType<typeof setTimeout> | undefined;
   let resolveHello!: (meta: {
     candidateType: string;
     ipFamily: string;
@@ -253,14 +229,30 @@ export async function negotiateDirectPeer(
     }
   >();
   const notifyClose = () => {
-    if (peerId) {
-      void sendSignalHttp({ action: "close", peerId }).catch(() => undefined);
+    if (
+      peerId &&
+      (!owner ||
+        (relayOwnerAuthenticated() &&
+          relayAuthRevision() === authorizationRevision))
+    ) {
+      void sendSignalHttp({ action: "close", peerId, peerConnectionId }).catch(
+        () => undefined,
+      );
     }
   };
   const closeSession = (notifyServer = true) => {
     if (closed) return;
     closed = true;
     stopNegotiating();
+    clearTimeout(expiryTimer);
+    if (owner && typeof window !== "undefined")
+      window.removeEventListener("webmux:relay-revoked", revokeOwner);
+    // Drop the short-lived TURN material before closing the allocation.
+    try {
+      pc.setConfiguration({ iceServers: [] });
+    } catch {
+      // A failed/closed peer can reject configuration updates.
+    }
     for (const pending of pendingPongs.values()) {
       clearTimeout(pending.timer);
       pending.reject(new Error("Control channel closed"));
@@ -281,6 +273,7 @@ export async function negotiateDirectPeer(
       // Already closed.
     }
     if (notifyServer) notifyClose();
+    negotiatedSession?.onFailure?.();
   };
   function fail(err: unknown) {
     if (!negotiating) return;
@@ -288,14 +281,25 @@ export async function negotiateDirectPeer(
     rejectFailure(err);
     closeSession();
   }
+  function revokeOwner() {
+    if (negotiating) fail(new Error("P2P authorization revoked"));
+    else closeSession(false);
+  }
   const ensureNegotiating = () => {
     work.signal.throwIfAborted();
+    if (
+      owner &&
+      (!relayOwnerAuthenticated() ||
+        relayAuthRevision() !== authorizationRevision)
+    ) {
+      throw new Error("P2P authorization revoked");
+    }
   };
   const sendPing = (): Promise<number> => {
     if (closed || control.readyState !== "open") {
       return Promise.reject(new Error("Control channel not open"));
     }
-    const seq = ++pingSeq;
+    const seq = nextP2PPingSequence();
     const sentAt = performance.now();
     return new Promise<number>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -383,6 +387,8 @@ export async function negotiateDirectPeer(
     }
   };
   signal?.addEventListener("abort", abort, { once: true });
+  if (owner && typeof window !== "undefined")
+    window.addEventListener("webmux:relay-revoked", revokeOwner);
   const applyCandidates = async (candidates: P2PICECandidate[]) => {
     for (const candidate of candidates) {
       ensureNegotiating();
@@ -404,6 +410,7 @@ export async function negotiateDirectPeer(
         {
           action: "candidate",
           peerId,
+          peerConnectionId,
           ...(batch.length > 0 ? { candidates: batch } : {}),
         },
         work.signal,
@@ -418,7 +425,7 @@ export async function negotiateDirectPeer(
     await pc.setLocalDescription(offer);
     ensureNegotiating();
     const response = await sendSignalHttp(
-      { action: "offer", sdp: offer.sdp ?? "" },
+      { action: "offer", sdp: offer.sdp ?? "", peerConnectionId },
       work.signal,
     );
     peerId = response.peerId;
@@ -437,28 +444,37 @@ export async function negotiateDirectPeer(
     void exchangeCandidates().catch((err: unknown) => {
       if (negotiating) fail(err);
     });
-    const helloMeta = await helloDone;
+    await helloDone;
     ensureNegotiating();
     const statsMeta = await inspectSelectedCandidatePair(pc);
     ensureNegotiating();
-    if (statsMeta.isRelay) {
+    if (statsMeta.path === "unknown") {
+      throw new Error("Selected ICE pair unavailable");
+    }
+    if (statsMeta.isRelay && !owner) {
       const err = new Error("Relay candidate rejected");
       err.name = "RelayRejectedError";
       throw err;
     }
     stopNegotiating();
-    return {
+    if (expiresAt !== null) {
+      const remaining = expiresAt * 1000 - Date.now();
+      if (remaining <= 0) throw new Error("ICE authorization expired");
+      expiryTimer = setTimeout(() => closeSession(), remaining);
+    }
+    negotiatedSession = {
       peerId,
       pc,
       control,
-      candidateType:
-        statsMeta.candidateType !== "direct"
-          ? statsMeta.candidateType
-          : helloMeta.candidateType || "direct",
-      ipFamily: statsMeta.ipFamily || helloMeta.ipFamily || "ipv4",
+      candidateType: statsMeta.candidateType,
+      ipFamily: statsMeta.ipFamily,
+      path: statsMeta.path,
+      expiresAt,
+      onFailure: null,
       sendPing,
       close: closeSession,
     };
+    return negotiatedSession;
   };
   try {
     if (signal?.aborted) abort();

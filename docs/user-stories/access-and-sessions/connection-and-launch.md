@@ -50,12 +50,38 @@
   - 片段不发送到服务器；
   - WebSocket 认证通过子协议携带 token，不放入请求 URL 或 Cookie；
   - 链接仍是敏感入口。
+- **US-A07 配对并启用官方中转**：作为宿主使用者，我希望确认公网风险后通过 GitHub 配对自己的主机，以便获得固定 HTTPS 入口而不复制长期 Token 到手机。
+  验收要点：
+  - Relay 默认关闭，未选择相关插件时不创建连接、身份或设置文件；启用前须确认公网 Shell 风险，保留足够长的本机恢复 Token；
+  - 设备配对可取消、到期和重新发起；同账号重新绑定必须显式确认，更换身份不改变既有完整公共 Origin；
+  - 设置显示账号、绑定、控制/批量角色连接、控制面和已分配数据端点各自的来源及可达性，不将配置存在当作就绪；
+  - 关闭立即停止连接，保存失败仍保持关闭；状态文件损坏或锁冲突不能恢复旧授权或自动重新暴露公网；
+  - 控制角色断开使派生访问失效，批量角色断开只降级文件业务，不将文件挤入交互连接；
+  - 未选择或裁剪 P2P 时仍能使用 WSS，明确显示交互优化不可用，不偷偷加载 Pion 或启动 P2P I/O。
+- **US-A08 GitHub 登录自己的主机**：作为跨设备使用者，我希望在手机登录同一个 GitHub 账号并打开自己的在线主机，以便免输长期 Token，同时保留账号与主机隔离。
+  验收要点：
+  - 后台仅列出当前数字账号拥有的主机，GitHub 名称只作显示；无邀请、跨账号、撤销或离线访问不能取得授权；
+  - 固定回调、浏览器绑定 state 与 PKCE、一次性短期 code 共同保护跳转；兑换并发只能成功一次，不重放未知结果；
+  - 宿主签发 Secure、HttpOnly、SameSite=Lax、限定公共 Origin 的绝对期限 Cookie；不在 URL、日志或网页设置中暴露长期 Token 或秘密；
+  - Cookie 写请求验证精确 Origin 和 CSRF，WebSocket 校验 Origin；设备密钥、本机会话内进程或长期 Token 不能单独签发浏览器 TURN 凭据；
+  - 退出、撤销和重新绑定关闭相关 HTTP、WebSocket、P2P 和转发访问，但保留 PTY 进程；不能将节点断连、超时或新代际 ACK 冒充旧代际全部访问已关闭；
+  - 端口转发仅作为 WebMux 内部入口，不提供任意网站的独立 GitHub 访问网关。
+- **US-A09 管理中转节点与授权**：作为中转运营者，我希望经受限 CLI 集中管理节点、邀请与秘密，以便分开部署 WSS 和 TURN，而不让普通登录账号获得运营权限。
+  验收要点：
+  - 独立控制面持久化 PostgreSQL；管理 CLI 经同用户 Unix socket 调用管理 API，不开放运营网页或公网管理端口；
+  - 首次连接前预置节点 CA 签发的客户端证书及匹配私钥，控制面同时校验证书链与管理员登记的节点 SPKI，不从首次连接学习身份；
+  - 支持 WSS-only、TURN-only 和双能力节点；按用途发现地址，禁止向 TURN-only 分配 WSS 流量，也不自动改变既有宿主 Origin；
+  - 配置按版本和摘要校验并区分 desired、实际 applied、pending-restart；运行中的中断变更须批准精确版本及组件，失败保留最后有效状态；
+  - 秘密以部署主密钥加密保存，经认证通道按节点和用途交付；冷启动控制面不可达时不恢复旧秘密或授权，运行中失联有界撤权；
+  - 原版 coturn 使用账号 allocation 数、每会话带宽及节点容量限制，不宣称共享账号带宽桶、累计流量额度或凭据到期立即清除 allocation；
+  - Docker 使用 `--init`，代理监督并回收 coturn；TURN 故障不重启健康 WSS，容器升级仍会中断存量连接。
 
 依据：
 
 - [统一品牌标识](../../../web/src/components/shell/Brand.svelte)、[品牌图标](../../../web/public/icon.svg)、[浏览器图标入口](../../../web/index.html)
 - [应用入口](../../../web/src/App.svelte)、[Token 说明](../../../web/src/components/shared/TokenHelp.svelte)、[配置命令](../../../cmd/webmux/configcmd.go)
 - [启动与 token 生成](../../../cmd/webmux/main.go)、[API 路由与安全检查](../../../internal/api/router.go)、[Host 校验](../../../internal/api/host.go)
+- [Relay 公共授权协议](../../../protocol/relay/access.go)、[节点配置及身份协议](../../../protocol/relay/node.go)、[撤销与流边界](../../../protocol/relay/stream.go)
 - [安全说明](../../../SECURITY.md)。
 
 ## B. 创建会话与选择启动位置

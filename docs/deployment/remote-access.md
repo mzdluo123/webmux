@@ -1,8 +1,8 @@
 # 远程访问与 HTTPS
 
-手机、局域网与公网访问：Tailscale、访问链接、Cloudflare Tunnel 与 HTTPS。
+手机、局域网与公网访问：Tailscale、官方 Relay、访问链接、Cloudflare Tunnel 与 HTTPS。
 
-直接经可信 VPN 访问核心 HTTP/WebSocket 不需要插件。由 WebMux 托管入口分别需要 `tailscale` 或 `cloudflare`；自动直连升级需要 `p2p`。先 [选择插件](configuration.md#内置插件选择) 并重启，再调整其业务开关。
+直接经可信 VPN 访问核心 HTTP/WebSocket 不需要插件。由 WebMux 托管入口分别需要 `tailscale`、`relay` 或 `cloudflare`；交互 WebRTC 优化需要选择 `p2p`，不选择时 Relay 仍可使用 WSS。先 [选择插件](configuration.md#内置插件选择) 并重启，再调整业务开关。
 
 ## 手机访问（Tailscale）
 
@@ -14,6 +14,28 @@
 详细配置、端口、WSL Windows provider 与故障排查见 [Tailscale Serve / Funnel 入口](../tailscale.md)。
 
 防火墙应只允许可信 VPN 接口访问该端口。
+
+## 官方 Relay
+
+使用同一个 GitHub 账号配对宿主并在手机打开后台，可访问自己的固定 HTTPS 入口，不必在设备之间复制长期 WebMux Token。
+
+1. 选择 `relay` 插件并重启；需要交互优化时同时选择 `p2p`。保持本机恢复 Token 至少 43 字符，并先确认公网 Shell 风险。
+2. 通过受信发行配置或运营者取得控制面引导：`[relay]` 的 `control_endpoint`、`control_audience` 与 `initial_trust`。它们只有公开地址与 SPKI 信任材料，不包含 OAuth Secret 或服务私钥。
+3. 在“设置”点击“管理官方 Relay”，进入 `/settings/relay`，按设备配对流程登录 GitHub；完成配对后再显式启用公网访问。
+4. 手机打开该控制面的 HTTPS 后台，登录同一 GitHub 账号，选择自己的在线主机。后台只列出账号拥有的 WebMux，不是其他应用的公开目录。
+
+缺少有效引导、标准 TLS 或 SPKI 校验失败时不能连接，不从首次响应学习未知服务身份。数据节点地址由已认证控制面分配，不要求用户手填第二个节点。
+本说明不表示默认官方服务已经上线；正式域名、邀请及可信发布材料必须由实际部署提供。
+
+浏览器先使用 WSS；可用时依据应用层往返测量选择 WebRTC 直连或授权 TURN 承载交互。上传、下载及全部 `/forward/*` 始终走 WSS 批量路径。
+P2P 未选择或被裁剪时明确显示优化不可用，不自动加载或启用插件。TURN、UDP 不可达时保持 WSS，不能以“ICE 已连接”代替业务可用。
+
+设置诊断分别报告控制面与数据节点、角色连接、授权来源和可达性；后台登录正常不等于宿主在线。批量角色故障不应挤占交互连接，控制角色故障会撤销派生访问。
+宿主关闭立即停止公网连接；保存失败仍保持关闭并提示修复。解绑或后台退出可能等待逐 Scope 撤权确认，断连和超时不代表确认成功，也不结束 PTY。
+Cookie 会话有绝对期限，写请求检查 Origin/CSRF；长期 Token 仍是需要独立保管的本机恢复凭据，不能把配对码、Cookie 或 TURN 凭据发给其他人。
+
+> [!WARNING]
+> Relay 是受信中间人，会终止 TLS 并可接触转发内容与凭据，不是端到端加密或进程沙箱。风险边界见[安全说明](../../SECURITY.md#官方-relay)。
 
 ## 移动网络上的 P2P 直连
 
@@ -31,7 +53,7 @@
 
 服务器处于严格的、端点相关映射的 NAT 后，也会主动向手机候选地址发送 ICE 探测。
 offer/answer 角色不决定 UDP 发起方向，无需设置“反向连接”；若手机候选可达，仍可能通过实际探测来源建立 peer-reflexive 候选。
-双方都严格限制映射和入站流量时不能保证直连；WebMux 拒绝 TURN relay，并继续使用现有 WebSocket 回退。
+双方都严格限制映射和入站流量时不能保证直连；普通 Token 连接拒绝 TURN relay，并继续使用现有 WebSocket 回退。官方 Relay 所有者连接只接受按会话授权的 TURN，仍保留 WSS 基线。
 
 ### 诊断与移动网络验收
 
@@ -92,7 +114,7 @@ Cloudflare 控制台步骤、两个 token 的区别、Windows/WSL 托盘操作�
 
 ## HTTPS
 
-WebMux 不内置 TLS。需要浏览器安全上下文（系统剪贴板 API）时，推荐使用托管的 `[tailscale] mode = "serve"`（仅 tailnet）或 `mode = "funnel"`（显式公网），WebMux 会自动处理证书、端口、Host/Origin 与启动对账，详见 [Tailscale Serve / Funnel 入口](../tailscale.md)。
+宿主普通 HTTP 监听不提供公网 TLS 终止。需要浏览器安全上下文（系统剪贴板 API）时，可使用官方 Relay，或托管的 `[tailscale] mode = "serve"`（仅 tailnet）/ `mode = "funnel"`（显式公网）。Tailscale 的证书、端口、Host/Origin 与启动对账见 [Tailscale Serve / Funnel 入口](../tailscale.md)。
 
 也可以手工使用 `tailscale serve`、Cloudflare Tunnel 或 Caddy 反向代理 HTTPS：
 

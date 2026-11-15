@@ -16,12 +16,14 @@
   import { HealthSchema, type Health } from "../../contracts/schemas";
   import { toggleTheme } from "../../hooks/settings/theme";
   import type { Connection } from "../../platform/ws";
+  import { relayAuth } from "../../platform/relay-auth.svelte";
   const p2pState = $derived(
     pluginContributions.entries.p2p?.p2pState ?? {
       mode: "ws",
       p2pRttMs: null,
       candidateType: "",
       ipFamily: "",
+      streams: [],
     },
   );
   const forward = $derived(pluginContributions.entries.forward);
@@ -172,7 +174,17 @@
         </dd>
         <dt class="text-muted-foreground">传输路径</dt>
         <dd class={p2pState.mode === "p2p" ? "text-success" : ""}>
-          {#if p2pState.mode === "p2p"}P2P 直连{p2pState.candidateType
+          {#if relayAuth.authenticated}
+            WSS 基线；{p2pState.streams.reduce(
+              (count, stream) =>
+                count +
+                Number(
+                  stream.path === "webrtc-direct" ||
+                    stream.path === "webrtc-turn",
+                ),
+              0,
+            )} 条交互流已优化（可能混合路径）
+          {:else if p2pState.mode === "p2p"}P2P 直连{p2pState.candidateType
               ? `（${p2pState.candidateType}${p2pState.ipFamily ? `/${p2pState.ipFamily}` : ""}）`
               : ""}{:else}WebSocket{/if}
         </dd>

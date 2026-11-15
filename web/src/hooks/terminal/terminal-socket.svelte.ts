@@ -67,9 +67,9 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const identity = clientIdentity();
-  let generation: string | undefined;
+  let generation = $state<string>();
   let offset = 0;
-  let synced = false;
+  let synced = $state(false);
   const controlling = () =>
     !!control && control.controller?.clientId === identity.id;
   // Unconfirmed submissions, re-queried after every reconnect.
@@ -78,7 +78,10 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     (state: SubmissionProgress) => void
   >();
   const accepting = () =>
-    connection === "connected" && !restoring && exitCode === null;
+    connection === "connected" &&
+    !restoring &&
+    exitCode === null &&
+    (generation === undefined || synced);
   const submission = () => {
     const run = generation ?? info?.generation;
     if (!terminal || !socket || !run || !accepting()) return undefined;
@@ -228,6 +231,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
               if (!appending && !view.preserveViewport()) view.scrollToBottom();
             } else {
               synced = false;
+              restoring = true;
               ws.send(2, new Uint8Array());
             }
           }
@@ -311,6 +315,12 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       {
         resume(send) {
           return !stale && send(4, encodeIdsQuery([newSubmissionId()]));
+        },
+        canHandoff(position) {
+          return (
+            position.mode === "reset" ||
+            resolveAppendOverlap(synced, generation, offset, position).accept
+          );
         },
       },
     );
@@ -421,7 +431,8 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     attach,
     // Sends user input. A rejected send is reported, never queued.
     sendInput(input: string) {
-      const sent = socket?.send(0, encoder.encode(input)) ?? false;
+      const sent =
+        accepting() && (socket?.send(0, encoder.encode(input)) ?? false);
       if (!sent) error = inputSendError;
       else {
         if (error === inputSendError) error = "";

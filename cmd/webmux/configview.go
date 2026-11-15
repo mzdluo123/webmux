@@ -15,6 +15,7 @@ import (
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/p2psettings"
 	"github.com/rainchan/webmux/internal/push"
+	"github.com/rainchan/webmux/internal/relaysetting"
 	"github.com/rainchan/webmux/internal/runtime"
 	"github.com/rainchan/webmux/internal/settings"
 	"github.com/rainchan/webmux/internal/statefile"
@@ -107,6 +108,8 @@ func webSources(view *contract.Configuration, tunnel, tailscale, p2pWeb bool) {
 func configuredView(path string, c config.Config) contract.Configuration {
 	var tunnelWeb, tailscaleWeb, p2pWeb bool
 	var tunnelError, tailscaleError, p2pError error
+	relaySettings, relayWeb, relayError := relaysetting.Inspect(c.StateDir, c.Relay)
+	c.Relay = relaySettings.Config
 	if c.Plugins.Has("cloudflare") {
 		c.Tunnel, tunnelWeb, tunnelError = tunnelsettings.Inspect(c.StateDir, c.Tunnel)
 		if tunnelError != nil && !statefile.IsKind(tunnelError, statefile.Missing) {
@@ -127,6 +130,16 @@ func configuredView(path string, c config.Config) contract.Configuration {
 	}
 	view := configuration(path, c, "configured", exists(path))
 	webSources(&view, tunnelWeb, tailscaleWeb, p2pWeb)
+	if relayWeb {
+		for _, key := range []string{"relay.enabled", "relay.control_endpoint", "relay.control_audience", "relay.initial_trust.algorithm", "relay.initial_trust.pins", "relay.transport"} {
+			field := view.Fields[key]
+			field.Source = "web"
+			view.Fields[key] = field
+		}
+	}
+	if relayError != nil && !statefile.IsKind(relayError, statefile.Missing) {
+		view.Fields["relay.enabled"] = contract.ConfigField{Value: false, Source: "safety"}
+	}
 	for _, description := range statefile.Catalog() {
 		if health, disabled := disabledStore(c, description.ID); disabled {
 			view.Stores = append(view.Stores, health)
@@ -157,6 +170,8 @@ func configuredView(path string, c config.Config) contract.Configuration {
 			err = tailscaleError
 		case statefile.P2PSettings:
 			err = p2pError
+		case statefile.Relay:
+			err = relayError
 		case statefile.TailscaleOwnership:
 			_, err = statefile.ReadSnapshot[tailscaleState](c.StateDir, description.ID, validateOwnership)
 		case statefile.Settings:
@@ -222,8 +237,28 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, plugins *p
 		c.P2P, p2pWeb = plugins.p2pControl.cfg, plugins.p2pControl.web
 		plugins.p2pControl.mu.Unlock()
 	}
+	if deps.Relay != nil {
+		if controller, ok := deps.Relay.Control.(*relayController); ok {
+			controller.mu.Lock()
+			c.Relay = controller.settings.Config
+			controller.mu.Unlock()
+		}
+	}
 	view := configuration(c.ConfigPath, c.Config, "effective", c.ConfigFound)
 	webSources(&view, tunnelWeb, tailscaleWeb, p2pWeb)
+	if deps.Relay != nil {
+		state := deps.Relay.Control.Status()
+		view.Fields["relay.enabled"] = contract.ConfigField{Value: state.Enabled, Source: state.ControlSource}
+		view.Fields["relay.runtime"] = contract.ConfigField{Value: state, Source: "runtime"}
+	}
+	if deps.Relay != nil {
+		state := deps.Relay.Control.Status()
+		for _, key := range []string{"relay.control_endpoint", "relay.control_audience", "relay.initial_trust.algorithm", "relay.initial_trust.pins", "relay.transport"} {
+			field := view.Fields[key]
+			field.Source = state.ControlSource
+			view.Fields[key] = field
+		}
+	}
 	if tunnelEnabledSource != "" {
 		field := view.Fields["tunnel.enabled"]
 		field.Source = tunnelEnabledSource
@@ -265,6 +300,10 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, plugins *p
 			err = plugins.tailscaleStore.Unavailable()
 		case statefile.P2PSettings:
 			err = plugins.p2pStore.Unavailable()
+		case statefile.Relay:
+			if deps.Relay != nil && !deps.Relay.Control.Status().StorageAvailable {
+				err = relaysetting.ErrUnavailable
+			}
 		case statefile.VoiceSettings:
 			err = plugins.voiceStore.Unavailable()
 		case statefile.Hybrid, statefile.AgentOptions:

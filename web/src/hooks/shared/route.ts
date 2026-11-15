@@ -53,6 +53,7 @@ export type Route =
   | { name: "settings" }
   | { name: "settings-tailscale" }
   | { name: "settings-tunnel" }
+  | { name: "settings-relay" }
   // Exchanges a ticket for the port-forward gateway cookie, then leaves.
   | { name: "forward-auth" }
   // Chat mode's home: write a task and start an agent in a new worktree.
@@ -89,6 +90,7 @@ export function matchRoute(pathname: string): Route {
   }
   if (pathname === "/settings/tailscale") return { name: "settings-tailscale" };
   if (pathname === "/settings/tunnel") return { name: "settings-tunnel" };
+  if (pathname === "/settings/relay") return { name: "settings-relay" };
   if (pathname === "/forward-auth") return { name: "forward-auth" };
   if (pathname === "/new") return { name: "quick-start" };
   if (pathname === "/settings") return { name: "settings" };

@@ -5,12 +5,11 @@
   import { Switch } from "$lib/components/ui/switch";
   import { Textarea } from "$lib/components/ui/textarea";
   import { useP2PSettings } from "../../hooks/settings/p2p-settings.svelte";
-  import {
-    p2pState,
-    runP2PEchoABTest,
-    type P2PPhase,
-  } from "../../platform/p2p.svelte";
+  import { p2pState, type P2PPhase } from "../../platform/p2p-state.svelte";
+  import { runP2PEchoABTest } from "../../platform/p2p.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import { relayAuth } from "../../platform/relay-auth.svelte";
+  import { relayDiagnostic } from "../../domains/settings/relay-diagnostics";
 
   const p2p = useP2PSettings();
   const ui = p2p.ui;
@@ -96,11 +95,11 @@
     skipped_local: "本机/内网或加密虚拟网直连，已跳过",
     skipped_low_rtt: "基线低延迟（< 15 ms），保持 WebSocket",
     probing: "正在测量基线 RTT…",
-    negotiating: "正在协商 WebRTC 直连…",
-    connected: "WebRTC DataChannel 已就绪",
-    rejected_relay: "仅发现中继候选（relay），已拒绝升级",
-    direct_failed: "未能建立直连，保持 WebSocket 并后台重试",
-    standby_hysteresis: "直连成功，延迟收益不足，保持 WebSocket",
+    negotiating: "正在协商 WebRTC 候选…",
+    connected: "候选通过应用层采样；各流独立续接",
+    rejected_relay: "当前本机直连策略不接受中继候选",
+    direct_failed: "未能建立候选路径，保持 WebSocket 并后台重试",
+    standby_hysteresis: "候选延迟收益不足，保持 WebSocket",
     fallback: "已回退至 WebSocket，等待网络恢复并后台重新探测",
   };
 
@@ -131,9 +130,9 @@
     <div class="space-y-1">
       <h3 class="text-base font-medium">机会性 P2P 直连升级</h3>
       <p class="text-xs text-muted-foreground">
-        在公网高延迟隧道（如 Cloudflare Tunnel）下后台建立 WebRTC DataChannel
-        直连，首屏不阻塞，失败或断连立即无感回落 WebSocket，且永不使用 TURN
-        中继。
+        本机与其他独立入口可后台建立 WebRTC 直连，首屏不阻塞，失败后回落
+        WebSocket。官方 Relay 的已授权所有者可另取短期 TURN
+        候选；只有稳定测量更优才逐流切换，不代表所有业务统一走 P2P。
       </p>
     </div>
     {#if status}
@@ -171,8 +170,9 @@
         />
       </div>
       <p id="p2p-enabled-help" class="text-xs text-muted-foreground">
-        默认开启。回环地址、局域网私有地址、Tailscale 或基线 RTT 低于 15 ms
-        时自动跳过。
+        本机直连默认开启；回环、局域网、Tailscale 或基线 RTT 低于 15 ms 时跳过。
+        此开关不影响已授权 Relay 所有者的自动优化；文件、语音、设置与转发仍走
+        WSS。
       </p>
     </div>
 
@@ -253,7 +253,11 @@
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap items-center gap-2" role="status">
           <Badge variant={p2pState.mode === "p2p" ? "success" : "secondary"}>
-            {p2pState.mode === "p2p" ? "P2P 直连" : "WebSocket 基线"}
+            {p2pState.mode === "p2p"
+              ? relayAuth.authenticated
+                ? "优化候选就绪（逐流选择）"
+                : "P2P 直连"
+              : "WebSocket 基线"}
           </Badge>
           <span class="text-xs text-muted-foreground"
             >{phaseText[p2pState.phase]}</span
@@ -267,6 +271,19 @@
           {p2pState.abTest.running ? "测速中…" : "双路径回显测速"}
         </Button>
       </div>
+      {#if relayAuth.authenticated}
+        <p class="text-xs text-muted-foreground">
+          当前实际优化 {p2pState.streams.reduce(
+            (count, stream) =>
+              count +
+              Number(
+                stream.path === "webrtc-direct" ||
+                  stream.path === "webrtc-turn",
+              ),
+            0,
+          )} 条交互流 · {relayDiagnostic(p2pState.reason)}
+        </p>
+      {/if}
 
       <dl class="grid gap-x-6 gap-y-2 text-xs sm:grid-cols-3">
         <div>

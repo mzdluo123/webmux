@@ -500,7 +500,7 @@ test("make-before-break handoff deduplicates overlapping append bytes without du
 
   // Candidate opens and sends append starting from baseOffset ("OVERLAP-TAIL\r\n").
   candidate.open();
-  expect(first.closeCount).toBe(1);
+  expect(first.closeCount).toBe(0);
   await expect
     .element(page.getByRole("status", { name: "Terminal connection" }))
     .toHaveTextContent("connected");
@@ -510,6 +510,7 @@ test("make-before-break handoff deduplicates overlapping append bytes without du
     4,
     position("append", baseOffset, baseOffset + byteLength(replayed)),
   );
+  expect(first.closeCount).toBe(1);
   candidate.receive(0, replayed);
   candidate.receive(0, "LIVE-AFTER\r\n");
 
@@ -518,4 +519,31 @@ test("make-before-break handoff deduplicates overlapping append bytes without du
   expect(text).toContain("OVERLAP-TAIL");
   expect(text).not.toContain("OVERLAP-OVERLAP-");
   expect(api.error).toBe("");
+});
+
+test("a candidate behind the live offset requests a reset without stealing the input writer", async () => {
+  observeGlyphPixels(true);
+  const { socket: baseline, api } = await openSyncedTerminal();
+  const base = byteLength(snapshot);
+  handoffLiveSockets();
+  const candidate = sockets[1]!;
+  candidate.open();
+  baseline.receive(0, "NEW-LIVE\r\n");
+  await expectDomText("NEW-LIVE");
+  candidate.receive(4, position("append", base, base));
+  expect(baseline.closeCount).toBe(0);
+  expect(candidate.sent.filter((frame) => frame[0] === 2)).toHaveLength(1);
+  expect(api.send("x")).toBe(true);
+  expect(inputText(baseline)).toBe("x");
+  expect(inputText(candidate)).toBe("");
+  // The old candidate suffix must not contaminate the fresh reset stream.
+  candidate.receive(0, "STALE-SUFFIX\r\n");
+  candidate.receive(4, position("reset", 0, byteLength("AUTHORITATIVE\r\n")));
+  expect(baseline.closeCount).toBe(0);
+  candidate.receive(1, "AUTHORITATIVE\r\n");
+  expect(baseline.closeCount).toBe(1);
+  await expectDomText("AUTHORITATIVE");
+  expect(domText()).not.toContain("STALE-SUFFIX");
+  expect(inputText(candidate)).toBe("");
+  expect(api.error).toContain("无法确认");
 });

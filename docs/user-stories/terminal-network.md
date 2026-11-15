@@ -27,18 +27,25 @@
     - 设置页“网络”分区可在线开关直连升级、路由器自动端口映射（UPnP IGD / NAT-PMP / PCP）并编辑 `stun:`/`stuns:` 列表（拒绝 `turn:`/`turns:`）；
     - 网页覆盖保存在 `<state_dir>/p2p-settings.json`（目录 0700、文件 0600、独占锁）并立即生效，支持“恢复配置文件默认”；
   - 浏览器访问主机为本机回环、RFC1918/CGNAT/链路本地内网、`.ts.net` 或连续 3 次基线探测 RTT 中位数 `< 15 ms` 时自动跳过协商（`?p2p=force` 仅当前标签页强制探测）；
-  - 信令全部复用现有 Bearer Token + Host + Origin 校验下的 HTTP 接口（`/api/p2p`、`/api/p2p/settings`、`/api/p2p/ping`、`/api/p2p/sessions`），不依赖外部信令服务器；日志不输出终端内容、Token 或完整 SDP 正文；
-  - 服务端使用单端口 ICE UDP 复用同时收集 IPv4 与 IPv6 候选，并在开启端口映射时自动续期、关闭或退出时清理外部映射；若选定候选对任一端为 `relay`（TURN），双方立即关闭该 PeerConnection 并保持基线路径；
+  - 普通 Token 连接的信令复用现有 Bearer Token + Host + Origin 校验下的 HTTP 接口（`/api/p2p`、`/api/p2p/settings`、`/api/p2p/ping`、`/api/p2p/sessions`），不依赖外部信令服务器；日志不输出终端内容、Token 或完整 SDP 正文；
+  - 服务端使用单端口 ICE UDP 复用同时收集 IPv4 与 IPv6 候选，并在开启端口映射时自动续期、关闭或退出时清理外部映射；普通 Token 连接选中 `relay`（TURN）时立即关闭该 PeerConnection 并保持基线，授权 Relay 所有者连接遵循下述混合路径规则；
   - 后台协商总窗口为 30 秒，候选按会话串行批量交换，并约每秒拉取服务器新增候选；本地候选收集完成后仍能收到晚到的远端候选，成功、失败或取消后停止信令轮询；
   - 控制通道完成版本握手后测量 P2P RTT，仅当连续 3 次满足“比基线低至少 `15 ms` 且不高于基线 `80%`”滞回阈值（`?p2p=force` 豁免 RTT 比较）才切入直连，同一网络纪元内切换上限 3 次且冷却至少 30 秒；
-  - 直连生效后承载全部实时流（`/ws/s/{id}`、`/ws/sessions`、`/ws/s/{id}/chat`、`/ws/settings`、`/ws/voice`）以及 `/api/*` 请求与分块文件上传，单条应用消息按 32 KiB 分片重组并保留业务关闭码（如 `4404`、`4409`）；
+  - 普通 Token 直连生效后承载全部实时流（`/ws/s/{id}`、`/ws/sessions`、`/ws/s/{id}/chat`、`/ws/settings`、`/ws/voice`）以及 `/api/*` 请求与分块文件上传，单条应用消息按 32 KiB 分片重组并保留业务关闭码（如 `4404`、`4409`）；
   - 终端流采用先建后拆（make-before-break）：新 DataChannel 以 `resume=offset&mode=append` 就绪前旧 WebSocket 不断开，按重叠字节裁剪实现零丢字节、零重复渲染且不触发清屏重放；
   - P2P 断开、心跳超时或浏览器报告切网（`online` / Network Information `change`）时立即退回 WebSocket 基线，取消旧协商并合并 1 秒内的网络事件，以新的 PeerConnection 重收集候选；旧请求的迟到结果不得覆盖新路径，关闭开关或停止客户端立即取消活动协商；
   - 回到前台时验证活动路径；未使用直连时重新评估，包括此前直连成功但收益不足的情形；浏览器不提供网络变化事件时依靠连接状态与心跳恢复；
-  - 侧栏底部“主机状态详情”与设置页“网络”分区展示当前传输路径（`P2P 直连` / `WebSocket 基线`）、候选对类型（`host`/`srflx`/`prflx`）、IP 族、端口映射状态、基线与直连 RTT、升级耗时与切换次数，并提供一键“双路径回显测速”对比两条路径的中位/最小 RTT；
+  - 普通 Token 连接在侧栏底部“主机状态详情”与设置页“网络”分区展示当前路径（`P2P 直连` / `WebSocket 基线`）、候选类型（`host`/`srflx`/`prflx`）、IP 族、端口映射、基线与直连 RTT、升级耗时与切换次数；
+  - 提供一键“双路径回显测速”，对比两条路径的中位/最小 RTT；
   - 打开设置页与端口映射状态轮询只更新诊断，不重建正常直连，也不取消进行中的 ICE 协商或双路径测速；保存或恢复 P2P 配置时才重新评估连接，服务端报告关闭或不支持时仍立即回退并取消协商；
   - 设置页诊断区分“未能建立直连”和“直连成功，延迟收益不足”，后者保留候选类型、IP 族与实测 RTT，不计作穿透失败；
   - 支持 `-tags nop2p` 编译裁剪 WebRTC 依赖，裁剪构建下 `/api/p2p` 返回 `supported: false`、信令返回 `501`，其余 HTTP/WebSocket 功能照常运行。
+  - 官方 Relay 所有者 Cookie 连接先使用 WSS，再依据应用层往返测量在 WSS、WebRTC 直连和授权 TURN 之间选择交互路径；TCP/TLS、SDP/DTLS 与授权生命周期仍需分别成立，TURN 不替代 WSS 登录；
+  - 仅插件已选择且构建提供 P2P 时可自动优化，不要求改变本机 P2P 开关；插件未选择或裁剪时不导入 Pion、不探测，保留可用 WSS 并说明优化不可用；
+  - Relay 文件上传、下载和全部 `/forward/*` 始终走 WSS 批量角色，不能因交互路径切换或批量角色故障被挤入交互连接；
+  - TURN 凭据按当前所有者浏览器会话与 PeerConnection 签发，禁止匿名 Allocate；实际选中 `relay` 才显示 TURN 路径，诊断不公开候选 IP、SDP 或凭据；
+  - Relay 路径切换保持单写者及既有 generation/offset 续接；结果未知的输入不能重放，初始化失败、队列等待、超时及输出完整性不能从性能结果中排除；
+  - UDP 黑洞、TURN 不可达或权限失效时保留或恢复 WSS；会话退出与撤销关闭派生路径，不结束 PTY。
 
 ## 取舍
 
@@ -47,7 +54,7 @@
 - 开关按设备保存而非跨设备同步：手机走移动网络、桌面走局域网时可分别选择。
 - 静态资源压缩没有开关：压缩在构建期完成，服务时只返回已有字节，不增加首个请求的延迟。
 - 同时保留 brotli 与 gzip：Chrome 在非本机的纯 HTTP 地址上不提议 `br`，经 VPN 的 HTTP 访问仍需 gzip。
-- P2P 升级坚持“基线先行、零中继成本”：首屏与鉴权始终走现有 HTTP/WebSocket，绝不因 UDP 被拦截或对称 NAT 打洞失败阻塞会话打开；显式拒绝 `relay` 候选，不部署或要求任何 TURN 服务器。
+- 普通 Token P2P 升级坚持“基线先行、零中继成本”：首屏与鉴权始终走现有 HTTP/WebSocket，UDP 被拦截或对称 NAT 打洞失败不阻塞打开会话；这一路径拒绝 `relay` 候选，不要求 TURN。官方 Relay 所有者连接使用单独授权的混合策略，仍以 WSS 为可用基线。
 - 本机、局域网、Tailscale 与 `< 15 ms` 低延迟链路默认跳过 P2P：这些场景下直接 TCP/WebSocket 已经足够快，跳过可避免无意义的 ICE 探测与端口映射开销。
 
 ## 代码依据

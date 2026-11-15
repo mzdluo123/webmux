@@ -3,6 +3,7 @@
 package p2p
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -18,6 +19,25 @@ var (
 	ErrInvalid     = errors.New("invalid p2p signaling payload")
 	ErrSlowClient  = errors.New("p2p data channel slow client")
 )
+
+// ICEServer contains per-peer credentials supplied by trusted assembly.
+type ICEServer struct {
+	URLs       []string
+	Username   string
+	Credential string
+}
+
+// OwnerAuthorization is injected by the authenticated signaling adapter, never
+// decoded from browser JSON. OwnerID is an opaque session reference, not a token.
+type OwnerAuthorization struct {
+	OwnerID          string
+	Context          context.Context
+	PeerConnectionID string
+	Fingerprint      string
+	ICEServers       []ICEServer
+	ExpiresAt        time.Time
+	RegisterAccess   func(close func(), done <-chan struct{}) (release func(), err error)
+}
 
 // Options configures the P2P service.
 type Options struct {
@@ -54,6 +74,7 @@ type SignalInput struct {
 	PeerID     string
 	SDP        string
 	Candidates []ICECandidate
+	Owner      *OwnerAuthorization
 }
 
 // SignalOutput is the signaling response returned to the client.
@@ -77,6 +98,9 @@ type PeerInfo struct {
 	State         string
 	CandidateType string
 	IPFamily      string
+	Transport     string
+	Path          string
+	OwnerID       string
 	RTTMs         *int
 	Channels      int
 	CreatedAt     string

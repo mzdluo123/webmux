@@ -22,6 +22,7 @@
 | tailscale-settings  | tailscale-settings.json  | tailscale-settings.json.lock  | internal/tailscalesettings   | fail_closed           | 是       |
 | voice-settings      | voice-settings.json      | voice-settings.json.lock      | internal/voicesettings       | fail_closed           | 是       |
 | p2p-settings        | p2p-settings.json        | p2p-settings.json.lock        | internal/p2psettings         | fail_closed           | 是       |
+| relay               | relay-settings.json      | relay-settings.json.lock      | internal/relaysetting        | fail_closed           | 是       |
 | tailscale-ownership | tailscale-ownership.json | tailscale-ownership.json.lock | cmd/webmux                   | block_start           | 否       |
 | push                | push.json                | push.json.lock                | internal/push                | unavailable           | 是       |
 | runtime             | run/server.json          | run/server.json.lock          | internal/runtime             | local_api_unavailable | 否       |

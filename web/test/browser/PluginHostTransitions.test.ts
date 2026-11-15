@@ -6,7 +6,7 @@ import App from "../../src/App.svelte";
 import { navigate } from "../../src/platform/api";
 import { setActiveHostId } from "../../src/platform/storage";
 import { requestPluginHostRefresh } from "../../src/platform/plugin-host.svelte";
-import { p2pState } from "../../src/platform/p2p.svelte";
+import { p2pState } from "../../src/platform/p2p-state.svelte";
 import { voicePreference } from "../../src/hooks/shared/voice-preference.svelte";
 import { emptySettings } from "../../src/domains/settings/settings-intent";
 import { clearHomeCache } from "../../src/domains/workspace/home-cache";
@@ -30,6 +30,14 @@ import { launchConfig, repository, session } from "./shell-fixture";
 const direct = vi.hoisted(() => ({ negotiate: vi.fn(), baseline: vi.fn() }));
 vi.mock("../../src/platform/p2p-session", () => ({
   negotiateDirectPeer: direct.negotiate,
+  inspectSelectedCandidatePair: vi.fn(async () => ({
+    path: "webrtc-direct",
+    isRelay: false,
+    candidateType: "host/srflx",
+    ipFamily: "ipv4",
+  })),
+}));
+vi.mock("../../src/platform/p2p-signaling", () => ({
   measureBaselineHttpRtt: direct.baseline,
 }));
 vi.mock("../../src/platform/p2p-framing", async (original) => ({
@@ -109,6 +117,9 @@ beforeEach(() => {
       } as unknown as RTCDataChannel,
       candidateType: "host/srflx",
       ipFamily: "ipv4",
+      path: "webrtc-direct",
+      expiresAt: null,
+      onFailure: null,
       sendPing: vi.fn().mockResolvedValue(95),
       close: vi.fn(),
     }));

@@ -43,6 +43,7 @@ func Fields(c Config) map[string]Field {
 		"push.enabled": c.Push.Enabled, "push.subject": c.Push.Subject, "push.ttl_seconds": c.Push.TTLSeconds, "push.kinds": append([]string{}, c.Push.Kinds...), "push.include_title": c.Push.IncludeTitle,
 		"voice.cmd": append([]string{}, c.Voice.Cmd...), "voice.env": len(c.Voice.Env) > 0,
 		"p2p.enabled": c.P2P.Enabled, "p2p.port_mapping": c.P2P.PortMapping, "p2p.stun_servers": append([]string{}, c.P2P.STUNServers...),
+		"relay.enabled": c.Relay.Enabled, "relay.control_endpoint": c.Relay.ControlEndpoint, "relay.control_audience": c.Relay.ControlAudience, "relay.initial_trust.algorithm": c.Relay.InitialTrust.Algorithm, "relay.initial_trust.pins": append([]string{}, c.Relay.InitialTrust.Pins...), "relay.transport": c.Relay.Transport,
 		"mcp.enabled":     c.MCP.Enabled,
 		"plugins.enabled": enabled,
 	}
