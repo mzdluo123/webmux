@@ -98,11 +98,15 @@ type actor struct {
 	// attention is the latched turn-end attention (done or error); pending
 	// requests take precedence over it.
 	attention *session.Attention
-	// title is the last title the agent reported through session_info_update;
-	// titleSession is the agent session it belongs to. It names the shell
-	// while the chat side shows no terminal run.
+	// title is the current agent session's title (from ACP updates,
+	// session/list or terminal OSC 0/2); titleSession is the agent session
+	// it belongs to. It names an unnamed shell unless a live terminal run
+	// has reported its own OSC 0/2 title.
 	title        string
 	titleSession string
+	// termTitle is the last terminal OSC 0/2 title observed for the
+	// current run while an agent session ID is known.
+	termTitle string
 	// recordTitle is the last title sent to the persistent record. Terminal
 	// titles arrive through the shell, chat titles through its overlay.
 	recordTitle string
@@ -324,6 +328,9 @@ func (a *actor) flush() {
 		a.stopDoneDelayTimer()
 		a.attention = nil
 	}
+	if a.side != SideTUI {
+		a.termTitle = ""
+	}
 	if a.side != SideTUI || a.state != StateActive {
 		a.chat.Eligibility = Eligibility{}
 	}
@@ -355,10 +362,9 @@ func (a *actor) overlay() *session.Overlay {
 	if to != "" {
 		o.Destination = string(viewOf(to))
 	}
-	if a.side == SideACP && a.titleSession == a.agentSessionID {
-		// The terminal drives the title on its own side (OSC 0/2), so only
-		// the chat side publishes the agent's session title, and only while
-		// it belongs to the agent session shown.
+	if a.titleSession != "" && a.titleSession == a.agentSessionID {
+		// Keep the agent session's title across chat, switching and terminal
+		// sides; a live terminal run's own OSC 0/2 title still wins over it.
 		o.Title = a.title
 	}
 	if a.side == SideACP && a.state == StateActive {

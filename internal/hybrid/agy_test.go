@@ -2,12 +2,14 @@ package hybrid
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/agentprofile/agy"
+	"github.com/rainchan/webmux/internal/agentprofile/omp"
 )
 
 func TestAgyFormElicitationMultiSelect(t *testing.T) {
@@ -112,4 +114,67 @@ func TestAgyRoundTripAndConfigReapply(t *testing.T) {
 		t.Fatalf("config after cold load %+v, want gemini-3.8-flash and low", state.Config)
 	}
 	assertSingleWriter(t, h.store)
+}
+
+func TestAgyTUITitleContinuityAndRename(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(agy.Name, SideTUI)
+	in.Name = ""
+	dir := filepath.Base(resolved(t, in.Cwd))
+	s := h.create(in)
+	id := s.Info().ID
+	if got := s.Info().Title; got != dir {
+		t.Fatalf("initial placeholder title %q, want %q", got, dir)
+	}
+
+	tuiTurn(t, s, "fix sidebar")
+	h.waitEligible(id)
+	waitTitle(t, s, "agy: fix sidebar")
+
+	typeLine(t, s, "/rename Custom Agy Title")
+	waitTitle(t, s, "Custom Agy Title")
+
+	h.mustSwitch(id, SideACP)
+	waitTitle(t, s, "Custom Agy Title")
+	if got := h.record(id).Title; got != "Custom Agy Title" {
+		t.Fatalf("recorded title on chat side %q, want %q", got, "Custom Agy Title")
+	}
+
+	h.mustSwitch(id, SideTUI)
+	waitTitle(t, s, "Custom Agy Title")
+
+	typeLine(t, s, "/new")
+	waitTitle(t, s, dir)
+	tuiTurn(t, s, "next task")
+	h.waitEligible(id)
+	waitTitle(t, s, "agy: next task")
+}
+
+func TestSessionListTitleFallbackWithoutOSC(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(omp.Name, SideTUI)
+	in.Name = ""
+	s := h.create(in)
+	id := s.Info().ID
+
+	waitFor(t, "initial prompt", func() bool { return strings.Contains(string(s.Buffer()), "prompt> ") })
+	typeLine(t, s, "/store-title Early Listed")
+	waitFor(t, "stored Early Listed", func() bool { return strings.Contains(string(s.Buffer()), "stored title: Early Listed") })
+	tuiTurn(t, s, "first")
+	h.waitEligible(id)
+	waitTitle(t, s, "Early Listed")
+
+	typeLine(t, s, "/store-title Switched Listed")
+	waitFor(t, "stored Switched Listed", func() bool { return strings.Contains(string(s.Buffer()), "stored title: Switched Listed") })
+	h.mustSwitch(id, SideACP)
+	waitTitle(t, s, "Switched Listed")
+
+	h.mustSwitch(id, SideTUI)
+	waitTitle(t, s, "Switched Listed")
+
+	h.closeSession(id)
+	resumed := h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	waitTitle(t, resumed, "Switched Listed")
 }

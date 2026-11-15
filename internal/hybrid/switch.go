@@ -243,6 +243,7 @@ func (a *actor) checked(op *switchOp, t target, ans probeAnswer) {
 		a.finish(op, SwitchResult{}, &IneligibleError{Reason: reason})
 		return
 	}
+	a.adoptProbeTitle(t.sid, ans)
 	busy := tuiBusy(a.shell.Info()) && time.Since(a.runStart) >= a.cmd.Profile.StartupQuiet
 	a.side = SideSwitching
 	a.setPhase(PhaseStopping)

@@ -37,3 +37,50 @@ func PromptTitle(text string) string {
 	runes := []rune(s)
 	return strings.TrimSpace(string(runes[:maxPromptTitleRunes-1])) + "…"
 }
+
+// observeTerminalTitle records a live terminal run's OSC 0/2 title for the
+// current agent session so switching to chat keeps it. A title left over
+// from an earlier agent session in the same terminal run is ignored.
+func (a *actor) observeTerminalTitle(raw string) {
+	title := sessionTitle(raw)
+	if title == "" {
+		a.termTitle = ""
+		return
+	}
+	if a.agentSessionID == "" || title == a.termTitle {
+		return
+	}
+	a.termTitle = title
+	a.promptTitle = false
+	if a.title != title || a.titleSession != a.agentSessionID {
+		a.title, a.titleSession = title, a.agentSessionID
+		a.dirty = true
+	}
+}
+
+// adoptListedTitle applies a non-empty title returned by session/list for sid.
+func (a *actor) adoptListedTitle(sid, raw string) {
+	title := sessionTitle(raw)
+	if sid == "" || title == "" {
+		return
+	}
+	a.promptTitle = false
+	if a.title != title || a.titleSession != sid {
+		a.title, a.titleSession = title, sid
+		a.dirty = true
+	}
+}
+
+// adoptProbeTitle applies any session/list title carried by ans for sid.
+func (a *actor) adoptProbeTitle(sid string, ans probeAnswer) {
+	title := ans.title
+	if title == "" {
+		for _, c := range ans.candidates {
+			if c.AgentSessionID == sid {
+				title = c.Title
+				break
+			}
+		}
+	}
+	a.adoptListedTitle(sid, title)
+}

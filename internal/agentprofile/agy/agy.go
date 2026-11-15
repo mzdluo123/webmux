@@ -19,8 +19,9 @@ const BackgroundStatusPrompt = "The background processes from the previous turn 
 
 // TUISettingsJSON is the inline --settings payload injected into every agy TUI
 // launch. It uses the title command hook to emit the conversation_id as an
-// OSC 7501 child record to /dev/tty without writing anything to stdout.
-const TUISettingsJSON = `{"title":{"type":"command","command":"id=$(sed -n 's/.*\"conversation_id\":\"\\([0-9a-f-]*\\)\".*/\\1/p'); [ -n \"$id\" ] && printf '\\033]7501;state=working:id=%s\\007' \"$id\" >/dev/tty 2>/dev/null || true"}}`
+// OSC 7501 child record to /dev/tty and print any non-empty conversation_title
+// to stdout so agy sets the terminal window title (OSC 2).
+const TUISettingsJSON = `{"title":{"type":"command","command":"export LC_ALL=C; line=$(cat); id=$(printf '%s\\n' \"$line\" | sed -n 's/.*\"conversation_id\":[[:space:]]*\"\\([0-9a-f-]*\\)\".*/\\1/p'); [ -n \"$id\" ] && printf '\\033]7501;state=working:id=%s\\007' \"$id\" >/dev/tty 2>/dev/null; u=$(printf '\\037'); t=$(printf '%s\\n' \"$line\" | sed -n 's/.*\"conversation_title\":[[:space:]]*\"\\([^\"\\\\]*\\(\\\\.[^\"\\\\]*\\)*\\)\".*/\\1/p' | sed \"s/\\\\\\\\\\\\\\\\/$u/g; s/\\\\\\\\[nrtbf]/ /g; s|\\\\\\\\u003[cC]|<|g; s|\\\\\\\\u003[eE]|>|g; s|\\\\\\\\u0026|\\\\&|g; s|\\\\\\\\\\\"|\\\"|g; s|\\\\\\\\/|/|g; s|$u|\\\\\\\\|g; s/[[:cntrl:]]//g; s/^[[:space:]]*//; s/[[:space:]]*$//\"); [ -n \"$t\" ] && printf '%s\\n' \"$t\" || true"}}`
 
 // Agent is the Antigravity CLI adapter.
 var Agent ap.Agent = adapter{}

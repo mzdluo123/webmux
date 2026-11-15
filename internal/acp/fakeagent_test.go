@@ -1083,10 +1083,11 @@ func TestFakeAgentAgyACPAndTUI(t *testing.T) {
 	}
 	a.exit(t)
 
-	// TUI with injected --settings emits app=antigravity and child UUID.
-	tui := e.startTUI(t, "--settings", `{"title":{"type":"command","command":"conversation_id"}}`, "--conversation", id)
+	// TUI with injected --settings emits app=antigravity, child UUID and OSC 2 conversation title.
+	tui := e.startTUI(t, "--settings", `{"title":{"type":"command","command":"conversation_id conversation_title"}}`, "--conversation", id)
 	tui.waitFor("state=idle:app=antigravity", 1)
 	tui.waitFor("state=working:id="+id, 1)
+	tui.waitFor("\x1b]2;agy: hello agy\x07", 1)
 	tui.waitFor("> hello agy", 1)
 	tui.exit()
 }

@@ -86,10 +86,11 @@ const (
 	probeNotListed
 )
 
-// probeAnswer is a finished probe: whether the target is listed, and for
-// an empty sid the candidate sessions.
+// probeAnswer is a finished probe: whether the target is listed, its
+// listed title when sid is set, and for an empty sid the candidate sessions.
 type probeAnswer struct {
 	listed     bool
+	title      string
 	candidates []Candidate
 	err        error
 }
@@ -134,6 +135,7 @@ func (a *actor) observe() {
 	if known && ident.Agent == a.cmd.Profile.Name && ident.AgentSessionID != "" && ident.AgentSessionID != a.agentSessionID {
 		a.agentSessionChanged(ident.AgentSessionID)
 	}
+	a.observeTerminalTitle(id.Title)
 	info := a.shell.Info()
 	a.saveShellInfo(info)
 	t, reason := a.assess(id, ident, known)
@@ -309,6 +311,7 @@ func (a *actor) probed(key target, ans probeAnswer) {
 		a.probe.result = probeNotListed
 		if ans.listed {
 			a.probe.result = probeListed
+			a.adoptProbeTitle(key.sid, ans)
 		}
 	}
 	if a.probe.again {
@@ -338,7 +341,11 @@ func (a *actor) listed(ctx context.Context, t target, since time.Time) probeAnsw
 		return probeAnswer{err: err}
 	}
 	if t.sid != "" {
-		return probeAnswer{listed: slices.ContainsFunc(sessions, func(s acp.SessionInfo) bool { return s.SessionID == t.sid })}
+		i := slices.IndexFunc(sessions, func(s acp.SessionInfo) bool { return s.SessionID == t.sid })
+		if i < 0 {
+			return probeAnswer{}
+		}
+		return probeAnswer{listed: true, title: sessionTitle(sessions[i].Title)}
 	}
 	var recent []Candidate
 	for _, c := range candidates(sessions) {

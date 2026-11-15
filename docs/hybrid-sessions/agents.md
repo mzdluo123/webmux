@@ -55,7 +55,7 @@
 - 各 agent 的会话 ID 来源：
   - Codex：它打开的写锁文件（`$CODEX_HOME/thread-writer-locks/`）；
   - Claude Code：进程注册记录，见 [会话识别与占用检测](#会话识别与占用检测)；
-  - Antigravity CLI：注入的会话级 `--settings` `title` 钩子经 `OSC 7501` 子记录上报；
+  - Antigravity CLI：注入的会话级 `--settings` `title` 钩子经 `OSC 7501` 子记录上报，并将非空 `conversation_title` 输出为终端标题（`OSC 2`）；
   - Kimi：不把 OSC 7501 子记录当作会话 ID，使用同一 cwd 下的 `session/list` 候选；根记录 `app=kimi-code` 或原生 `kimi` 根进程用于识别 agent。
   - Devin：OSC 7501 根记录 `app=devin` 只上报状态、不含会话 ID，使用同一 cwd 下的 `session/list` 候选；该记录用于识别 agent。
 - 读不到时按本次 TUI 启动后更新过的会话判定，有多个候选时让你选择。
@@ -67,6 +67,7 @@
 
 ## Antigravity CLI（agy）
 
+- 每次启动或恢复 `agy` TUI 时，WebMux 注入会话级 `--settings` `title` 钩子：在向控制终端上报 `OSC 7501` 会话 UUID 的同时，将非空 `conversation_title` 输出到标准输出，由 `agy` 更新终端窗口标题（`OSC 2`）；切换与恢复期间沿用当前 agent 会话标题，直到终端再次上报新标题。
 - agy 在后台命令完成后，可能要到下一次 prompt 才补发工具状态与结果。WebMux 在本回合新启动的进程退出且连续两次静默轮询后，自动发送英文消息，要求 agy 检查并汇报最新后台状态，通过正常 ACP 更新刷新工具行与回复。
 - 这个自动检查只用于 agy，会产生一次额外模型调用；Kimi 和其他 agent 在进程退出后直接按提醒策略完成，不额外发起回合。
 

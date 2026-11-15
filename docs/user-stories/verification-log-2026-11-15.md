@@ -129,3 +129,14 @@
 - CI 补充：核心模式不再固定整份导航清单，改为逐项断言禁用插件的导航与分区均缺席；设置导航和终端触摸两个浏览器文件共 14 项通过，测试类型检查通过，未修改触摸实现或放宽断言。
 - US-L02：远端六 worker 的 Storybook 两轮运行均在既有长对话布局中超时；本地单 worker 定向两项通过。为降低资源竞争，CI 的 Storybook 改为两个 worker；本地使用 CI 配置完整运行 119 项通过，无重试，保留所有断言与原有超时，不宣称提速。
 - 未进行真机、真实鼠标悬停或触屏交互验证；故事 ID 和总数不变，未重新验收其他能力。
+
+## Antigravity CLI 终端标题与混合会话标题延续（US-Q03、US-Q04、US-Q12）
+
+- 范围（故事 ID 与总数 259 不变）：
+  - `agy` TUI 注入的会话级 `--settings` `title` 钩子同步将非空 `conversation_title` 输出到标准输出，驱动 `OSC 2` 窗口标题；
+  - `session/list` 探测与切换前核对同步采用非空会话标题，未手动命名的混合会话在终端运行自身发出 `OSC 0/2` 标题前继续沿用当前 agent 会话标题作占位回退。
+- 本地验证：
+  - `internal/agentprofile/agy` 对真实 `/bin/sh` 执行注入钩子，覆盖空值、JSON/HTML 转义、CJK/Emoji 与紧凑/带空格 JSON；
+  - `internal/session`、`internal/acp`、`internal/hybrid`、`internal/archtest`、`internal/docguard` 及全仓 Go race 测试通过（新增 `TestAgyTUITitleContinuityAndRename` 与 `TestSessionListTitleFallbackWithoutOSC` 连续 5 轮 `-race` 通过）；
+  - `go vet`、`golangci-lint`、生产与测试类型检查、Oxlint、前端架构守卫（46 项）、格式与持久化守卫通过。
+- 局限：回归使用受控 `fakeagent` 与隔离临时目录，未在自动化测试中连接真实 Google 账号驱动在线 `agy` 对话；未重新验收其他故事能力。

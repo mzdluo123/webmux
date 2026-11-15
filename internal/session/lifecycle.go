@@ -52,9 +52,13 @@ func (o *Overlay) clone() *Overlay {
 }
 
 // applyTo writes the overlay into an Info copy that owns no shared pointers.
-// Title applies only to an unnamed shell, so a creation name always wins.
+// Title applies only to an unnamed shell, and while a run exists only until
+// the run reports its own OSC 0/2 title.
 func (o *Overlay) applyTo(i *Info, noRun, unnamed bool) {
 	if !noRun {
+		if o.Title != "" && unnamed && i.PlaceholderTitle {
+			i.Title, i.PlaceholderTitle = o.Title, false
+		}
 		return
 	}
 	if o.Status != "" {
