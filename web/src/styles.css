@@ -441,9 +441,12 @@
 .terminal-host .xterm .xterm-viewport {
   background-color: var(--terminal-background);
 }
+/* Clears xterm's rows and selection (1); stays under helpers (5),
+   decorations (6–8), accessibility (10) and the scrollbar (11). */
 .xterm-graphics-layer {
   position: absolute;
   inset: 0;
+  z-index: 3;
   overflow: hidden;
   pointer-events: none;
   isolation: isolate;

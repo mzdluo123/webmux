@@ -65,6 +65,8 @@ export function attachTerminalGraphics(
   let lastDpr = 0;
   let lastCellWidth = 0;
   let lastCellHeight = 0;
+  let lastViewportY = -1;
+  let lastActiveBuffer: IBuffer | undefined;
   let totalCanvasPixels = 0;
   const rendered = new Set<RenderedPlacement>();
   let specialGraphics = false;
@@ -111,12 +113,15 @@ export function attachTerminalGraphics(
 
   function cursor() {
     const buffer = term.buffer.active;
-    return { column: buffer.cursorX, line: buffer.baseY + buffer.cursorY };
+    return {
+      column: Math.min(buffer.cursorX, Math.max(0, term.cols - 1)),
+      line: buffer.baseY + buffer.cursorY,
+    };
   }
 
   function viewport() {
     const buffer = term.buffer.active;
-    return { top: buffer.viewportY, bottom: buffer.viewportY + term.rows };
+    return { top: buffer.baseY, bottom: buffer.baseY + term.rows };
   }
 
   function backingSize(spec: KittyPlacementSpec, previousPixels = 0) {
@@ -206,6 +211,8 @@ export function attachTerminalGraphics(
     lastCellHeight = cell.height;
     const buffer = term.buffer.active;
     const viewportY = buffer.viewportY;
+    lastActiveBuffer = buffer;
+    lastViewportY = viewportY;
     for (const placement of rendered) {
       if (placement.closed) continue;
       try {
@@ -219,6 +226,10 @@ export function attachTerminalGraphics(
         continue;
       }
       const line = placement.anchor?.line ?? placement.spec.line;
+      if (line + placement.spec.rows <= 0) {
+        remove(placement);
+        continue;
+      }
       const left = placement.spec.column * cell.width + placement.spec.offsetX;
       const top = (line - viewportY) * cell.height + placement.spec.offsetY;
       const visible =
@@ -267,7 +278,8 @@ export function attachTerminalGraphics(
     moveCursor(columns, rows) {
       if (disposed) return;
       let sequence = "";
-      if (rows > 0) sequence += `\x1b[${rows}B`;
+      // IND advances and scrolls at the bottom margin without touching column.
+      if (rows > 0) sequence += "\x1bD".repeat(rows);
       if (columns > 0) sequence += `\x1b[${columns}C`;
       if (!sequence) return;
       const { promise, resolve } = Promise.withResolvers<void>();
@@ -296,8 +308,11 @@ export function attachTerminalGraphics(
         };
         try {
           draw(placement);
-          placement.anchor = graphicsAnchor(placement.buffer, spec.line, () =>
-            remove(placement),
+          placement.anchor = graphicsAnchor(
+            placement.buffer,
+            spec.line,
+            () => placement.spec.rows,
+            () => remove(placement),
           );
           layer.appendChild(canvas);
           rendered.add(placement);
@@ -361,7 +376,11 @@ export function attachTerminalGraphics(
   const rendering = term.onRender(() => {
     if (resetHold === "released" && !term.modes.synchronizedOutputMode)
       resetHold = "none";
-    if (!deferred || held()) return;
+    const viewportMoved =
+      rendered.size > 0 &&
+      (term.buffer.active !== lastActiveBuffer ||
+        term.buffer.active.viewportY !== lastViewportY);
+    if ((!deferred && !viewportMoved) || held()) return;
     cancelAnimationFrame(frame);
     frame = 0;
     update();
