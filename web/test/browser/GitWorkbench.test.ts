@@ -389,35 +389,44 @@ test("desktop Log pane filters by branch/tag without mutating checkedOutBranch, 
     .element(diffPanel.getByRole("button", { name: "文件内查找" }))
     .toBeVisible();
 
-  const layout = diffPanel.getByRole("radiogroup", {
-    name: "历史差异布局模式",
-  });
-  await layout.getByRole("radio", { name: "双栏", exact: true }).click();
   await expect
-    .element(layout.getByRole("radio", { name: "双栏", exact: true }))
-    .toHaveAttribute("aria-checked", "true");
-  await layout.getByRole("radio", { name: "统一", exact: true }).click();
+    .element(
+      diffPanel.getByRole("radiogroup", {
+        name: "历史差异布局模式",
+      }),
+    )
+    .not.toBeInTheDocument();
   await expect
-    .element(layout.getByRole("radio", { name: "统一", exact: true }))
-    .toHaveAttribute("aria-checked", "true");
+    .element(diffPanel.getByRole("button", { name: "变更前全文" }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(diffPanel.getByRole("button", { name: "变更后全文" }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(diffPanel.getByRole("button", { name: "放大差异到主工作区" }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(page.getByRole("button", { name: "放大查看当前文件差异" }))
+    .not.toBeInTheDocument();
+  await expect.element(diffPanel.getByText("修改前")).toBeVisible();
+  await expect.element(diffPanel.getByText("修改后")).toBeVisible();
 
-  // Keyboard ArrowDown selects second file, Enter maximizes Diff, Escape restores docked mode.
+  // Keyboard ArrowDown selects second file, Enter expands collapsed dock without leaving docked mode.
+  await diffPanel.getByRole("button", { name: "折叠底部差异面板" }).click();
   const firstFileOpt = filesListbox.getByRole("option", {
     name: /web\/src\/git-graph-layout\.ts/,
   });
   await firstFileOpt.click();
   await userEvent.keyboard("{ArrowDown}");
+  await userEvent.keyboard("{Enter}");
   await expect
     .element(diffPanel.getByText("web/src/git-graph-colors.ts"))
     .toBeVisible();
-
-  await userEvent.keyboard("{Enter}");
   await expect
-    .element(page.getByTestId("git-log-diff-panel"))
-    .toHaveAttribute("data-diff-presentation", "maximized");
-  await userEvent.keyboard("{Escape}");
+    .element(diffPanel.getByRole("button", { name: "文件内查找" }))
+    .toBeVisible();
   await expect
-    .element(page.getByTestId("git-log-diff-panel"))
+    .element(diffPanel)
     .toHaveAttribute("data-diff-presentation", "docked");
 
   // "当前任务" scope is now a first-class SegmentedControl item (#547).
@@ -503,7 +512,13 @@ test("Commit pane separates reading/reviewed/staged states, stages single hunk, 
     .element(page.getByRole("button", { name: /^标记已审阅 / }).first())
     .toBeVisible();
 
-  // Stage a single hunk from web/src/app.ts.
+  // Stage a single hunk from web/src/app.ts, verifying split diff columns on desktop and no unified switcher.
+  const stagingDiff = page.getByTestId("git-staging-diff-panel");
+  await expect
+    .element(stagingDiff.getByRole("radiogroup", { name: "差异视图模式" }))
+    .not.toBeInTheDocument();
+  await expect.element(stagingDiff.getByText("修改前")).toBeVisible();
+  await expect.element(stagingDiff.getByText("修改后")).toBeVisible();
   const hunkButtons = page.getByRole("button", { name: "暂存此块" });
   await hunkButtons.first().click();
 

@@ -21,7 +21,6 @@ const GitDeviceLayoutSchema = z.object({
   logThreePaneSizes: z.tuple([z.number(), z.number(), z.number()]),
   logTwoPaneSizes: z.tuple([z.number(), z.number()]),
   commitPaneSizes: z.tuple([z.number(), z.number()]),
-  diffMode: z.enum(["unified", "split"]),
 });
 export type GitDeviceLayout = z.infer<typeof GitDeviceLayoutSchema>;
 
@@ -75,11 +74,9 @@ export function clearGitWorkbenchMemoryCache(): void {
 }
 
 export interface GitPaneScrollCallbacks {
-  diffMode?: "unified" | "split";
   listScrollTop?: number;
   diffScrollTop?: number;
   onResetLayout?: () => void;
-  onDiffModeChange?: (mode: "unified" | "split") => void;
   onListScrollChange?: (top: number) => void;
   onDiffScrollChange?: (top: number) => void;
 }
@@ -112,7 +109,6 @@ function defaultGitDeviceLayout(deviceClass: GitDeviceClass): GitDeviceLayout {
         logThreePaneSizes: [20, 46, 34],
         logTwoPaneSizes: [60, 40],
         commitPaneSizes: [40, 60],
-        diffMode: "unified",
       };
     case "compact":
       return {
@@ -124,7 +120,6 @@ function defaultGitDeviceLayout(deviceClass: GitDeviceClass): GitDeviceLayout {
         logThreePaneSizes: [22, 44, 34],
         logTwoPaneSizes: [56, 44],
         commitPaneSizes: [42, 58],
-        diffMode: "unified",
       };
     case "tablet":
       return {
@@ -136,7 +131,6 @@ function defaultGitDeviceLayout(deviceClass: GitDeviceClass): GitDeviceLayout {
         logThreePaneSizes: [22, 44, 34],
         logTwoPaneSizes: [56, 44],
         commitPaneSizes: [44, 56],
-        diffMode: "unified",
       };
     case "phone":
       return {
@@ -148,7 +142,6 @@ function defaultGitDeviceLayout(deviceClass: GitDeviceClass): GitDeviceLayout {
         logThreePaneSizes: [20, 46, 34],
         logTwoPaneSizes: [60, 40],
         commitPaneSizes: [40, 60],
-        diffMode: "unified",
       };
   }
 }

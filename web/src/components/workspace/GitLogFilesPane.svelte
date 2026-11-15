@@ -3,7 +3,6 @@
   import IconArrowsExchange from "~icons/tabler/arrows-exchange";
   import IconFileSearch from "~icons/tabler/file-search";
   import IconHistory from "~icons/tabler/history";
-  import IconMaximize from "~icons/tabler/maximize";
   import IconX from "~icons/tabler/x";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -25,10 +24,8 @@
     rightEndpoint = "",
     loading = false,
     compareMode = null,
-    phone = false,
     onSelectFile,
     onPreviewFile,
-    onExpandFile,
     onInspectFile,
     onSwapCompareDirection,
     onExitCompare,
@@ -40,10 +37,8 @@
     rightEndpoint?: string;
     loading?: boolean;
     compareMode?: GitCompareViewState | null;
-    phone?: boolean;
     onSelectFile: (path: string) => void;
     onPreviewFile?: (path: string) => void;
-    onExpandFile?: (path: string) => void;
     onInspectFile?: (path: string, tab: GitFileInspectorTab) => void;
     onSwapCompareDirection?: () => void;
     onExitCompare?: () => void;
@@ -123,7 +118,8 @@
       focusRowAt(lastIdx);
     } else if (e.key === "Enter" && activePath) {
       e.preventDefault();
-      onExpandFile?.(activePath);
+      onSelectFile(activePath);
+      onPreviewFile?.(activePath);
     }
   }
 </script>
@@ -201,17 +197,6 @@
             Blame
           </Button>
         {/if}
-        {#if !phone && activePath && onExpandFile}
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label={m.s6_log_files_maximize_aria()}
-            title={m.s6_log_files_maximize_tooltip()}
-            onclick={() => activePath && onExpandFile(activePath)}
-          >
-            <IconMaximize aria-hidden="true" />
-          </Button>
-        {/if}
       </div>
     </div>
 
@@ -265,9 +250,6 @@
             onclick={() => {
               onSelectFile(pathKey);
               onPreviewFile?.(pathKey);
-            }}
-            ondblclick={() => {
-              if (!phone) onExpandFile?.(pathKey);
             }}
           >
             <GitFileStatusIcon status={file.status} />

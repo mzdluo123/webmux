@@ -39,8 +39,6 @@
     fallbackFilesByKey = {},
     loadingList = false,
     loadingDetail = false,
-    diffMode = "unified",
-    onDiffModeChange,
     onRefresh,
     onSelectStash,
     onSelectFile,
@@ -57,8 +55,6 @@
     fallbackFilesByKey?: Record<string, GitCommitFile>;
     loadingList?: boolean;
     loadingDetail?: boolean;
-    diffMode?: "unified" | "split";
-    onDiffModeChange?: (mode: "unified" | "split") => void;
     onRefresh?: () => void;
     onSelectStash: (oid: string) => void;
     onSelectFile: (file: GitStashFileChange) => void;
@@ -411,8 +407,6 @@
     fallbackRightLabel={`${entry.stashRef} (${entry.shortOid})`}
     backLabel={isMobile ? m.s7_stash_back_to_files() : undefined}
     presentation={isMobile ? "mobile" : "docked"}
-    diffMode={isMobile ? "unified" : diffMode}
-    onDiffModeChange={isMobile ? undefined : onDiffModeChange}
     onBack={isMobile
       ? () => (mobileStepOverride = { oid: entry.oid, step: "detail" })
       : undefined}

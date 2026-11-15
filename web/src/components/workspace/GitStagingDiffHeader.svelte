@@ -11,13 +11,10 @@
   import { m } from "$lib/paraglide/messages.js";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
   import { formatStagingComparisonEndpoints } from "../../hooks/workspace/git-staging-diff.svelte";
-  import GitDiffStyleSwitch from "./GitDiffStyleSwitch.svelte";
 
   let {
     change,
     hunkIndex,
-    phase,
-    diffMode,
     stageMode,
     canStageLines,
     linePickerOpen,
@@ -26,15 +23,12 @@
     stale,
     onJumpToHunk,
     onToggleLinePicker,
-    onDiffModeChange,
     onDiscardFile,
     onStageChange,
     onUnstageChange,
   }: {
     change: GitWorkingChange;
     hunkIndex: number;
-    phase: string;
-    diffMode: "unified" | "split";
     stageMode: "stage" | "unstage" | "none";
     canStageLines: boolean;
     linePickerOpen: boolean;
@@ -43,7 +37,6 @@
     stale: boolean;
     onJumpToHunk: (index: number) => void;
     onToggleLinePicker: () => void;
-    onDiffModeChange?: (mode: "unified" | "split") => void;
     onDiscardFile?: (changeId: string, path: string) => void;
     onStageChange: (changeId: string) => void;
     onUnstageChange: (changeId: string) => void;
@@ -115,10 +108,6 @@
         <IconListCheck aria-hidden="true" />
         {m.s6_staging_line_picker_btn()}
       </Button>
-    {/if}
-
-    {#if phase === "ready" && !(linePickerOpen && canStageLines)}
-      <GitDiffStyleSwitch value={diffMode} onChange={onDiffModeChange} />
     {/if}
 
     {#if canDiscardCurrentFile && onDiscardFile}

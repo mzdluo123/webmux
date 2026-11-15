@@ -193,7 +193,6 @@
           diffCollapsed={deviceLayout.diffCollapsed}
           showAuthorColumn={deviceLayout.showAuthorColumn}
           twoPaneSizes={deviceLayout.logTwoPaneSizes}
-          diffMode={deviceLayout.diffMode}
           listScrollTop={controller.scrollOffsets.logList}
           diffScrollTop={controller.scrollOffsets.logDiff}
           onShowBranchesChange={(showBranchesPanel) =>
@@ -207,7 +206,6 @@
           onTwoPaneSizesChange={(logTwoPaneSizes) =>
             onUpdateDeviceLayout({ logTwoPaneSizes })}
           onResetLayout={onResetDeviceLayout}
-          onDiffModeChange={(diffMode) => onUpdateDeviceLayout({ diffMode })}
           onListScrollChange={(top) => controller.setScroll("logList", top)}
           onDiffScrollChange={(top) => controller.setScroll("logDiff", top)}
           onScopeChange={(scope) => controller.setScope(scope)}
@@ -321,13 +319,11 @@
             exitedSessionCount={exitedWorktreeSessions.length}
             archivedSessionCount={archivedWorktreeCount}
             paneSizes={deviceLayout.commitPaneSizes}
-            diffMode={deviceLayout.diffMode}
             listScrollTop={controller.scrollOffsets.commitList}
             diffScrollTop={controller.scrollOffsets.commitDiff}
             onPaneSizesChange={(commitPaneSizes) =>
               onUpdateDeviceLayout({ commitPaneSizes })}
             onResetLayout={onResetDeviceLayout}
-            onDiffModeChange={(diffMode) => onUpdateDeviceLayout({ diffMode })}
             onListScrollChange={(top) =>
               controller.setScroll("commitList", top)}
             onDiffScrollChange={(top) =>
@@ -465,8 +461,6 @@
           diffReader={controller.stash.reader}
           loadingList={controller.stash.loadingList}
           loadingDetail={controller.stash.loadingDetail}
-          diffMode={deviceLayout.diffMode}
-          onDiffModeChange={(diffMode) => onUpdateDeviceLayout({ diffMode })}
           onRefresh={() => void controller.stash.refreshList()}
           onSelectStash={(oid) => void controller.stash.selectStash(oid)}
           onSelectFile={(f) => controller.stash.selectFile(f)}

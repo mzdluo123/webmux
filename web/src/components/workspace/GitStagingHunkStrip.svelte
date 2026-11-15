@@ -41,7 +41,7 @@
 </script>
 
 <div
-  class="border-b bg-background px-2.5 py-1.5"
+  class="shrink-0 border-b bg-background px-2.5 py-1.5"
   aria-label={m.s6_hunk_strip_aria()}
   data-testid="git-hunk-action-strip"
 >

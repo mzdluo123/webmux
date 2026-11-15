@@ -112,9 +112,13 @@
   // reports this one.
   let knownTop: CodeDiffReaderState["top"];
   const diffStyle = $derived(
-    width < 640
-      ? "unified"
-      : (preferredDiffStyle ?? (width >= 760 ? "split" : "unified")),
+    preferredDiffStyle
+      ? width < 480
+        ? "unified"
+        : preferredDiffStyle
+      : width >= 760
+        ? "split"
+        : "unified",
   );
   export function hasOpenPanel() {
     return Boolean(find.panel);
