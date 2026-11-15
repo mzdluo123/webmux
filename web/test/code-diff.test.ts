@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { computeDiff } from "../src/domains/code/code-diff";
 import { DiffReplySchema } from "../src/domains/code/code-diff-model";
 

@@ -1,8 +1,11 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import { api } from "../../platform/api";
-  import { quickCommands } from "../../domains/settings/quick-commands.svelte";
+  import { settings } from "../../domains/settings/settings.svelte";
+  import { parseQuickCommands } from "../../domains/settings/quick-commands";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import {
     INIT_INSTRUCTION_MAX,
     RepositorySchema,
@@ -27,6 +30,11 @@
   let instruction = $state(untrack(() => repository.initInstruction));
   let busy = $state(false);
   let error = $state("");
+  const commands = $derived(
+    featureAvailable("quick-commands.send")
+      ? (settings.values.quickCommands ?? parseQuickCommands(""))
+      : [],
+  );
   async function save() {
     busy = true;
     error = "";
@@ -50,8 +58,8 @@
 </script>
 
 <ResponsiveDialog
-  title="仓库设置"
-  description={`${repository.name} 的设置。`}
+  title={m.s8_repo_settings_title()}
+  description={m.s8_repo_settings_desc({ name: repository.name })}
   {onclose}
   {busy}
 >
@@ -64,7 +72,8 @@
   >
     <InitInstructionField
       id="repository-instruction-edit"
-      commands={quickCommands.list}
+      {commands}
+      commandsAvailable={featureAvailable("quick-commands.send")}
       bind:value={instruction}
     />
     {#if error}<p role="alert" class="break-all text-sm text-destructive">
@@ -76,15 +85,15 @@
         variant="ghost"
         class="mr-auto"
         disabled={busy || !instruction}
-        onclick={() => (instruction = "")}>清空</Button
+        onclick={() => (instruction = "")}>{m.s8_clear()}</Button
       >
       <Button type="button" variant="outline" disabled={busy} onclick={onclose}
-        >取消</Button
+        >{m.s8_cancel()}</Button
       >
       <Button
         type="submit"
         disabled={busy || instruction.length > INIT_INSTRUCTION_MAX}
-        >{busy ? "正在保存…" : "保存"}</Button
+        >{busy ? m.s8_saving() : m.s8_save()}</Button
       >
     </div>
   </form>

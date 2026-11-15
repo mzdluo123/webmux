@@ -1,6 +1,8 @@
 import { onMount } from "svelte";
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
+import { requestFeatureHostRefresh } from "../../platform/feature-host.svelte";
 import {
   VoiceSettingsSchema,
   VoiceSettingsUpdateSchema,
@@ -54,11 +56,14 @@ export function useVoiceSettings() {
 
   async function mutate(method: "PUT" | "DELETE", body?: unknown) {
     if (state.busy) return;
-    if (await run(method, body))
+    if (await run(method, body)) {
+      await requestFeatureHostRefresh();
+      if (!mounted) return;
       state.notice =
         method === "PUT"
-          ? "已保存，下一次录音起生效。"
-          : "已恢复为配置文件中的设置。";
+          ? m.s2_voice_notice_saved()
+          : m.s2_voice_notice_reset();
+    }
   }
 
   onMount(() => {

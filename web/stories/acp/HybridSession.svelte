@@ -12,8 +12,12 @@
   import QuickCommandMenu from "../../src/components/settings/QuickCommandMenu.svelte";
   import SoftKeys from "../../src/components/terminal/SoftKeys.svelte";
   import TerminalHeader from "../../src/components/terminal/TerminalHeader.svelte";
+  import TerminalSplitPanel from "../../src/components/terminal/TerminalSplitPanel.svelte";
+  import SessionSidePanel from "../../src/components/terminal/SessionSidePanel.svelte";
   import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
   import TerminalWorkspace from "../../src/components/terminal/TerminalWorkspace.svelte";
+  import * as chatFeature from "../../src/features/terminal-chat";
+  import * as filesFeature from "../../src/features/terminal-files";
   import type { ChatActions } from "../../src/platform/chat-api";
   import type {
     HybridNotice,
@@ -73,6 +77,19 @@
   let candidatePick = $state(claudeCandidates[0]!.agentSessionId);
   let connectorDismissed = $state(false);
   let codeShown = $state(false);
+  let panelView = $state<"picker" | "code" | "split">("code");
+  let sidePanel = $state<SessionSidePanel>();
+  let header = $state<TerminalHeader>();
+
+  function openPanels() {
+    codeShown = true;
+    sidePanel?.openPicker();
+  }
+
+  function closePanel() {
+    codeShown = false;
+    header?.focusPanels();
+  }
   let openedLocation = $state<ChatCodeLink | null>(null);
   let notice = $state("");
   let dismissed = $state<string[]>([]);
@@ -399,10 +416,7 @@
     connection: "connected" as const,
     exitCode: null,
     listeningPorts: [],
-    restoring: false,
-    historyTruncated: false,
     canFind: true,
-    scrollToBottom() {},
     clear() {},
     resync() {},
   };
@@ -438,13 +452,14 @@
 
 <main class="terminal-page">
   <TerminalHeader
+    bind:this={header}
+    features={{ chat: chatFeature, files: filesFeature }}
     {terminal}
     {fullscreen}
     {draft}
     draftSaved="已保存在本机"
     scratchSaved="已保存在本机"
     uploading={false}
-    desktop={desktopMedia.current}
     sizeLocked={false}
     setSizeLocked={() => {}}
     keyboardSizeHold={true}
@@ -454,7 +469,6 @@
     {quickMenu}
     upload={async () => {}}
     toggleDraft={() => {}}
-    copy={async () => {}}
     paste={async () => {}}
     showScratch={() => {}}
     showFontSize={() => {}}
@@ -462,8 +476,10 @@
     close={() => {}}
     leave={() => {}}
     {hybrid}
+    {openPanels}
   />
   <TerminalNotices
+    features={{ chat: chatFeature, files: filesFeature }}
     terminal={noticeTerminal}
     uploads={{ progress: null, cancel() {} }}
     {draft}
@@ -493,7 +509,6 @@
     {codeShown}
     desktop={desktopMedia.current}
     draftOpen={false}
-    onfind={() => {}}
   >
     {#snippet terminalPane()}
       {#if view === "chat"}
@@ -508,10 +523,12 @@
             {actions}
             onreview={(path) => {
               openedLocation = { path };
+              panelView = "code";
               codeShown = true;
             }}
             onopenlocation={(target) => {
               openedLocation = target;
+              panelView = "code";
               codeShown = true;
             }}
             onterminal={() => hybrid.request("terminal")}
@@ -547,28 +564,59 @@
     {/snippet}
     {#snippet draftPane()}{/snippet}
     {#snippet codePane()}
-      <div class="h-full space-y-2 overflow-y-auto bg-card p-2">
-        {#if openedLocation}
-          <p
-            class="rounded-md border bg-muted/40 px-2.5 py-1.5 font-mono text-xs break-all text-foreground"
-            role="status"
-          >
-            已定位：{openedLocation.path}{openedLocation.line === undefined
-              ? ""
-              : `:${openedLocation.line}${openedLocation.endLine ? `-${openedLocation.endLine}` : ""}`}
-          </p>
-        {/if}
-        <CodeChangesList
-          entries={codeChanges}
-          total={codeChanges.length}
-          nextCursor=""
-          version="story"
-          pending={false}
-          enabled
-          onmore={() => {}}
-          onopen={() => {}}
-        />
-      </div>
+      <SessionSidePanel
+        bind:this={sidePanel}
+        bind:view={panelView}
+        shown={codeShown}
+        close={closePanel}
+      >
+        {#snippet paneActions(closePanel: () => void)}
+          <TerminalSplitPanel
+            busy={false}
+            limit={false}
+            ready
+            zoomed={false}
+            onsplit={() => {
+              closePanel();
+              notice = "预览：在真实会话中创建分屏。";
+            }}
+            oncreate={() => {
+              closePanel();
+              notice = "预览：在真实会话中打开新建会话。";
+            }}
+            onchoose={() => {
+              closePanel();
+              notice = "预览：在真实会话中选择已有会话。";
+            }}
+            onclose={() => {
+              closePanel();
+              notice = "预览：在真实会话中关闭当前窗格。";
+            }}
+          />
+        {/snippet}
+        <div class="h-full space-y-2 overflow-y-auto bg-card p-2">
+          {#if openedLocation}
+            <p
+              class="rounded-md border bg-muted/40 px-2.5 py-1.5 font-mono text-xs break-all text-foreground"
+              role="status"
+            >
+              已定位：{openedLocation.path}{openedLocation.line === undefined
+                ? ""
+                : `:${openedLocation.line}${openedLocation.endLine ? `-${openedLocation.endLine}` : ""}`}
+            </p>
+          {/if}
+          <CodeChangesList
+            entries={codeChanges}
+            total={codeChanges.length}
+            nextCursor=""
+            version="story"
+            pending={false}
+            enabled
+            onmore={() => {}}
+            onopen={() => {}}
+          />
+        </div>
+      </SessionSidePanel>
     {/snippet}
   </TerminalWorkspace>
 </main>

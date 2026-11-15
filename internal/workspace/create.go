@@ -22,7 +22,7 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 	if err != nil {
 		return Worktree{}, err
 	}
-	if req.Mode != "new" && req.Mode != "existing" {
+	if req.Mode != "new" && req.Mode != "existing" && req.Mode != "orphan" {
 		return Worktree{}, problemf(ErrInvalid, "请选择新分支或已有本地分支")
 	}
 	if err := s.validBranch(ctx, r.entry.AnchorPath, req.Branch); err != nil {
@@ -77,8 +77,18 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 			}
 		}
 	}
+	isUnbornRepo := branches.DefaultBase == nil && len(branches.Branches) == 0 && len(branches.Bases) == 0
 	argv := []string{"worktree", "add", "--no-guess-remote"}
-	if req.Mode == "new" {
+	switch {
+	case req.Mode == "orphan" || (req.Mode == "new" && req.Base == "" && isUnbornRepo):
+		if exists {
+			return Worktree{}, problemf(ErrConflict, "分支已存在，请选择已有本地分支模式")
+		}
+		if req.Base != "" {
+			return Worktree{}, problemf(ErrInvalid, "空仓或孤立分支模式不能指定基线")
+		}
+		argv = append(argv, "--orphan", "-b", req.Branch, "--", path)
+	case req.Mode == "new":
 		if exists {
 			return Worktree{}, problemf(ErrConflict, "分支已存在，请选择已有本地分支模式")
 		}
@@ -93,7 +103,7 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 			return Worktree{}, problemf(ErrInvalid, "基线无法解析为本地提交: %v", err)
 		}
 		argv = append(argv, "-b", req.Branch, "--", path, outputLine(oid))
-	} else {
+	default:
 		if req.Base != "" {
 			return Worktree{}, problemf(ErrInvalid, "已有分支模式不能指定基线")
 		}
@@ -124,6 +134,7 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 	}
 	for _, tree := range actual.Worktrees {
 		if tree.Path == path {
+			s.captureWorktreeCreateBaseline(refreshCtx, r, repositoryID, tree)
 			return tree, nil
 		}
 	}

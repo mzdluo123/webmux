@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import * as Resizable from "$lib/components/ui/resizable";
+  import { m } from "$lib/paraglide/messages.js";
   import { terminalFindShortcut } from "../../hooks/terminal/terminal-find-shortcut";
   import { codePanelState } from "../../hooks/code/code-panel-state";
 
@@ -8,6 +9,7 @@
   // panel beside it (stacked instead on narrow screens).
   let {
     codeShown,
+    immersive = false,
     desktop,
     draftOpen,
     terminalPane,
@@ -16,12 +18,13 @@
     onfind,
   }: {
     codeShown: boolean;
+    immersive?: boolean;
     desktop: boolean;
     draftOpen: boolean;
     terminalPane: Snippet;
     draftPane: Snippet;
     codePane: Snippet;
-    onfind: () => void;
+    onfind?: () => void;
   } = $props();
   let composerSize = $state(25);
   let terminalHeight = $state(0);
@@ -31,7 +34,7 @@
 <div
   class="terminal-workspace"
   class:code-shown={codeShown}
-  class:mobile-code={!desktop && codeShown}
+  class:mobile-code={!desktop && codeShown && !immersive}
   class:compact={!desktop}
 >
   <Resizable.PaneGroup direction="horizontal">
@@ -43,7 +46,7 @@
       <div
         class="terminal-column"
         bind:clientHeight={terminalHeight}
-        use:terminalFindShortcut={() => onfind()}
+        use:terminalFindShortcut={onfind}
       >
         <Resizable.PaneGroup direction="vertical">
           <Resizable.Pane
@@ -57,7 +60,7 @@
             <Resizable.Handle
               withHandle
               class="draft-divider"
-              aria-label="调整草稿面板高度"
+              aria-label={m.s4_resize_draft_height()}
             />
             <Resizable.Pane
               order={1}
@@ -78,7 +81,7 @@
     <Resizable.Handle
       withHandle
       class="code-divider"
-      aria-label="调整终端与代码宽度"
+      aria-label={m.s4_resize_terminal_code_width()}
     />
     <Resizable.Pane
       defaultSize={codeSize}

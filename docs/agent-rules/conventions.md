@@ -34,8 +34,8 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. The short versions i
 
 ## Frontend
 
-- Frontend files use Oxfmt with an 80-column print width, two spaces, semicolons, trailing commas, and Svelte formatting enabled.
-- Oxlint checks JS/TS and Svelte script blocks, with type-aware Promise rules for `.ts` and `.svelte.ts`. Keep `svelte-check` for Svelte template and type diagnostics.
+- Frontend files use Vite+ `vp fmt` (Oxfmt) with an 80-column print width, two spaces, semicolons, trailing commas, and Svelte formatting enabled.
+- Vite+ `vp lint` (Oxlint) checks JS/TS and Svelte script blocks, with type-aware Promise rules for `.ts` and `.svelte.ts`. Keep `svelte-check --tsgo` for Svelte template and type diagnostics, and ESLint for architecture and template rules.
 - TypeScript is strict with `noUncheckedIndexedAccess`. `$lib` aliases `web/src/lib`.
 - Follow existing names: PascalCase Svelte components, camelCase TypeScript functions, `*Schema` Zod contracts, `*.svelte.ts` rune-bearing hooks, Go `*_test.go`, and Playwright `*.spec.ts`.
 - Before writing UI, look for an existing component in `web/src/lib/components/ui/`, then `web/src/components/`, then the shadcn-svelte registry.
@@ -64,24 +64,27 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. The short versions i
 Run from the repository root.
 
 - `pnpm --dir web install --frozen-lockfile`: install locked frontend dependencies.
+- Vite+ 1.6.0 is a project-local dependency installed by pnpm; use `pnpm --dir web exec vp`, not a global `vp` installation. pnpm remains the package manager.
+- `pnpm --dir web exec vp build`: build the frontend without the separate Svelte type check; use `pnpm --dir web build` for both.
 - `make web`: install dependencies, run Svelte/TypeScript checks, and build `web/dist`.
 - `make build`: build the frontend first, then the embedded Go executable `bin/webmux`.
 - `make release`: build every release artifact into `bin/`: Linux, macOS and Windows binaries, Windows trays and NSIS installers, deb/rpm packages, `install.sh` and `SHA256SUMS`, then sign it.
   - `VERSION=X.Y.Z-dev.N` builds a development release with versioned file names, signed with `WEBMUX_DEV_SIGNING_KEY` instead of `WEBMUX_RELEASE_SIGNING_KEY`.
 - `./bin/webmux --listen 127.0.0.1:7681`: run the backend and embedded production app.
-- `pnpm --dir web dev`: run Vite at `http://127.0.0.1:5173`.
-- `pnpm --dir web check`: check Svelte/TypeScript without building.
-- `pnpm --dir web check:test`: type-check `web/src` and top-level `web/test/*.test.ts` with Svelte support.
+- `pnpm --dir web dev`: run Vite+ at `http://127.0.0.1:5173`.
+- `pnpm --dir web check`: check Svelte/TypeScript with `svelte-check --tsgo` without building; warnings fail.
+- `pnpm --dir web check:test`: type-check `web/src` and top-level `web/test/*.test.ts` with `svelte-check --tsgo`.
 - `make check`: build the frontend, check test types and formatting, run the doc and persistence guards, Oxlint, the architecture guard, `go vet` and `golangci-lint`.
 - `make docs-check`: run the documentation/spec size and tree-layout guard (`internal/docguard`).
 - `make persistence-check`: run the persistence inventory guard (`TestPersistence*` in `internal/archtest`).
 - `make go-lint`: run `golangci-lint` after verifying the pinned release.
 - `make test`, `make test-fast`, `make test-go`, `make test-unit`, `make test-browser`, `make test-e2e`, `make test-performance`, `make cover`, `make cover-go`, `make cover-web`: see [testing](testing.md).
 - `make tray`, `make installer`, `make linux-packages`: build the Windows tray, the NSIS installers and the deb/rpm packages (also run by `make release`).
-- `pnpm --dir web lint`: run Oxlint, including type-aware Promise rules, on frontend code.
+- `pnpm --dir web lint`: run project-local `vp lint --deny-warnings .`, including type-aware Promise rules, on frontend code.
 - `pnpm --dir web check:arch`: run the frontend architecture guard (ESLint design-system rules, dependency-cruiser, jscpd, knip, architecture test).
-- `make format` / `make format-check`: apply/check gofmt and Oxfmt on configured targets.
+- `pnpm --dir web exec vp fmt .` / `pnpm --dir web exec vp fmt --check .`: apply/check frontend formatting.
+- `make format` / `make format-check`: apply/check gofmt and Vite+ formatting on configured repository targets.
 
-Vite proxies `/api` and `/ws` to backend port 7681.
+Vite+ proxies `/api` and `/ws` to backend port 7681.
 Run the backend separately and add `allowed_origins = ["http://127.0.0.1:5173"]` to its development TOML. Otherwise browser write requests are rejected.
 Configuration defaults to `~/.config/webmux/config.toml`. `-config`, `-listen`, and `-token` override startup settings.

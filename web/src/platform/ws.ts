@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { store, stored } from "./storage";
 import {
   currentTransport,
@@ -152,7 +153,11 @@ export function connect(
       try {
         onMessage(event.data);
       } catch (error) {
-        onError(error instanceof Error ? error.message : "无效的服务器消息");
+        onError(
+          error instanceof Error
+            ? error.message
+            : m.s1_ws_invalid_server_message(),
+        );
         next.close(1002, "Invalid server message");
       }
     };

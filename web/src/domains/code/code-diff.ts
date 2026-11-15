@@ -1,8 +1,11 @@
 import { createTwoFilesPatch } from "diff";
 import { processFile } from "@pierre/diffs";
+import { m } from "$lib/paraglide/messages.js";
 import { FileDiffSchema, type DiffResult } from "./code-diff-model";
 
 const DIFF_BUDGET_MS = 250;
+const MAX_DIFF_LINES = 20_000;
+const MAX_DIFF_BYTES = 2 * 1024 * 1024;
 
 function lineCount(text: string): number {
   return text ? text.split("\n").length - Number(text.endsWith("\n")) : 0;
@@ -16,14 +19,14 @@ export function computeDiff(
   budget = DIFF_BUDGET_MS,
 ): DiffResult {
   if (
-    lineCount(oldText) > 20000 ||
-    lineCount(newText) > 20000 ||
-    new TextEncoder().encode(oldText).length > 2 * 1024 * 1024 ||
-    new TextEncoder().encode(newText).length > 2 * 1024 * 1024
+    lineCount(oldText) > MAX_DIFF_LINES ||
+    lineCount(newText) > MAX_DIFF_LINES ||
+    new TextEncoder().encode(oldText).length > MAX_DIFF_BYTES ||
+    new TextEncoder().encode(newText).length > MAX_DIFF_BYTES
   ) {
     return {
       kind: "limited",
-      reason: "内容超过 2 MiB 或 20000 行，请查看两侧完整文件",
+      reason: m.s5_diff_exceeds_size_limit(),
     };
   }
   // Fixed patch names keep tabs/newlines in real filenames out of patch
@@ -36,7 +39,7 @@ export function computeDiff(
   if (patch === undefined) {
     return {
       kind: "limited",
-      reason: "差异计算超过时间预算，请查看两侧完整文件",
+      reason: m.s5_diff_exceeds_time_budget(),
     };
   }
   const fileDiff = processFile(patch, {

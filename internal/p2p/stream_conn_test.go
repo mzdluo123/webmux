@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/rainchan/webmux/internal/streamproto"
 )
 
 type fakeRawPair struct {
@@ -112,20 +114,20 @@ func TestFramedConnLargeFragmentationAndCloseCodes(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	if err := server.Write(ctx, MessageBinary, large); err != nil {
+	if err := server.Write(ctx, streamproto.MessageBinary, large); err != nil {
 		t.Fatal(err)
 	}
 	typ, got, err := client.Read(ctx)
-	if err != nil || typ != MessageBinary || !bytes.Equal(got, large) {
+	if err != nil || typ != streamproto.MessageBinary || !bytes.Equal(got, large) {
 		t.Fatalf("large binary read typ=%v len=%d err=%v", typ, len(got), err)
 	}
 
 	// Empty text message roundtrip
-	if err := client.Write(ctx, MessageText, []byte{}); err != nil {
+	if err := client.Write(ctx, streamproto.MessageText, []byte{}); err != nil {
 		t.Fatal(err)
 	}
 	typ, got, err = server.Read(ctx)
-	if err != nil || typ != MessageText || len(got) != 0 {
+	if err != nil || typ != streamproto.MessageText || len(got) != 0 {
 		t.Fatalf("empty text read typ=%v got=%q err=%v", typ, got, err)
 	}
 
@@ -149,7 +151,7 @@ func TestFramedConnReadLimitAndBackpressure(t *testing.T) {
 	client.SetReadLimit(1024)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_ = server.Write(ctx, MessageBinary, make([]byte, 2048))
+	_ = server.Write(ctx, streamproto.MessageBinary, make([]byte, 2048))
 	if _, _, err := client.Read(ctx); err == nil {
 		t.Fatal("expected read limit error")
 	}
@@ -162,7 +164,7 @@ func TestFramedConnReadLimitAndBackpressure(t *testing.T) {
 	p2.a.setBuffered(maxBufferedAmount + 100)
 	shortCtx, shortCancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 	defer shortCancel()
-	err := s2.Write(shortCtx, MessageText, []byte("blocked"))
+	err := s2.Write(shortCtx, streamproto.MessageText, []byte("blocked"))
 	if !errors.Is(err, ErrSlowClient) {
 		t.Fatalf("expected ErrSlowClient on stalled buffer, got %v", err)
 	}
@@ -174,7 +176,7 @@ func TestFramedConnReadLimitAndBackpressure(t *testing.T) {
 	}()
 	okCtx, okCancel := context.WithTimeout(context.Background(), time.Second)
 	defer okCancel()
-	if err := s2.Write(okCtx, MessageText, []byte("unblocked")); err != nil {
+	if err := s2.Write(okCtx, streamproto.MessageText, []byte("unblocked")); err != nil {
 		t.Fatalf("expected write to succeed once buffer drained, got %v", err)
 	}
 	_, got, err := c2.Read(okCtx)

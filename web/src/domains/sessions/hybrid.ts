@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import type {
   AgentCandidate,
   AgentConnector,
@@ -11,33 +12,43 @@ import type {
 
 // User-facing text for the server's chat support reason codes. The rules
 // themselves stay on the server (agent profiles); only the wording lives here.
-const chatSupportReasons: Record<NonNullable<ChatSupport["reason"]>, string> = {
-  unknown_agent: "未识别到支持的 Agent",
-  unsupported_form: "命令写法不受支持",
-  session_store: "该参数使聊天视图无法找到会话",
-  directory_arg: "请在新建会话时选择目录，不要在命令中写目录",
-  non_interactive: "该参数不启动交互界面",
-  session_arg: "该参数打开已有会话，混合配置请不要指定会话",
-};
+function supportReasonText(reason: NonNullable<ChatSupport["reason"]>): string {
+  switch (reason) {
+    case "unknown_agent":
+      return m.s3_chat_support_unknown_agent();
+    case "unsupported_form":
+      return m.s3_chat_support_unsupported_form();
+    case "session_store":
+      return m.s3_chat_support_session_store();
+    case "directory_arg":
+      return m.s3_chat_support_directory_arg();
+    case "non_interactive":
+      return m.s3_chat_support_non_interactive();
+    case "session_arg":
+      return m.s3_chat_support_session_arg();
+  }
+}
 
 export function chatSupportReason(support: ChatSupport | null) {
   if (!support || support.supported) return "";
   const reason = support.reason ?? "unknown_agent";
-  const text = chatSupportReasons[reason];
-  return reason === "unknown_agent" && support.supportedAgents.length > 0
-    ? `${text}，当前版本支持：${support.supportedAgents.join("、")}`
-    : text;
+  if (reason === "unknown_agent" && support.supportedAgents.length > 0) {
+    return m.s3_chat_support_unknown_agent_list({
+      agents: support.supportedAgents.join(m.s3_list_separator()),
+    });
+  }
+  return supportReasonText(reason);
 }
 
-export type HybridSideLabel = "终端" | "聊天" | "切换中";
+export type HybridSideLabel = string;
 
 /** Which view a session is on, as shown on cards and pages. */
 export function sessionViewLabel(
   session: Pick<SessionInfo, "view" | "transition">,
 ): HybridSideLabel {
-  if (session.transition) return "切换中";
-  if (session.view === "chat") return "聊天";
-  return "终端";
+  if (session.transition) return m.s3_view_switching();
+  if (session.view === "chat") return m.s3_view_chat();
+  return m.s3_view_terminal();
 }
 
 /**
@@ -47,41 +58,60 @@ export function sessionViewLabel(
  */
 export function sessionPageLabel(
   session: Pick<SessionInfo, "views" | "view" | "transition"> | undefined,
-): "聊天" | "终端" | "会话" {
-  if (!session) return "会话";
+): string {
+  if (!session) return m.s3_view_session();
   if (!session.views.includes("chat") || session.view === "terminal")
-    return session.transition ? "会话" : "终端";
-  if (session.transition) return "会话";
-  return "聊天";
+    return session.transition ? m.s3_view_session() : m.s3_view_terminal();
+  if (session.transition) return m.s3_view_session();
+  return m.s3_view_chat();
 }
 
 /** Why the chat side cannot start: its connector is not installed. */
 export function connectorMissingText(connector: AgentConnector) {
-  return `未安装 ${connector.title}（${connector.executable}）`;
+  return m.s3_connector_missing({
+    title: connector.title,
+    executable: connector.executable,
+  });
 }
 
 /** The notice that a hybrid config's chat side is installed separately. */
 export function connectorNoticeText(connector: AgentConnector) {
-  return `聊天端需要另外安装 ${connector.executable}`;
+  return m.s3_connector_notice({ executable: connector.executable });
 }
 
 /** A component running below the version WebMux was verified with. */
 export function outdatedText(item: ChatState["outdated"][number]) {
-  return `${item.name} ${item.version} 低于已验证版本 ${item.verified}，部分功能可能不可用`;
+  return m.s3_outdated_component({
+    name: item.name,
+    version: item.version,
+    verified: item.verified,
+  });
 }
 
 // Why switching to chat is unavailable, in the order the server checks the
 // conditions (agent-session-identity); the server sends only the code.
-const eligibilityReasons: Record<string, string> = {
-  unknown_agent: "未识别到支持的 Agent",
-  not_root: "Agent 不是由本会话直接启动的",
-  no_session_id: "请先在 TUI 中发送一条消息",
-  not_listed: "会话尚未保存或找不到会话",
-  occupied: "该会话已在另一个会话中打开",
-  occupied_external: "该会话正被另一个 Agent 客户端使用",
-  session_ambiguous: "无法确定当前会话，请选择要打开的会话",
-  checking: "正在核对会话",
-};
+function eligibilityReasonText(reason: string): string | undefined {
+  switch (reason) {
+    case "unknown_agent":
+      return m.s3_chat_support_unknown_agent();
+    case "not_root":
+      return m.s3_elig_not_root();
+    case "no_session_id":
+      return m.s3_elig_no_session_id();
+    case "not_listed":
+      return m.s3_elig_not_listed();
+    case "occupied":
+      return m.s3_elig_occupied();
+    case "occupied_external":
+      return m.s3_elig_occupied_external();
+    case "session_ambiguous":
+      return m.s3_elig_session_ambiguous();
+    case "checking":
+      return m.s3_elig_checking();
+    default:
+      return undefined;
+  }
+}
 
 /** The reason switching to chat is unavailable, or "" when it is. */
 export function eligibilityText(eligibility: ChatEligibility) {
@@ -89,7 +119,7 @@ export function eligibilityText(eligibility: ChatEligibility) {
   const reason = eligibility.reason ?? "";
   if (reason === "connector_missing" && eligibility.connector)
     return connectorMissingText(eligibility.connector);
-  return eligibilityReasons[reason] ?? (reason || "暂时不能切到聊天");
+  return eligibilityReasonText(reason) ?? (reason || m.s3_elig_unavailable());
 }
 
 export type SwitchTarget = SessionView;
@@ -103,16 +133,24 @@ export type SwitchProgressPhase = TransitionPhase | "requested" | "arriving";
 
 type StepPhase = Exclude<SwitchProgressPhase, "requested">;
 
-const phaseLabels: Record<StepPhase, string> = {
-  interrupting: "中断中",
-  awaiting_choice: "中断中",
-  cancelling: "中断中",
-  stopping: "退出中",
-  starting: "启动中",
-  loading: "加载历史中",
-  rolling_back: "切换失败，正在回到原端",
-  arriving: "连接终端",
-};
+function phaseLabel(phase: StepPhase): string {
+  switch (phase) {
+    case "interrupting":
+    case "awaiting_choice":
+    case "cancelling":
+      return m.s3_phase_interrupting();
+    case "stopping":
+      return m.s3_phase_stopping();
+    case "starting":
+      return m.s3_phase_starting();
+    case "loading":
+      return m.s3_phase_loading();
+    case "rolling_back":
+      return m.s3_phase_rolling_back();
+    case "arriving":
+      return m.s3_phase_arriving();
+  }
+}
 const stepOrder: Record<SwitchTarget, StepPhase[]> = {
   chat: ["interrupting", "stopping", "starting", "loading"],
   terminal: ["cancelling", "stopping", "starting", "arriving"],
@@ -152,15 +190,15 @@ export function switchSteps(
   const order = to ? stepOrder[to] : [];
   if (phase === "requested")
     return order.map((step, i) => ({
-      label: phaseLabels[step],
+      label: phaseLabel(step),
       state: i === 0 ? "current" : "pending",
     }));
   const at = order.indexOf(
     phase === "awaiting_choice" ? "interrupting" : phase,
   );
-  if (at < 0) return [{ label: phaseLabels[phase], state: "current" }];
+  if (at < 0) return [{ label: phaseLabel(phase), state: "current" }];
   return order.map((step, i) => ({
-    label: phaseLabels[step],
+    label: phaseLabel(step),
     state: i < at ? "done" : i === at ? "current" : "pending",
   }));
 }
@@ -198,12 +236,20 @@ export const switchConfirmations: Record<
   Omit<HybridConfirm, "to">
 > = {
   terminal: {
-    title: "切换到终端？",
-    body: "当前回合会被中断，已输出的内容会保留。",
+    get title() {
+      return m.s3_switch_to_terminal_title();
+    },
+    get body() {
+      return m.s3_switch_to_terminal_body();
+    },
   },
   chat: {
-    title: "切换到聊天？",
-    body: "TUI 正在执行回合：会先发送中断键，等它停下后再退出 TUI。",
+    get title() {
+      return m.s3_switch_to_chat_title();
+    },
+    get body() {
+      return m.s3_switch_to_chat_body();
+    },
   },
 };
 
@@ -225,20 +271,23 @@ export function buildHybridNotices(
     list.push({
       key: `dropped:${dropped.join(" ")}`,
       tone: "warning",
-      text: `以下参数在恢复时未保留：${dropped.join(" ")}`,
+      text: m.s3_hybrid_dropped_args({ args: dropped.join(" ") }),
     });
   const change = state?.idChange;
   if (change && where === "terminal")
     list.push({
       key: `id:${change.from}>${change.to}`,
       tone: "info",
-      text: `TUI 已切换到新会话 ${shortId(change.to)}（上一个：${shortId(change.from)}），切到聊天时接手新会话`,
+      text: m.s3_hybrid_id_changed({
+        to: shortId(change.to),
+        from: shortId(change.from),
+      }),
     });
   if (state?.queueLost)
     list.push({
       key: "queue-lost",
       tone: "warning",
-      text: `排队的消息已丢失（${state.queueLost} 条），浏览器中的草稿不受影响`,
+      text: m.s3_hybrid_queue_lost({ count: state.queueLost }),
     });
   return list.filter((item) => !dismissed.has(item.key));
 }

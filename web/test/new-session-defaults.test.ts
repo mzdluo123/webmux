@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import {
   resolveInitialLaunch,
   resolveInitialTarget,
@@ -179,7 +179,10 @@ test("a remembered config is reused only while it exists, never replaced", () =>
   });
   expect(
     resolveInitialLaunch("config:two", { status: "unavailable", error: "x" }),
-  ).toEqual({ source: "unset", configId: "" });
+  ).toEqual({
+    source: "unset",
+    configId: "",
+  });
 });
 
 test("without a memory the first config is used, else a custom command", () => {
@@ -193,7 +196,10 @@ test("without a memory the first config is used, else a custom command", () => {
   });
   expect(
     resolveInitialLaunch("", { status: "unavailable", error: "x" }),
-  ).toEqual({ source: "custom", configId: "" });
+  ).toEqual({
+    source: "custom",
+    configId: "",
+  });
 });
 
 test("a remembered custom command applies before configs load; configs wait", () => {
@@ -204,6 +210,22 @@ test("a remembered custom command applies before configs load; configs wait", ()
   });
   expect(resolveInitialLaunch("config:one", loading)).toBeNull();
   expect(resolveInitialLaunch("", loading)).toBeNull();
+});
+
+test("disabled launch never waits on its provider or substitutes a remembered config", () => {
+  const loading: LaunchConfigsState = { status: "loading" };
+  expect(resolveInitialLaunch("", loading, false)).toEqual({
+    source: "custom",
+    configId: "",
+  });
+  expect(resolveInitialLaunch("config:one", loading, false)).toEqual({
+    source: "unset",
+    configId: "",
+  });
+  expect(resolveInitialLaunch("config:one", configs(), false)).toEqual({
+    source: "unset",
+    configId: "",
+  });
 });
 
 test("a worktree scope starts in that worktree; an unusable one asks for a new worktree", () => {
@@ -228,11 +250,16 @@ test("the launch scope follows the home view or the contextual entry", () => {
   });
   expect(
     resolveLaunchScope({ ...home, choice: "a", worktreeId: "feature" }),
-  ).toEqual({ repositoryId: "a", worktreeId: "feature" });
+  ).toEqual({
+    repositoryId: "a",
+    worktreeId: "feature",
+  });
   // A worktree of another repository narrows nothing.
   expect(
     resolveLaunchScope({ ...home, choice: "b", worktreeId: "feature" }),
-  ).toEqual({ repositoryId: "b" });
+  ).toEqual({
+    repositoryId: "b",
+  });
   for (const choice of ["all", "direct", null, "gone"])
     expect(resolveLaunchScope({ ...home, choice })).toBeUndefined();
   expect(

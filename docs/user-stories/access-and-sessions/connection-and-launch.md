@@ -20,6 +20,7 @@
   - 当前浏览器保存 token；
   - 错误或变更后的 token 触发重新认证提示；
   - 本机套接字采用同用户身份校验，见 US-M08。
+  - 启用网络 MCP 时 `/mcp` 只接受同一 owner Bearer；会话 ID、Cookie 和 URL 不能认证，凭据仍可调用完整 REST 并启动任意 argv，不是工具级权限。
 - **US-A03 可信网络访问**：作为部署者，我希望控制监听地址和允许的浏览器来源，以便只从预期的本机或可信 VPN 入口操作终端。
   验收要点：
   - 默认仅监听本机回环（127.0.0.1:7681），局域网或可信 VPN 访问可改为 0.0.0.0:7681；
@@ -29,13 +30,15 @@
   - 隧道启动链接与二维码同样不含 token，持久 token 不因重启失效；
   - 监听 loopback 时校验请求 Host（防止无 token 下的 DNS 重绑定），非 loopback 监听（强制要求 token）接受任意合法 Host（如局域网主机名或 Tailscale MagicDNS），并始终校验 Origin（同源、allowed_origins 或受控公网来源）；
   - 认证和来源检查同时覆盖终端与文件、仓库、代码接口。
+  - 网络 MCP 默认关闭；`[mcp] enabled=true` 必须已有非空根 token，空值在自动生成启动 Token 前失败，loopback 也不豁免。
+  - 所有 MCP 方法保留 Host / Origin 校验，仅在 TCP 精确 `/mcp` 开放，不暴露 Unix / P2P 端点；详见 US-S25。
 - **US-A04 查看服务与能力**：作为部署者，我希望知道服务是否在线、会话数量及 Git/仓库能力是否可用，以便定位连接或环境问题。
   验收要点：
   - 健康检查返回可用状态和会话数；
   - 配置接口提供默认目录、主机名和工作区能力，不返回 token；
   - 首页展示连接与能力异常。
-  - 侧栏底部的主机状态入口可点击查看主机名、连接状态、当前传输路径（`WebSocket` 或含候选类型与 IP 族的 `P2P 直连`，见 US-H12）、往返延时（直连生效时优先采用 P2P 控制通道 RTT，否则采用健康检查 RTT）、系统负载（1/5/15 分钟与核心数）和可用/总内存；
-  - 往返延时高于 200 毫秒，或 1 分钟负载高于核心数的 50% 时，状态灯变黄并在提示中说明原因；平台无法提供负载或内存时对应行不显示。
+  - 侧栏底部的主机状态入口可点击查看主机名、连接状态、当前传输路径（`WebSocket` 或含候选类型与 IP 族的 `P2P 直连`，见 US-H12）、往返延时（直连生效时优先采用 P2P 控制通道 RTT，否则采用健康检查 RTT）、系统负载（1/5/15 分钟与核心数）、可用/总内存和已用/总交换空间；
+  - 往返延时高于 200 毫秒，或 1 分钟负载高于核心数的 50% 时，状态灯变黄并在提示中说明原因；平台无法提供负载、内存或交换空间（含主机未配置交换空间）时对应行不显示。
 - **US-A05 脚本访问**：作为进阶使用者，我希望通过 REST 和 WebSocket 操作会话，以便接入自己的脚本或客户端。
   验收要点：
   - 提供会话、配置、目录、上传、仓库与代码（含文件操作）接口；
@@ -47,11 +50,19 @@
   - 片段不发送到服务器；
   - WebSocket 认证通过子协议携带 token，不放入请求 URL 或 Cookie；
   - 链接仍是敏感入口。
+- **US-A07 切换界面语言**：作为在中文或英文环境下工作的开发者，我希望网页界面默认跟随系统语言，也能随时在登录页或设置页手动切换简体中文与 English，以便用熟悉的语言浏览工作区、终端和设置而不中断当前会话。
+  验收要点：
+  - 网页前端内置简体中文（`zh-CN`）与英语（`en`）消息目录，编译与运行期间不请求外部翻译服务或 CDN；
+  - 语言偏好支持“跟随系统 / Follow system”（默认）、`简体中文`、`English` 三项：显式选择保存在当前浏览器的 `webmux.locale`，选择“跟随系统”移除该键，认证失效清理凭据时保留本机语言偏好，且不写入服务端 `/api/settings`；
+  - “跟随系统”按浏览器 `navigator.languages` 顺序匹配首个 `zh*` 或 `en*` 标签，无中文的非空其他语言标签回退为 `en`，空列表回退为 `zh-CN`；系统触发 `languagechange` 或同源标签页修改 `webmux.locale` 时自动同步；
+  - 未登录门禁页（`ConnectionGate`）与“设置 → 外观与阅读”均提供语言切换，服务端设置尚未就绪时也不阻塞语言切换；
+  - 切换语言后，`<html lang>`、浏览器标签页标题、全部已挂载界面文案、前端契约校验提示及本地化日期数字格式立即无刷新更新，不重新加载页面、不断开现有终端或聊天连接，已输入的表单草稿保留。
 
 依据：
 
 - [统一品牌标识](../../../web/src/components/shell/Brand.svelte)、[品牌图标](../../../web/public/icon.svg)、[浏览器图标入口](../../../web/index.html)
 - [应用入口](../../../web/src/App.svelte)、[Token 说明](../../../web/src/components/shared/TokenHelp.svelte)、[配置命令](../../../cmd/webmux/configcmd.go)
+- [语言控制器](../../../web/src/lib/locale.ts)、[语言切换组件](../../../web/src/components/shared/LocaleChoice.svelte)、[消息目录](../../../web/messages/en.json)
 - [启动与 token 生成](../../../cmd/webmux/main.go)、[API 路由与安全检查](../../../internal/api/router.go)、[Host 校验](../../../internal/api/host.go)
 - [安全说明](../../../SECURITY.md)。
 
@@ -59,33 +70,39 @@
 
 - **US-B01 启动 Shell 或 agent**：作为使用者，我希望通过自定义启动配置或显式命令运行 Shell、Open Code、Claude Code、Codex、omp 等程序，以便快速开始终端工作或遥控 agent。
   验收要点：
-  - 新建会话对话框以“位置”与“运行”两个选择行组成一页，“运行”在同一列表中提供保存的启动配置与末尾的“自定义命令…”；新安装预置常见 agent 的启动配置，没有不可修改的内置预设；
-  - Claude Code、Codex CLI、Antigravity CLI、Open Code、Qoder、QoderCN、Kimi 与 omp 的预置配置默认自动批准工具调用：
+  - 显式 argv、cwd 与环境变量属于核心能力；保存的配置与预设需 `launch`，仓库位置需 `workspace`，混合模式需 `chat`，附件及临时文件引用需 `files`。关闭这些功能不妨碍创建普通 PTY（US-K19）；
+  - 启用 workspace.projects 时，全局新建会话先进入可搜索的项目列表，选定后显示项目与运行设置；明确仓库、工作树和分屏上下文直接进入设置，缺少项目能力时保留“位置”与“运行”的直接创建方式；
+  - 选定项目后，键盘与遥控器焦点进入可见的工作位置、运行或命令控件，不停留在隐藏的项目搜索框；
+  - 启用 `launch` 时提供保存的启动配置与末尾的“自定义命令…”，首次启用且存储缺失时才写入常见 agent 预设，没有不可修改的内置预设；
+  - Claude Code、Codex CLI、Antigravity CLI、Open Code、Qoder、QoderCN、Kimi、Devin 与 omp 的预置配置默认自动批准工具调用：
     - Claude Code `--dangerously-skip-permissions`；
     - Codex CLI `--dangerously-bypass-approvals-and-sandbox`；
     - Antigravity CLI `--dangerously-skip-permissions`；
     - Open Code `--auto`；
     - Qoder `--dangerously-skip-permissions`；
     - QoderCN `--dangerously-skip-permissions`；
-    - Kimi `--auto`；
+    - Kimi `--yolo`；
+    - Devin `--permission-mode dangerous`；
     - omp `--auto-approve`；
   - Cursor、Copilot、Qwen、CodeBuddy 使用各自默认授权行为；
-  - 十一款 CLI 的启动命令见 [接入说明](../../cli-agents.md)；
-  - Claude Code、Codex CLI、Antigravity CLI、Open Code、omp、Qoder、QoderCN 与 Kimi 预置配置默认为混合模式（US-Q01）；
+  - 十二款 CLI 的启动命令见 [接入说明](../../cli-agents.md)；
+  - Claude Code、Codex CLI、Antigravity CLI、Open Code、omp、Qoder、QoderCN、Kimi 与 Devin 预置配置默认为混合模式（US-Q01）；
   - 命令选择器可用键盘操作（Enter 打开、方向键与搜索、Esc 只关闭选择器），选中行和每个选项同时显示图标、名称与命令，长命令保留完整提示；
   - 保存的配置按 ID 启动，临时命令按完整 argv 启动，均创建真实 PTY；
   - Open Code 可通过“加载 shell 启动文件”保存为 Bash（`~/.bashrc`）或 Zsh（`~/.zshrc`）包装，新安装按服务端 `$SHELL` 预选，其他 shell 回退为不包装或手动选择，不自动安装程序；
   - 勾选了混合模式的配置可选择从终端或聊天开始（US-Q02）；
-  - 首页与工作树统一使用“新建会话”，分屏菜单复用同一对话框；
+  - 首页与工作树统一使用“新建会话”；会话页经“打开面板 → 分屏 → 新建会话…”复用同一对话框，打开创建表单前关闭侧栏；
   - 无论哪种启动方式，对话框都有可选的“用户指令”，创建后自动发送：
     - 聊天端作为第一条消息；终端端若所选混合模式 agent 已支持命令行初始提示参数（且启动命令本身未带初始提示），通过首次 TUI 启动参数直接传入（不写入 `SessionInfo.Cmd` 或持久化记录），尚未迁移的 agent、不支持该消息形式的边界情况与自定义命令仍在程序输出安静后输入并自动回车；
     - 未填会话名称的终端启动以该指令为会话名（US-B07）；
     - 位置属于已登记仓库且该仓库设置了初始化指令时，另有“使用初始化指令”（从聊天开始时默认勾选，从终端开始时默认不勾选），指令先于用户指令发送（模板规则见 US-J12）；
     - 引用无效、临时文件夹不可用等发送前即可发现的问题使创建失败并保留输入，不留下半启动的会话；
-  - 底部汇总“将在 X 运行 Y”，默认值齐全时打开即可直接创建；会话名称收在“高级：会话名称”中；
+  - 更换项目保留运行配置、自定义命令、名称与用户指令，重置项目专属分支和工作树字段；用户指令中的 Enter 保持换行；
+  - 底部汇总“将在 X 运行 Y”，项目与默认值齐全时可直接创建；会话名称收在“高级：会话名称”中；
   - 创建成功后按入口进入终端或加入当前布局。
 - **US-B02 自定义命令与参数**：作为进阶使用者，我希望填写完整命令及参数，或选用已保存的配置，以便运行自己的 CLI 工作流。
   验收要点：
+  - `launch` 未选择时只提供自定义命令，不读取配置列表；浏览器遗留 `configId` 不能转换成猜测命令或另一配置，必须显式选择并填写新命令；
   - 在启动配置与“自定义命令…”之间切换时保留手动输入和已选配置，但只提交当前方式；
   - 空手动命令不能误用保存配置；
   - 正确保留引号、空参数与参数边界，不进行 shell 展开；
@@ -94,9 +111,11 @@
   - 临时命令不落盘，保存配置不可用或仍在加载时可改选“自定义命令…”。
 - **US-B03 选择直接目录**：作为使用者，我希望直接指定任意可访问目录并复用最近使用的位置，以便启动普通项目而不必先登记 Git 仓库。
   验收要点：
-  - “位置”选择器在一处列出主页当前仓库的工作树、最近目录、其他仓库的工作树与“输入或浏览目录…”，选中直接目录时显示可编辑的工作目录输入与浏览按钮；
-  - 从首页的“新建会话”打开时范围收窄：选中仓库只列该仓库的工作树与“新建工作树…”；选中工作树（或点工作树行的“新建会话”）只列该工作树与“从当前工作树分支新建…”，起始分支默认为该工作树的分支；选中“全部仓库”、“直接会话”或从分屏、会话页打开时不收窄；
-  - 默认位置优先级：上下文入口（工作树的“新建会话”、分屏源会话目录）> 主页选中仓库的可用主工作区（否则该仓库其他可用工作树）> 最近目录 > 服务默认目录；
+  - `workspace` 未选择时仍可输入或浏览直接目录、使用最近目录与默认目录；不读取仓库或工作树清单，不显示其位置选项，也不按旧仓库偏好切换项目；
+  - 启用项目能力时通过项目列表或“本地文件夹”明确选择目录，普通项目不显示 Git 或额外工作目录字段；关闭项目能力时保留直接目录输入、浏览与最近目录；
+  - 从首页的“新建会话”打开时范围收窄：选中仓库只列该仓库的工作树与“新建工作树…”；选中工作树（或点工作树行的“新建会话”）只列该工作树与“从当前工作树分支新建…”，起始分支默认为该工作树的分支；选中“全部仓库”、“直接会话”时先选项目，分屏保持源目录并可显式更换项目；
+  - 明确上下文优先：工作树入口或分屏源目录 > 主页选中仓库的可用主工作区（否则其他可用工作树）；
+  - 全局项目流程等待明确选择，不以最近目录替代项目；兼容的直接创建路径才按最近目录、服务默认目录依次预填；
   - 主页选中仓库但没有可用工作区时保留仓库并要求选择，不回退到其他项目；对话框内改选位置不改变主页选中的仓库；
   - 保留最近 10 个启动目录，并在成功创建后记住最近一次启动方案（启动配置及混合起始端，或临时命令），下次打开直接填入，对所有位置通用；
   - 记住的配置已删除或不可用时显示“选择启动方式”并禁止提交，不隐式启动另一配置；创建失败不覆盖记忆；
@@ -113,7 +132,7 @@
   - 不因此登记仓库。
 - **US-B06 在已有或新工作树启动**：作为使用者，我希望从已有 worktree 启动，或先创建 worktree 再启动 agent，以便在指定的代码副本中工作。
   验收要点：
-  - 在“位置”选择器中直接选择已有工作树（显示分支与路径），或在对应仓库分组中选择“新建工作树…”；
+  - 项目流程的“工作位置”只列当前项目的已有工作树（显示分支与路径）与“新建工作树…”；不包含其他项目或任意目录；直接创建兼容入口保留“位置”选择器；
   - 不可用仓库、不可用或 bare 工作树显示但禁用；
   - 新工作树在位置行下方展开：“创建新分支 / 使用已有分支”、起始分支与新分支名称，起始提交与存放目录收在“高级：起始提交与存放目录”，位置行摘要显示“新分支 ← 起始分支”；改选其他位置再选回同一仓库的“新建工作树…”时保留已填写内容；
   - 新工作树成功后可启动会话或仅保留工作树；
@@ -128,6 +147,9 @@
   - 首页、终端、聊天页头与浏览器标签使用会话标题；终端或 agent 标题中的 Nerd Font 私有区图标在首页、侧栏、会话行和页头等界面沿用内置图标的字形显示。
 - **US-B08 管理启动配置**：作为使用者，我希望把常用的命令、参数和环境变量保存为服务端启动配置，以便在任何设备上一键选用而不必重复输入。
   验收要点：
+  - 本故事的存储、预设与设置入口仅在选择 `launch` 时存在；未选择时不打开、锁定、初始化或补写配置文件。混合开关需 `chat`，不因禁用聊天而清除已有混合字段；
+  - 已选择的聊天或通知编辑器加载失败时，修改名称等其他字段仍保留已读取的混合模式与提醒策略，不把缺少编辑器当成用户清空选项；
+  - CLI 在只选择 `launch` 时可新增并实际运行普通配置，也可修改名称、环境和预览；省略未启用功能拥有的写入字段，保留已存混合与提醒选项。显式聊天开关不因省略而伪装成功；
   - 设置页的启动配置以不带边框的行列表呈现（行高不低于 44px）：图标、名称、一行摘要（终端或混合会话、环境变量数、预览行数；完整命令只在编辑对话框中显示），整行点击编辑，行尾“⋯”菜单提供编辑与删除；
   - 设置页可新建、编辑、删除自定义启动配置，并选择自动匹配、通用终端或 LobeHub 品牌图标；配置最多 100 条且文件总大小不超过 4 MiB，超出时保存被拒绝并提示精简（400），其余配置与功能不受影响；
   - 图标随配置持久保存并在设置列表、新建会话选择器中显示，缺少图标的旧配置按可识别的直接命令或标准 Bash/Zsh 包装自动匹配，不改写原配置；
@@ -147,30 +169,72 @@
   - 配置跨重启与设备共享，环境变量值默认遮挡；
   - 按配置 ID 启动，修改或删除配置不影响运行中会话的命令与环境，会话信息保留配置 ID 供首页解析预览；
   - 存储不可用时显示原因，临时命令仍可用。编辑器可勾选混合模式，可用性由服务端判定并显示原因，列表显示“混合”标记（US-Q01）。
-- **US-B09 启动 agent 时不卡在“信任此文件夹”**：作为使用者，我希望 Claude Code、Codex、GitHub Copilot CLI、Antigravity CLI、Qoder、QoderCN 和 Kimi 在新目录启动时不停在信任对话框，以便无人看着的会话也能直接开始工作。
+- **US-B09 启动 agent 时不卡在“信任此文件夹”**：作为使用者，我希望 Claude Code、Codex、GitHub Copilot CLI、Antigravity CLI、Qoder、QoderCN、Kimi 和 Devin 在新目录启动时不停在信任对话框，以便无人看着的会话也能直接开始工作。
   验收要点：
-  - 默认开启 `agent_pretrust`；新建会话的命令被识别为这七款 CLI（直接执行、绝对路径、版本化二进制名或 Bash/Zsh 启动文件包装）时，先把启动目录记入该 CLI 自己的配置，或为 Kimi 注入进程级目录信任，再启动进程；
+  - 选择 `launch` 时默认开启 `agent_pretrust`；新建会话的命令被识别为这八款 CLI（直接执行、绝对路径、版本化二进制名或 Bash/Zsh 启动文件包装）时，先把启动目录记入该 CLI 自己的配置，或为 Kimi 注入进程级目录信任，再启动进程；
+  - 未选择 `launch` 时，普通 argv 仍可运行，但不装配信任预写或 agent 专属提交延迟，`agent_pretrust = true` 不会隐式开启启动集成；
   - 写入位置优先跟随会话环境变量，其次是服务进程的同名变量，最后回退到主目录下的默认位置：
     - Claude Code：`CLAUDE_CONFIG_DIR` 或 `~/.claude.json`；
     - Codex：`CODEX_HOME` 或 `~/.codex/config.toml`；
     - GitHub Copilot CLI：`COPILOT_HOME` 或 `~/.copilot/config.json`；
     - Antigravity CLI：固定写主目录下的 `~/.gemini/antigravity-cli/settings.json`（`trustedWorkspaces`）；
     - Qoder 与 QoderCN：分别跟随 `QODER_CONFIG_DIR`（默认 `~/.qoder/settings.json`）与 `QODERCN_CONFIG_DIR`（默认 `~/.qoder-cn/settings.json`），写入 `permissions.trustDirectories`（不跟随命令行 `--config-dir`）；
+    - Devin：`XDG_DATA_HOME`（默认 `~/.local/share`）下的 `devin/cli/trusted_workspaces.json`，写入 `trusted_paths`；
   - Kimi 不写持久配置，只在会话环境补充 `KIMI_CODE_TRUST_WORKSPACE=1`；恢复 TUI 与 ACP 继承同一环境，会话或服务已显式设置该变量（包括 falsy 值）时不覆盖；
   - 已有配置的其他内容与权限保持不变；已经信任时不写；Codex 保留注释且不改写用户显式设为 `untrusted` 的目录；
-  - Claude Code、Copilot、Antigravity CLI、Qoder 与 QoderCN 的配置文件缺失、或无法解析时不创建、不改写；Codex 只在 `~/.codex` 已存在时创建 `config.toml`；
+  - Claude Code、Copilot、Antigravity CLI、Qoder 与 QoderCN 的配置文件缺失、或无法解析时不创建、不改写；Codex 只在 `~/.codex` 已存在时创建 `config.toml`；Devin 会创建缺失的目录与文件，内容为仅含 `trusted_paths` 的最小 JSON，已有文件的其他字段保持不变；
   - 主目录、其上级目录与文件系统根永不写入或注入；目录先解析符号链接；
   - 任何失败只记录日志，会话照常启动；`agent_pretrust = false` 时不写任何文件，也不注入 Kimi trust 环境；
   - 其他 CLI 与已运行会话不受影响，说明与限制见 [CLI agent 接入](../../cli-agents.md#文件夹信任预写)。
+
+- **US-B10 打开或创建本地项目**：作为使用者，我希望先登记项目再启动会话，以便复用服务端的普通文件夹或 Git 仓库。
+  验收要点：
+  - 选择 workspace 后提供项目列表、已有目录登记、父目录浏览和新建目录接口；不需要 files、launch 或 chat；
+  - 普通目录无需 Git；新建默认只创建目录，显式开启初始化才创建 main 分支的空 Git 仓库，不要求作者身份或生成初始提交；
+  - 相同规范路径去重，Git 子目录归一到已登记仓库；不会覆盖既有目标或修改原仓库初始化指令；
+  - 创建后登记失败时保留目录并返回恢复路径，可再次登记；认证和 Origin 校验覆盖所有项目接口；
+  - workspace.projects 单独报告目录能力，Git 不可用不阻断普通目录，未选择 workspace 时接口不挂载；
+  - 全局新建会话以项目列表开始，可搜索名称与路径；无项目时显示来源列表，支持新建与本地文件夹；操作成功进入实际会话设置，重复提交禁用，错误保留输入；
+  - 返回来源列表保留各来源草稿；Esc 逐层返回并恢复搜索焦点，根层关闭。
+
+- **US-B11 幂等克隆远程 Git 项目**：作为使用者，我希望远程克隆在断线后继续并可恢复登记，以便创建项目时不重复下载或覆盖文件。
+  验收要点：
+  - workspace.clone 可用时，POST /api/projects/clone 接受 requestId、url、path，先持久记录再返回 202；同一请求与参数返回同一操作，参数不符返回 409；
+  - 允许不含凭据/查询参数的 HTTPS、SSH 和 user@host:path；拒绝本地及 ext 协议、控制字符和选项输入，不执行 shell 拼接命令；
+  - 两个网络克隆并发，其余排队；浏览器离开不取消任务，服务停止取消并等待整个子进程组；
+  - 只在自有临时目录克隆，原子发布绝不覆盖已有目标，即使它是空目录、文件或符号链接；失败只清理本操作创建的临时目录，替换过的目录拒绝递归删除；
+  - GET /api/projects/operations/{id} 可重连查询结果；克隆成功但登记失败保留目标，通过 POST /api/projects/operations/{id}/register 单独重试，不再次克隆；
+  - Git URL 来源建议未填写的目标目录但保留手动修改；显示克隆进度，刷新或重新打开后恢复跟踪，登记失败可重试；显式选择其他项目会停止本浏览器观察，迟到结果不覆盖新选择；
+  - 公开错误不包含 Git stdout/stderr 或服务端凭据；禁用 workspace 时相关路由不挂载。
+
+- **US-B12 通过服务端 GitHub 身份选择仓库**：作为使用者，我希望浏览和搜索服务用户有权访问的仓库，以便选择私有或协作项目并复用现有登录。
+  验收要点：
+  - GET /api/projects/github 返回服务端登录名、owner/name、描述、私有状态和 HTTPS 克隆地址；默认列出自己的与协作仓库，搜索支持可访问仓库；
+  - GitHub 来源可搜索、翻页、选择仓库与目标目录；未安装或未登录时仍可进入配置说明，刷新后重读能力，不探测不可用接口；
+  - 每页 20 条，页码 1–50；搜索限 200 字节且拒绝控制字符，参数独立传给 gh，不执行 shell；
+  - 缺少 gh、身份不可用、权限或网络失败返回 available=false 与可读原因，仓库数组仍为 []；失败不阻断普通目录；
+  - 只在显式查询时验证身份与 gh 克隆语法（需要支持 --no-upstream 的 2.88+ 版本）；workspace.github 能力仅检查所需命令与存储，不启动登录或修改认证配置；
+  - source=github 的克隆使用服务端 gh 认证，来源限 github.com 的 HTTPS 仓库地址；source 参与幂等身份，普通 Git URL 克隆保持原行为；
+  - 请求最长 20 秒，输出有界，取消会终止整个进程组；公开响应不包含 gh 原始输出或凭据；禁用 workspace 时接口不挂载。
 
 依据：
 
 - [启动图标](../../../web/src/components/settings/LaunchConfigIcon.svelte)、[LobeHub 图标来源与许可](../../../web/src/icons/lobehub/README.md)
 - [新建会话](../../../web/src/components/sessions/NewSessionDialog.svelte)、[位置选择](../../../web/src/components/workspace/LocationPicker.svelte)、[命令选择](../../../web/src/components/sessions/LaunchPicker.svelte)、[默认值解析](../../../web/src/domains/sessions/new-session-defaults.ts)
 - [启动配置编辑](../../../web/src/components/settings/LaunchConfigDialog.svelte)、[系统预设菜单](../../../web/src/components/settings/LaunchPresetMenu.svelte)、[启动配置存储](../../../internal/launch/store.go)、[首次启动预设](../../../internal/launch/presets.go)
-- [启动配置接口](../../../internal/api/launch.go)、[CLI agent 接入](../../cli-agents.md)
+- [启动配置接口](../../../internal/featureapi/launch.go)、[CLI agent 接入](../../cli-agents.md)
 - [信任预写](../../../internal/agenttrust/agenttrust.go)、[会话钩子](../../../internal/session/manager.go)
-- [会话标题来源](../../../internal/hybrid/actor.go)、[会话覆盖层](../../../internal/session/lifecycle.go)、[聊天页头](../../../web/src/hooks/sessions/hybrid.svelte.ts)
-- [目录选择](../../../web/src/components/workspace/DirectoryPicker.svelte)、[命令解析](../../../internal/session/run_command.go)、[工作区会话创建](../../../internal/workspace/sessions.go)。
+- [会话标题来源](../../../internal/hybrid/actor.go)、[核心生命周期](../../../internal/session/lifecycle.go)、[聊天页头](../../../web/src/hooks/sessions/hybrid.svelte.ts)
+- [目录选择](../../../web/src/components/workspace/DirectoryPicker.svelte)、[命令解析](../../../internal/session/run_command.go)、[核心创建编排](../../../internal/sessioncreate/service.go)。
+- [可选创建端口](../../../internal/sessioncreate/types.go)、[工作区位置贡献](../../../internal/workspace/create_location.go)、[功能创建入口](../../../web/src/features/create.ts)。
 
 来源补充：[统一创建回归](../../../web/test/e2e/session-creation.spec.ts)。
+
+项目来源：[项目 API](../../protocol/http-projects.md)、[本地项目服务](../../../internal/workspace/project_local.go)、[项目接口](../../../internal/featureapi/project.go)、[项目 wire 回归](../../../internal/api/project_test.go)。
+
+远程克隆来源：[克隆服务](../../../internal/workspace/project_clone.go)、[克隆执行](../../../internal/workspace/project_clone_worker.go)、[克隆回归](../../../internal/workspace/project_clone_test.go)。
+
+GitHub 来源：[发现服务](../../../internal/workspace/project_github.go)、[受控进程回归](../../../internal/workspace/project_github_test.go)、[接口契约回归](../../../internal/api/project_github_test.go)。
+
+项目来源界面（US-B10–US-B12）：[Project picker Storybook](../../../web/stories/ProjectPicker.stories.ts) 展示项目列表、四种来源、配置降级及登记失败。
+生产入口通过 workspace 创建贡献接入；[项目会话组件回归](../../../web/test/browser/ProjectSessionDialog.test.ts) 覆盖项目切换、上下文与能力降级。

@@ -2,12 +2,15 @@ package hybrid
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/agentprofile/agy"
+	"github.com/rainchan/webmux/internal/agentprofile/kimi"
+	"github.com/rainchan/webmux/internal/agentprofile/omp"
 )
 
 func TestAgyFormElicitationMultiSelect(t *testing.T) {
@@ -67,7 +70,7 @@ func TestAgyRoundTripAndConfigReapply(t *testing.T) {
 	h.waitReason(id, ReasonNoSessionID)
 	tuiTurn(t, s, "one")
 	h.waitEligible(id)
-	sid := *s.Info().Hybrid.AgentSessionID
+	sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 	if len(sid) != 36 {
 		t.Fatalf("expected 36-char UUID session ID, got %q", sid)
 	}
@@ -99,7 +102,7 @@ func TestAgyRoundTripAndConfigReapply(t *testing.T) {
 	waitFor(t, "resumed transcript", func() bool { return strings.Contains(string(s.Buffer()), "> two") })
 	tuiTurn(t, s, "three")
 	h.waitEligible(id)
-	if got := *s.Info().Hybrid.AgentSessionID; got != sid {
+	if got := *h.svc.Metadata(s.Info().ID).AgentSessionID; got != sid {
 		t.Fatalf("resumed terminal session %s, want %s", got, sid)
 	}
 
@@ -112,4 +115,160 @@ func TestAgyRoundTripAndConfigReapply(t *testing.T) {
 		t.Fatalf("config after cold load %+v, want gemini-3.8-flash and low", state.Config)
 	}
 	assertSingleWriter(t, h.store)
+}
+
+func TestAgyTUITitleContinuityAndRename(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(agy.Name, SideTUI)
+	in.Name = ""
+	dir := filepath.Base(resolved(t, in.Cwd))
+	s := h.create(in)
+	id := s.Info().ID
+	if got := s.Info().Title; got != dir {
+		t.Fatalf("initial placeholder title %q, want %q", got, dir)
+	}
+
+	tuiTurn(t, s, "fix sidebar")
+	h.waitEligible(id)
+	waitTitle(t, s, "agy: fix sidebar")
+
+	typeLine(t, s, "/rename Custom Agy Title")
+	waitTitle(t, s, "Custom Agy Title")
+
+	// Even if session/list lags behind the live terminal OSC 2 title, a probe
+	// or switch check must not regress the session title to the stale disk copy.
+	typeLine(t, s, "/store-title Stale Disk Title")
+	waitFor(t, "stored Stale Disk Title", func() bool { return strings.Contains(string(s.Buffer()), "stored title: Stale Disk Title") })
+
+	h.mustSwitch(id, SideACP)
+	waitTitle(t, s, "Custom Agy Title")
+	if got := h.record(id).Title; got != "Custom Agy Title" {
+		t.Fatalf("recorded title on chat side %q, want %q", got, "Custom Agy Title")
+	}
+
+	// Sync disk title again before switching back to TUI so agy resume opens it.
+	h.mustSwitch(id, SideTUI)
+	typeLine(t, s, "/rename Custom Agy Title")
+	waitTitle(t, s, "Custom Agy Title")
+	firstSID := *h.svc.Metadata(id).AgentSessionID
+
+	// Forking into a new conversation that re-emits the same OSC 2 title must
+	// keep that title instead of treating it as stale from the prior session.
+	typeLine(t, s, "/fork")
+	waitFor(t, "forked session ID", func() bool {
+		meta := h.svc.Metadata(id)
+		return meta != nil && meta.AgentSessionID != nil && *meta.AgentSessionID != firstSID
+	})
+	h.waitEligible(id)
+	if got := s.Info().Title; got != "Custom Agy Title" {
+		t.Fatalf("forked title %q, want %q", got, "Custom Agy Title")
+	}
+
+	forkedSID := *h.svc.Metadata(id).AgentSessionID
+	typeLine(t, s, "/new")
+	waitFor(t, "new session ID after fork", func() bool {
+		meta := h.svc.Metadata(id)
+		return meta != nil && meta.AgentSessionID != nil && *meta.AgentSessionID != forkedSID
+	})
+	waitTitle(t, s, dir)
+	if got := h.record(id).Title; got != dir {
+		t.Fatalf("recorded title after /new %q, want %q", got, dir)
+	}
+	tuiTurn(t, s, "next task")
+	h.waitEligible(id)
+	waitTitle(t, s, "agy: next task")
+}
+
+func TestStaleTerminalTitleClearedOnAgentSessionChange(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(omp.Name, SideTUI)
+	in.Name = ""
+	dir := filepath.Base(resolved(t, in.Cwd))
+	s := h.create(in)
+	id := s.Info().ID
+
+	tuiTurn(t, s, "first")
+	h.waitEligible(id)
+	firstSID := *h.svc.Metadata(id).AgentSessionID
+	typeLine(t, s, "/osc-title First OMP Title")
+	waitTitle(t, s, "First OMP Title")
+	waitFor(t, "recorded terminal title", func() bool { return h.record(id).Title == "First OMP Title" })
+
+	// omp /new switches agent session ID without emitting an empty OSC 2;
+	// ClearTerminalTitleIf drops the previous session's window title on the
+	// very same observe tick and resets the recorded title for recovery.
+	typeLine(t, s, "/new")
+	waitFor(t, "new agent session ID", func() bool {
+		meta := h.svc.Metadata(id)
+		return meta != nil && meta.AgentSessionID != nil && *meta.AgentSessionID != firstSID
+	})
+	if got := s.Info().Title; got != dir {
+		t.Fatalf("title right after session ID change %q, want %q", got, dir)
+	}
+	if got := h.record(id).Title; got != dir {
+		t.Fatalf("recorded title after /new %q, want %q", got, dir)
+	}
+	tuiTurn(t, s, "second")
+	h.waitEligible(id)
+	h.closeSession(id)
+	resumed := h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	if got := resumed.Info().Title; got != dir {
+		t.Fatalf("title after resuming untitled /new session %q, want %q", got, dir)
+	}
+}
+
+func TestCandidateAgentPreservesLiveOSCTitleOnSwitch(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(kimi.Name, SideTUI)
+	in.Name = ""
+	s := h.create(in)
+	id := s.Info().ID
+
+	tuiTurn(t, s, "hello kimi")
+	h.waitEligible(id)
+	typeLine(t, s, "/store-title Stale Kimi Disk Title")
+	waitFor(t, "stored Stale Kimi Disk Title", func() bool {
+		return strings.Contains(string(s.Buffer()), "stored title: Stale Kimi Disk Title")
+	})
+	typeLine(t, s, "/osc-title Live Kimi Window Title")
+	waitTitle(t, s, "Live Kimi Window Title")
+
+	h.mustSwitch(id, SideACP)
+	if got := s.Info().Title; got != "Live Kimi Window Title" {
+		t.Fatalf("title after switching candidate agent to chat %q, want %q", got, "Live Kimi Window Title")
+	}
+	if got := h.record(id).Title; got != "Live Kimi Window Title" {
+		t.Fatalf("recorded title after switching candidate agent to chat %q, want %q", got, "Live Kimi Window Title")
+	}
+}
+
+func TestSessionListTitleFallbackWithoutOSC(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(omp.Name, SideTUI)
+	in.Name = ""
+	s := h.create(in)
+	id := s.Info().ID
+
+	waitFor(t, "initial prompt", func() bool { return strings.Contains(string(s.Buffer()), "prompt> ") })
+	typeLine(t, s, "/store-title Early Listed")
+	waitFor(t, "stored Early Listed", func() bool { return strings.Contains(string(s.Buffer()), "stored title: Early Listed") })
+	tuiTurn(t, s, "first")
+	h.waitEligible(id)
+	waitTitle(t, s, "Early Listed")
+
+	typeLine(t, s, "/store-title Switched Listed")
+	waitFor(t, "stored Switched Listed", func() bool { return strings.Contains(string(s.Buffer()), "stored title: Switched Listed") })
+	h.mustSwitch(id, SideACP)
+	waitTitle(t, s, "Switched Listed")
+
+	h.mustSwitch(id, SideTUI)
+	waitTitle(t, s, "Switched Listed")
+
+	h.closeSession(id)
+	resumed := h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	waitTitle(t, resumed, "Switched Listed")
 }

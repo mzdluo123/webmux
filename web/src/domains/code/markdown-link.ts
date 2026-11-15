@@ -1,12 +1,47 @@
+import { m } from "$lib/paraglide/messages.js";
 import { APIError } from "../../platform/api";
 import type { CodeReveal } from "../../contracts/schemas";
 
 /** A code file, directory, line range or heading target parsed from chat output. */
 export type ChatCodeLink = Omit<CodeReveal, "key" | "mode">;
 
+/**
+ * Opens a chat code link in the code browser; a resolved non-empty string is a
+ * failure reason the caller shows in place instead.
+ */
+export type ChatCodeLinkHandler = (
+  target: ChatCodeLink,
+) => void | Promise<string | undefined>;
+
 /** True for external links that open in a new browser tab. */
 export const isExternalLink = (value: string) =>
   /^(?:https?:|mailto:)/i.test(value.trim());
+
+const sessionPathPattern = /^\/s\/[a-z2-7]{8}$/;
+
+/** Normalizes a relative or same-origin session reference to `/s/<id>`. */
+export function sessionLinkPath(value: string): string | null {
+  const trimmed = value.trim();
+  if (sessionPathPattern.test(trimmed)) return trimmed;
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (
+    typeof location === "undefined" ||
+    url.origin !== location.origin ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    !sessionPathPattern.test(url.pathname)
+  )
+    return null;
+  return url.pathname;
+}
 
 /**
  * A link or image address inside a previewed Markdown file, resolved against
@@ -86,25 +121,41 @@ export function resolveMarkdownReference(
 }
 
 /** Explains why a link target or image could not be resolved or read. */
-export function targetFailure(subject: "链接目标" | "图片", error: unknown) {
+export function targetFailure(
+  subject: "link" | "image" | (string & {}),
+  error: unknown,
+) {
+  const label =
+    subject === "link"
+      ? m.s5_subject_link_target()
+      : subject === "image"
+        ? m.s5_subject_image()
+        : subject;
   if (error instanceof SymlinkTargetError)
-    return `${subject}是符号链接，不在预览中打开`;
+    return m.s5_target_symlink({ subject: label });
   if (error instanceof APIError)
     switch (error.status) {
       case 403:
-        return `${subject}不在工作区内`;
+        return m.s5_target_outside_workspace({ subject: label });
       case 404:
-        return `${subject}不存在`;
+        return m.s5_target_not_found({ subject: label });
       case 409:
       case 410:
-        return `${subject}内容已变化，请刷新`;
+        return m.s5_target_changed({ subject: label });
       case 429:
-        return `${subject}传输繁忙，可重试`;
+        return m.s5_target_busy({ subject: label });
       default:
-        return `${subject}不可读：${error.message}`;
+        return m.s5_target_unreadable({
+          subject: label,
+          message: error.message,
+        });
     }
-  if (error instanceof TypeError) return `${subject}不可读：网络连接异常`;
-  return `${subject}不可读：${error instanceof Error ? error.message : String(error)}`;
+  if (error instanceof TypeError)
+    return m.s5_target_network_error({ subject: label });
+  return m.s5_target_unreadable({
+    subject: label,
+    message: error instanceof Error ? error.message : String(error),
+  });
 }
 
 const disallowedBareNames = new Set([
@@ -232,7 +283,12 @@ function buildCodeLink(
  */
 export function parseChatCodeLink(href: string): ChatCodeLink | null {
   const trimmed = href.trim();
-  if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("//"))
+  if (
+    !trimmed ||
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("//") ||
+    sessionLinkPath(trimmed)
+  )
     return null;
   if (/^file:/i.test(trimmed)) {
     if (!/^file:\/\/(?:localhost)?\//i.test(trimmed)) return null;

@@ -1,9 +1,11 @@
 // Rows for the start-commit dropdown. A row shows the commit title first and
 // its short hash, tip tags and age second, so users recognise a commit by what
 // it did and how recent it is instead of typing a hash.
+import { locale } from "$lib/locale";
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
-import type { WorktreePreset } from "../sessions/new-session-defaults";
+import type { WorktreePreset } from "../sessions/worktree-preset";
 import {
   BranchesSchema,
   CommitsSchema,
@@ -31,19 +33,20 @@ const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
   ["hour", 3600],
   ["minute", 60],
 ];
-const formatter = new Intl.RelativeTimeFormat("zh-CN", { numeric: "auto" });
-
 export function relativeTime(iso: string, now = Date.now()): string {
   const seconds = (Date.parse(iso) - now) / 1000;
   if (Number.isNaN(seconds)) return "";
+  const formatter = new Intl.RelativeTimeFormat(locale.current, {
+    numeric: "auto",
+  });
   for (const [unit, size] of units) {
     if (Math.abs(seconds) >= size)
       return formatter.format(Math.trunc(seconds / size), unit);
   }
-  return "刚刚";
+  return m.s8_just_now();
 }
 
-const subjectOf = (subject: string) => subject || "无标题提交";
+const subjectOf = (subject: string) => subject || m.s8_untitled_commit();
 
 /** Text naming a row for screen readers, typeahead and tests. */
 export function commitChoiceLabel(choice: CommitChoice): string {
@@ -95,12 +98,14 @@ export function commitChoices(
 
 // Tags for a branch's local tip and, after a fetch, its upstream tip.
 export function branchTips(local: string, upstreamHead: string): CommitTip[] {
-  if (!local && upstreamHead) return [{ hash: upstreamHead, tag: "远程最新" }];
-  if (!upstreamHead) return [{ hash: local, tag: "本地最新" }];
-  if (upstreamHead === local) return [{ hash: local, tag: "本地与远程最新" }];
+  if (!local && upstreamHead)
+    return [{ hash: upstreamHead, tag: m.s8_tip_remote_latest() }];
+  if (!upstreamHead) return [{ hash: local, tag: m.s8_tip_local_latest() }];
+  if (upstreamHead === local)
+    return [{ hash: local, tag: m.s8_tip_both_latest() }];
   return [
-    { hash: upstreamHead, tag: "远程最新" },
-    { hash: local, tag: "本地最新" },
+    { hash: upstreamHead, tag: m.s8_tip_remote_latest() },
+    { hash: local, tag: m.s8_tip_local_latest() },
   ];
 }
 
@@ -150,7 +155,7 @@ export function fetchRepositoryBranches(
 }
 
 export function formatCommitLoadError(err: unknown) {
-  return `无法读取最近提交：${errorMessage(err)}`;
+  return m.s8_err_load_recent_commits({ error: errorMessage(err) });
 }
 
 export function resolveRefreshedLocalHead(
@@ -217,7 +222,7 @@ export function resolveSelectedStartBranchState(
     kind: "default",
     base,
     baseSubject: data?.defaultBaseSubject || "",
-    tips: base ? [{ hash: base, tag: "当前主工作区" }] : [],
+    tips: base ? [{ hash: base, tag: m.s8_tip_current_main_worktree() }] : [],
   };
 }
 export function resolveWorktreePresetSelection(

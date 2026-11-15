@@ -1,0 +1,74 @@
+{
+  "status": 200,
+  "body": {
+    "baseline": {
+      "baseOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+      "baselineId": "<baselineId#1>",
+      "capturedAt": "<time>",
+      "cleanAtStart": false,
+      "preExistingChanges": {
+        "conflicted": 0,
+        "staged": 0,
+        "unstaged": 1,
+        "untracked": 1
+      },
+      "repositoryId": "<id#1>",
+      "source": "manual_select",
+      "unborn": false,
+      "worktreeId": "<id#2>",
+      "worktreePath": "<repo>"
+    },
+    "changes": {
+      "checkedAt": "<time>",
+      "contentVersion": "52fabd0621b669110d3c2e58fc1c900d35ab554c1460093ffd04d3dc66e4f176",
+      "entries": [
+        {
+          "changeId": "2b904b54c33d4075f21a065d3f771ca164d28532b38eba4582cb7dac421ee319",
+          "group": "task",
+          "newMode": "100644",
+          "newOid": "4c7442bcf5acd0f1e2a95fe4f12b12c6b779b585",
+          "newPath": "a.txt",
+          "nodeId": "YS50eHQ",
+          "oldMode": "100644",
+          "oldOid": "814f4a422927b82f5f8a43f8fab6d3839e3983f2",
+          "oldPath": "a.txt",
+          "reviewVersion": "da621e379fdb66f9380ec538f2b165eb514f18a1e4eda353f31c96ccb9bcb399",
+          "status": "M"
+        },
+        {
+          "changeId": "31c2d35ffd246eace68ed61032710ff60c683b8a24d5544eef52d9a1a1352dcc",
+          "group": "task",
+          "newMode": "100644",
+          "newOid": "",
+          "newPath": "new.txt",
+          "nodeId": "bmV3LnR4dA",
+          "oldMode": "000000",
+          "oldOid": "",
+          "oldPath": "new.txt",
+          "reviewVersion": "4ede256fb8cd653412301eea85a2086514a6684d6a9c26c2adf1bc1c679cac87",
+          "status": "A"
+        },
+        {
+          "changeId": "684989653d05fe23762335178d4ad454ecdc0dd35fd2919f6feddcab7b0cca1c",
+          "group": "task",
+          "newMode": "100644",
+          "newOid": "0000000000000000000000000000000000000000",
+          "newPath": "sub/b.txt",
+          "nodeId": "c3ViL2IudHh0",
+          "oldMode": "100644",
+          "oldOid": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+          "oldPath": "sub/b.txt",
+          "reviewVersion": "1fde17d706d11d72aaa70fa4598b7e23cf6da5245ff07a10dad6b416b2b4df30",
+          "status": "M"
+        }
+      ],
+      "nextCursor": "",
+      "total": 3
+    },
+    "commitCount": 2,
+    "headOid": "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+    "headUnborn": false,
+    "status": "ready",
+    "uncommittedCount": 2
+  }
+}

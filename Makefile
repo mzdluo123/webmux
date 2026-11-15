@@ -165,7 +165,7 @@ cover-web:
 
 # Production frontend for Go's embed and the prepared E2E runtime.
 frontend:
-	$(PNPM) --dir web exec vite build
+	$(PNPM) --dir web exec vp build
 
 # One immutable executable for E2E and performance; each worker still owns its
 # backend, ports, HOME, state directory and PTYs. Override E2E_BINARY to change
@@ -211,14 +211,15 @@ test-install:
 	sh -n install.sh
 	sh .github/scripts/test-install.sh
 
+# Vite+ needs web's package context and absolute paths for files outside it.
 format:
 	$(GOFMT) -w cmd internal web/embed.go deploy/embed.go
-	web/node_modules/.bin/oxfmt README.md CONTRIBUTING.md SECURITY.md docs .oxfmtrc.json web
+	$(PNPM) --dir web exec vp fmt --config vite.config.ts "$(CURDIR)/README.md" "$(CURDIR)/CONTRIBUTING.md" "$(CURDIR)/SECURITY.md" "$(CURDIR)/docs" .
 
 format-check:
 	@files="$$($(GOFMT) -l cmd internal web/embed.go deploy/embed.go)"; \
 		if [ -n "$$files" ]; then printf 'Unformatted Go files:\n%s\n' "$$files"; exit 1; fi
-	web/node_modules/.bin/oxfmt --check README.md CONTRIBUTING.md SECURITY.md docs .oxfmtrc.json web
+	$(PNPM) --dir web exec vp fmt --config vite.config.ts --check "$(CURDIR)/README.md" "$(CURDIR)/CONTRIBUTING.md" "$(CURDIR)/SECURITY.md" "$(CURDIR)/docs" .
 
 install: build
 	install -d $(HOME)/.local/bin

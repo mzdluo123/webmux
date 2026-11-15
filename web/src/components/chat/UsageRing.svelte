@@ -2,6 +2,8 @@
   import { useUsageMotion } from "../../hooks/chat/usage-motion.svelte";
   import { Button } from "$lib/components/ui/button";
   import * as Popover from "$lib/components/ui/popover";
+  import { locale } from "$lib/locale";
+  import { m } from "$lib/paraglide/messages.js";
   import type { ChatUsage } from "../../contracts/schemas";
 
   // Context-window use from the agent's usage updates, with its cost; a
@@ -26,21 +28,40 @@
   );
   const kilo = (value: number) =>
     value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value);
-  const exact = (value: number) => value.toLocaleString("zh-CN");
+  const exact = (value: number) => value.toLocaleString(locale.current);
   const money = $derived(
     usage.cost === undefined
       ? ""
       : `${usage.currency && usage.currency !== "USD" ? `${usage.currency} ` : "$"}${usage.cost.toFixed(2)}`,
   );
   const label = $derived(
-    `上下文已用 ${percent}%（${kilo(usage.used)} / ${kilo(usage.size)}）${money ? ` · ${money}` : ""}`,
+    money
+      ? m.s3_usage_ring_label_cost({
+          percent: String(percent),
+          used: kilo(usage.used),
+          size: kilo(usage.size),
+          cost: money,
+        })
+      : m.s3_usage_ring_label({
+          percent: String(percent),
+          used: kilo(usage.used),
+          size: kilo(usage.size),
+        }),
   );
   const remaining = $derived(Math.max(0, usage.size - usage.used));
   const rows = $derived<Array<[string, string]>>([
-    ["已用", `${exact(usage.used)} tokens`],
-    ["上下文窗口", usage.size > 0 ? `${exact(usage.size)} tokens` : "未知"],
-    ["剩余", usage.size > 0 ? `${exact(remaining)} tokens` : "未知"],
-    ...(money ? ([["本会话费用", money]] as Array<[string, string]>) : []),
+    [m.s3_usage_used(), `${exact(usage.used)} tokens`],
+    [
+      m.s3_context_window(),
+      usage.size > 0 ? `${exact(usage.size)} tokens` : m.s3_usage_unknown(),
+    ],
+    [
+      m.s3_usage_remaining(),
+      usage.size > 0 ? `${exact(remaining)} tokens` : m.s3_usage_unknown(),
+    ],
+    ...(money
+      ? ([[m.s3_usage_session_cost(), money]] as Array<[string, string]>)
+      : []),
   ]);
 </script>
 
@@ -84,25 +105,25 @@
   </Popover.Trigger>
   <Popover.Content
     role="dialog"
-    aria-label="Token 使用情况"
+    aria-label={m.s3_usage_dialog_title()}
     align="end"
     side="top"
     collisionPadding={16}
     class="w-64 gap-3"
   >
     <Popover.Header>
-      <Popover.Title>Token 使用情况</Popover.Title>
-      <Popover.Description>来自 agent 最近一次用量报告</Popover.Description>
+      <Popover.Title>{m.s3_usage_dialog_title()}</Popover.Title>
+      <Popover.Description>{m.s3_usage_dialog_desc()}</Popover.Description>
     </Popover.Header>
     <div class="space-y-1.5">
       <div class="flex items-baseline justify-between text-xs">
-        <span class="text-muted-foreground">上下文</span>
+        <span class="text-muted-foreground">{m.s3_usage_context()}</span>
         <span class="font-medium tabular-nums">{percent}%</span>
       </div>
       <div
         class="h-1.5 overflow-hidden rounded-full bg-muted"
         role="progressbar"
-        aria-label="上下文已用"
+        aria-label={m.s3_usage_context_used()}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent}

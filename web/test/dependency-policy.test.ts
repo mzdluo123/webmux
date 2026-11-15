@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ICruiseResult } from "dependency-cruiser";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const cli = resolve(
@@ -149,6 +149,21 @@ describe("dependency boundary policy", () => {
       "src/pages/Settings.svelte",
       "only-app-composes-pages",
     ],
+    [
+      "src/platform/feature-host.svelte.ts",
+      "src/features/entries/chat.ts",
+      "features-are-composition-only",
+    ],
+    [
+      "src/hooks/sessions/controller.ts",
+      "src/features/terminal.ts",
+      "features-are-composition-only",
+    ],
+    [
+      "src/components/shell/AppShell.svelte",
+      "src/components/chat/ChatHistory.svelte",
+      "core-does-not-load-feature-implementations",
+    ],
   ])("rejects %s → %s (%s)", (from, to, rule) => {
     expect(violations(from, to)).toContain(rule);
   });
@@ -177,6 +192,8 @@ describe("dependency boundary policy", () => {
     ],
     ["src/components/shared/widget.ts", "src/hooks/shared/viewport.svelte.ts"],
     ["src/App.svelte", "src/pages/Settings.svelte"],
+    ["src/features/entries/code.ts", "src/pages/CodePopout.svelte"],
+    ["src/components/shell/AppShell.svelte", "src/features/registry.svelte.ts"],
   ])("allows downward composition %s → %s", (from, to) => {
     expect(violations(from, to)).toEqual([]);
   });

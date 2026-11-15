@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { onDestroy, untrack } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { api } from "../../platform/api";
@@ -18,16 +19,14 @@ import {
   type SwitchTarget,
 } from "../../domains/sessions/hybrid";
 export type { HybridNotice, HybridView } from "../../domains/sessions/hybrid";
-export type { HybridSession, HybridTerminal } from "./hybrid-types";
+export type { HybridSession } from "./hybrid-types";
 import {
   returnQueuedDraft,
   type HybridSession,
   type HybridTerminal,
 } from "./hybrid-types";
-import {
-  loadRecord,
-  sessionConflict,
-} from "../../domains/sessions/recoverable";
+import { lookupSessionRecord } from "../../domains/sessions/recoverable";
+import { sessionConflict } from "../../domains/sessions/session-conflict";
 import {
   SessionInfoSchema,
   type AgentConnector,
@@ -57,6 +56,8 @@ export function useHybrid(
   drafts: TerminalDrafts,
   draft: TerminalDraft,
   manageChrome = true,
+  subscribeRemoved?: (listener: (id: string) => void) => () => void,
+  available: () => boolean = () => true,
 ): HybridSession {
   const chat = createChatSocket(id, live);
   const actions = chatActions(id);
@@ -66,7 +67,9 @@ export function useHybrid(
   });
 
   let record = $state.raw<ArchivedSession>();
-  let lookup = $state<"none" | "found" | "absent" | "failed">("none");
+  let lookup = $state<"none" | "found" | "present" | "absent" | "failed">(
+    "none",
+  );
   // The session as last read: from a terminal frame while the stream is
   // attached, otherwise from the server whenever the chat channel or the
   // stream reports a change. The latest of the two wins.
@@ -95,7 +98,7 @@ export function useHybrid(
   const streaming = $derived(
     !!terminal.info?.views.includes("chat") || terminal.connection === "moved",
   );
-  const known = $derived(streaming || !!state || !!record);
+  const known = $derived(available() && (streaming || !!state || !!record));
   const where = $derived(current?.view);
   const phase = $derived(current?.transition?.phase);
   const side = $derived<SwitchTarget | null>(phase ? null : (where ?? null));
@@ -160,7 +163,9 @@ export function useHybrid(
   });
 
   $effect(() => {
-    if (streaming) chat.open();
+    if (!streaming || !available()) return;
+    untrack(() => chat.open());
+    return () => chat.dispose();
   });
   // Every terminal frame is the newest description of the session.
   $effect(() => {
@@ -260,19 +265,51 @@ export function useHybrid(
     reattachedFor = current;
     terminal.reconnect();
   });
-  $effect(() => {
-    if (!ended) return;
+  let recordEpoch = 0;
+  let recordController: AbortController | undefined;
+  function refreshRecord() {
+    if (!available()) return;
+    recordController?.abort();
     const controller = new AbortController();
-    loadRecord(id, controller.signal).then(
-      (found) => {
-        record = found;
-        lookup = found ? "found" : "absent";
+    recordController = controller;
+    const epoch = ++recordEpoch;
+    // Runtime removal can precede the archive commit. Never reuse its
+    // cached recovery record after a later canonical invalidation.
+    record = undefined;
+    lookup = "none";
+    lookupSessionRecord(id, controller.signal).then(
+      (result) => {
+        if (disposed || controller.signal.aborted || epoch !== recordEpoch)
+          return;
+        record = result.kind === "record" ? result.record : undefined;
+        lookup =
+          result.kind === "missing"
+            ? "absent"
+            : result.kind === "record"
+              ? "found"
+              : "present";
       },
       () => {
-        if (!controller.signal.aborted) lookup = "failed";
+        if (!disposed && !controller.signal.aborted && epoch === recordEpoch)
+          lookup = "failed";
       },
     );
-    return () => controller.abort();
+  }
+  const unsubscribeRemoved = subscribeRemoved?.((removed) => {
+    if (removed === id) refreshRecord();
+  });
+  onDestroy(() => {
+    unsubscribeRemoved?.();
+    ++recordEpoch;
+    recordController?.abort();
+  });
+  $effect(() => {
+    if (!available() || !ended) return;
+    untrack(refreshRecord);
+    return () => {
+      ++recordEpoch;
+      recordController?.abort();
+    };
   });
 
   // Notices that reach this device while it does not show the timeline,
@@ -326,7 +363,7 @@ export function useHybrid(
       ? ""
       : state
         ? eligibilityText(state.eligibility)
-        : "正在连接聊天通道",
+        : m.s3_connecting_chat_channel(),
   );
   const connector = $derived.by(() => {
     if (connectorDismissed) return undefined;
@@ -380,7 +417,7 @@ export function useHybrid(
       return record;
     },
     get missing() {
-      return terminal.connection === "missing" && lookup === "absent";
+      return lookup === "absent";
     },
     get connector() {
       return connector;
@@ -392,7 +429,7 @@ export function useHybrid(
       if (requesting || view === "switching" || !side || to === side) return;
       notice = "";
       if (to === "chat" && chatUnavailable) {
-        notice = `现在不能切到聊天：${chatUnavailable}`;
+        notice = m.s3_cannot_switch_to_chat_now({ reason: chatUnavailable });
         return;
       }
       const running =

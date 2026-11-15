@@ -1,5 +1,5 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import InstallSettings from "../../src/components/settings/InstallSettings.svelte";
 import {
@@ -8,8 +8,15 @@ import {
   trackInstallation,
   type InstallPlatform,
 } from "../../src/platform/install.svelte";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
 
-afterEach(() => cleanup());
+afterEach(async () => {
+  await cleanup();
+  resetCreationFeatures();
+});
 
 const secure: InstallPlatform = { secure: true, standalone: false, ios: false };
 const insecureNotice = "当前地址不能提供完整 PWA 能力";
@@ -75,8 +82,12 @@ const cases: {
     platform: { secure: false },
     // Chromium cannot install from here even if it fired a prompt.
     status: { promptable: true, installed: false },
-    shows: [insecureNotice, "查看公网访问配置"],
-    hides: ["浏览器暂未提供安装提示"],
+    shows: [insecureNotice],
+    hides: [
+      "浏览器暂未提供安装提示",
+      "查看公网访问配置",
+      "查看 Tailscale 配置",
+    ],
     button: false,
   },
 ];
@@ -144,3 +155,21 @@ test("the startup listener keeps one install prompt until the app is installed",
   target.dispatchEvent(new Event("appinstalled"));
   expect(installation.installed).toBe(true);
 });
+
+test.each([
+  ["cloudflare", "查看公网访问配置", "#access"],
+  ["tailscale", "查看 Tailscale 配置", "#tailscale"],
+] as const)(
+  "install guidance links only to enabled %s settings",
+  async (id, label, href) => {
+    await enableCreationFeatures([id]);
+    render(InstallSettings, {
+      platform: { ...secure, secure: false },
+      status: { promptable: false, installed: false },
+      prompt: vi.fn(),
+    });
+    await expect
+      .element(page.getByRole("link", { name: label, exact: true }))
+      .toHaveAttribute("href", href);
+  },
+);

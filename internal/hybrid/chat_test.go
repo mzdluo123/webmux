@@ -197,9 +197,12 @@ func TestChatTitleBecomesSessionTitle(t *testing.T) {
 	if got := resumed.Info().Title; got != "fake title" {
 		t.Fatalf("title after resume %q", got)
 	}
-	// The terminal shows a cwd-derived placeholder until it reports an OSC
-	// title; neither a switch nor a terminal resume may record it.
+	// Switching to or resuming on the terminal keeps the agent session's title
+	// until the terminal run emits its own OSC 0/2 title.
 	h.mustSwitch(id, SideTUI)
+	if got := resumed.Info().Title; got != "fake title" {
+		t.Fatalf("live title after switching to the terminal %q", got)
+	}
 	if got := h.record(id).Title; got != "fake title" {
 		t.Fatalf("title after switching to the terminal %q", got)
 	}
@@ -207,7 +210,10 @@ func TestChatTitleBecomesSessionTitle(t *testing.T) {
 	if got := h.record(id).Title; got != "fake title" {
 		t.Fatalf("title after closing the switched session %q", got)
 	}
-	h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	tuiResumed := h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	if got := tuiResumed.Info().Title; got != "fake title" {
+		t.Fatalf("live title after terminal resume %q", got)
+	}
 	if got := h.record(id).Title; got != "fake title" {
 		t.Fatalf("title after terminal resume %q", got)
 	}
@@ -245,9 +251,18 @@ func TestOverlayTitleBelongsToAgentSession(t *testing.T) {
 	if got := a.overlay().Title; got != "old title" {
 		t.Fatalf("title of the shown agent session %q", got)
 	}
+	a.side = SideSwitching
+	if got := a.overlay().Title; got != "old title" {
+		t.Fatalf("title while switching %q", got)
+	}
 	a.side = SideTUI
+	if got := a.overlay().Title; got != "old title" {
+		t.Fatalf("fallback title on the terminal side %q", got)
+	}
+	a.titleSession = ""
+	a.agentSessionID = ""
 	if got := a.overlay().Title; got != "" {
-		t.Fatalf("chat title on the terminal side %q", got)
+		t.Fatalf("unset agent session title %q", got)
 	}
 }
 
@@ -809,6 +824,9 @@ func TestChatAttentionPolicyModesAndThresholds(t *testing.T) {
 	prompt(t, h, sUrgent.Info().ID, "finish quietly")
 	stUrgent.until("turn end", hasKind(EventTurnEnd))
 	stUrgent.until("idle state", func([]Event) bool { return !stUrgent.state.Turn.Running })
+	// Chat state and the shell's attention projection are published in sequence.
+	// A subscriber can observe idle before the latter publication completes.
+	waitFor(t, "urgent shell idle", func() bool { return sUrgent.Info().Status == session.StatusIdle })
 	if info := sUrgent.Info(); info.Attention != nil || info.Status != session.StatusIdle {
 		t.Fatalf("urgent mode after end_turn: status=%s attention=%+v", info.Status, info.Attention)
 	}

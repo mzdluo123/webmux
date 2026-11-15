@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import type { ToolEntry, WorkStep } from "../../domains/chat/chat-model";
-  import type { ChatCodeLink } from "../../domains/code/markdown-link";
+  import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import ChatDisclosure from "./ChatDisclosure.svelte";
   import ToolDetails from "./ToolDetails.svelte";
   import ToolRow from "./ToolRow.svelte";
@@ -22,9 +23,9 @@
     /** Tool calls whose permission request waits for an answer. */
     waiting: readonly string[];
     /** Opens a changed file in the code panel. */
-    onreview: (path: string) => void;
+    onreview?: (path: string) => void;
     /** Opens a referenced code file or line in the code panel. */
-    onopenlocation?: (target: ChatCodeLink) => void;
+    onopenlocation?: ChatCodeLinkHandler;
   } = $props();
 
   const calls = $derived(
@@ -48,11 +49,11 @@
           <ToolSummary tool={shown} waiting={waiting.includes(shown.id)} />
           {#if calls.length > 1}
             <span class="shrink-0 text-xs tabular-nums @max-xs:hidden"
-              >共 {calls.length} 步</span
+              >{m.s3_tool_group_steps({ count: String(calls.length) })}</span
             >
           {/if}
         {:else}
-          <span class="min-w-0 flex-1 truncate">已思考</span>
+          <span class="min-w-0 flex-1 truncate">{m.s3_tool_thought()}</span>
         {/if}
       {/snippet}
       {#if only?.type === "tool"}
@@ -70,7 +71,7 @@
             />
           {:else}
             <ChatDisclosure>
-              {#snippet summary()}已思考{/snippet}
+              {#snippet summary()}{m.s3_tool_thought()}{/snippet}
               <p class="break-words whitespace-pre-wrap">{step.text}</p>
             </ChatDisclosure>
           {/if}

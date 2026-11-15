@@ -1,6 +1,7 @@
 <script lang="ts">
   import { errorMessage } from "../../platform/error";
   import { untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import EnvRowsEditor from "./EnvRowsEditor.svelte";
   import LaunchConfigBehaviorFields from "./LaunchConfigBehaviorFields.svelte";
   import { Button } from "$lib/components/ui/button";
@@ -10,22 +11,17 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Select from "$lib/components/ui/select";
-  import ConnectorInstallHint from "../sessions/ConnectorInstallHint.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
   import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
   import { api, APIError } from "../../platform/api";
+  import { featureEnabled } from "../../platform/feature-host.svelte";
+  import { getFeatureContributions } from "../../features/context";
   import {
-    ChatSupportSchema,
     LaunchConfigSchema,
     type AttentionSettings,
-    type ChatSupport,
     type LaunchConfig,
     type PreviewSettings,
   } from "../../contracts/schemas";
-  import {
-    connectorNoticeText,
-    chatSupportReason,
-  } from "../../domains/sessions/hybrid";
   import {
     LAUNCH_ENV_MAX,
     LAUNCH_ICON_OPTIONS,
@@ -49,6 +45,10 @@
     defaultShell?: "" | StartupShell;
     onsaved: (config: LaunchConfig) => void;
   } = $props();
+  const providers = getFeatureContributions().creation;
+  const chatEnabled = featureEnabled("chat") && !!providers.LaunchChatFields;
+  const notificationsEnabled =
+    featureEnabled("notifications") && !!providers.LaunchAttentionFields;
 
   let loadedConfig = $state<LaunchConfig | null>(null);
   let name = $state("");
@@ -65,12 +65,6 @@
   let error = $state("");
   let busy = $state(false);
   let hybrid = $state(false);
-  // The server decides which commands can run as hybrid sessions; the
-  // checkbox only reflects its answer for the command being edited.
-  let hybridSupport = $state<ChatSupport | null>(null);
-  const hybridReason = $derived(chatSupportReason(hybridSupport));
-  // The argv (as JSON) that hybridSupport answers; not rendered.
-  let supportFor = "";
   const draft = $derived(
     validateLaunchDraft(
       name,
@@ -81,14 +75,19 @@
       attention,
     ),
   );
-  const iconOptions = [
-    { value: "auto", label: "自动匹配" },
-    ...LAUNCH_ICON_OPTIONS,
-  ];
-  const startupShellOptions: { value: StartupShell; label: string }[] = [
-    { value: "bash", label: "Bash（~/.bashrc）" },
-    { value: "zsh", label: "Zsh（~/.zshrc）" },
-  ];
+  const iconOptions = $derived([
+    { value: "auto", label: m.s2_icon_auto() },
+    ...LAUNCH_ICON_OPTIONS.map((option) => ({
+      value: option.value,
+      label: option.label,
+    })),
+  ]);
+  const startupShellOptions = $derived<
+    { value: StartupShell; label: string }[]
+  >([
+    { value: "bash", label: m.s2_startup_shell_bash() },
+    { value: "zsh", label: m.s2_startup_shell_zsh() },
+  ]);
   const autoIcon = $derived(
     draft.ok ? launchConfigIcon(draft.value) : "terminal",
   );
@@ -117,8 +116,6 @@
       loadError = "";
       busy = false;
       hybrid = false;
-      hybridSupport = null;
-      supportFor = "";
       loading = !!configId;
       if (configId)
         api(
@@ -142,12 +139,10 @@
               row(key, value),
             );
             hybrid = config.chat;
-            hybridSupport = config.chatSupport;
-            supportFor = JSON.stringify(config.cmd);
           })
           .catch((err: unknown) => {
             if (!controller.signal.aborted)
-              loadError = `无法读取启动配置：${errorMessage(err)}`;
+              loadError = m.s2_launch_err_load({ error: errorMessage(err) });
           })
           .finally(() => {
             if (!controller.signal.aborted) loading = false;
@@ -156,57 +151,38 @@
     return () => controller.abort();
   });
 
-  // Ask the server again, debounced, whenever the effective argv differs
-  // from the one the current answer is for.
-  const supportCmd = $derived(draft.ok ? JSON.stringify(draft.value.cmd) : "");
-  $effect(() => {
-    if (!open || loading || !supportCmd || supportCmd === supportFor) return;
-    const asked = supportCmd;
-    // supportCmd is the serialized form of this argv; read it untracked so
-    // only an argv change (not other draft edits) restarts the debounce.
-    const cmd = untrack(() => (draft.ok ? draft.value.cmd : null));
-    if (!cmd) return;
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      api(
-        "/launch-configs/chat-support",
-        ChatSupportSchema,
-        "POST",
-        { cmd },
-        controller.signal,
-      )
-        .then((support) => {
-          hybridSupport = support;
-          supportFor = asked;
-        })
-        .catch(() => {
-          // Keep the last known answer; saving still validates on the server.
-        });
-    }, 300);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  });
-
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     if (!draft.ok || busy || loading || loadError) return;
     busy = true;
     error = "";
     try {
+      const { attention: draftAttention, ...launch } = draft.value;
       const saved = await api(
         configId ? `/launch-configs/${configId}` : "/launch-configs",
         LaunchConfigSchema,
         configId ? "PUT" : "POST",
-        { ...draft.value, chat: hybrid, ...(icon === "auto" ? {} : { icon }) },
+        {
+          ...launch,
+          ...(featureEnabled("chat")
+            ? { chat: chatEnabled ? hybrid : (loadedConfig?.chat ?? false) }
+            : {}),
+          ...(featureEnabled("notifications")
+            ? {
+                attention: notificationsEnabled
+                  ? draftAttention
+                  : (loadedConfig?.attention ?? null),
+              }
+            : {}),
+          ...(icon === "auto" ? {} : { icon }),
+        },
       );
       onsaved(saved);
       open = false;
     } catch (err) {
       error =
         err instanceof APIError && err.status === 409
-          ? `已有同名启动配置“${draft.value.name}”，请换一个名称。`
+          ? m.s2_launch_err_conflict({ name: draft.value.name })
           : errorMessage(err);
     } finally {
       busy = false;
@@ -222,11 +198,11 @@
       <div class="shrink-0 border-b px-5 py-4 pr-12">
         <Dialog.Header>
           <Dialog.Title
-            >{configId ? "编辑启动配置" : "新建启动配置"}</Dialog.Title
+            >{configId
+              ? m.s2_launch_edit_title()
+              : m.s2_launch_new_title()}</Dialog.Title
           >
-          <Dialog.Description
-            >保存在服务端，所有设备的新建会话页都能选用。</Dialog.Description
-          >
+          <Dialog.Description>{m.s2_launch_dialog_desc()}</Dialog.Description>
         </Dialog.Header>
       </div>
       <div
@@ -235,18 +211,18 @@
       >
         {#if loading}
           <p role="status" class="text-sm text-muted-foreground">
-            正在读取启动配置…
+            {m.s2_launch_loading()}
           </p>
         {:else if loadError}
           <InlineNotice tone="danger">{loadError}</InlineNotice>
         {:else}
           <fieldset disabled={busy} class="grid min-w-0 gap-4">
             <div class="grid gap-2">
-              <Label for="launch-config-name">名称</Label>
+              <Label for="launch-config-name">{m.s2_name()}</Label>
               <Input
                 id="launch-config-name"
                 bind:value={name}
-                placeholder="例如：Claude 恢复"
+                placeholder={m.s2_launch_name_placeholder()}
                 autocomplete="off"
                 aria-invalid={!!name && !!draft.errors.name}
                 aria-describedby={name && draft.errors.name
@@ -261,15 +237,18 @@
                 </p>{/if}
             </div>
             <div class="grid gap-2">
-              <Label for="launch-config-icon">图标</Label>
+              <Label for="launch-config-icon">{m.s2_launch_icon()}</Label>
               <Select.Root type="single" bind:value={icon} items={iconOptions}>
-                <Select.Trigger id="launch-config-icon" aria-label="图标">
+                <Select.Trigger
+                  id="launch-config-icon"
+                  aria-label={m.s2_launch_icon()}
+                >
                   <span class="flex items-center gap-2">
                     <LaunchConfigIcon
                       icon={icon === "auto" ? autoIcon : icon}
                     />
                     {iconOptions.find((option) => option.value === icon)
-                      ?.label ?? "终端"}
+                      ?.label ?? m.s2_icon_terminal()}
                   </span>
                 </Select.Trigger>
                 <Select.Content>
@@ -284,16 +263,16 @@
                 </Select.Content>
               </Select.Root>
               <p class="text-xs text-muted-foreground">
-                自动匹配启动程序，也可指定图标。品牌图标来自 LobeHub。
+                {m.s2_launch_icon_help()}
               </p>
             </div>
             <div class="grid gap-2">
-              <Label for="launch-config-command">启动命令</Label>
+              <Label for="launch-config-command">{m.s2_launch_cmd()}</Label>
               <Textarea
                 id="launch-config-command"
                 bind:value={command}
                 rows={3}
-                placeholder="claude --resume 或 bash -lc 'npm run dev'"
+                placeholder={m.s2_launch_cmd_placeholder()}
                 mono
                 class="max-h-[30dvh]"
                 autocapitalize="off"
@@ -311,8 +290,7 @@
                 id="launch-config-command-help"
                 class="text-xs text-muted-foreground"
               >
-                支持引号和转义；直接执行程序，不展开 shell 变量或管道。需要
-                shell 语法时，请显式使用 bash -lc '命令'。
+                {m.s2_launch_cmd_help()}
               </p>
               <div class="flex items-center gap-2">
                 <Checkbox
@@ -320,11 +298,15 @@
                   bind:checked={loadStartup}
                   aria-describedby="launch-config-startup-help"
                 />
-                <Label for="launch-config-startup">加载 shell 启动文件</Label>
+                <Label for="launch-config-startup"
+                  >{m.s2_launch_load_startup()}</Label
+                >
               </div>
               {#if loadStartup}
                 <div class="grid gap-2">
-                  <Label for="launch-config-startup-shell">启动文件</Label>
+                  <Label for="launch-config-startup-shell"
+                    >{m.s2_launch_startup_file()}</Label
+                  >
                   <Select.Root
                     type="single"
                     value={startupShell}
@@ -336,7 +318,7 @@
                   >
                     <Select.Trigger
                       id="launch-config-startup-shell"
-                      aria-label="启动文件 shell"
+                      aria-label={m.s2_launch_startup_shell_aria()}
                     >
                       {startupShellOptions.find(
                         (option) => option.value === startupShell,
@@ -356,32 +338,14 @@
                 id="launch-config-startup-help"
                 class="text-xs text-muted-foreground"
               >
-                使用交互式 Bash（~/.bashrc）或 Zsh（~/.zshrc）读取 PATH
-                和环境变量；只需填写普通命令，参数仍原样传递，不展开变量或管道。
+                {m.s2_launch_startup_help()}
               </p>
-              <div class="flex items-center gap-2">
-                <Checkbox
-                  id="launch-config-hybrid"
-                  bind:checked={hybrid}
-                  disabled={!hybrid && !hybridSupport?.supported}
-                  aria-describedby="launch-config-hybrid-help"
-                />
-                <Label for="launch-config-hybrid">混合模式（聊天 ↔ 终端）</Label
-                >
-              </div>
-              <p
-                id="launch-config-hybrid-help"
-                class="text-xs text-muted-foreground"
-              >
-                {#if hybridReason}{hybridReason}{:else}从这个配置启动的会话可以在网页聊天视图与终端之间切换{hybridSupport
-                    ? `，适用于 ${hybridSupport.supportedAgents.join("、")}`
-                    : ""}。{/if}
-              </p>
-              {#if hybridSupport?.supported && hybridSupport.connector}
-                <ConnectorInstallHint
-                  connector={hybridSupport.connector}
-                  message={connectorNoticeText(hybridSupport.connector)}
-                  tone="info"
+              {#if providers.LaunchChatFields}
+                <providers.LaunchChatFields
+                  config={loadedConfig}
+                  cmd={draft.ok ? draft.value.cmd : undefined}
+                  bind:hybrid
+                  disabled={busy}
                 />
               {/if}
             </div>
@@ -392,7 +356,7 @@
               max={LAUNCH_ENV_MAX}
               makeRow={row}
             >
-              {#snippet help()}变量值保存在服务端状态文件中，默认遮挡；列表与新建会话页只显示变量个数，不显示值。{/snippet}
+              {#snippet help()}{m.s2_launch_env_help()}{/snippet}
             </EnvRowsEditor>
             <LaunchConfigBehaviorFields
               config={loadedConfig}
@@ -412,12 +376,12 @@
             variant="outline"
             onclick={() => {
               open = false;
-            }}>取消</Button
+            }}>{m.s2_cancel()}</Button
           >
           {#if !loadError}<Button
               type="submit"
               disabled={loading || busy || !draft.ok}
-              >{busy ? "正在保存…" : "保存"}</Button
+              >{busy ? m.s2_saving() : m.s2_save()}</Button
             >{/if}
         </Dialog.Footer>
       </div>

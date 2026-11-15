@@ -1,7 +1,7 @@
 // Output budget, snapshot replay and stream continuity, exit restoration,
 // hidden pages and OSC 52 copies.
-import { expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { expect, test, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
 import { Terminal } from "@xterm/xterm";
 import { handoffLiveSockets, resumeTimeout } from "../../src/platform/ws";

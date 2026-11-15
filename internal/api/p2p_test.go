@@ -12,9 +12,12 @@ import (
 
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featureapi"
 	"github.com/rainchan/webmux/internal/p2p"
 	"github.com/rainchan/webmux/internal/p2psettings"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/streamproto"
+	"github.com/rainchan/webmux/internal/transport"
 )
 
 type p2pControlFixture struct {
@@ -31,6 +34,8 @@ func newP2PControlFixture() *p2pControlFixture {
 	return &p2pControlFixture{
 		status: contract.P2PStatus{
 			Supported:        true,
+			UDPBindings:      []contract.P2PUDPBinding{{Network: "udp4", Port: 45678}},
+			Capabilities:     contract.P2PCapabilities{Networks: []string{"udp4", "udp6"}, ICEMode: "full"},
 			Enabled:          true,
 			PortMapping:      true,
 			STUNServers:      config.DefaultSTUNServers(),
@@ -100,15 +105,13 @@ func (f *p2pControlFixture) Signal(_ context.Context, req contract.P2PSignalRequ
 	}, nil
 }
 
-func p2pAPIHandler(t *testing.T, control P2PControl) Bridge {
+func p2pAPIHandler(t *testing.T, control featureapi.P2PControl) transport.Bridge {
 	t.Helper()
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
-	return NewBridge(testDeps(t, Deps{
-		Config:  config.Config{Token: "login-secret"},
+	return NewBridge(testDeps(t, testServices{Config: config.Config{Token: "login-secret"},
 		Manager: m,
-		P2P:     control,
-	}))
+		P2P:     control}))
 }
 
 func TestP2PEndpointsSecurityAndValidation(t *testing.T) {
@@ -197,12 +200,10 @@ func TestLocalSessionProcessCannotControlP2P(t *testing.T) {
 	defer m.Shutdown(context.Background())
 	control := newP2PControlFixture()
 	inside := map[int]bool{20: true}
-	handler := NewLocal(testDeps(t, Deps{
-		Config:    config.Config{},
+	handler := NewLocal(testDeps(t, testServices{Config: config.Config{},
 		Manager:   m,
 		Workspace: testWorkspace(t, m, t.TempDir()),
-		P2P:       control,
-	}), Local{
+		P2P:       control}), Local{
 		Status:    func() contract.StatusV1 { return contract.StatusV1{V: 1} },
 		InSession: func(pid int) bool { return inside[pid] },
 	})
@@ -215,6 +216,53 @@ func TestLocalSessionProcessCannotControlP2P(t *testing.T) {
 		if wInside.Code != http.StatusForbidden {
 			t.Fatalf("session process on %s: got %d, want 403", path, wInside.Code)
 		}
+	}
+
+	// The new local capability allows only reads, including unknown peer PIDs.
+	for _, pid := range []int{0, 20, 10} {
+		r := httptest.NewRequest(http.MethodGet, "http://webmux"+contract.PathP2PDiagnostics, nil)
+		r = r.WithContext(context.WithValue(r.Context(), peerKey{}, pid))
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("diagnostics pid=%d: %d", pid, w.Code)
+		}
+	}
+
+	rHead := httptest.NewRequest(http.MethodHead, "http://webmux"+contract.PathP2PDiagnostics, nil)
+	wHead := httptest.NewRecorder()
+	handler.ServeHTTP(wHead, rHead)
+	if wHead.Code != http.StatusOK {
+		t.Fatalf("HEAD diagnostics: %d", wHead.Code)
+	}
+	for _, method := range []string{"POST", "PUT", "DELETE", "PATCH"} {
+		r := httptest.NewRequest(method, "http://webmux"+contract.PathP2PDiagnostics, nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("diagnostics %s: %d", method, w.Code)
+		}
+		if w.Header().Get("Allow") != "GET, HEAD" {
+			t.Fatalf("diagnostics %s allowed methods: %q", method, w.Header().Get("Allow"))
+		}
+	}
+	for _, tc := range []struct{ method, path string }{
+		{"PUT", "/api/p2p/settings"}, {"DELETE", "/api/p2p/settings"}, {"POST", "/api/p2p/signal"},
+	} {
+		r := httptest.NewRequest(tc.method, "http://webmux"+tc.path, strings.NewReader(`{}`))
+		r = r.WithContext(context.WithValue(r.Context(), peerKey{}, 20))
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("session %s %s: %d", tc.method, tc.path, w.Code)
+		}
+	}
+	if control.calls != 0 {
+		t.Fatal("read diagnostics mutated P2P")
+	}
+	bridge := p2pAPIHandler(t, control)
+	if w := tunnelAPIRequest(bridge.HTTPHandler, "GET", contract.PathP2PDiagnostics, "", "login-secret", ""); w.Code != http.StatusNotFound {
+		t.Fatalf("TCP diagnostics exposed: %d", w.Code)
 	}
 
 	rHost := httptest.NewRequest(http.MethodGet, "http://webmux/api/p2p", nil)
@@ -231,7 +279,7 @@ func TestP2PRPCAuthAndRouting(t *testing.T) {
 	bridge := p2pAPIHandler(t, control)
 
 	// Missing token -> 401
-	unauth := bridge.ServeRPC(context.Background(), p2p.RPCRequest{
+	unauth := bridge.ServeRPC(context.Background(), streamproto.RPCRequest{
 		Method: "GET",
 		Path:   "/api/health",
 	})
@@ -240,7 +288,7 @@ func TestP2PRPCAuthAndRouting(t *testing.T) {
 	}
 
 	// Non-/api path (e.g. /local/v1/token) -> 404
-	localAttempt := bridge.ServeRPC(context.Background(), p2p.RPCRequest{
+	localAttempt := bridge.ServeRPC(context.Background(), streamproto.RPCRequest{
 		Method:  "GET",
 		Path:    "/local/v1/token",
 		Headers: map[string]string{"Authorization": "Bearer login-secret"},
@@ -250,7 +298,7 @@ func TestP2PRPCAuthAndRouting(t *testing.T) {
 	}
 
 	// Valid /api/config request -> 200 with p2p: true
-	okResp := bridge.ServeRPC(context.Background(), p2p.RPCRequest{
+	okResp := bridge.ServeRPC(context.Background(), streamproto.RPCRequest{
 		Method:  "GET",
 		Path:    "/api/config",
 		Headers: map[string]string{"Authorization": "Bearer login-secret"},

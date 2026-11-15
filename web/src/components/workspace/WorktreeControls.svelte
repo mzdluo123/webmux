@@ -1,13 +1,14 @@
 <script lang="ts">
   import IconDots from "~icons/tabler/dots";
   import IconInfoCircle from "~icons/tabler/info-circle";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import {
     branchActions,
-    type BranchOperation,
+    type WorktreeMenuActionProps,
   } from "../../domains/workspace/branch-actions";
-  import type { Worktree } from "../../contracts/schemas";
+  import { canCommitWorktree } from "../../domains/workspace/worktree-sync";
   import WorktreeMenuItems from "./WorktreeMenuItems.svelte";
 
   // The details button and "⋯" menu at the end of a group header.
@@ -22,23 +23,26 @@
     onremove,
     worktree,
     onoperation,
-  }: {
+    ongit,
+    oncommit,
+  }: WorktreeMenuActionProps & {
     title: string;
     /** Names the target in labels: a worktree or a plain directory. */
     kind: "worktree" | "directory";
     ondetails: () => void;
     hidden?: boolean;
-    pinned?: boolean;
-    ontogglepin?: () => void;
-    onswitch?: () => void;
-    onremove?: () => void;
-    /** With `onoperation`, adds its branch's sync actions to the menu. */
-    worktree?: Worktree;
-    onoperation?: (operation: BranchOperation) => void;
   } = $props();
-  const label = $derived(kind === "worktree" ? "工作树" : "目录");
+  const detailsLabel = $derived(
+    kind === "worktree"
+      ? m.s8_worktree_details_for({ title })
+      : m.s8_dir_details_for({ title }),
+  );
+  const menuLabel = $derived(m.s8_worktree_menu_for({ title }));
   const syncable = $derived(
     !!worktree && !!onoperation && branchActions(worktree).actions.length > 0,
+  );
+  const committable = $derived(
+    Boolean(oncommit && canCommitWorktree(worktree)),
   );
   let menuOpen = $state(false);
   $effect(() => {
@@ -49,12 +53,12 @@
 <Button
   size="icon-sm"
   variant="ghost"
-  aria-label={`${label}详情 ${title}`}
-  title={`${label}详情 ${title}`}
+  aria-label={detailsLabel}
+  title={detailsLabel}
   aria-haspopup="dialog"
   onclick={ondetails}><IconInfoCircle aria-hidden="true" /></Button
 >
-{#if onremove || ontogglepin || onswitch || syncable}
+{#if onremove || ontogglepin || onswitch || syncable || ongit || committable}
   <DropdownMenu.Root bind:open={menuOpen}>
     <DropdownMenu.Trigger>
       {#snippet child({ props })}
@@ -62,8 +66,8 @@
           {...props}
           size="icon-sm"
           variant="ghost"
-          title={`工作树菜单 ${title}`}
-          aria-label={`工作树菜单 ${title}`}
+          title={menuLabel}
+          aria-label={menuLabel}
           ><IconDots class="size-4" aria-hidden="true" /></Button
         >
       {/snippet}
@@ -76,6 +80,8 @@
         {onremove}
         {worktree}
         {onoperation}
+        {ongit}
+        {oncommit}
       />
     </DropdownMenu.Content>
   </DropdownMenu.Root>

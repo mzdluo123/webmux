@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import {
     codeFont,
     defaultCodeFontSize,
@@ -13,7 +14,7 @@
 </script>
 
 <div data-code-zoom class="flex items-center gap-2 px-2 py-1 text-xs">
-  <span class="shrink-0 text-muted-foreground">字号</span>
+  <span class="shrink-0 text-muted-foreground">{m.s5_font_size_label()}</span>
   <Slider
     type="single"
     min={minCodeFontSize}
@@ -21,22 +22,23 @@
     step={1}
     value={codeFont.size}
     onValueChange={(value) => codeFont.set(value)}
-    aria-label="代码字号"
+    aria-label={m.s5_code_font_size()}
     class="min-w-24 flex-1"
   />
-  <output class="min-w-9 text-right tabular-nums" aria-label="当前代码字号"
-    >{codeFont.size}px</output
+  <output
+    class="min-w-9 text-right tabular-nums"
+    aria-label={m.s5_current_code_font_size()}>{codeFont.size}px</output
   >
   {#if codeFont.size !== defaultCodeFontSize}
     <Button variant="ghost" size="sm" onclick={() => codeFont.reset()}
-      >重置</Button
+      >{m.s5_reset()}</Button
     >
   {/if}
   <Button
     variant="ghost"
     size="icon-sm"
-    aria-label="关闭缩放"
-    title="关闭缩放（Esc）"
+    aria-label={m.s5_close_zoom()}
+    title={m.s5_close_zoom_esc()}
     onclick={onclose}><IconX aria-hidden="true" /></Button
   >
 </div>

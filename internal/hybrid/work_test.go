@@ -187,7 +187,16 @@ func TestTurnWithBackgroundCommandIsDoneOnlyAfterItEnds(t *testing.T) {
 	id := s.Info().ID
 	st := h.follow(id)
 	prompt(t, h, id, "hi /background")
-	st.until("turn end", hasKind(EventTurnEnd))
+	events := st.until("turn end", hasKind(EventTurnEnd))
+	foundUnfinished := false
+	for _, event := range events {
+		if event.TurnEnd != nil && event.TurnEnd.Unfinished {
+			foundUnfinished = true
+		}
+	}
+	if !foundUnfinished {
+		t.Fatal("turn-end event must carry the authoritative background-work state")
+	}
 	if a := s.Info().Attention; a != nil {
 		t.Fatalf("attention %+v while the command still runs", a)
 	}
@@ -298,7 +307,7 @@ func TestHybridWorkDetailDuringTurn(t *testing.T) {
 			select {
 			case ev := <-listSub.Out:
 				if ev.Type == "updated" && ev.Session != nil && ev.Session.ID == id &&
-					ev.Session.Hybrid != nil && ev.Session.Hybrid.Work == "Read file" {
+					h.svc.Metadata(ev.Session.ID) != nil && h.svc.Metadata(ev.Session.ID).Work == "Read file" {
 					return true
 				}
 			default:
@@ -312,7 +321,7 @@ func TestHybridWorkDetailDuringTurn(t *testing.T) {
 			select {
 			case ev := <-listSub.Out:
 				if ev.Type == "updated" && ev.Session != nil && ev.Session.ID == id &&
-					ev.Session.Hybrid != nil && ev.Session.Hybrid.Work == "" {
+					h.svc.Metadata(ev.Session.ID) != nil && h.svc.Metadata(ev.Session.ID).Work == "" {
 					return true
 				}
 			default:

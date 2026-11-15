@@ -1,22 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import * as NavigationMenu from "$lib/components/ui/navigation-menu";
   import { observeStickyHeaderOffset } from "../../hooks/shared/sticky-header";
 
-  const sections = [
-    { id: "appearance", label: "外观与阅读" },
-    { id: "quick-commands", label: "快捷指令" },
-    { id: "voice", label: "语音输入" },
-    { id: "launch-configs", label: "启动配置" },
-    { id: "drafts", label: "草稿与暂存" },
-    { id: "network", label: "网络" },
-    { id: "access", label: "公网访问" },
-    { id: "tailscale", label: "Tailscale" },
-    { id: "install", label: "安装应用" },
-    { id: "push", label: "通知推送" },
-    { id: "preview", label: "输出预览" },
-  ];
-  let active = $state(sections[0]!.id);
+  let { sections }: { sections: readonly { id: string; label: string }[] } =
+    $props();
+  let active = $state("appearance");
   let navigation: HTMLElement;
   let vertical = $state(false);
   let links: HTMLDivElement;
@@ -31,7 +21,10 @@
   }
 
   onMount(() => {
-    const targets = sections.map(({ id }) => document.getElementById(id)!);
+    const targets = sections.flatMap(({ id }) => {
+      const target = document.getElementById(id);
+      return target ? [target] : [];
+    });
     const desktop = matchMedia("(min-width: 1024px)");
     let frame = 0;
 
@@ -53,11 +46,12 @@
       }
       const bottom = document.documentElement.scrollHeight - innerHeight;
       if (bottom > 0 && scrollY >= bottom - 2) index = targets.length - 1;
-      active = sections[index]!.id;
+      active = targets[index]!.id;
       // Scroll only the horizontal strip; scrollIntoView would move the page.
       const link = links.querySelector<HTMLAnchorElement>(
         `a[href="#${active}"]`,
-      )!;
+      );
+      if (!link) return;
       const item = link.getBoundingClientRect();
       const strip = links.getBoundingClientRect();
       if (item.left < strip.left) links.scrollLeft -= strip.left - item.left;
@@ -106,7 +100,7 @@
   <p
     class="mb-3 hidden px-3 text-xs font-medium text-muted-foreground lg:block"
   >
-    设置分区
+    {m.s2_settings_sections()}
   </p>
   <div
     bind:this={links}
@@ -116,7 +110,7 @@
     onscroll={edges}
   >
     <NavigationMenu.Root
-      aria-label="设置分区"
+      aria-label={m.s2_settings_sections()}
       layout="sections"
       viewport={false}
       orientation={vertical ? "vertical" : "horizontal"}

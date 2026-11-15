@@ -15,38 +15,44 @@
 
 ## 阅读约定与产品边界
 
-- **使用者**：通过桌面、手机或平板浏览器使用服务器上的 Shell、CLI agent 和其他终端程序的人。
+- **使用者**：通过桌面、手机、平板、头显或 TV 浏览器使用服务器上的 Shell、CLI agent 和其他终端程序的人。
 - **部署者**：安装、配置和维护自己的 WebMux 服务的人，通常也是使用者。
 - **贡献者**：开发、测试和发布 WebMux 的人；相关故事单独列在 L 节。
 - WebMux 面向单用户，多设备连接仍共享同一服务用户的权限，不存在团队账号、成员角色或设备间文件隔离。
 - **会话**是服务端持有的 PTY 与进程；**工作树**是磁盘上的 Git worktree。浏览器断开不会结束会话，关闭会话不会删除工作树。
 - 会话、终端缓冲和发送确认记录不是跨服务重启的持久数据（混合会话持久化运行恢复记录及独立 Conversation / ProviderThread 稳定身份，见 Q 节）；仓库清单持久保存在服务端，草稿、暂存和显示偏好保存在当前浏览器。
 - 本文不承诺进程沙箱、公网访问安全、文件编辑、自动 clone、后台定时 fetch、自动安装 agent 或跨服务重启恢复终端。
+- 可选功能的验收以对应内置功能已选择且能力可用为前提，未选择不等于故障；配置与核心终端见 US-K18–US-K21。
+- `launch` 对应保存的启动配置；`workspace` 对应仓库与工作树；`code` 对应代码浏览。Git 工作台要求同时选择 `workspace` 与 `code`，仅选 `workspace` 仍能管理仓库及工作树。
+- E 组上传依赖 `files`；Q 组依赖 `chat`（同时显式选择 `launch`、`files`）；G 组快捷指令/语音分别依赖 `quick-commands`/`voice`。
+- C 组后台推送依赖 `notifications`；N/P/R 组分别依赖 `cloudflare`/`tailscale`/`forward`；P2P、MCP、沉浸式分别依赖 `p2p`、`mcp`、`immersive`。核心 PTY、普通会话与原生附着不依赖这些功能。
 - 故事编号保持稳定。新增功能应补充故事；改变行为时同步修改验收要点与相关测试，不因排序调整而重新编号。
 
 ## 功能索引
 
-| 分组 | 功能范围                               | 故事编号      |
-| ---- | -------------------------------------- | ------------- |
-| A    | 连接、认证、品牌标识与访问边界         | US-A01–US-A06 |
-| B    | 创建会话与选择启动位置                 | US-B01–US-B09 |
-| C    | 会话总览、搜索与提醒                   | US-C01–US-C18 |
-| D    | 终端操作、分屏、续接、多设备与生命周期 | US-D01–US-D15 |
-| E    | 剪贴板与文件上传                       | US-E01–US-E07 |
-| F    | 草稿编写、保存与发送确认               | US-F01–US-F09 |
-| G    | 快捷指令与语音输入                     | US-G01–US-G07 |
-| H    | 手机、平板与触摸操作、慢速网络         | US-H01–US-H12 |
-| I    | 代码工作区、Diff、引用与文件操作       | US-I01–US-I19 |
-| J    | 仓库登记与 worktree 管理               | US-J01–US-J18 |
-| K    | 配置、运行与服务管理                   | US-K01–US-K17 |
-| L    | 开发、验证与发布支持                   | US-L01–US-L15 |
-| M    | 原生终端、CLI 与本机控制面             | US-M01–US-M08 |
-| N    | Cloudflare 公网隧道                    | US-N01–US-N08 |
-| O    | Windows/WSL 托盘管理                   | US-O01–US-O14 |
-| P    | Tailscale Serve / Funnel               | US-P01–US-P08 |
-| Q    | 混合会话（聊天 ↔ 终端）                | US-Q01–US-Q19 |
-| R    | 端口转发预览                           | US-R01–US-R04 |
-| S    | 脚本与 agent 控制                      | US-S01–US-S19 |
+| 分组 | 功能范围                                   | 故事编号      |
+| ---- | ------------------------------------------ | ------------- |
+| A    | 连接、认证、品牌标识与访问边界             | US-A01–US-A07 |
+| B    | 创建会话与选择启动位置                     | US-B01–US-B12 |
+| C    | 会话总览、搜索与提醒                       | US-C01–US-C18 |
+| D    | 终端操作、分屏、续接、多设备与生命周期     | US-D01–US-D15 |
+| E    | 剪贴板与文件上传                           | US-E01–US-E07 |
+| F    | 草稿编写、保存与发送确认                   | US-F01–US-F09 |
+| G    | 快捷指令与语音输入                         | US-G01–US-G07 |
+| H    | 移动端、头显、TV、多会话沉浸视图与慢速网络 | US-H01–US-H15 |
+| I    | 代码工作区、Diff、引用与文件操作           | US-I01–US-I19 |
+| J    | 仓库登记与 worktree 管理                   | US-J01–US-J28 |
+| K    | 配置、运行、功能选择与服务管理             | US-K01–US-K21 |
+| L    | 开发、验证与发布支持                       | US-L01–US-L15 |
+| M    | 原生终端、CLI 与本机控制面                 | US-M01–US-M08 |
+| N    | Cloudflare 公网隧道                        | US-N01–US-N08 |
+| O    | Windows/WSL 托盘管理                       | US-O01–US-O14 |
+| P    | Tailscale Serve / Funnel                   | US-P01–US-P08 |
+| Q    | 混合会话、归档恢复与永久删除               | US-Q01–US-Q20 |
+| R    | 端口转发预览                               | US-R01–US-R04 |
+| S    | 脚本与 agent 控制                          | US-S01–US-S25 |
+
+目录共 260 条故事；K 组为 21 条，S 组为 25 条。编号范围包含已保留的历史/退役条目，不表示本次重新验收全部能力。
 
 ## 分组文档
 
@@ -64,6 +70,7 @@
 | [原生客户端、隧道与托盘](user-stories/clients-network-tray.md)                    | M–P                |
 | [终端分屏用户故事](user-stories/terminal-splits.md)                               | D13–D14            |
 | [网络压缩与 P2P 直连用户故事](user-stories/terminal-network.md)                   | H10–H12            |
+| [头显、TV 与沉浸式工作区](user-stories/terminal-xr-tv.md)                         | H13–H15            |
 | [语音输入用户故事](user-stories/terminal-voice.md)                                | G07                |
 | [混合会话](user-stories/hybrid-sessions.md)                                       | Q                  |
 | [端口转发预览](user-stories/port-forwarding.md)                                   | R                  |
@@ -74,11 +81,15 @@
 
 各次局部核对的记录（对应的故事、已运行的验证、范围限制）按日期存放在以下文件，条目按日期升序。新的核对记录追加到最新的文件，不要写回本文；超过文件上限时按“拆分过长文件”的办法按日期再拆。
 
-| 文件                                                                                                   | 日期范围                 |
-| ------------------------------------------------------------------------------------------------------ | ------------------------ |
-| [verification-log-2026-10-23-to-26](user-stories/verification-log-2026-10-23-to-26.md)                 | 2026-10-23 至 2026-10-26 |
-| [verification-log-2026-10-27-to-31](user-stories/verification-log-2026-10-27-to-31.md)                 | 2026-10-27 至 2026-10-31 |
-| [verification-log-2026-11](user-stories/verification-log-2026-11.md)                                   | 2026-11-01 至 2026-11-05 |
-| [verification-log-2026-11-06](user-stories/verification-log-2026-11-06.md)                             | 2026-11-06 起            |
-| [verification-log-2026-11-shell](user-stories/verification-log-2026-11-shell.md)                       | 2026-11-05 起            |
-| [verification-log-2026-11-archived-history](user-stories/verification-log-2026-11-archived-history.md) | 2026-11-06 起            |
+| 文件                                                                                                   | 日期范围                          |
+| ------------------------------------------------------------------------------------------------------ | --------------------------------- |
+| [verification-log-2026-10-23-to-26](user-stories/verification-log-2026-10-23-to-26.md)                 | 2026-10-23 至 2026-10-26          |
+| [verification-log-2026-10-27-to-31](user-stories/verification-log-2026-10-27-to-31.md)                 | 2026-10-27 至 2026-10-31          |
+| [verification-log-2026-11](user-stories/verification-log-2026-11.md)                                   | 2026-11-01 至 2026-11-05          |
+| [verification-log-2026-11-06](user-stories/verification-log-2026-11-06.md)                             | 2026-11-06 起                     |
+| [verification-log-2026-11-handoff](user-stories/verification-log-2026-11-handoff.md)                   | 2026-11-11 起的交接增强与最终验收 |
+| [verification-log-2026-11-shell](user-stories/verification-log-2026-11-shell.md)                       | 2026-11-05 起                     |
+| [verification-log-2026-11-archived-history](user-stories/verification-log-2026-11-archived-history.md) | 2026-11-06 起                     |
+| [verification-log-2026-11-12](user-stories/verification-log-2026-11-12.md)                             | 2026-11-12 起                     |
+| [verification-log-2026-11-git-workbench](user-stories/verification-log-2026-11-git-workbench.md)       | 2026-11-12 起的 Git 工作台核对    |
+| [verification-log-2026-11-15](user-stories/verification-log-2026-11-15.md)                             | 2026-11-15 起                     |

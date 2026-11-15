@@ -1,6 +1,7 @@
 <script lang="ts">
   import IconShieldQuestion from "~icons/tabler/shield-question";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { m } from "$lib/paraglide/messages.js";
   import type { RequestAnswer } from "../../platform/chat-api";
   import type { ToolEntry } from "../../domains/chat/chat-model";
   import type { ChatRequest } from "../../contracts/schemas";
@@ -20,7 +21,9 @@
     onanswer: (answer: RequestAnswer) => void;
   } = $props();
   const options = $derived(request.options ?? []);
-  const title = $derived(request.title || tool?.title || "Agent 请求授权");
+  const title = $derived(
+    request.title || tool?.title || m.s3_perm_agent_request(),
+  );
   function shortcut(event: KeyboardEvent) {
     const option = options[Number(event.key) - 1];
     const target = event.target;
@@ -44,7 +47,7 @@
 
 <section
   class="space-y-3 rounded-lg border border-destructive/40 bg-card p-3 shadow-sm"
-  aria-label="等待授权"
+  aria-label={m.s3_waiting_permission()}
 >
   <div class="space-y-1.5">
     <p class="flex items-center gap-1.5 text-sm font-medium">
@@ -52,7 +55,7 @@
         class="size-4 shrink-0 text-destructive"
         aria-hidden="true"
       />
-      等待授权
+      {m.s3_waiting_permission()}
     </p>
     <p
       class={tool?.kind === "execute"

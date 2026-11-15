@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { show } from "./chat-story";
-import { checkEachLayout, expectNoOverflow } from "./layouts";
+import { checkEachLayout, expectNoOverflow, layouts } from "./layouts";
 
 // Hybrid sessions (issue #181): every state of the session page fits the
 // layout matrix and keeps its primary control reachable.
@@ -76,7 +76,7 @@ for (const viewport of [
           .toBe(true);
         const model = sheet.getByRole("button", { name: "模型", exact: true });
         await expect(model).toHaveText("Sonnet");
-        const last = sheet.getByRole("combobox", { name: "模式", exact: true });
+        const last = sheet.getByRole("button", { name: "模式", exact: true });
         await last.scrollIntoViewIfNeeded();
         await expect(last).toBeInViewport({ ratio: 1 });
         await expectNoOverflow(
@@ -286,73 +286,128 @@ test("reduced motion displays options immediately without a reveal or slide", as
 });
 
 for (const [story, role, control] of stories) {
-  test(`hybrid session ${story}`, async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await show(page, story, "light");
-    await checkEachLayout(page, async ({ name, textScale }) => {
-      const target = page.getByRole(role, { name: control });
-      await target.scrollIntoViewIfNeeded();
-      await expect.soft(target, name).toBeInViewport();
-      if (textScale > 1)
-        // The terminal header does not fit 320px at 200% text even for an
-        // ordinary session; this case checks the hybrid page's body.
-        await page
-          .locator("header.terminal-header")
-          .evaluate((header) => (header.style.display = "none"));
-      try {
-        await expectNoOverflow(page, name);
-      } finally {
-        if (textScale > 1)
-          await page
-            .locator("header.terminal-header")
-            .evaluate((header) => (header.style.display = ""));
-      }
-      expect.soft(errors, name).toEqual([]);
+  const batches =
+    story === "long-conversation"
+      ? layouts.map((layout) => [layout])
+      : [layouts];
+  for (const batch of batches) {
+    const suffix = batch.length === 1 ? ` ${batch[0]!.name}` : "";
+    test(`hybrid session ${story}${suffix}`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await show(page, story, "light");
+      await checkEachLayout(
+        page,
+        async ({ name, textScale }) => {
+          const target = page.getByRole(role, { name: control });
+          await target.scrollIntoViewIfNeeded();
+          await expect.soft(target, name).toBeInViewport();
+          if (textScale > 1)
+            // The terminal header does not fit 320px at 200% text even for an
+            // ordinary session; this case checks the hybrid page's body.
+            await page
+              .locator("header.terminal-header")
+              .evaluate((header) => (header.style.display = "none"));
+          try {
+            await expectNoOverflow(page, name);
+          } finally {
+            if (textScale > 1)
+              await page
+                .locator("header.terminal-header")
+                .evaluate((header) => (header.style.display = ""));
+          }
+          expect.soft(errors, name).toEqual([]);
+        },
+        batch,
+      );
     });
-  });
+  }
 }
 
-test("long conversation ticks jump to messages and stay out of narrow panes", async ({
-  page,
-}) => {
-  for (const theme of ["light", "dark"]) {
+for (const theme of ["light", "dark"]) {
+  test(`long conversation ticks jump to messages and stay out of narrow panes (${theme})`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await show(page, "long-conversation", theme);
     const navigation = page.getByRole("navigation", { name: "对话轮次" });
     await expect(navigation).toBeVisible();
-    await expect(navigation.getByRole("button")).toHaveCount(18);
-    const first = navigation.getByRole("button", {
-      name: "第 1 轮 · 你：修复首页搜索的排序：置顶的工作区应排在最前。",
-    });
-    const agent = navigation.getByRole("button", {
-      name: /^第 1 轮 · AI：/,
-    });
-    const colors = await Promise.all(
-      [first, agent].map((item) =>
-        item
-          .locator("span")
-          .evaluate((node) => getComputedStyle(node).backgroundColor),
-      ),
-    );
-    expect(colors[0]).not.toBe(colors[1]);
-    await first.click();
-    await expect(first).toHaveAttribute("aria-current", "location");
-    await expect
-      .poll(() =>
-        page
-          .locator("[data-slot=scroll-area-viewport]")
-          .first()
-          .evaluate((node) => node.scrollTop),
-      )
-      .toBeLessThan(100);
-    await expectNoOverflow(page, `1280×900 ${theme} turn navigation`);
-
-    await page.setViewportSize({ width: 900, height: 900 });
-    await expect(navigation).toBeVisible();
-    await first.click();
-    await expect(first).toHaveAttribute("aria-current", "location");
-    await expectNoOverflow(page, `900×900 ${theme} intermediate-width ticks`);
+    const first = navigation.getByRole("button").first();
+    const last = navigation.getByRole("button").last();
+    for (const viewport of [
+      { width: 1280, height: 900 },
+      { width: 1280, height: 600 },
+      { width: 900, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect
+        .poll(() => navigation.getByRole("button").count())
+        .toBeLessThan(60);
+      await expect
+        .poll(() =>
+          navigation.evaluate((nav) => {
+            const bounds = nav.getBoundingClientRect();
+            const list = nav.firstElementChild as HTMLElement;
+            return (
+              [nav, list].every(
+                (node) =>
+                  node.scrollTop === 0 &&
+                  node.scrollHeight <= node.clientHeight + 1,
+              ) &&
+              Array.from(nav.querySelectorAll("button")).every((button) => {
+                const box = button.getBoundingClientRect();
+                return (
+                  box.height >= 12 &&
+                  box.top >= bounds.top - 1 &&
+                  box.bottom <= bounds.bottom + 1
+                );
+              })
+            );
+          }),
+        )
+        .toBe(true);
+      await first.click();
+      const directory = page.getByRole("dialog");
+      await expect(directory).toBeVisible();
+      // Visibility precedes floating-position calculation and the opening
+      // transform. Assert the settled bounds rather than the first frame.
+      await expect
+        .poll(async () => {
+          const box = await directory.boundingBox();
+          return (
+            !!box &&
+            box.x >= 0 &&
+            box.y >= 0 &&
+            box.x + box.width <= viewport.width &&
+            box.y + box.height <= viewport.height
+          );
+        })
+        .toBe(true);
+      await directory
+        .getByRole("button", { name: /^第 1 轮 · 你：修复首页搜索/ })
+        .click();
+      await expect(directory).toBeHidden();
+      await expect(first).toBeFocused();
+      await first.press("End");
+      await expect(last).toBeFocused();
+      await last.press("Enter");
+      await expect(directory).toBeVisible();
+      await directory
+        .getByRole("button", {
+          name: "第 41 轮 · AI：补充 7：回归用例已保留。",
+          exact: true,
+        })
+        .click();
+      await expect(last).toHaveAttribute("aria-current", "location");
+      await expect(directory).toBeHidden();
+      expect(
+        await page.locator('[data-conversation-message^="long-a39"]').count(),
+      ).toBe(8);
+      await expectNoOverflow(
+        page,
+        `${viewport.width}×${viewport.height} ${theme} grouped ticks`,
+      );
+    }
 
     for (const viewport of [
       { width: 768, height: 800 },
@@ -360,13 +415,9 @@ test("long conversation ticks jump to messages and stay out of narrow panes", as
     ]) {
       await page.setViewportSize(viewport);
       await expect(navigation).toBeHidden();
-      await expectNoOverflow(
-        page,
-        `${viewport.width}×${viewport.height} ${theme} turn navigation`,
-      );
     }
-  }
-});
+  });
+}
 
 test("hybrid home cards", async ({ page }) => {
   await page.route("**/api/**", (route) => route.abort());

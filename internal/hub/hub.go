@@ -15,7 +15,6 @@ import (
 	"unicode"
 
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/wire"
 )
@@ -96,7 +95,7 @@ var errInvalidMessage = errors.New("invalid session message")
 
 // encode rejects malformed payloads instead of dropping them or choosing one
 // arbitrarily. Raw bytes remain shared; only typed control payloads are encoded.
-func encode(m session.Message) (frame []byte, exit bool, err error) {
+func encode(m session.Message, contributions ...Options) (frame []byte, exit bool, err error) {
 	if !m.Valid() {
 		return nil, false, errInvalidMessage
 	}
@@ -104,7 +103,7 @@ func encode(m session.Message) (frame []byte, exit bool, err error) {
 	case m.Frame != nil:
 		return m.Frame, false, nil
 	case m.Info != nil:
-		frame, err = jsonFrame(contract.FrameState, wire.Session(*m.Info))
+		frame, err = jsonFrame(contract.FrameState, options(contributions).project(*m.Info))
 	case m.Exit != nil:
 		frame, err = jsonFrame(contract.FrameExit, contract.ExitFrame{ExitCode: *m.Exit})
 		exit = true
@@ -118,7 +117,7 @@ func encode(m session.Message) (frame []byte, exit bool, err error) {
 	return frame, exit, err
 }
 
-func write(ctx context.Context, c MessageConn, kind MessageType, p []byte) error {
+func Write(ctx context.Context, c MessageConn, kind MessageType, p []byte) error {
 	deadline, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return c.Write(deadline, kind, p)
@@ -130,35 +129,34 @@ func movedReason(side string) string {
 	if side == "" {
 		return "session moved"
 	}
-	return "session moved: " + string(wire.View(side))
+	return "session moved: " + side
 }
 
-// sideOf is where a hybrid session is or, during a switch, moves to.
-func sideOf(info session.Info) string {
-	if info.Hybrid == nil {
-		return ""
-	}
-	if info.Hybrid.To != "" {
-		return info.Hybrid.To
-	}
-	return info.Hybrid.Side
-}
-
-// Attach owns the only data writer. Its reader is cancelled and joined on all exits.
-// A hybrid session attaches only on its terminal view: in the chat or
-// during a view change it refuses with 4409, even while a run still exists.
-func Attach(ctx context.Context, s *session.Session, c MessageConn, o session.AttachOptions, deflateReplay bool) {
-	if h := s.Info().Hybrid; h != nil && (h.Side != string(hybrid.SideTUI) || h.To != "") {
-		_ = c.Close(contract.CloseMoved, movedReason(sideOf(s.Info())))
-		return
+// Attach owns the only data writer. Its reader is cancelled and joined on all
+// exits. Optional view policy is prebound by the composition root.
+func Attach(ctx context.Context, s *session.Session, c MessageConn, o session.AttachOptions, deflateReplay bool, contributions ...Options) {
+	contribution := options(contributions)
+	if contribution.Terminal != nil {
+		if allowed, destination := contribution.Terminal(s.Info().ID); !allowed {
+			_ = c.Close(contract.CloseMoved, movedReason(destination))
+			return
+		}
 	}
 	sub, err := s.AttachClient(o)
 	if err != nil {
-		// Only a shell without a terminal run refuses: it is on its other side.
-		_ = c.Close(contract.CloseMoved, movedReason(sideOf(s.Info())))
+		_ = c.Close(contract.CloseMoved, movedReason(""))
 		return
 	}
 	defer s.Detach(sub)
+	// Recheck after registration: a view move may have detached the old
+	// subscribers between the first gate and AttachClient. A later move
+	// includes this subscriber, so these two checks close that window.
+	if contribution.Terminal != nil {
+		if allowed, destination := contribution.Terminal(s.Info().ID); !allowed {
+			_ = c.Close(contract.CloseMoved, movedReason(destination))
+			return
+		}
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	c.SetReadLimit(1024 * 1024)
 	readerDone := make(chan struct{})
@@ -265,7 +263,7 @@ func Attach(ctx context.Context, s *session.Session, c MessageConn, o session.At
 		<-readerDone
 		<-inputDone
 	}()
-	writeMessages(ctx, c, sub, deflateReplay)
+	writeMessages(ctx, c, sub, deflateReplay, contribution)
 }
 
 // Output pacing. An idle connection sends output at once, so a keystroke echo
@@ -315,7 +313,7 @@ func deflateFrame(frame []byte) []byte {
 }
 
 // writeMessages is the sole terminal data writer, including aggregation.
-func writeMessages(ctx context.Context, c MessageConn, sub *session.Subscriber, deflateReplay bool) {
+func writeMessages(ctx context.Context, c MessageConn, sub *session.Subscriber, deflateReplay bool, contributions ...Options) {
 	var pending session.Message
 	var hasPending bool
 	var combinedBuffer []byte
@@ -346,7 +344,7 @@ func writeMessages(ctx context.Context, c MessageConn, sub *session.Subscriber, 
 			_ = c.Close(contract.CloseMoved, movedReason(*m.Moved))
 			return
 		}
-		frame, exit, err := encode(m)
+		frame, exit, err := encode(m, options(contributions))
 		if err != nil {
 			_ = c.Close(StatusInternalError, "invalid session message")
 			return
@@ -376,7 +374,7 @@ func writeMessages(ctx context.Context, c MessageConn, sub *session.Subscriber, 
 		if replaying && deflateReplay && m.Frame != nil && frame[0] == contract.FrameSnapshot {
 			frame = deflateFrame(frame)
 		}
-		if write(ctx, c, MessageBinary, frame) != nil {
+		if Write(ctx, c, MessageBinary, frame) != nil {
 			_ = c.Close(StatusSlowClient, "write timeout")
 			return
 		}

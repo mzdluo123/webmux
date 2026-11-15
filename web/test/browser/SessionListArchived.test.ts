@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import ShellHarness from "./ShellHarness.svelte";
+import { enableHostFeatures, resetHostFeatures } from "./feature-fixture";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 import type {
   ArchivedSession,
@@ -139,7 +140,7 @@ class FakeSocket {
   }
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   records = [record];
   repositories = [];
   sockets.length = 0;
@@ -169,6 +170,7 @@ beforeEach(() => {
       return Response.json({ error: "not found" }, { status: 404 });
     }),
   );
+  await enableHostFeatures();
 });
 
 afterEach(async () => {
@@ -176,6 +178,7 @@ afterEach(async () => {
     await cleanup();
     await userEvent.cleanup();
   } finally {
+    resetHostFeatures();
     vi.unstubAllGlobals();
     history.replaceState(null, "", "/");
     vi.restoreAllMocks();
@@ -231,8 +234,7 @@ test("archiving a hybrid session keeps its draft; deleting the record deletes it
   expect(drafts.valid(closed!)).toBe(true);
 
   await group.getByRole("button", { name: /已归档/ }).click();
-  await group.getByRole("button", { name: "更多操作 进行中" }).click();
-  await page.getByRole("menuitem", { name: "删除记录" }).click();
+  await group.getByRole("button", { name: "删除 进行中", exact: true }).click();
   // The fetch stub only knows how to delete hybrid22; answer for this one.
   vi.mocked(fetch).mockImplementationOnce(async () => {
     records = [];

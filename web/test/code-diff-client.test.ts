@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { computeDiff } from "../src/domains/code/code-diff";
 import { calculateDiff } from "../src/domains/code/code-diff-client";
 
@@ -66,5 +66,7 @@ test("reports a stalled or unavailable Worker and releases it", async () => {
   aborted.abort();
   await expect(
     calculateDiff("s", "", "", aborted.signal),
-  ).rejects.toMatchObject({ name: "AbortError" });
+  ).rejects.toMatchObject({
+    name: "AbortError",
+  });
 });

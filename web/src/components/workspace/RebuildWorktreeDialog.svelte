@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import {
     previewRebuild,
@@ -38,21 +38,17 @@
 
   const commit = $derived((preview?.commit ?? released.commit).slice(0, 12));
   const branch = $derived(preview?.branch ?? released.branch ?? "");
-  const reasons = {
-    branchMissing: "已被删除",
-    branchMoved: "已有新的提交",
-    branchCheckedOut: "已在其他工作树检出",
-  } as const;
   const mode = $derived.by(() => {
     if (!preview) return "";
-    if (preview.mode === "reuse")
-      return "原路径已是保存提交上的工作树，将直接使用，不重新创建。";
-    if (preview.mode === "branch")
-      return `将在原路径检出分支 ${branch}，它仍指向保存的提交。`;
-    const why = preview.reason
-      ? `分支 ${branch} ${reasons[preview.reason]}，`
-      : "释放时没有检出分支，";
-    return `${why}将以 detached 方式检出保存的提交 ${commit}${preview.reason ? "，分支保持不变" : ""}。`;
+    if (preview.mode === "reuse") return m.s8_rebuild_mode_reuse();
+    if (preview.mode === "branch") return m.s8_rebuild_mode_branch({ branch });
+    if (preview.reason === "branchMissing")
+      return m.s8_rebuild_mode_detached_missing({ branch, commit });
+    if (preview.reason === "branchMoved")
+      return m.s8_rebuild_mode_detached_moved({ branch, commit });
+    if (preview.reason === "branchCheckedOut")
+      return m.s8_rebuild_mode_detached_checked_out({ branch, commit });
+    return m.s8_rebuild_mode_detached_none({ commit });
   });
 
   async function load() {
@@ -80,7 +76,7 @@
       busy = false;
       onrebuilt();
     } catch (err) {
-      error = `${errorMessage(err)}。记录仍为已释放空间，请重新读取预览后再确认。`;
+      error = m.s8_rebuild_failed_retry({ error: errorMessage(err) });
       preview = null;
       busy = false;
     }
@@ -88,37 +84,48 @@
 </script>
 
 <ResponsiveDialog
-  title="重建工作树后恢复"
-  description={`“${title}”所在的工作树已释放空间。恢复前需要在原路径重建工作树；释放时删除的忽略文件（依赖、构建产物等）不会回来。`}
-  drawerDescription="恢复前需要在原路径重建工作树；已删除的忽略文件不会回来。"
+  title={m.s8_rebuild_title()}
+  description={m.s8_rebuild_desc({ title })}
+  drawerDescription={m.s8_rebuild_drawer_desc()}
   {onclose}
   {busy}
 >
-  <PreviewForm {busy} {error} onsubmit={() => void rebuild()} {onclose}>
+  <PreviewForm
+    {busy}
+    {error}
+    onsubmit={() => void rebuild()}
+    {onclose}
+    confirm={{
+      ready: preview !== null,
+      disabled: (preview?.blockers.length ?? 0) > 0,
+      label: m.s8_rebuild_confirm_btn(),
+      onreload: load,
+    }}
+  >
     {#snippet summary()}
       <KeyValueSummary
         rows={[
           {
-            label: "原路径",
+            label: m.s8_rebuild_original_path(),
             value: preview?.path ?? released.path,
             mono: true,
           },
-          { label: "保存提交", value: commit, mono: true, wrap: false },
+          {
+            label: m.s8_label_saved_commit(),
+            value: commit,
+            mono: true,
+            wrap: false,
+          },
         ]}
       />
     {/snippet}
     {#if preview}
       {#if preview.blockers.length}
-        <BlockerList title="无法重建" blockers={preview.blockers} />
+        <BlockerList
+          title={m.s8_rebuild_cannot_title()}
+          blockers={preview.blockers}
+        />
       {:else}<p class="text-sm">{mode}</p>{/if}
     {/if}
-    {#snippet actions()}
-      {#if preview}<Button
-          type="submit"
-          disabled={busy || preview.blockers.length > 0}>重建并恢复</Button
-        >{:else}<Button type="button" disabled={busy} onclick={load}
-          >重新读取预览</Button
-        >{/if}
-    {/snippet}
   </PreviewForm>
 </ResponsiveDialog>

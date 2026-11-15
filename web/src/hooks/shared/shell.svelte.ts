@@ -1,12 +1,15 @@
 import { getContext, setContext } from "svelte";
 import { z } from "zod";
+import { m } from "$lib/paraglide/messages.js";
 import { navigate, store, stored } from "../../platform/api";
+import { buildGitRouteHref, type GitRouteTarget } from "./route";
+import { featureEnabled } from "../../platform/feature-host.svelte";
 import type { ArchiveSignal } from "../../domains/sessions/archive-signal";
 import type { BranchOperation } from "../../domains/workspace/branch-actions";
 import type { Archived } from "../sessions/archived.svelte";
 import type { LaunchConfigs } from "../settings/launch-configs.svelte";
 import type { Repositories } from "../workspace/repositories.svelte";
-import type { ServerSetup } from "../workspace/server-setup.svelte";
+import type { ServerSetup } from "./server-setup.svelte";
 import type { SessionList } from "../sessions/session-list.svelte";
 import type { LaunchEntry } from "../../domains/sessions/new-session-defaults";
 import type {
@@ -62,8 +65,8 @@ export const shellUi = {
   },
   /** Remembers the mode; the sidebar follows, the page stays. */
   setMode(next: ShellMode) {
-    mode = next;
-    store("shellMode", next);
+    mode = next === "chat" && !featureEnabled("chat") ? "workbench" : next;
+    store("shellMode", mode);
   },
   get collapsed() {
     return collapsed;
@@ -98,6 +101,10 @@ export const shellUi = {
  * so going back never lands on the workbench home first.
  */
 export function enterHome() {
+  if (mode === "chat" && !featureEnabled("chat")) {
+    mode = "workbench";
+    store("shellMode", mode);
+  }
   if (location.pathname === "/" && mode === "chat")
     history.replaceState(
       history.state,
@@ -109,13 +116,15 @@ export function enterHome() {
 /** The shell's shared data and the actions its sidebar and pages offer. */
 export interface Shell {
   readonly drafts: TerminalDrafts;
+  readonly activeChat?: SessionInfo;
+  setActivePane(id: string): void;
   readonly sessions: SessionList;
-  readonly repositories: Repositories;
-  readonly archived: Archived;
+  readonly repositories?: Repositories;
+  readonly archived?: Archived;
   /** The user archived a session from the shell; open pages may leave it. */
   readonly archiveSignal: ArchiveSignal;
   readonly setup: ServerSetup;
-  readonly launchConfigs: LaunchConfigs;
+  readonly launchConfigs?: LaunchConfigs;
   /** Opens the new-session dialog, optionally at a contextual entry. */
   start(entry?: LaunchEntry): void;
   /** Opens the shared rename dialog for a live session. */
@@ -147,7 +156,16 @@ export interface Shell {
    * Opens the switch of a worktree's branch outside the repository panel,
    * which shows the same flow as one of its subviews.
    */
-  switchBranch(worktree: Worktree): void;
+  switchBranch(
+    worktree: Worktree,
+    initial?:
+      | string
+      | {
+          branch?: string;
+          mode?: "existing" | "new";
+          startPoint?: string;
+        },
+  ): void;
   /** Opens the shared release preview of an archived record's worktree. */
   releaseWorktree(worktree: Worktree): void;
   /**
@@ -178,7 +196,7 @@ export function findShell(): Shell | undefined {
 }
 export function getShell(): Shell {
   const shell = getContext<Shell | undefined>(key);
-  if (!shell) throw new Error("页面必须位于应用外壳中");
+  if (!shell) throw new Error(m.s1_page_requires_app_shell());
   return shell;
 }
 
@@ -191,6 +209,17 @@ export function openSession(session: Pick<SessionInfo, "id">) {
 /** Opens a page of the shell (a home page or a scope) and closes the drawer. */
 export function openPage(path: string) {
   drawerOpen = false;
-  if (location.pathname + location.hash === path) return;
+  const target = new URL(path, location.origin);
+  if (
+    location.pathname === target.pathname &&
+    location.search === target.search &&
+    location.hash === target.hash
+  )
+    return;
   navigate(path);
+}
+
+/** Opens the standalone `/git` workbench for a repository or worktree. */
+export function openGitWorkbench(target: GitRouteTarget) {
+  openPage(buildGitRouteHref(target));
 }

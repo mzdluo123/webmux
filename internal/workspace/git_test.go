@@ -2,7 +2,10 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,7 +88,7 @@ func TestBareUnbornAndBranchBaselines(t *testing.T) {
 	if _, err := s.CreateWorktree(context.Background(), r.ID, CreateRequest{Path: filepath.Join(t.TempDir(), "unborn"), Mode: "new", Branch: "topic", Base: "HEAD"}); errorKind(err) != ErrInvalid {
 		t.Fatalf("unborn creation: %v", err)
 	}
-	item, err := s.CreateSession(context.Background(), CreateInput{Cmd: []string{"/bin/sh", "-c", "printf UNBORN"}, Workspace: &Reference{r.ID, r.Worktrees[0].ID}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cmd: []string{"/bin/sh", "-c", "printf UNBORN"}, Workspace: &sessioncreate.Reference{RepositoryID: r.ID, WorktreeID: r.Worktrees[0].ID}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +101,7 @@ func TestBareUnbornAndBranchBaselines(t *testing.T) {
 	if err != nil || branches.DefaultBase != nil || len(branches.Bases) == 0 || branches.DefaultParent != bare+".worktrees" {
 		t.Fatalf("bare branches: %+v %v", branches, err)
 	}
-	if _, err := s.CreateSession(context.Background(), CreateInput{Cmd: []string{"/bin/sh"}, Workspace: &Reference{br.ID, br.Worktrees[0].ID}}); errorKind(err) != ErrConflict {
+	if _, err := s.CreateSession(context.Background(), sessioncreate.Input{Cmd: []string{"/bin/sh"}, Workspace: &sessioncreate.Reference{RepositoryID: br.ID, WorktreeID: br.Worktrees[0].ID}}); errorKind(err) != ErrConflict {
 		t.Fatalf("bare launch: %v", err)
 	}
 	tree, err := s.CreateWorktree(context.Background(), br.ID, CreateRequest{Path: filepath.Join(t.TempDir(), "bare linked"), Mode: "new", Branch: "topic", Base: "refs/heads/main"})
@@ -327,15 +330,15 @@ func TestCreationContractsAndNoEnvironmentCopy(t *testing.T) {
 	if string(data) != "retain" {
 		t.Fatal("existing directory overwritten")
 	}
-	if _, err := s.CreateSession(context.Background(), CreateInput{Cmd: []string{"/missing/agent"}, Workspace: &Reference{r.ID, created.ID}}); errorKind(err) != ErrInvalid {
+	if _, err := s.CreateSession(context.Background(), sessioncreate.Input{Cmd: []string{"/missing/agent"}, Workspace: &sessioncreate.Reference{RepositoryID: r.ID, WorktreeID: created.ID}}); !errors.Is(err, session.ErrInvalid) {
 		t.Fatalf("agent failure: %v", err)
 	}
-	item, err := s.CreateSession(context.Background(), CreateInput{Cmd: []string{"/bin/sh", "-c", "printf RETRY"}, Workspace: &Reference{r.ID, created.ID}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cmd: []string{"/bin/sh", "-c", "printf RETRY"}, Workspace: &sessioncreate.Reference{RepositoryID: r.ID, WorktreeID: created.ID}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	waitDone(t, item)
-	if item.Info().Workspace == nil || item.Info().Workspace.WorktreeID != created.ID {
+	if s.Association(item.Info().ID) == nil || s.Association(item.Info().ID).WorktreeID != created.ID {
 		t.Fatal("retry did not reuse created worktree")
 	}
 }
@@ -363,7 +366,7 @@ func TestFailedGitCreationExposesResidueAndCancellationReapsCommand(t *testing.T
 		t.Fatal("partial worktree hidden", err)
 	}
 	gitTest(t, root, "show-ref", "--verify", "refs/heads/partial")
-	item, err := s.CreateSession(context.Background(), CreateInput{Cmd: []string{"/bin/sh", "-c", "printf RESIDUE"}, Workspace: &Reference{r.ID, tree.ID}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cmd: []string{"/bin/sh", "-c", "printf RESIDUE"}, Workspace: &sessioncreate.Reference{RepositoryID: r.ID, WorktreeID: tree.ID}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -430,12 +433,12 @@ func TestGitTrustAndPermissionErrorsNeverBecomeClean(t *testing.T) {
 	if strings.Contains(gitLocalConfig(t, root), "safe.directory") {
 		t.Fatal("service modified repository trust")
 	}
-	item, err := s.CreateSession(context.Background(), CreateInput{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf TRUST_DIRECT"}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf TRUST_DIRECT"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	waitDone(t, item)
-	if item.Info().Workspace != nil {
+	if s.Association(item.Info().ID) != nil {
 		t.Fatal("failed Git detection invented association")
 	}
 }

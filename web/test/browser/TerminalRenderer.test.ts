@@ -1,8 +1,8 @@
 import { terminalFont } from "../../src/hooks/terminal/terminal-font-preference.svelte";
 // WebGL/DOM renderers, DPR changes, fit, fonts and theme colours.
-import { expect, onTestFinished, test, vi } from "vitest";
+import { expect, onTestFinished, test, vi } from "vite-plus/test";
 import { WebglAddon } from "@xterm/addon-webgl";
-import { page, userEvent } from "vitest/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import {
   domText,
   dpr,

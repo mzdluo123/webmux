@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -21,11 +22,18 @@ type FetchResult struct {
 	Message string `json:"message"`
 }
 
+// FetchRequest carries optional client idempotency and worktree context.
+type FetchRequest struct {
+	ClientRequestID string `json:"clientRequestId,omitempty"`
+	WorktreeID      string `json:"worktreeId,omitempty"`
+}
+
 // FetchRemotesResult lists each remote's outcome and the repository as it
 // is after the fetch.
 type FetchRemotesResult struct {
-	Results    []FetchResult `json:"results"`
-	Repository Repository    `json:"repository"`
+	OperationID string        `json:"operationId,omitempty"`
+	Results     []FetchResult `json:"results"`
+	Repository  Repository    `json:"repository"`
 }
 
 // fetchFlight is a running FetchRemotes shared by every caller that asks
@@ -42,18 +50,39 @@ type fetchFlight struct {
 // the others. It holds no repository gate, so worktree operations and
 // snapshots go on meanwhile; a caller that leaves does not stop it.
 func (s *Service) FetchRemotes(ctx context.Context, repositoryID string) (FetchRemotesResult, error) {
+	return s.FetchRemotesWithOptions(ctx, repositoryID, FetchRequest{})
+}
+
+// FetchRemotesWithOptions executes FetchRemotes with optional clientRequestId
+// idempotency and ledger recording.
+func (s *Service) FetchRemotesWithOptions(ctx context.Context, repositoryID string, req FetchRequest) (FetchRemotesResult, error) {
+	reqHash := hashOperationRequest(GitOpFetch, repositoryID, req.WorktreeID)
+	return runIdempotentOperation(
+		ctx, s, repositoryID, req.ClientRequestID, GitOpFetch, reqHash,
+		func(op GitOperation) (FetchRemotesResult, error) {
+			return s.replayFetchOperation(repositoryID, op)
+		},
+		func(opID string) (FetchRemotesResult, error) {
+			return s.fetchRemotesOnce(ctx, repositoryID, req, opID, reqHash)
+		},
+	)
+}
+
+func (s *Service) fetchRemotesOnce(ctx context.Context, repositoryID string, req FetchRequest, opID, reqHash string) (FetchRemotesResult, error) {
 	r, err := s.repository(repositoryID)
 	if err != nil {
 		return FetchRemotesResult{}, err
 	}
 	r.fetchMu.Lock()
 	flight := r.fetching
+	startedFlight := false
 	if flight == nil {
 		flight = &fetchFlight{done: make(chan struct{})}
 		r.fetching = flight
+		startedFlight = true
 		runCtx := context.WithoutCancel(ctx)
 		go func() {
-			flight.result, flight.err = s.fetchRemotes(runCtx, r)
+			flight.result, flight.err = s.fetchRemotes(runCtx, r, opID, req, reqHash)
 			r.fetchMu.Lock()
 			r.fetching = nil
 			r.fetchMu.Unlock()
@@ -65,11 +94,34 @@ func (s *Service) FetchRemotes(ctx context.Context, repositoryID string) (FetchR
 	case <-ctx.Done():
 		return FetchRemotesResult{}, ctx.Err()
 	case <-flight.done:
-		return flight.result, flight.err
+		if flight.err != nil {
+			return FetchRemotesResult{}, flight.err
+		}
+		if !startedFlight && req.ClientRequestID != "" {
+			now := time.Now().UTC()
+			status, summary := summarizeFetchResults(flight.result.Results)
+			_ = s.recordOperationStart(GitOperation{
+				ID:              opID,
+				RepositoryID:    repositoryID,
+				WorktreeID:      req.WorktreeID,
+				ClientRequestID: req.ClientRequestID,
+				RequestHash:     reqHash,
+				Kind:            GitOpFetch,
+				Status:          status,
+				StartedAt:       now,
+				FinishedAt:      &now,
+				Summary:         summary,
+				FetchResults:    append([]FetchResult(nil), flight.result.Results...),
+			})
+			res := flight.result
+			res.OperationID = opID
+			return res, nil
+		}
+		return flight.result, nil
 	}
 }
 
-func (s *Service) fetchRemotes(ctx context.Context, r *repositoryState) (FetchRemotesResult, error) {
+func (s *Service) fetchRemotes(ctx context.Context, r *repositoryState, opID string, req FetchRequest, reqHash string) (FetchRemotesResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, fetchRemotesTimeout)
 	defer cancel()
 	anchor := r.entry.AnchorPath
@@ -80,11 +132,28 @@ func (s *Service) fetchRemotes(ctx context.Context, r *repositoryState) (FetchRe
 	if len(remotes) == 0 {
 		return FetchRemotesResult{}, problemf(ErrConflict, "仓库没有配置远程，无法获取")
 	}
+	if err := s.recordOperationStart(GitOperation{
+		ID:              opID,
+		RepositoryID:    r.entry.ID,
+		WorktreeID:      req.WorktreeID,
+		ClientRequestID: req.ClientRequestID,
+		RequestHash:     reqHash,
+		Kind:            GitOpFetch,
+		Status:          GitOpRunning,
+		StartedAt:       time.Now().UTC(),
+		Summary:         "正在获取远程更新",
+	}); err != nil {
+		return FetchRemotesResult{}, err
+	}
+	if shouldAbortBeforeGit(ctx, opID) {
+		return FetchRemotesResult{}, errSimulatedCrash
+	}
 	timeout := s.fetchRemoteTimeout
 	if timeout <= 0 {
 		timeout = fetchRemoteTimeout
 	}
 	results := make([]FetchResult, 0, len(remotes))
+	outLines := make([]string, 0, len(remotes))
 	for _, remote := range remotes {
 		result := FetchResult{Remote: remote, Status: remoteOK}
 		var failure *RemoteFailure
@@ -97,12 +166,46 @@ func (s *Service) fetchRemotes(ctx context.Context, r *repositoryState) (FetchRe
 		}
 		if failure != nil {
 			result.Status, result.Message = failure.Status, failure.Message
+			outLines = append(outLines, remote+": "+failure.Message)
 			// URLs and Git output stay out of the log: they can hold credentials.
 			slog.Warn("remote fetch failed", "repository", r.entry.ID, "remote", remote, "status", failure.Status)
 		}
 		results = append(results, result)
 	}
-	return FetchRemotesResult{Results: results, Repository: s.fetchedRepository(r)}, nil
+	if shouldAbortAfterGit(ctx, opID) {
+		return FetchRemotesResult{}, errSimulatedCrash
+	}
+	status, summary := summarizeFetchResults(results)
+	s.finalizeOperation(opID, func(op *GitOperation) {
+		op.Status = status
+		op.Summary = summary
+		op.FetchResults = append([]FetchResult(nil), results...)
+		op.SanitizedOutput = strings.Join(outLines, "\n")
+	})
+	return FetchRemotesResult{OperationID: opID, Results: results, Repository: s.fetchedRepository(r)}, nil
+}
+
+func summarizeFetchResults(results []FetchResult) (string, string) {
+	okCount := 0
+	var firstFailure string
+	for _, item := range results {
+		if item.Status == remoteOK {
+			okCount++
+		} else if firstFailure == "" {
+			firstFailure = item.Message
+		}
+	}
+	switch {
+	case okCount == len(results):
+		return GitOpSucceeded, "已完成远程获取"
+	case okCount > 0:
+		return GitOpNeedsReview, "部分远程获取失败：" + firstFailure
+	default:
+		if firstFailure != "" {
+			return GitOpFailed, firstFailure
+		}
+		return GitOpFailed, "远程获取失败"
+	}
 }
 
 // remoteNames lists the configured remotes, sorted by name.

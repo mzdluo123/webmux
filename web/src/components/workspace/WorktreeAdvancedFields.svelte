@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import {
     commitChoiceLabel,
     type CommitChoice,
@@ -11,6 +12,7 @@
 
   let {
     mode,
+    deferred = false,
     path = $bindable(""),
     base = $bindable(""),
     disabled = false,
@@ -25,6 +27,7 @@
     onbaseedited,
   }: {
     mode: "new" | "existing";
+    deferred?: boolean;
     path: string;
     base: string;
     disabled?: boolean;
@@ -50,7 +53,9 @@
     >
       <span class="font-mono">{item.shortHash}</span>
       {#each item.tags as tag (tag)}
-        <Badge variant={tag === "远程最新" ? "info" : "secondary"}>{tag}</Badge>
+        <Badge variant={tag === m.s8_tip_remote_latest() ? "info" : "secondary"}
+          >{tag}</Badge
+        >
       {/each}
       {#if item.age}<span>{item.age}</span>{/if}
     </span>
@@ -60,17 +65,24 @@
 {#if mode === "new" && hasData && !commitRows.length && !commitsLoading}<p
     class="text-sm text-muted-foreground"
   >
-    尚无可用提交。请先在终端创建提交；仍可在主工作区启动会话。
+    {m.s8_adv_no_commits_help()}
   </p>{/if}
 <AdvancedSection
-  title={mode === "new" ? "高级：起始提交与存放目录" : "高级：存放目录"}
-  summary={[mode === "new" ? selectedCommit?.shortHash : "", path]
+  title={deferred
+    ? m.s8_adv_title_start_commit()
+    : mode === "new"
+      ? m.s8_adv_title_commit_and_dir()
+      : m.s8_adv_title_dir()}
+  summary={[
+    mode === "new" ? selectedCommit?.shortHash : "",
+    deferred ? "" : path,
+  ]
     .filter(Boolean)
     .join(" · ")}
 >
   {#if mode === "new"}
     <div class="space-y-2">
-      <Label for="worktree-base">起始提交</Label>
+      <Label for="worktree-base">{m.s8_start_commit_label()}</Label>
       <Select.Root
         type="single"
         bind:value={base}
@@ -85,7 +97,9 @@
             {@render commitDetails(selectedCommit)}
           {:else}
             <span class="text-muted-foreground">
-              {commitsLoading ? "正在读取最近提交…" : "选择提交"}
+              {commitsLoading
+                ? m.s8_reading_recent_commits()
+                : m.s8_select_commit()}
             </span>
           {/if}
         </Select.Trigger>
@@ -104,29 +118,32 @@
         </Select.Content>
       </Select.Root>
       <p id="worktree-base-help" class="text-xs text-muted-foreground">
-        {#if commitsLoading}正在读取最近提交…{:else}所选分支最近 {commitsCount}
-          条提交；“刷新上游”会加入远程最新提交。{/if}
+        {#if commitsLoading}{m.s8_reading_recent_commits()}{:else}{m.s8_adv_recent_commits_help(
+            { count: String(commitsCount) },
+          )}{/if}
       </p>
       {#if commitsError}<p role="status" class="text-xs text-warning">
           {commitsError}
         </p>{/if}
     </div>
   {/if}
-  <div class="space-y-2">
-    <Label for="worktree-path">新工作树完整路径</Label>
-    <Input
-      id="worktree-path"
-      bind:value={path}
-      oninput={onpathedited}
-      mono
-      required
-      autocomplete="off"
-      autocapitalize="off"
-      autocorrect="off"
-      spellcheck={false}
-    />
-    <p class="text-xs text-muted-foreground">
-      目录名默认取分支最后一段，不会覆盖已有目录。
-    </p>
-  </div>
+  {#if !deferred}
+    <div class="space-y-2">
+      <Label for="worktree-path">{m.s8_new_worktree_full_path_label()}</Label>
+      <Input
+        id="worktree-path"
+        bind:value={path}
+        oninput={onpathedited}
+        mono
+        required
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck={false}
+      />
+      <p class="text-xs text-muted-foreground">
+        {m.s8_new_worktree_path_help()}
+      </p>
+    </div>
+  {/if}
 </AdvancedSection>

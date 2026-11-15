@@ -4,9 +4,10 @@ import type {
   SubmissionProgress,
 } from "../../contracts/schemas";
 import type { Connection } from "../../platform/ws";
-import type { Modifiers } from "../../platform/input";
+import type { Modifiers } from "./terminal-keys";
 import type { Terminal } from "@xterm/xterm";
 import type { SearchAddon } from "@xterm/addon-search";
+import { m } from "$lib/paraglide/messages.js";
 
 export interface TerminalFindOptions {
   caseSensitive: boolean;
@@ -27,7 +28,7 @@ export function terminalFindError(query: string, regex: boolean): string {
     new RegExp(query);
     return "";
   } catch {
-    return "正则表达式无效";
+    return m.s4_find_invalid_regex();
   }
 }
 
@@ -36,9 +37,10 @@ export function terminalFindResultText(
 ): string {
   if (!results) return "";
   if (results.resultCount >= terminalFindLimit)
-    return "至少 1000 个匹配（仅统计前 1000 个）";
-  if (!results.resultCount) return "无匹配";
-  if (results.resultIndex < 0) return `${results.resultCount} 个匹配`;
+    return m.s4_find_results_at_limit();
+  if (!results.resultCount) return m.s4_find_no_matches();
+  if (results.resultIndex < 0)
+    return m.s4_find_match_count({ count: String(results.resultCount) });
   return `${results.resultIndex + 1}/${results.resultCount}`;
 }
 
@@ -47,11 +49,11 @@ export function terminalFindScope(
   bufferType: "normal" | "alternate",
   truncated: boolean,
 ): string {
-  const scope = `当前终端缓冲（最多回看 ${scrollback} 行）`;
+  const scope = m.s4_find_scope_buffer({ lines: String(scrollback) });
   return [
     scope,
-    bufferType === "alternate" ? "全屏程序：仅当前屏幕" : "",
-    truncated ? "服务端已覆盖更早输出" : "",
+    bufferType === "alternate" ? m.s4_find_scope_alt_screen() : "",
+    truncated ? m.s4_find_scope_truncated() : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -62,9 +64,9 @@ export function terminalFindReplayText(
   replayed: boolean,
 ): string {
   return restoring
-    ? "正在回放，暂不能查找"
+    ? m.s4_find_replaying()
     : replayed
-      ? "回放完成，按 Enter 重新查找"
+      ? m.s4_find_replayed_press_enter()
       : "";
 }
 
@@ -121,6 +123,11 @@ export function executeTerminalFind(
 }
 
 export interface TerminalController {
+  readonly emulator: Terminal | undefined;
+  readonly graphicsUnsupported: boolean;
+  setImmersive(active: boolean): void;
+  scrollLines(lines: number): void;
+  resizeGrid(cols: number, rows: number): boolean;
   readonly ready: boolean;
   readonly info: SessionInfo | undefined;
   readonly connection: Connection;
@@ -166,6 +173,7 @@ export interface TerminalController {
   copySelection(): void;
   clearSelection(): void;
   send(input: string): boolean;
+  consumeInput(input: string): string;
   setFontSize(value: number): void;
   resetModifiers(): void;
   toggleModifier(key: keyof Modifiers): void;

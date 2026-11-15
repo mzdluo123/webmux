@@ -1,0 +1,39 @@
+<script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
+  import { Button } from "$lib/components/ui/button";
+  import { untrack } from "svelte";
+  import { createHandoffEditor } from "../../hooks/sessions/handoff.svelte";
+  import HandoffForm from "./HandoffForm.svelte";
+  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  let { sourceId, onclose }: { sourceId: string; onclose: () => void } =
+    $props();
+  const editor = createHandoffEditor(
+    untrack(() => sourceId),
+    false,
+  );
+  let closing = false;
+  function close() {
+    if (closing || editor.busy) return;
+    closing = true;
+    void editor.closeSave().finally(onclose);
+  }
+</script>
+
+<ResponsiveDialog
+  title={m.s3_agent_handoff_title()}
+  description={m.s3_agent_handoff_desc()}
+  onclose={close}
+  busy={editor.busy || editor.saving}
+  class="sm:max-w-2xl"
+>
+  {#if editor.loading}<p role="status" class="text-sm">
+      {m.s3_agent_handoff_restoring()}
+    </p>{:else}<HandoffForm {editor} fork={false} />{/if}
+  <div class="flex justify-end pt-4">
+    <Button
+      variant="outline"
+      disabled={editor.busy || editor.saving}
+      onclick={close}>{m.s3_save_and_close()}</Button
+    >
+  </div>
+</ResponsiveDialog>

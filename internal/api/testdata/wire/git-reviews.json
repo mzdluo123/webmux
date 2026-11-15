@@ -1,0 +1,46 @@
+{
+  "status": 200,
+  "body": {
+    "applied": true,
+    "files": [
+      {
+        "area": "task",
+        "baseIdentity": "814f4a422927b82f5f8a43f8fab6d3839e3983f2",
+        "baseMode": "100644",
+        "path": "a.txt",
+        "reviewed": false,
+        "reviewedAt": null,
+        "scope": "task",
+        "status": "M",
+        "targetIdentity": "c9b0fb1fa00b3a5ce714c876c35bb18f21eed970d33d9093a3cbd7cf0c9db3dc",
+        "targetMode": "100644"
+      },
+      {
+        "area": "task",
+        "path": "new.txt",
+        "reviewed": false,
+        "reviewedAt": null,
+        "scope": "task",
+        "status": "A",
+        "targetIdentity": "02db0d2659c9d48bc15f81a388594fc0e3cf4c780fdc27ea21e0671afc37de19",
+        "targetMode": "100644"
+      },
+      {
+        "area": "task",
+        "baseIdentity": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+        "baseMode": "100644",
+        "path": "sub/b.txt",
+        "reviewed": false,
+        "reviewedAt": null,
+        "scope": "task",
+        "status": "M",
+        "targetIdentity": "39727f86480ebdd4271553b48d5d741f030834587df9827bb5f39f26d3e4cd8f",
+        "targetMode": "100644"
+      }
+    ],
+    "reviewedFiles": 0,
+    "scope": "task",
+    "status": "ready",
+    "totalFiles": 3
+  }
+}

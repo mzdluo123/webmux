@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { m } from "$lib/paraglide/messages.js";
 import {
   AgentGuidePromptSchema,
   ArtifactsFolderSchema,
   BranchesSchema,
   CommitsSchema,
-  EmptyRequestSchema,
   ErrorSchema,
+  FetchRemotesRequestSchema,
   FetchRemotesResponseSchema,
   ForwardRequestSchema,
   ForwardSchema,
@@ -17,8 +18,9 @@ import {
   SwitchPreviewRequestSchema,
   SwitchPreviewSchema,
   SwitchRequestSchema,
+  SwitchResultSchema,
   UploadSchema,
-  WorktreeSchema,
+  type FetchRemotesRequest,
   type ForwardRequest,
   type ForwardUpdate,
   type SessionInfo,
@@ -120,11 +122,6 @@ export async function api<T extends z.ZodType>(
     response.status === 204 ? undefined : await response.json(),
   );
 }
-export async function apiBuffer(id: string): Promise<Uint8Array> {
-  return new Uint8Array(
-    await (await request(`/sessions/${id}/buffer`)).arrayBuffer(),
-  );
-}
 // Raw bytes share the JSON transport's Bearer header, APIError and 401 event.
 // received, when given, sees the running byte count of a streamed body.
 export async function apiBlob(
@@ -179,7 +176,8 @@ export async function uploadForm<T extends z.ZodType>(
   progress: (percent: number) => void,
   signal: AbortSignal,
 ): Promise<z.output<T>> {
-  if (signal.aborted) throw new DOMException("上传已取消", "AbortError");
+  if (signal.aborted)
+    throw new DOMException(m.s1_upload_cancelled(), "AbortError");
   const form = new FormData();
   form.append("file", file);
   let result;
@@ -283,53 +281,74 @@ export function previewSwitch(
     SwitchPreviewRequestSchema,
   );
 }
-export function switchWorktree(tree: Worktree, request: SwitchRequest) {
+export function switchWorktree(
+  tree: Worktree,
+  request: SwitchRequest,
+  signal?: AbortSignal,
+) {
   return api(
     worktreeRoute(tree) + "/switch",
-    WorktreeSchema,
+    SwitchResultSchema,
     "POST",
     request,
-    undefined,
+    signal,
     SwitchRequestSchema,
   );
 }
 // Fetches every remote of a repository; the server finishes the fetch even
 // when this request is abandoned, and answers with the repository read again.
-export function fetchRepositoryRemotes(id: string) {
+export function fetchRepositoryRemotes(
+  id: string,
+  request: FetchRemotesRequest = {},
+  signal?: AbortSignal,
+) {
   return api(
     `/repositories/${id}/fetch`,
     FetchRemotesResponseSchema,
     "POST",
-    {},
-    undefined,
-    EmptyRequestSchema,
+    request,
+    signal,
+    FetchRemotesRequestSchema,
   );
 }
 export function navigate(path: string) {
   history.pushState(null, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
-const statusText = {
-  running: "运行中",
-  waiting: "可能在等你",
-  idle: "空闲",
-  exited: "已退出",
-};
-const attentionText = {
-  question: "需要回答",
-  permission: "等待授权",
-  done: "本轮完成",
-  error: "出错停止",
-  notify: "有通知",
-  bell: "响铃提醒",
-};
+export function replacePath(path: string) {
+  history.replaceState(history.state, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
 // An agent-reported signal is more specific than the heuristic status label.
 export function sessionStatusText(
   session: Pick<SessionInfo, "status" | "attention">,
-) {
-  return session.attention
-    ? attentionText[session.attention.kind]
-    : statusText[session.status];
+): string {
+  if (session.attention) {
+    switch (session.attention.kind) {
+      case "question":
+        return m.s1_attention_question();
+      case "permission":
+        return m.s1_attention_permission();
+      case "done":
+        return m.s1_attention_done();
+      case "error":
+        return m.s1_attention_error();
+      case "notify":
+        return m.s1_attention_notify();
+      case "bell":
+        return m.s1_attention_bell();
+    }
+  }
+  switch (session.status) {
+    case "running":
+      return m.s1_status_running();
+    case "waiting":
+      return m.s1_status_waiting();
+    case "idle":
+      return m.s1_status_idle();
+    case "exited":
+      return m.s1_group_exited();
+  }
 }
 export function recentDirs(): string[] {
   try {
@@ -370,7 +389,7 @@ export function parseArgs(input: string): string[] {
       started = true;
     }
   }
-  if (escaped || quote) throw new Error("参数引号或反斜杠未闭合");
+  if (escaped || quote) throw new Error(m.s1_unclosed_arg_quote());
   if (started) result.push(token);
   return result;
 }

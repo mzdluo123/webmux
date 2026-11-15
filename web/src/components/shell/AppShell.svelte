@@ -9,11 +9,6 @@
   import { navigate } from "../../platform/api";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import { createArchiveSignal } from "../../domains/sessions/archive-signal";
-  import { createArchived } from "../../hooks/sessions/archived.svelte";
-  import { createLaunchConfigs } from "../../hooks/settings/launch-configs.svelte";
-  import { createRepositories } from "../../hooks/workspace/repositories.svelte";
-  import { createServerSetup } from "../../hooks/workspace/server-setup.svelte";
-  import { createSessionList } from "../../hooks/sessions/session-list.svelte";
   import {
     resolveLaunchScope,
     type LaunchEntry,
@@ -26,7 +21,6 @@
     SessionInfo,
     Worktree,
   } from "../../contracts/schemas";
-  import { unknownWorkspaces } from "../../hooks/sessions/session-list";
   import {
     openPage,
     openSession,
@@ -40,11 +34,13 @@
   } from "../../hooks/shared/shell.svelte";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
-  import AppShellDialogs from "./AppShellDialogs.svelte";
+  import CoreShellDialogs from "./CoreShellDialogs.svelte";
+  import { featureContributions } from "../../features/registry.svelte";
+  import { createShellSessionResources } from "../../features/shell-resources";
   import AppSidebar from "./AppSidebar.svelte";
-  import AttentionToasts from "../notifications/AttentionToasts.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarRailSessions from "./SidebarRailSessions.svelte";
+  import { m } from "$lib/paraglide/messages.js";
 
   // The layout around the home page, quick start and session pages: the
   // sidebar (a rail when collapsed on desktop, a left drawer on phones) and
@@ -57,32 +53,33 @@
     drafts,
     children,
   }: {
-    route: Extract<Route, { name: "sessions" | "quick-start" | "terminal" }>;
+    route: Extract<
+      Route,
+      { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
+    >;
     drafts: TerminalDrafts;
     children: Snippet;
   } = $props();
 
   // The drafts store lives as long as the app; the shell never swaps it.
   const ownDrafts = untrack(() => drafts);
-  const archived = createArchived();
-  const archiveSignal = createArchiveSignal();
-  const repositories = createRepositories();
-  const setup = createServerSetup();
-  const launchConfigs = createLaunchConfigs();
-  const sessions = createSessionList({
-    drafts: ownDrafts,
+  const contributions = featureContributions.entries;
+  const workspace = contributions.workspace;
+  const resources = createShellSessionResources(ownDrafts, () =>
+    route.name === "terminal" ? route.id : undefined,
+  );
+  const {
+    sessions,
+    setup,
     archived,
-    onreconnect: () => void repositories.refresh(),
-  });
+    repositories,
+    launchConfigs,
+    refreshWorktrees,
+  } = resources;
+  const archiveSignal = createArchiveSignal();
   export function sessionSwitcherSource() {
     return { sessions, repositories };
   }
-
-  // Optional Git discovery and the setup read never hold the page; each
-  // fills in when it arrives.
-  void setup.load();
-  void launchConfigs.load(true);
-  void repositories.refresh();
 
   let creating = $state<{
     entry?: LaunchEntry;
@@ -101,7 +98,12 @@
     tab: RepositoryTab;
   } | null>(null);
   let viewingWorktree = $state<Worktree | null>(null);
-  let switchingBranch = $state<Worktree | null>(null);
+  let switchingBranch = $state<{
+    worktree: Worktree;
+    initialBranch?: string;
+    initialMode?: "existing" | "new";
+    initialStartPoint?: string;
+  } | null>(null);
   let releasingWorktree = $state<Worktree | null>(null);
   let operating = $state<{
     repositoryId: string;
@@ -113,16 +115,34 @@
   // The home view's repository; elsewhere the toolbar has no settings button.
   const settingsRepository = $derived(
     route.name === "sessions" && setup.value.registryReady
-      ? (repositories.list.find((repo) => repo.id === repositories.choice) ??
-          ((repositories.choice ?? "all") === "all" &&
-          repositories.list.length === 1
+      ? (repositories?.list.find((repo) => repo.id === repositories.choice) ??
+          ((repositories?.choice ?? "all") === "all" &&
+          repositories?.list.length === 1
             ? repositories.list[0]
             : undefined))
       : undefined,
   );
 
+  let activePane = $state("");
+  const activeChat = $derived(
+    route.name === "terminal"
+      ? sessions.sessions.find(
+          (session) =>
+            session.id === activePane &&
+            session.view === "chat" &&
+            session.state === "active" &&
+            !session.transition,
+        )
+      : undefined,
+  );
   const shell: Shell = {
     drafts: ownDrafts,
+    get activeChat() {
+      return activeChat;
+    },
+    setActivePane(id) {
+      activePane = id;
+    },
     sessions,
     repositories,
     archived,
@@ -133,16 +153,18 @@
       shellUi.drawerOpen = false;
       creating = {
         entry,
-        scope: resolveLaunchScope({
-          entry,
-          home: route.name === "sessions",
-          choice: repositories.choice,
-          worktreeId: repositories.worktree,
-          repositories: repositories.list,
-        }),
+        scope: repositories
+          ? resolveLaunchScope({
+              entry,
+              home: route.name === "sessions",
+              choice: repositories.choice,
+              worktreeId: repositories.worktree,
+              repositories: repositories.list,
+            })
+          : undefined,
       };
       // Pick up configs changed on other devices since the page loaded.
-      void launchConfigs.load();
+      if (launchConfigs) void launchConfigs.load();
     },
     rename(session) {
       shellUi.drawerOpen = false;
@@ -164,15 +186,24 @@
       shellUi.drawerOpen = false;
       viewingRepository = { repository, tab };
       // The panel shows the last snapshot while Git is read again.
-      void repositories.refresh();
+      if (repositories) void repositories.refresh();
     },
     worktreeDetails(worktree) {
       shellUi.drawerOpen = false;
       viewingWorktree = worktree;
     },
-    switchBranch(worktree) {
+    switchBranch(worktree, initial) {
       shellUi.drawerOpen = false;
-      switchingBranch = worktree;
+      if (typeof initial === "string" || initial === undefined) {
+        switchingBranch = { worktree, initialBranch: initial };
+      } else {
+        switchingBranch = {
+          worktree,
+          initialBranch: initial.branch,
+          initialMode: initial.mode,
+          initialStartPoint: initial.startPoint,
+        };
+      }
     },
     releaseWorktree(worktree) {
       shellUi.drawerOpen = false;
@@ -200,16 +231,20 @@
   };
   setShell(shell);
   onDestroy(() => {
-    sessions.close();
-    repositories.dispose();
-    launchConfigs.dispose();
+    resources.dispose();
     // Leaving the shell (settings) must not reopen the drawer on return.
     shellUi.drawerOpen = false;
   });
 
   // The new-session dialog belongs to the page it was opened on: a created
   // session navigates away, and the dialog must not follow it there.
-  const page = $derived(route.name === "terminal" ? route.id : route.name);
+  const page = $derived(
+    route.name === "terminal"
+      ? route.id
+      : route.name === "git"
+        ? `git:${route.repositoryId}:${route.worktreeId ?? ""}`
+        : route.name,
+  );
   $effect(() => {
     void page;
     untrack(() => (creating = null));
@@ -221,11 +256,10 @@
   // asking again would only repeat the Git discovery.
   const askedFor = new SvelteSet<string>();
   $effect(() => {
-    if (!repositories.settled) return;
-    const unknown = unknownWorkspaces(
-      sessions.sessions,
-      repositories.list,
-    ).filter((key) => !askedFor.has(key));
+    if (!repositories?.settled || !workspace) return;
+    const unknown = workspace
+      .unknownWorkspaces(sessions.sessions, repositories.list)
+      .filter((key) => !askedFor.has(key));
     if (!unknown.length) return;
     for (const key of unknown) askedFor.add(key);
     untrack(() => void repositories.refresh(true));
@@ -254,7 +288,10 @@
   $effect(() => {
     if (route.name === "sessions" && shellUi.mode !== "workbench")
       shellUi.setMode("workbench");
-    else if (route.name === "quick-start" && shellUi.mode !== "chat")
+    else if (
+      (route.name === "quick-start" || route.name === "handoff") &&
+      shellUi.mode !== "chat"
+    )
       shellUi.setMode("chat");
   });
 
@@ -263,21 +300,18 @@
   function changeMode(next: ShellMode) {
     if (next === shellUi.mode) return;
     shellUi.setMode(next);
-    if (route.name !== "terminal") navigate(shellUi.home);
+    if (route.name !== "terminal" && route.name !== "git") {
+      navigate(
+        next === "chat"
+          ? (contributions.chat?.navigation[0]?.href ?? shellUi.home)
+          : (workspace?.navigation[0]?.href ?? shellUi.home),
+      );
+    }
   }
   function primary() {
-    if (shellUi.mode === "chat") openPage("/new");
+    if (shellUi.mode === "chat")
+      openPage(contributions.chat?.navigation[0]?.href ?? "/new");
     else shell.start();
-  }
-  function refreshWorktrees() {
-    void repositories.refresh();
-    void archived.refresh().then((records) => {
-      if (records)
-        ownDrafts.reconcile([
-          ...sessions.sessions.map((session) => session.id),
-          ...records,
-        ]);
-    });
   }
   // Dragging or arrow keys on the sidebar's edge set its width.
   const setWidth = (width: number) => shellUi.setWidth(width);
@@ -300,12 +334,12 @@
   data-mode={shellUi.mode}
   style:--app-sidebar-full-width={`${shellUi.width}px`}
 >
-  <nav class="app-sidebar app-sidebar-rail" aria-label="窄栏导航">
+  <nav class="app-sidebar app-sidebar-rail" aria-label={m.s1_rail_navigation()}>
     <Button
       variant="ghost"
       size="icon-touch"
-      aria-label="展开侧栏"
-      title="展开侧栏"
+      aria-label={m.s1_expand_sidebar()}
+      title={m.s1_expand_sidebar()}
       onclick={() => {
         // Tablets keep the rail and show the full sidebar as a drawer.
         if (matchMedia("(max-width: 1023px)").matches)
@@ -316,8 +350,10 @@
     <Button
       variant="ghost"
       size="icon-touch"
-      aria-label={shellUi.mode === "chat" ? "新聊天" : "新建会话"}
-      title={shellUi.mode === "chat" ? "新聊天" : "新建会话"}
+      aria-label={shellUi.mode === "chat"
+        ? m.s1_new_chat()
+        : m.s1_new_session()}
+      title={shellUi.mode === "chat" ? m.s1_new_chat() : m.s1_new_session()}
       onclick={primary}
       >{#if shellUi.mode === "chat"}<IconMessagePlus
           aria-hidden="true"
@@ -337,12 +373,10 @@
         hostname={setup.value.hostname}
         setupSettled={setup.settled}
         onforward={shell.forward}
-        onadd={shell.addRepository}
-        canAdd={setup.value.gitReady && setup.value.registryReady}
       />
     </div>
   </nav>
-  <aside class="app-sidebar app-sidebar-full" aria-label="侧栏">
+  <aside class="app-sidebar app-sidebar-full" aria-label={m.s1_sidebar()}>
     <AppSidebar {route} collapsible onmode={changeMode} onprimary={primary} />
     <!-- A focusable separator with aria-valuenow is an interactive widget (WAI-ARIA window splitter). -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
@@ -350,8 +384,8 @@
       class="app-sidebar-divider"
       role="separator"
       aria-orientation="vertical"
-      aria-label="调整侧栏宽度"
-      title="拖动调整侧栏宽度"
+      aria-label={m.s1_resize_sidebar()}
+      title={m.s1_drag_to_resize_sidebar()}
       aria-valuemin={sidebarWidthMin}
       aria-valuemax={sidebarWidthMax}
       aria-valuenow={shellUi.width}
@@ -364,30 +398,39 @@
     {@render children()}
   </div>
 </div>
-<AttentionToasts />
+{#if contributions.notifications}<contributions.notifications.Toasts />{/if}
 
 <!-- noBodyStyles: the page under it keeps its scroll position and layout. -->
 <Drawer.Root direction="left" noBodyStyles bind:open={shellUi.drawerOpen}>
   <Drawer.Content class="w-80 max-w-[85vw] lg:hidden">
-    <Drawer.Title class="sr-only">导航</Drawer.Title>
+    <Drawer.Title class="sr-only">{m.s1_navigation()}</Drawer.Title>
     <AppSidebar {route} onmode={changeMode} onprimary={primary} />
   </Drawer.Content>
 </Drawer.Root>
 
-<AppShellDialogs
+<CoreShellDialogs
   {shell}
   bind:creating
   bind:renaming
   bind:closing
-  bind:removingWorktree
-  bind:choosingHome
-  bind:viewingRepository
-  bind:viewingWorktree
-  bind:switchingBranch
-  bind:releasingWorktree
-  bind:operating
   bind:forwarding
-  bind:adding
-  bind:configuring
+  {repositories}
+  {launchConfigs}
+  {archived}
   onrefreshworktrees={refreshWorktrees}
 />
+{#if workspace}
+  <workspace.Dialogs
+    {shell}
+    bind:removingWorktree
+    bind:choosingHome
+    bind:viewingRepository
+    bind:viewingWorktree
+    bind:switchingBranch
+    bind:releasingWorktree
+    bind:operating
+    bind:adding
+    bind:configuring
+    onrefreshworktrees={refreshWorktrees}
+  />
+{/if}

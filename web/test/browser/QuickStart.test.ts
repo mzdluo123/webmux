@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
 import { openSession, shellUi } from "../../src/hooks/shared/shell.svelte";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
@@ -43,6 +43,7 @@ const branches = {
     base("refs/remotes/origin/HEAD", "a".repeat(40), "init"),
     base("refs/remotes/origin/upstream-fix", "c".repeat(40), "upstream fix"),
   ],
+  tags: [],
   defaultBase: "a".repeat(40),
   defaultBaseSubject: "init",
   defaultBranch: "main",
@@ -408,7 +409,10 @@ test("the quick command menu inserts at the caret as written, keeps the draft, a
   await expect.poll(() => location.pathname).toBe("/s/chataaaa");
   expect(
     commands().find((c) => c.path === "/api/sessions")?.body,
-  ).toMatchObject({ prompt: "前{{webmux}}后", expandPrompt: true });
+  ).toMatchObject({
+    prompt: "前{{webmux}}后",
+    expandPrompt: true,
+  });
 });
 
 test("a quick command replaces the selection, and managing keeps the draft", async () => {
@@ -816,7 +820,9 @@ test("files attached before the session exist go with the first message", async 
   await expect.element(page.getByRole("alert")).toBeVisible();
   expect(
     commands().findLast((c) => c.path === "/api/sessions")?.body,
-  ).toMatchObject({ attachments: [{ path: "/tmp/staging/spec.md" }] });
+  ).toMatchObject({
+    attachments: [{ path: "/tmp/staging/spec.md" }],
+  });
   await expect.element(chips).toHaveTextContent("spec.md");
 
   // Once the first message failed, the files belong to the new session.
@@ -893,13 +899,14 @@ test("narrow screens start compact and expand the composer when focused", async 
       .not.toBeVisible();
     await page.getByRole("button", { name: "会话选项", exact: true }).click();
     const sheet = page.getByRole("dialog", { name: "会话选项", exact: true });
-    const effort = sheet.getByRole("combobox", { name: "思考", exact: true });
-    await expect.element(effort).toHaveValue("medium");
-    await userEvent.selectOptions(effort, "high");
-    await expect.element(effort).toHaveValue("high");
+    const effort = sheet.getByRole("button", { name: "思考", exact: true });
+    await expect.element(effort).toHaveTextContent("中");
+    await effort.click();
+    await sheet.getByRole("option", { name: "高", exact: true }).click();
+    await expect.element(effort).toHaveTextContent("高");
     await sheet.getByRole("button", { name: "关闭选项", exact: true }).click();
     await page.getByRole("button", { name: "会话选项", exact: true }).click();
-    await expect.element(effort).toHaveValue("high");
+    await expect.element(effort).toHaveTextContent("高");
     await userEvent.keyboard("{Escape}");
     await input.click();
 

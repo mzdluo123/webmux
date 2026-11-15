@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { m } from "$lib/paraglide/messages.js";
 import {
   ChatAttachmentSchema,
   ChatConfigSchema,
   ChatPermissionModeSchema,
   SessionViewSchema,
+  SessionInputResultSchema,
 } from "./chat-schemas";
 import { ForwardSchema, SessionInfoSchema } from "./session-schemas";
 
@@ -18,7 +20,7 @@ export const CommitSchema = z.object({
 export type Commit = z.infer<typeof CommitSchema>;
 // Change counts of a worktree's status; one entry may be both staged and
 // unstaged.
-const WorktreeChangesSchema = z.object({
+export const WorktreeChangesSchema = z.object({
   staged: z.number().int().nonnegative(),
   unstaged: z.number().int().nonnegative(),
   untracked: z.number().int().nonnegative(),
@@ -98,6 +100,7 @@ export const CreateSessionResultSchema = z.object({
   session: SessionInfoSchema,
   worktree: WorktreeSchema.optional(),
   configWarnings: z.array(z.string()),
+  initialInput: SessionInputResultSchema.optional(),
 });
 
 // Server-synchronized choice of worktrees shown on the home page, keyed by
@@ -133,9 +136,24 @@ const BranchBaseSchema = z.object({
   committedAt: z.string(),
 });
 export type BranchBase = z.infer<typeof BranchBaseSchema>;
+export const TagSchema = z.object({
+  name: z.string(),
+  head: z.string(),
+  subject: z.string(),
+  committedAt: z.string(),
+  kind: z.enum(["lightweight", "annotated"]).optional(),
+  tagOid: z.string().optional(),
+  message: z.string().optional(),
+  taggerName: z.string().optional(),
+  taggerEmail: z.string().optional(),
+  taggedAt: z.string().optional(),
+  signed: z.boolean().optional(),
+});
+export type Tag = z.infer<typeof TagSchema>;
 export const BranchesSchema = z.object({
   branches: z.array(BranchSchema),
   bases: z.array(BranchBaseSchema),
+  tags: z.array(TagSchema),
   defaultBase: z.string().nullable(),
   defaultBaseSubject: z.string(),
   defaultBranch: z.string().nullable(),
@@ -146,7 +164,7 @@ export const CommitsSchema = z.object({
   commits: z.array(CommitSchema),
 });
 // GET /repositories/:id/remotes; URLs are redacted by the server.
-const RemoteSchema = z.object({
+export const RemoteSchema = z.object({
   name: z.string(),
   fetchUrl: z.string(),
   pushUrl: z.string(),
@@ -163,7 +181,15 @@ export const FetchResultSchema = z.object({
   message: z.string(),
 });
 export type FetchResult = z.infer<typeof FetchResultSchema>;
+export const FetchRemotesRequestSchema = z
+  .object({
+    clientRequestId: z.string().min(1).max(128).optional(),
+    worktreeId: z.string().min(1).optional(),
+  })
+  .strict();
+export type FetchRemotesRequest = z.infer<typeof FetchRemotesRequestSchema>;
 export const FetchRemotesResponseSchema = z.object({
+  operationId: z.string().optional(),
   results: z.array(FetchResultSchema),
   repository: RepositorySchema,
 });
@@ -191,7 +217,7 @@ export const CreateWorktreeRequestSchema = z.object({
 // `noRemote`: none is configured; `unknown`: no commit or the check failed.
 // `branches` name at most a few containing branches ("origin/main"), `more`
 // counts the rest.
-const PushCheckSchema = z.object({
+export const PushCheckSchema = z.object({
   state: z.enum(["pushed", "unpushed", "noRemote", "unknown"]),
   branches: z.array(z.string()),
   more: z.number().int().nonnegative(),
@@ -431,19 +457,19 @@ export const CreateSessionRequestSchema = z
     (body) =>
       !body.configId ||
       (!body.cmd?.length && Object.keys(body.env ?? {}).length === 0),
-    { message: "configId 不能与 cmd 或 env 同时提供" },
+    { error: () => m.s1_schema_config_id_conflicts_cmd_env() },
   )
   .refine(
     (body) =>
       !body.useInitInstruction || !!body.workspace || !!body.newWorktree,
-    { message: "useInitInstruction 需要 workspace 或 newWorktree" },
+    { error: () => m.s1_schema_init_instruction_requires_workspace() },
   )
   .refine((body) => !body.view || !!body.configId, {
-    message: "view 只能与带聊天视图的 configId 一起提供",
+    error: () => m.s1_schema_view_requires_chat_config(),
   })
   .refine(
     (body) =>
       body.view === "chat" || (!body.agentConfig && !body.permissionMode),
-    { message: "agentConfig 与 permissionMode 只用于聊天视图" },
+    { error: () => m.s1_schema_agent_config_chat_only() },
   );
 export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>;

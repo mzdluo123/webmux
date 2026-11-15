@@ -17,13 +17,26 @@ import (
 type purpose string
 
 const (
-	purposeRemove       purpose = "remove"
-	purposeRelease      purpose = "release"
-	purposeBatchRemove  purpose = "batch-remove"
-	purposeSwitch       purpose = "switch"
-	purposeFastForward  purpose = "fast-forward"
-	purposePush         purpose = "push"
-	purposeBranchDelete purpose = "branch-delete"
+	purposeRemove        purpose = "remove"
+	purposeRelease       purpose = "release"
+	purposeBatchRemove   purpose = "batch-remove"
+	purposeSwitch        purpose = "switch"
+	purposeFastForward   purpose = "fast-forward"
+	purposePush          purpose = "push"
+	purposeBranchDelete  purpose = "branch-delete"
+	purposeCommit        purpose = "commit"
+	purposeMerge         purpose = "merge"
+	purposeRebase        purpose = "rebase"
+	purposeCherryPick    purpose = "cherry-pick"
+	purposeRevert        purpose = "revert"
+	purposeAbortOp       purpose = "abort-op"
+	purposeStashCreate   purpose = "stash-create"
+	purposeStashApply    purpose = "stash-apply"
+	purposeStashPop      purpose = "stash-pop"
+	purposeStashDrop     purpose = "stash-drop"
+	purposeBranchRename  purpose = "branch-rename"
+	purposeDiscard       purpose = "discard"
+	purposeSmartCheckout purpose = "smart-checkout"
 )
 
 type batchTarget struct {
@@ -47,10 +60,19 @@ type confirmation struct {
 	switching *switchState
 	// fastForward, push and branchDelete are what the branch operation
 	// previews bound.
-	fastForward  *fastForwardState
-	push         *pushState
-	branchDelete []branchDeleteTarget
-	timer        *time.Timer
+	fastForward   *fastForwardState
+	push          *pushState
+	branchDelete  []branchDeleteTarget
+	commitPreview *commitPreviewState
+	divergence    *divergencePreviewState
+	abortPreview  *abortPreviewState
+	stashCreate   *stashCreateState
+	stashApply    *stashApplyState
+	stashDrop     *stashDropState
+	branchRename  *branchRenameState
+	discard       *discardPreviewState
+	smartCheckout *smartCheckoutState
+	timer         *time.Timer
 }
 
 func (c *confirmation) closeHandles() {
@@ -353,11 +375,14 @@ func (s *Service) executeLockedRemoval(ctx context.Context, r *repositoryState, 
 	// removal closed, stay restorable.
 	var closedHybrids []string
 	for _, info := range current.sessions {
-		if closed[info.ID] && info.Hybrid != nil {
+		if closed[info.ID] && s.hybrids != nil && s.hybrids.Metadata(info.ID) != nil {
 			closedHybrids = append(closedHybrids, info.ID)
 		}
 	}
 	s.retainRecords(ctx, r, repositoryID, confirmed.tree, confirmedCommit, closedHybrids)
+	s.purgeWorktreeBaseline(ctx, r, repositoryID, worktreeID)
+	s.clearUnstashRefBestEffort(ctx, r.entry.AnchorPath, worktreeID)
+	s.purgeWorktreeCollabState(repositoryID, worktreeID)
 	return nil
 }
 

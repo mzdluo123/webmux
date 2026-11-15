@@ -101,10 +101,10 @@ type AuthMethod struct {
 }
 
 // NewSessionRequest is the session/new params. MCPServers is always sent,
-// as [] when nil: webmux passes no MCP servers.
+// as [] when nil. Actual sessions receive instance tools and optional scoped history.
 type NewSessionRequest struct {
-	Cwd        string            `json:"cwd"`
-	MCPServers []json.RawMessage `json:"mcpServers"`
+	Cwd        string      `json:"cwd"`
+	MCPServers []MCPServer `json:"mcpServers"`
 }
 
 // NewSessionResponse is the session/new result.
@@ -117,9 +117,9 @@ type NewSessionResponse struct {
 // LoadSessionRequest is the session/load params. The agent replays the
 // history as session/update notifications before it responds.
 type LoadSessionRequest struct {
-	SessionID  string            `json:"sessionId"`
-	Cwd        string            `json:"cwd"`
-	MCPServers []json.RawMessage `json:"mcpServers"`
+	SessionID  string      `json:"sessionId"`
+	Cwd        string      `json:"cwd"`
+	MCPServers []MCPServer `json:"mcpServers"`
 }
 
 // LoadSessionResponse is the session/load result.
@@ -131,9 +131,9 @@ type LoadSessionResponse struct {
 // ResumeSessionRequest is the session/resume params; no history is
 // replayed.
 type ResumeSessionRequest struct {
-	SessionID  string            `json:"sessionId"`
-	Cwd        string            `json:"cwd"`
-	MCPServers []json.RawMessage `json:"mcpServers"`
+	SessionID  string      `json:"sessionId"`
+	Cwd        string      `json:"cwd"`
+	MCPServers []MCPServer `json:"mcpServers"`
 }
 
 // ResumeSessionResponse is the session/resume result.
@@ -157,15 +157,17 @@ type ListSessionsResponse struct {
 
 // SessionInfo is one listed session.
 type SessionInfo struct {
-	SessionID string `json:"sessionId"`
-	Cwd       string `json:"cwd"`
-	Title     string `json:"title,omitempty"`
-	UpdatedAt string `json:"updatedAt,omitempty"`
+	SessionID string          `json:"sessionId"`
+	Cwd       string          `json:"cwd"`
+	Title     string          `json:"title,omitempty"`
+	UpdatedAt string          `json:"updatedAt,omitempty"`
+	Meta      json.RawMessage `json:"_meta,omitempty"`
 }
 
 // CloseSessionRequest is the session/close params.
 type CloseSessionRequest struct {
-	SessionID string `json:"sessionId"`
+	SessionID string          `json:"sessionId"`
+	Meta      json.RawMessage `json:"_meta,omitempty"`
 }
 
 // PromptRequest is the session/prompt params.

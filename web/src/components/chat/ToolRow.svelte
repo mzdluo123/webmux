@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ToolEntry } from "../../domains/chat/chat-model";
-  import type { ChatCodeLink } from "../../domains/code/markdown-link";
+  import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import ChatDisclosure from "./ChatDisclosure.svelte";
   import ToolDetails from "./ToolDetails.svelte";
   import ToolSummary from "./ToolSummary.svelte";
@@ -18,9 +18,9 @@
     /** A permission request on this call waits for an answer. */
     waiting?: boolean;
     /** Opens a changed file in the code panel. */
-    onreview: (path: string) => void;
+    onreview?: (path: string) => void;
     /** Opens a referenced code file or line in the code panel. */
-    onopenlocation?: (target: ChatCodeLink) => void;
+    onopenlocation?: ChatCodeLinkHandler;
   } = $props();
 </script>
 

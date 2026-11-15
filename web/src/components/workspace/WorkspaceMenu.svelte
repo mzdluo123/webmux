@@ -1,5 +1,6 @@
 <script lang="ts">
   import IconDots from "~icons/tabler/dots";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
@@ -38,9 +39,10 @@
       /** With `onoperation`, adds its branch's sync actions. */
       tree?: Worktree;
       onoperation?: (operation: BranchOperation) => void;
+      oncommit?: () => void;
     };
   } = $props();
-  const label = $derived(`仓库菜单：${repository}`);
+  const label = $derived(m.s8_repo_menu_named({ name: repository }));
 </script>
 
 <DropdownMenu.Root>
@@ -76,6 +78,7 @@
         onremove={worktree.onremove}
         worktree={worktree.tree}
         onoperation={worktree.onoperation}
+        oncommit={worktree.oncommit}
       />
     {/if}
   </DropdownMenu.Content>

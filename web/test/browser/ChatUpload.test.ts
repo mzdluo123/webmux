@@ -1,6 +1,6 @@
 import "../../src/styles.css";
-import { beforeEach, expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { beforeEach, expect, test, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Harness from "./ChatViewHarness.svelte";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";

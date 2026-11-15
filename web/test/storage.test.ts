@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from "vite-plus/test";
 import { store as apiStore, stored as apiStored } from "../src/platform/api";
 import { quickStartMemory } from "../src/hooks/sessions/quick-start";
 import {

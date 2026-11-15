@@ -1,18 +1,23 @@
 <script lang="ts">
-  import { errorMessage } from "../../platform/error";
   import { onMount, tick, untrack, type Snippet } from "svelte";
-  import { navigate, uploadFile } from "../../platform/api";
+  import { navigate } from "../../platform/api";
   import { useTerminal } from "../../hooks/terminal/terminal.svelte";
   import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
   import { touchGamepad } from "../../hooks/terminal/touch-gamepad-preference.svelte";
-  import { useSessionTerminalChrome } from "../../hooks/terminal/session-terminal-chrome.svelte";
+  import {
+    createSessionUploadHandlers,
+    useSessionTerminalChrome,
+  } from "../../hooks/terminal/session-terminal-chrome.svelte";
   import type { KeyboardVisibility } from "../../hooks/shared/viewport.svelte";
-  import { useHybrid } from "../../hooks/sessions/hybrid.svelte";
-  import { useChatUpload, useUpload } from "../../hooks/shared/upload.svelte";
+  import { terminalSession } from "../../hooks/sessions/terminal-session";
+  import {
+    availableTerminalFeatures,
+    type TerminalFeatures,
+  } from "../../features/terminal";
   import { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
-  import { hasTouchInput, isIOS } from "../../platform/touch-input";
-  import { findShell, shellUi } from "../../hooks/shared/shell.svelte";
-  import { voicePreference } from "../../hooks/shared/voice-preference.svelte";
+  import { isIOS } from "../../platform/touch-input";
+  import type { ChatScrollState } from "../../platform/capabilities";
+  import { shellUi } from "../../hooks/shared/shell.svelte";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
   import type CodePanelComponent from "../code/CodePanel.svelte";
   import SessionTerminalDialogs from "./SessionTerminalDialogs.svelte";
@@ -22,24 +27,20 @@
     changeSettings,
   } from "../../domains/settings/settings.svelte";
   import {
-    applySessionVoiceResult,
-    createDraftReporter,
     createHeaderTerminalView,
     deriveChatUploadUnavailable,
     deriveQuickUnavailable,
     deriveSendUnavailable,
-    executeSessionQuickCommand,
-    savedStorageLabel,
-    submitSessionDraft,
   } from "../../domains/terminal/session-terminal-io";
-  import type {
-    DraftOperation,
-    TerminalDrafts,
-    TextInsertion,
-  } from "../../domains/terminal/terminal-draft.svelte";
+  import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
+  import { createSessionTerminalInput } from "../../hooks/terminal/session-terminal-input.svelte";
+  import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
+  import { m } from "$lib/paraglide/messages.js";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
 
   let {
     id,
+    features: initialFeatures,
     drafts,
     onUploadNotice,
     reopen,
@@ -55,16 +56,18 @@
     onleave,
     showForwards,
     feedSession,
+    subscribeRemoved,
     documentScroll = false,
     onscrollstate,
   }: {
     id: string;
+    features: TerminalFeatures;
     drafts: TerminalDrafts;
     onUploadNotice: (message: string) => void;
     reopen: () => void;
     visible: boolean;
     active: boolean;
-    paneActions: Snippet<[boolean]>;
+    paneActions: Snippet<[() => void]>;
     keyboardDismissed: () => boolean;
     keyboardVisibility: () => KeyboardVisibility;
     viewportHeight: () => number;
@@ -74,23 +77,24 @@
     onarchived: () => void;
     showForwards: () => void;
     feedSession?: SessionInfo;
+    subscribeRemoved?: (listener: (id: string) => void) => () => void;
     documentScroll?: boolean;
-    onscrollstate?: (state: {
-      chatView: boolean;
-      desktop: boolean;
-      codeShown: boolean;
-      editing: boolean;
-    }) => void;
+    onscrollstate?: (state: ChatScrollState) => void;
   } = $props();
+  // The page keys the contribution snapshot, including explicit load retries.
+  const features = untrack(() => initialFeatures);
+  const availableFeatures = $derived(availableTerminalFeatures(features));
+  const chatAvailable = $derived(!!availableFeatures.chat);
   const draft = untrack(() => drafts.get(id));
-  const shell = findShell();
   const leave = () => (onleave ? onleave() : navigate(shellUi.home));
   const voiceEnabled = $derived(
-    !!shell?.setup.value.voice && voicePreference.enabled,
+    !!features.voice &&
+      featureAvailable("voice.recognize") &&
+      features.voice.voicePreference.enabled,
   );
   let stage = $state<SessionTerminalStage>();
-  let sending = false;
   let container = $state<HTMLDivElement>();
+  let terminalRoot = $state<HTMLDivElement>();
   let error = $state("");
   let notice = $state("");
   let closing = $state(false);
@@ -98,17 +102,47 @@
   let scratchOpen = $state(false);
   const forceSoftKeys = $derived(settings.values.forceSoftKeys ?? false);
   let mounted = false;
+  let seenHybrid = false;
   let codePanel = $state<CodePanelComponent>();
   let paneWidth = $state(0);
+  let codeLoaded = $state(false);
   const desktop = $derived(paneWidth >= 1024);
-  let CodePanel = $state<typeof CodePanelComponent>();
-  let loadingCode = false;
+  const input = createSessionTerminalInput({
+    draft,
+    drafts: untrack(() => drafts),
+    terminal: () => t,
+    mounted: () => mounted,
+    active: () => active && visible,
+    immersive: () => !!xr?.active,
+    chat: () => hybrid.view === "chat",
+    desktop: () => desktop,
+    root: () => terminalRoot,
+    focusChat: () => stage?.focusChat(),
+    focusComposer: () => stage?.focusComposer(),
+    editComposer: (value) => stage?.editComposerKey(value),
+    hideCode: () => (chrome.codeShown = false),
+    restoreFocus: () => chrome.restoreInputFocus(),
+    error: (message) => (error = message),
+    notice: (message) => (notice = message),
+  });
+  const sessionId = untrack(() => id);
+  const uploadHandlers = createSessionUploadHandlers({
+    id: sessionId,
+    draft,
+    drafts: untrack(() => drafts),
+    isMounted: () => mounted,
+    isFilesAvailable: () => !!availableFeatures.files,
+    insertText: input.insertText,
+    setError: (message) => (error = message),
+    onUploadNotice: untrack(() => onUploadNotice),
+  });
   const terminalShown = () =>
     hybrid.view === "terminal" || hybrid.view === "recovery";
   const terminalVisible = () =>
     visible && (desktop || !chrome.codeShown) && terminalShown();
   const chrome = useSessionTerminalChrome({
     id: () => id,
+    code: features.code,
     draft,
     drafts: untrack(() => drafts),
     isMounted: () => mounted,
@@ -117,125 +151,51 @@
     isTerminalVisible: terminalVisible,
     isDesktop: () => desktop,
     focusFindBar: () => stage?.focusFind(),
-    focusComposer: () => stage?.focusComposer(),
+    focusComposer: () => chrome.restoreInputFocus(),
     clearTerminalFind: () => t.clearFind(),
-    focusFallback: focusInput,
+    focusFallback: focus,
     fitTerminal: () => t.fit(),
     viewportHeight: () => viewportHeight(),
     keyboardVisibility: () => keyboardVisibility(),
     keyboardDismissed: () => keyboardDismissed(),
     releaseChatEditing: () => stage?.releaseChatEditing(),
     isCodePanelPoppedOut: () => !!codePanel?.isPoppedOut(),
-    insertText,
-    uploadFiles: (files, operation) =>
-      uploads.uploadFiles(Array.from(files), operation),
+    insertText: input.insertText,
+    uploadFiles: uploadHandlers.uploadClipboardFiles(() => uploads),
     setError: (msg) => (error = msg),
     oninfo: (info, conn) => oninfo(info, conn),
     onscrollstate: (state) => onscrollstate?.(state),
   });
   $effect(() => {
-    if (chrome.codeShown && !CodePanel && !loadingCode) {
-      loadingCode = true;
-      void import("../code/CodePanel.svelte")
-        .then((m) => {
-          if (mounted) CodePanel = m.default;
-        })
-        .catch((e) => (error = errorMessage(e)))
-        .finally(() => (loadingCode = false));
-    }
+    if (!availableFeatures.code && chrome.panelView === "code")
+      chrome.codeShown = false;
+    else if (chrome.codeShown && chrome.panelView === "code") codeLoaded = true;
     if (terminalVisible()) {
       if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
       void tick().then(() => t.fit());
     }
   });
-  function beginInput(): DraftOperation {
-    const operation = drafts.begin(draft);
-    return hybrid.view === "chat"
-      ? { ...operation, startedInDraft: true }
-      : operation;
-  }
-  function insertReference(text: string) {
-    if (hybrid.view === "chat") return insertText(text, beginInput());
-    const result = insertText(text);
-    if (result === "terminal" && !desktop) {
-      chrome.codeShown = false;
-      void tick().then(() => t.fit());
-    }
-    return result;
-  }
-  function insertText(
-    text: string,
-    operation = drafts.begin(draft),
-  ): TextInsertion {
-    if (!mounted) return "failed";
-    return drafts.insert(draft, text, operation, t.paste);
-  }
-  function controlNotice() {
-    error = "终端控制需先退出草稿模式；草稿框内可正常复制、选择和编辑。";
-  }
-  function softInput(input: string) {
-    if (draft.enabled) stage?.editComposerKey(input);
-    else t.send(input);
-  }
-  function focusInput() {
-    if (!active || !visible) return;
-    if (hybrid.view === "chat") stage?.focusChat();
-    else if (draft.enabled) stage?.focusComposer();
-    else t.focus();
-  }
+
   export function focus() {
-    focusInput();
+    input.focus();
+  }
+  export function revealChat() {
+    if (!desktop) chrome.codeShown = false;
   }
   export function send(input: string) {
     t.send(input);
   }
-  function toggleDraft() {
-    drafts.setEnabled(draft, !draft.enabled);
-    t.resetModifiers();
-    if (draft.enabled && !hasTouchInput()) {
-      void tick().then(() => {
-        if (active && visible) stage?.focusComposer();
-      });
-    }
-  }
-  const reportDraft = createDraftReporter(
-    draft,
-    untrack(() => drafts),
-    () => mounted,
-    (msg) => (error = msg),
-    (msg) => (notice = msg),
-  );
-  function sendDraft(resend = false) {
-    if (sending) return;
-    sending = true;
-    try {
-      submitSessionDraft(
-        draft,
-        drafts,
-        t,
-        resend,
-        reportDraft,
-        (msg) => (error = msg),
-        (msg) => (notice = msg),
-      );
-    } finally {
-      sending = false;
-    }
-  }
-  function releaseDraftSubmission() {
-    if (draft.submission) t.untrack(draft.submission.id);
-    drafts.releaseSubmission(draft);
-    error = "";
-  }
-  function runQuickCommand(cmd: QuickCommand) {
-    return executeSessionQuickCommand(cmd, {
+  async function runQuickCommand(cmd: QuickCommand) {
+    if (!availableFeatures.quickCommands)
+      throw new Error(m.s4_quick_commands_unavailable());
+    return availableFeatures.quickCommands.executeSessionQuickCommand(cmd, {
       id,
       isMounted: () => mounted,
       isChatView: () => hybrid.view === "chat",
       draft,
       drafts,
-      beginInput,
-      insertText,
+      beginInput: input.beginInput,
+      insertText: input.insertText,
       resetModifiers: () => t.resetModifiers(),
       submitTerminal: (subId, text, enter, onProgress) =>
         t.submit(subId, text, enter, onProgress),
@@ -255,111 +215,117 @@
     {
       draftEnabled: () => draft.enabled,
       focusDraft: () => {
-        if (active && visible) stage?.focusComposer();
+        if (input.active()) stage?.focusComposer();
       },
       key: (event) => stage?.handleTerminalKey(event),
-      insertText: (text) => {
-        insertText(text);
-      },
+      insertText: (text) => input.insertText(text),
     },
     () => keyboardDismissed(),
     () => chrome.sizeLocked,
-    () => active,
+    () => active && !xr?.active && allowAutomaticInputFocus(),
     false,
     () => chrome.keyboardHeld,
   );
   const sendUnavailable = $derived(deriveSendUnavailable(t));
   const quickUnavailable = $derived(deriveQuickUnavailable(t));
-  const hybrid = useHybrid(
-    untrack(() => id),
-    t,
-    untrack(() => drafts),
-    draft,
-    false,
-  );
+  const hybrid = features.chat
+    ? features.chat.useHybrid(
+        untrack(() => id),
+        t,
+        untrack(() => drafts),
+        draft,
+        false,
+        untrack(() => subscribeRemoved),
+        () => chatAvailable,
+      )
+    : terminalSession(t);
   chrome.syncSessionEffects(
     hybrid,
     () => t.connection,
     () => t.info?.generation,
   );
-  const sessionId = untrack(() => id);
-  const chatUploads = useChatUpload(
-    (file, progress, signal) => uploadFile(sessionId, file, progress, signal),
-    (message) => (error = message),
-    {
-      get: () => draft.attachments,
-      set: (next) => drafts.setAttachments(draft, next),
-    },
-  );
+  const files = features.files;
+  const chatUploads =
+    features.chat && files
+      ? files.useChatUpload(
+          uploadHandlers.sendChatFile(files.uploadFile),
+          (message) => (error = message),
+          uploadHandlers.attachments,
+        )
+      : undefined;
   const chatUploadUnavailable = $derived(deriveChatUploadUnavailable(hybrid));
   const headerTerminal = createHeaderTerminalView(hybrid, t, terminalShown);
-  const draftSaved = $derived(
-    savedStorageLabel(draft.persisted, "草稿过大，仅保存在当前页面"),
-  );
-  const scratchSaved = $derived(
-    savedStorageLabel(
-      draft.scratchPersisted,
-      "暂存超出本机保存限制，仅当前页面",
-    ),
-  );
   function showScratch() {
     draft.scratchUpdatedWhileHidden = false;
     scratchOpen = true;
   }
-  const uploads = useUpload(
+  const uploads = files?.useUpload(
     () => container!,
-    untrack(() => id),
+    sessionId,
     t,
-    (message) => {
-      if (mounted) error = message;
-      else if (message) onUploadNotice(`会话 ${id}：${message}`);
-    },
-    {
-      begin: () => drafts.begin(draft),
-      destination: (operation) => drafts.destination(draft, operation),
-      insert: insertText,
-    },
+    uploadHandlers.notifyUploadError,
+    uploadHandlers.draftBridge,
+    () => !!availableFeatures.files,
   );
   const fullscreen = useFullscreen((message) => (error = message));
+  const xr = features.immersive?.useXrSessionSource({
+    id: sessionId,
+    terminal: t,
+    chatPanel: features.chat?.xrChatPanel,
+    quickCommands: () =>
+      availableFeatures.quickCommands?.availableCommands(
+        !!availableFeatures.files,
+      ) ?? [],
+    codeAvailable: () => !!availableFeatures.code,
+    hybrid,
+    draft,
+    codePanels: () => codePanel?.xrPanels() ?? [],
+    focus: input.focusXr,
+    blur: input.blurXr,
+    editDraft: (input) => stage?.editComposerKey(input),
+    editChat: (input) => stage?.editChatKey(input),
+    sendDraft: input.sendDraft,
+    sendChat: () => stage?.sendChatDraft(),
+    toggleDraft: input.toggleDraft,
+    showCode: chrome.showCode,
+    showChat: revealChat,
+    showSwitchChoice: () => (chrome.choiceClosed = false),
+    runQuick: runQuickCommand,
+    error: (message) => (error = message),
+    notice: () => {
+      const chatErr = features.chat
+        ? stage?.getChatError() || hybrid.chat.error
+        : "";
+      return [error, t.error, chatErr].filter(Boolean).join(" ");
+    },
+  });
+  $effect(() => {
+    const record = hybrid.recoverable;
+    if (hybrid.known) seenHybrid = true;
+    if (record && hybrid.view === "recovery")
+      untrack(() => oninfo(record, t.connection));
+    if (hybrid.missing && (seenHybrid || xr?.active)) untrack(onremoved);
+  });
 
   onMount(() => {
     mounted = true;
-    if (draft.submission)
-      t.track(draft.submission.id, reportDraft(draft.submission.id, true));
-    return () => {
-      mounted = false;
-    };
+    input.resumeDraftSubmission();
+    return () => (mounted = false);
   });
 
   function insertVoiceResult(text: string) {
-    applySessionVoiceResult(text, {
+    features.voice?.applySessionVoiceResult(text, {
       isMounted: () => mounted,
       isChatView: () => hybrid.view === "chat",
       draft,
       drafts,
-      beginInput,
-      insertText,
+      beginInput: input.beginInput,
+      insertText: input.insertText,
       setError: (msg) => (error = msg),
-      onInserted: () => {
-        if (!hasTouchInput()) {
-          void tick().then(() => {
-            if (active && visible) focusInput();
-          });
-        }
-      },
+      onInserted: () => chrome.restoreInputFocus(),
     });
   }
-  async function focusTerminal(event: Event) {
-    event.preventDefault();
-    if (hasTouchInput()) return;
-    await tick();
-    if (!active || !visible) return;
-    if (chrome.findOpen) {
-      stage?.focusFind();
-      return;
-    }
-    focusInput();
-  }
+  const focusTerminal = (event: Event) => chrome.restoreInputFocus(event);
 </script>
 
 <div
@@ -368,14 +334,66 @@
   class:ios={isIOS()}
   bind:clientWidth={paneWidth}
   data-terminal-compact={!desktop}
+  bind:this={terminalRoot}
+  onkeydowncapture={input.guardXrInput}
+  onbeforeinputcapture={input.guardXrInput}
+  onpastecapture={input.guardXrInput}
 >
+  {#if features.chat}
+    <features.chat.Handoff
+      sourceId={availableFeatures.chat
+        ? (hybrid.info?.conversationId ?? hybrid.recoverable?.conversationId)
+        : undefined}
+      root={terminalRoot}
+      children={terminalStage}
+    />
+  {:else}
+    {@render terminalStage(undefined)}
+  {/if}
+</div>
+
+{#if active && visible}
+  <SessionTerminalDialogs
+    {id}
+    features={availableFeatures}
+    {draft}
+    {drafts}
+    {hybrid}
+    fontSize={t.fontSize}
+    setFontSize={t.setFontSize}
+    filePaste={(event) => uploads?.filePaste(event) ?? false}
+    pasteOperation={chrome.pasteOperation}
+    insertText={input.insertText}
+    {focusTerminal}
+    scratchSaved={input.scratchSaved}
+    {onremoved}
+    {onarchived}
+    bind:pasteOpen={() => chrome.pasteOpen, (v) => (chrome.pasteOpen = v)}
+    bind:pasteText={() => chrome.pasteText, (v) => (chrome.pasteText = v)}
+    bind:copyOpen={() => chrome.copyOpen, (v) => (chrome.copyOpen = v)}
+    copyText={chrome.copyText}
+    bind:settingsOpen
+    bind:closing
+    bind:choiceClosed={
+      () => chrome.choiceClosed, (v) => (chrome.choiceClosed = v)
+    }
+    bind:scratchOpen
+  />
+{/if}
+
+{#snippet terminalStage(chatActions: Snippet | undefined)}
   <SessionTerminalStage
+    features={availableFeatures}
     bind:this={stage}
     bind:container
     bind:notice
     bind:codeShown={
       () => chrome.codeShown, (value) => (chrome.codeShown = value)
     }
+    bind:panelView={
+      () => chrome.panelView, (value) => (chrome.panelView = value)
+    }
+    {chatActions}
     bind:forceSoftKeys={
       () => forceSoftKeys, (value) => changeSettings({ forceSoftKeys: value })
     }
@@ -383,20 +401,23 @@
     {paneActions}
     {headerTerminal}
     {fullscreen}
+    xr={availableFeatures.immersive ? xr : undefined}
     {desktop}
     {documentScroll}
+    chatVisible={((active && visible) || (input.xrFocused && !!xr?.active)) &&
+      (desktop || !chrome.codeShown || !!xr?.active)}
     {hybrid}
     terminal={t}
-    {uploads}
-    {chatUploads}
+    uploads={availableFeatures.files ? uploads : undefined}
+    chatUploads={availableFeatures.chat ? chatUploads : undefined}
     {chatUploadUnavailable}
     {sendUnavailable}
     {quickUnavailable}
     {voiceEnabled}
     {draft}
     {drafts}
-    {draftSaved}
-    {scratchSaved}
+    draftSaved={input.draftSaved}
+    scratchSaved={input.scratchSaved}
     {error}
     pendingCopy={chrome.pendingCopy !== null}
     copyPending={chrome.copyPending}
@@ -422,9 +443,9 @@
     showFind={chrome.showFind}
     closeFind={chrome.closeFind}
     {keyboardDismissed}
-    {toggleDraft}
-    {sendDraft}
-    {releaseDraftSubmission}
+    toggleDraft={input.toggleDraft}
+    sendDraft={input.sendDraft}
+    releaseDraftSubmission={input.releaseDraftSubmission}
     runQuickCommand={(cmd) => void runQuickCommand(cmd)}
     manageQuickCommands={() =>
       navigate(`/settings?session=${id}#quick-commands`)}
@@ -435,9 +456,8 @@
       if (hybrid.view !== "chat" || !stage?.setChatVoiceError(message))
         error = message;
     }}
-    {softInput}
-    {controlNotice}
-    copy={chrome.copy}
+    softInput={input.softInput}
+    controlNotice={input.controlNotice}
     paste={chrome.paste}
     holdBegin={() => {
       if (draft.enabled) stage?.openComposerKeyboard(chrome.beginHold);
@@ -449,14 +469,15 @@
     onChooseSwitch={() => (chrome.choiceClosed = false)}
   >
     {#snippet codePane()}
-      {#if CodePanel}<CodePanel
+      {#if availableFeatures.code && codeLoaded}<availableFeatures.code.Panel
           bind:this={codePanel}
           {id}
-          visible={visible && chrome.codeShown}
+          gitFeature={availableFeatures.git}
+          visible={visible && chrome.codeShown && chrome.panelView === "code"}
           connection={hybrid.view === "chat"
             ? hybrid.chat.connection
             : t.connection}
-          paste={insertReference}
+          paste={input.insertReference}
           draftEnabled={draft.enabled || hybrid.view === "chat"}
           reveal={chrome.codeTarget}
           sessionCwd={hybrid.info?.cwd ?? ""}
@@ -464,32 +485,4 @@
         />{/if}
     {/snippet}
   </SessionTerminalStage>
-</div>
-
-{#if active && visible}
-  <SessionTerminalDialogs
-    {id}
-    {draft}
-    {drafts}
-    {hybrid}
-    fontSize={t.fontSize}
-    setFontSize={t.setFontSize}
-    filePaste={uploads.filePaste}
-    pasteOperation={chrome.pasteOperation}
-    {insertText}
-    {focusTerminal}
-    {scratchSaved}
-    {onremoved}
-    {onarchived}
-    bind:pasteOpen={() => chrome.pasteOpen, (v) => (chrome.pasteOpen = v)}
-    bind:pasteText={() => chrome.pasteText, (v) => (chrome.pasteText = v)}
-    bind:copyOpen={() => chrome.copyOpen, (v) => (chrome.copyOpen = v)}
-    copyText={chrome.copyText}
-    bind:settingsOpen
-    bind:closing
-    bind:choiceClosed={
-      () => chrome.choiceClosed, (v) => (chrome.choiceClosed = v)
-    }
-    bind:scratchOpen
-  />
-{/if}
+{/snippet}

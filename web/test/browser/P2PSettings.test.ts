@@ -1,13 +1,17 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import P2PSettings from "../../src/components/settings/P2PSettings.svelte";
 import SidebarFooter from "../../src/components/shell/SidebarFooter.svelte";
 import { p2pState, stopP2P } from "../../src/platform/p2p.svelte";
 import type { P2PStatus } from "../../src/contracts/schemas";
+import { enableHostFeatures, resetHostFeatures } from "./feature-fixture";
 
 const baseStatus: P2PStatus = {
   supported: true,
+  udpPort: 0,
+  udpBindings: [{ network: "udp4", port: 45123 }],
+  capabilities: { networks: ["udp4", "udp6"], iceMode: "full", turn: false },
   enabled: true,
   portMapping: true,
   stunServers: [
@@ -69,6 +73,7 @@ function serveP2P(initial: P2PStatus = baseStatus) {
 }
 
 afterEach(async () => {
+  resetHostFeatures();
   stopP2P();
   p2pState.candidateType = "";
   p2pState.ipFamily = "";
@@ -161,6 +166,7 @@ test("renders P2P status, port mapping badge, STUN validation, save, and reset",
 });
 
 test("SidebarFooter host status popover reflects P2P direct mode and RTT", async () => {
+  await enableHostFeatures(["p2p"]);
   serveP2P();
   p2pState.mode = "p2p";
   p2pState.phase = "connected";
@@ -173,7 +179,6 @@ test("SidebarFooter host status popover reflects P2P direct mode and RTT", async
     hostname: "devbox",
     setupSettled: true,
     onforward: () => {},
-    onadd: () => {},
   });
 
   await page.getByRole("button", { name: /^查看主机状态：/ }).click();

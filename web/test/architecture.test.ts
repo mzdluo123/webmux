@@ -3,10 +3,11 @@
 import { globSync, readFileSync } from "node:fs";
 import { basename, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const UI_DIR = "src/lib/components/ui/";
+const PARAGLIDE_DIR = "src/lib/paraglide/";
 
 const files = globSync("src/**/*.svelte", { cwd: root })
   .map((file) => file.replaceAll("\\", "/"))
@@ -128,6 +129,7 @@ describe("frontend architecture", () => {
     };
     const layers: Record<string, true> = {
       app: true,
+      features: true,
       contracts: true,
       platform: true,
       domains: true,
@@ -227,6 +229,28 @@ describe("frontend architecture", () => {
     ).toEqual([]);
   });
 
+  test("git workbench scroll regions use ScrollArea, not native overflow", () => {
+    const gitFiles = [
+      "src/pages/GitWorkbench.svelte",
+      ...globSync("src/components/workspace/Git*.svelte", { cwd: root }),
+    ].map((file) => file.replaceAll("\\", "/"));
+    const nativeScroll = [
+      /(?<![\w-])overflow-(?:x-|y-)?(?:auto|scroll)(?![\w-])/,
+      /overflow(?:-[xy])?\s*:\s*(?:auto|scroll)\b/,
+    ];
+    const violations = gitFiles.flatMap((file) => {
+      const source = withoutComments(readFileSync(`${root}/${file}`, "utf8"));
+      return nativeScroll
+        .filter((pattern) => pattern.test(source))
+        .map((pattern) => `${file}: ${pattern.source}`);
+    });
+    expect(
+      violations,
+      "Use $lib/components/ui/scroll-area (ScrollArea) for every " +
+        "scrollable region in the Git workbench.",
+    ).toEqual([]);
+  });
+
   test("corner radii follow the role scale", () => {
     expect(styleFiles).toContain("src/styles.css");
     expect(
@@ -246,7 +270,9 @@ const PASCAL_FILE = /^[A-Z][A-Za-z0-9]*(\.[a-z0-9]+)*\.(svelte|ts)$/;
 describe("file naming", () => {
   const sources = globSync("src/**/*.ts", { cwd: root })
     .map((file) => file.replaceAll("\\", "/"))
-    .filter((file) => !file.startsWith(UI_DIR));
+    .filter(
+      (file) => !file.startsWith(UI_DIR) && !file.startsWith(PARAGLIDE_DIR),
+    );
   const unitTests = globSync("test/*.ts", { cwd: root });
   const components = globSync("src/**/*.svelte", { cwd: root }).filter(
     (file) => !file.replaceAll("\\", "/").startsWith(UI_DIR),

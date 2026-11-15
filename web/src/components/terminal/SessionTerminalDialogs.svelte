@@ -8,15 +8,16 @@
   } from "../../domains/terminal/terminal-draft.svelte";
   import CloseSessionDialog from "../sessions/CloseSessionDialog.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
-  import HybridCandidatePicker from "../sessions/HybridCandidatePicker.svelte";
+  import type { TerminalFeatures } from "../../features/terminal";
   import ScratchPanel from "./ScratchPanel.svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import TerminalCopyDialog from "./TerminalCopyDialog.svelte";
   import TerminalFontDialog from "./TerminalFontDialog.svelte";
   import TerminalPasteDialog from "./TerminalPasteDialog.svelte";
-  import SwitchChoiceDialog from "../chat/SwitchChoiceDialog.svelte";
 
   let {
     id,
+    features,
     draft,
     drafts,
     hybrid,
@@ -39,6 +40,7 @@
     scratchOpen = $bindable(),
   }: {
     id: string;
+    features: TerminalFeatures;
     draft: TerminalDraft;
     drafts: TerminalDrafts;
     hybrid: HybridSession;
@@ -97,38 +99,40 @@
     }}
     {onarchived}
   />{/if}
-<ConfirmDialog
-  bind:open={
-    () => !!hybrid.confirming,
-    (open) => {
-      if (!open) hybrid.cancelConfirm();
+{#if features.chat}
+  <ConfirmDialog
+    bind:open={
+      () => !!hybrid.confirming,
+      (open) => {
+        if (!open) hybrid.cancelConfirm();
+      }
     }
-  }
-  title={hybrid.confirming?.title ?? ""}
-  onconfirm={() => hybrid.confirm()}>{hybrid.confirming?.body}</ConfirmDialog
->
-<ConfirmDialog
-  bind:open={
-    () => !!hybrid.ambiguous,
-    (open) => {
-      if (!open) hybrid.cancelPick();
+    title={hybrid.confirming?.title ?? ""}
+    onconfirm={() => hybrid.confirm()}>{hybrid.confirming?.body}</ConfirmDialog
+  >
+  <ConfirmDialog
+    bind:open={
+      () => !!hybrid.ambiguous,
+      (open) => {
+        if (!open) hybrid.cancelPick();
+      }
     }
-  }
-  title="选择要切到聊天的会话"
-  onconfirm={() => hybrid.pick(ambiguousPick)}
-  >{hybrid.ambiguous?.message}<HybridCandidatePicker
-    candidates={hybrid.ambiguous?.candidates ?? []}
-    bind:picked={ambiguousPick}
-    label="选择要打开的会话"
-  /></ConfirmDialog
->
-<SwitchChoiceDialog
-  bind:open={
-    () => hybrid.awaitingChoice && !choiceClosed,
-    (open) => (choiceClosed = !open)
-  }
-  note={hybrid.chat.state?.forceSwitchNote ?? ""}
-  busy={hybrid.answering}
-  onchoose={(choice) => void hybrid.choose(choice)}
-/>
+    title={m.s4_pick_chat_session_title()}
+    onconfirm={() => hybrid.pick(ambiguousPick)}
+    >{hybrid.ambiguous?.message}<features.chat.CandidatePicker
+      candidates={hybrid.ambiguous?.candidates ?? []}
+      bind:picked={ambiguousPick}
+      label={m.s4_pick_session_to_open()}
+    /></ConfirmDialog
+  >
+  <features.chat.SwitchChoice
+    bind:open={
+      () => hybrid.awaitingChoice && !choiceClosed,
+      (open) => (choiceClosed = !open)
+    }
+    note={hybrid.chat.state?.forceSwitchNote ?? ""}
+    busy={hybrid.answering}
+    onchoose={(choice) => void hybrid.choose(choice)}
+  />
+{/if}
 <ScratchPanel bind:open={scratchOpen} {draft} {drafts} saved={scratchSaved} />

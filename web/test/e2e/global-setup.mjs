@@ -120,13 +120,8 @@ export default async function globalSetup() {
       );
     } else {
       await build(
-        process.execPath,
-        [
-          join(webRoot, "node_modules/vite/bin/vite.js"),
-          "build",
-          "--outDir",
-          join(root, "web/dist"),
-        ],
+        "pnpm",
+        ["exec", "vp", "build", "--outDir", join(root, "web/dist")],
         webRoot,
       );
     }

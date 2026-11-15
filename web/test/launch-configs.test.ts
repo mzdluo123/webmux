@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { joinArgs, parseArgs, quoteArg } from "../src/platform/api";
 import {
   defaultLaunchAttentionSettings,
@@ -25,6 +25,7 @@ describe("launch icons", () => {
     ["qwen", "qwen"],
     ["kimi", "kimi"],
     ["codebuddy", "codebuddy"],
+    ["devin", "devin"],
     ["omp", "pi"],
     ["/usr/local/bin/pi", "pi"],
     ["C:\\tools\\codex.exe", "codex"],

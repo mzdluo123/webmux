@@ -14,12 +14,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
 
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/workspace"
-	"golang.org/x/sys/unix"
 )
 
 type binding struct {
@@ -28,9 +26,11 @@ type binding struct {
 	gitDirs        []string
 	gitIdentity    os.FileInfo
 	commonIdentity os.FileInfo
+	commonDir      string
+	timeUsed       time.Time
 }
 type snapshot struct {
-	session           string
+	owner             scopeKey
 	context           string
 	file              *File
 	diff              *Diff
@@ -45,13 +45,41 @@ const (
 	RootArtifacts = "artifacts"
 )
 
-type rootKey struct{ session, root string }
+type scopeKind uint8
+
+const (
+	scopeSession scopeKind = iota
+	scopeRepository
+	scopeWorktree
+)
+
+type scopeKey struct {
+	kind    scopeKind
+	owner   string
+	subroot string
+}
+
+func sessionScope(id, root string) scopeKey {
+	return scopeKey{kind: scopeSession, owner: id, subroot: root}
+}
+
+func targetScope(t Target) scopeKey {
+	if t.WorktreeID == "" {
+		return scopeKey{kind: scopeRepository, owner: t.RepositoryID}
+	}
+	return scopeKey{kind: scopeWorktree, owner: t.RepositoryID + "\x00" + t.WorktreeID}
+}
+
+func ownerScope(k scopeKey) scopeKey {
+	return scopeKey{kind: k.kind, owner: k.owner}
+}
 
 type Service struct {
 	manager   *session.Manager
 	artifacts *artifacts.Service
+	workspace TargetResolver
 	mu        sync.Mutex
-	roots     map[rootKey]*binding
+	roots     map[scopeKey]*binding
 	snapshots map[string]*snapshot
 	bytes     int
 	slots     chan struct{}
@@ -70,10 +98,19 @@ const (
 // New browses sessions of m. A nil folders leaves the artifacts root
 // unavailable.
 func New(m *session.Manager, folders *artifacts.Service) *Service {
-	s := &Service{manager: m, artifacts: folders, roots: map[rootKey]*binding{}, snapshots: map[string]*snapshot{}, slots: make(chan struct{}, materializationConcurrency), transfers: make(chan struct{}, transferConcurrency), done: make(chan struct{})}
+	s := &Service{manager: m, artifacts: folders, roots: map[scopeKey]*binding{}, snapshots: map[string]*snapshot{}, slots: make(chan struct{}, materializationConcurrency), transfers: make(chan struct{}, transferConcurrency), done: make(chan struct{})}
 	go s.sweep()
 	return s
 }
+
+// UseWorkspace installs, once at assembly before serving, the read-only
+// resolver for session-independent repository and worktree contexts.
+func (s *Service) UseWorkspace(r TargetResolver) {
+	s.mu.Lock()
+	s.workspace = r
+	s.mu.Unlock()
+}
+
 func (s *Service) Close() {
 	s.once.Do(func() {
 		close(s.done)
@@ -87,22 +124,41 @@ func (s *Service) Close() {
 func (s *Service) sweep() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	var managerDone <-chan struct{}
+	if s.manager != nil {
+		managerDone = s.manager.Done()
+	}
 	for {
 		select {
 		case <-s.done:
 			return
-		case <-s.manager.Done():
+		case <-managerDone:
 			s.Close()
 			return
 		case <-ticker.C:
+			now := time.Now()
 			s.mu.Lock()
-			for key := range s.roots {
-				if _, err := s.manager.Get(key.session); err != nil {
+			for key, b := range s.roots {
+				if key.kind == scopeSession {
+					if s.manager == nil {
+						delete(s.roots, key)
+					} else if _, err := s.manager.Get(key.owner); err != nil {
+						delete(s.roots, key)
+					}
+				} else if now.Sub(b.timeUsed) > Lifetime {
 					delete(s.roots, key)
 				}
 			}
 			for id, v := range s.snapshots {
-				if _, err := s.manager.Get(v.session); err != nil || time.Since(v.created) > Lifetime {
+				expired := now.Sub(v.created) > Lifetime
+				if !expired && v.owner.kind == scopeSession {
+					if s.manager == nil {
+						expired = true
+					} else if _, err := s.manager.Get(v.owner.owner); err != nil {
+						expired = true
+					}
+				}
+				if expired {
 					s.bytes -= v.size
 					delete(s.snapshots, id)
 				}
@@ -155,17 +211,29 @@ func git(ctx context.Context, root string, args ...string) ([]byte, error) {
 }
 
 // bind performs filesystem and Git validation; callers must hold a service slot.
-func (s *Service) bind(ctx context.Context, id, kind string) (*binding, error) {
-	if kind == RootArtifacts {
-		return s.bindArtifacts(id)
+func (s *Service) bind(ctx context.Context, key scopeKey) (*binding, error) {
+	switch key.kind {
+	case scopeRepository:
+		return s.bindRepository(ctx, key)
+	case scopeWorktree:
+		return s.bindWorktree(ctx, key)
 	}
-	item, err := s.manager.Get(id)
+	if key.subroot == RootArtifacts {
+		return s.bindArtifacts(key.owner)
+	}
+	if s.manager == nil {
+		return nil, problemf(ErrNotFound, "会话不存在")
+	}
+	item, err := s.manager.Get(key.owner)
 	if err != nil {
 		return nil, problemf(ErrNotFound, "会话不存在")
 	}
-	key := rootKey{id, RootWorkspace}
+	key = sessionScope(key.owner, RootWorkspace)
 	s.mu.Lock()
 	b := s.roots[key]
+	if b != nil {
+		b.timeUsed = time.Now()
+	}
 	s.mu.Unlock()
 	if b != nil {
 		return b, s.validate(ctx, b)
@@ -183,7 +251,7 @@ func (s *Service) bind(ctx context.Context, id, kind string) (*binding, error) {
 		return nil, problemf(ErrConflict, "Git 管理目录不可作为浏览根")
 	}
 	root := cwd
-	b = &binding{Context: Context{ID: random(), Kind: "directory", Browse: true, Reason: "普通目录或 Git 不可用；忽略规则与差异不可用"}}
+	b = &binding{Context: Context{ID: random(), Kind: "directory", Browse: true, Reason: "普通目录或 Git 不可用；忽略规则与差异不可用"}, timeUsed: time.Now()}
 	if out, e := git(ctx, cwd, "rev-parse", "--show-toplevel"); e == nil {
 		root = strings.TrimSuffix(string(out), "\n")
 		root, e = filepath.EvalSymlinks(root)
@@ -205,6 +273,7 @@ func (s *Service) bind(ctx context.Context, id, kind string) (*binding, error) {
 			}
 			b.gitDirs = append(b.gitDirs, p)
 		}
+		b.commonDir = b.gitDirs[1]
 		b.commonIdentity, err = os.Stat(b.gitDirs[1])
 		if err != nil {
 			return nil, err
@@ -214,10 +283,15 @@ func (s *Service) bind(ctx context.Context, id, kind string) (*binding, error) {
 			return nil, err
 		}
 	}
-	if linked := item.Info().Workspace; linked != nil && b.Diff {
-		expected, e := filepath.EvalSymlinks(linked.WorktreePath)
-		if e != nil || expected != root {
-			return nil, problemf(ErrConflict, "工作区关联与浏览根不一致")
+	s.mu.Lock()
+	resolver := s.workspace
+	s.mu.Unlock()
+	if resolver != nil && b.Diff {
+		if linked := resolver.Association(item.Info().ID); linked != nil {
+			expected, e := filepath.EvalSymlinks(linked.WorktreePath)
+			if e != nil || expected != root {
+				return nil, problemf(ErrConflict, "工作区关联与浏览根不一致")
+			}
 		}
 	}
 	b.Root = root
@@ -232,6 +306,7 @@ func (s *Service) bind(ctx context.Context, id, kind string) (*binding, error) {
 	}
 	s.mu.Lock()
 	if old := s.roots[key]; old != nil {
+		old.timeUsed = time.Now()
 		b = old
 	} else {
 		s.roots[key] = b
@@ -244,6 +319,9 @@ func (s *Service) bind(ctx context.Context, id, kind string) (*binding, error) {
 // without Git, ignore rules or diffs. A folder replaced since it was bound
 // gets a new binding, so requests against the old context conflict.
 func (s *Service) bindArtifacts(id string) (*binding, error) {
+	if s.manager == nil {
+		return nil, problemf(ErrNotFound, "会话不存在")
+	}
 	if _, err := s.manager.Get(id); err != nil {
 		return nil, problemf(ErrNotFound, "会话不存在")
 	}
@@ -257,11 +335,12 @@ func (s *Service) bindArtifacts(id string) (*binding, error) {
 	case err != nil:
 		return nil, problemf(ErrUnavailable, "临时文件夹不可用")
 	}
-	key := rootKey{id, RootArtifacts}
+	key := sessionScope(id, RootArtifacts)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if b := s.roots[key]; b != nil {
 		if s.validate(context.Background(), b) == nil {
+			b.timeUsed = time.Now()
 			return b, nil
 		}
 		delete(s.roots, key)
@@ -270,50 +349,9 @@ func (s *Service) bindArtifacts(id string) (*binding, error) {
 	if err != nil || !identity.IsDir() {
 		return nil, problemf(ErrUnavailable, "临时文件夹不可用")
 	}
-	b := &binding{Context: Context{ID: random(), Root: dir, Kind: RootArtifacts, Browse: true, Write: writable(dir)}, identity: identity}
+	b := &binding{Context: Context{ID: random(), Root: dir, Kind: RootArtifacts, Browse: true, Write: writable(dir)}, identity: identity, timeUsed: time.Now()}
 	s.roots[key] = b
 	return b, nil
-}
-func (s *Service) validate(ctx context.Context, b *binding) error {
-	stat, err := os.Lstat(b.Root)
-	if err != nil || !stat.IsDir() || !os.SameFile(b.identity, stat) {
-		return problemf(ErrConflict, "浏览根身份已失效")
-	}
-	if b.Diff {
-		top, e := git(ctx, b.Root, "rev-parse", "--show-toplevel")
-		if e != nil {
-			return e
-		}
-		actual, e := filepath.EvalSymlinks(strings.TrimSuffix(string(top), "\n"))
-		if e != nil || actual != b.Root {
-			return problemf(ErrConflict, "工作树根来源已改变")
-		}
-		common, e := git(ctx, b.Root, "rev-parse", "--path-format=absolute", "--git-common-dir")
-		if e != nil {
-			return e
-		}
-		commonPath, e := filepath.EvalSymlinks(strings.TrimSuffix(string(common), "\n"))
-		if e != nil || commonPath != b.gitDirs[1] {
-			return problemf(ErrConflict, "仓库 common directory 已改变")
-		}
-		commonInfo, e := os.Stat(commonPath)
-		if e != nil || !os.SameFile(commonInfo, b.commonIdentity) {
-			return problemf(ErrConflict, "仓库 common directory 已替换")
-		}
-		out, e := git(ctx, b.Root, "rev-parse", "--absolute-git-dir")
-		if e != nil {
-			return e
-		}
-		p, e := filepath.EvalSymlinks(strings.TrimSuffix(string(out), "\n"))
-		if e != nil || p != b.gitDirs[0] {
-			return problemf(ErrConflict, "Git 来源身份已改变")
-		}
-		stat, e = os.Stat(p)
-		if e != nil || !os.SameFile(stat, b.gitIdentity) {
-			return problemf(ErrConflict, "Git 管理目录已替换")
-		}
-	}
-	return nil
 }
 
 // Context returns the browsing context of session id's root: RootWorkspace
@@ -326,24 +364,30 @@ func (s *Service) Context(ctx context.Context, id, root string) (Context, error)
 	default:
 		return Context{}, problemf(ErrInvalid, "未知的浏览根")
 	}
-	return withBinding(ctx, s, id, root, func(b *binding) (Context, error) { return b.Context, nil })
+	return withScope(ctx, s, sessionScope(id, root), func(b *binding) (Context, error) { return b.Context, nil })
 }
 
-// withBinding holds a service slot while fn uses session id's validated
-// binding of root. Failing to acquire the slot or bind returns T's zero value.
-func withBinding[T any](ctx context.Context, s *Service, id, root string, fn func(*binding) (T, error)) (T, error) {
+// withScope holds a service slot while fn uses the validated binding of key.
+// Failing to acquire the slot or bind returns T's zero value.
+func withScope[T any](ctx context.Context, s *Service, key scopeKey, fn func(*binding) (T, error)) (T, error) {
 	release, err := s.acquire(ctx)
 	if err != nil {
 		var zero T
 		return zero, err
 	}
 	defer release()
-	b, err := s.bind(ctx, id, root)
+	b, err := s.bind(ctx, key)
 	if err != nil {
 		var zero T
 		return zero, err
 	}
 	return fn(b)
+}
+
+// withBinding holds a service slot while fn uses session id's validated
+// binding of root. Failing to acquire the slot or bind returns T's zero value.
+func withBinding[T any](ctx context.Context, s *Service, id, root string, fn func(*binding) (T, error)) (T, error) {
+	return withScope(ctx, s, sessionScope(id, root), fn)
 }
 
 // withRoot is withBinding for requests made against browsing context cid; it
@@ -363,7 +407,7 @@ func withRoot[T any](ctx context.Context, s *Service, id, cid string, fn func(*b
 }
 
 func (s *Service) rootOfLocked(id, cid string) string {
-	if b := s.roots[rootKey{id, RootArtifacts}]; b != nil && b.ID == cid {
+	if b := s.roots[sessionScope(id, RootArtifacts)]; b != nil && b.ID == cid {
 		return RootArtifacts
 	}
 	return RootWorkspace
@@ -373,83 +417,8 @@ func (s *Service) rootOfLocked(id, cid string) string {
 func (s *Service) snapshotRoot(id, sid string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if v := s.snapshots[sid]; v != nil && v.session == id {
+	if v := s.snapshots[sid]; v != nil && v.owner == ownerScope(sessionScope(id, "")) {
 		return s.rootOfLocked(id, v.context)
 	}
 	return RootWorkspace
-}
-
-// Open each segment relative to an already opened directory. O_NOFOLLOW and
-// O_NONBLOCK prevent symlink races and blocking special-file opens on Unix.
-func boundary(fd int) bool {
-	var stat unix.Stat_t
-	return unix.Fstatat(fd, ".git", &stat, unix.AT_SYMLINK_NOFOLLOW) == nil || (unix.Fstatat(fd, "HEAD", &stat, unix.AT_SYMLINK_NOFOLLOW) == nil && unix.Fstatat(fd, "objects", &stat, unix.AT_SYMLINK_NOFOLLOW) == nil)
-}
-func displayPath(p string) string {
-	if utf8.ValidString(p) {
-		return p
-	}
-	return strconv.QuoteToASCII(p)
-}
-func (b *binding) open(p string) (*os.File, error) {
-	if _, err := nodePath(nodeID(p)); err != nil {
-		return nil, err
-	}
-	full := filepath.Join(b.Root, p)
-	for _, g := range b.gitDirs {
-		if full == g || strings.HasPrefix(full, g+"/") {
-			return nil, problemf(ErrInvalid, "Git 管理路径不可读取")
-		}
-	}
-	fd, err := unix.Open(b.Root, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return nil, err
-	}
-	f := os.NewFile(uintptr(fd), b.Root)
-	stat, err := f.Stat()
-	if err != nil || !os.SameFile(stat, b.identity) {
-		_ = f.Close()
-		return nil, problemf(ErrConflict, "浏览根已替换")
-	}
-	if p == "" {
-		return f, nil
-	}
-	parts := strings.Split(p, "/")
-	for i, part := range parts {
-		if i > 0 {
-			if boundary(int(f.Fd())) {
-				_ = f.Close()
-				return nil, problemf(ErrInvalid, "嵌套仓库边界不可遍历")
-			}
-		}
-		flags := unix.O_RDONLY | unix.O_NOFOLLOW | unix.O_NONBLOCK | unix.O_CLOEXEC
-		if i < len(parts)-1 {
-			flags |= unix.O_DIRECTORY
-		}
-		next, e := unix.Openat(int(f.Fd()), part, flags, 0)
-		_ = f.Close()
-		if e != nil {
-			if os.IsNotExist(e) {
-				return nil, os.ErrNotExist
-			}
-			return nil, problemf(ErrInvalid, "路径不可安全读取: %v", e)
-		}
-		f = os.NewFile(uintptr(next), full)
-	}
-	stat, err = f.Stat()
-	if err != nil {
-		_ = f.Close()
-		return nil, err
-	}
-	if stat.IsDir() && p != "" {
-		if boundary(int(f.Fd())) {
-			_ = f.Close()
-			return nil, problemf(ErrInvalid, "嵌套仓库边界不可遍历")
-		}
-	}
-	if !stat.IsDir() && !stat.Mode().IsRegular() {
-		_ = f.Close()
-		return nil, problemf(ErrInvalid, "不支持读取特殊文件或链接")
-	}
-	return f, nil
 }

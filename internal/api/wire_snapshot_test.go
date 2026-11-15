@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,12 +34,22 @@ import (
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/featureapi"
+	"github.com/rainchan/webmux/internal/featurewire"
+	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
+	"github.com/rainchan/webmux/internal/handoff"
+	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/settings"
+	"github.com/rainchan/webmux/internal/transport"
+	"github.com/rainchan/webmux/internal/workspace"
 )
 
 // The wire snapshots pin the JSON the browser's Zod contract
@@ -79,13 +90,53 @@ func wireSchema(name string) wireRules {
 	documentFields := func(prefix string) {
 		add(prefix, "path", "absolutePath")
 	}
+	taskBaselineFields := func(prefix string) {
+		add(prefix, "id", "baselineId", "repositoryId", "worktreeId")
+		add(prefix, "time", "capturedAt")
+		add(prefix, "path", "worktreePath")
+	}
 	switch name {
+	case "handoff-draft-empty", "handoff-draft-saved", "handoff-draft-delivery":
+		add("/source", "id", "id", "repositoryId", "worktreeId")
+		add("/source", "path", "cwd")
+		add("/preview", "id", "id", "sourceConversationId", "targetConversationId", "targetProviderThreadId", "configId", "selectedItemIds/*", "omittedItemIds/*")
+		add("/preview/location", "path", "cwd")
+		add("/preview/sourceLocation", "path", "cwd")
+		add("/delivery", "id", "executionId", "deliveryId", "handoffId", "sourceConversationId", "targetConversationId", "targetProviderThreadId", "sessionId")
+		add("/delivery", "time", "updatedAt")
+		if name == "handoff-draft-delivery" {
+			add("/preview", "emptyCoverage", "renderedText")
+		}
+	case "handoff-delivery-pending", "handoff-delivery-failed", "handoff-delivery-retry":
+		add("", "id", "executionId", "deliveryId", "handoffId", "sourceConversationId", "targetConversationId", "targetProviderThreadId", "sessionId")
+		add("", "time", "updatedAt")
+	case "handoff-selection-empty":
+		add("", "id", "sourceConversationId")
+	case "handoff-preview-empty", "handoff-preview-manual", "handoff-preview-get":
+		add("", "id", "id", "sourceConversationId", "targetConversationId", "targetProviderThreadId", "configId", "selectedItemIds/*", "omittedItemIds/*")
+		add("/location", "path", "cwd")
+		add("/sourceLocation", "path", "cwd")
+		if name == "handoff-preview-empty" {
+			add("", "emptyCoverage", "renderedText")
+		}
+	case "conversation-activities", "conversation-activities-empty":
+		add("/items/*", "id", "activityId", "conversationId", "providerThreadId", "runId")
+		add("/items/*", "time", "createdAt")
+		add("/items/*/attachments/*", "path", "reference")
+		add("/gaps/*", "id", "id", "providerThreadId")
+		add("/gaps/*", "time", "createdAt")
+	case "conversation-activity":
+		add("", "id", "activityId", "conversationId", "providerThreadId", "runId")
+		add("", "time", "createdAt")
+		add("/attachments/*", "path", "reference")
 	case "settings-patch", "settings-reset", "ws-settings-update":
 		add("", "time", "updatedAt")
 	case "session-agent-guide":
 		// The folder name holds the UID, a state directory hash and the
 		// session ID; the brief repeats it.
 		add("", "id", "dir", "prompt")
+	case "terminal-output":
+		add("", "id", "generation")
 	case "session-details":
 		sessionFields("/session")
 		add("/session", "path", "cmd/*")
@@ -95,6 +146,7 @@ func wireSchema(name string) wireRules {
 		"session-create-new-worktree", "session-create-new-worktree-retry":
 		sessionFields("/session")
 		add("/session", "path", "cmd/*")
+		add("/initialInput", "id", "turnId", "promptId", "itemId")
 		worktreeFields("/worktree")
 	case "session-get", "session-labels", "session-attention", "session-resize", "session-resize-take",
 		"ws-terminal-state", "ws-terminal-state-exited", "session-get-hybrid", "session-get-hybrid-work", "ws-terminal-state-hybrid", "hybrid-resume":
@@ -145,7 +197,7 @@ func wireSchema(name string) wireRules {
 		}
 	case "health":
 		// Host measurements differ on every machine and call.
-		add("", "hostStat", "load/one", "load/five", "load/fifteen", "memory/total", "memory/available")
+		add("", "hostStat", "load/one", "load/five", "load/fifteen", "memory/total", "memory/available", "swap/total", "swap/used")
 		add("", "hostCPUs", "load/cpus")
 	case "config":
 		add("", "path", "defaultCwd")
@@ -166,10 +218,20 @@ func wireSchema(name string) wireRules {
 		add("/*", "id", "id")
 		add("/*", "time", "createdAt", "updatedAt")
 		add("/*", "path", "cmd/*")
-	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction":
+	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction", "repository-register-git":
 		repositoryFields("")
 	case "repository-fetch":
+		add("", "id", "operationId")
 		repositoryFields("/repository")
+	case "project-clone-start", "project-clone-completed", "project-clone-repeat", "project-clone-register-repeat":
+		add("", "id", "id", "projectId")
+		add("", "path", "path")
+	case "project-create", "project-register-again":
+		add("", "id", "id", "repositoryId")
+		add("", "path", "path")
+	case "projects", "projects-empty":
+		add("/*", "id", "id", "repositoryId")
+		add("/*", "path", "path")
 	case "repositories", "repositories-empty":
 		repositoryFields("/*")
 	case "error-409-session-create-worktree":
@@ -201,7 +263,10 @@ func wireSchema(name string) wireRules {
 	case "branch-delete-preview":
 		add("", "id", "confirmationId")
 		add("", "time", "expiresAt")
-	case "branch-push", "branch-delete":
+	case "branch-push":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+	case "branch-delete":
 		repositoryFields("/repository")
 	case "worktree-usage":
 		// The linked worktree's .git file holds a temporary path.
@@ -244,6 +309,9 @@ func wireSchema(name string) wireRules {
 	case "code-check":
 		add("", "time", "checkedAt")
 		rules["/snapshots"] = "snapshotKeys"
+	case "chat-message-search":
+		add("/*", "id", "sessionId")
+		add("/*", "time", "at")
 	case "ws-chat-snapshot":
 		add("", "id", "generation")
 		add("/state", "id", "agentSessionId")
@@ -260,6 +328,153 @@ func wireSchema(name string) wireRules {
 		add("", "id", "id")
 	case "push-test":
 		add("", "id", "removed/*")
+	case "git-context-repo", "git-context-worktree":
+		add("", "id", "contextId")
+		add("", "path", "rootPath")
+	case "git-tree", "git-files":
+		add("", "time", "checkedAt")
+	case "git-file", "git-file-commit", "git-snapshot-file":
+		add("", "id", "snapshotId")
+		add("", "time", "checkedAt")
+		documentFields("/document")
+	case "git-changes":
+		add("", "id", "nextCursor")
+		add("", "time", "checkedAt")
+	case "git-diff", "git-task-diff", "git-stash-diff", "git-revision-diff":
+		add("", "id", "snapshotId")
+		add("", "time", "checkedAt")
+		documentFields("/old")
+		documentFields("/new")
+	case "git-compare":
+		add("/changes", "id", "nextCursor")
+		add("/changes", "time", "checkedAt")
+		add("/diff", "id", "snapshotId")
+		add("/diff", "time", "checkedAt")
+		documentFields("/diff/old")
+		documentFields("/diff/new")
+	case "git-history", "git-history-task", "git-history-no-baseline":
+		add("", "time", "lastFetchedAt")
+		add("/rows/*/refs/*", "id", "worktreeId")
+		taskBaselineFields("/taskBaseline")
+	case "git-task-baseline", "git-task-baseline-empty", "git-task-baseline-put":
+		taskBaselineFields("/baseline")
+	case "git-task-changes", "git-task-changes-no-baseline":
+		taskBaselineFields("/baseline")
+		add("/changes", "id", "nextCursor")
+		add("/changes", "time", "checkedAt")
+	case "git-reviews", "git-reviews-put":
+		add("/files/*", "time", "reviewedAt")
+	case "git-commit-draft-empty", "git-commit-draft-put":
+		add("", "id", "repositoryId", "worktreeId")
+		add("", "time", "updatedAt")
+	case "error-409-git-draft-conflict":
+		add("/currentDraft", "id", "repositoryId", "worktreeId")
+		add("/currentDraft", "time", "updatedAt")
+	case "git-commit-detail":
+		add("/refs/*", "id", "worktreeId")
+	case "git-commit-preview", "git-commit-preview-blocked", "git-commit-amend-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+	case "git-commit", "git-commit-amend":
+		add("", "id", "operationId")
+	case "git-operation":
+		add("", "id", "id", "repositoryId", "worktreeId", "confirmationId")
+		add("", "time", "startedAt", "finishedAt")
+		add("/preview", "path", "worktreePath")
+	case "git-operations":
+		add("/operations/*", "id", "id", "repositoryId", "worktreeId", "confirmationId")
+		add("/operations/*", "time", "startedAt", "finishedAt")
+		add("/operations/*/preview", "path", "worktreePath")
+	case "git-operation-state", "git-operation-state-idle":
+		add("", "id", "worktreeId")
+		add("", "path", "worktreePath")
+	case "git-merge-preview", "git-rebase-preview", "git-cherry-pick-preview", "git-cherry-pick-preview-2", "git-revert-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-abort-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-merge-conflicted", "git-cherry-pick-conflicted", "git-operation-continue", "git-operation-abort":
+		add("", "id", "operationId", "recoveryRef")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
+	case "git-conflict-detail":
+		add("", "id", "repositoryId", "worktreeId")
+		add("", "path", "worktreePath")
+	case "git-conflict-save":
+		// path and identity are deterministic once file bytes are fixed.
+	case "git-conflict-resolve":
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+	case "git-stashes":
+		add("/stashes/*", "time", "createdAt")
+	case "git-stash-detail":
+		add("/entry", "time", "createdAt")
+	case "git-stash-create-preview", "git-stash-apply-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		add("/entry", "time", "createdAt")
+		sessionFields("/sessions/*")
+	case "git-stash-create":
+		add("", "id", "operationId")
+		add("/entry", "time", "createdAt")
+		worktreeFields("/worktree")
+	case "git-stash-apply", "git-stash-pop":
+		add("", "id", "operationId")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
+	case "git-stash-drop-preview":
+		add("", "id", "confirmationId", "repositoryId")
+		add("", "time", "expiresAt")
+		add("/entry", "time", "createdAt")
+	case "git-stash-drop":
+		add("", "id", "operationId")
+		add("/stashes/*", "time", "createdAt")
+	case "git-branch-rename-preview":
+		add("", "id", "confirmationId", "repositoryId")
+		add("", "time", "expiresAt")
+		worktreeFields("/affectedWorktrees/*")
+		sessionFields("/sessions/*")
+	case "git-branch-rename", "git-branch-upstream":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+		add("/branches", "path", "defaultParent")
+		add("/branches/branches/*", "path", "worktreePaths/*")
+	case "git-tag-create", "git-tag-delete":
+		add("", "id", "operationId")
+		add("/tag", "time", "taggedAt")
+		add("/branches", "path", "defaultParent")
+		add("/branches/branches/*", "path", "worktreePaths/*")
+		add("/branches/tags/*", "time", "taggedAt")
+	case "git-remote-add", "git-remote-update", "git-remote-remove":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+	case "git-discard-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-discard":
+		add("", "id", "operationId", "recoveryOid", "recoveryRef", "recoveryCommand")
+		worktreeFields("/worktree")
+	case "git-smart-checkout-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		worktreeFields("/worktree")
+		sessionFields("/sessions/*")
+	case "git-smart-checkout":
+		add("", "id", "operationId", "stashOid", "recoveryCommand")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
 	}
 	return rules
 }
@@ -352,6 +567,9 @@ func withHostStats(v any) any {
 	if body["memory"] == nil {
 		body["memory"] = map[string]any{"total": 0.0, "available": 0.0}
 	}
+	if body["swap"] == nil {
+		body["swap"] = map[string]any{"total": 0.0, "used": 0.0}
+	}
 	return body
 }
 
@@ -404,6 +622,10 @@ func (n *wireNormalizer) value(rules wireRules, path string, v any) any {
 			if n.hostname != "" && v == n.hostname {
 				return "<hostname>"
 			}
+		case "emptyCoverage":
+			// This fixture has no history items: this field contains generated
+			// attribution only, never a user message or edited free-form context.
+			return regexp.MustCompile(`[a-f0-9]{32}`).ReplaceAllStringFunc(n.pathText(v), func(id string) string { return n.id("historyReference", id) })
 		case "path":
 			return n.pathText(v)
 		case "artifacts":
@@ -496,12 +718,55 @@ func lineDiff(want, got string) string {
 
 type wireFixture struct {
 	*wireRecorder
-	ctx      context.Context
-	server   *httptest.Server
-	manager  *session.Manager
-	hybrids  *hybrid.Service
-	launches *launch.Service
-	root     string
+	ctx           context.Context
+	server        *httptest.Server
+	manager       *session.Manager
+	hybrids       *hybrid.Service
+	launches      *launch.Service
+	conversations *conversation.Service
+	handoffs      *handoff.Service
+	root          string
+	projection    featurewire.Projection
+	metadataMu    sync.RWMutex
+	metadataID    string
+	metadata      *hybrid.Metadata
+}
+
+// The synthetic shell below pins transient states independently of provider
+// scheduling, while using the same feature-owned metadata and converter as live
+// chat sessions. All other sessions use the real service projection.
+func (f *wireFixture) project(info session.Info) contract.SessionInfo {
+	out := f.projection.Session(info)
+	if metadata := f.chatMetadata(info.ID); metadata != nil {
+		featurewire.ProjectChat(&out, metadata)
+	}
+	return out
+}
+
+func (f *wireFixture) chatMetadata(id string) *hybrid.Metadata {
+	f.metadataMu.RLock()
+	defer f.metadataMu.RUnlock()
+	if id == f.metadataID {
+		return f.metadata
+	}
+	return nil
+}
+
+func (f *wireFixture) terminal(id string) (bool, string) {
+	if metadata := f.chatMetadata(id); metadata != nil {
+		if metadata.To != "" {
+			return false, string(featurewire.View(metadata.To))
+		}
+		return metadata.Side == string(hybrid.SideTUI), string(featurewire.View(metadata.Side))
+	}
+	return f.projection.Terminal(id)
+}
+
+func (f *wireFixture) setChatMetadata(id string, metadata hybrid.Metadata) {
+	f.metadataMu.Lock()
+	f.metadataID, f.metadata = id, &metadata
+	f.metadataMu.Unlock()
+	f.manager.Notify(id)
 }
 
 // newWireFixture runs every service the router serves, against a Git
@@ -541,7 +806,7 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"init", "-b", "main"}, {"add", "."}, {"commit", "-m", "initial"}} {
-		if out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
+		if out, err := testCommandOutput(exec.Command("git", append([]string{"-C", root}, args...)...)); err != nil {
 			t.Fatalf("Git fixture: %v %s", err, out)
 		}
 	}
@@ -587,21 +852,37 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	folders.Start(func(string) bool { return false })
 	t.Cleanup(folders.Close)
 	codes := codeview.New(m, folders)
-	public := &PublicOrigins{}
+	public := &transport.PublicOrigins{}
 	if err := public.Set("cloudflare", "https://abc.trycloudflare.com"); err != nil {
 		t.Fatal(err)
 	}
 	if err := public.Set("tailscale", "https://node.tailnet.ts.net:8443"); err != nil {
 		t.Fatal(err)
 	}
+	conversations := conversation.Open(conversation.Options{StateDir: t.TempDir()})
+	if err := conversations.Unavailable(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conversations.Close() })
 	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: m, Uploads: folders.UploadPath})
 	forwards := forward.New(forward.Config{ExcludePorts: []int{7681}, Reachable: func(context.Context, int) bool { return false }})
 	t.Cleanup(forwards.Close)
 	guide := &agentguide.Instance{Version: "wire", LocalURL: "http://127.0.0.1:7681", Bin: "/opt/webmux/bin/webmux"}
 	guide.SetSocket("/run/user/1000/webmux/webmux.sock")
-	deps := Deps{Config: c, Manager: m, Public: public, Push: pushes, Launch: launches, Code: codes, Settings: prefs, Hybrid: hybrids, Artifacts: folders, Forward: forwards, DefaultShell: agentprofile.ShellBash, Guide: guide}
-	deps.InstalledVersion, deps.Launcher = func() string { return "0.5.0" }, contract.LauncherSystemd
-	server := httptest.NewServer(New(testDeps(t, deps)))
+	workspaces := workspace.New(t.TempDir(), m, launches, root)
+	workspaces.UseHybrid(hybrids)
+	t.Cleanup(workspaces.Close)
+	codes.UseWorkspace(workspaces)
+	recovery := hybridresume.New(hybrids, launches, hybridresume.Options{DefaultCwd: root, Creation: hybrids.Creation(), Locations: workspaces, ResumeLocations: workspaces})
+	handoffs := handoff.New(handoff.Options{Creation: hybrids.Creation(), Recovery: recovery, Locations: workspaces, Conversations: conversations, Launch: launches, Hybrid: hybrids, Artifacts: folders, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
+	t.Cleanup(handoffs.Close)
+	f := &wireFixture{wireRecorder: rec, manager: m, hybrids: hybrids, launches: launches, conversations: conversations, handoffs: handoffs, root: root, projection: featurewire.Projection{Workspace: workspaces, Chat: hybrids, Forward: forwards}}
+	controllers := featureapi.Bind(featureapi.Deps{Config: c, Manager: m, Settings: prefs, Workspace: workspaces, Code: codes, Files: files.New(root), Artifacts: folders, Handoffs: handoffs, Conversations: conversations, Push: pushes, Launch: launches, Hybrid: hybrids, Resume: recovery, Forward: forwards, Guide: guide, Public: public, ProjectSession: f.project})
+	creation := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: root, Commands: launches, Locations: workspaces, Files: folders, Chat: hybrids.Creation(), Brief: func(id, dir string) string {
+		return guide.Brief(agentguide.BriefInput{SessionID: id, Dir: dir})
+	}})
+	core := Deps{Config: c, Manager: m, Settings: prefs, Create: creation, Sessions: controllers, Contributions: controllers.Contributions(), ProjectSession: f.project, SessionProjection: hub.Options{Project: f.project, Terminal: f.terminal, SubscribeForwards: f.projection.SubscribeForwards, Forwards: f.projection.Forwards}, EnrichDetails: controllers.EnrichDetails, KeepSessionPin: controllers.KeepSessionPin, EnrichConfig: controllers.EnrichConfig, Renamed: controllers.Renamed, DefaultShell: agentprofile.ShellBash, Public: public, Guide: guide, InstalledVersion: func() string { return "0.5.0" }, Launcher: contract.LauncherSystemd}
+	server := httptest.NewServer(New(core))
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(func() {
 		cancel()
@@ -615,7 +896,8 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 		m.Shutdown(shutdown)
 	})
 	rec.norm.path(strings.TrimPrefix(server.URL, "http://"), "<server>")
-	return &wireFixture{wireRecorder: rec, ctx: ctx, server: server, manager: m, hybrids: hybrids, launches: launches, root: root}
+	f.ctx, f.server = ctx, server
+	return f
 }
 
 type wireRequest struct {
@@ -735,7 +1017,7 @@ func (f *wireFixture) send(conn *websocket.Conn, kind byte, p []byte) {
 // git changes the fixture repository outside the API.
 func (f *wireFixture) git(args ...string) {
 	f.t.Helper()
-	if out, err := exec.Command("git", append([]string{"-C", f.root}, args...)...).CombinedOutput(); err != nil {
+	if out, err := testCommandOutput(exec.Command("git", append([]string{"-C", f.root}, args...)...)); err != nil {
 		f.t.Fatalf("Git fixture %v: %v %s", args, err, out)
 	}
 }
@@ -744,11 +1026,13 @@ func (f *wireFixture) git(args ...string) {
 // newline.
 func (f *wireFixture) gitOutput(args ...string) string {
 	f.t.Helper()
-	out, err := exec.Command("git", append([]string{"-C", f.root}, args...)...).Output()
+	cmd := exec.Command("git", append([]string{"-C", f.root}, args...)...)
+	cmd.Stderr = io.Discard
+	out, err := testCommandOutput(cmd)
 	if err != nil {
 		f.t.Fatalf("Git fixture %v: %v", args, err)
 	}
-	return strings.TrimSuffix(string(out), "\n")
+	return strings.TrimSuffix(out, "\n")
 }
 
 func withHost(host string) func(*wireRequest) { return func(r *wireRequest) { r.host = host } }
@@ -795,18 +1079,46 @@ func TestWireSnapshots(t *testing.T) {
 		{"basics-errors-fs-upload", wireBasics},
 		{"launch", wireLaunch},
 		{"workspace", wireWorkspace},
+		{"projects", wireProjects},
+		{"projects-clone", wireProjectClones},
+		{"projects-github", wireProjectGitHub},
 		{"codeview", wireCodeview},
 		{"push", wirePush},
 		{"settings", wireSettings},
 		{"hybrid", wireHybrid},
 		{"hybrid-records", wireHybridRecords},
+		{"conversation-history", wireConversationHistory},
+		{"handoff-previews", wireHandoffPreviews},
+		{"handoff-deliveries", wireHandoffDeliveries},
 		{"release", wireRelease},
 		{"forwards", wireForwards},
 		{"quick-start", wireQuickStart},
+		{"git-workbench", wireGitWorkbench},
 	} {
 		t.Run(group.name, func(t *testing.T) {
+			if group.name == "projects-clone" {
+				installWireProjectCloneGit(t)
+			}
+			if group.name == "projects-github" {
+				installWireProjectGitHub(t)
+			}
 			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 			group.run(newWireFixture(t, rec))
+		})
+	}
+}
+
+func TestWireSnapshotsHandoffDeliveryRoots(t *testing.T) {
+	base := t.TempDir()
+	for _, name := range []string{"short", "a-much-longer-temporary-root-for-handoff-delivery"} {
+		t.Run(name, func(t *testing.T) {
+			root := filepath.Join(base, name)
+			if err := os.Mkdir(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("TMPDIR", root)
+			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
+			wireHandoffDeliveries(newWireFixture(t, rec))
 		})
 	}
 }
@@ -919,6 +1231,7 @@ func wireSessions(f *wireFixture) {
 	f.call("sessions-list", "GET", "/api/sessions", nil, 200)
 	f.call("error-400-sessions-list-state", "GET", "/api/sessions?state=recoverable", nil, 400)
 	f.call("session-get", "GET", "/api/sessions/"+runningID, nil, 200)
+	f.call("terminal-output", "GET", "/api/sessions/"+runningID+"/output?maxBytes=1", nil, 200)
 	cat := f.call("session-create-cat", "POST", "/api/sessions", map[string]any{"cmd": []string{"/bin/cat"}, "name": "cat"}, 201)
 	catID := str(field(cat, "session"), "id")
 	f.call("session-input", "POST", "/api/sessions/"+catID+"/input", contract.SessionInputRequest{ClientRequestID: "wire-input-1", Text: "echo hi", Submit: true}, 200)
@@ -1055,7 +1368,7 @@ func wireBasics(f *wireFixture) {
 	oversized.Host = strings.TrimPrefix(f.server.URL, "http://")
 	oversized.Header.Set("Authorization", "Bearer secret")
 	oversized.Header.Set("Content-Type", "multipart/form-data; boundary=x")
-	oversized.ContentLength = maxUploadBodyBytes + 1
+	oversized.ContentLength = 101<<20 + 1
 	tooLarge := httptest.NewRecorder()
 	f.server.Config.Handler.ServeHTTP(tooLarge, oversized)
 	f.record("error-413-upload", tooLarge.Code, tooLarge.Body.Bytes())
@@ -1244,7 +1557,7 @@ func TestWireSnapshotsUnavailableServices(t *testing.T) {
 	rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	handler := New(testDeps(t, Deps{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
+	handler := New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
 	for _, row := range []struct {
 		name, method, path, body string
 		want                     int
@@ -1292,13 +1605,14 @@ func wireHybrid(f *wireFixture) {
 		f.t.Fatal(err)
 	}
 	id := item.Info().ID
-	item.SetOverlay(&session.Overlay{Hybrid: &session.HybridInfo{Side: "tui", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi"}})
+	f.setChatMetadata(id, hybrid.Metadata{Side: "tui", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi"})
 	f.call("session-get-hybrid", "GET", "/api/sessions/"+id, nil, 200)
 
 	terminal := f.dial("/ws/s/" + id + "?client=wire-client-1&label=Wire")
 	f.frame(terminal, "ws-terminal-state-hybrid", 2, nil)
 	agentSessionID := "ses_wire"
-	item.SetOverlay(&session.Overlay{Hybrid: &session.HybridInfo{Side: "acp", Phase: "loading", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi", AgentSessionID: &agentSessionID, Work: "读取 internal/wire/wire.go"}})
+	f.setChatMetadata(id, hybrid.Metadata{Side: "acp", Phase: "loading", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi", AgentSessionID: &agentSessionID, Work: "读取 internal/wire/wire.go"})
+	item.SetOverlay(&session.Overlay{Destination: "chat"})
 	f.call("session-get-hybrid-work", "GET", "/api/sessions/"+id, nil, 200)
 	if err := item.EndRun(f.ctx); err != nil {
 		f.t.Fatal(err)
@@ -1330,6 +1644,9 @@ func wireChat(f *wireFixture) {
 		items, _ := e["items"].([]any)
 		return e["type"] == contract.ChatFrameEvents && len(items) > 0 && str(items[0], "kind") == contract.ChatEventTurnStart
 	})
+	f.call("chat-message-search", "GET", "/api/chat/search?q=hello", nil, 200)
+	f.call("error-400-chat-search-short", "GET", "/api/chat/search?q=a", nil, 400)
+	f.call("error-400-chat-search-long", "GET", "/api/chat/search?q="+strings.Repeat("a", 121), nil, 400)
 	f.call("chat-prompt-queued", "POST", "/api/sessions/"+id+"/input", contract.SessionInputRequest{ClientRequestID: "wire-prompt-2", Text: "later"}, 200)
 	f.event(conn, "ws-chat-state", func(e map[string]any) bool {
 		state, _ := e["state"].(map[string]any)
@@ -1356,7 +1673,7 @@ func wireChat(f *wireFixture) {
 	// omp reports its session at start but saves it with the first
 	// message: the switch is refused as not listed.
 	deadline := time.Now().Add(chatTimeout)
-	for terminal.Info().Hybrid.AgentSessionID == nil {
+	for f.hybrids.Metadata(terminal.Info().ID).AgentSessionID == nil {
 		if time.Now().After(deadline) {
 			f.t.Fatal("terminal reported no agent session")
 		}
@@ -1400,9 +1717,14 @@ func wireHybridRecords(f *wireFixture) {
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	id, sid := item.Info().ID, *item.Info().Hybrid.AgentSessionID
-	// The record keeps the worktree the session belonged to when it closed.
-	f.manager.SetWorkspace(id, item.Info().Cwd, &session.Workspace{RepositoryID: "repo0001", WorktreeID: "tree0001", WorktreePath: item.Info().Cwd})
+	id, sid := item.Info().ID, *f.hybrids.Metadata(item.Info().ID).AgentSessionID
+	// The record captures its association through the workspace feature port.
+	f.hybrids.SetWorkspaceSource(func(current string) *hybrid.WorkspaceRef {
+		if current != id {
+			return nil
+		}
+		return &hybrid.WorkspaceRef{RepositoryID: "repo0001", WorktreeID: "tree0001"}
+	})
 	closeShell := func() {
 		if err := f.manager.Close(id); err != nil {
 			f.t.Fatal(err)
@@ -1521,4 +1843,109 @@ func (f *wireFixture) closed(conn *websocket.Conn, name string) {
 		f.record(name, 0, data)
 		return
 	}
+}
+
+func wireConversationHistory(f *wireFixture) {
+	b, err := f.conversations.EnsureRuntime(f.ctx, conversation.RuntimeInput{RuntimeID: "archived", Cwd: f.root, AgentName: "test", Status: "closed", HistoryOrigin: "unknown"})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	r, err := f.conversations.StartRun(f.ctx, b.ProviderThreadID, "wire-prompt")
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	id, err := f.conversations.WriteActivity(f.ctx, conversation.ActivityInput{ProviderThreadID: b.ProviderThreadID, RunID: r.ID, LocalKey: r.ID, ProviderItemID: "native-user", Kind: "message", Role: "user", Status: "completed", Source: "local", Text: "中文🙂: complete history", Attachments: []conversation.ActivityAttachment{{Name: "a.txt", MimeType: "text/plain", Reference: f.root + "/a.txt", Size: 12}}})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	if err := f.conversations.FinishRun(f.ctx, r.ID, "end_turn"); err != nil {
+		f.t.Fatal(err)
+	}
+	if err := f.conversations.AddGap(f.ctx, b.ProviderThreadID, "tui"); err != nil {
+		f.t.Fatal(err)
+	}
+	base := "/api/conversations/" + b.ConversationID + "/activities"
+	f.call("conversation-activities", "GET", base+"?maxBytesPerItem=7", nil, 200)
+	f.call("conversation-activity", "GET", base+"/"+id+"?textOffset=6&maxBytes=4", nil, 200)
+	f.call("conversation-activities-empty", "GET", base+"?afterPosition=1", nil, 200)
+}
+
+func wireHandoffPreviews(f *wireFixture) {
+	f.norm.path("/wire/source", "<history-source>")
+	source, err := f.conversations.EnsureRuntime(f.ctx, conversation.RuntimeInput{RuntimeID: "empty-source", Cwd: "/wire/source", AgentName: "omp", Status: "closed", HistoryOrigin: "complete"})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	cfg, err := f.launches.Create(launch.Input{Name: "preview target", Cmd: []string{"omp"}, Hybrid: true})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.draft("handoff-draft-empty", source.ConversationID)
+	request := contract.HandoffPreviewRequest{ClientRequestID: "wire-preview", ConfigID: cfg.ID, UserText: "new user request", Fork: true}
+	created := f.call("handoff-preview-empty", "POST", "/api/conversations/"+source.ConversationID+"/handoff-previews", request, 201)
+	if selected, ok := field(created, "selectedItemIds").([]any); !ok || len(selected) != 0 {
+		f.t.Fatal("generated coverage normalizer requires an empty source")
+	}
+	id := str(created, "id")
+	f.call("handoff-preview-manual", "PATCH", "/api/handoffs/"+id, contract.HandoffEditRequest{Revision: 1, Text: new("manual context 中文🙂")}, 200)
+	f.call("handoff-preview-get", "GET", "/api/handoffs/"+id, nil, 200)
+	f.draft("handoff-draft-saved", source.ConversationID)
+	f.call("handoff-selection-empty", "GET", "/api/handoffs/"+id+"/selection", nil, 200)
+	f.call("handoff-preview-conflict", "PATCH", "/api/handoffs/"+id, contract.HandoffEditRequest{Revision: 1, Text: new("stale editor")}, 409)
+}
+
+func wireHandoffDeliveries(f *wireFixture) {
+	// Historical attribution is serialized into the coverage budget. Keep it
+	// fixed, as in wireHandoffPreviews, and use the real temporary repository
+	// only as the separately configured target working location.
+	source, err := f.conversations.EnsureRuntime(f.ctx, conversation.RuntimeInput{RuntimeID: "delivery-source", Cwd: "/wire/source", AgentName: "omp", Status: "closed", HistoryOrigin: "complete"})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	cfg, err := f.launches.Create(launch.Input{Name: "missing target", Cmd: []string{"/nonexistent/webmux-test/omp"}, Hybrid: true})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	p, err := f.handoffs.Preview(f.ctx, source.ConversationID, handoff.Request{ClientRequestID: "wire-preview", ConfigID: cfg.ID, Fork: true, UserText: "new request", Location: conversation.PreviewLocation{Cwd: f.root}})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	encoded, err := json.Marshal(p.RenderedText)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	if p.Budget.Used < int64(len(encoded)) || p.Budget.Used > p.Budget.History || p.Budget.OverBudget {
+		f.t.Fatalf("coverage does not fit its actual serialized budget: %+v, text bytes %d", p.Budget, len(encoded))
+	}
+	if !strings.Contains(p.RenderedText, `cwd="/wire/source"`) || strings.Contains(p.RenderedText, f.root) || p.Request.Location.Cwd != f.root {
+		f.t.Fatal("historical attribution and target working location were not kept separate")
+	}
+	input := contract.ConversationMessageRequest{ClientRequestID: "wire-message", HandoffID: p.ID, Revision: 1, Text: p.Request.UserText, ConfigID: cfg.ID, AgentConfig: p.Request.AgentConfig, Location: contract.HandoffLocation(p.Request.Location), Attachments: []contract.ChatAttachment{}}
+	path := "/api/conversations/" + source.ConversationID + "/messages"
+	f.call("handoff-delivery-pending", "POST", path, input, 202)
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		e, err := f.handoffs.Delivery(f.ctx, p.ID)
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		if e.Status == "failed" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	f.call("handoff-delivery-failed", "GET", "/api/handoffs/"+p.ID+"/delivery", nil, 200)
+	f.draft("handoff-draft-delivery", source.ConversationID)
+	f.call("handoff-delivery-retry", "POST", path, input, 202)
+}
+
+// Draft discovery has its own identity namespace so adding these captures does
+// not rename IDs in the existing preview and delivery snapshots.
+func (f *wireFixture) draft(name, conversationID string) {
+	previous := f.norm
+	f.norm = newWireNormalizer()
+	f.norm.path(f.root, "<root>")
+	f.norm.path("/wire/source", "<history-source>")
+	defer func() { f.norm = previous }()
+	f.call(name, "GET", "/api/conversations/"+conversationID+"/handoff-previews?fork=1", nil, 200)
 }

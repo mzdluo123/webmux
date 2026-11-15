@@ -9,14 +9,19 @@
   } from "../../contracts/schemas";
   import { errorMessage } from "../../platform/error";
   import type { LaunchConfigsState } from "../../domains/settings/launch-configs";
-  import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
-  import { setPinned } from "../../domains/workspace/home-worktrees";
+  import type { TerminalFeatures } from "../../features/terminal";
+  import {
+    featureAvailable,
+    featureEnabled,
+  } from "../../platform/feature-host.svelte";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
   import SplitSessionDialog from "./SplitSessionDialog.svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import LazyDialog from "../shared/LazyDialog.svelte";
 
   let {
     choosing = $bindable(false),
+    features,
     creating = $bindable<SessionInfo | null>(null),
     forwarding = $bindable(false),
     excluded,
@@ -25,10 +30,11 @@
     oncreated,
   }: {
     choosing: boolean;
+    features: TerminalFeatures;
     creating: SessionInfo | null;
     forwarding: boolean;
     excluded: string[];
-    feedSessions: SessionInfo[];
+    feedSessions: readonly SessionInfo[];
     onselect: (sessionId: string, direction: SplitDirection) => void;
     oncreated: (
       session: SessionInfo,
@@ -54,34 +60,38 @@
     repositories = [];
     const controller = new AbortController();
     creationController = controller;
-    void api(
-      "/launch-configs",
-      LaunchConfigsSchema,
-      "GET",
-      undefined,
-      controller.signal,
-    )
-      .then((configs) => {
-        if (!controller.signal.aborted)
-          launchConfigs = { status: "ready", configs };
-      })
-      .catch((err) => {
-        if (!controller.signal.aborted)
-          launchConfigs = { status: "unavailable", error: errorMessage(err) };
-      });
-    void api(
-      "/repositories",
-      RepositoriesSchema,
-      "GET",
-      undefined,
-      controller.signal,
-    )
-      .then((result) => {
-        if (!controller.signal.aborted) repositories = result;
-      })
-      .catch(() => {
-        // The current launch directory remains usable without Git management.
-      });
+    if (featureEnabled("launch") && featureAvailable("launch.configs")) {
+      void api(
+        "/launch-configs",
+        LaunchConfigsSchema,
+        "GET",
+        undefined,
+        controller.signal,
+      )
+        .then((configs) => {
+          if (!controller.signal.aborted)
+            launchConfigs = { status: "ready", configs };
+        })
+        .catch((err) => {
+          if (!controller.signal.aborted)
+            launchConfigs = { status: "unavailable", error: errorMessage(err) };
+        });
+    } else launchConfigs = { status: "ready", configs: [] };
+    if (features.workspace) {
+      void api(
+        "/repositories",
+        RepositoriesSchema,
+        "GET",
+        undefined,
+        controller.signal,
+      )
+        .then((result) => {
+          if (!controller.signal.aborted) repositories = result;
+        })
+        .catch(() => {
+          // The current launch directory remains usable without Git management.
+        });
+    }
     return () => controller.abort();
   });
 </script>
@@ -99,7 +109,7 @@
   {@const target = creating}
   <LazyDialog
     load={() => import("../sessions/NewSessionDialog.svelte")}
-    label="创建表单"
+    label={m.s4_create_session_form()}
     onclose={closeCreation}
   >
     {#snippet children(page)}<page.default
@@ -131,8 +141,13 @@
             (item) => item.id === tree.repositoryId,
           );
           if (repo)
-            homeWorktrees.save(
-              setPinned(homeWorktrees.value, repo, [tree.id], true),
+            features.workspace?.homeWorktrees.save(
+              features.workspace.setPinned(
+                features.workspace.homeWorktrees.value,
+                repo,
+                [tree.id],
+                true,
+              ),
             );
         }}
         onworktreeremoved={(tree) => {
@@ -157,10 +172,10 @@
   </LazyDialog>
 {/if}
 <!-- Opened from a port prompt, so this server detects listening ports. -->
-{#if forwarding}
+{#if features.forward && forwarding}
   <LazyDialog
     onclose={() => (forwarding = false)}
-    label="端口转发"
+    label={m.s4_port_forwarding()}
     load={() => import("../workspace/ForwardDialog.svelte")}
   >
     {#snippet children(Dialog)}<Dialog.default

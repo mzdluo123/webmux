@@ -2,6 +2,7 @@
   import { tick } from "svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+  import { m } from "$lib/paraglide/messages.js";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconCopy from "~icons/tabler/copy";
@@ -94,7 +95,7 @@
 {#if open}
   <form
     role="search"
-    aria-label="查找终端输出"
+    aria-label={m.s4_find_terminal_output()}
     class="absolute inset-x-2 top-2 z-20 rounded-md border bg-popover p-2 text-popover-foreground shadow-md"
     onsubmit={(event) => event.preventDefault()}
     use:findKeys
@@ -103,9 +104,9 @@
       <Input
         bind:ref={input}
         value={query}
-        aria-label="查找终端输出"
+        aria-label={m.s4_find_terminal_output()}
         aria-invalid={!!error}
-        placeholder="查找终端输出"
+        placeholder={m.s4_find_terminal_output()}
         class="min-w-24 flex-1"
         autocapitalize="off"
         autocorrect="off"
@@ -122,7 +123,7 @@
         }}
       />
       <div class="flex flex-wrap items-center gap-1">
-        {#each [{ key: "caseSensitive", label: "区分大小写", text: "Aa" }, { key: "wholeWord", label: "全词匹配", text: "W" }, { key: "regex", label: "正则表达式", text: ".*" }] as const as option (option.key)}
+        {#each [{ key: "caseSensitive", label: m.s4_find_case_sensitive(), text: "Aa" }, { key: "wholeWord", label: m.s4_find_whole_word(), text: "W" }, { key: "regex", label: m.s4_find_regex(), text: ".*" }] as const as option (option.key)}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -133,12 +134,15 @@
             ><span class="font-mono text-xs">{option.text}</span></Button
           >
         {/each}
-        {#each [{ previous: true, label: "上一个匹配", shortcut: "Shift+Enter", icon: IconArrowUp }, { previous: false, label: "下一个匹配", shortcut: "Enter", icon: IconArrowDown }] as direction (direction.label)}
+        {#each [{ previous: true, label: m.s4_find_prev_match(), shortcut: "Shift+Enter", icon: IconArrowUp }, { previous: false, label: m.s4_find_next_match(), shortcut: "Enter", icon: IconArrowDown }] as direction (direction.shortcut)}
           <Button
             variant="ghost"
             size="icon-sm"
             aria-label={direction.label}
-            title={`${direction.label}（${direction.shortcut}）`}
+            title={m.s4_find_match_with_shortcut({
+              label: direction.label,
+              shortcut: direction.shortcut,
+            })}
             {disabled}
             onclick={() => search(direction.previous)}
             ><direction.icon aria-hidden="true" /></Button
@@ -147,8 +151,8 @@
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="复制选中"
-          title="复制选中"
+          aria-label={m.s4_copy_selection()}
+          title={m.s4_copy_selection()}
           disabled={!t.selection}
           onclick={() => t.copySelection()}
           ><IconCopy aria-hidden="true" /></Button
@@ -156,8 +160,8 @@
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="关闭查找"
-          title="关闭查找（Esc）"
+          aria-label={m.s4_close_find()}
+          title={m.s4_close_find_with_shortcut()}
           onclick={onclose}><IconX aria-hidden="true" /></Button
         >
       </div>
@@ -165,7 +169,7 @@
     <div
       role="status"
       aria-live="polite"
-      aria-label="查找结果"
+      aria-label={m.s4_find_results_aria()}
       class="mt-1 text-xs"
       class:text-destructive={!!error}
     >

@@ -1,6 +1,7 @@
 <script lang="ts">
   import IconSearch from "~icons/tabler/search";
   import { Button, type ButtonSize } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import {
     findSessionSwitcher,
     sessionSwitcherKeyLabel,
@@ -15,10 +16,12 @@
   <Button
     variant="ghost"
     {size}
-    aria-label="快速切换会话"
+    aria-label={m.s1_quick_switch_session()}
     aria-haspopup="dialog"
     aria-keyshortcuts={sessionSwitcherKeys}
-    title={`快速切换会话（${sessionSwitcherKeyLabel}）`}
+    title={m.s1_quick_switch_session_shortcut({
+      shortcut: sessionSwitcherKeyLabel,
+    })}
     onclick={(event) => open(event.currentTarget)}
   >
     <IconSearch aria-hidden="true" />

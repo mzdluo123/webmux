@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
+  import { horizontalWheel } from "../../hooks/shared/horizontal-wheel";
   import type { Snippet } from "svelte";
   import type { ButtonSize, ButtonVariant } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -6,6 +8,7 @@
   import type { TimelineEntry } from "../../domains/chat/chat-model";
   import { errorMessage } from "../../platform/error";
   import { useTextareaDraft } from "../../hooks/terminal/textarea-draft.svelte";
+  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
   import type {
     ChatCommand,
@@ -26,6 +29,7 @@
   import ComposerCard from "./ComposerCard.svelte";
   import UsageRing from "./UsageRing.svelte";
 
+  import { editDraftKey } from "../../domains/terminal/draft-key";
   // The chat input. Its text is the session's draft, saved on this device
   // like the terminal draft. Sending while a turn runs queues on the server;
   // Ctrl/Cmd+Enter injects into the running turn when the agent takes it, and
@@ -102,6 +106,23 @@
   const menuOpen = $derived(
     !disabled && matches.length > 0 && menuDismissed !== draft.text,
   );
+  $effect(() => {
+    if (!tvMode.enabled) return;
+    const dismiss = (event: Event) => {
+      if (
+        event instanceof CustomEvent &&
+        !event.defaultPrevented &&
+        event.detail === "capture" &&
+        menuOpen &&
+        document.activeElement === textarea
+      ) {
+        event.preventDefault();
+        menuDismissed = draft.text;
+      }
+    };
+    window.addEventListener("webmux:tv-back", dismiss);
+    return () => window.removeEventListener("webmux:tv-back", dismiss);
+  });
   const active = $derived(Math.min(highlighted, matches.length - 1));
 
   async function submit(mode: "auto" | "steer") {
@@ -126,6 +147,13 @@
     } finally {
       sending = false;
     }
+  }
+  export function editKey(input: string) {
+    if (selection.composing || disabled || sending) return;
+    editDraftKey(draft, drafts, input);
+  }
+  export function submitDraft() {
+    void submit("auto");
   }
   function pick(command: ChatCommand) {
     recalledId = "";
@@ -254,11 +282,11 @@
   }}
   placeholder={unavailable ||
     (locked
-      ? "草稿正在提交到终端，确认结果前不能编辑"
+      ? m.s3_composer_locked_placeholder()
       : queueing
-        ? "继续输入，发送后加入排队"
-        : "给 Agent 发消息，输入 / 查看命令")}
-  label="消息"
+        ? m.s3_composer_queue_placeholder()
+        : m.s3_composer_default_placeholder())}
+  label={m.s3_composer_message_label()}
   {disabled}
   {uploads}
   uploadsDisabled={sending}
@@ -268,20 +296,21 @@
   action={stopping
     ? {
         kind: "stop",
-        label: "停止",
-        title: "停止当前回合",
+        label: m.s3_composer_stop(),
+        title: m.s3_composer_stop_turn_title(),
         disabled: !!unavailable,
         onclick: stop,
       }
     : {
         kind: "send",
-        label: queueing ? "加入排队" : "发送",
+        label: queueing ? m.s3_composer_enqueue() : m.s3_composer_send(),
         disabled: disabled || !ready || sending || uploading,
         onclick: () => submit("auto"),
       }}
   textareaProps={{
     "aria-controls": menuOpen ? "chat-commands" : undefined,
     "aria-expanded": menuOpen,
+    "data-tv-native-keys": "",
     ...selection.selectionProps,
     onkeydown: keydown,
   }}
@@ -301,7 +330,7 @@
         id="chat-commands"
         class="max-h-52 overflow-y-auto border-b p-1"
         role="listbox"
-        aria-label="命令"
+        aria-label={m.s3_composer_commands_label()}
       >
         {#each matches as command, i (command.name)}
           <ListButton
@@ -328,7 +357,7 @@
   {#snippet notices()}
     {#if imageDegraded}
       <p class="border-b px-3 py-1.5 text-xs text-warning" role="status">
-        该 agent 不支持图片，图片将按服务器路径发送。
+        {m.s3_composer_image_degraded()}
       </p>
     {/if}
   {/snippet}
@@ -355,8 +384,9 @@
          keep their width. On mobile the sheet lists the options. -->
     <div
       class="-my-1 flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto px-1 py-1 [scrollbar-width:none] *:shrink-0 composer-mobile:hidden"
+      use:horizontalWheel
       role="toolbar"
-      aria-label="会话选项"
+      aria-label={m.s3_session_options()}
     >
       <ChatPermissionMode
         mode={chat.permissionMode}

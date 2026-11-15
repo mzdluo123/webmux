@@ -8,6 +8,7 @@
   import * as Collapsible from "$lib/components/ui/collapsible";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import * as Item from "$lib/components/ui/item";
+  import { m } from "$lib/paraglide/messages.js";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import HybridRecordHints from "./HybridRecordHints.svelte";
   import HybridResumeActions from "./HybridResumeActions.svelte";
@@ -73,10 +74,12 @@
       record.archive.interruptedAt ?? record.archive.updatedAt,
     );
     const seconds = Math.max(0, Math.floor((archive.now - at) / 1000));
-    if (seconds < 60) return "刚刚";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`;
-    return `${Math.floor(seconds / 86400)} 天前`;
+    if (seconds < 60) return m.s3_rel_just_now();
+    if (seconds < 3600)
+      return m.s3_rel_minutes_ago({ count: String(Math.floor(seconds / 60)) });
+    if (seconds < 86400)
+      return m.s3_rel_hours_ago({ count: String(Math.floor(seconds / 3600)) });
+    return m.s3_rel_days_ago({ count: String(Math.floor(seconds / 86400)) });
   }
 
   async function confirmRemove() {
@@ -88,7 +91,10 @@
     try {
       await archive.remove(record.id);
     } catch (err) {
-      error = `无法删除“${recordTitle(record)}”的记录：${errorMessage(err)}`;
+      error = m.s3_archived_remove_failed({
+        title: recordTitle(record),
+        error: errorMessage(err),
+      });
     } finally {
       busy = "";
     }
@@ -97,7 +103,7 @@
 
 <section
   class="min-w-0"
-  aria-label={`${title} 的已归档会话`}
+  aria-label={m.s3_archived_section_label({ title })}
   hidden={!records.length}
 >
   <Collapsible.Root
@@ -117,12 +123,17 @@
               aria-hidden="true"
               class={open ? "" : "-rotate-90"}
             />
-            <span class="font-medium text-muted-foreground">已归档</span>
+            <span class="font-medium text-muted-foreground"
+              >{m.s3_archived()}</span
+            >
             <Badge variant="secondary">{records.length}</Badge>
           </Button>
         {/snippet}
       </Collapsible.Trigger>
-      {#if interrupted}<Badge variant="warning">{interrupted} 条已中断</Badge
+      {#if interrupted}<Badge variant="warning"
+          >{m.s3_archived_interrupted_count({
+            count: String(interrupted),
+          })}</Badge
         >{/if}
     </div>
     <!-- Mounted while closed and hidden by hand, like the repository groups:
@@ -136,6 +147,10 @@
       {#if error}<InlineNotice tone="danger">{error}</InlineNotice>{/if}
       {#each shown as record (record.id)}
         {@const removableWorktree = record.released ? undefined : worktree}
+        {@const hasMoreActions = Boolean(
+          removableWorktree &&
+          (archive.release || archive.removeRecordAndWorktree),
+        )}
         <Item.Root
           variant="muted"
           class="min-w-0 flex-col flex-nowrap items-stretch"
@@ -151,7 +166,9 @@
               </Item.Title>
               <Badge
                 variant={record.state === "interrupted" ? "warning" : "outline"}
-                >{record.state === "closed" ? "已关闭" : "已中断"}</Badge
+                >{record.state === "closed"
+                  ? m.s3_state_closed()
+                  : m.s3_turn_cancelled()}</Badge
               >
               {#if record.released}<ReleasedBadge
                   released={record.released}
@@ -163,9 +180,9 @@
                 <span class="inline-flex items-center gap-1"
                   >{#if record.view === "chat"}<IconMessageCircle
                       aria-hidden="true"
-                    />聊天{:else}<IconTerminal2
+                    />{m.s3_view_chat()}{:else}<IconTerminal2
                       aria-hidden="true"
-                    />终端{/if}</span
+                    />{m.s3_view_terminal()}{/if}</span
                 >
                 <span>{since(record)}</span>
               </span>
@@ -187,47 +204,56 @@
               onbusy={(active) => (busy = active ? record.id : "")}
               onerror={(message) => (error = message)}
             />
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger disabled={!!busy}>
-                {#snippet child({ props })}
-                  <Button
-                    {...props}
-                    size="icon-sm"
-                    variant="ghost"
-                    class="size-9 sm:size-8"
-                    title={`更多操作 ${recordTitle(record)}`}
-                    aria-label={`更多操作 ${recordTitle(record)}`}
-                    ><IconDots class="size-4" aria-hidden="true" /></Button
-                  >
-                {/snippet}
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content align="end" class="min-w-48">
-                {#if removableWorktree && archive.release}
-                  {@const release = archive.release}
-                  <DropdownMenu.Item onSelect={() => release(removableWorktree)}
-                    >释放空间</DropdownMenu.Item
-                  >
-                  <DropdownMenu.Separator />
-                {/if}
-                <DropdownMenu.Item
-                  variant="destructive"
-                  onSelect={() => {
-                    removing = record;
-                    removeOpen = true;
-                  }}>删除记录</DropdownMenu.Item
-                >
-                {#if removableWorktree && archive.removeRecordAndWorktree}
-                  {@const removeRecordAndWorktree =
-                    archive.removeRecordAndWorktree}
-                  <DropdownMenu.Item
-                    variant="destructive"
-                    onSelect={() =>
-                      removeRecordAndWorktree(record, removableWorktree)}
-                    >删除记录和工作树</DropdownMenu.Item
-                  >
-                {/if}
-              </DropdownMenu.Content>
-            </DropdownMenu.Root>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!!busy}
+              aria-label={m.s3_delete_named({ title: recordTitle(record) })}
+              onclick={() => {
+                removing = record;
+                removeOpen = true;
+              }}>{m.s3_delete()}</Button
+            >
+            {#if removableWorktree && hasMoreActions}
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger disabled={!!busy}>
+                  {#snippet child({ props })}
+                    <Button
+                      {...props}
+                      size="icon-sm"
+                      variant="ghost"
+                      title={m.s3_more_actions_named({
+                        title: recordTitle(record),
+                      })}
+                      aria-label={m.s3_more_actions_named({
+                        title: recordTitle(record),
+                      })}><IconDots aria-hidden="true" /></Button
+                    >
+                  {/snippet}
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content align="end" class="min-w-48">
+                  {#if archive.release}
+                    {@const release = archive.release}
+                    <DropdownMenu.Item
+                      onSelect={() => release(removableWorktree)}
+                      >{m.s3_release_space()}</DropdownMenu.Item
+                    >
+                    {#if archive.removeRecordAndWorktree}<DropdownMenu.Separator
+                      />{/if}
+                  {/if}
+                  {#if archive.removeRecordAndWorktree}
+                    {@const removeRecordAndWorktree =
+                      archive.removeRecordAndWorktree}
+                    <DropdownMenu.Item
+                      variant="destructive"
+                      onSelect={() =>
+                        removeRecordAndWorktree(record, removableWorktree)}
+                      >{m.s3_delete_record_and_worktree()}</DropdownMenu.Item
+                    >
+                  {/if}
+                </DropdownMenu.Content>
+              </DropdownMenu.Root>
+            {/if}
           </Item.Actions>
         </Item.Root>
       {/each}
@@ -235,7 +261,8 @@
           variant="link"
           size="sm"
           class="justify-self-start"
-          onclick={() => (showAll = true)}>显示全部 {records.length} 条</Button
+          onclick={() => (showAll = true)}
+          >{m.s3_show_all_count({ count: String(records.length) })}</Button
         >{/if}
     </Collapsible.Content>
   </Collapsible.Root>
@@ -243,8 +270,11 @@
 
 <ConfirmDialog
   bind:open={removeOpen}
-  title={`删除“${removing ? recordTitle(removing) : ""}”的记录？`}
+  title={m.s3_delete_record_confirm_title({
+    title: removing ? recordTitle(removing) : "",
+  })}
+  destructive
   onconfirm={confirmRemove}
 >
-  只删除 WebMux 的记录与本机草稿；工作树与 agent 自己保存的会话不受影响。
+  {m.s3_delete_record_confirm_body()}
 </ConfirmDialog>

@@ -18,6 +18,7 @@ export interface LaunchConfigs {
 export function createLaunchConfigs(): LaunchConfigs {
   let state = $state.raw<LaunchConfigsState>({ status: "loading" });
   let disposed = false;
+  const controller = new AbortController();
   return {
     get state() {
       return state;
@@ -25,7 +26,13 @@ export function createLaunchConfigs(): LaunchConfigs {
     async load(initial = false) {
       if (state.status !== "ready") state = { status: "loading" };
       try {
-        const configs = await api("/launch-configs", LaunchConfigsSchema);
+        const configs = await api(
+          "/launch-configs",
+          LaunchConfigsSchema,
+          "GET",
+          undefined,
+          controller.signal,
+        );
         if (disposed) return;
         state = { status: "ready", configs };
         setLaunchPreviews(configs);
@@ -39,6 +46,7 @@ export function createLaunchConfigs(): LaunchConfigs {
     },
     dispose() {
       disposed = true;
+      controller.abort();
     },
   };
 }

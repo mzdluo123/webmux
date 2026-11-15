@@ -107,9 +107,11 @@ type Remotes struct {
 	Remotes []Remote `json:"remotes"`
 }
 
-// FetchRemotesRequest is the empty body of POST
-// /api/repositories/{id}/fetch.
-type FetchRemotesRequest struct{}
+// FetchRemotesRequest is the body of POST /api/repositories/{id}/fetch.
+type FetchRemotesRequest struct {
+	ClientRequestID string `json:"clientRequestId,omitempty"`
+	WorktreeID      string `json:"worktreeId,omitempty"`
+}
 
 // FetchResult is the outcome of fetching one remote. Status is "ok",
 // "auth", "network", "timeout", "rejected" or "error"; Message is empty for
@@ -123,14 +125,31 @@ type FetchResult struct {
 // FetchRemotesResponse answers POST /api/repositories/{id}/fetch: one
 // result per remote, sorted by name, and the repository after the fetch.
 type FetchRemotesResponse struct {
-	Results    []FetchResult `json:"results"`
-	Repository Repository    `json:"repository"`
+	OperationID string        `json:"operationId,omitempty"`
+	Results     []FetchResult `json:"results"`
+	Repository  Repository    `json:"repository"`
+}
+
+// Tag is a lightweight or annotated tag peeled to its target commit.
+type Tag struct {
+	Name        string `json:"name"`
+	Head        string `json:"head"`
+	Subject     string `json:"subject"`
+	CommittedAt string `json:"committedAt"`
+	Kind        string `json:"kind"`
+	TagOID      string `json:"tagOid,omitempty"`
+	Message     string `json:"message,omitempty"`
+	TaggerName  string `json:"taggerName,omitempty"`
+	TaggerEmail string `json:"taggerEmail,omitempty"`
+	TaggedAt    string `json:"taggedAt,omitempty"`
+	Signed      bool   `json:"signed,omitempty"`
 }
 
 // Branches is the body of GET /api/repositories/{id}/branches.
 type Branches struct {
 	Branches           []Branch     `json:"branches"`
 	Bases              []BranchBase `json:"bases"`
+	Tags               []Tag        `json:"tags"`
 	DefaultBase        *string      `json:"defaultBase"`
 	DefaultBaseSubject string       `json:"defaultBaseSubject"`
 	DefaultBranch      *string      `json:"defaultBranch"`

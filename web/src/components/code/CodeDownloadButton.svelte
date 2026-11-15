@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { apiBlob, APIError } from "../../platform/api";
   import { saveBlob } from "../../platform/download";
   import { rawError } from "../../domains/code/code-image";
@@ -40,7 +41,7 @@
     } catch (error) {
       if (!current.signal.aborted)
         onerror(
-          rawError(error, "下载"),
+          rawError(error, "download"),
           error instanceof APIError ? error.status : 0,
         );
     } finally {
@@ -55,5 +56,7 @@
   size="sm"
   disabled={disabled || !!controller}
   onclick={() => void download()}
-  ><IconDownload aria-hidden="true" />{controller ? "下载中…" : "下载"}</Button
+  ><IconDownload aria-hidden="true" />{controller
+    ? m.s5_downloading()
+    : m.s5_action_download()}</Button
 >

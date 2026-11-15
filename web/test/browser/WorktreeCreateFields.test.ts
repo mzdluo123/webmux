@@ -1,5 +1,5 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import { suggestWorktreeBranch } from "../../src/domains/workspace/branch-name";
 import type { Repository } from "../../src/contracts/schemas";
@@ -76,6 +76,7 @@ const branches = {
     branch("feature/calm-river", head, ["/repos/project.worktrees/calm-river"]),
   ],
   bases: [base("refs/heads/main", head, "修复终端重连")],
+  tags: [],
   defaultBase: head,
   defaultBaseSubject: "修复终端重连",
   defaultBranch: "main",

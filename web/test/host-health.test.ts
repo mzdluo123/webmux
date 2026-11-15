@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { formatBytes, hostStrain } from "../src/domains/sessions/host-health";
 
 const health = (one: number, cpus = 4) => ({

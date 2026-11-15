@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { maxTableRows, parseDelimited } from "../src/domains/code/code-csv";
 
 const parsed = (text: string, delimiter: "," | "\t" = ",") => {

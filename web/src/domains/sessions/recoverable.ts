@@ -1,5 +1,6 @@
 import { api, APIError } from "../../platform/api";
 import { newRequestId } from "../../platform/ids";
+import { sessionConflict } from "./session-conflict";
 import {
   ArchivedSessionSchema,
   ArchivedSessionsSchema,
@@ -10,26 +11,16 @@ import {
   ReleasePreviewSchema,
   ReleaseResultSchema,
   ReleaseWorktreeRequestSchema,
-  SessionConflictSchema,
   SessionInfoSchema,
   WorktreeSchema,
-  WorktreeUsageSchema,
   type AgentCandidate,
   type AgentConnector,
   type ArchivedSession,
   type RebuildPreview,
-  type SessionConflict,
   type SessionInfo,
   type SessionView,
   type Worktree,
 } from "../../contracts/schemas";
-
-/** The session conflict a 409 carries, or undefined for any other failure. */
-export function sessionConflict(err: unknown): SessionConflict | undefined {
-  if (!(err instanceof APIError) || err.status !== 409) return undefined;
-  const conflict = SessionConflictSchema.safeParse(err.body);
-  return conflict.success ? conflict.data : undefined;
-}
 
 // Archived sessions that can be resumed: closed or interrupted sessions
 // whose agent conversation lives on in the agent's own store.
@@ -44,16 +35,15 @@ export function loadRecoverable(signal?: AbortSignal) {
   );
 }
 
-/**
- * Archived session `id`, the session page's fallback when the running
- * session is gone. Undefined when there is none: no such session (404), no
- * readable store (503), or a session that is still active. Other failures
- * prove nothing and are thrown.
- */
-export async function loadRecord(
+/** Distinguish a real 404 from an archived or still-present session. */
+export async function lookupSessionRecord(
   id: string,
   signal?: AbortSignal,
-): Promise<ArchivedSession | undefined> {
+): Promise<
+  | { kind: "record"; record: ArchivedSession }
+  | { kind: "present" }
+  | { kind: "missing" }
+> {
   let session: SessionInfo;
   try {
     session = await api(
@@ -64,12 +54,14 @@ export async function loadRecord(
       signal,
     );
   } catch (err) {
-    if (err instanceof APIError && (err.status === 404 || err.status === 503))
-      return undefined;
+    if (err instanceof APIError && err.status === 404)
+      return { kind: "missing" };
     throw err;
   }
   const archived = ArchivedSessionSchema.safeParse(session);
-  return archived.success ? archived.data : undefined;
+  return archived.success
+    ? { kind: "record", record: archived.data }
+    : { kind: "present" };
 }
 
 export type ResumeChoice = {
@@ -126,18 +118,6 @@ export function removeRecord(id: string) {
 
 function worktreeRoute(worktree: Worktree) {
   return `/repositories/${worktree.repositoryId}/worktrees/${worktree.id}`;
-}
-
-/** Measures the disk space of `worktree`'s directory; walks it on demand. */
-export function measureWorktree(worktree: Worktree, signal?: AbortSignal) {
-  return api(
-    worktreeRoute(worktree) + "/usage",
-    WorktreeUsageSchema,
-    "POST",
-    {},
-    signal,
-    EmptyRequestSchema,
-  );
 }
 
 /**

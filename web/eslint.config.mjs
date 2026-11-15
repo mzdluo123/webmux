@@ -67,6 +67,7 @@ export default defineConfig([
       "test-results/**",
       ".vitest/**",
       "reports/**",
+      "src/lib/paraglide/**",
       // shadcn-svelte helper; its disable comments name typescript-eslint rules.
       "src/lib/utils.ts",
     ],
@@ -124,11 +125,17 @@ export default defineConfig([
             // component's <style> targets (sizes, overflow and visibility).
             {
               pattern: "^Pane$",
-              allow: ["layout", "terminal-pane", "draft-pane", "code-pane"],
+              allow: [
+                "layout",
+                "terminal-pane",
+                "draft-pane",
+                "code-pane",
+                "git-pane",
+              ],
             },
             {
               pattern: "^ResizableHandle$",
-              allow: ["layout", "draft-divider", "code-divider"],
+              allow: ["layout", "draft-divider", "code-divider", "git-divider"],
             },
           ],
         },

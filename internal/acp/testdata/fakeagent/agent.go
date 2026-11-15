@@ -16,12 +16,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const methodSteering = "_session/steering"
 
 type rpcMessage struct {
-	JSONRPC string          `json:"jsonrpc"`
+	JSONRPC string          `json:"jsonrpc,omitempty"`
 	ID      json.RawMessage `json:"id,omitempty"`
 	Method  string          `json:"method,omitempty"`
 	Params  json.RawMessage `json:"params,omitempty"`
@@ -52,6 +53,7 @@ type agent struct {
 type liveSession struct {
 	data *session
 	turn context.CancelFunc
+	mcps []*mcpChild
 	// prompts counts session/prompt requests read but not yet finished;
 	// cancelled is a session/cancel read while one had not started its
 	// turn. Requests run concurrently, but a real agent sees the cancel
@@ -137,6 +139,9 @@ func (a *agent) releaseAll() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for id, ls := range a.live {
+		for _, child := range ls.mcps {
+			child.close()
+		}
 		a.st.release(ls.data.ID)
 		delete(a.live, id)
 	}
@@ -296,6 +301,13 @@ func (a *agent) commands(sid string) {
 			{Name: "logout", Description: "Log out of Codex"},
 		}
 	}
+	if a.cfg.profile == "devin" {
+		commands = []acp.AvailableCommand{
+			{Name: "clear", Description: "Clear the conversation"},
+			{Name: "login", Description: "Log in to Devin"},
+			{Name: "logout", Description: "Log out of Devin"},
+		}
+	}
 	a.update(sid, &acp.AvailableCommandsUpdate{AvailableCommands: commands})
 }
 
@@ -332,6 +344,13 @@ func (a *agent) notification(m rpcMessage) {
 
 // serve answers one client request after the configured fault injection.
 func (a *agent) serve(ctx context.Context, m rpcMessage) (any, error) {
+	if m.Method == acp.MethodSessionPrompt && a.cfg.authFile != "" {
+		if _, err := os.Stat(a.cfg.authFile); errors.Is(err, os.ErrNotExist) {
+			return nil, &acp.RPCError{Code: acp.CodeAuthRequired, Message: "authentication required"}
+		} else if err != nil {
+			return nil, err
+		}
+	}
 	if d, ok := a.cfg.delays[m.Method]; ok {
 		select {
 		case <-time.After(d):
@@ -339,7 +358,13 @@ func (a *agent) serve(ctx context.Context, m rpcMessage) (any, error) {
 			return nil, ctx.Err()
 		}
 	}
-	if code, ok := a.cfg.fails[m.Method]; ok {
+	a.mu.Lock()
+	code, failed := a.cfg.fails[m.Method]
+	if failed && a.cfg.failOnce {
+		delete(a.cfg.fails, m.Method)
+	}
+	a.mu.Unlock()
+	if failed {
 		return nil, &acp.RPCError{Code: code, Message: "injected failure in " + m.Method}
 	}
 	if m.Method != acp.MethodSessionPrompt {
@@ -353,14 +378,28 @@ func (a *agent) serve(ctx context.Context, m rpcMessage) (any, error) {
 		if err := decodeParams(m.Params, &p); err != nil {
 			return nil, err
 		}
-		ss, err := a.st.create(p.Cwd)
+		var ss *session
+		var err error
+		if a.cfg.profile == "devin" {
+			// A fresh session owns its actual ID, unlike a load's alias to
+			// an intentionally forked session. It is not saved until a turn.
+			ss, err = a.st.fresh(p.Cwd)
+			if err == nil {
+				a.mu.Lock()
+				a.live[ss.ID] = &liveSession{data: ss}
+				a.mu.Unlock()
+			}
+		} else {
+			ss, err = a.st.create(p.Cwd)
+			if err == nil {
+				ss, err = a.open(ss.ID, ss)
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
-		if ss, err = a.open(ss.ID, ss); err != nil {
-			return nil, err
-		}
-		return acp.NewSessionResponse{SessionID: ss.ID, ConfigOptions: configOptions(a.cfg.profile, ss)}, nil
+		a.configureMCP(ss.ID, m.Method, p.MCPServers)
+		return acp.NewSessionResponse{SessionID: ss.ID, Modes: sessionModes(a.cfg.profile, ss), ConfigOptions: configOptions(a.cfg.profile, ss)}, nil
 	case acp.MethodSessionLoad:
 		var p acp.LoadSessionRequest
 		if err := decodeParams(m.Params, &p); err != nil {
@@ -370,6 +409,7 @@ func (a *agent) serve(ctx context.Context, m rpcMessage) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		a.configureMCP(p.SessionID, m.Method, p.MCPServers)
 		for _, msg := range ss.Messages {
 			chunk := acp.ContentChunk{Content: acp.TextBlock(msg.Text), MessageID: msg.ID}
 			if msg.Role == "user" {
@@ -381,8 +421,11 @@ func (a *agent) serve(ctx context.Context, m rpcMessage) (any, error) {
 		a.mu.Lock()
 		options := configOptions(a.cfg.profile, ss)
 		a.mu.Unlock()
-		return acp.LoadSessionResponse{ConfigOptions: options}, nil
+		return acp.LoadSessionResponse{Modes: sessionModes(a.cfg.profile, ss), ConfigOptions: options}, nil
 	case acp.MethodSessionResume:
+		if a.cfg.profile == "devin" {
+			break // Devin CLI has no session/resume (-32601).
+		}
 		var p acp.ResumeSessionRequest
 		if err := decodeParams(m.Params, &p); err != nil {
 			return nil, err
@@ -394,6 +437,7 @@ func (a *agent) serve(ctx context.Context, m rpcMessage) (any, error) {
 		a.mu.Lock()
 		options := configOptions(a.cfg.profile, ss)
 		a.mu.Unlock()
+		a.configureMCP(p.SessionID, m.Method, p.MCPServers)
 		return acp.ResumeSessionResponse{ConfigOptions: options}, nil
 	case acp.MethodSessionList:
 		var p acp.ListSessionsRequest
@@ -411,10 +455,18 @@ func (a *agent) serve(ctx context.Context, m rpcMessage) (any, error) {
 		delete(a.live, p.SessionID)
 		a.mu.Unlock()
 		if ls == nil {
+			// Devin's force close releases a lock another process holds.
+			if a.cfg.profile == "devin" && devinForceClose(p.Meta) {
+				a.st.forceRelease(p.SessionID)
+				return struct{}{}, nil
+			}
 			return nil, &acp.RPCError{Code: acp.CodeResourceNotFound, Message: "session not open"}
 		}
 		if ls.turn != nil {
 			ls.turn()
+		}
+		for _, child := range ls.mcps {
+			child.close()
 		}
 		a.st.release(ls.data.ID)
 		return struct{}{}, nil
@@ -430,8 +482,25 @@ func (a *agent) serve(ctx context.Context, m rpcMessage) (any, error) {
 			return nil, err
 		}
 		return a.setConfig(p)
+	case acp.MethodSessionSetMode:
+		if a.cfg.profile != "devin" {
+			break
+		}
+		var p struct {
+			SessionID string `json:"sessionId"`
+			ModeID    string `json:"modeId"`
+		}
+		if err := decodeParams(m.Params, &p); err != nil {
+			return nil, err
+		}
+		ls := a.session(p.SessionID)
+		if ls == nil {
+			return nil, &acp.RPCError{Code: acp.CodeResourceNotFound, Message: "session not open"}
+		}
+		ls.data.Config["mode"] = p.ModeID
+		return struct{}{}, a.st.save(ls.data)
 	case methodSteering:
-		if a.cfg.profile == "opencode" || a.cfg.profile == "agy" || a.cfg.profile == "kimi" {
+		if a.cfg.profile == "opencode" || a.cfg.profile == "agy" || a.cfg.profile == "kimi" || a.cfg.profile == "devin" {
 			break
 		}
 		var p acp.PromptRequest
@@ -479,10 +548,16 @@ func (a *agent) initialize() (any, error) {
 	if a.cfg.profile == "kimi" {
 		resp.AgentInfo = &acp.Implementation{Name: "Kimi Code CLI", Version: "2.5.2"}
 	}
+	if a.cfg.profile == "devin" {
+		resp.AgentInfo = &acp.Implementation{Name: "affogato", Title: "Devin Agent", Version: "0.0.0-dev"}
+		resp.AgentCapabilities.SessionCapabilities.Resume = nil
+		resp.AgentCapabilities.PromptCapabilities.Image = true
+		resp.AgentCapabilities.PromptCapabilities.EmbeddedContext = true
+	}
 	if a.cfg.noResume {
 		resp.AgentCapabilities.SessionCapabilities.Resume = nil
 	}
-	if a.cfg.profile != "opencode" && a.cfg.profile != "agy" && a.cfg.profile != "kimi" {
+	if a.cfg.profile != "opencode" && a.cfg.profile != "agy" && a.cfg.profile != "kimi" && a.cfg.profile != "devin" {
 		resp.Meta = json.RawMessage(`{"steering":{"supported":true}}`)
 	}
 	return resp, nil
@@ -514,6 +589,14 @@ func (a *agent) reopen(id string, load bool) (*session, error) {
 		if held {
 			a.st.event("thread_active_writer", id)
 			return nil, threadActiveWriter(id)
+		}
+	}
+	if a.cfg.profile == "devin" {
+		// Unlike omp's fork, Devin refuses to open a session another live
+		// process holds; a stale lease is taken over.
+		if holder := a.st.lockedBy(id); holder > 0 {
+			a.st.event("session_locked", id)
+			return nil, devinSessionLocked(holder)
 		}
 	}
 	if ss, err = a.open(id, ss); err != nil {
@@ -614,6 +697,17 @@ func (a *agent) session(id string) *liveSession {
 	return a.live[id]
 }
 
+func (a *agent) saveTitle(id, title string) {
+	ls := a.session(id)
+	if ls == nil {
+		return
+	}
+	a.mu.Lock()
+	ls.data.Title = title
+	_ = a.st.save(ls.data)
+	a.mu.Unlock()
+}
+
 func (a *agent) list(p acp.ListSessionsRequest) (any, error) {
 	all, err := a.st.list(p.Cwd)
 	if err != nil {
@@ -628,7 +722,16 @@ func (a *agent) list(p acp.ListSessionsRequest) (any, error) {
 	}
 	resp := acp.ListSessionsResponse{Sessions: []acp.SessionInfo{}}
 	for _, ss := range all[start:min(start+page, len(all))] {
-		resp.Sessions = append(resp.Sessions, acp.SessionInfo{SessionID: ss.ID, Cwd: ss.Cwd, Title: ss.Title, UpdatedAt: ss.UpdatedAt})
+		info := acp.SessionInfo{SessionID: ss.ID, Cwd: ss.Cwd, Title: ss.Title, UpdatedAt: ss.UpdatedAt}
+		if a.cfg.profile == "devin" {
+			meta := map[string]any{"cognition.ai/hasUserMessages": len(ss.Messages) > 0}
+			if holder, locked := a.st.lockInfo(ss.ID); locked {
+				meta["cognition.ai/isLocked"] = true
+				meta["cognition.ai/lockHolderPid"] = holder
+			}
+			info.Meta, _ = json.Marshal(meta)
+		}
+		resp.Sessions = append(resp.Sessions, info)
 	}
 	if start+page < len(all) {
 		resp.NextCursor = strconv.Itoa(start + page)
@@ -713,6 +816,7 @@ func (a *agent) prompt(p acp.PromptRequest) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	crashAt(a.cfg, "prompt-saved")
 	sid := p.SessionID
 	replyID := newMessageID()
 	reply, stop := a.turn(ctx, sid, text, replyID)
@@ -764,10 +868,24 @@ func (a *agent) turn(ctx context.Context, sid, text, id string) (reply, stop str
 	}
 	if strings.Contains(text, "/title") {
 		title := "fake title"
+		a.saveTitle(sid, title)
 		a.update(sid, &acp.SessionInfoUpdate{Title: acp.StringPatch{Set: true, Value: &title}})
 	}
 	if strings.Contains(text, "/untitle") {
+		a.saveTitle(sid, "")
 		a.update(sid, &acp.SessionInfoUpdate{Title: acp.StringPatch{Set: true}})
+	}
+	if a.cfg.profile == "agy" && !strings.Contains(text, "/title") && !strings.Contains(text, "/untitle") {
+		if ls := a.session(sid); ls != nil {
+			a.mu.Lock()
+			untitled := ls.data.Title == ""
+			a.mu.Unlock()
+			if first := strings.TrimSpace(strings.Split(text, "\n")[0]); untitled && first != "" {
+				auto := "agy: " + first
+				a.saveTitle(sid, auto)
+				a.update(sid, &acp.SessionInfoUpdate{Title: acp.StringPatch{Set: true, Value: &auto}})
+			}
+		}
 	}
 	if strings.Contains(text, "/unknown") {
 		a.update(sid, &acp.UnknownUpdate{Kind: "future_kind", Raw: json.RawMessage(`{"sessionUpdate":"future_kind","x":1}`)})
@@ -775,6 +893,12 @@ func (a *agent) turn(ctx context.Context, sid, text, id string) (reply, stop str
 	if strings.Contains(text, "/compact") {
 		a.update(sid, &acp.CompactionUpdate{CompactionID: "cmp_1", Status: acp.CompactionInProgress})
 		a.update(sid, &acp.CompactionUpdate{CompactionID: "cmp_1", Status: acp.CompactionCompleted, Summary: []acp.ContentBlock{acp.TextBlock("summary")}})
+	}
+	if strings.Contains(text, "/background-compaction") {
+		a.update(sid, &acp.CompactionUpdate{CompactionID: "background", Status: acp.CompactionInProgress, Summary: []acp.ContentBlock{acp.TextBlock("background summary")}})
+	}
+	if strings.Contains(text, "/cancel-compaction") {
+		a.update(sid, &acp.CompactionUpdate{CompactionID: "background", Status: "cancelled"})
 	}
 	extra := ""
 	if strings.Contains(text, "/fs") {
@@ -899,8 +1023,64 @@ func (a *agent) turn(ctx context.Context, sid, text, id string) (reply, stop str
 		}
 	}
 
+	if text == "fixture turn diff" {
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Edit app.ts", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", OldText: new("export const title = 'Old';\n"), NewText: "export const title = 'New';\n"}},
+		})
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Edit app.ts footer", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", OldText: new("export const footer = 'Before';\n"), NewText: "export const footer = 'After';\n"}},
+		})
+	}
+	if text == "fixture late diff begin" {
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: "fixture-late-diff", Title: "Background edit late.ts", Kind: "edit", Status: acp.ToolInProgress,
+		})
+	}
+	if text == "fixture late diff finish" {
+		done := acp.ToolCompleted
+		a.update(sid, &acp.ToolCallUpdate{
+			ToolCallID: "fixture-late-diff", Status: &done,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "late.ts", OldText: new("export const late = 'before';\n"), NewText: "export const late = 'after';\n"}},
+		})
+	}
+	if text == "fixture deleted file diff" {
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Delete removed.ts", Kind: "delete", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "removed.ts", OldText: new("export const removed = 'Deleted';\n"), NewText: ""}},
+		})
+	}
+	if text == "fixture create then edit diff" {
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Create app.ts", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", NewText: "keep\noriginal"}},
+		})
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Edit app.ts", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", OldText: new("keep\noriginal"), NewText: "keep\nreplacement"}},
+		})
+	}
+	if text == "fixture clear then rewrite diff" || text == "fixture clear then restore diff" {
+		before := "keep\noriginal"
+		after := "keep\nreplacement"
+		if text == "fixture clear then restore diff" {
+			after = before
+		}
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Clear app.ts", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", OldText: new(before), NewText: ""}},
+		})
+		a.update(sid, &acp.ToolCall{
+			ToolCallID: newMessageID(), Title: "Rewrite app.ts", Kind: "edit", Status: acp.ToolCompleted,
+			Content: []acp.ToolCallContent{{Type: acp.ToolContentDiff, Path: "app.ts", OldText: new(""), NewText: after}},
+		})
+	}
 	reply = "echo: " + text + extra
 	half := len(reply) / 2
+	for half > 0 && !utf8.RuneStart(reply[half]) {
+		half--
+	}
 	for _, piece := range []string{reply[:half], reply[half:]} {
 		if !a.pause(ctx) {
 			return "", acp.StopCancelled

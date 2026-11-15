@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import RepositoryMenuItems from "../workspace/RepositoryMenuItems.svelte";
   import SidebarRowMenu from "./SidebarRowMenu.svelte";
 
@@ -11,6 +12,7 @@
     onhome,
     onmanage,
     ondetails,
+    ongit,
   }: {
     label: string;
     tabindex?: number;
@@ -19,15 +21,17 @@
     onhome: () => void;
     onmanage: () => void;
     ondetails: () => void;
+    ongit?: () => void;
   } = $props();
 </script>
 
-<SidebarRowMenu ariaLabel={`仓库操作：${label}`} {tabindex}>
+<SidebarRowMenu ariaLabel={m.s1_repository_actions({ label })} {tabindex}>
   <RepositoryMenuItems
     {unavailable}
     {onnewworktree}
     {onhome}
     {onmanage}
     {ondetails}
+    {ongit}
   />
 </SidebarRowMenu>

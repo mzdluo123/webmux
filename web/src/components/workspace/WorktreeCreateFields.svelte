@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import {
     remoteBranchBases,
@@ -19,26 +20,20 @@
     type CommitTip,
   } from "../../domains/workspace/commit-choices";
   import { LatestRequest } from "../../hooks/shared/remote-request.svelte";
-  import type { WorktreePreset } from "../../domains/sessions/new-session-defaults";
+  import type { WorktreePreset } from "../../domains/sessions/worktree-preset";
   import {
     BranchesSchema,
     CommitsSchema,
     type Repository,
   } from "../../contracts/schemas";
-  import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
-  import { Label } from "$lib/components/ui/label";
-  import IconRefresh from "~icons/tabler/refresh";
-  import BranchCommandList from "./BranchCommandList.svelte";
-  import IconGitBranch from "~icons/tabler/git-branch";
-  import PickerField from "../shared/PickerField.svelte";
   import WorktreeAdvancedFields from "./WorktreeAdvancedFields.svelte";
-  import WorktreeBaseStatus from "./WorktreeBaseStatus.svelte";
+  import WorktreeBranchFields from "./WorktreeBranchFields.svelte";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import { untrack } from "svelte";
   import type { z } from "zod";
   let {
     repository,
+    deferred = false,
     path = $bindable(""),
     mode = $bindable<"new" | "existing">("new"),
     branch = $bindable(""),
@@ -49,6 +44,8 @@
     preset,
   }: {
     repository: Repository;
+    /** Handoff reserves a fresh branch and assigns its directory on send. */
+    deferred?: boolean;
     path: string;
     mode: "new" | "existing";
     branch: string;
@@ -64,6 +61,8 @@
   // The preset sets the mode at once so the form never shows the other one
   // first; its branches wait for the list.
   let pendingPreset = untrack(() => preset);
+  // A status refresh for the same repository must not reinitialize its draft.
+  const repositoryId = $derived(repository.id);
   if (pendingPreset) mode = pendingPreset.mode;
   let data = $state<z.infer<typeof BranchesSchema> | null>(null);
   let error = $state("");
@@ -77,18 +76,6 @@
   const refreshRequests = new LatestRequest();
   let baseEditVersion = 0;
   let pathEdited = $state(false);
-  let startBranchPickerOpen = $state(false);
-  let startBranchSearch = $state("");
-  const setStartBranchPickerOpen = (next: boolean) => {
-    startBranchPickerOpen = next;
-    if (!next) startBranchSearch = "";
-  };
-  let branchPickerOpen = $state(false);
-  let branchSearch = $state("");
-  const setBranchPickerOpen = (next: boolean) => {
-    branchPickerOpen = next;
-    if (!next) branchSearch = "";
-  };
   let branchEdited = $state(false);
   let commits = $state<z.infer<typeof CommitsSchema>["commits"]>([]);
   let commitsLoading = $state(false);
@@ -194,7 +181,7 @@
       })
       .catch((err: unknown) => {
         if (!request.reportable() || isAbortError(err)) return;
-        refreshWarning = "上游刷新失败，保留当前基线；请重试";
+        refreshWarning = m.s8_upstream_refresh_failed_keep_base();
         baseSource = "";
         upstream = "";
         lastRefreshedAt = null;
@@ -233,7 +220,7 @@
   }
 
   $effect(() => {
-    const id = repository.id;
+    const id = repositoryId;
     let active = true;
     clearRefresh();
     clearCommits();
@@ -246,8 +233,8 @@
     loading = true;
     pathEdited = false;
     branchEdited = false;
-    branch = "";
-    base = "";
+    branch = pendingPreset?.mode === "new" ? (pendingPreset.name ?? "") : "";
+    base = pendingPreset?.base ?? "";
     void fetchRepositoryBranches(id)
       .then((value) => {
         if (!active) return;
@@ -270,7 +257,11 @@
           initial,
           preferredStartBranch,
         );
-        if (mode === "new") chooseStartBranch(startBranch);
+        if (mode === "new" && initial?.base) {
+          base = initial.base;
+          baseSubject = m.s8_saved_start_commit();
+          loadCommits([{ hash: base, tag: m.s8_saved_start_commit() }]);
+        } else if (mode === "new") chooseStartBranch(startBranch);
       })
       .catch((err) => active && (error = errorMessage(err)))
       .finally(() => active && (loading = false));
@@ -292,21 +283,23 @@
   const mappedExistingBranches = $derived(
     (data?.branches ?? []).map((item) => ({
       name: item.name,
-      reason: item.worktreePaths.length ? "已被工作树占用" : undefined,
+      reason: item.worktreePaths.length
+        ? m.s8_branch_occupied_by_worktree()
+        : undefined,
     })),
+  );
+  const mappedRemoteBranches = $derived(
+    remoteBranches.map((item) => ({ name: item.name })),
   );
   function handleModeChange(next: string | undefined) {
     if (next === "new" && mode !== "new") {
       mode = "new";
-      setBranchPickerOpen(false);
-      setStartBranchPickerOpen(false);
       branchEdited = false;
       branch = "";
       fillSuggestedBranch();
       chooseStartBranch(startBranch);
     } else if (next === "existing" && mode !== "existing") {
       mode = "existing";
-      setStartBranchPickerOpen(false);
       clearRefresh();
       clearCommits();
       baseSource = "";
@@ -320,144 +313,51 @@
 </script>
 
 <div class="space-y-3 rounded-lg border p-3">
-  <SegmentedControl.Root
-    value={mode}
-    onValueChange={handleModeChange}
-    aria-label="工作树分支"
-  >
-    <SegmentedControl.Item value="new">创建新分支</SegmentedControl.Item>
-    <SegmentedControl.Item value="existing">使用已有分支</SegmentedControl.Item>
-  </SegmentedControl.Root>
-  {#if loading}<p role="status" class="text-sm">正在读取本地分支…</p>{/if}
+  {#if !deferred}
+    <SegmentedControl.Root
+      value={mode}
+      onValueChange={handleModeChange}
+      aria-label={m.s8_worktree_branch_aria()}
+    >
+      <SegmentedControl.Item value="new"
+        >{m.s8_create_new_branch()}</SegmentedControl.Item
+      >
+      <SegmentedControl.Item value="existing"
+        >{m.s8_use_existing_branch()}</SegmentedControl.Item
+      >
+    </SegmentedControl.Root>
+  {/if}
+  {#if loading}<p role="status" class="text-sm">
+      {m.s8_reading_local_branches()}
+    </p>{/if}
   {#if error}<p role="alert" class="break-all text-sm text-destructive">
       {error}
     </p>{/if}
-  {#if mode === "new"}
-    <div class="grid gap-3 sm:grid-cols-2">
-      <div class="min-w-0 space-y-2">
-        <div class="flex items-center justify-between gap-2">
-          <Label for="worktree-start-branch">起始分支</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!startBranch || refreshing || disabled}
-            aria-busy={refreshing}
-            onclick={() => refreshUpstream(startBranch)}
-            ><IconRefresh
-              class={refreshing
-                ? "animate-spin motion-reduce:animate-none"
-                : ""}
-              aria-hidden="true"
-            />{refreshing ? "正在刷新" : "刷新上游"}</Button
-          >
-        </div>
-        <PickerField
-          id="worktree-start-branch"
-          bind:open={() => startBranchPickerOpen, setStartBranchPickerOpen}
-          disabled={disabled || loading || !data}
-        >
-          {#snippet trigger()}
-            {#if startBranch}
-              <IconGitBranch
-                class="size-4 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <span class="min-w-0 flex-1 truncate" title={startBranch}
-                >{startBranch}</span
-              >
-            {:else}
-              <span class="text-sm text-muted-foreground">
-                {loading ? "正在读取本地分支…" : "选择起始分支"}
-              </span>
-            {/if}
-          {/snippet}
-          <BranchCommandList
-            label="起始分支"
-            branches={mappedLocalBranches}
-            remoteBranches={remoteBranches.map((item) => ({ name: item.name }))}
-            selected={startBranch}
-            {loading}
-            failed={!!error}
-            {disabled}
-            bind:search={startBranchSearch}
-            onselect={(name) => {
-              chooseStartBranch(name);
-              setStartBranchPickerOpen(false);
-            }}
-          />
-        </PickerField>
-        <WorktreeBaseStatus
-          {refreshing}
-          {baseSource}
-          {upstream}
-          {baseSubject}
-          {lastRefreshedAt}
-          {startBranch}
-          {refreshWarning}
-        />
-      </div>
-      <div class="min-w-0 space-y-2">
-        <div class="flex items-center justify-between gap-2">
-          <Label for="worktree-branch">新分支名称</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!data || loading}
-            onclick={() => (branch = suggestedBranch(branch || undefined))}
-            >换一个</Button
-          >
-        </div>
-        <Input
-          id="worktree-branch"
-          bind:value={branch}
-          oninput={() => (branchEdited = true)}
-          required
-          placeholder="feature/my-task"
-          autocomplete="off"
-          autocapitalize="off"
-          autocorrect="off"
-          spellcheck={false}
-        />
-      </div>
-    </div>
-  {:else}
-    <div class="space-y-2">
-      <Label for="existing-branch">已有本地分支</Label>
-      <PickerField
-        id="existing-branch"
-        bind:open={() => branchPickerOpen, setBranchPickerOpen}
-        disabled={disabled || loading || !data}
-      >
-        {#snippet trigger()}
-          {#if branch}
-            <IconGitBranch
-              class="size-4 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <span class="min-w-0 flex-1 truncate" title={branch}>{branch}</span>
-          {:else}
-            <span class="text-sm text-muted-foreground">
-              {loading ? "正在读取本地分支…" : "选择本地分支"}
-            </span>
-          {/if}
-        {/snippet}
-        <BranchCommandList
-          label="已有本地分支"
-          branches={mappedExistingBranches}
-          selected={branch}
-          {loading}
-          failed={!!error}
-          {disabled}
-          bind:search={branchSearch}
-          onselect={(name) => ((branch = name), setBranchPickerOpen(false))}
-        />
-      </PickerField>
-    </div>
-  {/if}
+  <WorktreeBranchFields
+    {mode}
+    bind:branch
+    {startBranch}
+    {disabled}
+    {loading}
+    hasData={!!data}
+    failed={!!error}
+    {refreshing}
+    {baseSource}
+    {upstream}
+    {baseSubject}
+    {lastRefreshedAt}
+    {refreshWarning}
+    localBranches={mappedLocalBranches}
+    remoteBranches={mappedRemoteBranches}
+    existingBranches={mappedExistingBranches}
+    onchoosestartbranch={chooseStartBranch}
+    onrefreshupstream={() => refreshUpstream(startBranch)}
+    onsuggestbranch={() => (branch = suggestedBranch(branch || undefined))}
+    onbranchedited={() => (branchEdited = true)}
+  />
   <WorktreeAdvancedFields
     {mode}
+    {deferred}
     bind:path
     bind:base
     {disabled}

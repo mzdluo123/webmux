@@ -1,5 +1,6 @@
 <script lang="ts">
   import { SvelteSet } from "svelte/reactivity";
+  import { m } from "$lib/paraglide/messages.js";
   import IconAdjustments from "~icons/tabler/adjustments";
   import IconCopy from "~icons/tabler/copy";
   import IconExternalLink from "~icons/tabler/external-link";
@@ -61,11 +62,11 @@
   const taken = $derived(new Set(forwards.list.map((entry) => entry.port)));
   const inputError = $derived.by(() => {
     const text = port.trim();
-    if (!text) return attempted ? "请输入端口号" : "";
+    if (!text) return attempted ? m.s8_fwd_err_empty_port() : "";
     const value = Number(text);
     if (!/^\d{1,5}$/.test(text) || value < 1 || value > 65535)
-      return "请输入 1–65535 的端口号";
-    return taken.has(value) ? "该端口已转发" : "";
+      return m.s8_fwd_err_port_range();
+    return taken.has(value) ? m.s8_fwd_err_port_taken() : "";
   });
   const shownError = $derived(inputError || addError);
   const validPort = $derived(
@@ -95,7 +96,7 @@
     const parts = [titles.get(forward.session), forward.process].filter(
       Boolean,
     );
-    return parts.length ? parts.join(" · ") : "手动添加";
+    return parts.length ? parts.join(" · ") : m.s8_fwd_source_manual();
   }
   // Runs one row action, keeping its failure beside the row.
   async function run(key: string, action: () => Promise<unknown>) {
@@ -157,34 +158,34 @@
       delete rowErrors[`forward:${forward.port}`];
     } else {
       copied = null;
-      rowErrors[`forward:${forward.port}`] = `复制失败，请手动复制 ${link}`;
+      rowErrors[`forward:${forward.port}`] = m.s8_fwd_copy_failed({ link });
     }
   }
 </script>
 
 <ResponsiveDialog
-  title="端口转发"
-  description="通过 WebMux 访问服务器本机端口。转发不会保存，服务重启后清空。"
+  title={m.s8_fwd_title()}
+  description={m.s8_fwd_desc()}
   pinDrawerHeader
   {onclose}
 >
   <div class="space-y-6">
     <form class="space-y-3" onsubmit={submit} novalidate>
       <div class="space-y-2">
-        <Label for="forward-port">端口</Label>
+        <Label for="forward-port">{m.s8_fwd_port_label()}</Label>
         <div class="flex gap-2">
           <Input
             id="forward-port"
             class="max-w-40"
             inputmode="numeric"
             autocomplete="off"
-            placeholder="例如 5173"
+            placeholder={m.s8_fwd_port_placeholder()}
             bind:value={port}
             oninput={() => (addError = "")}
             aria-invalid={shownError ? true : undefined}
             aria-describedby="forward-port-error"
           />
-          <Button type="submit" disabled={adding}>添加转发</Button>
+          <Button type="submit" disabled={adding}>{m.s8_fwd_add_btn()}</Button>
         </div>
         <p
           id="forward-port-error"
@@ -194,7 +195,10 @@
           {shownError}
         </p>
       </div>
-      <AdvancedSection title="兼容选项" summary="默认适合 Vite 等开发服务器">
+      <AdvancedSection
+        title={m.s8_fwd_compat_title()}
+        summary={m.s8_fwd_compat_summary()}
+      >
         <ForwardOptionsFields
           id="forward-new"
           port={validPort}
@@ -205,7 +209,7 @@
 
     <section class="space-y-2" aria-labelledby="forward-list-title">
       <h3 id="forward-list-title" class="text-sm font-medium">
-        已转发
+        {m.s8_fwd_forwarded_heading()}
         <span class="text-muted-foreground tabular-nums"
           >{forwards.list.length}</span
         >
@@ -234,8 +238,8 @@
                   ></span>
                   <span class="shrink-0"
                     >{forward.status === "listening"
-                      ? "可访问"
-                      : "无法连接"}</span
+                      ? m.s8_fwd_status_listening()
+                      : m.s8_fwd_status_unreachable()}</span
                   >
                   <span class="min-w-0 truncate font-mono" title={forward.path}
                     >{forward.path}</span
@@ -249,23 +253,31 @@
                   rel="noopener"
                   variant="ghost"
                   size="icon-touch"
-                  aria-label={`在新标签页打开端口 ${forward.port}`}
-                  title="在新标签页打开"
+                  aria-label={m.s8_fwd_open_port_aria({
+                    port: String(forward.port),
+                  })}
+                  title={m.s8_fwd_open_new_tab()}
                   ><IconExternalLink aria-hidden="true" /></Button
                 >
                 <Button
                   variant="ghost"
                   size="icon-touch"
-                  aria-label={`复制端口 ${forward.port} 的链接`}
-                  title={copied === forward.port ? "已复制" : "复制链接"}
+                  aria-label={m.s8_fwd_copy_port_aria({
+                    port: String(forward.port),
+                  })}
+                  title={copied === forward.port
+                    ? m.s8_copied()
+                    : m.s8_fwd_copy_link()}
                   onclick={() => void copy(forward)}
                   ><IconCopy aria-hidden="true" /></Button
                 >
                 <Button
                   variant="ghost"
                   size="icon-touch"
-                  aria-label={`端口 ${forward.port} 的设置`}
-                  title="设置"
+                  aria-label={m.s8_fwd_settings_port_aria({
+                    port: String(forward.port),
+                  })}
+                  title={m.s8_fwd_settings()}
                   aria-expanded={open}
                   onclick={() => toggleEdit(forward)}
                   ><IconAdjustments aria-hidden="true" /></Button
@@ -273,8 +285,10 @@
                 <Button
                   variant="ghost"
                   size="icon-touch"
-                  aria-label={`移除端口 ${forward.port} 的转发`}
-                  title="移除转发"
+                  aria-label={m.s8_fwd_remove_port_aria({
+                    port: String(forward.port),
+                  })}
+                  title={m.s8_fwd_remove()}
                   disabled={busy.has(key)}
                   onclick={() =>
                     void run(key, () => removeForward(forward.port))}
@@ -291,7 +305,9 @@
                 {@const editKey = `edit:${forward.port}`}
                 <form
                   class="col-span-full mt-2 space-y-4 rounded-lg border p-4"
-                  aria-label={`端口 ${forward.port} 的设置`}
+                  aria-label={m.s8_fwd_settings_port_aria({
+                    port: String(forward.port),
+                  })}
                   onsubmit={(event) => {
                     event.preventDefault();
                     void save(forward.port);
@@ -299,13 +315,13 @@
                 >
                   <div class="space-y-2">
                     <Label for={`forward-${forward.port}-label`}
-                      >名称（可选）</Label
+                      >{m.s8_fwd_name_optional()}</Label
                     >
                     <Input
                       id={`forward-${forward.port}-label`}
                       maxlength={64}
                       placeholder={titles.get(forward.session) ||
-                        "例如 前端预览"}
+                        m.s8_fwd_name_placeholder()}
                       bind:value={draftLabel}
                     />
                   </div>
@@ -324,10 +340,11 @@
                     <Button
                       type="button"
                       variant="outline"
-                      onclick={() => (editingPort = null)}>取消</Button
+                      onclick={() => (editingPort = null)}
+                      >{m.s8_cancel()}</Button
                     >
                     <Button type="submit" disabled={busy.has(editKey)}
-                      >保存</Button
+                      >{m.s8_save()}</Button
                     >
                   </div>
                 </form>
@@ -341,25 +358,23 @@
             <Empty.Media variant="icon"
               ><IconPlugConnected aria-hidden="true" /></Empty.Media
             >
-            <Empty.Title>还没有转发</Empty.Title>
-            <Empty.Description
-              >输入端口，或转发下方检测到的端口。</Empty.Description
-            >
+            <Empty.Title>{m.s8_fwd_empty_title()}</Empty.Title>
+            <Empty.Description>{m.s8_fwd_empty_desc()}</Empty.Description>
           </Empty.Header>
         </Empty.Root>
       {/if}
       <p class="sr-only" role="status">
-        {copied === null ? "" : `已复制端口 ${copied} 的链接`}
+        {copied === null ? "" : m.s8_fwd_copied_sr({ port: String(copied) })}
       </p>
     </section>
 
     <section class="space-y-2" aria-labelledby="forward-detected-title">
       <h3 id="forward-detected-title" class="text-sm font-medium">
-        检测到的端口
+        {m.s8_fwd_detected_heading()}
       </h3>
       {#if !detection}
         <p class="text-sm text-muted-foreground">
-          当前平台不支持自动检测，可以手动输入端口。
+          {m.s8_fwd_no_detection()}
         </p>
       {:else if detected.length}
         <ul class="divide-y">
@@ -381,7 +396,7 @@
               <Button
                 variant="outline"
                 size="sm-touch"
-                aria-label={`转发端口 ${entry.port}`}
+                aria-label={m.s8_fwd_port_aria({ port: String(entry.port) })}
                 disabled={busy.has(key)}
                 onclick={() =>
                   void run(key, () =>
@@ -390,7 +405,7 @@
                       session: entry.session,
                       process: entry.process,
                     }),
-                  )}>转发</Button
+                  )}>{m.s8_fwd_action()}</Button
               >
               {#if rowErrors[key]}<p
                   class="col-span-full text-xs text-destructive wrap-anywhere"
@@ -403,14 +418,13 @@
         </ul>
       {:else}
         <p class="text-sm text-muted-foreground">
-          会话中没有其他正在监听的端口。
+          {m.s8_fwd_no_listening_ports()}
         </p>
       {/if}
     </section>
 
     <p class="text-xs text-muted-foreground">
-      转发页面与 WebMux 同源，页面脚本可以访问 WebMux
-      登录状态。只转发你信任的开发服务器。
+      {m.s8_fwd_same_origin_security_note()}
     </p>
   </div>
 </ResponsiveDialog>

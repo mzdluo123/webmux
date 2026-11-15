@@ -3,10 +3,17 @@ import {
   stopSettings,
 } from "../../src/domains/settings/settings.svelte";
 import { emptySettings } from "../../src/domains/settings/settings-intent";
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Settings from "../../src/pages/Settings.svelte";
+import { FeatureIDSchema } from "../../src/contracts/feature-schemas";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
+
+beforeEach(() => enableCreationFeatures(FeatureIDSchema.options));
 
 const config = {
   id: "abcdefg2",
@@ -57,6 +64,7 @@ afterEach(async () => {
   } finally {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    resetCreationFeatures();
     localStorage.clear();
   }
 });

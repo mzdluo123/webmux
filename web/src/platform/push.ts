@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { api, store, stored } from "./api";
 import { decodeBase64Url } from "./base64url";
 import {
@@ -85,15 +86,19 @@ export async function currentSubscription(): Promise<PushSubscription | null> {
   return (await registration?.pushManager.getSubscription()) ?? null;
 }
 
-async function register(subscription: PushSubscription): Promise<string> {
+async function register(
+  subscription: PushSubscription,
+  signal?: AbortSignal,
+): Promise<string> {
   const { id } = await api(
     "/push/subscriptions",
     PushSubscriptionResultSchema,
     "POST",
     subscription.toJSON(),
-    undefined,
+    signal,
     PushSubscriptionRequestSchema,
   );
+  signal?.throwIfAborted();
   store(SUBSCRIPTION_KEY, id);
   return id;
 }
@@ -104,9 +109,7 @@ async function register(subscription: PushSubscription): Promise<string> {
 export async function requestPermission(): Promise<void> {
   const permission = await Notification.requestPermission();
   if (permission !== "granted")
-    throw new Error(
-      "未获得通知权限：请点击地址栏中的铃铛图标或在浏览器网站设置中允许本站通知，然后重试",
-    );
+    throw new Error(m.s1_push_permission_not_granted());
 }
 
 // enable must run inside the click that asked for it: browsers only show the
@@ -160,22 +163,24 @@ export type SyncResult = "none" | "unavailable" | "synced" | "key-changed";
 // sync re-registers an existing subscription idempotently, for example after
 // the server rebuilt its store. Without one it does nothing: no worker
 // registration and no permission prompt.
-export async function sync(): Promise<SyncResult> {
+export async function sync(signal?: AbortSignal): Promise<SyncResult> {
   if (
     typeof Notification === "undefined" ||
     Notification.permission !== "granted"
   )
     return "none";
   const subscription = await currentSubscription();
+  signal?.throwIfAborted();
   if (!subscription) return "none";
-  const status = await pushStatus();
+  const status = await api("/push", PushStatusSchema, "GET", undefined, signal);
   if (!status.available || !status.publicKey) return "unavailable";
+  signal?.throwIfAborted();
   if (!sameKey(subscription.options.applicationServerKey, status.publicKey)) {
     await subscription.unsubscribe();
     store(SUBSCRIPTION_KEY, "");
     return "key-changed";
   }
-  await register(subscription);
+  await register(subscription, signal);
   return "synced";
 }
 
@@ -201,16 +206,31 @@ export function describeTest(outcome: TestOutcome): {
   message: string;
 } {
   const { devices, accepted, removed, errors, ownRemoved } = outcome;
-  if (devices === 0) return { failed: true, message: "还没有设备开启推送" };
+  if (devices === 0)
+    return { failed: true, message: m.s1_push_test_no_devices() };
   if (accepted === devices)
     return {
       failed: false,
-      message: `已提交给全部 ${devices} 台设备的推送服务，若数秒内未收到，请检查各设备的系统通知设置`,
+      message: m.s1_push_test_all_accepted({ devices: String(devices) }),
     };
-  const parts = [`已提交给 ${accepted}/${devices} 台设备的推送服务`];
-  if (removed.length) parts.push(`${removed.length} 台订阅已失效并已删除`);
+  const sep = m.s1_list_sep_semicolon();
+  const parts = [
+    m.s1_push_test_partial_submitted({
+      accepted: String(accepted),
+      devices: String(devices),
+    }),
+  ];
+  if (removed.length)
+    parts.push(
+      m.s1_push_test_expired_removed({ count: String(removed.length) }),
+    );
   if (errors.length)
-    parts.push(`${errors.length} 台发送失败：${errors.join("；")}`);
-  if (ownRemoved) parts.push("本设备需要重新开启推送");
-  return { failed: errors.length > 0 || ownRemoved, message: parts.join("；") };
+    parts.push(
+      m.s1_push_test_send_failed({
+        count: String(errors.length),
+        errors: errors.join(sep),
+      }),
+    );
+  if (ownRemoved) parts.push(m.s1_push_test_reenable_this_device());
+  return { failed: errors.length > 0 || ownRemoved, message: parts.join(sep) };
 }

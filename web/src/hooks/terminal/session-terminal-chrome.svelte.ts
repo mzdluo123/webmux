@@ -1,11 +1,12 @@
 import { tick, untrack } from "svelte";
 import { store, stored } from "../../platform/api";
-import type { ChatCodeLink } from "../../domains/code/markdown-link";
+import type { ChatScrollState } from "../../platform/capabilities";
+import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
+import type { checkRevealTarget } from "../../domains/code/code-reveal";
 import type { CodeReveal, SessionInfo } from "../../contracts/schemas";
 import {
   captureFindReturnFocus,
   clearFindFocus,
-  copySessionBuffer,
   copySessionText,
   isEditableActiveElement,
   pasteFromSessionClipboard,
@@ -19,13 +20,19 @@ import type {
   TextInsertion,
 } from "../../domains/terminal/terminal-draft.svelte";
 import { hasTouchInput } from "../../platform/touch-input";
-import { codePanelState } from "../code/code-panel-state";
 import { createKeyboardSizeHold } from "./keyboard-size-hold";
 import { keyboardSizeHold } from "./keyboard-size-hold-preference.svelte";
 import type { KeyboardVisibility } from "../shared/viewport.svelte";
+import { headsetMode } from "../shared/headset-mode.svelte";
+import { allowAutomaticInputFocus } from "../shared/input-focus";
+import { m } from "$lib/paraglide/messages.js";
 
 export function useSessionTerminalChrome(options: {
   id: () => string;
+  code?: {
+    codePanelState: { shown(): boolean; setShown(value: boolean): void };
+    checkRevealTarget: typeof checkRevealTarget;
+  };
   draft: TerminalDraft;
   drafts: TerminalDrafts;
   isMounted: () => boolean;
@@ -50,12 +57,7 @@ export function useSessionTerminalChrome(options: {
   ) => Promise<void>;
   setError: (message: string) => void;
   oninfo: (info: SessionInfo, connection: string) => void;
-  onscrollstate?: (state: {
-    chatView: boolean;
-    desktop: boolean;
-    codeShown: boolean;
-    editing: boolean;
-  }) => void;
+  onscrollstate?: (state: ChatScrollState) => void;
 }) {
   let findOpen = $state(false);
   let findReturnFocus: HTMLElement | null = null;
@@ -67,14 +69,18 @@ export function useSessionTerminalChrome(options: {
   let copyOpen = $state(false);
   let copyText = $state("");
   let pendingCopy = $state<string | null>(null);
-  let codeShown = $state(codePanelState.shown());
-  $effect(() => codePanelState.setShown(codeShown));
+  // codeShown retains the workspace's sidebar visibility and persisted size
+  // contract; choosing another panel does not collapse that sidebar.
+  let codeShown = $state(options.code?.codePanelState.shown() ?? false);
+  let panelView = $state<"picker" | "code" | "split">("code");
+  $effect(() => options.code?.codePanelState.setShown(codeShown));
   let codeTarget = $state<CodeReveal>();
   let chatEditing = $state(false);
   let choiceClosed = $state(false);
 
   const hold = createKeyboardSizeHold({
-    canHold: () => keyboardSizeHold.enabled && hasTouchInput(),
+    canHold: () =>
+      keyboardSizeHold.enabled && (hasTouchInput() || headsetMode.enabled),
     keyboardStays: isEditableActiveElement,
     onActive: (value) => (keyboardHeld = value),
     release: () => void tick().then(() => options.fitTerminal()),
@@ -103,12 +109,22 @@ export function useSessionTerminalChrome(options: {
     findOpen = false;
     clearFindFocus(
       options.clearTerminalFind,
-      hasTouchInput(),
+      hasTouchInput() || headsetMode.enabled,
       options.isActiveAndVisible,
       findReturnFocus,
       options.focusFallback,
       (fn) => void tick().then(fn),
     );
+  }
+
+  function restoreInputFocus(event?: Event) {
+    event?.preventDefault();
+    if (!allowAutomaticInputFocus()) return;
+    void tick().then(() => {
+      if (!options.isMounted() || !options.isActiveAndVisible()) return;
+      if (findOpen) options.focusFindBar();
+      else options.focusFallback();
+    });
   }
 
   function setSizeLocked(value: boolean) {
@@ -117,15 +133,29 @@ export function useSessionTerminalChrome(options: {
     void tick().then(() => options.fitTerminal());
   }
 
+  function showCode() {
+    panelView = "code";
+    codeShown = true;
+  }
+
   function review(path: string) {
+    if (!options.code) return;
+    panelView = "code";
     if (!options.isCodePanelPoppedOut()) codeShown = true;
     codeTarget = { path, mode: "diff", key: (codeTarget?.key ?? 0) + 1 };
   }
 
-  function openCodeLocation(target: ChatCodeLink) {
+  const openCodeLocation: ChatCodeLinkHandler = async (target) => {
+    if (!options.code) return m.s4_code_feature_disabled();
+    const failure = await options.code.checkRevealTarget(
+      `/sessions/${options.id()}/code`,
+      target,
+    );
+    if (failure) return failure;
+    panelView = "code";
     if (!options.isCodePanelPoppedOut()) codeShown = true;
     codeTarget = { ...target, mode: "file", key: (codeTarget?.key ?? 0) + 1 };
-  }
+  };
 
   const clipboardCtx: SessionClipboardContext = {
     get id() {
@@ -165,6 +195,7 @@ export function useSessionTerminalChrome(options: {
   function syncSessionEffects(
     hybrid: SessionHybridView & {
       info?: SessionInfo | null;
+      known: boolean;
       missing: boolean;
       awaitingChoice: boolean;
     },
@@ -196,7 +227,7 @@ export function useSessionTerminalChrome(options: {
       untrack(() => options.onscrollstate?.(state));
     });
     $effect(() => {
-      if (hybrid.missing) options.drafts.remove(options.id());
+      if (hybrid.known && hybrid.missing) options.drafts.remove(options.id());
     });
     $effect(() => {
       if (!hybrid.awaitingChoice) choiceClosed = false;
@@ -253,6 +284,12 @@ export function useSessionTerminalChrome(options: {
     set codeShown(value: boolean) {
       codeShown = value;
     },
+    get panelView() {
+      return panelView;
+    },
+    set panelView(value: "picker" | "code" | "split") {
+      panelView = value;
+    },
     get codeTarget() {
       return codeTarget;
     },
@@ -271,13 +308,81 @@ export function useSessionTerminalChrome(options: {
     beginHold: (target: EventTarget) => hold.begin(target),
     showFind,
     closeFind,
+    restoreInputFocus,
     setSizeLocked,
+    showCode,
     review,
     openCodeLocation,
     copyToClipboard,
     copyPending,
-    copy: () => copySessionBuffer(clipboardCtx),
     paste: () => pasteFromSessionClipboard(clipboardCtx),
     syncSessionEffects,
+  };
+}
+
+export function createSessionUploadHandlers(options: {
+  id: string;
+  draft: TerminalDraft;
+  drafts: TerminalDrafts;
+  isMounted: () => boolean;
+  isFilesAvailable: () => boolean;
+  insertText: (text: string, operation?: DraftOperation) => TextInsertion;
+  setError: (message: string) => void;
+  onUploadNotice: (message: string) => void;
+}) {
+  return {
+    uploadClipboardFiles(
+      getUploads: () =>
+        | {
+            uploadFiles: (
+              files: File[],
+              operation?: DraftOperation,
+            ) => Promise<void>;
+          }
+        | undefined,
+    ) {
+      return async (files: FileList | File[], operation?: DraftOperation) => {
+        const uploads = getUploads();
+        if (!uploads || !options.isFilesAvailable())
+          throw new Error(m.s4_file_upload_unavailable());
+        await uploads.uploadFiles(Array.from(files), operation);
+      };
+    },
+    sendChatFile<R>(
+      uploadFile: (
+        id: string,
+        file: File,
+        progress: (fraction: number) => void,
+        signal: AbortSignal,
+      ) => Promise<R>,
+    ) {
+      return (
+        file: File,
+        progress: (fraction: number) => void,
+        signal: AbortSignal,
+      ) => {
+        if (!options.isFilesAvailable())
+          return Promise.reject(new Error(m.s4_file_upload_unavailable()));
+        return uploadFile(options.id, file, progress, signal);
+      };
+    },
+    attachments: {
+      get: () => options.draft.attachments,
+      set: (next: TerminalDraft["attachments"]) =>
+        options.drafts.setAttachments(options.draft, next),
+    },
+    notifyUploadError(message: string) {
+      if (options.isMounted()) options.setError(message);
+      else if (message)
+        options.onUploadNotice(
+          m.s4_session_upload_notice({ id: options.id, message }),
+        );
+    },
+    draftBridge: {
+      begin: () => options.drafts.begin(options.draft),
+      destination: (operation?: DraftOperation) =>
+        options.drafts.destination(options.draft, operation),
+      insert: options.insertText,
+    },
   };
 }

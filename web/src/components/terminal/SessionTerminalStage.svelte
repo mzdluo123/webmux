@@ -8,39 +8,41 @@
     ChatUploads,
     useUpload,
   } from "../../hooks/shared/upload.svelte";
-  import type { ChatCodeLink } from "../../domains/code/markdown-link";
-  import { quickCommands } from "../../domains/settings/quick-commands.svelte";
+  import { m } from "$lib/paraglide/messages.js";
+  import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
-  import { isVoiceDisabled } from "../../domains/terminal/session-terminal-io";
   import type {
     TerminalDraft,
     TerminalDrafts,
   } from "../../domains/terminal/terminal-draft.svelte";
-  import ConnectorInstallHint from "../sessions/ConnectorInstallHint.svelte";
   import DraftToggle from "./DraftToggle.svelte";
-  import HybridRecovery from "../sessions/HybridRecovery.svelte";
-  import QuickCommandMenu from "../settings/QuickCommandMenu.svelte";
   import TerminalFindBar from "./TerminalFindBar.svelte";
   import TerminalHeader from "./TerminalHeader.svelte";
   import TerminalInputComposer from "./TerminalInputComposer.svelte";
   import TerminalNotices from "./TerminalNotices.svelte";
   import TerminalViewport from "./TerminalViewport.svelte";
   import TerminalWorkspace from "./TerminalWorkspace.svelte";
-  import VoiceButton from "../shared/VoiceButton.svelte";
-  import ChatView from "../chat/ChatView.svelte";
-  import SwitchProgress from "../chat/SwitchProgress.svelte";
   import type { createHeaderTerminalView } from "../../domains/terminal/session-terminal-io";
   import type { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
+  import type { XrHeaderControl } from "../../domains/terminal/xr-workspace";
+  import { useTvTerminalBack } from "../../hooks/terminal/tv-terminal-back.svelte";
+  import type { TerminalFeatures } from "../../features/terminal";
+  import type ChatViewComponent from "../chat/ChatView.svelte";
+  import SessionSidePanel from "./SessionSidePanel.svelte";
 
   let {
     id,
+    features,
     paneActions,
+    chatActions,
     headerTerminal,
     fullscreen,
     codeShown = $bindable(),
+    panelView = $bindable("code"),
     forceSoftKeys = $bindable(),
     desktop,
     documentScroll,
+    chatVisible,
     hybrid,
     terminal,
     uploads,
@@ -89,28 +91,32 @@
     onVoiceError,
     softInput,
     controlNotice,
-    copy,
     paste,
     holdBegin,
-    codePane,
+    codePane: codeContent,
     review,
     openCodeLocation,
     onChatEditChange,
     onChooseSwitch,
     container = $bindable(),
+    xr,
   }: {
     id: string;
-    paneActions: Snippet<[boolean]>;
+    features: TerminalFeatures;
+    paneActions: Snippet<[() => void]>;
+    chatActions?: Snippet;
     headerTerminal: ReturnType<typeof createHeaderTerminalView>;
     fullscreen: ReturnType<typeof useFullscreen>;
     codeShown: boolean;
+    panelView: "picker" | "code" | "split";
     forceSoftKeys: boolean;
     desktop: boolean;
     documentScroll: boolean;
+    chatVisible: boolean;
     hybrid: HybridSession;
     terminal: TerminalController;
-    uploads: ReturnType<typeof useUpload>;
-    chatUploads: ChatUploads;
+    uploads: ReturnType<typeof useUpload> | undefined;
+    chatUploads: ChatUploads | undefined;
     chatUploadUnavailable: string;
     sendUnavailable: string;
     quickUnavailable: string;
@@ -155,26 +161,54 @@
     onVoiceError: (message: string) => void;
     softInput: (input: string) => void;
     controlNotice: () => void;
-    copy: () => Promise<void>;
     paste: () => Promise<void>;
     holdBegin: () => void;
     codePane: Snippet;
     review: (path: string) => void;
-    openCodeLocation: (target: ChatCodeLink) => void;
+    openCodeLocation: ChatCodeLinkHandler;
     onChatEditChange: (value: boolean) => void;
     onChooseSwitch: () => void;
     container: HTMLDivElement | undefined;
+    xr?: XrHeaderControl;
   } = $props();
 
   let findPanel = $state<TerminalFindBar>();
-  let chatView = $state<ChatView>();
+  let chatView = $state<ChatViewComponent>();
   let composer = $state<TerminalInputComposer>();
+  let sidePanel = $state<SessionSidePanel>();
+  let header = $state<TerminalHeader>();
+
+  function openPanels() {
+    codeShown = true;
+    sidePanel?.openPicker();
+  }
+
+  function closePanel() {
+    codeShown = false;
+    header?.focusPanels();
+  }
+
+  useTvTerminalBack({
+    host: () => container,
+    codeShown: () => codeShown,
+    closeCode: closePanel,
+    leave: () => leave(),
+  });
 
   export function focusFind() {
     findPanel?.focus();
   }
   export function focusChat() {
     chatView?.focus();
+  }
+  export function editChatKey(input: string) {
+    chatView?.editKey(input);
+  }
+  export function sendChatDraft() {
+    chatView?.submitDraft();
+  }
+  export function getChatError() {
+    return chatView?.getError() ?? "";
   }
   export function focusComposer() {
     composer?.focus();
@@ -205,16 +239,16 @@
   size?: ButtonSize,
   variant?: ButtonVariant,
 )}
-  <VoiceButton
-    {size}
-    {variant}
-    disabled={isVoiceDisabled(hybrid, terminal, draft)}
-    onmousedown={(event) => {
-      if (side === "top" && hybrid.view !== "chat") event.preventDefault();
-    }}
-    onresult={insertVoiceResult}
-    onerror={onVoiceError}
-  />
+  {#if features.voice}<features.voice.Button
+      {size}
+      {variant}
+      disabled={features.voice.isVoiceDisabled(hybrid, terminal, draft)}
+      onmousedown={(event) => {
+        if (side === "top" && hybrid.view !== "chat") event.preventDefault();
+      }}
+      onresult={insertVoiceResult}
+      onerror={onVoiceError}
+    />{/if}
 {/snippet}
 {#snippet draftVoice()}
   {@render voiceButton("top", "icon-sm", "ghost")}
@@ -223,29 +257,31 @@
   side: "top" | "bottom",
   size?: ButtonSize,
   variant?: ButtonVariant,
+  submenu?: boolean,
 )}
   <!-- In the terminal view the microphone lives in the draft box only. -->
-  {#if voiceEnabled && hybrid.view === "chat"}
+  {#if voiceEnabled && hybrid.view === "chat" && !submenu}
     {@render voiceButton(side, size, variant)}
   {/if}
-  <QuickCommandMenu
-    commands={quickCommands.list}
-    target={hybrid.view === "chat"
-      ? "chat"
-      : draft.enabled
-        ? "draft"
-        : "terminal"}
-    unavailable={quickUnavailable}
-    disabled={hybrid.view === "chat"
-      ? hybrid.missing
-      : terminal.connection === "missing"}
-    {side}
-    {size}
-    {variant}
-    run={runQuickCommand}
-    manage={manageQuickCommands}
-    onCloseAutoFocus={focusTerminal}
-  />
+  {#if features.quickCommands}<features.quickCommands.Menu
+      commands={features.quickCommands.availableCommands(!!features.files)}
+      target={hybrid.view === "chat"
+        ? "chat"
+        : draft.enabled
+          ? "draft"
+          : "terminal"}
+      unavailable={quickUnavailable}
+      disabled={hybrid.view === "chat"
+        ? hybrid.missing
+        : terminal.connection === "missing"}
+      {side}
+      {size}
+      {variant}
+      {submenu}
+      run={runQuickCommand}
+      manage={manageQuickCommands}
+      onCloseAutoFocus={focusTerminal}
+    />{/if}
 {/snippet}
 {#snippet draftToggle()}
   <DraftToggle
@@ -258,7 +294,7 @@
   />
 {/snippet}
 {#snippet recovery()}
-  {#if hybrid.recoverable}<HybridRecovery
+  {#if features.chat && hybrid.recoverable}<features.chat.Recovery
       record={hybrid.recoverable}
       onresumed={reopen}
       {leave}
@@ -266,14 +302,18 @@
 {/snippet}
 
 <TerminalHeader
-  {paneActions}
+  bind:this={header}
+  {features}
+  {chatActions}
+  {xr}
+  keyboard={holdBegin}
+  {openPanels}
   terminal={headerTerminal}
   {fullscreen}
   {draft}
   {draftSaved}
   {scratchSaved}
-  uploading={uploads.progress !== null}
-  {desktop}
+  uploading={uploads?.progress != null}
   {sizeLocked}
   {setSizeLocked}
   {keyboardSizeHold}
@@ -281,9 +321,8 @@
   bind:codeShown
   bind:forceSoftKeys
   {quickMenu}
-  upload={uploads.uploadFiles}
+  upload={uploads?.uploadFiles}
   {toggleDraft}
-  {copy}
   {paste}
   {showScratch}
   {showFontSize}
@@ -295,10 +334,22 @@
 <TerminalWorkspace
   {codeShown}
   {desktop}
+  immersive={xr?.active ?? false}
   draftOpen={draft.enabled && hybrid.view === "terminal"}
-  onfind={showFind}
-  {codePane}
+  onfind={hybrid.view === "terminal" ? showFind : undefined}
 >
+  {#snippet codePane()}
+    <SessionSidePanel
+      bind:this={sidePanel}
+      bind:view={panelView}
+      shown={codeShown}
+      codeAvailable={!!features.code}
+      close={closePanel}
+      {paneActions}
+    >
+      {@render codeContent()}
+    </SessionSidePanel>
+  {/snippet}
   {#snippet terminalPane()}
     <div
       class={[
@@ -315,6 +366,7 @@
           {leave}
           {terminal}
           {uploads}
+          {features}
           {draft}
           {draftSaved}
           {error}
@@ -336,12 +388,12 @@
               : undefined}
           {showForwards}
         />
-        {#if hybrid.connector && hybrid.view === "terminal"}<div
+        {#if features.chat && hybrid.connector && hybrid.view === "terminal"}<div
             class="shrink-0 border-b px-4 py-2"
           >
-            <ConnectorInstallHint
+            <features.chat.ConnectorHint
               connector={hybrid.connector}
-              detail="安装后会自动重新检测"
+              detail={m.s4_connector_recheck_hint()}
               ondismiss={() => hybrid.dismissConnector()}
             />
           </div>{/if}
@@ -354,6 +406,9 @@
         <TerminalViewport
           bind:container
           {terminal}
+          focusTerminal={() => terminal.focus()}
+          scroll={(lines) => terminal.scrollLines(lines)}
+          sendControl={(input) => terminal.send(input)}
           visible={terminalVisible}
           sizeLocked={sizeLocked || keyboardHeld}
           {touchGamepad}
@@ -384,7 +439,7 @@
           {/snippet}
         </TerminalViewport>
       </div>
-      {#if hybrid.view === "chat"}
+      {#if features.chat && chatUploads && hybrid.view === "chat"}
         <div
           class={[
             "flex min-h-0 flex-1 flex-col",
@@ -392,9 +447,10 @@
           ]}
           use:paneEnter={true}
         >
-          <ChatView
+          <features.chat.ChatView
             bind:this={chatView}
             sessionId={id}
+            visible={chatVisible}
             model={hybrid.chat.model}
             chat={hybrid.chat.state}
             connection={hybrid.chat.connection}
@@ -404,16 +460,16 @@
             uploadUnavailable={chatUploadUnavailable}
             location={hybrid.info}
             actions={hybrid.actions}
-            onreview={review}
-            onopenlocation={openCodeLocation}
+            onreview={features.code ? review : undefined}
+            onopenlocation={features.code ? openCodeLocation : undefined}
             onterminal={() => hybrid.request("terminal")}
             {quickMenu}
             {documentScroll}
             oneditchange={onChatEditChange}
           />
         </div>
-      {:else if hybrid.view === "switching"}
-        <SwitchProgress
+      {:else if features.chat && hybrid.view === "switching"}
+        <features.chat.SwitchProgress
           target={hybrid.target}
           steps={hybrid.steps}
           awaitingChoice={hybrid.awaitingChoice}
@@ -434,7 +490,7 @@
       send={() => sendDraft()}
       resend={() => sendDraft(true)}
       release={releaseDraftSubmission}
-      filePaste={uploads.filePaste}
+      filePaste={(event) => uploads?.filePaste(event) ?? false}
       {controlNotice}
       voice={voiceEnabled ? draftVoice : undefined}
     />

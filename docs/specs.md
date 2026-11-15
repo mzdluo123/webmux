@@ -6,6 +6,12 @@
 - 新增、拆分或改名 capability 时，在同一变更中更新本页；`internal/docguard` 会把没有链接到的规格报告为不可达。
 - 规格描述“应当怎样”；功能用途与验收要点见 [User Stories](user-stories.md)，工作流见 [参与贡献](../CONTRIBUTING.md#openspec-工作流可选)。
 
+## 核心与内置功能
+
+- [terminal-core-host](../openspec/specs/terminal-core-host/spec.md)：零功能终端工作流、连续输出与统一安全边界
+- [builtin-feature-lifecycle](../openspec/specs/builtin-feature-lifecycle/spec.md)：显式启用集、依赖、数据保留及有序启动关闭
+- [feature-ui-contributions](../openspec/specs/feature-ui-contributions/spec.md)：鉴权能力发现、全栈贡献、客户端消费和资源清理
+
 ## 会话与终端
 
 - [terminal-control](../openspec/specs/terminal-control/spec.md)：多设备同时打开同一会话时的唯一控制端与接管
@@ -22,16 +28,18 @@
 - [launch-configs](../openspec/specs/launch-configs/spec.md)：服务器持久化的启动配置（名称 + argv + 环境变量）
 - [session-artifacts](../openspec/specs/session-artifacts/spec.md)：会话产物目录
 - [terminal-keyboard-size-hold](../openspec/specs/terminal-keyboard-size-hold/spec.md)：触屏唤起软键盘时暂时保持 PTY 行列不变
+- [terminal-touch-gamepad](../openspec/specs/terminal-touch-gamepad/spec.md)：触屏与调试可用的半透明浮动摇杆、高频虚拟键及底栏去重
 - [terminal-notice-overlay](../openspec/specs/terminal-notice-overlay/spec.md)：终端顶部状态提示悬浮显示，不触发 resize
 - [websocket-compression](../openspec/specs/websocket-compression/spec.md)：手机与平板默认启用、可按设备覆盖的 WebSocket 压缩
 
 ## 应用外壳与导航
 
 - [app-shell](../openspec/specs/app-shell/spec.md)：首页、快速开始页与会话页共用的侧栏布局与模式切换
+- [web-i18n](../openspec/specs/web-i18n/spec.md)：网页前端中英文国际化、本机语言偏好与无刷新即时切换
 - [chat-sidebar](../openspec/specs/chat-sidebar/spec.md)：聊天模式侧栏中的聊天历史
 - [workbench-navigation](../openspec/specs/workbench-navigation/spec.md)：工作台侧栏的“仓库 → worktree → 会话”导航树
 - [quick-start-chat](../openspec/specs/quick-start-chat/spec.md)：一次发送即在新 worktree 中启动聊天会话
-- [new-session-dialog](../openspec/specs/new-session-dialog/spec.md)：汇总式单页的新建会话对话框
+- [new-session-dialog](../openspec/specs/new-session-dialog/spec.md)：项目优先创建与直接目录兼容契约
 - [workspace-return-cache](../openspec/specs/workspace-return-cache/spec.md)：返回首页时先显示缓存列表再后台刷新
 
 ## Shell 工具（`webmux` 命令）
@@ -72,6 +80,10 @@
 - [code-document-preview](../openspec/specs/code-document-preview/spec.md)：文档类文件预览
 - [code-popout-window](../openspec/specs/code-popout-window/spec.md)：代码工作区弹出为独立窗口
 - [code-tree-drop-upload](../openspec/specs/code-tree-drop-upload/spec.md)：拖放文件到资源管理器上传
+- [git-workbench-context](../openspec/specs/git-workbench-context/spec.md)：独立仓库/工作树上下文、对象比较与快照隔离
+- [git-history-graph](../openspec/specs/git-history-graph/spec.md)：分页提交历史、真实 parent 拓扑与提交详情
+- [git-index-staging-and-commit](../openspec/specs/git-index-staging-and-commit/spec.md)：真实索引暂存、提交预览、钩子与并发边界
+- [git-workbench-ui-foundation](../openspec/specs/git-workbench-ui-foundation/spec.md)：Git 工作台的原生双主题组件与响应式布局
 
 ## 仓库与工作树
 

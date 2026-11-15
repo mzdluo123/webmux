@@ -1,3 +1,4 @@
+import { ensureSessionSetup } from "./session-project";
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import type { WebSocket } from "@playwright/test";
@@ -7,9 +8,8 @@ import {
   createShell,
   runCommand,
   expectTerminalLine,
-  headerAction,
   expectConnected,
-  viewSwitch,
+  toggleCode,
   backToList,
 } from "./fixtures";
 
@@ -96,6 +96,7 @@ for (const initialization of ["connected", "font-pending"] as const) {
         .first();
       await expect(create).toBeEnabled();
       await create.click();
+      await ensureSessionSetup(page);
       await expect(
         page.getByRole("button", { name: "运行", exact: true }),
       ).toBeVisible();
@@ -199,7 +200,7 @@ test("real shell output survives reload, then closes and is removed", async ({
   expect(await (await request.get("/api/sessions")).json()).toEqual([]);
 });
 
-test("replay and the header action return to latest output without typing", async ({
+test("replay and the floating button return to latest output without typing", async ({
   page,
   request,
   workDir,
@@ -217,13 +218,13 @@ test("replay and the header action return to latest output without typing", asyn
   );
   await expectTerminalLine(page, marker);
   await expectTerminalLine(page, "webmux-e2e$");
-  const narrow = info.project.use.isMobile;
-  // Wide headers show the button; phones use the floating button instead.
-  const latestEnabled = async () => {
-    if (!narrow)
-      await expect(await headerAction(page, "滚动到最新位置")).toBeEnabled();
-  };
+  await expect(
+    page
+      .locator(".terminal-header")
+      .getByRole("button", { name: "滚动到最新位置", exact: true }),
+  ).toHaveCount(0);
   const floating = page.getByRole("button", { name: "回到最新", exact: true });
+  await expect(floating).toBeHidden();
   const scrollBack = async () => {
     await expect(page.locator(".restore-overlay")).toBeHidden();
     // A fit after a layout change (the exit banner, a reload) resets xterm's
@@ -260,18 +261,25 @@ test("replay and the header action return to latest output without typing", asyn
         timeout: 1000,
       });
     }).toPass();
-    if (narrow) await expect(floating).toBeVisible();
-    else await expect(floating).toBeHidden();
+    await expect(floating).toBeVisible();
+    const areaBox = (await page.locator(".terminal-area").boundingBox())!;
+    const buttonBox = (await floating.boundingBox())!;
+    expect(
+      Math.abs(
+        buttonBox.x + buttonBox.width / 2 - (areaBox.x + areaBox.width / 2),
+      ),
+    ).toBeLessThanOrEqual(2);
+    expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(
+      areaBox.y + areaBox.height,
+    );
   };
   await scrollBack();
   await page
     .locator(".xterm-helper-textarea")
     .evaluate((element) => element.blur());
   const before = await (await request.get(`/api/sessions/${id}/buffer`)).text();
-  if (narrow) {
-    await floating.click();
-    await expect(floating).toBeHidden();
-  } else await (await headerAction(page, "滚动到最新位置")).click();
+  await floating.click();
+  await expect(floating).toBeHidden();
   await expectTerminalLine(page, marker);
   await expect(page.locator(".xterm-helper-textarea")).not.toBeFocused();
   expect(await (await request.get(`/api/sessions/${id}/buffer`)).text()).toBe(
@@ -290,7 +298,7 @@ test("replay and the header action return to latest output without typing", asyn
 
   await scrollBack();
   if (info.project.use.isMobile) {
-    await viewSwitch(page.locator(".terminal-header"), "代码").click();
+    await toggleCode(page);
     await expect(
       page.getByRole("region", { name: "代码工作区" }),
     ).toBeVisible();
@@ -324,20 +332,20 @@ test("replay and the header action return to latest output without typing", asyn
   });
   expect(sockets.at(-1)).toBe(live);
   expect(live.isClosed()).toBe(false);
-  await latestEnabled();
-  if (info.project.use.isMobile)
-    await viewSwitch(page.locator(".terminal-header"), "终端").click();
-  // Nothing was missed, so the reading position stays until the header
-  // action (the floating button on phones) returns to the latest output.
-  if (narrow) await floating.click();
-  else await (await headerAction(page, "滚动到最新位置")).click();
+  if (info.project.use.isMobile) await toggleCode(page);
+  // Nothing was missed, so the reading position stays until the floating
+  // button returns to the latest output.
+  await expect(floating).toBeVisible();
+  await floating.click();
+  await expect(floating).toBeHidden();
   await expectTerminalLine(page, marker);
 
   if (info.project.use.isMobile) {
     await scrollBack();
-    await viewSwitch(page.locator(".terminal-header"), "代码").click();
+    await toggleCode(page);
+    await expect(floating).toBeHidden();
     // From the narrow code view, the view switch returns to the terminal.
-    await viewSwitch(page.locator(".terminal-header"), "终端").click();
+    await toggleCode(page);
     await expect(page.locator(".terminal-host")).toBeVisible();
     await floating.click();
     await expectTerminalLine(page, marker);
@@ -350,7 +358,7 @@ test("replay and the header action return to latest output without typing", asyn
   await page.getByRole("button", { name: "终端菜单", exact: true }).click();
   await page.getByRole("menuitem", { name: "重新同步", exact: true }).click();
   await expectTerminalLine(page, marker);
-  await latestEnabled();
+  await expect(floating).toBeHidden();
 });
 
 test("shell exit reports its real code and remains removable", async ({

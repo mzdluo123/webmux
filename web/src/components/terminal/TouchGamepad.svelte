@@ -7,23 +7,25 @@
   import IconCornerDownLeft from "~icons/tabler/corner-down-left";
   import IconSpace from "~icons/tabler/space";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
+  import {
+    terminalKeys,
+    createTerminalKeyRepeat,
+  } from "../../domains/terminal/terminal-keys";
 
   let { send }: { send: (input: string) => void } = $props();
 
-  const repeatDelayMs = 350;
-  const repeatIntervalMs = 75;
+  const repeat = createTerminalKeyRepeat((input) => send(input));
   const steerThresholdPx = 14;
 
   const arrowInputs = {
-    up: "\x1b[A",
-    down: "\x1b[B",
-    left: "\x1b[D",
-    right: "\x1b[C",
+    up: terminalKeys.up,
+    down: terminalKeys.down,
+    left: terminalKeys.left,
+    right: terminalKeys.right,
   } as const;
   type ArrowDirection = keyof typeof arrowInputs;
 
-  let repeatDelay: ReturnType<typeof setTimeout> | undefined;
-  let repeatTimer: ReturnType<typeof setInterval> | undefined;
   let activePointerId = $state<number | null>(null);
   let activeDirection = $state<ArrowDirection | null>(null);
   let originX = 0;
@@ -31,24 +33,9 @@
   let pointerHandled = false;
 
   function stopRepeat() {
-    clearTimeout(repeatDelay);
-    clearInterval(repeatTimer);
-    repeatDelay = undefined;
-    repeatTimer = undefined;
+    repeat.stop();
     activePointerId = null;
     activeDirection = null;
-  }
-
-  function startRepeat(input: string) {
-    clearTimeout(repeatDelay);
-    clearInterval(repeatTimer);
-    send(input);
-    repeatDelay = setTimeout(() => {
-      repeatDelay = undefined;
-      repeatTimer = setInterval(() => {
-        send(input);
-      }, repeatIntervalMs);
-    }, repeatDelayMs);
   }
 
   function keepFocus(event: MouseEvent) {
@@ -84,7 +71,7 @@
     originX = event.clientX;
     originY = event.clientY;
     capturePointer(event.currentTarget, event.pointerId);
-    startRepeat(arrowInputs[direction]);
+    repeat.start(arrowInputs[direction]);
   }
 
   function moveDirection(event: PointerEvent) {
@@ -106,7 +93,7 @@
       activeDirection = nextDirection;
       originX = event.clientX;
       originY = event.clientY;
-      startRepeat(arrowInputs[nextDirection]);
+      repeat.start(arrowInputs[nextDirection]);
     }
   }
 
@@ -134,7 +121,7 @@
 <div
   class="flex w-full items-end justify-between gap-2 pb-1.5"
   role="toolbar"
-  aria-label="终端摇杆"
+  aria-label={m.s4_touch_gamepad_aria()}
 >
   <div class="grid grid-cols-2 gap-1.5">
     <Button
@@ -146,7 +133,7 @@
       onmousedown={keepFocus}
       onclick={(event) => {
         event.stopPropagation();
-        send("\x1b");
+        send(terminalKeys.escape);
       }}>Esc</Button
     >
     <Button
@@ -158,7 +145,7 @@
       onmousedown={keepFocus}
       onclick={(event) => {
         event.stopPropagation();
-        send("\t");
+        send(terminalKeys.tab);
       }}>Tab</Button
     >
     <Button
@@ -170,19 +157,19 @@
       onmousedown={keepFocus}
       onclick={(event) => {
         event.stopPropagation();
-        send("\x03");
+        send(terminalKeys.interrupt);
       }}>Ctrl+C</Button
     >
     <Button
       variant="hud"
       size="sm"
       data-gamepad-key="enter"
-      aria-label="回车"
-      title="回车"
+      aria-label={m.s4_key_enter()}
+      title={m.s4_key_enter()}
       onmousedown={keepFocus}
       onclick={(event) => {
         event.stopPropagation();
-        send("\r");
+        send(terminalKeys.enter);
       }}
     >
       <IconCornerDownLeft aria-hidden="true" />
@@ -197,12 +184,12 @@
         size="icon-sm"
         class="w-full"
         data-gamepad-key="space"
-        aria-label="空格"
-        title="空格（切换选择）"
+        aria-label={m.s4_key_space()}
+        title={m.s4_key_space_title()}
         onmousedown={keepFocus}
         onclick={(event) => {
           event.stopPropagation();
-          send(" ");
+          send(terminalKeys.space);
         }}
       >
         <IconSpace aria-hidden="true" />
@@ -214,8 +201,8 @@
         size="icon-sm"
         class="w-full"
         data-gamepad-key="up"
-        aria-label="向上方向键"
-        title="向上方向键（可按住滑动切换方向）"
+        aria-label={m.s4_key_up_aria()}
+        title={m.s4_key_up_title()}
         aria-pressed={activeDirection === "up"}
         onmousedown={keepFocus}
         onpointerdown={(event) => startDirection("up", event)}
@@ -234,8 +221,8 @@
         size="icon-sm"
         class="w-full"
         data-gamepad-key="left"
-        aria-label="向左方向键"
-        title="向左方向键（可按住滑动切换方向）"
+        aria-label={m.s4_key_left_aria()}
+        title={m.s4_key_left_title()}
         aria-pressed={activeDirection === "left"}
         onmousedown={keepFocus}
         onpointerdown={(event) => startDirection("left", event)}
@@ -254,8 +241,8 @@
         size="icon-sm"
         class="w-full"
         data-gamepad-key="down"
-        aria-label="向下方向键"
-        title="向下方向键（可按住滑动切换方向）"
+        aria-label={m.s4_key_down_aria()}
+        title={m.s4_key_down_title()}
         aria-pressed={activeDirection === "down"}
         onmousedown={keepFocus}
         onpointerdown={(event) => startDirection("down", event)}
@@ -274,8 +261,8 @@
         size="icon-sm"
         class="w-full"
         data-gamepad-key="right"
-        aria-label="向右方向键"
-        title="向右方向键（可按住滑动切换方向）"
+        aria-label={m.s4_key_right_aria()}
+        title={m.s4_key_right_title()}
         aria-pressed={activeDirection === "right"}
         onmousedown={keepFocus}
         onpointerdown={(event) => startDirection("right", event)}

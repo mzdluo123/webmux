@@ -1,5 +1,5 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import HomeWorktreeDialog from "../../src/components/workspace/HomeWorktreeDialog.svelte";
 import RepositoryPanel, {
@@ -148,6 +148,7 @@ function source(
         : {
             branches: [],
             bases: [],
+            tags: [],
             defaultBase: null,
             defaultBaseSubject: "",
             defaultBranch: "main",
@@ -272,7 +273,7 @@ test("browsing a worktree opens its details inside the panel; 返回 keeps the s
   const list = dialog().getByRole("list", { name: "仓库工作树列表" });
   await expect.element(list).toBeVisible();
   // The dialog body is the one scroll container; the list grows inside it.
-  const rows = dialog().element();
+  const rows = dialog().locator("[data-slot='scroll-area-viewport']").element();
   rows.scrollTop = 60;
   const scrolled = rows.scrollTop;
   expect(scrolled).toBeGreaterThan(0);
@@ -664,6 +665,7 @@ const branches = {
     base("refs/remotes/origin/main", "a".repeat(40), "发布 1.0"),
     base("refs/remotes/origin/feat/login-b", "9".repeat(40), "远程登录"),
   ],
+  tags: [],
   defaultBase: "a".repeat(40),
   defaultBaseSubject: "发布 1.0",
   defaultBranch: "main",
@@ -807,7 +809,11 @@ test("a worktree row's switch is a subview; a finished switch shows the worktree
   await view.getByRole("button", { name: "切换", exact: true }).click();
   expect(data.switch).toHaveBeenCalledWith(
     expect.objectContaining({ id: "clean1" }),
-    { confirmationId: "switch01", acknowledgeSessions: false },
+    {
+      confirmationId: "switch01",
+      acknowledgeSessions: false,
+      clientRequestId: expect.stringMatching(/^switch-/),
+    },
   );
   expect(handlers.onrefresh).toHaveBeenCalledOnce();
   await expect

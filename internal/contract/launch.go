@@ -75,17 +75,16 @@ type LaunchConfigSummary struct {
 	UpdatedAt   time.Time          `json:"updatedAt"`
 }
 
-// LaunchConfigInput is the body of a launch config create or update. The
-// read-only chatSupport is not part of it, so sending it is rejected as an
-// unknown field.
-type LaunchConfigInput struct {
+// LaunchConfigWrite is the create/update body. Omitted feature-owned fields
+// let editors preserve stored choices while their owning feature is disabled.
+type LaunchConfigWrite struct {
 	Name      string             `json:"name"`
 	Icon      string             `json:"icon,omitempty"`
 	Cmd       []string           `json:"cmd"`
 	Env       map[string]string  `json:"env"`
 	Preview   *PreviewSettings   `json:"preview"`
-	Attention *AttentionSettings `json:"attention"`
-	Chat      bool               `json:"chat"`
+	Attention *AttentionSettings `json:"attention,omitempty"`
+	Chat      *bool              `json:"chat,omitempty"`
 }
 
 // LaunchPreset describes one built-in launch preset that can be restored.

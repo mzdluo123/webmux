@@ -1,4 +1,5 @@
 import type { CodeView, FileDiffMetadata } from "@pierre/diffs";
+import { m } from "$lib/paraglide/messages.js";
 import type { CodeDiffReaderState } from "../../contracts/schemas";
 
 export const diffExpansionLines = 30;
@@ -70,29 +71,62 @@ export function enhanceDiffControls(
       const all =
         button.hasAttribute("data-expand-all-button") ||
         button.hasAttribute("data-expand-both");
+      const countText = String(diffExpansionLines);
       button.setAttribute(
         "aria-label",
         all
-          ? "展开全部上下文"
+          ? m.s5_diff_expand_all_context()
           : button.hasAttribute("data-expand-up")
-            ? `向上展开 ${diffExpansionLines} 行`
-            : `向下展开 ${diffExpansionLines} 行`,
+            ? m.s5_diff_expand_up({ count: countText })
+            : m.s5_diff_expand_down({ count: countText }),
       );
       button.setAttribute("aria-disabled", String(expired));
       button.tabIndex = expired ? -1 : 0;
       if (button.hasAttribute("data-expand-all-button"))
-        button.textContent = "展开全部";
+        button.textContent = m.s5_diff_expand_all();
     }
     for (const label of item.element.shadowRoot?.querySelectorAll<HTMLElement>(
       "[data-unmodified-lines]",
     ) ?? []) {
       const count = label.textContent?.match(/\d+/)?.[0];
-      if (count) label.textContent = `${count} 行未修改`;
+      if (count) label.textContent = m.s5_diff_unmodified_lines({ count });
     }
   }
 }
 
-export function findDiffExpandTarget(event: Event) {
+export function guardDiffExpandEvent(event: Event, expired: boolean) {
+  if (expired && findDiffExpandTarget(event)) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+}
+
+export function handleDiffExpandKey(
+  event: KeyboardEvent,
+  expired: boolean,
+  getInstance: () => ReturnType<typeof getDiffInstance>,
+): boolean {
+  const button = findDiffExpandTarget(event);
+  if (!button || (event.key !== "Enter" && event.key !== " ")) return false;
+  event.preventDefault();
+  if (expired) return true;
+  const separator = button.closest<HTMLElement>("[data-expand-index]");
+  const index = Number(separator?.dataset.expandIndex);
+  const instance = getInstance();
+  if (instance && Number.isInteger(index)) {
+    const all =
+      button.hasAttribute("data-expand-all-button") ||
+      button.hasAttribute("data-expand-both");
+    instance.expandHunk(
+      index,
+      all ? "both" : button.hasAttribute("data-expand-up") ? "up" : "down",
+      all ? Number.POSITIVE_INFINITY : diffExpansionLines,
+    );
+  }
+  return true;
+}
+
+function findDiffExpandTarget(event: Event) {
   return event
     .composedPath()
     .find(

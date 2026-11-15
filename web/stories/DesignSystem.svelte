@@ -1,4 +1,6 @@
 <script lang="ts">
+  import IconEye from "~icons/tabler/eye";
+  import IconEyeCheck from "~icons/tabler/eye-check";
   import Brand from "../src/components/shell/Brand.svelte";
   import {
     IconArrowRight,
@@ -28,10 +30,15 @@
   import ResponsiveDialog from "../src/components/shared/ResponsiveDialog.svelte";
   import { session, now } from "./fixtures";
   import type { SessionInfo } from "../src/contracts/schemas";
+  import { untrack } from "svelte";
+  import { tvMode } from "../src/hooks/shared/tv-mode.svelte";
+  import { useTvNavigation } from "../src/hooks/shared/tv-navigation.svelte";
 
   let {
     section = "foundations",
+    tv = false,
   }: {
+    tv?: boolean;
     section?:
       | "foundations"
       | "actions"
@@ -41,6 +48,14 @@
       | "overlays"
       | "sessions";
   } = $props();
+  useTvNavigation(() => false);
+  $effect(() => {
+    const previous = untrack(() => tvMode.enabled);
+    tvMode.enabled = tv;
+    return () => {
+      tvMode.enabled = previous;
+    };
+  });
   let notice = $state("");
   let dialogOpen = $state(false);
   let confirmOpen = $state(false);
@@ -89,6 +104,7 @@
     ["warning", "等待 / 注意"],
     ["destructive", "失败 / 危险"],
     ["info", "提示"],
+    ["default", "Git 主要确认"],
   ];
   const sessions: SessionInfo[] = [
     {
@@ -301,6 +317,7 @@
         <Button variant="link"
           >使用说明<IconArrowRight aria-hidden="true" /></Button
         >
+        <Button variant="default">Git 提交预览</Button>
       </Card.Content>
     </Card.Root>
     <Card.Root>
@@ -466,28 +483,58 @@
           >修复首页排序</ListButton
         >
         <ListButton variant="navigation">更新文档</ListButton>
+        <div class="flex items-center gap-2">
+          <ListButton
+            variant="review-toggle"
+            aria-pressed={false}
+            aria-label="标记演示文件为已看"
+            title="标记为已看"><IconEye aria-hidden="true" /></ListButton
+          >
+          <ListButton
+            variant="review-toggle"
+            aria-pressed={true}
+            aria-label="取消演示文件已看"
+            title="取消已看"><IconEyeCheck aria-hidden="true" /></ListButton
+          >
+        </div>
+        <Button size="sm" variant="ghost" aria-expanded="false"
+          >提交 · 已完成</Button
+        >
       </Card.Content>
     </Card.Root>
     <Card.Root>
       <Card.Header
         ><Card.Title>对话轮次刻度</Card.Title><Card.Description
-          >用户消息使用前景色，AI 消息使用信息蓝；当前消息加长并提高不透明度。</Card.Description
+          >用户刻度固定 12px；AI 按消息数使用 12 / 16 / 20 /
+          24px，当前刻度提高不透明度。长对话聚合相邻轮次，保持行高且不独立滚动。</Card.Description
         ></Card.Header
       >
       <Card.Content class="flex flex-col items-start">
         <ListButton
           variant="turn"
           data-turn-role="user"
+          data-turn-volume="single"
           aria-label="第 1 轮 · 你：修复首页排序"
           title="第 1 轮 · 你：修复首页排序"
           ><span aria-hidden="true"></span></ListButton
         >
+        {#each [{ count: 1, volume: "single" }, { count: 2, volume: "few" }, { count: 4, volume: "several" }, { count: 8, volume: "many" }] as item}
+          {@const label = `第 1 轮 · AI${item.count > 1 ? ` · ${item.count} 条消息` : ""}：已修改排序`}
+          <ListButton
+            variant="turn"
+            data-turn-role="agent"
+            data-turn-volume={item.volume}
+            aria-label={label}
+            aria-current={item.count === 4 ? "location" : undefined}
+            title={label}><span aria-hidden="true"></span></ListButton
+          >
+        {/each}
         <ListButton
           variant="turn"
-          data-turn-role="agent"
-          aria-label="第 1 轮 · AI：已修改排序"
-          aria-current="location"
-          title="第 1 轮 · AI：已修改排序"
+          data-turn-role="group"
+          data-turn-volume="many"
+          aria-label="第 2–8 轮 · 14 条消息"
+          title="第 2–8 轮 · 14 条消息"
           ><span aria-hidden="true"></span></ListButton
         >
       </Card.Content>

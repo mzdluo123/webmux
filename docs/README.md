@@ -8,10 +8,14 @@
 2. **安装并连通手机**：按 [安装与升级](deployment/install-and-upgrade.md) 启动服务，再用 [远程访问与 HTTPS](deployment/remote-access.md) 在手机上扫码或打开访问链接。
 3. **开始第一次对话**：阅读 [使用指南](usage.md) 的上手步骤，用“快速开始”或“新建会话”启动你的第一个 CLI agent。
 
+- [MCP 会话控制](usage/mcp.md)：连接客户端、发现启动配置与查询会话。
+
 ## 了解 WebMux
 
 - [项目介绍](overview.md)：定位、设计理念、全部特性、混合会话概览与技术栈。
 - [User Stories](user-stories.md)：每项功能的用户目的与验收要点，适合评审和查找“某个功能能做什么”。[连接与会话](user-stories/access-and-sessions.md)覆盖登录、启动和工作区。[草稿用户故事](user-stories/terminal/drafts.md)收录草稿、暂存及发送确认。
+- [2026-11-15 起的核对记录](user-stories/verification-log-2026-11-15.md)：项目来源与会话创建的增量验证。
+- [2026-11-12 起的核对记录](user-stories/verification-log-2026-11-12.md)：本机客户端响应处理与测试环境隔离的验证证据。
 - [常见问题与获取帮助](faq.md)：常见疑问、排障入口与反馈渠道。
 
 ## 安装与部署
@@ -35,9 +39,11 @@
   - [会话与工作台](usage/sessions.md)：侧栏、会话列表与状态、新建会话、启动配置、设置与跨设备偏好。
   - [终端使用](usage/terminal.md)：回放与控制权、查找、分屏、复制粘贴、终端图形、文件上传与草稿模式。
   - [代码工作区](usage/code.md)：文件浏览、Git Diff、多格式预览、行号引用与独立窗口。
+  - [Git 工作台](usage/git-workbench.md)：多分支拓扑历史、真实索引整文件/逐块/任意逐行暂存、受控丢弃更改、高级提交（Amend/作者/Sign-off）、独立 Stash 视图、基于可追踪 Stash 的 Smart Checkout、分支/标签/远程维护、单文件历史与逐行 Blame、三方冲突解决及跨设备协同。
   - [从本机终端使用](usage/command-line.md)：`run` / `attach`、Windows 终端与后台启动。
   - [仓库与 worktree](usage/worktrees.md)：仓库登记、新建工作树与起点选择、释放空间、删除与重建、推送检查。
   - [移动端使用](usage/mobile.md)：软键栏、虚拟键盘、触摸手势、锁定尺寸与全屏。
+  - [头显与 TV 浏览器](usage/xr-and-tv.md)：头显 2D、TV 遥控导航、沉浸式 VR 与硬件前提。
   - [需要你介入的提醒](usage/attention.md)：agent 状态识别、徽章与声音提醒、`OSC 7501` 协议及旧版钩子。
   - [端口转发预览](usage/port-forwarding.md)：把服务器上的开发服务器经 WebMux 转发到浏览器，终端端口提示与兼容选项。
   - [Shell 目录报告](usage/shell-directory.md)：可选的 OSC 7 目录报告与 bash / zsh 配置片段。
@@ -51,6 +57,11 @@
 - [参与贡献](../CONTRIBUTING.md)：开发环境、常用命令、测试、PR 与 OpenSpec 工作流。
 - [架构设计](architecture.md)：会话模型、缓冲与回放、状态探测、分层规则 R0–R11。
 - [API 与协议](protocol.md)：REST、WebSocket 帧与错误码（按主题分页）。
+  - [交接操作](hybrid-sessions/handoff.md)：换 Agent、新聊天位置、草稿与恢复。
+  - [交接预览](protocol/http-handoff.md)：整项历史选择、预算、revision 与 stale。
+  - [只读历史 MCP](protocol/handoff-mcp.md)：目标 scope、分页恢复、可用性和生命周期。
+  - [Codex 原生历史](protocol/handoff-native.md)：已核实的版本、角色、独立用户 turn 与 unknown 恢复。
+  - [持久对话历史](protocol/http-conversation.md)：Activity 分页、长文本余文、完整性和 portable projection。
 - [配置与持久化清单](persistence.md)：状态目录中每类文件的格式与治理。
 - [OpenSpec 规格索引](specs.md)：按主题列出 `openspec/specs/` 下的全部 capability。
 - 代码规范：[Go](go-style.md)、[前端](frontend-style.md)、[前端架构守卫](frontend-architecture.md)。
@@ -60,6 +71,7 @@
 
 - [Relay 真实公网验证](relay-validation-604.md)：issue #604 的传输筛选、BBR、业务与证据边界。
 - [Relay 终端优先补测](relay-terminal-validation-604.md)：CLI/TUI 网络负载下的按键、输出完整性与恢复。
+- [交接故障矩阵与性能验收](protocol/handoff-validation.md)：迁移清理、unknown、全局关闭、SQLite 与 selector 实测。
 - [布局稳定性与 4× CPU 回归](performance.md)：性能测试的测量方式与阈值。
 - [页面性能与连接稳定性验证](page-performance.md)：页面加载与重连的实测记录。
 - [内嵌二进制体积](binary-size.md)：发布二进制的体积对比。
@@ -74,3 +86,9 @@
 
 - [文档治理](doc-governance.md)：文档规模、链接可达性与 README 预算。
 - [Agent 规则](agent-rules.md)：从 `AGENTS.md` 迁出的仓库地图、约定、测试与 User Stories 维护规则。
+
+## 待评审设计
+
+- [项目优先的新建会话弹窗](proposals/project-first-session-dialog/proposal.md)：项目列表、四种来源和会话设置的设计及实施记录。
+
+项目 API：[本地项目接口](protocol/http-projects.md)描述 workspace 的目录登记、创建和浏览。

@@ -1,6 +1,7 @@
 import { osc52CopyText } from "../../domains/terminal/terminal-clipboard";
 import type { TerminalGraphics } from "./terminal-graphics";
 import type { Terminal } from "@xterm/xterm";
+import { resetTerminalCursor } from "./terminal-cursor";
 
 interface RendererInternals {
   renderRows?: (start: number, end: number) => void;
@@ -119,6 +120,7 @@ export interface SnapshotRestoreContext {
   setRestoring(value: boolean): void;
   setDrawn(run: string): void;
   isRecovering(): boolean;
+  isImmersive?(): boolean;
 }
 
 export function restoreTerminalSnapshot(
@@ -134,6 +136,7 @@ export function restoreTerminalSnapshot(
   ctx.writeOutput(synchronize ? syncedResetBoundary : resetBoundary, () => {
     if (ctx.isDisposed()) return;
     ctx.term.reset();
+    resetTerminalCursor(ctx.term);
     releaseGraphics?.();
     ctx.resetFind();
     if (ctx.isCurrent(version)) ctx.setReplaying(true);
@@ -150,6 +153,11 @@ export function restoreTerminalSnapshot(
     if (ctx.isCurrent(version)) ctx.setReplaying(false);
     if (payload.length && run) ctx.setDrawn(run);
     if (ctx.isDisposed() || !ctx.isCurrent(version)) return;
+    if (ctx.isImmersive?.()) {
+      ctx.scrollToBottom();
+      ctx.setRestoring(ctx.isRecovering());
+      return;
+    }
     setRestoreFrame(
       requestAnimationFrame(() => {
         if (ctx.isDisposed() || !ctx.isCurrent(version)) return;

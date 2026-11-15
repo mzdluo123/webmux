@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
   import { onMount, untrack } from "svelte";
+  import { SvelteMap } from "svelte/reactivity";
   import CodeNavigator from "./CodeNavigator.svelte";
   import CodeWorkspaceHeader from "./CodeWorkspaceHeader.svelte";
   import { api } from "../../platform/api";
@@ -37,6 +39,8 @@
     host,
     initial,
     popout,
+    onOpenGit,
+    onInspectGitFile,
   }: {
     id: string;
     visible: boolean;
@@ -45,6 +49,11 @@
     initial?: CodeWorkspaceSnapshot;
     /** The pop-out toggle; absent where the panel cannot change windows. */
     popout?: { popped: boolean; toggle: () => void };
+    onOpenGit?: () => void;
+    onInspectGitFile?: (
+      path: string,
+      tab: "history" | "blame" | "compare",
+    ) => void;
   } = $props();
   const seed = untrack(() => initial);
   const navMin = 120,
@@ -53,7 +62,7 @@
   let inner = $state<HTMLDivElement>();
   let navigator = $state<CodeNavigator>();
   let dropStatus = $state("");
-  const views = new WeakMap<CodeWorkspaceTab, CodeDocumentView>();
+  const views = new SvelteMap<CodeWorkspaceTab, CodeDocumentView>();
   const shown = $derived(visible || !!popout?.popped);
   let base = $derived(`/sessions/${id}/code`);
   const ws = useCodeWorkspaceState({
@@ -68,6 +77,13 @@
   const activePath = $derived(
     ws.s.tabs.find((tab) => tab.key === ws.s.active)?.file?.document.path ?? "",
   );
+  const activeGitPath = $derived.by(() => {
+    const tab = ws.s.tabs.find((t) => t.key === ws.s.active);
+    if (!tab || tab.rootKind === "artifacts") return "";
+    return (
+      tab.file?.document.path || tab.diff?.new.path || tab.diff?.old.path || ""
+    );
+  });
   const activeMenu = $derived(
     ws.s.tabs.find((tab) => tab.key === ws.s.active)?.menu,
   );
@@ -78,6 +94,15 @@
       (tab) => views.get(tab)?.capture() ?? $state.snapshot(tab.restore),
       () => navigator?.capture() ?? seed?.navigator,
     );
+  }
+  const xrContents = $derived.by(() => {
+    const tab = ws.s.tabs.find((item) => item.key === ws.s.active);
+    const navigation = navigator?.xrPanel();
+    const content = tab ? views.get(tab)?.xrPanel() : undefined;
+    return [...(navigation ? [navigation] : []), ...(content ? [content] : [])];
+  });
+  export function xrPanels() {
+    return xrContents;
   }
   function setNavWidth(width: number) {
     const limit = Math.min(navMax, (inner?.clientWidth ?? navMax) - 160);
@@ -226,7 +251,7 @@
       {...props}
       bind:this={section}
       class="code-panel relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
-      aria-label="代码工作区"
+      aria-label={m.s5_code_workspace()}
     >
       <CodeWorkspaceHeader
         bind:navOpen={ws.s.navOpen}
@@ -246,6 +271,9 @@
           void ws.load();
           for (const tab of ws.s.tabs) void ws.refresh(tab);
         }}
+        inspectablePath={activeGitPath}
+        {onOpenGit}
+        {onInspectGitFile}
       />
       <div
         class="code-inner flex min-h-0 flex-1 overflow-hidden"
@@ -296,7 +324,7 @@
             class="code-nav-divider"
             role="separator"
             aria-orientation="vertical"
-            aria-label="调整导航宽度"
+            aria-label={m.s5_resize_nav_width()}
             aria-valuemin={navMin}
             aria-valuemax={navMax}
             aria-valuenow={ws.s.navWidth}
@@ -352,7 +380,7 @@
             </Tabs.Content>
           {/each}
           {#if !ws.s.tabs.length}<p class="p-4 text-sm text-muted-foreground">
-              选择文件阅读完整内容，或从修改列表打开 Diff。
+              {m.s5_workspace_empty_prompt()}
             </p>{/if}
         </div>
       </div>

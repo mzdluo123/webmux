@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/attentionkind"
-	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/session"
 	"sync"
 	"time"
@@ -38,13 +37,21 @@ var errMissingCapability = errors.New("agent 未声明 session/load 或 session/
 // on the actor to preserve completed operations' recovery contract, but never
 // hold the record state lock during filesystem I/O.
 type actor struct {
-	svc      *Service
-	cmd      agentprofile.Command
-	cwd      string
-	configID string
-	log      *chatLog
-	inbox    chan func()
-	quit     chan struct{}
+	conversationID                           string
+	contextExecutionID, operationExecutionID string
+	requireNativeResume, nativeContinue      bool
+	replayOwnedMessageID                     string
+	replayOwnedMessage                       bool
+	replayUser                               replayUserBuffer
+	replayNative                             nativeReplay
+	svc                                      *Service
+	cmd                                      agentprofile.Command
+	cwd                                      string
+	configID                                 string
+	log                                      *chatLog
+
+	inbox chan func()
+	quit  chan struct{}
 	// id and shell are set before run starts and never change.
 	id    string
 	shell *session.Session
@@ -91,11 +98,17 @@ type actor struct {
 	// attention is the latched turn-end attention (done or error); pending
 	// requests take precedence over it.
 	attention *session.Attention
-	// title is the last title the agent reported through session_info_update;
-	// titleSession is the agent session it belongs to. It names the shell
-	// while the chat side shows no terminal run.
+	// title is the current agent session's title (from ACP updates,
+	// session/list or terminal OSC 0/2); titleSession is the agent session
+	// it belongs to. It names an unnamed shell unless a live terminal run
+	// has reported its own OSC 0/2 title.
 	title        string
 	titleSession string
+	// termTitle is the last terminal OSC 0/2 title observed for the
+	// current run while an agent session ID is known; termTitleSeq is its
+	// run-local OSC report sequence.
+	termTitle    string
+	termTitleSeq uint64
 	// recordTitle is the last title sent to the persistent record. Terminal
 	// titles arrive through the shell, chat titles through its overlay.
 	recordTitle string
@@ -150,6 +163,8 @@ type actor struct {
 }
 
 type turn struct {
+	consumed          bool
+	executionID       string
 	id                string
 	cancel            context.CancelFunc
 	backgroundRefresh bool
@@ -270,7 +285,10 @@ func call[T any](ctx context.Context, a *actor, fn func() (T, error)) (T, error)
 	var zero T
 	reply := make(chan result, 1)
 	if !a.post(func() {
+		previous := a.operationExecutionID
+		a.operationExecutionID, _ = ctx.Value(executionContextKey{}).(string)
 		v, err := fn()
+		a.operationExecutionID = previous
 		a.flush()
 		reply <- result{v, err}
 	}) {
@@ -312,6 +330,9 @@ func (a *actor) flush() {
 		a.stopDoneDelayTimer()
 		a.attention = nil
 	}
+	if a.side != SideTUI {
+		a.termTitle, a.termTitleSeq = "", 0
+	}
 	if a.side != SideTUI || a.state != StateActive {
 		a.chat.Eligibility = Eligibility{}
 	}
@@ -324,8 +345,10 @@ func (a *actor) flush() {
 	if a.state != StateActive {
 		a.chat.Recovery = &RecoveryTip{State: a.state}
 	}
-	a.log.setState(a.chat)
+	a.publishMetadata()
 	a.shell.SetOverlay(a.overlay())
+	a.log.setState(a.chat)
+	a.svc.manager.Notify(a.id)
 	a.saveShellInfo(a.shell.Info())
 }
 
@@ -337,29 +360,18 @@ func (a *actor) overlay() *session.Overlay {
 	if a.side == SideSwitching && a.switching != nil {
 		side, to = a.switching.from, a.switching.to
 	}
-	info := &session.HybridInfo{
-		Side: string(side), To: string(to), Phase: string(a.chat.Phase),
-		State: string(a.state), Agent: a.cmd.Profile.Name,
-		AgentTitle: a.cmd.Profile.Title, AgentIcon: a.cmd.Profile.Icon,
+	o := &session.Overlay{Destination: string(viewOf(side))}
+	if to != "" {
+		o.Destination = string(viewOf(to))
 	}
-	if a.agentSessionID != "" {
-		id := a.agentSessionID
-		info.AgentSessionID = &id
-	}
-	o := &session.Overlay{Hybrid: info}
-	if a.side == SideACP && a.titleSession == a.agentSessionID {
-		// The terminal drives the title on its own side (OSC 0/2), so only
-		// the chat side publishes the agent's session title, and only while
-		// it belongs to the agent session shown.
+	if a.titleSession != "" && a.titleSession == a.agentSessionID {
+		// Keep the agent session's title across chat, switching and terminal
+		// sides; a live terminal run's own OSC 0/2 title still wins over it.
 		o.Title = a.title
 	}
 	if a.side == SideACP && a.state == StateActive {
 		o.Attention = a.currentAttention()
 		o.Preview = a.preview.text
-		// The work detail is only meaningful while a turn is in flight.
-		if a.turn != nil {
-			info.Work = a.workLine
-		}
 		switch {
 		case o.Attention != nil:
 			o.Status = session.StatusWaiting
@@ -431,59 +443,4 @@ func (a *actor) scheduleOrLatchDone(startedAt *time.Time, now time.Time) {
 		})
 	})
 	a.doneDelayTimer = timer
-}
-
-// emit stores events in the log, keeping the replaceable state they carry.
-func (a *actor) emit(events ...Event) {
-	for _, e := range events {
-		if e.Kind == EventResolved && e.Resolved != nil {
-			if err := a.writeActivity(conversation.ActivityInput{LocalKey: a.activityKey("permission"), Kind: "permission", Status: e.Resolved.Outcome, Text: e.Resolved.OptionID}); err != nil {
-				a.activityFailure()
-			}
-		}
-		if e.Kind == EventMarker && e.Marker != nil {
-			if err := a.writeActivity(conversation.ActivityInput{LocalKey: a.activityKey("marker"), Kind: "marker", Status: e.Marker.Kind}); err != nil {
-				a.activityFailure()
-			}
-		}
-		toolsOnly := false
-		switch e.Kind {
-		case EventPlan:
-			a.chat.Plan = e.Plan
-			a.work.setPlan(e.Plan)
-		case EventCommands:
-			a.chat.Commands = e.Commands
-		case EventConfig:
-			a.chat.Config = e.Config
-			values := configValues(e.Config)
-			a.record(false, func(r *Record) { r.Config = values })
-			a.svc.options.remember(a.configID, e.Config, time.Now())
-		case EventUsage:
-			a.chat.Usage = e.Usage
-		case EventInfo:
-			if e.Info == nil || e.Info.Title == nil {
-				continue
-			}
-			a.title = *e.Info.Title
-			a.promptTitle = false
-		case EventMessage:
-			if e.Message.Role != RoleAgent || !a.preview.add(e.Message) {
-				continue
-			}
-		case EventTool:
-			// Tool calls only matter to the session card's work
-			// line; flush only when it changes.
-			if a.turn != nil {
-				a.work.tool(*e.Tool)
-			}
-			toolsOnly = true
-		default:
-			continue
-		}
-		if !toolsOnly {
-			a.dirty = true
-		}
-	}
-	a.refreshWork()
-	a.log.append(time.Now().UTC(), events...)
 }

@@ -1,22 +1,18 @@
 <script lang="ts">
-  import { tick, untrack, type Snippet } from "svelte";
-  import IconArrowDown from "~icons/tabler/arrow-down";
-  import {
-    Button,
-    type ButtonSize,
-    type ButtonVariant,
-  } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
+  import { untrack, type Snippet } from "svelte";
+  import { createChatScrollMode } from "../../hooks/chat/chat-scroll-mode.svelte";
+  import type { ButtonSize, ButtonVariant } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import FileDropZone from "../shared/FileDropZone.svelte";
+  import JumpToLatestButton from "../shared/JumpToLatestButton.svelte";
   import type { ChatActions, RequestAnswer } from "../../platform/chat-api";
-  import {
-    conversationTurns,
-    groupTimeline,
-    type ChatModel,
-  } from "../../domains/chat/chat-model";
+  import { groupTimeline, type ChatModel } from "../../domains/chat/chat-model";
+  import { conversationTurns } from "../../domains/chat/conversation-turns";
   import { errorMessage } from "../../platform/error";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
-  import type { ChatCodeLink } from "../../domains/code/markdown-link";
+  import { observeTranscriptResize } from "../../hooks/chat/transcript-resize";
+  import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import type { ChatState, SessionInfo } from "../../contracts/schemas";
   import type {
     TerminalDraft,
@@ -31,10 +27,11 @@
   import ConversationTurns from "./ConversationTurns.svelte";
   import FormPrompt from "./FormPrompt.svelte";
   import PermissionPrompt from "./PermissionPrompt.svelte";
-  import TimelineItem from "./TimelineItem.svelte";
+  import ChatTranscript from "./ChatTranscript.svelte";
 
   let {
     sessionId,
+    visible = true,
     model,
     chat,
     connection,
@@ -53,6 +50,7 @@
     oneditchange,
   }: {
     sessionId?: string;
+    visible?: boolean;
     model: ChatModel;
     chat: ChatState | undefined;
     connection: Connection;
@@ -64,8 +62,8 @@
     uploadUnavailable?: string;
     location?: Pick<SessionInfo, "workspace" | "cwd"> &
       Partial<Pick<SessionInfo, "view">>;
-    onreview: (path: string) => void;
-    onopenlocation?: (target: ChatCodeLink) => void;
+    onreview?: (path: string) => void;
+    onopenlocation?: ChatCodeLinkHandler;
     onterminal: () => void;
     quickMenu?: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
     documentScroll?: boolean;
@@ -78,68 +76,41 @@
   let dock = $state<HTMLDivElement | null>(null);
   let stick = $state(true);
   let activeTurnId = $state("");
-  let editing = $state(false);
   let error = $state("");
   let answering = $state(false);
   let composer = $state<ChatComposer>();
+  let resizeFollower: ReturnType<typeof observeTranscriptResize> | undefined;
+  const scrollMode = createChatScrollMode({
+    root: () => root,
+    viewport: () => scroller,
+    scrollRoot,
+    documentScroll: () => documentScroll,
+    following: () => stick,
+    scrollToBottom,
+    follow,
+    onEditingChange: (value) => oneditchange?.(value),
+  });
   export function focus() {
     composer?.focus();
   }
   export function setVoiceError(message: string) {
     error = message;
   }
-  const EDITABLE_SELECTOR =
-    'textarea, input, select, [contenteditable]:not([contenteditable="false"])';
-  const OPEN_PORTAL_SELECTOR =
-    '[data-slot="popover-content"][data-state="open"], [data-slot="dropdown-menu-content"][data-state="open"]';
-  function isEditableElement(node: Node | null): node is HTMLElement {
-    return node instanceof HTMLElement && node.matches(EDITABLE_SELECTOR);
-  }
-  function hasOpenPortal(): boolean {
-    return !!document.querySelector(OPEN_PORTAL_SELECTOR);
-  }
-  let lastScrollOffset = 0;
-  let pendingScrollOffset: number | null = null;
-  function setEditing(next: boolean) {
-    if (next === editing) return;
-    if (next && documentScroll) pendingScrollOffset = lastScrollOffset;
-    else if (!next && !documentScroll)
-      pendingScrollOffset = scroller?.scrollTop ?? lastScrollOffset;
-    editing = next;
-    oneditchange?.(next);
-  }
-  function syncEditing() {
-    const active = document.activeElement;
-    const focusedInside =
-      !!root && active instanceof Node && root.contains(active);
-    if (focusedInside && isEditableElement(active)) {
-      setEditing(true);
-      return;
-    }
-    if (editing && hasOpenPortal()) return;
-    setEditing(false);
+  export function getError() {
+    return error;
   }
   export function releaseEditing() {
-    const active = document.activeElement;
-    if (root && active instanceof HTMLElement && root.contains(active))
-      active.blur();
-    setEditing(false);
+    scrollMode.releaseEditing();
   }
-  $effect(() => {
-    if (!editing) return;
-    const check = () => {
-      requestAnimationFrame(syncEditing);
-    };
-    window.addEventListener("pointerdown", check, true);
-    window.addEventListener("keydown", check, true);
-    return () => {
-      window.removeEventListener("pointerdown", check, true);
-      window.removeEventListener("keydown", check, true);
-    };
-  });
+  export function editKey(input: string) {
+    composer?.editKey(input);
+  }
+  export function submitDraft() {
+    composer?.submitDraft();
+  }
   const entries = $derived(groupTimeline(model.entries));
   const turns = $derived(conversationTurns(model.entries));
-  const turnIds = $derived(new Set(turns.map((item) => item.id)));
+  const turnIds = $derived(new Set(turns.flatMap((item) => item.messageIds)));
   const request = $derived(chat?.requests[0]);
   const requestTool = $derived.by(() => {
     const at = request?.toolCallId
@@ -156,11 +127,11 @@
   const blocked = $derived(
     unavailable ||
       (chat?.recovery
-        ? "会话已中断，请先恢复"
+        ? m.s3_blocked_interrupted_resume()
         : connection !== "connected" || !chat
-          ? "正在连接聊天…"
+          ? m.s3_connecting_chat()
           : location?.view === "terminal"
-            ? "会话不在聊天端"
+            ? m.s3_blocked_not_on_chat()
             : ""),
   );
   const uploadBlocked = $derived(blocked || uploadUnavailable);
@@ -174,9 +145,10 @@
   function scrollToBottom() {
     const target = scrollRoot();
     if (!target) return;
+    stick = true;
     if (documentScroll) window.scrollTo(0, target.scrollHeight);
     else target.scrollTop = target.scrollHeight;
-    lastScrollOffset = documentScroll ? window.scrollY : target.scrollTop;
+    scrollMode.recordOffset(documentScroll ? window.scrollY : target.scrollTop);
   }
   let activeTurnFrame = 0;
   let turnJumpFrame = 0;
@@ -198,6 +170,15 @@
       if (element.getBoundingClientRect().top > readingLine) break;
       current = element.dataset.conversationMessage ?? current;
     }
+    // Scrolled to the end, the last message can sit below the reading line
+    // (a compact transcript where tools are folded shows several turns at
+    // once); mark it anyway so the current tick converges to the newest
+    // message instead of stalling on an earlier turn.
+    const top = documentScroll ? window.scrollY : target.scrollTop;
+    const height = documentScroll ? window.innerHeight : target.clientHeight;
+    if (top + height >= target.scrollHeight - 32)
+      current =
+        elements[elements.length - 1]?.dataset.conversationMessage ?? current;
     activeTurnId = current;
   }
   function scheduleActiveTurn() {
@@ -212,8 +193,13 @@
     if (!target) return;
     const top = documentScroll ? window.scrollY : target.scrollTop;
     const height = documentScroll ? window.innerHeight : target.clientHeight;
-    lastScrollOffset = top;
-    stick = jumpingToTurn ? false : top + height >= target.scrollHeight - 32;
+
+    const sameOffset = top === scrollMode.offset;
+    if (scrollMode.recordOffset(top)) resizeFollower?.interrupt();
+    stick = jumpingToTurn
+      ? false
+      : (stick && (sameOffset || scrollMode.layoutOnlyScroll)) ||
+        top + height >= target.scrollHeight - 32;
     scheduleActiveTurn();
   }
   $effect(() => {
@@ -229,7 +215,7 @@
       `[data-conversation-message="${CSS.escape(id)}"]`,
     );
     const target = scrollRoot();
-    if (!message || !target) return;
+    if (!message || !target || !message.getClientRects().length) return false;
     // Historical reading must not be undone by the next streaming update.
     // Keep the pause through the jump's scroll event, including when the
     // target is clamped to the maximum scroll offset.
@@ -256,34 +242,8 @@
         jumpingToTurn = false;
       });
     });
+    return true;
   }
-  let previousDocumentScroll = untrack(() => documentScroll);
-  $effect.pre(() => {
-    if (documentScroll === previousDocumentScroll) return;
-    if (pendingScrollOffset === null) {
-      pendingScrollOffset = lastScrollOffset;
-    }
-    previousDocumentScroll = documentScroll;
-  });
-  $effect(() => {
-    void documentScroll;
-    if (pendingScrollOffset === null) return;
-    const saved = pendingScrollOffset;
-    const wasStick = untrack(() => stick);
-    pendingScrollOffset = null;
-    void tick().then(() => {
-      if (documentScroll) {
-        if (wasStick) scrollToBottom();
-        else window.scrollTo(0, saved);
-      } else {
-        window.scrollTo(0, 0);
-        if (scroller) {
-          scroller.scrollTop = wasStick ? scroller.scrollHeight : saved;
-        }
-      }
-      follow();
-    });
-  });
   // The viewport belongs to ScrollArea, which takes no scroll handler.
   $effect(() => {
     if (documentScroll) {
@@ -299,10 +259,8 @@
     cancelAnimationFrame(turnJumpFrame);
     turnJumpFrame = 0;
     jumpingToTurn = false;
-    const target = scrollRoot();
-    if (documentScroll) window.scrollTo({ top: target?.scrollHeight ?? 0 });
-    else target?.scrollTo({ top: target.scrollHeight });
     stick = true;
+    scrollToBottom();
   }
   // New output keeps the newest entry in view unless the reader scrolled up.
   $effect(() => {
@@ -314,23 +272,22 @@
   // The composer growing (a tap on the compact bar) or the on-screen keyboard
   // shrinks the transcript from below: a reader at the end stays at the end.
   $effect(() => {
-    const element = scroller;
-    if (!element) return;
-    let frame = 0;
-    // Scrolling in the callback itself can loop; wait for the next frame.
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        if (stick) scrollToBottom();
-        scheduleActiveTurn();
-      });
+    if (!scroller) return;
+    const follower = observeTranscriptResize({
+      viewport: scroller,
+      transcript,
+      dock,
+      scrollRoot,
+      following: () => stick,
+      jumping: () => jumpingToTurn,
+      scrollToBottom,
+      onResize: scheduleActiveTurn,
+      onManualScroll: scrollMode.markManualScroll,
     });
-    observer.observe(element);
-    if (transcript) observer.observe(transcript);
-    if (dock) observer.observe(dock);
+    resizeFollower = follower;
     return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
+      follower.dispose();
+      resizeFollower = undefined;
     };
   });
 
@@ -352,19 +309,18 @@
   data-chat-view
   data-document-scroll={documentScroll ? "true" : undefined}
   role="region"
-  aria-label="聊天"
+  aria-label={m.s3_view_chat()}
   {uploads}
   blocked={!!uploadBlocked}
-  label="松开以上传文件到聊天"
-  onfocusin={(event) => {
-    if (isEditableElement(event.target as Node | null)) setEditing(true);
-  }}
+  label={m.s3_drop_files_to_chat()}
+  onfocusin={scrollMode.focusEditing}
   onfocusout={() => {
-    requestAnimationFrame(syncEditing);
+    requestAnimationFrame(scrollMode.syncEditing);
   }}
 >
   <div class="relative flex min-h-0 flex-1 flex-col">
     <ScrollArea
+      data-chat-transcript-scroll
       bind:viewportRef={scroller}
       type="hover"
       class="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block"
@@ -375,35 +331,25 @@
         class="mx-auto flex max-w-3xl flex-col gap-2.5 px-4 py-6"
       >
         <ChatTurnStatus mode="notices" truncated={model.truncated} {chat} />
-        <ol class="flex flex-col gap-2.5" aria-label="对话">
-          {#each entries as entry (`${entry.type}:${entry.id}`)}
-            <li
-              class={documentScroll
-                ? "min-w-0 scroll-mt-16"
-                : "min-w-0 scroll-mt-4"}
-              data-conversation-message={entry.type === "message" &&
-              entry.role !== "thought" &&
-              turnIds.has(entry.id)
-                ? entry.id
-                : undefined}
-            >
-              <TimelineItem
-                {entry}
-                {sessionId}
-                preview={(path) => uploads.preview?.(path)}
-                {waiting}
-                {onreview}
-                {onopenlocation}
-              />
-            </li>
-          {/each}
-        </ol>
+        <ChatTranscript
+          {sessionId}
+          {visible}
+          {entries}
+          {turnIds}
+          {documentScroll}
+          preview={(path) => uploads.preview?.(path)}
+          {waiting}
+          {onreview}
+          {onopenlocation}
+          onjump={jumpToTurn}
+        />
         <ChatTurnStatus {chat} entries={model.entries} {request} />
       </div>
     </ScrollArea>
     {#if turns.length > 1}
       <ConversationTurns
         items={turns}
+        entries={model.entries}
         activeId={activeTurnId}
         {documentScroll}
         onselect={jumpToTurn}
@@ -420,31 +366,26 @@
     {/if}
     {#if !stick && !documentScroll}
       <!-- Anchored to the message area, so a taller composer never covers it. -->
-      <Button
-        variant="outline"
-        size="sm"
-        raised
+      <JumpToLatestButton
         class="absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
-        onclick={latest}><IconArrowDown aria-hidden="true" />回到最新</Button
-      >
+        onclick={latest}
+      />
     {/if}
   </div>
   <div
     bind:this={dock}
     data-chat-dock
-    class="relative mx-auto w-full max-w-3xl space-y-2 px-3 pb-safe-2 sm:px-4 [@media(height<480px)]:max-h-full [@media(height<480px)]:overflow-y-auto"
+    class={[
+      "relative mx-auto w-full max-w-3xl space-y-2 px-3 pb-safe-2 sm:px-4",
+      !documentScroll &&
+        "[@media(height<480px)]:max-h-full [@media(height<480px)]:overflow-y-auto",
+    ]}
   >
     {#if !stick && documentScroll}
       <div
         class="pointer-events-none absolute inset-x-0 bottom-full pb-3 text-center"
       >
-        <Button
-          variant="outline"
-          size="sm"
-          raised
-          class="pointer-events-auto"
-          onclick={latest}><IconArrowDown aria-hidden="true" />回到最新</Button
-        >
+        <JumpToLatestButton class="pointer-events-auto" onclick={latest} />
       </div>
     {/if}
     <ChatTurnStatus mode="dock" {error} {unavailable} {onterminal} {chat} />

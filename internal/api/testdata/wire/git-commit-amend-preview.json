@@ -1,0 +1,59 @@
+{
+  "status": 200,
+  "body": {
+    "amend": true,
+    "amendPushed": false,
+    "authorOverride": "Ada Lovelace <ada@example.com>",
+    "blockers": [],
+    "branch": "main",
+    "confirmationId": "<confirmationId#11>",
+    "conflictedCount": 0,
+    "executableHooks": [],
+    "expectedTreeOid": "b367b6e9c470d37107d6dc2a9c9d86c588667aa1",
+    "expiresAt": "<time>",
+    "headMessage": "Merge branch 'refs/heads/feat-conflict'\n\n# Conflicts:\n#\tsub/b.txt",
+    "headOid": "029aad08115e96af87a9df174c887599dc4eae5b",
+    "headParents": [
+      "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+      "9c24118c598731b8fb442d64bdd273f66062b9e6"
+    ],
+    "headPush": {
+      "branches": [],
+      "more": 0,
+      "state": "noRemote"
+    },
+    "headState": "branch",
+    "identity": {
+      "authorEmail": "ada@example.com",
+      "authorName": "Ada Lovelace",
+      "authorOverride": true,
+      "committerEmail": "wire@example.invalid",
+      "committerName": "Wire test",
+      "envAuthorEmail": "wire@example.invalid",
+      "envAuthorName": "Wire test",
+      "signEnabled": false,
+      "signoffTrailer": "Signed-off-by: Wire test <wire@example.invalid>"
+    },
+    "indexDigest": "5e2604dcee92f8985f78c1aaa65129c089031de9194cdbcadc5d9a3f3c3efdf5",
+    "repositoryId": "<id#1>",
+    "signoff": true,
+    "stagedFiles": [
+      {
+        "binary": false,
+        "modeChanged": false,
+        "newMode": "100644",
+        "newOid": "89673477bf2139ca6b5ab42049377d1ab0066e0c",
+        "newPath": "sub/b.txt",
+        "oldMode": "100644",
+        "oldOid": "de4296d3c6d9c4821c0fe09931f8422d01be768c",
+        "oldPath": "sub/b.txt",
+        "status": "M"
+      }
+    ],
+    "unstagedCount": 0,
+    "untrackedCount": 0,
+    "warnings": [],
+    "worktreeId": "<id#2>",
+    "worktreePath": "<repo>"
+  }
+}

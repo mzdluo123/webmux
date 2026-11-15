@@ -7,6 +7,7 @@ const hostIdPattern = /^[A-Za-z0-9_-]{1,64}$/;
  * Every other key defaults to host-scoped isolation when a `hostId` is active.
  */
 export const deviceScopedKeys: ReadonlySet<string> = new Set([
+  "locale",
   "shellMode",
   "sidebarCollapsed",
   "sidebarWidth",
@@ -19,9 +20,12 @@ export const deviceScopedKeys: ReadonlySet<string> = new Set([
   "toastNotifications",
   "fontSize",
   "codeFontSize",
+  "gitWorkbenchLayout",
   "keyboardSizeHold",
   "touchGamepad",
   "voiceInput",
+  "tv-mode",
+  "headsetMode",
 ]);
 
 let currentHostId: string | null = null;

@@ -14,16 +14,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/rainchan/webmux/internal/acp"
+	"github.com/rainchan/webmux/internal/agentprofile"
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/session"
 	"log/slog"
 	"os"
 	"slices"
 	"sync"
 	"time"
-
-	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/agents"
-	"github.com/rainchan/webmux/internal/conversation"
-	"github.com/rainchan/webmux/internal/session"
 )
 
 const (
@@ -40,6 +40,12 @@ const (
 
 // Options configure a Service. Only cmd/ builds them.
 type Options struct {
+	// MCPServers supplies instance tools on new/load/resume, independently of history capture.
+	// Only cmd assembles descriptors; nil leaves library-created sessions unchanged.
+	MCPServers func(context.Context) []acp.MCPServer
+	// HistoryReader is assembled by cmd; nil disables the optional MCP tool.
+	HistoryReader func(context.Context, conversation.ReaderScope) []acp.MCPServer
+
 	// StateDir holds hybrid-sessions.json.
 	StateDir string
 	// Conversations is explicitly assembled by cmd; nil disables durable identity.
@@ -83,18 +89,23 @@ var defaultTiming = timing{
 
 // Service owns the hybrid sessions of one server.
 type Service struct {
+	mcpServers        func(context.Context) []acp.MCPServer
+	historyReader     func(context.Context, conversation.ReaderScope) []acp.MCPServer
 	conversations     *conversation.Service
 	conversationError error
 	manager           *session.Manager
 	records           *records
 	// options remembers each launch config's agent options for display
 	// before a session starts (agent-options.json).
-	options  *agentOptions
-	capacity int
-	version  string
-	log      *slog.Logger
-	timing   timing
-	uploads  func(id, path string) (string, error)
+	options    *agentOptions
+	capacity   int
+	version    string
+	log        *slog.Logger
+	timing     timing
+	uploads    func(id, path string) (string, error)
+	workspace  func(id string) *WorkspaceRef
+	metadataMu sync.RWMutex
+	metadata   map[string]*Metadata
 	// agents recognises launch commands and terminal signals.
 	agents *agentprofile.Registry
 	// userHome is the service user's home directory, where agents keep
@@ -114,6 +125,8 @@ type Service struct {
 	starting sync.WaitGroup
 	// recovering holds the record IDs a resume or removal is working on.
 	recovering map[string]bool
+	// writerClaims serializes writer admission for a durable Conversation.
+	writerClaims map[string]writerClaim
 	// restarted holds the sessions this start found active and interrupted.
 	restarted []string
 }
@@ -136,9 +149,10 @@ func New(o Options) *Service {
 	}
 	userHome, _ := os.UserHomeDir()
 	s := &Service{
-		conversations: o.Conversations, manager: o.Manager, records: openRecords(o.StateDir), options: openAgentOptions(o.StateDir), capacity: capacity, version: o.Version, log: log,
+		mcpServers: o.MCPServers, historyReader: o.HistoryReader, conversations: o.Conversations, manager: o.Manager, records: openRecords(o.StateDir), options: openAgentOptions(o.StateDir), capacity: capacity, version: o.Version, log: log,
 		uploads: o.Uploads, userHome: userHome, agents: agents.Default(),
-		timing: defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
+		metadata: make(map[string]*Metadata),
+		timing:   defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
 		recovering: make(map[string]bool),
 	}
 	restarted, err := s.records.recoverAfterRestart(time.Now())

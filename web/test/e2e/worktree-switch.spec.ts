@@ -9,7 +9,7 @@ import {
   createShell,
   expectTerminalLine,
   runCommand,
-  viewSwitch,
+  toggleCode,
 } from "./fixtures";
 import { unfoldRepository, worktreeMenu } from "./repository-menu";
 
@@ -137,7 +137,7 @@ test("a running shell is acknowledged, keeps running and its code view follows t
   const root = await repository(request, workDir, "switch-busy", "feat/c");
   const id = await createShell(page, "Switch shell", root);
   // The code view is open on a file before the switch.
-  await viewSwitch(page.locator(".terminal-header"), "代码").click();
+  await toggleCode(page);
   await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
   await page.getByRole("button", { name: "notes.txt", exact: true }).click();
   await expect.poll(() => visibleCode(page)).toContain("main version");
@@ -165,8 +165,7 @@ test("a running shell is acknowledged, keeps running and its code view follows t
   // The shell was neither closed nor restarted and sees the new branch.
   const info = await (await request.get(`/api/sessions/${id}`)).json();
   expect(info).toMatchObject({ state: "active" });
-  const terminal = viewSwitch(page.locator(".terminal-header"), "终端");
-  if (await terminal.isVisible()) await terminal.click();
+  await toggleCode(page);
   await runCommand(page, "printf 'on-%s\\n' \"$(git branch --show-current)\"");
   await expectTerminalLine(page, "on-feat/c");
 });

@@ -1,5 +1,5 @@
-import { expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { expect, test, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
 import AddRepositoryDialog from "../../src/components/workspace/AddRepositoryDialog.svelte";
 import RepositorySettingsDialog from "../../src/components/workspace/RepositorySettingsDialog.svelte";

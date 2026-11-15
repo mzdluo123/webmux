@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { api, APIError } from "../../platform/api";
   import { NoContentSchema, type SessionInfo } from "../../contracts/schemas";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
@@ -70,14 +71,22 @@
       if (!value) onclose();
     }
   }
-  title={`${removing ? "移除" : archiving ? "停止并归档" : "关闭"}“${session.title}”？`}
-  confirmLabel={removing ? "确认移除" : archiving ? "停止并归档" : "确认关闭"}
+  title={removing
+    ? m.s3_remove_session_title({ title: session.title })
+    : archiving
+      ? m.s3_archive_session_title({ title: session.title })
+      : m.s3_close_session_title({ title: session.title })}
+  confirmLabel={removing
+    ? m.s3_confirm_remove()
+    : archiving
+      ? m.s3_stop_and_archive()
+      : m.s3_confirm_close()}
   destructive={!archiving}
   onconfirm={submit}
 >
   {removing
-    ? "会话及其缓冲将永久移除。"
+    ? m.s3_remove_session_body()
     : archiving
-      ? "agent 进程将停止，对话保留在 agent 中。归档后可在所属工作树的“已归档”中恢复，沿用归档前的聊天或终端模式。"
-      : "正在运行的进程及子进程将终止，会话随即移除。"}
+      ? m.s3_archive_session_body()
+      : m.s3_close_session_body()}
 </ConfirmDialog>

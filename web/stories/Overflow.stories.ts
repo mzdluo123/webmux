@@ -22,3 +22,9 @@ export const CodeChanges: Story = { args: { scenario: "changes" } };
 export const WorkspaceDialog: Story = {
   args: { scenario: "workspace-dialog" },
 };
+export const GitWorkbenchShell: Story = {
+  args: { scenario: "git-workbench" },
+};
+export const GitPushDialog: Story = {
+  args: { scenario: "git-push" },
+};

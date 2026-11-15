@@ -8,6 +8,7 @@
     type ButtonSize,
     type ButtonVariant,
   } from "$lib/components/ui/button";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Textarea } from "$lib/components/ui/textarea";
   import { useComposerCompact } from "../../hooks/shared/composer-compact.svelte";
   import { useComposerMorph } from "../../hooks/shared/composer-morph.svelte";
@@ -137,23 +138,25 @@
           "composer-mobile:min-w-0 composer-mobile:flex-1 composer-mobile:px-1 composer-mobile:pt-0",
       ]}
     >
-      <Textarea
-        bind:ref={textarea}
-        variant="bare"
-        rows={compact ? 1 : 2}
-        class={[
-          "max-h-48 min-h-14 resize-none",
-          compact &&
-            "composer-mobile:field-sizing-fixed composer-mobile:max-h-9 composer-mobile:min-h-9 composer-mobile:overflow-hidden",
-        ]}
-        {placeholder}
-        aria-label={label}
-        {disabled}
-        {value}
-        {oninput}
-        onpaste={(event) => uploads.filePaste(event)}
-        {...textareaProps}
-      />
+      <ScrollArea viewportClasses="max-h-48">
+        <Textarea
+          bind:ref={textarea}
+          variant="bare"
+          rows={compact ? 1 : 2}
+          class={[
+            "min-h-14 resize-none overflow-y-auto",
+            compact &&
+              "composer-mobile:field-sizing-fixed composer-mobile:max-h-9 composer-mobile:min-h-9 composer-mobile:overflow-hidden",
+          ]}
+          {placeholder}
+          aria-label={label}
+          {disabled}
+          {value}
+          {oninput}
+          onpaste={(event) => uploads.filePaste(event)}
+          {...textareaProps}
+        />
+      </ScrollArea>
       {@render hints?.()}
     </div>
     {#if uploads.progress}<FileUploadProgress

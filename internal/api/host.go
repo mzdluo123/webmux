@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/transport"
 )
 
 // hostCheck establishes the authority boundary independently of Origin: a page
@@ -56,14 +57,4 @@ func hostCheck(c config.Config) func(string) bool {
 	}
 }
 
-func authorityHostname(authority string) string {
-	u, err := url.Parse("http://" + authority)
-	if err != nil || u.User != nil || u.Host != authority || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
-		return ""
-	}
-	host := strings.ToLower(u.Hostname())
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.String()
-	}
-	return host
-}
+func authorityHostname(authority string) string { return transport.AuthorityHostname(authority) }

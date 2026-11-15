@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { SentBodies, SnapshotBodies } from "../src/domains/code/code-snapshot";
 import type { CodeFile, CodeWorkspaceSnapshot } from "../src/contracts/schemas";
 

@@ -13,7 +13,6 @@ import {
   useCustomCommand,
   useDirectory,
   backToList,
-  revealSidebar,
 } from "./fixtures";
 import { expectHomeWorktrees, repositoryMenu } from "./repository-menu";
 import { startE2EServer } from "./server.mjs";
@@ -42,7 +41,6 @@ async function repository(root: string, name = "project with spaces") {
   return path;
 }
 async function register(page: Page, path: string) {
-  await revealSidebar(page);
   await page.getByRole("button", { name: "添加仓库", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "添加仓库" });
   await dialog.getByLabel("仓库目录").fill(path);
@@ -319,11 +317,9 @@ test("without Git an isolated real service still starts and runs a direct shell"
   const isolated = await startE2EServer({ noGit: true });
   try {
     await page.goto(isolated.baseURL);
-    const closedDrawer = await revealSidebar(page);
     await expect(
       page.getByRole("button", { name: "添加仓库", exact: true }),
     ).toBeDisabled();
-    if (closedDrawer) await page.keyboard.press("Escape");
     const config = await (await fetch(isolated.apiURL + "/api/config")).json();
     expect(config.workspace.gitAvailable).toBe(false);
     expect(config).not.toHaveProperty("token");
@@ -433,7 +429,6 @@ test("multiple repositories keep every session visible through local failure, co
       .getByRole("region", { name: "直接会话", exact: true })
       .getByRole("link", { name: "Second shell", exact: true }),
   ).toBeVisible();
-  await revealSidebar(page);
   await page.getByRole("button", { name: "添加仓库", exact: true }).click();
   const addDialog = page.getByRole("dialog", { name: "添加仓库" });
   await addDialog.getByLabel("仓库目录").fill(workDir);
@@ -709,30 +704,43 @@ test("direct launch still offers explicit directory creation without registering
   workDir,
 }) => {
   const path = join(workDir, "new direct directory");
-  await page.goto("/");
-  await page
-    .getByRole("main")
-    .getByRole("button", { name: "＋ 新建会话", exact: true })
-    .first()
-    .click();
-  await useDirectory(page, path);
-  await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
-  await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toBeVisible();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "取消", exact: true })
-    .click();
-  await expect(access(path)).rejects.toThrow();
-  await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
-  await page
-    .getByRole("button", { name: "创建目录并启动", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
-  const sessions = await (await request.get("/api/sessions")).json();
-  expect(sessions).toHaveLength(1);
-  expect(sessions[0]).toMatchObject({ cwd: path, workspace: null });
-  expect(await (await request.get("/api/repositories")).json()).toEqual([]);
+  const isolated = await startE2EServer({ features: ["files", "launch"] });
+  try {
+    await page.goto(isolated.baseURL);
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: /^(＋ )?新建会话$/ })
+      .first()
+      .click();
+    await useDirectory(page, path);
+    await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
+    await page
+      .getByRole("button", { name: "创建并进入 →", exact: true })
+      .click();
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "取消", exact: true })
+      .click();
+    await expect(access(path)).rejects.toThrow();
+    await page
+      .getByRole("button", { name: "创建并进入 →", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "创建目录并启动", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
+    const sessions = await (
+      await request.get(isolated.apiURL + "/api/sessions")
+    ).json();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({ cwd: path, workspace: null });
+    expect(
+      (await request.get(isolated.apiURL + "/api/repositories")).status(),
+    ).toBe(404);
+  } finally {
+    await isolated.close();
+  }
 });
 
 test("batch worktree management cleans unpinned and prunable worktrees while skipping blocked ones and keeping branches", async ({

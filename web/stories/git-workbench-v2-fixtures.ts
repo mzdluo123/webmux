@@ -1,0 +1,361 @@
+import type { GitWorkbenchViewState } from "../src/contracts/git-workbench-schemas";
+import {
+  GitAbortOperationPreviewSchema,
+  GitConflictFileDetailSchema,
+  GitDivergencePreviewSchema,
+  GitInProgressOperationSchema,
+} from "../src/contracts/schemas";
+import { longPath, longToken } from "./fixtures";
+import type { GitWorkbenchScenario } from "./git-workbench-fixtures";
+
+export function applyGitStoryV2Scenario(
+  base: GitWorkbenchViewState,
+  scenario: GitWorkbenchScenario,
+  stressLongText = false,
+): GitWorkbenchViewState {
+  const wtPath = stressLongText ? longPath : "/work/webmux";
+  const branchName = stressLongText
+    ? `feat/${longToken}`
+    : "feat/git-workbench-v2";
+
+  const rebaseInProgress = GitInProgressOperationSchema.parse({
+    active: true,
+    kind: "rebase",
+    worktreeId: "wt-main",
+    worktreePath: wtPath,
+    currentBranch: branchName,
+    detached: true,
+    headOid: "2222222222222222222222222222222222222222",
+    headSubject: "chore(config): enforce strict origin policy",
+    origHeadOid: "3333333333333333333333333333333333333333",
+    origHeadSubject: "feat(git): add divergence coordinator",
+    sourceLabel: branchName,
+    sourceOid: "3333333333333333333333333333333333333333",
+    sourceSubject: "feat(git): add divergence coordinator",
+    targetLabel: "origin/main",
+    targetOid: "2222222222222222222222222222222222222222",
+    targetSubject: "chore(config): enforce strict origin policy",
+    stepCurrent: 2,
+    stepTotal: 4,
+    stoppedCommitOid: "3333333333333333333333333333333333333333",
+    stoppedSubject: "feat(git): add divergence coordinator",
+    conflictedCount: 2,
+    conflictedFiles: [
+      {
+        path: "internal/workspace/staging.go",
+        xy: "UU",
+        kind: "text",
+        stage1Mode: "100644",
+        stage1Oid: "aaaaaaaa",
+        stage2Mode: "100644",
+        stage2Oid: "bbbbbbbb",
+        stage3Mode: "100644",
+        stage3Oid: "cccccccc",
+      },
+      {
+        path: "web/public/logo.png",
+        xy: "UU",
+        kind: "binary",
+        stage1Mode: "100644",
+        stage1Oid: "dddddddd",
+        stage2Mode: "100644",
+        stage2Oid: "eeeeeeee",
+        stage3Mode: "100644",
+        stage3Oid: "ffffffff",
+      },
+    ],
+    canContinue: false,
+    canAbort: true,
+    continueBlockers: [
+      {
+        code: "unmerged_entries",
+        message: "仍有 2 个未合并索引冲突文件待标记解决后方可继续。",
+      },
+    ],
+  });
+
+  if (scenario === "conflict-three-way-text") {
+    return {
+      ...base,
+      mode: "commit",
+      context: { ...base.context, operationInProgress: "rebase" },
+      inProgress: rebaseInProgress,
+      conflictOpen: true,
+      conflictDetail: GitConflictFileDetailSchema.parse({
+        repositoryId: "repo-story",
+        worktreeId: "wt-main",
+        worktreePath: wtPath,
+        path: "internal/workspace/staging.go",
+        xy: "UU",
+        kind: "text",
+        textMergeable: true,
+        operationKind: "rebase",
+        identity: {
+          path: "internal/workspace/staging.go",
+          operationKind: "rebase",
+          stage1Mode: "100644",
+          stage1Oid: "aaaaaaaa",
+          stage2Mode: "100644",
+          stage2Oid: "bbbbbbbb",
+          stage3Mode: "100644",
+          stage3Oid: "cccccccc",
+          leftStage: 3,
+          rightStage: 2,
+          worktreeMode: "100644",
+          worktreeSha256: "story-sha256",
+        },
+        base: {
+          side: "base",
+          label: "共同祖先 (Base)",
+          role: "共同祖先 (stage 1)",
+          stage: 1,
+          present: true,
+          mode: "100644",
+          blobOid: "aaaaaaaa11111111",
+          sizeBytes: 128,
+          binary: false,
+          text: "const defaultTimeout = 5 * time.Second\nconst maxDiffBytes = 1 << 20\nconst allowForcePush = false\n",
+          lineEnding: "lf",
+        },
+        left: {
+          side: "left",
+          label: `${branchName} · 3333333`,
+          role: "当前重放分支提交 (stage 3)",
+          refName: branchName,
+          commitOid: "3333333333333333333333333333333333333333",
+          subject: "feat(git): add divergence coordinator",
+          stage: 3,
+          present: true,
+          mode: "100644",
+          blobOid: "cccccccc33333333",
+          sizeBytes: 142,
+          binary: false,
+          text: "const defaultTimeout = 10 * time.Second\nconst maxDiffBytes = 2 << 20\nconst allowForcePush = false\n",
+          lineEnding: "lf",
+        },
+        right: {
+          side: "right",
+          label: "origin/main · 2222222",
+          role: "变基目标基底 (stage 2)",
+          refName: "origin/main",
+          commitOid: "2222222222222222222222222222222222222222",
+          subject: "chore(config): enforce strict origin policy",
+          stage: 2,
+          present: true,
+          mode: "100644",
+          blobOid: "bbbbbbbb22222222",
+          sizeBytes: 146,
+          binary: false,
+          text: "const defaultTimeout = 5 * time.Second\nconst maxDiffBytes = 4 << 20\nconst allowForcePush = false // V2 invariant\n",
+          lineEnding: "lf",
+        },
+        segments: [
+          {
+            id: "seg-1",
+            kind: "change_left",
+            baseStart: 1,
+            baseLines: ["const defaultTimeout = 5 * time.Second"],
+            leftStart: 1,
+            leftLines: ["const defaultTimeout = 10 * time.Second"],
+            rightStart: 1,
+            rightLines: ["const defaultTimeout = 5 * time.Second"],
+          },
+          {
+            id: "seg-2",
+            kind: "conflict",
+            baseStart: 2,
+            baseLines: ["const maxDiffBytes = 1 << 20"],
+            leftStart: 2,
+            leftLines: ["const maxDiffBytes = 2 << 20"],
+            rightStart: 2,
+            rightLines: ["const maxDiffBytes = 4 << 20"],
+          },
+          {
+            id: "seg-3",
+            kind: "change_right",
+            baseStart: 3,
+            baseLines: ["const allowForcePush = false"],
+            leftStart: 3,
+            leftLines: ["const allowForcePush = false"],
+            rightStart: 3,
+            rightLines: ["const allowForcePush = false // V2 invariant"],
+          },
+        ],
+        initialResultText:
+          "const defaultTimeout = 5 * time.Second\nconst maxDiffBytes = 1 << 20\nconst allowForcePush = false\n",
+        diskHasConflictMarker: true,
+        diskModifiedFromBase: true,
+      }),
+      statusBanner:
+        "变基暂停于步骤 2/4：请按序保存合并结果并标记已解决后继续变基",
+    };
+  }
+
+  if (scenario === "conflict-binary-variant") {
+    return {
+      ...base,
+      mode: "commit",
+      context: { ...base.context, operationInProgress: "rebase" },
+      inProgress: rebaseInProgress,
+      conflictOpen: true,
+      conflictDetail: GitConflictFileDetailSchema.parse({
+        repositoryId: "repo-story",
+        worktreeId: "wt-main",
+        worktreePath: wtPath,
+        path: "web/public/logo.png",
+        xy: "UU",
+        kind: "binary",
+        textMergeable: false,
+        degradeReason: "检测到二进制资源冲突，无法按行文本自动合并。",
+        operationKind: "rebase",
+        identity: {
+          path: "web/public/logo.png",
+          operationKind: "rebase",
+          stage1Mode: "100644",
+          stage1Oid: "dddddddd",
+          stage2Mode: "100644",
+          stage2Oid: "eeeeeeee",
+          stage3Mode: "100644",
+          stage3Oid: "ffffffff",
+          leftStage: 3,
+          rightStage: 2,
+          worktreeMode: "100644",
+          worktreeSha256: "story-bin-sha256",
+        },
+        base: {
+          side: "base",
+          label: "共同祖先 (Base)",
+          role: "共同祖先 (stage 1)",
+          stage: 1,
+          present: true,
+          mode: "100644",
+          blobOid: "dddddddd11111111",
+          sizeBytes: 18432,
+          binary: true,
+        },
+        left: {
+          side: "left",
+          label: `${branchName} · 3333333`,
+          role: "当前重放分支提交 (stage 3)",
+          refName: branchName,
+          commitOid: "3333333333333333333333333333333333333333",
+          subject: "feat(brand): refresh dark mode icon",
+          stage: 3,
+          present: true,
+          mode: "100644",
+          blobOid: "ffffffff33333333",
+          sizeBytes: 21504,
+          binary: true,
+        },
+        right: {
+          side: "right",
+          label: "origin/main · 2222222",
+          role: "变基目标基底 (stage 2)",
+          refName: "origin/main",
+          commitOid: "2222222222222222222222222222222222222222",
+          subject: "chore(assets): optimize png compression",
+          stage: 2,
+          present: true,
+          mode: "100644",
+          blobOid: "eeeeeeee22222222",
+          sizeBytes: 16896,
+          binary: true,
+        },
+        segments: [],
+        initialResultText: "",
+        diskHasConflictMarker: false,
+        diskModifiedFromBase: true,
+      }),
+    };
+  }
+
+  if (scenario === "divergence-rebase-preview") {
+    return {
+      ...base,
+      mode: "branches",
+      divergencePreview: GitDivergencePreviewSchema.parse({
+        confirmationId: "cfm-rebase-story-1",
+        expiresAt: "2026-04-12T09:00:00Z",
+        kind: "rebase",
+        repositoryId: "repo-story",
+        worktreeId: "wt-main",
+        worktreePath: wtPath,
+        directionSummary: `将当前分支 ${branchName} 的 2 个独有提交按序重放到 origin/main 之上`,
+        recoveryHint:
+          "执行前将自动写入备份锚点 refs/webmux/recovery/wt-main/rebase，遇到冲突可随时中止回退。",
+        currentBranch: branchName,
+        headOid: "3333333333333333333333333333333333333333",
+        headSubject: "feat(git): add divergence coordinator",
+        targetRef: "origin/main",
+        targetKind: "remote",
+        targetOid: "2222222222222222222222222222222222222222",
+        targetSubject: "chore(config): enforce strict origin policy",
+        mergeBaseOid: "4444444444444444444444444444444444444444",
+        fastForward: false,
+        alreadyUpToDate: false,
+        commits: {
+          total: 2,
+          truncated: false,
+          items: [
+            {
+              hash: "3333333333333333333333333333333333333333",
+              shortHash: "3333333",
+              subject: "feat(git): add divergence coordinator",
+              author: "Rain Chan",
+              committedAt: "2026-04-12T08:00:00Z",
+            },
+            {
+              hash: "5555555555555555555555555555555555555555",
+              shortHash: "5555555",
+              subject: "feat(git): add 3-way merge3 segment builder",
+              author: "Rain Chan",
+              committedAt: "2026-04-12T07:45:00Z",
+            },
+          ],
+        },
+        sessions: [],
+        blockers: [],
+        warnings: [
+          {
+            code: "rebase_rewrites_history",
+            message: "变基将重写本地尚未推送的提交哈希，不会推送到远端。",
+          },
+        ],
+      }),
+    };
+  }
+
+  if (scenario === "abort-operation-dialog") {
+    return {
+      ...base,
+      mode: "commit",
+      context: { ...base.context, operationInProgress: "rebase" },
+      inProgress: rebaseInProgress,
+      abortPreview: GitAbortOperationPreviewSchema.parse({
+        confirmationId: "cfm-abort-story-1",
+        expiresAt: "2026-04-12T09:00:00Z",
+        repositoryId: "repo-story",
+        worktreeId: "wt-main",
+        worktreePath: wtPath,
+        kind: "rebase",
+        currentBranch: branchName,
+        headOid: "2222222222222222222222222222222222222222",
+        restoreOid: "3333333333333333333333333333333333333333",
+        restoreSubject: "feat(git): add divergence coordinator",
+        directionSummary: `中止当前变基并将工作树回退到操作前提交 3333333（${branchName}）`,
+        affectedPaths: ["internal/workspace/staging.go", "web/public/logo.png"],
+        sessions: [],
+        blockers: [],
+        warnings: [
+          {
+            code: "discard_conflict_edits",
+            message:
+              "当前冲突解决草稿与重放进度将被丢弃，恢复到变基开始前状态。",
+          },
+        ],
+      }),
+    };
+  }
+
+  return base;
+}

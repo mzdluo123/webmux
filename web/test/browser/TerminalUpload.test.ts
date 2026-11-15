@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import TerminalUploadHarness from "./TerminalUploadHarness.svelte";
 import type {

@@ -187,3 +187,92 @@
 - 已运行：`go test -race ./internal/hybrid ./internal/acp ./internal/contract`；后台进程、无进程、Kimi 启动调用完成及新回合/切换取消观察的定向回归；`make check`。
 - 真实 WebMux 端到端：agy 1.5.4 产生第二个状态检查回合，Kimi 2.5.2 不发起额外回合；两种 agent 均在后台结果文件生成后出现 `done`，自动化脚本验收退出码均为 0。
 - 限制：agy 自动检查会产生一次额外模型调用，结果内容由 agent 决定；完成检测仍限受管进程树，不保证自行 daemonize、脱离进程树或非本地任务；未在 macOS 或真机浏览器上核对。
+
+## 2026-11-12：搜索已关闭的路由锚点消息（US-C18）
+
+- 在 `/s/A` 关闭 A 窗格并保留会话与 B 后，旧版选择真实用户消息命中仍只挂载 B，没有高亮，定位 query 留下；不是原生整页导航问题。修复先复用 add 恢复缺失目标，再聚焦、显示聊天和定位。
+- 永久消费者回归保留已有 split 定位和旧结果等待验收，并验证关闭路由目标后恢复、仅 A 高亮、URL 消费、B 草稿和原 body/B 身份。精确旧二进制缺少 A 而失败，新版定向 E2E 1 项通过，retries=0。
+- 独立非测试 smoke 通过真实 API 创建 A/B 聊天、实际输入和发送、分屏/关闭/搜索 UI 完成；没有 seed 布局、假响应、DOM 改写或测试 runner。
+- 修复后 A 与 B 同时保留，A active 且只有其真实用户消息 wm1 高亮；query 在定位后消费，B 的中文草稿与 body/pane/composer 身份保留。两版主文档请求均为零，history 事件 1→2 不是 reload。
+- 1280×900、768×800、390×844 浅深色共 12 张前后图；DPR 1.25，另在 320×568、375×667 两主题核对，均无根页面横向溢出。手机显示聚焦 A，B 仍挂载但不同时可见。
+- 浅色桌面：[前](../../.github/pr-assets/message-search-closed-pane/before-desktop-light.png) / [后](../../.github/pr-assets/message-search-closed-pane/after-desktop-light.png)。
+- 浅色平板：[前](../../.github/pr-assets/message-search-closed-pane/before-tablet-light.png) / [后](../../.github/pr-assets/message-search-closed-pane/after-tablet-light.png)。
+- 浅色手机：[前](../../.github/pr-assets/message-search-closed-pane/before-phone-light.png) / [后](../../.github/pr-assets/message-search-closed-pane/after-phone-light.png)。
+- 深色桌面：[前](../../.github/pr-assets/message-search-closed-pane/before-desktop-dark.png) / [后](../../.github/pr-assets/message-search-closed-pane/after-desktop-dark.png)。
+- 深色平板：[前](../../.github/pr-assets/message-search-closed-pane/before-tablet-dark.png) / [后](../../.github/pr-assets/message-search-closed-pane/after-tablet-dark.png)。
+- 深色手机：[前](../../.github/pr-assets/message-search-closed-pane/before-phone-dark.png) / [后](../../.github/pr-assets/message-search-closed-pane/after-phone-dark.png)。
+- [真实恢复消息录屏](../../.github/pr-assets/message-search-closed-pane/restore-message.gif)约 3.46 秒，实际浏览器帧按墙钟计时，没有叠加或调速。
+- [实际状态清单](../../.github/pr-assets/message-search-closed-pane/proof.json)记录主文档请求、history 事件、目标高亮、query 与身份；未运行满八窗格的独立 smoke，也未验证真机、触控、修饰键或 hover/coarse。
+- 私有服务、浏览器、build 与录制中间件均清理；没有安装共享依赖或创建 node_modules 链接，公开资源由提交者后验。
+
+## 2026-11-12：引用已关闭的路由锚点窗格（US-Q05）
+
+- 旧版真实界面先关闭路由锚点窗格并保留会话，再点击引用；实际发生整页导航，保存的布局仍不含目标窗格。修复通过原分屏 add 路径重新打开，不扩大既有 activateSession 的聚焦语义。
+- 永久消费者回归覆盖已有窗格激活、关闭后目标身份与数量、当前窗格、其他聊天与 document 身份、未发送草稿保留；定向 E2E 1 项、retries=0，AppShell/TimelineItem browser 20 项通过。
+- 生产类型 418 文件、0 错误与警告，lint、架构守卫及 40 项测试、源码格式通过；没有将此记为全仓 E2E、真机或原生修饰键验证。
+- 独立 fake provider 服务在桌面 1280×900、平板 768×800、手机 390×844 的浅深色中核对。旧版发生原生导航且未恢复目标，新版六组均无原生导航；窄屏隐藏聊天可正常卸载，切回后草稿仍在。
+- 截图准备使用真实保存布局；永久回归通过真实分屏与引用菜单创建场景，没有改 DOM 链接结果。前后为独立私有服务中的等价命名会话，不宣称相同 ID。
+- [证据清单](../../.github/pr-assets/session-reference-closed-pane/evidence.json)记录导航、身份、草稿与溢出。
+- 浅色桌面：[前](../../.github/pr-assets/session-reference-closed-pane/before-desktop-light.png) / [后](../../.github/pr-assets/session-reference-closed-pane/after-desktop-light.png)。
+- 浅色平板：[前](../../.github/pr-assets/session-reference-closed-pane/before-tablet-light.png) / [后](../../.github/pr-assets/session-reference-closed-pane/after-tablet-light.png)。
+- 浅色手机：[前](../../.github/pr-assets/session-reference-closed-pane/before-phone-light.png) / [后](../../.github/pr-assets/session-reference-closed-pane/after-phone-light.png)。
+- 深色桌面：[前](../../.github/pr-assets/session-reference-closed-pane/before-desktop-dark.png) / [后](../../.github/pr-assets/session-reference-closed-pane/after-desktop-dark.png)。
+- 深色平板：[前](../../.github/pr-assets/session-reference-closed-pane/before-tablet-dark.png) / [后](../../.github/pr-assets/session-reference-closed-pane/after-tablet-dark.png)。
+- 深色手机：[前](../../.github/pr-assets/session-reference-closed-pane/before-phone-dark.png) / [后](../../.github/pr-assets/session-reference-closed-pane/after-phone-dark.png)。
+- [正常速度录屏](../../.github/pr-assets/session-reference-closed-pane/reopen-desktop-light.gif)来自真实 Chromium，1280×900 录制、960×675 输出、10 fps；没有真机、真实触控或原生修饰键注入核对。所有私有进程、浏览器和录屏中间件清理；公开链接由提交者后验。
+
+## 2026-11-12：满布局的引用反馈与重试（US-Q05）
+
+- 精确基线 `47018c05` 先关闭路由锚点、保留会话，再加入其他会话填满 8 个窗格；实际点击引用被消费，目标仍未出现、没有提示，也没有原生导航。没有把此前“原生导航后未重开”的旧故障当作本例。
+- 修复在原页面的 danger InlineNotice 报告容量；同一次点击保留八个窗格、原 document/chat/composer 身份和未发送草稿。关闭一个 filler 变为七个后重试，目标恢复为 active，总数仍为八，提示清除且草稿不变，导航始终为零。
+- 永久回归用真实分屏菜单、关闭菜单和引用点击完成上述边界；精确旧二进制缺少 alert 而失败，新版容量回归与已有引用回归共 2 项通过，retries=0。
+- 独立非测试 smoke 使用真实 API 创建私有 fake-agent 会话，真实输入并发送相对会话链接；加入和关闭窗格均通过 UI。仅在截图前重排持久布局为可读的 chat/七个 PTY 排布，没有改 DOM、会话内容或反馈。
+- 桌面 1280×900、平板 768×800、手机 390×844，浅深色共 12 张前后图；DPR 1.25，均无根页面横向溢出，另测 320×568、375×667。手机显示响应式聚焦窗格与标签条，不宣称八个内容同时可见，JSON 保存八个实际 ID。
+- 浅色桌面：[前](../../.github/pr-assets/session-reference-capacity/before-desktop-light.png) / [后](../../.github/pr-assets/session-reference-capacity/after-desktop-light.png)。
+- 浅色平板：[前](../../.github/pr-assets/session-reference-capacity/before-tablet-light.png) / [后](../../.github/pr-assets/session-reference-capacity/after-tablet-light.png)。
+- 浅色手机：[前](../../.github/pr-assets/session-reference-capacity/before-phone-light.png) / [后](../../.github/pr-assets/session-reference-capacity/after-phone-light.png)。
+- 深色桌面：[前](../../.github/pr-assets/session-reference-capacity/before-desktop-dark.png) / [后](../../.github/pr-assets/session-reference-capacity/after-desktop-dark.png)。
+- 深色平板：[前](../../.github/pr-assets/session-reference-capacity/before-tablet-dark.png) / [后](../../.github/pr-assets/session-reference-capacity/after-tablet-dark.png)。
+- 深色手机：[前](../../.github/pr-assets/session-reference-capacity/before-phone-dark.png) / [后](../../.github/pr-assets/session-reference-capacity/after-phone-dark.png)。
+- [正常速度容量提示与恢复录屏](../../.github/pr-assets/session-reference-capacity/capacity-retry.gif)约 4.8 秒，来自实际浏览器帧及墙钟时长，没有叠加或调速。
+- [实际状态清单](../../.github/pr-assets/session-reference-capacity/proof.json)记录消费事件、身份、导航、草稿和重试。
+- 全部私有服务、浏览器与录制中间件清理；没有真机、真实触控、原生修饰键或 hover/coarse 验证。公开链接由提交者后验。
+
+## 2026-11-12：回合 Diff 合并最终交接核心（US-Q05）
+
+- 保留同文件独立片段、共享 Diff 阅读器与增删统计；修改前、修改后及整文件删除的查找来源不变。
+- 定向回归：TurnChanges、CodeDiffReader、TerminalRendering 共 15 项浏览器测试，以及 chat-model、code-diff 共 20 项单元测试通过。
+- 实际私有应用：在独立 HOME、XDG 配置、状态目录与 FAKEAGENT_STORE 的真实后端运行 3 项 Chromium 桌面端到端场景；仅使用 fake agent，不连接真实供应商。
+- 已核对同文件两段 Diff 的展开收起、旧侧与新侧各 1 个匹配、删除文件默认旧侧查找，以及聊天 Diff 内 Cmd+F 与切回终端后的 Cmd+F 焦点归属。
+- 此次 macOS 快捷键通过 Chromium 模拟平台与按键核对，未声称在 macOS 真机验证；尾随换行的既有 diffStats 计数行为不在本次范围内。
+
+## 2026-11-12：空文件快照的回合 Diff 净改动（US-Q05）
+
+- 已知修改前快照存在时，将 wire 省略的空 `newText` 归一为空字符串再拼接；同文件先清空再改写保留净增删，清空后恢复保持零增删。
+- 未知、仅补丁与不能连续拼接的片段继续独立保留；不改变整文件删除、修改前后查找、快捷键归属或尾随换行统计策略。
+- `make check` 通过；turn-changes、chat-model、code-diff 共 28 项单元测试及 TurnChanges、CodeDiffReader、TerminalRendering 共 15 项浏览器测试通过。
+- 定向 Chromium E2E 在桌面与 iPhone SE 布局共 9 项通过，覆盖清空后改写/恢复、独立片段、删除文件默认旧侧查找与旧侧/新侧切换；1 项手机 macOS 快捷键场景按原规则跳过，桌面快捷键场景通过。
+- 独立实际私有应用 smoke 使用绝对路径 fake agent 与隔离 HOME/XDG/FAKEAGENT_STORE，捕获真实后端省略空 `newText` 的帧，再交给真实 reducer：改写为 1/1，恢复为 0/0，页面均只展开一个净 Diff。
+- 私有应用在 1280×720、390×844、375×667、320×568 的浅色/深色媒体设置下无文档横向溢出；未连接真实供应商，未核对真机、真实 macOS、悬停或触屏交互。
+
+## 2026-11-12：新建文件后编辑的净 Diff（US-Q05）
+
+- ACP 新文件的 `oldText` 允许省略或 `null`；Go 使用 nil 指针并在聊天 wire 中省略该字段。前端不增加 nullable JSON 分支，只在有完整快照且没有补丁正文或截断标记时归一不存在的一侧。
+- `keep\noriginal` 新建后改成 `keep\nreplacement`，回合摘要保留一个文件、一个最终 Diff，统计为新增 2 行、删除 0 行，而不是累计中间版本的 3/1。
+- 未知、仅补丁、截断与不连续片段继续独立；清空再改写的 1/1、清空再恢复的 0/0、尾随换行策略与查找快捷键归属不变。
+- 前端生产构建、生产/测试类型检查、Oxlint、架构守卫和源码格式检查通过；turn-changes、chat-model、code-diff 共 31 项单元测试及 TurnChanges、CodeDiffReader、TerminalRendering 共 15 项浏览器测试通过。
+- 独立私有生产应用使用绝对路径 fake omp 与隔离 HOME/XDG/FAKEAGENT_STORE；真实 Go WebSocket 新建帧省略 `oldText`，后续编辑帧带完整旧内容。捕获帧交给实际生产 reducer 得到一个 2/0 快照，页面也只展开一个包含 `keep` 与 `replacement` 的 Diff，没有旧版本 `original`。
+- 定向 E2E 桌面与 iPhone SE 共 11 项通过，1 项手机 macOS 快捷键场景按既有规则跳过；覆盖新建后编辑、清空后改写/恢复、独立片段、删除文件旧侧查找，以及桌面 Cmd+F 从聊天切回终端的焦点归属。
+- 同一真实后端与会话对比 87ea0df 的 reducer 生产 bundle 和修复后 bundle：前者两段 3/1，后者一段 2/0。桌面 1280×900、平板 768×800、手机 390×844 均有浅色/深色前后截图，另核对 375×667、320×568 无文档横向溢出；实际 DPR 为 1.25。
+- 证据位于 `.github/pr-assets/turn-diff-review/create-edit-*`：12 张前后截图、4 秒正常速度的展开/收起/再展开 GIF，以及真实 wire、生产 reducer 和各视口 displayedDiff 的 JSON。已检查截图与 GIF 帧序列；公开 PR 内嵌展示由发布者核对。
+- 限制：无真实供应商调用，未验证真机、真实 macOS、悬停或触屏；无新 UI 样式或布局修改。故事编号、数量与覆盖索引不变。
+
+## 2026-11-13：迟到后台工具不计入下一轮 Diff（US-Q05）
+
+- 实际复现第一轮 `in_progress` 工具在第二轮开始后发回完成 Diff；修复前第二轮错误显示一个文件的汇总。前端保留工具生命周期的回合归属，迟到补丁只更新原卡片；已结束汇总不追补，同一 ID 明确重新进入 pending/in_progress 时归入新轮。
+- 永久回归覆盖迟到完成仍更新原卡片、不污染新轮，以及终态工具 ID 明确重启后正常记录新轮。turn-changes 与 chat-model 共 27 项单元测试通过；原实现的迟到用例先失败，修复后通过。
+- `make check` 通过：生产及测试类型检查 419 文件无错误或警告，40 项架构与依赖测试、文档及持久化守卫、Oxlint、go vet 与 golangci-lint 全部通过。定向真实 ACP E2E 桌面与手机共 11 项通过，1 项手机 macOS 快捷键用例按原规则跳过，无重试。
+- 两个隔离生产二进制均使用绝对路径、校验 SHA256 的仓库 fake ACP。真实帧在第二轮开始后更新原工具，持久 Activity 仍为第一轮 position 6；修复前页面错误汇总为 1，修复后及真实重连回放均为 0，原工具卡片仍显示 late.ts 与 +1/−1。
+- `.github/pr-assets/late-tool-diff/` 保留真实帧、Activity、读屏文本及视口 JSON，桌面 1280×900、平板 768×800、手机 390×844 的明暗主题共 12 张前后截图，以及原工具卡片展开/收起的正常速度 GIF。另核对 375×667、320×568，两种主题均无文档横向溢出。
+- 截图实际 DPR 1，最初操作 DPR 1.25；GIF 由实际录屏转码。未声称工具卡片直接展示 Diff 正文，正文来自真实 wire 与 Activity；既有 fake 版本提示未隐藏。
+- 限制：仅仓库 fake ACP，无真实供应商调用；未验证真机、真实 macOS 或悬停/触屏。一次录帧脚本未解包 events 信封、一次 limit=100 读取被拒绝，相关不完整录屏不作证据；最终使用真实服务端回放和有效默认分页。故事编号、数量与覆盖索引不变。

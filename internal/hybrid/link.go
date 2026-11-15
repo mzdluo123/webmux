@@ -22,13 +22,14 @@ var errStopped = fmt.Errorf("%w: 服务正在关闭", ErrUnavailable)
 
 // acpLink is one ACP agent process and its connection.
 type acpLink struct {
-	epoch     int
-	sidecar   *session.Sidecar
-	conn      *acp.Conn
-	sessionID string
-	caps      acp.SessionCapabilities
-	prompt    acp.PromptCapabilities
-	tools     acpTools
+	historyScope string
+	epoch        int
+	sidecar      *session.Sidecar
+	conn         *acp.Conn
+	sessionID    string
+	caps         acp.SessionCapabilities
+	prompt       acp.PromptCapabilities
+	tools        acpTools
 }
 
 // stop closes the connection and ends the process, and reports whether its
@@ -192,6 +193,12 @@ type openResult struct {
 // back (D25), or on the first open the values derived from the launch
 // arguments. It runs in a subtask; a failure stops the process.
 func (a *actor) openACP(epoch int, sid, cwd string, resume bool, beforeLoad func() bool) openResult {
+	return a.openACPWithRequirement(epoch, sid, cwd, resume, beforeLoad, a.requireNativeResume)
+}
+
+// openACPWithRequirement rechecks required resume against the new connection,
+// since capabilities may differ from the writer that was just stopped.
+func (a *actor) openACPWithRequirement(epoch int, sid, cwd string, resume bool, beforeLoad func() bool, requireResume bool) openResult {
 	if a.externalWriterNow(sid) {
 		return openResult{fail: &failure{err: ErrExternalWriter, public: ErrExternalWriter.Error()}}
 	}
@@ -202,12 +209,18 @@ func (a *actor) openACP(epoch int, sid, cwd string, resume bool, beforeLoad func
 	}
 	res := openResult{link: link, init: init}
 	ctx := context.Background()
+	servers, scope := a.sessionMCPServers(ctx)
+	link.historyScope = scope
 	method := acp.MethodSessionLoad
 	var err error
+	if requireResume && (!agentprofile.ResumesSessions(a.cmd.Agent) || link.caps.Resume == nil) {
+		_ = link.stop()
+		return openResult{fail: &failure{err: ErrNativeResumeUnavailable, public: ErrNativeResumeUnavailable.Error()}}
+	}
 	if resume && agentprofile.ResumesSessions(a.cmd.Agent) && link.caps.Resume != nil {
 		method = acp.MethodSessionResume
 		var r acp.ResumeSessionResponse
-		r, err = link.conn.ResumeSession(ctx, acp.ResumeSessionRequest{SessionID: sid, Cwd: cwd})
+		r, err = link.conn.ResumeSession(ctx, acp.ResumeSessionRequest{SessionID: sid, Cwd: cwd, MCPServers: servers})
 		res.config, res.resumed = r.ConfigOptions, true
 	} else {
 		if beforeLoad == nil {
@@ -218,12 +231,15 @@ func (a *actor) openACP(epoch int, sid, cwd string, resume bool, beforeLoad func
 			return openResult{fail: &failure{err: errStopped, public: errStopped.Error()}}
 		}
 		var r acp.LoadSessionResponse
-		r, err = link.conn.LoadSession(ctx, acp.LoadSessionRequest{SessionID: sid, Cwd: cwd})
+		r, err = link.conn.LoadSession(ctx, acp.LoadSessionRequest{SessionID: sid, Cwd: cwd, MCPServers: servers})
+		if err != nil {
+			r, err = a.recoverSessionLock(ctx, link, sid, cwd, servers, err)
+		}
 		res.config = r.ConfigOptions
 	}
 	if err != nil {
 		f := a.callFailed(link, method, err)
-		if externalWriter(err) {
+		if externalWriter(err) || errors.Is(err, ErrExternalWriter) {
 			f = &failure{err: ErrExternalWriter, public: ErrExternalWriter.Error()}
 		}
 		return openResult{fail: f}
@@ -233,11 +249,46 @@ func (a *actor) openACP(epoch int, sid, cwd string, resume bool, beforeLoad func
 	return res
 }
 
+// recoverSessionLock answers a failed session/load: when the adapter reads
+// it as a lock held by another process, a live holder is an external-writer
+// conflict, while a dead one gets one force session/close and one retry, so
+// a lock a crashed terminal left behind does not block switching.
+func (a *actor) recoverSessionLock(ctx context.Context, link *acpLink, sid, cwd string, servers []acp.MCPServer, err error) (acp.LoadSessionResponse, error) {
+	locker, ok := a.cmd.Agent.(agentprofile.SessionLocker)
+	if !ok {
+		return acp.LoadSessionResponse{}, err
+	}
+	pid, ok := locker.LockHeldBy(err)
+	if !ok {
+		return acp.LoadSessionResponse{}, err
+	}
+	if processIdentity(pid) != nil {
+		return acp.LoadSessionResponse{}, fmt.Errorf("%w（PID %d）", ErrExternalWriter, pid)
+	}
+	if cerr := link.conn.CloseSessionMeta(ctx, sid, locker.ForceCloseMeta()); cerr != nil {
+		a.svc.log.Warn("hybrid force session close failed", "id", a.id, "error", cerr)
+		return acp.LoadSessionResponse{}, err
+	}
+	a.svc.log.Info("hybrid stale session lock released", "id", a.id, "agent", a.cmd.Profile.Name, "pid", pid)
+	r, rerr := link.conn.LoadSession(ctx, acp.LoadSessionRequest{SessionID: sid, Cwd: cwd, MCPServers: servers})
+	if rerr != nil {
+		if pid, ok := locker.LockHeldBy(rerr); ok && processIdentity(pid) != nil {
+			return r, fmt.Errorf("%w（PID %d）", ErrExternalWriter, pid)
+		}
+		return r, rerr
+	}
+	return r, nil
+}
+
 // installLink makes an opened connection the session's: versions,
 // steering and the agent's options.
 func (a *actor) installLink(link *acpLink, init acp.InitializeResponse, config []acp.ConfigOption, notes []string) {
 	a.finishActivityReplay()
 	a.link = link
+	// A foreground process baseline belongs to its ACP connection. Keeping
+	// the old PID set after recovery would classify the new writer as work.
+	a.stopBackgroundWatch()
+	a.bgBase = nil
 	a.agentSessionID = link.sessionID
 	a.chat.ConnectorMissing = nil
 	a.setConnector(nil)
@@ -275,6 +326,10 @@ func (a *actor) outdated(reported, agentVersion string) []Outdated {
 		if order, ok := agentprofile.CompareVersions(reported, c.VerifiedVersion); ok && order < 0 {
 			out = append(out, Outdated{Name: c.Title, Version: reported, Verified: c.VerifiedVersion})
 		}
+	} else if p.VersionExecutable {
+		// The ACP side's agentInfo.version is not a release version; the
+		// executable's --version decides (empty skips the notice).
+		agent = agentVersion
 	}
 	if p.BelowVerified(agent) {
 		out = append(out, Outdated{Name: p.Title, Version: agent, Verified: p.VerifiedVersion})

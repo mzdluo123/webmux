@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import { errorMessage } from "../../platform/error";
 import { joinArgs, parseArgs } from "../../platform/api";
 import type {
@@ -39,20 +40,30 @@ export const LAUNCH_ATTENTION_MODE_OPTIONS: readonly {
 }[] = [
   {
     value: "all",
-    label: "全部提醒",
-    description: "包含任务完成、桌面通知、终端响铃以及需要介入的紧急提醒。",
+    get label() {
+      return m.s2_launch_attn_mode_all();
+    },
+    get description() {
+      return m.s2_launch_attn_mode_all_desc();
+    },
   },
   {
     value: "urgent",
-    label: "仅需介入",
-    description:
-      "仅保留提问、权限确认与失败提醒，抑制完成、普通通知与终端响铃。",
+    get label() {
+      return m.s2_launch_attn_mode_urgent();
+    },
+    get description() {
+      return m.s2_launch_attn_mode_urgent_desc();
+    },
   },
   {
     value: "off",
-    label: "关闭",
-    description:
-      "关闭此会话的一切自动提醒（显式调用 webmux notify 仍可触发）。",
+    get label() {
+      return m.s2_launch_attn_mode_off();
+    },
+    get description() {
+      return m.s2_launch_attn_mode_off_desc();
+    },
   },
 ];
 const envName = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -113,11 +124,21 @@ function wrappedShell(cmd: readonly string[]): StartupShell | null {
 }
 
 export const LAUNCH_ICON_OPTIONS = [
-  { value: "terminal", label: "终端" },
+  {
+    value: "terminal",
+    get label(): string {
+      return m.s2_icon_terminal();
+    },
+  },
   { value: "claudecode", label: "Claude Code" },
   { value: "codex", label: "Codex" },
   { value: "antigravity", label: "Antigravity CLI" },
-  { value: "geminicli", label: "Gemini CLI（旧配置）" },
+  {
+    value: "geminicli",
+    get label(): string {
+      return m.s2_icon_gemini_legacy();
+    },
+  },
   { value: "cursor", label: "Cursor CLI" },
   { value: "githubcopilot", label: "GitHub Copilot CLI" },
   { value: "opencode", label: "OpenCode" },
@@ -126,6 +147,7 @@ export const LAUNCH_ICON_OPTIONS = [
   { value: "codebuddy", label: "CodeBuddy Code" },
   { value: "pi", label: "Pi / omp" },
   { value: "qoder", label: "Qoder" },
+  { value: "devin", label: "Devin CLI" },
 ] as const;
 
 /** The one-line description of a saved launch config under its name. */
@@ -138,14 +160,18 @@ export function launchConfigSummary(config: {
   const attentionLabel = !config.attention
     ? ""
     : config.attention.mode === "urgent"
-      ? "仅需介入"
+      ? m.s2_launch_attn_mode_urgent()
       : config.attention.mode === "off"
-        ? "提醒已关闭"
-        : "自定义提醒";
+        ? m.s2_launch_summary_attn_off()
+        : m.s2_launch_summary_attn_custom();
   return [
-    config.chat ? "混合会话" : "终端",
-    config.envNames.length ? `${config.envNames.length} 个环境变量` : "",
-    config.preview ? `预览 ${config.preview.lines} 行` : "",
+    config.chat ? m.s2_launch_summary_hybrid() : m.s2_icon_terminal(),
+    config.envNames.length
+      ? m.s2_launch_env_count({ count: String(config.envNames.length) })
+      : "",
+    config.preview
+      ? m.s2_launch_summary_preview({ lines: String(config.preview.lines) })
+      : "",
     attentionLabel,
   ]
     .filter(Boolean)
@@ -194,6 +220,8 @@ export function launchConfigIcon(config: {
     case "qoderclicn":
     case "qoder-cn":
       return "qoder";
+    case "devin":
+      return "devin";
     default:
       return "terminal";
   }
@@ -201,10 +229,9 @@ export function launchConfigIcon(config: {
 
 /** Error for one env variable name, or "" when valid. */
 function envNameError(name: string): string {
-  if (!name) return "请输入变量名";
-  if (!envName.test(name))
-    return "变量名只能包含字母、数字和下划线，且不能以数字开头";
-  if (name === "WEBMUX_SESSION_ID") return "WEBMUX_SESSION_ID 由 WebMux 保留";
+  if (!name) return m.s2_launch_err_env_name_empty();
+  if (!envName.test(name)) return m.s2_launch_err_env_name_invalid();
+  if (name === "WEBMUX_SESSION_ID") return m.s2_launch_err_env_name_reserved();
   return "";
 }
 
@@ -229,14 +256,20 @@ export function validateLaunchDraft(
       preview.lines < LAUNCH_PREVIEW_LINES_MIN ||
       preview.lines > LAUNCH_PREVIEW_LINES_MAX)
   )
-    errors.preview = `显示行数须为 ${LAUNCH_PREVIEW_LINES_MIN}–${LAUNCH_PREVIEW_LINES_MAX} 的整数`;
+    errors.preview = m.s2_launch_err_preview_lines({
+      min: String(LAUNCH_PREVIEW_LINES_MIN),
+      max: String(LAUNCH_PREVIEW_LINES_MAX),
+    });
   else if (
     preview &&
     (!Number.isInteger(preview.skip) ||
       preview.skip < LAUNCH_PREVIEW_SKIP_MIN ||
       preview.skip > LAUNCH_PREVIEW_SKIP_MAX)
   )
-    errors.preview = `跳过末尾行数须为 ${LAUNCH_PREVIEW_SKIP_MIN}–${LAUNCH_PREVIEW_SKIP_MAX} 的整数`;
+    errors.preview = m.s2_launch_err_preview_skip({
+      min: String(LAUNCH_PREVIEW_SKIP_MIN),
+      max: String(LAUNCH_PREVIEW_SKIP_MAX),
+    });
 
   if (
     attention &&
@@ -244,38 +277,46 @@ export function validateLaunchDraft(
     attention.mode !== "urgent" &&
     attention.mode !== "off"
   )
-    errors.attention = "提醒范围无效";
+    errors.attention = m.s2_launch_err_attn_mode();
   else if (
     attention &&
     (!Number.isInteger(attention.minTurnSeconds) ||
       attention.minTurnSeconds < LAUNCH_ATTENTION_MIN_TURN_MIN ||
       attention.minTurnSeconds > LAUNCH_ATTENTION_MIN_TURN_MAX)
   )
-    errors.attention = `最短回合耗时须为 ${LAUNCH_ATTENTION_MIN_TURN_MIN}–${LAUNCH_ATTENTION_MIN_TURN_MAX} 秒的整数`;
+    errors.attention = m.s2_launch_err_attn_min_turn({
+      min: String(LAUNCH_ATTENTION_MIN_TURN_MIN),
+      max: String(LAUNCH_ATTENTION_MIN_TURN_MAX),
+    });
   else if (
     attention &&
     (!Number.isInteger(attention.doneDelaySeconds) ||
       attention.doneDelaySeconds < LAUNCH_ATTENTION_DONE_DELAY_MIN ||
       attention.doneDelaySeconds > LAUNCH_ATTENTION_DONE_DELAY_MAX)
   )
-    errors.attention = `完成确认延迟须为 ${LAUNCH_ATTENTION_DONE_DELAY_MIN}–${LAUNCH_ATTENTION_DONE_DELAY_MAX} 秒的整数`;
+    errors.attention = m.s2_launch_err_attn_done_delay({
+      min: String(LAUNCH_ATTENTION_DONE_DELAY_MIN),
+      max: String(LAUNCH_ATTENTION_DONE_DELAY_MAX),
+    });
   const trimmed = name.trim();
-  if (!trimmed) errors.name = "请输入名称";
+  if (!trimmed) errors.name = m.s2_launch_err_name_empty();
   else if (Array.from(trimmed).length > LAUNCH_NAME_MAX)
-    errors.name = `名称最多 ${LAUNCH_NAME_MAX} 个字符`;
+    errors.name = m.s2_launch_err_name_max({ max: String(LAUNCH_NAME_MAX) });
 
   let cmd: string[] = [];
   try {
     cmd = parseArgs(command);
-    if (!cmd.length || !cmd[0]) errors.command = "请输入可执行程序及参数";
+    if (!cmd.length || !cmd[0]) errors.command = m.s2_launch_err_cmd_empty();
     else {
       if (startupShell) cmd = [...STARTUP_PREFIXES[startupShell], ...cmd];
       if (cmd.length > LAUNCH_ARGS_MAX)
         errors.command = startupShell
-          ? `加载 shell 启动文件后命令最多 ${LAUNCH_ARGS_MAX} 个参数（包含 shell 启动参数）`
-          : `命令最多 ${LAUNCH_ARGS_MAX} 个参数`;
+          ? m.s2_launch_err_cmd_max_startup({ max: String(LAUNCH_ARGS_MAX) })
+          : m.s2_launch_err_cmd_max({ max: String(LAUNCH_ARGS_MAX) });
       else if (cmd.some((arg) => bytes(arg) > LAUNCH_VALUE_BYTES))
-        errors.command = `单个参数不能超过 ${LAUNCH_VALUE_BYTES} 字节`;
+        errors.command = m.s2_launch_err_arg_bytes({
+          max: String(LAUNCH_VALUE_BYTES),
+        });
     }
   } catch (err) {
     errors.command = errorMessage(err);
@@ -284,15 +325,18 @@ export function validateLaunchDraft(
   const env: Record<string, string> = {};
   const used = rows.filter((row) => row.name || row.value);
   if (used.length > LAUNCH_ENV_MAX)
-    errors.env = `最多 ${LAUNCH_ENV_MAX} 个环境变量`;
+    errors.env = m.s2_launch_err_env_max({ max: String(LAUNCH_ENV_MAX) });
   for (const row of used) {
     const rowErrors: { name?: string; value?: string } = {};
     const nameError = envNameError(row.name);
     if (nameError) rowErrors.name = nameError;
-    else if (Object.hasOwn(env, row.name)) rowErrors.name = "变量名重复";
-    if (row.value.includes("\0")) rowErrors.value = "变量值不能包含 NUL 字符";
+    else if (Object.hasOwn(env, row.name))
+      rowErrors.name = m.s2_env_err_duplicate();
+    if (row.value.includes("\0")) rowErrors.value = m.s2_launch_err_env_nul();
     else if (bytes(row.value) > LAUNCH_VALUE_BYTES)
-      rowErrors.value = `变量值不能超过 ${LAUNCH_VALUE_BYTES} 字节`;
+      rowErrors.value = m.s2_launch_err_env_bytes({
+        max: String(LAUNCH_VALUE_BYTES),
+      });
     if (rowErrors.name || rowErrors.value) errors.rows[row.key] = rowErrors;
     else env[row.name] = row.value;
   }

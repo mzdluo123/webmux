@@ -4,6 +4,7 @@
 
 - **US-C01 按项目总览**：作为同时处理多个任务的使用者，我希望按仓库、工作树和会话查看工作，以便快速理解每个任务在哪里运行。
   验收要点：
+  - 仓库分组与管理以 `workspace` 已选择为前提；未选择时首页只列核心会话与直接目录，不请求仓库数据，也不让旧仓库筛选隐藏现存会话；
   - 左侧导航切换单仓库、全部仓库或直接会话，每项显示对应范围的会话及等待数（含需要回答、等待授权或出错停止的等待会话时，「待 N」徽章为红色，其余等待为琥珀色），长列表独立滚动；
   - 桌面主屏幕应用中的导航避开实际高度变化的吸顶页头，列表高度随之调整；
   - 窄屏选中后收起并恢复按钮焦点；
@@ -28,6 +29,7 @@
   - 状态标签紧跟标题，下一行依次为所在端（混合会话）、连接设备或“后台会话”与最近活跃时间，状态变化不移动其他内容；
   - 没有客户端的会话显示为后台会话；
   - 高频输出保留未变化会话的对象与创建顺序，不反复排序全表；
+  - 120 会话下切换状态筛选和打开卡片菜单，4× CPU 降速的最大交互时间不超过 300 ms；
   - 最近活跃时间每 30 秒及回到前台时校准；
   - 会话卡片按创建时使用的启动配置显示其预览设置，配置缺失或首页加载时存储不可用则回退全局设置，打开新建会话重新读取期间或失败时保留已加载的预览。混合会话卡片标出所在端，聊天端以最新 agent 消息代替终端预览，回合进行中卡片还显示一行当前工作（当前工具调用或计划步骤，一行截断）；
   - 已关闭或已中断的混合会话不在运行中会话里，而作为已归档记录显示在所属工作树（或直接会话目录、“已不可用工作区”）活动会话下方的“已归档”中；拥有已归档记录的工作树与有会话的工作树一样保留在首页，搜索与“已归档”状态筛选覆盖这些记录（US-Q09、US-Q12）。
@@ -71,6 +73,8 @@
   - 用户输入、agent 报告重新开始或空闲、提示符作废或退出时清除，重复报告不在处理后再次提醒；
   - 只解析状态与种类，不保存正文；
   - 脚本可经 `webmux notify`（来源 `cli`，见 US-S13）发出提醒，附带的消息只在内存中，作为弹窗的说明行。
+  - 侧栏的“待我处理”汇总跨仓库的提问、授权与错误，仅有待处理或已暂缓的事项时显示入口。可将单条站内通知暂缓 15 分钟或提前恢复，期间会话继续运行，新事件仍即时提示；
+  - 暂缓仅在当前打开的页面有效，刷新后清除；到期提醒使用会话当前的标题，窄屏浮层内可滚动到所有事项及其操作。
 - **US-C07 调整输出预览**：作为使用者，我希望控制预览行数并跳过 agent 的底部状态栏，以便首页突出有用输出。
   验收要点：
   - 输出预览模式显示 1–50 行、跳过末尾 0–50 行；
@@ -80,6 +84,7 @@
   - 启动配置可单独覆盖行数与跳过值并选择跟随全局默认，未配置或配置不可用时使用全局值。
 - **US-C08 刷新外部 Git 变化**：作为使用者，我希望终端外发生的工作树变化也能出现在首页，以便总览反映磁盘现状。
   验收要点：
+  - 仅在选择 `workspace` 时执行这些 Git 刷新；仅选该功能也保留仓库/worktree 管理，Git 工作台另需 `code`；
   - 打开首页、回到前台、重连、手动刷新和相关操作后重新读取 Git；
   - 读取时间收在仓库详情浮层，错误始终可见；
   - 较旧的请求结果不能覆盖新结果。
@@ -105,6 +110,7 @@
   - 需要新标签页时可用浏览器的中键或 Ctrl/⌘ 点击。
 - **US-C12 后台接收推送提醒**：作为离开页面或锁屏的使用者，我希望收到需要回答、等待授权、本轮完成、出错或终端通知的推送，以便及时回到对应会话。
   验收要点：
+  - 后台推送与订阅接口需 `notifications`；未选择时不注册推送订阅或启动推送后台工作，不显示推送设置，核心状态与终端输入输出照常可用；
   - 设置页“通知推送”卡片提供默认开启的本机“页面内右上角弹窗提醒”开关（打开网页时无需授权或 HTTPS 即可提醒），并按设备开启或关闭后台推送，开启后台推送时只请求一次浏览器通知授权，显示服务端订阅数，并可从任一设备向全部设备发送测试通知；
   - 仅安全上下文与支持的来源（已授权的 HTTPS 入口，含 Tailscale Serve/Funnel，或本机回环）提供开关，否则给出 HTTPS 入口、Quick Tunnel、iOS 主屏幕、浏览器能力、权限或服务端配置等可执行提示；
   - 推送标题为会话标题，`include_title = false` 或标题为空时为 WebMux，正文以与会话列表一致的短标签开头并给出下一步；
@@ -147,10 +153,12 @@
     - 已释放的聊天恢复前先确认重建 worktree；
 - **US-C16 侧栏与模式切换**：作为在多个会话之间来回的使用者，我希望首页、快速开始页和会话页都有同一个左侧侧栏，并能在聊天与工作台两种模式间切换，以便不回首页就能跳到其他会话。
   验收要点：
+  - 聊天模式、新聊天与聊天历史需 `chat`；仓库树与添加仓库需 `workspace`；端口转发需 `forward`。缺少某项时不加载或请求其实现，仍保留会话导航与核心终端；
+  - 旧设备记住的聊天模式在禁用 `chat` 后不能把首页重定向到聊天页；直接打开旧 `/new` 时显示“功能未启用”及“返回会话”，不加载聊天实现或读取归档记录；
   - 侧栏左上角两个带图标的按钮切换聊天模式（侧栏为聊天历史，主区域为快速开始 `/new`）与工作台模式（侧栏为仓库导航树，主区域为原会话总览 `/`），按钮用 `aria-pressed` 标记当前模式；
   - 本设备记住上次的模式：打开 `/` 且上次是聊天时以替换历史记录的方式进入 `/new`，首次使用或记录无效时进入工作台；直接打开其他地址以地址为准；
   - 侧栏只是导航方式：从任何位置打开会话都不改变模式；在会话页切换模式只更换侧栏内容，终端连接不中断；在首页切换则同时换到另一种主页；
-  - 侧栏依次为模式切换、主要操作（聊天为“新聊天”，工作台为“新建会话”）、导航内容和底部全局区；首页原顶栏移除，连接状态与主机名、添加仓库、端口转发、设置和主题切换移到侧栏底部，重连时显示“连接已断开，重连中…”；
+  - 侧栏依次为模式切换、主要操作（聊天为“新聊天”，工作台为“新建会话”）、导航内容和底部全局区；首页原顶栏移除，连接状态与主机名、端口转发、设置和主题切换移到侧栏底部，工作台首页工具栏保留“添加仓库”，重连时显示“连接已断开，重连中…”；
   - 桌面端侧栏可收起成只含图标的窄栏，收起状态保存在本设备；模式切换仅在侧栏展开时显示，终端随可用宽度重新计算列数：
     - 窄栏保留展开按钮和主要操作（聊天为“新聊天”，工作台为“新建会话”）；
     - 其下依次列出进程仍在运行的会话（已退出的不显示）以便快速切换，只显示 agent 或启动配置图标，右下角是与侧栏会话行相同的彩色状态指示灯，当前会话标 `aria-current`；
@@ -159,6 +167,7 @@
   - 外壳只读取现有的会话列表、仓库清单与混合会话记录，不改变首页、快速开始页和会话页本身的行为。
 - **US-C17 工作台导航树**：作为同时运行多个仓库和 worktree 的使用者，我希望在侧栏按“仓库 → worktree → 会话”看到全部运行中的会话及其状态，以便直接跳到目标会话或工作树。
   验收要点：
+  - `workspace` 未选择时使用直接会话导航，不读取仓库树；`chat` 未选择时不加载已归档聊天，置顶与核心会话切换仍可用；
   - 第一层依次为“全部仓库”、每个已登记仓库和“直接会话”，第二层是首页分组中显示的工作树（顺序与首页一致），第三层是运行中的会话（按创建时间从新到旧，输出不改变顺序）；已归档记录只在“已不可用工作区”节点下出现（见下），不在工作树下；
   - 点仓库或“直接会话”进入工作台首页的对应视图，点工作树进入工作台首页并只显示该工作树下的会话与归档记录；当前视图或会话标记 `aria-current`，当前会话所在路径自动展开；
   - 从工作台打开任何会话（含处于聊天端的混合会话）都保持工作台模式；会话卡片同样如此；直接打开地址或刷新不改变模式；
@@ -182,8 +191,13 @@
 
 - **US-C18 快速切换会话**：作为同时处理多个项目的使用者，我希望从当前页面直接找到已有会话，以便接续工作。
   验收要点：
+  - 核心会话名称、目录与状态搜索始终可用；仓库/分支字段仅在 `workspace` 可用时补充，聊天正文搜索仅在 `chat` 可用时执行，不探测禁用接口；
   - 工作台、新聊天、终端和设置均有入口。macOS 用 `⌘+K`，Windows 和 Linux 用 `Ctrl+Alt+K`。
   - 可跨仓库和工作树搜索会话名称、启动目录、仓库名和分支名，结果展示状态并将已退出会话单列。仓库信息加载时仍可按会话名和目录搜索。
+  - 输入 2–120 个字符时也搜索当前处于聊天端的活动会话已缓存的用户和 Agent 消息，保留旧结果直到新结果返回。搜索可跨越同一条消息的多个缓存片段；接入持久化 Activity 和原生历史后，仍只查询有界缓存，不扫描这些存储或启动 Agent。
+  - 点击消息摘要跳到命中的消息，已在分屏中的会话直接激活对应窗格并仅在该窗格高亮，可用“清除消息定位”移除高亮。
+  - 从首页等页面返回已保存的分屏时，也激活消息所属窗格，而不是沿用其他活动窗格；窄窗格被代码面板遮挡时先显示聊天。目标聊天可见且定位成功后才消费 URL 参数，刷新不会重复跳转；现有分屏不重建，页面不整页刷新。
+  - 消息所属会话已关闭窗格但仍是当前路由目标时，恢复该窗格后再显示聊天和定位，不停留在邻居窗格；原文档与邻居草稿保留。布局已满时给出容量提示，不丢已有窗格或提前消费未完成定位的参数；
   - 在应用外壳中，结果随实时会话列表更新。点击结果或用方向键与 Enter 打开会话，已在当前分屏中的会话直接激活对应窗格。
   - Esc 或关闭按钮取消并恢复焦点。输入法组合、其他已打开的弹窗和菜单期间不触发快捷键。搜索按键不发给终端，Shell 保留 `Ctrl+K`。
 
@@ -193,16 +207,19 @@
 - [工作台导航树](../../../web/src/components/shell/WorkbenchTree.svelte)、[侧栏仓库菜单](../../../web/src/components/shell/SidebarRepositoryMenu.svelte)、[导航树浏览器用例](../../../web/test/browser/WorkbenchTree.test.ts)、[侧栏底部](../../../web/src/components/shell/SidebarFooter.svelte)
 - [置顶状态](../../../web/src/domains/sessions/session-pins.svelte.ts)、[服务端设置接口](../../../internal/api/settings.go)、[侧栏置顶端到端用例](../../../web/test/e2e/app-shell.spec.ts)
 - [会话切换面板](../../../web/src/components/shell/SessionSwitcher.svelte)、[快速切换端到端用例](../../../web/test/e2e/session-switcher.spec.ts)
+- [消息定位与清除高亮](../../../web/src/components/chat/ChatTranscript.svelte)、[分屏与代码面板定位回归](../../../web/test/e2e/hybrid.spec.ts)
 - [显示方式](../../../web/src/components/terminal/SessionViewControls.svelte)、[范围端到端用例](../../../web/test/e2e/repository-scope.spec.ts)
 - [会话首页](../../../web/src/pages/SessionList.svelte)、[会话卡片](../../../web/src/components/sessions/SessionRow.svelte)、[启动配置预览解析](../../../web/src/domains/settings/launch-previews.svelte.ts)
 - [仓库分组](../../../web/src/components/workspace/RepositoryGroup.svelte)、[工作区分组](../../../web/src/components/workspace/WorkspaceGroup.svelte)、[列表事件更新](../../../web/src/hooks/sessions/session-list.ts)
+- [原子快照与订阅](../../../internal/session/manager.go)、[规范会话投影](../../../internal/featurewire/session.go)、[工作区关联](../../../internal/workspace/sessions.go)。
+- [能力宿主](../../../web/src/platform/feature-host.svelte.ts)、[本地功能入口](../../../web/src/features/registry.svelte.ts)、[侧栏可选资源](../../../web/src/features/shell-resources.ts)。
 - [表单按需加载](../../../web/src/components/shared/LazyDialog.svelte)
 - [目录线索与搜索](../../../web/src/domains/sessions/session-location.ts)、[OSC 7 解析](../../../internal/session/osc.go)、[状态检测](../../../internal/session/status.go)
 - [介入提醒](../../../internal/session/attention.go)、[程序状态探测应答](../../../internal/session/input_write.go)、[附着探测过滤](../../../internal/attach/probe.go)
 - [设置](../../../web/src/pages/Settings.svelte)、[主题](../../../web/src/hooks/settings/theme.ts)、[过渡样式](../../../web/src/styles.css)、[主题切换端到端用例](../../../web/test/e2e/theme.spec.ts)
 - [标签页指示](../../../web/src/platform/browser-chrome.ts)、[终端状态接线](../../../web/src/hooks/terminal/terminal-socket.svelte.ts)、[指示浏览器用例](../../../web/test/browser/BrowserChrome.test.ts)
 - [指示端到端用例](../../../web/test/e2e/browser-chrome.spec.ts)、[推送与设置卡片](../../../web/src/platform/push.ts)、[推送卡片](../../../web/src/components/settings/PushSettings.svelte)
-- 弹窗提醒：[组件](../../../web/src/components/notifications/AttentionToasts.svelte)、[状态跟踪](../../../web/src/domains/notifications/attention-toast.svelte.ts)；
+- 弹窗与待处理收件箱：[弹窗组件](../../../web/src/components/notifications/AttentionToasts.svelte)、[待处理收件箱](../../../web/src/components/notifications/AttentionInbox.svelte)、[状态跟踪](../../../web/src/domains/notifications/attention-toast.svelte.ts)；
   [纯函数](../../../web/src/domains/notifications/attention-toast.ts)、[浏览器用例](../../../web/test/browser/AttentionToasts.test.ts)。
 - [推送负载](../../../internal/push/alert.go)
 - [修改标题对话框](../../../web/src/components/sessions/RenameSessionDialog.svelte)、[标题浏览器用例](../../../web/test/browser/RenameSessionDialog.test.ts)、[重命名实现](../../../internal/session/manager.go)

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
@@ -38,12 +39,12 @@
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
     if (lines.length > 8) {
-      stunError = "最多配置 8 个 STUN 服务器地址。";
+      stunError = m.s2_p2p_err_max_stun();
       return null;
     }
     for (const line of lines) {
       if (!/^stuns?:[^\s/?#]+/i.test(line)) {
-        stunError = `无效的 STUN 地址“${line}”，必须以 stun: 或 stuns: 开头。`;
+        stunError = m.s2_p2p_err_invalid_stun({ url: line });
         return null;
       }
     }
@@ -89,38 +90,56 @@
     }
   }
 
-  const phaseText: Record<P2PPhase, string> = {
-    idle: "待命",
-    disabled: "已关闭",
-    unsupported: "当前环境不支持",
-    skipped_local: "本机/内网或加密虚拟网直连，已跳过",
-    skipped_low_rtt: "基线低延迟（< 15 ms），保持 WebSocket",
-    probing: "正在测量基线 RTT…",
-    negotiating: "正在协商 WebRTC 直连…",
-    connected: "WebRTC DataChannel 已就绪",
-    rejected_relay: "仅发现中继候选（relay），已拒绝升级",
-    standby_hysteresis: "直连增益未达阈值，保持基线",
-    fallback: "直连中断，已无感回退至 WebSocket 并后台重探",
-  };
+  function phaseText(phase: P2PPhase): string {
+    switch (phase) {
+      case "idle":
+        return m.s2_p2p_phase_idle();
+      case "disabled":
+        return m.s2_p2p_phase_disabled();
+      case "unsupported":
+        return m.s2_p2p_phase_unsupported();
+      case "skipped_local":
+        return m.s2_p2p_phase_skipped_local();
+      case "skipped_low_rtt":
+        return m.s2_p2p_phase_skipped_low_rtt();
+      case "probing":
+        return m.s2_p2p_phase_probing();
+      case "negotiating":
+        return m.s2_p2p_phase_negotiating();
+      case "connected":
+        return m.s2_p2p_phase_connected();
+      case "rejected_relay":
+        return m.s2_p2p_phase_rejected_relay();
+      case "direct_failed":
+        return m.s2_p2p_phase_direct_failed();
+      case "standby_hysteresis":
+        return m.s2_p2p_phase_standby();
+      case "fallback":
+        return m.s2_p2p_phase_fallback();
+    }
+  }
 
   const portMapBadge = $derived.by(() => {
     const pm = status?.portMap;
     if (!pm || pm.state === "off") {
-      return { variant: "outline" as const, text: "已关闭" };
+      return { variant: "outline" as const, text: m.s2_p2p_phase_disabled() };
     }
     if (pm.state === "probing") {
-      return { variant: "info" as const, text: "探测中…" };
+      return { variant: "info" as const, text: m.s2_p2p_portmap_probing() };
     }
     if (pm.state === "mapped" && pm.externalPort) {
       const proto = (pm.protocol ?? "UDP").toUpperCase();
       return {
         variant: "success" as const,
-        text: `已映射 ${proto} :${pm.externalPort}`,
+        text: m.s2_p2p_portmap_mapped({
+          proto,
+          port: String(pm.externalPort),
+        }),
       };
     }
     return {
       variant: "secondary" as const,
-      text: "网关不支持（使用 STUN 打洞）",
+      text: m.s2_p2p_portmap_unsupported(),
     };
   });
 </script>
@@ -128,39 +147,36 @@
 <div class="space-y-4">
   <div class="flex flex-wrap items-center justify-between gap-2">
     <div class="space-y-1">
-      <h3 class="text-base font-medium">机会性 P2P 直连升级</h3>
+      <h3 class="text-base font-medium">{m.s2_p2p_title()}</h3>
       <p class="text-xs text-muted-foreground">
-        在公网高延迟隧道（如 Cloudflare Tunnel）下后台建立 WebRTC DataChannel
-        直连，首屏不阻塞，失败或断连立即无感回落 WebSocket，且永不使用 TURN
-        中继。
+        {m.s2_p2p_desc()}
       </p>
     </div>
     {#if status}
       <Badge variant={status.source === "web" ? "info" : "outline"}>
-        {status.source === "web" ? "网页设置" : "配置文件"}
+        {status.source === "web" ? m.s2_source_web() : m.s2_source_config()}
       </Badge>
     {/if}
   </div>
 
   {#if ui.failure && !status}
     <InlineNotice tone="warning"
-      >无法读取 P2P 状态：{ui.failure}。实时连接仍正常使用 WebSocket。</InlineNotice
+      >{m.s2_p2p_err_load({ error: ui.failure })}</InlineNotice
     >
   {:else if status && !status.supported}
     <InlineNotice tone="info">
-      当前服务端构建已裁剪 P2P 模块（<code>-tags nop2p</code>），始终使用标准
-      HTTP / WebSocket。
+      {m.s2_p2p_nop2p_before()}<code>-tags nop2p</code>{m.s2_p2p_nop2p_after()}
     </InlineNotice>
   {:else if status}
     {#if !status.storageAvailable && status.storageError}
       <InlineNotice tone="warning"
-        >网页设置不可写：{status.storageError}</InlineNotice
+        >{m.s2_p2p_storage_err({ error: status.storageError })}</InlineNotice
       >
     {/if}
 
     <div class="space-y-2">
       <div class="flex items-center justify-between gap-4">
-        <Label for="p2p-enabled">自动尝试 P2P 直连升级</Label>
+        <Label for="p2p-enabled">{m.s2_p2p_enable_label()}</Label>
         <Switch
           id="p2p-enabled"
           checked={status.enabled}
@@ -170,17 +186,14 @@
         />
       </div>
       <p id="p2p-enabled-help" class="text-xs text-muted-foreground">
-        默认开启。回环地址、局域网私有地址、Tailscale 或基线 RTT 低于 15 ms
-        时自动跳过。
+        {m.s2_p2p_enable_help()}
       </p>
     </div>
 
     <div class="space-y-2">
       <div class="flex items-center justify-between gap-4">
         <div class="flex flex-wrap items-center gap-2">
-          <Label for="p2p-port-mapping"
-            >本地网关自动端口映射（UPnP / NAT-PMP / PCP）</Label
-          >
+          <Label for="p2p-port-mapping">{m.s2_p2p_portmap_label()}</Label>
           <Badge variant={portMapBadge.variant}>{portMapBadge.text}</Badge>
         </div>
         <Switch
@@ -192,14 +205,12 @@
         />
       </div>
       <p id="p2p-port-mapping-help" class="text-xs text-muted-foreground">
-        向路由器申请临时 UDP 端口映射以提高 NAT
-        直连成功率；服务退出时自动释放，不支持时退回纯 STUN 打洞。
+        {m.s2_p2p_portmap_help()}
       </p>
     </div>
 
     <div class="space-y-2">
-      <Label for="p2p-stun-servers">STUN 服务器（每行一个，留空恢复预置）</Label
-      >
+      <Label for="p2p-stun-servers">{m.s2_p2p_stun_label()}</Label>
       <Textarea
         id="p2p-stun-servers"
         code
@@ -215,9 +226,9 @@
         placeholder="stun:stun.cloudflare.com:3478"
       />
       <p id="p2p-stun-help" class="text-xs text-muted-foreground">
-        仅支持 <code>stun:</code> 或 <code>stuns:</code> 地址（最多 8
-        个），不支持
-        <code>turn:</code>。
+        {m.s2_p2p_stun_help_1()}<code>stun:</code>{m.s2_p2p_stun_help_2()}<code
+          >stuns:</code
+        >{m.s2_p2p_stun_help_3()}<code>turn:</code>{m.s2_p2p_stun_help_4()}
       </p>
       {#if stunError}
         <p role="alert" class="text-xs text-destructive">{stunError}</p>
@@ -226,12 +237,12 @@
         <Button
           variant="outline"
           disabled={!canEdit || !stunDirty}
-          onclick={() => void saveStunServers()}>保存 STUN 列表</Button
+          onclick={() => void saveStunServers()}>{m.s2_p2p_save_stun()}</Button
         >
         <Button
           variant="outline"
           disabled={!canReset}
-          onclick={() => void resetToConfig()}>恢复配置文件默认</Button
+          onclick={() => void resetToConfig()}>{m.s2_p2p_reset_config()}</Button
         >
         {#if ui.feedback}
           <span role="status" class="text-xs text-muted-foreground"
@@ -246,16 +257,18 @@
     {/if}
 
     <section
-      aria-label="P2P 路径诊断"
+      aria-label={m.s2_p2p_diag_aria()}
       class="space-y-3 rounded-lg border bg-muted/30 p-3"
     >
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap items-center gap-2" role="status">
           <Badge variant={p2pState.mode === "p2p" ? "success" : "secondary"}>
-            {p2pState.mode === "p2p" ? "P2P 直连" : "WebSocket 基线"}
+            {p2pState.mode === "p2p"
+              ? m.s2_p2p_mode_direct()
+              : m.s2_p2p_mode_ws()}
           </Badge>
           <span class="text-xs text-muted-foreground"
-            >{phaseText[p2pState.phase]}</span
+            >{phaseText(p2pState.phase)}</span
           >
         </div>
         <Button
@@ -263,13 +276,13 @@
           disabled={p2pState.abTest.running || !status.supported}
           onclick={() => void runP2PEchoABTest(status.stunServers)}
         >
-          {p2pState.abTest.running ? "测速中…" : "双路径回显测速"}
+          {p2pState.abTest.running ? m.s2_p2p_ab_running() : m.s2_p2p_ab_run()}
         </Button>
       </div>
 
       <dl class="grid gap-x-6 gap-y-2 text-xs sm:grid-cols-3">
         <div>
-          <dt class="text-muted-foreground">候选对 / 协议族</dt>
+          <dt class="text-muted-foreground">{m.s2_p2p_dt_candidate()}</dt>
           <dd class="font-mono">
             {p2pState.candidateType
               ? `${p2pState.candidateType}${p2pState.ipFamily ? ` (${p2pState.ipFamily})` : ""}`
@@ -277,7 +290,7 @@
           </dd>
         </div>
         <div>
-          <dt class="text-muted-foreground">基线 RTT / P2P RTT</dt>
+          <dt class="text-muted-foreground">{m.s2_p2p_dt_rtt()}</dt>
           <dd class="font-mono">
             {p2pState.baselineRttMs !== null
               ? `${p2pState.baselineRttMs} ms`
@@ -287,20 +300,22 @@
           </dd>
         </div>
         <div>
-          <dt class="text-muted-foreground">首屏 / 升级耗时 / 切换</dt>
+          <dt class="text-muted-foreground">{m.s2_p2p_dt_timing()}</dt>
           <dd class="font-mono">
             {p2pState.firstReadyMs !== null
               ? `${p2pState.firstReadyMs} ms`
               : "—"} / {p2pState.upgradeDurationMs !== null
               ? `${p2pState.upgradeDurationMs} ms`
-              : "—"} / {p2pState.switchCount} 次
+              : "—"} / {m.s2_p2p_switch_count({
+              count: String(p2pState.switchCount),
+            })}
           </dd>
         </div>
       </dl>
 
       {#if p2pState.abTest.error}
         <p role="alert" class="text-xs text-destructive">
-          测速结果：{p2pState.abTest.error}
+          {m.s2_p2p_ab_err({ error: p2pState.abTest.error })}
         </p>
       {:else if p2pState.abTest.baselineMedianMs !== null}
         <div
@@ -308,24 +323,32 @@
           class="grid gap-2 border-t pt-2 text-xs sm:grid-cols-2"
         >
           <div>
-            <span class="text-muted-foreground">基线 HTTP 回显：</span>
+            <span class="text-muted-foreground"
+              >{m.s2_p2p_ab_baseline_label()}</span
+            >
             <span class="font-mono"
-              >最小 {p2pState.abTest.baselineMinMs} ms · 中位数 {p2pState.abTest
-                .baselineMedianMs} ms</span
+              >{m.s2_p2p_ab_stats({
+                min: String(p2pState.abTest.baselineMinMs),
+                median: String(p2pState.abTest.baselineMedianMs),
+              })}</span
             >
           </div>
           <div>
-            <span class="text-muted-foreground">P2P DataChannel 回显：</span>
+            <span class="text-muted-foreground"
+              >{m.s2_p2p_ab_direct_label()}</span
+            >
             {#if p2pState.abTest.directSuccess}
               <span class="font-mono text-success"
-                >最小 {p2pState.abTest.p2pMinMs} ms · 中位数 {p2pState.abTest
-                  .p2pMedianMs} ms（{p2pState.abTest.candidateType ||
-                  "direct"}{p2pState.abTest.ipFamily
-                  ? `/${p2pState.abTest.ipFamily}`
-                  : ""}）</span
+                >{m.s2_p2p_ab_direct_stats({
+                  min: String(p2pState.abTest.p2pMinMs),
+                  median: String(p2pState.abTest.p2pMedianMs),
+                  candidate: `${p2pState.abTest.candidateType || "direct"}${p2pState.abTest.ipFamily ? `/${p2pState.abTest.ipFamily}` : ""}`,
+                })}</span
               >
             {:else}
-              <span class="text-muted-foreground">未建立直连</span>
+              <span class="text-muted-foreground"
+                >{m.s2_p2p_ab_no_direct()}</span
+              >
             {/if}
           </div>
         </div>

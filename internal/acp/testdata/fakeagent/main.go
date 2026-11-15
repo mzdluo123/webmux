@@ -52,6 +52,21 @@
 // are advertised, steering is not. Its trust environment is logged to
 // events.log.
 //
+// The Devin TUI reports only app=devin root records (idle/working/done) and
+// holds a per-process session lock. Session IDs have adjective-noun prefixes
+// (luminous-acorn); collisions get numeric suffixes using the writer leases.
+// Its ACP side (agentInfo affogato "Devin Agent"
+// 0.0.0-dev) has no session/resume: the method answers -32601 and the
+// capability is absent. A session from session/new is persisted, and so
+// listed, only once its first turn completes; session/list entries carry
+// _meta cognition.ai/isLocked and lockHolderPid. session/load on a session
+// a live process holds fails -32015 with data cognition.ai/errorKind
+// "session_locked" and lockHolderPid; session/close with
+// _meta."cognition.ai/force" true releases that lock. mode, model,
+// thought_level and speed options persist across load, modes are answered
+// the legacy way too, and session/set_mode is accepted. Image and
+// embedded-resource prompts are advertised, steering is not.
+//
 // ACP mode implements initialize, session/new|load|resume|list|close|
 // prompt|cancel|set_config_option, $/cancel_request and, for omp, Codex and
 // Claude, _session/steering. A turn sends a thought, a tool call (with a
@@ -90,8 +105,11 @@
 //	--startup-delay DUR    Codex TUI: how long it reports working at start, default 0 [FAKEAGENT_STARTUP_DELAY]
 //	--delay M=DUR,...      delay ACP method M before answering [FAKEAGENT_DELAY]
 //	--fail M=CODE,...      answer ACP method M with JSON-RPC error CODE [FAKEAGENT_FAIL]
+//	--fail-once            apply each configured failure only once [FAKEAGENT_FAIL_ONCE=1]
+//	(environment only)     reject prompts until TUI /login creates this file [FAKEAGENT_AUTH_FILE]
 //	--crash POINT          exit 3 at POINT: an ACP method name (before its
-//	                       answer), "prompt-mid" (after the first chunk) or
+//	                       answer), "prompt-saved" (after saving the user message),
+//	                       "prompt-mid" (after the first chunk) or
 //	                       "tui-turn" (during a TUI turn) [FAKEAGENT_CRASH]
 //	--permission           ask permission for the turn's tool call [FAKEAGENT_PERMISSION=1]
 //	--elicit               ask a form elicitation each turn [FAKEAGENT_ELICIT=1]
@@ -145,11 +163,14 @@ type config struct {
 	version          bool   // Codex/Claude: print the version and exit
 	codexVersion     string
 	claudeVersion    string
+	devinVersion     string
 	connectorVersion string
 	turnDelay        time.Duration
 	startupDelay     time.Duration
 	delays           map[string]time.Duration
 	fails            map[string]int
+	failOnce         bool
+	authFile         string
 	crash            string
 	permission       bool
 	elicit           bool
@@ -173,15 +194,23 @@ func main() {
 		runNodeLauncher()
 		return
 	}
-	cfg, acpMode, err := parseArgs(os.Args[1:])
+	args := os.Args[1:]
+	nativeMode := len(args) == 3 && args[0] == "app-server" && args[1] == "--listen" && args[2] == "stdio://"
+	if nativeMode {
+		args = nil
+	}
+	cfg, acpMode, err := parseArgs(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "fakeagent:", err)
 		os.Exit(2)
 	}
 	if cfg.version {
-		if cfg.profile == "claudecode" {
+		switch cfg.profile {
+		case "claudecode":
 			fmt.Println(cfg.claudeVersion + " (Claude Code)")
-		} else {
+		case "devin":
+			fmt.Println("devin " + cfg.devinVersion)
+		default:
 			fmt.Println("codex-cli " + cfg.codexVersion)
 		}
 		return
@@ -190,12 +219,17 @@ func main() {
 	if acpMode {
 		mode = "acp"
 	}
+	if nativeMode {
+		mode = "native"
+	}
 	st, err := openStore(cfg.store, mode, cfg.profile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "fakeagent:", err)
 		os.Exit(1)
 	}
-	if acpMode {
+	if nativeMode {
+		err = runNativeApp(cfg, st, os.Stdin, os.Stdout)
+	} else if acpMode {
 		err = runACP(cfg, st, os.Stdin, os.Stdout)
 	} else {
 		err = runTUI(cfg, st, os.Stdin, os.Stdout)
@@ -245,6 +279,8 @@ func profileFromName(argv0 string) string {
 		return "qodercn"
 	case "kimi":
 		return "kimi"
+	case "devin":
+		return "devin"
 	}
 	return "omp"
 }
@@ -254,6 +290,7 @@ func parseArgs(args []string) (config, bool, error) {
 		store:            os.Getenv("FAKEAGENT_STORE"),
 		profile:          envOr("FAKEAGENT_PROFILE", profileFromName(os.Args[0])),
 		crash:            os.Getenv("FAKEAGENT_CRASH"),
+		authFile:         os.Getenv("FAKEAGENT_AUTH_FILE"),
 		permission:       os.Getenv("FAKEAGENT_PERMISSION") == "1",
 		elicit:           os.Getenv("FAKEAGENT_ELICIT") == "1",
 		ignoreInterrupt:  os.Getenv("FAKEAGENT_IGNORE_INTERRUPT") == "1",
@@ -265,9 +302,22 @@ func parseArgs(args []string) (config, bool, error) {
 		noise:            os.Getenv("FAKEAGENT_STDOUT_NOISE"),
 		codexVersion:     envOr("FAKEAGENT_CODEX_VERSION", "0.166.0"),
 		claudeVersion:    envOr("FAKEAGENT_CLAUDE_VERSION", "2.1.316"),
+		devinVersion:     envOr("FAKEAGENT_DEVIN_VERSION", "3000.12.57"),
 		connectorVersion: envOr("FAKEAGENT_CONNECTOR_VERSION", "2.5.0"),
 		turnDelay:        20 * time.Millisecond,
 		protocolVersion:  1,
+	}
+	if cfg.profile == "devin" {
+		// Devin's --respect-workspace-trust takes an optional value; a bare
+		// use would otherwise swallow the next flag's name.
+		for i, a := range args {
+			if a == "--" {
+				break
+			}
+			if a == "--respect-workspace-trust" {
+				args[i] = "--respect-workspace-trust=true"
+			}
+		}
 	}
 	var err error
 	for _, d := range []struct {
@@ -296,6 +346,7 @@ func parseArgs(args []string) (config, bool, error) {
 	fs.DurationVar(&cfg.startupDelay, "startup-delay", cfg.startupDelay, "")
 	fs.StringVar(&delays, "delay", delays, "")
 	fs.StringVar(&fails, "fail", fails, "")
+	fs.BoolVar(&cfg.failOnce, "fail-once", os.Getenv("FAKEAGENT_FAIL_ONCE") == "1", "")
 	fs.StringVar(&cfg.crash, "crash", cfg.crash, "")
 	fs.BoolVar(&cfg.permission, "permission", cfg.permission, "")
 	fs.BoolVar(&cfg.elicit, "elicit", cfg.elicit, "")
@@ -307,7 +358,23 @@ func parseArgs(args []string) (config, bool, error) {
 	fs.StringVar(&cfg.noise, "stdout-noise", cfg.noise, "")
 	codex := cfg.profile == "codex"
 	claude := cfg.profile == "claudecode"
-	if codex {
+	devin := cfg.profile == "devin"
+	if devin {
+		// Devin CLI flags the hybrid profile keeps or passes through.
+		fs.StringVar(&cfg.resume, "resume", "", "")
+		fs.StringVar(&cfg.resume, "r", "", "")
+		fs.BoolVar(&cfg.version, "version", false, "")
+		fs.BoolVar(&cfg.version, "V", false, "")
+		for _, name := range []string{
+			"model", "permission-mode", "config", "prompt-file", "verbosity",
+			"export", "respect-workspace-trust", "agent-type", "refusal-fallback",
+		} {
+			fs.String(name, "", "")
+		}
+		for _, name := range []string{"c", "continue", "sandbox", "cloud", "p", "print"} {
+			fs.Bool(name, false, "")
+		}
+	} else if codex {
 		// Codex CLI flags the hybrid profile keeps or passes through.
 		for _, name := range []string{"no-daemon", "search", "dangerously-bypass-approvals-and-sandbox", "approve-for-me"} {
 			fs.Bool(name, false, "")
@@ -375,7 +442,7 @@ func parseArgs(args []string) (config, bool, error) {
 	// Third-party connectors take no arguments: their names select ACP mode.
 	acpMode := filepath.Base(os.Args[0]) == connectorName || filepath.Base(os.Args[0]) == claudeConnectorName
 	var acpFlag bool
-	if !codex && !claude {
+	if !codex && !claude && !devin {
 		fs.BoolVar(&acpFlag, "acp", false, "")
 	}
 	positional := 0
@@ -417,6 +484,9 @@ func parseArgs(args []string) (config, bool, error) {
 			resumeNext = true
 		case (codex || claude || cfg.profile == "omp") && cfg.prompt == "":
 			cfg.prompt = arg
+		case devin && optionsDone && cfg.prompt == "":
+			// devin -- <prompt>: the words after -- are the initial prompt.
+			cfg.prompt = arg
 		}
 		args = args[1:]
 	}
@@ -432,7 +502,7 @@ func parseArgs(args []string) (config, bool, error) {
 	if cfg.store == "" {
 		return cfg, false, fmt.Errorf("--store or FAKEAGENT_STORE is required")
 	}
-	if cfg.profile != "omp" && cfg.profile != "opencode" && cfg.profile != "codex" && cfg.profile != "claudecode" && cfg.profile != "agy" && cfg.profile != "qoder" && cfg.profile != "qodercn" && cfg.profile != "kimi" {
+	if cfg.profile != "omp" && cfg.profile != "opencode" && cfg.profile != "codex" && cfg.profile != "claudecode" && cfg.profile != "agy" && cfg.profile != "qoder" && cfg.profile != "qodercn" && cfg.profile != "kimi" && cfg.profile != "devin" {
 		return cfg, false, fmt.Errorf("unknown profile %q", cfg.profile)
 	}
 	if cfg.profile == "claudecode" && os.Getenv("FAKEAGENT_CONNECTOR_VERSION") == "" {

@@ -13,6 +13,9 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/rainchan/webmux/internal/procpeek"
+	"github.com/rainchan/webmux/internal/session"
 )
 
 var (
@@ -97,6 +100,8 @@ type Update struct {
 
 // Config parameterizes a Service; zero fields take production defaults.
 type Config struct {
+	// Manager supplies generic process roots for optional port discovery.
+	Manager *session.Manager
 	// ExcludePorts are WebMux's own listening ports, which cannot be
 	// forwarded.
 	ExcludePorts []int
@@ -134,9 +139,11 @@ type Service struct {
 	now       func() time.Time
 	reachable func(ctx context.Context, port int) bool
 
-	mu      sync.Mutex
-	entries map[int]*entry
-	subs    map[*Subscription]struct{}
+	mu        sync.Mutex
+	entries   map[int]*entry
+	subs      map[*Subscription]struct{}
+	manager   *session.Manager
+	listening map[string][]ListeningPort
 
 	credentials *Credentials
 
@@ -162,6 +169,8 @@ func New(c Config) *Service {
 		reachable:   c.Reachable,
 		entries:     map[int]*entry{},
 		subs:        map[*Subscription]struct{}{},
+		manager:     c.Manager,
+		listening:   make(map[string][]ListeningPort),
 		credentials: newCredentials(c.Now),
 		stop:        stop,
 		done:        make(chan struct{}),
@@ -343,10 +352,19 @@ func (s *Service) loop(ctx context.Context, interval time.Duration) {
 	defer close(s.done)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	var scanner procpeek.PortScanner
+	var discovery <-chan time.Time
+	if s.manager != nil {
+		ports := time.NewTicker(2 * time.Second)
+		defer ports.Stop()
+		discovery = ports.C
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-discovery:
+			s.scanPorts(&scanner)
 		case <-ticker.C:
 			s.Probe(ctx)
 		}

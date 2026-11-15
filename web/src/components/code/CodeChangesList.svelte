@@ -1,20 +1,13 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import type { CodeChange } from "../../contracts/schemas";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
   import IconEye from "~icons/tabler/eye";
   import IconEyeCheck from "~icons/tabler/eye-check";
+  import { gitFileStatus } from "../shared/git-file-status";
   import { diffReview } from "../../domains/code/diff-review.svelte";
-  import IconAlertTriangle from "~icons/tabler/alert-triangle";
-  import IconSquareLetterA from "~icons/tabler/square-letter-a";
-  import IconSquareLetterC from "~icons/tabler/square-letter-c";
-  import IconSquareLetterD from "~icons/tabler/square-letter-d";
-  import IconSquareLetterM from "~icons/tabler/square-letter-m";
-  import IconSquareLetterR from "~icons/tabler/square-letter-r";
-  import IconSquareLetterT from "~icons/tabler/square-letter-t";
-  import IconSquareLetterU from "~icons/tabler/square-letter-u";
-  import IconSquareLetterX from "~icons/tabler/square-letter-x";
   let {
     entries,
     total,
@@ -48,39 +41,13 @@
   );
   const rowHeight = 32,
     overscan = 6;
-  const groups = [
-    ["unstaged", "未暂存"],
-    ["staged", "已暂存"],
-    ["untracked", "未跟踪"],
-  ];
+  const groups = $derived([
+    ["unstaged", m.s5_unstaged()],
+    ["staged", m.s5_staged()],
+    ["untracked", m.s5_untracked()],
+  ] as const);
   // Git raw status letters (R/C carry a similarity score); untracked files are
   // reported as "A" by the backend but shown as "U" like most editors do.
-  const statuses = {
-    A: { icon: IconSquareLetterA, label: "新增", color: "text-success" },
-    M: { icon: IconSquareLetterM, label: "修改", color: "text-warning" },
-    D: { icon: IconSquareLetterD, label: "删除", color: "text-destructive" },
-    R: { icon: IconSquareLetterR, label: "重命名", color: "text-info" },
-    C: { icon: IconSquareLetterC, label: "复制", color: "text-info" },
-    T: { icon: IconSquareLetterT, label: "类型变更", color: "text-info" },
-    U: { icon: IconAlertTriangle, label: "冲突", color: "text-destructive" },
-    untracked: {
-      icon: IconSquareLetterU,
-      label: "未跟踪",
-      color: "text-success",
-    },
-    unknown: {
-      icon: IconSquareLetterX,
-      label: "未知",
-      color: "text-muted-foreground",
-    },
-  };
-  function statusOf(change: CodeChange) {
-    if (change.group === "untracked") return statuses.untracked;
-    return (
-      statuses[change.status.charAt(0) as keyof typeof statuses] ??
-      statuses.unknown
-    );
-  }
   const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1);
   type Row = { key: string; label?: string; change?: CodeChange };
   const rows = $derived(
@@ -175,7 +142,7 @@
   bind:this={host}
   onscroll={scroll}
   role="list"
-  aria-label="修改列表"
+  aria-label={m.s5_changes_list()}
 >
   <div
     class="relative h-(--list-height)"
@@ -197,7 +164,7 @@
       >
         {#if row.change}
           {@const change = row.change}
-          {@const status = statusOf(change)}
+          {@const status = gitFileStatus(change)}
           {@const path =
             change.oldPath === change.newPath
               ? change.newPath
@@ -220,8 +187,8 @@
             <ListButton
               variant="file-tree-action"
               aria-pressed={seen}
-              aria-label={`标记为已看：${path}`}
-              title={seen ? "取消已看" : "标记为已看"}
+              aria-label={m.s5_mark_reviewed_path({ path })}
+              title={seen ? m.s5_unmark_reviewed() : m.s5_mark_reviewed()}
               onclick={() => diffReview.toggle(reviewScope!, change)}
             >
               {#if seen}<IconEyeCheck aria-hidden="true" />{:else}<IconEye
@@ -235,15 +202,24 @@
   </div>
 </div>
 <div class="shrink-0 border-t p-2 text-xs">
-  <p>已加载 {entries.length} / {total} 项</p>
+  <p>
+    {m.s5_loaded_items_count({
+      loaded: String(entries.length),
+      total: String(total),
+    })}
+  </p>
   {#if reviewScope && entries.length}<p role="status">
-      已看 {reviewed} / {entries.length} 个已加载修改
+      {m.s5_reviewed_loaded_changes({
+        reviewed: String(reviewed),
+        loaded: String(entries.length),
+      })}
     </p>{/if}
   {#if nextCursor}<Button
       variant="outline"
       size="sm"
       disabled={pending || !enabled}
-      onclick={onmore}>{pending ? "加载中…" : "加载更多修改"}</Button
+      onclick={onmore}
+      >{pending ? m.s5_loading() : m.s5_load_more_changes()}</Button
     >
-  {:else if !pending && total === 0}<p>没有匹配的修改</p>{/if}
+  {:else if !pending && total === 0}<p>{m.s5_no_matching_changes()}</p>{/if}
 </div>

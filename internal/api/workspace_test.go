@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/workspace"
 )
 
@@ -25,6 +27,18 @@ func testWorkspace(t *testing.T, m *session.Manager, cwd string) *workspace.Serv
 	service := workspace.New(t.TempDir(), m, nil, cwd)
 	t.Cleanup(service.Close)
 	return service
+}
+
+// Keep fixture children registered while session managers reap adopted children.
+// Callers can provide Stderr when they need stdout alone.
+func testCommandOutput(cmd *exec.Cmd) (string, error) {
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if cmd.Stderr == nil {
+		cmd.Stderr = &out
+	}
+	err := session.RunCommand(cmd)
+	return out.String(), err
 }
 
 // gitRepository isolates Git from the user's configuration and returns a
@@ -44,7 +58,7 @@ func gitRepository(t *testing.T) string {
 	root := t.TempDir()
 	for _, args := range [][]string{{"init", "-b", "main"}, {"commit", "--allow-empty", "-m", "initial"}} {
 		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
-		if out, err := cmd.CombinedOutput(); err != nil {
+		if out, err := testCommandOutput(cmd); err != nil {
 			t.Fatalf("Git fixture: %v %s", err, out)
 		}
 	}
@@ -61,7 +75,7 @@ func workspaceAPI(t *testing.T) (http.Handler, *workspace.Service, *session.Mana
 		m.Shutdown(ctx)
 	})
 	service := testWorkspace(t, m, root)
-	return New(testDeps(t, Deps{Config: c, Manager: m, Workspace: service})), service, m, root
+	return New(testDeps(t, testServices{Config: c, Manager: m, Workspace: service})), service, m, root
 }
 func workspaceRequest(t *testing.T, handler http.Handler, method, path string, body any, want int) *httptest.ResponseRecorder {
 	t.Helper()
@@ -79,7 +93,7 @@ func workspaceRequest(t *testing.T, handler http.Handler, method, path string, b
 	return recorder
 }
 func TestWorkspaceAPIRoutesAndErrorBoundaries(t *testing.T) {
-	handler, _, m, root := workspaceAPI(t)
+	handler, service, m, root := workspaceAPI(t)
 	for _, status := range []int{401, 403} {
 		request := httptest.NewRequest("POST", "/api/repositories", strings.NewReader(fmt.Sprintf(`{"path":%q}`, root)))
 		if status == 403 {
@@ -156,7 +170,7 @@ func TestWorkspaceAPIRoutesAndErrorBoundaries(t *testing.T) {
 		t.Fatal("rejected operations stopped PTY")
 	}
 	workspaceRequest(t, handler, "DELETE", base, nil, 204)
-	if item.Info().Workspace != nil || item.Info().Status == session.StatusExited {
+	if service.Association(info.ID) != nil || item.Info().Status == session.StatusExited {
 		t.Fatal("unregister changed PTY lifecycle")
 	}
 	if _, err := os.Stat(tree.Path); err != nil {
@@ -170,7 +184,7 @@ func TestWorkspaceAPIRoutesAndErrorBoundaries(t *testing.T) {
 func gitWorkspaceAPI(t *testing.T, cwd string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", cwd}, args...)...)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	if out, err := testCommandOutput(cmd); err != nil {
 		t.Fatalf("Git fixture %v: %v %s", args, err, out)
 	}
 }
@@ -340,7 +354,7 @@ func TestWorkspaceAPIConfigDegradationAndTimeout(t *testing.T) {
 	}
 	service := workspace.New(state, m, nil, cwd)
 	defer service.Close()
-	handler := New(testDeps(t, Deps{Config: config.Config{DefaultCwd: cwd, Token: "secret"}, Manager: m, Workspace: service}))
+	handler := New(testDeps(t, testServices{Config: config.Config{DefaultCwd: cwd, Token: "secret"}, Manager: m, Workspace: service}))
 	response := workspaceRequest(t, handler, "GET", "/api/config", nil, 200)
 	var settings struct {
 		DefaultCwd string               `json:"defaultCwd"`
@@ -402,11 +416,12 @@ func TestWorkspaceMetadataUsesExistingWebSocketProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := service.Create(context.Background(), workspace.CreateInput{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
-	item := created.Session
+	creation := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: root, Locations: service})
+	created, err := creation.Create(context.Background(), sessioncreate.Input{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	item := created.Session
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

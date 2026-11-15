@@ -14,6 +14,7 @@ import (
 
 	"github.com/pion/ice/v4"
 	"github.com/pion/webrtc/v4"
+	"github.com/rainchan/webmux/internal/streamproto"
 )
 
 const (
@@ -36,7 +37,7 @@ type peerEntry struct {
 	mu            sync.Mutex
 	candidateType string
 	ipFamily      string
-	rttMs         int
+	rttMs         *int
 	pendingLocal  []ICECandidate
 }
 
@@ -91,8 +92,8 @@ type Service struct {
 	maxPeers      int
 	maxChannels   int
 	idleTimeout   time.Duration
-	streamHandler StreamHandler
-	rpcHandler    RPCHandler
+	streamHandler streamproto.StreamHandler
+	rpcHandler    streamproto.RPCHandler
 
 	mu          sync.Mutex
 	closed      bool
@@ -366,6 +367,19 @@ func (s *Service) Close() {
 func (s *Service) Status() Status {
 	pmStatus, _ := s.mapperStatus()
 	s.mu.Lock()
+	bindings := make([]UDPBinding, 0, len(s.udpConns))
+	if !s.closed {
+		for _, conn := range s.udpConns {
+			if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok {
+				network := "udp6"
+				if addr.IP.To4() != nil {
+					network = "udp4"
+				}
+				bindings = append(bindings, UDPBinding{Network: network, Port: addr.Port})
+			}
+		}
+	}
+
 	entries := make([]*peerEntry, 0, len(s.peers))
 	for _, p := range s.peers {
 		entries = append(entries, p)
@@ -393,6 +407,8 @@ func (s *Service) Status() Status {
 	})
 	return Status{
 		Supported:   true,
+		UDPPort:     s.udpPortCfg,
+		UDPBindings: bindings,
 		PortMap:     pmStatus,
 		ActivePeers: len(peers),
 		Peers:       peers,

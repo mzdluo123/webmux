@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import { api } from "../../platform/api";
   import {
@@ -8,7 +9,8 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import DirectoryPicker from "./DirectoryPicker.svelte";
+  import { getFeatureContributions } from "../../features/context";
+  const DirectoryPicker = getFeatureContributions().creation.DirectoryPicker;
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
   let {
     defaultCwd,
@@ -42,8 +44,8 @@
 </script>
 
 <ResponsiveDialog
-  title="添加仓库"
-  description="选择已有且可信的本机 Git 仓库。主目录、worktree 或子目录均可；同一仓库只登记一次，不会 init 或 clone。"
+  title={m.s8_add_repo_title()}
+  description={m.s8_add_repo_desc()}
   {onclose}
   {busy}
 >
@@ -55,7 +57,7 @@
     }}
   >
     <div class="space-y-2">
-      <Label for="repository-path">仓库目录</Label>
+      <Label for="repository-path">{m.s8_add_repo_dir_label()}</Label>
       <div class="flex gap-2">
         <Input
           id="repository-path"
@@ -67,21 +69,21 @@
           autocorrect="off"
           spellcheck={false}
         />
-        <DirectoryPicker bind:value={path} />
+        {#if DirectoryPicker}<DirectoryPicker bind:value={path} />{/if}
       </div>
     </div>
     <p class="text-sm text-muted-foreground">
-      不是 Git 仓库？无需添加，使用「新建会话 → 直接目录」即可。
+      {m.s8_add_repo_not_git_hint()}
     </p>
     {#if error}<p role="alert" class="break-all text-sm text-destructive">
         {error}
       </p>{/if}
     <div class="flex justify-end gap-2">
       <Button type="button" variant="outline" disabled={busy} onclick={onclose}
-        >取消</Button
+        >{m.s8_cancel()}</Button
       >
       <Button type="submit" disabled={busy || !path}
-        >{busy ? "正在添加…" : "添加仓库"}</Button
+        >{busy ? m.s8_adding_ellipsis() : m.s8_add_repo_title()}</Button
       >
     </div>
   </form>

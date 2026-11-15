@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import {
     keyboardSplitRatio,
     pointerSplitRatio,
@@ -48,8 +49,8 @@
   role="separator"
   tabindex="0"
   aria-label={divider.direction === "horizontal"
-    ? "调整窗格宽度"
-    : "调整窗格高度"}
+    ? m.s4_resize_pane_width()
+    : m.s4_resize_pane_height()}
   aria-orientation={divider.direction === "horizontal"
     ? "vertical"
     : "horizontal"}

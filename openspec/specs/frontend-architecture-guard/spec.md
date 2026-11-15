@@ -117,7 +117,7 @@
 
 `arch:deps` SHALL 同时检查 `web/src` 的运行时与 type-only 导入：
 
-- `contracts/` 只依赖契约与第三方包。
+- `contracts/` 只依赖契约、生成的纯函数国际化消息模块（`src/lib/paraglide/`）与第三方包。
 - `platform/` 只依赖基础设施、契约与 `lib` 工具，MUST NOT 导入渲染组件。
 - `lib/components/ui/` 只依赖 `src/lib/` 与第三方包；其他 `src/lib/` 模块 MUST NOT 依赖业务代码。
 - `domains/<主题>/` MUST NOT 依赖 `hooks/`、`components/`、`pages/`、应用编排或 `.svelte` 渲染组件。
@@ -126,7 +126,7 @@
 
 领域主题 SHALL 显式登记跨主题依赖：`sessions` → `settings`；`workspace`、`terminal` → `settings`、`sessions`；`notifications` → `sessions`；`code` → `terminal`；`settings`、`chat` 不依赖其他主题。未登记的领域边 MUST 被拒绝，跨领域流程 SHALL 放在 hooks 中协调。
 
-模块之间 MUST NOT 形成循环依赖（`ui/` 内生成的 barrel 自引用除外）。无法解析的导入 MUST 被拒绝，Vite 的 `~icons/` 虚拟模块和 `@pierre/diffs/worker/worker.js?worker` 资源查询除外；生产构建 SHALL 验证这两类插件解析入口。
+模块之间 MUST NOT 形成循环依赖（`ui/` 内生成的 barrel 自引用除外）。无法解析的导入 MUST 被拒绝，Vite 的 `~icons/` 虚拟模块和 `@pierre/diffs/worker/worker.js?worker` 资源查询除外；生产构建 SHALL 验证这两类功能解析入口。
 迁移 MUST 更新所有调用者，不保留旧路径兼容导出。
 
 #### Scenario: 领域模块渲染组件

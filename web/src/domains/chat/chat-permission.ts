@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import {
   ChatPermissionModeSchema,
   type ChatConfig,
@@ -7,8 +8,18 @@ import {
 /** The permission modes a chat offers, in menu order. */
 export const permissionChoices: { value: ChatPermissionMode; name: string }[] =
   [
-    { value: "ask", name: "每次询问" },
-    { value: "auto", name: "全部接受" },
+    {
+      value: "ask",
+      get name() {
+        return m.s3_perm_ask();
+      },
+    },
+    {
+      value: "auto",
+      get name() {
+        return m.s3_perm_auto();
+      },
+    },
   ];
 
 /** The mode a control reported, or undefined when unknown or unchanged. */

@@ -1,4 +1,5 @@
 // RFC 4180 delimited-text parsing for the read-only table preview.
+import { m } from "$lib/paraglide/messages.js";
 
 export const maxTableRows = 2000;
 
@@ -87,7 +88,7 @@ export function parseDelimited(
     return {
       ok: false,
       line: quoteLine,
-      message: `第 ${quoteLine} 行引号未闭合`,
+      message: m.s5_csv_unclosed_quote({ line: String(quoteLine) }),
     };
   endRecord();
   const header = records[0] ?? [];

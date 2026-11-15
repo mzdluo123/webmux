@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { isTerminalCopyShortcut } from "../src/hooks/terminal/terminal-input";
 
 const plain = {

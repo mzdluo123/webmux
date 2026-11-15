@@ -1,4 +1,5 @@
 // Pure helpers for the terminal WebSocket contract in docs/protocol/websocket.md.
+import { m } from "$lib/paraglide/messages.js";
 import { randomHex } from "../../platform/ids";
 
 const encoder = new TextEncoder();
@@ -49,7 +50,7 @@ export function deviceLabel(userAgent: string, touchPoints = 0) {
             ? "Windows"
             : /Linux|X11/.test(userAgent)
               ? "Linux"
-              : "浏览器";
+              : m.s4_device_browser();
   const browser = /EdgA?\//.test(userAgent)
     ? "Edge"
     : /Firefox\/|FxiOS\//.test(userAgent)

@@ -14,7 +14,12 @@ import (
 )
 
 func (s *Service) branches(ctx context.Context, r *repositoryState, repository Repository) (Branches, error) {
-	result := Branches{Branches: []Branch{}, Bases: []Base{}, DefaultParent: filepath.Join(filepath.Dir(r.entry.AnchorPath), filepath.Base(r.entry.AnchorPath)+".worktrees")}
+	result := Branches{
+		Branches:      []Branch{},
+		Bases:         []Base{},
+		Tags:          []Tag{},
+		DefaultParent: filepath.Join(filepath.Dir(r.entry.AnchorPath), filepath.Base(r.entry.AnchorPath)+".worktrees"),
+	}
 	data, err := s.git(ctx, r.entry.AnchorPath, "for-each-ref", "--sort=-committerdate",
 		"--format=%(refname)%00%(objectname)%00%(subject)%00%(upstream:short)%00%(upstream:track,nobracket)%00%(committerdate:iso-strict)%00",
 		"refs/heads/", "refs/remotes/")
@@ -32,7 +37,7 @@ func (s *Service) branches(ctx context.Context, r *repositoryState, repository R
 		head := string(fields[i+1])
 		subject := string(fields[i+2])
 		committedAt := string(fields[i+5])
-		if ref == "" {
+		if ref == "" || strings.HasSuffix(ref, "/HEAD") {
 			continue
 		}
 		kind := "remote"
@@ -52,6 +57,74 @@ func (s *Service) branches(ctx context.Context, r *repositoryState, repository R
 			result.Branches = append(result.Branches, branch)
 		}
 		result.Bases = append(result.Bases, Base{Name: ref, Head: head, Subject: subject, Kind: kind, CommittedAt: committedAt})
+	}
+	tagData, err := s.git(ctx, r.entry.AnchorPath, "for-each-ref", "--sort=-creatordate",
+		"--format=%(refname:short)%00%(objecttype)%00%(objectname)%00%(*objecttype)%00%(*objectname)%00%(subject)%00%(*subject)%00%(creatordate:iso-strict)%00%(*committerdate:iso-strict)%00%(contents:subject)%00%(contents:body)%00%(taggername)%00%(taggeremail:trim)%00%(taggerdate:iso-strict)%00%(contents:signature)%00",
+		"refs/tags/")
+	if err != nil {
+		return result, err
+	}
+	const tagFields = 15
+	tFields := bytes.Split(tagData, []byte{0})
+	for i := 0; i+tagFields-1 < len(tFields); i += tagFields {
+		name := strings.TrimPrefix(string(tFields[i]), "\n")
+		objType := string(tFields[i+1])
+		objOID := string(tFields[i+2])
+		peeledType := string(tFields[i+3])
+		peeledOID := string(tFields[i+4])
+		subject := string(tFields[i+5])
+		peeledSubject := string(tFields[i+6])
+		createdAt := string(tFields[i+7])
+		peeledAt := string(tFields[i+8])
+		tagSubj := strings.TrimSpace(string(tFields[i+9]))
+		tagBody := strings.TrimRight(string(tFields[i+10]), "\r\n")
+		taggerName := strings.TrimSpace(string(tFields[i+11]))
+		taggerEmail := strings.TrimSpace(string(tFields[i+12]))
+		taggedAt := strings.TrimSpace(string(tFields[i+13]))
+		tagSig := strings.TrimSpace(string(tFields[i+14]))
+		if name == "" {
+			continue
+		}
+		commitOID := ""
+		switch {
+		case objType == "commit" && isObjectID(objOID):
+			commitOID = objOID
+		case peeledType == "commit" && isObjectID(peeledOID):
+			commitOID = peeledOID
+		default:
+			continue
+		}
+		if peeledSubject != "" {
+			subject = peeledSubject
+		}
+		if peeledAt != "" {
+			createdAt = peeledAt
+		}
+		item := Tag{
+			Name:        name,
+			Head:        commitOID,
+			Subject:     subject,
+			CommittedAt: createdAt,
+			Kind:        "lightweight",
+		}
+		if objType == "tag" {
+			item.Kind = "annotated"
+			item.TagOID = objOID
+			msg := tagSubj
+			if tagBody != "" {
+				if msg != "" {
+					msg += "\n\n" + tagBody
+				} else {
+					msg = tagBody
+				}
+			}
+			item.Message = strings.TrimSpace(msg)
+			item.TaggerName = taggerName
+			item.TaggerEmail = taggerEmail
+			item.TaggedAt = taggedAt
+			item.Signed = tagSig != ""
+		}
+		result.Tags = append(result.Tags, item)
 	}
 	for _, tree := range repository.Worktrees {
 		if tree.Kind == "main" && tree.Head != nil {

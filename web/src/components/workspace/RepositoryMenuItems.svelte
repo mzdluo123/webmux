@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
 
   // The repository-level entries shared by the sidebar row's "⋯" menu and the
@@ -13,6 +14,7 @@
     onmanage,
     onsettings,
     ondetails,
+    ongit,
   }: {
     unavailable?: boolean;
     onnewworktree: () => void;
@@ -20,15 +22,31 @@
     onmanage: () => void;
     onsettings?: () => void;
     ondetails: () => void;
+    ongit?: () => void;
   } = $props();
 </script>
 
 {#if !unavailable}
-  <DropdownMenu.Item onSelect={onnewworktree}>新建工作树…</DropdownMenu.Item>
-  <DropdownMenu.Item onSelect={onhome}>主页显示…</DropdownMenu.Item>
-  <DropdownMenu.Item onSelect={onmanage}>管理工作树…</DropdownMenu.Item>
+  {#if ongit}
+    <DropdownMenu.Item onSelect={ongit}
+      >{m.s8_menu_git_workbench()}</DropdownMenu.Item
+    >
+  {/if}
+  <DropdownMenu.Item onSelect={onnewworktree}
+    >{m.s8_menu_new_worktree()}</DropdownMenu.Item
+  >
+  <DropdownMenu.Item onSelect={onhome}
+    >{m.s8_menu_home_display()}</DropdownMenu.Item
+  >
+  <DropdownMenu.Item onSelect={onmanage}
+    >{m.s8_menu_manage_worktrees()}</DropdownMenu.Item
+  >
 {/if}
 {#if onsettings}
-  <DropdownMenu.Item onSelect={onsettings}>仓库设置…</DropdownMenu.Item>
+  <DropdownMenu.Item onSelect={onsettings}
+    >{m.s8_menu_repo_settings()}</DropdownMenu.Item
+  >
 {/if}
-<DropdownMenu.Item onSelect={ondetails}>仓库详情…</DropdownMenu.Item>
+<DropdownMenu.Item onSelect={ondetails}
+  >{m.s8_menu_repo_details()}</DropdownMenu.Item
+>

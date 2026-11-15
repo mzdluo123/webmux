@@ -1,17 +1,23 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import IconArrowDown from "~icons/tabler/arrow-down";
   import IconDeviceGamepad2 from "~icons/tabler/device-gamepad-2";
   import {
     Button,
     type ButtonSize,
     type ButtonVariant,
   } from "$lib/components/ui/button";
+  import JumpToLatestButton from "../shared/JumpToLatestButton.svelte";
   import SoftKeys from "./SoftKeys.svelte";
-  import type { Modifiers } from "../../platform/input";
+  import { m } from "$lib/paraglide/messages.js";
+  import {
+    terminalKeys,
+    type Modifiers,
+  } from "../../domains/terminal/terminal-keys";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
   import type { Connection } from "../../platform/ws";
+  import { xrPresentation } from "../../hooks/shared/xr-presentation.svelte";
   import { hasTouchInput } from "../../platform/touch-input";
+  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
 
   interface ViewportTerminal {
     readonly selection: string;
@@ -49,6 +55,9 @@
     setTouchGamepad,
     findOpen = false,
     findBar,
+    focusTerminal,
+    scroll,
+    sendControl,
   }: {
     container?: HTMLDivElement;
     terminal: ViewportTerminal;
@@ -56,7 +65,7 @@
     visible: boolean;
     // Keeps the PTY grid fixed and lets the host scroll past its edges.
     sizeLocked?: boolean;
-    uploads: ViewportUploads;
+    uploads?: ViewportUploads;
     quickMenu: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
     // Phones keep the draft switch beside the quick commands.
     draftToggle: Snippet;
@@ -69,6 +78,9 @@
     setTouchGamepad: (value: boolean) => void;
     findOpen?: boolean;
     findBar?: Snippet;
+    focusTerminal?: () => void;
+    scroll?: (lines: number) => void;
+    sendControl?: (input: string) => void;
   } = $props();
 
   const gamepadAvailable = $derived(
@@ -78,13 +90,66 @@
       visible,
   );
   const gamepadActive = $derived(touchGamepad && gamepadAvailable);
-  const gamepadToggleLabel = $derived(gamepadActive ? "收起摇杆" : "展开摇杆");
+  const gamepadToggleLabel = $derived(
+    gamepadActive ? m.s4_collapse_gamepad() : m.s4_expand_gamepad(),
+  );
 
   // Keep the hint off touch screens, including hybrids whose secondary pointer
   // is coarse, and mirror the platform's actual copy shortcut.
   const mac = /Mac/.test(navigator.platform);
   const shortcutHint =
     !hasTouchInput() && matchMedia("(pointer: fine)").matches;
+
+  let captured = $state(false);
+  let inputButton = $state<HTMLButtonElement | null>(null);
+  $effect(() => {
+    if (!tvMode.enabled || xrPresentation.active || !visible || !container) {
+      captured = false;
+      return;
+    }
+    const host = container;
+    function release(event: Event) {
+      if (
+        event.defaultPrevented ||
+        (event as CustomEvent).detail !== "capture" ||
+        !captured
+      )
+        return;
+      event.preventDefault();
+      captured = false;
+      const header = Array.from(
+        host
+          .closest(".session-terminal")
+          ?.querySelectorAll<HTMLElement>(
+            "[data-tv-terminal-toolbar] button:not(:disabled)",
+          ) ?? [],
+      ).find((button) => button.getClientRects().length > 0);
+      (header ?? inputButton)?.focus();
+    }
+    function guard(event: FocusEvent) {
+      if (!(event.target instanceof Element)) return;
+      if (host.contains(event.target)) {
+        if (!captured && event.target.closest(".xterm")) inputButton?.focus();
+      } else {
+        captured = false;
+      }
+    }
+    window.addEventListener("webmux:tv-back", release);
+    document.addEventListener("focusin", guard);
+    if (host.contains(document.activeElement)) inputButton?.focus();
+    return () => {
+      window.removeEventListener("webmux:tv-back", release);
+      document.removeEventListener("focusin", guard);
+    };
+  });
+  function capture() {
+    captured = true;
+    focusTerminal?.();
+  }
+  function terminalKey(input: string) {
+    (sendControl ?? send)(input);
+    capture();
+  }
 </script>
 
 {#snippet gamepadToggle()}
@@ -102,7 +167,41 @@
   </Button>
 {/snippet}
 
-<div class="terminal-column">
+<div class="terminal-column" data-tv-captured={tvMode.enabled && captured}>
+  {#if tvMode.enabled && visible}
+    <div
+      class="flex shrink-0 flex-wrap items-center gap-2 border-b px-2 py-1"
+      role="toolbar"
+      aria-label={m.s4_tv_terminal_input_aria()}
+    >
+      <Button
+        bind:ref={inputButton}
+        variant="outline"
+        aria-pressed={captured}
+        onclick={capture}>{m.s4_terminal_input_btn()}</Button
+      >
+      <span class="text-sm text-muted-foreground"
+        >{captured
+          ? m.s4_tv_input_active_hint()
+          : m.s4_tv_nav_active_hint()}</span
+      >
+      <Button variant="outline" onclick={() => terminalKey(terminalKeys.escape)}
+        >Esc</Button
+      >
+      <Button
+        variant="outline"
+        onclick={() => terminalKey(terminalKeys.interrupt)}>Ctrl+C</Button
+      >
+      {#if scroll}
+        <Button variant="ghost" onclick={() => scroll?.(-12)}
+          >{m.s4_scroll_up()}</Button
+        >
+        <Button variant="ghost" onclick={() => scroll?.(12)}
+          >{m.s4_scroll_down()}</Button
+        >
+      {/if}
+    </div>
+  {/if}
   <div class="terminal-area">
     <div
       class="terminal-host"
@@ -111,13 +210,13 @@
       bind:this={container}
     ></div>
     {@render findBar?.()}
-    {#if uploads.dragging}
+    {#if uploads?.dragging}
       <div
         class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-primary bg-background/90"
         role="status"
       >
         <p class="text-sm">
-          {uploads.progress ? "请等待当前上传完成" : "松开以上传文件到临时目录"}
+          {uploads.progress ? m.s4_drop_wait_upload() : m.s4_drop_to_upload()}
         </p>
       </div>
     {/if}
@@ -125,18 +224,18 @@
       <div
         class="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-md border bg-popover p-1 shadow-md"
         role="toolbar"
-        aria-label="终端文字选择"
+        aria-label={m.s4_terminal_selection_aria()}
       >
         <Button
           size="sm"
           aria-keyshortcuts={mac ? "Meta+C" : "Control+C"}
-          onclick={() => t.copySelection()}>复制选中</Button
+          onclick={() => t.copySelection()}>{m.s4_copy_selection()}</Button
         >
         {#if shortcutHint}<kbd class="border px-1" aria-hidden="true"
             >{mac ? "⌘C" : "Ctrl+C"}</kbd
           >{/if}
         <Button variant="ghost" size="sm" onclick={() => t.clearSelection()}
-          >取消选择</Button
+          >{m.s4_clear_selection()}</Button
         >
       </div>
     {/if}
@@ -144,24 +243,20 @@
         class="restore-overlay"
         role="status"
       >
-        {t.connection === "connecting" ? "正在连接…" : "正在恢复…"}
+        {t.connection === "connecting"
+          ? m.s4_connecting_ellipsis()
+          : m.s4_restoring_ellipsis()}
       </div>{:else if t.connection === "connecting" || t.connection === "reconnecting"}<div
         class="pointer-events-none absolute top-2 right-2 z-20"
       >
         <span class="text-xs text-muted-foreground" role="status"
-          >正在恢复…</span
+          >{m.s4_restoring_ellipsis()}</span
         >
       </div>{/if}
-    {#if !t.atBottom && !t.restoring && visible}<Button
-        variant="outline"
-        size="sm"
-        raised
-        class="absolute right-3 bottom-3 z-10 sm:hidden"
-        aria-label="回到最新"
-        onmousedown={(event) => event.preventDefault()}
+    {#if !t.atBottom && !t.restoring && visible}<JumpToLatestButton
+        class="absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
         onclick={() => t.scrollToBottom()}
-        ><IconArrowDown aria-hidden="true" />回到最新</Button
-      >{/if}
+      />{/if}
   </div>
   <SoftKeys
     {send}

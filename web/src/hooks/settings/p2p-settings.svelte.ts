@@ -1,7 +1,12 @@
 import { onMount } from "svelte";
+import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
-import { refreshP2PAfterSettingsChange } from "../../platform/p2p.svelte";
+import { requestFeatureHostRefresh } from "../../platform/feature-host.svelte";
+import {
+  refreshP2PAfterSettingsChange,
+  refreshP2PStatus,
+} from "../../platform/p2p.svelte";
 import {
   P2PSettingsUpdateSchema,
   P2PStatusSchema,
@@ -52,7 +57,7 @@ export function useP2PSettings() {
       if (!ui.status) ui.revision++;
       ui.status = next;
       ui.failure = "";
-      refreshP2PAfterSettingsChange(next);
+      refreshP2PStatus(next);
       schedulePortMapPoll(next);
     } catch (cause) {
       if (ticket.reportable()) ui.failure = errorMessage(cause);
@@ -80,9 +85,13 @@ export function useP2PSettings() {
       ui.status = next;
       ui.revision++;
       refreshP2PAfterSettingsChange(next);
+      await requestFeatureHostRefresh();
+      if (requests.disposed) return false;
       schedulePortMapPoll(next);
       ui.feedback =
-        method === "DELETE" ? "已恢复配置文件默认。" : "P2P 设置已保存。";
+        method === "DELETE"
+          ? m.s2_p2p_feedback_reset()
+          : m.s2_p2p_feedback_saved();
       return true;
     } catch (cause) {
       if (!requests.disposed) ui.failure = errorMessage(cause);

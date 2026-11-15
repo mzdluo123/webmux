@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import type { z } from "zod";
   import { CodeContextSchema, type ReportedCwd } from "../../contracts/schemas";
@@ -48,19 +49,25 @@
   const locateBase = $derived.by(() => {
     // The artifacts root resolves relative paths against the folder itself.
     if (root === "artifacts")
-      return context ? { path: context.rootPath, label: "临时文件夹" } : null;
+      return context
+        ? { path: context.rootPath, label: m.s5_artifacts_folder() }
+        : null;
     if (reportedCwd?.remote) return null;
-    if (reportedCwd) return { path: reportedCwd.path, label: "Shell 报告目录" };
+    if (reportedCwd)
+      return { path: reportedCwd.path, label: m.s5_shell_reported_cwd() };
     return sessionCwd
-      ? { path: sessionCwd, label: "启动目录（Shell 未报告）" }
+      ? { path: sessionCwd, label: m.s5_startup_cwd_unreported() }
       : null;
   });
   const locateHint = $derived(
     reportedCwd?.remote && root !== "artifacts"
-      ? `Shell 报告的是远端目录（${reportedCwd.host}），不能用于定位本机文件。`
+      ? m.s5_remote_cwd_cannot_locate({ host: reportedCwd.host })
       : locateBase
-        ? `基点：${locateBase.label} ${locateBase.path}`
-        : "暂无可用基点。",
+        ? m.s5_locate_base_hint({
+            label: locateBase.label,
+            path: locateBase.path,
+          })
+        : m.s5_locate_no_base(),
   );
   let locating = $state(false);
   async function submitLocate(event: SubmitEvent) {
@@ -83,13 +90,13 @@
 <div class="flex shrink-0 items-center gap-0.5 px-2 py-1">
   <span
     class="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground"
-    >资源管理器</span
+    >{m.s5_explorer()}</span
   >
   <Button
     variant="ghost"
     size="icon-xs"
-    aria-label="切换路径搜索"
-    title="搜索文件路径"
+    aria-label={m.s5_toggle_path_search()}
+    title={m.s5_search_file_path()}
     aria-expanded={searchOpen}
     onclick={() => {
       searchOpen = !searchOpen;
@@ -105,21 +112,21 @@
           {...props}
           variant="ghost"
           size="icon-xs"
-          aria-label="按路径打开"
-          title="按路径打开"><IconFileSearch aria-hidden="true" /></Button
+          aria-label={m.s5_open_by_path()}
+          title={m.s5_open_by_path()}
+          ><IconFileSearch aria-hidden="true" /></Button
         >{/snippet}
     </Popover.Trigger>
     <Popover.Content align="start" class="w-72">
       <Popover.Header
-        ><Popover.Title>按路径打开</Popover.Title><Popover.Description
-          >{locateHint}</Popover.Description
-        ></Popover.Header
+        ><Popover.Title>{m.s5_open_by_path()}</Popover.Title
+        ><Popover.Description>{locateHint}</Popover.Description></Popover.Header
       >
       <form class="mt-2 flex flex-col gap-2" onsubmit={submitLocate}>
         <Input
           size="sm"
-          aria-label="定位文件路径"
-          placeholder="相对路径，如 src/main.go"
+          aria-label={m.s5_locate_file_path()}
+          placeholder={m.s5_relative_path_placeholder()}
           bind:value={locateInput}
           disabled={!locateBase}
         />
@@ -127,7 +134,8 @@
           size="sm"
           variant="outline"
           type="submit"
-          disabled={!locateBase || locating || !locateInput.trim()}>打开</Button
+          disabled={!locateBase || locating || !locateInput.trim()}
+          >{m.s5_open()}</Button
         >
       </form>
       {#if locateError}<p
@@ -141,16 +149,16 @@
   <Button
     variant="ghost"
     size="icon-xs"
-    aria-label="刷新文件树"
-    title="刷新文件树"
+    aria-label={m.s5_refresh_file_tree()}
+    title={m.s5_refresh_file_tree()}
     disabled={pending}
     onclick={reload}><IconRefresh aria-hidden="true" /></Button
   >
   <Button
     variant="ghost"
     size="icon-xs"
-    aria-label="全部折叠"
-    title="全部折叠"
+    aria-label={m.s5_collapse_all()}
+    title={m.s5_collapse_all()}
     onclick={() => {
       collapse++;
       query = "";
@@ -165,8 +173,9 @@
           {...props}
           variant="ghost"
           size="icon-xs"
-          aria-label="文件导航选项"
-          title="文件导航选项"><IconDots aria-hidden="true" /></Button
+          aria-label={m.s5_file_nav_options()}
+          title={m.s5_file_nav_options()}
+          ><IconDots aria-hidden="true" /></Button
         >{/snippet}
     </DropdownMenu.Trigger>
     <DropdownMenu.Content align="end">
@@ -177,7 +186,7 @@
         onCheckedChange={(checked) => {
           includeIgnored = checked;
           void load();
-        }}>显示忽略项</DropdownMenu.CheckboxItem
+        }}>{m.s5_show_ignored()}</DropdownMenu.CheckboxItem
       >
     </DropdownMenu.Content>
   </DropdownMenu.Root>
@@ -194,13 +203,15 @@
   >
     <Input
       size="sm"
-      aria-label="搜索文件路径"
-      placeholder="文件名或路径"
+      aria-label={m.s5_search_file_path()}
+      placeholder={m.s5_filename_or_path_placeholder()}
       bind:value={searchInput}
     />
-    <Button size="sm" variant="outline" type="submit">搜索路径</Button>
+    <Button size="sm" variant="outline" type="submit"
+      >{m.s5_search_paths_btn()}</Button
+    >
   </form>
 {/if}
 {#if includeIgnored}<p class="px-2 pb-1 text-xs text-muted-foreground">
-    包含忽略项
+    {m.s5_including_ignored()}
   </p>{/if}

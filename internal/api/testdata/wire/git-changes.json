@@ -1,0 +1,37 @@
+{
+  "status": 200,
+  "body": {
+    "checkedAt": "<time>",
+    "contentVersion": "b9c030fcbfc4a6a7acde5936fd8fb8f533e9de31285def0d565e3f34369bff04",
+    "entries": [
+      {
+        "changeId": "8f13b8b6cb4cd6c86bcc4d55bc08a846f5854f4452727e911d46776001b5747f",
+        "group": "unstaged",
+        "newMode": "100644",
+        "newOid": "0000000000000000000000000000000000000000",
+        "newPath": "a.txt",
+        "nodeId": "YS50eHQ",
+        "oldMode": "100644",
+        "oldOid": "814f4a422927b82f5f8a43f8fab6d3839e3983f2",
+        "oldPath": "a.txt",
+        "reviewVersion": "656aeb69629ef1f9045e9b2709ac53b077f0f6d32371df51ff592819d66827b2",
+        "status": "M"
+      },
+      {
+        "changeId": "eeb30a86c939619f0bb2c6bba2d1593c566ac692fd32549693dc7f1efc3f1ec7",
+        "group": "untracked",
+        "newMode": "100644",
+        "newOid": "",
+        "newPath": "new.txt",
+        "nodeId": "bmV3LnR4dA",
+        "oldMode": "000000",
+        "oldOid": "",
+        "oldPath": "new.txt",
+        "reviewVersion": "5224d682e46eec691a9b483d1e7d73e333374ccd2d467bd76797aaee427c9404",
+        "status": "A"
+      }
+    ],
+    "nextCursor": "",
+    "total": 2
+  }
+}

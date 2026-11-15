@@ -30,6 +30,7 @@ type tui struct {
 	claude bool
 	agy    bool
 	kimi   bool
+	devin  bool
 
 	outMu sync.Mutex
 	out   io.Writer
@@ -43,6 +44,7 @@ type tui struct {
 	lastEsc      time.Time
 	queryPending bool
 	queryReply   []byte
+	windowTitle  string
 }
 
 func runTUI(cfg config, st *store, in io.Reader, out io.Writer) error {
@@ -51,7 +53,7 @@ func runTUI(cfg config, st *store, in io.Reader, out io.Writer) error {
 		return err
 	}
 	t := &tui{
-		cfg: cfg, st: st, cwd: cwd, codex: cfg.profile == "codex", claude: cfg.profile == "claudecode", agy: cfg.profile == "agy", kimi: cfg.profile == "kimi",
+		cfg: cfg, st: st, cwd: cwd, codex: cfg.profile == "codex", claude: cfg.profile == "claudecode", agy: cfg.profile == "agy", kimi: cfg.profile == "kimi", devin: cfg.profile == "devin",
 		out: out, turnDone: make(chan bool, 1), queryPending: cfg.profile == "claudecode",
 	}
 	defer func() {
@@ -76,6 +78,8 @@ func runTUI(cfg config, st *store, in io.Reader, out io.Writer) error {
 		t.emit7501("state=idle:app=antigravity")
 	} else if t.kimi {
 		t.emit7501("state=idle:app=kimi-code")
+	} else if t.devin {
+		t.emit7501("state=idle:app=devin")
 	} else {
 		t.emit7501("state=idle:app=" + cfg.profile)
 	}
@@ -106,7 +110,7 @@ func runTUI(cfg config, st *store, in io.Reader, out io.Writer) error {
 		if err := t.open(ss); err != nil {
 			return err
 		}
-	case cfg.profile == "omp" || t.codex || t.claude || t.kimi:
+	case cfg.profile == "omp" || t.codex || t.claude || t.kimi || t.devin:
 		if err := t.create(); err != nil {
 			return err
 		}
@@ -166,7 +170,7 @@ func (t *tui) emit7501(body string) { t.printf("\x1b]7501;%s\x1b\\", body) }
 
 // warp sends a Warp cli-agent event; Codex, Claude, Antigravity and Kimi send none.
 func (t *tui) warp(event string) {
-	if t.codex || t.claude || t.agy || t.kimi {
+	if t.codex || t.claude || t.agy || t.kimi || t.devin {
 		return
 	}
 	ev := map[string]any{"v": 1, "event": event, "agent": t.cfg.profile, "plugin_version": pluginVersion, "cwd": t.cwd}
@@ -181,6 +185,17 @@ func (t *tui) warp(event string) {
 }
 
 func (t *tui) create() error {
+	if t.devin {
+		ss, err := t.st.fresh(t.cwd)
+		if err != nil {
+			return err
+		}
+		if t.cur != nil {
+			t.st.release(t.cur.ID)
+		}
+		t.cur = ss
+		return nil
+	}
 	return t.open(t.st.draft(t.cwd))
 }
 
@@ -229,12 +244,29 @@ func (t *tui) open(ss *session) error {
 		t.emit7501("state=idle:id=" + ss.ID)
 	} else if t.agy && t.hasTitleHook() {
 		t.emit7501("state=working:id=" + ss.ID)
+		t.syncWindowTitle()
 	}
 	return nil
 }
 
 func (t *tui) hasTitleHook() bool {
 	return strings.Contains(t.cfg.settings, "conversation_id") || strings.Contains(t.cfg.settings, "7501")
+}
+
+func (t *tui) hasConversationTitleHook() bool {
+	return strings.Contains(t.cfg.settings, "conversation_title")
+}
+
+func (t *tui) syncWindowTitle() {
+	if !t.agy || !t.hasConversationTitleHook() {
+		return
+	}
+	want := ""
+	if t.cur != nil {
+		want = t.cur.Title
+	}
+	t.windowTitle = want
+	t.printf("\x1b]2;%s\x07", want)
 }
 
 // holdLock keeps a Codex thread's writer lock until the process exits, as
@@ -345,10 +377,56 @@ func (t *tui) submit(line string) bool {
 	case t.turn != nil || t.pending != "":
 		t.printf("busy\r\n")
 		return false
+	case line == "/login" && t.cfg.authFile != "":
+		if err := os.WriteFile(t.cfg.authFile, []byte("authenticated\n"), 0o600); err != nil {
+			t.printf("error: %v\r\n", err)
+		} else {
+			t.printf("authenticated\r\n")
+		}
+		t.printf("prompt> ")
+		return false
 	case line == "/new":
 		if err := t.create(); err != nil {
 			t.printf("error: %v\r\n", err)
 		}
+		t.printf("prompt> ")
+		return false
+	case line == "/fork":
+		if t.cur != nil {
+			forked := t.st.draft(t.cwd)
+			forked.Title = t.cur.Title
+			forked.Messages = append([]message(nil), t.cur.Messages...)
+			if err := t.st.save(forked); err != nil {
+				t.printf("error: %v\r\n", err)
+			} else if err := t.open(forked); err != nil {
+				t.printf("error: %v\r\n", err)
+			}
+		}
+		t.printf("prompt> ")
+		return false
+	case strings.HasPrefix(line, "/rename "):
+		if t.cur != nil {
+			t.cur.Title = strings.TrimSpace(strings.TrimPrefix(line, "/rename "))
+			if err := t.st.save(t.cur); err != nil {
+				t.printf("error: %v\r\n", err)
+			}
+			t.status("idle")
+		}
+		t.printf("prompt> ")
+		return false
+	case strings.HasPrefix(line, "/store-title "):
+		if t.cur != nil {
+			t.cur.Title = strings.TrimSpace(strings.TrimPrefix(line, "/store-title "))
+			if err := t.st.save(t.cur); err != nil {
+				t.printf("error: %v\r\n", err)
+			} else {
+				t.printf("stored title: %s\r\n", t.cur.Title)
+			}
+		}
+		t.printf("prompt> ")
+		return false
+	case strings.HasPrefix(line, "/osc-title "):
+		t.printf("\x1b]2;%s\x07", strings.TrimSpace(strings.TrimPrefix(line, "/osc-title ")))
 		t.printf("prompt> ")
 		return false
 	}
@@ -389,19 +467,23 @@ func (t *tui) stream(reply string, stop chan struct{}) {
 }
 
 func (t *tui) finishTurn(interrupted bool) {
-	reply := "echo: " + t.pending
+	pending := t.pending
+	reply := "echo: " + pending
 	if interrupted {
 		reply = "echo: (interrupted)"
 		t.printf("[interrupted]")
 	}
 	t.turn = nil
 	t.pending = ""
+	if t.agy && !interrupted && t.cur.Title == "" && pending != "" {
+		t.cur.Title = "agy: " + pending
+	}
 	t.cur.Messages = append(t.cur.Messages, message{ID: newMessageID(), Role: "agent", Text: reply})
 	if err := t.st.save(t.cur); err != nil {
 		t.printf("error: %v\r\n", err)
 	}
 	t.printf("\r\n")
-	if (t.claude || t.agy) && !interrupted {
+	if (t.claude || t.agy || t.devin) && !interrupted {
 		t.status("done")
 	} else {
 		t.status("idle")
@@ -426,11 +508,16 @@ func (t *tui) status(state string) {
 		t.emit7501("state=" + state + ":app=antigravity")
 		if t.cur != nil && t.hasTitleHook() {
 			t.emit7501("state=working:id=" + t.cur.ID)
+			t.syncWindowTitle()
 		}
 		return
 	}
 	if t.kimi {
 		t.emit7501("state=" + state + ":app=kimi-code")
+		return
+	}
+	if t.devin {
+		t.emit7501("state=" + state + ":app=devin")
 		return
 	}
 	t.emit7501("state=" + state)

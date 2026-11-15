@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { codeReference, nodeId } from "../src/domains/code/code-reference";
 import { CodeDocumentSchema, CodeFileSchema } from "../src/contracts/schemas";
 import { execFileSync } from "node:child_process";

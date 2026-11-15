@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { m } from "$lib/paraglide/messages.js";
 import {
   ChatAttachmentSchema,
   HybridReleaseSchema,
@@ -82,6 +83,8 @@ const GenerationSchema = z.string().regex(/^[0-9a-f]{16}$/);
 // Required response arrays encode as [] even when service slices are nil.
 // Only fields explicitly marked nullable accept null. Commands remain nonempty.
 export const SessionInfoSchema = z.object({
+  conversationId: z.string().optional(),
+  providerThreadId: z.string().optional(),
   id: z.string().regex(/^[a-z2-7]{8}$/),
   // Empty while a session has no terminal run (on its chat view, or
   // archived).
@@ -253,7 +256,7 @@ export const StoredScratchSchema = z
     (scratch) =>
       new Set(scratch.entries.map((entry) => entry.id)).size ===
       scratch.entries.length,
-    "暂存 ID 不能重复",
+    { error: () => m.s1_schema_duplicate_scratch_id() },
   );
 export type StoredScratch = z.infer<typeof StoredScratchSchema>;
 export const HealthSchema = z.object({
@@ -273,6 +276,12 @@ export const HealthSchema = z.object({
       available: z.number().nonnegative(),
     })
     .optional(),
+  swap: z
+    .object({
+      total: z.number().nonnegative(),
+      used: z.number().nonnegative(),
+    })
+    .optional(),
 });
 export type Health = z.infer<typeof HealthSchema>;
 export const WorkspaceCapabilitySchema = z.object({
@@ -283,3 +292,15 @@ export const WorkspaceCapabilitySchema = z.object({
 });
 
 export const SessionIdSchema = SessionInfoSchema.shape.id;
+
+export const TerminalOutputSchema = z.object({
+  generation: z.string(),
+  start: z.string(),
+  end: z.string(),
+  nextOffset: z.string(),
+  encoding: z.literal("base64"),
+  data: z.string(),
+  reset: z.boolean(),
+  historyTruncated: z.boolean(),
+  limited: z.boolean(),
+});

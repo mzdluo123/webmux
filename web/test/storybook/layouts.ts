@@ -10,14 +10,14 @@ const viewports = [
   { name: "large-text", width: 320, height: 568, textScale: 2 },
 ];
 
-type Layout = {
+export type Layout = {
   name: string;
   viewport: { width: number; height: number };
   theme: "light" | "dark";
   textScale: number;
 };
 
-const layouts: Layout[] = viewports.flatMap(
+export const layouts: Layout[] = viewports.flatMap(
   ({ name, width, height, textScale }) =>
     (["light", "dark"] as const).map((theme) => ({
       name: `${name}-${theme}`,
@@ -61,8 +61,9 @@ export async function expectDialogFits(
 export async function checkEachLayout(
   page: Page,
   check: (layout: Layout) => Promise<void>,
+  selectedLayouts: readonly Layout[] = layouts,
 ) {
-  for (const layout of layouts) {
+  for (const layout of selectedLayouts) {
     await test.step(layout.name, async () => {
       await page.setViewportSize(layout.viewport);
       await page.emulateMedia({ colorScheme: layout.theme });

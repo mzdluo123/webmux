@@ -18,9 +18,11 @@ const Name = "agy"
 const BackgroundStatusPrompt = "The background processes from the previous turn have exited. Please check the latest background task status and report the outcome to the user. Do not start any new tasks."
 
 // TUISettingsJSON is the inline --settings payload injected into every agy TUI
-// launch. It uses the title command hook to emit the conversation_id as an
-// OSC 7501 child record to /dev/tty without writing anything to stdout.
-const TUISettingsJSON = `{"title":{"type":"command","command":"id=$(sed -n 's/.*\"conversation_id\":\"\\([0-9a-f-]*\\)\".*/\\1/p'); [ -n \"$id\" ] && printf '\\033]7501;state=working:id=%s\\007' \"$id\" >/dev/tty 2>/dev/null || true"}}`
+// launch. It uses the title command hook to emit conversation_id as an OSC 7501
+// child record and conversation_title as an OSC 2 window title (empty when
+// unset, clearing any previous conversation's title) directly to /dev/tty
+// while writing nothing to stdout.
+const TUISettingsJSON = `{"title":{"type":"command","command":"export LC_ALL=C; line=$(cat); id=$(printf '%s\\n' \"$line\" | sed -n 's/.*\"conversation_id\":[[:space:]]*\"\\([0-9a-f-]*\\)\".*/\\1/p'); u=$(printf '\\037'); t=$(printf '%s\\n' \"$line\" | sed -n 's/.*\"conversation_title\":[[:space:]]*\"\\([^\"\\\\]*\\(\\\\.[^\"\\\\]*\\)*\\)\".*/\\1/p' | sed \"s/\\\\\\\\\\\\\\\\/$u/g; s/\\\\\\\\[nrtbf]/ /g; s|\\\\\\\\u003[cC]|<|g; s|\\\\\\\\u003[eE]|>|g; s|\\\\\\\\u0026|\\\\&|g; s|\\\\\\\\\\\"|\\\"|g; s|\\\\\\\\/|/|g; s|$u|\\\\\\\\|g; s/[[:cntrl:]]//g; s/^[[:space:]]*//; s/[[:space:]]*$//\"); { [ -n \"$id\" ] && printf '\\033]7501;state=working:id=%s\\007' \"$id\"; printf '\\033]2;%s\\007' \"$t\"; } >/dev/tty 2>/dev/null || true"}}`
 
 // Agent is the Antigravity CLI adapter.
 var Agent ap.Agent = adapter{}

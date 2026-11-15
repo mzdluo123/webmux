@@ -22,6 +22,8 @@ type Config struct {
 	Listen           string            `toml:"listen"`
 	Token            string            `toml:"token"`
 	ScrollbackBytes  int               `toml:"scrollback_bytes"`
+	HistoryCapture   bool              `toml:"history_capture"`
+	HandoffTokenCap  int               `toml:"handoff_token_cap"`
 	DefaultCwd       string            `toml:"default_cwd"`
 	StateDir         string            `toml:"state_dir"`
 	IdleAfterSeconds int               `toml:"idle_after_seconds"`
@@ -36,6 +38,13 @@ type Config struct {
 	Push             PushConfig        `toml:"push"`
 	Voice            VoiceConfig       `toml:"voice"`
 	P2P              P2PConfig         `toml:"p2p"`
+	MCP              MCPConfig         `toml:"mcp"`
+	Features         FeatureConfig     `toml:"features"`
+}
+
+// MCPConfig controls the opt-in, owner-authenticated TCP MCP endpoint.
+type MCPConfig struct {
+	Enabled bool `toml:"enabled"`
 }
 
 // VoiceConfig configures an optional external speech recognition command
@@ -286,6 +295,8 @@ func Load(path string, required bool) (Config, error) {
 	c := Config{
 		Listen:           "127.0.0.1:7681",
 		ScrollbackBytes:  2097152,
+		HistoryCapture:   true,
+		HandoffTokenCap:  16000,
 		DefaultCwd:       "~",
 		IdleAfterSeconds: 30,
 		AgentProtocol:    true,
@@ -315,12 +326,18 @@ func Load(path string, required bool) (Config, error) {
 	if metadata.IsDefined("voice", "provider") {
 		return c, errors.New("voice.provider was removed: WebMux ships no recognizer; set voice.cmd to your own program")
 	}
+	if metadata.IsDefined("plugins") {
+		return c, errors.New("[plugins] was renamed to [features]: move plugins.enabled to features.enabled")
+	}
 	for _, key := range metadata.Keys() {
 		c.SetSource(key.String(), "toml")
 	}
 	return c, nil
 }
 func (c *Config) Validate() error {
+	if err := c.Features.Validate(); err != nil {
+		return err
+	}
 	_, port, err := net.SplitHostPort(c.Listen)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
@@ -332,6 +349,9 @@ func (c *Config) Validate() error {
 		if err = validateOrigin(origin); err != nil {
 			return err
 		}
+	}
+	if c.HandoffTokenCap < 1024 || c.HandoffTokenCap > 64000 {
+		return errors.New("handoff_token_cap must be between 1024 and 64000")
 	}
 	if c.ScrollbackBytes < 1 || c.IdleAfterSeconds < 2 {
 		return errors.New("scrollback_bytes must be positive and idle_after_seconds >= 2")

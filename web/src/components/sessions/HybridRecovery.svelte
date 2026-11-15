@@ -1,6 +1,7 @@
 <script lang="ts">
   import { findShell } from "../../hooks/shared/shell.svelte";
   import { Button } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
   import { resumeSession } from "../../domains/sessions/recoverable";
   import type { ArchivedSession } from "../../contracts/schemas";
   import HybridRecordHints from "./HybridRecordHints.svelte";
@@ -26,23 +27,25 @@
   // failure shows here like any other.
   function rebuilt(failure: string) {
     if (failure) error = failure;
-    void shell?.repositories.refresh();
-    void shell?.archived.refresh();
+    void shell?.repositories?.refresh();
+    void shell?.archived?.refresh();
   }
 </script>
 
 <div
   class="flex shrink-0 flex-col gap-2 border-b bg-muted px-4 py-2 text-sm"
   role="status"
-  aria-label="恢复会话"
+  aria-label={m.s3_resume_session_label()}
 >
   <p>
-    {record.state === "closed"
-      ? "该混合会话已关闭"
-      : "该混合会话已中断"}，对话仍保存在 {record.agent.name} 中，恢复后将回到归档前的{record.view ===
-    "chat"
-      ? "聊天"
-      : "终端"}模式。
+    {m.s3_hybrid_recovery_banner({
+      state:
+        record.state === "closed"
+          ? m.s3_hybrid_closed_clause()
+          : m.s3_hybrid_interrupted_clause(),
+      agent: record.agent.name,
+      view: record.view === "chat" ? m.s3_view_chat() : m.s3_view_terminal(),
+    })}
   </p>
   <HybridRecordHints {record} />
   {#if error}<p class="text-destructive" role="alert">{error}</p>{/if}
@@ -56,6 +59,8 @@
       onbusy={(active) => (busy = active)}
       onerror={(message) => (error = message)}
     />
-    <Button variant="ghost" size="sm" onclick={leave}>返回列表</Button>
+    <Button variant="ghost" size="sm" onclick={leave}
+      >{m.s3_back_to_list()}</Button
+    >
   </div>
 </div>

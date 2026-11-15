@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 // behindFixture is upstreamFixture with origin/main one commit ahead of
@@ -218,7 +219,7 @@ func TestFastForwardRechecksWhatThePreviewBound(t *testing.T) {
 	}
 
 	// Running sessions need an acknowledgement and keep running.
-	item, err := s.CreateSession(context.Background(), CreateInput{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf READY; read value"}})
 	if err != nil {
 		t.Fatal(err)
 	}

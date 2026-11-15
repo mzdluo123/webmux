@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -90,6 +89,13 @@ type SwitchPreview struct {
 type SwitchRequest struct {
 	ConfirmationID      string
 	AcknowledgeSessions bool
+	ClientRequestID     string
+}
+
+// SwitchResult pairs the refreshed Worktree with its durable OperationID.
+type SwitchResult struct {
+	Worktree    Worktree
+	OperationID string
 }
 
 // switchPlan is a target resolved to exact objects.
@@ -149,54 +155,130 @@ func (s *Service) PreviewSwitch(ctx context.Context, repositoryID, worktreeID st
 // returned Worktree is re-read afterwards, also when Git failed after it
 // changed the checkout.
 func (s *Service) SwitchWorktree(ctx context.Context, repositoryID, worktreeID string, req SwitchRequest) (Worktree, error) {
+	res, err := s.SwitchWorktreeResult(ctx, repositoryID, worktreeID, req)
+	return res.Worktree, err
+}
+
+// SwitchWorktreeResult switches the worktree and returns its durable operationId.
+func (s *Service) SwitchWorktreeResult(ctx context.Context, repositoryID, worktreeID string, req SwitchRequest) (SwitchResult, error) {
+	reqHash := hashOperationRequest(GitOpSwitch, repositoryID, worktreeID, req.ConfirmationID, fmtBool(req.AcknowledgeSessions))
+	return runIdempotentOperation(
+		ctx, s, repositoryID, req.ClientRequestID, GitOpSwitch, reqHash,
+		func(op GitOperation) (SwitchResult, error) {
+			return s.replaySwitchOperation(ctx, repositoryID, worktreeID, op)
+		},
+		func(opID string) (SwitchResult, error) {
+			return s.switchWorktreeOnce(ctx, repositoryID, worktreeID, req, opID, reqHash)
+		},
+	)
+}
+
+func (s *Service) switchWorktreeOnce(ctx context.Context, repositoryID, worktreeID string, req SwitchRequest, opID, reqHash string) (SwitchResult, error) {
 	c, ok := s.takeConfirmation(req.ConfirmationID, purposeSwitch, repositoryID, worktreeID)
 	if !ok || c.switching == nil {
-		return Worktree{}, problemf(ErrConflict, "切换确认已失效，请重新预览")
+		return SwitchResult{}, problemf(ErrConflict, "切换确认已失效，请重新预览")
 	}
 	confirmed := *c.switching
 	r, err := s.repository(repositoryID)
 	if err != nil {
-		return Worktree{}, err
+		return SwitchResult{}, err
 	}
 	checkCtx, cancel := context.WithTimeout(ctx, writeTimeout)
 	defer cancel()
 	if err := acquire(checkCtx, r); err != nil {
-		return Worktree{}, err
+		return SwitchResult{}, err
 	}
 	defer release(r)
 	current, err := s.switchState(checkCtx, r, worktreeID, confirmed.plan.target)
 	if err != nil {
 		if errorKind(err) == ErrInvalid {
-			return Worktree{}, problemf(ErrConflict, "%v；切换目标已变化，请重新预览", err)
+			return SwitchResult{}, problemf(ErrConflict, "%v；切换目标已变化，请重新预览", err)
 		}
-		return Worktree{}, err
+		return SwitchResult{}, err
 	}
 	if !sameSwitch(confirmed, current) {
-		return Worktree{}, problemf(ErrConflict, "工作树的分支或提交、目标提交或运行会话已变化，请重新预览")
+		return SwitchResult{}, problemf(ErrConflict, "工作树的分支或提交、目标提交或运行会话已变化，请重新预览")
 	}
 	if len(current.blockers) != 0 {
-		return Worktree{}, problemf(ErrConflict, "切换被阻止：%s；请重新预览", issueMessages(current.blockers))
+		return SwitchResult{}, problemf(ErrConflict, "切换被阻止：%s；请重新预览", issueMessages(current.blockers))
 	}
 	if len(current.sessions) != 0 && !req.AcknowledgeSessions {
-		return Worktree{}, problemf(ErrInvalid, "工作树中有运行会话，请先确认它们会看到切换后的文件")
+		return SwitchResult{}, problemf(ErrInvalid, "工作树中有运行会话，请先确认它们会看到切换后的文件")
 	}
 	if err := checkCtx.Err(); err != nil {
-		return Worktree{}, err
+		return SwitchResult{}, err
+	}
+	targetDesc := derefStr(current.plan.info.Branch)
+	if targetDesc == "" {
+		targetDesc = shortOID(current.plan.info.Commit)
+	}
+	if err := s.recordOperationStart(GitOperation{
+		ID:              opID,
+		RepositoryID:    repositoryID,
+		WorktreeID:      worktreeID,
+		ClientRequestID: req.ClientRequestID,
+		RequestHash:     reqHash,
+		Kind:            GitOpSwitch,
+		Status:          GitOpRunning,
+		ConfirmationID:  req.ConfirmationID,
+		StartedAt:       time.Now().UTC(),
+		Summary:         "正在切换工作树至 " + targetDesc,
+		Preview: GitOperationPreview{
+			WorktreePath: current.tree.Path,
+			Branch:       derefStr(current.tree.Branch),
+			HeadOID:      derefStr(current.tree.Head),
+			Target:       derefStr(current.plan.info.Branch),
+			TargetOID:    current.plan.info.Commit,
+			Detached:     current.plan.target.Kind == SwitchDetach,
+		},
+	}); err != nil {
+		return SwitchResult{}, err
+	}
+	if shouldAbortBeforeGit(ctx, opID) {
+		return SwitchResult{}, errSimulatedCrash
 	}
 	runCtx, runCancel := context.WithTimeout(context.WithoutCancel(ctx), switchTimeout)
 	defer runCancel()
 	_, stderr, runErr := s.gitOutput(runCtx, current.tree.Path, switchArgs(current.plan)...)
+	if shouldAbortAfterGit(ctx, opID) {
+		return SwitchResult{}, errSimulatedCrash
+	}
 	// The actual state counts, whatever Git or the client did.
 	refreshCtx, refreshCancel := context.WithTimeout(context.Background(), readTimeout)
 	defer refreshCancel()
 	after, refreshErr := s.currentTree(refreshCtx, r, worktreeID)
 	if runErr != nil {
-		return after, switchFailure(runErr, stderr, current.tree, after, refreshErr)
+		retErr := switchFailure(runErr, stderr, current.tree, after, refreshErr)
+		moved := refreshErr != nil || after.Detached != current.tree.Detached || !sameText(after.Branch, current.tree.Branch) || !sameText(after.Head, current.tree.Head)
+		s.finalizeOperation(opID, func(op *GitOperation) {
+			if moved || errorKind(retErr) == ErrTimeout {
+				op.Status = GitOpUncertain
+			} else {
+				op.Status = GitOpFailed
+			}
+			op.FailureKind = classifyFailureKind(retErr)
+			op.Summary = retErr.Error()
+			op.SanitizedOutput = stderr
+		})
+		return SwitchResult{Worktree: after, OperationID: opID}, retErr
 	}
 	if refreshErr != nil {
-		return Worktree{}, problemf(ErrConflict, "切换已完成，但刷新失败，请刷新: %v", refreshErr)
+		retErr := problemf(ErrConflict, "切换已完成，但刷新失败，请刷新: %v", refreshErr)
+		s.finalizeOperation(opID, func(op *GitOperation) {
+			op.Status = GitOpUncertain
+			op.FailureKind = classifyFailureKind(retErr)
+			op.Summary = retErr.Error()
+			op.SanitizedOutput = stderr
+		})
+		return SwitchResult{}, retErr
 	}
-	return s.withLastCommit(refreshCtx, r, after), nil
+	s.finalizeOperation(opID, func(op *GitOperation) {
+		op.Status = GitOpSucceeded
+		op.ActualOID = current.plan.info.Commit
+		op.Summary = "已切换至 " + targetDesc
+		op.SanitizedOutput = stderr
+	})
+	return SwitchResult{Worktree: s.withLastCommit(refreshCtx, r, after), OperationID: opID}, nil
 }
 
 // withLastCommit describes tree's HEAD as a snapshot does.
@@ -334,61 +416,6 @@ func (s *Service) resolveCommit(ctx context.Context, anchor, expression string) 
 	return oid, nil
 }
 
-// worktreeBlockers lists what refuses changing tree's checkout in place;
-// action names the change. Never nil.
-func worktreeBlockers(tree Worktree, action string) []Issue {
-	out := []Issue{}
-	if tree.Kind == "bare" || !tree.Available || tree.Prunable {
-		return append(out, Issue{Code: issueUnsupported, Message: "bare 仓库、不可用或待清理的工作树不能" + action})
-	}
-	if tree.Error != "" || tree.Changes == nil {
-		return append(out, Issue{Code: issueUnverified, Message: "工作树状态无法验证，不能确认安全" + action + ": " + tree.Error})
-	}
-	if c := tree.Changes; c.Staged+c.Unstaged+c.Conflicted > 0 {
-		out = append(out, Issue{Code: issueChanges, Message: "有未提交的修改，请先提交或贮藏"})
-	}
-	if tree.Operation != nil {
-		out = append(out, Issue{Code: issueOperation, Message: fmt.Sprintf("正在进行 %s，请先在终端完成或中止", *tree.Operation)})
-	}
-	return out
-}
-
-// switchBlockers lists what refuses switching tree as plan says; listed
-// are all worktrees of the repository. Never nil.
-func switchBlockers(tree Worktree, listed []Worktree, plan switchPlan) []Issue {
-	out := worktreeBlockers(tree, "切换")
-	if len(out) != 0 && (out[0].Code == issueUnsupported || out[0].Code == issueUnverified) {
-		return out
-	}
-	switch plan.target.Kind {
-	case SwitchLocal:
-		branch := *plan.info.Branch
-		if sameText(tree.Branch, plan.info.Branch) {
-			out = append(out, Issue{Code: issueSame, Message: "工作树已在分支 " + branch + " 上"})
-			break
-		}
-		for _, other := range listed {
-			if other.ID != tree.ID && sameText(other.Branch, plan.info.Branch) {
-				out = append(out, Issue{Code: issueOccupied, Message: "分支 " + branch + " 已被另一个工作树检出", Path: other.Path})
-				break
-			}
-		}
-	case SwitchRemote:
-		if plan.exists {
-			out = append(out, Issue{Code: issueExists, Message: "本地分支 " + *plan.info.Branch + " 已存在，请改为切换到该本地分支"})
-		}
-	case SwitchNew:
-		if plan.exists {
-			out = append(out, Issue{Code: issueExists, Message: "分支 " + *plan.info.Branch + " 已存在，请换一个名称或切换到该分支"})
-		}
-	case SwitchDetach:
-		if tree.Detached && tree.Head != nil && *tree.Head == plan.info.Commit {
-			out = append(out, Issue{Code: issueSame, Message: "工作树已分离在该提交上"})
-		}
-	}
-	return out
-}
-
 // switchWarnings lists what a switch affects without refusing it. Never
 // nil.
 func switchWarnings(tree Worktree, sessions []session.Info) []Issue {
@@ -413,21 +440,4 @@ func switchWarnings(tree Worktree, sessions []session.Info) []Issue {
 		out = append(out, Issue{Code: issueSessions, Message: fmt.Sprintf("有 %d 个运行中的会话；它们不会被关闭，会看到切换后的文件", len(sessions))})
 	}
 	return out
-}
-
-// sameSwitch compares what a switch confirmation binds: the worktree, its
-// branch and HEAD, the target commit and the running sessions.
-func sameSwitch(a, b switchState) bool {
-	return a.tree.ID == b.tree.ID && a.tree.Path == b.tree.Path && a.tree.Detached == b.tree.Detached &&
-		sameText(a.tree.Branch, b.tree.Branch) && sameText(a.tree.Head, b.tree.Head) &&
-		a.plan.info.Commit == b.plan.info.Commit &&
-		slices.EqualFunc(a.sessions, b.sessions, func(x, y session.Info) bool { return x.ID == y.ID })
-}
-
-func issueMessages(list []Issue) string {
-	messages := make([]string, len(list))
-	for i, issue := range list {
-		messages[i] = issue.Message
-	}
-	return strings.Join(messages, "；")
 }

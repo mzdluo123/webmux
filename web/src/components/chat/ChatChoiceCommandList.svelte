@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import type { Snippet } from "svelte";
   import * as Command from "$lib/components/ui/command";
 
@@ -17,6 +18,7 @@
     value,
     choices,
     disabled = false,
+    searchable = true,
     search = $bindable(""),
     choiceIcon,
     onselect,
@@ -25,6 +27,8 @@
     value: string;
     choices: readonly Choice[];
     disabled?: boolean;
+    /** Long catalogs get a filter box; short lists show all rows. */
+    searchable?: boolean;
     search?: string;
     choiceIcon?: Snippet<[string]>;
     onselect: (value: string) => void;
@@ -42,20 +46,22 @@
       : 0}
   disableInitialScroll
 >
-  <Command.Input
-    bind:value={search}
-    placeholder={`搜索${name}…`}
-    aria-label={`搜索${name}`}
-    autocomplete="off"
-    autocapitalize="off"
-    autocorrect="off"
-    spellcheck={false}
-  />
+  {#if searchable}
+    <Command.Input
+      bind:value={search}
+      placeholder={m.s3_search_option_placeholder({ name })}
+      aria-label={m.s3_search_option_label({ name })}
+      autocomplete="off"
+      autocapitalize="off"
+      autocorrect="off"
+      spellcheck={false}
+    />
+  {/if}
   <Command.List
-    aria-label={`${name}列表`}
+    aria-label={m.s3_option_list_label({ name })}
     class="max-h-[min(14rem,var(--bits-popover-content-available-height,50dvh))] p-1"
   >
-    <Command.Empty>没有匹配的{name}</Command.Empty>
+    <Command.Empty>{m.s3_no_matching_option({ name })}</Command.Empty>
     {#each choices as choice (choice.value)}
       {@const note = choice.reason ?? choice.description}
       <Command.Item

@@ -1,6 +1,6 @@
 import { tick } from "svelte";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import { APIError } from "../../src/platform/api";
 import type { BranchOperation } from "../../src/domains/workspace/branch-actions";
@@ -152,7 +152,10 @@ test("fast-forward lists the commits and needs the sessions acknowledged", async
   await expect.element(confirm).toBeDisabled();
   await dialog().getByRole("checkbox").click();
   await confirm.click();
-  expect(source.fastForward).toHaveBeenCalledWith("repo1", "ff1", true);
+  expect(source.fastForward).toHaveBeenCalledWith("repo1", "ff1", true, {
+    clientRequestId: expect.stringMatching(/^fast_forward-/),
+    worktreeId: "w1",
+  });
   await expect
     .element(dialog().getByRole("status"))
     .toMatchTextContent(/已把 feat\/a 快进到 origin\/feat\/a/);
@@ -202,7 +205,10 @@ test("a 409 previews again and confirms with the new preview", async () => {
     .toBeVisible();
   expect(source.fastForwardPreview).toHaveBeenCalledTimes(2);
   await button("快进到上游").click();
-  expect(source.fastForward).toHaveBeenLastCalledWith("repo1", "ff2", false);
+  expect(source.fastForward).toHaveBeenLastCalledWith("repo1", "ff2", false, {
+    clientRequestId: expect.stringMatching(/^fast_forward-/),
+    worktreeId: "w1",
+  });
 });
 
 test("publishing offers the remote and name, and drops an outdated preview", async () => {

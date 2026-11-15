@@ -1,3 +1,4 @@
+import { m } from "$lib/paraglide/messages.js";
 import {
   QuickCommandsSchema,
   type QuickCommand,
@@ -14,13 +15,54 @@ const DIR_PLACEHOLDER = `{{${DIR_REFERENCE_NAME}}}`;
 export const WEBMUX_REFERENCE_NAME = "webmux";
 const WEBMUX_PLACEHOLDER = `{{${WEBMUX_REFERENCE_NAME}}}`;
 
+/**
+ * Canonical `{{name}}` reference keys for built-in presets. Stored `name`
+ * stays locale-independent so repository init instructions keep resolving on
+ * the server regardless of which UI language saved `/api/settings`; visible UI
+ * labels go through `commandLabel`.
+ */
+const PRESET_REFERENCE_NAMES = {
+  "preset-resume": m.s2_qc_preset_resume({}, { locale: "zh-CN" }),
+  "preset-new": m.s2_qc_preset_new({}, { locale: "zh-CN" }),
+  "preset-webmux": m.s2_qc_preset_webmux({}, { locale: "zh-CN" }),
+} as const;
+
+function presetDisplayLabel(cmd: QuickCommand): string | undefined {
+  switch (cmd.id) {
+    case "preset-resume":
+      return cmd.name === PRESET_REFERENCE_NAMES["preset-resume"]
+        ? m.s2_qc_preset_resume()
+        : undefined;
+    case "preset-new":
+      return cmd.name === PRESET_REFERENCE_NAMES["preset-new"]
+        ? m.s2_qc_preset_new()
+        : undefined;
+    case "preset-webmux":
+      return cmd.name === PRESET_REFERENCE_NAMES["preset-webmux"]
+        ? m.s2_qc_preset_webmux()
+        : undefined;
+    default:
+      return undefined;
+  }
+}
+
 /** System-provided quick commands; the defaults while no list is saved. */
 export const QUICK_COMMAND_PRESETS: readonly QuickCommand[] = [
-  { id: "preset-resume", name: "恢复会话", command: "/resume", enter: true },
-  { id: "preset-new", name: "新会话", command: "/new", enter: true },
+  {
+    id: "preset-resume",
+    name: PRESET_REFERENCE_NAMES["preset-resume"],
+    command: "/resume",
+    enter: true,
+  },
+  {
+    id: "preset-new",
+    name: PRESET_REFERENCE_NAMES["preset-new"],
+    command: "/new",
+    enter: true,
+  },
   {
     id: "preset-webmux",
-    name: "WebMux 工具",
+    name: PRESET_REFERENCE_NAMES["preset-webmux"],
     command: WEBMUX_PLACEHOLDER,
     enter: false,
   },
@@ -46,19 +88,6 @@ export function renderWebmuxBrief(text: string, prompt: string) {
   return text.replaceAll(WEBMUX_PLACEHOLDER, prompt);
 }
 
-/** `text` with `insert` replacing the selection `start`..`end`, and the caret after it. */
-export function insertAtSelection(
-  text: string,
-  start: number,
-  end: number,
-  insert: string,
-) {
-  return {
-    text: text.slice(0, start) + insert + text.slice(end),
-    caret: start + insert.length,
-  };
-}
-
 /** Built-in reference `{{user}}`: where the first message goes in an init instruction. */
 export const USER_REFERENCE_NAME = "user";
 
@@ -68,18 +97,19 @@ export const USER_REFERENCE_NAME = "user";
  */
 export function quickCommandNameError(name: string, others: readonly string[]) {
   const trimmed = name.trim();
-  if (!trimmed) return "请填写名称";
+  if (!trimmed) return m.s2_qc_err_name_empty();
   if (trimmed.length > QUICK_COMMAND_NAME_MAX)
-    return `名称不能超过 ${QUICK_COMMAND_NAME_MAX} 个字符`;
-  if (/[{}\r\n]/.test(trimmed)) return "名称不能包含 { }或换行";
+    return m.s2_qc_err_name_max({ max: String(QUICK_COMMAND_NAME_MAX) });
+  if (/[{}\r\n]/.test(trimmed))
+    return m.s2_qc_err_name_braces({ braces: "{ }" });
   if (
     trimmed === USER_REFERENCE_NAME ||
     trimmed === DIR_REFERENCE_NAME ||
     trimmed === WEBMUX_REFERENCE_NAME
   )
-    return `“${trimmed}”是初始化指令的保留变量，请换一个名称`;
+    return m.s2_qc_err_name_reserved({ name: trimmed });
   if (others.some((other) => other.trim() === trimmed))
-    return "已有同名快捷指令";
+    return m.s2_qc_err_name_duplicate();
   return "";
 }
 
@@ -90,7 +120,8 @@ export function quickCommandsNameError(list: readonly QuickCommand[]) {
       cmd.name,
       list.filter((_, i) => i !== index).map((other) => other.name),
     );
-    if (problem) return `快捷指令“${commandLabel(cmd)}”：${problem}`;
+    if (problem)
+      return m.s2_qc_err_list_item({ label: commandLabel(cmd), problem });
   }
   return "";
 }
@@ -170,6 +201,7 @@ export function commandPreview(cmd: QuickCommand) {
 
 export function commandLabel(cmd: QuickCommand) {
   return (
+    presetDisplayLabel(cmd) ||
     cmd.name ||
     (cmd.command
       .split("\n")

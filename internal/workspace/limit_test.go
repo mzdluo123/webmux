@@ -45,3 +45,36 @@ func TestValidateRegistryBoundsRepositoryCount(t *testing.T) {
 		t.Fatal("a registry past the limit loaded")
 	}
 }
+
+func fakeDirectoryProjects(n int) []directoryProject {
+	out := make([]directoryProject, 0, n)
+	for i := range n {
+		out = append(out, directoryProject{ID: fmt.Sprintf("directory:id%04d", i), Name: "project", Path: fmt.Sprintf("/projects/p%04d", i)})
+	}
+	return out
+}
+
+func TestValidateProjectsBoundsDirectoryCount(t *testing.T) {
+	t.Parallel()
+	if err := validateProjects(projectRegistry{Version: 1, Projects: fakeDirectoryProjects(MaxProjects)}); err != nil {
+		t.Fatalf("full catalog: %v", err)
+	}
+	if err := validateProjects(projectRegistry{Version: 1, Projects: fakeDirectoryProjects(MaxProjects + 1)}); err == nil {
+		t.Fatal("oversized catalog accepted")
+	}
+}
+
+func TestDirectoryProjectsRefuseMoreThanMaxProjects(t *testing.T) {
+	t.Parallel()
+	s, _ := testService(t, t.TempDir(), t.TempDir())
+	s.projectMu.Lock()
+	s.projects = fakeDirectoryProjects(MaxProjects)
+	s.projectMu.Unlock()
+	if _, created, err := s.RegisterDirectoryProject(t.TempDir()); !errors.Is(err, ErrInvalid) || created {
+		t.Fatalf("registration past limit: created=%v err=%v", created, err)
+	}
+	projects, err := s.ListProjects()
+	if err != nil || len(projects) != MaxProjects || s.ProjectStorageError() != nil {
+		t.Fatalf("refusal changed catalog: count=%d err=%v", len(projects), err)
+	}
+}

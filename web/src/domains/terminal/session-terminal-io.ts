@@ -1,21 +1,9 @@
 import {
-  apiBuffer,
-  agentGuidePrompt,
-  ensureArtifactsFolder,
-} from "../../platform/api";
-import {
   clipboardFiles,
   copyText as writeClipboard,
 } from "../../platform/clipboard";
 import { browserDraftStorage } from "./draft-storage";
-import { errorMessage } from "../../platform/error";
-import {
-  renderArtifactDir,
-  renderWebmuxBrief,
-  usesArtifactDir,
-  usesWebmuxBrief,
-} from "../settings/quick-commands";
-import type { QuickCommand, SubmissionProgress } from "../../contracts/schemas";
+import type { SubmissionProgress } from "../../contracts/schemas";
 import type {
   DraftOperation,
   TerminalDraft,
@@ -27,6 +15,7 @@ import type { SessionInfo } from "../../contracts/schemas";
 import type { TerminalController } from "./terminal-search";
 import { newSubmissionId } from "./terminal-protocol";
 import { hasTouchInput } from "../../platform/touch-input";
+import { m } from "$lib/paraglide/messages.js";
 import type { Connection } from "../../platform/ws";
 
 export interface SessionHybridView {
@@ -51,16 +40,9 @@ export function createHeaderTerminalView(
     get exitCode() {
       return terminalShown() ? t.exitCode : null;
     },
-    get restoring() {
-      return t.restoring;
-    },
-    get historyTruncated() {
-      return t.historyTruncated;
-    },
     get canFind() {
       return t.canFind;
     },
-    scrollToBottom: () => t.scrollToBottom(),
     clear: () => t.clear(),
     resync: () => t.resync(),
   };
@@ -68,28 +50,35 @@ export function createHeaderTerminalView(
 
 export function deriveSendUnavailable(t: TerminalController): string {
   return t.connection === "missing"
-    ? "会话不存在，无法发送"
+    ? m.s4_send_unavail_missing()
     : t.exitCode !== null || t.connection === "exited"
-      ? "会话已退出，可编辑或复制草稿"
+      ? m.s4_send_unavail_exited()
       : !t.ready
-        ? "终端未就绪，草稿不会自动发送"
+        ? m.s4_send_unavail_not_ready()
         : "";
 }
 
 export function deriveQuickUnavailable(t: TerminalController): string {
   return t.exitCode !== null || t.connection === "exited"
-    ? "会话已退出，无法发送"
+    ? m.s4_quick_unavail_exited()
     : !t.ready
-      ? "终端未就绪，暂不能发送"
+      ? m.s4_quick_unavail_not_ready()
       : "";
 }
 
 export function deriveChatUploadUnavailable(hybrid: SessionHybridView): string {
   return hybrid.missing
-    ? "会话不存在，无法上传文件"
+    ? m.s4_upload_unavail_missing()
     : hybrid.info?.status === "exited"
-      ? "会话已退出，无法上传文件"
+      ? m.s4_upload_unavail_exited()
       : "";
+}
+
+function draftSubmissionMessage(state: SubmissionProgress): string | undefined {
+  if (state === "failed") return m.s4_draft_msg_failed();
+  if (state === "missing") return m.s4_draft_msg_missing();
+  if (state === "partial") return m.s4_draft_msg_partial();
+  return undefined;
 }
 
 export function createDraftReporter(
@@ -104,8 +93,11 @@ export function createDraftReporter(
     if (!isMounted()) return;
     if (state === "written") {
       setError("");
-      if (announce) setNotice("上次提交的草稿已写入终端。");
-    } else if (draftMessages[state]) setError(draftMessages[state]);
+      if (announce) setNotice(m.s4_draft_previous_written());
+    } else {
+      const msg = draftSubmissionMessage(state);
+      if (msg) setError(msg);
+    }
   };
 }
 
@@ -130,7 +122,7 @@ export function submitSessionDraft(
   if (t.submit(id, draft.text, true, report(id, false))) setError("");
   else {
     if (!pending) drafts.releaseSubmission(draft);
-    setError("终端未就绪，草稿未发送；请恢复连接后手动重试。");
+    setError(m.s4_draft_send_not_ready());
   }
 }
 
@@ -141,103 +133,10 @@ export function savedStorageLabel(
   oversized: string,
 ): string {
   return persisted && draftStorage.enabled
-    ? "已保存在本机"
+    ? m.s4_saved_locally()
     : draftStorage.enabled
       ? oversized
-      : "仅当前页面，刷新后丢失";
-}
-
-const draftMessages: Partial<Record<SubmissionProgress, string>> = {
-  failed: "草稿未写入终端，可修改后重新发送。",
-  missing:
-    "服务端没有这次提交的记录：可能未送达，或记录已过期。请检查终端后决定是否重新发送。",
-  partial: "草稿只有部分写入终端，提交键未写入；请检查终端后再处理草稿。",
-};
-
-const quickMessages: Partial<Record<SubmissionProgress, string>> = {
-  failed: "快捷指令未写入终端；请检查终端后重试。",
-  missing: "快捷指令未送达服务端；请检查终端后重试。",
-  partial: "快捷指令正文已写入，但回车未写入；请检查终端后手动提交。",
-  unknown: "连接中断，快捷指令结果未知；重连后自动查询。",
-};
-
-export interface SessionQuickCommandContext {
-  id: string;
-  isMounted: () => boolean;
-  isChatView: () => boolean;
-  draft: TerminalDraft;
-  drafts: TerminalDrafts;
-  beginInput: () => DraftOperation;
-  insertText: (text: string, operation?: DraftOperation) => TextInsertion;
-  resetModifiers: () => void;
-  submitTerminal: (
-    id: string,
-    text: string,
-    enter: boolean,
-    onProgress: (state: SubmissionProgress) => void,
-  ) => boolean;
-  getError: () => string;
-  setError: (msg: string) => void;
-}
-
-// The operation binds this session's draft and target at selection. A body
-// with `{{dir}}` or `{{webmux}}` first waits for the artifacts folder or
-// the WebMux brief, then runs as written; the brief goes in last, so
-// nothing in it is replaced.
-export async function executeSessionQuickCommand(
-  cmd: QuickCommand,
-  ctx: SessionQuickCommandContext,
-): Promise<void> {
-  ctx.resetModifiers();
-  const chat = ctx.isChatView();
-  let text = cmd.command;
-  let operation: DraftOperation | undefined;
-  if (usesArtifactDir(text)) {
-    operation = ctx.beginInput();
-    let dir: string;
-    try {
-      dir = await ensureArtifactsFolder(ctx.id);
-    } catch (err) {
-      if (ctx.isMounted())
-        ctx.setError(`临时文件夹不可用：${errorMessage(err)}`);
-      return;
-    }
-    if (!ctx.isMounted()) return;
-    text = renderArtifactDir(text, dir);
-  }
-  if (usesWebmuxBrief(text)) {
-    operation ??= ctx.beginInput();
-    let brief: string;
-    try {
-      brief = await agentGuidePrompt(ctx.id);
-    } catch (err) {
-      if (ctx.isMounted())
-        ctx.setError(`WebMux 工具说明不可用：${errorMessage(err)}`);
-      return;
-    }
-    if (!ctx.isMounted()) return;
-    text = renderWebmuxBrief(text, brief);
-  }
-  if (!chat && cmd.enter && ctx.drafts.destination(ctx.draft) === "terminal") {
-    // Text and Enter form one acknowledged submission.
-    const sent = ctx.submitTerminal(newSubmissionId(), text, true, (state) => {
-      if (!ctx.isMounted()) return;
-      if (quickMessages[state]) ctx.setError(quickMessages[state]);
-      else if (state === "written" && ctx.getError() === quickMessages.unknown)
-        ctx.setError("");
-    });
-    ctx.setError(sent ? "" : "终端未就绪，快捷指令未发送；请恢复连接后重试。");
-    return;
-  }
-  // The chat side only inserts: sending stays with the message box.
-  const result = ctx.insertText(text, operation ?? ctx.beginInput());
-  if (result === "failed")
-    ctx.setError(
-      chat || ctx.drafts.destination(ctx.draft, operation) === "draft"
-        ? "草稿正在提交到终端，快捷指令未插入；请确认结果后重试。"
-        : "终端未就绪，快捷指令未发送；请恢复连接后重试。",
-    );
-  else ctx.setError("");
+      : m.s4_saved_memory_only();
 }
 
 export interface SessionClipboardContext {
@@ -292,20 +191,6 @@ export async function copySessionText(
   ctx.openCopyDialog(text);
 }
 
-export async function copySessionBuffer(
-  ctx: SessionClipboardContext,
-): Promise<void> {
-  try {
-    await copySessionText(
-      new TextDecoder().decode(await apiBuffer(ctx.id)),
-      true,
-      ctx,
-    );
-  } catch (err) {
-    ctx.setError(errorMessage(err));
-  }
-}
-
 export async function pasteFromSessionClipboard(
   ctx: SessionClipboardContext,
 ): Promise<void> {
@@ -336,8 +221,8 @@ export async function pasteFromSessionClipboard(
       if (ctx.drafts.destination(ctx.draft, operation) === "draft") {
         ctx.setError(
           ctx.draft.enabled
-            ? "无法读取剪贴板，请在现有草稿框内手动粘贴。"
-            : "无法读取剪贴板，请重新开启草稿模式后在草稿框内手动粘贴。",
+            ? m.s4_clipboard_read_err_draft_open()
+            : m.s4_clipboard_read_err_draft_closed(),
         );
         if (ctx.draft.enabled && ctx.isActiveAndVisible() && !hasTouchInput())
           ctx.focusComposer();
@@ -345,35 +230,6 @@ export async function pasteFromSessionClipboard(
         ctx.openPasteDialog(operation);
       }
     }
-  }
-}
-
-export function applySessionVoiceResult(
-  text: string,
-  ctx: {
-    isMounted: () => boolean;
-    isChatView: () => boolean;
-    draft: TerminalDraft;
-    drafts: TerminalDrafts;
-    beginInput: () => DraftOperation;
-    insertText: (text: string, operation?: DraftOperation) => TextInsertion;
-    setError: (msg: string) => void;
-    onInserted: () => void;
-  },
-) {
-  if (!text || !ctx.isMounted()) return;
-  const chat = ctx.isChatView();
-  const operation = ctx.beginInput();
-  const result = ctx.insertText(text, operation);
-  if (result === "failed") {
-    ctx.setError(
-      chat || ctx.drafts.destination(ctx.draft, operation) === "draft"
-        ? "草稿正在提交到终端，语音识别内容未插入；请确认结果后重试。"
-        : "终端未就绪，语音识别内容未发送；请恢复连接后重试。",
-    );
-  } else {
-    ctx.setError("");
-    ctx.onInserted();
   }
 }
 
@@ -394,19 +250,6 @@ export function isEditableActiveElement(): boolean {
   );
 }
 
-export function isVoiceDisabled(
-  hybrid: SessionHybridView,
-  t: TerminalController,
-  draft: TerminalDraft,
-): boolean {
-  return hybrid.view === "chat"
-    ? hybrid.missing || !!draft.submission
-    : t.connection === "missing" ||
-        (draft.enabled
-          ? !!draft.submission
-          : t.exitCode !== null || t.connection === "exited" || !t.ready);
-}
-
 export function clearFindFocus(
   clearFind: () => void,
   hasTouch: boolean,
@@ -424,4 +267,32 @@ export function clearFindFocus(
       if (returnFocus?.isConnected) returnFocus.focus();
       else fallbackFocus();
     });
+}
+
+export function createSessionDraftSender(
+  draft: TerminalDraft,
+  drafts: TerminalDrafts,
+  terminal: () => TerminalController,
+  report: Parameters<typeof submitSessionDraft>[4],
+  setError: (message: string) => void,
+  setNotice: (message: string) => void,
+) {
+  let sending = false;
+  return (resend = false) => {
+    if (sending) return;
+    sending = true;
+    try {
+      submitSessionDraft(
+        draft,
+        drafts,
+        terminal(),
+        resend,
+        report,
+        setError,
+        setNotice,
+      );
+    } finally {
+      sending = false;
+    }
+  };
 }

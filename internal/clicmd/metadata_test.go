@@ -80,7 +80,7 @@ func metaEnv(t *testing.T, m *metaServer, session string) (Env, *bytes.Buffer, *
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &http.Server{Handler: m.handler()}
+	srv := &http.Server{Handler: withTestCapabilities(m.handler())}
 	go func() { _ = srv.Serve(l) }()
 	t.Cleanup(func() { _ = srv.Close() })
 	var stdout, stderr bytes.Buffer
