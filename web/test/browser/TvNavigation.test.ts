@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
+import CommandHarness from "./TvCommandHarness.svelte";
 import Harness from "./TvNavigationHarness.svelte";
 import TreeHarness from "./TvTreeHarness.svelte";
 import RadioHarness from "./TvRadioHarness.svelte";
@@ -240,4 +241,29 @@ test("shifted button arrows do not fall through into TV spatial navigation", asy
   await expect
     .element(page.getByRole("radio", { name: "列表", exact: true }))
     .toHaveFocus();
+});
+
+test("TV Enter selects a command row rather than toggling text capture", async () => {
+  await render(CommandHarness);
+  await page.getByRole("combobox", { name: "项目搜索", exact: true }).click();
+  await userEvent.keyboard("{Enter}");
+  await expect
+    .element(page.getByRole("status", { name: "选择结果", exact: true }))
+    .toHaveTextContent("Project A");
+});
+
+test("TV command search keeps vertical arrows inside its native options", async () => {
+  await render(CommandHarness);
+  await page.getByRole("combobox", { name: "项目搜索", exact: true }).click();
+  await expect
+    .element(page.getByRole("option", { name: "Project A", exact: true }))
+    .toHaveAttribute("aria-selected", "true");
+  await userEvent.keyboard("{ArrowDown}");
+  await expect
+    .element(page.getByRole("option", { name: "Project B", exact: true }))
+    .toHaveAttribute("aria-selected", "true");
+  await userEvent.keyboard("{Enter}");
+  await expect
+    .element(page.getByRole("status", { name: "选择结果", exact: true }))
+    .toHaveTextContent("Project B");
 });

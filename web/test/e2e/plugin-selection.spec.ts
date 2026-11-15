@@ -4,6 +4,8 @@ import {
   expectConnected,
   expectTerminalLine,
   runCommand,
+  useCustomCommand,
+  useDirectory,
 } from "./fixtures";
 import {
   CapabilitiesSchema,
@@ -16,6 +18,8 @@ const selections: { name: string; plugins: PluginID[] | undefined }[] = [
   { name: "code-only", plugins: ["code"] },
   { name: "launch-only", plugins: ["launch"] },
   { name: "workspace-only", plugins: ["workspace"] },
+  { name: "workspace with launch", plugins: ["workspace", "launch"] },
+  { name: "workspace with files", plugins: ["workspace", "files"] },
   {
     name: "chat with explicit dependencies",
     plugins: ["chat", "files", "launch"],
@@ -28,6 +32,43 @@ for (const selection of selections) {
     plugins: [selection.plugins, { scope: "worker", option: true }],
   });
   profileTest.describe(selection.name, () => {
+    profileTest(
+      "the visible new-session flow creates a terminal in the selected folder",
+      async ({ page, request, workDir }) => {
+        const paths: string[] = [];
+        page.on("request", (request) =>
+          paths.push(new URL(request.url()).pathname),
+        );
+        await page.goto("/");
+        await page
+          .getByRole("main")
+          .getByRole("button", { name: /^(＋ )?新建会话$/ })
+          .first()
+          .click();
+        await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
+        await useDirectory(page, workDir);
+        await page
+          .getByRole("button", { name: "创建并进入 →", exact: true })
+          .click();
+        await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
+        const sessions = await (await request.get("/api/sessions")).json();
+        expect(sessions).toHaveLength(1);
+        expect(sessions[0]).toMatchObject({ cwd: workDir, workspace: null });
+        await expectConnected(page);
+        await runCommand(page, "printf '%s\\n' PROJECT_PROFILE_OK");
+        await expectTerminalLine(page, "PROJECT_PROFILE_OK");
+        if (selection.plugins && !selection.plugins.includes("workspace"))
+          expect(
+            paths.some((path) =>
+              /^\/api\/(projects|repositories)(?:\/|$)/.test(path),
+            ),
+          ).toBe(false);
+        if (selection.plugins && !selection.plugins.includes("launch"))
+          expect(
+            paths.some((path) => path.startsWith("/api/launch-configs")),
+          ).toBe(false);
+      },
+    );
     profileTest(
       "capability bootstrap and raw terminal remain usable with the exact configured selection",
       async ({ page, request, workDir }) => {

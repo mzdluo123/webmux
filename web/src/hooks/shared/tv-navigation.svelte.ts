@@ -274,6 +274,13 @@ export function useTvNavigation(back: () => boolean) {
         return;
       }
       const field = textField(document.activeElement);
+      // Command search keeps native row navigation and selection, including
+      // projects; those keys must not become TV spatial/text-edit commands.
+      if (
+        field?.closest('[data-slot="command"]') &&
+        ["Enter", "ArrowUp", "ArrowDown"].includes(event.key)
+      )
+        return;
       if (field) {
         const modified = event.ctrlKey || event.metaKey || event.altKey;
         const cursor =

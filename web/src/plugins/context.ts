@@ -35,6 +35,7 @@ export interface CreationLocationProps {
   repositoryId: string;
   worktreeId: string;
   disabled?: boolean;
+  projectScoped?: boolean;
 }
 
 export interface CreationContributions {
@@ -44,7 +45,7 @@ export interface CreationContributions {
       recent?: readonly string[];
       onselect: (selection: ProjectSelection) => void;
     },
-    { back: () => boolean }
+    { back: () => boolean; showProjects: () => void }
   >;
 
   LaunchPicker?: Component<

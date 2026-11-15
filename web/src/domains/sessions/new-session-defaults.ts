@@ -83,6 +83,7 @@ export function resolveLaunchScope(input: {
  * then the service default.
  */
 export function resolveInitialTarget(input: {
+  workspaceAvailable?: boolean;
   entry?: LaunchEntry;
   scope?: LaunchScope;
   selectedRepositoryId?: string;
@@ -92,6 +93,13 @@ export function resolveInitialTarget(input: {
 }): InitialTarget {
   const fallbackCwd = input.recent[0] || input.defaultCwd;
   const { entry, scope } = input;
+  if (input.workspaceAvailable === false)
+    return {
+      kind: "directory",
+      cwd: entry?.kind === "directory" ? entry.cwd || fallbackCwd : fallbackCwd,
+      repositoryId: "",
+      worktreeId: "",
+    };
   if (scope?.worktreeId) {
     const tree = input.repositories
       .find((repo) => repo.id === scope.repositoryId)
@@ -382,24 +390,19 @@ export function resolveFallbackAfterWorktreeRemoved(
   kind: TargetKind,
   worktreeId: string,
   removedTree: Worktree,
+  scope?: LaunchScope,
 ): { kind: TargetKind; worktreeId: string } {
   if (kind !== "worktree" || worktreeId !== removedTree.id)
     return { kind, worktreeId };
+  if (scope?.worktreeId) return { kind: "worktree", worktreeId: "" };
   const main = repositories
     .find((r) => r.id === removedTree.repositoryId)
     ?.worktrees.find((w) => w.kind === "main");
   return main
     ? { kind: "worktree", worktreeId: main.id }
-    : { kind: "directory", worktreeId };
-}
-
-export function isDirectoryNotFoundError(err: unknown): boolean {
-  return (
-    err instanceof APIError &&
-    err.status === 400 &&
-    err.message.startsWith("directory:") &&
-    err.message.includes("no such file or directory")
-  );
+    : scope
+      ? { kind: "worktree", worktreeId: "" }
+      : { kind: "directory", worktreeId };
 }
 
 export function formatLocationSummaryText(

@@ -1,4 +1,12 @@
 <script lang="ts">
+  import {
+    projectTarget,
+    sameProject,
+    projectRepositories,
+    contextProject,
+    scopeForProject,
+    type ProjectSelection,
+  } from "../../domains/sessions/project-selection";
   import { errorMessage } from "../../platform/error";
   import { untrack } from "svelte";
   import { navigate, recentDirs, stored } from "../../platform/api";
@@ -9,10 +17,7 @@
   import { getPluginContributions } from "../../plugins/context";
   import type { LaunchConfigsState } from "../../domains/settings/launch-configs";
   import {
-    buildNewSessionSummary,
-    formatLocationSummaryText,
     isCommandReady,
-    isDirectoryNotFoundError,
     isLocationTargetReady,
     resolveFallbackAfterWorktreeRemoved,
     resolveInitialLaunch,
@@ -25,7 +30,10 @@
     type LaunchScope,
     type LaunchSource,
   } from "../../domains/sessions/new-session-defaults";
-  import { sessionConflict } from "../../domains/sessions/session-conflict";
+  import {
+    sessionConflict,
+    isDirectoryNotFoundError,
+  } from "../../domains/sessions/session-conflict";
   import type {
     AgentConnector,
     Repository,
@@ -33,9 +41,9 @@
     SessionView,
     Worktree,
   } from "../../contracts/schemas";
-  import * as AlertDialog from "$lib/components/ui/alert-dialog";
-  import LazyDialog from "../shared/LazyDialog.svelte";
+  import NewSessionRecoveryDialogs from "./NewSessionRecoveryDialogs.svelte";
   import NewSessionForm from "./NewSessionForm.svelte";
+  import ProjectSessionSteps from "./ProjectSessionSteps.svelte";
   import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
 
@@ -62,7 +70,7 @@
   let {
     launchConfigs,
     defaultCwd,
-    repositories = [],
+    repositories: hostRepositories = [],
     entry,
     scope,
     selectedRepositoryId = "",
@@ -75,6 +83,28 @@
     onclose,
   }: Props = $props();
   const providers = getPluginContributions().creation;
+  let projectSelection = $state.raw<ProjectSelection | null>(null);
+  const repositories = $derived(
+    projectRepositories(hostRepositories, projectSelection),
+  );
+  const projectEnabled = $derived(
+    pluginAvailable("workspace.projects") && !!providers.ProjectPicker,
+  );
+  const projectRestricted = $derived(!!scope || intent === "worktree");
+  let choosingProject = $state(
+    untrack(
+      () =>
+        projectEnabled &&
+        !entry &&
+        !projectRestricted &&
+        !hostRepositories.some((r) => r.id === selectedRepositoryId),
+    ),
+  );
+  let projectPicker = $state<{
+    back: () => boolean;
+    showProjects: () => void;
+  }>();
+
   const workspaceEnabled = $derived(
     pluginAvailable("workspace.manage") && !!providers.LocationPicker,
   );
@@ -88,16 +118,11 @@
   const recent = recentDirs();
   const initial = untrack(() =>
     resolveInitialTarget({
-      entry: workspaceEnabled
-        ? entry
-        : entry?.kind === "directory"
-          ? { ...entry, workspace: null }
-          : undefined,
-      scope: workspaceEnabled ? scope : undefined,
-      selectedRepositoryId: workspaceEnabled
-        ? (scope?.repositoryId ?? selectedRepositoryId)
-        : "",
-      repositories: workspaceEnabled ? repositories : [],
+      workspaceAvailable: workspaceEnabled || projectEnabled,
+      entry,
+      scope,
+      selectedRepositoryId: scope?.repositoryId ?? selectedRepositoryId,
+      repositories,
       recent,
       defaultCwd,
     }),
@@ -106,7 +131,11 @@
   // A split keeps the pane's workspace while its directory is unchanged.
   const entryDirectory = untrack(() =>
     entry?.kind === "directory"
-      ? { ...entry, workspace: workspaceEnabled ? entry.workspace : null }
+      ? {
+          ...entry,
+          workspace:
+            workspaceEnabled || projectEnabled ? entry.workspace : null,
+        }
       : null,
   );
   let kind = $state(initial.kind);
@@ -187,11 +216,47 @@
     }
   });
   const repository = $derived(repositories.find((r) => r.id === repositoryId));
+  const currentProject = $derived(
+    projectEnabled
+      ? (projectSelection?.project ??
+          contextProject(repository, entryDirectory?.cwd))
+      : undefined,
+  );
+  const projectScope = $derived(scopeForProject(scope, currentProject));
+  function changeProject() {
+    choosingProject = true;
+    projectPicker?.showProjects();
+  }
+  function selectedProject(selection: ProjectSelection) {
+    if (
+      !sameProject(selection.project, currentProject) ||
+      (selection.openedPath &&
+        projectTarget(selection).worktreeId !== worktreeId)
+    ) {
+      projectSelection = selection;
+      ({ kind, cwd, repositoryId, worktreeId } = projectTarget(selection));
+      newPath = branch = base = startBranch = fieldsRepositoryId = "";
+      branchMode = "new";
+      createdTree = null;
+      instructionChoice = undefined;
+    }
+    choosingProject = false;
+    error = "";
+    onchange();
+  }
+  function back() {
+    if (choosingProject) return projectPicker?.back() ?? false;
+    if (projectEnabled && !projectRestricted) {
+      changeProject();
+      return true;
+    }
+    return false;
+  }
   const instructionRepository = $derived(
     resolveInstructionRepository(
       kind,
       cwd,
-      entryDirectory,
+      projectSelection ? null : entryDirectory,
       repositories,
       repository,
     ),
@@ -232,41 +297,22 @@
       kind,
       worktreeId,
       tree,
+      projectEnabled ? projectScope : undefined,
     ));
   }
   const treeTargetMissing = $derived(treeOnly && kind !== "new-worktree");
   const targetReady = $derived(
-    isLocationTargetReady(
-      treeTargetMissing,
-      kind,
-      cwd,
-      worktree,
-      repository,
-      worktreeReady,
-    ),
+    currentProject?.availability !== "unavailable" &&
+      (!currentProject?.repositoryId || workspaceEnabled) &&
+      isLocationTargetReady(
+        treeTargetMissing,
+        kind,
+        cwd,
+        worktree,
+        repository,
+        worktreeReady,
+      ),
   );
-  const newWorktreeSummary = $derived(
-    branchMode === "new"
-      ? `${branch || "新分支"} ← ${startBranch || "…"}`
-      : `已有分支 ${branch || "未选择"}`,
-  );
-  const locationText = $derived(
-    formatLocationSummaryText(kind, cwd, repository, worktree, branch),
-  );
-  const summary = $derived(
-    buildNewSessionSummary({
-      treeTargetMissing,
-      targetReady,
-      treeOnly,
-      kind,
-      locationText,
-      commandReady,
-      source,
-      chosenConfig,
-      command,
-    }),
-  );
-
   // A worktree made on the way becomes the chosen location.
   function adoptTree(tree: Worktree) {
     createdTree = tree;
@@ -303,7 +349,7 @@
         branch,
         base,
         cwd,
-        entryDirectory,
+        entryDirectory: projectSelection ? null : entryDirectory,
         prompt,
         hasInstruction,
         useInstruction,
@@ -346,110 +392,103 @@
   title={treeOnly ? "新建工作树" : "新建会话"}
   description={treeOnly
     ? "创建独立的代码副本，可选择同时启动会话。"
-    : "浏览器断开后，会话仍会继续。"}
+    : projectEnabled
+      ? "先选择项目，再设置运行方式。"
+      : "浏览器断开后，会话仍会继续。"}
   class="p-5 sm:max-w-3xl"
   pinDrawerHeader
   {busy}
   {onclose}
+  onback={back}
 >
-  <NewSessionForm
-    {providers}
-    {repositories}
-    {scope}
+  <ProjectSessionSteps
+    bind:this={projectPicker}
+    enabled={projectEnabled}
+    choosing={choosingProject}
+    Picker={providers.ProjectPicker}
+    {defaultCwd}
     {recent}
-    {preferredRepositoryId}
-    {createdTree}
-    {newWorktreeSummary}
-    onremove={(tree) => (removing = tree)}
-    bind:kind={
-      () => kind,
-      (next) => {
-        kind = next;
-        if (kind === "new-worktree") fieldsRepositoryId = repositoryId;
+    onselect={selectedProject}
+  >
+    <NewSessionForm
+      {providers}
+      {repositories}
+      scope={projectScope}
+      project={currentProject}
+      onprojectchange={projectRestricted ? undefined : changeProject}
+      {recent}
+      {preferredRepositoryId}
+      {createdTree}
+      onremove={(tree) => (removing = tree)}
+      bind:kind={
+        () => kind,
+        (next) => {
+          kind = next;
+          if (kind === "new-worktree") fieldsRepositoryId = repositoryId;
+        }
       }
-    }
-    bind:cwd
-    bind:repositoryId={
-      () => repositoryId,
-      (next) => {
-        repositoryId = next;
-        if (kind === "new-worktree") fieldsRepositoryId = repositoryId;
+      bind:cwd
+      bind:repositoryId={
+        () => repositoryId,
+        (next) => {
+          repositoryId = next;
+          if (kind === "new-worktree") fieldsRepositoryId = repositoryId;
+        }
       }
-    }
-    bind:worktreeId
-    {busy}
-    {fieldsRepository}
-    bind:worktreeFields
-    {entry}
-    bind:newPath
-    bind:branchMode
-    bind:branch
-    bind:base
-    bind:startBranch
-    {workspaceEnabled}
-    {intent}
-    bind:withSession
-    {treeOnly}
-    {launchConfigs}
-    bind:source
-    bind:configId
-    bind:command
-    bind:startSide
-    onlaunchchoose={() => (launchTouched = true)}
-    {lastLaunch}
-    {instructionRepository}
-    {hasInstruction}
-    bind:useInstruction={
-      () => useInstruction, (next) => (instructionChoice = next)
-    }
-    bind:prompt
-    {startsOnChat}
-    {split}
-    bind:direction
-    bind:name
-    {error}
-    {missingConnector}
-    {summary}
-    {targetReady}
-    {commandReady}
-    oncreate={() => void create()}
-    onterminalcreate={() => {
-      startSide = "terminal";
-      void create();
-    }}
-    {onclose}
-  />
+      bind:worktreeId
+      {busy}
+      {fieldsRepository}
+      bind:worktreeFields
+      {entry}
+      bind:newPath
+      bind:branchMode
+      bind:branch
+      bind:base
+      bind:startBranch
+      {workspaceEnabled}
+      {intent}
+      bind:withSession
+      {treeOnly}
+      {launchConfigs}
+      bind:source
+      bind:configId
+      bind:command
+      bind:startSide
+      onlaunchchoose={() => (launchTouched = true)}
+      {lastLaunch}
+      {instructionRepository}
+      {hasInstruction}
+      bind:useInstruction={
+        () => useInstruction, (next) => (instructionChoice = next)
+      }
+      bind:prompt
+      {startsOnChat}
+      {split}
+      bind:direction
+      bind:name
+      {error}
+      {missingConnector}
+      {targetReady}
+      {commandReady}
+      oncreate={() => void create()}
+      onterminalcreate={() => {
+        startSide = "terminal";
+        void create();
+      }}
+      {onclose}
+    />
+  </ProjectSessionSteps>
 </ResponsiveDialog>
 
-{#if workspaceEnabled && removing}
-  {@const target = removing}
-  <LazyDialog
-    load={() => import("../workspace/RemoveWorktreeDialog.svelte")}
-    label="删除确认"
-    onclose={() => (removing = null)}
-  >
-    {#snippet children(page)}<page.default
-        worktree={target}
-        {onchange}
-        onremoved={() => removed(target)}
-        onclose={() => (removing = null)}
-      />{/snippet}
-  </LazyDialog>
-{/if}
-
-{#if filesEnabled && mkdirMounted}<AlertDialog.Root bind:open={mkdirOpen}>
-    <AlertDialog.Content>
-      <AlertDialog.Header
-        ><AlertDialog.Title>目录不存在，是否创建？</AlertDialog.Title
-        ><AlertDialog.Description class="break-all"
-          >将在 {cwd} 创建目录，然后启动会话。</AlertDialog.Description
-        ></AlertDialog.Header
-      >
-      <AlertDialog.Footer>
-        <AlertDialog.Cancel>取消</AlertDialog.Cancel>
-        <AlertDialog.Action onclick={() => void create(true)}
-          >创建目录并启动</AlertDialog.Action
-        >
-      </AlertDialog.Footer>
-    </AlertDialog.Content>
-  </AlertDialog.Root>{/if}
+<NewSessionRecoveryDialogs
+  {workspaceEnabled}
+  {filesEnabled}
+  {removing}
+  {onchange}
+  onremoved={removed}
+  onremovalclose={() => (removing = null)}
+  bind:mkdirOpen
+  {mkdirMounted}
+  {cwd}
+  onmkdir={() => void create(true)}
+/>

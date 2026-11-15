@@ -352,3 +352,26 @@ for (const scene of [
     expect(errors).toEqual([]);
   });
 }
+
+for (const scene of [
+  "plain-folder",
+  "git-project",
+  "unavailable-project",
+  "launch-unavailable",
+]) {
+  test(`project session ${scene} fits each layout`, async ({ page }) => {
+    test.slow();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", (route) => route.abort());
+    await page.goto(
+      `/iframe.html?id=workspace-project-session--${scene}&viewMode=story`,
+    );
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await checkEachLayout(page, async ({ name }) => {
+      await expectDialogFits(page, page.getByRole("dialog"), name);
+      await expectNoOverflow(page, name);
+    });
+    expect(errors).toEqual([]);
+  });
+}

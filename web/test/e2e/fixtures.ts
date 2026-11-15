@@ -7,6 +7,11 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
+import {
+  chooseSessionDirectory,
+  ensureSessionSetup,
+  sessionLocation,
+} from "./session-project";
 import { startE2EServer, type E2EServer } from "./server.mjs";
 import {
   CapabilitiesSchema,
@@ -256,7 +261,11 @@ export { expect };
 
 // New-session dialog pickers. Option names start with the item title and
 // continue with its command or path.
-async function pick(page: Page, field: "位置" | "运行", name: string) {
+async function pick(
+  page: Page,
+  field: "位置" | "工作位置" | "运行",
+  name: string,
+) {
   await page.getByRole("button", { name: field, exact: true }).click();
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   await page
@@ -311,28 +320,51 @@ export async function revealSidebar(page: Page): Promise<boolean> {
 }
 
 export async function chooseLaunch(page: Page, name: string) {
+  await ensureSessionSetup(page);
   await pick(page, "运行", name);
 }
 
 export async function chooseLocation(page: Page, name: string) {
-  await pick(page, "位置", name);
+  await expect(sessionLocation(page)).toBeVisible();
+  await pick(
+    page,
+    (await page
+      .getByRole("button", { name: "工作位置", exact: true })
+      .isVisible())
+      ? "工作位置"
+      : "位置",
+    name,
+  );
 }
 
 export async function useCustomCommand(page: Page, command: string) {
-  await chooseLaunch(page, "自定义命令…");
+  await ensureSessionSetup(page);
+  const launch = page.getByRole("button", { name: "运行", exact: true });
+  const custom = page.getByLabel("自定义启动命令", { exact: true });
+  await expect(launch.or(custom).first()).toBeVisible();
+  if (await launch.isVisible()) await chooseLaunch(page, "自定义命令…");
   await page.getByLabel("自定义启动命令", { exact: true }).fill(command);
 }
 
 export async function useDirectory(page: Page, cwd: string) {
-  await expect(
-    page.getByRole("button", { name: "位置", exact: true }),
-  ).toBeVisible();
   const input = page.getByLabel("工作目录", { exact: true });
-  if (!(await input.isVisible())) await chooseLocation(page, "输入或浏览目录…");
-  await input.fill(cwd);
+  const legacy = page.getByRole("button", { name: "位置", exact: true });
+  await expect(
+    input
+      .or(legacy)
+      .or(page.getByRole("combobox", { name: "搜索项目", exact: true }))
+      .or(page.getByRole("button", { name: "更换项目", exact: true }))
+      .first(),
+  ).toBeVisible();
+  if (await input.isVisible()) await input.fill(cwd);
+  else if (await legacy.isVisible()) {
+    await chooseLocation(page, "输入或浏览目录…");
+    await input.fill(cwd);
+  } else await chooseSessionDirectory(page, cwd);
 }
 
 export async function nameSession(page: Page, name: string) {
+  await ensureSessionSetup(page);
   await page.getByRole("button", { name: "高级：会话名称" }).click();
   await page.getByLabel("会话名称", { exact: false }).fill(name);
 }

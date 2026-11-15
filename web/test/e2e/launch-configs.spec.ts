@@ -1,3 +1,4 @@
+import { ensureSessionSetup } from "./session-project";
 import type { Page } from "@playwright/test";
 import {
   chooseLaunch,
@@ -201,6 +202,7 @@ test("configs persist across a settings reload and remain selectable alongside m
     .getByRole("button", { name: "＋ 新建会话", exact: true })
     .first()
     .click();
+  await ensureSessionSetup(page);
   const select = page.getByRole("button", { name: "运行", exact: true });
   await expect(select).toContainText("E2E persisted");
   await expect(select.locator('[data-launch-icon="codex"] svg')).toBeVisible();

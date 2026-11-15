@@ -709,30 +709,43 @@ test("direct launch still offers explicit directory creation without registering
   workDir,
 }) => {
   const path = join(workDir, "new direct directory");
-  await page.goto("/");
-  await page
-    .getByRole("main")
-    .getByRole("button", { name: "＋ 新建会话", exact: true })
-    .first()
-    .click();
-  await useDirectory(page, path);
-  await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
-  await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toBeVisible();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "取消", exact: true })
-    .click();
-  await expect(access(path)).rejects.toThrow();
-  await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
-  await page
-    .getByRole("button", { name: "创建目录并启动", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
-  const sessions = await (await request.get("/api/sessions")).json();
-  expect(sessions).toHaveLength(1);
-  expect(sessions[0]).toMatchObject({ cwd: path, workspace: null });
-  expect(await (await request.get("/api/repositories")).json()).toEqual([]);
+  const isolated = await startE2EServer({ plugins: ["files", "launch"] });
+  try {
+    await page.goto(isolated.baseURL);
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: /^(＋ )?新建会话$/ })
+      .first()
+      .click();
+    await useDirectory(page, path);
+    await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
+    await page
+      .getByRole("button", { name: "创建并进入 →", exact: true })
+      .click();
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "取消", exact: true })
+      .click();
+    await expect(access(path)).rejects.toThrow();
+    await page
+      .getByRole("button", { name: "创建并进入 →", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "创建目录并启动", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
+    const sessions = await (
+      await request.get(isolated.apiURL + "/api/sessions")
+    ).json();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({ cwd: path, workspace: null });
+    expect(
+      (await request.get(isolated.apiURL + "/api/repositories")).status(),
+    ).toBe(404);
+  } finally {
+    await isolated.close();
+  }
 });
 
 test("batch worktree management cleans unpinned and prunable worktrees while skipping blocked ones and keeping branches", async ({

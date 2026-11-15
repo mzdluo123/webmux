@@ -38,7 +38,7 @@
 - [chat-sidebar](../openspec/specs/chat-sidebar/spec.md)：聊天模式侧栏中的聊天历史
 - [workbench-navigation](../openspec/specs/workbench-navigation/spec.md)：工作台侧栏的“仓库 → worktree → 会话”导航树
 - [quick-start-chat](../openspec/specs/quick-start-chat/spec.md)：一次发送即在新 worktree 中启动聊天会话
-- [new-session-dialog](../openspec/specs/new-session-dialog/spec.md)：汇总式单页的新建会话对话框
+- [new-session-dialog](../openspec/specs/new-session-dialog/spec.md)：项目优先创建与直接目录兼容契约
 - [workspace-return-cache](../openspec/specs/workspace-return-cache/spec.md)：返回首页时先显示缓存列表再后台刷新
 
 ## Shell 工具（`webmux` 命令）

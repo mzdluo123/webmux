@@ -4,21 +4,41 @@
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import * as Command from "$lib/components/ui/command";
+  import {
+    pluginAvailable,
+    requestPluginHostRefresh,
+  } from "../../platform/plugin-host.svelte";
+  import { errorMessage } from "../../platform/error";
   import type { ProjectSources } from "../../hooks/workspace/project-sources.svelte";
+  import { suggestProjectClonePath } from "../../domains/workspace/project-clone-path";
   import ProjectDirectoryField from "./ProjectDirectoryField.svelte";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
   let {
     controller,
+    parent,
     query = $bindable(""),
     url = $bindable(""),
     path = $bindable(""),
   }: {
     controller: ProjectSources;
+    parent: string;
     query: string;
     url: string;
     path: string;
   } = $props();
+  const available = $derived(pluginAvailable("workspace.github"));
+  let refreshError = $state("");
+  async function retry() {
+    refreshError = "";
+    try {
+      if (available) await controller.searchGitHub(query);
+      else await requestPluginHostRefresh();
+    } catch (error) {
+      refreshError = errorMessage(error);
+    }
+  }
   $effect(() => {
+    if (!available) return;
     const search = query;
     const timer = setTimeout(() => void controller.searchGitHub(search), 250);
     return () => clearTimeout(timer);
@@ -35,10 +55,17 @@
       bind:value={query}
       aria-label="搜索 GitHub 仓库"
       placeholder="搜索 owner/name…"
-      {disabled}
+      disabled={disabled || !available}
     />
     <Command.List>
-      {#if controller.githubLoading}<p
+      {#if !available}<p
+          role="status"
+          class="p-3 text-sm text-muted-foreground"
+        >
+          GitHub 来源暂不可用。请检查服务端 gh（2.88+）、登录、Git
+          与克隆存储；安装或配置工具后重启服务再重试。
+        </p>
+      {:else if controller.githubLoading}<p
           role="status"
           class="p-3 text-sm text-muted-foreground"
         >
@@ -51,7 +78,10 @@
             value={repo.fullName}
             {disabled}
             data-checked={url === repo.cloneUrl}
-            onSelect={() => (url = repo.cloneUrl)}
+            onSelect={() => {
+              url = repo.cloneUrl;
+              if (!path.trim()) path = suggestProjectClonePath(parent, url);
+            }}
           >
             <ChoiceDetails
               primary={repo.fullName}
@@ -75,9 +105,9 @@
       variant="outline"
       size="sm"
       disabled={controller.githubLoading || disabled}
-      onclick={() => controller.searchGitHub(query)}>刷新仓库</Button
+      onclick={retry}>{available ? "刷新仓库" : "重新检查"}</Button
     >
-    {#if controller.github?.available}
+    {#if available && controller.github?.available}
       <Button
         variant="ghost"
         size="icon-sm"
@@ -104,18 +134,28 @@
       >
     {/if}
   </div>
+  {#if refreshError}<p
+      role="alert"
+      class="break-words text-sm text-destructive"
+    >
+      {refreshError}
+    </p>{/if}
   {#if url}<p class="break-all text-sm" title={url}>{url}</p>{/if}
   <ProjectDirectoryField
     id="github-clone-path"
     label="克隆到新目录"
     bind:value={path}
-    {disabled}
+    disabled={disabled || !available}
   />
   <p class="text-sm text-muted-foreground">
     目标必须尚不存在；克隆期间可关闭弹窗，重新打开后继续查看。
   </p>
   <Button
-    disabled={disabled || !url || !path || !controller.github?.available}
+    disabled={disabled ||
+      !available ||
+      !url ||
+      !path ||
+      !controller.github?.available}
     onclick={() => controller.clone(url, path, "github")}>克隆并继续</Button
   >
 </div>

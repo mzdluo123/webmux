@@ -1,3 +1,5 @@
+import { mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   expect,
@@ -103,6 +105,7 @@ for (const width of [1280, 1920]) {
   test(`TV remote creates, sends once, releases capture and reconnects at ${width}`, async ({
     page,
     request,
+    workDir,
   }, info) => {
     test.skip(!!info.project.use.isMobile, "TV large-screen remote workflow");
     await page.setViewportSize({ width, height: width === 1280 ? 720 : 1080 });
@@ -135,6 +138,19 @@ for (const width of [1280, 1920]) {
       ).ok(),
     ).toBe(true);
     const reconnect = await holdTerminalReattach(page);
+    const stalePath = join(workDir, "000-closed-project");
+    await mkdir(stalePath);
+    expect(
+      (
+        await request.post("/api/projects", { data: { path: stalePath } })
+      ).status(),
+    ).toBe(201);
+    await rm(stalePath, { recursive: true });
+    expect(
+      (
+        await request.post("/api/projects", { data: { path: workDir } })
+      ).status(),
+    ).toBe(201);
     await page.goto("/");
     await expect(page.locator("html")).toHaveAttribute("data-ui-mode", "tv");
     const create = page
@@ -143,6 +159,21 @@ for (const width of [1280, 1920]) {
       .first();
     await select(page, create);
     await expect(page.getByRole("dialog")).toBeVisible();
+    const projects = page.getByRole("combobox", {
+      name: "搜索项目",
+      exact: true,
+    });
+    await remoteTo(page, projects);
+    await expect(
+      page.locator('[role="option"]:not([aria-disabled="true"])').first(),
+    ).toBeVisible();
+    await page.keyboard.press("ArrowDown");
+    await expect(page.getByRole("option", { selected: true })).toBeEnabled();
+    await page.keyboard.press("Enter");
+    await expect(projects).toBeHidden();
+    await expect(
+      page.getByRole("button", { name: "运行", exact: true }),
+    ).toBeFocused();
     await select(
       page,
       page.getByRole("button", { name: "创建并进入 →", exact: true }),

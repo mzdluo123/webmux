@@ -38,6 +38,7 @@
     repositoryId = $bindable(),
     worktreeId = $bindable(),
     disabled = false,
+    projectScoped = false,
   }: CreationLocationProps = $props();
   const providers = getPluginContributions().creation;
   let open = $state(false);
@@ -62,8 +63,10 @@
       : trees;
   }
   const ordered = $derived(
-    scope
-      ? repositories.filter((repo) => repo.id === scope.repositoryId)
+    scope || projectScoped
+      ? repositories.filter(
+          (repo) => repo.id === (scope?.repositoryId ?? repositoryId),
+        )
       : [
           ...repositories.filter((repo) => repo.id === preferredRepositoryId),
           ...repositories.filter((repo) => repo.id !== preferredRepositoryId),
@@ -102,7 +105,10 @@
 </script>
 
 {#snippet treeGroup(repo: Repository)}
-  <Command.Group heading={repo.name} value="repo:{repo.id}">
+  <Command.Group
+    heading={projectScoped ? "项目工作区" : repo.name}
+    value="repo:{repo.id}"
+  >
     {#each scopedTrees(repo) as tree (tree.id)}
       <Command.Item
         value="tree:{repo.id}:{tree.id}"
@@ -153,7 +159,7 @@
 {/snippet}
 
 <div class="space-y-2">
-  <Label for="session-location">位置</Label>
+  <Label for="session-location">{projectScoped ? "工作位置" : "位置"}</Label>
   <PickerField id="session-location" bind:open={() => open, setOpen} {disabled}>
     {#snippet trigger()}
       {#if kind === "directory"}
@@ -161,14 +167,17 @@
           class="size-4 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
-        <ChoiceDetails primary="直接目录" />
+        <ChoiceDetails
+          primary="直接目录"
+          secondary={projectScoped ? cwd : ""}
+        />
       {:else if kind === "new-worktree"}
         <IconCirclePlus
           class="size-4 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
         <ChoiceDetails
-          primary={repository
+          primary={repository && !projectScoped
             ? `新建工作树 · ${repository.name}`
             : "新建工作树"}
           secondary={newWorktreeSummary}
@@ -180,7 +189,7 @@
         />
         {#if worktree}
           <ChoiceDetails
-            primary={`${repository?.name ?? ""} · ${worktreeLabel(worktree)}`}
+            primary={`${projectScoped ? "" : (repository?.name ?? "") + " · "}${worktreeLabel(worktree)}`}
             secondary={worktree.path}
           />
         {:else}
@@ -208,7 +217,7 @@
         {#if ordered[0]?.id === preferredRepositoryId}
           {@render treeGroup(ordered[0])}
         {/if}
-        {#if recent.length && !scope}
+        {#if recent.length && !scope && !projectScoped}
           <Command.Group heading="最近目录" value="recent">
             {#each recent as dir (dir)}
               <Command.Item
@@ -226,7 +235,7 @@
         {#each ordered.filter((repo) => repo.id !== preferredRepositoryId) as repo (repo.id)}
           {@render treeGroup(repo)}
         {/each}
-        {#if !scope}
+        {#if !scope && !projectScoped}
           <Command.Group heading="其他" value="other">
             <Command.Item
               value="action:directory"
@@ -241,7 +250,7 @@
       </Command.List>
     </Command.Root>
   </PickerField>
-  {#if kind === "directory"}
+  {#if kind === "directory" && !projectScoped}
     <DirectoryInput
       bind:ref={cwdInput}
       bind:value={cwd}

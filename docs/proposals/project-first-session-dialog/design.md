@@ -1,6 +1,6 @@
 ## Context
 
-动机和范围见 [proposal](proposal.md)。最新 main（995d27d3，含插件化 #615）的 `components/sessions/NewSessionDialog.svelte` 同时承载位置、工作树创建、运行方式和首条消息；`components/workspace/LocationPicker` 列举各仓库工作树而非项目。
+动机和范围见 [proposal](proposal.md)。制定方案时的 main（995d27d3，含插件化 #615）的 `components/sessions/NewSessionDialog.svelte` 同时承载位置、工作树创建、运行方式和首条消息；`components/workspace/LocationPicker` 列举各仓库工作树而非项目。
 `AddRepositoryDialog` 只登记现有 Git 仓库，普通文件夹通过 `cwd` 启动；没有克隆及 GitHub 仓库发现接口。不能仅改标题就声称四种来源已经可用。
 
 参考 T3 Code 的 [项目来源列表](https://github.com/pingdotgg/t3code/blob/main/apps/web/src/components/CommandPalette.tsx) 和 [项目结果行](https://github.com/pingdotgg/t3code/blob/main/apps/web/src/components/CommandPaletteProjectItems.tsx)。
@@ -16,7 +16,7 @@
 
 ### 1. 使用同一个可返回的弹窗
 
-采用现有 `ResponsiveDialog` + `Command`，桌面最大宽度约 640px，手机抽屉固定标题、正文内部滚动。标题行只有返回、当前标题和关闭。
+采用现有 `ResponsiveDialog` + `Command`，桌面沿用 WebMux 新建会话的 768px 宽度上限，手机抽屉固定标题、正文内部滚动。标题行只有返回、当前标题和关闭。
 不增加嵌套来源弹窗，也不使用大卡片或多层 Tab；列表适合搜索与键盘，且窄屏空间更稳定。
 页面状态为「选择项目」「添加来源」「来源详情」「会话设置」；来源详情的目录浏览复用现有选择器模式，但通过 workspace 自己的创建贡献提供，不要求 files 插件启用。
 workspace 项目能力可用时全局新建先选项目；项目/工作树/分屏的明确上下文直接进入会话设置，普通会话允许通过项目行返回改选，受限入口保留其范围。

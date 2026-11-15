@@ -71,7 +71,7 @@ export function createProjectSources(
     pending = next;
     store(pendingKey, next ? JSON.stringify(next) : null);
   }
-  async function select(project: Project) {
+  async function select(project: Project, openedPath?: string) {
     if (busy || disposed || project.availability !== "available") return;
     stopObserving();
     busy = true;
@@ -89,7 +89,7 @@ export function createProjectSources(
       if (!disposed) {
         remember(null);
         operation = null;
-        onselect({ project, repository });
+        onselect({ project, repository, openedPath });
       }
     } catch (err) {
       if (!disposed) error = errorMessage(err);
@@ -241,7 +241,7 @@ export function createProjectSources(
       } finally {
         if (!disposed) busy = false;
       }
-      if (project && !disposed) await select(project);
+      if (project && !disposed) await select(project, path);
     },
     async create(parent: string, name: string, initializeGit: boolean) {
       if (busy) return;
