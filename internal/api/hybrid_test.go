@@ -289,8 +289,8 @@ func TestForceRemoveWorktreeKeepsHybridRecords(t *testing.T) {
 // A single explicit selection governs validation, projections and creation.
 func TestExplicitAgentRegistry(t *testing.T) {
 	for _, tt := range []struct {
-		name string
-		registry *agentprofile.Registry
+		name      string
+		registry  *agentprofile.Registry
 		supported bool
 	}{
 		{name: "nil"},
