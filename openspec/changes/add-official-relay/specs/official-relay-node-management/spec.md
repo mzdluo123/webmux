@@ -13,6 +13,8 @@
 节点非秘密配置 SHALL 由受限管理员通过 CLI/API 提交控制面校验并事务性存入 PostgreSQL，MUST NOT 以直接 SQL 或普通用户权限管理。
 节点引导配置 SHALL 仅含控制地址、稳定 nodeId、预置身份私钥、匹配的节点 CA 签发客户端证书链与初始信任。运营者 SHALL 在首次连接前签发并预置该证书链，不经需要 mTLS 的秘密接口领取引导证书。
 控制面 SHALL 使用部署配置的受信节点 CA 验证客户端证书链，并匹配管理员预登记到该 nodeId 的身份 SPKI pin；身份验证材料及轮换代际 SHALL 持久化，不得从首次连接、请求中的 nodeId 或未认证通道学习身份。
+节点证书有效期 SHALL 由部署 CA 策略显式限定，部署监控 SHALL 在到期前告警；首版由运营者同密钥续签、经受限部署渠道替换证书链并显式重启节点，不提供自动签发或身份热重载。
+同密钥续签 SHALL 保持 nodeId、SPKI pin 与身份代际不变；换密钥 SHALL 先登记新 pin/代际再切换部署材料。新 TLS 握手 MUST 拒绝过期证书，续签重启 MUST 重新完成配置、秘密及授权同步，不声称连接无损。
 其余监听、公网地址、中继端口、能力和策略 SHALL 由控制面集中管理。控制面 SHALL 通过 mTLS 按节点推送单调版本的完整快照；节点 SHALL 校验 nodeId、内容摘要、版本、能力和字段，再应用或拒绝，重连 SHALL 全量同步。
 低版本、错节点或同版本不同摘要 SHALL 被拒绝；同版本同摘要 SHALL 允许幂等重同步和确认，MUST NOT 重复重启。节点 SHALL 分别报告 desired/applied 版本、实际状态及失败原因，不以送达确认冒充应用。
 热变更 SHALL 在校验成功后应用；影响运行服务的破坏性变更 SHALL 保留当前有效配置并报告 pending-restart，只有管理员通过 CLI 显式批准精确版本及重启对象后才执行。新版本 MUST NOT 继承旧批准。
@@ -121,7 +123,8 @@ TURN 密钥版本 SHALL 与配置版本协调；只有目标 coturn 确认相应
 
 ### Requirement: 按能力监督的同镜像进程部署
 
-数据面镜像 SHALL 包含 `webmux-relay`、固定版本 coturn 及其运行库；Docker 部署 SHALL 使用 `--init` 提供 PID 1 进程管理器，不在镜像重复打包 Tini。管理代理 SHALL 按能力分别监督进程、回收子进程、传递终止信号并有界退出。
+数据面镜像 SHALL 包含 `webmux-relay`、固定版本 coturn 及其运行库；Docker 部署 SHALL 使用 `--init` 提供 PID 1 信号转发与孤儿回收，不在镜像重复打包 Tini。
+管理代理 SHALL 负责直接启动的 coturn 的等待回收、按能力重启、显式停止及有界退出；Docker 运行时 SHALL 配置并执行容器停止宽限及超时强杀，不将重启策略或宽限执行归给 Tini。
 coturn SHALL 为独立程序，MUST NOT 通过 CGo 链接进 Go 或自研替代协议。
 适用能力 SHALL 分别报告 readiness/liveness 并有独立资源预算；未启用能力不得作为故障探针。TURN 失败 SHALL 降级并保留健康 WSS，MUST NOT 因聚合健康失败反复重启正常基线。
 配置变更 SHALL 明确所需重启对象：控制面、Relay 管理/WSS 进程或 coturn。TURN-only 配置变更 MUST NOT 重启健康 WSS；整容器升级会中断其运行进程，部署 SHALL 说明共享 CPU/内存/OOM 故障域及同镜像版本发布/回滚。
@@ -131,7 +134,7 @@ Go 程序 SHALL 保持 `CGO_ENABLED=0`；镜像 SHALL 包含 coturn 运行库并
 #### Scenario: coturn 崩溃但 WSS 正常
 
 - **WHEN** 双能力容器的 coturn 子进程退出而 `webmux-relay` 健康
-- **THEN** 监督器回收并按策略重启 coturn，TURN 降级而 WSS 继续服务，不因单一 TURN 探针失败重启容器
+- **THEN** 管理代理等待回收并按策略重启 coturn，TURN 降级而 WSS 继续服务，不因单一 TURN 探针失败重启容器
 
 #### Scenario: 数据面容器停止与重新部署
 
