@@ -272,6 +272,14 @@ Relay SHALL 配置受信 TURN 节点、区域标签、允许的标准 ICE URL/�
 
 浏览器 SHALL 通过已认证的同源宿主接口申请配置；宿主 SHALL 在密钥认证 control 通道中申请。Relay SHALL 校验账号、host ID、绑定/连接器代际、当前浏览器会话与邀请状态，为两端分别签发带明确到期时间的短期凭据。响应 SHALL 禁缓存，刷新 SHALL 重验授权，不得公开匿名 ICE 凭据接口。
 
+TURN 节点 SHALL 强制标准 TURN 身份认证并关闭匿名/免认证中继；未携带凭据、凭据错误或过期的请求 MUST NOT 创建 allocation。允许公开 STUN Binding 探测 MUST NOT 被解释为允许匿名 TURN 转发。
+
+凭据签发与刷新 SHALL 要求有效 GitHub 登录所派生的所有者宿主会话；仅有已配对宿主密钥或公开节点地址 MUST NOT 领取通用中继凭据。每份凭据 SHALL 在服务端关联账号、浏览器会话、host ID、代际与端点角色，不将账号身份原值暴露在公开诊断中。
+
+签发限频及 allocation/流量配额 SHALL 按稳定账号聚合，覆盖同账号的所有短期用户名和两端角色；MUST NOT 只按短期用户名计数而允许重复领取绕过总额。节点侧或受信配额组件 SHALL 强制资源限制，不能仅靠前端或停止签发约束已有凭据。
+
+短期凭据 SHALL 被视为持有者凭证，泄露后在剩余有效期内可能被盗用；部署 SHALL 通过短 TTL、allocation 生命周期及强制总配额限制风险，MUST NOT 声称 GitHub 注销会即时清除所有 TURN 资源。
+
 TURN 凭据 SHALL 仅授权受限网络资源，MUST NOT 作为 WebMux 登录凭据。节点 SHALL 对 allocation 生命周期、并发、带宽和账号/节点总预算实施限制，禁止向回环、私网、链路本地及云元数据地址滥用转发；部署验收 SHALL 验证 ACL 和双端连通性。
 
 撤销后 SHALL 停止签发及刷新并通知宿主关闭关联业务连接；MUST NOT 把凭据到期说成已立即终止现有 allocation。短期凭据及认证材料 MUST NOT 进入日志、诊断或浏览器持久化。
@@ -290,6 +298,21 @@ TURN 凭据 SHALL 仅授权受限网络资源，MUST NOT 作为 WebMux 登录凭
 
 - **WHEN** TURN 未配置、全部失效或超出配额
 - **THEN** 控制面网页、所有者跳转和内置 WSS 仍可工作，返回明确的优化不可用状态，不将整个 Relay 标为不可用
+
+#### Scenario: 绕过网页直接请求 TURN
+
+- **WHEN** 未登录用户直接向 TURN 节点发送匿名、伪造或过期凭据的 Allocate 请求
+- **THEN** 节点拒绝创建 allocation，不转发业务流量；STUN 探测成功也不授予中继权限
+
+#### Scenario: 仅凭宿主密钥申请 TURN
+
+- **WHEN** 已配对宿主在没有有效所有者浏览器会话的情况下申请中继凭据
+- **THEN** 控制面拒绝签发或刷新，不把设备身份替代用户登录授权
+
+#### Scenario: 更换短期用户名绕过配额
+
+- **WHEN** 同账号通过多个会话或重复签发取得不同短期用户名，累计资源达到账号总限额
+- **THEN** 节点或受信配额组件拒绝额外资源，不因用户名变化重置账号预算
 
 ### Requirement: TURN 部署与性能声明边界
 

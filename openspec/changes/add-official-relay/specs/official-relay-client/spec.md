@@ -230,6 +230,8 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 浏览器 SHALL 经已认证的同源宿主接口获取 ICE 配置，宿主 SHALL 经密钥认证 control 通道申请两端独立的短期 TURN 凭据。配置 SHALL 绑定当前账号、host ID、绑定/连接器代际及浏览器会话，包含明确到期时间，仅留内存且响应禁缓存。
 
+两端凭据申请 SHALL 以当前有效 GitHub 登录所派生的所有者宿主会话为前提；仅有宿主密钥不得领取中继凭据。客户端 SHALL 使用标准 TURN 认证，不依赖匿名 allocation；短期凭据只用于该会话协商的路径，不提供可复制的通用代理配置。
+
 宿主 SHALL 将 PeerConnection、协商的 SDP/DTLS 指纹与单次建链授权绑定到该浏览器会话，验证后才放行业务。TURN 凭据 MUST NOT 替代宿主认证，MUST NOT 允许仅持有 ICE 配置的客户端访问终端或任意回源。
 
 凭据刷新 SHALL 重新验证授权；过期或失败时不得继续建立或续期 allocation。长期共享密钥 MUST NOT 下发两端；短期凭据 MUST NOT 进入日志、诊断、URL、浏览器持久化或公开状态。
@@ -238,6 +240,11 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 - **WHEN** 浏览器无有效宿主会话，或请求其他账号/代际的 ICE 配置
 - **THEN** 请求被拒绝，不签发凭据，不改变现有连接
+
+#### Scenario: 配对后尚无用户登录
+
+- **WHEN** 宿主已配对且 control 在线，但没有有效所有者浏览器会话
+- **THEN** WSS 基础服务保持就绪，宿主不能仅凭设备身份获取 TURN 凭据
 
 #### Scenario: TURN 凭据过期或刷新失败
 
