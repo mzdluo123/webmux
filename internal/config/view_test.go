@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -14,6 +15,9 @@ func TestDiagnosticFieldsCoverConfiguration(t *testing.T) {
 		for i := 0; i < typ.NumField(); i++ {
 			f := typ.Field(i)
 			key := f.Tag.Get("toml")
+			if key == "" {
+				key = strings.ToLower(f.Name)
+			}
 			if key == "-" {
 				continue
 			}

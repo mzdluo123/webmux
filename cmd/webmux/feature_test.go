@@ -41,9 +41,36 @@ func TestCoreOnlyServeDoesNotInitializeFeatureState(t *testing.T) {
 		t.Fatalf("capabilities: HTTP %d version %d", response.StatusCode, snapshot.Version)
 	}
 	for _, feature := range snapshot.Features {
+		if feature.ID == "relay" {
+			t.Fatal("core Relay must not be a selectable feature")
+		}
 		if feature.Enabled || feature.Status != contract.FeatureStatusDisabled {
 			t.Fatalf("core-only instance initialized feature %+v", feature)
 		}
+	}
+	for _, id := range []string{"p2p.direct", "relay.hybrid"} {
+		found := false
+		for _, capability := range snapshot.Capabilities {
+			if capability.ID != id {
+				continue
+			}
+			found = true
+			if capability.Available || capability.Reason != contract.CapabilityReasonFeatureDisabled {
+				t.Fatalf("disabled P2P capability: %+v", capability)
+			}
+		}
+		if !found {
+			t.Fatalf("missing capability %s", id)
+		}
+	}
+	response = request("/api/relay")
+	var relay contract.RelayStatus
+	if err := json.NewDecoder(response.Body).Decode(&relay); err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK || relay.Transport != "wss" || relay.HybridSupported || relay.HybridUnavailableReason != "p2p-feature-unavailable" {
+		t.Fatalf("core Relay without P2P: HTTP %d %+v", response.StatusCode, relay)
 	}
 	for _, path := range []string{"/api/projects", "/api/projects/directories", "/api/repositories", "/api/launch-configs", "/api/fs/dirs", "/ws/voice"} {
 		response := request(path)

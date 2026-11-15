@@ -33,6 +33,13 @@ type peerEntry struct {
 	createdAt time.Time
 	lastSeen  atomic.Int64
 	channels  atomic.Int32
+	owner     *OwnerAuthorization
+	done      chan struct{}
+	closeOnce sync.Once
+	workMu    sync.Mutex
+	closing   bool
+	workers   sync.WaitGroup
+	onClosed  func()
 
 	mu            sync.Mutex
 	candidateType string
@@ -61,26 +68,31 @@ func (p *peerEntry) decChannel() {
 	p.channels.Add(-1)
 }
 
-func (p *peerEntry) selectedCandidateMeta() (string, string) {
-	p.mu.Lock()
-	ct, ipf := p.candidateType, p.ipFamily
-	p.mu.Unlock()
-	if ct != "" {
-		return ct, ipf
+func (p *peerEntry) startWork() bool {
+	p.workMu.Lock()
+	defer p.workMu.Unlock()
+	if p.closing || p.ctx.Err() != nil {
+		return false
 	}
-	sctp := p.pc.SCTP()
-	if sctp == nil || sctp.Transport() == nil || sctp.Transport().ICETransport() == nil {
-		return "", ""
-	}
-	pair, err := sctp.Transport().ICETransport().GetSelectedCandidatePair()
-	if err != nil || pair == nil || pair.Local == nil || pair.Remote == nil {
-		return "", ""
-	}
-	fam := "ipv4"
-	if strings.Contains(pair.Remote.Address, ":") {
-		fam = "ipv6"
-	}
-	return pair.Local.Typ.String() + "/" + pair.Remote.Typ.String(), fam
+	p.workers.Add(1)
+	return true
+}
+
+func (p *peerEntry) close() {
+	p.closeOnce.Do(func() {
+		p.workMu.Lock()
+		p.closing = true
+		p.cancel()
+		p.workMu.Unlock()
+		go func() {
+			_ = p.pc.Close()
+			p.workers.Wait()
+			close(p.done)
+			if p.onClosed != nil {
+				p.onClosed()
+			}
+		}()
+	})
 }
 
 // Service manages WebRTC PeerConnections, UDP port mapping, and stream/RPC
@@ -100,6 +112,7 @@ type Service struct {
 	cfg         Config
 	peers       map[string]*peerEntry
 	signalTimes []time.Time
+	peerWorkers sync.WaitGroup
 
 	udpMux   ice.UDPMux
 	udpConns []net.PacketConn
@@ -295,8 +308,8 @@ func (s *Service) Enabled() bool {
 	return !s.closed && s.cfg.Enabled
 }
 
-// Reconfigure updates the runtime P2P configuration. Turning P2P off
-// immediately closes active PeerConnections and releases any port mapping.
+// Reconfigure updates only independent local P2P behavior. Disabling it closes
+// local peers and port mappings, but leaves valid owner-authorized peers intact.
 func (s *Service) Reconfigure(next Config) {
 	s.mu.Lock()
 	if s.closed {
@@ -311,8 +324,10 @@ func (s *Service) Reconfigure(next Config) {
 	var toClose []*peerEntry
 	if !next.Enabled {
 		for id, p := range s.peers {
-			toClose = append(toClose, p)
-			delete(s.peers, id)
+			if p.owner == nil {
+				toClose = append(toClose, p)
+				delete(s.peers, id)
+			}
 		}
 	}
 	mapper := s.mapper
@@ -320,8 +335,7 @@ func (s *Service) Reconfigure(next Config) {
 	s.mu.Unlock()
 
 	for _, p := range toClose {
-		p.cancel()
-		_ = p.pc.Close()
+		p.close()
 	}
 	if mapper != nil {
 		mapper.SetEnabled(wantMap)
@@ -352,66 +366,15 @@ func (s *Service) Close() {
 		mapper.Close()
 	}
 	for _, p := range peers {
-		p.cancel()
-		_ = p.pc.Close()
+		p.close()
+		<-p.done
 	}
+	s.peerWorkers.Wait()
 	if udpMux != nil {
 		_ = udpMux.Close()
 	}
 	for _, c := range conns {
 		_ = c.Close()
-	}
-}
-
-// Status returns sanitized diagnostics for active peers and port mapping.
-func (s *Service) Status() Status {
-	pmStatus, _ := s.mapperStatus()
-	s.mu.Lock()
-	bindings := make([]UDPBinding, 0, len(s.udpConns))
-	if !s.closed {
-		for _, conn := range s.udpConns {
-			if addr, ok := conn.LocalAddr().(*net.UDPAddr); ok {
-				network := "udp6"
-				if addr.IP.To4() != nil {
-					network = "udp4"
-				}
-				bindings = append(bindings, UDPBinding{Network: network, Port: addr.Port})
-			}
-		}
-	}
-
-	entries := make([]*peerEntry, 0, len(s.peers))
-	for _, p := range s.peers {
-		entries = append(entries, p)
-	}
-	s.mu.Unlock()
-
-	peers := make([]PeerInfo, 0, len(entries))
-	for _, p := range entries {
-		ct, fam := p.selectedCandidateMeta()
-		p.mu.Lock()
-		rtt := p.rttMs
-		p.mu.Unlock()
-		peers = append(peers, PeerInfo{
-			ID:            p.id,
-			State:         p.pc.ConnectionState().String(),
-			CandidateType: ct,
-			IPFamily:      fam,
-			RTTMs:         rtt,
-			Channels:      int(max(0, p.channels.Load())),
-			CreatedAt:     p.createdAt.UTC().Format(time.RFC3339),
-		})
-	}
-	slices.SortFunc(peers, func(a, b PeerInfo) int {
-		return strings.Compare(a.ID, b.ID)
-	})
-	return Status{
-		Supported:   true,
-		UDPPort:     s.udpPortCfg,
-		UDPBindings: bindings,
-		PortMap:     pmStatus,
-		ActivePeers: len(peers),
-		Peers:       peers,
 	}
 }
 
@@ -438,8 +401,7 @@ func (s *Service) reapLoop(ctx context.Context) {
 			}
 			s.mu.Unlock()
 			for _, p := range stale {
-				p.cancel()
-				_ = p.pc.Close()
+				p.close()
 			}
 		}
 	}

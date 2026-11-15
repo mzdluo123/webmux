@@ -71,6 +71,64 @@ func TestStrictSnapshotsPreserveDocument(t *testing.T) {
 		})
 	}
 }
+
+func TestRelayVersionMigrationGate(t *testing.T) {
+	dir := t.TempDir()
+	d := Describe(Relay)
+	path := filepath.Join(dir, d.Path)
+	legacy := `{"v":1,"value":"identity"}`
+	if err := os.WriteFile(path, []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := ReadSnapshot[testDocument](dir, Relay, nil); err != nil || got.V != 1 || got.Value != "identity" {
+		t.Fatalf("legacy snapshot rejected: %+v %v", got, err)
+	}
+	h, got, err := Open[testDocument](dir, Relay, nil)
+	t.Cleanup(h.Close)
+	if err != nil || got.V != 1 || got.Value != "identity" {
+		t.Fatalf("legacy open rejected: %+v %v", got, err)
+	}
+	if err := h.Commit(got); !IsKind(err, UnsupportedVersion) {
+		t.Fatalf("legacy write was not rejected: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != legacy {
+		t.Fatalf("rejected legacy write changed evidence: %v", err)
+	}
+	got.V = 2
+	if err := h.Commit(got); err != nil {
+		t.Fatalf("migrated write rejected: %v", err)
+	}
+	h.Close()
+	reopened, got, err := Open[testDocument](dir, Relay, nil)
+	t.Cleanup(reopened.Close)
+	if err != nil || got.V != 2 || got.Value != "identity" {
+		t.Fatalf("migrated open rejected: %+v %v", got, err)
+	}
+	if got, err := ReadSnapshot[testDocument](dir, Relay, nil); err != nil || got.V != 2 || got.Value != "identity" {
+		t.Fatalf("migrated snapshot rejected: %+v %v", got, err)
+	}
+	reopened.Close()
+	for _, version := range []int{0, 3} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
+			document := fmt.Sprintf(`{"v":%d,"value":"identity"}`, version)
+			if err := os.WriteFile(path, []byte(document), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ReadSnapshot[testDocument](dir, Relay, nil); !IsKind(err, UnsupportedVersion) {
+				t.Fatalf("unsupported snapshot version accepted: %v", err)
+			}
+			blocked, _, err := Open[testDocument](dir, Relay, nil)
+			if !IsKind(err, UnsupportedVersion) {
+				t.Fatalf("unsupported open version accepted: %v", err)
+			}
+			defer blocked.Close()
+			if err := blocked.Commit(testDocument{2, "replacement"}); err == nil {
+				t.Fatal("unsupported identity could be overwritten")
+			}
+		})
+	}
+}
 func TestCommitPhases(t *testing.T) {
 	for _, uncertain := range []bool{false, true} {
 		t.Run(map[bool]string{false: "before-publication", true: "after-publication"}[uncertain], func(t *testing.T) {

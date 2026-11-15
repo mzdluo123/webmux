@@ -28,8 +28,16 @@ func (s *Service) Signal(ctx context.Context, in SignalInput) (SignalOutput, err
 		if in.PeerID == "" {
 			return SignalOutput{}, fmt.Errorf("%w: peerId is required", ErrInvalid)
 		}
-		s.removePeer(in.PeerID)
-		return SignalOutput{PeerID: in.PeerID, Candidates: []ICECandidate{}, STUNServers: s.stunServers()}, nil
+		s.mu.Lock()
+		entry := s.peers[in.PeerID]
+		if entry == nil || !entry.permits(in.Owner) {
+			s.mu.Unlock()
+			return SignalOutput{}, ErrPeerMissing
+		}
+		delete(s.peers, in.PeerID)
+		s.mu.Unlock()
+		entry.close()
+		return SignalOutput{PeerID: in.PeerID, Candidates: []ICECandidate{}, STUNServers: s.signalSTUNServers(in.Owner)}, nil
 	default:
 		return SignalOutput{}, fmt.Errorf("%w: unsupported action", ErrInvalid)
 	}
@@ -42,6 +50,13 @@ func (s *Service) stunServers() []string {
 		return []string{}
 	}
 	return slices.Clone(s.cfg.STUNServers)
+}
+
+func (s *Service) signalSTUNServers(owner *OwnerAuthorization) []string {
+	if owner != nil {
+		return []string{}
+	}
+	return s.stunServers()
 }
 
 func (s *Service) allowSignalLocked(now time.Time) bool {
@@ -64,10 +79,16 @@ func (s *Service) handleOffer(ctx context.Context, in SignalInput) (SignalOutput
 	if strings.TrimSpace(in.SDP) == "" || len(in.SDP) > 64*1024 {
 		return SignalOutput{}, fmt.Errorf("%w: invalid offer SDP", ErrInvalid)
 	}
+	if in.Owner != nil {
+		fingerprint, err := OfferFingerprint(in.SDP)
+		if !validOwner(in.Owner) || in.Owner.RegisterAccess == nil || err != nil || fingerprint != in.Owner.Fingerprint {
+			return SignalOutput{}, ErrInvalid
+		}
+	}
 
 	now := time.Now()
 	s.mu.Lock()
-	if s.closed || !s.cfg.Enabled {
+	if s.closed || (!s.cfg.Enabled && in.Owner == nil) {
 		s.mu.Unlock()
 		return SignalOutput{}, ErrDisabled
 	}
@@ -85,6 +106,18 @@ func (s *Service) handleOffer(ctx context.Context, in SignalInput) (SignalOutput
 	stuns := slices.Clone(s.cfg.STUNServers)
 	mappedIP := s.mappedIP
 	udpMux := s.udpMux
+	if in.Owner != nil {
+		// Owner ICE is isolated from manual STUN, UPnP rewrites and the local
+		// shared UDP mux. Only authenticated, per-peer discovery is applied.
+		stuns, mappedIP, udpMux = nil, "", nil
+		for _, peer := range s.peers {
+			if peer.owner != nil && peer.owner.OwnerID == in.Owner.OwnerID &&
+				peer.owner.PeerConnectionID == in.Owner.PeerConnectionID {
+				s.mu.Unlock()
+				return SignalOutput{}, ErrInvalid
+			}
+		}
+	}
 	s.mu.Unlock()
 
 	var se webrtc.SettingEngine
@@ -112,12 +145,35 @@ func (s *Service) handleOffer(ctx context.Context, in SignalInput) (SignalOutput
 	if len(stuns) > 0 {
 		iceServers = append(iceServers, webrtc.ICEServer{URLs: stuns})
 	}
+	if in.Owner != nil {
+		for _, server := range in.Owner.ICEServers {
+			iceServers = append(iceServers, webrtc.ICEServer{
+				URLs: slices.Clone(server.URLs), Username: server.Username,
+				Credential: server.Credential, CredentialType: webrtc.ICECredentialTypePassword,
+			})
+		}
+	}
 	pc, err := apiEngine.NewPeerConnection(webrtc.Configuration{ICEServers: iceServers})
 	if err != nil {
 		return SignalOutput{}, err
 	}
 
-	peerCtx, cancel := context.WithCancel(context.Background())
+	parentCtx := context.Background()
+	var owner *OwnerAuthorization
+	if in.Owner != nil {
+		copyOwner := *in.Owner
+		copyOwner.ICEServers = nil // Pion owns its configuration; don't retain another secret copy.
+		copyOwner.RegisterAccess = nil
+		owner = &copyOwner
+		parentCtx = owner.Context
+	}
+	var peerCtx context.Context
+	var cancel context.CancelFunc
+	if owner != nil {
+		peerCtx, cancel = context.WithDeadline(parentCtx, owner.ExpiresAt)
+	} else {
+		peerCtx, cancel = context.WithCancel(parentCtx)
+	}
 	id := randomPeerID()
 	entry := &peerEntry{
 		id:        id,
@@ -125,8 +181,35 @@ func (s *Service) handleOffer(ctx context.Context, in SignalInput) (SignalOutput
 		ctx:       peerCtx,
 		cancel:    cancel,
 		createdAt: now,
+		owner:     owner,
+		done:      make(chan struct{}),
 	}
 	entry.touch()
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		cancel()
+		_ = pc.Close()
+		return SignalOutput{}, ErrDisabled
+	}
+	s.peerWorkers.Add(1)
+	entry.onClosed = s.peerWorkers.Done
+	s.mu.Unlock()
+	if owner != nil {
+		release, err := in.Owner.RegisterAccess(func() { s.removePeerEntry(entry) }, entry.done)
+		if err != nil {
+			entry.close()
+			return SignalOutput{}, err
+		}
+		if release == nil {
+			entry.close()
+			return SignalOutput{}, ErrInvalid
+		}
+		go func() {
+			<-entry.done
+			release()
+		}()
+	}
 
 	gatherDone := make(chan struct{})
 	var gatherOnce sync.Once
@@ -149,12 +232,16 @@ func (s *Service) handleOffer(ctx context.Context, in SignalInput) (SignalOutput
 		entry.touch()
 		switch state {
 		case webrtc.PeerConnectionStateFailed, webrtc.PeerConnectionStateClosed:
-			s.removePeer(id)
+			s.removePeerEntry(entry)
 		}
 	})
 
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
 		entry.touch()
+		if entry.ctx.Err() != nil {
+			_ = dc.Close()
+			return
+		}
 		label := dc.Label()
 		switch {
 		case label == controlChannelLabel:
@@ -173,49 +260,76 @@ func (s *Service) handleOffer(ctx context.Context, in SignalInput) (SignalOutput
 		Type: webrtc.SDPTypeOffer,
 		SDP:  in.SDP,
 	}); err != nil {
-		cancel()
-		_ = pc.Close()
+		entry.close()
 		return SignalOutput{}, fmt.Errorf("%w: invalid remote offer", ErrInvalid)
 	}
 	for _, cand := range in.Candidates {
 		if cand.Candidate != "" {
-			_ = pc.AddICECandidate(webrtc.ICECandidateInit{
-				Candidate:     cand.Candidate,
-				SDPMid:        cand.SDPMid,
-				SDPMLineIndex: cand.SDPMLineIndex,
-			})
+			if err := pc.AddICECandidate(webrtc.ICECandidateInit{
+				Candidate: cand.Candidate, SDPMid: cand.SDPMid, SDPMLineIndex: cand.SDPMLineIndex,
+			}); err != nil {
+				entry.close()
+				return SignalOutput{}, fmt.Errorf("%w: invalid ICE candidate", ErrInvalid)
+			}
 		}
 	}
 
 	answer, err := pc.CreateAnswer(nil)
 	if err != nil {
-		cancel()
-		_ = pc.Close()
+		entry.close()
 		return SignalOutput{}, err
 	}
 	if err := pc.SetLocalDescription(answer); err != nil {
-		cancel()
-		_ = pc.Close()
+		entry.close()
 		return SignalOutput{}, err
 	}
 
 	s.mu.Lock()
-	if s.closed || !s.cfg.Enabled {
+	if err := entry.ctx.Err(); err != nil {
 		s.mu.Unlock()
-		cancel()
-		_ = pc.Close()
+		entry.close()
+		return SignalOutput{}, err
+	}
+	if owner != nil && !validOwner(owner) {
+		s.mu.Unlock()
+		entry.close()
+		return SignalOutput{}, context.DeadlineExceeded
+	}
+	if s.closed || (!s.cfg.Enabled && owner == nil) {
+		s.mu.Unlock()
+		entry.close()
 		return SignalOutput{}, ErrDisabled
+	}
+	if len(s.peers) >= s.maxPeers {
+		s.mu.Unlock()
+		entry.close()
+		return SignalOutput{}, ErrTooMany
+	}
+	for _, peer := range s.peers {
+		if owner != nil && peer.owner != nil && peer.owner.OwnerID == owner.OwnerID &&
+			peer.owner.PeerConnectionID == owner.PeerConnectionID {
+			s.mu.Unlock()
+			entry.close()
+			return SignalOutput{}, ErrInvalid
+		}
 	}
 	s.peers[id] = entry
 	s.mu.Unlock()
+	if owner != nil {
+		context.AfterFunc(entry.ctx, func() { s.removePeerEntry(entry) })
+	}
 
 	timer := time.NewTimer(gatherWaitTimeout)
 	select {
 	case <-gatherDone:
 	case <-timer.C:
+	case <-entry.ctx.Done():
+		timer.Stop()
+		s.removePeerEntry(entry)
+		return SignalOutput{}, entry.ctx.Err()
 	case <-ctx.Done():
 		timer.Stop()
-		s.removePeer(id)
+		s.removePeerEntry(entry)
 		return SignalOutput{}, ctx.Err()
 	}
 	timer.Stop()
@@ -250,7 +364,7 @@ func (s *Service) handleCandidate(in SignalInput) (SignalOutput, error) {
 	s.mu.Lock()
 	entry := s.peers[in.PeerID]
 	s.mu.Unlock()
-	if entry == nil {
+	if entry == nil || !entry.permits(in.Owner) {
 		return SignalOutput{}, ErrPeerMissing
 	}
 	entry.touch()
@@ -276,19 +390,17 @@ func (s *Service) handleCandidate(in SignalInput) (SignalOutput, error) {
 	return SignalOutput{
 		PeerID:      in.PeerID,
 		Candidates:  cands,
-		STUNServers: s.stunServers(),
+		STUNServers: s.signalSTUNServers(in.Owner),
 	}, nil
 }
 
-func (s *Service) removePeer(id string) {
+func (s *Service) removePeerEntry(entry *peerEntry) {
 	s.mu.Lock()
-	entry := s.peers[id]
-	delete(s.peers, id)
-	s.mu.Unlock()
-	if entry != nil {
-		entry.cancel()
-		_ = entry.pc.Close()
+	if s.peers[entry.id] == entry {
+		delete(s.peers, entry.id)
 	}
+	s.mu.Unlock()
+	entry.close()
 }
 
 func (s *Service) evictStaleOrOldestLocked(now time.Time) {
@@ -296,15 +408,13 @@ func (s *Service) evictStaleOrOldestLocked(now time.Time) {
 		st := p.pc.ConnectionState()
 		if st == webrtc.PeerConnectionStateDisconnected || st == webrtc.PeerConnectionStateFailed || st == webrtc.PeerConnectionStateClosed {
 			delete(s.peers, id)
-			p.cancel()
-			go func(pc *webrtc.PeerConnection) { _ = pc.Close() }(p.pc)
+			p.close()
 			return
 		}
 		last := time.Unix(0, p.lastSeen.Load())
 		if now.Sub(last) > s.idleTimeout {
 			delete(s.peers, id)
-			p.cancel()
-			go func(pc *webrtc.PeerConnection) { _ = pc.Close() }(p.pc)
+			p.close()
 			return
 		}
 	}

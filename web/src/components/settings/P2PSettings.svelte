@@ -6,12 +6,11 @@
   import { Switch } from "$lib/components/ui/switch";
   import { Textarea } from "$lib/components/ui/textarea";
   import { useP2PSettings } from "../../hooks/settings/p2p-settings.svelte";
-  import {
-    p2pState,
-    runP2PEchoABTest,
-    type P2PPhase,
-  } from "../../platform/p2p.svelte";
+  import { p2pState, type P2PPhase } from "../../platform/p2p-state.svelte";
+  import { runP2PEchoABTest } from "../../platform/p2p.svelte";
   import InlineNotice from "../shared/InlineNotice.svelte";
+  import { relayAuth } from "../../platform/relay-auth.svelte";
+  import { relayDiagnostic } from "../../domains/settings/relay-diagnostics";
 
   const p2p = useP2PSettings();
   const ui = p2p.ui;
@@ -105,13 +104,19 @@
       case "probing":
         return m.s2_p2p_phase_probing();
       case "negotiating":
-        return m.s2_p2p_phase_negotiating();
+        return relayAuth.authenticated
+          ? m.relay_p2p_negotiating()
+          : m.s2_p2p_phase_negotiating();
       case "connected":
-        return m.s2_p2p_phase_connected();
+        return relayAuth.authenticated
+          ? m.relay_p2p_connected()
+          : m.s2_p2p_phase_connected();
       case "rejected_relay":
         return m.s2_p2p_phase_rejected_relay();
       case "direct_failed":
-        return m.s2_p2p_phase_direct_failed();
+        return relayAuth.authenticated
+          ? m.relay_p2p_failed()
+          : m.s2_p2p_phase_direct_failed();
       case "standby_hysteresis":
         return m.s2_p2p_phase_standby();
       case "fallback":
@@ -149,7 +154,11 @@
     <div class="space-y-1">
       <h3 class="text-base font-medium">{m.s2_p2p_title()}</h3>
       <p class="text-xs text-muted-foreground">
-        {m.s2_p2p_desc()}
+        {#if relayAuth.authenticated}
+          {m.relay_p2p_description()}
+        {:else}
+          {m.s2_p2p_desc()}
+        {/if}
       </p>
     </div>
     {#if status}
@@ -187,6 +196,7 @@
       </div>
       <p id="p2p-enabled-help" class="text-xs text-muted-foreground">
         {m.s2_p2p_enable_help()}
+        {m.relay_p2p_switch_help()}
       </p>
     </div>
 
@@ -264,7 +274,9 @@
         <div class="flex flex-wrap items-center gap-2" role="status">
           <Badge variant={p2pState.mode === "p2p" ? "success" : "secondary"}>
             {p2pState.mode === "p2p"
-              ? m.s2_p2p_mode_direct()
+              ? relayAuth.authenticated
+                ? m.relay_p2p_candidate_ready()
+                : m.s2_p2p_mode_direct()
               : m.s2_p2p_mode_ws()}
           </Badge>
           <span class="text-xs text-muted-foreground"
@@ -279,6 +291,24 @@
           {p2pState.abTest.running ? m.s2_p2p_ab_running() : m.s2_p2p_ab_run()}
         </Button>
       </div>
+      {#if relayAuth.authenticated}
+        <p class="text-xs text-muted-foreground">
+          {m.relay_optimized_streams({
+            count: String(
+              p2pState.streams.reduce(
+                (count, stream) =>
+                  count +
+                  Number(
+                    stream.path === "webrtc-direct" ||
+                      stream.path === "webrtc-turn",
+                  ),
+                0,
+              ),
+            ),
+            reason: relayDiagnostic(p2pState.reason),
+          })}
+        </p>
+      {/if}
 
       <dl class="grid gap-x-6 gap-y-2 text-xs sm:grid-cols-3">
         <div>

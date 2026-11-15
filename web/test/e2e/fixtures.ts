@@ -465,6 +465,7 @@ export async function headerAction(page: Page, name: string) {
 export async function runCommand(page: Page, command: string) {
   const input = page.locator(".xterm-helper-textarea");
   await expect(page.locator(".restore-overlay")).toBeHidden();
+  await expect(input).toBeEditable();
   // Target the textarea after replay rather than relying on focus held across
   // the wait. Both locator actions focus it when dispatching real key events.
   await input.pressSequentially(command);

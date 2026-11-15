@@ -128,6 +128,7 @@ check: web format-check docs-check persistence-check
 	$(PNPM) --dir web lint
 	$(PNPM) --dir web check:arch
 	$(GO) vet $(GO_VET_FLAGS) ./...
+	cd protocol/relay && $(GO) vet ./...
 	$(MAKE) go-lint
 
 # Keep local checks on the same linter release as CI.
@@ -149,6 +150,7 @@ test-fast: frontend
 
 test-go:
 	$(GO) test -race -parallel=$(GO_TEST_PARALLEL) ./...
+	cd protocol/relay && $(GO) test -race -parallel=$(GO_TEST_PARALLEL) ./...
 
 test-frontend:
 	$(MAKE) --output-sync=target -j test-unit test-browser

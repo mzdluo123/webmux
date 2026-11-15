@@ -19,8 +19,9 @@ const (
 	streamChannelPrefix = "stream:"
 	rpcChannelPrefix    = "rpc:"
 
-	maxRPCBodyBytes = 128 * 1024 * 1024 // 128 MiB ceiling matching upload limits
-	rpcChunkBytes   = 32 * 1024
+	maxRPCBodyBytes      = 128 * 1024 * 1024 // 128 MiB ceiling matching upload limits
+	rpcChunkBytes        = 32 * 1024
+	maxOwnerRPCBodyBytes = 1024 * 1024
 )
 
 type controlEnvelope struct {
@@ -31,6 +32,7 @@ type controlEnvelope struct {
 	PeerID        string   `json:"peerId,omitempty"`
 	CandidateType string   `json:"candidateType,omitempty"`
 	IPFamily      string   `json:"ipFamily,omitempty"`
+	Transport     string   `json:"transport,omitempty"`
 	PortMapped    bool     `json:"portMapped,omitempty"`
 	Seq           int      `json:"seq,omitempty"`
 	ClientTs      int64    `json:"clientTs,omitempty"`
@@ -83,7 +85,19 @@ func (p *pionRawChannel) OnBufferedAmountLow(cb func()) {
 }
 
 func (s *Service) attachControlChannel(peer *peerEntry, dc *webrtc.DataChannel) {
+	if peer.owner != nil {
+		if !peer.tryIncChannel(s.maxChannels) {
+			_ = dc.Close()
+			return
+		}
+		var release sync.Once
+		dc.OnClose(func() { release.Do(peer.decChannel) })
+	}
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		if peer.ctx.Err() != nil || peer.owner != nil && len(msg.Data) > 4096 {
+			_ = dc.Close()
+			return
+		}
 		peer.touch()
 		var env controlEnvelope
 		if err := json.Unmarshal(msg.Data, &env); err != nil {
@@ -93,10 +107,10 @@ func (s *Service) attachControlChannel(peer *peerEntry, dc *webrtc.DataChannel) 
 		case "hello":
 			if env.Proto != 1 {
 				_ = dc.Close()
-				s.removePeer(peer.id)
+				s.removePeerEntry(peer)
 				return
 			}
-			candType, ipFamily := peer.selectedCandidateMeta()
+			candType, ipFamily, protocol, _ := peer.selectedDiagnostics()
 			pmStatus, _ := s.mapperStatus()
 			reply, err := encodeControlJSON(controlEnvelope{
 				Type:          "hello",
@@ -106,7 +120,8 @@ func (s *Service) attachControlChannel(peer *peerEntry, dc *webrtc.DataChannel) 
 				PeerID:        peer.id,
 				CandidateType: candType,
 				IPFamily:      ipFamily,
-				PortMapped:    pmStatus.State == "mapped",
+				Transport:     protocol,
+				PortMapped:    peer.owner == nil && pmStatus.State == "mapped",
 			})
 			if err == nil {
 				_ = dc.SendText(string(reply))
@@ -124,10 +139,10 @@ func (s *Service) attachControlChannel(peer *peerEntry, dc *webrtc.DataChannel) 
 
 		case "peer_meta":
 			peer.mu.Lock()
-			if env.CandidateType != "" {
+			if peer.owner == nil && env.CandidateType != "" {
 				peer.candidateType = sanitizeToken(env.CandidateType, 24)
 			}
-			if env.IPFamily == "ipv4" || env.IPFamily == "ipv6" {
+			if peer.owner == nil && (env.IPFamily == "ipv4" || env.IPFamily == "ipv6") {
 				peer.ipFamily = env.IPFamily
 			}
 			if env.RTTMs != nil && *env.RTTMs >= 0 && *env.RTTMs <= 60000 {
@@ -153,7 +168,7 @@ func sanitizeToken(raw string, maxLen int) string {
 }
 
 func (s *Service) attachStreamChannel(peer *peerEntry, path string, dc *webrtc.DataChannel) {
-	if s.streamHandler == nil {
+	if s.streamHandler == nil || peer.ctx.Err() != nil || peer.owner != nil && !ownerStreamAllowed(path) {
 		_ = dc.Close()
 		return
 	}
@@ -178,7 +193,14 @@ func (s *Service) attachStreamChannel(peer *peerEntry, path string, dc *webrtc.D
 		fc.HandlePeerClose()
 	})
 	dc.OnOpen(func() {
+		if !peer.startWork() {
+			_ = fc.CloseNow()
+			return
+		}
 		go func() {
+			defer peer.workers.Done()
+			stop := context.AfterFunc(peer.ctx, func() { _ = fc.CloseNow() })
+			defer stop()
 			defer func() { _ = fc.CloseNow() }()
 			s.streamHandler(peer.ctx, path, fc)
 		}()
@@ -186,7 +208,7 @@ func (s *Service) attachStreamChannel(peer *peerEntry, path string, dc *webrtc.D
 }
 
 func (s *Service) attachRPCChannel(peer *peerEntry, dc *webrtc.DataChannel) {
-	if s.rpcHandler == nil {
+	if s.rpcHandler == nil || peer.ctx.Err() != nil {
 		_ = dc.Close()
 		return
 	}
@@ -203,6 +225,10 @@ func (s *Service) attachRPCChannel(peer *peerEntry, dc *webrtc.DataChannel) {
 	}
 
 	ctx, cancel := context.WithCancel(peer.ctx)
+	bodyLimit := maxRPCBodyBytes
+	if peer.owner != nil {
+		bodyLimit = maxOwnerRPCBodyBytes
+	}
 	var mu sync.Mutex
 	var header *rpcRequestWire
 	var bodyBuf []byte
@@ -226,8 +252,12 @@ func (s *Service) attachRPCChannel(peer *peerEntry, dc *webrtc.DataChannel) {
 	})
 
 	dispatch := func(req rpcRequestWire, body []byte) {
+		defer peer.workers.Done()
 		defer release()
 		defer cancel()
+		if ctx.Err() != nil {
+			return
+		}
 		resp := s.rpcHandler(ctx, streamproto.RPCRequest{
 			Method:  req.Method,
 			Path:    req.Path,
@@ -259,6 +289,10 @@ func (s *Service) attachRPCChannel(peer *peerEntry, dc *webrtc.DataChannel) {
 	}
 
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		if ctx.Err() != nil {
+			release()
+			return
+		}
 		peer.touch()
 		mu.Lock()
 		if dispatched {
@@ -266,16 +300,20 @@ func (s *Service) attachRPCChannel(peer *peerEntry, dc *webrtc.DataChannel) {
 			return
 		}
 		if header == nil {
-			if !msg.IsString {
+			if !msg.IsString || peer.owner != nil && len(msg.Data) > 16*1024 {
 				mu.Unlock()
 				release()
 				return
 			}
 			var h rpcRequestWire
-			if err := json.Unmarshal(msg.Data, &h); err != nil || h.BodyLength < 0 || h.BodyLength > maxRPCBodyBytes {
+			if err := json.Unmarshal(msg.Data, &h); err != nil || h.BodyLength < 0 || h.BodyLength > bodyLimit ||
+				peer.owner != nil && !ownerRPCAllowed(h.Method, h.Path) {
 				mu.Unlock()
 				release()
 				return
+			}
+			if peer.owner != nil {
+				h.Headers = nil // Owner identity comes from context, never a copied bearer header.
 			}
 			header = &h
 			if h.BodyLength > 0 {
@@ -286,6 +324,11 @@ func (s *Service) attachRPCChannel(peer *peerEntry, dc *webrtc.DataChannel) {
 		}
 		// Binary chunk or zero-length EOF marker
 		if len(msg.Data) == 0 {
+			if peer.owner != nil && (msg.IsString || len(bodyBuf) != header.BodyLength) || !peer.startWork() {
+				mu.Unlock()
+				release()
+				return
+			}
 			dispatched = true
 			req := *header
 			body := bodyBuf
@@ -293,7 +336,7 @@ func (s *Service) attachRPCChannel(peer *peerEntry, dc *webrtc.DataChannel) {
 			go dispatch(req, body)
 			return
 		}
-		if len(bodyBuf)+len(msg.Data) > maxRPCBodyBytes {
+		if len(bodyBuf)+len(msg.Data) > bodyLimit || peer.owner != nil && (msg.IsString || len(bodyBuf)+len(msg.Data) > header.BodyLength) {
 			mu.Unlock()
 			release()
 			return
@@ -304,6 +347,9 @@ func (s *Service) attachRPCChannel(peer *peerEntry, dc *webrtc.DataChannel) {
 }
 
 func sendRPCPacket(ctx context.Context, dc *webrtc.DataChannel, lowCh <-chan struct{}, data []byte, isText bool) error {
+	if ctx.Err() != nil {
+		return io.ErrClosedPipe
+	}
 	deadline := time.NewTimer(30 * time.Second)
 	defer deadline.Stop()
 	for dc.BufferedAmount() > maxBufferedAmount {

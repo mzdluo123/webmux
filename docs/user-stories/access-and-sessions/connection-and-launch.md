@@ -57,6 +57,40 @@
   - “跟随系统”按浏览器 `navigator.languages` 顺序匹配首个 `zh*` 或 `en*` 标签，无中文的非空其他语言标签回退为 `en`，空列表回退为 `zh-CN`；系统触发 `languagechange` 或同源标签页修改 `webmux.locale` 时自动同步；
   - 未登录门禁页（`ConnectionGate`）与“设置 → 外观与阅读”均提供语言切换，服务端设置尚未就绪时也不阻塞语言切换；
   - 切换语言后，`<html lang>`、浏览器标签页标题、全部已挂载界面文案、前端契约校验提示及本地化日期数字格式立即无刷新更新，不重新加载页面、不断开现有终端或聊天连接，已输入的表单草稿保留。
+- **US-A10 配对并启用官方中转**：作为宿主使用者，我希望确认公网风险后通过 GitHub 配对自己的主机，以便获得固定 HTTPS 入口而不复制长期 Token 到手机。
+  验收要点：
+  - Relay 配对、设置与 WSS 基线属于核心，默认关闭；配对由用户显式发起，启用前须确认公网 Shell 风险，保留足够长的本机恢复 Token；
+  - 设备配对可取消、到期和重新发起；同账号重新绑定必须显式确认，更换身份不改变既有完整公共 Origin；
+  - 公开控制面可经 CDN；宿主使用 Go 系统 CA（可追加 RootCA）、域名、有效期和 TLS 1.3，不额外固定控制 SPKI；分配 WSS 的 pin 与 TURN 服务身份校验不变；
+  - 宿主状态严格读取旧 v1 并在内存移除控制 trust，读取不改磁盘，后续保存写不含控制 trust 的 v2；不把旧控制 pin 继续作为配对条件；
+  - 切换界面语言时，配对状态、有效期与已打开的风险确认保持不变；文案与已保留的授权错误立即更新，不重新发起配对或自动确认公网访问。
+  - 设置显示账号、绑定、控制/批量角色连接、控制面和已分配数据端点各自的来源及可达性，不将配置存在当作就绪；
+  - 关闭立即停止连接，保存失败仍保持关闭；状态文件损坏或锁冲突不能恢复旧授权或自动重新暴露公网；
+  - 控制角色断开使派生访问失效，批量角色断开只降级文件业务，不将文件挤入交互连接；
+  - 未选择或裁剪 P2P 时仍能使用 WSS，明确显示交互优化不可用，不偷偷加载 Pion 或启动 P2P I/O。
+- **US-A08 GitHub 登录自己的主机**：作为跨设备使用者，我希望在手机登录同一个 GitHub 账号并打开自己的在线主机，以便免输长期 Token，同时保留账号与主机隔离。
+  验收要点：
+  - 后台仅列出当前数字账号拥有的主机，GitHub 名称只作显示；无邀请、跨账号、撤销或离线访问不能取得授权；
+  - 固定回调、浏览器绑定 state 与 PKCE、一次性短期 code 共同保护跳转；兑换并发只能成功一次，不重放未知结果；
+  - GitHub 回调兼容可选 `iss`，提供时须精确匹配 GitHub issuer；重复、未知及错误 issuer 参数仍拒绝，不绕过浏览器事务 Cookie、state 或 PKCE；
+  - 宿主签发 Secure、HttpOnly、SameSite=Lax、限定公共 Origin 的绝对期限 Cookie；不在 URL、日志或网页设置中暴露长期 Token 或秘密；
+  - Cookie 写请求验证精确 Origin 和 CSRF，WebSocket 校验 Origin；设备密钥、本机会话内进程或长期 Token 不能单独签发浏览器 TURN 凭据；
+  - 退出、撤销和重新绑定关闭相关 HTTP、WebSocket、P2P 和转发访问，但保留 PTY 进程；不能将节点断连、超时或新代际 ACK 冒充旧代际全部访问已关闭；
+  - 端口转发仅作为 WebMux 内部入口，不提供任意网站的独立 GitHub 访问网关。
+- **US-A09 管理中转节点与授权**：作为中转运营者，我希望经受限 CLI 集中管理节点、邀请与秘密，以便分开部署 WSS 和 TURN，而不让普通登录账号获得运营权限。
+  验收要点：
+  - 独立控制面持久化 PostgreSQL；管理 CLI 经同用户 Unix socket 调用管理 API，不开放运营网页或公网管理端口；
+  - 首次连接前预置节点 CA 签发的客户端证书及匹配私钥，控制面同时校验证书链与管理员登记的节点 SPKI，不从首次连接学习身份；
+  - 支持 WSS-only、TURN-only 和双能力节点；按用途发现地址，禁止向 TURN-only 分配 WSS 流量，也不自动改变既有宿主 Origin；
+  - 配置按版本和摘要校验并区分 desired、实际 applied、pending-restart；运行中的中断变更须批准精确版本及组件，失败保留最后有效状态；
+  - 秘密以部署主密钥加密保存，经认证通道按节点和用途交付；冷启动控制面不可达时不恢复旧秘密或授权，运行中失联有界撤权；
+  - 原版 coturn 使用账号 allocation 数、每会话带宽及节点容量限制，不宣称共享账号带宽桶、累计流量额度或凭据到期立即清除 allocation；
+  - Docker 使用 `--init`，代理监督并回收 coturn；TURN 故障不重启健康 WSS，容器升级仍会中断存量连接。
+  - 服务端版本发布只接受默认分支历史上的版本标签，针对固定 commit 通过独立 CI 后发布控制/数据镜像；记录来源与版本，不把镜像发布等同于两仓联合验收或生产上线。
+  - Dokku 分离控制面、数据节点和不暴露公网的 PostgreSQL；节点私网直连控制面，保留 CA、SPKI 与 mTLS，不跟随公开控制 CDN 放宽；
+  - 公网 HTTPS 上游模板来自镜像 `/app/nginx.conf.sigil`，保留 Host、WebSocket 与 Origin/CSRF，不改全局 Nginx 或占用 UDP 443；
+  - 服务证书持久 P-256 同 key 续签；节点 CA 签发私钥离线，运行容器仅最小私密挂载；宿主既有 BBR/cake 策略不由容器更改；
+  - 公共文档只记录授权公开的地址、客户端接入前提与真实上线阶段；管理员配置和秘密交付留在受限服务端指南，不能以 CI、应用创建或计划端口冒充生产可用，见[部署记录](../../deployment/official-relay.md)。
 
 依据：
 
@@ -64,6 +98,7 @@
 - [应用入口](../../../web/src/App.svelte)、[Token 说明](../../../web/src/components/shared/TokenHelp.svelte)、[配置命令](../../../cmd/webmux/configcmd.go)
 - [语言控制器](../../../web/src/lib/locale.ts)、[语言切换组件](../../../web/src/components/shared/LocaleChoice.svelte)、[消息目录](../../../web/messages/en.json)
 - [启动与 token 生成](../../../cmd/webmux/main.go)、[API 路由与安全检查](../../../internal/api/router.go)、[Host 校验](../../../internal/api/host.go)
+- [Relay 公共授权协议](../../../protocol/relay/access.go)、[节点配置及身份协议](../../../protocol/relay/node.go)、[撤销与流边界](../../../protocol/relay/stream.go)
 - [安全说明](../../../SECURITY.md)。
 
 ## B. 创建会话与选择启动位置

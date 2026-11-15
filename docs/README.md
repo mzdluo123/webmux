@@ -56,6 +56,7 @@
 
 - [参与贡献](../CONTRIBUTING.md)：开发环境、常用命令、测试、PR 与 OpenSpec 工作流。
 - [架构设计](architecture.md)：会话模型、缓冲与回放、状态探测、分层规则 R0–R11。
+- [架构分层与线上契约](architecture/layers.md)：R0–R11、Relay 公开协议子模块边界与 wire 快照维护。
 - [API 与协议](protocol.md)：REST、WebSocket 帧与错误码（按主题分页）。
   - [交接操作](hybrid-sessions/handoff.md)：换 Agent、新聊天位置、草稿与恢复。
   - [交接预览](protocol/http-handoff.md)：整项历史选择、预算、revision 与 stale。

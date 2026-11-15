@@ -70,6 +70,17 @@ func (p *featureServices) capabilities(c config.Config) contract.Capabilities {
 		}
 		out.Capabilities = append(out.Capabilities, contract.Capability{ID: feature.capability, Available: reason == "", Reason: reason})
 	}
+	// Relay owner optimization uses the selected implementation, not the local
+	// direct-upgrade toggle. Authorization is still checked per browser peer.
+	hybridReason := ""
+	if !c.Features.Has("p2p") {
+		hybridReason = contract.CapabilityReasonFeatureDisabled
+	} else if p.p2p == nil {
+		hybridReason = contract.CapabilityReasonServiceUnavailable
+	} else if !p.p2p.Supported() {
+		hybridReason = contract.CapabilityReasonUnsupported
+	}
+	out.Capabilities = append(out.Capabilities, contract.Capability{ID: "relay.hybrid", Available: hybridReason == "", Reason: hybridReason})
 	projectReason := ""
 	if !c.Features.Has("workspace") {
 		projectReason = contract.CapabilityReasonFeatureDisabled
