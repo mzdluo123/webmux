@@ -53,7 +53,7 @@ connector 域名的 `/readyz` 返回 404，不是数据面就绪入口；内部�
 ## 运营入口与信息边界
 
 详细管理员步骤、需填写的配置、证书与秘密交付、启动顺序及运维方法见私有服务端仓库的
-[DEPLOYMENT.md](https://github.com/mzdluo123/webmux-relay/blob/feat/official-relay/DEPLOYMENT.md)；运营者需要该仓库访问权限。
+[DEPLOYMENT.md](https://github.com/mzdluo123/webmux-relay/blob/master/DEPLOYMENT.md)；运营者需要该仓库访问权限。
 
 公开主仓库只解释客户端接入与运营入口，不公开 SSH 信息、管理用户名、内网地址或其他业务信息。
 OAuth Secret、私钥、数据库连接串和管理套接字凭据不得进入本页、公开 PR 或客户端引导。

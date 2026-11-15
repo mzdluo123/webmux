@@ -74,13 +74,16 @@ func ControlState(c session.ControlState) contract.ControlState {
 	return out
 }
 
-func Health(sessions int, load *hoststat.Load, mem *hoststat.Memory) contract.APIHealth {
+func Health(sessions int, load *hoststat.Load, mem *hoststat.Memory, swap *hoststat.Swap) contract.APIHealth {
 	h := contract.APIHealth{OK: true, Sessions: sessions}
 	if load != nil {
 		h.Load = &contract.HostLoad{One: load.One, Five: load.Five, Fifteen: load.Fifteen, CPUs: load.CPUs}
 	}
 	if mem != nil {
 		h.Memory = &contract.HostMemory{Total: mem.Total, Available: mem.Available}
+	}
+	if swap != nil {
+		h.Swap = &contract.HostSwap{Total: swap.Total, Used: swap.Used}
 	}
 	return h
 }

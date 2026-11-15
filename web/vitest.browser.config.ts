@@ -32,6 +32,21 @@ const nativeTouchGesture = defineBrowserCommand(
       height: innerHeight,
     }));
     const cdp = await page.context().newCDPSession(page);
+    const delivered = await testFrame.evaluateHandle(() => {
+      const point = { x: NaN, y: NaN, dispose: () => {} };
+      const receive = (event: PointerEvent) => {
+        if (event.pointerType !== "touch") return;
+        point.x = event.clientX;
+        point.y = event.clientY;
+      };
+      document.addEventListener("pointerdown", receive, true);
+      document.addEventListener("pointermove", receive, true);
+      point.dispose = () => {
+        document.removeEventListener("pointerdown", receive, true);
+        document.removeEventListener("pointermove", receive, true);
+      };
+      return point;
+    });
     try {
       await cdp.send("Emulation.setTouchEmulationEnabled", {
         enabled: true,
@@ -57,6 +72,16 @@ const nativeTouchGesture = defineBrowserCommand(
         // stalled initial frame can otherwise exceed 500 ms and select text.
         // Later steps use real frames so Chrome can recognize a native pan.
         if (index > 0) {
+          // CDP acknowledgement and animation frames do not guarantee the
+          // last move reached the page under load. Ending the finger early
+          // can discard that move and lose a row in exact wheel assertions.
+          await testFrame.waitForFunction(
+            ({ last, expected }) =>
+              Math.abs(last.x - expected.x) < 1 &&
+              Math.abs(last.y - expected.y) < 1,
+            { last: delivered, expected: point },
+            { timeout: 5000 },
+          );
           await testFrame.evaluate(
             () =>
               new Promise<void>((resolve) =>
@@ -78,8 +103,18 @@ const nativeTouchGesture = defineBrowserCommand(
           ),
       );
     } finally {
-      await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
-      await cdp.detach();
+      try {
+        await delivered.evaluate((point) => point.dispose());
+      } finally {
+        await delivered.dispose();
+        try {
+          await cdp.send("Emulation.setTouchEmulationEnabled", {
+            enabled: false,
+          });
+        } finally {
+          await cdp.detach();
+        }
+      }
     }
   },
 );

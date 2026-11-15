@@ -12,6 +12,10 @@
       "total": 0
     },
     "ok": true,
-    "sessions": 0
+    "sessions": 0,
+    "swap": {
+      "total": 0,
+      "used": 0
+    }
   }
 }

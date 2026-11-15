@@ -1,0 +1,20 @@
+{
+  "scenario": "Sidebar host-status popover gains a swap usage row (已用/共) fed by GET /api/health.",
+  "beforeRuntime": "Same build; the swap row is removed from the DOM before capture, reproducing the base popover exactly since the row is the only addition.",
+  "afterRuntime": "Production frontend embedded in the Go server, isolated HOME/config, no sessions.",
+  "viewports": [[1280, 900], [768, 800], [390, 844]],
+  "themes": ["light", "dark"],
+  "screenshots": "before/after-{desktop,tablet,phone}-{light,dark}.png: six matched interaction-state pairs (12 PNGs); phone captures the open navigation drawer.",
+  "fixture": "Real host stats on Linux/WSL2: 6.0 GB swap, 444 KB used; zh-CN locale.",
+  "checks": {
+    "frontendTypes": "svelte-check: 0 errors, 0 warnings",
+    "lint": "vp lint --deny-warnings passed",
+    "architecture": "check:arch passed",
+    "sourceFormatting": "make format-check passed",
+    "goTests": "hoststat, wire snapshots, contract, wire passed; darwin/windows cross-compile clean"
+  },
+  "limits": [
+    "macOS vm.swapusage path is cross-compiled only, not exercised on hardware.",
+    "No physical-device or native touch validation; pointer hit-testing used a mouse."
+  ]
+}

@@ -27,9 +27,9 @@
         // always-shown button, and rows without one use it too so their
         // ends line up.
         "navigation-action": `${navigation} any-pointer-coarse:pr-(--control-touch)`,
-        // Compact conversation ticks shrink to fit the rail, never scroll.
+        // Conversation ticks keep their height; the rail groups overflow.
         // AI reply counts use bounded lengths; labels carry the exact count.
-        turn: "flex h-3 min-h-0 w-9 shrink cursor-pointer items-center rounded-sm pl-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&_span]:h-0.5 [&_span]:max-h-full [&_span]:w-3 [&_span]:origin-left [&_span]:rounded-full [&_span]:bg-muted-foreground [&_span]:opacity-40 [&_span]:transition-[transform,opacity,background-color] [&_span]:duration-150 [&_span]:ease-out hover:[&_span]:scale-x-110 hover:[&_span]:opacity-80 aria-[current=location]:[&_span]:opacity-100 data-[turn-role=user]:[&_span]:bg-foreground data-[turn-role=agent]:[&_span]:bg-info data-[turn-volume=few]:[&_span]:w-4 data-[turn-volume=several]:[&_span]:w-5 data-[turn-volume=many]:[&_span]:w-6 motion-reduce:[&_span]:transition-none",
+        turn: "flex h-3 min-h-3 w-9 shrink-0 cursor-pointer items-center rounded-sm pl-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&_span]:h-0.5 [&_span]:max-h-full [&_span]:w-3 [&_span]:origin-left [&_span]:rounded-full [&_span]:bg-muted-foreground [&_span]:opacity-40 [&_span]:transition-[transform,opacity,background-color] [&_span]:duration-150 [&_span]:ease-out hover:[&_span]:scale-x-110 hover:[&_span]:opacity-80 aria-[current=location]:[&_span]:opacity-100 data-[turn-role=user]:[&_span]:bg-foreground data-[turn-role=agent]:[&_span]:bg-info data-[turn-volume=few]:[&_span]:w-4 data-[turn-volume=several]:[&_span]:w-5 data-[turn-volume=many]:[&_span]:w-6 motion-reduce:[&_span]:transition-none",
         // Tree rows follow the code panel's compact touch target on touch
         // screens and narrow windows; a long press must not select text or
         // raise the iOS link callout. data-drop-target marks the folder that

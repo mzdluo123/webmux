@@ -54,7 +54,7 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `internal/settings`                           | 服务端偏好、修订号、原子订阅与有界事件队列                                                                 |
 | `internal/jsonutil`                           | 无业务依赖的严格 JSON 与必需字段检查                                                                       |
 | `internal/runtime`                            | 运行时记录、实例锁、进程身份、本机套接字与对端凭据                                                         |
-| `internal/hoststat`                           | 主机负载与内存读取（Linux、macOS），供 `/api/health` 使用                                                  |
+| `internal/hoststat`                           | 主机负载、内存与交换空间读取（Linux、macOS），供 `/api/health` 使用                                        |
 | `internal/contract`                           | 线上 REST/WS/本机类型；仅显式审查的 Relay DTO 别名依赖公开协议子模块，其余依赖保持共享层边界               |
 | `internal/wire`、`internal/featurewire`       | 核心 DTO 转换；可选业务转换与统一 `Projection` 分别归属两包                                                |
 | `internal/pathutil`, `internal/attentionkind` | 共享的路径展开与注意力种类，供 Service、配置与客户端共用                                                   |
