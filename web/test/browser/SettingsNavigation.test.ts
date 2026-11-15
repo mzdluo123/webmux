@@ -218,6 +218,11 @@ test("core settings navigation and sections exclude every disabled provider", as
       page.getByRole("switch", { name: "压缩实时连接（permessage-deflate）" }),
     )
     .toBeVisible();
+  await nav.getByRole("link", { name: "快捷键", exact: true }).click();
+  await expect.poll(() => document.activeElement?.id).toBe("shortcuts");
+  await expect
+    .element(page.getByRole("heading", { name: "窗格管理", exact: true }))
+    .toBeVisible();
 });
 
 test("core theme saves do not submit or erase inactive plugin preferences", async () => {
