@@ -198,6 +198,10 @@ func (a *actor) agentSessionChanged(sid string) {
 	old := a.agentSessionID
 	a.agentSessionID = sid
 	if old != "" {
+		if a.shell != nil {
+			a.shell.ClearTerminalTitleIf(a.termTitle)
+		}
+		a.termTitle = ""
 		a.chat.IDChange = &IDChange{From: old, To: sid}
 		a.svc.log.Info("hybrid agent session changed", "id", a.id)
 	}

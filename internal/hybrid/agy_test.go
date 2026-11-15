@@ -135,13 +135,20 @@ func TestAgyTUITitleContinuityAndRename(t *testing.T) {
 	typeLine(t, s, "/rename Custom Agy Title")
 	waitTitle(t, s, "Custom Agy Title")
 
+	// Even if session/list lags behind the live terminal OSC 2 title, a probe
+	// or switch check must not regress the session title to the stale disk copy.
+	typeLine(t, s, "/store-title Stale Disk Title")
+	waitFor(t, "stored Stale Disk Title", func() bool { return strings.Contains(string(s.Buffer()), "stored title: Stale Disk Title") })
+
 	h.mustSwitch(id, SideACP)
 	waitTitle(t, s, "Custom Agy Title")
 	if got := h.record(id).Title; got != "Custom Agy Title" {
 		t.Fatalf("recorded title on chat side %q, want %q", got, "Custom Agy Title")
 	}
 
+	// Sync disk title again before switching back to TUI so agy resume opens it.
 	h.mustSwitch(id, SideTUI)
+	typeLine(t, s, "/rename Custom Agy Title")
 	waitTitle(t, s, "Custom Agy Title")
 
 	typeLine(t, s, "/new")
@@ -149,6 +156,27 @@ func TestAgyTUITitleContinuityAndRename(t *testing.T) {
 	tuiTurn(t, s, "next task")
 	h.waitEligible(id)
 	waitTitle(t, s, "agy: next task")
+}
+
+func TestStaleTerminalTitleClearedOnAgentSessionChange(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(omp.Name, SideTUI)
+	in.Name = ""
+	dir := filepath.Base(resolved(t, in.Cwd))
+	s := h.create(in)
+	id := s.Info().ID
+
+	tuiTurn(t, s, "first")
+	h.waitEligible(id)
+	typeLine(t, s, "/osc-title First OMP Title")
+	waitTitle(t, s, "First OMP Title")
+	waitFor(t, "recorded terminal title", func() bool { return h.record(id).Title == "First OMP Title" })
+
+	// omp /new switches agent session ID without emitting an empty OSC 2;
+	// ClearTerminalTitleIf drops the previous session's window title.
+	typeLine(t, s, "/new")
+	waitTitle(t, s, dir)
 }
 
 func TestSessionListTitleFallbackWithoutOSC(t *testing.T) {

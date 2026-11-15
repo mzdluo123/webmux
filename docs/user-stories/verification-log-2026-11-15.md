@@ -133,8 +133,8 @@
 ## Antigravity CLI 终端标题与混合会话标题延续（US-Q03、US-Q04、US-Q12）
 
 - 范围（故事 ID 与总数 259 不变）：
-  - `agy` TUI 注入的会话级 `--settings` `title` 钩子同步将非空 `conversation_title` 输出到标准输出，驱动 `OSC 2` 窗口标题；
-  - `session/list` 探测与切换前核对同步采用非空会话标题，未手动命名的混合会话在终端运行自身发出 `OSC 0/2` 标题前继续沿用当前 agent 会话标题作占位回退。
+  - `agy` TUI 注入的会话级 `--settings` `title` 钩子同步将 `conversation_title` 作为 `OSC 2` 窗口标题写入控制终端（为空时清空旧标题，不写标准输出）；
+  - 终端未上报自身 `OSC 0/2` 标题时，`session/list` 探测与切换前核对采用非空会话标题；同一运行内切换 agent 会话时清除上一会话遗留终端标题，未手动命名的混合会话在终端发出新 `OSC 0/2` 标题前沿用当前 agent 会话标题。
 - 本地验证：
   - `internal/agentprofile/agy` 对真实 `/bin/sh` 执行注入钩子，覆盖空值、JSON/HTML 转义、CJK/Emoji 与紧凑/带空格 JSON；
   - `internal/session`、`internal/acp`、`internal/hybrid`、`internal/archtest`、`internal/docguard` 及全仓 Go race 测试通过（新增 `TestAgyTUITitleContinuityAndRename` 与 `TestSessionListTitleFallbackWithoutOSC` 连续 5 轮 `-race` 通过）；

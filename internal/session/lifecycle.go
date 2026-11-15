@@ -340,6 +340,24 @@ func (s *Session) SetOverlay(o *Overlay) {
 	s.overlay = o.clone()
 }
 
+// ClearTerminalTitleIf drops the current run's OSC 0/2 title when it still
+// equals stale, returning an unnamed session to its placeholder title until
+// the run or overlay supplies a new one.
+func (s *Session) ClearTerminalTitleIf(stale string) {
+	if stale == "" {
+		return
+	}
+	s.mu.Lock()
+	if s.identity.Title == stale {
+		s.identity.Title = ""
+		if s.userTitle == "" {
+			s.info.Title = filepath.Base(s.info.Cwd)
+			s.info.PlaceholderTitle = true
+		}
+	}
+	s.mu.Unlock()
+}
+
 // retire ends a shell for good, so it starts no more processes and Done
 // closes. Unless forced, it refuses while a run or sidecar is live.
 func (s *Session) retire(force bool) bool {

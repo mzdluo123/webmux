@@ -39,12 +39,18 @@ func PromptTitle(text string) string {
 }
 
 // observeTerminalTitle records a live terminal run's OSC 0/2 title for the
-// current agent session so switching to chat keeps it. A title left over
-// from an earlier agent session in the same terminal run is ignored.
+// current agent session so switching to chat keeps it. Clearing an active
+// terminal title clears the matching session title; a title left over from an
+// earlier agent session in the same terminal run is ignored.
 func (a *actor) observeTerminalTitle(raw string) {
 	title := sessionTitle(raw)
 	if title == "" {
+		prev := a.termTitle
 		a.termTitle = ""
+		if prev != "" && a.title == prev && a.titleSession == a.agentSessionID {
+			a.title = ""
+			a.dirty = true
+		}
 		return
 	}
 	if a.agentSessionID == "" || title == a.termTitle {
@@ -58,10 +64,11 @@ func (a *actor) observeTerminalTitle(raw string) {
 	}
 }
 
-// adoptListedTitle applies a non-empty title returned by session/list for sid.
+// adoptListedTitle applies a non-empty title returned by session/list for sid
+// when the live terminal run has not reported its own OSC 0/2 title.
 func (a *actor) adoptListedTitle(sid, raw string) {
 	title := sessionTitle(raw)
-	if sid == "" || title == "" {
+	if sid == "" || title == "" || a.termTitle != "" {
 		return
 	}
 	a.promptTitle = false
@@ -71,8 +78,12 @@ func (a *actor) adoptListedTitle(sid, raw string) {
 	}
 }
 
-// adoptProbeTitle applies any session/list title carried by ans for sid.
+// adoptProbeTitle applies any session/list title carried by ans for sid unless
+// the live terminal run already reported an OSC 0/2 title.
 func (a *actor) adoptProbeTitle(sid string, ans probeAnswer) {
+	if a.side == SideTUI && a.shell != nil {
+		a.observeTerminalTitle(a.shell.Identity().Title)
+	}
 	title := ans.title
 	if title == "" {
 		for _, c := range ans.candidates {

@@ -31,11 +31,11 @@
     - 档案需要的第三方连接器已安装；
     - 是 PTY 根进程（Codex 与 Claude Code 也接受 npm 的 `node` 启动器及其唯一直接原生 agent 子进程）；
     - 已有 agent 会话 ID：
-      - Codex 取自写锁；Antigravity CLI 由注入的会话级 `--settings` `title` 钩子经 `OSC 7501` 子记录上报 36 字符 UUID，并将非空 `conversation_title` 输出为终端标题（`OSC 2`）；
+      - Codex 取自写锁；Antigravity CLI 由注入的会话级 `--settings` `title` 钩子向控制终端上报 `OSC 7501` 子记录 36 字符 UUID 与 `conversation_title` 对应的 `OSC 2` 终端标题；
       - Claude 取自 `<CLAUDE_CONFIG_DIR>/sessions/<pid>.json`，采用前核对 PID、UUID、规范化 cwd、进程启动标识与 PID domain，失效时退回 cwd + 启动时间的 `session/list` 候选，多个候选时让用户选择；
       - Kimi 不把 OSC 7501 子记录当作会话 ID，使用 cwd + 启动时间的 `session/list` 候选，`session_` 前缀 ID 原样保留，多个候选时让用户选择；
       - 首条消息前即使已有注册 UUID，list 不含可加载会话仍不可切换；
-    - 会话列表能查到（`session/list` 返回非空会话标题时同步采用为当前 agent 会话标题）；
+    - 会话列表能查到（终端未上报自身 `OSC 0/2` 标题且 `session/list` 返回非空会话标题时，同步采用为当前 agent 会话标题）；
     - 未被其他会话占用；
   - “聊天 | 终端”的下划线平滑移向当前选择，切换中仍显示真实进度；目标内容准备好后短暂淡入，减少动态效果时直接显示，不以动画结束代替连接就绪；
   - TUI 在回合中时先发中断键并等待空闲（Claude Code、Antigravity CLI 与 Kimi 为一次 Esc；Codex 启动阶段的“工作中”不算回合，Claude 无启动静默期），10 秒后可选继续等待、强制切换或取消（强制切换的损失说明取自服务端 `forceSwitchNote`，由各 agent 适配器提供）；

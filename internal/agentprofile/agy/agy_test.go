@@ -126,12 +126,12 @@ func TestTUISettingsHookExtractsIDAndConversationTitle(t *testing.T) {
 			if tc.wantID != "" {
 				wantTTY = "\x1b]7501;state=working:id=" + tc.wantID + "\x07"
 			}
+			wantTTY += "\x1b]2;" + tc.wantTitle + "\x07"
 			if string(ttyBytes) != wantTTY {
 				t.Fatalf("tty = %q, want %q", string(ttyBytes), wantTTY)
 			}
-			gotTitle := strings.TrimSuffix(stdout.String(), "\n")
-			if gotTitle != tc.wantTitle {
-				t.Fatalf("stdout title = %q, want %q", gotTitle, tc.wantTitle)
+			if stdout.Len() != 0 {
+				t.Fatalf("stdout = %q, want empty", stdout.String())
 			}
 		})
 	}

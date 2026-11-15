@@ -265,10 +265,8 @@ func (t *tui) syncWindowTitle() {
 	if t.cur != nil {
 		want = t.cur.Title
 	}
-	if want != t.windowTitle {
-		t.windowTitle = want
-		t.printf("\x1b]2;%s\x07", want)
-	}
+	t.windowTitle = want
+	t.printf("\x1b]2;%s\x07", want)
 }
 
 // holdLock keeps a Codex thread's writer lock until the process exits, as
@@ -412,6 +410,10 @@ func (t *tui) submit(line string) bool {
 				t.printf("stored title: %s\r\n", t.cur.Title)
 			}
 		}
+		t.printf("prompt> ")
+		return false
+	case strings.HasPrefix(line, "/osc-title "):
+		t.printf("\x1b]2;%s\x07", strings.TrimSpace(strings.TrimPrefix(line, "/osc-title ")))
 		t.printf("prompt> ")
 		return false
 	}
