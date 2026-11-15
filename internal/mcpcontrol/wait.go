@@ -14,12 +14,18 @@ import (
 func (c Client) waitTools() []mcpprotocol.Tool {
 	until := []string{"exit"}
 	description := "Wait for terminal process exit. Never infer completion from idle. A timeout ends observation only; continue waiting with the same selector."
-	properties := map[string]any{"sessionId": text(), "until": enumeration(until...), "timeoutMs": integer(0, 60000)}
+	properties := map[string]any{
+		"sessionId": sessionIDSchema(),
+		"until":     desc(enumeration(until...), "exit: wait for the process to exit."),
+		"timeoutMs": desc(integer(0, 60000), "Wait bound in milliseconds; 0 is a single bounded poll. A timeout ends observation only, never the work."),
+	}
 	if c.hasCapability("chat.acp") {
 		until = append(until, "turn")
 		description = "Wait for a specific chat turn, queued input, first launched turn, or terminal process exit. Never infer completion from idle. A timeout ends observation only; continue waiting with the same selector. Reports pending user requests without approving them."
-		properties["until"] = enumeration(until...)
-		properties["turnId"], properties["queueItemId"], properties["firstTurn"] = text(), text(), boolean()
+		properties["until"] = desc(enumeration(until...), "exit: wait for process exit; turn (default): wait for a chat turn, selecting exactly one of turnId, queueItemId or firstTurn.")
+		properties["turnId"] = desc(text(), "Turn id from a session_send or session_launch receipt.")
+		properties["queueItemId"] = desc(text(), "Queued item id from a queued session_send receipt.")
+		properties["firstTurn"] = desc(boolean(), "Wait for the session's first launched turn.")
 	}
 	return []mcpprotocol.Tool{tool("session_wait", description, true, properties, []string{"sessionId"}, c.wait)}
 }

@@ -18,6 +18,7 @@ type Context struct {
 	Tools         []ToolSummary
 }
 
+const inputRules = "终端视图输入以提交为单位：text 只把字符写入输入行，submit=true（CLI 为 --enter）才在同一提交中追加回车使其执行，不带 submit 的正文留在输入行；keys（CLI 为 --key）发送命名键，其中 enter 同样是回车。聊天视图的 text 是提示，mode 决定立即发送、排队、插话或取消当前回合；submit 被忽略，keys 报 wrong_view。写入回执只证明已写入，不证明执行或回合完成。"
 const operationRules = "同一逻辑写操作开始时生成并保存请求 ID；响应丢失后重试复用相同 ID 与相同负载，新操作才生成新 ID。不是所有 CLI 命令都有 request-id 选项。创建去重仅在内存保留 10 分钟；混合命令仅保留每会话最近 256 项且最多 30 分钟，容量、时间任一先到、淘汰或服务重启后均不保证去重。终端提交有独立 receipt、generation 与保留窗口（256 项/30 分钟）；先读取 submission 状态，原始按键没有通用 exactly-once。不确定或超窗时先检查资源与状态，不盲目补发。"
 const completionRules = "输入 accepted/written、会话状态变化、指定回合结束、进程退出及 exitCode 是四类不同的操作证据。状态变化不证明指定回合完成，回合结束不证明进程退出。业务验收是独立的第五类证据：idle、回复文字、正常 end_turn 或退出码 0 都不能单独证明任务成功。unfinished 表示回合结束仍有后台工作，不根据回复文字推断；end_turn 仍可正常退出。超时只停止观察，不取消执行；继续等待必须保持原来的 turnId、promptId 或 queueItemId 目标。"
 const requestRules = "先读取当前 pending request，区分授权与提问；超时、断线、取消或执行失败不证明存在授权请求。核对请求内容与用户授权范围，只处理范围内的当前请求，使用当前选项真实 optionId，kind 只是分类（例如 kind=allow_once 不代表 optionId 也叫 allow_once）。不得扩大为永久 auto 或未来请求的许可；终端按 Enter 前同样先核对请求内容、当前选择与授权范围。"
@@ -32,6 +33,8 @@ func coreRules(topic string) string {
 		return connectionRules
 	case "operations":
 		return operationRules
+	case "input":
+		return inputRules
 	case "completion":
 		return completionRules
 	case "requests":
@@ -49,6 +52,7 @@ func coreRules(topic string) string {
 var controlTopics = []contract.AgentGuideTopic{
 	{ID: "connect", Title: "连接与身份", Summary: "显式身份、传输与能力边界"},
 	{ID: "operations", Title: "逻辑操作", Summary: "请求 ID、重试与去重窗口"},
+	{ID: "input", Title: "输入与视图", Summary: "终端提交回车与按键、聊天 mode 与视图分派"},
 	{ID: "completion", Title: "完成证据", Summary: "状态、回合、进程与业务验收"},
 	{ID: "requests", Title: "待处理请求", Summary: "当前授权范围与真实选项"},
 	{ID: "launch", Title: "启动", Summary: "真实启动配置与动态设置发现"},
@@ -64,7 +68,7 @@ func ReferenceInstructions() string { return safetyRules }
 func Instructions(c Context) string {
 	var b strings.Builder
 	b.WriteString("Operate WebMux through the registered control tools. Read guide_read with {} for the index, then request a topic as needed.\n")
-	b.WriteString(operationRules + "\n" + completionRules + "\n" + requestRules + "\n" + safetyRules + "\n")
+	b.WriteString(operationRules + "\n" + inputRules + "\n" + completionRules + "\n" + requestRules + "\n" + safetyRules + "\n")
 	fmt.Fprintf(&b, "Transport: %s; locality: %s.\n", c.Transport, c.Locality)
 	b.WriteString("Available tools:\n")
 	for _, tool := range c.Tools {
@@ -101,6 +105,8 @@ func MCPGuide(c Context, topic string) (contract.AgentGuideResult, error) {
 		r.Topic = &topic
 		r.Markdown = "# " + t.Title + "\n\n" + coreRules(topic) + "\n"
 		switch topic {
+		case "input":
+			r.Markdown += "未启用 chat 的实例没有聊天视图，工具 schema 也裁剪掉 mode 参数；attachments 取决于 files 能力，字段级语义以 session_send 的 schema 为准。\n"
 		case "requests":
 			r.Markdown += "当前 control MCP 没有回答请求的工具；请用户或已有其他客户端处理，不调用虚构的 answer 工具。\n"
 		case "launch":
