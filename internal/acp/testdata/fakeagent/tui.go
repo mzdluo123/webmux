@@ -44,6 +44,7 @@ type tui struct {
 	lastEsc      time.Time
 	queryPending bool
 	queryReply   []byte
+	windowTitle  string
 }
 
 func runTUI(cfg config, st *store, in io.Reader, out io.Writer) error {
@@ -243,12 +244,29 @@ func (t *tui) open(ss *session) error {
 		t.emit7501("state=idle:id=" + ss.ID)
 	} else if t.agy && t.hasTitleHook() {
 		t.emit7501("state=working:id=" + ss.ID)
+		t.syncWindowTitle()
 	}
 	return nil
 }
 
 func (t *tui) hasTitleHook() bool {
 	return strings.Contains(t.cfg.settings, "conversation_id") || strings.Contains(t.cfg.settings, "7501")
+}
+
+func (t *tui) hasConversationTitleHook() bool {
+	return strings.Contains(t.cfg.settings, "conversation_title")
+}
+
+func (t *tui) syncWindowTitle() {
+	if !t.agy || !t.hasConversationTitleHook() {
+		return
+	}
+	want := ""
+	if t.cur != nil {
+		want = t.cur.Title
+	}
+	t.windowTitle = want
+	t.printf("\x1b]2;%s\x07", want)
 }
 
 // holdLock keeps a Codex thread's writer lock until the process exits, as
@@ -373,6 +391,44 @@ func (t *tui) submit(line string) bool {
 		}
 		t.printf("prompt> ")
 		return false
+	case line == "/fork":
+		if t.cur != nil {
+			forked := t.st.draft(t.cwd)
+			forked.Title = t.cur.Title
+			forked.Messages = append([]message(nil), t.cur.Messages...)
+			if err := t.st.save(forked); err != nil {
+				t.printf("error: %v\r\n", err)
+			} else if err := t.open(forked); err != nil {
+				t.printf("error: %v\r\n", err)
+			}
+		}
+		t.printf("prompt> ")
+		return false
+	case strings.HasPrefix(line, "/rename "):
+		if t.cur != nil {
+			t.cur.Title = strings.TrimSpace(strings.TrimPrefix(line, "/rename "))
+			if err := t.st.save(t.cur); err != nil {
+				t.printf("error: %v\r\n", err)
+			}
+			t.status("idle")
+		}
+		t.printf("prompt> ")
+		return false
+	case strings.HasPrefix(line, "/store-title "):
+		if t.cur != nil {
+			t.cur.Title = strings.TrimSpace(strings.TrimPrefix(line, "/store-title "))
+			if err := t.st.save(t.cur); err != nil {
+				t.printf("error: %v\r\n", err)
+			} else {
+				t.printf("stored title: %s\r\n", t.cur.Title)
+			}
+		}
+		t.printf("prompt> ")
+		return false
+	case strings.HasPrefix(line, "/osc-title "):
+		t.printf("\x1b]2;%s\x07", strings.TrimSpace(strings.TrimPrefix(line, "/osc-title ")))
+		t.printf("prompt> ")
+		return false
 	}
 	if t.cur == nil {
 		if err := t.create(); err != nil {
@@ -411,13 +467,17 @@ func (t *tui) stream(reply string, stop chan struct{}) {
 }
 
 func (t *tui) finishTurn(interrupted bool) {
-	reply := "echo: " + t.pending
+	pending := t.pending
+	reply := "echo: " + pending
 	if interrupted {
 		reply = "echo: (interrupted)"
 		t.printf("[interrupted]")
 	}
 	t.turn = nil
 	t.pending = ""
+	if t.agy && !interrupted && t.cur.Title == "" && pending != "" {
+		t.cur.Title = "agy: " + pending
+	}
 	t.cur.Messages = append(t.cur.Messages, message{ID: newMessageID(), Role: "agent", Text: reply})
 	if err := t.st.save(t.cur); err != nil {
 		t.printf("error: %v\r\n", err)
@@ -448,6 +508,7 @@ func (t *tui) status(state string) {
 		t.emit7501("state=" + state + ":app=antigravity")
 		if t.cur != nil && t.hasTitleHook() {
 			t.emit7501("state=working:id=" + t.cur.ID)
+			t.syncWindowTitle()
 		}
 		return
 	}

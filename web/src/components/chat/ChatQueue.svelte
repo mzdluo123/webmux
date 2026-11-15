@@ -107,7 +107,12 @@
       </span>
     {/if}
   </div>
-  <ol bind:this={list} hidden={!open} inert={!open}>
+  <ol
+    bind:this={list}
+    hidden={!open}
+    inert={!open}
+    class="max-h-[min(16rem,40dvh)] overflow-y-auto overscroll-contain"
+  >
     {#each queue.items as item, i (item.id)}
       <li class="flex flex-wrap items-center justify-end gap-x-1 pr-1 pl-2">
         <IconCornerDownRight
@@ -117,7 +122,7 @@
         <Textarea
           variant="ghost"
           rows={1}
-          class="min-h-0 min-w-0 flex-1 basis-40"
+          class="max-h-[calc(4lh+0.5rem)] min-h-0 min-w-0 flex-1 basis-40"
           aria-label={m.s3_queue_edit_item_label({ index: i + 1 })}
           {disabled}
           value={item.text}
