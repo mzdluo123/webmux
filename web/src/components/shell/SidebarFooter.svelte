@@ -224,6 +224,15 @@
             })}
           </dd>
         {/if}
+        {#if health?.swap}
+          <dt class="text-muted-foreground">{m.s1_swap()}</dt>
+          <dd>
+            {m.s1_swap_value({
+              used: formatBytes(health.swap.used),
+              total: formatBytes(health.swap.total),
+            })}
+          </dd>
+        {/if}
       </dl>
     </Popover.Content>
   </Popover.Root>

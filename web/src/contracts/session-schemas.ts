@@ -276,6 +276,12 @@ export const HealthSchema = z.object({
       available: z.number().nonnegative(),
     })
     .optional(),
+  swap: z
+    .object({
+      total: z.number().nonnegative(),
+      used: z.number().nonnegative(),
+    })
+    .optional(),
 });
 export type Health = z.infer<typeof HealthSchema>;
 export const WorkspaceCapabilitySchema = z.object({

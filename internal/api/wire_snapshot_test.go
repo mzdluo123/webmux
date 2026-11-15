@@ -197,7 +197,7 @@ func wireSchema(name string) wireRules {
 		}
 	case "health":
 		// Host measurements differ on every machine and call.
-		add("", "hostStat", "load/one", "load/five", "load/fifteen", "memory/total", "memory/available")
+		add("", "hostStat", "load/one", "load/five", "load/fifteen", "memory/total", "memory/available", "swap/total", "swap/used")
 		add("", "hostCPUs", "load/cpus")
 	case "config":
 		add("", "path", "defaultCwd")
@@ -566,6 +566,9 @@ func withHostStats(v any) any {
 	}
 	if body["memory"] == nil {
 		body["memory"] = map[string]any{"total": 0.0, "available": 0.0}
+	}
+	if body["swap"] == nil {
+		body["swap"] = map[string]any{"total": 0.0, "used": 0.0}
 	}
 	return body
 }

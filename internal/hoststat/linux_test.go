@@ -5,15 +5,29 @@ package hoststat
 import "testing"
 
 func TestParseMemoryUsesAvailableNotFree(t *testing.T) {
-	m := parseMemory([]byte("MemTotal:       16000000 kB\nMemFree:          100000 kB\nMemAvailable:    8000000 kB\n"))
+	m, _ := parseMeminfo([]byte("MemTotal:       16000000 kB\nMemFree:          100000 kB\nMemAvailable:    8000000 kB\n"))
 	if m == nil || m.Total != 16000000<<10 || m.Available != 8000000<<10 {
 		t.Fatalf("got %+v", m)
 	}
 }
 
 func TestParseMemoryRejectsMissingAvailable(t *testing.T) {
-	if m := parseMemory([]byte("MemTotal: 1 kB\n")); m != nil {
+	if m, _ := parseMeminfo([]byte("MemTotal: 1 kB\n")); m != nil {
 		t.Fatalf("got %+v", m)
+	}
+}
+
+func TestParseSwap(t *testing.T) {
+	_, s := parseMeminfo([]byte("MemTotal:       16000000 kB\nMemAvailable:    8000000 kB\nSwapTotal:        4000000 kB\nSwapFree:         3000000 kB\n"))
+	if s == nil || s.Total != 4000000<<10 || s.Used != 1000000<<10 {
+		t.Fatalf("got %+v", s)
+	}
+}
+
+func TestParseSwapAbsentWhenDisabled(t *testing.T) {
+	_, s := parseMeminfo([]byte("MemTotal:       16000000 kB\nMemAvailable:    8000000 kB\nSwapTotal:              0 kB\nSwapFree:               0 kB\n"))
+	if s != nil {
+		t.Fatalf("got %+v", s)
 	}
 }
 

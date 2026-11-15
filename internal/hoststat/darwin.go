@@ -53,3 +53,22 @@ func readMemory() *Memory {
 	}
 	return &Memory{Total: total, Available: min(pages*uint64(pageSize), total)}
 }
+
+// swapUsageSize is struct xsw_usage from <sys/sysctl.h>: three u_int64
+// counters (total, avail, used) followed by pagesize and encrypted.
+const swapUsageSize = 32
+
+// readSwap reports swapusage like `sysctl vm.swapusage`; a host without
+// swap reports nil.
+func readSwap() *Swap {
+	raw, err := unix.SysctlRaw("vm.swapusage")
+	if err != nil || len(raw) < swapUsageSize {
+		return nil
+	}
+	total := binary.NativeEndian.Uint64(raw[0:8])
+	used := binary.NativeEndian.Uint64(raw[16:24])
+	if total == 0 {
+		return nil
+	}
+	return &Swap{Total: total, Used: min(used, total)}
+}

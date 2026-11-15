@@ -19,11 +19,21 @@ func readLoad() *Load {
 }
 
 func readMemory() *Memory {
+	mem, _ := readMeminfo()
+	return mem
+}
+
+func readSwap() *Swap {
+	_, swap := readMeminfo()
+	return swap
+}
+
+func readMeminfo() (*Memory, *Swap) {
 	data, err := os.ReadFile("/proc/meminfo")
 	if err != nil {
-		return nil
+		return nil, nil
 	}
-	return parseMemory(data)
+	return parseMeminfo(data)
 }
 
 func parseLoad(text string) *Load {
@@ -42,32 +52,48 @@ func parseLoad(text string) *Load {
 	return &Load{One: v[0], Five: v[1], Fifteen: v[2]}
 }
 
-// parseMemory reads MemTotal and MemAvailable (kB) from /proc/meminfo.
-func parseMemory(data []byte) *Memory {
-	var total, avail uint64
-	var haveTotal, haveAvail bool
+// parseMeminfo reads MemTotal, MemAvailable, SwapTotal and SwapFree (kB)
+// from /proc/meminfo. A host without swap reports no Swap.
+func parseMeminfo(data []byte) (*Memory, *Swap) {
+	var memTotal, memAvail, swapTotal, swapFree uint64
+	var haveMemTotal, haveMemAvail, haveSwapTotal, haveSwapFree bool
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	for sc.Scan() {
 		name, rest, ok := strings.Cut(sc.Text(), ":")
-		if !ok || (name != "MemTotal" && name != "MemAvailable") {
+		if !ok {
+			continue
+		}
+		var value *uint64
+		var flag *bool
+		switch name {
+		case "MemTotal":
+			value, flag = &memTotal, &haveMemTotal
+		case "MemAvailable":
+			value, flag = &memAvail, &haveMemAvail
+		case "SwapTotal":
+			value, flag = &swapTotal, &haveSwapTotal
+		case "SwapFree":
+			value, flag = &swapFree, &haveSwapFree
+		default:
 			continue
 		}
 		fields := strings.Fields(rest)
 		if len(fields) == 0 {
-			return nil
+			return nil, nil
 		}
 		kb, err := strconv.ParseUint(fields[0], 10, 64)
 		if err != nil {
-			return nil
+			return nil, nil
 		}
-		if name == "MemTotal" {
-			total, haveTotal = kb<<10, true
-		} else {
-			avail, haveAvail = kb<<10, true
-		}
+		*value, *flag = kb<<10, true
 	}
-	if !haveTotal || !haveAvail || total == 0 {
-		return nil
+	var mem *Memory
+	if haveMemTotal && haveMemAvail && memTotal > 0 {
+		mem = &Memory{Total: memTotal, Available: min(memAvail, memTotal)}
 	}
-	return &Memory{Total: total, Available: min(avail, total)}
+	var swap *Swap
+	if haveSwapTotal && haveSwapFree && swapTotal > 0 {
+		swap = &Swap{Total: swapTotal, Used: swapTotal - min(swapFree, swapTotal)}
+	}
+	return mem, swap
 }

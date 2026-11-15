@@ -78,8 +78,8 @@ func (s *Server) coreRoutes(registrar transport.Registrar) {
 	// both satisfy that concrete boundary.
 	mux := registrar.(*http.ServeMux)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
-		load, memory := hoststat.Read()
-		reply(w, http.StatusOK, wire.Health(len(s.Manager.List()), load, memory))
+		load, memory, swap := hoststat.Read()
+		reply(w, http.StatusOK, wire.Health(len(s.Manager.List()), load, memory, swap))
 	})
 	mux.HandleFunc("GET /api/capabilities", func(w http.ResponseWriter, r *http.Request) {
 		reply(w, http.StatusOK, s.capabilitySnapshot())

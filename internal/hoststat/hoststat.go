@@ -1,5 +1,5 @@
-// Package hoststat reads the machine's load average and memory so the UI can
-// show how busy the host is. Platforms without a reader report nothing.
+// Package hoststat reads the machine's load average, memory and swap so the
+// UI can show how busy the host is. Platforms without a reader report nothing.
 package hoststat
 
 import "runtime"
@@ -15,11 +15,15 @@ type Load struct {
 // without swapping: free memory plus reclaimable cache.
 type Memory struct{ Total, Available uint64 }
 
+// Swap is swap space in bytes; a nil result means the platform cannot report
+// it or the host has none configured.
+type Swap struct{ Total, Used uint64 }
+
 // Read returns what the platform reports; a nil result is unavailable.
-func Read() (*Load, *Memory) {
+func Read() (*Load, *Memory, *Swap) {
 	load := readLoad()
 	if load != nil {
 		load.CPUs = runtime.NumCPU()
 	}
-	return load, readMemory()
+	return load, readMemory(), readSwap()
 }

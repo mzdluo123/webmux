@@ -317,6 +317,8 @@
   "s1_status_running": "运行中",
   "s1_status_waiting": "可能在等你",
   "s1_stop_and_archive_session": "停止会话并归档",
+  "s1_swap": "交换空间",
+  "s1_swap_value": "已用 {used} / 共 {total}",
   "s1_switch_branch": "切换分支",
   "s1_switch_dark_theme": "切换为黑色主题",
   "s1_switch_light_theme": "切换为白色主题",
