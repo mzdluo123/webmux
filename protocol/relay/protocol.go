@@ -15,31 +15,35 @@ import (
 type Version uint16
 
 const (
-	V1                    Version = 1
-	HostAlgorithm                 = "Ed25519"
-	ServiceAlgorithm              = "ECDSA-P256"
-	ConnectorSubprotocol          = "webmux-relay.v1"
-	NodeSubprotocol               = "webmux-relay-node.v1"
-	MaxAuthBytes                  = 4096
-	MaxControlBytes               = 65536
-	MaxSnapshotBytes              = 1048576
-	MaxStreamHeaderBytes          = 1024
-	MaxURLBytes                   = 2048
-	MaxPins                       = 4
-	MaxTURNURLs                   = 8
-	MaxBindings                   = 4096
-	MaxPendingRequests            = 32
-	AuthTimeout                   = 10 * time.Second
-	NonceTTL                      = 30 * time.Second
-	RequestTimeout                = 10 * time.Second
-	ControlMessageTTL             = 60 * time.Second
-	StreamOpenTimeout             = 10 * time.Second
-	KeepAliveInterval             = 10 * time.Second
-	ControlLease                  = 30 * time.Second
-	LoginCodeTTL                  = 60 * time.Second
-	BrowserTransactionTTL         = 5 * time.Minute
-	BrowserSessionTTL             = 12 * time.Hour
-	MaxICETTL                     = 10 * time.Minute
+	V1                       Version = 1
+	HostAlgorithm                    = "Ed25519"
+	ServiceAlgorithm                 = "ECDSA-P256"
+	ConnectorSubprotocol             = "webmux-relay.v1"
+	NodeSubprotocol                  = "webmux-relay-node.v1"
+	MaxAuthBytes                     = 4096
+	MaxControlBytes                  = 65536
+	MaxSnapshotBytes                 = 1048576
+	MaxStreamHeaderBytes             = 1024
+	MaxURLBytes                      = 2048
+	MaxPins                          = 4
+	MaxTURNURLs                      = 8
+	MaxBindings                      = 4096
+	MaxPendingRequests               = 32
+	AuthTimeout                      = 10 * time.Second
+	NonceTTL                         = 30 * time.Second
+	RequestTimeout                   = 10 * time.Second
+	ControlMessageTTL                = 60 * time.Second
+	StreamAdmissionTimeout           = 15 * time.Second
+	HTTPStreamsPerConnection         = 4
+	MaxRoleConnections               = 16
+	MaxPendingStreams                = 128
+	StreamOpenTimeout                = 10 * time.Second
+	KeepAliveInterval                = 10 * time.Second
+	ControlLease                     = 30 * time.Second
+	LoginCodeTTL                     = 60 * time.Second
+	BrowserTransactionTTL            = 5 * time.Minute
+	BrowserSessionTTL                = 12 * time.Hour
+	MaxICETTL                        = 10 * time.Minute
 )
 
 type Code string

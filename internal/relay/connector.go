@@ -39,6 +39,7 @@ type physical struct {
 	ws        *websocket.Conn
 	mux       *smux.Session
 	scope     protocol.Scope
+	ordinary  int // guarded by connection.mu
 	closeOnce sync.Once
 }
 
@@ -51,9 +52,23 @@ func (p *physical) close() {
 	})
 }
 
+type connectionPool struct {
+	physicals map[*physical]struct{}
+	target    int
+	growUntil time.Time
+	wake      chan struct{}
+	paused    bool
+}
+
+type httpStream struct {
+	physical *physical
+	conn     net.Conn
+}
+
 type connection struct {
 	client       *Client
 	assignment   protocol.Assignment
+	key          ed25519.PrivateKey
 	callbacks    Callbacks
 	ctx          context.Context
 	cancel       context.CancelFunc
@@ -72,13 +87,14 @@ type connection struct {
 	mu             sync.Mutex
 	rpc            *controlRPC
 	controlClaimed bool
-	bulk           *physical
+	controlPool    connectionPool
+	bulkPool       connectionPool
 	denied         bool
-	httpStreams    map[*smux.Stream]net.Conn
+	httpStreams    map[*smux.Stream]httpStream
 }
 
 // Connect runs one logical generation until loss or cancellation. Its caller
-// owns control reconnect policy; only bulk is retried here, in the same scope.
+// owns primary control reconnect policy; auxiliary sockets stay in its scope.
 func (c *Client) Connect(ctx context.Context, key ed25519.PrivateKey, a protocol.Assignment, callbacks Callbacks) error {
 	if callbacks.Ready == nil || callbacks.BulkReady == nil || callbacks.Disconnected == nil || callbacks.Revoke == nil {
 		return protocol.Error{Code: protocol.InvalidConfig}
@@ -102,14 +118,19 @@ func (c *Client) Connect(ctx context.Context, key ed25519.PrivateKey, a protocol
 	c.mu.Unlock()
 	defer func() { c.mu.Lock(); c.connecting = false; c.mu.Unlock() }()
 
+	// Retain a private, memory-only copy until every physical worker is joined.
+	key = append(ed25519.PrivateKey(nil), key...)
+	defer clear(key)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	p, err := c.dial(ctx, key, a, protocol.RoleControl, protocol.Scope{})
+	p, err := c.dial(ctx, ctx, key, a, protocol.RoleControl, protocol.Scope{})
 	if err != nil {
 		callbacks.Disconnected()
 		return err
 	}
-	s := &connection{client: c, assignment: cloneAssignment(a), callbacks: callbacks, ctx: ctx, cancel: cancel, control: p, scope: p.scope, workers: make(chan struct{}, maxStreamWorkers), ready: make(chan struct{}), shutdownDone: make(chan struct{}), httpStreams: make(map[*smux.Stream]net.Conn)}
+	s := &connection{client: c, assignment: cloneAssignment(a), key: key, callbacks: callbacks, ctx: ctx, cancel: cancel, control: p, scope: p.scope, workers: make(chan struct{}, maxStreamWorkers), ready: make(chan struct{}), shutdownDone: make(chan struct{}), httpStreams: make(map[*smux.Stream]httpStream)}
+	s.controlPool = connectionPool{physicals: map[*physical]struct{}{p: {}}, target: 1, wake: make(chan struct{}, 1)}
+	s.bulkPool = connectionPool{physicals: make(map[*physical]struct{}), target: 1, wake: make(chan struct{}, 1)}
 	defer func() { s.stop(protocol.Error{Code: protocol.Unavailable}); s.wg.Wait() }()
 	s.wg.Add(1)
 	go func() {
@@ -128,8 +149,9 @@ func (c *Client) Connect(ctx context.Context, key ed25519.PrivateKey, a protocol
 		s.stop(protocol.Error{Code: protocol.Unavailable})
 	}
 	if ctx.Err() == nil {
-		s.wg.Add(1)
-		go func() { defer s.wg.Done(); s.runBulk(key) }()
+		s.wg.Add(2)
+		go func() { defer s.wg.Done(); s.runPool(protocol.RoleControl) }()
+		go func() { defer s.wg.Done(); s.runPool(protocol.RoleBulk) }()
 	}
 	<-ctx.Done()
 	s.stop(ctx.Err())
@@ -172,9 +194,12 @@ func (s *connection) publishReady(rpc *controlRPC) bool {
 	return true
 }
 
-func (s *connection) publishBulk(ready bool) {
+func (s *connection) publishBulk() {
 	s.eventMu.Lock()
 	defer s.eventMu.Unlock()
+	s.mu.Lock()
+	ready := len(s.bulkPool.physicals) > 0
+	s.mu.Unlock()
 	if s.stopped || !s.isReady || s.bulkReady == ready {
 		return
 	}
@@ -203,19 +228,20 @@ func (s *connection) stop(err error) {
 	// A slow control close must never leave bulk open behind it.
 	s.closeHTTP()
 	s.mu.Lock()
-	bulk := s.bulk
+	physicals := make([]*physical, 0, len(s.controlPool.physicals)+len(s.bulkPool.physicals))
+	for p := range s.controlPool.physicals {
+		physicals = append(physicals, p)
+	}
+	for p := range s.bulkPool.physicals {
+		physicals = append(physicals, p)
+	}
 	s.mu.Unlock()
 	var closing sync.WaitGroup
-	closing.Add(1)
-	go func() {
-		defer closing.Done()
-		s.control.close()
-	}()
-	if bulk != nil {
+	for _, p := range physicals {
 		closing.Add(1)
 		go func() {
 			defer closing.Done()
-			bulk.close()
+			p.close()
 		}()
 	}
 	s.callbacks.Disconnected()
@@ -223,48 +249,164 @@ func (s *connection) stop(err error) {
 	close(s.shutdownDone)
 }
 
-func (s *connection) runBulk(key ed25519.PrivateKey) {
-	backoff := time.Second
-	for s.ctx.Err() == nil {
-		p, err := s.client.dial(s.ctx, key, s.assignment, protocol.RoleBulk, s.scope)
+func (s *connection) pool(role protocol.Role) *connectionPool {
+	if role == protocol.RoleControl {
+		return &s.controlPool
+	}
+	return &s.bulkPool
+}
+
+func wakePool(pool *connectionPool) {
+	select {
+	case pool.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (s *connection) grow(demand protocol.ConnectionDemand) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.denied || s.ctx.Err() != nil {
+		return
+	}
+	pool := s.pool(demand.Role)
+	target := int(demand.Connections)
+	if target <= len(pool.physicals) {
+		return
+	}
+	now := time.Now()
+	if pool.growUntil.IsZero() || !now.Before(pool.growUntil) {
+		pool.target = max(1, len(pool.physicals))
+		pool.growUntil = now.Add(protocol.StreamAdmissionTimeout)
+	} else if target <= pool.target {
+		// Duplicate demand neither starts another dial nor extends its budget.
+		return
+	}
+	pool.target = max(pool.target, target)
+	pool.paused = false
+	wakePool(pool)
+}
+
+// One long-lived worker per role serializes authentication and bounds retries.
+// Bulk's first socket retains its original reconnect policy; extra sockets are
+// attempted only within the current demand's admission budget.
+func (s *connection) runPool(role protocol.Role) {
+	pool := s.pool(role)
+	backoff := time.Duration(0)
+	for {
+		s.mu.Lock()
+		if s.denied || s.ctx.Err() != nil {
+			s.mu.Unlock()
+			return
+		}
+		now := time.Now()
+		if !pool.growUntil.IsZero() && !now.Before(pool.growUntil) {
+			pool.growUntil = time.Time{}
+			pool.target = max(1, len(pool.physicals))
+		}
+		until := pool.growUntil
+		growing := !until.IsZero()
+		baseline := role == protocol.RoleBulk && len(pool.physicals) == 0
+		needed := len(pool.physicals) < pool.target && (growing || baseline && !pool.paused)
+		if needed {
+			select {
+			case <-pool.wake:
+			default:
+			}
+		}
+		s.mu.Unlock()
+		if !needed {
+			backoff = 0
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-pool.wake:
+				continue
+			}
+		}
+		authCtx := s.ctx
+		cancel := func() {}
+		if growing {
+			authCtx, cancel = context.WithDeadline(s.ctx, until)
+		}
+		p, err := s.client.dial(s.ctx, authCtx, s.key, s.assignment, role, s.scope)
+		cancel()
 		if err == nil {
-			s.mu.Lock()
-			if s.denied || s.ctx.Err() != nil {
-				s.mu.Unlock()
+			backoff = 0
+			if !s.attach(p, role) {
 				p.close()
 				return
 			}
-			s.bulk = p
-			s.mu.Unlock()
-			s.publishBulk(true)
-			err = s.accept(p, protocol.RoleBulk)
-			p.close()
-			s.mu.Lock()
-			if s.bulk == p {
-				s.bulk = nil
-			}
-			s.mu.Unlock()
-			s.publishBulk(false)
+			continue
+		}
+		if s.ctx.Err() != nil {
+			return
+		}
+		s.mu.Lock()
+		pool.paused = permanentError(err)
+		s.mu.Unlock()
+		limit := maxBulkBackoff
+		if growing {
+			limit = time.Second
+		}
+		if backoff == 0 {
 			backoff = time.Second
+			if growing {
+				backoff = 100 * time.Millisecond
+			}
 		}
-		if s.ctx.Err() != nil || permanentError(err) {
-			return
+		wait := backoff
+		if growing {
+			wait = min(wait, max(time.Duration(0), time.Until(until)))
 		}
-		// Bounded cryptographic jitter, without changing endpoints/trust/role.
-		var jitter [1]byte
-		if _, err := rand.Read(jitter[:]); err != nil {
-			return
-		}
-		wait := backoff/2 + time.Duration(jitter[0])*backoff/512
 		timer := time.NewTimer(wait)
 		select {
 		case <-s.ctx.Done():
 			timer.Stop()
 			return
+		case <-pool.wake:
+			timer.Stop()
 		case <-timer.C:
 		}
-		backoff = min(backoff*2, maxBulkBackoff)
+		backoff = min(backoff*2, limit)
 	}
+}
+
+func (s *connection) attach(p *physical, role protocol.Role) bool {
+	s.mu.Lock()
+	pool := s.pool(role)
+	if s.denied || s.ctx.Err() != nil || len(pool.physicals) >= protocol.MaxRoleConnections {
+		s.mu.Unlock()
+		return false
+	}
+	pool.physicals[p] = struct{}{}
+	pool.paused = false
+	s.wg.Add(1)
+	s.mu.Unlock()
+	if role == protocol.RoleBulk {
+		s.publishBulk()
+	}
+	go func() {
+		defer s.wg.Done()
+		_ = s.accept(p, role)
+		p.close()
+		s.mu.Lock()
+		delete(pool.physicals, p)
+		for stream, access := range s.httpStreams {
+			if access.physical == p {
+				if access.conn != nil {
+					abortConn(access.conn)
+				}
+				_ = stream.SetDeadline(time.Now())
+			}
+		}
+		wakePool(pool)
+		s.mu.Unlock()
+		if role == protocol.RoleBulk {
+			s.publishBulk()
+		}
+	}()
+	return true
 }
 
 func permanentError(err error) bool {
@@ -272,17 +414,18 @@ func permanentError(err error) bool {
 	return errors.As(err, &p) && p.Code != protocol.Unavailable && p.Code != protocol.RateLimited
 }
 
-func (c *Client) dial(ctx context.Context, key ed25519.PrivateKey, a protocol.Assignment, role protocol.Role, expected protocol.Scope) (_ *physical, err error) {
-	// Discovery expiry governs new control connections. A bulk reconnect is
-	// authorized only by its still-live control generation and online node proof.
-	if role == protocol.RoleControl {
+// ctx owns the physical lifetime; authCtx may impose a shorter growth budget.
+func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a protocol.Assignment, role protocol.Role, expected protocol.Scope) (_ *physical, err error) {
+	// Only a new primary depends on discovery expiry. Every auxiliary is
+	// independently authorized within its exact, still-live logical scope.
+	if role == protocol.RoleControl && expected.ConnectorGeneration == 0 {
 		if err := a.Validate(time.Now()); err != nil {
 			return nil, err
 		}
 	} else if err := expected.Validate(); err != nil {
 		return nil, err
 	}
-	authCtx, cancel := context.WithTimeout(ctx, protocol.AuthTimeout)
+	authCtx, cancel := context.WithTimeout(authCtx, protocol.AuthTimeout)
 	defer cancel()
 	httpClient := c.httpClient(&a.Trust)
 	defer httpClient.CloseIdleConnections()
@@ -303,7 +446,7 @@ func (c *Client) dial(ctx context.Context, key ed25519.PrivateKey, a protocol.As
 	}
 	ws.SetReadLimit(protocol.MaxAuthBytes)
 	hello := protocol.ConnectorHello{Version: protocol.V1, HostID: a.Binding.HostID, BindingGeneration: a.Binding.BindingGeneration, Role: role}
-	if role == protocol.RoleBulk {
+	if expected.ConnectorGeneration > 0 {
 		hello.ConnectorGeneration = expected.ConnectorGeneration
 	}
 	if err := writeAuth(authCtx, ws, hello); err != nil {
@@ -348,7 +491,7 @@ func checkChallenge(challenge protocol.ConnectorChallenge, a protocol.Assignment
 	if challenge.Audience != a.NodeAudience || challenge.HostID != a.Binding.HostID || challenge.BindingGeneration != a.Binding.BindingGeneration || challenge.Role != role || challenge.ControlEpoch != a.ControlEpoch {
 		return protocol.Error{Code: protocol.WrongAudience}
 	}
-	if role == protocol.RoleBulk && (challenge.ConnectorGeneration != expected.ConnectorGeneration || challenge.NodeEpoch != expected.NodeEpoch || challenge.ControlEpoch != expected.ControlEpoch) {
+	if expected.ConnectorGeneration > 0 && (challenge.HostID != expected.HostID || challenge.BindingGeneration != expected.BindingGeneration || challenge.ConnectorGeneration != expected.ConnectorGeneration || challenge.NodeEpoch != expected.NodeEpoch || challenge.ControlEpoch != expected.ControlEpoch) {
 		return protocol.Error{Code: protocol.StaleGeneration}
 	}
 	return nil
@@ -357,8 +500,8 @@ func checkChallenge(challenge protocol.ConnectorChallenge, a protocol.Assignment
 func smuxConfig() *smux.Config {
 	cfg := smux.DefaultConfig()
 	cfg.Version = 2
-	cfg.MaxReceiveBuffer = connectionBuffer
-	cfg.MaxStreamBuffer = streamBuffer
+	cfg.MaxReceiveBuffer = max(1, connectionBuffer/protocol.MaxRoleConnections)
+	cfg.MaxStreamBuffer = min(streamBuffer, cfg.MaxReceiveBuffer)
 	cfg.KeepAliveInterval = protocol.KeepAliveInterval
 	cfg.KeepAliveTimeout = protocol.ControlLease
 	return cfg
