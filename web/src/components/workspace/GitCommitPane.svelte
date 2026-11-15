@@ -51,11 +51,9 @@
     exitedSessionCount = 0,
     archivedSessionCount = 0,
     paneSizes = [40, 60],
-    diffMode = "unified",
     listScrollTop = 0,
     onPaneSizesChange,
     onResetLayout,
-    onDiffModeChange,
     onListScrollChange,
     onReviewScopeChange,
     onSelectChange,
@@ -292,8 +290,6 @@
         ? liveWorktreeIdentityForPath?.(activeTaskPath)
         : undefined}
       {onAddReworkItem}
-      {diffMode}
-      {onDiffModeChange}
       onBack={mobile ? () => (mobileStep = "changes") : undefined}
     />
   {:else}
@@ -331,7 +327,7 @@
         </div>
       {/if}
 
-      <div class="min-h-0 flex-1">
+      <div class="flex min-h-0 flex-1 flex-col">
         {#if !activeChange}
           <p class="p-4 text-xs text-muted-foreground">
             {m.s6_select_change_prompt()}
@@ -341,7 +337,6 @@
             change={activeChange}
             {context}
             {stagingDiff}
-            {diffMode}
             {readonlyMode}
             busy={stagingBusy}
             stale={activeDiffStale}
@@ -351,7 +346,6 @@
             liveWorktreeIdentity={liveWorktreeIdentityForPath?.(
               activeChange.path,
             )}
-            {onDiffModeChange}
             {onStageChange}
             {onUnstageChange}
             {onStageHunk}

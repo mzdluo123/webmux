@@ -1,13 +1,9 @@
 import { m } from "$lib/paraglide/messages.js";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { errorMessage } from "../../platform/error";
-import { gitSnapshotFile, gitSnapshotRaw } from "../../platform/git-api";
+import { gitSnapshotRaw } from "../../platform/git-api";
 import type { GitCommitFile } from "../../contracts/git-workbench-schemas";
-import type {
-  GitDiff,
-  GitFile,
-  GitSnapshotSide,
-} from "../../contracts/schemas";
+import type { GitDiff, GitSnapshotSide } from "../../contracts/schemas";
 import { resolveCalculatedDiff } from "../../domains/code/code-diff-client";
 import { LatestRequest } from "../shared/remote-request.svelte";
 import { createGitContextRunner } from "./git-context-cache";
@@ -19,13 +15,6 @@ type GitSnapshotDiffPhase =
   | "binary"
   | "limited"
   | "error";
-
-interface GitSnapshotSidePreview {
-  side: GitSnapshotSide;
-  loading: boolean;
-  file: GitFile | null;
-  error: string;
-}
 
 interface GitSnapshotDiffViewState {
   phase: GitSnapshotDiffPhase;
@@ -40,14 +29,11 @@ interface GitSnapshotDiffViewState {
   fileDiff: FileDiffMetadata | null;
   rawDiff: GitDiff | null;
   reason: string;
-  snapshotSideDoc: GitSnapshotSidePreview | null;
   downloadingSide: GitSnapshotSide | null;
 }
 
 export interface GitDiffPanelReader {
   readonly state: GitSnapshotDiffViewState;
-  openSnapshotSide: (side: GitSnapshotSide) => Promise<void>;
-  closeSnapshotSide: () => void;
   downloadSnapshotSide: (side: GitSnapshotSide) => Promise<void>;
   retryActiveDiff: () => void;
 }
@@ -66,7 +52,6 @@ function emptySnapshotDiffState(): GitSnapshotDiffViewState {
     fileDiff: null,
     rawDiff: null,
     reason: "",
-    snapshotSideDoc: null,
     downloadingSide: null,
   };
 }
@@ -89,23 +74,19 @@ export function createGitSnapshotDiffReader(deps: {
   let state = $state.raw<GitSnapshotDiffViewState>(emptySnapshotDiffState());
   const ctxRunner = createGitContextRunner();
   const diffReq = new LatestRequest();
-  const sideReq = new LatestRequest();
 
   function dispose() {
     diffReq.dispose();
-    sideReq.dispose();
   }
 
   function resetTarget() {
     diffReq.cancel();
-    sideReq.cancel();
     ctxRunner.reset();
     state = emptySnapshotDiffState();
   }
 
   function clearDiff() {
     diffReq.cancel();
-    sideReq.cancel();
     state = emptySnapshotDiffState();
   }
 
@@ -123,7 +104,6 @@ export function createGitSnapshotDiffReader(deps: {
   }) {
     const repoId = deps.getRepoId();
     const worktreeId = deps.getWorktreeId();
-    sideReq.cancel();
     if (!repoId || !options.file) {
       diffReq.cancel();
       state = emptySnapshotDiffState();
@@ -146,7 +126,6 @@ export function createGitSnapshotDiffReader(deps: {
       fileDiff: null,
       rawDiff: null,
       reason: "",
-      snapshotSideDoc: null,
       downloadingSide: null,
     };
 
@@ -213,54 +192,6 @@ export function createGitSnapshotDiffReader(deps: {
     }
   }
 
-  async function openSnapshotSide(side: GitSnapshotSide) {
-    const repoId = deps.getRepoId();
-    const worktreeId = deps.getWorktreeId();
-    const snapshotId = state.snapshotId;
-    if (!repoId || !snapshotId) return;
-
-    const req = sideReq.begin();
-    state = {
-      ...state,
-      snapshotSideDoc: { side, loading: true, file: null, error: "" },
-    };
-    try {
-      const file = await ctxRunner.withContext(
-        repoId,
-        worktreeId,
-        req.signal,
-        (cid) =>
-          gitSnapshotFile(
-            repoId,
-            snapshotId,
-            { side, contextId: cid, worktreeId },
-            req.signal,
-          ),
-      );
-      if (!req.current() || state.snapshotId !== snapshotId) return;
-      state = {
-        ...state,
-        snapshotSideDoc: { side, loading: false, file, error: "" },
-      };
-    } catch (err) {
-      if (!req.reportable()) return;
-      state = {
-        ...state,
-        snapshotSideDoc: {
-          side,
-          loading: false,
-          file: null,
-          error: errorMessage(err),
-        },
-      };
-    }
-  }
-
-  function closeSnapshotSide() {
-    sideReq.cancel();
-    state = { ...state, snapshotSideDoc: null };
-  }
-
   async function downloadSnapshotSide(side: GitSnapshotSide) {
     const repoId = deps.getRepoId();
     const worktreeId = deps.getWorktreeId();
@@ -313,8 +244,6 @@ export function createGitSnapshotDiffReader(deps: {
     seedContextId: ctxRunner.seed,
     withContext: ctxRunner.withContext,
     loadFetchedDiff,
-    openSnapshotSide,
-    closeSnapshotSide,
     downloadSnapshotSide,
   };
 }

@@ -407,7 +407,7 @@
               side="new"
               expired={false}
               draftEnabled={false}
-              preferredDiffStyle="unified"
+              preferredDiffStyle="split"
               onselect={() => {}}
             />
           {:else}

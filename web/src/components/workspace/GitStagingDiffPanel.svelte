@@ -7,7 +7,6 @@
     GitWorkingChange,
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
-  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { m } from "$lib/paraglide/messages.js";
   import type { CodeDiffReaderState } from "../../contracts/schemas";
   import {
@@ -35,7 +34,6 @@
     change,
     context,
     stagingDiff,
-    diffMode = "unified",
     readonlyMode = false,
     busy = false,
     stale = false,
@@ -43,7 +41,6 @@
     hasActiveWorktreeSession = false,
     defaultLinePickerOpen = false,
     liveWorktreeIdentity,
-    onDiffModeChange,
     onStageChange,
     onUnstageChange,
     onStageHunk,
@@ -62,7 +59,6 @@
     change: GitWorkingChange;
     context: GitWorktreeContext;
     stagingDiff?: GitStagingDiffController;
-    diffMode?: "unified" | "split";
     readonlyMode?: boolean;
     busy?: boolean;
     stale?: boolean;
@@ -70,7 +66,6 @@
     hasActiveWorktreeSession?: boolean;
     defaultLinePickerOpen?: boolean;
     liveWorktreeIdentity?: string;
-    onDiffModeChange?: (mode: "unified" | "split") => void;
     onStageChange: (changeId: string) => void;
     onUnstageChange: (changeId: string) => void;
     onDiscardFile?: (changeId: string, path: string) => void;
@@ -230,161 +225,159 @@
   }
 </script>
 
-<ScrollArea class="h-full min-h-8 w-full" data-testid="git-staging-diff-panel">
-  <div class="flex min-h-full w-full min-w-0 flex-col bg-background">
-    <GitStagingDiffHeader
-      {change}
+<div
+  class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background"
+  data-testid="git-staging-diff-panel"
+>
+  <GitStagingDiffHeader
+    {change}
+    {hunkIndex}
+    {stageMode}
+    {canStageLines}
+    {linePickerOpen}
+    {canDiscardCurrentFile}
+    {busy}
+    {stale}
+    onJumpToHunk={jumpToHunk}
+    onToggleLinePicker={() => (linePickerOpen = !linePickerOpen)}
+    {onDiscardFile}
+    {onStageChange}
+    {onUnstageChange}
+  />
+
+  {#if stale}
+    <div class="shrink-0 border-b bg-background px-3 py-2">
+      <InlineNotice tone="warning">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {staleReason || m.s6_staging_stale_fallback()}
+          </span>
+          {#if onRefreshSnapshot}
+            <Button size="sm" variant="outline" onclick={onRefreshSnapshot}>
+              <IconRefresh aria-hidden="true" />
+              {m.s6_staging_refresh_snapshot()}
+            </Button>
+          {/if}
+        </div>
+      </InlineNotice>
+    </div>
+  {/if}
+
+  {#if change.group === "conflicted"}
+    <GitConflictTerminalNotice
+      message={context.operationInProgress
+        ? m.s6_staging_conflict_msg_in_progress({
+            op: context.operationInProgress,
+          })
+        : m.s6_staging_conflict_msg_plain()}
+      {hasActiveWorktreeSession}
+      newLabel={m.s6_staging_new_terminal_here()}
+      onOpenConflictResolver={onOpenConflictResolver
+        ? () => onOpenConflictResolver(change.path)
+        : undefined}
+      {onOpenWorktreeTerminal}
+      {onNewWorktreeTerminal}
+    />
+  {:else if !change.hunkStageAvailable && change.degradeReason}
+    <div class="shrink-0 border-b bg-background px-3 py-1.5">
+      <InlineNotice tone="warning">
+        {m.s6_staging_hunk_degraded({ reason: change.degradeReason })}
+      </InlineNotice>
+    </div>
+  {/if}
+
+  {#if canStageHunks && !(linePickerOpen && canStageLines)}
+    <GitStagingHunkStrip
+      changeId={change.id}
+      hunks={change.hunks}
       {hunkIndex}
-      {phase}
-      {diffMode}
       {stageMode}
-      {canStageLines}
-      {linePickerOpen}
-      {canDiscardCurrentFile}
       {busy}
       {stale}
+      canAddRework={Boolean(onAddReworkItem && !readonlyMode)}
       onJumpToHunk={jumpToHunk}
-      onToggleLinePicker={() => (linePickerOpen = !linePickerOpen)}
-      {onDiffModeChange}
-      {onDiscardFile}
-      {onStageChange}
-      {onUnstageChange}
+      onAddHunkToRework={addHunkToRework}
+      {onStageHunk}
+      {onUnstageHunk}
+      onDiscardHunk={change.group === "unstaged" ? onDiscardHunk : undefined}
     />
+  {/if}
 
-    {#if stale}
-      <div class="border-b bg-background px-3 py-2">
-        <InlineNotice tone="warning">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <span>
-              {staleReason || m.s6_staging_stale_fallback()}
-            </span>
-            {#if onRefreshSnapshot}
-              <Button size="sm" variant="outline" onclick={onRefreshSnapshot}>
-                <IconRefresh aria-hidden="true" />
-                {m.s6_staging_refresh_snapshot()}
-              </Button>
-            {/if}
-          </div>
-        </InlineNotice>
-      </div>
-    {/if}
+  {#if !(linePickerOpen && canStageLines)}
+    <GitDiffSelectionBar
+      selection={resolvedSelection}
+      {stageMode}
+      lineSelections={readerLineSelections}
+      {busy}
+      {stale}
+      onStageSelectedLines={onStageLines
+        ? (sel) => onStageLines(change.id, sel)
+        : undefined}
+      onUnstageSelectedLines={onUnstageLines
+        ? (sel) => onUnstageLines(change.id, sel)
+        : undefined}
+      onDiscardSelectedLines={change.group === "unstaged" && onDiscardLines
+        ? (sel) => onDiscardLines(change.id, sel)
+        : undefined}
+      {onAddReworkItem}
+      onClear={clearStagingSelection}
+    />
+  {/if}
 
-    {#if change.group === "conflicted"}
-      <GitConflictTerminalNotice
-        message={context.operationInProgress
-          ? m.s6_staging_conflict_msg_in_progress({
-              op: context.operationInProgress,
-            })
-          : m.s6_staging_conflict_msg_plain()}
-        {hasActiveWorktreeSession}
-        newLabel={m.s6_staging_new_terminal_here()}
-        onOpenConflictResolver={onOpenConflictResolver
-          ? () => onOpenConflictResolver(change.path)
-          : undefined}
-        {onOpenWorktreeTerminal}
-        {onNewWorktreeTerminal}
-      />
-    {:else if !change.hunkStageAvailable && change.degradeReason}
-      <div class="border-b bg-background px-3 py-1.5">
-        <InlineNotice tone="warning">
-          {m.s6_staging_hunk_degraded({ reason: change.degradeReason })}
-        </InlineNotice>
-      </div>
-    {/if}
-
-    {#if canStageHunks && !(linePickerOpen && canStageLines)}
-      <GitStagingHunkStrip
-        changeId={change.id}
-        hunks={change.hunks}
-        {hunkIndex}
-        {stageMode}
-        {busy}
-        {stale}
-        canAddRework={Boolean(onAddReworkItem && !readonlyMode)}
-        onJumpToHunk={jumpToHunk}
-        onAddHunkToRework={addHunkToRework}
-        {onStageHunk}
-        {onUnstageHunk}
-        onDiscardHunk={change.group === "unstaged" ? onDiscardHunk : undefined}
-      />
-    {/if}
-
-    {#if !(linePickerOpen && canStageLines)}
-      <GitDiffSelectionBar
-        selection={resolvedSelection}
-        {stageMode}
-        lineSelections={readerLineSelections}
-        {busy}
-        {stale}
-        onStageSelectedLines={onStageLines
-          ? (sel) => onStageLines(change.id, sel)
-          : undefined}
-        onUnstageSelectedLines={onUnstageLines
-          ? (sel) => onUnstageLines(change.id, sel)
-          : undefined}
-        onDiscardSelectedLines={change.group === "unstaged" && onDiscardLines
-          ? (sel) => onDiscardLines(change.id, sel)
-          : undefined}
-        {onAddReworkItem}
-        onClear={clearStagingSelection}
-      />
-    {/if}
-
-    {#if linePickerOpen && canStageLines}
-      <GitStagingLineSelector
-        changeId={change.id}
-        hunks={change.hunks}
-        {stageMode}
-        canDiscardLines={change.group === "unstaged" && Boolean(onDiscardLines)}
-        {busy}
-        {stale}
-        {onStageLines}
-        {onUnstageLines}
-        {onDiscardLines}
-      />
-    {:else}
-      <div
-        class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-      >
-        {#if phase === "loading"}
-          <p class="p-4 text-xs text-muted-foreground" role="status">
-            {m.s6_staging_loading_diff()}
-          </p>
-        {:else if phase === "ready" && fileDiff}
-          {#key `${change.id}:${jumpSeq}`}
-            <CodeDiffReader
-              bind:this={readerRef}
-              {fileDiff}
-              side="new"
-              expired={stale}
-              draftEnabled={false}
-              preferredDiffStyle={diffMode}
-              restore={jumpTarget
-                ? {
-                    selected: null,
-                    expanded: [],
-                    search: {
-                      search: "",
-                      caseSensitive: false,
-                      regexp: false,
-                      wholeWord: false,
-                    },
-                    top: jumpTarget,
-                  }
-                : undefined}
-              onselect={(range) => {
-                selectionSlot = range ? { changeId: change.id, range } : null;
-              }}
-            />
-          {/key}
-        {:else}
-          <div class="p-4">
-            <InlineNotice tone={phase === "error" ? "danger" : "info"}>
-              {reason || m.s6_staging_no_text_diff()}
-            </InlineNotice>
-          </div>
-        {/if}
-      </div>
-    {/if}
-  </div>
-</ScrollArea>
+  {#if linePickerOpen && canStageLines}
+    <GitStagingLineSelector
+      changeId={change.id}
+      hunks={change.hunks}
+      {stageMode}
+      canDiscardLines={change.group === "unstaged" && Boolean(onDiscardLines)}
+      {busy}
+      {stale}
+      {onStageLines}
+      {onUnstageLines}
+      {onDiscardLines}
+    />
+  {:else}
+    <div
+      class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      {#if phase === "loading"}
+        <p class="p-4 text-xs text-muted-foreground" role="status">
+          {m.s6_staging_loading_diff()}
+        </p>
+      {:else if phase === "ready" && fileDiff}
+        {#key `${change.id}:${jumpSeq}`}
+          <CodeDiffReader
+            bind:this={readerRef}
+            {fileDiff}
+            side="new"
+            expired={stale}
+            draftEnabled={false}
+            preferredDiffStyle="split"
+            restore={jumpTarget
+              ? {
+                  selected: null,
+                  expanded: [],
+                  search: {
+                    search: "",
+                    caseSensitive: false,
+                    regexp: false,
+                    wholeWord: false,
+                  },
+                  top: jumpTarget,
+                }
+              : undefined}
+            onselect={(range) => {
+              selectionSlot = range ? { changeId: change.id, range } : null;
+            }}
+          />
+        {/key}
+      {:else}
+        <div class="p-4">
+          <InlineNotice tone={phase === "error" ? "danger" : "info"}>
+            {reason || m.s6_staging_no_text_diff()}
+          </InlineNotice>
+        </div>
+      {/if}
+    </div>
+  {/if}
+</div>

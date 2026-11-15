@@ -357,8 +357,6 @@ export function createGitTaskReviewController(
     get state() {
       return reader.state;
     },
-    openSnapshotSide: reader.openSnapshotSide,
-    closeSnapshotSide: reader.closeSnapshotSide,
     downloadSnapshotSide: reader.downloadSnapshotSide,
     retryActiveDiff() {
       const review = currentReview();

@@ -372,25 +372,36 @@ test("Log view filters refs/tags without checkout (U02), paginates %P topology &
       page.getByRole("option", { name: /initial seed for log workbench/ }),
     ).toBeVisible();
 
-    // Scroll commit list down, maximize Diff via Enter on active src.ts, then press Escape -> list scrollTop is preserved!
+    // Scroll commit list down, preview src.ts via Enter in docked split diff -> list scrollTop is preserved and removed toolbar buttons are absent!
     const commitListbox = page.getByRole("listbox", { name: "提交记录" });
     await commitListbox.evaluate((el) => {
       el.scrollTop = 360;
     });
-    const scrollBeforeMax = await commitListbox.evaluate((el) => el.scrollTop);
-    expect(scrollBeforeMax).toBeGreaterThan(200);
+    const scrollBeforePreview = await commitListbox.evaluate(
+      (el) => el.scrollTop,
+    );
+    expect(scrollBeforePreview).toBeGreaterThan(200);
 
     await filesListbox.getByRole("option", { name: /src\.ts/ }).click();
     await page.keyboard.press("Enter");
-    await expect(page.getByTestId("git-log-diff-panel")).toHaveAttribute(
-      "data-diff-presentation",
-      "maximized",
-    );
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId("git-log-diff-panel")).toHaveAttribute(
-      "data-diff-presentation",
-      "docked",
-    );
+    await expect(diffPanel).toHaveAttribute("data-diff-presentation", "docked");
+    await expect(
+      diffPanel.getByRole("button", { name: "变更前全文" }),
+    ).toHaveCount(0);
+    await expect(
+      diffPanel.getByRole("button", { name: "变更后全文" }),
+    ).toHaveCount(0);
+    await expect(
+      diffPanel.getByRole("radiogroup", { name: "历史差异布局模式" }),
+    ).toHaveCount(0);
+    await expect(
+      diffPanel.getByRole("button", { name: "放大差异到主工作区" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "放大查看当前文件差异" }),
+    ).toHaveCount(0);
+    await expect(diffPanel.getByText("修改前")).toBeVisible();
+    await expect(diffPanel.getByText("修改后")).toBeVisible();
     await expect
       .poll(() => commitListbox.evaluate((el) => el.scrollTop))
       .toBeGreaterThan(200);
@@ -467,7 +478,7 @@ test("Log view filters refs/tags without checkout (U02), paginates %P topology &
   void baseOid;
 });
 
-test("Explicit log diff restore and back leave open reader panels without changing selection", async ({
+test("Docked log diff collapse and phone back leave open reader panels without changing selection", async ({
   page,
   request,
   workDir,
@@ -485,27 +496,23 @@ test("Explicit log diff restore and back leave open reader panels without changi
   const diff = page.getByTestId("git-log-diff-panel");
 
   for (const readerPanel of ["文件内查找", "缩放"]) {
-    for (const navigation of ["退出放大差异", "返回日志列表"]) {
-      await diff.getByRole("button", { name: "放大差异到主工作区" }).click();
-      await expect(diff).toHaveAttribute("data-diff-presentation", "maximized");
-      const panelToggle = diff.getByRole("button", {
-        name: readerPanel,
-        exact: true,
-      });
-      await panelToggle.click();
-      await expect(panelToggle).toHaveAttribute("aria-expanded", "true");
+    await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
+    const panelToggle = diff.getByRole("button", {
+      name: readerPanel,
+      exact: true,
+    });
+    await panelToggle.click();
+    await expect(panelToggle).toHaveAttribute("aria-expanded", "true");
 
-      await diff.getByRole("button", { name: navigation, exact: true }).click();
-      await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
-      await expect(
-        page.getByRole("listbox", { name: "提交记录" }),
-      ).toBeVisible();
-      await expect(selectedFile).toHaveAttribute("aria-selected", "true");
-      await expect(diff.locator(".code-diff-reader")).toContainText(
-        "from-second-parent",
-      );
-      await expect(page).toHaveURL(route);
-    }
+    await diff.getByRole("button", { name: "折叠底部差异面板" }).click();
+    await diff.getByRole("button", { name: "展开底部差异面板" }).click();
+    await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
+    await expect(page.getByRole("listbox", { name: "提交记录" })).toBeVisible();
+    await expect(selectedFile).toHaveAttribute("aria-selected", "true");
+    await expect(diff.locator(".code-diff-reader")).toContainText(
+      "from-second-parent",
+    );
+    await expect(page).toHaveURL(route);
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -537,7 +544,7 @@ test("Explicit log diff restore and back leave open reader panels without changi
   await expect(page).toHaveURL(route);
 });
 
-test("TV Back unwinds reader, maximized log diff and phone steps before leaving Git", async ({
+test("TV Back unwinds reader panels and phone steps before leaving Git", async ({
   page,
   request,
   workDir,
@@ -550,21 +557,16 @@ test("TV Back unwinds reader, maximized log diff and phone steps before leaving 
   const files = page.getByRole("listbox", { name: "提交变更文件" });
   await files.getByRole("option", { name: /feature-lane\.ts/ }).click();
   const diff = page.getByTestId("git-log-diff-panel");
-  await diff.getByRole("button", { name: "放大差异到主工作区" }).click();
-  await expect(diff).toHaveAttribute("data-diff-presentation", "maximized");
+  await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
 
   const find = diff.getByRole("button", { name: "文件内查找", exact: true });
   await find.click();
   await expect(find).toHaveAttribute("aria-expanded", "true");
-  // Leave text capture first; the reader's own panel must win the next Back.
+  // Leave text capture first; the reader's own panel must win the next Back without leaving Git.
   await page.keyboard.press("Escape");
-  await expect(diff).toHaveAttribute("data-diff-presentation", "maximized");
+  await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
   await page.keyboard.press("Escape");
   await expect(find).toHaveAttribute("aria-expanded", "false");
-  await expect(diff).toHaveAttribute("data-diff-presentation", "maximized");
-  await expect(page).toHaveURL(route);
-
-  await page.keyboard.press("Escape");
   await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
   await expect(page.getByRole("listbox", { name: "提交记录" })).toBeVisible();
   await expect(

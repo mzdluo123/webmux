@@ -37,7 +37,6 @@
   let localDiffHeight = $state(280);
   let localDiffCollapsed = $state(false);
   let refDrawerOpen = $state(false);
-  let diffMaximized = $state(false);
   let mobileStep = $state<"list" | "detail" | "diff">("list");
   let paneResetKey = $state(0);
   let diffPanelRef = $state<ReturnType<typeof GitLogDiffPanel>>();
@@ -65,7 +64,6 @@
       : localDiffCollapsed,
   );
   const twoPaneSizes = $derived(props.twoPaneSizes ?? [58, 42]);
-  const diffMode = $derived(props.diffMode ?? "unified");
 
   const visibleCommits = $derived(
     props.liveFiltered
@@ -129,11 +127,11 @@
   }
 
   function closeLayer() {
-    if (multiColumn.current && diffMaximized) diffMaximized = false;
-    else if (!multiColumn.current && mobileStep !== "list")
+    if (!multiColumn.current && mobileStep !== "list") {
       mobileStep = mobileStep === "diff" ? "detail" : "list";
-    else return false;
-    return true;
+      return true;
+    }
+    return false;
   }
 
   function handleWindowKeydown(e: KeyboardEvent) {
@@ -242,16 +240,10 @@
     rightEndpoint={selectedDetail?.shortOid ?? ""}
     loading={props.detailLoading}
     compareMode={props.compareMode}
-    phone={isPhone}
     onSelectFile={props.onSelectCommitFile}
     onPreviewFile={() => {
       if (isPhone) mobileStep = "diff";
       else if (effectiveDiffCollapsed) setDiffCollapsed(false);
-    }}
-    onExpandFile={(path) => {
-      props.onSelectCommitFile(path);
-      if (isPhone) mobileStep = "diff";
-      else diffMaximized = true;
     }}
     onInspectFile={props.onInspectCommitFile}
     onSwapCompareDirection={props.onSwapCompareDirection}
@@ -303,153 +295,125 @@
 
 <div bind:this={host} data-tv-back-scope class="h-full min-h-0 min-w-0">
   {#if multiColumn.current}
-    {#if diffMaximized}
-      <GitLogDiffPanel
-        bind:this={diffPanelRef}
-        logDiff={props.logDiff}
-        fallbackFile={activeFile}
-        fallbackLeftLabel={resolvedParent.selectedParent.slice(0, 7)}
-        fallbackRightLabel={selectedDetail?.shortOid ?? ""}
-        presentation="maximized"
-        {diffMode}
-        onAddReworkItem={props.onAddReworkItem}
-        onDiffModeChange={props.onDiffModeChange}
-        onToggleMaximized={closeLayer}
-        onBack={closeLayer}
-      />
-    {:else}
-      <div class="flex h-full min-h-0 min-w-0 flex-col">
-        <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          {#if desktop.current && showBranchesPanel}
-            <div
-              class="git-branch-tree-pane h-full min-h-0 overflow-hidden"
-              style:--git-branch-tree-width={`${effectiveTreeWidth}px`}
-            >
-              {@render branchTreeContent(false)}
-            </div>
-            <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-            <div
-              class="code-nav-divider"
-              role="separator"
-              aria-orientation="vertical"
-              aria-label={m.s6_log_pane_resize_tree_aria()}
-              title={m.s6_log_pane_resize_tree_tooltip()}
-              aria-valuemin={TREE_BOUNDS.min}
-              aria-valuemax={TREE_BOUNDS.max}
-              aria-valuenow={effectiveTreeWidth}
-              tabindex="0"
-              ondblclick={() => setTreeWidth(240)}
-              onpointerdown={(e) =>
-                dragWidth(e, effectiveTreeWidth, setTreeWidth)}
-              onkeydown={(e) =>
-                keyWidth(e, effectiveTreeWidth, TREE_BOUNDS, setTreeWidth)}
-            ></div>
-          {/if}
-
-          <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
-            {#key paneResetKey}
-              <Resizable.PaneGroup
-                direction="horizontal"
-                class="h-full min-h-0 min-w-0"
-                onLayoutChange={(sizes) => {
-                  if (sizes.length === 2) {
-                    props.onTwoPaneSizesChange?.([sizes[0]!, sizes[1]!]);
-                  }
-                }}
-              >
-                <Resizable.Pane
-                  defaultSize={twoPaneSizes[0]}
-                  minSize={32}
-                  class="git-pane"
-                >
-                  {@render commitListSection()}
-                </Resizable.Pane>
-                <Resizable.Handle withHandle class="git-divider" />
-                <Resizable.Pane
-                  defaultSize={twoPaneSizes[1]}
-                  minSize={26}
-                  class="git-pane"
-                >
-                  <Resizable.PaneGroup
-                    direction="vertical"
-                    class="h-full min-h-0 min-w-0"
-                  >
-                    <Resizable.Pane
-                      defaultSize={52}
-                      minSize={25}
-                      class="git-pane"
-                    >
-                      {@render filesPaneContent(false)}
-                    </Resizable.Pane>
-                    <Resizable.Handle withHandle class="git-divider" />
-                    <Resizable.Pane
-                      defaultSize={48}
-                      minSize={24}
-                      class="git-pane"
-                    >
-                      {@render detailPaneContent()}
-                    </Resizable.Pane>
-                  </Resizable.PaneGroup>
-                </Resizable.Pane>
-              </Resizable.PaneGroup>
-            {/key}
+    <div class="flex h-full min-h-0 min-w-0 flex-col">
+      <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        {#if desktop.current && showBranchesPanel}
+          <div
+            class="git-branch-tree-pane h-full min-h-0 overflow-hidden"
+            style:--git-branch-tree-width={`${effectiveTreeWidth}px`}
+          >
+            {@render branchTreeContent(false)}
           </div>
-        </div>
-
-        {#if !effectiveDiffCollapsed}
           <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
           <div
-            class="code-row-divider"
+            class="code-nav-divider"
             role="separator"
-            aria-orientation="horizontal"
-            aria-label={m.s6_log_pane_resize_diff_aria()}
-            title={m.s6_log_pane_resize_diff_tooltip()}
-            aria-valuemin={DIFF_BOUNDS.min}
-            aria-valuemax={DIFF_BOUNDS.max}
-            aria-valuenow={effectiveDiffHeight}
+            aria-orientation="vertical"
+            aria-label={m.s6_log_pane_resize_tree_aria()}
+            title={m.s6_log_pane_resize_tree_tooltip()}
+            aria-valuemin={TREE_BOUNDS.min}
+            aria-valuemax={TREE_BOUNDS.max}
+            aria-valuenow={effectiveTreeWidth}
             tabindex="0"
-            ondblclick={() => setDiffHeight(280)}
+            ondblclick={() => setTreeWidth(240)}
             onpointerdown={(e) =>
-              dragHeight(e, effectiveDiffHeight, setDiffHeight, true)}
+              dragWidth(e, effectiveTreeWidth, setTreeWidth)}
             onkeydown={(e) =>
-              keyHeight(
-                e,
-                effectiveDiffHeight,
-                DIFF_BOUNDS,
-                setDiffHeight,
-                true,
-              )}
+              keyWidth(e, effectiveTreeWidth, TREE_BOUNDS, setTreeWidth)}
           ></div>
         {/if}
 
-        <div
-          class={effectiveDiffCollapsed
-            ? "shrink-0 border-t"
-            : "git-log-diff-dock min-w-0 overflow-hidden"}
-          style:--git-log-diff-height={effectiveDiffCollapsed
-            ? undefined
-            : `${effectiveDiffHeight}px`}
-        >
-          <GitLogDiffPanel
-            bind:this={diffPanelRef}
-            logDiff={props.logDiff}
-            fallbackFile={activeFile}
-            fallbackLeftLabel={resolvedParent.selectedParent.slice(0, 7)}
-            fallbackRightLabel={selectedDetail?.shortOid ?? ""}
-            presentation="docked"
-            collapsed={effectiveDiffCollapsed}
-            {diffMode}
-            onAddReworkItem={props.onAddReworkItem}
-            onDiffModeChange={props.onDiffModeChange}
-            onToggleCollapsed={() => setDiffCollapsed(!effectiveDiffCollapsed)}
-            onToggleMaximized={() => {
-              setDiffCollapsed(false);
-              diffMaximized = true;
-            }}
-          />
+        <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+          {#key paneResetKey}
+            <Resizable.PaneGroup
+              direction="horizontal"
+              class="h-full min-h-0 min-w-0"
+              onLayoutChange={(sizes) => {
+                if (sizes.length === 2) {
+                  props.onTwoPaneSizesChange?.([sizes[0]!, sizes[1]!]);
+                }
+              }}
+            >
+              <Resizable.Pane
+                defaultSize={twoPaneSizes[0]}
+                minSize={32}
+                class="git-pane"
+              >
+                {@render commitListSection()}
+              </Resizable.Pane>
+              <Resizable.Handle withHandle class="git-divider" />
+              <Resizable.Pane
+                defaultSize={twoPaneSizes[1]}
+                minSize={26}
+                class="git-pane"
+              >
+                <Resizable.PaneGroup
+                  direction="vertical"
+                  class="h-full min-h-0 min-w-0"
+                >
+                  <Resizable.Pane
+                    defaultSize={52}
+                    minSize={25}
+                    class="git-pane"
+                  >
+                    {@render filesPaneContent(false)}
+                  </Resizable.Pane>
+                  <Resizable.Handle withHandle class="git-divider" />
+                  <Resizable.Pane
+                    defaultSize={48}
+                    minSize={24}
+                    class="git-pane"
+                  >
+                    {@render detailPaneContent()}
+                  </Resizable.Pane>
+                </Resizable.PaneGroup>
+              </Resizable.Pane>
+            </Resizable.PaneGroup>
+          {/key}
         </div>
       </div>
-    {/if}
+
+      {#if !effectiveDiffCollapsed}
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+        <div
+          class="code-row-divider"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={m.s6_log_pane_resize_diff_aria()}
+          title={m.s6_log_pane_resize_diff_tooltip()}
+          aria-valuemin={DIFF_BOUNDS.min}
+          aria-valuemax={DIFF_BOUNDS.max}
+          aria-valuenow={effectiveDiffHeight}
+          tabindex="0"
+          ondblclick={() => setDiffHeight(280)}
+          onpointerdown={(e) =>
+            dragHeight(e, effectiveDiffHeight, setDiffHeight, true)}
+          onkeydown={(e) =>
+            keyHeight(e, effectiveDiffHeight, DIFF_BOUNDS, setDiffHeight, true)}
+        ></div>
+      {/if}
+
+      <div
+        class={effectiveDiffCollapsed
+          ? "shrink-0 border-t"
+          : "git-log-diff-dock min-w-0 overflow-hidden"}
+        style:--git-log-diff-height={effectiveDiffCollapsed
+          ? undefined
+          : `${effectiveDiffHeight}px`}
+      >
+        <GitLogDiffPanel
+          bind:this={diffPanelRef}
+          logDiff={props.logDiff}
+          fallbackFile={activeFile}
+          fallbackLeftLabel={resolvedParent.selectedParent.slice(0, 7)}
+          fallbackRightLabel={selectedDetail?.shortOid ?? ""}
+          presentation="docked"
+          collapsed={effectiveDiffCollapsed}
+          onAddReworkItem={props.onAddReworkItem}
+          onToggleCollapsed={() => setDiffCollapsed(!effectiveDiffCollapsed)}
+        />
+      </div>
+    </div>
   {:else if mobileStep === "list"}
     {@render commitListSection()}
   {:else if mobileStep === "detail"}
@@ -477,7 +441,6 @@
       fallbackLeftLabel={resolvedParent.selectedParent.slice(0, 7)}
       fallbackRightLabel={selectedDetail?.shortOid ?? ""}
       presentation="mobile"
-      diffMode="unified"
       onAddReworkItem={props.onAddReworkItem}
       onBack={closeLayer}
     />

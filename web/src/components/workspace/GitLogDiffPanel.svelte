@@ -3,13 +3,9 @@
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconChevronUp from "~icons/tabler/chevron-up";
-  import IconFileText from "~icons/tabler/file-text";
-  import IconMaximize from "~icons/tabler/maximize";
-  import IconMinimize from "~icons/tabler/minimize";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
-  import GitDiffStyleSwitch from "./GitDiffStyleSwitch.svelte";
   import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import type { GitCommitFile } from "../../contracts/git-workbench-schemas";
   import {
@@ -33,13 +29,10 @@
     backLabel: rawBackLabel,
     presentation = "docked",
     collapsed = false,
-    diffMode = "unified",
     isTaskScope = false,
     liveWorktreeIdentity,
     onAddReworkItem,
-    onDiffModeChange,
     onToggleCollapsed,
-    onToggleMaximized,
     onBack,
   }: {
     logDiff?: GitDiffPanelReader;
@@ -47,18 +40,15 @@
     fallbackLeftLabel?: string;
     fallbackRightLabel?: string;
     backLabel?: string;
-    presentation?: "docked" | "maximized" | "mobile";
+    presentation?: "docked" | "mobile";
     collapsed?: boolean;
-    diffMode?: "unified" | "split";
     isTaskScope?: boolean;
     liveWorktreeIdentity?: string;
     onAddReworkItem?: (
       input: Parameters<typeof createReworkDraftItem>[0],
       options?: { openSheet?: boolean },
     ) => void;
-    onDiffModeChange?: (mode: "unified" | "split") => void;
     onToggleCollapsed?: () => void;
-    onToggleMaximized?: () => void;
     onBack?: () => void;
   } = $props();
 
@@ -115,10 +105,8 @@
   const fileStatus = $derived(
     logDiff ? logDiff.state.status : (fallbackFile?.status ?? ""),
   );
-  const rawDiff = $derived(logDiff?.state.rawDiff ?? null);
-  const sideDoc = $derived(logDiff?.state.snapshotSideDoc ?? null);
   const effectiveDiffStyle = $derived(
-    presentation === "mobile" ? "unified" : diffMode,
+    presentation === "mobile" ? "unified" : "split",
   );
 
   const selectionKey = $derived(`${leftEndpoint}:${rightEndpoint}:${filePath}`);
@@ -157,39 +145,6 @@
   }
 </script>
 
-{#snippet snapshotSideButtons()}
-  {#if sideDoc && logDiff}
-    <Button
-      size="sm"
-      variant="outline"
-      onclick={() => logDiff.closeSnapshotSide()}
-    >
-      {m.s6_log_diff_back_to_diff()}
-    </Button>
-  {:else if logDiff && rawDiff && !collapsed}
-    {#if rawDiff.old.source !== "empty" && rawDiff.old.kind === "text"}
-      <Button
-        size="sm"
-        variant="ghost"
-        onclick={() => void logDiff.openSnapshotSide("before")}
-      >
-        <IconFileText aria-hidden="true" />
-        {m.s6_log_diff_full_before()}
-      </Button>
-    {/if}
-    {#if rawDiff.new.source !== "empty" && rawDiff.new.kind === "text"}
-      <Button
-        size="sm"
-        variant="ghost"
-        onclick={() => void logDiff.openSnapshotSide("after")}
-      >
-        <IconFileText aria-hidden="true" />
-        {m.s6_log_diff_full_after()}
-      </Button>
-    {/if}
-  {/if}
-{/snippet}
-
 {#snippet fileIdentitySummary()}
   {#if leftEndpoint || rightEndpoint}
     <Badge variant="outline" class="shrink-0">
@@ -227,17 +182,14 @@
     <header
       class="flex min-w-0 flex-col gap-1.5 border-b bg-background px-2.5 py-1.5"
     >
-      <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
-        {#if onBack}
+      {#if onBack}
+        <div class="flex min-w-0 items-center">
           <Button size="sm" variant="ghost" class="shrink-0" onclick={onBack}>
             <IconArrowLeft aria-hidden="true" />
             {backLabel}
           </Button>
-        {/if}
-        <div class="flex shrink-0 flex-wrap items-center gap-1">
-          {@render snapshotSideButtons()}
         </div>
-      </div>
+      {/if}
       <div class="flex min-w-0 items-center gap-1.5 overflow-hidden">
         {@render fileIdentitySummary()}
       </div>
@@ -247,48 +199,11 @@
       <div
         class="flex min-w-[15rem] flex-1 items-center gap-1.5 overflow-hidden"
       >
-        {#if presentation === "maximized" && onBack}
-          <Button size="sm" variant="ghost" class="shrink-0" onclick={onBack}>
-            <IconArrowLeft aria-hidden="true" />
-            {m.s6_log_diff_back_to_log()}
-          </Button>
-        {/if}
         {@render fileIdentitySummary()}
       </div>
 
-      <div class="flex shrink-0 flex-wrap items-center gap-1.5">
-        {@render snapshotSideButtons()}
-
-        {#if !collapsed && phase === "ready"}
-          <GitDiffStyleSwitch
-            value={diffMode}
-            ariaLabel={m.s6_log_diff_layout_aria()}
-            onChange={(mode) => onDiffModeChange?.(mode)}
-          />
-        {/if}
-
-        {#if onToggleMaximized && filePath}
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-pressed={presentation === "maximized"}
-            aria-label={presentation === "maximized"
-              ? m.s6_log_diff_exit_maximize_aria()
-              : m.s6_log_diff_maximize_aria()}
-            title={presentation === "maximized"
-              ? m.s6_log_diff_exit_maximize_tooltip()
-              : m.s6_log_diff_maximize_tooltip()}
-            onclick={onToggleMaximized}
-          >
-            {#if presentation === "maximized"}
-              <IconMinimize aria-hidden="true" />
-            {:else}
-              <IconMaximize aria-hidden="true" />
-            {/if}
-          </Button>
-        {/if}
-
-        {#if presentation === "docked" && onToggleCollapsed}
+      {#if onToggleCollapsed}
+        <div class="flex shrink-0 items-center gap-1.5">
           <Button
             size="icon-sm"
             variant="ghost"
@@ -307,8 +222,8 @@
               <IconChevronDown aria-hidden="true" />
             {/if}
           </Button>
-        {/if}
-      </div>
+        </div>
+      {/if}
     </GitPanelToolbar>
   {/if}
 
@@ -322,7 +237,7 @@
     <div
       class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
-      {#if !sideDoc && phase === "ready" && activeFileDiff && filePath}
+      {#if phase === "ready" && activeFileDiff && filePath}
         {#key activeFileDiff.cacheKey ?? `${leftEndpoint}:${rightEndpoint}:${filePath}`}
           <CodeDiffReader
             bind:this={readerRef}

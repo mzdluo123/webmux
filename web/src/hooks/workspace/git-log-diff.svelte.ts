@@ -145,8 +145,6 @@ export function createGitLogDiffController(deps: GitLogDiffControllerDeps) {
         syncForCommitDetail(oid ? view.commitDetails[oid] : undefined);
       }
     },
-    openSnapshotSide: reader.openSnapshotSide,
-    closeSnapshotSide: reader.closeSnapshotSide,
     downloadSnapshotSide: reader.downloadSnapshotSide,
   };
 }

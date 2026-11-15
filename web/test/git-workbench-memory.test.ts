@@ -63,33 +63,52 @@ describe("git workbench state isolation and device-class layout memory", () => {
     expect(resolveGitDeviceClass(390)).toBe("phone");
   });
 
-  test("isolates splitter ratios and diff mode across phone and desktop", () => {
+  test("isolates splitter ratios and dock preferences across phone and desktop", () => {
     writeGitDeviceLayout("desktop", {
       logThreePaneSizes: [18, 50, 32],
-      diffMode: "split",
+      diffHeight: 360,
+      diffCollapsed: true,
       showBranchesPanel: true,
     });
     writeGitDeviceLayout("phone", {
-      diffMode: "unified",
+      diffHeight: 220,
+      diffCollapsed: false,
       showBranchesPanel: false,
     });
 
     expect(readGitDeviceLayout("desktop")).toMatchObject({
       logThreePaneSizes: [18, 50, 32],
-      diffMode: "split",
+      diffHeight: 360,
+      diffCollapsed: true,
       showBranchesPanel: true,
     });
     expect(readGitDeviceLayout("phone")).toMatchObject({
-      diffMode: "unified",
+      diffHeight: 220,
+      diffCollapsed: false,
       showBranchesPanel: false,
     });
 
+    // Legacy stored diffMode keys from older builds are stripped safely without losing pane sizes.
+    localStorage.setItem(
+      "webmux:gitWorkbenchLayout",
+      JSON.stringify({
+        desktop: {
+          ...readGitDeviceLayout("desktop"),
+          diffMode: "unified",
+        },
+      }),
+    );
+    const migratedDesktop = readGitDeviceLayout("desktop");
+    expect(migratedDesktop.logThreePaneSizes).toEqual([18, 50, 32]);
+    expect("diffMode" in migratedDesktop).toBe(false);
+
     // Switching active host keeps device-scoped layout preferences intact.
     setActiveHostId("host-alpha");
-    expect(readGitDeviceLayout("desktop").diffMode).toBe("split");
+    expect(readGitDeviceLayout("desktop").diffHeight).toBe(360);
 
     resetGitDeviceLayout("desktop");
-    expect(readGitDeviceLayout("desktop").diffMode).toBe("unified");
+    expect(readGitDeviceLayout("desktop").diffHeight).toBe(280);
+    expect(readGitDeviceLayout("desktop").diffCollapsed).toBe(false);
   });
 
   test("isolates target memory by (hostId, repositoryId, worktreeId) and clears per host", () => {

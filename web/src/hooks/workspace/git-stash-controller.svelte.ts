@@ -267,8 +267,6 @@ export function createGitStashController(deps: GitStashControllerDeps) {
       get state() {
         return reader.state;
       },
-      openSnapshotSide: reader.openSnapshotSide,
-      closeSnapshotSide: reader.closeSnapshotSide,
       downloadSnapshotSide: reader.downloadSnapshotSide,
       retryActiveDiff: () => {
         if (detail && selectedFile) void loadFileDiff(detail, selectedFile);
