@@ -466,6 +466,9 @@ func (a *actor) runToACP(op *switchOp, t target, busy bool) {
 // terminal UI that exited meanwhile interrupts the session (D23).
 func (a *actor) switchCancelled(op *switchOp) {
 	a.side = SideTUI
+	if a.agentSessionID == "" && a.titleSession != "" {
+		a.title, a.titleSession = "", ""
+	}
 	a.svc.log.Info("hybrid switch cancelled", "id", a.id)
 	if a.shell.Info().Status == session.StatusExited {
 		a.interrupt("idle", true)

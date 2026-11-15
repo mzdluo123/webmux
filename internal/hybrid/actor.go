@@ -105,8 +105,10 @@ type actor struct {
 	title        string
 	titleSession string
 	// termTitle is the last terminal OSC 0/2 title observed for the
-	// current run while an agent session ID is known.
-	termTitle string
+	// current run while an agent session ID is known; termTitleSeq is its
+	// run-local OSC report sequence.
+	termTitle    string
+	termTitleSeq uint64
 	// recordTitle is the last title sent to the persistent record. Terminal
 	// titles arrive through the shell, chat titles through its overlay.
 	recordTitle string
@@ -329,7 +331,7 @@ func (a *actor) flush() {
 		a.attention = nil
 	}
 	if a.side != SideTUI {
-		a.termTitle = ""
+		a.termTitle, a.termTitleSeq = "", 0
 	}
 	if a.side != SideTUI || a.state != StateActive {
 		a.chat.Eligibility = Eligibility{}

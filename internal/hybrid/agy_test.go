@@ -9,6 +9,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/agentprofile/agy"
+	"github.com/rainchan/webmux/internal/agentprofile/kimi"
 	"github.com/rainchan/webmux/internal/agentprofile/omp"
 )
 
@@ -150,9 +151,30 @@ func TestAgyTUITitleContinuityAndRename(t *testing.T) {
 	h.mustSwitch(id, SideTUI)
 	typeLine(t, s, "/rename Custom Agy Title")
 	waitTitle(t, s, "Custom Agy Title")
+	firstSID := *h.svc.Metadata(id).AgentSessionID
 
+	// Forking into a new conversation that re-emits the same OSC 2 title must
+	// keep that title instead of treating it as stale from the prior session.
+	typeLine(t, s, "/fork")
+	waitFor(t, "forked session ID", func() bool {
+		meta := h.svc.Metadata(id)
+		return meta != nil && meta.AgentSessionID != nil && *meta.AgentSessionID != firstSID
+	})
+	h.waitEligible(id)
+	if got := s.Info().Title; got != "Custom Agy Title" {
+		t.Fatalf("forked title %q, want %q", got, "Custom Agy Title")
+	}
+
+	forkedSID := *h.svc.Metadata(id).AgentSessionID
 	typeLine(t, s, "/new")
+	waitFor(t, "new session ID after fork", func() bool {
+		meta := h.svc.Metadata(id)
+		return meta != nil && meta.AgentSessionID != nil && *meta.AgentSessionID != forkedSID
+	})
 	waitTitle(t, s, dir)
+	if got := h.record(id).Title; got != dir {
+		t.Fatalf("recorded title after /new %q, want %q", got, dir)
+	}
 	tuiTurn(t, s, "next task")
 	h.waitEligible(id)
 	waitTitle(t, s, "agy: next task")
@@ -169,14 +191,58 @@ func TestStaleTerminalTitleClearedOnAgentSessionChange(t *testing.T) {
 
 	tuiTurn(t, s, "first")
 	h.waitEligible(id)
+	firstSID := *h.svc.Metadata(id).AgentSessionID
 	typeLine(t, s, "/osc-title First OMP Title")
 	waitTitle(t, s, "First OMP Title")
 	waitFor(t, "recorded terminal title", func() bool { return h.record(id).Title == "First OMP Title" })
 
 	// omp /new switches agent session ID without emitting an empty OSC 2;
-	// ClearTerminalTitleIf drops the previous session's window title.
+	// ClearTerminalTitleIf drops the previous session's window title on the
+	// very same observe tick and resets the recorded title for recovery.
 	typeLine(t, s, "/new")
-	waitTitle(t, s, dir)
+	waitFor(t, "new agent session ID", func() bool {
+		meta := h.svc.Metadata(id)
+		return meta != nil && meta.AgentSessionID != nil && *meta.AgentSessionID != firstSID
+	})
+	if got := s.Info().Title; got != dir {
+		t.Fatalf("title right after session ID change %q, want %q", got, dir)
+	}
+	if got := h.record(id).Title; got != dir {
+		t.Fatalf("recorded title after /new %q, want %q", got, dir)
+	}
+	tuiTurn(t, s, "second")
+	h.waitEligible(id)
+	h.closeSession(id)
+	resumed := h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	if got := resumed.Info().Title; got != dir {
+		t.Fatalf("title after resuming untitled /new session %q, want %q", got, dir)
+	}
+}
+
+func TestCandidateAgentPreservesLiveOSCTitleOnSwitch(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(kimi.Name, SideTUI)
+	in.Name = ""
+	s := h.create(in)
+	id := s.Info().ID
+
+	tuiTurn(t, s, "hello kimi")
+	h.waitEligible(id)
+	typeLine(t, s, "/store-title Stale Kimi Disk Title")
+	waitFor(t, "stored Stale Kimi Disk Title", func() bool {
+		return strings.Contains(string(s.Buffer()), "stored title: Stale Kimi Disk Title")
+	})
+	typeLine(t, s, "/osc-title Live Kimi Window Title")
+	waitTitle(t, s, "Live Kimi Window Title")
+
+	h.mustSwitch(id, SideACP)
+	if got := s.Info().Title; got != "Live Kimi Window Title" {
+		t.Fatalf("title after switching candidate agent to chat %q, want %q", got, "Live Kimi Window Title")
+	}
+	if got := h.record(id).Title; got != "Live Kimi Window Title" {
+		t.Fatalf("recorded title after switching candidate agent to chat %q, want %q", got, "Live Kimi Window Title")
+	}
 }
 
 func TestSessionListTitleFallbackWithoutOSC(t *testing.T) {

@@ -391,6 +391,19 @@ func (t *tui) submit(line string) bool {
 		}
 		t.printf("prompt> ")
 		return false
+	case line == "/fork":
+		if t.cur != nil {
+			forked := t.st.draft(t.cwd)
+			forked.Title = t.cur.Title
+			forked.Messages = append([]message(nil), t.cur.Messages...)
+			if err := t.st.save(forked); err != nil {
+				t.printf("error: %v\r\n", err)
+			} else if err := t.open(forked); err != nil {
+				t.printf("error: %v\r\n", err)
+			}
+		}
+		t.printf("prompt> ")
+		return false
 	case strings.HasPrefix(line, "/rename "):
 		if t.cur != nil {
 			t.cur.Title = strings.TrimSpace(strings.TrimPrefix(line, "/rename "))

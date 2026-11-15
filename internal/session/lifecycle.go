@@ -31,9 +31,10 @@ type Driver interface {
 	RunExited(code int)
 }
 
-// Overlay reports generic process-host state while a shell has no PTY run.
-// Destination is an opaque view-routing hint used when detaching clients.
-// Status, Attention, Preview and Title apply only without a run.
+// Overlay reports generic process-host state for a shell. Destination is an
+// opaque view-routing hint used when detaching clients. Status, Attention and
+// Preview apply only without a run; Title applies to an unnamed shell without
+// a run, or while a run still has its placeholder title.
 type Overlay struct {
 	Destination string
 	Status      Status
@@ -341,21 +342,20 @@ func (s *Session) SetOverlay(o *Overlay) {
 }
 
 // ClearTerminalTitleIf drops the current run's OSC 0/2 title when it still
-// equals stale, returning an unnamed session to its placeholder title until
-// the run or overlay supplies a new one.
-func (s *Session) ClearTerminalTitleIf(stale string) {
-	if stale == "" {
-		return
-	}
+// matches stale and seq, returning an unnamed session to its placeholder
+// title until the run or overlay supplies a new one. It returns the run's
+// remaining title and sequence number.
+func (s *Session) ClearTerminalTitleIf(stale string, seq uint64) (string, uint64) {
 	s.mu.Lock()
-	if s.identity.Title == stale {
+	defer s.mu.Unlock()
+	if stale != "" && s.identity.Title == stale && s.identity.TitleSeq == seq {
 		s.identity.Title = ""
 		if s.userTitle == "" {
 			s.info.Title = filepath.Base(s.info.Cwd)
 			s.info.PlaceholderTitle = true
 		}
 	}
-	s.mu.Unlock()
+	return s.identity.Title, s.identity.TitleSeq
 }
 
 // retire ends a shell for good, so it starts no more processes and Done

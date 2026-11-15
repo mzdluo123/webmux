@@ -134,9 +134,11 @@
 
 - 范围（故事 ID 与总数 259 不变）：
   - `agy` TUI 注入的会话级 `--settings` `title` 钩子同步将 `conversation_title` 作为 `OSC 2` 窗口标题写入控制终端（为空时清空旧标题，不写标准输出）；
-  - 终端未上报自身 `OSC 0/2` 标题时，`session/list` 探测与切换前核对采用非空会话标题；同一运行内切换 agent 会话时清除上一会话遗留终端标题，未手动命名的混合会话在终端发出新 `OSC 0/2` 标题前沿用当前 agent 会话标题。
+  - 终端未上报自身 `OSC 0/2` 标题时，`session/list` 探测与切换前核对采用非空会话标题；候选探测型 agent（如 `kimi`）切换至聊天侧时保留实时 `OSC 0/2` 窗口标题；
+  - 同一运行内按标题序号仅清除上一会话遗留标题（保留同名 `/fork` 新标题），未命名会话切换或清空标题时重置可恢复记录标题。
 - 本地验证：
   - `internal/agentprofile/agy` 对真实 `/bin/sh` 执行注入钩子，覆盖空值、JSON/HTML 转义、CJK/Emoji 与紧凑/带空格 JSON；
-  - `internal/session`、`internal/acp`、`internal/hybrid`、`internal/archtest`、`internal/docguard` 及全仓 Go race 测试通过（新增 `TestAgyTUITitleContinuityAndRename` 与 `TestSessionListTitleFallbackWithoutOSC` 连续 5 轮 `-race` 通过）；
+  - `internal/session`、`internal/acp`、`internal/hybrid`、`internal/archtest`、`internal/docguard` 及全仓 Go race 测试通过；
+  - 新增混合会话标题回归连续 5 轮 `-race` 通过：`TestAgyTUITitleContinuityAndRename`、`TestStaleTerminalTitleClearedOnAgentSessionChange`、`TestCandidateAgentPreservesLiveOSCTitleOnSwitch` 与 `TestSessionListTitleFallbackWithoutOSC`；
   - `go vet`、`golangci-lint`、生产与测试类型检查、Oxlint、前端架构守卫（46 项）、格式与持久化守卫通过。
 - 局限：回归使用受控 `fakeagent` 与隔离临时目录，未在自动化测试中连接真实 Google 账号驱动在线 `agy` 对话；未重新验收其他故事能力。

@@ -411,15 +411,30 @@ func TestOverlayTitleNamesOnlyUnnamedChatShells(t *testing.T) {
 	if err := unnamed.EndRun(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := unnamed.StartRun([]string{"/bin/sh", "-c", `printf '\033]2;tui title\007READY'; exec sleep 30`}); err != nil {
+	if err := unnamed.StartRun([]string{"/bin/sh", "-c", `printf '\033]2;tui title\007\033]2;tui title\007READY'; exec sleep 30`}); err != nil {
 		t.Fatal(err)
 	}
 	waitForOutput(t, unnamed, "READY")
 	if got := unnamed.Info().Title; got != "tui title" {
 		t.Fatalf("terminal OSC title %q, want \"tui title\"", got)
 	}
-	if got := unnamed.Identity().Title; got != "tui title" {
-		t.Fatalf("identity title %q, want \"tui title\"", got)
+	ident := unnamed.Identity()
+	if ident.Title != "tui title" || ident.TitleSeq != 2 {
+		t.Fatalf("identity title = %q seq %d, want \"tui title\" seq 2", ident.Title, ident.TitleSeq)
+	}
+	// Stale sequence does not drop a newly re-emitted identical title.
+	if rem, seq := unnamed.ClearTerminalTitleIf("tui title", 1); rem != "tui title" || seq != 2 {
+		t.Fatalf("ClearTerminalTitleIf stale seq = (%q, %d), want (\"tui title\", 2)", rem, seq)
+	}
+	if got := unnamed.Info().Title; got != "tui title" {
+		t.Fatalf("title after non-matching ClearTerminalTitleIf %q, want \"tui title\"", got)
+	}
+	// Matching title and sequence drops the run's OSC title back to overlay fallback.
+	if rem, seq := unnamed.ClearTerminalTitleIf("tui title", 2); rem != "" || seq != 2 {
+		t.Fatalf("ClearTerminalTitleIf matching seq = (%q, %d), want (\"\", 2)", rem, seq)
+	}
+	if got := unnamed.Info().Title; got != "chat title" {
+		t.Fatalf("title after matching ClearTerminalTitleIf %q, want overlay fallback \"chat title\"", got)
 	}
 }
 
