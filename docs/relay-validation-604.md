@@ -1,8 +1,10 @@
 # Relay 真实公网验证报告：issue #604
 
-本轮建议 MVP 采用 **WSS + smux v2、控制/交互与批量两条有界连接、嵌入 Go 库**，A 段保持 HTTPS/WebSocket。
+首轮工程建议 MVP 采用 **WSS + smux v2、控制/交互与批量两条有界连接、嵌入 Go 库**，A 段保持 HTTPS/WebSocket。
 服务器 TCP 使用 BBR；不在 MVP 引入 QUIC 探测、UDP 回退或 FEC。此决定针对下述实测路径与工程成本，不能概括所有网络或所有 QUIC 实现。
 关联：[issue #604](https://github.com/mzdluo123/webmux/issues/604)、[规划 PR #558](https://github.com/mzdluo123/webmux/pull/558)、[规划修订 PR #613](https://github.com/mzdluo123/webmux/pull/613)。
+
+**终端优先补测见[后续报告](relay-terminal-validation-604.md)**：同 PTY 输出下的按键、重输出完整性、Ctrl-C、BBR UDP 适配和恢复另行验证。首轮吞吐结论不能替代终端体验排名，新旧批次不合并统计。
 
 ## 验证对象与环境
 
@@ -20,7 +22,7 @@
 | 工具链     | 实验 Go 1.26.3；真实 WebMux 488ba406，Go 1.27.4，CGO_ENABLED=0                |
 | 浏览器     | 本轮用真实 WebMux 后端和协议客户端；未验收浏览器 UI/H3/WebTransport           |
 
-测量子进程清除所有名称含 proxy 的环境变量，设置 `NO_PROXY=*`；Go HTTP Transport 显式 `Proxy:nil`，SSH 显式禁用 ProxyCommand/ProxyJump。
+测量子进程清除所有名称含 proxy 的环境变量，设置 `NO_PROXY=*`；Go HTTP Transport 显式 `Proxy:nil`，SCP 显式禁用 ProxyCommand/ProxyJump；持久 Windows SSH 的有效配置无这两项转发，补测证据保留核实记录，后续复现脚本也显式禁用。
 依赖和发布包下载属于准备阶段，不计入正式吞吐。Hysteria 是被测的显式受管转发器，与环境代理分开记录。
 WSL 仅加载 BBR 模块并按测试 socket 设置，不更改用户 WSL 全局默认 CUBIC；其他开发服务不接入本实验。
 设置 default_qdisc 不会替换既有网卡队列。本轮保留 eth0 的 mq/fq_codel，不能宣称已经测过物理接口 fq；MVP 的 fq 部署建议仍需核实实际队列。
@@ -284,7 +286,7 @@ WSL 无历史监控数据，以下是测试结束后 `/proc` 的生命周期内�
 | T5 原生 QUIC        | 已测 v0.65.0 Reno/窗口/MTU/取消；保留研究，MVP 不探测 QUIC                     |
 | T6 H3/WebTransport  | 本轮工程淘汰；B 需要隧道协议，A 需要浏览器/前端适配；没有浏览器性能结论        |
 | T7 KCP/TLS/smux/FEC | 已测保守/激进参数及 FEC 开关；MVP 不引入，kcptun 成品未另跑                    |
-| T8 Hysteria         | 已测 BBR/Brutal 带宽设置；成绩好但反向注册、安全映射/进程管理另需工作          |
+| T8 Hysteria         | 首轮测 BBR/Brutal；反向终端适配见补测，生产身份/撤销/进程管理仍待实现          |
 | T9 SSH              | 限制账户、固定反向监听与 host key 机制对照；见业务结果，不能替代 TLS/SPKI 模型 |
 | T10 WebRTC/TURN     | 本轮工程淘汰；额外 ICE/DTLS/SCTP/TURN 成本，未修改现有 P2P 直连候选限制        |
 | T11 VPN             | 本轮工程淘汰；路由/TUN/权限/UDP 依赖超出单一宿主反向入口，未实测 VPN 性能      |
@@ -299,7 +301,7 @@ Hysteria 配置与带宽语义见 [官方配置](https://v2.hysteria.network/doc
 MVP 嵌入 coder/websocket、smux 和标准库 ReverseProxy，保持 CGO_ENABLED=0，减少分发二进制、子进程监督、配置/密钥文件及跨进程 readiness。
 仍需实现 GitHub 数字账号映射、每账号一机、固定随机 Host、逐宿主认证、角色/代际、总配额、精确回源与撤销；成熟传输库不会自动提供这些控制面语义。
 frp 可以减少通用转发开发，但必须封装身份映射/授权插件、限制任意代理和端口、监管进程/版本/凭据，并补交互/批量隔离；直接复用不是“只写登录页面”。
-Hysteria 需额外实现反向通道或改造角色；SSH 需维护独立主机密钥信任和限制账户，不能静默复用 TLS pin。此工程差异是选型依据之一。
+Hysteria 在补测中已有受限反向原型；生产反向角色、身份和撤销仍需实现；SSH 需维护独立主机密钥信任和限制账户，不能静默复用 TLS pin。此工程差异是选型依据之一。
 
 ## issue 完成条件与未覆盖边界
 
