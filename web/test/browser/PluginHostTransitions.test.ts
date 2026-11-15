@@ -267,16 +267,24 @@ test("existing terminal recovers optional controls without replacing its owner o
   const emulator = document.querySelector(".xterm");
   expect(owner).not.toBeNull();
   expect(emulator).not.toBeNull();
-  for (const name of ["语音输入", "上传文件", "代码"])
+  for (const name of ["语音输入", "上传文件"])
     expect(page.getByRole("button", { name, exact: true }).elements()).toEqual(
       [],
     );
+  await page.getByRole("button", { name: "打开面板", exact: true }).click();
+  expect(
+    page.getByRole("button", { name: "代码", exact: true }).elements(),
+  ).toEqual([]);
 
   // Another browser enables the services; this page only refreshes discovery.
   unavailable = [];
   voiceReady = true;
   await requestPluginHostRefresh();
-  for (const name of ["语音输入", "上传文件", "代码"])
+  await expect
+    .element(page.getByRole("button", { name: "代码", exact: true }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "关闭侧栏面板", exact: true }).click();
+  for (const name of ["语音输入", "上传文件"])
     await expect
       .element(page.getByRole("button", { name, exact: true }))
       .toBeVisible();

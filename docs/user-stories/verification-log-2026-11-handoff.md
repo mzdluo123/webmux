@@ -1,7 +1,7 @@
 # Portable handoff 核对记录
 
 本页记录 2026-11-11 起交接增强层的实际验证。故事 ID 保持不变。
-身份、Activity、历史接口、预览和 inline 的先前依据见[基础层记录](verification-log-2026-11-06.md)；同一对话切换的验证保留在本页。
+身份、Activity、历史接口、预览和 inline 的先前依据见[基础层记录](verification-log-2026-11-06/nov10-12.md)；同一对话切换的验证保留在本页。
 
 ## 2026-11-11：Handoff 06 同一对话切换与原生继续（US-Q12、US-Q20）
 

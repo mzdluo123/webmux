@@ -87,9 +87,16 @@ test("core-only ignores stale plugin preferences and creates, types into, and re
   await expectTerminalLine(page, "webmux-e2e$");
   const session = await (await request.get(`/api/sessions/${id}`)).json();
   expect(session).toMatchObject({ cwd: workDir });
+  await page.getByRole("button", { name: "打开面板", exact: true }).click();
+  const picker = page.getByRole("group", { name: "面板选择", exact: true });
+  await expect(picker).toBeVisible();
   await expect(
     page.getByRole("button", { name: "代码", exact: true }),
   ).toHaveCount(0);
+  await expect(
+    picker.getByRole("button", { name: "分屏", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "关闭侧栏面板", exact: true }).click();
 
   await runCommand(
     page,

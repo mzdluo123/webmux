@@ -72,7 +72,7 @@
       {#if loading}<p role="status">正在加载会话…</p>
       {:else if error}<p role="alert" class="text-destructive">{error}</p>
       {:else if choices.length === 0}<p class="text-sm text-muted-foreground">
-          没有可加入的会话。可从分屏菜单新建 Shell。
+          没有可加入的会话。可从「打开面板」→「分屏」新建 Shell。
         </p>
       {:else}{#each choices as session (session.id)}
           <ListButton

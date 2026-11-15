@@ -3,7 +3,7 @@
   import { findShell, shellUi } from "../../hooks/shared/shell.svelte";
   import type { Snippet } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
-  import IconCode from "~icons/tabler/code";
+  import IconPlus from "~icons/tabler/plus";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconMaximize from "~icons/tabler/maximize";
   import IconMinimize from "~icons/tabler/minimize";
@@ -63,7 +63,6 @@
     keyboardSizeHold,
     setKeyboardSizeHold,
     codeShown = $bindable(),
-    codeAvailable = true,
     forceSoftKeys = $bindable(),
     quickMenu,
     upload,
@@ -75,7 +74,7 @@
     leave,
     showFind,
     hybrid,
-    paneActions,
+    openPanels,
     chatActions,
     xr,
     keyboard,
@@ -93,7 +92,6 @@
     keyboardSizeHold: boolean;
     setKeyboardSizeHold: (value: boolean) => void;
     codeShown: boolean;
-    codeAvailable?: boolean;
     forceSoftKeys: boolean;
     quickMenu: Snippet<
       ["top" | "bottom", ButtonSize?, ButtonVariant?, boolean?]
@@ -108,7 +106,7 @@
     leave: () => void;
     showFind: () => void;
     hybrid?: HeaderHybrid;
-    paneActions?: Snippet<[boolean]>;
+    openPanels: () => void;
     chatActions?: Snippet;
     xr?: XrHeaderControl;
     keyboard?: () => void;
@@ -123,19 +121,15 @@
       "终端",
   );
   let fileInput = $state<{ open(): void }>();
+  let panelTrigger = $state<HTMLButtonElement | null>(null);
+
+  export function focusPanels() {
+    panelTrigger?.focus();
+  }
   let openingFind = false;
   // Off the terminal view there is no PTY: terminal-only actions are hidden;
   // fullscreen, the code panel and closing the session stay.
   const terminalShown = $derived(!hybrid || hybrid.view === "terminal");
-  const codeLabel = $derived(
-    codeShown
-      ? desktop
-        ? "折叠代码"
-        : terminalShown
-          ? "终端"
-          : "聊天"
-      : "代码",
-  );
   // The chat view names the agent it talks to beside the session title.
   const chatAgent = $derived(
     hybrid?.view === "chat" ? (t.info?.agent ?? undefined) : undefined,
@@ -238,9 +232,7 @@
             request: (to) => hybrid.request(to),
           }
         : undefined}
-      code={codeAvailable
-        ? { shown: codeShown, set: (value) => (codeShown = value) }
-        : undefined}
+      code={{ shown: codeShown, set: (value) => (codeShown = value) }}
     />{/if}
   {#if terminalShown && !tvMode.enabled}
     {#if upload}
@@ -283,19 +275,15 @@
       toggle={toggleDraft}
     />
   {/if}
-  <!-- Green while the code panel is open; otherwise a plain icon button
-       like its neighbours. The name tells where the toggle goes next. -->
-  {#if codeAvailable}
-    <Button
-      variant={codeShown ? "success" : "ghost"}
-      size="icon-sm"
-      aria-label={codeLabel}
-      title={codeLabel}
-      aria-pressed={codeShown}
-      onclick={() => (codeShown = !codeShown)}
-      ><IconCode class="size-4" aria-hidden="true" /></Button
-    >
-  {/if}
+  <Button
+    bind:ref={panelTrigger}
+    variant="ghost"
+    size="icon-touch-sm"
+    aria-label="打开面板"
+    title="打开面板"
+    aria-expanded={codeShown}
+    onclick={openPanels}><IconPlus class="size-4" aria-hidden="true" /></Button
+  >
   {#if fullscreen.offered && !tvMode.enabled}<Button
       variant="ghost"
       size="icon-sm"
@@ -317,9 +305,6 @@
     {fullscreen}
     keyboard={terminalShown ? keyboard : undefined}
   />
-  {#if paneActions && !tvMode.enabled}<div class="max-sm:hidden">
-      {@render paneActions(false)}
-    </div>{/if}
   <DropdownMenu.Root>
     <DropdownMenu.Trigger>
       {#snippet child({ props })}<Button
@@ -433,13 +418,6 @@
           </DropdownMenu.CheckboxItem>
         </DropdownMenu.Group>
       {/if}
-      {#if paneActions}<div
-          role="presentation"
-          class={tvMode.enabled ? undefined : "hidden max-sm:contents"}
-        >
-          <DropdownMenu.Separator />
-          {@render paneActions(true)}
-        </div>{/if}
       <DropdownMenu.Separator />
       {@const archivable =
         t.exitCode === null &&

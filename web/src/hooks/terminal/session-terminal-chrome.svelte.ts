@@ -68,7 +68,10 @@ export function useSessionTerminalChrome(options: {
   let copyOpen = $state(false);
   let copyText = $state("");
   let pendingCopy = $state<string | null>(null);
+  // codeShown retains the workspace's sidebar visibility and persisted size
+  // contract; choosing another panel does not collapse that sidebar.
   let codeShown = $state(options.code?.codePanelState.shown() ?? false);
+  let panelView = $state<"picker" | "code" | "split">("code");
   $effect(() => options.code?.codePanelState.setShown(codeShown));
   let codeTarget = $state<CodeReveal>();
   let chatEditing = $state(false);
@@ -129,8 +132,14 @@ export function useSessionTerminalChrome(options: {
     void tick().then(() => options.fitTerminal());
   }
 
+  function showCode() {
+    panelView = "code";
+    codeShown = true;
+  }
+
   function review(path: string) {
     if (!options.code) return;
+    panelView = "code";
     if (!options.isCodePanelPoppedOut()) codeShown = true;
     codeTarget = { path, mode: "diff", key: (codeTarget?.key ?? 0) + 1 };
   }
@@ -142,6 +151,7 @@ export function useSessionTerminalChrome(options: {
       target,
     );
     if (failure) return failure;
+    panelView = "code";
     if (!options.isCodePanelPoppedOut()) codeShown = true;
     codeTarget = { ...target, mode: "file", key: (codeTarget?.key ?? 0) + 1 };
   };
@@ -273,6 +283,12 @@ export function useSessionTerminalChrome(options: {
     set codeShown(value: boolean) {
       codeShown = value;
     },
+    get panelView() {
+      return panelView;
+    },
+    set panelView(value: "picker" | "code" | "split") {
+      panelView = value;
+    },
     get codeTarget() {
       return codeTarget;
     },
@@ -293,6 +309,7 @@ export function useSessionTerminalChrome(options: {
     closeFind,
     restoreInputFocus,
     setSizeLocked,
+    showCode,
     review,
     openCodeLocation,
     copyToClipboard,

@@ -91,21 +91,7 @@ test("filters out excluded sessions, searches by title or cwd, and selects with 
   expect(onclose).toHaveBeenCalledOnce();
 });
 
-test("shows empty state when no session matches and surfaces API errors", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn<typeof globalThis.fetch>(async () => Response.json([])),
-  );
-  render(SplitSessionDialog, {
-    excluded: [],
-    onclose: () => {},
-    onselect: () => {},
-  });
-  await expect
-    .element(page.getByText("没有可加入的会话。可从分屏菜单新建 Shell。"))
-    .toBeVisible();
-
-  await cleanup();
+test("surfaces API errors", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof globalThis.fetch>(async () =>

@@ -11,7 +11,7 @@
     setBrowserChrome,
     resetBrowserChrome,
   } from "../platform/browser-chrome";
-  import TerminalSplitMenu from "../components/terminal/TerminalSplitMenu.svelte";
+  import TerminalSplitPanel from "../components/terminal/TerminalSplitPanel.svelte";
   import TerminalPaneDivider from "../components/terminal/TerminalPaneDivider.svelte";
   import TerminalPaneTabs from "../components/terminal/TerminalPaneTabs.svelte";
   import TerminalPageDialogs from "../components/terminal/TerminalPageDialogs.svelte";
@@ -403,24 +403,34 @@
                   connections[value.id] = connection;
                 }}
               >
-                {#snippet paneActions(inline: boolean)}
+                {#snippet paneActions(closePanel: () => void)}
                   {#if pane}
-                    <TerminalSplitMenu
-                      {inline}
+                    <TerminalSplitPanel
                       busy={splitBusy}
                       limit={ids.length >= MAX_PANES}
                       ready={!!info[sessionId]}
                       onsplit={(direction) => {
+                        closePanel();
                         void split(direction, sessionId);
                       }}
-                      oncreate={() => createSession(sessionId)}
+                      oncreate={() => {
+                        closePanel();
+                        createSession(sessionId);
+                      }}
                       onchoose={() => {
+                        closePanel();
                         active = sessionId;
                         choosing = true;
                       }}
-                      onclose={() => close(sessionId)}
+                      onclose={() => {
+                        closePanel();
+                        close(sessionId);
+                      }}
                       onzoom={ids.length > 1
-                        ? () => zoom(sessionId)
+                        ? () => {
+                            closePanel();
+                            zoom(sessionId);
+                          }
                         : undefined}
                       {zoomed}
                     />

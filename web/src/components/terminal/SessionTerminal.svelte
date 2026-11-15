@@ -63,7 +63,7 @@
     reopen: () => void;
     visible: boolean;
     active: boolean;
-    paneActions: Snippet<[boolean]>;
+    paneActions: Snippet<[() => void]>;
     keyboardDismissed: () => boolean;
     keyboardVisibility: () => KeyboardVisibility;
     viewportHeight: () => number;
@@ -156,8 +156,9 @@
     onscrollstate: (state) => onscrollstate?.(state),
   });
   $effect(() => {
-    if (!availablePlugins.code) chrome.codeShown = false;
-    else if (chrome.codeShown) codeLoaded = true;
+    if (!availablePlugins.code && chrome.panelView === "code")
+      chrome.codeShown = false;
+    else if (chrome.codeShown && chrome.panelView === "code") codeLoaded = true;
     if (terminalVisible()) {
       if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
       void tick().then(() => t.fit());
@@ -291,7 +292,7 @@
     sendDraft: input.sendDraft,
     sendChat: () => stage?.sendChatDraft(),
     toggleDraft: input.toggleDraft,
-    showCode: () => (chrome.codeShown = true),
+    showCode: chrome.showCode,
     showChat: revealChat,
     showSwitchChoice: () => (chrome.choiceClosed = false),
     runQuick: runQuickCommand,
@@ -398,6 +399,9 @@
     bind:codeShown={
       () => chrome.codeShown, (value) => (chrome.codeShown = value)
     }
+    bind:panelView={
+      () => chrome.panelView, (value) => (chrome.panelView = value)
+    }
     {chatActions}
     bind:forceSoftKeys={
       () => forceSoftKeys, (value) => changeSettings({ forceSoftKeys: value })
@@ -478,7 +482,7 @@
           bind:this={codePanel}
           {id}
           gitPlugin={availablePlugins.git}
-          visible={visible && chrome.codeShown}
+          visible={visible && chrome.codeShown && chrome.panelView === "code"}
           connection={hybrid.view === "chat"
             ? hybrid.chat.connection
             : t.connection}

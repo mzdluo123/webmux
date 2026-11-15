@@ -487,17 +487,28 @@ export async function recordInput(
   return path;
 }
 
-// The split button sits in the header from 640px up; on phones the same
-// actions are the terminal menu's "窗格" group. Opens whichever applies.
-export async function openPaneMenu(scope: Locator | Page) {
-  const page = "viewportSize" in scope ? scope : scope.page();
-  if ((page.viewportSize()?.width ?? 1280) >= 640)
-    return scope.getByRole("button", { name: "分屏", exact: true }).click();
-  await scope.getByRole("button", { name: /^(终端|会话)菜单$/ }).click();
+// Split actions live in the session's side-panel picker on every viewport.
+export async function openSplitPanel(scope: Locator | Page) {
+  const picker = await openPanelPicker(scope);
+  await picker.getByRole("button", { name: "分屏", exact: true }).click();
 }
 
-// The header's code button: "代码" while the panel is closed, and "终端" while
-// it fills a narrow pane or a phone's screen (the name says where it goes).
-export function viewSwitch(scope: Locator | Page, name: "终端" | "代码") {
-  return scope.getByRole("button", { name, exact: true });
+async function openPanelPicker(scope: Locator | Page) {
+  const page = "viewportSize" in scope ? scope : scope.page();
+  await scope.getByRole("button", { name: "打开面板", exact: true }).click();
+  return page.getByRole("group", { name: "面板选择", exact: true });
+}
+
+export async function toggleCode(scope: Locator | Page) {
+  if (await scope.locator(".code-pane").isVisible()) {
+    await openPanelPicker(scope);
+    await scope
+      .getByRole("button", { name: "关闭侧栏面板", exact: true })
+      .click();
+  } else
+    await (
+      await openPanelPicker(scope)
+    )
+      .getByRole("button", { name: "代码", exact: true })
+      .click();
 }
