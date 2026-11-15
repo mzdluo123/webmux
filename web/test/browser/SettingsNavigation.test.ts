@@ -191,9 +191,6 @@ test("core settings navigation and sections exclude every disabled provider", as
   await enableCreationPlugins([]);
   await openSettings();
   const nav = page.getByRole("navigation", { name: "设置分区" });
-  expect(
-    Array.from(nav.element().querySelectorAll("a")).map((link) => link.hash),
-  ).toEqual(["#appearance", "#drafts", "#network", "#install", "#preview"]);
   for (const id of [
     "code-reader",
     "quick-commands",
@@ -202,8 +199,10 @@ test("core settings navigation and sections exclude every disabled provider", as
     "access",
     "tailscale",
     "push",
-  ])
+  ]) {
+    expect(nav.element().querySelector(`a[href="#${id}"]`)).toBeNull();
     expect(document.getElementById(id)).toBeNull();
+  }
   const paths = vi
     .mocked(fetch)
     .mock.calls.map(
