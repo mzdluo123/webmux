@@ -348,6 +348,7 @@
     {#if turns.length > 1}
       <ConversationTurns
         items={turns}
+        entries={model.entries}
         activeId={activeTurnId}
         {documentScroll}
         onselect={jumpToTurn}

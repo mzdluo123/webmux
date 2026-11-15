@@ -1048,6 +1048,10 @@ test("conversation ticks distinguish roles, jump to history and preserve reading
       name: /^第 10 轮 · AI · 3 条消息：第 10 轮回复，段落 1/,
     });
     await nearEnd.click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: /^第 10 轮 · AI：第 10 轮回复/ })
+      .click();
     const nearEndOffset = scroller.scrollTop;
     socket.frame({
       type: "events",
@@ -1095,6 +1099,10 @@ test("conversation ticks distinguish roles, jump to history and preserve reading
       .toHaveAttribute("aria-current", "location");
     expect(navigation.getByRole("button").elements()).toHaveLength(20);
     await mergedLast.click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: /^第 10 轮 · AI：第 10 轮回复/ })
+      .click();
     const firstReply = document.querySelector(
       '[data-conversation-message="nav-a9"]',
     )!;
@@ -1119,7 +1127,7 @@ test("conversation ticks distinguish roles, jump to history and preserve reading
   }
 });
 
-test("all turn ticks fit a clipped chat host without independent scrolling or moving its dock", async () => {
+test("long conversations aggregate the rail and keep every message reachable", async () => {
   await page.viewport(1280, 900);
   try {
     const socket = await open(undefined, false, true);
@@ -1128,7 +1136,7 @@ test("all turn ticks fit a clipped chat host without independent scrolling or mo
       type: "events",
       generation: "g1",
       items: events(
-        ...Array.from({ length: 40 }, (_, index) => [
+        ...Array.from({ length: 100 }, (_, index) => [
           {
             kind: "message.append" as const,
             message: {
@@ -1146,93 +1154,61 @@ test("all turn ticks fit a clipped chat host without independent scrolling or mo
             },
           },
         ]).flat(),
-        {
-          kind: "message.append",
-          message: { messageId: "empty", role: "agent", text: "" },
-        },
-        {
-          kind: "message.append",
-          message: { messageId: "whitespace", role: "agent", text: " \n " },
-        },
       ),
     });
     const navigation = page.getByRole("navigation", { name: "对话轮次" });
     await expect.element(navigation).toBeVisible();
-    expect(navigation.getByRole("button").elements()).toHaveLength(80);
-    expect(
-      document.querySelector('[data-conversation-message="empty"]'),
-    ).toBeNull();
-    expect(
-      document.querySelector('[data-conversation-message="whitespace"]'),
-    ).toBeNull();
+    const rail = navigation.element();
+    const ticks = () => navigation.getByRole("button").elements();
+    await expect.poll(() => ticks().length).toBeLessThan(60);
     const host = document.querySelector<HTMLElement>("[data-chat-test-host]")!;
-    const chat = document.querySelector<HTMLElement>("[data-chat-view]")!;
     const dock = document.querySelector<HTMLElement>("[data-chat-dock]")!;
-    const scroller = chat.querySelector<HTMLElement>(
-      "[data-slot=scroll-area-viewport]",
+    const scroller = document.querySelector<HTMLElement>(
+      "[data-chat-view] [data-slot=scroll-area-viewport]",
     )!;
-    const ticks = navigation.element().firstElementChild as HTMLElement;
     host.scrollTop = 48;
-    const geometry = () => ({
-      host: host.scrollTop,
-      window: window.scrollY,
-      chat: chat.getBoundingClientRect().top,
-      dock: dock.getBoundingClientRect().top,
-    });
-    const origin = geometry();
-    const expectFittedRail = () => {
-      const bounds = navigation.element().getBoundingClientRect();
-      const chatBounds = chat.getBoundingClientRect();
-      expect(bounds.top).toBeGreaterThanOrEqual(chatBounds.top);
-      expect(bounds.bottom).toBeLessThanOrEqual(chatBounds.bottom);
-      for (const button of navigation.getByRole("button").elements()) {
-        const item = button.getBoundingClientRect();
-        expect(item.top).toBeGreaterThanOrEqual(bounds.top - 1);
-        expect(item.bottom).toBeLessThanOrEqual(bounds.bottom + 1);
-        expect(item.height).toBeGreaterThan(0);
-      }
-      for (const element of [navigation.element(), ticks]) {
-        expect(element.scrollHeight).toBeLessThanOrEqual(
-          element.clientHeight + 1,
-        );
-        expect(element.scrollTop).toBe(0);
-      }
-      expect(geometry()).toEqual(origin);
+    const geometry = () => [
+      host.scrollTop,
+      window.scrollY,
+      dock.getBoundingClientRect().top,
+    ];
+    const original = geometry();
+    const fitted = () => {
+      expect(rail.scrollHeight).toBeLessThanOrEqual(rail.clientHeight + 1);
+      expect(rail.scrollTop).toBe(0);
+      for (const tick of ticks())
+        expect(tick.getBoundingClientRect().height).toBeGreaterThanOrEqual(12);
+      expect(geometry()).toEqual(original);
     };
-    expectFittedRail();
-    const first = navigation.getByRole("button", {
-      name: "第 1 轮 · 你：请求 1",
-    });
-    const firstAgent = navigation.getByRole("button", {
-      name: /^第 1 轮 · AI：回复 1 /,
-    });
-    const last = navigation.getByRole("button", {
-      name: /^第 40 轮 · AI：回复 40 /,
-    });
-    const lastUser = navigation.getByRole("button", {
-      name: "第 40 轮 · 你：请求 40",
-    });
-    await first.click();
-    await expect.poll(() => scroller.scrollTop).toBeLessThan(100);
-    await userEvent.keyboard("{End}");
-    await expect.element(last).toHaveFocus();
-    await expect.element(last).toHaveAttribute("aria-current", "location");
-    await expect.poll(() => scroller.scrollTop).toBeGreaterThan(1000);
-    expectFittedRail();
-    await userEvent.keyboard("{ArrowUp}");
-    await expect.element(lastUser).toHaveFocus();
-    expectFittedRail();
-    await userEvent.keyboard("{Home}");
-    await expect.element(first).toHaveFocus();
-    await expect.poll(() => scroller.scrollTop).toBeLessThan(100);
-    expectFittedRail();
-    await userEvent.keyboard("{ArrowDown}");
-    await expect.element(firstAgent).toHaveFocus();
     await expect
-      .element(firstAgent)
+      .poll(() => Math.max(0, rail.scrollHeight - rail.clientHeight))
+      .toBeLessThanOrEqual(1);
+    fitted();
+    await navigation.getByRole("button").first().click();
+    const dialog = page.getByRole("dialog");
+    await expect.element(dialog).toBeVisible();
+    const reading = scroller.scrollTop;
+    await dialog
+      .getByRole("button", { name: "第 1 轮 · 你：请求 1", exact: true })
+      .click();
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect.poll(() => scroller.scrollTop).toBeLessThan(reading);
+    fitted();
+    await userEvent.keyboard("{End}");
+    await expect.element(navigation.getByRole("button").last()).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await expect.element(dialog).toBeVisible();
+    const last = dialog.getByRole("button", {
+      name: /^第 100 轮 · AI：回复 100/,
+    });
+    await last.click();
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect.poll(() => scroller.scrollTop).toBeGreaterThan(1000);
+    await expect
+      .element(navigation.getByRole("button").last())
       .toHaveAttribute("aria-current", "location");
-    expectFittedRail();
-    const readingOffset = scroller.scrollTop;
+    fitted();
+    const offset = scroller.scrollTop;
     socket.frame({
       type: "events",
       generation: "g1",
@@ -1246,9 +1222,76 @@ test("all turn ticks fit a clipped chat host without independent scrolling or mo
       }),
     });
     await expect.element(page.getByText("历史阅读时继续回复")).toBeVisible();
-    expect(navigation.getByRole("button").elements()).toHaveLength(80);
-    expect(scroller.scrollTop).toBe(readingOffset);
-    expectFittedRail();
+    expect(scroller.scrollTop).toBe(offset);
+    fitted();
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
+test("a hundred progress messages use a bounded directory without hiding the transcript", async () => {
+  await page.viewport(1280, 900);
+  try {
+    const socket = await open();
+    socket.frame(snapshot(chatState()));
+    socket.frame({
+      type: "events",
+      generation: "g1",
+      items: events(
+        {
+          kind: "message.append",
+          message: {
+            messageId: "progress-user",
+            role: "user",
+            text: "完成任务",
+          },
+        },
+        ...Array.from({ length: 108 }, (_, i) => ({
+          kind: "message.append" as const,
+          message: {
+            messageId: `progress-${i}`,
+            role: "agent" as const,
+            text: `工作进度 ${i}`,
+          },
+        })),
+      ),
+    });
+    const nav = page.getByRole("navigation", { name: "对话轮次" });
+    await expect.poll(() => nav.getByRole("button").elements().length).toBe(2);
+    await nav.getByRole("button").last().click();
+    const dialog = page.getByRole("dialog");
+    await expect.element(dialog).toBeVisible();
+    const viewport = dialog
+      .element()
+      .querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')!;
+    await expect.poll(() => viewport.clientHeight).toBeLessThanOrEqual(288);
+    expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight);
+    const focused = document.activeElement;
+    const transcript = page.getByRole("list", { name: "对话" });
+    expect(
+      transcript.element().querySelectorAll('[data-message-id^="progress-"]'),
+    ).toHaveLength(109);
+    socket.frame({
+      type: "events",
+      generation: "g1",
+      items: events({
+        kind: "message.append",
+        message: {
+          messageId: "progress-latest",
+          role: "agent",
+          text: "工作仍在继续",
+        },
+      }),
+    });
+    await expect
+      .element(dialog.getByRole("button", { name: /工作仍在继续/ }))
+      .toBeInTheDocument();
+    expect(document.activeElement).toBe(focused);
+    await dialog.getByRole("button", { name: /工作仍在继续/ }).click();
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect
+      .element(nav.getByRole("button").last())
+      .toHaveAttribute("aria-current", "location");
   } finally {
     await page.viewport(1024, 900);
   }

@@ -7,7 +7,10 @@ import {
   resumePoint,
   type ChatModel,
 } from "../src/domains/chat/chat-model";
-import { conversationTurns } from "../src/domains/chat/conversation-turns";
+import {
+  conversationTurnGroups,
+  conversationTurns,
+} from "../src/domains/chat/conversation-turns";
 import {
   ChatFrameSchema,
   type ChatEvent,
@@ -589,5 +592,39 @@ test("diff stats count lines of new and deleted files", () => {
   expect(diffStats({ type: "diff", oldText: "a\nb", newText: "" })).toEqual({
     added: 0,
     removed: 2,
+  });
+});
+
+describe("bounded conversation navigation", () => {
+  test.each([1, 2, 30, 60])(
+    "retains every anchor in order at capacity %i",
+    (capacity) => {
+      const items = Array.from({ length: 1000 }, (_, i) => ({
+        id: `message-${i}`,
+        messageIds: [`message-${i}`],
+        role: "user" as const,
+        turn: i + 1,
+        summary: `Prompt ${i}`,
+      }));
+      const groups = conversationTurnGroups(items, capacity);
+      expect(groups.length).toBeLessThanOrEqual(capacity);
+      expect(groups.flat()).toEqual(items);
+      expect(
+        conversationTurnGroups(items.slice(0, capacity), capacity).every(
+          (group) => group.length === 1,
+        ),
+      ).toBe(true);
+    },
+  );
+  test("handles an empty or not-yet-measured rail", () => {
+    expect(conversationTurnGroups([], 0)).toEqual([]);
+    const item = {
+      id: "a",
+      messageIds: ["a"],
+      role: "agent" as const,
+      turn: 0,
+      summary: "Earlier",
+    };
+    expect(conversationTurnGroups([item], 0)).toEqual([[item]]);
   });
 });

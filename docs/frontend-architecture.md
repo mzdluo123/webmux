@@ -150,12 +150,12 @@ Git 工作台分栏使用 `git-pane` 与 `git-divider` 布局钩子类，只在�
 
 `ItemGroup variant="panel"` 统一提供紧凑列表的边框与分隔线；`Item variant="row"` 提供无独立卡片边框的行；`ListButton variant="navigation"` 提供侧栏导航行的选中与键盘焦点样式。
 
-`ListButton variant="turn"` 用于宽聊天窗格的对话轮次刻度：`data-turn-role="user"` 使用前景色，`agent` 使用信息蓝；`aria-current="location"` 提高当前刻度的不透明度，不改变长度。
+`ListButton variant="turn"` 用于宽聊天窗格的对话轮次刻度：`data-turn-role="user"` 使用前景色，`agent` 使用信息蓝；`aria-current="location"` 提高当前刻度的不透明度，不改变长度。导航按可用高度限制刻度数量，连续轮次聚合段使用中性色，并通过 Popover 与 ScrollArea 目录保留每条消息的精确跳转入口。
 用户刻度固定 12px；AI 通过 `data-turn-volume="single|few|several|many"` 将 1 / 2–3 / 4–7 / 8+ 条正文映射为 12 / 16 / 20 / 24px，长度有上限。
 每条用户消息独立成项；同一用户消息后、下一条用户消息前的 AI 正文合并，思考、工具与系统项不打断分组，原始时间线不变。
 可访问名称和悬停提示包含轮次、角色与第一条正文的摘要；单条保持 `第 1 轮 · AI：摘要`，多条使用 `第 1 轮 · AI · 3 条消息：摘要`。
-任意成员处于阅读位置时，其合并刻度都保持激活；点击或键盘跳转定位第一条成员消息，每条成员仍保留时间线锚点。
-刻度行随可用高度压缩，首尾始终可见，不产生独立滚动条；文档滚动模式下固定于视口并避开吸顶头部。
+任意成员处于阅读位置时，其合并刻度都保持激活；单消息直接定位，多消息点击展开目录后逐条定位，方向键定位分段首条，每条成员仍保留时间线锚点。
+刻度行至少 12px，按可用高度聚合相邻轮次，首尾历史均可访问，不产生独立滚动条；文档滚动模式下固定于视口并避开吸顶头部。
 
 粗指针设备的最小触控高度用 Tailwind 的 `any-pointer-coarse:` 变体（如 `any-pointer-coarse:min-h-11`）。
 

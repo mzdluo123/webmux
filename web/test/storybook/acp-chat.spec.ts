@@ -332,115 +332,73 @@ for (const theme of ["light", "dark"]) {
     await show(page, "long-conversation", theme);
     const navigation = page.getByRole("navigation", { name: "对话轮次" });
     await expect(navigation).toBeVisible();
-    await expect(navigation.getByRole("button")).toHaveCount(82);
-    const first = navigation.getByRole("button", {
-      name: "第 1 轮 · 你：修复首页搜索的排序：置顶的工作区应排在最前。",
-    });
-    const agent = navigation.getByRole("button", {
-      name: /^第 1 轮 · AI：/,
-    });
-    const colors = await Promise.all(
-      [first, agent].map((item) =>
-        item
-          .locator("span")
-          .evaluate((node) => getComputedStyle(node).backgroundColor),
-      ),
-    );
-    expect(colors[0]).not.toBe(colors[1]);
-    for (const [round, count, volume, width] of [
-      [2, 1, "single", 12],
-      [3, 2, "few", 16],
-      [4, 4, "several", 20],
-      [5, 8, "many", 24],
-    ] as const) {
-      const tick = navigation.getByRole("button", {
-        name:
-          count === 1
-            ? `第 ${round} 轮 · AI：第 ${round} 轮回复：已保留排序和测试。`
-            : `第 ${round} 轮 · AI · ${count} 条消息：第 ${round} 轮回复：已保留排序和测试。`,
-      });
-      await expect(tick).toHaveAttribute("data-turn-volume", volume);
-      expect(
-        await tick
-          .locator("span")
-          .evaluate((node) => node.getBoundingClientRect().width),
-      ).toBe(width);
-    }
-    // A long single reply has the same weight as a short single reply.
-    expect(
-      await agent
-        .locator("span")
-        .evaluate((node) => node.getBoundingClientRect().width),
-    ).toBe(12);
-    expect(
-      await first
-        .locator("span")
-        .evaluate((node) => node.getBoundingClientRect().width),
-    ).toBe(12);
+    const first = navigation.getByRole("button").first();
+    const last = navigation.getByRole("button").last();
     for (const viewport of [
       { width: 1280, height: 900 },
       { width: 1280, height: 600 },
+      { width: 900, height: 900 },
     ]) {
       await page.setViewportSize(viewport);
-      const fitted = await navigation.evaluate((nav) => {
-        const bounds = nav.getBoundingClientRect();
-        const list = nav.firstElementChild as HTMLElement;
-        return {
-          noScroll: [nav, list].every(
-            (node) =>
-              node.scrollTop === 0 &&
-              node.scrollHeight <= node.clientHeight + 1,
-          ),
-          allFit: Array.from(nav.querySelectorAll("button")).every((button) => {
-            const item = button.getBoundingClientRect();
+      await expect
+        .poll(() => navigation.getByRole("button").count())
+        .toBeLessThan(60);
+      await expect
+        .poll(() =>
+          navigation.evaluate((nav) => {
+            const bounds = nav.getBoundingClientRect();
+            const list = nav.firstElementChild as HTMLElement;
             return (
-              item.height > 0 &&
-              item.top >= bounds.top - 1 &&
-              item.bottom <= bounds.bottom + 1
+              [nav, list].every(
+                (node) =>
+                  node.scrollTop === 0 &&
+                  node.scrollHeight <= node.clientHeight + 1,
+              ) &&
+              Array.from(nav.querySelectorAll("button")).every((button) => {
+                const box = button.getBoundingClientRect();
+                return (
+                  box.height >= 12 &&
+                  box.top >= bounds.top - 1 &&
+                  box.bottom <= bounds.bottom + 1
+                );
+              })
             );
           }),
-        };
-      });
-      expect(fitted).toEqual({ noScroll: true, allFit: true });
-    }
-    await page.setViewportSize({ width: 1280, height: 900 });
-    const last = navigation.getByRole("button", {
-      name: "第 41 轮 · AI · 8 条消息：第 41 轮回复：已保留排序和测试。",
-    });
-    await first.click();
-    await first.press("End");
-    await expect(last).toBeFocused();
-    await expect(last).toHaveAttribute("aria-current", "location");
-    expect(
-      await page
-        .locator(
-          '[data-conversation-message="long-a39"], [data-conversation-message^="long-a39-"]',
         )
-        .evaluateAll((nodes) =>
-          nodes.map((node) => node.getAttribute("data-conversation-message")),
-        ),
-    ).toEqual([
-      "long-a39",
-      ...Array.from({ length: 7 }, (_, index) => `long-a39-${index + 1}`),
-    ]);
-    await last.press("Home");
-    await expect(first).toBeFocused();
-    await first.click();
-    await expect(first).toHaveAttribute("aria-current", "location");
-    await expect
-      .poll(() =>
-        page
-          .locator("[data-slot=scroll-area-viewport]")
-          .first()
-          .evaluate((node) => node.scrollTop),
-      )
-      .toBeLessThan(100);
-
-    await page.setViewportSize({ width: 900, height: 900 });
-    await expect(navigation).toBeVisible();
-    await first.click();
-    await expect(first).toHaveAttribute("aria-current", "location");
-    await expectNoOverflow(page, `900×900 ${theme} intermediate-width ticks`);
+        .toBe(true);
+      await first.click();
+      const directory = page.getByRole("dialog");
+      await expect(directory).toBeVisible();
+      const box = await directory.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+      await directory
+        .getByRole("button", { name: /^第 1 轮 · 你：修复首页搜索/ })
+        .click();
+      await expect(directory).toBeHidden();
+      await expect(first).toBeFocused();
+      await first.press("End");
+      await expect(last).toBeFocused();
+      await last.press("Enter");
+      await expect(directory).toBeVisible();
+      await directory
+        .getByRole("button", {
+          name: "第 41 轮 · AI：补充 7：回归用例已保留。",
+          exact: true,
+        })
+        .click();
+      await expect(last).toHaveAttribute("aria-current", "location");
+      await expect(directory).toBeHidden();
+      expect(
+        await page.locator('[data-conversation-message^="long-a39"]').count(),
+      ).toBe(8);
+      await expectNoOverflow(
+        page,
+        `${viewport.width}×${viewport.height} ${theme} grouped ticks`,
+      );
+    }
 
     for (const viewport of [
       { width: 768, height: 800 },
