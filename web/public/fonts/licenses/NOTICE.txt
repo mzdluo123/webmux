@@ -8,3 +8,10 @@ so xterm cell widths stay stable; UI CJK text uses system sans-serif fonts.
 HarmonyOS Sans SC is not included. Its license forbids modifications, which
 rules out the unicode-range slices this app serves, and it does not allow
 redistributing the font files on their own.
+
+Noto Sans CJK SC Regular (local history PNG renderer, unmodified) —
+Copyright (c) 2014-2021 Adobe (http://www.adobe.com/).
+SIL Open Font License 1.1. See OFL-NotoSansCJK.txt for the full notice,
+source revision and license. The font is embedded by snapcompact-go;
+it is not fetched at runtime or used as a web UI font.
+The renderer module and its dependency notices are in Snapcompact-Go-NOTICES.txt.

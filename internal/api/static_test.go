@@ -346,3 +346,20 @@ func TestStaticWebAppManifest(t *testing.T) {
 		t.Fatalf("icon sizes=%v; installability needs 192x192 and 512x512", sizes)
 	}
 }
+
+// Raw-binary releases carry the renderer's copyright and OFL notice inside
+// their existing embedded web filesystem, even when chat capture is disabled.
+func TestEmbeddedRendererFontLicense(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/fonts/licenses/OFL-NotoSansCJK.txt", nil)
+	response := httptest.NewRecorder()
+	(&Server{}).static(response, req)
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Code)
+	}
+	body := response.Body.String()
+	for _, required := range []string{"Copyright (c) 2014-2021 Adobe", "SIL OPEN FONT LICENSE Version 1.1", "f8d157532fbfaeda587e826d4cd5b21a49186f7c"} {
+		if !strings.Contains(body, required) {
+			t.Fatalf("embedded font notice missing %q", required)
+		}
+	}
+}

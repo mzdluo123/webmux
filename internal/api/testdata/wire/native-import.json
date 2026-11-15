@@ -1,0 +1,28 @@
+{
+  "status": 200,
+  "body": {
+    "activities": {
+      "gaps": [],
+      "historyOrigin": "unknown",
+      "items": [],
+      "nextPosition": "0",
+      "reconcileRequired": false
+    },
+    "consumed": "1659",
+    "conversationId": "<conversationId#2>",
+    "files": [],
+    "gaps": [
+      "257:mirror_pairing_unverified",
+      "1088:nonexportable_reasoning",
+      "1530:compaction_boundary"
+    ],
+    "model": "",
+    "nativeId": "00000000-0000-4000-8000-000000000001",
+    "parser": "",
+    "pending": false,
+    "provenance": [],
+    "snapshotId": "",
+    "sourceId": "<sourceId#1>",
+    "truncated": false
+  }
+}

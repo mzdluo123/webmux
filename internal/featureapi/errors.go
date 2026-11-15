@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
+	"github.com/rainchan/webmux/internal/codexrollout"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
 	wire "github.com/rainchan/webmux/internal/featurewire"
@@ -245,7 +246,7 @@ func launchFailure(w http.ResponseWriter, err error) {
 func conversationFailure(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, conversation.ErrInvalid), errors.Is(err, launch.ErrInvalid), errors.Is(err, workspace.ErrInvalid):
+	case errors.Is(err, codexrollout.ErrFormat), errors.Is(err, codexrollout.ErrVersion), errors.Is(err, codexrollout.ErrLimit), errors.Is(err, conversation.ErrInvalid), errors.Is(err, launch.ErrInvalid), errors.Is(err, workspace.ErrInvalid):
 		status = http.StatusBadRequest
 	case errors.Is(err, conversation.ErrNotFound), errors.Is(err, launch.ErrNotFound), errors.Is(err, workspace.ErrNotFound):
 		status = http.StatusNotFound

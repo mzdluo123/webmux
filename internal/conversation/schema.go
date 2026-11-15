@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-const schemaVersion = 11
+const schemaVersion = 12
 
 const schema = `
 CREATE TABLE conversation (
@@ -97,7 +97,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			return ErrUnavailable
 		}
 		// Fail on malformed current-version databases too.
-		for _, table := range []string{"conversation", "provider_thread", "run", "context_handoff", "handoff_delivery", "command_receipt", "activity", "activity_chunk", "activity_heading_chunk", "activity_attachment", "history_gap", "handoff_preview", "handoff_execution", "handoff_attachment", "inline_receipt", "native_injection", "native_injection_item", "dispatch_receipt"} {
+		for _, table := range []string{"conversation", "provider_thread", "run", "context_handoff", "handoff_delivery", "command_receipt", "activity", "activity_chunk", "activity_heading_chunk", "activity_attachment", "history_gap", "handoff_preview", "handoff_execution", "handoff_attachment", "inline_receipt", "native_injection", "native_injection_item", "dispatch_receipt", "native_source", "native_location", "native_record", "history_snapshot", "history_snapshot_item", "history_snapshot_gap", "history_snapshot_reference"} {
 			if _, err := db.ExecContext(ctx, "SELECT 1 FROM "+table+" LIMIT 0"); err != nil {
 				return err
 			}
@@ -189,6 +189,11 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	}
 	if version < 11 {
 		if err := backfillOrphanDispatch(ctx, tx); err != nil {
+			return err
+		}
+	}
+	if version < 12 {
+		if _, err := tx.ExecContext(ctx, nativeSchema); err != nil {
 			return err
 		}
 	}

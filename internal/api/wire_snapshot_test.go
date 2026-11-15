@@ -119,6 +119,12 @@ func wireSchema(name string) wireRules {
 		if name == "handoff-preview-empty" {
 			add("", "emptyCoverage", "renderedText")
 		}
+	case "native-import", "native-read":
+		add("", "id", "sourceId", "conversationId", "snapshotId")
+		add("/activities/items/*", "id", "activityId", "conversationId", "providerThreadId", "runId")
+		add("/provenance/*", "id", "activityId", "sourceId")
+		add("/activities/gaps/*", "id", "id", "providerThreadId")
+		add("/activities/gaps/*", "time", "createdAt")
 	case "conversation-activities", "conversation-activities-empty":
 		add("/items/*", "id", "activityId", "conversationId", "providerThreadId", "runId")
 		add("/items/*", "time", "createdAt")
@@ -1868,6 +1874,21 @@ func wireConversationHistory(f *wireFixture) {
 	f.call("conversation-activities", "GET", base+"?maxBytesPerItem=7", nil, 200)
 	f.call("conversation-activity", "GET", base+"/"+id+"?textOffset=6&maxBytes=4", nil, 200)
 	f.call("conversation-activities-empty", "GET", base+"?afterPosition=1", nil, 200)
+	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	path := filepath.Join(f.root, "native.jsonl")
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		f.t.Fatal(err)
+	}
+	imported := f.call("native-import", "POST", "/api/conversations/native", contract.NativeRequest{Action: "import", Path: path}, 200).(map[string]any)
+	frozen, err := f.conversations.FreezeNative(f.ctx, imported["sourceId"].(string))
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.call("native-read", "POST", "/api/conversations/native", contract.NativeRequest{Action: "read", SnapshotID: frozen.ID}, 200)
+
 }
 
 func wireHandoffPreviews(f *wireFixture) {

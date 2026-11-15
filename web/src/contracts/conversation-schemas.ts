@@ -38,7 +38,7 @@ export const ConversationActivitySchema = z.object({
   role: z.enum(["", "user", "agent", "system"]),
   status: z.string(),
   text: z.string(),
-  source: z.enum(["local", "live", "replay"]),
+  source: z.enum(["local", "live", "replay", "native"]),
   providerItemId: z.string(),
   byteLength: ConversationCursorSchema,
   nextTextOffset: ConversationCursorSchema,
@@ -242,3 +242,78 @@ export type HandoffPreview = z.infer<typeof HandoffPreviewSchema>;
 export type HandoffDelivery = z.infer<typeof HandoffDeliverySchema>;
 export type HandoffDraft = z.infer<typeof HandoffDraftSchema>;
 export type HandoffLocation = z.infer<typeof HandoffLocationSchema>;
+
+const nativeFileSchema = z.object({
+  path: z.string(),
+  nativeId: z.string(),
+  cwd: z.string(),
+  timestamp: z.string(),
+  version: z.string(),
+  problem: z.string(),
+});
+
+const nativeRangeSchema = z.object({
+  sourceId: z.string(),
+  field: z.string(),
+  start: z.number().int().nonnegative(),
+  end: z.number().int().nonnegative(),
+});
+
+export const NativePreviewSchema = z.object({
+  gaps: z.array(z.string()),
+  id: z.string(),
+  version: z.string(),
+  currentTask: z.string(),
+  segments: z.array(
+    z.object({
+      sourceId: z.string(),
+      text: z.string(),
+      role: z.string(),
+      callId: z.string(),
+      toolName: z.string(),
+      status: z.string(),
+      sources: z.array(nativeRangeSchema),
+    }),
+  ),
+  omissions: z.array(
+    z.object({
+      range: nativeRangeSchema,
+      reason: z.string(),
+      originalRunes: z.number().int(),
+    }),
+  ),
+  pages: z.array(
+    z.object({ png: z.string(), ranges: z.array(nativeRangeSchema) }),
+  ),
+  uncovered: z.array(nativeRangeSchema),
+  missingGlyphCount: z.number().int().nonnegative(),
+  problem: z.string(),
+});
+
+export const NativeResultSchema = z.object({
+  truncated: z.boolean(),
+  nativeId: z.string(),
+  model: z.string(),
+  provenance: z.array(
+    z.object({
+      position: ConversationCursorSchema,
+      activityId: z.string(),
+      sourceId: z.string(),
+      checksum: z.string(),
+      callId: z.string(),
+      toolName: z.string(),
+      kind: z.string(),
+      offset: ConversationCursorSchema,
+      end: ConversationCursorSchema,
+    }),
+  ),
+  files: z.array(nativeFileSchema),
+  sourceId: z.string(),
+  conversationId: z.string(),
+  snapshotId: z.string(),
+  parser: z.string(),
+  consumed: ConversationCursorSchema,
+  pending: z.boolean(),
+  gaps: z.array(z.string()),
+  activities: ConversationActivitiesSchema,
+});
