@@ -4,7 +4,6 @@
   import type { Snippet } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconPlus from "~icons/tabler/plus";
-  import IconArrowDown from "~icons/tabler/arrow-down";
   import IconMaximize from "~icons/tabler/maximize";
   import IconMinimize from "~icons/tabler/minimize";
   import IconUpload from "~icons/tabler/upload";
@@ -35,9 +34,7 @@
     readonly info: SessionInfo | undefined;
     readonly connection: Connection;
     readonly exitCode: number | null;
-    readonly restoring: boolean;
     readonly canFind: boolean;
-    scrollToBottom(): void;
     clear(): void;
     resync(): void;
   }
@@ -58,7 +55,6 @@
     draftSaved,
     scratchSaved,
     uploading,
-    desktop,
     sizeLocked,
     setSizeLocked,
     keyboardSizeHold,
@@ -87,7 +83,6 @@
     draftSaved: string;
     scratchSaved: string;
     uploading: boolean;
-    desktop: boolean;
     sizeLocked: boolean;
     setSizeLocked: (value: boolean) => void;
     keyboardSizeHold: boolean;
@@ -150,10 +145,6 @@
       t.connection === "missing" ||
       t.exitCode !== null,
   );
-  function scrollToLatest() {
-    t.scrollToBottom();
-    if (!desktop) codeShown = false;
-  }
 </script>
 
 <header
@@ -239,28 +230,16 @@
         : undefined}
       code={{ shown: codeShown, set: (value) => (codeShown = value) }}
     />{/if}
-  {#if terminalShown && !tvMode.enabled}
-    {#if upload}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        class="max-sm:hidden"
-        aria-label={m.s4_upload_files()}
-        title={m.s4_upload_files()}
-        disabled={uploadDisabled}
-        onclick={() => fileInput?.open()}
-        ><IconUpload class="size-4" aria-hidden="true" /></Button
-      >
-    {/if}
+  {#if terminalShown && !tvMode.enabled && upload}
     <Button
       variant="ghost"
       size="icon-sm"
       class="max-sm:hidden"
-      aria-label={m.s4_scroll_to_latest()}
-      title={m.s4_scroll_to_latest()}
-      disabled={t.restoring}
-      onclick={scrollToLatest}
-      ><IconArrowDown class="size-4" aria-hidden="true" /></Button
+      aria-label={m.s4_upload_files()}
+      title={m.s4_upload_files()}
+      disabled={uploadDisabled}
+      onclick={() => fileInput?.open()}
+      ><IconUpload class="size-4" aria-hidden="true" /></Button
     >
   {/if}
   {#if plugins.files && upload}<plugins.files.Input

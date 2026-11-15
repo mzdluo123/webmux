@@ -314,7 +314,6 @@
   {draftSaved}
   {scratchSaved}
   uploading={uploads?.progress != null}
-  {desktop}
   {sizeLocked}
   {setSizeLocked}
   {keyboardSizeHold}

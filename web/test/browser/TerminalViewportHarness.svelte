@@ -6,20 +6,26 @@
     connection = "reconnecting" as Connection,
     restoring = false,
     atBottom = true,
+    visible = true,
+    width = 400,
     controlling = true,
     touchGamepad = false,
     send = () => {},
     toggle = () => {},
     setTouchGamepad = () => {},
+    scrollToBottom = () => {},
   }: {
     connection?: Connection;
     restoring?: boolean;
     atBottom?: boolean;
+    visible?: boolean;
+    width?: number;
     controlling?: boolean;
     touchGamepad?: boolean;
     send?: (input: string) => void;
     toggle?: (key: "ctrl" | "alt" | "shift") => void;
     setTouchGamepad?: (value: boolean) => void;
+    scrollToBottom?: () => void;
   } = $props();
 
   const terminal = {
@@ -41,7 +47,9 @@
     shiftLocked: false,
     copySelection() {},
     clearSelection() {},
-    scrollToBottom() {},
+    scrollToBottom() {
+      scrollToBottom();
+    },
   };
   const uploads = { dragging: false, progress: null };
 </script>
@@ -51,11 +59,11 @@
 
 <div
   class="session-terminal force-soft-keys"
-  style="position: relative; width: 400px; height: 200px"
+  style={`position: relative; width: ${width}px; height: 240px`}
 >
   <TerminalViewport
     {terminal}
-    visible
+    {visible}
     {touchGamepad}
     {setTouchGamepad}
     {uploads}

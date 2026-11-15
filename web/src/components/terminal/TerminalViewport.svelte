@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import IconArrowDown from "~icons/tabler/arrow-down";
   import IconDeviceGamepad2 from "~icons/tabler/device-gamepad-2";
   import {
     Button,
     type ButtonSize,
     type ButtonVariant,
   } from "$lib/components/ui/button";
+  import JumpToLatestButton from "../shared/JumpToLatestButton.svelte";
   import SoftKeys from "./SoftKeys.svelte";
   import { m } from "$lib/paraglide/messages.js";
   import {
@@ -253,16 +253,10 @@
           >{m.s4_restoring_ellipsis()}</span
         >
       </div>{/if}
-    {#if !t.atBottom && !t.restoring && visible}<Button
-        variant="outline"
-        size="sm"
-        raised
-        class="absolute right-3 bottom-3 z-10 sm:hidden"
-        aria-label={m.s4_jump_to_latest()}
-        onmousedown={(event) => event.preventDefault()}
+    {#if !t.atBottom && !t.restoring && visible}<JumpToLatestButton
+        class="absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
         onclick={() => t.scrollToBottom()}
-        ><IconArrowDown aria-hidden="true" />{m.s4_jump_to_latest()}</Button
-      >{/if}
+      />{/if}
   </div>
   <SoftKeys
     {send}
