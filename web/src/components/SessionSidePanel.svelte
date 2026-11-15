@@ -36,9 +36,15 @@
     view = next;
     void tick().then(() => {
       if (!shown) return;
-      panel
-        ?.querySelector<HTMLButtonElement>('[aria-label="返回面板选择"]')
-        ?.focus();
+      if (next === "code") {
+        const target =
+          panel?.querySelector<HTMLElement>(".code-panel button") ?? panel;
+        target?.focus();
+      } else {
+        panel
+          ?.querySelector<HTMLButtonElement>('[aria-label="返回面板选择"]')
+          ?.focus();
+      }
     });
   }
 
@@ -56,30 +62,31 @@
 
 <section
   bind:this={panel}
-  class="flex h-full min-h-0 min-w-0 flex-col bg-card"
+  class="flex h-full min-h-0 min-w-0 flex-col bg-card outline-none"
   aria-label="侧栏面板"
+  tabindex="-1"
 >
-  <header class="flex h-10 shrink-0 items-center gap-2 border-b px-2">
-    {#if view !== "picker"}
+  {#if view !== "code"}
+    <header class="flex h-10 shrink-0 items-center gap-2 border-b px-2">
+      {#if view === "split"}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="返回面板选择"
+          title="返回面板选择"
+          onclick={back}><IconArrowLeft aria-hidden="true" /></Button
+        >
+        <h2 class="min-w-0 flex-1 text-sm font-medium">分屏</h2>
+      {:else}<span class="flex-1"></span>{/if}
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label="返回面板选择"
-        title="返回面板选择"
-        onclick={back}><IconArrowLeft aria-hidden="true" /></Button
+        aria-label="关闭侧栏面板"
+        title="关闭侧栏面板"
+        onclick={close}><IconX aria-hidden="true" /></Button
       >
-      <h2 class="min-w-0 flex-1 text-sm font-medium">
-        {view === "code" ? "代码" : "分屏"}
-      </h2>
-    {:else}<span class="flex-1"></span>{/if}
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label="关闭侧栏面板"
-      title="关闭侧栏面板"
-      onclick={close}><IconX aria-hidden="true" /></Button
-    >
-  </header>
+    </header>
+  {/if}
   <div class="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
     {#if view === "picker"}
       <div

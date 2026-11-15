@@ -240,6 +240,11 @@ test.describe("desktop sidebar", () => {
     await page.getByRole("button", { name: "代码", exact: true }).click();
     await expect(note).toBeVisible();
     await expect(note).toHaveAttribute("aria-selected", "true");
+    expect(await code.boundingBox()).toEqual(
+      await page
+        .getByRole("region", { name: "侧栏面板", exact: true })
+        .boundingBox(),
+    );
     const before = await width();
     await page.getByRole("separator", { name: "调整终端与代码宽度" }).focus();
     for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowLeft");

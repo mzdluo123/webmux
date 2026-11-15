@@ -427,9 +427,10 @@ async function openPanelPicker(scope: Locator | Page) {
 }
 
 export async function toggleCode(scope: Locator | Page) {
-  if (await scope.locator(".code-pane").isVisible())
+  if (await scope.locator(".code-pane").isVisible()) {
+    await openPanelPicker(scope);
     await scope
       .getByRole("button", { name: "关闭侧栏面板", exact: true })
       .click();
-  else await (await openPanelPicker(scope)).click();
+  } else await (await openPanelPicker(scope)).click();
 }
