@@ -10,7 +10,8 @@
 
 ### Requirement: 管理员配置与版本化应用
 
-节点非秘密配置 SHALL 由受限管理员通过 CLI/API 提交控制面校验并事务性存入 PostgreSQL，MUST NOT 以直接 SQL 或普通用户权限管理。节点引导配置 SHALL 仅含控制地址、稳定 nodeId、预置身份私钥与初始信任。
+节点非秘密配置 SHALL 由受限管理员通过 CLI/API 提交控制面校验并事务性存入 PostgreSQL，MUST NOT 以直接 SQL 或普通用户权限管理。
+节点引导配置 SHALL 仅含控制地址、稳定 nodeId、预置身份私钥、匹配的节点 CA 签发客户端证书链与初始信任。运营者 SHALL 在首次连接前签发并预置该证书链，不经需要 mTLS 的秘密接口领取引导证书。
 控制面 SHALL 使用部署配置的受信节点 CA 验证客户端证书链，并匹配管理员预登记到该 nodeId 的身份 SPKI pin；身份验证材料及轮换代际 SHALL 持久化，不得从首次连接、请求中的 nodeId 或未认证通道学习身份。
 其余监听、公网地址、中继端口、能力和策略 SHALL 由控制面集中管理。控制面 SHALL 通过 mTLS 按节点推送单调版本的完整快照；节点 SHALL 校验 nodeId、内容摘要、版本、能力和字段，再应用或拒绝，重连 SHALL 全量同步。
 低版本、错节点或同版本不同摘要 SHALL 被拒绝；同版本同摘要 SHALL 允许幂等重同步和确认，MUST NOT 重复重启。节点 SHALL 分别报告 desired/applied 版本、实际状态及失败原因，不以送达确认冒充应用。
@@ -83,7 +84,7 @@ WSS SHALL 不依赖 coturn 就绪或开放 UDP；任一 TURN 故障 MUST NOT 使
 ### Requirement: 服务秘密加密存储与按节点交付
 
 节点服务 TLS 私钥、TURN 共享密钥等秘密 SHALL 在 PostgreSQL 加密存储；加密主密钥 SHALL 仅运行时注入控制面，不得同库保存。GitHub OAuth Client Secret 与数据库凭据 SHALL 仅注入控制面；GitHub access token 仍短期使用后丢弃。
-节点身份私钥和初始信任 SHALL 预置，不得从未认证下载引导。控制面 SHALL 以独立、双向 TLS 认证且绑定 nodeId 的秘密通道，只交付该节点需要的秘密；MUST NOT 放入通用配置快照、CLI 输出、日志或公开 API。
+节点身份私钥、匹配的节点 CA 签发客户端证书链和初始信任 SHALL 预置，不得从未认证下载引导。控制面 SHALL 以独立、双向 TLS 认证且绑定 nodeId 的秘密通道，只交付该节点需要的秘密；MUST NOT 放入通用配置快照、CLI 输出、日志或公开 API。
 秘密 MUST NOT 进入仓库、客户端或镜像层。节点 SHALL 仅在内存或权限受限的临时运行文件保存所需秘密，为 coturn 生成运行配置，退出后清理；MUST NOT 使用持久秘密缓存恢复离线服务。
 TURN 密钥版本 SHALL 与配置版本协调；只有目标 coturn 确认相应密钥版本已激活后，控制面才可签发对应凭据。旧密钥移除 SHALL 视为破坏性变更并经显式版本批准，不得声称凭据过期立即杀死已有 allocation。
 服务 SHALL 提供匹配公开信任配置的 TLS 身份，并配合重叠信任集合安排正常公钥轮换。公开地址、公钥、OAuth Client ID 与回调 URI 不是秘密，不能授予账号或主机权限。
@@ -120,7 +121,8 @@ TURN 密钥版本 SHALL 与配置版本协调；只有目标 coturn 确认相应
 
 ### Requirement: 按能力监督的同镜像进程部署
 
-数据面镜像 SHALL 包含 `webmux-relay`、固定版本 coturn 与 PID 1 进程管理器，按能力分别监督进程、回收子进程、传递终止信号并有界退出。coturn SHALL 为独立程序，MUST NOT 通过 CGo 链接进 Go 或自研替代协议。
+数据面镜像 SHALL 包含 `webmux-relay`、固定版本 coturn 及其运行库；Docker 部署 SHALL 使用 `--init` 提供 PID 1 进程管理器，不在镜像重复打包 Tini。管理代理 SHALL 按能力分别监督进程、回收子进程、传递终止信号并有界退出。
+coturn SHALL 为独立程序，MUST NOT 通过 CGo 链接进 Go 或自研替代协议。
 适用能力 SHALL 分别报告 readiness/liveness 并有独立资源预算；未启用能力不得作为故障探针。TURN 失败 SHALL 降级并保留健康 WSS，MUST NOT 因聚合健康失败反复重启正常基线。
 配置变更 SHALL 明确所需重启对象：控制面、Relay 管理/WSS 进程或 coturn。TURN-only 配置变更 MUST NOT 重启健康 WSS；整容器升级会中断其运行进程，部署 SHALL 说明共享 CPU/内存/OOM 故障域及同镜像版本发布/回滚。
 节点监听、公网地址、中继端口和策略 SHALL 使用中央配置；DNS、防火墙、Docker 映射及 NAT 仍需外部运维配置，不得声称下发会自动修改。WSS 与 TURN MUST NOT 被假定共用 TCP 443；验收 SHALL 验证实际 NAT 双向中继及 TLS/SNI。
