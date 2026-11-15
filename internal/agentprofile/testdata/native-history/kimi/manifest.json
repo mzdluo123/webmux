@@ -1,0 +1,44 @@
+{
+  "agent": "kimi",
+  "sourceLayout": "~/.kimi-code/sessions/<workspace-id>/<session-id>/state.json and agents/<agent-id>/wire.jsonl",
+  "provenance": "Sanitized excerpts from one real pre-existing local Kimi session: its native state.json and selected actual wire.jsonl records covering one user turn through the final assistant end_turn. No events were synthesized and no agent was launched.",
+  "versionEvidence": {
+    "agentVersion": "unknown; the selected session state has no agent release version",
+    "wireProtocolVersion": "1.4",
+    "evidence": "The real first wire metadata record contains protocol_version. This is a protocol version, not evidence of the installed application version."
+  },
+  "sanitization": [
+    "Every prompt, message text, thought, tool argument/result, title, model alias, identity-bearing string, URL, and other non-structural string is replaced or removed by selecting a smaller record set. Structural event/part/role/status/finish enums and native tool names are retained.",
+    "Native UUIDs, turn/step/message/trace IDs and tool-call IDs are consistently remapped, preserving parentUuid, stepUuid, turnId and call/result linkage. The built-in main agent key/type remains structural, not a personal identity.",
+    "The workspace/session directory names and absolute homedir/workDir/cwd paths are replaced consistently. state.agents.main.homedir points at the sanitized wire directory under a synthetic home. Numeric timestamps are shifted to a fixed origin and state date strings are replaced.",
+    "No logs, task outputs, config, authentication, tool definitions, full system prompts, or raw source text are copied."
+  ],
+  "coverage": [
+    "Native state.json agents.main metadata plus 42 actual JSONL records: metadata, two config.update control records, turn.prompt, context.append_message with the user role, and 37 context.append_loop_event records.",
+    "The complete selected turn contains seven actual tool.call/tool.result pairs (Read, Bash, Glob), assistant think/text content parts, step.begin/step.end events, and a final end_turn finishReason.",
+    "wire metadata and context mutations reside in the same native JSONL stream. Session/agent identity is established by the native directory layout and state.agents.main.homedir relationship."
+  ],
+  "limitations": [
+    "This observed Kimi layout has no separate context.jsonl or metadata.json; inventing those files would misrepresent the source. Metadata is the first wire record and context is expressed by context.append_* records.",
+    "Only one root-agent turn is retained. Tool schema snapshots, usage/LLM-request bookkeeping and permission approval records from the source are omitted, without synthesizing replacements.",
+    "The application release version is unknown. Other observed Kimi storage generations, compaction, child agents, cancellations and errors are not covered by this fixture."
+  ],
+  "reconstruction": {
+    "method": "Read state.json and agents/main/wire.jsonl under the included workspace/session hierarchy. To emulate the original absolute homedir relationship, mount the included session hierarchy below /fixture/home/.kimi-code/sessions or resolve that synthetic prefix to the fixture root. Parse each JSONL line as a native wire record.",
+    "recordsDefinition": "One JSON document for state.json; the exact number of JSONL records for wire.jsonl."
+  },
+  "files": [
+    {
+      "path": "wd_fixture_0001/session_00000000-0000-4000-8000-000000000001/state.json",
+      "format": "json",
+      "records": 1,
+      "sha256": "b14ca01448eef15986815ee055002fc4b3d18ed367ee8340f956eddec9ef2cac"
+    },
+    {
+      "path": "wd_fixture_0001/session_00000000-0000-4000-8000-000000000001/agents/main/wire.jsonl",
+      "format": "jsonl",
+      "records": 42,
+      "sha256": "40a32d9e2d1413d5e455984f07c05b43f4acab5f81e4cbc78c0e523dd1282dbc"
+    }
+  ]
+}

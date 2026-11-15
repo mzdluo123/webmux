@@ -1,0 +1,234 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "fixture-session-002",
+  "agent": {
+    "name": "devin",
+    "version": "3000.12.57",
+    "model_name": "redacted-string-111",
+    "tool_definitions": [
+      {
+        "type": "function",
+        "function": {
+          "name": "exec",
+          "description": "[redacted]",
+          "parameters": {
+            "additionalProperties": false,
+            "required": [
+              "command"
+            ],
+            "type": "object",
+            "properties": {
+              "command": {
+                "description": "[redacted]",
+                "type": "string"
+              },
+              "shell_id": {
+                "description": "[redacted]",
+                "type": "string"
+              },
+              "workdir": {
+                "description": "[redacted]",
+                "type": "string"
+              },
+              "timeout": {
+                "description": "[redacted]",
+                "type": "integer"
+              },
+              "tty": {
+                "description": "[redacted]",
+                "type": "boolean",
+                "default": false
+              },
+              "shell_flavor": {
+                "description": "[redacted]",
+                "type": "string",
+                "enum": [
+                  "bash",
+                  "zsh",
+                  "fish",
+                  "powershell"
+                ]
+              },
+              "env": {
+                "description": "[redacted]",
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "properties": {}
+              }
+            }
+          }
+        }
+      }
+    ],
+    "extra": {
+      "backend": "Windsurf",
+      "permission_mode": "Bypass"
+    }
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "timestamp": "2000-01-01T00:00:16Z",
+      "source": "system",
+      "message": "[redacted]",
+      "extra": {
+        "telemetry": {
+          "source": "sysprompt",
+          "operation": "normal"
+        }
+      }
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2000-01-01T00:00:19Z",
+      "source": "system",
+      "message": "[redacted]",
+      "extra": {
+        "telemetry": {
+          "source": "sysprompt",
+          "operation": "subagent_profiles"
+        }
+      }
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2000-01-01T00:00:18Z",
+      "source": "system",
+      "message": "[redacted]",
+      "extra": {
+        "telemetry": {
+          "source": "system",
+          "operation": "unknown"
+        }
+      }
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2000-01-01T00:00:15Z",
+      "source": "system",
+      "message": "[redacted]",
+      "extra": {
+        "telemetry": {
+          "source": "system",
+          "operation": "unknown"
+        }
+      }
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2000-01-01T00:00:17Z",
+      "source": "system",
+      "message": "[redacted]",
+      "extra": {
+        "telemetry": {
+          "source": "system",
+          "operation": "unknown"
+        }
+      }
+    },
+    {
+      "step_id": 6,
+      "timestamp": "2000-01-01T00:00:20Z",
+      "source": "system",
+      "message": "[redacted]",
+      "extra": {
+        "telemetry": {
+          "source": "system",
+          "operation": "unknown"
+        }
+      }
+    },
+    {
+      "step_id": 7,
+      "timestamp": "2000-01-01T00:00:21Z",
+      "source": "system",
+      "message": "[redacted]",
+      "extra": {
+        "telemetry": {
+          "source": "redacted-string-120",
+          "operation": "redacted-string-121"
+        }
+      }
+    },
+    {
+      "step_id": 8,
+      "timestamp": "2000-01-01T00:00:22Z",
+      "source": "user",
+      "message": "[redacted]",
+      "extra": {
+        "telemetry": {
+          "source": "user",
+          "operation": "unknown"
+        }
+      }
+    },
+    {
+      "step_id": 9,
+      "timestamp": "2000-01-01T00:00:23Z",
+      "source": "system",
+      "message": "[redacted]",
+      "extra": {
+        "telemetry": {
+          "source": "skills",
+          "operation": "available"
+        }
+      }
+    },
+    {
+      "step_id": 10,
+      "timestamp": "2000-01-01T00:00:24Z",
+      "source": "agent",
+      "message": "[redacted]",
+      "model_name": "redacted-string-052",
+      "reasoning_content": "[redacted]",
+      "tool_calls": [
+        {
+          "tool_call_id": "fixture-transcript-call-001",
+          "function_name": "exec",
+          "arguments": {
+            "command": "[redacted]"
+          }
+        },
+        {
+          "tool_call_id": "fixture-transcript-call-002",
+          "function_name": "exec",
+          "arguments": {
+            "command": "[redacted]"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "fixture-transcript-call-001",
+            "content": "[redacted]"
+          },
+          {
+            "source_call_id": "fixture-transcript-call-002",
+            "content": "[redacted]"
+          }
+        ]
+      },
+      "metrics": {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "cached_tokens": 0
+      },
+      "extra": {
+        "generation_model": "redacted-string-052",
+        "telemetry": {
+          "source": "assistant",
+          "operation": "inference"
+        }
+      }
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 0,
+    "total_completion_tokens": 0,
+    "total_cached_tokens": 0,
+    "total_steps": 28
+  }
+}
