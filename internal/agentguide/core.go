@@ -106,7 +106,7 @@ func MCPGuide(c Context, topic string) (contract.AgentGuideResult, error) {
 		r.Markdown = "# " + t.Title + "\n\n" + coreRules(topic) + "\n"
 		switch topic {
 		case "input":
-			r.Markdown += "未启用 chat 的实例没有聊天视图，工具 schema 也裁剪掉 mode 与 attachments 参数；字段级语义以 session_send 的 schema 为准。\n"
+			r.Markdown += "未启用 chat 的实例没有聊天视图，工具 schema 也裁剪掉 mode 参数；attachments 取决于 files 能力，字段级语义以 session_send 的 schema 为准。\n"
 		case "requests":
 			r.Markdown += "当前 control MCP 没有回答请求的工具；请用户或已有其他客户端处理，不调用虚构的 answer 工具。\n"
 		case "launch":

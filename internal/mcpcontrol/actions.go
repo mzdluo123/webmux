@@ -39,7 +39,7 @@ func (c Client) actionTools() []mcpprotocol.Tool {
 		delete(create, "useInitInstruction")
 	}
 	if !c.hasCapability("chat.acp") {
-		create["view"] = enumeration("terminal")
+		create["view"] = desc(enumeration("terminal"), "Initial view; only terminal is available on this instance.")
 		delete(create, "agentConfig")
 		delete(create, "permissionMode")
 	}
@@ -92,7 +92,7 @@ func createProperties() map[string]any {
 		"prompt":             desc(text(), "Initial input after launch: a prompt on the chat view or a submitted line on the terminal view."),
 		"useInitInstruction": desc(boolean(), "Send the repository's init instruction as the initial prompt."),
 		"expandPrompt":       desc(boolean(), "Expand placeholders such as {{webmux}} in prompt."),
-		"attachments":        desc(attachmentSchema(), "Uploaded file references ({path}) sent with the initial chat prompt."),
+		"attachments":        desc(attachmentSchema(), "Uploaded file references ({path}) sent with the initial prompt; on the terminal view they are appended to the typed line as path text."),
 		"agentConfig":        desc(stringMap(), "Per-agent option overrides, chosen from the agent's declared settings."),
 		"permissionMode":     desc(enumeration("ask", "auto"), "How the agent's permission requests are handled."),
 		"cols":               desc(integer(1, 1000), "Initial terminal width."),
