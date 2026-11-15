@@ -8,6 +8,7 @@ import (
 )
 
 type SnapshotPreview struct {
+	Gaps       []string
 	ID         string
 	Projection snapcompact.Projection
 	Render     snapcompact.RenderResult
@@ -17,6 +18,11 @@ type SnapshotPreview struct {
 // a PNG is not evidence of model readability, transport support or token savings.
 func (s *Service) PreviewNative(ctx context.Context, id, task string, cfg snapcompact.PreprocessConfig, render bool) (SnapshotPreview, error) {
 	var out SnapshotPreview
+	snapshot, err := s.NativeSnapshot(ctx, id)
+	if err != nil {
+		return out, err
+	}
+	out.Gaps = snapshot.Gaps
 	input, err := s.SnapshotInput(ctx, id, task)
 	if err != nil {
 		return out, err

@@ -19,6 +19,7 @@ type NativeFile struct {
 	Problem   string `json:"problem"`
 }
 type NativeResult struct {
+	Model          string                 `json:"model"`
 	Provenance     []NativeProvenance     `json:"provenance"`
 	Files          []NativeFile           `json:"files"`
 	SourceID       string                 `json:"sourceId"`
@@ -56,6 +57,7 @@ type NativePNG struct {
 	Ranges []NativeRange `json:"ranges"`
 }
 type NativePreview struct {
+	Gaps              []string         `json:"gaps"`
 	ID                string           `json:"id"`
 	Version           string           `json:"version"`
 	CurrentTask       string           `json:"currentTask"`

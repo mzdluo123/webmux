@@ -3,6 +3,8 @@ package conversation
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"strings"
 
 	snapcompact "github.com/mzdluo123/snapcompact-go"
@@ -11,6 +13,7 @@ import (
 
 type NativeSnapshot struct {
 	ID, SourceID, Parser, Checksum string
+	Model                          string
 	Consumed                       int64
 	Gaps                           []string
 }
@@ -24,7 +27,7 @@ func (s *Service) FreezeNative(ctx context.Context, source string) (NativeSnapsh
 	}
 	err := s.transact(ctx, func(tx *sql.Tx) error {
 		var conversation string
-		if err := tx.QueryRowContext(ctx, `SELECT id,parser,consumed,checksum,conversation_id FROM native_source WHERE id=?`, source).Scan(&out.SourceID, &out.Parser, &out.Consumed, &out.Checksum, &conversation); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT id,parser,consumed,checksum,conversation_id,model FROM native_source WHERE id=?`, source).Scan(&out.SourceID, &out.Parser, &out.Consumed, &out.Checksum, &conversation, &out.Model); err != nil {
 			return storageError(ctx, err)
 		}
 		out.Gaps = []string{}
@@ -45,8 +48,22 @@ func (s *Service) FreezeNative(ctx context.Context, source string) (NativeSnapsh
 		if err != nil {
 			return storageError(ctx, err)
 		}
+		var pending bool
+		if err := tx.QueryRowContext(ctx, "SELECT pending FROM native_source WHERE id=?", source).Scan(&pending); err != nil {
+			return storageError(ctx, err)
+		}
+		if pending {
+			out.Gaps = append(out.Gaps, "pending_tail")
+		}
+		var orphan bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM native_record r WHERE r.source_id=? AND r.record_kind='tool_result' AND NOT EXISTS(SELECT 1 FROM native_record c WHERE c.source_id=r.source_id AND c.call_id=r.call_id AND c.offset<r.offset AND c.record_kind IN ('tool','tool_arguments')))`, source).Scan(&orphan); err != nil {
+			return storageError(ctx, err)
+		}
+		if orphan {
+			out.Gaps = append(out.Gaps, "orphan_tool_result")
+		}
 		var missing bool
-		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM native_record c WHERE c.source_id=? AND c.record_kind='tool' AND NOT EXISTS(SELECT 1 FROM native_record r WHERE r.source_id=c.source_id AND r.record_kind='tool_result' AND r.call_id=c.call_id))`, source).Scan(&missing); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM native_record c WHERE c.source_id=? AND c.record_kind IN ('tool','tool_arguments') AND NOT EXISTS(SELECT 1 FROM native_record r WHERE r.source_id=c.source_id AND r.record_kind='tool_result' AND r.call_id=c.call_id))`, source).Scan(&missing); err != nil {
 			return storageError(ctx, err)
 		}
 		if missing {
@@ -54,7 +71,7 @@ func (s *Service) FreezeNative(ctx context.Context, source string) (NativeSnapsh
 		}
 		encoded := []byte(strings.Join(out.Gaps, "\n"))
 		out.ID = digest([]byte(out.SourceID + out.Parser + out.Checksum + string(encoded)))
-		if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO history_snapshot VALUES(?,?,?,?,?,?)`, out.ID, out.SourceID, out.Parser, out.Consumed, out.Checksum, encoded); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO history_snapshot VALUES(?,?,?,?,?,?,?)`, out.ID, out.SourceID, out.Parser, out.Consumed, out.Checksum, encoded, out.Model); err != nil {
 			return storageError(ctx, err)
 		}
 		_, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO history_snapshot_item SELECT ?,a.id,a.position FROM activity a JOIN native_record r ON r.activity_id=a.id WHERE r.source_id=? AND r.end_offset<=?`, out.ID, source, out.Consumed)
@@ -69,7 +86,7 @@ func (s *Service) NativeSnapshot(ctx context.Context, id string) (NativeSnapshot
 		return out, ErrUnavailable
 	}
 	var gaps []byte
-	err := s.db.QueryRowContext(ctx, `SELECT id,source_id,parser,consumed,checksum,diagnostics FROM history_snapshot WHERE id=?`, id).Scan(&out.ID, &out.SourceID, &out.Parser, &out.Consumed, &out.Checksum, &gaps)
+	err := s.db.QueryRowContext(ctx, `SELECT id,source_id,parser,consumed,checksum,diagnostics,model FROM history_snapshot WHERE id=?`, id).Scan(&out.ID, &out.SourceID, &out.Parser, &out.Consumed, &out.Checksum, &gaps, &out.Model)
 	if err != nil {
 		return out, storageError(ctx, err)
 	}
@@ -83,7 +100,7 @@ func (s *Service) NativeSnapshot(ctx context.Context, id string) (NativeSnapshot
 // SnapshotActivities uses the same bounded text reader as live history. Each
 // activity retains its source ID, byte length and continuation offset.
 func (s *Service) SnapshotActivities(ctx context.Context, id string, after int64, limit, maxBytes int) (ActivityPage, error) {
-	out := ActivityPage{Items: []ActivityPart{}, Gaps: []HistoryGap{}, NextPosition: after}
+	out := ActivityPage{HistoryOrigin: "bounded_import", Items: []ActivityPart{}, Gaps: []HistoryGap{}, NextPosition: after}
 	if !s.HistoryEnabled() {
 		return out, ErrUnavailable
 	}
@@ -169,10 +186,30 @@ func (s *Service) SnapshotInput(ctx context.Context, id, currentTask string) (sn
 			if err = s.db.QueryRowContext(ctx, `SELECT call_id,tool_name,record_kind FROM native_record WHERE activity_id=?`, a.ID).Scan(&r.CallID, &r.ToolName, &kind); err != nil {
 				return input, storageError(ctx, err)
 			}
+
+			if kind == "tool_result" && r.ToolName == "" && r.CallID != "" {
+				e := s.db.QueryRowContext(ctx, `SELECT c.tool_name FROM native_record c JOIN native_record r ON r.source_id=c.source_id AND r.call_id=c.call_id WHERE r.activity_id=? AND c.offset<r.offset AND c.record_kind IN ('tool','tool_arguments') ORDER BY c.offset DESC LIMIT 1`, a.ID).Scan(&r.ToolName)
+				if e != nil && !errors.Is(e, sql.ErrNoRows) {
+					return input, storageError(ctx, e)
+				}
+			}
 			if r.Role == "agent" {
 				r.Role = "assistant"
 			}
 			switch kind {
+			case "tool_arguments":
+				decoder := json.NewDecoder(strings.NewReader(r.Text))
+				decoder.UseNumber()
+				var args map[string]any
+				if decoder.Decode(&args) == nil && args != nil {
+					r.Arguments = args
+					r.Text = ""
+					r.Role = "tool_call"
+				} else {
+					r.Role = "tool_call"
+					r.CallBody = r.Text
+					r.Text = ""
+				}
 			case "tool":
 				r.Role = "tool_call"
 				r.CallBody = r.Text

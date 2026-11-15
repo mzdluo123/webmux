@@ -14,6 +14,7 @@ const TerminalMovedSchema = z.object({
   reason: z.string().startsWith("session moved"),
 });
 const groups: Array<[z.ZodType, string[]]> = [
+  [S.NativeResultSchema, ["native-import", "native-read"]],
   [
     S.HandoffDraftSchema,
     ["handoff-draft-empty", "handoff-draft-saved", "handoff-draft-delivery"],

@@ -260,6 +260,7 @@ const nativeRangeSchema = z.object({
 });
 
 export const NativePreviewSchema = z.object({
+  gaps: z.array(z.string()),
   id: z.string(),
   version: z.string(),
   currentTask: z.string(),
@@ -290,6 +291,7 @@ export const NativePreviewSchema = z.object({
 });
 
 export const NativeResultSchema = z.object({
+  model: z.string(),
   provenance: z.array(
     z.object({
       activityId: z.string(),

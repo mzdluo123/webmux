@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -236,5 +237,128 @@ func TestNativeSnapshotReferenceAndParserGeneration(t *testing.T) {
 	}
 	if err = s.DeleteNativeSource(ctx, source.SourceID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestNativeSourceChangesDuringRead(t *testing.T) {
+	for _, mode := range []string{"rewrite", "replace", "delete"} {
+		t.Run(mode, func(t *testing.T) {
+			ctx := context.Background()
+			s := openTest(t, t.TempDir())
+			path := filepath.Join(t.TempDir(), "rollout.jsonl")
+			data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = os.WriteFile(path, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			s.beforeNativeVerify = func() {
+				switch mode {
+				case "rewrite":
+					data[0] = ' '
+					if err := os.WriteFile(path, data, 0600); err != nil {
+						t.Fatal(err)
+					}
+				case "replace":
+					if err := os.Rename(path, path+".old"); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(path, data, 0600); err != nil {
+						t.Fatal(err)
+					}
+				case "delete":
+					if err := os.Remove(path); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if _, err = s.ImportCodex(ctx, path); !errors.Is(err, ErrConflict) {
+				t.Fatal(err)
+			}
+			var count int
+			if err = s.db.QueryRow("SELECT count(*) FROM native_source").Scan(&count); err != nil || count != 0 {
+				t.Fatal(count, err)
+			}
+		})
+	}
+}
+
+func TestNativeDoesNotGuessACPIdentity(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	live, err := s.EnsureRuntime(ctx, RuntimeInput{RuntimeID: "live", Cwd: "/example/project", AgentName: "codex", AgentSessionID: "00000000-0000-4000-8000-000000000001", Status: "archived"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "rollout.jsonl")
+	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	imported, err := s.ImportCodex(ctx, path)
+	if err != nil || imported.Binding == live {
+		t.Fatal(imported, err)
+	}
+	frozen, err := s.FreezeNative(ctx, imported.SourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(frozen.Gaps, "native_acp_unreconciled") {
+		t.Fatal(frozen.Gaps)
+	}
+}
+
+func TestNativePartialMetadataDoesNotCreateIdentity(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	path := filepath.Join(t.TempDir(), "rollout.jsonl")
+	if err := os.WriteFile(path, []byte(`{"type":"session_meta"`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := s.ImportCodex(ctx, path)
+	if err != nil || !pending.Pending || pending.SourceID != "" {
+		t.Fatal(pending, err)
+	}
+	var count int
+	if err = s.db.QueryRow("SELECT count(*) FROM conversation").Scan(&count); err != nil || count != 0 {
+		t.Fatal(count, err)
+	}
+}
+
+func TestNativeConcurrentAppendDoesNotCreateGeneration(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t, t.TempDir())
+	path := filepath.Join(t.TempDir(), "rollout.jsonl")
+	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.ImportCodex(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.beforeNativeVerify = func() {
+		s.beforeNativeVerify = nil
+		next := append(append([]byte{}, data...), []byte("{\"type\":\"event_msg\",\"payload\":{\"type\":\"turn_aborted\"}}\n")...)
+		if err := os.WriteFile(path, next, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.ImportCodex(ctx, path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err = s.ImportCodex(ctx, path); !errors.Is(err, ErrConflict) {
+		t.Fatal(err)
+	}
+	latest, err := s.ImportCodex(ctx, path)
+	if err != nil || latest.SourceID != first.SourceID || latest.Generation != 1 {
+		t.Fatal(latest, err)
 	}
 }

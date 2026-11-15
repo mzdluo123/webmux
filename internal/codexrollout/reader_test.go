@@ -2,6 +2,7 @@ package codexrollout
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -82,5 +83,47 @@ func TestCallbackFailureDoesNotConsume(t *testing.T) {
 	r, err := Read(bytes.NewReader(b), func(Record) error { return stop })
 	if !errors.Is(err, stop) || r.Consumed != 0 {
 		t.Fatal(r, err)
+	}
+}
+
+func TestMaterializedForkAndResume(t *testing.T) {
+	tests := []struct {
+		name, id string
+		count    int
+	}{{"fork", "00000000-0000-4000-8000-000000000002", 3}, {"resume", "00000000-0000-4000-8000-000000000001", 8}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := os.ReadFile("testdata/" + tt.name + ".jsonl")
+			if err != nil {
+				t.Fatal(err)
+			}
+			count := 0
+			result, err := Read(bytes.NewReader(data), func(r Record) error { count += len(r.Items); return nil })
+			if err != nil || result.Metadata.ID != tt.id || count != tt.count {
+				t.Fatal(result, count, err)
+			}
+		})
+	}
+}
+
+func TestStructuredOutputImagesAndLargeText(t *testing.T) {
+	b := fixture(t)
+	output := `{"type":"response_item","payload":{"type":"function_call_output","call_id":"call-1","output":[{"type":"input_text","text":"错误 error\n  intact"},{"type":"input_image","image_url":"data:image/png;base64,SYNTHETIC_SECRET"}]}}` + "\n"
+	var last Record
+	_, err := Read(strings.NewReader(string(b)+output), func(r Record) error { last = r; return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(last.Items) != 1 || last.Items[0].Text != "错误 error\n  intact" || len(last.Items[0].Attachments) != 1 || strings.Contains(last.Items[0].Attachments[0].Reference, "SECRET") {
+		t.Fatal(last)
+	}
+	large := strings.Repeat("中英\n  line\n", 100000)
+	raw, err := json.Marshal(map[string]any{"type": "response_item", "payload": map[string]any{"type": "message", "role": "user", "content": []map[string]string{{"type": "input_text", "text": large}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Read(bytes.NewReader(append(append(append([]byte{}, b...), raw...), '\n')), func(r Record) error { last = r; return nil })
+	if err != nil || last.Items[0].Text != large {
+		t.Fatal("large message changed", err)
 	}
 }

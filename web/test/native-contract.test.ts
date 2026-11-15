@@ -7,6 +7,7 @@ import {
 describe("native history boundary", () => {
   it("keeps snapshot cursors as decimal strings", () => {
     const value = {
+      model: "",
       provenance: [],
       files: [],
       sourceId: "source",
@@ -26,12 +27,15 @@ describe("native history boundary", () => {
     };
     expect(NativeResultSchema.parse(value).consumed).toBe("9007199254740993");
     expect(
-      NativeResultSchema.safeParse({ ...value, consumed: 9007199254740993 })
-        .success,
+      NativeResultSchema.safeParse({
+        ...value,
+        consumed: Number("9007199254740993"),
+      }).success,
     ).toBe(false);
   });
   it("requires render limitation fields", () => {
     const value = {
+      gaps: [],
       id: "derived",
       version: "v1",
       currentTask: "  原样\n任务  ",

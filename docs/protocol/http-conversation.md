@@ -51,3 +51,11 @@ GET /api/conversations/{id}/activities/{activityId}?textOffset=0&maxBytes=4000
 | 503       | 对话数据库未启用或不可用                                          |
 
 读取限时 10 秒，响应使用 `Cache-Control: no-store`，正文不写访问日志。删除记录或淘汰会清理关联数据，释放/重建 worktree 不隐式删除；备份与存储边界见[配置与持久化清单](../persistence.md)。
+
+## Codex 文件与不可变快照
+
+`POST /api/conversations/native` 是现有认证 API 的开发验证入口。
+支持 list、import、freeze、read、project、render 和 delete action，具体请求与格式边界见[原生历史说明](../codex-native.md)。
+导入只读来源文件；read 返回分页 Activity 和逐项字节偏移、校验值、CallID 与工具名。
+project/render 返回快照 gaps、投影来源范围、省略范围，以及图片缺字和未覆盖范围。
+history_capture=false 时全部原生操作关闭；已有 capture_disabled 原生身份不能通过文件导入绕过排除。

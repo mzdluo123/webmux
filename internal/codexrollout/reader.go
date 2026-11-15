@@ -45,7 +45,15 @@ type Diagnostic struct {
 	Offset   int64
 	Category string
 }
+type Attachment struct{ Reference, MimeType string }
+type contentPart struct {
+	Type     string `json:"type"`
+	Text     string `json:"text"`
+	ImageURL string `json:"image_url"`
+}
+
 type Item struct {
+	Attachments                                          []Attachment
 	Kind, Role, Text, NativeID, CallID, ToolName, Status string
 }
 type Record struct {
@@ -205,10 +213,8 @@ func response(raw json.RawMessage, rec *Record) error {
 		Arguments string          `json:"arguments"`
 		Input     string          `json:"input"`
 		Output    json.RawMessage `json:"output"`
-		Content   []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
+		Content   []contentPart   `json:"content"`
+		Action    json.RawMessage `json:"action"`
 	}
 	if json.Unmarshal(raw, &v) != nil {
 		return ErrFormat
@@ -226,15 +232,11 @@ func response(raw json.RawMessage, rec *Record) error {
 		}
 		item.Kind = "message"
 		item.Role = v.Role
-		for _, c := range v.Content {
-			if c.Type == "input_text" || c.Type == "output_text" {
-				item.Text += c.Text
-			} else {
-				diag("attachment_or_unknown_content")
-			}
+		if err := appendContent(&item, v.Content, diag); err != nil {
+			return err
 		}
 	case "function_call":
-		item.Kind = "tool"
+		item.Kind = "tool_arguments"
 		item.Text = v.Arguments
 	case "custom_tool_call":
 		item.Kind = "tool"
@@ -242,8 +244,21 @@ func response(raw json.RawMessage, rec *Record) error {
 	case "function_call_output", "custom_tool_call_output":
 		item.Kind = "tool_result"
 		if json.Unmarshal(v.Output, &item.Text) != nil {
-			diag("structured_tool_output")
-			return nil
+			var content []contentPart
+			if json.Unmarshal(v.Output, &content) != nil {
+				diag("unknown_tool_output")
+				return nil
+			}
+			if err := appendContent(&item, content, diag); err != nil {
+				return err
+			}
+		}
+	case "local_shell_call", "web_search_call":
+		item.Kind = "tool"
+		item.ToolName = v.Type
+		item.Text = string(v.Action)
+		if item.CallID == "" {
+			diag("tool_without_call_id")
 		}
 	case "reasoning", "compaction":
 		diag("nonexportable_reasoning")
@@ -253,5 +268,26 @@ func response(raw json.RawMessage, rec *Record) error {
 		return nil
 	}
 	rec.Items = append(rec.Items, item)
+	return nil
+}
+
+// Images remain opaque references; inline payloads and credential-bearing URLs
+// are never copied into conversation storage or fetched by this parser.
+func appendContent(item *Item, parts []contentPart, diag func(string)) error {
+	for _, part := range parts {
+		switch part.Type {
+		case "input_text", "output_text":
+			item.Text += part.Text
+		case "input_image":
+			sum := sha256.Sum256([]byte(part.ImageURL))
+			item.Attachments = append(item.Attachments, Attachment{Reference: "native-image:sha256:" + hex.EncodeToString(sum[:]), MimeType: "application/octet-stream"})
+			if len(item.Attachments) > 64 {
+				return ErrLimit
+			}
+			diag("attachment_body_not_imported")
+		default:
+			diag("unknown_content")
+		}
+	}
 	return nil
 }

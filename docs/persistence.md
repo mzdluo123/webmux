@@ -50,6 +50,7 @@
 ## 对话事务存储
 
 `conversations.sqlite` 保存 Conversation、ProviderThread、单调 Run 序号，以及 handoff、delivery 和幂等 receipt 的事务基础。
+[Codex 文件导入](codex-native.md)的来源游标、generation、不可变快照与保留引用也使用同一个数据库；原生文件通过 O_RDONLY 读取，不是新的状态写入目录。
 ACP 聊天的规范化消息与工具内容在 UI 截断前保存为完整 Activity；服务端交接预览保存冻结来源、预算、选项与用户编辑。fork inline 投递先提交 receipt/pending，再按持久 checkpoint 准备资源；结果不明保留 unknown。
 现有混合会话一对一迁移为稳定身份，旧记录标记 `historyOrigin=unknown`，不猜测升级前历史。
 

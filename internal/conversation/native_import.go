@@ -39,7 +39,13 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 	if err != nil {
 		return out, ErrInvalid
 	}
-	f, err := os.Open(path)
+	var priorID, priorHash string
+	var priorOffset int64
+	priorErr := s.db.QueryRowContext(ctx, "SELECT id,consumed,checksum FROM native_source WHERE path=? ORDER BY generation DESC LIMIT 1", path).Scan(&priorID, &priorOffset, &priorHash)
+	if priorErr != nil && !errors.Is(priorErr, sql.ErrNoRows) {
+		return out, storageError(ctx, priorErr)
+	}
+	f, err := codexrollout.OpenFile(path)
 	if err != nil {
 		return out, ErrNotFound
 	}
@@ -51,17 +57,21 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 	if before.Size() > codexrollout.MaxInput {
 		return out, codexrollout.ErrLimit
 	}
-	data, err := io.ReadAll(io.LimitReader(f, codexrollout.MaxInput+1))
-	if err != nil {
-		return out, ErrUnavailable
-	}
-	if len(data) > codexrollout.MaxInput {
-		return out, codexrollout.ErrLimit
-	}
+	var captured bytes.Buffer
 	var records []codexrollout.Record
-	parsed, err := codexrollout.Read(bytes.NewReader(data), func(r codexrollout.Record) error { records = append(records, r); return ctx.Err() })
+	parsed, err := codexrollout.Read(io.TeeReader(io.LimitReader(f, codexrollout.MaxInput+1), &captured), func(r codexrollout.Record) error { records = append(records, r); return ctx.Err() })
 	if err != nil {
 		return out, err
+	}
+	if parsed.Metadata.ID == "" {
+		if parsed.Pending {
+			return NativeImport{Pending: true}, nil
+		}
+		return out, codexrollout.ErrFormat
+	}
+	data := captured.Bytes()
+	if s.beforeNativeVerify != nil {
+		s.beforeNativeVerify()
 	}
 	// Re-read the captured prefix: mtime/inode alone cannot establish identity.
 	if _, err = f.Seek(0, io.SeekStart); err != nil {
@@ -81,12 +91,27 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 		out.Diagnostics = append(out.Diagnostics, r.Diagnostics...)
 	}
 	err = s.transact(ctx, func(tx *sql.Tx) error {
+		var private bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM provider_thread p JOIN history_gap g ON g.provider_thread_id=p.id WHERE p.agent_name='codex' AND p.agent_session_id=? AND g.reason='capture_disabled')`, parsed.Metadata.ID).Scan(&private); err != nil {
+			return storageError(ctx, err)
+		}
+		if private {
+			return ErrUnavailable
+		}
 		var oldOffset int64
 		var oldHash, parser, native, identity string
 		err := tx.QueryRowContext(ctx, `SELECT id,generation,conversation_id,provider_thread_id,consumed,checksum,parser,native_id,file_identity FROM native_source WHERE path=? ORDER BY generation DESC LIMIT 1`, path).Scan(&out.SourceID, &out.Generation, &out.Binding.ConversationID, &out.Binding.ProviderThreadID, &oldOffset, &oldHash, &parser, &native, &identity)
 		fresh := errors.Is(err, sql.ErrNoRows)
 		if err != nil && !fresh {
 			return storageError(ctx, err)
+		}
+		// An importer with an older captured view must not turn a concurrent
+		// append (or replacement already imported by another caller) into a
+		// spurious generation. Retry against the newly committed cursor.
+		changed := priorID != out.SourceID || priorOffset != oldOffset || priorHash != oldHash
+		compatible := !fresh && oldOffset <= int64(len(data)) && digest(data[:oldOffset]) == oldHash && identity == nativeFileIdentity(before) && native == parsed.Metadata.ID && parser == codexrollout.Version
+		if changed && !compatible && (!fresh || priorID != "") {
+			return ErrConflict
 		}
 		if !fresh && (oldOffset > int64(len(data)) || digest(data[:min(oldOffset, int64(len(data)))]) != oldHash || parser != codexrollout.Version || native != parsed.Metadata.ID || identity != nativeFileIdentity(before)) {
 			fresh = true
@@ -113,7 +138,7 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 			if _, err = tx.ExecContext(ctx, `INSERT INTO provider_thread(id,conversation_id,config_id,agent_name,agent_session_id,status,created_at,updated_at) VALUES(?,?,'','codex',?,'archived',?,?)`, out.Binding.ProviderThreadID, out.Binding.ConversationID, parsed.Metadata.ID, now, now); err != nil {
 				return storageError(ctx, err)
 			}
-			if _, err = tx.ExecContext(ctx, `INSERT INTO native_source VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, out.SourceID, path, out.Generation, out.Binding.ConversationID, out.Binding.ProviderThreadID, parsed.Metadata.ID, codexrollout.Version, 0, digest(nil), nativeFileIdentity(before), parsed.Metadata.Timestamp, parsed.Model, parsed.Metadata.ModelProvider, parsed.Metadata.CLIVersion); err != nil {
+			if _, err = tx.ExecContext(ctx, `INSERT INTO native_source VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, out.SourceID, path, out.Generation, out.Binding.ConversationID, out.Binding.ProviderThreadID, parsed.Metadata.ID, codexrollout.Version, 0, digest(nil), nativeFileIdentity(before), parsed.Metadata.Timestamp, parsed.Model, parsed.Metadata.ModelProvider, parsed.Metadata.CLIVersion, parsed.Pending); err != nil {
 				return storageError(ctx, err)
 			}
 			// No text-based reconciliation with live ACP history.
@@ -136,7 +161,7 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 					role = "agent"
 				}
 				kind := item.Kind
-				if kind == "tool_result" {
+				if kind == "tool_result" || kind == "tool_arguments" {
 					kind = "tool"
 				}
 				var pos int64
@@ -149,6 +174,11 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 				for start := 0; start < len(item.Text); start += MaxActivityBytes {
 					end := min(len(item.Text), start+MaxActivityBytes)
 					if _, err = tx.ExecContext(ctx, `INSERT INTO activity_chunk VALUES(?,?,?,?)`, id, start, end-start, []byte(item.Text[start:end])); err != nil {
+						return storageError(ctx, err)
+					}
+				}
+				for position, a := range item.Attachments {
+					if _, err = tx.ExecContext(ctx, "INSERT INTO activity_attachment VALUES(?,?,?,?,?,?)", id, position, "native image", a.MimeType, a.Reference, -1); err != nil {
 						return storageError(ctx, err)
 					}
 				}
@@ -167,7 +197,7 @@ func (s *Service) ImportCodex(ctx context.Context, path string) (NativeImport, e
 				}
 			}
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE native_source SET consumed=?,checksum=? WHERE id=?`, parsed.Consumed, digest(data[:parsed.Consumed]), out.SourceID)
+		_, err = tx.ExecContext(ctx, `UPDATE native_source SET consumed=?,checksum=?,pending=?,model=? WHERE id=?`, parsed.Consumed, digest(data[:parsed.Consumed]), parsed.Pending, parsed.Model, out.SourceID)
 		return storageError(ctx, err)
 	})
 	return out, err

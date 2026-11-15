@@ -34,7 +34,7 @@ func Discover(root string) ([]File, error) {
 			if len(out) >= 10000 {
 				return ErrLimit
 			}
-			if d.IsDir() || d.Type()&os.ModeSymlink != 0 || filepath.Ext(path) != ".jsonl" {
+			if d.IsDir() || d.Type()&os.ModeType != 0 || filepath.Ext(path) != ".jsonl" {
 				return nil
 			}
 			m, err := Inspect(path)
@@ -61,7 +61,7 @@ type File struct {
 
 func Inspect(path string) (Metadata, error) {
 	var m Metadata
-	f, err := os.Open(path)
+	f, err := OpenFile(path)
 	if err != nil {
 		return m, err
 	}

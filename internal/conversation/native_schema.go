@@ -7,7 +7,7 @@ CREATE TABLE native_source (
  provider_thread_id TEXT NOT NULL REFERENCES provider_thread(id) ON DELETE CASCADE,
  native_id TEXT NOT NULL, parser TEXT NOT NULL, consumed INTEGER NOT NULL,
  checksum TEXT NOT NULL, file_identity TEXT NOT NULL,
- native_time TEXT NOT NULL, model TEXT NOT NULL, model_provider TEXT NOT NULL, cli_version TEXT NOT NULL, UNIQUE(path,generation)
+ native_time TEXT NOT NULL, model TEXT NOT NULL, model_provider TEXT NOT NULL, cli_version TEXT NOT NULL, pending INTEGER NOT NULL, UNIQUE(path,generation)
 );
 CREATE TABLE native_record (
  source_id TEXT NOT NULL REFERENCES native_source(id) ON DELETE CASCADE,
@@ -19,7 +19,7 @@ CREATE TABLE native_record (
 CREATE TABLE history_snapshot (
  id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES native_source(id) ON DELETE CASCADE,
  parser TEXT NOT NULL, consumed INTEGER NOT NULL, checksum TEXT NOT NULL,
- diagnostics BLOB NOT NULL
+ diagnostics BLOB NOT NULL, model TEXT NOT NULL
 );
 CREATE TABLE history_snapshot_item (
  snapshot_id TEXT NOT NULL REFERENCES history_snapshot(id) ON DELETE CASCADE,

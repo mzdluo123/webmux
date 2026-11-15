@@ -1,0 +1,6 @@
+{"timestamp": "2025-12-01T00:00:00Z", "type": "session_meta", "payload": {"id": "00000000-0000-4000-8000-000000000002", "cwd": "/example/project", "timestamp": "2025-12-01T00:00:00Z", "cli_version": "0.77.0", "model_provider": "openai"}}
+{"timestamp":"2025-12-01T00:00:00Z","type":"session_meta","payload":{"id":"00000000-0000-4000-8000-000000000001","cwd":"/example/project","timestamp":"2025-12-01T00:00:00Z","cli_version":"0.77.0","model_provider":"openai"}}
+{"timestamp":"2025-12-01T00:00:01Z","type":"event_msg","payload":{"type":"user_message","message":"你好 hello\n  next line"}}
+{"timestamp":"2025-12-01T00:00:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"你好 hello\n  next line"}]}}
+{"timestamp":"2025-12-01T00:00:02Z","type":"turn_context","payload":{"cwd":"/example/project","model":"synthetic-model"}}
+{"timestamp":"2025-12-01T00:00:03Z","type":"response_item","payload":{"type":"function_call","call_id":"call-1","name":"exec_command","arguments":"{\"cmd\":\"printf hello\"}"}}

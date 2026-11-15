@@ -30,16 +30,17 @@ func NativeSnapshot(in conversation.NativeSnapshot) contract.NativeResult {
 	out.SourceID = in.SourceID
 	out.SnapshotID = in.ID
 	out.Parser = in.Parser
+	out.Model = in.Model
 	out.Consumed = strconv.FormatInt(in.Consumed, 10)
 	out.Gaps = append(out.Gaps, in.Gaps...)
 	return out
 }
 func EmptyNativeResult() contract.NativeResult {
-	return contract.NativeResult{Provenance: []contract.NativeProvenance{}, Files: []contract.NativeFile{}, Gaps: []string{}, Activities: ConversationActivities(conversation.ActivityPage{Items: []conversation.ActivityPart{}, Gaps: []conversation.HistoryGap{}})}
+	return contract.NativeResult{Provenance: []contract.NativeProvenance{}, Files: []contract.NativeFile{}, Gaps: []string{}, Activities: ConversationActivities(conversation.ActivityPage{HistoryOrigin: "unknown", Items: []conversation.ActivityPart{}, Gaps: []conversation.HistoryGap{}})}
 }
 
 func NativePreview(in conversation.SnapshotPreview, problem string) contract.NativePreview {
-	out := contract.NativePreview{ID: in.ID, Version: in.Projection.Version, CurrentTask: in.Projection.CurrentTask, Segments: []contract.NativeSegment{}, Omissions: []contract.NativeOmission{}, Pages: []contract.NativePNG{}, Uncovered: []contract.NativeRange{}, MissingGlyphCount: len(in.Render.Missing), Problem: problem}
+	out := contract.NativePreview{Gaps: append([]string{}, in.Gaps...), ID: in.ID, Version: in.Projection.Version, CurrentTask: in.Projection.CurrentTask, Segments: []contract.NativeSegment{}, Omissions: []contract.NativeOmission{}, Pages: []contract.NativePNG{}, Uncovered: []contract.NativeRange{}, MissingGlyphCount: len(in.Render.Missing), Problem: problem}
 	for _, v := range in.Projection.Segments {
 		out.Segments = append(out.Segments, contract.NativeSegment{SourceID: v.SourceID, Text: v.Text, Role: v.Role, CallID: v.CallID, ToolName: v.ToolName, Status: v.Status, Sources: each(v.Sources, nativeRange)})
 	}
