@@ -18,6 +18,7 @@ var conversationID = regexp.MustCompile(`^[a-f0-9]{32}$`)
 var conversationCursor = regexp.MustCompile(`^(0|[1-9][0-9]{0,18})$`)
 
 func (s *Server) conversationRoutes(mux transport.Registrar) {
+	s.nativeRoutes(mux)
 	mux.HandleFunc("GET /api/conversations/{id}/activities", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		value, err := s.conversationActivities(r)

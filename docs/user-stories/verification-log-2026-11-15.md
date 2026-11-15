@@ -142,3 +142,13 @@
   - 新增混合会话标题回归连续 5 轮 `-race` 通过：`TestAgyTUITitleContinuityAndRename`、`TestStaleTerminalTitleClearedOnAgentSessionChange`、`TestCandidateAgentPreservesLiveOSCTitleOnSwitch` 与 `TestSessionListTitleFallbackWithoutOSC`；
   - `go vet`、`golangci-lint`、生产与测试类型检查、Oxlint、前端架构守卫（46 项）、格式与持久化守卫通过。
 - 局限：回归使用受控 `fakeagent` 与隔离临时目录，未在自动化测试中连接真实 Google 账号驱动在线 `agy` 对话；未重新验收其他故事能力。
+
+## Codex 文件导入与快照开发验证
+
+- 范围：US-Q19；新增原生历史开发入口，不宣称路线 #640 已完成。
+- 固定 Codex 0.77.0 源码、合成 JSONL、解析器与来源映射进入同一 conversation 存储。
+- 已运行定向 race：codexrollout、conversation、api、pluginapi、pluginwire。
+- 已运行前端构建与 Svelte/TypeScript 检查、46 项前端架构测试、原生契约 Vitest。
+- 已运行架构、文档守卫和 Go lint；工具安装前的首次 lint 因缺少固定版本而失败，安装后通过。
+- wire snapshots 已重录核对；没有模型调用、真实图片链路或 token 节省实测。
+- 仍有附件、精细执行状态、保留引用与大文件增量优化等缺口，见[限制](../codex-native.md#当前限制与验证)。

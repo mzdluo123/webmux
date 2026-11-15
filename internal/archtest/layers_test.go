@@ -47,10 +47,11 @@ var webmux = manifest{
 		"internal/p2psettings":       service,
 
 		// Wire contracts and infrastructure every layer may use.
-		"internal/acp":         shared,
-		"internal/builtin":     shared,
-		"internal/streamproto": shared,
-		"internal/nativerpc":   shared,
+		"internal/codexrollout": shared,
+		"internal/acp":          shared,
+		"internal/builtin":      shared,
+		"internal/streamproto":  shared,
+		"internal/nativerpc":    shared,
 		// The shell guide served at /llms.txt and the {{webmux}} brief.
 		"internal/agentguide":   shared,
 		"internal/agentprofile": shared,
