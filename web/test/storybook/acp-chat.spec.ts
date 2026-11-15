@@ -321,7 +321,7 @@ test("long conversation ticks jump to messages and stay out of narrow panes", as
     await show(page, "long-conversation", theme);
     const navigation = page.getByRole("navigation", { name: "对话轮次" });
     await expect(navigation).toBeVisible();
-    await expect(navigation.getByRole("button")).toHaveCount(18);
+    await expect(navigation.getByRole("button")).toHaveCount(82);
     const first = navigation.getByRole("button", {
       name: "第 1 轮 · 你：修复首页搜索的排序：置顶的工作区应排在最前。",
     });
@@ -336,6 +336,81 @@ test("long conversation ticks jump to messages and stay out of narrow panes", as
       ),
     );
     expect(colors[0]).not.toBe(colors[1]);
+    for (const [round, count, volume, width] of [
+      [2, 1, "single", 12],
+      [3, 2, "few", 16],
+      [4, 4, "several", 20],
+      [5, 8, "many", 24],
+    ] as const) {
+      const tick = navigation.getByRole("button", {
+        name:
+          count === 1
+            ? `第 ${round} 轮 · AI：第 ${round} 轮回复：已保留排序和测试。`
+            : `第 ${round} 轮 · AI · ${count} 条消息：第 ${round} 轮回复：已保留排序和测试。`,
+      });
+      await expect(tick).toHaveAttribute("data-turn-volume", volume);
+      expect(
+        await tick
+          .locator("span")
+          .evaluate((node) => node.getBoundingClientRect().width),
+      ).toBe(width);
+    }
+    // A long single reply has the same weight as a short single reply.
+    expect(
+      await agent
+        .locator("span")
+        .evaluate((node) => node.getBoundingClientRect().width),
+    ).toBe(12);
+    expect(
+      await first
+        .locator("span")
+        .evaluate((node) => node.getBoundingClientRect().width),
+    ).toBe(12);
+    for (const viewport of [
+      { width: 1280, height: 900 },
+      { width: 1280, height: 600 },
+    ]) {
+      await page.setViewportSize(viewport);
+      const fitted = await navigation.evaluate((nav) => {
+        const bounds = nav.getBoundingClientRect();
+        const list = nav.firstElementChild as HTMLElement;
+        return {
+          noScroll: [nav, list].every(
+            (node) =>
+              node.scrollTop === 0 &&
+              node.scrollHeight <= node.clientHeight + 1,
+          ),
+          allFit: Array.from(nav.querySelectorAll("button")).every((button) => {
+            const item = button.getBoundingClientRect();
+            return (
+              item.height > 0 &&
+              item.top >= bounds.top - 1 &&
+              item.bottom <= bounds.bottom + 1
+            );
+          }),
+        };
+      });
+      expect(fitted).toEqual({ noScroll: true, allFit: true });
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const last = navigation.getByRole("button", {
+      name: "第 41 轮 · AI · 8 条消息：第 41 轮回复：已保留排序和测试。",
+    });
+    await first.click();
+    await first.press("End");
+    await expect(last).toBeFocused();
+    await expect(last).toHaveAttribute("aria-current", "location");
+    for (let reply = 0; reply < 8; reply++) {
+      const messageId = reply === 0 ? "long-a39" : `long-a39-${reply}`;
+      await expect(
+        page.locator(`[data-conversation-message="${messageId}"]`),
+      ).toHaveCount(1);
+      await expect(
+        page.locator(`[data-message-id="${messageId}"]`),
+      ).toHaveCount(1);
+    }
+    await last.press("Home");
+    await expect(first).toBeFocused();
     await first.click();
     await expect(first).toHaveAttribute("aria-current", "location");
     await expect

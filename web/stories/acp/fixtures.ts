@@ -497,31 +497,36 @@ export function chatFixture(scenario: Scenario, agent: Agent) {
   const running = !idleScenarios.includes(scenario);
   const events = [...history];
   if (scenario === "long-conversation") {
-    for (let index = 0; index < 8; index++) {
+    for (let index = 0; index < 40; index++) {
+      const round = index + 2;
+      const replyCount = [1, 2, 4, 8][index % 4]!;
       events.push(
-        user(`long-u${index}`, `第 ${index + 2} 轮：继续完善排序和测试。`),
-        {
-          kind: "message.append",
-          message: {
-            messageId: `long-t${index}`,
-            role: "thought",
-            text: "检查已有实现和回归测试。",
+        user(`long-u${index}`, `第 ${round} 轮：继续完善排序和测试。`),
+        agentText(`long-a${index}`, `第 ${round} 轮回复：已保留排序和测试。`),
+      );
+      for (let reply = 1; reply < replyCount; reply++) {
+        events.push(
+          {
+            kind: "message.append",
+            message: {
+              messageId: `long-t${index}-${reply}`,
+              role: "thought",
+              text: "检查已有实现。",
+            },
           },
-        },
-        tool(
-          `long-r${index}`,
-          "read",
-          `检查第 ${index + 2} 轮改动`,
-          "completed",
-        ),
-        agentText(
-          `long-a${index}`,
-          Array.from(
-            { length: 6 },
-            (_, line) =>
-              `第 ${index + 2} 轮回复，段落 ${line + 1}：已保留用户消息与工作步骤的顺序。`,
-          ).join("\n\n"),
-        ),
+          tool(
+            `long-r${index}-${reply}`,
+            "read",
+            `检查第 ${round} 轮改动`,
+            "completed",
+          ),
+          agentText(
+            `long-a${index}-${reply}`,
+            `补充 ${reply}：回归用例已保留。`,
+          ),
+        );
+      }
+      events.push(
         agentText(`long-empty${index}`, ""),
         agentText(`long-space${index}`, " \n "),
       );

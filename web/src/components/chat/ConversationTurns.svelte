@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ListButton } from "$lib/components/ui/list-button";
-  import type { ConversationTurnItem } from "../../domains/chat/chat-model";
+  import type { ConversationTurnItem } from "../../domains/chat/conversation-turns";
 
   let {
     items,
@@ -18,17 +18,25 @@
 
   const label = (item: ConversationTurnItem) =>
     `${item.turn ? `第 ${item.turn} 轮` : "此前"} · ${
-      item.role === "user" ? "你" : "AI"
+      item.role === "user"
+        ? "你"
+        : item.messageIds.length > 1
+          ? `AI · ${item.messageIds.length} 条消息`
+          : "AI"
     }：${item.summary}`;
 
-  function revealTick(selected: HTMLElement) {
-    if (!list) return;
-    const top = selected.offsetTop;
-    const bottom = top + selected.offsetHeight;
-    if (top < list.scrollTop) list.scrollTop = top;
-    else if (bottom > list.scrollTop + list.clientHeight)
-      list.scrollTop = bottom - list.clientHeight;
-  }
+  const selectedId = $derived(
+    items.find((item) => item.messageIds.includes(activeId))?.id ?? "",
+  );
+
+  const volume = (count: number) =>
+    count >= 8
+      ? "many"
+      : count >= 4
+        ? "several"
+        : count >= 2
+          ? "few"
+          : "single";
 
   function move(event: KeyboardEvent, index: number) {
     let next: number;
@@ -55,26 +63,8 @@
     const selected = list?.querySelector<HTMLElement>(
       `[data-turn-index="${next}"]`,
     );
-    if (selected) {
-      selected.focus({ preventScroll: true });
-      revealTick(selected);
-    }
+    selected?.focus({ preventScroll: true });
   }
-
-  // Keep the current tick visible without scrolling the transcript itself.
-  $effect(() => {
-    const container = list;
-    const id = activeId;
-    if (!container || !id) return;
-    const focused = document.activeElement;
-    const selected =
-      focused instanceof HTMLElement && container.contains(focused)
-        ? focused
-        : container.querySelector<HTMLElement>(
-            `[data-turn-id="${CSS.escape(id)}"]`,
-          );
-    if (selected) revealTick(selected);
-  });
 </script>
 
 <nav
@@ -85,7 +75,7 @@
 >
   <div
     bind:this={list}
-    class="pointer-events-auto relative flex max-h-full flex-col overflow-y-auto overscroll-contain py-1"
+    class="pointer-events-auto relative flex min-h-0 max-h-full flex-col overflow-clip py-1"
   >
     {#each items as item, index (item.id)}
       <ListButton
@@ -93,9 +83,12 @@
         data-turn-id={item.id}
         data-turn-index={index}
         data-turn-role={item.role}
+        data-turn-volume={volume(item.messageIds.length)}
         aria-label={label(item)}
-        aria-current={item.id === activeId ? "location" : undefined}
-        tabindex={item.id === activeId || (!activeId && index === 0) ? 0 : -1}
+        aria-current={item.id === selectedId ? "location" : undefined}
+        tabindex={item.id === selectedId || (!selectedId && index === 0)
+          ? 0
+          : -1}
         title={label(item)}
         onclick={() => onselect(item.id)}
         onkeydown={(event) => move(event, index)}

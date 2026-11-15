@@ -505,25 +505,30 @@
     <Card.Root>
       <Card.Header
         ><Card.Title>对话轮次刻度</Card.Title><Card.Description
-          >用户消息使用前景色，AI 消息使用信息蓝；当前消息加长并提高不透明度。</Card.Description
+          >用户刻度固定 12px；AI 按消息数使用 12 / 16 / 20 /
+          24px，当前刻度提高不透明度。长对话压缩行高，不独立滚动。</Card.Description
         ></Card.Header
       >
       <Card.Content class="flex flex-col items-start">
         <ListButton
           variant="turn"
           data-turn-role="user"
+          data-turn-volume="single"
           aria-label="第 1 轮 · 你：修复首页排序"
           title="第 1 轮 · 你：修复首页排序"
           ><span aria-hidden="true"></span></ListButton
         >
-        <ListButton
-          variant="turn"
-          data-turn-role="agent"
-          aria-label="第 1 轮 · AI：已修改排序"
-          aria-current="location"
-          title="第 1 轮 · AI：已修改排序"
-          ><span aria-hidden="true"></span></ListButton
-        >
+        {#each [{ count: 1, volume: "single" }, { count: 2, volume: "few" }, { count: 4, volume: "several" }, { count: 8, volume: "many" }] as item}
+          {@const label = `第 1 轮 · AI${item.count > 1 ? ` · ${item.count} 条消息` : ""}：已修改排序`}
+          <ListButton
+            variant="turn"
+            data-turn-role="agent"
+            data-turn-volume={item.volume}
+            aria-label={label}
+            aria-current={item.count === 4 ? "location" : undefined}
+            title={label}><span aria-hidden="true"></span></ListButton
+          >
+        {/each}
       </Card.Content>
     </Card.Root>
   {:else if section === "feedback"}
