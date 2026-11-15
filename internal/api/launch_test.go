@@ -43,7 +43,7 @@ func newLaunchHarness(t *testing.T, store *launch.Service) *launchHarness {
 
 func openLaunchStore(t *testing.T) *launch.Service {
 	t.Helper()
-	s := launch.Open(t.TempDir())
+	s := launch.Open(t.TempDir(), agents.Default())
 	t.Cleanup(s.Close)
 	return s
 }
@@ -306,12 +306,12 @@ func TestLaunchConfigUnavailable(t *testing.T) {
 	if err := os.WriteFile(path, corrupt, 0600); err != nil {
 		t.Fatal(err)
 	}
-	corruptStore := launch.Open(dir)
+	corruptStore := launch.Open(dir, agents.Default())
 	t.Cleanup(corruptStore.Close)
 	lockDir := t.TempDir()
-	owner := launch.Open(lockDir)
+	owner := launch.Open(lockDir, agents.Default())
 	t.Cleanup(owner.Close)
-	locked := launch.Open(lockDir)
+	locked := launch.Open(lockDir, agents.Default())
 	t.Cleanup(locked.Close)
 	for name, row := range map[string]struct {
 		store *launch.Service
@@ -358,7 +358,7 @@ func TestLaunchConfigSaveFailureReturns500(t *testing.T) {
 		t.Skip("root ignores directory permissions")
 	}
 	dir := t.TempDir()
-	store := launch.Open(dir)
+	store := launch.Open(dir, agents.Default())
 	t.Cleanup(store.Close)
 	h := newLaunchHarness(t, store)
 	a := h.create(`{"name":"a","cmd":["a"]}`)

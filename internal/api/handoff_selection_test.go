@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
@@ -36,7 +38,7 @@ func TestHandoffSelectionLongHistoryRemainsRecoverable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	defer launches.Close()
 	cfg, err := launches.Create(launch.Input{Name: "target", Cmd: []string{"omp"}, Hybrid: true})
 	if err != nil {

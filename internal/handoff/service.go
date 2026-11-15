@@ -195,7 +195,7 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (conve
 		}
 		in.Location.Cwd = directory
 	}
-	support := config.HybridSupport()
+	support := config.HybridSupport
 	if !config.Hybrid || !support.Supported {
 		return conversation.Preview{}, conversation.ErrInvalid
 	}

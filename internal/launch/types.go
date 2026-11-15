@@ -15,7 +15,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/agents"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -86,13 +85,11 @@ type Config struct {
 	Preview   *PreviewSettings   `json:"preview"`
 	Attention *AttentionSettings `json:"attention,omitempty"`
 	Hybrid    bool               `json:"hybrid,omitempty"`
-	CreatedAt time.Time          `json:"createdAt"`
-	UpdatedAt time.Time          `json:"updatedAt"`
+	// HybridSupport is computed by Service, never persisted.
+	HybridSupport agentprofile.Support `json:"-"`
+	CreatedAt     time.Time            `json:"createdAt"`
+	UpdatedAt     time.Time            `json:"updatedAt"`
 }
-
-// HybridSupport reports whether the config's command can run as a hybrid
-// session, computed from the built-in agent profiles on every call.
-func (c Config) HybridSupport() agentprofile.Support { return agents.Default().Check(c.Cmd) }
 
 // Summary is the list form: environment names only, never values.
 type Summary struct {
@@ -186,11 +183,6 @@ func normalize(in Input) (Input, error) {
 			return Input{}, invalidf("完成确认延迟须为 %d–%d 秒", MinDoneDelaySec, MaxDoneDelaySec)
 		}
 	}
-	if in.Hybrid {
-		if support := agents.Default().Check(in.Cmd); !support.Supported {
-			return Input{}, invalidf("无法开启混合模式：%s", agents.Default().Explain(support.Reason))
-		}
-	}
 	return Input{Name: name, Icon: in.Icon, Cmd: slices.Clone(in.Cmd), Env: cloneEnv(in.Env), Preview: preview, Attention: attention, Hybrid: in.Hybrid}, nil
 }
 
@@ -227,7 +219,7 @@ func (c Config) clone() Config {
 	return c
 }
 
-func (c Config) summary() Summary {
+func (c Config) summary(support agentprofile.Support) Summary {
 	names := slices.Sorted(maps.Keys(c.Env))
 	if names == nil {
 		names = []string{}
@@ -241,7 +233,7 @@ func (c Config) summary() Summary {
 		Preview:       clonePreview(c.Preview),
 		Attention:     cloneAttention(c.Attention),
 		Hybrid:        c.Hybrid,
-		HybridSupport: c.HybridSupport(),
+		HybridSupport: support,
 		CreatedAt:     c.CreatedAt,
 		UpdatedAt:     c.UpdatedAt,
 	}

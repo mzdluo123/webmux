@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
@@ -120,7 +122,7 @@ func TestSessionPinsRetainRecoverableInterruptedSessions(t *testing.T) {
 	}
 	m := session.NewManager(session.Options{DefaultCwd: dir})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
-	h := hybrid.New(hybrid.Options{StateDir: dir, Manager: m})
+	h := hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: dir, Manager: m})
 	t.Cleanup(h.Close)
 	prefs := settings.Open(dir)
 	t.Cleanup(prefs.Close)

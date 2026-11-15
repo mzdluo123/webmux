@@ -14,16 +14,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/rainchan/webmux/internal/acp"
-	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/agents"
-	"github.com/rainchan/webmux/internal/conversation"
-	"github.com/rainchan/webmux/internal/session"
 	"log/slog"
 	"os"
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/rainchan/webmux/internal/acp"
+	"github.com/rainchan/webmux/internal/agentprofile"
+	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/session"
 )
 
 const (
@@ -40,6 +40,8 @@ const (
 
 // Options configure a Service. Only cmd/ builds them.
 type Options struct {
+	// Agents is the selected runtime registry. Nil enables no agents.
+	Agents *agentprofile.Registry
 	// MCPServers supplies instance tools on new/load/resume, independently of history capture.
 	// Only cmd assembles descriptors; nil leaves library-created sessions unchanged.
 	MCPServers func(context.Context) []acp.MCPServer
@@ -150,7 +152,7 @@ func New(o Options) *Service {
 	userHome, _ := os.UserHomeDir()
 	s := &Service{
 		mcpServers: o.MCPServers, historyReader: o.HistoryReader, conversations: o.Conversations, manager: o.Manager, records: openRecords(o.StateDir), options: openAgentOptions(o.StateDir), capacity: capacity, version: o.Version, log: log,
-		uploads: o.Uploads, userHome: userHome, agents: agents.Default(),
+		uploads: o.Uploads, userHome: userHome, agents: o.Agents,
 		metadata: make(map[string]*Metadata),
 		timing:   defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
 		recovering: make(map[string]bool),

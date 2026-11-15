@@ -19,6 +19,7 @@ import (
 	"github.com/rainchan/webmux/cmd/internal/assemble"
 	"github.com/rainchan/webmux/internal/agentguide"
 	"github.com/rainchan/webmux/internal/agentprofile"
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/clicmd"
 	"github.com/rainchan/webmux/internal/contract"
@@ -97,12 +98,13 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 			slog.Warn("HTTP listener close failed", "error", closeErr)
 		}
 	}()
-	sessionOptions := assemble.SessionOptions(c.Config)
+	registry := agents.Default()
+	sessionOptions := assemble.SessionOptions(c.Config, registry)
 	sessionOptions.TerminalVersion = version
 	sessionOptions.Executable = serverExecutable()
 	m := session.NewManager(sessionOptions)
 	preferences := settings.Open(c.StateDir)
-	features := &featureServices{}
+	features := &featureServices{agents: registry}
 	var server *http.Server
 	var rt *localRuntime
 	var resumed <-chan struct{}

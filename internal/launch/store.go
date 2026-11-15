@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/statefile"
 )
@@ -29,6 +30,7 @@ type storedFile struct {
 // directory reports unavailable instead of overwriting the file. A nil
 // *Service is unavailable.
 type Service struct {
+	agents  *agentprofile.Registry
 	mu      sync.Mutex
 	dir     string
 	path    string
@@ -45,6 +47,38 @@ type Service struct {
 	deleted func(id string)
 }
 
+// HybridSupport checks commands against the explicitly assembled registry.
+// A nil registry means no agents, not the built-in set.
+func (s *Service) HybridSupport(argv []string) agentprofile.Support {
+	return s.registry().Check(argv)
+}
+
+func (s *Service) registry() *agentprofile.Registry {
+	if s == nil {
+		return nil
+	}
+	return s.agents
+}
+
+func (s *Service) project(c Config) Config {
+	c = c.clone()
+	c.HybridSupport = s.HybridSupport(c.Cmd)
+	return c
+}
+
+func (s *Service) normalize(in Input) (Input, error) {
+	in, err := normalize(in)
+	if err != nil {
+		return Input{}, err
+	}
+	if in.Hybrid {
+		if support := s.HybridSupport(in.Cmd); !support.Supported {
+			return Input{}, invalidf("无法开启混合模式：%s", s.registry().Explain(support.Reason))
+		}
+	}
+	return in, nil
+}
+
 // OnDelete installs, once at assembly before serving, fn to be told the ID
 // of every deleted config, so state kept per config elsewhere goes with it.
 func (s *Service) OnDelete(fn func(id string)) { s.deleted = fn }
@@ -52,9 +86,9 @@ func (s *Service) OnDelete(fn func(id string)) { s.deleted = fn }
 // Open loads the store. It never fails: a lock conflict, an unreadable
 // directory or a corrupt file leaves the service unavailable and the file
 // untouched until the server restarts. A missing file is an empty list and is
-// not created until the first write or Seed.
-func Open(stateDir string) *Service {
-	s := &Service{}
+// not created until the first write or Seed. A nil registry enables no agents.
+func Open(stateDir string, registry *agentprofile.Registry) *Service {
+	s := &Service{agents: registry}
 	dir, err := pathutil.Expand(stateDir)
 	if err == nil {
 		dir, err = filepath.Abs(dir)
@@ -187,7 +221,7 @@ func (s *Service) List() ([]Summary, error) {
 func (s *Service) summariesLocked() []Summary {
 	out := make([]Summary, 0, len(s.configs))
 	for _, c := range s.configs {
-		out = append(out, c.summary())
+		out = append(out, c.summary(s.HybridSupport(c.Cmd)))
 	}
 	return out
 }
@@ -199,14 +233,14 @@ func (s *Service) Get(id string) (Config, error) {
 	}
 	defer s.mu.Unlock()
 	if i := s.indexLocked(id); i >= 0 {
-		return s.configs[i].clone(), nil
+		return s.project(s.configs[i]), nil
 	}
 	return Config{}, ErrNotFound
 }
 
 // Create validates in, saves a new config and returns a copy of it.
 func (s *Service) Create(in Input) (Config, error) {
-	in, err := normalize(in)
+	in, err := s.normalize(in)
 	if err != nil {
 		return Config{}, err
 	}
@@ -231,7 +265,7 @@ func (s *Service) Create(in Input) (Config, error) {
 		return Config{}, err
 	}
 	s.configs = next
-	return c.clone(), nil
+	return s.project(c), nil
 }
 
 // Seed creates launch-configs.json with ins when the file did not exist at
@@ -243,7 +277,7 @@ func (s *Service) Seed(ins []Input) error {
 		return err
 	}
 	defer s.mu.Unlock()
-	presets, err := normalizePresets(ins)
+	presets, err := s.normalizePresets(ins)
 	if err != nil {
 		return err
 	}
@@ -274,7 +308,7 @@ func (s *Service) Seed(ins []Input) error {
 
 // Update replaces the editable fields of id; id and createdAt are kept.
 func (s *Service) Update(id string, in Input) (Config, error) {
-	in, err := normalize(in)
+	in, err := s.normalize(in)
 	if err != nil {
 		return Config{}, err
 	}
@@ -297,7 +331,7 @@ func (s *Service) Update(id string, in Input) (Config, error) {
 		return Config{}, err
 	}
 	s.configs = next
-	return c.clone(), nil
+	return s.project(c), nil
 }
 
 // Delete removes id.

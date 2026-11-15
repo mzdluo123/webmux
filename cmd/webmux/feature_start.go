@@ -44,7 +44,7 @@ import (
 // explicit here: neither services nor the HTTP host look up another feature.
 func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Manager, preferences *settings.Service, public *transport.PublicOrigins, address net.Addr, guide *agentguide.Instance, localAPI func() *localRuntime, bridge *transport.Bridge, out io.Writer) error {
 	if c.Features.Has("launch") {
-		p.launch = launch.Open(c.StateDir)
+		p.launch = launch.Open(c.StateDir, p.agents)
 		if err := p.launch.Unavailable(); err != nil {
 			slog.Warn("launch configs unavailable", "error", err)
 		} else if err := p.launch.Seed(launch.Presets(os.Getenv("SHELL"))); err != nil {
@@ -57,7 +57,7 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 	}
 	if c.Features.Has("chat") {
 		p.conversations = conversation.Open(conversation.Options{StateDir: c.StateDir, DisableCapture: !c.HistoryCapture})
-		options := hybrid.Options{Conversations: p.conversations, StateDir: c.StateDir, Manager: m, ScrollbackBytes: c.ScrollbackBytes, Version: version, Logger: slog.Default(), Uploads: p.artifacts.UploadPath}
+		options := hybrid.Options{Agents: p.agents, Conversations: p.conversations, StateDir: c.StateDir, Manager: m, ScrollbackBytes: c.ScrollbackBytes, Version: version, Logger: slog.Default(), Uploads: p.artifacts.UploadPath}
 		if c.Features.Has("mcp") {
 			options.MCPServers = controlMCPServers(serverExecutable(), func() string {
 				rt := localAPI()

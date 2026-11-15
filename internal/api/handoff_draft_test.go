@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/rainchan/webmux/internal/conversation"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+	"github.com/rainchan/webmux/internal/conversation"
 
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
@@ -17,7 +19,7 @@ import (
 
 func TestHandoffDraftDiscoveryAndSeparateTaskRevision(t *testing.T) {
 	_, store, source := historyAPI(t)
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	defer launches.Close()
 	cfg, err := launches.Create(launch.Input{Name: "target", Cmd: []string{"omp"}, Hybrid: true})
 	if err != nil {

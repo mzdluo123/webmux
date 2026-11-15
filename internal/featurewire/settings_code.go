@@ -58,7 +58,7 @@ func launchAttention(a *contract.AttentionSettings) *launch.AttentionSettings {
 func LaunchConfig(c launch.Config) contract.LaunchConfig {
 	return contract.LaunchConfig{
 		ID: c.ID, Name: c.Name, Icon: c.Icon, Cmd: required(c.Cmd), Env: requiredMap(c.Env), Preview: previewSettings(c.Preview),
-		Attention: attentionSettings(c.Attention), Chat: c.Hybrid, ChatSupport: ChatSupport(c.HybridSupport()),
+		Attention: attentionSettings(c.Attention), Chat: c.Hybrid, ChatSupport: ChatSupport(c.HybridSupport),
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 }

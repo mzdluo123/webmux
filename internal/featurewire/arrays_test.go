@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
@@ -40,7 +42,7 @@ func TestResponseArrayFixture(t *testing.T) {
 		"batchPreview":      BatchPreview(workspace.BatchPreview{Items: []workspace.BatchPreviewItem{{Worktree: workspace.Worktree{Kind: "linked"}}}}, func(hybrid.Record) Archived { return Archived{} }, nil),
 		"batchRemoveResult": BatchRemoveResult(workspace.BatchRemoveResult{}),
 		"launch":            LaunchSummaries([]launch.Summary{{ID: "abcdefgh", Name: "Shell", Cmd: []string{"sh"}}}, nil),
-		"launchConfig":      LaunchConfig(launch.Config{ID: "abcdefgh", Name: "Shell", Cmd: []string{"sh"}}),
+		"launchConfig":      LaunchConfig(launch.Config{ID: "abcdefgh", Name: "Shell", Cmd: []string{"sh"}, HybridSupport: agents.Default().Check([]string{"sh"})}),
 		"launchPresets":     LaunchPresets([]launch.Preset{{Name: "Shell", Cmd: []string{"sh"}}}),
 		"check":             CodeCheck(codeview.Check{Changes: "unchanged"}),
 		"launches":          LaunchSummaries(nil, nil),

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
@@ -39,7 +41,7 @@ func TestAttentionSignalOptions(t *testing.T) {
 			if err := c.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			o := SessionOptions(c)
+			o := SessionOptions(c, agents.Default())
 			if o.DisableAgentProtocol != row.disableProtocol || o.DisableBellAttention != row.disableBel || o.DisableProgramStatus != row.disableStatus {
 				t.Fatalf("options = %+v", o)
 			}
@@ -80,13 +82,13 @@ func TestSavedLaunchConfigLoadsBashrcAndForwardsArguments(t *testing.T) {
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	m := session.NewManager(SessionOptions(c))
+	m := session.NewManager(SessionOptions(c, agents.Default()))
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
 		defer cancel()
 		m.Shutdown(ctx)
 	}()
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	defer launches.Close()
 	service := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: home, Commands: launches})
 	agent := "opencode"
@@ -118,7 +120,7 @@ func TestSavedLaunchConfigLoadsBashrcAndForwardsArguments(t *testing.T) {
 }
 
 func TestSessionOptionsSubmitDelay(t *testing.T) {
-	delay := SessionOptions(config.Config{}).SubmitDelay
+	delay := SessionOptions(config.Config{}, agents.Default()).SubmitDelay
 	for _, tc := range []struct {
 		argv []string
 		want time.Duration
@@ -149,8 +151,18 @@ func TestAgentPretrustOption(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := SessionOptions(c).PreLaunch != nil; got != row.want {
+		if got := SessionOptions(c, agents.Default()).PreLaunch != nil; got != row.want {
 			t.Fatalf("%q: PreLaunch set = %v, want %v", row.body, got, row.want)
 		}
+	}
+}
+
+func TestSessionOptionsEmptyAgentSelection(t *testing.T) {
+	options := SessionOptions(config.Config{}, nil)
+	if options.SubmitDelay == nil {
+		t.Fatal("launch selection did not assemble submission policy")
+	}
+	if got := options.SubmitDelay([]string{"kimi"}); got != 0 {
+		t.Fatalf("empty selection restored built-in delay: %v", got)
 	}
 }

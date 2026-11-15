@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
@@ -22,7 +24,7 @@ import (
 
 func TestHandoffPreviewAPIRevisionStalenessAndPrivacy(t *testing.T) {
 	_, store, source := historyAPI(t)
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	defer launches.Close()
 	cfg, err := launches.Create(launch.Input{Name: "target", Cmd: []string{"omp"}, Env: map[string]string{"PRIVATE_ENV": "never-return-this"}, Hybrid: true})
 	if err != nil {
@@ -127,13 +129,13 @@ func TestHandoffDeliveryAPIAuthDurableFailuresAndExplicitRetry(t *testing.T) {
 		defer cancel()
 		manager.Shutdown(ctx)
 	})
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	defer launches.Close()
 	cfg, err := launches.Create(launch.Input{Name: "missing connector", Cmd: []string{fakeAgentPath(t, "codex")}, Env: map[string]string{"PATH": "/nonexistent"}, Hybrid: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: manager})
+	hybrids := hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: t.TempDir(), Manager: manager})
 	defer hybrids.Close()
 	cwd := t.TempDir()
 	workspaces := workspace.New(t.TempDir(), manager, launches, cwd)

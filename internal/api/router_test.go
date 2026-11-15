@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
@@ -321,7 +323,7 @@ func TestSessionRenameIgnoresUnavailableHybridStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: m})
+	hybrids := hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: t.TempDir(), Manager: m})
 	hybrids.Close()
 	handler := New(testDeps(t, testServices{Config: config.Config{}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir()), Hybrid: hybrids}))
 	req := httptest.NewRequest("PATCH", "/api/sessions/"+s.Info().ID, strings.NewReader(`{"name":"plain"}`))

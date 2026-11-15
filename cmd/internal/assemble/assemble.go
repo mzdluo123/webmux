@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/rainchan/webmux/internal/agentprofile/agents"
+	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/agenttrust"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/forward"
@@ -19,7 +19,7 @@ import (
 )
 
 // SessionOptions converts the loaded configuration for session.NewManager.
-func SessionOptions(c config.Config) session.Options {
+func SessionOptions(c config.Config, registry *agentprofile.Registry) session.Options {
 	options := session.Options{
 		ScrollbackBytes:      c.ScrollbackBytes,
 		DefaultCwd:           c.DefaultCwd,
@@ -33,7 +33,7 @@ func SessionOptions(c config.Config) session.Options {
 		if c.AgentPretrust {
 			options.PreLaunch = agenttrust.New().Prepare
 		}
-		options.SubmitDelay = agents.Default().SubmitDelay
+		options.SubmitDelay = registry.SubmitDelay
 	}
 	return options
 }

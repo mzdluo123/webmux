@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/launch"
 )
@@ -35,7 +37,7 @@ func TestLaunchConfigCLIEditPreservesOwnedFields(t *testing.T) {
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			f := newFixture(t, "[features]\nenabled = "+row.features+"\n")
-			store := launch.Open(f.state)
+			store := launch.Open(f.state, agents.Default())
 			original, err := store.Create(launch.Input{
 				Name: "Stored", Cmd: []string{"omp"}, Env: map[string]string{"KEEP": "secret"}, Hybrid: true,
 				Attention: &launch.AttentionSettings{Mode: "urgent", ProgramStatus: true, AgentProtocol: true, Notify: true, Bell: true, MinTurnSeconds: 7, DoneDelaySeconds: 3},

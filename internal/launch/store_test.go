@@ -16,7 +16,7 @@ import (
 
 func open(t *testing.T, dir string) *Service {
 	t.Helper()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	t.Cleanup(s.Close)
 	return s
 }
@@ -70,7 +70,7 @@ func TestSeedFillsOnlyANewFile(t *testing.T) {
 		return out
 	}
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	if err := s.Seed(Presets("/bin/zsh")); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestSeedFillsOnlyANewFile(t *testing.T) {
 
 func TestReopenPersists(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	a := mustCreate(t, s, Input{Name: "  Claude 恢复  ", Cmd: []string{"claude", "--resume", ""}, Env: map[string]string{"B": "2", "A": "1"}})
 	b := mustCreate(t, s, Input{Name: "shell", Cmd: []string{"bash"}})
 	updated, err := s.Update(a.ID, Input{Name: "Claude", Cmd: []string{"claude"}, Env: map[string]string{"A": "x"}})
@@ -170,7 +170,7 @@ func TestReopenPersists(t *testing.T) {
 
 func TestPreviewSettingsPersist(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	a := mustCreate(t, s, Input{Name: "agent", Cmd: []string{"agent"}, Preview: &PreviewSettings{Lines: 20, Skip: 4}})
 	if a.Preview == nil || a.Preview.Lines != 20 || a.Preview.Skip != 4 {
 		t.Fatalf("created preview %+v", a.Preview)
@@ -212,7 +212,7 @@ func TestPreviewSettingsPersist(t *testing.T) {
 
 func TestAttentionSettingsPersist(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	want := AttentionSettings{
 		Mode:             AttentionModeUrgent,
 		ProgramStatus:    false,
@@ -267,7 +267,7 @@ func TestVersion1FilePreservedAndRejected(t *testing.T) {
 
 func TestIconsPersistAndLegacyConfigsRemainReadable(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	a := mustCreate(t, s, Input{Name: "Claude", Icon: "claudecode", Cmd: []string{"claude"}})
 	b := mustCreate(t, s, Input{Name: "Legacy", Cmd: []string{"bash"}})
 	s.Close()
@@ -307,7 +307,7 @@ func TestIconsPersistAndLegacyConfigsRemainReadable(t *testing.T) {
 
 func TestHybridFlag(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	omp := []string{"/usr/bin/env", "bash", "-ic", `exec -- "$@"`, "webmux", "omp"}
 	plain := mustCreate(t, s, Input{Name: "omp", Cmd: omp})
 	raw, err := os.ReadFile(filepath.Join(dir, fileName))
@@ -315,7 +315,7 @@ func TestHybridFlag(t *testing.T) {
 		t.Fatalf("unchecked config wrote hybrid: %s %v", raw, err)
 	}
 	on, err := s.Update(plain.ID, Input{Name: "omp", Cmd: omp, Hybrid: true})
-	if err != nil || !on.Hybrid || !reflect.DeepEqual(on.HybridSupport(), agentprofile.Support{Supported: true, Agent: "omp", Agents: agents.Default().Titles()}) {
+	if err != nil || !on.Hybrid || !reflect.DeepEqual(on.HybridSupport, agentprofile.Support{Supported: true, Agent: "omp", Agents: agents.Default().Titles()}) {
 		t.Fatalf("enable hybrid = %+v, %v", on, err)
 	}
 	list, err := s.List()
@@ -355,7 +355,7 @@ func TestHybridFlag(t *testing.T) {
 	}
 	s = open(t, dir)
 	got, err := s.Get(plain.ID)
-	if err != nil || !got.Hybrid || got.HybridSupport().Reason != agentprofile.ReasonUnknownAgent {
+	if err != nil || !got.Hybrid || got.HybridSupport.Reason != agentprofile.ReasonUnknownAgent {
 		t.Fatalf("stale hybrid config = %+v, %v", got, err)
 	}
 }
@@ -477,7 +477,7 @@ func TestNilAndClosedUnavailable(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.Close()
-	closed := Open(t.TempDir())
+	closed := Open(t.TempDir(), agents.Default())
 	closed.Close()
 	if _, err := closed.List(); !errors.Is(err, ErrUnavailable) {
 		t.Fatal(err)

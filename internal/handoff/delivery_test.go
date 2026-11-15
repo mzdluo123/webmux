@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/hybrid"
@@ -114,10 +116,10 @@ func (h *deliveryHarness) open() {
 	if err := h.store.Unavailable(); err != nil {
 		h.t.Fatal(err)
 	}
-	h.launches = launch.Open(h.state)
+	h.launches = launch.Open(h.state, agents.Default())
 	h.manager = session.NewManager(session.Options{DefaultCwd: h.root})
 	h.folders = artifacts.New(artifacts.Options{StateDir: h.state, TempDir: h.root, Manager: h.manager})
-	h.hybrids = hybrid.New(hybrid.Options{StateDir: h.state, Manager: h.manager, Conversations: h.store, Uploads: h.folders.UploadPath})
+	h.hybrids = hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: h.state, Manager: h.manager, Conversations: h.store, Uploads: h.folders.UploadPath})
 	h.folders.Start(func(id string) bool { _, err := h.hybrids.Record(id); return err == nil })
 	creation := h.hybrids.Creation()
 	resumeOptions := hybridresume.Options{DefaultCwd: h.root, Creation: creation}

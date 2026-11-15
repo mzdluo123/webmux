@@ -28,11 +28,19 @@ func NewRegistry(agents ...Agent) *Registry {
 }
 
 // Agents returns the registered agents in order.
-func (r *Registry) Agents() []Agent { return append([]Agent(nil), r.agents...) }
+func (r *Registry) Agents() []Agent { return append([]Agent(nil), r.entries()...) }
+
+// entries gives nil registries the same semantics as an explicitly empty set.
+func (r *Registry) entries() []Agent {
+	if r == nil {
+		return nil
+	}
+	return r.agents
+}
 
 // Lookup returns the agent named name.
 func (r *Registry) Lookup(name string) (Agent, bool) {
-	for _, a := range r.agents {
+	for _, a := range r.entries() {
 		if a.Profile().Name == name {
 			return a, true
 		}
@@ -42,7 +50,7 @@ func (r *Registry) Lookup(name string) (Agent, bool) {
 
 // ForExecutable returns the agent that runs as executable base name base.
 func (r *Registry) ForExecutable(base string) (Agent, bool) {
-	for _, a := range r.agents {
+	for _, a := range r.entries() {
 		if a.Profile().RunsAs(base) {
 			return a, true
 		}
@@ -67,7 +75,7 @@ func (r *Registry) SubmitDelay(argv []string) time.Duration {
 
 // Identify maps signals to the first agent that recognises them.
 func (r *Registry) Identify(s Signals) (Identity, bool) {
-	for _, a := range r.agents {
+	for _, a := range r.entries() {
 		if id, ok := a.Identify(s); ok {
 			return id, true
 		}
@@ -86,8 +94,8 @@ func (r *Registry) Explain(reason Reason) string {
 
 // Titles lists the agents' display names in order.
 func (r *Registry) Titles() []string {
-	titles := make([]string, len(r.agents))
-	for i, a := range r.agents {
+	titles := make([]string, len(r.entries()))
+	for i, a := range r.entries() {
 		titles[i] = a.Profile().Title
 	}
 	return titles

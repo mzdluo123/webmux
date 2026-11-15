@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/session"
 )
@@ -25,7 +27,7 @@ func TestLegacyConversationMigrationAndRetention(t *testing.T) {
 	db := conversation.Open(conversation.Options{StateDir: dir})
 	defer func() { _ = db.Close() }()
 	manager := session.NewManager(session.Options{})
-	s := New(Options{StateDir: dir, Manager: manager, Conversations: db})
+	s := New(Options{Agents: agents.Default(), StateDir: dir, Manager: manager, Conversations: db})
 	if err := s.Unavailable(); err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +56,7 @@ func TestLegacyConversationMigrationAndRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.Close()
-	s = New(Options{StateDir: dir, Manager: manager, Conversations: db})
+	s = New(Options{Agents: agents.Default(), StateDir: dir, Manager: manager, Conversations: db})
 	defer s.Close()
 	if after, err := db.Binding(ctx, legacy.ID); err != nil || after != b {
 		t.Fatal("restart changed identity", err)
@@ -75,7 +77,7 @@ func TestBrokenConversationDatabaseLeavesOrdinaryTerminalsAvailable(t *testing.T
 	db := conversation.Open(conversation.Options{StateDir: dir})
 	defer func() { _ = db.Close() }()
 	manager := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
-	s := New(Options{StateDir: dir, Manager: manager, Conversations: db})
+	s := New(Options{Agents: agents.Default(), StateDir: dir, Manager: manager, Conversations: db})
 	defer s.Close()
 	if s.Unavailable() == nil {
 		t.Fatal("corrupt database accepted")

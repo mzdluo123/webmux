@@ -78,7 +78,7 @@ func TestPresetsBeforeSeedPreferShellAwareList(t *testing.T) {
 
 func TestRestorePresets(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	if err := s.Seed(Presets("/bin/zsh")); err != nil {
 		t.Fatal(err)
 	}

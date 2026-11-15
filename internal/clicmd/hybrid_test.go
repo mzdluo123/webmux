@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
@@ -43,11 +45,11 @@ func realServer(t *testing.T) (Env, *bytes.Buffer, *bytes.Buffer, *session.Manag
 		t.Fatal(err)
 	}
 	m := session.NewManager(session.Options{DefaultCwd: cwd})
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	if _, err := launches.Create(launch.Input{Name: "omp-hybrid", Cmd: []string{agent}, Hybrid: true}); err != nil {
 		t.Fatal(err)
 	}
-	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: m})
+	hybrids := hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: t.TempDir(), Manager: m})
 	ws := workspace.New(t.TempDir(), m, launches, cwd)
 	codes := codeview.New(m, nil)
 	cfg := config.Config{DefaultCwd: cwd, Features: config.FeatureConfig{Enabled: []string{"launch", "workspace", "code", "files", "chat"}}}

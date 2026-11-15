@@ -18,6 +18,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/artifacts"
@@ -72,7 +74,7 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 	defer store.Close()
 	manager := session.NewManager(session.Options{DefaultCwd: root})
 	defer manager.Shutdown(context.Background())
-	launches := launch.Open(state)
+	launches := launch.Open(state, agents.Default())
 	defer launches.Close()
 	folders := artifacts.New(artifacts.Options{StateDir: state, Manager: manager})
 	defer folders.Close()
@@ -83,7 +85,7 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 		}
 		return []acp.MCPServer{{Name: "webmux-history", Command: exe, Args: []string{"mcp-serve", "--socket", socket, "--conversation", scope.ConversationID, "--handoff", scope.HandoffID}, Env: []acp.MCPEnv{{Name: "WEBMUX_TEST_EXEC", Value: "argv"}}}}
 	}
-	hybrids := hybrid.New(hybrid.Options{StateDir: state, Manager: manager, Conversations: store, HistoryReader: descriptor,
+	hybrids := hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: state, Manager: manager, Conversations: store, HistoryReader: descriptor,
 		MCPServers: func(context.Context) []acp.MCPServer {
 			return []acp.MCPServer{{Name: "webmux", Command: exe, Args: []string{"mcp", "--socket", socket}, Env: []acp.MCPEnv{{Name: "WEBMUX_TEST_EXEC", Value: "argv"}}}}
 		},
@@ -447,7 +449,7 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 	// Disabling the optional descriptor does not disable handoff budget/delivery.
 	plainManager := session.NewManager(session.Options{DefaultCwd: root})
 	defer plainManager.Shutdown(context.Background())
-	plain := hybrid.New(hybrid.Options{StateDir: filepath.Join(root, "plain-state"), Manager: plainManager})
+	plain := hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: filepath.Join(root, "plain-state"), Manager: plainManager})
 	defer plain.Close()
 	if plain.HistoryReaderAvailable(ctx, conversation.ReaderScope{ConversationID: binding.ConversationID, HandoffID: p.ID}) {
 		t.Fatal("nil reader advertised")

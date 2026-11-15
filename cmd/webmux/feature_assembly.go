@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 
+	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/conversation"
@@ -26,6 +27,7 @@ import (
 // featureServices is an explicit composition-root record, not a service lookup
 // container. A disabled feature has no service instance or lifetime to release.
 type featureServices struct {
+	agents         *agentprofile.Registry
 	launch         *launch.Service
 	workspace      *workspace.Service
 	code           *codeview.Service

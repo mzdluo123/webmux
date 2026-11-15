@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/hybrid"
@@ -90,8 +92,8 @@ func newQuickHarness(t *testing.T, instruction string) *quickHarness {
 	gitTest(t, root, "commit", "-m", "initial")
 	h := &quickHarness{t: t, root: root, store: t.TempDir()}
 	h.manager = session.NewManager(session.Options{DefaultCwd: root})
-	h.launches = launch.Open(t.TempDir())
-	h.hybrids = hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: h.manager})
+	h.launches = launch.Open(t.TempDir(), agents.Default())
+	h.hybrids = hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: t.TempDir(), Manager: h.manager})
 	h.s = New(t.TempDir(), h.manager, h.launches, root)
 	h.s.UseHybrid(h.hybrids)
 	h.hybrids.SetWorkspaceSource(func(id string) *hybrid.WorkspaceRef {

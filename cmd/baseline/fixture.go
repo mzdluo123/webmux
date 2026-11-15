@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/cmd/internal/assemble"
 	"github.com/rainchan/webmux/internal/api"
@@ -67,7 +69,7 @@ func newFixture() *fixture {
 	c.Features.Enabled = []string{"workspace", "code", "files"}
 
 	must(c.Validate())
-	f.manager = session.NewManager(assemble.SessionOptions(c))
+	f.manager = session.NewManager(assemble.SessionOptions(c, agents.Default()))
 	f.workspace = workspace.New(c.StateDir, f.manager, nil, root)
 	f.folders = artifacts.New(artifacts.Options{TempDir: root, StateDir: c.StateDir, Manager: f.manager})
 	f.folders.Start(func(string) bool { return false })

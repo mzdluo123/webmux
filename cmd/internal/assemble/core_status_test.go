@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
@@ -31,7 +33,7 @@ func TestCoreOnlySessionHonorsTerminalStatusSettings(t *testing.T) {
 			if err := c.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			manager := session.NewManager(SessionOptions(c))
+			manager := session.NewManager(SessionOptions(c, agents.Default()))
 			creator := sessioncreate.New(manager, sessioncreate.Options{DefaultCwd: dir})
 			t.Cleanup(func() {
 				creator.Close()

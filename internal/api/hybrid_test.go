@@ -9,10 +9,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
+	"github.com/rainchan/webmux/internal/agentprofile"
+	"github.com/rainchan/webmux/internal/agentprofile/omp"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
@@ -38,14 +43,20 @@ type hybridAPI struct {
 // a recorded hybrid session keeps its folder.
 func newHybridAPI(t *testing.T, prepare func(state string)) *hybridAPI {
 	t.Helper()
+	return newHybridAPIWithRegistry(t, prepare, agents.Default())
+}
+
+func newHybridAPIWithRegistry(t *testing.T, prepare func(string), registry *agentprofile.Registry) *hybridAPI {
+	t.Helper()
 	h := &hybridAPI{t: t, state: t.TempDir(), cwd: t.TempDir()}
 	if prepare != nil {
 		prepare(h.state)
 	}
 	h.manager = session.NewManager(session.Options{DefaultCwd: h.cwd})
-	h.store = openLaunchStore(t)
+	h.store = launch.Open(t.TempDir(), registry)
+	t.Cleanup(h.store.Close)
 	h.folders = artifacts.New(artifacts.Options{TempDir: t.TempDir(), StateDir: h.state, Manager: h.manager})
-	hybrids := hybrid.New(hybrid.Options{StateDir: h.state, Manager: h.manager, Uploads: h.folders.UploadPath})
+	hybrids := hybrid.New(hybrid.Options{Agents: registry, StateDir: h.state, Manager: h.manager, Uploads: h.folders.UploadPath})
 	h.hybrids = hybrids
 	h.folders.Start(func(id string) bool {
 		_, err := hybrids.Record(id)
@@ -272,5 +283,65 @@ func TestForceRemoveWorktreeKeepsHybridRecords(t *testing.T) {
 	}
 	if rec, err := h.hybrids.Record(outside); err != nil || rec.State != hybrid.StateClosed || rec.Released != nil {
 		t.Fatalf("record outside the worktree: %+v %v", rec, err)
+	}
+}
+
+// A single explicit selection governs validation, projections and creation.
+func TestExplicitAgentRegistry(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		registry *agentprofile.Registry
+		supported bool
+	}{
+		{name: "nil"},
+		{name: "empty", registry: agentprofile.NewRegistry()},
+		{name: "one agent", registry: agentprofile.NewRegistry(omp.Agent), supported: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHybridAPIWithRegistry(t, nil, tt.registry)
+			launches := &launchHarness{t: t, handler: h.handler, manager: h.manager, store: h.store, cwd: h.cwd}
+			for _, name := range []string{"omp", "codex"} {
+				want := tt.supported && name == "omp"
+				var support contract.ChatSupport
+				raw := launches.expect("POST", "/api/launch-configs/chat-support", fmt.Sprintf(`{"cmd":[%q]}`, name), http.StatusOK)
+				if err := json.Unmarshal(raw, &support); err != nil {
+					t.Fatal(err)
+				}
+				if support.Supported != want || len(support.SupportedAgents) != len(tt.registry.Agents()) {
+					t.Fatalf("%s support = %+v", name, support)
+				}
+				if !want && support.Reason != string(agentprofile.ReasonUnknownAgent) {
+					t.Fatalf("%s reason = %q", name, support.Reason)
+				}
+				if !want {
+					launches.expect("POST", "/api/launch-configs", fmt.Sprintf(`{"name":%q,"cmd":[%q],"chat":true}`, name, name), http.StatusBadRequest)
+					if err := h.hybrids.CheckCreate(context.Background(), hybrid.CreateInput{Cmd: []string{name}, Cwd: h.cwd}); !errors.Is(err, hybrid.ErrInvalid) {
+						t.Fatalf("excluded agent %s admission = %v", name, err)
+					}
+				}
+			}
+			plain := launches.create(`{"name":"plain","cmd":["omp"]}`)
+			if plain.ChatSupport.Supported != tt.supported {
+				t.Fatalf("plain config support = %+v", plain.ChatSupport)
+			}
+			var list []contract.LaunchConfigSummary
+			if err := json.Unmarshal(launches.expect("GET", "/api/launch-configs", "", http.StatusOK), &list); err != nil {
+				t.Fatal(err)
+			}
+			if len(list) != 1 || !reflect.DeepEqual(list[0].ChatSupport, plain.ChatSupport) {
+				t.Fatalf("summary support differs: %+v", list)
+			}
+			if tt.supported {
+				id := h.config("selected", true)
+				var saved contract.LaunchConfig
+				if err := json.Unmarshal(launches.expect("GET", "/api/launch-configs/"+id, "", http.StatusOK), &saved); err != nil {
+					t.Fatal(err)
+				}
+				if !saved.ChatSupport.Supported || !reflect.DeepEqual(saved.ChatSupport.SupportedAgents, []string{omp.Agent.Profile().Title}) {
+					t.Fatalf("saved support = %+v", saved.ChatSupport)
+				}
+				h.expect(fmt.Sprintf(`{"configId":%q,"view":"terminal"}`, id), http.StatusCreated)
+			}
+		})
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/rainchan/webmux/internal/agentguide"
 	"io"
 	"log/slog"
 	"mime"
@@ -25,6 +24,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/rainchan/webmux/internal/agentguide"
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
 
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/agentprofile"
@@ -851,7 +853,7 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	}
 	m := session.NewManager(testSessionOptions(c))
 	pushes := push.New(c.Push, t.TempDir(), m, slog.New(slog.NewTextHandler(io.Discard, nil)), pushService.Client().Transport)
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	prefs := settings.Open(t.TempDir())
 	t.Cleanup(prefs.Close)
 	folders := artifacts.New(artifacts.Options{TempDir: tmp, StateDir: t.TempDir(), Manager: m})
@@ -870,7 +872,7 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conversations.Close() })
-	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: m, Uploads: folders.UploadPath})
+	hybrids := hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: t.TempDir(), Manager: m, Uploads: folders.UploadPath})
 	forwards := forward.New(forward.Config{ExcludePorts: []int{7681}, Reachable: func(context.Context, int) bool { return false }})
 	t.Cleanup(forwards.Close)
 	guide := &agentguide.Instance{Version: "wire", LocalURL: "http://127.0.0.1:7681", Bin: "/opt/webmux/bin/webmux"}

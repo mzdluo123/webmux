@@ -116,7 +116,7 @@ func (h *harness) open(scrollback int) {
 		configure(&options)
 	}
 	h.manager = session.NewManager(options)
-	h.svc = New(Options{StateDir: h.state, Manager: h.manager, ScrollbackBytes: scrollback, Version: "test", Logger: slog.New(slog.NewTextHandler(h.logs, nil)), Uploads: func(_, path string) (string, error) { return trust(path) }})
+	h.svc = New(Options{Agents: agents.Default(), StateDir: h.state, Manager: h.manager, ScrollbackBytes: scrollback, Version: "test", Logger: slog.New(slog.NewTextHandler(h.logs, nil)), Uploads: func(_, path string) (string, error) { return trust(path) }})
 	svc, manager := h.svc, h.manager
 	h.t.Cleanup(func() {
 		svc.Close()

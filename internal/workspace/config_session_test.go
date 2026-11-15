@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
@@ -29,7 +31,7 @@ func configService(t *testing.T, launches *launch.Service) (*Service, string) {
 }
 
 func TestConfigIDRulesRunBeforeDirectoryChecks(t *testing.T) {
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	t.Cleanup(launches.Close)
 	s, cwd := configService(t, launches)
 	saved, err := launches.Create(launch.Input{Name: "saved", Cmd: []string{"/bin/sh", "-c", "printf SAVED"}, Env: map[string]string{"SAVED": "1"}})
@@ -83,7 +85,7 @@ func TestConfigIDWithoutLaunchStoreIsUnavailable(t *testing.T) {
 }
 
 func TestConfigIDPassesAttentionSettingsToSession(t *testing.T) {
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	t.Cleanup(launches.Close)
 	s, _ := configService(t, launches)
 	saved, err := launches.Create(launch.Input{

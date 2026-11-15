@@ -3,7 +3,6 @@ package featureapi
 import (
 	"net/http"
 
-	"github.com/rainchan/webmux/internal/agentprofile/agents"
 	"github.com/rainchan/webmux/internal/contract"
 	wire "github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/hybrid"
@@ -58,7 +57,7 @@ func (s *Server) launchRoutes(mux transport.Registrar) {
 func (s *Server) launchChatRoutes(mux transport.Registrar) {
 	const base = "/api/launch-configs"
 	serveIn(mux, "POST "+base+"/chat-support", http.StatusOK, launchFailure, func(_ *http.Request, req contract.ChatSupportRequest) (contract.ChatSupport, error) {
-		return wire.ChatSupport(agents.Default().Check(req.Cmd)), nil
+		return wire.ChatSupport(s.Launch.HybridSupport(req.Cmd)), nil
 	})
 	serveIn(mux, "POST "+base+"/{id}/options", http.StatusOK, sessionFailure, func(r *http.Request, req contract.LaunchOptionsRequest) ([]contract.ChatConfig, error) {
 		command, err := s.Launch.Resolve(r.Context(), r.PathValue("id"))

@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/launch"
 )
@@ -28,7 +30,7 @@ func previewTest(t *testing.T) previewHarness {
 	if err := store.Unavailable(); err != nil {
 		t.Fatal(err)
 	}
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	t.Cleanup(launches.Close)
 	config, err := launches.Create(launch.Input{Name: "test", Cmd: []string{"omp"}, Hybrid: true})
 	if err != nil {
