@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/rainchan/webmux/internal/codexrollout"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
 	wire "github.com/rainchan/webmux/internal/pluginwire"
@@ -32,6 +31,10 @@ func (s *Server) nativeRoutes(mux transport.Registrar) {
 				cfg.OutputRunes = request.OutputRunes
 			}
 			preview, err := s.Conversations.PreviewNative(r.Context(), request.SnapshotID, request.CurrentTask, cfg, request.Action == "render")
+			if errors.Is(err, conversation.ErrNotFound) || errors.Is(err, conversation.ErrUnavailable) || cancelled(err) {
+				conversationFailure(w, err)
+				return
+			}
 			problem := ""
 			if err != nil {
 				problem = "derivation_failed"
@@ -79,9 +82,6 @@ func (s *Server) nativeRoutes(mux transport.Registrar) {
 				}
 			}
 		default:
-			err = conversation.ErrInvalid
-		}
-		if errors.Is(err, codexrollout.ErrFormat) || errors.Is(err, codexrollout.ErrVersion) || errors.Is(err, codexrollout.ErrLimit) {
 			err = conversation.ErrInvalid
 		}
 		if err != nil {

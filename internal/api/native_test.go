@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -32,6 +33,9 @@ func TestNativeAuthenticatedWorkflow(t *testing.T) {
 	}
 	if r := call(`{"action":"list"}`, "secret", "https://evil.example"); r.Code != 403 {
 		t.Fatal(r.Code)
+	}
+	if response := call(`{"action":"render","snapshotId":"missing"}`, "secret", ""); response.Code != 404 {
+		t.Fatal(response.Code, response.Body.String())
 	}
 	body, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
 	if err != nil {
@@ -69,4 +73,13 @@ func TestNativeAuthenticatedWorkflow(t *testing.T) {
 	if preview.CurrentTask != "任务" || len(preview.Segments) != 5 || preview.Problem != "" {
 		t.Fatal(preview)
 	}
+	corrupt := append(append([]byte{}, body...), []byte("SYNTHETIC_SECRET_NOT_JSON\n")...)
+	if err = os.WriteFile(path, corrupt, 0600); err != nil {
+		t.Fatal(err)
+	}
+	response = call(string(request), "secret", "")
+	if response.Code != 400 || !strings.Contains(response.Body.String(), "byte "+strconv.Itoa(len(body))) || !strings.Contains(response.Body.String(), "invalid rollout record") || strings.Contains(response.Body.String(), "SYNTHETIC_SECRET") {
+		t.Fatal(response.Code, response.Body.String())
+	}
+
 }
