@@ -1,23 +1,12 @@
 package hybrid
 
 import (
-	"github.com/rainchan/webmux/internal/conversation"
 	"time"
 )
 
 // emit stores events in the log, keeping the replaceable state they carry.
 func (a *actor) emit(events ...Event) {
 	for _, e := range events {
-		if e.Kind == EventResolved && e.Resolved != nil {
-			if err := a.writeActivity(conversation.ActivityInput{LocalKey: a.activityKey("permission"), Kind: "permission", Status: e.Resolved.Outcome, Text: e.Resolved.OptionID}); err != nil {
-				a.activityFailure()
-			}
-		}
-		if e.Kind == EventMarker && e.Marker != nil {
-			if err := a.writeActivity(conversation.ActivityInput{LocalKey: a.activityKey("marker"), Kind: "marker", Status: e.Marker.Kind}); err != nil {
-				a.activityFailure()
-			}
-		}
 		toolsOnly := false
 		switch e.Kind {
 		case EventPlan:

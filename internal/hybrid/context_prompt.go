@@ -78,6 +78,14 @@ func (a *actor) finishContextExecution(t *turn, status, class string) {
 	}
 	if err := a.svc.conversations.FinishExecution(context.Background(), t.executionID, status, class); err != nil {
 		a.svc.log.Warn("handoff outcome persistence failed", "id", a.id)
+		return
+	}
+	if status == "inline" && a.svc.dispatchCheckpoint != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := a.svc.dispatchCheckpoint(ctx, t.executionID); err != nil {
+			a.svc.log.Warn("handoff continuity checkpoint unavailable", "id", a.id)
+		}
 	}
 }
 
@@ -113,7 +121,7 @@ func (a *actor) sendContext(text, wireText string, attachments []Attachment, que
 	if promptID == "" {
 		promptID = rand.Text()
 	}
-	if err := a.beginActivityRunID(text, attachments, promptID); err != nil {
+	if err := a.beginControlRun(promptID); err != nil {
 		return PromptResult{}, err
 	}
 	a.nextTurn++

@@ -80,6 +80,7 @@ type Record struct {
 	ConfigID       string   `json:"configId"`
 	Agent          string   `json:"agent"`
 	Cwd            string   `json:"cwd"`
+	HistoryRoot    string   `json:"historyRoot,omitempty"`
 	Cmd            []string `json:"cmd"`
 	Side           Side     `json:"side"`
 	AgentSessionID string   `json:"agentSessionId,omitempty"`

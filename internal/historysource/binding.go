@@ -5,5 +5,6 @@ package historysource
 // are never identity evidence. Fork prefixes are separate immutable snapshots.
 type Binding struct {
 	ConversationID, ProviderThreadID string
+	Root                             string
 	Source                           Source
 }

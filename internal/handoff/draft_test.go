@@ -19,7 +19,7 @@ func TestUserTaskEditPreservesNativeSelectionAndRestoresAfterRestart(t *testing.
 	}
 	p.RenderedText = "frozen coverage from a previous formatter\n\n[History role=user]body"
 	native, _, err := h.service.nativeContext(ctx, p)
-	if err != nil || native.Items[0].Text != "frozen coverage from a previous formatter" {
+	if err != nil || len(native.Items) != 1 || native.Items[0].Text != p.RenderedText {
 		t.Fatal("native coverage was regenerated", err)
 	}
 	p, _ = h.service.Get(ctx, p.ID)

@@ -3,13 +3,10 @@ package api
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -34,10 +31,8 @@ func TestHandoffSelectionLongHistoryRemainsRecoverable(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	source, err := store.EnsureRuntime(ctx, conversation.RuntimeInput{RuntimeID: "archived", Cwd: "/workspace", AgentName: "test", Status: "closed", HistoryOrigin: "unknown"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	source := bindHistorySource(t, store, "archived")
+	sources, projection := nativeFixture(store)
 	launches := launch.Open(t.TempDir(), agents.Default())
 	defer launches.Close()
 	cfg, err := launches.Create(launch.Input{Name: "target", Cmd: []string{"omp"}, Hybrid: true})
@@ -45,44 +40,19 @@ func TestHandoffSelectionLongHistoryRemainsRecoverable(t *testing.T) {
 		t.Fatal(err)
 	}
 	const count = 40000
-	// Exercise normal normalization once, then clone its persisted committed
-	// representation in one fixture transaction. This boundary test measures
-	// preview/history reads, not 40,000 independently fsynced activity writes.
-	seed := seedHistory(t, store, source, strings.Repeat("history ", 20))
-	db, err := sql.Open("sqlite", filepath.Join(state, "conversations.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `WITH RECURSIVE positions(n) AS (VALUES(2) UNION ALL SELECT n+1 FROM positions WHERE n<?)
-INSERT INTO activity(id,conversation_id,provider_thread_id,run_id,position,kind,role,status,source,provider_item_id,local_key,byte_length,heading_length,created_at,json_bytes,heading_json_bytes)
-SELECT printf('%032x',n),a.conversation_id,a.provider_thread_id,a.run_id,n,a.kind,a.role,a.status,a.source,'',printf('large-%d',n),a.byte_length,a.heading_length,a.created_at,a.json_bytes,a.heading_json_bytes
-FROM positions CROSS JOIN activity a WHERE a.id=?`, count, seed); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO activity_chunk SELECT a.id,c.byte_offset,c.byte_length,c.text FROM activity a CROSS JOIN activity_chunk c WHERE a.conversation_id=? AND a.id!=? AND c.activity_id=?`, source.ConversationID, seed, seed); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tx.ExecContext(ctx, "UPDATE conversation SET next_activity_position=? WHERE id=?", count+1, source.ConversationID); err != nil {
-		t.Fatal(err)
-	}
-	if err := tx.Commit(); err != nil {
-		t.Fatal(err)
+	// Write the complete stress history into a real native source in one pass.
+	texts := make([]string, count)
+	for i := range texts {
+		texts[i] = strings.Repeat("history ", 20)
 	}
 	ids := make(map[string]bool, count)
-	ids[seed] = true
-	for i := 2; i <= count; i++ {
-		ids[fmt.Sprintf("%032x", i)] = true
+	for _, id := range seedNativeMessages(t, store, source, texts) {
+		ids[id] = true
 	}
-	previews := handoff.New(handoff.Options{Conversations: store, Launch: launches, TokenCap: 1024, MaxPromptBytes: 64 << 10, MaxPromptWireBytes: 14 << 20})
+	previews := handoff.New(handoff.Options{Conversations: store, NativeHistory: sources, HistoryProjection: projection, Launch: launches, TokenCap: 1024, MaxPromptBytes: 64 << 10, MaxPromptWireBytes: 14 << 20})
 	defer previews.Close()
 	manager := session.NewManager(session.Options{})
-	handler := New(testDeps(t, testServices{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, Handoffs: previews, Config: config.Config{Token: "secret"}}))
+	handler := New(testDeps(t, testServices{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, NativeHistory: sources, HistoryProjection: projection, Handoffs: previews, Config: config.Config{Token: "secret"}}))
 	request := func(method, path string, body any) contract.HandoffPreview {
 		t.Helper()
 		data, err := json.Marshal(body)

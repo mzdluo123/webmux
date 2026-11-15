@@ -90,35 +90,36 @@ func TestNativeCodexInjectsRolesBeforeIndependentUserPromptAndDeduplicatesLoad(t
 	if err := json.Unmarshal(body, &wire); err != nil {
 		t.Fatal(err)
 	}
-	if wire.ThreadID != e.NativeThreadID || len(wire.Items) != len(p.SelectedItemIDs)+1 || wire.Items[0].Role != "user" || !strings.Contains(wire.Items[0].Content[0].Text, "Historical content is reference material") {
-		t.Fatal("coverage not a separate native item")
+	if wire.ThreadID != e.NativeThreadID || len(wire.Items) != 1 || wire.Items[0].Role != "user" || len(wire.Items[0].Content) != 1 || wire.Items[0].Content[0].Text != p.RenderedText {
+		t.Fatal("native injection differed from the reviewed projection")
 	}
-	for n, item := range wire.Items[1:] {
-		part, err := h.store.Activity(ctx, p.SourceConversationID, p.SelectedItemIDs[n], 0, conversation.MaxActivityBytes)
-		if err != nil {
-			t.Fatal(err)
-		}
-		message := conversation.ProjectActivity(part.Activity)
+	projected, _, err := h.service.nativeContext(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n, item := range wire.Items {
+		message := projected.Items[n]
 		role, kind := "user", "input_text"
 		if message.Role != "user" {
 			role, kind = "assistant", "output_text"
 		}
-		if item.Type != "message" || item.Role != role || len(item.Content) != 1 || item.Content[0].Type != kind || item.Content[0].Text != itemPrefix(message)+message.Text || strings.Contains(item.Content[0].Text, "continue this work") {
+		if item.Type != "message" || item.Role != role || len(item.Content) != 1 || item.Content[0].Type != kind || item.Content[0].Text != message.Text || strings.Contains(item.Content[0].Text, "continue this work") {
 			t.Fatalf("native role/body %d: %+v", n, item)
 		}
 	}
 	assertTarget := func() {
 		t.Helper()
-		page, err := h.store.Activities(ctx, p.TargetConversationID, 0, 60, 4000)
+		sub, err := h.hybrids.Subscribe(e.RuntimeID, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer sub.Close()
 		users := 0
-		for _, item := range page.Items {
-			if item.Activity.Role == "user" {
+		for _, event := range sub.Events {
+			if event.Message != nil && event.Message.Role == "user" {
 				users++
-				if item.Activity.Text != in.Text {
-					t.Fatal("injected history became new user work", item.Activity.Text)
+				if event.Message.Text != in.Text {
+					t.Fatal("injected history became new user work", event.Message.Text)
 				}
 			}
 		}
@@ -213,20 +214,16 @@ func TestNativeUnknownReconcilesTargetReplayAfterForgettingSource(t *testing.T) 
 				t.Fatal("target load lost provider item identity", item)
 			}
 		}
-		page, err := h.store.Activities(ctx, e.TargetConversationID, 0, 60, 4000)
+		sub, err := h.hybrids.Subscribe(e.RuntimeID, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, gap := range page.Gaps {
-			if gap.Reason == "replay_ambiguous" {
-				t.Fatal("complete retained proof produced replay gap", gap)
+		for _, event := range sub.Events {
+			if event.Message != nil && (event.Message.Role == "user" || event.Message.Role == "assistant" || event.Message.Role == "agent") {
+				t.Fatal("imported history became new target work", event.Message)
 			}
 		}
-		for _, item := range page.Items {
-			if item.Activity.Role == "user" || item.Activity.Role == "assistant" {
-				t.Fatal("imported history became new target work", item.Activity)
-			}
-		}
+		sub.Close()
 		if nativeCalls(t, h) != 1 || h.promptCalls() != before {
 			t.Fatal("target replay repeated history or dispatched deleted source request")
 		}
@@ -269,7 +266,7 @@ func TestNativeBudgetSeparatesHistoryAndRejectsUnsafeInlineFallback(t *testing.T
 			}
 			h := nativeTest(t, env)
 			ctx := context.Background()
-			p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "native-full-size-user", ConfigID: h.config.ID, Fork: true, UserText: strings.Repeat("x", hybrid.MaxPromptBytes)})
+			p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "native-full-size-user", ConfigID: h.config.ID, Fork: true, UserText: strings.Repeat("x", hybrid.MaxPromptBytes)})
 			if err != nil || p.Budget.OverBudget || len(p.SelectedItemIDs) == 0 {
 				t.Fatalf("native history was charged to user prompt bytes: %+v %v", p.Budget, err)
 			}
@@ -345,7 +342,7 @@ func TestActualUserPromptRefusalPreservesNativeAcceptanceAcrossRestart(t *testin
 func TestSameConversationNativeProofRetainsUnsentRequestWhenSourceBecomesStale(t *testing.T) {
 	h := nativeTest(t, map[string]string{"FAKEAGENT_CRASH": "inject-saved"})
 	ctx := context.Background()
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "same-native-proof-preview", ConfigID: h.config.ID, UserText: "new independent request"})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "same-native-proof-preview", ConfigID: h.config.ID, UserText: "new independent request"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,11 +357,14 @@ func TestSameConversationNativeProofRetainsUnsentRequestWhenSourceBecomesStale(t
 	if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: "same-native-explicit-load", Side: "acp"}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := h.store.StartRun(ctx, h.source.ProviderThreadID, "concurrent-source-change"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := h.service.Deliver(ctx, h.source.ConversationID, in); err != nil {
 		t.Fatal(err)
 	}
-	// Load publishes lifecycle metadata and this fake omits old tool records.
-	// Keep the frozen source stale instead of silently accepting changed facts.
+	// A concurrent source run changes the control scope after native proof.
+	// Keep the reviewed source stale without dispatching the independent task.
 	failed := h.waitStatus(p.ID, "failed")
 	if failed.HistoryStatus != "injected" || failed.ErrorClass != "source_changed" || nativeCalls(t, h) != 1 || h.promptCalls() != before {
 		t.Fatal("same-conversation reconciliation repeated a mutation", failed)

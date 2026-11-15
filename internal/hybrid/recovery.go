@@ -113,6 +113,9 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 			if e.Status != "failed" && e.NativeThreadID != "" && e.NativeThreadID != rec.AgentSessionID {
 				return nil, ErrSwitching
 			}
+			if e.Status != "failed" && s.runtimeRoot(rec.Agent, rec.Cwd, in.Env) != rec.HistoryRoot {
+				return nil, ErrSwitching
+			}
 			if e.RuntimeID != id || (e.Status != "failed" && side != SideACP) || (in.AgentSessionID != "" && in.AgentSessionID != rec.AgentSessionID) || (in.ContextExecutionID != "" && in.ContextExecutionID != e.ID && e.Status != "failed") {
 				return nil, ErrSwitching
 			}
@@ -200,7 +203,7 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 		return nil, shellError(err)
 	}
 	a.id, a.shell = id, shell
-	if err := a.activityThread(); err != nil {
+	if err := a.bindControlThread(); err != nil {
 		_ = s.manager.Remove(id)
 		return nil, err
 	}
@@ -216,7 +219,8 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 	go a.watchShell()
 	go a.observeLoop()
 	started := make(chan error, 1)
-	a.post(func() { a.resume(started, sid) })
+	root := s.runtimeRoot(rec.Agent, rec.Cwd, in.Env)
+	a.post(func() { a.resume(started, sid, root) })
 	if err := awaitStarted(a, started); err != nil {
 		return nil, err
 	}
@@ -226,10 +230,11 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 
 // resumeResult is a finished resume start.
 type resumeResult struct {
-	link   *acpLink
-	init   acp.InitializeResponse
-	config []acp.ConfigOption
-	notes  []string
+	link        *acpLink
+	init        acp.InitializeResponse
+	config      []acp.ConfigOption
+	historyRoot string
+	notes       []string
 	// loaded: the ACP process loaded the existing agent session.
 	loaded  bool
 	resumed bool
@@ -243,12 +248,13 @@ type resumeResult struct {
 // subtask and reports the outcome on started once the actor applied it.
 // When the actor ended first, the subtask stops the ACP process it started
 // and reports errStopped.
-func (a *actor) resume(started chan<- error, sid string) {
+func (a *actor) resume(started chan<- error, sid, root string) {
 	a.starting = true
 	a.epoch++
 	epoch, side := a.epoch, a.side
 	go func() {
 		res := a.resumeSide(epoch, side, sid)
+		res.historyRoot = root
 		if !a.sync(func() { a.resumed(started, res) }) {
 			if res.link != nil {
 				_ = res.link.stop()
@@ -359,7 +365,6 @@ func (a *actor) resumed(started chan<- error, res resumeResult) {
 	}
 	side, sid, active, pid, process := a.side, a.agentSessionID, a.state == StateActive, res.pid, res.process
 	if side == SideTUI {
-		a.recordTUIGap()
 		// resumeSide starts the resume command when there is an ID.
 		a.resumedSID = sid
 		a.runStart = time.Now()
@@ -367,6 +372,7 @@ func (a *actor) resumed(started chan<- error, res resumeResult) {
 	a.record(true, func(r *Record) {
 		r.Side = side
 		r.SetAgentSessionID(sid)
+		r.HistoryRoot = res.historyRoot
 		if active {
 			r.State, r.Activity, r.InterruptedAt, r.QueuedCount = StateActive, "", nil, 0
 			r.PID, r.Process = pid, process

@@ -1,6 +1,6 @@
 # HTTP API：交接预览
 
-预览在服务端选择已提交 Activity，保存为独立草稿；可切换同一 Conversation 的 agent，或 fork 到新的 Conversation。浏览器入口见[交接操作](../hybrid-sessions/handoff.md)。
+预览在服务端冻结来源中立的原生历史 scope，保存独立草稿；可切换同一 Conversation 的 agent，或 fork 到新的 Conversation。浏览器入口见[交接操作](../hybrid-sessions/handoff.md)。
 它不启动 agent、不创建 worktree，也不依赖浏览器缓存或活跃 actor。来源历史接口见[持久对话历史](http-conversation.md)。
 预览与投递需要 `chat` 及其 `launch` / `files` 依赖，并受历史开关限制；仓库/worktree 目标另需 `workspace`。禁用功能不打开、恢复或清扫其数据库，端点返回 404。
 
@@ -23,8 +23,9 @@ GET /api/conversations/{id}/handoff-previews?fork=0|1
 
 列表入口按来源与 fork 模式返回最新 preview、delivery 和来源工作位置；没有草稿时两者为 null。投递包含原始 `clientRequestId/retry`，pending 继续使用同一命令。
 
-响应 `sourceLocation` 冻结来源 cwd/repository/worktree，仅作历史参考；与目标 `location` 分开。响应保存 source point、Run 范围、目标配置快照、原始用户请求和附件引用；包含 selected/omitted IDs、逐项省略原因、rendered text、budget 与 revision。
-历史引用标明来源与角色，并说明历史只作上下文，当前用户请求单独保存。
+响应 `sourceLocation` 冻结来源 cwd/repository/worktree，仅作历史参考；与目标 `location` 分开。
+来源 scope 固定快照、原生身份、branch、Generation、记录 hash 和缺口；selected/omitted IDs、机械投影、budget、revision 与独立用户任务一并保存。
+引用快照不读后续追加；来源丢失或冻结内容改变明确失败，不偷偷改读最新历史。完整独立 fork 持有 retained 前缀，不依赖来源继续存在。
 
 创建、GET 和 PATCH 响应中的 `selectedItemIds`、`omittedItemIds` 与 `omittedItems` 各最多 100 项。
 `selectedCount`、`omittedCount` 始终为完整计数；`selectionTruncated=true` 表示需要独立分页恢复全部选择元数据，不能把内嵌列表当成全集。
@@ -35,9 +36,9 @@ GET /api/handoffs/{handoffId}/selection?afterPosition=0&limit=20
 ```
 
 此接口只返回冻结来源、revision、完整计数与选择元数据，不携带草稿正文或用户请求。
-`items` 按 Activity position 递增，包含 `activityId`、`position`、`selected` 与 `reason`；选入项的 reason 为空字符串，省略项为 `budget` 或 `manual_context`。
-默认每页 20 项，最多 100 项；位置沿用历史接口的规范十进制字符串。用 `nextPosition` 继续到 `done=true`，从 0 开始可恢复全部条目，包括内嵌列表未列出的省略项。
-可用 `itemId` 查询单项选择状态；它仍受冻结来源位置约束。空选择页不表示该 Activity 可越过来源 Conversation 或冻结点。
+`items` 按冻结组合的 position 递增，沿用 `activityId` 字段表示规范记录 ID，并包含 `selected` 与 `reason`；选入项 reason 为空，省略为 `budget` 或 `manual_context`。
+默认每页 20 项、最多 100 项；位置为规范十进制字符串。用 `nextPosition` 继续到 `done=true`，包括内嵌列表未列出的省略项。
+可用 `itemId` 查询单项选择状态；完整冻结 scope 仍须验证来源归属，选择分页不会授予范围外正文权限。
 分页期间 revision 改变时应从 0 重新读取，避免混合编辑前后的选择状态。认证、Origin、no-store 和错误语义与预览相同。
 
 ## 选择与预算
@@ -45,11 +46,13 @@ GET /api/handoffs/{handoffId}/selection?afterPosition=0&limit=20
 - 最近 user、最近 agent、首条 user 优先；其余从近到远尝试，按原顺序返回，重复 ID 只计算一次。
 - 单项超预算时整体省略，继续尝试其他项；不切割中文、emoji 或长项正文。预算减少时总选择成本不增加，所选集合可能变化。
 - `omittedItems` 的 reason 为 `budget`，手工编辑替代结构化历史后为 `manual_context`。
+- 原生记录先经统一机械投影，保留来源 span 与省略说明，再进行有界选择；当前任务原样独立，不混入历史压缩或手工上下文。
 - `handoff_token_cap` 默认 16000，范围 1024–64000；一个 UTF-8 字节按一个 token 估算，包含 envelope 与 JSON 转义。
 - 未知窗口使用 128000；可靠 provider 窗口/compaction threshold 优先。扣除目标已占用上下文、当前用户请求、图片 8192/其他附件 4096，以及 `max(16000, ceil(window/4))` 工作预留。
 - 模型或选项改变时保留可比较的 native occupancy，失效窗口和 threshold 不再使用。预算 `source=provider|estimated`，不声称精确 token 数。
 - 当前采用 inline 约束，历史还受 prompt 原文字节和附件 wire 上限限制；超预算返回 `over_budget`，不自动缩短用户请求或附件。
-- A→B→A 复用 A 的原生身份和已选选项；来源完整时只选择 A 上次确认位置之后的其他线程 Activity，包含旧 Run 后到的工具结果。A 自己已消费的 Run 不重新导入；缺口或 unknown 历史使用 full 策略。
+- A→B→A 复用 A 的原生身份与选项，但只按 nativecontext 和 receipt 的来源 ID/hash、表示策略/hash 证据排除已见内容；不使用乐观 Activity 数字水位。
+- 上下文 key 结合原生实例 Generation 与 compaction；分支头、hash 或投影策略无法匹配时要求对账或 fresh/full，不把旧 receipt 套到新原生实例。
 - 复用上下文已耗尽时预留 fresh 线程、重新选择 full 历史；保留可靠的小窗口限制，新线程占用从零计算。
 
 ## 编辑与过期
@@ -66,7 +69,7 @@ Content-Type: application/json
 提供 `text` 时编辑保存为 `manual_context`，跨刷新与服务重启保留，后续只允许 inline；用户当前请求保持独立。
 超预算编辑也保留原文并标记 over_budget，便于继续修改。
 
-新 Activity、Run 或来源完整性变化使旧草稿 `stale=true`，不会重新选择或覆盖编辑；显式重新生成需要新的 clientRequestId。
+来源冻结 scope、记录内容或缺口变化使旧草稿 `stale=true`，不会重新选择或覆盖编辑；显式重新生成需要新的 clientRequestId。
 目标模型、位置或附件变化应创建新预览；用户任务可 PATCH 后重新计算预算，不能复用旧预算结论。
 目标选项基线独立于预算比较；即使未知窗口仍估算为 128000，选项漂移也标 stale。请求中明确指定的覆盖值允许生效；禁用启动配置的聊天能力同样使草稿失效并保留编辑。
 `nativeAvailable` 仅在已观察到受支持的 Codex 版本且草稿未被手工编辑时为 true，详见[原生历史交接](handoff-native.md)。`historyToolAvailable` 表示当前目标是否可配置只读 `thread_read`，见[历史 MCP](handoff-mcp.md)。
@@ -93,18 +96,18 @@ POST 返回 202 和持久 attempt：`executionId/deliveryId/handoffId`、目标 
 - 先事务提交 receipt 和 pending delivery，再创建 worktree/session。重启后沿用精确 branch/path 与 runtime ID；不通过现有 CreateSessionRequest.prompt 展开交接。
 - 已有 worktree 的预览固定目标目录；仅选择来源的同一 worktree 时沿用来源子目录。新 worktree 在资源准备后固定目录。显式新 attempt 重新尝试恢复与配置，不复用旧 attempt 的暂时失败结果。
 - 附件先以确定名称复制到目标 uploads，复制意图与 digest 先保存；来源被删除或暂存区清理不再影响已完成的目标副本。回放恢复目标附件元数据，provider 能力不足时按目标路径降级。
-- 最终 inline 文本含来源 coverage、逐项角色/类型/Run/Activity/status，以及独立 `User message:`；界面时间线和本地 Activity 只使用用户新请求；WebMux 的标题种子只取用户新请求，agent 后续自行上报标题沿用既有规则。
+- 最终 inline 文本含来源 coverage、角色、类型、来源记录身份及状态，以及独立 `User message:`；实时界面与标题种子只使用用户新请求，不把历史投影作为新的工作。
 - `pending` 表示准备或等待明确结果，`inline` 表示确认消费，`failed` 表示明确拒绝或准备失败，`unknown` 表示可能已发送且结果不明。
 - `historyStatus` 独立记录 none/pending/injected/unsupported/unknown；`promptStatus` 记录 pending/consumed/failed/unknown。原生历史接受后的成功状态为 injected，后续 prompt 失败不会撤销历史事实。
 - 正常 prompt 响应或前台 agent 回复可确认消费；transport 断连不能简单按 turn 结束算成功。已确认消费不会被后续取消、错误或 auth 结果覆盖。
-- 较晚 Run 的消费确认不能跳过同一 provider 较早且仍未覆盖的未消费 Activity；delta 草稿仍保留这些请求，已消费的自身 Activity 继续排除。
-- 成功投递的交接可覆盖这些较早缺口并推进位置；此后的正常消费不会被已经覆盖的未消费 Run 永久阻塞。此规则不依赖拒绝的具体错误类型。
+- 较晚消费确认不能证明较早请求已被覆盖；只有当前原生上下文中的来源 ID/hash 与投递 receipt 证据可排除重复历史。
+- 成功投递记录实际传递的来源与表示 hash；compaction、分支或 Generation 改变后不能凭旧位置假定目标仍持有这些内容。
 - 未进入 actor 调用的准备可在相同 key 重试后继续；actor 的持久 dispatch gate 保证最多调用一次。可能已经调用的 unknown 禁止自动重发。
 - 原生 load 只有在同一 ProviderThread/native ID 回放出精确 payload hash（包含附件能力降级后的实际文字）时，才把 unknown 对账为 inline；marker 本身不构成证明，未匹配的用户文字不被剥离。
 - 目标独立保存自己的用户新请求与回放摘要；忘记来源会清除来源预览和命令记录，但目标 load 仍可还原用户文字及自己的附件，不重新建立已删除的来源记录。
 - 明确 failed 可使用新 clientRequestId 和 `retry=true` 显式重试，沿用资源；旧 key 始终返回自己的首次 attempt 结果。unknown 需要用户检查，不能用 retry 绕过。
-- 同一 Conversation 的重试只忽略可由 execution ID 证明属于失败 attempt 的未消费 Run 及其 Activity；已审阅正文、来源位置和 revision 保持不变。其他 Run、Activity（包括新草稿）、gap 或 revision 变化仍返回 409。
-- 明确 failed 的目标允许显式切换到终端处理登录等恢复操作，再切回聊天；切换不自动重投交接，也不放行普通聊天请求。若终端恢复改变同一来源的历史或 gap，必须重新生成并审阅预览；不改变来源历史的外部凭据恢复可重试原 attempt。
+- 同一 Conversation 重试仅排除 execution ID 证明属于失败 attempt 的未消费控制记录；已审阅正文、冻结 scope 和 revision 不变。其他原生记录/hash、分支、缺口或 revision 变化仍返回 409。
+- 明确 failed 的目标允许显式切到终端处理登录等恢复；不自动重投或放行普通聊天。若终端改变来源原生范围或缺口，必须重新审阅；仅外部凭据恢复且 scope 未变时可重试。
 - failed 的 owner 在归档恢复和服务重启后保留，仍允许上述显式视图恢复。fork 目标的每次重试在配置与投递前接管 actor owner；pending/unknown（包括重试）仍拒绝终端切换和普通聊天请求。
 - step 沿用 `precheck/worktree/session/config/prompt`；同一 Conversation 固定原 cwd/worktree，不经过快速开始流程。
 - 同一 Conversation 每次只有一个投递 owner。切换前在 actor 队列内确认空闲，等待原 ACP writer 及子进程退出；前台回合、已报告后台工作、队列、未完成请求或外部 writer 阻止切换，不强制杀进程后降级。

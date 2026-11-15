@@ -34,7 +34,7 @@ func (s *Server) handoffRoutes(mux transport.Registrar) {
 			return
 		}
 		limit, err := conversationNumber(q, "limit", 20)
-		if err != nil || limit < 1 || limit > 100 || (q.Has("itemId") && !conversationID.MatchString(q.Get("itemId"))) {
+		if err != nil || limit < 1 || limit > 100 || (q.Has("itemId") && !activityID.MatchString(q.Get("itemId"))) {
 			conversationFailure(w, conversation.ErrInvalid)
 			return
 		}

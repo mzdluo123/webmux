@@ -3,38 +3,21 @@ package handoff
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/conversation"
 )
 
 func (s *Service) nativeContext(ctx context.Context, p conversation.Preview) (agentprofile.HistoricalContext, []conversation.InjectionItem, error) {
-	// The preview owns its generated coverage. Reformatting after an upgrade
-	// must not change the item hashes of an already reserved native injection.
-	coverage := p.RenderedText
-	if start := strings.Index(coverage, "\n\n[History role="); start >= 0 {
-		coverage = coverage[:start]
-	}
-	if coverage == "" {
+	// The native and inline paths deliver the same reviewed projection. Reopening
+	// originals here must never replace it with a different policy or full body.
+	if len(p.Request.SnapshotIDs) == 0 || p.RenderedText == "" {
 		return agentprofile.HistoricalContext{}, nil, conversation.ErrConflict
 	}
-	history := agentprofile.HistoricalContext{Items: []agentprofile.HistoricalItem{{ID: "coverage-" + p.ID, Role: "user", Text: coverage}}}
-	for _, id := range p.SelectedItemIDs {
-		part, err := s.options.Conversations.Activity(ctx, p.SourceConversationID, id, 0, conversation.MaxActivityBytes)
-		if err != nil {
-			return history, nil, err
-		}
-		message := conversation.ProjectActivity(part.Activity)
-		if part.Truncated || part.Activity.Position > p.SourcePosition || !message.Exportable {
-			return history, nil, conversation.ErrConflict
-		}
-		role := "user"
-		if message.Role != "user" {
-			role = "assistant"
-		}
-		history.Items = append(history.Items, agentprofile.HistoricalItem{ID: id, Role: role, Text: itemPrefix(message) + message.Text})
+	if _, err := s.options.NativeHistory.Documents(ctx, p.Request.SnapshotIDs); err != nil {
+		return agentprofile.HistoricalContext{}, nil, err
 	}
+	history := agentprofile.HistoricalContext{Items: []agentprofile.HistoricalItem{{ID: "coverage-" + p.ID, Role: "user", Text: p.RenderedText}}}
 	items := make([]conversation.InjectionItem, len(history.Items))
 	for n, item := range history.Items {
 		items[n] = conversation.InjectionItem{ID: item.ID, Role: item.Role, TextHash: conversation.TextHash(item.Text)}

@@ -72,7 +72,7 @@ func (s *Service) InjectHistory(ctx context.Context, id, executionID string, his
 			return historyAdmission{}, err
 		}
 		intent, err := s.conversations.Injection(ctx, e.DeliveryID)
-		if err != nil || intent.NativeThreadID != a.agentSessionID || e.TargetProviderThreadID != a.activity.thread || intent.State != "pending" || intent.CallStarted {
+		if err != nil || intent.NativeThreadID != a.agentSessionID || e.TargetProviderThreadID != a.control.thread || intent.State != "pending" || intent.CallStarted {
 			return historyAdmission{}, ErrConflict
 		}
 		if len(intent.Items) != len(history.Items) {

@@ -199,9 +199,42 @@
     "entry-settings": "internal/settingsstore 是 tunnel、tailscale-settings、voice-settings、p2p-settings 与 relay 共用的 fail-closed 打开、读取与提交骨架；文件路径、所有者与失败策略仍由各存储各自登记。",
     "agent-trust": "internal/agenttrust 在启动 Claude Code、Codex、Copilot CLI、Antigravity CLI、Qoder、QoderCN 或 Devin 前，以临时文件加改名的方式在它们自己的配置文件（.claude.json、config.toml、config.json、settings.json）里追加目标目录的信任记录；这些是外部 agent 的状态而非 WebMux 存储，已有文件保留其他内容与权限，缺失的 Claude/Copilot/Antigravity/Qoder/QoderCN 配置不创建；Devin 的 trusted_workspaces.json 缺失时连同目录创建为最小 JSON。启动 Kimi 时只在会话环境补充进程级 KIMI_CODE_TRUST_WORKSPACE，不写持久记录；均由 agent_pretrust 开关控制。",
     "read-only-codex-rollout": "固定 Codex 原生文件只读打开，O_RDONLY|O_NONBLOCK 避免 FIFO 阻塞；不创建、不写入，导入数据沿用 conversation SQLite。",
-    "read-only-native-history": "原生历史 SQLite 以 mode=ro 和 query_only 读取一致性事务；不创建、迁移或写入 Agent 数据库。"
+    "read-only-native-history": "原生历史 SQLite 以 mode=ro 和 query_only 读取一致性事务；不创建、迁移或写入 Agent 数据库。",
+    "native-history-experiments": "独立实验命令只在显式输出目录写合成投影、PNG 与私有模型测量；隔离 ACP 的临时 cwd/config/session-dir 随每次实验清理，不进入 WebMux 服务状态目录。"
   },
   "references": {
+    "cmd/native-image-experiment/main.go|path|manifest.json": {
+      "count": 1,
+      "owner": "native-history-experiments"
+    },
+    "cmd/native-image-transport/main.go|path|-report.json": {
+      "count": 1,
+      "owner": "native-history-experiments"
+    },
+    "cmd/native-image-transport/main.go|path|manifest.json": {
+      "count": 1,
+      "owner": "native-history-experiments"
+    },
+    "cmd/native-image-experiment/main.go|generate|os.WriteFile": {
+      "count": 1,
+      "owner": "native-history-experiments"
+    },
+    "cmd/native-image-transport/main.go|save|os.WriteFile": {
+      "count": 1,
+      "owner": "native-history-experiments"
+    },
+    "cmd/native-image-transport/main.go|main|os.WriteFile": {
+      "count": 1,
+      "owner": "native-history-experiments"
+    },
+    "cmd/native-image-transport/main.go|main|os.OpenFile": {
+      "count": 2,
+      "owner": "native-history-experiments"
+    },
+    "cmd/native-image-transport/main.go|main|os.RemoveAll": {
+      "count": 1,
+      "owner": "native-history-experiments"
+    },
     "internal/statefile/catalog.go|path|relay-settings.json": {
       "count": 1,
       "owner": "relay"

@@ -25,9 +25,9 @@ import (
 const ParserVersion = "devin-sqlite-1"
 
 type boundary struct {
-	NativeID, Branch, Digest string
-	Head                     int64
-	Empty                    bool
+	NativeID, Branch, Digest, Instance string
+	Head                               int64
+	Empty                              bool
 }
 type node struct {
 	id             int64
@@ -60,6 +60,11 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 	if e != nil || !before.Mode().IsRegular() {
 		return out, historysource.ErrUnavailable
 	}
+	instance := historysource.FileIdentity(before)
+	if req.Cursor != "" && b.Instance != instance {
+		return out, historysource.ErrChanged
+	}
+	b.Instance = instance
 	db, e := open(ctx, req.Source.Path)
 	if e != nil {
 		return out, safe(ctx, e)
@@ -187,9 +192,9 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 		if msg.Role == "tool" {
 			kind = "tool-result"
 		}
-		out.Records = append(out.Records, historysource.Record{ID: id, ParentID: parent, Kind: kind, Role: msg.Role, Text: text, CallID: msg.ToolCallID, Offset: n.id, End: n.id + 1})
+		out.Records = append(out.Records, historysource.Record{ID: id, NativeID: id, ParentID: parent, Kind: kind, Role: msg.Role, Text: text, CallID: msg.ToolCallID, Offset: n.id, End: n.id + 1})
 		for j, c := range msg.ToolCalls {
-			out.Records = append(out.Records, historysource.Record{ID: fmt.Sprintf("%s/call/%d", id, j), ParentID: id, Kind: "tool-call", Role: "assistant", CallID: c.ID, ToolName: c.Name, Offset: n.id, End: n.id + 1})
+			out.Records = append(out.Records, historysource.Record{ID: fmt.Sprintf("%s/call/%d", id, j), NativeID: id, ParentID: id, Kind: "tool-call", Role: "assistant", CallID: c.ID, ToolName: c.Name, Offset: n.id, End: n.id + 1})
 			var initial, update, sources sql.NullString
 			e = tx.QueryRowContext(ctx, "SELECT substr(CAST(tool_call_json AS BLOB),1,4194305),substr(CAST(tool_call_update_json AS BLOB),1,4194305),substr(CAST(source_node_ids AS BLOB),1,4194305) FROM tool_call_state WHERE session_id=? AND tool_call_id=?", req.Source.NativeID, c.ID).Scan(&initial, &update, &sources)
 			if e != nil && !errors.Is(e, sql.ErrNoRows) {
@@ -228,7 +233,8 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 	}
 	raw, _ := json.Marshal(b)
 	out.Cursor = base64.RawURLEncoding.EncodeToString(raw)
-	out.Fingerprint = digest
+	out.Generation = instance
+	out.Fingerprint = instance + ":" + digest
 	return out, nil
 }
 

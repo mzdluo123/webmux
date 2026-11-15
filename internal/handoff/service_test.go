@@ -6,6 +6,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"path/filepath"
+
+	omphistory "github.com/rainchan/webmux/internal/agentprofile/omp/history"
+	"github.com/rainchan/webmux/internal/historyimport"
+	"github.com/rainchan/webmux/internal/historyprojection"
+	"github.com/rainchan/webmux/internal/historysource"
 
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
 
@@ -20,6 +26,7 @@ type previewHarness struct {
 	source  conversation.Binding
 	config  launch.Config
 	dir     string
+	nativePath string
 }
 
 func previewTest(t *testing.T) previewHarness {
@@ -36,17 +43,23 @@ func previewTest(t *testing.T) previewHarness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := store.EnsureRuntime(ctx, conversation.RuntimeInput{RuntimeID: "source", Cwd: t.TempDir(), AgentName: "omp", ConfigID: config.ID, HistoryOrigin: "complete", Status: "closed"})
+	path := filepath.Join(dir, "source.jsonl")
+	writeNativeFixture(t, path, "omp", "native", nil)
+	source, err := store.EnsureRuntime(ctx, conversation.RuntimeInput{RuntimeID: "source", Cwd: t.TempDir(), AgentName: "omp", AgentSessionID: "native", ConfigID: config.ID, HistoryOrigin: "complete", Status: "closed"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := New(Options{Conversations: store, Launch: launches, TokenCap: 16000, MaxPromptBytes: 64 << 10, MaxPromptWireBytes: 14 << 20})
+	sources := historyimport.New(historyimport.Options{Store: store, Readers: map[string]historysource.ReadFunc{"omp": omphistory.Read}})
+	if err := sources.Bind(ctx, source.ProviderThreadID, historysource.Source{Agent: "omp", NativeID: "native", Path: path}); err != nil {
+		t.Fatal(err)
+	}
+	service := New(Options{Conversations: store, Launch: launches, NativeHistory: sources, HistoryProjection: historyprojection.New(historyprojection.Options{Source: sources, Preprocess: historyprojection.DefaultPreprocessConfig()}), TokenCap: 16000, MaxPromptBytes: 64 << 10, MaxPromptWireBytes: 14 << 20})
 	t.Cleanup(func() {
 		if err := store.Close(); err != nil {
 			t.Error(err)
 		}
 	})
-	return previewHarness{service: service, store: store, launch: launches, source: source, config: config, dir: dir}
+	return previewHarness{service: service, store: store, launch: launches, source: source, config: config, dir: dir, nativePath: path}
 }
 
 func (h previewHarness) add(t *testing.T, text string) {
@@ -56,9 +69,7 @@ func (h previewHarness) add(t *testing.T, text string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.store.WriteActivity(ctx, conversation.ActivityInput{ProviderThreadID: h.source.ProviderThreadID, RunID: r.ID, LocalKey: r.ID, Kind: "message", Role: "user", Status: "completed", Source: "local", Text: text}); err != nil {
-		t.Fatal(err)
-	}
+	appendNativeFixture(t, h.nativePath, "message", "user", text)
 	if err := h.store.FinishRun(ctx, r.ID, "end_turn"); err != nil {
 		t.Fatal(err)
 	}
@@ -210,12 +221,9 @@ func TestPreviewMarksChangedTargetBudgetStale(t *testing.T) {
 func TestPreviewIncludesCommittedIdleCompaction(t *testing.T) {
 	ctx := context.Background()
 	h := previewTest(t)
-	id, err := h.store.WriteActivity(ctx, conversation.ActivityInput{ProviderThreadID: h.source.ProviderThreadID, LocalKey: "idle-compaction", Kind: "compaction", Role: "agent", Status: "completed", Source: "live", Text: "preserve this idle summary"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	appendNativeFixture(t, h.nativePath, "compaction", "system", "preserve this idle summary")
 	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "idle-preview", ConfigID: h.config.ID, Fork: true, UserText: "task"})
-	if err != nil || len(p.SelectedItemIDs) != 1 || p.SelectedItemIDs[0] != id || !strings.Contains(p.RenderedText, "preserve this idle summary") {
+	if err != nil || len(p.SelectedItemIDs) != 1 || !strings.Contains(p.RenderedText, "preserve this idle summary") {
 		t.Fatalf("idle activity vanished: %+v %v", p, err)
 	}
 }

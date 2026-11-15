@@ -169,6 +169,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 		Cmd: in.Cmd, Side: side, PreviousIDs: []string{}, Config: map[string]string{},
 		State: StateActive, CreatedAt: now, UpdatedAt: now,
 	}
+	rec.HistoryRoot = s.runtimeRoot(rec.Agent, cwd, in.Env)
 	bindConversation := func() error {
 		if in.ProviderThreadID != "" {
 			if s.conversations == nil {
@@ -196,7 +197,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 		}
 		defer release()
 	}
-	if err := a.activityThread(); err != nil {
+	if err := a.bindControlThread(); err != nil {
 		_ = s.manager.Remove(info.ID)
 		return nil, err
 	}

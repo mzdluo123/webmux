@@ -151,7 +151,7 @@
 - 已运行前端构建与 Svelte/TypeScript 检查、46 项前端架构测试、原生契约 Vitest。
 - 已运行架构、文档守卫和 Go lint；工具安装前的首次 lint 因缺少固定版本而失败，安装后通过。
 - wire snapshots 已重录核对；没有模型调用、真实图片链路或 token 节省实测。
-- 补充验证了结构化工具输出、图片校验引用、resume/物化 fork、来源读取期间变化、并发追加、保留引用与未覆盖范围；边界见[限制](../codex-native.md#当前限制与验证)。
+- 补充验证了结构化工具输出、图片校验引用、resume/物化 fork、来源读取期间变化、并发追加、保留引用与未覆盖范围；后续直读迁移边界见[原生来源说明](../codex-native.md#投影图片与当前迁移边界)。
 - 审查回归覆盖 9 MiB 工具历史的投影与 PNG、快照冻结缺口、按 position 关联的来源分页、发现取消/部分结果、诊断上限和无 Activity 原生记录的数据库唯一约束。
 
 ## 网页前端中英文国际化（US-A07）
@@ -229,3 +229,17 @@
   - 端到端回归：Playwright `test/e2e/terminal.spec.ts` 18 项通过、4 项按设备项目条件跳过、0 失败；
   - 视觉与证据：隔离演示服务在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 明暗主题下核对无页面横向溢出，采集桌面、平板、手机明暗六组前后对比截图与 `1280×900` 正常速度交互 GIF。
 - 局限：仅在 Linux 无头 Chromium 下验证，未在手机、平板、macOS 或 Windows 真机验证真实鼠标悬停与 `any-pointer: coarse` 触屏硬件行为；未重新验收其他既有故事。
+
+## 原生直读切换与真实运行边界（2026-11-16，US-Q19、US-Q20）
+
+- 范围：九个 reader、metadata-only import、冻结 scope、统一机械投影和 schema 14 正文镜像退役；故事 ID 与总数不变。本节不代表完整交接、浏览器或主线 CI 已完成。
+- 集成回归已通过：九个 reader 的真实脱敏夹具 race 测试，以及 historyimport/historyprojection 切换 race 测试；夹具通过不是九种 Agent 在线模型调用成功的证据。
+- `import` 恢复为历史身份与冻结引用登记，不启动 Agent、不持续复制正文；引用与 retained 导出、分支/Generation/hash 以及当前任务独立保存的契约见[原生历史](../codex-native.md)。
+- schema 14 先私有迁移旧可导出正文与引用为不可变 exports，再 DROP 旧 Activity/native_source/history_snapshot 链路；v10/v11 owner 修复及原 native ID 的 unknown 门禁继续保留。
+- omp 18.20.2 使用隔离 cwd/session-dir 与纯合成文本，真实模型 normal、同会话 resume、native fork 后 continue、扩充合成历史后的远端 compaction 及压缩后 resume 均观察到成功。
+- fork RPC 未收到确认应答；成功证据限于新 native 文件与随后模型 continue，不能写成 RPC ack 成功。首次 compaction 因会话过小拒绝，扩充合成数据后才成功。
+- 真实 omp 的原分支、fork 用户祖先截断和 compaction 保留范围已由 reader 与实际 historyprojection 验证；父/fork 冻结游标互换返回 ErrChanged，私有加密状态未出现在导出正文。
+- Claude Code 2.1.245 在隔离 bare 环境未登录，未进行 resume/fork/compaction；OpenCode 1.18.23 免费额度拒绝，仅读取其真实失败请求数据库并验证合成用户消息，不宣称模型调用成功。
+- Codex 0.165.0 沿用此前 token_revoked 失败事实，没有重复模型请求；Kimi、agy、Devin、QoderCN 等 CLI 不在 PATH。Qoder 的预期实测对象是 QoderCN，两者均未做在线运行验证。
+- 本次证据仅含原生文本，不重跑图片或成本对比。完整交接、UI 与 CI 尚在独立验证，不能据此宣称 #640/#651/#652 或全部 Agent 已验收。
+- 原始 session、compact 输出可能含 encrypted/private provider state、签名及凭据标识，未复制入库；仅允许使用脱敏合成内容与安全结果摘要。

@@ -112,7 +112,7 @@ func (s *Service) ReserveInjection(ctx context.Context, executionID, nativeID st
 		if err := readPreview(ctx, tx, e.HandoffID, &preview); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, "INSERT INTO native_injection(delivery_id,target_provider_thread_id,native_thread_id,estimated_cost,updated_at) VALUES(?,?,?,?,?)", e.DeliveryID, e.TargetProviderThreadID, nativeID, preview.Budget.Used, time.Now().UTC().UnixNano()); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO native_injection(delivery_id,target_provider_thread_id,native_thread_id,estimated_cost,updated_at,projection_policy) VALUES(?,?,?,?,?,?)", e.DeliveryID, e.TargetProviderThreadID, nativeID, preview.Budget.Used, time.Now().UTC().UnixNano(), preview.Request.ProjectionPolicy); err != nil {
 			return storageError(ctx, err)
 		}
 		seen := map[string]bool{}

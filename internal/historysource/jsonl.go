@@ -27,6 +27,9 @@ func ReadJSONLStream(ctx context.Context, req Request, parse func(io.Reader) err
 
 func readJSONL(ctx context.Context, req Request, visit func([]byte, int64, int64) error, parse func(io.Reader) error) (Document, error) {
 	out := Document{Source: req.Source}
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
 	before, err := os.Lstat(req.Source.Path)
 	if err != nil || !before.Mode().IsRegular() {
 		return out, ErrUnavailable
@@ -50,14 +53,17 @@ func readJSONL(ctx context.Context, req Request, visit func([]byte, int64, int64
 	if end > MaxBytes {
 		return out, ErrLimit
 	}
-	data, err := io.ReadAll(io.LimitReader(contextReader{ctx, f}, end))
-	if err != nil {
+	data := make([]byte, int(end))
+	if _, err := io.ReadFull(contextReader{ctx, f}, data); err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return out, ErrChanged
+		}
 		return out, readError(ctx, err)
 	}
-	if int64(len(data)) != end {
-		return out, ErrChanged
-	}
 	complete := bytes.LastIndexByte(data, '\n') + 1
+	if len(data)-complete > MaxRecordBytes {
+		return out, ErrLimit
+	}
 	if req.Cursor != "" && complete != len(data) {
 		return out, ErrChanged
 	}
@@ -67,7 +73,8 @@ func readJSONL(ctx context.Context, req Request, visit func([]byte, int64, int64
 	// The digest excludes append-only suffixes. Orchestration stores it with the
 	// frozen manifest and compares it on every subsequent source read.
 	sum := sha256.Sum256(data)
-	out.Fingerprint = fileIdentity(info) + ":" + hex.EncodeToString(sum[:])
+	out.Generation = fileIdentity(info)
+	out.Fingerprint = out.Generation + ":" + hex.EncodeToString(sum[:])
 	count := 0
 	for offset := 0; offset < len(data); {
 		if err := ctx.Err(); err != nil {

@@ -117,6 +117,8 @@ export async function startE2EServer({
       BASH_SILENCE_DEPRECATION_WARNING: "1",
       HISTFILE: "/dev/null",
       FAKEAGENT_STORE: join(root, "agent-sessions"),
+      // Native readers see only this server's synthetic transcripts.
+      FAKEAGENT_HISTORY_HOME: home,
     };
     async function launchBackend(listen) {
       const outputStart = backendOutput.length;

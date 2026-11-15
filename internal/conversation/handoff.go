@@ -54,7 +54,7 @@ func (s *Service) CommitHandoff(ctx context.Context, in HandoffInput) (CommandRe
 		}
 		for selected, ids := range [][]string{in.OmittedItemIDs, in.SelectedItemIDs} {
 			for position, id := range ids {
-				if _, err := tx.ExecContext(ctx, "INSERT INTO handoff_item VALUES(?,?,?,?)", hID, id, selected, position); err != nil {
+				if _, err := tx.ExecContext(ctx, "INSERT INTO handoff_item(handoff_id,item_id,selected,position) VALUES(?,?,?,?)", hID, id, selected, position); err != nil {
 					return storageError(ctx, err)
 				}
 			}

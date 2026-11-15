@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/conversation"
 	"slices"
 	"strconv"
 	"strings"
@@ -43,12 +42,12 @@ func (a *actor) steer(text string, attachments []Attachment) (agentCall, error) 
 		return nil, err
 	}
 
-	key, run, thread := a.activityKey("steer"), a.activity.run, a.activity.thread
+	thread := a.control.thread
 	if a.svc.conversations != nil {
-		if err := a.writeActivity(conversation.ActivityInput{LocalKey: key, RunID: run, Kind: "message", Role: "user", Status: "pending", Text: text, Attachments: activityAttachments(attachments)}); err != nil {
+		if err := a.bindControlThread(); err != nil {
 			return nil, err
 		}
-		thread = a.activity.thread
+		thread = a.control.thread
 	}
 	a.clearAttention()
 	conn, sid, epoch := a.link.conn, a.link.sessionID, a.epoch
@@ -75,11 +74,6 @@ func (a *actor) steer(text string, attachments []Attachment) (agentCall, error) 
 			return a.agentCallFailed(method, err)
 		}
 		if resp.Outcome == steerFailed {
-			if a.svc.conversations != nil {
-				if err := a.svc.conversations.DiscardDraftActivity(context.Background(), thread, key); err != nil {
-					a.svc.log.Warn("failed steering draft cleanup failed", "id", a.id)
-				}
-			}
 			a.svc.log.Warn("hybrid steering failed", "id", a.id, "method", method, "outcome", resp.Outcome)
 			return fmt.Errorf("%w: agent 未能插话", ErrAgentCall)
 		}
@@ -89,21 +83,17 @@ func (a *actor) steer(text string, attachments []Attachment) (agentCall, error) 
 			}
 			switch resp.Outcome {
 			case steerPromptRequired:
-				if a.svc.conversations != nil {
-					if err := a.svc.conversations.DiscardDraftActivity(context.Background(), thread, key); err != nil {
-						a.activityFailure()
-					}
-				}
 				a.requeue(text, attachments)
 				return struct{}{}, nil
 			case steerStartedNewTurn:
 				a.svc.log.Warn("hybrid steering started a turn", "id", a.id, "method", method, "outcome", resp.Outcome)
 				a.emit(Event{Kind: EventNotice, Notice: &Notice{Level: acp.NoticeError, Text: "agent 自行开始了一个回合，该回合不受 WebMux 跟踪"}})
 			}
-			if err := a.writeActivity(conversation.ActivityInput{LocalKey: key, RunID: run, Kind: "message", Role: "user", Status: "completed"}); err != nil {
-				a.activityFailure()
+			if a.svc.conversations != nil {
+				if err := a.svc.conversations.AdvanceControl(context.Background(), thread); err != nil {
+					a.controlFailure()
+				}
 			}
-			a.activity.message.open = false
 			a.emit(a.tr.userMessage(text, attachments))
 			a.tr.breakMessage()
 			for _, note := range notes {

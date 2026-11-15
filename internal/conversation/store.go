@@ -46,7 +46,7 @@ func Open(o Options) *Service {
 		s.db = s.storage.SQL
 		err = migrate(context.Background(), s.db)
 		if err == nil {
-			err = s.recoverActivity(context.Background())
+			err = s.recoverRuns(context.Background())
 		}
 		if err == nil {
 			err = s.transact(context.Background(), func(tx *sql.Tx) error { return recoverExecutions(context.Background(), tx) })
@@ -149,7 +149,7 @@ func (s *Service) EnsureRuntime(ctx context.Context, in RuntimeInput) (Binding, 
 		if err != nil {
 			return storageError(ctx, err)
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO provider_thread(id,conversation_id,config_id,agent_name,agent_session_id,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`, out.ProviderThreadID, out.ConversationID, in.ConfigID, in.AgentName, in.AgentSessionID, in.Status, created, now)
+		_, err = tx.ExecContext(ctx, `INSERT INTO provider_thread(id,conversation_id,config_id,agent_name,agent_session_id,native_root,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)`, out.ProviderThreadID, out.ConversationID, in.ConfigID, in.AgentName, in.AgentSessionID, in.HistoryRoot, in.Status, created, now)
 		if err != nil {
 			return storageError(ctx, err)
 		}
@@ -189,15 +189,18 @@ func (s *Service) SyncRuntime(ctx context.Context, in RuntimeInput) error {
 		if err := tx.QueryRowContext(ctx, "SELECT conversation_id,provider_thread_id FROM runtime_binding WHERE runtime_id=?", in.RuntimeID).Scan(&b.ConversationID, &b.ProviderThreadID); err != nil {
 			return storageError(ctx, err)
 		}
-		var native string
-		if err := tx.QueryRowContext(ctx, "SELECT agent_session_id FROM provider_thread WHERE id=?", b.ProviderThreadID).Scan(&native); err != nil {
+		var native, root string
+		if err := tx.QueryRowContext(ctx, "SELECT agent_session_id,native_root FROM provider_thread WHERE id=?", b.ProviderThreadID).Scan(&native, &root); err != nil {
 			return storageError(ctx, err)
 		}
 
 		if in.AgentSessionID == "" && native != "" {
 			in.AgentSessionID = native
 		}
-		if native != "" && in.AgentSessionID != "" && native != in.AgentSessionID {
+		if in.HistoryRoot == "" {
+			in.HistoryRoot = root
+		}
+		if native != "" && in.AgentSessionID != "" && (native != in.AgentSessionID || root != in.HistoryRoot) {
 			previous := b.ProviderThreadID
 			var optedOut bool
 			if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM history_gap WHERE provider_thread_id=? AND reason='capture_disabled')", previous).Scan(&optedOut); err != nil {
@@ -212,7 +215,7 @@ func (s *Service) SyncRuntime(ctx context.Context, in RuntimeInput) error {
 				return err
 			}
 			now := time.Now().UTC().UnixNano()
-			if _, err := tx.ExecContext(ctx, "INSERT INTO provider_thread(id,conversation_id,config_id,agent_name,agent_session_id,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)", id, b.ConversationID, configID, agent, in.AgentSessionID, in.Status, now, now); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO provider_thread(id,conversation_id,config_id,agent_name,agent_session_id,native_root,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)", id, b.ConversationID, configID, agent, in.AgentSessionID, in.HistoryRoot, in.Status, now, now); err != nil {
 				return storageError(ctx, err)
 			}
 			if err := putConfig(ctx, tx, id, in.Config); err != nil {
@@ -284,7 +287,7 @@ func (s *Service) SyncRuntime(ctx context.Context, in RuntimeInput) error {
 		if _, err := tx.ExecContext(ctx, "UPDATE conversation SET cwd=?,repository_id=?,worktree_id=?,updated_at=? WHERE id=?", in.Cwd, in.RepositoryID, in.WorktreeID, now, b.ConversationID); err != nil {
 			return storageError(ctx, err)
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE provider_thread SET agent_session_id=?,status=?,updated_at=? WHERE id=?", in.AgentSessionID, in.Status, now, b.ProviderThreadID); err != nil {
+		if _, err := tx.ExecContext(ctx, "UPDATE provider_thread SET agent_session_id=?,native_root=?,status=?,updated_at=? WHERE id=?", in.AgentSessionID, in.HistoryRoot, in.Status, now, b.ProviderThreadID); err != nil {
 			return storageError(ctx, err)
 		}
 		if err := putConfig(ctx, tx, b.ProviderThreadID, in.Config); err != nil {
@@ -407,9 +410,12 @@ func forgetRuntime(ctx context.Context, tx *sql.Tx, id string) error {
 	_, err = tx.ExecContext(ctx, `DELETE FROM conversation WHERE relationship='fork' AND parent_id IS NULL
  AND NOT EXISTS(SELECT 1 FROM runtime_binding WHERE conversation_id=conversation.id)
  AND NOT EXISTS(SELECT 1 FROM context_handoff WHERE target_conversation_id=conversation.id)
- AND NOT EXISTS(SELECT 1 FROM activity WHERE conversation_id=conversation.id)
+ AND NOT EXISTS(SELECT 1 FROM provider_thread WHERE conversation_id=conversation.id AND status!='draft')
  AND NOT EXISTS(SELECT 1 FROM provider_thread WHERE conversation_id=conversation.id AND agent_session_id!='')
  AND NOT EXISTS(SELECT 1 FROM dispatch_receipt d JOIN provider_thread p ON p.id=d.target_provider_thread_id WHERE p.conversation_id=conversation.id AND d.call_started=1)
  AND NOT EXISTS(SELECT 1 FROM native_injection n JOIN provider_thread p ON p.id=n.target_provider_thread_id WHERE p.conversation_id=conversation.id AND n.call_started=1)`)
-	return storageError(ctx, err)
+	if err != nil {
+		return storageError(ctx, err)
+	}
+	return collectFrozen(ctx, tx)
 }

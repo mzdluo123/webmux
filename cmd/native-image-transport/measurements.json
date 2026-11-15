@@ -1,0 +1,176 @@
+{
+  "measurement_date_utc": "2026-11-15",
+  "base_main": "d7529c17",
+  "platform": "darwin arm64",
+  "connector": "omp 18.20.2",
+  "requested_and_session_model": "openai-codex/gpt-6.1-sol",
+  "transport": "WebMux internal/acp → real omp acp stdio → configured provider/model",
+  "source_generator_commit": "f1ddbce06e49c6f74bd324d640607dd9a3dfe532",
+  "source_artifacts": "/tmp/webmux-image-final.V7fZ8K",
+  "raw_evidence": "/tmp/webmux-image-transport.pWqPX8",
+  "results": [
+    {
+      "mode": "raw",
+      "wall_seconds": 5.127682666,
+      "prompt_bytes": 12802,
+      "images": 0,
+      "answer": {
+        "chinese": "青竹",
+        "command": "printf '%s\\n' 'a|b && c; $(NO_EXEC)'",
+        "condition": "x <= 7 and x != 0",
+        "indented_return": "        return \"青竹:ok\"",
+        "middle_marker": "JADE-120",
+        "port": 9097,
+        "tail_marker": "LOTUS-239"
+      },
+      "correct_fields": {
+        "chinese": true,
+        "command": true,
+        "condition": true,
+        "indented_return": true,
+        "middle_marker": true,
+        "port": true,
+        "tail_marker": true
+      },
+      "tool_calls": 0,
+      "png_sha256": {},
+      "session_id": "01a1e084-4c34-746a-9e09-db91b115ded1",
+      "turn_usage": {
+        "inputTokens": 5487,
+        "outputTokens": 77,
+        "totalTokens": 5564
+      },
+      "estimated_cost": {
+        "amount": 0.011744,
+        "currency": "USD"
+      },
+      "stop_reason": "end_turn"
+    },
+    {
+      "mode": "projected",
+      "wall_seconds": 5.122170166,
+      "prompt_bytes": 3732,
+      "images": 0,
+      "answer": {
+        "chinese": "青竹",
+        "command": "printf '%s\\n' 'a|b && c; $(NO_EXEC)'",
+        "condition": "x <= 7 and x != 0",
+        "indented_return": "        return \"青竹:ok\"",
+        "middle_marker": "NEED_SOURCE",
+        "port": 9097,
+        "tail_marker": "LOTUS-239"
+      },
+      "correct_fields": {
+        "chinese": true,
+        "command": true,
+        "condition": true,
+        "indented_return": true,
+        "middle_marker": true,
+        "port": true,
+        "tail_marker": true
+      },
+      "tool_calls": 0,
+      "png_sha256": {},
+      "session_id": "01a1e082-f8a8-765c-884d-cf72998126cc",
+      "turn_usage": {
+        "inputTokens": 2700,
+        "outputTokens": 76,
+        "totalTokens": 2776
+      },
+      "estimated_cost": {
+        "amount": 0.00616,
+        "currency": "USD"
+      },
+      "stop_reason": "end_turn"
+    },
+    {
+      "mode": "image",
+      "wall_seconds": 16.306304875,
+      "prompt_bytes": 540,
+      "images": 3,
+      "answer": {
+        "chinese": "青竹",
+        "command": "printf '%s\\n' 'a|b && c; $(NO_EXEC)'",
+        "condition": "x <= 7 and x != 0",
+        "indented_return": "        return \"青竹:ok\"",
+        "middle_marker": "NEED_SOURCE",
+        "port": 9097,
+        "tail_marker": "LOTUS-239"
+      },
+      "correct_fields": {
+        "chinese": true,
+        "command": true,
+        "condition": true,
+        "indented_return": true,
+        "middle_marker": true,
+        "port": true,
+        "tail_marker": true
+      },
+      "tool_calls": 0,
+      "png_sha256": {
+        "image-00.png": "7f9e607ce6df5b5ec7d3a4e2c99903b074fe74f85551251112d295df88338971",
+        "image-01.png": "ce4b552a2049f608ce36fe39ef8588ede10ae06e46e3665843a312b8694c14ee",
+        "image-02.png": "33d2a5a037b68a98cba08faef8357b635f07841cfa3bed6ff3b134c0767ea4b5"
+      },
+      "session_id": "01a1e083-0cc7-7279-bf54-36ae58331f38",
+      "turn_usage": {
+        "inputTokens": 4602,
+        "outputTokens": 153,
+        "totalTokens": 4755
+      },
+      "estimated_cost": {
+        "amount": 0.010734,
+        "currency": "USD"
+      },
+      "stop_reason": "end_turn"
+    },
+    {
+      "mode": "hybrid",
+      "wall_seconds": 11.402501084,
+      "prompt_bytes": 752,
+      "images": 2,
+      "answer": {
+        "chinese": "青竹",
+        "command": "printf '%s\\n' 'a|b && c; $(NO_EXEC)'",
+        "condition": "x <= 7 and x != 0",
+        "indented_return": "    return \"青竹:ok\"",
+        "middle_marker": "NEED_SOURCE",
+        "port": 9097,
+        "tail_marker": "LOTUS-239"
+      },
+      "correct_fields": {
+        "chinese": true,
+        "command": true,
+        "condition": true,
+        "indented_return": false,
+        "middle_marker": true,
+        "port": true,
+        "tail_marker": true
+      },
+      "tool_calls": 0,
+      "png_sha256": {
+        "hybrid-00.png": "7f9e607ce6df5b5ec7d3a4e2c99903b074fe74f85551251112d295df88338971",
+        "hybrid-01.png": "0f0c98940292563294ca570c3ed47dd05fc946be49644206dc193d823a1f4bec"
+      },
+      "session_id": "01a1e083-4c8b-75e0-adc2-17346c5a7157",
+      "turn_usage": {
+        "inputTokens": 4207,
+        "outputTokens": 128,
+        "totalTokens": 4335
+      },
+      "estimated_cost": {
+        "amount": 0.009694,
+        "currency": "USD"
+      },
+      "stop_reason": "end_turn"
+    }
+  ],
+  "limitations": [
+    "One request per representation; no retry after hybrid indentation failure.",
+    "No WebMux HTTP server, upload/chat REST route, browser or production history injection exercised. Stdio only: no listener/loopback port.",
+    "CLI/ACP USD estimate, not billing invoice; no gateway/detail/pixel maximum verified.",
+    "ACP wire response usage is the source of input/output/total token counts; usage_update used is not treated as an independent bill.",
+    "NEED_SOURCE detects omission; no supplementary lookup performed.",
+    "Codex 401 token_revoked from previous experiment remains blocked; not retried."
+  ]
+}

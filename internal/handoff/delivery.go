@@ -287,7 +287,7 @@ func (s *Service) driveExecution(ctx context.Context, e conversation.Execution) 
 	}
 	// Options selected during startup may change the actual model window. Keep
 	// the selected whole items and refuse execution if they no longer fit.
-	budget, err := s.budget(ctx, p)
+	budget, err := s.targetBudget(ctx, p, !e.NativeContinue)
 	if e.HistoryStatus != "injected" && (err != nil || budget.OverBudget || p.Budget.Used > budget.History) {
 		if err == nil && !p.Request.Fork && !p.Request.ForceFresh {
 			if fallbackErr := s.prepareFreshFallback(ctx, e, p); fallbackErr != nil {
@@ -330,7 +330,7 @@ func (s *Service) driveExecution(ctx context.Context, e conversation.Execution) 
 		} else {
 			inline := p
 			inline.Request.NativePlanned = false
-			budget, err := s.budget(ctx, inline)
+			budget, err := s.targetBudget(ctx, inline, !e.NativeContinue)
 			if err != nil || budget.OverBudget || p.Budget.Used > budget.History {
 				fail("inline_over_budget")
 				return

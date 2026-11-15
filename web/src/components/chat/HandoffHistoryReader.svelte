@@ -69,12 +69,14 @@
       if (!id) throw new Error(m.s3_reader_err_omitted_mismatch());
       const result = await threadAPI.activity(
         sourceId,
+        handoffId,
         id,
         start,
         active.signal,
       );
       if (
         result.conversationId !== sourceId ||
+        result.activityId !== id ||
         BigInt(result.position) > BigInt(point)
       )
         throw new Error(m.s3_reader_err_outside_frozen_source());

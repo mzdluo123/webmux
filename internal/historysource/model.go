@@ -24,7 +24,7 @@ const (
 // Source identifies a native session, never an inferred match by title or cwd.
 // Branch is an explicit native leaf when the format contains a message graph.
 type Source struct {
-	Agent, Path, NativeID, Branch string
+	Agent, Path, NativeID, Branch, ProviderThreadID string
 }
 
 // Request.Cursor is an opaque adapter-owned frozen boundary. Empty selects the
@@ -40,7 +40,10 @@ type Attachment struct {
 }
 
 type Record struct {
-	ID, NativeID, ParentID, Kind, Role, Text, CallID, ToolName, Status string
+	ID, NativeID, ParentID, Kind, Role, Text, CallID, NativeCallID, ToolName, Status string
+	Offset, End                                                                      int64
+	ByteLength                                                                       int64
+	Attachments                                                                      []Attachment
 }
 
 type Gap struct {
@@ -52,11 +55,13 @@ type Gap struct {
 // Fingerprint identifies the source instance; Cursor selects its frozen range.
 // ParserVersion is independent of the CLI, connector and injection versions.
 type Document struct {
-	Source                                            Source
-	FormatVersion, ParserVersion, Fingerprint, Cursor string
-	Records                                           []Record
-	Gaps                                              []Gap
-	Pending                                           bool
+	Source                                                        Source
+	FormatVersion, ParserVersion, Generation, Fingerprint, Cursor string
+	Records                                                       []Record
+	RecordRefs                                                    []RecordRef
+	References                                                    []ContextReference
+	Gaps                                                          []Gap
+	Pending                                                       bool
 }
 
 // ReadFunc is the only capability passed to native-history orchestration.

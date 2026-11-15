@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"strings"
 	"testing"
 )
 
@@ -31,7 +30,7 @@ func TestTargetInlineReceiptSurvivesSourceForgetAndBackfill(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer func() { _ = tx.Rollback() }()
-				if _, err := tx.Exec("DROP TABLE inline_receipt;" + strings.ReplaceAll(inlineReceiptSchema, "PRAGMA user_version=6;", "")); err != nil {
+				if _, err := tx.Exec("DELETE FROM inline_receipt"); err != nil {
 					t.Fatal(err)
 				}
 				if err := backfillInlineReceipts(ctx, tx); err != nil {

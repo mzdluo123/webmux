@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { test, expect, useDirectory, chooseLocation } from "./fixtures";
@@ -51,8 +51,10 @@ async function source(
         )
       ).json();
       return page.items.some(
-        (item: { role: string; kind: string }) =>
-          item.role === "agent" && item.kind === "message",
+        (item: { role: string; kind: string; source: string }) =>
+          item.role === "assistant" &&
+          item.kind === "message" &&
+          item.source === "native",
       );
     })
     .toBe(true);
@@ -97,6 +99,35 @@ test("server draft survives close, refresh and restart without reading ChatModel
   workDir,
 }) => {
   const a = await source(request, workDir);
+  const nativeRoot = join(
+    server.env.HOME,
+    ".omp",
+    "agent",
+    "sessions",
+    "fake-project",
+  );
+  const nativeFiles = await readdir(nativeRoot);
+  expect(nativeFiles).toHaveLength(1);
+  const nativePath = join(nativeRoot, nativeFiles[0]);
+  const nativePrefix = await readFile(nativePath, "utf8");
+  const nativeIdentity = await stat(nativePath);
+  const nativeEntries = nativePrefix
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  expect(nativeEntries[0]).toMatchObject({ type: "session", version: 3 });
+  expect(nativeEntries.slice(1)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        type: "message",
+        message: expect.objectContaining({ role: "user" }),
+      }),
+      expect.objectContaining({
+        type: "message",
+        message: expect.objectContaining({ role: "assistant" }),
+      }),
+    ]),
+  );
   await config(request, "Agent B");
   await page.goto(`/s/${a.id}`);
   await open(page);
@@ -135,6 +166,8 @@ test("server draft survives close, refresh and restart without reading ChatModel
   await open(page);
   await expect(history(page)).toHaveValue("Preserved manual history 中文🙂");
   await expect(task(page)).toHaveValue("separate user task 中文🙂");
+  expect(await readFile(nativePath, "utf8")).toBe(nativePrefix);
+  expect((await stat(nativePath)).ino).toBe(nativeIdentity.ino);
 });
 
 test("autosave persists later task and history edits made during an earlier PATCH", async ({

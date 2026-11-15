@@ -17,7 +17,7 @@ func TestReleaseRebuildConfigDeletionAndForgetRetainTheRightDraftData(t *testing
 	if len(p.SelectedItemIDs) == 0 {
 		t.Fatal("source history missing")
 	}
-	original, err := h.store.Activity(ctx, p.SourceConversationID, p.SelectedItemIDs[0], 0, 4000)
+	original, err := h.service.options.NativeHistory.Documents(ctx, p.Request.SnapshotIDs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,9 +43,9 @@ func TestReleaseRebuildConfigDeletionAndForgetRetainTheRightDraftData(t *testing
 	if err != nil || !restored.Stale || restored.RenderedText != p.RenderedText || restored.Request.UserText != p.Request.UserText {
 		t.Fatal("release or config deletion discarded draft", restored, err)
 	}
-	body, err := h.store.Activity(ctx, p.SourceConversationID, p.SelectedItemIDs[0], 0, 4000)
-	if err != nil || body.Activity.Text != original.Activity.Text {
-		t.Fatal("release discarded activity", err)
+	body, err := h.service.options.NativeHistory.Documents(ctx, p.Request.SnapshotIDs)
+	if err != nil || len(body.Records) != len(original.Records) || body.Records[0].Text != original.Records[0].Text {
+		t.Fatal("release discarded frozen native history", err)
 	}
 	if err := h.hybrids.Forget(ctx, ids[0]); err != nil {
 		t.Fatal(err)

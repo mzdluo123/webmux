@@ -19,16 +19,17 @@ import (
 
 func TestHandoffDraftDiscoveryAndSeparateTaskRevision(t *testing.T) {
 	_, store, source := historyAPI(t)
+	sources, projection := nativeFixture(store)
 	launches := launch.Open(t.TempDir(), agents.Default())
 	defer launches.Close()
 	cfg, err := launches.Create(launch.Input{Name: "target", Cmd: []string{"omp"}, Hybrid: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := handoff.New(handoff.Options{Conversations: store, Launch: launches})
+	service := handoff.New(handoff.Options{Conversations: store, NativeHistory: sources, HistoryProjection: projection, Launch: launches})
 	defer service.Close()
 	manager := session.NewManager(session.Options{})
-	handler := New(testDeps(t, testServices{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, Handoffs: service, Config: config.Config{Token: "secret"}}))
+	handler := New(testDeps(t, testServices{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, NativeHistory: sources, HistoryProjection: projection, Handoffs: service, Config: config.Config{Token: "secret"}}))
 	send := func(method, path string, body any, auth bool) *httptest.ResponseRecorder {
 		t.Helper()
 		data, err := json.Marshal(body)

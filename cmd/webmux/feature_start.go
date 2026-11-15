@@ -57,7 +57,10 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 	}
 	if c.Features.Has("chat") {
 		p.conversations = conversation.Open(conversation.Options{StateDir: c.StateDir, DisableCapture: !c.HistoryCapture})
+		p.openNativeHistory()
 		options := hybrid.Options{Agents: p.agents, Conversations: p.conversations, StateDir: c.StateDir, Manager: m, ScrollbackBytes: c.ScrollbackBytes, Version: version, Logger: slog.Default(), Uploads: p.artifacts.UploadPath}
+		options.NativeRoot = p.nativeRoot
+		options.DispatchCheckpoint = p.nativeHistory.RecordDispatchCheckpoint
 		if c.Features.Has("mcp") {
 			options.MCPServers = controlMCPServers(serverExecutable(), func() string {
 				rt := localAPI()
@@ -127,6 +130,7 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 		creation := p.chat.Creation()
 		resumeOptions := hybridresume.Options{DefaultCwd: c.DefaultCwd, Creation: creation}
 		handoffOptions := handoff.Options{Creation: creation, Conversations: p.conversations, Launch: p.launch, Artifacts: p.artifacts, Hybrid: p.chat, TokenCap: int64(c.HandoffTokenCap), MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes}
+		handoffOptions.NativeHistory, handoffOptions.HistoryProjection = p.nativeHistory, p.historyProjection
 		if p.workspace != nil {
 			resumeOptions.Locations, resumeOptions.ResumeLocations = p.workspace, p.workspace
 			handoffOptions.Locations = p.workspace

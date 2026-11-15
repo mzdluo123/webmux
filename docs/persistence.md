@@ -51,8 +51,11 @@
 ## 对话事务存储
 
 `conversations.sqlite` 保存 Conversation、ProviderThread、单调 Run 序号，以及 handoff、delivery 和幂等 receipt 的事务基础。
-[Codex 文件导入](codex-native.md)的来源游标、generation、不可变快照与保留引用也使用同一个数据库；原生文件通过 O_RDONLY 读取，不是新的状态写入目录。
-ACP 聊天的规范化消息与工具内容在 UI 截断前保存为完整 Activity；服务端交接预览保存冻结来源、预算、选项与用户编辑。fork inline 投递先提交 receipt/pending，再按持久 checkpoint 准备资源；结果不明保留 unknown。
+[原生直读入口](codex-native.md)的 manifest、精确来源绑定、独立保留导出和引用也使用同一数据库；默认引用快照不保存完整正文，原生 SQLite/JSONL 仅读取、不写入。
+schema 14 已切换为来源中立直读：身份、Run、gap、control、投递 receipt 与来源 hash 是控制元数据，不是持续正文镜像。
+历史、预览和 MCP 消费同一冻结 scope；机械投影与用户新任务分离。ACP 正文只供实时界面，不再 upsert Activity 正文。
+升级先在事务内把旧已提交 Activity、旧快照及所需 handoff 范围转换为私有、不可变的 retained exports，再 DROP Activity 分块、native_source/record/location 与旧 history_snapshot 镜像表。
+迁移仅保留可导出正文与明确缺口，不读 Agent 文件、不改变旧 receipt；异常回滚，不以空历史代替损坏正文。新原生正文仅在显式 retain 或独立 fork 等生命周期需要时固化。
 现有混合会话一对一迁移为稳定身份，旧记录标记 `historyOrigin=unknown`，不猜测升级前历史。
 
 - 纯 Go SQLite（modernc.org/sqlite），支持 `CGO_ENABLED=0`；schema 迁移与版本号在同一事务提交。
@@ -60,16 +63,16 @@ ACP 聊天的规范化消息与工具内容在 UI 截断前保存为完整 Activ
 - 数据库、生命周期锁与崩溃恢复 sidecar 均为 0600，状态目录 0700；拒绝文件自身的符号链接。
 - SQLite 使用 FULL 同步和默认 DELETE rollback journal；不使用长期保留正文的 WAL；删除启用 `secure_delete`。
 - 损坏、未知未来版本和锁冲突只禁用依赖对话存储的创建、恢复和忘记操作，以及历史/交接入口；普通终端仍可运行，原数据库不重建。
-- 删除最后一条运行绑定（`forget=1`）或成功淘汰关联归档记录，清理其 Conversation、Run、Activity 分块和来源 handoff/命令记录；同一 Conversation 尚有其他 provider 记录时继续保留共享历史。
+- 删除最后一条运行绑定（`forget=1`）或淘汰归档记录，清理其 Conversation、Run、控制记录、来源引用和 handoff/命令记录；同一 Conversation 尚有其他 provider 时保留共享历史。
 - 目标独立的 dispatch 摘要与用户 receipt 受目标生命周期管理：来源删除不能解除可能已经发送的 unknown，也不清空目标占用估算；精确原生回放只更新目标事实，不恢复来源操作。
-- fork 目标单独保存回放所需的用户新请求、精确 native ID/hash 与目标附件引用，不复制来源历史。忘记来源后仍能正常显示目标用户消息；忘记目标时一并删除，来源的操作记录不会被重新建立。
+- fork 目标独立持有完整冻结来源的 retained 前缀、用户新请求、精确 native ID/hash 与附件引用；不依赖来源文件或来源 Conversation 继续存在。忘记目标时释放其引用，不重建已忘记的来源。
 - JSON 记录与 SQLite 不共享事务；受管 runtime 有未发布/已发布/正在删除标记。创建窗口保留预留资源，删除前先写意图；中断后用成功读取的 JSON 清单对账，不让已发布的 managed runtime 永久跳过清理。
 - 未开始执行的孤立 fork 草稿一并清理；有目标原生事实、已 claim 的 prompt 或独立历史时继续保留目标事实。
 - worktree 释放与重建保留身份，配置删除不隐式删除对话。备份时先停服务，并备份整个状态目录；不得只复制活跃数据库。
-- 流式消息追加分块；重复前缀的工具快照只改写变化尾部，读取按 UTF-8 字节分页，不把整条历史装入内存。
-- 完成后才发布持久 position；崩溃尾部保持不可见并标 gap，服务重启不把半条内容视为已提交。
-- replay 按 ProviderThread + item ID 或有序完整项对账；无法判定时保留 `reconcile_required`，相同文本不会被全局 hash 合并。
-- TUI 时段只记录缺口，不解析 PTY 伪造历史；不保存 reasoning、raw ACP、环境、原生工具状态或附件 blob，只保留附件元数据和引用。
+- 原生分页在冻结 manifest 的 scope 内读取，position 不是持续追加的 Activity 水位；引用快照校验 Generation、分支、原生身份及内容 hash，来源变化明确失败。
+- JSONL 仅冻结完整记录边界；半行、外部祖先、原生压缩丢弃内容与未知格式保留缺口，不从 PTY 或 ACP 镜像补写伪造历史。
+- A→B→A 根据当前 nativecontext、receipt 来源 ID/hash 和表示 hash 排除已消费内容；缺失上下文、compaction 或策略漂移不靠乐观数字水位证明覆盖。
+- reasoning、密文、签名、raw ACP、环境及私有 provider 状态不进入可导出正文；附件保持引用，retained 按规则保留可导出附件。
 - 投递 attempt 保留精确 worktree、runtime 与 dispatch 身份，旧 receipt 不跟随新重试改变；unknown 只能通过精确原生回放确认，不自动重发。
 - 预览、独立用户任务、冻结来源工作位置、手工编辑与 revision 在同一数据库保存；服务重启不丢草稿。预览不启动 agent 或创建 worktree，SQLite 不存附件正文。
 - 生成持久预览前，受限暂存附件复制到已验证来源 runtime 的私有 uploads，保留原暂存文件供其他表单使用；已有来源上传不重复复制。副本沿用该 runtime 的保留、清扫和忘记生命周期，可跨服务重启，但不保证抵御操作系统临时目录清理。
@@ -77,11 +80,11 @@ ACP 聊天的规范化消息与工具内容在 UI 截断前保存为完整 Activ
 - 投递时以持久 copy intention 和内容 hash 发布独立目标 uploads；目标副本不依赖来源或暂存区继续存在。
 - Codex 原生注入保存独立 pending/injected/unknown、原生身份及有序项目摘要；目标持有回放摘要和占用估算，来源删除不导致再次导入。用户 prompt 的结果不能撤销已确认的原生注入。
 - 原生注入已保存但确认丢失时，即使已忘记来源，目标仍可用完整、有序且身份一致的原生回放持久确认注入及项目 ID；不重建来源投递，不重发历史或来源中尚未发送的用户请求。
-- v10 升级与已验证的 v11 重开在启动事务中修复孤立派发 owner，分别恢复历史 ProviderThread/native 身份与当前 runtime 绑定；不要求旧线程仍有活绑定。历史 unknown 仅按原 native 身份对账，不能借新的原生线程恢复绕过；不增加 schema 版本或逐请求修复。
+- 旧 v10 升级及 v11 重开的 owner 修复逻辑继续保留在启动事务中，恢复历史 ProviderThread/native 身份和当前 runtime 绑定；不要求旧线程仍有活绑定。后续 schema 14 不撤销其保护，unknown 仍只能按原 native 身份对账，不能换线程绕过或逐请求修复。
 - 取消原生注入不会丢弃已排队的写者准入结果；转换始终收回 ACP 写者并完成清理，关闭会话不因遗留的打开中状态而挂起。
 - 数据库错误不把 SQL 值或正文交给应用日志；当前版本不可用时保留原文件供人工诊断。
-- `history_capture=false` 关闭新正文捕获、历史 REST、handoff 与 MCP，但仍维护身份和未决投递保护；已保存正文不删除。关闭区间不在重新开启后的 load 中自动回填。
-- SQLite 随完整历史增长，不受终端 `scrollback_bytes` 淘汰；当前没有自动历史期限或数据库配额。需要删除时使用“忘记”，并监测磁盘空间。
+- `history_capture=false` 关闭原生历史读取、冻结、导入、投影、handoff 与 MCP；身份、控制元数据及未决投递保护仍维护。已有 exports 不删除，Agent 自己的原生存储写入不受此开关控制。
+- SQLite 随控制元数据与按需 retained exports 增长，不受终端 `scrollback_bytes` 淘汰；当前没有自动历史期限或数据库配额。删除使用“忘记”，同时监测磁盘空间。
 - `secure_delete` 清除当前数据库空闲页中的删除内容，文件大小可能保留；不能擦除旧备份、文件系统快照、浏览器离线草稿或外部 agent transcript。
 
 ## 统一行为与故障隔离

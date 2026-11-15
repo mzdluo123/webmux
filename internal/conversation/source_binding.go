@@ -13,14 +13,14 @@ func (s *Service) NativeBindings(ctx context.Context, id string) ([]historysourc
 	if !s.HistoryEnabled() {
 		return out, ErrUnavailable
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.agent_name,p.agent_session_id,coalesce(b.path,''),coalesce(b.branch,'') FROM provider_thread p LEFT JOIN native_source_binding b ON b.provider_thread_id=p.id AND b.native_id=p.agent_session_id WHERE p.conversation_id=? ORDER BY p.created_at,p.rowid LIMIT 1001`, id)
+	rows, err := s.db.QueryContext(ctx, `SELECT p.id,p.agent_name,p.agent_session_id,p.native_root,coalesce(b.path,''),coalesce(b.branch,'') FROM provider_thread p LEFT JOIN native_source_binding b ON b.provider_thread_id=p.id AND b.native_id=p.agent_session_id WHERE p.conversation_id=? AND p.status!='imported' AND NOT EXISTS(SELECT 1 FROM history_gap g WHERE g.provider_thread_id=p.id AND g.reason='capture_disabled') ORDER BY p.created_at,p.rowid LIMIT 1001`, id)
 	if err != nil {
 		return out, storageError(ctx, err)
 	}
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		binding := historysource.Binding{ConversationID: id}
-		if err := rows.Scan(&binding.ProviderThreadID, &binding.Source.Agent, &binding.Source.NativeID, &binding.Source.Path, &binding.Source.Branch); err != nil {
+		if err := rows.Scan(&binding.ProviderThreadID, &binding.Source.Agent, &binding.Source.NativeID, &binding.Root, &binding.Source.Path, &binding.Source.Branch); err != nil {
 			return nil, storageError(ctx, err)
 		}
 		out = append(out, binding)

@@ -21,7 +21,7 @@ func TestReplayUserChunksSurviveSessionMetadata(t *testing.T) {
 		&acp.SessionInfoUpdate{},
 	} {
 		if !a.sync(func() {
-			a.activity.replay = true
+			a.control.replay = true
 			a.onUpdate(a.epoch, acp.SessionNotification{Update: &acp.UserMessageChunk{MessageID: "one", Content: acp.TextBlock("full historical ")}})
 			a.onUpdate(a.epoch, acp.SessionNotification{Update: update})
 			a.onUpdate(a.epoch, acp.SessionNotification{Update: &acp.UserMessageChunk{MessageID: "one", Content: acp.TextBlock("envelope")}})

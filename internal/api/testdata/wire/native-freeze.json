@@ -1,0 +1,28 @@
+{
+  "status": 200,
+  "body": {
+    "agent": "codex",
+    "boundary": "1659",
+    "branch": "00000000-0000-4000-8000-000000000001",
+    "contentHash": "<contentHash#1>",
+    "files": [],
+    "format": "0.77.0",
+    "gaps": [
+      "257:mirror_pairing_unverified",
+      "1088:nonexportable_reasoning",
+      "1251:mirror_pairing_unverified",
+      "1530:compaction_boundary"
+    ],
+    "more": false,
+    "nativeId": "00000000-0000-4000-8000-000000000001",
+    "nextPosition": "0",
+    "nextTextOffset": "0",
+    "parser": "codex-rollout/v2",
+    "pending": false,
+    "recordCount": 6,
+    "records": [],
+    "retained": false,
+    "snapshotId": "<snapshotId#1>",
+    "truncated": false
+  }
+}

@@ -10,6 +10,8 @@ import (
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/handoff"
+	"github.com/rainchan/webmux/internal/historyimport"
+	"github.com/rainchan/webmux/internal/historyprojection"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
@@ -27,30 +29,33 @@ import (
 // featureServices is an explicit composition-root record, not a service lookup
 // container. A disabled feature has no service instance or lifetime to release.
 type featureServices struct {
-	agents         *agentprofile.Registry
-	launch         *launch.Service
-	workspace      *workspace.Service
-	code           *codeview.Service
-	files          *files.Service
-	artifacts      *artifacts.Service
-	creation       *sessioncreate.Service
-	recovery       *hybridresume.Service
-	chat           *hybrid.Service
-	conversations  *conversation.Service
-	handoff        *handoff.Service
-	push           *push.Service
-	forward        *forward.Service
-	voice          *voice.Service
-	voiceStore     *voicesettings.Service
-	voiceControl   *voiceController
-	p2p            *p2p.Service
-	p2pStore       *p2psettings.Service
-	p2pControl     *p2pController
-	tunnel         *tunnelController
-	tunnelStore    *tunnelsettings.Service
-	tunnelPath     string
-	tailscale      *tailscaleController
-	tailscaleStore *tailscalesettings.Service
+	agents            *agentprofile.Registry
+	launch            *launch.Service
+	workspace         *workspace.Service
+	code              *codeview.Service
+	files             *files.Service
+	artifacts         *artifacts.Service
+	creation          *sessioncreate.Service
+	recovery          *hybridresume.Service
+	chat              *hybrid.Service
+	conversations     *conversation.Service
+	nativeHistory     *historyimport.Service
+	historyProjection *historyprojection.Service
+	nativeRoot        func(agent string, env map[string]string) string
+	handoff           *handoff.Service
+	push              *push.Service
+	forward           *forward.Service
+	voice             *voice.Service
+	voiceStore        *voicesettings.Service
+	voiceControl      *voiceController
+	p2p               *p2p.Service
+	p2pStore          *p2psettings.Service
+	p2pControl        *p2pController
+	tunnel            *tunnelController
+	tunnelStore       *tunnelsettings.Service
+	tunnelPath        string
+	tailscale         *tailscaleController
+	tailscaleStore    *tailscalesettings.Service
 }
 
 // stop joins producers before the processes and stores they can still use.

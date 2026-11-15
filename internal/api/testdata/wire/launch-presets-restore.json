@@ -52,11 +52,6 @@
         ]
       },
       "cmd": [
-        "/usr/bin/env",
-        "bash",
-        "-ic",
-        "exec -- \"$@\"",
-        "webmux",
         "omp",
         "--auto-approve"
       ],

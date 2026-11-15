@@ -5,6 +5,7 @@ package conversation
 // callers must never reinterpret those records as user instructions.
 type HistoricalMessage struct {
 	ActivityID, ConversationID, ProviderThreadID, RunID string
+	NativeID, ParentID, CallID, NativeCallID, ToolName  string
 	Position, RunOrdinal                                int64
 	Kind, Role, Status, Text, Source                    string
 	Exportable                                          bool
@@ -12,19 +13,8 @@ type HistoricalMessage struct {
 	Attachments                                         []ActivityAttachment
 }
 
-func ProjectActivity(a Activity) HistoricalMessage {
-	out := HistoricalMessage{ActivityID: a.ID, ConversationID: a.ConversationID, ProviderThreadID: a.ProviderThreadID, RunID: a.RunID, Position: a.Position, RunOrdinal: a.RunOrdinal, Kind: a.Kind, Role: a.Role, Status: a.Status, Text: a.Text, Source: a.Source, Attachments: a.Attachments}
-	switch a.Kind {
-	case "message":
-		out.Exportable = a.Role == "user" || a.Role == "agent"
-	case "command", "tool", "error", "interrupt", "file_change", "plan", "compaction":
-		out.Exportable = true
-		out.Role = "agent"
-	}
-	if !out.Exportable {
-		out.ExclusionReason = "not_portable"
-		out.Text = ""
-		out.Attachments = nil
-	}
-	return out
+// Candidate contains a bounded mechanical projection and its transport cost.
+type Candidate struct {
+	Message               HistoricalMessage
+	ByteLength, JSONBytes int64
 }

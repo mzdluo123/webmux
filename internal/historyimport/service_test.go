@@ -143,3 +143,36 @@ func TestFrozenPrefixMutationAndCancellation(t *testing.T) {
 		t.Fatalf("cancelled source read: %v", err)
 	}
 }
+
+func TestFrozenRangesDoNotExpandPastHistoricalOptOut(t *testing.T) {
+	ctx := context.Background()
+	store := conversation.Open(conversation.Options{StateDir: t.TempDir()})
+	defer func() { _ = store.Close() }()
+	binding, err := store.EnsureRuntime(ctx, conversation.RuntimeInput{RuntimeID: "runtime", Cwd: t.TempDir(), AgentName: "synthetic", AgentSessionID: "session", HistoryOrigin: "complete", Status: "closed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "native.jsonl")
+	if err := os.WriteFile(path, []byte("\"public prefix\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	svc := historyimport.New(historyimport.Options{Store: store, Readers: map[string]historysource.ReadFunc{"synthetic": syntheticRead}})
+	source := historysource.Source{Agent: "synthetic", NativeID: "session", Path: path}
+	frozen, err := svc.Freeze(ctx, source, "public-reader", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddGap(ctx, binding.ProviderThreadID, "capture_disabled"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("\"public prefix\"\n\"private interval\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Freeze(ctx, source, "new-reader", false); !errors.Is(err, conversation.ErrUnavailable) {
+		t.Fatalf("new freeze exposed an opted-out native session: %v", err)
+	}
+	old, err := svc.Document(ctx, frozen.ID)
+	if err != nil || len(old.Records) != 1 || old.Records[0].Text != "public prefix" {
+		t.Fatalf("old authorized range expanded or disappeared: %+v %v", old, err)
+	}
+}

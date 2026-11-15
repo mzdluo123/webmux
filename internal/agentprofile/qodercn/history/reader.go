@@ -138,7 +138,7 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 			return empty, err
 		}
 		n := chain[i]
-		r := historysource.Record{ID: n.ID, ParentID: n.Parent, Offset: n.offset, End: n.end}
+		r := historysource.Record{ID: n.ID, NativeID: n.ID, ParentID: n.Parent, Offset: n.offset, End: n.end}
 		switch n.Type {
 		case "user", "assistant":
 			if n.Message.Role != n.Type {
@@ -177,7 +177,7 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 							doc.Records = append(doc.Records, textRecord)
 						}
 					case "tool_use", "tool_result":
-						tool := historysource.Record{ID: n.ID + ":" + strconv.Itoa(j), ParentID: n.ID, Kind: p.Type, Role: n.Type, CallID: p.ID, ToolName: p.Name, Offset: n.offset, End: n.end}
+						tool := historysource.Record{ID: n.ID + ":" + strconv.Itoa(j), NativeID: n.ID, ParentID: n.ID, Kind: p.Type, Role: n.Type, CallID: p.ID, ToolName: p.Name, Offset: n.offset, End: n.end}
 						if p.Type == "tool_use" {
 							calls[p.ID] = p.Name
 						} else {

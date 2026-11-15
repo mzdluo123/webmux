@@ -88,9 +88,6 @@ func TestInjectedHistoryFactSurvivesUserFailureAndSourceDeletion(t *testing.T) {
 	if err := s.ForgetRuntime(ctx, "source"); err != nil {
 		t.Fatal(err)
 	}
-	if used, err := s.EstimatedNativeUsage(ctx, e.TargetProviderThreadID); err != nil || used != 100 {
-		t.Fatal("source deletion lost native occupancy estimate", used, err)
-	}
 	if err := s.ReconcileInjection(ctx, e.DeliveryID, "native", items); err != nil {
 		t.Fatal("target-owned replay receipt lost", err)
 	}
@@ -146,9 +143,6 @@ func TestUnknownInjectionReconcilesDurablyAfterSourceDeletion(t *testing.T) {
 	if err := s.ClaimInjection(ctx, e.DeliveryID); !errors.Is(err, ErrConflict) {
 		t.Fatal("reconciled history could be injected again", err)
 	}
-	if used, err := s.EstimatedNativeUsage(ctx, e.TargetProviderThreadID); err != nil || used != 100 {
-		t.Fatal("reconciliation lost target occupancy estimate", used, err)
-	}
 	if _, err := s.Execution(ctx, e.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatal("reconciliation resurrected source operation", err)
 	}
@@ -157,20 +151,16 @@ func TestUnknownInjectionReconcilesDurablyAfterSourceDeletion(t *testing.T) {
 	}
 }
 
-func TestReconciledReplayWithoutNewWorkDoesNotInvalidateFrozenSource(t *testing.T) {
+func TestUnchangedControlDoesNotInvalidateFrozenSource(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t, t.TempDir())
 	b, p, _, _ := injectionTest(t, s)
-	replay, err := s.StartRun(ctx, b.ProviderThreadID, "load-replay")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.ReconcileReplay(ctx, b.ProviderThreadID, replay.ID); err != nil {
+	if _, err := s.ProviderThread(ctx, b.ProviderThreadID); err != nil {
 		t.Fatal(err)
 	}
 	got, err := s.Preview(ctx, p.ID)
 	if err != nil || got.Stale {
-		t.Fatal("empty reconciled replay counted as a new user turn", got.Stale, err)
+		t.Fatal("metadata read invalidated source", got.Stale, err)
 	}
 	if _, err := s.StartRun(ctx, b.ProviderThreadID, "actual-new-user-work"); err != nil {
 		t.Fatal(err)

@@ -14,17 +14,17 @@ type nativeReplay struct {
 
 func (a *actor) startNativeReplay() {
 	a.replayNative = nativeReplay{}
-	enabled, err := a.svc.conversations.HasInjections(context.Background(), a.activity.thread, a.agentSessionID)
+	enabled, err := a.svc.conversations.HasInjections(context.Background(), a.control.thread, a.agentSessionID)
 	if err != nil {
-		a.activityFailure()
+		a.controlFailure()
 		return
 	}
 	a.replayNative.enabled = enabled
 }
 
 func (a *actor) nativeReplayGap() {
-	if err := a.svc.conversations.AddGap(context.Background(), a.activity.thread, "replay_ambiguous"); err != nil {
-		a.activityFailure()
+	if err := a.svc.conversations.AddGap(context.Background(), a.control.thread, "replay_ambiguous"); err != nil {
+		a.controlFailure()
 	}
 	a.replayNative.current = conversation.Injection{}
 	a.replayNative.seen = nil
@@ -46,9 +46,9 @@ func (a *actor) filterNativeReplay(role, text, providerID string) bool {
 		}
 	}
 	if r.current.DeliveryID == "" {
-		injection, known, err := a.svc.conversations.InjectionReplay(context.Background(), a.activity.thread, a.agentSessionID, role, item.TextHash, providerID)
+		injection, known, err := a.svc.conversations.InjectionReplay(context.Background(), a.control.thread, a.agentSessionID, role, item.TextHash, providerID)
 		if err != nil {
-			a.activityFailure()
+			a.controlFailure()
 			return false
 		}
 		if injection.DeliveryID == "" {

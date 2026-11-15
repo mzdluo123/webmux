@@ -2,7 +2,6 @@ package handoff
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"os"
@@ -37,6 +36,7 @@ type deliveryHarness struct {
 	folders                        *artifacts.Service
 	source                         conversation.Binding
 	config                         launch.Config
+	completed []string
 }
 
 func deliveryTest(t *testing.T, env map[string]string) *deliveryHarness {
@@ -92,12 +92,6 @@ func deliveryTestWithFeatures(t *testing.T, env, sourceEnv map[string]string, wi
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, entry := range []struct{ role, text string }{{"user", "original constraint 中文🙂"}, {"agent", "partial result"}} {
-		_, err = h.store.WriteActivity(context.Background(), conversation.ActivityInput{ProviderThreadID: h.source.ProviderThreadID, RunID: run.ID, LocalKey: entry.role, Kind: "message", Role: entry.role, Status: "completed", Source: "local", Text: entry.text})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
 	if err := h.store.FinishRun(context.Background(), run.ID, "cancelled"); err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +117,8 @@ func (h *deliveryHarness) open() {
 	h.folders.Start(func(id string) bool { _, err := h.hybrids.Record(id); return err == nil })
 	creation := h.hybrids.Creation()
 	resumeOptions := hybridresume.Options{DefaultCwd: h.root, Creation: creation}
-	options := Options{Artifacts: h.folders, Conversations: h.store, Launch: h.launches, Hybrid: h.hybrids, Creation: creation, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes}
+	nativeHistory, projection := nativeTestServices(h.store)
+	options := Options{Artifacts: h.folders, Conversations: h.store, Launch: h.launches, Hybrid: h.hybrids, Creation: creation, NativeHistory: nativeHistory, HistoryProjection: projection, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes}
 	if !h.withoutWorkspace {
 		h.workspace = workspace.New(h.state, h.manager, h.launches, h.root)
 		h.workspace.UseHybrid(h.hybrids)
@@ -158,7 +153,7 @@ func (h *deliveryHarness) close() {
 
 func (h *deliveryHarness) preview(location conversation.PreviewLocation) (conversation.Preview, MessageRequest) {
 	h.t.Helper()
-	p, err := h.service.Preview(context.Background(), h.source.ConversationID, Request{ClientRequestID: "preview-command", ConfigID: h.config.ID, Fork: true, UserText: "continue this work", Location: location})
+	p, err := h.previewNative(context.Background(), h.source.ConversationID, Request{ClientRequestID: "preview-command", ConfigID: h.config.ID, Fork: true, UserText: "continue this work", Location: location})
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -171,6 +166,9 @@ func (h *deliveryHarness) waitStatus(id, status string) conversation.Execution {
 	for time.Now().Before(deadline) {
 		e, err := h.service.Delivery(context.Background(), id)
 		if err == nil && e.Status == status {
+			if status == "inline" {
+				h.completed = append(h.completed, e.ID)
+			}
 			return e
 		}
 		if err != nil || (e.Status != "pending" && status != "inline") {
@@ -217,19 +215,20 @@ func TestInlineDeliveryUsesOneRuntimePromptAndOriginalVisibleUserText(t *testing
 	if err != nil || binding.ConversationID != p.TargetConversationID || binding.ProviderThreadID != p.TargetProviderThreadID {
 		t.Fatalf("identity: %+v %v", binding, err)
 	}
-	history, err := h.store.Activities(ctx, p.TargetConversationID, 0, 100, 2000)
+	sub, err := h.hybrids.Subscribe(e.RuntimeID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	users := 0
-	for _, part := range history.Items {
-		if part.Activity.Role == "user" {
+	for _, event := range sub.Events {
+		if event.Message != nil && event.Message.Role == "user" {
 			users++
-			if part.Activity.Text != "continue this work" {
+			if event.Message.Text != "continue this work" {
 				t.Fatal("history leaked inline envelope")
 			}
 		}
 	}
+	sub.Close()
 	if users != 1 || h.promptCalls() != 1 {
 		t.Fatalf("users=%d prompts=%d", users, h.promptCalls())
 	}
@@ -457,7 +456,7 @@ func TestForgottenSourceUnknownStaysBlockedUntilActualTargetReplay(t *testing.T)
 	waitIdle(t, h.hybrids, e.RuntimeID)
 }
 
-func TestV10ForgottenSourceForkStillResumesAfterUpgrade(t *testing.T) {
+func TestForgottenSourceForkResumesAfterRestart(t *testing.T) {
 	h := deliveryTest(t, nil)
 	ctx := context.Background()
 	p, in := h.preview(conversation.PreviewLocation{})
@@ -477,20 +476,6 @@ func TestV10ForgottenSourceForkStillResumesAfterUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.close()
-	// Downgrade only after releasing the service's lifetime database lock.
-	db, err := sql.Open("sqlite", filepath.Join(h.state, "conversations.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = db.Exec(`DROP TABLE history_snapshot_gap; DROP TABLE history_snapshot_reference; DROP TABLE history_snapshot_item;
- DROP TABLE history_snapshot; DROP TABLE native_record; DROP TABLE native_location; DROP TABLE native_source;
- DROP TRIGGER dispatch_receipt_insert; DROP TRIGGER dispatch_receipt_update;
- DROP TRIGGER dispatch_receipt_delete; DROP TRIGGER dispatch_receipt_history; DROP TABLE dispatch_receipt;
- DROP INDEX delivery_target; ALTER TABLE runtime_binding DROP COLUMN published; PRAGMA user_version=10;`)
-	closeErr := db.Close()
-	if err != nil || closeErr != nil {
-		t.Fatal(err, closeErr)
-	}
 	h.open()
 	if _, err := h.recovery.Resume(ctx, e.RuntimeID, hybridresume.Input{ClientRequestID: "legacy-target-resume", Side: "acp"}); err != nil {
 		t.Fatal("successful legacy fork became unresumable", err)

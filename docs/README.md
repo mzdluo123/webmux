@@ -54,7 +54,9 @@
 
 ## 开发与架构
 
-- [Codex 原生历史开发验证](codex-native.md)：固定格式、导入与快照入口及当前限制。
+- [原生历史直读与快照](codex-native.md)：来源中立读取、引用/保留快照、格式证据与当前迁移边界。
+- [原生历史图片实验](native-image-experiment.md)：合成样本、隔离 CLI 实测、计费未知项及文本回退边界。
+- [真实 ACP 图片实验](native-image-transport.md)：WebMux ACP 客户端到实际模型的传输、用量与精确读取错误。
 
 - [参与贡献](../CONTRIBUTING.md)：开发环境、常用命令、测试、PR 与 OpenSpec 工作流。
 - [架构设计](architecture.md)：会话模型、缓冲与回放、状态探测、分层规则 R0–R11。

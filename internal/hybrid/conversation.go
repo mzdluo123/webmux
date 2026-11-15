@@ -3,17 +3,35 @@ package hybrid
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/rainchan/webmux/internal/conversation"
 )
 
 func conversationInput(r Record, origin string) conversation.RuntimeInput {
 	in := conversation.RuntimeInput{RuntimeID: r.ID, Cwd: r.Cwd, ConfigID: r.ConfigID, AgentName: r.Agent, AgentSessionID: r.AgentSessionID, Status: string(r.State), Config: r.Config, HistoryOrigin: origin, CreatedAt: r.CreatedAt}
+	in.HistoryRoot = r.HistoryRoot
 	if r.Workspace != nil {
 		in.RepositoryID = r.Workspace.RepositoryID
 		in.WorktreeID = r.Workspace.WorktreeID
 	}
 	return in
+}
+
+// runtimeRoot binds relative provider directories to the process working directory,
+// not the server's working directory. It never retains the launch environment.
+func (s *Service) runtimeRoot(agent, cwd string, env map[string]string) string {
+	if s.nativeRoot == nil {
+		return ""
+	}
+	root := s.nativeRoot(agent, env)
+	if root == "" {
+		return ""
+	}
+	if !filepath.IsAbs(root) {
+		root = filepath.Join(cwd, root)
+	}
+	return filepath.Clean(root)
 }
 
 // migrateConversations reads only validated legacy metadata. It does not start

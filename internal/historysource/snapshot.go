@@ -3,19 +3,20 @@ package historysource
 // Snapshot describes one frozen native range. Reference snapshots own no body;
 // retained snapshots own one immutable export, never a continuously updated log.
 type Snapshot struct {
-	ID                                                                         string
-	Source                                                                     Source
-	Cursor, Fingerprint, FormatVersion, ParserVersion, ContentHash, ExportHash string
-	RecordCount                                                                int
-	Gaps                                                                       []Gap
-	Records                                                                    []RecordRef
-	Retained                                                                   bool
+	ID                                                                                     string
+	Source                                                                                 Source
+	Cursor, Generation, Fingerprint, FormatVersion, ParserVersion, ContentHash, ExportHash string
+	RecordCount                                                                            int
+	Gaps                                                                                   []Gap
+	Records                                                                                []RecordRef
+	References                                                                             []ContextReference
+	Retained                                                                               bool
 }
 
 // RecordRef is immutable selection/coverage metadata, never a body mirror.
 type RecordRef struct {
-	ID, Hash string
-	Position int
+	ID, Hash, Kind string
+	Position       int
 }
 
 // Export is materialized only for an explicitly retained snapshot. Attachments
@@ -38,6 +39,7 @@ type PageRequest struct {
 }
 
 type Page struct {
+	Snapshot   Snapshot
 	Records    []Record
 	Next       int
 	TextOffset int

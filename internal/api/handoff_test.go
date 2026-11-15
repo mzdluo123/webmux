@@ -13,7 +13,6 @@ import (
 
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/handoff"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
@@ -24,19 +23,18 @@ import (
 
 func TestHandoffPreviewAPIRevisionStalenessAndPrivacy(t *testing.T) {
 	_, store, source := historyAPI(t)
+	sources, projection := nativeFixture(store)
 	launches := launch.Open(t.TempDir(), agents.Default())
 	defer launches.Close()
 	cfg, err := launches.Create(launch.Input{Name: "target", Cmd: []string{"omp"}, Env: map[string]string{"PRIVATE_ENV": "never-return-this"}, Hybrid: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	previews := handoff.New(handoff.Options{Conversations: store, Launch: launches, TokenCap: 16000, MaxPromptBytes: 64 << 10, MaxPromptWireBytes: 14 << 20})
-	// historyAPI provides an isolated service and manager; only this fixture's
-	// conversation dependency is needed for previews, with no runtime creation.
+	previews := handoff.New(handoff.Options{Conversations: store, NativeHistory: sources, HistoryProjection: projection, Launch: launches, TokenCap: 16000, MaxPromptBytes: 64 << 10, MaxPromptWireBytes: 14 << 20})
 	manager := session.NewManager(session.Options{})
 	t.Cleanup(func() { manager.Shutdown(context.Background()) })
 	t.Cleanup(previews.Close)
-	handler := New(testDeps(t, testServices{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, Handoffs: previews, Config: config.Config{Token: "secret"}}))
+	handler := New(testDeps(t, testServices{Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: store, NativeHistory: sources, HistoryProjection: projection, Handoffs: previews, Config: config.Config{Token: "secret"}}))
 	seedHistory(t, store, source, "source text 中文🙂")
 	request := func(method, path string, input any, authorization, origin string) *httptest.ResponseRecorder {
 		t.Helper()
@@ -103,12 +101,16 @@ func TestHandoffPreviewAPIRevisionStalenessAndPrivacy(t *testing.T) {
 	if err := json.Unmarshal(r.Body.Bytes(), &p); err != nil {
 		t.Fatal(err)
 	}
-	if !p.Stale || p.State != "stale" || p.RenderedText != "manual context" {
-		t.Fatalf("stale edit lost: %+v", p)
+	if p.Stale || p.State != "ready" || p.RenderedText != "manual context" || p.SourcePosition != "1" {
+		t.Fatalf("native append changed frozen edit: %+v", p)
 	}
 	// Deleting a config does not delete a saved draft or its first receipt.
 	if err := launches.Delete(cfg.ID); err != nil {
 		t.Fatal(err)
+	}
+	r = request("GET", "/api/handoffs/"+p.ID, nil, "Bearer secret", "")
+	if err := json.Unmarshal(r.Body.Bytes(), &p); r.Code != 200 || err != nil || !p.Stale || p.RenderedText != "manual context" {
+		t.Fatalf("changed target lost stale draft: %d %s %v", r.Code, r.Body.String(), err)
 	}
 	if r := request("POST", path, body, "Bearer secret", ""); r.Code != 201 {
 		t.Fatalf("retry after config deletion: %d %s", r.Code, r.Body.String())
@@ -123,6 +125,7 @@ func TestHandoffPreviewAPIRevisionStalenessAndPrivacy(t *testing.T) {
 
 func TestHandoffDeliveryAPIAuthDurableFailuresAndExplicitRetry(t *testing.T) {
 	_, store, source := historyAPI(t)
+	sources, projection := nativeFixture(store)
 	manager := session.NewManager(session.Options{})
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -142,12 +145,9 @@ func TestHandoffDeliveryAPIAuthDurableFailuresAndExplicitRetry(t *testing.T) {
 	defer workspaces.Close()
 	workspaces.UseHybrid(hybrids)
 	recovery := hybridresume.New(hybrids, launches, hybridresume.Options{DefaultCwd: cwd, Creation: hybrids.Creation(), Locations: workspaces, ResumeLocations: workspaces})
-	service := handoff.New(handoff.Options{Conversations: store, Launch: launches, Hybrid: hybrids, Creation: hybrids.Creation(), Recovery: recovery, Locations: workspaces, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
+	service := handoff.New(handoff.Options{Conversations: store, NativeHistory: sources, HistoryProjection: projection, Launch: launches, Hybrid: hybrids, Creation: hybrids.Creation(), Recovery: recovery, Locations: workspaces, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
 	defer service.Close()
-	handler := New(testDeps(t, testServices{Manager: manager, Workspace: workspaces, Launch: launches, Hybrid: hybrids, Conversations: store, Handoffs: service, Config: config.Config{Token: "secret", DefaultCwd: cwd}}))
-	if err := store.SyncRuntime(context.Background(), conversation.RuntimeInput{RuntimeID: "archived", Cwd: t.TempDir(), AgentName: "test", Status: "closed"}); err != nil {
-		t.Fatal(err)
-	}
+	handler := New(testDeps(t, testServices{Manager: manager, Workspace: workspaces, Launch: launches, Hybrid: hybrids, Conversations: store, NativeHistory: sources, HistoryProjection: projection, Handoffs: service, Config: config.Config{Token: "secret", DefaultCwd: cwd}}))
 	p, err := service.Preview(context.Background(), source.ConversationID, handoff.Request{ClientRequestID: "preview-api", ConfigID: cfg.ID, Fork: true, UserText: "next request"})
 	if err != nil {
 		t.Fatal(err)

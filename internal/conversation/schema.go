@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-const schemaVersion = 13
+const schemaVersion = 14
 
 const schema = `
 CREATE TABLE conversation (
@@ -97,7 +97,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 			return ErrUnavailable
 		}
 		// Fail on malformed current-version databases too.
-		for _, table := range []string{"conversation", "provider_thread", "run", "context_handoff", "handoff_delivery", "command_receipt", "activity", "activity_chunk", "activity_heading_chunk", "activity_attachment", "history_gap", "handoff_preview", "handoff_execution", "handoff_attachment", "inline_receipt", "native_injection", "native_injection_item", "dispatch_receipt", "native_source", "native_location", "native_record", "history_snapshot", "history_snapshot_item", "history_snapshot_gap", "history_snapshot_reference", "frozen_export", "frozen_snapshot", "frozen_reference"} {
+		for _, table := range []string{"conversation", "provider_thread", "run", "context_handoff", "handoff_delivery", "command_receipt", "history_gap", "handoff_preview", "handoff_execution", "handoff_attachment", "inline_receipt", "native_injection", "native_injection_item", "dispatch_receipt", "dispatch_source_item", "dispatch_context", "frozen_export", "frozen_snapshot", "frozen_reference", "native_source_binding", "conversation_prefix", "handoff_source_snapshot"} {
 			if _, err := db.ExecContext(ctx, "SELECT 1 FROM "+table+" LIMIT 0"); err != nil {
 				return err
 			}
@@ -199,6 +199,14 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	}
 	if version < 13 {
 		if _, err := tx.ExecContext(ctx, frozenSchema); err != nil {
+			return err
+		}
+		if err := migrateLegacyFrozen(ctx, tx); err != nil {
+			return err
+		}
+	}
+	if version < 14 {
+		if _, err := tx.ExecContext(ctx, nativeCutoverSchema); err != nil {
 			return err
 		}
 	}

@@ -31,7 +31,7 @@ func TestStagedDraftAttachmentsSurviveRestartRegenerationAndSourceForget(t *test
 		t.Fatal(err)
 	}
 	request := Request{ClientRequestID: "durable-preview", ConfigID: h.config.ID, Fork: true, UserText: "inspect the proof", Attachments: []conversation.PreviewAttachment{{Reference: original, Kind: "file"}}}
-	p, err := h.service.Preview(ctx, h.source.ConversationID, request)
+	p, err := h.previewNative(ctx, h.source.ConversationID, request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestStagedDraftAttachmentsSurviveRestartRegenerationAndSourceForget(t *test
 	// A second client's draft shares a safe immutable source upload, not a
 	// move or an overwrite of the first revision's attachment.
 	request.ClientRequestID = "second-durable-preview"
-	second, err := h.service.Preview(ctx, h.source.ConversationID, request)
+	second, err := h.previewNative(ctx, h.source.ConversationID, request)
 	if err != nil || second.Request.Attachments[0].Reference != owned {
 		t.Fatal("second client lost staged attachment", err)
 	}
@@ -70,7 +70,7 @@ func TestStagedDraftAttachmentsSurviveRestartRegenerationAndSourceForget(t *test
 	}
 	request.ClientRequestID = "regenerated-durable-preview"
 	request.Attachments = p.Request.Attachments
-	p, err = h.service.Preview(ctx, h.source.ConversationID, request)
+	p, err = h.previewNative(ctx, h.source.ConversationID, request)
 	if err != nil || p.Request.Attachments[0].Reference != owned || p.Request.Attachments[0].Name != "proof.txt" {
 		t.Fatal("regeneration lost attachment identity", err)
 	}
@@ -167,7 +167,7 @@ func TestStagedPreviewsWithSameBasenameKeepEveryRevision(t *testing.T) {
 		if err := os.WriteFile(path, []byte(text), 0600); err != nil {
 			t.Fatal(err)
 		}
-		p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: key, ConfigID: h.config.ID, Fork: true, UserText: "inspect the report", Attachments: []conversation.PreviewAttachment{{Reference: path, Kind: "file"}}})
+		p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: key, ConfigID: h.config.ID, Fork: true, UserText: "inspect the report", Attachments: []conversation.PreviewAttachment{{Reference: path, Kind: "file"}}})
 		if err != nil {
 			t.Fatal("same-basename preview failed", err)
 		}
@@ -191,7 +191,7 @@ func TestStagedPreviewsWithSameBasenameKeepEveryRevision(t *testing.T) {
 			t.Fatalf("persisted preview metadata changed: %+v %v", saved, err)
 		}
 	}
-	regenerated, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "regenerated-report-preview", ConfigID: h.config.ID, Fork: true, UserText: revised.Request.UserText, Attachments: revised.Request.Attachments})
+	regenerated, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "regenerated-report-preview", ConfigID: h.config.ID, Fork: true, UserText: revised.Request.UserText, Attachments: revised.Request.Attachments})
 	if err != nil || regenerated.Request.Attachments[0] != revised.Request.Attachments[0] {
 		t.Fatal("regeneration changed attachment metadata", err)
 	}
@@ -230,7 +230,7 @@ func TestEqualContentStagedAttachmentsRemainDistinctThroughDelivery(t *testing.T
 		}
 		request.Attachments = append(request.Attachments, conversation.PreviewAttachment{Reference: path, Kind: "file"})
 	}
-	first, err := h.service.Preview(ctx, h.source.ConversationID, request)
+	first, err := h.previewNative(ctx, h.source.ConversationID, request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestEqualContentStagedAttachmentsRemainDistinctThroughDelivery(t *testing.T
 	h.open()
 	request.ClientRequestID = "regenerate-equal-content-preview"
 	request.Attachments = first.Request.Attachments
-	regenerated, err := h.service.Preview(ctx, h.source.ConversationID, request)
+	regenerated, err := h.previewNative(ctx, h.source.ConversationID, request)
 	if err != nil {
 		t.Fatal("accepted equal-content attachments cannot be regenerated after restart", err)
 	}

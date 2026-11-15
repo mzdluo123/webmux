@@ -46,6 +46,9 @@ func saveInlineReceipt(ctx context.Context, tx *sql.Tx, executionID string) erro
 		return ErrUnavailable
 	}
 	_, err = tx.ExecContext(ctx, "INSERT OR IGNORE INTO inline_receipt(execution_id,target_provider_thread_id,native_thread_id,prompt_hash,user_text,attachments,provider_item_id) SELECT ?,?,?,?,?,?,replay_user_item_id FROM handoff_execution WHERE id=?", e.ID, e.TargetProviderThreadID, e.NativeThreadID, e.PromptHash, p.Request.UserText, body, e.ID)
+	if err == nil && p.ManualText == nil && p.Request.ProjectionPolicy != "" {
+		_, err = tx.ExecContext(ctx, "UPDATE inline_receipt SET projection_policy=? WHERE execution_id=?", p.Request.ProjectionPolicy, e.ID)
+	}
 	return storageError(ctx, err)
 }
 

@@ -47,6 +47,9 @@ func (s *Service) ReservePreview(ctx context.Context, in PreviewReservation) (Pr
 	if in.ClientRequestID == "" || in.RequestHash == "" || in.Request.ConfigID == "" || in.Request.AgentName == "" {
 		return Preview{}, ErrInvalid
 	}
+	if len(in.Snapshots) == 0 {
+		return Preview{}, ErrUnavailable
+	}
 	err := s.transact(ctx, func(tx *sql.Tx) error {
 		receipt, err := readReceipt(ctx, tx, in.SourceConversationID, in.ClientRequestID)
 		if err == nil {
@@ -115,13 +118,6 @@ func (s *Service) ReservePreview(ctx context.Context, in PreviewReservation) (Pr
 			if delivered > 0 && !reconcile && origin == "complete" {
 				from = delivered + 1
 				strategy = "delta_since_target_last_seen"
-				var earliest sql.NullInt64
-				if err := tx.QueryRowContext(ctx, `SELECT min(r.ordinal) FROM activity a JOIN run r ON r.id=a.run_id WHERE a.conversation_id=? AND a.position>? AND a.position<=? AND NOT(a.provider_thread_id=? AND r.consumed=1)`, targetConversation, seenPosition, nextPosition-1, target).Scan(&earliest); err != nil {
-					return storageError(ctx, err)
-				}
-				if earliest.Valid {
-					from = min(from, earliest.Int64)
-				}
 			}
 		}
 		id, err = s.allocateID(ctx, tx, "context_handoff")
@@ -136,6 +132,11 @@ func (s *Service) ReservePreview(ctx context.Context, in PreviewReservation) (Pr
 		if err != nil {
 			return storageError(ctx, err)
 		}
+		in.Request.SourceControlPosition = nextPosition - 1
+		sourcePosition, err := bindPreviewSources(ctx, tx, id, targetConversation, &in.Request, in.Snapshots)
+		if err != nil {
+			return err
+		}
 		request, err := encodePreviewRequest(in.Request)
 		if err != nil {
 			return err
@@ -147,7 +148,7 @@ func (s *Service) ReservePreview(ctx context.Context, in PreviewReservation) (Pr
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, "INSERT INTO handoff_preview(handoff_id,source_position,source_run_ordinal,history_origin,reconcile_required,request,budget,target_seen_position) VALUES(?,?,?,?,?,?,?,?)", id, nextPosition-1, nextRun-1, origin, reconcile, request, budget, seenPosition)
+		_, err = tx.ExecContext(ctx, "INSERT INTO handoff_preview(handoff_id,source_position,source_run_ordinal,history_origin,reconcile_required,request,budget,target_seen_position) VALUES(?,?,?,?,?,?,?,?)", id, sourcePosition, nextRun-1, origin, reconcile, request, budget, seenPosition)
 		if err != nil {
 			return storageError(ctx, err)
 		}
@@ -182,7 +183,7 @@ func readPreview(ctx context.Context, tx *sql.Tx, id string, out *Preview) error
 	if err := decodePreview(budget, &out.Budget); err != nil {
 		return err
 	}
-	out.Stale = nextPosition-1 != out.SourcePosition || currentOrigin != out.HistoryOrigin || currentReconcile != out.ReconcileRequired
+	out.Stale = nextPosition-1 != out.Request.SourceControlPosition || currentOrigin != out.HistoryOrigin || currentReconcile != out.ReconcileRequired
 	if nextRun-1 != out.SourceRunOrdinal {
 		var newWork bool
 		if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM run WHERE conversation_id=? AND ordinal>? AND status!='replay')", out.SourceConversationID, out.SourceRunOrdinal).Scan(&newWork); err != nil {
@@ -247,41 +248,16 @@ func (s *Service) CompletePreview(ctx context.Context, id string, result Preview
 		if err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE handoff_preview SET rendered_text=?,budget=?,state=?,selected_count=?,omitted_count=? WHERE handoff_id=?", result.RenderedText, budget, state, len(result.SelectedItemIDs), len(result.OmittedItemIDs), id); err != nil {
+		preview.Request.ProjectionPolicy = result.ProjectionPolicy
+		preview.Request.ContextKey = result.ContextKey
+		request, err := encodePreviewRequest(preview.Request)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE handoff_preview SET rendered_text=?,request=?,budget=?,state=?,selected_count=?,omitted_count=? WHERE handoff_id=?", result.RenderedText, request, budget, state, len(result.SelectedItemIDs), len(result.OmittedItemIDs), id); err != nil {
 			return storageError(ctx, err)
 		}
-		seen := map[string]bool{}
-		for selected, items := range [][]string{result.OmittedItemIDs, result.SelectedItemIDs} {
-			for _, item := range items {
-				if item == "" || seen[item] {
-					return ErrInvalid
-				}
-				seen[item] = true
-			}
-			if len(items) == 0 {
-				continue
-			}
-			encoded, err := encodePreviewItems(items)
-			if err != nil {
-				return err
-			}
-			// Bind the ID set once instead of compiling/executing an INSERT
-			// per omitted item. Keep json_each outermost so every source
-			// check is a primary-key lookup, not a scan of the ID set for
-			// every activity in a long conversation.
-			inserted, err := tx.ExecContext(ctx, `INSERT INTO handoff_item SELECT ?,a.id,?,a.position FROM json_each(?) item CROSS JOIN activity a ON a.id=item.value WHERE a.conversation_id=? AND a.position<=?`, id, selected, string(encoded), preview.SourceConversationID, preview.SourcePosition)
-			if err != nil {
-				return storageError(ctx, err)
-			}
-			n, err := inserted.RowsAffected()
-			if err != nil {
-				return storageError(ctx, err)
-			}
-			if n != int64(len(items)) {
-				return ErrConflict
-			}
-		}
-		return nil
+		return completeFrozenSelection(ctx, tx, id, result)
 	})
 	if err != nil {
 		return Preview{}, err

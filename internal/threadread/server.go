@@ -31,7 +31,7 @@ func toolDefinition() map[string]any {
 	return map[string]any{"name": "thread_read", "description": "Read frozen handoff history, including omitted items. " + Instructions, "annotations": map[string]any{"readOnlyHint": true, "destructiveHint": false, "openWorldHint": false}, "inputSchema": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"view"}, "properties": map[string]any{
 		"view":            map[string]any{"type": "string", "enum": []string{"activity"}},
 		"afterPosition":   map[string]any{"type": "string", "pattern": "^(0|[1-9][0-9]{0,18})$"},
-		"itemId":          map[string]any{"type": "string", "pattern": "^[a-f0-9]{32}$"},
+		"itemId":          map[string]any{"type": "string", "pattern": "^[a-f0-9]{32}([a-f0-9]{32})?$"},
 		"textOffset":      map[string]any{"type": "integer", "minimum": 0},
 		"limit":           map[string]any{"type": "integer", "default": 20, "minimum": 1, "maximum": 100},
 		"maxBytesPerItem": map[string]any{"type": "integer", "default": 4000, "minimum": 4, "maximum": 65536},

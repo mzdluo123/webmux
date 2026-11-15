@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/rainchan/webmux/internal/acp"
-	"github.com/rainchan/webmux/internal/conversation"
 )
 
 type replayUserBuffer struct {
@@ -22,7 +21,7 @@ func (a *actor) onUpdate(epoch int, n acp.SessionNotification) {
 	if epoch != a.epoch || a.stopped {
 		return
 	}
-	if a.activity.replay {
+	if a.control.replay {
 		role, id, text, ok := replayTextChunk(n.Update)
 		if ok && (role == "user" || a.replayNative.enabled) {
 			b := &a.replayUser
@@ -58,7 +57,7 @@ func (a *actor) onUpdate(epoch int, n acp.SessionNotification) {
 		}
 	}
 	a.flushReplayUser()
-	if u, ok := n.Update.(*acp.UserMessageChunk); ok && a.activity.replay && a.replayOwnedMessage && u.MessageID == a.replayOwnedMessageID {
+	if u, ok := n.Update.(*acp.UserMessageChunk); ok && a.control.replay && a.replayOwnedMessage && u.MessageID == a.replayOwnedMessageID {
 		return
 	}
 	a.replayOwnedMessage = false
@@ -78,20 +77,20 @@ func (a *actor) flushReplayUser() {
 	}
 	var attachments []Attachment
 	if a.svc.conversations != nil && b.role == "user" {
-		normalized, matched, err := a.svc.conversations.NormalizeInlineUser(context.Background(), a.activity.thread, a.agentSessionID, text, b.messageID)
+		normalized, matched, err := a.svc.conversations.NormalizeInlineUser(context.Background(), a.control.thread, a.agentSessionID, text, b.messageID)
 		if err != nil {
-			a.activityFailure()
-		} else if matched && b.messageID == "" && a.activity.replayReceipts[normalized.ExecutionID] {
+			a.controlFailure()
+		} else if matched && b.messageID == "" && a.control.replayReceipts[normalized.ExecutionID] {
 			// The first exact packet proves this receipt. An identical later
 			// no-ID user message can be a legitimate quote, so keep it intact.
-			if err := a.svc.conversations.AddGap(context.Background(), a.activity.thread, "replay_ambiguous"); err != nil {
-				a.activityFailure()
+			if err := a.svc.conversations.AddGap(context.Background(), a.control.thread, "replay_ambiguous"); err != nil {
+				a.controlFailure()
 			}
 		} else if matched {
-			if a.activity.replayReceipts == nil {
-				a.activity.replayReceipts = map[string]bool{}
+			if a.control.replayReceipts == nil {
+				a.control.replayReceipts = map[string]bool{}
 			}
-			a.activity.replayReceipts[normalized.ExecutionID] = true
+			a.control.replayReceipts[normalized.ExecutionID] = true
 			text = normalized.Text
 			for _, at := range normalized.Attachments {
 				attachments = append(attachments, Attachment{Path: at.Reference, Name: at.Name, MimeType: at.MimeType, Size: at.Size, Kind: at.Kind})
@@ -105,13 +104,7 @@ func (a *actor) flushReplayUser() {
 	}
 	epoch := b.epoch
 	*b = replayUserBuffer{}
-	a.onUpdateDirect(epoch, n)
-	if len(attachments) > 0 {
-		if err := a.writeActivity(conversation.ActivityInput{LocalKey: a.activity.message.key, ProviderItemID: a.activity.message.provider, Kind: "message", Role: "user", Status: "in_progress", Attachments: activityAttachments(attachments)}); err != nil {
-			a.activityFailure()
-		}
-		a.emit(Event{Kind: EventMessage, Message: &MessageChunk{MessageID: a.tr.last.id, Role: RoleUser, Attachments: attachments}})
-	}
+	a.onUpdateDirect(epoch, n, attachments...)
 }
 
 func replayTextChunk(update acp.Update) (role, id, text string, ok bool) {

@@ -42,11 +42,15 @@ const (
 type Options struct {
 	// Agents is the selected runtime registry. Nil enables no agents.
 	Agents *agentprofile.Registry
+	// NativeRoot resolves the native history directory from the actual launch environment.
+	NativeRoot func(agent string, env map[string]string) string
 	// MCPServers supplies instance tools on new/load/resume, independently of history capture.
 	// Only cmd assembles descriptors; nil leaves library-created sessions unchanged.
 	MCPServers func(context.Context) []acp.MCPServer
 	// HistoryReader is assembled by cmd; nil disables the optional MCP tool.
 	HistoryReader func(context.Context, conversation.ReaderScope) []acp.MCPServer
+	// DispatchCheckpoint records source-neutral continuity after acknowledgement.
+	DispatchCheckpoint func(context.Context, string) error
 
 	// StateDir holds hybrid-sessions.json.
 	StateDir string
@@ -91,12 +95,14 @@ var defaultTiming = timing{
 
 // Service owns the hybrid sessions of one server.
 type Service struct {
-	mcpServers        func(context.Context) []acp.MCPServer
-	historyReader     func(context.Context, conversation.ReaderScope) []acp.MCPServer
-	conversations     *conversation.Service
-	conversationError error
-	manager           *session.Manager
-	records           *records
+	mcpServers         func(context.Context) []acp.MCPServer
+	historyReader      func(context.Context, conversation.ReaderScope) []acp.MCPServer
+	nativeRoot         func(agent string, env map[string]string) string
+	conversations      *conversation.Service
+	conversationError  error
+	manager            *session.Manager
+	records            *records
+	dispatchCheckpoint func(context.Context, string) error
 	// options remembers each launch config's agent options for display
 	// before a session starts (agent-options.json).
 	options    *agentOptions
@@ -153,8 +159,10 @@ func New(o Options) *Service {
 	s := &Service{
 		mcpServers: o.MCPServers, historyReader: o.HistoryReader, conversations: o.Conversations, manager: o.Manager, records: openRecords(o.StateDir), options: openAgentOptions(o.StateDir), capacity: capacity, version: o.Version, log: log,
 		uploads: o.Uploads, userHome: userHome, agents: o.Agents,
-		metadata: make(map[string]*Metadata),
-		timing:   defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
+		nativeRoot:         o.NativeRoot,
+		dispatchCheckpoint: o.DispatchCheckpoint,
+		metadata:           make(map[string]*Metadata),
+		timing:             defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
 		recovering: make(map[string]bool),
 	}
 	restarted, err := s.records.recoverAfterRestart(time.Now())

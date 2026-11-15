@@ -17,25 +17,12 @@ export const ConversationActivitySchema = z.object({
   exclusionReason: z.string(),
   activityId: z.string().min(1),
   conversationId: z.string().min(1),
-  providerThreadId: z.string().min(1),
+  providerThreadId: z.string(),
   runId: z.string(),
   position: ConversationCursorSchema,
   runOrdinal: ConversationCursorSchema,
-  kind: z.enum([
-    "message",
-    "command",
-    "tool",
-    "error",
-    "interrupt",
-    "file_change",
-    "plan",
-    "compaction",
-    "turn_start",
-    "turn_end",
-    "permission",
-    "marker",
-  ]),
-  role: z.enum(["", "user", "agent", "system"]),
+  kind: z.string(),
+  role: z.string(),
   status: z.string(),
   text: z.string(),
   source: z.enum(["local", "live", "replay", "native"]),
@@ -52,10 +39,18 @@ export const ConversationActivitySchema = z.object({
       size: z.number().int().min(-1),
     }),
   ),
+  snapshotIds: z.array(z.string()).optional(),
+  sourceHash: z.string().optional(),
+  parentId: z.string().optional(),
+  nativeId: z.string().optional(),
+  callId: z.string().optional(),
+  nativeCallId: z.string().optional(),
+  toolName: z.string().optional(),
 });
 
 export const ConversationActivitiesSchema = z.object({
   items: z.array(ConversationActivitySchema),
+  snapshotIds: z.array(z.string()),
   nextPosition: ConversationCursorSchema,
   gaps: z.array(
     z.object({
@@ -244,12 +239,31 @@ export type HandoffDraft = z.infer<typeof HandoffDraftSchema>;
 export type HandoffLocation = z.infer<typeof HandoffLocationSchema>;
 
 const nativeFileSchema = z.object({
-  path: z.string(),
+  agent: z.string(),
   nativeId: z.string(),
-  cwd: z.string(),
-  timestamp: z.string(),
-  version: z.string(),
-  problem: z.string(),
+  branch: z.string(),
+  path: z.string(),
+});
+
+const nativeRecordSchema = z.object({
+  id: z.string().min(1),
+  nativeId: z.string(),
+  parentId: z.string(),
+  hash: z.string().min(1),
+  kind: z.string(),
+  role: z.string(),
+  status: z.string(),
+  text: z.string(),
+  callId: z.string(),
+  nativeCallId: z.string(),
+  toolName: z.string(),
+  position: ConversationCursorSchema,
+  offset: ConversationCursorSchema,
+  end: ConversationCursorSchema,
+  byteLength: ConversationCursorSchema,
+  nextTextOffset: ConversationCursorSchema,
+  truncated: z.boolean(),
+  attachments: ConversationActivitySchema.shape.attachments,
 });
 
 const nativeRangeSchema = z.object({
@@ -291,29 +305,22 @@ export const NativePreviewSchema = z.object({
 });
 
 export const NativeResultSchema = z.object({
-  truncated: z.boolean(),
+  agent: z.string(),
   nativeId: z.string(),
-  model: z.string(),
-  provenance: z.array(
-    z.object({
-      position: ConversationCursorSchema,
-      activityId: z.string(),
-      sourceId: z.string(),
-      checksum: z.string(),
-      callId: z.string(),
-      toolName: z.string(),
-      kind: z.string(),
-      offset: ConversationCursorSchema,
-      end: ConversationCursorSchema,
-    }),
-  ),
+  branch: z.string(),
+  format: z.string(),
+  boundary: z.string(),
+  contentHash: z.string(),
+  retained: z.boolean(),
+  truncated: z.boolean(),
+  more: z.boolean(),
+  nextPosition: ConversationCursorSchema,
+  nextTextOffset: ConversationCursorSchema,
+  recordCount: z.number().int().nonnegative(),
   files: z.array(nativeFileSchema),
-  sourceId: z.string(),
-  conversationId: z.string(),
   snapshotId: z.string(),
   parser: z.string(),
-  consumed: ConversationCursorSchema,
   pending: z.boolean(),
   gaps: z.array(z.string()),
-  activities: ConversationActivitiesSchema,
+  records: z.array(nativeRecordSchema),
 });

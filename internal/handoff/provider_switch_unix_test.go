@@ -24,7 +24,7 @@ func TestExternalCodexWriterDoesNotTriggerFreshFallback(t *testing.T) {
 	ctx := context.Background()
 	cfg := codexLaunch(t, h)
 	home := cfg.Env["CODEX_HOME"]
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-Codex", ConfigID: cfg.ID, UserText: "Codex work"})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-Codex", ConfigID: cfg.ID, UserText: "Codex work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestExternalCodexWriterDoesNotTriggerFreshFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	back, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-original", ConfigID: original.ConfigID, UserText: "OMP work"})
+	back, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-original", ConfigID: original.ConfigID, UserText: "OMP work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestExternalCodexWriterDoesNotTriggerFreshFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = unix.Flock(int(lock.Fd()), unix.LOCK_UN) }()
-	target, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-held-Codex", ConfigID: cfg.ID, UserText: "return Codex"})
+	target, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-held-Codex", ConfigID: cfg.ID, UserText: "return Codex"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestProviderSwitchWithDeletedLaunchPreservesWriterChecks(t *testing.T) {
 	home := cfg.Env["CLAUDE_CONFIG_DIR"]
 	// The live actor must use its launch environment, not the service default.
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(h.root, "other-claude-home"))
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "deleted-launch-A-preview", ConfigID: cfg.ID, UserText: "A work"})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "deleted-launch-A-preview", ConfigID: cfg.ID, UserText: "A work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestProviderSwitchWithDeletedLaunchPreservesWriterChecks(t *testing.T) {
 		t.Fatalf("refused quiescence changed live writer: %+v %v", rec, err)
 	}
 	stopExternal()
-	bp, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "deleted-launch-B-preview", ConfigID: h.config.ID, UserText: "B work"})
+	bp, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "deleted-launch-B-preview", ConfigID: h.config.ID, UserText: "B work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ func TestProviderSwitchWithDeletedLaunchPreservesWriterChecks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cp, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "deleted-launch-C-preview", ConfigID: c.ID, UserText: "C work"})
+	cp, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "deleted-launch-C-preview", ConfigID: c.ID, UserText: "C work"})
 	if err != nil {
 		t.Fatal(err)
 	}

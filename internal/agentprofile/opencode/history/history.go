@@ -24,6 +24,7 @@ const ParserVersion = "opencode-sqlite-1"
 
 type boundary struct {
 	Generation       string
+	Instance         string
 	Message, Part    int64
 	Digest           string
 	NativeID, Branch string
@@ -115,6 +116,11 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 		return out, historysource.ErrChanged
 	}
 	b.Generation = generation
+	instance := historysource.FileIdentity(before)
+	if req.Cursor != "" && b.Instance != instance {
+		return out, historysource.ErrChanged
+	}
+	b.Instance = instance
 	table := "message"
 	if generation == "v2" {
 		table = "session_message"
@@ -277,7 +283,7 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 				return out, historysource.ErrFormat
 			}
 			if data.Text != "" {
-				out.Records = append(out.Records, historysource.Record{ID: m.id, ParentID: m.parent, Kind: "message", Role: m.role, Text: data.Text, Offset: m.position, End: m.position + 1})
+				out.Records = append(out.Records, historysource.Record{ID: m.id, NativeID: m.id, ParentID: m.parent, Kind: "message", Role: m.role, Text: data.Text, Offset: m.position, End: m.position + 1})
 			}
 			for i, p := range data.Content {
 				if e = appendPart(&out, m, fmt.Sprintf("%s/%d", m.id, i), string(p), m.position); e != nil {
@@ -300,7 +306,8 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 		return out, historysource.ErrChanged
 	}
 	out.FormatVersion = "opencode-sqlite-" + generation
-	out.Fingerprint = digest
+	out.Generation = instance
+	out.Fingerprint = instance + ":" + digest
 	raw, _ := json.Marshal(b)
 	out.Cursor = base64.RawURLEncoding.EncodeToString(raw)
 	return out, nil
@@ -317,7 +324,7 @@ func appendPart(out *historysource.Document, m message, id, raw string, pos int6
 	if json.Unmarshal([]byte(raw), &p) != nil {
 		return historysource.ErrFormat
 	}
-	r := historysource.Record{ID: id, ParentID: m.id, Kind: "message", Role: m.role, Offset: pos, End: pos + 1}
+	r := historysource.Record{ID: id, NativeID: m.id, ParentID: m.id, Kind: "message", Role: m.role, Offset: pos, End: pos + 1}
 	switch p.Type {
 	case "text":
 		r.Text = p.Text
@@ -342,7 +349,7 @@ func appendPart(out *historysource.Document, m message, id, raw string, pos int6
 		if r.Status == "error" {
 			r.Text = p.State.Error
 		}
-		out.Records = append(out.Records, historysource.Record{ID: id + "/call", ParentID: m.id, Kind: "tool-call", Role: "assistant", CallID: r.CallID, ToolName: r.ToolName, Status: r.Status, Offset: pos, End: pos + 1})
+		out.Records = append(out.Records, historysource.Record{ID: id + "/call", NativeID: m.id, ParentID: m.id, Kind: "tool-call", Role: "assistant", CallID: r.CallID, ToolName: r.ToolName, Status: r.Status, Offset: pos, End: pos + 1})
 	case "compaction":
 		r.Kind = "compaction"
 		out.Gaps = append(out.Gaps, historysource.Gap{RecordID: id, Category: "compaction"})

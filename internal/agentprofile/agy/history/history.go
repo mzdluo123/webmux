@@ -98,6 +98,7 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	if err != nil {
 		return fail(err)
 	}
+	out.Generation = historysource.FileIdentity(before)
 	defer db.Close()
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
@@ -118,8 +119,8 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 			return fail(err)
 		}
 	} else {
-		parts := strings.Split(req.Cursor, ":")
-		if len(parts) != 3 || parts[0] != "agy1" || len(parts[2]) != 64 {
+		parts := strings.SplitN(req.Cursor, ":", 4)
+		if len(parts) != 4 || parts[0] != "agy2" || parts[3] != out.Generation || len(parts[2]) != 64 {
 			return fail(historysource.ErrChanged)
 		}
 		boundary, err = strconv.ParseInt(parts[1], 10, 64)
@@ -166,7 +167,7 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 		hash.Write(meta)
 		fmt.Fprintf(hash, ":%d:", len(payload))
 		hash.Write(payload)
-		r := historysource.Record{ID: id + "/step/" + decimal(idx), ParentID: parent, Status: stepStatus(status), Offset: idx, End: idx + 1}
+		r := historysource.Record{ID: id + "/step/" + decimal(idx), NativeID: decimal(idx), ParentID: parent, Status: stepStatus(status), Offset: idx, End: idx + 1}
 		if idx != previous+1 {
 			out.Gaps = append(out.Gaps, historysource.Gap{RecordID: r.ID, Category: "missing-step", Offset: idx})
 		}
@@ -205,11 +206,12 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	if external != 0 {
 		out.Gaps = append(out.Gaps, historysource.Gap{Category: "external-parent-unresolved"})
 	}
-	out.Fingerprint = hex.EncodeToString(hash.Sum(nil))
-	if expected != "" && expected != out.Fingerprint {
+	digest := hex.EncodeToString(hash.Sum(nil))
+	out.Fingerprint = out.Generation + ":" + digest
+	if expected != "" && expected != digest {
 		return fail(historysource.ErrChanged)
 	}
-	out.Cursor = "agy1:" + decimal(boundary) + ":" + out.Fingerprint
+	out.Cursor = "agy2:" + decimal(boundary) + ":" + digest + ":" + out.Generation
 	if err = tx.Commit(); err != nil {
 		return fail(err)
 	}

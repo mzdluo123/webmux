@@ -78,7 +78,7 @@ func cancelledAnswer(kind string) Answer {
 	return Answer{Outcome: OutcomeCancelled}
 }
 
-func (a *actor) onUpdateDirect(epoch int, n acp.SessionNotification) {
+func (a *actor) onUpdateDirect(epoch int, n acp.SessionNotification, attachments ...Attachment) {
 	if epoch != a.epoch || a.stopped {
 		return
 	}
@@ -88,8 +88,15 @@ func (a *actor) onUpdateDirect(epoch int, n acp.SessionNotification) {
 		}
 		a.work.noteBackground(n.Update)
 	}
-	a.recordUpdate(n.Update)
+	a.observeControlUpdate(n.Update)
 	events := a.tr.update(n.Update)
+	if len(attachments) > 0 {
+		for _, event := range events {
+			if event.Message != nil && event.Message.Role == RoleUser {
+				event.Message.Attachments = attachments
+			}
+		}
+	}
 	if hidden := a.cmd.Profile.HiddenCommands; len(hidden) > 0 {
 		for i := range events {
 			if events[i].Kind == EventCommands {
@@ -329,8 +336,8 @@ func (a *actor) record(immediate bool, change func(*Record)) {
 		a.svc.log.Warn("hybrid record update failed", "id", a.id, "error", err)
 	} else {
 		a.svc.syncConversation(rec)
-		if err := a.activityThread(); err != nil {
-			a.activityFailure()
+		if err := a.bindControlThread(); err != nil {
+			a.controlFailure()
 		}
 	}
 }

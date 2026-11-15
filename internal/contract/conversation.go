@@ -24,6 +24,13 @@ type ConversationActivity struct {
 	Truncated        bool                     `json:"truncated"`
 	CreatedAt        time.Time                `json:"createdAt"`
 	Attachments      []ConversationAttachment `json:"attachments"`
+	SnapshotIDs      []string                 `json:"snapshotIds,omitempty"`
+	SourceHash       string                   `json:"sourceHash,omitempty"`
+	ParentID         string                   `json:"parentId,omitempty"`
+	NativeID         string                   `json:"nativeId,omitempty"`
+	CallID           string                   `json:"callId,omitempty"`
+	NativeCallID     string                   `json:"nativeCallId,omitempty"`
+	ToolName         string                   `json:"toolName,omitempty"`
 }
 
 type ConversationAttachment struct {
@@ -42,6 +49,7 @@ type ConversationGap struct {
 
 type ConversationActivities struct {
 	Items             []ConversationActivity `json:"items"`
+	SnapshotIDs       []string               `json:"snapshotIds"`
 	NextPosition      string                 `json:"nextPosition"`
 	Gaps              []ConversationGap      `json:"gaps"`
 	ReconcileRequired bool                   `json:"reconcileRequired"`

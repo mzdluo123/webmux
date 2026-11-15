@@ -1,48 +1,68 @@
 package featurewire
 
 import (
-	snapcompact "github.com/mzdluo123/snapcompact-go"
 	"strconv"
 
-	"github.com/rainchan/webmux/internal/codexrollout"
+	snapcompact "github.com/mzdluo123/snapcompact-go"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/historyprojection"
+	"github.com/rainchan/webmux/internal/historysource"
 )
 
-func NativeFiles(files []codexrollout.File) []contract.NativeFile {
-	return each(files, func(f codexrollout.File) contract.NativeFile {
-		return contract.NativeFile{Path: f.Path, NativeID: f.Metadata.ID, Cwd: f.Metadata.Cwd, Timestamp: f.Metadata.Timestamp, Version: f.Metadata.CLIVersion, Problem: f.Problem}
+func NativeFiles(files []historysource.Source) []contract.NativeFile {
+	return each(files, func(f historysource.Source) contract.NativeFile {
+		return contract.NativeFile{Agent: f.Agent, Path: f.Path, NativeID: f.NativeID, Branch: f.Branch}
 	})
 }
-func NativeImported(in conversation.NativeImport) contract.NativeResult {
+
+func NativeSnapshot(in historysource.Snapshot) contract.NativeResult {
 	out := EmptyNativeResult()
-	out.SourceID = in.SourceID
-	out.NativeID = in.NativeID
-	out.ConversationID = in.Binding.ConversationID
-	out.Consumed = strconv.FormatInt(in.Consumed, 10)
-	out.Pending = in.Pending
-	for _, d := range in.Diagnostics {
-		out.Gaps = append(out.Gaps, strconv.FormatInt(d.Offset, 10)+":"+d.Category)
+	out.Agent, out.NativeID, out.Branch = in.Source.Agent, in.Source.NativeID, in.Source.Branch
+	out.SnapshotID, out.Parser, out.Format = in.ID, in.ParserVersion, in.FormatVersion
+	out.Boundary, out.ContentHash, out.Retained = in.Cursor, in.ContentHash, in.Retained
+	out.RecordCount = in.RecordCount
+	out.Gaps = nativeGaps(in.Gaps)
+	return out
+}
+
+func EmptyNativeResult() contract.NativeResult {
+	return contract.NativeResult{NextPosition: "0", NextTextOffset: "0", Files: []contract.NativeFile{}, Gaps: []string{}, Records: []contract.NativeRecord{}}
+}
+
+func NativePage(page historysource.Page, after, offset int) contract.NativeResult {
+	out := NativeSnapshot(page.Snapshot)
+	out.NextPosition, out.NextTextOffset, out.More = strconv.Itoa(page.Next), strconv.Itoa(page.TextOffset), page.More
+	for index, record := range page.Records {
+		position := after + index
+		textOffset := 0
+		if index == 0 {
+			textOffset = offset
+		}
+		end := textOffset + len(record.Text)
+		hash := ""
+		if position < len(page.Snapshot.Records) {
+			hash = page.Snapshot.Records[position].Hash
+		}
+		out.Records = append(out.Records, contract.NativeRecord{
+			ID: record.ID, NativeID: record.NativeID, ParentID: record.ParentID, Hash: hash,
+			Kind: record.Kind, Role: record.Role, Status: record.Status, Text: record.Text,
+			CallID: record.CallID, NativeCallID: record.NativeCallID, ToolName: record.ToolName,
+			Position: strconv.Itoa(position + 1), Offset: strconv.FormatInt(record.Offset, 10), End: strconv.FormatInt(record.End, 10),
+			ByteLength: strconv.FormatInt(record.ByteLength, 10), NextTextOffset: strconv.Itoa(end), Truncated: int64(end) < record.ByteLength,
+			Attachments: each(record.Attachments, func(a historysource.Attachment) contract.ConversationAttachment {
+				return contract.ConversationAttachment{Name: a.Name, MimeType: a.MimeType, Reference: a.Reference, Size: a.Size}
+			}),
+		})
 	}
 	return out
 }
-func NativeSnapshot(in conversation.NativeSnapshot) contract.NativeResult {
-	out := EmptyNativeResult()
-	out.SourceID = in.SourceID
-	out.NativeID = in.NativeID
-	out.SnapshotID = in.ID
-	out.Parser = in.Parser
-	out.Model = in.Model
-	out.Consumed = strconv.FormatInt(in.Consumed, 10)
-	out.Gaps = append(out.Gaps, in.Gaps...)
-	return out
-}
-func EmptyNativeResult() contract.NativeResult {
-	return contract.NativeResult{Consumed: "0", Provenance: []contract.NativeProvenance{}, Files: []contract.NativeFile{}, Gaps: []string{}, Activities: ConversationActivities(conversation.ActivityPage{HistoryOrigin: "unknown", Items: []conversation.ActivityPart{}, Gaps: []conversation.HistoryGap{}})}
+
+func nativeGaps(in []historysource.Gap) []string {
+	return each(in, func(g historysource.Gap) string { return strconv.FormatInt(g.Offset, 10) + ":" + g.Category })
 }
 
-func NativePreview(in conversation.SnapshotPreview, problem string) contract.NativePreview {
-	out := contract.NativePreview{Gaps: append([]string{}, in.Gaps...), ID: in.ID, Version: in.Projection.Version, CurrentTask: in.Projection.CurrentTask, Segments: []contract.NativeSegment{}, Omissions: []contract.NativeOmission{}, Pages: []contract.NativePNG{}, Uncovered: []contract.NativeRange{}, MissingGlyphCount: len(in.Render.Missing), Problem: problem}
+func NativePreview(in historyprojection.Preview, problem string) contract.NativePreview {
+	out := contract.NativePreview{Gaps: nativeGaps(in.Gaps), ID: in.ID, Version: in.Projection.Version, CurrentTask: in.Projection.CurrentTask, Segments: []contract.NativeSegment{}, Omissions: []contract.NativeOmission{}, Pages: []contract.NativePNG{}, Uncovered: []contract.NativeRange{}, MissingGlyphCount: len(in.Render.Missing), Problem: problem}
 	for _, v := range in.Projection.Segments {
 		out.Segments = append(out.Segments, contract.NativeSegment{SourceID: v.SourceID, Text: v.Text, Role: v.Role, CallID: v.CallID, ToolName: v.ToolName, Status: v.Status, Sources: each(v.Sources, nativeRange)})
 	}
@@ -55,12 +75,7 @@ func NativePreview(in conversation.SnapshotPreview, problem string) contract.Nat
 	out.Uncovered = each(in.Render.Uncovered, nativeRange)
 	return out
 }
+
 func nativeRange(v snapcompact.Range) contract.NativeRange {
 	return contract.NativeRange{SourceID: v.SourceID, Field: v.Field, Start: v.Start, End: v.End}
-}
-
-func NativeProvenance(in []conversation.NativeProvenance) []contract.NativeProvenance {
-	return each(in, func(p conversation.NativeProvenance) contract.NativeProvenance {
-		return contract.NativeProvenance{Position: strconv.FormatInt(p.Position, 10), ActivityID: p.ActivityID, SourceID: p.SourceID, Checksum: p.Checksum, CallID: p.CallID, ToolName: p.ToolName, Kind: p.Kind, Offset: strconv.FormatInt(p.Offset, 10), End: strconv.FormatInt(p.End, 10)}
-	})
 }

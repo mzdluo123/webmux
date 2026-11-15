@@ -2,15 +2,19 @@ package conversation
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rainchan/webmux/internal/historysource"
 )
 
-func TestSourceForgetRetainsTargetUnknownGateAndInlineOccupancy(t *testing.T) {
+func TestSourceForgetRetainsTargetUnknownGateAndInlineProof(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	s := openTest(t, dir)
@@ -46,10 +50,7 @@ func TestSourceForgetRetainsTargetUnknownGateAndInlineOccupancy(t *testing.T) {
 	if _, matched, err := s.NormalizeInlineUser(ctx, e.TargetProviderThreadID, "other-native", text); err != nil || matched {
 		t.Fatal("wrong identity admitted", err)
 	}
-	if used, err := s.EstimatedNativeUsage(ctx, e.TargetProviderThreadID); err != nil || used != 100 {
-		t.Fatal("source forget lost occupancy", used, err)
-	}
-	p, err := s.ReservePreview(ctx, PreviewReservation{SourceConversationID: e.TargetConversationID, ClientRequestID: "new-target-preview", RequestHash: "preview", Request: PreviewRequest{ConfigID: "config", AgentName: "omp", TargetProviderThreadID: e.TargetProviderThreadID}})
+	p, err := s.ReservePreview(ctx, PreviewReservation{Snapshots: controlSnapshots(t, s, e.TargetConversationID), SourceConversationID: e.TargetConversationID, ClientRequestID: "new-target-preview", RequestHash: "preview", Request: PreviewRequest{ConfigID: "config", AgentName: "omp", TargetProviderThreadID: e.TargetProviderThreadID}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,9 +66,6 @@ func TestSourceForgetRetainsTargetUnknownGateAndInlineOccupancy(t *testing.T) {
 	}
 	if gate, held, err = s.RuntimeDispatch(ctx, e.RuntimeID); err != nil || held {
 		t.Fatal("proof did not release gate", gate, held, err)
-	}
-	if used, err := s.EstimatedNativeUsage(ctx, e.TargetProviderThreadID); err != nil || used != 100 {
-		t.Fatal("confirmed occupancy lost", used, err)
 	}
 }
 
@@ -163,12 +161,12 @@ func TestForgottenSourceRemovesUnexecutedForkDraftMetadata(t *testing.T) {
 	}
 }
 
-func TestSQLiteReadOnlyAndFullAbortBeforeActivityPublication(t *testing.T) {
+func TestSQLiteReadOnlyAndFullAbortBeforeFrozenPublication(t *testing.T) {
 	for _, fault := range []string{"read-only", "full"} {
 		t.Run(fault, func(t *testing.T) {
 			ctx := context.Background()
 			s := openTest(t, t.TempDir())
-			b := bindTest(t, s, "source")
+			sources, _, source := nativeFixture(t, s, "source", strings.Repeat("private not logged ", 10000))
 			statement := "PRAGMA query_only=ON"
 			if fault == "full" {
 				var pages int
@@ -180,13 +178,13 @@ func TestSQLiteReadOnlyAndFullAbortBeforeActivityPublication(t *testing.T) {
 			if _, err := s.db.Exec(statement); err != nil {
 				t.Fatal(err)
 			}
-			_, err := s.WriteActivity(ctx, ActivityInput{ProviderThreadID: b.ProviderThreadID, LocalKey: "cannot-commit", Kind: "message", Role: "user", Source: "local", Status: "completed", Text: strings.Repeat("private not logged ", 10000)})
+			_, err := sources.Freeze(ctx, source, "pending", true)
 			if !errors.Is(err, ErrUnavailable) {
 				t.Fatal("storage failure did not fail closed", err)
 			}
 			var count int
-			if err := s.db.QueryRow("SELECT count(*) FROM activity WHERE position IS NOT NULL").Scan(&count); err != nil || count != 0 {
-				t.Fatal("partial activity published", count, err)
+			if err := s.db.QueryRow("SELECT count(*) FROM frozen_snapshot").Scan(&count); err != nil || count != 0 {
+				t.Fatal("partial frozen manifest published", count, err)
 			}
 		})
 	}
@@ -251,19 +249,6 @@ func TestProcessCrashAfterClaimBeforeConsumptionCommitStaysUnknown(t *testing.T)
 	}
 }
 
-func TestEstimatedNativeUsageIncludesPreviouslyConsumedAttachments(t *testing.T) {
-	s := openTest(t, t.TempDir())
-	ctx := context.Background()
-	b := bindTest(t, s, "source")
-	_, err := s.WriteActivity(ctx, ActivityInput{ProviderThreadID: b.ProviderThreadID, LocalKey: "with-files", Kind: "message", Role: "user", Source: "local", Status: "completed", Text: "body", Attachments: []ActivityAttachment{{Name: "image.png", MimeType: "image/png", Reference: "target-owned:image"}, {Name: "file.txt", MimeType: "text/plain", Reference: "target-owned:file"}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	used, err := s.EstimatedNativeUsage(ctx, b.ProviderThreadID)
-	if err != nil || used != escapedTextBytes("body")+256+8192+4096 {
-		t.Fatal("prior attachment occupancy was omitted", used, err)
-	}
-}
 
 func TestForgottenSourceDispatchMigration(t *testing.T) {
 	for _, version := range []int{10, 11} {
@@ -272,176 +257,102 @@ func TestForgottenSourceDispatchMigration(t *testing.T) {
 				t.Run(fmt.Sprintf("v%d/replaced=%t/%s", version, replaced, state), func(t *testing.T) {
 					ctx := context.Background()
 					dir := t.TempDir()
-					s := openTest(t, dir)
-					b := bindTest(t, s, "source")
-					_, e := executionTest(t, s, b)
-					if err := s.BindRuntime(ctx, e.RuntimeID, e.TargetProviderThreadID, "config", "omp"); err != nil {
+					db, err := sql.Open("sqlite", filepath.Join(dir, "conversations.sqlite"))
+					if err != nil {
 						t.Fatal(err)
 					}
-					if err := s.SyncRuntime(ctx, RuntimeInput{RuntimeID: e.RuntimeID, Cwd: "/workspace", AgentSessionID: "native", Status: "closed"}); err != nil {
-						t.Fatal(err)
+					// Explicit pre-native layout. Source rows have already cascaded
+					// away; target-owned receipts are the only surviving proof.
+					legacyFrozenExec(t, db, schema+activitySchema+previewSchema+budgetSchema+executionSchema+attachmentSchema+inlineReceiptSchema+dispatchSchema+injectionSchema+selectionSchema+`
+CREATE INDEX handoff_source_created ON context_handoff(source_conversation_id,created_at DESC);
+CREATE INDEX receipt_execution ON command_receipt(execution_id);
+PRAGMA user_version=10;
+INSERT INTO conversation(id,cwd,history_origin,active_provider_thread_id,dispatch_execution_id,created_at,updated_at) VALUES('target','/workspace','unknown','historical','execution',1,1);
+INSERT INTO provider_thread(id,conversation_id,config_id,agent_name,agent_session_id,status,created_at,updated_at) VALUES('historical','target','config','omp','native','active',1,1);
+INSERT INTO runtime_binding VALUES('runtime','target','historical');`)
+					current := Binding{ConversationID: "target", ProviderThreadID: "historical"}
+					if replaced {
+						legacyFrozenExec(t, db, `INSERT INTO provider_thread(id,conversation_id,config_id,agent_name,agent_session_id,status,created_at,updated_at) VALUES('replacement','target','config','omp','replacement-native','active',2,2);
+UPDATE conversation SET active_provider_thread_id='replacement' WHERE id='target';
+UPDATE runtime_binding SET provider_thread_id='replacement' WHERE runtime_id='runtime';`)
+						current.ProviderThreadID = "replacement"
 					}
 					packet := "legacy envelope\nUser message:\noriginal"
 					items := []InjectionItem{{ID: "legacy-item", Role: "user", TextHash: TextHash("legacy history")}}
-					if strings.HasPrefix(state, "native-") {
-						if _, err := s.ReserveInjection(ctx, e.ID, "native", items); err != nil {
-							t.Fatal(err)
-						}
-						if err := s.ClaimInjection(ctx, e.DeliveryID); err != nil {
-							t.Fatal(err)
-						}
-						if state == "native-unknown" {
-							if err := s.FinishInjection(ctx, e.DeliveryID, "unknown"); err != nil {
-								t.Fatal(err)
-							}
-						}
-						if state == "native-confirmed" {
-							if err := s.ReconcileInjection(ctx, e.DeliveryID, "native", items); err != nil {
-								t.Fatal(err)
-							}
-						}
-					} else if state != "unsent" && state != "failed" {
-						e.Phase, e.NativeThreadID, e.PromptHash = "sending", "native", TextHash(packet)
-						if err := s.CheckpointExecution(ctx, e); err != nil {
-							t.Fatal(err)
-						}
-						if err := s.ClaimExecutionText(ctx, e.ID, e.PromptHash, e.PromptHash); err != nil {
-							t.Fatal(err)
-						}
+					if state == "confirmed" || state == "prompt-unknown" {
+						providerID := ""
 						if state == "confirmed" {
-							r, err := s.StartRun(ctx, e.TargetProviderThreadID, e.ID)
-							if err != nil {
-								t.Fatal(err)
-							}
-							if err := s.AcknowledgeRun(ctx, r.ID); err != nil {
-								t.Fatal(err)
-							}
-							if err := s.FinishExecution(ctx, e.ID, "inline", ""); err != nil {
-								t.Fatal(err)
-							}
+							providerID = "confirmed-item"
 						}
+						legacyFrozenExec(t, db, `INSERT INTO inline_receipt VALUES('execution','historical','native',?,'original','[]',?)`, TextHash(packet), providerID)
 					}
-					if state == "failed" {
-						if err := s.FinishExecution(ctx, e.ID, "failed", "connector_missing"); err != nil {
-							t.Fatal(err)
+					if strings.HasPrefix(state, "native-") {
+						injectionState := strings.TrimPrefix(state, "native-")
+						if injectionState == "confirmed" {
+							injectionState = "injected"
 						}
-					}
-					if replaced {
-						if err := s.SyncRuntime(ctx, RuntimeInput{RuntimeID: e.RuntimeID, Cwd: "/workspace", AgentSessionID: "replacement-native", Status: "closed"}); err != nil {
-							t.Fatal(err)
-						}
-					}
-					current, err := s.Binding(ctx, e.RuntimeID)
-					if err != nil || (replaced && current.ProviderThreadID == e.TargetProviderThreadID) {
-						t.Fatal("native replacement did not move binding", current, err)
-					}
-					// Recreate the actual v10 layout and its source cascade deletion.
-					if _, err := s.db.Exec(`DROP TRIGGER dispatch_receipt_insert; DROP TRIGGER dispatch_receipt_update;
- DROP TABLE history_snapshot_gap; DROP TABLE history_snapshot_reference; DROP TABLE history_snapshot_item; DROP TABLE history_snapshot; DROP TABLE native_record; DROP TABLE native_location; DROP TABLE native_source;
- DROP TRIGGER dispatch_receipt_delete; DROP TRIGGER dispatch_receipt_history; DROP TABLE dispatch_receipt;
- DROP INDEX delivery_target; ALTER TABLE runtime_binding DROP COLUMN published; PRAGMA user_version=10;`); err != nil {
-						t.Fatal(err)
-					}
-					var legacyObjects int
-					if err := s.db.QueryRow(`SELECT count(*) FROM sqlite_schema WHERE name IN
- ('dispatch_receipt','dispatch_receipt_insert','dispatch_receipt_update','dispatch_receipt_delete','dispatch_receipt_history','delivery_target')`).Scan(&legacyObjects); err != nil || legacyObjects != 0 {
-						t.Fatal("v10 fixture retained v11 objects", legacyObjects, err)
-					}
-					if err := s.db.QueryRow("SELECT count(*) FROM pragma_table_info('runtime_binding') WHERE name='published'").Scan(&legacyObjects); err != nil || legacyObjects != 0 {
-						t.Fatal("v10 fixture retained v11 runtime column", legacyObjects, err)
-					}
-					if _, err := s.db.Exec("DELETE FROM conversation WHERE id=?", b.ConversationID); err != nil {
-						t.Fatal(err)
+						legacyFrozenExec(t, db, `INSERT INTO native_injection VALUES('delivery','historical','native',?,100,1,1)`, injectionState)
+						legacyFrozenExec(t, db, `INSERT INTO native_injection_item VALUES('delivery',0,'legacy-item','user',?,'')`, items[0].TextHash)
 					}
 					if version == 11 {
-						// Model the shipped v11 migration's retained facts: changed
-						// bindings skip inline owners and misclassify old native calls
-						// as unsent on the replacement. Ordinary owners already work.
-						if _, err := s.db.Exec(dispatchReceiptSchema); err != nil {
-							t.Fatal(err)
-						}
-						if !replaced || (state != "confirmed" && state != "prompt-unknown") {
-							thread, native, delivery := current.ProviderThreadID, "native", e.ID
-							status, phase, started, cost := "cancelled", "ready", false, 0
-							if replaced {
-								native = "replacement-native"
-							} else {
-								switch state {
-								case "confirmed", "prompt-unknown":
-									status, phase, started, cost = "unknown", "sending", true, 64000
-									if state == "confirmed" {
-										status = "inline"
-									}
-								case "native-pending", "native-unknown":
-									status, delivery = "unknown", e.DeliveryID
-								}
-							}
-							if _, err := s.db.Exec("INSERT INTO dispatch_receipt VALUES(?,?,?,?,?,?,?,?,?)", e.ID, thread, e.RuntimeID, native, delivery, status, phase, started, cost); err != nil {
-								t.Fatal(err)
-							}
+						legacyFrozenExec(t, db, dispatchReceiptSchema)
+						if replaced {
+							// Shipped v11 could attach an unsent fact to the replacement.
+							legacyFrozenExec(t, db, `INSERT INTO dispatch_receipt VALUES('execution','replacement','runtime','replacement-native','execution','cancelled','ready',0,0)`)
 						}
 					}
+					if err := db.Close(); err != nil {
+						t.Fatal(err)
+					}
+					s := openTest(t, dir)
 					if err := s.Close(); err != nil {
 						t.Fatal(err)
 					}
 					s = openTest(t, dir)
-					// Current-version repair is idempotent too.
-					if err := s.Close(); err != nil {
-						t.Fatal(err)
-					}
-					s = openTest(t, dir)
-					gate, held, err := s.RuntimeDispatch(ctx, e.RuntimeID)
+					gate, held, err := s.RuntimeDispatch(ctx, "runtime")
 					wantHeld := state == "prompt-unknown" || state == "native-pending" || state == "native-unknown"
-					historical := state == "confirmed" || state == "prompt-unknown" || state == "native-pending" || state == "native-unknown"
+					historical := state == "confirmed" || wantHeld
 					wantThread := current.ProviderThreadID
 					if historical {
-						wantThread = e.TargetProviderThreadID
+						wantThread = "historical"
 					}
-					if err != nil || held != wantHeld || gate.RuntimeID != e.RuntimeID || gate.TargetProviderThreadID != wantThread {
+					if err != nil || held != wantHeld || gate.RuntimeID != "runtime" || gate.TargetProviderThreadID != wantThread {
 						t.Fatal("legacy owner cannot resume exact target", gate, held, err)
 					}
 					if historical && gate.NativeThreadID != "native" {
 						t.Fatal("receipt adopted replacement native identity", gate)
-					}
-					if state == "confirmed" || state == "prompt-unknown" {
-						if used, err := s.EstimatedNativeUsage(ctx, e.TargetProviderThreadID); err != nil || used < 64000 {
-							t.Fatal("legacy envelope occupancy was underestimated", used, err)
-						}
 					}
 					if state == "confirmed" && gate.Status != "inline" {
 						t.Fatal("confirmed target became unknown", gate)
 					}
 					switch state {
 					case "prompt-unknown":
-						if _, matched, err := s.NormalizeInlineUser(ctx, e.TargetProviderThreadID, "wrong-native", packet); err != nil || matched {
+						if _, matched, err := s.NormalizeInlineUser(ctx, "historical", "wrong-native", packet); err != nil || matched {
 							t.Fatal("wrong proof", matched, err)
 						}
 						if replaced {
-							if _, matched, err := s.NormalizeInlineUser(ctx, current.ProviderThreadID, "replacement-native", packet); err != nil || matched {
+							if _, matched, err := s.NormalizeInlineUser(ctx, "replacement", "replacement-native", packet); err != nil || matched {
 								t.Fatal("replacement writer reconciled historical prompt", matched, err)
 							}
 						}
-						if _, matched, err := s.NormalizeInlineUser(ctx, e.TargetProviderThreadID, "native", packet); err != nil || !matched {
+						if _, matched, err := s.NormalizeInlineUser(ctx, "historical", "native", packet); err != nil || !matched {
 							t.Fatal("legacy exact packet cannot reconcile", matched, err)
 						}
 					case "native-pending", "native-unknown":
-						if err := s.ReconcileInjection(ctx, e.DeliveryID, "replacement-native", items); !errors.Is(err, ErrConflict) {
+						if err := s.ReconcileInjection(ctx, "delivery", "replacement-native", items); !errors.Is(err, ErrConflict) {
 							t.Fatal("replacement writer reconciled historical injection", err)
 						}
-						if err := s.ReconcileInjection(ctx, e.DeliveryID, "native", items); err != nil {
+						if err := s.ReconcileInjection(ctx, "delivery", "native", items); err != nil {
 							t.Fatal("legacy native proof cannot reconcile", err)
 						}
 					}
-					if _, held, err := s.RuntimeDispatch(ctx, e.RuntimeID); err != nil || held {
+					if _, held, err := s.RuntimeDispatch(ctx, "runtime"); err != nil || held {
 						t.Fatal("legacy proof did not release gate", held, err)
 					}
-					if _, err := s.Execution(ctx, e.ID); !errors.Is(err, ErrNotFound) {
+					if _, err := s.Execution(ctx, "execution"); !errors.Is(err, ErrNotFound) {
 						t.Fatal("migration recreated deleted source operation", err)
 					}
-					if _, err := s.Conversation(ctx, b.ConversationID); !errors.Is(err, ErrNotFound) {
-						t.Fatal("migration recreated forgotten source", err)
-					}
-					if binding, err := s.Binding(ctx, e.RuntimeID); err != nil || binding != current {
+					if binding, err := s.Binding(ctx, "runtime"); err != nil || binding != current {
 						t.Fatal("repair rebound current writer to historical target", binding, err)
 					}
 				})
@@ -449,6 +360,7 @@ func TestForgottenSourceDispatchMigration(t *testing.T) {
 		}
 	}
 }
+
 
 func TestCaptureOptOutFollowsReplacementNativeIdentityAtomically(t *testing.T) {
 	ctx := context.Background()
@@ -481,8 +393,8 @@ func TestCaptureOptOutFollowsReplacementNativeIdentityAtomically(t *testing.T) {
 	if err := s.Unavailable(); err != nil {
 		t.Fatal(err)
 	}
-	if allowed, err := s.ReplayCaptureAllowed(ctx, replacement.ProviderThreadID); err != nil || allowed {
-		t.Fatal("replacement opted-out history would be imported", allowed, err)
+	if err := s.SourceAllowed(ctx, historysource.Source{Agent: "codex", NativeID: "private-replacement"}); !errors.Is(err, ErrUnavailable) {
+		t.Fatal("replacement opted-out history would be imported", err)
 	}
 	// Metadata reconciliation after re-enable must not erase the marker, even
 	// when the replacement itself was first observed after the opt-out ended.
@@ -493,10 +405,10 @@ func TestCaptureOptOutFollowsReplacementNativeIdentityAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if allowed, err := s.ReplayCaptureAllowed(ctx, late.ProviderThreadID); err != nil || allowed {
-		t.Fatal("late replacement lost opt-out lineage", allowed, err)
+	if err := s.SourceAllowed(ctx, historysource.Source{Agent: "codex", NativeID: "late-replacement"}); !errors.Is(err, ErrUnavailable) {
+		t.Fatal("late replacement lost opt-out lineage", err)
 	}
-	if _, err := s.WriteActivity(ctx, ActivityInput{ProviderThreadID: late.ProviderThreadID, LocalKey: "new-live", Kind: "message", Role: "user", Source: "local", Status: "completed", Text: "new public live message"}); err != nil {
-		t.Fatal("re-enable blocked new live capture", err)
+	if _, err := s.StartRun(ctx, late.ProviderThreadID, "new-public-turn"); err != nil {
+		t.Fatal("re-enable blocked control lifecycle", err)
 	}
 }

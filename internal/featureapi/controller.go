@@ -15,6 +15,8 @@ import (
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/handoff"
+	"github.com/rainchan/webmux/internal/historyimport"
+	"github.com/rainchan/webmux/internal/historyprojection"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
@@ -28,31 +30,33 @@ import (
 )
 
 type Deps struct {
-	Config         config.Config
-	Manager        *session.Manager
-	Settings       *settings.Service
-	Workspace      *workspace.Service
-	Code           *codeview.Service
-	Files          *files.Service
-	Artifacts      *artifacts.Service
-	Handoffs       *handoff.Service
-	Conversations  *conversation.Service
-	Push           *push.Service
-	Launch         *launch.Service
-	Hybrid         *hybrid.Service
-	Resume         *hybridresume.Service
-	Forward        *forward.Service
-	Voice          *voice.Service
-	VoiceSettings  VoiceControl
-	Tunnel         func() contract.TunnelStatus
-	TunnelSettings TunnelSettingsControl
-	Tailscale      TailscaleControl
-	P2P            P2PControl
-	MCP            http.Handler
-	Guide          *agentguide.Instance
-	Public         transport.PublicOriginPolicy
-	LocalURL       string
-	ProjectSession func(session.Info) contract.SessionInfo
+	Config            config.Config
+	Manager           *session.Manager
+	Settings          *settings.Service
+	Workspace         *workspace.Service
+	Code              *codeview.Service
+	Files             *files.Service
+	Artifacts         *artifacts.Service
+	Handoffs          *handoff.Service
+	Conversations     *conversation.Service
+	NativeHistory     *historyimport.Service
+	HistoryProjection *historyprojection.Service
+	Push              *push.Service
+	Launch            *launch.Service
+	Hybrid            *hybrid.Service
+	Resume            *hybridresume.Service
+	Forward           *forward.Service
+	Voice             *voice.Service
+	VoiceSettings     VoiceControl
+	Tunnel            func() contract.TunnelStatus
+	TunnelSettings    TunnelSettingsControl
+	Tailscale         TailscaleControl
+	P2P               P2PControl
+	MCP               http.Handler
+	Guide             *agentguide.Instance
+	Public            transport.PublicOriginPolicy
+	LocalURL          string
+	ProjectSession    func(session.Info) contract.SessionInfo
 }
 
 type Server struct {

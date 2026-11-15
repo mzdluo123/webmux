@@ -37,6 +37,29 @@ CREATE TABLE handoff_source_snapshot (
  ordinal INTEGER NOT NULL, snapshot_id TEXT NOT NULL REFERENCES frozen_snapshot(id) ON DELETE RESTRICT,
  PRIMARY KEY(handoff_id,ordinal)
 );
+ALTER TABLE provider_thread ADD COLUMN native_root TEXT NOT NULL DEFAULT '';
+ALTER TABLE inline_receipt ADD COLUMN projection_policy TEXT NOT NULL DEFAULT '';
+ALTER TABLE native_injection ADD COLUMN projection_policy TEXT NOT NULL DEFAULT '';
+ALTER TABLE handoff_item ADD COLUMN source_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE handoff_item ADD COLUMN representation TEXT NOT NULL DEFAULT 'original';
+ALTER TABLE handoff_item ADD COLUMN representation_hash TEXT NOT NULL DEFAULT '';
+CREATE TABLE dispatch_source_item (
+ execution_id TEXT NOT NULL REFERENCES dispatch_receipt(execution_id) ON DELETE CASCADE,
+ item_id TEXT NOT NULL, source_hash TEXT NOT NULL,
+ representation TEXT NOT NULL, representation_hash TEXT NOT NULL,
+ PRIMARY KEY(execution_id,item_id)
+);
+CREATE INDEX dispatch_source_identity ON dispatch_source_item(item_id,source_hash);
+CREATE TABLE dispatch_context (
+ execution_id TEXT PRIMARY KEY REFERENCES dispatch_receipt(execution_id) ON DELETE CASCADE,
+ context_key TEXT NOT NULL, head_id TEXT NOT NULL, head_hash TEXT NOT NULL
+);
+CREATE TRIGGER dispatch_source_capture AFTER INSERT ON dispatch_receipt BEGIN
+ INSERT INTO dispatch_source_item(execution_id,item_id,source_hash,representation,representation_hash)
+ SELECT NEW.execution_id,h.item_id,h.source_hash,h.representation,h.representation_hash
+ FROM handoff_delivery d JOIN handoff_item h ON h.handoff_id=d.handoff_id
+ WHERE d.id=NEW.delivery_id AND h.selected=1 AND h.source_hash!='';
+END;
 PRAGMA user_version=13;
 `
 
@@ -167,7 +190,7 @@ func releaseFrozen(ctx context.Context, tx *sql.Tx, id, owner string) error {
 }
 
 func collectFrozen(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(ctx, "DELETE FROM frozen_snapshot WHERE NOT EXISTS (SELECT 1 FROM frozen_reference r WHERE r.snapshot_id=frozen_snapshot.id)"); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM frozen_snapshot WHERE NOT EXISTS (SELECT 1 FROM frozen_reference r WHERE r.snapshot_id=frozen_snapshot.id) AND NOT EXISTS (SELECT 1 FROM conversation_prefix p WHERE p.snapshot_id=frozen_snapshot.id) AND NOT EXISTS (SELECT 1 FROM handoff_source_snapshot h WHERE h.snapshot_id=frozen_snapshot.id)"); err != nil {
 		return storageError(ctx, err)
 	}
 	_, err := tx.ExecContext(ctx, "DELETE FROM frozen_export WHERE NOT EXISTS (SELECT 1 FROM frozen_snapshot s WHERE s.export_hash=frozen_export.hash)")

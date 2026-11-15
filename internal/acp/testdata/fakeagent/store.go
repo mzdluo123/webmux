@@ -198,7 +198,10 @@ func (s *store) save(ss *session) error {
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.path(ss.ID))
+	if err := os.Rename(tmp, s.path(ss.ID)); err != nil {
+		return err
+	}
+	return s.saveHistory(ss)
 }
 
 func (s *store) list(cwd string) ([]*session, error) {

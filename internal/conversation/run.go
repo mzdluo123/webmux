@@ -44,3 +44,36 @@ func (s *Service) StartRun(ctx context.Context, threadID, promptID string) (Run,
 	})
 	return r, err
 }
+
+// FinishRun commits foreground control state, never an ACP transcript.
+func (s *Service) FinishRun(ctx context.Context, id, status string) error {
+	if status == "" {
+		return ErrInvalid
+	}
+	return s.transact(ctx, func(tx *sql.Tx) error {
+		var previous, conversation string
+		if err := tx.QueryRowContext(ctx, "SELECT status,conversation_id FROM run WHERE id=?", id).Scan(&previous, &conversation); err != nil {
+			return storageError(ctx, err)
+		}
+		if previous == status {
+			return nil
+		}
+		if previous != "pending" {
+			return ErrConflict
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE run SET status=?,updated_at=? WHERE id=?", status, time.Now().UTC().UnixNano(), id); err != nil {
+			return storageError(ctx, err)
+		}
+		_, err := tx.ExecContext(ctx, "UPDATE conversation SET next_activity_position=next_activity_position+1,updated_at=? WHERE id=?", time.Now().UTC().UnixNano(), conversation)
+		return storageError(ctx, err)
+	})
+}
+
+// AdvanceControl invalidates a reviewed intent after an accepted steering
+// request, without persisting another copy of its text.
+func (s *Service) AdvanceControl(ctx context.Context, provider string) error {
+	return s.transact(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, "UPDATE conversation SET next_activity_position=next_activity_position+1,updated_at=? WHERE id=(SELECT conversation_id FROM provider_thread WHERE id=?)", time.Now().UTC().UnixNano(), provider)
+		return storageError(ctx, err)
+	})
+}

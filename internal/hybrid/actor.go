@@ -78,7 +78,7 @@ type actor struct {
 	agentCwd string
 	chat     ChatState
 	tr       translator
-	activity activityRecorder
+	control  controlRecorder
 	// epoch numbers ACP connections; updates and requests of an older one
 	// are ignored.
 	epoch       int

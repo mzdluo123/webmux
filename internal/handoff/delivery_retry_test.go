@@ -25,7 +25,7 @@ func refusedHandoff(t *testing.T, fork bool, extra map[string]string) (*delivery
 	env["FAKEAGENT_AUTH_FILE"] = authFile
 	h := deliveryTest(t, env)
 	ctx := context.Background()
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "refused-preview", ConfigID: h.config.ID, UserText: "continue after authentication", Fork: fork})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "refused-preview", ConfigID: h.config.ID, UserText: "continue after authentication", Fork: fork})
 	if err != nil {
 		t.Fatal(err)
 	}

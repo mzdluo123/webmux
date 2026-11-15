@@ -152,7 +152,7 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 		if !selected[e.ID] {
 			continue
 		}
-		r := hs.Record{ID: e.ID, ParentID: e.Parent, Kind: "metadata", Offset: e.offset, End: e.end}
+		r := hs.Record{ID: e.ID, NativeID: e.ID, ParentID: e.Parent, Kind: "metadata", Offset: e.offset, End: e.end}
 		switch e.Type {
 		case "compaction":
 			r.Kind = "compaction"
@@ -205,7 +205,7 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 						}
 						r.Text += b.Text
 					case "toolCall":
-						records = append(records, hs.Record{ID: blockRecordID(e.ID, position, index), ParentID: e.Parent, Kind: "tool_call", Role: "assistant", CallID: b.ID, ToolName: b.Name, Status: "requested", Offset: e.offset, End: e.end})
+						records = append(records, hs.Record{ID: blockRecordID(e.ID, position, index), NativeID: e.ID, ParentID: e.Parent, Kind: "tool_call", Role: "assistant", CallID: b.ID, ToolName: b.Name, Status: "requested", Offset: e.offset, End: e.end})
 					case "image", "file":
 						r.Attachments = append(r.Attachments, hs.Attachment{MimeType: b.Mime})
 						gaps = append(gaps, hs.Gap{RecordID: e.ID, Category: "attachment_body_omitted", Offset: e.offset})

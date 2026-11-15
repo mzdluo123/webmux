@@ -1,17 +1,25 @@
 package conversation
 
+import "github.com/rainchan/webmux/internal/historysource"
+
 // PreviewRequest freezes source, target and config privately in SQLite.
 // UserText is an independently editable draft until an execution seals its revision.
 // It excludes launch argv/env, attachment bodies and provider private state.
 type PreviewRequest struct {
 	ConfigID, AgentName, ConfigFingerprint, TargetProviderThreadID string
-	AgentConfig                                                    map[string]string
-	TargetConfigBaseline                                           map[string]string
-	UserText                                                       string
-	Fork, ForceFresh                                               bool
-	NativePlanned                                                  bool
-	Location, SourceLocation                                       PreviewLocation
-	Attachments                                                    []PreviewAttachment
+	// SnapshotIDs fixes native source segments; SourceControlPosition retains
+	// the old control revision independently of frozen record pagination.
+	SnapshotIDs              []string
+	SourceControlPosition    int64
+	ProjectionPolicy         string
+	ContextKey               string
+	AgentConfig              map[string]string
+	TargetConfigBaseline     map[string]string
+	UserText                 string
+	Fork, ForceFresh         bool
+	NativePlanned            bool
+	Location, SourceLocation PreviewLocation
+	Attachments              []PreviewAttachment
 }
 
 type PreviewLocation struct{ Cwd, RepositoryID, WorktreeID, NewWorktreeBase, NewWorktreeBranch string }
@@ -42,12 +50,16 @@ type Preview struct {
 type PreviewReservation struct {
 	SourceConversationID, ClientRequestID, RequestHash string
 	Request                                            PreviewRequest
+	Snapshots                                          []historysource.Snapshot
 }
 
 type PreviewResult struct {
 	RenderedText                    string
 	Budget                          PreviewBudget
 	SelectedItemIDs, OmittedItemIDs []string
+	CoveredItemIDs                  []string
+	ProjectionPolicy, ContextKey    string
+	RepresentationHashes            map[string]string
 }
 
 const previewSchema = `

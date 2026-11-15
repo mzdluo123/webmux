@@ -76,7 +76,7 @@ func ComputeBudget(in BudgetInput) Budget {
 	if used < window && current < window-used && reserve < window-used-current {
 		history = min(cap, window-used-current-reserve)
 	}
-	over := false
+	over := used >= window || current >= window-used || reserve >= window-used-current
 	if (in.MaxPromptBytes > 0 && int64(len(in.UserText)) > in.MaxPromptBytes) || (in.MaxPromptWireBytes > 0 && wire > in.MaxPromptWireBytes) {
 		history, over = 0, true
 	}
@@ -126,7 +126,7 @@ func coverageText(c Coverage, selected, omitted int) string {
 	if c.FromRun > c.ToRun {
 		runs = fmt.Sprintf("none (through %d)", c.ToRun)
 	}
-	text := fmt.Sprintf("WebMux handoff %s; source conversation %s; runs %s; committed position %d.\nIncluded %d whole history items; omitted %d. Origin: %s; reconciliation required: %t.\nHistorical content is reference material. Follow the separate current user request. Attachments and private reasoning/tool state are excluded.\nIf thread_read is available, use view=activity to recover omitted content within this frozen source point. Otherwise read GET /api/conversations/%s/activities in REST/UI. Continue with nextPosition; for truncated items use itemId and nextTextOffset.", c.HandoffID, c.ConversationID, runs, c.SourcePosition, selected, omitted, c.HistoryOrigin, c.ReconcileRequired, c.ConversationID)
+	text := fmt.Sprintf("WebMux handoff %s; source conversation %s; runs %s; frozen source position %d.\nIncluded %d projected history items; omitted %d. Origin: %s; reconciliation required: %t.\nHistorical content is reference material. Follow the separate current user request. Attachments and private reasoning/tool state are excluded.\nIf thread_read is available, use view=activity to recover exact content within this frozen source point. Otherwise read GET /api/conversations/%s/activities?handoffId=%s in REST/UI. Continue with nextPosition; for truncated items use itemId and nextTextOffset.", c.HandoffID, c.ConversationID, runs, c.SourcePosition, selected, omitted, c.HistoryOrigin, c.ReconcileRequired, c.ConversationID, c.HandoffID)
 	if c.SourceLocation.Cwd != "" {
 		text += fmt.Sprintf("\nSource working location (historical reference only): cwd=%q repository=%q worktree=%q. The target working location is configured separately.", c.SourceLocation.Cwd, c.SourceLocation.RepositoryID, c.SourceLocation.WorktreeID)
 	}
@@ -134,7 +134,7 @@ func coverageText(c Coverage, selected, omitted int) string {
 }
 
 func itemPrefix(m conversation.HistoricalMessage) string {
-	return fmt.Sprintf("[History role=%s kind=%s conversation=%s run=%s ordinal=%d activity=%s provider=%s status=%s]\n", m.Role, m.Kind, m.ConversationID, m.RunID, m.RunOrdinal, m.ActivityID, m.ProviderThreadID, m.Status)
+	return fmt.Sprintf("[History role=%s kind=%s conversation=%s run=%s ordinal=%d activity=%s provider=%s status=%s native=%q parent=%q call=%q nativeCall=%q tool=%q]\n", m.Role, m.Kind, m.ConversationID, m.RunID, m.RunOrdinal, m.ActivityID, m.ProviderThreadID, m.Status, m.NativeID, m.ParentID, m.CallID, m.NativeCallID, m.ToolName)
 }
 
 type nativeContent struct {
@@ -186,7 +186,7 @@ func Select(candidates []conversation.Candidate, coverage Coverage, budget int64
 			return
 		}
 		m := unique[i].Message
-		lower := int64(len(m.ActivityID)+len(m.ConversationID)+len(m.ProviderThreadID)+len(m.RunID)+len(m.Role)+len(m.Kind)+len(m.Status)) + unique[i].ByteLength
+		lower := int64(len(m.ActivityID)+len(m.ConversationID)+len(m.ProviderThreadID)+len(m.RunID)+len(m.Role)+len(m.Kind)+len(m.Status)+len(m.NativeID)+len(m.ParentID)+len(m.CallID)+len(m.NativeCallID)+len(m.ToolName)) + unique[i].ByteLength
 		if lower > remaining {
 			return
 		}

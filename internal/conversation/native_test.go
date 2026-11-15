@@ -1,634 +1,268 @@
 package conversation
 
 import (
-	"bytes"
 	"context"
-	"database/sql"
+	"encoding/json"
 	"errors"
-	"image/png"
+	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
-	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"unicode/utf8"
 
-	snapcompact "github.com/mzdluo123/snapcompact-go"
+	codexhistory "github.com/rainchan/webmux/internal/agentprofile/codex/history"
+	"github.com/rainchan/webmux/internal/historyimport"
+	"github.com/rainchan/webmux/internal/historysource"
 )
 
-func TestNativeImportSnapshotRecovery(t *testing.T) {
+// The fixture is a real provider-owned transcript. SQLite stores only bindings,
+// immutable manifests, and explicitly retained exports, never a live mirror.
+func nativeFile(t *testing.T, runtime string, texts ...string) historysource.Source {
+	t.Helper()
+	root := t.TempDir()
+	path := filepath.Join(root, "rollout.jsonl")
+	const nativeID = "00000000-0000-4000-8000-000000000001"
+	var body strings.Builder
+	appendLine := func(value any) {
+		data, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body.Write(data)
+		body.WriteByte('\n')
+	}
+	appendLine(map[string]any{"timestamp": "2025-12-01T00:00:00Z", "type": "session_meta", "payload": map[string]any{"id": nativeID, "cwd": root, "cli_version": "0.77.0", "timestamp": "2025-12-01T00:00:00Z"}})
+	for index, text := range texts {
+		appendLine(map[string]any{"timestamp": "2025-12-01T00:00:01Z", "type": "response_item", "payload": map[string]any{"type": "message", "id": fmt.Sprintf("%s-item-%d", runtime, index), "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": text}}}})
+	}
+	if err := os.WriteFile(path, []byte(body.String()), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return historysource.Source{Agent: "codex", NativeID: nativeID, Path: path}
+}
+
+func nativeFixture(t *testing.T, s *Service, runtime string, texts ...string) (*historyimport.Service, Binding, historysource.Source) {
+	t.Helper()
+	ctx := context.Background()
+	source := nativeFile(t, runtime, texts...)
+	root := filepath.Dir(source.Path)
+	binding, err := s.EnsureRuntime(ctx, RuntimeInput{RuntimeID: runtime, Cwd: root, AgentName: "codex", AgentSessionID: source.NativeID, HistoryRoot: root, Status: "closed", HistoryOrigin: "complete"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources := historyimport.New(historyimport.Options{Store: s, Readers: map[string]historysource.ReadFunc{"codex": codexhistory.Read}})
+	if err := sources.Bind(ctx, binding.ProviderThreadID, source); err != nil {
+		t.Fatal(err)
+	}
+	return sources, binding, source
+}
+
+// Control-only tests still reserve a real native range: an empty transcript is
+// not a synthetic Activity database or an invented record.
+func controlSnapshots(t *testing.T, s *Service, owner string) []historysource.Snapshot {
+	t.Helper()
+	sources := historyimport.New(historyimport.Options{Store: s, Readers: map[string]historysource.ReadFunc{"codex": codexhistory.Read}})
+	snapshot, err := sources.Freeze(context.Background(), nativeFile(t, owner), owner, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return []historysource.Snapshot{snapshot}
+}
+
+func TestNativeFrozenReferencesKeepVisibleBodiesAndIsolateCleanup(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	body, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(path, body, 0600); err != nil {
-		t.Fatal(err)
-	}
 	s := openTest(t, dir)
-	first, err := s.ImportCodex(ctx, path)
-	if err != nil {
+	text := strings.Repeat("中文🙂 native body\n", 8000)
+	sources, binding, source := nativeFixture(t, s, "source", text)
+	snapshots, err := sources.FreezeConversation(ctx, binding.ConversationID, binding.ConversationID, true)
+	if err != nil || len(snapshots) != 1 {
+		t.Fatal(snapshots, err)
+	}
+	snapshot := snapshots[0]
+	child := bindTest(t, s, "child")
+	if err := sources.Retain(ctx, snapshot.ID, child.ConversationID); err != nil {
 		t.Fatal(err)
 	}
-	again, err := s.ImportCodex(ctx, path)
-	if err != nil || first.SourceID != again.SourceID || first.Binding != again.Binding {
-		t.Fatal(first, again, err)
+	otherSources, other, _ := nativeFixture(t, s, "other", "unrelated visible body")
+	otherSnapshots, err := otherSources.FreezeConversation(ctx, other.ConversationID, other.ConversationID, true)
+	if err != nil || len(otherSnapshots) != 1 {
+		t.Fatal(otherSnapshots, err)
 	}
-	snap, err := s.FreezeNative(ctx, first.SourceID)
-	if err != nil {
+	if err := s.ForgetRuntime(ctx, "source"); err != nil {
 		t.Fatal(err)
 	}
-	input, err := s.SnapshotInput(ctx, snap.ID, "  current\n task  ")
-	if err != nil {
+	if err := os.Remove(source.Path); err != nil {
 		t.Fatal(err)
 	}
-	if len(input.History) != 5 {
-		t.Fatalf("history count %d", len(input.History))
-	}
-	projection, err := snapcompact.Project(ctx, input, snapcompact.DefaultPreprocessConfig())
-	if err != nil || projection.CurrentTask != input.CurrentTask {
-		t.Fatal(err)
-	}
-	tail := []byte("{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"later\"}]}}\n")
-	if err = os.WriteFile(path, append(append([]byte{}, body...), tail[:20]...), 0600); err != nil {
-		t.Fatal(err)
-	}
-	pending, err := s.ImportCodex(ctx, path)
-	if err != nil || !pending.Pending || pending.Consumed != int64(len(body)) {
-		t.Fatal(pending, err)
-	}
-	if err = os.WriteFile(path, append(append([]byte{}, body...), tail...), 0600); err != nil {
-		t.Fatal(err)
-	}
-	s.beforeCommit = func() error { return errors.New("injected failure") }
-	if _, err = s.ImportCodex(ctx, path); err == nil {
-		t.Fatal("expected rollback")
-	}
-	s.beforeCommit = nil
-	if err = s.Close(); err != nil {
+	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
 	s = openTest(t, dir)
-	updated, err := s.ImportCodex(ctx, path)
-	if err != nil || updated.SourceID != first.SourceID {
-		t.Fatal(updated, err)
-	}
-	if err = os.Remove(path); err != nil {
-		t.Fatal(err)
-	}
-	old, err := s.SnapshotInput(ctx, snap.ID, "")
-	if err != nil || len(old.History) != len(input.History) {
-		t.Fatal(old, err)
-	}
-	for i := range old.History {
-		if old.History[i].Text != input.History[i].Text || old.History[i].ID != input.History[i].ID { // Arguments is a map; compare stable body fields below.
-			t.Fatal("snapshot changed")
-		}
-	}
-}
-
-func TestNativeCaptureDisabled(t *testing.T) {
-	s := Open(Options{StateDir: t.TempDir(), DisableCapture: true})
-	defer func() { _ = s.Close() }()
-	if _, err := s.ImportCodex(context.Background(), "/nonexistent"); !errors.Is(err, ErrUnavailable) {
-		t.Fatal(err)
-	}
-}
-
-func TestNativeConcurrentAndGenerations(t *testing.T) {
-	ctx := context.Background()
-	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	results := make(chan NativeImport, 8)
-	failures := make(chan error, 8)
-	for range 8 {
-		go func() { r, err := s.ImportCodex(ctx, path); results <- r; failures <- err }()
-	}
-	var source string
-	for range 8 {
-		r := <-results
-		if err := <-failures; err != nil {
+	// Deliberately no reader: retained bodies must be independent of the file.
+	sources = historyimport.New(historyimport.Options{Store: s})
+	var got strings.Builder
+	request := historysource.PageRequest{Limit: 1, MaxBytes: 4001}
+	for {
+		page, err := sources.Page(ctx, snapshot.ID, request)
+		if err != nil {
 			t.Fatal(err)
 		}
-		if source != "" && source != r.SourceID {
-			t.Fatal("duplicate source")
+		for _, record := range page.Records {
+			if !utf8.ValidString(record.Text) {
+				t.Fatal("split UTF-8 rune")
+			}
+			got.WriteString(record.Text)
 		}
-		source = r.SourceID
+		if !page.More {
+			break
+		}
+		request.After, request.TextOffset = page.Next, page.TextOffset
 	}
-	if err = os.Rename(path, path+".old"); err != nil {
+	if got.String() != text {
+		t.Fatal("retained history lost native text")
+	}
+	if err := s.ForgetRuntime(ctx, "child"); err != nil {
 		t.Fatal(err)
 	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
+	if _, err := sources.Document(ctx, snapshot.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatal("last owner deletion retained private body", err)
 	}
-	replaced, err := s.ImportCodex(ctx, path)
-	if err != nil || replaced.SourceID == source || replaced.Generation != 2 {
-		t.Fatal(replaced, err)
-	}
-	newline := strings.IndexByte(string(data), '\n') + 1
-	if err = os.WriteFile(path, data[:newline], 0600); err != nil {
-		t.Fatal(err)
-	}
-	truncated, err := s.ImportCodex(ctx, path)
-	if err != nil || truncated.Generation != 3 {
-		t.Fatal(truncated, err)
+	doc, err := sources.Document(ctx, otherSnapshots[0].ID)
+	if err != nil || len(doc.Records) != 1 || doc.Records[0].Text != "unrelated visible body" {
+		t.Fatal("cleanup damaged unrelated visible history", doc, err)
 	}
 }
 
-func TestNativePNGAndExplicitDeletion(t *testing.T) {
+func TestNativeFrozenLiveRangeAndConcurrentIdentity(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	imported, err := s.ImportCodex(ctx, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	frozen, err := s.FreezeNative(ctx, imported.SourceID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg := snapcompact.DefaultPreprocessConfig()
-	cfg.OutputRunes = 4
-	preview, err := s.PreviewNative(ctx, frozen.ID, "  task\n unchanged  ", cfg, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(preview.Render.Pages) == 0 || len(preview.Render.Uncovered) != 0 || len(preview.Projection.Omissions) == 0 {
-		t.Fatal("incomplete render or no truncation")
-	}
-	if _, err := png.Decode(bytes.NewReader(preview.Render.Pages[0].PNG)); err != nil {
-		t.Fatal(err)
-	}
-	if preview.Projection.CurrentTask != "  task\n unchanged  " {
-		t.Fatal("task altered")
-	}
-	raw, err := s.SnapshotInput(ctx, frozen.ID, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if raw.History[2].Text != "hello\n  untouched" {
-		t.Fatal("source was truncated")
-	}
-	if err = s.DeleteNativeSource(ctx, imported.SourceID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = s.NativeSnapshot(ctx, frozen.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatal(err)
-	}
-	if _, err = os.Stat(path); err != nil {
-		t.Fatal("native source removed", err)
-	}
-}
-
-func TestNativeSnapshotReferenceAndParserGeneration(t *testing.T) {
-	ctx := context.Background()
-	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	source, err := s.ImportCodex(ctx, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	frozen, err := s.FreezeNative(ctx, source.SourceID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = s.RetainNativeSnapshot(ctx, frozen.ID, "future-fork"); err != nil {
-		t.Fatal(err)
-	}
-	if err = s.DeleteNativeSource(ctx, source.SourceID); !errors.Is(err, ErrConflict) {
-		t.Fatal(err)
-	}
-	// Simulate an old importer generation after an application upgrade. Frozen
-	// parser provenance must remain the original version, not follow the source.
-	if _, err = s.db.Exec("UPDATE native_source SET parser='older-parser' WHERE id=?", source.SourceID); err != nil {
-		t.Fatal(err)
-	}
-	next, err := s.ImportCodex(ctx, path)
-	if err != nil || next.SourceID == source.SourceID {
-		t.Fatal(next, err)
-	}
-	old, err := s.NativeSnapshot(ctx, frozen.ID)
-	if err != nil || old.Parser != frozen.Parser {
-		t.Fatal(old, err)
-	}
-	if err = s.ReleaseNativeSnapshot(ctx, frozen.ID, "future-fork"); err != nil {
-		t.Fatal(err)
-	}
-	if err = s.DeleteNativeSource(ctx, source.SourceID); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestNativeSourceChangesDuringRead(t *testing.T) {
-	for _, mode := range []string{"rewrite", "replace", "delete"} {
-		t.Run(mode, func(t *testing.T) {
-			ctx := context.Background()
-			s := openTest(t, t.TempDir())
-			path := filepath.Join(t.TempDir(), "rollout.jsonl")
-			data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err = os.WriteFile(path, data, 0600); err != nil {
-				t.Fatal(err)
-			}
-			s.beforeNativeVerify = func() {
-				switch mode {
-				case "rewrite":
-					data[0] = ' '
-					if err := os.WriteFile(path, data, 0600); err != nil {
-						t.Fatal(err)
-					}
-				case "replace":
-					if err := os.Rename(path, path+".old"); err != nil {
-						t.Fatal(err)
-					}
-					if err := os.WriteFile(path, data, 0600); err != nil {
-						t.Fatal(err)
-					}
-				case "delete":
-					if err := os.Remove(path); err != nil {
-						t.Fatal(err)
-					}
-				}
-			}
-			if _, err = s.ImportCodex(ctx, path); !errors.Is(err, ErrConflict) {
-				t.Fatal(err)
-			}
-			var count int
-			if err = s.db.QueryRow("SELECT count(*) FROM native_source").Scan(&count); err != nil || count != 0 {
-				t.Fatal(count, err)
-			}
+	sources, binding, source := nativeFixture(t, s, "source", "native body")
+	const count = 8
+	results := make(chan historysource.Snapshot, count)
+	failures := make(chan error, count)
+	var wg sync.WaitGroup
+	for range count {
+		wg.Go(func() {
+			snapshot, err := sources.Freeze(ctx, source, binding.ConversationID, false)
+			results <- snapshot
+			failures <- err
 		})
 	}
-}
-
-func TestNativeDoesNotGuessACPIdentity(t *testing.T) {
-	ctx := context.Background()
-	s := openTest(t, t.TempDir())
-	live, err := s.EnsureRuntime(ctx, RuntimeInput{RuntimeID: "live", Cwd: "/example/project", AgentName: "codex", AgentSessionID: "00000000-0000-4000-8000-000000000001", Status: "archived"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	imported, err := s.ImportCodex(ctx, path)
-	if err != nil || imported.Binding == live {
-		t.Fatal(imported, err)
-	}
-	frozen, err := s.FreezeNative(ctx, imported.SourceID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Contains(frozen.Gaps, "native_acp_unreconciled") {
-		t.Fatal(frozen.Gaps)
-	}
-}
-
-func TestNativePartialMetadataDoesNotCreateIdentity(t *testing.T) {
-	ctx := context.Background()
-	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	if err := os.WriteFile(path, []byte(`{"type":"session_meta"`), 0600); err != nil {
-		t.Fatal(err)
-	}
-	pending, err := s.ImportCodex(ctx, path)
-	if err != nil || !pending.Pending || pending.SourceID != "" {
-		t.Fatal(pending, err)
-	}
-	var count int
-	if err = s.db.QueryRow("SELECT count(*) FROM conversation").Scan(&count); err != nil || count != 0 {
-		t.Fatal(count, err)
-	}
-}
-
-func TestNativeConcurrentAppendDoesNotCreateGeneration(t *testing.T) {
-	ctx := context.Background()
-	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	first, err := s.ImportCodex(ctx, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.beforeNativeVerify = func() {
-		s.beforeNativeVerify = nil
-		next := append(append([]byte{}, data...), []byte("{\"type\":\"event_msg\",\"payload\":{\"type\":\"turn_aborted\"}}\n")...)
-		if err := os.WriteFile(path, next, 0600); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := s.ImportCodex(ctx, path); err != nil {
+	wg.Wait()
+	close(results)
+	close(failures)
+	for err := range failures {
+		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err = s.ImportCodex(ctx, path); !errors.Is(err, ErrConflict) {
+	var id string
+	for snapshot := range results {
+		if id != "" && id != snapshot.ID {
+			t.Fatal("concurrent freeze duplicated immutable identity")
+		}
+		id = snapshot.ID
+	}
+	doc, err := sources.Document(ctx, id)
+	if err != nil || len(doc.Records) != 1 || doc.Records[0].Text != "native body" {
+		t.Fatal("live range cannot read actual native body", doc, err)
+	}
+	data, err := s.Frozen(ctx, id)
+	if err != nil || data.Export != nil || data.Snapshot.Retained {
+		t.Fatal("live range persisted a mirror", err)
+	}
+	wrong := source
+	wrong.NativeID = "00000000-0000-4000-8000-000000000002"
+	if err := sources.Bind(ctx, binding.ProviderThreadID, wrong); err == nil {
+		t.Fatal("unverified native identity rebound provider")
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := sources.Freeze(cancelled, source, "cancelled", true); !errors.Is(err, context.Canceled) {
+		t.Fatal("cancelled read published history", err)
+	}
+	if err := os.Remove(source.Path); err != nil {
 		t.Fatal(err)
 	}
-	latest, err := s.ImportCodex(ctx, path)
-	if err != nil || latest.SourceID != first.SourceID || latest.Generation != 1 {
-		t.Fatal(latest, err)
+	if _, err := sources.Document(ctx, id); err == nil {
+		t.Fatal("missing native file fell back to a body mirror")
 	}
 }
 
-func TestSnapshotRenderReportsSourceCoverageAndMissingGlyphs(t *testing.T) {
+func TestNativeImportRetainsVisiblePrefixWithoutLiveRuntime(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	sources, _, source := nativeFixture(t, s, "source", "imported native history")
+	binding, snapshot, err := sources.Import(ctx, source, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
+	if err := os.Remove(source.Path); err != nil {
 		t.Fatal(err)
 	}
-	imported, err := s.ImportCodex(ctx, path)
-	if err != nil {
-		t.Fatal(err)
+	prefix, err := s.PrefixSnapshots(ctx, binding.ConversationID)
+	if err != nil || len(prefix) != 1 || prefix[0] != snapshot.ID {
+		t.Fatal("import did not transfer pending lifetime", prefix, err)
 	}
-	frozen, err := s.FreezeNative(ctx, imported.SourceID)
-	if err != nil {
-		t.Fatal(err)
+	bindings, err := s.NativeBindings(ctx, binding.ConversationID)
+	if err != nil || len(bindings) != 0 {
+		t.Fatal("history-only import fabricated a runtime source", bindings, err)
 	}
-	input, err := s.SnapshotInput(ctx, frozen.ID, "")
-	if err != nil {
-		t.Fatal(err)
+	doc, err := sources.Documents(ctx, prefix)
+	if err != nil || len(doc.Records) != 1 || doc.Records[0].Text != "imported native history" {
+		t.Fatal("imported prefix not visibly readable", doc, err)
 	}
-	p, err := snapcompact.Project(ctx, input, snapcompact.DefaultPreprocessConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-	ids := map[string]bool{}
-	for _, r := range input.History {
-		ids[r.ID] = true
-	}
-	renderer, err := snapcompact.NewRenderer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg := snapcompact.DefaultRenderConfig()
-	cfg.Width = 256
-	cfg.Height = 128
-	cfg.MaxPages = 1
-	partial, err := renderer.Render(ctx, p, cfg)
-	if err == nil || len(partial.Uncovered) == 0 {
-		t.Fatal("expected explicit resource coverage error")
-	}
-	for _, r := range partial.Uncovered {
-		if !ids[r.SourceID] || r.Field != "projection" {
-			t.Fatal(r)
+}
+
+func TestSchema14ContainsNoLegacyBodyTables(t *testing.T) {
+	s := openTest(t, t.TempDir())
+	for _, table := range []string{"activity", "activity_chunk", "activity_heading_chunk", "activity_attachment", "native_source", "native_location", "native_record", "history_snapshot", "history_snapshot_item", "history_snapshot_gap", "history_snapshot_reference"} {
+		var count int
+		if err := s.db.QueryRow("SELECT count(*) FROM sqlite_schema WHERE type='table' AND name=?", table).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("legacy body table %s remains: %d %v", table, count, err)
 		}
 	}
-	p.Segments[0].Text += "\U0010FFFF"
-	missing, err := renderer.Render(ctx, p, snapcompact.DefaultRenderConfig())
-	if !errors.Is(err, snapcompact.ErrMissingGlyph) || len(missing.Missing) == 0 || len(missing.Uncovered) == 0 {
-		t.Fatal(missing, err)
+	var version int
+	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 14 {
+		t.Fatal("unexpected schema", version, err)
 	}
-	if missing.Missing[0].SourceID != input.History[0].ID {
-		t.Fatal("missing glyph lost source mapping")
+	rows, err := s.db.Query("PRAGMA foreign_key_check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	if rows.Next() || rows.Err() != nil {
+		t.Fatal("schema has broken foreign keys", rows.Err())
 	}
 }
 
-func TestNativeRenameKeepsEvidenceBackedIdentity(t *testing.T) {
+func TestNativeOptOutBlocksNewReadsWithoutChangingRetainedScope(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t, t.TempDir())
-	root := t.TempDir()
-	path := filepath.Join(root, "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
+	sources, binding, source := nativeFixture(t, s, "private", "already retained public range")
+	snapshot, err := sources.Freeze(ctx, source, binding.ConversationID, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
+	if err := s.AddGap(ctx, binding.ProviderThreadID, "capture_disabled"); err != nil {
 		t.Fatal(err)
 	}
-	first, err := s.ImportCodex(ctx, path)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := sources.Freeze(ctx, source, "new-owner", true); !errors.Is(err, ErrUnavailable) {
+		t.Fatal("opted-out native body became visible to a new owner", err)
 	}
-	archived := filepath.Join(root, "archived.jsonl")
-	if err = os.Rename(path, archived); err != nil {
-		t.Fatal(err)
+	bindings, err := s.NativeBindings(ctx, binding.ConversationID)
+	if err != nil || len(bindings) != 0 {
+		t.Fatal("opted-out provider remained discoverable", bindings, err)
 	}
-	moved, err := s.ImportCodex(ctx, archived)
-	if err != nil || moved.SourceID != first.SourceID || moved.Binding != first.Binding {
-		t.Fatal(moved, err)
+	doc, err := sources.Document(ctx, snapshot.ID)
+	if err != nil || len(doc.Records) != 1 || doc.Records[0].Text != "already retained public range" {
+		t.Fatal("opt-out changed previously frozen source scope", doc, err)
 	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	replacement, err := s.ImportCodex(ctx, path)
-	if err != nil || replacement.SourceID == first.SourceID {
-		t.Fatal(replacement, err)
-	}
-	moved, err = s.ImportCodex(ctx, archived)
-	if err != nil || moved.SourceID != first.SourceID {
-		t.Fatal(moved, err)
-	}
-}
-
-func TestSnapshotPagesUseFrozenGapsAndMatchingProvenanceLimits(t *testing.T) {
-	ctx := context.Background()
-	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	source, err := s.ImportCodex(ctx, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	frozen, err := s.FreezeNative(ctx, source.SourceID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	page, err := s.SnapshotActivities(ctx, frozen.ID, 0, 2, 4000)
-	if err != nil || !page.ReconcileRequired || len(page.Gaps) != len(frozen.Gaps) {
-		t.Fatal(page, err)
-	}
-	refs, err := s.SnapshotProvenance(ctx, frozen.ID, 0, 2)
-	if err != nil || len(refs) != len(page.Items) {
-		t.Fatal(refs, err)
-	}
-	for i, p := range refs {
-		if p.ActivityID != page.Items[i].Activity.ID || p.Position != page.Items[i].Activity.Position {
-			t.Fatal(p)
-		}
-	}
-	if err = s.AddGap(ctx, source.Binding.ProviderThreadID, "tui"); err != nil {
-		t.Fatal(err)
-	}
-	again, err := s.SnapshotActivities(ctx, frozen.ID, 0, 2, 4000)
-	if err != nil || !reflect.DeepEqual(again.Gaps, page.Gaps) {
-		t.Fatal(again.Gaps, page.Gaps, err)
-	}
-}
-
-func TestNativeDiagnosticResponseIsBoundedWithoutDroppingRecords(t *testing.T) {
-	ctx := context.Background()
-	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	data = append(data, []byte(strings.Repeat("{\"timestamp\":\"2025-12-01T00:00:10Z\",\"type\":\"future_record\",\"payload\":{}}\n", 1000))...)
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	out, err := s.ImportCodex(ctx, path)
-	if err != nil || len(out.Diagnostics) > 257 || out.Consumed != int64(len(data)) {
-		t.Fatal(out, err)
-	}
-	seen := map[string]bool{}
-	for _, d := range out.Diagnostics {
-		if seen[d.Category] || d.Category == "diagnostics_limited" {
-			t.Fatal(out.Diagnostics)
-		}
-		seen[d.Category] = true
-	}
-	if !seen["unknown_record"] {
-		t.Fatal(out.Diagnostics)
-	}
-	var count int
-	if err = s.db.QueryRow("SELECT count(*) FROM native_record WHERE source_id=?", out.SourceID).Scan(&count); err != nil || count < 1000 {
-		t.Fatal(count, err)
-	}
-	frozen, err := s.FreezeNative(ctx, out.SourceID)
-	if err != nil || slices.Contains(frozen.Gaps, "diagnostics_limited") {
-		t.Fatal(frozen, err)
-	}
-}
-
-func TestNativeLargeToolHistoryProjectsWithinSourceBudget(t *testing.T) {
-	ctx := context.Background()
-	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var source bytes.Buffer
-	source.Write(data)
-	for range 3 {
-		source.WriteString(`{"timestamp":"2025-12-01T00:00:10Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call-1","output":"`)
-		source.WriteString(strings.Repeat("x", 3<<20))
-		source.WriteString("\"}}\n")
-	}
-	if err = os.WriteFile(path, source.Bytes(), 0600); err != nil {
-		t.Fatal(err)
-	}
-	imported, err := s.ImportCodex(ctx, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	frozen, err := s.FreezeNative(ctx, imported.SourceID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	preview, err := s.PreviewNative(ctx, frozen.ID, "task", s.NativePreprocessConfig(), true)
-	if err != nil || len(preview.Projection.Omissions) < 3 || len(preview.Render.Pages) == 0 || len(preview.Render.Uncovered) != 0 {
-		t.Fatal("large raw history failed bounded projection", err)
-	}
-}
-
-func TestNativeItemlessRecordIdentityIsEnforcedInStorage(t *testing.T) {
-	ctx := context.Background()
-	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	source, err := s.ImportCodex(ctx, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = s.db.Exec(`INSERT INTO native_record SELECT * FROM native_record WHERE source_id=? AND offset=0 AND activity_id IS NULL`, source.SourceID); err == nil {
-		t.Fatal("duplicate itemless native record was accepted")
-	}
-}
-
-func TestReparsedDiagnosticAccountingDoesNotRewriteFrozenGaps(t *testing.T) {
-	ctx := context.Background()
-	s := openTest(t, t.TempDir())
-	path := filepath.Join(t.TempDir(), "rollout.jsonl")
-	data, err := os.ReadFile("../codexrollout/testdata/basic.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(path, data, 0600); err != nil {
-		t.Fatal(err)
-	}
-	source, err := s.ImportCodex(ctx, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = s.transact(ctx, func(tx *sql.Tx) error {
-		return s.addGap(ctx, tx, source.Binding.ProviderThreadID, "diagnostics_limited")
-	}); err != nil {
-		t.Fatal(err)
-	}
-	old, err := s.FreezeNative(ctx, source.SourceID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = s.ImportCodex(ctx, path); err != nil {
-		t.Fatal(err)
-	}
-	fresh, err := s.FreezeNative(ctx, source.SourceID)
-	if err != nil || slices.Contains(fresh.Gaps, "diagnostics_limited") {
-		t.Fatal(fresh, err)
-	}
-	oldPage, err := s.SnapshotActivities(ctx, old.ID, 0, 20, 4000)
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, gap := range oldPage.Gaps {
-		found = found || gap.Reason == "diagnostics_limited"
-	}
-	if !found {
-		t.Fatal("reconciliation changed frozen completeness")
+	owners, err := s.FrozenForOwner(ctx, "new-owner")
+	if err != nil || len(owners) != 0 {
+		t.Fatal("blocked capture leaked a retained reference", owners, err)
 	}
 }

@@ -35,7 +35,7 @@ func TestOwnedAttachmentFallbackReconcilesExactProviderTextAfterRestart(t *testi
 	if err := os.WriteFile(original, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "attachment-preview", ConfigID: h.config.ID, Fork: true, UserText: "inspect the image", Attachments: []conversation.PreviewAttachment{{Reference: original, Kind: "image"}}})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "attachment-preview", ConfigID: h.config.ID, Fork: true, UserText: "inspect the image", Attachments: []conversation.PreviewAttachment{{Reference: original, Kind: "image"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,23 +87,6 @@ func TestOwnedAttachmentFallbackReconcilesExactProviderTextAfterRestart(t *testi
 	if err != nil || string(file.Data) != string(data) {
 		t.Fatalf("target copy did not survive source loss: %+v %v", file, err)
 	}
-	page, err := h.store.Activities(ctx, p.TargetConversationID, 0, 100, 2000)
-	if err != nil {
-		t.Fatal(err)
-	}
-	users := 0
-	for _, item := range page.Items {
-		if item.Activity.Role != "user" {
-			continue
-		}
-		users++
-		if item.Activity.Text != "inspect the image" || len(item.Activity.Attachments) != 1 || item.Activity.Attachments[0].Reference != copied {
-			t.Fatalf("replay lost normalized ownership: %+v", item.Activity)
-		}
-	}
-	if users != 1 || h.promptCalls() != 1 {
-		t.Fatalf("users=%d prompts=%d", users, h.promptCalls())
-	}
 	sub, err := h.hybrids.Subscribe(e.RuntimeID, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -112,6 +95,9 @@ func TestOwnedAttachmentFallbackReconcilesExactProviderTextAfterRestart(t *testi
 	attachments := 0
 	for _, event := range sub.Events {
 		if event.Message != nil && event.Message.Role == "user" {
+			if event.Message.Text != "inspect the image" || len(event.Message.Attachments) != 1 || event.Message.Attachments[0].Path != copied {
+				t.Fatalf("replay lost normalized ownership: %+v", event.Message)
+			}
 			attachments += len(event.Message.Attachments)
 			if strings.Contains(event.Message.Text, "WebMux handoff") {
 				t.Fatal("envelope exposed on replay")

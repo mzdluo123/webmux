@@ -20,9 +20,15 @@ export const threadAPI = {
       undefined,
       signal,
     ),
-  activity: (source: string, id: string, offset = "0", signal?: AbortSignal) =>
+  activity: (
+    source: string,
+    handoffId: string,
+    id: string,
+    offset = "0",
+    signal?: AbortSignal,
+  ) =>
     api(
-      `/conversations/${encodeURIComponent(source)}/activities/${encodeURIComponent(id)}?textOffset=${encodeURIComponent(offset)}&maxBytes=4000`,
+      `/conversations/${encodeURIComponent(source)}/activities/${encodeURIComponent(id)}?handoffId=${encodeURIComponent(handoffId)}&textOffset=${encodeURIComponent(offset)}&maxBytes=4000`,
       ConversationActivitySchema,
       "GET",
       undefined,

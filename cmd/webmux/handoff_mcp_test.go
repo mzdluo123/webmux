@@ -31,6 +31,7 @@ import (
 	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/handoff"
+	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
@@ -42,7 +43,7 @@ import (
 	"github.com/rainchan/webmux/internal/workspace"
 )
 
-// Full live SQLite -> HTTP API -> child CLI stdio MCP -> independent fake
+// Full native JSONL -> HTTP API -> child CLI stdio MCP -> independent fake
 // provider. No test talks to a developer server or a real provider account.
 func TestHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T) {
 	for _, profile := range []struct {
@@ -59,7 +60,6 @@ func TestHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T) {
 }
 
 func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, withWorkspace bool) {
-	t.Helper()
 	agent := fakeAgent(t)
 	root, err := os.MkdirTemp("/tmp", "wmxmcp")
 	if err != nil {
@@ -72,6 +72,9 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 	socket := filepath.Join(root, "api.sock")
 	store := conversation.Open(conversation.Options{StateDir: state})
 	defer store.Close()
+	nativeServices := featureServices{conversations: store}
+	nativeServices.openNativeHistory()
+	sources, historyProjection := nativeServices.nativeHistory, nativeServices.historyProjection
 	manager := session.NewManager(session.Options{DefaultCwd: root})
 	defer manager.Shutdown(context.Background())
 	launches := launch.Open(state, agents.Default())
@@ -86,13 +89,14 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 		return []acp.MCPServer{{Name: "webmux-history", Command: exe, Args: []string{"mcp-serve", "--socket", socket, "--conversation", scope.ConversationID, "--handoff", scope.HandoffID}, Env: []acp.MCPEnv{{Name: "WEBMUX_TEST_EXEC", Value: "argv"}}}}
 	}
 	hybrids := hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: state, Manager: manager, Conversations: store, HistoryReader: descriptor,
+		DispatchCheckpoint: sources.RecordDispatchCheckpoint,
 		MCPServers: func(context.Context) []acp.MCPServer {
 			return []acp.MCPServer{{Name: "webmux", Command: exe, Args: []string{"mcp", "--socket", socket}, Env: []acp.MCPEnv{{Name: "WEBMUX_TEST_EXEC", Value: "argv"}}}}
 		},
 	})
 	defer hybrids.Close()
 	resumeOptions := hybridresume.Options{Creation: hybrids.Creation(), DefaultCwd: root}
-	handoffOptions := handoff.Options{Conversations: store, Launch: launches, Hybrid: hybrids, Creation: hybrids.Creation(), Artifacts: folders, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes}
+	handoffOptions := handoff.Options{Conversations: store, Launch: launches, Hybrid: hybrids, Creation: hybrids.Creation(), Artifacts: folders, NativeHistory: sources, HistoryProjection: historyProjection, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes}
 	createOptions := sessioncreate.Options{DefaultCwd: root, Commands: launches, Files: folders, Chat: hybrids.Creation()}
 	c := config.Config{DefaultCwd: root, Features: config.FeatureConfig{Enabled: []string{"launch", "code", "files", "chat", "mcp"}}}
 	var workspaces *workspace.Service
@@ -121,6 +125,7 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 	controllers := featureapi.Bind(featureapi.Deps{
 		Config: c, Manager: manager, Workspace: workspaces, Code: code, Files: directories, Artifacts: folders,
 		Conversations: store, Handoffs: service, Launch: launches, Hybrid: hybrids, Resume: recovery,
+		NativeHistory: sources, HistoryProjection: historyProjection,
 		ProjectSession: projection.Session,
 	})
 	handler := api.New(api.Deps{
@@ -155,25 +160,19 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := store.StartRun(ctx, binding.ProviderThreadID, "old-history")
+	nativeSource := historysource.Source{Agent: "omp", NativeID: *hybrids.Metadata(source.Info().ID).AgentSessionID, Path: filepath.Join(root, "source.jsonl")}
+	oldText := func(index int) string { return fmt.Sprintf("old-%d-", index) + strings.Repeat("中文🙂", 1600) }
+	appendMCPNativeHistory(t, nativeSource, 0, 45, oldText)
+	if err := sources.Bind(ctx, binding.ProviderThreadID, nativeSource); err != nil {
+		t.Fatal(err)
+	}
+	frozenSource, err := sources.Freeze(ctx, nativeSource, "mcp-fixture", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	texts := map[string]string{}
-	for i := range 45 {
-		role := "agent"
-		if i%2 == 0 {
-			role = "user"
-		}
-		text := fmt.Sprintf("old-%d-", i) + strings.Repeat("中文🙂", 1600)
-		item, err := store.WriteActivity(ctx, conversation.ActivityInput{ProviderThreadID: binding.ProviderThreadID, RunID: run.ID, LocalKey: strconv.Itoa(i), Kind: "message", Role: role, Status: "completed", Source: "local", Text: text})
-		if err != nil {
-			t.Fatal(err)
-		}
-		texts[item] = text
-	}
-	if err := store.FinishRun(ctx, run.ID, "completed"); err != nil {
-		t.Fatal(err)
+	texts := make(map[string]string, 45)
+	for index, item := range frozenSource.Records {
+		texts[item.ID] = oldText(index)
 	}
 	p, err := service.Preview(ctx, binding.ConversationID, handoff.Request{ClientRequestID: "mcp-preview", ConfigID: config.ID, Fork: true, UserText: "independent task"})
 	if err != nil {
@@ -266,28 +265,29 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 		}
 	}
 	// A valid ID in a different Conversation and future source turns are refused.
-	targetPage, err := store.Activities(ctx, p.TargetConversationID, 0, 20, 4000)
+	unrelated, err := store.EnsureRuntime(ctx, conversation.RuntimeInput{RuntimeID: "unrelated", Cwd: root, AgentName: "omp", AgentSessionID: "unrelated-native", Status: "closed", HistoryOrigin: "complete"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(targetPage.Items) > 0 {
-		raw, _ := json.Marshal(map[string]any{"view": "activity", "itemId": targetPage.Items[0].Activity.ID})
-		if _, err := reader.Read(ctx, raw); err == nil {
-			t.Fatal("cross-conversation read")
-		}
+	otherSource := historysource.Source{Agent: "omp", NativeID: "unrelated-native", Path: filepath.Join(root, "unrelated.jsonl")}
+	appendMCPNativeHistory(t, otherSource, 0, 1, func(int) string { return "unrelated secret" })
+	if err := sources.Bind(ctx, unrelated.ProviderThreadID, otherSource); err != nil {
+		t.Fatal(err)
 	}
-	laterRun, err := store.StartRun(ctx, binding.ProviderThreadID, "future")
+	other, err := sources.Freeze(ctx, otherSource, "mcp-unrelated", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	later, err := store.WriteActivity(ctx, conversation.ActivityInput{ProviderThreadID: binding.ProviderThreadID, RunID: laterRun.ID, LocalKey: "future", Kind: "message", Role: "user", Source: "local", Status: "completed", Text: "future secret"})
+	cross, _ := json.Marshal(map[string]any{"view": "activity", "itemId": other.Records[0].ID})
+	if _, err := reader.Read(ctx, cross); err == nil {
+		t.Fatal("cross-conversation read")
+	}
+	appendMCPNativeHistory(t, nativeSource, 45, 1, func(int) string { return "future secret" })
+	future, err := sources.Freeze(ctx, nativeSource, "mcp-future", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.FinishRun(ctx, laterRun.ID, "completed"); err != nil {
-		t.Fatal(err)
-	}
-	raw, _ := json.Marshal(map[string]any{"view": "activity", "itemId": later})
+	raw, _ := json.Marshal(map[string]any{"view": "activity", "itemId": future.Records[len(future.Records)-1].ID})
 	if _, err := reader.Read(ctx, raw); err == nil {
 		t.Fatal("future turn visible")
 	}
@@ -370,17 +370,12 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 	if err != nil {
 		t.Fatal(err)
 	}
+	ordinarySource := historysource.Source{Agent: "omp", NativeID: *hybrids.Metadata(ordinary.Info().ID).AgentSessionID, Path: filepath.Join(root, "ordinary.jsonl")}
 	for attempt := range 2 {
-		run, err := store.StartRun(ctx, ordinaryBinding.ProviderThreadID, fmt.Sprintf("active-history-%d", attempt))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for i := range 30 {
-			if _, err := store.WriteActivity(ctx, conversation.ActivityInput{ProviderThreadID: ordinaryBinding.ProviderThreadID, RunID: run.ID, LocalKey: fmt.Sprintf("%d-%d", attempt, i), Kind: "message", Role: "agent", Status: "completed", Source: "local", Text: fmt.Sprintf("scope-%d-item-%d ", attempt, i) + strings.Repeat("x", 300)}); err != nil {
-				t.Fatal(err)
-			}
-		}
-		if err := store.FinishRun(ctx, run.ID, "completed"); err != nil {
+		appendMCPNativeHistory(t, ordinarySource, attempt*30, 30, func(index int) string {
+			return fmt.Sprintf("scope-%d-item-%d ", attempt, index) + strings.Repeat("x", 300)
+		})
+		if err := sources.Bind(ctx, ordinaryBinding.ProviderThreadID, ordinarySource); err != nil {
 			t.Fatal(err)
 		}
 		q, err := service.Preview(ctx, ordinaryBinding.ConversationID, handoff.Request{ClientRequestID: fmt.Sprintf("active-preview-%d", attempt), ConfigID: config.ID, UserText: fmt.Sprintf("task-%d", attempt)})
@@ -388,7 +383,7 @@ func testHandoffMCPReadsOmittedHistoryAndSurvivesProviderReopen(t *testing.T, wi
 			t.Fatal(err)
 		}
 		if q.TargetProviderThreadID != ordinaryBinding.ProviderThreadID || !q.HistoryToolAvailable {
-			t.Fatal("active native target was not reused")
+			t.Fatalf("active target: got=%s want=%s tool=%v state=%s budget=%+v request=%+v", q.TargetProviderThreadID, ordinaryBinding.ProviderThreadID, q.HistoryToolAvailable, q.State, q.Budget, q.Request)
 		}
 		if _, err := service.Deliver(ctx, ordinaryBinding.ConversationID, handoff.MessageRequest{ClientRequestID: fmt.Sprintf("active-send-%d", attempt), HandoffID: q.ID, Revision: q.Revision, Text: q.Request.UserText, ConfigID: q.Request.ConfigID, AgentConfig: q.Request.AgentConfig, Location: q.Request.Location, Attachments: q.Request.Attachments}); err != nil {
 			t.Fatal(err)

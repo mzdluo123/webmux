@@ -130,7 +130,6 @@ func (a *actor) started(started chan<- error, res startResult) {
 	a.dirty = true
 	pid, process := res.pid, res.process
 	if res.link == nil {
-		a.recordTUIGap()
 		// A terminal that already exited left the session interrupted.
 		if a.state == StateActive {
 			a.record(true, func(r *Record) { r.PID, r.Process = pid, process })
@@ -212,10 +211,10 @@ func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 		}
 		a.finishContextExecution(t, status, class)
 	}
-	a.finishActivityRun(stop)
-	if (t.consumed || err == nil) && a.svc.conversations != nil && a.activity.completedRun != "" {
-		if ackErr := a.svc.conversations.AcknowledgeRun(context.Background(), a.activity.completedRun); ackErr != nil {
-			a.activityFailure()
+	a.finishControlRun(stop)
+	if (t.consumed || err == nil) && a.svc.conversations != nil && a.control.completedRun != "" {
+		if ackErr := a.svc.conversations.AcknowledgeRun(context.Background(), a.control.completedRun); ackErr != nil {
+			a.controlFailure()
 		}
 	}
 	var rpc *acp.RPCError

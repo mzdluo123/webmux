@@ -4,8 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,6 +17,7 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -28,12 +32,10 @@ func historyAPI(t *testing.T) (http.Handler, *conversation.Service, conversation
 			t.Error(err)
 		}
 	})
-	binding, err := s.EnsureRuntime(context.Background(), conversation.RuntimeInput{RuntimeID: "archived", Cwd: "/workspace", AgentName: "test", Status: "closed", HistoryOrigin: "unknown"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	sources, projection := nativeFixture(s)
+	binding := bindHistorySource(t, s, "archived")
 	manager := session.NewManager(session.Options{})
-	return New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: s})), s, binding
+	return New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: manager, Workspace: testWorkspace(t, manager, t.TempDir()), Conversations: s, NativeHistory: sources, HistoryProjection: projection})), s, binding
 }
 
 func historyRequest(handler http.Handler, path, token, origin string) *httptest.ResponseRecorder {
@@ -49,21 +51,69 @@ func historyRequest(handler http.Handler, path, token, origin string) *httptest.
 	return out
 }
 
-func seedHistory(t *testing.T, s *conversation.Service, binding conversation.Binding, text string) string {
+func bindHistorySource(t *testing.T, store *conversation.Service, runtimeID string) conversation.Binding {
 	t.Helper()
-	ctx := context.Background()
-	run, err := s.StartRun(ctx, binding.ProviderThreadID, rand.Text())
+	root := t.TempDir()
+	var identity [16]byte
+	if _, err := rand.Read(identity[:]); err != nil {
+		t.Fatal(err)
+	}
+	nativeID := fmt.Sprintf("%x-%x-%x-%x-%x", identity[:4], identity[4:6], identity[6:8], identity[8:10], identity[10:])
+	path := filepath.Join(root, "rollout.jsonl")
+	meta, err := json.Marshal(map[string]any{"timestamp": "2025-12-01T00:00:00Z", "type": "session_meta", "payload": map[string]any{"id": nativeID, "cwd": root, "cli_version": "0.77.0", "timestamp": "2025-12-01T00:00:00Z"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, err := s.WriteActivity(ctx, conversation.ActivityInput{ProviderThreadID: binding.ProviderThreadID, RunID: run.ID, LocalKey: run.ID, Kind: "message", Role: "user", Status: "completed", Source: "local", Text: text})
+	if err := os.WriteFile(path, append(meta, '\n'), 0600); err != nil {
+		t.Fatal(err)
+	}
+	binding, err := store.EnsureRuntime(context.Background(), conversation.RuntimeInput{RuntimeID: runtimeID, Cwd: root, AgentName: "codex", AgentSessionID: nativeID, HistoryRoot: root, Status: "closed", HistoryOrigin: "complete"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.FinishRun(ctx, run.ID, "end_turn"); err != nil {
+	sources, _ := nativeFixture(store)
+	if err := sources.Bind(context.Background(), binding.ProviderThreadID, historysource.Source{Agent: "codex", NativeID: nativeID, Path: path}); err != nil {
 		t.Fatal(err)
 	}
-	return id
+	return binding
+}
+
+func seedHistory(t *testing.T, store *conversation.Service, binding conversation.Binding, text string) string {
+	t.Helper()
+	return seedNativeMessages(t, store, binding, []string{text})[0]
+}
+
+func seedNativeMessages(t *testing.T, store *conversation.Service, binding conversation.Binding, texts []string) []string {
+	t.Helper()
+	bindings, err := store.NativeBindings(context.Background(), binding.ConversationID)
+	if err != nil || len(bindings) != 1 {
+		t.Fatalf("native binding: %v %v", bindings, err)
+	}
+	source := bindings[0].Source
+	file, err := os.OpenFile(source.Path, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoder := json.NewEncoder(file)
+	for _, text := range texts {
+		if err := encoder.Encode(map[string]any{"timestamp": "2025-12-01T00:00:01Z", "type": "response_item", "payload": map[string]any{"id": rand.Text(), "type": "message", "role": "user", "content": []map[string]string{{"type": "input_text", "text": text}}}}); err != nil {
+			_ = file.Close()
+			t.Fatal(err)
+		}
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	sources, _ := nativeFixture(store)
+	snapshot, err := sources.Freeze(context.Background(), source, binding.ConversationID, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, 0, len(texts))
+	for _, record := range snapshot.Records[len(snapshot.Records)-len(texts):] {
+		ids = append(ids, record.ID)
+	}
+	return ids
 }
 
 func TestConversationHistoryAuthenticationAndCursorValidation(t *testing.T) {
@@ -87,7 +137,7 @@ func TestConversationHistoryAuthenticationAndCursorValidation(t *testing.T) {
 		{"oversize limit", base + "?limit=101", "secret", "", 400},
 		{"zero limit", base + "?limit=0", "secret", "", 400},
 		{"oversize bytes", base + "?maxBytesPerItem=65537", "secret", "", 400},
-		{"aggregate limit", base + "?limit=100&maxBytesPerItem=65536", "secret", "", 400},
+		{"aggregate limit", base + "?limit=100&maxBytesPerItem=65536", "secret", "", 200},
 		{"bad rune offset", base + "/" + item + "?textOffset=1", "secret", "", 400},
 		{"outside offset", base + "/" + item + "?textOffset=999", "secret", "", 400},
 		{"missing conversation", "/api/conversations/" + strings.Repeat("0", 32) + "/activities", "secret", "", 404},
@@ -104,10 +154,7 @@ func TestConversationHistoryAuthenticationAndCursorValidation(t *testing.T) {
 			}
 		})
 	}
-	other, err := s.EnsureRuntime(context.Background(), conversation.RuntimeInput{RuntimeID: "other", Cwd: "/other", AgentName: "test"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	other := bindHistorySource(t, s, "other")
 	response := historyRequest(handler, "/api/conversations/"+other.ConversationID+"/activities/"+item, "secret", "")
 	if response.Code != 404 {
 		t.Fatalf("cross-conversation read: %d", response.Code)
@@ -121,6 +168,7 @@ func TestArchivedConversationHistoryPaginationAndLiveAppend(t *testing.T) {
 	for _, text := range texts {
 		ids = append(ids, seedHistory(t, s, b, text))
 	}
+	// Control-plane gaps do not manufacture missing native records.
 	if err := s.AddGap(context.Background(), b.ProviderThreadID, "tui"); err != nil {
 		t.Fatal(err)
 	}
@@ -138,13 +186,24 @@ func TestArchivedConversationHistoryPaginationAndLiveAppend(t *testing.T) {
 		return page
 	}
 	page := readPage("0")
-	if len(page.Items) != 1 || page.Items[0].ActivityID != ids[0] || page.HistoryOrigin != "unknown" || !page.ReconcileRequired || len(page.Gaps) != 1 {
+	if len(page.Items) != 1 || page.Items[0].ActivityID != ids[0] || page.HistoryOrigin != "complete" || page.ReconcileRequired || len(page.Gaps) != 0 {
 		t.Fatalf("history completeness: %+v", page)
 	}
-	// There is no runtime or hybrid actor. New committed items still append after
-	// the cursor already returned, even while a reader is between pages.
+	// Native appends remain visible without a runtime or hybrid actor.
 	fourth := seedHistory(t, s, b, "fourth")
 	ids = append(ids, fourth)
+	frozen := historyRequest(handler, base+"?snapshotIds="+strings.Join(page.SnapshotIDs, ",")+"&afterPosition=3", "secret", "")
+	if frozen.Code != 200 {
+		t.Fatal(frozen.Body.String())
+	}
+	var frozenPage contract.ConversationActivities
+	if err := json.Unmarshal(frozen.Body.Bytes(), &frozenPage); err != nil || len(frozenPage.Items) != 0 {
+		t.Fatalf("frozen source included later append: %+v %v", frozenPage, err)
+	}
+	other := bindHistorySource(t, s, "snapshot-other")
+	if response := historyRequest(handler, "/api/conversations/"+other.ConversationID+"/activities?snapshotIds="+strings.Join(page.SnapshotIDs, ","), "secret", ""); response.Code != 409 {
+		t.Fatalf("cross-conversation snapshot read: %d %s", response.Code, response.Body.String())
+	}
 	cursor := page.NextPosition
 	for _, id := range ids[1:] {
 		page = readPage(cursor)

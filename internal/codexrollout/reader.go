@@ -59,12 +59,12 @@ type Item struct {
 	Kind, Role, Text, NativeID, CallID, ToolName, Status string
 }
 type Record struct {
-	Offset, End int64
+	Offset, End     int64
 	ReplacesHistory bool
-	Hash        string
-	Timestamp   string
-	Items       []Item
-	Diagnostics []Diagnostic
+	Hash            string
+	Timestamp       string
+	Items           []Item
+	Diagnostics     []Diagnostic
 }
 type Result struct {
 	Metadata Metadata
@@ -188,7 +188,7 @@ func decode(e envelope, out *Result, rec *Record) error {
 		rec.Items = append(rec.Items, Item{Kind: "turn_start", Status: "unknown"})
 	case "compacted":
 		var v struct {
-			Message string `json:"message"`
+			Message            string            `json:"message"`
 			ReplacementHistory []json.RawMessage `json:"replacement_history"`
 		}
 		if json.Unmarshal(e.Payload, &v) != nil {

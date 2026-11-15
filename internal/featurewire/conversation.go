@@ -2,22 +2,46 @@ package featurewire
 
 import (
 	"strconv"
+	"unicode/utf8"
 
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
+	"github.com/rainchan/webmux/internal/historysource"
 )
 
-func ConversationActivity(p conversation.ActivityPart) contract.ConversationActivity {
-	a := p.Activity
-	return contract.ConversationActivity{Exportable: p.Exportable, ExclusionReason: p.ExclusionReason, ActivityID: a.ID, ConversationID: a.ConversationID, ProviderThreadID: a.ProviderThreadID, RunID: a.RunID, Position: strconv.FormatInt(a.Position, 10), RunOrdinal: strconv.FormatInt(a.RunOrdinal, 10), Kind: a.Kind, Role: a.Role, Status: a.Status, Text: a.Text, Source: a.Source, ProviderItemID: a.ProviderItemID, ByteLength: strconv.FormatInt(a.ByteLength, 10), NextTextOffset: strconv.FormatInt(p.NextTextOffset, 10), Truncated: p.Truncated, CreatedAt: a.CreatedAt, Attachments: each(a.Attachments, func(v conversation.ActivityAttachment) contract.ConversationAttachment {
-		return contract.ConversationAttachment{Name: v.Name, MimeType: v.MimeType, Reference: v.Reference, Size: v.Size}
-	})}
-}
-
-func ConversationActivities(p conversation.ActivityPage) contract.ConversationActivities {
-	return contract.ConversationActivities{Items: each(p.Items, ConversationActivity), NextPosition: strconv.FormatInt(p.NextPosition, 10), Gaps: each(p.Gaps, func(g conversation.HistoryGap) contract.ConversationGap {
-		return contract.ConversationGap{ID: g.ID, ProviderThreadID: g.ProviderThreadID, Reason: g.Reason, CreatedAt: g.CreatedAt}
-	}), ReconcileRequired: p.ReconcileRequired, HistoryOrigin: p.HistoryOrigin}
+// ConversationActivity preserves native text verbatim and pages on UTF-8 byte
+// boundaries. Unknown runtime provenance stays empty rather than being inferred.
+func ConversationActivity(record historysource.Record, conversationID string, position int, hash string, offset, maxBytes int) (contract.ConversationActivity, error) {
+	var out contract.ConversationActivity
+	if offset < 0 || offset > len(record.Text) || maxBytes < 4 || maxBytes > conversation.MaxActivityBytes || (offset < len(record.Text) && !utf8.RuneStart(record.Text[offset])) {
+		return out, conversation.ErrInvalid
+	}
+	end := min(len(record.Text), offset+maxBytes)
+	for end < len(record.Text) && !utf8.RuneStart(record.Text[end]) {
+		end--
+	}
+	exportable := record.Exportable()
+	text := record.Text[offset:end]
+	reason := ""
+	if !exportable {
+		text, reason = "", "non_content"
+		end = len(record.Text)
+	}
+	out = contract.ConversationActivity{
+		Exportable: exportable, ExclusionReason: reason,
+		ActivityID: record.ID, ConversationID: conversationID,
+		Position: strconv.Itoa(position), RunOrdinal: "0",
+		Kind: record.Kind, Role: record.Role, Status: record.Status,
+		Text: text, Source: "native", ProviderItemID: record.NativeID,
+		ByteLength: strconv.Itoa(len(record.Text)), NextTextOffset: strconv.Itoa(end),
+		Truncated: end < len(record.Text), SourceHash: hash,
+		ParentID: record.ParentID, NativeID: record.NativeID,
+		CallID: record.CallID, NativeCallID: record.NativeCallID, ToolName: record.ToolName,
+		Attachments: each(record.Attachments, func(v historysource.Attachment) contract.ConversationAttachment {
+			return contract.ConversationAttachment{Name: v.Name, MimeType: v.MimeType, Reference: v.Reference, Size: v.Size}
+		}),
+	}
+	return out, nil
 }
 
 func ConversationContext(c conversation.Conversation) contract.ConversationContext {

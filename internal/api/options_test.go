@@ -16,6 +16,8 @@ import (
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/handoff"
+	"github.com/rainchan/webmux/internal/historyimport"
+	"github.com/rainchan/webmux/internal/historyprojection"
 	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
@@ -31,32 +33,34 @@ import (
 
 // These are fixture construction inputs, deliberately not core host fields.
 type testServices struct {
-	Config           config.Config
-	Manager          *session.Manager
-	Settings         *settings.Service
-	Workspace        *workspace.Service
-	Code             *codeview.Service
-	Files            *files.Service
-	Artifacts        *artifacts.Service
-	Handoffs         *handoff.Service
-	Conversations    *conversation.Service
-	Push             *push.Service
-	Launch           *launch.Service
-	Hybrid           *hybrid.Service
-	Forward          *forward.Service
-	Voice            *voice.Service
-	VoiceSettings    featureapi.VoiceControl
-	Tunnel           func() contract.TunnelStatus
-	TunnelSettings   featureapi.TunnelSettingsControl
-	Tailscale        featureapi.TailscaleControl
-	P2P              featureapi.P2PControl
-	MCP              http.Handler
-	Public           *transport.PublicOrigins
-	Guide            *agentguide.Instance
-	DefaultShell     string
-	InstalledVersion func() string
-	LocalURL         string
-	Launcher         string
+	Config            config.Config
+	Manager           *session.Manager
+	Settings          *settings.Service
+	Workspace         *workspace.Service
+	Code              *codeview.Service
+	Files             *files.Service
+	Artifacts         *artifacts.Service
+	Handoffs          *handoff.Service
+	Conversations     *conversation.Service
+	NativeHistory     *historyimport.Service
+	HistoryProjection *historyprojection.Service
+	Push              *push.Service
+	Launch            *launch.Service
+	Hybrid            *hybrid.Service
+	Forward           *forward.Service
+	Voice             *voice.Service
+	VoiceSettings     featureapi.VoiceControl
+	Tunnel            func() contract.TunnelStatus
+	TunnelSettings    featureapi.TunnelSettingsControl
+	Tailscale         featureapi.TailscaleControl
+	P2P               featureapi.P2PControl
+	MCP               http.Handler
+	Public            *transport.PublicOrigins
+	Guide             *agentguide.Instance
+	DefaultShell      string
+	InstalledVersion  func() string
+	LocalURL          string
+	Launcher          string
 }
 
 func testSessionOptions(c config.Config) session.Options {
@@ -97,7 +101,11 @@ func testDeps(t testing.TB, d testServices) Deps {
 		options.Brief = func(id, dir string) string { return d.Guide.Brief(agentguide.BriefInput{SessionID: id, Dir: dir}) }
 	}
 	projection := featurewire.Projection{Workspace: d.Workspace, Chat: d.Hybrid, Forward: d.Forward}
-	controllers := featureapi.Bind(featureapi.Deps{Config: d.Config, Manager: d.Manager, Settings: d.Settings, Workspace: d.Workspace, Code: d.Code, Files: d.Files, Artifacts: d.Artifacts, Handoffs: d.Handoffs, Conversations: d.Conversations, Push: d.Push, Launch: d.Launch, Hybrid: d.Hybrid, Resume: recovery, Forward: d.Forward, Voice: d.Voice, VoiceSettings: d.VoiceSettings, Tunnel: d.Tunnel, TunnelSettings: d.TunnelSettings, Tailscale: d.Tailscale, P2P: d.P2P, MCP: d.MCP, Guide: d.Guide, Public: d.Public, LocalURL: d.LocalURL, ProjectSession: projection.Session})
+	nativeHistory, nativeProjection := d.NativeHistory, d.HistoryProjection
+	if d.Conversations != nil && nativeHistory == nil {
+		nativeHistory, nativeProjection = nativeFixture(d.Conversations)
+	}
+	controllers := featureapi.Bind(featureapi.Deps{Config: d.Config, Manager: d.Manager, Settings: d.Settings, Workspace: d.Workspace, Code: d.Code, Files: d.Files, Artifacts: d.Artifacts, Handoffs: d.Handoffs, Conversations: d.Conversations, NativeHistory: nativeHistory, HistoryProjection: nativeProjection, Push: d.Push, Launch: d.Launch, Hybrid: d.Hybrid, Resume: recovery, Forward: d.Forward, Voice: d.Voice, VoiceSettings: d.VoiceSettings, Tunnel: d.Tunnel, TunnelSettings: d.TunnelSettings, Tailscale: d.Tailscale, P2P: d.P2P, MCP: d.MCP, Guide: d.Guide, Public: d.Public, LocalURL: d.LocalURL, ProjectSession: projection.Session})
 	return Deps{Config: d.Config, Manager: d.Manager, Settings: d.Settings, Create: sessioncreate.New(d.Manager, options), Sessions: controllers, Contributions: controllers.Contributions(), ProjectSession: projection.Session, SessionProjection: hub.Options{Project: projection.Session, Terminal: projection.Terminal, SubscribeForwards: projection.SubscribeForwards, Forwards: projection.Forwards}, EnrichDetails: controllers.EnrichDetails, KeepSessionPin: controllers.KeepSessionPin, EnrichConfig: controllers.EnrichConfig, Renamed: controllers.Renamed, DefaultShell: d.DefaultShell, Public: d.Public, Tunnel: d.Tunnel, InstalledVersion: d.InstalledVersion, Guide: d.Guide, LocalURL: d.LocalURL, Launcher: d.Launcher}
 }
 

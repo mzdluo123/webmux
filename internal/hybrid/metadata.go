@@ -44,7 +44,7 @@ func (a *actor) publishMetadata() {
 		side, to = a.switching.from, a.switching.to
 	}
 	m := &Metadata{
-		ConversationID: a.conversationID, ProviderThreadID: a.activity.thread,
+		ConversationID: a.conversationID, ProviderThreadID: a.control.thread,
 		Side: string(side), To: string(to), Phase: string(a.chat.Phase), State: string(a.state),
 		Agent: a.cmd.Profile.Name, AgentTitle: a.cmd.Profile.Title, AgentIcon: a.cmd.Profile.Icon,
 	}

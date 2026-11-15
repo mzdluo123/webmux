@@ -11,7 +11,7 @@ import (
 func executionTest(t *testing.T, s *Service, b Binding) (Preview, Execution) {
 	t.Helper()
 	ctx := context.Background()
-	p, err := s.ReservePreview(ctx, PreviewReservation{SourceConversationID: b.ConversationID, ClientRequestID: "preview-command", RequestHash: "preview-hash", Request: PreviewRequest{ConfigID: "config", AgentName: "omp", Fork: true, UserText: "original", AgentConfig: map[string]string{}}})
+	p, err := s.ReservePreview(ctx, PreviewReservation{Snapshots: controlSnapshots(t, s, b.ConversationID), SourceConversationID: b.ConversationID, ClientRequestID: "preview-command", RequestHash: "preview-hash", Request: PreviewRequest{ConfigID: "config", AgentName: "omp", Fork: true, UserText: "original", AgentConfig: map[string]string{}}})
 	if err != nil {
 		t.Fatal(err)
 	}

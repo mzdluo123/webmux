@@ -1,37 +1,69 @@
 package contract
 
 type NativeRequest struct {
-	OutputRunes   int    `json:"outputRunes"`
-	Action        string `json:"action"`
-	Path          string `json:"path"`
-	Root          string `json:"root"`
-	SourceID      string `json:"sourceId"`
-	SnapshotID    string `json:"snapshotId"`
-	CurrentTask   string `json:"currentTask"`
-	AfterPosition string `json:"afterPosition"`
+	Agent            string `json:"agent"`
+	NativeID         string `json:"nativeId"`
+	Branch           string `json:"branch"`
+	Owner            string `json:"owner"`
+	ProviderThreadID string `json:"providerThreadId"`
+	TextOffset       string `json:"textOffset"`
+	Retain           bool   `json:"retain"`
+	OutputRunes      int    `json:"outputRunes"`
+	Action           string `json:"action"`
+	Path             string `json:"path"`
+	Root             string `json:"root"`
+	SnapshotID       string `json:"snapshotId"`
+	CurrentTask      string `json:"currentTask"`
+	AfterPosition    string `json:"afterPosition"`
 }
 type NativeFile struct {
-	Path      string `json:"path"`
-	NativeID  string `json:"nativeId"`
-	Cwd       string `json:"cwd"`
-	Timestamp string `json:"timestamp"`
-	Version   string `json:"version"`
-	Problem   string `json:"problem"`
+	Agent    string `json:"agent"`
+	Branch   string `json:"branch"`
+	Path     string `json:"path"`
+	NativeID string `json:"nativeId"`
 }
 type NativeResult struct {
-	Truncated      bool                   `json:"truncated"`
-	NativeID       string                 `json:"nativeId"`
-	Model          string                 `json:"model"`
-	Provenance     []NativeProvenance     `json:"provenance"`
-	Files          []NativeFile           `json:"files"`
-	SourceID       string                 `json:"sourceId"`
-	ConversationID string                 `json:"conversationId"`
-	SnapshotID     string                 `json:"snapshotId"`
-	Parser         string                 `json:"parser"`
-	Consumed       string                 `json:"consumed"`
-	Pending        bool                   `json:"pending"`
-	Gaps           []string               `json:"gaps"`
-	Activities     ConversationActivities `json:"activities"`
+	Agent            string         `json:"agent"`
+	NativeID         string         `json:"nativeId"`
+	Branch           string         `json:"branch"`
+	Format           string         `json:"format"`
+	Boundary         string         `json:"boundary"`
+	ContentHash      string         `json:"contentHash"`
+	Retained         bool           `json:"retained"`
+	NextTextOffset   string         `json:"nextTextOffset"`
+	NextPosition     string         `json:"nextPosition"`
+	More             bool           `json:"more"`
+	RecordCount      int            `json:"recordCount"`
+	Truncated        bool           `json:"truncated"`
+	Files            []NativeFile   `json:"files"`
+	SnapshotID       string         `json:"snapshotId"`
+	ConversationID   string         `json:"conversationId,omitempty"`
+	ProviderThreadID string         `json:"providerThreadId,omitempty"`
+	Parser           string         `json:"parser"`
+	Pending          bool           `json:"pending"`
+	Gaps             []string       `json:"gaps"`
+	Records          []NativeRecord `json:"records"`
+}
+
+type NativeRecord struct {
+	ID             string                   `json:"id"`
+	NativeID       string                   `json:"nativeId"`
+	ParentID       string                   `json:"parentId"`
+	Hash           string                   `json:"hash"`
+	Kind           string                   `json:"kind"`
+	Role           string                   `json:"role"`
+	Status         string                   `json:"status"`
+	Text           string                   `json:"text"`
+	CallID         string                   `json:"callId"`
+	NativeCallID   string                   `json:"nativeCallId"`
+	ToolName       string                   `json:"toolName"`
+	Position       string                   `json:"position"`
+	Offset         string                   `json:"offset"`
+	End            string                   `json:"end"`
+	ByteLength     string                   `json:"byteLength"`
+	NextTextOffset string                   `json:"nextTextOffset"`
+	Truncated      bool                     `json:"truncated"`
+	Attachments    []ConversationAttachment `json:"attachments"`
 }
 
 type NativeRange struct {
@@ -69,16 +101,4 @@ type NativePreview struct {
 	Uncovered         []NativeRange    `json:"uncovered"`
 	MissingGlyphCount int              `json:"missingGlyphCount"`
 	Problem           string           `json:"problem"`
-}
-
-type NativeProvenance struct {
-	Position   string `json:"position"`
-	ActivityID string `json:"activityId"`
-	SourceID   string `json:"sourceId"`
-	Checksum   string `json:"checksum"`
-	CallID     string `json:"callId"`
-	ToolName   string `json:"toolName"`
-	Kind       string `json:"kind"`
-	Offset     string `json:"offset"`
-	End        string `json:"end"`
 }

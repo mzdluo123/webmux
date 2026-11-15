@@ -96,7 +96,15 @@ func (s *Service) Page(ctx context.Context, id string, req historysource.PageReq
 	if req.MaxBytes < utf8.UTFMax {
 		return out, historysource.ErrLimit
 	}
-	doc, err := s.Document(ctx, id)
+	if !s.enabled() {
+		return out, historysource.ErrUnavailable
+	}
+	data, err := s.store.Frozen(ctx, id)
+	if err != nil {
+		return out, err
+	}
+	out.Snapshot = data.Snapshot
+	doc, err := s.document(ctx, data)
 	if err != nil {
 		return out, err
 	}
@@ -110,6 +118,7 @@ func (s *Service) Page(ctx context.Context, id string, req historysource.PageReq
 			return out, err
 		}
 		record := doc.Records[out.Next]
+		record.ByteLength = int64(len(record.Text))
 		start := req.TextOffset
 		if start > len(record.Text) || (start < len(record.Text) && !utf8.RuneStart(record.Text[start])) {
 			return out, historysource.ErrFormat

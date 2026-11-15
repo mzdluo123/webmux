@@ -5,12 +5,12 @@ import (
 	"errors"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
-	"github.com/rainchan/webmux/internal/codexrollout"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/conversation"
 	wire "github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
+	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
@@ -246,13 +246,13 @@ func launchFailure(w http.ResponseWriter, err error) {
 func conversationFailure(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, codexrollout.ErrFormat), errors.Is(err, codexrollout.ErrVersion), errors.Is(err, codexrollout.ErrLimit), errors.Is(err, conversation.ErrInvalid), errors.Is(err, launch.ErrInvalid), errors.Is(err, workspace.ErrInvalid):
+	case errors.Is(err, historysource.ErrFormat), errors.Is(err, historysource.ErrLimit), errors.Is(err, conversation.ErrInvalid), errors.Is(err, launch.ErrInvalid), errors.Is(err, workspace.ErrInvalid):
 		status = http.StatusBadRequest
 	case errors.Is(err, conversation.ErrNotFound), errors.Is(err, launch.ErrNotFound), errors.Is(err, workspace.ErrNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, conversation.ErrConflict), errors.Is(err, workspace.ErrConflict):
+	case errors.Is(err, historysource.ErrChanged), errors.Is(err, historysource.ErrIdentity), errors.Is(err, conversation.ErrConflict), errors.Is(err, workspace.ErrConflict):
 		status = http.StatusConflict
-	case errors.Is(err, conversation.ErrUnavailable), errors.Is(err, launch.ErrUnavailable), errors.Is(err, workspace.ErrUnavailable):
+	case errors.Is(err, historysource.ErrUnavailable), errors.Is(err, conversation.ErrUnavailable), errors.Is(err, launch.ErrUnavailable), errors.Is(err, workspace.ErrUnavailable):
 		status = http.StatusServiceUnavailable
 	case cancelled(err):
 		status = http.StatusGatewayTimeout

@@ -7,19 +7,32 @@ import (
 )
 
 func (s *Service) Bind(ctx context.Context, thread string, source historysource.Source) error {
+	if !s.enabled() {
+		return historysource.ErrUnavailable
+	}
+	if err := s.store.SourceAllowed(ctx, source); err != nil {
+		return err
+	}
 	doc, err := s.read(ctx, historysource.Request{Source: source})
 	if err != nil {
 		return err
 	}
+	// An omitted leaf follows the live session. Only snapshots pin the leaf
+	// observed by this read; binding it here would hide subsequent turns.
+	doc.Source.Branch = source.Branch
 	return s.store.BindNativeSource(ctx, thread, doc.Source)
 }
 
 func (s *Service) resolve(ctx context.Context, binding historysource.Binding) (historysource.Source, error) {
 	source := binding.Source
+	source.ProviderThreadID = binding.ProviderThreadID
 	if source.Path != "" {
 		return source, nil
 	}
-	root := s.roots[source.Agent]
+	root := binding.Root
+	if root == "" {
+		root = s.roots[source.Agent]
+	}
 	if root == "" {
 		return source, historysource.ErrUnavailable
 	}
@@ -40,6 +53,7 @@ func (s *Service) resolve(ctx context.Context, binding historysource.Binding) (h
 	if matches != 1 {
 		return source, historysource.ErrIdentity
 	}
+	source.ProviderThreadID = binding.ProviderThreadID
 	return source, nil
 }
 
@@ -77,20 +91,19 @@ func (s *Service) FreezeConversation(ctx context.Context, conversation, owner st
 	if err != nil {
 		return nil, err
 	}
-	seen := make(map[string]bool)
+	seen := make(map[historysource.Source]bool)
 	for _, binding := range bindings {
 		if binding.Source.NativeID == "" {
 			continue // Dormant targets have not produced a native session.
 		}
-		key := binding.Source.Agent + ":" + binding.Source.NativeID
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
 		source, err := s.resolve(ctx, binding)
 		if err != nil {
 			return nil, err
 		}
+		if seen[source] {
+			continue
+		}
+		seen[source] = true
 		snapshot, err := s.Freeze(ctx, source, owner, retain)
 		if err != nil {
 			return nil, err
@@ -114,13 +127,15 @@ func (s *Service) Documents(ctx context.Context, ids []string) (historysource.Do
 		if err != nil {
 			return out, err
 		}
+		if len(doc.RecordRefs) != len(doc.Records) {
+			return out, historysource.ErrUnavailable
+		}
+		out.References = append(out.References, doc.References...)
 		out.Gaps = append(out.Gaps, doc.Gaps...)
-		for _, record := range doc.Records {
-			hash, err := hashValue(record)
-			if err != nil {
-				return out, err
-			}
-			key := doc.Source.Agent + ":" + doc.Source.NativeID + ":" + record.ID
+		for index, record := range doc.Records {
+			ref := doc.RecordRefs[index]
+			hash := ref.Hash
+			key := record.ID
 			if previous, ok := seen[key]; ok {
 				if previous != hash {
 					return out, historysource.ErrChanged
@@ -133,6 +148,8 @@ func (s *Service) Documents(ctx context.Context, ids []string) (historysource.Do
 				return out, historysource.ErrLimit
 			}
 			out.Records = append(out.Records, record)
+			ref.Position = len(out.Records)
+			out.RecordRefs = append(out.RecordRefs, ref)
 		}
 	}
 	identity, err := hashValue(ids)

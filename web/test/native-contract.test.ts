@@ -5,33 +5,34 @@ import {
 } from "../src/contracts/schemas";
 
 describe("native history boundary", () => {
-  it("keeps snapshot cursors as decimal strings", () => {
+  it("keeps page positions exact and source boundaries opaque", () => {
     const value = {
+      agent: "synthetic",
+      nativeId: "native",
+      branch: "leaf",
+      format: "format-v1",
+      boundary: "opaque-native-boundary",
+      contentHash: "content-version",
+      retained: false,
       truncated: false,
-      nativeId: "",
-      model: "",
-      provenance: [],
+      more: true,
+      recordCount: 1,
       files: [],
-      sourceId: "source",
-      conversationId: "conversation",
       snapshotId: "snapshot",
-      parser: "codex-0.77/v1",
-      consumed: "9007199254740993",
+      parser: "reader-v1",
+      nextPosition: "9007199254740993",
+      nextTextOffset: "0",
       pending: true,
       gaps: [],
-      activities: {
-        items: [],
-        gaps: [],
-        nextPosition: "0",
-        reconcileRequired: false,
-        historyOrigin: "bounded_import",
-      },
+      records: [],
     };
-    expect(NativeResultSchema.parse(value).consumed).toBe("9007199254740993");
+    const parsed = NativeResultSchema.parse(value);
+    expect(parsed.nextPosition).toBe("9007199254740993");
+    expect(parsed.boundary).toBe("opaque-native-boundary");
     expect(
       NativeResultSchema.safeParse({
         ...value,
-        consumed: Number("9007199254740993"),
+        nextPosition: Number("9007199254740993"),
       }).success,
     ).toBe(false);
   });

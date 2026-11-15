@@ -11,7 +11,7 @@ func failedSameConversationAttempt(t *testing.T, dir string) (*Service, Binding,
 	ctx := context.Background()
 	s := openTest(t, dir)
 	b := bindTest(t, s, "source")
-	p, err := s.ReservePreview(ctx, PreviewReservation{SourceConversationID: b.ConversationID, ClientRequestID: "same-conversation-preview", RequestHash: "reviewed", Request: PreviewRequest{ConfigID: "target", AgentName: "omp", UserText: "request"}})
+	p, err := s.ReservePreview(ctx, PreviewReservation{Snapshots: controlSnapshots(t, s, b.ConversationID), SourceConversationID: b.ConversationID, ClientRequestID: "same-conversation-preview", RequestHash: "reviewed", Request: PreviewRequest{ConfigID: "target", AgentName: "omp", UserText: "request"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,6 @@ func failedSameConversationAttempt(t *testing.T, dir string) (*Service, Binding,
 	if err != nil {
 		t.Fatal(err)
 	}
-	activityTest(t, s, Binding{ConversationID: b.ConversationID, ProviderThreadID: p.TargetProviderThreadID}, r.ID, "rejected-request", "", "rejected request")
 	if err := s.FinishRun(ctx, r.ID, "auth_required"); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +65,7 @@ func TestSameConversationRetryUsesOnlyFailedAttemptProvenance(t *testing.T) {
 }
 
 func TestSameConversationRetryRejectsUnrelatedChanges(t *testing.T) {
-	for _, change := range []string{"run", "activity", "gap", "tui-gap", "revision"} {
+	for _, change := range []string{"run", "steering", "gap", "tui-gap", "revision"} {
 		t.Run(change, func(t *testing.T) {
 			ctx := context.Background()
 			s, b, p, _ := failedSameConversationAttempt(t, t.TempDir())
@@ -75,8 +74,10 @@ func TestSameConversationRetryRejectsUnrelatedChanges(t *testing.T) {
 				if _, err := s.StartRun(ctx, b.ProviderThreadID, "unrelated-request"); err != nil {
 					t.Fatal(err)
 				}
-			case "activity":
-				activityTest(t, s, b, "", "unrelated-marker", "", "unrelated activity")
+			case "steering":
+				if err := s.AdvanceControl(ctx, b.ProviderThreadID); err != nil {
+					t.Fatal(err)
+				}
 			case "gap", "tui-gap":
 				reason := "storage_failure"
 				if change == "tui-gap" {

@@ -1,95 +1,119 @@
-# Codex 原生历史导入验证
+# 原生历史直读与快照
 
-开发者可通过已有认证 API 读取 Codex 原生文件、导入历史、冻结快照并生成机械投影。
-这些操作不启动 Codex、不执行历史命令、不修改来源文件，也不向模型发送内容。
-这是固定格式的开发验证入口，没有新增聊天或 fork UI。
+开发者可通过认证 API 发现原生会话、冻结来源并读取原文或生成机械投影，不需要启动原 Agent。
+先用 `list` 取得准确原生身份，再用 `freeze` 创建引用快照；需要脱离来源长期保存时显式设置 `retain=true`。
+这些操作不执行历史命令、不修改原生存储，也不自动向模型发送内容。
 
-## 固定格式与来源
+## 最短验证路径
 
-首版解析目标为 Codex `rust-v0.77.0`，提交 `112f40e91c12af0f7146d7e03f20283516a8af0b`。
-参考 [RolloutItem 和 metadata schema](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/protocol/src/protocol.rs)、
-[ResponseItem](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/protocol/src/models.rs)、
-[持久化策略](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/core/src/rollout/policy.rs)
-及 [resume/fork 重建](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/core/src/codex.rs)。
-当前上游 `ee344ca9458351a6ea102795fa73110ad3ede5dc` 已有 `history_base` 引用，不能当作旧版独立文件。
-版本不符或出现引用式 lineage 时拒绝解析；不承诺所有 Codex 历史版本兼容。
-
-- 首条 `session_meta` 提供原生 ID、cwd、时间、CLI 版本和 model provider。
-- 模型来自 `turn_context.model`；turn context 是上下文边界，不能证明一次执行已经完成。
-- `response_item.message` 提供 user/assistant 正文；`event_msg` 的消息按镜像处理，不重复导入。
-  此版本不校验两份记录的一一配对，明确标记 `mirror_pairing_unverified`；只有镜像而没有正文副本时不会伪造文本或宣称完整。
-- 消息 `id` 可缺省；工具 `call_id` 关联调用和结果，不代表所有记录都有 entry ID。
-- 内部身份绑定来源 generation、字节位置、完整行 SHA256 及子项位置，相同正文的不同执行不会合并。
-- `compacted` 保存压缩边界；`replacement_history` 是模型上下文替换，不能再当成新增聊天导入。
-- 该版本 resume 继续已有记录；fork 持久化选定前缀，不追读父会话当前状态。
-- reasoning、encrypted content 和非 user/assistant 指令正文不导出；未知记录标记诊断；图片保留 SHA256 引用，不保存内嵌内容或原 URL，并标记正文缺口。
-
-## 验证入口
-
-`POST /api/conversations/native` 使用现有 Bearer 认证和 Origin 校验，JSON 请求上限 64 KiB。
-下列请求依次发送；返回 ID 填入下一步。服务必须启用 `chat` 内置功能及 `history_capture`；功能启用列表修改后需重启。
+`POST /api/conversations/native` 沿用 Bearer 认证和 Origin 校验，JSON 请求上限 64 KiB。
+服务需启用 `chat` 及 `history_capture`；功能选择改变后重启。
 
 ```json
-{"action":"list","root":"/example/codex-home"}
-{"action":"import","path":"/example/codex-home/sessions/rollout.jsonl"}
-{"action":"freeze","sourceId":"上一步 sourceId"}
-{"action":"read","snapshotId":"上一步 snapshotId","afterPosition":"0"}
+{"action":"list","agent":"codex","root":"/example/codex-home"}
+{"action":"freeze","agent":"codex","path":"/example/codex-home/sessions/rollout.jsonl","nativeId":"准确原生 session ID","owner":"my-reader"}
+{"action":"read","snapshotId":"上一步 snapshotId","afterPosition":"0","textOffset":"0"}
 {"action":"project","snapshotId":"快照 ID","currentTask":"原样保留的新任务","outputRunes":2000}
 {"action":"render","snapshotId":"快照 ID","currentTask":"原样保留的新任务"}
 ```
 
-`list` 按显式 root、`CODEX_HOME`、`~/.codex` 的顺序确定数据根，扫描 sessions 和 archived_sessions。
-每个文件仅读取首条元信息，单个元信息记录最多 64 KiB、一次列表累计读取最多 16 MiB、遍历最多 20000 项。
-读取预算包含实际缓冲预读，元信息使用 512 字节缓冲，避免小元信息按 4 KiB 消耗预算。
-列表最多返回 10000 项；达到资源上限时保留已取得的文件并返回 `truncated=true`，单个不可读目录或文件有明确 problem 标记。
-列表及元信息读取传递请求取消上下文，不会为了列表读取全部正文。
-`read` 每页最多 20 项，每项首段 4000 字节；缺口和 reconcileRequired 来自冻结记录，不读取来源对话当前状态。
-来源查询按相同页大小返回，每项同时携带 Activity ID 和 position，可按键关联而非依赖数组下标。
-后续正文沿用 conversation Activity 精确读取入口。
-`project` 返回来源范围和省略范围；`render` 返回 base64 PNG、投影范围、缺字数量、未覆盖范围和问题标记。
-`problem` 非空、缺字或未覆盖范围不为空时，不能把结果当成完整可读历史。
-预览同时返回快照 gaps；图片只覆盖可导出投影，无法补回缺口或未导入的图片正文。
-函数参数由 Project 编码为 canonical JSON，arguments 范围指向该字段；原始参数字符串仍可从 Activity 精确读取。
-默认 Project 输入上限与来源一致为 64 MiB；工具输出截断后才进入 Render。
-Render 另有 8 MiB 投影输入、页数和内存限制，超限返回 problem 与可用的未覆盖信息，原始快照保持可读。
-PNG 成功不证明模型可读、传输支持或节省 token；本入口不执行付费模型测试。
+需要把外部会话登记为可浏览历史时使用同一来源字段：
 
-## 存储与边界
+```json
+{"action":"import","agent":"codex","path":"/example/codex-home/sessions/rollout.jsonl","nativeId":"准确原生 session ID","retain":false}
+```
 
-解析每条记录上限 4 MiB，单次来源上限 64 MiB、100000 条记录；只消费带换行的完整记录。
-诊断按类别返回首个偏移；一次导入最多返回 256 种诊断，只有未报告类别存在时才增加 `diagnostics_limited` 标记。
-写入缺口也按类别合并，不丢弃原生记录映射；重新完整解析可解除旧的诊断计数限制，但不会更改旧快照。
-每个消息或结构化输出最多 4096 个内容片段、64 个图片引用；元信息和工具身份字段也有独立长度上限。
-半行末尾留待续写；中间完整行损坏则整次导入失败，游标不推进。
-来源有独立 generation、已确认字节偏移、前缀 SHA256、文件身份、原生时间、模型与解析器版本。
-Linux/macOS 同时验证 device/inode；读取后重读捕获前缀，并核对路径仍指向同一文件。
-前缀改变、截断、文件替换或解析器版本变化建立独立 generation。
-文件重命名或归档只有在平台文件身份、原生会话 ID、解析版本及已确认内容都匹配时才复用来源；路径索引独立保存。
-历史 Activity、来源映射和游标同事务提交；失败重试不会提前确认消费。
+- `freeze` 直接解析原生来源并保存 manifest，不先把正文导入 Activity。
+- `read` 返回 `records`、`nextPosition`、`nextTextOffset` 和 `more`；后续请求同时使用两个返回游标。
+- 页位置和正文偏移是十进制字符串；`boundary` 是 reader 私有的不透明来源边界，不能当作页位置计算。
+- 每项保留规范 ID、原生 entry ID、原生调用 ID、工具关联、状态、原生偏移及内容版本 hash；相同正文不是去重依据。
+- `project` 返回来源范围与明确省略；`render` 另返回 PNG、缺字、未覆盖范围和问题标记，不代表模型已经收到内容。
+- `import` 冻结精确来源并建立仅含元数据的历史 Conversation / ProviderThread，返回两者 ID 及快照；不写 Activity 正文、不启动 Agent。`delete` 不提供，也不删除 Agent 原生文件。
 
-快照绑定不可变 Activity 集合、截止偏移、前缀校验、解析器版本和当时的 gap 集合。
-冻结通过引用已提交且不能改写的 Activity 实现，不复制正文；当前没有逐项淘汰。未来增加正文清理时，必须保留快照引用的正文或拒绝该清理。
-源文件追加、删除不影响已存快照；压缩配置与快照身份分开，同一快照可反复生成投影。
-使用独立模块 `github.com/mzdluo123/snapcompact-go v0.1.0`；未复制 #641 的渲染实现。
-快照跟随所属 Conversation 删除，不改变现有 forget 的级联删除语义。
-服务提供幂等 retain/release 引用；存在保留引用时显式删除返回冲突，释放后仍需显式清理。
-尚未实现完整 fork 生命周期；导入历史没有 runtime binding，可用 `delete` action 和 sourceId 显式删除，原生文件保留。
+## 读取器与版本证据
 
-## 当前限制与验证
+以下叶读取器已实现并通过脱敏原生夹具验证；这不等于全部 CLI/连接器版本、TUI/ACP 交接组合已完成实测。
+来源、缺失场景及脱敏方式见[真实夹具说明](native-history-fixtures.md)。
 
-合成 fixture 在 `internal/codexrollout/testdata/basic.jsonl`，不来自真实用户会话。
-测试覆盖镜像去重、Unicode、多行、隐私排除、未知记录、版本拒绝、资源上限和半行。
-导入测试覆盖重复、提交失败、重启恢复、追加、源文件消失和旧快照稳定。
-当前文件读取使用有界捕获和前缀复核；每次重导入仍扫描文件，不是大文件尾部读取优化。
-工具执行状态缺省保持 unknown；该版本持久化工具输出不会保留 success 标记，不能从普通字符串推断成功。
-支持结构化工具文本及图片引用；图片内容不导入，缺少工具结果在快照中明确标记。
-ACP 历史保留独立身份并标记 `native_acp_unreconciled`，没有文本去重或自动合并。
-预算规划仍由 snapcompact 核心提供，本入口不自动选择模型或执行 Plan。
-以上边界应在扩大支持版本或接入真实交接之前继续验证，不代表 #640 整体路线完成。
+| Agent | 原生存储证据 | 版本边界 |
+| --- | --- | --- |
+| Codex | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.162.1 |
+| Claude Code | projects JSONL、parent 图及 compact_boundary | 真实样本 2.1.316 |
+| omp | session JSONL、父链与 compaction 保留范围 | 文件格式 3；一份 runtime 18.12.2 |
+| OpenCode | 两代 SQLite 原生表、消息及 part | 会话版本 1.18.3 / 2.1.4 |
+| Kimi | state.json 与 wire.jsonl | wire 1.4；应用版本未知 |
+| agy | SQLite BLOB、已恢复 descriptor 的 protobuf 字段 | 应用版本未知，仅六步实录证据 |
+| Devin | SQLite committed 主链，排除 inference siblings | SQLite 写入版本未知；不与独立 ATIF 混合 |
+| QoderCN | projects JSONL，按活动祖先链恢复 | 实录 1.1.84；样本无工具调用 |
+| Qoder | 暂复用 QoderCN 读取器和 fixtureSource | 国际版路径/格式尚未经实录确认 |
 
-## 发行体积与许可
+原生格式、CLI、连接器和历史注入协议是独立版本维度，不能互相替代。
+未知格式、引用式 lineage、无法证明的分支或原生身份返回明确错误，不猜测会话归属。
+SQLite 读取在只读事务内完成；agy 生产读取 BLOB，不把 decoded JSON 研究文件冒充原生来源。
 
-默认使用 Go 核心的完整 CJK 字库，保持离线、单文件中文 PNG 支持；关闭 chat 不会减少静态链接体积。
-实测本次接入增加约 16.7 MiB，可执行文件预算和测量方法见[二进制体积](binary-size.md#原生历史-png-的字体预算)。
-OFL、版权及依赖声明内嵌于 `/fonts/licenses/OFL-NotoSansCJK.txt` 和 `/fonts/licenses/Snapcompact-Go-NOTICES.txt`。
-Linux deb/rpm 另安装到 `/usr/share/licenses/webmux/`；没有新增字体运行时下载或模型网络请求。
+## 引用与保留快照
+
+默认引用快照固定 Agent、native session、分支、完整记录边界、来源校验、解析器版本和冻结缺口。
+文件追加不进入旧范围；来源缺失返回 503，冻结前缀、身份或解析结果变化返回 409，不用最新历史替换旧快照。
+JSONL 只确认换行结束的完整记录；半行留待下一次冻结，冻结后出现的损坏后缀也不进入旧范围。
+Generation 标识原生来源实例，branch 固定所选祖先链；记录 hash 标识内容版本，快照 hash 固定整个 manifest。
+同一路径、相同正文或相同 native ID 不足以证明来源实例、分支和内容未变；不能混用父会话与 fork 的冻结游标。
+
+设置 `retain=true` 时按需固化一次完整可导出正文及可保留附件，作为不可变内容寻址产物。
+它没有实时追加或 Activity upsert，多个引用共享同一产物；来源删除与服务重启后仍可读取。
+无法取得所引用附件时保留失败；原生已省略的附件正文只保留明确缺口，不伪造字节或阻塞纯文本导出。
+`retain` action 增加已有快照的生命周期引用，不把引用快照升级成独立备份；需要备份应在冻结时选择保留模式。
+`release` 释放指定 owner，最后引用及组合引用释放后清理快照和相关导出；未决投递保护不能借来源删除或释放解除。
+
+```json
+{"action":"freeze","agent":"codex","path":"/example/rollout.jsonl","nativeId":"准确原生 ID","owner":"independent-fork","retain":true}
+{"action":"retain","snapshotId":"快照 ID","owner":"second-reader"}
+{"action":"release","snapshotId":"快照 ID","owner":"second-reader"}
+```
+
+## 运行身份与目录
+
+运行注册表与只读读取器由 cmd 分别显式装配，读取器不要求 ACP、信任写入或 HistoryInjector 能力。
+创建/恢复按实际启动环境计算原生根目录，只保存目录路径，不保存环境转储。
+HOME、CODEX_HOME、CLAUDE_CONFIG_DIR、KIMI_CODE_HOME 和适用的 XDG_DATA_HOME 覆盖按对应 Agent 规则解析。
+原生身份相同但根目录改变时建立独立 ProviderThread；后续编辑启动配置不会改写旧历史绑定，unknown 不允许换根恢复。
+需要显式指定来源时使用 `bind`，只有 reader 和当前 ProviderThread 的精确 native 身份都一致才保存绑定。
+发现结果不唯一或原生身份缺失时拒绝自动配对，不使用 cwd、标题或相同正文推断身份。
+
+```json
+{"action":"bind","agent":"codex","providerThreadId":"ProviderThread ID","nativeId":"准确原生 ID","path":"/example/rollout.jsonl"}
+```
+
+## 资源、隐私与 Codex 格式细节
+
+- JSONL 单记录最多 4 MiB、单次来源最多 64 MiB / 100000 条，读取传递取消；阻塞内核文件操作不能由上下文保证立即中断。
+- Linux/macOS 校验 device/inode、只读捕获和前缀复核；数据库来源校验其原生冻结边界与内容，不创建或迁移 Agent 数据库。
+- 页面默认 20 项、总文字预算 4000 字节，UTF-8 字节边界继续读取，不截断 code point；原文不受投影截断影响。
+- 原生未记录、已删除或已压缩丢弃的内容无法恢复；未知记录、外部祖先、缺失工具结果、附件和压缩缺口明确表示。
+- reasoning、密文、签名、非可导出 provider 状态不进入正文；解析错误只返回安全类别及可用位置，不回显失败记录。
+- 当前仍以有界完整捕获解析来源，不宣称实现大文件尾读优化；工具状态缺省为 unknown，不能由普通字符串推断成功。
+
+Codex 0.77 基线固定上游 `112f40e91c12af0f7146d7e03f20283516a8af0b`：
+[RolloutItem](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/protocol/src/protocol.rs)、
+[ResponseItem](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/protocol/src/models.rs)、
+[持久化策略](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/core/src/rollout/policy.rs)、
+[resume/fork](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/core/src/codex.rs)。
+`response_item` 是正文来源，`event_msg` 镜像不重复计入；配对证据不足保留 `mirror_pairing_unverified`。
+`replacement_history` 改变模型上下文，不删除 rollout 中仍存在的旧原文；重复的原生 ID 按来源版本处理，不按文本合并执行。
+独立物化 fork 可读取；较新的 `history_base` 等引用 lineage 尚不冒充旧版独立文件支持。
+Codex 发现保留原有独立预算：元信息 64 KiB、累计 16 MiB、最多 20000 次遍历 / 10000 个结果，达到列表上限返回 `truncated=true`。
+
+## 投影、图片与当前迁移边界
+
+仅复用 `github.com/mzdluo123/snapcompact-go v0.1.0`，不复制 #641 核心或渲染器。
+投影确定性截断工具输出、限制参数/调用体并规范化空白；未知结构保守保留行和缩进，当前用户任务独立原样保存。
+默认投影输入预算 64 MiB；Render 独立限制输入、页数、像素和内存，缺字或未覆盖范围不能冒充完整覆盖。
+字体默认完整内嵌，不新增运行时下载；[体积预算](binary-size.md#原生历史-png-的字体预算)约束增量 20 MiB。
+OFL 与依赖许可随 `/fonts/licenses/` 和 Linux `/usr/share/licenses/webmux/` 交付。
+
+[CLI 实验](native-image-experiment.md)与[真实 ACP 实验](native-image-transport.md)记录合成样本、计费估价和实际读取错误。
+当前图片没有显示相对同覆盖投影文本的成本优势，混合表示出现缩进错误，因此文本继续默认。
+这些证据不等于网页上传、生产自动交接或原生图片注入已完成验收。
+聊天历史、预览、选择分页和只读历史工具统一消费冻结原生 scope；机械投影复用同一管线，当前新任务独立保存，不参与历史压缩。
+schema 14 在删除旧正文表前，将可导出的旧 Activity 与旧快照迁移为不可变 exports；此兼容产物不是新的持续镜像。
+完整交接、浏览器与 CI 的最终集成仍须分别验收，不能把读取器或局部测试通过称为 #640/#651/#652 全部完成。

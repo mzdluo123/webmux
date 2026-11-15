@@ -224,7 +224,7 @@ func (a *actor) openACPWithRequirement(epoch int, sid, cwd string, resume bool, 
 		res.config, res.resumed = r.ConfigOptions, true
 	} else {
 		if beforeLoad == nil {
-			beforeLoad = func() bool { return a.sync(a.beginActivityReplay) }
+			beforeLoad = func() bool { return a.sync(a.beginControlReplay) }
 		}
 		if !beforeLoad() {
 			_ = link.stop()
@@ -283,7 +283,7 @@ func (a *actor) recoverSessionLock(ctx context.Context, link *acpLink, sid, cwd 
 // installLink makes an opened connection the session's: versions,
 // steering and the agent's options.
 func (a *actor) installLink(link *acpLink, init acp.InitializeResponse, config []acp.ConfigOption, notes []string) {
-	a.finishActivityReplay()
+	a.finishControlReplay()
 	a.link = link
 	// A foreground process baseline belongs to its ACP connection. Keeping
 	// the old PID set after recovery would classify the new writer as work.
@@ -339,7 +339,7 @@ func (a *actor) outdated(reported, agentVersion string) []Outdated {
 
 // restartLog begins a new log generation for a session/load replay.
 func (a *actor) restartLog() {
-	a.beginActivityReplay()
+	a.beginControlReplay()
 	a.log.restart()
 	a.tr = translator{modelChoiceValues: a.cmd.Profile.ModelChoiceValues}
 	a.chat.Plan, a.chat.Usage = nil, nil

@@ -37,11 +37,12 @@ func readDeliveryPreview(ctx context.Context, tx *sql.Tx, id string, p *Preview)
 	)
 	SELECT
 	 EXISTS(SELECT 1 FROM run WHERE conversation_id=? AND ordinal>? AND id NOT IN (SELECT id FROM owned_run))
-	 OR EXISTS(SELECT 1 FROM activity WHERE conversation_id=? AND (position>? OR (position IS NULL AND created_at>=(SELECT created_at FROM context_handoff WHERE id=?))) AND (run_id IS NULL OR run_id NOT IN (SELECT id FROM owned_run)))
 	 OR EXISTS(SELECT 1 FROM history_gap WHERE conversation_id=? AND created_at>=(SELECT created_at FROM context_handoff WHERE id=?))
-	 OR EXISTS(SELECT 1 FROM conversation WHERE id=? AND (history_origin!=? OR reconcile_required!=?))`,
-		id, p.SourceConversationID, p.SourceRunOrdinal, p.SourceConversationID, p.SourcePosition, id,
-		p.SourceConversationID, id, p.SourceConversationID, p.HistoryOrigin, p.ReconcileRequired).Scan(&unrelated)
+	 OR EXISTS(SELECT 1 FROM conversation WHERE id=? AND
+		(history_origin!=? OR reconcile_required!=? OR next_activity_position-1 > ? +
+			(SELECT count(*) FROM owned_run o JOIN run r ON r.id=o.id WHERE r.status!='pending')))`,
+		id, p.SourceConversationID, p.SourceRunOrdinal,
+		p.SourceConversationID, id, p.SourceConversationID, p.HistoryOrigin, p.ReconcileRequired, p.Request.SourceControlPosition).Scan(&unrelated)
 	if err != nil {
 		return storageError(ctx, err)
 	}

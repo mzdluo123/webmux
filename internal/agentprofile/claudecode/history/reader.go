@@ -186,7 +186,7 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 		if !selected[e.ID] {
 			continue
 		}
-		r := hs.Record{ID: e.ID, ParentID: e.Parent, Kind: "message", Role: e.Message.Role, Status: e.Message.Stop, Offset: e.offset, End: e.end}
+		r := hs.Record{ID: e.ID, NativeID: e.ID, ParentID: e.Parent, Kind: "message", Role: e.Message.Role, Status: e.Message.Stop, Offset: e.offset, End: e.end}
 		if e.Subtype == "compact_boundary" {
 			r.Kind = "compaction"
 			r.Role = "system"
@@ -220,9 +220,9 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 					r.Text += b.Text
 				case "tool_use":
 					calls[b.ID] = b.Name
-					records = append(records, hs.Record{ID: blockRecordID(e.ID, position, index), ParentID: e.Parent, Kind: "tool_call", Role: "assistant", CallID: b.ID, ToolName: b.Name, Status: "requested", Offset: e.offset, End: e.end})
+					records = append(records, hs.Record{ID: blockRecordID(e.ID, position, index), NativeID: e.ID, ParentID: e.Parent, Kind: "tool_call", Role: "assistant", CallID: b.ID, ToolName: b.Name, Status: "requested", Offset: e.offset, End: e.end})
 				case "tool_result":
-					result := hs.Record{ID: blockRecordID(e.ID, position, index), ParentID: e.Parent, Kind: "tool_result", Role: "tool", CallID: b.CallID, ToolName: calls[b.CallID], Status: "completed", Offset: e.offset, End: e.end}
+					result := hs.Record{ID: blockRecordID(e.ID, position, index), NativeID: e.ID, ParentID: e.Parent, Kind: "tool_result", Role: "tool", CallID: b.CallID, ToolName: calls[b.CallID], Status: "completed", Offset: e.offset, End: e.end}
 					if b.Error {
 						result.Status = "error"
 					}

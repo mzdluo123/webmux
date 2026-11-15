@@ -77,11 +77,7 @@ func (s *Service) AcknowledgeRun(ctx context.Context, run string) error {
 		}
 		_, err := tx.ExecContext(ctx, `UPDATE provider_thread SET
 			last_delivered_run_ordinal=max(last_delivered_run_ordinal,?),
-			last_delivered_position=max(last_delivered_position,COALESCE(
-				(SELECT min(a.position)-1 FROM activity a JOIN run r ON r.id=a.run_id
-				 WHERE a.provider_thread_id=provider_thread.id AND r.consumed=0
-				 AND a.position>provider_thread.last_delivered_position),
-				(SELECT next_activity_position-1 FROM conversation WHERE id=?)))
+			last_delivered_position=max(last_delivered_position,(SELECT next_activity_position-1 FROM conversation WHERE id=?))
 			WHERE id=?`, ordinal, conversation, thread)
 		return storageError(ctx, err)
 	})

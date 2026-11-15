@@ -21,6 +21,11 @@ type Store interface {
 	NativeBindings(context.Context, string) ([]historysource.Binding, error)
 	BindNativeSource(context.Context, string, historysource.Source) error
 	PrefixSnapshots(context.Context, string) ([]string, error)
+	SourceAllowed(context.Context, historysource.Source) error
+	DispatchSourceScope(context.Context, string) (historysource.DispatchScope, error)
+	RecordSourceContext(context.Context, historysource.DispatchScope, historysource.ContextState) error
+	NativeContextReferences(context.Context, historysource.Source) ([]historysource.ContextReference, error)
+	ImportFrozenSource(context.Context, string, string) (historysource.Binding, error)
 }
 
 type DiscoverFunc func(context.Context, string) ([]historysource.Source, error)
@@ -94,7 +99,7 @@ func (s *Service) read(ctx context.Context, req historysource.Request) (historys
 	}
 	ids := make(map[string]bool, len(doc.Records))
 	total := 0
-	prefix := doc.Source.Agent + ":" + doc.Source.NativeID + ":"
+	prefix := doc.Source.Agent + ":" + doc.Source.NativeID + ":" + doc.Generation + ":"
 	for index := range doc.Records {
 		record := &doc.Records[index]
 		if record.ID == "" || ids[record.ID] {
@@ -105,22 +110,33 @@ func (s *Service) read(ctx context.Context, req historysource.Request) (historys
 		if total > historysource.MaxBytes {
 			return empty, historysource.ErrLimit
 		}
-		record.NativeID = record.ID
-		record.ID = prefix + record.ID
+		record.ID = sourceRecordID(prefix, record.ID)
 		if record.ParentID != "" {
-			record.ParentID = prefix + record.ParentID
+			record.ParentID = sourceRecordID(prefix, record.ParentID)
 		}
 		if record.CallID != "" {
+			record.NativeCallID = record.CallID
 			record.CallID = prefix + record.CallID
 		}
 	}
 	return doc, nil
 }
 
+func sourceRecordID(prefix, id string) string {
+	sum := sha256.Sum256([]byte(prefix + id))
+	return hex.EncodeToString(sum[:])
+}
+
 func (s *Service) Freeze(ctx context.Context, source historysource.Source, owner string, retain bool) (historysource.Snapshot, error) {
 	var empty historysource.Snapshot
 	if owner == "" {
 		return empty, historysource.ErrIdentity
+	}
+	if !s.enabled() {
+		return empty, historysource.ErrUnavailable
+	}
+	if err := s.store.SourceAllowed(ctx, source); err != nil {
+		return empty, err
 	}
 	doc, err := s.read(ctx, historysource.Request{Source: source})
 	if err != nil {
@@ -135,14 +151,22 @@ func (s *Service) freezeDocument(ctx context.Context, doc historysource.Document
 	if err != nil {
 		return empty, err
 	}
-	snapshot := historysource.Snapshot{Source: doc.Source, Cursor: doc.Cursor, Fingerprint: doc.Fingerprint, FormatVersion: doc.FormatVersion, ParserVersion: doc.ParserVersion, ContentHash: hash, RecordCount: len(doc.Records), Gaps: doc.Gaps, Retained: retain}
+	snapshot := historysource.Snapshot{Source: doc.Source, Cursor: doc.Cursor, Generation: doc.Generation, Fingerprint: doc.Fingerprint, FormatVersion: doc.FormatVersion, ParserVersion: doc.ParserVersion, ContentHash: hash, RecordCount: len(doc.Records), Gaps: doc.Gaps, Retained: retain}
 	snapshot.Records = make([]historysource.RecordRef, 0, len(doc.Records))
 	for position, record := range doc.Records {
 		hash, err := hashValue(record)
 		if err != nil {
 			return empty, err
 		}
-		snapshot.Records = append(snapshot.Records, historysource.RecordRef{ID: record.ID, Hash: hash, Position: position + 1})
+		snapshot.Records = append(snapshot.Records, historysource.RecordRef{ID: record.ID, Hash: hash, Kind: record.Kind, Position: position + 1})
+	}
+	if doc.RecordRefs != nil {
+		snapshot.References = doc.References
+	} else {
+		snapshot.References, err = s.contextReferences(ctx, doc)
+		if err != nil {
+			return empty, err
+		}
 	}
 	data := historysource.SnapshotData{Snapshot: snapshot}
 	if retain {
@@ -181,6 +205,11 @@ func (s *Service) Document(ctx context.Context, id string) (historysource.Docume
 	if err != nil {
 		return empty, err
 	}
+	return s.document(ctx, data)
+}
+
+func (s *Service) document(ctx context.Context, data historysource.SnapshotData) (historysource.Document, error) {
+	var empty historysource.Document
 	frozen := data.Snapshot
 	if frozen.Retained {
 		if data.Export == nil {
@@ -190,7 +219,7 @@ func (s *Service) Document(ctx context.Context, id string) (historysource.Docume
 		if err != nil || hash != frozen.ExportHash {
 			return empty, historysource.ErrUnavailable
 		}
-		return historysource.Document{Source: frozen.Source, Cursor: frozen.Cursor, Fingerprint: frozen.Fingerprint, FormatVersion: frozen.FormatVersion, ParserVersion: frozen.ParserVersion, Records: data.Export.Records, Gaps: frozen.Gaps}, nil
+		return historysource.Document{Source: frozen.Source, Cursor: frozen.Cursor, Generation: frozen.Generation, Fingerprint: frozen.Fingerprint, FormatVersion: frozen.FormatVersion, ParserVersion: frozen.ParserVersion, Records: data.Export.Records, RecordRefs: frozen.Records, References: frozen.References, Gaps: frozen.Gaps}, nil
 	}
 	doc, err := s.read(ctx, historysource.Request{Source: frozen.Source, Cursor: frozen.Cursor})
 	if err != nil {
@@ -203,6 +232,7 @@ func (s *Service) Document(ctx context.Context, id string) (historysource.Docume
 	if doc.Fingerprint != frozen.Fingerprint || doc.ParserVersion != frozen.ParserVersion || doc.FormatVersion != frozen.FormatVersion || doc.Cursor != frozen.Cursor || hash != frozen.ContentHash {
 		return empty, historysource.ErrChanged
 	}
+	doc.RecordRefs, doc.References = frozen.Records, frozen.References
 	return doc, nil
 }
 
@@ -223,6 +253,7 @@ func (s *Service) Release(ctx context.Context, id, owner string) error {
 func documentHash(doc historysource.Document) (string, error) {
 	// Pending belongs to the unfrozen suffix, not the frozen content identity.
 	doc.Pending = false
+	doc.RecordRefs, doc.References = nil, nil
 	return hashValue(doc)
 }
 

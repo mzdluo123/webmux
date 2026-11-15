@@ -16,7 +16,7 @@ PRAGMA user_version=9;
 `
 
 // SelectionPage is bounded independently of preview text and request metadata.
-// Positions use the same immutable activity cursor as Activities.
+// Positions use the frozen source composition, independent of live native files.
 type SelectionPage struct {
 	SourceConversationID, HistoryOrigin    string
 	SourcePosition, Revision, NextPosition int64
@@ -33,13 +33,20 @@ type SelectionItem struct {
 }
 
 // Selection reads only scope and a bounded selection page, never the full draft.
-// itemID optionally narrows the page to one activity within the frozen source.
+// itemID optionally narrows the page to one record within the frozen source.
 func (s *Service) Selection(ctx context.Context, id string, after int64, limit int, itemID string) (SelectionPage, error) {
 	out := SelectionPage{Items: []SelectionItem{}, NextPosition: after}
 	if after < 0 || limit < 1 || limit > 100 {
 		return out, ErrInvalid
 	}
 	err := s.transact(ctx, func(tx *sql.Tx) error {
+		var state string
+		if err := tx.QueryRowContext(ctx, "SELECT state FROM handoff_preview WHERE handoff_id=?", id).Scan(&state); err != nil {
+			return storageError(ctx, err)
+		}
+		if state == "preparing" {
+			return ErrConflict
+		}
 		err := tx.QueryRowContext(ctx, `SELECT h.source_conversation_id,h.revision,p.source_position,p.history_origin,p.reconcile_required,p.manual_text IS NOT NULL,p.selected_count,p.omitted_count,coalesce(json_extract(CAST(p.request AS TEXT),'$.SourceLocation.Cwd'),''),coalesce(json_extract(CAST(p.request AS TEXT),'$.SourceLocation.RepositoryID'),''),coalesce(json_extract(CAST(p.request AS TEXT),'$.SourceLocation.WorktreeID'),'') FROM context_handoff h JOIN handoff_preview p ON p.handoff_id=h.id JOIN conversation c ON c.id=h.source_conversation_id WHERE h.id=?`, id).Scan(&out.SourceConversationID, &out.Revision, &out.SourcePosition, &out.HistoryOrigin, &out.ReconcileRequired, &out.Manual, &out.SelectedCount, &out.OmittedCount, &out.SourceLocation.Cwd, &out.SourceLocation.RepositoryID, &out.SourceLocation.WorktreeID)
 		if err != nil {
 			return storageError(ctx, err)

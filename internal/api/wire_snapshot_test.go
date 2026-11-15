@@ -42,6 +42,7 @@ import (
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/handoff"
+	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
@@ -121,12 +122,8 @@ func wireSchema(name string) wireRules {
 		if name == "handoff-preview-empty" {
 			add("", "emptyCoverage", "renderedText")
 		}
-	case "native-import", "native-read":
-		add("", "id", "sourceId", "conversationId", "snapshotId")
-		add("/activities/items/*", "id", "activityId", "conversationId", "providerThreadId", "runId")
-		add("/provenance/*", "id", "activityId", "sourceId")
-		add("/activities/gaps/*", "id", "id", "providerThreadId")
-		add("/activities/gaps/*", "time", "createdAt")
+	case "native-freeze", "native-read":
+		add("", "id", "snapshotId", "contentHash")
 	case "conversation-activities", "conversation-activities-empty":
 		add("/items/*", "id", "activityId", "conversationId", "providerThreadId", "runId")
 		add("/items/*", "time", "createdAt")
@@ -882,10 +879,11 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	t.Cleanup(workspaces.Close)
 	codes.UseWorkspace(workspaces)
 	recovery := hybridresume.New(hybrids, launches, hybridresume.Options{DefaultCwd: root, Creation: hybrids.Creation(), Locations: workspaces, ResumeLocations: workspaces})
-	handoffs := handoff.New(handoff.Options{Creation: hybrids.Creation(), Recovery: recovery, Locations: workspaces, Conversations: conversations, Launch: launches, Hybrid: hybrids, Artifacts: folders, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
+	nativeHistory, nativeProjection := nativeFixture(conversations)
+	handoffs := handoff.New(handoff.Options{Creation: hybrids.Creation(), Recovery: recovery, Locations: workspaces, Conversations: conversations, Launch: launches, Hybrid: hybrids, Artifacts: folders, NativeHistory: nativeHistory, HistoryProjection: nativeProjection, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
 	t.Cleanup(handoffs.Close)
 	f := &wireFixture{wireRecorder: rec, manager: m, hybrids: hybrids, launches: launches, conversations: conversations, handoffs: handoffs, root: root, projection: featurewire.Projection{Workspace: workspaces, Chat: hybrids, Forward: forwards}}
-	controllers := featureapi.Bind(featureapi.Deps{Config: c, Manager: m, Settings: prefs, Workspace: workspaces, Code: codes, Files: files.New(root), Artifacts: folders, Handoffs: handoffs, Conversations: conversations, Push: pushes, Launch: launches, Hybrid: hybrids, Resume: recovery, Forward: forwards, Guide: guide, Public: public, ProjectSession: f.project})
+	controllers := featureapi.Bind(featureapi.Deps{Config: c, Manager: m, Settings: prefs, Workspace: workspaces, Code: codes, Files: files.New(root), Artifacts: folders, Handoffs: handoffs, Conversations: conversations, NativeHistory: nativeHistory, HistoryProjection: nativeProjection, Push: pushes, Launch: launches, Hybrid: hybrids, Resume: recovery, Forward: forwards, Guide: guide, Public: public, ProjectSession: f.project})
 	creation := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: root, Commands: launches, Locations: workspaces, Files: folders, Chat: hybrids.Creation(), Brief: func(id, dir string) string {
 		return guide.Brief(agentguide.BriefInput{SessionID: id, Dir: dir})
 	}})
@@ -1399,6 +1397,9 @@ func wireLaunch(f *wireFixture) {
 	f.call("session-create-from-config", "POST", "/api/sessions", map[string]any{"configId": str(shell, "id"), "cwd": f.root}, 201)
 	f.call("error-404-session-config", "POST", "/api/sessions", map[string]any{"configId": "zzzzzzzz"}, 404)
 	f.call("launch-delete", "DELETE", "/api/launch-configs/"+launchID, nil, 204)
+	if err := f.launches.Seed([]launch.Input{{Name: "omp", Icon: "pi", Cmd: []string{"omp", "--auto-approve"}, Env: map[string]string{"PI_FORCE_IMAGE_PROTOCOL": "kitty"}, Hybrid: true}}); err != nil {
+		f.t.Fatal(err)
+	}
 	f.call("launch-presets", "GET", "/api/launch-configs/presets", nil, 200)
 	f.call("launch-presets-restore", "POST", "/api/launch-configs/presets", map[string]any{"name": "omp"}, 200)
 }
@@ -1854,24 +1855,21 @@ func (f *wireFixture) closed(conn *websocket.Conn, name string) {
 }
 
 func wireConversationHistory(f *wireFixture) {
-	b, err := f.conversations.EnsureRuntime(f.ctx, conversation.RuntimeInput{RuntimeID: "archived", Cwd: f.root, AgentName: "test", Status: "closed", HistoryOrigin: "unknown"})
+	nativeHistory, _ := nativeFixture(f.conversations)
+	path := filepath.Join(f.root, "wire-history.jsonl")
+	body := "{\"type\":\"session_meta\",\"payload\":{\"id\":\"00000000-0000-4000-8000-000000000001\",\"cwd\":\"/wire/source\",\"cli_version\":\"0.77.0\"}}\n{\"type\":\"response_item\",\"payload\":{\"type\":\"message\",\"id\":\"wire-user\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"中文🙂: complete history\"}]}}\n"
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		f.t.Fatal(err)
+	}
+	b, frozen, err := nativeHistory.Import(f.ctx, historysource.Source{Agent: "codex", NativeID: "00000000-0000-4000-8000-000000000001", Path: path}, false)
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	r, err := f.conversations.StartRun(f.ctx, b.ProviderThreadID, "wire-prompt")
+	doc, err := nativeHistory.Document(f.ctx, frozen.ID)
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	id, err := f.conversations.WriteActivity(f.ctx, conversation.ActivityInput{ProviderThreadID: b.ProviderThreadID, RunID: r.ID, LocalKey: r.ID, ProviderItemID: "native-user", Kind: "message", Role: "user", Status: "completed", Source: "local", Text: "中文🙂: complete history", Attachments: []conversation.ActivityAttachment{{Name: "a.txt", MimeType: "text/plain", Reference: f.root + "/a.txt", Size: 12}}})
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	if err := f.conversations.FinishRun(f.ctx, r.ID, "end_turn"); err != nil {
-		f.t.Fatal(err)
-	}
-	if err := f.conversations.AddGap(f.ctx, b.ProviderThreadID, "tui"); err != nil {
-		f.t.Fatal(err)
-	}
+	id := doc.Records[0].ID
 	base := "/api/conversations/" + b.ConversationID + "/activities"
 	f.call("conversation-activities", "GET", base+"?maxBytesPerItem=7", nil, 200)
 	f.call("conversation-activity", "GET", base+"/"+id+"?textOffset=6&maxBytes=4", nil, 200)
@@ -1880,25 +1878,18 @@ func wireConversationHistory(f *wireFixture) {
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	path := filepath.Join(f.root, "native.jsonl")
+	path = filepath.Join(f.root, "native.jsonl")
 	if err = os.WriteFile(path, data, 0600); err != nil {
 		f.t.Fatal(err)
 	}
-	imported := f.call("native-import", "POST", "/api/conversations/native", contract.NativeRequest{Action: "import", Path: path}, 200).(map[string]any)
-	frozen, err := f.conversations.FreezeNative(f.ctx, imported["sourceId"].(string))
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	f.call("native-read", "POST", "/api/conversations/native", contract.NativeRequest{Action: "read", SnapshotID: frozen.ID}, 200)
+	frozenResult := f.call("native-freeze", "POST", "/api/conversations/native", contract.NativeRequest{Action: "freeze", Agent: "codex", NativeID: "00000000-0000-4000-8000-000000000001", Path: path, Owner: "wire-reader"}, 200).(map[string]any)
+	f.call("native-read", "POST", "/api/conversations/native", contract.NativeRequest{Action: "read", SnapshotID: frozenResult["snapshotId"].(string)}, 200)
 
 }
 
 func wireHandoffPreviews(f *wireFixture) {
 	f.norm.path("/wire/source", "<history-source>")
-	source, err := f.conversations.EnsureRuntime(f.ctx, conversation.RuntimeInput{RuntimeID: "empty-source", Cwd: "/wire/source", AgentName: "omp", Status: "closed", HistoryOrigin: "complete"})
-	if err != nil {
-		f.t.Fatal(err)
-	}
+	source := wireEmptyNativeSource(f, "empty-source", "/wire/source")
 	cfg, err := f.launches.Create(launch.Input{Name: "preview target", Cmd: []string{"omp"}, Hybrid: true})
 	if err != nil {
 		f.t.Fatal(err)
@@ -1921,10 +1912,7 @@ func wireHandoffDeliveries(f *wireFixture) {
 	// Historical attribution is serialized into the coverage budget. Keep it
 	// fixed, as in wireHandoffPreviews, and use the real temporary repository
 	// only as the separately configured target working location.
-	source, err := f.conversations.EnsureRuntime(f.ctx, conversation.RuntimeInput{RuntimeID: "delivery-source", Cwd: "/wire/source", AgentName: "omp", Status: "closed", HistoryOrigin: "complete"})
-	if err != nil {
-		f.t.Fatal(err)
-	}
+	source := wireEmptyNativeSource(f, "delivery-source", "/wire/source")
 	cfg, err := f.launches.Create(launch.Input{Name: "missing target", Cmd: []string{"/nonexistent/webmux-test/omp"}, Hybrid: true})
 	if err != nil {
 		f.t.Fatal(err)

@@ -1,4 +1,4 @@
-// Package conversation owns durable provider-neutral identities and history.
+// Package conversation owns durable provider-neutral identities and snapshot metadata.
 // Runtime sessions and provider processes remain ephemeral.
 package conversation
 
@@ -67,6 +67,7 @@ type RuntimeInput struct {
 	ConfigID, AgentName, AgentSessionID, Status string
 	Config                                      map[string]string
 	HistoryOrigin                               string
+	HistoryRoot                                 string
 	CreatedAt                                   time.Time
 }
 
@@ -80,32 +81,10 @@ type HandoffInput struct {
 	ClientRequestID, RequestHash                                       string
 }
 
-// Activity is an immutable committed historical item. Text is materialized only
-// in bounded byte ranges; drafts have Position zero and are never paginated.
-type Activity struct {
-	ID, ConversationID, ProviderThreadID, RunID string
-	Position, RunOrdinal                        int64
-	Kind, Role, Status, Source, ProviderItemID  string
-	Text                                        string
-	ByteLength                                  int64
-	CreatedAt                                   time.Time
-	Attachments                                 []ActivityAttachment
-}
 
 type ActivityAttachment struct {
 	Name, MimeType, Reference string
 	Size                      int64
-}
-
-type ActivityInput struct {
-	// Heading patches normalized tool metadata independently of accumulated output.
-	Heading                                           *string
-	ProviderThreadID, RunID, LocalKey, ProviderItemID string
-	Kind, Role, Status, Source, Text                  string
-	// Replace is for ACP snapshots (tool content, plans, compaction summaries).
-	// Stream chunks leave it false, appending only the received delta.
-	Replace     bool
-	Attachments []ActivityAttachment
 }
 
 type HistoryGap struct {

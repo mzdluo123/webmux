@@ -14,6 +14,7 @@ import (
 
 func Read(ctx context.Context, req historysource.Request) (historysource.Document, error) {
 	var records []historysource.Record
+	positions := make(map[string]int)
 	var gaps []historysource.Gap
 	var result codexrollout.Result
 	out, err := historysource.ReadJSONLStream(ctx, req, func(r io.Reader) error {
@@ -22,9 +23,8 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if record.ReplacesHistory {
-				records = records[:0]
-			}
+			// Compaction changes model context, not the availability of older
+			// records still retained in the rollout. Never discard that history.
 			for _, d := range record.Diagnostics {
 				gaps = append(gaps, historysource.Gap{Category: d.Category, Offset: d.Offset})
 			}
@@ -37,17 +37,30 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 				if role == "assistant" {
 					role = "agent"
 				}
-				normalized := historysource.Record{ID: req.Source.NativeID + ":" + id, Kind: item.Kind, Role: role, Text: item.Text, CallID: item.CallID, ToolName: item.ToolName, Status: item.Status, Offset: record.Offset, End: record.End}
+				normalized := historysource.Record{ID: req.Source.NativeID + ":" + id, NativeID: item.NativeID, Kind: item.Kind, Role: role, Text: item.Text, CallID: item.CallID, ToolName: item.ToolName, Status: item.Status, Offset: record.Offset, End: record.End}
 				for _, a := range item.Attachments {
 					normalized.Attachments = append(normalized.Attachments, historysource.Attachment{Reference: a.Reference, MimeType: a.MimeType})
 				}
-				records = append(records, normalized)
+				if previous, exists := positions[normalized.ID]; exists {
+					records[previous] = normalized
+				} else {
+					positions[normalized.ID] = len(records)
+					records = append(records, normalized)
+				}
 			}
 			return nil
 		})
 		return err
 	})
 	if err != nil {
+		var parseError *codexrollout.ParseError
+		if errors.As(err, &parseError) {
+			cause := historysource.ErrFormat
+			if errors.Is(err, codexrollout.ErrLimit) {
+				cause = historysource.ErrLimit
+			}
+			return out, &historysource.ParseError{Offset: parseError.Offset, Cause: cause}
+		}
 		switch {
 		case errors.Is(err, codexrollout.ErrLimit):
 			return out, historysource.ErrLimit

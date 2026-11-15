@@ -71,25 +71,29 @@ func TestProviderSwitchAtoBtoAPreservesEarlierRejectedRequest(t *testing.T) {
 	if _, err := h.launches.Update(cfg.ID, launch.Input{Name: cfg.Name, Cmd: cfg.Cmd, Env: cfg.Env, Hybrid: true}); err != nil {
 		t.Fatal(err)
 	}
-	history, err := h.store.Activities(ctx, h.source.ConversationID, 0, 100, 2000)
+	h.syncNative()
+	native, err := h.service.options.NativeHistory.FreezeConversation(ctx, h.source.ConversationID, h.source.ConversationID, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var rejectedID, acceptedID string
-	for _, item := range history.Items {
-		if item.Activity.Role == "user" {
-			switch item.Activity.Text {
-			case "rejected A request":
-				rejectedID = item.Activity.ID
-			case "accepted A request":
-				acceptedID = item.Activity.ID
-			}
+	idsForRead := make([]string, len(native))
+	for i, snapshot := range native {
+		idsForRead[i] = snapshot.ID
+	}
+	history, err := h.service.options.NativeHistory.Documents(ctx, idsForRead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptedID := ""
+	for _, item := range history.Records {
+		if item.Text == "rejected A request" {
+			t.Fatal("provider refusal entered native history")
+		}
+		if item.Text == "accepted A request" {
+			acceptedID = item.ID
 		}
 	}
-	if rejectedID == "" || acceptedID == "" {
-		t.Fatalf("missing actual prompt activities: rejected=%s accepted=%s", rejectedID, acceptedID)
-	}
-	bp, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "rejected-delta-B-preview", ConfigID: h.config.ID, UserText: "B work"})
+	bp, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "rejected-delta-B-preview", ConfigID: h.config.ID, UserText: "B work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,20 +102,20 @@ func TestProviderSwitchAtoBtoAPreservesEarlierRejectedRequest(t *testing.T) {
 	}
 	b := h.waitStatus(bp.ID, "inline")
 	waitIdle(t, h.hybrids, b.RuntimeID)
-	back, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "rejected-delta-A-preview", ConfigID: cfg.ID, UserText: "return to A"})
+	back, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "rejected-delta-A-preview", ConfigID: cfg.ID, UserText: "return to A"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if back.Strategy != "delta_since_target_last_seen" || back.TargetProviderThreadID != h.source.ProviderThreadID {
 		t.Fatalf("wrong continuation: %+v", back)
 	}
-	rejectedSelected, acceptedSelected := false, false
-	for _, selected := range back.SelectedItemIDs {
-		rejectedSelected = rejectedSelected || selected == rejectedID
-		acceptedSelected = acceptedSelected || selected == acceptedID
+	if acceptedID == "" {
+		t.Fatal("accepted request missing from native source")
 	}
-	if !rejectedSelected || acceptedSelected {
-		t.Fatalf("delta lost consumption distinction: rejected=%v accepted=%v preview=%+v", rejectedSelected, acceptedSelected, back)
+	for _, selected := range back.SelectedItemIDs {
+		if selected == acceptedID {
+			t.Fatal("already consumed native work repeated in delta", back)
+		}
 	}
 	if _, err := h.service.Deliver(ctx, h.source.ConversationID, switchMessage(back, "rejected-delta-A-message")); err != nil {
 		t.Fatal(err)
@@ -195,7 +199,7 @@ func TestInterruptedSourceQuiescesWithoutWaitingForExecutionTimeout(t *testing.T
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "interrupted-source-preview", ConfigID: h.config.ID, UserText: "continue after terminal exit"})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "interrupted-source-preview", ConfigID: h.config.ID, UserText: "continue after terminal exit"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +242,7 @@ func TestProviderSwitchAtoBtoAResumesOnlyUnseenDelta(t *testing.T) {
 	if aThread.LastDeliveredRunOrdinal == 0 || aThread.LastDeliveredPosition == 0 {
 		t.Fatalf("own work was not acknowledged: %+v", aThread)
 	}
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "switch-preview-B", ConfigID: h.config.ID, UserText: "task for B"})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "switch-preview-B", ConfigID: h.config.ID, UserText: "task for B"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +269,7 @@ func TestProviderSwitchAtoBtoAResumesOnlyUnseenDelta(t *testing.T) {
 	if err != nil || rec.State != hybrid.StateClosed || rec.PID != 0 {
 		t.Fatalf("old writer stayed active: %+v %v", rec, err)
 	}
-	back, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "switch-preview-A", ConfigID: original.ConfigID, UserText: "back to A"})
+	back, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "switch-preview-A", ConfigID: original.ConfigID, UserText: "back to A"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,9 +277,10 @@ func TestProviderSwitchAtoBtoAResumesOnlyUnseenDelta(t *testing.T) {
 		t.Fatalf("wrong A delta: %+v", back)
 	}
 	for _, id := range back.SelectedItemIDs {
-		item, err := h.store.Activity(ctx, h.source.ConversationID, id, 0, conversation.MaxActivityBytes)
-		if err != nil || item.Activity.ProviderThreadID != b.TargetProviderThreadID {
-			t.Fatalf("old native item was re-imported: %+v %v", item, err)
+		for _, prior := range p.SelectedItemIDs {
+			if id == prior {
+				t.Fatalf("old native item was re-imported: %s", id)
+			}
 		}
 	}
 	if _, err := h.service.Deliver(ctx, h.source.ConversationID, message(back, "switch-message-A")); err != nil {
@@ -306,7 +311,7 @@ func TestProviderSwitchAtoBtoAResumesOnlyUnseenDelta(t *testing.T) {
 	if err := h.store.AddGap(ctx, h.source.ProviderThreadID, "tui"); err != nil {
 		t.Fatal(err)
 	}
-	full, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "gap-full-preview-B", ConfigID: h.config.ID, UserText: "new B task after gap"})
+	full, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "gap-full-preview-B", ConfigID: h.config.ID, UserText: "new B task after gap"})
 	if err != nil || full.Strategy != "full_thread_summary" || full.TargetProviderThreadID != b.TargetProviderThreadID {
 		t.Fatal("gap did not use the existing B thread", full, err)
 	}
@@ -339,7 +344,7 @@ func switchToB(t *testing.T, env map[string]string) (*deliveryHarness, hybrid.Re
 		t.Fatal(err)
 	}
 	waitIdle(t, h.hybrids, ids[0])
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-B", ConfigID: h.config.ID, UserText: "B work"})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-B", ConfigID: h.config.ID, UserText: "B work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +368,7 @@ func TestMissingNativeResumePreparesFreshWithoutSending(t *testing.T) {
 	if _, err := h.launches.Update(cfg.ID, launch.Input{Name: cfg.Name, Cmd: cfg.Cmd, Env: env, Hybrid: true}); err != nil {
 		t.Fatal(err)
 	}
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-back-A", ConfigID: cfg.ID, UserText: "back A"})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-back-A", ConfigID: cfg.ID, UserText: "back A"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +403,7 @@ func TestActiveTurnPreventsSwitchAndFreshFallback(t *testing.T) {
 	if _, err := h.hybrids.Prompt(ctx, b.RuntimeID, hybrid.PromptInput{ClientRequestID: "busy-B-turn", Text: "still working"}); err != nil {
 		t.Fatal(err)
 	}
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "busy-preview-A", ConfigID: original.ConfigID, UserText: "switch A"})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "busy-preview-A", ConfigID: original.ConfigID, UserText: "switch A"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,7 +456,7 @@ func TestPreRetirementFailureAllowsUnchangedSourceResume(t *testing.T) {
 					t.Fatalf("missing paused source work: %+v", queue)
 				}
 			}
-			p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "pre-retirement-preview", ConfigID: h.config.ID, UserText: "switch to B"})
+			p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "pre-retirement-preview", ConfigID: h.config.ID, UserText: "switch to B"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -517,7 +522,7 @@ func TestUnresolvedSwitchCannotResumeSource(t *testing.T) {
 			if status == "pending" {
 				h.service.pauseAfterPhase = func(phase string) bool { return phase == "session_created" }
 			}
-			p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "unresolved-source-preview", ConfigID: h.config.ID, UserText: "B work"})
+			p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "unresolved-source-preview", ConfigID: h.config.ID, UserText: "B work"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -543,7 +548,7 @@ func TestUnresolvedSwitchCannotResumeSource(t *testing.T) {
 func TestPendingSwitchSurvivesRestartAndRejectsAnotherDevice(t *testing.T) {
 	h := deliveryTest(t, nil)
 	ctx := context.Background()
-	first, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "pending-preview-B", ConfigID: h.config.ID, UserText: "B work"})
+	first, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "pending-preview-B", ConfigID: h.config.ID, UserText: "B work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -557,7 +562,7 @@ func TestPendingSwitchSurvivesRestartAndRejectsAnotherDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "other-device-preview", ConfigID: cfg.ID, UserText: "C work"})
+	other, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "other-device-preview", ConfigID: cfg.ID, UserText: "C work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -583,7 +588,7 @@ func TestReportedBackgroundWorkPreventsSwitchAfterTurnEnds(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitIdle(t, h.hybrids, b.RuntimeID)
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "background-preview-A", ConfigID: original.ConfigID, UserText: "switch A"})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "background-preview-A", ConfigID: original.ConfigID, UserText: "switch A"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -607,7 +612,7 @@ func TestProviderSwitchAtoBtoCFixesConversationAndLocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := h.service.Preview(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-C", ConfigID: c.ID, UserText: "C work"})
+	p, err := h.previewNative(ctx, h.source.ConversationID, Request{ClientRequestID: "preview-C", ConfigID: c.ID, UserText: "C work"})
 	if err != nil {
 		t.Fatal(err)
 	}

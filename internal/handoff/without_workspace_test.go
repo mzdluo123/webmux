@@ -58,7 +58,7 @@ func TestDisabledWorkspaceRejectsGitSelectionBeforeReceipt(t *testing.T) {
 		{RepositoryID: "repo", NewWorktreeBranch: "new", NewWorktreeBase: "main"},
 	} {
 		request := Request{ClientRequestID: "disabled-location-preview", ConfigID: h.config.ID, Fork: true, UserText: "continue", Location: location}
-		if _, err := h.service.Preview(ctx, h.source.ConversationID, request); !errors.Is(err, conversation.ErrUnavailable) {
+		if _, err := h.previewNative(ctx, h.source.ConversationID, request); !errors.Is(err, conversation.ErrUnavailable) {
 			t.Fatalf("Git preview admitted: %v", err)
 		}
 		if _, err := h.store.Receipt(ctx, h.source.ConversationID, request.ClientRequestID); !errors.Is(err, conversation.ErrNotFound) {
