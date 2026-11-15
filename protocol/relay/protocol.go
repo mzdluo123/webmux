@@ -35,7 +35,7 @@ const (
 	ControlMessageTTL                = 60 * time.Second
 	StreamAdmissionTimeout           = 15 * time.Second
 	HTTPStreamsPerConnection         = 4
-	MaxRoleConnections               = 8
+	MaxRoleConnections               = 16
 	MaxPendingStreams                = 128
 	StreamOpenTimeout                = 10 * time.Second
 	KeepAliveInterval                = 10 * time.Second
