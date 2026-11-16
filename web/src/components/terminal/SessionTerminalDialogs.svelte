@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { HybridSession } from "../../hooks/sessions/hybrid.svelte";
+  import type { useSessionTerminalChrome } from "../../hooks/terminal/session-terminal-chrome.svelte";
   import type {
     DraftOperation,
     TerminalDraft,
     TerminalDrafts,
     TextInsertion,
   } from "../../domains/terminal/terminal-draft.svelte";
+  import { openTerminalExternalLink } from "../../domains/terminal/terminal-link";
   import CloseSessionDialog from "../sessions/CloseSessionDialog.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
@@ -21,22 +23,17 @@
     draft,
     drafts,
     hybrid,
+    chrome,
     fontSize,
     setFontSize,
     filePaste,
-    pasteOperation,
     insertText,
     focusTerminal,
     scratchSaved,
     onremoved,
     onarchived,
-    pasteOpen = $bindable(),
-    pasteText = $bindable(),
-    copyOpen = $bindable(),
-    copyText,
     settingsOpen = $bindable(),
     closing = $bindable(),
-    choiceClosed = $bindable(),
     scratchOpen = $bindable(),
   }: {
     id: string;
@@ -44,22 +41,17 @@
     draft: TerminalDraft;
     drafts: TerminalDrafts;
     hybrid: HybridSession;
+    chrome: ReturnType<typeof useSessionTerminalChrome>;
     fontSize: number;
     setFontSize: (size: number) => void;
     filePaste: (event: ClipboardEvent) => boolean;
-    pasteOperation: DraftOperation | undefined;
     insertText: (text: string, operation?: DraftOperation) => TextInsertion;
     focusTerminal: (event: Event) => void;
     scratchSaved: string;
     onremoved: () => void;
     onarchived: () => void;
-    pasteOpen: boolean;
-    pasteText: string;
-    copyOpen: boolean;
-    copyText: string;
     settingsOpen: boolean;
     closing: boolean;
-    choiceClosed: boolean;
     scratchOpen: boolean;
   } = $props();
 
@@ -70,17 +62,35 @@
 </script>
 
 <TerminalPasteDialog
-  bind:open={pasteOpen}
-  bind:text={pasteText}
+  bind:open={() => chrome.pasteOpen, (v) => (chrome.pasteOpen = v)}
+  bind:text={() => chrome.pasteText, (v) => (chrome.pasteText = v)}
   {filePaste}
-  send={(text) => insertText(text, pasteOperation)}
+  send={(text) => insertText(text, chrome.pasteOperation)}
   onCloseAutoFocus={focusTerminal}
 />
 <TerminalCopyDialog
-  bind:open={copyOpen}
-  text={copyText}
+  bind:open={() => chrome.copyOpen, (v) => (chrome.copyOpen = v)}
+  text={chrome.copyText}
   onCloseAutoFocus={focusTerminal}
 />
+<ConfirmDialog
+  bind:open={() => chrome.linkOpen, (v) => (chrome.linkOpen = v)}
+  title={m.s4_open_link_title()}
+  confirmLabel={m.s4_open_link_confirm()}
+  onCloseAutoFocus={focusTerminal}
+  onconfirm={() => {
+    openTerminalExternalLink(chrome.linkUrl);
+  }}
+>
+  <span class="block space-y-2">
+    <span class="block">{m.s4_open_link_desc()}</span>
+    <code
+      class="block rounded-md bg-muted px-2.5 py-1.5 text-left font-mono text-xs break-all text-foreground"
+      >{chrome.linkUrl}</code
+    >
+    <span class="block">{m.s4_open_link_warning()}</span>
+  </span>
+</ConfirmDialog>
 <TerminalFontDialog
   bind:open={settingsOpen}
   {fontSize}
@@ -127,8 +137,8 @@
   >
   <features.chat.SwitchChoice
     bind:open={
-      () => hybrid.awaitingChoice && !choiceClosed,
-      (open) => (choiceClosed = !open)
+      () => hybrid.awaitingChoice && !chrome.choiceClosed,
+      (open) => (chrome.choiceClosed = !open)
     }
     note={hybrid.chat.state?.forceSwitchNote ?? ""}
     busy={hybrid.answering}

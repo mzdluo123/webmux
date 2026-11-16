@@ -1882,6 +1882,10 @@
     }
   ],
   "s4_open": "Open",
+  "s4_open_link_confirm": "Open link",
+  "s4_open_link_desc": "Do you want to navigate to this link?",
+  "s4_open_link_title": "Open external link?",
+  "s4_open_link_warning": "Warning: This link comes from terminal output and could potentially be dangerous.",
   "s4_open_panel": "Open panel",
   "s4_open_scratch": "Open scratch",
   "s4_open_scratch_with_count": [

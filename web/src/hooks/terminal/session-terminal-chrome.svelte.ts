@@ -13,6 +13,7 @@ import {
   type SessionClipboardContext,
   type SessionHybridView,
 } from "../../domains/terminal/session-terminal-io";
+import { parseTerminalExternalLink } from "../../domains/terminal/terminal-link";
 import type {
   DraftOperation,
   TerminalDraft,
@@ -68,6 +69,8 @@ export function useSessionTerminalChrome(options: {
   let pasteText = $state("");
   let copyOpen = $state(false);
   let copyText = $state("");
+  let linkOpen = $state(false);
+  let linkUrl = $state("");
   let pendingCopy = $state<string | null>(null);
   // codeShown retains the workspace's sidebar visibility and persisted size
   // contract; choosing another panel does not collapse that sidebar.
@@ -271,6 +274,21 @@ export function useSessionTerminalChrome(options: {
     },
     get copyText() {
       return copyText;
+    },
+    get linkOpen() {
+      return linkOpen;
+    },
+    set linkOpen(value: boolean) {
+      linkOpen = value;
+    },
+    get linkUrl() {
+      return linkUrl;
+    },
+    openLinkDialog(url: string) {
+      const href = parseTerminalExternalLink(url);
+      if (!href) return;
+      linkUrl = href;
+      linkOpen = true;
     },
     get pendingCopy() {
       return pendingCopy;

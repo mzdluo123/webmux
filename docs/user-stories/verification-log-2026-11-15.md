@@ -264,3 +264,16 @@
   - 定向端到端回归：`agent-tools`、`launch-configs`、`i18n`、`settings-sync` 共 26 项全部通过（0 失败），覆盖 `.bashrc` 动态路径重扫、零静默外连、按需更新检查、命令复制及核心模式 404 门控；
   - 视觉与证据：隔离演示服务在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 明暗主题与中英文共 28 个组合下核对无页面横向溢出；采集桌面、平板、手机明暗六组前后对比截图与 `1280×900` 正常速度交互 GIF（6.0 秒），13 个公开直链均经 HTTP 200 校验。
 - 局限：仅在 Linux 无头 Chromium 下验证，未在手机、平板、macOS 或 Windows 真机验证真实鼠标悬停与触屏硬件行为；自动化测试中上游包源使用本地受控测试服务模拟，未依赖实时外网仓库稳定性；未重新验收其他既有故事。
+
+## 终端 OSC 8 外部链接应用内本地化确认（2026-11-16，US-A07、US-D01）
+
+- 范围：将 xterm 默认英文浏览器 `window.confirm` 链接跳转提示替换为跟随用户语言偏好的应用内 `ConfirmDialog`，同步更新 US-A07、US-D01 与 `docs/usage/terminal.md`，故事 ID 与总数不变。
+- 核心改动：
+  - 新增 `web/src/domains/terminal/terminal-link.ts`，严格放行 `http:` / `https:` 协议并将 IDN 主机名规范化为 Punycode，确认后以 `window.open(href, "_blank", "noopener,noreferrer")` 在新标签页打开；
+  - 在 `terminal-renderer.ts` 注册 `linkHandler` 将点击事件转发至会话终端 chrome，并在 `SessionTerminalDialogs.svelte` 渲染本地化 `ConfirmDialog`（支持 `zh-CN` 与 `en` 实时无刷新切换，不阻塞 PTY 输出流，关闭后按平台规则恢复终端焦点）。
+- 本地验证：
+  - 静态与文档门禁：`make check`（前端构建、`svelte-check --tsgo --fail-on-warnings`、格式、`docs-check`、`persistence-check`、Oxlint、`check:arch` 46 项断言、`go vet`、`golangci-lint`）通过；
+  - 单元测试：`make test-unit` 96 文件 1,265 项全量通过（含新增 `test/terminal-link.test.ts` 3 项）；
+  - 浏览器与端到端回归：Vitest 浏览器 `test/browser/TerminalLinkConfirm.test.ts` 2 项通过（覆盖中英实时切换、PTY 流不中断、取消与确认打开、`javascript:` 拦截及 320px 超长 URL 折行）；Playwright `test/e2e/i18n.spec.ts` 与 `test/e2e/terminal.spec.ts` 共 24 项通过、4 项按设备项目条件跳过、0 失败；
+  - 视觉与证据：隔离演示服务核对 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 明暗主题与中英文均无横向溢出且弹窗完整落在视口内，采集桌面、平板、手机明暗前后对比截图与 `1280×900` 正常速度交互 GIF。
+- 局限：仅在 Linux 无头 Chromium 下验证；无头浏览器 `hover` 与 `any-pointer: coarse` 均为 `false`，真实鼠标悬停态与触屏硬件行为未在手机、平板、macOS 或 Windows 真机验证。
