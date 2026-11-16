@@ -7,7 +7,7 @@ WebMux is a single-user Linux/macOS web terminal for persistent PTY sessions, in
 ## Architecture
 
 - `cmd/webmux` loads TOML, converts options via `cmd/internal/assemble`, and constructs core plus selected builtins in `feature_{assembly,start,bind,capabilities}.go`.
-  Only `cmd/` constructs services. `api.New` receives typed transport contributions, typed transport ports.
+  Only `cmd/` constructs services. `api.New` receives typed transport contributions.
 - Layers are enforced by `internal/archtest` (rules R0–R11 in `docs/architecture.md`; manifest in `internal/archtest/layers_test.go`, where every new `internal/` package must be classified).
   - Core controllers: `api`, `hub`, `wire`, `transport`; optional: `featureapi`, `featurehub`, `featurewire`. Services include `session`, `sessioncreate`, workspace, launch and chat.
     Shared includes `builtin`, `contract`, `streamproto`, config and runtime; clients stay outside services/controllers.
