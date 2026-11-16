@@ -271,23 +271,7 @@ func (rc *relayController) run(ctx context.Context, gen uint64, settings relayse
 			rc.mu.Unlock()
 			err = rc.client.Connect(ctx, key, assignment, relay.Callbacks{
 				Ready: func(scope protocol.Scope) {
-					rc.mu.Lock()
-					defer rc.mu.Unlock()
-					if gen != rc.generation || ctx.Err() != nil {
-						return
-					}
-					if rc.public.Set("relay", settings.Binding.PublicURL) != nil {
-						return
-					}
-					rc.scope = scope
-					rc.status.ControlReady = true
-					rc.status.State = "degraded"
-					rc.status.ReadyConnections = 1
-					rc.status.PublicURL = settings.Binding.PublicURL
-					rc.status.DataReachability = "reachable"
-					rc.status.AppliedRevision = rc.status.ConfigRevision
-					rc.status.Error = ""
-					rc.status.ReadinessError = ""
+					rc.connected(ctx, gen, settings, scope)
 				},
 				BulkReady: func(ready bool) {
 					rc.mu.Lock()
@@ -355,6 +339,27 @@ func (rc *relayController) run(ctx context.Context, gen uint64, settings relayse
 			}
 		}
 	}
+}
+
+func (rc *relayController) connected(ctx context.Context, gen uint64, settings relaysetting.Settings, scope protocol.Scope) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	if gen != rc.generation || ctx.Err() != nil {
+		return
+	}
+	if rc.public.Set("relay", settings.Binding.PublicURL) != nil {
+		return
+	}
+	rc.scope = scope
+	rc.status.ControlReady = true
+	rc.status.State = "degraded"
+	rc.status.ReadyConnections = 1
+	rc.status.PublicURL = settings.Binding.PublicURL
+	rc.status.DataReachability = "reachable"
+	rc.status.AppliedRevision = rc.status.ConfigRevision
+	rc.status.Error = ""
+	rc.status.ReadinessError = ""
+	rc.status.ReconnectReason = ""
 }
 
 func (rc *relayController) disconnected(gen uint64) {

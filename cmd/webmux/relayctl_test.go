@@ -87,3 +87,46 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 		t.Fatal("failed save destroyed recoverable identity or misreported durable disable")
 	}
 }
+
+func TestRelayConnectedClearsFailureOnlyForActiveGeneration(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		gen       uint64
+		canceled  bool
+		wantReady bool
+	}{
+		{name: "recovered", gen: 5, wantReady: true},
+		{name: "stale generation", gen: 4},
+		{name: "canceled worker", gen: 5, canceled: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tt.canceled {
+				cancel()
+			}
+			const origin = "https://h-0123456789abcdef0123456789abcdef.example.com"
+			public := &transport.PublicOrigins{}
+			rc := &relayController{
+				public: public, generation: 5,
+				status: contract.RelayStatus{
+					State: "failed", Error: "relay connection unavailable",
+					ReadinessError: "connection-unavailable", ReconnectReason: "connection-lost",
+				},
+			}
+			settings := relaysetting.Settings{Binding: &protocol.Binding{PublicURL: origin}}
+			rc.connected(ctx, tt.gen, settings, protocol.Scope{})
+			if tt.wantReady {
+				if !rc.status.ControlReady || rc.status.ReadyConnections != 1 ||
+					rc.status.State != "degraded" || rc.status.PublicURL != origin ||
+					rc.status.Error != "" || rc.status.ReadinessError != "" ||
+					rc.status.ReconnectReason != "" || public.SourceOrigin("relay") != origin {
+					t.Fatalf("recovery retained failure or did not authorize origin: %+v", rc.status)
+				}
+			} else if rc.status.ControlReady || public.SourceOrigin("relay") != "" ||
+				rc.status.ReconnectReason != "connection-lost" || rc.status.State != "failed" {
+				t.Fatalf("inactive worker changed failure status or authorization: %+v", rc.status)
+			}
+		})
+	}
+}
