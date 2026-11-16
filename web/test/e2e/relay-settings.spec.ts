@@ -1,9 +1,6 @@
 import { test, expect } from "./fixtures";
 import { relayStatus } from "../fixtures/relay";
-import {
-  RelayEnrollmentRequestSchema,
-  type RelayStatus,
-} from "../../src/contracts/relay-schemas";
+import type { RelayStatus } from "../../src/contracts/relay-schemas";
 
 test.use({ features: [] });
 
@@ -191,9 +188,14 @@ test("recover a server binding when this installation is locally unpaired", asyn
     } else if (request.method() === "GET" && path === "/api/relay") {
       await route.fulfill({ json: status });
     } else if (path === "/api/relay/enrollments") {
-      const body = RelayEnrollmentRequestSchema.parse(request.postDataJSON());
+      const body: unknown = request.postDataJSON();
       enrollmentRequests.push(body);
-      if (!body.rebind) {
+      if (
+        typeof body !== "object" ||
+        body === null ||
+        !("rebind" in body) ||
+        body.rebind !== true
+      ) {
         await route.fulfill({ status: 409, json: { error: "conflict" } });
         return;
       }

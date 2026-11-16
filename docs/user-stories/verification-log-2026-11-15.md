@@ -323,4 +323,5 @@
   - 文档与持久化守卫通过；OpenSpec 现行规范 128 项和本次变更严格校验通过。
 - 界面证据：隔离设置页与控制台分别采集桌面 `1280×900`、平板 `768×800`、手机 `390×844` 的明暗主题前后截图；额外检查 `320×568`，无横向溢出且确认框完整落在视口内。
 - [设置页恢复确认 GIF](../images/relay-machine-recovery/recovery-confirmation.gif)；[手机恢复入口](../images/relay-machine-recovery/after-phone-light.png)。
+- [控制台删除确认 GIF](../images/relay-owner-deletion/deletion-confirmation.gif)；[删除待完成](../images/relay-owner-deletion/deletion-pending-phone.png)与[撤权完成](../images/relay-owner-deletion/deletion-complete-phone.png)使用公开、隔离演示数据。
 - 局限：无真实 GitHub 账号交互、生产绑定恢复或删除验收；Linux 无头 Chromium 不证明 iOS / Android 真机触屏表现。生产部署结果另行记录。
