@@ -22,7 +22,13 @@ var profile = &ap.Profile{
 	Title:           "omp",
 	Icon:            "pi",
 	VerifiedVersion: "18.13.1",
-	ResumeFlag:      "--resume",
+	Distribution: ap.Distribution{
+		InstallCommand: "npm install -g @oh-my-pi/pi-coding-agent",
+		UpgradeCommand: "omp update",
+		DocsURL:        "https://github.com/can1357/oh-my-pi",
+		Upstream:       ap.NPMUpstream("@oh-my-pi/pi-coding-agent"),
+	},
+	ResumeFlag: "--resume",
 	// omp acp parses the full argv and ignores unknown options, so every
 	// kept option configures both sides the same way.
 	PassToACP: true,

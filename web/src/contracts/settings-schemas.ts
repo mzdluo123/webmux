@@ -113,6 +113,57 @@ export const VoiceSettingsUpdateSchema = z
   })
   .strict();
 export type VoiceSettingsUpdate = z.infer<typeof VoiceSettingsUpdateSchema>;
+
+const AgentUpdateStatusSchema = z.enum([
+  "unchecked",
+  "up_to_date",
+  "update_available",
+  "source_unavailable",
+  "check_failed",
+  "not_installed",
+]);
+export type AgentUpdateStatus = z.infer<typeof AgentUpdateStatusSchema>;
+
+const agentVersionFields = {
+  installed: z.boolean(),
+  path: z.string().optional(),
+  installedVersion: z.string().optional(),
+  latestVersion: z.string().optional(),
+  verifiedVersion: z.string().optional(),
+  belowVerified: z.boolean().optional(),
+  updateStatus: AgentUpdateStatusSchema,
+  checkError: z.string().optional(),
+  installCommand: z.string().optional(),
+  upgradeCommand: z.string().optional(),
+  docsUrl: z.url({ protocol: /^https$/ }).optional(),
+};
+
+const AgentConnectorStatusSchema = z.object({
+  executable: z.string().min(1),
+  title: z.string().min(1),
+  ...agentVersionFields,
+});
+export type AgentConnectorStatus = z.infer<typeof AgentConnectorStatusSchema>;
+
+const AgentToolStatusSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  icon: z.string().optional(),
+  kind: z.enum(["hybrid", "terminal"]),
+  executable: z.string().min(1),
+  executables: z.array(z.string()),
+  ...agentVersionFields,
+  connector: AgentConnectorStatusSchema.optional(),
+});
+export type AgentToolStatus = z.infer<typeof AgentToolStatusSchema>;
+
+export const AgentToolsReportSchema = z.object({
+  checkedAt: z.iso.datetime({ offset: true }),
+  remoteCheckedAt: z.iso.datetime({ offset: true }).optional(),
+  shell: z.string(),
+  tools: z.array(AgentToolStatusSchema),
+});
+export type AgentToolsReport = z.infer<typeof AgentToolsReportSchema>;
 // An installed version that takes effect after a restart. An unknown future
 // launcher falls back to the manual restart method.
 const PendingUpdateSchema = z.object({

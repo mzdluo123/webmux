@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentcheck"
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
 
 	"github.com/rainchan/webmux/internal/codeview"
@@ -44,6 +45,7 @@ func TestResponseArrayFixture(t *testing.T) {
 		"launch":            LaunchSummaries([]launch.Summary{{ID: "abcdefgh", Name: "Shell", Cmd: []string{"sh"}}}, nil),
 		"launchConfig":      LaunchConfig(launch.Config{ID: "abcdefgh", Name: "Shell", Cmd: []string{"sh"}, HybridSupport: agents.Default().Check([]string{"sh"})}),
 		"launchPresets":     LaunchPresets([]launch.Preset{{Name: "Shell", Cmd: []string{"sh"}}}),
+		"agentTools":        AgentToolsReport(agentcheck.Report{CheckedAt: chatTime, Shell: "direct"}),
 		"check":             CodeCheck(codeview.Check{Changes: "unchanged"}),
 		"launches":          LaunchSummaries(nil, nil),
 		"createResult":      corewire.CreateResult(sessioncreate.Result{}, session.Info{ID: "abcdefgh", Cmd: []string{"sh"}, Status: session.StatusRunning}),

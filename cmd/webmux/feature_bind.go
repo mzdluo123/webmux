@@ -30,7 +30,7 @@ func (p *featureServices) bind(c config.Config, manager *session.Manager, prefer
 		Workspace: p.workspace, Code: p.code, Files: p.files, Artifacts: p.artifacts,
 		Handoffs: p.handoff, Conversations: p.conversations,
 		NativeHistory: p.nativeHistory, HistoryProjection: p.historyProjection,
-		Push: p.push, Launch: p.launch, Hybrid: p.chat, Forward: p.forward,
+		Push: p.push, Launch: p.launch, AgentTools: p.agentTools, Hybrid: p.chat, Forward: p.forward,
 		Voice: p.voice, Public: public, ProjectSession: projection.Session,
 		Guide: guide, LocalURL: local, Resume: p.recovery,
 	}

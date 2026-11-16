@@ -30,10 +30,14 @@ var Agent ap.Agent = adapter{}
 type adapter struct{}
 
 var profile = &ap.Profile{
-	Name:                   Name,
-	Title:                  "Antigravity CLI",
-	Icon:                   "antigravity",
-	VerifiedVersion:        "1.4.12",
+	Name:            Name,
+	Title:           "Antigravity CLI",
+	Icon:            "antigravity",
+	VerifiedVersion: "1.4.12",
+	Distribution: ap.Distribution{
+		UpgradeCommand: "agy update",
+		DocsURL:        "https://antigravity.google/docs",
+	},
 	BackgroundStatusPrompt: BackgroundStatusPrompt,
 	ResumeFlag:             "--conversation",
 	TUIInject:              []string{"--settings", TUISettingsJSON},

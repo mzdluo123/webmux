@@ -216,6 +216,7 @@ test("core settings navigation and sections exclude every disabled provider", as
     "quick-commands",
     "voice",
     "launch-configs",
+    "agent-tools",
     "access",
     "tailscale",
     "push",
@@ -230,7 +231,7 @@ test("core settings navigation and sections exclude every disabled provider", as
     );
   expect(
     paths.some((path) =>
-      /launch-configs|voice|push|tunnel|tailscale|p2p/.test(path),
+      /launch-configs|agent-tools|voice|push|tunnel|tailscale|p2p/.test(path),
     ),
   ).toBe(false);
   await expect

@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentcatalog"
+	"github.com/rainchan/webmux/internal/agentcheck"
 	"github.com/rainchan/webmux/internal/agentguide"
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
 
@@ -225,6 +227,9 @@ func wireSchema(name string) wireRules {
 		add("/*", "id", "id")
 		add("/*", "time", "createdAt", "updatedAt")
 		add("/*", "path", "cmd/*")
+	case "agent-tools", "agent-tools-check":
+		add("", "time", "checkedAt", "remoteCheckedAt")
+		add("/tools/*", "path", "path", "connector/path")
 	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction", "repository-register-git":
 		repositoryFields("")
 	case "repository-fetch":
@@ -853,6 +858,37 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	m := session.NewManager(testSessionOptions(c))
 	pushes := push.New(c.Push, t.TempDir(), m, slog.New(slog.NewTextHandler(io.Discard, nil)), pushService.Client().Transport)
 	launches := launch.Open(t.TempDir(), agents.Default())
+	agentBinDir := filepath.Join(tmp, "agent-bin")
+	if err := os.MkdirAll(agentBinDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, out := range map[string]string{
+		"claude": "2.1.300 (Claude Code)",
+		"codex":  "codex-cli 0.165.0",
+	} {
+		if err := os.WriteFile(filepath.Join(agentBinDir, name), []byte("#!/bin/sh\necho '"+out+"'\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	agentRegistry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/@anthropic-ai/claude-code/latest":
+			_, _ = w.Write([]byte(`{"version":"2.1.320"}`))
+		case "/@openai/codex/latest":
+			_, _ = w.Write([]byte(`{"version":"0.165.0"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(agentRegistry.Close)
+	agentTools := agentcheck.New(agentcheck.Options{
+		Entries:       agentcatalog.Build(agents.Default()),
+		ShellPath:     "/bin/sh",
+		Env:           []string{"HOME=" + home, "PATH=" + agentBinDir},
+		NPMBases:      []string{agentRegistry.URL},
+		PyPIBase:      agentRegistry.URL,
+		GitHubAPIBase: agentRegistry.URL,
+	})
 	prefs := settings.Open(t.TempDir())
 	t.Cleanup(prefs.Close)
 	folders := artifacts.New(artifacts.Options{TempDir: tmp, StateDir: t.TempDir(), Manager: m})
@@ -885,7 +921,7 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	handoffs := handoff.New(handoff.Options{Creation: hybrids.Creation(), Recovery: recovery, Locations: workspaces, Conversations: conversations, Launch: launches, Hybrid: hybrids, Artifacts: folders, NativeHistory: nativeHistory, HistoryProjection: nativeProjection, TokenCap: 16000, MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes})
 	t.Cleanup(handoffs.Close)
 	f := &wireFixture{wireRecorder: rec, manager: m, hybrids: hybrids, launches: launches, conversations: conversations, handoffs: handoffs, root: root, projection: featurewire.Projection{Workspace: workspaces, Chat: hybrids, Forward: forwards}}
-	controllers := featureapi.Bind(featureapi.Deps{Config: c, Manager: m, Settings: prefs, Workspace: workspaces, Code: codes, Files: files.New(root), Artifacts: folders, Handoffs: handoffs, Conversations: conversations, NativeHistory: nativeHistory, HistoryProjection: nativeProjection, Push: pushes, Launch: launches, Hybrid: hybrids, Resume: recovery, Forward: forwards, Guide: guide, Public: public, ProjectSession: f.project})
+	controllers := featureapi.Bind(featureapi.Deps{Config: c, Manager: m, Settings: prefs, Workspace: workspaces, Code: codes, Files: files.New(root), Artifacts: folders, Handoffs: handoffs, Conversations: conversations, NativeHistory: nativeHistory, HistoryProjection: nativeProjection, Push: pushes, Launch: launches, AgentTools: agentTools, Hybrid: hybrids, Resume: recovery, Forward: forwards, Guide: guide, Public: public, ProjectSession: f.project})
 	creation := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: root, Commands: launches, Locations: workspaces, Files: folders, Chat: hybrids.Creation(), Brief: func(id, dir string) string {
 		return guide.Brief(agentguide.BriefInput{SessionID: id, Dir: dir})
 	}})
@@ -1404,6 +1440,9 @@ func wireLaunch(f *wireFixture) {
 	}
 	f.call("launch-presets", "GET", "/api/launch-configs/presets", nil, 200)
 	f.call("launch-presets-restore", "POST", "/api/launch-configs/presets", map[string]any{"name": "omp"}, 200)
+	f.call("agent-tools", "GET", "/api/agent-tools", nil, 200)
+	f.call("agent-tools-check", "POST", "/api/agent-tools/check", contract.AgentToolsCheckRequest{RefreshLocal: false}, 200)
+	f.call("error-400-agent-tools-query", "GET", "/api/agent-tools?refresh=invalid", nil, 400)
 }
 
 func wireWorkspace(f *wireFixture) {

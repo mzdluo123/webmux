@@ -26,7 +26,13 @@ var profile = &ap.Profile{
 	Title:           "OpenCode",
 	Icon:            "opencode",
 	VerifiedVersion: "2.1.4",
-	ResumeFlag:      "-s",
+	Distribution: ap.Distribution{
+		InstallCommand: "npm install -g opencode-ai",
+		UpgradeCommand: "opencode upgrade",
+		DocsURL:        "https://opencode.ai/docs/",
+		Upstream:       ap.NPMUpstream("opencode-ai"),
+	},
+	ResumeFlag: "-s",
 	// The default TUI is a client of the background service, where a turn
 	// keeps running after the TUI exits; a private server stops with it.
 	TUIInject:     []string{"--standalone"},

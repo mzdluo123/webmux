@@ -26,6 +26,7 @@
 - [terminal-session-cli](../openspec/specs/terminal-session-cli/spec.md)：`webmux run|attach|ls|open` 本机终端附着
 - [session-launch-environment](../openspec/specs/session-launch-environment/spec.md)：会话启动时的进程环境约定
 - [launch-configs](../openspec/specs/launch-configs/spec.md)：服务器持久化的启动配置（名称 + argv + 环境变量）
+- [agent-tools-check](../openspec/specs/agent-tools-check/spec.md)：本机已安装 CLI agent 与 ACP 连接器的路径、版本检测及按需更新检查
 - [session-artifacts](../openspec/specs/session-artifacts/spec.md)：会话产物目录
 - [terminal-keyboard-size-hold](../openspec/specs/terminal-keyboard-size-hold/spec.md)：触屏唤起软键盘时暂时保持 PTY 行列不变
 - [terminal-touch-gamepad](../openspec/specs/terminal-touch-gamepad/spec.md)：触屏与调试可用的半透明浮动摇杆、高频虚拟键及底栏去重

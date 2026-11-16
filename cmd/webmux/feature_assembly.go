@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 
+	"github.com/rainchan/webmux/internal/agentcheck"
 	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
@@ -31,6 +32,7 @@ import (
 type featureServices struct {
 	agents            *agentprofile.Registry
 	launch            *launch.Service
+	agentTools        *agentcheck.Service
 	workspace         *workspace.Service
 	code              *codeview.Service
 	files             *files.Service

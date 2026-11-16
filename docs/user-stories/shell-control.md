@@ -150,6 +150,7 @@
     旧选项 `--hybrid`/`--no-hybrid` 按未知选项以 2 结束；
   - 仅选择 `launch` 时可新增和编辑普通终端配置；`edit` 未修改的聊天开关与完整提醒策略保持不变，即使其所属功能当前关闭；显式切换聊天模式仍要求选择 `chat`。
   - `forward ls|add|rm`：`add` 输出转发端口，`--session self` 关联当前会话，`--no-compat` 关闭兼容改写；转发关闭、端口非法或重复时给出原因并以 1 结束。
+  - `agents [--check] [--refresh] [--all] [--json]`：读取本机已安装的 CLI agent 与外部 ACP 连接器路径和版本号（`--all` 含未安装项，`--refresh` 强制重扫，`--check` 按需查询公开上游最新版本，`--json` 输出 `AgentToolsV1`），见 US-B13。
 - **US-S19 从脚本调整终端尺寸**：作为脚本或 agent，我希望在没有浏览器控制终端时改变会话的 PTY 尺寸，以便让程序按我需要的宽高排版并用 `screen` 读到完整画面。
   - `POST /api/sessions/{id}/resize {cols, rows, take?}` 与其他会话接口一样要求认证并检查 Origin（本机套接字上的会话内调用同样可用），成功时 200 返回 `SessionInfo`，PTY、会话信息与预览同时变为新尺寸并向观察端广播控制帧；
   - 当前没有控制端，或控制端是脚本输入（`send` 取得的 `script` 控制权）时直接允许；控制端是浏览器或 `attach` 时返回 409，因为浏览器收到控制帧后会把自己的网格重发，脚本强行修改会来回抢；
@@ -229,7 +230,7 @@
 - [手册与简述](../../internal/agentguide/agentguide.go)、[手册主题](../../internal/agentguide/llms/connect.md)、[手册路由与说明接口](../../internal/api/guide.go)、[guide 与 dir 命令](../../internal/clicmd/guide.go)
 - [会话控制命令](../../internal/clicmd/control.go)、[补全](../../internal/clicmd/completion.go)
 - [notify 命令](../../internal/clicmd/notify.go)、[脚本提醒](../../internal/session/manager_attention.go)、[推送正文](../../internal/push/alert.go)
-- [worktree 与主页显示命令](../../internal/clicmd/worktree.go)、[仓库命令](../../internal/clicmd/repo.go)、[启动配置命令](../../internal/clicmd/launchconfig.go)、[转发命令](../../internal/clicmd/forward.go)
+- [worktree 与主页显示命令](../../internal/clicmd/worktree.go)、[仓库命令](../../internal/clicmd/repo.go)、[启动配置命令](../../internal/clicmd/launchconfig.go)、[agents 命令](../../internal/clicmd/agents.go)、[转发命令](../../internal/clicmd/forward.go)
 - [聊天命令](../../internal/clicmd/chat.go)、[聊天历史、设置与队列命令](../../internal/clicmd/chat_config_queue.go)、[聊天接口](../../internal/featureapi/chat.go)
 - [启动命令](../../internal/clicmd/launch.go)、[会话列表订阅、跟随与回合跟踪](../../internal/clicmd/streams.go)、[仓库与主页显示](../../internal/clicmd/workspace.go)
 - [核心创建与初始化指令展开](../../internal/sessioncreate/service.go)、[会话接口](../../internal/api/sessions.go)、[快捷指令运行](../../web/src/components/terminal/SessionTerminal.svelte)、[预设与内置变量](../../web/src/domains/settings/quick-commands.ts)

@@ -42,6 +42,18 @@ func Run(t *testing.T, a agentprofile.Agent, f Fixture) {
 		if p.Connector != nil && (p.Connector.Executable == "" || p.Connector.Title == "") {
 			t.Fatalf("connector lacks executable or title: %+v", p.Connector)
 		}
+		if p.Distribution.Upstream.Kind != agentprofile.UpstreamNone && p.Distribution.Upstream.Package == "" {
+			t.Fatalf("upstream %q lacks package name", p.Distribution.Upstream.Kind)
+		}
+		if p.Distribution.DocsURL != "" && (len(p.Distribution.DocsURL) <= len("https://") || p.Distribution.DocsURL[:len("https://")] != "https://") {
+			t.Fatalf("profile docsUrl %q must use https://", p.Distribution.DocsURL)
+		}
+		if p.Connector != nil && p.Connector.Upstream.Kind != agentprofile.UpstreamNone && p.Connector.Upstream.Package == "" {
+			t.Fatalf("connector upstream %q lacks package name", p.Connector.Upstream.Kind)
+		}
+		if p.Connector != nil && p.Connector.DocsURL != "" && (len(p.Connector.DocsURL) <= len("https://") || p.Connector.DocsURL[:len("https://")] != "https://") {
+			t.Fatalf("connector docsUrl %q must use https://", p.Connector.DocsURL)
+		}
 	})
 
 	t.Run("command", func(t *testing.T) {

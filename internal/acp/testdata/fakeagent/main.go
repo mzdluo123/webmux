@@ -205,13 +205,17 @@ func main() {
 		os.Exit(2)
 	}
 	if cfg.version {
-		switch cfg.profile {
-		case "claudecode":
+		switch {
+		case filepath.Base(os.Args[0]) == connectorName, filepath.Base(os.Args[0]) == claudeConnectorName:
+			fmt.Println(cfg.connectorVersion)
+		case cfg.profile == "claudecode":
 			fmt.Println(cfg.claudeVersion + " (Claude Code)")
-		case "devin":
+		case cfg.profile == "devin":
 			fmt.Println("devin " + cfg.devinVersion)
-		default:
+		case cfg.profile == "codex":
 			fmt.Println("codex-cli " + cfg.codexVersion)
+		default:
+			fmt.Println(envOr("FAKEAGENT_VERSION", "1.0.0"))
 		}
 		return
 	}
@@ -402,6 +406,8 @@ func parseArgs(args []string) (config, bool, error) {
 			fs.Bool(name, false, "")
 		}
 	} else {
+		fs.BoolVar(&cfg.version, "version", false, "")
+		fs.BoolVar(&cfg.version, "V", false, "")
 		fs.StringVar(&cfg.profile, "profile", cfg.profile, "")
 		fs.StringVar(&cfg.resume, "resume", "", "")
 		fs.StringVar(&cfg.resume, "r", "", "")
@@ -493,6 +499,9 @@ func parseArgs(args []string) (config, bool, error) {
 	if acpFlag {
 		acpMode = true
 	}
+	if cfg.profile == "claudecode" && os.Getenv("FAKEAGENT_CONNECTOR_VERSION") == "" {
+		cfg.connectorVersion = "0.99.1"
+	}
 	if cfg.version {
 		return cfg, acpMode, nil
 	}
@@ -504,9 +513,6 @@ func parseArgs(args []string) (config, bool, error) {
 	}
 	if cfg.profile != "omp" && cfg.profile != "opencode" && cfg.profile != "codex" && cfg.profile != "claudecode" && cfg.profile != "agy" && cfg.profile != "qoder" && cfg.profile != "qodercn" && cfg.profile != "kimi" && cfg.profile != "devin" {
 		return cfg, false, fmt.Errorf("unknown profile %q", cfg.profile)
-	}
-	if cfg.profile == "claudecode" && os.Getenv("FAKEAGENT_CONNECTOR_VERSION") == "" {
-		cfg.connectorVersion = "0.99.1"
 	}
 	if yolo || autoApprove || auto || approval == "yolo" {
 		cfg.permission = false

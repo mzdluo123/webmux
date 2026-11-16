@@ -245,3 +245,22 @@
 - 前端验证：源码与测试类型检查、Oxlint、46 项架构断言、374 项相关契约与消费者单元测试、2 项历史读取浏览器测试通过；隔离 Chromium desktop 的草稿关闭/刷新/重启及 A→B→A 两项端到端通过，查看了 1440×900 交接弹窗截图。
 - 本轮 UI 未验证手机、平板、深色或真机；主线全量 CI 尚待集成结果。本节真实 CLI 运行证据仅含原生文本，图片传输实验的独立边界见[真实 ACP 图片实测](../native-image-transport.md)。
 - 原始 session、compact 输出可能含 encrypted/private provider state、签名及凭据标识，未复制入库；仅允许使用脱敏合成内容与安全结果摘要。
+
+## 设置页“Agent 工具”本机扫描、按需更新检查与 CLI `webmux agents`（2026-11-16，US-B13、US-S18）
+
+- 范围（新增 US-B13 并扩展 US-S18，故事总数由 263 增至 264）：
+  - 在 `internal/agentprofile` 补充分发元数据（安装/升级命令、文档链接、公开上游包源），由共享包 `internal/agentcatalog` 汇总 9 款混合模式 agent、外部 ACP 连接器与 4 款纯终端预设；
+  - 新增 `internal/agentcheck` 服务：单次交互式启动 Shell（`bash -ic` / `zsh -ic`，否则回退进程 `PATH`）批量定位路径并带出登录环境 `PATH`，独立会话/进程组有界并发采集 `--version` 并做内存 TTL 缓存；
+  - `GET /api/agent-tools` 保持零外发网络请求；仅在显式触发 `POST /api/agent-tools/check` 或 `webmux agents --check` 时查询只读 HTTPS 包源（npm 主源及 `registry.npmmirror.com` 回退、PyPI JSON、GitHub Releases），区分 `source_unavailable` 与 `belowVerified`；
+  - 随 `launch` 内置功能装配：禁用时路由返回 `404`、设置页隐藏 `#agent-tools` 分区与导航锚点、`webmux agents` 报告 `feature_disabled`；
+  - 设置页在 `#launch-configs` 正下方新增 `#agent-tools` 常驻卡片（默认展开已安装项与连接器子卡片、底部折叠收纳未安装工具、提供一键复制安装/升级命令）；新增 `webmux agents [--check] [--refresh] [--all] [--json]`。
+- 本地验证：
+  - 静态与规格门禁：
+    - 前端构建、源码/测试/Storybook `svelte-check --tsgo --fail-on-warnings`、格式检查、Oxlint 与 `check:arch`（46 项架构断言，0 克隆、0 未使用导出）通过；
+    - `docs-check`、`persistence-check`、`go vet`（含 `darwin` 交叉 vet）、`golangci-lint` v2.15.0（0 告警）与 `openspec validate --specs`（100/100）通过；
+  - 后端与组件门禁：全仓 Go `-race` 测试（含 `protocol/relay`）全量通过；浏览器测试 123 文件 948 项通过；Storybook 完整套件 137 项（含新增 4 个场景 × 12 组视口/主题/双倍字号布局断言）通过；
+  - 单元测试：93 文件 1,261 项通过，含 `wire-contract`、`wire-arrays` 与 `i18n` 中英词条对等及源码硬编码中文扫描：
+    - 无关的 `test/base64url.test.ts` 1 项因本机 Node `v24.20.0` 缺少 `.nvmrc` Node `26.13.0` 原生 `Uint8Array.prototype.toBase64` 在本地失败，由远端 Node 26 CI 验证；
+  - 定向端到端回归：`agent-tools`、`launch-configs`、`i18n`、`settings-sync` 共 26 项全部通过（0 失败），覆盖 `.bashrc` 动态路径重扫、零静默外连、按需更新检查、命令复制及核心模式 404 门控；
+  - 视觉与证据：隔离演示服务在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 明暗主题与中英文共 28 个组合下核对无页面横向溢出；采集桌面、平板、手机明暗六组前后对比截图与 `1280×900` 正常速度交互 GIF（6.0 秒），13 个公开直链均经 HTTP 200 校验。
+- 局限：仅在 Linux 无头 Chromium 下验证，未在手机、平板、macOS 或 Windows 真机验证真实鼠标悬停与触屏硬件行为；自动化测试中上游包源使用本地受控测试服务模拟，未依赖实时外网仓库稳定性；未重新验收其他既有故事。

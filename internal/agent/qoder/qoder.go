@@ -32,6 +32,8 @@ type Variant struct {
 	// ProgramApps are the terminal program ids, besides Name, in the OSC 7501
 	// root record.
 	ProgramApps []string
+	// Distribution describes install/upgrade commands and upstream source.
+	Distribution ap.Distribution
 }
 
 // Agent is the international Qoder adapter.
@@ -40,6 +42,12 @@ var Agent = New(Variant{
 	Title:       "Qoder",
 	Executables: []string{"qoder", "qodercli"},
 	ProgramApps: []string{"qoder-cli"},
+	Distribution: ap.Distribution{
+		InstallCommand: "npm install -g @qoder-ai/qodercli",
+		UpgradeCommand: "qoder update",
+		DocsURL:        "https://github.com/qoder-ai/qodercli",
+		Upstream:       ap.NPMUpstream("@qoder-ai/qodercli"),
+	},
 })
 
 // New builds the adapter for edition v.
@@ -56,6 +64,7 @@ func New(v Variant) ap.Agent {
 			Executables:       v.Executables,
 			ProcessExecutable: func(base string) bool { return runsProcess(v.Executables, base) },
 			VerifiedVersion:   "1.1.81",
+			Distribution:      v.Distribution,
 			// Built-in ACP via --acp flag, no connector needed.
 			ACPArg:         "--acp",
 			HiddenCommands: []string{"login", "logout"},

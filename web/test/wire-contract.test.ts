@@ -112,6 +112,7 @@ const groups: Array<[z.ZodType, string[]]> = [
     ],
   ],
   [S.LaunchPresetsSchema, ["launch-presets"]],
+  [S.AgentToolsReportSchema, ["agent-tools", "agent-tools-check"]],
   [
     S.PushStatusSchema,
     [

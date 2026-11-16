@@ -42,11 +42,19 @@ var profile = &ap.Profile{
 	Title:           "Codex CLI",
 	Icon:            "codex",
 	VerifiedVersion: "0.165.0",
+	Distribution: ap.Distribution{
+		InstallCommand: "npm install -g @openai/codex",
+		UpgradeCommand: "npm install -g @openai/codex@latest",
+		DocsURL:        "https://developers.openai.com/codex/cli/",
+		Upstream:       ap.NPMUpstream("@openai/codex"),
+	},
 	Connector: &ap.Connector{
 		Executable:      "codex-acp",
 		Title:           "Codex ACP 适配器",
 		InstallCommand:  "npm install -g @agentclientprotocol/codex-acp",
+		UpgradeCommand:  "npm install -g @agentclientprotocol/codex-acp@latest",
 		DocsURL:         "https://github.com/agentclientprotocol/codex-acp",
+		Upstream:        ap.NPMUpstream("@agentclientprotocol/codex-acp"),
 		VerifiedVersion: "2.3.0",
 	},
 	// npm installs run codex through a node script that starts the native

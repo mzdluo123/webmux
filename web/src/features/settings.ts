@@ -43,6 +43,12 @@ const entries: SettingsEntry[] = [
     load: () => import("../components/settings/LaunchConfigsSettings.svelte"),
   },
   {
+    feature: "launch",
+    id: "agent-tools",
+    label: () => m.agent_tools_title(),
+    load: () => import("../components/settings/AgentToolsSettings.svelte"),
+  },
+  {
     feature: "cloudflare",
     id: "access",
     label: () => m.s1_public_access(),

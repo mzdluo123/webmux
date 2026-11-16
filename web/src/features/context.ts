@@ -133,6 +133,7 @@ export type SettingsContribution =
         | "code-reader"
         | "quick-commands"
         | "voice"
+        | "agent-tools"
         | "access"
         | "tailscale"
         | "push";

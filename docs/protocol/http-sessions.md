@@ -345,6 +345,21 @@ interface SessionInfo {
 
 `launch-configs.json` 当前版本为 `2`，新增 `preview` 字段。本次升级仅接受版本 `2`；版本 `1` 文件保留原样，启动配置 API 返回 503。升级前备份旧配置，通过支持 v1 的旧版本保存为 v2，或备份后移走旧文件并在新版重新创建；详见 [部署升级说明](../deployment.md)。
 
+### Agent 工具检测与更新检查
+
+同样受 `launch` 内置功能门控（禁用时返回 404）；仅驻留内存缓存，不写入状态文件：
+
+| 方法 | 路径                     | 说明                                                                                              |
+| ---- | ------------------------ | ------------------------------------------------------------------------------------------------- |
+| GET  | `/api/agent-tools`       | 本机扫描与内存远端缓存拼合（可选 `?refresh=1` 强制重扫本机），零外网请求，返回 `AgentToolsReport` |
+| POST | `/api/agent-tools/check` | 可选请求体 `{refreshLocal?: boolean}`，对已安装且具备公开包源的工具查询最新稳定版并返回完整报告   |
+
+`AgentToolsReport` 返回 `{checkedAt, remoteCheckedAt?, shell, tools}`。`tools` 按固定顺序包含混合会话 Agent（含可选 `connector`）与纯终端预设：
+
+- 每项含 `{id, title, icon?, kind, installed, executable, executables, path?, installedVersion?, latestVersion?, verifiedVersion?, belowVerified?, updateStatus, checkError?, installCommand?, upgradeCommand?, docsUrl?, connector?}`；
+- `updateStatus` 为 `not_installed`、`unchecked`、`up_to_date`、`update_available`、`source_unavailable` 或 `check_failed`；
+- 响应使用 `Cache-Control: no-store`；未知查询参数或未知请求体字段返回 400。
+
 ## 原始终端输出分页
 
 `GET /api/sessions/{id}/output?maxBytes=65536` 返回仍保留的原始 PTY 字节，独立于 WebSocket 的终端恢复画面。
