@@ -33,12 +33,18 @@ const (
 type EnrollmentRequest struct {
 	Version   Version   `json:"version"`
 	PublicKey PublicKey `json:"publicKey"`
+	MachineID MachineID `json:"machineId,omitempty"`
 	Rebind    bool      `json:"rebind"`
 }
 
 func (r EnrollmentRequest) Validate() error {
 	if r.Version != V1 {
 		return Error{Code: Incompatible}
+	}
+	if r.MachineID != "" {
+		if err := r.MachineID.Validate(); err != nil {
+			return err
+		}
 	}
 	_, err := r.PublicKey.Parse()
 	return err
@@ -338,6 +344,26 @@ type ConsoleHost struct {
 type ConsoleHosts struct {
 	Version Version       `json:"version"`
 	Hosts   []ConsoleHost `json:"hosts"`
+}
+
+// ConsoleHostDelete fences owner-confirmed deletion against a later rebind.
+type ConsoleHostDelete struct {
+	Version           Version `json:"version"`
+	HostID            HostID  `json:"hostId"`
+	BindingGeneration Counter `json:"bindingGeneration"`
+}
+
+func (r ConsoleHostDelete) Validate() error {
+	if r.Version != V1 {
+		return Error{Code: Incompatible}
+	}
+	if err := r.HostID.Validate(); err != nil {
+		return err
+	}
+	if r.BindingGeneration == 0 {
+		return Error{Code: Invalid}
+	}
+	return nil
 }
 
 type LogoutResult struct {

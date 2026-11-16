@@ -167,6 +167,22 @@ const (
 
 func (r Role) Valid() bool { return r == RoleControl || r == RoleBulk || r == RoleInteractive }
 
+// MachineID is a random installation identifier, not an authentication secret.
+// Only an independently authenticated owner may use it to match a binding.
+type MachineID string
+
+func (id MachineID) Validate() error {
+	var data [32]byte
+	if len(id) != base64.RawURLEncoding.EncodedLen(len(data)) {
+		return Error{Code: Invalid}
+	}
+	n, err := base64.RawURLEncoding.Strict().Decode(data[:], []byte(id))
+	if err != nil || n != len(data) {
+		return Error{Code: Invalid}
+	}
+	return nil
+}
+
 // HostID is exactly 16 random bytes encoded as 32 lowercase hexadecimal digits.
 type HostID string
 
