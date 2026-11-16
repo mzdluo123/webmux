@@ -277,3 +277,13 @@
   - 浏览器与端到端回归：Vitest 浏览器 `test/browser/TerminalLinkConfirm.test.ts` 2 项通过（覆盖中英实时切换、PTY 流不中断、取消与确认打开、`javascript:` 拦截及 320px 超长 URL 折行）；Playwright `test/e2e/i18n.spec.ts` 与 `test/e2e/terminal.spec.ts` 共 24 项通过、4 项按设备项目条件跳过、0 失败；
   - 视觉与证据：隔离演示服务核对 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 明暗主题与中英文均无横向溢出且弹窗完整落在视口内，采集桌面、平板、手机明暗前后对比截图与 `1280×900` 正常速度交互 GIF。
 - 局限：仅在 Linux 无头 Chromium 下验证；无头浏览器 `hover` 与 `any-pointer: coarse` 均为 `false`，真实鼠标悬停态与触屏硬件行为未在手机、平板、macOS 或 Windows 真机验证。
+
+## 启动配置迁移与 Kimi 更新检查（2026-11-16，US-K18、US-B13）
+
+- 启动时自动将旧 `[plugins]` 迁移为 `[features]`，保留功能选择和其他配置值；原文保存为 `.pre-features.bak`，新旧两表冲突时保留原文件并报错。
+- 迁移复用 TOML 解码与原子写入；重新编码会规范化格式，注释保留在原文备份中。`config show` / `validate` 仍只读。
+- 上游元数据响应上限从 64 KiB 调整为 1 MiB，补充完整 PyPI 元数据、上限边界和超限拒绝回归。
+- 本地隔离实例验证通过：构建真实二进制，从 v0.16.0 风格配置启动，原文备份一致，认证后的能力响应保持核心模式。
+- `go test -race ./cmd/webmux ./internal/config ./internal/agentcheck` 通过，覆盖默认与显式配置启动、备份与幂等、冲突和写入失败、只读诊断及 PyPI 响应大小。
+- `go test -count=1 ./internal/archtest -run '^(TestPersistence|TestGoFileNames|TestSourceFileSize)'` 通过。
+- 本次范围不涉及 SQLite 旧数据与缺少 `historyRoot` 的旧归档；故事 ID 和总数不变。

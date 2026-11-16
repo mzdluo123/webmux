@@ -39,15 +39,21 @@
 - **WHEN** 功能被显式禁用，但其旧网页设置或 CLI 选项要求开启业务
 - **THEN** 不启动该功能；显式请求启用业务的 CLI 操作报告功能被禁用，不悄悄启用模块
 
-### Requirement: 旧 [plugins] 表显式迁移
+### Requirement: 旧 [plugins] 表启动迁移
 
-启用集配置表曾名 `[plugins]`。含 `[plugins]` 的既有配置 SHALL 在启动时以可读错误拒绝，并指出把 `plugins.enabled` 移到 `features.enabled`。
-系统 SHALL NOT 静默忽略旧表而回退到完整功能组合；新旧两表同时出现时 SHALL 同样拒绝，不定义合并或优先级。
+启用集配置表曾名 `[plugins]`。启动 SHALL 自动将仅含旧表的配置迁移为 `[features]`，保留原功能选择（含空数组）及其他配置值。
+迁移 SHALL 先以 0600 保存原文到配置路径加 `.pre-features.bak`，再原子发布重新编码的配置；已有新格式配置 SHALL 保持不变。
+新旧两表同时出现时 SHALL 报错并保留原文；只读配置诊断 SHALL 不触发迁移。
 
 #### Scenario: 旧表名启动
 
-- **WHEN** 配置文件包含 `[plugins]`，无论是否同时声明 `[features]`
-- **THEN** 启动失败，错误说明该表已改名为 `[features]`
+- **WHEN** 配置文件包含 `[plugins]` 且未声明 `[features]`
+- **THEN** 备份原文并迁移表名，启动使用与原配置相同的功能选择
+
+#### Scenario: 新旧表冲突
+
+- **WHEN** 配置同时包含 `[plugins]` 与 `[features]`
+- **THEN** 启动失败并报告冲突，原配置文件保持不变
 
 ### Requirement: 禁用模块没有运行副作用
 

@@ -144,7 +144,7 @@
 - **US-K18 选择本次运行的内置功能**：作为部署者，我希望显式选择业务功能，以便只运行需要的终端工作环境。
   验收要点：
   - `[features] enabled = []` 只运行核心；新生成的默认配置显式使用空数组。旧配置缺表或缺 `enabled` 时启用固定的旧功能集合，不随未来新增功能扩张；
-  - 该表原名 `[plugins]`；含 `[plugins]` 的配置启动时报错并提示迁移到 `features.enabled`，新旧两表并存同样拒绝，不静默回退全量；
+  - 启动时自动将旧 `[plugins]` 迁移为 `[features]`，保留原功能选择和其他配置值，原文以 0600 备份到配置路径加 `.pre-features.bak`；新旧两表并存时报错且原文件不变；再次启动不重写已迁移文件，`config show` / `validate` 保持只读；
   - 可选 ID 为 `launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`、`immersive`；
   - 未知、重复 ID 与缺少依赖在启动前拒绝，不自动补依赖；`chat` 要求显式选择 `launch`、`files`，Git 工作台要求同时选择 `workspace`、`code`；
   - 功能选择变更须重启，网页设置不安装功能、不热切换选择，也不加载远程脚本。
