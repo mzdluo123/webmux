@@ -43,11 +43,47 @@ test.describe("English system locale and live switching", () => {
     await page.keyboard.press("Escape");
 
     // Enter real PTY session in English and verify terminal input/output works.
+    let sawNativeDialog = false;
+    page.on("dialog", (dialog) => {
+      sawNativeDialog = true;
+      void dialog.dismiss();
+    });
     await page.getByRole("link", { name: "i18n-shell", exact: true }).click();
     await expect(page).toHaveURL(/\/s\/[a-z2-7]{8}$/);
     await runCommand(page, "printf 'I18N_PTY_OK\\n'");
     await expectTerminalLine(page, "I18N_PTY_OK");
     await expectNoHorizontalOverflow(page);
+
+    // Emit an OSC 8 hyperlink and verify the confirmation dialog follows WebMux locale (en -> zh-CN) instead of native confirm().
+    const linkUrl = "https://example.com/webmux-i18n-check";
+    const sessionUrl = page.url();
+    await runCommand(
+      page,
+      `printf '\\033[2J\\033[H\\033]8;;${linkUrl}\\033\\\\OSC8_TARGET\\033]8;;\\033\\\\\\n'`,
+    );
+    await expectTerminalLine(page, "OSC8_TARGET");
+    const clickOscLink = async () => {
+      const box = await page.locator(".xterm-screen").boundingBox();
+      expect(box).not.toBeNull();
+      const x = box!.x + 20;
+      const y = box!.y + 8;
+      await page.mouse.move(x, box!.y + 80);
+      await page.mouse.move(x, y);
+      await page.waitForTimeout(50);
+      await page.mouse.down();
+      await page.mouse.up();
+    };
+    await clickOscLink();
+    const enLinkDialog = page.getByRole("alertdialog", {
+      name: "Open external link?",
+    });
+    await expect(enLinkDialog).toBeVisible();
+    await expect(enLinkDialog.getByText(linkUrl)).toBeVisible();
+    await enLinkDialog
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    await expect(enLinkDialog).toBeHidden();
+    expect(sawNativeDialog).toBe(false);
 
     // Open Settings -> Appearance & reading in English, verify Follow system is selected.
     await page.goto("/settings");
@@ -90,6 +126,29 @@ test.describe("English system locale and live switching", () => {
         .locator("#appearance")
         .getByText("Appearance & reading", { exact: true }),
     ).toBeVisible();
+
+    // Verify explicit zh-CN preference also localizes the terminal OSC 8 link dialog on an en-US browser.
+    await page
+      .getByRole("radiogroup", { name: "Language", exact: true })
+      .getByRole("radio", { name: "简体中文", exact: true })
+      .click();
+    await page.goto(sessionUrl);
+    await runCommand(
+      page,
+      `printf '\\033[2J\\033[H\\033]8;;${linkUrl}\\033\\\\OSC8_TARGET\\033]8;;\\033\\\\\\n'`,
+    );
+    await expectTerminalLine(page, "OSC8_TARGET");
+    await clickOscLink();
+    const zhLinkDialog = page.getByRole("alertdialog", {
+      name: "打开外部链接？",
+    });
+    await expect(zhLinkDialog).toBeVisible();
+    await expect(zhLinkDialog.getByText(linkUrl)).toBeVisible();
+    await zhLinkDialog
+      .getByRole("button", { name: "取消", exact: true })
+      .click();
+    await expect(zhLinkDialog).toBeHidden();
+    expect(sawNativeDialog).toBe(false);
   });
 
   test("narrow 320px mobile viewport renders English views without horizontal overflow", async ({

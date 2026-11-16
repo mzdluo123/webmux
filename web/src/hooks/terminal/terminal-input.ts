@@ -17,6 +17,8 @@ export interface TerminalClipboard {
   // `userGesture` lets the page use the legacy execCommand copy fallback that
   // plain-HTTP origins need; an OSC 52 request has no gesture.
   copySelection: (text: string, userGesture?: boolean) => void;
+  // Requests confirmation before opening an OSC 8 hyperlink in a new tab.
+  openLink?: (url: string) => void;
 }
 
 export interface TerminalInputOptions {

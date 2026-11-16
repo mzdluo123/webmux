@@ -14,6 +14,7 @@
     confirmLabel,
     busyLabel,
     destructive = false,
+    onCloseAutoFocus,
     onconfirm,
     children,
   }: {
@@ -22,6 +23,7 @@
     confirmLabel?: string;
     busyLabel?: string;
     destructive?: boolean;
+    onCloseAutoFocus?: (event: Event) => void;
     onconfirm: () => void | Promise<void>;
     children: Snippet;
   } = $props();
@@ -56,7 +58,7 @@
     if (!value && busy) open = true;
   }}
 >
-  <AlertDialog.Content>
+  <AlertDialog.Content {onCloseAutoFocus}>
     <AlertDialog.Header>
       <AlertDialog.Title>{title}</AlertDialog.Title>
       <AlertDialog.Description>{@render children()}</AlertDialog.Description>

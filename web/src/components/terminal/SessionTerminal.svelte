@@ -210,6 +210,7 @@
       paste: () => void chrome.paste(),
       copySelection: (text, userGesture) =>
         void chrome.copyToClipboard(text, userGesture ?? false),
+      openLink: chrome.openLinkDialog,
     },
     terminalVisible,
     {
@@ -359,24 +360,17 @@
     {draft}
     {drafts}
     {hybrid}
+    {chrome}
     fontSize={t.fontSize}
     setFontSize={t.setFontSize}
     filePaste={(event) => uploads?.filePaste(event) ?? false}
-    pasteOperation={chrome.pasteOperation}
     insertText={input.insertText}
     {focusTerminal}
     scratchSaved={input.scratchSaved}
     {onremoved}
     {onarchived}
-    bind:pasteOpen={() => chrome.pasteOpen, (v) => (chrome.pasteOpen = v)}
-    bind:pasteText={() => chrome.pasteText, (v) => (chrome.pasteText = v)}
-    bind:copyOpen={() => chrome.copyOpen, (v) => (chrome.copyOpen = v)}
-    copyText={chrome.copyText}
     bind:settingsOpen
     bind:closing
-    bind:choiceClosed={
-      () => chrome.choiceClosed, (v) => (chrome.choiceClosed = v)
-    }
     bind:scratchOpen
   />
 {/if}

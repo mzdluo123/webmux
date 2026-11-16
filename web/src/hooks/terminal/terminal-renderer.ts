@@ -1,6 +1,7 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { parseTerminalExternalLink } from "../../domains/terminal/terminal-link";
 import { observeDevicePixelRatio } from "./terminal-dpr";
 import { holdRepaintsDuringSync } from "./terminal-sync";
 import { observeTerminalCursor } from "./terminal-cursor";
@@ -37,6 +38,8 @@ export interface TerminalRendererEvents {
   layout: () => void;
   // The page theme changed and xterm already uses the new colours.
   themeChanged: () => void;
+  // An http(s) OSC 8 hyperlink in terminal output was activated.
+  openLink?: (url: string) => void;
 }
 
 export interface TerminalRenderer {
@@ -70,6 +73,13 @@ export function createTerminalRenderer(
     allowProposedApi: true,
     macOptionIsMeta: true,
     theme: terminalTheme(),
+    linkHandler: {
+      activate(_event, text) {
+        if (disposed) return;
+        const href = parseTerminalExternalLink(text);
+        if (href) events.openLink?.(href);
+      },
+    },
   });
   const cursor = observeTerminalCursor(term);
   const fitAddon = new FitAddon();

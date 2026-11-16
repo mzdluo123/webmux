@@ -5,6 +5,7 @@ import {
   executeTerminalFind,
   terminalFindError,
   terminalFindLimit,
+  type TerminalController,
   type TerminalFindOptions,
   type TerminalFindResults,
 } from "../../domains/terminal/terminal-search";
@@ -32,7 +33,6 @@ import {
 import { createTerminalSocket } from "./terminal-socket.svelte";
 import { useTerminalReadiness } from "./terminal-readiness.svelte";
 export type { TerminalController } from "../../domains/terminal/terminal-search";
-import type { TerminalController } from "../../domains/terminal/terminal-search";
 
 // A single parsed model and socket survive every DOM/XR presentation change.
 export function useTerminal(
@@ -245,6 +245,7 @@ export function useTerminal(
         layout: safeFit,
         // Called only by the theme observer, once `attachment` exists.
         themeChanged: () => attachment.themeChanged(),
+        openLink: clipboard.openLink,
       });
       const term = view.term;
       renderer = view;

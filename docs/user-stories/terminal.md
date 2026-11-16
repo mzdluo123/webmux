@@ -9,7 +9,8 @@
   - 终端输出不被当作普通聊天文本重排；
   - 空闲输出与回显立即送达，连续输出（如 resize 重绘）按约 60 FPS 合并；
   - 高吞吐输出保持字节顺序并在退出前送完；
-  - 程序以 DEC 2026 同步输出重绘时，文字与图片在同一帧切换。
+  - 程序以 DEC 2026 同步输出重绘时，文字与图片在同一帧切换；
+  - 点击终端输出中的 `http(s)` OSC 8 链接时打开应用内确认对话框，按当前界面语言展示目标地址（IDN 域名规范化为 Punycode）与安全提示，不阻塞实时输出；确认后以 `noopener,noreferrer` 在新标签页打开，取消或非 `http(s)` 协议不跳转。
 - **US-D02 离开页面后继续运行**：作为远程使用者，我希望关闭标签页、手机锁屏或切换网络后进程仍继续运行，以便长任务不依赖浏览器在线。
   验收要点：
   - 浏览器取消连接只解除附着；
@@ -125,6 +126,7 @@
 - [会话管理](../../internal/session/manager.go)、[Kitty 图形协议](../../web/src/domains/terminal/kitty-graphics.ts)、[图形渲染层](../../web/src/hooks/terminal/terminal-graphics.ts)
 - [协议单元用例](../../web/test/kitty-graphics.test.ts)
 - [图形浏览器用例](../../web/test/browser/TerminalGraphics.test.ts)、[终端渲染与等宽字体回归](../../web/test/browser/TerminalRenderer.test.ts)。
+- [终端链接校验](../../web/src/domains/terminal/terminal-link.ts)、[终端对话框](../../web/src/components/terminal/SessionTerminalDialogs.svelte)、[链接确认回归](../../web/test/browser/TerminalLinkConfirm.test.ts)。
 
 图形滚动补充依据：[图像行锚点](../../web/src/hooks/terminal/terminal-graphics-anchor.ts)、[图形历史与回流回归](../../web/test/browser/TerminalGraphicsScrollback.test.ts)、[共享重绘字节](../../web/test/fixtures/kitty-scroll.ts)、[交互式 PTY 复现程序](../../web/test/fixtures/kitty-scroll-demo.mjs)。
 
