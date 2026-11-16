@@ -2,7 +2,8 @@
 
 ## Purpose
 
-在设置中引导用户选择远程访问方式、填写入口配置并检查连接结果，覆盖官方 Relay、Cloudflare 与 Tailscale 的配置流程和状态呈现。
+本规格记录统一远程访问向导的产品规划。当前用户通过设置中的官方 Relay、Cloudflare 和 Tailscale 各自页面配置入口。
+规划中的向导引导用户选择访问方式、填写配置并检查连接结果。
 
 ## Requirements
 

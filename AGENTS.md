@@ -38,7 +38,7 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 - Concurrency: protect state with existing locks; release locks before blocking network or PTY operations. Shared output chunks stay immutable. Exit publication follows PTY drain and process cleanup. Preserve cancellation/deadlines for PTY writes and join spawned connection goroutines.
 - Execute argv directly. Creation selects exactly one source: saved `configId` (requires `launch`) or full `cmd`/`env`.
   Generated config selects core only (`features.enabled=[]`); omission retains the fixed legacy 14 builtins. Selection changes need restart. Only enabled `launch` seeds presets; `.bashrc` needs explicit `/usr/bin/env bash -ic`.
-- Security: preserve authentication and Origin checks on API/WebSocket paths. Logs contain operational metadata; configuration responses expose public configuration fields.
+- Security: preserve authentication and Origin checks on API/WebSocket paths. Logs contain operational metadata only; configuration responses expose public fields only.
 - Frontend: Svelte 5 runes per [docs/frontend-style.md](docs/frontend-style.md) (`$state` only for rendered state, `$derived` for computed values, `$effect` only for side effects with cleanup, typed `$props()`, `onclick` not `on:`). TypeScript is strict. Oxfmt: 80 columns, two spaces, semicolons, trailing commas.
 - Validate HTTP responses, WebSocket JSON, and local settings with Zod before updating state; derive types with `z.infer`. Use the request and reconnect conventions in `api.ts` and `ws.ts`. PTY data stays binary. Failures use `APIError`; HTTP 401 triggers `webmux:auth`.
 - UI: look first in `web/src/lib/components/ui/`, then `web/src/components/`, then the shadcn-svelte registry. Extend design-system components through variants or sizes. Resolve `check:arch` violations in the implementation ([docs/frontend-architecture.md](docs/frontend-architecture.md)).
@@ -65,8 +65,8 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 
 ## Writing
 
-- 禁止在回复、PR 说明、文档和界面文案中使用说教式语句，包括“不是 X，而是 Y”“X，不是 Y”“不要 X”“不得 X”等凭空引入对立项或臆想禁令的表达。用户明确要求制定的规则按其要求写明。
-- 仅在某个做法已被显式探索并失败时，记录该做法及实际失败原因；其余内容直接写存在的事实、当前行为和具体操作。验证说明仅记录已执行的步骤与结果。
+- 禁止说教式对立和臆想禁令，如“不是 X，而是 Y”“X，不是 Y”“不要 X”“不得 X”。用户要求的规则须写明。
+- 直接写事实、行为、操作及技术约束的触发条件与结果；替代做法仅记录已探索失败的原因，验证仅记录已执行结果。
 
 ## Documentation and User Stories
 

@@ -21,7 +21,7 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. The short versions i
 - A new install seeds ordinary, editable launch configs (`internal/launch/presets.go`, listed in [cli-agents](../cli-agents.md)). Nothing is wrapped implicitly at run time.
   - Loading `.bashrc` requires an explicit command such as `/usr/bin/env bash -ic 'exec -- "$@"' webmux opencode`, the form the presets and hybrid mode accept.
 - Preserve authentication and Origin checks on API/WebSocket paths.
-- Logs contain operational metadata. Configuration responses expose public configuration fields.
+- Logs contain operational metadata only. Configuration responses expose public fields only.
 
 ## Wire contract
 

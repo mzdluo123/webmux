@@ -46,14 +46,14 @@ test("opens the terminal in this tab", async () => {
   await expect.element(link).toHaveAttribute("href", `/s/${base.id}`);
   await expect.element(link).not.toHaveAttribute("target");
   const start = location.href;
-  const before = history.length;
+  const push = vi.spyOn(history, "pushState");
   link
     .element()
     .dispatchEvent(
       new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }),
     );
   expect(location.pathname).toBe(`/s/${base.id}`);
-  expect(history.length).toBe(before + 1);
+  expect(push).toHaveBeenCalledExactlyOnceWith(null, "", `/s/${base.id}`);
   history.replaceState(null, "", start);
 });
 
