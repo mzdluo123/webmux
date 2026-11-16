@@ -123,6 +123,9 @@ func validateBootstrap(defaults, next Settings) (Settings, error) {
 	if a.ControlEndpoint != "" && (a.ControlEndpoint != b.ControlEndpoint || a.ControlAudience != b.ControlAudience) {
 		return Settings{}, ErrInvalid
 	}
+	// Pool sizes are local transport policy, not persisted identity state.
+	next.Config.InteractiveConnections = defaults.Config.InteractiveConnections
+	next.Config.BulkConnections = defaults.Config.BulkConnections
 	return validateSettings(next)
 }
 
