@@ -3,6 +3,7 @@ import { describe, expect, test } from "vite-plus/test";
 import { z } from "zod";
 import {
   ArchivedSessionSchema,
+  AgentToolsReportSchema,
   BatchRemovalPreviewSchema,
   BatchRemoveResultSchema,
   BranchesSchema,
@@ -81,6 +82,7 @@ const schemas = {
   launch: z.array(LaunchConfigSummarySchema),
   launchConfig: LaunchConfigSchema,
   launchPresets: LaunchPresetsSchema,
+  agentTools: AgentToolsReportSchema,
   check: CodeCheckSchema,
   launches: z.array(LaunchConfigSummarySchema),
   push: PushTestResultSchema,

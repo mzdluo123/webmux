@@ -19,6 +19,7 @@ CLI 用当前实例的 `/api/capabilities` 判断可选操作，不靠 health/st
 | 等会话需要我或空闲                      | `webmux wait <ID> --until attention,idle --changed`                                      |
 | 任务完成后提醒我                        | `webmux notify --kind done "构建完成"`                                                   |
 | 查看当前会话的仓库与分支                | `webmux get`                                                                             |
+| 查看本机已安装的 CLI agent 与可用更新   | `webmux agents [--check]`                                                                |
 | 找到本会话的临时文件夹                  | `webmux dir self`                                                                        |
 | 读 WebMux 工具手册                      | `webmux guide`                                                                           |
 
@@ -208,6 +209,7 @@ webmux repo branch-rm . --cleanup                # 删除工作树遗留的分�
 printf '{{webmux}}\n\n{{user}}' | webmux repo settings . --init -
 webmux launch-config add "Dev" --icon terminal --env MODE=dev -- bash -lc 'npm run dev'
 webmux launch-config edit "Dev" --unset-env MODE; webmux launch-config show "Dev" --json
+webmux agents; webmux agents --check --all       # 本机已安装的 CLI agent 与 ACP 连接器版本；--check 按需查上游更新
 webmux forward add 5173 --session self --label web
 ```
 

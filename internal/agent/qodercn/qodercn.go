@@ -16,4 +16,8 @@ var Agent ap.Agent = qoder.New(qoder.Variant{
 	Title:       "QoderCN",
 	Executables: []string{"qodercn", "qoderclicn", "qoder-cn"},
 	ProgramApps: []string{"qoder-cli-cn", "qoderclicn"},
+	Distribution: ap.Distribution{
+		UpgradeCommand: "qodercn update",
+		DocsURL:        "https://qoder.cn",
+	},
 })

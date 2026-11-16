@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentcheck"
 	"github.com/rainchan/webmux/internal/agentguide"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
@@ -46,6 +47,7 @@ type testServices struct {
 	HistoryProjection *historyprojection.Service
 	Push              *push.Service
 	Launch            *launch.Service
+	AgentTools        *agentcheck.Service
 	Hybrid            *hybrid.Service
 	Forward           *forward.Service
 	Voice             *voice.Service
@@ -105,7 +107,7 @@ func testDeps(t testing.TB, d testServices) Deps {
 	if d.Conversations != nil && nativeHistory == nil {
 		nativeHistory, nativeProjection = nativeFixture(d.Conversations)
 	}
-	controllers := featureapi.Bind(featureapi.Deps{Config: d.Config, Manager: d.Manager, Settings: d.Settings, Workspace: d.Workspace, Code: d.Code, Files: d.Files, Artifacts: d.Artifacts, Handoffs: d.Handoffs, Conversations: d.Conversations, NativeHistory: nativeHistory, HistoryProjection: nativeProjection, Push: d.Push, Launch: d.Launch, Hybrid: d.Hybrid, Resume: recovery, Forward: d.Forward, Voice: d.Voice, VoiceSettings: d.VoiceSettings, Tunnel: d.Tunnel, TunnelSettings: d.TunnelSettings, Tailscale: d.Tailscale, P2P: d.P2P, MCP: d.MCP, Guide: d.Guide, Public: d.Public, LocalURL: d.LocalURL, ProjectSession: projection.Session})
+	controllers := featureapi.Bind(featureapi.Deps{Config: d.Config, Manager: d.Manager, Settings: d.Settings, Workspace: d.Workspace, Code: d.Code, Files: d.Files, Artifacts: d.Artifacts, Handoffs: d.Handoffs, Conversations: d.Conversations, NativeHistory: nativeHistory, HistoryProjection: nativeProjection, Push: d.Push, Launch: d.Launch, AgentTools: d.AgentTools, Hybrid: d.Hybrid, Resume: recovery, Forward: d.Forward, Voice: d.Voice, VoiceSettings: d.VoiceSettings, Tunnel: d.Tunnel, TunnelSettings: d.TunnelSettings, Tailscale: d.Tailscale, P2P: d.P2P, MCP: d.MCP, Guide: d.Guide, Public: d.Public, LocalURL: d.LocalURL, ProjectSession: projection.Session})
 	return Deps{Config: d.Config, Manager: d.Manager, Settings: d.Settings, Create: sessioncreate.New(d.Manager, options), Sessions: controllers, Contributions: controllers.Contributions(), ProjectSession: projection.Session, SessionProjection: hub.Options{Project: projection.Session, Terminal: projection.Terminal, SubscribeForwards: projection.SubscribeForwards, Forwards: projection.Forwards}, EnrichDetails: controllers.EnrichDetails, KeepSessionPin: controllers.KeepSessionPin, EnrichConfig: controllers.EnrichConfig, Renamed: controllers.Renamed, DefaultShell: d.DefaultShell, Public: d.Public, Tunnel: d.Tunnel, InstalledVersion: d.InstalledVersion, Guide: d.Guide, LocalURL: d.LocalURL, Launcher: d.Launcher}
 }
 

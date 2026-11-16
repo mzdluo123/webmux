@@ -12,6 +12,8 @@ import (
 	"slices"
 
 	"github.com/rainchan/webmux/cmd/internal/assemble"
+	"github.com/rainchan/webmux/internal/agentcatalog"
+	"github.com/rainchan/webmux/internal/agentcheck"
 	"github.com/rainchan/webmux/internal/agentguide"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
@@ -44,12 +46,17 @@ import (
 // explicit here: neither services nor the HTTP host look up another feature.
 func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Manager, preferences *settings.Service, public *transport.PublicOrigins, address net.Addr, guide *agentguide.Instance, localAPI func() *localRuntime, bridge *transport.Bridge, out io.Writer) error {
 	if c.Features.Has("launch") {
+		shell := os.Getenv("SHELL")
 		p.launch = launch.Open(c.StateDir, p.agents)
 		if err := p.launch.Unavailable(); err != nil {
 			slog.Warn("launch configs unavailable", "error", err)
-		} else if err := p.launch.Seed(assemble.LaunchPresets(os.Getenv("SHELL"))); err != nil {
+		} else if err := p.launch.Seed(assemble.LaunchPresets(shell)); err != nil {
 			slog.Warn("seed default launch configs", "error", err)
 		}
+		p.agentTools = agentcheck.New(agentcheck.Options{
+			Entries:   agentcatalog.Build(p.agents),
+			ShellPath: shell,
+		})
 	}
 	if c.Features.Has("files") {
 		p.files = files.New(c.DefaultCwd)

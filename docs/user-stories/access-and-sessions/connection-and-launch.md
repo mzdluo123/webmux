@@ -259,9 +259,22 @@
   - source=github 的克隆使用服务端 gh 认证，来源限 github.com 的 HTTPS 仓库地址；source 参与幂等身份，普通 Git URL 克隆保持原行为；
   - 请求最长 20 秒，输出有界，取消会终止整个进程组；公开响应不包含 gh 原始输出或凭据；禁用 workspace 时接口不挂载。
 
+- **US-B13 查看本机 Agent 工具与检查可用更新**：作为使用者与部署者，我希望在设置页或 CLI 查看本机已安装的 CLI agent 及外部 ACP 连接器、解析路径、当前版本号与可用更新，并一键复制安装或升级命令，以便无需先开终端逐个排查环境。
+  验收要点：
+  - 依赖 `launch` 内置功能；禁用时不构造扫描服务，`/api/agent-tools` 与 `/api/agent-tools/check` 经认证与 Origin 校验后返回 404，设置页隐藏 `#agent-tools` 分区与导航且不发请求，`webmux agents` 按 `launch.configs` 能力报功能未开启（退出码 1）；
+  - 本机扫描复用服务端交互式启动 Shell（`bash -ic` 或 `zsh -ic`，其他回退进程 `PATH`）单次批量定位候选路径与启动后 `PATH`（5 秒、输出上限 64 KiB），在独立进程组并发执行有界超时（3 秒、输出上限 4 KiB）的 `--version` 采集并做内存 TTL 缓存，`?refresh=1` 或 `--refresh` 强制重扫；
+  - 打开 `/settings#agent-tools` 或请求 `GET /api/agent-tools` 时零外发网络请求，仅合并未过期的内存远端版本缓存；
+  - 仅在点击“检查更新”或执行 `POST /api/agent-tools/check` / `webmux agents --check` 时，才对已安装且具公开包源的工具及连接器查只读 HTTPS 上游（npm 主源失败回退 `registry.npmmirror.com`、PyPI JSON、GitHub Releases），重定向限白名单 HTTPS 域名且不带鉴权头；
+  - 单个上游失败只将该条标记为 `check_failed` 并保留其余结果；无公开稳定包源的自更新二进制（如 Antigravity CLI、Cursor CLI、Devin）明确返回 `source_unavailable`（“由工具自管理更新”），不猜测版本；
+  - 已安装的混合模式 agent 或连接器版本号低于档案 `verifiedVersion` 时标记 `belowVerified` 兼容性提示；外部 ACP 连接器（`claude-agent-acp`、`codex-acp`）随主工具以内嵌子卡片或 CLI 缩进子行展示独立路径、版本、更新状态与安装/升级命令；
+  - 设置页 `#agent-tools` 紧接在 `#launch-configs` 下方，默认展开已安装项，未安装工具默认收起在可展开折叠区；仅提供可复制的安装/升级命令与官方文档链接，绝不在服务端后台自动执行安装或升级；
+  - `webmux agents [--check] [--refresh] [--all] [--json]` 默认列出已安装工具与连接器（`--all` 包含未安装项），`--json` 输出带 `"v": 1` 的 `AgentToolsV1` 对象。
+
 依据：
 
 - [启动图标](../../../web/src/components/settings/LaunchConfigIcon.svelte)、[LobeHub 图标来源与许可](../../../web/src/icons/lobehub/README.md)
+- [Agent 工具目录](../../../internal/agentcatalog/catalog.go)、[本机扫描与更新检查](../../../internal/agentcheck/service.go)、[Agent 工具接口](../../../internal/featureapi/agent_tools.go)
+- [CLI agents 命令](../../../internal/clicmd/agents.go)、[设置页 Agent 工具卡片](../../../web/src/components/settings/AgentToolsSettings.svelte)、[Agent 工具单行](../../../web/src/components/settings/AgentToolRow.svelte)
 - [新建会话](../../../web/src/components/sessions/NewSessionDialog.svelte)、[位置选择](../../../web/src/components/workspace/LocationPicker.svelte)、[命令选择](../../../web/src/components/sessions/LaunchPicker.svelte)、[默认值解析](../../../web/src/domains/sessions/new-session-defaults.ts)
 - [启动配置编辑](../../../web/src/components/settings/LaunchConfigDialog.svelte)、[系统预设菜单](../../../web/src/components/settings/LaunchPresetMenu.svelte)、[启动配置存储](../../../internal/launch/store.go)、[首次启动预设](../../../internal/launch/presets.go)
 - [启动配置接口](../../../internal/featureapi/launch.go)、[CLI agent 接入](../../cli-agents.md)

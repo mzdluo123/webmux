@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 
+	"github.com/rainchan/webmux/internal/agentcheck"
 	"github.com/rainchan/webmux/internal/agentguide"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
@@ -43,6 +44,7 @@ type Deps struct {
 	HistoryProjection *historyprojection.Service
 	Push              *push.Service
 	Launch            *launch.Service
+	AgentTools        *agentcheck.Service
 	Hybrid            *hybrid.Service
 	Resume            *hybridresume.Service
 	Forward           *forward.Service
@@ -104,7 +106,10 @@ func (s *Server) Contributions() []transport.Contribution {
 		s.sessionExtensionRoutes(mux)
 		s.launchChatRoutes(mux)
 	}, s.chatStream())
-	add("launch", s.launchRoutes)
+	add("launch", func(mux transport.Registrar) {
+		s.launchRoutes(mux)
+		s.agentToolsRoutes(mux)
+	})
 	add("notifications", s.pushRoutes)
 	add("cloudflare", s.tunnelRoutes)
 	add("tailscale", s.tailscaleRoutes)

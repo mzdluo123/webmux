@@ -12,7 +12,7 @@ import (
 func RequiredCapabilities(name string) []string {
 	root, _, _ := strings.Cut(name, " ")
 	switch root {
-	case "launch-config":
+	case "launch-config", "agents":
 		if name == "launch-config options" {
 			return []string{"launch.configs", "chat.acp", "workspace.manage"}
 		}

@@ -25,7 +25,7 @@ func Commands() Registry {
 		chatGroup, chatWatchCommand, chatLogCommand, chatStatusCommand, chatAnswerCommand, chatSetCommand, chatPermissionCommand,
 		chatQueueGroup, chatQueueListCommand, chatQueueRemoveCommand, chatQueueEditCommand, chatQueueSendNowCommand, chatQueueClearCommand, chatQueueResumeCommand,
 		launchConfigGroup, launchConfigListCommand, launchConfigShowCommand, launchConfigAddCommand, launchConfigEditCommand, launchConfigRemoveCommand,
-		launchConfigPresetsCommand, launchConfigRestoreCommand, launchConfigOptionsCommand,
+		launchConfigPresetsCommand, launchConfigRestoreCommand, launchConfigOptionsCommand, agentsCommand,
 		worktreeGroup, worktreeListCommand, worktreeShowCommand, worktreeCreateCommand, worktreeSwitchCommand, worktreeRemoveCommand, worktreePruneCommand, worktreePinCommand, worktreeUnpinCommand, worktreeHomeCommand,
 		repoGroup, repoListCommand, repoAddCommand, repoRemoveCommand, repoShowCommand, repoRefreshCommand, repoFetchCommand, repoBranchesCommand, repoFastForwardCommand, repoPushCommand, repoBranchRemoveCommand, repoRemotesCommand, repoCommitsCommand, repoBaseCommand, repoSettingsCommand,
 		forwardGroup, forwardListCommand, forwardAddCommand, forwardRemoveCommand,

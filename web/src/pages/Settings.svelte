@@ -38,9 +38,13 @@
 
   const featureSections = getFeatureContributions().settings;
   const launchSections = featureSections.filter((section) =>
-    ["code-reader", "quick-commands", "voice", "launch-configs"].includes(
-      section.id,
-    ),
+    [
+      "code-reader",
+      "quick-commands",
+      "voice",
+      "launch-configs",
+      "agent-tools",
+    ].includes(section.id),
   );
   const accessSections = featureSections.filter((section) =>
     ["access", "tailscale"].includes(section.id),

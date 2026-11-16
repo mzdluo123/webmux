@@ -375,3 +375,27 @@ for (const scene of [
     expect(errors).toEqual([]);
   });
 }
+
+for (const scene of [
+  "local-scanned",
+  "updates-available",
+  "empty-installed",
+  "unavailable",
+]) {
+  test(`agent tools ${scene} fits each layout`, async ({ page }) => {
+    test.slow();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", (route) => route.abort());
+    await page.goto(
+      `/iframe.html?id=settings-agent-tools--${scene}&viewMode=story`,
+    );
+    await expect(
+      page.getByRole("region", { name: "Agent 工具" }),
+    ).toBeVisible();
+    await checkEachLayout(page, async ({ name }) => {
+      await expectNoOverflow(page, name);
+    });
+    expect(errors).toEqual([]);
+  });
+}

@@ -188,7 +188,9 @@ type Connector struct {
 	Executable     string
 	Title          string
 	InstallCommand string
+	UpgradeCommand string
 	DocsURL        string
+	Upstream       UpstreamSource
 	// VerifiedVersion is the newest release measured; the ACP side reports
 	// the connector's version, so an older one only produces a notice.
 	VerifiedVersion string
@@ -280,6 +282,8 @@ type Profile struct {
 	// VerifiedVersion is the newest release measured; older versions only
 	// produce a notice.
 	VerifiedVersion string
+	// Distribution holds install/upgrade guidance and upstream version source.
+	Distribution Distribution
 	// VersionExecutable: the agent's agentInfo.version is not a release
 	// version; the executable's --version output is checked instead.
 	VersionExecutable bool

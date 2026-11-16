@@ -243,6 +243,19 @@ func launchFailure(w http.ResponseWriter, err error) {
 	failure(w, status, err)
 }
 
+func agentToolsFailure(w http.ResponseWriter, err error) {
+	var bad *badRequest
+	switch {
+	case errors.As(err, &bad):
+		failure(w, http.StatusBadRequest, bad.err)
+	case cancelled(err):
+		failure(w, http.StatusGatewayTimeout, err)
+	default:
+		slog.Error("agent tools inspection failed", "error", err)
+		failure(w, http.StatusInternalServerError, err)
+	}
+}
+
 func conversationFailure(w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {

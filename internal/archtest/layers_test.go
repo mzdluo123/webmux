@@ -33,6 +33,7 @@ var webmux = manifest{
 		"internal/workspace":         service,
 		"internal/settings":          service,
 		"internal/launch":            service,
+		"internal/agentcheck":        service,
 		"internal/agenttrust":        service,
 		"internal/push":              service,
 		"internal/codeview":          service,
@@ -58,6 +59,7 @@ var webmux = manifest{
 		"internal/nativerpc":     shared,
 		// The shell guide served at /llms.txt and the {{webmux}} brief.
 		"internal/agentguide":   shared,
+		"internal/agentcatalog": shared,
 		"internal/agentprofile": shared,
 		// Agent adapters and the registry that lists them.
 		"internal/agentprofile/agents":      shared,
@@ -120,9 +122,10 @@ var webmux = manifest{
 		"internal/docguard":        testOnly,
 	},
 	outbound: map[string]string{
-		"internal/push":  "delivers Web Push messages to browser push services",
-		"internal/p2p":   "queries local UPnP IGD router XML and SOAP port-mapping control endpoints",
-		"internal/relay": "authenticates to trusted Relay control HTTPS and assigned WSS connectors; serves streams only to the startup-fixed loopback listener",
+		"internal/agentcheck": "queries read-only public npm, PyPI, and GitHub release endpoints on explicit update check requests",
+		"internal/push":       "delivers Web Push messages to browser push services",
+		"internal/p2p":        "queries local UPnP IGD router XML and SOAP port-mapping control endpoints",
+		"internal/relay":      "authenticates to trusted Relay control HTTPS and assigned WSS connectors; serves streams only to the startup-fixed loopback listener",
 	},
 	pure: map[string]string{
 		"internal/push.Validate":    "validates subscription strings without service state or I/O, before the controller checks Origin",

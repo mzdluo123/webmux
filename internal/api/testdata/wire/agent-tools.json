@@ -1,0 +1,237 @@
+{
+  "status": 200,
+  "body": {
+    "checkedAt": "<time>",
+    "shell": "direct",
+    "tools": [
+      {
+        "docsUrl": "https://github.com/can1357/oh-my-pi",
+        "executable": "omp",
+        "executables": [
+          "omp"
+        ],
+        "icon": "pi",
+        "id": "omp",
+        "installCommand": "npm install -g @oh-my-pi/pi-coding-agent",
+        "installed": false,
+        "kind": "hybrid",
+        "title": "omp",
+        "updateStatus": "not_installed",
+        "upgradeCommand": "omp update",
+        "verifiedVersion": "18.13.1"
+      },
+      {
+        "docsUrl": "https://opencode.ai/docs/",
+        "executable": "opencode",
+        "executables": [
+          "opencode"
+        ],
+        "icon": "opencode",
+        "id": "opencode",
+        "installCommand": "npm install -g opencode-ai",
+        "installed": false,
+        "kind": "hybrid",
+        "title": "OpenCode",
+        "updateStatus": "not_installed",
+        "upgradeCommand": "opencode upgrade",
+        "verifiedVersion": "2.1.4"
+      },
+      {
+        "connector": {
+          "docsUrl": "https://github.com/agentclientprotocol/codex-acp",
+          "executable": "codex-acp",
+          "installCommand": "npm install -g @agentclientprotocol/codex-acp",
+          "installed": false,
+          "title": "Codex ACP 适配器",
+          "updateStatus": "not_installed",
+          "upgradeCommand": "npm install -g @agentclientprotocol/codex-acp@latest",
+          "verifiedVersion": "2.3.0"
+        },
+        "docsUrl": "https://developers.openai.com/codex/cli/",
+        "executable": "codex",
+        "executables": [
+          "codex"
+        ],
+        "icon": "codex",
+        "id": "codex",
+        "installCommand": "npm install -g @openai/codex",
+        "installed": true,
+        "installedVersion": "0.165.0",
+        "kind": "hybrid",
+        "path": "<tmp>/agent-bin/codex",
+        "title": "Codex CLI",
+        "updateStatus": "unchecked",
+        "upgradeCommand": "npm install -g @openai/codex@latest",
+        "verifiedVersion": "0.165.0"
+      },
+      {
+        "belowVerified": true,
+        "connector": {
+          "docsUrl": "https://github.com/agentclientprotocol/claude-agent-acp",
+          "executable": "claude-agent-acp",
+          "installCommand": "npm install -g @agentclientprotocol/claude-agent-acp",
+          "installed": false,
+          "title": "Claude Code ACP 适配器",
+          "updateStatus": "not_installed",
+          "upgradeCommand": "npm install -g @agentclientprotocol/claude-agent-acp@latest",
+          "verifiedVersion": "0.99.1"
+        },
+        "docsUrl": "https://code.claude.com/docs/en/overview",
+        "executable": "claude",
+        "executables": [
+          "claude"
+        ],
+        "icon": "claudecode",
+        "id": "claudecode",
+        "installCommand": "npm install -g @anthropic-ai/claude-code",
+        "installed": true,
+        "installedVersion": "2.1.300",
+        "kind": "hybrid",
+        "path": "<tmp>/agent-bin/claude",
+        "title": "Claude Code",
+        "updateStatus": "unchecked",
+        "upgradeCommand": "claude update",
+        "verifiedVersion": "2.1.316"
+      },
+      {
+        "docsUrl": "https://github.com/qoder-ai/qodercli",
+        "executable": "qoder",
+        "executables": [
+          "qoder",
+          "qodercli"
+        ],
+        "icon": "qoder",
+        "id": "qoder",
+        "installCommand": "npm install -g @qoder-ai/qodercli",
+        "installed": false,
+        "kind": "hybrid",
+        "title": "Qoder",
+        "updateStatus": "not_installed",
+        "upgradeCommand": "qoder update",
+        "verifiedVersion": "1.1.81"
+      },
+      {
+        "docsUrl": "https://qoder.cn",
+        "executable": "qodercn",
+        "executables": [
+          "qodercn",
+          "qoderclicn",
+          "qoder-cn"
+        ],
+        "icon": "qoder",
+        "id": "qodercn",
+        "installed": false,
+        "kind": "hybrid",
+        "title": "QoderCN",
+        "updateStatus": "not_installed",
+        "upgradeCommand": "qodercn update",
+        "verifiedVersion": "1.1.81"
+      },
+      {
+        "docsUrl": "https://github.com/MoonshotAI/kimi-code",
+        "executable": "kimi",
+        "executables": [
+          "kimi"
+        ],
+        "icon": "kimi",
+        "id": "kimi",
+        "installCommand": "uv tool install kimi-cli",
+        "installed": false,
+        "kind": "hybrid",
+        "title": "Kimi Code CLI",
+        "updateStatus": "not_installed",
+        "upgradeCommand": "kimi upgrade",
+        "verifiedVersion": "2.5.2"
+      },
+      {
+        "docsUrl": "https://antigravity.google/docs",
+        "executable": "agy",
+        "executables": [
+          "agy"
+        ],
+        "icon": "antigravity",
+        "id": "agy",
+        "installed": false,
+        "kind": "hybrid",
+        "title": "Antigravity CLI",
+        "updateStatus": "not_installed",
+        "upgradeCommand": "agy update",
+        "verifiedVersion": "1.4.12"
+      },
+      {
+        "docsUrl": "https://docs.devin.ai/cli",
+        "executable": "devin",
+        "executables": [
+          "devin"
+        ],
+        "icon": "devin",
+        "id": "devin",
+        "installed": false,
+        "kind": "hybrid",
+        "title": "Devin CLI",
+        "updateStatus": "not_installed",
+        "upgradeCommand": "devin update",
+        "verifiedVersion": "3000.12.57"
+      },
+      {
+        "docsUrl": "https://cursor.com/docs/cli/overview",
+        "executable": "agent",
+        "executables": [
+          "agent",
+          "cursor-agent"
+        ],
+        "icon": "cursor",
+        "id": "cursor",
+        "installed": false,
+        "kind": "terminal",
+        "title": "Cursor CLI",
+        "updateStatus": "not_installed"
+      },
+      {
+        "docsUrl": "https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/overview",
+        "executable": "copilot",
+        "executables": [
+          "copilot"
+        ],
+        "icon": "githubcopilot",
+        "id": "copilot",
+        "installCommand": "npm install -g @github/copilot",
+        "installed": false,
+        "kind": "terminal",
+        "title": "GitHub Copilot CLI",
+        "updateStatus": "not_installed",
+        "upgradeCommand": "npm install -g @github/copilot@latest"
+      },
+      {
+        "docsUrl": "https://github.com/QwenLM/qwen-code",
+        "executable": "qwen",
+        "executables": [
+          "qwen"
+        ],
+        "icon": "qwen",
+        "id": "qwen",
+        "installCommand": "npm install -g @qwen-code/qwen-code",
+        "installed": false,
+        "kind": "terminal",
+        "title": "Qwen Code",
+        "updateStatus": "not_installed",
+        "upgradeCommand": "npm install -g @qwen-code/qwen-code@latest"
+      },
+      {
+        "docsUrl": "https://www.codebuddy.ai/docs/cli/quickstart",
+        "executable": "codebuddy",
+        "executables": [
+          "codebuddy"
+        ],
+        "icon": "codebuddy",
+        "id": "codebuddy",
+        "installCommand": "npm install -g @tencent-ai/codebuddy-code",
+        "installed": false,
+        "kind": "terminal",
+        "title": "CodeBuddy Code",
+        "updateStatus": "not_installed",
+        "upgradeCommand": "npm install -g @tencent-ai/codebuddy-code@latest"
+      }
+    ]
+  }
+}
