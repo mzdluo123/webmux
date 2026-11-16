@@ -326,3 +326,24 @@
 - [设置页恢复确认 GIF](../images/relay-machine-recovery/recovery-confirmation.gif)；[手机恢复入口](../images/relay-machine-recovery/after-phone-light.png)。
 - [控制台删除确认 GIF](../images/relay-owner-deletion/deletion-confirmation.gif)；[删除待完成](../images/relay-owner-deletion/deletion-pending-phone.png)与[撤权完成](../images/relay-owner-deletion/deletion-complete-phone.png)使用公开、隔离演示数据。
 - 局限：无真实 GitHub 账号交互、生产绑定恢复或删除验收；Linux 无头 Chromium 不证明 iOS / Android 真机触屏表现。生产部署结果另行记录。
+
+## 服务端终端提交的粘贴与提交间隔（2026-11-16，US-S09、US-Q08）
+
+- 现象：`webmux send <ID> TEXT --enter` 或 MCP `session_send`（`submit=true`）向 Claude Code 终端会话发送约 250 字节中文时，文字进入输入框但未提交。
+- 原因：
+  - `SubmitServer` 在同一次加锁写入中背靠背写正文与 `\r`，Claude Code 把整段快速输入当作粘贴，回车被并入粘贴；
+  - 启动提示走的 `SendWhenReady` 早已用 bracketed paste 与 200ms 间隔避开此问题。
+- 修复：
+  - `SubmitServer` 按浏览器粘贴规则准备正文：换行转 CR，程序开启 bracketed paste 时包裹；
+  - `Submit` 与 `SubmitServer` 的正文与提交键之间至少间隔 `submitDelay`（200ms），档案要求更长时取档案值；
+  - 间隔期间持有输入锁，提交键之后才写 `keys`；`SendWhenReady` 复用同一准备函数与写入路径；
+  - 回执、去重与 `partial` 语义不变。
+- 回归测试（未修复代码上失败，修复后通过）：
+  - `TestSubmitServerPastesThenSubmits`：普通、bracketed、档案更长三种情形的写入字节与耗时；
+  - `TestSubmitServerGapHoldsGate`：间隔期间输入锁未释放；运行在间隔中结束时回执为 `partial`，未写回车与按键，重复 ID 返回同一回执；
+  - `TestSubmitUsesSessionDelay` 增加默认下限与档案更长两种情形。
+- 命令结果：
+  - `make check` 通过；golangci-lint v2.15.0 用本机 go1.27.4 重新构建，0 issues；
+  - `make test-go` 仅 `TestMigrateConfigLeavesCurrentConfigurationUntouched`（`cmd/webmux`）与 `TestConcurrentTrustEditsPreserveAllProjects`（`internal/agenttrust`）失败；
+  - 这两项在未修改的 origin/main 上以相同断言失败（本机 umask 0077 等环境差异），与本改动无关。
+- 局限：未在真实 Claude Code TUI 上做端到端复测，结论基于 PTY 字节与耗时断言。故事编号、数量与覆盖索引不变。

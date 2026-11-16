@@ -48,6 +48,7 @@
 `POST /api/sessions/{id}/input` 的请求体为 `{clientRequestId, text, submit?, keys?, attachments?, mode?}`，按会话当前视图分派：
 
 - 终端视图：`text` 与 `submit` 作为一次带回执的提交写入 PTY，随后按顺序写入 `keys`。
+  - `text` 按浏览器粘贴的规则写入：换行转为 CR，程序开启 bracketed paste 时包裹 `ESC[200~`/`ESC[201~`；提交键在正文之后至少隔 200ms 写入（档案可要求更长），避免 Claude Code 等 TUI 把它当作粘贴的一部分。间隔期间输入锁继续持有，其他连接的输入不会插入；`keys` 在提交键之后写入。
   - `submit` 缺省 `false`，为 `true` 时追加档案或终端的提交键（回车；对应 CLI 的 `--enter`）。只发 `text` 正文留在输入行不执行。
   - `keys` 取 `backspace`、`ctrl-c`、`ctrl-d`、`down`、`enter`、`esc`、`left`、`right`、`tab`、`up`，未知名称 400。
   - 回执为 `written` 时 200 `{view: "terminal"}`；`partial`、`failed` 或 `missing` 时 409 `input_failed`，`submission` 带回执状态。
