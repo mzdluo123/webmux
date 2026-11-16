@@ -9,6 +9,11 @@ description: Use when writing, updating, restructuring, or reviewing user-facing
 
 权威门禁以 [文档治理](../../../docs/doc-governance.md)、[User Stories 维护](../../../docs/agent-rules/user-stories-maintenance.md) 与 [官网定位与文案规则](../../../docs/website/pages.md#文案规则) 为准。本 skill 给出面向网站读者的组织方式、由浅入深的写作结构与自检清单。
 
+## 事实陈述与表达限制
+
+- 禁止在回复、PR 说明、文档和界面文案中使用说教式语句，包括“不是 X，而是 Y”“X，不是 Y”“不要 X”“不得 X”等凭空引入对立项或臆想禁令的表达。用户明确要求制定的规则按其要求写明。
+- 仅在某个做法已被显式探索并失败时，记录该做法及实际失败原因；其余内容直接写存在的事实、当前行为和具体操作。验证说明仅记录已执行的步骤与结果。
+
 ## 核心原则：像网站读者那样组织文档
 
 网站读者带着具体问题或任务进入某一个 URL，通常先扫读首屏和二级标题，确认“这页是不是我要找的、我第一步该点哪里”，需要时再往下看边界与协议细节。
