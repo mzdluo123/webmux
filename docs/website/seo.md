@@ -6,7 +6,7 @@
 
 - 全站静态 HTML，每页一个 H1，标题层级不跳级。
 - `<title>` 不超过 60 个字符（中文约 30 字），格式“页面名 · WebMux”，首页为“WebMux：在浏览器里持续运行的终端，远程遥控 Claude Code 与 Codex”这类含关键词的完整句。
-- `<meta name="description">` 120–155 个字符，写收益而不是功能堆砌；每页不同。
+- `<meta name="description">` 120–155 个字符，写具体收益；每页不同。
 - URL 全小写 ASCII，使用连字符，末尾斜杠风格全站一致（推荐带斜杠），不使用中文或查询参数作为页面标识。
 - 每页 `rel="canonical"` 指向自身的正式 URL；`www` 与裸域二选一并 301。
 - `@astrojs/sitemap` 生成 `sitemap-index.xml`，包含各语言版本的 `xhtml:link` 备用链接；`robots.txt` 指向站点地图。
@@ -79,7 +79,7 @@
 
 - GitHub 仓库 About 的 Website 字段填官网；README 顶部与“文档”节链接官网；Release 说明模板附官网更新日志链接。
 - `deploy/linux/nfpm.yaml` 的 `homepage` 改为官网；deb / rpm 元数据会把它带到包管理器。
-- 发布到开发者社区（Hacker News、V2EX、少数派、掘金）时链接官网而不是仓库；在 awesome 列表（web terminals、Claude Code 工具）提交条目。
+- 发布到开发者社区（Hacker News、V2EX、少数派、掘金）时链接官网；在 awesome 列表（web terminals、Claude Code 工具）提交条目。
 - 不购买外链，不做互惠链接页。
 
 ## 搜索平台提交

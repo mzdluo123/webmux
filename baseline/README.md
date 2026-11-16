@@ -14,7 +14,7 @@ make baseline BASELINE_SAMPLES=2 BASELINE_OUTPUT=/tmp/webmux-smoke.json
 make baseline BASELINE_OUTPUT=baseline/results/candidate.json
 ```
 
-每个性能场景默认 30 次；仅回显有 3 次不计入统计的预热。认证使用 22 个固定用例，状态识别使用 8 个固定标注场景。整个 suite 顺序运行，使用临时目录和动态 loopback 端口，退出时关闭所建会话并清理目录。不要并行运行浏览器测试、构建或其他重任务再把结果当作空载基线。
+每个性能场景默认 30 次；仅回显有 3 次不计入统计的预热。认证使用 22 个固定用例，状态识别使用 8 个固定标注场景。整个 suite 顺序运行，使用临时目录和动态 loopback 端口，退出时关闭所建会话并清理目录。空载基线在浏览器测试、构建等重任务结束后独立运行。
 
 API 服务与测量客户端处于同一 Go 进程（`httptest`），PTY 子进程实际运行。时间不包含 CLI 服务进程启动、浏览器加载和绘制。
 

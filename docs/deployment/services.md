@@ -4,7 +4,7 @@
 
 ## 服务管理命令
 
-先将二进制放到稳定位置（源码构建可执行 `make install`），再以日常用户运行，不要使用 sudo：
+先将二进制放到稳定位置（源码构建可执行 `make install`），再以日常用户运行：
 
 ```sh
 webmux service install

@@ -326,7 +326,7 @@ describe("git rework feedback anti-spoofing & session routing", () => {
         hunkStageAvailable: true,
       }),
     ]);
-    expect(prompt).toContain("不要代我执行 `git commit`");
+    expect(prompt).toContain("交付内容为提交说明文本");
     expect(prompt).toContain("- [M] main.go");
 
     const baseSess = {

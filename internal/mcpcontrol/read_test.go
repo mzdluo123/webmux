@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/rainchan/webmux/internal/contract"
@@ -27,28 +26,22 @@ func TestTerminalReadUsesBoundedRawEndpoint(t *testing.T) {
 	}
 }
 func TestActivityReadFiltersPrivateItemsAndPreservesCursor(t *testing.T) {
-	cid := strings.Repeat("a", 32)
 	c := testClient(t, func(r *http.Request) string {
-		if r.URL.Path == "/api/sessions/s" {
-			return `{"conversationId":"` + cid + `"}`
+		if r.URL.Path != "/api/sessions/s/native-history" || r.URL.Query().Get("snapshotId") != "frozen-scope" || r.URL.Query().Get("afterPosition") != "12" {
+			t.Fatalf("wrong native scope: %s", r.URL)
 		}
-		if r.URL.Path != "/api/conversations/"+cid+"/activities" {
-			t.Fatalf("wrong path %s", r.URL.Path)
-		}
-		if r.URL.Query().Get("afterPosition") != "12" {
-			t.Error("lost durable cursor")
-		}
-		return `{"items":[{"exportable":false,"text":"private"},{"exportable":true,"text":"visible","position":"14"}],"nextPosition":"14","gaps":[],"historyOrigin":"bounded_import","reconcileRequired":true}`
+		return `{"snapshotId":"frozen-scope","records":[{"text":"visible","position":"14"}],"nextPosition":"14","more":true}`
 	})
-	result, err := c.read(context.Background(), json.RawMessage(`{"sessionId":"s","afterPosition":"12","limit":2}`))
+	result, err := c.read(context.Background(), json.RawMessage(`{"sessionId":"s","snapshotId":"frozen-scope","afterPosition":"12","limit":2}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	page := result.(contract.MCPActivityPageResult)
-	if len(page.Items) != 1 || page.Items[0].Text != "visible" || page.NextPosition != "14" || page.Done {
-		t.Fatalf("page: %+v", page)
+	if len(page.Records) != 1 || page.Records[0].Text != "visible" || page.NextPosition != "14" || page.Done {
+		t.Fatalf("page %+v", page)
 	}
 }
+
 func TestReadRejectsInvalidCursorsBeforeAPI(t *testing.T) {
 	c := testClient(t, func(*http.Request) string { t.Fatal("invalid cursor reached API"); return "" })
 	for _, raw := range []string{`{"sessionId":"s","afterPosition":"01"}`, `{"sessionId":"s","afterPosition":"9223372036854775808"}`, `{"sessionId":"s","limit":100,"maxBytesPerItem":65536}`, `{"sessionId":"s","view":"terminal","generation":"bad","offset":"0"}`, `{"sessionId":"s","view":"terminal","offset":"0"}`} {

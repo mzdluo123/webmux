@@ -150,7 +150,7 @@
 
 ## 子进程管理要点
 
-- 不要在读完 `StdoutPipe` 之前调用 `Wait`。
+- 读完 `StdoutPipe` 后调用 `Wait`。
 - `Cmd.Cancel` 与 `WaitDelay` 可以限制孙进程持有管道导致的挂起（`go doc os/exec.Cmd`）。
 - `bufio.Scanner` 默认 64 KiB 行长上限，会返回 `ErrTooLong`；ACP 的工具输出可能远超此值，应使用带硬上限的按行读取，超限断开，而不是截断。
 - stderr 必须持续排空，否则管道写满后子进程会阻塞。

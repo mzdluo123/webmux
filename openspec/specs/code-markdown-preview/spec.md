@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change enhance-markdown-preview. Update Purpose after archive.
+在代码工作区提供 Markdown 渲染预览，覆盖文档结构、代码块、链接和图片的展示规则，并与已有文件浏览、主题及安全访问机制衔接。
 
 ## Requirements
 

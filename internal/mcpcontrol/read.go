@@ -38,6 +38,7 @@ func (c Client) readTools() []mcpprotocol.Tool {
 		"maxBytes":   desc(integer(1, 65536), "terminal view: bytes per page (default 65536)."),
 	}
 	if c.hasCapability("chat.acp") {
+		properties["snapshotId"] = desc(text(), "activity view: frozen snapshotId from the first page; pass it for subsequent pages.")
 		properties["afterPosition"] = desc(text(), "activity view: return items after this position (decimal string; \"0\" reads from the start).")
 		properties["itemId"] = desc(text(), "activity view: read a single item by id, to continue a truncated item.")
 		properties["textOffset"] = desc(text(), "activity view: UTF-8 byte offset inside itemId (decimal string).")
@@ -75,46 +76,19 @@ func (c Client) read(ctx context.Context, raw json.RawMessage) (any, error) {
 func (c Client) readActivity(ctx context.Context, a contract.MCPSessionReadRequest) (any, error) {
 	after, e1 := unsigned(a.AfterPosition)
 	offset, e2 := unsigned(a.TextOffset)
-	if e1 != nil || e2 != nil || after > 1<<63-1 || offset > 1<<63-1 || a.Limit < 1 || a.Limit > 100 || a.MaxBytesPerItem < 4 || a.MaxBytesPerItem > 65536 || a.Limit*a.MaxBytesPerItem > 256<<10 || a.ItemID == "" && offset != 0 || a.ItemID != "" && !regexpHistoryID.MatchString(a.ItemID) {
+	if e1 != nil || e2 != nil || after > 1<<63-1 || offset > 1<<63-1 || a.Limit < 1 || a.Limit > 100 || a.MaxBytesPerItem < 4 || a.MaxBytesPerItem > 65536 || a.Limit*a.MaxBytesPerItem > 256<<10 || a.ItemID == "" && offset != 0 || a.ItemID != "" && !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(a.ItemID) {
 		return nil, errors.New("invalid activity cursor or page")
 	}
 	if err := c.requireCapability(ctx, "chat.acp"); err != nil {
 		return nil, err
 	}
-	var session contract.SessionInfo
-	if err := c.API.GetBounded(ctx, "/api/sessions/"+url.PathEscape(a.SessionID), responseLimit, &session); err != nil {
+	q := url.Values{"snapshotId": {a.SnapshotID}, "afterPosition": {a.AfterPosition}, "textOffset": {a.TextOffset}, "itemId": {a.ItemID}, "limit": {strconv.Itoa(a.Limit)}, "maxBytes": {strconv.Itoa(a.MaxBytesPerItem)}}
+	var page contract.NativeResult
+	if err := c.API.GetBounded(ctx, "/api/sessions/"+url.PathEscape(a.SessionID)+"/native-history?"+q.Encode(), responseLimit, &page); err != nil {
 		return nil, apiError(err)
 	}
-	if !regexpHistoryID.MatchString(session.ConversationID) {
-		return nil, errors.New("session has no durable conversation history")
-	}
-	path := "/api/conversations/" + session.ConversationID + "/activities"
-	if a.ItemID != "" {
-		q := url.Values{"textOffset": {a.TextOffset}, "maxBytes": {strconv.Itoa(a.MaxBytesPerItem)}}
-		var item contract.ConversationActivity
-		if err := c.API.GetBounded(ctx, path+"/"+a.ItemID+"?"+q.Encode(), responseLimit, &item); err != nil {
-			return nil, apiError(err)
-		}
-		if !item.Exportable {
-			return nil, errors.New("activity is not exportable")
-		}
-		return contract.MCPActivityItemResult{View: "activity", Item: item, Done: !item.Truncated, Instructions: agentguide.ReferenceInstructions()}, nil
-	}
-	q := url.Values{"afterPosition": {a.AfterPosition}, "limit": {strconv.Itoa(a.Limit)}, "maxBytesPerItem": {strconv.Itoa(a.MaxBytesPerItem)}}
-	var page contract.ConversationActivities
-	if err := c.API.GetBounded(ctx, path+"?"+q.Encode(), responseLimit, &page); err != nil {
-		return nil, apiError(err)
-	}
-	items := make([]contract.ConversationActivity, 0, len(page.Items))
-	for _, item := range page.Items {
-		if item.Exportable {
-			items = append(items, item)
-		}
-	}
-	return contract.MCPActivityPageResult{View: "activity", ConversationID: session.ConversationID, Items: items, NextPosition: page.NextPosition, Done: len(page.Items) < a.Limit, Gaps: page.Gaps, HistoryOrigin: page.HistoryOrigin, ReconcileRequired: page.ReconcileRequired, Instructions: agentguide.ReferenceInstructions()}, nil
+	return contract.MCPActivityPageResult{View: "activity", NativeResult: page, Instructions: agentguide.ReferenceInstructions(), Done: !page.More}, nil
 }
-
-var regexpHistoryID = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 func (c Client) readTerminal(ctx context.Context, a contract.MCPSessionReadRequest) (any, error) {
 	if a.MaxBytes < 1 || a.MaxBytes > 65536 || (a.Generation == "") != (a.Offset == "") {

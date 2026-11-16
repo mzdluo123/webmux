@@ -162,20 +162,12 @@ enabled = [] # 生成配置的默认值：仅 PTY 核心
 
 这些识别开关属于核心 PTY，在显式零功能配置中仍生效；`notifications` 负责推送等通知投递，不决定核心会话的状态检测。
 
-### 对话历史保存
+### 原生历史交接
 
-`history_capture` 默认 `true`。WebMux 将规范化聊天消息、工具事实与交接草稿保存在 `state_dir/conversations.sqlite`；PTY 与进程仍不会跨服务重启存活。
-设置 `history_capture = false` 并重启后，停止写入新的规范化正文，同时关闭历史 REST、handoff 预览/投递和 `thread_read`。
-聊天实时显示与普通终端仍可使用；已有数据库保留，身份、删除与 unknown 投递保护继续使用数据库，不因关闭历史功能而解除。
-重新开启后只保存新的实时内容；有关闭区间的原生线程不自动把随后 load 的旧正文回填，缺口保持可见。
-关闭不会删除旧正文或 agent 自己的 transcript；会话标题、位置和原生恢复身份仍按既有规则保存。删除、备份与存储故障边界见[持久化清单](../persistence.md)。
-
-### 交接历史预算
-
-`handoff_token_cap` 默认 `16000`，允许 `1024`–`64000`。它限制交接历史的保守估算成本：一个 UTF-8 字节按一个 token，包含角色和 JSON 转义。
-实际预算还要扣除目标上下文占用、当前请求、附件与后续工作预留；增大上限不保证能保留更多历史。
-原生用量缺失时明确标为估算；inline 还受 64 KiB prompt 与附件序列化上限约束。用户请求和附件不会自动缩短。
-预览 API、编辑与 stale 语义见[交接预览](../protocol/http-handoff.md)。
+选择 `chat` 后，通过原生会话身份读取历史并生成短期文本预览。
+`handoff_token_cap` 默认 16000，允许 1024–64000，为每次预览设置历史预算上限。
+预览保留五分钟，文本与 manifest 共用 64 MiB；修改任务或目标后重新生成预览。
+旧会话数据库升级说明见[持久化清单](../persistence.md#旧会话数据库与升级)，字段见[交接接口](../protocol/http-handoff.md)。
 
 ### Agent 启动
 
@@ -299,7 +291,7 @@ which codex-acp claude-agent-acp  # 必须能在服务的 PATH 或“加载 shel
 - 本次未实测 npm 启动器或 macOS。
 - Claude 聊天端通过 `CLAUDE_CODE_EXECUTABLE` 使用 TUI 同一个 `claude`；配置显式设置时保留配置值。
 - Claude 聊天端复用服务用户、`HOME`、`CLAUDE_CONFIG_DIR` 与现有认证。
-- 不要把服务账号无权读取的 Linux 凭据文件或 macOS Keychain 当作可共享凭据。
+- 凭据共享范围以服务账号实际可读取的 Linux 文件与 macOS Keychain 条目为准。
 - 现有订阅登录、API key、OAuth token 或第三方 provider 由 Claude 自己管理；webmux 不保存凭据，也不在聊天端登录或注销。
 
 > [!WARNING]

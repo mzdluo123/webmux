@@ -19,7 +19,6 @@ const (
 	Settings           ID = "settings"
 	Hybrid             ID = "hybrid"
 	AgentOptions       ID = "agent-options"
-	Conversation       ID = "conversation"
 	GitOperations      ID = "git-operations"
 	GitTaskBaselines   ID = "git-task-baselines"
 	GitWorkbenchState  ID = "git-workbench-state"
@@ -43,7 +42,6 @@ type Descriptor struct {
 func (d Descriptor) LockPath() string { return d.Path + ".lock" }
 
 var catalog = []Descriptor{
-	{Conversation, "conversations.sqlite", "internal/conversation", "unavailable", "normalized conversation/history", 10, "user_version", 0, true, "", 0},
 	{Launch, "launch-configs.json", "internal/launch", "unavailable", "command/env", 2, "v", 4 << 20, true, "", 0},
 	{ProjectClones, "project-clones.json", "internal/workspace", "unavailable", "paths/urls", 1, "version", 4 << 20, true, "", 0},
 	{Projects, "projects.json", "internal/workspace", "unavailable", "paths", 1, "version", 4 << 20, true, "", 0},

@@ -687,7 +687,6 @@ func TestQuickStartMatchesManualStart(t *testing.T) {
 		metadata := h.hybrids.Metadata(id)
 		if metadata != nil {
 			metadata.AgentSessionID = nil
-			metadata.ConversationID, metadata.ProviderThreadID = "", ""
 		}
 		if i.Attention != nil {
 			a := *i.Attention

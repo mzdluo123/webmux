@@ -193,7 +193,7 @@ type openResult struct {
 // back (D25), or on the first open the values derived from the launch
 // arguments. It runs in a subtask; a failure stops the process.
 func (a *actor) openACP(epoch int, sid, cwd string, resume bool, beforeLoad func() bool) openResult {
-	return a.openACPWithRequirement(epoch, sid, cwd, resume, beforeLoad, a.requireNativeResume)
+	return a.openACPWithRequirement(epoch, sid, cwd, resume, beforeLoad, false)
 }
 
 // openACPWithRequirement rechecks required resume against the new connection,

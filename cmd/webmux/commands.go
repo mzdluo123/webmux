@@ -156,13 +156,12 @@ func opsCommands() clicmd.Registry {
 			Summary: "Serve scoped read-only handoff history over MCP stdio.",
 			Bind: func(fs *flag.FlagSet) clicmd.Action {
 				fs.String("socket", "", "local API socket `PATH`")
-				fs.String("conversation", "", "fixed source Conversation `ID`")
-				fs.String("handoff", "", "fixed handoff `ID`")
+				fs.String("session", "", "target runtime session `ID`")
 				return nil
 			},
 			Output: "MCP JSON-RPC only; diagnostics go to stderr.", Exit: exitClient,
 			Description: "Started by a handoff target provider. Scope is fixed by argv; no file paths or SQL are accepted as tool input.",
-			Examples:    []clicmd.Example{{Command: "webmux mcp-serve --socket /path/webmux.sock --conversation ID --handoff ID", Text: "Serve a fixed handoff source through the local API."}, {Command: "webmux help mcp-serve", Text: "Show the fixed scope options."}},
+			Examples:    []clicmd.Example{{Command: "webmux mcp-serve --socket /path/webmux.sock --session ID", Text: "Serve a fixed handoff source through the local API."}, {Command: "webmux help mcp-serve", Text: "Show the fixed scope options."}},
 			SeeAlso:     []string{"webmux bridge"},
 		},
 		{Name: "config", Group: g, Summary: "Initialize, locate, show or validate configuration."},

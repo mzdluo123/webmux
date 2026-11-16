@@ -1,43 +1,18 @@
-import { z } from "zod";
+import type { z } from "zod";
 import { api } from "./api";
 import {
-  ConversationMessageRequestSchema,
-  ConversationActivitySchema,
-  HandoffDeliverySchema,
-  HandoffDraftSchema,
-  HandoffEditRequestSchema,
+  SessionInfoSchema,
   HandoffPreviewRequestSchema,
   HandoffPreviewSchema,
-  HandoffSelectionSchema,
+  HandoffOperationSchema,
+  HandoffSendRequestSchema,
+  NativeResultSchema,
 } from "../contracts/schemas";
-
 export const threadAPI = {
-  selection: (id: string, after = "0", signal?: AbortSignal) =>
+  source: (id: string, signal?: AbortSignal) =>
     api(
-      `/handoffs/${encodeURIComponent(id)}/selection?afterPosition=${encodeURIComponent(after)}&limit=100`,
-      HandoffSelectionSchema,
-      "GET",
-      undefined,
-      signal,
-    ),
-  activity: (
-    source: string,
-    handoffId: string,
-    id: string,
-    offset = "0",
-    signal?: AbortSignal,
-  ) =>
-    api(
-      `/conversations/${encodeURIComponent(source)}/activities/${encodeURIComponent(id)}?handoffId=${encodeURIComponent(handoffId)}&textOffset=${encodeURIComponent(offset)}&maxBytes=4000`,
-      ConversationActivitySchema,
-      "GET",
-      undefined,
-      signal,
-    ),
-  draft: (source: string, fork: boolean, signal?: AbortSignal) =>
-    api(
-      `/conversations/${source}/handoff-previews?fork=${fork ? "1" : "0"}`,
-      HandoffDraftSchema,
+      `/sessions/${encodeURIComponent(id)}`,
+      SessionInfoSchema,
       "GET",
       undefined,
       signal,
@@ -48,7 +23,7 @@ export const threadAPI = {
     signal?: AbortSignal,
   ) =>
     api(
-      `/conversations/${source}/handoff-previews`,
+      `/sessions/${encodeURIComponent(source)}/handoff-previews`,
       HandoffPreviewSchema,
       "POST",
       body,
@@ -56,38 +31,50 @@ export const threadAPI = {
       HandoffPreviewRequestSchema,
     ),
   get: (id: string, signal?: AbortSignal) =>
-    api(`/handoffs/${id}`, HandoffPreviewSchema, "GET", undefined, signal),
-  edit: (
-    id: string,
-    body: z.infer<typeof HandoffEditRequestSchema>,
-    signal?: AbortSignal,
-  ) =>
     api(
-      `/handoffs/${id}`,
+      `/handoff-previews/${encodeURIComponent(id)}`,
       HandoffPreviewSchema,
-      "PATCH",
-      body,
-      signal,
-      HandoffEditRequestSchema,
-    ),
-  delivery: (id: string, signal?: AbortSignal) =>
-    api(
-      `/handoffs/${id}/delivery`,
-      HandoffDeliverySchema,
       "GET",
       undefined,
       signal,
     ),
-  send: (
+  send: (id: string, operationId: string, signal?: AbortSignal) =>
+    api(
+      `/handoff-previews/${encodeURIComponent(id)}/send`,
+      HandoffOperationSchema,
+      "POST",
+      { operationId },
+      signal,
+      HandoffSendRequestSchema,
+    ),
+  delivery: (id: string, signal?: AbortSignal) =>
+    api(
+      `/handoff-operations/${encodeURIComponent(id)}`,
+      HandoffOperationSchema,
+      "GET",
+      undefined,
+      signal,
+    ),
+  cancel: (id: string, signal?: AbortSignal) =>
+    api(
+      `/handoff-operations/${encodeURIComponent(id)}/cancel`,
+      HandoffOperationSchema,
+      "POST",
+      undefined,
+      signal,
+    ),
+  history: (
     source: string,
-    body: z.infer<typeof ConversationMessageRequestSchema>,
+    snapshotId: string,
+    after = "0",
+    offset = "0",
+    signal?: AbortSignal,
   ) =>
     api(
-      `/conversations/${source}/messages`,
-      HandoffDeliverySchema,
-      "POST",
-      body,
+      `/sessions/${encodeURIComponent(source)}/native-history?snapshotId=${encodeURIComponent(snapshotId)}&afterPosition=${after}&textOffset=${offset}`,
+      NativeResultSchema,
+      "GET",
       undefined,
-      ConversationMessageRequestSchema,
+      signal,
     ),
 };

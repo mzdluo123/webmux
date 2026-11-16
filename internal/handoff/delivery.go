@@ -2,409 +2,134 @@ package handoff
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
+	"crypto/rand"
 	"errors"
-	"maps"
-	"slices"
 
-	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
-type MessageRequest struct {
-	ClientRequestID, HandoffID string
-	Revision                   int64
-	Text, ConfigID             string
-	AgentConfig                map[string]string
-	Location                   conversation.PreviewLocation
-	Attachments                []conversation.PreviewAttachment
-	Retry                      bool
-}
-
-func executionHash(source string, in MessageRequest) (string, error) {
-	body, err := json.Marshal(struct {
-		Source  string
-		Request MessageRequest
-	}{source, in})
-	if err != nil {
-		return "", conversation.ErrInvalid
-	}
-	digest := sha256.Sum256(body)
-	return hex.EncodeToString(digest[:]), nil
-}
-
-func (s *Service) Close() {
+func (s *Service) send(ctx context.Context, e *operationEntry) {
 	s.mu.Lock()
-	s.closed = true
-	s.cancel()
+	p := e.preview
 	s.mu.Unlock()
-	s.workers.Wait()
-}
-
-// Deliver returns a durable attempt immediately. A repeated command observes
-// that attempt and may resume preparation, but never re-enters a sending call.
-func (s *Service) Deliver(ctx context.Context, source string, in MessageRequest) (conversation.Execution, error) {
-	if !s.options.Conversations.HistoryEnabled() || s.options.Creation == nil || s.options.Recovery == nil || s.options.Hybrid == nil || s.options.Launch == nil {
-		return conversation.Execution{}, conversation.ErrUnavailable
-	}
-	if err := validateRequest(Request{ClientRequestID: in.ClientRequestID, ConfigID: in.ConfigID, UserText: in.Text, AgentConfig: in.AgentConfig, Attachments: in.Attachments, Location: in.Location}); err != nil {
-		return conversation.Execution{}, err
-	}
-	if err := s.checkLocation(in.Location); err != nil {
-		return conversation.Execution{}, err
-	}
-	if in.AgentConfig == nil {
-		in.AgentConfig = map[string]string{}
-	}
-	if in.Attachments == nil {
-		in.Attachments = []conversation.PreviewAttachment{}
-	}
-	hash, err := executionHash(source, in)
-	if err != nil {
-		return conversation.Execution{}, err
-	}
-	receipt, err := s.options.Conversations.Receipt(ctx, source, in.ClientRequestID)
-	if err == nil {
-		if receipt.RequestHash != hash || receipt.ExecutionID == "" {
-			return conversation.Execution{}, conversation.ErrConflict
-		}
-		e, err := s.options.Conversations.Execution(ctx, receipt.ExecutionID)
-		if err == nil {
-			s.startExecution(e)
-		}
-		return e, err
-	}
-	if !errors.Is(err, conversation.ErrNotFound) {
-		return conversation.Execution{}, err
-	}
-	var p conversation.Preview
-	if in.Retry {
-		p, err = s.options.Conversations.DeliveryPreview(ctx, in.HandoffID)
-	} else {
-		p, err = s.Get(ctx, in.HandoffID)
-	}
-	if err != nil {
-		return conversation.Execution{}, err
-	}
-	if p.SourceConversationID != source || p.Revision != in.Revision || p.Stale || p.Budget.OverBudget || p.Request.UserText != in.Text || p.Request.ConfigID != in.ConfigID || !maps.Equal(p.Request.AgentConfig, in.AgentConfig) || p.Request.Location != in.Location || !slices.Equal(p.Request.Attachments, in.Attachments) {
-		return conversation.Execution{}, conversation.ErrConflict
-	}
-	if err := hybrid.ValidatePromptText(in.Text, len(in.Attachments)); err != nil {
-		return conversation.Execution{}, err
-	}
-	e, err := s.options.Conversations.BeginExecution(ctx, conversation.ExecutionInput{SourceConversationID: source, HandoffID: in.HandoffID, ClientRequestID: in.ClientRequestID, RequestHash: hash, Revision: in.Revision, Retry: in.Retry})
-	if err == nil {
-		s.startExecution(e)
-	}
-	return e, err
-}
-
-func (s *Service) startExecution(e conversation.Execution) {
-	if e.Status != "pending" || e.Phase == "sending" {
+	if p == nil {
 		return
 	}
-	s.mu.Lock()
-	if s.closed || s.flights[e.ID] {
-		s.mu.Unlock()
+	source, sourceErr := s.options.Hybrid.Record(p.SourceSessionID)
+	if sourceErr != nil || runtimeIdentity(source) != p.sourceIdentity {
+		s.finish(e, "failed", ErrConflict)
 		return
 	}
-	if s.flights == nil {
-		s.flights = map[string]bool{}
-	}
-	s.flights[e.ID] = true
-	s.workers.Add(1)
-	s.mu.Unlock()
-	go func() {
-		defer s.workers.Done()
-		defer func() { s.mu.Lock(); delete(s.flights, e.ID); s.mu.Unlock() }()
-		ctx, cancel := context.WithTimeout(s.ctx, sessioncreate.Timeout)
-		defer cancel()
-		s.driveExecution(ctx, e)
-	}()
-}
-
-func (s *Service) pause(phase string) bool {
-	return s.pauseAfterPhase != nil && s.pauseAfterPhase(phase)
-}
-
-func (s *Service) driveExecution(ctx context.Context, e conversation.Execution) {
-	ctx = hybrid.ExecutionContext(ctx, e.ID)
-	fail := func(class string) {
-		_ = s.options.Conversations.FinishExecution(context.WithoutCancel(ctx), e.ID, "failed", class)
-	}
-	releaseWriter, err := s.options.Hybrid.ClaimConversation(e.TargetConversationID, e.ID)
-	if err != nil {
-		fail("writer_conflict")
-		return
-	}
-	defer releaseWriter()
-	checkpoint := func(phase, step string) bool {
-		e.Phase, e.Step = phase, step
-		return s.options.Conversations.CheckpointExecution(ctx, e) == nil && !s.pause(phase)
-	}
-	if s.pause("receipt") {
-		return
-	}
-	p, err := s.options.Conversations.DeliveryPreview(ctx, e.HandoffID)
-	if err != nil {
-		fail("storage")
+	if _, err := s.options.NativeHistory.ScopeDocument(ctx, p.SnapshotID); err != nil {
+		s.finish(e, "failed", err)
 		return
 	}
 	config, err := s.options.Launch.Get(p.Request.ConfigID)
 	if err != nil {
-		fail("config_missing")
+		s.finish(e, "failed", err)
 		return
 	}
 	fingerprint, err := configFingerprint(config)
-	if err != nil || fingerprint != p.Request.ConfigFingerprint {
-		fail("config_changed")
+	if err != nil || fingerprint != p.configHash {
+		s.finish(e, "failed", ErrConflict)
 		return
 	}
-	// Only provenance-checked failed-attempt history can differ from the snapshot.
-	if p.Stale {
-		fail("source_changed")
+	if p.Request.TargetSessionID != "" {
+		budget, err := s.targetBudget(ctx, p.Request.TargetSessionID, p.UserText)
+		if err != nil || budget.NativeUsed != p.Budget.NativeUsed || budget.Window != p.Budget.Window || budget.Source != p.Budget.Source {
+			s.finish(e, "failed", ErrConflict)
+			return
+		}
+	}
+	if p.Request.TargetSessionID != "" {
+		target, err := s.options.Hybrid.Record(p.Request.TargetSessionID)
+		if err != nil || hybrid.NativeIdentity(target) != p.targetIdentity {
+			s.finish(e, "failed", ErrConflict)
+			return
+		}
+	}
+	s.mu.Lock()
+	if e.operation.FinishedAt != nil {
+		s.mu.Unlock()
 		return
 	}
-	if err := s.checkLocation(p.Request.Location); err != nil {
-		fail("precheck")
+	if err := ctx.Err(); err != nil {
+		s.finishLocked(e, "failed", err.Error())
+		s.mu.Unlock()
 		return
 	}
-	actualAttachments, err := s.attachmentSnapshot(ctx, p.SourceConversationID, p.Request.Attachments)
-	if len(e.Attachments) == 0 && (err != nil || !slices.Equal(actualAttachments, p.Request.Attachments)) {
-		fail("attachments_changed")
-		return
-	}
-	if !p.Request.Fork {
-		ids, err := s.options.Conversations.RuntimeIDs(ctx, p.SourceConversationID)
+	e.operation.State = "sending"
+	s.mu.Unlock()
+	target := p.Request.TargetSessionID
+	if target == "" {
+		if s.options.Create == nil {
+			s.finish(e, "failed", ErrUnavailable)
+			return
+		}
+		in := sessioncreate.Input{ClientRequestID: rand.Text(), ConfigID: &p.Request.ConfigID, Side: string(hybrid.SideACP), Cwd: p.Request.Location.Cwd, AgentConfig: p.Request.AgentConfig}
+		location := p.Request.Location
+		if location.NewWorktreeBranch != "" {
+			in.NewWorktree = &sessioncreate.NewWorktree{RepositoryID: location.RepositoryID, Mode: "new", Branch: location.NewWorktreeBranch, Base: location.NewWorktreeBase}
+		} else if location.RepositoryID != "" {
+			in.Workspace = &sessioncreate.Reference{RepositoryID: location.RepositoryID, WorktreeID: location.WorktreeID}
+		}
+		result, err := s.options.Create(ctx, in)
+		s.mu.Lock()
+		e.operation.Location = result.Location
+		if result.Session != nil {
+			target = result.Session.Info().ID
+			e.operation.TargetSessionID = target
+		}
+		s.mu.Unlock()
 		if err != nil {
-			fail("storage")
-			return
-		}
-		for _, id := range ids {
-			if id == e.RuntimeID {
-				continue
+			var step *sessioncreate.Error
+			if errors.As(err, &step) {
+				s.mu.Lock()
+				if step.SessionID != "" {
+					e.operation.TargetSessionID = step.SessionID
+				}
+				if step.Location != nil {
+					e.operation.Location = step.Location
+				}
+				s.mu.Unlock()
 			}
-			if err := s.quiesceProvider(ctx, id); err != nil {
-				fail(executionErrorClass(err, "writer_conflict"))
-				return
+			if ctx.Err() != nil {
+				s.finish(e, "unknown", errors.New("可能已发送，请检查目标会话"))
+			} else {
+				s.finish(e, "failed", err)
 			}
-		}
-	}
-	if record, err := s.options.Hybrid.Record(e.RuntimeID); err == nil && record.State == hybrid.StateActive {
-		if err := s.options.Hybrid.ClaimProvider(ctx, e.RuntimeID, e.ID); err != nil {
-			fail(executionErrorClass(err, "writer_conflict"))
 			return
 		}
 	}
-
-	in := sessioncreate.Input{ConfigID: &p.Request.ConfigID, Side: string(hybrid.SideACP), Cwd: p.Request.Location.Cwd}
-	location := p.Request.Location
-	if location.NewWorktreeBranch != "" {
-		in.Cwd = ""
-		in.NewWorktree = &sessioncreate.NewWorktree{RepositoryID: location.RepositoryID, Mode: "new", Branch: location.NewWorktreeBranch, Base: location.NewWorktreeBase}
-	} else if location.RepositoryID != "" {
-		in.Workspace = &sessioncreate.Reference{RepositoryID: location.RepositoryID, WorktreeID: location.WorktreeID}
+	if err := ctx.Err(); err != nil {
+		s.finish(e, "failed", err)
+		return
 	}
-	if e.Phase == "reserved" {
-		var plan sessioncreate.HandoffPlan
-		if s.options.Locations != nil {
-			var err error
-			plan, err = s.options.Locations.PlanHandoff(ctx, in, e.DeliveryID)
-			if err != nil {
-				fail(executionErrorClass(err, "precheck"))
-				return
-			}
-		}
-		e.WorktreePath, e.WorktreeBranch, e.WorktreeBase = plan.Path, plan.Branch, plan.Base
-		if !checkpoint("worktree", sessioncreate.StepWorktree) {
-			return
-		}
+	targetRecord, recordErr := s.options.Hybrid.Record(target)
+	if recordErr != nil {
+		s.finish(e, "failed", recordErr)
+		return
 	}
-	if in.NewWorktree != nil {
-		tree, err := s.options.Locations.EnsureHandoffWorktree(ctx, sessioncreate.HandoffPlan{RepositoryID: location.RepositoryID, Path: e.WorktreePath, Branch: e.WorktreeBranch, Base: e.WorktreeBase})
-		if err != nil {
-			fail(executionErrorClass(err, "worktree"))
-			return
-		}
-		e.WorktreeID = tree.WorktreeID
-		if s.pause("worktree_created") {
-			return
-		}
-		in.NewWorktree = nil
-		in.Cwd = ""
-		in.Workspace = &sessioncreate.Reference{RepositoryID: location.RepositoryID, WorktreeID: tree.WorktreeID}
+	s.mu.Lock()
+	s.history[target+"_"+p.SnapshotID] = historyBinding{scopeID: p.SnapshotID, identity: runtimeIdentity(targetRecord)}
+	s.mu.Unlock()
+	var expectedUsage *hybrid.Usage
+	if p.Request.TargetSessionID != "" && p.Budget.Source == "provider" {
+		expectedUsage = &hybrid.Usage{Used: p.Budget.NativeUsed, Size: p.Budget.Window}
 	}
-	if e.Phase == "worktree" {
-		if !checkpoint("session", sessioncreate.StepSession) {
-			return
-		}
+	expectedIdentity := hybrid.NativeIdentity(targetRecord)
+	if p.Request.TargetSessionID != "" {
+		expectedIdentity = p.targetIdentity
 	}
-	item, err := s.options.Recovery.EnsureHandoffSession(ctx, in, sessioncreate.HandoffIdentity{RuntimeID: e.RuntimeID, ProviderThreadID: e.TargetProviderThreadID, ExecutionID: e.ID, RequireNativeResume: !p.Request.Fork})
+	_, err = s.options.Hybrid.Prompt(ctx, target, hybrid.PromptInput{ClientRequestID: rand.Text(), Text: p.Text, TitleSource: p.UserText, Mode: hybrid.ModeRefuse, ExpectedIdentity: expectedIdentity, AwaitAcknowledgement: true, ExpectedUsage: expectedUsage})
 	if err != nil {
-		if !p.Request.Fork && (errors.Is(err, hybrid.ErrNativeResumeUnavailable) || errors.Is(err, hybrid.ErrSessionMissing) || errors.Is(err, hybrid.ErrProviderConfigChanged)) {
-			if fallbackErr := s.prepareFreshFallback(ctx, e, p); fallbackErr != nil {
-				fail(executionErrorClass(fallbackErr, "session"))
-			}
-			return
-		}
-		fail(executionErrorClass(err, "session"))
-		return
-	}
-	if err := s.options.Hybrid.RefreshHistoryReader(ctx, e.RuntimeID, e.ID); err != nil {
-		if !p.Request.Fork && errors.Is(err, hybrid.ErrNativeResumeUnavailable) {
-			if fallbackErr := s.prepareFreshFallback(ctx, e, p); fallbackErr != nil {
-				fail(executionErrorClass(fallbackErr, "session"))
-			}
+		if errors.Is(err, hybrid.ErrBusy) || errors.Is(err, hybrid.ErrWrongSide) || errors.Is(err, hybrid.ErrSwitching) || errors.Is(err, hybrid.ErrInvalid) || errors.Is(err, hybrid.ErrConflict) {
+			s.finish(e, "failed", err)
 		} else {
-			fail(executionErrorClass(err, "session"))
+			s.finish(e, "unknown", errors.New("可能已发送，请检查目标会话"))
 		}
 		return
 	}
-	if !p.Request.Fork {
-		if err := s.options.Conversations.ActivateProvider(ctx, p.TargetProviderThreadID); err != nil {
-			fail("storage")
-			return
-		}
-	}
-	nativeContinue, err := s.options.Hybrid.NativeContinuation(ctx, e.RuntimeID)
-	if err != nil {
-		fail("session")
-		return
-	}
-	e.NativeContinue = nativeContinue
-	if s.pause("session_created") {
-		return
-	}
-	if !checkpoint("session", sessioncreate.StepConfig) {
-		return
-	}
-	if warnings, err := s.options.Creation.Configure(ctx, item.Info().ID, sessioncreate.Input{AgentConfig: p.Request.AgentConfig, ClientRequestID: e.ID}); err != nil || len(warnings) > 0 {
-		fail("config")
-		return
-	}
-	// Options selected during startup may change the actual model window. Keep
-	// the selected whole items and refuse execution if they no longer fit.
-	budget, err := s.targetBudget(ctx, p, !e.NativeContinue)
-	if e.HistoryStatus != "injected" && (err != nil || budget.OverBudget || p.Budget.Used > budget.History) {
-		if err == nil && !p.Request.Fork && !p.Request.ForceFresh {
-			if fallbackErr := s.prepareFreshFallback(ctx, e, p); fallbackErr != nil {
-				fail(executionErrorClass(fallbackErr, "over_budget"))
-			}
-			return
-		}
-		fail("over_budget")
-		return
-	}
-	attachments, err := s.ownAttachments(ctx, p, e)
-	if err != nil {
-		fail("attachments_changed")
-		return
-	}
-	if s.pause("attachments_owned") {
-		return
-	}
-
-	if !checkpoint("ready", sessioncreate.StepPrompt) {
-		return
-	}
-	rec, err := s.options.Hybrid.Record(e.RuntimeID)
-	if err != nil || rec.AgentSessionID == "" {
-		fail(executionErrorClass(err, "session"))
-		return
-	}
-	wireText := InlinePrompt(p)
-	if p.Request.NativePlanned && p.ManualText == nil {
-		if s.pause("before_native") {
-			return
-		}
-		accepted, err := s.deliverNative(ctx, e, p, rec.AgentSessionID)
-		if err != nil {
-			s.historyOutcome(context.WithoutCancel(ctx), e, err)
-			return
-		}
-		if accepted {
-			wireText = p.Request.UserText
-		} else {
-			inline := p
-			inline.Request.NativePlanned = false
-			budget, err := s.targetBudget(ctx, inline, !e.NativeContinue)
-			if err != nil || budget.OverBudget || p.Budget.Used > budget.History {
-				fail("inline_over_budget")
-				return
-			}
-		}
-		if s.pause("native_injected") {
-			return
-		}
-	}
-	digest := sha256.Sum256([]byte(wireText))
-	e.NativeThreadID, e.PromptHash = rec.AgentSessionID, hex.EncodeToString(digest[:])
-	latest, err := s.options.Conversations.DeliveryPreview(ctx, p.ID)
-	if err != nil || latest.Stale || latest.Revision != p.Revision {
-		fail("source_changed")
-		return
-	}
-	if !checkpoint("sending", sessioncreate.StepPrompt) {
-		return
-	}
-	if s.pause("before_prompt") {
-		return
-	}
-	allowed := map[string]bool{}
-	for _, a := range attachments {
-		allowed[a.Path] = true
-	}
-
-	_, err = s.options.Hybrid.PromptContext(ctx, e.RuntimeID, hybrid.ContextPrompt{ExecutionID: e.ID, Text: p.Request.UserText, WireText: wireText, Attachments: attachments, CheckAttachment: func(path string) (string, error) {
-		if !allowed[path] {
-			return "", conversation.ErrInvalid
-		}
-		return path, nil
-	}})
-	if s.pause("after_prompt") {
-		return
-	}
-	if err != nil {
-		// call() can time out after enqueueing the actor command. That outcome is
-		// ambiguous; a validation/actor refusal returned synchronously is unsent.
-		status, class := "failed", "prompt_refused"
-		saved, readErr := s.options.Conversations.Execution(context.WithoutCancel(ctx), e.ID)
-		if readErr != nil || saved.CallStarted || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			status, class = "unknown", "transport"
-		}
-		_ = s.options.Conversations.FinishExecution(context.WithoutCancel(ctx), e.ID, status, class)
-	}
-}
-
-func (s *Service) Delivery(ctx context.Context, id string) (conversation.Execution, error) {
-	if !s.options.Conversations.HistoryEnabled() {
-		return conversation.Execution{}, conversation.ErrUnavailable
-	}
-	return s.options.Conversations.Delivery(ctx, id)
-}
-
-func executionErrorClass(err error, fallback string) string {
-	if errors.Is(err, hybrid.ErrExternalWriter) {
-		return "external_writer"
-	}
-	if errors.Is(err, hybrid.ErrBusy) {
-		return "unfinished_work"
-	}
-	var connector *hybrid.ConnectorMissingError
-	if errors.As(err, &connector) {
-		return "connector_missing"
-	}
-	if errors.Is(err, sessioncreate.ErrLocationConflict) {
-		return "location_conflict"
-	}
-	if errors.Is(err, hybrid.ErrConfigMissing) {
-		return "config_missing"
-	}
-	if errors.Is(err, hybrid.ErrSessionMissing) {
-		return "native_session_missing"
-	}
-	return fallback
+	s.finish(e, "succeeded", nil)
 }

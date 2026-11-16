@@ -31,10 +31,10 @@ Use `--config vitest.browser.config.ts` for the Chromium component suite. Storyb
   - For frontend unit/browser checks, use `make test-frontend`; for both stacks, use `make test-fast`.
   - Use `make test` when the full gate is needed.
 - `make test`, `make test-fast` and `make test-frontend` already launch suites in parallel without a caller-supplied `-j`. `pnpm --dir web test` runs suites sequentially; prefer the Make entry points for local validation.
-- Build shared outputs before starting consumers. Do not launch multiple builds writing `web/dist`, the E2E executable or Storybook output concurrently. Preserve the staged browser groups in `make test`, and run performance checks alone.
-- Go already runs packages concurrently; `GO_TEST_PARALLEL` controls tests that call `t.Parallel()` within each package, not package concurrency. Do not add `t.Parallel()` indiscriminately to tests sharing process state, environment variables or filesystem fixtures.
-- Permission-preservation fixtures that assert an exact mode MUST establish it with `os.Chmod`; creation modes are filtered by the inherited umask. Do not change the process-wide umask inside tests.
-- Keep the configured worker limits initially. If memory pressure or CPU contention requires fewer workers or serial execution, record the concrete reason in the validation report. Do not claim a speedup without a measured comparison.
+- Build shared outputs before starting consumers. Serialize builds that write `web/dist`, the E2E executable or Storybook output. Preserve the staged browser groups in `make test`, and run performance checks alone.
+- Go already runs packages concurrently; `GO_TEST_PARALLEL` controls tests that call `t.Parallel()` within each package, not package concurrency. Tests sharing process state, environment variables or filesystem fixtures run serially.
+- Permission-preservation fixtures that assert an exact mode MUST establish it with `os.Chmod`; creation modes are filtered by the inherited umask. Permission fixtures set their own file modes.
+- Keep the configured worker limits initially. If memory pressure or CPU contention requires fewer workers or serial execution, record the concrete reason in the validation report. Performance claims include measured comparisons.
 - After unchanged checks pass, reuse their results; repeat them when subsequent edits, failures or unresolved concerns affect what they verified.
 - Text-overflow fixtures MUST supply explicit short and long strings and await font readiness; a CI runner hostname is not a guaranteed short label.
 
@@ -62,7 +62,7 @@ Use `--config vitest.browser.config.ts` for the Chromium component suite. Storyb
 - Workers share only the immutable executables. Each has an independent backend, HOME/config/workdirs, fake-agent session stores (the agents come first on each backend's `PATH`) and dynamic ports.
   - Vitest browser scales to four workers locally, E2E to eight, and Storybook to six. Storybook and E2E use two workers in CI to leave CPU headroom for long-conversation layouts and scroll checks; other CI worker limits stay unchanged. `WEBMUX_E2E_WORKERS` overrides E2E everywhere.
   - Session, process and hybrid-record cleanup is automatic.
-- Do not connect tests to an existing developer service.
+- Run tests against an isolated service.
 - Tests may run inside a WebMux session: command tests clear the inherited session marker. The few integration tests that need a genuinely external parent process skip explicitly in that environment instead of misattributing the outer session to their test server.
 
 ## CI
@@ -71,14 +71,14 @@ Use `--config vitest.browser.config.ts` for the Chromium component suite. Storyb
   - Docs-only changes run the formatting, documentation, persistence and agent/web static guards without the test suites.
   - Go-only changes skip Vitest, Storybook and performance. Web-only changes skip Go race, the Windows cross-compile and the Windows installer smoke (including native stdin EOF/cancellation tests). E2E still runs for either.
   - Go wire snapshots also select Vitest because the frontend Zod tests consume them. `test-classify-changes.sh` covers this cross-stack rule.
-  - Unknown paths, `.github/**`, `Makefile`, module/lockfile changes and installer tooling force a full run. Do not use `on.pull_request.paths`: the required `Test result` check must always report.
+  - Unknown paths, `.github/**`, `Makefile`, module/lockfile changes and installer tooling force a full run. The required `Test result` check reports on every pull request.
   - The job validates the base itself, forces a full run for any `.github/` change, and executes the base revision's classifier so a PR cannot weaken the rules that skip its own tests.
   - Every push to main forces the complete suite (classification is skipped), so a merged commit normally has a full result.
     GitHub keeps at most one pending run per concurrency group, so a rapid burst of merges can still cancel an intermediate pending run; the release falls back to `full: true` for such a commit.
   - `release.yml` first runs the `verify` job (`.github/scripts/require-main-test.sh`) for the tagged commit.
     - Reuse: the commit is on main and its `push` Test run passed with no skipped job. `Checks` is skipped.
     - Fallback: not on main, no run, a failed or partial run, or the run did not finish within the wait budget. `Checks` calls `test.yml` with `full: true` itself.
-    - `sign` and `publish` need one of the two to have passed, so a tag never releases without the complete suite.
+    - `sign` and `publish` need one of the two to have passed, so tag releases require the complete suite.
   - The release `Build` job only builds, checksums and verifies the real artifacts (including the deb/rpm install check); it does not rerun Go tests, which `Go race` already covers.
   - Stable and dev release builds install NSIS through `.github/scripts/install-nsis.sh`, using an isolated HTTPS kernel.org Ubuntu source and Ubuntu's archive signing key; the runner's global sources are unchanged, and index download failures stop the build.
 - CI builds the Linux E2E executable, fake agents and frontend output once in the `E2E runtime` job (`.github/scripts/package-e2e-runtime.mjs`).
@@ -96,7 +96,7 @@ Use `--config vitest.browser.config.ts` for the Chromium component suite. Storyb
 ## UI pull request evidence
 
 - PRs that change visible UI (layout, styling, components, or interaction states) MUST embed screenshots of the final implementation in the PR description.
-  - Capture the running app or its real Storybook components. Mockups and test summaries do not replace screenshots.
+  - Capture the running app or its real Storybook components. PR evidence includes screenshots from those running surfaces.
 - Every browser UI PR MUST include all three representative viewports in the same PR description. Dimensions are in CSS pixels.
   - Desktop (1280 × 900)
   - Tablet (768 × 800)

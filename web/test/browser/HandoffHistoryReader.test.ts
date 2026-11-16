@@ -3,87 +3,65 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import HandoffHistoryReader from "../../src/components/chat/HandoffHistoryReader.svelte";
 
-const sourceId = "a".repeat(32);
-const handoffId = "b".repeat(32);
-const id = (position: number) => position.toString(16).padStart(32, "0");
+const sourceId = "abcdefgh";
+const snapshotId = "process_frozen-scope";
 
-function serveHistory(secondRevision = 1) {
+function serveHistory(expireSecondPage = false) {
+  const requests: URL[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async (input) => {
       const url = new URL(String(input), location.origin);
-      if (url.pathname.endsWith("/selection")) {
-        const after = url.searchParams.get("afterPosition") ?? "0";
-        const first = after === "0";
-        return Response.json({
-          sourceLocation: {
-            cwd: "/source",
-            repositoryId: "",
-            worktreeId: "",
-            newWorktreeBase: "",
-            newWorktreeBranch: "",
-          },
-          sourceConversationId: sourceId,
-          sourcePosition: "101",
-          revision: first ? 1 : secondRevision,
-          historyOrigin: "complete",
-          reconcileRequired: false,
-          manual: false,
-          selectedCount: 99,
-          omittedCount: 2,
-          items: first
-            ? Array.from({ length: 100 }, (_, index) => ({
-                activityId: id(index + 1),
-                position: String(index + 1),
-                selected: index !== 0,
-                reason: index === 0 ? "budget" : "",
-              }))
-            : [
-                {
-                  activityId: id(101),
-                  position: "101",
-                  selected: false,
-                  reason: "budget",
-                },
-              ],
-          nextPosition: first ? "100" : "101",
-          done: !first,
-        });
-      }
-      const activityId = url.pathname.split("/").at(-1)!;
-      const position = activityId === id(1) ? "1" : "101";
-      const text =
-        position === "1" ? "First retained constraint" : "Later omitted result";
+      requests.push(url);
+      const first = url.searchParams.get("textOffset") === "0";
+      if (!first && expireSecondPage)
+        return Response.json({ error: "冻结范围已失效" }, { status: 410 });
+      const text = first ? "中文🙂" : "  code()";
       return Response.json({
-        exportable: true,
-        exclusionReason: "",
-        activityId,
-        conversationId: sourceId,
-        providerThreadId: "c".repeat(32),
-        runId: "d".repeat(32),
-        position,
-        runOrdinal: "1",
-        kind: "message",
-        role: "agent",
-        status: "completed",
-        text,
-        source: "live",
-        providerItemId: "",
-        byteLength: String(text.length),
-        nextTextOffset: String(text.length),
+        expiresAt: "2026-11-16T00:05:00Z",
+        agent: "omp",
+        nativeId: "native-source",
+        branch: "",
+        format: "v1",
+        boundary: "complete-prefix",
+        contentHash: "frozen-content",
         truncated: false,
-        createdAt: "2026-11-12T00:00:00Z",
-        attachments: [],
+        more: first,
+        nextPosition: first ? "0" : "1",
+        nextTextOffset: first ? "3" : "0",
+        recordCount: 1,
+        files: [],
+        snapshotId,
+        parser: "v1",
+        pending: false,
+        gaps: [],
+        records: [
+          {
+            id: "record-1",
+            nativeId: "native-record-1",
+            parentId: "",
+            hash: "record-hash",
+            kind: "prose",
+            role: "user",
+            status: "",
+            text,
+            callId: "",
+            nativeCallId: "",
+            toolName: "",
+            position: "1",
+            offset: "0",
+            end: "18",
+            byteLength: "18",
+            nextTextOffset: first ? "3" : "11",
+            truncated: first,
+            attachments: [],
+          },
+        ],
       });
     }),
   );
-  render(HandoffHistoryReader, {
-    handoffId,
-    revision: 1,
-    sourceId,
-    point: "101",
-    omittedCount: 2,
-  });
+  render(HandoffHistoryReader, { sourceId, snapshotId });
+  return requests;
 }
 
 afterEach(async () => {
@@ -92,31 +70,39 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-const fragment = () => page.getByRole("textbox", { name: "省略历史片段" });
+const read = () =>
+  page.getByRole("button", { name: "补查冻结原文", exact: true });
 
-test("reads omitted items across bounded selection pages without including selected history", async () => {
-  serveHistory();
-  await page.getByRole("button", { name: "查看省略历史", exact: true }).click();
-  await expect.element(fragment()).toHaveValue("First retained constraint");
+test("reads Unicode pages from the same frozen scope", async () => {
+  const requests = serveHistory();
+  await read().click();
+  await expect.element(page.getByText("中文🙂", { exact: true })).toBeVisible();
+  await read().click();
   await expect
-    .element(page.getByRole("button", { name: "上一项", exact: true }))
-    .toBeDisabled();
-  await page.getByRole("button", { name: "下一项", exact: true }).click();
-  await expect.element(fragment()).toHaveValue("Later omitted result");
-  await expect
-    .element(page.getByRole("button", { name: "下一项", exact: true }))
-    .toBeDisabled();
-  await page.getByRole("button", { name: "上一项", exact: true }).click();
-  await expect.element(fragment()).toHaveValue("First retained constraint");
+    .element(page.getByText("中文🙂  code()", { exact: true }))
+    .toBeVisible();
+  await expect.element(read()).toBeDisabled();
+  expect(requests.map((url) => url.pathname)).toEqual([
+    `/api/sessions/${sourceId}/native-history`,
+    `/api/sessions/${sourceId}/native-history`,
+  ]);
+  expect(requests.map((url) => url.searchParams.get("snapshotId"))).toEqual([
+    snapshotId,
+    snapshotId,
+  ]);
+  expect(requests.map((url) => url.searchParams.get("textOffset"))).toEqual([
+    "0",
+    "3",
+  ]);
 });
 
-test("retains the displayed history instead of mixing a changed preview revision", async () => {
-  serveHistory(2);
-  await page.getByRole("button", { name: "查看省略历史", exact: true }).click();
-  await expect.element(fragment()).toHaveValue("First retained constraint");
-  await page.getByRole("button", { name: "下一项", exact: true }).click();
+test("keeps displayed text when the frozen scope expires", async () => {
+  serveHistory(true);
+  await read().click();
+  await expect.element(page.getByText("中文🙂", { exact: true })).toBeVisible();
+  await read().click();
   await expect
-    .element(page.getByText("预览已变化，请刷新预览后重试", { exact: true }))
+    .element(page.getByText("冻结范围已失效", { exact: true }))
     .toBeVisible();
-  await expect.element(fragment()).toHaveValue("First retained constraint");
+  await expect.element(page.getByText("中文🙂", { exact: true })).toBeVisible();
 });

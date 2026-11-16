@@ -53,7 +53,7 @@
 #### Scenario: 用包内单元查看状态
 
 - **WHEN** 用户只安装了 deb 包并执行过 `systemctl --user enable --now webmux`，然后运行 `webmux service status`
-- **THEN** 命令输出 `systemctl --user status webmux.service` 的结果，而不是提示先执行 `service install`
+- **THEN** 命令输出 `systemctl --user status webmux.service` 的结果
 
 #### Scenario: 卸载包内单元
 

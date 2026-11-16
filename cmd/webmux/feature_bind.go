@@ -28,7 +28,7 @@ func (p *featureServices) bind(c config.Config, manager *session.Manager, prefer
 	options := featureapi.Deps{
 		Config: c, Manager: manager, Settings: preferences,
 		Workspace: p.workspace, Code: p.code, Files: p.files, Artifacts: p.artifacts,
-		Handoffs: p.handoff, Conversations: p.conversations,
+		Handoffs:      p.handoff,
 		NativeHistory: p.nativeHistory, HistoryProjection: p.historyProjection,
 		Push: p.push, Launch: p.launch, AgentTools: p.agentTools, Hybrid: p.chat, Forward: p.forward,
 		Voice: p.voice, Public: public, ProjectSession: projection.Session,

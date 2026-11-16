@@ -85,7 +85,7 @@ webmux logs "$id" --strip --tail 30
 ```sh
 webmux wait "$id" --until attention --changed --timeout 30m
 webmux screen "$id"            # 读取当前请求内容和真实选项
-# 先确认用户授权范围与当前选中项；没有授权请求或不在授权范围就不要按 Enter。
+# 先确认用户授权范围与当前选中项；按用户授权范围确认后提交。
 # 仅确认允许当前操作后，才可用 webmux send "$id" --key enter
 ```
 

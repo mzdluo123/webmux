@@ -33,9 +33,9 @@
   - omp 的 `--session-dir` 只对 ACP 新建的会话生效，ACP 的列出、加载与恢复始终使用默认目录；`--no-session` 不保存会话；
   - OpenCode 的 `--server` 使 TUI 连接另一个服务及其会话库；
   - Codex 的 `--remote`、`--remote-auth-token-env` 使 TUI 连接远端 app-server。
-- 在命令中指定工作目录的参数，原因为“请在新建会话时选择目录，不要在命令中写目录”：
+- 在命令中指定工作目录的参数，原因为“工作目录在新建会话时选择”：
   OpenCode 的位置参数、omp 的 `--cwd`，以及 Codex 的 `-C`/`--cd`、`--worktree`。
-- 打开已有会话的子命令，原因为“该参数打开已有会话，混合配置请不要指定会话”（原因码 `session_arg`）：Codex 的 `resume`、`fork`。
+- 打开已有会话的子命令，原因为“该参数打开已有会话；混合配置使用 WebMux 管理的原生会话身份”（原因码 `session_arg`）：Codex 的 `resume`、`fork`。
 
 omp 的 `--profile` SHALL NOT 视为不可用：它同时透传给 ACP 进程，两端使用同一个配置档的会话库。
 

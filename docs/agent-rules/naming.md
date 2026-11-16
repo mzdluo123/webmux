@@ -1,6 +1,6 @@
 # File Naming
 
-A reader should be able to predict a file's name from what it owns. Names state the noun or responsibility, never a vague word.
+A reader should be able to predict a file's name from what it owns. Names state the owned noun or responsibility.
 
 - `internal/archtest` (`TestGoFileNames`, `TestSourceFileSize`) enforces Go file naming and the `< 500` line production source budget.
 - `web/test/architecture.test.ts` (`file naming`) enforces frontend file naming and the `< 500` line production source budget; the rest is review judgement.
@@ -16,7 +16,7 @@ A reader should be able to predict a file's name from what it owns. Names state 
 | Browser test, story      | `<Component>.test.ts` or `<Component>.stories.ts`; helpers stay kebab-case      | `CodePanel.test.ts`, `terminal-fixture.ts`       |
 | shadcn-svelte base       | generated under `src/lib/components/ui/`; keep the registry's names             | `button/button.svelte`                           |
 
-- Never mix camelCase into TypeScript file names, even for a single file. Identifiers inside the file stay camelCase.
+- TypeScript file names use kebab-case. Identifiers inside the file stay camelCase.
 - Group by prefix: all chat modules start with `chat-`, all code-reader modules with `code-`. Add a new member to the existing family instead of inventing a new prefix.
 - Hooks that own resources or coordinate domains live in `src/hooks/<topic>/`; page-level composition lives in `src/pages/`.
   Pure algorithms and domain state live together in `src/domains/<topic>/`; wire schemas live in `src/contracts/` and generic browser I/O in `src/platform/`. See [frontend architecture](../frontend-architecture.md).
@@ -32,7 +32,7 @@ A reader should be able to predict a file's name from what it owns. Names state 
 | Test        | `<source-stem>_test.go` for that file's cases; a cross-file behavior may use a topic name                                              | `ring_test.go`, `security_test.go`                |
 
 - Forbidden words anywhere in a name: `util`, `utils`, `helper`, `helpers`, `misc`, `more`, `common`, `stuff`, `extra`, `new`, `old`. Test fixtures are `*_fixtures_test.go`.
-- When a file grows two responsibilities, split by responsibility and name each part. Do not add `_more` or `2` suffixes.
+- When a file grows two responsibilities, split by responsibility and name each part. Name each file after its responsibility.
 - Renames use `git mv` and stay separate from behavior changes. Update links in `docs/` and the persistence inventory (`internal/archtest/persistence_inventory.json` keys start with the file path) in the same change.
 
 ## Checklist

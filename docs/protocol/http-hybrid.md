@@ -57,7 +57,6 @@
 
 - `configMissing`：启动配置是否已删除；
 - `previousAgentSessionIds`：最近 8 个历史 agent 会话 ID（当前 ID 在 `agent.sessionId`）；
-- `storedBytes`：WebMux 保存的聊天文本字节数（消息、工具输出与标题），不含索引、附件和 agent 自己的历史；只运行过终端的记录为 0；
 - `activity`：中断前的活动 `idle`、`turn` 或 `switching`，后两者表示上一轮可能未完成；
 - `queuedCount`：中断时丢失的排队条数；
 - `interruptedAt` 与 `updatedAt`：时间戳，`lastActiveAt` 等于 `updatedAt`。
@@ -158,7 +157,7 @@ Claude Code 的 ACP 进程无参数执行 `claude-agent-acp`，`initialize` 固�
 
 已结束的同一条消息（相同 `messageId`，角色为 agent 或 thought，无附件）的连续 `message.append` 在日志中合并为一条：
 
-- 合并事件的序号取最后一个块的序号，因此重放得到的序号可能不连续；客户端应以“序号不小于已应用序号才应用”去重，不要假定序号连续。
+- 合并事件的序号取最后一个块的序号，因此重放得到的序号可能不连续；客户端应以“序号不小于已应用序号才应用”去重，序号按单调递增处理。
 - 仍在流式中的消息和实时帧仍逐块发送。
 - 续接点落在被合并的块之中时，只补发尚未应用的文字，序号为该组最后一个序号，不触发 `reset`。
 

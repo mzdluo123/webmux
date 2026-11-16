@@ -42,7 +42,6 @@ const record: ArchivedSession = {
   archive: {
     configMissing: false,
     previousAgentSessionIds: [],
-    storedBytes: 2048,
     queuedCount: 0,
     interruptedAt: "2026-10-28T00:00:00Z",
     updatedAt: "2026-10-28T00:00:00Z",
@@ -117,11 +116,6 @@ test("is hidden without records and collapsed by default with a count", async ()
     .element(group().getByText("/repos/project").first())
     .toBeVisible();
   await expect.element(group().getByText("5 分钟前").first()).toBeVisible();
-  const size = group().getByText("2.0 KB").first();
-  await expect.element(size).toBeVisible();
-  expect(size.element().getAttribute("title")).toBe(
-    "聊天文本大小（不含附件、索引与 agent 自己的历史）",
-  );
   // Only the interrupted record warns; a closed one finished cleanly.
   expect(
     group()

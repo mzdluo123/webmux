@@ -48,8 +48,8 @@
 
 ## 取舍
 
-- 选择路径前缀而不是子域名：路径前缀在 Tailscale MagicDNS 与 Cloudflare quick tunnel 下都能用，代价是使用绝对路径的应用必须设置 base，且转发页面与 WebMux 同源，页面脚本能读取浏览器中保存的主 token。只转发自己信任的开发服务器。
-- 用专用 Cookie 而不是主 token：新标签页里的页面、脚本和 HMR 请求无法携带 Bearer 头；Cookie 按主机共享给同主机其他端口，所以它只能访问网关、不能访问 shell。
+- 选择路径前缀：路径前缀在 Tailscale MagicDNS 与 Cloudflare quick tunnel 下都能用，代价是使用绝对路径的应用必须设置 base，且转发页面与 WebMux 同源，页面脚本能读取浏览器中保存的主 token。只转发自己信任的开发服务器。
+- 使用专用 Cookie：新标签页里的页面、脚本和 HMR 请求无法携带 Bearer 头；Cookie 按主机共享给同主机其他端口，所以它只能访问网关、不能访问 shell。
 - 转发与忽略状态都不持久化：服务重启后开发服务器通常也已退出，重新添加的成本很低。
 
 ## 代码依据

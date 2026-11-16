@@ -95,5 +95,5 @@ interface ForwardRequest {
 ## 安全边界
 
 - 转发页面与 WebMux 同源，页面脚本能读取 `localStorage` 中的主 Token；只转发自己信任的开发服务器。
-- 浏览器按主机而不是端口隔离 Cookie，同一主机其他端口上的服务也能收到 `webmux_forward`；它只能访问网关，不能访问 shell。
+- 浏览器按主机，同一主机其他端口上的服务也能收到 `webmux_forward`；它只能访问网关，不能访问 shell。
 - 网关不记录请求体、响应体或 Cookie。

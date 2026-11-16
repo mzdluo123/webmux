@@ -164,7 +164,6 @@ export function record(
     archive: {
       configMissing: false,
       previousAgentSessionIds: [],
-      storedBytes: 0,
       queuedCount: 0,
       interruptedAt: null,
       ...archive,

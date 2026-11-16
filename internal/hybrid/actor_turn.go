@@ -180,7 +180,7 @@ func (a *actor) send(text string, attachments []Attachment, queueItem, titleSour
 }
 
 func (a *actor) sendTurn(text string, attachments []Attachment, queueItem, titleSource string, backgroundRefresh bool) (PromptResult, error) {
-	return a.sendContext(text, text, attachments, queueItem, titleSource, "", a.svc.uploadCheck(a.id), backgroundRefresh)
+	return a.sendPrompt(text, text, attachments, queueItem, titleSource, a.svc.uploadCheck(a.id), backgroundRefresh)
 }
 
 // turnEnded applies a finished session/prompt. A normal end latches done
@@ -201,22 +201,7 @@ func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 	a.work.endTurn()
 	t.cancel()
 	stop, text := stopReason(resp, err)
-	if t.executionID != "" {
-		status, class := "unknown", "transport"
-		var refusal *acp.RPCError
-		if err == nil {
-			status, class = "inline", ""
-		} else if errors.As(err, &refusal) && (refusal.Code == acp.CodeAuthRequired || refusal.Code == acp.CodeInvalidParams || refusal.Code == acp.CodeMethodNotFound) {
-			status, class = "failed", "provider_refused"
-		}
-		a.finishContextExecution(t, status, class)
-	}
-	a.finishControlRun(stop)
-	if (t.consumed || err == nil) && a.svc.conversations != nil && a.control.completedRun != "" {
-		if ackErr := a.svc.conversations.AcknowledgeRun(context.Background(), a.control.completedRun); ackErr != nil {
-			a.controlFailure()
-		}
-	}
+
 	var rpc *acp.RPCError
 	code := 0
 	if errors.As(err, &rpc) {

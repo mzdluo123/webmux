@@ -39,7 +39,6 @@ func (p Projection) Session(info session.Info) contract.SessionInfo {
 
 // ProjectChat layers a chat-owned immutable snapshot onto the core DTO.
 func ProjectChat(out *contract.SessionInfo, h *hybrid.Metadata) {
-	out.ConversationID, out.ProviderThreadID = h.ConversationID, h.ProviderThreadID
 	if h.State != "" {
 		out.State = contract.SessionState(h.State)
 	}

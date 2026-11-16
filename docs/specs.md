@@ -1,8 +1,8 @@
 # OpenSpec 规格索引
 
-`openspec/specs/` 下每个目录是一个 capability，`spec.md` 用 SHALL/MUST 描述它的现行需求。本页按主题列出全部 capability，让读者从 [文档中心](README.md) 沿链接找到每一份规格。
+`openspec/specs/` 下每个目录是一个 capability，`spec.md` 用 SHALL/MUST 描述需求和场景。本页按主题列出全部 capability，让读者从 [文档中心](README.md) 沿链接找到每一份规格。
 
-- 这里只收录已归档生效的主规格；在途变更位于 `openspec/changes/<变更>/`，由 OpenSpec 工作流管理，归档后并入对应 capability。
+- 主规格集中保存归档需求，规划条目在索引与规格 Purpose 中标注。2026-11-16 已按维护者要求归档全部在途变更；各条目的实现状态以对应说明和代码为准。
 - 新增、拆分或改名 capability 时，在同一变更中更新本页；`internal/docguard` 会把没有链接到的规格报告为不可达。
 - 规格描述“应当怎样”；功能用途与验收要点见 [User Stories](user-stories.md)，工作流见 [参与贡献](../CONTRIBUTING.md#openspec-工作流可选)。
 
@@ -32,6 +32,10 @@
 - [terminal-touch-gamepad](../openspec/specs/terminal-touch-gamepad/spec.md)：触屏与调试可用的半透明浮动摇杆、高频虚拟键及底栏去重
 - [terminal-notice-overlay](../openspec/specs/terminal-notice-overlay/spec.md)：终端顶部状态提示悬浮显示，不触发 resize
 - [websocket-compression](../openspec/specs/websocket-compression/spec.md)：手机与平板默认启用、可按设备覆盖的 WebSocket 压缩
+- [terminal-file-download](../openspec/specs/terminal-file-download/spec.md)：终端文件下载协议与浏览器保存
+- [terminal-graphics-negotiation](../openspec/specs/terminal-graphics-negotiation/spec.md)：终端图形协议能力协商
+- [session-surface](../openspec/specs/session-surface/spec.md)：同一会话的终端与聊天展示
+- [voice-recognition](../openspec/specs/voice-recognition/spec.md)：语音识别输入与文本确认
 
 ## 应用外壳与导航
 
@@ -52,6 +56,8 @@
 - [shell-chat-control](../openspec/specs/shell-chat-control/spec.md)：从 shell 驱动混合会话的聊天端
 - [shell-workspace-control](../openspec/specs/shell-workspace-control/spec.md)：从 shell 管理 worktree、仓库、启动配置与端口转发
 - [session-metadata](../openspec/specs/session-metadata/spec.md)：会话完整背景、创建者与标签
+- [mcp-network-transport](../openspec/specs/mcp-network-transport/spec.md)：MCP 网络握手与资源限制
+- [mcp-session-control](../openspec/specs/mcp-session-control/spec.md)：MCP 会话创建、读取与控制
 
 ## Agent 状态与提醒
 
@@ -59,6 +65,7 @@
 - [program-status](../openspec/specs/program-status/spec.md)：识别 OSC 7501 Program Status Protocol 上报的运行状态
 - [attention-push](../openspec/specs/attention-push/spec.md)：离开页面或锁屏后通过 Web Push 推送注意力事件
 - [push-notification-client](../openspec/specs/push-notification-client/spec.md)：在本设备开启、关闭和测试推送
+- [launch-attention-policy](../openspec/specs/launch-attention-policy/spec.md)：启动配置的提醒策略和完成事件过滤
 
 ## 混合会话（ACP）
 
@@ -71,6 +78,13 @@
 - [acp-connector-availability](../openspec/specs/acp-connector-availability/spec.md)：ACP 连接器（如 codex-acp）的可用性与安装提示
 - [chat-view](../openspec/specs/chat-view/spec.md)：ACP 输出的对话界面
 - [chat-prompt-queue](../openspec/specs/chat-prompt-queue/spec.md)：回合进行中的多设备共享消息队列
+- [simple-native-handoff](../openspec/specs/simple-native-handoff/spec.md)：原生历史冻结、文本预览与一次发送
+- [qoder-agent-profile](../openspec/specs/qoder-agent-profile/spec.md)：Qoder 与 QoderCN 的命令、恢复和聊天配置
+- [kimi-agent-profile](../openspec/specs/kimi-agent-profile/spec.md)：Kimi 命令识别与恢复参数
+- [devin-agent-profile](../openspec/specs/devin-agent-profile/spec.md)：Devin 命令识别与恢复参数
+- [kimi-agent-behavior](../openspec/specs/kimi-agent-behavior/spec.md)：Kimi 环境、信任与聊天回合
+- [devin-agent-behavior](../openspec/specs/devin-agent-behavior/spec.md)：Devin 环境、信任、会话锁与聊天回合
+- [launch-agent-presets](../openspec/specs/launch-agent-presets/spec.md)：Agent 预置配置、图标与提醒
 
 ## 代码工作区
 
@@ -97,6 +111,7 @@
 - [repository-maintenance](../openspec/specs/repository-maintenance/spec.md)：获取全部远程与清理目录已不存在的失效工作树登记
 - [worktree-branch-switch](../openspec/specs/worktree-branch-switch/spec.md)：已有工作树原地切换分支的目标、阻止条件、会话确认与“在新工作树打开”
 - [branch-operations](../openspec/specs/branch-operations/spec.md)：快进到上游、推送与发布、删除与批量清理本地分支
+- [archived-worktree-release](../openspec/specs/archived-worktree-release/spec.md)：归档会话工作树的释放与重建
 
 ## 配置、状态与同步
 
@@ -105,6 +120,7 @@
 - [server-settings-sync](../openspec/specs/server-settings-sync/spec.md)：预览、代码阅读与快捷指令等偏好的跨设备同步
 - [state-persistence](../openspec/specs/state-persistence/spec.md)：状态目录文件的统一存储、权限与有界解码
 - [persistence-governance](../openspec/specs/persistence-governance/spec.md)：持久化清单、守卫与故障测试
+- [host-scoped-storage](../openspec/specs/host-scoped-storage/spec.md)：按宿主隔离本机存储
 
 ## 服务运行与分发
 
@@ -117,6 +133,7 @@
 - [signed-release-updates](../openspec/specs/signed-release-updates/spec.md)：发布签名、最新版本发现与只升级不降级的共用更新规则
 - [linux-package-auto-update](../openspec/specs/linux-package-auto-update/spec.md)：deb / rpm 安装的系统级定时自动更新
 - [server-update-notice](../openspec/specs/server-update-notice/spec.md)：可执行文件被替换后提示“重启后生效”
+- [update-channels](../openspec/specs/update-channels/spec.md)：稳定版和开发版更新通道
 
 ## 远程访问
 
@@ -125,6 +142,13 @@
 - [web-tunnel-settings](../openspec/specs/web-tunnel-settings/spec.md)：网页设置中的 Cloudflare Tunnel 管理
 - [tailscale-exposure](../openspec/specs/tailscale-exposure/spec.md)：Tailscale Serve / Funnel 自动证书 HTTPS
 - [tailscale-web-settings](../openspec/specs/tailscale-web-settings/spec.md)：网页设置中的 Tailscale 状态与开关
+- [port-forwarding](../openspec/specs/port-forwarding/spec.md)：会话端口的发现与受控转发
+- [session-port-detection](../openspec/specs/session-port-detection/spec.md)：按会话进程发现监听端口
+- [remote-access-wizard](../openspec/specs/remote-access-wizard/spec.md)：规划：统一远程访问配置向导
+- [client-transport](../openspec/specs/client-transport/spec.md)：HTTP、WebSocket 与 P2P 客户端传输
+- [official-relay-client](../openspec/specs/official-relay-client/spec.md)：官方 Relay 配对与宿主连接
+- [official-relay-node-management](../openspec/specs/official-relay-node-management/spec.md)：官方 Relay 节点登记与管理
+- [official-relay-service](../openspec/specs/official-relay-service/spec.md)：独立 Relay 服务仓库的控制面与数据面契约
 
 ## Windows（WSL）
 
@@ -144,3 +168,10 @@
 
 - [controller-service-layering](../openspec/specs/controller-service-layering/spec.md)：后端 Controller 与 Service 分层
 - [frontend-architecture-guard](../openspec/specs/frontend-architecture-guard/spec.md)：前端架构检查入口
+- [hub-message-conn](../openspec/specs/hub-message-conn/spec.md)：Hub 消息连接与生命周期
+
+## 头显与电视
+
+- [headset-browser-support](../openspec/specs/headset-browser-support/spec.md)：头显浏览器的二维工作区适配
+- [immersive-xr-terminal](../openspec/specs/immersive-xr-terminal/spec.md)：沉浸式 XR 终端交互
+- [tv-browser-support](../openspec/specs/tv-browser-support/spec.md)：电视浏览器的大屏和遥控器操作

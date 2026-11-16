@@ -139,10 +139,10 @@ func (p *featureServices) moduleUnavailable(id string) string {
 			return contract.CapabilityReasonServiceUnavailable
 		}
 	case "chat":
-		if p.chat == nil || p.conversations == nil {
+		if p.chat == nil {
 			return contract.CapabilityReasonServiceUnavailable
 		}
-		if p.chat.Unavailable() != nil || p.conversations.Unavailable() != nil {
+		if p.chat.Unavailable() != nil {
 			return contract.CapabilityReasonStorageUnavailable
 		}
 	case "notifications":

@@ -66,16 +66,7 @@ func (s *Server) archived(ctx context.Context) func(hybrid.Record) featurewire.A
 }
 func (s *Server) archivedRecord(ctx context.Context, rec hybrid.Record) featurewire.Archived {
 	out := featurewire.Archived{ConfigMissing: s.configMissing(rec.ConfigID)}
-	if s.Conversations != nil {
-		if binding, err := s.Conversations.Binding(ctx, rec.ID); err == nil {
-			out.ConversationID, out.ProviderThreadID = binding.ConversationID, binding.ProviderThreadID
-			// A size is a display detail: a failed count leaves it at 0
-			// instead of failing the archive listing.
-			if stored, err := s.Conversations.StoredBytes(ctx, binding.ConversationID); err == nil {
-				out.StoredBytes = stored
-			}
-		}
-	}
+
 	if s.Hybrid != nil {
 		out.AgentTitle, out.AgentIcon = s.Hybrid.AgentLabel(rec.Agent)
 	}

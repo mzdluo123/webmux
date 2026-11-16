@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change iframe-code-popout. Update Purpose after archive.
+支持在代码文件树中拖放上传文件，规定落点目录、上传进度、冲突处理和文件树刷新，使浏览器中的素材能够进入选定的工作目录。
 
 ## Requirements
 

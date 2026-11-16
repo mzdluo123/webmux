@@ -68,7 +68,7 @@ const gitCommitPattern = /^[0-9a-f]{4,64}$/i;
 export function matchRoute(pathname: string): Route {
   const session = /^\/s\/([a-z2-7]{8})$/.exec(pathname);
   if (session?.[1]) return { name: "terminal", id: session[1] };
-  const handoff = /^\/handoff\/([a-f0-9]{32})$/.exec(pathname);
+  const handoff = /^\/handoff\/([a-z2-7]{8})$/.exec(pathname);
   if (handoff?.[1]) return { name: "handoff", sourceId: handoff[1] };
   const code = /^\/code\/([a-z2-7]{8})$/.exec(pathname);
   if (code?.[1]) return { name: "code", id: code[1] };

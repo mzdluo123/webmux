@@ -2,433 +2,375 @@ package handoff
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"maps"
-	"slices"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
-	"github.com/rainchan/webmux/internal/artifacts"
-	"github.com/rainchan/webmux/internal/conversation"
-	"github.com/rainchan/webmux/internal/historyimport"
-	"github.com/rainchan/webmux/internal/historyprojection"
+	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
-	"github.com/rainchan/webmux/internal/session"
-	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
-type Locations interface {
-	PlanHandoff(context.Context, sessioncreate.Input, string) (sessioncreate.HandoffPlan, error)
-	EnsureHandoffWorktree(context.Context, sessioncreate.HandoffPlan) (sessioncreate.Location, error)
-	HandoffDirectory(context.Context, sessioncreate.Reference, string) (string, error)
-}
+const operationLifetime = 15 * time.Minute
+const maxPreviews = 32
+const maxOperations = 256
 
-type Recovery interface {
-	EnsureHandoffSession(context.Context, sessioncreate.Input, sessioncreate.HandoffIdentity) (*session.Session, error)
-}
+type historyBinding struct{ scopeID, identity string }
 
-type Options struct {
-	Creation                                     sessioncreate.Chat
-	Locations                                    Locations
-	Recovery                                     Recovery
-	Hybrid                                       *hybrid.Service
-	Artifacts                                    *artifacts.Service
-	Conversations                                *conversation.Service
-	Launch                                       *launch.Service
-	NativeHistory                                *historyimport.Service
-	HistoryProjection                            *historyprojection.Service
-	TokenCap, MaxPromptBytes, MaxPromptWireBytes int64
+type operationEntry struct {
+	operation Operation
+	preview   *Preview
+	cancel    context.CancelFunc
 }
-
 type Service struct {
-	options Options
-	ctx     context.Context
-	cancel  context.CancelFunc
-	mu      sync.Mutex
-	flights map[string]bool
-	closed  bool
-	workers sync.WaitGroup
-	// pauseAfterPhase simulates process loss without publishing a false failure.
-	pauseAfterPhase func(string) bool
+	history    map[string]historyBinding
+	options    Options
+	mu         sync.Mutex
+	previews   map[string]*Preview
+	operations map[string]*operationEntry
+	instance   string
+	now        func() time.Time
+	ctx        context.Context
+	cancel     context.CancelFunc
+	workers    sync.WaitGroup
+	closed     bool
 }
 
 func New(o Options) *Service {
 	if o.TokenCap == 0 {
 		o.TokenCap = DefaultTokenCap
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	return &Service{options: o, ctx: ctx, cancel: cancel}
-}
-
-type Request struct {
-	ClientRequestID, ConfigID, TargetProviderThreadID string
-	AgentConfig                                       map[string]string
-	UserText                                          string
-	Fork, ForceFresh                                  bool
-	Location                                          conversation.PreviewLocation
-	Attachments                                       []conversation.PreviewAttachment
-}
-
-func requestHash(source string, in Request) (string, error) {
-	// Only typed snapshot fields enter the hash. It never contains launch env,
-	// file bytes or a transient source point that would change retry identity.
-	body, err := json.Marshal(struct {
-		Source, Command string
-		Request         Request
-	}{source, "handoff-preview", in})
-	if err != nil {
-		return "", conversation.ErrInvalid
+	if o.MaxPromptBytes == 0 {
+		o.MaxPromptBytes = hybrid.MaxPromptBytes
 	}
-	digest := sha256.Sum256(body)
-	return hex.EncodeToString(digest[:]), nil
+	if o.MaxPromptWireBytes == 0 {
+		o.MaxPromptWireBytes = hybrid.MaxPromptWireBytes
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Service{options: o, history: map[string]historyBinding{}, previews: map[string]*Preview{}, operations: map[string]*operationEntry{}, instance: rand.Text(), now: time.Now, ctx: ctx, cancel: cancel}
 }
-
+func (s *Service) Close() { s.mu.Lock(); s.closed = true; s.cancel(); s.mu.Unlock(); s.workers.Wait() }
+func (s *Service) cleanLocked() {
+	now := s.now()
+	for key, binding := range s.history {
+		if _, err := s.options.NativeHistory.Scope(binding.scopeID); err != nil {
+			delete(s.history, key)
+		}
+	}
+	for id, p := range s.previews {
+		active := false
+		for _, op := range s.operations {
+			if op.preview == p && op.operation.FinishedAt == nil {
+				active = true
+				break
+			}
+		}
+		if !now.Before(p.ExpiresAt) && !active {
+			delete(s.previews, id)
+			s.options.NativeHistory.ReleaseScope(p.SnapshotID)
+		}
+	}
+	for id, e := range s.operations {
+		if e.operation.FinishedAt != nil && !now.Before(e.operation.FinishedAt.Add(operationLifetime)) {
+			delete(s.operations, id)
+		}
+	}
+}
 func configFingerprint(c launch.Config) (string, error) {
-	// The digest, not the environment values or argv, is persisted with a draft.
-	body, err := json.Marshal(struct {
+	b, err := json.Marshal(struct {
 		Cmd    []string
 		Env    map[string]string
 		Hybrid bool
 	}{c.Cmd, c.Env, c.Hybrid})
 	if err != nil {
-		return "", conversation.ErrInvalid
+		return "", ErrInvalid
 	}
-	digest := sha256.Sum256(body)
-	return hex.EncodeToString(digest[:]), nil
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:]), nil
 }
-
-func validateRequest(in Request) error {
-	if in.ForceFresh && in.TargetProviderThreadID != "" {
-		return conversation.ErrInvalid
+func runtimeIdentity(r hybrid.Record) string {
+	return r.ID + "\x00" + r.Agent + "\x00" + r.AgentSessionID + "\x00" + r.HistoryRoot + "\x00" + r.Cwd
+}
+func clonePreview(p *Preview) Preview {
+	out := *p
+	out.Request.AgentConfig = maps.Clone(p.Request.AgentConfig)
+	return out
+}
+func (s *Service) Preview(ctx context.Context, source string, in Request) (Preview, error) {
+	var empty Preview
+	if s.options.Hybrid == nil || s.options.NativeHistory == nil || s.options.HistoryProjection == nil || s.options.Launch == nil {
+		return empty, ErrUnavailable
 	}
-	if len(in.ClientRequestID) < 8 || len(in.ClientRequestID) > 64 || in.ConfigID == "" || !utf8.ValidString(in.UserText) || len(in.UserText) > 1<<20 || len(in.Attachments) > 64 || len(in.AgentConfig) > 64 {
-		return conversation.ErrInvalid
+	if !utf8.ValidString(in.UserText) || len(in.UserText) > int(s.options.MaxPromptBytes) || len(in.AgentConfig) > 64 {
+		return empty, ErrInvalid
 	}
-	for _, r := range in.ClientRequestID {
-		if r != '-' && r != '_' && (r < '0' || r > '9') && (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
-			return conversation.ErrInvalid
-		}
+	if in.TargetSessionID == "" && in.ConfigID == "" {
+		return empty, ErrInvalid
 	}
+	if in.Location.NewWorktreeBranch != "" && (in.Location.RepositoryID == "" || in.Location.WorktreeID != "" || in.Location.Cwd != "") {
+		return empty, ErrInvalid
+	}
+	metadata := len(in.ConfigID) + len(in.TargetSessionID) + len(in.Location.Cwd) + len(in.Location.RepositoryID) + len(in.Location.WorktreeID) + len(in.Location.NewWorktreeBranch) + len(in.Location.NewWorktreeBase)
 	for key, value := range in.AgentConfig {
-		if len(key) > 256 || len(value) > 8192 {
-			return conversation.ErrInvalid
-		}
+		metadata += len(key) + len(value)
 	}
-	var metadata int
-	for _, a := range in.Attachments {
-		metadata += len(a.Name) + len(a.MimeType) + len(a.Reference)
-		if metadata > 8192 || a.Size < 0 || a.Size > 100<<20 || (a.Kind != "image" && a.Kind != "file") {
-			return conversation.ErrInvalid
-		}
+	if metadata > 8192 {
+		return empty, ErrInvalid
 	}
-	if in.Location.WorktreeID != "" && in.Location.RepositoryID == "" {
-		return conversation.ErrInvalid
-	}
-	if in.Location.NewWorktreeBranch != "" && (in.Location.WorktreeID != "" || in.Location.Cwd != "") {
-		return conversation.ErrInvalid
-	}
-	if in.Location.NewWorktreeBase != "" && in.Location.NewWorktreeBranch == "" {
-		return conversation.ErrInvalid
-	}
-	return nil
-}
-
-func (s *Service) Preview(ctx context.Context, source string, in Request) (conversation.Preview, error) {
-	if !s.options.Conversations.HistoryEnabled() || s.options.Launch == nil || s.options.NativeHistory == nil || s.options.HistoryProjection == nil || s.options.TokenCap < 1024 || s.options.TokenCap > 64000 {
-		return conversation.Preview{}, conversation.ErrUnavailable
-	}
-	if err := validateRequest(in); err != nil {
-		return conversation.Preview{}, err
-	}
-	if err := s.checkLocation(in.Location); err != nil {
-		return conversation.Preview{}, err
-	}
-	if in.AgentConfig == nil {
-		in.AgentConfig = map[string]string{}
-	}
-	if in.Attachments == nil {
-		in.Attachments = []conversation.PreviewAttachment{}
-	}
-	hash, err := requestHash(source, in)
+	rec, err := s.options.Hybrid.Record(source)
 	if err != nil {
-		return conversation.Preview{}, err
+		return empty, err
 	}
-	receipt, err := s.options.Conversations.Receipt(ctx, source, in.ClientRequestID)
-	if err == nil {
-		if receipt.RequestHash != hash {
-			return conversation.Preview{}, conversation.ErrConflict
+	if rec.AgentSessionID == "" {
+		return empty, historysource.ErrIdentity
+	}
+	var targetIdentity string
+	if in.TargetSessionID != "" {
+		if len(in.AgentConfig) > 0 {
+			return empty, ErrInvalid
 		}
-		preview, err := s.options.Conversations.Preview(ctx, receipt.HandoffID)
+		target, err := s.options.Hybrid.Record(in.TargetSessionID)
 		if err != nil {
-			return preview, err
+			return empty, err
 		}
-		if preview.State != "preparing" {
-			return s.Get(ctx, preview.ID)
+		if target.State != hybrid.StateActive || target.Side != hybrid.SideACP {
+			return empty, hybrid.ErrWrongSide
 		}
-		return s.finishPreview(ctx, preview)
-	}
-	if !errors.Is(err, conversation.ErrNotFound) {
-		return conversation.Preview{}, err
+		if in.ConfigID != "" && in.ConfigID != target.ConfigID {
+			return empty, ErrConflict
+		}
+		in.ConfigID = target.ConfigID
+		targetIdentity = hybrid.NativeIdentity(target)
 	}
 	config, err := s.options.Launch.Get(in.ConfigID)
 	if err != nil {
-		return conversation.Preview{}, err
+		return empty, err
 	}
-	if in.Fork && in.Location.NewWorktreeBranch == "" && in.Location.RepositoryID != "" && in.Location.WorktreeID != "" {
-		if s.options.Locations == nil {
-			return conversation.Preview{}, conversation.ErrUnavailable
-		}
-		cwd := in.Location.Cwd
-		if cwd == "" {
-			sourceState, err := s.options.Conversations.Conversation(ctx, source)
-			if err != nil {
-				return conversation.Preview{}, err
-			}
-			if sourceState.RepositoryID == in.Location.RepositoryID && sourceState.WorktreeID == in.Location.WorktreeID {
-				cwd = sourceState.Cwd
-			}
-		}
-		directory, err := s.options.Locations.HandoffDirectory(ctx, sessioncreate.Reference{RepositoryID: in.Location.RepositoryID, WorktreeID: in.Location.WorktreeID}, cwd)
-		if err != nil {
-			return conversation.Preview{}, err
-		}
-		in.Location.Cwd = directory
-	}
-	support := config.HybridSupport
-	if !config.Hybrid || !support.Supported {
-		return conversation.Preview{}, conversation.ErrInvalid
+	if !config.Hybrid || !config.HybridSupport.Supported {
+		return empty, ErrInvalid
 	}
 	fingerprint, err := configFingerprint(config)
 	if err != nil {
-		return conversation.Preview{}, err
+		return empty, err
 	}
-	agentConfig := maps.Clone(in.AgentConfig)
-	var targetBaseline map[string]string
-	if !in.Fork && !in.ForceFresh && in.TargetProviderThreadID == "" {
-		threads, err := s.options.Conversations.ProviderThreads(ctx, source)
-		if err != nil {
-			return conversation.Preview{}, err
-		}
-		for _, thread := range threads {
-			if thread.ConfigID != in.ConfigID || thread.AgentName != support.Agent || thread.AgentSessionID == "" {
-				continue
-			}
-			if runtimeID, err := s.options.Conversations.ThreadRuntime(ctx, thread.ID); err == nil {
-				if s.options.Hybrid != nil {
-					rec, err := s.options.Hybrid.Record(runtimeID)
-					if err != nil || !slices.Equal(rec.Cmd, config.Cmd) {
-						continue
-					}
-				}
-				in.TargetProviderThreadID = thread.ID
-				break
-			}
-		}
-	}
-
-	if in.TargetProviderThreadID != "" {
-		target, err := s.options.Conversations.ProviderThread(ctx, in.TargetProviderThreadID)
-		if err != nil {
-			return conversation.Preview{}, err
-		}
-		if target.ConversationID != source || target.ConfigID != in.ConfigID || target.AgentName != support.Agent {
-			return conversation.Preview{}, conversation.ErrConflict
-		}
-		agentConfig = maps.Clone(target.Config)
-		targetBaseline = maps.Clone(target.Config)
-		for key, value := range in.AgentConfig {
-			agentConfig[key] = value
-		}
-	}
-	snapshotAttachments, err := s.attachmentSnapshot(ctx, source, in.Attachments)
+	scope, err := s.options.NativeHistory.FreezeRuntime(ctx, source)
 	if err != nil {
-		return conversation.Preview{}, err
+		return empty, err
 	}
-	request := conversation.PreviewRequest{ConfigID: in.ConfigID, AgentName: support.Agent, ConfigFingerprint: fingerprint, TargetProviderThreadID: in.TargetProviderThreadID, AgentConfig: agentConfig, TargetConfigBaseline: targetBaseline, UserText: in.UserText, Fork: in.Fork, ForceFresh: in.ForceFresh, Location: in.Location, Attachments: snapshotAttachments}
-	request.NativePlanned = s.options.Hybrid != nil && s.options.Hybrid.NativeHistoryAvailable(ctx, in.ConfigID)
-	snapshots, err := s.options.NativeHistory.FreezeConversation(ctx, source, source, in.Fork)
-	if err != nil {
-		return conversation.Preview{}, err
-	}
-	preview, err := s.options.Conversations.ReservePreview(ctx, conversation.PreviewReservation{SourceConversationID: source, ClientRequestID: in.ClientRequestID, RequestHash: hash, Request: request, Snapshots: snapshots})
-	if err != nil {
-		return preview, err
-	}
-	if preview.State != "preparing" {
-		return s.Get(ctx, preview.ID)
-	}
-	return s.finishPreview(ctx, preview)
-}
-
-func (s *Service) budget(ctx context.Context, p conversation.Preview) (Budget, error) {
-	return s.targetBudget(ctx, p, false)
-}
-
-// A session created for this execution has no prior provider context. Its
-// native file may not exist until the first prompt; inherited fork snapshots
-// are source material, not already-consumed tokens in that new session.
-func (s *Service) targetBudget(ctx context.Context, p conversation.Preview, fresh bool) (Budget, error) {
-	target, err := s.options.Conversations.ProviderThread(ctx, p.TargetProviderThreadID)
-	if err != nil {
-		return Budget{}, err
-	}
-	used := target.ContextUsage
-	if !fresh && !target.UsageMeasured && target.AgentSessionID != "" {
-		used, err = s.options.NativeHistory.ProviderUsage(ctx, target.ConversationID, target.ID)
-		if err != nil {
-			return Budget{}, err
+	saved := false
+	defer func() {
+		if !saved {
+			s.options.NativeHistory.ReleaseScope(scope.ID)
 		}
-	}
-	window, threshold := target.ContextWindow, target.AutoCompactThreshold
-	if target.AgentSessionID == "" && window == 0 && p.Request.ForceFresh {
-		threads, err := s.options.Conversations.ProviderThreads(ctx, p.SourceConversationID)
-		if err != nil {
-			return Budget{}, err
-		}
-		for _, prior := range threads {
-			if prior.ID == target.ID || prior.ConfigID != target.ConfigID || prior.AgentName != target.AgentName || !prior.UsageMeasured || prior.ContextWindow <= 0 || !maps.Equal(prior.Config, p.Request.AgentConfig) {
-				continue
-			}
-			if window == 0 || prior.ContextWindow < window {
-				window = prior.ContextWindow
-				threshold = prior.AutoCompactThreshold
-			}
-		}
-	}
-	if !maps.Equal(target.Config, p.Request.AgentConfig) {
-		window, threshold = 0, 0
-	}
-	attachments := make([]Attachment, len(p.Request.Attachments))
-	for i, a := range p.Request.Attachments {
-		attachments[i] = Attachment{Name: a.Name, MimeType: a.MimeType, Reference: a.Reference, Kind: a.Kind, Size: a.Size}
-	}
-	return ComputeBudget(BudgetInput{TokenCap: s.options.TokenCap, UserText: p.Request.UserText, Attachments: attachments, Used: used, Window: window, CompactionThreshold: threshold, Measured: target.UsageMeasured, Inline: !p.Request.NativePlanned || p.ManualText != nil, MaxPromptBytes: s.options.MaxPromptBytes, MaxPromptWireBytes: s.options.MaxPromptWireBytes}), nil
-}
-
-func previewCoverage(p conversation.Preview) Coverage {
-	return Coverage{SourceLocation: p.Request.SourceLocation, HandoffID: p.ID, ConversationID: p.SourceConversationID, FromRun: p.FromRunOrdinal, ToRun: p.ToRunOrdinal, SourcePosition: p.SourcePosition, HistoryOrigin: p.HistoryOrigin, ReconcileRequired: p.ReconcileRequired}
-}
-
-func (s *Service) Get(ctx context.Context, id string) (conversation.Preview, error) {
-	if !s.options.Conversations.HistoryEnabled() {
-		return conversation.Preview{}, conversation.ErrUnavailable
-	}
-	p, err := s.options.Conversations.Preview(ctx, id)
-	if err != nil || p.State == "preparing" {
-		return p, err
-	}
-	// A saved conclusion is stale when its target constraints change. Keep the
-	// original budget and edited text visible until the user regenerates it.
-	current, err := s.budget(ctx, p)
+	}()
+	doc, err := s.options.NativeHistory.ScopeDocument(ctx, scope.ID)
 	if err != nil {
-		return p, err
+		return empty, err
 	}
-	p.HistoryToolAvailable = s.historyToolAvailable(ctx, p)
-	saved := p.Budget
-	if current.Window != saved.Window || current.NativeUsed != saved.NativeUsed || current.Current != saved.Current || current.Reserve != saved.Reserve || current.History != saved.History || current.Source != saved.Source {
-		p.Stale = true
+	projection, err := s.options.HistoryProjection.ProjectDocument(ctx, doc, in.UserText, s.options.HistoryProjection.Config(), false)
+	if err != nil {
+		return empty, err
 	}
-	if p.Request.TargetProviderThreadID != "" {
-		target, err := s.options.Conversations.ProviderThread(ctx, p.TargetProviderThreadID)
-		if err != nil {
-			return p, err
+	budget, err := s.targetBudget(ctx, in.TargetSessionID, in.UserText)
+	if err != nil {
+		return empty, err
+	}
+	header := fmt.Sprintf("Historical reference. Source agent=%q session=%q branch=%q cwd=%q. Frozen scope: %s. Source gaps: %d. Exact text: thread_read with snapshotId=%s.\n", doc.Source.Agent, doc.Source.NativeID, doc.Source.Branch, rec.Cwd, scope.ID, len(doc.Gaps), scope.ID)
+	available := max(int64(0), budget.History-int64(len(header))-512)
+	var selected []string
+	omitted := len(projection.Projection.Omissions)
+	segments := projection.Projection.Segments
+	// Recent complete segments are selected within the configured history budget.
+	for i := len(segments) - 1; i >= 0; i-- {
+		item := fmt.Sprintf("[role=%s id=%s tool=%s]\n%s\n", segments[i].Role, segments[i].SourceID, segments[i].ToolName, segments[i].Text)
+		cost := jsonBytes(item)
+		if cost > available {
+			omitted++
+			continue
 		}
-		// Both the original baseline and the explicitly requested final values
-		// are expected. Other changes invalidate the draft even when an unknown
-		// model window produces the same conservative budget totals.
-		if !maps.Equal(target.Config, p.Request.TargetConfigBaseline) && !maps.Equal(target.Config, p.Request.AgentConfig) {
-			p.Stale = true
-		}
+		available -= cost
+		selected = append(selected, item)
 	}
-	config, err := s.options.Launch.Get(p.Request.ConfigID)
-	if errors.Is(err, launch.ErrNotFound) {
-		p.Stale = true
-		return p, nil
+	var history strings.Builder
+	history.WriteString(header)
+	fmt.Fprintf(&history, "Included: %d; omissions: %d.\n", len(selected), omitted)
+	for i := len(selected) - 1; i >= 0; i-- {
+		history.WriteString(selected[i])
 	}
-	if err != nil {
-		return p, err
+	text := history.String() + "\nCurrent user task:\n" + in.UserText
+	if err := hybrid.ValidatePromptText(text, 0); err != nil {
+		return empty, err
 	}
-	fingerprint, err := configFingerprint(config)
-	if err != nil {
-		return p, err
-	}
-	if fingerprint != p.Request.ConfigFingerprint {
-		p.Stale = true
-	}
-	return p, nil
-}
-
-func (s *Service) Edit(ctx context.Context, id string, revision int64, text string) (conversation.Preview, error) {
-	return s.EditDraft(ctx, id, revision, &text, nil)
-}
-
-func (s *Service) EditDraft(ctx context.Context, id string, revision int64, text, userText *string) (conversation.Preview, error) {
-	if revision < 1 || (text == nil && userText == nil) {
-		return conversation.Preview{}, conversation.ErrInvalid
-	}
-	for _, value := range []*string{text, userText} {
-		if value != nil && (len(*value) > 1<<20 || !utf8.ValidString(*value)) {
-			return conversation.Preview{}, conversation.ErrInvalid
-		}
-	}
-	p, err := s.Get(ctx, id)
-	if err != nil {
-		return p, err
-	}
-	if p.Revision != revision {
-		return p, conversation.ErrConflict
-	}
-	edited := p
-	if text != nil {
-		edited.ManualText = text
-	}
-	if userText != nil {
-		edited.Request.UserText = *userText
-	}
-	budget, err := s.budget(ctx, edited)
-	if err != nil {
-		return p, err
-	}
-	budget.Used = p.Budget.Used
-	if edited.ManualText != nil {
-		coverage := coverageText(previewCoverage(p), 0, p.SelectedCount+p.OmittedCount)
-		budget.Used = jsonBytes(coverage+"\n\nManual context:\n"+*edited.ManualText) + 256
-	}
+	budget.Used = jsonBytes(history.String())
 	budget.OverBudget = budget.OverBudget || budget.Used > budget.History
-	updated, err := s.options.Conversations.EditDraft(ctx, id, revision, text, userText, conversation.PreviewBudget(budget))
+	if budget.OverBudget {
+		return empty, ErrBudget
+	}
+	if err := s.options.NativeHistory.ReserveScopeBytes(scope.ID, len(text)+len(in.UserText)+metadata+2048); err != nil {
+		return empty, err
+	}
+	in.AgentConfig = maps.Clone(in.AgentConfig)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanLocked()
+	if s.closed {
+		return empty, ErrUnavailable
+	}
+	if len(s.previews) >= maxPreviews {
+		return empty, ErrLimit
+	}
+	now := s.now()
+	id := s.instance + "_" + rand.Text()
+	p := &Preview{ID: id, InstanceID: s.instance, OperationID: s.instance + "_" + rand.Text(), SourceSessionID: source, SnapshotID: scope.ID, Request: in, Text: text, UserText: in.UserText, CreatedAt: now, ExpiresAt: scope.ExpiresAt, SelectedCount: len(selected), OmittedCount: omitted, GapCount: len(doc.Gaps), Budget: budget, sourceIdentity: runtimeIdentity(rec), targetIdentity: targetIdentity, configHash: fingerprint}
+	s.previews[id] = p
+	saved = true
+	return clonePreview(p), nil
+}
+func (s *Service) Get(ctx context.Context, id string) (Preview, error) {
+	if err := ctx.Err(); err != nil {
+		return Preview{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanLocked()
+	p := s.previews[id]
+	if p == nil || !s.now().Before(p.ExpiresAt) {
+		return Preview{}, ErrExpired
+	}
+	return clonePreview(p), nil
+}
+func (s *Service) Deliver(ctx context.Context, previewID, operationID string) (Operation, error) {
+	if err := ctx.Err(); err != nil {
+		return Operation{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanLocked()
+	if s.closed {
+		return Operation{}, ErrUnavailable
+	}
+	if existing := s.operations[operationID]; existing != nil {
+		if existing.operation.PreviewID != previewID {
+			return Operation{}, ErrConflict
+		}
+		return existing.operation, nil
+	}
+	p := s.previews[previewID]
+	if p == nil || !s.now().Before(p.ExpiresAt) {
+		return Operation{}, ErrExpired
+	}
+	if p.consumed || operationID != p.OperationID {
+		return Operation{}, ErrConflict
+	}
+	if len(s.operations) >= maxOperations {
+		return Operation{}, ErrLimit
+	}
+	if err := s.options.NativeHistory.PinScope(p.SnapshotID); err != nil {
+		return Operation{}, ErrExpired
+	}
+	p.consumed = true
+	ctx, cancel := context.WithCancel(s.ctx)
+	e := &operationEntry{operation: Operation{ID: operationID, PreviewID: p.ID, InstanceID: s.instance, State: "preparing", TargetSessionID: p.Request.TargetSessionID, StartedAt: s.now()}, preview: p, cancel: cancel}
+	s.operations[operationID] = e
+	s.workers.Add(1)
+	go func() { defer s.workers.Done(); defer cancel(); s.send(ctx, e) }()
+	return e.operation, nil
+}
+func (s *Service) Delivery(ctx context.Context, id string) (Operation, error) {
+	if err := ctx.Err(); err != nil {
+		return Operation{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanLocked()
+	e := s.operations[id]
+	if e == nil {
+		return Operation{}, ErrExpired
+	}
+	return e.operation, nil
+}
+func (s *Service) Cancel(ctx context.Context, id string) (Operation, error) {
+	if err := ctx.Err(); err != nil {
+		return Operation{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e := s.operations[id]
+	if e == nil {
+		return Operation{}, ErrExpired
+	}
+	if e.operation.FinishedAt != nil {
+		return e.operation, nil
+	}
+	e.cancel()
+	if e.operation.State == "preparing" {
+		s.finishLocked(e, "failed", "已取消")
+	}
+	return e.operation, nil
+}
+func (s *Service) finishLocked(e *operationEntry, state, message string) {
+	if e.operation.FinishedAt != nil {
+		return
+	}
+	if e.preview != nil {
+		s.options.NativeHistory.UnpinScope(e.preview.SnapshotID)
+	}
+	now := s.now()
+	e.operation.State = state
+	e.operation.Error = message
+	e.operation.FinishedAt = &now
+	e.preview = nil
+}
+func (s *Service) finish(e *operationEntry, state string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	message := ""
 	if err != nil {
-		return updated, err
+		message = err.Error()
 	}
-	return s.Get(ctx, updated.ID)
+	s.finishLocked(e, state, message)
 }
 
-// InlineContext adds immutable attribution around an edited draft. Native
-// injection remains disabled for manual_context even when an adapter supports it.
-func InlineContext(p conversation.Preview) string {
-	if p.ManualText == nil {
-		return p.RenderedText
+func (s *Service) HistoryAllowed(ctx context.Context, runtime, scope string) error {
+	if _, err := s.options.NativeHistory.Scope(scope); err != nil {
+		return ErrExpired
 	}
-	return coverageText(previewCoverage(p), 0, p.OmittedCount) + "\n\nManual context:\n" + *p.ManualText
-}
-
-func InlinePrompt(p conversation.Preview) string {
-	return strings.TrimSuffix(InlineContext(p), "\n") + "\n\nUser message:\n" + p.Request.UserText
-}
-
-func (s *Service) historyToolAvailable(ctx context.Context, p conversation.Preview) bool {
-	return s.options.Hybrid != nil && s.options.Hybrid.HistoryReaderAvailable(ctx, conversation.ReaderScope{ConversationID: p.SourceConversationID, HandoffID: p.ID})
-}
-
-// Reject unavailable Git selection before reservations, provider quiescence, or
-// any other side effect. Direct cwd chat does not require the workspace feature.
-func (s *Service) checkLocation(location conversation.PreviewLocation) error {
-	if s.options.Locations == nil && (location.RepositoryID != "" || location.WorktreeID != "" || location.NewWorktreeBranch != "" || location.NewWorktreeBase != "") {
-		return conversation.ErrUnavailable
+	rec, err := s.options.Hybrid.Record(runtime)
+	if err != nil {
+		return err
 	}
-	return nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	binding, ok := s.history[runtime+"_"+scope]
+	if !ok || binding.identity != runtimeIdentity(rec) {
+		return ErrConflict
+	}
+	return ctx.Err()
+}
+
+func (s *Service) targetBudget(ctx context.Context, target, task string) (Budget, error) {
+	input := BudgetInput{TokenCap: s.options.TokenCap, UserText: task, Inline: true, MaxPromptBytes: s.options.MaxPromptBytes, MaxPromptWireBytes: s.options.MaxPromptWireBytes}
+	if target != "" {
+		if source, ok := s.options.Hybrid.(interface {
+			ContextUsage(context.Context, string) (*hybrid.Usage, error)
+		}); ok {
+			usage, err := source.ContextUsage(ctx, target)
+			if err != nil {
+				return Budget{}, err
+			}
+			if usage != nil && usage.Size > 0 {
+				input.Used = usage.Used
+				input.Window = usage.Size
+				input.Measured = true
+			}
+		}
+	}
+	return ComputeBudget(input), nil
 }

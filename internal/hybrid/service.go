@@ -22,7 +22,6 @@ import (
 
 	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -40,6 +39,7 @@ const (
 
 // Options configure a Service. Only cmd/ builds them.
 type Options struct {
+	HistoryReader func(context.Context, string) []acp.MCPServer
 	// Agents is the selected runtime registry. Nil enables no agents.
 	Agents *agentprofile.Registry
 	// NativeRoot resolves the native history directory from the actual launch environment.
@@ -48,15 +48,11 @@ type Options struct {
 	// Only cmd assembles descriptors; nil leaves library-created sessions unchanged.
 	MCPServers func(context.Context) []acp.MCPServer
 	// HistoryReader is assembled by cmd; nil disables the optional MCP tool.
-	HistoryReader func(context.Context, conversation.ReaderScope) []acp.MCPServer
 	// DispatchCheckpoint records source-neutral continuity after acknowledgement.
-	DispatchCheckpoint func(context.Context, string) error
 
 	// StateDir holds hybrid-sessions.json.
 	StateDir string
-	// Conversations is explicitly assembled by cmd; nil disables durable identity.
-	Conversations *conversation.Service
-	Manager       *session.Manager
+	Manager  *session.Manager
 	// ScrollbackBytes bounds each session's chat event log, like a
 	// terminal's scrollback (config scrollback_bytes).
 	ScrollbackBytes int
@@ -95,14 +91,11 @@ var defaultTiming = timing{
 
 // Service owns the hybrid sessions of one server.
 type Service struct {
-	mcpServers         func(context.Context) []acp.MCPServer
-	historyReader      func(context.Context, conversation.ReaderScope) []acp.MCPServer
-	nativeRoot         func(agent string, env map[string]string) string
-	conversations      *conversation.Service
-	conversationError  error
-	manager            *session.Manager
-	records            *records
-	dispatchCheckpoint func(context.Context, string) error
+	historyReader func(context.Context, string) []acp.MCPServer
+	mcpServers    func(context.Context) []acp.MCPServer
+	nativeRoot    func(agent string, env map[string]string) string
+	manager       *session.Manager
+	records       *records
 	// options remembers each launch config's agent options for display
 	// before a session starts (agent-options.json).
 	options    *agentOptions
@@ -133,7 +126,7 @@ type Service struct {
 	starting sync.WaitGroup
 	// recovering holds the record IDs a resume or removal is working on.
 	recovering map[string]bool
-	// writerClaims serializes writer admission for a durable Conversation.
+	// writerClaims serializes lifecycle changes for each runtime identity.
 	writerClaims map[string]writerClaim
 	// restarted holds the sessions this start found active and interrupted.
 	restarted []string
@@ -157,22 +150,18 @@ func New(o Options) *Service {
 	}
 	userHome, _ := os.UserHomeDir()
 	s := &Service{
-		mcpServers: o.MCPServers, historyReader: o.HistoryReader, conversations: o.Conversations, manager: o.Manager, records: openRecords(o.StateDir), options: openAgentOptions(o.StateDir), capacity: capacity, version: o.Version, log: log,
+		mcpServers: o.MCPServers, historyReader: o.HistoryReader, manager: o.Manager, records: openRecords(o.StateDir), options: openAgentOptions(o.StateDir), capacity: capacity, version: o.Version, log: log,
 		uploads: o.Uploads, userHome: userHome, agents: o.Agents,
-		nativeRoot:         o.NativeRoot,
-		dispatchCheckpoint: o.DispatchCheckpoint,
-		metadata:           make(map[string]*Metadata),
-		timing:             defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
+		nativeRoot: o.NativeRoot,
+		metadata:   make(map[string]*Metadata),
+		timing:     defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
 		recovering: make(map[string]bool),
 	}
 	restarted, err := s.records.recoverAfterRestart(time.Now())
 	if err != nil {
 		log.Warn("hybrid sessions unavailable", "error", err)
 	}
-	s.conversationError = s.migrateConversations()
-	if s.conversationError != nil {
-		log.Warn("conversation identity migration unavailable")
-	}
+
 	s.restarted = restarted
 	s.records.setLogger(log)
 	s.options.setLogger(log)
@@ -183,9 +172,7 @@ func New(o Options) *Service {
 
 // Unavailable reports why hybrid sessions cannot be created, or nil.
 func (s *Service) Unavailable() error {
-	if s.conversationError != nil {
-		return fmt.Errorf("%w: conversation identity unavailable", ErrUnavailable)
-	}
+
 	return s.records.unavailable()
 }
 

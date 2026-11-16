@@ -20,7 +20,7 @@ agent 产出的 README、设计文档与 OpenSpec 产物都是 Markdown，用户
 
 ### Modified Capabilities
 
-- `chat-view`：时间线中 agent 消息的 Markdown 渲染不再表述为“沿用代码预览的清洗规则”，而是明确保持原有资源边界，避免文件预览放宽的能力（图片、锚点、工作区链接）扩散到聊天消息。
+- `chat-view`：时间线中 agent 消息的 Markdown 渲染保持原有资源边界，避免文件预览放宽的能力（图片、锚点、工作区链接）扩散到聊天消息。
 
 ## Impact
 

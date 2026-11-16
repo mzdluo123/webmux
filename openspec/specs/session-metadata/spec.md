@@ -10,11 +10,10 @@
 
 `GET /api/sessions/{id}/details` SHALL 返回 `SessionDetails`，把分散在多个接口中的会话元数据集中到一处。各字段如下：
 
-- `session`：`SessionInfo`。
+- `session`：`SessionInfo`，其中的 `state`、`views`、`view`、`transition`、`agent` 与 `archive` 给出视图、agent 与归档信息。`SessionDetails` SHALL NOT 另含 `hybrid` 字段。
 - `link`：不含 Token 的本机会话链接，服务不知道本机链接时为 `null`。
 - `repository`：`{id, name, path}`；`worktree`：`{id, branch, path, main}`。会话没有工作区关联时，两者都为 `null`。
-- `launchConfig`：`{id, name, icon, hybrid}`。会话不是用启动配置创建的，或该配置已被删除时为 `null`；删除时另设 `launchConfigMissing: true`。
-- `hybrid`：混合会话的 `HybridRecord`，包括 agent、所在端、agent 会话 ID 与状态；其他会话为 `null`。
+- `launchConfig`：`{id, name, icon, chat}`。会话不是用启动配置创建的，或该配置已被删除时为 `null`；删除时另设 `launchConfigMissing: true`。
 - `artifactsDir`：临时文件夹已存在时为其绝对路径，否则为 `null`。该接口 SHALL NOT 创建文件夹。
 - `forwards`：来源为该会话的端口转发。
 - `parentId` 与 `labels`：同 `SessionInfo`。`children`：`parentId` 为该会话的会话 ID 列表，按创建时间排序。
@@ -28,7 +27,7 @@
 #### Scenario: agent 了解自己的处境
 
 - **WHEN** 在 Claude Code 混合会话中，agent 请求自己会话的详情
-- **THEN** 响应包含仓库与 worktree 分支、启动配置名称“Claude Code”、`hybrid.side` 和 agent 会话 ID，不包含任何环境变量值
+- **THEN** 响应包含仓库与 worktree 分支、启动配置名称“Claude Code”、`session.view` 和 `session.agent.sessionId`，不包含 `hybrid` 字段与任何环境变量值
 
 #### Scenario: 不创建临时文件夹
 
@@ -60,7 +59,7 @@
 
 从一个会话内的进程经本机 API 创建的会话，SHALL 自动记录 `parentId` 为调用者所在的会话。
 
-- 适用的创建入口：`POST /api/sessions` 与 `POST /api/quick-starts`。服务端 SHALL 用套接字对端 PID 判断调用者所在的会话：
+- 适用的创建入口：`POST /api/sessions`（包括带 `newWorktree` 或 `prompt` 的创建）。服务端 SHALL 用套接字对端 PID 判断调用者所在的会话：
   Linux 优先读取进程环境中的 `WEBMUX_SESSION_ID`，再沿进程树查找会话主进程；macOS 只沿进程树查找。
 - 经 TCP（浏览器）创建，或调用者不在任何会话内时，SHALL 不设置 `parentId`。请求体 SHALL NOT 能指定或伪造 `parentId`。
 - `parentId` SHALL 出现在 `SessionInfo` 中（为空时省略），经 `/ws/sessions` 实时同步。父会话被移除后，子会话的 `parentId` 保持不变。
@@ -84,7 +83,7 @@
 - 创建请求 SHALL 接受可选的 `labels` 对象；`PATCH /api/sessions/{id}/labels` SHALL 接受 `{set, remove}`，在一次操作中原子地完成设置与删除，并返回 `SessionInfo`。
 - `labels` SHALL 出现在 `SessionInfo` 中（为空时省略），经 `/ws/sessions` 实时同步。标签只保存在内存中，与会话同生命周期。
 - CLI：
-  - `webmux run --label`、`webmux chat new --label` 在创建时设置；
+  - `webmux run --label` 在创建时设置（包括 `run --new-worktree`）；
   - `webmux label SESSION KEY=VALUE... KEY-...` 设置或删除（以 `-` 结尾表示删除）；
   - `webmux ls` 新增 `--label KEY=VALUE`（可重复，全部满足）、`--label KEY`（存在即可）、`--parent SESSION` 与 `--status STATE` 筛选，
     `--json` 输出筛选后的数组。

@@ -16,8 +16,8 @@ func TestGitConfirmationSessionsRetainFeatureProjection(t *testing.T) {
 	infos := []session.Info{{ID: "runtime", Cwd: "/worktree", Cmd: []string{"agent"}, Status: session.StatusIdle}}
 	providerID := "provider-session"
 	metadata := &hybrid.Metadata{
-		ConversationID: "conversation", ProviderThreadID: "thread", AgentSessionID: &providerID,
-		Side: "acp", State: "active", Agent: "omp", AgentTitle: "Oh My Pi", AgentIcon: "pi", Work: "Read file",
+		AgentSessionID: &providerID,
+		Side:           "acp", State: "active", Agent: "omp", AgentTitle: "Oh My Pi", AgentIcon: "pi", Work: "Read file",
 	}
 	association := workspace.Association{RepositoryID: "repository", WorktreeID: "worktree", WorktreePath: "/worktree"}
 	tests := []struct {
@@ -80,9 +80,7 @@ func TestGitConfirmationSessionsRetainFeatureProjection(t *testing.T) {
 			if got.Agent == nil || got.Agent.Name != "omp" || got.Agent.Work != "Read file" || got.Agent.SessionID == nil || *got.Agent.SessionID != providerID {
 				t.Fatalf("confirmation lost agent metadata: %s", data)
 			}
-			if got.ConversationID != "conversation" || got.ProviderThreadID != "thread" {
-				t.Fatalf("confirmation lost conversation identity: %s", data)
-			}
+
 		})
 	}
 }

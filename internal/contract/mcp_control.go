@@ -83,6 +83,7 @@ type MCPSessionGetRequest struct {
 }
 
 type MCPSessionReadRequest struct {
+	SnapshotID      string `json:"snapshotId,omitempty"`
 	SessionID       string `json:"sessionId"`
 	View            string `json:"view,omitempty"`
 	AfterPosition   string `json:"afterPosition,omitempty"`
@@ -95,23 +96,11 @@ type MCPSessionReadRequest struct {
 	MaxBytes        int    `json:"maxBytes,omitempty"`
 }
 
-type MCPActivityItemResult struct {
-	View         string               `json:"view"`
-	Item         ConversationActivity `json:"item"`
-	Done         bool                 `json:"done"`
-	Instructions string               `json:"instructions"`
-}
-
 type MCPActivityPageResult struct {
-	View              string                 `json:"view"`
-	ConversationID    string                 `json:"conversationId"`
-	Items             []ConversationActivity `json:"items"`
-	NextPosition      string                 `json:"nextPosition"`
-	Done              bool                   `json:"done"`
-	Gaps              []ConversationGap      `json:"gaps"`
-	HistoryOrigin     string                 `json:"historyOrigin"`
-	ReconcileRequired bool                   `json:"reconcileRequired"`
-	Instructions      string                 `json:"instructions"`
+	View string `json:"view"`
+	NativeResult
+	Instructions string `json:"instructions"`
+	Done         bool   `json:"done"`
 }
 
 type MCPTerminalPageResult struct {

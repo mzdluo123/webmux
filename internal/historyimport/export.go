@@ -2,83 +2,9 @@ package historyimport
 
 import (
 	"context"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
-	"unicode/utf8"
-
 	"github.com/rainchan/webmux/internal/historysource"
+	"unicode/utf8"
 )
-
-func retainExport(ctx context.Context, doc historysource.Document) (historysource.Export, error) {
-	out := historysource.Export{Records: doc.Records, Attachments: make(map[string][]byte)}
-	total := 0
-	for _, record := range doc.Records {
-		total += len(record.Text)
-		if total > historysource.MaxBytes {
-			return out, historysource.ErrLimit
-		}
-		for _, attachment := range record.Attachments {
-			// An omitted native body is already an explicit reader gap, not a
-			// recoverable attachment. Do not invent bytes or block text forks.
-			if attachment.Reference == "" {
-				continue
-			}
-			if _, ok := out.Attachments[attachment.Reference]; ok {
-				continue
-			}
-			path := strings.TrimPrefix(attachment.Reference, "file://")
-			if !filepath.IsAbs(path) || strings.Contains(path, "://") {
-				return out, historysource.ErrUnavailable
-			}
-			data, err := captureAttachment(ctx, path, historysource.MaxBytes-total)
-			if err != nil {
-				return out, err
-			}
-			total += len(data)
-			out.Attachments[attachment.Reference] = data
-		}
-	}
-	return out, nil
-}
-
-func captureAttachment(ctx context.Context, path string, remaining int) ([]byte, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	before, err := os.Lstat(path)
-	if err != nil || !before.Mode().IsRegular() {
-		return nil, historysource.ErrUnavailable
-	}
-	if before.Size() > int64(remaining) {
-		return nil, historysource.ErrLimit
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, historysource.ErrUnavailable
-	}
-	defer func() { _ = f.Close() }()
-	info, err := f.Stat()
-	if err != nil || !os.SameFile(before, info) {
-		return nil, historysource.ErrChanged
-	}
-	data, err := io.ReadAll(io.LimitReader(f, int64(remaining)+1))
-	if err != nil {
-		return nil, historysource.ErrUnavailable
-	}
-	if len(data) > remaining {
-		return nil, historysource.ErrLimit
-	}
-	after, err := os.Lstat(path)
-	if err != nil || !os.SameFile(info, after) || after.Size() != int64(len(data)) || !info.ModTime().Equal(after.ModTime()) {
-		return nil, historysource.ErrChanged
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return data, nil
-}
 
 // Page bounds output independently from parser and projection budgets. Text
 // offsets are UTF-8 byte boundaries; continuation never drops a partial rune.
@@ -96,15 +22,13 @@ func (s *Service) Page(ctx context.Context, id string, req historysource.PageReq
 	if req.MaxBytes < utf8.UTFMax {
 		return out, historysource.ErrLimit
 	}
-	if !s.enabled() {
-		return out, historysource.ErrUnavailable
-	}
-	data, err := s.store.Frozen(ctx, id)
+
+	scope, err := s.Scope(id)
 	if err != nil {
 		return out, err
 	}
-	out.Snapshot = data.Snapshot
-	doc, err := s.document(ctx, data)
+	out.Snapshot = scope.Snapshot
+	doc, err := s.ScopeDocument(ctx, id)
 	if err != nil {
 		return out, err
 	}
@@ -118,6 +42,11 @@ func (s *Service) Page(ctx context.Context, id string, req historysource.PageReq
 			return out, err
 		}
 		record := doc.Records[out.Next]
+		if !record.Exportable() {
+			out.Next++
+			req.TextOffset = 0
+			continue
+		}
 		record.ByteLength = int64(len(record.Text))
 		start := req.TextOffset
 		if start > len(record.Text) || (start < len(record.Text) && !utf8.RuneStart(record.Text[start])) {

@@ -9,6 +9,7 @@ import (
 
 var (
 	ErrUnavailable = errors.New("native history source unavailable")
+	ErrExpired     = errors.New("native history snapshot expired; create a new preview")
 	ErrChanged     = errors.New("native history source changed")
 	ErrFormat      = errors.New("unsupported native history format")
 	ErrLimit       = errors.New("native history resource limit")
@@ -24,7 +25,7 @@ const (
 // Source identifies a native session, never an inferred match by title or cwd.
 // Branch is an explicit native leaf when the format contains a message graph.
 type Source struct {
-	Agent, Path, NativeID, Branch, ProviderThreadID string
+	Agent, Path, NativeID, Branch string
 }
 
 // Request.Cursor is an opaque adapter-owned frozen boundary. Empty selects the
@@ -59,7 +60,6 @@ type Document struct {
 	FormatVersion, ParserVersion, Generation, Fingerprint, Cursor string
 	Records                                                       []Record
 	RecordRefs                                                    []RecordRef
-	References                                                    []ContextReference
 	Gaps                                                          []Gap
 	Pending                                                       bool
 }

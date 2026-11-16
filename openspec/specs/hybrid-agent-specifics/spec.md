@@ -50,7 +50,7 @@ Claude Code 2.1.316 的 `--permission-mode` 接受 `acceptEdits`、`auto`、`byp
 #### Scenario: Auto 被适配器回退
 
 - **WHEN** argv 请求 `--permission-mode auto`，当前模型不支持 Auto
-- **THEN** 界面显示适配器实际回退的 `acceptEdits` 与相应通知，而不是仍显示 `auto`
+- **THEN** 界面显示适配器实际回退的 `acceptEdits` 与相应通知
 
 #### Scenario: 当前 provider 接受 Auto 与 Bypass
 
@@ -150,7 +150,7 @@ SHALL NOT 推导 `mode`，并 SHALL 在聊天视图列为“以下参数在聊�
 #### Scenario: 预置配置的批准模式
 
 - **WHEN** 预置的 Codex CLI 混合配置从终端开始，发出首条消息后切到聊天
-- **THEN** 聊天端的 `mode` 为 `agent-full-access`，而不是适配器默认的 `agent`
+- **THEN** 聊天端的 `mode` 为 `agent-full-access`
 
 ### Requirement: Codex 的聊天端命令
 

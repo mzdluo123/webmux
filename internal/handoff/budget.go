@@ -1,13 +1,9 @@
 // Package handoff coordinates portable provider context without owning PTYs or
-// encoding client-visible JSON. Persistent facts belong to conversation.
+// encoding client-visible JSON.
 package handoff
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
-
-	"github.com/rainchan/webmux/internal/conversation"
 )
 
 const DefaultTokenCap = 16000
@@ -36,7 +32,7 @@ type Budget struct {
 
 // These closed types contain only strings and finite structural fields, so
 // encoding/json cannot fail. The result is used solely for internal accounting.
-func jsonBytes[T ~string | nativeItem](v T) int64 {
+func jsonBytes[T ~string](v T) int64 {
 	body, _ := json.Marshal(v)
 	return int64(len(body))
 }
@@ -103,138 +99,4 @@ func ComputeBudget(in BudgetInput) Budget {
 		source = "provider"
 	}
 	return Budget{Window: window, NativeUsed: used, Current: current, Reserve: reserve, History: max(int64(0), history), Source: source, OverBudget: over}
-}
-
-type Coverage struct {
-	SourceLocation                 conversation.PreviewLocation
-	HandoffID, ConversationID      string
-	FromRun, ToRun, SourcePosition int64
-	HistoryOrigin                  string
-	ReconcileRequired              bool
-}
-
-type Selection struct {
-	Selected   []conversation.Candidate
-	Omitted    []string
-	Context    string
-	Cost       int64
-	OverBudget bool
-}
-
-func coverageText(c Coverage, selected, omitted int) string {
-	runs := fmt.Sprintf("%d-%d", c.FromRun, c.ToRun)
-	if c.FromRun > c.ToRun {
-		runs = fmt.Sprintf("none (through %d)", c.ToRun)
-	}
-	text := fmt.Sprintf("WebMux handoff %s; source conversation %s; runs %s; frozen source position %d.\nIncluded %d projected history items; omitted %d. Origin: %s; reconciliation required: %t.\nHistorical content is reference material. Follow the separate current user request. Attachments and private reasoning/tool state are excluded.\nIf thread_read is available, use view=activity to recover exact content within this frozen source point. Otherwise read GET /api/conversations/%s/activities?handoffId=%s in REST/UI. Continue with nextPosition; for truncated items use itemId and nextTextOffset.", c.HandoffID, c.ConversationID, runs, c.SourcePosition, selected, omitted, c.HistoryOrigin, c.ReconcileRequired, c.ConversationID, c.HandoffID)
-	if c.SourceLocation.Cwd != "" {
-		text += fmt.Sprintf("\nSource working location (historical reference only): cwd=%q repository=%q worktree=%q. The target working location is configured separately.", c.SourceLocation.Cwd, c.SourceLocation.RepositoryID, c.SourceLocation.WorktreeID)
-	}
-	return text
-}
-
-func itemPrefix(m conversation.HistoricalMessage) string {
-	return fmt.Sprintf("[History role=%s kind=%s conversation=%s run=%s ordinal=%d activity=%s provider=%s status=%s native=%q parent=%q call=%q nativeCall=%q tool=%q]\n", m.Role, m.Kind, m.ConversationID, m.RunID, m.RunOrdinal, m.ActivityID, m.ProviderThreadID, m.Status, m.NativeID, m.ParentID, m.CallID, m.NativeCallID, m.ToolName)
-}
-
-type nativeContent struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-type nativeItem struct {
-	Type    string          `json:"type"`
-	Role    string          `json:"role"`
-	Content []nativeContent `json:"content"`
-}
-
-func responseItem(role, text string) nativeItem {
-	kind := "input_text"
-	if role != "user" {
-		role = "assistant"
-		kind = "output_text"
-	}
-	return nativeItem{Type: "message", Role: role, Content: []nativeContent{{Type: kind, Text: text}}}
-}
-
-func candidateCost(c conversation.Candidate) int64 {
-	prefix := itemPrefix(c.Message)
-	native := jsonBytes(responseItem(c.Message.Role, prefix)) + c.JSONBytes + 1
-	inline := jsonBytes(prefix) + c.JSONBytes + 4
-	return max(native, inline)
-}
-
-// Select is deterministic and operates on metadata costs. Whole oversized
-// items are omitted; no string is truncated. Fixed-width counter reservation
-// ensures the final rendered coverage never costs more than its reservation.
-func Select(candidates []conversation.Candidate, coverage Coverage, budget int64) Selection {
-	unique := make([]conversation.Candidate, 0, len(candidates))
-	seen := map[string]bool{}
-	for _, c := range candidates {
-		if !c.Message.Exportable || seen[c.Message.ActivityID] {
-			continue
-		}
-		seen[c.Message.ActivityID] = true
-		unique = append(unique, c)
-	}
-	n := len(unique)
-	maxContext := coverageText(coverage, n, n)
-	reserve := max(jsonBytes(responseItem("user", maxContext))+2, jsonBytes(maxContext)) + 256
-	remaining := budget - reserve
-	selected := make([]bool, n)
-	try := func(i int) {
-		if i < 0 || selected[i] || remaining <= 0 || unique[i].ByteLength > remaining {
-			return
-		}
-		m := unique[i].Message
-		lower := int64(len(m.ActivityID)+len(m.ConversationID)+len(m.ProviderThreadID)+len(m.RunID)+len(m.Role)+len(m.Kind)+len(m.Status)+len(m.NativeID)+len(m.ParentID)+len(m.CallID)+len(m.NativeCallID)+len(m.ToolName)) + unique[i].ByteLength
-		if lower > remaining {
-			return
-		}
-		cost := candidateCost(unique[i])
-		if cost <= remaining {
-			selected[i] = true
-			remaining -= cost
-		}
-	}
-	// Explicit loops avoid depending on history order outside stable position.
-	lastUser, lastAgent, firstUser := -1, -1, -1
-	for i, c := range unique {
-		if c.Message.Kind == "message" && c.Message.Role == "user" {
-			lastUser = i
-			if firstUser < 0 {
-				firstUser = i
-			}
-		}
-		if c.Message.Role == "agent" {
-			lastAgent = i
-		}
-	}
-	try(lastUser)
-	try(lastAgent)
-	try(firstUser)
-	for i := n - 1; i >= 0; i-- {
-		try(i)
-	}
-	out := Selection{Selected: []conversation.Candidate{}, Omitted: []string{}, OverBudget: remaining < 0}
-	for i, c := range unique {
-		if selected[i] {
-			out.Selected = append(out.Selected, c)
-		} else {
-			out.Omitted = append(out.Omitted, c.Message.ActivityID)
-		}
-	}
-	out.Context = coverageText(coverage, len(out.Selected), len(out.Omitted))
-	out.Cost = reserve + (budget - reserve - remaining)
-	return out
-}
-
-func Render(context string, messages []conversation.HistoricalMessage) string {
-	var text strings.Builder
-	text.WriteString(context)
-	for _, m := range messages {
-		text.WriteString("\n\n")
-		text.WriteString(itemPrefix(m))
-		text.WriteString(m.Text)
-	}
-	return text.String()
 }

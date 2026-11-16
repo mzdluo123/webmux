@@ -6,7 +6,7 @@ WebMux 以启动服务的系统用户身份执行任意命令，**等同于把�
 
 - 默认仅监听本机回环 `127.0.0.1:7681`；需要局域网或 Tailscale / WireGuard 等可信网络直连时可设为 `0.0.0.0:7681`（或在 Windows 托盘中勾选“允许局域网访问”），并用防火墙限制可访问的接口。
 - 设置随机的共享 `token`。未显式指定 `--config` 且默认配置不存在时，首次启动会生成 0600 配置文件和持久化的 256 位 Token；未启用隧道时不会在启动输出中打印该 Token，可用 `webmux status --json --reveal-token` 查看。启用隧道时仍会输出带 Token 的链接和二维码，详见下文；日志中的持久化 Token 不会因重启失效。若现有配置的 token 为空且监听地址不是 loopback（例如 `0.0.0.0:7681`），则每次启动临时生成 256 位随机 Token，终端打印带 `#token=` 的本地链接；以 systemd / launchd 运行时该链接会写入 journal 或日志文件，且重启后更换。只有仅监听 loopback 且未启用隧道时，空 token 才表示不认证。
-- **不要把 WebMux 的普通 HTTP 监听直接暴露到公网。** 确需公网访问时，使用受控 Cloudflare Tunnel、Tailscale Funnel 或官方 Relay，并接受对应的风险模型。
+- 普通 HTTP 监听适用于本机或受信网络。公网访问使用受控 Cloudflare Tunnel、Tailscale Funnel 或官方 Relay，各入口的权限范围见下文。
 
 ### Cloudflare Tunnel
 
@@ -18,7 +18,7 @@ WebMux 以启动服务的系统用户身份执行任意命令，**等同于把�
 - 公网主机名要求该主机的 `https://` Origin，其他 Origin 与 `http://` Origin 会被拒绝；cloudflared 退出后立即撤销授权。
 - Token 不进入请求 URL 或 Cookie：HTTP 只接受 Bearer 头，WebSocket 使用 `webmux.token.*` 子协议；服务端不接受 `webmux_token` Cookie（Cookie 不按端口隔离，同一主机其他端口的页面可以读取，且浏览器会自动携带）。Origin 检查照常执行。Bearer、子协议头与终端输入输出仍会经过 Cloudflare 边缘。
 - 不再需要公网访问时，在网页、托盘或本机 API 中关闭隧道；持久化设置会在下次启动恢复，仅移除 `--tunnel` 不等于关闭。网页 API 保留 Token 和 Origin 校验；本机控制面仅允许同一用户且会话之外的进程修改设置。网页开启前确认公开 shell 风险。
-- Cloudflare 凭据只写不读，保存于状态目录内 0600 文件，目录为 0700；不要共享该目录。损坏或不可读存储不回退配置文件开启公网。关闭时即使持久化失败也立即撤销公网授权并停止隧道，返回未持久化错误；修复后重新保存，避免重启恢复旧开关。
+- Cloudflare 凭据只写不读，保存于状态目录内 0600 文件，目录为 0700；该目录由运行 WebMux 的账号独占。损坏或不可读存储不回退配置文件开启公网。关闭时即使持久化失败也立即撤销公网授权并停止隧道，返回未持久化错误；修复后重新保存，避免重启恢复旧开关。
 - Named Tunnel 的控制台步骤、两个 token 的区别与排错见 [Cloudflare Named Tunnel 配置指南](docs/cloudflare-tunnel.md)。
 
 ### Tailscale Serve / Funnel
@@ -70,7 +70,7 @@ WebMux 以启动服务的系统用户身份执行任意命令，**等同于把�
 
 > [!WARNING]
 > MCP 使用的 Bearer 就是实例 owner 凭据，同样能访问完整 REST API、启动任意 argv。
-> 精选工具不是 ACL、受限账号或进程沙箱。不要把 Token 交给不可信客户端。
+> Token 授予完整 API 和任意 argv 执行权限，适用于受信客户端。
 
 - 只接受单一 Authorization Bearer；Cookie、URL 参数、MCP 会话 ID 和 clientInfo 都不是认证。
 - 使用可信 VPN、防火墙与 TLS 保护传输；代理保留正确 Host / Origin，并配置明确的允许来源。
@@ -87,7 +87,7 @@ WebMux 以启动服务的系统用户身份执行任意命令，**等同于把�
 
 ## 报告漏洞
 
-请**不要**通过公开 Issue 报告安全漏洞。请使用 GitHub 的 [私密漏洞报告](https://github.com/mzdluo123/webmux/security/advisories/new) 功能，并提供：
+安全漏洞使用 GitHub 的 [私密漏洞报告](https://github.com/mzdluo123/webmux/security/advisories/new) 功能，并提供：
 
 - 受影响的版本与平台；
 - 复现步骤或概念验证；

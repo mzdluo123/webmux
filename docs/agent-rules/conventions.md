@@ -11,7 +11,7 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. The short versions i
   - Services report sentinel error kinds (for example `workspace.ErrConflict`).
   - Only `internal/api/errors.go` maps them to statuses.
 - Preserve cancellation and deadlines for PTY writes, and join spawned connection goroutines.
-- Protect manager/session state with existing locks. Do not hold them across blocking network or PTY operations.
+- Protect manager/session state with existing locks. Release locks before blocking network or PTY operations.
 - Shared output chunks stay immutable. Exit publication follows PTY drain and process cleanup.
 
 ## Commands, launch, and security
@@ -21,13 +21,13 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. The short versions i
 - A new install seeds ordinary, editable launch configs (`internal/launch/presets.go`, listed in [cli-agents](../cli-agents.md)). Nothing is wrapped implicitly at run time.
   - Loading `.bashrc` requires an explicit command such as `/usr/bin/env bash -ic 'exec -- "$@"' webmux opencode`, the form the presets and hybrid mode accept.
 - Preserve authentication and Origin checks on API/WebSocket paths.
-- Never log terminal input/output. Never expose tokens through configuration responses.
+- Logs contain operational metadata only. Configuration responses expose public fields only.
 
 ## Wire contract
 
 - Backend payloads and `web/src/contracts/schemas.ts` form one contract.
 - Every JSON body and frame the controller or hub encodes or decodes is a type in `internal/contract`, converted from service types in `internal/wire`.
-- Services emit typed `session.Message` values and never encode client-visible JSON.
+- Services emit typed `session.Message` values and leave client-visible JSON encoding to transport projections.
 - Keep frame handling in `internal/hub` and `web/src/hooks/terminal/terminal-socket.svelte.ts` (composed by `useTerminal` in `terminal.svelte.ts`) aligned.
 - When changing JSON fields, update schemas, contract types, and consumers together.
 - Re-record `internal/api/testdata/wire` with `go test ./internal/api -run TestWireSnapshots -update`.
@@ -53,7 +53,7 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. The short versions i
   - `$effect` only for side effects with cleanup.
   - Stable business IDs for keyed lists, typed `$props()`, and Svelte 5 event attributes (`onclick`) rather than `on:` directives.
   - Use lifecycle cleanup for sockets, xterm, listeners, and observers.
-- Reuse `api.ts` and `ws.ts`. Do not add parallel request or reconnect conventions.
+- Reuse `api.ts` and `ws.ts`. Use their existing request and reconnect conventions.
 - Validate HTTP responses, WebSocket JSON, and local settings with Zod before updating state. Derive types with `z.infer`.
   - High-risk request bodies use the optional body schema in `api()` and are validated before any network request.
   - PTY data stays binary, not JSON or decoded text.

@@ -94,7 +94,7 @@ describe("hybrid labels", () => {
         supportedAgents: [],
         reason: "session_arg",
       }),
-    ).toBe("该参数打开已有会话，混合配置请不要指定会话");
+    ).toBe("该参数打开已有会话；混合配置使用 WebMux 管理的原生会话身份");
     expect(connectorMissingText(connector)).toBe(
       "未安装 Codex ACP 适配器（codex-acp）",
     );

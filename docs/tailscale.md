@@ -106,7 +106,7 @@ tailscale serve --https=<port> off
 ```
 
 `serve off` 同时移除该端口的 handler 与 Funnel 标记；重复执行返回的
-`handler does not exist` 可视为已移除。不要先执行 `funnel off`，它会让随后的
+`handler does not exist` 可视为已移除。先执行 `funnel off` 会让随后的
 `serve off` 报错。
 
 常见原因：

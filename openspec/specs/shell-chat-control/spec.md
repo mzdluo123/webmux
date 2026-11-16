@@ -8,49 +8,22 @@
 
 ### Requirement: 聊天命令的共同约定
 
-`webmux chat <子命令>` SHALL 只作用于混合会话（创建会话的 `chat new` 见 `shell-session-launch`），并遵守 `shell-session-control` 的输出与退出码约定。
+`webmux chat <子命令>` SHALL 只包含聊天视图专有的操作：`status`、`watch`、`answer`、`set`、`permission` 与 `queue …`，并遵守 `shell-session-control` 的输出与退出码约定。
+发送输入、中断、切换视图、列出、恢复与删除记录对所有会话通用，见 `shell-session-control` 与 `terminal-session-cli`；创建会话见 `shell-session-launch`。
 
-- 目标不是混合会话时 SHALL 以 1 结束并说明原因。
-- 需要聊天端的子命令在会话处于终端端时 SHALL 以 1 结束，并提示 `webmux chat switch SESSION --to chat`。
+- 目标会话没有聊天视图（`views` 不含 `chat`，或服务端返回 409 `no_chat_view`）时 SHALL 以 1 结束并说明原因。
+- 需要聊天视图的子命令在会话处于终端视图时 SHALL 以 1 结束，并提示 `webmux view SESSION chat`。
 - 每个写操作 SHALL 生成新的 `clientRequestId`，同一次调用内的重试 SHALL 复用它，使服务端去重生效。
 
 #### Scenario: 普通终端会话
 
-- **WHEN** 用户对一个 bash 会话执行 `webmux chat send <ID> hi`
-- **THEN** 退出码 1，标准错误说明该会话不是混合会话
+- **WHEN** 用户对一个 bash 会话执行 `webmux chat status <ID>`
+- **THEN** 退出码 1，标准错误说明该会话没有聊天视图
 
-### Requirement: 发送提示
+#### Scenario: 会话在终端视图
 
-`webmux chat send SESSION [TEXT|-] [--attach PATH]... [--mode MODE] [--wait] [--timeout DUR] [--json]`
-SHALL 调用 `POST /api/sessions/{id}/chat/prompts`。
-
-- `-` 表示从标准输入读取提示。提示为空时 SHALL 以 2 结束。
-- `--attach` 的文件 SHALL 先经会话上传接口上传，再作为附件引用。任一上传失败时 SHALL 不发送提示并以 1 结束。
-- 不带 `--wait` 时，SHALL 在服务端接受后以 0 退出，并输出 `ChatPromptResult`（排队时 `queued` 为 true）。
-- 发送结果 SHALL 给出可跟踪的标识：立即发送时为 `turnId` 与 `promptId`（与 `turn.start` 一致），排队时为 `itemId`，
-  之后发送它的回合 SHALL 在 `turn.start` 中带同一个 `queueItemId`。
-- 带 `--wait` 时，SHALL 在发送前连接 `/ws/s/{id}/chat`，跟踪这条提示对应的回合直到结束（`--mode steer` 跟踪正在进行的回合）：
-  - 默认输出该回合 agent 消息的最终文本，`--json` 时输出该回合的事件数组；
-  - `stopReason` 为 `end_turn` 时以 0 退出，其他原因以 1 退出，并在标准错误报告原因；
-  - 回合中出现权限或问题请求时，SHALL 在标准错误输出请求 ID 与摘要并以 1 退出；
-    带 `--auto-wait-requests` 时则继续等待，直到请求在其他客户端被回答；
-  - 排队的提示在发送前被删除时 SHALL 以 1 退出；
-  - 超时以 124 退出，SHALL NOT 取消回合。
-
-#### Scenario: 让另一个 agent 完成任务并取回结果
-
-- **WHEN** 编排脚本执行 `webmux chat send <ID> "修复 lint 并汇报改动" --wait --timeout 20m`
-- **THEN** 回合正常结束后，标准输出是 agent 的最终回复，退出码 0
-
-#### Scenario: 排队
-
-- **WHEN** 回合进行中再执行 `webmux chat send <ID> "下一步"`
-- **THEN** 提示进入服务端队列，输出的结果中 `queued` 为 true，所有设备看到同一队列
-
-#### Scenario: 遇到权限请求
-
-- **WHEN** `--wait` 期间 agent 请求执行命令的权限
-- **THEN** CLI 输出请求 ID 并以 1 退出，回合保持等待
+- **WHEN** 带聊天视图的会话处于终端视图，用户执行 `webmux chat permission <ID> auto`
+- **THEN** 退出码 1，标准错误提示 `webmux view <ID> chat`
 
 ### Requirement: 观察聊天
 
@@ -58,7 +31,7 @@ SHALL 调用 `POST /api/sessions/{id}/chat/prompts`。
   - `--json` 时 SHALL 把每个服务端帧作为一行 JSON 输出；
   - 默认 SHALL 跳过连接时回放的历史事件，`--history` 时包含它们；
   - 默认 SHALL 以文本形式输出用户与 agent 消息、工具调用标题与状态，以及回合开始和结束。
-- `webmux chat status SESSION [--json]` SHALL 输出一次快照后退出，内容包括所在端、当前回合状态、队列长度和待回答请求列表（ID、类型、摘要、选项）。
+- `webmux chat status SESSION [--json]` SHALL 输出一次快照后退出，内容包括当前视图（取自会话信息的 `view` 与 `transition`）、当前回合状态、队列长度和待回答请求列表（ID、类型、摘要、选项）。
 
 #### Scenario: 列出待回答请求
 
@@ -67,15 +40,11 @@ SHALL 调用 `POST /api/sessions/{id}/chat/prompts`。
 
 ### Requirement: 控制回合与请求
 
-- `webmux chat cancel SESSION` SHALL 调用取消接口，结束当前回合。没有进行中的回合时 SHALL 以 0 退出。
 - `webmux chat answer SESSION REQUEST_ID (--option ID | --content JSON | --decline | --cancel)` SHALL 调用回答接口：
   授权请求用 `--option` 选择选项；问题表单用 `--content` 提交字段值对象、`--decline` 拒绝；`--cancel` 对两者都以取消作答。
   选项与请求类型不符时 SHALL 以 2 结束；请求已被回答或不存在时 SHALL 以 1 结束。
   （`--json` 在所有命令中都是输出开关，因此结构化内容用 `--content`。）
-- `webmux chat switch SESSION --to chat|terminal [--force]` SHALL 调用切换接口，并等待切换结束。
-  需要用户选择时（终端 TUI 在中断超时内没有空闲），带 `--force` 时 SHALL 选择强制切换；
-  不带 `--force` SHALL 选择取消切换，并以 1 结束、提示可用 `--force` 重试，不让切换停在等待选择的状态。
-  服务端返回会话歧义时 SHALL 列出候选会话，并接受 `--agent-session ID` 重试。
+- 结束当前回合使用 `webmux interrupt SESSION`，切换视图使用 `webmux view SESSION terminal|chat`（见 `shell-session-control`）。
 
 #### Scenario: 代为批准一次
 
@@ -84,29 +53,8 @@ SHALL 调用 `POST /api/sessions/{id}/chat/prompts`。
 
 #### Scenario: 切到聊天后发送
 
-- **WHEN** 会话在终端端，脚本先执行 `webmux chat switch <ID> --to chat`，再执行 `webmux chat send <ID> 继续`
+- **WHEN** 会话在终端视图，脚本先执行 `webmux view <ID> chat`，再执行 `webmux send <ID> 继续`
 - **THEN** 切换完成后提示被发送，`webmux attach` 中的客户端按 US-Q13 被动分离
-
-### Requirement: 混合会话历史
-
-- `webmux chat ls [--state active|closed|interrupted]... [--repo REPO] [--json]` SHALL 调用 `GET /api/hybrid-sessions`，
-  列出混合会话记录：ID、名称、agent、状态、所在端、目录、agent 会话 ID。默认列出全部状态；`--archived` SHALL 等同于 `--state closed --state interrupted`。
-- `webmux chat resume RECORD [--side chat|terminal] [--agent-session ID] [--without-env] [--detach]` SHALL 调用 `POST /api/sessions/{id}/resume`：
-  - 成功后行为与 `run` 相同：有终端且以终端端恢复时附着，否则输出会话 ID；
-  - 启动配置已删除、需要确认缺失的环境变量时，不带 `--without-env` SHALL 以 1 结束并说明原因，带上则以 `confirmWithoutEnv` 重试；
-  - 服务端报告会话歧义时，SHALL 列出候选并接受 `--agent-session` 重试。
-- `webmux chat forget RECORD [--yes]` SHALL 调用 `DELETE /api/hybrid-sessions/{id}`，删除已结束或已中断的记录。
-  标准输入是终端且没有 `--yes` 时，SHALL 要求确认；非交互又没有 `--yes` 时，SHALL 以 2 结束。活动中的记录 SHALL 以 1 拒绝。
-
-#### Scenario: 恢复昨天中断的 agent
-
-- **WHEN** 用户执行 `webmux chat ls --archived`，再执行 `webmux chat resume <记录 ID> --side chat --detach`
-- **THEN** 同一 agent 会话以聊天端恢复，CLI 输出新的会话 ID
-
-#### Scenario: 非交互删除需要确认
-
-- **WHEN** 脚本以管道执行 `webmux chat forget <记录 ID>`
-- **THEN** 不删除记录，退出码 2，提示需要 `--yes`
 
 ### Requirement: 运行时配置与队列
 
@@ -127,3 +75,26 @@ SHALL 调用 `POST /api/sessions/{id}/chat/prompts`。
 
 - **WHEN** 队列中有三条提示，脚本执行 `webmux chat queue clear <ID>`
 - **THEN** 队列清空，所有设备不再显示这些提示
+
+### Requirement: CLI 等待显式输出未完成工作
+
+CLI 等待 SHALL 在现有 turnResult JSON 对象增加顶层 unfinished boolean，取自共享观察的真实标记，不从回复推断。
+既有 stopReason、error、reply、events、request SHALL 保持原结构和语义，不增加伪事件或替换 envelope。
+文本 SHALL 保留回复，unfinished 为 true 时在 stderr 提示后台工作未完成。
+end_turn SHALL 仍退出 0，即使 unfinished 为 true；其他退出映射全部不变。unfinished 与独立业务验收 SHALL NOT 混为一谈。
+命令入口 SHALL 依据当前命令表，不恢复旧 chat send/switch。
+
+#### Scenario: 正常回合仍有后台工作
+
+- **WHEN** 目标回合 end_turn 且 unfinished 为 true
+- **THEN** JSON 顶层 unfinished 为 true，events 不变，文本 stderr 提示后台工作未完成，退出码仍为 0
+
+#### Scenario: 正常结束没有后台工作
+
+- **WHEN** 观察的 unfinished 为 false
+- **THEN** JSON 仍显式输出 false，不根据任务是否经过验收改写，也不输出后台未完成警告
+
+#### Scenario: 超时或待请求
+
+- **WHEN** 等待超时或被当前 pending request 阻塞
+- **THEN** 分别保持既有 124 或 1 退出映射，不取消执行、批准请求或重复发送操作

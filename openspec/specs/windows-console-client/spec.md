@@ -51,7 +51,7 @@
 - 指向目标发行版自身文件系统的路径（`\\wsl.localhost\<发行版>\...` 或 `\\wsl$\<发行版>\...`）SHALL 换算为对应的 Linux 绝对路径；
 - 其他路径（网络共享、其他发行版等）无法换算时，SHALL 以退出码 2 结束并提示使用 `--cwd` 指定 Linux 路径。
 
-`--cwd` 的值以 `/` 或 `~` 开头时 SHALL 作为 Linux 路径原样使用，否则 SHALL 按上述规则换算。`--env` 只传递显式列出的变量，SHALL NOT 复制 Windows 环境；服务端不支持该字段时 SHALL 报错而不是忽略。
+`--cwd` 的值以 `/` 或 `~` 开头时 SHALL 作为 Linux 路径原样使用，否则 SHALL 按上述规则换算。`--env` 只传递显式列出的变量，SHALL NOT 复制 Windows 环境；服务端不支持该字段时 SHALL 报错。
 
 默认创建后 SHALL 立即附着（等同 `attach`）；`--detach` 时 SHALL 只输出会话 ID 后以退出码 0 结束。
 

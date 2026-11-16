@@ -18,12 +18,14 @@ func TestDefaultMCPDoesNotRequireHistory(t *testing.T) {
 }
 
 func TestDefaultMCPKeepsHandoffScopeAndCallbackSlice(t *testing.T) {
-	h, a, execution := readerRefreshCancellationTest(t)
+	h := newHarness(t, 0)
+	a := &actor{id: "runtime", svc: h.svc}
+	h.svc.historyReader = func(context.Context, string) []acp.MCPServer { return []acp.MCPServer{{Name: "webmux-history"}} }
 	backing := []acp.MCPServer{{Name: "webmux"}, {Name: "sentinel"}}
 	h.svc.mcpServers = func(context.Context) []acp.MCPServer { return backing[:1] }
 	got, scope := a.sessionMCPServers(context.Background())
-	if len(got) != 2 || got[0].Name != "webmux" || got[1].Name != "webmux-history" || scope != execution.HandoffID {
-		t.Fatalf("servers %+v scope %q execution %+v", got, scope, execution)
+	if len(got) != 2 || got[0].Name != "webmux" || got[1].Name != "webmux-history" || scope != "" {
+		t.Fatalf("servers %+v scope %q", got, scope)
 	}
 	if backing[1].Name != "sentinel" {
 		t.Fatal("mutated descriptor callback's backing slice")

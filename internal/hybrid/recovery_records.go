@@ -68,17 +68,6 @@ func (s *Service) claim(id string) (func(), error) {
 	}, nil
 }
 
-func (s *Service) claimRecordConversation(ctx context.Context, id string) (func(), error) {
-	if s.conversations == nil {
-		return func() {}, nil
-	}
-	b, err := s.conversations.Binding(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("%w: conversation identity unavailable", ErrUnavailable)
-	}
-	return s.ClaimConversation(b.ConversationID, "")
-}
-
 func (s *Service) removeRecord(ctx context.Context, id string) error {
 	release, err := s.claim(id)
 	if err != nil {
@@ -91,11 +80,7 @@ func (s *Service) removeRecord(ctx context.Context, id string) error {
 	if err := s.clear(ctx, id); err != nil {
 		return err
 	}
-	if s.conversations != nil {
-		if err := s.conversations.MarkRuntimeForgetting(ctx, id); err != nil {
-			return fmt.Errorf("%w: conversation cleanup unavailable", ErrUnavailable)
-		}
-	}
+
 	if err := s.records.remove(id); err != nil {
 		return err
 	}
@@ -103,9 +88,11 @@ func (s *Service) removeRecord(ctx context.Context, id string) error {
 	// again now so canonical readers cannot retain that earlier archive,
 	// even if the following conversation cleanup fails.
 	s.manager.NotifyRemoved(id)
-	if err := s.forgetConversation(context.WithoutCancel(ctx), id); err != nil {
-		return err
-	}
+
 	s.log.Info("hybrid record removed", "id", id)
 	return nil
+}
+
+func (s *Service) claimRecordRuntime(ctx context.Context, id string) (func(), error) {
+	return s.claimRuntime(id, "")
 }

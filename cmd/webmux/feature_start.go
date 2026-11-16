@@ -17,7 +17,6 @@ import (
 	"github.com/rainchan/webmux/internal/agentguide"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
-	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/handoff"
@@ -63,12 +62,12 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 		p.artifacts = artifacts.New(artifacts.Options{StateDir: c.StateDir, Manager: m, Logger: slog.Default()})
 	}
 	if c.Features.Has("chat") {
-		p.conversations = conversation.Open(conversation.Options{StateDir: c.StateDir, DisableCapture: !c.HistoryCapture})
+		slog.Info("原生历史模式已启用；旧会话数据库及其 sidecar 保留为离线备份，旧草稿、快照与回执可使用旧版本读取")
 		p.openNativeHistory()
-		options := hybrid.Options{Agents: p.agents, Conversations: p.conversations, StateDir: c.StateDir, Manager: m, ScrollbackBytes: c.ScrollbackBytes, Version: version, Logger: slog.Default(), Uploads: p.artifacts.UploadPath}
+		options := hybrid.Options{Agents: p.agents, StateDir: c.StateDir, Manager: m, ScrollbackBytes: c.ScrollbackBytes, Version: version, Logger: slog.Default(), Uploads: p.artifacts.UploadPath}
 		options.NativeRoot = p.nativeRoot
-		options.DispatchCheckpoint = p.nativeHistory.RecordDispatchCheckpoint
 		if c.Features.Has("mcp") {
+			options.HistoryReader = historyReader(c.StateDir, serverExecutable())
 			options.MCPServers = controlMCPServers(serverExecutable(), func() string {
 				rt := localAPI()
 				if rt == nil || rt.listener == nil {
@@ -76,7 +75,6 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 				}
 				return rt.listener.Addr().String()
 			})
-			options.HistoryReader = historyReader(c.StateDir, serverExecutable(), p.conversations)
 		}
 		p.chat = hybrid.New(options)
 		if err := p.chat.Unavailable(); err != nil {
@@ -136,14 +134,14 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 		})
 		creation := p.chat.Creation()
 		resumeOptions := hybridresume.Options{DefaultCwd: c.DefaultCwd, Creation: creation}
-		handoffOptions := handoff.Options{Creation: creation, Conversations: p.conversations, Launch: p.launch, Artifacts: p.artifacts, Hybrid: p.chat, TokenCap: int64(c.HandoffTokenCap), MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes}
+		handoffOptions := handoff.Options{Launch: p.launch, Hybrid: p.chat, TokenCap: int64(c.HandoffTokenCap), MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes, Create: func(ctx context.Context, in sessioncreate.Input) (sessioncreate.Result, error) {
+			return p.creation.Create(ctx, in)
+		}}
 		handoffOptions.NativeHistory, handoffOptions.HistoryProjection = p.nativeHistory, p.historyProjection
 		if p.workspace != nil {
 			resumeOptions.Locations, resumeOptions.ResumeLocations = p.workspace, p.workspace
-			handoffOptions.Locations = p.workspace
 		}
 		p.recovery = hybridresume.New(p.chat, p.launch, resumeOptions)
-		handoffOptions.Recovery = p.recovery
 		p.handoff = handoff.New(handoffOptions)
 	}
 	createOptions := sessioncreate.Options{DefaultCwd: c.DefaultCwd, Brief: func(id, dir string) string {

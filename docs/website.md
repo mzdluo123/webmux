@@ -26,7 +26,7 @@
 
 ## 本指南依据的仓库事实
 
-以下事实在 2026-11-03 按仓库内容与 GitHub Release 核对；官网上出现的数字应由构建脚本自动取得（见 [技术方案](website/stack.md#构建期数据)），不要手写。
+以下事实在 2026-11-03 按仓库内容与 GitHub Release 核对；官网上出现的数字应由构建脚本自动取得（见 [技术方案](website/stack.md#构建期数据)）。
 
 - 最新发布：`v0.10.1`（2026-11-02），资产包括 Linux / macOS 的 amd64、arm64 二进制、Windows 托盘与控制台客户端、`install.sh` 与 `SHA256SUMS`。Windows 安装程序与 deb / rpm 打包配置在该 Release 后才加入，自包含这些资产的后续版本起提供；下载页不得为当前 Release 显示空分组。
 - Linux amd64 二进制约 20.4 MB；根 README 写的“约 15 MB”已过时，官网用 Release 资产的实际大小。

@@ -423,7 +423,7 @@ func Directory(r Registry) string {
 	b.WriteString("# 命令目录\n\n")
 	b.WriteString("每个命令一行：用法与一句话摘要，与 `webmux help` 的概览同源（英文）。" +
 		"选项、默认值、输出、退出码与示例用 `webmux <命令> --help` 查看，整棵命令树用 `webmux help --json`；" +
-		"不要猜测选项。退出码约定见 [退出码](/llms/exit-codes.md)。\n")
+		"按帮助输出选择选项。退出码约定见 [退出码](/llms/exit-codes.md)。\n")
 	b.WriteString("\n这是静态命令目录，不保证当前实例可执行所有命令；实际可用能力以 `/api/capabilities` 为准。" +
 		"普通 argv run/attach/ls/open 只依赖终端核心；run 的启动配置、工作树、聊天与附件选项分别依赖 launch.configs、workspace.manage、chat.acp、files.upload。\n")
 	visible := r.Visible("unix")

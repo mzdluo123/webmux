@@ -53,7 +53,7 @@ WebMux 启动并管理 `cloudflared` 子进程；Cloudflare 边缘把公共主�
 
 打开刚创建的隧道，进入 **Overview → Add a replica**。安装命令中形如 `eyJ...` 的长字符串就是隧道 Token。
 
-复制它，但**不要运行这条安装命令**。WebMux 会自己启动 `cloudflared`，再运行 Cloudflare 的安装命令只会多出一个不受管理的连接器。
+复制 Token。WebMux 使用该 Token 启动并管理 `cloudflared`。
 
 如果需要更换凭据，可在同一页面刷新 Token，然后在 WebMux 网页“设置 → 公网访问”填写新凭据并保存；不需要重启 WebMux。
 
@@ -73,7 +73,7 @@ Service URL 的端口必须与 WebMux 的 `listen` 一致。如果 `listen` 改�
 
 打开 WebMux **设置 → 公网访问 → Named Tunnel**：
 
-1. 公共主机名填写第 4.3 步发布的 `term.example.com`，不要带协议、端口、路径或通配符；
+1. 公共主机名填写第 4.3 步发布的 `term.example.com`，使用纯主机名；
 2. Cloudflare 隧道凭据填写第 4.2 步取得的 Token，不是 WebMux 登录 Token；
 3. 点击 **保存并应用**。凭据只写不读，保存成功后输入框清空；之后留空表示保留已保存凭据；
 4. 点击 **启用公网访问**，阅读公开 Shell 风险并确认。开启状态会保存，服务下次启动时自动恢复。
@@ -165,7 +165,7 @@ Web Push 可从通过 Host/Origin 校验的 HTTPS 入口开启，包括 Named Tu
 | -------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Cloudflare 显示 1033 或隧道未连接                                    | `cloudflared` 没有启动、凭据无效或出站网络被拦截               | 查看 WebMux 日志；检查出站 7844 与 HTTPS；在 Cloudflare 控制台刷新 Token 后更新配置      |
 | 打开域名显示 502 Bad Gateway                                         | Service URL 端口与 `listen` 不一致，或 WebMux 没有运行         | 把 Service URL 改为 `http://127.0.0.1:<listen 端口>`，确认 WebMux 正在监听               |
-| 域名返回 403                                                         | 生效主机名与 Cloudflare 公共主机名不一致，或使用了未授权的来源 | 在网页保存正确主机名并检查 Cloudflare 回源；不要用其他域名或 HTTP 访问                   |
+| 域名返回 403                                                         | 生效主机名与 Cloudflare 公共主机名不一致，或使用了未授权的来源 | 在网页保存正确主机名并检查 Cloudflare 回源，通过该主机名的 HTTPS 地址访问                |
 | `tunnel.hostname is required when tunnel.token is set`               | 配置了隧道凭据但没有写 `hostname`                              | 补充 `hostname`，或清空 `token` 改用 Quick Tunnel                                        |
 | `tunnel mode requires the webmux token to be at least 43 characters` | 根 `token` 太短                                                | 在现有配置中把根 `token` 改为至少 43 个字符，或删除该行自动生成，然后重启                |
 | `tunnel.hostname ... must be a bare hostname such as ...`            | `hostname` 带了协议、端口、路径或空格                          | 只保留公共主机名，例如 `term.example.com`                                                |

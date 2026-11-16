@@ -24,7 +24,6 @@
     recordTitle,
     type ArchiveActions,
   } from "../../domains/sessions/archived";
-  import { formatBytes } from "../../domains/sessions/host-health";
   import type { ArchivedSession, Worktree } from "../../contracts/schemas";
 
   // The archived (closed or interrupted) hybrid sessions of one workspace
@@ -197,12 +196,6 @@
               class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
             >
               <span class="sm:shrink-0">{since(record)}</span>
-              <span aria-hidden="true" class="max-sm:hidden">·</span>
-              <span
-                class="sm:shrink-0"
-                title={m.s3_archived_stored_bytes_title()}
-                >{formatBytes(record.archive.storedBytes)}</span
-              >
               <span aria-hidden="true" class="max-sm:hidden">·</span>
               {#if record.state === "closed"}
                 <span

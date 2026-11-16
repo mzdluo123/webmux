@@ -76,7 +76,7 @@ Web 端的新建会话对话框、快速开始页与 `webmux run` 都调用它�
 `view` 取 `terminal`（缺省）或 `chat`，只对开启了聊天视图（`chat: true`）的启动配置有意义：
 
 - `terminal`：在 PTY 中运行配置的 argv；混合配置运行档案生成的终端命令（OpenCode 注入 `--standalone`）。
-- `chat`：不启动终端，而是启动 ACP 进程并依次调用 `initialize` 与 `session/new`。
+- `chat`：启动 ACP 进程并依次调用 `initialize` 与 `session/new`。
 
 对普通配置或自定义命令提供 `view: "chat"` 返回 400。以聊天视图创建而档案的连接器未安装时返回 409 `connector_missing`，不创建会话。
 

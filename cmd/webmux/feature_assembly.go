@@ -1,13 +1,10 @@
 package main
 
 import (
-	"log/slog"
-
 	"github.com/rainchan/webmux/internal/agentcheck"
 	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
-	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/handoff"
@@ -40,7 +37,6 @@ type featureServices struct {
 	creation          *sessioncreate.Service
 	recovery          *hybridresume.Service
 	chat              *hybrid.Service
-	conversations     *conversation.Service
 	nativeHistory     *historyimport.Service
 	historyProjection *historyprojection.Service
 	nativeRoot        func(agent string, env map[string]string) string
@@ -103,11 +99,7 @@ func (p *featureServices) release() {
 	if p.artifacts != nil {
 		p.artifacts.Close()
 	}
-	if p.conversations != nil {
-		if err := p.conversations.Close(); err != nil {
-			slog.Warn("conversation database close failed")
-		}
-	}
+
 	if p.launch != nil {
 		p.launch.Close()
 	}

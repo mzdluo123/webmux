@@ -188,7 +188,7 @@ func (s *Service) reassociate(ctx context.Context) {
 // repository association only after the chat coordinator restores its runtime.
 func (s *Service) PrepareResume(ctx context.Context, cwd string) (func(*session.Session), func(), error) {
 	if err := s.beginStart(cwd); err != nil {
-		return nil, nil, handoffLocationError(err)
+		return nil, nil, creationLocationError(err)
 	}
 	lookup, cancel := context.WithTimeout(ctx, readTimeout)
 	association := s.association(lookup, cwd)

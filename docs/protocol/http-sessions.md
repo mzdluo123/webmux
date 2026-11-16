@@ -242,7 +242,6 @@ interface SessionInfo {
   archive?: {
     configMissing: boolean; // 启动配置已被删除
     previousAgentSessionIds: string[]; // 最近 8 个历史 agent 会话 ID
-    storedBytes: number; // WebMux 保存的聊天文本字节数；不含索引、附件与 agent 历史，纯终端记录为 0
     activity?: "idle" | "turn" | "switching"; // 中断前的活动，后两者表示上一轮可能未完成
     queuedCount: number; // 中断时丢失的排队条数
     interruptedAt: string | null; // RFC 3339

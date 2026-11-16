@@ -28,10 +28,10 @@
   <main class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
     <div class="mx-auto max-w-2xl space-y-4">
       <p class="text-sm text-muted-foreground">
-        {m.s1_handoff_description()}
+        {m.handoff_source_dependency()}
       </p>
       {#if editor.loading}<p role="status" class="text-sm">
-          {m.s1_restoring_handoff_draft()}
+          {m.handoff_loading_source()}
         </p>{:else}<HandoffForm {editor} fork />{/if}
     </div>
   </main>

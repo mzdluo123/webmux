@@ -15,7 +15,7 @@ func (s *Service) RemoveRecord(ctx context.Context, id string) error {
 	if _, err := s.Record(id); err != nil {
 		return err
 	}
-	release, err := s.claimRecordConversation(ctx, id)
+	release, err := s.claimRecordRuntime(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func (s *Service) Forget(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	release, err := s.claimRecordConversation(ctx, id)
+	release, err := s.claimRecordRuntime(ctx, id)
 	if err != nil {
 		return err
 	}

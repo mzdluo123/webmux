@@ -52,13 +52,11 @@ func (e *SessionAmbiguousError) Unwrap() error { return ErrSessionAmbiguous }
 // environment, nil once the config was deleted; like at creation it only
 // reaches the processes.
 type ResumeInput struct {
-	ContextExecutionID  string
-	RequireNativeResume bool
-	ClientRequestID     string
-	Side                Side
-	AgentSessionID      string
-	Env                 map[string]string
-	Attention           *session.AttentionPolicy
+	ClientRequestID string
+	Side            Side
+	AgentSessionID  string
+	Env             map[string]string
+	Attention       *session.AttentionPolicy
 }
 
 // Resume brings closed or interrupted session id back under its ID on
@@ -102,56 +100,7 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 	if side == "" {
 		side = rec.Side
 	}
-	if s.conversations != nil {
-		e, leased, leaseErr := s.conversations.RuntimeDispatch(context.Background(), id)
-		if leaseErr != nil {
-			return nil, leaseErr
-		}
-		if leased {
-			// An unresolved historical call may load only its exact native
-			// thread for reconciliation, never the replacement runtime writer.
-			if e.Status != "failed" && e.NativeThreadID != "" && e.NativeThreadID != rec.AgentSessionID {
-				return nil, ErrSwitching
-			}
-			if e.Status != "failed" && s.runtimeRoot(rec.Agent, rec.Cwd, in.Env) != rec.HistoryRoot {
-				return nil, ErrSwitching
-			}
-			if e.RuntimeID != id || (e.Status != "failed" && side != SideACP) || (in.AgentSessionID != "" && in.AgentSessionID != rec.AgentSessionID) || (in.ContextExecutionID != "" && in.ContextExecutionID != e.ID && e.Status != "failed") {
-				return nil, ErrSwitching
-			}
-			if in.ContextExecutionID == "" {
-				in.ContextExecutionID = e.ID
-			}
-		}
-		binding, err := s.conversations.Binding(context.Background(), id)
-		if err != nil {
-			return nil, err
-		}
-		releaseWriter, err := s.ClaimConversation(binding.ConversationID, in.ContextExecutionID)
-		if err != nil {
-			return nil, err
-		}
-		defer releaseWriter()
-		c, err := s.conversations.Conversation(context.Background(), binding.ConversationID)
-		if err != nil {
-			return nil, err
-		}
-		if in.ContextExecutionID == "" && c.ActiveProviderThreadID != binding.ProviderThreadID {
-			return nil, ErrSwitching
-		}
-		ids, err := s.conversations.RuntimeIDs(context.Background(), c.ID)
-		if err != nil {
-			return nil, err
-		}
-		for _, other := range ids {
-			if other == id {
-				continue
-			}
-			if record, err := s.Record(other); err == nil && (record.State == StateActive || record.PID != 0) {
-				return nil, ErrSwitching
-			}
-		}
-	}
+
 	if rec.Released != nil {
 		return nil, fmt.Errorf("%w: 工作树已释放空间，请先重建工作树再恢复", ErrConflict)
 	}
@@ -177,8 +126,6 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 		}
 	}()
 	a.agentSessionID = sid
-	a.contextExecutionID = in.ContextExecutionID
-	a.requireNativeResume = in.RequireNativeResume
 	a.title, a.titleSession = rec.Title, sid
 	a.recordTitle = rec.Title
 	// recordWorkspace starts nil: the fresh shell has not reported an
@@ -203,10 +150,7 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 		return nil, shellError(err)
 	}
 	a.id, a.shell = id, shell
-	if err := a.bindControlThread(); err != nil {
-		_ = s.manager.Remove(id)
-		return nil, err
-	}
+
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -301,7 +245,7 @@ func (a *actor) resumeSide(epoch int, side Side, sid string) resumeResult {
 		r := a.spawnACP(epoch)
 		return resumeResult{link: r.link, init: r.init, config: r.config, notes: r.notes, pid: r.pid, process: r.process, err: r.err}
 	}
-	r := a.openACP(epoch, sid, a.cwd, a.requireNativeResume, nil)
+	r := a.openACP(epoch, sid, a.cwd, false, nil)
 	if r.fail != nil {
 		return resumeResult{err: r.fail.err}
 	}

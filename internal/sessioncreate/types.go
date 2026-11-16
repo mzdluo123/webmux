@@ -38,13 +38,6 @@ type Input struct {
 	PermissionMode                   string
 	Cols, Rows                       int
 }
-type HandoffIdentity struct {
-	RuntimeID, ProviderThreadID, ExecutionID string
-	RequireNativeResume                      bool
-}
-type HandoffPlan struct {
-	Cwd, RepositoryID, WorktreeID, Path, Branch, Base string
-}
 
 // Location is the immutable outcome of a location contribution. Detail is a
 // typed projection port implemented by the contribution, never a service lookup.
