@@ -21,10 +21,10 @@ import (
 )
 
 type relayControlClient interface {
-	Enroll(context.Context, ed25519.PrivateKey, protocol.MachineID, bool) (protocol.Enrollment, error)
+	Enroll(context.Context, ed25519.PrivateKey, protocol.MachineID) (protocol.Enrollment, error)
 	Poll(context.Context, protocol.Token) (protocol.EnrollmentResult, error)
 	Cancel(context.Context, protocol.Token) error
-	Delete(context.Context, ed25519.PrivateKey, protocol.Binding) (protocol.LogoutResult, error)
+	Delete(context.Context, ed25519.PrivateKey, protocol.Binding) (protocol.BindingDeletionResult, error)
 	Assignment(context.Context, ed25519.PrivateKey, protocol.Binding) (protocol.Assignment, error)
 	Connect(context.Context, ed25519.PrivateKey, protocol.Assignment, relay.Callbacks) error
 }

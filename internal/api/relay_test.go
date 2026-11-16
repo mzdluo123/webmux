@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	protocol "github.com/mzdluo123/webmux/protocol/relay"
 	"github.com/rainchan/webmux/internal/config"
+	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/relaysetting"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/transport"
@@ -66,5 +68,39 @@ func TestRelayAuthCookieSecurityAttributes(t *testing.T) {
 	cookie := cookies[0]
 	if !cookie.Secure || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/" || cookie.Domain != "" {
 		t.Fatalf("unsafe cookie attributes: %+v", cookie)
+	}
+}
+
+type relayEnrollmentControl struct {
+	RelayControl
+	requests []contract.RelayEnrollmentRequest
+}
+
+func (c *relayEnrollmentControl) Enroll(_ context.Context, req contract.RelayEnrollmentRequest) (contract.RelayEnrollment, error) {
+	c.requests = append(c.requests, req)
+	return contract.RelayEnrollment{Version: protocol.BindingAPIVersion}, nil
+}
+
+func TestRelayEnrollmentAcceptsOnlyFreshPairingRequest(t *testing.T) {
+	control := &relayEnrollmentControl{}
+	s := &Server{Deps: Deps{Relay: &Relay{Control: control}}}
+	mux := http.NewServeMux()
+	s.relayRoutes(mux)
+	for _, tc := range []struct {
+		body string
+		want int
+	}{
+		{body: `{"confirmPublic":true}`, want: http.StatusCreated},
+		{body: `{"confirmPublic":true,"rebind":false}`, want: http.StatusBadRequest},
+	} {
+		r := httptest.NewRequest(http.MethodPost, "/api/relay/enrollments", strings.NewReader(tc.body))
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, r)
+		if w.Code != tc.want {
+			t.Fatalf("request %s returned %d, want %d", tc.body, w.Code, tc.want)
+		}
+	}
+	if len(control.requests) != 1 || !control.requests[0].ConfirmPublic {
+		t.Fatalf("retired request reached enrollment controller: %+v", control.requests)
 	}
 }

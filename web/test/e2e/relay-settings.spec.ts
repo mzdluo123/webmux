@@ -4,7 +4,7 @@ import type { RelayStatus } from "../../src/contracts/relay-schemas";
 
 test.use({ features: [] });
 
-test("pair, enable, reconnect, rebind and delete through the Relay settings page", async ({
+test("fresh pair, enable, reconnect and delete through the Relay settings page", async ({
   page,
 }) => {
   const publicUrl = "https://fixture.hosts.example.test";
@@ -66,7 +66,7 @@ test("pair, enable, reconnect, rebind and delete through the Relay settings page
       await route.fulfill({
         status: 201,
         json: {
-          version: 1,
+          version: 2,
           handle,
           userCode,
           verificationUrl: "https://github.com/login/device",
@@ -139,23 +139,11 @@ test("pair, enable, reconnect, rebind and delete through the Relay settings page
     page.getByRole("link", { name: "通过所有者账号打开 WebMux", exact: true }),
   ).toHaveCount(0);
 
-  await page
-    .getByRole("button", { name: "重新绑定 GitHub", exact: true })
-    .click();
-  await expect(confirm).toContainText("保留固定公共地址");
-  await confirm.getByRole("button", { name: "确认操作", exact: true }).click();
-  await expect(page.getByLabel("GitHub 配对码")).toHaveText(userCode);
-  await expect(
-    page.getByRole("button", { name: "重新绑定 GitHub", exact: true }),
-  ).toBeVisible();
   expect(
     requests
       .filter((item) => item.path === "/api/relay/enrollments")
       .map((item) => item.body),
-  ).toEqual([
-    { rebind: false, confirmPublic: true },
-    { rebind: true, confirmPublic: true },
-  ]);
+  ).toEqual([{ confirmPublic: true }]);
   const saved = await page.evaluate(() => [
     ...Object.values(localStorage),
     ...Object.values(sessionStorage),
@@ -165,7 +153,8 @@ test("pair, enable, reconnect, rebind and delete through the Relay settings page
   expect(saved.join("\n")).not.toContain(userCode);
 
   await page.getByRole("button", { name: "删除绑定", exact: true }).click();
-  await expect(confirm).toContainText("远端确认撤销后才删除本地绑定");
+  await expect(confirm).toContainText("永久失去旧公共地址");
+  await expect(confirm).toContainText("离线主机的旧直连访问不保证已经关闭");
   await confirm.getByRole("button", { name: "确认操作", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "开始 GitHub 配对", exact: true }),
@@ -173,12 +162,11 @@ test("pair, enable, reconnect, rebind and delete through the Relay settings page
   await expect(page.getByText("GitHub 所有者：relay-e2e · 123")).toHaveCount(0);
 });
 
-test("recover a server binding when this installation is locally unpaired", async ({
+test("existing binding conflicts after transient pairing and cancellation failures", async ({
   page,
 }) => {
   let status: RelayStatus = { ...relayStatus };
   const enrollmentRequests: unknown[] = [];
-  let recovering = false;
   let transientFailure = true;
   let cancelFailure = true;
   let cancelled = false;
@@ -206,42 +194,26 @@ test("recover a server binding when this installation is locally unpaired", asyn
     } else if (path === "/api/relay/enrollments") {
       const body: unknown = request.postDataJSON();
       enrollmentRequests.push(body);
-      recovering =
-        typeof body === "object" &&
-        body !== null &&
-        "rebind" in body &&
-        body.rebind === true;
       status = { ...status, pairing: true };
       await route.fulfill({
         status: 201,
         json: {
-          version: 1,
+          version: 2,
           handle: "A".repeat(43),
-          userCode: "REST-ORE1",
+          userCode: "ABCD-EFGH",
           verificationUrl: "https://github.com/login/device",
           expiresAt: Math.floor(Date.now() / 1000) + 600,
           pollIntervalSeconds: 1,
         },
       });
     } else if (path === "/api/relay/enrollments/poll") {
-      if (!recovering) {
-        if (transientFailure) {
-          transientFailure = false;
-          await route.fulfill({ status: 503, json: { error: "unavailable" } });
-        } else {
-          status = { ...status, pairing: false };
-          await route.fulfill({ status: 409, json: { error: "conflict" } });
-        }
-        return;
+      if (transientFailure) {
+        transientFailure = false;
+        await route.fulfill({ status: 503, json: { error: "unavailable" } });
+      } else {
+        status = { ...status, pairing: false };
+        await route.fulfill({ status: 409, json: { error: "conflict" } });
       }
-      status = {
-        ...relayStatus,
-        paired: true,
-        ownerId: "123",
-        ownerLogin: "recovered-owner",
-        boundPublicUrl: "https://original.hosts.example.test",
-      };
-      await route.fulfill({ json: status });
     } else {
       await route.continue();
     }
@@ -268,32 +240,13 @@ test("recover a server binding when this installation is locally unpaired", asyn
     .getByRole("button", { name: "开始 GitHub 配对", exact: true })
     .click();
   await confirm.getByRole("button", { name: "确认操作", exact: true }).click();
-  const recover = page.getByRole("button", {
-    name: "恢复已有绑定",
-    exact: true,
-  });
-  await expect(recover).toBeVisible();
-  await recover.click();
-  await expect(confirm).toContainText("撤销旧密钥和登录访问");
-  await confirm.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "即使使用同一账号，也必须先删除已有绑定再重新配对",
+  );
+  await expect(page.getByRole("alert")).toContainText("所有者控制台");
+  await expect(cancel).toHaveCount(0);
   expect(enrollmentRequests).toEqual([
-    { rebind: false, confirmPublic: true },
-    { rebind: false, confirmPublic: true },
-  ]);
-  await recover.click();
-  await confirm.getByRole("button", { name: "确认操作", exact: true }).click();
-  await expect(
-    page.getByText("GitHub 所有者：recovered-owner · 123"),
-  ).toBeVisible();
-  await expect(
-    page.getByText("https://original.hosts.example.test"),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("switch", { name: "允许 Relay 公网访问" }),
-  ).not.toBeChecked();
-  expect(enrollmentRequests).toEqual([
-    { rebind: false, confirmPublic: true },
-    { rebind: false, confirmPublic: true },
-    { rebind: true, confirmPublic: true },
+    { confirmPublic: true },
+    { confirmPublic: true },
   ]);
 });

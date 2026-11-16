@@ -347,3 +347,15 @@
   - `make test-go` 仅 `TestMigrateConfigLeavesCurrentConfigurationUntouched`（`cmd/webmux`）与 `TestConcurrentTrustEditsPreserveAllProjects`（`internal/agenttrust`）失败；
   - 这两项在未修改的 origin/main 上以相同断言失败（本机 umask 0077 等环境差异），与本改动无关。
 - 局限：未在真实 Claude Code TUI 上做端到端复测，结论基于 PTY 字节与耗时断言。故事编号、数量与覆盖索引不变。
+
+## 仅全新 Relay 配对与直接删除（US-A08–US-A10）
+
+- 共享协议固定 `v0.0.0-20261116163447-ae748f547aed`：配对 v2、必需机器 ID、无 rebind；本机仅接受 v3 绑定状态。
+- 协议 `go test -race ./...` 通过；宿主 `internal/relay`、`internal/relaysetting`、`internal/statefile`、`internal/api`、`cmd/webmux` 目标 race 通过；删除了已过时的 v1→v2 迁移测试，旧格式拒绝由真实设置存储回归覆盖。
+- 前端 check、check:test、check:storybook、lint、check:arch（含 46 项架构测试）通过；RelaySettings 浏览器组件 9 项及桌面/iPhone SE 端到端 4 项通过。
+- 文档和持久化守卫、目标 Go lint 通过；当前 OpenSpec 128 项规范与本次 change 严格校验通过。
+- 删除确认已检查浅色/深色桌面、平板、手机及 320×568、375×667、667×375，无横向或弹窗溢出；以下为隔离演示数据。
+  - 浅色：[桌面](../images/fresh-relay-bindings/delete-desktop-light.webp)、[平板](../images/fresh-relay-bindings/delete-tablet-light.webp)、[手机](../images/fresh-relay-bindings/delete-phone-light.webp)。
+  - 深色：[桌面](../images/fresh-relay-bindings/delete-desktop-dark.webp)、[平板](../images/fresh-relay-bindings/delete-tablet-dark.webp)、[手机](../images/fresh-relay-bindings/delete-phone-dark.webp)。
+  - [真实确认与取消 GIF](../images/fresh-relay-bindings/delete-consent.gif)。
+- 局限：无头 Chromium 未验证真实悬停、粗指针及 iOS/Android 真机。额外 wire 快照重录在无关 codeview 场景遭遇 `/bin/sh: operation not permitted`；此前包含现有 wire 快照的 API race 已通过，未将失败重录当作成功。

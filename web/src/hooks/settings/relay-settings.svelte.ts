@@ -161,7 +161,7 @@ export function useRelaySettings() {
     }
   }
 
-  async function pair(rebind: boolean) {
+  async function pair() {
     if (ui.busy || ui.enrollment || requests.disposed) return;
     ui.busy = true;
     failure = undefined;
@@ -173,12 +173,11 @@ export function useRelaySettings() {
         "/relay/enrollments",
         RelayEnrollmentSchema,
         "POST",
-        { rebind, confirmPublic: true },
+        { confirmPublic: true },
         ticket.signal,
         RelayEnrollmentRequestSchema,
       );
       if (!ticket.current() || revision !== pairingRevision) return;
-      if (rebind) clearRelayAuth();
       ui.enrollment = enrollment;
       pairingTimer = setTimeout(
         () => void pollEnrollment(enrollment, revision),
@@ -237,7 +236,7 @@ export function useRelaySettings() {
     try {
       const result = await api(
         path,
-        RelayPollResultSchema,
+        method === "DELETE" ? RelayStatusSchema : RelayPollResultSchema,
         method,
         body,
         ticket.signal,

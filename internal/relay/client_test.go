@@ -95,7 +95,7 @@ func TestSignedAssignmentAndDeletion(t *testing.T) {
 			return
 		}
 		if r.URL.Path == protocol.PathBinding && r.Method == http.MethodDelete && challenge.Purpose == protocol.PurposeDelete {
-			mustJSON(t, w, http.StatusAccepted, protocol.LogoutResult{Version: protocol.V1, RevocationID: revocationID, Complete: false})
+			mustJSON(t, w, http.StatusOK, protocol.BindingDeletionResult{Version: protocol.BindingAPIVersion, RevocationID: revocationID, Deleted: true, AccessClosed: false})
 			return
 		}
 		w.WriteHeader(400)
@@ -114,8 +114,8 @@ func TestSignedAssignmentAndDeletion(t *testing.T) {
 		t.Fatal("caller-modified discovery accepted")
 	}
 	deleted, err := c.Delete(context.Background(), key, assignment.Binding)
-	if err != nil || deleted.Complete || deleted.RevocationID != revocationID {
-		t.Fatalf("pending deletion = %#v, %v", deleted, err)
+	if err != nil || !deleted.Deleted || deleted.AccessClosed || deleted.RevocationID != revocationID {
+		t.Fatalf("offline record deletion = %#v, %v", deleted, err)
 	}
 	if issued.Load() != 2 || checked.Load() != 2 {
 		t.Fatal("signed operations were retried or skipped")
@@ -144,7 +144,7 @@ func TestTLSAndRedirectNeverExposeEnrollment(t *testing.T) {
 			c.http.CloseIdleConnections()
 			c.http = c.httpClient(nil)
 			defer c.http.CloseIdleConnections()
-			_, err := c.Enroll(context.Background(), key, protocol.MachineID(strings.Repeat("A", 43)), false)
+			_, err := c.Enroll(context.Background(), key, protocol.MachineID(strings.Repeat("A", 43)))
 			var failure protocol.Error
 			if !errors.As(err, &failure) || failure.Code != protocol.Unauthenticated {
 				t.Fatalf("TLS rejection = %v", err)
@@ -155,7 +155,7 @@ func TestTLSAndRedirectNeverExposeEnrollment(t *testing.T) {
 		t.Fatal("credentials sent before TLS identity verification")
 	}
 	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
-	_, err := c.Enroll(context.Background(), key, protocol.MachineID(strings.Repeat("A", 43)), false)
+	_, err := c.Enroll(context.Background(), key, protocol.MachineID(strings.Repeat("A", 43)))
 	if err == nil || requests.Load() != 1 {
 		t.Fatalf("redirect followed: requests=%d err=%v", requests.Load(), err)
 	}
@@ -169,7 +169,7 @@ func TestEnrollmentPendingCancelAndBounds(t *testing.T) {
 	srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
 			var poll protocol.EnrollmentPoll
-			if err := json.NewDecoder(r.Body).Decode(&poll); err != nil || poll.Handle != handle {
+			if err := json.NewDecoder(r.Body).Decode(&poll); err != nil || poll.Handle != handle || poll.Version != protocol.BindingAPIVersion {
 				t.Error("cancel lost handle body")
 			}
 			cancels.Add(1)
@@ -230,18 +230,18 @@ func TestEnrollmentCarriesMachineIdentityAcrossKeyRotation(t *testing.T) {
 		if err := json.Unmarshal(body, &request); err != nil || request.Validate() != nil {
 			t.Errorf("invalid enrollment request: %v", err)
 		}
-		if request.MachineID != machineID || request.Rebind != (n == 1) {
-			t.Error("enrollment lost stable identity or explicit replacement intent")
+		if request.MachineID != machineID || request.Version != protocol.BindingAPIVersion {
+			t.Error("enrollment lost stable identity or binding API version")
 		}
 		wantKey := base64.RawURLEncoding.EncodeToString(keys[n].Public().(ed25519.PublicKey))
 		if request.PublicKey.Key != wantKey || strings.Contains(string(body), base64.RawURLEncoding.EncodeToString(keys[n].Seed())) {
 			t.Error("enrollment lost public key or exposed private seed")
 		}
-		mustJSON(t, w, http.StatusCreated, protocol.Enrollment{Version: protocol.V1, Handle: handle, UserCode: "ABCD", VerificationURL: "https://relay.example/activate", ExpiresAt: time.Now().Add(time.Minute).Unix(), PollIntervalSeconds: 1})
+		mustJSON(t, w, http.StatusCreated, protocol.Enrollment{Version: protocol.BindingAPIVersion, Handle: handle, UserCode: "ABCD", VerificationURL: "https://relay.example/activate", ExpiresAt: time.Now().Add(time.Minute).Unix(), PollIntervalSeconds: 1})
 	}), false)
 	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
-	for n, key := range keys {
-		if _, err := c.Enroll(t.Context(), key, machineID, n == 1); err != nil {
+	for _, key := range keys {
+		if _, err := c.Enroll(t.Context(), key, machineID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -260,7 +260,7 @@ func TestEnrollmentRejectsInvalidMachineIdentityBeforeRequest(t *testing.T) {
 	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
 	key := testKey(t)
 	for _, machineID := range []protocol.MachineID{"", "invalid", protocol.MachineID(strings.Repeat("A", 42) + "B")} {
-		_, err := c.Enroll(t.Context(), key, machineID, false)
+		_, err := c.Enroll(t.Context(), key, machineID)
 		var failure protocol.Error
 		if !errors.As(err, &failure) || failure.Code != protocol.Invalid {
 			t.Fatalf("invalid machine identity accepted: %v", err)
@@ -268,5 +268,73 @@ func TestEnrollmentRejectsInvalidMachineIdentityBeforeRequest(t *testing.T) {
 	}
 	if requests.Load() != 0 {
 		t.Fatal("invalid identity reached the network")
+	}
+}
+
+func TestBindingDeletionRequiresV2RecordRemovalEvidence(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*protocol.BindingDeletionResult)
+		valid  bool
+	}{
+		{name: "offline-record-deleted", valid: true},
+		{name: "access-closed", change: func(v *protocol.BindingDeletionResult) { v.AccessClosed = true }, valid: true},
+		{name: "old-version", change: func(v *protocol.BindingDeletionResult) { v.Version = protocol.V1 }},
+		{name: "missing-revocation", change: func(v *protocol.BindingDeletionResult) { v.RevocationID = "" }},
+		{name: "record-retained", change: func(v *protocol.BindingDeletionResult) { v.Deleted = false }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			id := newTestIdentity(t)
+			key := testKey(t)
+			binding := testBinding()
+			result := protocol.BindingDeletionResult{Version: protocol.BindingAPIVersion, RevocationID: testToken(t), Deleted: true}
+			if tc.change != nil {
+				tc.change(&result)
+			}
+			var deletions atomic.Int32
+			srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == protocol.PathHostChallenge {
+					mustJSON(t, w, http.StatusOK, protocol.HostChallenge{Version: protocol.V1, Audience: "control.example", HostID: binding.HostID, BindingGeneration: binding.BindingGeneration, Purpose: protocol.PurposeDelete, Nonce: testToken(t), ExpiresAt: time.Now().Add(20 * time.Second).Unix(), ControlEpoch: testToken(t)})
+					return
+				}
+				deletions.Add(1)
+				mustJSON(t, w, http.StatusOK, result)
+			}), false)
+			c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+			got, err := c.Delete(t.Context(), key, binding)
+			if tc.valid {
+				if err != nil || got != result {
+					t.Fatalf("valid deletion changed: %+v, %v", got, err)
+				}
+			} else if err == nil {
+				t.Fatalf("unproven record deletion accepted: %+v", got)
+			}
+			if deletions.Load() != 1 {
+				t.Fatal("deletion was retried or skipped")
+			}
+		})
+	}
+}
+
+func TestEnrollmentRejectsRetiredResponseVersions(t *testing.T) {
+	id := newTestIdentity(t)
+	handle := testToken(t)
+	srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == protocol.PathEnrollments {
+			mustJSON(t, w, http.StatusCreated, protocol.Enrollment{Version: protocol.V1, Handle: handle, UserCode: "ABCD", VerificationURL: "https://relay.example/activate", ExpiresAt: time.Now().Add(time.Minute).Unix(), PollIntervalSeconds: 1})
+			return
+		}
+		var poll protocol.EnrollmentPoll
+		if err := json.NewDecoder(r.Body).Decode(&poll); err != nil || poll.Version != protocol.BindingAPIVersion || poll.Handle != handle {
+			t.Error("poll did not use the binding API version")
+		}
+		mustJSON(t, w, http.StatusOK, protocol.EnrollmentResult{Version: protocol.V1, Binding: testBinding(), OwnerLogin: "owner"})
+	}), false)
+	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+	if _, err := c.Enroll(t.Context(), testKey(t), protocol.MachineID(strings.Repeat("A", 43))); err == nil {
+		t.Fatal("retired enrollment response accepted")
+	}
+	if _, err := c.Poll(t.Context(), handle); err == nil {
+		t.Fatal("retired poll response accepted")
 	}
 }

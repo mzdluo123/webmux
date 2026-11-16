@@ -25,7 +25,7 @@
   }: {
     view: RelaySettingsView;
     onrefresh: () => void;
-    onpair: (rebind: boolean) => void;
+    onpair: () => void;
     oncancel: () => void;
     onenable: () => void;
     ondisconnect: () => void;
@@ -33,7 +33,7 @@
     ondelete: () => void;
   } = $props();
   let confirmation = $state<
-    "pair" | "rebind" | "enable" | "disconnect" | "reconnect" | "delete" | null
+    "pair" | "enable" | "disconnect" | "reconnect" | "delete" | null
   >(null);
   const status = $derived(view.status);
   const blocked = $derived(view.busy || !!view.enrollment);
@@ -53,21 +53,19 @@
   const confirmTitle = $derived(
     confirmation === "pair"
       ? m.relay_confirm_pair()
-      : confirmation === "rebind"
-        ? m.relay_confirm_rebind()
-        : confirmation === "enable"
-          ? m.relay_confirm_enable()
-          : confirmation === "delete"
-            ? m.relay_confirm_delete()
-            : confirmation === "reconnect"
-              ? m.relay_confirm_reconnect()
-              : m.relay_confirm_disconnect(),
+      : confirmation === "enable"
+        ? m.relay_confirm_enable()
+        : confirmation === "delete"
+          ? m.relay_confirm_delete()
+          : confirmation === "reconnect"
+            ? m.relay_confirm_reconnect()
+            : m.relay_confirm_disconnect(),
   );
 
   function confirm() {
     const action = confirmation;
     confirmation = null;
-    if (action === "pair" || action === "rebind") onpair(action === "rebind");
+    if (action === "pair") onpair();
     else if (action === "enable") onenable();
     else if (action === "disconnect") ondisconnect();
     else if (action === "reconnect") onreconnect();
@@ -199,26 +197,17 @@
         </section>
       {:else}
         <div class="flex flex-wrap gap-3">
-          <Button
-            disabled={blocked ||
-              !status.storageAvailable ||
-              !status.controlEndpoint}
-            onclick={() => {
-              confirmation = status.paired ? "rebind" : "pair";
-            }}
-          >
-            {status.paired ? m.relay_rebind() : m.relay_start_pairing()}
-          </Button>
           {#if !status.paired}
             <Button
-              variant="destructive-outline"
               disabled={blocked ||
                 !status.storageAvailable ||
                 !status.controlEndpoint}
               onclick={() => {
-                confirmation = "rebind";
-              }}>{m.relay_recover_binding()}</Button
+                confirmation = "pair";
+              }}
             >
+              {m.relay_start_pairing()}
+            </Button>
           {/if}
           {#if status.paired}
             <Button
@@ -326,10 +315,8 @@
     <AlertDialog.Header>
       <AlertDialog.Title>{confirmTitle}</AlertDialog.Title>
       <AlertDialog.Description>
-        {#if confirmation === "pair" || confirmation === "rebind" || confirmation === "enable"}
+        {#if confirmation === "pair" || confirmation === "enable"}
           {m.relay_consent()}
-          {#if confirmation === "pair"}{m.relay_recovery_consent()}{/if}
-          {#if confirmation === "rebind"}{m.relay_rebind_consent()}{/if}
         {:else if confirmation === "delete"}
           {m.relay_delete_consent()}
         {:else}

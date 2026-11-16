@@ -3,7 +3,12 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import RelayManager from "../../src/components/settings/RelayManager.svelte";
 import { relayStatus } from "../fixtures/relay";
-import { clearRelayAuth } from "../../src/platform/relay-auth";
+import {
+  applyRelayAuth,
+  clearRelayAuth,
+  relayAuthRevision,
+  relayOwnerAuthenticated,
+} from "../../src/platform/relay-auth";
 import { resetHostFeatures } from "./feature-fixture";
 import { initializeLocale, locale } from "../../src/lib/locale";
 import { m } from "$lib/paraglide/messages.js";
@@ -14,7 +19,7 @@ beforeEach(() => {
 });
 
 const enrollment = {
-  version: 1,
+  version: 2,
   handle: "A".repeat(43),
   userCode: "ABCD-EFGH",
   verificationUrl: "https://github.com/login/device",
@@ -165,25 +170,43 @@ test("weak recovery Token blocks enable but does not block emergency disconnect"
   expect(mutations).toEqual(["/api/relay/disconnect"]);
 });
 
-test("pending remote deletion keeps identity visible rather than claiming unpaired", async () => {
-  const paired = { ...relayStatus, paired: true, ownerId: "1234567" };
+test("record deletion clears local identity and auth without claiming offline access closure", async () => {
+  let status = { ...relayStatus, paired: true, ownerId: "1234567" };
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async (_input, init) => {
-      if (init?.method === "DELETE")
-        return Response.json({ error: "pending" }, { status: 202 });
-      return Response.json(paired);
+      if (init?.method === "DELETE") status = { ...relayStatus };
+      return Response.json(status);
     }),
   );
   render(RelayManager);
+  await expect
+    .element(page.getByRole("button", { name: "删除绑定", exact: true }))
+    .toBeVisible();
+  applyRelayAuth(
+    {
+      authenticated: true,
+      csrfToken: "owner-csrf",
+      expiresAt: Math.floor(Date.now() / 1000) + 600,
+    },
+    relayAuthRevision(),
+  );
+  expect(relayOwnerAuthenticated()).toBe(true);
   await page.getByRole("button", { name: "删除绑定", exact: true }).click();
+  await expect.element(dialog()).toMatchTextContent(/永久失去旧公共地址/);
+  await expect
+    .element(dialog())
+    .toMatchTextContent(/离线主机的旧直连访问不保证已经关闭/);
   await dialog().getByRole("button", { name: "确认操作", exact: true }).click();
   await expect
-    .element(page.getByText("远端撤销尚未确认", { exact: false }))
+    .element(
+      page.getByRole("button", { name: "开始 GitHub 配对", exact: true }),
+    )
     .toBeVisible();
   await expect
     .element(page.getByText("GitHub 所有者：账号 · 1234567", { exact: true }))
-    .toBeVisible();
+    .not.toBeInTheDocument();
+  expect(relayOwnerAuthenticated()).toBe(false);
 });
 
 test("WSS enable remains usable without P2P and off-state bound address is not an open link", async () => {
@@ -329,7 +352,7 @@ test("mounted locale changes keep device pairing state without restarting enroll
   ).toEqual([
     {
       path: "/api/relay/enrollments",
-      body: { rebind: false, confirmPublic: true },
+      body: { confirmPublic: true },
     },
   ]);
   expect(mutations.some((entry) => entry.path === "/api/relay")).toBe(false);

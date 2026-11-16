@@ -321,7 +321,7 @@ type SecretDelivery struct {
 
 // ValidateForBinding enforces persistent full-origin continuity on rediscovery.
 // Endpoint/IP/trust changes are allowed; a different public origin is not a v1
-// migration. Rebinding a key must preserve the existing Binding.PublicURL too.
+// assignment migration. Deleted bindings are never restored by rediscovery.
 func (a Assignment) ValidateForBinding(b Binding, now time.Time) error {
 	if err := a.Validate(now); err != nil {
 		return err

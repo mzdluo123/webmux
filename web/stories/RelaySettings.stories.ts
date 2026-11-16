@@ -72,7 +72,7 @@ export const Pairing: Story = {
       ...meta.args.view,
       status: { ...status, pairing: true },
       enrollment: {
-        version: 1,
+        version: 2,
         handle: "A".repeat(43),
         userCode: "ABCD-EFGH",
         verificationUrl: "https://github.com/login/device",
@@ -89,6 +89,18 @@ export const Denied: Story = {
       error: "授权被拒绝；此 GitHub 账号尚未获得邀请。",
     },
   },
+};
+export const ExistingBindingConflict: Story = {
+  args: {
+    view: {
+      ...meta.args.view,
+      error:
+        "即使使用同一账号，也必须先删除已有绑定再重新配对。如果本机缺少绑定身份，请先从所有者控制台删除绑定。",
+    },
+  },
+};
+export const DeletedBinding: Story = {
+  args: { view: { ...meta.args.view, notice: "操作已完成。" } },
 };
 export const PendingConfirmation: Story = {
   args: {

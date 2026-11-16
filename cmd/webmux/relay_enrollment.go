@@ -24,7 +24,7 @@ func (rc *relayController) Enroll(ctx context.Context, req contract.RelayEnrollm
 	next := rc.settings
 	pending := rc.pendingExpires > time.Now().Unix()
 	rc.mu.Unlock()
-	if pending || (next.Binding != nil && !req.Rebind) {
+	if pending || next.Binding != nil {
 		return protocol.Enrollment{}, protocol.Error{Code: protocol.Conflict}
 	}
 	machineID, err := rc.machine.ID()
@@ -42,7 +42,7 @@ func (rc *relayController) Enroll(ctx context.Context, req contract.RelayEnrollm
 	rc.mu.Lock()
 	rc.settings = next
 	rc.mu.Unlock()
-	result, err := rc.client.Enroll(ctx, key, machineID, req.Rebind)
+	result, err := rc.client.Enroll(ctx, key, machineID)
 	if err != nil {
 		return protocol.Enrollment{}, err
 	}
@@ -87,10 +87,6 @@ func (rc *relayController) Poll(ctx context.Context, handle protocol.Token) (con
 	result, err := rc.client.Poll(ctx, handle)
 	if err != nil {
 		err = rc.rejectEnrollment(ctx, handle, err, true)
-		return rc.Status(), err
-	}
-	if next.Binding != nil && (result.Binding.HostID != next.Binding.HostID || result.Binding.PublicURL != next.Binding.PublicURL || result.Binding.OwnerID != next.Binding.OwnerID || result.Binding.BindingGeneration <= next.Binding.BindingGeneration) {
-		err = rc.rejectEnrollment(ctx, handle, protocol.Error{Code: protocol.Forbidden}, true)
 		return rc.Status(), err
 	}
 	rc.stop(ctx)
@@ -187,8 +183,8 @@ func (rc *relayController) Delete(ctx context.Context) (contract.RelayStatus, er
 	if err != nil {
 		return rc.Status(), err
 	}
-	if !result.Complete {
-		return rc.Status(), protocol.Error{Code: protocol.Pending}
+	if !result.Deleted {
+		return rc.Status(), protocol.Error{Code: protocol.Invalid}
 	}
 	rc.stop(ctx)
 	next.Config.Enabled = false
@@ -197,11 +193,15 @@ func (rc *relayController) Delete(ctx context.Context) (contract.RelayStatus, er
 	next.Seed = ""
 	next.PendingSeed = ""
 	next.OwnerLogin = ""
+	// The remote record is gone even if local persistence fails. Keep this
+	// process disabled and credential-free while reporting the storage fault.
+	rc.mu.Lock()
+	rc.settings = next
+	rc.pendingExpires = 0
+	rc.pending = [32]byte{}
+	rc.mu.Unlock()
 	if err := rc.store.Save(next); err != nil {
 		return rc.Status(), err
 	}
-	rc.mu.Lock()
-	rc.settings = next
-	rc.mu.Unlock()
 	return rc.Status(), nil
 }

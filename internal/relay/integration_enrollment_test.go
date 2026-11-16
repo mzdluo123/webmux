@@ -32,7 +32,6 @@ func TestRelayIntegrationEnrollment(t *testing.T) {
 		Certificate []byte
 		Target      string
 		MachineID   protocol.MachineID
-		Rebind      bool
 		WantCode    protocol.Code
 		Output      string
 	}
@@ -62,7 +61,7 @@ func TestRelayIntegrationEnrollment(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	start, err := c.Enroll(ctx, key, fixture.MachineID, fixture.Rebind)
+	start, err := c.Enroll(ctx, key, fixture.MachineID)
 	if err != nil {
 		t.Fatal(err)
 	}

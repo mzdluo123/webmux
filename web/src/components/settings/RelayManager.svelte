@@ -8,7 +8,7 @@
 <RelaySettings
   view={controller.ui}
   onrefresh={() => void controller.refresh()}
-  onpair={(rebind) => void controller.pair(rebind)}
+  onpair={() => void controller.pair()}
   oncancel={() => void controller.cancelPairing()}
   onenable={() => void controller.setEnabled(true)}
   ondisconnect={() => void controller.disconnect()}

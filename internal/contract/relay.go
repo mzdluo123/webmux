@@ -58,7 +58,6 @@ type RelayUpdate struct {
 }
 
 type RelayEnrollmentRequest struct {
-	Rebind        bool `json:"rebind"`
 	ConfirmPublic bool `json:"confirmPublic"`
 }
 

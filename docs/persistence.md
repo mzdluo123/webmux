@@ -82,8 +82,8 @@
 - `fail_closed` 表示覆盖文件异常时关闭对应入口，不能从 TOML 回退为启用；紧急关闭仍可停止当前入口，但写盘失败必须报告未持久化。
 - `tunnel-settings.json`、`tailscale-settings.json`、`voice-settings.json` 与 `p2p-settings.json` 共用 `internal/settingsstore` 的打开、读取、提交与 fail-closed 骨架；文件结构、校验与关闭方式由各自包注入，盘点中登记为 `entry-settings` 例外。
 - `tailscale-settings.json` 保存用户希望的 mode/port/provider；`tailscale-ownership.json` 保存本实例实际创建的外部入口（精确目标、端口、pending/active），供撤销和重启对账。它们的职责、权限和失败策略不同。
-- `relay-settings.json` 当前写入 v2，只读兼容严格校验的 v1；首次正常保存时迁移为 v2，去掉旧 `controltrust`，保留宿主身份、绑定、待配对身份与启用意图。读取不会改盘，v1 不允许再次提交，未知版本仍 fail-closed；其他状态文件不因此放宽版本门禁。
-- `relay-machine.json` 使用严格 v1 格式，首次配对前才生成并提交 32 字节随机机器 ID；打开服务只取得生命周期锁，不创建身份。解绑、换钥或删除 `relay-settings.json` 均保留该文件。
+- `relay-settings.json` 只接受并写入 v3，不再读取或迁移 v1/v2；旧格式 fail-closed 并保留原文件，不恢复旧身份或启用意图。破坏性升级先备份清理旧绑定状态，再全新配对；其他状态文件的版本门禁不变。
+- `relay-machine.json` 使用严格 v1 格式，首次配对前才生成并提交 32 字节随机机器 ID；打开服务只取得生命周期锁，不创建身份。删除绑定或删除 `relay-settings.json` 均保留该文件，机器 ID 不能恢复旧绑定或代替 GitHub 授权。
 - 机器 ID 只用于同账号配对判重，不是凭据，也不来自硬件指纹；不会进入状态响应、URL 或日志。身份损坏、锁冲突或 I/O 失败时保留原件、阻止新配对，不生成替代 ID，不影响本地 PTY；修复后重启服务再配对。
 - 旧 `tailscale.json` 即使损坏或与新文件并存，也在监听前阻止启动。先停止旧版本并核实/撤销其精确外部入口，再整理旧文件；不执行全局 reset。旧 `tunnel.json` 使 Cloudflare 保持关闭。新版不自动迁移文件或旧浏览器偏好。
 - `run/server.json.lock` 仅保护运行时记录和本机控制面；锁冲突退化为 TCP 服务，不能与 Tailscale 安全阻止启动混淆。

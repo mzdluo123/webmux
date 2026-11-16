@@ -91,7 +91,7 @@ export const RelayStatusSchema = z.object({
 export type RelayStatus = z.infer<typeof RelayStatusSchema>;
 
 export const RelayEnrollmentSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   handle: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   userCode: z.string().min(1).max(64),
   verificationUrl: z
@@ -120,8 +120,7 @@ export const RelayUpdateSchema = z
   .strict();
 export const RelayEnrollmentRequestSchema = z
   .object({
-    rebind: z.boolean(),
-    confirmPublic: z.literal(true),
+    confirmPublic: z.boolean(),
   })
   .strict();
 export const RelayPollRequestSchema = z
