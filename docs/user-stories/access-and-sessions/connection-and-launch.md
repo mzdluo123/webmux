@@ -75,6 +75,7 @@
 - **US-A08 GitHub 登录自己的主机**：作为跨设备使用者，我希望在手机登录同一个 GitHub 账号并打开自己的在线主机，以便免输长期 Token，同时保留账号与主机隔离。
   验收要点：
   - 后台仅列出当前数字账号拥有的主机，GitHub 名称只作显示；无邀请、跨账号、撤销或离线访问不能取得授权；
+  - 后台「Open WebMux」在新标签页进入主机，原标签页保留主机列表；首屏与状态刷新后的入口行为一致，新页面不能通过 `window.opener` 控制原页面；
   - 固定回调、浏览器绑定 state 与 PKCE、一次性短期 code 共同保护跳转；兑换并发只能成功一次，不重放未知结果；
   - GitHub 回调兼容可选 `iss`，提供时须精确匹配 GitHub issuer；重复、未知及错误 issuer 参数仍拒绝，不绕过浏览器事务 Cookie、state 或 PKCE；
   - 宿主签发 Secure、HttpOnly、SameSite=Lax、限定公共 Origin 的绝对期限 Cookie；不在 URL、日志或网页设置中暴露长期 Token 或秘密；
