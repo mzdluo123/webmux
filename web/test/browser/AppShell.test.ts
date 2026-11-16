@@ -39,7 +39,6 @@ afterEach(() => {
   localStorage.removeItem("webmux.sidebarCollapsed");
   localStorage.removeItem("webmux.toastNotifications");
   localStorage.removeItem("webmux.workbenchTree");
-  localStorage.removeItem("webmux.knownWorktrees");
   resetAttentionToasts();
   history.replaceState(null, "", "/");
 });
