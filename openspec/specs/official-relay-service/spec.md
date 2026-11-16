@@ -40,7 +40,7 @@ MVP SHALL 使用 GitHub 账号允许列表实施邀请制。未获邀请的账�
 ### Requirement: 主机身份与固定公共主机名
 
 Relay SHALL 为每台主机分配具有至少 128 位随机熵的 DNS 安全公共标识，并将标识、账号数字身份与主机公钥持久化。公共标识 MUST NOT 由 WebMux Token、GitHub Token 或私钥派生。
-宿主连接时，Relay SHALL 使用随机质询验证签名。签名 transcript SHALL 绑定随机数、主机标识、协议版本、Relay 受众、绑定代际、连接器代际与 control/bulk 角色，防止重放到其他角色、会话或服务。无效签名 MUST NOT 替换该主机的现有有效连接。
+宿主连接时，Relay SHALL 使用随机质询验证签名。签名 transcript SHALL 绑定随机数、主机标识、协议版本、Relay 受众、绑定代际、连接器代际与 control/interactive/bulk 角色，防止重放到其他角色、会话或服务。无效签名 MUST NOT 替换该主机的现有有效连接。
 除显式释放主机名外，重新启动和重新绑定密钥 SHALL 保持公共地址不变。
 
 #### Scenario: 错误私钥不能劫持主机名
@@ -55,7 +55,8 @@ Relay SHALL 为每台主机分配具有至少 128 位随机熵的 DNS 安全公�
 
 ### Requirement: 单活动连接器与撤销
 
-每个主机标识 SHALL 同时只有一个活动逻辑连接器，内部最多包含 control 与 bulk 两条已认证 WSS/smux v2 物理连接。角色、绑定及连接器代际 SHALL 纳入签名；同代际重复角色 SHALL 拒绝。新的合法 control 认证后 SHALL 原子替换整个旧代际；未认证连接不得影响旧连接。
+每个主机标识 SHALL 同时只有一个活动逻辑连接器，包含一条 control 管理连接与固定 interactive/bulk 数据池，默认数据池数量为二和四。
+角色、绑定及连接器代际 SHALL 纳入签名，数据角色每代际最多十六条连接；新的合法 control SHALL 原子替换整个旧代际。
 Relay SHALL 只把公共请求路由到当前已认证且处于活动状态的逻辑连接器。control 断开、绑定撤销或公钥替换后，对应公共入口 SHALL 立即停止转发；后续请求返回不可用响应，不得转入其他主机。仅 bulk 失败 SHALL 按数据面要求降级，不能顶掉合法 control。
 
 #### Scenario: 同一主机的重复连接
@@ -200,7 +201,7 @@ Relay MUST NOT 接受任意回调或开放重定向，MUST NOT 为非所有者�
 - **WHEN** 用户注销后台，派生宿主会话仍在使用
 - **THEN** Relay 撤销记录并通知宿主关闭该会话访问，收到确认后报告完成，不结束 PTY
 
-### Requirement: 双连接 WSS 传输与性能证据
+### Requirement: 固定多 TCP WSS 传输与性能证据
 
 宿主连接器 SHALL 使用 TLS 1.3 WSS + smux v2，嵌入库而非受管 sidecar；连接器 MUST NOT 探测 QUIC、配置 FEC 或自研可靠 UDP，此限制不禁止独立 WebRTC/TURN 交互优化。
 TCP 运维 SHALL 区分服务端与客户端：
@@ -208,14 +209,17 @@ TCP 运维 SHALL 区分服务端与客户端：
 - 服务器 TCP SHALL 使用 BBR，部署 SHALL 核实实际接口队列，不能仅凭 default_qdisc 宣称使用 fq。
 - 客户端 SHALL 如实记录操作系统算法，不假定 Windows 支持 BBR。
 
-批量流量 SHALL 使用 bulk，交互与控制 SHALL 使用 control。两条物理连接 SHALL 共用账号总配额和资源预算。control 断开 SHALL 撤销来源及派生会话并关闭 bulk；仅 bulk 断开 SHALL 保留交互、报告降级并拒绝新批量请求，不得转入 control。
+批量流量 SHALL 使用 bulk，交互 SHALL 使用 interactive，control SHALL 只承载管理消息。
+Relay SHALL 单点执行账号和宿主普通流配额，管理流 SHALL 独立于 HTTP 配额及数据带宽桶，bulk SHALL 留出交互余量。
+数据池 SHALL 按最少活跃流选择连接并在同负载时轮转，每物理连接 SHALL 不设置四流业务阈值。
+准入队列 SHALL 每账号最多 128 条、最长 15 秒，队列满或等待到期 SHALL 返回 429 与 Retry-After。
 
 重连 MUST NOT 自动重放非幂等请求，终端 SHALL 沿用 offset 续接。窗口、stream 和账号配额 SHALL 有界，不能声称多 TCP 消除了所有排队。
 
 #### Scenario: bulk 失败保持交互可用
 
 - **WHEN** 已认证逻辑连接器的 bulk 中断而 control 仍可用
-- **THEN** 终端继续服务，新批量请求返回 503，bulk 有界重连并重新认证同一代际，不能建立第三条连接
+- **THEN** 终端继续服务，新批量请求有界等待，宿主补齐同代际固定 bulk 槽位，其余健康数据连接保持可用
 
 #### Scenario: control 断开立即撤权
 

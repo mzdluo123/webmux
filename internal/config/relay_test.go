@@ -77,3 +77,24 @@ func TestRelayRejectsPartialAndMalformedBootstrap(t *testing.T) {
 		t.Fatalf("valid protocol audience limit: %v", err)
 	}
 }
+
+func TestRelayFixedPoolCounts(t *testing.T) {
+	for _, count := range []int{-1, 17} {
+		cfg := DefaultRelayConfig()
+		cfg.InteractiveConnections = count
+		if _, err := cfg.Validated(); err == nil {
+			t.Fatalf("interactive count %d accepted", count)
+		}
+		cfg = DefaultRelayConfig()
+		cfg.BulkConnections = count
+		if _, err := cfg.Validated(); err == nil {
+			t.Fatalf("bulk count %d accepted", count)
+		}
+	}
+	cfg := DefaultRelayConfig()
+	cfg.InteractiveConnections, cfg.BulkConnections = 0, 0
+	got, err := cfg.Validated()
+	if err != nil || got.InteractiveConnections != 2 || got.BulkConnections != 4 {
+		t.Fatalf("default fixed pool counts: %+v %v", got, err)
+	}
+}

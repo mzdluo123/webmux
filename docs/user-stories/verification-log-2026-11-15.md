@@ -288,6 +288,16 @@
 - `go test -count=1 ./internal/archtest -run '^(TestPersistence|TestGoFileNames|TestSourceFileSize)'` 通过。
 - 本次范围不涉及 SQLite 旧数据与缺少 `historyRoot` 的旧归档；故事 ID 和总数不变。
 
+## Relay 固定多 TCP 与单点准入（2026-11-16，US-A09、US-A10）
+
+- 默认连接布局为一条管理、两条交互和四条 bulk WSS；移除按需扩容及宿主重复业务限流，Relay 负责总额度、交互余量与排队。
+- 连接器子协议升级为 `webmux-relay.v2`，新增固定池大小 TOML 配置；现有绑定及密钥保留，需要协调升级两端。
+- `go test -race ./internal/relay ./internal/config ./cmd/internal/assemble` 通过；复现用例改为 32 并发、1024 次真实 WSS/smux/mTLS 请求，全部成功。
+- `go test -race ./...`（`protocol/relay`）通过；`go test -count=1 ./internal/docguard ./internal/archtest` 通过。
+- 服务端 `scripts/test-host-integration.sh /path/to/webmux` 通过：真实两端 96 并发、1536 次混合请求与长响应并行，未发生 503 或内容损坏，单条 bulk 断线后同代际补齐。
+- 本次使用本地隔离 TLS 服务与测试授权边界；没有执行生产部署、真实 GitHub 登录或跨运营商弱网验收。
+- 限速 FIN 回归通过：发送约需两秒的关闭帧保留健康 TCP；临时 overlay 恢复旧一秒期限时稳定失败，说明该用例覆盖实际故障边界。
+
 ## 移除终端菜单「粘贴」与「剪贴板」分组（2026-11-16，US-E02、US-H08）
 
 - 范围（故事 ID 与总数不变）：

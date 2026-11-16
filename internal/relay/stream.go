@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"log/slog"
 	"net"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/xtaci/smux"
 )
 
-const streamCloseTimeout = time.Second
+const streamCloseTimeout = protocol.ControlLease
 
 func (s *connection) accept(p *physical, role protocol.Role) error {
 	for {
@@ -19,19 +20,17 @@ func (s *connection) accept(p *physical, role protocol.Role) error {
 		if err != nil {
 			return protocol.Error{Code: protocol.Unavailable}
 		}
+		// Backpressure bounds in-flight headers; it never closes a healthy
+		// physical connection because completed streams are still cleaning up.
 		select {
-		case s.workers <- struct{}{}:
+		case <-s.ctx.Done():
+			return s.ctx.Err()
+		case s.headerSlots <- struct{}{}:
 			s.wg.Add(1)
 			go func() {
 				defer s.wg.Done()
-				defer func() { <-s.workers }()
 				s.serveStream(p, role, stream)
 			}()
-		default:
-			// Admission itself must stay nonblocking. Closing this physical
-			// connection reclaims both smux's accept queue and peer-created IDs.
-			p.close()
-			return protocol.Error{Code: protocol.Unavailable}
 		}
 	}
 }
@@ -40,6 +39,12 @@ func (s *connection) serveStream(p *physical, role protocol.Role, stream *smux.S
 	defer func() {
 		s.closeStream(p, stream)
 		s.unregisterHTTP(stream)
+	}()
+	readingHeader := true
+	defer func() {
+		if readingHeader {
+			<-s.headerSlots
+		}
 	}()
 	if err := stream.SetDeadline(time.Now().Add(protocol.StreamOpenTimeout)); err != nil {
 		return
@@ -52,6 +57,8 @@ func (s *connection) serveStream(p *physical, role protocol.Role, stream *smux.S
 		_ = streamResult(stream, header.RequestID, protocolCode(err))
 		return
 	}
+	<-s.headerSlots
+	readingHeader = false
 	if header.Kind == protocol.StreamControl {
 		s.mu.Lock()
 		if p != s.control || s.controlClaimed || s.denied || s.ctx.Err() != nil {
@@ -125,20 +132,16 @@ func (s *connection) registerHTTP(p *physical, role protocol.Role, stream *smux.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, attached := s.pool(role).physicals[p]
-	if !active || !attached || s.denied || s.ctx.Err() != nil || len(s.httpStreams) >= maxHTTPStreams || p.ordinary >= protocol.HTTPStreamsPerConnection {
+	if !active || !attached || s.denied || s.ctx.Err() != nil {
 		return false
 	}
-	p.ordinary++
 	s.httpStreams[stream] = httpStream{physical: p}
 	return true
 }
 
 func (s *connection) unregisterHTTP(stream *smux.Stream) {
 	s.mu.Lock()
-	if access, ok := s.httpStreams[stream]; ok {
-		access.physical.ordinary--
-		delete(s.httpStreams, stream)
-	}
+	delete(s.httpStreams, stream)
 	s.mu.Unlock()
 }
 
@@ -171,7 +174,8 @@ func abortConn(conn net.Conn) {
 }
 
 // smux Close/CloseWrite have an internal FIN wait independent of stream write
-// deadlines. If that wait stalls, close the physical socket, then join it.
+// deadlines. Allow the same progress budget as data IO before closing the
+// physical socket; a queued FIN behind rate-limited data is not a 1s failure.
 func (s *connection) closeStream(p *physical, stream *smux.Stream) {
 	done := make(chan struct{})
 	go func() { _ = stream.Close(); close(done) }()
@@ -181,6 +185,7 @@ func (s *connection) closeStream(p *physical, stream *smux.Stream) {
 	case <-done:
 		return
 	case <-timer.C:
+		slog.Warn("relay stream FIN timed out; closing data socket")
 		p.close()
 	case <-s.ctx.Done():
 		p.close()

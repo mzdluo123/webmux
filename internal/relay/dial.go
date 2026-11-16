@@ -99,7 +99,7 @@ func checkChallenge(challenge protocol.ConnectorChallenge, a protocol.Assignment
 func smuxConfig() *smux.Config {
 	cfg := smux.DefaultConfig()
 	cfg.Version = 2
-	cfg.MaxReceiveBuffer = max(1, connectionBuffer/protocol.MaxRoleConnections)
+	cfg.MaxReceiveBuffer = max(1, connectionBuffer)
 	cfg.MaxStreamBuffer = min(streamBuffer, cfg.MaxReceiveBuffer)
 	cfg.KeepAliveInterval = protocol.KeepAliveInterval
 	cfg.KeepAliveTimeout = protocol.ControlLease
