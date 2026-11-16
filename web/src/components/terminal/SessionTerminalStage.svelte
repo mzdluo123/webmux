@@ -323,7 +323,6 @@
   {quickMenu}
   upload={uploads?.uploadFiles}
   {toggleDraft}
-  {paste}
   {showScratch}
   {showFontSize}
   {showFind}

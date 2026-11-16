@@ -469,7 +469,6 @@
     {quickMenu}
     upload={async () => {}}
     toggleDraft={() => {}}
-    paste={async () => {}}
     showScratch={() => {}}
     showFontSize={() => {}}
     showFind={() => {}}
