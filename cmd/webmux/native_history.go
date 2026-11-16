@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	snapcompact "github.com/mzdluo123/snapcompact-go"
@@ -71,6 +72,12 @@ func (p *featureServices) openNativeHistory() {
 	p.nativeRoot = func(agent string, env map[string]string) string {
 		return nativeHistoryRoot(capabilities, agent, env)
 	}
-	p.nativeHistory = historyimport.New(historyimport.Options{Store: p.conversations, Readers: readers, Discoverers: discoverers, Roots: roots})
+	p.nativeHistory = historyimport.New(historyimport.Options{Resolve: func(ctx context.Context, id string) (historyimport.Identity, error) {
+		if p.chat == nil {
+			return historyimport.Identity{}, historysource.ErrUnavailable
+		}
+		rec, err := p.chat.Record(id)
+		return historyimport.Identity{Agent: rec.Agent, NativeID: rec.AgentSessionID, Root: rec.HistoryRoot}, err
+	}, Readers: readers, Discoverers: discoverers, Roots: roots})
 	p.historyProjection = historyprojection.New(historyprojection.Options{Source: p.nativeHistory, Preprocess: historyprojection.DefaultPreprocessConfig(), Render: snapcompact.DefaultRenderConfig()})
 }

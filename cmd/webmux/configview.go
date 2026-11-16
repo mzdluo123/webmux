@@ -73,7 +73,7 @@ func storeFeature(id statefile.ID) string {
 		return "p2p"
 	case statefile.Push:
 		return "notifications"
-	case statefile.Hybrid, statefile.AgentOptions, statefile.Conversation:
+	case statefile.Hybrid, statefile.AgentOptions:
 		return "chat"
 	default:
 		return ""
@@ -308,8 +308,6 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, features *
 			err = features.voiceStore.Unavailable()
 		case statefile.Hybrid, statefile.AgentOptions:
 			err = features.chat.Unavailable()
-		case statefile.Conversation:
-			err = features.conversations.Unavailable()
 		case statefile.Settings:
 			_, err = deps.Settings.Snapshot()
 		case statefile.TailscaleOwnership:

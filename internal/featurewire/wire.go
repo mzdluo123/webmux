@@ -66,11 +66,9 @@ func side(v contract.SessionView) string {
 // Archived is what an archived session's conversion needs besides its
 // record: whether its launch config was deleted and its agent's label.
 type Archived struct {
-	ConversationID, ProviderThreadID string
-	ConfigMissing                    bool
-	StoredBytes                      int64
-	AgentTitle                       string
-	AgentIcon                        string
+	ConfigMissing bool
+	AgentTitle    string
+	AgentIcon     string
 }
 
 // ArchivedSession converts the record of a closed or interrupted session:
@@ -85,15 +83,13 @@ func ArchivedSession(r hybrid.Record, a Archived) contract.SessionInfo {
 		title = filepath.Base(r.Cwd)
 	}
 	out := contract.SessionInfo{
-		ConversationID: a.ConversationID, ProviderThreadID: a.ProviderThreadID,
 		ID: r.ID, Title: title, Cwd: r.Cwd, Cmd: required(r.Cmd), Status: contract.SessionStatusExited,
 		CreatedAt: r.CreatedAt, LastActiveAt: r.UpdatedAt, ConfigID: r.ConfigID, ListeningPorts: []contract.ListeningPort{},
 		State: contract.SessionState(r.State), Views: []contract.SessionView{contract.ViewTerminal, contract.ViewChat}, View: View(string(r.Side)),
 		Agent: &contract.SessionAgent{Name: r.Agent, Title: a.AgentTitle, Icon: a.AgentIcon},
 		Archive: &contract.SessionArchive{
 			ConfigMissing: a.ConfigMissing, PreviousAgentSessionIDs: required(slices.Clone(r.PreviousIDs)),
-			StoredBytes: a.StoredBytes,
-			Activity:    r.Activity, QueuedCount: r.QueuedCount, UpdatedAt: r.UpdatedAt,
+			Activity: r.Activity, QueuedCount: r.QueuedCount, UpdatedAt: r.UpdatedAt,
 		},
 	}
 	if r.AgentSessionID != "" {

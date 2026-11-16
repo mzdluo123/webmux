@@ -146,7 +146,7 @@ webmux
 > - WebMux 等同于以当前系统用户身份执行命令；默认仅监听本机回环 `127.0.0.1:7681`。
 > - 首次启动会生成带随机 token 的 0600 配置文件，可用 `webmux status --json --reveal-token` 查看。
 > - 局域网或远程访问可改为 `0.0.0.0:7681`（或 Windows 托盘勾选“允许局域网访问”），请配合可信 VPN / 防火墙使用。
-> - **除非明确使用 `--tunnel` 并接受“Token 是唯一入口屏障”的风险，不要开放到公网。**
+> - **公网访问使用显式启用的 `--tunnel`，Token 是该入口的认证屏障。**
 > - 详见 [安全策略](SECURITY.md) 与 [Cloudflare Named Tunnel 配置指南](docs/cloudflare-tunnel.md)。
 
 ## 文档
@@ -159,7 +159,7 @@ webmux
 
 - **先查** [常见问题与排障入口](docs/faq.md)：会话为何在重启后消失、找不到 `claude` 命令、复制粘贴受限等。
 - **提问或报告问题**：[GitHub Issues](https://github.com/mzdluo123/webmux/issues)，请附上 `webmux version` 与复现步骤。
-- **安全漏洞**：不要公开提交，按 [安全策略](SECURITY.md#报告漏洞) 私下报告。
+- **安全漏洞**：通过 [安全策略](SECURITY.md#报告漏洞) 中的私密渠道报告。
 - **参与贡献**：欢迎 issue 与 PR，开发环境、测试与规范见 [参与贡献](CONTRIBUTING.md)；agent 协作的规则入口是 [AGENTS.md](AGENTS.md)。
 
 ## 许可证

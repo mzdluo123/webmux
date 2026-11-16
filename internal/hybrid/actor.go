@@ -37,18 +37,15 @@ var errMissingCapability = errors.New("agent 未声明 session/load 或 session/
 // on the actor to preserve completed operations' recovery contract, but never
 // hold the record state lock during filesystem I/O.
 type actor struct {
-	conversationID                           string
-	contextExecutionID, operationExecutionID string
-	requireNativeResume, nativeContinue      bool
-	replayOwnedMessageID                     string
-	replayOwnedMessage                       bool
-	replayUser                               replayUserBuffer
-	replayNative                             nativeReplay
-	svc                                      *Service
-	cmd                                      agentprofile.Command
-	cwd                                      string
-	configID                                 string
-	log                                      *chatLog
+	nativeContinue       bool
+	replayOwnedMessageID string
+	replayOwnedMessage   bool
+	replayUser           replayUserBuffer
+	svc                  *Service
+	cmd                  agentprofile.Command
+	cwd                  string
+	configID             string
+	log                  *chatLog
 
 	inbox chan func()
 	quit  chan struct{}
@@ -163,11 +160,12 @@ type actor struct {
 }
 
 type turn struct {
-	consumed          bool
-	executionID       string
-	id                string
-	cancel            context.CancelFunc
-	backgroundRefresh bool
+	acknowledgement     chan error
+	acknowledgementOnce sync.Once
+	consumed            bool
+	id                  string
+	cancel              context.CancelFunc
+	backgroundRefresh   bool
 	// done closes once the session/prompt call has returned and its result
 	// was posted.
 	done chan struct{}
@@ -285,10 +283,7 @@ func call[T any](ctx context.Context, a *actor, fn func() (T, error)) (T, error)
 	var zero T
 	reply := make(chan result, 1)
 	if !a.post(func() {
-		previous := a.operationExecutionID
-		a.operationExecutionID, _ = ctx.Value(executionContextKey{}).(string)
 		v, err := fn()
-		a.operationExecutionID = previous
 		a.flush()
 		reply <- result{v, err}
 	}) {

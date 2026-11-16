@@ -31,8 +31,8 @@ Q 组以选择 `chat` 及其 `launch`、`files` 依赖为前提。工作树操�
 - [手机会话选项面板](../../web/src/components/chat/ChatSessionOptions.svelte)、[模型可搜索列表](../../web/src/components/chat/ChatChoiceCommandList.svelte)、[共用输入卡片](../../web/src/components/chat/ComposerCard.svelte)；
 - [聊天浏览器用例](../../web/test/browser/ChatView.test.ts)、[布局验收](../../web/test/storybook/acp-chat.spec.ts)。
 
-- [对话事务存储](../../internal/conversation/)、[私有数据库生命周期](../../internal/statefile/database.go)。
+- [对话事务存储](../../internal/historyimport/)、[私有数据库生命周期](../../internal/historyimport/scope.go)。
 
-- [持久历史接口](../protocol/http-conversation.md)、[历史路由](../../internal/featureapi/conversation.go)、[portable projection](../../internal/conversation/projection.go)。
+- [持久历史接口](../protocol/http-conversation.md)、[历史路由](../../internal/featureapi/native.go)、[portable projection](../../internal/historyprojection/service.go)。
 
 - [交接预览](../protocol/http-handoff.md)、[预算与选择](../../internal/handoff/)、[预览接口](../../internal/featureapi/handoff.go)。

@@ -42,13 +42,6 @@ func (a *actor) steer(text string, attachments []Attachment) (agentCall, error) 
 		return nil, err
 	}
 
-	thread := a.control.thread
-	if a.svc.conversations != nil {
-		if err := a.bindControlThread(); err != nil {
-			return nil, err
-		}
-		thread = a.control.thread
-	}
 	a.clearAttention()
 	conn, sid, epoch := a.link.conn, a.link.sessionID, a.epoch
 	req := acp.PromptRequest{SessionID: sid, Prompt: blocks}
@@ -65,11 +58,7 @@ func (a *actor) steer(text string, attachments []Attachment) (agentCall, error) 
 	method := steerer.SteeringMethod()
 	return func(ctx context.Context) error {
 		err := conn.CallExtension(ctx, method, req, result)
-		if err != nil && a.svc.conversations != nil {
-			if gapErr := a.svc.conversations.AddGap(context.Background(), thread, "unconfirmed_prompt"); gapErr != nil {
-				a.svc.log.Warn("steering uncertainty could not be persisted", "id", a.id)
-			}
-		}
+
 		if err != nil {
 			return a.agentCallFailed(method, err)
 		}
@@ -89,11 +78,7 @@ func (a *actor) steer(text string, attachments []Attachment) (agentCall, error) 
 				a.svc.log.Warn("hybrid steering started a turn", "id", a.id, "method", method, "outcome", resp.Outcome)
 				a.emit(Event{Kind: EventNotice, Notice: &Notice{Level: acp.NoticeError, Text: "agent 自行开始了一个回合，该回合不受 WebMux 跟踪"}})
 			}
-			if a.svc.conversations != nil {
-				if err := a.svc.conversations.AdvanceControl(context.Background(), thread); err != nil {
-					a.controlFailure()
-				}
-			}
+
 			a.emit(a.tr.userMessage(text, attachments))
 			a.tr.breakMessage()
 			for _, note := range notes {

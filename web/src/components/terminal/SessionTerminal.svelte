@@ -342,7 +342,7 @@
   {#if features.chat}
     <features.chat.Handoff
       sourceId={availableFeatures.chat
-        ? (hybrid.info?.conversationId ?? hybrid.recoverable?.conversationId)
+        ? (hybrid.info?.id ?? hybrid.recoverable?.id)
         : undefined}
       root={terminalRoot}
       children={terminalStage}

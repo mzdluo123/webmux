@@ -4,9 +4,9 @@ import "testing"
 
 func TestMetadataSnapshotOwnsProviderIdentity(t *testing.T) {
 	id := "provider-session"
-	service := &Service{metadata: map[string]*Metadata{"runtime": {ConversationID: "conversation", ProviderThreadID: "thread", Side: "acp", State: "active", AgentSessionID: &id, Work: "Read file"}}}
+	service := &Service{metadata: map[string]*Metadata{"runtime": {Side: "acp", State: "active", AgentSessionID: &id, Work: "Read file"}}}
 	first := service.Metadata("runtime")
-	if first == nil || first.ConversationID != "conversation" || first.ProviderThreadID != "thread" {
+	if first == nil || first.Side != "acp" || first.State != "active" {
 		t.Fatalf("metadata %+v", first)
 	}
 	*first.AgentSessionID = "caller mutation"

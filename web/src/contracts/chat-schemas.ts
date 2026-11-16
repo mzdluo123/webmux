@@ -58,7 +58,6 @@ export const SessionArchiveSchema = z.object({
   previousAgentSessionIds: z.array(z.string()),
   // Bytes of chat text the record keeps on disk, excluding attachments and
   // the agent's own transcript; 0 for a terminal-only session.
-  storedBytes: z.number().int().nonnegative(),
   activity: z.enum(["idle", "turn", "switching"]).optional(),
   queuedCount: z.number().int().nonnegative(),
   interruptedAt: datetime.nullable(),

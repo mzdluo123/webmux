@@ -138,7 +138,3 @@ func (a *actor) backgroundDone(link *acpLink) {
 		}
 	}
 }
-
-func (a *actor) backgroundProcessRunning() bool {
-	return a.link != nil && a.bgBase != nil && hasNewProcess(a.link.sidecar.PID(), a.bgBase)
-}

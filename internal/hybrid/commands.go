@@ -23,11 +23,14 @@ type PromptResult struct {
 // of the temporary first-prompt title (Text may carry an instruction
 // prefix).
 type PromptInput struct {
-	ClientRequestID string
-	Text            string
-	TitleSource     string
-	Mode            string
-	Attachments     []Attachment
+	ExpectedIdentity     string
+	AwaitAcknowledgement bool
+	ExpectedUsage        *Usage
+	ClientRequestID      string
+	Text                 string
+	TitleSource          string
+	Mode                 string
+	Attachments          []Attachment
 }
 
 // QueueEdit changes a queued prompt: new Text and/or Move MoveUp.
@@ -143,9 +146,33 @@ func (s *Service) Prompt(ctx context.Context, id string, in PromptInput) (Prompt
 			if err := validText(in.Text, len(attachments)); err != nil {
 				return PromptResult{}, err
 			}
-			return call(ctx, a, func() (PromptResult, error) {
-				return a.promptRefuse(in.Text, in.TitleSource, attachments)
+			var acknowledgement <-chan error
+			result, err := call(ctx, a, func() (PromptResult, error) {
+				if in.ExpectedIdentity != "" {
+					rec, ok := s.records.get(id)
+					if !ok || NativeIdentity(rec) != in.ExpectedIdentity {
+						return PromptResult{}, ErrConflict
+					}
+				}
+
+				if in.ExpectedUsage != nil && (a.chat.Usage == nil || a.chat.Usage.Used != in.ExpectedUsage.Used || a.chat.Usage.Size != in.ExpectedUsage.Size) {
+					return PromptResult{}, ErrConflict
+				}
+				result, err := a.promptRefuse(in.Text, in.TitleSource, attachments)
+				if err == nil && a.turn != nil {
+					acknowledgement = a.turn.acknowledgement
+				}
+				return result, err
 			})
+			if err != nil || !in.AwaitAcknowledgement || acknowledgement == nil {
+				return result, err
+			}
+			select {
+			case err := <-acknowledgement:
+				return result, err
+			case <-ctx.Done():
+				return result, ctx.Err()
+			}
 		})
 	case ModeNow:
 		return once(ctx, &a.recent, in.ClientRequestID, "prompt-now", func(ctx context.Context) (PromptResult, error) {

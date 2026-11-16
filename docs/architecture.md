@@ -7,8 +7,8 @@ WebMux 是运行在单台 Linux / macOS 机器上的单用户 Web 终端。核�
 **非目标**
 
 - 多机网关、多用户或权限体系：以启动服务的系统用户身份运行。
-- 服务重启后的会话存活：普通会话只在内存中，重启即结束。混合会话的运行恢复记录保存在 `hybrid-sessions.json`，稳定 Conversation / ProviderThread 身份和事务基础保存在 `conversations.sqlite`。规范化 ACP Activity 在 UI 截断前分块保存；TUI 缺口显式保留。
-  持久身份与历史不意味着 PTY 或进程跨重启存活。`history_capture=false` 关闭正文捕获和历史/交接入口，身份与未决投递保护仍保留。
+- 服务重启后的会话存活：普通会话只在内存中，重启即结束。混合会话通过 `hybrid-sessions.json` 记录原生身份、目录和恢复参数；交接范围与操作结果保存在当前进程。
+
 - 进程沙箱：命令以服务用户身份执行，不做隔离。
 - 依赖或兼容 tmux。
 
@@ -96,10 +96,9 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `internal/tray/traysys`                       | 托盘系统管理操作：防火墙规则、登录自启动项、单实例与进程管理、安装程序启动                                 |
 | `internal/tray/forward`                       | 托盘转发：同源校验后把请求中转到 WebMux 的 TCP 监听                                                        |
 | `internal/tray/winui`, `cmd/webmux-tray`      | Windows 托盘通知区界面、菜单渲染、通知与剪贴板（`//go:build windows`）                                     |
-| `internal/handoff`                            | 历史预算、整项选择和服务端预览；通过注入服务协调，不创建 PTY                                               |
-| `internal/conversation`                       | 稳定对话与 provider 身份、Run 序号、handoff / delivery / receipt 事务基础                                  |
+| `internal/handoff`                            | 短期历史预览、预算、原子消费与普通 prompt 单次发送                                                         |
 | `internal/historysource`                      | 原生来源、规范记录、冻结边界与诊断值；有界只读文件证据                                                     |
-| `internal/historyimport`                      | 显式 reader 选择、来源中立直读、引用快照校验及按需保留；不维护活历史正文镜像                               |
+| `internal/historyimport`                      | 显式 reader 选择、精确原生身份解析与进程内冻结范围校验                                                     |
 | `internal/historyprojection`                  | 仅从冻结导出映射到独立 snapcompact-go 核心；文本/图片预算独立于格式解析                                    |
 | `internal/hybrid`                             | 混合会话：每会话一个 actor、记录持久化、聊天事件规范化、切换与恢复                                         |
 | `internal/artifacts`                          | 会话交互产物目录（系统临时目录下的私有文件夹，含 `uploads/`）的创建与清理                                  |
@@ -111,7 +110,7 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `internal/service`                            | 当前用户的 systemd --user / launchd 服务渲染与管理                                                         |
 | `web/`                                        | Svelte 5 前端，构建后通过 `go:embed` 嵌入二进制                                                            |
 
-Kimi 的 `agent_pretrust` 不写信任记录，而是由 `internal/agenttrust` 向会话环境注入进程级目录信任；Devin 则写入 `$XDG_DATA_HOME/devin/cli/trusted_workspaces.json`。
+Kimi 的 `agent_pretrust` 由 `internal/agenttrust` 向会话环境注入进程级目录信任；Devin 则写入 `$XDG_DATA_HOME/devin/cli/trusted_workspaces.json`。
 Agent 信任预写与专属提交延迟仅在选择 `launch` 时装配；核心普通 argv 不要求该功能。PTY 的 `agent_protocol`、`bell_attention`、`program_status` 则是核心识别配置，与聊天、推送功能是否选择无关。
 具体 agent 的 `trust.go` 拥有配置目录、命令别名与纯格式变换；`agentprofile/trustconfig` 只承载中立计划和纯 JSON 操作，不执行 I/O。
 `cmd/internal/assemble` 独立列出八种信任政策，因此 Copilot 等仅信任能力不必实现 ACP；信任扫描仍宽松匹配 argv 中的词，不复用混合命令校验。
@@ -161,7 +160,7 @@ flowchart LR
 - **会话与连接解耦**：Session 的生命周期只由子进程决定；WebSocket 连接只是观察者，可以有零个或多个。
 - **服务端只传字节**：PTY 原始字节直接进入缓冲并转发给 xterm.js，服务端不做终端仿真；OSC 标题与屏幕预览只是旁路解析。
 - **重连优先增量续接**：输出有绝对字节 offset 与会话运行代际；客户端带着已渲染的位置重连，服务端仍保留后续字节时只补发缺失部分，否则清屏全量回放。服务端仍不做终端仿真。
-- **运行时会话只在内存中**：Conversation / ProviderThread 身份使用 SQLite，PTY 和进程不持久化；仓库清单、启动配置、偏好设置、推送、隧道与 Tailscale 设置、混合会话记录写入状态目录（清单见 [配置与持久化清单](persistence.md)），Git 自己持有 worktree 与分支状态。
+- **运行时会话只在内存中**：原生身份记录在 hybrid 元数据中，交接使用进程内 scope；仓库清单、启动配置、偏好设置、推送、隧道与 Tailscale 设置、混合会话记录写入状态目录（清单见 [配置与持久化清单](persistence.md)），Git 自己持有 worktree 与分支状态。
 - **控制端决定尺寸**：多端同时附着时，只有控制端的 resize 生效；用户输入取得控制，控制端离开后不自动转交。终端自动回复只写入一个连接的回答。
 
 ## 会话生命周期

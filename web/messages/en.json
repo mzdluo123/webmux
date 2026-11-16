@@ -5090,5 +5090,16 @@
   "agent_tools_copy_upgrade": "Copy upgrade command for {title}",
   "agent_tools_copy_install": "Copy install command for {title}",
   "agent_tools_copied_cmd": "Command copied",
-  "agent_tools_docs_aria": "Open documentation for {title}"
+  "agent_tools_docs_aria": "Open documentation for {title}",
+  "handoff_loading_source": "Reading native session identity…",
+  "handoff_scope_expired": "The preview expired. Generate a new preview.",
+  "handoff_unknown_result": "The message may have been sent. Check the target session.",
+  "handoff_source_dependency": "History projections are sent as ordinary text. Exact text lookup depends on the native source. Previews last five minutes.",
+  "handoff_existing_target": "Target chat ID (optional)",
+  "handoff_refresh_result": "Check send result",
+  "handoff_cancel": "Cancel operation",
+  "handoff_preview_stats": "Selected {selected}, omitted {omitted}, source gaps {gaps}",
+  "handoff_history_budget": "History budget {used} / {total}; expires {expires}",
+  "handoff_operation_state": "Operation state: {state}",
+  "handoff_read_original": "Read frozen originals"
 }

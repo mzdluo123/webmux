@@ -1,5 +1,4 @@
-// Package historyimport orchestrates native reads and frozen exports. Despite
-// its historical name, it never imports live source bodies into Activity.
+// Package historyimport reads and freezes native history for the current process.
 package historyimport
 
 import (
@@ -8,76 +7,108 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-
 	"github.com/rainchan/webmux/internal/historysource"
 )
 
-type Store interface {
-	HistoryEnabled() bool
-	SaveFrozen(context.Context, historysource.SnapshotData, string) (historysource.Snapshot, error)
-	Frozen(context.Context, string) (historysource.SnapshotData, error)
-	RetainFrozen(context.Context, string, string) error
-	ReleaseFrozen(context.Context, string, string) error
-	NativeBindings(context.Context, string) ([]historysource.Binding, error)
-	BindNativeSource(context.Context, string, historysource.Source) error
-	PrefixSnapshots(context.Context, string) ([]string, error)
-	SourceAllowed(context.Context, historysource.Source) error
-	DispatchSourceScope(context.Context, string) (historysource.DispatchScope, error)
-	RecordSourceContext(context.Context, historysource.DispatchScope, historysource.ContextState) error
-	NativeContextReferences(context.Context, historysource.Source) ([]historysource.ContextReference, error)
-	ImportFrozenSource(context.Context, string, string) (historysource.Binding, error)
-}
-
 type DiscoverFunc func(context.Context, string) ([]historysource.Source, error)
-
+type Identity struct{ Agent, NativeID, Root string }
 type Options struct {
-	Store       Store
 	Readers     map[string]historysource.ReadFunc
 	Discoverers map[string]DiscoverFunc
 	Roots       map[string]string
+	Resolve     func(context.Context, string) (Identity, error)
 }
-
 type Service struct {
-	store       Store
-	readers     map[string]historysource.ReadFunc
-	discoverers map[string]DiscoverFunc
-	roots       map[string]string
+	readers         map[string]historysource.ReadFunc
+	discoverers     map[string]DiscoverFunc
+	roots           map[string]string
+	resolveIdentity func(context.Context, string) (Identity, error)
+	scopes          *scopeCache
 }
 
 func New(o Options) *Service {
-	s := &Service{store: o.Store, readers: make(map[string]historysource.ReadFunc, len(o.Readers)), discoverers: make(map[string]DiscoverFunc, len(o.Discoverers)), roots: make(map[string]string, len(o.Roots))}
-	for name, reader := range o.Readers {
-		if reader != nil {
-			s.readers[name] = reader
-		}
-	}
-	for name, discover := range o.Discoverers {
-		if discover != nil {
-			s.discoverers[name] = discover
-		}
-	}
-	for name, root := range o.Roots {
-		s.roots[name] = root
-	}
-	return s
+	return &Service{readers: o.Readers, discoverers: o.Discoverers, roots: o.Roots, resolveIdentity: o.Resolve, scopes: newScopeCache()}
 }
-
-func (s *Service) enabled() bool { return s != nil && s.store != nil && s.store.HistoryEnabled() }
-
 func (s *Service) Discover(ctx context.Context, agent, root string) ([]historysource.Source, error) {
-	if !s.enabled() {
+	if s == nil {
 		return nil, historysource.ErrUnavailable
 	}
-	discover := s.discoverers[agent]
-	if discover == nil {
+	if root == "" {
+		root = s.roots[agent]
+	}
+	fn := s.discoverers[agent]
+	if fn == nil {
 		return nil, historysource.ErrFormat
 	}
-	return discover(ctx, root)
+	return fn(ctx, root)
 }
+func (s *Service) RuntimeSource(ctx context.Context, id string) (historysource.Source, error) {
+	var empty historysource.Source
+	if s == nil || s.resolveIdentity == nil {
+		return empty, historysource.ErrUnavailable
+	}
+	identity, err := s.resolveIdentity(ctx, id)
+	if err != nil {
+		return empty, err
+	}
+	if identity.NativeID == "" {
+		return empty, historysource.ErrIdentity
+	}
+	root := identity.Root
 
-func (s *Service) read(ctx context.Context, req historysource.Request) (historysource.Document, error) {
+	if root == "" {
+		return empty, historysource.ErrUnavailable
+	}
+	found, err := s.Discover(ctx, identity.Agent, root)
+	if err != nil {
+		return empty, err
+	}
+	matches := 0
+	var result historysource.Source
+	for _, candidate := range found {
+		if candidate.Agent == identity.Agent && candidate.NativeID == identity.NativeID {
+			result = candidate
+			matches++
+		}
+	}
+	if matches != 1 {
+		return empty, historysource.ErrIdentity
+	}
+	return result, nil
+}
+func (s *Service) FreezeRuntime(ctx context.Context, id string) (Scope, error) {
+	source, err := s.RuntimeSource(ctx, id)
+	if err != nil {
+		return Scope{}, err
+	}
+	return s.FreezeScope(ctx, source)
+}
+func (s *Service) Document(ctx context.Context, id string) (historysource.Document, error) {
+	return s.ScopeDocument(ctx, id)
+}
+func (s *Service) Snapshot(ctx context.Context, id string) (historysource.Snapshot, error) {
+	scope, err := s.Scope(id)
+	return scope.Snapshot, err
+}
+func (s *Service) document(ctx context.Context, frozen historysource.Snapshot) (historysource.Document, error) {
 	var empty historysource.Document
-	if !s.enabled() {
+	doc, err := s.readNative(ctx, historysource.Request{Source: frozen.Source, Cursor: frozen.Cursor})
+	if err != nil {
+		return empty, err
+	}
+	hash, err := documentHash(doc)
+	if err != nil {
+		return empty, err
+	}
+	if doc.Fingerprint != frozen.Fingerprint || doc.ParserVersion != frozen.ParserVersion || doc.FormatVersion != frozen.FormatVersion || doc.Cursor != frozen.Cursor || hash != frozen.ContentHash {
+		return empty, historysource.ErrChanged
+	}
+	doc.RecordRefs = frozen.Records
+	return doc, nil
+}
+func (s *Service) readNative(ctx context.Context, req historysource.Request) (historysource.Document, error) {
+	var empty historysource.Document
+	if s == nil {
 		return empty, historysource.ErrUnavailable
 	}
 	reader := s.readers[req.Source.Agent]
@@ -127,137 +158,12 @@ func sourceRecordID(prefix, id string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (s *Service) Freeze(ctx context.Context, source historysource.Source, owner string, retain bool) (historysource.Snapshot, error) {
-	var empty historysource.Snapshot
-	if owner == "" {
-		return empty, historysource.ErrIdentity
-	}
-	if !s.enabled() {
-		return empty, historysource.ErrUnavailable
-	}
-	if err := s.store.SourceAllowed(ctx, source); err != nil {
-		return empty, err
-	}
-	doc, err := s.read(ctx, historysource.Request{Source: source})
-	if err != nil {
-		return empty, err
-	}
-	return s.freezeDocument(ctx, doc, owner, retain)
-}
-
-func (s *Service) freezeDocument(ctx context.Context, doc historysource.Document, owner string, retain bool) (historysource.Snapshot, error) {
-	var empty historysource.Snapshot
-	hash, err := documentHash(doc)
-	if err != nil {
-		return empty, err
-	}
-	snapshot := historysource.Snapshot{Source: doc.Source, Cursor: doc.Cursor, Generation: doc.Generation, Fingerprint: doc.Fingerprint, FormatVersion: doc.FormatVersion, ParserVersion: doc.ParserVersion, ContentHash: hash, RecordCount: len(doc.Records), Gaps: doc.Gaps, Retained: retain}
-	snapshot.Records = make([]historysource.RecordRef, 0, len(doc.Records))
-	for position, record := range doc.Records {
-		hash, err := hashValue(record)
-		if err != nil {
-			return empty, err
-		}
-		snapshot.Records = append(snapshot.Records, historysource.RecordRef{ID: record.ID, Hash: hash, Kind: record.Kind, Position: position + 1})
-	}
-	if doc.RecordRefs != nil {
-		snapshot.References = doc.References
-	} else {
-		snapshot.References, err = s.contextReferences(ctx, doc)
-		if err != nil {
-			return empty, err
-		}
-	}
-	data := historysource.SnapshotData{Snapshot: snapshot}
-	if retain {
-		export, err := retainExport(ctx, doc)
-		if err != nil {
-			return empty, err
-		}
-		snapshot.ExportHash, err = hashValue(export)
-		if err != nil {
-			return empty, err
-		}
-		data.Export = &export
-	}
-	snapshot.ID, err = snapshotHash(snapshot)
-	if err != nil {
-		return empty, err
-	}
-	data.Snapshot = snapshot
-	return s.store.SaveFrozen(ctx, data, owner)
-}
-
-func (s *Service) Snapshot(ctx context.Context, id string) (historysource.Snapshot, error) {
-	if !s.enabled() {
-		return historysource.Snapshot{}, historysource.ErrUnavailable
-	}
-	data, err := s.store.Frozen(ctx, id)
-	return data.Snapshot, err
-}
-
-func (s *Service) Document(ctx context.Context, id string) (historysource.Document, error) {
-	var empty historysource.Document
-	if !s.enabled() {
-		return empty, historysource.ErrUnavailable
-	}
-	data, err := s.store.Frozen(ctx, id)
-	if err != nil {
-		return empty, err
-	}
-	return s.document(ctx, data)
-}
-
-func (s *Service) document(ctx context.Context, data historysource.SnapshotData) (historysource.Document, error) {
-	var empty historysource.Document
-	frozen := data.Snapshot
-	if frozen.Retained {
-		if data.Export == nil {
-			return empty, historysource.ErrUnavailable
-		}
-		hash, err := hashValue(data.Export)
-		if err != nil || hash != frozen.ExportHash {
-			return empty, historysource.ErrUnavailable
-		}
-		return historysource.Document{Source: frozen.Source, Cursor: frozen.Cursor, Generation: frozen.Generation, Fingerprint: frozen.Fingerprint, FormatVersion: frozen.FormatVersion, ParserVersion: frozen.ParserVersion, Records: data.Export.Records, RecordRefs: frozen.Records, References: frozen.References, Gaps: frozen.Gaps}, nil
-	}
-	doc, err := s.read(ctx, historysource.Request{Source: frozen.Source, Cursor: frozen.Cursor})
-	if err != nil {
-		return empty, err
-	}
-	hash, err := documentHash(doc)
-	if err != nil {
-		return empty, err
-	}
-	if doc.Fingerprint != frozen.Fingerprint || doc.ParserVersion != frozen.ParserVersion || doc.FormatVersion != frozen.FormatVersion || doc.Cursor != frozen.Cursor || hash != frozen.ContentHash {
-		return empty, historysource.ErrChanged
-	}
-	doc.RecordRefs, doc.References = frozen.Records, frozen.References
-	return doc, nil
-}
-
-func (s *Service) Retain(ctx context.Context, id, owner string) error {
-	if !s.enabled() {
-		return historysource.ErrUnavailable
-	}
-	return s.store.RetainFrozen(ctx, id, owner)
-}
-
-func (s *Service) Release(ctx context.Context, id, owner string) error {
-	if !s.enabled() {
-		return historysource.ErrUnavailable
-	}
-	return s.store.ReleaseFrozen(ctx, id, owner)
-}
-
 func documentHash(doc historysource.Document) (string, error) {
 	// Pending belongs to the unfrozen suffix, not the frozen content identity.
 	doc.Pending = false
-	doc.RecordRefs, doc.References = nil, nil
+	doc.RecordRefs = nil
 	return hashValue(doc)
 }
-
-func snapshotHash(snapshot historysource.Snapshot) (string, error) { return hashValue(snapshot) }
 
 func hashValue(value any) (string, error) {
 	data, err := json.Marshal(value)

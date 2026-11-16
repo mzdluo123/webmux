@@ -97,7 +97,7 @@
 
 Three.js 输入源以 `XRInputSource` 身份跟踪 target ray。`selectstart` 记录命中 region 和拖动捕获，`selectend` 在同一目标上激活；`inputsourceschange` 取消该源的捕获，不把拖动转交给另一只手。面板标题柄用于移动，边角用于缩放，内容区用于滚动和选择。
 
-将 SoftKeys 的 Escape、Tab、方向键、修饰键和重复发送逻辑提炼为领域级按键命令编码，供现有 SoftKeys、TV 工具栏与 VR 键盘复用。VR 键盘不派生合成 DOM KeyboardEvent，而是调用同一输入控制器；直接模式和草稿模式继续互斥。实体键盘仍聚焦现有隐藏输入目标，以保留浏览器按键和 IME 顺序。
+将 SoftKeys 的 Escape、Tab、方向键、修饰键和重复发送逻辑提炼为领域级按键命令编码，供现有 SoftKeys、TV 工具栏与 VR 键盘复用。VR 键盘调用同一输入控制器；直接模式和草稿模式继续互斥。实体键盘仍聚焦现有隐藏输入目标，以保留浏览器按键和 IME 顺序。
 
 ### 8. 本地布局使用版本化、边界受限的 Zod 文档
 

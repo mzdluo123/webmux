@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"errors"
 
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
@@ -13,7 +14,7 @@ func (Worktree) CreatedLocation() {}
 // Prepare contributes only repository planning and identity protection. Generic
 // process, configuration and first-input coordination belongs to sessioncreate.
 func (s *Service) Prepare(ctx context.Context, in sessioncreate.Input) (out sessioncreate.LocationPlan, err error) {
-	defer func() { err = handoffLocationError(err) }()
+	defer func() { err = creationLocationError(err) }()
 	out = sessioncreate.LocationPlan{Cwd: in.Cwd}
 	var reference *Reference
 	if in.Workspace != nil {
@@ -71,7 +72,7 @@ func (s *Service) Prepare(ctx context.Context, in sessioncreate.Input) (out sess
 			out.Create = func(ctx context.Context) (*sessioncreate.Location, error) {
 				tree, err := s.CreateWorktree(ctx, nw.RepositoryID, CreateRequest{Path: plan.path, Mode: nw.Mode, Branch: plan.branch, Base: plan.base})
 				if err != nil {
-					return nil, handoffLocationError(err)
+					return nil, creationLocationError(err)
 				}
 				selected = &tree
 				reference = &Reference{RepositoryID: nw.RepositoryID, WorktreeID: tree.ID}
@@ -81,7 +82,7 @@ func (s *Service) Prepare(ctx context.Context, in sessioncreate.Input) (out sess
 	}
 	var association *Association
 	out.Acquire = func(ctx context.Context, path string) (resolved string, releaseStart func(), err error) {
-		defer func() { err = handoffLocationError(err) }()
+		defer func() { err = creationLocationError(err) }()
 		readCtx, cancel := context.WithTimeout(ctx, readTimeout)
 		defer cancel()
 		if selected != nil && !within(selected.Path, path) {
@@ -103,4 +104,11 @@ func (s *Service) Prepare(ctx context.Context, in sessioncreate.Input) (out sess
 	}
 	out.Associate = func(item *session.Session) { s.commitAssociation(item.Info(), association, false) }
 	return out, nil
+}
+
+func creationLocationError(err error) error {
+	if errors.Is(err, ErrConflict) {
+		return errors.Join(sessioncreate.ErrLocationConflict, err)
+	}
+	return err
 }

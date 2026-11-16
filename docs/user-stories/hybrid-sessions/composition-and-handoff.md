@@ -27,12 +27,9 @@
   - 标识只用于展示，不可聚焦或点击；切到终端视图后隐藏；浏览器不认识的图标键只显示名称，不用其他图标代替。
 - **US-Q19 聊天历史**：作为同时进行多个聊天的使用者，我希望聊天模式的侧栏用稳定的顺序列出全部聊天，以便不回首页就切换聊天或恢复已结束的聊天，且行不会因为输出而跳动。
   验收要点：
-  - 开发者可通过[原生直读入口](../../codex-native.md)发现和冻结精确原生身份；默认引用快照不读入后续追加，来源丢失明确失败，按需保留快照在来源删除及重启后仍可读；九个叶读取器已通过脱敏格式夹具，不冒称全部真实 CLI/交接组合均已验证；
-  - `import` 仅登记历史 Conversation / ProviderThread 和精确冻结来源，不启动 Agent、不写持续正文镜像；分页与长项续读复用 `snapshotIds` 或 `handoffId` scope，不能混入后续追加或其他分支；
-  - schema 14 先将旧可导出正文与所需引用迁移为私有不可变 exports，再删除旧 Activity/native_source/history_snapshot 镜像链路；运行、控制及 unknown 保护元数据独立保留；
-  - 中文 PNG 离线字库默认内嵌；[体积预算](../../binary-size.md#原生历史-png-的字体预算)记录制品增量，完整许可随单文件和 Linux 包交付；
-  - 开发者可显式运行[合成图片实验](../../native-image-experiment.md)，对比原文、机械投影、图片与混合表示；模型调用可能付费，不默认启用图片或宣称成本节省；
-  - [真实 ACP 图片实验](../../native-image-transport.md)保留实际用量与混合表示的缩进错误；图片未显示相对同覆盖投影文本的优势，文本仍默认，不把独立客户端证据扩大为生产自动图片交接已验收；
+  - 原生历史通过精确 Agent、native ID、HistoryRoot 和 cwd 取得短期冻结范围，分页与长项续读沿用同一 snapshotId；
+  - 来源之后的追加保持原边界，范围内修改或删除返回来源错误；九个 reader 的格式夹具保留；
+  - 显式图片实验使用独立入口，记录见[图片实验](../../native-image-experiment.md)；
   - 仅在 `chat` 已选择时加载历史模块、归档接口与恢复操作；禁用后旧模式偏好不能启动历史查询或恢复，原记录保留；
   - 运行中的混合会话在上方平铺，顺序稳定：
     - 按创建时间从新到旧，创建时间相同按会话 ID 排序，与工作台树一致；
@@ -41,7 +38,6 @@
     - 默认折叠并显示数量，当前打开或正在恢复已归档记录时自动展开；
     - 折叠时不在页面中挂载归档行；展开后先挂载最近 20 条，其余经“显示更多（还有 N 条）”按 20 条一批追加，收起后重新从首批开始，历史很长时也不会一次渲染全部行；
     - 按最近更新从新到旧排列，更新时间相同按 ID 排序；该时间只在归档、中断或编辑记录时变化；
-    - 归档体积只统计 WebMux 为该会话保留的不可变快照正文，同一导出只计一次；不含附件、投递元数据或 Agent 自己的原生文件，未保留正文时为 0；
   - 纯终端会话不列出，同一会话只出现一次，随会话事件实时更新；
   - 每行显示 agent 图标、标题和状态标记（彩色圆点：工作中、等待、空闲，空心圆点：已结束；已释放空间的已归档记录改为空心三角形，侧栏行不另显“已释放空间”文字徽章，原路径与提交在悬停提示中，文字在可访问名与悬停提示中），运行中与已归档的行标记在行尾右对齐，当前会话标 `aria-current`；
   - 点运行中的行在当前标签页进入该会话；点已归档记录按归档前最后使用的聊天或终端模式直接恢复并进入，不受聊天/工作台侧栏模式影响，也不改变侧栏模式；
@@ -49,79 +45,14 @@
     - 已释放空间的记录先确认重建 worktree（US-J13），无法恢复时在侧栏说明原因、不新建会话；
   - “新聊天”回到快速开始页；手机上从抽屉中选择后抽屉关闭。
 
-- **US-Q20 预览可携带的交接上下文**：作为切换 agent 的使用者，我希望检查服务端选择的历史与预算并编辑草稿，以便保留重要约束和近期结果。
+- **US-Q20 预览可携带的交接上下文**：作为切换 Agent 的使用者，我希望检查原生历史的机械文本投影与预算，并确认发送当前任务，以便保留重要约束和近期结果。
   验收要点：
-  - 本故事需 `chat` 且历史能力开启；工作树目标另需 `workspace`，缺少时只提供可用的直接目录，不探测仓库接口；禁用聊天不打开预览数据库或启动交接恢复；
-  - 认证 API 固定原生身份、branch、Generation、记录 hash 与缺口的冻结 scope，目标配置、用户任务与附件独立保存；最近 user、最近 agent、首条 user 优先，其余从近到远尝试后恢复来源顺序；
-  - 原生历史统一经机械投影，再按预算选择；来源 span、明确省略与完整原文读取能力保留，不把当前任务压缩或冒充历史，不携带推理、密文和私有 provider 状态；
-  - compaction、工具闭环与分支范围只按 reader 的真实证据解释；原生未记录或丢弃的内容标缺口，不从旧 ACP 镜像补造；
-  - 已确认投递项只在当前 nativecontext 与来源 ID/hash、表示策略/hash 一致时排除；目标保留占用和 receipt，来源删除不清空，附件仍计入保守用量；
-  - 预览选择元数据内嵌最多 100 项，并给完整计数与截断标记；认证 selection 接口按冻结记录 position 恢复全集，不静默丢弃省略项；
-  - `history_capture=false` 时，selection 分页与其他历史入口同样返回 503，不暴露已保存的来源路径、位置或选择明细；运行身份与未决派发保护仍保留；
-  - 预算区分 provider 用量与保守估算，计入 UTF-8、JSON 转义、目标占用、附件和工作预留；小窗口与超大请求返回 over_budget，不截短用户原文；
-  - PATCH 使用 revision，冲突返回 409；编辑跨服务重启保留，新活动或缺口只标 stale，不覆盖编辑；手工编辑只允许后续 inline；
-  - 预览不依赖活跃 actor，不启动 agent 或创建 worktree；认证 messages API 可在同一 Conversation 切换 agent，或 fork 到新 Conversation 的 cwd、已有或新 worktree，浏览器从会话菜单提供“更换 Agent…”与“交接到新聊天…”入口，后者复用位置选择与工作树表单；
-  - pending receipt 先于资源创建，重试与重启沿用 worktree 和会话身份；明确消费后标 inline，拒绝标 failed，结果不明标 unknown 且不自动重发；
-  - 生成持久预览前，暂存附件复制到已验证来源 runtime 的私有 uploads；原暂存文件不被夺走，其他表单仍可使用。草稿引用跨服务重启保留，沿用来源 runtime 的保留、清扫与忘记生命周期，不保证抵御操作系统清理临时目录；
-  - 同名但内容不同的暂存附件、普通来源上传与旧草稿副本可并存，不覆盖或拒绝合法新预览；同一暂存文件的相同内容幂等复用不可变副本；
-  - 不同暂存文件即使字节相同仍保留独立引用与原文件名，可跨重启重新预览并完整投递；路径授权与 MIME、大小、类型来自实际文件，不能合并为保存后无法再验证的重复引用；
-  - 投递附件复制到目标会话自己的私有上传目录，已完成副本不受来源记录删除或暂存区重启清理影响；回放恢复目标附件元数据，不能跨会话读取原路径；
-  - 附件上传期间，所有重新预览入口均禁用；上传完成后重新预览保留新增附件，不被旧请求快照覆盖；
-  - 任务留空时可仅上传图片或文件，预览后「发送交接」可用；无文字且无附件不能发送。上传和预览不产生 provider 请求，只有明确发送才投递一次，目标保留空任务与实际附件字节；
-  - 独立 fork 持有完整冻结来源的 retained 前缀、用户新请求、回放摘要与附件；来源 Conversation、原生文件删除及重启后仍可读完整历史，原生 load 只显示独立新请求，不暴露交接包或重建来源；
-  - 升级旧 v10 或重开已有 v11 时，即使目标已更换原生线程、来源已忘记，仍从保留目标事实修复历史派发 owner；未知调用保留旧 native 身份门禁，不放行替换 writer、不自动发送或重建来源历史；
-  - 原生 load 只有精确 native ID 与 payload hash 匹配才确认 unknown；用户新请求独立显示，不把历史 marker 用作标题；明确失败可显式重试，旧命令结果不被覆盖；
-  - 明确失败的交接允许把目标切到终端完成登录等恢复；恢复操作不自动重发或放行普通聊天请求，failed owner 在归档恢复和重启后仍保留，pending/unknown 重试也不能借终端绕过；
-  - 切换在旧 agent 退场前因忙碌或队列任务被拒绝时，旧 agent 保持当前身份，归档恢复或重启后仍可继续；failed 恢复保护只归实际目标，pending/unknown 仍阻止来源绕过；
-  - 同一 Conversation 重试只排除 execution ID 证明属于失败 attempt 的未消费控制记录，不改写已审阅正文、scope 或 revision；其他原生记录/hash、分支、gap 或修订变化仍冲突，终端改变历史时必须重新审阅；
-  - A→B→A 保留 Conversation、cwd/worktree 和 A 原生身份；按当前 nativecontext 与 receipt 来源 ID/hash 证据交接 A 未见内容，不靠乐观 Activity 水位或相同正文判断已消费；
-  - 较晚请求成功不证明较早拒绝请求已覆盖；Generation、compaction、分支头或投影策略证据失配时必须对账或 fresh/full，不能把旧 receipt 套到新实例；
-  - 缺少原生恢复能力或上下文耗尽时生成 full 的 fresh 草稿，待用户审阅后单独投递；有未完成、后台工作或外部 writer 时拒绝切换，不自动强制关闭；
-  - 删除旧 provider 的启动配置不阻止切换到有效配置；运行中的 provider 仍按原启动命令、agent 档案与环境检查占用并等待退出，归档 provider 缺少配置时用服务环境检查外部 writer，配置存储故障仍拒绝切换；
-  - 切换拥有持久的单写者 owner，重复请求、其他设备和重启不产生第二个 writer；运行与归档记录提供稳定的 Conversation/ProviderThread 链接，nativeContinue 只表示真正的原生 resume。
-  - pending/unknown 只允许同一原生身份的聊天端回放恢复，不允许改用终端端绕过；投递完成后，旧 provider 仍需走交接才能重新激活，普通恢复不能与当前 provider 并行写入。
-  - 未编辑的草稿可在已核实的 Codex 版本中按原始角色注入历史，用户新请求单独发送；其他版本和 agent 使用 inline，手工编辑固定 inline；
-  - 原生接受记录独立于用户 prompt，后续取消或失败不抹掉注入事实；原生结果不明时禁止回退或重注入，只有完整、有序且原生身份一致的 load 才能对账，导入项不再计为新的工作。
-  - 原生注入确认丢失后忘记 fork 来源，目标仍可在重启后用完整有序回放确认注入及项目身份；重复 load 不产生回放缺口、不新增工作、不重新注入，也不重建来源投递或发送已删除来源的用户请求。
-
-  - 发送与保存关闭先锁定编辑并等待保存；延迟旧轮询不回滚新 revision，来源暂时不可读或目标被删除不丢本设备未发送内容；
-  - 来源仍在而 fork 目标恰在草稿发现期间被删除时，返回来源及空预览、空投递，不将目标预览消失误报为来源不存在，也不据此清除本设备未发送内容；
-  - 交接弹窗挂载在时间线外；历史与新任务分别编辑和自动保存，关闭、刷新、跨页面与服务重启可恢复，不从 ChatModel 或快速开始记忆拼接历史；
-  - 自动保存请求尚未返回时继续编辑任务或历史，后续变化仍会在停止输入后保存到服务端；新设备可读到最新文字，另一字段不被改写，保存不自动投递；
-  - 三种新聊天位置明确区分来源 provenance 与目标位置；新工作树在首次发送时创建，失败保留草稿；
-  - 并发 revision 冲突保留本地编辑并提供两种明确选择；过期、超预算、准备中、已投递、结果不明、失败都有可见状态，unknown 不允许重复发送；
-  - 已有预览的未保存编辑保留原始 revision 基准；服务端升级 revision 后，重复刷新、关闭和重开仍显示冲突，不自动保存或覆盖另一设备内容。明确读取服务端版本或重新预览后清除旧基准，之后的新冲突使用新的 revision；
-  - 本地 revision 冲突只暂停远端预览的自动采纳，不停止投递状态查询；pending/unknown 后续完成时原弹窗解除投递锁，仍保留本地正文和恢复基准，允许明确选择重新预览，不自动 PATCH、重发或放弃编辑；
-  - 明确发送直接返回已完成的 inline/injected 时，与轮询完成一致清空下一次交接的任务、附件、目标和模型；原始已投递预览、Activity 与附件副本不变。等待投递结果期间产生的更新未发送编辑不被清空，pending/unknown 仍禁止重复投递；
-  - 首次预览前已填写的本地任务、目标、模型、附件与新聊天位置不会被另一设备的服务端预览覆盖；关闭、刷新后仍保留原 choice 备份与明确冲突选择，不伪造历史 revision。仅来源默认位置不算未发送编辑；
-  - 此类冲突先只读展示另一设备历史；明确「读取服务端版本」才替换本地选项，「保留编辑重新预览」保留本地内容并重新选择历史，不冒用另一设备的手工正文；重新预览不投递，仍需单独确认发送。
-  - 历史恢复：目标 ProviderThread 的 new/load/resume 配置只读 `thread_read`，可读预算省略项所在完整冻结 scope；默认每页 20 项、每项 4000 字节，长项按 UTF-8 offset 继续；引用来源缺失明确失败，retained 不依赖来源；
-  - 浏览器覆盖统计使用完整选择/省略数量；省略历史按冻结位置分页读取选择元数据，可继续到预览内嵌列表之外。预览 revision 变化时重置读取状态，不混合新旧草稿的省略项。
-  - 历史恢复先读有界 scope 与选择元数据，再读正文；约 40000 个省略 ID 不会让小页或单项读取在历史分页前触发 4 MiB 上限，来源与冻结位置授权保持不变。
-  - 刷新历史工具 scope 时取消，排队中的准入不丢失写者所有权；等待旧 provider 退出期间取消仍完成 provider 与 MCP helper 清理，清除打开中状态，不重开 provider 或发送用户请求，正常关闭保留中断记录。
-
-依据：
-
-- [输入卡片变形动画](../../../web/src/hooks/shared/composer-morph.svelte.ts)、[抽屉入口动画](../../../web/src/lib/components/ui/drawer/drawer-content.svelte)。
-
-- [混合会话服务](../../../internal/hybrid/)、[连接器检查](../../../internal/hybrid/connector.go)、[agent 适配器核心](../../../internal/agentprofile/)、[ACP 客户端](../../../internal/acp/)
-- [agent 注册表](../../../internal/agentprofile/agents/agents.go)、[Codex 适配器](../../../internal/agent/codex/codex.go)、[适配器契约测试](../../../internal/agent/agenttest/agenttest.go)
-- [Claude Code 适配器](../../../internal/agent/claudecode/claudecode.go)、[Claude 注册记录](../../../internal/agent/claudecode/registry.go)、[Antigravity CLI 适配器](../../../internal/agent/agy/agy.go)
-- [会话外壳与伴随进程](../../../internal/session/lifecycle.go)、[进程事实](../../../internal/session/process_facts.go)、[聊天接口](../../../internal/featureapi/chat.go)、[聊天通道](../../../internal/featurehub/chat.go)
-- [启动配置](../../../internal/launch/types.go)、[聊天视图](../../../web/src/components/chat/)、[代码链接解析](../../../web/src/domains/code/markdown-link.ts)。
-- [代码工作区](../../../web/src/components/code/CodeWorkspace.svelte)、[会话页](../../../web/src/pages/Terminal.svelte)。
-- [已归档记录](../../../web/src/components/sessions/ArchivedSessions.svelte)、[归位规则](../../../web/src/domains/sessions/archived.ts)、[安装提示](../../../web/src/components/sessions/ConnectorInstallHint.svelte)、[原生附着](../../../internal/attach/attach.go)
-- [使用说明](../../hybrid-sessions.md)、[协议](../../protocol/http-hybrid.md)、[创建会话协议](../../protocol/http-session-create.md)、[端到端测试](../../../web/test/e2e/hybrid.spec.ts)。
-- [会话卡片](../../../web/src/components/sessions/SessionRow.svelte)、[会话页头部](../../../web/src/components/terminal/TerminalHeader.svelte)、[品牌图标](../../../web/src/components/settings/LaunchConfigIcon.svelte)、[图标一致性测试](../../../internal/launch/presets_test.go)
-- [快速开始页](../../../web/src/pages/QuickStart.svelte)、[快速开始状态](../../../web/src/hooks/sessions/quick-start.ts)。
-- [核心创建编排](../../../internal/sessioncreate/service.go)、[会话接口](../../../internal/api/sessions.go)、[聊天输入贡献](../../../internal/hybrid/input.go)、[配置项清单](../../../internal/hybrid/options.go)
-- [聊天历史](../../../web/src/components/chat/ChatHistory.svelte)、[快速开始浏览器用例](../../../web/test/browser/QuickStart.test.ts)、[聊天历史浏览器用例](../../../web/test/browser/ChatHistory.test.ts)、[快速开始端到端用例](../../../web/test/e2e/quick-start.spec.ts)。
-
-- [手机会话选项面板](../../../web/src/components/chat/ChatSessionOptions.svelte)、[模型可搜索列表](../../../web/src/components/chat/ChatChoiceCommandList.svelte)、[共用输入卡片](../../../web/src/components/chat/ComposerCard.svelte)；
-- [聊天浏览器用例](../../../web/test/browser/ChatView.test.ts)、[布局验收](../../../web/test/storybook/acp-chat.spec.ts)。
-
-- [对话事务存储](../../../internal/conversation/)、[私有数据库生命周期](../../../internal/statefile/database.go)。
-
-- [持久历史接口](../../protocol/http-conversation.md)、[历史路由](../../../internal/featureapi/conversation.go)、[统一机械投影](../../../internal/historyprojection/)、[原生来源契约](../../../internal/historysource/)。
-
-- [交接预览](../../protocol/http-handoff.md)、[预算与选择](../../../internal/handoff/)、[预览接口](../../../internal/featureapi/handoff.go)。
+  - 在会话菜单选择更换 Agent 或交接到新聊天，使用运行时 ID 定位原生来源；
+  - 预览固定原生身份、分支、边界、解析版本和 hash；展示确切发送文本、预算、选中、省略与来源缺口；
+  - 当前用户任务独立保持原样，修改任务或目标后重新生成预览；
+  - 预览限五分钟、32 项、64 MiB，结果限 256 项、完成后十五分钟；
+  - 服务端原子消费预览，同一操作重复请求返回原状态，目标创建与普通 prompt 各执行一次；
+  - 新目标支持现有目录、工作树和新 worktree，资源在确认后创建；已有目标沿用当前配置；
+  - 结果不明显示「可能已发送，请检查目标会话」及已知目标、新建资源；准备阶段可取消，状态可按同一操作查询；
+  - 原文补查沿用同一冻结范围；浏览器刷新重新填写表单，服务重启使旧句柄失效；
+  - 目标 Agent 以原生方式保存收到的文本，普通 hybrid 原生恢复继续工作。

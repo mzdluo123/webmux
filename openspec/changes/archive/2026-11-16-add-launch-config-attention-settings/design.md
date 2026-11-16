@@ -84,7 +84,7 @@
   - 紧急介入信号（`KindQuestion`、`KindPermission`、`KindError`）在 `mode != "off"` 时始终立即发布，且立即取消任何挂起的延迟完成定时器；
   - 命令行显式通知（`SourceCLI`，即 `webmux notify`）不受 `mode`、`minTurnSeconds`、`doneDelaySeconds` 限制，始终立即发布。
 - **延迟确认定时器（`doneDelayTimer`）与取消条件**：
-  - 当非紧急完成信号通过 `mode == "all"` 与 `minTurnSeconds` 检查，且 `doneDelaySeconds > 0` 时：不立即写入 `s.attention` 并广播，而是存入 `s.pendingAttention` 并启动/重置 `time.AfterFunc(doneDelay, ...)`。
+  - 当非紧急完成信号通过 `mode == "all"` 与 `minTurnSeconds` 检查，且 `doneDelaySeconds > 0` 时：存入 `s.pendingAttention` 并启动/重置 `time.AfterFunc(doneDelay, ...)`。
   - 在定时器触发前，若发生以下任一事件，立即取消定时器并清空 `pendingAttention`：
     1. 会话进入 `working` 状态（`OSC 7501` `state=working`、Warp `prompt_submit`/`tool_call`/`subagent_start`）；
     2. 用户向终端写入输入或清除提醒（`WriteInput`、`ClearAttention`）；

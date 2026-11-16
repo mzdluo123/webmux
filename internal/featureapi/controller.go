@@ -12,7 +12,6 @@ import (
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/conversation"
 	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
 	"github.com/rainchan/webmux/internal/handoff"
@@ -39,7 +38,6 @@ type Deps struct {
 	Files             *files.Service
 	Artifacts         *artifacts.Service
 	Handoffs          *handoff.Service
-	Conversations     *conversation.Service
 	NativeHistory     *historyimport.Service
 	HistoryProjection *historyprojection.Service
 	Push              *push.Service
@@ -101,7 +99,7 @@ func (s *Server) Contributions() []transport.Contribution {
 	add("files", s.fileRoutes)
 	add("chat", func(mux transport.Registrar) {
 		s.chatRoutes(mux)
-		s.conversationRoutes(mux)
+		s.nativeRoutes(mux)
 		s.handoffRoutes(mux)
 		s.sessionExtensionRoutes(mux)
 		s.launchChatRoutes(mux)

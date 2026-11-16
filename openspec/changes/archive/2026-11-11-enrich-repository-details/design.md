@@ -106,7 +106,7 @@
 
 新增 `GET /api/repositories/{id}/remotes`，在仓库门闩下执行 `remote -v`，按 `name\turl (fetch|push)` 解析。脱敏函数集中在 `internal/workspace`：
 - 包含 `://` 的 URL 交给 `net/url` 解析：有密码时用 `url.UserPassword(user, "***")` 替换；`http`/`https` 只有用户名时，整个 userinfo 换成 `***`；
-- 解析失败的 URL 不原样返回，而是丢弃 `@` 之前的部分；
+- 解析失败的 URL 丢弃 `@` 之前的部分后返回；
 - scp 风格（`user@host:path`）和 `ssh://` URL 保留用户名。
 
 服务端在返回前完成脱敏，任何日志都不记录原始 URL。

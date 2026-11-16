@@ -74,11 +74,6 @@ func (s *Service) ProjectDocument(ctx context.Context, doc historysource.Documen
 		return out, historysource.ErrUnavailable
 	}
 	var err error
-	view, err := PrepareDocument(doc)
-	if err != nil {
-		return out, err
-	}
-	doc = view.Document
 	out.Gaps = doc.Gaps
 	input := snapcompact.Input{CurrentTask: task, History: make([]snapcompact.Record, 0, len(doc.Records))}
 	var calls map[string]string

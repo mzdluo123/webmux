@@ -15,29 +15,8 @@ const TerminalMovedSchema = z.object({
 });
 const groups: Array<[z.ZodType, string[]]> = [
   [S.NativeResultSchema, ["native-freeze", "native-read"]],
-  [
-    S.HandoffDraftSchema,
-    ["handoff-draft-empty", "handoff-draft-saved", "handoff-draft-delivery"],
-  ],
-  [
-    S.HandoffPreviewSchema,
-    ["handoff-preview-empty", "handoff-preview-manual", "handoff-preview-get"],
-  ],
-  [S.ErrorSchema, ["handoff-preview-conflict"]],
-  [S.HandoffSelectionSchema, ["handoff-selection-empty"]],
-  [
-    S.HandoffDeliverySchema,
-    [
-      "handoff-delivery-pending",
-      "handoff-delivery-failed",
-      "handoff-delivery-retry",
-    ],
-  ],
-  [
-    S.ConversationActivitiesSchema,
-    ["conversation-activities", "conversation-activities-empty"],
-  ],
-  [S.ConversationActivitySchema, ["conversation-activity"]],
+  [S.HandoffPreviewSchema, ["native-handoff-preview"]],
+  [S.HandoffOperationSchema, ["handoff-operation-succeeded"]],
   [S.ChatFrameSchema, ["ws-chat-events", "ws-chat-snapshot", "ws-chat-state"]],
   [S.ChatMessageMatchesSchema, ["chat-message-search"]],
   [S.LaunchOptionsSchema, ["launch-config-options"]],

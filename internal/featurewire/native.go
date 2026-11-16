@@ -19,7 +19,7 @@ func NativeSnapshot(in historysource.Snapshot) contract.NativeResult {
 	out := EmptyNativeResult()
 	out.Agent, out.NativeID, out.Branch = in.Source.Agent, in.Source.NativeID, in.Source.Branch
 	out.SnapshotID, out.Parser, out.Format = in.ID, in.ParserVersion, in.FormatVersion
-	out.Boundary, out.ContentHash, out.Retained = in.Cursor, in.ContentHash, in.Retained
+	out.Boundary, out.ContentHash = in.Cursor, in.ContentHash
 	out.RecordCount = in.RecordCount
 	out.Gaps = nativeGaps(in.Gaps)
 	return out
@@ -32,8 +32,12 @@ func EmptyNativeResult() contract.NativeResult {
 func NativePage(page historysource.Page, after, offset int) contract.NativeResult {
 	out := NativeSnapshot(page.Snapshot)
 	out.NextPosition, out.NextTextOffset, out.More = strconv.Itoa(page.Next), strconv.Itoa(page.TextOffset), page.More
+	refs := make(map[string]historysource.RecordRef, len(page.Snapshot.Records))
+	for _, ref := range page.Snapshot.Records {
+		refs[ref.ID] = ref
+	}
 	for index, record := range page.Records {
-		position := after + index
+		position := refs[record.ID].Position - 1
 		textOffset := 0
 		if index == 0 {
 			textOffset = offset
@@ -49,8 +53,8 @@ func NativePage(page historysource.Page, after, offset int) contract.NativeResul
 			CallID: record.CallID, NativeCallID: record.NativeCallID, ToolName: record.ToolName,
 			Position: strconv.Itoa(position + 1), Offset: strconv.FormatInt(record.Offset, 10), End: strconv.FormatInt(record.End, 10),
 			ByteLength: strconv.FormatInt(record.ByteLength, 10), NextTextOffset: strconv.Itoa(end), Truncated: int64(end) < record.ByteLength,
-			Attachments: each(record.Attachments, func(a historysource.Attachment) contract.ConversationAttachment {
-				return contract.ConversationAttachment{Name: a.Name, MimeType: a.MimeType, Reference: a.Reference, Size: a.Size}
+			Attachments: each(record.Attachments, func(a historysource.Attachment) contract.NativeAttachment {
+				return contract.NativeAttachment{Name: a.Name, MimeType: a.MimeType, Reference: a.Reference, Size: a.Size}
 			}),
 		})
 	}

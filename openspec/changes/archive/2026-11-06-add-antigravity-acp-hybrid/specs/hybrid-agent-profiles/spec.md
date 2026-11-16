@@ -80,10 +80,10 @@ agent 显示名称列表。
   - Codex 的 `--remote`、`--remote-auth-token-env` 使 TUI 连接远端 app-server；
   - Claude Code 的 `--no-session-persistence`、`--environment`；
   - `agy` 的 `--project` 与 `--new-project` 使用云端项目会话，忽略本地 `--conversation` 会话恢复。
-- 在命令中指定工作目录的参数，原因为“请在新建会话时选择目录，不要在命令中写目录”：
+- 在命令中指定工作目录的参数，原因为“工作目录在新建会话时选择”：
   OpenCode 的位置参数、omp 的 `--cwd`、Codex 的 `-C`/`--cd` 与 `--worktree`，
   以及 Claude Code 的 `-w`/`--worktree` 与 `--tmux`。
-- 打开已有会话的参数，原因为“该参数打开已有会话，混合配置请不要指定会话”（原因码 `session_arg`）：
+- 打开已有会话的参数，原因为“该参数打开已有会话；混合配置使用 WebMux 管理的原生会话身份”（原因码 `session_arg`）：
   Codex 的 `resume`、`fork`，以及 Claude Code 的 `-c`/`--continue`、`-r`/`--resume`、
   `--session-id`、`--fork-session`、`--from-pr`。
 

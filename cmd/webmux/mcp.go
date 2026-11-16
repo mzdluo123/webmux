@@ -14,16 +14,15 @@ func mcpCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("webmux mcp-serve", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	socket := flags.String("socket", "", "local API socket PATH")
-	source := flags.String("conversation", "", "fixed source Conversation ID")
-	handoff := flags.String("handoff", "", "fixed handoff ID")
+	source := flags.String("session", "", "target runtime session ID")
 	if flags.Parse(args) != nil || flags.NArg() != 0 {
 		return 2
 	}
 	client := localclient.New(localclient.UnixDialer{Path: *socket})
 	defer client.Close()
-	reader := threadread.Reader{Client: client, ConversationID: *source, HandoffID: *handoff}
+	reader := threadread.Reader{Client: client, SessionID: *source}
 	if *socket == "" || !reader.Valid() {
-		_, _ = fmt.Fprintln(stderr, "mcp-serve requires socket, conversation and handoff scope")
+		_, _ = fmt.Fprintln(stderr, "mcp-serve requires socket and session scope")
 		return 2
 	}
 	if err := threadread.Serve(context.Background(), stdin, stdout, reader); err != nil {

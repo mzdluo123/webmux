@@ -25,7 +25,7 @@ pnpm --dir web install --frozen-lockfile
 make test-browsers-install   # 安装 Playwright Chromium（Linux 上同时安装系统依赖，可能需要 sudo）
 ```
 
-前端依赖由 `web/pnpm-lock.yaml` 锁定。请使用 pnpm，不要使用 npm、Yarn 或 Bun 管理依赖。
+前端依赖由 `web/pnpm-lock.yaml` 锁定。安装和更新依赖统一使用 pnpm。
 
 前端构建、测试、lint 与格式化统一使用项目本地的 Vite+ 1.6.0；安装上述依赖后即可通过 `pnpm --dir web exec vp` 调用，不需要全局安装 `vp`。
 Vite+ 不替代 pnpm，也不替代 `svelte-check --tsgo` 的 Svelte/TypeScript 类型检查或 ESLint 的架构与模板规则。
@@ -149,8 +149,7 @@ CI 将各套件拆成并行 job：格式检查与前端构建、Go race（含 `G
 `.github/workflows/pullfrog.yml` 使用 OpenCode Go 订阅通道的
 `opencode-go/deepseek-v4.1-flash`，并通过 `effort: high` 固定使用 High 推理等级。
 在仓库的 GitHub Actions Secrets 中设置
-`OPENCODE_API_KEY`，值为订阅所在 OpenCode workspace 的 API Key；不要使用
-DeepSeek 直连的 `DEEPSEEK_API_KEY`。
+`OPENCODE_API_KEY`，值为订阅所在 OpenCode workspace 的 API Key。
 
 在 OpenCode workspace 的 **Settings → Privacy → Regions** 中启用 **Global**，
 以允许 DeepSeek 请求。在 Pullfrog 控制台选择 **BYOK**，并将仓库模型设为
@@ -174,7 +173,7 @@ DeepSeek 直连的 `DEEPSEEK_API_KEY`。
 - TypeScript 开启严格模式；HTTP 响应、WebSocket JSON 和本地设置必须经过 Zod 校验。
 - 修改后端 JSON 字段时，同步更新 `web/src/contracts/schemas.ts` 及其使用方；`web/test/wire-contract.test.ts` 消费 Go wire 快照并检查必填字段，新增或变更快照映射时一并更新。
 - 命令以 argv 执行，不经 shell 展开。
-- 不要在持有会话 / 管理器锁时执行阻塞的网络或 PTY 操作。
+- 阻塞的网络或 PTY 操作在释放会话 / 管理器锁后执行。
 - 不在日志中记录终端输入输出，也不在配置响应中暴露 token。
 - 基础 UI 控件使用 `web/src/lib/components/ui/` 中的 shadcn-svelte 组件，新增组件请使用 `pnpm --dir web exec shadcn-svelte add <组件名>`。
 - 新增或调整 UI 图标统一使用 Iconify，优先 `tabler` 图标集；图标数据随应用本地打包，纯图标按钮需有可访问名称和提示。详细约定见 [图标规范](docs/design-system.md#icons)。

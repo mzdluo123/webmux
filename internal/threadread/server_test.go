@@ -11,7 +11,7 @@ import (
 )
 
 func TestLegacyHandshakeAndModernDiscoveryFallback(t *testing.T) {
-	r := Reader{Client: localclient.New(localclient.UnixDialer{Path: "/missing"}), ConversationID: strings.Repeat("a", 32), HandoffID: strings.Repeat("b", 32)}
+	r := Reader{Client: localclient.New(localclient.UnixDialer{Path: "/missing"}), SessionID: strings.Repeat("a", 32)}
 	defer r.Client.Close()
 	input := strings.Join([]string{
 		`{"jsonrpc":"2.0","id":"probe","method":"server/discover"}`,
@@ -54,7 +54,7 @@ func TestBoundedFramesAndStrictArguments(t *testing.T) {
 			t.Fatalf("accepted %s", raw)
 		}
 	}
-	r := Reader{Client: localclient.New(localclient.UnixDialer{}), ConversationID: strings.Repeat("a", 32), HandoffID: strings.Repeat("b", 32)}
+	r := Reader{Client: localclient.New(localclient.UnixDialer{}), SessionID: strings.Repeat("a", 32)}
 	defer r.Client.Close()
 	if err := Serve(context.Background(), strings.NewReader(strings.Repeat("x", 70<<10)), &bytes.Buffer{}, r); err == nil {
 		t.Fatal("unbounded frame accepted")

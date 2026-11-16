@@ -57,11 +57,11 @@ func (r Reason) Message() string {
 	case ReasonSessionStore:
 		return "该参数使聊天视图无法找到会话"
 	case ReasonDirectoryArg:
-		return "请在新建会话时选择目录，不要在命令中写目录"
+		return "工作目录在新建会话时选择"
 	case ReasonNonInteractive:
 		return "该参数不启动交互界面"
 	case ReasonSessionArg:
-		return "该参数打开已有会话，混合配置请不要指定会话"
+		return "该参数打开已有会话；混合配置使用 WebMux 管理的原生会话身份"
 	default:
 		return "未识别到支持的 Agent"
 	}

@@ -13,14 +13,12 @@ describe("native history boundary", () => {
       format: "format-v1",
       boundary: "opaque-native-boundary",
       contentHash: "content-version",
-      retained: false,
+      expiresAt: "",
       truncated: false,
       more: true,
       recordCount: 1,
       files: [],
       snapshotId: "snapshot",
-      conversationId: "a".repeat(32),
-      providerThreadId: "b".repeat(32),
       parser: "reader-v1",
       nextPosition: "9007199254740993",
       nextTextOffset: "0",
@@ -31,21 +29,6 @@ describe("native history boundary", () => {
     const parsed = NativeResultSchema.parse(value);
     expect(parsed.nextPosition).toBe("9007199254740993");
     expect(parsed.boundary).toBe("opaque-native-boundary");
-    expect(parsed.conversationId).toBe(value.conversationId);
-    expect(parsed.providerThreadId).toBe(value.providerThreadId);
-    expect(
-      NativeResultSchema.parse({
-        ...value,
-        conversationId: undefined,
-        providerThreadId: undefined,
-      }).conversationId,
-    ).toBeUndefined();
-    expect(
-      NativeResultSchema.safeParse({ ...value, conversationId: 42 }).success,
-    ).toBe(false);
-    expect(
-      NativeResultSchema.safeParse({ ...value, providerThreadId: 42 }).success,
-    ).toBe(false);
     expect(
       NativeResultSchema.safeParse({
         ...value,

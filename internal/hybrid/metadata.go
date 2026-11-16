@@ -5,11 +5,10 @@ import "github.com/rainchan/webmux/internal/contract"
 // Metadata is the chat feature's immutable session-list projection. The feature
 // owns provider identity and view transitions; the process host sees neither.
 type Metadata struct {
-	ConversationID, ProviderThreadID string
-	Side, To, Phase, State           string
-	Agent, AgentTitle, AgentIcon     string
-	AgentSessionID                   *string
-	Work                             string
+	Side, To, Phase, State       string
+	Agent, AgentTitle, AgentIcon string
+	AgentSessionID               *string
+	Work                         string
 }
 
 func (m *Metadata) clone() *Metadata {
@@ -44,7 +43,7 @@ func (a *actor) publishMetadata() {
 		side, to = a.switching.from, a.switching.to
 	}
 	m := &Metadata{
-		ConversationID: a.conversationID, ProviderThreadID: a.control.thread,
+
 		Side: string(side), To: string(to), Phase: string(a.chat.Phase), State: string(a.state),
 		Agent: a.cmd.Profile.Name, AgentTitle: a.cmd.Profile.Title, AgentIcon: a.cmd.Profile.Icon,
 	}
