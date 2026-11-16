@@ -2,11 +2,12 @@ package codeview
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/xml"
 	"errors"
 	"path"
 	"strings"
+
+	"github.com/rainchan/webmux/internal/pathutil"
 )
 
 const (
@@ -87,25 +88,7 @@ func sniff(h []byte) string {
 }
 
 // avif checks the leading ftyp box's major and compatible brands.
-func avif(h []byte) bool {
-	if len(h) < 16 || string(h[4:8]) != "ftyp" {
-		return false
-	}
-	size := int(binary.BigEndian.Uint32(h[:4]))
-	if size < 16 || size > len(h) {
-		size = len(h)
-	}
-	brand := func(b []byte) bool { return string(b) == "avif" || string(b) == "avis" }
-	if brand(h[8:12]) {
-		return true
-	}
-	for i := 16; i+4 <= size; i += 4 {
-		if brand(h[i : i+4]) {
-			return true
-		}
-	}
-	return false
-}
+func avif(h []byte) bool { return pathutil.IsAVIF(h) }
 
 // svg reports whether the first XML element of valid UTF-8 text is <svg>.
 func svg(text string) bool {

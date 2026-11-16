@@ -286,6 +286,12 @@ func TestReadUploadForcesAttachmentAndSandboxForNonRasterFiles(t *testing.T) {
 			wantDisposition: "inline",
 		},
 		{
+			giveName:        "cover.avif",
+			giveData:        []byte("\x00\x00\x00\x18ftypavif\x00\x00\x00\x00mif1"),
+			wantContentType: "image/avif",
+			wantDisposition: "inline",
+		},
+		{
 			giveName:        "bitmap.bmp",
 			giveData:        []byte("BM\x00\x00\x00\x00"),
 			wantContentType: "image/bmp",

@@ -5,12 +5,13 @@
 ## 会话上传读取响应头安全收敛（2026-11-17，US-Q15）
 
 - 范围（故事编号、总数与覆盖索引保持原状）：
+  - `internal/pathutil/pathutil.go`（`SniffContentType` / `IsAVIF`）：新增 ISO BMFF `ftyp`（`avif` / `avis`）识别并与 `internal/codeview/media.go` 复用同一判定；
   - `internal/featureapi/upload.go`（`readUpload`）：光栅图片白名单（`image/png`、`image/jpeg`、`image/gif`、`image/webp`、`image/avif`、`image/bmp`、`image/x-icon`）保留嗅探 `Content-Type` 与 `Content-Disposition: inline`；
   - 其余类型（含 `text/html`、`text/xml`、XML/SVG、`application/pdf`、纯文本及二进制）统一返回 `Content-Type: application/octet-stream` 与 `Content-Disposition: attachment`；
   - 所有 `GET` / `HEAD /api/sessions/{id}/upload` 成功响应固定附加 `Content-Security-Policy: default-src 'none'; sandbox`；
   - 同步更新 `docs/protocol/http-sessions.md`、`docs/user-stories/hybrid-sessions/composition-and-handoff.md`（US-Q15）及 `docs/user-stories/hybrid-sessions.md` 依据链接。
 - 本地验证：
-  - `go test -race -count=1 ./internal/featureapi ./internal/artifacts ./internal/archtest ./internal/docguard` 通过；
+  - `go test -race -count=1 ./internal/pathutil ./internal/codeview ./internal/featureapi ./internal/artifacts ./internal/archtest ./internal/docguard` 通过；
   - `go test -race -count=1 -parallel=4 ./internal/api`（含 `TestReadUploadServesSessionUploadedFileWithSniffedMediaType`、`TestReadUploadForcesAttachmentAndSandboxForNonRasterFiles`、`TestReadUploadTopLevelNavigationBlocksScriptExecutionAcrossAuthModes`）通过；
   - `make go-lint`（`golangci-lint` v2.15.0，0 issues）及 `go vet`（Linux、`GOOS=darwin`、Windows 托盘/客户端目标）通过；
   - Vitest 浏览器组件测试 `ChatView.test.ts`、`ChatUpload.test.ts`（共 53 项）通过；
