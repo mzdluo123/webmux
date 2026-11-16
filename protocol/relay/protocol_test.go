@@ -276,7 +276,15 @@ func TestControlMessageExpiry(t *testing.T) {
 			}
 		}
 		requireCode(t, m.Validate(scope, vectorNow.Add(time.Minute)), Expired)
-		m.ExpiresAt++
+		for _, lead := range []time.Duration{1370 * time.Millisecond, 5 * time.Second} {
+			m.ExpiresAt = vectorNow.Add(ControlMessageTTL + lead).Unix()
+			if err := m.Validate(scope, vectorNow); err != nil {
+				t.Fatalf("%s sender clock ahead by %s: %v", kind, lead, err)
+			}
+		}
+		m.ExpiresAt = vectorNow.Add(ControlMessageTTL + 6*time.Second).Unix()
+		requireCode(t, m.Validate(scope, vectorNow), Expired)
+		m.ExpiresAt = vectorNow.Unix()
 		requireCode(t, m.Validate(scope, vectorNow), Expired)
 	}
 }

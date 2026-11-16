@@ -185,6 +185,10 @@ type ControlMessage struct {
 	Error         *Error            `json:"error,omitempty"`
 }
 
+// Allow bounded sender clock lead without accepting already expired messages.
+// This does not change heartbeat supervision or any authorization lifetime.
+const controlMessageClockSkew = 5 * time.Second
+
 func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 	if m.Version != V1 {
 		return Error{Code: Incompatible}
@@ -198,7 +202,7 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 	if m.Scope != expected {
 		return Error{Code: StaleGeneration}
 	}
-	if !validUntil(now, m.ExpiresAt, ControlMessageTTL) {
+	if !validUntil(now, m.ExpiresAt, ControlMessageTTL+controlMessageClockSkew) {
 		return Error{Code: Expired}
 	}
 	count := 0
