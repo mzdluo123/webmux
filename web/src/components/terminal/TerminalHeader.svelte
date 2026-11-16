@@ -64,7 +64,6 @@
     quickMenu,
     upload,
     toggleDraft,
-    paste,
     showScratch,
     showFontSize,
     close,
@@ -94,7 +93,6 @@
     >;
     upload?: (files: File[]) => Promise<void>;
     toggleDraft: () => void;
-    paste: () => Promise<void>;
     showScratch: () => void;
     showFontSize: () => void;
     close: () => void;
@@ -378,17 +376,6 @@
               >{m.s4_upload_files()}</DropdownMenu.Item
             >
           {/if}
-        </DropdownMenu.Group>
-        <DropdownMenu.Separator />
-        <DropdownMenu.Group>
-          <DropdownMenu.GroupHeading
-            >{m.s4_menu_group_clipboard()}</DropdownMenu.GroupHeading
-          >
-          <DropdownMenu.Item
-            onSelect={() => {
-              void paste();
-            }}>{m.s4_paste()}</DropdownMenu.Item
-          >
         </DropdownMenu.Group>
         <DropdownMenu.Separator />
         <DropdownMenu.Group>
