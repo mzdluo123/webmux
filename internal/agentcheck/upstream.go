@@ -17,9 +17,10 @@ import (
 
 const (
 	defaultUpstreamTimeout = 6 * time.Second
-	maxUpstreamBodyBytes   = 64 << 10
-	maxRedirects           = 3
-	upstreamConcurrency    = 4
+	// PyPI metadata includes the full release history, which can exceed 64 KiB.
+	maxUpstreamBodyBytes = 1 << 20
+	maxRedirects         = 3
+	upstreamConcurrency  = 4
 )
 
 var defaultNPMBases = []string{

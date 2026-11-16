@@ -94,7 +94,7 @@ func parseServerRun(name string, args []string, stderr io.Writer) (serverRun, er
 	}
 	if !run.ConfigExplicit {
 		// A missing default configuration is created once, then loaded like any
-		// other file. An explicit --config is read-only: a missing path fails.
+		// other file. An explicit --config must already exist.
 		run.ConfigCreated, err = ensureDefaultConfig(run.ConfigPath)
 		if err != nil {
 			return run, fmt.Errorf("create default configuration %s: %w", run.ConfigPath, err)
@@ -104,6 +104,9 @@ func parseServerRun(name string, args []string, stderr io.Writer) (serverRun, er
 	run.ConfigFound = statErr == nil
 	// Both paths must now name a complete file: auto-creation either published
 	// it or observed a concurrent winner, and an explicit path must exist.
+	if err := migrateConfig(run.ConfigPath); err != nil {
+		return run, fmt.Errorf("migrate configuration %s: %w", run.ConfigPath, err)
+	}
 	c, err := config.Load(run.ConfigPath, true)
 	if err != nil {
 		return run, err
