@@ -1676,7 +1676,6 @@
   "s4_loading_sessions": "正在加载会话…",
   "s4_lock_size": "锁定尺寸",
   "s4_menu_draft_with_scratch": "草稿模式（{count} 条暂存）",
-  "s4_menu_group_clipboard": "剪贴板",
   "s4_menu_group_display": "显示",
   "s4_menu_group_handoff": "聊天交接",
   "s4_menu_group_session": "会话",

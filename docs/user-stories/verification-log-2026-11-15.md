@@ -288,6 +288,20 @@
 - `go test -count=1 ./internal/archtest -run '^(TestPersistence|TestGoFileNames|TestSourceFileSize)'` 通过。
 - 本次范围不涉及 SQLite 旧数据与缺少 `historyRoot` 的旧归档；故事 ID 和总数不变。
 
+## 移除终端菜单「粘贴」与「剪贴板」分组（2026-11-16，US-E02、US-H08）
+
+- 范围（故事 ID 与总数不变）：
+  - 从 `TerminalHeader.svelte` 终端下拉菜单移除「剪贴板」分组与「粘贴」项；
+  - 清理 `TerminalHeader`、`SessionTerminalStage`、`HybridSession.svelte` Story 的 `paste` 属性传递及中英词条 `s4_menu_group_clipboard`；
+  - 同步更新 `docs/usage/terminal.md`、`docs/user-stories/terminal.md`（US-E02、US-H08）与 `openspec/specs/terminal-input-composer/spec.md`。
+- 保留能力：浏览器原生粘贴、`Ctrl/⌘+Shift+V` 快捷键粘贴、底部软键栏「粘贴」按钮及剪贴板权限拒绝时的手动粘贴弹窗均保持原样。
+- 本地验证：
+  - 静态与契约门禁：`make build`、`pnpm --dir web check:test`、`check:storybook`、`lint`、`check:arch`（46 项断言）、`make docs-check`、`make persistence-check`、`make go-lint`、`openspec validate --specs`（128/128）全部通过；
+  - 单元、浏览器与 Storybook 测试：Vitest 单元（`i18n`、`terminal-clipboard`、`terminal-copy`、`terminal-search`、`architecture` 共 28 项）、Vitest 浏览器（`TerminalRendering`、`TerminalDisplayControls` 共 12 项）、Storybook `acp-chat.spec.ts`（43 项）通过；
+  - 端到端回归：Playwright `terminal.spec.ts`、`softkeys.spec.ts`、`compact-chrome.spec.ts` 桌面与 iPhone SE 共 32 项通过、14 项按设备项目条件跳过、0 失败；
+  - 视觉与视口核验：隔离演示实例采集 `1280×900`、`768×800`、`390×844` 明暗主题共 6 组前后对比截图，并核验 `1280×720`、`375×667`、`320×568`、`667×375` 在中英文与明暗主题下打开终端菜单均无横向溢出且浮层完整落在视口内。
+- 局限：仅在 Linux 无头 Chromium 中验证；无头浏览器 `hover` 与 `any-pointer: coarse` 均为 `false`，物理悬停态与 iOS / Android 真机触屏表现未验证。
+
 ## 工作台工作区刷新与外部 Git worktree 实时同步（2026-11-16，US-C08、US-C16、US-J03）
 
 - 范围：为工作台模式补充显式刷新、生命周期自动重读、服务端按需 worktree 变化监听推送及外部新增 linked worktree 自动加入主页，同步更新 US-C08、US-C16、US-J03、`docs/usage/sessions.md`、`docs/protocol/http-workspace.md` 与 `docs/user-stories/coverage.md`，故事 ID 与总数（264）不变。
