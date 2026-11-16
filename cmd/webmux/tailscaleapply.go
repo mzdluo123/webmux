@@ -12,6 +12,10 @@ import (
 	"github.com/rainchan/webmux/internal/tailscale"
 )
 
+// listenLoopbackHint is the documented remedy when the bound listener does
+// not cover IPv4 loopback.
+const listenLoopbackHint = "托管 Tailscale 需要监听 127.0.0.1 或 0.0.0.0；请把 listen 改为 127.0.0.1:<port> 或 0.0.0.0:<port>"
+
 // Start records the bound listener and applies the configured entry. Web
 // updates later reuse the same listener facts.
 func (tc *tailscaleController) Start(ctx context.Context, local string) {
@@ -21,11 +25,11 @@ func (tc *tailscaleController) Start(ctx context.Context, local string) {
 		return
 	}
 	tc.baseCtx = ctx
-	port, ok := localPort(local)
+	host, port, ok := localHostPort(local)
 	if ok {
 		tc.localPort = port
 	} else {
-		tc.listenBlocked = "托管 Tailscale 需要监听 127.0.0.1 或 0.0.0.0；请把 listen 改为 127.0.0.1:<port> 或 0.0.0.0:<port>"
+		tc.listenBlocked = listenLoopbackHint
 	}
 	tc.mu.Unlock()
 	if ok {
@@ -34,7 +38,14 @@ func (tc *tailscaleController) Start(ctx context.Context, local string) {
 		cancelProbe()
 		if err != nil {
 			tc.mu.Lock()
-			tc.listenBlocked = "127.0.0.1 无法访问当前监听端口；托管 Tailscale 需要 IPv4 回环可达"
+			if host == "::1" {
+				// A "::1" origin is an IPv6-only bind: "::1" itself or a
+				// wildcard without IPv4-mapped loopback. Either way the
+				// remedy is an IPv4-covering listen.
+				tc.listenBlocked = listenLoopbackHint
+			} else {
+				tc.listenBlocked = "127.0.0.1 无法访问当前监听端口；托管 Tailscale 需要 IPv4 回环可达"
+			}
 			tc.mu.Unlock()
 		} else {
 			_ = conn.Close()
