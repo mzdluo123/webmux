@@ -14,7 +14,8 @@ const (
 	// quiet (a spinner) or never prints gets the text anyway.
 	initialWait = 15 * time.Second
 	// submitDelay separates the text from Enter, so a TUI that takes input
-	// in bursts does not read the Enter as part of a paste.
+	// in bursts does not read the Enter as part of a paste. It is the floor of
+	// every submission's separation; an agent profile may ask for more.
 	submitDelay = 200 * time.Millisecond
 	pollEvery   = 50 * time.Millisecond
 )
@@ -29,23 +30,30 @@ func (s *Session) SendWhenReady(ctx context.Context, text string) error {
 		return err
 	}
 	s.mu.Lock()
-	bracketed := s.preview.BracketedPaste()
+	r := s.run
+	body := pasteBody([]byte(text), s.preview.BracketedPaste())
 	s.mu.Unlock()
-	body := strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\r"), "\n", "\r")
+	if r == nil {
+		return ErrNoRun
+	}
+	_, err := s.writeRunDelay(ctx, r, inputUnknown, s.submitGap(), body, []byte("\r"))
+	return err
+}
+
+// pasteBody prepares text as xterm's paste does: line breaks become CR, and
+// the text is wrapped in bracketed-paste markers while the program has that
+// mode on, so its line breaks are not read as Enter.
+func pasteBody(text []byte, bracketed bool) []byte {
+	body := strings.ReplaceAll(strings.ReplaceAll(string(text), "\r\n", "\r"), "\n", "\r")
 	if bracketed {
 		body = "\x1b[200~" + body + "\x1b[201~"
 	}
-	if err := s.WriteContext(ctx, []byte(body)); err != nil {
-		return err
-	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-s.done:
-		return ErrNoRun
-	case <-time.After(submitDelay):
-	}
-	return s.WriteContext(ctx, []byte("\r"))
+	return []byte(body)
+}
+
+// submitGap is the pause between a submission's text and its submit key.
+func (s *Session) submitGap() time.Duration {
+	return max(submitDelay, s.options.submitDelay)
 }
 
 // waitQuiet returns when the current run has produced output and been silent

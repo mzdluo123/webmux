@@ -78,6 +78,7 @@
 - **US-S09 向会话输入并等待结果**：作为编排脚本，我希望向终端会话输入并可靠地等到它有反应，以便把交互程序串进流程。
   - `webmux send SESSION [TEXT|-] [--enter] [--key NAME]...` 调用 `POST /api/sessions/{id}/input`，由服务端按当前视图分派，CLI 不再自己连接终端 WebSocket；
   - 终端视图：以带回执的提交写入文字，`--enter`（输入 API 的 `submit`）在正文同一提交里追加回车，不带它正文留在输入行不执行；收到 `written` 才以 0 退出，`partial`、`failed`、`missing`（409 `input_failed`）以 1 退出；命名按键在文字之后发送，未知按键以 2 结束；
+  - 文字按浏览器粘贴的规则写入（换行转 CR，程序开启 bracketed paste 时包裹），回车在正文之后至少隔 200ms 写入，间隔期间仍持有输入锁，因此 Claude Code 等 TUI 不会把回车当作粘贴内容而只填入不提交；MCP `session_send` 的 `submit` 同样如此；
   - 发送像浏览器输入一样取得控制权，控制指示器显示 `script`，在会话内附上来源会话 ID；
   - 脚本之后要改终端尺寸见 US-S19；
   - 聊天视图：文字作为提示发送（见 US-S14）；选项与当前视图不符（终端视图带 `--attach-file`/`--mode`，聊天视图带 `--key`）时服务端返回 409 `wrong_view`，CLI 以 1 结束且不写入任何内容；
