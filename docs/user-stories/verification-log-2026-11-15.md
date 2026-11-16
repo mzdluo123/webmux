@@ -296,14 +296,14 @@
     - 仅在有活跃订阅时按 2s 周期扫描已登记仓库 `<CommonDir>/HEAD` 与 `<CommonDir>/worktrees/*` 元数据及检出目录状态；
     - 250ms 防抖后执行 `reassociate` 并推送 `{"type":"changed"}`，无订阅者时零后台轮询、无 Git 子进程开销；
   - 工作台侧栏在“新建会话”右侧新增常驻“刷新工作区”图标按钮（`AppSidebar.svelte`），并在全路由前台恢复、切换至工作台模式及打开新建会话/主页显示/工作树详情弹窗时自动重读仓库快照；
-  - 在 `home-worktrees.ts` / `home-worktrees.svelte.ts` 维护本机按 host 隔离的已观测工作树基线（`knownWorktrees`）：
-    - 首次观察仓库时保留历史空闲工作树隐藏，之后外部 `git worktree add` 新增的可用 linked worktree 自动加入 `homeWorktrees`；
-    - 尊重用户手动移出主页的选择，并在工作树外部删除后清理基线记录。
+  - 在服务端 `repositories.json`（`internal/workspace/known_worktrees.go`）维护各仓库已观测工作树基线并经 `settings.PinHomeWorktrees` 原子更新共享 `homeWorktrees`：
+    - 首次观察仓库时保留历史空闲工作树隐藏，之后外部 `git worktree add`（含浏览器关闭期间新增）自动加入 `homeWorktrees`；
+    - 受控新建（如 `--no-pin`）与多设备手动移出主页均不被重新置顶，设置暂时不可写时保留待重试状态，外部删除工作树后清理基线记录。
 - 本地验证：
   - 静态与治理门禁：`make check`（前端构建、`svelte-check --tsgo --fail-on-warnings`、`format-check`、`docs-check`、`persistence-check`、Oxlint、`check:arch` 46 项架构断言、`go vet`、`golangci-lint` v2.15.0 0 告警）通过；
-  - 后端回归：`go test -race ./internal/api ./internal/featureapi ./internal/featurehub ./internal/workspace ./internal/featurewire ./internal/archtest ./internal/docguard` 通过，覆盖按需启停、外部新增/删除/分支切换检测及 `/ws/repositories` 鉴权与 Origin 校验；
+  - 后端回归：`go test -race ./cmd/webmux ./internal/api ./internal/featureapi ./internal/featurehub ./internal/settings ./internal/workspace ./internal/featurewire ./internal/archtest ./internal/docguard` 通过，覆盖按需启停、外部新增/删除/分支切换、离线新增、多设备取消置顶与设置写入失败重试；
   - 前端单元与浏览器回归：
-    - `pnpm --dir web test:unit` 95 文件 1,257 项通过（含 `home-worktrees.test.ts` 11 项、`i18n.test.ts`、`dependency-policy.test.ts`）；
+    - `pnpm --dir web test:unit` 95 文件 1,254 项通过（含 `home-worktrees.test.ts`、`i18n.test.ts`、`dependency-policy.test.ts`）；
     - 无关的 `test/base64url.test.ts` 1 项因本机 Node `v24.20.0` 缺少 `.nvmrc` Node `26.13.0` 原生 `Uint8Array.prototype.toBase64` 在本地失败，由远端 Node 26 CI 验证；
     - Vitest 浏览器 `WorkbenchTree.test.ts`（15 项）与 `AppShell.test.ts`（19 项）共 34 项通过；
   - 端到端回归：Playwright `worktrees.spec.ts`、`app-shell.spec.ts`、`workspace-discovery.spec.ts`、`repository-scope.spec.ts`、`i18n.spec.ts`、`git-workbench-route.spec.ts` 共 71 项通过、5 项按设备项目条件跳过、0 失败；

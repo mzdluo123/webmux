@@ -3,9 +3,11 @@ import { api, store, stored } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import { connect } from "../../platform/ws";
 import type { Connection } from "../../platform/ws-contracts";
-import { observeSettings } from "../../domains/settings/settings.svelte";
+import {
+  reloadSettings,
+  settings,
+} from "../../domains/settings/settings.svelte";
 import { homeCache } from "../../domains/workspace/home-cache";
-import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
 import {
   RepositoriesEventSchema,
   RepositoriesSchema,
@@ -68,12 +70,6 @@ export function createRepositories(): Repositories {
   let streamState: Connection = "connecting";
   const abort = new AbortController();
 
-  function syncDiscovered() {
-    if (!disposed) {
-      homeWorktrees.syncDiscovered(list, settled, error);
-    }
-  }
-
   async function read() {
     const current = ++generation;
     refreshing = true;
@@ -90,6 +86,7 @@ export function createRepositories(): Repositories {
       if (!disposed && current === generation) {
         list = result;
         homeCache.rememberRepositories(result);
+        if (!settings.connected) void reloadSettings();
       }
     } catch (err) {
       if (!disposed && current === generation) error = errorMessage(err);
@@ -97,7 +94,6 @@ export function createRepositories(): Repositories {
       if (!disposed && current === generation) {
         refreshing = false;
         settled = true;
-        syncDiscovered();
       }
     }
   }
@@ -122,7 +118,6 @@ export function createRepositories(): Repositories {
     }, STREAM_COALESCE_MS);
   }
 
-  const stopSettings = observeSettings(() => syncDiscovered());
   const socket = connect(
     "/ws/repositories",
     (raw) => {
@@ -177,7 +172,7 @@ export function createRepositories(): Repositories {
         item.id === repository.id ? repository : item,
       );
       homeCache.rememberRepositories(list);
-      syncDiscovered();
+      if (!settings.connected) void reloadSettings();
     },
     dispose() {
       disposed = true;
@@ -186,7 +181,6 @@ export function createRepositories(): Repositories {
         clearTimeout(coalesceTimer);
         coalesceTimer = undefined;
       }
-      stopSettings();
       socket.close();
       abort.abort();
     },

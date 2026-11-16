@@ -233,6 +233,7 @@ func (s *Service) addWorktree(ctx context.Context, r *repositoryState, path stri
 	}
 	for _, tree := range actual.Worktrees {
 		if tree.Path == path {
+			s.recordManagedWorktree(r, actual, tree.ID)
 			return tree, nil
 		}
 	}

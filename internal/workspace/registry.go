@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -31,21 +32,25 @@ type registration struct {
 	DisplayName string `json:"displayName"`
 	// InitInstruction prefixes a quick start's first prompt. Files written
 	// before it existed lack it: no instruction.
-	InitInstruction string `json:"initInstruction,omitempty"`
+	InitInstruction string   `json:"initInstruction,omitempty"`
+	KnownWorktrees  []string `json:"knownWorktrees,omitempty"`
+	KnownSeeded     bool     `json:"knownSeeded,omitempty"`
 }
 type registry struct {
 	Version      int            `json:"version"`
 	Repositories []registration `json:"repositories"`
 }
 type repositoryState struct {
-	// entry is immutable; its InitInstruction is always empty; the current
-	// instruction is instruction.
+	// entry is immutable; its mutable fields stay zero and live on
+	// repositoryState under Service.mu.
 	entry registration
-	// instruction is guarded by Service.mu.
-	instruction string
-	gate        chan struct{}
-	flightMu    sync.Mutex
-	flight      *snapshotFlight
+	// instruction, knownSeeded and knownWorktrees are guarded by Service.mu.
+	instruction    string
+	knownSeeded    bool
+	knownWorktrees []string
+	gate           chan struct{}
+	flightMu       sync.Mutex
+	flight         *snapshotFlight
 	// fetching is the running FetchRemotes; guarded by fetchMu.
 	fetchMu  sync.Mutex
 	fetching *fetchFlight
@@ -84,12 +89,13 @@ type Service struct {
 	hybrids  *hybrid.Service
 	// commands lists the saved quick commands an initialization instruction
 	// may reference; nil means none exist.
-	commands      func() []QuickCommand
-	defaultCwd    string
-	gitPath       string
-	githubPath    string
-	githubTimeout time.Duration
-	fetchTimeout  time.Duration
+	commands         func() []QuickCommand
+	pinHomeWorktrees func(repoID, mainWorktreeID string, added []string) error
+	defaultCwd       string
+	gitPath          string
+	githubPath       string
+	githubTimeout    time.Duration
+	fetchTimeout     time.Duration
 	// fetchRemoteTimeout bounds each remote of FetchRemotes.
 	fetchRemoteTimeout time.Duration
 	stateDir           string
@@ -224,6 +230,13 @@ func (s *Service) UseHybrid(h *hybrid.Service) { s.hybrids = h }
 // name.
 func (s *Service) UseQuickCommands(list func() []QuickCommand) { s.commands = list }
 
+// UseHomeWorktrees installs, once at assembly before serving, the callback
+// that pins externally discovered linked worktrees onto the shared
+// homeWorktrees setting.
+func (s *Service) UseHomeWorktrees(pin func(repoID, mainWorktreeID string, added []string) error) {
+	s.pinHomeWorktrees = pin
+}
+
 func (s *Service) load() error {
 	expanded, err := pathutil.Expand(s.stateDir)
 	if err != nil {
@@ -255,15 +268,43 @@ func validateRegistry(stored registry) error {
 		if entry.ID == "" || !filepath.IsAbs(entry.CommonDir) || !filepath.IsAbs(entry.AnchorPath) || ids[entry.ID] || paths[entry.CommonDir] {
 			return errors.New("仓库清单身份无效或重复")
 		}
+		if len(entry.KnownWorktrees) > maxKnownWorktreesPerRepo {
+			return errors.New("仓库已知工作树数量超过上限")
+		}
+		seenKnown := make(map[string]bool, len(entry.KnownWorktrees))
+		for _, wid := range entry.KnownWorktrees {
+			if !validHomeWorktreeID(wid) || seenKnown[wid] {
+				return errors.New("仓库已知工作树标识无效或重复")
+			}
+			seenKnown[wid] = true
+		}
 		ids[entry.ID], paths[entry.CommonDir] = true, true
 	}
 	return nil
 }
 func newRepository(entry registration) *repositoryState {
-	r := &repositoryState{entry: entry, instruction: entry.InitInstruction, gate: make(chan struct{}, 1)}
+	r := &repositoryState{
+		entry:          entry,
+		instruction:    entry.InitInstruction,
+		knownSeeded:    entry.KnownSeeded,
+		knownWorktrees: slices.Clone(entry.KnownWorktrees),
+		gate:           make(chan struct{}, 1),
+	}
 	r.entry.InitInstruction = ""
+	r.entry.KnownSeeded = false
+	r.entry.KnownWorktrees = nil
 	r.gate <- struct{}{}
 	return r
+}
+
+func (r *repositoryState) registrationLocked() registration {
+	item := r.entry
+	item.InitInstruction = r.instruction
+	item.KnownSeeded = r.knownSeeded
+	if len(r.knownWorktrees) > 0 {
+		item.KnownWorktrees = slices.Clone(r.knownWorktrees)
+	}
+	return item
 }
 
 // initInstruction is r's current initialization instruction.
@@ -282,14 +323,17 @@ func (s *Service) saveWith(entries []*repositoryState, changed *repositoryState,
 	stored := registry{Version: 1, Repositories: make([]registration, 0, len(entries))}
 	s.mu.Lock()
 	for _, entry := range entries {
-		item := entry.entry
-		item.InitInstruction = entry.instruction
+		item := entry.registrationLocked()
 		if entry == changed {
 			item.InitInstruction = instruction
 		}
 		stored.Repositories = append(stored.Repositories, item)
 	}
 	s.mu.Unlock()
+	return s.commitRegistry(stored)
+}
+
+func (s *Service) commitRegistry(stored registry) error {
 	err := s.store.Commit(stored)
 	if statefile.IsKind(err, statefile.CommitUncertain) {
 		// Rename already published different bytes. Keep the last confirmed

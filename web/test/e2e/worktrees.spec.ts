@@ -811,6 +811,7 @@ test("batch worktree management cleans unpinned and prunable worktrees while ski
 });
 
 test("workbench sidebar syncs external worktree additions and removals on a session page", async ({
+  browser,
   page,
   request,
   workDir,
@@ -818,11 +819,12 @@ test("workbench sidebar syncs external worktree additions and removals on a sess
   const root = await repository(workDir, "live-sync-repo");
   await request.post("/api/repositories", { data: { path: root } });
   const [repo] = await (await request.get("/api/repositories")).json();
+  const mainId = repo.worktrees[0].id;
   const created = await request.post("/api/sessions", {
     data: {
       name: "Live terminal",
       cmd: ["/bin/sh", "-c", "sleep 600"],
-      workspace: { repositoryId: repo.id, worktreeId: repo.worktrees[0].id },
+      workspace: { repositoryId: repo.id, worktreeId: mainId },
     },
   });
   expect(created.status()).toBe(201);
@@ -843,10 +845,49 @@ test("workbench sidebar syncs external worktree additions and removals on a sess
     tree.getByRole("treeitem", { name: /^wt\/live-ext(，|$)/ }),
   ).toBeVisible({ timeout: 8000 });
 
-  // External `git worktree remove` syncs via the sidebar refresh button (and background watch).
-  await git(root, "worktree", "remove", extPath);
-  await page.getByRole("button", { name: "刷新工作区" }).click();
+  // Unpin `wt/live-ext` via shared settings, then open a second fresh browser
+  // context: the second device must NOT re-pin the explicitly hidden worktree.
+  const snap = await (await request.get("/api/settings")).json();
+  const patchRes = await request.patch("/api/settings", {
+    data: {
+      baseRevision: snap.revision,
+      changes: { homeWorktrees: { [repo.id]: [mainId] } },
+    },
+  });
+  expect(patchRes.status()).toBe(200);
   await expect(
     tree.getByRole("treeitem", { name: /^wt\/live-ext(，|$)/ }),
   ).toHaveCount(0);
+
+  await page.close();
+  // Create another worktree while zero browsers are open: opening a fresh
+  // device auto-pins `wt/offline-ext` while keeping `wt/live-ext` hidden.
+  const offlinePath = join(workDir, "offline-ext-wt");
+  await git(root, "worktree", "add", "-b", "wt/offline-ext", offlinePath);
+
+  const secondDevice = await browser.newContext();
+  try {
+    const page2 = await secondDevice.newPage();
+    await page2.goto(`/s/${id}`);
+    await expectConnected(page2);
+    const openSidebar2 = page2.getByRole("button", { name: "打开侧栏" });
+    const tree2 = page2.getByRole("tree", { name: "仓库与会话" });
+    if (!(await tree2.isVisible())) await openSidebar2.click();
+    await expect(tree2).toBeVisible();
+    await expect(
+      tree2.getByRole("treeitem", { name: /^wt\/offline-ext(，|$)/ }),
+    ).toBeVisible({ timeout: 8000 });
+    await expect(
+      tree2.getByRole("treeitem", { name: /^wt\/live-ext(，|$)/ }),
+    ).toHaveCount(0);
+
+    // External `git worktree remove` syncs via the sidebar refresh button (and background watch).
+    await git(root, "worktree", "remove", offlinePath);
+    await page2.getByRole("button", { name: "刷新工作区" }).click();
+    await expect(
+      tree2.getByRole("treeitem", { name: /^wt\/offline-ext(，|$)/ }),
+    ).toHaveCount(0);
+  } finally {
+    await secondDevice.close();
+  }
 });
