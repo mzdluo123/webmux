@@ -26,11 +26,13 @@ import (
 // Config contains the control authority and startup-fixed WebMux listener.
 // TLSConfig may supply additional RootCAs, never a verification bypass.
 type Config struct {
-	ControlEndpoint   string
-	ControlAudience   string
-	LoopbackAddress   string
-	TLSConfig         *tls.Config
-	LoopbackTLSConfig *tls.Config
+	InteractiveConnections int
+	BulkConnections        int
+	ControlEndpoint        string
+	ControlAudience        string
+	LoopbackAddress        string
+	TLSConfig              *tls.Config
+	LoopbackTLSConfig      *tls.Config
 }
 
 // Client owns at most one running connector. It never persists credentials.
@@ -45,6 +47,15 @@ type Client struct {
 }
 
 func New(cfg Config) (*Client, error) {
+	if cfg.InteractiveConnections == 0 {
+		cfg.InteractiveConnections = protocol.DefaultInteractiveConnections
+	}
+	if cfg.BulkConnections == 0 {
+		cfg.BulkConnections = protocol.DefaultBulkConnections
+	}
+	if cfg.InteractiveConnections < 1 || cfg.InteractiveConnections > protocol.MaxRoleConnections || cfg.BulkConnections < 1 || cfg.BulkConnections > protocol.MaxRoleConnections {
+		return nil, protocol.Error{Code: protocol.InvalidConfig}
+	}
 	if !validOrigin(cfg.ControlEndpoint) || !validAudience(cfg.ControlAudience) {
 		return nil, protocol.Error{Code: protocol.InvalidConfig}
 	}

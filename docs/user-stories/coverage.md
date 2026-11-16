@@ -10,7 +10,7 @@ URL+owner Bearer 网络控制、握手/生命周期/取消与重连：US-S25；�
 
 官方 Relay 配对、显式启用、角色隔离与来源诊断：US-A10；GitHub 所有者后台、一次性跳转、Cookie/CSRF 与逐 Scope 撤权：US-A08；节点集中配置、秘密交付、能力隔离、Docker 初始化及 stock coturn 配额边界：US-A09。交互 WebRTC 与批量 WSS 分流：US-H12。
 Dokku 隔离、HTTPS 上游、离线节点 CA、同 key 续签与公开上线状态：US-A09。
-控制 CDN/宿主 CA-only、WSS pin 与严格状态迁移：US-A10，见[官方 Relay 部署记录](../deployment/official-relay.md)。
+固定多 TCP 池、Relay 单点准入及控制 CDN/宿主 CA-only、WSS pin 与严格状态迁移：US-A10，见[官方 Relay 部署记录](../deployment/official-relay.md)。
 
 原生历史冻结、机械文本预览、工作位置选择、单次发送与进程内操作状态：US-Q20；原生归档身份与恢复：US-Q12、US-Q19；部署预算上限：US-K04。
 功能选择、固定旧配置语义与重启边界：US-K18；核心 PTY 与遗留偏好降级：US-K19；认证能力发现、动态入口及禁用路由：US-K20；禁用数据保留与有序关闭：US-K21。

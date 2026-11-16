@@ -141,7 +141,7 @@ func nodeFixture(t *testing.T, id testIdentity, key ed25519.PrivateKey, a protoc
 		mu.Lock()
 		roles = append(roles, node)
 		mu.Unlock()
-		if hello.Role == protocol.RoleControl {
+		if hello.Role != protocol.RoleBulk {
 			controls <- node
 		} else {
 			bulks <- node
@@ -220,6 +220,7 @@ func TestConnectorReadinessBulkSeparationAndSynchronousDisconnect(t *testing.T) 
 	handler, controls, bulks := nodeFixture(t, id, key, a)
 	remote := tlsTestServer(t, id, handler, false)
 	c := newTestClient(t, id, remote.Listener.Addr().String(), local.Listener.Addr().String())
+	c.config.BulkConnections = 1
 	// Equivalent to the authenticated HTTPS Assignment response, without a
 	// fake authorization service in this transport-only fixture.
 	owned := cloneAssignment(a)
@@ -287,7 +288,8 @@ func TestConnectorReadinessBulkSeparationAndSynchronousDisconnect(t *testing.T) 
 	if scope, ok := c.Scope(); !ok || scope != control.scope {
 		t.Fatal("control scope lost with bulk")
 	}
-	for _, role := range []*nodeRole{control, replacement} {
+	interactive := awaitRole(t, controls)
+	for _, role := range []*nodeRole{interactive, replacement} {
 		httpStream, accepted := openNodeStream(t, role, protocol.StreamHTTP, role.scope)
 		if accepted.Error != nil {
 			t.Fatal(accepted.Error)
@@ -527,14 +529,6 @@ func startPoolConnector(t *testing.T, id testIdentity, loopback string, wrap fun
 	return h
 }
 
-func (h *poolConnector) demand(t *testing.T, role protocol.Role, target uint32) {
-	t.Helper()
-	message := protocol.ControlMessage{Version: protocol.V1, Type: protocol.ControlGrow, RequestID: testToken(t), Scope: h.primary.scope, ExpiresAt: time.Now().Add(protocol.ControlMessageTTL).Unix(), Grow: &protocol.ConnectionDemand{Role: role, Connections: target}}
-	if err := protocol.WriteFrame(h.management, message, protocol.MaxControlBytes); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func holdPoolHTTP(t *testing.T, node *nodeRole) (*smux.Stream, *http.Response) {
 	t.Helper()
 	stream, accepted := openNodeStream(t, node, protocol.StreamHTTP, node.scope)
@@ -576,77 +570,6 @@ func awaitPoolClosed(t *testing.T, h *poolConnector, roles ...*nodeRole) {
 	}
 }
 
-func TestDynamicPoolAuthenticatesBothRolesAndCarries64OrdinaryStreams(t *testing.T) {
-	id := newTestIdentity(t)
-	cancelled := make(chan struct{}, maxHTTPStreams)
-	local := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if len(r.TLS.VerifiedChains) == 0 {
-			t.Error("pooled loopback request lacked mTLS")
-		}
-		w.WriteHeader(http.StatusOK)
-		w.(http.Flusher).Flush()
-		<-r.Context().Done()
-		cancelled <- struct{}{}
-	}), true)
-	h := startPoolConnector(t, id, local.Listener.Addr().String(), nil)
-	const roleConnections = maxHTTPStreams / (2 * protocol.HTTPStreamsPerConnection)
-	for range 16 {
-		h.demand(t, protocol.RoleControl, roleConnections)
-		h.demand(t, protocol.RoleBulk, roleConnections)
-	}
-	roles := []*nodeRole{h.primary, h.bulk}
-	for range roleConnections - 1 {
-		roles = append(roles, awaitRole(t, h.controls), awaitRole(t, h.bulks))
-	}
-	for _, role := range roles[1:] {
-		if role.scope != h.primary.scope || role.generation != h.primary.scope.ConnectorGeneration {
-			t.Fatal("auxiliary authentication changed or omitted its expected scope")
-		}
-	}
-	if h.primary.generation != 0 {
-		t.Fatal("primary authentication unexpectedly joined an existing scope")
-	}
-	management, refused := openNodeStream(t, roles[2], protocol.StreamControl, h.primary.scope)
-	if refused.Error == nil || refused.Error.Code != protocol.Conflict {
-		t.Fatal("auxiliary control socket accepted management")
-	}
-	_ = management.Close()
-	ordinary := 0
-	for index, role := range roles {
-		for range protocol.HTTPStreamsPerConnection {
-			holdPoolHTTP(t, role)
-			ordinary++
-		}
-		if index == len(roles)-1 {
-			continue // All 65 aggregate workers are now occupied, including management.
-		}
-		extra, refused := openNodeStream(t, role, protocol.StreamHTTP, role.scope)
-		if refused.Error == nil || refused.Error.Code != protocol.Unavailable {
-			t.Fatal("physical socket accepted more than four ordinary streams")
-		}
-		_ = extra.Close()
-	}
-	if ordinary != maxHTTPStreams {
-		t.Fatalf("ordinary capacity = %d, want %d", ordinary, maxHTTPStreams)
-	}
-	select {
-	case <-h.controls:
-		t.Fatal("duplicate demand exceeded the control pool target")
-	case <-h.bulks:
-		t.Fatal("duplicate demand exceeded the bulk pool target")
-	default:
-	}
-	h.primary.close()
-	awaitPoolClosed(t, h, roles...)
-	for range maxHTTPStreams {
-		select {
-		case <-cancelled:
-		case <-time.After(time.Second):
-			t.Fatal("ordinary loopback request survived primary loss")
-		}
-	}
-}
-
 func TestAuxiliaryLossPreservesPrimaryAndOtherRole(t *testing.T) {
 	id := newTestIdentity(t)
 	cancelled := make(chan struct{}, 2)
@@ -657,10 +580,12 @@ func TestAuxiliaryLossPreservesPrimaryAndOtherRole(t *testing.T) {
 		cancelled <- struct{}{}
 	}), true)
 	h := startPoolConnector(t, id, local.Listener.Addr().String(), nil)
-	h.demand(t, protocol.RoleControl, 2)
-	h.demand(t, protocol.RoleBulk, 2)
 	auxControl := awaitRole(t, h.controls)
 	auxBulk := awaitRole(t, h.bulks)
+	awaitRole(t, h.controls)
+	for range protocol.DefaultBulkConnections - 2 {
+		awaitRole(t, h.bulks)
+	}
 	lostStream, lostResponse := holdPoolHTTP(t, auxControl)
 	survivingStream, _ := holdPoolHTTP(t, auxBulk)
 	auxControl.close()
@@ -698,72 +623,6 @@ func TestAuxiliaryLossPreservesPrimaryAndOtherRole(t *testing.T) {
 	}
 }
 
-func TestPoolGrowthCoalescesDemandAndRetriesFailedAuthentication(t *testing.T) {
-	id := newTestIdentity(t)
-	var attempts atomic.Int32
-	failures := make(chan time.Time, 2)
-	wrap := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			attempt := attempts.Add(1)
-			if attempt == 3 || attempt == 4 {
-				failures <- time.Now()
-				w.WriteHeader(http.StatusServiceUnavailable)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-	h := startPoolConnector(t, id, "127.0.0.1:12345", wrap)
-	for range 32 {
-		h.demand(t, protocol.RoleControl, 3)
-	}
-	first := awaitRole(t, h.controls)
-	second := awaitRole(t, h.controls)
-	if first.scope != h.primary.scope || second.scope != h.primary.scope {
-		t.Fatal("authentication retry changed the logical scope")
-	}
-	firstFailure, secondFailure := <-failures, <-failures
-	if secondFailure.Sub(firstFailure) < 70*time.Millisecond {
-		t.Fatal("failed authentication retried without bounded backoff")
-	}
-	if got := attempts.Load(); got != 6 {
-		t.Fatalf("authentication attempts = %d, want two initial, two failed and two auxiliary", got)
-	}
-	h.cancel()
-	awaitPoolClosed(t, h, h.primary, h.bulk, first, second)
-}
-
-func TestInvalidGrowthCannotOpenAuxiliarySockets(t *testing.T) {
-	for _, name := range []string{"scope", "expired", "role", "target"} {
-		t.Run(name, func(t *testing.T) {
-			id := newTestIdentity(t)
-			h := startPoolConnector(t, id, "127.0.0.1:12345", nil)
-			message := protocol.ControlMessage{Version: protocol.V1, Type: protocol.ControlGrow, RequestID: testToken(t), Scope: h.primary.scope, ExpiresAt: time.Now().Add(protocol.ControlMessageTTL).Unix(), Grow: &protocol.ConnectionDemand{Role: protocol.RoleControl, Connections: 2}}
-			switch name {
-			case "scope":
-				message.Scope.ConnectorGeneration++
-			case "expired":
-				message.ExpiresAt = time.Now().Add(-time.Second).Unix()
-			case "role":
-				message.Grow.Role = "unknown"
-			case "target":
-				message.Grow.Connections = protocol.MaxRoleConnections + 1
-			}
-			if err := protocol.WriteFrame(h.management, message, protocol.MaxControlBytes); err != nil {
-				t.Fatal(err)
-			}
-			awaitPoolClosed(t, h, h.primary, h.bulk)
-			select {
-			case <-h.controls:
-				t.Fatal("invalid growth opened an auxiliary")
-			case <-h.bulks:
-				t.Fatal("invalid growth opened an auxiliary")
-			default:
-			}
-		})
-	}
-}
-
 func TestAuxiliaryAuthenticationOutlivesDiscoveryExpiry(t *testing.T) {
 	id := newTestIdentity(t)
 	key := testKey(t)
@@ -778,7 +637,7 @@ func TestAuxiliaryAuthenticationOutlivesDiscoveryExpiry(t *testing.T) {
 	defer primary.close()
 	awaitRole(t, controls)
 	a.ExpiresAt = time.Now().Add(-time.Second).Unix()
-	for _, role := range []protocol.Role{protocol.RoleControl, protocol.RoleBulk} {
+	for _, role := range []protocol.Role{protocol.RoleInteractive, protocol.RoleBulk} {
 		auxiliary, err := c.dial(t.Context(), t.Context(), key, a, role, primary.scope)
 		if err != nil {
 			t.Fatal(err)
@@ -799,105 +658,14 @@ func TestAuxiliaryAuthenticationOutlivesDiscoveryExpiry(t *testing.T) {
 	}
 }
 
-func TestPoolSmuxBudgetIsDividedAcrossPhysicalSockets(t *testing.T) {
+func TestPoolSmuxBudgetIsBoundedPerPhysicalSocket(t *testing.T) {
 	cfg := smuxConfig()
-	if cfg.MaxReceiveBuffer*protocol.MaxRoleConnections > connectionBuffer || cfg.MaxReceiveBuffer < 1 {
+	if cfg.MaxReceiveBuffer > connectionBuffer || cfg.MaxReceiveBuffer < 1 {
 		t.Fatal("physical receive windows multiply the role budget")
 	}
 	if cfg.MaxStreamBuffer > cfg.MaxReceiveBuffer || cfg.MaxStreamBuffer > streamBuffer || cfg.MaxFrameSize > cfg.MaxStreamBuffer {
 		t.Fatal("physical stream buffer violates its receive window or frame constraints")
 	}
-}
-
-func TestOneRoleUses64OrdinaryStreamsWithoutBypassingAggregateCap(t *testing.T) {
-	id := newTestIdentity(t)
-	local := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.(http.Flusher).Flush()
-		<-r.Context().Done()
-	}), true)
-	h := startPoolConnector(t, id, local.Listener.Addr().String(), nil)
-	h.demand(t, protocol.RoleControl, protocol.MaxRoleConnections)
-	controls := []*nodeRole{h.primary}
-	for range protocol.MaxRoleConnections - 1 {
-		controls = append(controls, awaitRole(t, h.controls))
-	}
-	for _, control := range controls {
-		for range protocol.HTTPStreamsPerConnection {
-			holdPoolHTTP(t, control)
-		}
-	}
-	// There are now 64 ordinary streams plus the primary's management stream.
-	// The other role cannot exceed the aggregate worker/ordinary budget.
-	extra, err := h.bulk.mux.OpenStream()
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = extra.SetDeadline(time.Now().Add(time.Second))
-	header := protocol.StreamHeader{Version: protocol.V1, Kind: protocol.StreamHTTP, RequestID: testToken(t), Scope: h.primary.scope, Role: protocol.RoleBulk}
-	if err := protocol.WriteFrame(extra, header, protocol.MaxStreamHeaderBytes); err == nil {
-		var result protocol.StreamResult
-		if err := protocol.ReadFrame(extra, &result, protocol.MaxStreamHeaderBytes); err == nil && result.Error == nil {
-			t.Fatal("other role exceeded the 64 ordinary stream aggregate cap")
-		}
-	}
-	select {
-	case <-h.bulk.mux.CloseChan():
-	case <-time.After(time.Second):
-		t.Fatal("overflowing physical socket remained usable")
-	}
-	if scope, ok := h.client.Scope(); !ok || scope != h.primary.scope {
-		t.Fatal("other-role protocol abuse stopped the primary scope")
-	}
-	replacement := awaitRole(t, h.bulks)
-	h.cancel()
-	awaitPoolClosed(t, h, append(controls, replacement)...)
-}
-
-func TestGrowthBudgetExpiresAndLaterDemandCanRetry(t *testing.T) {
-	id := newTestIdentity(t)
-	var attempts atomic.Int32
-	var allow atomic.Bool
-	failed := make(chan struct{}, 32)
-	wrap := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			attempt := attempts.Add(1)
-			if attempt > 2 && !allow.Load() {
-				select {
-				case failed <- struct{}{}:
-				default:
-					t.Error("growth authentication exceeded its bounded backoff")
-				}
-				w.WriteHeader(http.StatusServiceUnavailable)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-	h := startPoolConnector(t, id, "127.0.0.1:12345", wrap)
-	h.demand(t, protocol.RoleControl, 2)
-	select {
-	case <-failed:
-	case <-time.After(time.Second):
-		t.Fatal("growth authentication was not attempted")
-	}
-	time.Sleep(protocol.StreamAdmissionTimeout + 100*time.Millisecond)
-	before := attempts.Load()
-	time.Sleep(200 * time.Millisecond)
-	if attempts.Load() != before {
-		t.Fatal("growth authentication continued after its admission budget")
-	}
-	if before < 4 || before > 24 {
-		t.Fatalf("growth retry attempts were not bounded: %d", before)
-	}
-	allow.Store(true)
-	h.demand(t, protocol.RoleControl, 2)
-	auxiliary := awaitRole(t, h.controls)
-	if auxiliary.scope != h.primary.scope {
-		t.Fatal("renewed demand replaced the logical scope")
-	}
-	h.cancel()
-	awaitPoolClosed(t, h, h.primary, h.bulk, auxiliary)
 }
 
 func TestConnectorRevocationClosesEveryPooledPhysical(t *testing.T) {
@@ -910,8 +678,6 @@ func TestConnectorRevocationClosesEveryPooledPhysical(t *testing.T) {
 				<-r.Context().Done()
 			}), true)
 			h := startPoolConnector(t, id, local.Listener.Addr().String(), nil)
-			h.demand(t, protocol.RoleControl, 2)
-			h.demand(t, protocol.RoleBulk, 2)
 			control := awaitRole(t, h.controls)
 			bulk := awaitRole(t, h.bulks)
 			holdPoolHTTP(t, control)
@@ -970,4 +736,37 @@ func TestConnectorRevocationClosesEveryPooledPhysical(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFixedSlotsRetryAuthenticationWithoutGrowth(t *testing.T) {
+	id := newTestIdentity(t)
+	var attempts atomic.Int32
+	wrap := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			attempt := attempts.Add(1)
+			if attempt == 2 || attempt == 3 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+	h := startPoolConnector(t, id, "127.0.0.1:12345", wrap)
+	roles := []*nodeRole{h.primary, h.bulk}
+	for range protocol.DefaultInteractiveConnections {
+		roles = append(roles, awaitRole(t, h.controls))
+	}
+	for range protocol.DefaultBulkConnections - 1 {
+		roles = append(roles, awaitRole(t, h.bulks))
+	}
+	for _, role := range roles {
+		if role.scope != h.primary.scope {
+			t.Fatal("fixed slot retry changed scope")
+		}
+	}
+	if got := attempts.Load(); got != 1+protocol.DefaultInteractiveConnections+protocol.DefaultBulkConnections+2 {
+		t.Fatalf("unexpected authentication attempts: %d", got)
+	}
+	h.cancel()
+	awaitPoolClosed(t, h, roles...)
 }

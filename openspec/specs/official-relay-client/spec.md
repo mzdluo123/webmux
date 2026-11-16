@@ -68,7 +68,7 @@ Relay 的启用意图、配置的 `controlEndpoint`、主机标识、完整固�
 
 ### Requirement: 连接状态机与公网来源撤权
 
-Relay 客户端 SHALL 区分关闭、连接中、就绪、bulk 降级和失败状态，并单独表示未配对、配对中与已配对。只有 control 认证和 stream 服务均就绪后，客户端才将固定 HTTPS 来源登记为允许的 Host/Origin 并公开地址；bulk 未就绪时 SHALL 显示降级并拒绝新批量请求。
+Relay 客户端 SHALL 区分关闭、连接中、就绪、bulk 降级和失败状态，并单独表示未配对、配对中与已配对。只有 control 认证和 stream 服务均就绪后，客户端才将固定 HTTPS 来源登记为允许的 Host/Origin 并公开地址；bulk 未就绪时 SHALL 显示降级，新批量请求在 Relay 有界等待容量。
 
 control 断开、绑定撤销、关闭或服务退出时，客户端 SHALL 立即撤销该来源的 Host/Origin 授权。新连接认证失败 MUST NOT 替换或撤销既有合法 control；仅 bulk 失败 SHALL 按同代际降级重连。迟到的连接事件 MUST NOT 在关闭或新配置后重新授权旧地址。
 
@@ -184,7 +184,9 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 宿主连接器 SHALL 使用已认证控制面分配的 `connectorUrl` 与 WSS + smux v2，基线传输固定 wss，不提供 auto/quic 或 UDP connector endpoint。
 宿主 MUST NOT 接受浏览器指定或节点自行宣告的拨号地址；授权的 ICE/TURN 配置 SHALL 按下述独立流程获取。
 
-宿主 SHALL 在同一逻辑代际内认证 control/bulk 两条物理连接，角色纳入签名并共用配额。control 断开 SHALL 撤销来源及派生会话并关闭 bulk；仅 bulk 断开 SHALL 保留交互、显示降级和 bulkReady=false，有界重连 bulk，新批量请求返回不可用，不挤占 control。
+宿主 SHALL 使用 webmux-relay.v2，在同代际认证一条 control 管理连接及固定 interactive/bulk 数据池，默认数据连接数为二和四。
+宿主 SHALL 按固定槽位独立重连并保持 Scope；control 断开 SHALL 撤销派生访问并关闭数据池，数据连接丢失 SHALL 只关闭自身流。
+普通流并发 SHALL 由 Relay 单点准入，宿主 SHALL 保留帧、缓冲和流头超时边界而不重复业务配额拒绝。
 
 证书、pin、主机身份与协议错误 MUST NOT 通过重试绕过。网络重连 SHALL 使用有界退避，报告实际传输、角色就绪数与脱敏 reconnectReason；MUST NOT 自动重放非幂等业务请求。
 
