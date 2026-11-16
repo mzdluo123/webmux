@@ -24,9 +24,12 @@
 使用同一个 GitHub 账号配对宿主并在手机打开后台，可访问自己的固定 HTTPS 入口，不必在设备之间复制长期 WebMux Token。
 
 1. 官方 Relay 属于核心，无需选择 `relay` 功能；需要交互优化时选择 `p2p` 并重启。保持本机恢复 Token 至少 43 字符，并先确认公网 Shell 风险。
-2. 通过受信发行配置或运营者取得 `[relay]` 的 `control_endpoint` 与 `control_audience`；不再填写 `initial_trust` 或控制 SPKI，不包含 OAuth 凭据或服务私钥。
+2. 官方控制地址 `https://webmux-relay.rainbit.net`、受众 `webmux-relay-control` 和 `wss` 传输已内置，不写 `[relay]` 即使用默认值；无需填写地址、受众、控制 SPKI 或 OAuth 凭据。
 3. 在“设置”点击“管理官方 Relay”，进入 `/settings/relay`，按设备配对流程登录 GitHub；完成配对后再显式启用公网访问。
 4. 手机打开该控制面的 HTTPS 后台，登录同一 GitHub 账号，选择自己的在线主机。后台只列出账号拥有的 WebMux，不是其他应用的公开目录。
+
+显式 TOML 字段覆盖对应默认值，未覆盖字段仍使用内置值。自建 Relay 时应同时设置 `control_endpoint` 与 `control_audience`，切换控制服务后须重新配对，不能把旧主机凭据发给另一控制面。
+内置地址不等于自动授权：Relay 仍默认关闭，须完成配对和公网风险确认后才启用。
 
 宿主访问公开控制 HTTPS 时验证 Go 系统 CA（可追加 RootCA）、域名、有效期与 TLS 1.3，允许控制域名走 CDN，不额外固定 SPKI。
 已认证控制面分配的数据节点仍强制服务身份校验，WSS pin 不得省略；不要求用户手填第二个节点。

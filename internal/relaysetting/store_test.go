@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -422,5 +423,37 @@ func TestRelaySaveCopiesMutableIdentity(t *testing.T) {
 	next.Binding.OwnerID = "54321"
 	if got, _ := s.Effective(); !reflect.DeepEqual(got, want) {
 		t.Fatal("caller mutation changed the accepted identity or authority")
+	}
+}
+
+func TestRelayUnconfiguredStorageAdoptsDefaultsWithoutRedirectingIdentity(t *testing.T) {
+	for _, withIdentity := range []bool{false, true} {
+		settings := Settings{Config: config.RelayConfig{Transport: "wss"}}
+		if withIdentity {
+			settings.Seed = storageTestSettings().Seed
+		}
+		for version, document := range map[string][]byte{"v1": legacyStorageTestDocument(t, settings), "v2": storageTestDocument(t, settings)} {
+			t.Run(fmt.Sprintf("%s/identity=%t", version, withIdentity), func(t *testing.T) {
+				dir := t.TempDir()
+				path := filepath.Join(dir, "relay-settings.json")
+				if err := os.WriteFile(path, document, 0600); err != nil {
+					t.Fatal(err)
+				}
+				s := Open(dir, config.DefaultRelayConfig())
+				defer s.Close()
+				got, _ := s.Effective()
+				if withIdentity {
+					if !errors.Is(s.Unavailable(), ErrUnavailable) || got.Seed != "" || got.Config.Enabled {
+						t.Fatal("identity without an authority was redirected to the defaults")
+					}
+				} else if s.Unavailable() != nil || got.Config != config.DefaultRelayConfig() {
+					t.Fatalf("unpaired legacy settings prevented default bootstrap: %+v, %v", got, s.Unavailable())
+				}
+				after, err := os.ReadFile(path)
+				if err != nil || !bytes.Equal(after, document) {
+					t.Fatal("loading defaults rewrote persisted evidence")
+				}
+			})
+		}
 	}
 }

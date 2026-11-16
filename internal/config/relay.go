@@ -18,6 +18,15 @@ type RelayConfig struct {
 	Transport       string `toml:"transport"`
 }
 
+// DefaultRelayConfig selects the official control service without enabling access.
+func DefaultRelayConfig() RelayConfig {
+	return RelayConfig{
+		ControlEndpoint: "https://webmux-relay.rainbit.net",
+		ControlAudience: "webmux-relay-control",
+		Transport:       "wss",
+	}
+}
+
 func (c RelayConfig) Validated() (RelayConfig, error) {
 	if c.Transport == "" {
 		c.Transport = "wss"

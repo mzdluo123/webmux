@@ -295,3 +295,51 @@ func TestHistoryCaptureGlobalDefaultAndOptOut(t *testing.T) {
 		}
 	}
 }
+
+func TestRelayLoadDefaultsAndOverrides(t *testing.T) {
+	for _, tt := range []struct {
+		name, body, endpoint, audience string
+		enabled                        bool
+	}{
+		{name: "omitted"},
+		{name: "empty section", body: "[relay]\n"},
+		{name: "enabled only", body: "[relay]\nenabled = true\n", enabled: true},
+		{name: "endpoint override", body: "[relay]\ncontrol_endpoint = 'https://custom.example.com'\n", endpoint: "https://custom.example.com"},
+		{name: "audience override", body: "[relay]\ncontrol_audience = 'custom-control'\n", audience: "custom-control"},
+		{name: "self hosted", body: "[relay]\ncontrol_endpoint = 'https://custom.example.com'\ncontrol_audience = 'custom-control'\n", endpoint: "https://custom.example.com", audience: "custom-control"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if err := os.WriteFile(path, []byte(tt.body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			c, err := Load(path, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := c.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			endpoint, audience := tt.endpoint, tt.audience
+			if endpoint == "" {
+				endpoint = "https://webmux-relay.rainbit.net"
+			}
+			if audience == "" {
+				audience = "webmux-relay-control"
+			}
+			if c.Relay.ControlEndpoint != endpoint || c.Relay.ControlAudience != audience ||
+				c.Relay.Enabled != tt.enabled || c.Relay.Transport != "wss" {
+				t.Fatalf("unexpected effective relay configuration: %+v", c.Relay)
+			}
+			for key, override := range map[string]string{"relay.control_endpoint": tt.endpoint, "relay.control_audience": tt.audience} {
+				wantSource := "default"
+				if override != "" {
+					wantSource = "toml"
+				}
+				if got := c.Source(key); got != wantSource {
+					t.Fatalf("%s source = %s, want %s", key, got, wantSource)
+				}
+			}
+		})
+	}
+}

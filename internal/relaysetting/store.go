@@ -101,6 +101,12 @@ var storeSpec = settingsstore.Spec[Settings, storedFile]{
 			return Settings{}, ErrInvalid
 		}
 		c := config.RelayConfig{Enabled: *f.Enabled, Transport: "wss", ControlEndpoint: f.ControlEndpoint, ControlAudience: f.ControlAudience}
+		// Older unpaired settings could omit the authority entirely. Adopt the
+		// configured defaults only when there is no identity to redirect.
+		if c.ControlEndpoint == "" && c.ControlAudience == "" && f.Seed == "" && f.PendingSeed == "" && f.Binding == nil {
+			c.ControlEndpoint = defaults.Config.ControlEndpoint
+			c.ControlAudience = defaults.Config.ControlAudience
+		}
 		return validateBootstrap(defaults, Settings{Config: c, Seed: f.Seed, PendingSeed: f.PendingSeed, Binding: f.Binding, OwnerLogin: f.OwnerLogin, Confirmed: *f.Confirmed})
 	},
 	Normalize: validateBootstrap,

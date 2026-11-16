@@ -317,6 +317,7 @@ func Load(path string, required bool) (Config, error) {
 		},
 		Tailscale: TailscaleConfig{Mode: TailscaleOff, Provider: "auto"},
 		P2P:       DefaultP2PConfig(),
+		Relay:     DefaultRelayConfig(),
 	}
 	metadata, err := toml.DecodeFile(path, &c)
 	if err != nil {
