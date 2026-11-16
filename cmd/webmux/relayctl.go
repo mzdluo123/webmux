@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/tls"
 	"strconv"
@@ -19,12 +20,22 @@ import (
 	"github.com/rainchan/webmux/internal/transport"
 )
 
+type relayControlClient interface {
+	Enroll(context.Context, ed25519.PrivateKey, protocol.MachineID, bool) (protocol.Enrollment, error)
+	Poll(context.Context, protocol.Token) (protocol.EnrollmentResult, error)
+	Cancel(context.Context, protocol.Token) error
+	Delete(context.Context, ed25519.PrivateKey, protocol.Binding) (protocol.LogoutResult, error)
+	Assignment(context.Context, ed25519.PrivateKey, protocol.Binding) (protocol.Assignment, error)
+	Connect(context.Context, ed25519.PrivateKey, protocol.Assignment, relay.Callbacks) error
+}
+
 type relayController struct {
 	op             sync.Mutex
 	mu             sync.Mutex
 	ctx            context.Context
 	store          *relaysetting.Service
-	client         *relay.Client
+	machine        *relaysetting.Machine
+	client         relayControlClient
 	auth           *relaysetting.Auth
 	p2p            *p2p.Service
 	public         *transport.PublicOrigins
@@ -54,7 +65,7 @@ func newRelayController(ctx context.Context, c config.Config, public *transport.
 	if web {
 		source = "web"
 	}
-	rc := &relayController{ctx: ctx, store: store, settings: settings, public: public, tokenStrong: len(c.Token) >= 43}
+	rc := &relayController{ctx: ctx, store: store, machine: relaysetting.OpenMachine(c.StateDir), settings: settings, public: public, tokenStrong: len(c.Token) >= 43}
 	rc.status = contract.RelayStatus{State: "off", Transport: "wss", TCPAlgorithm: "unknown", ControlSource: source, ControlReachability: "unknown", DataReachability: "unassigned", AssignmentRevision: "0", ConfigRevision: "0", AppliedRevision: "0", AssignmentSource: "unassigned", Capabilities: []string{}, Sessions: []contract.RelaySessionDiagnostic{}}
 	rc.status.HybridUnavailableReason = "p2p-feature-unavailable"
 	client, err := relay.New(assemble.RelayOptions(settings.Config, address, localTLS))
@@ -67,6 +78,7 @@ func newRelayController(ctx context.Context, c config.Config, public *transport.
 	rc.auth, err = relaysetting.NewAuth(relaysetting.AuthConfig{}, relaysetting.AuthDependencies{Client: client, Snapshot: rc.authSnapshot})
 	if err != nil {
 		store.Close()
+		rc.machine.Close()
 		return nil, err
 	}
 	return rc, nil
@@ -425,4 +437,5 @@ func (rc *relayController) Close() {
 		_ = rc.auth.Close()
 	}
 	rc.store.Close()
+	rc.machine.Close()
 }

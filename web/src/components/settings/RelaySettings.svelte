@@ -209,6 +209,17 @@
           >
             {status.paired ? m.relay_rebind() : m.relay_start_pairing()}
           </Button>
+          {#if !status.paired}
+            <Button
+              variant="destructive-outline"
+              disabled={blocked ||
+                !status.storageAvailable ||
+                !status.controlEndpoint}
+              onclick={() => {
+                confirmation = "rebind";
+              }}>{m.relay_recover_binding()}</Button
+            >
+          {/if}
           {#if status.paired}
             <Button
               variant="outline"
@@ -317,6 +328,7 @@
       <AlertDialog.Description>
         {#if confirmation === "pair" || confirmation === "rebind" || confirmation === "enable"}
           {m.relay_consent()}
+          {#if confirmation === "pair"}{m.relay_recovery_consent()}{/if}
           {#if confirmation === "rebind"}{m.relay_rebind_consent()}{/if}
         {:else if confirmation === "delete"}
           {m.relay_delete_consent()}

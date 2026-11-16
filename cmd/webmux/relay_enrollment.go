@@ -27,6 +27,10 @@ func (rc *relayController) Enroll(ctx context.Context, req contract.RelayEnrollm
 	if pending || (next.Binding != nil && !req.Rebind) {
 		return protocol.Enrollment{}, protocol.Error{Code: protocol.Conflict}
 	}
+	machineID, err := rc.machine.ID()
+	if err != nil {
+		return protocol.Enrollment{}, err
+	}
 	_, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return protocol.Enrollment{}, errors.New("relay identity generation failed")
@@ -38,7 +42,7 @@ func (rc *relayController) Enroll(ctx context.Context, req contract.RelayEnrollm
 	rc.mu.Lock()
 	rc.settings = next
 	rc.mu.Unlock()
-	result, err := rc.client.Enroll(ctx, key, req.Rebind)
+	result, err := rc.client.Enroll(ctx, key, machineID, req.Rebind)
 	if err != nil {
 		return protocol.Enrollment{}, err
 	}
@@ -82,10 +86,12 @@ func (rc *relayController) Poll(ctx context.Context, handle protocol.Token) (con
 	rc.mu.Unlock()
 	result, err := rc.client.Poll(ctx, handle)
 	if err != nil {
+		err = rc.rejectEnrollment(ctx, handle, err, true)
 		return rc.Status(), err
 	}
 	if next.Binding != nil && (result.Binding.HostID != next.Binding.HostID || result.Binding.PublicURL != next.Binding.PublicURL || result.Binding.OwnerID != next.Binding.OwnerID || result.Binding.BindingGeneration <= next.Binding.BindingGeneration) {
-		return rc.Status(), protocol.Error{Code: protocol.Forbidden}
+		err = rc.rejectEnrollment(ctx, handle, protocol.Error{Code: protocol.Forbidden}, true)
+		return rc.Status(), err
 	}
 	rc.stop(ctx)
 	next.Config.Enabled = false
@@ -105,6 +111,38 @@ func (rc *relayController) Poll(ctx context.Context, handle protocol.Token) (con
 	return rc.Status(), nil
 }
 
+// Definitive rejections discard only the pending key, never a live binding.
+// Uncertain transport failures retain the handle and key for cancellation.
+func (rc *relayController) rejectEnrollment(ctx context.Context, handle protocol.Token, cause error, cancelRemote bool) error {
+	var remote protocol.Error
+	if !errors.As(cause, &remote) {
+		return cause
+	}
+	switch remote.Code {
+	case protocol.Conflict, protocol.Forbidden, protocol.Expired, protocol.Unauthenticated, protocol.Invalid, protocol.NotFound, protocol.Incompatible:
+	default:
+		return cause
+	}
+	rc.mu.Lock()
+	next := rc.settings
+	rc.mu.Unlock()
+	next.PendingSeed = ""
+	if err := rc.store.Save(next); err != nil {
+		return err
+	}
+	rc.mu.Lock()
+	rc.settings = next
+	rc.pendingExpires = 0
+	rc.pending = [32]byte{}
+	rc.mu.Unlock()
+	// The rejected attempt is already unusable locally; remote cleanup is
+	// best effort under the original request deadline.
+	if cancelRemote {
+		_ = rc.client.Cancel(ctx, handle)
+	}
+	return cause
+}
+
 func (rc *relayController) Cancel(ctx context.Context, handle protocol.Token) error {
 	rc.op.Lock()
 	defer rc.op.Unlock()
@@ -115,12 +153,10 @@ func (rc *relayController) Cancel(ctx context.Context, handle protocol.Token) er
 		return protocol.Error{Code: protocol.Unavailable}
 	}
 	if err := rc.client.Cancel(ctx, handle); err != nil {
-		return err
+		return rc.rejectEnrollment(ctx, handle, err, false)
 	}
 	rc.mu.Lock()
 	next := rc.settings
-	rc.pendingExpires = 0
-	rc.pending = [32]byte{}
 	rc.mu.Unlock()
 	next.PendingSeed = ""
 	if err := rc.store.Save(next); err != nil {
@@ -128,6 +164,8 @@ func (rc *relayController) Cancel(ctx context.Context, handle protocol.Token) er
 	}
 	rc.mu.Lock()
 	rc.settings = next
+	rc.pendingExpires = 0
+	rc.pending = [32]byte{}
 	rc.mu.Unlock()
 	return nil
 }

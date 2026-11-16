@@ -27,7 +27,14 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 	if result.Error != nil {
 		t.Fatal(result.Error)
 	}
-	awaitRole(t, bulks)
+	// Finish auxiliary authentication before the invalid-owner response closes
+	// the generation, so the node fixture sees no interrupted handshakes.
+	for range c.config.InteractiveConnections {
+		awaitRole(t, controls)
+	}
+	for range c.config.BulkConnections {
+		awaitRole(t, bulks)
+	}
 	exchange := protocol.LoginExchange{Code: testToken(t), Verifier: strings.Repeat("a", 43), RedirectURI: a.Binding.PublicURL + protocol.HostLoginCallback}
 	type grantResult struct {
 		grant protocol.BrowserGrant
